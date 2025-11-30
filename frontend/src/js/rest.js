@@ -97,6 +97,14 @@ export default class Rest {
     return Rest.fetchJson("/api/psdata/options");
   }
 
+  static async fetchCategoryGroups() {
+    return Rest.fetchJson("/api/budget/category-groups");
+  }
+
+  static async fetchCurrencyOptions() {
+    return Rest.fetchJson("/api/util/currencies");
+  }
+
   static async fetchBudgetBalances({
     fromMonth,
     toMonth,

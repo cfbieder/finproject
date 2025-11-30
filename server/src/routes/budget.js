@@ -1,6 +1,8 @@
 const express = require("express");
+const fs = require("node:fs/promises");
 const BudgetData = require("../../../components/models/BudgetData");
 const PSdata = require("../../../components/models/PSdata");
+const { dataPaths } = require("../utils/dataPaths");
 
 const router = express.Router();
 
@@ -15,6 +17,101 @@ const TEXT_FILTERS = [
 const CURRENT_YEAR = new Date().getFullYear();
 const DEFAULT_SUMMARY_MONTH_FROM = 1;
 const DEFAULT_SUMMARY_MONTH_TO = 12;
+
+const CATEGORY_GROUP_TYPES = ["Income", "Expense"];
+
+const getProfitAndLossSection = (coaData) => {
+  if (!Array.isArray(coaData)) {
+    return null;
+  }
+
+  for (const entry of coaData) {
+    if (entry && typeof entry === "object" && entry["Profit & Loss Accounts"]) {
+      return entry["Profit & Loss Accounts"];
+    }
+  }
+
+  return null;
+};
+
+const collectCoaCategoryGroups = (coaData) => {
+  const groups = {
+    Income: new Set(),
+    Expense: new Set(),
+  };
+
+  const profitAndLoss = getProfitAndLossSection(coaData);
+  if (!profitAndLoss) {
+    return {
+      Income: [],
+      Expense: [],
+    };
+  }
+
+  const normalizeCategoryValue = (value) => {
+    if (typeof value !== "string") {
+      return null;
+    }
+    const trimmed = value.trim();
+    return trimmed.length ? trimmed : null;
+  };
+
+  const traverseNode = (node, currentGroup) => {
+    if (Array.isArray(node)) {
+      for (const child of node) {
+        traverseNode(child, currentGroup);
+      }
+      return;
+    }
+
+    if (node && typeof node === "object") {
+      for (const [key, value] of Object.entries(node)) {
+        const nextGroup =
+          CATEGORY_GROUP_TYPES.includes(key) && key !== currentGroup
+            ? key
+            : currentGroup;
+        traverseNode(value, nextGroup);
+      }
+      return;
+    }
+
+    if (currentGroup && typeof node === "string") {
+      const normalizedValue = normalizeCategoryValue(node);
+      if (normalizedValue) {
+        groups[currentGroup].add(normalizedValue);
+      }
+    }
+  };
+
+  traverseNode(profitAndLoss, null);
+
+  return {
+    Income: Array.from(groups.Income).sort(),
+    Expense: Array.from(groups.Expense).sort(),
+  };
+};
+
+let cachedCategoryGroups = null;
+
+const loadCategoryGroups = async () => {
+  if (cachedCategoryGroups) {
+    return cachedCategoryGroups;
+  }
+
+  try {
+    const raw = await fs.readFile(dataPaths.coa, "utf8");
+    const parsed = JSON.parse(raw);
+    cachedCategoryGroups = collectCoaCategoryGroups(parsed);
+  } catch (error) {
+    console.error("[BUDGET] Failed to read COA for category groups:", error);
+    cachedCategoryGroups = {
+      Income: [],
+      Expense: [],
+    };
+  }
+
+  return cachedCategoryGroups;
+};
 
 const parseDateValue = (value) => {
   if (value === undefined || value === null) {
@@ -388,6 +485,18 @@ router.get("/summary", async (req, res) => {
     console.error("[BUDGET] Failed to summarize budget data:", error);
     return res.status(500).json({
       error: "Failed to summarize budget data",
+    });
+  }
+});
+
+router.get("/category-groups", async (req, res) => {
+  try {
+    const groups = await loadCategoryGroups();
+    return res.json(groups);
+  } catch (error) {
+    console.error("[BUDGET] Failed to fetch category groups:", error);
+    return res.status(500).json({
+      error: "Failed to fetch category groups",
     });
   }
 });

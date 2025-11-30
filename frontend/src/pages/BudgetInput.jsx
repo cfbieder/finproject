@@ -1,6 +1,8 @@
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import NavigationMenu from "../components/NavigationMenu.jsx";
 import Rest from "../js/rest.js";
+import BudgetRegionBalances from "../features/BudgetRegionBalances.jsx";
+import BudgetRegionSelectors from "../features/BudgetRegionSelectors.jsx";
 import "./BudgetInput.css";
 
 const MONTH_OPTIONS = [
@@ -60,6 +62,68 @@ const DEFAULT_CATEGORY_OPTIONS = [
   "Other Income",
 ];
 
+const normalizeCurrencyOptions = (values) => {
+  if (!Array.isArray(values)) {
+    return [];
+  }
+
+  const normalized = values
+    .map((value) =>
+      typeof value === "string" ? value.trim().toUpperCase() : ""
+    )
+    .filter((value) => value.length);
+
+  return Array.from(new Set(normalized)).sort();
+};
+
+const CATEGORY_GROUP_INCOME = "__group__income";
+const CATEGORY_GROUP_EXPENSE = "__group__expense";
+const CATEGORY_GROUP_LABELS = {
+  [CATEGORY_GROUP_INCOME]: "Income (all)",
+  [CATEGORY_GROUP_EXPENSE]: "Expense (all)",
+};
+
+const isCategoryGroupValue = (value) =>
+  value === CATEGORY_GROUP_INCOME || value === CATEGORY_GROUP_EXPENSE;
+
+const getCategoryDisplayLabel = (value) =>
+  CATEGORY_GROUP_LABELS[value] ?? value;
+
+const normalizeCurrencyCode = (value) => {
+  if (typeof value !== "string") {
+    return "";
+  }
+  return value.trim().toUpperCase();
+};
+
+const buildBudgetRateMap = (doc) => {
+  const map = { USD: 1 };
+  if (!doc || typeof doc !== "object") {
+    return map;
+  }
+
+  for (const [key, value] of Object.entries(doc)) {
+    if (!key || typeof key !== "string") {
+      continue;
+    }
+    const normalizedKey = key.trim().toUpperCase();
+    if (!normalizedKey.endsWith("/USD")) {
+      continue;
+    }
+    const [currencyCode] = normalizedKey.split("/USD");
+    if (!currencyCode) {
+      continue;
+    }
+    const parsedRate = Number(value);
+    if (!Number.isFinite(parsedRate)) {
+      continue;
+    }
+    map[currencyCode] = parsedRate;
+  }
+
+  return map;
+};
+
 const normalizeMonthNumber = (value, fallback) => {
   const parsed = Number(value);
   if (!Number.isFinite(parsed)) {
@@ -102,6 +166,8 @@ const currencyFormatter = new Intl.NumberFormat("en-US", {
   maximumFractionDigits: 2,
 });
 
+const BASE_CURRENCY = "USD";
+
 const formatCurrencyValue = (value) => {
   const normalized = Number.isFinite(value) ? value : 0;
   return currencyFormatter.format(normalized);
@@ -117,23 +183,142 @@ export default function BudgetInput() {
     DEFAULT_CATEGORY_OPTIONS
   );
   const [selectedAccounts, setSelectedAccounts] = useState(["All"]);
-  const [selectedCategories, setSelectedCategories] = useState([]);
+  const [selectedCategories, setSelectedCategories] = useState([
+    CATEGORY_GROUP_EXPENSE,
+  ]);
   const [balanceRows, setBalanceRows] = useState([]);
   const [balancesStatus, setBalancesStatus] = useState({
     loading: true,
     error: "",
   });
+  const [entryForm, setEntryForm] = useState({
+    date: "",
+    description: "",
+    account: "None",
+    category: "",
+    amount: "",
+    currency: "USD",
+    note: "",
+  });
+  const [entryStatus, setEntryStatus] = useState({
+    loading: false,
+    error: "",
+    message: "",
+  });
+  const [currencyOptions, setCurrencyOptions] = useState([BASE_CURRENCY]);
+  const [categoryGroups, setCategoryGroups] = useState({
+    Income: [],
+    Expense: [],
+  });
+  const [budgetRates, setBudgetRates] = useState({ USD: 1 });
+  const filteredAccountOptions = useMemo(
+    () =>
+      accountOptions.filter(
+        (option) => option && option.toLowerCase() !== "all"
+      ),
+    [accountOptions]
+  );
+  const categoryGroupSelectOptions = useMemo(() => {
+    return [
+      {
+        value: CATEGORY_GROUP_INCOME,
+        label: CATEGORY_GROUP_LABELS[CATEGORY_GROUP_INCOME],
+        disabled: !categoryGroups?.Income?.length,
+        className: "category-group-option category-group-option--income",
+      },
+      {
+        value: CATEGORY_GROUP_EXPENSE,
+        label: CATEGORY_GROUP_LABELS[CATEGORY_GROUP_EXPENSE],
+        disabled: !categoryGroups?.Expense?.length,
+        className: "category-group-option category-group-option--expense",
+      },
+    ];
+  }, [categoryGroups]);
+  const activeMonthRange = useMemo(() => {
+    const start = normalizeMonthNumber(fromMonth, 1);
+    const end = normalizeMonthNumber(toMonth, 12);
+    if (start <= end) {
+      return { start, end };
+    }
+
+    return { start: end, end: start };
+  }, [fromMonth, toMonth]);
+
+  const buildMonthIsoValue = (yearValue, monthNumber) => {
+    const normalizedYear = Number.isFinite(Number(yearValue))
+      ? Math.floor(Number(yearValue))
+      : null;
+    const normalizedMonth = Number.isFinite(Number(monthNumber))
+      ? Math.floor(Number(monthNumber))
+      : null;
+    if (
+      normalizedYear === null ||
+      Number.isNaN(normalizedYear) ||
+      normalizedMonth === null ||
+      Number.isNaN(normalizedMonth)
+    ) {
+      return "";
+    }
+    const paddedYear = String(normalizedYear).padStart(4, "0");
+    const clampedMonth = Math.max(1, Math.min(12, normalizedMonth));
+    const paddedMonth = String(clampedMonth).padStart(2, "0");
+    return `${paddedYear}-${paddedMonth}`;
+  };
+
+  const monthSelectOptions = useMemo(() => {
+    const yearNumber = Number(budgetYear);
+    if (!Number.isFinite(yearNumber)) {
+      return [];
+    }
+
+    const paddedYear = String(Math.floor(yearNumber)).padStart(4, "0");
+    const { start, end } = activeMonthRange;
+    if (!Number.isFinite(start) || !Number.isFinite(end) || start > end) {
+      return [];
+    }
+
+    const options = [];
+    for (let month = start; month <= end; month += 1) {
+      const label = getMonthLabel(month);
+      const paddedMonth = String(month).padStart(2, "0");
+      options.push({
+        value: `${paddedYear}-${paddedMonth}`,
+        label: `${label} ${paddedYear}`,
+      });
+    }
+    return options;
+  }, [activeMonthRange, budgetYear]);
+
+  useEffect(() => {
+    if (!monthSelectOptions.length) {
+      return;
+    }
+
+    setEntryForm((previous) => {
+      if (
+        previous.date &&
+        monthSelectOptions.some((option) => option.value === previous.date)
+      ) {
+        return previous;
+      }
+      return { ...previous, date: monthSelectOptions[0].value };
+    });
+  }, [monthSelectOptions]);
 
   useEffect(() => {
     let isActive = true;
 
     const loadFilters = async () => {
       try {
-        const { accounts = [], categories = [] } =
-          await Rest.fetchPsDataOptions();
+        const [psOptions, categoryGroupPayload] = await Promise.all([
+          Rest.fetchPsDataOptions(),
+          Rest.fetchCategoryGroups(),
+        ]);
         if (!isActive) {
           return;
         }
+
+        const { accounts = [], categories = [] } = psOptions ?? {};
 
         if (Array.isArray(accounts)) {
           setAccountOptions(ensureAllOption(accounts));
@@ -142,6 +327,15 @@ export default function BudgetInput() {
         if (Array.isArray(categories) && categories.length) {
           setCategoryOptions(categories);
         }
+
+        setCategoryGroups({
+          Income: Array.isArray(categoryGroupPayload?.Income)
+            ? categoryGroupPayload.Income
+            : [],
+          Expense: Array.isArray(categoryGroupPayload?.Expense)
+            ? categoryGroupPayload.Expense
+            : [],
+        });
       } catch (error) {
         console.error("[BudgetInput] Failed to load psdata options:", error);
       }
@@ -153,6 +347,124 @@ export default function BudgetInput() {
       isActive = false;
     };
   }, []);
+
+  useEffect(() => {
+    let isActive = true;
+
+    const loadCurrencyMetadata = async () => {
+      try {
+        const [currencyPayload, appDataPayload] = await Promise.all([
+          Rest.fetchCurrencyOptions(),
+          Rest.fetchJson("/api/util/getappdata"),
+        ]);
+
+        if (!isActive) {
+          return;
+        }
+
+        const normalizedCurrencies = normalizeCurrencyOptions(
+          currencyPayload?.currencies ?? []
+        );
+        setCurrencyOptions(
+          normalizedCurrencies.length ? normalizedCurrencies : [BASE_CURRENCY]
+        );
+
+        const appDataDoc =
+          Array.isArray(appDataPayload) && appDataPayload.length
+            ? appDataPayload[0]
+            : {};
+        setBudgetRates(buildBudgetRateMap(appDataDoc));
+      } catch (error) {
+        if (!isActive) {
+          return;
+        }
+        console.error("[BudgetInput] Failed to load currency metadata:", error);
+        setCurrencyOptions([BASE_CURRENCY]);
+        setBudgetRates({ USD: 1 });
+      }
+    };
+
+    loadCurrencyMetadata();
+
+    return () => {
+      isActive = false;
+    };
+  }, []);
+
+  useEffect(() => {
+    setEntryForm((previous) => {
+      if (previous.account) {
+        return previous;
+      }
+      return { ...previous, account: "None" };
+    });
+  }, []);
+
+  const derivedCategoryValue = useMemo(() => {
+    const normalizedSelections = Array.isArray(selectedCategories)
+      ? selectedCategories.filter(Boolean)
+      : [];
+
+    const meaningfulSelections = normalizedSelections.filter(
+      (category) =>
+        typeof category === "string" &&
+        category.trim().length &&
+        category.toLowerCase() !== "all"
+    );
+
+    const explicitCategory = meaningfulSelections.find(
+      (category) => !isCategoryGroupValue(category)
+    );
+    if (explicitCategory) {
+      return explicitCategory;
+    }
+
+    const groupCategory = meaningfulSelections.find((category) =>
+      isCategoryGroupValue(category)
+    );
+    if (groupCategory) {
+      return groupCategory;
+    }
+
+    return categoryOptions.length ? categoryOptions[0] : "";
+  }, [selectedCategories, categoryOptions]);
+
+  const derivedCategoryLabel = getCategoryDisplayLabel(derivedCategoryValue);
+
+  useEffect(() => {
+    setEntryForm((previous) => {
+      if (previous.category === derivedCategoryLabel) {
+        return previous;
+      }
+      return { ...previous, category: derivedCategoryLabel };
+    });
+  }, [derivedCategoryLabel]);
+
+  const derivedCategoryIsGroup = isCategoryGroupValue(derivedCategoryValue);
+
+  const currentExchangeRate = useMemo(() => {
+    const normalizedCurrency = normalizeCurrencyCode(entryForm.currency);
+    if (!normalizedCurrency) {
+      return undefined;
+    }
+    if (normalizedCurrency === BASE_CURRENCY) {
+      return 1;
+    }
+    const rate = budgetRates[normalizedCurrency];
+    return Number.isFinite(rate) ? rate : undefined;
+  }, [entryForm.currency, budgetRates]);
+
+  useEffect(() => {
+    if (!currencyOptions.length) {
+      return;
+    }
+    setEntryForm((previous) => {
+      if (currencyOptions.includes(previous.currency)) {
+        return previous;
+      }
+      return { ...previous, currency: currencyOptions[0] };
+    });
+  }, [currencyOptions]);
 
   const handleAccountsChange = (event) => {
     const nextValues = Array.from(
@@ -170,6 +482,137 @@ export default function BudgetInput() {
     setSelectedCategories(nextValues);
   };
 
+  const expandSelectedCategories = (values) => {
+    if (!Array.isArray(values)) {
+      return [];
+    }
+
+    const expanded = new Set();
+
+    for (const value of values) {
+      if (!value) {
+        continue;
+      }
+
+      if (value === CATEGORY_GROUP_INCOME) {
+        (categoryGroups?.Income ?? []).forEach((category) => {
+          if (category) {
+            expanded.add(category);
+          }
+        });
+        continue;
+      }
+
+      if (value === CATEGORY_GROUP_EXPENSE) {
+        (categoryGroups?.Expense ?? []).forEach((category) => {
+          if (category) {
+            expanded.add(category);
+          }
+        });
+        continue;
+      }
+
+      expanded.add(value);
+    }
+
+    return Array.from(expanded);
+  };
+
+  const normalizeTextInput = (value) => {
+    if (value === undefined || value === null) {
+      return undefined;
+    }
+    const trimmed = String(value).trim();
+    return trimmed.length ? trimmed : undefined;
+  };
+
+  const parseNumericInput = (value) => {
+    if (value === undefined || value === null || value === "") {
+      return undefined;
+    }
+    const parsed = Number(value);
+    return Number.isFinite(parsed) ? parsed : undefined;
+  };
+
+  const computedBaseAmount = useMemo(() => {
+    const parsedAmount = parseNumericInput(entryForm.amount);
+    if (!Number.isFinite(parsedAmount)) {
+      return undefined;
+    }
+    if (!Number.isFinite(currentExchangeRate)) {
+      return undefined;
+    }
+    return parsedAmount * currentExchangeRate;
+  }, [entryForm.amount, currentExchangeRate]);
+
+  const handleBudgetEntrySubmit = async (event) => {
+    event.preventDefault();
+    setEntryStatus({ loading: true, error: "", message: "" });
+
+    const normalizedCurrency = normalizeCurrencyCode(entryForm.currency);
+    const payload = {
+      Date: entryForm.date ? `${entryForm.date}-01` : undefined,
+      Description1: normalizeTextInput(entryForm.description),
+      Account: (() => {
+        const normalized = normalizeTextInput(entryForm.account);
+        return normalized && normalized.toLowerCase() === "none"
+          ? undefined
+          : normalized;
+      })(),
+      Category: normalizeTextInput(entryForm.category),
+      Amount: parseNumericInput(entryForm.amount),
+      BaseAmount: Number.isFinite(computedBaseAmount)
+        ? computedBaseAmount
+        : undefined,
+      Currency: normalizedCurrency || undefined,
+      BaseCurrency: BASE_CURRENCY,
+      Note: normalizeTextInput(entryForm.note),
+    };
+
+    const sanitizedPayload = Object.fromEntries(
+      Object.entries(payload).filter(([, value]) => value !== undefined)
+    );
+
+    if (!Object.keys(sanitizedPayload).length) {
+      setEntryStatus({
+        loading: false,
+        error: "Please provide at least one valid value to submit.",
+        message: "",
+      });
+      return;
+    }
+
+    try {
+      await Rest.fetchJson("/api/budget", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify(sanitizedPayload),
+      });
+
+      setEntryStatus({
+        loading: false,
+        error: "",
+        message: "Budget entry saved successfully.",
+      });
+      setEntryForm((previous) => ({
+        ...previous,
+        date: "",
+        description: "",
+        amount: "",
+        note: "",
+      }));
+    } catch (error) {
+      console.error("[BudgetInput] Failed to submit budget entry:", error);
+      setEntryStatus({
+        loading: false,
+        error: error?.message || "Unable to submit budget entry.",
+        message: "",
+      });
+    }
+  };
+
   useEffect(() => {
     let isActive = true;
 
@@ -182,12 +625,14 @@ export default function BudgetInput() {
           (account) => account && account !== "All"
         );
 
+        const categoryFilters = expandSelectedCategories(selectedCategories);
+
         const payload = await Rest.fetchBudgetBalances({
           fromMonth,
           toMonth,
           actualYear,
           budgetYear,
-          categories: selectedCategories,
+          categories: categoryFilters,
           accounts: accountsToFilter,
         });
 
@@ -241,237 +686,208 @@ export default function BudgetInput() {
     budgetYear,
     selectedCategories,
     selectedAccounts,
+    categoryGroups,
   ]);
-
-  const totals = balanceRows.reduce(
-    (acc, row) => ({
-      actual: acc.actual + row.actual,
-      budget: acc.budget + row.budget,
-      difference: acc.difference + row.difference,
-    }),
-    { actual: 0, budget: 0, difference: 0 }
-  );
 
   return (
     <div className="page-shell">
       <NavigationMenu />
       <main className="page-main">
         <div className="budget-input-grid">
-          <section className="budget-region selector-area">
-            <p className="budget-region__label">Filter Controls</p>
-            <p className="budget-region__description">
-              Choose the period and slices that drive the budget comparison.
-            </p>
-            <div className="selector-grid">
-              <div className="selector-grid__row">
-                <div className="selector-control">
-                  <label
-                    htmlFor="month-from"
-                    className="selector-control__label"
-                  >
-                    Month (from)
-                  </label>
-                  <select
-                    id="month-from"
-                    className="selector-control__input"
-                    value={fromMonth}
-                    onChange={(event) => setFromMonth(event.target.value)}
-                  >
-                    {MONTH_OPTIONS.map((month) => (
-                      <option key={`from-${month.value}`} value={month.value}>
-                        {month.label}
-                      </option>
-                    ))}
-                  </select>
-                </div>
-                <div className="selector-control">
-                  <label htmlFor="month-to" className="selector-control__label">
-                    Month (to)
-                  </label>
-                  <select
-                    id="month-to"
-                    className="selector-control__input"
-                    value={toMonth}
-                    onChange={(event) => setToMonth(event.target.value)}
-                  >
-                    {MONTH_OPTIONS.map((month) => (
-                      <option key={`to-${month.value}`} value={month.value}>
-                        {month.label}
-                      </option>
-                    ))}
-                  </select>
-                </div>
-              </div>
-              <div className="selector-grid__row">
-                <div className="selector-control">
-                  <label
-                    htmlFor="actual-year"
-                    className="selector-control__label"
-                  >
-                    Actual Year
-                  </label>
-                  <select
-                    id="actual-year"
-                    className="selector-control__input"
-                    value={actualYear}
-                    onChange={(event) =>
-                      setActualYear(Number(event.target.value))
-                    }
-                  >
-                    {YEAR_OPTIONS.map((year) => (
-                      <option key={`actual-${year}`} value={year}>
-                        {year}
-                      </option>
-                    ))}
-                  </select>
-                </div>
-                <div className="selector-control">
-                  <label
-                    htmlFor="budget-year"
-                    className="selector-control__label"
-                  >
-                    Budget Year
-                  </label>
-                  <select
-                    id="budget-year"
-                    className="selector-control__input"
-                    value={budgetYear}
-                    onChange={(event) =>
-                      setBudgetYear(Number(event.target.value))
-                    }
-                  >
-                    {BUDGET_YEAR_OPTIONS.map((year) => (
-                      <option key={`budget-${year}`} value={year}>
-                        {year}
-                      </option>
-                    ))}
-                  </select>
-                </div>
-              </div>
-              <div className="selector-control selector-control--spanning">
-                <label
-                  htmlFor="account-selector"
-                  className="selector-control__label"
-                >
-                  Accounts
-                </label>
-                <select
-                  id="account-selector"
-                  className="selector-control__input"
-                  value={selectedAccounts}
-                  multiple
-                  size={4}
-                  onChange={handleAccountsChange}
-                >
-                  {accountOptions.map((account) => (
-                    <option key={`account-${account}`} value={account}>
-                      {account}
-                    </option>
-                  ))}
-                </select>
-              </div>
-              <div className="selector-control selector-control--spanning">
-                <label
-                  htmlFor="category-selector"
-                  className="selector-control__label"
-                >
-                  Categories
-                </label>
-                <select
-                  id="category-selector"
-                  className="selector-control__input"
-                  value={selectedCategories}
-                  multiple
-                  size={5}
-                  onChange={handleCategoriesChange}
-                >
-                  {categoryOptions.map((category) => (
-                    <option key={`category-${category}`} value={category}>
-                      {category}
-                    </option>
-                  ))}
-                </select>
-              </div>
+          <BudgetRegionSelectors
+            monthOptions={MONTH_OPTIONS}
+            yearOptions={YEAR_OPTIONS}
+            budgetYearOptions={BUDGET_YEAR_OPTIONS}
+            fromMonth={fromMonth}
+            toMonth={toMonth}
+            actualYear={actualYear}
+            budgetYear={budgetYear}
+            accountOptions={accountOptions}
+            categoryOptions={categoryOptions}
+            categoryGroupOptions={categoryGroupSelectOptions}
+            selectedAccounts={selectedAccounts}
+            selectedCategories={selectedCategories}
+            onFromMonthChange={setFromMonth}
+            onToMonthChange={setToMonth}
+            onActualYearChange={setActualYear}
+            onBudgetYearChange={setBudgetYear}
+            onAccountsChange={handleAccountsChange}
+            onCategoriesChange={handleCategoriesChange}
+          />
+          <BudgetRegionBalances
+            balanceRows={balanceRows}
+            balancesStatus={balancesStatus}
+            formatCurrencyValue={formatCurrencyValue}
+          />
+          <section className="budget-region input-area">
+            <div>
+              <p className="budget-region__label">Budget Entry</p>
+              <p className="budget-region__description">
+                Submit a budget entry to persist a new record via the API.
+              </p>
             </div>
-          </section>
-
-          <section className="budget-region balances-area">
-            <div className="balances-area__header">
-              <div>
-                <p className="budget-region__label">Balances</p>
-                <p className="budget-region__description">
-                  Comparing actual and budget BaseAmount for the selected months.
+            {derivedCategoryIsGroup ? (
+              <div className="budget-entry-form budget-entry-form--disabled">
+                <p className="budget-entry-form__disabled-message">
+                  Budget entry input is unavailable while “{derivedCategoryLabel}” is selected. Please choose a specific category to enable the entry form.
                 </p>
               </div>
-              {balancesStatus.loading && (
-                <p className="balances-area__status">Loading balances…</p>
-              )}
-            </div>
-
-            {balancesStatus.error && (
-              <p className="balances-area__status balances-area__status--error">
-                {balancesStatus.error}
-              </p>
+            ) : (
+              <form
+                className="budget-entry-form"
+                onSubmit={handleBudgetEntrySubmit}
+              >
+                <div className="budget-entry-form__grid">
+                <label className="budget-entry-form__control">
+                  <span className="budget-entry-form__label">Date</span>
+                  <select
+                    className="budget-entry-form__input"
+                    value={entryForm.date}
+                    onChange={(event) =>
+                      setEntryForm((prev) => ({
+                        ...prev,
+                        date: event.target.value,
+                      }))
+                    }
+                  >
+                    {monthSelectOptions.map((option) => (
+                      <option key={option.value} value={option.value}>
+                        {option.label}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+                <label className="budget-entry-form__control">
+                  <span className="budget-entry-form__label">Account</span>
+                  <select
+                    className="budget-entry-form__input"
+                    value={entryForm.account}
+                    onChange={(event) =>
+                      setEntryForm((prev) => ({
+                        ...prev,
+                        account: event.target.value,
+                      }))
+                    }
+                  >
+                    <option value="None">None</option>
+                    <option value="" disabled>
+                      Select account
+                    </option>
+                    {filteredAccountOptions.map((option) => (
+                      <option key={option} value={option}>
+                        {option}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+                <div className="budget-entry-form__control">
+                  <span className="budget-entry-form__label">Category</span>
+                  <div className="budget-entry-form__derived-value">
+                    {entryForm.category || "Selected above"}
+                  </div>
+                </div>
+                <label className="budget-entry-form__control">
+                  <span className="budget-entry-form__label">Amount</span>
+                  <input
+                    type="number"
+                    min="0"
+                    step="0.01"
+                    className="budget-entry-form__input"
+                    value={entryForm.amount}
+                    onChange={(event) =>
+                      setEntryForm((prev) => ({
+                        ...prev,
+                        amount: event.target.value,
+                      }))
+                    }
+                  />
+                </label>
+                <label className="budget-entry-form__control">
+                  <span className="budget-entry-form__label">
+                    Base Amount (USD)
+                  </span>
+                  <input
+                    type="text"
+                    className="budget-entry-form__input budget-entry-form__input--readonly budget-entry-form__input--shaded"
+                    value={
+                      Number.isFinite(computedBaseAmount)
+                        ? formatCurrencyValue(computedBaseAmount)
+                        : ""
+                    }
+                    readOnly
+                  />
+                </label>
+                <label className="budget-entry-form__control">
+                  <span className="budget-entry-form__label">Currency</span>
+                  <select
+                    className="budget-entry-form__input"
+                    value={entryForm.currency}
+                    onChange={(event) =>
+                      setEntryForm((prev) => ({
+                        ...prev,
+                        currency: event.target.value,
+                      }))
+                    }
+                  >
+                    {currencyOptions.map((option) => (
+                      <option key={option} value={option}>
+                        {option}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+                <label className="budget-entry-form__control budget-entry-form__control--spanning">
+                  <span className="budget-entry-form__label">Description</span>
+                  <textarea
+                    rows="3"
+                    className="budget-entry-form__input budget-entry-form__input--textarea"
+                    value={entryForm.description}
+                    onChange={(event) =>
+                      setEntryForm((prev) => ({
+                        ...prev,
+                        description: event.target.value,
+                      }))
+                    }
+                  />
+                </label>
+                <label className="budget-entry-form__control budget-entry-form__control--spanning">
+                  <span className="budget-entry-form__label">Note</span>
+                  <textarea
+                    rows="5"
+                    className="budget-entry-form__input budget-entry-form__input--textarea"
+                    value={entryForm.note}
+                    onChange={(event) =>
+                      setEntryForm((prev) => ({
+                        ...prev,
+                        note: event.target.value,
+                      }))
+                    }
+                  />
+                </label>
+              </div>
+              <div className="budget-entry-form__meta">
+                {entryStatus.error && (
+                  <p className="budget-entry-form__status budget-entry-form__status--error">
+                    {entryStatus.error}
+                  </p>
+                )}
+                {entryStatus.message && (
+                  <p className="budget-entry-form__status">
+                    {entryStatus.message}
+                  </p>
+                )}
+              </div>
+              <div className="budget-entry-form__actions">
+                <button
+                  type="submit"
+                  className="budget-entry-form__submit"
+                  disabled={entryStatus.loading}
+                >
+                  {entryStatus.loading ? "Submitting…" : "Save Budget Entry"}
+                </button>
+              </div>
+            </form>
             )}
-
-            <div className="balances-area__table-wrapper">
-              <table className="balances-table">
-                <thead>
-                  <tr>
-                    <th>Month</th>
-                    <th className="balances-table__numeric">Actual</th>
-                    <th className="balances-table__numeric">Budget</th>
-                    <th className="balances-table__numeric">Difference</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {balanceRows.map((row) => (
-                    <tr key={`balance-${row.monthNumber}`}>
-                      <td>{row.monthLabel}</td>
-                      <td className="balances-table__numeric">
-                        {formatCurrencyValue(row.actual)}
-                      </td>
-                      <td className="balances-table__numeric">
-                        {formatCurrencyValue(row.budget)}
-                      </td>
-                      <td className="balances-table__numeric">
-                        {formatCurrencyValue(row.difference)}
-                      </td>
-                    </tr>
-                  ))}
-                  {!balanceRows.length && !balancesStatus.loading && (
-                    <tr>
-                      <td colSpan={4} className="balances-table__empty">
-                        No balance data available for the selected months.
-                      </td>
-                    </tr>
-                  )}
-                </tbody>
-                {balanceRows.length ? (
-                  <tfoot>
-                    <tr>
-                      <td>Total</td>
-                      <td className="balances-table__numeric">
-                        {formatCurrencyValue(totals.actual)}
-                      </td>
-                      <td className="balances-table__numeric">
-                        {formatCurrencyValue(totals.budget)}
-                      </td>
-                      <td className="balances-table__numeric">
-                        {formatCurrencyValue(totals.difference)}
-                      </td>
-                    </tr>
-                  </tfoot>
-                ) : null}
-              </table>
-            </div>
-          </section>
-
-          <section className="budget-region input-area">
-            <p className="budget-region__label">Input_Area</p>
-            <p className="budget-region__description">
-              Placeholder for budget inputs and detail forms.
-            </p>
           </section>
         </div>
       </main>
