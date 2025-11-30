@@ -8,10 +8,23 @@ const computeTotals = (rows) =>
     { actual: 0, budget: 0, difference: 0 }
   );
 
+const getNumericCellClassName = (value, { interactive = false } = {}) => {
+  const classNames = ["balances-table__numeric"];
+  if (value < 0) {
+    classNames.push("balances-table__numeric--negative");
+  }
+  if (interactive) {
+    classNames.push("balances-table__numeric--interactive");
+  }
+  return classNames.join(" ");
+};
+
 export default function BudgetRegionBalances({
   balanceRows = [],
   balancesStatus = {},
   formatCurrencyValue = (value) => value,
+  onActualDoubleClick,
+  onBudgetDoubleClick,
 }) {
   const totals = computeTotals(balanceRows);
 
@@ -49,13 +62,25 @@ export default function BudgetRegionBalances({
             {balanceRows.map((row) => (
               <tr key={`balance-${row.monthNumber}`}>
                 <td>{row.monthLabel}</td>
-                <td className="balances-table__numeric">
+                <td
+                  className={getNumericCellClassName(row.actual, {
+                    interactive: true,
+                  })}
+                  onDoubleClick={() => onActualDoubleClick?.(row)}
+                  title="Double click to view entries"
+                >
                   {formatCurrencyValue(row.actual)}
                 </td>
-                <td className="balances-table__numeric">
+                <td
+                  className={getNumericCellClassName(row.budget, {
+                    interactive: true,
+                  })}
+                  onDoubleClick={() => onBudgetDoubleClick?.(row)}
+                  title="Double click to view budget entries"
+                >
                   {formatCurrencyValue(row.budget)}
                 </td>
-                <td className="balances-table__numeric">
+                <td className={getNumericCellClassName(row.difference)}>
                   {formatCurrencyValue(row.difference)}
                 </td>
               </tr>
@@ -72,13 +97,13 @@ export default function BudgetRegionBalances({
             <tfoot>
               <tr>
                 <td>Total</td>
-                <td className="balances-table__numeric">
+                <td className={getNumericCellClassName(totals.actual)}>
                   {formatCurrencyValue(totals.actual)}
                 </td>
-                <td className="balances-table__numeric">
+                <td className={getNumericCellClassName(totals.budget)}>
                   {formatCurrencyValue(totals.budget)}
                 </td>
-                <td className="balances-table__numeric">
+                <td className={getNumericCellClassName(totals.difference)}>
                   {formatCurrencyValue(totals.difference)}
                 </td>
               </tr>

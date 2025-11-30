@@ -1,8 +1,11 @@
 import { useEffect, useMemo, useState } from "react";
 import NavigationMenu from "../components/NavigationMenu.jsx";
 import Rest from "../js/rest.js";
+import BudgetEntriesAtualPopup from "../features/BudgetEntriesAtualPopup.jsx";
+import BudgetEntriesBudgetPopup from "../features/BudgetEntriesBudgetPopup.jsx";
 import BudgetRegionBalances from "../features/BudgetRegionBalances.jsx";
 import BudgetRegionSelectors from "../features/BudgetRegionSelectors.jsx";
+import BudgetRegionBudgetEntry from "../features/BudgetRegionBudgetEntry.jsx";
 import "./BudgetInput.css";
 
 const MONTH_OPTIONS = [
@@ -170,7 +173,9 @@ const BASE_CURRENCY = "USD";
 
 const formatCurrencyValue = (value) => {
   const normalized = Number.isFinite(value) ? value : 0;
-  return currencyFormatter.format(normalized);
+  const absolute = Math.abs(normalized);
+  const formatted = currencyFormatter.format(absolute);
+  return normalized < 0 ? `(${formatted})` : formatted;
 };
 
 export default function BudgetInput() {
@@ -191,6 +196,7 @@ export default function BudgetInput() {
     loading: true,
     error: "",
   });
+  const [balancesRefreshKey, setBalancesRefreshKey] = useState(0);
   const [entryForm, setEntryForm] = useState({
     date: "",
     description: "",
@@ -211,6 +217,10 @@ export default function BudgetInput() {
     Expense: [],
   });
   const [budgetRates, setBudgetRates] = useState({ USD: 1 });
+  const [actualEntriesPopupRequest, setActualEntriesPopupRequest] =
+    useState(null);
+  const [budgetEntriesPopupRequest, setBudgetEntriesPopupRequest] =
+    useState(null);
   const filteredAccountOptions = useMemo(
     () =>
       accountOptions.filter(
@@ -518,6 +528,11 @@ export default function BudgetInput() {
     return Array.from(expanded);
   };
 
+  const expandedSelectedCategories = useMemo(
+    () => expandSelectedCategories(selectedCategories),
+    [selectedCategories, categoryGroups]
+  );
+
   const normalizeTextInput = (value) => {
     if (value === undefined || value === null) {
       return undefined;
@@ -625,7 +640,7 @@ export default function BudgetInput() {
           (account) => account && account !== "All"
         );
 
-        const categoryFilters = expandSelectedCategories(selectedCategories);
+        const categoryFilters = expandedSelectedCategories;
 
         const payload = await Rest.fetchBudgetBalances({
           fromMonth,
@@ -679,15 +694,58 @@ export default function BudgetInput() {
     return () => {
       isActive = false;
     };
-  }, [
-    fromMonth,
-    toMonth,
-    actualYear,
-    budgetYear,
-    selectedCategories,
-    selectedAccounts,
-    categoryGroups,
-  ]);
+      }, [
+        fromMonth,
+        toMonth,
+        actualYear,
+        budgetYear,
+        selectedAccounts,
+        expandedSelectedCategories,
+        balancesRefreshKey,
+      ]);
+
+  const handleBalanceActualDoubleClick = (row) => {
+    if (!row?.monthNumber) {
+      return;
+    }
+
+    setActualEntriesPopupRequest({
+      id: `${actualYear}-${row.monthNumber}-${Date.now()}`,
+      row,
+      actualYear,
+      selectedAccounts: Array.isArray(selectedAccounts)
+        ? [...selectedAccounts]
+        : [],
+      expandedCategories: Array.isArray(expandedSelectedCategories)
+        ? [...expandedSelectedCategories]
+        : [],
+      formatCurrencyValue,
+    });
+  };
+
+  const handleBalanceBudgetDoubleClick = (row) => {
+    if (!row?.monthNumber) {
+      return;
+    }
+
+    setBudgetEntriesPopupRequest({
+      id: `${budgetYear}-${row.monthNumber}-${Date.now()}`,
+      row,
+      budgetYear,
+      selectedAccounts: Array.isArray(selectedAccounts)
+        ? [...selectedAccounts]
+        : [],
+      expandedCategories: Array.isArray(expandedSelectedCategories)
+        ? [...expandedSelectedCategories]
+        : [],
+      categoryOptions,
+      currencyOptions,
+      formatCurrencyValue,
+      budgetRates,
+      baseCurrency: BASE_CURRENCY,
+      onClose: () => setBalancesRefreshKey((prev) => prev + 1),
+    });
+  };
 
   return (
     <div className="page-shell">
@@ -718,179 +776,26 @@ export default function BudgetInput() {
             balanceRows={balanceRows}
             balancesStatus={balancesStatus}
             formatCurrencyValue={formatCurrencyValue}
+            onActualDoubleClick={handleBalanceActualDoubleClick}
+            onBudgetDoubleClick={handleBalanceBudgetDoubleClick}
           />
-          <section className="budget-region input-area">
-            <div>
-              <p className="budget-region__label">Budget Entry</p>
-              <p className="budget-region__description">
-                Submit a budget entry to persist a new record via the API.
-              </p>
-            </div>
-            {derivedCategoryIsGroup ? (
-              <div className="budget-entry-form budget-entry-form--disabled">
-                <p className="budget-entry-form__disabled-message">
-                  Budget entry input is unavailable while “{derivedCategoryLabel}” is selected. Please choose a specific category to enable the entry form.
-                </p>
-              </div>
-            ) : (
-              <form
-                className="budget-entry-form"
-                onSubmit={handleBudgetEntrySubmit}
-              >
-                <div className="budget-entry-form__grid">
-                <label className="budget-entry-form__control">
-                  <span className="budget-entry-form__label">Date</span>
-                  <select
-                    className="budget-entry-form__input"
-                    value={entryForm.date}
-                    onChange={(event) =>
-                      setEntryForm((prev) => ({
-                        ...prev,
-                        date: event.target.value,
-                      }))
-                    }
-                  >
-                    {monthSelectOptions.map((option) => (
-                      <option key={option.value} value={option.value}>
-                        {option.label}
-                      </option>
-                    ))}
-                  </select>
-                </label>
-                <label className="budget-entry-form__control">
-                  <span className="budget-entry-form__label">Account</span>
-                  <select
-                    className="budget-entry-form__input"
-                    value={entryForm.account}
-                    onChange={(event) =>
-                      setEntryForm((prev) => ({
-                        ...prev,
-                        account: event.target.value,
-                      }))
-                    }
-                  >
-                    <option value="None">None</option>
-                    <option value="" disabled>
-                      Select account
-                    </option>
-                    {filteredAccountOptions.map((option) => (
-                      <option key={option} value={option}>
-                        {option}
-                      </option>
-                    ))}
-                  </select>
-                </label>
-                <div className="budget-entry-form__control">
-                  <span className="budget-entry-form__label">Category</span>
-                  <div className="budget-entry-form__derived-value">
-                    {entryForm.category || "Selected above"}
-                  </div>
-                </div>
-                <label className="budget-entry-form__control">
-                  <span className="budget-entry-form__label">Amount</span>
-                  <input
-                    type="number"
-                    min="0"
-                    step="0.01"
-                    className="budget-entry-form__input"
-                    value={entryForm.amount}
-                    onChange={(event) =>
-                      setEntryForm((prev) => ({
-                        ...prev,
-                        amount: event.target.value,
-                      }))
-                    }
-                  />
-                </label>
-                <label className="budget-entry-form__control">
-                  <span className="budget-entry-form__label">
-                    Base Amount (USD)
-                  </span>
-                  <input
-                    type="text"
-                    className="budget-entry-form__input budget-entry-form__input--readonly budget-entry-form__input--shaded"
-                    value={
-                      Number.isFinite(computedBaseAmount)
-                        ? formatCurrencyValue(computedBaseAmount)
-                        : ""
-                    }
-                    readOnly
-                  />
-                </label>
-                <label className="budget-entry-form__control">
-                  <span className="budget-entry-form__label">Currency</span>
-                  <select
-                    className="budget-entry-form__input"
-                    value={entryForm.currency}
-                    onChange={(event) =>
-                      setEntryForm((prev) => ({
-                        ...prev,
-                        currency: event.target.value,
-                      }))
-                    }
-                  >
-                    {currencyOptions.map((option) => (
-                      <option key={option} value={option}>
-                        {option}
-                      </option>
-                    ))}
-                  </select>
-                </label>
-                <label className="budget-entry-form__control budget-entry-form__control--spanning">
-                  <span className="budget-entry-form__label">Description</span>
-                  <textarea
-                    rows="3"
-                    className="budget-entry-form__input budget-entry-form__input--textarea"
-                    value={entryForm.description}
-                    onChange={(event) =>
-                      setEntryForm((prev) => ({
-                        ...prev,
-                        description: event.target.value,
-                      }))
-                    }
-                  />
-                </label>
-                <label className="budget-entry-form__control budget-entry-form__control--spanning">
-                  <span className="budget-entry-form__label">Note</span>
-                  <textarea
-                    rows="5"
-                    className="budget-entry-form__input budget-entry-form__input--textarea"
-                    value={entryForm.note}
-                    onChange={(event) =>
-                      setEntryForm((prev) => ({
-                        ...prev,
-                        note: event.target.value,
-                      }))
-                    }
-                  />
-                </label>
-              </div>
-              <div className="budget-entry-form__meta">
-                {entryStatus.error && (
-                  <p className="budget-entry-form__status budget-entry-form__status--error">
-                    {entryStatus.error}
-                  </p>
-                )}
-                {entryStatus.message && (
-                  <p className="budget-entry-form__status">
-                    {entryStatus.message}
-                  </p>
-                )}
-              </div>
-              <div className="budget-entry-form__actions">
-                <button
-                  type="submit"
-                  className="budget-entry-form__submit"
-                  disabled={entryStatus.loading}
-                >
-                  {entryStatus.loading ? "Submitting…" : "Save Budget Entry"}
-                </button>
-              </div>
-            </form>
-            )}
-          </section>
+          <BudgetRegionBudgetEntry
+            derivedCategoryIsGroup={derivedCategoryIsGroup}
+            derivedCategoryLabel={derivedCategoryLabel}
+            monthSelectOptions={monthSelectOptions}
+            entryForm={entryForm}
+            setEntryForm={setEntryForm}
+            filteredAccountOptions={filteredAccountOptions}
+            computedBaseAmount={computedBaseAmount}
+            formatCurrencyValue={formatCurrencyValue}
+            currencyOptions={currencyOptions}
+            entryStatus={entryStatus}
+            onSubmit={handleBudgetEntrySubmit}
+          />
         </div>
       </main>
+      <BudgetEntriesAtualPopup request={actualEntriesPopupRequest} />
+      <BudgetEntriesBudgetPopup request={budgetEntriesPopupRequest} />
     </div>
   );
 }

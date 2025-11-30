@@ -1,4 +1,5 @@
 const express = require("express");
+const mongoose = require("mongoose");
 const fs = require("node:fs/promises");
 const BudgetData = require("../../../components/models/BudgetData");
 const PSdata = require("../../../components/models/PSdata");
@@ -448,6 +449,74 @@ router.post("/", async (req, res) => {
   }
 });
 
+router.patch("/:id", async (req, res) => {
+  const { id } = req.params;
+  if (!id || !mongoose.Types.ObjectId.isValid(id)) {
+    return res.status(400).json({
+      error: "Invalid budget entry identifier",
+    });
+  }
+
+  const sanitizedPayload = sanitizeEntry(req.body);
+  if (!sanitizedPayload || !Object.keys(sanitizedPayload).length) {
+    return res.status(400).json({
+      error: "No valid budget entry fields were provided",
+    });
+  }
+
+  try {
+    const updated = await BudgetData.findByIdAndUpdate(
+      id,
+      sanitizedPayload,
+      {
+        new: true,
+      }
+    )
+      .lean()
+      .exec();
+
+    if (!updated) {
+      return res.status(404).json({
+        error: "Budget entry not found",
+      });
+    }
+    return res.json({
+      entry: updated,
+    });
+  } catch (error) {
+    console.error("[BUDGET] Failed to update budget entry:", error);
+    return res.status(500).json({
+      error: "Failed to update budget entry",
+    });
+  }
+});
+
+router.delete("/:id", async (req, res) => {
+  const { id } = req.params;
+  if (!id || !mongoose.Types.ObjectId.isValid(id)) {
+    return res.status(400).json({
+      error: "Invalid budget entry identifier",
+    });
+  }
+
+  try {
+    const deleted = await BudgetData.findByIdAndDelete(id).lean().exec();
+    if (!deleted) {
+      return res.status(404).json({
+        error: "Budget entry not found",
+      });
+    }
+    return res.json({
+      deleted: true,
+    });
+  } catch (error) {
+    console.error("[BUDGET] Failed to delete budget entry:", error);
+    return res.status(500).json({
+      error: "Failed to delete budget entry",
+    });
+  }
+});
+
 router.get("/summary", async (req, res) => {
   const monthRange = normalizeMonthRange(
     req.query.fromMonth,
@@ -485,6 +554,44 @@ router.get("/summary", async (req, res) => {
     console.error("[BUDGET] Failed to summarize budget data:", error);
     return res.status(500).json({
       error: "Failed to summarize budget data",
+    });
+  }
+});
+
+router.get("/actual-entries", async (req, res) => {
+  const explicitMonth = parseMonthValue(req.query.month);
+  const monthRange = explicitMonth
+    ? { from: explicitMonth, to: explicitMonth }
+    : normalizeMonthRange(req.query.fromMonth, req.query.toMonth);
+  const { from: fromMonth, to: toMonth } = monthRange;
+  const actualYear = parseYearValue(req.query.actualYear) ?? CURRENT_YEAR;
+  const categoryMatch = buildCategoryMatch(
+    req.query.categories ?? req.query.category
+  );
+  const accountMatch = buildAccountMatch(
+    req.query.accounts ?? req.query.account
+  );
+
+  try {
+    const { start, end } = buildDateRange(actualYear, fromMonth, toMonth);
+    const match = {
+      Date: { $gte: start, $lt: end },
+      ...categoryMatch,
+      ...accountMatch,
+    };
+
+    const limit = resolveLimit(req.query.limit);
+    const entries = await PSdata.find(match)
+      .sort({ Date: -1 })
+      .limit(limit)
+      .lean()
+      .exec();
+
+    return res.json({ entries });
+  } catch (error) {
+    console.error("[BUDGET] Failed to load actual entries:", error);
+    return res.status(500).json({
+      error: "Failed to load actual entries",
     });
   }
 });

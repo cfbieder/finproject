@@ -119,7 +119,7 @@ const BalanceChartPanel = ({
           </svg>
         ) : (
           <div className="balance-chart-empty">
-            <p>Generate Report..............</p>
+            <p>Generating Report..............Please Wait</p>
           </div>
         )}
         {tooltip && (

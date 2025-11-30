@@ -145,4 +145,49 @@ export default class Rest {
     const path = `/api/budget/summary${query ? `?${query}` : ""}`;
     return Rest.fetchJson(path);
   }
+
+  static async fetchBudgetActualEntries({
+    actualYear,
+    month,
+    fromMonth,
+    toMonth,
+    categories,
+    accounts,
+    limit,
+  } = {}) {
+    const params = new URLSearchParams();
+    if (actualYear !== undefined && actualYear !== null) {
+      params.set("actualYear", Number(actualYear));
+    }
+    if (month !== undefined && month !== null) {
+      params.set("month", Number(month));
+    }
+    if (fromMonth) params.set("fromMonth", fromMonth);
+    if (toMonth) params.set("toMonth", toMonth);
+    if (Array.isArray(categories) && categories.length) {
+      for (const category of categories) {
+        if (category) {
+          params.append("category", category);
+        }
+      }
+    } else if (categories) {
+      params.set("category", categories);
+    }
+    if (Array.isArray(accounts) && accounts.length) {
+      for (const account of accounts) {
+        if (account) {
+          params.append("accounts", account);
+        }
+      }
+    } else if (accounts) {
+      params.set("accounts", accounts);
+    }
+    if (limit !== undefined && limit !== null) {
+      params.set("limit", Number(limit));
+    }
+
+    const query = params.toString();
+    const path = `/api/budget/actual-entries${query ? `?${query}` : ""}`;
+    return Rest.fetchJson(path);
+  }
 }

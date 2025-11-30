@@ -45,7 +45,7 @@
       "current_balance": 86376.85,
       "current_balance_in_base_currency": 86376.85,
       "current_balance_exchange_rate": null,
-      "current_balance_date": "2025-11-29",
+      "current_balance_date": "2025-11-30",
       "current_balance_source": "closing_balance_as_today",
       "data_feeds_balance_type": "balance",
       "safe_balance": null,
@@ -66,7 +66,7 @@
       "data_feeds_account_id": null,
       "data_feeds_connection_id": null,
       "created_at": "2024-11-21T08:57:01Z",
-      "updated_at": "2025-11-29T09:39:05Z"
+      "updated_at": "2025-11-30T00:17:58Z"
     },
     "created_at": "2025-11-29T09:26:33Z",
     "updated_at": "2025-11-29T09:42:13Z"
@@ -117,7 +117,7 @@
       "current_balance": 86376.85,
       "current_balance_in_base_currency": 86376.85,
       "current_balance_exchange_rate": null,
-      "current_balance_date": "2025-11-29",
+      "current_balance_date": "2025-11-30",
       "current_balance_source": "closing_balance_as_today",
       "data_feeds_balance_type": "balance",
       "safe_balance": null,
@@ -138,7 +138,7 @@
       "data_feeds_account_id": null,
       "data_feeds_connection_id": null,
       "created_at": "2024-11-21T08:57:01Z",
-      "updated_at": "2025-11-29T09:39:05Z"
+      "updated_at": "2025-11-30T00:17:58Z"
     },
     "created_at": "2025-11-29T09:26:33Z",
     "updated_at": "2025-11-29T09:42:14Z"
@@ -189,7 +189,7 @@
       "current_balance": 86376.85,
       "current_balance_in_base_currency": 86376.85,
       "current_balance_exchange_rate": null,
-      "current_balance_date": "2025-11-29",
+      "current_balance_date": "2025-11-30",
       "current_balance_source": "closing_balance_as_today",
       "data_feeds_balance_type": "balance",
       "safe_balance": null,
@@ -210,7 +210,7 @@
       "data_feeds_account_id": null,
       "data_feeds_connection_id": null,
       "created_at": "2024-11-21T08:57:01Z",
-      "updated_at": "2025-11-29T09:39:05Z"
+      "updated_at": "2025-11-30T00:17:58Z"
     },
     "created_at": "2025-11-29T09:26:33Z",
     "updated_at": "2025-11-29T09:42:16Z"
@@ -261,7 +261,7 @@
       "current_balance": 86376.85,
       "current_balance_in_base_currency": 86376.85,
       "current_balance_exchange_rate": null,
-      "current_balance_date": "2025-11-29",
+      "current_balance_date": "2025-11-30",
       "current_balance_source": "closing_balance_as_today",
       "data_feeds_balance_type": "balance",
       "safe_balance": null,
@@ -282,7 +282,7 @@
       "data_feeds_account_id": null,
       "data_feeds_connection_id": null,
       "created_at": "2024-11-21T08:57:01Z",
-      "updated_at": "2025-11-29T09:39:05Z"
+      "updated_at": "2025-11-30T00:17:58Z"
     },
     "created_at": "2025-11-29T09:26:33Z",
     "updated_at": "2025-11-29T09:42:17Z"
@@ -333,7 +333,7 @@
       "current_balance": 86376.85,
       "current_balance_in_base_currency": 86376.85,
       "current_balance_exchange_rate": null,
-      "current_balance_date": "2025-11-29",
+      "current_balance_date": "2025-11-30",
       "current_balance_source": "closing_balance_as_today",
       "data_feeds_balance_type": "balance",
       "safe_balance": null,
@@ -354,7 +354,7 @@
       "data_feeds_account_id": null,
       "data_feeds_connection_id": null,
       "created_at": "2024-11-21T08:57:01Z",
-      "updated_at": "2025-11-29T09:39:05Z"
+      "updated_at": "2025-11-30T00:17:58Z"
     },
     "created_at": "2025-11-29T09:26:33Z",
     "updated_at": "2025-11-29T09:42:18Z"
@@ -405,7 +405,7 @@
       "current_balance": 86376.85,
       "current_balance_in_base_currency": 86376.85,
       "current_balance_exchange_rate": null,
-      "current_balance_date": "2025-11-29",
+      "current_balance_date": "2025-11-30",
       "current_balance_source": "closing_balance_as_today",
       "data_feeds_balance_type": "balance",
       "safe_balance": null,
@@ -426,7 +426,7 @@
       "data_feeds_account_id": null,
       "data_feeds_connection_id": null,
       "created_at": "2024-11-21T08:57:01Z",
-      "updated_at": "2025-11-29T09:39:05Z"
+      "updated_at": "2025-11-30T00:17:58Z"
     },
     "created_at": "2025-11-29T09:26:33Z",
     "updated_at": "2025-11-29T09:42:19Z"
@@ -477,7 +477,7 @@
       "current_balance": 86376.85,
       "current_balance_in_base_currency": 86376.85,
       "current_balance_exchange_rate": null,
-      "current_balance_date": "2025-11-29",
+      "current_balance_date": "2025-11-30",
       "current_balance_source": "closing_balance_as_today",
       "data_feeds_balance_type": "balance",
       "safe_balance": null,
@@ -498,7 +498,7 @@
       "data_feeds_account_id": null,
       "data_feeds_connection_id": null,
       "created_at": "2024-11-21T08:57:01Z",
-      "updated_at": "2025-11-29T09:39:05Z"
+      "updated_at": "2025-11-30T00:17:58Z"
     },
     "created_at": "2025-11-29T09:26:33Z",
     "updated_at": "2025-11-29T09:42:20Z"
@@ -549,7 +549,7 @@
       "current_balance": 86376.85,
       "current_balance_in_base_currency": 86376.85,
       "current_balance_exchange_rate": null,
-      "current_balance_date": "2025-11-29",
+      "current_balance_date": "2025-11-30",
       "current_balance_source": "closing_balance_as_today",
       "data_feeds_balance_type": "balance",
       "safe_balance": null,
@@ -570,7 +570,7 @@
       "data_feeds_account_id": null,
       "data_feeds_connection_id": null,
       "created_at": "2024-11-21T08:57:01Z",
-      "updated_at": "2025-11-29T09:39:05Z"
+      "updated_at": "2025-11-30T00:17:58Z"
     },
     "created_at": "2025-11-29T09:26:33Z",
     "updated_at": "2025-11-29T09:42:20Z"
@@ -621,7 +621,7 @@
       "current_balance": 86376.85,
       "current_balance_in_base_currency": 86376.85,
       "current_balance_exchange_rate": null,
-      "current_balance_date": "2025-11-29",
+      "current_balance_date": "2025-11-30",
       "current_balance_source": "closing_balance_as_today",
       "data_feeds_balance_type": "balance",
       "safe_balance": null,
@@ -642,7 +642,7 @@
       "data_feeds_account_id": null,
       "data_feeds_connection_id": null,
       "created_at": "2024-11-21T08:57:01Z",
-      "updated_at": "2025-11-29T09:39:05Z"
+      "updated_at": "2025-11-30T00:17:58Z"
     },
     "created_at": "2025-11-29T09:26:33Z",
     "updated_at": "2025-11-29T09:42:21Z"
@@ -693,7 +693,7 @@
       "current_balance": 86376.85,
       "current_balance_in_base_currency": 86376.85,
       "current_balance_exchange_rate": null,
-      "current_balance_date": "2025-11-29",
+      "current_balance_date": "2025-11-30",
       "current_balance_source": "closing_balance_as_today",
       "data_feeds_balance_type": "balance",
       "safe_balance": null,
@@ -714,7 +714,7 @@
       "data_feeds_account_id": null,
       "data_feeds_connection_id": null,
       "created_at": "2024-11-21T08:57:01Z",
-      "updated_at": "2025-11-29T09:39:05Z"
+      "updated_at": "2025-11-30T00:17:58Z"
     },
     "created_at": "2025-11-29T09:26:33Z",
     "updated_at": "2025-11-29T09:42:22Z"
@@ -765,7 +765,7 @@
       "current_balance": 86376.85,
       "current_balance_in_base_currency": 86376.85,
       "current_balance_exchange_rate": null,
-      "current_balance_date": "2025-11-29",
+      "current_balance_date": "2025-11-30",
       "current_balance_source": "closing_balance_as_today",
       "data_feeds_balance_type": "balance",
       "safe_balance": null,
@@ -786,7 +786,7 @@
       "data_feeds_account_id": null,
       "data_feeds_connection_id": null,
       "created_at": "2024-11-21T08:57:01Z",
-      "updated_at": "2025-11-29T09:39:05Z"
+      "updated_at": "2025-11-30T00:17:58Z"
     },
     "created_at": "2025-11-29T09:26:33Z",
     "updated_at": "2025-11-29T09:42:22Z"
@@ -837,7 +837,7 @@
       "current_balance": 86376.85,
       "current_balance_in_base_currency": 86376.85,
       "current_balance_exchange_rate": null,
-      "current_balance_date": "2025-11-29",
+      "current_balance_date": "2025-11-30",
       "current_balance_source": "closing_balance_as_today",
       "data_feeds_balance_type": "balance",
       "safe_balance": null,
@@ -858,7 +858,7 @@
       "data_feeds_account_id": null,
       "data_feeds_connection_id": null,
       "created_at": "2024-11-21T08:57:01Z",
-      "updated_at": "2025-11-29T09:39:05Z"
+      "updated_at": "2025-11-30T00:17:58Z"
     },
     "created_at": "2025-11-29T09:26:33Z",
     "updated_at": "2025-11-29T09:42:23Z"
@@ -909,7 +909,7 @@
       "current_balance": 86376.85,
       "current_balance_in_base_currency": 86376.85,
       "current_balance_exchange_rate": null,
-      "current_balance_date": "2025-11-29",
+      "current_balance_date": "2025-11-30",
       "current_balance_source": "closing_balance_as_today",
       "data_feeds_balance_type": "balance",
       "safe_balance": null,
@@ -930,7 +930,7 @@
       "data_feeds_account_id": null,
       "data_feeds_connection_id": null,
       "created_at": "2024-11-21T08:57:01Z",
-      "updated_at": "2025-11-29T09:39:05Z"
+      "updated_at": "2025-11-30T00:17:58Z"
     },
     "created_at": "2025-11-29T09:26:33Z",
     "updated_at": "2025-11-29T09:42:24Z"
@@ -981,7 +981,7 @@
       "current_balance": 86376.85,
       "current_balance_in_base_currency": 86376.85,
       "current_balance_exchange_rate": null,
-      "current_balance_date": "2025-11-29",
+      "current_balance_date": "2025-11-30",
       "current_balance_source": "closing_balance_as_today",
       "data_feeds_balance_type": "balance",
       "safe_balance": null,
@@ -1002,7 +1002,7 @@
       "data_feeds_account_id": null,
       "data_feeds_connection_id": null,
       "created_at": "2024-11-21T08:57:01Z",
-      "updated_at": "2025-11-29T09:39:05Z"
+      "updated_at": "2025-11-30T00:17:58Z"
     },
     "created_at": "2025-11-29T09:26:33Z",
     "updated_at": "2025-11-29T09:42:25Z"
@@ -1053,7 +1053,7 @@
       "current_balance": 86376.85,
       "current_balance_in_base_currency": 86376.85,
       "current_balance_exchange_rate": null,
-      "current_balance_date": "2025-11-29",
+      "current_balance_date": "2025-11-30",
       "current_balance_source": "closing_balance_as_today",
       "data_feeds_balance_type": "balance",
       "safe_balance": null,
@@ -1074,7 +1074,7 @@
       "data_feeds_account_id": null,
       "data_feeds_connection_id": null,
       "created_at": "2024-11-21T08:57:01Z",
-      "updated_at": "2025-11-29T09:39:05Z"
+      "updated_at": "2025-11-30T00:17:58Z"
     },
     "created_at": "2025-11-29T09:26:33Z",
     "updated_at": "2025-11-29T09:42:30Z"
@@ -1125,7 +1125,7 @@
       "current_balance": 86376.85,
       "current_balance_in_base_currency": 86376.85,
       "current_balance_exchange_rate": null,
-      "current_balance_date": "2025-11-29",
+      "current_balance_date": "2025-11-30",
       "current_balance_source": "closing_balance_as_today",
       "data_feeds_balance_type": "balance",
       "safe_balance": null,
@@ -1146,7 +1146,7 @@
       "data_feeds_account_id": null,
       "data_feeds_connection_id": null,
       "created_at": "2024-11-21T08:57:01Z",
-      "updated_at": "2025-11-29T09:39:05Z"
+      "updated_at": "2025-11-30T00:17:58Z"
     },
     "created_at": "2025-11-29T09:26:33Z",
     "updated_at": "2025-11-29T09:42:38Z"
@@ -1197,7 +1197,7 @@
       "current_balance": 86376.85,
       "current_balance_in_base_currency": 86376.85,
       "current_balance_exchange_rate": null,
-      "current_balance_date": "2025-11-29",
+      "current_balance_date": "2025-11-30",
       "current_balance_source": "closing_balance_as_today",
       "data_feeds_balance_type": "balance",
       "safe_balance": null,
@@ -1218,7 +1218,7 @@
       "data_feeds_account_id": null,
       "data_feeds_connection_id": null,
       "created_at": "2024-11-21T08:57:01Z",
-      "updated_at": "2025-11-29T09:39:05Z"
+      "updated_at": "2025-11-30T00:17:58Z"
     },
     "created_at": "2025-11-29T09:26:33Z",
     "updated_at": "2025-11-29T09:42:41Z"
@@ -1269,7 +1269,7 @@
       "current_balance": 86376.85,
       "current_balance_in_base_currency": 86376.85,
       "current_balance_exchange_rate": null,
-      "current_balance_date": "2025-11-29",
+      "current_balance_date": "2025-11-30",
       "current_balance_source": "closing_balance_as_today",
       "data_feeds_balance_type": "balance",
       "safe_balance": null,
@@ -1290,7 +1290,7 @@
       "data_feeds_account_id": null,
       "data_feeds_connection_id": null,
       "created_at": "2024-11-21T08:57:01Z",
-      "updated_at": "2025-11-29T09:39:05Z"
+      "updated_at": "2025-11-30T00:17:58Z"
     },
     "created_at": "2025-11-29T09:26:33Z",
     "updated_at": "2025-11-29T09:42:42Z"
@@ -1341,7 +1341,7 @@
       "current_balance": 86376.85,
       "current_balance_in_base_currency": 86376.85,
       "current_balance_exchange_rate": null,
-      "current_balance_date": "2025-11-29",
+      "current_balance_date": "2025-11-30",
       "current_balance_source": "closing_balance_as_today",
       "data_feeds_balance_type": "balance",
       "safe_balance": null,
@@ -1362,7 +1362,7 @@
       "data_feeds_account_id": null,
       "data_feeds_connection_id": null,
       "created_at": "2024-11-21T08:57:01Z",
-      "updated_at": "2025-11-29T09:39:05Z"
+      "updated_at": "2025-11-30T00:17:58Z"
     },
     "created_at": "2025-11-29T09:26:33Z",
     "updated_at": "2025-11-29T09:42:43Z"
@@ -1373,14 +1373,26 @@
     "original_payee": "YOU SOLD OPENING TRANSACTION CALL (LHX) L3HARRIS DEC 12 25 285 (100 SHS) (Margin)",
     "date": "2025-11-28",
     "upload_source": "bank_file",
-    "category": null,
+    "category": {
+      "id": 20916181,
+      "title": "Option Trade",
+      "colour": "#9c27b0",
+      "is_transfer": false,
+      "is_bill": false,
+      "refund_behaviour": "debits_are_deductions",
+      "children": [],
+      "parent_id": 11152792,
+      "roll_up": false,
+      "created_at": "2024-12-07T10:53:44Z",
+      "updated_at": "2024-12-07T10:54:07Z"
+    },
     "closing_balance": 87374.19,
     "cheque_number": null,
     "memo": null,
     "amount": 522.99,
     "amount_in_base_currency": 522.99,
     "type": "credit",
-    "is_transfer": null,
+    "is_transfer": false,
     "needs_review": false,
     "status": "posted",
     "note": null,
@@ -1401,7 +1413,7 @@
       "current_balance": 86376.85,
       "current_balance_in_base_currency": 86376.85,
       "current_balance_exchange_rate": null,
-      "current_balance_date": "2025-11-29",
+      "current_balance_date": "2025-11-30",
       "current_balance_source": "closing_balance_as_today",
       "data_feeds_balance_type": "balance",
       "safe_balance": null,
@@ -1422,10 +1434,10 @@
       "data_feeds_account_id": null,
       "data_feeds_connection_id": null,
       "created_at": "2024-11-21T08:57:01Z",
-      "updated_at": "2025-11-29T09:39:05Z"
+      "updated_at": "2025-11-30T00:17:58Z"
     },
     "created_at": "2025-11-29T09:26:33Z",
-    "updated_at": "2025-11-29T09:42:44Z"
+    "updated_at": "2025-11-30T19:36:39Z"
   },
   {
     "id": 1547302635,
@@ -1473,7 +1485,7 @@
       "current_balance": 86376.85,
       "current_balance_in_base_currency": 86376.85,
       "current_balance_exchange_rate": null,
-      "current_balance_date": "2025-11-29",
+      "current_balance_date": "2025-11-30",
       "current_balance_source": "closing_balance_as_today",
       "data_feeds_balance_type": "balance",
       "safe_balance": null,
@@ -1494,7 +1506,7 @@
       "data_feeds_account_id": null,
       "data_feeds_connection_id": null,
       "created_at": "2024-11-21T08:57:01Z",
-      "updated_at": "2025-11-29T09:39:05Z"
+      "updated_at": "2025-11-30T00:17:58Z"
     },
     "created_at": "2025-11-29T09:26:33Z",
     "updated_at": "2025-11-29T09:42:45Z"
@@ -1545,7 +1557,7 @@
       "current_balance": 86376.85,
       "current_balance_in_base_currency": 86376.85,
       "current_balance_exchange_rate": null,
-      "current_balance_date": "2025-11-29",
+      "current_balance_date": "2025-11-30",
       "current_balance_source": "closing_balance_as_today",
       "data_feeds_balance_type": "balance",
       "safe_balance": null,
@@ -1566,7 +1578,7 @@
       "data_feeds_account_id": null,
       "data_feeds_connection_id": null,
       "created_at": "2024-11-21T08:57:01Z",
-      "updated_at": "2025-11-29T09:39:05Z"
+      "updated_at": "2025-11-30T00:17:58Z"
     },
     "created_at": "2025-11-29T09:26:33Z",
     "updated_at": "2025-11-29T09:42:46Z"
@@ -1617,7 +1629,7 @@
       "current_balance": 86376.85,
       "current_balance_in_base_currency": 86376.85,
       "current_balance_exchange_rate": null,
-      "current_balance_date": "2025-11-29",
+      "current_balance_date": "2025-11-30",
       "current_balance_source": "closing_balance_as_today",
       "data_feeds_balance_type": "balance",
       "safe_balance": null,
@@ -1638,7 +1650,7 @@
       "data_feeds_account_id": null,
       "data_feeds_connection_id": null,
       "created_at": "2024-11-21T08:57:01Z",
-      "updated_at": "2025-11-29T09:39:05Z"
+      "updated_at": "2025-11-30T00:17:58Z"
     },
     "created_at": "2025-11-29T09:26:33Z",
     "updated_at": "2025-11-29T09:42:47Z"
@@ -1689,7 +1701,7 @@
       "current_balance": 86376.85,
       "current_balance_in_base_currency": 86376.85,
       "current_balance_exchange_rate": null,
-      "current_balance_date": "2025-11-29",
+      "current_balance_date": "2025-11-30",
       "current_balance_source": "closing_balance_as_today",
       "data_feeds_balance_type": "balance",
       "safe_balance": null,
@@ -1710,7 +1722,7 @@
       "data_feeds_account_id": null,
       "data_feeds_connection_id": null,
       "created_at": "2024-11-21T08:57:01Z",
-      "updated_at": "2025-11-29T09:39:05Z"
+      "updated_at": "2025-11-30T00:17:58Z"
     },
     "created_at": "2025-11-29T09:26:33Z",
     "updated_at": "2025-11-29T09:42:47Z"
@@ -1761,7 +1773,7 @@
       "current_balance": 86376.85,
       "current_balance_in_base_currency": 86376.85,
       "current_balance_exchange_rate": null,
-      "current_balance_date": "2025-11-29",
+      "current_balance_date": "2025-11-30",
       "current_balance_source": "closing_balance_as_today",
       "data_feeds_balance_type": "balance",
       "safe_balance": null,
@@ -1782,7 +1794,7 @@
       "data_feeds_account_id": null,
       "data_feeds_connection_id": null,
       "created_at": "2024-11-21T08:57:01Z",
-      "updated_at": "2025-11-29T09:39:05Z"
+      "updated_at": "2025-11-30T00:17:58Z"
     },
     "created_at": "2025-11-29T09:26:33Z",
     "updated_at": "2025-11-29T09:42:49Z"
@@ -1833,7 +1845,7 @@
       "current_balance": 86376.85,
       "current_balance_in_base_currency": 86376.85,
       "current_balance_exchange_rate": null,
-      "current_balance_date": "2025-11-29",
+      "current_balance_date": "2025-11-30",
       "current_balance_source": "closing_balance_as_today",
       "data_feeds_balance_type": "balance",
       "safe_balance": null,
@@ -1854,7 +1866,7 @@
       "data_feeds_account_id": null,
       "data_feeds_connection_id": null,
       "created_at": "2024-11-21T08:57:01Z",
-      "updated_at": "2025-11-29T09:39:05Z"
+      "updated_at": "2025-11-30T00:17:58Z"
     },
     "created_at": "2025-11-29T09:26:33Z",
     "updated_at": "2025-11-29T09:42:49Z"
@@ -1905,7 +1917,7 @@
       "current_balance": 86376.85,
       "current_balance_in_base_currency": 86376.85,
       "current_balance_exchange_rate": null,
-      "current_balance_date": "2025-11-29",
+      "current_balance_date": "2025-11-30",
       "current_balance_source": "closing_balance_as_today",
       "data_feeds_balance_type": "balance",
       "safe_balance": null,
@@ -1926,7 +1938,7 @@
       "data_feeds_account_id": null,
       "data_feeds_connection_id": null,
       "created_at": "2024-11-21T08:57:01Z",
-      "updated_at": "2025-11-29T09:39:05Z"
+      "updated_at": "2025-11-30T00:17:58Z"
     },
     "created_at": "2025-11-29T09:26:33Z",
     "updated_at": "2025-11-29T09:42:52Z"
@@ -1977,7 +1989,7 @@
       "current_balance": 86376.85,
       "current_balance_in_base_currency": 86376.85,
       "current_balance_exchange_rate": null,
-      "current_balance_date": "2025-11-29",
+      "current_balance_date": "2025-11-30",
       "current_balance_source": "closing_balance_as_today",
       "data_feeds_balance_type": "balance",
       "safe_balance": null,
@@ -1998,7 +2010,7 @@
       "data_feeds_account_id": null,
       "data_feeds_connection_id": null,
       "created_at": "2024-11-21T08:57:01Z",
-      "updated_at": "2025-11-29T09:39:05Z"
+      "updated_at": "2025-11-30T00:17:58Z"
     },
     "created_at": "2025-11-29T09:26:33Z",
     "updated_at": "2025-11-29T09:42:53Z"
@@ -2044,10 +2056,10 @@
       "is_net_worth": false,
       "include_in_net_worth": true,
       "currency_code": "pln",
-      "current_balance": -19316.31,
-      "current_balance_in_base_currency": -5286.17,
+      "current_balance": -19951.83,
+      "current_balance_in_base_currency": -5460.09,
       "current_balance_exchange_rate": 0.273663700152157,
-      "current_balance_date": "2025-11-28",
+      "current_balance_date": "2025-11-29",
       "current_balance_source": "data_feed",
       "data_feeds_balance_type": "balance",
       "safe_balance": null,
@@ -2068,7 +2080,7 @@
       "data_feeds_account_id": "982307",
       "data_feeds_connection_id": "558111",
       "created_at": "2023-09-18T07:01:30Z",
-      "updated_at": "2025-11-28T22:13:24Z"
+      "updated_at": "2025-11-29T22:13:56Z"
     },
     "created_at": "2025-11-28T22:13:23Z",
     "updated_at": "2025-11-29T08:23:22Z"
@@ -2138,7 +2150,7 @@
       "data_feeds_account_id": "982306",
       "data_feeds_connection_id": "558111",
       "created_at": "2022-11-26T11:13:25Z",
-      "updated_at": "2025-11-28T22:13:31Z"
+      "updated_at": "2025-11-29T22:13:38Z"
     },
     "created_at": "2025-11-28T22:13:25Z",
     "updated_at": "2025-11-29T08:23:28Z"
@@ -2189,7 +2201,7 @@
       "current_balance": 86376.85,
       "current_balance_in_base_currency": 86376.85,
       "current_balance_exchange_rate": null,
-      "current_balance_date": "2025-11-29",
+      "current_balance_date": "2025-11-30",
       "current_balance_source": "closing_balance_as_today",
       "data_feeds_balance_type": "balance",
       "safe_balance": null,
@@ -2210,7 +2222,7 @@
       "data_feeds_account_id": null,
       "data_feeds_connection_id": null,
       "created_at": "2024-11-21T08:57:01Z",
-      "updated_at": "2025-11-29T09:39:05Z"
+      "updated_at": "2025-11-30T00:17:58Z"
     },
     "created_at": "2025-11-29T09:26:33Z",
     "updated_at": "2025-11-29T09:42:53Z"
@@ -2258,10 +2270,10 @@
       "is_net_worth": false,
       "include_in_net_worth": true,
       "currency_code": "eur",
-      "current_balance": 21877.35,
-      "current_balance_in_base_currency": 25370.13,
-      "current_balance_exchange_rate": 1.1596528926961578,
-      "current_balance_date": "2025-11-28",
+      "current_balance": 21716.76,
+      "current_balance_in_base_currency": 25183.9,
+      "current_balance_exchange_rate": 1.1596528926961582,
+      "current_balance_date": "2025-11-29",
       "current_balance_source": "data_feed",
       "data_feeds_balance_type": "balance",
       "safe_balance": null,
@@ -2282,7 +2294,7 @@
       "data_feeds_account_id": "295028",
       "data_feeds_connection_id": "122375",
       "created_at": "2022-11-27T08:50:20Z",
-      "updated_at": "2025-11-28T22:10:49Z"
+      "updated_at": "2025-11-29T22:10:48Z"
     },
     "created_at": "2025-11-28T22:10:46Z",
     "updated_at": "2025-11-29T09:22:42Z"
@@ -2352,7 +2364,7 @@
       "data_feeds_account_id": "982304",
       "data_feeds_connection_id": "558111",
       "created_at": "2022-11-26T11:13:25Z",
-      "updated_at": "2025-11-28T22:13:47Z"
+      "updated_at": "2025-11-29T22:13:31Z"
     },
     "created_at": "2025-11-28T22:13:17Z",
     "updated_at": "2025-11-29T09:23:24Z"
@@ -2398,10 +2410,10 @@
       "is_net_worth": false,
       "include_in_net_worth": true,
       "currency_code": "pln",
-      "current_balance": -19316.31,
-      "current_balance_in_base_currency": -5286.17,
+      "current_balance": -19951.83,
+      "current_balance_in_base_currency": -5460.09,
       "current_balance_exchange_rate": 0.273663700152157,
-      "current_balance_date": "2025-11-28",
+      "current_balance_date": "2025-11-29",
       "current_balance_source": "data_feed",
       "data_feeds_balance_type": "balance",
       "safe_balance": null,
@@ -2422,7 +2434,7 @@
       "data_feeds_account_id": "982307",
       "data_feeds_connection_id": "558111",
       "created_at": "2023-09-18T07:01:30Z",
-      "updated_at": "2025-11-28T22:13:24Z"
+      "updated_at": "2025-11-29T22:13:56Z"
     },
     "created_at": "2025-11-28T22:13:22Z",
     "updated_at": "2025-11-29T09:22:03Z"
@@ -2492,7 +2504,7 @@
       "data_feeds_account_id": "982306",
       "data_feeds_connection_id": "558111",
       "created_at": "2022-11-26T11:13:25Z",
-      "updated_at": "2025-11-28T22:13:31Z"
+      "updated_at": "2025-11-29T22:13:38Z"
     },
     "created_at": "2025-11-28T22:13:25Z",
     "updated_at": "2025-11-29T09:23:28Z"
@@ -2541,7 +2553,7 @@
       "current_balance": 86376.85,
       "current_balance_in_base_currency": 86376.85,
       "current_balance_exchange_rate": null,
-      "current_balance_date": "2025-11-29",
+      "current_balance_date": "2025-11-30",
       "current_balance_source": "closing_balance_as_today",
       "data_feeds_balance_type": "balance",
       "safe_balance": null,
@@ -2562,7 +2574,7 @@
       "data_feeds_account_id": null,
       "data_feeds_connection_id": null,
       "created_at": "2024-11-21T08:57:01Z",
-      "updated_at": "2025-11-29T09:39:05Z"
+      "updated_at": "2025-11-30T00:17:58Z"
     },
     "created_at": "2025-11-29T09:26:33Z",
     "updated_at": "2025-11-29T09:44:52Z"
@@ -2610,10 +2622,10 @@
       "is_net_worth": false,
       "include_in_net_worth": true,
       "currency_code": "eur",
-      "current_balance": 21877.35,
-      "current_balance_in_base_currency": 25370.13,
-      "current_balance_exchange_rate": 1.1596528926961578,
-      "current_balance_date": "2025-11-28",
+      "current_balance": 21716.76,
+      "current_balance_in_base_currency": 25183.9,
+      "current_balance_exchange_rate": 1.1596528926961582,
+      "current_balance_date": "2025-11-29",
       "current_balance_source": "data_feed",
       "data_feeds_balance_type": "balance",
       "safe_balance": null,
@@ -2634,7 +2646,7 @@
       "data_feeds_account_id": "295028",
       "data_feeds_connection_id": "122375",
       "created_at": "2022-11-27T08:50:20Z",
-      "updated_at": "2025-11-28T22:10:49Z"
+      "updated_at": "2025-11-29T22:10:48Z"
     },
     "created_at": "2025-11-28T22:10:46Z",
     "updated_at": "2025-11-29T09:23:11Z"
@@ -2704,7 +2716,7 @@
       "data_feeds_account_id": "982304",
       "data_feeds_connection_id": "558111",
       "created_at": "2022-11-26T11:13:25Z",
-      "updated_at": "2025-11-28T22:13:47Z"
+      "updated_at": "2025-11-29T22:13:31Z"
     },
     "created_at": "2025-11-28T22:13:17Z",
     "updated_at": "2025-11-29T09:24:37Z"
@@ -2750,10 +2762,10 @@
       "is_net_worth": false,
       "include_in_net_worth": true,
       "currency_code": "pln",
-      "current_balance": -19388.24,
-      "current_balance_in_base_currency": -5305.86,
-      "current_balance_exchange_rate": 0.273663700152157,
-      "current_balance_date": "2025-11-28",
+      "current_balance": -19908.78,
+      "current_balance_in_base_currency": -5448.31,
+      "current_balance_exchange_rate": 0.27366370015215696,
+      "current_balance_date": "2025-11-29",
       "current_balance_source": "data_feed",
       "data_feeds_balance_type": "balance",
       "safe_balance": null,
@@ -2774,7 +2786,7 @@
       "data_feeds_account_id": "982310",
       "data_feeds_connection_id": "558111",
       "created_at": "2022-11-26T11:13:25Z",
-      "updated_at": "2025-11-28T22:13:35Z"
+      "updated_at": "2025-11-29T22:13:37Z"
     },
     "created_at": "2025-11-27T22:13:24Z",
     "updated_at": "2025-11-28T13:00:10Z"
@@ -2820,10 +2832,10 @@
       "is_net_worth": false,
       "include_in_net_worth": true,
       "currency_code": "pln",
-      "current_balance": -19388.24,
-      "current_balance_in_base_currency": -5305.86,
-      "current_balance_exchange_rate": 0.273663700152157,
-      "current_balance_date": "2025-11-28",
+      "current_balance": -19908.78,
+      "current_balance_in_base_currency": -5448.31,
+      "current_balance_exchange_rate": 0.27366370015215696,
+      "current_balance_date": "2025-11-29",
       "current_balance_source": "data_feed",
       "data_feeds_balance_type": "balance",
       "safe_balance": null,
@@ -2844,7 +2856,7 @@
       "data_feeds_account_id": "982310",
       "data_feeds_connection_id": "558111",
       "created_at": "2022-11-26T11:13:25Z",
-      "updated_at": "2025-11-28T22:13:35Z"
+      "updated_at": "2025-11-29T22:13:37Z"
     },
     "created_at": "2025-11-27T22:13:24Z",
     "updated_at": "2025-11-28T13:00:11Z"
@@ -2890,10 +2902,10 @@
       "is_net_worth": false,
       "include_in_net_worth": true,
       "currency_code": "pln",
-      "current_balance": -19316.31,
-      "current_balance_in_base_currency": -5286.17,
+      "current_balance": -19951.83,
+      "current_balance_in_base_currency": -5460.09,
       "current_balance_exchange_rate": 0.273663700152157,
-      "current_balance_date": "2025-11-28",
+      "current_balance_date": "2025-11-29",
       "current_balance_source": "data_feed",
       "data_feeds_balance_type": "balance",
       "safe_balance": null,
@@ -2914,7 +2926,7 @@
       "data_feeds_account_id": "982307",
       "data_feeds_connection_id": "558111",
       "created_at": "2023-09-18T07:01:30Z",
-      "updated_at": "2025-11-28T22:13:24Z"
+      "updated_at": "2025-11-29T22:13:56Z"
     },
     "created_at": "2025-11-27T22:13:45Z",
     "updated_at": "2025-11-28T07:30:58Z"
@@ -2945,7 +2957,7 @@
     "amount_in_base_currency": 94.22,
     "type": "credit",
     "is_transfer": true,
-    "needs_review": true,
+    "needs_review": false,
     "status": "posted",
     "note": null,
     "labels": [],
@@ -2963,7 +2975,7 @@
       "current_balance": -453.92,
       "current_balance_in_base_currency": -453.92,
       "current_balance_exchange_rate": null,
-      "current_balance_date": "2025-11-29",
+      "current_balance_date": "2025-11-30",
       "current_balance_source": "data_feed",
       "data_feeds_balance_type": "balance_reversed",
       "safe_balance": null,
@@ -2984,10 +2996,10 @@
       "data_feeds_account_id": "851619",
       "data_feeds_connection_id": "241047",
       "created_at": "2024-12-21T02:20:49Z",
-      "updated_at": "2025-11-29T09:21:47Z"
+      "updated_at": "2025-11-30T19:35:40Z"
     },
     "created_at": "2025-11-28T13:50:54Z",
-    "updated_at": "2025-11-28T17:21:10Z"
+    "updated_at": "2025-11-30T07:33:13Z"
   },
   {
     "id": 1545460374,
@@ -3030,10 +3042,10 @@
       "is_net_worth": false,
       "include_in_net_worth": true,
       "currency_code": "pln",
-      "current_balance": -19388.24,
-      "current_balance_in_base_currency": -5305.86,
-      "current_balance_exchange_rate": 0.273663700152157,
-      "current_balance_date": "2025-11-28",
+      "current_balance": -19908.78,
+      "current_balance_in_base_currency": -5448.31,
+      "current_balance_exchange_rate": 0.27366370015215696,
+      "current_balance_date": "2025-11-29",
       "current_balance_source": "data_feed",
       "data_feeds_balance_type": "balance",
       "safe_balance": null,
@@ -3054,7 +3066,7 @@
       "data_feeds_account_id": "982310",
       "data_feeds_connection_id": "558111",
       "created_at": "2022-11-26T11:13:25Z",
-      "updated_at": "2025-11-28T22:13:35Z"
+      "updated_at": "2025-11-29T22:13:37Z"
     },
     "created_at": "2025-11-27T22:13:24Z",
     "updated_at": "2025-11-28T13:00:52Z"
@@ -3124,7 +3136,7 @@
       "data_feeds_account_id": "982306",
       "data_feeds_connection_id": "558111",
       "created_at": "2022-11-26T11:13:25Z",
-      "updated_at": "2025-11-28T22:13:31Z"
+      "updated_at": "2025-11-29T22:13:38Z"
     },
     "created_at": "2025-11-27T22:13:33Z",
     "updated_at": "2025-11-28T17:21:03Z"
@@ -3173,7 +3185,7 @@
       "current_balance": 0,
       "current_balance_in_base_currency": 0,
       "current_balance_exchange_rate": null,
-      "current_balance_date": "2025-11-29",
+      "current_balance_date": "2025-11-30",
       "current_balance_source": "closing_balance_as_today",
       "data_feeds_balance_type": "balance",
       "safe_balance": null,
@@ -3194,80 +3206,10 @@
       "data_feeds_account_id": null,
       "data_feeds_connection_id": null,
       "created_at": "2024-04-22T10:08:13Z",
-      "updated_at": "2025-11-29T09:47:24Z"
+      "updated_at": "2025-11-30T00:17:58Z"
     },
     "created_at": "2025-11-26T15:33:36Z",
     "updated_at": "2025-11-29T09:47:24Z"
-  },
-  {
-    "id": 1544210145,
-    "payee": "GOOGLE *HBO Max Stream 855-836-3987 USA",
-    "original_payee": "GOOGLE *HBO Max Stream 855-836-3987 USA",
-    "date": "2025-11-26",
-    "upload_source": "data_feed",
-    "category": {
-      "id": 11122633,
-      "title": "Purchases - Subscriptions",
-      "colour": "#9c27b0",
-      "is_transfer": false,
-      "is_bill": false,
-      "refund_behaviour": "credits_are_refunds",
-      "children": [],
-      "parent_id": 12107110,
-      "roll_up": false,
-      "created_at": "2022-11-27T10:01:28Z",
-      "updated_at": "2025-06-17T05:34:50Z"
-    },
-    "closing_balance": -19305.13,
-    "cheque_number": null,
-    "memo": null,
-    "amount": -68.17,
-    "amount_in_base_currency": -18.68,
-    "type": "debit",
-    "is_transfer": false,
-    "needs_review": false,
-    "status": "posted",
-    "note": null,
-    "labels": [],
-    "transaction_account": {
-      "id": 1868005,
-      "account_id": 1805506,
-      "name": "PKO VISA Infinity CB",
-      "latest_feed_name": "Karta kredytowa PKO VISA Infinit",
-      "number": "PL23102000299500201913447249",
-      "type": "credits",
-      "offline": false,
-      "is_net_worth": false,
-      "include_in_net_worth": true,
-      "currency_code": "pln",
-      "current_balance": -19388.24,
-      "current_balance_in_base_currency": -5305.86,
-      "current_balance_exchange_rate": 0.273663700152157,
-      "current_balance_date": "2025-11-28",
-      "current_balance_source": "data_feed",
-      "data_feeds_balance_type": "balance",
-      "safe_balance": null,
-      "safe_balance_in_base_currency": null,
-      "has_safe_balance_adjustment": false,
-      "starting_balance": -26924.44,
-      "starting_balance_date": "2024-09-26",
-      "institution": {
-        "id": 679483,
-        "title": "PKO Bank Polski",
-        "currency_code": "pln",
-        "colour": "#CC7A96",
-        "logo_url": "https://data-feeds-assets-production.nyc3.digitaloceanspaces.com/u69vajcem7ox3hebn0nb6r7ontov",
-        "favicon_data_uri": "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAACAAAAAgCAMAAABEpIrGAAABIFBMVEX///8AAADkICz5+/z3+/7iAAAAQ4sAACgAACrjABgAPZEAP4YCO3wBPoIBPX8AN4ro7PLL0t7x9PcAIVcAADUAABwAACIAABP75ebyp6r0t7r2wcPiAA/lKjT++PjkFCTvkZTrbnPmMTv63d7pWmD/19XBzN2Yq8pzj7paf7NKeLJ+l7+ot9FNbZ8ALoIAQZIAOYV4jrFpf6QAIHIAF2keUJLb5e6irsEAJ20AM3UAImUALXYAJXQkTIWMnbo6VIFFYI0AF2BAVXsAFFQABFQAAV9AW4krRXOnrrsAK2VOYIIAGVMAB0ZBT24AAD4AAEgAHE5xfJMMKlpMV3GNlaYyQWO3vMZARlwAET1PUmM8P1AwMD98e4Kko6hbW2TX19m/MNNNAAABeklEQVQ4ja3SW1eCQBQF4BlPKorIMIpmmd0tu5qaIiaaWVoGWVZIqf3/f9FgvQDKS+219tP+1lnzMAj9c1Yza777ejCS3cj5gM1AIBDZWr7nggxsbvtc2GEnshkfsJvNBvd8X4n2V5dvNH9wWDg6KhyfSIvm/OmZGD2fJ3pWvCDuvVTmQyExOo8Y4ovlvHOXKjGBv1z5SVUU4vWyE9SUWFzgxd8IQqyuuIAaqzMRssOzXVGqblAvNa4aRTuNRrlZQ+AEfbUCiOQPtAtNq0mApFbPBW660GxrqCpJUNXalWu14wUt5Za2K7fkTlVrvcQicH9N71jbrA8D3QUen6Bz36W/JV5gGKAnutBJPNklI8MNkknQh8PnwUsf6UODjJKmE0y5MAPGq/H2zkDSC95lGcwxB/o4BaMxR6yw5QSQxmByKWqO7crUwlPkOoHhg0tTk9XiwhZ2HbAFfMqYfqRY5TSeeHb7oZ+YzjAmMzz5WrSzEPiaTj2f7a/5BkS0PwhRkmKHAAAAAElFTkSuQmCC",
-        "created_at": "2022-11-26T11:13:25Z",
-        "updated_at": "2024-03-26T07:44:16Z"
-      },
-      "data_feeds_account_id": "982310",
-      "data_feeds_connection_id": "558111",
-      "created_at": "2022-11-26T11:13:25Z",
-      "updated_at": "2025-11-28T22:13:35Z"
-    },
-    "created_at": "2025-11-26T22:13:31Z",
-    "updated_at": "2025-11-27T06:29:09Z"
   },
   {
     "id": 1547302596,
@@ -3315,7 +3257,7 @@
       "current_balance": 86376.85,
       "current_balance_in_base_currency": 86376.85,
       "current_balance_exchange_rate": null,
-      "current_balance_date": "2025-11-29",
+      "current_balance_date": "2025-11-30",
       "current_balance_source": "closing_balance_as_today",
       "data_feeds_balance_type": "balance",
       "safe_balance": null,
@@ -3336,7 +3278,7 @@
       "data_feeds_account_id": null,
       "data_feeds_connection_id": null,
       "created_at": "2024-11-21T08:57:01Z",
-      "updated_at": "2025-11-29T09:39:05Z"
+      "updated_at": "2025-11-30T00:17:58Z"
     },
     "created_at": "2025-11-29T09:26:33Z",
     "updated_at": "2025-11-29T09:42:57Z"
@@ -3382,10 +3324,10 @@
       "is_net_worth": false,
       "include_in_net_worth": true,
       "currency_code": "pln",
-      "current_balance": -19388.24,
-      "current_balance_in_base_currency": -5305.86,
-      "current_balance_exchange_rate": 0.273663700152157,
-      "current_balance_date": "2025-11-28",
+      "current_balance": -19908.78,
+      "current_balance_in_base_currency": -5448.31,
+      "current_balance_exchange_rate": 0.27366370015215696,
+      "current_balance_date": "2025-11-29",
       "current_balance_source": "data_feed",
       "data_feeds_balance_type": "balance",
       "safe_balance": null,
@@ -3406,7 +3348,7 @@
       "data_feeds_account_id": "982310",
       "data_feeds_connection_id": "558111",
       "created_at": "2022-11-26T11:13:25Z",
-      "updated_at": "2025-11-28T22:13:35Z"
+      "updated_at": "2025-11-29T22:13:37Z"
     },
     "created_at": "2025-11-26T22:13:31Z",
     "updated_at": "2025-11-28T13:50:44Z"
@@ -3457,7 +3399,7 @@
       "current_balance": 86376.85,
       "current_balance_in_base_currency": 86376.85,
       "current_balance_exchange_rate": null,
-      "current_balance_date": "2025-11-29",
+      "current_balance_date": "2025-11-30",
       "current_balance_source": "closing_balance_as_today",
       "data_feeds_balance_type": "balance",
       "safe_balance": null,
@@ -3478,7 +3420,7 @@
       "data_feeds_account_id": null,
       "data_feeds_connection_id": null,
       "created_at": "2024-11-21T08:57:01Z",
-      "updated_at": "2025-11-29T09:39:05Z"
+      "updated_at": "2025-11-30T00:17:58Z"
     },
     "created_at": "2025-11-29T09:26:33Z",
     "updated_at": "2025-11-29T09:42:59Z"
@@ -3524,10 +3466,10 @@
       "is_net_worth": false,
       "include_in_net_worth": true,
       "currency_code": "pln",
-      "current_balance": -19388.24,
-      "current_balance_in_base_currency": -5305.86,
-      "current_balance_exchange_rate": 0.273663700152157,
-      "current_balance_date": "2025-11-28",
+      "current_balance": -19908.78,
+      "current_balance_in_base_currency": -5448.31,
+      "current_balance_exchange_rate": 0.27366370015215696,
+      "current_balance_date": "2025-11-29",
       "current_balance_source": "data_feed",
       "data_feeds_balance_type": "balance",
       "safe_balance": null,
@@ -3548,7 +3490,7 @@
       "data_feeds_account_id": "982310",
       "data_feeds_connection_id": "558111",
       "created_at": "2022-11-26T11:13:25Z",
-      "updated_at": "2025-11-28T22:13:35Z"
+      "updated_at": "2025-11-29T22:13:37Z"
     },
     "created_at": "2025-11-26T22:13:31Z",
     "updated_at": "2025-11-28T13:50:34Z"
@@ -3594,10 +3536,10 @@
       "is_net_worth": false,
       "include_in_net_worth": true,
       "currency_code": "pln",
-      "current_balance": -19316.31,
-      "current_balance_in_base_currency": -5286.17,
+      "current_balance": -19951.83,
+      "current_balance_in_base_currency": -5460.09,
       "current_balance_exchange_rate": 0.273663700152157,
-      "current_balance_date": "2025-11-28",
+      "current_balance_date": "2025-11-29",
       "current_balance_source": "data_feed",
       "data_feeds_balance_type": "balance",
       "safe_balance": null,
@@ -3618,7 +3560,7 @@
       "data_feeds_account_id": "982307",
       "data_feeds_connection_id": "558111",
       "created_at": "2023-09-18T07:01:30Z",
-      "updated_at": "2025-11-28T22:13:24Z"
+      "updated_at": "2025-11-29T22:13:56Z"
     },
     "created_at": "2025-11-26T22:13:50Z",
     "updated_at": "2025-11-28T13:50:03Z"
@@ -3688,7 +3630,7 @@
       "data_feeds_account_id": "982306",
       "data_feeds_connection_id": "558111",
       "created_at": "2022-11-26T11:13:25Z",
-      "updated_at": "2025-11-28T22:13:31Z"
+      "updated_at": "2025-11-29T22:13:38Z"
     },
     "created_at": "2025-11-26T22:13:56Z",
     "updated_at": "2025-11-28T17:21:04Z"
@@ -3739,7 +3681,7 @@
       "current_balance": 86376.85,
       "current_balance_in_base_currency": 86376.85,
       "current_balance_exchange_rate": null,
-      "current_balance_date": "2025-11-29",
+      "current_balance_date": "2025-11-30",
       "current_balance_source": "closing_balance_as_today",
       "data_feeds_balance_type": "balance",
       "safe_balance": null,
@@ -3760,80 +3702,10 @@
       "data_feeds_account_id": null,
       "data_feeds_connection_id": null,
       "created_at": "2024-11-21T08:57:01Z",
-      "updated_at": "2025-11-29T09:39:05Z"
+      "updated_at": "2025-11-30T00:17:58Z"
     },
     "created_at": "2025-11-29T09:26:33Z",
     "updated_at": "2025-11-29T09:43:01Z"
-  },
-  {
-    "id": 1544210133,
-    "payee": "ASW SOLIVODA KONSTANCIN JEPOL",
-    "original_payee": "ASW SOLIVODA KONSTANCIN JEPOL",
-    "date": "2025-11-26",
-    "upload_source": "data_feed",
-    "category": {
-      "id": 11111944,
-      "title": "Anna - Exp",
-      "colour": "#00BCD4",
-      "is_transfer": false,
-      "is_bill": false,
-      "refund_behaviour": "credits_are_refunds",
-      "children": [],
-      "parent_id": 21421684,
-      "roll_up": false,
-      "created_at": "2022-11-26T11:19:49Z",
-      "updated_at": "2025-06-17T05:34:50Z"
-    },
-    "closing_balance": -19151.96,
-    "cheque_number": null,
-    "memo": null,
-    "amount": -38,
-    "amount_in_base_currency": -10.41,
-    "type": "debit",
-    "is_transfer": false,
-    "needs_review": false,
-    "status": "posted",
-    "note": null,
-    "labels": [],
-    "transaction_account": {
-      "id": 1868005,
-      "account_id": 1805506,
-      "name": "PKO VISA Infinity CB",
-      "latest_feed_name": "Karta kredytowa PKO VISA Infinit",
-      "number": "PL23102000299500201913447249",
-      "type": "credits",
-      "offline": false,
-      "is_net_worth": false,
-      "include_in_net_worth": true,
-      "currency_code": "pln",
-      "current_balance": -19388.24,
-      "current_balance_in_base_currency": -5305.86,
-      "current_balance_exchange_rate": 0.273663700152157,
-      "current_balance_date": "2025-11-28",
-      "current_balance_source": "data_feed",
-      "data_feeds_balance_type": "balance",
-      "safe_balance": null,
-      "safe_balance_in_base_currency": null,
-      "has_safe_balance_adjustment": false,
-      "starting_balance": -26924.44,
-      "starting_balance_date": "2024-09-26",
-      "institution": {
-        "id": 679483,
-        "title": "PKO Bank Polski",
-        "currency_code": "pln",
-        "colour": "#CC7A96",
-        "logo_url": "https://data-feeds-assets-production.nyc3.digitaloceanspaces.com/u69vajcem7ox3hebn0nb6r7ontov",
-        "favicon_data_uri": "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAACAAAAAgCAMAAABEpIrGAAABIFBMVEX///8AAADkICz5+/z3+/7iAAAAQ4sAACgAACrjABgAPZEAP4YCO3wBPoIBPX8AN4ro7PLL0t7x9PcAIVcAADUAABwAACIAABP75ebyp6r0t7r2wcPiAA/lKjT++PjkFCTvkZTrbnPmMTv63d7pWmD/19XBzN2Yq8pzj7paf7NKeLJ+l7+ot9FNbZ8ALoIAQZIAOYV4jrFpf6QAIHIAF2keUJLb5e6irsEAJ20AM3UAImUALXYAJXQkTIWMnbo6VIFFYI0AF2BAVXsAFFQABFQAAV9AW4krRXOnrrsAK2VOYIIAGVMAB0ZBT24AAD4AAEgAHE5xfJMMKlpMV3GNlaYyQWO3vMZARlwAET1PUmM8P1AwMD98e4Kko6hbW2TX19m/MNNNAAABeklEQVQ4ja3SW1eCQBQF4BlPKorIMIpmmd0tu5qaIiaaWVoGWVZIqf3/f9FgvQDKS+219tP+1lnzMAj9c1Yza777ejCS3cj5gM1AIBDZWr7nggxsbvtc2GEnshkfsJvNBvd8X4n2V5dvNH9wWDg6KhyfSIvm/OmZGD2fJ3pWvCDuvVTmQyExOo8Y4ovlvHOXKjGBv1z5SVUU4vWyE9SUWFzgxd8IQqyuuIAaqzMRssOzXVGqblAvNa4aRTuNRrlZQ+AEfbUCiOQPtAtNq0mApFbPBW660GxrqCpJUNXalWu14wUt5Za2K7fkTlVrvcQicH9N71jbrA8D3QUen6Bz36W/JV5gGKAnutBJPNklI8MNkknQh8PnwUsf6UODjJKmE0y5MAPGq/H2zkDSC95lGcwxB/o4BaMxR6yw5QSQxmByKWqO7crUwlPkOoHhg0tTk9XiwhZ2HbAFfMqYfqRY5TSeeHb7oZ+YzjAmMzz5WrSzEPiaTj2f7a/5BkS0PwhRkmKHAAAAAElFTkSuQmCC",
-        "created_at": "2022-11-26T11:13:25Z",
-        "updated_at": "2024-03-26T07:44:16Z"
-      },
-      "data_feeds_account_id": "982310",
-      "data_feeds_connection_id": "558111",
-      "created_at": "2022-11-26T11:13:25Z",
-      "updated_at": "2025-11-28T22:13:35Z"
-    },
-    "created_at": "2025-11-26T22:13:31Z",
-    "updated_at": "2025-11-27T06:29:20Z"
   },
   {
     "id": 1545437493,
@@ -3876,10 +3748,10 @@
       "is_net_worth": false,
       "include_in_net_worth": true,
       "currency_code": "usd",
-      "current_balance": 20639.04,
-      "current_balance_in_base_currency": 20639.04,
+      "current_balance": 20544.82,
+      "current_balance_in_base_currency": 20544.82,
       "current_balance_exchange_rate": null,
-      "current_balance_date": "2025-11-28",
+      "current_balance_date": "2025-11-29",
       "current_balance_source": "data_feed",
       "data_feeds_balance_type": "balance",
       "safe_balance": null,
@@ -3900,80 +3772,10 @@
       "data_feeds_account_id": "641653",
       "data_feeds_connection_id": "289692",
       "created_at": "2022-11-26T12:49:48Z",
-      "updated_at": "2025-11-29T10:32:09Z"
+      "updated_at": "2025-11-30T19:35:26Z"
     },
     "created_at": "2025-11-27T21:36:42Z",
     "updated_at": "2025-11-28T13:50:17Z"
-  },
-  {
-    "id": 1544210487,
-    "payee": "Auchan Kasa samoobsluga KONSTANCIN-JEPOL",
-    "original_payee": "Auchan Kasa samoobsluga KONSTANCIN-JEPOL",
-    "date": "2025-11-26",
-    "upload_source": "data_feed",
-    "category": {
-      "id": 11111731,
-      "title": "Groceries",
-      "colour": null,
-      "is_transfer": false,
-      "is_bill": false,
-      "refund_behaviour": "credits_are_refunds",
-      "children": [],
-      "parent_id": 16619114,
-      "roll_up": false,
-      "created_at": "2022-11-26T11:13:33Z",
-      "updated_at": "2025-06-17T05:34:50Z"
-    },
-    "closing_balance": -18200.6,
-    "cheque_number": null,
-    "memo": null,
-    "amount": -49.03,
-    "amount_in_base_currency": -13.44,
-    "type": "debit",
-    "is_transfer": false,
-    "needs_review": false,
-    "status": "posted",
-    "note": null,
-    "labels": [],
-    "transaction_account": {
-      "id": 2472590,
-      "account_id": 1805506,
-      "name": "PKO VISA Infinity KB",
-      "latest_feed_name": "Karta kredytowa PKO VISA Infinit",
-      "number": "PL58102000299400202347517889",
-      "type": "credits",
-      "offline": false,
-      "is_net_worth": false,
-      "include_in_net_worth": true,
-      "currency_code": "pln",
-      "current_balance": -19316.31,
-      "current_balance_in_base_currency": -5286.17,
-      "current_balance_exchange_rate": 0.273663700152157,
-      "current_balance_date": "2025-11-28",
-      "current_balance_source": "data_feed",
-      "data_feeds_balance_type": "balance",
-      "safe_balance": null,
-      "safe_balance_in_base_currency": null,
-      "has_safe_balance_adjustment": false,
-      "starting_balance": -10041.23,
-      "starting_balance_date": "2024-04-30",
-      "institution": {
-        "id": 679483,
-        "title": "PKO Bank Polski",
-        "currency_code": "pln",
-        "colour": "#CC7A96",
-        "logo_url": "https://data-feeds-assets-production.nyc3.digitaloceanspaces.com/u69vajcem7ox3hebn0nb6r7ontov",
-        "favicon_data_uri": "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAACAAAAAgCAMAAABEpIrGAAABIFBMVEX///8AAADkICz5+/z3+/7iAAAAQ4sAACgAACrjABgAPZEAP4YCO3wBPoIBPX8AN4ro7PLL0t7x9PcAIVcAADUAABwAACIAABP75ebyp6r0t7r2wcPiAA/lKjT++PjkFCTvkZTrbnPmMTv63d7pWmD/19XBzN2Yq8pzj7paf7NKeLJ+l7+ot9FNbZ8ALoIAQZIAOYV4jrFpf6QAIHIAF2keUJLb5e6irsEAJ20AM3UAImUALXYAJXQkTIWMnbo6VIFFYI0AF2BAVXsAFFQABFQAAV9AW4krRXOnrrsAK2VOYIIAGVMAB0ZBT24AAD4AAEgAHE5xfJMMKlpMV3GNlaYyQWO3vMZARlwAET1PUmM8P1AwMD98e4Kko6hbW2TX19m/MNNNAAABeklEQVQ4ja3SW1eCQBQF4BlPKorIMIpmmd0tu5qaIiaaWVoGWVZIqf3/f9FgvQDKS+219tP+1lnzMAj9c1Yza777ejCS3cj5gM1AIBDZWr7nggxsbvtc2GEnshkfsJvNBvd8X4n2V5dvNH9wWDg6KhyfSIvm/OmZGD2fJ3pWvCDuvVTmQyExOo8Y4ovlvHOXKjGBv1z5SVUU4vWyE9SUWFzgxd8IQqyuuIAaqzMRssOzXVGqblAvNa4aRTuNRrlZQ+AEfbUCiOQPtAtNq0mApFbPBW660GxrqCpJUNXalWu14wUt5Za2K7fkTlVrvcQicH9N71jbrA8D3QUen6Bz36W/JV5gGKAnutBJPNklI8MNkknQh8PnwUsf6UODjJKmE0y5MAPGq/H2zkDSC95lGcwxB/o4BaMxR6yw5QSQxmByKWqO7crUwlPkOoHhg0tTk9XiwhZ2HbAFfMqYfqRY5TSeeHb7oZ+YzjAmMzz5WrSzEPiaTj2f7a/5BkS0PwhRkmKHAAAAAElFTkSuQmCC",
-        "created_at": "2022-11-26T11:13:25Z",
-        "updated_at": "2024-03-26T07:44:16Z"
-      },
-      "data_feeds_account_id": "982307",
-      "data_feeds_connection_id": "558111",
-      "created_at": "2023-09-18T07:01:30Z",
-      "updated_at": "2025-11-28T22:13:24Z"
-    },
-    "created_at": "2025-11-26T22:13:50Z",
-    "updated_at": "2025-11-27T06:29:22Z"
   },
   {
     "id": 1544210523,
@@ -4040,80 +3842,10 @@
       "data_feeds_account_id": "982306",
       "data_feeds_connection_id": "558111",
       "created_at": "2022-11-26T11:13:25Z",
-      "updated_at": "2025-11-28T22:13:31Z"
+      "updated_at": "2025-11-29T22:13:38Z"
     },
     "created_at": "2025-11-26T22:13:56Z",
     "updated_at": "2025-11-28T13:50:53Z"
-  },
-  {
-    "id": 1544754582,
-    "payee": "DREAMING SPANISH",
-    "original_payee": "DREAMING SPANISH",
-    "date": "2025-11-26",
-    "upload_source": "data_feed",
-    "category": {
-      "id": 11122633,
-      "title": "Purchases - Subscriptions",
-      "colour": "#9c27b0",
-      "is_transfer": false,
-      "is_bill": false,
-      "refund_behaviour": "credits_are_refunds",
-      "children": [],
-      "parent_id": 12107110,
-      "roll_up": false,
-      "created_at": "2022-11-27T10:01:28Z",
-      "updated_at": "2025-06-17T05:34:50Z"
-    },
-    "closing_balance": -2733.22,
-    "cheque_number": null,
-    "memo": null,
-    "amount": -8,
-    "amount_in_base_currency": -8,
-    "type": "debit",
-    "is_transfer": false,
-    "needs_review": false,
-    "status": "posted",
-    "note": null,
-    "labels": [],
-    "transaction_account": {
-      "id": 1876744,
-      "account_id": 1805515,
-      "name": "LUXURY CARD",
-      "latest_feed_name": "Black Card",
-      "number": "1822",
-      "type": "credits",
-      "offline": false,
-      "is_net_worth": false,
-      "include_in_net_worth": true,
-      "currency_code": "usd",
-      "current_balance": -2733.22,
-      "current_balance_in_base_currency": -2733.22,
-      "current_balance_exchange_rate": null,
-      "current_balance_date": "2025-11-29",
-      "current_balance_source": "data_feed",
-      "data_feeds_balance_type": "balance",
-      "safe_balance": null,
-      "safe_balance_in_base_currency": null,
-      "has_safe_balance_adjustment": false,
-      "starting_balance": -9651.02,
-      "starting_balance_date": "2022-11-30",
-      "institution": {
-        "id": 682663,
-        "title": "Barclaycard",
-        "currency_code": "usd",
-        "colour": "#E26560",
-        "logo_url": "https://data-feeds-assets-production.nyc3.digitaloceanspaces.com/pr883adszqwnegvx9oj7pa8dwutd",
-        "favicon_data_uri": "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAABAAAAAQCAYAAAAf8/9hAAAC00lEQVQ4jXWTS2xUVRjHf/fBdOi0M1MKpS1VsNBWCK0GopEEJIo2mBDQsICVEhISAoksMHFDXNCNCxM3LnTDI6xYaDANhEcxxoirKkkVEAjQaqfTWno798Lcuffc82AxHcBJ+HL+OV++x/+cnPP/LOps8JdS/3jCF1Lq7VnHUjuX27uP9+eu1tfVzK4PdKXi5r6MUTPalmOhnfMSjtVyB/7wBgevTgz8j2Do96n1b4xMXW8eKd3u++nh7WIoxoffatm7ttH+W2vDTEIW4O2L99+7MF66NDrpX2s7c/3LpwRni+LDcZN+3XXd3nDe650M4vDQX5U90lgDGLgyp5v2jpa2rclnthYKs3izQZM/V/p88NzYJwCun2rc47spjNboJR04mOEfZ8SmQoiDDX5ken+dTkYaUdjpDDopET8KeRhmNgGn3Yq1qEcoDYCvDb4ym1EAprq0ZnI+gqgMIgajQSnaHOtj4KDbYDuCxDQAoKt9GPPM1wqMqiaNBi1BK+bKkQawU8ZYSEA9R1DblQSZgEqqvpIgJShFVzZdAbCXOUpWT7WqjTVICUlchUwgEQuIQUtuzYffAth5h5MOFm5YZpFMcP/7l8U6ftacCOyyh+MAUoBW2JahIb1wg1ea3Gsr7ITsxNiDl8Lp4E1rjvY0EFUgjkDELBEBqzvy5B3B8pc7aW1MiXc7s6cA7O82ZL/viwrnllriU6dw987GrmVDXhCCqEASQRLz6HHEO82KNStX8H5P+72VnW1Hv962duqplK/sHvhouljMtGYWH75HrjvwSiAiiCsQPyY2Dndv3OKD9aseDE8ER0b3b/mmpkTreV3v+rkwdP5m8ZgMK9WvkwuPFocQhQy82r1v7MDW0y8cpthxfmhty91wXSD0IQygHOBqxeb+nj+7W3K/1Q+fVR9Yd3nS8cpin+V7n81O/NORt02xJdv01ZbV7adO7HhN1dc/AQ11bip5Bh7YAAAAAElFTkSuQmCC",
-        "created_at": "2022-11-30T20:33:45Z",
-        "updated_at": "2024-03-26T07:46:00Z"
-      },
-      "data_feeds_account_id": "564486",
-      "data_feeds_connection_id": "254069",
-      "created_at": "2022-11-30T20:33:45Z",
-      "updated_at": "2025-11-29T12:12:44Z"
-    },
-    "created_at": "2025-11-27T06:20:39Z",
-    "updated_at": "2025-11-27T06:29:30Z"
   },
   {
     "id": 1547302581,
@@ -4161,7 +3893,7 @@
       "current_balance": 86376.85,
       "current_balance_in_base_currency": 86376.85,
       "current_balance_exchange_rate": null,
-      "current_balance_date": "2025-11-29",
+      "current_balance_date": "2025-11-30",
       "current_balance_source": "closing_balance_as_today",
       "data_feeds_balance_type": "balance",
       "safe_balance": null,
@@ -4182,80 +3914,10 @@
       "data_feeds_account_id": null,
       "data_feeds_connection_id": null,
       "created_at": "2024-11-21T08:57:01Z",
-      "updated_at": "2025-11-29T09:39:05Z"
+      "updated_at": "2025-11-30T00:17:58Z"
     },
     "created_at": "2025-11-29T09:26:33Z",
     "updated_at": "2025-11-29T09:43:02Z"
-  },
-  {
-    "id": 1544210130,
-    "payee": "GREEN COFFEE NERO WARSZAWA POL",
-    "original_payee": "GREEN COFFEE NERO WARSZAWA POL",
-    "date": "2025-11-26",
-    "upload_source": "data_feed",
-    "category": {
-      "id": 11112325,
-      "title": "Food and Drink",
-      "colour": null,
-      "is_transfer": false,
-      "is_bill": false,
-      "refund_behaviour": "credits_are_refunds",
-      "children": [],
-      "parent_id": 16619114,
-      "roll_up": false,
-      "created_at": "2022-11-26T12:49:57Z",
-      "updated_at": "2025-06-17T05:34:50Z"
-    },
-    "closing_balance": -19113.96,
-    "cheque_number": null,
-    "memo": null,
-    "amount": -19.8,
-    "amount_in_base_currency": -5.43,
-    "type": "debit",
-    "is_transfer": false,
-    "needs_review": false,
-    "status": "posted",
-    "note": null,
-    "labels": [],
-    "transaction_account": {
-      "id": 1868005,
-      "account_id": 1805506,
-      "name": "PKO VISA Infinity CB",
-      "latest_feed_name": "Karta kredytowa PKO VISA Infinit",
-      "number": "PL23102000299500201913447249",
-      "type": "credits",
-      "offline": false,
-      "is_net_worth": false,
-      "include_in_net_worth": true,
-      "currency_code": "pln",
-      "current_balance": -19388.24,
-      "current_balance_in_base_currency": -5305.86,
-      "current_balance_exchange_rate": 0.273663700152157,
-      "current_balance_date": "2025-11-28",
-      "current_balance_source": "data_feed",
-      "data_feeds_balance_type": "balance",
-      "safe_balance": null,
-      "safe_balance_in_base_currency": null,
-      "has_safe_balance_adjustment": false,
-      "starting_balance": -26924.44,
-      "starting_balance_date": "2024-09-26",
-      "institution": {
-        "id": 679483,
-        "title": "PKO Bank Polski",
-        "currency_code": "pln",
-        "colour": "#CC7A96",
-        "logo_url": "https://data-feeds-assets-production.nyc3.digitaloceanspaces.com/u69vajcem7ox3hebn0nb6r7ontov",
-        "favicon_data_uri": "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAACAAAAAgCAMAAABEpIrGAAABIFBMVEX///8AAADkICz5+/z3+/7iAAAAQ4sAACgAACrjABgAPZEAP4YCO3wBPoIBPX8AN4ro7PLL0t7x9PcAIVcAADUAABwAACIAABP75ebyp6r0t7r2wcPiAA/lKjT++PjkFCTvkZTrbnPmMTv63d7pWmD/19XBzN2Yq8pzj7paf7NKeLJ+l7+ot9FNbZ8ALoIAQZIAOYV4jrFpf6QAIHIAF2keUJLb5e6irsEAJ20AM3UAImUALXYAJXQkTIWMnbo6VIFFYI0AF2BAVXsAFFQABFQAAV9AW4krRXOnrrsAK2VOYIIAGVMAB0ZBT24AAD4AAEgAHE5xfJMMKlpMV3GNlaYyQWO3vMZARlwAET1PUmM8P1AwMD98e4Kko6hbW2TX19m/MNNNAAABeklEQVQ4ja3SW1eCQBQF4BlPKorIMIpmmd0tu5qaIiaaWVoGWVZIqf3/f9FgvQDKS+219tP+1lnzMAj9c1Yza777ejCS3cj5gM1AIBDZWr7nggxsbvtc2GEnshkfsJvNBvd8X4n2V5dvNH9wWDg6KhyfSIvm/OmZGD2fJ3pWvCDuvVTmQyExOo8Y4ovlvHOXKjGBv1z5SVUU4vWyE9SUWFzgxd8IQqyuuIAaqzMRssOzXVGqblAvNa4aRTuNRrlZQ+AEfbUCiOQPtAtNq0mApFbPBW660GxrqCpJUNXalWu14wUt5Za2K7fkTlVrvcQicH9N71jbrA8D3QUen6Bz36W/JV5gGKAnutBJPNklI8MNkknQh8PnwUsf6UODjJKmE0y5MAPGq/H2zkDSC95lGcwxB/o4BaMxR6yw5QSQxmByKWqO7crUwlPkOoHhg0tTk9XiwhZ2HbAFfMqYfqRY5TSeeHb7oZ+YzjAmMzz5WrSzEPiaTj2f7a/5BkS0PwhRkmKHAAAAAElFTkSuQmCC",
-        "created_at": "2022-11-26T11:13:25Z",
-        "updated_at": "2024-03-26T07:44:16Z"
-      },
-      "data_feeds_account_id": "982310",
-      "data_feeds_connection_id": "558111",
-      "created_at": "2022-11-26T11:13:25Z",
-      "updated_at": "2025-11-28T22:13:35Z"
-    },
-    "created_at": "2025-11-26T22:13:31Z",
-    "updated_at": "2025-11-27T06:29:29Z"
   },
   {
     "id": 1547302578,
@@ -4303,7 +3965,7 @@
       "current_balance": 86376.85,
       "current_balance_in_base_currency": 86376.85,
       "current_balance_exchange_rate": null,
-      "current_balance_date": "2025-11-29",
+      "current_balance_date": "2025-11-30",
       "current_balance_source": "closing_balance_as_today",
       "data_feeds_balance_type": "balance",
       "safe_balance": null,
@@ -4324,7 +3986,7 @@
       "data_feeds_account_id": null,
       "data_feeds_connection_id": null,
       "created_at": "2024-11-21T08:57:01Z",
-      "updated_at": "2025-11-29T09:39:05Z"
+      "updated_at": "2025-11-30T00:17:58Z"
     },
     "created_at": "2025-11-29T09:26:33Z",
     "updated_at": "2025-11-29T09:43:04Z"
@@ -4373,7 +4035,7 @@
       "current_balance": -95.37,
       "current_balance_in_base_currency": -95.37,
       "current_balance_exchange_rate": null,
-      "current_balance_date": "2025-11-28",
+      "current_balance_date": "2025-11-29",
       "current_balance_source": "data_feed",
       "data_feeds_balance_type": "balance",
       "safe_balance": null,
@@ -4394,7 +4056,7 @@
       "data_feeds_account_id": "641650",
       "data_feeds_connection_id": "289692",
       "created_at": "2022-11-26T12:49:48Z",
-      "updated_at": "2025-11-29T10:32:06Z"
+      "updated_at": "2025-11-30T19:35:51Z"
     },
     "created_at": "2025-11-26T21:36:12Z",
     "updated_at": "2025-11-28T13:50:20Z"
@@ -4445,7 +4107,7 @@
       "current_balance": 86376.85,
       "current_balance_in_base_currency": 86376.85,
       "current_balance_exchange_rate": null,
-      "current_balance_date": "2025-11-29",
+      "current_balance_date": "2025-11-30",
       "current_balance_source": "closing_balance_as_today",
       "data_feeds_balance_type": "balance",
       "safe_balance": null,
@@ -4466,7 +4128,7 @@
       "data_feeds_account_id": null,
       "data_feeds_connection_id": null,
       "created_at": "2024-11-21T08:57:01Z",
-      "updated_at": "2025-11-29T09:39:05Z"
+      "updated_at": "2025-11-30T00:17:58Z"
     },
     "created_at": "2025-11-29T09:26:33Z",
     "updated_at": "2025-11-29T09:43:05Z"
@@ -4517,7 +4179,7 @@
       "current_balance": 86376.85,
       "current_balance_in_base_currency": 86376.85,
       "current_balance_exchange_rate": null,
-      "current_balance_date": "2025-11-29",
+      "current_balance_date": "2025-11-30",
       "current_balance_source": "closing_balance_as_today",
       "data_feeds_balance_type": "balance",
       "safe_balance": null,
@@ -4538,7 +4200,7 @@
       "data_feeds_account_id": null,
       "data_feeds_connection_id": null,
       "created_at": "2024-11-21T08:57:01Z",
-      "updated_at": "2025-11-29T09:39:05Z"
+      "updated_at": "2025-11-30T00:17:58Z"
     },
     "created_at": "2025-11-29T09:31:41Z",
     "updated_at": "2025-11-29T09:43:06Z"
@@ -4589,7 +4251,7 @@
       "current_balance": 86376.85,
       "current_balance_in_base_currency": 86376.85,
       "current_balance_exchange_rate": null,
-      "current_balance_date": "2025-11-29",
+      "current_balance_date": "2025-11-30",
       "current_balance_source": "closing_balance_as_today",
       "data_feeds_balance_type": "balance",
       "safe_balance": null,
@@ -4610,7 +4272,7 @@
       "data_feeds_account_id": null,
       "data_feeds_connection_id": null,
       "created_at": "2024-11-21T08:57:01Z",
-      "updated_at": "2025-11-29T09:39:05Z"
+      "updated_at": "2025-11-30T00:17:58Z"
     },
     "created_at": "2025-11-29T09:31:41Z",
     "updated_at": "2025-11-29T09:43:09Z"
@@ -4661,7 +4323,7 @@
       "current_balance": 86376.85,
       "current_balance_in_base_currency": 86376.85,
       "current_balance_exchange_rate": null,
-      "current_balance_date": "2025-11-29",
+      "current_balance_date": "2025-11-30",
       "current_balance_source": "closing_balance_as_today",
       "data_feeds_balance_type": "balance",
       "safe_balance": null,
@@ -4682,7 +4344,7 @@
       "data_feeds_account_id": null,
       "data_feeds_connection_id": null,
       "created_at": "2024-11-21T08:57:01Z",
-      "updated_at": "2025-11-29T09:39:05Z"
+      "updated_at": "2025-11-30T00:17:58Z"
     },
     "created_at": "2025-11-29T09:31:41Z",
     "updated_at": "2025-11-29T09:43:10Z"
@@ -4729,9 +4391,9 @@
       "include_in_net_worth": true,
       "currency_code": "eur",
       "current_balance": 560314.19,
-      "current_balance_in_base_currency": 649769.97,
-      "current_balance_exchange_rate": 1.159652892696158,
-      "current_balance_date": "2025-11-29",
+      "current_balance_in_base_currency": 649843.82,
+      "current_balance_exchange_rate": 1.1597846975687434,
+      "current_balance_date": "2025-11-30",
       "current_balance_source": "closing_balance_as_today",
       "data_feeds_balance_type": "balance",
       "safe_balance": null,
@@ -4752,7 +4414,7 @@
       "data_feeds_account_id": null,
       "data_feeds_connection_id": null,
       "created_at": "2022-12-05T10:04:49Z",
-      "updated_at": "2025-11-29T09:24:20Z"
+      "updated_at": "2025-11-30T00:17:57Z"
     },
     "created_at": "2025-11-28T17:24:25Z",
     "updated_at": "2025-11-29T08:23:42Z"

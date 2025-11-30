@@ -185,6 +185,10 @@
   background: rgba(14, 87, 197, 0.361);
 }
 
+.budget-entry-form__input--negative {
+  color: var(--danger);
+}
+
 .budget-entry-form__derived-value {
   min-height: 2.75rem;
   border-radius: 0.8rem;
@@ -298,6 +302,20 @@
 .balances-table__numeric {
   text-align: right;
   font-weight: 600;
+}
+
+.balances-table__numeric--negative {
+  color: var(--danger);
+}
+
+.balances-table__numeric--interactive {
+  cursor: pointer;
+  transition: background 0.15s ease, color 0.15s ease;
+}
+
+.balances-table__numeric--interactive:hover {
+  background-color: rgba(14, 87, 197, 0.12);
+  color: var(--ink);
 }
 
 .balances-table__empty {
