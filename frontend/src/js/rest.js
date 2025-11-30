@@ -96,4 +96,45 @@ export default class Rest {
   static async fetchPsDataOptions() {
     return Rest.fetchJson("/api/psdata/options");
   }
+
+  static async fetchBudgetBalances({
+    fromMonth,
+    toMonth,
+    actualYear,
+    budgetYear,
+    categories,
+    accounts,
+  } = {}) {
+    const params = new URLSearchParams();
+    if (fromMonth) params.set("fromMonth", fromMonth);
+    if (toMonth) params.set("toMonth", toMonth);
+    if (actualYear !== undefined && actualYear !== null) {
+      params.set("actualYear", Number(actualYear));
+    }
+    if (budgetYear !== undefined && budgetYear !== null) {
+      params.set("budgetYear", Number(budgetYear));
+    }
+    if (Array.isArray(categories) && categories.length) {
+      for (const category of categories) {
+        if (category) {
+          params.append("category", category);
+        }
+      }
+    } else if (categories) {
+      params.set("category", categories);
+    }
+    if (Array.isArray(accounts) && accounts.length) {
+      for (const account of accounts) {
+        if (account) {
+          params.append("accounts", account);
+        }
+      }
+    } else if (accounts) {
+      params.set("accounts", accounts);
+    }
+
+    const query = params.toString();
+    const path = `/api/budget/summary${query ? `?${query}` : ""}`;
+    return Rest.fetchJson(path);
+  }
 }

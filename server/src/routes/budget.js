@@ -1,5 +1,6 @@
 const express = require("express");
 const BudgetData = require("../../../components/models/BudgetData");
+const PSdata = require("../../../components/models/PSdata");
 
 const router = express.Router();
 
@@ -11,6 +12,9 @@ const TEXT_FILTERS = [
   ["currency", "Currency"],
   ["baseCurrency", "BaseCurrency"],
 ];
+const CURRENT_YEAR = new Date().getFullYear();
+const DEFAULT_SUMMARY_MONTH_FROM = 1;
+const DEFAULT_SUMMARY_MONTH_TO = 12;
 
 const parseDateValue = (value) => {
   if (value === undefined || value === null) {
@@ -49,6 +53,36 @@ const normalizeFilterValues = (value) => {
       return String(entry).trim();
     })
     .filter((entry) => entry.length);
+};
+
+const removeAllEntry = (values) => {
+  return values.filter(
+    (value) => value && value.toString().toLowerCase() !== "all"
+  );
+};
+
+const buildCategoryMatch = (rawValues) => {
+  const values = normalizeFilterValues(rawValues);
+  if (!values.length) {
+    return {};
+  }
+
+  if (values.length === 1) {
+    return { Category: values[0] };
+  }
+
+  return { Category: { $in: values } };
+};
+
+const buildAccountMatch = (rawValues) => {
+  const values = removeAllEntry(normalizeFilterValues(rawValues));
+  if (!values.length) {
+    return {};
+  }
+
+  return values.length === 1
+    ? { Account: values[0] }
+    : { Account: { $in: values } };
 };
 
 const getFieldValue = (entry, fieldName) => {
@@ -168,6 +202,109 @@ const extractEntries = (payload) => {
   return [];
 };
 
+const parseMonthValue = (value) => {
+  const parsed = Number(value);
+  if (!Number.isFinite(parsed)) {
+    return null;
+  }
+
+  const normalized = Math.floor(parsed);
+  if (normalized < 1 || normalized > 12) {
+    return null;
+  }
+
+  return normalized;
+};
+
+const parseYearValue = (value) => {
+  const parsed = Number(value);
+  if (!Number.isFinite(parsed)) {
+    return null;
+  }
+  return Math.floor(parsed);
+};
+
+const normalizeMonthRange = (fromValue, toValue) => {
+  const from = parseMonthValue(fromValue) ?? DEFAULT_SUMMARY_MONTH_FROM;
+  const to = parseMonthValue(toValue) ?? DEFAULT_SUMMARY_MONTH_TO;
+
+  if (from <= to) {
+    return { from, to };
+  }
+
+  return { from: to, to: from };
+};
+
+const buildMonthSequence = (from, to) => {
+  const months = [];
+  for (let next = from; next <= to; next += 1) {
+    months.push(next);
+  }
+  return months;
+};
+
+const buildDateRange = (year, fromMonth, toMonth) => {
+  const start = new Date(year, fromMonth - 1, 1);
+  const end = new Date(year, toMonth, 1);
+  return { start, end };
+};
+
+const aggregateBaseAmounts = async (model, year, fromMonth, toMonth, extraMatch = {}) => {
+  const effectiveYear = parseYearValue(year) ?? CURRENT_YEAR;
+  const { start, end } = buildDateRange(
+    effectiveYear,
+    fromMonth,
+    toMonth
+  );
+
+  const pipeline = [
+    {
+      $match: {
+        Date: { $gte: start, $lt: end },
+        ...extraMatch,
+      },
+    },
+    {
+      $group: {
+        _id: { $month: "$Date" },
+        total: {
+          $sum: {
+            $ifNull: ["$BaseAmount", 0],
+          },
+        },
+      },
+    },
+    {
+      $project: {
+        month: "$_id",
+        total: 1,
+      },
+    },
+  ];
+
+  const aggregated = await model.aggregate(pipeline).exec();
+
+  const result = {};
+  for (const entry of aggregated) {
+    if (!entry || typeof entry.month !== "number") {
+      continue;
+    }
+
+    const normalizedTotal = Number(entry.total ?? 0);
+    if (!Number.isFinite(normalizedTotal)) {
+      continue;
+    }
+
+    if (entry.month < fromMonth || entry.month > toMonth) {
+      continue;
+    }
+
+    result[entry.month] = normalizedTotal;
+  }
+
+  return result;
+};
+
 router.get("/", async (req, res) => {
   const filters = buildFilters(req.query);
   const limit = resolveLimit(req.query.limit);
@@ -210,6 +347,47 @@ router.post("/", async (req, res) => {
     console.error("[BUDGET] Failed to persist budget entries:", error);
     return res.status(500).json({
       error: "Failed to persist budget data",
+    });
+  }
+});
+
+router.get("/summary", async (req, res) => {
+  const monthRange = normalizeMonthRange(
+    req.query.fromMonth,
+    req.query.toMonth
+  );
+  const { from, to } = monthRange;
+  const actualYear = parseYearValue(req.query.actualYear) ?? CURRENT_YEAR;
+  const budgetYear = parseYearValue(req.query.budgetYear) ?? CURRENT_YEAR;
+  const categoryMatch = buildCategoryMatch(
+    req.query.categories ?? req.query.category
+  );
+  const accountMatch = buildAccountMatch(
+    req.query.accounts ?? req.query.account
+  );
+
+  try {
+    const [actualByMonth, budgetByMonth] = await Promise.all([
+      aggregateBaseAmounts(PSdata, actualYear, from, to, {
+        ...categoryMatch,
+        ...accountMatch,
+      }),
+      aggregateBaseAmounts(BudgetData, budgetYear, from, to, categoryMatch),
+    ]);
+
+    return res.json({
+      months: buildMonthSequence(from, to),
+      fromMonth: from,
+      toMonth: to,
+      actualYear,
+      budgetYear,
+      actualByMonth,
+      budgetByMonth,
+    });
+  } catch (error) {
+    console.error("[BUDGET] Failed to summarize budget data:", error);
+    return res.status(500).json({
+      error: "Failed to summarize budget data",
     });
   }
 });
