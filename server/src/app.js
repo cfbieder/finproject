@@ -7,6 +7,7 @@ const balanceRouter = require("./routes/balance");
 const cashFlowRouter = require("./routes/cashFlow");
 const ingestRouter = require("./routes/ingestPs");
 const utilRouter = require("./routes/util");
+const budgetRouter = require("./routes/budget");
 const app = express();
 
 app.use(morgan("tiny"));
@@ -19,6 +20,7 @@ app.use("/api/health", healthRouter);
 app.use("/api/balance", balanceRouter);
 app.use("/api/cash-flow", cashFlowRouter);
 app.use("/api", ingestRouter);
+app.use("/api/budget", budgetRouter);
 
 // URL of MongoDB server
 var db = process.env.MONGO_URI;

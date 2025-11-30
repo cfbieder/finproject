@@ -92,4 +92,8 @@ export default class Rest {
     const path = `/api/cash-flow/transactions${query ? `?${query}` : ""}`;
     return Rest.fetchJson(path);
   }
+
+  static async fetchPsDataOptions() {
+    return Rest.fetchJson("/api/psdata/options");
+  }
 }

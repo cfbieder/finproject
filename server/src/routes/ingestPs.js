@@ -29,6 +29,141 @@ const DEFAULT_ACCOUNT_NAMES_PATH = dataPaths.accountNames;
 const DEFAULT_COA_PATH = dataPaths.coa;
 const DEFAULT_CATEGORY_NAMES_PATH = dataPaths.categoryNames;
 
+const normalizeStringList = (values) => {
+  if (!Array.isArray(values)) {
+    return [];
+  }
+
+  const unique = new Set();
+
+  for (const value of values) {
+    if (typeof value !== "string") {
+      continue;
+    }
+
+    const trimmed = value.trim();
+    if (trimmed) {
+      unique.add(trimmed);
+    }
+  }
+
+  return Array.from(unique).sort((a, b) => a.localeCompare(b, undefined, { sensitivity: "base" }));
+};
+
+const collectProfitAndLossCategories = (coaData) => {
+  if (!Array.isArray(coaData)) {
+    return [];
+  }
+
+  const duplicates = new Set();
+  const categories = [];
+
+  const addCategory = (value) => {
+    if (typeof value !== "string") {
+      return;
+    }
+
+    const trimmed = value.trim();
+    if (!trimmed || duplicates.has(trimmed)) {
+      return;
+    }
+
+    duplicates.add(trimmed);
+    categories.push(trimmed);
+  };
+
+  const traverseNode = (node) => {
+    if (Array.isArray(node)) {
+      for (const child of node) {
+        traverseNode(child);
+      }
+      return;
+    }
+
+    if (node && typeof node === "object") {
+      for (const value of Object.values(node)) {
+        traverseNode(value);
+      }
+      return;
+    }
+
+    if (typeof node === "string") {
+      addCategory(node);
+    }
+  };
+
+  for (const entry of coaData) {
+    if (entry && typeof entry === "object" && entry["Profit & Loss Accounts"]) {
+      traverseNode(entry["Profit & Loss Accounts"]);
+      break;
+    }
+  }
+
+  return categories;
+};
+
+const readCoaCategories = async () => {
+  try {
+    const raw = await fs.readFile(dataPaths.coa, "utf8");
+    const parsed = JSON.parse(raw);
+    return collectProfitAndLossCategories(parsed);
+  } catch (error) {
+    console.error("[PSDATA-OPTIONS] Unable to read COA file:", error);
+    return [];
+  }
+};
+
+const normalizeCategoryList = (values) => {
+  if (!Array.isArray(values)) {
+    return [];
+  }
+
+  const seen = new Set();
+  const cleaned = [];
+
+  for (const value of values) {
+    if (typeof value !== "string") {
+      continue;
+    }
+
+    const trimmed = value.trim();
+    if (!trimmed || seen.has(trimmed)) {
+      continue;
+    }
+
+    seen.add(trimmed);
+    cleaned.push(trimmed);
+  }
+
+  return cleaned;
+};
+
+const orderCategoriesByCoa = (psCategories, coaCategories) => {
+  const cleaned = normalizeCategoryList(psCategories);
+  if (!cleaned.length) {
+    return coaCategories;
+  }
+
+  const remaining = new Set(cleaned);
+  const ordered = [];
+
+  for (const category of coaCategories) {
+    if (remaining.has(category)) {
+      ordered.push(category);
+      remaining.delete(category);
+    }
+  }
+
+  for (const category of cleaned) {
+    if (remaining.has(category)) {
+      ordered.push(category);
+      remaining.delete(category);
+    }
+  }
+
+  return ordered;
+};
+
 // Ingest PS transactions from CSV into MongoDB
 router.post("/ingest-ps", async (req, res) => {
   try {
@@ -170,6 +305,26 @@ router.get("/psdata/count", async (req, res) => {
     console.error("[PSDATA-COUNT] Failed to fetch psdata count:", error);
     return res.status(500).json({
       error: "Failed to count PS data records in MongoDB",
+    });
+  }
+});
+
+router.get("/psdata/options", async (req, res) => {
+  try {
+    const [accounts, categories] = await Promise.all([
+      PSdata.distinct("Account"),
+      PSdata.distinct("Category"),
+    ]);
+    const coaCategories = await readCoaCategories();
+
+    return res.json({
+      accounts: normalizeStringList(accounts),
+      categories: orderCategoriesByCoa(categories, coaCategories),
+    });
+  } catch (error) {
+    console.error("[PSDATA-OPTIONS] Failed to fetch PS data options:", error);
+    return res.status(500).json({
+      error: "Failed to fetch PS data account and category options",
     });
   }
 });
