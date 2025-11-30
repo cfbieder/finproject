@@ -39,3 +39,8 @@
 .balance-report-table tbody tr.balance-report-table__row--highlighted td {
   background: rgba(87, 188, 103, 0.22) !important;
 }
+
+.balance-report-table tbody tr.balance-report-table__row--highlighted td:first-child {
+  background: rgba(87, 188, 103, 0.95) !important;
+  z-index: 10;
+}
