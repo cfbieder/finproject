@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import BalanceDateSelector from "../features/BalanceDateSelector.jsx";
 import BalanceReport from "../features/BalanceReport.jsx";
 import NavigationMenu from "../components/NavigationMenu.jsx";
@@ -42,6 +42,7 @@ export default function Balance() {
   const [reportError, setReportError] = useState("");
   const [isFetchingReport, setIsFetchingReport] = useState(false);
   const [collapsedPaths, setCollapsedPaths] = useState(() => new Set());
+  const initialReportRequested = useRef(false);
 
   const handlePeriodDateChange = (index, value) => {
     setPeriodDates((prev) => {
@@ -70,6 +71,15 @@ export default function Balance() {
       setIsFetchingReport(false);
     }
   };
+
+  useEffect(() => {
+    if (initialReportRequested.current) {
+      return;
+    }
+
+    initialReportRequested.current = true;
+    handleGenerateReport();
+  }, [handleGenerateReport]);
 
   const handleTogglePath = (pathKey) => {
     setCollapsedPaths((prev) => {

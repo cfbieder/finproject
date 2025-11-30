@@ -162,18 +162,6 @@ const analyzePsHandler = async (req, res) => {
 router.post("/analyze-ps", analyzePsHandler);
 router.get("/analyze-ps", analyzePsHandler);
 
-router.get("/getappdata", async (req, res) => {
-  try {
-    const appdata = await PSdata.db.collection("appdata").find({}).toArray();
-    return res.json(appdata);
-  } catch (error) {
-    console.error("[GET-APPDATA] Failed to fetch appdata:", error);
-    return res.status(500).json({
-      error: "Failed to fetch appdata from MongoDB",
-    });
-  }
-});
-
 router.get("/psdata/count", async (req, res) => {
   try {
     const count = await PSdata.db.collection("psdata").countDocuments({});

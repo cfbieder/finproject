@@ -6,6 +6,7 @@ const healthRouter = require("./routes/health");
 const balanceRouter = require("./routes/balance");
 const cashFlowRouter = require("./routes/cashFlow");
 const ingestRouter = require("./routes/ingestPs");
+const utilRouter = require("./routes/util");
 const app = express();
 
 app.use(morgan("tiny"));
@@ -13,6 +14,7 @@ app.use(express.json());
 app.use(cors({ origin: true, credentials: true }));
 
 //todo: change /api to api/ingest-ps and update other routes accordingly
+app.use("/api/util", utilRouter);
 app.use("/api/health", healthRouter);
 app.use("/api/balance", balanceRouter);
 app.use("/api/cash-flow", cashFlowRouter);

@@ -36,9 +36,6 @@ export default function BalanceDateSelector({
                     <div className="balance-period-heading__title">
                       {`Period ${periodLabel}`}
                     </div>
-                    <div className="balance-period-heading__subtitle">
-                      {`Balance Date: ${normalizedDates[index] ?? ""}`}
-                    </div>
                   </div>
                 </div>
                 <label htmlFor={inputId} className="balance-date-picker__label">

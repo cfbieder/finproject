@@ -30,10 +30,10 @@
   cursor: pointer;
 }
 
-.balance-report-table__row--highlighted td {
-  background-color: rgba(87, 188, 103, 0.22);
+.cash-flow-report .balance-report-table__row--highlighted td {
+  background: rgba(87, 188, 103, 1) !important;
 }
 
-.balance-report-table tbody tr.balance-report-table__row--highlighted td {
-  background-color: rgba(87, 188, 103, 0.22) !important;
+.cash-flow-report .balance-report-table tbody tr.balance-report-table__row--highlighted td:first-child {
+  z-index: 10;
 }

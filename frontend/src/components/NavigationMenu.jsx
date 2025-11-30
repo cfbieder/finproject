@@ -12,7 +12,10 @@ const menuItems = [
   },
   {
     label: "Budgeting",
-    submenu: [{ label: "Budget Worksheet", path: "/budget-worksheet" }],
+    submenu: [
+      { label: "Budget Worksheet", path: "/budget-worksheet" },
+      { label: "Budget Options", path: "/budget-options" },
+    ],
   },
   {
     label: "Reports",

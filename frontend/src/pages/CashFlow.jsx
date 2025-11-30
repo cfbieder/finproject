@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useMemo, useState, useEffect } from "react";
 import NavigationMenu from "../components/NavigationMenu.jsx";
 import Rest from "../js/rest.js";
 import "./PageLayout.css";
@@ -143,6 +143,10 @@ export default function CashFlow() {
       setIsLoading(false);
     }
   };
+
+  useEffect(() => {
+    handleGenerateReport();
+  }, []);
 
   const handleTogglePath = (pathKey) => {
     setCollapsedPaths((prev) => {

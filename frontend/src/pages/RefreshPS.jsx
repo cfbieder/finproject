@@ -35,7 +35,7 @@ export default function RefreshPS() {
 
   const fetchLastIngest = useCallback(async () => {
     try {
-      const appdata = await Rest.fetchJson("/api/getappdata");
+      const appdata = await Rest.fetchJson("/api/util/getappdata");
       const records = Array.isArray(appdata) ? appdata : [];
       const parseDates = (field) =>
         records

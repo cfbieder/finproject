@@ -1,0 +1,236 @@
+const express = require("express");
+const {
+  COMPONENTS_DATA_DIR,
+  TEMP_DIR,
+  dataPaths,
+  tempFiles,
+  ensureComponentsDataDir,
+  ensureTempDir,
+} = require("../utils/dataPaths");
+const { getExchangeRate } = require("../utils/frankfurterExchangeRates");
+const PSdata = require("../../../components/models/PSdata");
+
+const router = express.Router();
+
+const buildDataPathsSummary = () => {
+  ensureComponentsDataDir();
+  ensureTempDir();
+  return {
+    dataDirectory: COMPONENTS_DATA_DIR,
+    tempDirectory: TEMP_DIR,
+    dataPaths,
+    tempFiles,
+  };
+};
+
+router.get("/", (req, res) => {
+  try {
+    return res.json({
+      status: "util-service",
+      timestamp: new Date().toISOString(),
+      paths: buildDataPathsSummary(),
+    });
+  } catch (error) {
+    console.error("[UTIL] Failed to build summary response:", error);
+    return res.status(500).json({
+      error: "Unable to build utility metadata",
+    });
+  }
+});
+
+router.get("/getappdata", async (req, res) => {
+  try {
+    const appdata = await PSdata.db.collection("appdata").find({}).toArray();
+    return res.json(appdata);
+  } catch (error) {
+    console.error("[GET-APPDATA] Failed to fetch appdata:", error);
+    return res.status(500).json({
+      error: "Failed to fetch appdata from MongoDB",
+    });
+  }
+});
+
+router.post("/appdata", async (req, res) => {
+  try {
+    const payload = req.body ?? {};
+    const updates = Array.isArray(payload.updates)
+      ? payload.updates
+      : Array.isArray(payload.entries)
+      ? payload.entries
+      : [];
+
+    const setFields = {};
+    for (const update of updates) {
+      if (!update || typeof update.key !== "string") {
+        continue;
+      }
+
+      const key = update.key.trim();
+      if (!key) {
+        continue;
+      }
+
+      setFields[key] = update.value ?? null;
+    }
+
+    if (!Object.keys(setFields).length) {
+      return res.status(400).json({
+        error: "No valid appdata entries were provided",
+      });
+    }
+
+    await PSdata.db
+      .collection("appdata")
+      .updateMany({}, { $set: setFields }, { upsert: true });
+
+    return res.json({
+      updatedKeys: Object.keys(setFields),
+    });
+  } catch (error) {
+    console.error("[SET-APPDATA] Failed to persist appdata entries:", error);
+    return res.status(500).json({
+      error: "Failed to persist appdata entries",
+    });
+  }
+});
+
+router.get("/paths", (req, res) => {
+  try {
+    return res.json(buildDataPathsSummary());
+  } catch (error) {
+    console.error("[UTIL] Failed to resolve paths:", error);
+    return res.status(500).json({
+      error: "Unable to resolve data and temp paths",
+    });
+  }
+});
+
+router.post("/ensure-data-dir", (req, res) => {
+  try {
+    const path = ensureComponentsDataDir();
+    return res.json({
+      ensured: true,
+      path,
+    });
+  } catch (error) {
+    console.error("[UTIL] Failed to ensure data directory:", error);
+    return res.status(500).json({
+      error: "Failed to ensure components data directory",
+    });
+  }
+});
+
+router.post("/ensure-temp-dir", (req, res) => {
+  try {
+    const path = ensureTempDir();
+    return res.json({
+      ensured: true,
+      path,
+    });
+  } catch (error) {
+    console.error("[UTIL] Failed to ensure temp directory:", error);
+    return res.status(500).json({
+      error: "Failed to ensure temporary directory",
+    });
+  }
+});
+
+router.get("/exchange-rate", async (req, res) => {
+  const { currency, date } = req.query ?? {};
+
+  if (!currency || typeof currency !== "string") {
+    return res.status(400).json({
+      error: "Missing or invalid required query parameter 'currency'",
+    });
+  }
+
+  const quoteCurrency = currency.trim().toUpperCase();
+
+  if (!quoteCurrency) {
+    return res.status(400).json({
+      error: "Currency cannot be empty",
+    });
+  }
+
+  let parsedDate = null;
+  if (date) {
+    parsedDate = new Date(date);
+    if (Number.isNaN(parsedDate.getTime())) {
+      return res.status(400).json({
+        error: "Invalid 'date'; expected ISO date string (YYYY-MM-DD)",
+      });
+    }
+  }
+
+  try {
+    const rate = await getExchangeRate(
+      "USD",
+      quoteCurrency,
+      parsedDate || undefined
+    );
+
+    if (rate === null) {
+      return res.status(502).json({
+        error: "Unable to fetch exchange rate for the requested currency/date",
+      });
+    }
+
+    const asOf = (parsedDate || new Date()).toISOString().slice(0, 10);
+
+    return res.json({
+      baseCurrency: "USD",
+      quoteCurrency,
+      asOfDate: asOf,
+      rate,
+    });
+  } catch (error) {
+    console.error("Failed to fetch USD exchange rate:", error);
+    return res.status(500).json({
+      error: "Failed to fetch USD exchange rate",
+    });
+  }
+});
+
+router.get("/currencies", async (req, res) => {
+  try {
+    const [currencyValues, baseCurrencyValues] = await Promise.all([
+      PSdata.distinct("Currency"),
+      PSdata.distinct("BaseCurrency"),
+    ]);
+
+    const currencies = new Set();
+
+    const addValues = (values) => {
+      if (!Array.isArray(values)) {
+        return;
+      }
+
+      for (const value of values) {
+        if (typeof value !== "string") {
+          continue;
+        }
+
+        const normalized = value.trim().toUpperCase();
+        if (!normalized) {
+          continue;
+        }
+
+        currencies.add(normalized);
+      }
+    };
+
+    addValues(currencyValues);
+    addValues(baseCurrencyValues);
+
+    return res.json({
+      currencies: Array.from(currencies).sort(),
+    });
+  } catch (error) {
+    console.error("[UTIL] Failed to list currencies:", error);
+    return res.status(500).json({
+      error: "Unable to list currencies from PS data",
+    });
+  }
+});
+
+module.exports = router;

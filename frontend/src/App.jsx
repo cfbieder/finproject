@@ -2,6 +2,7 @@ import { BrowserRouter, Routes, Route } from "react-router-dom";
 import Balance from "./pages/Balance.jsx";
 import BalanceChart from "./pages/BalanceChart.jsx";
 import BudgetInput from "./pages/BudgetInput.jsx";
+import BudgetOptions from "./pages/BudgetOptions.jsx";
 import CashFlow from "./pages/CashFlow.jsx";
 import CashFlowMonthly from "./pages/CashFlowMonthly.jsx";
 import Home from "./pages/Home.jsx";
@@ -22,6 +23,7 @@ function App() {
         <Route path="/history" element={<History />} />
         <Route path="/balance-chart" element={<BalanceChart />} />
         <Route path="/budget-worksheet" element={<BudgetInput />} />
+        <Route path="/budget-options" element={<BudgetOptions />} />
       </Routes>
     </BrowserRouter>
   );

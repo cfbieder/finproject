@@ -1,0 +1,12 @@
+.budget-options-layout {
+  width: 100%;
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  grid-auto-rows: minmax(220px, auto);
+  gap: 1.25rem;
+}
+
+.budget-options-region--footer {
+  grid-column: 1 / -1;
+  min-height: 180px;
+}

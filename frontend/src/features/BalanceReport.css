@@ -32,15 +32,20 @@
   cursor: pointer;
 }
 
-.balance-report-table__row--highlighted td {
-  background-color: rgba(87, 188, 103, 0.22);
-}
-
-.balance-report-table tbody tr.balance-report-table__row--highlighted td {
-  background: rgba(87, 188, 103, 0.22) !important;
-}
-
-.balance-report-table tbody tr.balance-report-table__row--highlighted td:first-child {
-  background: rgba(87, 188, 103, 0.95) !important;
+.balance-report .balance-report-table tbody tr.balance-report-table__row--highlighted td:first-child {
   z-index: 10;
+}
+
+.balance-report-empty-wrapper {
+  margin-top: 1.5rem;
+  display: flex;
+  justify-content: center;
+}
+
+.balance-report-empty-wrapper .balance-report-empty {
+  text-align: center;
+}
+
+.balance-report-empty--alert {
+  color: var(--danger);
 }

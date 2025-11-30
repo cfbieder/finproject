@@ -56,14 +56,25 @@ const renderAccountRows = (
       (map) => map?.get(pathKey) ?? 0
     );
     const isHighlighted = highlightedPaths.has(pathKey);
+    const highlightBackground = "rgba(87, 188, 103, 1)";
+    const highlightedCellStyle = isHighlighted
+      ? { backgroundColor: highlightBackground }
+      : undefined;
+    const nameCellStyle = {
+      "--balance-indent-level": level,
+      ...(highlightedCellStyle || {}),
+    };
+
     const row = (
       <tr
         key={`${account.name}-${level}-${account.totalUSD}`}
-        className={isHighlighted ? "balance-report-table__row--highlighted" : ""}
+        className={
+          isHighlighted ? "balance-report-table__row--highlighted" : ""
+        }
       >
         <td
           className="balance-report-table__name"
-          style={{ "--balance-indent-level": level }}
+          style={nameCellStyle}
           onClick={() => onToggleHighlight(pathKey)}
         >
           <button
@@ -95,6 +106,7 @@ const renderAccountRows = (
               ? "balance-report-table__value--negative"
               : ""
           }`}
+          style={highlightedCellStyle}
         >
           {formatCurrency(account.totalUSD)}
         </td>
@@ -104,6 +116,7 @@ const renderAccountRows = (
             className={`balance-report-table__value ${
               value < 0 ? "balance-report-table__value--negative" : ""
             }`}
+            style={highlightedCellStyle}
           >
             {formatCurrency(value)}
           </td>
@@ -256,9 +269,11 @@ export default function BalanceReport({
           </div>
         </div>
       ) : (
-        <p className="balance-report-empty">
-          Generate a report to view the balance sheet details.
-        </p>
+        <div className="balance-report-empty-wrapper">
+          <p className="balance-report-empty balance-report-empty--alert">
+            Generating Report.........
+          </p>
+        </div>
       )}
     </section>
   );
