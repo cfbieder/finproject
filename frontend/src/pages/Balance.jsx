@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from "react";
-import BalanceDateSelector from "../features/BalanceDateSelector.jsx";
-import BalanceReport from "../features/BalanceReport.jsx";
+import BalanceDateSelector from "../features/Balances/BalanceDateSelector.jsx";
+import BalanceReport from "../features/Balances/BalanceReport.jsx";
 import NavigationMenu from "../components/NavigationMenu.jsx";
 import Rest from "../js/rest.js";
 import "./PageLayout.css";

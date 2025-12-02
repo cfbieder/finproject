@@ -1,7 +1,6 @@
-import "./BalanceDateSelector.css";
-import PeriodCountSelector from "../components/PeriodCountSelector";
-import MonthYearPicker from "../components/MonthYearPicker";
-
+import PeriodCountSelector from "../../components/PeriodCountSelector";
+import MonthYearPicker from "../../components/MonthYearPicker";
+import "./BudgetRealizationDateSelectorMonthYear.css";
 const monthOptions = [
   { value: 1, label: "January" },
   { value: 2, label: "February" },
@@ -202,8 +201,12 @@ export default function CashFlowDateSelectorMonthYear({
                   yearValue={toParts.year || ""}
                   monthOptions={monthOptions}
                   yearOptions={yearOptions}
-                  onMonthChange={(value) => updateToDate(index, value, undefined)}
-                  onYearChange={(value) => updateToDate(index, undefined, value)}
+                  onMonthChange={(value) =>
+                    updateToDate(index, value, undefined)
+                  }
+                  onYearChange={(value) =>
+                    updateToDate(index, undefined, value)
+                  }
                 />
                 <div
                   className="balance-period-summary"

@@ -2,9 +2,9 @@ import { useMemo, useState, useEffect } from "react";
 import NavigationMenu from "../components/NavigationMenu.jsx";
 import Rest from "../js/rest.js";
 import "./PageLayout.css";
-import "../features/BalanceDateSelector.css";
-import CashFlowReport from "../features/CashFlowReport.jsx";
-import CashFlowDateSelectorMonthYearOne from "../features/CashFlowDateSelectorMonthYearOneP.jsx";
+import "../features/Balances/BalanceDateSelector.css";
+import CashFlowReport from "../features/CashFlow/CashFlowReport.jsx";
+import CashFlowDateSelectorMonthYearOne from "../features/CashFlow/CashFlowDateSelectorMonthYearOneP.jsx";
 
 // Recursively collect paths of collapsible nodes
 const collectCollapsiblePaths = (nodes, path = [], set = new Set()) => {

@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from "react";
-import Rest from "../js/rest.js";
+import Rest from "../../js/rest.js";
 import TransactionModal from "./TransactionModal.jsx";
-import "./CashFlowReport.css";
+import "./BudgetRealizationReport.css";
 
 // Utility to format currency values
 const currencyFormatter = new Intl.NumberFormat("en-US", {
@@ -78,7 +78,9 @@ const renderCashFlowRows = (
     const row = (
       <tr
         key={pathKey}
-        className={isHighlighted ? "balance-report-table__row--highlighted" : ""}
+        className={
+          isHighlighted ? "balance-report-table__row--highlighted" : ""
+        }
       >
         <td
           className="balance-report-table__name"

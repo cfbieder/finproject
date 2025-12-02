@@ -1,10 +1,9 @@
 import { useMemo, useState, useEffect } from "react";
 import NavigationMenu from "../components/NavigationMenu.jsx";
 import Rest from "../js/rest.js";
-import "./PageLayout.css";
-import "../features/Balances/BalanceDateSelector.css";
-import CashFlowReport from "../features/CashFlow/CashFlowReport.jsx";
-import CashFlowDateSelectorMonthYear from "../features/CashFlow/CashFlowDateSelectorMonthYear.jsx";
+import BudgetRealizationReport from "../features/Budgets/BudgetRealizationReport.jsx";
+import BudgetRealizationDateSelectorMonthYear from "../features/Budgets/BudgetRealizationDateSelectorMonthYear.jsx";
+import "./BudgetRealization.css";
 
 // Recursively collect paths of collapsible nodes
 const collectCollapsiblePaths = (nodes, path = [], set = new Set()) => {
@@ -19,15 +18,15 @@ const collectCollapsiblePaths = (nodes, path = [], set = new Set()) => {
   return set;
 };
 
-// Add "Net cash flow" category if not present
-const addNetCashFlowCategory = (nodes) => {
+// Add "Net budget realization" category if not present
+const addNetBudgetRealizationCategory = (nodes) => {
   if (!Array.isArray(nodes)) {
     return [];
   }
 
   let incomeTotal = 0;
   let expenseTotal = 0;
-  let hasNetCashFlow = false;
+  let hasNetBudgetRealization = false;
 
   const result = nodes.map((node) => {
     if (!node || typeof node !== "object") {
@@ -42,13 +41,13 @@ const addNetCashFlowCategory = (nodes) => {
     } else if (normalized === "expense" || normalized === "expenses") {
       expenseTotal = typeof node.total === "number" ? node.total : 0;
     } else if (normalized === "net cash flow") {
-      hasNetCashFlow = true;
+      hasNetBudgetRealization = true;
     }
 
     return node;
   });
 
-  if (hasNetCashFlow) {
+  if (hasNetBudgetRealization) {
     return result;
   }
 
@@ -58,7 +57,7 @@ const addNetCashFlowCategory = (nodes) => {
   ];
 };
 // Main Cash Flow Page Component
-export default function CashFlow() {
+export default function BudgetRealization() {
   const getMonthStart = () => {
     const firstOfMonth = new Date();
     firstOfMonth.setDate(1);
@@ -120,7 +119,7 @@ export default function CashFlow() {
       );
       const rawReports = await Promise.all(
         activePeriods.map(({ fromDate, toDate }) =>
-          Rest.fetchCashFlowReport({
+          Rest.fetchBudgetRealizationReport({
             fromDate,
             toDate,
             transfers,
@@ -128,7 +127,7 @@ export default function CashFlow() {
           })
         )
       );
-      const processedReports = rawReports.map(addNetCashFlowCategory);
+      const processedReports = rawReports.map(addNetBudgetRealizationCategory);
       setReports(processedReports);
       const collapsiblePaths = collectCollapsiblePaths(processedReports?.[0]);
       setCollapsedPaths(new Set(collapsiblePaths));
@@ -197,12 +196,12 @@ export default function CashFlow() {
   };
 
   return (
-    <div className="page-shell">
+    <div className="budget-realization-shell">
       <NavigationMenu />
-      <main className="page-main balance-grid">
-        <div className="balance-layout-wrapper">
-          <div className="report-scroll-container">
-            <CashFlowReport
+      <main className="budget-realization-main">
+        <div className="budget-realization-content">
+          <div className="budget-realization-scroll">
+            <BudgetRealizationReport
               reports={reports}
               periodLabels={periodLabels}
               collapsedPaths={collapsedPaths}
@@ -211,8 +210,8 @@ export default function CashFlow() {
             />
           </div>
         </div>
-        <div className="balance-layout-holder">
-          <CashFlowDateSelectorMonthYear
+        <div className="budget-realization-sidebar">
+          <BudgetRealizationDateSelectorMonthYear
             activePeriodCount={activePeriodCount}
             fromDates={fromDates}
             toDates={toDates}

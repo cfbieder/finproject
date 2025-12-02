@@ -23,6 +23,7 @@ const menuItems = [
       { label: "Balance Summary", path: "/balance" },
       { label: "Cash Flow Summary", path: "/cash-flow" },
       { label: "Cash Flow Monthly", path: "/cash-flow-monthly" },
+      { label: "Budget Realization", path: "/budget-realization" },
     ],
   },
   {

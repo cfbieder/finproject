@@ -1,3 +1,5 @@
+import "./BudgetRegionBalances.css";
+
 const computeTotals = (rows) =>
   rows.reduce(
     (acc, row) => ({

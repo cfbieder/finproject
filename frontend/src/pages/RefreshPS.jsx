@@ -6,7 +6,7 @@
 
 import { useCallback, useEffect, useState } from "react";
 import NavigationMenu from "../components/NavigationMenu.jsx";
-import UploadFeedback from "../features/UploadFeedback.jsx";
+import UploadFeedback from "../features/Database/UploadFeedback.jsx";
 import Rest from "../js/rest.js";
 import "./PageLayout.css";
 

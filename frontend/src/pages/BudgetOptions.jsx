@@ -1,5 +1,5 @@
 import NavigationMenu from "../components/NavigationMenu.jsx";
-import BudgetOptionExchangeRates from "../features/BudgetOptionExchangeRates.jsx";
+import BudgetOptionExchangeRates from "../features/BudgetEntry/BudgetOptionExchangeRates.jsx";
 import "./BudgetOptions.css";
 
 export default function BudgetOptions() {

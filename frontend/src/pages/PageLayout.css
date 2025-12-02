@@ -18,6 +18,36 @@
   min-height: calc(100vh - 3.5rem);
 }
 
+.page-accent__indicator {
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  background: var(--danger);
+  flex-shrink: 0;
+  box-shadow: 0 0 0 3px rgba(225, 29, 72, 0.35);
+}
+
+.page-accent__text {
+  display: flex;
+  flex-direction: column;
+  gap: 0.1rem;
+}
+
+.page-accent__label {
+  margin: 0;
+  font-size: 0.85rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+}
+
+.page-accent__description {
+  margin: 0;
+  font-size: 0.95rem;
+  color: var(--danger);
+  font-weight: 600;
+}
+
 .home-hero {
   background: rgba(255, 255, 255, 0.96);
   border: 1px solid var(--border);

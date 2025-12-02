@@ -1,6 +1,6 @@
 import { useEffect } from "react";
-import Rest from "../js/rest.js";
-
+import Rest from "../../js/rest.js";
+import popupStylesUrl from "./BudgetEntriesAtualPopup.css?url";
 const escapeHtml = (value) => {
   if (value === undefined || value === null) {
     return "";
@@ -36,58 +36,6 @@ const formatAmountWithCurrency = (amount, currency) => {
     : `${formattedNumber}${label}`;
 };
 
-const BUDGET_ENTRIES_POPUP_STYLE = `
-  body {
-    font-family: "Inter", "Segoe UI", system-ui, sans-serif;
-    margin: 0;
-    padding: 16px;
-    background: #fff;
-    color: #111;
-  }
-  h1 {
-    margin: 0;
-    font-size: 1.25rem;
-    font-weight: 600;
-  }
-  table {
-    width: 100%;
-    border-collapse: collapse;
-    margin-top: 1rem;
-    font-size: 0.9rem;
-  }
-  th,
-  td {
-    padding: 0.45rem 0.65rem;
-    border: 1px solid rgba(0, 0, 0, 0.1);
-    text-align: left;
-  }
-  th {
-    background: #f6f7fb;
-    font-size: 0.75rem;
-    letter-spacing: 0.07em;
-    text-transform: uppercase;
-  }
-  .budget-entries-popup__status {
-    margin-top: 1rem;
-    font-size: 0.95rem;
-  }
-  .budget-entries-popup__empty,
-  .budget-entries-popup__error {
-    margin-top: 1rem;
-    font-size: 0.95rem;
-    color: #555;
-  }
-  .budget-entries-popup__error {
-    color: #c33;
-  }
-  .budget-entries-popup__value {
-    font-weight: 600;
-  }
-  .budget-entries-popup__value--negative {
-    color: #c33;
-  }
-`;
-
 const renderPopupCurrencyValue = (rawValue, formattedValue) => {
   const parsed = Number(rawValue);
   const isNegative =
@@ -114,9 +62,8 @@ const BudgetEntriesAtualPopup = ({ request }) => {
       formatCurrencyValue,
     } = request;
 
-    const accountsToFilter = (Array.isArray(selectedAccounts)
-      ? selectedAccounts
-      : []
+    const accountsToFilter = (
+      Array.isArray(selectedAccounts) ? selectedAccounts : []
     ).filter((account) => account && account !== "All");
 
     const safeExpandedCategories = Array.isArray(expandedCategories)
@@ -130,7 +77,9 @@ const BudgetEntriesAtualPopup = ({ request }) => {
 
     const heading = `Entries for ${row.monthLabel} ${actualYear}`;
     const sanitizedHeading = escapeHtml(heading);
-    const popupName = `budget-entries-${actualYear}-${row.monthNumber}-${Date.now()}`;
+    const popupName = `budget-entries-${actualYear}-${
+      row.monthNumber
+    }-${Date.now()}`;
     const popup = window.open(
       "",
       popupName,
@@ -149,7 +98,7 @@ const BudgetEntriesAtualPopup = ({ request }) => {
         <head>
           <meta charset="utf-8" />
           <title>${sanitizedHeading}</title>
-          <style>${BUDGET_ENTRIES_POPUP_STYLE}</style>
+          <link rel="stylesheet" href="${popupStylesUrl}" />
         </head>
         <body>
           <h1>${sanitizedHeading}</h1>

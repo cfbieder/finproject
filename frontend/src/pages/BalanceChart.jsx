@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import BalanceChartPanel from "../features/BalanceChartPanel.jsx";
-import CashFlowDateSelectorMonthYearOneP from "../features/BalanceChartDateSelectorMonthYear.jsx";
+import BalanceChartPanel from "../features/Charts/BalanceChartPanel.jsx";
+import CashFlowDateSelectorMonthYearOneP from "../features/Charts/BalanceChartDateSelectorMonthYear.jsx";
 import NavigationMenu from "../components/NavigationMenu.jsx";
 import Rest from "../js/rest.js";
 import "./PageLayout.css";

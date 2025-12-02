@@ -1,5 +1,6 @@
-const noop = () => {};
+import "./BudgetRegionBudgetEntry.css";
 
+const noop = () => {};
 export default function BudgetRegionBudgetEntry({
   derivedCategoryIsGroup = false,
   derivedCategoryLabel = "",
@@ -34,8 +35,8 @@ export default function BudgetRegionBudgetEntry({
       {derivedCategoryIsGroup ? (
         <div className="budget-entry-form budget-entry-form--disabled">
           <p className="budget-entry-form__disabled-message">
-            Budget entry input is unavailable while “{derivedCategoryLabel}”
-            is selected. Please choose a specific category to enable the entry
+            Budget entry input is unavailable while “{derivedCategoryLabel}” is
+            selected. Please choose a specific category to enable the entry
             form.
           </p>
         </div>
@@ -92,7 +93,9 @@ export default function BudgetRegionBudgetEntry({
               />
             </label>
             <label className="budget-entry-form__control">
-              <span className="budget-entry-form__label">Base Amount (USD)</span>
+              <span className="budget-entry-form__label">
+                Base Amount (USD)
+              </span>
               <input
                 type="text"
                 className={`budget-entry-form__input budget-entry-form__input--readonly budget-entry-form__input--shaded${
@@ -148,9 +151,7 @@ export default function BudgetRegionBudgetEntry({
               </p>
             )}
             {entryStatus.message && (
-              <p className="budget-entry-form__status">
-                {entryStatus.message}
-              </p>
+              <p className="budget-entry-form__status">{entryStatus.message}</p>
             )}
           </div>
           <div className="budget-entry-form__actions">

@@ -1,0 +1,58 @@
+body {
+  font-family: "Inter", "Segoe UI", system-ui, sans-serif;
+  margin: 0;
+  padding: 16px;
+  background: #fff;
+  color: #111;
+}
+
+h1 {
+  margin: 0;
+  font-size: 1.25rem;
+  font-weight: 600;
+}
+
+.budget-entries-popup__table {
+  width: 100%;
+  border-collapse: collapse;
+  margin-top: 1rem;
+  font-size: 0.9rem;
+}
+
+.budget-entries-popup__table th,
+.budget-entries-popup__table td {
+  padding: 0.45rem 0.65rem;
+  border: 1px solid rgba(0, 0, 0, 0.1);
+  text-align: left;
+}
+
+.budget-entries-popup__table th {
+  background: #f6f7fb;
+  font-size: 0.75rem;
+  letter-spacing: 0.07em;
+  text-transform: uppercase;
+}
+
+.budget-entries-popup__status {
+  margin-top: 1rem;
+  font-size: 0.95rem;
+}
+
+.budget-entries-popup__empty,
+.budget-entries-popup__error {
+  margin-top: 1rem;
+  font-size: 0.95rem;
+  color: #555;
+}
+
+.budget-entries-popup__error {
+  color: #c33;
+}
+
+.budget-entries-popup__value {
+  font-weight: 600;
+}
+
+.budget-entries-popup__value--negative {
+  color: #c33;
+}

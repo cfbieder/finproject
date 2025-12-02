@@ -1,6 +1,7 @@
 import { useEffect } from "react";
-import Rest from "../js/rest.js";
-
+import Rest from "../../js/rest.js";
+import popupStylesUrl from "./BudgetEntriesBudgetPopup.css?url";
+// Utility helpers for formatting values that end up in the popup markup.
 const escapeHtml = (value) => {
   if (value === undefined || value === null) {
     return "";
@@ -58,11 +59,7 @@ const buildBudgetEntryDate = (year, month, day) => {
   ) {
     return "";
   }
-  if (
-    normalizedMonth < 1 ||
-    normalizedMonth > 12 ||
-    normalizedDay < 1
-  ) {
+  if (normalizedMonth < 1 || normalizedMonth > 12 || normalizedDay < 1) {
     return "";
   }
   const lastDayOfMonth = new Date(
@@ -177,206 +174,6 @@ const computeBaseAmountValue = (
   return parsedAmount * rate;
 };
 
-const BUDGET_ENTRIES_BUDGET_POPUP_STYLE = `
-  body {
-    font-family: "Inter", "Segoe UI", system-ui, sans-serif;
-    margin: 0;
-    padding: 16px;
-    background: #fff;
-    color: #111;
-  }
-  h1 {
-    margin: 0;
-    font-size: 1.25rem;
-    font-weight: 600;
-  }
-  table {
-    width: 100%;
-    border-collapse: collapse;
-    margin-top: 1rem;
-    font-size: 0.9rem;
-  }
-  th,
-  td {
-    padding: 0.45rem 0.65rem;
-    border: 1px solid rgba(0, 0, 0, 0.1);
-    text-align: left;
-    vertical-align: middle;
-  }
-  th {
-    background: #f6f7fb;
-    font-size: 0.75rem;
-    letter-spacing: 0.07em;
-    text-transform: uppercase;
-  }
-  .budget-entries-popup__table-wrapper {
-    overflow-x: auto;
-  }
-  .budget-entries-popup__actions {
-    display: inline-flex;
-    gap: 0.35rem;
-  }
-  .budget-entries-popup__amount-cell,
-  .budget-entries-popup__base-amount-cell {
-    text-align: right;
-  }
-  .budget-entries-popup__base-amount-cell {
-    background: #f4f5f8;
-  }
-  .budget-entries-popup__action-button {
-    width: 32px;
-    height: 32px;
-    border-radius: 50%;
-    border: 1px solid rgba(0, 0, 0, 0.2);
-    background: #f5f5f7;
-    cursor: pointer;
-    font-weight: 600;
-    font-size: 0.75rem;
-    line-height: 0;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-  }
-  .budget-entries-popup__action-button:hover {
-    background: #e2e6ef;
-  }
-  .budget-entries-popup__action-button--delete {
-    border-color: #c33;
-    color: #c33;
-  }
-  .budget-entries-popup__editor {
-    margin-top: 1.5rem;
-    padding: 1rem;
-    border: 1px solid #e5e7ea;
-    border-radius: 8px;
-    background: #f8f9fd;
-  }
-  .budget-entries-popup__editor--hidden {
-    display: none;
-  }
-  .budget-entries-popup__editor-grid {
-    display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
-    gap: 0.75rem;
-  }
-  .budget-entries-popup__editor-label {
-    display: block;
-    font-size: 0.75rem;
-    text-transform: uppercase;
-    letter-spacing: 0.08em;
-    margin-bottom: 0.35rem;
-    color: #4c5563;
-  }
-  .budget-entries-popup__editor-input,
-  .budget-entries-popup__editor-textarea {
-    width: 100%;
-    padding: 0.45rem 0.55rem;
-    border-radius: 6px;
-    border: 1px solid #cfd2dc;
-    background: #fff;
-    font-size: 0.9rem;
-    font-family: inherit;
-  }
-  .budget-entries-popup__editor-input--negative {
-    color: #c33;
-    font-weight: 600;
-  }
-  .budget-entries-popup__editor-input[data-budget-entry-base-amount] {
-    background: #f4f5f8;
-  }
-  .budget-entries-popup__editor-textarea {
-    resize: vertical;
-  }
-  .budget-entries-popup__editor-actions {
-    margin-top: 0.75rem;
-    display: flex;
-    gap: 0.5rem;
-  }
-  .budget-entries-popup__editor button {
-    padding: 0.5rem 1rem;
-    border-radius: 6px;
-    border: none;
-    cursor: pointer;
-    font-size: 0.9rem;
-    font-weight: 600;
-  }
-  .budget-entries-popup__editor button:first-of-type {
-    background: #0b6df4;
-    color: #fff;
-  }
-  .budget-entries-popup__editor button[data-budget-entry-editor-action="cancel"] {
-    background: #e2e6ef;
-    color: #111;
-  }
-  .budget-entries-popup__status {
-    margin-top: 1rem;
-    font-size: 0.95rem;
-  }
-  .budget-entries-popup__status--error {
-    color: #c33;
-  }
-  .budget-entries-popup__status--success {
-    color: #1b6e44;
-  }
-  .budget-entries-popup__status--muted {
-    color: #555;
-  }
-  .budget-entries-popup__status--neutral {
-    color: #111;
-  }
-  .budget-entries-popup__value {
-    font-weight: 600;
-  }
-  .budget-entries-popup__value--negative {
-    color: #c33;
-  }
-  .budget-entries-popup__empty {
-    text-align: center;
-    font-style: italic;
-    color: #555;
-  }
-  .budget-entries-popup__delete-confirmation {
-    width: 100%;
-    padding: 1rem;
-    margin-top: 1rem;
-    border-radius: 0.75rem;
-    background: #fff6f8;
-    border: 1px solid rgba(225, 29, 72, 0.35);
-    color: #c33;
-    display: none;
-  }
-  .budget-entries-popup__delete-confirmation--visible {
-    display: block;
-  }
-  .budget-entries-popup__delete-confirmation-actions {
-    margin-top: 0.75rem;
-    display: flex;
-    gap: 0.5rem;
-    flex-wrap: wrap;
-  }
-  .budget-entries-popup__delete-confirmation button {
-    border: none;
-    border-radius: 0.55rem;
-    padding: 0.5rem 1rem;
-    font-weight: 600;
-    cursor: pointer;
-  }
-  .budget-entries-popup__delete-confirmation button:first-of-type {
-    background: #c33;
-    color: #fff;
-  }
-  .budget-entries-popup__delete-confirmation button:last-of-type {
-    background: #f5f5f7;
-    color: #111;
-    border: 1px solid #cfd2dc;
-  }
-  .budget-entries-popup__error {
-    margin-top: 1rem;
-    color: #c33;
-    font-size: 0.95rem;
-  }
-`;
-
 const buildDropdownOptions = (values = []) => {
   if (!Array.isArray(values)) {
     return "";
@@ -396,6 +193,47 @@ const buildDropdownOptions = (values = []) => {
     fragments.push(`<option value="${escaped}">${escaped}</option>`);
   }
   return fragments.join("");
+};
+
+// Helpers to keep select dropdowns synchronized with the entry data.
+const ensureSelectOption = (documentRef, selectElement, optionValue) => {
+  if (!documentRef || !selectElement || !optionValue) {
+    return;
+  }
+  const alreadyExists = Array.from(selectElement.options).some(
+    (option) => option.value === optionValue
+  );
+  if (alreadyExists) {
+    return;
+  }
+  const optionElement = documentRef.createElement("option");
+  optionElement.value = optionValue;
+  optionElement.textContent = optionValue;
+  selectElement.appendChild(optionElement);
+};
+
+const setSelectValueSafely = (
+  selectElement,
+  rawValue,
+  { documentRef, fallbackToFirst = false } = {}
+) => {
+  if (!selectElement) {
+    return "";
+  }
+  const normalized =
+    rawValue !== undefined && rawValue !== null ? String(rawValue).trim() : "";
+  if (normalized) {
+    ensureSelectOption(documentRef, selectElement, normalized);
+    selectElement.value = normalized;
+    return normalized;
+  }
+  if (fallbackToFirst && selectElement.options.length) {
+    const fallback = selectElement.options[0].value;
+    selectElement.value = fallback;
+    return fallback;
+  }
+  selectElement.value = "";
+  return "";
 };
 
 const buildBudgetEntriesEditorMarkup = (
@@ -515,6 +353,7 @@ const BUDGET_ENTRIES_DELETE_CONFIRMATION_MARKUP = `
   </section>
 `;
 
+// React component that opens the budget entries popup for the provided request.
 const BudgetEntriesBudgetPopup = ({ request }) => {
   useEffect(() => {
     if (!request?.row) {
@@ -595,7 +434,7 @@ const BudgetEntriesBudgetPopup = ({ request }) => {
         <head>
           <meta charset="utf-8" />
           <title>${sanitizedHeading}</title>
-          <style>${BUDGET_ENTRIES_BUDGET_POPUP_STYLE}</style>
+          <link rel="stylesheet" href="${popupStylesUrl}" />
         </head>
         <body>
           <h1>${sanitizedHeading}</h1>
@@ -641,6 +480,7 @@ const BudgetEntriesBudgetPopup = ({ request }) => {
       statusElement.className = `budget-entries-popup__status budget-entries-popup__status--${type}`;
     };
 
+    // Recalculate the base amount display whenever amount or currency changes.
     const syncEditorBaseAmountField = () => {
       if (!popup || popup.closed) {
         return undefined;
@@ -684,6 +524,7 @@ const BudgetEntriesBudgetPopup = ({ request }) => {
       return computed;
     };
 
+    // Build the table rows for the fetched entries, including action buttons.
     const buildEntriesMarkup = (entries) => {
       const rowsHtml = entries.length
         ? entries
@@ -840,9 +681,7 @@ const BudgetEntriesBudgetPopup = ({ request }) => {
       const dateYearInput = editorForm.querySelector("[name='dateYear']");
       const dateParts = parseBudgetEntryDateParts(entry.Date);
       if (dateMonthSelect) {
-        dateMonthSelect.value = dateParts?.month
-          ? String(dateParts.month)
-          : "";
+        dateMonthSelect.value = dateParts?.month ? String(dateParts.month) : "";
       }
       if (dateYearInput) {
         dateYearInput.value = dateParts?.year ? String(dateParts.year) : "";
@@ -857,43 +696,18 @@ const BudgetEntriesBudgetPopup = ({ request }) => {
       }
       const categorySelect = editorForm.querySelector("[name='category']");
       if (categorySelect) {
-        const rawCategory =
-          entry.Category !== undefined && entry.Category !== null
-            ? String(entry.Category)
-            : "";
-        const categoryValue = rawCategory.trim();
-        const matchingOption = Array.from(categorySelect.options).find(
-          (option) => option.value === categoryValue
-        );
-        if (categoryValue && !matchingOption) {
-          const optionElement = popup.document.createElement("option");
-          optionElement.value = categoryValue;
-          optionElement.textContent = categoryValue;
-          categorySelect.appendChild(optionElement);
-        }
-        categorySelect.value = categoryValue;
+        // ensure the category exists in the dropdown before selecting it
+        setSelectValueSafely(categorySelect, entry.Category ?? "", {
+          documentRef: popup.document,
+        });
       }
       const currencySelect = editorForm.querySelector("[name='currency']");
       if (currencySelect) {
-        const rawCurrency =
-          entry.Currency !== undefined && entry.Currency !== null
-            ? String(entry.Currency)
-            : "";
-        const currencyValue = rawCurrency.trim();
-        const matchingCurrencyOption = Array.from(currencySelect.options).find(
-          (option) => option.value === currencyValue
-        );
-        if (currencyValue && !matchingCurrencyOption) {
-          const optionElement = popup.document.createElement("option");
-          optionElement.value = currencyValue;
-          optionElement.textContent = currencyValue;
-          currencySelect.appendChild(optionElement);
-        }
-        if (currencyValue) {
-          currencySelect.value = currencyValue;
-        } else if (currencySelect.options.length) {
-          currencySelect.value = currencySelect.options[0].value;
-        }
+        // keep currency dropdown synced with the entry (fallback to first option)
+        setSelectValueSafely(currencySelect, entry.Currency ?? "", {
+          documentRef: popup.document,
+          fallbackToFirst: true,
+        });
       }
       const amountInput = editorForm.querySelector("[name='amount']");
       if (amountInput) {
@@ -940,15 +754,11 @@ const BudgetEntriesBudgetPopup = ({ request }) => {
       }
 
       const payload = {};
-      const dateMonthValue = editorForm.querySelector("[name='dateMonth']")
-        ?.value;
-      const dateYearValue = editorForm.querySelector("[name='dateYear']")
-        ?.value;
-      const isoDate = buildBudgetEntryDate(
-        dateYearValue,
-        dateMonthValue,
-        1
-      );
+      const dateMonthValue =
+        editorForm.querySelector("[name='dateMonth']")?.value;
+      const dateYearValue =
+        editorForm.querySelector("[name='dateYear']")?.value;
+      const isoDate = buildBudgetEntryDate(dateYearValue, dateMonthValue, 1);
       if (isoDate) {
         payload.Date = isoDate;
       }

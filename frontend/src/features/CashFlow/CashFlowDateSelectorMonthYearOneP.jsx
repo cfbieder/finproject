@@ -1,5 +1,5 @@
-import "./BalanceChartDateSelectorMonthYear.css";
-import MonthYearPicker from "../components/MonthYearPicker";
+import "../Balances/BalanceDateSelector.css";
+import MonthYearPicker from "../../components/MonthYearPicker";
 const monthOptions = [
   { value: 1, label: "January" },
   { value: 2, label: "February" },
@@ -55,14 +55,23 @@ export default function CashFlowDateSelectorMonthYear({
   toDates,
   onFromDateChange,
   onToDateChange,
+  includeUnrealizedGL,
+  onIncludeUnrealizedChange,
+  transfers,
+  onTransfersChange,
   onGenerateReport,
   isLoading,
+  collapsiblePaths,
+  onToggleCollapseAll,
+  isFullyCollapsed,
   error,
   onExport,
   canExport = true,
 }) {
   const normalizedFromDates = Array.isArray(fromDates) ? fromDates : [];
   const normalizedToDates = Array.isArray(toDates) ? toDates : [];
+  const isCollapseToggleDisabled =
+    isLoading || (collapsiblePaths?.size ?? 0) === 0;
   const isExportDisabled = isLoading || !canExport;
 
   const currentMonth = new Date().getMonth() + 1;
@@ -162,7 +171,43 @@ export default function CashFlowDateSelectorMonthYear({
               onMonthChange={(value) => updateToDate(value, undefined)}
               onYearChange={(value) => updateToDate(undefined, value)}
             />
+            <div className="balance-period-summary" style={{ marginTop: 8 }}>
+              {`From ${normalizedFromDates[0] ?? ""} To ${
+                normalizedToDates[0] ?? ""
+              }`}
+            </div>
           </div>
+          <label
+            htmlFor="cashflow-include-unrealized"
+            className="balance-date-picker__label"
+          >
+            Include Unrealized?
+          </label>
+          <input
+            id="cashflow-include-unrealized"
+            type="checkbox"
+            className="balance-date-picker__input"
+            checked={includeUnrealizedGL}
+            onChange={(event) =>
+              onIncludeUnrealizedChange?.(event.target.checked)
+            }
+          />
+          <label
+            htmlFor="cashflow-transfers"
+            className="balance-date-picker__label"
+          >
+            Transfers
+          </label>
+          <select
+            id="cashflow-transfers"
+            className="balance-date-picker__input"
+            value={transfers}
+            onChange={(event) => onTransfersChange?.(event.target.value)}
+          >
+            <option value="include">Include</option>
+            <option value="exclude">Exclude</option>
+            <option value="only">Only</option>
+          </select>
         </div>
         <button
           className="generate-report-button"
@@ -171,6 +216,14 @@ export default function CashFlowDateSelectorMonthYear({
           disabled={isLoading}
         >
           {isLoading ? "Generating..." : "Generate Report"}
+        </button>
+        <button
+          className="generate-report-button"
+          type="button"
+          onClick={onToggleCollapseAll}
+          disabled={isCollapseToggleDisabled}
+        >
+          {isFullyCollapsed ? "Expand All" : "Collapse All"}
         </button>
         {typeof onExport === "function" && (
           <button
@@ -182,7 +235,18 @@ export default function CashFlowDateSelectorMonthYear({
             Export
           </button>
         )}
-        {error && <p className="balance-report-empty">{error}</p>}
+        {error && (
+          <p
+            className="balance-report-empty"
+            style={{
+              margin: 0,
+              color: "#fecdd3",
+              fontWeight: 600,
+            }}
+          >
+            {error}
+          </p>
+        )}
       </aside>
     </div>
   );

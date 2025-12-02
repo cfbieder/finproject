@@ -1,0 +1,93 @@
+.transaction-modal__overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.35);
+  display: flex;
+  align-items: flex-start;
+  justify-content: center;
+  z-index: 40;
+  padding: clamp(3.5rem, 9vw, 10rem) clamp(1rem, 2vw, 2rem) 1rem;
+}
+
+.transaction-modal {
+  background: white;
+  border-radius: 10px;
+  box-shadow: 0 12px 30px rgba(0, 0, 0, 0.28);
+  max-width: min(1200px, calc(100% - 2rem));
+  width: min(960px, calc(100% - 2rem));
+  max-height: 80vh;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  resize: both;
+  min-width: 320px;
+  min-height: 220px;
+  box-sizing: border-box;
+}
+
+.transaction-modal__header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0.85rem 1rem;
+  border-bottom: 1px solid #d9e2ef;
+  background: linear-gradient(135deg, #f5f9ff, #eef3fc);
+  cursor: grab;
+  user-select: none;
+}
+
+.transaction-modal__title {
+  margin: 0;
+  font-size: 1.05rem;
+}
+
+.transaction-modal__close-button {
+  border: 1px solid #c2cee5;
+  background: #fff;
+  border-radius: 6px;
+  padding: 0.35rem 0.75rem;
+  cursor: pointer;
+}
+
+.transaction-modal__table-wrapper {
+  padding: 0.5rem 1rem 1rem;
+  overflow: auto;
+  flex: 1;
+}
+
+.transaction-modal__table {
+  width: 100%;
+}
+
+.transaction-modal__header-cell {
+  position: sticky;
+  top: 0;
+  background: white;
+  z-index: 15;
+}
+
+.transaction-modal__header-button {
+  border: none;
+  background: transparent;
+  font: inherit;
+  padding: 0;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.25rem;
+  min-width: 68px;
+}
+
+.transaction-modal__header:active {
+  cursor: grabbing;
+}
+
+.transaction-modal__description-cell {
+  max-width: 320px;
+  word-break: break-word;
+}
+
+.transaction-modal__error-message {
+  color: #b00020;
+}

@@ -1,5 +1,5 @@
-import "./BalanceDateSelector.css";
-import PeriodCountSelector from "../components/PeriodCountSelector";
+import "../Balances/BalanceDateSelector.css";
+import PeriodCountSelector from "../../components/PeriodCountSelector";
 
 export default function CashFlowDateSelector({
   activePeriodCount,

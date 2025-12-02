@@ -1,13 +1,12 @@
 import { useEffect, useMemo, useState } from "react";
 import NavigationMenu from "../components/NavigationMenu.jsx";
 import Rest from "../js/rest.js";
-import BudgetEntriesAtualPopup from "../features/BudgetEntriesAtualPopup.jsx";
-import BudgetEntriesBudgetPopup from "../features/BudgetEntriesBudgetPopup.jsx";
-import BudgetRegionBalances from "../features/BudgetRegionBalances.jsx";
-import BudgetRegionSelectors from "../features/BudgetRegionSelectors.jsx";
-import BudgetRegionBudgetEntry from "../features/BudgetRegionBudgetEntry.jsx";
+import BudgetEntriesAtualPopup from "../features/BudgetEntry/BudgetEntriesAtualPopup.jsx";
+import BudgetEntriesBudgetPopup from "../features/BudgetEntry/BudgetEntriesBudgetPopup.jsx";
+import BudgetRegionBalances from "../features/BudgetEntry/BudgetRegionBalances.jsx";
+import BudgetRegionSelectors from "../features/BudgetEntry/BudgetRegionSelectors.jsx";
+import BudgetRegionBudgetEntry from "../features/BudgetEntry/BudgetRegionBudgetEntry.jsx";
 import "./BudgetInput.css";
-
 const MONTH_OPTIONS = [
   { value: "01", label: "January" },
   { value: "02", label: "February" },
@@ -23,17 +22,20 @@ const MONTH_OPTIONS = [
   { value: "12", label: "December" },
 ];
 
+//
 const CURRENT_YEAR = new Date().getFullYear();
-const YEAR_OPTIONS = Array.from(
-  { length: 6 },
-  (_, index) => CURRENT_YEAR - index
-);
+const YEAR_OPTION_COUNT = 6;
+const buildYearOptions = (startYear, step) =>
+  Array.from(
+    { length: YEAR_OPTION_COUNT },
+    (_, index) => startYear + step * index
+  );
 
-const BUDGET_YEAR_OPTIONS = Array.from(
-  { length: 6 },
-  (_, index) => CURRENT_YEAR - 1 + index
-);
+const YEAR_OPTIONS = buildYearOptions(CURRENT_YEAR, -1);
+const BUDGET_YEAR_OPTIONS = buildYearOptions(CURRENT_YEAR - 1, 1);
 
+// Helpers
+// Ensure "All" option is first and unique
 const ensureAllOption = (values) => {
   if (!Array.isArray(values)) {
     values = [];
@@ -49,6 +51,7 @@ const ensureAllOption = (values) => {
   return ["All", ...rest];
 };
 
+// Default filter options
 const DEFAULT_ACCOUNT_OPTIONS = ensureAllOption([
   "Checking",
   "Savings",
@@ -57,6 +60,7 @@ const DEFAULT_ACCOUNT_OPTIONS = ensureAllOption([
   "Payables",
 ]);
 
+// Default category options
 const DEFAULT_CATEGORY_OPTIONS = [
   "Revenue",
   "Cost of Goods Sold",
@@ -65,6 +69,7 @@ const DEFAULT_CATEGORY_OPTIONS = [
   "Other Income",
 ];
 
+// Normalize currency options
 const normalizeCurrencyOptions = (values) => {
   if (!Array.isArray(values)) {
     return [];
@@ -79,15 +84,52 @@ const normalizeCurrencyOptions = (values) => {
   return Array.from(new Set(normalized)).sort();
 };
 
+// Category group constants and helpers
 const CATEGORY_GROUP_INCOME = "__group__income";
 const CATEGORY_GROUP_EXPENSE = "__group__expense";
+const CATEGORY_GROUP_EXPENSE_OPERATIONAL = "__group__expense_operational";
 const CATEGORY_GROUP_LABELS = {
   [CATEGORY_GROUP_INCOME]: "Income (all)",
   [CATEGORY_GROUP_EXPENSE]: "Expense (all)",
+  [CATEGORY_GROUP_EXPENSE_OPERATIONAL]: "Expense (operational)",
+};
+
+const OPERATIONAL_EXPENSE_EXCLUDED_VALUES = new Set([
+  "unrealized g/l",
+  "unrealized gains/losses",
+  "fx",
+]);
+
+const isOperationalExpenseExcluded = (value) => {
+  if (typeof value !== "string") {
+    return false;
+  }
+  const normalized = value.trim().toLowerCase();
+  if (!normalized) {
+    return false;
+  }
+  if (OPERATIONAL_EXPENSE_EXCLUDED_VALUES.has(normalized)) {
+    return true;
+  }
+  return normalized.startsWith("transfer");
+};
+
+const getOperationalExpenseCategories = (values) => {
+  if (!Array.isArray(values)) {
+    return [];
+  }
+  return values.filter(
+    (category) =>
+      typeof category === "string" &&
+      category.trim().length &&
+      !isOperationalExpenseExcluded(category)
+  );
 };
 
 const isCategoryGroupValue = (value) =>
-  value === CATEGORY_GROUP_INCOME || value === CATEGORY_GROUP_EXPENSE;
+  value === CATEGORY_GROUP_INCOME ||
+  value === CATEGORY_GROUP_EXPENSE ||
+  value === CATEGORY_GROUP_EXPENSE_OPERATIONAL;
 
 const getCategoryDisplayLabel = (value) =>
   CATEGORY_GROUP_LABELS[value] ?? value;
@@ -228,6 +270,9 @@ export default function BudgetInput() {
       ),
     [accountOptions]
   );
+  const operationalExpenseCategories = useMemo(() => {
+    return getOperationalExpenseCategories(categoryGroups?.Expense);
+  }, [categoryGroups]);
   const categoryGroupSelectOptions = useMemo(() => {
     return [
       {
@@ -242,8 +287,16 @@ export default function BudgetInput() {
         disabled: !categoryGroups?.Expense?.length,
         className: "category-group-option category-group-option--expense",
       },
+      {
+        value: CATEGORY_GROUP_EXPENSE_OPERATIONAL,
+        label:
+          CATEGORY_GROUP_LABELS[CATEGORY_GROUP_EXPENSE_OPERATIONAL],
+        disabled: !operationalExpenseCategories.length,
+        className:
+          "category-group-option category-group-option--expense category-group-option--expense-operational",
+      },
     ];
-  }, [categoryGroups]);
+  }, [categoryGroups, operationalExpenseCategories]);
   const activeMonthRange = useMemo(() => {
     const start = normalizeMonthNumber(fromMonth, 1);
     const end = normalizeMonthNumber(toMonth, 12);
@@ -253,27 +306,6 @@ export default function BudgetInput() {
 
     return { start: end, end: start };
   }, [fromMonth, toMonth]);
-
-  const buildMonthIsoValue = (yearValue, monthNumber) => {
-    const normalizedYear = Number.isFinite(Number(yearValue))
-      ? Math.floor(Number(yearValue))
-      : null;
-    const normalizedMonth = Number.isFinite(Number(monthNumber))
-      ? Math.floor(Number(monthNumber))
-      : null;
-    if (
-      normalizedYear === null ||
-      Number.isNaN(normalizedYear) ||
-      normalizedMonth === null ||
-      Number.isNaN(normalizedMonth)
-    ) {
-      return "";
-    }
-    const paddedYear = String(normalizedYear).padStart(4, "0");
-    const clampedMonth = Math.max(1, Math.min(12, normalizedMonth));
-    const paddedMonth = String(clampedMonth).padStart(2, "0");
-    return `${paddedYear}-${paddedMonth}`;
-  };
 
   const monthSelectOptions = useMemo(() => {
     const yearNumber = Number(budgetYear);
@@ -401,15 +433,6 @@ export default function BudgetInput() {
     };
   }, []);
 
-  useEffect(() => {
-    setEntryForm((previous) => {
-      if (previous.account) {
-        return previous;
-      }
-      return { ...previous, account: "None" };
-    });
-  }, []);
-
   const derivedCategoryValue = useMemo(() => {
     const normalizedSelections = Array.isArray(selectedCategories)
       ? selectedCategories.filter(Boolean)
@@ -492,7 +515,11 @@ export default function BudgetInput() {
     setSelectedCategories(nextValues);
   };
 
-  const expandSelectedCategories = (values) => {
+  const expandSelectedCategories = (
+    values,
+    expenseCategories = [],
+    operationalExpenseCategories = []
+  ) => {
     if (!Array.isArray(values)) {
       return [];
     }
@@ -514,7 +541,16 @@ export default function BudgetInput() {
       }
 
       if (value === CATEGORY_GROUP_EXPENSE) {
-        (categoryGroups?.Expense ?? []).forEach((category) => {
+        (expenseCategories ?? []).forEach((category) => {
+          if (category) {
+            expanded.add(category);
+          }
+        });
+        continue;
+      }
+
+      if (value === CATEGORY_GROUP_EXPENSE_OPERATIONAL) {
+        (operationalExpenseCategories ?? []).forEach((category) => {
           if (category) {
             expanded.add(category);
           }
@@ -529,8 +565,13 @@ export default function BudgetInput() {
   };
 
   const expandedSelectedCategories = useMemo(
-    () => expandSelectedCategories(selectedCategories),
-    [selectedCategories, categoryGroups]
+    () =>
+      expandSelectedCategories(
+        selectedCategories,
+        categoryGroups?.Expense,
+        operationalExpenseCategories
+      ),
+    [selectedCategories, categoryGroups, operationalExpenseCategories]
   );
 
   const normalizeTextInput = (value) => {
@@ -694,15 +735,15 @@ export default function BudgetInput() {
     return () => {
       isActive = false;
     };
-      }, [
-        fromMonth,
-        toMonth,
-        actualYear,
-        budgetYear,
-        selectedAccounts,
-        expandedSelectedCategories,
-        balancesRefreshKey,
-      ]);
+  }, [
+    fromMonth,
+    toMonth,
+    actualYear,
+    budgetYear,
+    selectedAccounts,
+    expandedSelectedCategories,
+    balancesRefreshKey,
+  ]);
 
   const handleBalanceActualDoubleClick = (row) => {
     if (!row?.monthNumber) {

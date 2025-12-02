@@ -2,8 +2,8 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import NavigationMenu from "../components/NavigationMenu.jsx";
 import handleUpload from "../js/handleUpload.js";
 import Rest from "../js/rest.js";
-import UploadFeedback from "../features/UploadFeedback.jsx";
-import UploadForm from "../features/UploadForm.jsx";
+import UploadFeedback from "../features/Database/UploadFeedback.jsx";
+import UploadForm from "../features/Database/UploadForm.jsx";
 import "./PageLayout.css";
 
 export default function UploadPS() {
