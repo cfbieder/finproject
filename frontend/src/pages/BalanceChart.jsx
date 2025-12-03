@@ -173,25 +173,27 @@ const buildChartPoints = (reports, labels) => {
 };
 
 export default function Balance() {
-  const getMonthStart = () => {
+  const getYearStart = () => {
     const today = new Date();
-    const januaryUtc = new Date(Date.UTC(today.getFullYear(), 0, 1));
+    const januaryUtc = new Date(Date.UTC(today.getUTCFullYear(), 0, 1));
     return januaryUtc.toISOString().split("T")[0];
   };
 
   const getMonthEnd = () => {
-    const lastOfMonth = new Date();
-    lastOfMonth.setMonth(lastOfMonth.getMonth() + 1, 0);
-    return lastOfMonth.toISOString().split("T")[0];
+    const today = new Date();
+    const lastOfMonthUtc = new Date(
+      Date.UTC(today.getUTCFullYear(), today.getUTCMonth() + 1, 0)
+    );
+    return lastOfMonthUtc.toISOString().split("T")[0];
   };
 
   const [fromDates, setFromDates] = useState(() => {
-    const start = getMonthStart();
-    return [start, start, start];
+    const start = getYearStart();
+    return [start];
   });
   const [toDates, setToDates] = useState(() => {
     const end = getMonthEnd();
-    return [end, end, end];
+    return [end];
   });
   const [periodCount, setPeriodCount] = useState(1);
   const [balanceReports, setBalanceReports] = useState([]);

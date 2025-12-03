@@ -6,7 +6,7 @@ import BudgetEntriesBudgetPopup from "../features/BudgetEntry/BudgetEntriesBudge
 import BudgetRegionBalances from "../features/BudgetEntry/BudgetRegionBalances.jsx";
 import BudgetRegionSelectors from "../features/BudgetEntry/BudgetRegionSelectors.jsx";
 import BudgetRegionBudgetEntry from "../features/BudgetEntry/BudgetRegionBudgetEntry.jsx";
-import "./BudgetInput.css";
+import "./PageLayout.css";
 const MONTH_OPTIONS = [
   { value: "01", label: "January" },
   { value: "02", label: "February" },

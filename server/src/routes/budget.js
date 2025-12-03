@@ -3,9 +3,14 @@ const mongoose = require("mongoose");
 const fs = require("node:fs/promises");
 const BudgetData = require("../../../components/models/BudgetData");
 const PSdata = require("../../../components/models/PSdata");
+const CashFlowFetcher = require("../services/reporting/cashFLowFetcher");
 const { dataPaths } = require("../utils/dataPaths");
 
 const router = express.Router();
+const budgetCashFlowFetcher = new CashFlowFetcher({
+  psDataModel: BudgetData,
+  allowJsonFallback: false,
+});
 
 const DEFAULT_LIMIT = 500;
 const MAX_LIMIT = 2000;
@@ -554,6 +559,42 @@ router.get("/summary", async (req, res) => {
     console.error("[BUDGET] Failed to summarize budget data:", error);
     return res.status(500).json({
       error: "Failed to summarize budget data",
+    });
+  }
+});
+
+router.get("/cash-flow", async (req, res) => {
+  const { fromDate, toDate, transfers, includeUnrealizedGL } = req.query ?? {};
+
+  if (!fromDate || !toDate) {
+    return res.status(400).json({
+      error: "Missing required query parameters 'fromDate' and 'toDate'",
+    });
+  }
+
+  const start = new Date(fromDate);
+  const end = new Date(toDate);
+  if (Number.isNaN(start.getTime()) || Number.isNaN(end.getTime())) {
+    return res.status(400).json({
+      error: "Invalid 'fromDate' or 'toDate'; expected valid dates",
+    });
+  }
+
+  const transferMode =
+    transfers === "include" || transfers === "only" ? transfers : "exclude";
+
+  try {
+    const report = await budgetCashFlowFetcher.buildCashFlowReport({
+      fromDate: start,
+      toDate: end,
+      transfers: transferMode,
+      includeUnrealizedGL: includeUnrealizedGL === "true",
+    });
+    res.json(report);
+  } catch (error) {
+    console.error("[BUDGET] Failed to build cash flow report:", error);
+    res.status(500).json({
+      error: "Failed to build budget cash flow report",
     });
   }
 });

@@ -59,15 +59,23 @@ const addNetCashFlowCategory = (nodes) => {
 };
 // Main Cash Flow Page Component
 export default function CashFlow() {
-  const getMonthStart = () => {
-    const firstOfMonth = new Date();
-    firstOfMonth.setDate(1);
-    return firstOfMonth.toISOString().split("T")[0];
+  const formatLocalDate = (date) => {
+    const pad = (value) => String(value).padStart(2, "0");
+    return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(
+      date.getDate()
+    )}`;
   };
+
+  const getMonthStart = () => {
+    const now = new Date();
+    const firstOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
+    return formatLocalDate(firstOfMonth);
+  };
+
   const getMonthEnd = () => {
-    const lastOfMonth = new Date();
-    lastOfMonth.setMonth(lastOfMonth.getMonth() + 1, 0);
-    return lastOfMonth.toISOString().split("T")[0];
+    const now = new Date();
+    const lastOfMonth = new Date(now.getFullYear(), now.getMonth() + 1, 0);
+    return formatLocalDate(lastOfMonth);
   };
 
   const [fromDates, setFromDates] = useState(() => {

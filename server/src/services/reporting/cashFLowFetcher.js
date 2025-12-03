@@ -36,12 +36,118 @@ console.log("CFF: Using cash flow report path:", DEFAULT_CASH_FLOW_REPORT_PATH);
 
 const UNREALIZED_GL_CATEGORY = "Unrealized G/L";
 
+const PS_DATA_JSON_PATH = dataPaths.psData;
+
+let cachedPsTransactions = null;
+let psTransactionsLoadPromise = null;
+
+const parseAmountValue = (value) => {
+  if (value === undefined || value === null) {
+    return null;
+  }
+  const parsed = Number(value);
+  return Number.isFinite(parsed) ? parsed : null;
+};
+
+const normalizeTransaction = (entry) => {
+  if (!entry || typeof entry !== "object") {
+    return null;
+  }
+  const rawDate = entry.Date;
+  if (!rawDate) {
+    return null;
+  }
+  const date = rawDate instanceof Date ? rawDate : new Date(rawDate);
+  if (Number.isNaN(date.getTime())) {
+    return null;
+  }
+
+  const category =
+    typeof entry.Category === "string" ? entry.Category.trim() : "";
+  if (!category) {
+    return null;
+  }
+
+  const amountValue = entry.BaseAmount ?? entry.Amount;
+  const amount = parseAmountValue(amountValue);
+  if (amount === null) {
+    return null;
+  }
+
+  return { date, category, amount };
+};
+
+const loadPsTransactions = async () => {
+  if (cachedPsTransactions) {
+    return cachedPsTransactions;
+  }
+  if (psTransactionsLoadPromise) {
+    return psTransactionsLoadPromise;
+  }
+  psTransactionsLoadPromise = fs.promises
+    .readFile(PS_DATA_JSON_PATH, "utf8")
+    .then((raw) => {
+      const parsed = JSON.parse(raw);
+      if (!Array.isArray(parsed)) {
+        return [];
+      }
+      const transactions = parsed
+        .map((entry) => normalizeTransaction(entry))
+        .filter(Boolean);
+      cachedPsTransactions = transactions;
+      return transactions;
+    })
+    .catch((error) => {
+      console.warn("[CASHFLOW] Failed to load PS data JSON:", error.message);
+      cachedPsTransactions = [];
+      return [];
+    });
+  return psTransactionsLoadPromise;
+};
+
+const aggregateCategoryTotalsFromJson = async ({
+  categories,
+  start,
+  end,
+} = {}) => {
+  const normalizedCategories = Array.isArray(categories) ? categories : [];
+  if (!normalizedCategories.length) {
+    return [];
+  }
+
+  const transactions = await loadPsTransactions();
+  const totals = new Map();
+  const categorySet = new Set(normalizedCategories);
+
+  for (const txn of transactions) {
+    if (!txn || !categorySet.has(txn.category)) {
+      continue;
+    }
+    if (start && txn.date < start) {
+      continue;
+    }
+    if (end && txn.date > end) {
+      continue;
+    }
+    totals.set(txn.category, (totals.get(txn.category) || 0) + txn.amount);
+  }
+
+  return normalizedCategories.map((category) => ({
+    category,
+    total: totals.get(category) ?? 0,
+  }));
+};
+
 /** Fetches income and expense data for category as of a from start date to end data.
  */
 
 class CashFlowFetcher {
-  constructor({ psDataModel } = {}) {
+  constructor({ psDataModel, allowJsonFallback } = {}) {
     this.psDataModel = psDataModel || PSdata;
+    this.allowJsonFallback =
+      typeof allowJsonFallback === "boolean"
+        ? allowJsonFallback
+        : this.psDataModel === PSdata;
   }
 
   async buildCashFlowReport({
@@ -209,21 +315,38 @@ class CashFlowFetcher {
       if (end) match.Date.$lte = end;
     }
 
-    const results = await this.psDataModel
-      .aggregate([
-        { $match: match },
-        {
-          $group: {
-            _id: "$Category",
-            total: { $sum: { $ifNull: ["$BaseAmount", "$Amount"] } },
-          },
+    const pipeline = [
+      { $match: match },
+      {
+        $group: {
+          _id: "$Category",
+          total: { $sum: { $ifNull: ["$BaseAmount", "$Amount"] } },
         },
-        { $project: { _id: 0, category: "$_id", total: 1 } },
-      ])
-      .exec();
+      },
+      { $project: { _id: 0, category: "$_id", total: 1 } },
+    ];
+
+    let aggregated;
+    try {
+      aggregated = await this.psDataModel.aggregate(pipeline).exec();
+    } catch (error) {
+      if (this.allowJsonFallback) {
+        console.warn(
+          "[CASHFLOW] Aggregation failed, falling back to JSON data:",
+          error?.message
+        );
+        aggregated = await aggregateCategoryTotalsFromJson({
+          categories,
+          start,
+          end,
+        });
+      } else {
+        throw error;
+      }
+    }
 
     const totals = new Map(
-      results.map(({ category, total }) => [category, total ?? 0])
+      aggregated.map(({ category, total }) => [category, total ?? 0])
     );
 
     return categories.map((category) => ({

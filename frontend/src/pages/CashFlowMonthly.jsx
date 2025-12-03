@@ -61,6 +61,7 @@ const addNetCashFlowCategory = (nodes) => {
 const MONTH_LABEL_FORMATTER = new Intl.DateTimeFormat("en-US", {
   month: "short",
   year: "numeric",
+  timeZone: "UTC",
 });
 
 const getMonthlyPeriods = (fromDate, toDate) => {
@@ -230,16 +231,23 @@ const downloadBlob = async (blob, suggestedName) => {
 };
 
 // Main Cash Flow Page Component
+const formatLocalDate = (date) => {
+  const pad = (value) => String(value).padStart(2, "0");
+  return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(
+    date.getDate()
+  )}`;
+};
+
 export default function CashFlow() {
   const getYearStart = () => {
-    const firstOfYear = new Date();
-    firstOfYear.setMonth(0, 1);
-    return firstOfYear.toISOString().split("T")[0];
+    const now = new Date();
+    const firstOfYear = new Date(now.getFullYear(), 0, 1);
+    return formatLocalDate(firstOfYear);
   };
   const getMonthEnd = () => {
-    const lastOfMonth = new Date();
-    lastOfMonth.setMonth(lastOfMonth.getMonth() + 1, 0);
-    return lastOfMonth.toISOString().split("T")[0];
+    const now = new Date();
+    const lastOfMonth = new Date(now.getFullYear(), now.getMonth() + 1, 0);
+    return formatLocalDate(lastOfMonth);
   };
 
   const [fromDates, setFromDates] = useState(() => {
