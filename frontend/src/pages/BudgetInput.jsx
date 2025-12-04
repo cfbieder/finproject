@@ -7,6 +7,13 @@ import BudgetRegionBalances from "../features/BudgetEntry/BudgetRegionBalances.j
 import BudgetRegionSelectors from "../features/BudgetEntry/BudgetRegionSelectors.jsx";
 import BudgetRegionBudgetEntry from "../features/BudgetEntry/BudgetRegionBudgetEntry.jsx";
 import "./PageLayout.css";
+
+// ============================================================================
+// CONSTANTS
+// ============================================================================
+/**
+ * Month selection options with zero-padded values
+ */
 const MONTH_OPTIONS = [
   { value: "01", label: "January" },
   { value: "02", label: "February" },
@@ -22,9 +29,27 @@ const MONTH_OPTIONS = [
   { value: "12", label: "December" },
 ];
 
-//
 const CURRENT_YEAR = new Date().getFullYear();
 const YEAR_OPTION_COUNT = 6;
+
+/**
+ * Returns the accounts selected by the user excluding the "All" option.
+ * @param {string[]|undefined} values - Selected account values.
+ * @returns {string[]} Filtered list of account names.
+ */
+const getSelectedAccountFilters = (values) => {
+  if (!Array.isArray(values)) {
+    return [];
+  }
+  return values.filter((value) => value && value !== "All");
+};
+
+/**
+ * Builds an array of year options
+ * @param {number} startYear - Starting year
+ * @param {number} step - Increment/decrement step
+ * @returns {number[]} Array of year values
+ */
 const buildYearOptions = (startYear, step) =>
   Array.from(
     { length: YEAR_OPTION_COUNT },
@@ -34,8 +59,51 @@ const buildYearOptions = (startYear, step) =>
 const YEAR_OPTIONS = buildYearOptions(CURRENT_YEAR, -1);
 const BUDGET_YEAR_OPTIONS = buildYearOptions(CURRENT_YEAR - 1, 1);
 
-// Helpers
-// Ensure "All" option is first and unique
+const BASE_CURRENCY = "USD";
+
+const DEFAULT_ACCOUNT_OPTIONS = [
+  "All",
+  "Checking",
+  "Savings",
+  "Credit Card",
+  "Investments",
+  "Payables",
+];
+
+const DEFAULT_CATEGORY_OPTIONS = [
+  "Revenue",
+  "Cost of Goods Sold",
+  "Operating Expenses",
+  "Investments",
+  "Other Income",
+];
+
+// Category group identifiers
+const CATEGORY_GROUP_INCOME = "__group__income";
+const CATEGORY_GROUP_EXPENSE = "__group__expense";
+const CATEGORY_GROUP_EXPENSE_OPERATIONAL = "__group__expense_operational";
+
+const CATEGORY_GROUP_LABELS = {
+  [CATEGORY_GROUP_INCOME]: "Income (all)",
+  [CATEGORY_GROUP_EXPENSE]: "Expense (all)",
+  [CATEGORY_GROUP_EXPENSE_OPERATIONAL]: "Expense (operational)",
+};
+
+const OPERATIONAL_EXPENSE_EXCLUDED_VALUES = new Set([
+  "unrealized g/l",
+  "unrealized gains/losses",
+  "fx",
+]);
+
+// ============================================================================
+// UTILITY FUNCTIONS - Array Operations
+// ============================================================================
+
+/**
+ * Ensures "All" option is first in the array and removes duplicates
+ * @param {string[]} values - Array of option values
+ * @returns {string[]} Normalized array with "All" first
+ */
 const ensureAllOption = (values) => {
   if (!Array.isArray(values)) {
     values = [];
@@ -51,25 +119,11 @@ const ensureAllOption = (values) => {
   return ["All", ...rest];
 };
 
-// Default filter options
-const DEFAULT_ACCOUNT_OPTIONS = ensureAllOption([
-  "Checking",
-  "Savings",
-  "Credit Card",
-  "Investments",
-  "Payables",
-]);
-
-// Default category options
-const DEFAULT_CATEGORY_OPTIONS = [
-  "Revenue",
-  "Cost of Goods Sold",
-  "Operating Expenses",
-  "Investments",
-  "Other Income",
-];
-
-// Normalize currency options
+/**
+ * Normalizes currency options to uppercase and removes duplicates
+ * @param {string[]} values - Array of currency codes
+ * @returns {string[]} Sorted array of normalized currency codes
+ */
 const normalizeCurrencyOptions = (values) => {
   if (!Array.isArray(values)) {
     return [];
@@ -84,22 +138,15 @@ const normalizeCurrencyOptions = (values) => {
   return Array.from(new Set(normalized)).sort();
 };
 
-// Category group constants and helpers
-const CATEGORY_GROUP_INCOME = "__group__income";
-const CATEGORY_GROUP_EXPENSE = "__group__expense";
-const CATEGORY_GROUP_EXPENSE_OPERATIONAL = "__group__expense_operational";
-const CATEGORY_GROUP_LABELS = {
-  [CATEGORY_GROUP_INCOME]: "Income (all)",
-  [CATEGORY_GROUP_EXPENSE]: "Expense (all)",
-  [CATEGORY_GROUP_EXPENSE_OPERATIONAL]: "Expense (operational)",
-};
+// ============================================================================
+// UTILITY FUNCTIONS - Category Operations
+// ============================================================================
 
-const OPERATIONAL_EXPENSE_EXCLUDED_VALUES = new Set([
-  "unrealized g/l",
-  "unrealized gains/losses",
-  "fx",
-]);
-
+/**
+ * Checks if a category should be excluded from operational expenses
+ * @param {string} value - Category name to check
+ * @returns {boolean} True if category should be excluded
+ */
 const isOperationalExpenseExcluded = (value) => {
   if (typeof value !== "string") {
     return false;
@@ -114,6 +161,11 @@ const isOperationalExpenseExcluded = (value) => {
   return normalized.startsWith("transfer");
 };
 
+/**
+ * Filters expense categories to only include operational expenses
+ * @param {string[]} values - Array of expense category names
+ * @returns {string[]} Filtered array of operational expense categories
+ */
 const getOperationalExpenseCategories = (values) => {
   if (!Array.isArray(values)) {
     return [];
@@ -126,14 +178,91 @@ const getOperationalExpenseCategories = (values) => {
   );
 };
 
+/**
+ * Checks if a value is a category group identifier
+ * @param {string} value - Value to check
+ * @returns {boolean} True if value is a category group
+ */
 const isCategoryGroupValue = (value) =>
   value === CATEGORY_GROUP_INCOME ||
   value === CATEGORY_GROUP_EXPENSE ||
   value === CATEGORY_GROUP_EXPENSE_OPERATIONAL;
 
+/**
+ * Gets the display label for a category value
+ * @param {string} value - Category value or group identifier
+ * @returns {string} Display label
+ */
 const getCategoryDisplayLabel = (value) =>
   CATEGORY_GROUP_LABELS[value] ?? value;
 
+/**
+ * Expands category group selections into individual categories
+ * @param {string[]} values - Selected category values (may include group identifiers)
+ * @param {string[]} expenseCategories - All expense categories
+ * @param {string[]} operationalExpenseCategories - Filtered operational expense categories
+ * @param {Object} categoryGroups - Category groups object with Income and Expense arrays
+ * @returns {string[]} Expanded array of individual category names
+ */
+const expandSelectedCategories = (
+  values,
+  expenseCategories = [],
+  operationalExpenseCategories = [],
+  categoryGroups = {}
+) => {
+  if (!Array.isArray(values)) {
+    return [];
+  }
+
+  const expanded = new Set();
+
+  for (const value of values) {
+    if (!value) {
+      continue;
+    }
+
+    if (value === CATEGORY_GROUP_INCOME) {
+      (categoryGroups?.Income ?? []).forEach((category) => {
+        if (category) {
+          expanded.add(category);
+        }
+      });
+      continue;
+    }
+
+    if (value === CATEGORY_GROUP_EXPENSE) {
+      (expenseCategories ?? []).forEach((category) => {
+        if (category) {
+          expanded.add(category);
+        }
+      });
+      continue;
+    }
+
+    if (value === CATEGORY_GROUP_EXPENSE_OPERATIONAL) {
+      (operationalExpenseCategories ?? []).forEach((category) => {
+        if (category) {
+          expanded.add(category);
+        }
+      });
+      continue;
+    }
+
+    expanded.add(value);
+  }
+
+  return Array.from(expanded);
+};
+
+// ============================================================================
+// UTILITY FUNCTIONS - Currency Operations
+// ============================================================================
+
+/**
+ * Normalizes a currency code to uppercase
+ * @param {string} value - Currency code to normalize
+ * @returns {string} Normalized currency code
+ */
 const normalizeCurrencyCode = (value) => {
   if (typeof value !== "string") {
     return "";
@@ -141,6 +270,11 @@ const normalizeCurrencyCode = (value) => {
   return value.trim().toUpperCase();
 };
 
+/**
+ * Builds a currency exchange rate map from app data
+ * @param {Object} doc - App data document containing exchange rates
+ * @returns {Object} Map of currency codes to USD exchange rates
+ */
 const buildBudgetRateMap = (doc) => {
   const map = { USD: 1 };
   if (!doc || typeof doc !== "object") {
@@ -169,6 +303,37 @@ const buildBudgetRateMap = (doc) => {
   return map;
 };
 
+/**
+ * Currency formatter for USD display
+ */
+const currencyFormatter = new Intl.NumberFormat("en-US", {
+  style: "currency",
+  currency: "USD",
+  maximumFractionDigits: 2,
+});
+
+/**
+ * Formats a currency value with proper sign handling
+ * @param {number} value - Numeric value to format
+ * @returns {string} Formatted currency string (negative values in parentheses)
+ */
+const formatCurrencyValue = (value) => {
+  const normalized = Number.isFinite(value) ? value : 0;
+  const absolute = Math.abs(normalized);
+  const formatted = currencyFormatter.format(absolute);
+  return normalized < 0 ? `(${formatted})` : formatted;
+};
+
+// ============================================================================
+// UTILITY FUNCTIONS - Date Operations
+// ============================================================================
+
+/**
+ * Normalizes a month number to valid range (1-12)
+ * @param {number|string} value - Month value to normalize
+ * @param {number} fallback - Fallback value if invalid
+ * @returns {number} Normalized month number
+ */
 const normalizeMonthNumber = (value, fallback) => {
   const parsed = Number(value);
   if (!Number.isFinite(parsed)) {
@@ -186,6 +351,12 @@ const normalizeMonthNumber = (value, fallback) => {
   return normalized;
 };
 
+/**
+ * Builds a sequence of month numbers from a range
+ * @param {number|string} fromValue - Starting month
+ * @param {number|string} toValue - Ending month
+ * @returns {number[]} Array of month numbers
+ */
 const buildMonthSequence = (fromValue, toValue) => {
   const fromMonth = normalizeMonthNumber(fromValue, 1);
   const toMonth = normalizeMonthNumber(toValue, 12);
@@ -198,6 +369,11 @@ const buildMonthSequence = (fromValue, toValue) => {
   return months;
 };
 
+/**
+ * Gets the display label for a month number
+ * @param {number} monthNumber - Month number (1-12)
+ * @returns {string} Month label
+ */
 const getMonthLabel = (monthNumber) => {
   const found = MONTH_OPTIONS.find(
     (option) => Number(option.value) === monthNumber
@@ -205,26 +381,57 @@ const getMonthLabel = (monthNumber) => {
   return found ? found.label : `Month ${monthNumber}`;
 };
 
-const currencyFormatter = new Intl.NumberFormat("en-US", {
-  style: "currency",
-  currency: "USD",
-  maximumFractionDigits: 2,
-});
+// ============================================================================
+// UTILITY FUNCTIONS - Input Normalization
+// ============================================================================
 
-const BASE_CURRENCY = "USD";
-
-const formatCurrencyValue = (value) => {
-  const normalized = Number.isFinite(value) ? value : 0;
-  const absolute = Math.abs(normalized);
-  const formatted = currencyFormatter.format(absolute);
-  return normalized < 0 ? `(${formatted})` : formatted;
+/**
+ * Normalizes text input by trimming whitespace
+ * @param {*} value - Input value to normalize
+ * @returns {string|undefined} Trimmed string or undefined if empty
+ */
+const normalizeTextInput = (value) => {
+  if (value === undefined || value === null) {
+    return undefined;
+  }
+  const trimmed = String(value).trim();
+  return trimmed.length ? trimmed : undefined;
 };
 
+/**
+ * Parses numeric input and validates it's finite
+ * @param {*} value - Input value to parse
+ * @returns {number|undefined} Parsed number or undefined if invalid
+ */
+const parseNumericInput = (value) => {
+  if (value === undefined || value === null || value === "") {
+    return undefined;
+  }
+  const parsed = Number(value);
+  return Number.isFinite(parsed) ? parsed : undefined;
+};
+
+// ============================================================================
+// MAIN COMPONENT
+// ============================================================================
+
+/**
+ * BudgetInput - Main budget input and management page
+ *
+ * This component provides functionality for:
+ * - Viewing actual vs budget balances by month
+ * - Creating and editing budget entries
+ * - Filtering by accounts and categories
+ * - Multi-currency support with exchange rates
+ */
 export default function BudgetInput() {
+  // ========== State: Date Range ==========
   const [fromMonth, setFromMonth] = useState(MONTH_OPTIONS[0].value);
   const [toMonth, setToMonth] = useState(MONTH_OPTIONS[11].value);
   const [actualYear, setActualYear] = useState(YEAR_OPTIONS[0]);
   const [budgetYear, setBudgetYear] = useState(BUDGET_YEAR_OPTIONS[2]);
+
+  // ========== State: Filter Options ==========
   const [accountOptions, setAccountOptions] = useState(DEFAULT_ACCOUNT_OPTIONS);
   const [categoryOptions, setCategoryOptions] = useState(
     DEFAULT_CATEGORY_OPTIONS
@@ -233,12 +440,20 @@ export default function BudgetInput() {
   const [selectedCategories, setSelectedCategories] = useState([
     CATEGORY_GROUP_EXPENSE,
   ]);
+  const [categoryGroups, setCategoryGroups] = useState({
+    Income: [],
+    Expense: [],
+  });
+
+  // ========== State: Balance Data ==========
   const [balanceRows, setBalanceRows] = useState([]);
   const [balancesStatus, setBalancesStatus] = useState({
     loading: true,
     error: "",
   });
   const [balancesRefreshKey, setBalancesRefreshKey] = useState(0);
+
+  // ========== State: Entry Form ==========
   const [entryForm, setEntryForm] = useState({
     date: "",
     description: "",
@@ -253,16 +468,20 @@ export default function BudgetInput() {
     error: "",
     message: "",
   });
+
+  // ========== State: Currency ==========
   const [currencyOptions, setCurrencyOptions] = useState([BASE_CURRENCY]);
-  const [categoryGroups, setCategoryGroups] = useState({
-    Income: [],
-    Expense: [],
-  });
   const [budgetRates, setBudgetRates] = useState({ USD: 1 });
+
+  // ========== State: Popups ==========
   const [actualEntriesPopupRequest, setActualEntriesPopupRequest] =
     useState(null);
   const [budgetEntriesPopupRequest, setBudgetEntriesPopupRequest] =
     useState(null);
+
+  // ========== Computed Values ==========
+
+  // Filtered account options (excludes "All")
   const filteredAccountOptions = useMemo(
     () =>
       accountOptions.filter(
@@ -270,9 +489,14 @@ export default function BudgetInput() {
       ),
     [accountOptions]
   );
-  const operationalExpenseCategories = useMemo(() => {
-    return getOperationalExpenseCategories(categoryGroups?.Expense);
-  }, [categoryGroups]);
+
+  // Operational expense categories (excludes transfers, unrealized gains, etc.)
+  const operationalExpenseCategories = useMemo(
+    () => getOperationalExpenseCategories(categoryGroups?.Expense),
+    [categoryGroups]
+  );
+
+  // Category group select options with dynamic disabled state
   const categoryGroupSelectOptions = useMemo(() => {
     return [
       {
@@ -289,24 +513,25 @@ export default function BudgetInput() {
       },
       {
         value: CATEGORY_GROUP_EXPENSE_OPERATIONAL,
-        label:
-          CATEGORY_GROUP_LABELS[CATEGORY_GROUP_EXPENSE_OPERATIONAL],
+        label: CATEGORY_GROUP_LABELS[CATEGORY_GROUP_EXPENSE_OPERATIONAL],
         disabled: !operationalExpenseCategories.length,
         className:
           "category-group-option category-group-option--expense category-group-option--expense-operational",
       },
     ];
   }, [categoryGroups, operationalExpenseCategories]);
+
+  // Active month range (normalized to ensure start <= end)
   const activeMonthRange = useMemo(() => {
     const start = normalizeMonthNumber(fromMonth, 1);
     const end = normalizeMonthNumber(toMonth, 12);
     if (start <= end) {
       return { start, end };
     }
-
     return { start: end, end: start };
   }, [fromMonth, toMonth]);
 
+  // Month select options for the entry form (includes "All" option)
   const monthSelectOptions = useMemo(() => {
     const yearNumber = Number(budgetYear);
     if (!Number.isFinite(yearNumber)) {
@@ -328,13 +553,96 @@ export default function BudgetInput() {
         label: `${label} ${paddedYear}`,
       });
     }
-    return options;
+
+    if (!options.length) {
+      return [];
+    }
+
+    return [{ value: "All", label: "All" }, ...options];
   }, [activeMonthRange, budgetYear]);
 
+  // Derived category value from selected categories
+  const derivedCategoryValue = useMemo(() => {
+    const normalizedSelections = Array.isArray(selectedCategories)
+      ? selectedCategories.filter(Boolean)
+      : [];
+
+    const meaningfulSelections = normalizedSelections.filter(
+      (category) =>
+        typeof category === "string" &&
+        category.trim().length &&
+        category.toLowerCase() !== "all"
+    );
+
+    // Prefer explicit category over group category
+    const explicitCategory = meaningfulSelections.find(
+      (category) => !isCategoryGroupValue(category)
+    );
+    if (explicitCategory) {
+      return explicitCategory;
+    }
+
+    const groupCategory = meaningfulSelections.find((category) =>
+      isCategoryGroupValue(category)
+    );
+    if (groupCategory) {
+      return groupCategory;
+    }
+
+    return categoryOptions.length ? categoryOptions[0] : "";
+  }, [selectedCategories, categoryOptions]);
+
+  const derivedCategoryLabel = getCategoryDisplayLabel(derivedCategoryValue);
+  const derivedCategoryIsGroup = isCategoryGroupValue(derivedCategoryValue);
+
+  // Expanded selected categories (groups expanded to individual categories)
+  const expandedSelectedCategories = useMemo(
+    () =>
+      expandSelectedCategories(
+        selectedCategories,
+        categoryGroups?.Expense,
+        operationalExpenseCategories,
+        categoryGroups
+      ),
+    [selectedCategories, categoryGroups, operationalExpenseCategories]
+  );
+
+  // Current exchange rate based on selected currency
+  const currentExchangeRate = useMemo(() => {
+    const normalizedCurrency = normalizeCurrencyCode(entryForm.currency);
+    if (!normalizedCurrency) {
+      return undefined;
+    }
+    if (normalizedCurrency === BASE_CURRENCY) {
+      return 1;
+    }
+    const rate = budgetRates[normalizedCurrency];
+    return Number.isFinite(rate) ? rate : undefined;
+  }, [entryForm.currency, budgetRates]);
+
+  // Computed base amount (converted to USD)
+  const computedBaseAmount = useMemo(() => {
+    const parsedAmount = parseNumericInput(entryForm.amount);
+    if (!Number.isFinite(parsedAmount)) {
+      return undefined;
+    }
+    if (!Number.isFinite(currentExchangeRate)) {
+      return undefined;
+    }
+    return parsedAmount / currentExchangeRate;
+  }, [entryForm.amount, currentExchangeRate]);
+
+  // ========== Effects: Initialization ==========
+
+  // Set default month when month options change
   useEffect(() => {
     if (!monthSelectOptions.length) {
       return;
     }
+
+    const defaultOption =
+      monthSelectOptions.find((option) => option.value !== "All") ??
+      monthSelectOptions[0];
 
     setEntryForm((previous) => {
       if (
@@ -343,7 +651,7 @@ export default function BudgetInput() {
       ) {
         return previous;
       }
-      return { ...previous, date: monthSelectOptions[0].value };
+      return { ...previous, date: defaultOption?.value ?? "" };
     });
   }, [monthSelectOptions]);
 
@@ -433,37 +741,7 @@ export default function BudgetInput() {
     };
   }, []);
 
-  const derivedCategoryValue = useMemo(() => {
-    const normalizedSelections = Array.isArray(selectedCategories)
-      ? selectedCategories.filter(Boolean)
-      : [];
-
-    const meaningfulSelections = normalizedSelections.filter(
-      (category) =>
-        typeof category === "string" &&
-        category.trim().length &&
-        category.toLowerCase() !== "all"
-    );
-
-    const explicitCategory = meaningfulSelections.find(
-      (category) => !isCategoryGroupValue(category)
-    );
-    if (explicitCategory) {
-      return explicitCategory;
-    }
-
-    const groupCategory = meaningfulSelections.find((category) =>
-      isCategoryGroupValue(category)
-    );
-    if (groupCategory) {
-      return groupCategory;
-    }
-
-    return categoryOptions.length ? categoryOptions[0] : "";
-  }, [selectedCategories, categoryOptions]);
-
-  const derivedCategoryLabel = getCategoryDisplayLabel(derivedCategoryValue);
-
+  // Update entry form category when derived category changes
   useEffect(() => {
     setEntryForm((previous) => {
       if (previous.category === derivedCategoryLabel) {
@@ -473,20 +751,7 @@ export default function BudgetInput() {
     });
   }, [derivedCategoryLabel]);
 
-  const derivedCategoryIsGroup = isCategoryGroupValue(derivedCategoryValue);
-
-  const currentExchangeRate = useMemo(() => {
-    const normalizedCurrency = normalizeCurrencyCode(entryForm.currency);
-    if (!normalizedCurrency) {
-      return undefined;
-    }
-    if (normalizedCurrency === BASE_CURRENCY) {
-      return 1;
-    }
-    const rate = budgetRates[normalizedCurrency];
-    return Number.isFinite(rate) ? rate : undefined;
-  }, [entryForm.currency, budgetRates]);
-
+  // Set default currency when currency options change
   useEffect(() => {
     if (!currencyOptions.length) {
       return;
@@ -499,6 +764,11 @@ export default function BudgetInput() {
     });
   }, [currencyOptions]);
 
+  // ========== Event Handlers ==========
+
+  /**
+   * Handles account filter selection change
+   */
   const handleAccountsChange = (event) => {
     const nextValues = Array.from(
       event.target.selectedOptions,
@@ -507,6 +777,9 @@ export default function BudgetInput() {
     setSelectedAccounts(nextValues);
   };
 
+  /**
+   * Handles category filter selection change
+   */
   const handleCategoriesChange = (event) => {
     const nextValues = Array.from(
       event.target.selectedOptions,
@@ -515,99 +788,21 @@ export default function BudgetInput() {
     setSelectedCategories(nextValues);
   };
 
-  const expandSelectedCategories = (
-    values,
-    expenseCategories = [],
-    operationalExpenseCategories = []
-  ) => {
-    if (!Array.isArray(values)) {
-      return [];
-    }
-
-    const expanded = new Set();
-
-    for (const value of values) {
-      if (!value) {
-        continue;
-      }
-
-      if (value === CATEGORY_GROUP_INCOME) {
-        (categoryGroups?.Income ?? []).forEach((category) => {
-          if (category) {
-            expanded.add(category);
-          }
-        });
-        continue;
-      }
-
-      if (value === CATEGORY_GROUP_EXPENSE) {
-        (expenseCategories ?? []).forEach((category) => {
-          if (category) {
-            expanded.add(category);
-          }
-        });
-        continue;
-      }
-
-      if (value === CATEGORY_GROUP_EXPENSE_OPERATIONAL) {
-        (operationalExpenseCategories ?? []).forEach((category) => {
-          if (category) {
-            expanded.add(category);
-          }
-        });
-        continue;
-      }
-
-      expanded.add(value);
-    }
-
-    return Array.from(expanded);
-  };
-
-  const expandedSelectedCategories = useMemo(
-    () =>
-      expandSelectedCategories(
-        selectedCategories,
-        categoryGroups?.Expense,
-        operationalExpenseCategories
-      ),
-    [selectedCategories, categoryGroups, operationalExpenseCategories]
-  );
-
-  const normalizeTextInput = (value) => {
-    if (value === undefined || value === null) {
-      return undefined;
-    }
-    const trimmed = String(value).trim();
-    return trimmed.length ? trimmed : undefined;
-  };
-
-  const parseNumericInput = (value) => {
-    if (value === undefined || value === null || value === "") {
-      return undefined;
-    }
-    const parsed = Number(value);
-    return Number.isFinite(parsed) ? parsed : undefined;
-  };
-
-  const computedBaseAmount = useMemo(() => {
-    const parsedAmount = parseNumericInput(entryForm.amount);
-    if (!Number.isFinite(parsedAmount)) {
-      return undefined;
-    }
-    if (!Number.isFinite(currentExchangeRate)) {
-      return undefined;
-    }
-    return parsedAmount * currentExchangeRate;
-  }, [entryForm.amount, currentExchangeRate]);
-
+  /**
+   * Handles budget entry form submission
+   * Supports single month or all months in range
+   */
   const handleBudgetEntrySubmit = async (event) => {
     event.preventDefault();
     setEntryStatus({ loading: true, error: "", message: "" });
 
     const normalizedCurrency = normalizeCurrencyCode(entryForm.currency);
+    const isAllMonthsSelected = entryForm.date === "All";
     const payload = {
-      Date: entryForm.date ? `${entryForm.date}-01` : undefined,
+      Date:
+        entryForm.date && entryForm.date !== "All"
+          ? `${entryForm.date}-01`
+          : undefined,
       Description1: normalizeTextInput(entryForm.description),
       Account: (() => {
         const normalized = normalizeTextInput(entryForm.account);
@@ -638,19 +833,66 @@ export default function BudgetInput() {
       return;
     }
 
+    let entriesToPersist = [];
+    if (isAllMonthsSelected) {
+      const budgetYearNumber = Number(budgetYear);
+      if (!Number.isFinite(budgetYearNumber)) {
+        setEntryStatus({
+          loading: false,
+          error: "Unable to resolve the budget year for the selected months.",
+          message: "",
+        });
+        return;
+      }
+
+      const monthSequence = buildMonthSequence(
+        activeMonthRange.start,
+        activeMonthRange.end
+      );
+      if (!monthSequence.length) {
+        setEntryStatus({
+          loading: false,
+          error: "No months are available for the current budget period.",
+          message: "",
+        });
+        return;
+      }
+
+      const paddedYear = String(Math.floor(budgetYearNumber)).padStart(4, "0");
+      const basePayload = { ...sanitizedPayload };
+      delete basePayload.Date;
+
+      entriesToPersist = monthSequence.map((monthNumber) => {
+        const paddedMonth = String(monthNumber).padStart(2, "0");
+        return {
+          ...basePayload,
+          Date: `${paddedYear}-${paddedMonth}-01`,
+        };
+      });
+    } else {
+      entriesToPersist = [sanitizedPayload];
+    }
+
+    const submissionBody = isAllMonthsSelected
+      ? entriesToPersist
+      : entriesToPersist[0];
+
     try {
       await Rest.fetchJson("/api/budget", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
         },
-        body: JSON.stringify(sanitizedPayload),
+        body: JSON.stringify(submissionBody),
       });
 
       setEntryStatus({
         loading: false,
         error: "",
-        message: "Budget entry saved successfully.",
+        message:
+          entriesToPersist.length > 1
+            ? "Budget entries saved successfully."
+            : "Budget entry saved successfully.",
       });
       setEntryForm((previous) => ({
         ...previous,
@@ -659,6 +901,7 @@ export default function BudgetInput() {
         amount: "",
         note: "",
       }));
+      setBalancesRefreshKey((previous) => previous + 1);
     } catch (error) {
       console.error("[BudgetInput] Failed to submit budget entry:", error);
       setEntryStatus({
@@ -669,6 +912,61 @@ export default function BudgetInput() {
     }
   };
 
+  /**
+   * Handles double-click on actual balance cell
+   * Opens popup showing detailed actual entries for the month
+   */
+  const handleBalanceActualDoubleClick = (row) => {
+    if (!row?.monthNumber) {
+      return;
+    }
+
+    setActualEntriesPopupRequest({
+      id: `${actualYear}-${row.monthNumber}-${Date.now()}`,
+      row,
+      actualYear,
+      selectedAccounts: Array.isArray(selectedAccounts)
+        ? [...selectedAccounts]
+        : [],
+      expandedCategories: Array.isArray(expandedSelectedCategories)
+        ? [...expandedSelectedCategories]
+        : [],
+      formatCurrencyValue,
+    });
+  };
+
+  /**
+   * Handles double-click on budget balance cell
+   * Opens popup showing detailed budget entries for the month
+   */
+  const handleBalanceBudgetDoubleClick = (row) => {
+    if (!row?.monthNumber) {
+      return;
+    }
+
+    setBudgetEntriesPopupRequest({
+      id: `${budgetYear}-${row.monthNumber}-${Date.now()}`,
+      row,
+      budgetYear,
+      selectedAccounts: Array.isArray(selectedAccounts)
+        ? [...selectedAccounts]
+        : [],
+      expandedCategories: Array.isArray(expandedSelectedCategories)
+        ? [...expandedSelectedCategories]
+        : [],
+      accountOptions: filteredAccountOptions,
+      categoryOptions,
+      currencyOptions,
+      formatCurrencyValue,
+      budgetRates,
+      baseCurrency: BASE_CURRENCY,
+      onClose: () => setBalancesRefreshKey((prev) => prev + 1),
+    });
+  };
+
+  // ========== Effects: Data Fetching ==========
+
+  // Fetch balance data when filters change
   useEffect(() => {
     let isActive = true;
 
@@ -677,9 +975,7 @@ export default function BudgetInput() {
       setBalanceRows([]);
 
       try {
-        const accountsToFilter = selectedAccounts.filter(
-          (account) => account && account !== "All"
-        );
+        const accountsToFilter = getSelectedAccountFilters(selectedAccounts);
 
         const categoryFilters = expandedSelectedCategories;
 
@@ -745,48 +1041,7 @@ export default function BudgetInput() {
     balancesRefreshKey,
   ]);
 
-  const handleBalanceActualDoubleClick = (row) => {
-    if (!row?.monthNumber) {
-      return;
-    }
-
-    setActualEntriesPopupRequest({
-      id: `${actualYear}-${row.monthNumber}-${Date.now()}`,
-      row,
-      actualYear,
-      selectedAccounts: Array.isArray(selectedAccounts)
-        ? [...selectedAccounts]
-        : [],
-      expandedCategories: Array.isArray(expandedSelectedCategories)
-        ? [...expandedSelectedCategories]
-        : [],
-      formatCurrencyValue,
-    });
-  };
-
-  const handleBalanceBudgetDoubleClick = (row) => {
-    if (!row?.monthNumber) {
-      return;
-    }
-
-    setBudgetEntriesPopupRequest({
-      id: `${budgetYear}-${row.monthNumber}-${Date.now()}`,
-      row,
-      budgetYear,
-      selectedAccounts: Array.isArray(selectedAccounts)
-        ? [...selectedAccounts]
-        : [],
-      expandedCategories: Array.isArray(expandedSelectedCategories)
-        ? [...expandedSelectedCategories]
-        : [],
-      categoryOptions,
-      currencyOptions,
-      formatCurrencyValue,
-      budgetRates,
-      baseCurrency: BASE_CURRENCY,
-      onClose: () => setBalancesRefreshKey((prev) => prev + 1),
-    });
-  };
+  // ========== Render ==========
 
   return (
     <div className="page-shell">

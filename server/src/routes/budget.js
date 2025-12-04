@@ -543,7 +543,10 @@ router.get("/summary", async (req, res) => {
         ...categoryMatch,
         ...accountMatch,
       }),
-      aggregateBaseAmounts(BudgetData, budgetYear, from, to, categoryMatch),
+      aggregateBaseAmounts(BudgetData, budgetYear, from, to, {
+        ...categoryMatch,
+        ...accountMatch,
+      }),
     ]);
 
     return res.json({

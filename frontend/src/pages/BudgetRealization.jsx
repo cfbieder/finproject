@@ -4,6 +4,7 @@ import BudgetBalancePanel, {
   MONTH_OPTIONS,
   YEAR_OPTIONS,
 } from "../features/Budgets/BudgetBalancePanel.jsx";
+import BudgetRealizationContent from "../features/Budgets/BudgetRealizationContent.jsx";
 import Rest from "../js/rest.js";
 import "../features/CashFlow/CashFlowReport.css";
 import coaData from "../../../components/data/coa.json";
@@ -208,8 +209,7 @@ const isExpensePath = (path) => {
   }
   const topLevel = path[0];
   return (
-    typeof topLevel === "string" &&
-    topLevel.toLowerCase().includes("expense")
+    typeof topLevel === "string" && topLevel.toLowerCase().includes("expense")
   );
 };
 
@@ -219,8 +219,7 @@ const isIncomePath = (path) => {
   }
   const topLevel = path[0];
   return (
-    typeof topLevel === "string" &&
-    topLevel.toLowerCase().includes("income")
+    typeof topLevel === "string" && topLevel.toLowerCase().includes("income")
   );
 };
 
@@ -544,68 +543,20 @@ export default function BudgetRealization() {
     <div className="budget-realization-shell">
       <NavigationMenu />
       <main className="budget-realization-main">
-        <div className="budget-realization-content">
-          <div className="budget-realization-scroll">
-            <section className="budget-realization-placeholder">
-              <h1 className="page__title">Budget realization</h1>
-            </section>
-            <section className="budget-realization-table">
-              <div className="budget-realization-table__header"></div>
-              <div className="budget-realization-table__wrapper">
-                <div className="cash-flow-report">
-                  <table className="balance-report-table">
-                    <thead className="balance-report-table__head">
-                      <tr>
-                        <th
-                          className="balance-report-table__category"
-                          scope="col"
-                        >
-                          Category
-                        </th>
-                        <th scope="col">Budgeted</th>
-                        <th scope="col">Actuals</th>
-                        <th scope="col">Variance</th>
-                      </tr>
-                    </thead>
-                      <tbody>
-                        {renderCategoryRows(
-                          filteredCategoryTree,
-                          collapsedPaths,
-                          handleTogglePath,
-                          leafActualTotals,
-                          actualValueResolver,
-                          leafBudgetTotals,
-                          budgetValueResolver
-                        )}
-                        {showNetRow && (
-                          <tr>
-                            <td className="balance-report-table__name">
-                              <span className="balance-report-table__name-text">
-                                Net cash flow
-                              </span>
-                            </td>
-                            <td className="balance-report-table__value">
-                              {netBudgetDisplay}
-                            </td>
-                            <td className="balance-report-table__value">
-                              {netActualDisplay}
-                            </td>
-                            <td className="balance-report-table__value">
-                              {netVarianceDisplay}
-                            </td>
-                          </tr>
-                        )}
-                      </tbody>
-                  </table>
-                </div>
-              </div>
-              <p className="budget-realization-table__note">
-                Budget and Variance are placeholders; Actuals now respect the
-                selected period and filters.
-              </p>
-            </section>
-          </div>
-        </div>
+        <BudgetRealizationContent
+          filteredCategoryTree={filteredCategoryTree}
+          collapsedPaths={collapsedPaths}
+          onTogglePath={handleTogglePath}
+          leafActualTotals={leafActualTotals}
+          actualValueResolver={actualValueResolver}
+          leafBudgetTotals={leafBudgetTotals}
+          budgetValueResolver={budgetValueResolver}
+          showNetRow={showNetRow}
+          netBudgetDisplay={netBudgetDisplay}
+          netActualDisplay={netActualDisplay}
+          netVarianceDisplay={netVarianceDisplay}
+          renderCategoryRows={renderCategoryRows}
+        />
         <div className="budget-realization-sidebar">
           <BudgetBalancePanel
             includeUnrealized={includeUnrealized}

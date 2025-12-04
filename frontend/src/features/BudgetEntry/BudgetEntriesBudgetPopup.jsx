@@ -238,10 +238,12 @@ const setSelectValueSafely = (
 
 const buildBudgetEntriesEditorMarkup = (
   categoryOptions = [],
-  currencyOptions = []
+  currencyOptions = [],
+  accountOptions = []
 ) => {
   const categoryDropdownOptions = buildDropdownOptions(categoryOptions);
   const currencyDropdownOptions = buildDropdownOptions(currencyOptions);
+  const accountDropdownOptions = buildDropdownOptions(accountOptions);
   return `
   <section
     id="budget-entries-popup-editor"
@@ -270,11 +272,13 @@ const buildBudgetEntriesEditorMarkup = (
         </label>
         <label>
           <span class="budget-entries-popup__editor-label">Account</span>
-          <input
-            type="text"
+          <select
             name="account"
             class="budget-entries-popup__editor-input"
-          />
+          >
+            <option value="">None</option>
+            ${accountDropdownOptions}
+          </select>
         </label>
         <label>
           <span class="budget-entries-popup__editor-label">Category</span>
@@ -372,6 +376,7 @@ const BudgetEntriesBudgetPopup = ({ request }) => {
       onClose,
       categoryOptions,
       currencyOptions,
+      accountOptions,
     } = request;
 
     const safeBudgetRates =
@@ -398,6 +403,9 @@ const BudgetEntriesBudgetPopup = ({ request }) => {
       : [];
     const safeCurrencyOptions = Array.isArray(currencyOptions)
       ? currencyOptions
+      : [];
+    const safeAccountOptions = Array.isArray(accountOptions)
+      ? accountOptions
       : [];
 
     const markAmountInputNegative = (input) => {
@@ -690,9 +698,16 @@ const BudgetEntriesBudgetPopup = ({ request }) => {
       if (descriptionInput) {
         descriptionInput.value = entry.Description1 ?? "";
       }
-      const accountInput = editorForm.querySelector("[name='account']");
-      if (accountInput) {
-        accountInput.value = entry.Account ?? "";
+      const accountSelect = editorForm.querySelector("[name='account']");
+      if (accountSelect) {
+        const accountValue = entry.Account ?? "";
+        if (accountValue) {
+          setSelectValueSafely(accountSelect, accountValue, {
+            documentRef: popup.document,
+          });
+        } else {
+          accountSelect.value = "";
+        }
       }
       const categorySelect = editorForm.querySelector("[name='category']");
       if (categorySelect) {
@@ -1006,7 +1021,7 @@ const BudgetEntriesBudgetPopup = ({ request }) => {
         return;
       }
       const startDate = new Date(safeBudgetYear, row.monthNumber - 1, 1);
-      const endDate = new Date(safeBudgetYear, row.monthNumber, 1);
+      const endDate = new Date(safeBudgetYear, row.monthNumber, 0);
       const params = new URLSearchParams();
       params.set("fromDate", startDate.toISOString().split("T")[0]);
       params.set("toDate", endDate.toISOString().split("T")[0]);
@@ -1030,7 +1045,8 @@ const BudgetEntriesBudgetPopup = ({ request }) => {
         const tableMarkup = buildEntriesMarkup(entries);
         const editorMarkup = buildBudgetEntriesEditorMarkup(
           safeCategoryOptions,
-          safeCurrencyOptions
+          safeCurrencyOptions,
+          safeAccountOptions
         );
         setPopupContent(
           `${tableMarkup}${editorMarkup}${BUDGET_ENTRIES_DELETE_CONFIRMATION_MARKUP}${buildStatusMarkup()}`
