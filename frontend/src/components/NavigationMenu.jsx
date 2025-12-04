@@ -51,11 +51,9 @@ export default function NavigationMenu() {
         <div className="navbar__left">
           <Link className="navbar__brand" to="/">
             <div className="navbar__brand-image">
-              <img src={banner} alt="Fin banner" />
+              <img src={banner} alt="Fin" />
             </div>
-            <div className="navbar__brand-copy">
-              <p className="navbar__title">Fin Workspace</p>
-            </div>
+            <span className="navbar__title">Fin</span>
           </Link>
           <nav className={navLinksClassName}>
             <Link className="navlink" to="/">

@@ -1,21 +1,24 @@
 @import url("https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700&family=Space+Grotesk:wght@500;600&display=swap");
 
 :root {
-  --bg: #f6f8ff;
-  --bg-secondary: #eef2f9;
+  --bg: #f8f9fe;
+  --bg-secondary: #eef3fb;
   --surface: #ffffff;
-  --surface-muted: #f3f5fb;
+  --surface-muted: #f5f7fc;
   --ink: #0f172a;
-  --muted: #4f5b76;
-  --primary: #0f6bdc;
-  --primary-strong: #0c54b7;
-  --accent: #0ea5e9;
-  --success: #0f9d58;
-  --danger: #e11d48;
-  --border: #d8e2f2;
-  --shadow-soft: 0 24px 70px -38px rgba(15, 23, 42, 0.65);
-  --radius-lg: 18px;
-  --radius-sm: 12px;
+  --muted: #64748b;
+  --primary: #2563eb;
+  --primary-strong: #1e40af;
+  --accent: #06b6d4;
+  --success: #10b981;
+  --warning: #f59e0b;
+  --danger: #ef4444;
+  --border: #e2e8f0;
+  --shadow-soft: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
+  --shadow-md: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05);
+  --shadow-lg: 0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04);
+  --radius-lg: 16px;
+  --radius-sm: 10px;
 
   font-family: "Plus Jakarta Sans", "Segoe UI", "Helvetica Neue", sans-serif;
   line-height: 1.6;
@@ -38,9 +41,9 @@ body {
   margin: 0;
   min-height: 100vh;
   background:
-    radial-gradient(circle at 18% 20%, rgba(15, 107, 220, 0.10), transparent 26%),
-    radial-gradient(circle at 82% 8%, rgba(14, 165, 233, 0.08), transparent 25%),
-    linear-gradient(135deg, var(--bg) 0%, var(--bg-secondary) 55%, #f8fbff 100%);
+    radial-gradient(circle at 20% 10%, rgba(37, 99, 235, 0.08), transparent 40%),
+    radial-gradient(circle at 80% 90%, rgba(6, 182, 212, 0.06), transparent 40%),
+    linear-gradient(135deg, #f8f9fe 0%, #eef3fb 100%);
   color: var(--ink);
 }
 
@@ -49,11 +52,40 @@ body {
   width: 100%;
 }
 
-h1,
-h2,
-h3,
+h1 {
+  font-family: "Space Grotesk", "Plus Jakarta Sans", sans-serif;
+  font-size: 2.5rem;
+  line-height: 1.2;
+  font-weight: 700;
+  letter-spacing: -0.025em;
+  margin: 0;
+  color: var(--ink);
+}
+
+h2 {
+  font-family: "Space Grotesk", "Plus Jakarta Sans", sans-serif;
+  font-size: 1.875rem;
+  line-height: 1.3;
+  font-weight: 600;
+  letter-spacing: -0.02em;
+  margin: 0;
+  color: var(--ink);
+}
+
+h3 {
+  font-family: "Space Grotesk", "Plus Jakarta Sans", sans-serif;
+  font-size: 1.5rem;
+  line-height: 1.4;
+  font-weight: 600;
+  letter-spacing: -0.015em;
+  margin: 0;
+  color: var(--ink);
+}
+
 h4 {
   font-family: "Space Grotesk", "Plus Jakarta Sans", sans-serif;
+  font-size: 1.25rem;
+  line-height: 1.5;
   font-weight: 600;
   letter-spacing: -0.01em;
   margin: 0;
@@ -63,6 +95,7 @@ h4 {
 p {
   margin: 0;
   color: var(--muted);
+  line-height: 1.65;
 }
 
 a {

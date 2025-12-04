@@ -1,58 +1,222 @@
+/* ============================================================================
+   ACTUAL ENTRIES POPUP - Professional Styling
+   ============================================================================ */
+
+:root {
+  --popup-bg: #f8f9fe;
+  --popup-surface: #ffffff;
+  --popup-surface-muted: #f5f7fc;
+  --popup-ink: #0f172a;
+  --popup-muted: #64748b;
+  --popup-primary: #2563eb;
+  --popup-primary-strong: #1e40af;
+  --popup-success: #10b981;
+  --popup-danger: #ef4444;
+  --popup-border: #e2e8f0;
+  --popup-shadow-soft: 0 1px 3px 0 rgba(0, 0, 0, 0.1), 0 1px 2px 0 rgba(0, 0, 0, 0.06);
+  --popup-shadow-md: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
+}
+
 body {
-  font-family: "Inter", "Segoe UI", system-ui, sans-serif;
+  font-family: "Plus Jakarta Sans", "Segoe UI", "Helvetica Neue", sans-serif;
   margin: 0;
-  padding: 16px;
-  background: #fff;
-  color: #111;
+  padding: 1.5rem;
+  background: linear-gradient(135deg, #f8f9fe 0%, #eef3fb 100%);
+  color: var(--popup-ink);
+  line-height: 1.6;
+  -webkit-font-smoothing: antialiased;
 }
 
 h1 {
-  margin: 0;
-  font-size: 1.25rem;
+  font-family: "Space Grotesk", "Plus Jakarta Sans", sans-serif;
+  margin: 0 0 1rem;
+  font-size: 1.5rem;
+  line-height: 1.3;
   font-weight: 600;
+  letter-spacing: -0.02em;
+  color: var(--popup-ink);
+  padding-bottom: 1rem;
+  border-bottom: 2px solid var(--popup-border);
 }
+
+/* ============================================================================
+   TABLE STYLING
+   ============================================================================ */
 
 .budget-entries-popup__table {
   width: 100%;
-  border-collapse: collapse;
-  margin-top: 1rem;
+  border-collapse: separate;
+  border-spacing: 0;
+  margin-top: 1.25rem;
   font-size: 0.9rem;
+  border-radius: 12px;
+  overflow: hidden;
+  border: 1px solid var(--popup-border);
+  box-shadow: var(--popup-shadow-soft);
+  background: var(--popup-surface);
 }
 
-.budget-entries-popup__table th,
-.budget-entries-popup__table td {
-  padding: 0.45rem 0.65rem;
-  border: 1px solid rgba(0, 0, 0, 0.1);
-  text-align: left;
+.budget-entries-popup__table thead {
+  background: linear-gradient(to bottom, var(--popup-surface), var(--popup-surface-muted));
+  position: sticky;
+  top: 0;
+  z-index: 10;
 }
 
 .budget-entries-popup__table th {
-  background: #f6f7fb;
+  padding: 0;
+  border-bottom: 2px solid var(--popup-border);
+  text-align: left;
+  font-weight: 600;
+  color: var(--popup-ink);
+}
+
+.budget-entries-popup__sort-button {
+  width: 100%;
+  padding: 0.75rem 0.85rem;
+  background: transparent;
+  border: none;
+  text-align: left;
   font-size: 0.75rem;
-  letter-spacing: 0.07em;
+  font-weight: 700;
   text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--popup-ink);
+  cursor: pointer;
+  transition: all 0.15s ease;
+  font-family: inherit;
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
 }
 
-.budget-entries-popup__status {
-  margin-top: 1rem;
-  font-size: 0.95rem;
+.budget-entries-popup__sort-button:hover {
+  background: rgba(37, 99, 235, 0.08);
+  color: var(--popup-primary);
 }
 
-.budget-entries-popup__empty,
-.budget-entries-popup__error {
-  margin-top: 1rem;
-  font-size: 0.95rem;
-  color: #555;
+.budget-entries-popup__sort-button:active {
+  background: rgba(37, 99, 235, 0.12);
 }
 
-.budget-entries-popup__error {
-  color: #c33;
+.budget-entries-popup__table td {
+  padding: 0.75rem 0.85rem;
+  border-bottom: 1px solid var(--popup-border);
+  vertical-align: middle;
 }
 
-.budget-entries-popup__value {
+.budget-entries-popup__table tbody tr {
+  transition: background-color 0.15s ease;
+}
+
+.budget-entries-popup__table tbody tr:hover {
+  background: rgba(37, 99, 235, 0.03);
+}
+
+.budget-entries-popup__table tbody tr:nth-child(even) {
+  background: rgba(37, 99, 235, 0.02);
+}
+
+.budget-entries-popup__table tbody tr:nth-child(even):hover {
+  background: rgba(37, 99, 235, 0.05);
+}
+
+.budget-entries-popup__table tbody tr:last-child td {
+  border-bottom: none;
+}
+
+.budget-entries-popup__table td:first-child {
+  font-weight: 500;
+}
+
+.budget-entries-popup__table td:nth-child(5),
+.budget-entries-popup__table td:nth-child(6) {
+  text-align: right;
+  font-family: "Space Grotesk", "Plus Jakarta Sans", sans-serif;
   font-weight: 600;
 }
 
+.budget-entries-popup__table td:nth-child(6) {
+  background: rgba(37, 99, 235, 0.04);
+}
+
+/* ============================================================================
+   VALUE STYLING
+   ============================================================================ */
+
+.budget-entries-popup__value {
+  font-weight: 600;
+  color: var(--popup-ink);
+}
+
 .budget-entries-popup__value--negative {
-  color: #c33;
+  color: var(--popup-danger);
+}
+
+/* ============================================================================
+   STATUS MESSAGES
+   ============================================================================ */
+
+.budget-entries-popup__status {
+  margin-top: 1rem;
+  padding: 0.75rem 1rem;
+  border-radius: 8px;
+  font-size: 0.95rem;
+  font-weight: 500;
+  color: var(--popup-muted);
+  background: var(--popup-surface);
+  border: 1px solid var(--popup-border);
+  box-shadow: var(--popup-shadow-soft);
+}
+
+.budget-entries-popup__empty {
+  text-align: center;
+  font-style: italic;
+  color: var(--popup-muted);
+  padding: 3rem 1rem;
+  margin-top: 1.5rem;
+  font-size: 0.95rem;
+  background: var(--popup-surface);
+  border-radius: 12px;
+  border: 1px solid var(--popup-border);
+  box-shadow: var(--popup-shadow-soft);
+}
+
+.budget-entries-popup__error {
+  margin-top: 1.5rem;
+  padding: 1.25rem;
+  border-radius: 12px;
+  background: #fef2f2;
+  border: 1.5px solid rgba(239, 68, 68, 0.2);
+  color: var(--popup-danger);
+  font-size: 0.95rem;
+  font-weight: 500;
+  box-shadow: var(--popup-shadow-soft);
+}
+
+/* ============================================================================
+   RESPONSIVE ADJUSTMENTS
+   ============================================================================ */
+
+@media (max-width: 768px) {
+  body {
+    padding: 1rem;
+  }
+
+  h1 {
+    font-size: 1.25rem;
+  }
+
+  .budget-entries-popup__table {
+    font-size: 0.85rem;
+  }
+
+  .budget-entries-popup__table th,
+  .budget-entries-popup__table td {
+    padding: 0.5rem 0.6rem;
+  }
+
+  .budget-entries-popup__sort-button {
+    font-size: 0.7rem;
+  }
 }
