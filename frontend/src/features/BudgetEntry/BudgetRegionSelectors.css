@@ -1,0 +1,90 @@
+.selector-area {
+  grid-column: 1 / -1;
+  background: linear-gradient(135deg, rgba(255, 255, 255, 0.95) 0%, rgba(248, 250, 252, 0.98) 100%);
+  border: 1px solid rgba(37, 99, 235, 0.12);
+  box-shadow: 0 2px 8px -2px rgba(15, 23, 42, 0.08), 0 4px 12px -4px rgba(37, 99, 235, 0.08);
+}
+
+.selector-area .budget-region__description {
+  margin-bottom: 1.5rem;
+  font-size: 1rem;
+}
+
+.selector-grid {
+  width: 100%;
+  display: grid;
+  gap: 1.25rem;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  align-items: flex-start;
+}
+
+.selector-control {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.selector-control__label {
+  font-size: 0.75rem;
+  font-weight: 700;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--primary);
+}
+
+.selector-control__input {
+  width: 100%;
+  padding: 0.8rem 1rem;
+  border-radius: 0.75rem;
+  border: 2px solid var(--border);
+  background: #ffffff;
+  font-size: 1rem;
+  font-weight: 600;
+  color: var(--ink);
+  box-sizing: border-box;
+  transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+  box-shadow: 0 1px 2px 0 rgba(15, 23, 42, 0.05);
+}
+
+.selector-control__input:hover {
+  border-color: rgba(37, 99, 235, 0.3);
+}
+
+.selector-control__input:focus,
+.selector-control__input:focus-visible {
+  outline: none;
+  border-color: var(--primary);
+  box-shadow: 0 0 0 4px rgba(37, 99, 235, 0.12), 0 1px 3px 0 rgba(15, 23, 42, 0.1);
+  transform: translateY(-1px);
+}
+
+.selector-control--spanning {
+  grid-column: span 2;
+}
+
+.category-group-option {
+  font-weight: 700;
+  color: var(--ink);
+  padding: 0.5rem 0.75rem;
+}
+
+.category-group-option--income {
+  background: linear-gradient(135deg, rgba(16, 185, 129, 0.15) 0%, rgba(5, 150, 105, 0.12) 100%);
+  border-left: 3px solid rgba(16, 185, 129, 0.6);
+}
+
+.category-group-option--expense {
+  background: linear-gradient(135deg, rgba(239, 68, 68, 0.15) 0%, rgba(220, 38, 38, 0.12) 100%);
+  border-left: 3px solid rgba(239, 68, 68, 0.6);
+}
+
+.category-group-option--expense-operational {
+  background: linear-gradient(135deg, rgba(251, 146, 60, 0.15) 0%, rgba(249, 115, 22, 0.12) 100%);
+  border-left: 3px solid rgba(251, 146, 60, 0.6);
+}
+
+@media (max-width: 640px) {
+  .selector-control--spanning {
+    grid-column: span 1;
+  }
+}

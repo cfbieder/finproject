@@ -1,4 +1,92 @@
 import "./BudgetRegionBudgetEntry.css";
+import coaData from "../../../../components/data/coa.json";
+
+const PROFIT_LOSS_SECTION_LABEL = "Profit & Loss Accounts";
+const INCOME_GROUP_LABEL = "Income";
+const EXPENSE_GROUP_LABEL = "Expense";
+
+const buildExpenseAccountSet = (coa) => {
+  const expenseAccounts = new Set();
+  if (!Array.isArray(coa)) {
+    return expenseAccounts;
+  }
+
+  const profitLossSection = coa.find(
+    (entry) =>
+      entry &&
+      typeof entry === "object" &&
+      Object.prototype.hasOwnProperty.call(entry, PROFIT_LOSS_SECTION_LABEL)
+  );
+  if (!profitLossSection) {
+    return expenseAccounts;
+  }
+
+  const traverse = (node, currentGroup = null) => {
+    if (Array.isArray(node)) {
+      node.forEach((child) => traverse(child, currentGroup));
+      return;
+    }
+
+    if (node && typeof node === "object") {
+      for (const [key, value] of Object.entries(node)) {
+        const nextGroup =
+          key === EXPENSE_GROUP_LABEL || key === INCOME_GROUP_LABEL
+            ? key
+            : currentGroup;
+        traverse(value, nextGroup);
+      }
+      return;
+    }
+
+    if (
+      currentGroup === EXPENSE_GROUP_LABEL &&
+      typeof node === "string" &&
+      node.trim().length
+    ) {
+      expenseAccounts.add(node.trim());
+    }
+  };
+
+  traverse(profitLossSection[PROFIT_LOSS_SECTION_LABEL], null);
+  return expenseAccounts;
+};
+
+const EXPENSE_COA_ACCOUNTS = buildExpenseAccountSet(coaData);
+
+const normalizeAccountName = (value) =>
+  typeof value === "string" ? value.trim() : "";
+
+const isCoaExpenseAccount = (value) => {
+  const normalized = normalizeAccountName(value);
+  return normalized.length ? EXPENSE_COA_ACCOUNTS.has(normalized) : false;
+};
+
+const ensureExpenseAmountSign = (value, account) => {
+  if (!isCoaExpenseAccount(account)) {
+    return value;
+  }
+
+  if (value === undefined || value === null) {
+    return value;
+  }
+
+  const stringValue =
+    typeof value === "string" ? value : String(value ?? undefined);
+  if (!stringValue.length) {
+    return value;
+  }
+
+  const parsed = Number(stringValue);
+  if (!Number.isFinite(parsed)) {
+    return value;
+  }
+
+  if (parsed > 0) {
+    return String(-Math.abs(parsed));
+  }
+
+  return stringValue;
+};
 
 const noop = () => {};
 export default function BudgetRegionBudgetEntry({
@@ -21,6 +109,36 @@ export default function BudgetRegionBudgetEntry({
     setEntryForm((previous) => ({
       ...previous,
       [field]: nextValue,
+    }));
+  };
+
+  const handleAccountChange = (event) => {
+    const nextValue = event?.target?.value;
+    setEntryForm((previous) => ({
+      ...previous,
+      account: nextValue,
+      amount: ensureExpenseAmountSign(previous.amount, nextValue),
+    }));
+  };
+
+  const handleAmountChange = (event) => {
+    const nextValue = event?.target?.value;
+    setEntryForm((previous) => ({
+      ...previous,
+      amount: ensureExpenseAmountSign(nextValue, previous.account),
+    }));
+  };
+
+  const handleClearForm = () => {
+    setEntryForm((previous) => ({
+      ...previous,
+      date: "",
+      description: "",
+      account: "None",
+      category: derivedCategoryLabel,
+      amount: "",
+      currency: "USD",
+      note: "",
     }));
   };
 
@@ -62,7 +180,7 @@ export default function BudgetRegionBudgetEntry({
               <select
                 className="budget-entry-form__input"
                 value={entryForm.account}
-                onChange={handleFieldChange("account")}
+                onChange={handleAccountChange}
               >
                 <option value="None">None</option>
                 <option value="" disabled>
@@ -85,11 +203,10 @@ export default function BudgetRegionBudgetEntry({
               <span className="budget-entry-form__label">Amount</span>
               <input
                 type="number"
-                min="0"
                 step="0.01"
                 className="budget-entry-form__input"
                 value={entryForm.amount}
-                onChange={handleFieldChange("amount")}
+                onChange={handleAmountChange}
               />
             </label>
             <label className="budget-entry-form__control">
@@ -155,6 +272,14 @@ export default function BudgetRegionBudgetEntry({
             )}
           </div>
           <div className="budget-entry-form__actions">
+            <button
+              type="button"
+              className="budget-entry-form__clear"
+              onClick={handleClearForm}
+              disabled={entryStatus.loading}
+            >
+              Clear Form
+            </button>
             <button
               type="submit"
               className="budget-entry-form__submit"

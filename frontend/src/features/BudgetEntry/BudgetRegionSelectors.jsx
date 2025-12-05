@@ -1,3 +1,5 @@
+import "./BudgetRegionSelectors.css";
+
 export default function BudgetRegionSelectors({
   monthOptions = [],
   yearOptions = [],
@@ -18,6 +20,11 @@ export default function BudgetRegionSelectors({
   onAccountsChange = () => {},
   onCategoriesChange = () => {},
 }) {
+  const CATEGORY_SELECTOR_BASE_SIZE = 5;
+  const categorySelectorSize = Math.ceil(
+    CATEGORY_SELECTOR_BASE_SIZE * 1.75
+  );
+
   return (
     <section className="budget-region selector-area">
       <p className="budget-region__label">Filter Controls</p>
@@ -132,7 +139,7 @@ export default function BudgetRegionSelectors({
             className="selector-control__input"
             value={selectedCategories}
             multiple
-            size={5}
+            size={categorySelectorSize}
             onChange={onCategoriesChange}
           >
             {categoryGroupOptions.map((groupOption) => (

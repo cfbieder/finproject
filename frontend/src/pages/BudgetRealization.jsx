@@ -10,6 +10,13 @@ import "../features/CashFlow/CashFlowReport.css";
 import coaData from "../../../components/data/coa.json";
 import "./PageLayout.css";
 
+// ============================================================================
+// CURRENCY FORMATTING
+// ============================================================================
+
+/**
+ * Currency formatter for USD display
+ */
 const currencyFormatter = new Intl.NumberFormat("en-US", {
   style: "currency",
   currency: "USD",
@@ -17,12 +24,27 @@ const currencyFormatter = new Intl.NumberFormat("en-US", {
   maximumFractionDigits: 2,
 });
 
+/**
+ * Formats a currency value with proper sign handling
+ * @param {number} value - Numeric value to format
+ * @returns {string} Formatted currency string (negative values in parentheses)
+ */
 const formatCurrencyValue = (value) => {
   const amount = Number.isFinite(Number(value)) ? Number(value) : 0;
   const formatted = currencyFormatter.format(Math.abs(amount));
   return amount < 0 ? `(${formatted})` : formatted;
 };
 
+// ============================================================================
+// UTILITY FUNCTIONS - Data Processing
+// ============================================================================
+
+/**
+ * Builds a map of leaf node names to their total values
+ * @param {Array} nodes - Tree nodes to process
+ * @param {Map} map - Accumulator map
+ * @returns {Map} Map of leaf node names to totals
+ */
 const buildLeafActualTotalsMap = (nodes, map = new Map()) => {
   if (!Array.isArray(nodes)) {
     return map;
@@ -47,6 +69,13 @@ const buildLeafActualTotalsMap = (nodes, map = new Map()) => {
   return map;
 };
 
+/**
+ * Computes the date range for the selected period
+ * @param {string} reportType - Type of report (month, ytd, full-year)
+ * @param {string} selectedMonth - Selected month value
+ * @param {string} selectedYear - Selected year value
+ * @returns {Object|null} Object with start and end dates
+ */
 const computePeriodRange = (reportType, selectedMonth, selectedYear) => {
   const yearNumber = Number.parseInt(selectedYear, 10);
   if (!Number.isFinite(yearNumber)) {
@@ -89,6 +118,11 @@ const computePeriodRange = (reportType, selectedMonth, selectedYear) => {
   return { start, end };
 };
 
+/**
+ * Formats a Date object to ISO date string (YYYY-MM-DD)
+ * @param {Date} value - Date to format
+ * @returns {string|null} Formatted date string
+ */
 const formatDateParam = (value) => {
   if (!(value instanceof Date) || Number.isNaN(value.getTime())) {
     return null;
@@ -96,6 +130,11 @@ const formatDateParam = (value) => {
   return value.toISOString().split("T")[0];
 };
 
+/**
+ * Creates a resolver function that computes values with caching
+ * @param {Map} leafTotals - Map of leaf node totals
+ * @returns {Function} Resolver function
+ */
 const createActualValueResolver = (leafTotals) => {
   if (!leafTotals || typeof leafTotals.get !== "function") {
     return () => 0;
@@ -122,6 +161,56 @@ const createActualValueResolver = (leafTotals) => {
   return resolve;
 };
 
+/**
+ * Safely converts a value to a number
+ * @param {*} value - Value to convert
+ * @returns {number} Converted number or 0
+ */
+const safeNumber = (value) =>
+  Number.isFinite(Number(value)) ? Number(value) : 0;
+
+/**
+ * Resolves the value for a top-level node by name
+ * @param {Array} nodes - Array of nodes
+ * @param {string} name - Node name to find
+ * @param {Function} resolver - Value resolver function
+ * @returns {number|null} Resolved value
+ */
+const resolveTopLevelNodeValue = (nodes, name, resolver) => {
+  if (!Array.isArray(nodes) || !name || typeof resolver !== "function") {
+    return null;
+  }
+  const node = nodes.find((entry) => entry && entry.name === name);
+  if (!node) {
+    return null;
+  }
+  return resolver(node, name);
+};
+
+/**
+ * Computes total of Income and Expense nodes
+ * @param {Array} nodes - Category tree nodes
+ * @param {Function} resolver - Value resolver function
+ * @returns {number} Combined total
+ */
+const computeIncomeExpenseTotal = (nodes, resolver) => {
+  if (typeof resolver !== "function") {
+    return 0;
+  }
+  const incomeValue = resolveTopLevelNodeValue(nodes, "Income", resolver);
+  const expenseValue = resolveTopLevelNodeValue(nodes, "Expense", resolver);
+  return safeNumber(incomeValue) + safeNumber(expenseValue);
+};
+
+// ============================================================================
+// UTILITY FUNCTIONS - Category Tree Operations
+// ============================================================================
+
+/**
+ * Builds a hierarchical category tree from flat data
+ * @param {Array} items - Array of category items
+ * @returns {Array} Hierarchical tree structure
+ */
 const buildCategoryTree = (items) => {
   if (!Array.isArray(items)) {
     return [];
@@ -160,6 +249,13 @@ const buildCategoryTree = (items) => {
   });
 };
 
+/**
+ * Collects all paths that have children (can be collapsed)
+ * @param {Array} nodes - Category tree nodes
+ * @param {Array} path - Current path
+ * @param {Set} accumulator - Accumulator set
+ * @returns {Set} Set of collapsible path keys
+ */
 const collectCollapsiblePaths = (nodes, path = [], accumulator = new Set()) => {
   if (!Array.isArray(nodes)) {
     return accumulator;
@@ -180,29 +276,11 @@ const collectCollapsiblePaths = (nodes, path = [], accumulator = new Set()) => {
   return accumulator;
 };
 
-const safeNumber = (value) =>
-  Number.isFinite(Number(value)) ? Number(value) : 0;
-
-const resolveTopLevelNodeValue = (nodes, name, resolver) => {
-  if (!Array.isArray(nodes) || !name || typeof resolver !== "function") {
-    return null;
-  }
-  const node = nodes.find((entry) => entry && entry.name === name);
-  if (!node) {
-    return null;
-  }
-  return resolver(node, name);
-};
-
-const computeIncomeExpenseTotal = (nodes, resolver) => {
-  if (typeof resolver !== "function") {
-    return 0;
-  }
-  const incomeValue = resolveTopLevelNodeValue(nodes, "Income", resolver);
-  const expenseValue = resolveTopLevelNodeValue(nodes, "Expense", resolver);
-  return safeNumber(incomeValue) + safeNumber(expenseValue);
-};
-
+/**
+ * Checks if a path represents an expense category
+ * @param {Array} path - Category path
+ * @returns {boolean} True if expense path
+ */
 const isExpensePath = (path) => {
   if (!Array.isArray(path) || path.length === 0) {
     return false;
@@ -213,6 +291,11 @@ const isExpensePath = (path) => {
   );
 };
 
+/**
+ * Checks if a path represents an income category
+ * @param {Array} path - Category path
+ * @returns {boolean} True if income path
+ */
 const isIncomePath = (path) => {
   if (!Array.isArray(path) || path.length === 0) {
     return false;
@@ -223,6 +306,23 @@ const isIncomePath = (path) => {
   );
 };
 
+// ============================================================================
+// UTILITY FUNCTIONS - Rendering
+// ============================================================================
+
+/**
+ * Renders category rows with budget, actual, and variance values
+ * @param {Array} nodes - Category tree nodes
+ * @param {Set} collapsedPaths - Set of collapsed path keys
+ * @param {Function} handleToggle - Toggle collapse handler
+ * @param {Map} leafActualTotals - Map of actual totals
+ * @param {Function} getActualValue - Actual value resolver
+ * @param {Map} leafBudgetTotals - Map of budget totals
+ * @param {Function} getBudgetValue - Budget value resolver
+ * @param {number} level - Indentation level
+ * @param {Array} path - Current path
+ * @returns {Array} Array of React elements
+ */
 const renderCategoryRows = (
   nodes,
   collapsedPaths,
@@ -324,6 +424,14 @@ const renderCategoryRows = (
   });
 };
 
+/**
+ * Filters category tree based on inclusion options
+ * @param {Array} nodes - Category tree nodes
+ * @param {Object} options - Filter options
+ * @param {boolean} options.includeUnrealized - Include unrealized G/L
+ * @param {boolean} options.includeTransfers - Include transfers
+ * @returns {Array} Filtered category tree
+ */
 const filterCategoryTree = (nodes, { includeUnrealized, includeTransfers }) => {
   if (!Array.isArray(nodes) || nodes.length === 0) {
     return [];
@@ -355,31 +463,62 @@ const filterCategoryTree = (nodes, { includeUnrealized, includeTransfers }) => {
     .filter(Boolean);
 };
 
+// ============================================================================
+// MAIN COMPONENT
+// ============================================================================
+
+/**
+ * BudgetRealization - Budget vs Actual reporting page
+ *
+ * This component provides functionality for:
+ * - Comparing budget to actual performance by category
+ * - Viewing variance between budget and actual
+ * - Filtering by time period (month, YTD, full year)
+ * - Collapsible category tree structure
+ * - Optional inclusion of unrealized G/L and transfers
+ */
 export default function BudgetRealization() {
+  // ========== State: Report Parameters ==========
   const [reportType, setReportType] = useState("month");
   const [selectedMonth, setSelectedMonth] = useState(
     MONTH_OPTIONS[new Date().getMonth()].value
   );
   const [selectedYear, setSelectedYear] = useState(YEAR_OPTIONS[3]);
-  const [leafActualTotals, setLeafActualTotals] = useState(null);
-  const [leafBudgetTotals, setLeafBudgetTotals] = useState(null);
+  const [actualYear, setActualYear] = useState(YEAR_OPTIONS[3]);
   const [includeUnrealized, setIncludeUnrealized] = useState(false);
   const [includeTransfers, setIncludeTransfers] = useState(false);
-  const periodRange = useMemo(
+
+  // ========== State: Data ==========
+  const [leafActualTotals, setLeafActualTotals] = useState(null);
+  const [leafBudgetTotals, setLeafBudgetTotals] = useState(null);
+
+  // ========== State: UI ==========
+  const [collapsedPaths, setCollapsedPaths] = useState(new Set());
+
+  // ========== Computed Values: Date Range ==========
+  const budgetPeriodRange = useMemo(
     () => computePeriodRange(reportType, selectedMonth, selectedYear),
     [reportType, selectedMonth, selectedYear]
   );
+  const actualPeriodRange = useMemo(
+    () => computePeriodRange(reportType, selectedMonth, actualYear),
+    [reportType, selectedMonth, actualYear]
+  );
+
+  // ========== Computed Values: Resolvers ==========
   const actualValueResolver = useMemo(
     () =>
       leafActualTotals ? createActualValueResolver(leafActualTotals) : null,
     [leafActualTotals]
   );
+
   const budgetValueResolver = useMemo(
     () =>
       leafBudgetTotals ? createActualValueResolver(leafBudgetTotals) : null,
     [leafBudgetTotals]
   );
 
+  // ========== Computed Values: Category Tree ==========
   const categoryTree = useMemo(() => {
     const profitLossSection = coaData.find(
       (entry) =>
@@ -392,6 +531,7 @@ export default function BudgetRealization() {
       : [];
     return buildCategoryTree(profitLossNodes);
   }, []);
+
   const filteredCategoryTree = useMemo(
     () =>
       filterCategoryTree(categoryTree, {
@@ -400,59 +540,68 @@ export default function BudgetRealization() {
       }),
     [categoryTree, includeUnrealized, includeTransfers]
   );
+
+  const collapsiblePaths = useMemo(
+    () => collectCollapsiblePaths(filteredCategoryTree),
+    [filteredCategoryTree]
+  );
+
+  // ========== Computed Values: Net Totals ==========
   const hasActualData = leafActualTotals !== null;
   const hasBudgetData = leafBudgetTotals !== null;
+
   const netActualValue =
     hasActualData && actualValueResolver
       ? computeIncomeExpenseTotal(filteredCategoryTree, actualValueResolver)
       : null;
+
   const netBudgetValue =
     hasBudgetData && budgetValueResolver
       ? computeIncomeExpenseTotal(filteredCategoryTree, budgetValueResolver)
       : null;
+
   const showNetRow = hasActualData || hasBudgetData;
+
   const netBudgetDisplay = hasBudgetData
     ? formatCurrencyValue(netBudgetValue)
     : "—";
+
   const netActualDisplay = hasActualData
     ? formatCurrencyValue(netActualValue)
     : "—";
+
   const showNetVariance = hasBudgetData || hasActualData;
   const netVarianceValue =
     (hasActualData ? netActualValue : 0) - (hasBudgetData ? netBudgetValue : 0);
   const netVarianceDisplay = showNetVariance
     ? formatCurrencyValue(netVarianceValue)
     : "—";
-  const collapsiblePaths = useMemo(
-    () => collectCollapsiblePaths(filteredCategoryTree),
-    [filteredCategoryTree]
-  );
-  const [collapsedPaths, setCollapsedPaths] = useState(
-    () => new Set(collapsiblePaths)
-  );
 
+  // ========== Effects: Initialization ==========
+
+  // Sync collapsed paths when collapsible paths change
   useEffect(() => {
     setCollapsedPaths(new Set(collapsiblePaths));
   }, [collapsiblePaths]);
 
+  // ========== Effects: Data Fetching ==========
+
+  // Fetch actuals when the selected actual period or filters change
   useEffect(() => {
-    if (!periodRange) {
+    if (!actualPeriodRange) {
       setLeafActualTotals(null);
-      setLeafBudgetTotals(null);
       return;
     }
 
-    const fromDateParam = formatDateParam(periodRange.start);
-    const toDateParam = formatDateParam(periodRange.end);
+    const fromDateParam = formatDateParam(actualPeriodRange.start);
+    const toDateParam = formatDateParam(actualPeriodRange.end);
     if (!fromDateParam || !toDateParam) {
       setLeafActualTotals(null);
-      setLeafBudgetTotals(null);
       return;
     }
 
     let isActive = true;
     setLeafActualTotals(null);
-    setLeafBudgetTotals(null);
     const transfersMode = includeTransfers ? "include" : "exclude";
 
     const fetchActuals = async () => {
@@ -477,6 +626,31 @@ export default function BudgetRealization() {
         setLeafActualTotals(null);
       }
     };
+
+    fetchActuals();
+
+    return () => {
+      isActive = false;
+    };
+  }, [actualPeriodRange, includeTransfers, includeUnrealized]);
+
+  // Fetch budgets when the selected budget period or filters change
+  useEffect(() => {
+    if (!budgetPeriodRange) {
+      setLeafBudgetTotals(null);
+      return;
+    }
+
+    const fromDateParam = formatDateParam(budgetPeriodRange.start);
+    const toDateParam = formatDateParam(budgetPeriodRange.end);
+    if (!fromDateParam || !toDateParam) {
+      setLeafBudgetTotals(null);
+      return;
+    }
+
+    let isActive = true;
+    setLeafBudgetTotals(null);
+    const transfersMode = includeTransfers ? "include" : "exclude";
 
     const fetchBudgets = async () => {
       try {
@@ -504,14 +678,18 @@ export default function BudgetRealization() {
       }
     };
 
-    fetchActuals();
     fetchBudgets();
 
     return () => {
       isActive = false;
     };
-  }, [periodRange, includeTransfers, includeUnrealized]);
+  }, [budgetPeriodRange, includeTransfers, includeUnrealized]);
 
+  // ========== Event Handlers ==========
+
+  /**
+   * Toggles collapse state for a category path
+   */
   const handleTogglePath = (pathKey) => {
     setCollapsedPaths((prev) => {
       const next = new Set(prev);
@@ -523,14 +701,27 @@ export default function BudgetRealization() {
       return next;
     });
   };
+
+  /**
+   * Collapses all category paths
+   */
   const handleCollapseAll = () => {
     setCollapsedPaths(new Set(collapsiblePaths));
   };
+
+  /**
+   * Expands all category paths
+   */
   const handleExpandAll = () => {
     setCollapsedPaths(new Set());
   };
+
   const isFullyCollapsed =
     collapsiblePaths.size > 0 && collapsedPaths.size === collapsiblePaths.size;
+
+  /**
+   * Toggles between fully collapsed and fully expanded states
+   */
   const handleToggleCollapseAll = () => {
     if (isFullyCollapsed) {
       handleExpandAll();
@@ -538,6 +729,8 @@ export default function BudgetRealization() {
       handleCollapseAll();
     }
   };
+
+  // ========== Render ==========
 
   return (
     <div className="budget-realization-shell">
@@ -566,7 +759,9 @@ export default function BudgetRealization() {
             reportType={reportType}
             onReportTypeChange={setReportType}
             year={selectedYear}
+            actualYear={actualYear}
             onYearChange={setSelectedYear}
+            onActualYearChange={setActualYear}
             month={selectedMonth}
             onMonthChange={setSelectedMonth}
             isFullyCollapsed={isFullyCollapsed}

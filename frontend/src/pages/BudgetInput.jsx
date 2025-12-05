@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import NavigationMenu from "../components/NavigationMenu.jsx";
 import Rest from "../js/rest.js";
 import BudgetEntriesAtualPopup from "../features/BudgetEntry/BudgetEntriesAtualPopup.jsx";
@@ -136,6 +136,32 @@ const normalizeCurrencyOptions = (values) => {
     .filter((value) => value.length);
 
   return Array.from(new Set(normalized)).sort();
+};
+
+const buildBudgetMonthValue = (yearValue, monthValue) => {
+  const normalizedYear =
+    typeof yearValue === "number" && Number.isFinite(yearValue)
+      ? Math.floor(yearValue)
+      : Number.isFinite(Number(yearValue ?? NaN))
+      ? Math.floor(Number(yearValue))
+      : null;
+  const normalizedMonth =
+    typeof monthValue === "number" && Number.isFinite(monthValue)
+      ? Math.floor(monthValue)
+      : Number.isFinite(Number(monthValue ?? NaN))
+      ? Math.floor(Number(monthValue))
+      : null;
+  if (
+    normalizedYear === null ||
+    normalizedMonth === null ||
+    normalizedMonth < 1 ||
+    normalizedMonth > 12
+  ) {
+    return "";
+  }
+  const paddedYear = String(normalizedYear).padStart(4, "0");
+  const paddedMonth = String(normalizedMonth).padStart(2, "0");
+  return `${paddedYear}-${paddedMonth}`;
 };
 
 // ============================================================================
@@ -901,6 +927,7 @@ export default function BudgetInput() {
         amount: "",
         note: "",
       }));
+      setBudgetEntriesPopupRequest(null);
       setBalancesRefreshKey((previous) => previous + 1);
     } catch (error) {
       console.error("[BudgetInput] Failed to submit budget entry:", error);
@@ -911,6 +938,42 @@ export default function BudgetInput() {
       });
     }
   };
+
+  const handleActualEntryCopy = useCallback(
+    (entry, rowMonthNumber) => {
+      if (!entry || derivedCategoryIsGroup) {
+        return;
+      }
+
+      const budgetMonthValue = buildBudgetMonthValue(budgetYear, rowMonthNumber);
+      const monthValueExists =
+        budgetMonthValue &&
+        monthSelectOptions.some((option) => option.value === budgetMonthValue);
+
+      setEntryForm((previous) => {
+        const nextAccount =
+          entry.Account && entry.Account.trim()
+            ? entry.Account
+            : previous.account;
+        const nextAmount =
+          entry.Amount !== undefined && entry.Amount !== null
+            ? String(entry.Amount)
+            : previous.amount;
+        const nextCurrency = entry.Currency || previous.currency;
+        const nextDate = monthValueExists
+          ? budgetMonthValue
+          : previous.date;
+        return {
+          ...previous,
+          account: nextAccount,
+          amount: nextAmount,
+          currency: nextCurrency,
+          date: nextDate,
+        };
+      });
+    },
+    [derivedCategoryIsGroup, budgetYear, monthSelectOptions, setEntryForm]
+  );
 
   /**
    * Handles double-click on actual balance cell
@@ -932,6 +995,9 @@ export default function BudgetInput() {
         ? [...expandedSelectedCategories]
         : [],
       formatCurrencyValue,
+      budgetEntryAvailable: !derivedCategoryIsGroup,
+      onActualEntryCopy: handleActualEntryCopy,
+      onClose: () => setActualEntriesPopupRequest(null),
     });
   };
 
@@ -960,7 +1026,10 @@ export default function BudgetInput() {
       formatCurrencyValue,
       budgetRates,
       baseCurrency: BASE_CURRENCY,
-      onClose: () => setBalancesRefreshKey((prev) => prev + 1),
+      onClose: () => {
+        setBalancesRefreshKey((prev) => prev + 1);
+        setBudgetEntriesPopupRequest(null);
+      },
     });
   };
 
@@ -1044,7 +1113,7 @@ export default function BudgetInput() {
   // ========== Render ==========
 
   return (
-    <div className="page-shell">
+    <div className="page-shell page-shell--budget-input">
       <NavigationMenu />
       <main className="page-main">
         <div className="budget-input-grid">

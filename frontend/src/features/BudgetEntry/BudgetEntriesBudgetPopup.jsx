@@ -1,7 +1,8 @@
-import { useEffect } from "react";
+import { useEffect, useRef, useState } from "react";
 import Rest from "../../js/rest.js";
-import popupStylesUrl from "./BudgetEntriesBudgetPopup.css?url";
-// Utility helpers for formatting values that end up in the popup markup.
+import "./BudgetEntriesBudgetPopup.css";
+
+// Utility helpers for formatting values
 const escapeHtml = (value) => {
   if (value === undefined || value === null) {
     return "";
@@ -252,7 +253,7 @@ const computeBaseAmountValue = (
     return undefined;
   }
 
-  return parsedAmount * rate;
+  return parsedAmount / rate;
 };
 
 const buildDropdownOptions = (values = []) => {
@@ -276,7 +277,6 @@ const buildDropdownOptions = (values = []) => {
   return fragments.join("");
 };
 
-// Helpers to keep select dropdowns synchronized with the entry data.
 const ensureSelectOption = (documentRef, selectElement, optionValue) => {
   if (!documentRef || !selectElement || !optionValue) {
     return;
@@ -438,840 +438,761 @@ const BUDGET_ENTRIES_DELETE_CONFIRMATION_MARKUP = `
   </section>
 `;
 
-// React component that opens the budget entries popup for the provided request.
+// React component that displays budget entries in a modal dialog
 const BudgetEntriesBudgetPopup = ({ request }) => {
-  useEffect(() => {
-    if (!request?.row) {
+  const [entries, setEntries] = useState([]);
+  const [sortState, setSortState] = useState({
+    key: BUDGET_ENTRY_SORTABLE_COLUMNS[0].key,
+    direction: "desc",
+  });
+  const [statusMessage, setStatusMessage] = useState("Loading entries…");
+  const [statusType, setStatusType] = useState("muted");
+  const [pendingDeleteEntryId, setPendingDeleteEntryId] = useState(null);
+  const modalRef = useRef(null);
+  const contentRef = useRef(null);
+
+  const {
+    row,
+    budgetYear,
+    selectedAccounts,
+    expandedCategories,
+    onClose,
+    categoryOptions,
+    currencyOptions,
+    accountOptions,
+  } = request || {};
+
+  const safeBudgetRates =
+    request && typeof request.budgetRates === "object"
+      ? request.budgetRates
+      : {};
+  const effectiveBaseCurrency =
+    normalizeCurrencyCode(request?.baseCurrency) || DEFAULT_BASE_CURRENCY;
+
+  const safeBudgetYear = Number.isFinite(budgetYear)
+    ? budgetYear
+    : new Date().getFullYear();
+
+  const accountsToFilter = (
+    Array.isArray(selectedAccounts) ? selectedAccounts : []
+  ).filter((account) => account && account !== "All");
+
+  const safeExpandedCategories = Array.isArray(expandedCategories)
+    ? expandedCategories
+    : [];
+
+  const safeCategoryOptions = Array.isArray(categoryOptions)
+    ? categoryOptions
+    : [];
+  const safeCurrencyOptions = Array.isArray(currencyOptions)
+    ? currencyOptions
+    : [];
+  const safeAccountOptions = Array.isArray(accountOptions)
+    ? accountOptions
+    : [];
+
+  const handleClose = () => {
+    if (typeof onClose === "function") {
+      onClose();
+    }
+  };
+
+  const handleOverlayClick = (e) => {
+    if (e.target === e.currentTarget) {
+      handleClose();
+    }
+  };
+
+  const handleSortChange = (key) => {
+    const normalizedKey = typeof key === "string" ? key.trim() : "";
+    if (
+      !BUDGET_ENTRY_SORTABLE_COLUMNS.some(
+        (column) => column.key === normalizedKey
+      )
+    ) {
+      return;
+    }
+    setSortState((prev) => ({
+      key: normalizedKey,
+      direction:
+        prev.key === normalizedKey
+          ? prev.direction === "asc"
+            ? "desc"
+            : "asc"
+          : "asc",
+    }));
+  };
+
+  const syncEditorBaseAmountField = () => {
+    if (!contentRef.current) {
       return undefined;
     }
-
-    let isActive = true;
-    let latestEntries = [];
-    let pendingDeleteEntryId = null;
-
-    const {
-      row,
-      budgetYear,
-      selectedAccounts,
-      expandedCategories,
-      onClose,
-      categoryOptions,
-      currencyOptions,
-      accountOptions,
-    } = request;
-
-    const safeBudgetRates =
-      request && typeof request.budgetRates === "object"
-        ? request.budgetRates
-        : {};
-    const effectiveBaseCurrency =
-      normalizeCurrencyCode(request?.baseCurrency) || DEFAULT_BASE_CURRENCY;
-
-    const safeBudgetYear = Number.isFinite(budgetYear)
-      ? budgetYear
-      : new Date().getFullYear();
-
-    const accountsToFilter = (
-      Array.isArray(selectedAccounts) ? selectedAccounts : []
-    ).filter((account) => account && account !== "All");
-
-    const safeExpandedCategories = Array.isArray(expandedCategories)
-      ? expandedCategories
-      : [];
-
-    const safeCategoryOptions = Array.isArray(categoryOptions)
-      ? categoryOptions
-      : [];
-    const safeCurrencyOptions = Array.isArray(currencyOptions)
-      ? currencyOptions
-      : [];
-    const safeAccountOptions = Array.isArray(accountOptions)
-      ? accountOptions
-      : [];
-    let currentSortState = {
-      key: BUDGET_ENTRY_SORTABLE_COLUMNS[0].key,
-      direction: "desc",
-    };
-    let lastStatusMessage = "Loading entries…";
-    let lastStatusType = "muted";
-
-    const markAmountInputNegative = (input) => {
-      if (!input) {
-        return;
-      }
-      const parsed = parseEditorNumericValue(input.value);
-      input.classList.toggle(
-        "budget-entries-popup__editor-input--negative",
-        Number.isFinite(parsed) ? parsed < 0 : false
-      );
-    };
-
-    const heading = `Budget entries for ${row.monthLabel} ${safeBudgetYear}`;
-    const sanitizedHeading = escapeHtml(heading);
-    const popupName = `budget-entries-${safeBudgetYear}-${
-      row.monthNumber
-    }-${Date.now()}-budget`;
-    // Create the popup window with a data URL to avoid about:blank
-    const popupHtml = `
-      <!DOCTYPE html>
-      <html lang="en">
-        <head>
-          <meta charset="utf-8" />
-          <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-          <title>${sanitizedHeading}</title>
-          <link rel="stylesheet" href="${popupStylesUrl}" />
-          <style>
-            html {
-              background: linear-gradient(135deg, #f8f9fe 0%, #eef3fb 100%);
-            }
-            body {
-              opacity: 0;
-              animation: fadeIn 0.3s ease forwards;
-            }
-            @keyframes fadeIn {
-              to { opacity: 1; }
-            }
-          </style>
-        </head>
-        <body>
-          <h1>${sanitizedHeading}</h1>
-          <p class="budget-entries-popup__status budget-entries-popup__status--muted">
-            Preparing entries…
-          </p>
-        </body>
-      </html>
-    `;
-
-    const popup = window.open(
-      "",
-      popupName,
-      "width=1020,height=720,scrollbars=yes,resizable=yes"
+    const editorForm = contentRef.current.querySelector(
+      "#budget-entries-popup-editor-form"
     );
-
-    if (!popup) {
-      return () => {
-        isActive = false;
-      };
+    const baseAmountInput = contentRef.current.querySelector(
+      "[data-budget-entry-base-amount]"
+    );
+    if (!editorForm || !baseAmountInput) {
+      return undefined;
     }
-
-    popup.document.open();
-    popup.document.write(popupHtml);
-    popup.document.close();
-
-    let closeMonitorId = null;
-    let closeCallbackInvoked = false;
-    const notifyClose = () => {
-      if (closeCallbackInvoked) {
-        return;
-      }
-      closeCallbackInvoked = true;
-      if (typeof onClose === "function") {
-        onClose();
-      }
-    };
-
-    const setPopupContent = (content) => {
-      if (!isActive || !popup || popup.closed) {
-        return;
-      }
-      popup.document.title = sanitizedHeading;
-      popup.document.body.innerHTML = `<h1>${sanitizedHeading}</h1>${content}`;
-    };
-
-    const setStatusText = (message, type = "muted") => {
-      lastStatusMessage = message;
-      lastStatusType = type;
-      if (!isActive || !popup || popup.closed) {
-        return;
-      }
-      const statusElement = popup.document.getElementById(
-        "budget-entries-popup-status"
-      );
-      if (!statusElement) {
-        return;
-      }
-      statusElement.textContent = message;
-      statusElement.className = `budget-entries-popup__status budget-entries-popup__status--${type}`;
-    };
-
-    const buildEditorMarkup = () =>
-      buildBudgetEntriesEditorMarkup(
-        safeCategoryOptions,
-        safeCurrencyOptions,
-        safeAccountOptions
-      );
-
-    const getFullPopupMarkup = () =>
-      `${buildEntriesMarkup(latestEntries, currentSortState)}${buildEditorMarkup()}${BUDGET_ENTRIES_DELETE_CONFIRMATION_MARKUP}${buildStatusMarkup()}`;
-
-    const refreshEntriesTable = () => {
-      if (!popup || popup.closed) {
-        return;
-      }
-      const tableWrapper = popup.document.querySelector(
-        ".budget-entries-popup__table-wrapper"
-      );
-      if (tableWrapper) {
-        tableWrapper.outerHTML = buildEntriesMarkup(
-          latestEntries,
-          currentSortState
-        );
-      } else {
-        setPopupContent(getFullPopupMarkup());
-      }
-      setTimeout(attachActionListeners, 0);
-      setStatusText(lastStatusMessage, lastStatusType);
-    };
-
-    const handleSortChange = (key) => {
-      const normalizedKey = typeof key === "string" ? key.trim() : "";
-      if (
-        !BUDGET_ENTRY_SORTABLE_COLUMNS.some(
-          (column) => column.key === normalizedKey
-        )
-      ) {
-        return;
-      }
-      if (currentSortState.key === normalizedKey) {
-        currentSortState.direction =
-          currentSortState.direction === "asc" ? "desc" : "asc";
-      } else {
-        currentSortState.key = normalizedKey;
-        currentSortState.direction = "asc";
-      }
-      refreshEntriesTable();
-    };
-
-    // Recalculate the base amount display whenever amount or currency changes.
-    const syncEditorBaseAmountField = () => {
-      if (!popup || popup.closed) {
-        return undefined;
-      }
-      const editorForm = popup.document.getElementById(
-        "budget-entries-popup-editor-form"
-      );
-      const baseAmountInput = popup.document.querySelector(
-        "[data-budget-entry-base-amount]"
-      );
-      if (!editorForm || !baseAmountInput) {
-        return undefined;
-      }
-      const amountValue = parseEditorNumericValue(
-        editorForm.querySelector("[name='amount']")?.value
-      );
-      const currencyValue =
-        editorForm.querySelector("[name='currency']")?.value ??
-        effectiveBaseCurrency;
-      const computed = computeBaseAmountValue(
-        amountValue,
-        currencyValue,
-        safeBudgetRates,
+    const amountValue = parseEditorNumericValue(
+      editorForm.querySelector("[name='amount']")?.value
+    );
+    const currencyValue =
+      editorForm.querySelector("[name='currency']")?.value ??
+      effectiveBaseCurrency;
+    const computed = computeBaseAmountValue(
+      amountValue,
+      currencyValue,
+      safeBudgetRates,
+      effectiveBaseCurrency
+    );
+    if (Number.isFinite(computed)) {
+      baseAmountInput.value = formatAmountWithCurrency(
+        computed,
         effectiveBaseCurrency
       );
-      if (Number.isFinite(computed)) {
-        baseAmountInput.value = formatAmountWithCurrency(
-          computed,
-          effectiveBaseCurrency
-        );
-        baseAmountInput.classList.toggle(
-          "budget-entries-popup__editor-input--negative",
-          computed < 0
-        );
-      } else {
-        baseAmountInput.value = "";
-        baseAmountInput.classList.remove(
-          "budget-entries-popup__editor-input--negative"
-        );
-      }
-      return computed;
-    };
+      baseAmountInput.classList.toggle(
+        "budget-entries-popup__editor-input--negative",
+        computed < 0
+      );
+    } else {
+      baseAmountInput.value = "";
+      baseAmountInput.classList.remove(
+        "budget-entries-popup__editor-input--negative"
+      );
+    }
+    return computed;
+  };
 
-    // Build the table rows for the fetched entries, including action buttons.
-    const buildEntriesMarkup = (entries, sortState) => {
-      const sortedEntries = sortBudgetEntries(entries, sortState);
-      const headerCells = BUDGET_ENTRY_SORTABLE_COLUMNS.map((column) => {
-        const isActive = sortState.key === column.key;
-        const ariaSort = isActive
-          ? sortState.direction === "asc"
-            ? "ascending"
-            : "descending"
-          : "none";
-        const marker = isActive
-          ? sortState.direction === "asc"
-            ? " ▲"
-            : " ▼"
-          : "";
-        return `<th aria-sort="${ariaSort}">
-          <button
-            type="button"
-            class="budget-entries-popup__sort-button"
-            data-sort-key="${column.key}"
-          >
-            ${escapeHtml(column.label)}${marker}
-          </button>
-        </th>`;
-      });
+  const markAmountInputNegative = (input) => {
+    if (!input) {
+      return;
+    }
+    const parsed = parseEditorNumericValue(input.value);
+    input.classList.toggle(
+      "budget-entries-popup__editor-input--negative",
+      Number.isFinite(parsed) ? parsed < 0 : false
+    );
+  };
 
-      const rowsHtml = sortedEntries.length
-        ? sortedEntries
-            .map((entry) => {
-              const description = escapeHtml(
-                entry.Description1 ?? entry.Description2 ?? entry.Note ?? "—"
-              );
-              const account = escapeHtml(entry.Account ?? "—");
-              const category = escapeHtml(entry.Category ?? "—");
-              const note = escapeHtml(entry.Note ?? "");
-              const dateText = escapeHtml(formatPopupDate(entry.Date));
-              const amountMarkup = renderPopupCurrencyValue(
-                entry.Amount,
-                formatAmountWithCurrency(entry.Amount, entry.Currency)
-              );
-              const baseAmountMarkup = renderPopupCurrencyValue(
+  const buildEntriesMarkup = (entries, sortState) => {
+    const sortedEntries = sortBudgetEntries(entries, sortState);
+    const headerCells = BUDGET_ENTRY_SORTABLE_COLUMNS.map((column) => {
+      const isActive = sortState.key === column.key;
+      const ariaSort = isActive
+        ? sortState.direction === "asc"
+          ? "ascending"
+          : "descending"
+        : "none";
+      const marker = isActive
+        ? sortState.direction === "asc"
+          ? " ▲"
+          : " ▼"
+        : "";
+      return `<th aria-sort="${ariaSort}">
+        <button
+          type="button"
+          class="budget-entries-popup__sort-button"
+          data-sort-key="${column.key}"
+        >
+          ${escapeHtml(column.label)}${marker}
+        </button>
+      </th>`;
+    });
+
+    const rowsHtml = sortedEntries.length
+      ? sortedEntries
+          .map((entry) => {
+            const description = escapeHtml(
+              entry.Description1 ?? entry.Description2 ?? entry.Note ?? "—"
+            );
+            const account = escapeHtml(entry.Account ?? "—");
+            const category = escapeHtml(entry.Category ?? "—");
+            const note = escapeHtml(entry.Note ?? "");
+            const dateText = escapeHtml(formatPopupDate(entry.Date));
+            const amountMarkup = renderPopupCurrencyValue(
+              entry.Amount,
+              formatAmountWithCurrency(entry.Amount, entry.Currency)
+            );
+            const baseAmountMarkup = renderPopupCurrencyValue(
+              entry.BaseAmount,
+              formatAmountWithCurrency(
                 entry.BaseAmount,
-                formatAmountWithCurrency(
-                  entry.BaseAmount,
-                  entry.BaseCurrency ?? "USD"
-                )
-              );
-              const currencyLabel = escapeHtml(entry.Currency ?? "—");
-              const baseCurrencyLabel = escapeHtml(entry.BaseCurrency ?? "USD");
-              const summaryParts = [];
-              if (description && description !== "—") {
-                summaryParts.push(description);
-              }
-              if (dateText && dateText !== "—") {
-                summaryParts.push(dateText);
-              }
-              const amountSummary = escapeHtml(
-                formatAmountWithCurrency(entry.Amount, entry.Currency)
-              );
-              if (amountSummary && amountSummary !== "—") {
-                summaryParts.push(amountSummary);
-              }
-              const deleteSummary = summaryParts.join(" - ");
-              return `<tr>
-                <td>${dateText}</td>
-                <td>${description}</td>
-                <td>${account}</td>
-                <td>${category}</td>
-                <td class="budget-entries-popup__amount-cell">
-                  ${amountMarkup}
-                </td>
-                <td class="budget-entries-popup__base-amount-cell">
-                  ${baseAmountMarkup}
-                </td>
-                <td>${currencyLabel}</td>
-                <td>${baseCurrencyLabel}</td>
-                <td>${note || "—"}</td>
-                <td>
-                  <div class="budget-entries-popup__actions">
-                    <button
-                      type="button"
-                      class="budget-entries-popup__action-button"
-                      data-budget-entry-edit="${entry._id}"
-                      aria-label="Edit budget entry"
-                      title="Edit"
-                    >
-                      E
-                    </button>
-                    <button
-                      type="button"
-                      class="budget-entries-popup__action-button budget-entries-popup__action-button--delete"
-                      data-budget-entry-delete="${entry._id}"
-                      data-budget-entry-delete-summary="${deleteSummary}"
-                      aria-label="Delete budget entry"
-                      title="Delete"
-                    >
-                      D
-                    </button>
-                  </div>
-                </td>
-              </tr>`;
-            })
-            .join("")
-        : `<tr>
-            <td colspan="10" class="budget-entries-popup__empty">
-              No budget entries found for ${escapeHtml(
-                row.monthLabel
-              )} ${safeBudgetYear}.
-            </td>
-          </tr>`;
+                entry.BaseCurrency ?? "USD"
+              )
+            );
+            const currencyLabel = escapeHtml(entry.Currency ?? "—");
+            const baseCurrencyLabel = escapeHtml(entry.BaseCurrency ?? "USD");
+            const summaryParts = [];
+            if (description && description !== "—") {
+              summaryParts.push(description);
+            }
+            if (dateText && dateText !== "—") {
+              summaryParts.push(dateText);
+            }
+            const amountSummary = escapeHtml(
+              formatAmountWithCurrency(entry.Amount, entry.Currency)
+            );
+            if (amountSummary && amountSummary !== "—") {
+              summaryParts.push(amountSummary);
+            }
+            const deleteSummary = summaryParts.join(" - ");
+            return `<tr>
+              <td>${dateText}</td>
+              <td>${description}</td>
+              <td>${account}</td>
+              <td>${category}</td>
+              <td class="budget-entries-popup__amount-cell">
+                ${amountMarkup}
+              </td>
+              <td class="budget-entries-popup__base-amount-cell">
+                ${baseAmountMarkup}
+              </td>
+              <td>${currencyLabel}</td>
+              <td>${baseCurrencyLabel}</td>
+              <td>${note || "—"}</td>
+              <td>
+                <div class="budget-entries-popup__actions">
+                  <button
+                    type="button"
+                    class="budget-entries-popup__action-button"
+                    data-budget-entry-edit="${entry._id}"
+                    aria-label="Edit budget entry"
+                    title="Edit"
+                  >
+                    E
+                  </button>
+                  <button
+                    type="button"
+                    class="budget-entries-popup__action-button budget-entries-popup__action-button--delete"
+                    data-budget-entry-delete="${entry._id}"
+                    data-budget-entry-delete-summary="${deleteSummary}"
+                    aria-label="Delete budget entry"
+                    title="Delete"
+                  >
+                    D
+                  </button>
+                </div>
+              </td>
+            </tr>`;
+          })
+          .join("")
+      : `<tr>
+          <td colspan="10" class="budget-entries-popup__empty">
+            No budget entries found for ${escapeHtml(
+              row.monthLabel
+            )} ${safeBudgetYear}.
+          </td>
+        </tr>`;
 
-      return `
-        <div class="budget-entries-popup__table-wrapper">
-          <table class="budget-entries-popup__table">
-            <thead>
-              <tr>
-                ${headerCells.join("")}
-                <th>Actions</th>
-              </tr>
-            </thead>
-            <tbody>
-              ${rowsHtml}
-            </tbody>
-          </table>
-        </div>
-      `;
-    };
+    return `
+      <div class="budget-entries-popup__table-wrapper">
+        <table class="budget-entries-popup__table">
+          <thead>
+            <tr>
+              ${headerCells.join("")}
+              <th>Actions</th>
+            </tr>
+          </thead>
+          <tbody>
+            ${rowsHtml}
+          </tbody>
+        </table>
+      </div>
+    `;
+  };
 
-    const hideEditor = () => {
-      if (!popup || popup.closed) {
-        return;
-      }
-      const editor = popup.document.getElementById(
-        "budget-entries-popup-editor"
-      );
-      const editorForm = popup.document.getElementById(
-        "budget-entries-popup-editor-form"
-      );
-      if (editorForm) {
-        editorForm.dataset.budgetEntryId = "";
-        editorForm.reset();
-      }
-      if (editor) {
-        editor.classList.add("budget-entries-popup__editor--hidden");
-      }
-    };
+  const buildEditorMarkup = () =>
+    buildBudgetEntriesEditorMarkup(
+      safeCategoryOptions,
+      safeCurrencyOptions,
+      safeAccountOptions
+    );
 
-    const startEditEntry = (entryId) => {
-      if (!popup || popup.closed) {
-        return;
-      }
-      const entry = latestEntries.find(
-        (candidate) => String(candidate._id) === String(entryId)
-      );
-      if (!entry) {
-        return;
-      }
+  const buildStatusMarkup = () => `
+    <p
+      id="budget-entries-popup-status"
+      class="budget-entries-popup__status budget-entries-popup__status--${statusType}"
+    >
+      ${escapeHtml(statusMessage)}
+    </p>
+  `;
 
-      const editor = popup.document.getElementById(
-        "budget-entries-popup-editor"
-      );
-      const editorForm = popup.document.getElementById(
-        "budget-entries-popup-editor-form"
-      );
-      if (!editor || !editorForm) {
-        return;
-      }
+  const hideEditor = () => {
+    if (!contentRef.current) {
+      return;
+    }
+    const editor = contentRef.current.querySelector(
+      "#budget-entries-popup-editor"
+    );
+    const editorForm = contentRef.current.querySelector(
+      "#budget-entries-popup-editor-form"
+    );
+    if (editorForm) {
+      editorForm.dataset.budgetEntryId = "";
+      editorForm.reset();
+    }
+    if (editor) {
+      editor.classList.add("budget-entries-popup__editor--hidden");
+    }
+  };
 
-      editorForm.dataset.budgetEntryId = String(entry._id);
-      const dateMonthSelect = editorForm.querySelector("[name='dateMonth']");
-      const dateYearInput = editorForm.querySelector("[name='dateYear']");
-      const dateParts = parseBudgetEntryDateParts(entry.Date);
-      if (dateMonthSelect) {
-        dateMonthSelect.value = dateParts?.month ? String(dateParts.month) : "";
-      }
-      if (dateYearInput) {
-        dateYearInput.value = dateParts?.year ? String(dateParts.year) : "";
-      }
-      const descriptionInput = editorForm.querySelector("[name='description']");
-      if (descriptionInput) {
-        descriptionInput.value = entry.Description1 ?? "";
-      }
-      const accountSelect = editorForm.querySelector("[name='account']");
-      if (accountSelect) {
-        const accountValue = entry.Account ?? "";
-        if (accountValue) {
-          setSelectValueSafely(accountSelect, accountValue, {
-            documentRef: popup.document,
-          });
-        } else {
-          accountSelect.value = "";
-        }
-      }
-      const categorySelect = editorForm.querySelector("[name='category']");
-      if (categorySelect) {
-        // ensure the category exists in the dropdown before selecting it
-        setSelectValueSafely(categorySelect, entry.Category ?? "", {
-          documentRef: popup.document,
-        });
-      }
-      const currencySelect = editorForm.querySelector("[name='currency']");
-      if (currencySelect) {
-        // keep currency dropdown synced with the entry (fallback to first option)
-        setSelectValueSafely(currencySelect, entry.Currency ?? "", {
-          documentRef: popup.document,
-          fallbackToFirst: true,
-        });
-      }
-      const amountInput = editorForm.querySelector("[name='amount']");
-      if (amountInput) {
-        amountInput.value =
-          entry.Amount !== undefined && entry.Amount !== null
-            ? String(entry.Amount)
-            : "";
-        markAmountInputNegative(amountInput);
-      }
-      const baseAmountInput = editorForm.querySelector("[name='baseAmount']");
-      if (baseAmountInput) {
-        baseAmountInput.value = "";
-      }
-      const noteInput = editorForm.querySelector("[name='note']");
-      if (noteInput) {
-        noteInput.value = entry.Note ?? "";
-      }
+  const startEditEntry = (entryId) => {
+    if (!contentRef.current) {
+      return;
+    }
+    const entry = entries.find(
+      (candidate) => String(candidate._id) === String(entryId)
+    );
+    if (!entry) {
+      return;
+    }
 
-      syncEditorBaseAmountField();
+    const editor = contentRef.current.querySelector(
+      "#budget-entries-popup-editor"
+    );
+    const editorForm = contentRef.current.querySelector(
+      "#budget-entries-popup-editor-form"
+    );
+    if (!editor || !editorForm) {
+      return;
+    }
 
-      editor.classList.remove("budget-entries-popup__editor--hidden");
-      setStatusText(
-        `Editing ${escapeHtml(entry.Description1 ?? "budget entry")}…`,
-        "neutral"
-      );
-    };
-
-    const submitEditorPayload = async (event) => {
-      event.preventDefault();
-      if (!popup || popup.closed) {
-        return;
-      }
-      const editorForm = popup.document.getElementById(
-        "budget-entries-popup-editor-form"
-      );
-      if (!editorForm) {
-        return;
-      }
-
-      const entryId = editorForm.dataset.budgetEntryId;
-      if (!entryId) {
-        setStatusText("Select an entry before saving.", "error");
-        return;
-      }
-
-      const payload = {};
-      const dateMonthValue =
-        editorForm.querySelector("[name='dateMonth']")?.value;
-      const dateYearValue =
-        editorForm.querySelector("[name='dateYear']")?.value;
-      const isoDate = buildBudgetEntryDate(dateYearValue, dateMonthValue, 1);
-      if (isoDate) {
-        payload.Date = isoDate;
-      }
-      const descriptionValue = editorForm
-        .querySelector("[name='description']")
-        ?.value?.trim();
-      if (descriptionValue) {
-        payload.Description1 = descriptionValue;
-      }
-      const accountValue = editorForm
-        .querySelector("[name='account']")
-        ?.value?.trim();
+    editorForm.dataset.budgetEntryId = String(entry._id);
+    const dateMonthSelect = editorForm.querySelector("[name='dateMonth']");
+    const dateYearInput = editorForm.querySelector("[name='dateYear']");
+    const dateParts = parseBudgetEntryDateParts(entry.Date);
+    if (dateMonthSelect) {
+      dateMonthSelect.value = dateParts?.month ? String(dateParts.month) : "";
+    }
+    if (dateYearInput) {
+      dateYearInput.value = dateParts?.year ? String(dateParts.year) : "";
+    }
+    const descriptionInput = editorForm.querySelector("[name='description']");
+    if (descriptionInput) {
+      descriptionInput.value = entry.Description1 ?? "";
+    }
+    const accountSelect = editorForm.querySelector("[name='account']");
+    if (accountSelect) {
+      const accountValue = entry.Account ?? "";
       if (accountValue) {
-        payload.Account = accountValue;
-      }
-      const categoryValue = editorForm
-        .querySelector("[name='category']")
-        ?.value?.trim();
-      if (categoryValue) {
-        payload.Category = categoryValue;
-      }
-      const amountValue = editorForm.querySelector("[name='amount']")?.value;
-      const parsedAmount = parseEditorNumericValue(amountValue);
-      if (Number.isFinite(parsedAmount)) {
-        payload.Amount = parsedAmount;
-      }
-      const currencyValue = editorForm
-        .querySelector("[name='currency']")
-        ?.value?.trim();
-      if (currencyValue) {
-        payload.Currency = currencyValue;
-      }
-      const noteValue = editorForm
-        .querySelector("[name='note']")
-        ?.value?.trim();
-      if (noteValue) {
-        payload.Note = noteValue;
-      }
-
-      const computedBaseAmount = syncEditorBaseAmountField();
-      if (Number.isFinite(computedBaseAmount)) {
-        payload.BaseAmount = computedBaseAmount;
-      }
-
-      if (!Object.keys(payload).length) {
-        setStatusText("No changes detected.", "error");
-        return;
-      }
-
-      try {
-        await Rest.fetchJson(`/api/budget/${entryId}`, {
-          method: "PATCH",
-          headers: {
-            "Content-Type": "application/json",
-          },
-          body: JSON.stringify(payload),
+        setSelectValueSafely(accountSelect, accountValue, {
+          documentRef: document,
         });
-        setStatusText("Budget entry updated.", "success");
-        hideEditor();
-        await fetchEntries();
-      } catch (error) {
-        setStatusText(
-          error?.message || "Unable to update the budget entry.",
-          "error"
-        );
+      } else {
+        accountSelect.value = "";
       }
-    };
-
-    const deleteEntryById = async (entryId) => {
-      if (!entryId || !popup || popup.closed) {
-        return;
-      }
-      try {
-        await Rest.fetchJson(`/api/budget/${entryId}`, {
-          method: "DELETE",
-        });
-        setStatusText("Budget entry deleted.", "success");
-        hideEditor();
-        await fetchEntries();
-      } catch (error) {
-        setStatusText(
-          error?.message || "Unable to delete the budget entry.",
-          "error"
-        );
-      }
-    };
-
-    const showDeleteConfirmation = (entryId, summary) => {
-      if (!entryId || !popup || popup.closed) {
-        return;
-      }
-      const confirmationPanel = popup.document.getElementById(
-        "budget-entries-popup-delete-confirmation"
-      );
-      if (!confirmationPanel) {
-        return;
-      }
-      pendingDeleteEntryId = entryId;
-      const messageElement = confirmationPanel.querySelector(
-        "[data-delete-confirmation-message]"
-      );
-      const trimmedSummary = summary?.trim();
-      const message =
-        trimmedSummary && trimmedSummary !== ""
-          ? `Delete ${trimmedSummary}?`
-          : "Do you really want to delete this budget entry?";
-      if (messageElement) {
-        messageElement.textContent = message;
-      }
-      confirmationPanel.classList.add(
-        "budget-entries-popup__delete-confirmation--visible"
-      );
-    };
-
-    const hideDeleteConfirmation = () => {
-      if (!popup || popup.closed) {
-        return;
-      }
-      const confirmationPanel = popup.document.getElementById(
-        "budget-entries-popup-delete-confirmation"
-      );
-      if (!confirmationPanel) {
-        return;
-      }
-      confirmationPanel.classList.remove(
-        "budget-entries-popup__delete-confirmation--visible"
-      );
-    };
-
-    const confirmPendingDeleteEntry = async () => {
-      const entryId = pendingDeleteEntryId;
-      hideDeleteConfirmation();
-      pendingDeleteEntryId = null;
-      if (!entryId) {
-        return;
-      }
-      await deleteEntryById(entryId);
-    };
-
-    const cancelPendingDelete = () => {
-      hideDeleteConfirmation();
-      pendingDeleteEntryId = null;
-    };
-
-    const handleDeleteEntry = (entryId, summary) => {
-      if (!entryId || !popup || popup.closed) {
-        return;
-      }
-      showDeleteConfirmation(entryId, summary);
-    };
-
-    const attachActionListeners = () => {
-      if (!popup || popup.closed) {
-        return;
-      }
-      const editButtons = popup.document.querySelectorAll(
-        "[data-budget-entry-edit]"
-      );
-      editButtons.forEach((button) => {
-        button.onclick = (event) => {
-          event.preventDefault();
-          startEditEntry(button.dataset.budgetEntryEdit);
-        };
+    }
+    const categorySelect = editorForm.querySelector("[name='category']");
+    if (categorySelect) {
+      setSelectValueSafely(categorySelect, entry.Category ?? "", {
+        documentRef: document,
       });
-
-      const deleteButtons = popup.document.querySelectorAll(
-        "[data-budget-entry-delete]"
-      );
-      deleteButtons.forEach((button) => {
-        button.onclick = (event) => {
-          event.preventDefault();
-          handleDeleteEntry(
-            button.dataset.budgetEntryDelete,
-            button.dataset.budgetEntryDeleteSummary
-          );
-        };
+    }
+    const currencySelect = editorForm.querySelector("[name='currency']");
+    if (currencySelect) {
+      setSelectValueSafely(currencySelect, entry.Currency ?? "", {
+        documentRef: document,
+        fallbackToFirst: true,
       });
+    }
+    const amountInput = editorForm.querySelector("[name='amount']");
+    if (amountInput) {
+      amountInput.value =
+        entry.Amount !== undefined && entry.Amount !== null
+          ? String(entry.Amount)
+          : "";
+      markAmountInputNegative(amountInput);
+    }
+    const baseAmountInput = editorForm.querySelector("[name='baseAmount']");
+    if (baseAmountInput) {
+      baseAmountInput.value = "";
+    }
+    const noteInput = editorForm.querySelector("[name='note']");
+    if (noteInput) {
+      noteInput.value = entry.Note ?? "";
+    }
 
-      const sortButtons = popup.document.querySelectorAll("[data-sort-key]");
-      sortButtons.forEach((button) => {
-        button.onclick = (event) => {
-          event.preventDefault();
-          handleSortChange(button.dataset.sortKey);
-        };
+    syncEditorBaseAmountField();
+
+    editor.classList.remove("budget-entries-popup__editor--hidden");
+    setStatusMessage(`Editing ${escapeHtml(entry.Description1 ?? "budget entry")}…`);
+    setStatusType("neutral");
+  };
+
+  const fetchEntries = async () => {
+    if (!row?.monthNumber) {
+      return;
+    }
+    const startDate = new Date(safeBudgetYear, row.monthNumber - 1, 1);
+    const endDate = new Date(safeBudgetYear, row.monthNumber, 0);
+    const params = new URLSearchParams();
+    params.set("fromDate", startDate.toISOString().split("T")[0]);
+    params.set("toDate", endDate.toISOString().split("T")[0]);
+    for (const category of safeExpandedCategories) {
+      params.append("category", category);
+    }
+    for (const account of accountsToFilter) {
+      params.append("account", account);
+    }
+    params.set("limit", "500");
+    try {
+      const payload = await Rest.fetchJson(
+        `/api/budget?${params.toString()}`
+      );
+      const fetchedEntries = Array.isArray(payload)
+        ? payload
+        : Array.isArray(payload?.entries)
+        ? payload.entries
+        : [];
+      setEntries(fetchedEntries);
+      setStatusMessage(
+        fetchedEntries.length
+          ? `Loaded ${fetchedEntries.length} budget entr${
+              fetchedEntries.length === 1 ? "y" : "ies"
+            }.`
+          : `No budget entries found for ${row.monthLabel} ${safeBudgetYear}.`
+      );
+      setStatusType(fetchedEntries.length ? "neutral" : "muted");
+    } catch (error) {
+      console.error("[BudgetEntriesBudgetPopup] Failed to load entries:", error);
+      setStatusMessage(
+        error?.message ?? "An unexpected error occurred."
+      );
+      setStatusType("error");
+    }
+  };
+
+  const submitEditorPayload = async (event) => {
+    event.preventDefault();
+    if (!contentRef.current) {
+      return;
+    }
+    const editorForm = contentRef.current.querySelector(
+      "#budget-entries-popup-editor-form"
+    );
+    if (!editorForm) {
+      return;
+    }
+
+    const entryId = editorForm.dataset.budgetEntryId;
+    if (!entryId) {
+      setStatusMessage("Select an entry before saving.");
+      setStatusType("error");
+      return;
+    }
+
+    const payload = {};
+    const dateMonthValue = editorForm.querySelector("[name='dateMonth']")?.value;
+    const dateYearValue = editorForm.querySelector("[name='dateYear']")?.value;
+    const isoDate = buildBudgetEntryDate(dateYearValue, dateMonthValue, 1);
+    if (isoDate) {
+      payload.Date = isoDate;
+    }
+    const descriptionValue = editorForm
+      .querySelector("[name='description']")
+      ?.value?.trim();
+    if (descriptionValue) {
+      payload.Description1 = descriptionValue;
+    }
+    const accountValue = editorForm
+      .querySelector("[name='account']")
+      ?.value?.trim();
+    if (accountValue) {
+      payload.Account = accountValue;
+    }
+    const categoryValue = editorForm
+      .querySelector("[name='category']")
+      ?.value?.trim();
+    if (categoryValue) {
+      payload.Category = categoryValue;
+    }
+    const amountValue = editorForm.querySelector("[name='amount']")?.value;
+    const parsedAmount = parseEditorNumericValue(amountValue);
+    if (Number.isFinite(parsedAmount)) {
+      payload.Amount = parsedAmount;
+    }
+    const currencyValue = editorForm
+      .querySelector("[name='currency']")
+      ?.value?.trim();
+    if (currencyValue) {
+      payload.Currency = currencyValue;
+    }
+    const noteValue = editorForm
+      .querySelector("[name='note']")
+      ?.value?.trim();
+    if (noteValue) {
+      payload.Note = noteValue;
+    }
+
+    const computedBaseAmount = syncEditorBaseAmountField();
+    if (Number.isFinite(computedBaseAmount)) {
+      payload.BaseAmount = computedBaseAmount;
+    }
+
+    if (!Object.keys(payload).length) {
+      setStatusMessage("No changes detected.");
+      setStatusType("error");
+      return;
+    }
+
+    try {
+      await Rest.fetchJson(`/api/budget/${entryId}`, {
+        method: "PATCH",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify(payload),
       });
+      setStatusMessage("Budget entry updated.");
+      setStatusType("success");
+      fetchEntries();
+      hideEditor();
+    } catch (error) {
+      setStatusMessage(error?.message || "Unable to update the budget entry.");
+      setStatusType("error");
+    }
+  };
 
-      const deleteConfirmation = popup.document.getElementById(
-        "budget-entries-popup-delete-confirmation"
-      );
-      if (deleteConfirmation) {
-        const confirmButton = deleteConfirmation.querySelector(
-          "[data-delete-confirmation-confirm]"
+  const deleteEntryById = async (entryId) => {
+    if (!entryId) {
+      return;
+    }
+    try {
+      console.log('[BudgetEntriesBudgetPopup] Deleting entry:', entryId);
+      await Rest.fetchJson(`/api/budget/${entryId}`, {
+        method: "DELETE",
+      });
+      console.log('[BudgetEntriesBudgetPopup] Entry deleted, refreshing list...');
+      setStatusMessage("Budget entry deleted.");
+      setStatusType("success");
+      hideEditor();
+      await fetchEntries();
+      console.log('[BudgetEntriesBudgetPopup] List refreshed');
+    } catch (error) {
+      console.error('[BudgetEntriesBudgetPopup] Delete error:', error);
+      setStatusMessage(error?.message || "Unable to delete the budget entry.");
+      setStatusType("error");
+    }
+  };
+
+  const showDeleteConfirmation = (entryId, summary) => {
+    if (!entryId || !contentRef.current) {
+      return;
+    }
+    const confirmationPanel = contentRef.current.querySelector(
+      "#budget-entries-popup-delete-confirmation"
+    );
+    if (!confirmationPanel) {
+      return;
+    }
+    setPendingDeleteEntryId(entryId);
+    const messageElement = confirmationPanel.querySelector(
+      "[data-delete-confirmation-message]"
+    );
+    const trimmedSummary = summary?.trim();
+    const message =
+      trimmedSummary && trimmedSummary !== ""
+        ? `Delete ${trimmedSummary}?`
+        : "Do you really want to delete this budget entry?";
+    if (messageElement) {
+      messageElement.textContent = message;
+    }
+    confirmationPanel.classList.add(
+      "budget-entries-popup__delete-confirmation--visible"
+    );
+  };
+
+  const hideDeleteConfirmation = () => {
+    if (!contentRef.current) {
+      return;
+    }
+    const confirmationPanel = contentRef.current.querySelector(
+      "#budget-entries-popup-delete-confirmation"
+    );
+    if (!confirmationPanel) {
+      return;
+    }
+    confirmationPanel.classList.remove(
+      "budget-entries-popup__delete-confirmation--visible"
+    );
+  };
+
+  const confirmPendingDeleteEntry = async () => {
+    const entryId = pendingDeleteEntryId;
+    hideDeleteConfirmation();
+    setPendingDeleteEntryId(null);
+    if (!entryId) {
+      return;
+    }
+    await deleteEntryById(entryId);
+  };
+
+  const cancelPendingDelete = () => {
+    hideDeleteConfirmation();
+    setPendingDeleteEntryId(null);
+  };
+
+  const handleDeleteEntry = (entryId, summary) => {
+    console.log('[BudgetEntriesBudgetPopup] Delete button clicked:', entryId, summary);
+    if (!entryId) {
+      return;
+    }
+    showDeleteConfirmation(entryId, summary);
+  };
+
+  const attachActionListeners = () => {
+    if (!contentRef.current) {
+      return;
+    }
+
+    const editButtons = contentRef.current.querySelectorAll(
+      "[data-budget-entry-edit]"
+    );
+    editButtons.forEach((button) => {
+      button.onclick = (event) => {
+        event.preventDefault();
+        startEditEntry(button.dataset.budgetEntryEdit);
+      };
+    });
+
+    const deleteButtons = contentRef.current.querySelectorAll(
+      "[data-budget-entry-delete]"
+    );
+    deleteButtons.forEach((button) => {
+      button.onclick = (event) => {
+        event.preventDefault();
+        handleDeleteEntry(
+          button.dataset.budgetEntryDelete,
+          button.dataset.budgetEntryDeleteSummary
         );
-        const cancelButton = deleteConfirmation.querySelector(
-          "[data-delete-confirmation-cancel]"
-        );
-        if (confirmButton) {
-          confirmButton.onclick = (event) => {
-            event.preventDefault();
-            confirmPendingDeleteEntry();
-          };
-        }
-        if (cancelButton) {
-          cancelButton.onclick = (event) => {
-            event.preventDefault();
-            cancelPendingDelete();
-          };
-        }
-      }
+      };
+    });
 
-      const editorForm = popup.document.getElementById(
-        "budget-entries-popup-editor-form"
-      );
-      if (editorForm) {
-        editorForm.onsubmit = submitEditorPayload;
-        const amountInput = editorForm.querySelector("[name='amount']");
-        const currencyInput = editorForm.querySelector("[name='currency']");
-        if (amountInput) {
-          amountInput.oninput = () => {
-            markAmountInputNegative(amountInput);
-            syncEditorBaseAmountField();
-          };
-        }
-        if (currencyInput) {
-          currencyInput.oninput = () => {
-            syncEditorBaseAmountField();
-          };
-        }
-      }
+    const sortButtons = contentRef.current.querySelectorAll("[data-sort-key]");
+    sortButtons.forEach((button) => {
+      button.onclick = (event) => {
+        event.preventDefault();
+        handleSortChange(button.dataset.sortKey);
+      };
+    });
 
-      const cancelButton = popup.document.querySelector(
-        '[data-budget-entry-editor-action="cancel"]'
+    const deleteConfirmation = contentRef.current.querySelector(
+      "#budget-entries-popup-delete-confirmation"
+    );
+    if (deleteConfirmation) {
+      const confirmButton = deleteConfirmation.querySelector(
+        "[data-delete-confirmation-confirm]"
       );
+      const cancelButton = deleteConfirmation.querySelector(
+        "[data-delete-confirmation-cancel]"
+      );
+      if (confirmButton) {
+        confirmButton.onclick = (event) => {
+          event.preventDefault();
+          confirmPendingDeleteEntry();
+        };
+      }
       if (cancelButton) {
         cancelButton.onclick = (event) => {
           event.preventDefault();
-          hideEditor();
+          cancelPendingDelete();
         };
       }
-    };
+    }
 
-    const buildStatusMarkup = () => `
-      <p
-        id="budget-entries-popup-status"
-        class="budget-entries-popup__status budget-entries-popup__status--muted"
-      >
-        Loading entries…
-      </p>
-    `;
+    const editorForm = contentRef.current.querySelector(
+      "#budget-entries-popup-editor-form"
+    );
+    if (editorForm) {
+      editorForm.onsubmit = submitEditorPayload;
+      const amountInput = editorForm.querySelector("[name='amount']");
+      const currencyInput = editorForm.querySelector("[name='currency']");
+      if (amountInput) {
+        amountInput.oninput = () => {
+          markAmountInputNegative(amountInput);
+          syncEditorBaseAmountField();
+        };
+      }
+      if (currencyInput) {
+        currencyInput.oninput = () => {
+          syncEditorBaseAmountField();
+        };
+      }
+    }
 
-    const fetchEntries = async () => {
-      if (!isActive || !popup || popup.closed) {
-        return;
-      }
-      const startDate = new Date(safeBudgetYear, row.monthNumber - 1, 1);
-      const endDate = new Date(safeBudgetYear, row.monthNumber, 0);
-      const params = new URLSearchParams();
-      params.set("fromDate", startDate.toISOString().split("T")[0]);
-      params.set("toDate", endDate.toISOString().split("T")[0]);
-      for (const category of safeExpandedCategories) {
-        params.append("category", category);
-      }
-      for (const account of accountsToFilter) {
-        params.append("account", account);
-      }
-      params.set("limit", "500");
-      try {
-        const payload = await Rest.fetchJson(
-          `/api/budget?${params.toString()}`
-        );
-        const entries = Array.isArray(payload)
-          ? payload
-          : Array.isArray(payload?.entries)
-          ? payload.entries
-          : [];
-        latestEntries = entries;
-        setPopupContent(
-          `${buildEntriesMarkup(entries, currentSortState)}${buildEditorMarkup()}${BUDGET_ENTRIES_DELETE_CONFIRMATION_MARKUP}${buildStatusMarkup()}`
-        );
-        setStatusText(
-          entries.length
-            ? `Loaded ${entries.length} budget entr${
-                entries.length === 1 ? "y" : "ies"
-              }.`
-            : `No budget entries found for ${row.monthLabel} ${safeBudgetYear}.`,
-          entries.length ? "neutral" : "muted"
-        );
-        setTimeout(attachActionListeners, 0);
-      } catch (error) {
-        if (!isActive) {
-          return;
-        }
-        setPopupContent(
-          `<p class="budget-entries-popup__error">Unable to load entries: ${escapeHtml(
-            error?.message ?? "An unexpected error occurred."
-          )}</p>`
-        );
-      }
-    };
+    const cancelButton = contentRef.current.querySelector(
+      '[data-budget-entry-editor-action="cancel"]'
+    );
+    if (cancelButton) {
+      cancelButton.onclick = (event) => {
+        event.preventDefault();
+        hideEditor();
+      };
+    }
+  };
 
-    const monitorPopup = () => {
-      if (!popup || popup.closed) {
-        notifyClose();
-        if (closeMonitorId) {
-          clearInterval(closeMonitorId);
-          closeMonitorId = null;
-        }
-      }
-    };
-
-    closeMonitorId = window.setInterval(monitorPopup, 400);
-    popup.addEventListener("beforeunload", notifyClose);
-
-    fetchEntries();
-
-    return () => {
-      isActive = false;
-      if (closeMonitorId) {
-        clearInterval(closeMonitorId);
-        closeMonitorId = null;
-      }
-      if (popup && !popup.closed) {
-        popup.removeEventListener("beforeunload", notifyClose);
-      }
-    };
+  useEffect(() => {
+    if (request?.row) {
+      fetchEntries();
+    }
   }, [request]);
 
-  return null;
+  useEffect(() => {
+    if (contentRef.current) {
+      const fullMarkup = `
+        ${buildEntriesMarkup(entries, sortState)}
+        ${buildEditorMarkup()}
+        ${BUDGET_ENTRIES_DELETE_CONFIRMATION_MARKUP}
+        ${buildStatusMarkup()}
+      `;
+      contentRef.current.innerHTML = fullMarkup;
+      attachActionListeners();
+    }
+  }, [entries, sortState, statusMessage, statusType]);
+
+  useEffect(() => {
+    const handleEscape = (e) => {
+      if (e.key === "Escape") {
+        handleClose();
+      }
+    };
+    document.addEventListener("keydown", handleEscape);
+    return () => document.removeEventListener("keydown", handleEscape);
+  }, []);
+
+  if (!request?.row) {
+    return null;
+  }
+
+  const heading = `Budget entries for ${row.monthLabel} ${safeBudgetYear}`;
+
+  return (
+    <div
+      ref={modalRef}
+      className="budget-entries-modal-overlay"
+      onClick={handleOverlayClick}
+    >
+      <div className="budget-entries-modal">
+        <div className="budget-entries-modal__header">
+          <h1>{heading}</h1>
+          <button
+            className="budget-entries-modal__close"
+            onClick={handleClose}
+            aria-label="Close modal"
+          >
+            ×
+          </button>
+        </div>
+        <div
+          ref={contentRef}
+          className="budget-entries-modal__content"
+        ></div>
+      </div>
+    </div>
+  );
 };
 
 export default BudgetEntriesBudgetPopup;

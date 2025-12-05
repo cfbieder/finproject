@@ -17,11 +17,13 @@ function BudgetRealizationContent({
   return (
     <div className="budget-realization-content">
       <div className="budget-realization-scroll">
-        <section className="budget-realization-placeholder">
-          <h1 className="page__title">Budget realization</h1>
+        <section className="budget-region realization-header">
+          <p className="budget-region__label">Budget vs Actual</p>
+          <p className="budget-region__description">
+            Compare budgeted amounts with actual performance by category, and track variance.
+          </p>
         </section>
-        <section className="budget-realization-table">
-          <div className="budget-realization-table__header"></div>
+        <section className="budget-region realization-table-section">
           <div className="budget-realization-table__wrapper">
             <div className="cash-flow-report">
               <table className="balance-report-table">
@@ -46,19 +48,19 @@ function BudgetRealizationContent({
                     budgetValueResolver
                   )}
                   {showNetRow && (
-                    <tr>
+                    <tr className="balance-report-table__totals-row">
                       <td className="balance-report-table__name">
-                        <span className="balance-report-table__name-text">
-                          Net cash flow
+                        <span className="balance-report-table__name-text balance-report-table__name-text--bold">
+                          Net Cash Flow
                         </span>
                       </td>
-                      <td className="balance-report-table__value">
+                      <td className="balance-report-table__value balance-report-table__value--bold">
                         {netBudgetDisplay}
                       </td>
-                      <td className="balance-report-table__value">
+                      <td className="balance-report-table__value balance-report-table__value--bold">
                         {netActualDisplay}
                       </td>
-                      <td className="balance-report-table__value">
+                      <td className="balance-report-table__value balance-report-table__value--bold">
                         {netVarianceDisplay}
                       </td>
                     </tr>
@@ -67,10 +69,6 @@ function BudgetRealizationContent({
               </table>
             </div>
           </div>
-          <p className="budget-realization-table__note">
-            Budget and Variance are placeholders; Actuals now respect the
-            selected period and filters.
-          </p>
         </section>
       </div>
     </div>

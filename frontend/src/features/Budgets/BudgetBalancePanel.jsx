@@ -32,7 +32,9 @@ export default function BudgetBalancePanel({
   reportType: reportTypeProp,
   onReportTypeChange,
   year: selectedYearProp,
+  actualYear: actualYearProp,
   onYearChange,
+  onActualYearChange,
   month: selectedMonthProp,
   onMonthChange,
   isFullyCollapsed,
@@ -41,11 +43,13 @@ export default function BudgetBalancePanel({
 }) {
   const [reportTypeState, setReportTypeState] = useState("month");
   const [selectedYearState, setSelectedYearState] = useState(YEAR_OPTIONS[3]);
+  const [actualYearState, setActualYearState] = useState(YEAR_OPTIONS[3]);
   const [selectedMonthState, setSelectedMonthState] = useState(
     MONTH_OPTIONS[new Date().getMonth()].value
   );
   const reportType = reportTypeProp ?? reportTypeState;
   const selectedYear = selectedYearProp ?? selectedYearState;
+  const actualYear = actualYearProp ?? actualYearState;
   const selectedMonth = selectedMonthProp ?? selectedMonthState;
   const [includeUnrealizedState, setIncludeUnrealizedState] = useState(false);
   const [includeTransfersState, setIncludeTransfersState] = useState(false);
@@ -76,6 +80,12 @@ export default function BudgetBalancePanel({
     }
     onYearChange?.(value);
   };
+  const handleActualYearSelectionChange = (value) => {
+    if (actualYearProp === undefined) {
+      setActualYearState(value);
+    }
+    onActualYearChange?.(value);
+  };
   const handleMonthSelectionChange = (value) => {
     if (selectedMonthProp === undefined) {
       setSelectedMonthState(value);
@@ -93,9 +103,7 @@ export default function BudgetBalancePanel({
           id="budget-period-window"
           className="balance-panel__select"
           value={reportType}
-          onChange={(event) =>
-            handleReportSelectionChange(event.target.value)
-          }
+          onChange={(event) => handleReportSelectionChange(event.target.value)}
         >
           <option value="month">Month</option>
           <option value="ytd">YTD</option>
@@ -104,13 +112,32 @@ export default function BudgetBalancePanel({
       </div>
       <div className="balance-panel__selector">
         <label htmlFor="budget-period-year" className="balance-panel__label">
-          Year
+          Budget Year
         </label>
         <select
           id="budget-period-year"
           className="balance-panel__select"
           value={selectedYear}
           onChange={(event) => handleYearSelectionChange(event.target.value)}
+        >
+          {YEAR_OPTIONS.map((year) => (
+            <option key={year} value={year}>
+              {year}
+            </option>
+          ))}
+        </select>
+      </div>
+      <div className="balance-panel__selector">
+        <label htmlFor="budget-period-actual-year" className="balance-panel__label">
+          Actual Year
+        </label>
+        <select
+          id="budget-period-actual-year"
+          className="balance-panel__select"
+          value={actualYear}
+          onChange={(event) =>
+            handleActualYearSelectionChange(event.target.value)
+          }
         >
           {YEAR_OPTIONS.map((year) => (
             <option key={year} value={year}>
@@ -128,9 +155,7 @@ export default function BudgetBalancePanel({
             id="budget-period-month"
             className="balance-panel__select"
             value={selectedMonth}
-            onChange={(event) =>
-              handleMonthSelectionChange(event.target.value)
-            }
+            onChange={(event) => handleMonthSelectionChange(event.target.value)}
           >
             {MONTH_OPTIONS.map(({ label, value }) => (
               <option key={value} value={value}>
