@@ -4,8 +4,11 @@
 
 .balance-report .balance-report-table__name {
   padding-left: calc(
-    var(--balance-indent-level, 0) * var(--balance-indent-unit)
+    0.95rem + var(--balance-indent-level, 0) * var(--balance-indent-unit)
   );
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
 }
 
 .balance-report__toggle-button {
@@ -13,39 +16,68 @@
   background: none;
   border: none;
   cursor: pointer;
-  padding: 0;
-  font-size: 0.9rem;
+  padding: 0.25rem;
+  font-size: 1rem;
+  color: var(--primary);
+  line-height: 1;
+  min-width: 1.5rem;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 0.25rem;
+  transition: background 0.15s ease;
+}
+
+.balance-report__toggle-button:hover:not(:disabled) {
+  background: rgba(37, 99, 235, 0.08);
 }
 
 .balance-report__toggle-button:disabled {
   cursor: default;
+  color: transparent;
 }
 
 .balance-report-table__head {
   position: sticky;
   top: 0;
   z-index: 11;
-  background: var(--surface-muted);
+  background: linear-gradient(to bottom, var(--surface), var(--surface-muted));
 }
 
 .balance-report-table__name-text {
   cursor: pointer;
+  transition: color 0.15s ease;
+}
+
+.balance-report-table__name-text:hover {
+  color: var(--primary);
 }
 
 .balance-report .balance-report-table tbody tr.balance-report-table__row--highlighted td:first-child {
   z-index: 10;
 }
 
+.balance-report .balance-report-table tbody tr.balance-report-table__row--highlighted td {
+  background-color: rgba(87, 188, 103, 0.15) !important;
+  font-weight: 600;
+}
+
 .balance-report-empty-wrapper {
   margin-top: 1.5rem;
   display: flex;
   justify-content: center;
+  padding: 2rem;
+  background: linear-gradient(135deg, rgba(255, 255, 255, 0.98) 0%, rgba(241, 245, 249, 0.96) 100%);
+  border: 1px solid rgba(37, 99, 235, 0.12);
+  border-radius: var(--radius-lg);
+  box-shadow: 0 4px 12px -4px rgba(15, 23, 42, 0.1);
 }
 
 .balance-report-empty-wrapper .balance-report-empty {
   text-align: center;
+  font-size: 1rem;
 }
 
 .balance-report-empty--alert {
-  color: var(--danger);
+  color: var(--primary);
 }

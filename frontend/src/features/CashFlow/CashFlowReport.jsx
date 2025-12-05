@@ -310,8 +310,15 @@ export default function CashFlowReport({
   return (
     <section className="balance-content cash-flow-report">
       {hasReport ? (
-        <div className="balance-report">
-          <div className="balance-report__table-wrapper">
+        <>
+          <section className="budget-region realization-header">
+            <p className="budget-region__label">Cash Flow Comparison</p>
+            <p className="budget-region__description">
+              Compare cash flow across multiple periods to analyze income, expenses, and net cash flow trends.
+            </p>
+          </section>
+          <div className="balance-report">
+            <div className="balance-report__table-wrapper">
             <table className="balance-report-table" ref={tableRef}>
               <caption className="balance-report-table__caption"></caption>
               <colgroup>
@@ -352,7 +359,8 @@ export default function CashFlowReport({
               </tbody>
             </table>
           </div>
-        </div>
+          </div>
+        </>
       ) : (
         <p className="balance-report-empty">
           Generate a report to view the cash flow details.

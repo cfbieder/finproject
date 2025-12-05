@@ -25,7 +25,7 @@
     "amount_in_base_currency": -7.54,
     "type": "debit",
     "is_transfer": null,
-    "needs_review": true,
+    "needs_review": false,
     "status": "posted",
     "note": null,
     "labels": [],
@@ -67,7 +67,7 @@
       "updated_at": "2025-12-04T22:13:46Z"
     },
     "created_at": "2025-12-04T22:13:27Z",
-    "updated_at": "2025-12-04T22:13:31Z"
+    "updated_at": "2025-12-05T01:49:50Z"
   },
   {
     "id": 1554465186,
@@ -95,7 +95,7 @@
     "amount_in_base_currency": -1650.26,
     "type": "debit",
     "is_transfer": null,
-    "needs_review": true,
+    "needs_review": false,
     "status": "posted",
     "note": null,
     "labels": [],
@@ -137,7 +137,7 @@
       "updated_at": "2025-12-04T22:13:53Z"
     },
     "created_at": "2025-12-04T22:13:52Z",
-    "updated_at": "2025-12-04T22:13:53Z"
+    "updated_at": "2025-12-05T01:50:02Z"
   },
   {
     "id": 1554461553,
@@ -145,15 +145,27 @@
     "original_payee": "PANDA MART WARSZAWA POL",
     "date": "2025-12-04",
     "upload_source": "data_feed",
-    "category": null,
+    "category": {
+      "id": 11111731,
+      "title": "Groceries",
+      "colour": null,
+      "is_transfer": false,
+      "is_bill": false,
+      "refund_behaviour": "credits_are_refunds",
+      "children": [],
+      "parent_id": 16619114,
+      "roll_up": false,
+      "created_at": "2022-11-26T11:13:33Z",
+      "updated_at": "2025-06-17T05:34:50Z"
+    },
     "closing_balance": -21500.62,
     "cheque_number": null,
     "memo": null,
     "amount": -29.39,
     "amount_in_base_currency": -8.08,
     "type": "debit",
-    "is_transfer": null,
-    "needs_review": true,
+    "is_transfer": false,
+    "needs_review": false,
     "status": "posted",
     "note": null,
     "labels": [],
@@ -195,23 +207,35 @@
       "updated_at": "2025-12-04T22:13:46Z"
     },
     "created_at": "2025-12-04T22:13:27Z",
-    "updated_at": "2025-12-04T22:13:27Z"
+    "updated_at": "2025-12-05T01:50:00Z"
   },
   {
     "id": 1554465183,
-    "payee": "00000092331659196",
+    "payee": "PGE ",
     "original_payee": "00000092331659196",
     "date": "2025-12-04",
     "upload_source": "data_feed",
-    "category": null,
+    "category": {
+      "id": 12217147,
+      "title": "Utilities - Electricity - PL",
+      "colour": "#009e79",
+      "is_transfer": false,
+      "is_bill": false,
+      "refund_behaviour": "credits_are_refunds",
+      "children": [],
+      "parent_id": 16619120,
+      "roll_up": false,
+      "created_at": "2023-02-12T18:12:16Z",
+      "updated_at": "2025-06-17T05:34:49Z"
+    },
     "closing_balance": 54456.75,
     "cheque_number": null,
     "memo": null,
     "amount": -2769.54,
     "amount_in_base_currency": -761.74,
     "type": "debit",
-    "is_transfer": null,
-    "needs_review": true,
+    "is_transfer": false,
+    "needs_review": false,
     "status": "posted",
     "note": null,
     "labels": [],
@@ -253,7 +277,7 @@
       "updated_at": "2025-12-04T22:13:53Z"
     },
     "created_at": "2025-12-04T22:13:52Z",
-    "updated_at": "2025-12-04T22:13:52Z"
+    "updated_at": "2025-12-05T01:50:54Z"
   },
   {
     "id": 1554449853,
@@ -262,17 +286,17 @@
     "date": "2025-12-03",
     "upload_source": "data_feed",
     "category": {
-      "id": 11111896,
-      "title": "Purchases - Chris",
+      "id": 11111881,
+      "title": "Chris Spending",
       "colour": "#9c27b0",
       "is_transfer": false,
       "is_bill": true,
       "refund_behaviour": "credits_are_refunds",
       "children": [],
-      "parent_id": 12107110,
+      "parent_id": 16619114,
       "roll_up": false,
       "created_at": "2022-11-26T11:19:24Z",
-      "updated_at": "2025-06-17T05:34:50Z"
+      "updated_at": "2025-06-17T05:34:49Z"
     },
     "closing_balance": -825.53,
     "cheque_number": null,
@@ -281,7 +305,7 @@
     "amount_in_base_currency": -0.16,
     "type": "debit",
     "is_transfer": null,
-    "needs_review": true,
+    "needs_review": false,
     "status": "posted",
     "note": null,
     "labels": [],
@@ -323,7 +347,7 @@
       "updated_at": "2025-12-04T21:43:30Z"
     },
     "created_at": "2025-12-04T21:43:29Z",
-    "updated_at": "2025-12-04T21:43:30Z"
+    "updated_at": "2025-12-05T01:50:29Z"
   },
   {
     "id": 1553244426,
@@ -402,17 +426,17 @@
     "date": "2025-12-03",
     "upload_source": "data_feed",
     "category": {
-      "id": 11111896,
-      "title": "Purchases - Chris",
+      "id": 11111881,
+      "title": "Chris Spending",
       "colour": "#9c27b0",
       "is_transfer": false,
       "is_bill": true,
       "refund_behaviour": "credits_are_refunds",
       "children": [],
-      "parent_id": 12107110,
+      "parent_id": 16619114,
       "roll_up": false,
       "created_at": "2022-11-26T11:19:24Z",
-      "updated_at": "2025-06-17T05:34:50Z"
+      "updated_at": "2025-06-17T05:34:49Z"
     },
     "closing_balance": -825.37,
     "cheque_number": null,
@@ -421,7 +445,7 @@
     "amount_in_base_currency": -115.96,
     "type": "debit",
     "is_transfer": null,
-    "needs_review": true,
+    "needs_review": false,
     "status": "posted",
     "note": null,
     "labels": [],
@@ -463,7 +487,7 @@
       "updated_at": "2025-12-04T21:43:30Z"
     },
     "created_at": "2025-12-04T21:43:29Z",
-    "updated_at": "2025-12-04T21:43:29Z"
+    "updated_at": "2025-12-05T01:50:29Z"
   },
   {
     "id": 1553244423,
@@ -542,17 +566,17 @@
     "date": "2025-12-03",
     "upload_source": "data_feed",
     "category": {
-      "id": 11111896,
-      "title": "Purchases - Chris",
+      "id": 11111881,
+      "title": "Chris Spending",
       "colour": "#9c27b0",
       "is_transfer": false,
       "is_bill": true,
       "refund_behaviour": "credits_are_refunds",
       "children": [],
-      "parent_id": 12107110,
+      "parent_id": 16619114,
       "roll_up": false,
       "created_at": "2022-11-26T11:19:24Z",
-      "updated_at": "2025-06-17T05:34:50Z"
+      "updated_at": "2025-06-17T05:34:49Z"
     },
     "closing_balance": -709.41,
     "cheque_number": null,
@@ -561,7 +585,7 @@
     "amount_in_base_currency": -18.95,
     "type": "debit",
     "is_transfer": null,
-    "needs_review": true,
+    "needs_review": false,
     "status": "posted",
     "note": null,
     "labels": [],
@@ -603,7 +627,7 @@
       "updated_at": "2025-12-04T21:43:30Z"
     },
     "created_at": "2025-12-04T21:43:29Z",
-    "updated_at": "2025-12-04T21:43:29Z"
+    "updated_at": "2025-12-05T01:50:31Z"
   },
   {
     "id": 1553244420,
@@ -752,17 +776,17 @@
     "date": "2025-12-03",
     "upload_source": "data_feed",
     "category": {
-      "id": 11111896,
-      "title": "Purchases - Chris",
+      "id": 11111881,
+      "title": "Chris Spending",
       "colour": "#9c27b0",
       "is_transfer": false,
       "is_bill": true,
       "refund_behaviour": "credits_are_refunds",
       "children": [],
-      "parent_id": 12107110,
+      "parent_id": 16619114,
       "roll_up": false,
       "created_at": "2022-11-26T11:19:24Z",
-      "updated_at": "2025-06-17T05:34:50Z"
+      "updated_at": "2025-06-17T05:34:49Z"
     },
     "closing_balance": -690.46,
     "cheque_number": null,
@@ -771,7 +795,7 @@
     "amount_in_base_currency": -139.09,
     "type": "debit",
     "is_transfer": null,
-    "needs_review": true,
+    "needs_review": false,
     "status": "posted",
     "note": null,
     "labels": [],
@@ -813,7 +837,7 @@
       "updated_at": "2025-12-04T21:43:30Z"
     },
     "created_at": "2025-12-04T21:43:29Z",
-    "updated_at": "2025-12-04T21:43:29Z"
+    "updated_at": "2025-12-05T01:50:32Z"
   },
   {
     "id": 1553244417,
@@ -962,17 +986,17 @@
     "date": "2025-12-03",
     "upload_source": "data_feed",
     "category": {
-      "id": 11111896,
-      "title": "Purchases - Chris",
+      "id": 11111881,
+      "title": "Chris Spending",
       "colour": "#9c27b0",
       "is_transfer": false,
       "is_bill": true,
       "refund_behaviour": "credits_are_refunds",
       "children": [],
-      "parent_id": 12107110,
+      "parent_id": 16619114,
       "roll_up": false,
       "created_at": "2022-11-26T11:19:24Z",
-      "updated_at": "2025-06-17T05:34:50Z"
+      "updated_at": "2025-06-17T05:34:49Z"
     },
     "closing_balance": -551.37,
     "cheque_number": null,
@@ -981,7 +1005,7 @@
     "amount_in_base_currency": -11.72,
     "type": "debit",
     "is_transfer": null,
-    "needs_review": true,
+    "needs_review": false,
     "status": "posted",
     "note": null,
     "labels": [],
@@ -1023,7 +1047,7 @@
       "updated_at": "2025-12-04T21:43:30Z"
     },
     "created_at": "2025-12-04T21:43:29Z",
-    "updated_at": "2025-12-04T21:43:29Z"
+    "updated_at": "2025-12-05T01:50:33Z"
   },
   {
     "id": 1553688621,
@@ -1172,17 +1196,17 @@
     "date": "2025-12-03",
     "upload_source": "data_feed",
     "category": {
-      "id": 11111896,
-      "title": "Purchases - Chris",
+      "id": 11111881,
+      "title": "Chris Spending",
       "colour": "#9c27b0",
       "is_transfer": false,
       "is_bill": true,
       "refund_behaviour": "credits_are_refunds",
       "children": [],
-      "parent_id": 12107110,
+      "parent_id": 16619114,
       "roll_up": false,
       "created_at": "2022-11-26T11:19:24Z",
-      "updated_at": "2025-06-17T05:34:50Z"
+      "updated_at": "2025-06-17T05:34:49Z"
     },
     "closing_balance": -539.65,
     "cheque_number": null,
@@ -1191,7 +1215,7 @@
     "amount_in_base_currency": -444.28,
     "type": "debit",
     "is_transfer": null,
-    "needs_review": true,
+    "needs_review": false,
     "status": "posted",
     "note": null,
     "labels": [],
@@ -1233,7 +1257,7 @@
       "updated_at": "2025-12-04T21:43:30Z"
     },
     "created_at": "2025-12-04T21:43:28Z",
-    "updated_at": "2025-12-04T21:43:29Z"
+    "updated_at": "2025-12-05T01:50:35Z"
   },
   {
     "id": 1553242293,
@@ -1803,15 +1827,27 @@
     "original_payee": "AplPay SEPHORA SARASSARASOTA FL",
     "date": "2025-12-02",
     "upload_source": "data_feed",
-    "category": null,
+    "category": {
+      "id": 11111890,
+      "title": "Kasia Spending",
+      "colour": "#9c27b0",
+      "is_transfer": false,
+      "is_bill": true,
+      "refund_behaviour": "credits_are_refunds",
+      "children": [],
+      "parent_id": 16619114,
+      "roll_up": false,
+      "created_at": "2022-11-26T11:19:24Z",
+      "updated_at": "2025-06-17T05:34:49Z"
+    },
     "closing_balance": -846.52,
     "cheque_number": null,
     "memo": null,
     "amount": -56.71,
     "amount_in_base_currency": -56.71,
     "type": "debit",
-    "is_transfer": null,
-    "needs_review": true,
+    "is_transfer": false,
+    "needs_review": false,
     "status": "posted",
     "note": null,
     "labels": [],
@@ -1853,7 +1889,7 @@
       "updated_at": "2025-12-04T21:48:07Z"
     },
     "created_at": "2025-12-04T13:57:29Z",
-    "updated_at": "2025-12-04T13:57:29Z"
+    "updated_at": "2025-12-05T01:50:55Z"
   },
   {
     "id": 1552163040,
@@ -4126,7 +4162,7 @@
       "created_at": "2022-11-27T10:56:08Z",
       "updated_at": "2024-05-11T09:32:33Z"
     },
-    "closing_balance": 1012077.31,
+    "closing_balance": 1042249.76,
     "cheque_number": null,
     "memo": null,
     "amount": 87,
@@ -4148,8 +4184,8 @@
       "is_net_worth": false,
       "include_in_net_worth": true,
       "currency_code": "usd",
-      "current_balance": 1012077.31,
-      "current_balance_in_base_currency": 1012077.31,
+      "current_balance": 1042249.76,
+      "current_balance_in_base_currency": 1042249.76,
       "current_balance_exchange_rate": null,
       "current_balance_date": "2025-12-05",
       "current_balance_source": "closing_balance_as_today",
@@ -4172,7 +4208,7 @@
       "data_feeds_account_id": null,
       "data_feeds_connection_id": null,
       "created_at": "2022-11-26T13:10:53Z",
-      "updated_at": "2025-12-05T00:16:35Z"
+      "updated_at": "2025-12-05T01:49:36Z"
     },
     "created_at": "2025-12-02T02:27:42Z",
     "updated_at": "2025-12-02T02:28:00Z"
@@ -4756,7 +4792,7 @@
       "created_at": "2022-11-27T10:56:08Z",
       "updated_at": "2024-05-11T09:32:33Z"
     },
-    "closing_balance": 1011990.31,
+    "closing_balance": 1042162.76,
     "cheque_number": null,
     "memo": null,
     "amount": 63.2,
@@ -4778,8 +4814,8 @@
       "is_net_worth": false,
       "include_in_net_worth": true,
       "currency_code": "usd",
-      "current_balance": 1012077.31,
-      "current_balance_in_base_currency": 1012077.31,
+      "current_balance": 1042249.76,
+      "current_balance_in_base_currency": 1042249.76,
       "current_balance_exchange_rate": null,
       "current_balance_date": "2025-12-05",
       "current_balance_source": "closing_balance_as_today",
@@ -4802,7 +4838,7 @@
       "data_feeds_account_id": null,
       "data_feeds_connection_id": null,
       "created_at": "2022-11-26T13:10:53Z",
-      "updated_at": "2025-12-05T00:16:35Z"
+      "updated_at": "2025-12-05T01:49:36Z"
     },
     "created_at": "2025-12-02T02:27:42Z",
     "updated_at": "2025-12-02T02:28:00Z"
@@ -4944,10 +4980,150 @@
       "data_feeds_account_id": "1061305",
       "data_feeds_connection_id": "606107",
       "created_at": "2025-08-20T10:58:32Z",
-      "updated_at": "2025-12-04T21:24:39Z"
+      "updated_at": "2025-12-05T01:41:07Z"
     },
     "created_at": "2025-12-01T16:23:45Z",
     "updated_at": "2025-12-02T02:06:55Z"
+  },
+  {
+    "id": 1554627378,
+    "payee": "Unrealized",
+    "original_payee": "Unrealized",
+    "date": "2025-11-30",
+    "upload_source": "file",
+    "category": {
+      "id": 20970043,
+      "title": "Unrealized G/L",
+      "colour": "#9c27b0",
+      "is_transfer": false,
+      "is_bill": false,
+      "refund_behaviour": "debits_are_deductions",
+      "children": [],
+      "parent_id": 11152792,
+      "roll_up": false,
+      "created_at": "2024-12-11T12:38:37Z",
+      "updated_at": "2025-06-26T13:07:42Z"
+    },
+    "closing_balance": 267482.78,
+    "cheque_number": null,
+    "memo": null,
+    "amount": 2827.93,
+    "amount_in_base_currency": 2827.93,
+    "type": "credit",
+    "is_transfer": null,
+    "needs_review": false,
+    "status": "posted",
+    "note": null,
+    "labels": [],
+    "transaction_account": {
+      "id": 1868086,
+      "account_id": 1806562,
+      "name": "Fidelity IRA",
+      "latest_feed_name": "ROLLOVER IRA",
+      "number": "194901660",
+      "type": "stocks",
+      "offline": true,
+      "is_net_worth": false,
+      "include_in_net_worth": true,
+      "currency_code": "usd",
+      "current_balance": 267482.78,
+      "current_balance_in_base_currency": 267482.78,
+      "current_balance_exchange_rate": null,
+      "current_balance_date": "2025-12-05",
+      "current_balance_source": "closing_balance_as_today",
+      "data_feeds_balance_type": "balance",
+      "safe_balance": null,
+      "safe_balance_in_base_currency": null,
+      "has_safe_balance_adjustment": false,
+      "starting_balance": 226778.29,
+      "starting_balance_date": "2024-12-31",
+      "institution": {
+        "id": 679510,
+        "title": "Fidelity Investments",
+        "currency_code": "usd",
+        "colour": "#009E79",
+        "logo_url": null,
+        "favicon_data_uri": null,
+        "created_at": "2022-11-26T13:10:52Z",
+        "updated_at": "2024-03-26T03:43:41Z"
+      },
+      "data_feeds_account_id": null,
+      "data_feeds_connection_id": null,
+      "created_at": "2022-11-26T13:10:53Z",
+      "updated_at": "2025-12-05T01:44:59Z"
+    },
+    "created_at": "2025-12-05T01:44:58Z",
+    "updated_at": "2025-12-05T01:50:56Z"
+  },
+  {
+    "id": 1554629076,
+    "payee": "Unrealized",
+    "original_payee": "Unrealized",
+    "date": "2025-11-30",
+    "upload_source": "file",
+    "category": {
+      "id": 20970043,
+      "title": "Unrealized G/L",
+      "colour": "#9c27b0",
+      "is_transfer": false,
+      "is_bill": false,
+      "refund_behaviour": "debits_are_deductions",
+      "children": [],
+      "parent_id": 11152792,
+      "roll_up": false,
+      "created_at": "2024-12-11T12:38:37Z",
+      "updated_at": "2025-06-26T13:07:42Z"
+    },
+    "closing_balance": 1042099.56,
+    "cheque_number": null,
+    "memo": null,
+    "amount": 11518.08,
+    "amount_in_base_currency": 11518.08,
+    "type": "credit",
+    "is_transfer": null,
+    "needs_review": false,
+    "status": "posted",
+    "note": null,
+    "labels": [],
+    "transaction_account": {
+      "id": 1868089,
+      "account_id": 1806562,
+      "name": "Fidelity Stocks",
+      "latest_feed_name": "INDIVIDUAL",
+      "number": "X27230910",
+      "type": "stocks",
+      "offline": true,
+      "is_net_worth": false,
+      "include_in_net_worth": true,
+      "currency_code": "usd",
+      "current_balance": 1042249.76,
+      "current_balance_in_base_currency": 1042249.76,
+      "current_balance_exchange_rate": null,
+      "current_balance_date": "2025-12-05",
+      "current_balance_source": "closing_balance_as_today",
+      "data_feeds_balance_type": "balance",
+      "safe_balance": null,
+      "safe_balance_in_base_currency": null,
+      "has_safe_balance_adjustment": false,
+      "starting_balance": 894776.48,
+      "starting_balance_date": "2024-12-31",
+      "institution": {
+        "id": 679510,
+        "title": "Fidelity Investments",
+        "currency_code": "usd",
+        "colour": "#009E79",
+        "logo_url": null,
+        "favicon_data_uri": null,
+        "created_at": "2022-11-26T13:10:52Z",
+        "updated_at": "2024-03-26T03:43:41Z"
+      },
+      "data_feeds_account_id": null,
+      "data_feeds_connection_id": null,
+      "created_at": "2022-11-26T13:10:53Z",
+      "updated_at": "2025-12-05T01:49:36Z"
+    },
+    "created_at": "2025-12-05T01:49:35Z",
+    "updated_at": "2025-12-05T01:50:55Z"
   },
   {
     "id": 1550542977,
@@ -5018,6 +5194,76 @@
     },
     "created_at": "2025-12-01T19:54:26Z",
     "updated_at": "2025-12-02T02:06:57Z"
+  },
+  {
+    "id": 1554628749,
+    "payee": "Unrealized",
+    "original_payee": "Unrealized",
+    "date": "2025-10-31",
+    "upload_source": "file",
+    "category": {
+      "id": 20970043,
+      "title": "Unrealized G/L",
+      "colour": "#9c27b0",
+      "is_transfer": false,
+      "is_bill": false,
+      "refund_behaviour": "debits_are_deductions",
+      "children": [],
+      "parent_id": 11152792,
+      "roll_up": false,
+      "created_at": "2024-12-11T12:38:37Z",
+      "updated_at": "2025-06-26T13:07:42Z"
+    },
+    "closing_balance": 1031247.19,
+    "cheque_number": null,
+    "memo": null,
+    "amount": 18654.37,
+    "amount_in_base_currency": 18654.37,
+    "type": "credit",
+    "is_transfer": null,
+    "needs_review": false,
+    "status": "posted",
+    "note": null,
+    "labels": [],
+    "transaction_account": {
+      "id": 1868089,
+      "account_id": 1806562,
+      "name": "Fidelity Stocks",
+      "latest_feed_name": "INDIVIDUAL",
+      "number": "X27230910",
+      "type": "stocks",
+      "offline": true,
+      "is_net_worth": false,
+      "include_in_net_worth": true,
+      "currency_code": "usd",
+      "current_balance": 1042249.76,
+      "current_balance_in_base_currency": 1042249.76,
+      "current_balance_exchange_rate": null,
+      "current_balance_date": "2025-12-05",
+      "current_balance_source": "closing_balance_as_today",
+      "data_feeds_balance_type": "balance",
+      "safe_balance": null,
+      "safe_balance_in_base_currency": null,
+      "has_safe_balance_adjustment": false,
+      "starting_balance": 894776.48,
+      "starting_balance_date": "2024-12-31",
+      "institution": {
+        "id": 679510,
+        "title": "Fidelity Investments",
+        "currency_code": "usd",
+        "colour": "#009E79",
+        "logo_url": null,
+        "favicon_data_uri": null,
+        "created_at": "2022-11-26T13:10:52Z",
+        "updated_at": "2024-03-26T03:43:41Z"
+      },
+      "data_feeds_account_id": null,
+      "data_feeds_connection_id": null,
+      "created_at": "2022-11-26T13:10:53Z",
+      "updated_at": "2025-12-05T01:49:36Z"
+    },
+    "created_at": "2025-12-05T01:48:40Z",
+    "updated_at": "2025-12-05T01:50:59Z"
   },
   {
     "id": 1479846417,

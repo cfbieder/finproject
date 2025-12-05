@@ -35,6 +35,24 @@ const formatCurrencyValue = (value) => {
   return amount < 0 ? `(${formatted})` : formatted;
 };
 
+/**
+ * Determines the CSS class string for table value cells, applying red text for negatives.
+ * @param {number} value - Numeric value to evaluate
+ * @param {boolean} hasValue - Whether the cell actually contains a numeric value
+ * @param {string} extraClass - Additional class names to append
+ * @returns {string} Computed class string
+ */
+const getValueCellClassName = (value, hasValue, extraClass = "") => {
+  const classes = ["balance-report-table__value"];
+  if (hasValue && Number(value) < 0) {
+    classes.push("balance-report-table__value--negative");
+  }
+  if (extraClass) {
+    classes.push(extraClass);
+  }
+  return classes.join(" ");
+};
+
 // ============================================================================
 // UTILITY FUNCTIONS - Data Processing
 // ============================================================================
@@ -399,9 +417,30 @@ const renderCategoryRows = (
           </button>
           <span className="balance-report-table__name-text">{node.name}</span>
         </td>
-        <td className="balance-report-table__value">{budgetDisplay}</td>
-        <td className="balance-report-table__value">{actualDisplay}</td>
-        <td className="balance-report-table__value">{varianceDisplay}</td>
+        <td
+          className={getValueCellClassName(
+            resolvedBudgetValue,
+            hasBudgetData
+          )}
+        >
+          {budgetDisplay}
+        </td>
+        <td
+          className={getValueCellClassName(
+            resolvedActualValue,
+            hasActualData
+          )}
+        >
+          {actualDisplay}
+        </td>
+        <td
+          className={getValueCellClassName(
+            varianceValue,
+            hasVarianceData
+          )}
+        >
+          {varianceDisplay}
+        </td>
       </tr>
     );
 
@@ -577,6 +616,26 @@ export default function BudgetRealization() {
     ? formatCurrencyValue(netVarianceValue)
     : "—";
 
+  const netBudgetHasValue = netBudgetValue !== null && netBudgetValue !== undefined;
+  const netActualHasValue = netActualValue !== null && netActualValue !== undefined;
+  const netVarianceHasValue = showNetVariance;
+
+  const netBudgetCellClass = getValueCellClassName(
+    netBudgetValue ?? 0,
+    netBudgetHasValue,
+    "balance-report-table__value--bold"
+  );
+  const netActualCellClass = getValueCellClassName(
+    netActualValue ?? 0,
+    netActualHasValue,
+    "balance-report-table__value--bold"
+  );
+  const netVarianceCellClass = getValueCellClassName(
+    netVarianceValue,
+    netVarianceHasValue,
+    "balance-report-table__value--bold"
+  );
+
   // ========== Effects: Initialization ==========
 
   // Sync collapsed paths when collapsible paths change
@@ -748,6 +807,9 @@ export default function BudgetRealization() {
           netBudgetDisplay={netBudgetDisplay}
           netActualDisplay={netActualDisplay}
           netVarianceDisplay={netVarianceDisplay}
+          netBudgetCellClass={netBudgetCellClass}
+          netActualCellClass={netActualCellClass}
+          netVarianceCellClass={netVarianceCellClass}
           renderCategoryRows={renderCategoryRows}
         />
         <div className="budget-realization-sidebar">

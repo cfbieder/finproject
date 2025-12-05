@@ -12,6 +12,9 @@ function BudgetRealizationContent({
   netBudgetDisplay,
   netActualDisplay,
   netVarianceDisplay,
+  netBudgetCellClass,
+  netActualCellClass,
+  netVarianceCellClass,
   renderCategoryRows,
 }) {
   return (
@@ -54,13 +57,13 @@ function BudgetRealizationContent({
                           Net Cash Flow
                         </span>
                       </td>
-                      <td className="balance-report-table__value balance-report-table__value--bold">
+                      <td className={netBudgetCellClass}>
                         {netBudgetDisplay}
                       </td>
-                      <td className="balance-report-table__value balance-report-table__value--bold">
+                      <td className={netActualCellClass}>
                         {netActualDisplay}
                       </td>
-                      <td className="balance-report-table__value balance-report-table__value--bold">
+                      <td className={netVarianceCellClass}>
                         {netVarianceDisplay}
                       </td>
                     </tr>

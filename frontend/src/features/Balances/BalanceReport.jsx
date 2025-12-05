@@ -224,8 +224,15 @@ export default function BalanceReport({
   return (
     <section className="balance-content">
       {hasReport ? (
-        <div className="balance-report">
-          <div className="balance-report__table-wrapper">
+        <>
+          <section className="budget-region realization-header">
+            <p className="budget-region__label">Balance Sheet</p>
+            <p className="budget-region__description">
+              View account balances across multiple periods to track changes in financial position.
+            </p>
+          </section>
+          <div className="balance-report">
+            <div className="balance-report__table-wrapper">
             <table className="balance-report-table" ref={tableRef}>
               <caption className="balance-report-table__caption">
                 <div className="balance-report-table__caption-row"></div>
@@ -267,7 +274,8 @@ export default function BalanceReport({
               </tbody>
             </table>
           </div>
-        </div>
+          </div>
+        </>
       ) : (
         <div className="balance-report-empty-wrapper">
           <p className="balance-report-empty balance-report-empty--alert">

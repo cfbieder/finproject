@@ -33,7 +33,13 @@ const menuItems = [
       { label: "Option Analysis", path: "/option-analysis" },
     ],
   },
-  { label: "Transactions", submenu: [{ label: "History", path: "/history" }] },
+  {
+    label: "Transactions",
+    submenu: [
+      { label: "History", path: "/history" },
+      { label: "Budget", path: "/trans-budget" },
+    ],
+  },
   { label: "Settings" },
   { label: "Help" },
 ];

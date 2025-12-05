@@ -447,7 +447,7 @@ const BudgetEntriesBudgetPopup = ({ request }) => {
   });
   const [statusMessage, setStatusMessage] = useState("Loading entries…");
   const [statusType, setStatusType] = useState("muted");
-  const [pendingDeleteEntryId, setPendingDeleteEntryId] = useState(null);
+  const pendingDeleteEntryIdRef = useRef(null);
   const modalRef = useRef(null);
   const contentRef = useRef(null);
 
@@ -988,7 +988,7 @@ const BudgetEntriesBudgetPopup = ({ request }) => {
     if (!confirmationPanel) {
       return;
     }
-    setPendingDeleteEntryId(entryId);
+    pendingDeleteEntryIdRef.current = entryId;
     const messageElement = confirmationPanel.querySelector(
       "[data-delete-confirmation-message]"
     );
@@ -1021,9 +1021,9 @@ const BudgetEntriesBudgetPopup = ({ request }) => {
   };
 
   const confirmPendingDeleteEntry = async () => {
-    const entryId = pendingDeleteEntryId;
+    const entryId = pendingDeleteEntryIdRef.current;
     hideDeleteConfirmation();
-    setPendingDeleteEntryId(null);
+    pendingDeleteEntryIdRef.current = null;
     if (!entryId) {
       return;
     }
@@ -1032,7 +1032,7 @@ const BudgetEntriesBudgetPopup = ({ request }) => {
 
   const cancelPendingDelete = () => {
     hideDeleteConfirmation();
-    setPendingDeleteEntryId(null);
+    pendingDeleteEntryIdRef.current = null;
   };
 
   const handleDeleteEntry = (entryId, summary) => {
