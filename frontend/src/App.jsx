@@ -6,6 +6,7 @@ import BudgetOptions from "./pages/BudgetOptions.jsx";
 import CashFlow from "./pages/CashFlow.jsx";
 import CashFlowMonthly from "./pages/CashFlowMonthly.jsx";
 import BudgetRealization from "./pages/BudgetRealization.jsx";
+import TransActual from "./pages/TransActual.jsx";
 import TransBudget from "./pages/TransBudget.jsx";
 import Home from "./pages/Home.jsx";
 import History from "./pages/History.jsx";
@@ -27,6 +28,7 @@ function App() {
         <Route path="/budget-worksheet" element={<BudgetInput />} />
         <Route path="/budget-options" element={<BudgetOptions />} />
         <Route path="/budget-realization" element={<BudgetRealization />} />
+        <Route path="/trans-actual" element={<TransActual />} />
         <Route path="/trans-budget" element={<TransBudget />} />
       </Routes>
     </BrowserRouter>

@@ -27,16 +27,17 @@ const menuItems = [
     ],
   },
   {
+    label: "Graphs",
+    submenu: [{ label: "Net Worth Chart", path: "/balance-chart" }],
+  },
+  {
     label: "Analytics",
-    submenu: [
-      { label: "Net Worth Chart", path: "/balance-chart" },
-      { label: "Option Analysis", path: "/option-analysis" },
-    ],
+    submenu: [{ label: "Option Analysis", path: "/option-analysis" }],
   },
   {
     label: "Transactions",
     submenu: [
-      { label: "History", path: "/history" },
+      { label: "History", path: "/trans-actual" },
       { label: "Budget", path: "/trans-budget" },
     ],
   },

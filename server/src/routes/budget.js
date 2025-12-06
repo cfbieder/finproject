@@ -522,6 +522,71 @@ router.delete("/:id", async (req, res) => {
   }
 });
 
+router.patch("/actual-entries/:id", async (req, res) => {
+  const { id } = req.params;
+  if (!id || !mongoose.Types.ObjectId.isValid(id)) {
+    return res.status(400).json({
+      error: "Invalid actual entry identifier",
+    });
+  }
+
+  const sanitizedPayload = sanitizeEntry(req.body);
+  if (!sanitizedPayload || !Object.keys(sanitizedPayload).length) {
+    return res.status(400).json({
+      error: "No valid actual entry fields were provided",
+    });
+  }
+
+  try {
+    const updated = await PSdata.findByIdAndUpdate(id, sanitizedPayload, {
+      new: true,
+    })
+      .lean()
+      .exec();
+
+    if (!updated) {
+      return res.status(404).json({
+        error: "Actual entry not found",
+      });
+    }
+
+    return res.json({
+      entry: updated,
+    });
+  } catch (error) {
+    console.error("[BUDGET] Failed to update actual entry:", error);
+    return res.status(500).json({
+      error: "Failed to update actual entry",
+    });
+  }
+});
+
+router.delete("/actual-entries/:id", async (req, res) => {
+  const { id } = req.params;
+  if (!id || !mongoose.Types.ObjectId.isValid(id)) {
+    return res.status(400).json({
+      error: "Invalid actual entry identifier",
+    });
+  }
+
+  try {
+    const deleted = await PSdata.findByIdAndDelete(id).lean().exec();
+    if (!deleted) {
+      return res.status(404).json({
+        error: "Actual entry not found",
+      });
+    }
+    return res.json({
+      deleted: true,
+    });
+  } catch (error) {
+    console.error("[BUDGET] Failed to delete actual entry:", error);
+    return res.status(500).json({
+      error: "Failed to delete actual entry",
+    });
+  }
+});
+
 router.get("/summary", async (req, res) => {
   const monthRange = normalizeMonthRange(
     req.query.fromMonth,

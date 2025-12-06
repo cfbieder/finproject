@@ -9,19 +9,35 @@
 }
 
 .balance-panel {
-  min-width: 15rem;
-  padding: 1.25rem;
-  background: var(--surface);
-  border: 1px solid var(--border);
+  min-width: 17rem;
+  padding: 1.75rem;
+  background: linear-gradient(135deg, rgba(255, 255, 255, 0.98) 0%, rgba(248, 250, 252, 0.96) 100%);
+  border: 1px solid rgba(37, 99, 235, 0.15);
   border-radius: var(--radius-lg);
-  box-shadow: var(--shadow-soft);
+  box-shadow:
+    0 4px 6px -1px rgba(0, 0, 0, 0.05),
+    0 10px 15px -3px rgba(37, 99, 235, 0.08),
+    0 0 0 1px rgba(255, 255, 255, 0.5) inset;
   display: flex;
   flex-direction: column;
-  gap: 1rem;
+  gap: 1.25rem;
   color: var(--ink);
   flex-shrink: 0;
   max-height: fit-content;
   align-self: flex-start;
+  position: relative;
+  overflow: hidden;
+}
+
+.balance-panel::before {
+  content: "";
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 3px;
+  background: linear-gradient(90deg, var(--primary) 0%, #3b82f6 50%, var(--accent) 100%);
+  border-radius: var(--radius-lg) var(--radius-lg) 0 0;
 }
 
 .balance-date-picker {
@@ -31,11 +47,12 @@
 }
 
 .balance-date-picker__label {
-  font-size: 0.85rem;
+  font-size: 0.8rem;
   text-transform: uppercase;
   letter-spacing: 0.08rem;
-  color: var(--muted);
+  color: var(--primary);
   font-weight: 700;
+  margin-top: 0.5rem;
 }
 
 .balance-date-picker__input {
@@ -66,11 +83,13 @@
 }
 
 .balance-period-group {
-  border: 1px solid var(--border);
+  border: 1px solid rgba(37, 99, 235, 0.12);
   border-radius: 0.9rem;
-  padding: 0.85rem 0.95rem;
-  background: var(--surface-muted);
-  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.04);
+  padding: 1rem 1.1rem;
+  background: linear-gradient(135deg, #ffffff 0%, #fafbfc 100%);
+  box-shadow:
+    0 1px 3px 0 rgba(0, 0, 0, 0.05),
+    0 0 0 1px rgba(255, 255, 255, 0.8) inset;
 }
 
 .balance-period-title {
@@ -117,23 +136,44 @@
 
 .generate-report-button {
   width: 100%;
-  padding: 0.9rem 1.25rem;
-  border-radius: 0.85rem;
+  padding: 1rem 1.5rem;
+  border-radius: 0.875rem;
   border: none;
-  background: linear-gradient(120deg, var(--primary), #3b82f6);
+  background: linear-gradient(135deg, var(--primary) 0%, #3b82f6 100%);
   color: #fff;
   font-size: 1rem;
-  font-weight: 600;
-  letter-spacing: 0.02em;
+  font-weight: 700;
+  letter-spacing: 0.01em;
   cursor: pointer;
-  box-shadow: 0 12px 30px -16px rgba(15, 107, 220, 0.9);
-  transition: transform 0.2s ease, box-shadow 0.2s ease;
+  box-shadow:
+    0 4px 6px -1px rgba(37, 99, 235, 0.3),
+    0 10px 15px -3px rgba(37, 99, 235, 0.25);
+  transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+  position: relative;
+  overflow: hidden;
+}
+
+.generate-report-button::before {
+  content: "";
+  position: absolute;
+  top: 0;
+  left: -100%;
+  width: 100%;
+  height: 100%;
+  background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.2), transparent);
+  transition: left 0.5s ease;
+}
+
+.generate-report-button:hover::before {
+  left: 100%;
 }
 
 .generate-report-button:hover,
 .generate-report-button:focus-visible {
-  transform: translateY(-1px);
-  box-shadow: 0 14px 35px -18px rgba(15, 107, 220, 0.95);
+  transform: translateY(-2px);
+  box-shadow:
+    0 10px 20px -3px rgba(37, 99, 235, 0.4),
+    0 15px 25px -5px rgba(37, 99, 235, 0.3);
 }
 
 .generate-report-button:focus-visible {
@@ -142,14 +182,49 @@
 }
 
 .generate-report-button:disabled {
-  background: #cdd6e6;
-  color: var(--muted);
+  background: linear-gradient(135deg, #cbd5e1 0%, #94a3b8 100%);
+  color: #64748b;
   box-shadow: none;
   transform: none;
+  cursor: not-allowed;
+  opacity: 0.7;
+}
+
+.generate-report-button:active:not(:disabled) {
+  transform: translateY(0);
+  box-shadow:
+    0 2px 4px -1px rgba(37, 99, 235, 0.3),
+    0 4px 6px -2px rgba(37, 99, 235, 0.25);
 }
 
 .balance-report-empty {
   margin: 0;
-  color: #fecdd3;
+  color: var(--danger);
   font-weight: 600;
+  font-size: 0.9rem;
+  padding: 0.75rem;
+  background: rgba(239, 68, 68, 0.08);
+  border-radius: 0.5rem;
+  border: 1px solid rgba(239, 68, 68, 0.2);
+}
+
+@media (max-width: 768px) {
+  .balance-panel {
+    min-width: 100%;
+    padding: 1.5rem;
+  }
+
+  .generate-report-button {
+    padding: 0.85rem 1.25rem;
+  }
+}
+
+@media (max-width: 640px) {
+  .balance-panel {
+    padding: 1.25rem;
+  }
+
+  .balance-period-group {
+    padding: 0.85rem 0.95rem;
+  }
 }

@@ -1,5 +1,26 @@
 import PropTypes from "prop-types";
 import "./BalanceChartPanel.css";
+
+const getAxisLabelParts = (point) => {
+  const date = point?.date ? new Date(point.date) : null;
+  if (date && Number.isFinite(date.getTime())) {
+    const month = String(date.getUTCMonth() + 1).padStart(2, "0");
+    const year = String(date.getUTCFullYear()).slice(-2);
+    return { monthLabel: month, yearLabel: year };
+  }
+
+  const label = typeof point?.label === "string" ? point.label.trim() : "";
+  if (label) {
+    const segments = label.replace(/\s+/g, " ").split(" ");
+    const monthLabel = segments[0] || "";
+    const yearLabel =
+      segments.length > 1 ? segments[segments.length - 1] : "";
+    return { monthLabel, yearLabel };
+  }
+
+  return { monthLabel: "", yearLabel: "" };
+};
+
 const BalanceChartPanel = ({
   chartRangeSummary,
   hasChartData,
@@ -44,6 +65,16 @@ const BalanceChartPanel = ({
             aria-label="Monthly net assets trend"
             className="balance-chart-graph__svg"
           >
+            <defs>
+              <linearGradient id="positive-gradient" x1="0%" y1="0%" x2="0%" y2="100%">
+                <stop offset="0%" stopColor="#2563eb" stopOpacity="0.95" />
+                <stop offset="100%" stopColor="#3b82f6" stopOpacity="0.85" />
+              </linearGradient>
+              <linearGradient id="negative-gradient" x1="0%" y1="0%" x2="0%" y2="100%">
+                <stop offset="0%" stopColor="#ef4444" stopOpacity="0.95" />
+                <stop offset="100%" stopColor="#dc2626" stopOpacity="0.85" />
+              </linearGradient>
+            </defs>
             <g className="balance-chart-graph__grid">
               {chartLayout.ticks.map((tick, index) => (
                 <g key={`grid-tick-${index}`}>
@@ -56,8 +87,8 @@ const BalanceChartPanel = ({
                   />
                   <text
                     className="balance-chart-graph__grid-label"
-                    x={chartLayout.gridLeft - 16}
-                    y={tick.y + 6}
+                    x={chartLayout.gridLeft - 8}
+                    y={tick.y + 4}
                     textAnchor="end"
                   >
                     {formatAxisLabel(tick.value)}
@@ -95,10 +126,7 @@ const BalanceChartPanel = ({
             {chartPoints.map((point, index) => {
               const bar = chartLayout.bars[index];
               const centerX = (bar?.x ?? 0) + (bar?.width ?? 0) / 2;
-              const label = point.label || point.date || "";
-              const pieces = label.split(" ");
-              const monthLabel = pieces[0] ?? "";
-              const yearLabel = pieces[1] ?? "";
+              const { monthLabel, yearLabel } = getAxisLabelParts(point);
               return (
                 <text
                   key={`axis-label-${index}`}

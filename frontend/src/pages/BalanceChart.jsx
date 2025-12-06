@@ -27,8 +27,6 @@ const collectCollapsiblePaths = (accounts, path = [], result = new Set()) => {
   return result;
 };
 
-const MAX_CHART_MONTHS = 12;
-
 const toUtcDate = (isoDate) => {
   if (typeof isoDate !== "string") {
     return null;
@@ -52,7 +50,11 @@ const getMonthEndIso = (date) => {
   return monthEnd.toISOString().split("T")[0];
 };
 
-const buildMonthlySeries = (startIso, endIso, limit = MAX_CHART_MONTHS) => {
+const buildMonthlySeries = (
+  startIso,
+  endIso,
+  limit = Number.POSITIVE_INFINITY
+) => {
   const startDate = toUtcDate(startIso);
   const endDate = toUtcDate(endIso);
   if (!startDate || !endDate || startDate > endDate || limit <= 0) {
@@ -356,7 +358,8 @@ export default function Balance() {
         ? availableWidth / chartPoints.length
         : availableWidth;
     const gapRatio = 0.18;
-    const barWidth = Math.max(16, step * (1 - gapRatio));
+    const minBarWidth = 4;
+    const barWidth = Math.max(minBarWidth, step * (1 - gapRatio));
     const getX = (index) => {
       if (chartPoints.length === 1) {
         return gridLeft + (availableWidth - barWidth) / 2;
