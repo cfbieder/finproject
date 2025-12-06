@@ -30,7 +30,9 @@ export default function TransactionBudgetFilter({
   onFiltersChange,
   onDeleteClick,
   onSelectAllToggle,
+  onEditClick,
   canDelete,
+  canEdit,
   isAllSelected,
 }) {
   const [accountOptions, setAccountOptions] = useState([]);
@@ -330,7 +332,12 @@ export default function TransactionBudgetFilter({
           </label>
         </div>
         <div className="range-input-group range-input-actions">
-          <button className="generate-report-button" type="button">
+          <button
+            className="generate-report-button"
+            type="button"
+            onClick={onEditClick}
+            disabled={!canEdit}
+          >
             Edit
           </button>
           <button
