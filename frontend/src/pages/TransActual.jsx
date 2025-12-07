@@ -159,21 +159,25 @@ const filtersAreEqual = (a, b) => {
     a.account === b.account &&
     a.category === b.category &&
     a.valueFromEnabled === b.valueFromEnabled &&
-    a.valueToEnabled === b.valueToEnabled &&
-    a.valueFrom === b.valueFrom &&
-    a.valueTo === b.valueTo
+  a.valueToEnabled === b.valueToEnabled &&
+  a.descriptionEnabled === b.descriptionEnabled &&
+  a.description === b.description &&
+  a.valueFrom === b.valueFrom &&
+  a.valueTo === b.valueTo
   );
 };
 
 const DEFAULT_FILTERS = {
-  yearEnabled: false,
-  monthEnabled: false,
+  yearEnabled: true,
+  monthEnabled: true,
   accountEnabled: false,
   categoryEnabled: false,
-  year: "",
-  month: "",
+  descriptionEnabled: false,
+  year: new Date().getFullYear().toString(),
+  month: new Date().getMonth(),
   account: "",
   category: "",
+  description: "",
   valueFromEnabled: false,
   valueToEnabled: false,
   valueFrom: null,
@@ -285,31 +289,74 @@ export default function TransActual() {
     return Array.from(normalized.values());
   }, [currencyOptions, editFormValues.Currency]);
 
-  const loadTransactions = useCallback(async (signal) => {
-    setIsLoading(true);
-    try {
-      const payload = await Rest.fetchJson("/api/budget/actual-entries", {
-        signal,
-      });
-      const data = Array.isArray(payload)
-        ? payload
-        : Array.isArray(payload?.entries)
-        ? payload.entries
-        : [];
-      setTransactions(data);
-      setError("");
-      setSelectedRows(new Map());
-    } catch (err) {
-      if (err?.name === "AbortError") {
-        return;
+  const loadTransactions = useCallback(
+    async (signal) => {
+      setIsLoading(true);
+      try {
+      const query = new URLSearchParams();
+      const setParam = (key, value) => {
+        if (value !== undefined && value !== null && value !== "") {
+          query.set(key, String(value));
+        }
+      };
+      if (filters.yearEnabled && filters.year) {
+        setParam("actualYear", filters.year);
       }
-      console.error("[TransActual] Failed to load transactions:", err);
-      setError(err?.message ?? "Failed to load actual transactions");
-      setTransactions([]);
-    } finally {
-      setIsLoading(false);
-    }
-  }, []);
+      if (
+        filters.monthEnabled &&
+        filters.month !== undefined &&
+        filters.month !== null
+      ) {
+        setParam("month", filters.month + 1);
+      }
+      if (filters.accountEnabled && filters.account) {
+        setParam("account", filters.account);
+      }
+      if (filters.categoryEnabled && filters.category) {
+        setParam("category", filters.category);
+      }
+      if (filters.descriptionEnabled && filters.description) {
+        setParam("description", filters.description);
+      }
+      if (
+        filters.valueFromEnabled &&
+        typeof filters.valueFrom === "number" &&
+        Number.isFinite(filters.valueFrom)
+      ) {
+        setParam("valueFrom", filters.valueFrom);
+      }
+      if (
+        filters.valueToEnabled &&
+        typeof filters.valueTo === "number" &&
+        Number.isFinite(filters.valueTo)
+      ) {
+        setParam("valueTo", filters.valueTo);
+      }
+      const path = `/api/budget/actual-entries${
+        query.toString() ? `?${query.toString()}` : ""
+      }`;
+        const payload = await Rest.fetchJson(path, { signal });
+        const data = Array.isArray(payload)
+          ? payload
+          : Array.isArray(payload?.entries)
+          ? payload.entries
+          : [];
+        setTransactions(data);
+        setError("");
+        setSelectedRows(new Map());
+      } catch (err) {
+        if (err?.name === "AbortError") {
+          return;
+        }
+        console.error("[TransActual] Failed to load transactions:", err);
+        setError(err?.message ?? "Failed to load actual transactions");
+        setTransactions([]);
+      } finally {
+        setIsLoading(false);
+      }
+    },
+    [filters]
+  );
 
   useEffect(() => {
     const controller = new AbortController();
@@ -621,13 +668,19 @@ export default function TransActual() {
       valueFromEnabled &&
       typeof valueFrom === "number" &&
       Number.isFinite(valueFrom);
+    const descriptionText =
+      filters.descriptionEnabled && filters.description
+        ? filters.description.toString().trim().toLowerCase()
+        : "";
+    const hasDescriptionFilter =
+      typeof descriptionText === "string" && descriptionText.length > 0;
     const hasBaseToFilter =
       valueToEnabled && typeof valueTo === "number" && Number.isFinite(valueTo);
     const normalizedFromValue = hasBaseFromFilter ? valueFrom : 0;
     const normalizedToValue = hasBaseToFilter ? valueTo : 0;
 
-    return transactions.filter((entry) => {
-      const entryDate = parseEntryDate(entry);
+      return transactions.filter((entry) => {
+        const entryDate = parseEntryDate(entry);
       if (hasYearFilter) {
         const entryYear = entryDate ? entryDate.getUTCFullYear() : null;
         if (!entryDate || entryYear !== yearValue) {
@@ -655,6 +708,21 @@ export default function TransActual() {
           .trim()
           .toLowerCase();
         if (entryCategory !== normalizedCategory) {
+          return false;
+        }
+      }
+      if (hasDescriptionFilter) {
+        const entryDescription = (
+          entry?.Description1 ??
+          entry?.description1 ??
+          entry?.Description2 ??
+          entry?.description ??
+          ""
+        )
+          .toString()
+          .trim()
+          .toLowerCase();
+        if (!entryDescription.includes(descriptionText)) {
           return false;
         }
       }

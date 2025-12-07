@@ -14,6 +14,7 @@ import TransactionBudgetTable, {
 import Rest from "../js/rest.js";
 import "./PageLayout.css";
 
+// Field configuration for the edit modal
 const EDIT_FIELDS = [
   { key: "Date", label: "Date", type: "date" },
   { key: "Description1", label: "Description", type: "text" },
@@ -26,6 +27,43 @@ const EDIT_FIELDS = [
 const DEFAULT_SORT = { key: "Date", direction: "desc" };
 const SELECTION_COLUMN_KEY = "selected";
 
+/**
+ * Normalizes a list of string options, removing duplicates and invalid values.
+ * Optionally includes a fallback value if it doesn't already exist in the list.
+ * @param {Array} baseOptions - The original array of options
+ * @param {string} fallbackValue - Optional fallback value to include
+ * @returns {Array<string>} Normalized array of unique, valid string options
+ */
+const normalizeStringOptions = (baseOptions, fallbackValue = "") => {
+  const safeOptions = Array.isArray(baseOptions) ? baseOptions : [];
+  const seen = new Set();
+  const normalized = [];
+
+  for (const option of safeOptions) {
+    if (typeof option !== "string") {
+      continue;
+    }
+    if (!seen.has(option)) {
+      seen.add(option);
+      normalized.push(option);
+    }
+  }
+
+  if (fallbackValue && typeof fallbackValue === "string" && !seen.has(fallbackValue)) {
+    normalized.push(fallbackValue);
+  }
+
+  return normalized;
+};
+
+/**
+ * Extracts a sortable value from a transaction entry for a given field key.
+ * Handles special cases for selection state and date fields.
+ * @param {Object} entry - The transaction entry
+ * @param {string} key - The field key to extract
+ * @param {Object} meta - Metadata object containing isSelected flag
+ * @returns {number|string|null} The comparable sort value
+ */
 const getSortValue = (entry, key, meta = {}) => {
   if (!entry) {
     return null;
@@ -56,6 +94,11 @@ const getSortValue = (entry, key, meta = {}) => {
   return String(value).toLowerCase();
 };
 
+/**
+ * Parses a date from a transaction entry, handling both Date and date fields.
+ * @param {Object} entry - The transaction entry
+ * @returns {Date|null} Parsed date object or null if invalid
+ */
 const parseEntryDate = (entry) => {
   const rawDate = entry?.Date ?? entry?.date;
   if (!rawDate) {
@@ -65,12 +108,22 @@ const parseEntryDate = (entry) => {
   return Number.isFinite(parsed.getTime()) ? parsed : null;
 };
 
+/**
+ * Creates an object mapping each edit field key to an initial value.
+ * @param {*} initialValue - The value to assign to each field
+ * @returns {Object} Map of field keys to initial values
+ */
 const createEditFieldMap = (initialValue) =>
   EDIT_FIELDS.reduce((map, field) => {
     map[field.key] = initialValue;
     return map;
   }, {});
 
+/**
+ * Formats a date value to ISO format (YYYY-MM-DD) for date input fields.
+ * @param {Date|string} value - The date value to format
+ * @returns {string} ISO date string or empty string if invalid
+ */
 const formatIsoInputDate = (value) => {
   if (!value) {
     return "";
@@ -82,6 +135,13 @@ const formatIsoInputDate = (value) => {
   return parsed.toISOString().slice(0, 10);
 };
 
+/**
+ * Extracts a comparable field value from an entry for consensus checking.
+ * Dates are converted to ISO strings for comparison.
+ * @param {Object} entry - The transaction entry
+ * @param {string} fieldKey - The field key to extract
+ * @returns {*} The comparable value or null if not found
+ */
 const getComparableFieldValue = (entry, fieldKey) => {
   if (!entry) {
     return null;
@@ -97,6 +157,13 @@ const getComparableFieldValue = (entry, fieldKey) => {
   return value;
 };
 
+/**
+ * Determines if all entries have the same value for a given field (consensus).
+ * Returns the consensus value if all match, otherwise null.
+ * @param {Array<Object>} entries - Array of transaction entries
+ * @param {string} fieldKey - The field key to check
+ * @returns {*} The consensus value or null if values differ
+ */
 const getConsensusValue = (entries, fieldKey) => {
   if (!entries.length) {
     return null;
@@ -110,6 +177,12 @@ const getConsensusValue = (entries, fieldKey) => {
   return reference;
 };
 
+/**
+ * Formats a value for display in an edit form input field.
+ * @param {*} value - The value to format
+ * @param {string} fieldType - The field type (date, number, text)
+ * @returns {string} Formatted value for the input
+ */
 const formatEditInputValue = (value, fieldType) => {
   if (value === null || value === undefined) {
     return "";
@@ -123,6 +196,12 @@ const formatEditInputValue = (value, fieldType) => {
   return String(value);
 };
 
+/**
+ * Parses and validates a value from an edit form input.
+ * @param {*} rawValue - The raw input value
+ * @param {string} fieldType - The field type (date, number, text)
+ * @returns {{valid: boolean, parsed: *}} Object with validation status and parsed value
+ */
 const parseEditFormValue = (rawValue, fieldType) => {
   const normalized = rawValue?.toString().trim() ?? "";
   if (!normalized) {
@@ -145,6 +224,12 @@ const parseEditFormValue = (rawValue, fieldType) => {
   return { valid: true, parsed: normalized };
 };
 
+/**
+ * Deep equality comparison for filter objects.
+ * @param {Object} a - First filter object
+ * @param {Object} b - Second filter object
+ * @returns {boolean} True if filters are equal
+ */
 const filtersAreEqual = (a, b) => {
   if (!a || !b) {
     return false;
@@ -180,6 +265,17 @@ const DEFAULT_FILTERS = {
   valueTo: null,
 };
 
+/**
+ * TransBudget component manages the budget transaction page.
+ * Provides functionality to view, filter, edit, and delete budget transactions.
+ * Features include:
+ * - Loading and displaying budget transactions from the API
+ * - Filtering by year, month, account, category, and amount range
+ * - Sorting transactions by any column
+ * - Multi-select for bulk editing and deletion
+ * - Edit modal with automatic base currency conversion
+ * - Delete confirmation modal
+ */
 export default function TransBudget() {
   const [transactions, setTransactions] = useState([]);
   const [isLoading, setIsLoading] = useState(false);
@@ -208,54 +304,17 @@ export default function TransBudget() {
   const currencyOptions = useTransactionBudgetCurrencyOptions();
   const budgetRates = useTransactionBudgetExchangeRates();
 
-  const safeCategoryOptions = useMemo(() => {
-    const baseOptions = Array.isArray(categoryOptions) ? categoryOptions : [];
-    const seen = new Set();
-    const normalized = [];
-    for (const option of baseOptions) {
-      if (typeof option !== "string") {
-        continue;
-      }
-      if (!seen.has(option)) {
-        seen.add(option);
-        normalized.push(option);
-      }
-    }
-    const fallbackCategory = editFormValues.Category ?? "";
-    if (
-      fallbackCategory &&
-      typeof fallbackCategory === "string" &&
-      !seen.has(fallbackCategory)
-    ) {
-      normalized.push(fallbackCategory);
-    }
-    return normalized;
-  }, [categoryOptions, editFormValues.Category]);
+  const safeCategoryOptions = useMemo(
+    () => normalizeStringOptions(categoryOptions, editFormValues.Category ?? ""),
+    [categoryOptions, editFormValues.Category]
+  );
 
-  const safeAccountOptions = useMemo(() => {
-    const baseOptions = Array.isArray(accountOptions) ? accountOptions : [];
-    const seen = new Set();
-    const normalized = [];
-    for (const option of baseOptions) {
-      if (typeof option !== "string") {
-        continue;
-      }
-      if (!seen.has(option)) {
-        seen.add(option);
-        normalized.push(option);
-      }
-    }
-    const fallbackAccount = editFormValues.Account ?? "";
-    if (
-      fallbackAccount &&
-      typeof fallbackAccount === "string" &&
-      !seen.has(fallbackAccount)
-    ) {
-      normalized.push(fallbackAccount);
-    }
-    return normalized;
-  }, [accountOptions, editFormValues.Account]);
+  const safeAccountOptions = useMemo(
+    () => normalizeStringOptions(accountOptions, editFormValues.Account ?? ""),
+    [accountOptions, editFormValues.Account]
+  );
 
+  // Currency options normalized with case-insensitive deduplication
   const safeCurrencyOptions = useMemo(() => {
     const baseOptions = Array.isArray(currencyOptions) ? currencyOptions : [];
     const normalized = new Map();
@@ -285,6 +344,11 @@ export default function TransBudget() {
     return Array.from(normalized.values());
   }, [currencyOptions, editFormValues.Currency]);
 
+  /**
+   * Loads budget transactions from the API.
+   * Clears selection state after loading.
+   * @param {AbortSignal} signal - Abort signal for cancelling the request
+   */
   const loadTransactions = useCallback(async (signal) => {
     setIsLoading(true);
     try {
@@ -305,6 +369,7 @@ export default function TransBudget() {
     }
   }, []);
 
+  // Load transactions on mount with cleanup on unmount
   useEffect(() => {
     const controller = new AbortController();
     loadTransactions(controller.signal);
@@ -313,6 +378,9 @@ export default function TransBudget() {
     };
   }, [loadTransactions]);
 
+  /**
+   * Updates filter state, avoiding unnecessary re-renders with equality check.
+   */
   const handleFilterChange = useCallback((nextFilters) => {
     if (!nextFilters) {
       return;
@@ -325,6 +393,10 @@ export default function TransBudget() {
     });
   }, []);
 
+  /**
+   * Opens the edit modal with consensus values from selected transactions.
+   * Fields where all selected rows have the same value are pre-filled.
+   */
   const handleEditRequest = useCallback(() => {
     if (!selectedRows.size) {
       return;
@@ -365,6 +437,12 @@ export default function TransBudget() {
       field.key !== "Category"
   );
 
+  /**
+   * Renders an edit form field (input, select, or date selector).
+   * @param {Object} field - Field configuration object
+   * @param {string} extraClass - Additional CSS class name
+   * @returns {JSX.Element|null} Rendered field element
+   */
   const renderEditField = (field, extraClass = "") => {
     if (!field) {
       return null;
@@ -453,6 +531,7 @@ export default function TransBudget() {
   const amountInputValue = editFormValues.Amount;
   const currencyInputValue = editFormValues.Currency;
 
+  // Automatically recalculate base amount when amount or currency changes
   useEffect(() => {
     const derivedBaseAmount = computeTransactionBudgetBaseAmount(
       amountInputValue,
@@ -471,6 +550,12 @@ export default function TransBudget() {
     });
   }, [amountInputValue, currencyInputValue, budgetRates]);
 
+  /**
+   * Builds the API payload for updating selected transactions.
+   * Only includes fields that were touched or had consensus values.
+   * Recalculates base amount if amount or currency changed.
+   * @returns {{payload: Object|null, error: string|null}}
+   */
   const buildEditPayload = () => {
     const payload = {};
     for (const field of EDIT_FIELDS) {
@@ -515,6 +600,9 @@ export default function TransBudget() {
     return { payload, error: null };
   };
 
+  /**
+   * Closes the edit modal, clearing any errors.
+   */
   const handleEditCancel = () => {
     if (isEditing) {
       return;
@@ -523,6 +611,10 @@ export default function TransBudget() {
     setEditError("");
   };
 
+  /**
+   * Submits edit form data to update all selected transactions.
+   * Validates payload, sends PATCH requests, and reloads data on success.
+   */
   const handleEditSubmit = async (event) => {
     event.preventDefault();
     if (!selectedRows.size) {
@@ -570,11 +662,8 @@ export default function TransBudget() {
     }
   };
 
-  const normalizedTransactions = useMemo(() => {
-    if (!transactions.length) {
-      return [];
-    }
-
+  // Memoize parsed filter values to avoid recalculating on every render
+  const parsedFilters = useMemo(() => {
     const {
       yearEnabled,
       monthEnabled,
@@ -616,6 +705,43 @@ export default function TransBudget() {
       valueToEnabled && typeof valueTo === "number" && Number.isFinite(valueTo);
     const normalizedFromValue = hasBaseFromFilter ? valueFrom : 0;
     const normalizedToValue = hasBaseToFilter ? valueTo : 0;
+
+    return {
+      yearValue,
+      hasYearFilter,
+      monthValue,
+      hasMonthFilter,
+      normalizedAccount,
+      hasAccountFilter,
+      normalizedCategory,
+      hasCategoryFilter,
+      hasBaseFromFilter,
+      hasBaseToFilter,
+      normalizedFromValue,
+      normalizedToValue,
+    };
+  }, [filters]);
+
+  // Apply all active filters to the transaction list
+  const normalizedTransactions = useMemo(() => {
+    if (!transactions.length) {
+      return [];
+    }
+
+    const {
+      yearValue,
+      hasYearFilter,
+      monthValue,
+      hasMonthFilter,
+      normalizedAccount,
+      hasAccountFilter,
+      normalizedCategory,
+      hasCategoryFilter,
+      hasBaseFromFilter,
+      hasBaseToFilter,
+      normalizedFromValue,
+      normalizedToValue,
+    } = parsedFilters;
 
     return transactions.filter((entry) => {
       const entryDate = parseEntryDate(entry);
@@ -668,8 +794,9 @@ export default function TransBudget() {
       }
       return true;
     });
-  }, [transactions, filters]);
+  }, [transactions, parsedFilters]);
 
+  // Sort filtered transactions based on current sort configuration
   const sortedTransactions = useMemo(() => {
     const entries = normalizedTransactions.map((entry, index) => {
       const rowId = entry._id ?? `${entry.Date ?? ""}-${index}`;
@@ -713,6 +840,9 @@ export default function TransBudget() {
     sortedTransactions.length > 0 &&
     selectedRows.size === sortedTransactions.length;
 
+  /**
+   * Toggles selection of all visible transactions.
+   */
   const handleSelectAllToggle = useCallback(() => {
     if (isAllSelected) {
       setSelectedRows(new Map());
@@ -725,6 +855,9 @@ export default function TransBudget() {
     setSelectedRows(nextSelection);
   }, [sortedTransactions, isAllSelected]);
 
+  /**
+   * Opens the delete confirmation modal.
+   */
   const handleDeleteRequest = () => {
     if (!selectedRows.size) {
       return;
@@ -733,6 +866,9 @@ export default function TransBudget() {
     setShowDeleteConfirmation(true);
   };
 
+  /**
+   * Closes the delete confirmation modal.
+   */
   const handleDeleteCancel = () => {
     if (isDeleting) {
       return;
@@ -741,6 +877,10 @@ export default function TransBudget() {
     setShowDeleteConfirmation(false);
   };
 
+  /**
+   * Deletes all selected transactions via API DELETE requests.
+   * Reloads data on success.
+   */
   const handleConfirmDelete = async () => {
     const ids = Array.from(selectedRows.values())
       .map((entry) => entry?._id)
@@ -777,6 +917,9 @@ export default function TransBudget() {
     }
   };
 
+  /**
+   * Updates sort configuration. Toggles direction if same key, otherwise defaults to descending.
+   */
   const handleSort = (key) => {
     setSortConfig((previous) => {
       if (previous.key === key) {
@@ -787,6 +930,9 @@ export default function TransBudget() {
     });
   };
 
+  /**
+   * Toggles selection state for a single row.
+   */
   const toggleRowSelection = useCallback((rowId, entry) => {
     setSelectedRows((previous) => {
       const next = new Map(previous);

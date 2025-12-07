@@ -41,16 +41,21 @@ export default function TransactionActualFilter({
   const [valueToEnabled, setValueToEnabled] = useState(false);
   const [valueFrom, setValueFrom] = useState("");
   const [valueTo, setValueTo] = useState("");
-  const [yearEnabled, setYearEnabled] = useState(false);
-  const [monthEnabled, setMonthEnabled] = useState(false);
   const [accountEnabled, setAccountEnabled] = useState(false);
   const [categoryEnabled, setCategoryEnabled] = useState(false);
+  const [descriptionEnabled, setDescriptionEnabled] = useState(false);
+  const [descriptionValue, setDescriptionValue] = useState("");
+  const currentMonthIndex = new Date().getMonth();
+  const defaultMonth =
+    MONTH_OPTIONS[currentMonthIndex] ?? MONTH_OPTIONS[0] ?? "";
   const [selectedYear, setSelectedYear] = useState(() =>
     YEAR_OPTIONS.includes(DEFAULT_YEAR)
       ? DEFAULT_YEAR
       : YEAR_OPTIONS[0] ?? ""
   );
-  const [selectedMonth, setSelectedMonth] = useState(MONTH_OPTIONS[0] ?? "");
+  const [selectedMonth, setSelectedMonth] = useState(defaultMonth);
+  const yearEnabled = true;
+  const [monthEnabled, setMonthEnabled] = useState(true);
   const [selectedAccount, setSelectedAccount] = useState("");
   const [selectedCategory, setSelectedCategory] = useState("");
 
@@ -77,6 +82,8 @@ export default function TransactionActualFilter({
       account: selectedAccount,
       categoryEnabled,
       category: selectedCategory,
+      descriptionEnabled,
+      description: descriptionValue,
       valueFromEnabled,
       valueFrom: normalizedValueFrom,
       valueToEnabled,
@@ -85,7 +92,6 @@ export default function TransactionActualFilter({
   }, [
     accountEnabled,
     categoryEnabled,
-    monthEnabled,
     selectedAccount,
     selectedCategory,
     selectedMonth,
@@ -94,7 +100,10 @@ export default function TransactionActualFilter({
     valueFromEnabled,
     valueTo,
     valueToEnabled,
+    descriptionEnabled,
+    descriptionValue,
     yearEnabled,
+    monthEnabled,
     onFiltersChange,
   ]);
 
@@ -148,19 +157,10 @@ export default function TransactionActualFilter({
     <section className="section-filters" aria-label="Actual filters">
       <div className="filters-grid">
         <label className="filter-field">
-          <span className="filter-with-checkbox">
-            <input
-              type="checkbox"
-              aria-label="Enable year filter"
-              checked={yearEnabled}
-              onChange={(event) => setYearEnabled(event.target.checked)}
-            />
-            Year
-          </span>
+          <span>Year</span>
           <select
             className="form-input"
             name="year"
-            disabled={!yearEnabled}
             value={selectedYear}
             onChange={(event) => setSelectedYear(event.target.value)}
           >
@@ -184,8 +184,8 @@ export default function TransactionActualFilter({
           <select
             className="form-input"
             name="month"
-            disabled={!monthEnabled}
             value={selectedMonth}
+            disabled={!monthEnabled}
             onChange={(event) => setSelectedMonth(event.target.value)}
           >
             {MONTH_OPTIONS.map((month) => (
@@ -254,6 +254,28 @@ export default function TransactionActualFilter({
               </option>
             )}
           </select>
+        </label>
+        <label className="filter-field">
+          <span className="filter-with-checkbox">
+            <input
+              type="checkbox"
+              aria-label="Enable description search"
+              checked={descriptionEnabled}
+              onChange={(event) =>
+                setDescriptionEnabled(event.target.checked)
+              }
+            />
+            Description
+          </span>
+          <input
+            className="form-input"
+            type="text"
+            name="description"
+            placeholder="Search description"
+            value={descriptionValue}
+            disabled={!descriptionEnabled}
+            onChange={(event) => setDescriptionValue(event.target.value)}
+          />
         </label>
       </div>
       <div className="range-inputs">

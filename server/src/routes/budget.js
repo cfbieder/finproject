@@ -135,6 +135,13 @@ const parseNumberValue = (value) => {
   return Number.isFinite(parsed) ? parsed : null;
 };
 
+const escapeForRegex = (value) => {
+  if (typeof value !== "string") {
+    return "";
+  }
+  return value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+};
+
 const normalizeText = (value) => {
   if (value === undefined || value === null) {
     return null;
@@ -683,11 +690,37 @@ router.get("/actual-entries", async (req, res) => {
 
   try {
     const { start, end } = buildDateRange(actualYear, fromMonth, toMonth);
+    const descriptionFilter = (
+      typeof req.query.description === "string" ? req.query.description.trim() : ""
+    ).toLowerCase();
+    const valueFromFilter = parseNumberValue(req.query.valueFrom);
+    const valueToFilter = parseNumberValue(req.query.valueTo);
     const match = {
       Date: { $gte: start, $lt: end },
       ...categoryMatch,
       ...accountMatch,
     };
+
+    if (descriptionFilter) {
+      const regex = new RegExp(escapeForRegex(descriptionFilter), "i");
+      match.$or = [
+        { Description1: { $regex: regex } },
+        { Description2: { $regex: regex } },
+      ];
+    }
+
+    if (Number.isFinite(valueFromFilter) || Number.isFinite(valueToFilter)) {
+      const baseMatch = {};
+      if (Number.isFinite(valueFromFilter)) {
+        baseMatch.$gte = valueFromFilter;
+      }
+      if (Number.isFinite(valueToFilter)) {
+        baseMatch.$lte = valueToFilter;
+      }
+      if (Object.keys(baseMatch).length) {
+        match.BaseAmount = baseMatch;
+      }
+    }
 
     const limit = resolveLimit(req.query.limit);
     const entries = await PSdata.find(match)
