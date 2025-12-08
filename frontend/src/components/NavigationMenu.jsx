@@ -14,7 +14,7 @@ const menuItems = [
     label: "Budgeting",
     submenu: [
       { label: "Budget Worksheet", path: "/budget-worksheet" },
-      { label: "Budget Options", path: "/budget-options" },
+      { label: "Budget Realization", path: "/budget-realization" },
     ],
   },
   {
@@ -23,7 +23,6 @@ const menuItems = [
       { label: "Balance Summary", path: "/balance" },
       { label: "Cash Flow Summary", path: "/cash-flow" },
       { label: "Cash Flow Monthly", path: "/cash-flow-monthly" },
-      { label: "Budget Realization", path: "/budget-realization" },
     ],
   },
   {
@@ -41,7 +40,10 @@ const menuItems = [
       { label: "Budget", path: "/trans-budget" },
     ],
   },
-  { label: "Settings" },
+  {
+    label: "Settings",
+    submenu: [{ label: "FX Options", path: "/fx-options" }],
+  },
   { label: "Help" },
 ];
 

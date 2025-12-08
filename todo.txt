@@ -1,0 +1,2 @@
+Add option to update budget FX rates on transactions page
+Develop FC model

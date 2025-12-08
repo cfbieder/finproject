@@ -2,7 +2,7 @@ import { BrowserRouter, Routes, Route } from "react-router-dom";
 import Balance from "./pages/Balance.jsx";
 import BalanceChart from "./pages/BalanceChart.jsx";
 import BudgetInput from "./pages/BudgetInput.jsx";
-import BudgetOptions from "./pages/BudgetOptions.jsx";
+import FXOptions from "./pages/FXOptions.jsx";
 import CashFlow from "./pages/CashFlow.jsx";
 import CashFlowMonthly from "./pages/CashFlowMonthly.jsx";
 import BudgetRealization from "./pages/BudgetRealization.jsx";
@@ -26,7 +26,7 @@ function App() {
         <Route path="/history" element={<History />} />
         <Route path="/balance-chart" element={<BalanceChart />} />
         <Route path="/budget-worksheet" element={<BudgetInput />} />
-        <Route path="/budget-options" element={<BudgetOptions />} />
+        <Route path="/fx-options" element={<FXOptions />} />
         <Route path="/budget-realization" element={<BudgetRealization />} />
         <Route path="/trans-actual" element={<TransActual />} />
         <Route path="/trans-budget" element={<TransBudget />} />
