@@ -1,10 +1,17 @@
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import BalanceDateSelector from "../features/Balances/BalanceDateSelector.jsx";
 import BalanceReport from "../features/Balances/BalanceReport.jsx";
 import NavigationMenu from "../components/NavigationMenu.jsx";
 import Rest from "../js/rest.js";
 import "./PageLayout.css";
 
+/**
+ * Recursively collects paths to all accounts that have children (collapsible nodes).
+ * @param {Array} accounts - Array of account objects with potential children
+ * @param {Array} path - Current path being traversed
+ * @param {Set} result - Accumulated set of collapsible path keys
+ * @returns {Set} Set of path strings in format "parent>child>grandchild"
+ */
 const collectCollapsiblePaths = (accounts, path = [], result = new Set()) => {
   if (!Array.isArray(accounts)) {
     return result;
@@ -42,21 +49,27 @@ export default function Balance() {
   const [reportError, setReportError] = useState("");
   const [isFetchingReport, setIsFetchingReport] = useState(false);
   const [collapsedPaths, setCollapsedPaths] = useState(() => new Set());
+  // Prevents duplicate API calls on mount
   const initialReportRequested = useRef(false);
 
-  const handlePeriodDateChange = (index, value) => {
+  // Normalize period count to valid range (1-3)
+  const activePeriodCount = useMemo(
+    () => Math.min(Math.max(periodCount ?? 1, 1), 3),
+    [periodCount]
+  );
+
+  const handlePeriodDateChange = useCallback((index, value) => {
     setPeriodDates((prev) => {
       const next = [...prev];
       next[index] = value;
       return next;
     });
-  };
+  }, []);
 
-  const handleGenerateReport = async () => {
+  const handleGenerateReport = useCallback(async () => {
     setReportError("");
     setIsFetchingReport(true);
-    const activeCount = Math.min(Math.max(periodCount ?? 1, 1), 3);
-    const activeDates = periodDates.slice(0, activeCount);
+    const activeDates = periodDates.slice(0, activePeriodCount);
     try {
       const reports = await Promise.all(
         activeDates.map((date) => Rest.fetchBalanceReport(date))
@@ -70,8 +83,9 @@ export default function Balance() {
     } finally {
       setIsFetchingReport(false);
     }
-  };
+  }, [periodDates, activePeriodCount]);
 
+  // Fetch initial report on mount
   useEffect(() => {
     if (initialReportRequested.current) {
       return;
@@ -81,7 +95,7 @@ export default function Balance() {
     handleGenerateReport();
   }, [handleGenerateReport]);
 
-  const handleTogglePath = (pathKey) => {
+  const handleTogglePath = useCallback((pathKey) => {
     setCollapsedPaths((prev) => {
       const next = new Set(prev);
       if (next.has(pathKey)) {
@@ -91,13 +105,18 @@ export default function Balance() {
       }
       return next;
     });
-  };
+  }, []);
 
-  const collapsiblePaths = collectCollapsiblePaths(balanceReports?.[0]);
+  // Memoize collapsible paths calculation to avoid recalculating on every render
+  const collapsiblePaths = useMemo(
+    () => collectCollapsiblePaths(balanceReports?.[0]),
+    [balanceReports]
+  );
+
   const isFullyCollapsed =
     collapsiblePaths.size > 0 && collapsedPaths.size === collapsiblePaths.size;
 
-  const handleToggleCollapseAll = () => {
+  const handleToggleCollapseAll = useCallback(() => {
     if (collapsiblePaths.size === 0) {
       return;
     }
@@ -108,9 +127,8 @@ export default function Balance() {
       }
       return new Set(collapsiblePaths);
     });
-  };
+  }, [collapsiblePaths]);
 
-  const activePeriodCount = Math.min(Math.max(periodCount ?? 1, 1), 3);
   const hasLoadedReport = balanceReports.length > 0;
 
   return (

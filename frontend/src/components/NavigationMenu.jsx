@@ -20,7 +20,7 @@ const menuItems = [
   {
     label: "Forecasting",
     submenu: [
-      { label: "Forecast Expenditures Setup", path: "/forecast-setup-epx" },
+      { label: "Forecast Expenditures Setup", path: "/forecast-setup-exp" },
       { label: "Forecast Results", path: "/forecast-results" },
     ],
   },

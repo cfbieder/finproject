@@ -1,4 +1,6 @@
 const express = require("express");
+const fs = require("fs");
+const path = require("path");
 const {
   COMPONENTS_DATA_DIR,
   TEMP_DIR,
@@ -11,6 +13,8 @@ const { getExchangeRate } = require("../utils/frankfurterExchangeRates");
 const PSdata = require("../../../components/models/PSdata");
 
 const router = express.Router();
+
+const FC_SETUP_PATH = path.join(COMPONENTS_DATA_DIR, "fc_setup.json");
 
 const buildDataPathsSummary = () => {
   ensureComponentsDataDir();
@@ -131,6 +135,71 @@ router.post("/ensure-temp-dir", (req, res) => {
     console.error("[UTIL] Failed to ensure temp directory:", error);
     return res.status(500).json({
       error: "Failed to ensure temporary directory",
+    });
+  }
+});
+
+router.post("/fc-setup/periods", (req, res) => {
+  const requestedPeriods = Array.isArray(req.body?.periods)
+    ? req.body.periods
+    : [];
+
+  const normalized = requestedPeriods
+    .map((period) => {
+      if (!period || typeof period !== "object") {
+        return null;
+      }
+      const key =
+        typeof period.key === "string" && period.key.trim().length > 0
+          ? period.key.trim()
+          : null;
+      if (!key) {
+        return null;
+      }
+
+      const rawType =
+        typeof period.type === "string" ? period.type.trim().toUpperCase() : "";
+      const type = ["B", "F", "A"].includes(rawType) ? rawType : "";
+
+      return { [key]: type };
+    })
+    .filter(Boolean);
+
+  if (!normalized.length) {
+    return res.status(400).json({
+      error: "No valid periods provided to save",
+    });
+  }
+
+  try {
+    ensureComponentsDataDir();
+
+    let fcSetup = {};
+    if (fs.existsSync(FC_SETUP_PATH)) {
+      try {
+        const existing = fs.readFileSync(FC_SETUP_PATH, "utf8");
+        fcSetup = JSON.parse(existing);
+      } catch (error) {
+        console.warn(
+          "[FC-SETUP] Failed to parse existing fc_setup.json, rebuilding",
+          error
+        );
+        fcSetup = {};
+      }
+    }
+
+    fcSetup.periods_used = normalized;
+
+    fs.writeFileSync(FC_SETUP_PATH, JSON.stringify(fcSetup, null, 2));
+
+    return res.json({
+      periodsUpdated: normalized.length,
+      path: FC_SETUP_PATH,
+    });
+  } catch (error) {
+    console.error("[FC-SETUP] Failed to persist periods:", error);
+    return res.status(500).json({
+      error: "Unable to save period changes",
     });
   }
 });

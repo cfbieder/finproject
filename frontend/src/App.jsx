@@ -31,7 +31,7 @@ function App() {
         <Route path="/budget-realization" element={<BudgetRealization />} />
         <Route path="/trans-actual" element={<TransActual />} />
         <Route path="/trans-budget" element={<TransBudget />} />
-        <Route path="/forecast-setup-epx" element={<FCExpSetup />} />
+        <Route path="/forecast-setup-exp" element={<FCExpSetup />} />
       </Routes>
     </BrowserRouter>
   );

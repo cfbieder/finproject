@@ -1,10 +1,19 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import BalanceChartPanel from "../features/Charts/BalanceChartPanel.jsx";
 import CashFlowDateSelectorMonthYearOneP from "../features/Charts/BalanceChartDateSelectorMonthYear.jsx";
 import NavigationMenu from "../components/NavigationMenu.jsx";
 import Rest from "../js/rest.js";
 import "./PageLayout.css";
 
+/**
+ * Recursively collects paths to all collapsible account nodes in the account tree.
+ * A node is collapsible if it has children.
+ *
+ * @param {Array} accounts - Array of account objects with name and optional children
+ * @param {Array<string>} path - Current path in the tree (for recursion)
+ * @param {Set<string>} result - Accumulator for collapsible paths
+ * @returns {Set<string>} Set of path strings in format "parent>child>grandchild"
+ */
 const collectCollapsiblePaths = (accounts, path = [], result = new Set()) => {
   if (!Array.isArray(accounts)) {
     return result;
@@ -27,6 +36,12 @@ const collectCollapsiblePaths = (accounts, path = [], result = new Set()) => {
   return result;
 };
 
+/**
+ * Converts an ISO date string to a UTC Date object with time set to midnight.
+ *
+ * @param {string} isoDate - ISO format date string (YYYY-MM-DD)
+ * @returns {Date|null} UTC Date object at midnight, or null if invalid
+ */
 const toUtcDate = (isoDate) => {
   if (typeof isoDate !== "string") {
     return null;
@@ -40,6 +55,12 @@ const toUtcDate = (isoDate) => {
   );
 };
 
+/**
+ * Gets the last day of the month for a given date in ISO format.
+ *
+ * @param {Date} date - Date object
+ * @returns {string} ISO date string (YYYY-MM-DD) for the last day of the month, or empty string if invalid
+ */
 const getMonthEndIso = (date) => {
   if (!(date instanceof Date) || Number.isNaN(date.getTime())) {
     return "";
@@ -50,6 +71,14 @@ const getMonthEndIso = (date) => {
   return monthEnd.toISOString().split("T")[0];
 };
 
+/**
+ * Builds an array of month-end dates between start and end dates.
+ *
+ * @param {string} startIso - Start date in ISO format (YYYY-MM-DD)
+ * @param {string} endIso - End date in ISO format (YYYY-MM-DD)
+ * @param {number} limit - Maximum number of periods to generate (default: unlimited)
+ * @returns {Array<string>} Array of ISO date strings representing month-end dates
+ */
 const buildMonthlySeries = (
   startIso,
   endIso,
@@ -76,17 +105,38 @@ const buildMonthlySeries = (
   return series;
 };
 
+/**
+ * Ensures a value is a finite number, returning 0 for invalid values.
+ *
+ * @param {*} value - Value to validate
+ * @returns {number} The value if it's a finite number, otherwise 0
+ */
 const ensureNumber = (value) => (Number.isFinite(value) ? value : 0);
 
+/**
+ * Number formatter for currency display in charts (no decimal places).
+ */
 const chartCurrencyFormatter = new Intl.NumberFormat("en-US", {
   style: "currency",
   currency: "USD",
   maximumFractionDigits: 0,
 });
 
+/**
+ * Formats a numeric value as USD currency with no decimal places.
+ *
+ * @param {number} value - Numeric value to format
+ * @returns {string} Formatted currency string (e.g., "$1,234")
+ */
 const formatCurrencyShort = (value) =>
   chartCurrencyFormatter.format(ensureNumber(value));
 
+/**
+ * Formats an ISO date string as a short month-year label.
+ *
+ * @param {string} isoDate - ISO format date string (YYYY-MM-DD)
+ * @returns {string} Formatted label (e.g., "Jan 2024") or original string if invalid
+ */
 const formatMonthYearLabel = (isoDate) => {
   if (!isoDate) {
     return "";
@@ -103,6 +153,12 @@ const formatMonthYearLabel = (isoDate) => {
   });
 };
 
+/**
+ * Formats numeric values for chart axis labels with K/M suffixes for large numbers.
+ *
+ * @param {number} value - Numeric value to format
+ * @returns {string} Formatted label (e.g., "1.5M", "250k", "1,234")
+ */
 const formatAxisLabel = (value) => {
   const normalized = ensureNumber(value);
   const absValue = Math.abs(normalized);
@@ -125,6 +181,12 @@ const formatAxisLabel = (value) => {
   });
 };
 
+/**
+ * Extracts and sums asset and liability totals from a balance report.
+ *
+ * @param {Array} report - Array of account nodes with name and totalUSD properties
+ * @returns {{assets: number, liabilities: number}} Object with total assets and liabilities
+ */
 const getBalanceTotals = (report) => {
   if (!Array.isArray(report)) {
     return { assets: 0, liabilities: 0 };
@@ -148,6 +210,13 @@ const getBalanceTotals = (report) => {
   return { assets, liabilities };
 };
 
+/**
+ * Builds chart data points from multiple balance reports and their corresponding date labels.
+ *
+ * @param {Array} reports - Array of balance reports
+ * @param {Array<string>} labels - Array of date labels in ISO format
+ * @returns {Array<{date: string, label: string, assets: number, liabilities: number, net: number}>} Chart data points
+ */
 const buildChartPoints = (reports, labels) => {
   if (!Array.isArray(reports) || !Array.isArray(labels)) {
     return [];
@@ -174,29 +243,38 @@ const buildChartPoints = (reports, labels) => {
   return points;
 };
 
+/**
+ * Gets the first day of the current year in ISO format.
+ * @returns {string} ISO date string for January 1st of current year
+ */
+const getYearStart = () => {
+  const today = new Date();
+  const januaryUtc = new Date(Date.UTC(today.getUTCFullYear(), 0, 1));
+  return januaryUtc.toISOString().split("T")[0];
+};
+
+/**
+ * Gets the last day of the current month in ISO format.
+ * @returns {string} ISO date string for the last day of current month
+ */
+const getMonthEnd = () => {
+  const today = new Date();
+  const lastOfMonthUtc = new Date(
+    Date.UTC(today.getUTCFullYear(), today.getUTCMonth() + 1, 0)
+  );
+  return lastOfMonthUtc.toISOString().split("T")[0];
+};
+
+/**
+ * Balance Chart Component
+ *
+ * Displays a visual chart of balance trends over time, showing assets, liabilities,
+ * and net worth across multiple periods. Includes interactive date selection and
+ * collapsible account hierarchy views.
+ */
 export default function Balance() {
-  const getYearStart = () => {
-    const today = new Date();
-    const januaryUtc = new Date(Date.UTC(today.getUTCFullYear(), 0, 1));
-    return januaryUtc.toISOString().split("T")[0];
-  };
-
-  const getMonthEnd = () => {
-    const today = new Date();
-    const lastOfMonthUtc = new Date(
-      Date.UTC(today.getUTCFullYear(), today.getUTCMonth() + 1, 0)
-    );
-    return lastOfMonthUtc.toISOString().split("T")[0];
-  };
-
-  const [fromDates, setFromDates] = useState(() => {
-    const start = getYearStart();
-    return [start];
-  });
-  const [toDates, setToDates] = useState(() => {
-    const end = getMonthEnd();
-    return [end];
-  });
+  const [fromDates, setFromDates] = useState(() => [getYearStart()]);
+  const [toDates, setToDates] = useState(() => [getMonthEnd()]);
   const [periodCount, setPeriodCount] = useState(1);
   const [balanceReports, setBalanceReports] = useState([]);
   const [reportError, setReportError] = useState("");
@@ -207,23 +285,37 @@ export default function Balance() {
   const [tooltip, setTooltip] = useState(null);
   const chartRef = useRef(null);
 
-  const handleFromDateChange = (index, value) => {
+  /**
+   * Updates the "from" date for a specific period.
+   * @param {number} index - Index of the period to update
+   * @param {string} value - New ISO date string
+   */
+  const handleFromDateChange = useCallback((index, value) => {
     setFromDates((prev) => {
       const next = [...prev];
       next[index] = value;
       return next;
     });
-  };
+  }, []);
 
-  const handleToDateChange = (index, value) => {
+  /**
+   * Updates the "to" date for a specific period.
+   * @param {number} index - Index of the period to update
+   * @param {string} value - New ISO date string
+   */
+  const handleToDateChange = useCallback((index, value) => {
     setToDates((prev) => {
       const next = [...prev];
       next[index] = value;
       return next;
     });
-  };
+  }, []);
 
-  const handleGenerateReport = async () => {
+  /**
+   * Fetches balance reports for selected periods and chart data for monthly series.
+   * Runs in parallel to optimize loading time.
+   */
+  const handleGenerateReport = useCallback(async () => {
     setReportError("");
     setIsFetchingReport(true);
     const activeCount = Math.min(Math.max(periodCount ?? 1, 1), 3);
@@ -246,13 +338,19 @@ export default function Balance() {
     } finally {
       setIsFetchingReport(false);
     }
-  };
+  }, [periodCount, fromDates, toDates]);
 
   useEffect(() => {
     handleGenerateReport();
-  }, []);
+  }, [handleGenerateReport]);
 
-  const handleBarMouseMove = (event, point, index) => {
+  /**
+   * Handles mouse movement over chart bars to show tooltip.
+   * @param {MouseEvent} event - Mouse event
+   * @param {Object} point - Data point for the bar
+   * @param {number} index - Index of the data point
+   */
+  const handleBarMouseMove = useCallback((event, point, index) => {
     const rect = chartRef.current?.getBoundingClientRect();
     if (!rect) {
       return;
@@ -265,13 +363,20 @@ export default function Balance() {
       assets: ensureNumber(point.assets),
       liabilities: ensureNumber(point.liabilities),
     });
-  };
+  }, []);
 
-  const handleBarMouseLeave = () => {
+  /**
+   * Hides the tooltip when mouse leaves a chart bar.
+   */
+  const handleBarMouseLeave = useCallback(() => {
     setTooltip(null);
-  };
+  }, []);
 
-  const handleTogglePath = (pathKey) => {
+  /**
+   * Toggles the collapsed state of an account path in the hierarchy view.
+   * @param {string} pathKey - Path identifier in format "parent>child>grandchild"
+   */
+  const handleTogglePath = useCallback((pathKey) => {
     setCollapsedPaths((prev) => {
       const next = new Set(prev);
       if (next.has(pathKey)) {
@@ -281,13 +386,21 @@ export default function Balance() {
       }
       return next;
     });
-  };
+  }, []);
 
-  const collapsiblePaths = collectCollapsiblePaths(balanceReports?.[0]);
-  const isFullyCollapsed =
-    collapsiblePaths.size > 0 && collapsedPaths.size === collapsiblePaths.size;
+  const collapsiblePaths = useMemo(
+    () => collectCollapsiblePaths(balanceReports?.[0]),
+    [balanceReports]
+  );
+  const isFullyCollapsed = useMemo(
+    () => collapsiblePaths.size > 0 && collapsedPaths.size === collapsiblePaths.size,
+    [collapsiblePaths, collapsedPaths]
+  );
 
-  const handleToggleCollapseAll = () => {
+  /**
+   * Toggles all collapsible paths between fully collapsed and fully expanded.
+   */
+  const handleToggleCollapseAll = useCallback(() => {
     if (collapsiblePaths.size === 0) {
       return;
     }
@@ -298,21 +411,39 @@ export default function Balance() {
       }
       return new Set(collapsiblePaths);
     });
-  };
+  }, [collapsiblePaths]);
 
-  const activePeriodCount = Math.min(Math.max(periodCount ?? 1, 1), 3);
+  const activePeriodCount = useMemo(
+    () => Math.min(Math.max(periodCount ?? 1, 1), 3),
+    [periodCount]
+  );
+
   const chartPoints = useMemo(
     () => buildChartPoints(chartReports, chartPeriodDates),
     [chartReports, chartPeriodDates]
   );
+
   const hasChartData = chartPoints.length > 0;
-  const latestPoint = chartPoints[chartPoints.length - 1];
+  const latestPoint = useMemo(
+    () => chartPoints[chartPoints.length - 1],
+    [chartPoints]
+  );
   const latestNet = ensureNumber(latestPoint?.net);
-  const chartRangeSummary = hasChartData
-    ? `From ${chartPoints[0].label} to ${
-        latestPoint?.label ?? latestPoint?.date ?? ""
-      }`
-    : "Select a range and generate a report to visualize net assets for each month.";
+
+  const chartRangeSummary = useMemo(
+    () =>
+      hasChartData
+        ? `From ${chartPoints[0].label} to ${
+            latestPoint?.label ?? latestPoint?.date ?? ""
+          }`
+        : "Select a range and generate a report to visualize net assets for each month.",
+    [hasChartData, chartPoints, latestPoint]
+  );
+
+  /**
+   * Calculates the complete chart layout including dimensions, scales, ticks, and bar positions.
+   * This is memoized to avoid expensive recalculations on every render.
+   */
   const chartLayout = useMemo(() => {
     if (!hasChartData) {
       return null;
@@ -325,6 +456,8 @@ export default function Balance() {
     const gridRight = 32;
     const availableWidth = width - gridLeft - gridRight;
     const availableHeight = height - verticalPadding * 2;
+
+    // Calculate value range for y-axis scaling
     const values = chartPoints.map((point) => ensureNumber(point.net));
     const maxValue = Math.max(...values, 0);
     const actualMin = Math.min(...values);
@@ -334,6 +467,7 @@ export default function Balance() {
       valueRange = 1;
     }
 
+    // Generate y-axis tick marks
     const tickCount = 4;
     const ticks = Array.from({ length: tickCount + 1 }, (_, index) => {
       const ratio = index / tickCount;
@@ -353,6 +487,7 @@ export default function Balance() {
     const zeroY = yCoordinate(0);
     const showZeroLine = 0 >= axisMin && 0 <= maxValue;
 
+    // Calculate bar positions and dimensions
     const step =
       chartPoints.length > 0
         ? availableWidth / chartPoints.length
