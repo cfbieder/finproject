@@ -1,60 +1,133 @@
 import { Link } from "react-router-dom";
 import NavigationMenu from "../components/NavigationMenu.jsx";
-import banner from "../assets/banner.png";
 import "./PageLayout.css";
 
 export default function Home() {
+  const quickActions = [
+    {
+      title: "Balance Summary",
+      description: "View your current financial position",
+      path: "/balance",
+      icon: "📊",
+      color: "primary",
+    },
+    {
+      title: "Cash Flow",
+      description: "Track income and expenses",
+      path: "/cash-flow",
+      icon: "💰",
+      color: "accent",
+    },
+    {
+      title: "Budget Worksheet",
+      description: "Plan and manage budgets",
+      path: "/budget-worksheet",
+      icon: "📝",
+      color: "success",
+    },
+    {
+      title: "Net Worth Chart",
+      description: "Visualize wealth over time",
+      path: "/balance-chart",
+      icon: "📈",
+      color: "primary",
+    },
+  ];
+
+  const features = [
+    {
+      category: "Reports",
+      items: [
+        { label: "Balance Summary", path: "/balance" },
+        { label: "Cash Flow Summary", path: "/cash-flow" },
+        { label: "Cash Flow Monthly", path: "/cash-flow-monthly" },
+      ],
+    },
+    {
+      category: "Budgeting",
+      items: [
+        { label: "Budget Worksheet", path: "/budget-worksheet" },
+        { label: "Budget Realization", path: "/budget-realization" },
+      ],
+    },
+    {
+      category: "Transactions",
+      items: [
+        { label: "Transaction History", path: "/trans-actual" },
+        { label: "Budget Transactions", path: "/trans-budget" },
+      ],
+    },
+    {
+      category: "Data Management",
+      items: [
+        { label: "Upload PS Data", path: "/upload-ps" },
+        { label: "Refresh PS Data", path: "/refresh-ps" },
+        { label: "FX Options", path: "/fx-options" },
+      ],
+    },
+    {
+      category: "Analytics",
+      items: [
+        { label: "Net Worth Chart", path: "/balance-chart" },
+        { label: "Option Analysis", path: "/option-analysis" },
+      ],
+    },
+  ];
+
   return (
     <div className="page-shell">
       <NavigationMenu />
-      <main className="page-main home-hero">
-        <div className="home-hero__copy">
-          <span className="home-hero__eyebrow">Financial workspace</span>
-          <h1 className="page__title">Operate with clarity and confidence.</h1>
-          <p className="page__description">
-            Keep balance sheets, cash flow, and PS data in one calm, purposeful
-            UI. Run the reports you need, drill into the details, and keep every
-            import accountable.
+      <div className="home-container">
+        <header className="home-header">
+          <h1 className="home-header__title">Financial Workspace</h1>
+          <p className="home-header__subtitle">
+            Manage your finances with clarity and precision
           </p>
-          <div className="home-hero__actions">
-            <Link className="home-cta home-cta--primary" to="/balance">
-              Balance summary
-            </Link>
-            <Link className="home-cta home-cta--ghost" to="/cash-flow">
-              Cash flow overview
-            </Link>
-            <Link className="home-cta" to="/upload-ps">
-              Upload PS CSV
-            </Link>
+        </header>
+
+        <section className="home-section">
+          <h2 className="home-section__title">Quick Actions</h2>
+          <div className="home-quick-actions">
+            {quickActions.map((action) => (
+              <Link
+                key={action.path}
+                to={action.path}
+                className="quick-action-card"
+              >
+                <div className="quick-action-card__icon">{action.icon}</div>
+                <div className="quick-action-card__content">
+                  <h3 className="quick-action-card__title">{action.title}</h3>
+                  <p className="quick-action-card__description">
+                    {action.description}
+                  </p>
+                </div>
+                <span className="quick-action-card__arrow">→</span>
+              </Link>
+            ))}
           </div>
-          <div className="home-grid">
-            <div className="home-card">
-              <p className="home-card__title">Ready-to-run reports</p>
-              <p className="home-card__meta">
-                Generate up to three periods side-by-side with collapsible
-                drilldowns and clean currency formatting.
-              </p>
-            </div>
-            <div className="home-card">
-              <p className="home-card__title">PS data stewardship</p>
-              <p className="home-card__meta">
-                Upload, clear, and analyze PS data with clear status messages
-                and confirmations before destructive actions.
-              </p>
-            </div>
-            <div className="home-card">
-              <p className="home-card__title">Built for focus</p>
-              <p className="home-card__meta">
-                Minimal navigation, crisp typography, and intentional whitespace
-                keep the numbers front and center.
-              </p>
-            </div>
+        </section>
+
+        <section className="home-section">
+          <h2 className="home-section__title">All Features</h2>
+          <div className="home-features-grid">
+            {features.map((feature) => (
+              <div key={feature.category} className="feature-category">
+                <h3 className="feature-category__title">{feature.category}</h3>
+                <ul className="feature-category__list">
+                  {feature.items.map((item) => (
+                    <li key={item.path}>
+                      <Link to={item.path} className="feature-link">
+                        <span className="feature-link__bullet">•</span>
+                        {item.label}
+                      </Link>
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            ))}
           </div>
-        </div>
-        <div className="home-hero__image">
-          <img src={banner} alt="Financial insights banner" />
-        </div>
-      </main>
+        </section>
+      </div>
     </div>
   );
 }

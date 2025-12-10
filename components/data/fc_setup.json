@@ -1,0 +1,55 @@
+{
+  "periods_used": [
+    { "2020": "A" },
+    { "2021": "A" },
+    { "2022": "A" },
+    { "2023": "A" },
+    { "2024": "A" },
+    { "2025": "B" },
+    { "2026": "F" },
+    { "2027": "F" },
+    { "2028": "F" },
+    { "2029": "F" },
+    { "2030": "F" },
+    { "2031": "F" }
+  ],
+  "Balance Sheet Accounts": [
+    {
+      "Assets": [
+        "Bank Accounts",
+        "Fidelity Stock",
+        "Fidelity Fixed Income",
+        "CVC Investments",
+        "US - Properties",
+        "SP - Properties",
+        "PL Investments",
+        "PL - Properties",
+        "CVC - MIP",
+        "Misc Investments"
+      ]
+    },
+    {
+      "Liabilities": [
+        "Tax Reserve",
+        "US - Mortgages",
+        "USD Credit Cards",
+        "PLN Credit Cards"
+      ]
+    }
+  ],
+  "Profit & Loss Accounts": [
+    {
+      "Income": ["Financial Income", "Total Salary"]
+    },
+    {
+      "Expense": [
+        "Financial Expenses",
+        "Property Costs",
+        "Taxes",
+        "Travel",
+        "Living Expenses",
+        "Purchases"
+      ]
+    }
+  ]
+}

@@ -12,6 +12,7 @@ import Home from "./pages/Home.jsx";
 import History from "./pages/History.jsx";
 import RefreshPS from "./pages/RefreshPS.jsx";
 import UploadPS from "./pages/UploadPS.jsx";
+import FCExpSetup from "./pages/FCExpSetup.jsx";
 
 function App() {
   return (
@@ -30,6 +31,7 @@ function App() {
         <Route path="/budget-realization" element={<BudgetRealization />} />
         <Route path="/trans-actual" element={<TransActual />} />
         <Route path="/trans-budget" element={<TransBudget />} />
+        <Route path="/forecast-setup-epx" element={<FCExpSetup />} />
       </Routes>
     </BrowserRouter>
   );

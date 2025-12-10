@@ -18,16 +18,28 @@ const menuItems = [
     ],
   },
   {
-    label: "Reports",
+    label: "Forecasting",
     submenu: [
-      { label: "Balance Summary", path: "/balance" },
-      { label: "Cash Flow Summary", path: "/cash-flow" },
-      { label: "Cash Flow Monthly", path: "/cash-flow-monthly" },
+      { label: "Forecast Expenditures Setup", path: "/forecast-setup-epx" },
+      { label: "Forecast Results", path: "/forecast-results" },
     ],
   },
   {
-    label: "Graphs",
-    submenu: [{ label: "Net Worth Chart", path: "/balance-chart" }],
+    label: "Reports & Graphs",
+    submenu: [
+      {
+        label: "Reports",
+        submenu: [
+          { label: "Balance Summary", path: "/balance" },
+          { label: "Cash Flow Summary", path: "/cash-flow" },
+          { label: "Cash Flow Monthly", path: "/cash-flow-monthly" },
+        ],
+      },
+      {
+        label: "Graphs",
+        submenu: [{ label: "Net Worth Chart", path: "/balance-chart" }],
+      },
+    ],
   },
   {
     label: "Analytics",
@@ -80,18 +92,38 @@ export default function NavigationMenu() {
                     <span aria-hidden>▾</span>
                   </button>
                   <div className="dropdown__menu">
-                    {item.submenu.map((subItem) => (
-                      <Link
-                        key={subItem.label}
-                        className="dropdown__link"
-                        to={subItem.path}
-                      >
-                        {subItem.label}
-                        <span className="dropdown__arrow" aria-hidden>
-                          ↗
-                        </span>
-                      </Link>
-                    ))}
+                    {item.submenu.map((subItem) =>
+                      subItem.submenu ? (
+                        <div key={subItem.label} className="dropdown__submenu">
+                          <span className="dropdown__submenu-title">
+                            {subItem.label}
+                          </span>
+                          {subItem.submenu.map((nestedItem) => (
+                            <Link
+                              key={nestedItem.label}
+                              className="dropdown__link"
+                              to={nestedItem.path}
+                            >
+                              {nestedItem.label}
+                              <span className="dropdown__arrow" aria-hidden>
+                                ↗
+                              </span>
+                            </Link>
+                          ))}
+                        </div>
+                      ) : (
+                        <Link
+                          key={subItem.label}
+                          className="dropdown__link"
+                          to={subItem.path}
+                        >
+                          {subItem.label}
+                          <span className="dropdown__arrow" aria-hidden>
+                            ↗
+                          </span>
+                        </Link>
+                      )
+                    )}
                   </div>
                 </div>
               ) : item.path ? (

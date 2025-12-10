@@ -4,40 +4,36 @@
       {
         "Assets": [
           {
-            "Bank Accounts": [
-              {
-                "USD Bank Accounts": [
-                  "PKO - USD",
-                  "WISE - USD - Old",
-                  "Chase Checking",
-                  "Chase Saving",
-                  "Wise - USD",
-                  "Revolut-USD",
-                  "Capital One Savings"
-                ]
-              },
-              {
-                "EUR Bank Accounts": [
-                  "PKO EUR",
-                  "WISE - EUR",
-                  "Caixa EUR",
-                  "Cash EUR",
-                  "Revolut-EUR"
-                ]
-              },
-              {
-                "PLN Bank Accounts": [
-                  "PKO",
-                  "PKO Savings",
-                  "WISE - PLN",
-                  "PKO - Deposits",
-                  "Santandar",
-                  "Revolut-PLN"
-                ]
-              },
-              { "Other Bank Accounts": ["WISE - GBP"] }
+            "USD Bank Accounts": [
+              "PKO - USD",
+              "WISE - USD - Old",
+              "Chase Checking",
+              "Chase Saving",
+              "Wise - USD",
+              "Revolut-USD",
+              "Capital One Savings"
             ]
           },
+          {
+            "EUR Bank Accounts": [
+              "PKO EUR",
+              "WISE - EUR",
+              "Caixa EUR",
+              "Cash EUR",
+              "Revolut-EUR"
+            ]
+          },
+          {
+            "PLN Bank Accounts": [
+              "PKO",
+              "PKO Savings",
+              "WISE - PLN",
+              "PKO - Deposits",
+              "Santandar",
+              "Revolut-PLN"
+            ]
+          },
+          { "Other Bank Accounts": ["WISE - GBP"] },
           {
             "Fidelity Stock": [
               "Fidelity IRA",
