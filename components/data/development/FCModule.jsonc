@@ -1,0 +1,52 @@
+[
+  {
+    "Scenario": "String", //Name of scenario
+    "Account": "String", //Account from COA,
+    "Name": "String", //Name of the asset/liability
+    "Type": "String", //Type of asset/liability Security, RealEstate, Liability, Other
+    "Currency": "String", //USD, PLN, EUR, etc.
+    "ExpCategory": "String", //Expense Category from COA
+    "Expense": 0.0, //float Expense as fixed amount
+    "ExpensePct": 0.0, //float Expense as percentage of MarketValue
+    "IncomeCategory": "String", //Income Category from COA
+    "Income": 0.0, //float Income as fixed amount
+    "IncomePct": 0.0, //float Income as percentage of MarketValue
+    "BaseDate": "2024-12-31", //date Base date for starting values
+    "BaseValue": 1234.12, //float Base value at BaseDate
+    "MarketValue": 1234, //float  Current Market Value
+    "Growth": 0.0, //float Annual Growth Rate as a percentage of inflation
+    "Invest": [
+      //Array of Transfer objects defined below
+    ],
+    "Dispose": [
+      //Array of Transfer objects defined below
+    ]
+  },
+  {
+    "Scenario": "Baseline",
+    "Account": "Fidelity",
+    "Name": "Index ETF",
+    "Type": "Security",
+    "Currency": "USD",
+    "ExpCategory": "ManagementFees",
+    "Expense": 0.0,
+    "ExpensePct": 0.1,
+    "IncomeCategory": "Dividends",
+    "Income": 0,
+    "IncomePct": 1.5,
+    "BaseDate": "2024-12-31",
+    "BaseValue": 10000.0,
+    "MarketValue": 10500.0,
+    "Growth": 1,
+    "Invest": [
+      { "Date": "2025-01-15", "Amount": 500.0, "Flag": "Recurring" },
+      { "Date": "2025-02-15", "Amount": 500.0, "Flag": "Recurring" }
+    ],
+    "Dispose": [{ "Date": "2026-12-31", "Amount": 2000.0, "Flag": "OneTime" }]
+  }
+]
+
+//Transfer Object
+//        "Date": "String",
+//        "Amount": 1234, //float
+//        "Flag": "String"}

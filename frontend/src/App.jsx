@@ -9,7 +9,6 @@ import BudgetRealization from "./pages/BudgetRealization.jsx";
 import TransActual from "./pages/TransActual.jsx";
 import TransBudget from "./pages/TransBudget.jsx";
 import Home from "./pages/Home.jsx";
-import History from "./pages/History.jsx";
 import RefreshPS from "./pages/RefreshPS.jsx";
 import UploadPS from "./pages/UploadPS.jsx";
 import FCExpSetup from "./pages/FCExpSetup.jsx";
@@ -24,7 +23,6 @@ function App() {
         <Route path="/cash-flow-monthly" element={<CashFlowMonthly />} />
         <Route path="/upload-ps" element={<UploadPS />} />
         <Route path="/refresh-ps" element={<RefreshPS />} />
-        <Route path="/history" element={<History />} />
         <Route path="/balance-chart" element={<BalanceChart />} />
         <Route path="/budget-worksheet" element={<BudgetInput />} />
         <Route path="/fx-options" element={<FXOptions />} />

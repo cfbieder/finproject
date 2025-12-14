@@ -8,19 +8,20 @@ const cashFlowRouter = require("./routes/cashFlow");
 const ingestRouter = require("./routes/ingestPs");
 const utilRouter = require("./routes/util");
 const budgetRouter = require("./routes/budget");
+const forecastRouter = require("./routes/forecast");
 const app = express();
 
 app.use(morgan("tiny"));
 app.use(express.json());
 app.use(cors({ origin: true, credentials: true }));
 
-//todo: change /api to api/ingest-ps and update other routes accordingly
 app.use("/api/util", utilRouter);
 app.use("/api/health", healthRouter);
 app.use("/api/balance", balanceRouter);
 app.use("/api/cash-flow", cashFlowRouter);
-app.use("/api", ingestRouter);
+app.use("/api/ingest-ps", ingestRouter);
 app.use("/api/budget", budgetRouter);
+app.use("/api/forecast", forecastRouter);
 
 // URL of MongoDB server
 var db = process.env.MONGO_URI;
@@ -34,10 +35,11 @@ app.get("/", (req, res) => {
       "/api/health",
       "/api/balance",
       "/api/cash-flow",
-      "/api/upload-ps",
       "/api/ingest-ps",
-      "/api/analyze-ps",
-      "/api/refresh-ps",
+      "/api/ingest-ps/upload-ps",
+      "/api/ingest-ps/analyze-ps",
+      "/api/ingest-ps/refresh-ps",
+      "/api/forecast",
     ],
   });
 });

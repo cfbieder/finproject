@@ -165,7 +165,7 @@ const orderCategoriesByCoa = (psCategories, coaCategories) => {
 };
 
 // Ingest PS transactions from CSV into MongoDB
-router.post("/ingest-ps", async (req, res) => {
+router.post("/", async (req, res) => {
   try {
     const ingestResult = await psCsvIngestor.ingestPsTransactionsFromCsv();
     await PSdata.db
@@ -202,7 +202,7 @@ router.post("/ingest-ps", async (req, res) => {
 });
 
 // Clear all PS records from MongoDB
-router.post("/ingest-ps/clearall", async (req, res) => {
+router.post("/clearall", async (req, res) => {
   try {
     await psCsvIngestor.clearAllRecords();
     return res.json({ cleared: true });

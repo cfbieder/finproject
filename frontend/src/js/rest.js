@@ -114,7 +114,7 @@ export default class Rest {
   }
 
   static async fetchPsDataOptions() {
-    return Rest.fetchJson("/api/psdata/options");
+    return Rest.fetchJson("/api/ingest-ps/psdata/options");
   }
 
   static async fetchCategoryGroups() {

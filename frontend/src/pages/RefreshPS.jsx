@@ -90,7 +90,7 @@ export default function RefreshPS() {
     }
 
     try {
-      const countResult = await Rest.fetchJson("/api/psdata/count");
+      const countResult = await Rest.fetchJson("/api/ingest-ps/psdata/count");
       const count =
         Number.isFinite(countResult?.count) && countResult.count >= 0
           ? countResult.count
@@ -123,7 +123,7 @@ export default function RefreshPS() {
    **************************/
   const updateLastRefreshTimestamp = async () => {
     const { modifiedCount = 0, upsertedCount = 0 } =
-      (await Rest.fetchJson("/api/appdata/last-refresh", {
+      (await Rest.fetchJson("/api/ingest-ps/appdata/last-refresh", {
         method: "POST",
       })) ?? {};
 
@@ -150,7 +150,7 @@ export default function RefreshPS() {
         mongoImportReport = 0,
         all = 0,
         mongoUpdateReport = 0,
-      } = await Rest.fetchJson("/api/refresh-ps", {
+      } = await Rest.fetchJson("/api/ingest-ps/refresh-ps", {
         method: "POST",
       });
 
@@ -191,7 +191,7 @@ export default function RefreshPS() {
     setNewTransactionsError(null);
     setIsLoadingNewTransactions(true);
     try {
-      const data = await Rest.fetchJson("/api/new-transactions");
+      const data = await Rest.fetchJson("/api/ingest-ps/new-transactions");
       const parsed = Array.isArray(data)
         ? data
         : Array.isArray(data?.transactions)
@@ -214,7 +214,9 @@ export default function RefreshPS() {
     setModifiedTransactionsError(null);
     setIsLoadingModifiedTransactions(true);
     try {
-      const data = await Rest.fetchJson("/api/modified-transactions");
+      const data = await Rest.fetchJson(
+        "/api/ingest-ps/modified-transactions"
+      );
       const parsed = Array.isArray(data)
         ? data
         : Array.isArray(data?.transactions)

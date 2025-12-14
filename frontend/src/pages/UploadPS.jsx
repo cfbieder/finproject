@@ -77,7 +77,7 @@ export default function UploadPS() {
     }
 
     try {
-      const countResult = await Rest.fetchJson("/api/psdata/count");
+      const countResult = await Rest.fetchJson("/api/ingest-ps/psdata/count");
       const count =
         Number.isFinite(countResult?.count) && countResult.count >= 0
           ? countResult.count
@@ -205,7 +205,7 @@ export default function UploadPS() {
     setIsAnalyzing(true);
 
     try {
-      const result = await Rest.fetchJson("/api/analyze-ps");
+      const result = await Rest.fetchJson("/api/ingest-ps/analyze-ps");
       const {
         misAcct = {},
         missCOAact = {},
