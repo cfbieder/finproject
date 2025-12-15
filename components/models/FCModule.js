@@ -25,6 +25,8 @@ var FCModule = new Schema({
   BaseDate: { type: Date },
   BaseValue: { type: Number },
   MarketValue: { type: Number },
+  BaseValueUSD: { type: Number },
+  MarketValueUSD: { type: Number },
   Growth: { type: Number },
   Invest: [transferSchema],
   Dispose: [transferSchema],

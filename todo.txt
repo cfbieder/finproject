@@ -1,4 +1,4 @@
 Add option to update budget FX rates on transactions page
 Develop FC model
 
-using this file server/src/routes/balance.js, clean up, optimize, document and and include full documentation of all routes at top of document
+using this file server/src/routes/balance.js, clean up, optimize, document and include full documentation of all routes at top of document

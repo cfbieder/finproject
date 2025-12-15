@@ -4,6 +4,18 @@
     { "Name": "Baseline", "PeriodStart": 2025, "PeriodEnd": 2030 },
     { "Name": "High Inflation", "PeriodStart": 2025, "PeriodEnd": 2030 }
   ],
+  "HistoricalFX": {
+    "USDPLN": {
+      "2022": 4.0,
+      "2023": 3.8,
+      "2024": 3.7
+    },
+    "USDEUR": {
+      "2022": 0.95,
+      "2023": 0.92,
+      "2024": 0.9
+    }
+  },
   "inflation": [
     {
       "Scenario": "Baseline",
@@ -40,6 +52,7 @@
     },
     {
       "Scenario": "High Inflation",
+      "Year": 2025,
       "Rates": {
         "USDPLN": 4.5,
         "USDEUR": 0.85

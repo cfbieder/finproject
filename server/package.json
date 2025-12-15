@@ -7,6 +7,7 @@
     "start": "node src/server.js",
     "dev": "env-cmd -e development -- nodemon src/server.js",
     "dok": "env-cmd -e docker -- nodemon src/server.js",
+    "fc": "nodemon src/services/forecast/fcbuilder.js",
     "test": "echo \"Error: no test specified\" && exit 1"
   },
   "keywords": [],

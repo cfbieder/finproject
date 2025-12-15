@@ -50,8 +50,9 @@ router.post("/modules", async (req, res) => {
   }
 });
 
-router.patch("/modules/:id", async (req, res) => {
+router.put("/modules/:id", async (req, res) => {
   const { id } = req.params;
+
   if (!id || !mongoose.Types.ObjectId.isValid(id)) {
     return res.status(400).json({ error: "Invalid module identifier" });
   }
@@ -71,7 +72,6 @@ router.patch("/modules/:id", async (req, res) => {
     if (!updated) {
       return res.status(404).json({ error: "Forecast module not found" });
     }
-
     return res.json({ module: updated });
   } catch (error) {
     console.error("Failed to update forecast module:", error);

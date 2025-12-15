@@ -1,6 +1,30 @@
-const FCAssump = require("../../../../components/data/development/FCAssump.json");
+let FCAssump;
+try {
+  FCAssump = require("../../../../components/data/development/FCAssump.json");
+} catch (error) {
+  throw new Error(`Failed to load FCAssump.json: ${error.message}`);
+}
+
+// Defensive validation for FCAssump object
+if (!FCAssump) {
+  throw new Error("FCAssump is undefined or null after require");
+}
+
+if (!Array.isArray(FCAssump.scenarios) || FCAssump.scenarios.length === 0) {
+  throw new Error("FCAssump.scenarios must be a non-empty array");
+}
+
+if (!FCAssump.category) {
+  throw new Error("FCAssump.category is missing or undefined");
+}
 
 const scenario = FCAssump.scenarios[0];
+if (!scenario.PeriodStart || !scenario.PeriodEnd) {
+  throw new Error(
+    `First scenario missing required fields: PeriodStart=${scenario.PeriodStart}, PeriodEnd=${scenario.PeriodEnd}`
+  );
+}
+
 const categories = FCAssump.category;
 const { PeriodStart: periodStart, PeriodEnd: periodEnd } = scenario;
 
