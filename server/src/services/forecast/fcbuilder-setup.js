@@ -1,6 +1,6 @@
 let FCAssump;
 try {
-  FCAssump = require("../../../../components/data/development/FCAssump.json");
+  FCAssump = require("../../../../components/data/FCAssump.json");
 } catch (error) {
   throw new Error(`Failed to load FCAssump.json: ${error.message}`);
 }

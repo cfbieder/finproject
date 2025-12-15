@@ -13,6 +13,8 @@ export default function BudgetRegionSelectors({
   categoryGroupOptions = [],
   selectedAccounts = [],
   selectedCategories = [],
+  totals = { actual: 0, budget: 0, difference: 0 },
+  formatCurrencyValue = (value) => value,
   onFromMonthChange = () => {},
   onToMonthChange = () => {},
   onActualYearChange = () => {},
@@ -31,8 +33,8 @@ export default function BudgetRegionSelectors({
       <p className="budget-region__description">
         Choose the period and slices that drive the budget comparison.
       </p>
-      <div className="selector-grid">
-        <div className="selector-grid__row">
+      <div className="selector-grid selector-grid--three">
+        <div className="selector-column">
           <div className="selector-control">
             <label htmlFor="month-from" className="selector-control__label">
               Month (from)
@@ -67,8 +69,6 @@ export default function BudgetRegionSelectors({
               ))}
             </select>
           </div>
-        </div>
-        <div className="selector-grid__row">
           <div className="selector-control">
             <label htmlFor="actual-year" className="selector-control__label">
               Actual Year
@@ -108,55 +108,81 @@ export default function BudgetRegionSelectors({
             </select>
           </div>
         </div>
-        <div className="selector-control selector-control--spanning">
-          <label htmlFor="account-selector" className="selector-control__label">
-            Accounts
-          </label>
-          <select
-            id="account-selector"
-            className="selector-control__input"
-            value={selectedAccounts}
-            multiple
-            size={4}
-            onChange={onAccountsChange}
-          >
-            {accountOptions.map((account) => (
+
+        <div className="selector-column selector-column--category">
+          <div className="selector-control selector-control--fill">
+            <label
+              htmlFor="category-selector"
+              className="selector-control__label"
+            >
+              Categories
+            </label>
+            <select
+              id="category-selector"
+              className="selector-control__input selector-control__input--tall"
+              value={selectedCategories}
+              multiple
+              size={categorySelectorSize}
+              onChange={onCategoriesChange}
+            >
+              {categoryGroupOptions.map((groupOption) => (
+                <option
+                  key={`category-group-${groupOption.value}`}
+                  value={groupOption.value}
+                  className={groupOption.className}
+                >
+                  {groupOption.label}
+                </option>
+              ))}
+              {categoryOptions.map((category) => (
+                <option key={`category-${category}`} value={category}>
+                  {category}
+                </option>
+              ))}
+            </select>
+          </div>
+        </div>
+
+        <div className="selector-column selector-column--accounts">
+          <div className="selector-control selector-control--fill">
+            <label htmlFor="account-selector" className="selector-control__label">
+              Accounts
+            </label>
+            <select
+              id="account-selector"
+              className="selector-control__input selector-control__input--tall"
+              value={selectedAccounts}
+              multiple
+              size={6}
+              onChange={onAccountsChange}
+            >
+              {accountOptions.map((account) => (
               <option key={`account-${account}`} value={account}>
                 {account}
               </option>
             ))}
           </select>
         </div>
-        <div className="selector-control selector-control--spanning">
-          <label
-            htmlFor="category-selector"
-            className="selector-control__label"
-          >
-            Categories
-          </label>
-          <select
-            id="category-selector"
-            className="selector-control__input"
-            value={selectedCategories}
-            multiple
-            size={categorySelectorSize}
-            onChange={onCategoriesChange}
-          >
-            {categoryGroupOptions.map((groupOption) => (
-              <option
-                key={`category-group-${groupOption.value}`}
-                value={groupOption.value}
-                className={groupOption.className}
-              >
-                {groupOption.label}
-              </option>
-            ))}
-            {categoryOptions.map((category) => (
-              <option key={`category-${category}`} value={category}>
-                {category}
-              </option>
-            ))}
-          </select>
+        <div className="selector-summary-group selector-summary-group--inline">
+          <div className="selector-summary selector-summary--compact selector-summary--inline">
+            <span className="selector-summary__label">Total Actual</span>
+            <span className="selector-summary__value">
+              {formatCurrencyValue(totals.actual)}
+            </span>
+          </div>
+          <div className="selector-summary selector-summary--compact selector-summary--inline">
+            <span className="selector-summary__label">Total Budget</span>
+            <span className="selector-summary__value">
+              {formatCurrencyValue(totals.budget)}
+            </span>
+          </div>
+          <div className="selector-summary selector-summary--compact selector-summary--inline selector-summary--muted">
+            <span className="selector-summary__label">Difference</span>
+            <span className="selector-summary__value">
+              {formatCurrencyValue(totals.difference)}
+            </span>
+          </div>
+        </div>
         </div>
       </div>
     </section>

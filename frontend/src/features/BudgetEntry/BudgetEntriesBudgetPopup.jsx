@@ -971,6 +971,7 @@ const BudgetEntriesBudgetPopup = ({ request }) => {
       hideEditor();
       await fetchEntries();
       console.log('[BudgetEntriesBudgetPopup] List refreshed');
+      handleClose();
     } catch (error) {
       console.error('[BudgetEntriesBudgetPopup] Delete error:', error);
       setStatusMessage(error?.message || "Unable to delete the budget entry.");

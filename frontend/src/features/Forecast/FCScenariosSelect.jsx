@@ -1,0 +1,162 @@
+/**
+ * FCScenariosSelect Component
+ *
+ * Header section for forecast scenarios page with controls for:
+ * - Selecting active scenario
+ * - Setting period start/end years
+ * - Committing changes
+ * - Reloading defaults
+ * - Deleting scenarios
+ *
+ * Displays error banners when data fails to load
+ */
+export default function FCScenariosSelect({
+  assumptions,
+  loadError,
+  scenarios,
+  selectedScenario,
+  setSelectedScenario,
+  periodStart,
+  setPeriodStart,
+  periodEnd,
+  setPeriodEnd,
+  periodYears,
+  confirmCommit,
+  reloadDefaults,
+  openDeleteModal,
+  isLoading,
+}) {
+  // Disable controls when loading, no data, or errors
+  const isDisabled = !assumptions || !!loadError || isLoading;
+
+  // Can only delete existing scenarios (not "__new_scenario__")
+  const canDeleteScenario =
+    selectedScenario &&
+    selectedScenario !== "__new_scenario__" &&
+    scenarios.find((s) => s.Name === selectedScenario);
+
+  return (
+    <section className="section-filters fc-scenarios-header">
+      <div className="section-table__content">
+        <div className="fc-scenarios-header__top">
+          <div className="fc-scenarios-header__title-group">
+            <h2 className="fc-scenarios-header__title">Forecast Scenarios</h2>
+            <p className="fc-scenarios-header__subtitle">
+              Manage scenario assumptions for financial forecasting
+            </p>
+          </div>
+          {loadError && (
+            <div className="fc-scenarios-error-banner">
+              <span className="fc-scenarios-error-icon">⚠</span>
+              <span>{loadError}</span>
+            </div>
+          )}
+        </div>
+
+        <div className="fc-scenarios-controls">
+          <div className="fc-scenarios-row">
+            <div className="fc-scenarios-row__field fc-scenarios-row__field--scenario">
+              <label
+                className="fc-scenarios-select__label"
+                htmlFor="scenario-select"
+              >
+                Scenario
+              </label>
+              <select
+                id="scenario-select"
+                className="form-input"
+                value={selectedScenario}
+                onChange={(event) => setSelectedScenario(event.target.value)}
+                disabled={isDisabled}
+              >
+                <option value="" disabled>
+                  {isLoading ? "Loading..." : "Select scenario"}
+                </option>
+                {(scenarios || []).map((scenario) => (
+                  <option key={scenario.Name} value={scenario.Name}>
+                    {scenario.Name}
+                  </option>
+                ))}
+                <option value="__new_scenario__">+ New Scenario</option>
+              </select>
+            </div>
+            <div className="fc-scenarios-row__field">
+              <label
+                className="fc-scenarios-select__label"
+                htmlFor="period-start-select"
+              >
+                Period Start
+              </label>
+              <select
+                id="period-start-select"
+                className="form-input"
+                value={periodStart}
+                onChange={(event) => setPeriodStart(event.target.value)}
+                disabled={isDisabled}
+              >
+                {periodYears.map((year) => (
+                  <option key={year} value={String(year)}>
+                    {year}
+                  </option>
+                ))}
+              </select>
+            </div>
+            <div className="fc-scenarios-row__field">
+              <label
+                className="fc-scenarios-select__label"
+                htmlFor="period-end-select"
+              >
+                Period End
+              </label>
+              <select
+                id="period-end-select"
+                className="form-input"
+                value={periodEnd}
+                onChange={(event) => setPeriodEnd(event.target.value)}
+                disabled={isDisabled}
+              >
+                {periodYears.map((year) => (
+                  <option key={year} value={String(year)}>
+                    {year}
+                  </option>
+                ))}
+              </select>
+            </div>
+          </div>
+
+          <div className="fc-scenarios-actions">
+            <button
+              type="button"
+              className="fc-scenarios-action-button fc-scenarios-action-button--primary"
+              onClick={confirmCommit}
+              disabled={isDisabled}
+            >
+              <span className="fc-scenarios-button-icon">💾</span>
+              Commit Changes
+            </button>
+            <button
+              type="button"
+              className="fc-scenarios-action-button"
+              onClick={reloadDefaults}
+              disabled={isLoading}
+            >
+              <span className="fc-scenarios-button-icon">🔄</span>
+              Reload Defaults
+            </button>
+            <button
+              type="button"
+              className="fc-scenarios-action-button fc-scenarios-action-button--danger"
+              disabled={!canDeleteScenario || isLoading}
+              onClick={() =>
+                openDeleteModal("deleteScenario", { Name: selectedScenario })
+              }
+            >
+              <span className="fc-scenarios-button-icon">🗑</span>
+              Delete Scenario
+            </button>
+          </div>
+        </div>
+      </div>
+    </section>
+  );
+}

@@ -494,6 +494,7 @@ export default function BudgetInput() {
     error: "",
     message: "",
   });
+  const [expenseSignModal, setExpenseSignModal] = useState(null);
 
   // ========== State: Currency ==========
   const [currencyOptions, setCurrencyOptions] = useState([BASE_CURRENCY]);
@@ -658,6 +659,24 @@ export default function BudgetInput() {
     return parsedAmount / currentExchangeRate;
   }, [entryForm.amount, currentExchangeRate]);
 
+  const balanceTotals = useMemo(() => {
+    if (!Array.isArray(balanceRows) || !balanceRows.length) {
+      return { actual: 0, budget: 0, difference: 0 };
+    }
+    return balanceRows.reduce(
+      (totals, row) => {
+        const actual = Number.isFinite(row.actual) ? row.actual : 0;
+        const budget = Number.isFinite(row.budget) ? row.budget : 0;
+        return {
+          actual: totals.actual + actual,
+          budget: totals.budget + budget,
+          difference: totals.difference + (actual - budget),
+        };
+      },
+      { actual: 0, budget: 0, difference: 0 }
+    );
+  }, [balanceRows]);
+
   // ========== Effects: Initialization ==========
 
   // Set default month when month options change
@@ -820,10 +839,42 @@ export default function BudgetInput() {
    */
   const handleBudgetEntrySubmit = async (event) => {
     event.preventDefault();
+    const parsedAmount = parseNumericInput(entryForm.amount);
+    const normalizedCategory = normalizeTextInput(entryForm.category);
+    const isExpenseCategory =
+      normalizedCategory &&
+      Array.isArray(categoryGroups?.Expense) &&
+      categoryGroups.Expense.some(
+        (category) =>
+          typeof category === "string" &&
+          category.trim().toLowerCase() === normalizedCategory.toLowerCase()
+      );
+
+    if (isExpenseCategory && Number.isFinite(parsedAmount) && parsedAmount > 0) {
+      setExpenseSignModal({
+        amount: parsedAmount,
+        baseAmount: computedBaseAmount,
+      });
+      return;
+    }
+
+    await performBudgetEntrySubmit(parsedAmount, computedBaseAmount);
+  };
+
+  const performBudgetEntrySubmit = async (
+    amountOverride,
+    baseAmountOverride
+  ) => {
     setEntryStatus({ loading: true, error: "", message: "" });
 
     const normalizedCurrency = normalizeCurrencyCode(entryForm.currency);
     const isAllMonthsSelected = entryForm.date === "All";
+    const amountToUse = amountOverride ?? parseNumericInput(entryForm.amount);
+    const baseAmountToUse = Number.isFinite(baseAmountOverride)
+      ? baseAmountOverride
+      : Number.isFinite(computedBaseAmount)
+      ? computedBaseAmount
+      : undefined;
     const payload = {
       Date:
         entryForm.date && entryForm.date !== "All"
@@ -837,9 +888,9 @@ export default function BudgetInput() {
           : normalized;
       })(),
       Category: normalizeTextInput(entryForm.category),
-      Amount: parseNumericInput(entryForm.amount),
-      BaseAmount: Number.isFinite(computedBaseAmount)
-        ? computedBaseAmount
+      Amount: amountToUse,
+      BaseAmount: Number.isFinite(baseAmountToUse)
+        ? baseAmountToUse
         : undefined,
       Currency: normalizedCurrency || undefined,
       BaseCurrency: BASE_CURRENCY,
@@ -939,13 +990,51 @@ export default function BudgetInput() {
     }
   };
 
+  const handleExpenseSignModalClose = () => {
+    if (entryStatus.loading) {
+      return;
+    }
+    setExpenseSignModal(null);
+  };
+
+  const handleExpenseSignModalConfirmNegative = async () => {
+    if (!expenseSignModal) {
+      return;
+    }
+    const negativeAmount = -Math.abs(expenseSignModal.amount);
+    const negativeBaseAmount = Number.isFinite(expenseSignModal.baseAmount)
+      ? -Math.abs(expenseSignModal.baseAmount)
+      : undefined;
+    setExpenseSignModal(null);
+    setEntryForm((previous) => ({
+      ...previous,
+      amount: String(negativeAmount),
+    }));
+    await performBudgetEntrySubmit(negativeAmount, negativeBaseAmount);
+  };
+
+  const handleExpenseSignModalKeepPositive = async () => {
+    if (!expenseSignModal) {
+      return;
+    }
+    const positiveAmount = expenseSignModal.amount;
+    const baseAmountToUse = Number.isFinite(expenseSignModal.baseAmount)
+      ? expenseSignModal.baseAmount
+      : undefined;
+    setExpenseSignModal(null);
+    await performBudgetEntrySubmit(positiveAmount, baseAmountToUse);
+  };
+
   const handleActualEntryCopy = useCallback(
     (entry, rowMonthNumber) => {
       if (!entry || derivedCategoryIsGroup) {
         return;
       }
 
-      const budgetMonthValue = buildBudgetMonthValue(budgetYear, rowMonthNumber);
+      const budgetMonthValue = buildBudgetMonthValue(
+        budgetYear,
+        rowMonthNumber
+      );
       const monthValueExists =
         budgetMonthValue &&
         monthSelectOptions.some((option) => option.value === budgetMonthValue);
@@ -960,9 +1049,7 @@ export default function BudgetInput() {
             ? String(entry.Amount)
             : previous.amount;
         const nextCurrency = entry.Currency || previous.currency;
-        const nextDate = monthValueExists
-          ? budgetMonthValue
-          : previous.date;
+        const nextDate = monthValueExists ? budgetMonthValue : previous.date;
         return {
           ...previous,
           account: nextAccount,
@@ -1130,6 +1217,8 @@ export default function BudgetInput() {
             categoryGroupOptions={categoryGroupSelectOptions}
             selectedAccounts={selectedAccounts}
             selectedCategories={selectedCategories}
+            totals={balanceTotals}
+            formatCurrencyValue={formatCurrencyValue}
             onFromMonthChange={setFromMonth}
             onToMonthChange={setToMonth}
             onActualYearChange={setActualYear}
@@ -1144,11 +1233,11 @@ export default function BudgetInput() {
             onActualDoubleClick={handleBalanceActualDoubleClick}
             onBudgetDoubleClick={handleBalanceBudgetDoubleClick}
           />
-          <BudgetRegionBudgetEntry
-            derivedCategoryIsGroup={derivedCategoryIsGroup}
-            derivedCategoryLabel={derivedCategoryLabel}
-            monthSelectOptions={monthSelectOptions}
-            entryForm={entryForm}
+      <BudgetRegionBudgetEntry
+        derivedCategoryIsGroup={derivedCategoryIsGroup}
+        derivedCategoryLabel={derivedCategoryLabel}
+        monthSelectOptions={monthSelectOptions}
+        entryForm={entryForm}
             setEntryForm={setEntryForm}
             filteredAccountOptions={filteredAccountOptions}
             computedBaseAmount={computedBaseAmount}
@@ -1159,6 +1248,50 @@ export default function BudgetInput() {
           />
         </div>
       </main>
+      {expenseSignModal && (
+        <div
+          className="budget-entries-modal-overlay"
+          role="dialog"
+          aria-modal="true"
+        >
+          <div className="budget-entries-modal" role="document">
+            <div className="budget-entries-modal__header">
+              <h1>Expense Amount Warning</h1>
+              <button
+                type="button"
+                className="budget-entries-modal__close"
+                aria-label="Close modal"
+                onClick={handleExpenseSignModalClose}
+                disabled={entryStatus.loading}
+              >
+                Close
+              </button>
+            </div>
+            <div className="budget-entries-modal__content">
+              <p>
+                Positive amounts for expense categories are usually negative.
+                Change this amount to a negative value?
+              </p>
+              <div className="budget-entries-modal__actions">
+                <button
+                  type="button"
+                  onClick={handleExpenseSignModalConfirmNegative}
+                  disabled={entryStatus.loading}
+                >
+                  Change to negative
+                </button>
+                <button
+                  type="button"
+                  onClick={handleExpenseSignModalKeepPositive}
+                  disabled={entryStatus.loading}
+                >
+                  Keep positive
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
       <BudgetEntriesAtualPopup request={actualEntriesPopupRequest} />
       <BudgetEntriesBudgetPopup request={budgetEntriesPopupRequest} />
     </div>

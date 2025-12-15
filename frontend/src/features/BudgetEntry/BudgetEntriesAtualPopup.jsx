@@ -320,6 +320,7 @@ const BudgetEntriesAtualPopup = ({ request }) => {
           return;
         }
         copyEntryCallback(entry, row?.monthNumber);
+        handleClose();
       };
     });
   };
