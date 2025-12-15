@@ -94,7 +94,7 @@ export default function FCScenariosSelect({
                 onChange={(event) => setPeriodStart(event.target.value)}
                 disabled={isDisabled}
               >
-                {periodYears.map((year) => (
+                {(periodYears || []).map((year) => (
                   <option key={year} value={String(year)}>
                     {year}
                   </option>
