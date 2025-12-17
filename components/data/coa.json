@@ -42,36 +42,22 @@
             "Fidelity Stock": [
               "Fidelity IRA",
               "Fidelity Stocks",
-              "Fidelity Stock",
               "Fidelity Options"
             ]
           },
           {
-            "Fidelity Fixed Income": [
-              "Fidelity Cash Mgt",
-              "Fidelity Bond",
-              "Fidelity Fixed Income"
-            ]
+            "Fidelity Fixed Income": ["Fidelity Cash Mgt", "Fidelity Bond"]
           },
           {
-            "CVC Investments": [
-              "CVC Fund VIII",
-              "CVC Fund IX",
-              "CVC Investments"
-            ]
+            "CVC Investments": ["CVC Fund VIII", "CVC Fund IX"]
           },
           {
-            "US - Properties": [
-              "US - Nokomis",
-              "US - Properties",
-              "US - Casarina"
-            ]
+            "US - Properties": ["US - Nokomis", "US - Casarina"]
           },
           {
             "SP - Properties": [
               "SP - Sea Senses",
               "SP - Panorama Mar 4",
-              "SP - Properties",
               "SP - Panorama Mar 6"
             ]
           },
@@ -79,16 +65,11 @@
             "PL Investments": [
               "United Beverages",
               "Barkeria Sp. z o.o.",
-              "PL Investments",
               "OCME Sp. z o.o."
             ]
           },
           {
-            "PL - Properties": [
-              "PL - Niemena",
-              "PL - Properties",
-              "PL - Muszlowa"
-            ]
+            "PL - Properties": ["PL - Niemena", "PL - Muszlowa"]
           },
           { "CVC - MIP": ["CVC - MIP"] },
           { "Misc Investments": ["Misc Investments"] }
@@ -98,11 +79,7 @@
         "Liabilities": [
           { "Tax Reserve": ["Tax Reserve - US", "Tax Reserve - PL"] },
           {
-            "US - Mortgages": [
-              "Mortgage - Nokomis",
-              "Mortgage - Casarina",
-              "US - Mortgages"
-            ]
+            "US - Mortgages": ["Mortgage - Nokomis", "Mortgage - Casarina"]
           },
           {
             "USD Credit Cards": [
@@ -195,7 +172,6 @@
                   },
                   {
                     "Property - SP - PM4": [
-                      "Property - SP - PM4",
                       "Utilities - Electricity - SP - PM4",
                       "Utilities - Water - SP - PM4",
                       "Property - Condo Fees - SP - PM4",
@@ -309,7 +285,6 @@
               { "Food and Drink": "Food and Drink" },
               {
                 "Car Expense": [
-                  "Car Expense",
                   "Car - Gas And Fuel",
                   "Car - Insurance",
                   "Car - Lease",

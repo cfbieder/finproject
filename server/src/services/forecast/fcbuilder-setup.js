@@ -18,10 +18,22 @@ if (!FCAssump.category) {
   throw new Error("FCAssump.category is missing or undefined");
 }
 
-const scenario = FCAssump.scenarios[0];
+const scenarioName = process.argv[2];
+const scenario =
+  (scenarioName
+    ? FCAssump.scenarios.find((entry) => entry.Name === scenarioName)
+    : null) || FCAssump.scenarios[0];
+
+if (!scenario) {
+  throw new Error("No scenarios available in FCAssump.scenarios");
+}
+
+if (scenarioName && scenario.Name !== scenarioName) {
+  throw new Error(`Scenario "${scenarioName}" not found in FCAssump.scenarios`);
+}
 if (!scenario.PeriodStart || !scenario.PeriodEnd) {
   throw new Error(
-    `First scenario missing required fields: PeriodStart=${scenario.PeriodStart}, PeriodEnd=${scenario.PeriodEnd}`
+    `Scenario missing required fields: PeriodStart=${scenario.PeriodStart}, PeriodEnd=${scenario.PeriodEnd}`
   );
 }
 

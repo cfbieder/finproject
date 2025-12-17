@@ -2,6 +2,7 @@
   {
     "Scenario": "String", //Name of scenario
     "Account": "String", //Account from COA,
+    "Matched": false, //boolean to indicate if this module has been matched to an existing asset/liability
     "Name": "String", //Name of the asset/liability
     "Type": "String", //Type of asset/liability Security, RealEstate, Liability, Other
     "Currency": "String", //USD, PLN, EUR, etc.

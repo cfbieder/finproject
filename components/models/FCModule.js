@@ -13,6 +13,7 @@ var transferSchema = new Schema(
 var FCModule = new Schema({
   Scenario: { type: String },
   Account: { type: String },
+  Matched: { type: Boolean, default: false },
   Name: { type: String },
   Type: { type: String },
   Currency: { type: String },

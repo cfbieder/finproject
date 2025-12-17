@@ -129,7 +129,7 @@ router.get("/assumptions", (req, res) => {
   }
 });
 
-router.get("/assumptions/:sections", (req, res) => {
+router.get("/assumptions/sections/:sections", (req, res) => {
   const sectionsParam = req.params.sections ?? "";
   const sections = sectionsParam
     .split(",")

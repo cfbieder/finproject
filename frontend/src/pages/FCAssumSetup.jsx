@@ -1,4 +1,6 @@
+import { useEffect, useState } from "react";
 import NavigationMenu from "../components/NavigationMenu.jsx";
+import Rest from "../js/rest.js";
 import "./PageLayout.css";
 
 export default function FCAssumSetup() {
@@ -6,15 +8,9 @@ export default function FCAssumSetup() {
     <div className="page-shell">
       <NavigationMenu />
       <main className="page-main trans-budget-main">
-        <section className="section-filters fc-setup-select">
-          <div className="section-table__content">
-            <h2>fc-setup-select</h2>
-          </div>
-        </section>
+        <section className="section-filters fc-setup-select"></section>
         <section className="section-table fc-setup-table">
-          <div className="section-table__content">
-            <h2>fc-setup-table</h2>
-          </div>
+          <div className="section-table__content"></div>
         </section>
       </main>
     </div>

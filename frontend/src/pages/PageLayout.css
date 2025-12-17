@@ -120,6 +120,115 @@
 }
 
 /* ============================================================================
+   FORECAST MODULES EDIT
+   ============================================================================ */
+
+.fx-modules-edit-select .section-table__content {
+  display: flex;
+  align-items: center;
+}
+
+.fc-modules-panels {
+  flex: 1;
+  display: grid;
+  grid-template-columns: minmax(0, 1.15fr) minmax(280px, 0.85fr);
+  gap: 1.1rem;
+  align-items: stretch;
+  width: 100%;
+  min-height: 0;
+}
+
+.fc-modules-panel {
+  border: 1px solid var(--border);
+  border-radius: 0.95rem;
+  background: var(--surface-muted);
+  padding: 1.1rem 1.15rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+  min-height: 0;
+}
+
+.fc-modules-panel__title {
+  margin: 0;
+  font-size: 1rem;
+  font-weight: 700;
+  color: var(--ink);
+}
+
+.fc-modules-panel__placeholder {
+  margin: 0;
+  color: var(--muted);
+  font-size: 0.95rem;
+}
+
+.fc-setup-select__row {
+  width: 100%;
+  display: grid;
+  grid-template-columns: minmax(220px, 320px) minmax(220px, 260px) 1fr;
+  gap: 1.25rem;
+  align-items: stretch;
+}
+
+.fc-setup-select__field {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+}
+
+.fc-setup-period {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 0.75rem;
+  padding: 0.9rem 1rem;
+  border: 1px solid var(--border);
+  border-radius: 0.75rem;
+  background: var(--surface-muted);
+  max-width: 260px;
+  width: 100%;
+}
+
+.fc-setup-period__item {
+  display: flex;
+  flex-direction: column;
+  gap: 0.2rem;
+}
+
+.fc-setup-period__label {
+  font-size: 0.9rem;
+  color: var(--muted);
+  font-weight: 600;
+}
+
+.fc-setup-period__value {
+  font-size: 1.15rem;
+  font-weight: 700;
+  color: var(--ink);
+  line-height: 1.3;
+}
+
+.fc-setup-table-placeholder {
+  padding: 0.9rem 1rem;
+  border: 1px dashed var(--border);
+  border-radius: 0.75rem;
+  background: var(--surface-muted);
+  color: var(--muted);
+  display: flex;
+  align-items: center;
+  min-height: 100%;
+}
+
+@media (max-width: 768px) {
+  .fc-setup-select__row {
+    grid-template-columns: 1fr;
+  }
+
+  .fc-setup-period {
+    grid-template-columns: 1fr;
+  }
+}
+
+/* ============================================================================
    FORECAST SCENARIOS - Enhanced Styling
    ============================================================================ */
 
@@ -677,6 +786,10 @@
 
 .trans-budget-table tbody tr:nth-child(even) td {
   background: var(--surface-muted);
+}
+
+.trans-budget-table tbody tr.trans-budget-table__row--selected td {
+  background: rgba(37, 99, 235, 0.08);
 }
 
 .trans-budget-table__value--numeric {

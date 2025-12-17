@@ -425,6 +425,36 @@ const normalizeTextInput = (value) => {
 };
 
 /**
+ * Evaluates a numeric input that may contain basic math expressions
+ * @param {*} value - Input value to evaluate
+ * @returns {number|undefined} Evaluated number or undefined if invalid
+ */
+const evaluateMathInput = (value) => {
+  if (value === undefined || value === null) {
+    return undefined;
+  }
+  const stringValue = String(value).trim();
+  if (!stringValue.length) {
+    return undefined;
+  }
+
+  const isSafeExpression = /^[\d+\-*/().\s]+$/.test(stringValue);
+  if (isSafeExpression) {
+    try {
+      const evaluated = Function(`\"use strict\"; return (${stringValue});`)();
+      if (typeof evaluated === "number" && Number.isFinite(evaluated)) {
+        return evaluated;
+      }
+    } catch (error) {
+      // Ignore invalid expressions and fall back to basic parsing
+    }
+  }
+
+  const parsed = Number(stringValue);
+  return Number.isFinite(parsed) ? parsed : undefined;
+};
+
+/**
  * Parses numeric input and validates it's finite
  * @param {*} value - Input value to parse
  * @returns {number|undefined} Parsed number or undefined if invalid
@@ -433,8 +463,7 @@ const parseNumericInput = (value) => {
   if (value === undefined || value === null || value === "") {
     return undefined;
   }
-  const parsed = Number(value);
-  return Number.isFinite(parsed) ? parsed : undefined;
+  return evaluateMathInput(value);
 };
 
 // ============================================================================
@@ -837,8 +866,44 @@ export default function BudgetInput() {
    * Handles budget entry form submission
    * Supports single month or all months in range
    */
+  const resolveBudgetEntryDateSelection = () => {
+    if (!Array.isArray(monthSelectOptions) || !monthSelectOptions.length) {
+      return "";
+    }
+    const validValues = new Set(
+      monthSelectOptions
+        .map((option) => option?.value)
+        .filter((value) => value !== undefined && value !== null)
+    );
+    if (validValues.has(entryForm.date)) {
+      return entryForm.date;
+    }
+    if (validValues.has("All")) {
+      return "All";
+    }
+    const firstOption = monthSelectOptions.find(
+      (option) => option && option.value
+    );
+    return firstOption ? firstOption.value : "";
+  };
+
   const handleBudgetEntrySubmit = async (event) => {
     event.preventDefault();
+    const resolvedDateSelection = resolveBudgetEntryDateSelection();
+    if (!resolvedDateSelection) {
+      setEntryStatus({
+        loading: false,
+        error: "Please select a valid period for the budget entry.",
+        message: "",
+      });
+      return;
+    }
+    if (resolvedDateSelection !== entryForm.date) {
+      setEntryForm((previous) => ({
+        ...previous,
+        date: resolvedDateSelection,
+      }));
+    }
     const parsedAmount = parseNumericInput(entryForm.amount);
     const normalizedCategory = normalizeTextInput(entryForm.category);
     const isExpenseCategory =
@@ -858,17 +923,33 @@ export default function BudgetInput() {
       return;
     }
 
-    await performBudgetEntrySubmit(parsedAmount, computedBaseAmount);
+    await performBudgetEntrySubmit(
+      parsedAmount,
+      computedBaseAmount,
+      resolvedDateSelection
+    );
   };
 
   const performBudgetEntrySubmit = async (
     amountOverride,
-    baseAmountOverride
+    baseAmountOverride,
+    selectedDateValue
   ) => {
     setEntryStatus({ loading: true, error: "", message: "" });
 
+    const resolvedDateSelection =
+      selectedDateValue ?? resolveBudgetEntryDateSelection();
+    if (!resolvedDateSelection) {
+      setEntryStatus({
+        loading: false,
+        error: "Please select a valid period for the budget entry.",
+        message: "",
+      });
+      return;
+    }
+
     const normalizedCurrency = normalizeCurrencyCode(entryForm.currency);
-    const isAllMonthsSelected = entryForm.date === "All";
+    const isAllMonthsSelected = resolvedDateSelection === "All";
     const amountToUse = amountOverride ?? parseNumericInput(entryForm.amount);
     const baseAmountToUse = Number.isFinite(baseAmountOverride)
       ? baseAmountOverride
@@ -877,8 +958,8 @@ export default function BudgetInput() {
       : undefined;
     const payload = {
       Date:
-        entryForm.date && entryForm.date !== "All"
-          ? `${entryForm.date}-01`
+        resolvedDateSelection && resolvedDateSelection !== "All"
+          ? `${resolvedDateSelection}-01`
           : undefined,
       Description1: normalizeTextInput(entryForm.description),
       Account: (() => {
