@@ -1,11 +1,12 @@
 import { useEffect, useRef, useState } from "react";
 import NavigationMenu from "../components/NavigationMenu.jsx";
 import FCModulesFilter from "../features/Forecast/FCModulesFilter.jsx";
+import FCModulesEditModal from "../features/Forecast/FCModulesEdit.jsx";
 import FCModulesTable from "../features/Forecast/FCModulesTable.jsx";
 import Rest from "../js/rest.js";
 import "./PageLayout.css";
 
-export default function FCModulesEdit() {
+export default function FCModuleManage() {
   const [assumptions, setAssumptions] = useState(null);
   const [error, setError] = useState("");
   const [isLoading, setIsLoading] = useState(false);
@@ -14,6 +15,10 @@ export default function FCModulesEdit() {
   const [modulesError, setModulesError] = useState("");
   const [modulesLoading, setModulesLoading] = useState(false);
   const [selectedModuleId, setSelectedModuleId] = useState("");
+  const [showEditModal, setShowEditModal] = useState(false);
+  const [editForm, setEditForm] = useState(null);
+  const [editSaving, setEditSaving] = useState(false);
+  const [editError, setEditError] = useState("");
   const scenarioSelectRef = useRef(null);
 
   useEffect(() => {
@@ -157,6 +162,104 @@ export default function FCModulesEdit() {
   const selectedModule =
     modules.find((module) => getModuleId(module) === selectedModuleId) ?? null;
 
+  const openEditModal = () => {
+    if (!selectedModule) return;
+    setEditError("");
+    setEditForm({
+      ...selectedModule,
+      BaseDate: selectedModule.BaseDate
+        ? new Date(selectedModule.BaseDate).toISOString().slice(0, 10)
+        : "",
+      Matched: Boolean(selectedModule.Matched),
+    });
+    setShowEditModal(true);
+  };
+
+  const closeEditModal = () => {
+    setShowEditModal(false);
+    setEditForm(null);
+    setEditError("");
+  };
+
+  const handleEditFieldChange = (field, value) => {
+    setEditForm((prev) => {
+      if (field === "Account") {
+        return { ...prev, Account: value, Name: "" };
+      }
+      return {
+        ...prev,
+        [field]: value,
+      };
+    });
+  };
+
+  const handleSaveEdit = async (event) => {
+    event.preventDefault();
+    if (!selectedModule || !editForm) return;
+
+    const moduleId = selectedModule._id || selectedModule.id || selectedModule.Id;
+    if (!moduleId) {
+      setEditError("Cannot edit this module because it has no id.");
+      return;
+    }
+
+    const numericFields = [
+      "Expense",
+      "ExpensePct",
+      "Income",
+      "IncomePct",
+      "BaseValue",
+      "MarketValue",
+      "BaseValueUSD",
+      "MarketValueUSD",
+      "Growth",
+    ];
+
+    const payload = {
+      Account: editForm.Account ?? "",
+      Name: editForm.Name ?? "",
+      Type: editForm.Type ?? "",
+      Currency: editForm.Currency ?? "",
+      ExpCategory: editForm.ExpCategory ?? "",
+      IncomeCategory: editForm.IncomeCategory ?? "",
+      Matched: Boolean(editForm.Matched),
+      BaseDate: editForm.BaseDate
+        ? new Date(editForm.BaseDate).toISOString()
+        : null,
+      AccountNumber: editForm.AccountNumber ?? "",
+    };
+
+    for (const field of numericFields) {
+      const raw = editForm[field];
+      const parsed = raw === "" || raw === null || raw === undefined
+        ? null
+        : Number(raw);
+      payload[field] = Number.isNaN(parsed) ? null : parsed;
+    }
+
+    setEditSaving(true);
+    try {
+      const response = await Rest.fetchJson(`/api/forecast/modules/${moduleId}`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+      });
+
+      const updatedModule = response?.module ?? { ...selectedModule, ...payload };
+      setModules((prev) =>
+        prev.map((module) =>
+          getModuleId(module) === moduleId ? { ...module, ...updatedModule } : module
+        )
+      );
+      setSelectedModuleId(moduleId);
+      closeEditModal();
+    } catch (err) {
+      setEditError(err.message || "Failed to update module");
+    } finally {
+      setEditSaving(false);
+    }
+  };
+
   return (
     <div className="page-shell">
       <NavigationMenu />
@@ -166,9 +269,11 @@ export default function FCModulesEdit() {
           error={error}
           isLoading={isLoading}
           onScenarioChange={setSelectedScenario}
+          onEditClick={openEditModal}
           scenarioSelectRef={scenarioSelectRef}
           selectedScenario={selectedScenario}
           selectedScenarioDetails={selectedScenarioDetails}
+          hasSelectedModule={Boolean(selectedModule)}
         />
         <FCModulesTable
           getModuleId={getModuleId}
@@ -178,6 +283,15 @@ export default function FCModulesEdit() {
           onSelectModule={setSelectedModuleId}
           selectedModule={selectedModule}
           selectedModuleId={selectedModuleId}
+        />
+        <FCModulesEditModal
+          isOpen={showEditModal}
+          editForm={editForm}
+          editError={editError}
+          editSaving={editSaving}
+          onClose={closeEditModal}
+          onFieldChange={handleEditFieldChange}
+          onSubmit={handleSaveEdit}
         />
       </main>
     </div>

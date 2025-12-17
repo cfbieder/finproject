@@ -6,6 +6,8 @@ export default function FCModulesFilter({
   scenarioSelectRef,
   selectedScenario,
   selectedScenarioDetails,
+  hasSelectedModule,
+  onEditClick,
 }) {
   const scenarios = assumptions?.scenarios || [];
 
@@ -51,7 +53,39 @@ export default function FCModulesFilter({
                   </span>
                 </div>
               </div>
-              <div className="fc-setup-table-placeholder">Table placeholder</div>
+              <div className="fc-setup-table-placeholder">
+                <div
+                  style={{
+                    display: "flex",
+                    flexDirection: "column",
+                    gap: "0.65rem",
+                  }}
+                >
+                  <div
+                    style={{
+                      display: "flex",
+                      gap: "0.5rem",
+                      flexWrap: "wrap",
+                    }}
+                  >
+                    {["New", "Edit", "Delete", "Unmatched"].map((label) => {
+                      const isEdit = label === "Edit";
+                      const disabled = label !== "Edit" || !hasSelectedModule;
+                      return (
+                        <button
+                          key={label}
+                          type="button"
+                          className="fc-scenarios-action-button"
+                          disabled={disabled}
+                          onClick={isEdit ? onEditClick : undefined}
+                        >
+                          {label}
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+              </div>
             </div>
           </>
         )}

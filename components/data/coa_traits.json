@@ -1,0 +1,262 @@
+{
+  "PKO - USD": {
+    "Currency": "USD",
+    "AccountNumber": "",
+    "Type": "Cash"
+  },
+  "PKO EUR": {
+    "Currency": "EUR",
+    "AccountNumber": "",
+    "Type": "Cash"
+  },
+  "PKO": {
+    "Currency": "PLN",
+    "AccountNumber": "",
+    "Type": "Cash"
+  },
+  "PKO VISA Infinity KB": {
+    "Currency": "PLN",
+    "AccountNumber": "",
+    "Type": "CreditCard"
+  },
+  "PKO Visa Gold KB": {
+    "Currency": "PLN",
+    "AccountNumber": "",
+    "Type": "CreditCard"
+  },
+  "PKO VISA Infinity CB": {
+    "Currency": "PLN",
+    "AccountNumber": "",
+    "Type": "CreditCard"
+  },
+  "PKO Visa Gold CB": {
+    "Currency": "PLN",
+    "AccountNumber": "",
+    "Type": "CreditCard"
+  },
+  "Delta SkyMiles Reserve Card": {
+    "Currency": "USD",
+    "AccountNumber": "",
+    "Type": "CreditCard"
+  },
+  "Hilton Honors Card": {
+    "Currency": "USD",
+    "AccountNumber": "",
+    "Type": "CreditCard"
+  },
+  "LUXURY CARD": {
+    "Currency": "USD",
+    "AccountNumber": "",
+    "Type": "CreditCard"
+  },
+  "Bonvoy Amex Card": {
+    "Currency": "USD",
+    "AccountNumber": "",
+    "Type": "CreditCard"
+  },
+  "Amazon Visa": {
+    "Currency": "USD",
+    "AccountNumber": "",
+    "Type": "CreditCard"
+  },
+  "Marriot Visa": {
+    "Currency": "USD",
+    "AccountNumber": "",
+    "Type": "CreditCard"
+  },
+  "Mortgage - Casarina": {
+    "Currency": "USD",
+    "AccountNumber": "",
+    "Type": "Liability"
+  },
+  "Mortgage - Nokomis": {
+    "Currency": "USD",
+    "AccountNumber": "",
+    "Type": "Liability"
+  },
+  "Tax Reserve - PL": {
+    "Currency": "PLN",
+    "AccountNumber": "",
+    "Type": "Reserve"
+  },
+  "Tax Reserve - US": {
+    "Currency": "USD",
+    "AccountNumber": "",
+    "Type": "Reserve"
+  },
+  "Misc Investments": {
+    "Currency": "USD",
+    "AccountNumber": "",
+    "Type": "Business"
+  },
+  "CVC - MIP": {
+    "Currency": "PLN",
+    "AccountNumber": "",
+    "Type": "Security"
+  },
+  "PL - Muszlowa": {
+    "Currency": "PLN",
+    "AccountNumber": "",
+    "Type": "RealEstate"
+  },
+  "PL - Niemena": {
+    "Currency": "PLN",
+    "AccountNumber": "",
+    "Type": "RealEstate"
+  },
+  "OCME Sp. z o.o.": {
+    "Currency": "PLN",
+    "AccountNumber": "",
+    "Type": "Business"
+  },
+  "Barkeria Sp. z o.o.": {
+    "Currency": "PLN",
+    "AccountNumber": "",
+    "Type": "Business"
+  },
+  "United Beverages": {
+    "Currency": "PLN",
+    "AccountNumber": "",
+    "Type": "Business"
+  },
+  "SP - Panorama Mar 6": {
+    "Currency": "EUR",
+    "AccountNumber": "",
+    "Type": "RealEstate"
+  },
+  "SP - Panorama Mar 4": {
+    "Currency": "EUR",
+    "AccountNumber": "",
+    "Type": "RealEstate"
+  },
+  "SP - Sea Senses": {
+    "Currency": "EUR",
+    "AccountNumber": "",
+    "Type": "RealEstate"
+  },
+  "US - Casarina": {
+    "Currency": "USD",
+    "AccountNumber": "",
+    "Type": "RealEstate"
+  },
+  "US - Nokomis": {
+    "Currency": "USD",
+    "AccountNumber": "",
+    "Type": "RealEstate"
+  },
+  "CVC Fund IX": {
+    "Currency": "EUR",
+    "AccountNumber": "",
+    "Type": "Security"
+  },
+  "CVC Fund VIII": {
+    "Currency": "EUR",
+    "AccountNumber": "",
+    "Type": "Security"
+  },
+  "Fidelity Bond": {
+    "Currency": "USD",
+    "AccountNumber": "",
+    "Type": "Security"
+  },
+  "Fidelity Cash Mgt": {
+    "Currency": "USD",
+    "AccountNumber": "",
+    "Type": "Security"
+  },
+  "Fidelity Options": {
+    "Currency": "USD",
+    "AccountNumber": "",
+    "Type": "Security"
+  },
+  "Fidelity Stocks": {
+    "Currency": "USD",
+    "AccountNumber": "",
+    "Type": "Security"
+  },
+  "Fidelity IRA": {
+    "Currency": "USD",
+    "AccountNumber": "",
+    "Type": "Security"
+  },
+  "WISE - GBP": {
+    "Currency": "GBP",
+    "AccountNumber": "",
+    "Type": "Cash"
+  },
+  "Revolut-PLN": {
+    "Currency": "PLN",
+    "AccountNumber": "",
+    "Type": "Cash"
+  },
+  "Santandar": {
+    "Currency": "PLN",
+    "AccountNumber": "",
+    "Type": "Cash"
+  },
+  "PKO - Deposits": {
+    "Currency": "PLN",
+    "AccountNumber": "",
+    "Type": "Cash"
+  },
+  "WISE - PLN": {
+    "Currency": "PLN",
+    "AccountNumber": "",
+    "Type": "Cash"
+  },
+  "PKO Savings": {
+    "Currency": "PLN",
+    "AccountNumber": "",
+    "Type": "Cash"
+  },
+  "Revolut-EUR": {
+    "Currency": "EUR",
+    "AccountNumber": "",
+    "Type": "Cash"
+  },
+  "Cash EUR": {
+    "Currency": "EUR",
+    "AccountNumber": "",
+    "Type": "Cash"
+  },
+  "Caixa EUR": {
+    "Currency": "EUR",
+    "AccountNumber": "",
+    "Type": "Cash"
+  },
+  "WISE - EUR": {
+    "Currency": "EUR",
+    "AccountNumber": "",
+    "Type": "Cash"
+  },
+  "Capital One Savings": {
+    "Currency": "USD",
+    "AccountNumber": "",
+    "Type": "Cash"
+  },
+  "Revolut-USD": {
+    "Currency": "USD",
+    "AccountNumber": "",
+    "Type": "Cash"
+  },
+  "Wise - USD": {
+    "Currency": "USD",
+    "AccountNumber": "",
+    "Type": "Cash"
+  },
+  "Chase Saving": {
+    "Currency": "USD",
+    "AccountNumber": "",
+    "Type": "Cash"
+  },
+  "Chase Checking": {
+    "Currency": "USD",
+    "AccountNumber": "",
+    "Type": "Cash"
+  },
+  "WISE - USD - Old": {
+    "Currency": "",
+    "AccountNumber": "",
+    "Type": "Cash"
+  }
+}
