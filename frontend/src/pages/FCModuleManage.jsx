@@ -5,22 +5,113 @@ import FCModulesEditModal from "../features/Forecast/FCModulesEdit.jsx";
 import FCModulesTable from "../features/Forecast/FCModulesTable.jsx";
 import Rest from "../js/rest.js";
 import "./PageLayout.css";
+import "../features/Forecast/FCModules.css";
 
+/**
+ * Formats transfer entries for the edit form by ensuring consistent date formatting.
+ * Extracts year from date and formats as YYYY-07-01 for fiscal year convention.
+ *
+ * @param {Array<Object>} transfers - Array of transfer objects with Date, Amount, and Flag properties
+ * @returns {Array<Object>} Formatted transfer array with normalized dates
+ */
+const formatTransferForm = (transfers) => {
+  if (!Array.isArray(transfers)) {
+    return [];
+  }
+  return transfers.map((entry) => {
+    const date = entry?.Date ? new Date(entry.Date) : null;
+    const year =
+      date && !Number.isNaN(date.getTime()) ? date.getFullYear() : null;
+    return {
+      Date: year ? `${year}-07-01` : "",
+      Amount: entry?.Amount ?? "",
+      Flag: entry?.Flag ?? "",
+    };
+  });
+};
+
+/**
+ * Normalizes transfer data for API submission by validating dates and amounts.
+ * Filters out invalid entries and ensures proper data types.
+ *
+ * @param {Array<Object>} transfers - Array of transfer objects to normalize
+ * @returns {Array<Object>} Validated transfer array with ISO date strings and numeric amounts
+ */
+const normalizeTransfers = (transfers) => {
+  if (!Array.isArray(transfers)) {
+    return [];
+  }
+  return transfers
+    .map((entry) => {
+      if (!entry || typeof entry !== "object") {
+        return null;
+      }
+      const dateValue = entry.Date ? new Date(entry.Date) : null;
+      const date =
+        dateValue && !Number.isNaN(dateValue.getTime())
+          ? dateValue.toISOString()
+          : null;
+      const rawAmount = entry.Amount;
+      const parsedAmount =
+        rawAmount === "" || rawAmount === null || rawAmount === undefined
+          ? null
+          : Number(rawAmount);
+      const amount = Number.isNaN(parsedAmount) ? null : parsedAmount;
+      const flag = entry.Flag ?? "";
+      if (!date || (amount === null && !flag)) {
+        return null;
+      }
+      return { Date: date, Amount: amount, Flag: flag };
+    })
+    .filter(Boolean);
+};
+
+/**
+ * FCModuleManage component manages forecast modules for different scenarios.
+ *
+ * Features:
+ * - Loads and displays forecast assumptions and scenarios
+ * - Filters modules by selected scenario
+ * - Dynamic scenario selector with auto-sizing based on content
+ * - Module selection and detail viewing
+ * - Edit modal for updating module properties (account, type, values, transfers)
+ * - Real-time data synchronization with backend API
+ *
+ * State management:
+ * - Assumptions: Forecast scenarios and configuration
+ * - Modules: Filtered list of forecast modules for selected scenario
+ * - Selection: Currently selected module and scenario
+ * - Edit modal: Form state for editing module details
+ *
+ * @component
+ * @returns {JSX.Element} The forecast module management page
+ */
 export default function FCModuleManage() {
+  // Assumptions state
   const [assumptions, setAssumptions] = useState(null);
   const [error, setError] = useState("");
   const [isLoading, setIsLoading] = useState(false);
+
+  // Scenario selection
   const [selectedScenario, setSelectedScenario] = useState("");
+  const scenarioSelectRef = useRef(null);
+
+  // Modules state
   const [modules, setModules] = useState([]);
   const [modulesError, setModulesError] = useState("");
   const [modulesLoading, setModulesLoading] = useState(false);
   const [selectedModuleId, setSelectedModuleId] = useState("");
+
+  // Edit modal state
   const [showEditModal, setShowEditModal] = useState(false);
   const [editForm, setEditForm] = useState(null);
   const [editSaving, setEditSaving] = useState(false);
   const [editError, setEditError] = useState("");
-  const scenarioSelectRef = useRef(null);
 
+  /**
+   * Loads forecast assumptions from the API on component mount.
+   * Handles cleanup to prevent state updates on unmounted component.
+   */
   useEffect(() => {
     let isMounted = true;
     const loadAssumptions = async () => {
@@ -49,6 +140,10 @@ export default function FCModuleManage() {
     };
   }, []);
 
+  /**
+   * Updates selected scenario when assumptions load or change.
+   * Preserves previous selection if still valid, otherwise defaults to first scenario.
+   */
   useEffect(() => {
     const availableScenarios = assumptions?.scenarios || [];
     if (!availableScenarios.length) {
@@ -67,6 +162,11 @@ export default function FCModuleManage() {
     });
   }, [assumptions]);
 
+  /**
+   * Dynamically adjusts scenario select width to fit content.
+   * Measures text width using canvas and sets element width accordingly.
+   * Ensures dropdown arrow has sufficient space.
+   */
   useEffect(() => {
     const selectEl = scenarioSelectRef.current;
     if (!selectEl) {
@@ -99,21 +199,35 @@ export default function FCModuleManage() {
     const borders =
       parseFloat(selectStyles.borderLeftWidth || "0") +
       parseFloat(selectStyles.borderRightWidth || "0");
-    const arrowSpace = 24; // space for the dropdown arrow
+    const arrowSpace = 24;
 
     selectEl.style.width = `${widest + padding + borders + arrowSpace}px`;
   }, [assumptions]);
 
+  /**
+   * Retrieves currently selected scenario details from assumptions.
+   */
   const selectedScenarioDetails = (assumptions?.scenarios || []).find(
     (scenario) => scenario.Name === selectedScenario
   );
 
+  /**
+   * Generates a unique identifier for a module.
+   * Attempts multiple ID fields before falling back to composite key.
+   *
+   * @param {Object} module - The module object
+   * @returns {string} Unique module identifier
+   */
   const getModuleId = (module) =>
     module?._id ??
     module?.id ??
     module?.Id ??
     `${module?.Scenario ?? "module"}-${module?.Account ?? module?.Name ?? ""}`;
 
+  /**
+   * Loads modules for the selected scenario from the API.
+   * Filters results by scenario and updates selected module if needed.
+   */
   useEffect(() => {
     if (!selectedScenario) {
       setModules([]);
@@ -159,9 +273,16 @@ export default function FCModuleManage() {
     };
   }, [selectedScenario]);
 
+  /**
+   * Retrieves the currently selected module object.
+   */
   const selectedModule =
     modules.find((module) => getModuleId(module) === selectedModuleId) ?? null;
 
+  /**
+   * Opens the edit modal with the selected module's data.
+   * Formats dates and transfer arrays for form display.
+   */
   const openEditModal = () => {
     if (!selectedModule) return;
     setEditError("");
@@ -171,16 +292,28 @@ export default function FCModuleManage() {
         ? new Date(selectedModule.BaseDate).toISOString().slice(0, 10)
         : "",
       Matched: Boolean(selectedModule.Matched),
+      Invest: formatTransferForm(selectedModule.Invest),
+      Dispose: formatTransferForm(selectedModule.Dispose),
     });
     setShowEditModal(true);
   };
 
+  /**
+   * Closes the edit modal and clears form state.
+   */
   const closeEditModal = () => {
     setShowEditModal(false);
     setEditForm(null);
     setEditError("");
   };
 
+  /**
+   * Updates a single field in the edit form.
+   * Clears Name field when Account changes to maintain consistency.
+   *
+   * @param {string} field - The field name to update
+   * @param {*} value - The new field value
+   */
   const handleEditFieldChange = (field, value) => {
     setEditForm((prev) => {
       if (field === "Account") {
@@ -193,6 +326,12 @@ export default function FCModuleManage() {
     });
   };
 
+  /**
+   * Submits the edit form to update the selected module via API.
+   * Validates module ID, formats numeric fields, normalizes transfers, and updates local state on success.
+   *
+   * @param {Event} event - Form submit event
+   */
   const handleSaveEdit = async (event) => {
     event.preventDefault();
     if (!selectedModule || !editForm) return;
@@ -203,6 +342,7 @@ export default function FCModuleManage() {
       return;
     }
 
+    // Define numeric fields that need special handling
     const numericFields = [
       "Expense",
       "ExpensePct",
@@ -215,6 +355,7 @@ export default function FCModuleManage() {
       "Growth",
     ];
 
+    // Build base payload with string and boolean fields
     const payload = {
       Account: editForm.Account ?? "",
       Name: editForm.Name ?? "",
@@ -229,6 +370,7 @@ export default function FCModuleManage() {
       AccountNumber: editForm.AccountNumber ?? "",
     };
 
+    // Process numeric fields with validation
     for (const field of numericFields) {
       const raw = editForm[field];
       const parsed = raw === "" || raw === null || raw === undefined
@@ -236,6 +378,10 @@ export default function FCModuleManage() {
         : Number(raw);
       payload[field] = Number.isNaN(parsed) ? null : parsed;
     }
+
+    // Normalize and add transfer arrays
+    payload.Invest = normalizeTransfers(editForm.Invest);
+    payload.Dispose = normalizeTransfers(editForm.Dispose);
 
     setEditSaving(true);
     try {

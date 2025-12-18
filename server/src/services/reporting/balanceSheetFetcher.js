@@ -275,6 +275,31 @@ class BalanceSheetFetcher {
   }
 }
 
+// Extract balance details for a specific account from account balances
+function getAccountBalanceEntry(accountName, accountBalances) {
+  if (!accountName || !accountBalances) {
+    return null;
+  }
+
+  const entry = accountBalances[accountName];
+  if (!Array.isArray(entry)) {
+    return null;
+  }
+
+  const [currency, balance, exchangeRate, balanceInUSD] = entry;
+  const parsedBalance = Number(balance);
+  const parsedUsd = Number(balanceInUSD);
+
+  return {
+    currency: typeof currency === "string" ? currency : null,
+    balance: Number.isFinite(parsedBalance) ? parsedBalance : 0,
+    exchangeRate: Number.isFinite(Number(exchangeRate))
+      ? Number(exchangeRate)
+      : null,
+    balanceInUSD: Number.isFinite(parsedUsd) ? parsedUsd : 0,
+  };
+}
+
 // Build a balance sheet node recursively
 function buildBalanceSheetNode(name, value, accountBalances) {
   if (!name) {
@@ -286,8 +311,14 @@ function buildBalanceSheetNode(name, value, accountBalances) {
       typeof value === "string" && value.trim().length > 0
         ? value.trim()
         : name;
-    const totalUSD = getUsdBalance(accountName, accountBalances);
-    return { name, totalUSD };
+    const balanceEntry = getAccountBalanceEntry(accountName, accountBalances);
+    const totalUSD = balanceEntry ? balanceEntry.balanceInUSD : 0;
+    const node = { name, totalUSD };
+    if (balanceEntry) {
+      node.currency = balanceEntry.currency;
+      node.total = balanceEntry.balance;
+    }
+    return node;
   }
 
   const children = [];
@@ -299,8 +330,14 @@ function buildBalanceSheetNode(name, value, accountBalances) {
       if (!accountName) {
         continue;
       }
-      const childBalance = getUsdBalance(accountName, accountBalances);
-      children.push({ name: accountName, totalUSD: childBalance });
+      const balanceEntry = getAccountBalanceEntry(accountName, accountBalances);
+      const childBalance = balanceEntry ? balanceEntry.balanceInUSD : 0;
+      const childNode = { name: accountName, totalUSD: childBalance };
+      if (balanceEntry) {
+        childNode.currency = balanceEntry.currency;
+        childNode.total = balanceEntry.balance;
+      }
+      children.push(childNode);
       totalUSD += childBalance;
       continue;
     }

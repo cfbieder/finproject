@@ -1,3 +1,118 @@
+/**
+ * Formats a currency value without decimal places.
+ * Handles negative values with proper sign placement.
+ *
+ * @param {number|string|null|undefined} value - The value to format
+ * @returns {string} Formatted currency string with $ sign or "-" if invalid
+ */
+const formatCurrencyNoDecimals = (value) => {
+  if (value === undefined || value === null || Number.isNaN(Number(value))) {
+    return "-";
+  }
+  const numberValue = Number(value);
+  const formatted = Math.abs(numberValue).toLocaleString(undefined, {
+    minimumFractionDigits: 0,
+    maximumFractionDigits: 0,
+  });
+  return numberValue < 0 ? `-$${formatted}` : `$${formatted}`;
+};
+
+/**
+ * Formats a currency value with two decimal places.
+ *
+ * @param {number|string|null|undefined} value - The value to format
+ * @returns {string} Formatted currency string or "-" if invalid
+ */
+const formatCurrency = (value) => {
+  if (value === undefined || value === null || Number.isNaN(Number(value))) {
+    return "-";
+  }
+  return Number(value).toLocaleString(undefined, {
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
+  });
+};
+
+/**
+ * Formats a date value to locale date string.
+ *
+ * @param {Date|string|null|undefined} value - The date value to format
+ * @returns {string} Formatted date string or "-" if invalid
+ */
+const formatDate = (value) => {
+  if (!value) {
+    return "-";
+  }
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) {
+    return "-";
+  }
+  return date.toLocaleDateString();
+};
+
+/**
+ * Renders transfer entries (Invest/Dispose) as a formatted grid.
+ * Displays Date, Amount, and Flag columns with proper formatting.
+ *
+ * @param {Array<Object>|null|undefined} transfers - Array of transfer objects
+ * @returns {JSX.Element|string} Formatted transfer grid or "-" if no transfers
+ */
+const renderTransfers = (transfers) => {
+  if (!Array.isArray(transfers) || !transfers.length) {
+    return "-";
+  }
+  return (
+    <div className="fc-modules-details__transfers">
+      <div className="fc-modules-details__transfers-header">
+        <span>Date</span>
+        <span>Amount</span>
+        <span>Flag</span>
+      </div>
+      {transfers.map((transfer, index) => {
+        if (!transfer || typeof transfer !== "object") {
+          return null;
+        }
+        const date = transfer.Date ? formatDate(transfer.Date) : "-";
+        const amount = formatCurrency(transfer.Amount);
+        const flag = transfer.Flag;
+        return (
+          <div
+            key={index}
+            className="fc-modules-details__transfer-row"
+          >
+            <span>{date}</span>
+            <span>{amount}</span>
+            <span className="fc-modules-details__transfer-flag">
+              {flag && flag !== "" ? flag : "-"}
+            </span>
+          </div>
+        );
+      })}
+    </div>
+  );
+};
+
+/**
+ * FCModulesTable component displays forecast modules in a two-panel layout.
+ *
+ * Features:
+ * - Left panel: Scrollable table of all modules with key metrics
+ * - Right panel: Detailed view of selected module
+ * - Row selection highlighting
+ * - Loading and error state handling
+ * - Formatted display of currency, dates, and transfer data
+ *
+ * @component
+ * @param {Object} props - Component props
+ * @param {Array<Object>} props.modules - Array of module objects to display
+ * @param {string} props.modulesError - Error message to display
+ * @param {boolean} props.modulesLoading - Loading state for modules
+ * @param {Object|null} props.selectedModule - Currently selected module object
+ * @param {string} props.selectedModuleId - ID of the selected module
+ * @param {Function} props.onSelectModule - Callback when a module row is clicked
+ * @param {Function} props.getModuleId - Function to extract unique ID from a module
+ * @returns {JSX.Element} The modules table and details panel section
+ */
 export default function FCModulesTable({
   modules,
   modulesError,
@@ -7,107 +122,51 @@ export default function FCModulesTable({
   onSelectModule,
   getModuleId,
 }) {
-  const formatCurrency = (value) => {
-    if (value === undefined || value === null || Number.isNaN(Number(value))) {
-      return "-";
-    }
-    return Number(value).toLocaleString(undefined, {
-      minimumFractionDigits: 2,
-      maximumFractionDigits: 2,
-    });
-  };
-
-  const formatDate = (value) => {
-    if (!value) {
-      return "-";
-    }
-    const date = new Date(value);
-    if (Number.isNaN(date.getTime())) {
-      return "-";
-    }
-    return date.toLocaleDateString();
-  };
-
-  const renderTransfers = (transfers) => {
-    if (!Array.isArray(transfers) || !transfers.length) {
-      return "-";
-    }
-    return (
-      <div style={{ display: "flex", flexDirection: "column", gap: "0.2rem" }}>
-        <div
-          style={{
-            display: "grid",
-            gridTemplateColumns: "1fr 1fr auto",
-            gap: "0.25rem",
-            fontSize: "0.8rem",
-            color: "var(--muted)",
-            textTransform: "uppercase",
-            letterSpacing: "0.05em",
-            fontWeight: 600,
-          }}
-        >
-          <span>Date</span>
-          <span>Amount</span>
-          <span>Flag</span>
-        </div>
-        {transfers.map((transfer, index) => {
-          if (!transfer || typeof transfer !== "object") {
-            return null;
-          }
-          const date = transfer.Date ? formatDate(transfer.Date) : "-";
-          const amount = formatCurrency(transfer.Amount);
-          const flag = transfer.Flag;
-          return (
-            <div
-              key={index}
-              style={{
-                display: "grid",
-                gridTemplateColumns: "1fr 1fr auto",
-                gap: "0.25rem",
-                alignItems: "center",
-              }}
-            >
-              <span>{date}</span>
-              <span>{amount}</span>
-              <span style={{ color: "var(--muted)" }}>
-                {flag && flag !== "" ? flag : "-"}
-              </span>
-            </div>
-          );
-        })}
-      </div>
-    );
-  };
-
   return (
-    <section className="section-table">
+    <section className="section-table fc-modules-table-section">
       <div className="section-table__content">
         <div className="fc-modules-panels">
-          <div className="fc-modules-panel">
-            <h3 className="fc-modules-panel__title">Modules</h3>
-            <div className="trans-budget-table-wrapper">
+          {/* Left Panel - Modules List */}
+          <div className="fc-modules-panel fc-modules-panel--list">
+            <div className="fc-modules-panel__header">
+              <h3 className="fc-modules-panel__title">Forecast Modules</h3>
+              <span className="fc-modules-panel__count">
+                {modules.length} {modules.length === 1 ? "module" : "modules"}
+              </span>
+            </div>
+
+            <div className="fc-modules-table-wrapper">
               {modulesLoading && (
-                <p className="trans-budget-table__message">Loading modules…</p>
+                <div className="fc-modules-table__message">
+                  <div className="fc-modules-table__spinner" />
+                  <p>Loading modules...</p>
+                </div>
               )}
               {!modulesLoading && modulesError && (
-                <p className="trans-budget-table__message trans-budget-table__message--error">
-                  {modulesError}
-                </p>
+                <div className="fc-modules-table__message fc-modules-table__message--error">
+                  <span className="fc-modules-table__error-icon">⚠</span>
+                  <p>{modulesError}</p>
+                </div>
               )}
               {!modulesLoading && !modulesError && !modules.length && (
-                <p className="trans-budget-table__message">
-                  No modules found for this scenario.
-                </p>
+                <div className="fc-modules-table__message fc-modules-table__message--empty">
+                  <span className="fc-modules-table__empty-icon">📋</span>
+                  <p>No modules found for this scenario.</p>
+                  <span className="fc-modules-table__empty-hint">
+                    Select a different scenario or create a new module
+                  </span>
+                </div>
               )}
               {!modulesLoading && !modulesError && modules.length > 0 && (
-                <table className="trans-budget-table">
+                <table className="fc-modules-table">
                   <thead>
                     <tr>
-                      <th style={{ width: "32%" }}>Name</th>
-                      <th>Account</th>
-                      <th>Type</th>
-                      <th>Matched</th>
-                      <th style={{ width: "110px" }}>Base Value (USD)</th>
+                      <th className="fc-modules-table__th fc-modules-table__th--name">Name</th>
+                      <th className="fc-modules-table__th">Account</th>
+                      <th className="fc-modules-table__th">Type</th>
+                      <th className="fc-modules-table__th fc-modules-table__th--center">Matched</th>
+                      <th className="fc-modules-table__th fc-modules-table__th--numeric">Base (USD)</th>
+                      <th className="fc-modules-table__th fc-modules-table__th--numeric">Market (USD)</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -116,28 +175,41 @@ export default function FCModulesTable({
                       const isSelected = moduleId === selectedModuleId;
                       const baseValue =
                         module?.BaseValueUSD ?? module?.BaseValue;
+                      const marketValue =
+                        module?.MarketValueUSD ?? module?.MarketValue;
                       return (
                         <tr
                           key={moduleId}
-                          className={`trans-budget-table__row${
-                            isSelected ? " trans-budget-table__row--selected" : ""
+                          className={`fc-modules-table__row ${
+                            isSelected ? "fc-modules-table__row--selected" : ""
                           }`}
                           onClick={() => onSelectModule(moduleId)}
                         >
-                          <td className="trans-budget-table__value">
-                            {module?.Name || "-"}
+                          <td className="fc-modules-table__td fc-modules-table__td--name">
+                            <span className="fc-modules-table__name-text">
+                              {module?.Name || "-"}
+                            </span>
                           </td>
-                          <td className="trans-budget-table__value">
+                          <td className="fc-modules-table__td">
                             {module?.Account || "-"}
                           </td>
-                          <td className="trans-budget-table__value">
-                            {module?.Type || "-"}
+                          <td className="fc-modules-table__td">
+                            <span className="fc-modules-table__type-badge">
+                              {module?.Type || "-"}
+                            </span>
                           </td>
-                          <td className="trans-budget-table__value">
-                            {module?.Matched ? "Yes" : "No"}
+                          <td className="fc-modules-table__td fc-modules-table__td--center">
+                            <span className={`fc-modules-table__matched-badge ${
+                              module?.Matched ? "fc-modules-table__matched-badge--yes" : "fc-modules-table__matched-badge--no"
+                            }`}>
+                              {module?.Matched ? "Yes" : "No"}
+                            </span>
                           </td>
-                          <td className="trans-budget-table__value trans-budget-table__value--numeric">
-                            {formatCurrency(baseValue)}
+                          <td className="fc-modules-table__td fc-modules-table__td--numeric">
+                            {formatCurrencyNoDecimals(baseValue)}
+                          </td>
+                          <td className="fc-modules-table__td fc-modules-table__td--numeric">
+                            {formatCurrencyNoDecimals(marketValue)}
                           </td>
                         </tr>
                       );
@@ -147,113 +219,124 @@ export default function FCModulesTable({
               )}
             </div>
           </div>
-          <div className="fc-modules-panel">
-            <h3 className="fc-modules-panel__title">Details</h3>
+
+          {/* Right Panel - Module Details */}
+          <div className="fc-modules-panel fc-modules-panel--details">
+            <div className="fc-modules-panel__header">
+              <h3 className="fc-modules-panel__title">Module Details</h3>
+            </div>
+
             {selectedModule ? (
               <div className="fc-modules-details">
-                <div
-                  style={{
-                    display: "grid",
-                    gridTemplateColumns: "repeat(auto-fit, minmax(180px, 1fr))",
-                    gap: "0.65rem",
-                  }}
-                >
+                <div className="fc-modules-details__grid">
                   {[
-                    ["Scenario", selectedModule.Scenario],
-                    ["Account", selectedModule.Account],
-                    ["Type", selectedModule.Type],
-                    ["Matched", selectedModule.Matched ? "Yes" : "No"],
-                    ["Name", selectedModule.Name],
-                    ["Currency", selectedModule.Currency],
-                    ["Exp Category", selectedModule.ExpCategory],
-                    [
-                      "Expense",
-                      selectedModule.Expense === null ||
-                      selectedModule.Expense === undefined
-                        ? null
-                        : formatCurrency(selectedModule.Expense),
-                    ],
-                    [
-                      "Expense %",
-                      selectedModule.ExpensePct === null ||
-                      selectedModule.ExpensePct === undefined
-                        ? null
-                        : `${selectedModule.ExpensePct}%`,
-                    ],
-                    ["Income Category", selectedModule.IncomeCategory],
-                    [
-                      "Income",
-                      selectedModule.Income === null ||
-                      selectedModule.Income === undefined
-                        ? null
-                        : formatCurrency(selectedModule.Income),
-                    ],
-                    [
-                      "Income %",
-                      selectedModule.IncomePct === null ||
-                      selectedModule.IncomePct === undefined
-                        ? null
-                        : `${selectedModule.IncomePct}%`,
-                    ],
-                    ["Base Date", formatDate(selectedModule.BaseDate)],
-                    [
-                      "Base Value",
-                      selectedModule.BaseValue === null ||
-                      selectedModule.BaseValue === undefined
-                        ? null
-                        : formatCurrency(selectedModule.BaseValue),
-                    ],
-                    [
-                      "Market Value",
-                      selectedModule.MarketValue === null ||
-                      selectedModule.MarketValue === undefined
-                        ? null
-                        : formatCurrency(selectedModule.MarketValue),
-                    ],
-                    [
-                      "Base Value (USD)",
-                      formatCurrency(
+                    { label: "Scenario", value: selectedModule.Scenario, span: false },
+                    { label: "Account", value: selectedModule.Account, span: false },
+                    { label: "Name", value: selectedModule.Name, span: false },
+                    { label: "Type", value: selectedModule.Type, span: false },
+                    { label: "Currency", value: selectedModule.Currency, span: false },
+                    {
+                      label: "Matched",
+                      value: (
+                        <span className={`fc-modules-details__matched-badge ${
+                          selectedModule.Matched ? "fc-modules-details__matched-badge--yes" : "fc-modules-details__matched-badge--no"
+                        }`}>
+                          {selectedModule.Matched ? "Yes" : "No"}
+                        </span>
+                      ),
+                      span: false
+                    },
+                    { label: "Exp Category", value: selectedModule.ExpCategory, span: false },
+                    {
+                      label: "Expense",
+                      value:
+                        selectedModule.Expense === null ||
+                        selectedModule.Expense === undefined
+                          ? null
+                          : formatCurrency(selectedModule.Expense),
+                      span: false,
+                    },
+                    {
+                      label: "Expense %",
+                      value:
+                        selectedModule.ExpensePct === null ||
+                        selectedModule.ExpensePct === undefined
+                          ? null
+                          : `${selectedModule.ExpensePct}%`,
+                      span: false,
+                    },
+                    { label: "Income Category", value: selectedModule.IncomeCategory, span: false },
+                    {
+                      label: "Income",
+                      value:
+                        selectedModule.Income === null ||
+                        selectedModule.Income === undefined
+                          ? null
+                          : formatCurrency(selectedModule.Income),
+                      span: false,
+                    },
+                    {
+                      label: "Income %",
+                      value:
+                        selectedModule.IncomePct === null ||
+                        selectedModule.IncomePct === undefined
+                          ? null
+                          : `${selectedModule.IncomePct}%`,
+                      span: false,
+                    },
+                    { label: "Base Date", value: formatDate(selectedModule.BaseDate), span: false },
+                    {
+                      label: "Base Value",
+                      value:
+                        selectedModule.BaseValue === null ||
+                        selectedModule.BaseValue === undefined
+                          ? null
+                          : formatCurrency(selectedModule.BaseValue),
+                      span: false,
+                    },
+                    {
+                      label: "Market Value",
+                      value:
+                        selectedModule.MarketValue === null ||
+                        selectedModule.MarketValue === undefined
+                          ? null
+                          : formatCurrency(selectedModule.MarketValue),
+                      span: false,
+                    },
+                    {
+                      label: "Base Value (USD)",
+                      value: formatCurrency(
                         selectedModule.BaseValueUSD ?? selectedModule.BaseValue
                       ),
-                    ],
-                    [
-                      "Market Value (USD)",
-                      formatCurrency(selectedModule.MarketValueUSD),
-                    ],
-                    [
-                      "Growth",
-                      selectedModule.Growth === null ||
-                      selectedModule.Growth === undefined
-                        ? null
-                        : `${selectedModule.Growth}%`,
-                    ],
-                    ["Invest", renderTransfers(selectedModule.Invest)],
-                    ["Dispose", renderTransfers(selectedModule.Dispose)],
-                  ].map(([label, value]) => (
+                      span: false,
+                    },
+                    {
+                      label: "Market Value (USD)",
+                      value: formatCurrency(selectedModule.MarketValueUSD),
+                      span: false,
+                    },
+                    {
+                      label: "Growth",
+                      value:
+                        selectedModule.Growth === null ||
+                        selectedModule.Growth === undefined
+                          ? null
+                          : `${selectedModule.Growth}%`,
+                      span: false,
+                    },
+                    { label: "Invest", value: renderTransfers(selectedModule.Invest), span: true },
+                    { label: "Dispose", value: renderTransfers(selectedModule.Dispose), span: true },
+                  ].map(({ label, value, span }) => (
                     <div
                       key={label}
-                      style={{
-                        display: "flex",
-                        flexDirection: "column",
-                        gap: "0.15rem",
-                        gridColumn:
-                          label === "Invest" || label === "Dispose"
-                            ? "1 / -1"
-                            : undefined,
-                      }}
+                      className={`fc-modules-details__field ${
+                        span ? "fc-modules-details__field--full" : ""
+                      }`}
                     >
-                      <span
-                        style={{
-                          fontSize: "0.85rem",
-                          color: "var(--muted)",
-                          textTransform: "uppercase",
-                          letterSpacing: "0.05em",
-                          fontWeight: 600,
-                        }}
-                      >
+                      <span className="fc-modules-details__label">
                         {label}
                       </span>
-                      <span style={{ fontWeight: 700, color: "var(--ink)" }}>
+                      <span className="fc-modules-details__value">
                         {value === null || value === undefined || value === ""
                           ? "-"
                           : value}
@@ -263,9 +346,10 @@ export default function FCModulesTable({
                 </div>
               </div>
             ) : (
-              <p className="fc-modules-panel__placeholder">
-                Select a module to view details.
-              </p>
+              <div className="fc-modules-panel__placeholder">
+                <span className="fc-modules-panel__placeholder-icon">👈</span>
+                <p>Select a module to view details</p>
+              </div>
             )}
           </div>
         </div>
