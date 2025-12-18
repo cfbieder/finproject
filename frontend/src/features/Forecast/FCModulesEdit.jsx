@@ -267,6 +267,17 @@ const formatWithCommas = (value) => {
   });
 };
 
+const formatTwoDecimals = (value) => {
+  const num = Number(value);
+  if (!Number.isFinite(num)) {
+    return "";
+  }
+  return num.toLocaleString(undefined, {
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
+  });
+};
+
 const findBalanceNode = (nodes, targetName) => {
   if (!nodes || !targetName) return null;
   const normalizedTarget = String(targetName).trim();
@@ -300,8 +311,8 @@ export default function FCModulesEditModal({
     ? editForm?.Name && nameOptions.includes(editForm.Name)
       ? editForm.Name
       : nameOptions.length
-        ? nameOptions[0]
-        : ""
+      ? nameOptions[0]
+      : ""
     : editForm?.Name ?? "";
   const traitKey =
     (editForm?.Name && coaTraits?.[editForm.Name] ? editForm.Name : "") ||
@@ -441,8 +452,8 @@ export default function FCModulesEditModal({
             typeof node.currency === "string" && node.currency
               ? node.currency
               : hasUsd && !hasLocal
-                ? "USD"
-                : "";
+              ? "USD"
+              : "";
           const localValue = hasLocal ? rawLocal : hasUsd ? rawUsd : null;
           setAccountBalance({
             value: localValue,
@@ -497,8 +508,10 @@ export default function FCModulesEditModal({
     }
     if (rate === null && relevant.length) {
       const latest = relevant[relevant.length - 1];
-      if (currency === "PLN" && latest?.Rates?.USDPLN) rate = latest.Rates.USDPLN;
-      if (currency === "EUR" && latest?.Rates?.USDEUR) rate = latest.Rates.USDEUR;
+      if (currency === "PLN" && latest?.Rates?.USDPLN)
+        rate = latest.Rates.USDPLN;
+      if (currency === "EUR" && latest?.Rates?.USDEUR)
+        rate = latest.Rates.USDEUR;
     }
     return Number.isFinite(Number(rate)) ? Number(rate) : 1;
   };
@@ -527,22 +540,21 @@ export default function FCModulesEditModal({
     baseValueNumber === null
       ? ""
       : isMatched && accountValueRatio !== null
-        ? baseValueNumber * accountValueRatio
-        : baseValueNumber * fxRate;
+      ? baseValueNumber * accountValueRatio
+      : baseValueNumber * fxRate;
   const computedMarketValueUSD =
     marketValueNumber === null
       ? ""
       : isMatched && accountValueRatio !== null
-        ? marketValueNumber * accountValueRatio
-        : marketValueNumber * fxRate;
+      ? marketValueNumber * accountValueRatio
+      : marketValueNumber * fxRate;
   const scenarioPeriodEnd =
     assumptions?.scenarios?.find((s) => s?.Name === editForm?.Scenario)
       ?.PeriodEnd ?? null;
   const transferYearStart = new Date().getFullYear();
-  const transferYearEnd =
-    Number.isFinite(Number(scenarioPeriodEnd))
-      ? Number(scenarioPeriodEnd)
-      : transferYearStart + 40;
+  const transferYearEnd = Number.isFinite(Number(scenarioPeriodEnd))
+    ? Number(scenarioPeriodEnd)
+    : transferYearStart + 40;
   const transferYearOptions = Array.from(
     { length: transferYearEnd - transferYearStart + 1 },
     (_, index) => transferYearStart + index
@@ -562,7 +574,8 @@ export default function FCModulesEditModal({
 
   const addTransferEntry = (field) => {
     const current = Array.isArray(editForm?.[field]) ? editForm[field] : [];
-    const defaultYear = getYearFromDate(editForm?.BaseDate) || transferYearStart;
+    const defaultYear =
+      getYearFromDate(editForm?.BaseDate) || transferYearStart;
     onFieldChange(field, [
       ...current,
       { Date: `${defaultYear}-07-01`, Amount: "", Flag: "" },
@@ -588,10 +601,8 @@ export default function FCModulesEditModal({
     ["Market Value (USD)", "MarketValueUSD", "number"],
     ["Growth %", "Growth", "number"],
     ["Expense Category", "ExpCategory", "text"],
-    ["Expense %", "ExpensePct", "number"],
     ["Income Category", "IncomeCategory", "text"],
     ["Income %", "IncomePct", "number"],
-    ["Account Number", "AccountNumber", "text", "traits"],
   ];
 
   return (
@@ -723,7 +734,10 @@ export default function FCModulesEditModal({
                         className="form-input"
                         value={selectedYear}
                         onChange={(event) =>
-                          onFieldChange("BaseDate", `${event.target.value}-12-13`)
+                          onFieldChange(
+                            "BaseDate",
+                            `${event.target.value}-12-13`
+                          )
                         }
                       >
                         {baseYearOptions.map((year) => (
@@ -790,7 +804,10 @@ export default function FCModulesEditModal({
                           value={
                             accountBalanceLoading
                               ? "Loading..."
-                              : formatAccountValue(accountBalance.valueUSD, "USD")
+                              : formatAccountValue(
+                                  accountBalance.valueUSD,
+                                  "USD"
+                                )
                           }
                           readOnly
                         />
@@ -824,25 +841,57 @@ export default function FCModulesEditModal({
               if (field === "ExpCategory") {
                 const currentValue = editForm.ExpCategory ?? "";
                 return (
-                  <label key={field} className="fc-scenarios-modal__field">
+                  <label
+                    key={field}
+                    className="fc-scenarios-modal__field"
+                    style={{ gridColumn: "1 / -1" }}
+                  >
                     <span>{label}</span>
-                    <select
-                      className="form-input"
-                      value={currentValue}
-                      onChange={(event) =>
-                        onFieldChange("ExpCategory", event.target.value)
-                      }
+                    <div
+                      style={{
+                        display: "grid",
+                        gridTemplateColumns: "1fr 1fr",
+                        gap: "0.75rem",
+                        alignItems: "center",
+                      }}
                     >
-                      {expenseCategoryOptions.map((option) => (
-                        <option key={option} value={option}>
-                          {option}
-                        </option>
-                      ))}
-                      {currentValue &&
-                        !expenseCategoryOptions.includes(currentValue) && (
-                          <option value={currentValue}>{currentValue}</option>
-                        )}
-                    </select>
+                      <select
+                        className="form-input"
+                        value={currentValue}
+                        onChange={(event) =>
+                          onFieldChange("ExpCategory", event.target.value)
+                        }
+                      >
+                        {expenseCategoryOptions.map((option) => (
+                          <option key={option} value={option}>
+                            {option}
+                          </option>
+                        ))}
+                        {currentValue &&
+                          !expenseCategoryOptions.includes(currentValue) && (
+                            <option value={currentValue}>{currentValue}</option>
+                          )}
+                      </select>
+                      <label
+                        className="fc-scenarios-modal__field"
+                        style={{
+                          margin: 0,
+                        }}
+                      >
+                        <span>Expense %</span>
+                        <input
+                          type="text"
+                          className="form-input"
+                          value={formatTwoDecimals(editForm.ExpensePct ?? "")}
+                          onChange={(event) =>
+                            onFieldChange(
+                              "ExpensePct",
+                              event.target.value.replace(/,/g, "")
+                            )
+                          }
+                        />
+                      </label>
+                    </div>
                   </label>
                 );
               }
@@ -912,7 +961,10 @@ export default function FCModulesEditModal({
                     value={inputValue}
                     style={
                       isDerivedUsd || (!isMatched && isValueField)
-                        ? { background: "var(--surface)", color: "var(--muted)" }
+                        ? {
+                            background: "var(--surface)",
+                            color: "var(--muted)",
+                          }
                         : undefined
                     }
                     readOnly={isDerivedUsd || (!isMatched && isValueField)}
