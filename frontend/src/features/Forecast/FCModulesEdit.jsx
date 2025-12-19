@@ -304,6 +304,7 @@ export default function FCModulesEditModal({
   onClose,
   onFieldChange,
   onSubmit,
+  refreshToken,
 }) {
   const isMatched = Boolean(editForm?.Matched);
   const nameOptions = getChildCategoriesForAccount(editForm?.Account);
@@ -477,7 +478,7 @@ export default function FCModulesEditModal({
     return () => {
       isActive = false;
     };
-  }, [effectiveName, editForm?.BaseDate, isMatched, isOpen]);
+  }, [effectiveName, editForm?.BaseDate, isMatched, isOpen, refreshToken]);
 
   if (!isOpen || !editForm) {
     return null;
@@ -611,7 +612,6 @@ export default function FCModulesEditModal({
       role="dialog"
       aria-modal="true"
       aria-label="Edit forecast module"
-      onClick={onClose}
       style={{ alignItems: "flex-start", paddingTop: "7rem" }}
     >
       <div

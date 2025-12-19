@@ -18,6 +18,9 @@
  * @param {Object|null} props.selectedScenarioDetails - Details of the selected scenario
  * @param {boolean} props.hasSelectedModule - Whether a module is currently selected
  * @param {Function} props.onEditClick - Callback when Edit button is clicked
+ * @param {Function} props.onDeleteClick - Callback when Delete button is clicked
+ * @param {Function} props.onUnmatchedClick - Callback when Unmatched button is clicked
+ * @param {boolean} props.unmatchedDisabled - Whether the unmatched button should be disabled
  * @returns {JSX.Element} The filter and action controls section
  */
 export default function FCModulesFilter({
@@ -30,6 +33,9 @@ export default function FCModulesFilter({
   selectedScenarioDetails,
   hasSelectedModule,
   onEditClick,
+  onDeleteClick,
+  onUnmatchedClick,
+  unmatchedDisabled,
 }) {
   const scenarios = assumptions?.scenarios || [];
 
@@ -52,7 +58,10 @@ export default function FCModulesFilter({
           <div className="fc-modules-filter__content">
             <div className="fc-modules-filter__row">
               <div className="fc-modules-filter__field">
-                <label htmlFor="fc-scenario-select" className="fc-modules-filter__label">
+                <label
+                  htmlFor="fc-scenario-select"
+                  className="fc-modules-filter__label"
+                >
                   Scenario
                 </label>
                 <select
@@ -74,43 +83,47 @@ export default function FCModulesFilter({
                 </select>
               </div>
 
-              <div className="fc-modules-filter__period">
-                <div className="fc-modules-filter__period-item">
-                  <span className="fc-modules-filter__period-label">Period Start</span>
-                  <span className="fc-modules-filter__period-value">
-                    {selectedScenarioDetails?.PeriodStart ?? "-"}
-                  </span>
-                </div>
-                <div className="fc-modules-filter__period-item">
-                  <span className="fc-modules-filter__period-label">Period End</span>
-                  <span className="fc-modules-filter__period-value">
-                    {selectedScenarioDetails?.PeriodEnd ?? "-"}
-                  </span>
-                </div>
-              </div>
-
               <div className="fc-modules-filter__actions">
                 <div className="fc-modules-filter__actions-grid">
-                  {["New", "Edit", "Delete", "Unmatched"].map((label) => {
-                    const isEdit = label === "Edit";
-                    const disabled = label !== "Edit" || !hasSelectedModule;
+                  {[
+                    { label: "New", icon: "+", disabled: true },
+                    {
+                      label: "Edit",
+                      icon: "✎",
+                      disabled: !hasSelectedModule,
+                      onClick: onEditClick,
+                      primary: hasSelectedModule,
+                    },
+                    {
+                      label: "Delete",
+                      icon: "×",
+                      disabled: !hasSelectedModule,
+                      onClick: onDeleteClick,
+                      danger: true,
+                    },
+                    {
+                      label: "Unmatched",
+                      icon: "⚡",
+                      disabled: unmatchedDisabled,
+                      onClick: onUnmatchedClick,
+                    },
+                  ].map(({ label, icon, disabled, onClick, primary, danger }) => {
                     return (
                       <button
                         key={label}
                         type="button"
                         className={`fc-modules-filter__action-btn ${
-                          isEdit && hasSelectedModule
+                          primary
                             ? "fc-modules-filter__action-btn--primary"
                             : ""
+                        } ${
+                          danger ? "fc-modules-filter__action-btn--danger" : ""
                         }`}
                         disabled={disabled}
-                        onClick={isEdit ? onEditClick : undefined}
+                        onClick={onClick}
                       >
                         <span className="fc-modules-filter__action-icon">
-                          {label === "New" && "+"}
-                          {label === "Edit" && "✎"}
-                          {label === "Delete" && "×"}
-                          {label === "Unmatched" && "⚡"}
+                          {icon}
                         </span>
                         {label}
                       </button>

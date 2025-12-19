@@ -14,7 +14,11 @@ const allAccounts = (() => {
   if (Array.isArray(data)) {
     for (let i = 0; i < data.length; i++) {
       const section = data[i];
-      if (section && typeof section === "object" && section["Balance Sheet Accounts"]) {
+      if (
+        section &&
+        typeof section === "object" &&
+        section["Balance Sheet Accounts"]
+      ) {
         balanceSheetSection = section["Balance Sheet Accounts"];
         break;
       }
@@ -28,21 +32,33 @@ const allAccounts = (() => {
   }
 
   const accounts = [];
-  const stack = Array.isArray(balanceSheetSection)
-    ? balanceSheetSection.slice()
-    : [balanceSheetSection];
+  const stack = [
+    {
+      node: Array.isArray(balanceSheetSection)
+        ? balanceSheetSection.slice()
+        : balanceSheetSection,
+      category: null,
+    },
+  ];
 
   while (stack.length) {
-    const current = stack.pop();
-    if (typeof current === "string") {
-      accounts.push(current);
-    } else if (Array.isArray(current)) {
-      for (let i = 0; i < current.length; i++) {
-        stack.push(current[i]);
+    const { node, category } = stack.pop();
+
+    if (typeof node === "string") {
+      accounts.push({ name: node, category });
+      continue;
+    }
+
+    if (Array.isArray(node)) {
+      for (let i = 0; i < node.length; i++) {
+        stack.push({ node: node[i], category });
       }
-    } else if (current && typeof current === "object") {
-      for (const key in current) {
-        stack.push(current[key]);
+      continue;
+    }
+
+    if (node && typeof node === "object") {
+      for (const key in node) {
+        stack.push({ node: node[key], category: key });
       }
     }
   }
@@ -91,7 +107,7 @@ async function getUnmatchedAccounts(scenarioName) {
 
   for (let i = 0; i < allAccounts.length; i++) {
     const account = allAccounts[i];
-    if (!matchedNames.has(account)) {
+    if (!matchedNames.has(account.name)) {
       unmatched.push(account);
     }
   }

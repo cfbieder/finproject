@@ -6,6 +6,7 @@ const { COMPONENTS_DATA_DIR } = require("../utils/dataPaths");
 const FCModule = require("../../../components/models/FCModule");
 
 const router = express.Router();
+const { getUnmatchedAccounts } = require("../services/forecast/fcbuilder-unmatched");
 
 router.get("/modules", async (req, res) => {
   try {
@@ -14,6 +15,17 @@ router.get("/modules", async (req, res) => {
   } catch (error) {
     console.error("Failed to load forecast entries:", error);
     res.status(500).json({ error: "Failed to load forecast entries" });
+  }
+});
+
+router.get("/modules/unmatched", async (req, res) => {
+  const scenario = req.query.scenario;
+  try {
+    const unmatched = await getUnmatchedAccounts(scenario);
+    return res.json(unmatched);
+  } catch (error) {
+    console.error("Failed to load unmatched modules:", error);
+    return res.status(500).json({ error: "Failed to load unmatched modules" });
   }
 });
 
