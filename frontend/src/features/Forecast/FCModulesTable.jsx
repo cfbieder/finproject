@@ -1,4 +1,5 @@
 import { useMemo, useState } from "react";
+import "./FCModulesTable.css";
 
 /**
  * Formats a currency value without decimal places.
@@ -211,17 +212,13 @@ export default function FCModulesTable({
               </span>
             </div>
 
-            <div
-              className="fc-modules-table__controls fc-modules-table__controls--compact"
-              style={{ display: "flex", flexWrap: "wrap", gap: "8px" }}
-            >
+            <div className="fc-modules-table__controls fc-modules-table__controls--compact">
               <select
                 id="fc-filter-type"
                 className="form-input fc-modules-table__filter-select"
                 value={typeFilter}
                 onChange={(event) => setTypeFilter(event.target.value)}
                 aria-label="Filter by type"
-                style={{ flex: "0 0 48%" }}
               >
                 <option value="all">All types</option>
                 {typeOptions.map((type) => (
@@ -237,7 +234,6 @@ export default function FCModulesTable({
                 value={matchedFilter}
                 onChange={(event) => setMatchedFilter(event.target.value)}
                 aria-label="Filter by matched status"
-                style={{ flex: "0 0 48%" }}
               >
                 <option value="all">All</option>
                 <option value="matched">Matched</option>
@@ -250,7 +246,6 @@ export default function FCModulesTable({
                 value={accountFilter}
                 onChange={(event) => setAccountFilter(event.target.value)}
                 aria-label="Filter by account"
-                style={{ flex: "0 0 48%" }}
               >
                 <option value="all">All accounts</option>
                 {accountOptions.map((account) => (
@@ -274,7 +269,6 @@ export default function FCModulesTable({
                       }
                     }}
                     aria-label="Sort modules"
-                    style={{ flex: "1 1 auto" }}
                   >
                     <option value="">Sort</option>
                     <option value="account">Account</option>
@@ -287,7 +281,6 @@ export default function FCModulesTable({
                     onClick={toggleSortDirection}
                     disabled={!sortField}
                     aria-label={`Toggle sort direction (currently ${sortDirection})`}
-                    style={{ flex: "0 0 auto" }}
                   >
                     {sortDirection === "asc" ? "↑" : "↓"}
                   </button>

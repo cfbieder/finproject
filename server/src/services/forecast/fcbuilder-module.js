@@ -4,7 +4,7 @@ const path = require("path");
 const { categories, years } = require("./fcbuilder-setup");
 
 function processModule(module, scenario, df_assumptions) {
-  console.log(`Processing module: ${module._id}`);
+  console.log(`Processing module: ${module.Name}`);
   console.log("Scenario", scenario);
   const startyear = module.BaseDate.getFullYear();
   const endyear = scenario.PeriodEnd;
@@ -90,18 +90,17 @@ function processModule(module, scenario, df_assumptions) {
   const realizedGainValues = new Array(yearsCount).fill(0);
   for (let i = 1; i < yearsCount; i++) {
     unrealizedGainValues[i] = marketValues[i - 1] * (growthValues[i] / 100);
+    const prevMarket = marketValues[i - 1];
+    const prevBase = baseValues[i - 1];
+    const safeDisposeAdjustment =
+      prevMarket === 0 ? 0 : (disposeValues[i] * prevBase) / prevMarket;
     baseValues[i] =
-      baseValues[i - 1] +
-      investValues[i] +
-      (disposeValues[i] * baseValues[i - 1]) / marketValues[i - 1];
+      prevBase + investValues[i] + safeDisposeAdjustment;
     marketValues[i] =
-      marketValues[i - 1] +
-      unrealizedGainValues[i] +
-      investValues[i] +
-      disposeValues[i];
+      prevMarket + unrealizedGainValues[i] + investValues[i] + disposeValues[i];
     realizedGainValues[i] =
       -disposeValues[i] +
-      (disposeValues[i] * baseValues[i - 1]) / marketValues[i - 1];
+      (prevMarket === 0 ? 0 : (disposeValues[i] * prevBase) / prevMarket);
   }
 
   if (Array.isArray(module.Dispose)) {
@@ -123,6 +122,38 @@ function processModule(module, scenario, df_assumptions) {
         }
       }
     }
+  }
+
+  const nanBaseIndex = baseValues.findIndex((value) => Number.isNaN(value));
+  if (nanBaseIndex !== -1) {
+    const prevBase =
+      nanBaseIndex > 0 && Number.isFinite(baseValues[nanBaseIndex - 1])
+        ? baseValues[nanBaseIndex - 1]
+        : 0;
+    const prevMarket =
+      nanBaseIndex > 0 && Number.isFinite(marketValues[nanBaseIndex - 1])
+        ? marketValues[nanBaseIndex - 1]
+        : 0;
+    const invest = investValues[nanBaseIndex];
+    const dispose = disposeValues[nanBaseIndex];
+    let cause = "calculation produced NaN unexpectedly";
+
+    if (nanBaseIndex === 0) {
+      cause = "initial BaseValue is missing or NaN";
+    } else if (!Number.isFinite(prevBase)) {
+      cause = "previous BaseValue is non-finite";
+    } else if (!Number.isFinite(prevMarket)) {
+      cause = "previous MarketValue is non-finite";
+    } else if (prevMarket === 0) {
+      cause =
+        "previous MarketValue is 0, making the dispose adjustment a division by zero";
+    } else if (!Number.isFinite(invest) || !Number.isFinite(dispose)) {
+      cause = "invest or dispose entry is non-finite";
+    }
+
+    console.warn(
+      `BaseValue for module ${module.Name} becomes NaN in year ${yearsArr[nanBaseIndex]}: ${cause}. Inputs -> prevBase=${prevBase}, prevMarket=${prevMarket}, invest=${invest}, dispose=${dispose}.`
+    );
   }
 
   const expenseValues = new Array(yearsCount).fill(0);
@@ -254,9 +285,10 @@ function processModule(module, scenario, df_assumptions) {
   const scenarioName = (
     scenario && scenario.Name ? scenario.Name : "scenario"
   ).replace(/[^a-z0-9]/gi, "_");
-  const moduleName = (
-    module && module.Name ? module.Name : "module"
-  ).replace(/[^a-z0-9]/gi, "_");
+  const moduleName = (module && module.Name ? module.Name : "module").replace(
+    /[^a-z0-9]/gi,
+    "_"
+  );
 
   dfd.toCSV(df_module_LC, {
     filePath: path.join(auditTrailDir, `${scenarioName}_${moduleName}_LC.csv`),

@@ -264,6 +264,26 @@ export default function FCModuleManage() {
     (scenario) => scenario.Name === selectedScenario
   );
 
+  const getScenarioStartYear = () => {
+    const periodStartRaw =
+      selectedScenarioDetails?.PeriodStart ?? assumptions?.PeriodStart ?? "";
+    if (typeof periodStartRaw === "number") {
+      return Number.isFinite(periodStartRaw)
+        ? Math.trunc(periodStartRaw)
+        : null;
+    }
+    const asString = String(periodStartRaw || "").trim();
+    const dateFromString =
+      asString && !Number.isNaN(new Date(asString).getTime())
+        ? new Date(asString).getFullYear()
+        : null;
+    if (Number.isFinite(dateFromString) && dateFromString >= 1000) {
+      return dateFromString;
+    }
+    const match = asString.match(/\d{4}/);
+    return match ? Number(match[0]) : null;
+  };
+
   /**
    * Generates a unique identifier for a module.
    * Attempts multiple ID fields before falling back to composite key.
@@ -325,6 +345,72 @@ export default function FCModuleManage() {
     }
   };
 
+  const handleCreateNewModule = async () => {
+    if (!selectedScenario) {
+      return;
+    }
+
+    const previousIds = new Set(
+      (modules || []).map((module) => getModuleId(module)).filter(Boolean)
+    );
+
+    const periodStartYear = getScenarioStartYear();
+    const baseDate =
+      Number.isFinite(periodStartYear) && periodStartYear
+        ? new Date(`${periodStartYear - 1}-12-31T00:00:00.000Z`).toISOString()
+        : null;
+    const baseYear =
+      Number.isFinite(periodStartYear) && periodStartYear
+        ? periodStartYear - 1
+        : null;
+
+    setModulesError("");
+    setModulesLoading(true);
+    try {
+      await Rest.fetchJson("/api/forecast/modules", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          Scenario: selectedScenario,
+          Matched: false,
+          Account: "",
+          Name: "",
+          Type: "",
+          Currency: "",
+          ExpCategory: "",
+          IncomeCategory: "",
+          BaseDate: baseDate,
+          BaseYear: baseYear,
+          BaseValue: 0,
+          MarketValue: 0,
+          BaseValueUSD: 0,
+          MarketValueUSD: 0,
+          Growth: null,
+          Invest: [],
+          Dispose: [],
+        }),
+      });
+
+      const refreshed = await Rest.fetchJson("/api/forecast/modules");
+      const filtered = (refreshed || []).filter(
+        (entry) => entry?.Scenario === selectedScenario
+      );
+      setModules(filtered);
+      setModulesError("");
+
+      const newModule =
+        filtered.find((entry) => !previousIds.has(getModuleId(entry))) || null;
+      const nextSelected =
+        (newModule && getModuleId(newModule)) ||
+        (filtered[0] ? getModuleId(filtered[0]) : "");
+      setSelectedModuleId(nextSelected);
+    } catch (err) {
+      setModulesError(err.message || "Failed to create module");
+    } finally {
+      setModulesLoading(false);
+    }
+  };
+
   /**
    * Loads modules for the selected scenario from the API.
    * Filters results by scenario and updates selected module if needed.
@@ -358,14 +444,21 @@ export default function FCModuleManage() {
   const openEditModal = () => {
     if (!selectedModule) return;
     setEditError("");
-    setEditForm({
+    const normalizedModule = {
       ...selectedModule,
-      BaseDate: selectedModule.BaseDate
-        ? new Date(selectedModule.BaseDate).toISOString().slice(0, 10)
+      BaseValue: selectedModule.BaseValue ?? 0,
+      BaseValueUSD: selectedModule.BaseValueUSD ?? 0,
+      MarketValue: selectedModule.MarketValue ?? 0,
+      MarketValueUSD: selectedModule.MarketValueUSD ?? 0,
+    };
+    setEditForm({
+      ...normalizedModule,
+      BaseDate: normalizedModule.BaseDate
+        ? new Date(normalizedModule.BaseDate).toISOString().slice(0, 10)
         : "",
-      Matched: Boolean(selectedModule.Matched),
-      Invest: formatTransferForm(selectedModule.Invest),
-      Dispose: formatTransferForm(selectedModule.Dispose),
+      Matched: Boolean(normalizedModule.Matched),
+      Invest: formatTransferForm(normalizedModule.Invest),
+      Dispose: formatTransferForm(normalizedModule.Dispose),
     });
     setEditRefreshToken((prev) => prev + 1);
     setShowEditModal(true);
@@ -647,6 +740,7 @@ export default function FCModuleManage() {
           error={error}
           isLoading={isLoading}
           onScenarioChange={setSelectedScenario}
+          onNewClick={handleCreateNewModule}
           onEditClick={openEditModal}
           onDeleteClick={openDeleteModal}
           onUnmatchedClick={openUnmatchedModal}
@@ -655,6 +749,7 @@ export default function FCModuleManage() {
           selectedScenarioDetails={selectedScenarioDetails}
           unmatchedDisabled={!selectedScenario}
           hasSelectedModule={Boolean(selectedModule)}
+          newDisabled={!selectedScenario || modulesLoading || isLoading}
         />
         <FCModulesTable
           getModuleId={getModuleId}
@@ -834,3 +929,4 @@ export default function FCModuleManage() {
     </div>
   );
 }
+//todo: on click new button when creating new module set BaseYear to scenario start year -1

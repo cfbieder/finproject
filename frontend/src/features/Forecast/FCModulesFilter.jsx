@@ -1,3 +1,5 @@
+import "./FCModulesFilter.css";
+
 /**
  * FCModulesFilter component provides filtering and action controls for forecast modules.
  *
@@ -13,6 +15,7 @@
  * @param {string} props.error - Error message to display
  * @param {boolean} props.isLoading - Loading state for assumptions
  * @param {Function} props.onScenarioChange - Callback when scenario selection changes
+ * @param {Function} props.onNewClick - Callback when New button is clicked
  * @param {React.RefObject} props.scenarioSelectRef - Ref for the scenario select element (used for dynamic width)
  * @param {string} props.selectedScenario - Currently selected scenario name
  * @param {Object|null} props.selectedScenarioDetails - Details of the selected scenario
@@ -21,6 +24,7 @@
  * @param {Function} props.onDeleteClick - Callback when Delete button is clicked
  * @param {Function} props.onUnmatchedClick - Callback when Unmatched button is clicked
  * @param {boolean} props.unmatchedDisabled - Whether the unmatched button should be disabled
+ * @param {boolean} props.newDisabled - Whether the New button should be disabled
  * @returns {JSX.Element} The filter and action controls section
  */
 export default function FCModulesFilter({
@@ -28,6 +32,7 @@ export default function FCModulesFilter({
   error,
   isLoading,
   onScenarioChange,
+   onNewClick,
   scenarioSelectRef,
   selectedScenario,
   selectedScenarioDetails,
@@ -36,6 +41,7 @@ export default function FCModulesFilter({
   onDeleteClick,
   onUnmatchedClick,
   unmatchedDisabled,
+   newDisabled,
 }) {
   const scenarios = assumptions?.scenarios || [];
   const periodStart =
@@ -90,7 +96,13 @@ export default function FCModulesFilter({
               <div className="fc-modules-filter__actions">
                 <div className="fc-modules-filter__actions-grid">
                   {[
-                    { label: "New", icon: "+", disabled: true },
+                    {
+                      label: "New",
+                      icon: "+",
+                      disabled: newDisabled,
+                      onClick: onNewClick,
+                      success: true,
+                    },
                     {
                       label: "Edit",
                       icon: "✎",
@@ -112,7 +124,15 @@ export default function FCModulesFilter({
                       onClick: onUnmatchedClick,
                     },
                   ].map(
-                    ({ label, icon, disabled, onClick, primary, danger }) => {
+                    ({
+                      label,
+                      icon,
+                      disabled,
+                      onClick,
+                      primary,
+                      danger,
+                      success,
+                    }) => {
                       return (
                         <button
                           key={label}
@@ -124,6 +144,10 @@ export default function FCModulesFilter({
                           } ${
                             danger
                               ? "fc-modules-filter__action-btn--danger"
+                              : ""
+                          } ${
+                            success
+                              ? "fc-modules-filter__action-btn--success"
                               : ""
                           }`}
                           disabled={disabled}

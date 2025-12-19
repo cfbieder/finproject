@@ -46,9 +46,15 @@ const normalizeModules = (raw) => {
 };
 
 router.post("/modules", async (req, res) => {
-  const modules = normalizeModules(req.body).filter(
-    (entry) => entry && typeof entry === "object"
-  );
+  const modules = normalizeModules(req.body)
+    .filter((entry) => entry && typeof entry === "object")
+    .map((entry) => ({
+      ...entry,
+      BaseValue: entry.BaseValue ?? 0,
+      BaseValueUSD: entry.BaseValueUSD ?? 0,
+      MarketValue: entry.MarketValue ?? 0,
+      MarketValueUSD: entry.MarketValueUSD ?? 0,
+    }));
 
   if (!modules.length) {
     return res.status(400).json({ error: "No valid module payload provided" });

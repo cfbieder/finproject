@@ -578,17 +578,26 @@ export default function FCModulesEditModal({
     isOpen,
     onFieldChange,
   ]);
+  const scenarioDetails =
+    assumptions?.scenarios?.find((s) => s?.Name === editForm?.Scenario) || null;
+  const scenarioPeriodStart =
+    scenarioDetails?.PeriodStart ?? assumptions?.PeriodStart ?? null;
   const scenarioPeriodEnd =
-    assumptions?.scenarios?.find((s) => s?.Name === editForm?.Scenario)
-      ?.PeriodEnd ?? null;
-  const transferYearStart = new Date().getFullYear();
-  const transferYearEnd = Number.isFinite(Number(scenarioPeriodEnd))
+    scenarioDetails?.PeriodEnd ?? assumptions?.PeriodEnd ?? null;
+  const currentYear = new Date().getFullYear();
+  const transferYearStart = Number.isFinite(Number(scenarioPeriodStart))
+    ? Number(scenarioPeriodStart)
+    : currentYear;
+  const transferYearEndCandidate = Number.isFinite(Number(scenarioPeriodEnd))
     ? Number(scenarioPeriodEnd)
     : transferYearStart + 40;
+  const transferYearEnd = Math.max(transferYearStart, transferYearEndCandidate);
   const transferYearOptions = Array.from(
     { length: transferYearEnd - transferYearStart + 1 },
     (_, index) => transferYearStart + index
   );
+  const transferFlagOptionsI = ["OneTime", "Periodic"];
+  const transferFlagOptionsD = ["Full", "OneTime", "Periodic"];
   const transferSections = [
     ["Invest", "Invest"],
     ["Dispose", "Dispose"],
@@ -605,10 +614,14 @@ export default function FCModulesEditModal({
   const addTransferEntry = (field) => {
     const current = Array.isArray(editForm?.[field]) ? editForm[field] : [];
     const defaultYear =
-      getYearFromDate(editForm?.BaseDate) || transferYearStart;
+      (Number.isFinite(Number(scenarioPeriodStart))
+        ? String(scenarioPeriodStart)
+        : "") ||
+      getYearFromDate(editForm?.BaseDate) ||
+      transferYearStart;
     onFieldChange(field, [
       ...current,
-      { Date: `${defaultYear}-07-01`, Amount: "", Flag: "" },
+      { Date: `${defaultYear}-07-01`, Amount: "", Flag: "OneTime" },
     ]);
   };
 
@@ -976,6 +989,10 @@ export default function FCModulesEditModal({
               const transfers = Array.isArray(editForm?.[field])
                 ? editForm[field]
                 : [];
+              const transferFlagOptions =
+                field === "Invest"
+                  ? transferFlagOptionsI
+                  : transferFlagOptionsD;
               return (
                 <div key={field} className="fc-modules-edit__transfer-section">
                   <div className="fc-modules-edit__transfer-header">
@@ -1008,6 +1025,7 @@ export default function FCModulesEditModal({
                       >
                         <select
                           className="form-input"
+                          required
                           value={getYearFromDate(entry?.Date)}
                           onChange={(event) =>
                             updateTransferEntry(
@@ -1038,8 +1056,7 @@ export default function FCModulesEditModal({
                             )
                           }
                         />
-                        <input
-                          type="text"
+                        <select
                           className="form-input"
                           value={entry?.Flag ?? ""}
                           onChange={(event) =>
@@ -1050,7 +1067,14 @@ export default function FCModulesEditModal({
                               event.target.value
                             )
                           }
-                        />
+                        >
+                          <option value="">Select flag</option>
+                          {transferFlagOptions.map((flag) => (
+                            <option key={flag} value={flag}>
+                              {flag}
+                            </option>
+                          ))}
+                        </select>
                         <button
                           type="button"
                           className="generate-report-button fc-modules-edit__remove-button"
