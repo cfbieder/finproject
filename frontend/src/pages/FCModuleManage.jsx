@@ -5,7 +5,7 @@ import FCModulesEditModal from "../features/Forecast/FCModulesEdit.jsx";
 import FCModulesTable from "../features/Forecast/FCModulesTable.jsx";
 import Rest from "../js/rest.js";
 import "./PageLayout.css";
-import "../features/Forecast/FCModules.css";
+import "../features/Forecast/FCModulesEdit.css";
 
 /**
  * Formats transfer entries for the edit form by ensuring consistent date formatting.
@@ -595,6 +595,29 @@ export default function FCModuleManage() {
         throw new Error("No unmatched item selected");
       }
       const account = selectedItem?.category || moduleName;
+      const periodStartRaw =
+        selectedScenarioDetails?.PeriodStart ?? assumptions?.PeriodStart ?? "";
+      const periodStartYear = (() => {
+        if (typeof periodStartRaw === "number") {
+          return Number.isFinite(periodStartRaw)
+            ? Math.trunc(periodStartRaw)
+            : null;
+        }
+        const asString = String(periodStartRaw || "").trim();
+        const dateFromString =
+          asString && !Number.isNaN(new Date(asString).getTime())
+            ? new Date(asString).getFullYear()
+            : null;
+        if (Number.isFinite(dateFromString) && dateFromString >= 1000) {
+          return dateFromString;
+        }
+        const match = asString.match(/\d{4}/);
+        return match ? Number(match[0]) : null;
+      })();
+      const baseDate =
+        Number.isFinite(periodStartYear) && periodStartYear
+          ? new Date(`${periodStartYear - 1}-12-31T00:00:00.000Z`).toISOString()
+          : null;
       await Rest.fetchJson("/api/forecast/modules", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -602,6 +625,7 @@ export default function FCModuleManage() {
           Scenario: selectedScenario,
           Account: account,
           Name: moduleName,
+          BaseDate: baseDate,
           Matched: true,
         }),
       });

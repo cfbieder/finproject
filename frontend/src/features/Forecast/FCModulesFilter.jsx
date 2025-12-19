@@ -38,6 +38,10 @@ export default function FCModulesFilter({
   unmatchedDisabled,
 }) {
   const scenarios = assumptions?.scenarios || [];
+  const periodStart =
+    selectedScenarioDetails?.PeriodStart ?? assumptions?.PeriodStart ?? null;
+  const periodEnd =
+    selectedScenarioDetails?.PeriodEnd ?? assumptions?.PeriodEnd ?? null;
 
   return (
     <section className="section-filters fc-modules-filter">
@@ -107,31 +111,55 @@ export default function FCModulesFilter({
                       disabled: unmatchedDisabled,
                       onClick: onUnmatchedClick,
                     },
-                  ].map(({ label, icon, disabled, onClick, primary, danger }) => {
-                    return (
-                      <button
-                        key={label}
-                        type="button"
-                        className={`fc-modules-filter__action-btn ${
-                          primary
-                            ? "fc-modules-filter__action-btn--primary"
-                            : ""
-                        } ${
-                          danger ? "fc-modules-filter__action-btn--danger" : ""
-                        }`}
-                        disabled={disabled}
-                        onClick={onClick}
-                      >
-                        <span className="fc-modules-filter__action-icon">
-                          {icon}
-                        </span>
-                        {label}
-                      </button>
-                    );
-                  })}
+                  ].map(
+                    ({ label, icon, disabled, onClick, primary, danger }) => {
+                      return (
+                        <button
+                          key={label}
+                          type="button"
+                          className={`fc-modules-filter__action-btn ${
+                            primary
+                              ? "fc-modules-filter__action-btn--primary"
+                              : ""
+                          } ${
+                            danger
+                              ? "fc-modules-filter__action-btn--danger"
+                              : ""
+                          }`}
+                          disabled={disabled}
+                          onClick={onClick}
+                        >
+                          <span className="fc-modules-filter__action-icon">
+                            {icon}
+                          </span>
+                          {label}
+                        </button>
+                      );
+                    }
+                  )}
                 </div>
               </div>
             </div>
+            {(periodStart || periodEnd) && (
+              <div className="fc-modules-filter__period">
+                <div className="fc-modules-filter__period-item">
+                  <span className="fc-modules-filter__period-label">
+                    Period Start
+                  </span>
+                  <span className="fc-modules-filter__period-value">
+                    {periodStart ?? "—"}
+                  </span>
+                </div>
+                <div className="fc-modules-filter__period-item">
+                  <span className="fc-modules-filter__period-label">
+                    Period End
+                  </span>
+                  <span className="fc-modules-filter__period-value">
+                    {periodEnd ?? "—"}
+                  </span>
+                </div>
+              </div>
+            )}
           </div>
         )}
       </div>

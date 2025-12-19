@@ -1,3 +1,5 @@
+import { useMemo, useState } from "react";
+
 /**
  * Formats a currency value without decimal places.
  * Handles negative values with proper sign placement.
@@ -76,10 +78,7 @@ const renderTransfers = (transfers) => {
         const amount = formatCurrency(transfer.Amount);
         const flag = transfer.Flag;
         return (
-          <div
-            key={index}
-            className="fc-modules-details__transfer-row"
-          >
+          <div key={index} className="fc-modules-details__transfer-row">
             <span>{date}</span>
             <span>{amount}</span>
             <span className="fc-modules-details__transfer-flag">
@@ -122,6 +121,82 @@ export default function FCModulesTable({
   onSelectModule,
   getModuleId,
 }) {
+  const [typeFilter, setTypeFilter] = useState("all");
+  const [matchedFilter, setMatchedFilter] = useState("all");
+  const [accountFilter, setAccountFilter] = useState("all");
+  const [sortField, setSortField] = useState("");
+  const [sortDirection, setSortDirection] = useState("asc");
+
+  const typeOptions = useMemo(() => {
+    const options = new Set();
+    (modules || []).forEach((module) => {
+      if (module?.Type) {
+        options.add(module.Type);
+      }
+    });
+    return Array.from(options).sort((a, b) => a.localeCompare(b));
+  }, [modules]);
+
+  const accountOptions = useMemo(() => {
+    const options = new Set();
+    (modules || []).forEach((module) => {
+      if (module?.Account) {
+        options.add(module.Account);
+      }
+    });
+    return Array.from(options).sort((a, b) => a.localeCompare(b));
+  }, [modules]);
+
+  const displayedModules = useMemo(() => {
+    const baseList = Array.isArray(modules) ? modules : [];
+    const filtered = baseList.filter((module) => {
+      const typeMatches =
+        typeFilter === "all" || (module?.Type ?? "") === typeFilter;
+      const matchedMatches =
+        matchedFilter === "all" ||
+        (matchedFilter === "matched" ? module?.Matched : !module?.Matched);
+      const accountMatches =
+        accountFilter === "all" || (module?.Account ?? "") === accountFilter;
+      return typeMatches && matchedMatches && accountMatches;
+    });
+
+    if (!sortField) {
+      return filtered;
+    }
+
+    const direction = sortDirection === "asc" ? 1 : -1;
+    const safeValue = (value) =>
+      value === null || value === undefined ? "" : String(value).toLowerCase();
+
+    return [...filtered].sort((a, b) => {
+      switch (sortField) {
+        case "type":
+          return (
+            safeValue(a?.Type).localeCompare(safeValue(b?.Type)) * direction
+          );
+        case "account":
+          return (
+            safeValue(a?.Account).localeCompare(safeValue(b?.Account)) *
+            direction
+          );
+        case "matched":
+          return ((a?.Matched ? 1 : 0) - (b?.Matched ? 1 : 0)) * direction;
+        default:
+          return 0;
+      }
+    });
+  }, [
+    modules,
+    typeFilter,
+    matchedFilter,
+    accountFilter,
+    sortField,
+    sortDirection,
+  ]);
+
+  const toggleSortDirection = () =>
+    setSortDirection((prev) => (prev === "asc" ? "desc" : "asc"));
+
   return (
     <section className="section-table fc-modules-table-section">
       <div className="section-table__content">
@@ -131,8 +206,93 @@ export default function FCModulesTable({
             <div className="fc-modules-panel__header">
               <h3 className="fc-modules-panel__title">Forecast Modules</h3>
               <span className="fc-modules-panel__count">
-                {modules.length} {modules.length === 1 ? "module" : "modules"}
+                {displayedModules.length}{" "}
+                {displayedModules.length === 1 ? "module" : "modules"}
               </span>
+            </div>
+
+            <div
+              className="fc-modules-table__controls fc-modules-table__controls--compact"
+              style={{ display: "flex", flexWrap: "wrap", gap: "8px" }}
+            >
+              <select
+                id="fc-filter-type"
+                className="form-input fc-modules-table__filter-select"
+                value={typeFilter}
+                onChange={(event) => setTypeFilter(event.target.value)}
+                aria-label="Filter by type"
+                style={{ flex: "0 0 48%" }}
+              >
+                <option value="all">All types</option>
+                {typeOptions.map((type) => (
+                  <option key={type} value={type}>
+                    {type}
+                  </option>
+                ))}
+              </select>
+
+              <select
+                id="fc-filter-matched"
+                className="form-input fc-modules-table__filter-select"
+                value={matchedFilter}
+                onChange={(event) => setMatchedFilter(event.target.value)}
+                aria-label="Filter by matched status"
+                style={{ flex: "0 0 48%" }}
+              >
+                <option value="all">All</option>
+                <option value="matched">Matched</option>
+                <option value="unmatched">Unmatched</option>
+              </select>
+
+              <select
+                id="fc-filter-account"
+                className="form-input fc-modules-table__filter-select"
+                value={accountFilter}
+                onChange={(event) => setAccountFilter(event.target.value)}
+                aria-label="Filter by account"
+                style={{ flex: "0 0 48%" }}
+              >
+                <option value="all">All accounts</option>
+                {accountOptions.map((account) => (
+                  <option key={account} value={account}>
+                    {account}
+                  </option>
+                ))}
+              </select>
+
+              <div className="fc-modules-table__filter fc-modules-table__filter--sort">
+                <div className="fc-modules-table__sort-controls">
+                  <select
+                    id="fc-filter-sort"
+                    className="form-input fc-modules-table__filter-select"
+                    value={sortField}
+                    onChange={(event) => {
+                      const value = event.target.value;
+                      setSortField(value);
+                      if (!value) {
+                        setSortDirection("asc");
+                      }
+                    }}
+                    aria-label="Sort modules"
+                    style={{ flex: "1 1 auto" }}
+                  >
+                    <option value="">Sort</option>
+                    <option value="account">Account</option>
+                    <option value="type">Type</option>
+                    <option value="matched">Matched</option>
+                  </select>
+                  <button
+                    type="button"
+                    className="fc-modules-table__sort-direction"
+                    onClick={toggleSortDirection}
+                    disabled={!sortField}
+                    aria-label={`Toggle sort direction (currently ${sortDirection})`}
+                    style={{ flex: "0 0 auto" }}
+                  >
+                    {sortDirection === "asc" ? "↑" : "↓"}
+                  </button>
+                </div>
+              </div>
             </div>
 
             <div className="fc-modules-table-wrapper">
@@ -161,16 +321,24 @@ export default function FCModulesTable({
                 <table className="fc-modules-table">
                   <thead>
                     <tr>
-                      <th className="fc-modules-table__th fc-modules-table__th--name">Name</th>
+                      <th className="fc-modules-table__th fc-modules-table__th--name">
+                        Name
+                      </th>
                       <th className="fc-modules-table__th">Account</th>
                       <th className="fc-modules-table__th">Type</th>
-                      <th className="fc-modules-table__th fc-modules-table__th--center">Matched</th>
-                      <th className="fc-modules-table__th fc-modules-table__th--numeric">Base (USD)</th>
-                      <th className="fc-modules-table__th fc-modules-table__th--numeric">Market (USD)</th>
+                      <th className="fc-modules-table__th fc-modules-table__th--center">
+                        Matched
+                      </th>
+                      <th className="fc-modules-table__th fc-modules-table__th--numeric">
+                        Base (USD)
+                      </th>
+                      <th className="fc-modules-table__th fc-modules-table__th--numeric">
+                        Market (USD)
+                      </th>
                     </tr>
                   </thead>
                   <tbody>
-                    {modules.map((module) => {
+                    {displayedModules.map((module) => {
                       const moduleId = getModuleId(module);
                       const isSelected = moduleId === selectedModuleId;
                       const baseValue =
@@ -199,9 +367,13 @@ export default function FCModulesTable({
                             </span>
                           </td>
                           <td className="fc-modules-table__td fc-modules-table__td--center">
-                            <span className={`fc-modules-table__matched-badge ${
-                              module?.Matched ? "fc-modules-table__matched-badge--yes" : "fc-modules-table__matched-badge--no"
-                            }`}>
+                            <span
+                              className={`fc-modules-table__matched-badge ${
+                                module?.Matched
+                                  ? "fc-modules-table__matched-badge--yes"
+                                  : "fc-modules-table__matched-badge--no"
+                              }`}
+                            >
                               {module?.Matched ? "Yes" : "No"}
                             </span>
                           </td>
@@ -230,30 +402,41 @@ export default function FCModulesTable({
               <div className="fc-modules-details">
                 <div className="fc-modules-details__grid">
                   {[
-                    { label: "Scenario", value: selectedModule.Scenario, span: false },
-                    { label: "Account", value: selectedModule.Account, span: false },
+                    {
+                      label: "Scenario",
+                      value: selectedModule.Scenario,
+                      span: false,
+                    },
+                    {
+                      label: "Account",
+                      value: selectedModule.Account,
+                      span: false,
+                    },
                     { label: "Name", value: selectedModule.Name, span: false },
                     { label: "Type", value: selectedModule.Type, span: false },
-                    { label: "Currency", value: selectedModule.Currency, span: false },
+                    {
+                      label: "Currency",
+                      value: selectedModule.Currency,
+                      span: false,
+                    },
                     {
                       label: "Matched",
                       value: (
-                        <span className={`fc-modules-details__matched-badge ${
-                          selectedModule.Matched ? "fc-modules-details__matched-badge--yes" : "fc-modules-details__matched-badge--no"
-                        }`}>
+                        <span
+                          className={`fc-modules-details__matched-badge ${
+                            selectedModule.Matched
+                              ? "fc-modules-details__matched-badge--yes"
+                              : "fc-modules-details__matched-badge--no"
+                          }`}
+                        >
                           {selectedModule.Matched ? "Yes" : "No"}
                         </span>
                       ),
-                      span: false
+                      span: false,
                     },
-                    { label: "Exp Category", value: selectedModule.ExpCategory, span: false },
                     {
-                      label: "Expense",
-                      value:
-                        selectedModule.Expense === null ||
-                        selectedModule.Expense === undefined
-                          ? null
-                          : formatCurrency(selectedModule.Expense),
+                      label: "Exp Category",
+                      value: selectedModule.ExpCategory,
                       span: false,
                     },
                     {
@@ -265,14 +448,9 @@ export default function FCModulesTable({
                           : `${selectedModule.ExpensePct}%`,
                       span: false,
                     },
-                    { label: "Income Category", value: selectedModule.IncomeCategory, span: false },
                     {
-                      label: "Income",
-                      value:
-                        selectedModule.Income === null ||
-                        selectedModule.Income === undefined
-                          ? null
-                          : formatCurrency(selectedModule.Income),
+                      label: "Income Category",
+                      value: selectedModule.IncomeCategory,
                       span: false,
                     },
                     {
@@ -284,7 +462,11 @@ export default function FCModulesTable({
                           : `${selectedModule.IncomePct}%`,
                       span: false,
                     },
-                    { label: "Base Date", value: formatDate(selectedModule.BaseDate), span: false },
+                    {
+                      label: "Base Date",
+                      value: formatDate(selectedModule.BaseDate),
+                      span: false,
+                    },
                     {
                       label: "Base Value",
                       value:
@@ -324,8 +506,16 @@ export default function FCModulesTable({
                           : `${selectedModule.Growth}%`,
                       span: false,
                     },
-                    { label: "Invest", value: renderTransfers(selectedModule.Invest), span: true },
-                    { label: "Dispose", value: renderTransfers(selectedModule.Dispose), span: true },
+                    {
+                      label: "Invest",
+                      value: renderTransfers(selectedModule.Invest),
+                      span: true,
+                    },
+                    {
+                      label: "Dispose",
+                      value: renderTransfers(selectedModule.Dispose),
+                      span: true,
+                    },
                   ].map(({ label, value, span }) => (
                     <div
                       key={label}
@@ -333,9 +523,7 @@ export default function FCModulesTable({
                         span ? "fc-modules-details__field--full" : ""
                       }`}
                     >
-                      <span className="fc-modules-details__label">
-                        {label}
-                      </span>
+                      <span className="fc-modules-details__label">{label}</span>
                       <span className="fc-modules-details__value">
                         {value === null || value === undefined || value === ""
                           ? "-"

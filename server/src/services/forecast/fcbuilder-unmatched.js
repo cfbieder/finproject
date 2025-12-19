@@ -45,7 +45,11 @@ const allAccounts = (() => {
     const { node, category } = stack.pop();
 
     if (typeof node === "string") {
-      accounts.push({ name: node, category });
+      const isBankAccount =
+        typeof category === "string" &&
+        category.toLowerCase().includes("bank account");
+
+      accounts.push({ name: node, category, isBankAccount });
       continue;
     }
 
@@ -107,6 +111,10 @@ async function getUnmatchedAccounts(scenarioName) {
 
   for (let i = 0; i < allAccounts.length; i++) {
     const account = allAccounts[i];
+    if (account.isBankAccount) {
+      continue;
+    }
+
     if (!matchedNames.has(account.name)) {
       unmatched.push(account);
     }

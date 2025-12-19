@@ -2,6 +2,7 @@ import { Fragment, useEffect, useState } from "react";
 import coa from "../../../../components/data/coa.json";
 import coaTraits from "../../../../components/data/coa_traits.json";
 import Rest from "../../js/rest";
+import "./FCModulesEdit.css";
 
 const balanceSheetLevel2Options = (() => {
   const entries =
@@ -480,10 +481,6 @@ export default function FCModulesEditModal({
     };
   }, [effectiveName, editForm?.BaseDate, isMatched, isOpen, refreshToken]);
 
-  if (!isOpen || !editForm) {
-    return null;
-  }
-
   const parseNumber = (value) => {
     const num = Number(String(value ?? "").replace(/,/g, ""));
     return Number.isFinite(num) ? num : null;
@@ -517,9 +514,9 @@ export default function FCModulesEditModal({
     return Number.isFinite(Number(rate)) ? Number(rate) : 1;
   };
 
-  const baseValueNumber = parseNumber(editForm.BaseValue);
-  const marketValueNumber = parseNumber(editForm.MarketValue);
-  const baseYear = getBaseYear(editForm.BaseDate, new Date().getFullYear());
+  const baseValueNumber = parseNumber(editForm?.BaseValue);
+  const marketValueNumber = parseNumber(editForm?.MarketValue);
+  const baseYear = getBaseYear(editForm?.BaseDate, new Date().getFullYear());
   const getYearFromDate = (value) => {
     if (!value) return "";
     const date = new Date(value);
@@ -549,6 +546,38 @@ export default function FCModulesEditModal({
       : isMatched && accountValueRatio !== null
       ? marketValueNumber * accountValueRatio
       : marketValueNumber * fxRate;
+
+  useEffect(() => {
+    if (!isOpen || !editForm) return;
+    const normalizeNumeric = (value) => {
+      if (value === "" || value === null || value === undefined) return "";
+      const num = Number(String(value).replace(/,/g, ""));
+      return Number.isFinite(num) ? num : "";
+    };
+    const baseUsdNext = normalizeNumeric(computedBaseValueUSD);
+    const marketUsdNext = normalizeNumeric(computedMarketValueUSD);
+    const baseUsdCurrent = normalizeNumeric(editForm.BaseValueUSD);
+    const marketUsdCurrent = normalizeNumeric(editForm.MarketValueUSD);
+    if (baseUsdNext !== baseUsdCurrent) {
+      onFieldChange(
+        "BaseValueUSD",
+        computedBaseValueUSD === "" ? "" : computedBaseValueUSD
+      );
+    }
+    if (marketUsdNext !== marketUsdCurrent) {
+      onFieldChange(
+        "MarketValueUSD",
+        computedMarketValueUSD === "" ? "" : computedMarketValueUSD
+      );
+    }
+  }, [
+    computedBaseValueUSD,
+    computedMarketValueUSD,
+    editForm?.BaseValueUSD,
+    editForm?.MarketValueUSD,
+    isOpen,
+    onFieldChange,
+  ]);
   const scenarioPeriodEnd =
     assumptions?.scenarios?.find((s) => s?.Name === editForm?.Scenario)
       ?.PeriodEnd ?? null;
@@ -602,36 +631,29 @@ export default function FCModulesEditModal({
     ["Market Value (USD)", "MarketValueUSD", "number"],
     ["Growth %", "Growth", "number"],
     ["Expense Category", "ExpCategory", "text"],
+    ["Expense %", "ExpensePct", "number"],
     ["Income Category", "IncomeCategory", "text"],
     ["Income %", "IncomePct", "number"],
   ];
 
+  if (!isOpen || !editForm) {
+    return null;
+  }
+
   return (
     <div
-      className="fc-scenarios-modal-overlay"
+      className="fc-scenarios-modal-overlay fc-modules-edit__overlay"
       role="dialog"
       aria-modal="true"
       aria-label="Edit forecast module"
-      style={{ alignItems: "flex-start", paddingTop: "7rem" }}
     >
       <div
-        className="fc-scenarios-modal"
+        className="fc-scenarios-modal fc-modules-edit__modal"
         onClick={(event) => event.stopPropagation()}
-        style={{
-          width: "min(760px, 96vw)",
-          maxHeight: "72vh",
-          marginTop: "2rem",
-        }}
       >
         <h3 className="fc-scenarios-modal__title">Edit Module</h3>
         <form onSubmit={onSubmit}>
-          <div
-            style={{
-              display: "grid",
-              gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))",
-              gap: "0.75rem 1rem",
-            }}
-          >
+          <div className="fc-modules-edit__form-grid">
             {fields.map(([label, field, type, source]) => {
               if (field === "Account") {
                 return (
@@ -723,13 +745,7 @@ export default function FCModulesEditModal({
                 return (
                   <label key={field} className="fc-scenarios-modal__field">
                     <span>{label}</span>
-                    <div
-                      style={{
-                        display: "flex",
-                        alignItems: "center",
-                        gap: "0.5rem",
-                      }}
-                    >
+                    <div className="fc-modules-edit__base-date">
                       <select
                         className="form-input"
                         value={selectedYear}
@@ -746,7 +762,9 @@ export default function FCModulesEditModal({
                           </option>
                         ))}
                       </select>
-                      <span style={{ color: "var(--muted)" }}>Dec 13</span>
+                      <span className="fc-modules-edit__base-date-hint">
+                        Dec 13
+                      </span>
                     </div>
                   </label>
                 );
@@ -841,20 +859,9 @@ export default function FCModulesEditModal({
               if (field === "ExpCategory") {
                 const currentValue = editForm.ExpCategory ?? "";
                 return (
-                  <label
-                    key={field}
-                    className="fc-scenarios-modal__field"
-                    style={{ gridColumn: "1 / -1" }}
-                  >
+                  <label key={field} className="fc-scenarios-modal__field">
                     <span>{label}</span>
-                    <div
-                      style={{
-                        display: "grid",
-                        gridTemplateColumns: "1fr 1fr",
-                        gap: "0.75rem",
-                        alignItems: "center",
-                      }}
-                    >
+                    <div className="fc-modules-edit__expense-grid">
                       <select
                         className="form-input"
                         value={currentValue}
@@ -872,25 +879,6 @@ export default function FCModulesEditModal({
                             <option value={currentValue}>{currentValue}</option>
                           )}
                       </select>
-                      <label
-                        className="fc-scenarios-modal__field"
-                        style={{
-                          margin: 0,
-                        }}
-                      >
-                        <span>Expense %</span>
-                        <input
-                          type="text"
-                          className="form-input"
-                          value={formatTwoDecimals(editForm.ExpensePct ?? "")}
-                          onChange={(event) =>
-                            onFieldChange(
-                              "ExpensePct",
-                              event.target.value.replace(/,/g, "")
-                            )
-                          }
-                        />
-                      </label>
                     </div>
                   </label>
                 );
@@ -930,6 +918,8 @@ export default function FCModulesEditModal({
                 field === "MarketValue" ||
                 field === "BaseValueUSD" ||
                 field === "MarketValueUSD";
+              const isReadOnlyValue =
+                isDerivedUsd || (!isMatched && isValueField);
               let inputValue = isLockedField
                 ? accountTraits[field] ?? ""
                 : editForm[field] ?? "";
@@ -944,6 +934,12 @@ export default function FCModulesEditModal({
               if (isValueField) {
                 inputValue = formatWithCommas(inputValue);
               }
+              const inputClassName = [
+                "form-input",
+                isReadOnlyValue ? "fc-modules-edit__input--readonly" : "",
+              ]
+                .filter(Boolean)
+                .join(" ");
 
               return (
                 <label key={field} className="fc-scenarios-modal__field">
@@ -957,20 +953,12 @@ export default function FCModulesEditModal({
                         ? "text"
                         : type
                     }
-                    className="form-input"
+                    className={inputClassName}
                     value={inputValue}
-                    style={
-                      isDerivedUsd || (!isMatched && isValueField)
-                        ? {
-                            background: "var(--surface)",
-                            color: "var(--muted)",
-                          }
-                        : undefined
-                    }
-                    readOnly={isDerivedUsd || (!isMatched && isValueField)}
+                    readOnly={isReadOnlyValue}
                     disabled={isLockedField}
                     onChange={
-                      isLockedField || isDerivedUsd
+                      isLockedField || isReadOnlyValue
                         ? undefined
                         : (event) =>
                             onFieldChange(
@@ -983,84 +971,40 @@ export default function FCModulesEditModal({
               );
             })}
           </div>
-          <div style={{ marginTop: "1rem", display: "grid", gap: "1rem" }}>
+          <div className="fc-modules-edit__transfers">
             {transferSections.map(([label, field]) => {
               const transfers = Array.isArray(editForm?.[field])
                 ? editForm[field]
                 : [];
               return (
-                <div
-                  key={field}
-                  style={{
-                    border: "1px solid var(--border)",
-                    borderRadius: "10px",
-                    padding: "0.85rem",
-                  }}
-                >
-                  <div
-                    style={{
-                      display: "flex",
-                      alignItems: "center",
-                      justifyContent: "space-between",
-                      gap: "0.75rem",
-                      marginBottom: "0.5rem",
-                    }}
-                  >
-                    <span
-                      style={{
-                        fontSize: "0.85rem",
-                        color: "var(--muted)",
-                        textTransform: "uppercase",
-                        letterSpacing: "0.05em",
-                        fontWeight: 600,
-                      }}
-                    >
+                <div key={field} className="fc-modules-edit__transfer-section">
+                  <div className="fc-modules-edit__transfer-header">
+                    <span className="fc-modules-edit__transfer-label">
                       {label}
                     </span>
                     <button
                       type="button"
-                      className="generate-report-button"
-                      style={{ padding: "0.35rem 0.6rem", fontSize: "0.8rem" }}
+                      className="generate-report-button fc-modules-edit__add-button"
                       onClick={() => addTransferEntry(field)}
                     >
                       Add {label}
                     </button>
                   </div>
-                  <div
-                    style={{
-                      display: "grid",
-                      gridTemplateColumns:
-                        "minmax(140px, 1fr) minmax(120px, 1fr) minmax(120px, 1fr) auto",
-                      gap: "0.5rem",
-                      alignItems: "center",
-                      fontSize: "0.75rem",
-                      color: "var(--muted)",
-                      textTransform: "uppercase",
-                      letterSpacing: "0.05em",
-                      fontWeight: 600,
-                    }}
-                  >
+                  <div className="fc-modules-edit__transfer-columns">
                     <span>Date</span>
                     <span>Amount</span>
                     <span>Flag</span>
                     <span aria-hidden />
                   </div>
                   {transfers.length === 0 ? (
-                    <div style={{ color: "var(--muted)", marginTop: "0.5rem" }}>
+                    <div className="fc-modules-edit__transfer-empty">
                       No {label.toLowerCase()} entries.
                     </div>
                   ) : (
                     transfers.map((entry, index) => (
                       <div
                         key={`${field}-${index}`}
-                        style={{
-                          display: "grid",
-                          gridTemplateColumns:
-                            "minmax(140px, 1fr) minmax(120px, 1fr) minmax(120px, 1fr) auto",
-                          gap: "0.5rem",
-                          alignItems: "center",
-                          marginTop: "0.5rem",
-                        }}
+                        className="fc-modules-edit__transfer-row"
                       >
                         <select
                           className="form-input"
@@ -1109,11 +1053,7 @@ export default function FCModulesEditModal({
                         />
                         <button
                           type="button"
-                          className="generate-report-button"
-                          style={{
-                            padding: "0.35rem 0.6rem",
-                            fontSize: "0.75rem",
-                          }}
+                          className="generate-report-button fc-modules-edit__remove-button"
                           onClick={() => removeTransferEntry(field, index)}
                         >
                           Remove
