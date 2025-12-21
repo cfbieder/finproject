@@ -25,6 +25,8 @@ export default function FCScenariosSelect({
   reloadDefaults,
   openDeleteModal,
   isLoading,
+  taxRate,
+  setTaxRate,
 }) {
   // Disable controls when loading, no data, or errors
   const isDisabled = !assumptions || !!loadError || isLoading;
@@ -121,6 +123,25 @@ export default function FCScenariosSelect({
                   </option>
                 ))}
               </select>
+            </div>
+            <div className="fc-scenarios-row__field">
+              <label
+                className="fc-scenarios-select__label"
+                htmlFor="tax-rate-input"
+              >
+                Tax Rate (%)
+              </label>
+              <input
+                id="tax-rate-input"
+                type="number"
+                className="form-input"
+                value={taxRate}
+                onChange={(event) => setTaxRate(event.target.value)}
+                disabled={isDisabled}
+                min="0"
+                max="100"
+                step="0.1"
+              />
             </div>
           </div>
 

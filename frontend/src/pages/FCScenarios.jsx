@@ -59,6 +59,9 @@ export default function FCScenarios() {
   /** Local working copy of FX rate assumptions (not yet committed) */
   const [localFX, setLocalFX] = useState([]);
 
+  /** Local working copy of tax rates by scenario */
+  const [localTaxRates, setLocalTaxRates] = useState([]);
+
   /** Modal state for various dialogs (edit, delete, commit) */
   const [modalState, setModalState] = useState({ type: null, payload: null });
 
@@ -82,6 +85,7 @@ export default function FCScenarios() {
       setScenarios(data?.scenarios || []);
       setLocalInflation(data?.inflation || []);
       setLocalFX(data?.FX || []);
+      setLocalTaxRates(data?.["Tax Rate"] || []);
 
       // Verify selected scenario still exists after reload
       const scenarioNames = (data?.scenarios || []).map((item) => item.Name);
@@ -117,6 +121,7 @@ export default function FCScenarios() {
           setScenarios(data?.scenarios || []);
           setLocalInflation(data?.inflation || []);
           setLocalFX(data?.FX || []);
+          setLocalTaxRates(data?.["Tax Rate"] || []);
           setLoadError("");
         }
       } catch (error) {
@@ -215,6 +220,12 @@ export default function FCScenarios() {
   const fxRows = sortByYear(
     (localFX || []).filter((item) => item.Scenario === selectedScenario)
   );
+
+  /** Tax rate for the selected scenario */
+  const selectedTaxRate =
+    (localTaxRates || []).find(
+      (item) => item.Scenario === selectedScenario
+    )?.Rate ?? "";
 
   /** All unique FX rate keys (e.g., "USDPLN", "USDEUR") across all scenarios */
   const fxKeys = Array.from(
@@ -384,6 +395,46 @@ export default function FCScenarios() {
   };
 
   // ============================================================================
+  // TAX RATE OPERATIONS
+  // ============================================================================
+
+  /** Ensures a default tax rate exists for new scenarios */
+  useEffect(() => {
+    if (selectedScenario !== "__new_scenario__") {
+      return;
+    }
+    setLocalTaxRates((prev) => {
+      if (prev.some((item) => item.Scenario === "__new_scenario__")) {
+        return prev;
+      }
+      return [...prev, { Scenario: "__new_scenario__", Rate: 25 }];
+    });
+  }, [selectedScenario]);
+
+  /**
+   * Updates tax rate for the selected scenario
+   * Adds a new entry if one does not exist
+   */
+  const updateTaxRate = (value) => {
+    if (!selectedScenario) {
+      return;
+    }
+    setLocalTaxRates((prev) => {
+      const next = [...prev];
+      const index = next.findIndex(
+        (item) => item.Scenario === selectedScenario
+      );
+      const entry = { Scenario: selectedScenario, Rate: value };
+      if (index >= 0) {
+        next[index] = { ...next[index], ...entry };
+      } else {
+        next.push(entry);
+      }
+      return next;
+    });
+  };
+
+  // ============================================================================
   // SCENARIO OPERATIONS
   // ============================================================================
 
@@ -415,13 +466,20 @@ export default function FCScenarios() {
     // Update assumptions object
     setAssumptions((prev) =>
       prev
-        ? { ...prev, scenarios: prev.scenarios?.filter((s) => s.Name !== name) }
+        ? {
+            ...prev,
+            scenarios: prev.scenarios?.filter((s) => s.Name !== name),
+            "Tax Rate": (prev["Tax Rate"] || []).filter(
+              (item) => item.Scenario !== name
+            ),
+          }
         : prev
     );
 
     // Remove all inflation and FX data for this scenario
     setLocalInflation((prev) => prev.filter((item) => item.Scenario !== name));
     setLocalFX((prev) => prev.filter((item) => item.Scenario !== name));
+    setLocalTaxRates((prev) => prev.filter((item) => item.Scenario !== name));
 
     closeModal();
   };
@@ -502,6 +560,22 @@ export default function FCScenarios() {
         )
       : localFX;
 
+    const updatedTaxRates = isCreatingNew
+      ? localTaxRates.map((item) =>
+          item.Scenario === "__new_scenario__"
+            ? { ...item, Scenario: scenarioName }
+            : item
+        )
+      : localTaxRates;
+
+    const normalizedTaxRates = updatedTaxRates.map((item) => {
+      const numericRate = Number(item.Rate);
+      return {
+        Scenario: item.Scenario,
+        Rate: Number.isFinite(numericRate) ? numericRate : 0,
+      };
+    });
+
     try {
       // Persist to server
       await Rest.fetchJson("/api/forecast/assumptions", {
@@ -511,6 +585,7 @@ export default function FCScenarios() {
           scenarios: updatedScenarios,
           inflation: updatedInflation,
           FX: updatedFx,
+          "Tax Rate": normalizedTaxRates,
         }),
         headers: { "Content-Type": "application/json" },
       });
@@ -519,6 +594,7 @@ export default function FCScenarios() {
       setScenarios(updatedScenarios);
       setLocalInflation(updatedInflation);
       setLocalFX(updatedFx);
+      setLocalTaxRates(normalizedTaxRates);
 
       if (isCreatingNew) {
         setSelectedScenario(scenarioName);
@@ -531,6 +607,7 @@ export default function FCScenarios() {
               scenarios: updatedScenarios,
               inflation: updatedInflation,
               FX: updatedFx,
+              "Tax Rate": normalizedTaxRates,
             }
           : prev
       );
@@ -578,6 +655,8 @@ export default function FCScenarios() {
           reloadDefaults={reloadDefaults}
           openDeleteModal={openDeleteModal}
           isLoading={isLoading}
+          taxRate={String(selectedTaxRate ?? "")}
+          setTaxRate={updateTaxRate}
         />
 
         {/* Data tables for inflation and FX assumptions */}

@@ -9,6 +9,9 @@ docker compose up -d mongodb
 #run docker that is in container
 mongosh "mongodb://localhost:27018"
 
+mongodump --uri "mongodb://localhost:27018/fin" --out ./mongo_backup
+
+
 #mongo commands
 db.psdata.countDocuments({})
 

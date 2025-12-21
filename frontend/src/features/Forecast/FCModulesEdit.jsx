@@ -82,7 +82,7 @@ const getChildCategoriesForAccount = (accountName) => {
   return Array.from(new Set(children));
 };
 
-const expenseCategoryOptions = (() => {
+export const expenseCategoryOptions = (() => {
   const entries =
     Array.isArray(coa) &&
     coa.find((entry) =>
@@ -159,7 +159,7 @@ const expenseCategoryOptions = (() => {
   return Array.from(new Set(results)).sort();
 })();
 
-const incomeCategoryOptions = (() => {
+export const incomeCategoryOptions = (() => {
   const entries =
     Array.isArray(coa) &&
     coa.find((entry) =>
@@ -742,9 +742,8 @@ export default function FCModulesEditModal({
                     <input
                       type="checkbox"
                       checked={Boolean(editForm.Matched)}
-                      onChange={(event) =>
-                        onFieldChange("Matched", event.target.checked)
-                      }
+                      readOnly
+                      disabled
                     />
                   </label>
                 );

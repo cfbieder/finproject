@@ -3,8 +3,71 @@ const fs = require("fs");
 const path = require("path");
 const { categories, years } = require("./fcbuilder-setup");
 
-function processModule(module, scenario, df_assumptions) {
+//helper functions to log audit trail and format display
+const configureDisplay = (df) => {
+  const dfRounded = df.round(2);
+  const totalColumns = dfRounded.columns.length;
+  dfRounded.config.setTableMaxColInConsole(totalColumns);
+  const visibleColumns = totalColumns + 1; // include index column
+  const consoleWidth = process.stdout.columns || 80;
+  const columnWidth = Math.max(
+    6,
+    Math.min(8, Math.floor((consoleWidth - 10) / visibleColumns))
+  );
+  const columnsConfig = {};
+  for (let i = 0; i < visibleColumns; i++) {
+    columnsConfig[i] = { width: columnWidth, truncate: columnWidth - 1 };
+  }
+  dfRounded.config.setTableDisplayConfig({ columns: columnsConfig });
+  return dfRounded;
+};
+const logDataFrames = (dfModuleLC, dfModuleUSD) => {
+  let dfRounded = configureDisplay(dfModuleLC);
+  console.log(dfRounded.toString());
+  dfRounded = configureDisplay(dfModuleUSD);
+  console.log(dfRounded.toString());
+};
+
+// helper functions to write audit trail
+const auditTrailDir = path.resolve(
+  __dirname,
+  "../../../../components/data/auditTrail"
+);
+
+let auditTrailDirEnsured = false;
+
+const ensureAuditTrailDir = () => {
+  if (auditTrailDirEnsured) return;
+  fs.mkdirSync(auditTrailDir, { recursive: true });
+  auditTrailDirEnsured = true;
+};
+
+const sanitizeName = (value, fallback) => (value && String(value)) || fallback;
+
+const writeAuditTrail = (dfModuleLC, dfModuleUSD, scenario, module) => {
+  ensureAuditTrailDir();
+  const scenarioName = sanitizeName(scenario?.Name, "scenario").replace(
+    /[^a-z0-9]/gi,
+    "_"
+  );
+  const moduleName = sanitizeName(module?.Name, "module").replace(
+    /[^a-z0-9]/gi,
+    "_"
+  );
+
+  dfd.toCSV(dfModuleLC, {
+    filePath: path.join(auditTrailDir, `${scenarioName}_${moduleName}_LC.csv`),
+  });
+
+  dfd.toCSV(dfModuleUSD, {
+    filePath: path.join(auditTrailDir, `${scenarioName}_${moduleName}_USD.csv`),
+  });
+};
+
+//main processing function
+function processModule(module, scenario, df_assumptions, df_categories) {
   console.log(`Processing module: ${module.Name}`);
+  console.log(`Processing account: ${module.Account}`);
   console.log("Scenario", scenario);
   const startyear = module.BaseDate.getFullYear();
   const endyear = scenario.PeriodEnd;
@@ -58,7 +121,7 @@ function processModule(module, scenario, df_assumptions) {
     incomePctValues[i] =
       idx >= 0 && idx < inflationLen ? incomePct * inflationSeries[idx] : 0;
     expPctValues[i] =
-      idx >= 0 && idx < inflationLen ? expPct * inflationSeries[idx] : 0;
+      idx >= 0 && idx < inflationLen ? -expPct * inflationSeries[idx] : 0;
   }
 
   // Process Invest and Dispose entries
@@ -94,8 +157,7 @@ function processModule(module, scenario, df_assumptions) {
     const prevBase = baseValues[i - 1];
     const safeDisposeAdjustment =
       prevMarket === 0 ? 0 : (disposeValues[i] * prevBase) / prevMarket;
-    baseValues[i] =
-      prevBase + investValues[i] + safeDisposeAdjustment;
+    baseValues[i] = prevBase + investValues[i] + safeDisposeAdjustment;
     marketValues[i] =
       prevMarket + unrealizedGainValues[i] + investValues[i] + disposeValues[i];
     realizedGainValues[i] =
@@ -124,6 +186,7 @@ function processModule(module, scenario, df_assumptions) {
     }
   }
 
+  // Check for NaN in baseValues and log detailed warning
   const nanBaseIndex = baseValues.findIndex((value) => Number.isNaN(value));
   if (nanBaseIndex !== -1) {
     const prevBase =
@@ -156,6 +219,22 @@ function processModule(module, scenario, df_assumptions) {
     );
   }
 
+  // Calculate tax values
+  const taxValues = new Array(yearsCount).fill(0);
+  const taxRate = Number(
+    scenario?.TaxRate ?? scenario?.taxRate ?? scenario?.["Tax Rate"] ?? 0
+  );
+  if (Number.isFinite(taxRate) && taxRate !== 0) {
+    const rateFactor = -taxRate / 100;
+    for (let i = 0; i < yearsCount; i++) {
+      const gain = realizedGainValues[i];
+      if (gain > 0) {
+        taxValues[i] = rateFactor * gain;
+      }
+    }
+  }
+
+  // Calculate income and expense values
   const expenseValues = new Array(yearsCount).fill(0);
   for (let i = 0, year = startyear; year <= endyear; i++, year++) {
     const idx = year - periodStart;
@@ -185,6 +264,7 @@ function processModule(module, scenario, df_assumptions) {
   const realizedGainValuesUSD = new Array(yearsCount).fill(0);
   const incomeValuesUSD = new Array(yearsCount).fill(0);
   const expenseValuesUSD = new Array(yearsCount).fill(0);
+  const taxValuesUSD = new Array(yearsCount).fill(0);
 
   for (let i = 0; i < yearsCount; i++) {
     baseValuesUSD[i] = baseValues[i] / fxrates[i];
@@ -195,6 +275,7 @@ function processModule(module, scenario, df_assumptions) {
     realizedGainValuesUSD[i] = realizedGainValues[i] / fxrates[i];
     incomeValuesUSD[i] = incomeValues[i] / fxrates[i];
     expenseValuesUSD[i] = expenseValues[i] / fxrates[i];
+    taxValuesUSD[i] = taxValues[i] / fxrates[i];
   }
   baseValuesUSD[0] = module.BaseValueUSD ?? 0;
   marketValuesUSD[0] = module.MarketValueUSD ?? 0;
@@ -215,6 +296,7 @@ function processModule(module, scenario, df_assumptions) {
       Dispose: disposeValues,
       [module.IncomeCategory]: incomeValues,
       [module.ExpCategory]: expenseValues,
+      Tax: taxValues,
     },
     { index: yearsArr }
   );
@@ -231,72 +313,37 @@ function processModule(module, scenario, df_assumptions) {
       RealizedGain: realizedGainValuesUSD,
       Invest: investValuesUSD,
       Dispose: disposeValuesUSD,
-
       [module.IncomeCategory]: incomeValuesUSD,
       [module.ExpCategory]: expenseValuesUSD,
+      Tax: taxValuesUSD,
     },
     { index: yearsArr }
   );
 
-  // Display the dataframe in console with adjusted column widths
-  let dfRounded = df_module_LC.round(2);
-  let totalColumns = dfRounded.columns.length;
-  dfRounded.config.setTableMaxColInConsole(totalColumns);
-  let visibleColumns = totalColumns + 1; // include index column
-  let consoleWidth = process.stdout.columns || 80;
-  let columnWidth = Math.max(
-    6,
-    Math.min(8, Math.floor((consoleWidth - 10) / visibleColumns))
-  );
-  let columnsConfig = {};
-  for (let i = 0; i < visibleColumns; i++) {
-    columnsConfig[i] = { width: columnWidth, truncate: columnWidth - 1 };
-  }
-  dfRounded.config.setTableDisplayConfig({ columns: columnsConfig });
-  console.log(dfRounded.toString());
+  const categoryRowIndex = df_categories.index.indexOf(module.Account);
 
-  // Display the dataframe in console with adjusted column widths
-  dfRounded = df_module_USD.round(2);
-  totalColumns = dfRounded.columns.length;
-  dfRounded.config.setTableMaxColInConsole(totalColumns);
-  visibleColumns = totalColumns + 1; // include index column
-  consoleWidth = process.stdout.columns || 80;
-  columnWidth = Math.max(
-    6,
-    Math.min(8, Math.floor((consoleWidth - 10) / visibleColumns))
-  );
-  columnsConfig = {};
-  for (let i = 0; i < visibleColumns; i++) {
-    columnsConfig[i] = { width: columnWidth, truncate: columnWidth - 1 };
-  }
-  dfRounded.config.setTableDisplayConfig({ columns: columnsConfig });
-  console.log(dfRounded.toString());
+  if (categoryRowIndex !== -1) {
+    const rowValues = df_categories.values[categoryRowIndex];
+    const startColumnIndex = df_categories.columns.indexOf(startyear);
+    if (startColumnIndex !== -1) {
+      for (let i = 0; i < marketValuesUSD.length; i++) {
+        const columnIndex = startColumnIndex + i;
 
-  // Write audit trail
-  const auditTrailDir = path.resolve(
-    __dirname,
-    "../../../../components/data/auditTrail"
-  );
-
-  if (!fs.existsSync(auditTrailDir)) {
-    fs.mkdirSync(auditTrailDir, { recursive: true });
+        if (columnIndex >= df_categories.columns.length) break;
+        rowValues[columnIndex] = marketValuesUSD[i];
+      }
+    }
+    console.log(marketValuesUSD);
+    console.log(df_categories.toString());
+  } else {
+    console.warn(
+      `Category ${module.Name} not found in df_categories, unable to write market values.`
+    );
   }
 
-  const scenarioName = (
-    scenario && scenario.Name ? scenario.Name : "scenario"
-  ).replace(/[^a-z0-9]/gi, "_");
-  const moduleName = (module && module.Name ? module.Name : "module").replace(
-    /[^a-z0-9]/gi,
-    "_"
-  );
+  //logDataFrames(df_module_LC, df_module_USD);
 
-  dfd.toCSV(df_module_LC, {
-    filePath: path.join(auditTrailDir, `${scenarioName}_${moduleName}_LC.csv`),
-  });
-
-  dfd.toCSV(df_module_USD, {
-    filePath: path.join(auditTrailDir, `${scenarioName}_${moduleName}_USD.csv`),
-  });
+  writeAuditTrail(df_module_LC, df_module_USD, scenario, module);
 }
 
 module.exports = { processModule };

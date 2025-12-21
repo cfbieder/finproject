@@ -37,6 +37,12 @@ if (!scenario.PeriodStart || !scenario.PeriodEnd) {
   );
 }
 
+const taxRateEntry = Array.isArray(FCAssump["Tax Rate"])
+  ? FCAssump["Tax Rate"].find((entry) => entry.Scenario === scenario.Name)
+  : null;
+const taxRate = Number(taxRateEntry?.Rate ?? 0);
+scenario.TaxRate = Number.isFinite(taxRate) ? taxRate : 0;
+
 const categories = FCAssump.category;
 const { PeriodStart: periodStart, PeriodEnd: periodEnd } = scenario;
 
@@ -96,5 +102,6 @@ module.exports = {
   inflationRates,
   fxratesPLN,
   fxratesEUR,
+  taxRate: scenario.TaxRate,
   years,
 };

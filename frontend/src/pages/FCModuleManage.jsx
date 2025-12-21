@@ -1,9 +1,13 @@
 import { useEffect, useRef, useState } from "react";
 import NavigationMenu from "../components/NavigationMenu.jsx";
 import FCModulesFilter from "../features/Forecast/FCModulesFilter.jsx";
-import FCModulesEditModal from "../features/Forecast/FCModulesEdit.jsx";
+import FCModulesEditModal, {
+  expenseCategoryOptions,
+  incomeCategoryOptions,
+} from "../features/Forecast/FCModulesEdit.jsx";
 import FCModulesTable from "../features/Forecast/FCModulesTable.jsx";
 import Rest from "../js/rest.js";
+import coaTraits from "../../../components/data/coa_traits.json";
 import "./PageLayout.css";
 import "../features/Forecast/FCModulesEdit.css";
 
@@ -104,6 +108,25 @@ const normalizeUnmatchedItems = (payload) => {
 
   return normalized;
 };
+
+const traitDefaultValues = (() => {
+  const typeValues = new Set();
+  const currencyValues = new Set();
+  for (const traits of Object.values(coaTraits || {})) {
+    if (!traits || typeof traits !== "object") continue;
+    if (traits.Type) typeValues.add(traits.Type);
+    if (traits.Currency) currencyValues.add(traits.Currency);
+  }
+  const typeOptions = Array.from(typeValues).sort();
+  const currencyOptions = Array.from(currencyValues).sort();
+  return {
+    Type: typeOptions[0] || "",
+    Currency: currencyOptions[0] || "",
+  };
+})();
+
+const defaultExpenseCategory = expenseCategoryOptions[0] || "";
+const defaultIncomeCategory = incomeCategoryOptions[0] || "";
 
 /**
  * FCModuleManage component manages forecast modules for different scenarios.
@@ -375,10 +398,10 @@ export default function FCModuleManage() {
           Matched: false,
           Account: "",
           Name: "",
-          Type: "",
-          Currency: "",
-          ExpCategory: "",
-          IncomeCategory: "",
+          Type: traitDefaultValues.Type,
+          Currency: traitDefaultValues.Currency,
+          ExpCategory: defaultExpenseCategory,
+          IncomeCategory: defaultIncomeCategory,
           BaseDate: baseDate,
           BaseYear: baseYear,
           BaseValue: 0,
@@ -482,6 +505,9 @@ export default function FCModuleManage() {
    */
   const handleEditFieldChange = (field, value) => {
     setEditForm((prev) => {
+      if (field === "Matched") {
+        return prev;
+      }
       if (field === "Account") {
         return { ...prev, Account: value, Name: "" };
       }
@@ -528,8 +554,12 @@ export default function FCModuleManage() {
       Name: editForm.Name ?? "",
       Type: editForm.Type ?? "",
       Currency: editForm.Currency ?? "",
-      ExpCategory: editForm.ExpCategory ?? "",
-      IncomeCategory: editForm.IncomeCategory ?? "",
+      ExpCategory:
+        (editForm.ExpCategory ?? "").toString().trim() ||
+        defaultExpenseCategory,
+      IncomeCategory:
+        (editForm.IncomeCategory ?? "").toString().trim() ||
+        defaultIncomeCategory,
       Matched: Boolean(editForm.Matched),
       BaseDate: editForm.BaseDate
         ? new Date(editForm.BaseDate).toISOString()
@@ -719,6 +749,8 @@ export default function FCModuleManage() {
           Account: account,
           Name: moduleName,
           BaseDate: baseDate,
+          ExpCategory: defaultExpenseCategory,
+          IncomeCategory: defaultIncomeCategory,
           Matched: true,
         }),
       });
@@ -929,4 +961,3 @@ export default function FCModuleManage() {
     </div>
   );
 }
-//todo: on click new button when creating new module set BaseYear to scenario start year -1

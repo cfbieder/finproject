@@ -1,11 +1,5 @@
 {
-  "category": [
-    "Year",
-    "Inflation",
-    "PLN",
-    "EUR",
-    "Bank Accounts"
-  ],
+  "category": ["Year", "Inflation", "PLN", "EUR", "Bank Accounts"],
   "scenarios": [
     {
       "Name": "Baseline",
@@ -64,6 +58,16 @@
         "USDPLN": 4.5,
         "USDEUR": 0.85
       }
+    }
+  ],
+  "Tax Rate": [
+    {
+      "Scenario": "Baseline",
+      "Rate": 25
+    },
+    {
+      "Scenario": "High Inflation",
+      "Rate": 25
     }
   ]
 }
