@@ -23,6 +23,7 @@ const menuItems = [
       { label: "Forecast Scenarios", path: "/forecast-scenarios" },
       { label: "Forecast Modules", path: "/forecast-modules" },
       { label: "Forecast Expenditures Setup", path: "/forecast-setup-exp" },
+      { label: "Forecast Revew", path: "/forecast-review" },
     ],
   },
   {

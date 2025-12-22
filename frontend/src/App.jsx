@@ -14,6 +14,7 @@ import UploadPS from "./pages/UploadPS.jsx";
 import FCExpSetup from "./pages/FCExpSetup.jsx";
 import FCScenarios from "./pages/FCScenarios.jsx";
 import FCModuleManage from "./pages/FCModuleManage.jsx";
+import FCReview from "./pages/FCReview.jsx";
 
 function App() {
   return (
@@ -34,6 +35,7 @@ function App() {
         <Route path="/forecast-setup-exp" element={<FCExpSetup />} />
         <Route path="/forecast-scenarios" element={<FCScenarios />} />
         <Route path="/forecast-modules" element={<FCModuleManage />} />
+        <Route path="/forecast-review" element={<FCReview />} />
       </Routes>
     </BrowserRouter>
   );

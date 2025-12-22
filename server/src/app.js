@@ -5,6 +5,7 @@ const morgan = require("morgan");
 const healthRouter = require("./routes/health");
 const balanceRouter = require("./routes/balance");
 const cashFlowRouter = require("./routes/cashFlow");
+const coaRouter = require("./routes/coa");
 const ingestRouter = require("./routes/ingestPs");
 const utilRouter = require("./routes/util");
 const budgetRouter = require("./routes/budget");
@@ -19,6 +20,7 @@ app.use("/api/util", utilRouter);
 app.use("/api/health", healthRouter);
 app.use("/api/balance", balanceRouter);
 app.use("/api/cash-flow", cashFlowRouter);
+app.use("/api/coa", coaRouter);
 app.use("/api/ingest-ps", ingestRouter);
 app.use("/api/budget", budgetRouter);
 app.use("/api/forecast", forecastRouter);
@@ -35,6 +37,8 @@ app.get("/", (req, res) => {
       "/api/health",
       "/api/balance",
       "/api/cash-flow",
+      "/api/coa/BalanceSheet",
+      "/api/coa/CashFlow",
       "/api/ingest-ps",
       "/api/ingest-ps/upload-ps",
       "/api/ingest-ps/analyze-ps",
