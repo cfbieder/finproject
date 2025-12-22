@@ -58,6 +58,7 @@ export default function FCReview() {
             if (level2) {
               rows.push({ label: level2, level: 2 });
               if (includeMapping) {
+                mapping.set(level2, { level2, level1 });
                 const addLeaf = (node) => {
                   if (typeof node === "string") {
                     mapping.set(node, { level2, level1 });
@@ -245,6 +246,20 @@ export default function FCReview() {
     [years]
   );
   const baseYear = sortedYears[0];
+  const balanceLevel1Labels = useMemo(
+    () =>
+      new Set(
+        balanceAccounts.filter((row) => row.level === 1).map((row) => row.label)
+      ),
+    [balanceAccounts]
+  );
+  const balanceLevel2Labels = useMemo(
+    () =>
+      new Set(
+        balanceAccounts.filter((row) => row.level === 2).map((row) => row.label)
+      ),
+    [balanceAccounts]
+  );
   const tableColSpan = Math.max(sortedYears.length + 1, 2);
   const tableError =
     accountsError ||
@@ -304,7 +319,11 @@ export default function FCReview() {
               continue;
             }
             const name = node.name;
-            const total = Number(node.total ?? 0);
+            const total = Number(
+              node.totalUSD !== undefined && node.totalUSD !== null
+                ? node.totalUSD
+                : node.total ?? 0
+            );
             const nextLevel1 = level === 1 && name ? name : parentLevel1;
             const nextLevel2 =
               level === 2 && name ? name : level === 1 ? "" : parentLevel2;
@@ -374,6 +393,8 @@ export default function FCReview() {
         const level1 = new Map();
         const level2 = new Map();
         const level3Map = new Map();
+        let assetTotal = 0;
+        let liabilityTotal = 0;
         const aggregateValues = (nodes, path = []) => {
           if (!Array.isArray(nodes)) {
             return;
@@ -381,22 +402,33 @@ export default function FCReview() {
           for (const node of nodes) {
             if (!node || typeof node !== "object") continue;
             const name = node.name;
-            const total = Number(node.totalUSD ?? 0);
+            const children = Array.isArray(node.children) ? node.children : [];
+            const hasChildren = children.length > 0;
             const newPath = [...path, name].filter(Boolean);
+
+            if (hasChildren) {
+              aggregateValues(children, newPath);
+              continue;
+            }
+
+            const total = Number(node.totalUSD ?? 0);
             const mapping = balanceAccountMap.get(name);
             const l1 = mapping?.level1 || newPath[0];
             const l2 = mapping?.level2 || newPath[1];
+
             if (name) {
               level3Map.set(name, (level3Map.get(name) ?? 0) + total);
             }
             if (l1) {
               level1.set(l1, (level1.get(l1) ?? 0) + total);
+              if (l1 === "Assets") {
+                assetTotal += total;
+              } else if (l1 === "Liabilities") {
+                liabilityTotal += total;
+              }
             }
             if (l2) {
               level2.set(l2, (level2.get(l2) ?? 0) + total);
-            }
-            if (Array.isArray(node.children) && node.children.length > 0) {
-              aggregateValues(node.children, newPath);
             }
           }
         };
@@ -407,6 +439,12 @@ export default function FCReview() {
           ? report["Balance Sheet Accounts"]
           : [];
         aggregateValues(nodes, []);
+        if (assetTotal) {
+          level1.set("Assets", assetTotal);
+        }
+        if (liabilityTotal) {
+          level1.set("Liabilities", liabilityTotal);
+        }
         setBaseBalanceTotals({ level1, level2, level3: level3Map });
       } catch (error) {
         if (isMounted) {
@@ -425,9 +463,11 @@ export default function FCReview() {
     };
   }, [baseYear, balanceAccountMap]);
 
-  const entryMap = useMemo(() => {
-    const map = new Map();
-    const level1Totals = new Map();
+  const entryMaps = useMemo(() => {
+    const cashByLabel = new Map();
+    const cashLevel1Totals = new Map();
+    const balanceByLabel = new Map();
+    const balanceLevel1Totals = new Map();
     for (const entry of entries) {
       const account = entry?.Account;
       const year = Number(entry?.Year);
@@ -435,30 +475,52 @@ export default function FCReview() {
       if (!account || Number.isNaN(year) || Number.isNaN(amount)) {
         continue;
       }
-      const mapping = cashAccountMap.get(account);
-      const targetLabel = mapping?.level2 || account;
-      const byYear = map.get(targetLabel) || new Map();
-      const current = byYear.get(year) || 0;
-      byYear.set(year, current + amount);
-      map.set(targetLabel, byYear);
-      if (mapping?.level1) {
-        const l1YearMap = level1Totals.get(mapping.level1) || new Map();
-        const l1Current = l1YearMap.get(year) || 0;
-        l1YearMap.set(year, l1Current + amount);
-        level1Totals.set(mapping.level1, l1YearMap);
+      // Cash mapping
+      const cashMapping = cashAccountMap.get(account);
+      const cashTarget = cashMapping?.level2 || account;
+      const cashYearMap = cashByLabel.get(cashTarget) || new Map();
+      cashYearMap.set(year, (cashYearMap.get(year) || 0) + amount);
+      cashByLabel.set(cashTarget, cashYearMap);
+      if (cashMapping?.level1) {
+        const l1YearMap = cashLevel1Totals.get(cashMapping.level1) || new Map();
+        l1YearMap.set(year, (l1YearMap.get(year) || 0) + amount);
+        cashLevel1Totals.set(cashMapping.level1, l1YearMap);
+      }
+
+      // Balance mapping
+      const balMapping = balanceAccountMap.get(account);
+      const balL1 =
+        balMapping?.level1 ||
+        (balanceLevel1Labels.has(account) ? account : undefined);
+      const balL2 =
+        balMapping?.level2 ||
+        (balanceLevel2Labels.has(account) ? account : undefined);
+      const balTarget = balL2 || account;
+      const balYearMap = balanceByLabel.get(balTarget) || new Map();
+      balYearMap.set(year, (balYearMap.get(year) || 0) + amount);
+      balanceByLabel.set(balTarget, balYearMap);
+      if (balL1) {
+        const l1YearMap = balanceLevel1Totals.get(balL1) || new Map();
+        l1YearMap.set(year, (l1YearMap.get(year) || 0) + amount);
+        balanceLevel1Totals.set(balL1, l1YearMap);
       }
     }
-    return { byLabel: map, level1Totals };
-  }, [entries, cashAccountMap]);
+    return {
+      cash: { byLabel: cashByLabel, level1Totals: cashLevel1Totals },
+      balance: { byLabel: balanceByLabel, level1Totals: balanceLevel1Totals },
+    };
+  }, [entries, cashAccountMap, balanceAccountMap]);
 
   const formatAmount = (value) => {
     if (value === null || value === undefined || Number.isNaN(Number(value))) {
       return "-";
     }
-    return Number(value).toLocaleString(undefined, {
+    const num = Number(value);
+    const formatted = Math.abs(num).toLocaleString(undefined, {
       minimumFractionDigits: 0,
       maximumFractionDigits: 0,
     });
+    return num < 0 ? `(${formatted})` : formatted;
   };
 
   const getCellValue = (row, year, isCashSection) => {
@@ -482,9 +544,16 @@ export default function FCReview() {
       return baseBalanceTotals.level3?.get(row.label) ?? null;
     }
 
+    if (!isCashSection) {
+      if (row.level === 1) {
+        return entryMaps.balance.level1Totals.get(row.label)?.get(year) ?? null;
+      }
+      return entryMaps.balance.byLabel.get(row.label)?.get(year) ?? null;
+    }
+
     if (row.isNet) {
-      const incomeMap = entryMap.level1Totals.get("Income");
-      const expenseMap = entryMap.level1Totals.get("Expense");
+      const incomeMap = entryMaps.cash.level1Totals.get("Income");
+      const expenseMap = entryMaps.cash.level1Totals.get("Expense");
       const hasIncome = incomeMap?.has(year);
       const hasExpense = expenseMap?.has(year);
       if (!hasIncome && !hasExpense) {
@@ -495,9 +564,9 @@ export default function FCReview() {
       return income + expense;
     }
     if (row.level === 1) {
-      return entryMap.level1Totals.get(row.label)?.get(year) ?? null;
+      return entryMaps.cash.level1Totals.get(row.label)?.get(year) ?? null;
     }
-    return entryMap.byLabel.get(row.label)?.get(year) ?? null;
+    return entryMaps.cash.byLabel.get(row.label)?.get(year) ?? null;
   };
 
   return (
@@ -562,18 +631,7 @@ export default function FCReview() {
                     <th style={{ minWidth: "220px" }}>Account</th>
                     {sortedYears.length ? (
                       sortedYears.map((year) => (
-                        <th
-                          key={year}
-                          className="trans-budget-table__value"
-                          style={
-                            year === baseYear
-                              ? {
-                                  background: "rgba(37, 99, 235, 0.08)",
-                                  color: "var(--primary)",
-                                }
-                              : undefined
-                          }
-                        >
+                        <th key={year} className="trans-budget-table__value">
                           {year}
                         </th>
                       ))
@@ -640,13 +698,14 @@ export default function FCReview() {
                             <td
                               key={`${row.label}-${year}`}
                               className="trans-budget-table__value--numeric"
-                              style={
-                                year === baseYear
-                                  ? { background: "rgba(37, 99, 235, 0.08)" }
-                                  : undefined
-                              }
+                              style={{
+                                color:
+                                  Number(getCellValue(row, year, true)) < 0
+                                    ? "var(--danger)"
+                                    : undefined,
+                              }}
                             >
-                            {formatAmount(getCellValue(row, year, true))}
+                              {formatAmount(getCellValue(row, year, true))}
                             </td>
                           ))}
                         </tr>
@@ -686,13 +745,14 @@ export default function FCReview() {
                             <td
                               key={`${row.label}-${year}`}
                               className="trans-budget-table__value--numeric"
-                              style={
-                                year === baseYear
-                                  ? { background: "rgba(37, 99, 235, 0.08)" }
-                                  : undefined
-                              }
+                              style={{
+                                color:
+                                  Number(getCellValue(row, year, false)) < 0
+                                    ? "var(--danger)"
+                                    : undefined,
+                              }}
                             >
-                            {formatAmount(getCellValue(row, year, false))}
+                              {formatAmount(getCellValue(row, year, false))}
                             </td>
                           ))}
                         </tr>
