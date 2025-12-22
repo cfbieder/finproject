@@ -1,8 +1,8 @@
-FX,GrowthPct,IncomePct,ExpensePct,BaseValue,MarketValue,UnrealizedGain,RealizedGain,Invest,Dispose,Financial Income - BC Holding,Bank Fees,Tax
-NaN,0,0,0,0,0,0,0,0,0,0,0,0
-3.6,0,0,0,50000,50000,0,0,50000,0,0,0,0
-3.6,0,0,0,50000,50000,0,0,0,0,0,0,0
-3.6,0,0,0,50000,50000,0,0,0,0,0,0,0
-4,0,0,0,50000,50000,0,0,0,0,0,0,0
-4,0,0,0,50000,50000,0,0,0,0,0,0,0
-4,0,0,0,50000,50000,0,0,0,0,0,0,0
+index,FX,GrowthPct,IncomePct,ExpensePct,BaseValue,MarketValue,UnrealizedGain,RealizedGain,Invest,Dispose,Financial Income - BC Holding,Bank Fees,Tax
+2024,NaN,0,0,0,0,0,0,0,0,0,0,0,0
+2025,3.6,0,0,0,50000,50000,0,0,50000,0,0,0,0
+2026,3.6,0,0,0,50000,50000,0,0,0,0,0,0,0
+2027,3.6,0,0,0,50000,50000,0,0,0,0,0,0,0
+2028,4,0,0,0,50000,50000,0,0,0,0,0,0,0
+2029,4,0,0,0,50000,50000,0,0,0,0,0,0,0
+2030,4,0,0,0,50000,50000,0,0,0,0,0,0,0

@@ -10,6 +10,7 @@ const {
 } = require("./fcbuilder-setup");
 const mongoose = require("../../../../components/node_modules/mongoose");
 const FCModule = require("../../../../components/models/FCModule");
+const FCEntries = require("../../../../components/models/FCEntries");
 const { processModule } = require("./fcbuilder-module");
 
 const MONGO_URI = process.env.MONGO_URI || "mongodb://localhost:27018/fin";
@@ -31,8 +32,6 @@ const df_assumptions = new dfd.DataFrame(
 
 console.log(scenario);
 console.log(df_assumptions.toString());
-
-//create entries matrix
 
 async function ensureConnection() {
   if (mongoose.connection.readyState === 0 && MONGO_URI) {
@@ -77,10 +76,31 @@ async function loadModulesForScenario(name) {
   return FCModule.find({ Scenario: name }).lean().exec();
 }
 
-Promise.all([
-  loadModulesForScenario(scenario.Name),
-  loadCategoriesForScenario(scenario.Name),
-])
+async function clearEntriesForScenario(name) {
+  console.log(`Clearing existing fcEntry entries for scenario ${name}...`);
+  if (!name || !MONGO_URI) {
+    return 0;
+  }
+
+  await ensureConnection();
+
+  const { deletedCount = 0 } =
+    (await FCEntries.deleteMany({ Scenario: name })) || {};
+
+  if (deletedCount) {
+    console.log(`Deleted ${deletedCount} fcEntry entries for scenario ${name}`);
+  }
+
+  return deletedCount;
+}
+
+clearEntriesForScenario(scenario.Name)
+  .then(() =>
+    Promise.all([
+      loadModulesForScenario(scenario.Name),
+      loadCategoriesForScenario(scenario.Name),
+    ])
+  )
   .then(([modules, { expenseCategories, incomeCategories, accountNames }]) => {
     console.log(
       `Loaded ${modules.length} FCModule entries for scenario ${scenario.Name}`
@@ -96,9 +116,12 @@ Promise.all([
         }
       };
       pushUnique("Bank Accounts");
+      pushUnique("Transfer - Bank");
       accountNames.forEach(pushUnique);
       incomeCategories.forEach(pushUnique);
       expenseCategories.forEach(pushUnique);
+      pushUnique("Tax Reserve");
+
       return ordered;
     })();
     const columns = (() => {
@@ -109,18 +132,30 @@ Promise.all([
       }
       return result;
     })();
+
     const zerosMatrix = new Array(scenarioCategories.length);
+
     for (let i = 0; i < scenarioCategories.length; i++) {
       zerosMatrix[i] = new Array(columns.length).fill(0);
     }
+    const cat = scenarioCategories;
     const df_categories = new dfd.DataFrame(zerosMatrix, {
+      columns: columns,
       index: scenarioCategories,
-      columns,
     });
-    console.log(df_categories.toString());
-    modules.forEach((module) =>
-      processModule(module, scenario, df_assumptions, df_categories)
-    );
+    df_categories.config.setMaxRow(1000);
+
+    return Promise.all(
+      modules.map((module) =>
+        processModule(module, scenario, df_assumptions, df_categories)
+      )
+    )
+      .then(() => {
+        console.log("All Done");
+      })
+      .catch((error) => {
+        console.error("Failed to process modules:", error);
+      });
   })
   .catch((error) => {
     console.error("Failed to load FCModule entries:", error);

@@ -10,12 +10,31 @@ const configureDisplay = (df) => {
   dfRounded.config.setTableMaxColInConsole(totalColumns);
   const visibleColumns = totalColumns + 1; // include index column
   const consoleWidth = process.stdout.columns || 80;
+  const indexValues = Array.isArray(dfRounded.index)
+    ? dfRounded.index
+    : Array.isArray(dfRounded.index?.values)
+    ? dfRounded.index.values
+    : Array.isArray(dfRounded.index?.index)
+    ? dfRounded.index.index
+    : [];
   const columnWidth = Math.max(
     6,
     Math.min(8, Math.floor((consoleWidth - 10) / visibleColumns))
   );
+  const longestIndexLength = indexValues.reduce(
+    (max, value) => Math.max(max, String(value).length),
+    "index".length
+  );
+  const baseIndexWidth = longestIndexLength + 2;
+  const remainingWidth =
+    consoleWidth - columnWidth * (visibleColumns - 1) - 2; /* padding */
+  const indexWidth = Math.max(
+    columnWidth,
+    remainingWidth > 0 ? Math.min(baseIndexWidth, remainingWidth) : columnWidth
+  );
   const columnsConfig = {};
-  for (let i = 0; i < visibleColumns; i++) {
+  columnsConfig[0] = { width: indexWidth, truncate: indexWidth - 1 };
+  for (let i = 1; i < visibleColumns; i++) {
     columnsConfig[i] = { width: columnWidth, truncate: columnWidth - 1 };
   }
   dfRounded.config.setTableDisplayConfig({ columns: columnsConfig });
@@ -28,6 +47,42 @@ const logDataFrames = (dfModuleLC, dfModuleUSD) => {
   console.log(dfRounded.toString());
 };
 
+const writeValuesToCategoryRow = (
+  rowIndex,
+  dfCategories,
+  valuesToWrite,
+  startYear
+) => {
+  if (rowIndex < 0) {
+    console.warn(
+      `Category ${
+        rowIndex ?? "unknown"
+      } not found in df_categories, unable to write market values.`
+    );
+    return false;
+  }
+
+  const startColumnIndex = dfCategories.columns.indexOf(startYear);
+  if (startColumnIndex === -1) {
+    console.warn(
+      `Start year ${startYear} not found in df_categories, unable to write market values.`
+    );
+    return false;
+  }
+
+  const rowValues = dfCategories.values[rowIndex];
+  const columnsLength = dfCategories.columns.length;
+  const valuesLength = valuesToWrite.length;
+
+  for (let i = 0; i < valuesLength; i++) {
+    const columnIndex = startColumnIndex + i;
+    if (columnIndex >= columnsLength) break;
+    rowValues[columnIndex] = valuesToWrite[i];
+  }
+
+  return true;
+};
+
 // helper functions to write audit trail
 const auditTrailDir = path.resolve(
   __dirname,
@@ -35,6 +90,8 @@ const auditTrailDir = path.resolve(
 );
 
 let auditTrailDirEnsured = false;
+const pendingAuditTrails = new Set();
+let exitScheduled = false;
 
 const ensureAuditTrailDir = () => {
   if (auditTrailDirEnsured) return;
@@ -44,7 +101,42 @@ const ensureAuditTrailDir = () => {
 
 const sanitizeName = (value, fallback) => (value && String(value)) || fallback;
 
-const writeAuditTrail = (dfModuleLC, dfModuleUSD, scenario, module) => {
+const getIndexValues = (df) => {
+  if (Array.isArray(df.index)) return df.index;
+  if (Array.isArray(df.index?.values)) return df.index.values;
+  if (Array.isArray(df.index?.index)) return df.index.index;
+  return [];
+};
+
+const scheduleExitIfIdle = () => {
+  if (exitScheduled || pendingAuditTrails.size !== 0) {
+    return;
+  }
+  exitScheduled = true;
+  setImmediate(() => process.exit(process.exitCode ?? 0));
+};
+
+const trackAuditTrail = (promise) => {
+  pendingAuditTrails.add(promise);
+  promise
+    .catch((error) => {
+      console.error("Failed to write audit trail:", error);
+      process.exitCode = process.exitCode || 1;
+    })
+    .finally(() => {
+      pendingAuditTrails.delete(promise);
+      scheduleExitIfIdle();
+    });
+  return promise;
+};
+
+const writeAuditTrail = (
+  dfModuleLC,
+  dfModuleUSD,
+  dfCategories,
+  scenario,
+  module
+) => {
   ensureAuditTrailDir();
   const scenarioName = sanitizeName(scenario?.Name, "scenario").replace(
     /[^a-z0-9]/gi,
@@ -54,14 +146,43 @@ const writeAuditTrail = (dfModuleLC, dfModuleUSD, scenario, module) => {
     /[^a-z0-9]/gi,
     "_"
   );
+  const writeCsvWithHeaders = (df, suffix) => {
+    const filePath = path.join(
+      auditTrailDir,
+      `${scenarioName}_${moduleName}_${suffix}.csv`
+    );
+    const columns = df.columns || [];
+    const rows = df.values || [];
+    const indexValues = getIndexValues(df);
+    return new Promise((resolve, reject) => {
+      try {
+        const lines = new Array(rows.length + 1);
+        lines[0] = ["index", ...columns].join(",") + "\n";
+        for (let i = 0; i < rows.length; i++) {
+          const row = rows[i];
+          const rowParts = new Array(columns.length + 1);
+          rowParts[0] = indexValues[i] ?? "";
+          for (let j = 0; j < columns.length; j++) {
+            const value = row?.[j];
+            rowParts[j + 1] = value == null ? "" : value;
+          }
+          lines[i + 1] = rowParts.join(",") + "\n";
+        }
+        fs.writeFileSync(filePath, lines.join(""), "utf8");
+        resolve();
+      } catch (error) {
+        reject(error);
+      }
+    });
+  };
 
-  dfd.toCSV(dfModuleLC, {
-    filePath: path.join(auditTrailDir, `${scenarioName}_${moduleName}_LC.csv`),
-  });
+  const auditPromise = Promise.all([
+    writeCsvWithHeaders(dfModuleLC, "LC"),
+    writeCsvWithHeaders(dfCategories, "entries"),
+    writeCsvWithHeaders(dfModuleUSD, "USD"),
+  ]);
 
-  dfd.toCSV(dfModuleUSD, {
-    filePath: path.join(auditTrailDir, `${scenarioName}_${moduleName}_USD.csv`),
-  });
+  return trackAuditTrail(auditPromise);
 };
 
 //main processing function
@@ -180,6 +301,7 @@ function processModule(module, scenario, df_assumptions, df_categories) {
           marketValues[j] = 0;
           unrealizedGainValues[j] = 0;
           incomePctValues[j] = 0;
+          expPctValues[j] = 0;
           growthValues[j] = 0;
         }
       }
@@ -320,30 +442,87 @@ function processModule(module, scenario, df_assumptions, df_categories) {
     { index: yearsArr }
   );
 
-  const categoryRowIndex = df_categories.index.indexOf(module.Account);
-
-  if (categoryRowIndex !== -1) {
-    const rowValues = df_categories.values[categoryRowIndex];
-    const startColumnIndex = df_categories.columns.indexOf(startyear);
-    if (startColumnIndex !== -1) {
-      for (let i = 0; i < marketValuesUSD.length; i++) {
-        const columnIndex = startColumnIndex + i;
-
-        if (columnIndex >= df_categories.columns.length) break;
-        rowValues[columnIndex] = marketValuesUSD[i];
-      }
-    }
-    console.log(marketValuesUSD);
-    console.log(df_categories.toString());
-  } else {
-    console.warn(
-      `Category ${module.Name} not found in df_categories, unable to write market values.`
-    );
+  //clear df_categories row for this module account
+  const dfCategoryValues = df_categories.values;
+  for (let i = 0; i < dfCategoryValues.length; i++) {
+    dfCategoryValues[i].fill(0);
   }
+  //write market values to df_categories
+  categoryRowIndex = df_categories.index.indexOf(module.Account);
+  writeValuesToCategoryRow(
+    categoryRowIndex,
+    df_categories,
+    marketValuesUSD,
+    startyear
+  );
+
+  //write invest/dispose values to df_categories
+  categoryRowIndex = df_categories.index.indexOf("Transfer - Bank");
+  const transferValues = disposeValuesUSD.map(
+    (dispose, idx) => dispose - investValuesUSD[idx]
+  );
+  writeValuesToCategoryRow(
+    categoryRowIndex,
+    df_categories,
+    transferValues,
+    startyear
+  );
+
+  //write income values to df_categories
+  categoryRowIndex = df_categories.index.indexOf(module.IncomeCategory);
+  writeValuesToCategoryRow(
+    categoryRowIndex,
+    df_categories,
+    incomeValuesUSD,
+    startyear
+  );
+
+  //write expense values to df_categories
+  categoryRowIndex = df_categories.index.indexOf(module.ExpCategory);
+  writeValuesToCategoryRow(
+    categoryRowIndex,
+    df_categories,
+    expenseValuesUSD,
+    startyear
+  );
+
+  //write tax values to df_categories
+  categoryRowIndex = df_categories.index.indexOf("Tax Reserve");
+  writeValuesToCategoryRow(
+    categoryRowIndex,
+    df_categories,
+    taxValuesUSD,
+    startyear
+  );
+
+  const cashChange = new Array(yearsCount);
+  for (let i = 0; i < yearsCount; i++) {
+    cashChange[i] =
+      incomeValuesUSD[i] +
+      expenseValuesUSD[i] +
+      taxValuesUSD[i] +
+      transferValues[i];
+  }
+  //write cashChange values to df_categories
+  categoryRowIndex = df_categories.index.indexOf("Bank Accounts");
+  writeValuesToCategoryRow(
+    categoryRowIndex,
+    df_categories,
+    cashChange,
+    startyear
+  );
+
+  dfCategoriesDisplay = configureDisplay(df_categories);
+  console.log(dfCategoriesDisplay.toString());
 
   //logDataFrames(df_module_LC, df_module_USD);
 
-  writeAuditTrail(df_module_LC, df_module_USD, scenario, module);
+  return writeAuditTrail(
+    df_module_LC,
+    df_module_USD,
+    df_categories,
+    scenario,
+    module
+  );
 }
-
 module.exports = { processModule };
