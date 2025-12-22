@@ -1,9 +1,36 @@
+/**
+ * Forecast Builder - Module Processor
+ *
+ * This module processes individual forecast modules, calculating:
+ * - Market values and base values over time
+ * - Realized and unrealized gains
+ * - Investment and disposal transactions
+ * - Income and expense projections
+ * - Tax calculations
+ * - FX conversions
+ * - Audit trail CSV generation
+ *
+ * @module fcbuilder-module
+ */
+
 const dfd = require("danfojs-node");
 const fs = require("fs");
 const path = require("path");
+const mongoose = require("../../../../components/node_modules/mongoose");
+const FCEntries = require("../../../../components/models/FCEntries");
 const { categories, years } = require("./fcbuilder-setup");
 
-//helper functions to log audit trail and format display
+// ============================================================================
+// Display Formatting Functions
+// ============================================================================
+
+/**
+ * Configures dataframe display settings for console output
+ * Automatically adjusts column widths based on terminal size
+ *
+ * @param {DataFrame} df - Danfo.js DataFrame to configure
+ * @returns {DataFrame} Rounded dataframe with display settings applied
+ */
 const configureDisplay = (df) => {
   const dfRounded = df.round(2);
   const totalColumns = dfRounded.columns.length;
@@ -40,6 +67,13 @@ const configureDisplay = (df) => {
   dfRounded.config.setTableDisplayConfig({ columns: columnsConfig });
   return dfRounded;
 };
+
+/**
+ * Logs two dataframes (LC and USD) to console with proper formatting
+ *
+ * @param {DataFrame} dfModuleLC - DataFrame in local currency
+ * @param {DataFrame} dfModuleUSD - DataFrame in USD
+ */
 const logDataFrames = (dfModuleLC, dfModuleUSD) => {
   let dfRounded = configureDisplay(dfModuleLC);
   console.log(dfRounded.toString());
@@ -47,6 +81,19 @@ const logDataFrames = (dfModuleLC, dfModuleUSD) => {
   console.log(dfRounded.toString());
 };
 
+// ============================================================================
+// Category Writing Functions
+// ============================================================================
+
+/**
+ * Writes values to a specific row in the categories dataframe
+ *
+ * @param {number} rowIndex - Row index to write to
+ * @param {DataFrame} dfCategories - Categories dataframe
+ * @param {number[]} valuesToWrite - Array of values to write
+ * @param {number} startYear - Starting year for the values
+ * @returns {boolean} True if successful, false otherwise
+ */
 const writeValuesToCategoryRow = (
   rowIndex,
   dfCategories,
@@ -83,7 +130,10 @@ const writeValuesToCategoryRow = (
   return true;
 };
 
-// helper functions to write audit trail
+// ============================================================================
+// Audit Trail Functions
+// ============================================================================
+
 const auditTrailDir = path.resolve(
   __dirname,
   "../../../../components/data/auditTrail"
@@ -93,14 +143,31 @@ let auditTrailDirEnsured = false;
 const pendingAuditTrails = new Set();
 let exitScheduled = false;
 
+/**
+ * Ensures audit trail directory exists, creates it if needed
+ */
 const ensureAuditTrailDir = () => {
   if (auditTrailDirEnsured) return;
   fs.mkdirSync(auditTrailDir, { recursive: true });
   auditTrailDirEnsured = true;
 };
 
+/**
+ * Sanitizes a value for use in filenames
+ *
+ * @param {*} value - Value to sanitize
+ * @param {string} fallback - Fallback value if invalid
+ * @returns {string} Sanitized string
+ */
 const sanitizeName = (value, fallback) => (value && String(value)) || fallback;
 
+/**
+ * Extracts index values from a dataframe
+ * Handles different danfojs index structures
+ *
+ * @param {DataFrame} df - Danfo.js DataFrame
+ * @returns {Array} Array of index values
+ */
 const getIndexValues = (df) => {
   if (Array.isArray(df.index)) return df.index;
   if (Array.isArray(df.index?.values)) return df.index.values;
@@ -108,6 +175,9 @@ const getIndexValues = (df) => {
   return [];
 };
 
+/**
+ * Schedules process exit when all audit trails are written
+ */
 const scheduleExitIfIdle = () => {
   if (exitScheduled || pendingAuditTrails.size !== 0) {
     return;
@@ -116,6 +186,12 @@ const scheduleExitIfIdle = () => {
   setImmediate(() => process.exit(process.exitCode ?? 0));
 };
 
+/**
+ * Tracks an audit trail promise and handles errors
+ *
+ * @param {Promise} promise - Audit trail write promise
+ * @returns {Promise} The tracked promise
+ */
 const trackAuditTrail = (promise) => {
   pendingAuditTrails.add(promise);
   promise
@@ -130,6 +206,17 @@ const trackAuditTrail = (promise) => {
   return promise;
 };
 
+/**
+ * Writes audit trail CSV files for a processed module
+ * Creates three files: LC (local currency), USD, and entries
+ *
+ * @param {DataFrame} dfModuleLC - Module dataframe in local currency
+ * @param {DataFrame} dfModuleUSD - Module dataframe in USD
+ * @param {DataFrame} dfCategories - Categories dataframe
+ * @param {Object} scenario - Scenario configuration
+ * @param {Object} module - Module configuration
+ * @returns {Promise<void>}
+ */
 const writeAuditTrail = (
   dfModuleLC,
   dfModuleUSD,
@@ -146,6 +233,13 @@ const writeAuditTrail = (
     /[^a-z0-9]/gi,
     "_"
   );
+  /**
+   * Writes a single CSV file with headers for a dataframe
+   *
+   * @param {DataFrame} df - Dataframe to export
+   * @param {string} suffix - File suffix (LC, USD, or entries)
+   * @returns {Promise<void>}
+   */
   const writeCsvWithHeaders = (df, suffix) => {
     const filePath = path.join(
       auditTrailDir,
@@ -156,8 +250,13 @@ const writeAuditTrail = (
     const indexValues = getIndexValues(df);
     return new Promise((resolve, reject) => {
       try {
+        // Pre-allocate array for better performance
         const lines = new Array(rows.length + 1);
+
+        // Write header row
         lines[0] = ["index", ...columns].join(",") + "\n";
+
+        // Write data rows
         for (let i = 0; i < rows.length; i++) {
           const row = rows[i];
           const rowParts = new Array(columns.length + 1);
@@ -168,6 +267,8 @@ const writeAuditTrail = (
           }
           lines[i + 1] = rowParts.join(",") + "\n";
         }
+
+        // Write synchronously for consistency with audit trail tracking
         fs.writeFileSync(filePath, lines.join(""), "utf8");
         resolve();
       } catch (error) {
@@ -185,11 +286,137 @@ const writeAuditTrail = (
   return trackAuditTrail(auditPromise);
 };
 
-//main processing function
+// ============================================================================
+// Database Entry Functions
+// ============================================================================
+
+/**
+ * Builds an array of FCEntries documents from the categories dataframe
+ * Transforms dataframe rows and columns into individual database entries
+ *
+ * @param {DataFrame} dfCategories - Categories dataframe with years as columns
+ * @param {string} scenarioName - Scenario identifier
+ * @param {string} moduleName - Module identifier
+ * @returns {Array<Object>} Array of FCEntries documents ready for insertion
+ */
+const buildFcEntriesPayload = (dfCategories, scenarioName, moduleName) => {
+  const columns = dfCategories?.columns || [];
+  const rows = dfCategories?.values || [];
+  const indexValues = getIndexValues(dfCategories);
+  const entries = [];
+  const module = moduleName || "";
+
+  // Iterate through each row (category/account)
+  for (let i = 0; i < rows.length; i++) {
+    const account = indexValues[i];
+    if (!account) continue;
+
+    const row = rows[i];
+    // Iterate through each column (year)
+    for (let j = 0; j < columns.length; j++) {
+      const amount = row[j];
+      // Skip zero and null values to reduce database size
+      if (amount == null || amount === 0) continue;
+
+      const year = columns[j];
+      if (year == null) continue;
+
+      // Create entry for this specific year/account/amount combination
+      entries.push({
+        Scenario: scenarioName,
+        Year: year,
+        Amount: amount,
+        Account: account,
+        Module: module,
+      });
+    }
+  }
+
+  return entries;
+};
+
+/**
+ * Inserts category entries into the FCEntries collection
+ * Skips zero values to reduce database size and improve query performance
+ *
+ * @param {DataFrame} dfCategories - Categories dataframe
+ * @param {string} scenarioName - Scenario identifier
+ * @param {string} moduleName - Module identifier
+ * @returns {Promise<Array>} Promise resolving to inserted documents
+ */
+const insertCategoryEntries = (dfCategories, scenarioName, moduleName) => {
+  if (!scenarioName || mongoose.connection.readyState === 0) {
+    return Promise.resolve([]);
+  }
+
+  const entries = buildFcEntriesPayload(dfCategories, scenarioName, moduleName);
+  if (entries.length === 0) {
+    return Promise.resolve([]);
+  }
+
+  return FCEntries.insertMany(entries, { ordered: false });
+};
+
+// ============================================================================
+// Main Processing Function
+// ============================================================================
+
+/**
+ * Processes a single forecast module to calculate financial projections
+ *
+ * This function performs complex financial calculations including:
+ * - Base value and market value projections over time
+ * - Growth calculations based on inflation and module-specific growth rates
+ * - Investment and disposal transaction processing
+ * - Realized and unrealized gain/loss calculations
+ * - Income and expense projections
+ * - Tax calculations on realized gains
+ * - Foreign exchange conversions (LC to USD)
+ * - Integration with the categories dataframe
+ * - Audit trail CSV generation
+ *
+ * @param {Object} module - FCModule document containing:
+ *   - Name: Module identifier
+ *   - Account: Account name
+ *   - BaseDate: Starting date for forecasts
+ *   - BaseValue: Initial value in local currency
+ *   - BaseValueUSD: Initial value in USD
+ *   - MarketValue: Initial market value in local currency
+ *   - MarketValueUSD: Initial market value in USD
+ *   - Currency: Currency code (USD, PLN, EUR)
+ *   - Growth: Growth percentage (inflation-adjusted)
+ *   - IncomePct: Income percentage (inflation-adjusted)
+ *   - ExpensePct: Expense percentage (inflation-adjusted)
+ *   - IncomeCategory: Category for income entries
+ *   - ExpCategory: Category for expense entries
+ *   - Invest: Array of investment transactions
+ *   - Dispose: Array of disposal transactions
+ *
+ * @param {Object} scenario - Scenario configuration containing:
+ *   - Name: Scenario identifier
+ *   - PeriodEnd: End year for forecasts
+ *   - TaxRate: Tax rate percentage for realized gains
+ *
+ * @param {DataFrame} df_assumptions - Assumptions dataframe indexed by year with columns:
+ *   - Inflation rates
+ *   - FX rates (PLN, EUR)
+ *
+ * @param {DataFrame} df_categories - Categories dataframe to be updated with:
+ *   - Market values by account
+ *   - Transfer values (invest/dispose)
+ *   - Income by category
+ *   - Expenses by category
+ *   - Tax reserves
+ *   - Bank account cash changes
+ *
+ * @returns {Promise<void>} Promise that resolves when processing and audit trail writing complete
+ */
 function processModule(module, scenario, df_assumptions, df_categories) {
   console.log(`Processing module: ${module.Name}`);
   console.log(`Processing account: ${module.Account}`);
   console.log("Scenario", scenario);
+
+  // Define forecast period based on module start date and scenario end
   const startyear = module.BaseDate.getFullYear();
   const endyear = scenario.PeriodEnd;
   const yearsCount = endyear - startyear + 1;
@@ -199,17 +426,19 @@ function processModule(module, scenario, df_assumptions, df_categories) {
     yearsArr[i] = year;
   }
 
+  // Initialize value arrays - all start with base/market values, calculations will update these
   const baseValues = new Array(yearsCount).fill(module.BaseValue ?? 0);
   const marketValues = new Array(yearsCount).fill(module.MarketValue ?? 0);
   const fxrates = new Array(yearsCount).fill(1);
   const investValues = new Array(yearsCount).fill(0);
   const disposeValues = new Array(yearsCount).fill(0);
 
+  // Extract inflation series for calculations
   const inflationSeries = df_assumptions.column(categories[1]).values;
   const periodStart = years[0];
   const inflationLen = inflationSeries.length;
 
-  // Prepare FX rates if needed
+  // Prepare FX rates for non-USD currencies
   if (module.Currency && module.Currency !== "USD") {
     const fxColumn =
       module.Currency === "PLN"
@@ -228,7 +457,8 @@ function processModule(module, scenario, df_assumptions, df_categories) {
     }
   }
 
-  // Prepare growth, expense and income percentage arrays
+  // Calculate inflation-adjusted growth, income, and expense percentages for each year
+  // These percentages are multiplied by the inflation rate to adjust for purchasing power
   const growthPct = module.Growth ?? 0;
   const incomePct = module.IncomePct ?? 0;
   const expPct = module.ExpensePct ?? 0;
@@ -245,7 +475,7 @@ function processModule(module, scenario, df_assumptions, df_categories) {
       idx >= 0 && idx < inflationLen ? -expPct * inflationSeries[idx] : 0;
   }
 
-  // Process Invest and Dispose entries
+  // Process investment transactions - map each transaction to the appropriate year
   if (Array.isArray(module.Invest)) {
     for (let i = 0; i < module.Invest.length; i++) {
       const entry = module.Invest[i];
@@ -258,6 +488,7 @@ function processModule(module, scenario, df_assumptions, df_categories) {
     }
   }
 
+  // Process disposal transactions - stored as negative values for cash flow purposes
   if (Array.isArray(module.Dispose)) {
     for (let i = 0; i < module.Dispose.length; i++) {
       const entry = module.Dispose[i];
@@ -270,32 +501,49 @@ function processModule(module, scenario, df_assumptions, df_categories) {
   }
 
   // Calculate yearly realized and unrealized gains/losses
+  // Core financial calculation loop - updates base values and market values year over year
   const unrealizedGainValues = new Array(yearsCount).fill(0);
   const realizedGainValues = new Array(yearsCount).fill(0);
   for (let i = 1; i < yearsCount; i++) {
+    // Unrealized gain = previous market value * growth rate
     unrealizedGainValues[i] = marketValues[i - 1] * (growthValues[i] / 100);
+
     const prevMarket = marketValues[i - 1];
     const prevBase = baseValues[i - 1];
+
+    // When disposing, adjust base value proportionally to maintain cost basis accuracy
+    // Prevents division by zero when market value is 0
     const safeDisposeAdjustment =
       prevMarket === 0 ? 0 : (disposeValues[i] * prevBase) / prevMarket;
+
+    // Base value = previous base + new investments + proportional reduction from disposals
     baseValues[i] = prevBase + investValues[i] + safeDisposeAdjustment;
+
+    // Market value = previous market + growth + investments + disposals (disposals are negative)
     marketValues[i] =
       prevMarket + unrealizedGainValues[i] + investValues[i] + disposeValues[i];
+
+    // Realized gain = disposal proceeds - proportional cost basis
     realizedGainValues[i] =
       -disposeValues[i] +
       (prevMarket === 0 ? 0 : (disposeValues[i] * prevBase) / prevMarket);
   }
 
+  // Handle "Full" disposals - complete liquidation of the position
+  // This zeroes out all future values after the disposal date
   if (Array.isArray(module.Dispose)) {
     for (let i = 0; i < module.Dispose.length; i++) {
       const entry = module.Dispose[i];
       if (entry.Flag != "Full") continue;
       const idx = new Date(entry.Date).getFullYear() - startyear;
       if (idx >= 0 && idx < yearsCount) {
+        // For full disposal, recalculate unrealized gain as half the year's growth
         unrealizedGainValues[idx] =
           (marketValues[idx] - marketValues[idx - 1]) / 2;
         disposeValues[idx] = marketValues[idx - 1] + unrealizedGainValues[idx];
         realizedGainValues[idx] = disposeValues[idx] - baseValues[idx];
+
+        // Zero out all future years after full disposal
         for (let j = idx + 1; j < yearsCount; j++) {
           baseValues[j] = 0;
           marketValues[j] = 0;
@@ -308,7 +556,7 @@ function processModule(module, scenario, df_assumptions, df_categories) {
     }
   }
 
-  // Check for NaN in baseValues and log detailed warning
+  // Data validation - check for NaN in baseValues and provide detailed diagnostic info
   const nanBaseIndex = baseValues.findIndex((value) => Number.isNaN(value));
   if (nanBaseIndex !== -1) {
     const prevBase =
@@ -341,22 +589,25 @@ function processModule(module, scenario, df_assumptions, df_categories) {
     );
   }
 
-  // Calculate tax values
+  // Calculate tax values on realized gains only (not unrealized)
+  // Taxes are negative values (cash outflows)
   const taxValues = new Array(yearsCount).fill(0);
   const taxRate = Number(
     scenario?.TaxRate ?? scenario?.taxRate ?? scenario?.["Tax Rate"] ?? 0
   );
   if (Number.isFinite(taxRate) && taxRate !== 0) {
-    const rateFactor = -taxRate / 100;
+    const rateFactor = -taxRate / 100; // Negative because taxes are an outflow
     for (let i = 0; i < yearsCount; i++) {
       const gain = realizedGainValues[i];
+      // Only apply tax to positive realized gains
       if (gain > 0) {
         taxValues[i] = rateFactor * gain;
       }
     }
   }
 
-  // Calculate income and expense values
+  // Calculate income and expense values based on average market value for the year
+  // Using average of beginning and ending values smooths out intra-year fluctuations
   const expenseValues = new Array(yearsCount).fill(0);
   for (let i = 0, year = startyear; year <= endyear; i++, year++) {
     const idx = year - periodStart;
@@ -377,7 +628,8 @@ function processModule(module, scenario, df_assumptions, df_categories) {
         : 0;
   }
 
-  // Apply FX rates to base, market, invest, and dispose  values
+  // Convert all local currency (LC) values to USD using FX rates
+  // Creates parallel arrays for all financial metrics in USD
   const baseValuesUSD = new Array(yearsCount).fill(module.BaseValue ?? 0);
   const marketValuesUSD = new Array(yearsCount).fill(module.MarketValue ?? 0);
   const investValuesUSD = new Array(yearsCount).fill(0);
@@ -388,6 +640,7 @@ function processModule(module, scenario, df_assumptions, df_categories) {
   const expenseValuesUSD = new Array(yearsCount).fill(0);
   const taxValuesUSD = new Array(yearsCount).fill(0);
 
+  // Convert each year's values from LC to USD
   for (let i = 0; i < yearsCount; i++) {
     baseValuesUSD[i] = baseValues[i] / fxrates[i];
     marketValuesUSD[i] = marketValues[i] / fxrates[i];
@@ -399,11 +652,13 @@ function processModule(module, scenario, df_assumptions, df_categories) {
     expenseValuesUSD[i] = expenseValues[i] / fxrates[i];
     taxValuesUSD[i] = taxValues[i] / fxrates[i];
   }
+
+  // Override year 0 with explicit USD values from module, calculate actual FX rate
   baseValuesUSD[0] = module.BaseValueUSD ?? 0;
   marketValuesUSD[0] = module.MarketValueUSD ?? 0;
   fxrates[0] = baseValues[0] / baseValuesUSD[0];
 
-  //update the dataframe
+  // Create dataframes for local currency and USD values
   const df_module_LC = new dfd.DataFrame(
     {
       FX: fxrates,
@@ -442,13 +697,14 @@ function processModule(module, scenario, df_assumptions, df_categories) {
     { index: yearsArr }
   );
 
-  //clear df_categories row for this module account
+  // Clear df_categories rows for this module account
   const dfCategoryValues = df_categories.values;
   for (let i = 0; i < dfCategoryValues.length; i++) {
     dfCategoryValues[i].fill(0);
   }
-  //write market values to df_categories
-  categoryRowIndex = df_categories.index.indexOf(module.Account);
+
+  // Write market values to df_categories
+  let categoryRowIndex = df_categories.index.indexOf(module.Account);
   writeValuesToCategoryRow(
     categoryRowIndex,
     df_categories,
@@ -456,7 +712,7 @@ function processModule(module, scenario, df_assumptions, df_categories) {
     startyear
   );
 
-  //write invest/dispose values to df_categories
+  // Write invest/dispose values to df_categories (net transfers to/from bank)
   categoryRowIndex = df_categories.index.indexOf("Transfer - Bank");
   const transferValues = disposeValuesUSD.map(
     (dispose, idx) => dispose - investValuesUSD[idx]
@@ -468,7 +724,7 @@ function processModule(module, scenario, df_assumptions, df_categories) {
     startyear
   );
 
-  //write income values to df_categories
+  // Write income values to df_categories
   categoryRowIndex = df_categories.index.indexOf(module.IncomeCategory);
   writeValuesToCategoryRow(
     categoryRowIndex,
@@ -477,7 +733,7 @@ function processModule(module, scenario, df_assumptions, df_categories) {
     startyear
   );
 
-  //write expense values to df_categories
+  // Write expense values to df_categories
   categoryRowIndex = df_categories.index.indexOf(module.ExpCategory);
   writeValuesToCategoryRow(
     categoryRowIndex,
@@ -486,7 +742,7 @@ function processModule(module, scenario, df_assumptions, df_categories) {
     startyear
   );
 
-  //write tax values to df_categories
+  // Write tax values to df_categories
   categoryRowIndex = df_categories.index.indexOf("Tax Reserve");
   writeValuesToCategoryRow(
     categoryRowIndex,
@@ -495,6 +751,7 @@ function processModule(module, scenario, df_assumptions, df_categories) {
     startyear
   );
 
+  // Calculate net cash change (income + expenses + taxes + transfers)
   const cashChange = new Array(yearsCount);
   for (let i = 0; i < yearsCount; i++) {
     cashChange[i] =
@@ -503,7 +760,8 @@ function processModule(module, scenario, df_assumptions, df_categories) {
       taxValuesUSD[i] +
       transferValues[i];
   }
-  //write cashChange values to df_categories
+
+  // Write cashChange values to df_categories
   categoryRowIndex = df_categories.index.indexOf("Bank Accounts");
   writeValuesToCategoryRow(
     categoryRowIndex,
@@ -512,17 +770,28 @@ function processModule(module, scenario, df_assumptions, df_categories) {
     startyear
   );
 
-  dfCategoriesDisplay = configureDisplay(df_categories);
+  // Display the categories dataframe for debugging
+  const dfCategoriesDisplay = configureDisplay(df_categories);
   console.log(dfCategoriesDisplay.toString());
 
-  //logDataFrames(df_module_LC, df_module_USD);
+  // Optional: Display module dataframes (currently commented out)
+  // logDataFrames(df_module_LC, df_module_USD);
 
-  return writeAuditTrail(
-    df_module_LC,
-    df_module_USD,
-    df_categories,
-    scenario,
-    module
+  // Insert entries into database and track as audit trail
+  const dbInsertPromise = trackAuditTrail(
+    insertCategoryEntries(df_categories, scenario?.Name, module?.Name)
   );
+
+  // Return promises for both audit trail CSV writing and database insertion
+  return Promise.all([
+    writeAuditTrail(
+      df_module_LC,
+      df_module_USD,
+      df_categories,
+      scenario,
+      module
+    ),
+    dbInsertPromise,
+  ]);
 }
 module.exports = { processModule };

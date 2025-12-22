@@ -1,3 +1,15 @@
+/**
+ * Forecast Builder - Main Module
+ *
+ * This module orchestrates the financial forecast building process by:
+ * 1. Loading scenario configuration and assumptions (inflation, FX rates)
+ * 2. Connecting to MongoDB to retrieve forecast modules
+ * 3. Processing each module to generate forecast entries
+ * 4. Persisting results to the database
+ *
+ * @module fcbuilder
+ */
+
 const dfd = require("danfojs-node");
 const {
   scenario,
@@ -15,12 +27,19 @@ const { processModule } = require("./fcbuilder-module");
 
 const MONGO_URI = process.env.MONGO_URI || "mongodb://localhost:27018/fin";
 
-// processs assumptions
+// ============================================================================
+// Initialize Assumptions DataFrame
+// ============================================================================
+
+// Process tax rate - use explicit taxRate if finite, otherwise use scenario default
 const scenarioTaxRate = Number.isFinite(taxRate)
   ? taxRate
   : Number(scenario?.TaxRate ?? 0);
 scenario.TaxRate = scenarioTaxRate;
-console.log("FX", fxratesPLN);
+
+console.log("FX Rates (PLN):", fxratesPLN);
+
+// Create assumptions dataframe with inflation and FX rates indexed by year
 const df_assumptions = new dfd.DataFrame(
   {
     [categories[1]]: inflationRates,
@@ -30,15 +49,32 @@ const df_assumptions = new dfd.DataFrame(
   { index: years }
 );
 
-console.log(scenario);
+console.log("Scenario Configuration:", scenario);
 console.log(df_assumptions.toString());
 
+// ============================================================================
+// Database Connection Functions
+// ============================================================================
+
+/**
+ * Ensures MongoDB connection is established
+ *
+ * @returns {Promise<void>}
+ * @throws {Error} If connection fails
+ */
 async function ensureConnection() {
   if (mongoose.connection.readyState === 0 && MONGO_URI) {
     await mongoose.connect(MONGO_URI, { serverSelectionTimeoutMS: 1000 });
   }
 }
 
+/**
+ * Loads all unique expense categories, income categories, and account names
+ * for a given scenario from the database
+ *
+ * @param {string} name - Scenario name
+ * @returns {Promise<{expenseCategories: string[], incomeCategories: string[], accountNames: string[]}>}
+ */
 async function loadCategoriesForScenario(name) {
   if (!name || !MONGO_URI) {
     return { expenseCategories: [], incomeCategories: [], accountNames: [] };
@@ -66,6 +102,12 @@ async function loadCategoriesForScenario(name) {
   };
 }
 
+/**
+ * Loads all forecast modules for a given scenario from the database
+ *
+ * @param {string} name - Scenario name
+ * @returns {Promise<Array>} Array of FCModule documents
+ */
 async function loadModulesForScenario(name) {
   if (!name || !MONGO_URI) {
     return [];
@@ -76,6 +118,13 @@ async function loadModulesForScenario(name) {
   return FCModule.find({ Scenario: name }).lean().exec();
 }
 
+/**
+ * Clears all existing forecast entries for a given scenario
+ * This ensures a clean slate before regenerating forecasts
+ *
+ * @param {string} name - Scenario name
+ * @returns {Promise<number>} Number of deleted entries
+ */
 async function clearEntriesForScenario(name) {
   console.log(`Clearing existing fcEntry entries for scenario ${name}...`);
   if (!name || !MONGO_URI) {
@@ -94,69 +143,128 @@ async function clearEntriesForScenario(name) {
   return deletedCount;
 }
 
-clearEntriesForScenario(scenario.Name)
-  .then(() =>
-    Promise.all([
-      loadModulesForScenario(scenario.Name),
-      loadCategoriesForScenario(scenario.Name),
-    ])
-  )
-  .then(([modules, { expenseCategories, incomeCategories, accountNames }]) => {
+// ============================================================================
+// Main Execution
+// ============================================================================
+
+/**
+ * Builds a unique, ordered list of scenario categories
+ * Order: Bank Accounts → Transfer - Bank → Account Names → Income → Expenses → Tax Reserve
+ *
+ * @param {string[]} accountNames - Account names from modules
+ * @param {string[]} incomeCategories - Income categories from modules
+ * @param {string[]} expenseCategories - Expense categories from modules
+ * @returns {string[]} Ordered list of unique categories
+ */
+function buildScenarioCategories(
+  accountNames,
+  incomeCategories,
+  expenseCategories
+) {
+  const seen = new Set();
+  const ordered = [];
+
+  const pushUnique = (item) => {
+    if (item && !seen.has(item)) {
+      seen.add(item);
+      ordered.push(item);
+    }
+  };
+
+  // Add categories in specific order
+  pushUnique("Bank Accounts");
+  pushUnique("Transfer - Bank");
+  accountNames.forEach(pushUnique);
+  incomeCategories.forEach(pushUnique);
+  expenseCategories.forEach(pushUnique);
+  pushUnique("Tax Reserve");
+
+  return ordered;
+}
+
+/**
+ * Creates column headers for the forecast period
+ * Includes the year before the forecast period as baseline
+ *
+ * @param {number[]} years - Array of forecast years
+ * @returns {number[]} Array of years including baseline year
+ */
+function buildColumns(years) {
+  const result = new Array(years.length + 1);
+  result[0] = years[0] - 1; // Baseline year
+  for (let i = 0; i < years.length; i++) {
+    result[i + 1] = years[i];
+  }
+  return result;
+}
+
+/**
+ * Creates a zero-filled matrix for the categories dataframe
+ *
+ * @param {number} rowCount - Number of rows (categories)
+ * @param {number} colCount - Number of columns (years)
+ * @returns {number[][]} Zero-filled matrix
+ */
+function createZerosMatrix(rowCount, colCount) {
+  const matrix = new Array(rowCount);
+  for (let i = 0; i < rowCount; i++) {
+    matrix[i] = new Array(colCount).fill(0);
+  }
+  return matrix;
+}
+
+/**
+ * Main execution function - orchestrates the entire forecast building process
+ */
+async function main() {
+  try {
+    // Step 1: Clear existing entries for this scenario
+    await clearEntriesForScenario(scenario.Name);
+
+    // Step 2: Load modules and categories in parallel
+    const [modules, { expenseCategories, incomeCategories, accountNames }] =
+      await Promise.all([
+        loadModulesForScenario(scenario.Name),
+        loadCategoriesForScenario(scenario.Name),
+      ]);
+
     console.log(
       `Loaded ${modules.length} FCModule entries for scenario ${scenario.Name}`
     );
     console.log("Scenario details:", scenario);
-    const scenarioCategories = (() => {
-      const seen = new Set();
-      const ordered = [];
-      const pushUnique = (item) => {
-        if (item && !seen.has(item)) {
-          seen.add(item);
-          ordered.push(item);
-        }
-      };
-      pushUnique("Bank Accounts");
-      pushUnique("Transfer - Bank");
-      accountNames.forEach(pushUnique);
-      incomeCategories.forEach(pushUnique);
-      expenseCategories.forEach(pushUnique);
-      pushUnique("Tax Reserve");
 
-      return ordered;
-    })();
-    const columns = (() => {
-      const result = new Array(years.length + 1);
-      result[0] = years[0] - 1;
-      for (let i = 0; i < years.length; i++) {
-        result[i + 1] = years[i];
-      }
-      return result;
-    })();
+    // Step 3: Build category structure and initialize dataframe
+    const scenarioCategories = buildScenarioCategories(
+      accountNames,
+      incomeCategories,
+      expenseCategories
+    );
 
-    const zerosMatrix = new Array(scenarioCategories.length);
+    const columns = buildColumns(years);
+    const zerosMatrix = createZerosMatrix(
+      scenarioCategories.length,
+      columns.length
+    );
 
-    for (let i = 0; i < scenarioCategories.length; i++) {
-      zerosMatrix[i] = new Array(columns.length).fill(0);
-    }
-    const cat = scenarioCategories;
     const df_categories = new dfd.DataFrame(zerosMatrix, {
       columns: columns,
       index: scenarioCategories,
     });
     df_categories.config.setMaxRow(1000);
 
-    return Promise.all(
+    // Step 4: Process all modules in parallel
+    await Promise.all(
       modules.map((module) =>
         processModule(module, scenario, df_assumptions, df_categories)
       )
-    )
-      .then(() => {
-        console.log("All Done");
-      })
-      .catch((error) => {
-        console.error("Failed to process modules:", error);
-      });
-  })
-  .catch((error) => {
-    console.error("Failed to load FCModule entries:", error);
-  });
+    );
+
+    console.log("All Done");
+  } catch (error) {
+    console.error("Failed to build forecast:", error);
+    process.exitCode = 1;
+  }
+}
+
+// Execute main function
+main();

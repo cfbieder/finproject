@@ -1,12 +1,16 @@
 var mongoose = require("mongoose");
+const {
+  scenario,
+} = require("../../server/src/services/forecast/fcbuilder-setup");
 var Schema = mongoose.Schema;
 
 // Create Schema
 var fcEntry = new Schema({
-  Date: { type: Date },
+  Scenario: { type: String },
+  Year: { type: Number },
   Amount: { type: Number },
   Account: { type: String },
-  Note: { type: String },
+  Module: { type: String },
 });
 
 module.exports = mongoose.model("fcEntry", fcEntry, "fcEntries");

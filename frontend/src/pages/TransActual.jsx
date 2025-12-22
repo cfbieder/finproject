@@ -25,6 +25,7 @@ const EDIT_FIELDS = [
 ];
 const DEFAULT_SORT = { key: "Date", direction: "desc" };
 const SELECTION_COLUMN_KEY = "selected";
+const TRANSACTION_BATCH_SIZE = 500;
 
 const getSortValue = (entry, key, meta = {}) => {
   if (!entry) {
@@ -159,11 +160,11 @@ const filtersAreEqual = (a, b) => {
     a.account === b.account &&
     a.category === b.category &&
     a.valueFromEnabled === b.valueFromEnabled &&
-  a.valueToEnabled === b.valueToEnabled &&
-  a.descriptionEnabled === b.descriptionEnabled &&
-  a.description === b.description &&
-  a.valueFrom === b.valueFrom &&
-  a.valueTo === b.valueTo
+    a.valueToEnabled === b.valueToEnabled &&
+    a.descriptionEnabled === b.descriptionEnabled &&
+    a.description === b.description &&
+    a.valueFrom === b.valueFrom &&
+    a.valueTo === b.valueTo
   );
 };
 
@@ -186,6 +187,10 @@ const DEFAULT_FILTERS = {
 
 export default function TransActual() {
   const [transactions, setTransactions] = useState([]);
+  const [transactionLimit, setTransactionLimit] = useState(
+    TRANSACTION_BATCH_SIZE
+  );
+  const [hasMoreTransactions, setHasMoreTransactions] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState("");
   const [filters, setFilters] = useState(() => ({ ...DEFAULT_FILTERS }));
@@ -277,10 +282,7 @@ export default function TransActual() {
       }
     }
     const fallbackCurrency = editFormValues.Currency;
-    if (
-      typeof fallbackCurrency === "string" &&
-      fallbackCurrency.trim()
-    ) {
+    if (typeof fallbackCurrency === "string" && fallbackCurrency.trim()) {
       const fallbackKey = fallbackCurrency.trim().toUpperCase();
       if (!normalized.has(fallbackKey)) {
         normalized.set(fallbackKey, fallbackCurrency.trim());
@@ -292,56 +294,64 @@ export default function TransActual() {
   const loadTransactions = useCallback(
     async (signal) => {
       setIsLoading(true);
+      const requestedLimit = Math.max(
+        1,
+        transactionLimit ?? TRANSACTION_BATCH_SIZE
+      );
+      const fetchLimit = requestedLimit + 1;
       try {
-      const query = new URLSearchParams();
-      const setParam = (key, value) => {
-        if (value !== undefined && value !== null && value !== "") {
-          query.set(key, String(value));
+        const query = new URLSearchParams();
+        const setParam = (key, value) => {
+          if (value !== undefined && value !== null && value !== "") {
+            query.set(key, String(value));
+          }
+        };
+        if (filters.yearEnabled && filters.year) {
+          setParam("actualYear", filters.year);
         }
-      };
-      if (filters.yearEnabled && filters.year) {
-        setParam("actualYear", filters.year);
-      }
-      if (
-        filters.monthEnabled &&
-        filters.month !== undefined &&
-        filters.month !== null
-      ) {
-        setParam("month", filters.month + 1);
-      }
-      if (filters.accountEnabled && filters.account) {
-        setParam("account", filters.account);
-      }
-      if (filters.categoryEnabled && filters.category) {
-        setParam("category", filters.category);
-      }
-      if (filters.descriptionEnabled && filters.description) {
-        setParam("description", filters.description);
-      }
-      if (
-        filters.valueFromEnabled &&
-        typeof filters.valueFrom === "number" &&
-        Number.isFinite(filters.valueFrom)
-      ) {
-        setParam("valueFrom", filters.valueFrom);
-      }
-      if (
-        filters.valueToEnabled &&
-        typeof filters.valueTo === "number" &&
-        Number.isFinite(filters.valueTo)
-      ) {
-        setParam("valueTo", filters.valueTo);
-      }
-      const path = `/api/budget/actual-entries${
-        query.toString() ? `?${query.toString()}` : ""
-      }`;
+        if (
+          filters.monthEnabled &&
+          filters.month !== undefined &&
+          filters.month !== null
+        ) {
+          setParam("month", filters.month + 1);
+        }
+        if (filters.accountEnabled && filters.account) {
+          setParam("account", filters.account);
+        }
+        if (filters.categoryEnabled && filters.category) {
+          setParam("category", filters.category);
+        }
+        if (filters.descriptionEnabled && filters.description) {
+          setParam("description", filters.description);
+        }
+        if (
+          filters.valueFromEnabled &&
+          typeof filters.valueFrom === "number" &&
+          Number.isFinite(filters.valueFrom)
+        ) {
+          setParam("valueFrom", filters.valueFrom);
+        }
+        if (
+          filters.valueToEnabled &&
+          typeof filters.valueTo === "number" &&
+          Number.isFinite(filters.valueTo)
+        ) {
+          setParam("valueTo", filters.valueTo);
+        }
+        setParam("limit", fetchLimit);
+        const path = `/api/budget/actual-entries${
+          query.toString() ? `?${query.toString()}` : ""
+        }`;
         const payload = await Rest.fetchJson(path, { signal });
         const data = Array.isArray(payload)
           ? payload
           : Array.isArray(payload?.entries)
           ? payload.entries
           : [];
-        setTransactions(data);
+        const hasMore = data.length === fetchLimit;
+        setTransactions(hasMore ? data.slice(0, requestedLimit) : data);
+        setHasMoreTransactions(hasMore);
         setError("");
         setSelectedRows(new Map());
       } catch (err) {
@@ -351,11 +361,12 @@ export default function TransActual() {
         console.error("[TransActual] Failed to load transactions:", err);
         setError(err?.message ?? "Failed to load actual transactions");
         setTransactions([]);
+        setHasMoreTransactions(false);
       } finally {
         setIsLoading(false);
       }
     },
-    [filters]
+    [filters, transactionLimit]
   );
 
   useEffect(() => {
@@ -374,6 +385,7 @@ export default function TransActual() {
       if (filtersAreEqual(previous, nextFilters)) {
         return previous;
       }
+      setTransactionLimit(TRANSACTION_BATCH_SIZE);
       return { ...nextFilters };
     });
   }, []);
@@ -433,19 +445,19 @@ export default function TransActual() {
       selectOptions = isCategoryField
         ? safeCategoryOptions
         : isAccountField
-          ? safeAccountOptions
-          : safeCurrencyOptions;
+        ? safeAccountOptions
+        : safeCurrencyOptions;
       placeholderMessage = isCategoryField
         ? categoryOptions.length
           ? "Select category"
           : "Loading categories..."
         : isAccountField
-          ? accountOptions.length
-            ? "Select account"
-            : "Loading accounts..."
-          : currencyOptions.length
-            ? "Select currency"
-            : "Loading currencies...";
+        ? accountOptions.length
+          ? "Select account"
+          : "Loading accounts..."
+        : currencyOptions.length
+        ? "Select currency"
+        : "Loading currencies...";
     }
     const isDateField = field.type === "date";
     const isBaseAmountField = field.key === "BaseAmount";
@@ -599,14 +611,11 @@ export default function TransActual() {
           if (!id) {
             throw new Error("Some selected entries cannot be edited.");
           }
-          return fetch(
-            Rest.buildUrl(`/api/budget/actual-entries/${id}`),
-            {
-              method: "PATCH",
-              headers: { "Content-Type": "application/json" },
-              body: JSON.stringify(payload),
-            }
-          ).then(async (response) => {
+          return fetch(Rest.buildUrl(`/api/budget/actual-entries/${id}`), {
+            method: "PATCH",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify(payload),
+          }).then(async (response) => {
             if (!response.ok) {
               const responseBody = await response.json().catch(() => null);
               throw new Error(responseBody?.error || "Failed to update entry");
@@ -679,8 +688,8 @@ export default function TransActual() {
     const normalizedFromValue = hasBaseFromFilter ? valueFrom : 0;
     const normalizedToValue = hasBaseToFilter ? valueTo : 0;
 
-      return transactions.filter((entry) => {
-        const entryDate = parseEntryDate(entry);
+    return transactions.filter((entry) => {
+      const entryDate = parseEntryDate(entry);
       if (hasYearFilter) {
         const entryYear = entryDate ? entryDate.getUTCFullYear() : null;
         if (!entryDate || entryYear !== yearValue) {
@@ -878,6 +887,15 @@ export default function TransActual() {
 
   const hasTransactions = transactions.length > 0;
   const hasFilteredTransactions = normalizedTransactions.length > 0;
+  const handleLoadMoreTransactions = () => {
+    setTransactionLimit((previous) => previous + TRANSACTION_BATCH_SIZE);
+  };
+  const handleLoadPreviousTransactions = () => {
+    setTransactionLimit((previous) =>
+      Math.max(TRANSACTION_BATCH_SIZE, previous - TRANSACTION_BATCH_SIZE)
+    );
+  };
+  const canLoadPrevious = transactionLimit > TRANSACTION_BATCH_SIZE;
 
   return (
     <div className="page-shell">
@@ -892,6 +910,29 @@ export default function TransActual() {
           canEdit={selectedRows.size > 0}
           isAllSelected={isAllSelected}
         />
+        <div
+          className="trans-budget-load-more"
+          style={{ display: "flex", gap: "0.5rem", alignItems: "center" }}
+        >
+          <button
+            className="generate-report-button"
+            type="button"
+            onClick={handleLoadPreviousTransactions}
+            disabled={isLoading || !canLoadPrevious}
+            style={{ minWidth: "150px", whiteSpace: "nowrap" }}
+          >
+            {isLoading ? "Loading…" : "Previous batch"}
+          </button>
+          <button
+            className="generate-report-button"
+            type="button"
+            onClick={handleLoadMoreTransactions}
+            disabled={isLoading || !hasMoreTransactions}
+            style={{ minWidth: "150px", whiteSpace: "nowrap" }}
+          >
+            {isLoading ? "Loading…" : "Next batch"}
+          </button>
+        </div>
         <TransactionActualTable
           isLoading={isLoading}
           error={error}
