@@ -4,9 +4,12 @@ const fs = require("fs");
 const path = require("path");
 const { COMPONENTS_DATA_DIR } = require("../utils/dataPaths");
 const FCModule = require("../../../components/models/FCModule");
+const FCEntries = require("../../../components/models/FCEntries");
 
 const router = express.Router();
-const { getUnmatchedAccounts } = require("../services/forecast/fcbuilder-unmatched");
+const {
+  getUnmatchedAccounts,
+} = require("../services/forecast/fcbuilder-unmatched");
 
 router.get("/modules", async (req, res) => {
   try {
@@ -311,6 +314,72 @@ router.delete("/assumptions/:section/:index", (req, res) => {
   } catch (error) {
     console.error("Failed to delete FCAssump entry:", error);
     return res.status(500).json({ error: "Failed to delete FCAssump entry" });
+  }
+});
+
+router.get("/secnarios", async (req, res) => {
+  try {
+    const scenarios = await FCEntries.distinct("Scenario").exec();
+    return res.json({ scenarios });
+  } catch (error) {
+    console.error("Failed to load forecast scenarios:", error);
+    return res.status(500).json({ error: "Failed to load forecast scenarios" });
+  }
+});
+
+router.get("/scenarios/years/:scenario", async (req, res) => {
+  const scenario = req.params.scenario?.trim();
+
+  if (!scenario) {
+    return res.status(400).json({ error: "Scenario name is required" });
+  }
+
+  try {
+    const years = await FCEntries.distinct("Year", {
+      Scenario: scenario,
+    }).exec();
+    return res.json({ years });
+  } catch (error) {
+    console.error("Failed to load forecast years:", error);
+    return res.status(500).json({ error: "Failed to load forecast years" });
+  }
+});
+
+router.get("/scenarios/accounts/:scenario", async (req, res) => {
+  const scenario = req.params.scenario?.trim();
+
+  if (!scenario) {
+    return res.status(400).json({ error: "Scenario name is required" });
+  }
+
+  try {
+    const accounts = await FCEntries.distinct("Account", {
+      Scenario: scenario,
+    }).exec();
+    return res.json({ accounts });
+  } catch (error) {
+    console.error("Failed to load forecast accounts:", error);
+    return res
+      .status(500)
+      .json({ error: "Failed to load forecast accounts" });
+  }
+});
+
+router.get("/scenarios/modules/:scenario", async (req, res) => {
+  const scenario = req.params.scenario?.trim();
+
+  if (!scenario) {
+    return res.status(400).json({ error: "Scenario name is required" });
+  }
+
+  try {
+    const modules = await FCEntries.distinct("Module", {
+      Scenario: scenario,
+    }).exec();
+    return res.json({ modules });
+  } catch (error) {
+    console.error("Failed to load forecast modules:", error);
+    return res.status(500).json({ error: "Failed to load forecast modules" });
   }
 });
 
