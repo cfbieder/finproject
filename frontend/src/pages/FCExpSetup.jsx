@@ -1,5 +1,10 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import NavigationMenu from "../components/NavigationMenu.jsx";
+import FCExpConfirmDeleteModal from "../features/Forecast/FCExpConfirmDeleteModal.jsx";
+import FCExpModal from "../features/Forecast/FCExpModal.jsx";
+import FCExpFilter from "../features/Forecast/FCExpFilter.jsx";
+import FCExpTable from "../features/Forecast/FCExpTable.jsx";
+import FCExpTableDetails from "../features/Forecast/FCExpTableDetails.jsx";
 import Rest from "../js/rest.js";
 import "../features/Forecast/FCModulesFilter.css";
 import "./PageLayout.css";
@@ -20,6 +25,9 @@ export default function FCExpSetup() {
   const [editForm, setEditForm] = useState(null);
   const [editSaving, setEditSaving] = useState(false);
   const [editError, setEditError] = useState("");
+  const [accountOptions, setAccountOptions] = useState([]);
+  const [accountNameOptions, setAccountNameOptions] = useState({});
+  const [leafAccountLookup, setLeafAccountLookup] = useState({});
   const scenarioSelectRef = useRef(null);
 
   useEffect(() => {
@@ -67,6 +75,79 @@ export default function FCExpSetup() {
       return availableScenarios[0].Name || "";
     });
   }, [assumptions]);
+
+  useEffect(() => {
+    let isMounted = true;
+
+    const loadAccounts = async () => {
+      try {
+        const data = await Rest.fetchJson("/api/coa/CashFlow");
+        if (!isMounted) return;
+
+        const options = [];
+        const seen = new Set();
+        const namesByAccount = {};
+        const leafToAccount = {};
+        const addLevel2 = (section) => {
+          if (!Array.isArray(section)) return;
+          section.forEach((entry) => {
+            if (!entry || typeof entry !== "object") return;
+            const [key] = Object.keys(entry);
+            if (key) {
+              if (!seen.has(key)) {
+                seen.add(key);
+                options.push(key);
+              }
+
+              const names = [];
+              const addLeaves = (node) => {
+                if (typeof node === "string") {
+                  names.push(node);
+                  if (!leafToAccount[node]) {
+                    leafToAccount[node] = key;
+                  }
+                  return;
+                }
+                if (Array.isArray(node)) {
+                  node.forEach((item) => addLeaves(item));
+                  return;
+                }
+                if (node && typeof node === "object") {
+                  Object.entries(node).forEach(([k, v]) => {
+                    addLeaves(k);
+                    addLeaves(v);
+                  });
+                }
+              };
+
+              addLeaves(entry[key]);
+              namesByAccount[key] = names;
+            }
+          });
+        };
+
+        (Array.isArray(data) ? data : []).forEach((group) => {
+          if (!group || typeof group !== "object") return;
+          Object.values(group).forEach(addLevel2);
+        });
+
+        setAccountOptions(options);
+        setAccountNameOptions(namesByAccount);
+        setLeafAccountLookup(leafToAccount);
+      } catch {
+        if (isMounted) {
+          setAccountOptions([]);
+          setAccountNameOptions({});
+          setLeafAccountLookup({});
+        }
+      }
+    };
+
+    loadAccounts();
+    return () => {
+      isMounted = false;
+    };
+  }, []);
 
   useEffect(() => {
     const selectEl = scenarioSelectRef.current;
@@ -205,7 +286,8 @@ export default function FCExpSetup() {
     null;
 
   const getScenarioStartYear = () => {
-    const raw = selectedScenarioDetails?.PeriodStart ?? assumptions?.PeriodStart;
+    const raw =
+      selectedScenarioDetails?.PeriodStart ?? assumptions?.PeriodStart;
     if (typeof raw === "number" && Number.isFinite(raw)) {
       return Math.trunc(raw);
     }
@@ -240,7 +322,7 @@ export default function FCExpSetup() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           Scenario: selectedScenario,
-          Matched: false,
+          Matched: true,
           Account: "",
           Name: "",
           Type: "",
@@ -361,7 +443,8 @@ export default function FCExpSetup() {
       Currency: (editForm.Currency || "").trim(),
       Matched: Boolean(editForm.Matched),
       BaseDate:
-        editForm.BaseDate && !Number.isNaN(new Date(editForm.BaseDate).getTime())
+        editForm.BaseDate &&
+        !Number.isNaN(new Date(editForm.BaseDate).getTime())
           ? new Date(editForm.BaseDate).toISOString()
           : null,
       BaseValue: normalizeNumber(editForm.BaseValue),
@@ -394,492 +477,104 @@ export default function FCExpSetup() {
     }
   };
 
+  useEffect(() => {
+    if (!editForm?.Matched) return;
+    const account = editForm.Account;
+    const name = editForm.Name;
+
+    const ensureAccount =
+      accountNameOptions[account] ||
+      leafAccountLookup[name] ||
+      leafAccountLookup[account] ||
+      null;
+
+    const targetAccount =
+      typeof ensureAccount === "string"
+        ? ensureAccount
+        : Array.isArray(ensureAccount)
+        ? account
+        : account;
+
+    if (targetAccount && targetAccount !== account) {
+      setEditForm((prev) =>
+        prev ? { ...prev, Account: targetAccount } : prev
+      );
+      return;
+    }
+
+    const names = accountNameOptions[targetAccount] || [];
+    if (names.length && !names.includes(name)) {
+      setEditForm((prev) =>
+        prev ? { ...prev, Name: names[0] || "" } : prev
+      );
+    }
+  }, [
+    accountNameOptions,
+    editForm?.Account,
+    editForm?.Matched,
+    editForm?.Name,
+    leafAccountLookup,
+  ]);
+
   return (
     <div className="page-shell">
       <NavigationMenu />
       <main className="page-content">
-        <section className="exp-setup-filter section-filters fc-modules-filter">
-          <div className="section-table__content">
-            {isLoading && (
-              <div className="fc-modules-filter__loading">
-                <div className="fc-modules-filter__spinner" />
-                <p>Loading scenarios...</p>
-              </div>
-            )}
-            {error && !isLoading && (
-              <div className="fc-modules-filter__error">
-                <span className="fc-modules-filter__error-icon">⚠</span>
-                <p>{error}</p>
-              </div>
-            )}
-            {!isLoading && !error && assumptions && (
-              <div className="fc-modules-filter__content">
-                <div className="fc-modules-filter__row">
-                  <div className="fc-modules-filter__field">
-                    <label
-                      htmlFor="fc-exp-scenario-select"
-                      className="fc-modules-filter__label"
-                    >
-                      Scenario
-                    </label>
-                    <select
-                      id="fc-exp-scenario-select"
-                      className="form-input fc-modules-filter__select"
-                      ref={scenarioSelectRef}
-                      value={selectedScenario}
-                      onChange={(event) =>
-                        setSelectedScenario(event.target.value)
-                      }
-                      disabled={!assumptions?.scenarios?.length}
-                    >
-                      <option value="" disabled>
-                        Select scenario
-                      </option>
-                      {(assumptions?.scenarios || []).map((scenario) => (
-                        <option key={scenario.Name} value={scenario.Name}>
-                          {scenario.Name}
-                        </option>
-                      ))}
-                    </select>
-                  </div>
-                  <div className="fc-modules-filter__actions">
-                    <div className="fc-modules-filter__actions-grid">
-                      {[
-                        {
-                          label: "Add",
-                          icon: "+",
-                          disabled: !selectedScenario || entriesLoading,
-                          onClick: handleAddIncomeExpense,
-                          success: true,
-                        },
-                        {
-                          label: "Edit",
-                          icon: "✎",
-                          disabled: !selectedScenario || !sortedEntries.length,
-                          onClick: openEditModal,
-                          primary: !!selectedScenario && !!sortedEntries.length,
-                        },
-                        {
-                          label: "Delete",
-                          icon: "×",
-                          disabled: !selectedScenario || !sortedEntries.length,
-                          onClick: openDeleteModal,
-                          danger: true,
-                        },
-                      ].map(
-                        ({
-                          label,
-                          icon,
-                          disabled,
-                          onClick,
-                          primary,
-                          danger,
-                          success,
-                        }) => (
-                          <button
-                            key={label}
-                            type="button"
-                            className={`fc-modules-filter__action-btn ${
-                              primary
-                                ? "fc-modules-filter__action-btn--primary"
-                                : ""
-                            } ${
-                              danger
-                                ? "fc-modules-filter__action-btn--danger"
-                                : ""
-                            } ${
-                              success
-                                ? "fc-modules-filter__action-btn--success"
-                                : ""
-                            }`}
-                            disabled={disabled}
-                            onClick={onClick}
-                          >
-                            <span className="fc-modules-filter__action-icon">
-                              {icon}
-                            </span>
-                            {label}
-                          </button>
-                        )
-                      )}
-                    </div>
-                  </div>
-                </div>
-
-                {(periodStart || periodEnd) && (
-                  <div className="fc-modules-filter__period">
-                    <div className="fc-modules-filter__period-item">
-                      <span className="fc-modules-filter__period-label">
-                        Period Start
-                      </span>
-                      <span className="fc-modules-filter__period-value">
-                        {periodStart ?? "—"}
-                      </span>
-                    </div>
-                    <div className="fc-modules-filter__period-item">
-                      <span className="fc-modules-filter__period-label">
-                        Period End
-                      </span>
-                      <span className="fc-modules-filter__period-value">
-                        {periodEnd ?? "—"}
-                      </span>
-                    </div>
-                  </div>
-                )}
-              </div>
-            )}
-          </div>
-        </section>
+        <FCExpFilter
+          assumptions={assumptions}
+          error={error}
+          isLoading={isLoading}
+          onScenarioChange={setSelectedScenario}
+          scenarioSelectRef={scenarioSelectRef}
+          selectedScenario={selectedScenario}
+          periodStart={periodStart}
+          periodEnd={periodEnd}
+          onAddClick={handleAddIncomeExpense}
+          onEditClick={openEditModal}
+          onDeleteClick={openDeleteModal}
+          addDisabled={!selectedScenario || entriesLoading}
+          editDisabled={!selectedScenario || !sortedEntries.length}
+          deleteDisabled={!selectedScenario || !sortedEntries.length}
+        />
         <div className="exp-setup-sections">
-          <section
-            className="exp-setup-table section-table"
-            aria-label="Forecast income and expense"
-          >
-            <div className="section-table__content">
-              <h3>Forecast Income/Expense</h3>
-              <div className="trans-budget-table-wrapper">
-                {entriesLoading ? (
-                  <p className="trans-budget-table__message">
-                    Loading forecast income/expense entries...
-                  </p>
-                ) : entriesError ? (
-                  <p className="trans-budget-table__message trans-budget-table__message--error">
-                    {entriesError}
-                  </p>
-                ) : !selectedScenario ? (
-                  <p className="trans-budget-table__message">
-                    Select a scenario to view forecast income/expense entries.
-                  </p>
-                ) : !sortedEntries.length ? (
-                  <p className="trans-budget-table__message">
-                    No forecast income/expense entries to display.
-                  </p>
-                ) : (
-                  <table className="trans-budget-table">
-                    <thead>
-                      <tr>
-                        <th>Account</th>
-                        <th>Name</th>
-                        <th>Type</th>
-                        <th>Base Date</th>
-                        <th className="trans-budget-table__value">
-                          Base Value (USD)
-                        </th>
-                        <th className="trans-budget-table__value">Growth</th>
-                        <th>Matched</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {sortedEntries.map((entry) => (
-                        <tr
-                          key={getEntryId(entry)}
-                          className={`trans-budget-table__row ${
-                            getEntryId(entry) === selectedEntryId
-                              ? "trans-budget-table__row--selected"
-                              : ""
-                          }`}
-                          onClick={() => setSelectedEntryId(getEntryId(entry))}
-                        >
-                          <td className="trans-budget-table__value">
-                            {entry.Account || "—"}
-                          </td>
-                          <td className="trans-budget-table__value">
-                            {entry.Name || "—"}
-                          </td>
-                          <td className="trans-budget-table__value">
-                            {entry.Type || "—"}
-                          </td>
-                          <td className="trans-budget-table__value">
-                            {formatDate(entry.BaseDate)}
-                          </td>
-                          <td className="trans-budget-table__value trans-budget-table__value--numeric">
-                            {formatNumber(entry.BaseValueUSD)}
-                          </td>
-                          <td className="trans-budget-table__value trans-budget-table__value--numeric">
-                            {typeof entry.Growth === "number"
-                              ? `${entry.Growth.toFixed(2)}%`
-                              : "—"}
-                          </td>
-                          <td className="trans-budget-table__value">
-                            {entry.Matched ? "Yes" : "No"}
-                          </td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                )}
-              </div>
-            </div>
-          </section>
-          <section
-            className="exp-setup-table section-table"
-            aria-label="Income and expense details"
-          >
-            <div className="section-table__content">
-              <h3>Income/Expense Details</h3>
-              <div className="trans-budget-table-wrapper">
-                {!selectedScenario ? (
-                  <p className="trans-budget-table__message">
-                    Select a scenario to view income/expense details.
-                  </p>
-                ) : !selectedEntry ? (
-                  <p className="trans-budget-table__message">
-                    Choose an income/expense entry to see details.
-                  </p>
-                ) : (
-                  <div
-                    style={{
-                      display: "grid",
-                      gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))",
-                      gap: "0.75rem 1rem",
-                      padding: "0.25rem 0",
-                    }}
-                  >
-                    <div>
-                      <strong>Account:</strong> {selectedEntry.Account || "—"}
-                    </div>
-                    <div>
-                      <strong>Name:</strong> {selectedEntry.Name || "—"}
-                    </div>
-                    <div>
-                      <strong>Type:</strong> {selectedEntry.Type || "—"}
-                    </div>
-                    <div>
-                      <strong>Currency:</strong> {selectedEntry.Currency || "—"}
-                    </div>
-                    <div>
-                      <strong>Base Date:</strong>{" "}
-                      {formatDate(selectedEntry.BaseDate)}
-                    </div>
-                    <div>
-                      <strong>Base Value:</strong>{" "}
-                      {formatNumber(selectedEntry.BaseValue)}
-                    </div>
-                    <div>
-                      <strong>Base Value (USD):</strong>{" "}
-                      {formatNumber(selectedEntry.BaseValueUSD)}
-                    </div>
-                    <div>
-                      <strong>Growth:</strong>{" "}
-                      {typeof selectedEntry.Growth === "number"
-                        ? `${selectedEntry.Growth.toFixed(2)}%`
-                        : "—"}
-                    </div>
-                    <div>
-                      <strong>Changes:</strong>{" "}
-                      {Array.isArray(selectedEntry.Changes)
-                        ? selectedEntry.Changes.length
-                        : 0}
-                    </div>
-                    <div>
-                      <strong>Matched:</strong>{" "}
-                      {selectedEntry.Matched ? "Yes" : "No"}
-                    </div>
-                    <div>
-                      <strong>Scenario:</strong>{" "}
-                      {selectedEntry.Scenario || selectedScenario || "—"}
-                    </div>
-                  </div>
-                )}
-              </div>
-            </div>
-          </section>
+          <FCExpTable
+            entriesLoading={entriesLoading}
+            entriesError={entriesError}
+            selectedScenario={selectedScenario}
+            sortedEntries={sortedEntries}
+            selectedEntryId={selectedEntryId}
+            onSelectEntry={setSelectedEntryId}
+            getEntryId={getEntryId}
+            formatDate={formatDate}
+            formatNumber={formatNumber}
+          />
+          <FCExpTableDetails
+            selectedScenario={selectedScenario}
+            selectedEntry={selectedEntry}
+            formatDate={formatDate}
+            formatNumber={formatNumber}
+          />
         </div>
       </main>
-      {showDeleteModal && (
-        <div
-          className="fc-scenarios-modal-overlay"
-          onClick={closeDeleteModal}
-        >
-          <div
-            className="fc-scenarios-modal"
-            onClick={(event) => event.stopPropagation()}
-          >
-            <h3 className="fc-scenarios-modal__title">Delete Entry</h3>
-            <p className="fc-scenarios-modal__description">
-              {`Delete ${
-                selectedEntry?.Name || selectedEntry?.Account || "this entry"
-              }? This action cannot be undone.`}
-            </p>
-            {deleteError && (
-              <div className="trans-budget-edit-modal__error">{deleteError}</div>
-            )}
-            <div className="fc-scenarios-modal__actions">
-              <button
-                type="button"
-                className="fc-scenarios-action-button"
-                onClick={closeDeleteModal}
-                disabled={deleteSaving}
-              >
-                Cancel
-              </button>
-              <button
-                type="button"
-                className="fc-scenarios-action-button fc-scenarios-action-button--danger"
-                onClick={handleDeleteEntry}
-                disabled={deleteSaving}
-              >
-                {deleteSaving ? "Deleting..." : "Delete"}
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-      {showEditModal && (
-        <div className="fc-scenarios-modal-overlay" onClick={closeEditModal}>
-          <div
-            className="fc-scenarios-modal"
-            onClick={(event) => event.stopPropagation()}
-          >
-            <h3 className="fc-scenarios-modal__title">Edit Entry</h3>
-            <div className="fc-scenarios-modal__field">
-              <span>Scenario</span>
-              <input
-                className="form-input"
-                type="text"
-                value={editForm?.Scenario || ""}
-                onChange={(e) =>
-                  handleEditFieldChange("Scenario", e.target.value)
-                }
-              />
-            </div>
-            <div className="fc-scenarios-modal__field">
-              <span>Account</span>
-              <input
-                className="form-input"
-                type="text"
-                value={editForm?.Account || ""}
-                onChange={(e) =>
-                  handleEditFieldChange("Account", e.target.value)
-                }
-              />
-            </div>
-            <div className="fc-scenarios-modal__field">
-              <span>Name</span>
-              <input
-                className="form-input"
-                type="text"
-                value={editForm?.Name || ""}
-                onChange={(e) => handleEditFieldChange("Name", e.target.value)}
-              />
-            </div>
-            <div className="fc-scenarios-modal__field">
-              <span>Type</span>
-              <input
-                className="form-input"
-                type="text"
-                value={editForm?.Type || ""}
-                onChange={(e) => handleEditFieldChange("Type", e.target.value)}
-              />
-            </div>
-            <div className="fc-scenarios-modal__field">
-              <span>Currency</span>
-              <input
-                className="form-input"
-                type="text"
-                value={editForm?.Currency || ""}
-                onChange={(e) =>
-                  handleEditFieldChange("Currency", e.target.value)
-                }
-              />
-            </div>
-            <div className="fc-scenarios-modal__field">
-              <span>Base Date</span>
-              <input
-                className="form-input"
-                type="date"
-                value={editForm?.BaseDate || ""}
-                onChange={(e) =>
-                  handleEditFieldChange("BaseDate", e.target.value)
-                }
-              />
-            </div>
-            <div className="fc-scenarios-modal__field">
-              <span>Base Value</span>
-              <input
-                className="form-input"
-                type="number"
-                step="0.01"
-                value={
-                  editForm?.BaseValue === null || editForm?.BaseValue === undefined
-                    ? ""
-                    : editForm.BaseValue
-                }
-                onChange={(e) =>
-                  handleEditFieldChange("BaseValue", e.target.value)
-                }
-              />
-            </div>
-            <div className="fc-scenarios-modal__field">
-              <span>Base Value (USD)</span>
-              <input
-                className="form-input"
-                type="number"
-                step="0.01"
-                value={
-                  editForm?.BaseValueUSD === null ||
-                  editForm?.BaseValueUSD === undefined
-                    ? ""
-                    : editForm.BaseValueUSD
-                }
-                onChange={(e) =>
-                  handleEditFieldChange("BaseValueUSD", e.target.value)
-                }
-              />
-            </div>
-            <div className="fc-scenarios-modal__field">
-              <span>Growth (%)</span>
-              <input
-                className="form-input"
-                type="number"
-                step="0.01"
-                value={
-                  editForm?.Growth === null || editForm?.Growth === undefined
-                    ? ""
-                    : editForm.Growth
-                }
-                onChange={(e) =>
-                  handleEditFieldChange("Growth", e.target.value)
-                }
-              />
-            </div>
-            <label
-              className="fc-scenarios-modal__field"
-              style={{ flexDirection: "row", alignItems: "center", gap: "0.6rem" }}
-            >
-              <input
-                type="checkbox"
-                checked={Boolean(editForm?.Matched)}
-                onChange={(e) =>
-                  handleEditFieldChange("Matched", e.target.checked)
-                }
-              />
-              <span>Matched</span>
-            </label>
-            {editError && (
-              <div className="trans-budget-edit-modal__error">{editError}</div>
-            )}
-            <div className="fc-scenarios-modal__actions">
-              <button
-                type="button"
-                className="fc-scenarios-action-button"
-                onClick={closeEditModal}
-                disabled={editSaving}
-              >
-                Cancel
-              </button>
-              <button
-                type="button"
-                className="fc-scenarios-action-button fc-scenarios-action-button--primary"
-                onClick={handleSaveEdit}
-                disabled={editSaving}
-              >
-                {editSaving ? "Saving..." : "Save"}
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
+      <FCExpConfirmDeleteModal
+        isOpen={showDeleteModal}
+        selectedEntry={selectedEntry}
+        error={deleteError}
+        isSaving={deleteSaving}
+        onClose={closeDeleteModal}
+        onConfirm={handleDeleteEntry}
+      />
+      <FCExpModal
+        isOpen={showEditModal}
+        editForm={editForm}
+        editError={editError}
+        editSaving={editSaving}
+        onClose={closeEditModal}
+        onFieldChange={handleEditFieldChange}
+        onSubmit={handleSaveEdit}
+        accountOptions={accountOptions}
+        accountNameOptions={accountNameOptions}
+      />
     </div>
   );
 }

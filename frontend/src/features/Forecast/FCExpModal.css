@@ -1,0 +1,5 @@
+.fc-exp-modal__checkbox {
+  flex-direction: row;
+  align-items: center;
+  gap: 0.6rem;
+}
