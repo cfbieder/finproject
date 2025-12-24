@@ -18,6 +18,15 @@
  * PUT    /modules/:id                 - Update a specific forecast module by ID
  * DELETE /modules/:id                 - Delete a specific forecast module by ID
  *
+ * INCOME/EXPENSE ENTRIES (Database-backed via FCIncExp model)
+ * -----------------------------------------------------------------------------
+ * GET    /incomeexpense               - Retrieve income/expense entries
+ *                                       Query: ?scenario=<scenario_name> optional
+ * POST   /incomeexpense               - Create income/expense entries
+ *                                       Accepts single object, array, or { items: [...] }
+ * PUT    /incomeexpense/:id           - Update an income/expense entry by ID
+ * DELETE /incomeexpense/:id           - Delete an income/expense entry by ID
+ *
  * FORECAST ASSUMPTIONS (File-backed via FCAssump.json)
  * -----------------------------------------------------------------------------
  * GET    /assumptions                 - Retrieve entire FCAssump.json file
@@ -45,6 +54,7 @@ const fs = require("fs");
 const path = require("path");
 const { COMPONENTS_DATA_DIR } = require("../utils/dataPaths");
 const FCModule = require("../../../components/models/FCModule");
+const FCIncExp = require("../../../components/models/FCIncExp");
 const FCEntries = require("../../../components/models/FCEntries");
 
 const router = express.Router();
@@ -535,6 +545,167 @@ router.delete("/assumptions/:section/:index", (req, res) => {
   } catch (error) {
     console.error("Failed to delete FCAssump entry:", error);
     return res.status(500).json({ error: "Failed to delete FCAssump entry" });
+  }
+});
+
+// =============================================================================
+// FORECAST INCOME/EXPENSE ROUTES (Database Operations)
+// =============================================================================
+
+/**
+ * Normalizes income/expense payloads into an array.
+ *
+ * Accepts raw arrays, wrapped arrays via `items`, or single objects.
+ *
+ * @param {*} raw - Raw request payload
+ * @returns {Array<Object>} Normalized array of entries
+ */
+const normalizeIncExp = (raw) => {
+  if (!raw) {
+    return [];
+  }
+  if (Array.isArray(raw)) {
+    return raw;
+  }
+  if (Array.isArray(raw.items)) {
+    return raw.items;
+  }
+  return [raw];
+};
+
+/**
+ * GET /incomeexpense
+ *
+ * Retrieves income/expense entries, optionally filtered by scenario.
+ *
+ * @query {string} scenario - (optional) Scenario name to filter by
+ * @returns {Object} { entries: Array<Object> } - List of income/expense entries
+ * @throws {500} If database query fails
+ */
+router.get("/incomeexpense", async (req, res) => {
+  const scenario = req.query.scenario?.trim();
+  const filter = scenario ? { Scenario: scenario } : {};
+
+  try {
+    const entries = await FCIncExp.find(filter).lean().exec();
+    return res.json({ entries });
+  } catch (error) {
+    console.error("Failed to load income/expense entries:", error);
+    return res
+      .status(500)
+      .json({ error: "Failed to load income/expense entries" });
+  }
+});
+
+/**
+ * POST /incomeexpense
+ *
+ * Creates one or more income/expense entries.
+ *
+ * Accepts a single object, an array, or a wrapped object with `items`.
+ *
+ * @body {Object|Array} Entry data in any supported format
+ * @returns {Object} { insertedCount: number } - Count of inserted documents
+ * @throws {400} If no valid entries provided
+ * @throws {500} If database insertion fails
+ */
+router.post("/incomeexpense", async (req, res) => {
+  const entries = normalizeIncExp(req.body).filter(
+    (entry) => entry && typeof entry === "object"
+  );
+
+  if (!entries.length) {
+    return res.status(400).json({ error: "No valid entry payload provided" });
+  }
+
+  try {
+    const inserted = await FCIncExp.insertMany(entries, { ordered: false });
+    return res.status(201).json({
+      insertedCount: Array.isArray(inserted) ? inserted.length : 0,
+    });
+  } catch (error) {
+    console.error("Failed to add income/expense entries:", error);
+    return res
+      .status(500)
+      .json({ error: "Failed to add income/expense entries" });
+  }
+});
+
+/**
+ * PUT /incomeexpense/:id
+ *
+ * Updates an existing income/expense entry by ID.
+ *
+ * @param {string} id - MongoDB ObjectId of the entry to update
+ * @body {Object} Fields to update (partial update supported)
+ * @returns {Object} { entry: updatedEntry }
+ * @throws {400} If ID is invalid or payload missing
+ * @throws {404} If entry not found
+ * @throws {500} If database update fails
+ */
+router.put("/incomeexpense/:id", async (req, res) => {
+  const { id } = req.params;
+
+  if (!id || !mongoose.Types.ObjectId.isValid(id)) {
+    return res.status(400).json({ error: "Invalid entry identifier" });
+  }
+
+  if (!req.body || typeof req.body !== "object") {
+    return res.status(400).json({ error: "No entry fields provided" });
+  }
+
+  try {
+    const updated = await FCIncExp.findByIdAndUpdate(id, req.body, {
+      new: true,
+      runValidators: true,
+    })
+      .lean()
+      .exec();
+
+    if (!updated) {
+      return res.status(404).json({ error: "Income/expense entry not found" });
+    }
+
+    return res.json({ entry: updated });
+  } catch (error) {
+    console.error("Failed to update income/expense entry:", error);
+    return res
+      .status(500)
+      .json({ error: "Failed to update income/expense entry" });
+  }
+});
+
+/**
+ * DELETE /incomeexpense/:id
+ *
+ * Deletes an income/expense entry by ID.
+ *
+ * @param {string} id - MongoDB ObjectId of the entry to delete
+ * @returns {Object} { deleted: true }
+ * @throws {400} If ID is invalid
+ * @throws {404} If entry not found
+ * @throws {500} If database deletion fails
+ */
+router.delete("/incomeexpense/:id", async (req, res) => {
+  const { id } = req.params;
+
+  if (!id || !mongoose.Types.ObjectId.isValid(id)) {
+    return res.status(400).json({ error: "Invalid entry identifier" });
+  }
+
+  try {
+    const deleted = await FCIncExp.findByIdAndDelete(id).lean().exec();
+
+    if (!deleted) {
+      return res.status(404).json({ error: "Income/expense entry not found" });
+    }
+
+    return res.json({ deleted: true });
+  } catch (error) {
+    console.error("Failed to delete income/expense entry:", error);
+    return res
+      .status(500)
+      .json({ error: "Failed to delete income/expense entry" });
   }
 });
 

@@ -340,6 +340,19 @@
   min-height: 100%;
 }
 
+.exp-setup-sections {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(340px, 1fr));
+  gap: 1.25rem;
+  align-items: stretch;
+}
+
+@media (max-width: 768px) {
+  .exp-setup-sections {
+    grid-template-columns: 1fr;
+  }
+}
+
 @media (max-width: 768px) {
   .fc-setup-select__row {
     grid-template-columns: 1fr;

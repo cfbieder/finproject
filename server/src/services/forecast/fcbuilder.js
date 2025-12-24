@@ -177,7 +177,7 @@ function buildScenarioCategories(
   accountNames.forEach(pushUnique);
   incomeCategories.forEach(pushUnique);
   expenseCategories.forEach(pushUnique);
-  pushUnique("Tax Reserve");
+  pushUnique("Taxes US");
 
   return ordered;
 }

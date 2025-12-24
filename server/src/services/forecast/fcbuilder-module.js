@@ -589,22 +589,7 @@ function processModule(module, scenario, df_assumptions, df_categories) {
     );
   }
 
-  // Calculate tax values on realized gains only (not unrealized)
-  // Taxes are negative values (cash outflows)
-  const taxValues = new Array(yearsCount).fill(0);
-  const taxRate = Number(
-    scenario?.TaxRate ?? scenario?.taxRate ?? scenario?.["Tax Rate"] ?? 0
-  );
-  if (Number.isFinite(taxRate) && taxRate !== 0) {
-    const rateFactor = -taxRate / 100; // Negative because taxes are an outflow
-    for (let i = 0; i < yearsCount; i++) {
-      const gain = realizedGainValues[i];
-      // Only apply tax to positive realized gains
-      if (gain > 0) {
-        taxValues[i] = rateFactor * gain;
-      }
-    }
-  }
+
 
   // Calculate income and expense values based on average market value for the year
   // Using average of beginning and ending values smooths out intra-year fluctuations
@@ -627,6 +612,29 @@ function processModule(module, scenario, df_assumptions, df_categories) {
           100
         : 0;
   }
+
+    // Calculate tax values on realized gains only (not unrealized)
+  // Taxes are negative values (cash outflows)
+  const taxValues = new Array(yearsCount).fill(0);
+  const taxRate = Number(
+    scenario?.TaxRate ?? scenario?.taxRate ?? scenario?.["Tax Rate"] ?? 0
+  );
+  if (Number.isFinite(taxRate) && taxRate !== 0) {
+    const rateFactor = -taxRate / 100; // Negative because taxes are an outflow
+    for (let i = 0; i < yearsCount; i++) {
+      const gain = realizedGainValues[i];
+      // Only apply tax to positive realized gains
+      if (gain > 0) {
+        taxValues[i] = rateFactor * gain;
+      }
+      const income = incomeValues[i];
+      // Only apply tax to positive income
+      if (income > 0) {
+        taxValues[i] += rateFactor * income;
+      } 
+    }
+  }
+
 
   // Convert all local currency (LC) values to USD using FX rates
   // Creates parallel arrays for all financial metrics in USD
@@ -743,7 +751,7 @@ function processModule(module, scenario, df_assumptions, df_categories) {
   );
 
   // Write tax values to df_categories
-  categoryRowIndex = df_categories.index.indexOf("Tax Reserve");
+  categoryRowIndex = df_categories.index.indexOf("Taxes US");
   writeValuesToCategoryRow(
     categoryRowIndex,
     df_categories,
