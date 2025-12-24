@@ -285,9 +285,8 @@ export default function FCExpSetup() {
     sortedEntries.find((entry) => getEntryId(entry) === selectedEntryId) ??
     null;
 
-  const getScenarioStartYear = () => {
-    const raw =
-      selectedScenarioDetails?.PeriodStart ?? assumptions?.PeriodStart;
+  const getScenarioYear = (value) => {
+    const raw = value;
     if (typeof raw === "number" && Number.isFinite(raw)) {
       return Math.trunc(raw);
     }
@@ -302,6 +301,25 @@ export default function FCExpSetup() {
     const match = asString.match(/\d{4}/);
     return match ? Number(match[0]) : null;
   };
+
+  const getScenarioStartYear = () =>
+    getScenarioYear(selectedScenarioDetails?.PeriodStart ?? assumptions?.PeriodStart);
+
+  const getScenarioEndYear = () =>
+    getScenarioYear(selectedScenarioDetails?.PeriodEnd ?? assumptions?.PeriodEnd);
+
+  const periodYears = useMemo(() => {
+    const start = getScenarioStartYear();
+    const end = getScenarioEndYear();
+    if (!Number.isFinite(start) || !Number.isFinite(end) || end < start) {
+      return [];
+    }
+    const years = [];
+    for (let year = start; year <= end; year += 1) {
+      years.push(year);
+    }
+    return years;
+  }, [assumptions, selectedScenarioDetails]);
 
   const handleAddIncomeExpense = async () => {
     if (!selectedScenario) {
@@ -324,9 +342,9 @@ export default function FCExpSetup() {
           Scenario: selectedScenario,
           Matched: true,
           Account: "",
-          Name: "",
+          Name: "All",
           Type: "",
-          Currency: "",
+          Currency: "USD",
           BaseDate: baseDate,
           BaseValue: 0,
           BaseValueUSD: 0,
@@ -390,16 +408,19 @@ export default function FCExpSetup() {
   const openEditModal = () => {
     if (!selectedEntry) return;
     setEditError("");
+    const startYear = getScenarioStartYear();
+    const baseDate =
+      Number.isFinite(startYear) && startYear
+        ? new Date(`${startYear - 1}-12-31T00:00:00.000Z`).toISOString()
+        : selectedEntry.BaseDate || "";
     setEditForm({
       ...selectedEntry,
       Scenario: selectedEntry.Scenario || selectedScenario || "",
       Account: selectedEntry.Account || "",
       Name: selectedEntry.Name || "",
       Type: selectedEntry.Type || "",
-      Currency: selectedEntry.Currency || "",
-      BaseDate: selectedEntry.BaseDate
-        ? new Date(selectedEntry.BaseDate).toISOString().slice(0, 10)
-        : "",
+      Currency: "USD",
+      BaseDate: baseDate,
       BaseValue: selectedEntry.BaseValue ?? 0,
       BaseValueUSD: selectedEntry.BaseValueUSD ?? 0,
       Growth:
@@ -407,6 +428,19 @@ export default function FCExpSetup() {
           ? ""
           : selectedEntry.Growth,
       Matched: Boolean(selectedEntry.Matched),
+      Changes: Array.isArray(selectedEntry.Changes)
+        ? selectedEntry.Changes.map((change) => ({
+            ...change,
+            Date: change?.Date
+              ? new Date(change.Date).toISOString().slice(0, 10)
+              : "",
+            Amount:
+              change?.Amount === null || change?.Amount === undefined
+                ? ""
+                : change.Amount,
+            Flag: change?.Flag || "",
+          }))
+        : [],
     });
     setShowEditModal(true);
   };
@@ -430,6 +464,28 @@ export default function FCExpSetup() {
     return Number.isFinite(num) ? num : null;
   };
 
+  const normalizeChanges = (changes) => {
+    if (!Array.isArray(changes)) return [];
+    return changes
+      .map((change) => {
+        const dateValue =
+          change?.Date && !Number.isNaN(new Date(change.Date).getTime())
+            ? new Date(change.Date).toISOString()
+            : null;
+        const amountValue = normalizeNumber(change?.Amount);
+        const flagValue = (change?.Flag || "").trim();
+        if (!dateValue && amountValue === null && !flagValue) {
+          return null;
+        }
+        return {
+          Date: dateValue,
+          Amount: amountValue,
+          Flag: flagValue,
+        };
+      })
+    .filter(Boolean);
+  };
+
   const handleSaveEdit = async () => {
     if (!selectedEntry?._id || !editForm) {
       return;
@@ -440,7 +496,7 @@ export default function FCExpSetup() {
       Account: (editForm.Account || "").trim(),
       Name: (editForm.Name || "").trim(),
       Type: (editForm.Type || "").trim(),
-      Currency: (editForm.Currency || "").trim(),
+      Currency: "USD",
       Matched: Boolean(editForm.Matched),
       BaseDate:
         editForm.BaseDate &&
@@ -450,6 +506,7 @@ export default function FCExpSetup() {
       BaseValue: normalizeNumber(editForm.BaseValue),
       BaseValueUSD: normalizeNumber(editForm.BaseValueUSD),
       Growth: normalizeNumber(editForm.Growth),
+      Changes: normalizeChanges(editForm.Changes),
     };
 
     setEditError("");
@@ -503,7 +560,8 @@ export default function FCExpSetup() {
     }
 
     const names = accountNameOptions[targetAccount] || [];
-    if (names.length && !names.includes(name)) {
+    const allowAll = name === "All";
+    if (names.length && !names.includes(name) && !allowAll) {
       setEditForm((prev) =>
         prev ? { ...prev, Name: names[0] || "" } : prev
       );
@@ -574,6 +632,7 @@ export default function FCExpSetup() {
         onSubmit={handleSaveEdit}
         accountOptions={accountOptions}
         accountNameOptions={accountNameOptions}
+        periodYears={periodYears}
       />
     </div>
   );

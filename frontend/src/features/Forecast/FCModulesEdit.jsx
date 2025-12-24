@@ -4,6 +4,19 @@ import coaTraits from "../../../../components/data/coa_traits.json";
 import Rest from "../../js/rest";
 import "./FCModulesEdit.css";
 
+export const currencyOptions = (() => {
+  const values = new Set();
+  for (const traits of Object.values(coaTraits || {})) {
+    if (traits && typeof traits === "object" && traits.Currency) {
+      values.add(traits.Currency);
+    }
+  }
+  if (!values.has("USD")) {
+    values.add("USD");
+  }
+  return Array.from(values).sort();
+})();
+
 const balanceSheetLevel2Options = (() => {
   const entries =
     Array.isArray(coa) &&
