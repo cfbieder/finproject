@@ -103,11 +103,9 @@ export default function FCExpModal({
       ...changes,
       {
         Date:
-          periodYears && periodYears.length
-            ? `${periodYears[0]}-12-31`
-            : "",
-        Amount: "",
-        Flag: "",
+          periodYears && periodYears.length ? `${periodYears[0]}-12-31` : "",
+        Amount: 0,
+        Flag: "Fixed $",
       },
     ]);
   };
@@ -128,7 +126,8 @@ export default function FCExpModal({
   useEffect(() => {
     let cancelled = false;
     const year = (editForm?.BaseDate || "").slice(0, 4);
-    if (!isOpen || !editForm?.Matched || !year || !editForm?.Name) return undefined;
+    if (!isOpen || !editForm?.Matched || !year || !editForm?.Name)
+      return undefined;
 
     const normalizeNumber = (value) => {
       const num = Number(value);
@@ -209,23 +208,56 @@ export default function FCExpModal({
 
   return (
     <div className="fc-exp-modal-overlay" onClick={onClose}>
-      <div className="fc-exp-modal" onClick={(event) => event.stopPropagation()}>
+      <div
+        className="fc-exp-modal"
+        onClick={(event) => event.stopPropagation()}
+      >
         {/* Header */}
         <div className="fc-exp-modal__header">
           <div className="fc-exp-modal__header-content">
             <div className="fc-exp-modal__icon">
-              <svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-                <path d="M9 5H7C5.89543 5 5 5.89543 5 7V19C5 20.1046 5.89543 21 7 21H17C18.1046 21 19 20.1046 19 19V7C19 5.89543 18.1046 5 17 5H15M9 5C9 6.10457 9.89543 7 11 7H13C14.1046 7 15 6.10457 15 5M9 5C9 3.89543 9.89543 3 11 3H13C14.1046 3 15 3.89543 15 5M12 12H15M12 16H15M9 12H9.01M9 16H9.01" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
+              <svg
+                width="24"
+                height="24"
+                viewBox="0 0 24 24"
+                fill="none"
+                xmlns="http://www.w3.org/2000/svg"
+              >
+                <path
+                  d="M9 5H7C5.89543 5 5 5.89543 5 7V19C5 20.1046 5.89543 21 7 21H17C18.1046 21 19 20.1046 19 19V7C19 5.89543 18.1046 5 17 5H15M9 5C9 6.10457 9.89543 7 11 7H13C14.1046 7 15 6.10457 15 5M9 5C9 3.89543 9.89543 3 11 3H13C14.1046 3 15 3.89543 15 5M12 12H15M12 16H15M9 12H9.01M9 16H9.01"
+                  stroke="currentColor"
+                  strokeWidth="2"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                />
               </svg>
             </div>
             <div>
               <h3 className="fc-exp-modal__title">Edit Forecast Entry</h3>
-              <p className="fc-exp-modal__subtitle">Update income/expense forecast details</p>
+              <p className="fc-exp-modal__subtitle">
+                Update income/expense forecast details
+              </p>
             </div>
           </div>
-          <button className="fc-exp-modal__close" onClick={onClose} disabled={editSaving}>
-            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-              <path d="M6 18L18 6M6 6L18 18" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
+          <button
+            className="fc-exp-modal__close"
+            onClick={onClose}
+            disabled={editSaving}
+          >
+            <svg
+              width="20"
+              height="20"
+              viewBox="0 0 24 24"
+              fill="none"
+              xmlns="http://www.w3.org/2000/svg"
+            >
+              <path
+                d="M6 18L18 6M6 6L18 18"
+                stroke="currentColor"
+                strokeWidth="2"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+              />
             </svg>
           </button>
         </div>
@@ -250,9 +282,13 @@ export default function FCExpModal({
                   />
                   <span className="fc-exp-modal__toggle-slider"></span>
                   <span className="fc-exp-modal__toggle-label">
-                    <span className="fc-exp-modal__toggle-text">Match to Chart of Accounts</span>
+                    <span className="fc-exp-modal__toggle-text">
+                      Match to Chart of Accounts
+                    </span>
                     <span className="fc-exp-modal__toggle-hint">
-                      {editForm?.Matched ? "Values auto-loaded from historical data" : "Manual entry mode"}
+                      {editForm?.Matched
+                        ? "Values auto-loaded from historical data"
+                        : "Manual entry mode"}
                     </span>
                   </span>
                 </label>
@@ -319,7 +355,9 @@ export default function FCExpModal({
           <div className="fc-exp-modal__section">
             <div className="fc-exp-modal__section-header">
               <h4 className="fc-exp-modal__section-title">Base Values</h4>
-              <span className="fc-exp-modal__section-badge">Year {baseYear}</span>
+              <span className="fc-exp-modal__section-badge">
+                Year {baseYear}
+              </span>
             </div>
 
             <div className="fc-exp-modal__fields-grid">
@@ -339,7 +377,9 @@ export default function FCExpModal({
                 <label className="fc-exp-modal__label">
                   Base Value (USD)
                   {editForm?.Matched && (
-                    <span className="fc-exp-modal__label-badge">Auto-loaded</span>
+                    <span className="fc-exp-modal__label-badge">
+                      Auto-loaded
+                    </span>
                   )}
                 </label>
                 <input
@@ -347,13 +387,17 @@ export default function FCExpModal({
                   type="text"
                   value={baseValueUsdDisplay}
                   readOnly
-                  style={{ color: baseValueUsdNegative ? "#dc2626" : "#059669" }}
+                  style={{
+                    color: baseValueUsdNegative ? "#dc2626" : "#059669",
+                  }}
                 />
               </div>
 
               {/* Growth */}
               <div className="fc-exp-modal__field">
-                <label className="fc-exp-modal__label">Annual Growth Rate (%)</label>
+                <label className="fc-exp-modal__label">
+                  Annual Growth Rate (%)
+                </label>
                 <input
                   className="fc-exp-modal__input"
                   type="number"
@@ -373,15 +417,29 @@ export default function FCExpModal({
           {/* Changes Section */}
           <div className="fc-exp-modal__section fc-exp-modal__section--changes">
             <div className="fc-exp-modal__section-header">
-              <h4 className="fc-exp-modal__section-title">Periodic Adjustments</h4>
+              <h4 className="fc-exp-modal__section-title">
+                Periodic Adjustments
+              </h4>
               <button
                 type="button"
                 className="fc-exp-modal__add-button"
                 onClick={addChangeRow}
                 disabled={editSaving}
               >
-                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-                  <path d="M12 5V19M5 12H19" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
+                <svg
+                  width="16"
+                  height="16"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  xmlns="http://www.w3.org/2000/svg"
+                >
+                  <path
+                    d="M12 5V19M5 12H19"
+                    stroke="currentColor"
+                    strokeWidth="2"
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                  />
                 </svg>
                 Add Change
               </button>
@@ -390,100 +448,143 @@ export default function FCExpModal({
             <div className="fc-exp-modal__changes">
               {changes.length === 0 ? (
                 <div className="fc-exp-modal__changes-empty">
-                  <svg width="48" height="48" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-                    <path d="M9 5H7C5.89543 5 5 5.89543 5 7V19C5 20.1046 5.89543 21 7 21H17C18.1046 21 19 20.1046 19 19V7C19 5.89543 18.1046 5 17 5H15M9 5C9 6.10457 9.89543 7 11 7H13C14.1046 7 15 6.10457 15 5M9 5C9 3.89543 9.89543 3 11 3H13C14.1046 3 15 3.89543 15 5" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
+                  <svg
+                    width="48"
+                    height="48"
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    xmlns="http://www.w3.org/2000/svg"
+                  >
+                    <path
+                      d="M9 5H7C5.89543 5 5 5.89543 5 7V19C5 20.1046 5.89543 21 7 21H17C18.1046 21 19 20.1046 19 19V7C19 5.89543 18.1046 5 17 5H15M9 5C9 6.10457 9.89543 7 11 7H13C14.1046 7 15 6.10457 15 5M9 5C9 3.89543 9.89543 3 11 3H13C14.1046 3 15 3.89543 15 5"
+                      stroke="currentColor"
+                      strokeWidth="2"
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                    />
                   </svg>
                   <p>No periodic changes defined</p>
                   <span>Click "Add Change" to create an adjustment</span>
                 </div>
               ) : (
                 changes.map((change, index) => (
-                    <div className="fc-exp-modal__change-card" key={index}>
-                      <div className="fc-exp-modal__change-number">{index + 1}</div>
+                  <div className="fc-exp-modal__change-card" key={index}>
+                    <div className="fc-exp-modal__change-number">
+                      {index + 1}
+                    </div>
 
-                      <div className="fc-exp-modal__change-fields">
-                        <div className="fc-exp-modal__change-field">
-                          <label className="fc-exp-modal__change-label">Year</label>
-                          <select
-                            className="fc-exp-modal__change-input"
-                            value={(change?.Date || "").slice(0, 4)}
-                            onChange={(e) =>
-                              updateChangeField(
-                                index,
-                                "Date",
-                                e.target.value ? `${e.target.value}-12-31` : ""
-                              )
-                            }
-                            disabled={editSaving}
-                          >
-                            <option value="">Select year</option>
-                            {periodYears.map((year) => (
-                              <option key={year} value={year}>
-                                {year}
-                              </option>
-                            ))}
-                          </select>
-                        </div>
-
-                        <div className="fc-exp-modal__change-field">
-                          <label className="fc-exp-modal__change-label">Type</label>
-                          <select
-                            className="fc-exp-modal__change-input"
-                            value={change?.Flag || "Fixed $"}
-                            onChange={(e) => updateChangeField(index, "Flag", e.target.value)}
-                            disabled={editSaving}
-                          >
-                            <option value="Fixed $">Fixed Amount ($)</option>
-                            <option value="Percent %">Percentage (%)</option>
-                          </select>
-                        </div>
-
-                        <div className="fc-exp-modal__change-field">
-                          <label className="fc-exp-modal__change-label">Amount</label>
-                          <input
-                            className="fc-exp-modal__change-input"
-                            type="number"
-                            step="0.01"
-                            value={
-                              change?.Amount === null || change?.Amount === undefined
-                                ? ""
-                                : change.Amount
-                            }
-                            onChange={(e) => updateChangeField(index, "Amount", e.target.value)}
-                            disabled={editSaving}
-                            placeholder="0.00"
-                          />
-                        </div>
-
-                        <div className="fc-exp-modal__change-field">
-                          <label className="fc-exp-modal__change-label">Preview</label>
-                          <div className="fc-exp-modal__change-preview">
-                            <span style={{
-                              color: change?.Flag !== "Percent %" && Number(change?.Amount) < 0
-                                ? "#dc2626"
-                                : "#059669",
-                              fontWeight: "700"
-                            }}>
-                              {formatChangeAmount(change?.Amount, change?.Flag)}
-                            </span>
-                          </div>
-                        </div>
+                    <div className="fc-exp-modal__change-fields">
+                      <div className="fc-exp-modal__change-field">
+                        <label className="fc-exp-modal__change-label">
+                          Year
+                        </label>
+                        <select
+                          className="fc-exp-modal__change-input"
+                          value={(change?.Date || "").slice(0, 4)}
+                          onChange={(e) =>
+                            updateChangeField(
+                              index,
+                              "Date",
+                              e.target.value ? `${e.target.value}-12-31` : ""
+                            )
+                          }
+                          disabled={editSaving}
+                        >
+                          <option value="">Select year</option>
+                          {periodYears.map((year) => (
+                            <option key={year} value={year}>
+                              {year}
+                            </option>
+                          ))}
+                        </select>
                       </div>
 
-                      <button
-                        type="button"
-                        className="fc-exp-modal__change-remove"
-                        onClick={() => removeChangeRow(index)}
-                        disabled={editSaving}
-                        title="Remove this change"
-                      >
-                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-                          <path d="M19 7L18.1327 19.1425C18.0579 20.1891 17.187 21 16.1378 21H7.86224C6.81296 21 5.94208 20.1891 5.86732 19.1425L5 7M10 11V17M14 11V17M15 7V4C15 3.44772 14.5523 3 14 3H10C9.44772 3 9 3.44772 9 4V7M4 7H20" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
-                        </svg>
-                      </button>
+                      <div className="fc-exp-modal__change-field">
+                        <label className="fc-exp-modal__change-label">
+                          Type
+                        </label>
+                        <select
+                          className="fc-exp-modal__change-input"
+                          value={change?.Flag || "Fixed $"}
+                          onChange={(e) =>
+                            updateChangeField(index, "Flag", e.target.value)
+                          }
+                          disabled={editSaving}
+                        >
+                          <option value="Fixed $">Fixed Amount ($)</option>
+                          <option value="Percent %">Percentage (%)</option>
+                        </select>
+                      </div>
+
+                      <div className="fc-exp-modal__change-field">
+                        <label className="fc-exp-modal__change-label">
+                          Amount
+                        </label>
+                        <input
+                          className="fc-exp-modal__change-input"
+                          type="number"
+                          step="0.01"
+                          value={
+                            change?.Amount === null ||
+                            change?.Amount === undefined
+                              ? ""
+                              : change.Amount
+                          }
+                          onChange={(e) =>
+                            updateChangeField(index, "Amount", e.target.value)
+                          }
+                          disabled={editSaving}
+                          placeholder="0.00"
+                        />
+                      </div>
+
+                      <div className="fc-exp-modal__change-field">
+                        <label className="fc-exp-modal__change-label">
+                          Preview
+                        </label>
+                        <div className="fc-exp-modal__change-preview">
+                          <span
+                            style={{
+                              color:
+                                change?.Flag !== "Percent %" &&
+                                Number(change?.Amount) < 0
+                                  ? "#dc2626"
+                                  : "#059669",
+                              fontWeight: "700",
+                            }}
+                          >
+                            {formatChangeAmount(change?.Amount, change?.Flag)}
+                          </span>
+                        </div>
+                      </div>
                     </div>
-                  ))
-                )}
+
+                    <button
+                      type="button"
+                      className="fc-exp-modal__change-remove"
+                      onClick={() => removeChangeRow(index)}
+                      disabled={editSaving}
+                      title="Remove this change"
+                    >
+                      <svg
+                        width="16"
+                        height="16"
+                        viewBox="0 0 24 24"
+                        fill="none"
+                        xmlns="http://www.w3.org/2000/svg"
+                      >
+                        <path
+                          d="M19 7L18.1327 19.1425C18.0579 20.1891 17.187 21 16.1378 21H7.86224C6.81296 21 5.94208 20.1891 5.86732 19.1425L5 7M10 11V17M14 11V17M15 7V4C15 3.44772 14.5523 3 14 3H10C9.44772 3 9 3.44772 9 4V7M4 7H20"
+                          stroke="currentColor"
+                          strokeWidth="2"
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
+                        />
+                      </svg>
+                    </button>
+                  </div>
+                ))
+              )}
             </div>
           </div>
         </div>
@@ -491,8 +592,20 @@ export default function FCExpModal({
         {/* Error Display */}
         {editError && (
           <div className="fc-exp-modal__error">
-            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-              <path d="M12 9V13M12 17H12.01M21 12C21 16.9706 16.9706 21 12 21C7.02944 21 3 16.9706 3 12C3 7.02944 7.02944 3 12 3C16.9706 3 21 7.02944 21 12Z" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
+            <svg
+              width="20"
+              height="20"
+              viewBox="0 0 24 24"
+              fill="none"
+              xmlns="http://www.w3.org/2000/svg"
+            >
+              <path
+                d="M12 9V13M12 17H12.01M21 12C21 16.9706 16.9706 21 12 21C7.02944 21 3 16.9706 3 12C3 7.02944 7.02944 3 12 3C16.9706 3 21 7.02944 21 12Z"
+                stroke="currentColor"
+                strokeWidth="2"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+              />
             </svg>
             {editError}
           </div>
@@ -521,9 +634,27 @@ export default function FCExpModal({
               </>
             ) : (
               <>
-                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-                  <path d="M19 21H5C3.89543 21 3 20.1046 3 19V5C3 3.89543 3.89543 3 5 3H16L21 8V19C21 20.1046 20.1046 21 19 21Z" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
-                  <path d="M17 21V13H7V21M7 3V8H15" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
+                <svg
+                  width="18"
+                  height="18"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  xmlns="http://www.w3.org/2000/svg"
+                >
+                  <path
+                    d="M19 21H5C3.89543 21 3 20.1046 3 19V5C3 3.89543 3.89543 3 5 3H16L21 8V19C21 20.1046 20.1046 21 19 21Z"
+                    stroke="currentColor"
+                    strokeWidth="2"
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                  />
+                  <path
+                    d="M17 21V13H7V21M7 3V8H15"
+                    stroke="currentColor"
+                    strokeWidth="2"
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                  />
                 </svg>
                 Save Changes
               </>
