@@ -668,25 +668,60 @@ export default function FCModulesEditModal({
 
   return (
     <div
-      className="fc-scenarios-modal-overlay fc-modules-edit__overlay"
+      className="fc-modules-modal-overlay"
       role="dialog"
       aria-modal="true"
       aria-label="Edit forecast module"
+      onClick={onClose}
     >
       <div
-        className="fc-scenarios-modal fc-modules-edit__modal"
+        className="fc-modules-modal"
         onClick={(event) => event.stopPropagation()}
       >
-        <h3 className="fc-scenarios-modal__title">Edit Module</h3>
+        {/* Header */}
+        <div className="fc-modules-modal__header">
+          <div className="fc-modules-modal__header-content">
+            <div className="fc-modules-modal__icon">
+              <svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                <path d="M19 21V5C19 3.89543 18.1046 3 17 3H7C5.89543 3 5 3.89543 5 5V21M19 21H5M19 21H21M5 21H3M9 7H10M9 11H10M9 15H10M14 7H15M14 11H15M14 15H15" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
+              </svg>
+            </div>
+            <div>
+              <h3 className="fc-modules-modal__title">Edit Module</h3>
+              <p className="fc-modules-modal__subtitle">Configure forecast module settings and transfers</p>
+            </div>
+          </div>
+          <button className="fc-modules-modal__close" onClick={onClose} disabled={editSaving} type="button">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+              <path d="M6 18L18 6M6 6L18 18" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
+            </svg>
+          </button>
+        </div>
+
         <form onSubmit={onSubmit}>
-          <div className="fc-modules-edit__form-grid">
+          {/* Body */}
+          <div className="fc-modules-modal__body">
+            {/* Basic Configuration Section */}
+            <div className="fc-modules-modal__section">
+              <div className="fc-modules-modal__section-header">
+                <h4 className="fc-modules-modal__section-title">Basic Configuration</h4>
+                {isMatched && (
+                  <span className="fc-modules-modal__matched-badge">
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                      <path d="M9 12L11 14L15 10M21 12C21 16.9706 16.9706 21 12 21C7.02944 21 3 16.9706 3 12C3 7.02944 7.02944 3 12 3C16.9706 3 21 7.02944 21 12Z" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
+                    </svg>
+                    Matched to COA
+                  </span>
+                )}
+              </div>
+              <div className="fc-modules-modal__fields-grid">
             {fields.map(([label, field, type, source]) => {
               if (field === "Account") {
                 return (
-                  <label key={field} className="fc-scenarios-modal__field">
-                    <span>{label}</span>
+                  <label key={field} className="fc-modules-modal__field">
+                    <span className="fc-modules-modal__label">{label}</span>
                     <select
-                      className="form-input"
+                      className="fc-modules-modal__input"
                       value={editForm.Account ?? ""}
                       onChange={(event) =>
                         onFieldChange("Account", event.target.value)
@@ -712,10 +747,10 @@ export default function FCModulesEditModal({
               if (field === "Name") {
                 if (isMatched) {
                   return (
-                    <label key={field} className="fc-scenarios-modal__field">
-                      <span>{label}</span>
+                    <label key={field} className="fc-modules-modal__field">
+                      <span className="fc-modules-modal__label">{label}</span>
                       <select
-                        className="form-input"
+                        className="fc-modules-modal__input"
                         value={effectiveName}
                         onChange={(event) =>
                           onFieldChange("Name", event.target.value)
@@ -734,11 +769,11 @@ export default function FCModulesEditModal({
                   );
                 }
                 return (
-                  <label key={field} className="fc-scenarios-modal__field">
-                    <span>{label}</span>
+                  <label key={field} className="fc-modules-modal__field">
+                    <span className="fc-modules-modal__label">{label}</span>
                     <input
                       type="text"
-                      className="form-input"
+                      className="fc-modules-modal__input"
                       value={editForm.Name ?? ""}
                       onChange={(event) =>
                         onFieldChange("Name", event.target.value)
@@ -750,8 +785,8 @@ export default function FCModulesEditModal({
 
               if (field === "Matched") {
                 return (
-                  <label key={field} className="fc-scenarios-modal__field">
-                    <span>{label}</span>
+                  <label key={field} className="fc-modules-modal__field">
+                    <span className="fc-modules-modal__label">{label}</span>
                     <input
                       type="checkbox"
                       checked={Boolean(editForm.Matched)}
@@ -768,11 +803,11 @@ export default function FCModulesEditModal({
                   new Date().getFullYear()
                 );
                 return (
-                  <label key={field} className="fc-scenarios-modal__field">
-                    <span>{label}</span>
+                  <label key={field} className="fc-modules-modal__field">
+                    <span className="fc-modules-modal__label">{label}</span>
                     <div className="fc-modules-edit__base-date">
                       <select
-                        className="form-input"
+                        className="fc-modules-modal__input"
                         value={selectedYear}
                         onChange={(event) =>
                           onFieldChange(
@@ -801,11 +836,11 @@ export default function FCModulesEditModal({
                 if (isMatched) {
                   if (field === "Type") {
                     return (
-                      <label key={field} className="fc-scenarios-modal__field">
-                        <span>{label}</span>
+                      <label key={field} className="fc-modules-modal__field">
+                        <span className="fc-modules-modal__label">{label}</span>
                         <input
                           type="text"
-                          className="form-input"
+                          className="fc-modules-modal__input"
                           value={accountTraits[field] ?? currentValue}
                           disabled
                         />
@@ -814,20 +849,20 @@ export default function FCModulesEditModal({
                   }
                   return (
                     <Fragment key={field}>
-                      <label key={field} className="fc-scenarios-modal__field">
-                        <span>{label}</span>
+                      <label key={field} className="fc-modules-modal__field">
+                        <span className="fc-modules-modal__label">{label}</span>
                         <input
                           type="text"
-                          className="form-input"
+                          className="fc-modules-modal__input"
                           value={accountTraits[field] ?? currentValue}
                           disabled
                         />
                       </label>
-                      <label className="fc-scenarios-modal__field">
+                      <label className="fc-modules-modal__field">
                         <span>Account Value</span>
                         <input
                           type="text"
-                          className="form-input"
+                          className="fc-modules-modal__input"
                           value={
                             accountBalanceLoading
                               ? "Loading..."
@@ -839,11 +874,11 @@ export default function FCModulesEditModal({
                           readOnly
                         />
                       </label>
-                      <label className="fc-scenarios-modal__field">
+                      <label className="fc-modules-modal__field">
                         <span>Account Value USD</span>
                         <input
                           type="text"
-                          className="form-input"
+                          className="fc-modules-modal__input"
                           value={
                             accountBalanceLoading
                               ? "Loading..."
@@ -859,10 +894,10 @@ export default function FCModulesEditModal({
                   );
                 }
                 return (
-                  <label key={field} className="fc-scenarios-modal__field">
-                    <span>{label}</span>
+                  <label key={field} className="fc-modules-modal__field">
+                    <span className="fc-modules-modal__label">{label}</span>
                     <select
-                      className="form-input"
+                      className="fc-modules-modal__input"
                       value={currentValue}
                       onChange={(event) =>
                         onFieldChange(field, event.target.value)
@@ -884,11 +919,11 @@ export default function FCModulesEditModal({
               if (field === "ExpCategory") {
                 const currentValue = editForm.ExpCategory ?? "";
                 return (
-                  <label key={field} className="fc-scenarios-modal__field">
-                    <span>{label}</span>
+                  <label key={field} className="fc-modules-modal__field">
+                    <span className="fc-modules-modal__label">{label}</span>
                     <div className="fc-modules-edit__expense-grid">
                       <select
-                        className="form-input"
+                        className="fc-modules-modal__input"
                         value={currentValue}
                         onChange={(event) =>
                           onFieldChange("ExpCategory", event.target.value)
@@ -912,10 +947,10 @@ export default function FCModulesEditModal({
               if (field === "IncomeCategory") {
                 const currentValue = editForm.IncomeCategory ?? "";
                 return (
-                  <label key={field} className="fc-scenarios-modal__field">
-                    <span>{label}</span>
+                  <label key={field} className="fc-modules-modal__field">
+                    <span className="fc-modules-modal__label">{label}</span>
                     <select
-                      className="form-input"
+                      className="fc-modules-modal__input"
                       value={currentValue}
                       onChange={(event) =>
                         onFieldChange("IncomeCategory", event.target.value)
@@ -967,7 +1002,7 @@ export default function FCModulesEditModal({
                 .join(" ");
 
               return (
-                <label key={field} className="fc-scenarios-modal__field">
+                <label key={field} className="fc-modules-modal__field">
                   <span>{label}</span>
                   <input
                     type={
@@ -995,8 +1030,11 @@ export default function FCModulesEditModal({
                 </label>
               );
             })}
-          </div>
-          <div className="fc-modules-edit__transfers">
+              </div>
+            </div>
+
+            {/* Transfer Sections */}
+            <div className="fc-modules-modal__transfers">
             {transferSections.map(([label, field]) => {
               const transfers = Array.isArray(editForm?.[field])
                 ? editForm[field]
@@ -1006,108 +1044,135 @@ export default function FCModulesEditModal({
                   ? transferFlagOptionsI
                   : transferFlagOptionsD;
               return (
-                <div key={field} className="fc-modules-edit__transfer-section">
-                  <div className="fc-modules-edit__transfer-header">
-                    <span className="fc-modules-edit__transfer-label">
-                      {label}
-                    </span>
+                <div key={field} className="fc-modules-modal__transfer-section">
+                  <div className="fc-modules-modal__transfer-header">
+                    <h5 className="fc-modules-modal__transfer-title">{label} Transfers</h5>
                     <button
                       type="button"
-                      className="generate-report-button fc-modules-edit__add-button"
+                      className="fc-modules-modal__add-transfer-button"
                       onClick={() => addTransferEntry(field)}
                     >
+                      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                        <path d="M12 5V19M5 12H19" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
+                      </svg>
                       Add {label}
                     </button>
                   </div>
-                  <div className="fc-modules-edit__transfer-columns">
-                    <span>Date</span>
-                    <span>Amount</span>
-                    <span>Flag</span>
-                    <span aria-hidden />
-                  </div>
                   {transfers.length === 0 ? (
-                    <div className="fc-modules-edit__transfer-empty">
-                      No {label.toLowerCase()} entries.
+                    <div className="fc-modules-modal__transfer-empty">
+                      <svg width="48" height="48" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                        <path d="M9 5H7C5.89543 5 5 5.89543 5 7V19C5 20.1046 5.89543 21 7 21H17C18.1046 21 19 20.1046 19 19V7C19 5.89543 18.1046 5 17 5H15M9 5C9 6.10457 9.89543 7 11 7H13C14.1046 7 15 6.10457 15 5M9 5C9 3.89543 9.89543 3 11 3H13C14.1046 3 15 3.89543 15 5" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
+                      </svg>
+                      <p>No {label.toLowerCase()} entries</p>
+                      <span>Click "Add {label}" to create a transfer</span>
                     </div>
                   ) : (
-                    transfers.map((entry, index) => (
+                    <div className="fc-modules-modal__transfer-list">
+                      {transfers.map((entry, index) => (
                       <div
                         key={`${field}-${index}`}
-                        className="fc-modules-edit__transfer-row"
+                        className="fc-modules-modal__transfer-card"
                       >
-                        <select
-                          className="form-input"
-                          required
-                          value={getYearFromDate(entry?.Date)}
-                          onChange={(event) =>
-                            updateTransferEntry(
-                              field,
-                              index,
-                              "Date",
-                              `${event.target.value}-07-01`
-                            )
-                          }
-                        >
-                          <option value="">Select year</option>
-                          {transferYearOptions.map((year) => (
-                            <option key={year} value={year}>
-                              {year}
-                            </option>
-                          ))}
-                        </select>
-                        <input
-                          type="number"
-                          className="form-input"
-                          value={entry?.Amount ?? ""}
-                          onChange={(event) =>
-                            updateTransferEntry(
-                              field,
-                              index,
-                              "Amount",
-                              event.target.value
-                            )
-                          }
-                        />
-                        <select
-                          className="form-input"
-                          value={entry?.Flag ?? ""}
-                          onChange={(event) =>
-                            updateTransferEntry(
-                              field,
-                              index,
-                              "Flag",
-                              event.target.value
-                            )
-                          }
-                        >
-                          <option value="">Select flag</option>
-                          {transferFlagOptions.map((flag) => (
-                            <option key={flag} value={flag}>
-                              {flag}
-                            </option>
-                          ))}
-                        </select>
+                        <div className="fc-modules-modal__transfer-number">{index + 1}</div>
+                        <div className="fc-modules-modal__transfer-fields">
+                          <div className="fc-modules-modal__transfer-field">
+                            <label className="fc-modules-modal__transfer-label">Year</label>
+                            <select
+                              className="fc-modules-modal__input fc-modules-modal__input--small"
+                              required
+                              value={getYearFromDate(entry?.Date)}
+                              onChange={(event) =>
+                                updateTransferEntry(
+                                  field,
+                                  index,
+                                  "Date",
+                                  `${event.target.value}-07-01`
+                                )
+                              }
+                            >
+                              <option value="">Select year</option>
+                              {transferYearOptions.map((year) => (
+                                <option key={year} value={year}>
+                                  {year}
+                                </option>
+                              ))}
+                            </select>
+                          </div>
+                          <div className="fc-modules-modal__transfer-field">
+                            <label className="fc-modules-modal__transfer-label">Amount</label>
+                            <input
+                              type="number"
+                              className="fc-modules-modal__input fc-modules-modal__input--small"
+                              value={entry?.Amount ?? ""}
+                              onChange={(event) =>
+                                updateTransferEntry(
+                                  field,
+                                  index,
+                                  "Amount",
+                                  event.target.value
+                                )
+                              }
+                              placeholder="0"
+                            />
+                          </div>
+                          <div className="fc-modules-modal__transfer-field">
+                            <label className="fc-modules-modal__transfer-label">Type</label>
+                            <select
+                              className="fc-modules-modal__input fc-modules-modal__input--small"
+                              value={entry?.Flag ?? ""}
+                              onChange={(event) =>
+                                updateTransferEntry(
+                                  field,
+                                  index,
+                                  "Flag",
+                                  event.target.value
+                                )
+                              }
+                            >
+                              <option value="">Select type</option>
+                              {transferFlagOptions.map((flag) => (
+                                <option key={flag} value={flag}>
+                                  {flag}
+                                </option>
+                              ))}
+                            </select>
+                          </div>
+                        </div>
                         <button
                           type="button"
-                          className="generate-report-button fc-modules-edit__remove-button"
+                          className="fc-modules-modal__transfer-remove"
                           onClick={() => removeTransferEntry(field, index)}
+                          title="Remove this transfer"
                         >
-                          Remove
+                          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                            <path d="M19 7L18.1327 19.1425C18.0579 20.1891 17.187 21 16.1378 21H7.86224C6.81296 21 5.94208 20.1891 5.86732 19.1425L5 7M10 11V17M14 11V17M15 7V4C15 3.44772 14.5523 3 14 3H10C9.44772 3 9 3.44772 9 4V7M4 7H20" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
+                          </svg>
                         </button>
                       </div>
-                    ))
+                    ))}
+                    </div>
                   )}
                 </div>
               );
             })}
+            </div>
           </div>
+
+          {/* Error Display */}
           {editError && (
-            <p className="trans-budget-edit-modal__error">{editError}</p>
+            <div className="fc-modules-modal__error">
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                <path d="M12 9V13M12 17H12.01M21 12C21 16.9706 16.9706 21 12 21C7.02944 21 3 16.9706 3 12C3 7.02944 7.02944 3 12 3C16.9706 3 21 7.02944 21 12Z" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
+              </svg>
+              {editError}
+            </div>
           )}
-          <div className="fc-scenarios-modal__actions">
+
+          {/* Footer Actions */}
+          <div className="fc-modules-modal__footer">
             <button
               type="button"
-              className="generate-report-button"
+              className="fc-modules-modal__button fc-modules-modal__button--cancel"
               onClick={onClose}
               disabled={editSaving}
             >
@@ -1115,10 +1180,23 @@ export default function FCModulesEditModal({
             </button>
             <button
               type="submit"
-              className="generate-report-button"
+              className="fc-modules-modal__button fc-modules-modal__button--save"
               disabled={editSaving}
             >
-              {editSaving ? "Saving…" : "Save"}
+              {editSaving ? (
+                <>
+                  <span className="fc-modules-modal__spinner"></span>
+                  Saving...
+                </>
+              ) : (
+                <>
+                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                    <path d="M19 21H5C3.89543 21 3 20.1046 3 19V5C3 3.89543 3.89543 3 5 3H16L21 8V19C21 20.1046 20.1046 21 19 21Z" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
+                    <path d="M17 21V13H7V21M7 3V8H15" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
+                  </svg>
+                  Save Changes
+                </>
+              )}
             </button>
           </div>
         </form>

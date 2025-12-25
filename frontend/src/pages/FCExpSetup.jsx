@@ -8,28 +8,94 @@ import FCExpTableDetails from "../features/Forecast/FCExpTableDetails.jsx";
 import Rest from "../js/rest.js";
 import "../features/Forecast/FCModulesFilter.css";
 import "./PageLayout.css";
+import "./FCExpSetup.css";
 
+/**
+ * FCExpSetup - Forecast Income/Expense Setup Page
+ *
+ * This component provides a comprehensive interface for managing forecast income and expense entries.
+ * It allows users to view, create, edit, and delete forecast entries within different scenarios.
+ *
+ * Key Features:
+ * - Scenario-based filtering and management
+ * - Dynamic account hierarchy loading from Chart of Accounts
+ * - Automatic base value calculation from historical cash flow data
+ * - Growth rate configuration with periodic changes
+ * - Matched vs unmatched entry distinction
+ * - Real-time entry selection and detail viewing
+ *
+ * @component
+ * @returns {JSX.Element} The forecast expense setup page
+ */
 export default function FCExpSetup() {
+  // ========== Core Data State ==========
+  /** @type {[Object|null, Function]} Forecast assumptions including scenarios and period ranges */
   const [assumptions, setAssumptions] = useState(null);
+
+  /** @type {[string, Function]} Currently selected scenario name */
   const [selectedScenario, setSelectedScenario] = useState("");
+
+  /** @type {[string, Function]} Error message for assumptions loading */
   const [error, setError] = useState("");
+
+  /** @type {[boolean, Function]} Loading state for assumptions */
   const [isLoading, setIsLoading] = useState(false);
+
+  // ========== Income/Expense Entries State ==========
+  /** @type {[boolean, Function]} Loading state for income/expense entries */
   const [entriesLoading, setEntriesLoading] = useState(false);
+
+  /** @type {[string, Function]} Error message for entries loading */
   const [entriesError, setEntriesError] = useState("");
+
+  /** @type {[Array, Function]} List of income/expense forecast entries */
   const [incomeExpenseEntries, setIncomeExpenseEntries] = useState([]);
+
+  /** @type {[string, Function]} ID of currently selected entry */
   const [selectedEntryId, setSelectedEntryId] = useState("");
+
+  // ========== Delete Modal State ==========
+  /** @type {[boolean, Function]} Whether delete confirmation modal is visible */
   const [showDeleteModal, setShowDeleteModal] = useState(false);
+
+  /** @type {[boolean, Function]} Whether delete operation is in progress */
   const [deleteSaving, setDeleteSaving] = useState(false);
+
+  /** @type {[string, Function]} Error message from delete operation */
   const [deleteError, setDeleteError] = useState("");
+
+  // ========== Edit Modal State ==========
+  /** @type {[boolean, Function]} Whether edit modal is visible */
   const [showEditModal, setShowEditModal] = useState(false);
+
+  /** @type {[Object|null, Function]} Form data for entry being edited */
   const [editForm, setEditForm] = useState(null);
+
+  /** @type {[boolean, Function]} Whether save operation is in progress */
   const [editSaving, setEditSaving] = useState(false);
+
+  /** @type {[string, Function]} Error message from save operation */
   const [editError, setEditError] = useState("");
+
+  // ========== Account Hierarchy State ==========
+  /** @type {[Array, Function]} List of level-2 account names from COA */
   const [accountOptions, setAccountOptions] = useState([]);
+
+  /** @type {[Object, Function]} Map of account names to their leaf account names */
   const [accountNameOptions, setAccountNameOptions] = useState({});
+
+  /** @type {[Object, Function]} Map of leaf account names to their parent account */
   const [leafAccountLookup, setLeafAccountLookup] = useState({});
+
+  // ========== Refs ==========
+  /** Reference to scenario select element for dynamic width calculation */
   const scenarioSelectRef = useRef(null);
 
+  // ========== Effects ==========
+  /**
+   * Effect: Load forecast assumptions on component mount
+   * Fetches scenarios, period ranges, and other forecast configuration
+   */
   useEffect(() => {
     let isMounted = true;
     const loadAssumptions = async () => {
@@ -58,6 +124,10 @@ export default function FCExpSetup() {
     };
   }, []);
 
+  /**
+   * Effect: Auto-select first scenario when assumptions load
+   * Maintains current selection if still valid, otherwise defaults to first scenario
+   */
   useEffect(() => {
     const availableScenarios = assumptions?.scenarios || [];
     if (!availableScenarios.length) {
@@ -76,6 +146,10 @@ export default function FCExpSetup() {
     });
   }, [assumptions]);
 
+  /**
+   * Effect: Load Chart of Accounts hierarchy on component mount
+   * Builds account options and lookup tables for matched entries
+   */
   useEffect(() => {
     let isMounted = true;
 
@@ -149,6 +223,10 @@ export default function FCExpSetup() {
     };
   }, []);
 
+  /**
+   * Effect: Dynamically adjust scenario select width to fit content
+   * Uses canvas text measurement to calculate optimal width for longest scenario name
+   */
   useEffect(() => {
     const selectEl = scenarioSelectRef.current;
     if (!selectEl) {
@@ -186,15 +264,24 @@ export default function FCExpSetup() {
     selectEl.style.width = `${widest + padding + borders + arrowSpace}px`;
   }, [assumptions]);
 
+  // ========== Computed Values ==========
+  /** Details of the currently selected scenario */
   const selectedScenarioDetails = (assumptions?.scenarios || []).find(
     (scenario) => scenario.Name === selectedScenario
   );
 
+  /** Period start date (scenario-specific or global default) */
   const periodStart =
     selectedScenarioDetails?.PeriodStart ?? assumptions?.PeriodStart ?? null;
+
+  /** Period end date (scenario-specific or global default) */
   const periodEnd =
     selectedScenarioDetails?.PeriodEnd ?? assumptions?.PeriodEnd ?? null;
 
+  /**
+   * Effect: Load income/expense entries when scenario changes
+   * Fetches all forecast entries for the selected scenario
+   */
   useEffect(() => {
     if (!selectedScenario) {
       setIncomeExpenseEntries([]);
@@ -237,6 +324,13 @@ export default function FCExpSetup() {
     };
   }, [selectedScenario]);
 
+  // ========== Utility Functions ==========
+  /**
+   * Format date value to display year only
+   * Handles dates, numbers, and string formats
+   * @param {Date|number|string} value - Date value to format
+   * @returns {string} Four-digit year or "—" if invalid
+   */
   const formatDate = (value) => {
     if (!value) return "—";
     const parsed = new Date(value);
@@ -250,6 +344,11 @@ export default function FCExpSetup() {
     return match ? match[0] : "—";
   };
 
+  /**
+   * Format number with locale-specific formatting
+   * @param {number} value - Number to format
+   * @returns {string} Formatted number with 2 decimal places or "—" if invalid
+   */
   const formatNumber = (value) =>
     typeof value === "number"
       ? value.toLocaleString(undefined, {
@@ -258,6 +357,10 @@ export default function FCExpSetup() {
         })
       : "—";
 
+  /**
+   * Sorted list of income/expense entries
+   * Sorts by Account name, then by Name
+   */
   const sortedEntries = useMemo(() => {
     return [...incomeExpenseEntries].sort((a, b) => {
       const accountCompare = (a.Account || "").localeCompare(b.Account || "");
@@ -268,9 +371,19 @@ export default function FCExpSetup() {
     });
   }, [incomeExpenseEntries]);
 
+  /**
+   * Generate unique ID for an entry
+   * Uses MongoDB _id if available, otherwise creates composite key
+   * @param {Object} entry - Income/expense entry
+   * @returns {string} Unique identifier for the entry
+   */
   const getEntryId = (entry) =>
     entry?._id || `${entry?.Account || ""}-${entry?.Name || ""}`;
 
+  /**
+   * Effect: Auto-select first entry when entries list changes
+   * Maintains current selection if still valid
+   */
   useEffect(() => {
     setSelectedEntryId((prev) => {
       if (incomeExpenseEntries.some((entry) => getEntryId(entry) === prev)) {
@@ -281,10 +394,16 @@ export default function FCExpSetup() {
     });
   }, [incomeExpenseEntries]);
 
+  /** Currently selected entry object */
   const selectedEntry =
     sortedEntries.find((entry) => getEntryId(entry) === selectedEntryId) ??
     null;
 
+  /**
+   * Extract year from various date formats
+   * @param {Date|number|string} value - Date value
+   * @returns {number|null} Four-digit year or null if invalid
+   */
   const getScenarioYear = (value) => {
     const raw = value;
     if (typeof raw === "number" && Number.isFinite(raw)) {
@@ -302,12 +421,18 @@ export default function FCExpSetup() {
     return match ? Number(match[0]) : null;
   };
 
+  /** @returns {number|null} Start year of current scenario */
   const getScenarioStartYear = () =>
     getScenarioYear(selectedScenarioDetails?.PeriodStart ?? assumptions?.PeriodStart);
 
+  /** @returns {number|null} End year of current scenario */
   const getScenarioEndYear = () =>
     getScenarioYear(selectedScenarioDetails?.PeriodEnd ?? assumptions?.PeriodEnd);
 
+  /**
+   * Array of years in the scenario period range
+   * Used for year selection in changes/adjustments
+   */
   const periodYears = useMemo(() => {
     const start = getScenarioStartYear();
     const end = getScenarioEndYear();
@@ -321,6 +446,11 @@ export default function FCExpSetup() {
     return years;
   }, [assumptions, selectedScenarioDetails]);
 
+  // ========== Event Handlers ==========
+  /**
+   * Create a new income/expense entry for the current scenario
+   * Initializes with default values and refreshes the entries list
+   */
   const handleAddIncomeExpense = async () => {
     if (!selectedScenario) {
       return;
@@ -366,18 +496,29 @@ export default function FCExpSetup() {
     }
   };
 
+  /**
+   * Open delete confirmation modal for selected entry
+   */
   const openDeleteModal = () => {
     if (!selectedEntry) return;
     setDeleteError("");
     setShowDeleteModal(true);
   };
 
+  /**
+   * Close delete confirmation modal
+   * Prevents closing while delete operation is in progress
+   */
   const closeDeleteModal = () => {
     if (deleteSaving) return;
     setShowDeleteModal(false);
     setDeleteError("");
   };
 
+  /**
+   * Delete the currently selected entry
+   * Refreshes the entries list on success
+   */
   const handleDeleteEntry = async () => {
     if (!selectedEntry?._id) {
       setDeleteError("Cannot delete entry without an identifier.");
@@ -405,6 +546,10 @@ export default function FCExpSetup() {
     }
   };
 
+  /**
+   * Open edit modal for the selected entry
+   * Initializes form with current entry values
+   */
   const openEditModal = () => {
     if (!selectedEntry) return;
     setEditError("");
@@ -445,6 +590,10 @@ export default function FCExpSetup() {
     setShowEditModal(true);
   };
 
+  /**
+   * Close edit modal
+   * Prevents closing while save operation is in progress
+   */
   const closeEditModal = () => {
     if (editSaving) return;
     setShowEditModal(false);
@@ -452,10 +601,20 @@ export default function FCExpSetup() {
     setEditError("");
   };
 
+  /**
+   * Update a field in the edit form
+   * @param {string} field - Field name to update
+   * @param {any} value - New value for the field
+   */
   const handleEditFieldChange = (field, value) => {
     setEditForm((prev) => ({ ...(prev || {}), [field]: value }));
   };
 
+  /**
+   * Normalize input value to a number or null
+   * @param {any} value - Input value
+   * @returns {number|null} Numeric value or null
+   */
   const normalizeNumber = (value) => {
     if (value === "" || value === null || value === undefined) {
       return null;
@@ -464,6 +623,11 @@ export default function FCExpSetup() {
     return Number.isFinite(num) ? num : null;
   };
 
+  /**
+   * Normalize changes array, filtering out empty entries
+   * @param {Array} changes - Array of change objects
+   * @returns {Array} Normalized and filtered changes
+   */
   const normalizeChanges = (changes) => {
     if (!Array.isArray(changes)) return [];
     return changes
@@ -486,6 +650,10 @@ export default function FCExpSetup() {
     .filter(Boolean);
   };
 
+  /**
+   * Save changes to the edited entry
+   * Validates and normalizes data before sending to API
+   */
   const handleSaveEdit = async () => {
     if (!selectedEntry?._id || !editForm) {
       return;
@@ -534,6 +702,10 @@ export default function FCExpSetup() {
     }
   };
 
+  /**
+   * Effect: Auto-correct Account/Name when Matched mode is enabled
+   * Ensures Account and Name values are valid based on COA structure
+   */
   useEffect(() => {
     if (!editForm?.Matched) return;
     const account = editForm.Account;

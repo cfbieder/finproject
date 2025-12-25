@@ -23,7 +23,9 @@ const {
 const mongoose = require("../../../../components/node_modules/mongoose");
 const FCModule = require("../../../../components/models/FCModule");
 const FCEntries = require("../../../../components/models/FCEntries");
-const { processModule } = require("./fcbuilder-module");
+const FCIncExp = require("../../../../components/models/FCIncExp");
+const { processModule: processBSModule } = require("./fcbuilder-module");
+const { processModule: processIncExpModule } = require("./fcbuilder-incexp");
 
 const MONGO_URI = process.env.MONGO_URI || "mongodb://localhost:27018/fin";
 
@@ -37,7 +39,7 @@ const scenarioTaxRate = Number.isFinite(taxRate)
   : Number(scenario?.TaxRate ?? 0);
 scenario.TaxRate = scenarioTaxRate;
 
-console.log("FX Rates (PLN):", fxratesPLN);
+//console.log("FX Rates (PLN):", fxratesPLN);
 
 // Create assumptions dataframe with inflation and FX rates indexed by year
 const df_assumptions = new dfd.DataFrame(
@@ -49,8 +51,8 @@ const df_assumptions = new dfd.DataFrame(
   { index: years }
 );
 
-console.log("Scenario Configuration:", scenario);
-console.log(df_assumptions.toString());
+//console.log("Scenario Configuration:", scenario);
+//console.log(df_assumptions.toString());
 
 // ============================================================================
 // Database Connection Functions
@@ -116,6 +118,22 @@ async function loadModulesForScenario(name) {
   await ensureConnection();
 
   return FCModule.find({ Scenario: name }).lean().exec();
+}
+
+/**
+ * Loads all income/expense modules for a given scenario from the database
+ *
+ * @param {string} name - Scenario name
+ * @returns {Promise<Array>} Array of FCIncExp documents
+ */
+async function loadIncExpModulesForScenario(name) {
+  if (!name || !MONGO_URI) {
+    return [];
+  }
+
+  await ensureConnection();
+
+  return FCIncExp.find({ Scenario: name }).lean().exec();
 }
 
 /**
@@ -222,14 +240,21 @@ async function main() {
     await clearEntriesForScenario(scenario.Name);
 
     // Step 2: Load modules and categories in parallel
-    const [modules, { expenseCategories, incomeCategories, accountNames }] =
-      await Promise.all([
-        loadModulesForScenario(scenario.Name),
-        loadCategoriesForScenario(scenario.Name),
-      ]);
+    const [
+      bsModules,
+      { expenseCategories, incomeCategories, accountNames },
+      incexpModules,
+    ] = await Promise.all([
+      loadModulesForScenario(scenario.Name),
+      loadCategoriesForScenario(scenario.Name),
+      loadIncExpModulesForScenario(scenario.Name),
+    ]);
 
     console.log(
-      `Loaded ${modules.length} FCModule entries for scenario ${scenario.Name}`
+      `Loaded ${bsModules.length} FCModule entries for scenario ${scenario.Name}`
+    );
+    console.log(
+      `Loaded ${incexpModules.length} FCIncExpModule entries for scenario ${scenario.Name}`
     );
     console.log("Scenario details:", scenario);
 
@@ -254,8 +279,15 @@ async function main() {
 
     // Step 4: Process all modules in parallel
     await Promise.all(
-      modules.map((module) =>
-        processModule(module, scenario, df_assumptions, df_categories)
+      bsModules.map((module) =>
+        processBSModule(module, scenario, df_assumptions, df_categories)
+      )
+    );
+
+    // Step 5: Process income/expense modules in parallel
+    await Promise.all(
+      incexpModules.map((module) =>
+        processIncExpModule(module, scenario, df_assumptions, df_categories)
       )
     );
 

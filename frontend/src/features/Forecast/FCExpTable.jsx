@@ -1,3 +1,22 @@
+/**
+ * FCExpTable - Main table displaying forecast income/expense entries
+ *
+ * Shows a list of all forecast entries for the selected scenario with sortable columns.
+ * Handles selection, loading states, and empty states.
+ *
+ * @component
+ * @param {Object} props - Component props
+ * @param {boolean} props.entriesLoading - Whether entries are loading
+ * @param {string} props.entriesError - Error message to display
+ * @param {string} props.selectedScenario - Currently selected scenario
+ * @param {Array} props.sortedEntries - Sorted array of forecast entries
+ * @param {string} props.selectedEntryId - ID of selected entry
+ * @param {Function} props.onSelectEntry - Callback when an entry is selected
+ * @param {Function} props.getEntryId - Function to get unique ID for an entry
+ * @param {Function} props.formatDate - Function to format date values
+ * @param {Function} props.formatNumber - Function to format number values
+ * @returns {JSX.Element} The forecast entries table
+ */
 export default function FCExpTable({
   entriesLoading,
   entriesError,

@@ -1,0 +1,300 @@
+/**
+ * FCExpDeleteModal Styling
+ * Professional confirmation modal for delete operations
+ */
+
+/* ============================================================================
+   MODAL OVERLAY
+   ============================================================================ */
+
+.fc-delete-modal-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(15, 23, 42, 0.6);
+  backdrop-filter: blur(6px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 2rem;
+  z-index: 1000;
+  animation: deleteModalFadeIn 0.2s ease-out;
+}
+
+@keyframes deleteModalFadeIn {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+/* ============================================================================
+   MODAL CONTAINER
+   ============================================================================ */
+
+.fc-delete-modal {
+  width: min(480px, 92vw);
+  background: white;
+  border-radius: 1.25rem;
+  padding: 2rem;
+  box-shadow:
+    0 20px 60px -12px rgba(239, 68, 68, 0.25),
+    0 8px 24px -8px rgba(15, 23, 42, 0.15),
+    0 0 0 1px rgba(239, 68, 68, 0.1);
+  animation: deleteModalSlideUp 0.3s cubic-bezier(0.34, 1.56, 0.64, 1);
+  display: flex;
+  flex-direction: column;
+  gap: 1.5rem;
+  position: relative;
+}
+
+@keyframes deleteModalSlideUp {
+  from {
+    opacity: 0;
+    transform: translateY(20px) scale(0.95);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+/* ============================================================================
+   ICON
+   ============================================================================ */
+
+.fc-delete-modal__icon-container {
+  display: flex;
+  justify-content: center;
+  margin-bottom: 0.5rem;
+}
+
+.fc-delete-modal__icon {
+  width: 72px;
+  height: 72px;
+  border-radius: 50%;
+  background: linear-gradient(135deg, rgba(239, 68, 68, 0.1) 0%, rgba(220, 38, 38, 0.15) 100%);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #dc2626;
+  animation: deleteIconPulse 2s ease-in-out infinite;
+}
+
+@keyframes deleteIconPulse {
+  0%, 100% {
+    box-shadow: 0 0 0 0 rgba(239, 68, 68, 0.4);
+  }
+  50% {
+    box-shadow: 0 0 0 16px rgba(239, 68, 68, 0);
+  }
+}
+
+/* ============================================================================
+   CONTENT
+   ============================================================================ */
+
+.fc-delete-modal__title {
+  margin: 0;
+  font-size: 1.5rem;
+  font-weight: 800;
+  color: var(--ink);
+  text-align: center;
+  letter-spacing: -0.02em;
+}
+
+.fc-delete-modal__description {
+  margin: 0;
+  font-size: 1rem;
+  font-weight: 500;
+  color: #64748b;
+  text-align: center;
+  line-height: 1.6;
+}
+
+.fc-delete-modal__description strong {
+  color: var(--ink);
+  font-weight: 700;
+}
+
+.fc-delete-modal__warning {
+  margin: 0;
+  font-size: 0.9rem;
+  font-weight: 600;
+  color: #dc2626;
+  text-align: center;
+  padding: 0.75rem 1rem;
+  background: linear-gradient(135deg, rgba(239, 68, 68, 0.08) 0%, rgba(239, 68, 68, 0.04) 100%);
+  border-radius: 0.65rem;
+  border: 1px solid rgba(239, 68, 68, 0.2);
+}
+
+/* ============================================================================
+   ERROR MESSAGE
+   ============================================================================ */
+
+.fc-delete-modal__error {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  padding: 1rem 1.25rem;
+  background: linear-gradient(135deg, rgba(239, 68, 68, 0.12) 0%, rgba(239, 68, 68, 0.06) 100%);
+  border: 1.5px solid rgba(239, 68, 68, 0.3);
+  border-radius: 0.75rem;
+  color: #dc2626;
+  font-weight: 600;
+  font-size: 0.95rem;
+  animation: deleteErrorShake 0.4s ease-in-out;
+}
+
+@keyframes deleteErrorShake {
+  0%, 100% { transform: translateX(0); }
+  25% { transform: translateX(-8px); }
+  75% { transform: translateX(8px); }
+}
+
+.fc-delete-modal__error svg {
+  flex-shrink: 0;
+  color: #dc2626;
+}
+
+/* ============================================================================
+   ACTIONS
+   ============================================================================ */
+
+.fc-delete-modal__actions {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 0.75rem;
+  margin-top: 0.5rem;
+}
+
+.fc-delete-modal__button {
+  padding: 0.875rem 1.5rem;
+  border-radius: 0.75rem;
+  font-weight: 700;
+  font-size: 1rem;
+  cursor: pointer;
+  transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+  border: 2px solid transparent;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  position: relative;
+  overflow: hidden;
+}
+
+.fc-delete-modal__button::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(135deg, rgba(255, 255, 255, 0.2) 0%, transparent 100%);
+  opacity: 0;
+  transition: opacity 0.2s ease;
+}
+
+.fc-delete-modal__button:hover::before {
+  opacity: 1;
+}
+
+.fc-delete-modal__button:active {
+  transform: scale(0.97);
+}
+
+.fc-delete-modal__button:disabled {
+  cursor: not-allowed;
+  opacity: 0.6;
+}
+
+/* Cancel Button */
+.fc-delete-modal__button--cancel {
+  background: linear-gradient(135deg, #f1f5f9 0%, #e2e8f0 100%);
+  color: #475569;
+  border-color: #cbd5e1;
+}
+
+.fc-delete-modal__button--cancel:hover:not(:disabled) {
+  background: linear-gradient(135deg, #e2e8f0 0%, #cbd5e1 100%);
+  border-color: #94a3b8;
+  transform: translateY(-2px);
+  box-shadow: 0 6px 16px -6px rgba(71, 85, 105, 0.3);
+}
+
+/* Delete Button */
+.fc-delete-modal__button--delete {
+  background: linear-gradient(135deg, #ef4444 0%, #dc2626 100%);
+  color: white;
+  border-color: transparent;
+  box-shadow: 0 4px 12px -4px rgba(239, 68, 68, 0.5);
+}
+
+.fc-delete-modal__button--delete:hover:not(:disabled) {
+  background: linear-gradient(135deg, #dc2626 0%, #b91c1c 100%);
+  transform: translateY(-2px);
+  box-shadow: 0 8px 20px -6px rgba(239, 68, 68, 0.6),
+    0 0 0 3px rgba(239, 68, 68, 0.2);
+}
+
+.fc-delete-modal__button--delete svg {
+  flex-shrink: 0;
+}
+
+/* ============================================================================
+   LOADING SPINNER
+   ============================================================================ */
+
+.fc-delete-modal__spinner {
+  width: 16px;
+  height: 16px;
+  border: 2px solid rgba(255, 255, 255, 0.3);
+  border-top-color: white;
+  border-radius: 50%;
+  animation: deleteSpinner 0.8s linear infinite;
+}
+
+@keyframes deleteSpinner {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+/* ============================================================================
+   RESPONSIVE DESIGN
+   ============================================================================ */
+
+@media (max-width: 640px) {
+  .fc-delete-modal {
+    padding: 1.5rem;
+    gap: 1.25rem;
+  }
+
+  .fc-delete-modal__icon {
+    width: 64px;
+    height: 64px;
+  }
+
+  .fc-delete-modal__icon svg {
+    width: 40px;
+    height: 40px;
+  }
+
+  .fc-delete-modal__title {
+    font-size: 1.35rem;
+  }
+
+  .fc-delete-modal__description {
+    font-size: 0.95rem;
+  }
+
+  .fc-delete-modal__actions {
+    grid-template-columns: 1fr;
+    gap: 0.65rem;
+  }
+
+  .fc-delete-modal__button {
+    padding: 0.8rem 1.25rem;
+    font-size: 0.95rem;
+  }
+}

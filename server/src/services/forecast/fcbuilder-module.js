@@ -589,8 +589,6 @@ function processModule(module, scenario, df_assumptions, df_categories) {
     );
   }
 
-
-
   // Calculate income and expense values based on average market value for the year
   // Using average of beginning and ending values smooths out intra-year fluctuations
   const expenseValues = new Array(yearsCount).fill(0);
@@ -613,7 +611,7 @@ function processModule(module, scenario, df_assumptions, df_categories) {
         : 0;
   }
 
-    // Calculate tax values on realized gains only (not unrealized)
+  // Calculate tax values on realized gains only (not unrealized)
   // Taxes are negative values (cash outflows)
   const taxValues = new Array(yearsCount).fill(0);
   const taxRate = Number(
@@ -631,10 +629,9 @@ function processModule(module, scenario, df_assumptions, df_categories) {
       // Only apply tax to positive income
       if (income > 0) {
         taxValues[i] += rateFactor * income;
-      } 
+      }
     }
   }
-
 
   // Convert all local currency (LC) values to USD using FX rates
   // Creates parallel arrays for all financial metrics in USD
@@ -779,8 +776,8 @@ function processModule(module, scenario, df_assumptions, df_categories) {
   );
 
   // Display the categories dataframe for debugging
-  const dfCategoriesDisplay = configureDisplay(df_categories);
-  console.log(dfCategoriesDisplay.toString());
+  //const dfCategoriesDisplay = configureDisplay(df_categories);
+  //console.log(dfCategoriesDisplay.toString());
 
   // Optional: Display module dataframes (currently commented out)
   // logDataFrames(df_module_LC, df_module_USD);

@@ -1,9 +1,32 @@
+/**
+ * FCExpTableDetails - Detail panel for selected forecast entry
+ *
+ * Displays comprehensive information about the selected forecast entry including:
+ * - Basic entry details (account, name, type, currency)
+ * - Base values and dates
+ * - Growth rate
+ * - List of all periodic changes with formatting
+ *
+ * @component
+ * @param {Object} props - Component props
+ * @param {string} props.selectedScenario - Currently selected scenario
+ * @param {Object} props.selectedEntry - The selected forecast entry
+ * @param {Function} props.formatDate - Function to format date values
+ * @param {Function} props.formatNumber - Function to format number values
+ * @returns {JSX.Element} The entry details panel
+ */
 export default function FCExpTableDetails({
   selectedScenario,
   selectedEntry,
   formatDate,
   formatNumber,
 }) {
+  /**
+   * Format change amount based on flag type
+   * @param {number} amount - Amount value
+   * @param {string} flag - Type flag ("Fixed $" or "Percent %")
+   * @returns {string} Formatted amount string
+   */
   const formatChangeAmount = (amount, flag) => {
     const num = Number(amount);
     if (!Number.isFinite(num)) return "—";
@@ -38,59 +61,96 @@ export default function FCExpTableDetails({
               <div
                 style={{
                   display: "grid",
-                  gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))",
-                  gap: "0.75rem 1rem",
-                  padding: "0.25rem 0",
+                  gridTemplateColumns: "repeat(auto-fit, minmax(240px, 1fr))",
+                  gap: "1rem 1.25rem",
+                  padding: "0.5rem 0",
                 }}
               >
-                <div>
-                  <strong>Account:</strong> {selectedEntry.Account || "—"}
+                <div style={{ display: "flex", flexDirection: "column", gap: "0.25rem" }}>
+                  <span style={{ fontSize: "0.75rem", color: "var(--muted)", textTransform: "uppercase", letterSpacing: "0.05em", fontWeight: "600" }}>Account</span>
+                  <span style={{ fontSize: "1rem", fontWeight: "700", color: "var(--ink)" }}>{selectedEntry.Account || "—"}</span>
                 </div>
-                <div>
-                  <strong>Name:</strong> {selectedEntry.Name || "—"}
+                <div style={{ display: "flex", flexDirection: "column", gap: "0.25rem" }}>
+                  <span style={{ fontSize: "0.75rem", color: "var(--muted)", textTransform: "uppercase", letterSpacing: "0.05em", fontWeight: "600" }}>Name</span>
+                  <span style={{ fontSize: "1rem", fontWeight: "700", color: "var(--ink)" }}>{selectedEntry.Name || "—"}</span>
                 </div>
-                <div>
-                  <strong>Type:</strong> {selectedEntry.Type || "—"}
+                <div style={{ display: "flex", flexDirection: "column", gap: "0.25rem" }}>
+                  <span style={{ fontSize: "0.75rem", color: "var(--muted)", textTransform: "uppercase", letterSpacing: "0.05em", fontWeight: "600" }}>Type</span>
+                  <span style={{ fontSize: "1rem", fontWeight: "700", color: "var(--ink)" }}>{selectedEntry.Type || "—"}</span>
                 </div>
-                <div>
-                  <strong>Currency:</strong> {selectedEntry.Currency || "—"}
+                <div style={{ display: "flex", flexDirection: "column", gap: "0.25rem" }}>
+                  <span style={{ fontSize: "0.75rem", color: "var(--muted)", textTransform: "uppercase", letterSpacing: "0.05em", fontWeight: "600" }}>Currency</span>
+                  <span style={{ fontSize: "1rem", fontWeight: "700", color: "var(--ink)" }}>{selectedEntry.Currency || "—"}</span>
                 </div>
-                <div>
-                  <strong>Base Date:</strong> {formatDate(selectedEntry.BaseDate)}
+                <div style={{ display: "flex", flexDirection: "column", gap: "0.25rem" }}>
+                  <span style={{ fontSize: "0.75rem", color: "var(--muted)", textTransform: "uppercase", letterSpacing: "0.05em", fontWeight: "600" }}>Base Date</span>
+                  <span style={{ fontSize: "1rem", fontWeight: "700", color: "var(--ink)" }}>{formatDate(selectedEntry.BaseDate)}</span>
                 </div>
-                <div>
-                  <strong>Base Value:</strong>{" "}
-                  {formatNumber(selectedEntry.BaseValue)}
+                <div style={{ display: "flex", flexDirection: "column", gap: "0.25rem" }}>
+                  <span style={{ fontSize: "0.75rem", color: "var(--muted)", textTransform: "uppercase", letterSpacing: "0.05em", fontWeight: "600" }}>Base Value</span>
+                  <span style={{ fontSize: "1rem", fontWeight: "700", color: "var(--ink)" }}>{formatNumber(selectedEntry.BaseValue)}</span>
                 </div>
-                <div>
-                  <strong>Base Value (USD):</strong>{" "}
-                  {formatNumber(selectedEntry.BaseValueUSD)}
+                <div style={{ display: "flex", flexDirection: "column", gap: "0.25rem" }}>
+                  <span style={{ fontSize: "0.75rem", color: "var(--muted)", textTransform: "uppercase", letterSpacing: "0.05em", fontWeight: "600" }}>Base Value (USD)</span>
+                  <span style={{ fontSize: "1rem", fontWeight: "700", color: "var(--primary)" }}>{formatNumber(selectedEntry.BaseValueUSD)}</span>
                 </div>
-                <div>
-                  <strong>Growth:</strong>{" "}
-                  {typeof selectedEntry.Growth === "number"
-                    ? `${selectedEntry.Growth.toFixed(2)}%`
-                    : "—"}
+                <div style={{ display: "flex", flexDirection: "column", gap: "0.25rem" }}>
+                  <span style={{ fontSize: "0.75rem", color: "var(--muted)", textTransform: "uppercase", letterSpacing: "0.05em", fontWeight: "600" }}>Growth Rate</span>
+                  <span style={{ fontSize: "1rem", fontWeight: "700", color: "#059669" }}>
+                    {typeof selectedEntry.Growth === "number"
+                      ? `${selectedEntry.Growth.toFixed(2)}%`
+                      : "—"}
+                  </span>
                 </div>
-                <div>
-                  <strong>Changes:</strong>{" "}
-                  {Array.isArray(selectedEntry.Changes)
-                    ? selectedEntry.Changes.length
-                    : 0}
+                <div style={{ display: "flex", flexDirection: "column", gap: "0.25rem" }}>
+                  <span style={{ fontSize: "0.75rem", color: "var(--muted)", textTransform: "uppercase", letterSpacing: "0.05em", fontWeight: "600" }}>Changes</span>
+                  <span style={{ fontSize: "1rem", fontWeight: "700", color: "var(--ink)" }}>
+                    {Array.isArray(selectedEntry.Changes)
+                      ? selectedEntry.Changes.length
+                      : 0}
+                  </span>
                 </div>
-                <div>
-                  <strong>Matched:</strong>{" "}
-                  {selectedEntry.Matched ? "Yes" : "No"}
+                <div style={{ display: "flex", flexDirection: "column", gap: "0.25rem" }}>
+                  <span style={{ fontSize: "0.75rem", color: "var(--muted)", textTransform: "uppercase", letterSpacing: "0.05em", fontWeight: "600" }}>Matched</span>
+                  <span style={{
+                    fontSize: "0.9rem",
+                    fontWeight: "700",
+                    padding: "0.25rem 0.65rem",
+                    borderRadius: "0.4rem",
+                    display: "inline-block",
+                    width: "fit-content",
+                    background: selectedEntry.Matched ? "rgba(16, 185, 129, 0.15)" : "rgba(100, 116, 139, 0.15)",
+                    color: selectedEntry.Matched ? "#059669" : "var(--muted)"
+                  }}>
+                    {selectedEntry.Matched ? "Yes" : "No"}
+                  </span>
                 </div>
-                <div>
-                  <strong>Scenario:</strong>{" "}
-                  {selectedEntry.Scenario || selectedScenario || "—"}
+                <div style={{ display: "flex", flexDirection: "column", gap: "0.25rem" }}>
+                  <span style={{ fontSize: "0.75rem", color: "var(--muted)", textTransform: "uppercase", letterSpacing: "0.05em", fontWeight: "600" }}>Scenario</span>
+                  <span style={{ fontSize: "1rem", fontWeight: "700", color: "var(--ink)" }}>{selectedEntry.Scenario || selectedScenario || "—"}</span>
                 </div>
               </div>
               {!!(selectedEntry.Changes || []).length && (
-                <div style={{ marginTop: "0.75rem" }}>
-                  <strong>Changes:</strong>
-                  <div style={{ marginTop: "0.35rem", display: "grid", gap: "0.5rem" }}>
+                <div style={{
+                  marginTop: "1.5rem",
+                  padding: "1.25rem",
+                  background: "linear-gradient(135deg, rgba(248, 250, 252, 0.8) 0%, rgba(241, 245, 249, 0.6) 100%)",
+                  borderRadius: "0.85rem",
+                  border: "1px solid rgba(37, 99, 235, 0.12)"
+                }}>
+                  <div style={{
+                    fontSize: "0.8rem",
+                    fontWeight: "800",
+                    color: "var(--primary)",
+                    textTransform: "uppercase",
+                    letterSpacing: "0.1em",
+                    marginBottom: "1rem",
+                    paddingBottom: "0.75rem",
+                    borderBottom: "2px solid rgba(37, 99, 235, 0.15)"
+                  }}>
+                    Periodic Changes ({(selectedEntry.Changes || []).length})
+                  </div>
+                  <div style={{ display: "grid", gap: "0.75rem" }}>
                     {(selectedEntry.Changes || []).map((change, idx) => {
                       const formattedAmount = formatChangeAmount(
                         change?.Amount,
@@ -104,24 +164,45 @@ export default function FCExpTableDetails({
                           key={idx}
                           style={{
                             display: "grid",
-                            gridTemplateColumns: "repeat(auto-fit, minmax(140px, 1fr))",
-                            gap: "0.5rem",
+                            gridTemplateColumns: "auto 1fr auto",
+                            gap: "1rem",
                             alignItems: "center",
+                            padding: "0.85rem 1rem",
+                            background: "white",
+                            borderRadius: "0.65rem",
+                            border: "1px solid rgba(37, 99, 235, 0.1)",
+                            boxShadow: "0 2px 6px -2px rgba(37, 99, 235, 0.08)"
                           }}
                         >
-                          <span>
-                            <strong>Year:</strong>{" "}
-                            {formatDate(change?.Date) || "—"}
-                          </span>
-                          <span>
-                            <strong>Amount:</strong>{" "}
-                            <span style={{ color: isNegative ? "red" : undefined }}>
+                          <div style={{ display: "flex", flexDirection: "column", gap: "0.15rem" }}>
+                            <span style={{ fontSize: "0.7rem", color: "var(--muted)", fontWeight: "600" }}>Year</span>
+                            <span style={{ fontSize: "1rem", fontWeight: "700", color: "var(--ink)" }}>
+                              {formatDate(change?.Date) || "—"}
+                            </span>
+                          </div>
+                          <div style={{ display: "flex", flexDirection: "column", gap: "0.15rem" }}>
+                            <span style={{ fontSize: "0.7rem", color: "var(--muted)", fontWeight: "600" }}>Amount</span>
+                            <span style={{
+                              fontSize: "1.1rem",
+                              fontWeight: "700",
+                              color: isNegative ? "#dc2626" : "#059669"
+                            }}>
                               {formattedAmount}
                             </span>
-                          </span>
-                          <span>
-                            <strong>Flag:</strong> {change?.Flag || "—"}
-                          </span>
+                          </div>
+                          <div>
+                            <span style={{
+                              fontSize: "0.8rem",
+                              fontWeight: "700",
+                              padding: "0.35rem 0.75rem",
+                              borderRadius: "0.4rem",
+                              background: change?.Flag === "Percent %" ? "rgba(59, 130, 246, 0.15)" : "rgba(16, 185, 129, 0.15)",
+                              color: change?.Flag === "Percent %" ? "#2563eb" : "#059669",
+                              whiteSpace: "nowrap"
+                            }}>
+                              {change?.Flag || "—"}
+                            </span>
+                          </div>
                         </div>
                       );
                     })}

@@ -1,5 +1,29 @@
 import "./FCModulesFilter.css";
 
+/**
+ * FCExpFilter - Filter and action bar for forecast expense setup
+ *
+ * Provides scenario selection dropdown and action buttons (Add, Edit, Delete).
+ * Displays period range information and handles loading/error states.
+ *
+ * @component
+ * @param {Object} props - Component props
+ * @param {Object} props.assumptions - Forecast assumptions including scenarios
+ * @param {string} props.error - Error message to display
+ * @param {boolean} props.isLoading - Whether data is loading
+ * @param {Function} props.onScenarioChange - Callback when scenario changes
+ * @param {React.Ref} props.scenarioSelectRef - Ref for scenario select element
+ * @param {string} props.selectedScenario - Currently selected scenario name
+ * @param {string} props.periodStart - Period start date/year
+ * @param {string} props.periodEnd - Period end date/year
+ * @param {Function} props.onAddClick - Callback for Add button
+ * @param {Function} props.onEditClick - Callback for Edit button
+ * @param {Function} props.onDeleteClick - Callback for Delete button
+ * @param {boolean} props.addDisabled - Whether Add button is disabled
+ * @param {boolean} props.editDisabled - Whether Edit button is disabled
+ * @param {boolean} props.deleteDisabled - Whether Delete button is disabled
+ * @returns {JSX.Element} The filter component
+ */
 export default function FCExpFilter({
   assumptions,
   error,
