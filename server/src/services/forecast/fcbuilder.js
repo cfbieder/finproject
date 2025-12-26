@@ -105,6 +105,33 @@ async function loadCategoriesForScenario(name) {
 }
 
 /**
+ * Loads all unique income/expense categories for a given scenario from FCIncExp
+ *
+ * @param {string} name - Scenario name
+ * @returns {Promise<{incexpCategories: string[]}>}
+ */
+async function loadIncExpCategoriesForScenario(name) {
+  if (!name || !MONGO_URI) {
+    return { incexpCategories: [] };
+  }
+
+  await ensureConnection();
+
+  const [result] =
+    (await FCIncExp.aggregate([
+      { $match: { Scenario: name } },
+      {
+        $group: {
+          _id: null,
+          incexpCategories: { $addToSet: "$Account" },
+        },
+      },
+    ])) || [];
+
+  return { incexpCategories: result?.incexpCategories?.filter(Boolean) ?? [] };
+}
+
+/**
  * Loads all forecast modules for a given scenario from the database
  *
  * @param {string} name - Scenario name
@@ -243,10 +270,12 @@ async function main() {
     const [
       bsModules,
       { expenseCategories, incomeCategories, accountNames },
+      { incexpCategories },
       incexpModules,
     ] = await Promise.all([
       loadModulesForScenario(scenario.Name),
       loadCategoriesForScenario(scenario.Name),
+      loadIncExpCategoriesForScenario(scenario.Name),
       loadIncExpModulesForScenario(scenario.Name),
     ]);
 
@@ -265,9 +294,18 @@ async function main() {
       expenseCategories
     );
 
+    if (!incexpCategories.includes("Taxes")) {
+      incexpCategories.push("Taxes");
+    }
+    incexpCategories.push("Bank Accounts");
     const columns = buildColumns(years);
     const zerosMatrix = createZerosMatrix(
       scenarioCategories.length,
+      columns.length
+    );
+
+    const zerosMatrix2 = createZerosMatrix(
+      incexpCategories.length,
       columns.length
     );
 
@@ -276,6 +314,12 @@ async function main() {
       index: scenarioCategories,
     });
     df_categories.config.setMaxRow(1000);
+
+    const df_categories2 = new dfd.DataFrame(zerosMatrix2, {
+      columns: columns,
+      index: incexpCategories,
+    });
+    df_categories2.config.setMaxRow(1000);
 
     // Step 4: Process all modules in parallel
     await Promise.all(
@@ -287,7 +331,7 @@ async function main() {
     // Step 5: Process income/expense modules in parallel
     await Promise.all(
       incexpModules.map((module) =>
-        processIncExpModule(module, scenario, df_assumptions, df_categories)
+        processIncExpModule(module, scenario, df_assumptions, df_categories2)
       )
     );
 
