@@ -11,19 +11,16 @@ const fs = require("fs");
 const path = require("path");
 const mongoose = require("../../../../components/node_modules/mongoose");
 const FCEntries = require("../../../../components/models/FCEntries");
-const { categories, years } = require("./fcbuilder-setup");
+const { categories: legacyCategories, years: legacyYears } = require("./fcbuilder-setup");
 
 // ============================================================================
 // Audit Trail Configuration
 // ============================================================================
 
-const auditTrailDir = path.resolve(
-  __dirname,
-  "../../../../components/data/auditTrail"
-);
+const { PATHS } = require("./constants");
+
+const auditTrailDir = PATHS.AUDIT_TRAIL_DIR;
 let auditTrailDirEnsured = false;
-const pendingAuditTrails = new Set();
-let exitScheduled = false;
 
 /**
  * Ensures the audit trail directory exists, creating it if necessary.
@@ -43,38 +40,6 @@ const ensureAuditTrailDir = () => {
  * @returns {string} Sanitized string value
  */
 const sanitizeName = (value, fallback) => (value && String(value)) || fallback;
-
-/**
- * Schedules process exit once all pending audit trails are completed.
- * This ensures all async operations finish before the process terminates.
- */
-const scheduleExitIfIdle = () => {
-  if (exitScheduled || pendingAuditTrails.size !== 0) {
-    return;
-  }
-  exitScheduled = true;
-  setImmediate(() => process.exit(process.exitCode ?? 0));
-};
-
-/**
- * Tracks an audit trail promise to ensure it completes before process exit.
- *
- * @param {Promise} promise - The audit trail promise to track
- * @returns {Promise} The same promise for chaining
- */
-const trackAuditTrail = (promise) => {
-  pendingAuditTrails.add(promise);
-  promise
-    .catch((error) => {
-      console.error("Failed to write audit trail:", error);
-      process.exitCode = process.exitCode || 1;
-    })
-    .finally(() => {
-      pendingAuditTrails.delete(promise);
-      scheduleExitIfIdle();
-    });
-  return promise;
-};
 
 /**
  * Extracts index values from a DataFrame, handling various danfojs index formats.
@@ -276,9 +241,15 @@ const writeValuesToCategoryRow = (
  * @param {string} scenario.Name - Scenario name
  * @param {DataFrame} df_assumptions - DataFrame containing assumptions (e.g., inflation rates)
  * @param {DataFrame} df_categories - DataFrame to update with calculated values
- * @returns {Promise} Promise that resolves when database insertion completes
+ * @param {Array<string>} categories - Category names array from scenario config
+ * @param {Array<number>} years - Years array from scenario config
+ * @returns {Promise<Object>} Promise that resolves with processing metadata
  */
-function processModule(module, scenario, df_assumptions, df_categories) {
+async function processModule(module, scenario, df_assumptions, df_categories, categories, years) {
+  // Use provided categories/years or fall back to legacy imports for backward compatibility
+  const _categories = categories || legacyCategories;
+  const _years = years || legacyYears;
+
   console.log(`Processing account: ${module.Account}`);
   console.log(`Processing module: ${module.Name}`);
   console.log("Scenario", scenario);
@@ -290,7 +261,7 @@ function processModule(module, scenario, df_assumptions, df_categories) {
 
   // Extract inflation series and period configuration
   const inflationSeries = df_assumptions.column("Inflation").values;
-  const periodStart = years[0];
+  const periodStart = _years[0];
   const inflationLen = inflationSeries.length;
 
   // Initialize change arrays: P = percentage changes, D = dollar amount changes
@@ -397,11 +368,21 @@ function processModule(module, scenario, df_assumptions, df_categories) {
 
   // Write audit trail and persist to database
   writeEntriesAuditTrail(df_categories, scenario?.Name, module?.Account);
-  const dbInsertPromise = trackAuditTrail(
-    insertCategoryEntries(df_categories, scenario?.Name, module?.Account)
+
+  const inserted = await insertCategoryEntries(
+    df_categories,
+    scenario?.Name,
+    module?.Account
   );
+
   console.log(df_categories.toString());
-  return dbInsertPromise;
+
+  // Return metadata about processing
+  return {
+    moduleName: module?.Name,
+    account: module?.Account,
+    entriesCount: Array.isArray(inserted) ? inserted.length : 0,
+  };
 }
 
 module.exports = { processModule };

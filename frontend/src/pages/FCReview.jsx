@@ -43,6 +43,9 @@ export default function FCReview() {
   const [selectedScenario, setSelectedScenario] = useState("");
   const [loadError, setLoadError] = useState("");
   const [isLoading, setIsLoading] = useState(false);
+  const [generateLoading, setGenerateLoading] = useState(false);
+  const [generateError, setGenerateError] = useState("");
+  const [generateResult, setGenerateResult] = useState(null);
 
   // =============================================================================
   // STATE - Years & Entries
@@ -217,6 +220,11 @@ export default function FCReview() {
 
     loadScenarios();
   }, []);
+
+  useEffect(() => {
+    setGenerateError("");
+    setGenerateResult(null);
+  }, [selectedScenario]);
 
   // =============================================================================
   // EFFECTS - Load Chart of Accounts
@@ -429,7 +437,12 @@ export default function FCReview() {
          * @param {string} parentLevel1 - Parent level 1 category name
          * @param {string} parentLevel2 - Parent level 2 category name
          */
-        const traverse = (nodes, level = 1, parentLevel1 = "", parentLevel2 = "") => {
+        const traverse = (
+          nodes,
+          level = 1,
+          parentLevel1 = "",
+          parentLevel2 = ""
+        ) => {
           if (!Array.isArray(nodes)) return;
 
           for (const node of nodes) {
@@ -515,7 +528,11 @@ export default function FCReview() {
     const baseYear = sortedYears[0];
 
     if (!baseYear) {
-      setBaseBalanceTotals({ level1: new Map(), level2: new Map(), level3: new Map() });
+      setBaseBalanceTotals({
+        level1: new Map(),
+        level2: new Map(),
+        level3: new Map(),
+      });
       return;
     }
 
@@ -615,6 +632,58 @@ export default function FCReview() {
       isMounted = false;
     };
   }, [years, balanceAccountMap]);
+
+  // =============================================================================
+  // ACTIONS - Generate Forecast
+  // =============================================================================
+
+  const handleGenerateForecast = useCallback(async () => {
+    const scenario = selectedScenario?.trim();
+    if (!scenario || generateLoading) {
+      return;
+    }
+
+    setGenerateError("");
+    setGenerateResult(null);
+    setGenerateLoading(true);
+
+    try {
+      const encodedScenario = encodeURIComponent(scenario);
+      const result = await Rest.fetchJson(
+        `/api/forecast/generate/${encodedScenario}`,
+        {
+          method: "POST",
+        }
+      );
+      setGenerateResult(result);
+
+      setYearsLoading(true);
+      setEntriesLoading(true);
+      setYearsError("");
+      setEntriesError("");
+
+      const [yearsResponse, entriesResponse] = await Promise.all([
+        Rest.fetchJson(`/api/forecast/scenarios/years/${encodedScenario}`),
+        Rest.fetchJson(`/api/forecast/entries?scenario=${encodedScenario}`),
+      ]);
+
+      const yearList = Array.isArray(yearsResponse?.years)
+        ? yearsResponse.years
+        : [];
+      setYears([...yearList].sort((a, b) => Number(a) - Number(b)));
+
+      const entryList = Array.isArray(entriesResponse?.entries)
+        ? entriesResponse.entries
+        : [];
+      setEntries(entryList);
+    } catch (error) {
+      setGenerateError(error.message || "Failed to generate forecast");
+    } finally {
+      setGenerateLoading(false);
+      setYearsLoading(false);
+      setEntriesLoading(false);
+    }
+  }, [selectedScenario, generateLoading]);
 
   // =============================================================================
   // COMPUTED VALUES - Memoized for Performance
@@ -733,7 +802,13 @@ export default function FCReview() {
       cash: { byLabel: cashByLabel, level1Totals: cashLevel1Totals },
       balance: { byLabel: balanceByLabel, level1Totals: balanceLevel1Totals },
     };
-  }, [entries, cashAccountMap, balanceAccountMap, balanceLevel1Labels, balanceLevel2Labels]);
+  }, [
+    entries,
+    cashAccountMap,
+    balanceAccountMap,
+    balanceLevel1Labels,
+    balanceLevel2Labels,
+  ]);
 
   /**
    * Gets the cell value for a specific row and year.
@@ -775,7 +850,9 @@ export default function FCReview() {
       // ========== Balance Sheet - Forecast Years ==========
       if (!isCashSection) {
         if (row.level === 1) {
-          return entryMaps.balance.level1Totals.get(row.label)?.get(year) ?? null;
+          return (
+            entryMaps.balance.level1Totals.get(row.label)?.get(year) ?? null
+          );
         }
         return entryMaps.balance.byLabel.get(row.label)?.get(year) ?? null;
       }
@@ -818,6 +895,19 @@ export default function FCReview() {
           setSelectedScenario={setSelectedScenario}
           isLoading={isLoading}
           loadError={loadError}
+          onGenerateForecast={handleGenerateForecast}
+          generateLoading={generateLoading}
+          generateDisabled={
+            generateLoading ||
+            yearsLoading ||
+            entriesLoading ||
+            accountsLoading ||
+            balanceLoading ||
+            baseActualLoading ||
+            baseBalanceLoading
+          }
+          generateError={generateError}
+          generateResult={generateResult}
         />
 
         {/* Forecast Review Table */}
@@ -846,7 +936,13 @@ export default function FCReview() {
                 >
                   Forecast Review
                 </p>
-                <h3 style={{ margin: "0.25rem 0 0", color: "var(--ink)", fontSize: "1.5rem" }}>
+                <h3
+                  style={{
+                    margin: "0.25rem 0 0",
+                    color: "var(--ink)",
+                    fontSize: "1.5rem",
+                  }}
+                >
                   {selectedScenario || "Select a scenario"}
                 </h3>
               </div>
@@ -872,7 +968,9 @@ export default function FCReview() {
               <table className="trans-budget-table fc-review-table">
                 <thead>
                   <tr>
-                    <th style={{ minWidth: "240px", textAlign: "left" }}>Account</th>
+                    <th style={{ minWidth: "240px", textAlign: "left" }}>
+                      Account
+                    </th>
                     {sortedYears.length ? (
                       sortedYears.map((year) => (
                         <th
@@ -910,19 +1008,30 @@ export default function FCReview() {
                   baseActualLoading ||
                   baseBalanceLoading ? (
                     <tr>
-                      <td colSpan={tableColSpan} style={{ textAlign: "center", padding: "2rem" }}>
-                        <div style={{ color: "var(--muted)" }}>Loading forecast data...</div>
+                      <td
+                        colSpan={tableColSpan}
+                        style={{ textAlign: "center", padding: "2rem" }}
+                      >
+                        <div style={{ color: "var(--muted)" }}>
+                          Loading forecast data...
+                        </div>
                       </td>
                     </tr>
                   ) : /* Error State */ tableError ? (
                     <tr>
-                      <td colSpan={tableColSpan} style={{ color: "var(--danger)", padding: "2rem" }}>
+                      <td
+                        colSpan={tableColSpan}
+                        style={{ color: "var(--danger)", padding: "2rem" }}
+                      >
                         {tableError}
                       </td>
                     </tr>
                   ) : /* No Scenario Selected */ !selectedScenario ? (
                     <tr>
-                      <td colSpan={tableColSpan} style={{ textAlign: "center", padding: "2rem" }}>
+                      <td
+                        colSpan={tableColSpan}
+                        style={{ textAlign: "center", padding: "2rem" }}
+                      >
                         <div style={{ color: "var(--muted)" }}>
                           Select a scenario to view the forecast
                         </div>
@@ -930,15 +1039,22 @@ export default function FCReview() {
                     </tr>
                   ) : /* No Years Available */ !sortedYears.length ? (
                     <tr>
-                      <td colSpan={tableColSpan} style={{ textAlign: "center", padding: "2rem" }}>
+                      <td
+                        colSpan={tableColSpan}
+                        style={{ textAlign: "center", padding: "2rem" }}
+                      >
                         <div style={{ color: "var(--muted)" }}>
                           No forecast years available for this scenario
                         </div>
                       </td>
                     </tr>
-                  ) : /* No COA Data */ !cashAccounts.length && !balanceAccounts.length ? (
+                  ) : /* No COA Data */ !cashAccounts.length &&
+                    !balanceAccounts.length ? (
                     <tr>
-                      <td colSpan={tableColSpan} style={{ textAlign: "center", padding: "2rem" }}>
+                      <td
+                        colSpan={tableColSpan}
+                        style={{ textAlign: "center", padding: "2rem" }}
+                      >
                         <div style={{ color: "var(--muted)" }}>
                           Chart of accounts not available
                         </div>
@@ -971,7 +1087,9 @@ export default function FCReview() {
                                 : undefined,
                             }}
                           >
-                            {row.isNet ? "Net Cash Flow (Income + Expense)" : row.label}
+                            {row.isNet
+                              ? "Net Cash Flow (Income + Expense)"
+                              : row.label}
                           </td>
                           {sortedYears.map((year) => {
                             const value = getCellValue(row, year, true);
@@ -980,7 +1098,10 @@ export default function FCReview() {
                                 key={`${row.label}-${year}`}
                                 className="trans-budget-table__value--numeric"
                                 style={{
-                                  color: Number(value) < 0 ? "var(--danger)" : undefined,
+                                  color:
+                                    Number(value) < 0
+                                      ? "var(--danger)"
+                                      : undefined,
                                   backgroundColor: row.isNet
                                     ? "var(--surface-muted)"
                                     : undefined,
@@ -995,18 +1116,19 @@ export default function FCReview() {
                       ))}
 
                       {/* ========== SECTION DIVIDER ========== */}
-                      {balanceAccounts.length > 0 && cashAccounts.length > 0 && (
-                        <tr>
-                          <td
-                            colSpan={tableColSpan}
-                            style={{
-                              borderTop: "2px solid var(--border)",
-                              padding: 0,
-                              height: "1rem",
-                            }}
-                          />
-                        </tr>
-                      )}
+                      {balanceAccounts.length > 0 &&
+                        cashAccounts.length > 0 && (
+                          <tr>
+                            <td
+                              colSpan={tableColSpan}
+                              style={{
+                                borderTop: "2px solid var(--border)",
+                                padding: 0,
+                                height: "1rem",
+                              }}
+                            />
+                          </tr>
+                        )}
 
                       {/* ========== BALANCE SHEET SECTION ========== */}
                       {balanceAccounts.map((row, index) => (
@@ -1021,7 +1143,11 @@ export default function FCReview() {
                           <td
                             style={{
                               fontWeight:
-                                row.level === 1 ? 700 : row.level === 2 ? 600 : 500,
+                                row.level === 1
+                                  ? 700
+                                  : row.level === 2
+                                  ? 600
+                                  : 500,
                               paddingLeft:
                                 row.level === 3
                                   ? "2.5rem"
@@ -1039,7 +1165,10 @@ export default function FCReview() {
                                 key={`${row.label}-${year}`}
                                 className="trans-budget-table__value--numeric"
                                 style={{
-                                  color: Number(value) < 0 ? "var(--danger)" : undefined,
+                                  color:
+                                    Number(value) < 0
+                                      ? "var(--danger)"
+                                      : undefined,
                                 }}
                               >
                                 {formatAmount(value)}

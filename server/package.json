@@ -7,8 +7,9 @@
     "start": "node src/server.js",
     "dev": "env-cmd -e development -- nodemon src/server.js",
     "dok": "env-cmd -e docker -- nodemon src/server.js",
-    "fc": "nodemon src/services/forecast/fcbuilder.js",
-    "test": "echo \"Error: no test specified\" && exit 1"
+    "test": "jest",
+    "test:watch": "jest --watch",
+    "test:coverage": "jest --coverage"
   },
   "keywords": [],
   "author": "",
@@ -24,5 +25,8 @@
     "mongoose": "^9.0.0",
     "morgan": "^1.10.1",
     "nodemon": "^3.1.11"
+  },
+  "devDependencies": {
+    "jest": "^29.7.0"
   }
 }

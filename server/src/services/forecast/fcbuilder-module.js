@@ -18,7 +18,7 @@ const fs = require("fs");
 const path = require("path");
 const mongoose = require("../../../../components/node_modules/mongoose");
 const FCEntries = require("../../../../components/models/FCEntries");
-const { categories, years } = require("./fcbuilder-setup");
+const { categories: legacyCategories, years: legacyYears } = require("./fcbuilder-setup");
 
 // ============================================================================
 // Display Formatting Functions
@@ -134,14 +134,10 @@ const writeValuesToCategoryRow = (
 // Audit Trail Functions
 // ============================================================================
 
-const auditTrailDir = path.resolve(
-  __dirname,
-  "../../../../components/data/auditTrail"
-);
+const { PATHS } = require("./constants");
 
+const auditTrailDir = PATHS.AUDIT_TRAIL_DIR;
 let auditTrailDirEnsured = false;
-const pendingAuditTrails = new Set();
-let exitScheduled = false;
 
 /**
  * Ensures audit trail directory exists, creates it if needed
@@ -175,36 +171,6 @@ const getIndexValues = (df) => {
   return [];
 };
 
-/**
- * Schedules process exit when all audit trails are written
- */
-const scheduleExitIfIdle = () => {
-  if (exitScheduled || pendingAuditTrails.size !== 0) {
-    return;
-  }
-  exitScheduled = true;
-  setImmediate(() => process.exit(process.exitCode ?? 0));
-};
-
-/**
- * Tracks an audit trail promise and handles errors
- *
- * @param {Promise} promise - Audit trail write promise
- * @returns {Promise} The tracked promise
- */
-const trackAuditTrail = (promise) => {
-  pendingAuditTrails.add(promise);
-  promise
-    .catch((error) => {
-      console.error("Failed to write audit trail:", error);
-      process.exitCode = process.exitCode || 1;
-    })
-    .finally(() => {
-      pendingAuditTrails.delete(promise);
-      scheduleExitIfIdle();
-    });
-  return promise;
-};
 
 /**
  * Writes audit trail CSV files for a processed module
@@ -217,7 +183,7 @@ const trackAuditTrail = (promise) => {
  * @param {Object} module - Module configuration
  * @returns {Promise<void>}
  */
-const writeAuditTrail = (
+const writeAuditTrail = async (
   dfModuleLC,
   dfModuleUSD,
   dfCategories,
@@ -233,12 +199,12 @@ const writeAuditTrail = (
     /[^a-z0-9]/gi,
     "_"
   );
+
   /**
    * Writes a single CSV file with headers for a dataframe
    *
    * @param {DataFrame} df - Dataframe to export
    * @param {string} suffix - File suffix (LC, USD, or entries)
-   * @returns {Promise<void>}
    */
   const writeCsvWithHeaders = (df, suffix) => {
     const filePath = path.join(
@@ -248,42 +214,33 @@ const writeAuditTrail = (
     const columns = df.columns || [];
     const rows = df.values || [];
     const indexValues = getIndexValues(df);
-    return new Promise((resolve, reject) => {
-      try {
-        // Pre-allocate array for better performance
-        const lines = new Array(rows.length + 1);
 
-        // Write header row
-        lines[0] = ["index", ...columns].join(",") + "\n";
+    // Pre-allocate array for better performance
+    const lines = new Array(rows.length + 1);
 
-        // Write data rows
-        for (let i = 0; i < rows.length; i++) {
-          const row = rows[i];
-          const rowParts = new Array(columns.length + 1);
-          rowParts[0] = indexValues[i] ?? "";
-          for (let j = 0; j < columns.length; j++) {
-            const value = row?.[j];
-            rowParts[j + 1] = value == null ? "" : value;
-          }
-          lines[i + 1] = rowParts.join(",") + "\n";
-        }
+    // Write header row
+    lines[0] = ["index", ...columns].join(",") + "\n";
 
-        // Write synchronously for consistency with audit trail tracking
-        fs.writeFileSync(filePath, lines.join(""), "utf8");
-        resolve();
-      } catch (error) {
-        reject(error);
+    // Write data rows
+    for (let i = 0; i < rows.length; i++) {
+      const row = rows[i];
+      const rowParts = new Array(columns.length + 1);
+      rowParts[0] = indexValues[i] ?? "";
+      for (let j = 0; j < columns.length; j++) {
+        const value = row?.[j];
+        rowParts[j + 1] = value == null ? "" : value;
       }
-    });
+      lines[i + 1] = rowParts.join(",") + "\n";
+    }
+
+    // Write file synchronously
+    fs.writeFileSync(filePath, lines.join(""), "utf8");
   };
 
-  const auditPromise = Promise.all([
-    writeCsvWithHeaders(dfModuleLC, "LC"),
-    writeCsvWithHeaders(dfCategories, "entries"),
-    writeCsvWithHeaders(dfModuleUSD, "USD"),
-  ]);
-
-  return trackAuditTrail(auditPromise);
+  // Write all audit trail files
+  writeCsvWithHeaders(dfModuleLC, "LC");
+  writeCsvWithHeaders(dfCategories, "entries");
+  writeCsvWithHeaders(dfModuleUSD, "USD");
 };
 
 // ============================================================================
@@ -409,9 +366,15 @@ const insertCategoryEntries = (dfCategories, scenarioName, moduleName) => {
  *   - Tax reserves
  *   - Bank account cash changes
  *
- * @returns {Promise<void>} Promise that resolves when processing and audit trail writing complete
+ * @param {Array<string>} categories - Category names array from scenario config
+ * @param {Array<number>} years - Years array from scenario config
+ * @returns {Promise<Object>} Promise that resolves with processing metadata
  */
-function processModule(module, scenario, df_assumptions, df_categories) {
+async function processModule(module, scenario, df_assumptions, df_categories, categories, years) {
+  // Use provided categories/years or fall back to legacy imports for backward compatibility
+  const _categories = categories || legacyCategories;
+  const _years = years || legacyYears;
+
   console.log(`Processing module: ${module.Name}`);
   console.log(`Processing account: ${module.Account}`);
   console.log("Scenario", scenario);
@@ -434,17 +397,17 @@ function processModule(module, scenario, df_assumptions, df_categories) {
   const disposeValues = new Array(yearsCount).fill(0);
 
   // Extract inflation series for calculations
-  const inflationSeries = df_assumptions.column(categories[1]).values;
-  const periodStart = years[0];
+  const inflationSeries = df_assumptions.column(_categories[1]).values;
+  const periodStart = _years[0];
   const inflationLen = inflationSeries.length;
 
   // Prepare FX rates for non-USD currencies
   if (module.Currency && module.Currency !== "USD") {
     const fxColumn =
       module.Currency === "PLN"
-        ? categories[2]
+        ? _categories[2]
         : module.Currency === "EUR"
-        ? categories[3]
+        ? _categories[3]
         : null;
     if (fxColumn && df_assumptions.columns.includes(fxColumn)) {
       const fxSeries = df_assumptions.column(fxColumn).values;
@@ -782,21 +745,27 @@ function processModule(module, scenario, df_assumptions, df_categories) {
   // Optional: Display module dataframes (currently commented out)
   // logDataFrames(df_module_LC, df_module_USD);
 
-  // Insert entries into database and track as audit trail
-  const dbInsertPromise = trackAuditTrail(
-    insertCategoryEntries(df_categories, scenario?.Name, module?.Name)
+  // Write audit trail and insert entries into database
+  await writeAuditTrail(
+    df_module_LC,
+    df_module_USD,
+    df_categories,
+    scenario,
+    module
   );
 
-  // Return promises for both audit trail CSV writing and database insertion
-  return Promise.all([
-    writeAuditTrail(
-      df_module_LC,
-      df_module_USD,
-      df_categories,
-      scenario,
-      module
-    ),
-    dbInsertPromise,
-  ]);
+  const inserted = await insertCategoryEntries(
+    df_categories,
+    scenario?.Name,
+    module?.Name
+  );
+
+  // Return metadata about processing
+  return {
+    moduleName: module?.Name,
+    account: module?.Account,
+    entriesCount: Array.isArray(inserted) ? inserted.length : 0,
+  };
 }
+
 module.exports = { processModule };

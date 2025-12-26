@@ -45,6 +45,11 @@
  * GET    /scenarios/accounts/:scenario - Get distinct accounts for a scenario
  * GET    /scenarios/modules/:scenario - Get distinct modules for a scenario
  *
+ * FORECAST GENERATION
+ * -----------------------------------------------------------------------------
+ * POST   /generate/:scenario          - Generate complete forecast for a scenario
+ *                                       Returns detailed results with timing and counts
+ *
  * =============================================================================
  */
 
@@ -52,7 +57,6 @@ const express = require("express");
 const mongoose = require("mongoose");
 const fs = require("fs");
 const path = require("path");
-const { spawn } = require("child_process");
 const { COMPONENTS_DATA_DIR } = require("../utils/dataPaths");
 const FCModule = require("../../../components/models/FCModule");
 const FCIncExp = require("../../../components/models/FCIncExp");
@@ -62,6 +66,7 @@ const router = express.Router();
 const {
   getUnmatchedAccounts,
 } = require("../services/forecast/fcbuilder-unmatched");
+const { generateForecast } = require("../services/forecast");
 
 // =============================================================================
 // FORECAST MODULE ROUTES (Database Operations)
@@ -839,63 +844,50 @@ router.get("/scenarios/modules/:scenario", async (req, res) => {
 });
 
 /**
- * POST /generate
+ * POST /generate/:scenario
  *
- * Triggers forecast generation by running the forecast builder script.
+ * Generates a complete financial forecast by processing all modules for the specified scenario.
+ * Uses direct async function calls for better error handling, progress visibility, and performance.
  *
- * @returns {Object} { message: string }
- * @throws {500} If the generation process fails to start or exits with error
+ * @param {string} scenario - The scenario name to generate forecasts for
+ * @returns {Object} Result object with success status, entry counts, and timing
+ * @throws {400} If scenario parameter is missing
+ * @throws {500} If forecast generation fails
  */
-router.post("/generate/:scenario", (req, res) => {
+router.post("/generate/:scenario", async (req, res) => {
   const scenario = req.params.scenario?.trim();
 
   if (!scenario) {
     return res.status(400).json({ error: "Scenario name is required" });
   }
 
-  const scriptPath = path.join(
-    __dirname,
-    "..",
-    "services",
-    "forecast",
-    "fcbuilder.js"
-  );
+  try {
+    const result = await generateForecast(scenario);
 
-  const spawnArgs = [scriptPath, scenario];
-  let stderr = "";
-  let responded = false;
-
-  const sendError = (message, details) => {
-    if (responded) return;
-    responded = true;
-    res.status(500).json({ error: message, details });
-  };
-
-  const child = spawn(process.execPath, spawnArgs, {
-    env: { ...process.env, scenario_name: scenario },
-  });
-
-  child.stderr.on("data", (data) => {
-    stderr += data.toString();
-  });
-
-  child.on("error", (error) => {
-    console.error("Failed to start forecast generation:", error);
-    sendError("Failed to start forecast generation", error.message);
-  });
-
-  child.on("close", (code) => {
-    if (responded) return;
-    if (code === 0) {
-      responded = true;
-      return res.json({ message: "Forecast generation completed" });
+    if (result.success) {
+      return res.json({
+        message: "Forecast generation completed",
+        scenario: result.scenario,
+        deletedCount: result.deletedCount,
+        modulesProcessed: result.modulesProcessed,
+        entriesCreated: result.entriesCreated,
+        durationMs: result.durationMs,
+      });
+    } else {
+      return res.status(500).json({
+        error: "Forecast generation failed",
+        details: result.error,
+        scenario: result.scenario,
+        durationMs: result.durationMs,
+      });
     }
-
-    console.error(
-      `Forecast generation exited with code ${code}: ${stderr.trim()}`
-    );
-    sendError("Forecast generation failed", stderr.trim() || undefined);
-  });
+  } catch (error) {
+    console.error("[FORECAST-GENERATE] Unexpected error:", error);
+    return res.status(500).json({
+      error: "Failed to generate forecast",
+      details: error.message,
+    });
+  }
 });
 
 module.exports = router;

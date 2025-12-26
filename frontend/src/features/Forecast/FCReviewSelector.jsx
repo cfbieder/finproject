@@ -4,7 +4,15 @@ export default function FCReviewSelector({
   setSelectedScenario,
   isLoading,
   loadError,
+  onGenerateForecast,
+  generateLoading,
+  generateDisabled,
+  generateError,
+  generateResult,
 }) {
+  const disableGenerate =
+    generateDisabled || !selectedScenario || isLoading || !!loadError;
+
   return (
     <section className="section-filters">
       <div className="section-filters__content">
@@ -18,25 +26,50 @@ export default function FCReviewSelector({
               </h3>
             </div>
           </div>
-          <div className="fc-review-selector__control">
-            <select
-              id="fc-review-scenario"
-              className="fc-review-selector__select"
-              value={selectedScenario}
-              onChange={(event) => setSelectedScenario(event.target.value)}
-              disabled={isLoading || !!loadError}
-            >
-              <option value="" disabled>
-                {isLoading ? "Loading..." : "Select scenario"}
-              </option>
-              {scenarios.map((scenario) => (
-                <option key={scenario.Name} value={scenario.Name}>
-                  {scenario.Name}
+          <div className="fc-review-selector__actions">
+            <div className="fc-review-selector__control">
+              <select
+                id="fc-review-scenario"
+                className="fc-review-selector__select"
+                value={selectedScenario}
+                onChange={(event) => setSelectedScenario(event.target.value)}
+                disabled={isLoading || !!loadError}
+              >
+                <option value="" disabled>
+                  {isLoading ? "Loading..." : "Select scenario"}
                 </option>
-              ))}
-            </select>
-            <span className="fc-review-selector__chevron">⌄</span>
+                {scenarios.map((scenario) => (
+                  <option key={scenario.Name} value={scenario.Name}>
+                    {scenario.Name}
+                  </option>
+                ))}
+              </select>
+              <span className="fc-review-selector__chevron">⌄</span>
+            </div>
+            <button
+              type="button"
+              className="fc-review-selector__generate"
+              onClick={onGenerateForecast}
+              disabled={disableGenerate}
+            >
+              {generateLoading ? "Generating..." : "Generate Forecast"}
+            </button>
           </div>
+          {generateResult && (
+            <p className="fc-review-selector__meta">
+              {generateResult.message || "Forecast generated"} · Scenario:{" "}
+              {generateResult.scenario || selectedScenario} · Entries:{" "}
+              {generateResult.entriesCreated ?? "n/a"} · Modules:{" "}
+              {generateResult.modulesProcessed ?? "n/a"} · Deleted:{" "}
+              {generateResult.deletedCount ?? "n/a"} · Time:{" "}
+              {generateResult.durationMs
+                ? `${generateResult.durationMs}ms`
+                : "n/a"}
+            </p>
+          )}
+          {generateError && (
+            <p className="fc-review-selector__error">{generateError}</p>
+          )}
           {loadError && (
             <p className="fc-review-selector__error">
               Failed to load: {loadError}
