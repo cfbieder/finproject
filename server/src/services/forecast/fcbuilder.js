@@ -9,8 +9,17 @@
  *
  * @module fcbuilder
  */
-
+console.log("Starting Forecast Builder...");
+const scenario_name = process.argv[2] || "Baseline";
+process.argv[2] = scenario_name;
 const dfd = require("danfojs-node");
+let setup;
+try {
+  setup = require("./fcbuilder-setup");
+} catch (error) {
+  console.error(error?.message || error);
+  process.exit(1);
+}
 const {
   scenario,
   categories,
@@ -19,7 +28,7 @@ const {
   fxratesEUR,
   years,
   taxRate,
-} = require("./fcbuilder-setup");
+} = setup;
 const mongoose = require("../../../../components/node_modules/mongoose");
 const FCModule = require("../../../../components/models/FCModule");
 const FCEntries = require("../../../../components/models/FCEntries");

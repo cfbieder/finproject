@@ -52,6 +52,7 @@ const express = require("express");
 const mongoose = require("mongoose");
 const fs = require("fs");
 const path = require("path");
+const { spawn } = require("child_process");
 const { COMPONENTS_DATA_DIR } = require("../utils/dataPaths");
 const FCModule = require("../../../components/models/FCModule");
 const FCIncExp = require("../../../components/models/FCIncExp");
@@ -835,6 +836,66 @@ router.get("/scenarios/modules/:scenario", async (req, res) => {
     console.error("Failed to load forecast modules:", error);
     return res.status(500).json({ error: "Failed to load forecast modules" });
   }
+});
+
+/**
+ * POST /generate
+ *
+ * Triggers forecast generation by running the forecast builder script.
+ *
+ * @returns {Object} { message: string }
+ * @throws {500} If the generation process fails to start or exits with error
+ */
+router.post("/generate/:scenario", (req, res) => {
+  const scenario = req.params.scenario?.trim();
+
+  if (!scenario) {
+    return res.status(400).json({ error: "Scenario name is required" });
+  }
+
+  const scriptPath = path.join(
+    __dirname,
+    "..",
+    "services",
+    "forecast",
+    "fcbuilder.js"
+  );
+
+  const spawnArgs = [scriptPath, scenario];
+  let stderr = "";
+  let responded = false;
+
+  const sendError = (message, details) => {
+    if (responded) return;
+    responded = true;
+    res.status(500).json({ error: message, details });
+  };
+
+  const child = spawn(process.execPath, spawnArgs, {
+    env: { ...process.env, scenario_name: scenario },
+  });
+
+  child.stderr.on("data", (data) => {
+    stderr += data.toString();
+  });
+
+  child.on("error", (error) => {
+    console.error("Failed to start forecast generation:", error);
+    sendError("Failed to start forecast generation", error.message);
+  });
+
+  child.on("close", (code) => {
+    if (responded) return;
+    if (code === 0) {
+      responded = true;
+      return res.json({ message: "Forecast generation completed" });
+    }
+
+    console.error(
+      `Forecast generation exited with code ${code}: ${stderr.trim()}`
+    );
+    sendError("Forecast generation failed", stderr.trim() || undefined);
+  });
 });
 
 module.exports = router;
