@@ -223,9 +223,8 @@ export default function FCScenarios() {
 
   /** Tax rate for the selected scenario */
   const selectedTaxRate =
-    (localTaxRates || []).find(
-      (item) => item.Scenario === selectedScenario
-    )?.Rate ?? "";
+    (localTaxRates || []).find((item) => item.Scenario === selectedScenario)
+      ?.Rate ?? "";
 
   /** All unique FX rate keys (e.g., "USDPLN", "USDEUR") across all scenarios */
   const fxKeys = Array.from(

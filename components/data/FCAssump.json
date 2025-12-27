@@ -1,5 +1,11 @@
 {
-  "category": ["Year", "Inflation", "PLN", "EUR", "Bank Accounts"],
+  "category": [
+    "Year",
+    "Inflation",
+    "PLN",
+    "EUR",
+    "Bank Accounts"
+  ],
   "scenarios": [
     {
       "Name": "Baseline",
@@ -10,6 +16,11 @@
       "Name": "High Inflation",
       "PeriodStart": 2025,
       "PeriodEnd": 2030
+    },
+    {
+      "Name": "Testing",
+      "PeriodStart": 2025,
+      "PeriodEnd": 2036
     }
   ],
   "inflation": [
@@ -32,6 +43,11 @@
       "Scenario": "Baseline",
       "Year": 2028,
       "Rate": 2
+    },
+    {
+      "Scenario": "Testing",
+      "Year": 2025,
+      "Rate": 1
     }
   ],
   "FX": [
@@ -58,6 +74,14 @@
         "USDPLN": 4.5,
         "USDEUR": 0.85
       }
+    },
+    {
+      "Scenario": "Testing",
+      "Year": 2025,
+      "Rates": {
+        "USDPLN": 4,
+        "USDEUR": 2
+      }
     }
   ],
   "Tax Rate": [
@@ -67,6 +91,10 @@
     },
     {
       "Scenario": "High Inflation",
+      "Rate": 25
+    },
+    {
+      "Scenario": "Testing",
       "Rate": 25
     }
   ]

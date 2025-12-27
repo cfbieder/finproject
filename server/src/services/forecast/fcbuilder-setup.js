@@ -9,7 +9,8 @@ const { PATHS } = require("./constants");
  */
 function loadFCAssump() {
   try {
-    const FCAssump = require("../../../../components/data/FCAssump.json");
+    const fileContents = fs.readFileSync(PATHS.ASSUMP_FILE, "utf8");
+    const FCAssump = JSON.parse(fileContents);
 
     // Defensive validation for FCAssump object
     if (!FCAssump) {

@@ -12,3 +12,7 @@ review how income, growth and expense calculated in fcbuilder
 remove fixed income and expense option in fc module.
 
 On budget input page have currency automatically selected from coa_
+
+when deleting scenario, modules still remain, need to resolve.
+
+Set a scenario as default for all
