@@ -1,3 +1,5 @@
+import PropTypes from "prop-types";
+
 export default function MonthYearPicker({
   monthId,
   yearId,
@@ -39,3 +41,23 @@ export default function MonthYearPicker({
     </div>
   );
 }
+
+MonthYearPicker.propTypes = {
+  monthId: PropTypes.string.isRequired,
+  yearId: PropTypes.string.isRequired,
+  monthValue: PropTypes.string,
+  yearValue: PropTypes.oneOfType([PropTypes.string, PropTypes.number]),
+  monthOptions: PropTypes.arrayOf(
+    PropTypes.shape({
+      value: PropTypes.string,
+      label: PropTypes.string,
+    })
+  ),
+  yearOptions: PropTypes.arrayOf(
+    PropTypes.oneOfType([PropTypes.string, PropTypes.number])
+  ),
+  onMonthChange: PropTypes.func,
+  onYearChange: PropTypes.func,
+  rowClassName: PropTypes.string,
+  inputClassName: PropTypes.string,
+};

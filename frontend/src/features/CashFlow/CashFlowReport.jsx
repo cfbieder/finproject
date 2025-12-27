@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from "react";
+import PropTypes from "prop-types";
 import Rest from "../../js/rest.js";
 import TransactionModal from "./TransactionModal.jsx";
 import "./CashFlowReport.css";
@@ -376,3 +377,11 @@ export default function CashFlowReport({
     </section>
   );
 }
+
+CashFlowReport.propTypes = {
+  reports: PropTypes.arrayOf(PropTypes.array),
+  periodLabels: PropTypes.arrayOf(PropTypes.string),
+  collapsedPaths: PropTypes.instanceOf(Set),
+  onTogglePath: PropTypes.func,
+  periods: PropTypes.arrayOf(PropTypes.object),
+};

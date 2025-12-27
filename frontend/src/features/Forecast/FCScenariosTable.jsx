@@ -1,3 +1,5 @@
+import PropTypes from "prop-types";
+
 /**
  * FCScenariosTable Component
  *
@@ -207,3 +209,14 @@ export default function FCScenariosTable({
     </section>
   );
 }
+
+FCScenariosTable.propTypes = {
+  inflationRows: PropTypes.arrayOf(PropTypes.object),
+  fxRows: PropTypes.arrayOf(PropTypes.object),
+  fxKeys: PropTypes.arrayOf(PropTypes.string),
+  openInflationModal: PropTypes.func.isRequired,
+  openDeleteModal: PropTypes.func.isRequired,
+  openFxModal: PropTypes.func.isRequired,
+  isLoading: PropTypes.bool,
+  selectedScenario: PropTypes.string,
+};

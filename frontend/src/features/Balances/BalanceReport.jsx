@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from "react";
+import PropTypes from "prop-types";
 import "./BalanceReport.css";
 const currencyFormatter = new Intl.NumberFormat("en-US", {
   style: "currency",
@@ -286,3 +287,11 @@ export default function BalanceReport({
     </section>
   );
 }
+
+BalanceReport.propTypes = {
+  balanceReports: PropTypes.arrayOf(PropTypes.array),
+  periodDates: PropTypes.arrayOf(PropTypes.string),
+  periodCount: PropTypes.number,
+  collapsedPaths: PropTypes.instanceOf(Set),
+  onTogglePath: PropTypes.func,
+};

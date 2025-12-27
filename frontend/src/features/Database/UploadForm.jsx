@@ -1,3 +1,4 @@
+import PropTypes from "prop-types";
 import ConfirmationDialog from "./ConfirmationDialog.jsx";
 
 export default function UploadForm({
@@ -66,3 +67,18 @@ export default function UploadForm({
     </section>
   );
 }
+
+UploadForm.propTypes = {
+  fileInputRef: PropTypes.object.isRequired,
+  setHasFileSelected: PropTypes.func.isRequired,
+  hasFileSelected: PropTypes.bool.isRequired,
+  handleClearClick: PropTypes.func.isRequired,
+  isUploading: PropTypes.bool.isRequired,
+  isClearing: PropTypes.bool.isRequired,
+  isClearConfirmOpen: PropTypes.bool.isRequired,
+  handleClearConfirm: PropTypes.func.isRequired,
+  handleClearCancel: PropTypes.func.isRequired,
+  handleUploadClick: PropTypes.func.isRequired,
+  handleAnalyzeClick: PropTypes.func.isRequired,
+  isAnalyzing: PropTypes.bool.isRequired,
+};
