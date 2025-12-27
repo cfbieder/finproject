@@ -9,8 +9,9 @@
       "@utils/*": ["./src/utils/*"],
       "@lib/*": ["./src/js/*"],
       "@assets/*": ["./src/assets/*"],
-      "@data/*": ["./components/data/*"]
+      "@data/*": ["../components/data/*"]
     },
+    "typeRoots": ["./types", "./node_modules/@types"],
     "jsx": "react-jsx",
     "module": "ESNext",
     "moduleResolution": "bundler",

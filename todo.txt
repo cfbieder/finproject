@@ -1,9 +1,9 @@
 Add option to update budget FX rates on transactions page
 
+Cash Flow line in Forecast to implement
 
 History of budget page still not getting all items even when filtered
 
-using this file server/src/routes/balance.js, clean up, optimize, document and include full documentation of all routes at top of document
 add COA management
 
 review how income, growth and expense calculated in fcbuilder
@@ -16,5 +16,6 @@ when deleting scenario, modules still remain, need to resolve.
 
 Set a scenario as default for all
 
+Copy modules to other scenarios
 
 Select period for refresh
