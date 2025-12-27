@@ -1,56 +1,73 @@
 @import url("https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700&family=Space+Grotesk:wght@500;600&display=swap");
 
 :root {
-  /* Background Colors - Premium light theme */
-  --bg: #f8f9fe;
-  --bg-secondary: #eef3fb;
+  /* Background Colors - Premium light theme with warmth */
+  --bg: #fafbff;
+  --bg-secondary: #f0f4fc;
+  --bg-tertiary: #e8eef9;
   --surface: #ffffff;
-  --surface-muted: #f5f7fc;
+  --surface-muted: #f7f9fd;
   --surface-elevated: #ffffff;
+  --surface-glass: rgba(255, 255, 255, 0.92);
 
   /* Text Colors - Professional hierarchy */
-  --ink: #0f172a;
-  --ink-secondary: #334155;
-  --muted: #64748b;
-  --muted-light: #94a3b8;
+  --ink: #0a1628;
+  --ink-secondary: #2d3e5f;
+  --ink-tertiary: #516583;
+  --muted: #6b7a94;
+  --muted-light: #95a3bb;
 
-  /* Primary Brand - Deep professional blue */
-  --primary: #1d4ed8;
+  /* Primary Brand - Sophisticated navy blue */
+  --primary: #1e40af;
   --primary-strong: #1e3a8a;
-  --primary-light: #3b82f6;
-  --primary-subtle: #dbeafe;
+  --primary-light: #3b71ca;
+  --primary-lighter: #5b8ddb;
+  --primary-subtle: #e0ecff;
+  --primary-hover: #1a369d;
 
-  /* Accent - Sophisticated teal for highlights */
-  --accent: #0891b2;
-  --accent-strong: #0e7490;
-  --accent-light: #06b6d4;
-  --accent-subtle: #cffafe;
+  /* Accent - Rich emerald for financial growth */
+  --accent: #047857;
+  --accent-strong: #065f46;
+  --accent-light: #059669;
+  --accent-lighter: #10b981;
+  --accent-subtle: #d1fae5;
 
   /* Financial Semantic Colors */
-  --success: #059669;
-  --success-strong: #047857;
-  --success-light: #10b981;
+  --success: #047857;
+  --success-strong: #065f46;
+  --success-light: #059669;
+  --success-lighter: #10b981;
   --success-subtle: #d1fae5;
 
   --warning: #d97706;
   --warning-strong: #b45309;
   --warning-light: #f59e0b;
+  --warning-lighter: #fbbf24;
   --warning-subtle: #fef3c7;
 
   --danger: #dc2626;
   --danger-strong: #b91c1c;
   --danger-light: #ef4444;
+  --danger-lighter: #f87171;
   --danger-subtle: #fee2e2;
 
-  /* Financial Data Visualization */
-  --growth-positive: #059669;
+  /* Secondary Accent - Gold/Amber for premium feel */
+  --gold: #d97706;
+  --gold-strong: #b45309;
+  --gold-light: #f59e0b;
+  --gold-subtle: #fef3c7;
+
+  /* Financial Data Visualization - Enhanced palette */
+  --growth-positive: #047857;
   --growth-negative: #dc2626;
-  --neutral: #64748b;
-  --chart-blue: #3b82f6;
-  --chart-emerald: #10b981;
-  --chart-purple: #8b5cf6;
-  --chart-amber: #f59e0b;
-  --chart-rose: #f43f5e;
+  --neutral: #6b7a94;
+  --chart-navy: #1e40af;
+  --chart-emerald: #059669;
+  --chart-amber: #d97706;
+  --chart-rose: #dc2626;
+  --chart-purple: #7c3aed;
+  --chart-teal: #0891b2;
+  --chart-indigo: #4f46e5;
 
   /* Borders & Dividers */
   --border: #e2e8f0;
@@ -111,10 +128,13 @@ body {
   margin: 0;
   min-height: 100vh;
   background:
-    radial-gradient(circle at 20% 10%, rgba(37, 99, 235, 0.08), transparent 40%),
-    radial-gradient(circle at 80% 90%, rgba(6, 182, 212, 0.06), transparent 40%),
-    linear-gradient(135deg, #f8f9fe 0%, #eef3fb 100%);
+    radial-gradient(circle at 12% 10%, rgba(30, 64, 175, 0.08), transparent 30%),
+    radial-gradient(circle at 88% 85%, rgba(4, 120, 87, 0.06), transparent 30%),
+    radial-gradient(circle at 50% 50%, rgba(59, 113, 202, 0.03), transparent 45%),
+    radial-gradient(circle at 30% 75%, rgba(217, 119, 6, 0.04), transparent 25%),
+    linear-gradient(135deg, #fafbff 0%, #f0f4fc 50%, #e8eef9 100%);
   color: var(--ink);
+  background-attachment: fixed;
 }
 
 #root {
@@ -183,12 +203,27 @@ button {
   font-weight: 600;
   letter-spacing: 0.01em;
   cursor: pointer;
-  transition: transform 0.15s ease, box-shadow 0.15s ease, opacity 0.15s ease;
+  transition: all var(--transition-base);
+  border: none;
+  outline: none;
+}
+
+button:hover:not(:disabled) {
+  transform: translateY(-1px);
+}
+
+button:active:not(:disabled) {
+  transform: translateY(0);
+}
+
+button:focus-visible {
+  box-shadow: var(--shadow-focus);
 }
 
 button:disabled {
   cursor: not-allowed;
-  opacity: 0.75;
+  opacity: 0.6;
+  filter: grayscale(0.2);
 }
 
 table {
