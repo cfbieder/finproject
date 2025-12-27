@@ -1,4 +1,5 @@
 import { BrowserRouter, Routes, Route } from "react-router-dom";
+import { ForecastProvider } from "./contexts";
 import Balance from "./pages/Balance.jsx";
 import BalanceChart from "./pages/BalanceChart.jsx";
 import BudgetInput from "./pages/BudgetInput.jsx";
@@ -32,10 +33,12 @@ function App() {
         <Route path="/budget-realization" element={<BudgetRealization />} />
         <Route path="/trans-actual" element={<TransActual />} />
         <Route path="/trans-budget" element={<TransBudget />} />
-        <Route path="/forecast-setup-exp" element={<FCExpSetup />} />
-        <Route path="/forecast-scenarios" element={<FCScenarios />} />
-        <Route path="/forecast-modules" element={<FCModuleManage />} />
-        <Route path="/forecast-review" element={<FCReview />} />
+
+        {/* Forecast routes wrapped in ForecastProvider for shared state */}
+        <Route path="/forecast-setup-exp" element={<ForecastProvider><FCExpSetup /></ForecastProvider>} />
+        <Route path="/forecast-scenarios" element={<ForecastProvider><FCScenarios /></ForecastProvider>} />
+        <Route path="/forecast-modules" element={<ForecastProvider><FCModuleManage /></ForecastProvider>} />
+        <Route path="/forecast-review" element={<ForecastProvider><FCReview /></ForecastProvider>} />
       </Routes>
     </BrowserRouter>
   );

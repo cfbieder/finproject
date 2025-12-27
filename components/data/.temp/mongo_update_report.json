@@ -324,6 +324,23 @@
   },
   {
     "Date": "2025-12-22T00:00:00.000Z",
+    "Description1": "AMERICAN EXPRESS ACH PMT A8620 WEB ID: 9493560001",
+    "Description2": "AMERICAN EXPRESS ACH PMT A8620 WEB ID: 9493560001",
+    "Amount": -120.47,
+    "Currency": "USD",
+    "BaseAmount": -120.47,
+    "BaseCurrency": "USD",
+    "TransactionType": "debit",
+    "Account": "Chase Checking",
+    "ClosingBalance": 20272.96,
+    "Category": "Transfer - Credit Card Payments",
+    "ParentCategories": "Transfers",
+    "Labels": "",
+    "ID": "1575602439",
+    "Bank": "Chase"
+  },
+  {
+    "Date": "2025-12-22T00:00:00.000Z",
     "Description1": "BAGELS PLUS",
     "Description2": "BAGELS PLUS",
     "Amount": -31.26,

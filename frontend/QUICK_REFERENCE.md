@@ -1,4 +1,4 @@
-# Quick Reference - Phase 1 Improvements
+# Quick Reference - Phases 1 & 2
 
 ## Path Aliases
 
@@ -7,7 +7,8 @@ import Component from '@/App';                    // src/
 import Nav from '@components/NavigationMenu';     // src/components/
 import Balance from '@pages/Balance';             // src/pages/
 import Report from '@features/Balances/BalanceReport';  // src/features/
-import Rest from '@utils/rest';                   // src/js/
+import { formatCurrency } from '@utils';          // src/utils/ (Phase 2)
+import Rest from '@lib/rest';                     // src/js/
 import logo from '@assets/banner.png';            // src/assets/
 import coa from '@data/coa.json';                 // components/data/
 ```
@@ -162,6 +163,56 @@ import coa from '@data/coa.json';
 import Rest from '@utils/rest';
 ```
 
+## Phase 2: Utilities
+
+### Formatters
+```javascript
+import { formatCurrency, formatPercentage, formatRate } from '@utils';
+
+formatCurrency(1234.56);    // '$1,234.56'
+formatCurrency(-1234.56);   // '($1,234.56)'
+formatPercentage(0.15);     // '15.00%'
+formatRate(2.5);            // '2.50%'
+```
+
+### Date Helpers
+```javascript
+import { getToday, getMonthOptions, formatLocalDate } from '@utils';
+
+const today = getToday();              // '2024-01-15'
+const months = getMonthOptions();      // [{ value: '01', label: 'January' }, ...]
+const date = formatLocalDate(new Date()); // '2024-01-15'
+```
+
+### Tree Traversal
+```javascript
+import { collectCollapsiblePaths, buildAccountValueMap } from '@utils';
+
+const paths = collectCollapsiblePaths(accounts);  // Set of expandable paths
+const map = buildAccountValueMap(accounts);       // Map of path -> value
+```
+
+## Phase 2: Forecast Context
+
+```javascript
+import { useForecast } from '@/contexts';
+
+const {
+  scenarios,           // Array of scenarios
+  assumptions,         // Full assumptions object
+  isLoadingAssumptions, // Loading state
+  refreshAssumptions   // Refresh after changes
+} = useForecast();
+
+// Use scenarios without fetching
+<select>
+  {scenarios.map(s => <option key={s.Name}>{s.Name}</option>)}
+</select>
+```
+
 ## Full Documentation
 
-See **ARCHITECTURE_GUIDE.md** for complete details and examples.
+- **ARCHITECTURE_GUIDE.md** - Phase 1 complete guide
+- **PHASE2_ARCHITECTURE.md** - Phase 2 utilities and contexts
+- **PHASE1_COMPLETE.md** - Phase 1 implementation details
+- **PHASE2_COMPLETE.md** - Phase 2 implementation details

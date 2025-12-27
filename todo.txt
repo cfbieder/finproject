@@ -1,6 +1,5 @@
 Add option to update budget FX rates on transactions page
 
-Develop FC model
 
 History of budget page still not getting all items even when filtered
 
@@ -16,3 +15,6 @@ On budget input page have currency automatically selected from coa_
 when deleting scenario, modules still remain, need to resolve.
 
 Set a scenario as default for all
+
+
+Select period for refresh
