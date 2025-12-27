@@ -1,24 +1,94 @@
 @import url("https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700&family=Space+Grotesk:wght@500;600&display=swap");
 
 :root {
+  /* Background Colors - Premium light theme */
   --bg: #f8f9fe;
   --bg-secondary: #eef3fb;
   --surface: #ffffff;
   --surface-muted: #f5f7fc;
+  --surface-elevated: #ffffff;
+
+  /* Text Colors - Professional hierarchy */
   --ink: #0f172a;
+  --ink-secondary: #334155;
   --muted: #64748b;
-  --primary: #2563eb;
-  --primary-strong: #1e40af;
-  --accent: #06b6d4;
-  --success: #10b981;
-  --warning: #f59e0b;
-  --danger: #ef4444;
+  --muted-light: #94a3b8;
+
+  /* Primary Brand - Deep professional blue */
+  --primary: #1d4ed8;
+  --primary-strong: #1e3a8a;
+  --primary-light: #3b82f6;
+  --primary-subtle: #dbeafe;
+
+  /* Accent - Sophisticated teal for highlights */
+  --accent: #0891b2;
+  --accent-strong: #0e7490;
+  --accent-light: #06b6d4;
+  --accent-subtle: #cffafe;
+
+  /* Financial Semantic Colors */
+  --success: #059669;
+  --success-strong: #047857;
+  --success-light: #10b981;
+  --success-subtle: #d1fae5;
+
+  --warning: #d97706;
+  --warning-strong: #b45309;
+  --warning-light: #f59e0b;
+  --warning-subtle: #fef3c7;
+
+  --danger: #dc2626;
+  --danger-strong: #b91c1c;
+  --danger-light: #ef4444;
+  --danger-subtle: #fee2e2;
+
+  /* Financial Data Visualization */
+  --growth-positive: #059669;
+  --growth-negative: #dc2626;
+  --neutral: #64748b;
+  --chart-blue: #3b82f6;
+  --chart-emerald: #10b981;
+  --chart-purple: #8b5cf6;
+  --chart-amber: #f59e0b;
+  --chart-rose: #f43f5e;
+
+  /* Borders & Dividers */
   --border: #e2e8f0;
-  --shadow-soft: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
-  --shadow-md: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05);
-  --shadow-lg: 0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04);
+  --border-strong: #cbd5e1;
+  --border-subtle: #f1f5f9;
+
+  /* Shadows - Professional depth */
+  --shadow-soft: 0 1px 3px 0 rgba(0, 0, 0, 0.08), 0 1px 2px 0 rgba(0, 0, 0, 0.04);
+  --shadow-md: 0 4px 6px -1px rgba(0, 0, 0, 0.08), 0 2px 4px -1px rgba(0, 0, 0, 0.04);
+  --shadow-lg: 0 10px 15px -3px rgba(0, 0, 0, 0.08), 0 4px 6px -2px rgba(0, 0, 0, 0.03);
+  --shadow-xl: 0 20px 25px -5px rgba(0, 0, 0, 0.08), 0 10px 10px -5px rgba(0, 0, 0, 0.02);
+  --shadow-focus: 0 0 0 3px rgba(29, 78, 216, 0.1);
+
+  /* Border Radius - Refined corners */
+  --radius-sm: 8px;
+  --radius-md: 12px;
   --radius-lg: 16px;
-  --radius-sm: 10px;
+  --radius-xl: 20px;
+  --radius-full: 9999px;
+
+  /* Spacing - Consistent rhythm */
+  --space-xs: 0.25rem;
+  --space-sm: 0.5rem;
+  --space-md: 1rem;
+  --space-lg: 1.5rem;
+  --space-xl: 2rem;
+  --space-2xl: 3rem;
+
+  /* Typography - Financial data readability */
+  --font-mono: 'SF Mono', Monaco, 'Cascadia Code', 'Roboto Mono', Consolas, monospace;
+  --font-weight-medium: 500;
+  --font-weight-semibold: 600;
+  --font-weight-bold: 700;
+
+  /* Transitions - Smooth professional feel */
+  --transition-fast: 150ms cubic-bezier(0.4, 0, 0.2, 1);
+  --transition-base: 200ms cubic-bezier(0.4, 0, 0.2, 1);
+  --transition-slow: 300ms cubic-bezier(0.4, 0, 0.2, 1);
 
   font-family: "Plus Jakarta Sans", "Segoe UI", "Helvetica Neue", sans-serif;
   line-height: 1.6;

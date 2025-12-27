@@ -1,45 +1,63 @@
-import { BrowserRouter, Routes, Route } from "react-router-dom";
-import { ForecastProvider } from "./contexts";
-import Balance from "./pages/Balance.jsx";
-import BalanceChart from "./pages/BalanceChart.jsx";
-import BudgetInput from "./pages/BudgetInput.jsx";
-import FXOptions from "./pages/FXOptions.jsx";
-import CashFlow from "./pages/CashFlow.jsx";
-import CashFlowMonthly from "./pages/CashFlowMonthly.jsx";
-import BudgetRealization from "./pages/BudgetRealization.jsx";
-import TransActual from "./pages/TransActual.jsx";
-import TransBudget from "./pages/TransBudget.jsx";
-import Home from "./pages/Home.jsx";
-import RefreshPS from "./pages/RefreshPS.jsx";
-import UploadPS from "./pages/UploadPS.jsx";
-import FCExpSetup from "./pages/FCExpSetup.jsx";
-import FCScenarios from "./pages/FCScenarios.jsx";
-import FCModuleManage from "./pages/FCModuleManage.jsx";
-import FCReview from "./pages/FCReview.jsx";
+import { Suspense } from 'react';
+import { BrowserRouter, Routes, Route } from 'react-router-dom';
+import { getRouterRoutes } from './config/routes';
 
+/**
+ * Loading fallback component for lazy-loaded routes.
+ * Displays a simple loading message while the route component is being loaded.
+ */
+function RouteLoading() {
+  return (
+    <div style={{
+      display: 'flex',
+      alignItems: 'center',
+      justifyContent: 'center',
+      minHeight: '100vh',
+      fontSize: '1.125rem',
+      color: '#6b7280'
+    }}>
+      Loading...
+    </div>
+  );
+}
+
+/**
+ * Main App Component
+ *
+ * Uses unified routes configuration for automatic route generation.
+ * All routes are lazy-loaded (except Home) for optimal bundle splitting.
+ * Routes can be wrapped with context providers as specified in config.
+ */
 function App() {
+  const routes = getRouterRoutes();
+
   return (
     <BrowserRouter>
-      <Routes>
-        <Route path="/" element={<Home />} />
-        <Route path="/balance" element={<Balance />} />
-        <Route path="/cash-flow" element={<CashFlow />} />
-        <Route path="/cash-flow-monthly" element={<CashFlowMonthly />} />
-        <Route path="/upload-ps" element={<UploadPS />} />
-        <Route path="/refresh-ps" element={<RefreshPS />} />
-        <Route path="/balance-chart" element={<BalanceChart />} />
-        <Route path="/budget-worksheet" element={<BudgetInput />} />
-        <Route path="/fx-options" element={<FXOptions />} />
-        <Route path="/budget-realization" element={<BudgetRealization />} />
-        <Route path="/trans-actual" element={<TransActual />} />
-        <Route path="/trans-budget" element={<TransBudget />} />
+      <Suspense fallback={<RouteLoading />}>
+        <Routes>
+          {routes.map((route) => {
+            const Component = route.component;
+            const Wrapper = route.wrapper;
 
-        {/* Forecast routes wrapped in ForecastProvider for shared state */}
-        <Route path="/forecast-setup-exp" element={<ForecastProvider><FCExpSetup /></ForecastProvider>} />
-        <Route path="/forecast-scenarios" element={<ForecastProvider><FCScenarios /></ForecastProvider>} />
-        <Route path="/forecast-modules" element={<ForecastProvider><FCModuleManage /></ForecastProvider>} />
-        <Route path="/forecast-review" element={<ForecastProvider><FCReview /></ForecastProvider>} />
-      </Routes>
+            // Create the element with optional wrapper
+            const element = Wrapper ? (
+              <Wrapper>
+                <Component />
+              </Wrapper>
+            ) : (
+              <Component />
+            );
+
+            return (
+              <Route
+                key={route.path}
+                path={route.path}
+                element={element}
+              />
+            );
+          })}
+        </Routes>
+      </Suspense>
     </BrowserRouter>
   );
 }

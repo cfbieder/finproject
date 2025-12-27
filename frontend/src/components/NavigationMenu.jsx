@@ -1,67 +1,16 @@
 import { Link } from "react-router-dom";
+import { generateMenuItems } from "../config/routes";
 import banner from "../assets/banner.png";
 import "./NavigationMenu.css";
 
-const menuItems = [
-  {
-    label: "Database",
-    submenu: [
-      { label: "Upload PS", path: "/upload-ps" },
-      { label: "Refresh PS", path: "/refresh-ps" },
-    ],
-  },
-  {
-    label: "Budgeting",
-    submenu: [
-      { label: "Budget Worksheet", path: "/budget-worksheet" },
-      { label: "Budget Realization", path: "/budget-realization" },
-    ],
-  },
-  {
-    label: "Forecasting",
-    submenu: [
-      { label: "Forecast Scenarios", path: "/forecast-scenarios" },
-      { label: "Forecast Modules", path: "/forecast-modules" },
-      { label: "Forecast Expenditures Setup", path: "/forecast-setup-exp" },
-      { label: "Forecast Revew", path: "/forecast-review" },
-    ],
-  },
-  {
-    label: "Reports & Graphs",
-    submenu: [
-      {
-        label: "Reports",
-        submenu: [
-          { label: "Balance Summary", path: "/balance" },
-          { label: "Cash Flow Summary", path: "/cash-flow" },
-          { label: "Cash Flow Monthly", path: "/cash-flow-monthly" },
-        ],
-      },
-      {
-        label: "Graphs",
-        submenu: [{ label: "Net Worth Chart", path: "/balance-chart" }],
-      },
-    ],
-  },
-  {
-    label: "Analytics",
-    submenu: [{ label: "Option Analysis", path: "/option-analysis" }],
-  },
-  {
-    label: "Transactions",
-    submenu: [
-      { label: "History", path: "/trans-actual" },
-      { label: "Budget", path: "/trans-budget" },
-    ],
-  },
-  {
-    label: "Settings",
-    submenu: [{ label: "FX Options", path: "/fx-options" }],
-  },
-  { label: "Help" },
-];
-
+/**
+ * Navigation Menu Component
+ *
+ * Automatically generates navigation menu from routes configuration.
+ * Supports nested dropdowns for hierarchical menu structure.
+ */
 export default function NavigationMenu() {
+  const menuItems = generateMenuItems();
   const preventDropdownClick = (event) => {
     event.preventDefault();
     event.stopPropagation();
