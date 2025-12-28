@@ -345,7 +345,7 @@ export default function TransactionBudgetFilter({
             type="button"
             onClick={onSelectAllToggle}
           >
-            {isAllSelected ? "Clear All" : "Select All"}
+            All
           </button>
           <button
             className={`generate-report-button trans-budget-filter__delete-button${

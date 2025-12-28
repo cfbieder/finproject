@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import Rest from "../../js/rest";
+import "./TransactionActualFilter.css";
 
 const currentYear = new Date().getFullYear();
 const YEAR_OPTIONS = Array.from({ length: 7 }, (_, index) =>
@@ -367,7 +368,7 @@ export default function TransactionActualFilter({
             type="button"
             onClick={onSelectAllToggle}
           >
-            {isAllSelected ? "Clear All" : "Select All"}
+            All
           </button>
           <button
             className={`generate-report-button trans-budget-filter__delete-button${

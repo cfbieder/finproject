@@ -8,7 +8,6 @@ add COA management
 
 review how income, growth and expense calculated in fcbuilder
 
-remove fixed income and expense option in fc module.
 
 On budget input page have currency automatically selected from coa_
 
