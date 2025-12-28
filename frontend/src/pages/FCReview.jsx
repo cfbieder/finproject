@@ -28,6 +28,8 @@ import { useScenarios } from "../features/Forecast/hooks/useScenarios.js";
 import { useCashFlowAccounts } from "../features/Forecast/hooks/useCashFlowAccounts.js";
 import { useBalanceSheetAccounts } from "../features/Forecast/hooks/useBalanceSheetAccounts.js";
 import { useForecastData } from "../features/Forecast/hooks/useForecastData.js";
+import { useBaseYearActuals } from "../features/Forecast/hooks/useBaseYearActuals.js";
+import { useBaseYearBalanceSheet } from "../features/Forecast/hooks/useBaseYearBalanceSheet.js";
 import Rest from "../js/rest.js";
 import "./PageLayout.css";
 
@@ -80,6 +82,20 @@ export default function FCReview() {
     error: balanceError,
   } = useBalanceSheetAccounts();
 
+  // Load base year actuals for cash flow (P&L)
+  const {
+    baseActualTotals,
+    loading: baseActualLoading,
+    error: baseActualError,
+  } = useBaseYearActuals(years);
+
+  // Load base year actuals for balance sheet
+  const {
+    baseBalanceTotals,
+    loading: baseBalanceLoading,
+    error: baseBalanceError,
+  } = useBaseYearBalanceSheet(years, balanceAccountMap);
+
   // =============================================================================
   // STATE - Forecast Generation
   // =============================================================================
@@ -88,281 +104,11 @@ export default function FCReview() {
   const [generateError, setGenerateError] = useState("");
   const [generateResult, setGenerateResult] = useState(null);
 
-  // =============================================================================
-  // STATE - Base Year Actuals
-  // =============================================================================
-
-  // Base year actuals for cash flow (P&L)
-  const [baseActualTotals, setBaseActualTotals] = useState({
-    level1: new Map(), // Level 1 totals (Income, Expense)
-    level2: new Map(), // Level 2 totals (sub-categories)
-    net: null, // Net cash flow (Income + Expense)
-  });
-  const [baseActualLoading, setBaseActualLoading] = useState(false);
-  const [baseActualError, setBaseActualError] = useState("");
-
-  // Base year actuals for balance sheet
-  const [baseBalanceTotals, setBaseBalanceTotals] = useState({
-    level1: new Map(), // Level 1 totals (Assets, Liabilities)
-    level2: new Map(), // Level 2 totals (sub-categories)
-    level3: new Map(), // Level 3 totals (leaf accounts)
-  });
-  const [baseBalanceLoading, setBaseBalanceLoading] = useState(false);
-  const [baseBalanceError, setBaseBalanceError] = useState("");
-
   // Clear generation state when scenario changes
   useEffect(() => {
     setGenerateError("");
     setGenerateResult(null);
   }, [selectedScenario]);
-
-  // =============================================================================
-  // EFFECTS - Load Base Year Actuals
-  // =============================================================================
-
-  /**
-   * Loads actual P&L data for the base year (first forecast year).
-   * This provides comparison data for the forecast starting point.
-   *
-   * Features:
-   * - Fetches cash flow report for base year
-   * - Aggregates by level 1 (Income, Expense) and level 2 categories
-   * - Excludes unrealized G/L from expense totals
-   * - Calculates net cash flow (Income + Expense)
-   */
-  useEffect(() => {
-    const sortedYears = [...years].sort((a, b) => Number(a) - Number(b));
-    const baseYear = sortedYears[0];
-
-    if (!baseYear) {
-      setBaseActualTotals({ level1: new Map(), level2: new Map(), net: null });
-      return;
-    }
-
-    let isMounted = true;
-
-    const loadActuals = async () => {
-      setBaseActualLoading(true);
-      setBaseActualError("");
-      try {
-        const fromDate = `${baseYear}-01-01`;
-        const toDate = `${baseYear}-12-31`;
-        const report = await Rest.fetchCashFlowReport({
-          fromDate,
-          toDate,
-          transfers: "exclude",
-          includeUnrealizedGL: false,
-        });
-        if (!isMounted) return;
-
-        const level1 = new Map();
-        const level2 = new Map();
-        let unrealizedAdjustment = 0;
-        let unrealizedLevel2 = "";
-
-        /**
-         * Recursively traverses cash flow report tree to aggregate totals.
-         *
-         * @param {Array} nodes - Report nodes to traverse
-         * @param {number} level - Current depth in tree (1, 2, 3, ...)
-         * @param {string} parentLevel1 - Parent level 1 category name
-         * @param {string} parentLevel2 - Parent level 2 category name
-         */
-        const traverse = (
-          nodes,
-          level = 1,
-          parentLevel1 = "",
-          parentLevel2 = ""
-        ) => {
-          if (!Array.isArray(nodes)) return;
-
-          for (const node of nodes) {
-            if (!node || typeof node !== "object") continue;
-
-            const name = node.name;
-            const total = Number(
-              node.totalUSD !== undefined && node.totalUSD !== null
-                ? node.totalUSD
-                : node.total ?? 0
-            );
-            const nextLevel1 = level === 1 && name ? name : parentLevel1;
-            const nextLevel2 =
-              level === 2 && name ? name : level === 1 ? "" : parentLevel2;
-
-            // Track unrealized G/L separately to exclude from expense
-            if (name === "Unrealized G/L") {
-              unrealizedAdjustment += total;
-              unrealizedLevel2 = nextLevel2 || unrealizedLevel2;
-              continue;
-            }
-
-            // Aggregate level 1 and level 2 totals
-            if (level === 1 && name) {
-              level1.set(name, total);
-            } else if (level === 2 && name) {
-              level2.set(name, total);
-            }
-
-            // Recurse into children
-            if (Array.isArray(node.children) && node.children.length > 0) {
-              traverse(node.children, level + 1, nextLevel1, nextLevel2);
-            }
-          }
-        };
-
-        traverse(report, 1, "", "");
-
-        // Adjust expense totals to exclude unrealized G/L
-        if (unrealizedAdjustment) {
-          const expenseTotal = level1.get("Expense") ?? 0;
-          level1.set("Expense", expenseTotal - unrealizedAdjustment);
-          if (unrealizedLevel2) {
-            const l2Total = level2.get(unrealizedLevel2) ?? 0;
-            level2.set(unrealizedLevel2, l2Total - unrealizedAdjustment);
-          }
-        }
-
-        const income = level1.get("Income") ?? 0;
-        const expense = level1.get("Expense") ?? 0;
-        setBaseActualTotals({ level1, level2, net: income + expense });
-      } catch (error) {
-        if (isMounted) {
-          setBaseActualError(
-            error.message || "Failed to load base year actuals"
-          );
-        }
-      } finally {
-        if (isMounted) {
-          setBaseActualLoading(false);
-        }
-      }
-    };
-
-    loadActuals();
-    return () => {
-      isMounted = false;
-    };
-  }, [years]);
-
-  /**
-   * Loads actual balance sheet data for the base year.
-   * Provides comparison data for the balance sheet forecast starting point.
-   *
-   * Features:
-   * - Fetches balance sheet as of end of base year
-   * - Aggregates by level 1 (Assets, Liabilities), level 2, and level 3
-   * - Uses account mapping to categorize leaf accounts
-   * - Calculates total assets and liabilities
-   */
-  useEffect(() => {
-    const sortedYears = [...years].sort((a, b) => Number(a) - Number(b));
-    const baseYear = sortedYears[0];
-
-    if (!baseYear) {
-      setBaseBalanceTotals({
-        level1: new Map(),
-        level2: new Map(),
-        level3: new Map(),
-      });
-      return;
-    }
-
-    let isMounted = true;
-
-    const loadBalance = async () => {
-      setBaseBalanceLoading(true);
-      setBaseBalanceError("");
-      try {
-        const asOfDate = `${baseYear}-12-31`;
-        const report = await Rest.fetchBalanceReport(asOfDate);
-        if (!isMounted) return;
-
-        const level1 = new Map();
-        const level2 = new Map();
-        const level3Map = new Map();
-        let assetTotal = 0;
-        let liabilityTotal = 0;
-
-        /**
-         * Recursively aggregates balance sheet values.
-         *
-         * @param {Array} nodes - Balance sheet nodes to process
-         * @param {Array} path - Current path in tree (for mapping)
-         */
-        const aggregateValues = (nodes, path = []) => {
-          if (!Array.isArray(nodes)) return;
-
-          for (const node of nodes) {
-            if (!node || typeof node !== "object") continue;
-
-            const name = node.name;
-            const children = Array.isArray(node.children) ? node.children : [];
-            const hasChildren = children.length > 0;
-            const newPath = [...path, name].filter(Boolean);
-
-            // Recurse into children first
-            if (hasChildren) {
-              aggregateValues(children, newPath);
-              continue;
-            }
-
-            // Process leaf nodes
-            const total = Number(node.totalUSD ?? 0);
-            const mapping = balanceAccountMap.get(name);
-            const l1 = mapping?.level1 || newPath[0];
-            const l2 = mapping?.level2 || newPath[1];
-
-            // Aggregate at all three levels
-            if (name) {
-              level3Map.set(name, (level3Map.get(name) ?? 0) + total);
-            }
-            if (l1) {
-              level1.set(l1, (level1.get(l1) ?? 0) + total);
-              if (l1 === "Assets") {
-                assetTotal += total;
-              } else if (l1 === "Liabilities") {
-                liabilityTotal += total;
-              }
-            }
-            if (l2) {
-              level2.set(l2, (level2.get(l2) ?? 0) + total);
-            }
-          }
-        };
-
-        const nodes = Array.isArray(report)
-          ? report
-          : Array.isArray(report?.["Balance Sheet Accounts"])
-          ? report["Balance Sheet Accounts"]
-          : [];
-
-        aggregateValues(nodes, []);
-
-        // Set final asset and liability totals
-        if (assetTotal) {
-          level1.set("Assets", assetTotal);
-        }
-        if (liabilityTotal) {
-          level1.set("Liabilities", liabilityTotal);
-        }
-
-        setBaseBalanceTotals({ level1, level2, level3: level3Map });
-      } catch (error) {
-        if (isMounted) {
-          setBaseBalanceError(error.message || "Failed to load balance sheet");
-        }
-      } finally {
-        if (isMounted) {
-          setBaseBalanceLoading(false);
-        }
-      }
-    };
-
-    loadBalance();
-    return () => {
-      isMounted = false;
-    };
-  }, [years, balanceAccountMap]);
 
   // =============================================================================
   // ACTIONS - Generate Forecast

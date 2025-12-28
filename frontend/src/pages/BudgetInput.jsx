@@ -7,20 +7,19 @@ import BudgetRegionBalances from "../features/BudgetEntry/BudgetRegionBalances.j
 import BudgetRegionSelectors from "../features/BudgetEntry/BudgetRegionSelectors.jsx";
 import BudgetRegionBudgetEntry from "../features/BudgetEntry/BudgetRegionBudgetEntry.jsx";
 import BudgetExpenseSignModal from "../features/BudgetEntry/components/BudgetExpenseSignModal.jsx";
+import { useFilterOptions } from "../features/BudgetEntry/hooks/useFilterOptions.js";
+import { useBalanceData } from "../features/BudgetEntry/hooks/useBalanceData.js";
+import { useCurrencyData } from "../features/BudgetEntry/hooks/useCurrencyData.js";
 import {
   MONTH_OPTIONS,
   YEAR_OPTIONS,
   BUDGET_YEAR_OPTIONS,
   BASE_CURRENCY,
-  DEFAULT_ACCOUNT_OPTIONS,
-  DEFAULT_CATEGORY_OPTIONS,
   CATEGORY_GROUP_INCOME,
   CATEGORY_GROUP_EXPENSE,
   CATEGORY_GROUP_EXPENSE_OPERATIONAL,
   CATEGORY_GROUP_LABELS,
-  getSelectedAccountFilters,
   ensureAllOption,
-  normalizeCurrencyOptions,
   buildBudgetMonthValue,
   isOperationalExpenseExcluded,
   getOperationalExpenseCategories,
@@ -28,11 +27,9 @@ import {
   getCategoryDisplayLabel,
   expandSelectedCategories,
   normalizeCurrencyCode,
-  buildBudgetRateMap,
   currencyFormatter,
   formatCurrencyValue,
   normalizeMonthNumber,
-  buildMonthSequence,
   getMonthLabel,
   normalizeTextInput,
   evaluateMathInput,
@@ -54,33 +51,27 @@ import "./PageLayout.css";
  * - Multi-currency support with exchange rates
  */
 export default function BudgetInput() {
+  // ========== Custom Hooks - Data Loading ==========
+
+  // Load filter options (accounts, categories)
+  const {
+    accountOptions,
+    categoryOptions,
+    selectedAccounts,
+    selectedCategories,
+    categoryGroups,
+    setSelectedAccounts,
+    setSelectedCategories,
+  } = useFilterOptions();
+
+  // Load currency options and exchange rates
+  const { currencyOptions, budgetRates } = useCurrencyData();
+
   // ========== State: Date Range ==========
   const [fromMonth, setFromMonth] = useState(MONTH_OPTIONS[0].value);
   const [toMonth, setToMonth] = useState(MONTH_OPTIONS[11].value);
   const [actualYear, setActualYear] = useState(YEAR_OPTIONS[0]);
   const [budgetYear, setBudgetYear] = useState(BUDGET_YEAR_OPTIONS[2]);
-
-  // ========== State: Filter Options ==========
-  const [accountOptions, setAccountOptions] = useState(DEFAULT_ACCOUNT_OPTIONS);
-  const [categoryOptions, setCategoryOptions] = useState(
-    DEFAULT_CATEGORY_OPTIONS
-  );
-  const [selectedAccounts, setSelectedAccounts] = useState(["All"]);
-  const [selectedCategories, setSelectedCategories] = useState([
-    CATEGORY_GROUP_EXPENSE,
-  ]);
-  const [categoryGroups, setCategoryGroups] = useState({
-    Income: [],
-    Expense: [],
-  });
-
-  // ========== State: Balance Data ==========
-  const [balanceRows, setBalanceRows] = useState([]);
-  const [balancesStatus, setBalancesStatus] = useState({
-    loading: true,
-    error: "",
-  });
-  const [balancesRefreshKey, setBalancesRefreshKey] = useState(0);
 
   // ========== State: Entry Form ==========
   const [entryForm, setEntryForm] = useState({
@@ -98,10 +89,6 @@ export default function BudgetInput() {
     message: "",
   });
   const [expenseSignModal, setExpenseSignModal] = useState(null);
-
-  // ========== State: Currency ==========
-  const [currencyOptions, setCurrencyOptions] = useState([BASE_CURRENCY]);
-  const [budgetRates, setBudgetRates] = useState({ USD: 1 });
 
   // ========== State: Popups ==========
   const [actualEntriesPopupRequest, setActualEntriesPopupRequest] =
@@ -237,6 +224,20 @@ export default function BudgetInput() {
     [selectedCategories, categoryGroups, operationalExpenseCategories]
   );
 
+  // Load balance data based on filters
+  const {
+    balanceRows,
+    status: balancesStatus,
+    refresh: refreshBalances,
+  } = useBalanceData({
+    fromMonth,
+    toMonth,
+    actualYear,
+    budgetYear,
+    selectedAccounts,
+    expandedCategories: expandedSelectedCategories,
+  });
+
   // Current exchange rate based on selected currency
   const currentExchangeRate = useMemo(() => {
     const normalizedCurrency = normalizeCurrencyCode(entryForm.currency);
@@ -302,92 +303,6 @@ export default function BudgetInput() {
       return { ...previous, date: defaultOption?.value ?? "" };
     });
   }, [monthSelectOptions]);
-
-  useEffect(() => {
-    let isActive = true;
-
-    const loadFilters = async () => {
-      try {
-        const [psOptions, categoryGroupPayload] = await Promise.all([
-          Rest.fetchPsDataOptions(),
-          Rest.fetchCategoryGroups(),
-        ]);
-        if (!isActive) {
-          return;
-        }
-
-        const { accounts = [], categories = [] } = psOptions ?? {};
-
-        if (Array.isArray(accounts)) {
-          setAccountOptions(ensureAllOption(accounts));
-        }
-
-        if (Array.isArray(categories) && categories.length) {
-          setCategoryOptions(categories);
-        }
-
-        setCategoryGroups({
-          Income: Array.isArray(categoryGroupPayload?.Income)
-            ? categoryGroupPayload.Income
-            : [],
-          Expense: Array.isArray(categoryGroupPayload?.Expense)
-            ? categoryGroupPayload.Expense
-            : [],
-        });
-      } catch (error) {
-        console.error("[BudgetInput] Failed to load psdata options:", error);
-      }
-    };
-
-    loadFilters();
-
-    return () => {
-      isActive = false;
-    };
-  }, []);
-
-  useEffect(() => {
-    let isActive = true;
-
-    const loadCurrencyMetadata = async () => {
-      try {
-        const [currencyPayload, appDataPayload] = await Promise.all([
-          Rest.fetchCurrencyOptions(),
-          Rest.fetchJson("/api/util/getappdata"),
-        ]);
-
-        if (!isActive) {
-          return;
-        }
-
-        const normalizedCurrencies = normalizeCurrencyOptions(
-          currencyPayload?.currencies ?? []
-        );
-        setCurrencyOptions(
-          normalizedCurrencies.length ? normalizedCurrencies : [BASE_CURRENCY]
-        );
-
-        const appDataDoc =
-          Array.isArray(appDataPayload) && appDataPayload.length
-            ? appDataPayload[0]
-            : {};
-        setBudgetRates(buildBudgetRateMap(appDataDoc));
-      } catch (error) {
-        if (!isActive) {
-          return;
-        }
-        console.error("[BudgetInput] Failed to load currency metadata:", error);
-        setCurrencyOptions([BASE_CURRENCY]);
-        setBudgetRates({ USD: 1 });
-      }
-    };
-
-    loadCurrencyMetadata();
-
-    return () => {
-      isActive = false;
-    };
-  }, []);
 
   // Update entry form category when derived category changes
   useEffect(() => {
@@ -634,7 +549,7 @@ export default function BudgetInput() {
         note: "",
       }));
       setBudgetEntriesPopupRequest(null);
-      setBalancesRefreshKey((previous) => previous + 1);
+      refreshBalances();
     } catch (error) {
       console.error("[BudgetInput] Failed to submit budget entry:", error);
       setEntryStatus({
@@ -769,88 +684,12 @@ export default function BudgetInput() {
       budgetRates,
       baseCurrency: BASE_CURRENCY,
       onClose: () => {
-        setBalancesRefreshKey((prev) => prev + 1);
+        refreshBalances();
         setBudgetEntriesPopupRequest(null);
       },
     });
   };
 
-  // ========== Effects: Data Fetching ==========
-
-  // Fetch balance data when filters change
-  useEffect(() => {
-    let isActive = true;
-
-    const fetchBalances = async () => {
-      setBalancesStatus({ loading: true, error: "" });
-      setBalanceRows([]);
-
-      try {
-        const accountsToFilter = getSelectedAccountFilters(selectedAccounts);
-
-        const categoryFilters = expandedSelectedCategories;
-
-        const payload = await Rest.fetchBudgetBalances({
-          fromMonth,
-          toMonth,
-          actualYear,
-          budgetYear,
-          categories: categoryFilters,
-          accounts: accountsToFilter,
-        });
-
-        if (!isActive) {
-          return;
-        }
-
-        const monthSequence =
-          Array.isArray(payload.months) && payload.months.length
-            ? payload.months
-            : buildMonthSequence(fromMonth, toMonth);
-
-        const rows = monthSequence.map((monthNumber) => {
-          const actualValue = payload.actualByMonth?.[monthNumber];
-          const budgetValue = payload.budgetByMonth?.[monthNumber];
-          const actual = Number.isFinite(actualValue) ? actualValue : 0;
-          const budget = Number.isFinite(budgetValue) ? budgetValue : 0;
-          return {
-            monthNumber,
-            monthLabel: getMonthLabel(monthNumber),
-            actual,
-            budget,
-            difference: actual - budget,
-          };
-        });
-
-        setBalanceRows(rows);
-        setBalancesStatus({ loading: false, error: "" });
-      } catch (error) {
-        if (!isActive) {
-          return;
-        }
-        console.error("[BudgetInput] Failed to load balance summary:", error);
-        setBalanceRows([]);
-        setBalancesStatus({
-          loading: false,
-          error: error?.message || "Unable to load balance data.",
-        });
-      }
-    };
-
-    fetchBalances();
-
-    return () => {
-      isActive = false;
-    };
-  }, [
-    fromMonth,
-    toMonth,
-    actualYear,
-    budgetYear,
-    selectedAccounts,
-    expandedSelectedCategories,
-    balancesRefreshKey,
-  ]);
 
   // ========== Render ==========
 

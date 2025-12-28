@@ -74,6 +74,69 @@
   transform: translateY(-1px);
 }
 
+/* Enhanced styling for multi-select dropdowns */
+.selector-control__input[multiple] {
+  padding: 0.5rem;
+  scrollbar-width: thin;
+  scrollbar-color: rgba(37, 99, 235, 0.3) rgba(15, 23, 42, 0.05);
+}
+
+.selector-control__input[multiple]::-webkit-scrollbar {
+  width: 10px;
+}
+
+.selector-control__input[multiple]::-webkit-scrollbar-track {
+  background: rgba(15, 23, 42, 0.05);
+  border-radius: 0 0.5rem 0.5rem 0;
+}
+
+.selector-control__input[multiple]::-webkit-scrollbar-thumb {
+  background: rgba(37, 99, 235, 0.3);
+  border-radius: 5px;
+  border: 2px solid #ffffff;
+}
+
+.selector-control__input[multiple]::-webkit-scrollbar-thumb:hover {
+  background: rgba(37, 99, 235, 0.5);
+}
+
+/* Enhanced option styling for multi-select */
+.selector-control__input[multiple] option {
+  padding: 0.65rem 0.75rem;
+  margin: 0.25rem 0.5rem;
+  border-radius: 0.5rem;
+  font-weight: 500;
+  transition: all 0.15s ease;
+  cursor: pointer;
+}
+
+.selector-control__input[multiple] option:hover {
+  background: linear-gradient(135deg, rgba(37, 99, 235, 0.08) 0%, rgba(37, 99, 235, 0.05) 100%);
+}
+
+.selector-control__input[multiple] option:checked {
+  background: linear-gradient(135deg, rgba(37, 99, 235, 0.18) 0%, rgba(37, 99, 235, 0.12) 100%);
+  font-weight: 700;
+  color: var(--primary);
+  border-left: 3px solid var(--primary);
+  padding-left: calc(0.75rem - 3px);
+}
+
+/* Special styling for "All" option */
+.selector-control__input[multiple] option[value="All"] {
+  font-weight: 700;
+  color: var(--ink);
+  border-bottom: 1px solid rgba(37, 99, 235, 0.15);
+  margin-bottom: 0.5rem;
+  padding-bottom: 0.75rem;
+}
+
+.selector-control__input[multiple] option[value="All"]:checked {
+  background: linear-gradient(135deg, rgba(99, 102, 241, 0.18) 0%, rgba(99, 102, 241, 0.12) 100%);
+  color: #6366f1;
+  border-left-color: #6366f1;
+}
+
 .selector-control--fill {
   flex: 1 1 auto;
 }
@@ -131,22 +194,67 @@
 .category-group-option {
   font-weight: 700;
   color: var(--ink);
-  padding: 0.5rem 0.75rem;
+  padding: 0.65rem 0.75rem;
+  margin: 0.25rem 0.5rem;
+  border-radius: 0.5rem;
+  transition: all 0.15s ease;
 }
 
 .category-group-option--income {
-  background: linear-gradient(135deg, rgba(16, 185, 129, 0.15) 0%, rgba(5, 150, 105, 0.12) 100%);
-  border-left: 3px solid rgba(16, 185, 129, 0.6);
+  background: linear-gradient(135deg, rgba(59, 130, 246, 0.08) 0%, rgba(37, 99, 235, 0.06) 100%);
+  border-left: 4px solid rgba(59, 130, 246, 0.5);
+  padding-left: calc(0.75rem - 4px);
+  color: rgb(30, 64, 175);
+}
+
+.category-group-option--income:hover {
+  background: linear-gradient(135deg, rgba(59, 130, 246, 0.12) 0%, rgba(37, 99, 235, 0.09) 100%);
+  border-left-color: rgba(59, 130, 246, 0.7);
+}
+
+.category-group-option--income:checked {
+  background: linear-gradient(135deg, rgba(59, 130, 246, 0.18) 0%, rgba(37, 99, 235, 0.14) 100%);
+  color: rgb(29, 78, 216);
+  border-left-color: rgb(59, 130, 246);
+  box-shadow: inset 0 1px 3px rgba(59, 130, 246, 0.15);
 }
 
 .category-group-option--expense {
-  background: linear-gradient(135deg, rgba(239, 68, 68, 0.15) 0%, rgba(220, 38, 38, 0.12) 100%);
-  border-left: 3px solid rgba(239, 68, 68, 0.6);
+  background: linear-gradient(135deg, rgba(100, 116, 139, 0.08) 0%, rgba(71, 85, 105, 0.06) 100%);
+  border-left: 4px solid rgba(100, 116, 139, 0.5);
+  padding-left: calc(0.75rem - 4px);
+  color: rgb(51, 65, 85);
+}
+
+.category-group-option--expense:hover {
+  background: linear-gradient(135deg, rgba(100, 116, 139, 0.12) 0%, rgba(71, 85, 105, 0.09) 100%);
+  border-left-color: rgba(100, 116, 139, 0.7);
+}
+
+.category-group-option--expense:checked {
+  background: linear-gradient(135deg, rgba(100, 116, 139, 0.18) 0%, rgba(71, 85, 105, 0.14) 100%);
+  color: rgb(30, 41, 59);
+  border-left-color: rgb(100, 116, 139);
+  box-shadow: inset 0 1px 3px rgba(100, 116, 139, 0.15);
 }
 
 .category-group-option--expense-operational {
-  background: linear-gradient(135deg, rgba(251, 146, 60, 0.15) 0%, rgba(249, 115, 22, 0.12) 100%);
-  border-left: 3px solid rgba(251, 146, 60, 0.6);
+  background: linear-gradient(135deg, rgba(148, 163, 184, 0.08) 0%, rgba(125, 143, 169, 0.06) 100%);
+  border-left: 4px solid rgba(148, 163, 184, 0.5);
+  padding-left: calc(0.75rem - 4px);
+  color: rgb(71, 85, 105);
+}
+
+.category-group-option--expense-operational:hover {
+  background: linear-gradient(135deg, rgba(148, 163, 184, 0.12) 0%, rgba(125, 143, 169, 0.09) 100%);
+  border-left-color: rgba(148, 163, 184, 0.7);
+}
+
+.category-group-option--expense-operational:checked {
+  background: linear-gradient(135deg, rgba(148, 163, 184, 0.18) 0%, rgba(125, 143, 169, 0.14) 100%);
+  color: rgb(51, 65, 85);
+  border-left-color: rgb(148, 163, 184);
+  box-shadow: inset 0 1px 3px rgba(148, 163, 184, 0.15);
 }
 
 @media (max-width: 640px) {
