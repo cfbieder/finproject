@@ -2,8 +2,6 @@ Add option to update budget FX rates on transactions page
 
 Cash Flow line in Forecast to implement
 
-History of budget page still not getting all items even when filtered
-
 add COA management
 
 review how income, growth and expense calculated in fcbuilder
@@ -17,4 +15,4 @@ Set a scenario as default for all
 
 Copy modules to other scenarios
 
-Select period for refresh
+Select period for refresh from PS

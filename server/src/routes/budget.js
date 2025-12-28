@@ -491,7 +491,7 @@ const buildFilters = (query) => {
       dateFilter.$gte = fromDate;
     }
     if (toDate) {
-      dateFilter.$lte = toDate;
+      dateFilter.$lt = toDate; // Use $lt (exclusive) for consistency with actual-entries
     }
     if (Object.keys(dateFilter).length) {
       filters.Date = dateFilter;

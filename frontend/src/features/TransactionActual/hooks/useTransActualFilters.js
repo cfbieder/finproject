@@ -1,22 +1,22 @@
-import { useCallback, useMemo, useState } from "react";
+import { useCallback, useState } from "react";
 import { DEFAULT_FILTERS, filtersAreEqual } from "../transActualUtils.js";
-import { filterTransactions } from "./useTransactions.js";
 
 const TRANSACTION_BATCH_SIZE = 500;
 
 /**
  * Custom hook for managing transaction filters.
  *
- * @param {Array} transactions - Raw transactions
+ * NOTE: Transactions are already filtered server-side by useTransactions hook.
+ * This hook only manages filter state - no client-side filtering is needed.
+ *
+ * @param {Array} transactions - Server-filtered transactions from useTransactions
  * @returns {Object} Filter state and handlers
  */
 export function useTransActualFilters(transactions) {
   const [filters, setFilters] = useState(() => ({ ...DEFAULT_FILTERS }));
 
-  const filteredTransactions = useMemo(
-    () => filterTransactions(transactions, filters),
-    [transactions, filters]
-  );
+  // Transactions are already filtered by the server, so just pass them through
+  const filteredTransactions = transactions;
 
   const handleFilterChange = useCallback((nextFilters, setTransactionLimit) => {
     if (!nextFilters) {

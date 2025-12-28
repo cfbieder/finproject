@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useMemo, useState } from "react";
 import NavigationMenu from "../components/NavigationMenu.jsx";
 import TransactionBudgetFilter from "../features/TransactionBudget/TransactionBudgetFilter.jsx";
 import TransactionBudgetTable, {
@@ -9,12 +9,12 @@ import TransactionBudgetTable, {
 } from "../features/TransactionBudget/TransactionBudgetTable.jsx";
 import TransBudgetDeleteModal from "../features/TransactionBudget/components/TransBudgetDeleteModal.jsx";
 import TransBudgetEditModal from "../features/TransactionBudget/components/TransBudgetEditModal.jsx";
+import { useTransBudgetTransactions } from "../features/TransactionBudget/hooks/useTransBudgetTransactions.js";
 import { useTransBudgetFilters } from "../features/TransactionBudget/hooks/useTransBudgetFilters.js";
 import { useTransBudgetSelection } from "../features/TransactionBudget/hooks/useTransBudgetSelection.js";
 import { useTransBudgetDelete } from "../features/TransactionBudget/hooks/useTransBudgetDelete.js";
 import { useTransBudgetEdit } from "../features/TransactionBudget/hooks/useTransBudgetEdit.js";
-import { normalizeStringOptions } from "../features/TransactionBudget/utils/transBudgetUtils.js";
-import Rest from "../js/rest.js";
+import { normalizeStringOptions, DEFAULT_FILTERS } from "../features/TransactionBudget/utils/transBudgetUtils.js";
 import "./PageLayout.css";
 
 /**
@@ -29,9 +29,8 @@ import "./PageLayout.css";
  * - Delete confirmation modal
  */
 export default function TransBudget() {
-  const [transactions, setTransactions] = useState([]);
-  const [isLoading, setIsLoading] = useState(false);
-  const [error, setError] = useState("");
+  // Get filter state first so we can pass to useTransBudgetTransactions
+  const [filters, setFilters] = useState(() => ({ ...DEFAULT_FILTERS }));
 
   // Get reference data from custom hooks
   const categoryOptions = useTransactionBudgetCategoryOptions();
@@ -39,41 +38,19 @@ export default function TransBudget() {
   const currencyOptions = useTransactionBudgetCurrencyOptions();
   const budgetRates = useTransactionBudgetExchangeRates();
 
-  /**
-   * Loads budget transactions from the API.
-   * Clears selection state after loading.
-   * @param {AbortSignal} signal - Abort signal for cancelling the request
-   */
-  const loadTransactions = useCallback(async (signal) => {
-    setIsLoading(true);
-    try {
-      const payload = await Rest.fetchJson("/api/budget", { signal });
-      const data = Array.isArray(payload) ? payload : [];
-      setTransactions(data);
-      setError("");
-    } catch (err) {
-      if (err?.name === "AbortError") {
-        return;
-      }
-      console.error("[TransBudget] Failed to load transactions:", err);
-      setError(err?.message ?? "Failed to load budget transactions");
-      setTransactions([]);
-    } finally {
-      setIsLoading(false);
-    }
-  }, []);
-
-  // Load transactions on mount with cleanup on unmount
-  useEffect(() => {
-    const controller = new AbortController();
-    loadTransactions(controller.signal);
-    return () => {
-      controller.abort();
-    };
-  }, [loadTransactions]);
+  // Load transactions with current filters
+  const {
+    transactions,
+    transactionLimit,
+    hasMoreTransactions,
+    isLoading,
+    error,
+    setTransactionLimit,
+    reload,
+  } = useTransBudgetTransactions(filters);
 
   // Use custom hooks for feature management
-  const { filters, filteredTransactions, handleFilterChange } =
+  const { filteredTransactions, handleFilterChange } =
     useTransBudgetFilters(transactions);
 
   const {
@@ -90,8 +67,14 @@ export default function TransBudget() {
   // Success callback: reload data and clear selection
   const handleSuccess = useCallback(async () => {
     clearSelection();
-    await loadTransactions();
-  }, [clearSelection, loadTransactions]);
+    await reload();
+  }, [clearSelection, reload]);
+
+  // Wrapper for handleFilterChange to update filters state
+  const onFiltersChange = useCallback((nextFilters) => {
+    setFilters(nextFilters);
+    handleFilterChange(nextFilters, setTransactionLimit);
+  }, [handleFilterChange, setTransactionLimit]);
 
   const {
     showDeleteConfirmation,
@@ -160,7 +143,7 @@ export default function TransBudget() {
       <NavigationMenu />
       <main className="page-main trans-budget-main">
         <TransactionBudgetFilter
-          onFiltersChange={handleFilterChange}
+          onFiltersChange={onFiltersChange}
           onDeleteClick={handleDeleteRequest}
           onEditClick={handleEditRequest}
           onSelectAllToggle={handleSelectAllToggle}
