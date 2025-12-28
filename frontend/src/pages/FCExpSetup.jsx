@@ -125,8 +125,9 @@ export default function FCExpSetup() {
   }, []);
 
   /**
-   * Effect: Auto-select first scenario when assumptions load
-   * Maintains current selection if still valid, otherwise defaults to first scenario
+   * Effect: Auto-select scenario when assumptions load
+   * Maintains current selection if still valid, otherwise checks localStorage for default,
+   * otherwise defaults to first scenario
    */
   useEffect(() => {
     const availableScenarios = assumptions?.scenarios || [];
@@ -136,12 +137,24 @@ export default function FCExpSetup() {
     }
 
     setSelectedScenario((prev) => {
+      // Keep current selection if valid
       if (
         prev &&
         availableScenarios.some((scenario) => scenario.Name === prev)
       ) {
         return prev;
       }
+
+      // Check localStorage for default scenario
+      const defaultScenario = localStorage.getItem("forecast_default_scenario");
+      if (
+        defaultScenario &&
+        availableScenarios.some((scenario) => scenario.Name === defaultScenario)
+      ) {
+        return defaultScenario;
+      }
+
+      // Fall back to first scenario
       return availableScenarios[0].Name || "";
     });
   }, [assumptions]);

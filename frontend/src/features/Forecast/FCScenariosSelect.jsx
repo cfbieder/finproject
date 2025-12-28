@@ -27,6 +27,7 @@ export default function FCScenariosSelect({
   isLoading,
   taxRate,
   setTaxRate,
+  makeDefaultScenario,
 }) {
   // Disable controls when loading, no data, or errors
   const isDisabled = !assumptions || !!loadError || isLoading;
@@ -154,6 +155,16 @@ export default function FCScenariosSelect({
             >
               <span className="fc-scenarios-button-icon">💾</span>
               Commit Changes
+            </button>
+            <button
+              type="button"
+              className="fc-scenarios-action-button fc-scenarios-action-button--success"
+              onClick={makeDefaultScenario}
+              disabled={!canDeleteScenario || isLoading}
+              title="Set this scenario as default for forecast pages"
+            >
+              <span className="fc-scenarios-button-icon">⭐</span>
+              Make Default
             </button>
             <button
               type="button"

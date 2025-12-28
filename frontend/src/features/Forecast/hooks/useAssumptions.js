@@ -52,7 +52,8 @@ export function useAssumptions() {
 
   /**
    * Updates selected scenario when assumptions load or change.
-   * Preserves previous selection if still valid, otherwise defaults to first scenario.
+   * Preserves previous selection if still valid, otherwise checks localStorage for default,
+   * otherwise defaults to first scenario.
    */
   useEffect(() => {
     const availableScenarios = assumptions?.scenarios || [];
@@ -62,12 +63,24 @@ export function useAssumptions() {
     }
 
     setSelectedScenario((prev) => {
+      // If we already have a valid selection, keep it
       if (
         prev &&
         availableScenarios.some((scenario) => scenario.Name === prev)
       ) {
         return prev;
       }
+
+      // Check localStorage for default scenario
+      const defaultScenario = localStorage.getItem("forecast_default_scenario");
+      if (
+        defaultScenario &&
+        availableScenarios.some((scenario) => scenario.Name === defaultScenario)
+      ) {
+        return defaultScenario;
+      }
+
+      // Fall back to first available scenario
       return availableScenarios[0].Name || "";
     });
   }, [assumptions]);

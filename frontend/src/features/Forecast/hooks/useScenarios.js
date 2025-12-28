@@ -20,7 +20,8 @@ export function useScenarios() {
 
   /**
    * Loads available forecast scenarios on component mount.
-   * Auto-selects the first scenario if none is currently selected.
+   * Auto-selects default scenario from localStorage if available,
+   * otherwise selects the first scenario.
    */
   useEffect(() => {
     const loadScenarios = async () => {
@@ -29,7 +30,23 @@ export function useScenarios() {
         const data = await Rest.fetchJson("/api/forecast/assumptions");
         const list = data?.scenarios || [];
         setScenarios(list);
-        setSelectedScenario((current) => current || list[0]?.Name || "");
+
+        setSelectedScenario((current) => {
+          // Keep current selection if already set
+          if (current) {
+            return current;
+          }
+
+          // Check localStorage for default scenario
+          const defaultScenario = localStorage.getItem("forecast_default_scenario");
+          if (defaultScenario && list.some((s) => s.Name === defaultScenario)) {
+            return defaultScenario;
+          }
+
+          // Fall back to first scenario
+          return list[0]?.Name || "";
+        });
+
         setLoadError("");
       } catch (error) {
         setLoadError(error.message || "Failed to load scenarios");

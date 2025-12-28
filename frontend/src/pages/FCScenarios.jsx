@@ -438,6 +438,16 @@ export default function FCScenarios() {
   // ============================================================================
 
   /**
+   * Sets the currently selected scenario as the default for other forecast pages.
+   * Stores the scenario name in localStorage to persist across sessions.
+   */
+  const makeDefaultScenario = () => {
+    if (selectedScenario && selectedScenario !== "__new_scenario__") {
+      localStorage.setItem("forecast_default_scenario", selectedScenario);
+    }
+  };
+
+  /**
    * Deletes a scenario and all its associated data
    * Removes the scenario from scenarios list and removes all inflation/FX data
    * If deleting the currently selected scenario, switches to the first available scenario
@@ -656,6 +666,7 @@ export default function FCScenarios() {
           isLoading={isLoading}
           taxRate={String(selectedTaxRate ?? "")}
           setTaxRate={updateTaxRate}
+          makeDefaultScenario={makeDefaultScenario}
         />
 
         {/* Data tables for inflation and FX assumptions */}
