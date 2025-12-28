@@ -1978,10 +1978,6 @@
   z-index: 7;
 }
 
-.balance-report-table tbody tr:nth-child(even) td:not(:first-child) {
-  background: rgba(37, 99, 235, 0.04);
-}
-
 .balance-report-table th,
 .balance-report-table td {
   padding: 0.875rem 1rem;
@@ -2009,7 +2005,7 @@
 }
 
 .balance-report-table tbody tr:nth-child(even) td {
-  background: rgba(248, 249, 254, 0.5);
+  background: rgb(248, 249, 254);
 }
 
 .balance-report-table tbody tr:nth-child(even):hover td {

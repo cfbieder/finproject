@@ -15,6 +15,8 @@ export default function BalanceDateSelector({
 }) {
   const normalizedDates = Array.isArray(periodDates) ? periodDates : [];
   const clampedPeriodCount = Math.min(Math.max(periodCount ?? 1, 1), 3);
+  const currentYear = new Date().getFullYear();
+  const maxBalanceDate = `${currentYear}-12-31`;
 
   return (
     <div className="balance-layout">
@@ -46,6 +48,7 @@ export default function BalanceDateSelector({
                   type="date"
                   className="balance-date-picker__input"
                   value={normalizedDates[index] ?? ""}
+                  max={maxBalanceDate}
                   onChange={(event) =>
                     onPeriodDateChange?.(index, event.target.value)
                   }

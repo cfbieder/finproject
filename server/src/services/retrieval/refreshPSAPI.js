@@ -179,7 +179,6 @@ async function processTransactions(daysHistoryInput) {
     OUTPUT_FILES.mongoImportReport
   );
 
-//todo: test
   /*
    * Step 5: Update changed transactions in the database
    */

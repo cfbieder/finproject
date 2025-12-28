@@ -11,8 +11,4 @@ On budget input page have currency automatically selected from coa_
 
 when deleting scenario, modules still remain, need to resolve.
 
-Set a scenario as default for all
-
 Copy modules to other scenarios
-
-Select period for refresh from PS
