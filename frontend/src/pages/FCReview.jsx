@@ -23,7 +23,11 @@
 import { useEffect, useMemo, useState, useCallback } from "react";
 import NavigationMenu from "../components/NavigationMenu.jsx";
 import FCReviewSelector from "../features/Forecast/FCReviewSelector.jsx";
-import { parseLevelAccounts, formatAmount } from "../features/Forecast/utils/fcReviewUtils.js";
+import { formatAmount } from "../features/Forecast/utils/fcReviewUtils.js";
+import { useScenarios } from "../features/Forecast/hooks/useScenarios.js";
+import { useCashFlowAccounts } from "../features/Forecast/hooks/useCashFlowAccounts.js";
+import { useBalanceSheetAccounts } from "../features/Forecast/hooks/useBalanceSheetAccounts.js";
+import { useForecastData } from "../features/Forecast/hooks/useForecastData.js";
 import Rest from "../js/rest.js";
 import "./PageLayout.css";
 
@@ -37,44 +41,52 @@ import "./PageLayout.css";
  */
 export default function FCReview() {
   // =============================================================================
-  // STATE - Scenarios & Selection
+  // CUSTOM HOOKS - Data Loading
   // =============================================================================
 
-  const [scenarios, setScenarios] = useState([]);
-  const [selectedScenario, setSelectedScenario] = useState("");
-  const [loadError, setLoadError] = useState("");
-  const [isLoading, setIsLoading] = useState(false);
+  // Load forecast scenarios
+  const {
+    scenarios,
+    selectedScenario,
+    setSelectedScenario,
+    isLoading: scenariosLoading,
+    loadError: scenariosError,
+  } = useScenarios();
+
+  // Load forecast years and entries for selected scenario
+  const {
+    years,
+    entries,
+    yearsLoading,
+    entriesLoading,
+    yearsError,
+    entriesError,
+    reload: reloadForecastData,
+  } = useForecastData(selectedScenario);
+
+  // Load cash flow chart of accounts (Income, Expense, Transfers)
+  const {
+    cashAccounts,
+    cashAccountMap,
+    loading: accountsLoading,
+    error: accountsError,
+  } = useCashFlowAccounts();
+
+  // Load balance sheet chart of accounts (Assets, Liabilities)
+  const {
+    balanceAccounts,
+    balanceAccountMap,
+    loading: balanceLoading,
+    error: balanceError,
+  } = useBalanceSheetAccounts();
+
+  // =============================================================================
+  // STATE - Forecast Generation
+  // =============================================================================
+
   const [generateLoading, setGenerateLoading] = useState(false);
   const [generateError, setGenerateError] = useState("");
   const [generateResult, setGenerateResult] = useState(null);
-
-  // =============================================================================
-  // STATE - Years & Entries
-  // =============================================================================
-
-  const [years, setYears] = useState([]);
-  const [yearsLoading, setYearsLoading] = useState(false);
-  const [yearsError, setYearsError] = useState("");
-
-  const [entries, setEntries] = useState([]);
-  const [entriesLoading, setEntriesLoading] = useState(false);
-  const [entriesError, setEntriesError] = useState("");
-
-  // =============================================================================
-  // STATE - Chart of Accounts
-  // =============================================================================
-
-  // Cash flow accounts (Income, Expense, Transfers)
-  const [cashAccounts, setCashAccounts] = useState([]);
-  const [cashAccountMap, setCashAccountMap] = useState(new Map());
-  const [accountsLoading, setAccountsLoading] = useState(false);
-  const [accountsError, setAccountsError] = useState("");
-
-  // Balance sheet accounts (Assets, Liabilities)
-  const [balanceAccounts, setBalanceAccounts] = useState([]);
-  const [balanceAccountMap, setBalanceAccountMap] = useState(new Map());
-  const [balanceLoading, setBalanceLoading] = useState(false);
-  const [balanceError, setBalanceError] = useState("");
 
   // =============================================================================
   // STATE - Base Year Actuals
@@ -98,195 +110,10 @@ export default function FCReview() {
   const [baseBalanceLoading, setBaseBalanceLoading] = useState(false);
   const [baseBalanceError, setBaseBalanceError] = useState("");
 
-  // =============================================================================
-  // EFFECTS - Load Scenarios
-  // =============================================================================
-
-  /**
-   * Loads available forecast scenarios on component mount.
-   * Auto-selects the first scenario if none is currently selected.
-   */
-  useEffect(() => {
-    const loadScenarios = async () => {
-      setIsLoading(true);
-      try {
-        const data = await Rest.fetchJson("/api/forecast/assumptions");
-        const list = data?.scenarios || [];
-        setScenarios(list);
-        setSelectedScenario((current) => current || list[0]?.Name || "");
-        setLoadError("");
-      } catch (error) {
-        setLoadError(error.message || "Failed to load scenarios");
-      } finally {
-        setIsLoading(false);
-      }
-    };
-
-    loadScenarios();
-  }, []);
-
+  // Clear generation state when scenario changes
   useEffect(() => {
     setGenerateError("");
     setGenerateResult(null);
-  }, [selectedScenario]);
-
-  // =============================================================================
-  // EFFECTS - Load Chart of Accounts
-  // =============================================================================
-
-  /**
-   * Loads Cash Flow Chart of Accounts (Income, Expense, Transfers).
-   * Creates mapping from leaf accounts to parent categories for aggregation.
-   */
-  useEffect(() => {
-    let isMounted = true;
-
-    const loadCashAccounts = async () => {
-      setAccountsLoading(true);
-      setAccountsError("");
-      try {
-        const data = await Rest.fetchJson("/api/coa/CashFlow");
-        if (!isMounted) return;
-
-        const parsed = parseLevelAccounts(data, true);
-        setCashAccounts(parsed.rows);
-        setCashAccountMap(parsed.mapping);
-      } catch (error) {
-        if (isMounted) {
-          setAccountsError(error.message || "Failed to load cash accounts");
-        }
-      } finally {
-        if (isMounted) {
-          setAccountsLoading(false);
-        }
-      }
-    };
-
-    loadCashAccounts();
-    return () => {
-      isMounted = false;
-    };
-  }, [parseLevelAccounts]);
-
-  /**
-   * Loads Balance Sheet Chart of Accounts (Assets, Liabilities).
-   * Creates mapping from leaf accounts to parent categories for aggregation.
-   */
-  useEffect(() => {
-    let isMounted = true;
-
-    const loadBalanceAccounts = async () => {
-      setBalanceLoading(true);
-      setBalanceError("");
-      try {
-        const data = await Rest.fetchJson("/api/coa/BalanceSheet");
-        if (!isMounted) return;
-
-        const parsed = parseLevelAccounts(data, true);
-        setBalanceAccounts(parsed.rows);
-        setBalanceAccountMap(parsed.mapping);
-      } catch (error) {
-        if (isMounted) {
-          setBalanceError(error.message || "Failed to load balance accounts");
-        }
-      } finally {
-        if (isMounted) {
-          setBalanceLoading(false);
-        }
-      }
-    };
-
-    loadBalanceAccounts();
-    return () => {
-      isMounted = false;
-    };
-  }, [parseLevelAccounts]);
-
-  // =============================================================================
-  // EFFECTS - Load Scenario-Specific Data
-  // =============================================================================
-
-  /**
-   * Loads forecast years for the selected scenario.
-   * Years are sorted chronologically for display.
-   */
-  useEffect(() => {
-    if (!selectedScenario) {
-      setYears([]);
-      return;
-    }
-
-    let isMounted = true;
-
-    const loadYears = async () => {
-      setYearsLoading(true);
-      setYearsError("");
-      try {
-        const encodedScenario = encodeURIComponent(selectedScenario);
-        const data = await Rest.fetchJson(
-          `/api/forecast/scenarios/years/${encodedScenario}`
-        );
-        if (!isMounted) return;
-
-        const list = Array.isArray(data?.years) ? data.years : [];
-        const sorted = [...list].sort((a, b) => Number(a) - Number(b));
-        setYears(sorted);
-      } catch (error) {
-        if (isMounted) {
-          setYearsError(error.message || "Failed to load forecast years");
-        }
-      } finally {
-        if (isMounted) {
-          setYearsLoading(false);
-        }
-      }
-    };
-
-    loadYears();
-    return () => {
-      isMounted = false;
-    };
-  }, [selectedScenario]);
-
-  /**
-   * Loads forecast entries for the selected scenario.
-   * Entries contain Year, Account, and Amount for each forecast line item.
-   */
-  useEffect(() => {
-    if (!selectedScenario) {
-      setEntries([]);
-      return;
-    }
-
-    let isMounted = true;
-
-    const loadEntries = async () => {
-      setEntriesLoading(true);
-      setEntriesError("");
-      try {
-        const encoded = encodeURIComponent(selectedScenario);
-        const data = await Rest.fetchJson(
-          `/api/forecast/entries?scenario=${encoded}`
-        );
-        if (!isMounted) return;
-
-        const list = Array.isArray(data?.entries) ? data.entries : [];
-        setEntries(list);
-      } catch (error) {
-        if (isMounted) {
-          setEntriesError(error.message || "Failed to load forecast entries");
-        }
-      } finally {
-        if (isMounted) {
-          setEntriesLoading(false);
-        }
-      }
-    };
-
-    loadEntries();
-    return () => {
-      isMounted = false;
-    };
   }, [selectedScenario]);
 
   // =============================================================================
@@ -561,33 +388,14 @@ export default function FCReview() {
       );
       setGenerateResult(result);
 
-      setYearsLoading(true);
-      setEntriesLoading(true);
-      setYearsError("");
-      setEntriesError("");
-
-      const [yearsResponse, entriesResponse] = await Promise.all([
-        Rest.fetchJson(`/api/forecast/scenarios/years/${encodedScenario}`),
-        Rest.fetchJson(`/api/forecast/entries?scenario=${encodedScenario}`),
-      ]);
-
-      const yearList = Array.isArray(yearsResponse?.years)
-        ? yearsResponse.years
-        : [];
-      setYears([...yearList].sort((a, b) => Number(a) - Number(b)));
-
-      const entryList = Array.isArray(entriesResponse?.entries)
-        ? entriesResponse.entries
-        : [];
-      setEntries(entryList);
+      // Reload forecast data to reflect the newly generated forecast
+      reloadForecastData();
     } catch (error) {
       setGenerateError(error.message || "Failed to generate forecast");
     } finally {
       setGenerateLoading(false);
-      setYearsLoading(false);
-      setEntriesLoading(false);
     }
-  }, [selectedScenario, generateLoading]);
+  }, [selectedScenario, generateLoading, reloadForecastData]);
 
   // =============================================================================
   // COMPUTED VALUES - Memoized for Performance
@@ -797,8 +605,8 @@ export default function FCReview() {
           scenarios={scenarios}
           selectedScenario={selectedScenario}
           setSelectedScenario={setSelectedScenario}
-          isLoading={isLoading}
-          loadError={loadError}
+          isLoading={scenariosLoading}
+          loadError={scenariosError}
           onGenerateForecast={handleGenerateForecast}
           generateLoading={generateLoading}
           generateDisabled={
