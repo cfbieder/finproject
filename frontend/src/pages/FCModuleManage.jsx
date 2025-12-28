@@ -6,109 +6,21 @@ import FCModulesEditModal, {
   incomeCategoryOptions,
 } from "../features/Forecast/FCModulesEdit.jsx";
 import FCModulesTable from "../features/Forecast/FCModulesTable.jsx";
+import FCModulesDeleteModal from "../features/Forecast/FCModulesDeleteModal.jsx";
+import FCModulesUnmatchedModal from "../features/Forecast/FCModulesUnmatchedModal.jsx";
+import { useAssumptions } from "../features/Forecast/hooks/useAssumptions.js";
+import { useModules } from "../features/Forecast/hooks/useModules.js";
+import { useUnmatchedItems } from "../features/Forecast/hooks/useUnmatchedItems.js";
+import {
+  formatTransferForm,
+  normalizeTransfers,
+} from "../features/Forecast/utils/fcModuleManageUtils.js";
 import Rest from "../js/rest.js";
 import coaTraits from "../../../components/data/coa_traits.json";
 import "./PageLayout.css";
 import "../features/Forecast/FCModulesEdit.css";
 import "../features/Forecast/FCExpDeleteModal.css";
 
-/**
- * Formats transfer entries for the edit form by ensuring consistent date formatting.
- * Extracts year from date and formats as YYYY-07-01 for fiscal year convention.
- *
- * @param {Array<Object>} transfers - Array of transfer objects with Date, Amount, and Flag properties
- * @returns {Array<Object>} Formatted transfer array with normalized dates
- */
-const formatTransferForm = (transfers) => {
-  if (!Array.isArray(transfers)) {
-    return [];
-  }
-  return transfers.map((entry) => {
-    const date = entry?.Date ? new Date(entry.Date) : null;
-    const year =
-      date && !Number.isNaN(date.getTime()) ? date.getFullYear() : null;
-    return {
-      Date: year ? `${year}-07-01` : "",
-      Amount: entry?.Amount ?? "",
-      Flag: entry?.Flag ?? "",
-    };
-  });
-};
-
-/**
- * Normalizes transfer data for API submission by validating dates and amounts.
- * Filters out invalid entries and ensures proper data types.
- *
- * @param {Array<Object>} transfers - Array of transfer objects to normalize
- * @returns {Array<Object>} Validated transfer array with ISO date strings and numeric amounts
- */
-const normalizeTransfers = (transfers) => {
-  if (!Array.isArray(transfers)) {
-    return [];
-  }
-  return transfers
-    .map((entry) => {
-      if (!entry || typeof entry !== "object") {
-        return null;
-      }
-      const dateValue = entry.Date ? new Date(entry.Date) : null;
-      const date =
-        dateValue && !Number.isNaN(dateValue.getTime())
-          ? dateValue.toISOString()
-          : null;
-      const rawAmount = entry.Amount;
-      const parsedAmount =
-        rawAmount === "" || rawAmount === null || rawAmount === undefined
-          ? null
-          : Number(rawAmount);
-      const amount = Number.isNaN(parsedAmount) ? null : parsedAmount;
-      const flag = entry.Flag ?? "";
-      if (!date || (amount === null && !flag)) {
-        return null;
-      }
-      return { Date: date, Amount: amount, Flag: flag };
-    })
-    .filter(Boolean);
-};
-
-const normalizeUnmatchedItems = (payload) => {
-  const rawItems = Array.isArray(payload)
-    ? payload
-    : Array.isArray(payload?.items)
-    ? payload.items
-    : [];
-
-  const normalized = [];
-  for (let i = 0; i < rawItems.length; i++) {
-    const item = rawItems[i];
-    if (!item) {
-      continue;
-    }
-
-    if (typeof item === "string") {
-      normalized.push({ name: item, category: "" });
-      continue;
-    }
-
-    if (typeof item === "object") {
-      const name =
-        item.name ??
-        item.Name ??
-        item.account ??
-        item.Account ??
-        item.value ??
-        "";
-      if (!name) {
-        continue;
-      }
-      const category =
-        item.category ?? item.Category ?? item.parent ?? item.Parent ?? "";
-      normalized.push({ name, category: category || "" });
-    }
-  }
-
-  return normalized;
-};
 
 const traitDefaultValues = (() => {
   const typeValues = new Set();
@@ -150,20 +62,36 @@ const defaultIncomeCategory = incomeCategoryOptions[0] || "";
  * @returns {JSX.Element} The forecast module management page
  */
 export default function FCModuleManage() {
-  // Assumptions state
-  const [assumptions, setAssumptions] = useState(null);
-  const [error, setError] = useState("");
-  const [isLoading, setIsLoading] = useState(false);
+  // Custom hooks for data loading
+  const {
+    assumptions,
+    selectedScenario,
+    setSelectedScenario,
+    isLoading,
+    error,
+  } = useAssumptions();
 
-  // Scenario selection
-  const [selectedScenario, setSelectedScenario] = useState("");
+  const {
+    modules,
+    selectedModuleId,
+    setSelectedModuleId,
+    selectedModule,
+    loading: modulesLoading,
+    error: modulesError,
+    reload: reloadModules,
+    getModuleId,
+  } = useModules(selectedScenario);
+
+  const {
+    unmatchedItems,
+    loading: unmatchedLoading,
+    error: unmatchedError,
+    loadUnmatched,
+    clear: clearUnmatched,
+  } = useUnmatchedItems();
+
+  // Scenario selection ref for auto-sizing
   const scenarioSelectRef = useRef(null);
-
-  // Modules state
-  const [modules, setModules] = useState([]);
-  const [modulesError, setModulesError] = useState("");
-  const [modulesLoading, setModulesLoading] = useState(false);
-  const [selectedModuleId, setSelectedModuleId] = useState("");
 
   // Edit modal state
   const [showEditModal, setShowEditModal] = useState(false);
@@ -179,65 +107,9 @@ export default function FCModuleManage() {
 
   // Unmatched modal state
   const [showUnmatchedModal, setShowUnmatchedModal] = useState(false);
-  const [unmatchedItems, setUnmatchedItems] = useState([]);
-  const [unmatchedLoading, setUnmatchedLoading] = useState(false);
-  const [unmatchedError, setUnmatchedError] = useState("");
   const [selectedUnmatchedItem, setSelectedUnmatchedItem] = useState(null);
   const [creatingFromUnmatched, setCreatingFromUnmatched] = useState(false);
 
-  /**
-   * Loads forecast assumptions from the API on component mount.
-   * Handles cleanup to prevent state updates on unmounted component.
-   */
-  useEffect(() => {
-    let isMounted = true;
-    const loadAssumptions = async () => {
-      setIsLoading(true);
-      try {
-        const data = await Rest.fetchJson("/api/forecast/assumptions");
-        if (isMounted) {
-          setAssumptions(data);
-          setError("");
-        }
-      } catch (err) {
-        if (isMounted) {
-          setError(err.message || "Failed to load assumptions");
-          setAssumptions(null);
-        }
-      } finally {
-        if (isMounted) {
-          setIsLoading(false);
-        }
-      }
-    };
-
-    loadAssumptions();
-    return () => {
-      isMounted = false;
-    };
-  }, []);
-
-  /**
-   * Updates selected scenario when assumptions load or change.
-   * Preserves previous selection if still valid, otherwise defaults to first scenario.
-   */
-  useEffect(() => {
-    const availableScenarios = assumptions?.scenarios || [];
-    if (!availableScenarios.length) {
-      setSelectedScenario("");
-      return;
-    }
-
-    setSelectedScenario((prev) => {
-      if (
-        prev &&
-        availableScenarios.some((scenario) => scenario.Name === prev)
-      ) {
-        return prev;
-      }
-      return availableScenarios[0].Name || "";
-    });
-  }, [assumptions]);
 
   /**
    * Dynamically adjusts scenario select width to fit content.
@@ -308,75 +180,12 @@ export default function FCModuleManage() {
     return match ? Number(match[0]) : null;
   };
 
-  /**
-   * Generates a unique identifier for a module.
-   * Attempts multiple ID fields before falling back to composite key.
-   *
-   * @param {Object} module - The module object
-   * @returns {string} Unique module identifier
-   */
-  const getModuleId = (module) =>
-    module?._id ??
-    module?.id ??
-    module?.Id ??
-    `${module?.Scenario ?? "module"}-${module?.Account ?? module?.Name ?? ""}`;
 
-  /**
-   * Loads modules for a given scenario and updates state.
-   *
-   * @param {string} scenarioName - Scenario to filter modules by
-   * @param {Function} [shouldApplyUpdate] - Optional guard to prevent state updates when unmounted
-   */
-  const loadModulesForScenario = async (
-    scenarioName,
-    shouldApplyUpdate = () => true
-  ) => {
-    if (!scenarioName) {
-      if (shouldApplyUpdate()) {
-        setModules([]);
-        setSelectedModuleId("");
-        setModulesError("");
-        setModulesLoading(false);
-      }
-      return;
-    }
-
-    setModulesLoading(true);
-    try {
-      const data = await Rest.fetchJson("/api/forecast/modules");
-      if (!shouldApplyUpdate()) return;
-      const filtered = (data || []).filter(
-        (entry) => entry?.Scenario === scenarioName
-      );
-      setModules(filtered);
-      setModulesError("");
-      setSelectedModuleId((prev) => {
-        if (filtered.some((entry) => getModuleId(entry) === prev)) {
-          return prev;
-        }
-        const firstId = filtered[0] ? getModuleId(filtered[0]) : "";
-        return firstId || "";
-      });
-    } catch (err) {
-      if (!shouldApplyUpdate()) return;
-      setModules([]);
-      setModulesError(err.message || "Failed to load modules");
-      setSelectedModuleId("");
-    } finally {
-      if (shouldApplyUpdate()) {
-        setModulesLoading(false);
-      }
-    }
-  };
 
   const handleCreateNewModule = async () => {
     if (!selectedScenario) {
       return;
     }
-
-    const previousIds = new Set(
-      (modules || []).map((module) => getModuleId(module)).filter(Boolean)
-    );
 
     const periodStartYear = getScenarioStartYear();
     const baseDate =
@@ -388,8 +197,6 @@ export default function FCModuleManage() {
         ? periodStartYear - 1
         : null;
 
-    setModulesError("");
-    setModulesLoading(true);
     try {
       await Rest.fetchJson("/api/forecast/modules", {
         method: "POST",
@@ -415,51 +222,12 @@ export default function FCModuleManage() {
         }),
       });
 
-      const refreshed = await Rest.fetchJson("/api/forecast/modules");
-      const filtered = (refreshed || []).filter(
-        (entry) => entry?.Scenario === selectedScenario
-      );
-      setModules(filtered);
-      setModulesError("");
-
-      const newModule =
-        filtered.find((entry) => !previousIds.has(getModuleId(entry))) || null;
-      const nextSelected =
-        (newModule && getModuleId(newModule)) ||
-        (filtered[0] ? getModuleId(filtered[0]) : "");
-      setSelectedModuleId(nextSelected);
+      reloadModules();
     } catch (err) {
-      setModulesError(err.message || "Failed to create module");
-    } finally {
-      setModulesLoading(false);
+      console.error("Failed to create module:", err);
     }
   };
 
-  /**
-   * Loads modules for the selected scenario from the API.
-   * Filters results by scenario and updates selected module if needed.
-   */
-  useEffect(() => {
-    if (!selectedScenario) {
-      setModules([]);
-      setSelectedModuleId("");
-      setModulesError("");
-      setModulesLoading(false);
-      return;
-    }
-
-    let isMounted = true;
-    loadModulesForScenario(selectedScenario, () => isMounted);
-    return () => {
-      isMounted = false;
-    };
-  }, [selectedScenario]);
-
-  /**
-   * Retrieves the currently selected module object.
-   */
-  const selectedModule =
-    modules.find((module) => getModuleId(module) === selectedModuleId) ?? null;
 
   /**
    * Opens the edit modal with the selected module's data.
@@ -582,27 +350,13 @@ export default function FCModuleManage() {
 
     setEditSaving(true);
     try {
-      const response = await Rest.fetchJson(
-        `/api/forecast/modules/${moduleId}`,
-        {
-          method: "PUT",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify(payload),
-        }
-      );
+      await Rest.fetchJson(`/api/forecast/modules/${moduleId}`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+      });
 
-      const updatedModule = response?.module ?? {
-        ...selectedModule,
-        ...payload,
-      };
-      setModules((prev) =>
-        prev.map((module) =>
-          getModuleId(module) === moduleId
-            ? { ...module, ...updatedModule }
-            : module
-        )
-      );
-      setSelectedModuleId(moduleId);
+      reloadModules();
       closeEditModal();
     } catch (err) {
       setEditError(err.message || "Failed to update module");
@@ -646,21 +400,7 @@ export default function FCModuleManage() {
       await Rest.fetchJson(`/api/forecast/modules/${moduleId}`, {
         method: "DELETE",
       });
-      const moduleKey = getModuleId(selectedModule);
-      setModules((prev) => {
-        const updated = prev.filter(
-          (module) => getModuleId(module) !== moduleKey
-        );
-        const nextSelected = updated.find(
-          (module) => getModuleId(module) === selectedModuleId
-        )
-          ? selectedModuleId
-          : updated[0]
-          ? getModuleId(updated[0])
-          : "";
-        setSelectedModuleId(nextSelected);
-        return updated;
-      });
+      reloadModules();
       setShowDeleteModal(false);
     } catch (err) {
       setDeleteError(err.message || "Failed to delete module");
@@ -673,41 +413,21 @@ export default function FCModuleManage() {
     if (!selectedScenario) {
       return;
     }
-    setUnmatchedError("");
     setSelectedUnmatchedItem(null);
-    setUnmatchedItems([]);
     setShowUnmatchedModal(true);
-    setUnmatchedLoading(true);
-    try {
-      const data = await Rest.fetchJson(
-        `/api/forecast/modules/unmatched${
-          selectedScenario
-            ? `?scenario=${encodeURIComponent(selectedScenario)}`
-            : ""
-        }`
-      );
-      const items = normalizeUnmatchedItems(data);
-      setUnmatchedItems(items);
-    } catch (err) {
-      setUnmatchedItems([]);
-      setUnmatchedError(err.message || "Failed to load unmatched items");
-    } finally {
-      setUnmatchedLoading(false);
-    }
+    await loadUnmatched(selectedScenario);
   };
 
   const closeUnmatchedModal = () => {
     setShowUnmatchedModal(false);
-    setUnmatchedItems([]);
-    setUnmatchedError("");
     setSelectedUnmatchedItem(null);
+    clearUnmatched();
   };
 
   const handleCreateFromUnmatched = async () => {
     if (!selectedScenario || !selectedUnmatchedItem) {
       return;
     }
-    setUnmatchedError("");
     setCreatingFromUnmatched(true);
     try {
       const selectedItem =
@@ -719,25 +439,7 @@ export default function FCModuleManage() {
         throw new Error("No unmatched item selected");
       }
       const account = selectedItem?.category || moduleName;
-      const periodStartRaw =
-        selectedScenarioDetails?.PeriodStart ?? assumptions?.PeriodStart ?? "";
-      const periodStartYear = (() => {
-        if (typeof periodStartRaw === "number") {
-          return Number.isFinite(periodStartRaw)
-            ? Math.trunc(periodStartRaw)
-            : null;
-        }
-        const asString = String(periodStartRaw || "").trim();
-        const dateFromString =
-          asString && !Number.isNaN(new Date(asString).getTime())
-            ? new Date(asString).getFullYear()
-            : null;
-        if (Number.isFinite(dateFromString) && dateFromString >= 1000) {
-          return dateFromString;
-        }
-        const match = asString.match(/\d{4}/);
-        return match ? Number(match[0]) : null;
-      })();
+      const periodStartYear = getScenarioStartYear();
       const baseDate =
         Number.isFinite(periodStartYear) && periodStartYear
           ? new Date(`${periodStartYear - 1}-12-31T00:00:00.000Z`).toISOString()
@@ -755,10 +457,10 @@ export default function FCModuleManage() {
           Matched: true,
         }),
       });
-      await loadModulesForScenario(selectedScenario);
+      reloadModules();
       closeUnmatchedModal();
     } catch (err) {
-      setUnmatchedError(err.message || "Failed to create module");
+      console.error("Failed to create module from unmatched:", err);
     } finally {
       setCreatingFromUnmatched(false);
     }
@@ -803,185 +505,25 @@ export default function FCModuleManage() {
           onSubmit={handleSaveEdit}
           refreshToken={editRefreshToken}
         />
-        {showDeleteModal && (
-          <div
-            className="fc-delete-modal-overlay"
-            onClick={closeDeleteModal}
-          >
-            <div
-              className="fc-delete-modal"
-              onClick={(event) => event.stopPropagation()}
-            >
-              <div className="fc-delete-modal__icon-container">
-                <div className="fc-delete-modal__icon">
-                  <svg width="32" height="32" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-                    <path d="M12 9V13M12 17H12.01M21 12C21 16.9706 16.9706 21 12 21C7.02944 21 3 16.9706 3 12C3 7.02944 7.02944 3 12 3C16.9706 3 21 7.02944 21 12Z" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
-                  </svg>
-                </div>
-              </div>
-
-              <h3 className="fc-delete-modal__title">Delete Module</h3>
-              <p className="fc-delete-modal__description">
-                Are you sure you want to delete <strong>{selectedModule?.Name || selectedModule?.Account || "this module"}</strong>?
-              </p>
-              <p className="fc-delete-modal__warning">
-                This action cannot be undone.
-              </p>
-
-              {deleteError && (
-                <div className="fc-delete-modal__error">
-                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-                    <path d="M12 9V13M12 17H12.01M21 12C21 16.9706 16.9706 21 12 21C7.02944 21 3 16.9706 3 12C3 7.02944 7.02944 3 12 3C16.9706 3 21 7.02944 21 12Z" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
-                  </svg>
-                  {deleteError}
-                </div>
-              )}
-
-              <div className="fc-delete-modal__actions">
-                <button
-                  type="button"
-                  className="fc-delete-modal__button fc-delete-modal__button--cancel"
-                  onClick={closeDeleteModal}
-                  disabled={deleteSaving}
-                >
-                  Cancel
-                </button>
-                <button
-                  type="button"
-                  className="fc-delete-modal__button fc-delete-modal__button--delete"
-                  onClick={handleDeleteModule}
-                  disabled={deleteSaving}
-                >
-                  {deleteSaving ? (
-                    <>
-                      <span className="fc-delete-modal__spinner"></span>
-                      Deleting...
-                    </>
-                  ) : (
-                    <>
-                      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-                        <path d="M19 7L18.1327 19.1425C18.0579 20.1891 17.187 21 16.1378 21H7.86224C6.81296 21 5.94208 20.1891 5.86732 19.1425L5 7M10 11V17M14 11V17M15 7V4C15 3.44772 14.5523 3 14 3H10C9.44772 3 9 3.44772 9 4V7M4 7H20" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
-                      </svg>
-                      Delete
-                    </>
-                  )}
-                </button>
-              </div>
-            </div>
-          </div>
-        )}
-        {showUnmatchedModal && (
-          <div className="fc-scenarios-modal-overlay">
-            <div className="fc-scenarios-modal">
-              <h3 className="fc-scenarios-modal__title">Unmatched Items</h3>
-              <div
-                style={{
-                  padding: "2rem 2.5rem",
-                  display: "flex",
-                  flexDirection: "column",
-                  gap: "1.25rem",
-                }}
-              >
-                {unmatchedError && (
-                  <div className="trans-budget-edit-modal__error">
-                    {unmatchedError}
-                  </div>
-                )}
-                {unmatchedLoading ? (
-                  <div className="fc-modules-table__message">
-                    <div className="fc-modules-table__spinner" />
-                    <p>Loading unmatched items...</p>
-                  </div>
-                ) : (
-                  <>
-                    <div
-                      style={{
-                        border: "1px solid rgba(15, 23, 42, 0.1)",
-                        borderRadius: "1rem",
-                        maxHeight: "320px",
-                        overflowY: "auto",
-                      }}
-                    >
-                      {unmatchedItems.length ? (
-                        unmatchedItems.map((item) => (
-                          <label
-                            key={`${item.name}-${item.category}`}
-                            className="fc-scenarios-modal__field"
-                            style={{
-                              margin: 0,
-                              padding: "0.85rem 1rem",
-                              cursor: "pointer",
-                            }}
-                          >
-                            <div
-                              style={{
-                                display: "flex",
-                                alignItems: "center",
-                                gap: "0.75rem",
-                              }}
-                            >
-                              <input
-                                type="radio"
-                                name="unmatched-selection"
-                                value={item.name}
-                                checked={
-                                  selectedUnmatchedItem?.name === item.name
-                                }
-                                onChange={() => setSelectedUnmatchedItem(item)}
-                              />
-                              <div
-                                style={{
-                                  display: "flex",
-                                  flexDirection: "column",
-                                  lineHeight: "1.3",
-                                }}
-                              >
-                                <span>{item.name}</span>
-                                {item.category ? (
-                                  <span
-                                    style={{
-                                      color: "#475569",
-                                      fontSize: "0.9rem",
-                                    }}
-                                  >
-                                    {item.category}
-                                  </span>
-                                ) : null}
-                              </div>
-                            </div>
-                          </label>
-                        ))
-                      ) : (
-                        <div className="fc-modules-table__message">
-                          <p>No unmatched items found.</p>
-                        </div>
-                      )}
-                    </div>
-                    <div className="fc-scenarios-modal__actions">
-                      <button
-                        type="button"
-                        className="generate-report-button"
-                        onClick={closeUnmatchedModal}
-                      >
-                        Close
-                      </button>
-                      <button
-                        type="button"
-                        className="generate-report-button"
-                        disabled={
-                          !selectedUnmatchedItem || creatingFromUnmatched
-                        }
-                        onClick={handleCreateFromUnmatched}
-                      >
-                        {creatingFromUnmatched ? "Creating..." : "+ Create"}
-                      </button>
-                    </div>
-                  </>
-                )}
-              </div>
-            </div>
-          </div>
-        )}
+        <FCModulesDeleteModal
+          isOpen={showDeleteModal}
+          selectedModule={selectedModule}
+          deleteSaving={deleteSaving}
+          deleteError={deleteError}
+          onClose={closeDeleteModal}
+          onDelete={handleDeleteModule}
+        />
+        <FCModulesUnmatchedModal
+          isOpen={showUnmatchedModal}
+          unmatchedItems={unmatchedItems}
+          selectedItem={selectedUnmatchedItem}
+          loading={unmatchedLoading}
+          creating={creatingFromUnmatched}
+          error={unmatchedError}
+          onClose={closeUnmatchedModal}
+          onSelectItem={setSelectedUnmatchedItem}
+          onCreate={handleCreateFromUnmatched}
+        />
       </main>
     </div>
   );
