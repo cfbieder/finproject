@@ -1,5 +1,5 @@
 /**
- * TransactionActualFilter - Modern Professional Styling
+ * TransactionBudgetFilter Component Styles
  * Enhanced layout with improved visual hierarchy and modern design patterns
  */
 
@@ -78,7 +78,7 @@
 }
 
 .filter-field .form-input:hover:not(:disabled) {
-  border-color: rgba(37, 99, 235, 0.3);
+  border-color: rgba(37, 99, 235, 0.4);
 }
 
 .filter-field .form-input:focus,
@@ -168,35 +168,29 @@
   box-shadow: 0 1px 3px 0 rgba(15, 23, 42, 0.08);
 }
 
-.range-input-actions .generate-report-button:hover:not(:disabled) {
+.range-input-actions .generate-report-button:hover {
   background: var(--primary);
   color: white;
-  transform: translateY(-2px);
   box-shadow: 0 4px 12px -2px rgba(37, 99, 235, 0.3);
+  transform: translateY(-1px);
 }
 
-.range-input-actions .generate-report-button:active:not(:disabled) {
+.range-input-actions .generate-report-button:active {
   transform: translateY(0);
+  box-shadow: 0 2px 8px -2px rgba(37, 99, 235, 0.3);
 }
 
-.range-input-actions .generate-report-button:disabled {
-  opacity: 0.4;
-  cursor: not-allowed;
-  transform: none;
-}
-
-/* Delete button specific styling */
+/* Delete button states */
 .trans-budget-filter__delete-button {
-  border-color: rgba(220, 38, 38, 0.3) !important;
-  color: rgba(220, 38, 38, 0.7) !important;
-  background: white !important;
+  border-color: var(--primary) !important;
+  color: var(--primary) !important;
+  transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
 }
 
-.trans-budget-filter__delete-button:hover:not(:disabled) {
-  background: rgb(220, 38, 38) !important;
-  color: white !important;
+.trans-budget-filter__delete-button:hover {
   border-color: rgb(220, 38, 38) !important;
-  box-shadow: 0 4px 12px -2px rgba(220, 38, 38, 0.3) !important;
+  color: rgb(220, 38, 38) !important;
+  box-shadow: 0 4px 12px -2px rgba(220, 38, 38, 0.2);
 }
 
 .trans-budget-filter__delete-button--active {
@@ -239,57 +233,18 @@
 
   .filters-grid {
     grid-template-columns: 1fr;
-    gap: 0.875rem;
+  }
+
+  .filter-field > span {
+    font-size: 0.65rem;
   }
 
   .filter-field .form-input {
-    padding: 0.75rem 0.875rem;
+    font-size: 0.85rem;
+    padding: 0.6rem 0.75rem;
   }
 
   .range-input-actions {
-    gap: 0.5rem;
+    flex-direction: column;
   }
-
-  .range-input-actions .generate-report-button {
-    padding: 0.75rem 1.25rem;
-    font-size: 0.9rem;
-  }
-}
-
-/* Focus visible enhancement for accessibility */
-.filter-field .form-input:focus-visible,
-.range-checkbox:focus-visible,
-.filter-with-checkbox input[type="checkbox"]:focus-visible {
-  outline: 2px solid var(--primary);
-  outline-offset: 2px;
-}
-
-/* Loading state animation */
-.filter-field .form-input[disabled]::placeholder {
-  animation: pulse 1.5s ease-in-out infinite;
-}
-
-@keyframes pulse {
-  0%, 100% {
-    opacity: 0.6;
-  }
-  50% {
-    opacity: 0.3;
-  }
-}
-
-/* Enhanced select dropdown styling */
-.filter-field select.form-input {
-  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' viewBox='0 0 24 24' fill='none' stroke='%232563eb' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpolyline points='6 9 12 15 18 9'%3E%3C/polyline%3E%3C/svg%3E");
-  background-repeat: no-repeat;
-  background-position: right 0.75rem center;
-  background-size: 1rem;
-  padding-right: 2.5rem;
-  appearance: none;
-  -webkit-appearance: none;
-  -moz-appearance: none;
-}
-
-.filter-field select.form-input:disabled {
-  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' viewBox='0 0 24 24' fill='none' stroke='%2394a3b8' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpolyline points='6 9 12 15 18 9'%3E%3C/polyline%3E%3C/svg%3E");
 }
