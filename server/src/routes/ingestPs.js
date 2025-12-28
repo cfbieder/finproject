@@ -414,7 +414,8 @@ router.get("/modified-transactions", async (req, res) => {
 
 router.post("/refresh-ps", async (req, res) => {
   try {
-    await processTransactions();
+    const { daysHistory } = req.body ?? {};
+    await processTransactions(daysHistory);
     return res.json(logTransactionFileCounts());
   } catch (error) {
     console.error("[REFRESH-PS] Failed to refresh PS data:", error);

@@ -28,6 +28,7 @@ export default function RefreshPS() {
     useState(false);
   const [modifiedTransactionsError, setModifiedTransactionsError] =
     useState(null);
+  const [daysHistory, setDaysHistory] = useState(7);
 
   /***************************
    * Fetch last ingest and refresh timestamps
@@ -145,6 +146,12 @@ export default function RefreshPS() {
     });
     setIsRefreshing(true);
 
+    const parsedDaysHistory = Number(daysHistory);
+    const daysHistoryValue =
+      Number.isFinite(parsedDaysHistory) && parsedDaysHistory > 0
+        ? parsedDaysHistory
+        : 7;
+
     try {
       const {
         mongoImportReport = 0,
@@ -152,6 +159,10 @@ export default function RefreshPS() {
         mongoUpdateReport = 0,
       } = await Rest.fetchJson("/api/ingest-ps/refresh-ps", {
         method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ daysHistory: daysHistoryValue }),
       });
 
       const inserted = Number(mongoImportReport) || 0;
@@ -419,6 +430,16 @@ export default function RefreshPS() {
               Kick off a refresh to download new or updated transactions and
               import them into the database.
             </p>
+          </div>
+          <div className="upload-form-field">
+            <label htmlFor="daysHistory">Days of history to fetch</label>
+            <input
+              id="daysHistory"
+              type="number"
+              min="1"
+              value={daysHistory}
+              onChange={(event) => setDaysHistory(event.target.value)}
+            />
           </div>
           <div className="upload-actions">
             <button

@@ -49,7 +49,6 @@ pocketsmith.auth(PS_API_KEY);
  * Temporary File Paths
  **********************************************/
 
-const TEMP_DIR = ensureTempDir();
 const OUTPUT_FILES = {
   all: tempFiles.allTransactions,
   updated: tempFiles.updatedTransactions,
@@ -132,8 +131,13 @@ async function ensureMongoConnected() {
 /*********************************************
  * Main Processing Function
  **********************************************/
-async function processTransactions() {
-  const date = new Date(Date.now() - 3 * 24 * 60 * 60 * 1000);
+async function processTransactions(daysHistoryInput) {
+  const parsedDaysHistory = Number(daysHistoryInput);
+  const daysHistory =
+    Number.isFinite(parsedDaysHistory) && parsedDaysHistory > 0
+      ? parsedDaysHistory
+      : 7;
+  const date = new Date(Date.now() - daysHistory * 24 * 60 * 60 * 1000);
   const userId = PS_USER_ID || "330430";
 
   /*
@@ -175,6 +179,7 @@ async function processTransactions() {
     OUTPUT_FILES.mongoImportReport
   );
 
+//todo: test
   /*
    * Step 5: Update changed transactions in the database
    */
