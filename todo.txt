@@ -1,13 +1,9 @@
 Add option to update budget FX rates on transactions page
 
-Cash Flow line in Forecast to implement
-
 add COA management
 
 review how income, growth and expense calculated in fcbuilder
 
-
-On budget input page have currency automatically selected from coa_
 
 when deleting scenario, modules still remain, need to resolve.
 

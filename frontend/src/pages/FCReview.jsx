@@ -338,6 +338,84 @@ export default function FCReview() {
     [baseYear, baseActualTotals, baseBalanceTotals, entryMaps]
   );
 
+  /**
+   * Computes display values for balance sheet rows with special handling for bank accounts.
+   *
+   * Bank accounts use cumulative totals (running sum across years) to reflect
+   * year-end balances, while other accounts show their direct forecast values.
+   *
+   * @returns {Map<string, Array<number>>} Map of account label to array of values per year
+   */
+  const balanceDisplayValues = useMemo(() => {
+    const bankAccountLabels = new Set(
+      Array.from(balanceAccountMap.entries())
+        .filter(([, mapping]) => mapping?.level2 === "Bank Accounts")
+        .map(([label]) => label)
+    );
+
+    const valuesByRow = new Map();
+    for (const row of balanceAccounts) {
+      let runningBankTotal;
+      const perYear = sortedYears.map((year, index) => {
+        const baseValue = getCellValue(row, year, false);
+        if (
+          row.label === "Bank Accounts" ||
+          bankAccountLabels.has(row.label)
+        ) {
+          const numericValue = Number.isFinite(Number(baseValue))
+            ? Number(baseValue)
+            : 0;
+          if (index === 0) {
+            runningBankTotal = numericValue;
+          } else {
+            runningBankTotal = (runningBankTotal ?? 0) + numericValue;
+          }
+          return runningBankTotal;
+        }
+        return Number.isFinite(Number(baseValue))
+          ? Number(baseValue)
+          : baseValue;
+      });
+      valuesByRow.set(row.label, perYear);
+    }
+    return valuesByRow;
+  }, [balanceAccounts, sortedYears, getCellValue]);
+
+  /**
+   * Calculates total Assets by summing all level 2 asset categories.
+   *
+   * Sums all level 2 accounts under the Assets section (Bank Accounts, Fidelity Stock,
+   * Fidelity Fixed Income, CVC Investments, Properties, etc.) to provide the total
+   * Assets value displayed in the Assets header row.
+   *
+   * @returns {Array<number>} Array of total asset values, one per year
+   */
+  const totalAssetsByYear = useMemo(() => {
+    const totals = sortedYears.map(() => 0);
+    for (const row of balanceAccounts) {
+      // Skip the Assets header row itself
+      if (row.label === "Assets") {
+        continue;
+      }
+      const mapping = balanceAccountMap.get(row.label);
+      // Only sum level 2 rows that are under Assets (excludes Liabilities)
+      const isAssetLevel2 = mapping?.level1 === "Assets" && row.level === 2;
+      if (!isAssetLevel2) {
+        continue;
+      }
+      const values = balanceDisplayValues.get(row.label);
+      if (!values) {
+        continue;
+      }
+      values.forEach((value, index) => {
+        if (Number.isFinite(Number(value))) {
+          totals[index] += Number(value);
+        }
+      });
+    }
+    return totals;
+  }, [balanceAccounts, balanceAccountMap, balanceDisplayValues, sortedYears]);
+
   // =============================================================================
   // RENDER
   // =============================================================================
@@ -616,20 +694,24 @@ export default function FCReview() {
                           >
                             {row.label}
                           </td>
-                          {sortedYears.map((year) => {
-                            const value = getCellValue(row, year, false);
+                          {sortedYears.map((year, yearIndex) => {
+                            const values =
+                              row.label === "Assets"
+                                ? totalAssetsByYear
+                                : balanceDisplayValues.get(row.label);
+                            const displayValue = values?.[yearIndex] ?? getCellValue(row, year, false);
                             return (
                               <td
                                 key={`${row.label}-${year}`}
                                 className="trans-budget-table__value--numeric"
                                 style={{
                                   color:
-                                    Number(value) < 0
+                                    Number(displayValue) < 0
                                       ? "var(--danger)"
                                       : undefined,
                                 }}
                               >
-                                {formatAmount(value)}
+                                {formatAmount(displayValue)}
                               </td>
                             );
                           })}

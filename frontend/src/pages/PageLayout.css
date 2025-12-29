@@ -923,6 +923,21 @@
   z-index: 1;
 }
 
+.fc-review-table thead th:first-child {
+  position: sticky;
+  left: 0;
+  z-index: 3;
+  box-shadow: inset -1px 0 0 var(--border);
+}
+
+.fc-review-table tbody td:first-child {
+  position: sticky;
+  left: 0;
+  z-index: 2;
+  background: var(--surface);
+  box-shadow: inset -1px 0 0 var(--border);
+}
+
 .trans-budget-table__sort-button {
   width: 100%;
   display: flex;
@@ -1001,6 +1016,10 @@
 
 .trans-budget-table tbody tr:nth-child(even) td {
   background: rgba(248, 249, 254, 0.5);
+}
+
+.fc-review-table tbody tr:nth-child(even) td {
+  background: rgb(248, 249, 254);
 }
 
 .trans-budget-table tbody tr.trans-budget-table__row--selected td {

@@ -12,6 +12,7 @@
 
 import "./BudgetRegionBudgetEntry.css";
 import coaData from "../../../../components/data/coa.json";
+import coaTraits from "../../../../components/data/coa_traits.json";
 
 // Chart of Accounts structure constants
 const PROFIT_LOSS_SECTION_LABEL = "Profit & Loss Accounts";
@@ -104,6 +105,32 @@ const EXPENSE_COA_ACCOUNTS = buildExpenseAccountSet(coaData);
  */
 const normalizeAccountName = (value) =>
   typeof value === "string" ? value.trim() : "";
+
+// Map accounts to their configured currency from coa_traits
+const ACCOUNT_CURRENCY_MAP = (() => {
+  const map = new Map();
+  Object.entries(coaTraits || {}).forEach(([account, traits]) => {
+    const currency =
+      traits &&
+      typeof traits === "object" &&
+      typeof traits.Currency === "string"
+        ? traits.Currency.trim()
+        : "";
+    const normalizedAccount = normalizeAccountName(account);
+    if (normalizedAccount && currency) {
+      map.set(normalizedAccount, currency);
+    }
+  });
+  return map;
+})();
+
+const getAccountCurrency = (account) => {
+  const normalizedAccount = normalizeAccountName(account);
+  if (!normalizedAccount || normalizedAccount === "None") {
+    return undefined;
+  }
+  return ACCOUNT_CURRENCY_MAP.get(normalizedAccount);
+};
 
 /**
  * Checks if a given account name is an expense account in the Chart of Accounts.
@@ -299,6 +326,9 @@ export default function BudgetRegionBudgetEntry({
   // Check if the computed base amount should display as negative (red)
   const computedBaseAmountIsNegative =
     Number.isFinite(computedBaseAmount) && computedBaseAmount < 0;
+  const currencyEditable =
+    normalizeAccountName(entryForm.account) === "None" ||
+    normalizeAccountName(entryForm.account) === "";
 
   /**
    * Generic field change handler factory.
@@ -324,9 +354,11 @@ export default function BudgetRegionBudgetEntry({
    */
   const handleAccountChange = (event) => {
     const nextValue = event?.target?.value;
+    const nextCurrency = getAccountCurrency(nextValue);
     setEntryForm((previous) => ({
       ...previous,
       account: nextValue,
+      currency: nextCurrency ?? previous.currency,
       // Re-apply sign correction with new account
       amount: ensureExpenseAmountSign(previous.amount, nextValue),
     }));
@@ -468,7 +500,10 @@ export default function BudgetRegionBudgetEntry({
               <select
                 className="budget-entry-form__input"
                 value={entryForm.currency}
-                onChange={handleFieldChange("currency")}
+                onChange={
+                  currencyEditable ? handleFieldChange("currency") : noop
+                }
+                disabled={!currencyEditable}
               >
                 {currencyOptions.map((option) => (
                   <option key={option} value={option}>
