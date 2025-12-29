@@ -1,0 +1,425 @@
+/**
+ * FCScenariosModal Styling
+ * Professional modal for forecast scenario operations
+ * (edit inflation/FX, delete confirmations, copy, commit)
+ */
+
+/* ============================================================================
+   MODAL OVERLAY
+   ============================================================================ */
+
+.fc-scenarios-modal-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(15, 23, 42, 0.6);
+  backdrop-filter: blur(6px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 2rem;
+  z-index: 1000;
+  animation: scenariosModalFadeIn 0.2s ease-out;
+}
+
+@keyframes scenariosModalFadeIn {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+/* ============================================================================
+   MODAL CONTAINER
+   ============================================================================ */
+
+.fc-scenarios-modal {
+  width: min(520px, 94vw);
+  background: white;
+  border-radius: 1.25rem;
+  box-shadow:
+    0 20px 60px -12px rgba(37, 99, 235, 0.25),
+    0 8px 24px -8px rgba(15, 23, 42, 0.15),
+    0 0 0 1px rgba(37, 99, 235, 0.1);
+  animation: scenariosModalSlideUp 0.3s cubic-bezier(0.34, 1.56, 0.64, 1);
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  max-height: 90vh;
+}
+
+@keyframes scenariosModalSlideUp {
+  from {
+    opacity: 0;
+    transform: translateY(20px) scale(0.95);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+/* ============================================================================
+   MODAL HEADER
+   ============================================================================ */
+
+.fc-scenarios-modal__header {
+  padding: 1.75rem 2rem;
+  background: linear-gradient(135deg, #f8fafc 0%, #f1f5f9 100%);
+  border-bottom: 2px solid rgba(37, 99, 235, 0.12);
+  position: relative;
+}
+
+.fc-scenarios-modal__header::before {
+  content: '';
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  height: 3px;
+  background: linear-gradient(90deg, var(--primary) 0%, #3b82f6 100%);
+}
+
+.fc-scenarios-modal__title {
+  margin: 0;
+  font-size: 1.35rem;
+  font-weight: 800;
+  color: var(--ink);
+  letter-spacing: -0.02em;
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+}
+
+.fc-scenarios-modal__title-icon {
+  width: 36px;
+  height: 36px;
+  border-radius: 0.65rem;
+  background: linear-gradient(135deg, rgba(37, 99, 235, 0.12) 0%, rgba(59, 130, 246, 0.18) 100%);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 1.15rem;
+  flex-shrink: 0;
+}
+
+.fc-scenarios-modal__description {
+  margin: 0.75rem 0 0;
+  font-size: 0.95rem;
+  font-weight: 500;
+  color: #64748b;
+  line-height: 1.5;
+}
+
+.fc-scenarios-modal__description strong {
+  color: var(--primary);
+  font-weight: 700;
+}
+
+/* ============================================================================
+   MODAL BODY
+   ============================================================================ */
+
+.fc-scenarios-modal__body {
+  padding: 2rem;
+  display: flex;
+  flex-direction: column;
+  gap: 1.5rem;
+  overflow-y: auto;
+}
+
+/* Custom scrollbar */
+.fc-scenarios-modal__body::-webkit-scrollbar {
+  width: 6px;
+}
+
+.fc-scenarios-modal__body::-webkit-scrollbar-track {
+  background: rgba(241, 245, 249, 0.5);
+  border-radius: 3px;
+}
+
+.fc-scenarios-modal__body::-webkit-scrollbar-thumb {
+  background: linear-gradient(
+    to bottom,
+    rgba(37, 99, 235, 0.3),
+    rgba(37, 99, 235, 0.5)
+  );
+  border-radius: 3px;
+}
+
+.fc-scenarios-modal__body::-webkit-scrollbar-thumb:hover {
+  background: linear-gradient(
+    to bottom,
+    rgba(37, 99, 235, 0.5),
+    rgba(37, 99, 235, 0.7)
+  );
+}
+
+/* ============================================================================
+   FORM FIELDS
+   ============================================================================ */
+
+.fc-scenarios-modal__field {
+  display: flex;
+  flex-direction: column;
+  gap: 0.65rem;
+}
+
+.fc-scenarios-modal__field label {
+  display: flex;
+  flex-direction: column;
+  gap: 0.65rem;
+}
+
+.fc-scenarios-modal__field label span {
+  font-size: 0.8rem;
+  font-weight: 700;
+  color: var(--primary);
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+}
+
+.fc-scenarios-modal__field input,
+.fc-scenarios-modal__field select {
+  padding: 0.9rem 1.15rem;
+  border: 1.5px solid rgba(37, 99, 235, 0.2);
+  border-radius: 0.75rem;
+  font-size: 1rem;
+  font-weight: 500;
+  color: var(--ink);
+  background: white;
+  transition: all 0.2s ease;
+  font-family: inherit;
+}
+
+.fc-scenarios-modal__field input:hover:not(:disabled),
+.fc-scenarios-modal__field select:hover:not(:disabled) {
+  border-color: rgba(37, 99, 235, 0.35);
+  box-shadow: 0 2px 8px -2px rgba(37, 99, 235, 0.15);
+}
+
+.fc-scenarios-modal__field input:focus,
+.fc-scenarios-modal__field select:focus {
+  outline: none;
+  border-color: var(--primary);
+  box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.1),
+              0 2px 8px -2px rgba(37, 99, 235, 0.25);
+}
+
+.fc-scenarios-modal__field input:disabled,
+.fc-scenarios-modal__field select:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+  background: linear-gradient(135deg, #f8fafc 0%, #f1f5f9 100%);
+}
+
+.fc-scenarios-modal__field input::placeholder {
+  color: #94a3b8;
+  font-weight: 500;
+}
+
+/* Number inputs */
+input[type="number"].fc-scenarios-modal__field input {
+  font-variant-numeric: tabular-nums;
+}
+
+/* ============================================================================
+   FX RATES GRID
+   ============================================================================ */
+
+.fc-scenarios-modal__fx-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  gap: 1.25rem;
+  padding: 1.25rem;
+  background: linear-gradient(135deg, rgba(248, 250, 252, 0.5) 0%, rgba(241, 245, 249, 0.3) 100%);
+  border: 1px solid rgba(37, 99, 235, 0.12);
+  border-radius: 0.85rem;
+}
+
+/* ============================================================================
+   MODAL ACTIONS
+   ============================================================================ */
+
+.fc-scenarios-modal__actions {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 0.85rem;
+  padding: 1.5rem 2rem;
+  background: linear-gradient(135deg, #f8fafc 0%, #f1f5f9 100%);
+  border-top: 2px solid rgba(37, 99, 235, 0.12);
+}
+
+.fc-scenarios-action-button {
+  padding: 0.875rem 1.75rem;
+  border-radius: 0.75rem;
+  font-weight: 700;
+  font-size: 1rem;
+  cursor: pointer;
+  transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+  border: 2px solid transparent;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  position: relative;
+  overflow: hidden;
+  min-width: 120px;
+}
+
+.fc-scenarios-action-button::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(135deg, rgba(255, 255, 255, 0.2) 0%, transparent 100%);
+  opacity: 0;
+  transition: opacity 0.2s ease;
+}
+
+.fc-scenarios-action-button:hover:not(:disabled)::before {
+  opacity: 1;
+}
+
+.fc-scenarios-action-button:active:not(:disabled) {
+  transform: scale(0.97);
+}
+
+.fc-scenarios-action-button:disabled {
+  cursor: not-allowed;
+  opacity: 0.6;
+}
+
+/* Cancel/Secondary Button */
+.fc-scenarios-action-button:not(.fc-scenarios-action-button--primary):not(.fc-scenarios-action-button--danger) {
+  background: linear-gradient(135deg, #f1f5f9 0%, #e2e8f0 100%);
+  color: #475569;
+  border-color: #cbd5e1;
+}
+
+.fc-scenarios-action-button:not(.fc-scenarios-action-button--primary):not(.fc-scenarios-action-button--danger):hover:not(:disabled) {
+  background: linear-gradient(135deg, #e2e8f0 0%, #cbd5e1 100%);
+  border-color: #94a3b8;
+  transform: translateY(-2px);
+  box-shadow: 0 6px 16px -6px rgba(71, 85, 105, 0.3);
+}
+
+/* Primary Button */
+.fc-scenarios-action-button--primary {
+  background: linear-gradient(135deg, var(--primary) 0%, #3b82f6 100%);
+  color: white;
+  border-color: transparent;
+  box-shadow: 0 4px 12px -4px rgba(37, 99, 235, 0.5);
+}
+
+.fc-scenarios-action-button--primary:hover:not(:disabled) {
+  background: linear-gradient(135deg, #1d4ed8 0%, var(--primary) 100%);
+  transform: translateY(-2px);
+  box-shadow: 0 8px 20px -6px rgba(37, 99, 235, 0.6),
+    0 0 0 3px rgba(37, 99, 235, 0.2);
+}
+
+/* Danger Button */
+.fc-scenarios-action-button--danger {
+  background: linear-gradient(135deg, #ef4444 0%, #dc2626 100%);
+  color: white;
+  border-color: transparent;
+  box-shadow: 0 4px 12px -4px rgba(239, 68, 68, 0.5);
+}
+
+.fc-scenarios-action-button--danger:hover:not(:disabled) {
+  background: linear-gradient(135deg, #dc2626 0%, #b91c1c 100%);
+  transform: translateY(-2px);
+  box-shadow: 0 8px 20px -6px rgba(239, 68, 68, 0.6),
+    0 0 0 3px rgba(239, 68, 68, 0.2);
+}
+
+/* ============================================================================
+   WARNING/INFO BOXES
+   ============================================================================ */
+
+.fc-scenarios-modal__warning {
+  padding: 1rem 1.25rem;
+  background: linear-gradient(135deg, rgba(251, 146, 60, 0.12) 0%, rgba(251, 146, 60, 0.06) 100%);
+  border: 1.5px solid rgba(251, 146, 60, 0.3);
+  border-radius: 0.75rem;
+  color: #ea580c;
+  font-weight: 600;
+  font-size: 0.95rem;
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+}
+
+.fc-scenarios-modal__warning-icon {
+  font-size: 1.25rem;
+  flex-shrink: 0;
+}
+
+.fc-scenarios-modal__info {
+  padding: 1rem 1.25rem;
+  background: linear-gradient(135deg, rgba(59, 130, 246, 0.12) 0%, rgba(59, 130, 246, 0.06) 100%);
+  border: 1.5px solid rgba(59, 130, 246, 0.3);
+  border-radius: 0.75rem;
+  color: #2563eb;
+  font-weight: 600;
+  font-size: 0.95rem;
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+}
+
+.fc-scenarios-modal__info-icon {
+  font-size: 1.25rem;
+  flex-shrink: 0;
+}
+
+/* ============================================================================
+   RESPONSIVE DESIGN
+   ============================================================================ */
+
+@media (max-width: 640px) {
+  .fc-scenarios-modal-overlay {
+    padding: 1rem;
+  }
+
+  .fc-scenarios-modal {
+    width: 96vw;
+    border-radius: 1rem;
+  }
+
+  .fc-scenarios-modal__header,
+  .fc-scenarios-modal__actions {
+    padding: 1.25rem 1.5rem;
+  }
+
+  .fc-scenarios-modal__body {
+    padding: 1.5rem;
+    gap: 1.25rem;
+  }
+
+  .fc-scenarios-modal__title {
+    font-size: 1.2rem;
+  }
+
+  .fc-scenarios-modal__description {
+    font-size: 0.9rem;
+  }
+
+  .fc-scenarios-modal__fx-grid {
+    grid-template-columns: 1fr;
+    gap: 1rem;
+  }
+
+  .fc-scenarios-modal__actions {
+    flex-direction: column-reverse;
+    gap: 0.65rem;
+  }
+
+  .fc-scenarios-action-button {
+    width: 100%;
+    padding: 0.85rem 1.5rem;
+    font-size: 0.95rem;
+  }
+}

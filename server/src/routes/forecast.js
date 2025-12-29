@@ -45,6 +45,7 @@
  * GET    /scenarios/accounts/:scenario - Get distinct accounts for a scenario
  * GET    /scenarios/modules/:scenario - Get distinct modules for a scenario
  * DELETE /scenarios/:scenario         - Delete all modules and inc/exp rows for a scenario
+ * POST   /scenarios/:scenario/copy    - Copy scenario with all modules and inc/exp entries
  *
  * FORECAST GENERATION
  * -----------------------------------------------------------------------------
@@ -878,6 +879,83 @@ router.delete("/scenarios/:scenario", async (req, res) => {
     return res
       .status(500)
       .json({ error: "Failed to delete scenario data for this scenario" });
+  }
+});
+
+/**
+ * POST /scenarios/:scenario/copy
+ *
+ * Copies a scenario and all its related data to a new scenario.
+ * Copies FCModule and FCIncExp entries with the new scenario name.
+ * Does not copy FCAssump.json data; front-end is responsible for copying assumptions.
+ *
+ * @param {string} scenario - Source scenario name to copy from
+ * @body {string} newScenarioName - Name for the new scenario
+ * @returns {Object} Copy counts for each collection
+ * @throws {400} If scenario name is missing or new scenario name is missing
+ * @throws {500} If database operations fail
+ */
+router.post("/scenarios/:scenario/copy", async (req, res) => {
+  const sourceScenario = req.params.scenario?.trim();
+  const newScenarioName = req.body.newScenarioName?.trim();
+
+  if (!sourceScenario) {
+    return res.status(400).json({ error: "Source scenario name is required" });
+  }
+
+  if (!newScenarioName) {
+    return res.status(400).json({ error: "New scenario name is required" });
+  }
+
+  try {
+    // Fetch all modules and inc/exp entries for the source scenario
+    const [sourceModules, sourceIncExp] = await Promise.all([
+      FCModule.find({ Scenario: sourceScenario }).lean().exec(),
+      FCIncExp.find({ Scenario: sourceScenario }).lean().exec(),
+    ]);
+
+    // Create copies with new scenario name (remove _id so new documents are created)
+    const copiedModules = sourceModules.map(({ _id, ...module }) => ({
+      ...module,
+      Scenario: newScenarioName,
+    }));
+
+    const copiedIncExp = sourceIncExp.map(({ _id, ...entry }) => ({
+      ...entry,
+      Scenario: newScenarioName,
+    }));
+
+    // Insert the copied data
+    let modulesInserted = 0;
+    let incExpInserted = 0;
+
+    if (copiedModules.length > 0) {
+      const moduleResult = await FCModule.insertMany(copiedModules, {
+        ordered: false,
+      });
+      modulesInserted = Array.isArray(moduleResult) ? moduleResult.length : 0;
+    }
+
+    if (copiedIncExp.length > 0) {
+      const incExpResult = await FCIncExp.insertMany(copiedIncExp, {
+        ordered: false,
+      });
+      incExpInserted = Array.isArray(incExpResult) ? incExpResult.length : 0;
+    }
+
+    return res.status(201).json({
+      copied: true,
+      sourceScenario,
+      newScenario: newScenarioName,
+      modulesCopied: modulesInserted,
+      incomeExpensesCopied: incExpInserted,
+    });
+  } catch (error) {
+    console.error(
+      `Failed to copy scenario from "${sourceScenario}" to "${newScenarioName}":`,
+      error
+    );
+    return res.status(500).json({ error: "Failed to copy scenario data" });
   }
 });
 

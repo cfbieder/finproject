@@ -12,6 +12,7 @@
  * - deleteScenario: Confirm deletion of entire scenario
  * - nameScenario: Prompt for new scenario name
  * - commit: Confirm committing all changes
+ * - copyScenario: Prompt for name of copied scenario
  *
  * @param {Object} modalState - Current modal state { type, payload }
  * @param {Function} closeModal - Function to close the modal
@@ -24,7 +25,11 @@
  * @param {Function} commitChanges - Handler for committing existing scenario changes
  * @param {Function} setModalState - Function to update modal state
  * @param {Array} fxKeys - List of FX rate keys (e.g., ["USDPLN", "USDEUR"])
+ * @param {Function} copyScenario - Handler for copying a scenario
  */
+
+import "./FCScenariosModal.css";
+
 export default function FCScenariosModal({
   modalState,
   closeModal,
@@ -37,6 +42,7 @@ export default function FCScenariosModal({
   commitChanges,
   setModalState,
   fxKeys,
+  copyScenario,
 }) {
   // Don't render anything if no modal is open
   if (!modalState.type) return null;
@@ -73,28 +79,35 @@ export default function FCScenariosModal({
       <div className="fc-scenarios-modal" onClick={(e) => e.stopPropagation()}>
         {modalState.type === "editInflation" && (
           <>
-            <h3 className="fc-scenarios-modal__title">
-              {modalState.payload?.isNew ? "Add" : "Edit"} Inflation Rate
-            </h3>
-            <label className="fc-scenarios-modal__field">
-              <span>Year</span>
-              <input
-                type="number"
-                className="form-input"
-                value={modalState.payload?.Year ?? ""}
-                onChange={(e) => handleFieldChange("Year", e.target.value)}
-              />
-            </label>
-            <label className="fc-scenarios-modal__field">
-              <span>Rate (%)</span>
-              <input
-                type="number"
-                className="form-input"
-                step="0.01"
-                value={modalState.payload?.Rate ?? ""}
-                onChange={(e) => handleFieldChange("Rate", e.target.value)}
-              />
-            </label>
+            <div className="fc-scenarios-modal__header">
+              <h3 className="fc-scenarios-modal__title">
+                <span className="fc-scenarios-modal__title-icon">📊</span>
+                {modalState.payload?.isNew ? "Add" : "Edit"} Inflation Rate
+              </h3>
+              <p className="fc-scenarios-modal__description">
+                Set the inflation rate assumption for a specific year
+              </p>
+            </div>
+            <div className="fc-scenarios-modal__body">
+              <label className="fc-scenarios-modal__field">
+                <span>Year</span>
+                <input
+                  type="number"
+                  value={modalState.payload?.Year ?? ""}
+                  onChange={(e) => handleFieldChange("Year", e.target.value)}
+                />
+              </label>
+              <label className="fc-scenarios-modal__field">
+                <span>Rate (%)</span>
+                <input
+                  type="number"
+                  step="0.01"
+                  value={modalState.payload?.Rate ?? ""}
+                  onChange={(e) => handleFieldChange("Rate", e.target.value)}
+                  placeholder="e.g., 2.5"
+                />
+              </label>
+            </div>
             <div className="fc-scenarios-modal__actions">
               <button
                 type="button"
@@ -116,11 +129,21 @@ export default function FCScenariosModal({
 
         {modalState.type === "deleteInflation" && (
           <>
-            <h3 className="fc-scenarios-modal__title">Delete Inflation Entry</h3>
-            <p className="fc-scenarios-modal__description">
-              Delete inflation rate for year {modalState.payload?.Year}? This
-              action cannot be undone.
-            </p>
+            <div className="fc-scenarios-modal__header">
+              <h3 className="fc-scenarios-modal__title">
+                <span className="fc-scenarios-modal__title-icon">🗑️</span>
+                Delete Inflation Entry
+              </h3>
+              <p className="fc-scenarios-modal__description">
+                Delete inflation rate for year <strong>{modalState.payload?.Year}</strong>?
+              </p>
+            </div>
+            <div className="fc-scenarios-modal__body">
+              <div className="fc-scenarios-modal__warning">
+                <span className="fc-scenarios-modal__warning-icon">⚠️</span>
+                This action cannot be undone.
+              </div>
+            </div>
             <div className="fc-scenarios-modal__actions">
               <button
                 type="button"
@@ -142,35 +165,44 @@ export default function FCScenariosModal({
 
         {modalState.type === "editFX" && (
           <>
-            <h3 className="fc-scenarios-modal__title">
-              {modalState.payload?.isNew ? "Add" : "Edit"} FX Rates
-            </h3>
-            <label className="fc-scenarios-modal__field">
-              <span>Year</span>
-              <input
-                type="number"
-                className="form-input"
-                value={modalState.payload?.Year ?? ""}
-                onChange={(e) => handleFieldChange("Year", e.target.value)}
-              />
-            </label>
-            {Array.from(
-              new Set([
-                ...fxKeys,
-                ...Object.keys(modalState.payload?.Rates || {}),
-              ])
-            ).map((key) => (
-              <label key={key} className="fc-scenarios-modal__field">
-                <span>{key}</span>
+            <div className="fc-scenarios-modal__header">
+              <h3 className="fc-scenarios-modal__title">
+                <span className="fc-scenarios-modal__title-icon">💱</span>
+                {modalState.payload?.isNew ? "Add" : "Edit"} FX Rates
+              </h3>
+              <p className="fc-scenarios-modal__description">
+                Set foreign exchange rate assumptions for a specific year
+              </p>
+            </div>
+            <div className="fc-scenarios-modal__body">
+              <label className="fc-scenarios-modal__field">
+                <span>Year</span>
                 <input
                   type="number"
-                  className="form-input"
-                  step="0.0001"
-                  value={modalState.payload?.Rates?.[key] ?? ""}
-                  onChange={(e) => handleRateChange(key, e.target.value)}
+                  value={modalState.payload?.Year ?? ""}
+                  onChange={(e) => handleFieldChange("Year", e.target.value)}
                 />
               </label>
-            ))}
+              <div className="fc-scenarios-modal__fx-grid">
+                {Array.from(
+                  new Set([
+                    ...fxKeys,
+                    ...Object.keys(modalState.payload?.Rates || {}),
+                  ])
+                ).map((key) => (
+                  <label key={key} className="fc-scenarios-modal__field">
+                    <span>{key}</span>
+                    <input
+                      type="number"
+                      step="0.0001"
+                      value={modalState.payload?.Rates?.[key] ?? ""}
+                      onChange={(e) => handleRateChange(key, e.target.value)}
+                      placeholder="e.g., 4.1234"
+                    />
+                  </label>
+                ))}
+              </div>
+            </div>
             <div className="fc-scenarios-modal__actions">
               <button
                 type="button"
@@ -192,11 +224,21 @@ export default function FCScenariosModal({
 
         {modalState.type === "deleteFX" && (
           <>
-            <h3 className="fc-scenarios-modal__title">Delete FX Entry</h3>
-            <p className="fc-scenarios-modal__description">
-              Delete FX rates for year {modalState.payload?.Year}? This action
-              cannot be undone.
-            </p>
+            <div className="fc-scenarios-modal__header">
+              <h3 className="fc-scenarios-modal__title">
+                <span className="fc-scenarios-modal__title-icon">🗑️</span>
+                Delete FX Entry
+              </h3>
+              <p className="fc-scenarios-modal__description">
+                Delete FX rates for year <strong>{modalState.payload?.Year}</strong>?
+              </p>
+            </div>
+            <div className="fc-scenarios-modal__body">
+              <div className="fc-scenarios-modal__warning">
+                <span className="fc-scenarios-modal__warning-icon">⚠️</span>
+                This action cannot be undone.
+              </div>
+            </div>
             <div className="fc-scenarios-modal__actions">
               <button
                 type="button"
@@ -218,11 +260,21 @@ export default function FCScenariosModal({
 
         {modalState.type === "deleteScenario" && (
           <>
-            <h3 className="fc-scenarios-modal__title">Delete Scenario</h3>
-            <p className="fc-scenarios-modal__description">
-              Delete scenario "{modalState.payload?.Name}"? This will remove all
-              related inflation and FX data.
-            </p>
+            <div className="fc-scenarios-modal__header">
+              <h3 className="fc-scenarios-modal__title">
+                <span className="fc-scenarios-modal__title-icon">🗑️</span>
+                Delete Scenario
+              </h3>
+              <p className="fc-scenarios-modal__description">
+                Delete scenario <strong>"{modalState.payload?.Name}"</strong>?
+              </p>
+            </div>
+            <div className="fc-scenarios-modal__body">
+              <div className="fc-scenarios-modal__warning">
+                <span className="fc-scenarios-modal__warning-icon">⚠️</span>
+                This will remove all related inflation and FX data. This action cannot be undone.
+              </div>
+            </div>
             <div className="fc-scenarios-modal__actions">
               <button
                 type="button"
@@ -244,17 +296,26 @@ export default function FCScenariosModal({
 
         {modalState.type === "nameScenario" && (
           <>
-            <h3 className="fc-scenarios-modal__title">Name New Scenario</h3>
-            <label className="fc-scenarios-modal__field">
-              <span>Scenario Name</span>
-              <input
-                type="text"
-                className="form-input"
-                value={modalState.payload?.Name ?? ""}
-                onChange={(e) => handleFieldChange("Name", e.target.value)}
-                placeholder="Enter scenario name"
-              />
-            </label>
+            <div className="fc-scenarios-modal__header">
+              <h3 className="fc-scenarios-modal__title">
+                <span className="fc-scenarios-modal__title-icon">✨</span>
+                Name New Scenario
+              </h3>
+              <p className="fc-scenarios-modal__description">
+                Provide a name for your new forecast scenario
+              </p>
+            </div>
+            <div className="fc-scenarios-modal__body">
+              <label className="fc-scenarios-modal__field">
+                <span>Scenario Name</span>
+                <input
+                  type="text"
+                  value={modalState.payload?.Name ?? ""}
+                  onChange={(e) => handleFieldChange("Name", e.target.value)}
+                  placeholder="e.g., Q1 2025 Baseline"
+                />
+              </label>
+            </div>
             <div className="fc-scenarios-modal__actions">
               <button
                 type="button"
@@ -269,7 +330,7 @@ export default function FCScenariosModal({
                 disabled={!modalState.payload?.Name?.trim()}
                 onClick={commitNewScenario}
               >
-                Save &amp; Commit
+                Save & Commit
               </button>
             </div>
           </>
@@ -277,10 +338,21 @@ export default function FCScenariosModal({
 
         {modalState.type === "commit" && (
           <>
-            <h3 className="fc-scenarios-modal__title">Commit Changes</h3>
-            <p className="fc-scenarios-modal__description">
-              Save all changes to scenarios, inflation, and FX data?
-            </p>
+            <div className="fc-scenarios-modal__header">
+              <h3 className="fc-scenarios-modal__title">
+                <span className="fc-scenarios-modal__title-icon">💾</span>
+                Commit Changes
+              </h3>
+              <p className="fc-scenarios-modal__description">
+                Save all changes to scenarios, inflation, and FX data?
+              </p>
+            </div>
+            <div className="fc-scenarios-modal__body">
+              <div className="fc-scenarios-modal__info">
+                <span className="fc-scenarios-modal__info-icon">ℹ️</span>
+                Your changes will be permanently saved to the server.
+              </div>
+            </div>
             <div className="fc-scenarios-modal__actions">
               <button
                 type="button"
@@ -295,6 +367,55 @@ export default function FCScenariosModal({
                 onClick={commitChanges}
               >
                 Confirm
+              </button>
+            </div>
+          </>
+        )}
+
+        {modalState.type === "copyScenario" && (
+          <>
+            <div className="fc-scenarios-modal__header">
+              <h3 className="fc-scenarios-modal__title">
+                <span className="fc-scenarios-modal__title-icon">📋</span>
+                Copy Scenario
+              </h3>
+              <p className="fc-scenarios-modal__description">
+                Copy <strong>"{modalState.payload?.sourceScenario}"</strong> to a new scenario.
+                This will copy all assumptions, modules, and income/expense entries.
+              </p>
+            </div>
+            <div className="fc-scenarios-modal__body">
+              <label className="fc-scenarios-modal__field">
+                <span>New Scenario Name</span>
+                <input
+                  type="text"
+                  value={modalState.payload?.newScenarioName ?? ""}
+                  onChange={(e) =>
+                    handleFieldChange("newScenarioName", e.target.value)
+                  }
+                  placeholder="e.g., Q2 2025 Conservative"
+                />
+              </label>
+              <div className="fc-scenarios-modal__info">
+                <span className="fc-scenarios-modal__info-icon">ℹ️</span>
+                The new scenario will include all data from the source scenario.
+              </div>
+            </div>
+            <div className="fc-scenarios-modal__actions">
+              <button
+                type="button"
+                className="fc-scenarios-action-button"
+                onClick={closeModal}
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                className="fc-scenarios-action-button fc-scenarios-action-button--primary"
+                disabled={!modalState.payload?.newScenarioName?.trim()}
+                onClick={copyScenario}
+              >
+                Copy Scenario
               </button>
             </div>
           </>

@@ -21,6 +21,11 @@
       "Name": "Testing",
       "PeriodStart": 2025,
       "PeriodEnd": 2036
+    },
+    {
+      "Name": "2025_Base",
+      "PeriodStart": 2025,
+      "PeriodEnd": 2036
     }
   ],
   "inflation": [
@@ -46,6 +51,11 @@
     },
     {
       "Scenario": "Testing",
+      "Year": 2025,
+      "Rate": 1
+    },
+    {
+      "Scenario": "2025_Base",
       "Year": 2025,
       "Rate": 1
     }
@@ -82,6 +92,14 @@
         "USDPLN": 4,
         "USDEUR": 2
       }
+    },
+    {
+      "Scenario": "2025_Base",
+      "Year": 2025,
+      "Rates": {
+        "USDPLN": 4,
+        "USDEUR": 2
+      }
     }
   ],
   "Tax Rate": [
@@ -95,6 +113,10 @@
     },
     {
       "Scenario": "Testing",
+      "Rate": 25
+    },
+    {
+      "Scenario": "2025_Base",
       "Rate": 25
     }
   ]

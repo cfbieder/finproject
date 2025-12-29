@@ -1046,6 +1046,37 @@ Delete all modules and income/expense rows for a scenario.
 }
 ```
 
+#### POST /forecast/scenarios/:scenario/copy
+
+Copy a scenario and all its related data to a new scenario.
+
+Copies all FCModule and FCIncExp database entries from the source scenario to a new scenario with the specified name. The frontend is responsible for copying scenario assumptions (inflation, FX rates, tax rates, period configuration) from FCAssump.json.
+
+**Parameters:**
+- `scenario`: Source scenario name to copy from (URL-encoded)
+
+**Request Body:**
+```json
+{
+  "newScenarioName": "Q1 2025 Forecast"
+}
+```
+
+**Response:**
+```json
+{
+  "copied": true,
+  "sourceScenario": "Base Case",
+  "newScenario": "Q1 2025 Forecast",
+  "modulesCopied": 25,
+  "incomeExpensesCopied": 150
+}
+```
+
+**Error Responses:**
+- `400` - Missing source scenario name or new scenario name
+- `500` - Database operations failed
+
 ### Forecast Entries
 
 #### GET /forecast/entries

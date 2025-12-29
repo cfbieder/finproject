@@ -6,10 +6,13 @@
  * multiple scenarios with different assumptions to model various financial futures.
  *
  * Features:
- * - Create, edit, and delete forecast scenarios
+ * - Create, edit, delete, and copy forecast scenarios
  * - Manage inflation rate assumptions by year
  * - Manage FX rate assumptions (USD/PLN, USD/EUR) by year
+ * - Manage tax rate assumptions by scenario
  * - Set scenario time periods (start/end years)
+ * - Copy scenarios with all associated data (modules, income/expense entries)
+ * - Set default scenario for forecast pages
  * - Commit changes to persist data to the server
  * - Reload default assumptions from the server
  *
@@ -17,6 +20,7 @@
  * - Scenarios: { Name, PeriodStart, PeriodEnd }
  * - Inflation: { Scenario, Year, Rate }
  * - FX: { Scenario, Year, Rates: { USDPLN, USDEUR } }
+ * - Tax Rate: { Scenario, Rate }
  */
 
 import { useEffect, useState } from "react";
@@ -652,6 +656,133 @@ export default function FCScenarios() {
   };
 
   // ============================================================================
+  // SCENARIO COPY OPERATIONS
+  // ============================================================================
+
+  /**
+   * Opens the copy scenario modal
+   * Prompts the user for a new scenario name
+   */
+  const openCopyScenarioModal = () => {
+    if (selectedScenario && selectedScenario !== "__new_scenario__") {
+      setModalState({
+        type: "copyScenario",
+        payload: {
+          sourceScenario: selectedScenario,
+          newScenarioName: "",
+        },
+      });
+    }
+  };
+
+  /**
+   * Copies the current scenario with all its data
+   * Creates a new scenario with copied assumptions, modules, and inc/exp entries
+   */
+  const copyScenario = async () => {
+    const sourceScenario = modalState.payload?.sourceScenario;
+    const newScenarioName = (modalState.payload?.newScenarioName || "").trim();
+
+    if (!sourceScenario || !newScenarioName) {
+      return;
+    }
+
+    setIsLoading(true);
+
+    try {
+      // Find the source scenario configuration
+      const sourceScenarioConfig = scenarios.find(
+        (s) => s.Name === sourceScenario
+      );
+
+      if (!sourceScenarioConfig) {
+        setLoadError("Source scenario not found");
+        closeModal();
+        setIsLoading(false);
+        return;
+      }
+
+      // Copy scenario configuration
+      const newScenarioConfig = {
+        Name: newScenarioName,
+        PeriodStart: sourceScenarioConfig.PeriodStart,
+        PeriodEnd: sourceScenarioConfig.PeriodEnd,
+      };
+
+      // Copy inflation data
+      const copiedInflation = localInflation
+        .filter((item) => item.Scenario === sourceScenario)
+        .map((item) => ({ ...item, Scenario: newScenarioName }));
+
+      // Copy FX data
+      const copiedFX = localFX
+        .filter((item) => item.Scenario === sourceScenario)
+        .map((item) => ({ ...item, Scenario: newScenarioName }));
+
+      // Copy tax rate
+      const sourceTaxRate = localTaxRates.find(
+        (item) => item.Scenario === sourceScenario
+      );
+      const copiedTaxRate = sourceTaxRate
+        ? { ...sourceTaxRate, Scenario: newScenarioName }
+        : { Scenario: newScenarioName, Rate: 25 };
+
+      // Update scenarios list
+      const updatedScenarios = [...scenarios, newScenarioConfig];
+      const updatedInflation = [...localInflation, ...copiedInflation];
+      const updatedFX = [...localFX, ...copiedFX];
+      const updatedTaxRates = [...localTaxRates, copiedTaxRate];
+
+      // Save to server
+      await Rest.fetchJson("/api/forecast/assumptions", {
+        method: "PUT",
+        body: JSON.stringify({
+          ...assumptions,
+          scenarios: updatedScenarios,
+          inflation: updatedInflation,
+          FX: updatedFX,
+          "Tax Rate": updatedTaxRates,
+        }),
+        headers: { "Content-Type": "application/json" },
+      });
+
+      // Copy modules and inc/exp entries via the backend API
+      const encoded = encodeURIComponent(sourceScenario);
+      await Rest.fetchJson(`/api/forecast/scenarios/${encoded}/copy`, {
+        method: "POST",
+        body: JSON.stringify({ newScenarioName }),
+        headers: { "Content-Type": "application/json" },
+      });
+
+      // Update local state
+      setScenarios(updatedScenarios);
+      setLocalInflation(updatedInflation);
+      setLocalFX(updatedFX);
+      setLocalTaxRates(updatedTaxRates);
+      setAssumptions((prev) =>
+        prev
+          ? {
+              ...prev,
+              scenarios: updatedScenarios,
+              inflation: updatedInflation,
+              FX: updatedFX,
+              "Tax Rate": updatedTaxRates,
+            }
+          : prev
+      );
+
+      // Select the newly created scenario
+      setSelectedScenario(newScenarioName);
+
+      closeModal();
+    } catch (error) {
+      setLoadError(error.message || "Failed to copy scenario");
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  // ============================================================================
   // RENDER
   // ============================================================================
 
@@ -683,6 +814,7 @@ export default function FCScenarios() {
           taxRate={String(selectedTaxRate ?? "")}
           setTaxRate={updateTaxRate}
           makeDefaultScenario={makeDefaultScenario}
+          onCopyScenario={openCopyScenarioModal}
         />
 
         {/* Data tables for inflation and FX assumptions */}
@@ -711,6 +843,7 @@ export default function FCScenarios() {
             commitChanges={commitChanges}
             setModalState={setModalState}
             fxKeys={fxKeys}
+            copyScenario={copyScenario}
           />
         )}
         <FCExpConfirmDeleteModal

@@ -4,8 +4,11 @@
  * Header section for forecast scenarios page with controls for:
  * - Selecting active scenario
  * - Setting period start/end years
- * - Committing changes
- * - Reloading defaults
+ * - Setting tax rate for the scenario
+ * - Committing changes to persist to server
+ * - Setting default scenario for forecast pages
+ * - Copying scenarios with all related data
+ * - Reloading defaults from server
  * - Deleting scenarios
  *
  * Displays error banners when data fails to load
@@ -28,6 +31,7 @@ export default function FCScenariosSelect({
   taxRate,
   setTaxRate,
   makeDefaultScenario,
+  onCopyScenario,
 }) {
   // Disable controls when loading, no data, or errors
   const isDisabled = !assumptions || !!loadError || isLoading;
@@ -165,6 +169,16 @@ export default function FCScenariosSelect({
             >
               <span className="fc-scenarios-button-icon">⭐</span>
               Make Default
+            </button>
+            <button
+              type="button"
+              className="fc-scenarios-action-button"
+              onClick={onCopyScenario}
+              disabled={!canDeleteScenario || isLoading}
+              title="Copy this scenario with all modules and income/expense entries"
+            >
+              <span className="fc-scenarios-button-icon">📋</span>
+              Copy
             </button>
             <button
               type="button"
