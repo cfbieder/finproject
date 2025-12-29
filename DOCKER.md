@@ -96,6 +96,76 @@ The following directories are mounted as volumes:
 - `./components/reports` → `/app/components/reports` (generated reports)
 - `mongo_data` volume → MongoDB database files
 
+## Backup and Restore
+
+### Creating a Backup
+
+Use the provided backup script to create a full MongoDB backup:
+
+```bash
+./backup-mongo.sh
+```
+
+This will:
+- Create a timestamped backup in `mongo_backups/`
+- Include all databases and collections
+- Show backup size and contents
+
+**Manual backup:**
+```bash
+# Create backup inside container
+docker exec mongofin mongodump --port 27018 --out /tmp/backup
+
+# Copy to host
+docker cp mongofin:/tmp/backup ./mongo_backups/backup_$(date +%Y%m%d_%H%M%S)
+
+# Clean up container
+docker exec mongofin rm -rf /tmp/backup
+```
+
+### Restoring a Backup
+
+Use the provided restore script:
+
+```bash
+./restore-mongo.sh /path/to/backup_directory
+```
+
+The script will:
+- Ask for confirmation (restore drops all existing data)
+- Copy backup to container
+- Restore all collections
+- Display document counts after restore
+
+**Manual restore:**
+```bash
+# Copy backup to container
+docker cp /path/to/backup mongofin:/tmp/restore
+
+# Restore (--drop removes existing data first)
+docker exec mongofin mongorestore --port 27018 --drop /tmp/restore
+
+# Clean up
+docker exec mongofin rm -rf /tmp/restore
+```
+
+### Backup Best Practices
+
+1. **Regular Backups**: Create backups before:
+   - Making significant changes
+   - Upgrading Docker containers
+   - Testing new features
+
+2. **Backup Storage**: Keep backups in `mongo_backups/` directory (already in `.gitignore`)
+
+3. **Verify Backups**: After creating a backup, check the file sizes to ensure data was captured
+
+4. **Automated Backups**: Add a cron job for daily backups:
+   ```bash
+   # Add to crontab (crontab -e)
+   0 2 * * * /home/cfbieder/Programs/fin/backup-mongo.sh
+   ```
+
 ## Health Checks
 
 ### Application Health Check
