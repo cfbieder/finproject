@@ -25,11 +25,19 @@ export default function FCExpConfirmDeleteModal({
   isSaving,
   onClose,
   onConfirm,
+  title = "Delete Entry",
+  itemLabel,
+  context,
+  description,
+  warning = "This action cannot be undone.",
+  confirmLabel = "Delete",
+  confirmBusyLabel,
 }) {
   if (!isOpen) return null;
 
   const entryLabel =
-    selectedEntry?.Name || selectedEntry?.Account || "this entry";
+    itemLabel || selectedEntry?.Name || selectedEntry?.Account || "this entry";
+  const busyLabel = confirmBusyLabel || `${confirmLabel}ing...`;
 
   return (
     <div className="fc-delete-modal-overlay" onClick={onClose}>
@@ -44,13 +52,24 @@ export default function FCExpConfirmDeleteModal({
             </svg>
           </div>
         </div>
-        <h3 className="fc-delete-modal__title">Delete Entry</h3>
+        <h3 className="fc-delete-modal__title">{title}</h3>
         <p className="fc-delete-modal__description">
-          Are you sure you want to delete <strong>{entryLabel}</strong>?
+          {description || (
+            <>
+              Are you sure you want to delete <strong>{entryLabel}</strong>?
+            </>
+          )}
         </p>
-        <p className="fc-delete-modal__warning">
-          This action cannot be undone.
-        </p>
+        {context && (
+          <p className="fc-delete-modal__context">
+            {context}
+          </p>
+        )}
+        {warning && (
+          <p className="fc-delete-modal__warning">
+            {warning}
+          </p>
+        )}
         {error && (
           <div className="fc-delete-modal__error">
             <svg width="20" height="20" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
@@ -77,14 +96,14 @@ export default function FCExpConfirmDeleteModal({
             {isSaving ? (
               <>
                 <span className="fc-delete-modal__spinner"></span>
-                Deleting...
+                {busyLabel}
               </>
             ) : (
               <>
                 <svg width="18" height="18" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
                   <path d="M19 7L18.1327 19.1425C18.0579 20.1891 17.187 21 16.1378 21H7.86224C6.81296 21 5.94208 20.1891 5.86732 19.1425L5 7M10 11V17M14 11V17M15 7V4C15 3.44772 14.5523 3 14 3H10C9.44772 3 9 3.44772 9 4V7M4 7H20" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
                 </svg>
-                Delete
+                {confirmLabel}
               </>
             )}
           </button>

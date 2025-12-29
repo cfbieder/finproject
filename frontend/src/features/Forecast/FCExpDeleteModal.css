@@ -118,6 +118,14 @@
   font-weight: 700;
 }
 
+.fc-delete-modal__context {
+  margin: 0.35rem 0 0.25rem;
+  color: var(--muted);
+  font-weight: 600;
+  font-size: 0.93rem;
+  text-align: center;
+}
+
 .fc-delete-modal__warning {
   margin: 0;
   font-size: 0.9rem;

@@ -44,6 +44,7 @@
  * GET    /scenarios/years/:scenario   - Get distinct years for a scenario
  * GET    /scenarios/accounts/:scenario - Get distinct accounts for a scenario
  * GET    /scenarios/modules/:scenario - Get distinct modules for a scenario
+ * DELETE /scenarios/:scenario         - Delete all modules and inc/exp rows for a scenario
  *
  * FORECAST GENERATION
  * -----------------------------------------------------------------------------
@@ -840,6 +841,43 @@ router.get("/scenarios/modules/:scenario", async (req, res) => {
   } catch (error) {
     console.error("Failed to load forecast modules:", error);
     return res.status(500).json({ error: "Failed to load forecast modules" });
+  }
+});
+
+/**
+ * DELETE /scenarios/:scenario
+ *
+ * Deletes all forecast data for a scenario from FCModule and FCIncExp collections.
+ * Does not mutate FCAssump.json; front-end remains responsible for updating assumptions.
+ *
+ * @param {string} scenario - Scenario name to delete
+ * @returns {Object} Deletion counts for each collection
+ * @throws {400} If scenario name is missing
+ * @throws {500} If database operations fail
+ */
+router.delete("/scenarios/:scenario", async (req, res) => {
+  const scenario = req.params.scenario?.trim();
+
+  if (!scenario) {
+    return res.status(400).json({ error: "Scenario name is required" });
+  }
+
+  try {
+    const [moduleResult, incExpResult] = await Promise.all([
+      FCModule.deleteMany({ Scenario: scenario }),
+      FCIncExp.deleteMany({ Scenario: scenario }),
+    ]);
+
+    return res.json({
+      deleted: true,
+      modulesDeleted: moduleResult?.deletedCount ?? 0,
+      incomeExpensesDeleted: incExpResult?.deletedCount ?? 0,
+    });
+  } catch (error) {
+    console.error(`Failed to delete scenario data for "${scenario}":`, error);
+    return res
+      .status(500)
+      .json({ error: "Failed to delete scenario data for this scenario" });
   }
 });
 

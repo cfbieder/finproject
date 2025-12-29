@@ -24,6 +24,7 @@ import NavigationMenu from "../components/NavigationMenu.jsx";
 import FCScenariosSelect from "../features/Forecast/FCScenariosSelect.jsx";
 import FCScenariosTable from "../features/Forecast/FCScenariosTable.jsx";
 import FCScenariosModal from "../features/Forecast/FCScenariosModal.jsx";
+import FCExpConfirmDeleteModal from "../features/Forecast/FCExpConfirmDeleteModal.jsx";
 import Rest from "../js/rest.js";
 import "./PageLayout.css";
 
@@ -453,11 +454,21 @@ export default function FCScenarios() {
    * If deleting the currently selected scenario, switches to the first available scenario
    * Updates local state only - changes must be committed to persist
    */
-  const deleteScenario = () => {
+  const deleteScenario = async () => {
     const name = modalState.payload?.Name;
     if (!name) {
       closeModal();
       return;
+    }
+
+    // Attempt to delete scenario-linked modules/inc-exp on the server
+    try {
+      const encoded = encodeURIComponent(name);
+      await Rest.fetchJson(`/api/forecast/scenarios/${encoded}`, {
+        method: "DELETE",
+      });
+    } catch (error) {
+      console.error("Failed to delete scenario-related modules/inc-exp:", error);
     }
 
     // Remove scenario from list
@@ -644,6 +655,11 @@ export default function FCScenarios() {
   // RENDER
   // ============================================================================
 
+  const scenarioDeleteOpen = modalState.type === "deleteScenario";
+  const scenarioDeleteName = modalState.payload?.Name || selectedScenario;
+  const commitOpen = modalState.type === "commit";
+  const commitScenarioName = selectedScenario;
+
   return (
     <div className="page-shell">
       <NavigationMenu />
@@ -682,18 +698,50 @@ export default function FCScenarios() {
         />
 
         {/* Modal dialogs for editing, deleting, and committing */}
-        <FCScenariosModal
-          modalState={modalState}
-          closeModal={closeModal}
-          saveInflation={saveInflation}
-          deleteInflation={deleteInflation}
-          saveFx={saveFx}
-          deleteFx={deleteFx}
-          deleteScenario={deleteScenario}
-          commitNewScenario={commitNewScenario}
-          commitChanges={commitChanges}
-          setModalState={setModalState}
-          fxKeys={fxKeys}
+        {!scenarioDeleteOpen && !commitOpen && (
+          <FCScenariosModal
+            modalState={modalState}
+            closeModal={closeModal}
+            saveInflation={saveInflation}
+            deleteInflation={deleteInflation}
+            saveFx={saveFx}
+            deleteFx={deleteFx}
+            deleteScenario={deleteScenario}
+            commitNewScenario={commitNewScenario}
+            commitChanges={commitChanges}
+            setModalState={setModalState}
+            fxKeys={fxKeys}
+          />
+        )}
+        <FCExpConfirmDeleteModal
+          isOpen={commitOpen}
+          selectedEntry={{ Name: commitScenarioName }}
+          error=""
+          isSaving={false}
+          onClose={closeModal}
+          onConfirm={() => commitChanges()}
+          title="Commit Changes"
+          itemLabel={commitScenarioName || "this scenario"}
+          description="Save all changes to scenarios, inflation, and FX data?"
+          warning="This will overwrite server assumptions for this scenario."
+          confirmLabel="Commit"
+          confirmBusyLabel="Committing..."
+          context={
+            commitScenarioName
+              ? `Scenario: ${commitScenarioName}`
+              : undefined
+          }
+        />
+        <FCExpConfirmDeleteModal
+          isOpen={scenarioDeleteOpen}
+          selectedEntry={{ Name: scenarioDeleteName }}
+          error=""
+          isSaving={false}
+          onClose={closeModal}
+          onConfirm={deleteScenario}
+          title="Delete Scenario"
+          itemLabel={scenarioDeleteName || "this scenario"}
+          context="This removes the scenario, its inflation/FX assumptions, and deletes related modules and income/expense entries."
         />
       </main>
     </div>

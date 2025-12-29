@@ -5,6 +5,4 @@ add COA management
 review how income, growth and expense calculated in fcbuilder
 
 
-when deleting scenario, modules still remain, need to resolve.
-
 Copy modules to other scenarios

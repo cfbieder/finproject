@@ -6,7 +6,7 @@ import FCModulesEditModal, {
   incomeCategoryOptions,
 } from "../features/Forecast/FCModulesEdit.jsx";
 import FCModulesTable from "../features/Forecast/FCModulesTable.jsx";
-import FCModulesDeleteModal from "../features/Forecast/FCModulesDeleteModal.jsx";
+import FCExpConfirmDeleteModal from "../features/Forecast/FCExpConfirmDeleteModal.jsx";
 import FCModulesUnmatchedModal from "../features/Forecast/FCModulesUnmatchedModal.jsx";
 import { useAssumptions } from "../features/Forecast/hooks/useAssumptions.js";
 import { useModules } from "../features/Forecast/hooks/useModules.js";
@@ -505,13 +505,18 @@ export default function FCModuleManage() {
           onSubmit={handleSaveEdit}
           refreshToken={editRefreshToken}
         />
-        <FCModulesDeleteModal
+        <FCExpConfirmDeleteModal
           isOpen={showDeleteModal}
-          selectedModule={selectedModule}
-          deleteSaving={deleteSaving}
-          deleteError={deleteError}
+          selectedEntry={selectedModule}
+          error={deleteError}
+          isSaving={deleteSaving}
           onClose={closeDeleteModal}
-          onDelete={handleDeleteModule}
+          onConfirm={handleDeleteModule}
+          title="Delete Module"
+          itemLabel={
+            selectedModule?.Name || selectedModule?.Account || "this module"
+          }
+          context={selectedScenario ? `Scenario: ${selectedScenario}` : ""}
         />
         <FCModulesUnmatchedModal
           isOpen={showUnmatchedModal}
