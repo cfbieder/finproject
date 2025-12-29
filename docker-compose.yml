@@ -9,20 +9,46 @@ services:
     ports:
       - "27018:27018"
     volumes:
-      - ./mongo_data:/data/db
+      - mongo_data:/data/db
+    networks:
+      - fin-network
+    healthcheck:
+      test: ["CMD", "mongosh", "--port", "27018", "--eval", "db.adminCommand('ping')"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 40s
 
   server:
     build:
       context: .
       dockerfile: server/Dockerfile
+    container_name: fin-server
+    restart: unless-stopped
     depends_on:
-      - mongo
+      mongo:
+        condition: service_healthy
     environment:
       NODE_ENV: production
       PORT: 3005
       MONGO_URI: mongodb://mongo:27018/fin
+      ACCOUNT_NAMES_PATH: ../../components/data/account_names.json
+      CATEGORY_NAMES_PATH: ../../components/data/category_names.json
+      COA_PATH: ../../components/data/coa.json
+      PS_API_KEY: ${PS_API_KEY:-4d7decce564383ec2fd44f7a0ce668d4949e2fac864de880e081dcb4c246740481774c17b60a63a6f1062d22e4cf7b77098253291545bab106d20c0f5d90a3a3}
+      PS_USER_ID: ${PS_USER_ID:-330430}
     ports:
       - "3005:3005"
     volumes:
       - ./components/data:/app/components/data
       - ./components/reports:/app/components/reports
+    networks:
+      - fin-network
+
+networks:
+  fin-network:
+    driver: bridge
+
+volumes:
+  mongo_data:
+    driver: local

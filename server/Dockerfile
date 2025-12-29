@@ -1,19 +1,40 @@
-FROM node:20-alpine
+FROM node:20
 
+# Set working directory
 WORKDIR /app
 
+# Copy package files for dependency installation
 COPY components/package*.json ./components/
 COPY server/package*.json ./server/
+
+# Install dependencies (production only)
 RUN npm ci --omit=dev --prefix components \
  && npm ci --omit=dev --prefix server
 
+# Copy application code
 COPY components ./components
 COPY server ./server
 
+# Set environment variables
 ENV NODE_ENV=production \
     PORT=3005 \
-    MONGO_URI=mongodb://mongo:27018/fin
+    MONGO_URI=mongodb://mongo:27018/fin \
+    ACCOUNT_NAMES_PATH=../../components/data/account_names.json \
+    CATEGORY_NAMES_PATH=../../components/data/category_names.json \
+    COA_PATH=../../components/data/coa.json
 
+# Create data directories if they don't exist
+RUN mkdir -p /app/components/data /app/components/reports
+
+# Set working directory to server
 WORKDIR /app/server
+
+# Expose port
 EXPOSE 3005
+
+# Health check
+HEALTHCHECK --interval=30s --timeout=3s --start-period=40s --retries=3 \
+  CMD node -e "require('http').get('http://localhost:3005/api/health', (r) => {process.exit(r.statusCode === 200 ? 0 : 1)})"
+
+# Run the application
 CMD ["npm", "run", "dok"]

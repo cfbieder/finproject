@@ -6,7 +6,7 @@
   "scripts": {
     "start": "node src/server.js",
     "dev": "env-cmd -e development -- nodemon src/server.js",
-    "dok": "env-cmd -e docker -- nodemon src/server.js",
+    "dok": "node src/server.js",
     "test": "jest",
     "test:watch": "jest --watch",
     "test:coverage": "jest --coverage"

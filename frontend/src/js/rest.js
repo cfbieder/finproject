@@ -1,4 +1,5 @@
 const apiBase = import.meta.env.VITE_APP_API ?? "";
+console.log(`Using API base URL: ${apiBase}`);
 
 /**
  * A lightweight REST helper that wraps fetch() for JSON endpoints.
