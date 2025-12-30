@@ -20,16 +20,18 @@
  * @module FCReview
  */
 
-import { useEffect, useMemo, useState, useCallback } from "react";
+import { useEffect, useMemo, useState, useCallback, useRef } from "react";
 import NavigationMenu from "../components/NavigationMenu.jsx";
 import FCReviewSelector from "../features/Forecast/FCReviewSelector.jsx";
-import { formatAmount } from "../features/Forecast/utils/fcReviewUtils.js";
 import { useScenarios } from "../features/Forecast/hooks/useScenarios.js";
 import { useCashFlowAccounts } from "../features/Forecast/hooks/useCashFlowAccounts.js";
 import { useBalanceSheetAccounts } from "../features/Forecast/hooks/useBalanceSheetAccounts.js";
 import { useForecastData } from "../features/Forecast/hooks/useForecastData.js";
 import { useBaseYearActuals } from "../features/Forecast/hooks/useBaseYearActuals.js";
 import { useBaseYearBalanceSheet } from "../features/Forecast/hooks/useBaseYearBalanceSheet.js";
+import FCReviewTable from "../features/Forecast/FCReviewTable.jsx";
+import FCReviewBreakdownModal from "../features/Forecast/FCReviewBreakdownModal.jsx";
+import { formatAmount } from "../features/Forecast/utils/fcReviewUtils.js";
 import Rest from "../js/rest.js";
 import "./PageLayout.css";
 
@@ -103,6 +105,16 @@ export default function FCReview() {
   const [generateLoading, setGenerateLoading] = useState(false);
   const [generateError, setGenerateError] = useState("");
   const [generateResult, setGenerateResult] = useState(null);
+  const [breakdownModal, setBreakdownModal] = useState({
+    isOpen: false,
+    title: "",
+    amount: null,
+    entryTotal: 0,
+    entries: [],
+  });
+
+  const tableWrapperRef = useRef(null);
+  const tableRef = useRef(null);
 
   // Clear generation state when scenario changes
   useEffect(() => {
@@ -169,6 +181,16 @@ export default function FCReview() {
       ),
     [balanceAccounts]
   );
+
+  const bankAccountLabels = useMemo(() => {
+    const labels = new Set(
+      Array.from(balanceAccountMap.entries())
+        .filter(([, mapping]) => mapping?.level2 === "Bank Accounts")
+        .map(([label]) => label)
+    );
+    labels.add("Bank Accounts");
+    return labels;
+  }, [balanceAccountMap]);
 
   const tableColSpan = Math.max(sortedYears.length + 1, 2);
 
@@ -347,21 +369,12 @@ export default function FCReview() {
    * @returns {Map<string, Array<number>>} Map of account label to array of values per year
    */
   const balanceDisplayValues = useMemo(() => {
-    const bankAccountLabels = new Set(
-      Array.from(balanceAccountMap.entries())
-        .filter(([, mapping]) => mapping?.level2 === "Bank Accounts")
-        .map(([label]) => label)
-    );
-
     const valuesByRow = new Map();
     for (const row of balanceAccounts) {
       let runningBankTotal;
       const perYear = sortedYears.map((year, index) => {
         const baseValue = getCellValue(row, year, false);
-        if (
-          row.label === "Bank Accounts" ||
-          bankAccountLabels.has(row.label)
-        ) {
+        if (row.label === "Bank Accounts" || bankAccountLabels.has(row.label)) {
           const numericValue = Number.isFinite(Number(baseValue))
             ? Number(baseValue)
             : 0;
@@ -379,7 +392,7 @@ export default function FCReview() {
       valuesByRow.set(row.label, perYear);
     }
     return valuesByRow;
-  }, [balanceAccounts, sortedYears, getCellValue]);
+  }, [balanceAccounts, sortedYears, getCellValue, bankAccountLabels]);
 
   /**
    * Calculates total Assets by summing all level 2 asset categories.
@@ -420,6 +433,131 @@ export default function FCReview() {
   // RENDER
   // =============================================================================
 
+  const collectBreakdownEntries = useCallback(
+    (row, year, isCashSection) => {
+      const targetYear = Number(year);
+      if (!Number.isFinite(targetYear)) {
+        return [];
+      }
+
+      return entries.filter((entry) => {
+        const entryYear = Number(entry?.Year);
+        const account = entry?.Account;
+        if (!Number.isFinite(entryYear) || !account) {
+          return false;
+        }
+
+        if (isCashSection) {
+          const mapping = cashAccountMap.get(account);
+          const level1 = mapping?.level1;
+          const level2 = mapping?.level2 || account;
+
+          if (row.isNet) {
+            const isIncomeOrExpense =
+              level1 === "Income" || level1 === "Expense";
+            return isIncomeOrExpense && entryYear === targetYear;
+          }
+
+          if (row.level === 1) {
+            return level1 === row.label && entryYear === targetYear;
+          }
+
+          return level2 === row.label && entryYear === targetYear;
+        }
+
+        const mapping = balanceAccountMap.get(account);
+        const balL1 =
+          mapping?.level1 ||
+          (balanceLevel1Labels.has(account) ? account : undefined);
+        const balL2 =
+          mapping?.level2 ||
+          (balanceLevel2Labels.has(account) ? account : undefined);
+        const balTarget = balL2 || account;
+        const matchesRow =
+          (row.level === 1 ? balL1 === row.label : balTarget === row.label) ||
+          row.label === balL1;
+
+        if (!matchesRow) {
+          return false;
+        }
+
+        const entryIsBank =
+          balL2 === "Bank Accounts" || bankAccountLabels.has(balTarget);
+        return entryIsBank ? entryYear <= targetYear : entryYear === targetYear;
+      });
+    },
+    [
+      entries,
+      cashAccountMap,
+      balanceAccountMap,
+      balanceLevel1Labels,
+      balanceLevel2Labels,
+      bankAccountLabels,
+    ]
+  );
+
+  const handleCellDoubleClick = useCallback(
+    (row, year, isCashSection) => {
+      const entryList = collectBreakdownEntries(row, year, isCashSection);
+      const sortedList = [...entryList].sort(
+        (a, b) => Number(b?.Amount ?? 0) - Number(a?.Amount ?? 0)
+      );
+      const entryTotal = sortedList.reduce(
+        (sum, entry) => sum + Number(entry?.Amount ?? 0),
+        0
+      );
+
+      const yearIndex = sortedYears.findIndex(
+        (y) => Number(y) === Number(year)
+      );
+      let displayValue = null;
+      if (isCashSection) {
+        displayValue = getCellValue(row, year, true);
+      } else if (yearIndex >= 0) {
+        displayValue =
+          row.label === "Assets"
+            ? totalAssetsByYear[yearIndex]
+            : balanceDisplayValues.get(row.label)?.[yearIndex] ??
+              getCellValue(row, year, false);
+      }
+
+      setBreakdownModal({
+        isOpen: true,
+        title: `${row.label} • ${year}`,
+        amount: displayValue,
+        entryTotal,
+        entries: sortedList,
+      });
+    },
+    [
+      collectBreakdownEntries,
+      sortedYears,
+      getCellValue,
+      totalAssetsByYear,
+      balanceDisplayValues,
+    ]
+  );
+
+  const closeBreakdownModal = useCallback(() => {
+    setBreakdownModal((prev) => ({ ...prev, isOpen: false }));
+  }, []);
+
+  const scrollTableByYears = useCallback((direction) => {
+    const wrapper = tableWrapperRef.current;
+    if (!wrapper) return;
+
+    const firstYearHeader = tableRef.current?.querySelector(
+      "thead th:nth-child(2)"
+    );
+    const yearWidth = firstYearHeader?.getBoundingClientRect().width || 120;
+    const scrollDistance = yearWidth * 10;
+
+    wrapper.scrollBy({
+      left: direction === "right" ? scrollDistance : -scrollDistance,
+      behavior: "smooth",
+    });
+  }, []);
+
   return (
     <div className="page-shell">
       <NavigationMenu />
@@ -445,286 +583,35 @@ export default function FCReview() {
           generateError={generateError}
           generateResult={generateResult}
         />
-
-        {/* Forecast Review Table */}
-        <section className="section-table">
-          <div className="section-table__content">
-            {/* Header Section */}
-            <div
-              style={{
-                display: "flex",
-                justifyContent: "space-between",
-                alignItems: "center",
-                gap: "1rem",
-                marginBottom: "1.5rem",
-              }}
-            >
-              <div>
-                <p
-                  style={{
-                    margin: 0,
-                    fontSize: "0.85rem",
-                    color: "var(--muted)",
-                    letterSpacing: "0.05em",
-                    textTransform: "uppercase",
-                    fontWeight: 700,
-                  }}
-                >
-                  Forecast Review
-                </p>
-                <h3
-                  style={{
-                    margin: "0.25rem 0 0",
-                    color: "var(--ink)",
-                    fontSize: "1.5rem",
-                  }}
-                >
-                  {selectedScenario || "Select a scenario"}
-                </h3>
-              </div>
-              {sortedYears.length > 0 && (
-                <div
-                  style={{
-                    padding: "0.5rem 1rem",
-                    borderRadius: "8px",
-                    background: "var(--surface-muted)",
-                    border: "1px solid var(--border)",
-                    color: "var(--muted)",
-                    fontWeight: 600,
-                    fontSize: "0.95rem",
-                  }}
-                >
-                  {sortedYears[0]} - {sortedYears[sortedYears.length - 1]}
-                </div>
-              )}
-            </div>
-
-            {/* Forecast Table */}
-            <div className="trans-budget-table-wrapper">
-              <table className="trans-budget-table fc-review-table">
-                <thead>
-                  <tr>
-                    <th style={{ minWidth: "240px", textAlign: "left" }}>
-                      Account
-                    </th>
-                    {sortedYears.length ? (
-                      sortedYears.map((year) => (
-                        <th
-                          key={year}
-                          className="trans-budget-table__value"
-                          style={{ minWidth: "120px" }}
-                        >
-                          {year}
-                          {year === baseYear && (
-                            <span
-                              style={{
-                                display: "block",
-                                fontSize: "0.75rem",
-                                fontWeight: 500,
-                                color: "var(--muted)",
-                                marginTop: "0.25rem",
-                              }}
-                            >
-                              (Actual)
-                            </span>
-                          )}
-                        </th>
-                      ))
-                    ) : (
-                      <th>Year</th>
-                    )}
-                  </tr>
-                </thead>
-                <tbody>
-                  {/* Loading State */}
-                  {yearsLoading ||
-                  accountsLoading ||
-                  balanceLoading ||
-                  entriesLoading ||
-                  baseActualLoading ||
-                  baseBalanceLoading ? (
-                    <tr>
-                      <td
-                        colSpan={tableColSpan}
-                        style={{ textAlign: "center", padding: "2rem" }}
-                      >
-                        <div style={{ color: "var(--muted)" }}>
-                          Loading forecast data...
-                        </div>
-                      </td>
-                    </tr>
-                  ) : /* Error State */ tableError ? (
-                    <tr>
-                      <td
-                        colSpan={tableColSpan}
-                        style={{ color: "var(--danger)", padding: "2rem" }}
-                      >
-                        {tableError}
-                      </td>
-                    </tr>
-                  ) : /* No Scenario Selected */ !selectedScenario ? (
-                    <tr>
-                      <td
-                        colSpan={tableColSpan}
-                        style={{ textAlign: "center", padding: "2rem" }}
-                      >
-                        <div style={{ color: "var(--muted)" }}>
-                          Select a scenario to view the forecast
-                        </div>
-                      </td>
-                    </tr>
-                  ) : /* No Years Available */ !sortedYears.length ? (
-                    <tr>
-                      <td
-                        colSpan={tableColSpan}
-                        style={{ textAlign: "center", padding: "2rem" }}
-                      >
-                        <div style={{ color: "var(--muted)" }}>
-                          No forecast years available for this scenario
-                        </div>
-                      </td>
-                    </tr>
-                  ) : /* No COA Data */ !cashAccounts.length &&
-                    !balanceAccounts.length ? (
-                    <tr>
-                      <td
-                        colSpan={tableColSpan}
-                        style={{ textAlign: "center", padding: "2rem" }}
-                      >
-                        <div style={{ color: "var(--muted)" }}>
-                          Chart of accounts not available
-                        </div>
-                      </td>
-                    </tr>
-                  ) : (
-                    /* Forecast Data */
-                    <>
-                      {/* ========== CASH FLOW SECTION ========== */}
-                      {cashRowsWithNet.map((row, index) => (
-                        <tr key={`cash-${row.label}-${index}`}>
-                          <td
-                            style={{
-                              fontWeight: row.isNet
-                                ? 700
-                                : row.level === 1
-                                ? 700
-                                : row.level === 2
-                                ? 600
-                                : 500,
-                              paddingLeft:
-                                row.level === 3
-                                  ? "2.5rem"
-                                  : row.level === 2
-                                  ? "1.75rem"
-                                  : "0.75rem",
-                              color: row.isNet ? "var(--ink)" : undefined,
-                              backgroundColor: row.isNet
-                                ? "var(--surface-muted)"
-                                : undefined,
-                            }}
-                          >
-                            {row.isNet
-                              ? "Net Cash Flow (Income + Expense)"
-                              : row.label}
-                          </td>
-                          {sortedYears.map((year) => {
-                            const value = getCellValue(row, year, true);
-                            return (
-                              <td
-                                key={`${row.label}-${year}`}
-                                className="trans-budget-table__value--numeric"
-                                style={{
-                                  color:
-                                    Number(value) < 0
-                                      ? "var(--danger)"
-                                      : undefined,
-                                  backgroundColor: row.isNet
-                                    ? "var(--surface-muted)"
-                                    : undefined,
-                                  fontWeight: row.isNet ? 600 : undefined,
-                                }}
-                              >
-                                {formatAmount(value)}
-                              </td>
-                            );
-                          })}
-                        </tr>
-                      ))}
-
-                      {/* ========== SECTION DIVIDER ========== */}
-                      {balanceAccounts.length > 0 &&
-                        cashAccounts.length > 0 && (
-                          <tr>
-                            <td
-                              colSpan={tableColSpan}
-                              style={{
-                                borderTop: "2px solid var(--border)",
-                                padding: 0,
-                                height: "1rem",
-                              }}
-                            />
-                          </tr>
-                        )}
-
-                      {/* ========== BALANCE SHEET SECTION ========== */}
-                      {balanceAccounts.map((row, index) => (
-                        <tr
-                          key={`balance-${row.label}-${index}`}
-                          style={
-                            index === 0 && cashAccounts.length === 0
-                              ? { borderTop: "2px solid var(--border)" }
-                              : undefined
-                          }
-                        >
-                          <td
-                            style={{
-                              fontWeight:
-                                row.level === 1
-                                  ? 700
-                                  : row.level === 2
-                                  ? 600
-                                  : 500,
-                              paddingLeft:
-                                row.level === 3
-                                  ? "2.5rem"
-                                  : row.level === 2
-                                  ? "1.75rem"
-                                  : "0.75rem",
-                            }}
-                          >
-                            {row.label}
-                          </td>
-                          {sortedYears.map((year, yearIndex) => {
-                            const values =
-                              row.label === "Assets"
-                                ? totalAssetsByYear
-                                : balanceDisplayValues.get(row.label);
-                            const displayValue = values?.[yearIndex] ?? getCellValue(row, year, false);
-                            return (
-                              <td
-                                key={`${row.label}-${year}`}
-                                className="trans-budget-table__value--numeric"
-                                style={{
-                                  color:
-                                    Number(displayValue) < 0
-                                      ? "var(--danger)"
-                                      : undefined,
-                                }}
-                              >
-                                {formatAmount(displayValue)}
-                              </td>
-                            );
-                          })}
-                        </tr>
-                      ))}
-                    </>
-                  )}
-                </tbody>
-              </table>
-            </div>
-          </div>
-        </section>
+        <FCReviewTable
+          sortedYears={sortedYears}
+          baseYear={baseYear}
+          tableColSpan={tableColSpan}
+          yearsLoading={yearsLoading}
+          accountsLoading={accountsLoading}
+          balanceLoading={balanceLoading}
+          entriesLoading={entriesLoading}
+          baseActualLoading={baseActualLoading}
+          baseBalanceLoading={baseBalanceLoading}
+          tableError={tableError}
+          selectedScenario={selectedScenario}
+          cashAccounts={cashAccounts}
+          balanceAccounts={balanceAccounts}
+          cashRowsWithNet={cashRowsWithNet}
+          getCellValue={getCellValue}
+          balanceDisplayValues={balanceDisplayValues}
+          totalAssetsByYear={totalAssetsByYear}
+          onCellDoubleClick={handleCellDoubleClick}
+          tableWrapperRef={tableWrapperRef}
+          tableRef={tableRef}
+          scrollTableByYears={scrollTableByYears}
+        />
       </main>
+      <FCReviewBreakdownModal
+        breakdownModal={breakdownModal}
+        onClose={closeBreakdownModal}
+        scenarioName={selectedScenario}
+      />
     </div>
   );
 }
