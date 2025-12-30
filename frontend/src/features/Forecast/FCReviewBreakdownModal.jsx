@@ -2,53 +2,6 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { formatAmount } from "./utils/fcReviewUtils.js";
 import FCReviewAuditTrailModal from "./FCReviewAuditTrailModal.jsx";
 
-const normalizeKey = (value = "") =>
-  value
-    .toString()
-    .trim()
-    .replace(/\s+/g, "_")
-    .replace(/[^a-zA-Z0-9_-]/g, "_")
-    .replace(/_+/g, "_")
-    .toLowerCase();
-
-const auditTrailImports = import.meta.glob(
-  "../../../../components/data/auditTrail/*_entries.csv?raw"
-);
-
-const auditTrailLoaderMap = new Map(
-  Object.entries(auditTrailImports).map(([path, loader]) => {
-    const fileName =
-      path
-        .split("/")
-        .pop()
-        ?.replace(/\?raw$/, "")
-        ?.replace(/\.csv$/, "") || "";
-    const normalized = normalizeKey(fileName);
-    return [normalized, loader];
-  })
-);
-
-const parseCsv = (text = "") => {
-  const lines = text
-    .split(/\r?\n/)
-    .map((line) => line.trim())
-    .filter(Boolean);
-  if (lines.length === 0) {
-    return { headers: [], rows: [] };
-  }
-
-  const headers = lines[0].split(",").map((header) => header.trim());
-  const rows = lines.slice(1).map((line) => {
-    const cells = line.split(",");
-    return headers.reduce((row, header, index) => {
-      row[header] = cells[index] ?? "";
-      return row;
-    }, {});
-  });
-
-  return { headers, rows };
-};
-
 const initialAuditState = {
   isOpen: false,
   title: "",
@@ -84,24 +37,11 @@ export default function FCReviewBreakdownModal({
 
   const handleModuleClick = useCallback(
     async (moduleName) => {
-      if (!moduleClickEnabled || !moduleName) {
+      if (!moduleClickEnabled || !moduleName || !scenarioName) {
         return;
       }
 
-      const key = normalizeKey(`${scenarioName}_${moduleName}_entries`);
-      const loader = auditTrailLoaderMap.get(key);
-      console.log("Loading audit trail for key:", key, loader);
       const modalTitle = `${moduleName} • ${scenarioName}`;
-
-      if (!loader) {
-        setAuditTrailModal({
-          ...initialAuditState,
-          isOpen: true,
-          title: modalTitle,
-          error: "No audit trail file found for this module.",
-        });
-        return;
-      }
 
       setAuditTrailModal((prev) => ({
         ...prev,
@@ -114,9 +54,26 @@ export default function FCReviewBreakdownModal({
       }));
 
       try {
-        const module = await loader();
-        const csvText = module?.default ?? module ?? "";
-        const { headers, rows } = parseCsv(csvText);
+        // Call the API endpoint to retrieve the audit trail data
+        const response = await fetch(
+          `/api/forecast/audittrail/${encodeURIComponent(scenarioName)}/${encodeURIComponent(moduleName)}`
+        );
+
+        if (!response.ok) {
+          const errorData = await response.json().catch(() => ({}));
+          setAuditTrailModal({
+            ...initialAuditState,
+            isOpen: true,
+            title: modalTitle,
+            error:
+              errorData.error ||
+              "No audit trail file found for this module.",
+          });
+          return;
+        }
+
+        const { headers = [], rows = [] } = await response.json();
+
         if (!headers.length || !rows.length) {
           setAuditTrailModal({
             ...initialAuditState,

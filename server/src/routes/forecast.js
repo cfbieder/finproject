@@ -52,6 +52,11 @@
  * POST   /generate/:scenario          - Generate complete forecast for a scenario
  *                                       Returns detailed results with timing and counts
  *
+ * AUDIT TRAIL (File-backed CSV files)
+ * -----------------------------------------------------------------------------
+ * GET    /audittrail/:scenario/:module - Get parsed audit trail CSV for scenario/module
+ *                                        Returns { headers: [], rows: [] }
+ *
  * =============================================================================
  */
 
@@ -1003,6 +1008,111 @@ router.post("/generate/:scenario", async (req, res) => {
       error: "Failed to generate forecast",
       details: error.message,
     });
+  }
+});
+
+// =============================================================================
+// AUDIT TRAIL ROUTES (File Operations)
+// =============================================================================
+
+/**
+ * Normalizes a string to match audit trail file naming convention.
+ * Used to match incoming requests to filesystem audit trail CSV files.
+ *
+ * @param {string} value - The string to normalize
+ * @returns {string} Normalized string with underscores and lowercase
+ */
+const normalizeAuditTrailKey = (value = "") =>
+  value
+    .toString()
+    .trim()
+    .replace(/\s+/g, "_")
+    .replace(/[^a-zA-Z0-9_-]/g, "_")
+    .replace(/_+/g, "_")
+    .toLowerCase();
+
+/**
+ * GET /audittrail/:scenario/:module
+ *
+ * Retrieves the audit trail CSV file for a specific scenario and module.
+ * The file is expected to be named: {scenario}_{module}_entries.csv
+ *
+ * @param {string} scenario - The scenario name (e.g., "2025_Base")
+ * @param {string} module - The module name (e.g., "Fidelity_IRA")
+ * @returns {Object} { headers: Array<string>, rows: Array<Object> } - Parsed CSV data
+ * @throws {400} If scenario or module parameter is missing
+ * @throws {404} If audit trail file not found
+ * @throws {500} If file read or CSV parse fails
+ */
+router.get("/audittrail/:scenario/:module", (req, res) => {
+  const scenario = req.params.scenario?.trim();
+  const module = req.params.module?.trim();
+
+  if (!scenario) {
+    return res.status(400).json({ error: "Scenario name is required" });
+  }
+
+  if (!module) {
+    return res.status(400).json({ error: "Module name is required" });
+  }
+
+  try {
+    // Construct the expected file name using normalized keys
+    const normalizedScenario = normalizeAuditTrailKey(scenario);
+    const normalizedModule = normalizeAuditTrailKey(module);
+    const expectedFileName = `${normalizedScenario}_${normalizedModule}_entries.csv`;
+    const auditTrailDir = path.join(COMPONENTS_DATA_DIR, "auditTrail");
+
+    // Check if directory exists
+    if (!fs.existsSync(auditTrailDir)) {
+      return res.status(404).json({
+        error: "Audit trail directory not found",
+      });
+    }
+
+    // Find matching file (case-insensitive)
+    const files = fs.readdirSync(auditTrailDir);
+    const matchingFile = files.find(
+      (file) => file.toLowerCase() === expectedFileName.toLowerCase()
+    );
+
+    if (!matchingFile) {
+      return res.status(404).json({
+        error: "Audit trail file not found",
+        expectedFile: expectedFileName,
+      });
+    }
+
+    const auditTrailPath = path.join(auditTrailDir, matchingFile);
+
+    // Read and parse the CSV file
+    const csvContent = fs.readFileSync(auditTrailPath, "utf8");
+    const lines = csvContent
+      .split(/\r?\n/)
+      .map((line) => line.trim())
+      .filter(Boolean);
+
+    if (lines.length === 0) {
+      return res.json({ headers: [], rows: [] });
+    }
+
+    // Parse CSV headers and rows
+    const headers = lines[0].split(",").map((header) => header.trim());
+    const rows = lines.slice(1).map((line) => {
+      const cells = line.split(",");
+      return headers.reduce((row, header, index) => {
+        row[header] = cells[index]?.trim() ?? "";
+        return row;
+      }, {});
+    });
+
+    return res.json({ headers, rows });
+  } catch (error) {
+    console.error(
+      `Failed to read audit trail for ${scenario}/${module}:`,
+      error
+    );
+    return res.status(500).json({ error: "Failed to read audit trail file" });
   }
 });
 

@@ -469,6 +469,11 @@ export default function FCExpSetup() {
       return;
     }
 
+    const existingIds = new Set(
+      incomeExpenseEntries.map((entry) => getEntryId(entry))
+    );
+    const prevSelectedId = selectedEntryId;
+
     const startYear = getScenarioStartYear();
     const baseDate =
       Number.isFinite(startYear) && startYear
@@ -501,7 +506,17 @@ export default function FCExpSetup() {
           selectedScenario
         )}`
       );
-      setIncomeExpenseEntries(payload?.entries || []);
+      const nextEntries = payload?.entries || [];
+      setIncomeExpenseEntries(nextEntries);
+
+      const newlyCreated =
+        nextEntries.find((entry) => !existingIds.has(getEntryId(entry))) ||
+        null;
+      const nextSelectedId =
+        (newlyCreated && getEntryId(newlyCreated)) ||
+        (existingIds.has(prevSelectedId) ? prevSelectedId : "") ||
+        (nextEntries[0] ? getEntryId(nextEntries[0]) : "");
+      setSelectedEntryId(nextSelectedId);
     } catch (err) {
       setEntriesError(err.message || "Failed to add income/expense entry");
     } finally {

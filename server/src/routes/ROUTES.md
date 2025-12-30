@@ -1114,6 +1114,44 @@ Generate complete forecast for a scenario.
 }
 ```
 
+### Audit Trail
+
+#### GET /forecast/audittrail/:scenario/:module
+
+Retrieve the audit trail CSV file for a specific scenario and module combination. The endpoint performs case-insensitive file matching to locate audit trail files.
+
+**Parameters:**
+- `scenario`: Scenario name (e.g., "2025_Base")
+- `module`: Module name (e.g., "Fidelity_IRA")
+
+**Example:** `/forecast/audittrail/2025_Base/Fidelity_IRA`
+
+**Response:**
+```json
+{
+  "headers": ["Account", "Year", "Amount", "Note"],
+  "rows": [
+    {
+      "Account": "Fidelity IRA",
+      "Year": "2025",
+      "Amount": "50000",
+      "Note": "Annual contribution"
+    }
+  ]
+}
+```
+
+**Error Responses:**
+- `400` - Missing scenario or module parameter
+- `404` - Audit trail file not found or directory doesn't exist
+- `500` - File read or CSV parse error
+
+**Notes:**
+- File names are expected to follow the pattern: `{scenario}_{module}_entries.csv`
+- The endpoint normalizes input parameters to match file naming conventions (underscores, lowercase)
+- File matching is case-insensitive to handle various file naming conventions
+- Empty files return `{ headers: [], rows: [] }`
+
 ---
 
 ## Error Responses
