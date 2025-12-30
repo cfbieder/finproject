@@ -6,8 +6,9 @@
 /**
  * Formats transfer entries for the edit form by ensuring consistent date formatting.
  * Extracts year from date and formats as YYYY-07-01 for fiscal year convention.
+ * Handles both Amount (for Invest/Dispose) and Value (for IncomePct) fields.
  *
- * @param {Array<Object>} transfers - Array of transfer objects with Date, Amount, and Flag properties
+ * @param {Array<Object>} transfers - Array of transfer objects with Date and Amount/Value properties
  * @returns {Array<Object>} Formatted transfer array with normalized dates
  */
 export const formatTransferForm = (transfers) => {
@@ -18,9 +19,15 @@ export const formatTransferForm = (transfers) => {
     const date = entry?.Date ? new Date(entry.Date) : null;
     const year =
       date && !Number.isNaN(date.getTime()) ? date.getFullYear() : null;
+
+    // Handle both Amount (for Invest/Dispose) and Value (for IncomePct)
+    const hasAmount = entry?.Amount !== undefined;
+    const hasValue = entry?.Value !== undefined;
+
     return {
       Date: year ? `${year}-07-01` : "",
-      Amount: entry?.Amount ?? "",
+      Amount: hasAmount ? (entry?.Amount ?? "") : (hasValue ? entry?.Value ?? "" : ""),
+      Value: hasValue ? entry?.Value ?? "" : undefined,
       Flag: entry?.Flag ?? "",
     };
   });
@@ -29,9 +36,10 @@ export const formatTransferForm = (transfers) => {
 /**
  * Normalizes transfer data for API submission by validating dates and amounts.
  * Filters out invalid entries and ensures proper data types.
+ * Handles both Amount (for Invest/Dispose) and Value (for IncomePct) fields.
  *
  * @param {Array<Object>} transfers - Array of transfer objects to normalize
- * @returns {Array<Object>} Validated transfer array with ISO date strings and numeric amounts
+ * @returns {Array<Object>} Validated transfer array with ISO date strings and numeric amounts/values
  */
 export const normalizeTransfers = (transfers) => {
   if (!Array.isArray(transfers)) {
@@ -47,17 +55,26 @@ export const normalizeTransfers = (transfers) => {
         dateValue && !Number.isNaN(dateValue.getTime())
           ? dateValue.toISOString()
           : null;
-      const rawAmount = entry.Amount;
-      const parsedAmount =
-        rawAmount === "" || rawAmount === null || rawAmount === undefined
+
+      // Handle both Amount (for Invest/Dispose) and Value (for IncomePct)
+      const hasValue = entry.Value !== undefined;
+      const rawValue = hasValue ? entry.Value : entry.Amount;
+      const parsedValue =
+        rawValue === "" || rawValue === null || rawValue === undefined
           ? null
-          : Number(rawAmount);
-      const amount = Number.isNaN(parsedAmount) ? null : parsedAmount;
+          : Number(rawValue);
+      const numericValue = Number.isNaN(parsedValue) ? null : parsedValue;
+
       const flag = entry.Flag ?? "";
-      if (!date || (amount === null && !flag)) {
+      if (!date || (numericValue === null && !flag)) {
         return null;
       }
-      return { Date: date, Amount: amount, Flag: flag };
+
+      // Return appropriate structure based on whether it's IncomePct (Value) or Invest/Dispose (Amount)
+      if (hasValue) {
+        return { Date: date, Value: numericValue };
+      }
+      return { Date: date, Amount: numericValue, Flag: flag };
     })
     .filter(Boolean);
 };

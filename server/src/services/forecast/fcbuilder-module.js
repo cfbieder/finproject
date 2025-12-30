@@ -344,7 +344,7 @@ const insertCategoryEntries = (dfCategories, scenarioName, moduleName) => {
  *   - MarketValueUSD: Initial market value in USD
  *   - Currency: Currency code (USD, PLN, EUR)
  *   - Growth: Growth percentage (inflation-adjusted)
- *   - IncomePct: Income percentage (inflation-adjusted)
+ *   - IncomePct: Array of income percentages by year [{Date, Value}]
  *   - ExpensePct: Expense percentage (inflation-adjusted)
  *   - IncomeCategory: Category for income entries
  *   - ExpCategory: Category for expense entries
@@ -432,17 +432,29 @@ async function processModule(
   // Calculate inflation-adjusted growth, income, and expense percentages for each year
   // These percentages are multiplied by the inflation rate to adjust for purchasing power
   const growthPct = module.Growth ?? 0;
-  const incomePct = module.IncomePct ?? 0;
   const expPct = module.ExpensePct ?? 0;
-  const incomePctValues = new Array(yearsCount);
+  const incomePctValues = new Array(yearsCount).fill(0);
   const growthValues = new Array(yearsCount);
   const expPctValues = new Array(yearsCount);
   for (let i = 0, year = startyear; year <= endyear; i++, year++) {
     const idx = year - periodStart;
     growthValues[i] =
       idx >= 0 && idx < inflationLen ? growthPct * inflationSeries[idx] : 0;
-    incomePctValues[i] = idx >= 0 && idx < inflationLen ? incomePct : 0;
     expPctValues[i] = idx >= 0 && idx < inflationLen ? -expPct : 0;
+  }
+
+  // Process IncomePct array - map each percentage to the appropriate year
+  // IncomePct is now an array of {Date, Value} objects similar to Invest/Dispose
+  if (Array.isArray(module.IncomePct)) {
+    for (let i = 0; i < module.IncomePct.length; i++) {
+      const entry = module.IncomePct[i];
+      if (!entry || !entry.Date || entry.Value == null) continue;
+      const year = new Date(entry.Date).getFullYear();
+      const idx = year - startyear;
+      if (idx >= 0 && idx < yearsCount) {
+        incomePctValues[idx] = entry.Value;
+      }
+    }
   }
 
   // Process investment transactions - map each transaction to the appropriate year

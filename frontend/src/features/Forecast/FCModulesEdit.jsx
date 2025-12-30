@@ -614,6 +614,7 @@ export default function FCModulesEditModal({
   const transferSections = [
     ["Invest", "Invest"],
     ["Dispose", "Dispose"],
+    ["Income %", "IncomePct"],
   ];
 
   const updateTransferEntry = (field, index, key, value) => {
@@ -632,10 +633,19 @@ export default function FCModulesEditModal({
         : "") ||
       getYearFromDate(editForm?.BaseDate) ||
       transferYearStart;
-    onFieldChange(field, [
-      ...current,
-      { Date: `${defaultYear}-07-01`, Amount: "", Flag: "OneTime" },
-    ]);
+
+    // IncomePct uses Value instead of Amount and doesn't have Flag
+    if (field === "IncomePct") {
+      onFieldChange(field, [
+        ...current,
+        { Date: `${defaultYear}-07-01`, Amount: "", Value: "" },
+      ]);
+    } else {
+      onFieldChange(field, [
+        ...current,
+        { Date: `${defaultYear}-07-01`, Amount: "", Flag: "OneTime" },
+      ]);
+    }
   };
 
   const removeTransferEntry = (field, index) => {
@@ -659,7 +669,6 @@ export default function FCModulesEditModal({
     ["Expense Category", "ExpCategory", "text"],
     ["Expense %", "ExpensePct", "number"],
     ["Income Category", "IncomeCategory", "text"],
-    ["Income %", "IncomePct", "number"],
   ];
 
   if (!isOpen || !editForm) {
@@ -1043,10 +1052,11 @@ export default function FCModulesEditModal({
                 field === "Invest"
                   ? transferFlagOptionsI
                   : transferFlagOptionsD;
+              const isIncomePct = field === "IncomePct";
               return (
                 <div key={field} className="fc-modules-modal__transfer-section">
                   <div className="fc-modules-modal__transfer-header">
-                    <h5 className="fc-modules-modal__transfer-title">{label} Transfers</h5>
+                    <h5 className="fc-modules-modal__transfer-title">{label} {isIncomePct ? "" : "Transfers"}</h5>
                     <button
                       type="button"
                       className="fc-modules-modal__add-transfer-button"
@@ -1055,7 +1065,7 @@ export default function FCModulesEditModal({
                       <svg width="16" height="16" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
                         <path d="M12 5V19M5 12H19" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
                       </svg>
-                      Add {label}
+                      Add {label} {isIncomePct ? "Entry" : ""}
                     </button>
                   </div>
                   {transfers.length === 0 ? (
@@ -1064,11 +1074,16 @@ export default function FCModulesEditModal({
                         <path d="M9 5H7C5.89543 5 5 5.89543 5 7V19C5 20.1046 5.89543 21 7 21H17C18.1046 21 19 20.1046 19 19V7C19 5.89543 18.1046 5 17 5H15M9 5C9 6.10457 9.89543 7 11 7H13C14.1046 7 15 6.10457 15 5M9 5C9 3.89543 9.89543 3 11 3H13C14.1046 3 15 3.89543 15 5" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
                       </svg>
                       <p>No {label.toLowerCase()} entries</p>
-                      <span>Click "Add {label}" to create a transfer</span>
+                      <span>Click "Add {label} {isIncomePct ? "Entry" : ""}" to create a {isIncomePct ? "percentage entry" : "transfer"}</span>
                     </div>
                   ) : (
                     <div className="fc-modules-modal__transfer-list">
-                      {transfers.map((entry, index) => (
+                      {transfers.map((entry, index) => {
+                        // For IncomePct, use Value; for others use Amount
+                        const fieldValue = isIncomePct ? (entry?.Value ?? entry?.Amount ?? "") : (entry?.Amount ?? "");
+                        const fieldKey = isIncomePct ? "Value" : "Amount";
+
+                        return (
                       <div
                         key={`${field}-${index}`}
                         className="fc-modules-modal__transfer-card"
@@ -1099,44 +1114,47 @@ export default function FCModulesEditModal({
                             </select>
                           </div>
                           <div className="fc-modules-modal__transfer-field">
-                            <label className="fc-modules-modal__transfer-label">Amount</label>
+                            <label className="fc-modules-modal__transfer-label">{isIncomePct ? "Percentage" : "Amount"}</label>
                             <input
                               type="number"
                               className="fc-modules-modal__input fc-modules-modal__input--small"
-                              value={entry?.Amount ?? ""}
+                              value={fieldValue}
                               onChange={(event) =>
                                 updateTransferEntry(
                                   field,
                                   index,
-                                  "Amount",
+                                  fieldKey,
                                   event.target.value
                                 )
                               }
-                              placeholder="0"
+                              placeholder={isIncomePct ? "0" : "0"}
+                              step={isIncomePct ? "0.01" : "1"}
                             />
                           </div>
-                          <div className="fc-modules-modal__transfer-field">
-                            <label className="fc-modules-modal__transfer-label">Type</label>
-                            <select
-                              className="fc-modules-modal__input fc-modules-modal__input--small"
-                              value={entry?.Flag ?? ""}
-                              onChange={(event) =>
-                                updateTransferEntry(
-                                  field,
-                                  index,
-                                  "Flag",
-                                  event.target.value
-                                )
-                              }
-                            >
-                              <option value="">Select type</option>
-                              {transferFlagOptions.map((flag) => (
-                                <option key={flag} value={flag}>
-                                  {flag}
-                                </option>
-                              ))}
-                            </select>
-                          </div>
+                          {!isIncomePct && (
+                            <div className="fc-modules-modal__transfer-field">
+                              <label className="fc-modules-modal__transfer-label">Type</label>
+                              <select
+                                className="fc-modules-modal__input fc-modules-modal__input--small"
+                                value={entry?.Flag ?? ""}
+                                onChange={(event) =>
+                                  updateTransferEntry(
+                                    field,
+                                    index,
+                                    "Flag",
+                                    event.target.value
+                                  )
+                                }
+                              >
+                                <option value="">Select type</option>
+                                {transferFlagOptions.map((flag) => (
+                                  <option key={flag} value={flag}>
+                                    {flag}
+                                  </option>
+                                ))}
+                              </select>
+                            </div>
+                          )}
                         </div>
                         <button
                           type="button"
@@ -1149,7 +1167,7 @@ export default function FCModulesEditModal({
                           </svg>
                         </button>
                       </div>
-                    ))}
+                    )})}
                     </div>
                   )}
                 </div>

@@ -248,6 +248,7 @@ export default function FCModuleManage() {
           Growth: null,
       Invest: [],
       Dispose: [],
+      IncomePct: [],
     }),
   });
 
@@ -285,6 +286,7 @@ export default function FCModuleManage() {
       Matched: Boolean(normalizedModule.Matched),
       Invest: formatTransferForm(normalizedModule.Invest),
       Dispose: formatTransferForm(normalizedModule.Dispose),
+      IncomePct: formatTransferForm(normalizedModule.IncomePct),
     });
     setEditRefreshToken((prev) => prev + 1);
     setShowEditModal(true);
@@ -343,7 +345,6 @@ export default function FCModuleManage() {
       "Expense",
       "ExpensePct",
       "Income",
-      "IncomePct",
       "BaseValue",
       "MarketValue",
       "BaseValueUSD",
@@ -381,6 +382,7 @@ export default function FCModuleManage() {
     // Normalize and add transfer arrays
     payload.Invest = normalizeTransfers(editForm.Invest);
     payload.Dispose = normalizeTransfers(editForm.Dispose);
+    payload.IncomePct = normalizeTransfers(editForm.IncomePct);
 
     setEditSaving(true);
     try {
@@ -492,6 +494,9 @@ export default function FCModuleManage() {
           ExpCategory: defaultExpenseCategory,
           IncomeCategory: defaultIncomeCategory,
           Matched: true,
+          IncomePct: [],
+          Invest: [],
+          Dispose: [],
         }),
       });
       setPendingSelectInfo({

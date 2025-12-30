@@ -10,6 +10,14 @@ var transferSchema = new Schema(
   { _id: false }
 );
 
+var incomePctSchema = new Schema(
+  {
+    Date: { type: Date },
+    Value: { type: Number },
+  },
+  { _id: false }
+);
+
 var FCModule = new Schema({
   Scenario: { type: String },
   Account: { type: String },
@@ -22,7 +30,7 @@ var FCModule = new Schema({
   ExpensePct: { type: Number },
   IncomeCategory: { type: String },
   Income: { type: Number },
-  IncomePct: { type: Number },
+  IncomePct: [incomePctSchema],
   BaseDate: { type: Date },
   BaseValue: { type: Number },
   MarketValue: { type: Number },

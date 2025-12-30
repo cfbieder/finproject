@@ -314,7 +314,10 @@ Returns deduplicated lists of all categories used in modules.
   MarketValueUSD: 265000,   // USD market value
   Currency: "USD",          // USD, PLN, or EUR
   Growth: 0.05,             // 5% growth (inflation-adjusted)
-  IncomePct: 0.02,          // 2% income (inflation-adjusted)
+  IncomePct: [              // Array of income percentages by year
+    { Date: Date("2025-01-01"), Value: 0.02 },  // 2% in 2025
+    { Date: Date("2026-01-01"), Value: 0.025 }  // 2.5% in 2026
+  ],
   ExpensePct: 0.005,        // 0.5% expense (inflation-adjusted)
   IncomeCategory: "Dividends",
   ExpCategory: "Financial Expenses",
@@ -854,7 +857,7 @@ Contains all calculations in the module's native currency (USD, PLN, EUR).
 **Columns**:
 - FX: Exchange rate for the year
 - GrowthPct: Inflation-adjusted growth percentage
-- IncomePct: Inflation-adjusted income percentage
+- IncomePct: Income percentage for the year (from IncomePct array by Date)
 - ExpensePct: Inflation-adjusted expense percentage
 - BaseValue: Cost basis value
 - MarketValue: Market value including unrealized gains
@@ -1114,7 +1117,7 @@ All final values are converted to USD for consistent reporting, even if calculat
   Account: "401k",
   BaseValue: 500000,
   Growth: 0.07,           // 7% real growth
-  IncomePct: 0,
+  IncomePct: [],          // No income
   ExpensePct: 0.001,      // 0.1% fees
   Invest: [
     { Date: "2025-12-31", Amount: 20000 },
@@ -1132,7 +1135,10 @@ All final values are converted to USD for consistent reporting, even if calculat
   BaseValue: 500000,
   MarketValue: 600000,
   Growth: 0.03,           // 3% appreciation
-  IncomePct: 0.05,        // 5% rental yield
+  IncomePct: [            // 5% rental yield increasing over time
+    { Date: "2025-01-01", Value: 0.05 },
+    { Date: "2027-01-01", Value: 0.055 }
+  ],
   ExpensePct: 0.02,       // 2% expenses (property tax, maintenance)
   IncomeCategory: "Rental Income",
   ExpCategory: "Property Expenses"

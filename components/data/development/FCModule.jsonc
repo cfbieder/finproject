@@ -11,7 +11,9 @@
     "ExpensePct": 0.0, //float Expense as percentage of MarketValue
     "IncomeCategory": "String", //Income Category from COA
     "Income": 0.0, //float Income as fixed amount
-    "IncomePct": 0.0, //float Income as percentage of MarketValue
+    "IncomePct": [
+      //Array of IncomePct objects (Date/Value pairs) - allows different percentages per year
+    ],
     "BaseDate": "2024-12-31", //date Base date for starting values
     "BaseValue": 1234.12, //float Base value at BaseDate
     "MarketValue": 1234, //float  Current Market Value
@@ -34,7 +36,10 @@
     "ExpensePct": 0.1,
     "IncomeCategory": "Dividends",
     "Income": 0,
-    "IncomePct": 1.5,
+    "IncomePct": [
+      { "Date": "2025-01-01", "Value": 1.5 },
+      { "Date": "2026-01-01", "Value": 1.8 }
+    ],
     "BaseDate": "2024-12-31",
     "BaseValue": 10000.0,
     "MarketValue": 10500.0,
@@ -47,7 +52,11 @@
   }
 ]
 
-//Transfer Object
+//Transfer Object (for Invest/Dispose)
 //        "Date": "String",
 //        "Amount": 1234, //float
 //        "Flag": "String"}
+
+//IncomePct Object
+//        "Date": "String", //Date for the year this percentage applies
+//        "Value": 1.5 //float - percentage value

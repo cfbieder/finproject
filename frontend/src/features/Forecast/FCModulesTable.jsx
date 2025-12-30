@@ -448,11 +448,14 @@ export default function FCModulesTable({
                     },
                     {
                       label: "Income %",
-                      value:
-                        selectedModule.IncomePct === null ||
-                        selectedModule.IncomePct === undefined
-                          ? null
-                          : `${selectedModule.IncomePct}%`,
+                      value: Array.isArray(selectedModule.IncomePct)
+                        ? selectedModule.IncomePct.length > 0
+                          ? `${selectedModule.IncomePct.length} entries`
+                          : "No entries"
+                        : selectedModule.IncomePct === null ||
+                          selectedModule.IncomePct === undefined
+                        ? null
+                        : `${selectedModule.IncomePct}%`,
                       span: false,
                     },
                     {
