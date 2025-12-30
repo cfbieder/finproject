@@ -5,4 +5,15 @@ add COA management
 review how income, growth and expense calculated in fcbuilder
 
 
-Copy modules to other scenarios
+When copying modules to other scenarios automatically update base date and values
+
+On forecast page when changes made ensure to highlight to that commit changes is entered
+
+When new module is create have that one selected so that edit will default to that one
+
+Add ability to edit in/out cash directl in FC review page
+On FC Review page click on PL show detail in modal
+
+Find place to review audit trail files
+
+Export to excel

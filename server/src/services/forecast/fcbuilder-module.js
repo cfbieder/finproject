@@ -18,7 +18,10 @@ const fs = require("fs");
 const path = require("path");
 const mongoose = require("../../../../components/node_modules/mongoose");
 const FCEntries = require("../../../../components/models/FCEntries");
-const { categories: legacyCategories, years: legacyYears } = require("./fcbuilder-setup");
+const {
+  categories: legacyCategories,
+  years: legacyYears,
+} = require("./fcbuilder-setup");
 
 // ============================================================================
 // Display Formatting Functions
@@ -170,7 +173,6 @@ const getIndexValues = (df) => {
   if (Array.isArray(df.index?.index)) return df.index.index;
   return [];
 };
-
 
 /**
  * Writes audit trail CSV files for a processed module
@@ -370,7 +372,14 @@ const insertCategoryEntries = (dfCategories, scenarioName, moduleName) => {
  * @param {Array<number>} years - Years array from scenario config
  * @returns {Promise<Object>} Promise that resolves with processing metadata
  */
-async function processModule(module, scenario, df_assumptions, df_categories, categories, years) {
+async function processModule(
+  module,
+  scenario,
+  df_assumptions,
+  df_categories,
+  categories,
+  years
+) {
   // Use provided categories/years or fall back to legacy imports for backward compatibility
   const _categories = categories || legacyCategories;
   const _years = years || legacyYears;
@@ -432,10 +441,8 @@ async function processModule(module, scenario, df_assumptions, df_categories, ca
     const idx = year - periodStart;
     growthValues[i] =
       idx >= 0 && idx < inflationLen ? growthPct * inflationSeries[idx] : 0;
-    incomePctValues[i] =
-      idx >= 0 && idx < inflationLen ? incomePct * inflationSeries[idx] : 0;
-    expPctValues[i] =
-      idx >= 0 && idx < inflationLen ? -expPct * inflationSeries[idx] : 0;
+    incomePctValues[i] = idx >= 0 && idx < inflationLen ? incomePct : 0;
+    expPctValues[i] = idx >= 0 && idx < inflationLen ? -expPct : 0;
   }
 
   // Process investment transactions - map each transaction to the appropriate year

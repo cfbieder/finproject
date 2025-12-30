@@ -206,8 +206,8 @@ export default function FCScenarios() {
 
   /** Available year options for period selection dropdowns */
   const periodYears = yearOptions(
-    isNewScenario ? currentYear + 1 : currentYear - 3,
-    isNewScenario ? currentYear + 11 : currentYear + 50
+    isNewScenario ? currentYear - 3 : currentYear - 3,
+    isNewScenario ? currentYear + 50 : currentYear + 50
   );
 
   /**
@@ -472,7 +472,10 @@ export default function FCScenarios() {
         method: "DELETE",
       });
     } catch (error) {
-      console.error("Failed to delete scenario-related modules/inc-exp:", error);
+      console.error(
+        "Failed to delete scenario-related modules/inc-exp:",
+        error
+      );
     }
 
     // Remove scenario from list
@@ -860,9 +863,7 @@ export default function FCScenarios() {
           confirmLabel="Commit"
           confirmBusyLabel="Committing..."
           context={
-            commitScenarioName
-              ? `Scenario: ${commitScenarioName}`
-              : undefined
+            commitScenarioName ? `Scenario: ${commitScenarioName}` : undefined
           }
         />
         <FCExpConfirmDeleteModal

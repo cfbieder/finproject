@@ -10,7 +10,7 @@
     {
       "Name": "Baseline",
       "PeriodStart": 2025,
-      "PeriodEnd": 2030
+      "PeriodEnd": 2040
     },
     {
       "Name": "High Inflation",
@@ -25,7 +25,7 @@
     {
       "Name": "2025_Base",
       "PeriodStart": 2025,
-      "PeriodEnd": 2036
+      "PeriodEnd": 2075
     }
   ],
   "inflation": [
@@ -57,7 +57,17 @@
     {
       "Scenario": "2025_Base",
       "Year": 2025,
-      "Rate": 1
+      "Rate": 3
+    },
+    {
+      "Scenario": "2025_Base",
+      "Year": 2027,
+      "Rate": 2.5
+    },
+    {
+      "Scenario": "2025_Base",
+      "Year": 2028,
+      "Rate": 2
     }
   ],
   "FX": [
@@ -97,8 +107,8 @@
       "Scenario": "2025_Base",
       "Year": 2025,
       "Rates": {
-        "USDPLN": 4,
-        "USDEUR": 2
+        "USDPLN": 3.8,
+        "USDEUR": 1.15
       }
     }
   ],

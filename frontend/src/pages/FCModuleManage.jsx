@@ -109,6 +109,7 @@ export default function FCModuleManage() {
   const [showUnmatchedModal, setShowUnmatchedModal] = useState(false);
   const [selectedUnmatchedItem, setSelectedUnmatchedItem] = useState(null);
   const [creatingFromUnmatched, setCreatingFromUnmatched] = useState(false);
+  const [pendingSelectInfo, setPendingSelectInfo] = useState(null);
 
 
   /**
@@ -180,6 +181,31 @@ export default function FCModuleManage() {
     return match ? Number(match[0]) : null;
   };
 
+  /**
+   * After a create call, watch for the next modules reload and auto-select the
+   * first module that did not exist before the create.
+   */
+  useEffect(() => {
+    if (!pendingSelectInfo) {
+      return;
+    }
+
+    if (pendingSelectInfo.scenario !== selectedScenario) {
+      setPendingSelectInfo(null);
+      return;
+    }
+
+    const previousIds = new Set(pendingSelectInfo.prevIds || []);
+    const currentIds = modules
+      .map((module) => getModuleId(module))
+      .filter(Boolean);
+    const newIds = currentIds.filter((id) => !previousIds.has(id));
+
+    if (newIds.length) {
+      setSelectedModuleId(newIds[0]);
+      setPendingSelectInfo(null);
+    }
+  }, [modules, selectedScenario, pendingSelectInfo, setSelectedModuleId]);
 
 
   const handleCreateNewModule = async () => {
@@ -187,6 +213,9 @@ export default function FCModuleManage() {
       return;
     }
 
+    const existingIds = modules
+      .map((module) => getModuleId(module))
+      .filter(Boolean);
     const periodStartYear = getScenarioStartYear();
     const baseDate =
       Number.isFinite(periodStartYear) && periodStartYear
@@ -217,14 +246,19 @@ export default function FCModuleManage() {
           BaseValueUSD: 0,
           MarketValueUSD: 0,
           Growth: null,
-          Invest: [],
-          Dispose: [],
-        }),
-      });
+      Invest: [],
+      Dispose: [],
+    }),
+  });
 
+      setPendingSelectInfo({
+        scenario: selectedScenario,
+        prevIds: existingIds,
+      });
       reloadModules();
     } catch (err) {
       console.error("Failed to create module:", err);
+      setPendingSelectInfo(null);
     }
   };
 
@@ -428,6 +462,9 @@ export default function FCModuleManage() {
     if (!selectedScenario || !selectedUnmatchedItem) {
       return;
     }
+    const existingIds = modules
+      .map((module) => getModuleId(module))
+      .filter(Boolean);
     setCreatingFromUnmatched(true);
     try {
       const selectedItem =
@@ -457,10 +494,15 @@ export default function FCModuleManage() {
           Matched: true,
         }),
       });
+      setPendingSelectInfo({
+        scenario: selectedScenario,
+        prevIds: existingIds,
+      });
       reloadModules();
       closeUnmatchedModal();
     } catch (err) {
       console.error("Failed to create module from unmatched:", err);
+      setPendingSelectInfo(null);
     } finally {
       setCreatingFromUnmatched(false);
     }

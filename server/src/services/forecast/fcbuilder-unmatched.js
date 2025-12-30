@@ -70,16 +70,9 @@ const allAccounts = (() => {
   return accounts;
 })();
 
-const matchedCache = new Map();
-
 async function loadMatchedNames(scenarioName) {
   if (!scenarioName) {
     return new Set();
-  }
-
-  const cached = matchedCache.get(scenarioName);
-  if (cached) {
-    return cached;
   }
 
   if (mongoose.connection.readyState === 0) {
@@ -88,20 +81,22 @@ async function loadMatchedNames(scenarioName) {
 
   const modules = await FCModule.find(
     { Scenario: scenarioName, Matched: true },
-    "Name"
+    "Name Account"
   )
     .lean()
     .exec();
 
   const names = new Set();
   for (let i = 0; i < modules.length; i++) {
-    const name = modules[i].Name;
-    if (name) {
-      names.add(name);
+    const module = modules[i];
+    if (module?.Name) {
+      names.add(module.Name);
+    }
+    if (module?.Account) {
+      names.add(module.Account);
     }
   }
 
-  matchedCache.set(scenarioName, names);
   return names;
 }
 
