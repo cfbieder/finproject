@@ -17,3 +17,8 @@ On FC Review page click on PL show detail in modal
 Find place to review audit trail files
 
 Export to excel
+
+
+Ability to zoom bigger and smaller fc table
+
+scroll in 10 year block on FC review
