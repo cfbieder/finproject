@@ -5,3 +5,4 @@ mongo_backups/
 .DS_Store
 old/
 components/data/.temp/
+components/data/auditTrail/

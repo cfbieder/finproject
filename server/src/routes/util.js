@@ -15,6 +15,17 @@ const PSdata = require("../../../components/models/PSdata");
 const router = express.Router();
 
 const FC_SETUP_PATH = path.join(COMPONENTS_DATA_DIR, "fc_setup.json");
+const COA_TRAITS_PATH = path.join(COMPONENTS_DATA_DIR, "coa_traits.json");
+
+let cachedCoaTraits = null;
+
+const loadCoaTraits = () => {
+  if (!cachedCoaTraits) {
+    const raw = fs.readFileSync(COA_TRAITS_PATH, "utf8");
+    cachedCoaTraits = JSON.parse(raw);
+  }
+  return cachedCoaTraits;
+};
 
 const buildDataPathsSummary = () => {
   ensureComponentsDataDir();
@@ -94,6 +105,25 @@ router.post("/appdata", async (req, res) => {
     console.error("[SET-APPDATA] Failed to persist appdata entries:", error);
     return res.status(500).json({
       error: "Failed to persist appdata entries",
+    });
+  }
+});
+
+router.get("/coa-traits", (req, res) => {
+  try {
+    const traits = loadCoaTraits();
+
+    if (!traits || typeof traits !== "object") {
+      return res.status(404).json({
+        error: "COA traits data not found",
+      });
+    }
+
+    return res.json(traits);
+  } catch (error) {
+    console.error("[UTIL] Failed to load COA traits:", error);
+    return res.status(500).json({
+      error: "Failed to load COA traits",
     });
   }
 });

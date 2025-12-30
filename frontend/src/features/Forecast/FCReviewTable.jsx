@@ -23,6 +23,9 @@ export default function FCReviewTable({
   tableWrapperRef,
   tableRef,
   scrollTableByYears,
+  zoomLevel,
+  onZoomIn,
+  onZoomOut,
 }) {
   return (
     <section className="section-table">
@@ -84,6 +87,9 @@ export default function FCReviewTable({
               {scrollTableByYears && (
                 <FCReviewTableControls
                   scrollTableByYears={scrollTableByYears}
+                  zoomLevel={zoomLevel}
+                  onZoomIn={onZoomIn}
+                  onZoomOut={onZoomOut}
                 />
               )}
             </div>
@@ -92,7 +98,14 @@ export default function FCReviewTable({
 
         {/* Forecast Table */}
         <div className="trans-budget-table-wrapper" ref={tableWrapperRef}>
-          <table className="trans-budget-table fc-review-table" ref={tableRef}>
+          <table
+            className="trans-budget-table fc-review-table"
+            ref={tableRef}
+            style={{
+              transform: `scale(${zoomLevel || 1})`,
+              transformOrigin: 'top left',
+            }}
+          >
             <thead>
               <tr>
                 <th style={{ minWidth: "240px", textAlign: "left" }}>

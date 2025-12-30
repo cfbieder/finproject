@@ -12,10 +12,11 @@ On forecast page when changes made ensure to highlight to that commit changes is
 
 Add ability to edit in/out cash directl in FC review page
 
+Add ability to change income/exp amount % for investments
 
 Export to excel
 
 
-Ability to zoom bigger and smaller fc table
-
 Need to clear audit trails at some point
+
+Ability to adjust the tax rate on some income (e.g. UB)

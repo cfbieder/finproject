@@ -115,6 +115,7 @@ export default function FCReview() {
 
   const tableWrapperRef = useRef(null);
   const tableRef = useRef(null);
+  const [zoomLevel, setZoomLevel] = useState(1);
 
   // Clear generation state when scenario changes
   useEffect(() => {
@@ -558,6 +559,14 @@ export default function FCReview() {
     });
   }, []);
 
+  const handleZoomIn = useCallback(() => {
+    setZoomLevel((prev) => Math.min(prev + 0.1, 2));
+  }, []);
+
+  const handleZoomOut = useCallback(() => {
+    setZoomLevel((prev) => Math.max(prev - 0.1, 0.5));
+  }, []);
+
   return (
     <div className="page-shell">
       <NavigationMenu />
@@ -605,6 +614,9 @@ export default function FCReview() {
           tableWrapperRef={tableWrapperRef}
           tableRef={tableRef}
           scrollTableByYears={scrollTableByYears}
+          zoomLevel={zoomLevel}
+          onZoomIn={handleZoomIn}
+          onZoomOut={handleZoomOut}
         />
       </main>
       <FCReviewBreakdownModal

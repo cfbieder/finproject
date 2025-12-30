@@ -1,3 +1,6 @@
+import { useEffect, useMemo, useState } from "react";
+import Rest from "../../js/rest";
+
 /**
  * Modal for viewing and creating modules from unmatched items.
  * Displays a list of accounts/categories that aren't matched to forecast modules.
@@ -26,6 +29,69 @@ export default function FCModulesUnmatchedModal({
   onSelectItem,
   onCreate,
 }) {
+  const [coaTraits, setCoaTraits] = useState({});
+  const [traitsLoaded, setTraitsLoaded] = useState(false);
+
+  useEffect(() => {
+    if (!isOpen || traitsLoaded) {
+      return;
+    }
+
+    let cancelled = false;
+
+    const loadTraits = async () => {
+      try {
+        const data = await Rest.fetchJson("/api/util/coa-traits");
+        if (!cancelled && data && typeof data === "object") {
+          setCoaTraits(data);
+        }
+      } catch (err) {
+        if (!cancelled) {
+          setCoaTraits({});
+        }
+      } finally {
+        if (!cancelled) {
+          setTraitsLoaded(true);
+        }
+      }
+    };
+
+    loadTraits();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [isOpen, traitsLoaded]);
+
+  const groupedItems = useMemo(() => {
+    if (!Array.isArray(unmatchedItems) || unmatchedItems.length === 0) {
+      return [];
+    }
+
+    const groups = new Map();
+
+    for (let i = 0; i < unmatchedItems.length; i++) {
+      const item = unmatchedItems[i];
+      if (!item) continue;
+
+      const name = item.name ?? item.Name ?? "";
+      const normalizedName = typeof name === "string" ? name.trim() : "";
+      const typeValue = normalizedName && coaTraits?.[normalizedName]?.Type;
+      const type =
+        (typeof typeValue === "string" && typeValue.trim()) || "Other";
+
+      if (!groups.has(type)) {
+        groups.set(type, []);
+      }
+      groups.get(type).push(item);
+    }
+
+    return Array.from(groups.entries()).map(([type, items]) => ({
+      type,
+      items,
+    }));
+  }, [coaTraits, unmatchedItems]);
+
   if (!isOpen) {
     return null;
   }
@@ -60,52 +126,67 @@ export default function FCModulesUnmatchedModal({
                   overflowY: "auto",
                 }}
               >
-                {unmatchedItems.length ? (
-                  unmatchedItems.map((item) => (
-                    <label
-                      key={`${item.name}-${item.category}`}
-                      className="fc-scenarios-modal__field"
-                      style={{
-                        margin: 0,
-                        padding: "0.85rem 1rem",
-                        cursor: "pointer",
-                      }}
-                    >
+                {groupedItems.length ? (
+                  groupedItems.map(({ type, items }) => (
+                    <div key={type}>
                       <div
                         style={{
-                          display: "flex",
-                          alignItems: "center",
-                          gap: "0.75rem",
+                          padding: "0.6rem 1rem",
+                          backgroundColor: "#f8fafc",
+                          borderBottom: "1px solid rgba(15, 23, 42, 0.08)",
+                          fontWeight: 600,
+                          color: "#0f172a",
                         }}
                       >
-                        <input
-                          type="radio"
-                          name="unmatched-selection"
-                          value={item.name}
-                          checked={selectedItem?.name === item.name}
-                          onChange={() => onSelectItem(item)}
-                        />
-                        <div
+                        {type}
+                      </div>
+                      {items.map((item, index) => (
+                        <label
+                          key={`${type}-${index}-${item.name || item.category || "item"}`}
+                          className="fc-scenarios-modal__field"
                           style={{
-                            display: "flex",
-                            flexDirection: "column",
-                            lineHeight: "1.3",
+                            margin: 0,
+                            padding: "0.85rem 1rem",
+                            cursor: "pointer",
                           }}
                         >
-                          <span>{item.name}</span>
-                          {item.category ? (
-                            <span
+                          <div
+                            style={{
+                              display: "flex",
+                              alignItems: "center",
+                              gap: "0.75rem",
+                            }}
+                          >
+                            <input
+                              type="radio"
+                              name="unmatched-selection"
+                              value={item.name}
+                              checked={selectedItem?.name === item.name}
+                              onChange={() => onSelectItem(item)}
+                            />
+                            <div
                               style={{
-                                color: "#475569",
-                                fontSize: "0.9rem",
+                                display: "flex",
+                                flexDirection: "column",
+                                lineHeight: "1.3",
                               }}
                             >
-                              {item.category}
-                            </span>
-                          ) : null}
-                        </div>
-                      </div>
-                    </label>
+                              <span>{item.name}</span>
+                              {item.category ? (
+                                <span
+                                  style={{
+                                    color: "#475569",
+                                    fontSize: "0.9rem",
+                                  }}
+                                >
+                                  {item.category}
+                                </span>
+                              ) : null}
+                            </div>
+                          </div>
+                        </label>
+                      ))}
+                    </div>
                   ))
                 ) : (
                   <div className="fc-modules-table__message">
