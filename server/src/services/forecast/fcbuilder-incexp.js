@@ -11,7 +11,10 @@ const fs = require("fs");
 const path = require("path");
 const mongoose = require("../../../../components/node_modules/mongoose");
 const FCEntries = require("../../../../components/models/FCEntries");
-const { categories: legacyCategories, years: legacyYears } = require("./fcbuilder-setup");
+const {
+  categories: legacyCategories,
+  years: legacyYears,
+} = require("./fcbuilder-setup");
 
 // ============================================================================
 // Audit Trail Configuration
@@ -245,7 +248,14 @@ const writeValuesToCategoryRow = (
  * @param {Array<number>} years - Years array from scenario config
  * @returns {Promise<Object>} Promise that resolves with processing metadata
  */
-async function processModule(module, scenario, df_assumptions, df_categories, categories, years) {
+async function processModule(
+  module,
+  scenario,
+  df_assumptions,
+  df_categories,
+  categories,
+  years
+) {
   // Use provided categories/years or fall back to legacy imports for backward compatibility
   const _categories = categories || legacyCategories;
   const _years = years || legacyYears;
@@ -264,9 +274,10 @@ async function processModule(module, scenario, df_assumptions, df_categories, ca
   const periodStart = _years[0];
   const inflationLen = inflationSeries.length;
 
-  // Initialize change arrays: P = percentage changes, D = dollar amount changes
+  // Initialize change arrays: P = percentage changes, D = dollar amount changes, O = on-off dollar changes
   const changeDValues = new Array(yearsCount).fill(0);
   const changePValues = new Array(yearsCount);
+  const changeOValues = new Array(yearsCount).fill(0);
   const growth = module.Growth ?? 0;
 
   // Calculate default percentage changes based on inflation and growth rate
@@ -287,8 +298,10 @@ async function processModule(module, scenario, df_assumptions, df_categories, ca
       if (idx >= 0 && idx < yearsCount) {
         if (entry.Flag[0] === "P") {
           changePValues[idx] = entry.Amount;
-        } else {
+        } else if (entry.Flag[0] === "D") {
           changeDValues[idx] = entry.Amount;
+        } else if (entry.Flag[0] === "O") {
+          changeOValues[idx] = entry.Amount;
         }
       }
     }
@@ -296,27 +309,36 @@ async function processModule(module, scenario, df_assumptions, df_categories, ca
 
   // Calculate income/expense values for each year
   const incexpValues = new Array(yearsCount);
+  const baseValues = new Array(yearsCount); // Track base values without on-off amounts for growth calculation
   const taxValues = new Array(yearsCount).fill(0);
   const cashChange = new Array(yearsCount);
 
   // Year 1: Base value with first year adjustments
-  incexpValues[0] =
+  baseValues[0] =
     module.BaseValue * (1 + (changePValues[0] ?? 0) / 100) +
     (changeDValues[0] ?? 0);
+  incexpValues[0] = baseValues[0] + (changeOValues[0] ?? 0);
 
   if (incexpValues[0] > 0) {
     taxValues[0] = -(incexpValues[0] * scenario.TaxRate) / 100;
   }
 
   // Subsequent years: Apply percentage growth and dollar changes
+  // Note: On-Off values are only applied in the specific year, not carried forward
+  // The baseValues array tracks the recurring amount (used for growth), while incexpValues includes one-time amounts
   for (let i = 1; i < yearsCount; i++) {
     const year = startyear + i;
     const idx = year - periodStart;
 
-    incexpValues[i] =
-      idx >= 0 && idx < inflationLen
-        ? incexpValues[i - 1] * (1 + changePValues[i] / 100) + changeDValues[i]
-        : 0;
+    if (idx >= 0 && idx < inflationLen) {
+      // Calculate base value from previous base (excluding on-off amounts)
+      baseValues[i] = baseValues[i - 1] * (1 + changePValues[i] / 100) + changeDValues[i];
+      // Add on-off amount only to the actual income/expense value
+      incexpValues[i] = baseValues[i] + changeOValues[i];
+    } else {
+      baseValues[i] = 0;
+      incexpValues[i] = 0;
+    }
 
     if (incexpValues[i] > 0) {
       taxValues[i] = -(incexpValues[i] * scenario.TaxRate) / 100;

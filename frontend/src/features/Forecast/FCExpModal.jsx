@@ -66,7 +66,7 @@ export default function FCExpModal({
   /**
    * Format change amount based on flag type
    * @param {number} amount - Amount value
-   * @param {string} flag - Type flag ("Fixed $" or "Percent %")
+   * @param {string} flag - Type flag ("Fixed $", "Percent %", or "On-Off $")
    * @returns {string} Formatted amount string
    */
   const formatChangeAmount = (amount, flag) => {
@@ -513,6 +513,7 @@ export default function FCExpModal({
                         >
                           <option value="Fixed $">Fixed Amount ($)</option>
                           <option value="Percent %">Percentage (%)</option>
+                          <option value="On-Off $">On-Off ($)</option>
                         </select>
                       </div>
 
