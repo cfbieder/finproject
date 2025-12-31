@@ -268,9 +268,12 @@ export default function FCModuleManage() {
    * Opens the edit modal with the selected module's data.
    * Formats dates and transfer arrays for form display.
    */
-  const openEditModal = (moduleToEdit = selectedModule) => {
-    const moduleData = moduleToEdit || selectedModule;
+  const openEditModal = (moduleToEdit) => {
+    // If moduleToEdit is an event object or not provided, use selectedModule
+    const isEvent = moduleToEdit && typeof moduleToEdit === 'object' && 'nativeEvent' in moduleToEdit;
+    const moduleData = (isEvent || !moduleToEdit) ? selectedModule : moduleToEdit;
     if (!moduleData) return;
+
     setEditError("");
     const normalizedModule = {
       ...moduleData,
@@ -279,12 +282,14 @@ export default function FCModuleManage() {
       MarketValue: moduleData.MarketValue ?? 0,
       MarketValueUSD: moduleData.MarketValueUSD ?? 0,
     };
+
     setEditForm({
       ...normalizedModule,
       BaseDate: normalizedModule.BaseDate
         ? new Date(normalizedModule.BaseDate).toISOString().slice(0, 10)
         : "",
       Matched: Boolean(normalizedModule.Matched),
+      Comment: normalizedModule.Comment || "",
       Invest: formatTransferForm(normalizedModule.Invest),
       Dispose: formatTransferForm(normalizedModule.Dispose),
       IncomePct: formatTransferForm(normalizedModule.IncomePct),
@@ -370,6 +375,7 @@ export default function FCModuleManage() {
         ? new Date(editForm.BaseDate).toISOString()
         : null,
       AccountNumber: editForm.AccountNumber ?? "",
+      Comment: (editForm.Comment ?? "").toString().trim(),
     };
 
     // Process numeric fields with validation

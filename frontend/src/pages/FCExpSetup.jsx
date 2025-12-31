@@ -601,6 +601,7 @@ export default function FCExpSetup() {
           ? ""
           : selectedEntry.Growth,
       Matched: Boolean(selectedEntry.Matched),
+      Comment: selectedEntry.Comment || "",
       Changes: Array.isArray(selectedEntry.Changes)
         ? selectedEntry.Changes.map((change) => ({
             ...change,
@@ -702,6 +703,7 @@ export default function FCExpSetup() {
       BaseValue: normalizeNumber(editForm.BaseValue),
       BaseValueUSD: normalizeNumber(editForm.BaseValueUSD),
       Growth: normalizeNumber(editForm.Growth),
+      Comment: (editForm.Comment || "").trim(),
       Changes: normalizeChanges(editForm.Changes),
     };
 

@@ -37,6 +37,7 @@ var FCModule = new Schema({
   BaseValueUSD: { type: Number },
   MarketValueUSD: { type: Number },
   Growth: { type: Number },
+  Comment: { type: String },
   Invest: [transferSchema],
   Dispose: [transferSchema],
 });

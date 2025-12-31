@@ -11,6 +11,7 @@ var fcEntry = new Schema({
   Amount: { type: Number },
   Account: { type: String },
   Module: { type: String },
+  Comment: { type: String },
 });
 
 module.exports = mongoose.model("fcEntry", fcEntry, "fcEntries");

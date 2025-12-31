@@ -348,6 +348,18 @@ export default function FCExpModal({
                   placeholder="Enter type"
                 />
               </div>
+
+              {/* Comment */}
+              <div className="fc-exp-modal__field fc-exp-modal__field--full">
+                <label className="fc-exp-modal__label">Comment</label>
+                <textarea
+                  className="fc-exp-modal__input fc-exp-modal__textarea"
+                  value={editForm?.Comment || ""}
+                  onChange={(e) => onFieldChange("Comment", e.target.value)}
+                  placeholder="Add a comment or note"
+                  rows="2"
+                />
+              </div>
             </div>
           </div>
 

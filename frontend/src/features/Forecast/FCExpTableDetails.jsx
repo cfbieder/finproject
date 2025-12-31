@@ -130,6 +130,20 @@ export default function FCExpTableDetails({
                   <span style={{ fontSize: "1rem", fontWeight: "700", color: "var(--ink)" }}>{selectedEntry.Scenario || selectedScenario || "—"}</span>
                 </div>
               </div>
+              {selectedEntry.Comment && (
+                <div style={{
+                  marginTop: "1rem",
+                  padding: "1rem",
+                  background: "rgba(248, 250, 252, 0.8)",
+                  borderRadius: "0.65rem",
+                  border: "1px solid rgba(100, 116, 139, 0.15)"
+                }}>
+                  <div style={{ display: "flex", flexDirection: "column", gap: "0.25rem" }}>
+                    <span style={{ fontSize: "0.75rem", color: "var(--muted)", textTransform: "uppercase", letterSpacing: "0.05em", fontWeight: "600" }}>Comment</span>
+                    <span style={{ fontSize: "0.95rem", color: "var(--ink)", lineHeight: "1.5", whiteSpace: "pre-wrap" }}>{selectedEntry.Comment}</span>
+                  </div>
+                </div>
+              )}
               {!!(selectedEntry.Changes || []).length && (
                 <div style={{
                   marginTop: "1.5rem",

@@ -557,6 +557,11 @@ export default function FCModulesTable({
                       span: false,
                     },
                     {
+                      label: "Comment",
+                      value: selectedModule.Comment,
+                      span: true,
+                    },
+                    {
                       label: "Income % Entries",
                       value: renderIncomePct(selectedModule.IncomePct),
                       span: true,

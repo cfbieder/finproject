@@ -669,6 +669,7 @@ export default function FCModulesEditModal({
     ["Expense Category", "ExpCategory", "text"],
     ["Expense %", "ExpensePct", "number"],
     ["Income Category", "IncomeCategory", "text"],
+    ["Comment", "Comment", "textarea"],
   ];
 
   if (!isOpen || !editForm) {
@@ -975,6 +976,23 @@ export default function FCModulesEditModal({
                           <option value={currentValue}>{currentValue}</option>
                         )}
                     </select>
+                  </label>
+                );
+              }
+
+              if (type === "textarea") {
+                return (
+                  <label key={field} className="fc-modules-modal__field fc-modules-modal__field--full">
+                    <span className="fc-modules-modal__label">{label}</span>
+                    <textarea
+                      className="fc-modules-modal__input fc-modules-modal__textarea"
+                      value={editForm[field] ?? ""}
+                      onChange={(event) =>
+                        onFieldChange(field, event.target.value)
+                      }
+                      placeholder="Add a comment or note"
+                      rows="2"
+                    />
                   </label>
                 );
               }
