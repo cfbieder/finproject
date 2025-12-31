@@ -93,6 +93,52 @@ const renderTransfers = (transfers) => {
 };
 
 /**
+ * Renders IncomePct entries with date and percentage columns.
+ *
+ * @param {Array<Object>|null|undefined} incomePct - Array of income percentage objects
+ * @returns {JSX.Element|string} Formatted list or "-" if no entries
+ */
+const renderIncomePct = (incomePct) => {
+  if (!Array.isArray(incomePct) || !incomePct.length) {
+    return "-";
+  }
+
+  return (
+    <div className="fc-modules-details__transfers">
+      <div className="fc-modules-details__transfers-header">
+        <span>Date</span>
+        <span>Income %</span>
+        <span />
+      </div>
+      {incomePct.map((entry, index) => {
+        if (!entry || typeof entry !== "object") {
+          return null;
+        }
+        const date = entry.Date ? formatDate(entry.Date) : "-";
+        const rawValue =
+          entry.Value === null || entry.Value === undefined
+            ? entry.Amount
+            : entry.Value;
+        const value =
+          rawValue === null ||
+          rawValue === undefined ||
+          Number.isNaN(Number(rawValue))
+            ? "-"
+            : `${Number(rawValue)}%`;
+
+        return (
+          <div key={index} className="fc-modules-details__transfer-row">
+            <span>{date}</span>
+            <span>{value}</span>
+            <span />
+          </div>
+        );
+      })}
+    </div>
+  );
+};
+
+/**
  * FCModulesTable component displays forecast modules in a two-panel layout.
  *
  * Features:
@@ -501,6 +547,11 @@ export default function FCModulesTable({
                           ? null
                           : `${selectedModule.Growth}%`,
                       span: false,
+                    },
+                    {
+                      label: "Income % Entries",
+                      value: renderIncomePct(selectedModule.IncomePct),
+                      span: true,
                     },
                     {
                       label: "Invest",

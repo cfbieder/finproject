@@ -444,16 +444,34 @@ async function processModule(
   }
 
   // Process IncomePct array - map each percentage to the appropriate year
-  // IncomePct is now an array of {Date, Value} objects similar to Invest/Dispose
-  if (Array.isArray(module.IncomePct)) {
-    for (let i = 0; i < module.IncomePct.length; i++) {
-      const entry = module.IncomePct[i];
-      if (!entry || !entry.Date || entry.Value == null) continue;
-      const year = new Date(entry.Date).getFullYear();
-      const idx = year - startyear;
-      if (idx >= 0 && idx < yearsCount) {
-        incomePctValues[idx] = entry.Value;
+  // IncomePct is now an array of {Date, Value} objects
+  // For years without an explicit entry, use the most recent previous value
+  if (Array.isArray(module.IncomePct) && module.IncomePct.length > 0) {
+    // Sort entries by year to ensure we process them chronologically
+    const sortedIncomePct = [...module.IncomePct]
+      .filter(entry => entry && entry.Date && entry.Value != null)
+      .map(entry => ({
+        year: new Date(entry.Date).getFullYear(),
+        value: entry.Value
+      }))
+      .sort((a, b) => a.year - b.year);
+
+    // Apply each IncomePct value starting from its year until the next explicit value
+    let currentValue = 0;
+    let nextEntryIndex = 0;
+
+    for (let i = 0, year = startyear; year <= endyear; i++, year++) {
+      // Check if we've reached the next explicit IncomePct entry
+      while (
+        nextEntryIndex < sortedIncomePct.length &&
+        sortedIncomePct[nextEntryIndex].year <= year
+      ) {
+        currentValue = sortedIncomePct[nextEntryIndex].value;
+        nextEntryIndex++;
       }
+
+      // Apply the current value to this year
+      incomePctValues[i] = currentValue;
     }
   }
 
