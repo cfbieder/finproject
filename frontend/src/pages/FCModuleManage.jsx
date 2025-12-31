@@ -490,6 +490,12 @@ export default function FCModuleManage() {
         Number.isFinite(periodStartYear) && periodStartYear
           ? new Date(`${periodStartYear - 1}-12-31T00:00:00.000Z`).toISOString()
           : null;
+
+      // Get Type and Currency from COA traits if available
+      const traits = coaTraits?.[moduleName] || {};
+      const moduleType = traits.Type || "";
+      const moduleCurrency = traits.Currency || "USD";
+
       await Rest.fetchJson("/api/forecast/modules", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -497,6 +503,8 @@ export default function FCModuleManage() {
           Scenario: selectedScenario,
           Account: account,
           Name: moduleName,
+          Type: moduleType,
+          Currency: moduleCurrency,
           BaseDate: baseDate,
           ExpCategory: defaultExpenseCategory,
           IncomeCategory: defaultIncomeCategory,

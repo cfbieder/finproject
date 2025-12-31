@@ -256,9 +256,10 @@ const writeAuditTrail = async (
  * @param {DataFrame} dfCategories - Categories dataframe with years as columns
  * @param {string} scenarioName - Scenario identifier
  * @param {string} moduleName - Module identifier
+ * @param {string} moduleComment - Optional comment from the module
  * @returns {Array<Object>} Array of FCEntries documents ready for insertion
  */
-const buildFcEntriesPayload = (dfCategories, scenarioName, moduleName) => {
+const buildFcEntriesPayload = (dfCategories, scenarioName, moduleName, moduleComment) => {
   const columns = dfCategories?.columns || [];
   const rows = dfCategories?.values || [];
   const indexValues = getIndexValues(dfCategories);
@@ -281,13 +282,20 @@ const buildFcEntriesPayload = (dfCategories, scenarioName, moduleName) => {
       if (year == null) continue;
 
       // Create entry for this specific year/account/amount combination
-      entries.push({
+      const entry = {
         Scenario: scenarioName,
         Year: year,
         Amount: amount,
         Account: account,
         Module: module,
-      });
+      };
+
+      // Add Comment field if it exists
+      if (moduleComment) {
+        entry.Comment = moduleComment;
+      }
+
+      entries.push(entry);
     }
   }
 
@@ -301,14 +309,15 @@ const buildFcEntriesPayload = (dfCategories, scenarioName, moduleName) => {
  * @param {DataFrame} dfCategories - Categories dataframe
  * @param {string} scenarioName - Scenario identifier
  * @param {string} moduleName - Module identifier
+ * @param {string} moduleComment - Optional comment from the module
  * @returns {Promise<Array>} Promise resolving to inserted documents
  */
-const insertCategoryEntries = (dfCategories, scenarioName, moduleName) => {
+const insertCategoryEntries = (dfCategories, scenarioName, moduleName, moduleComment) => {
   if (!scenarioName || mongoose.connection.readyState === 0) {
     return Promise.resolve([]);
   }
 
-  const entries = buildFcEntriesPayload(dfCategories, scenarioName, moduleName);
+  const entries = buildFcEntriesPayload(dfCategories, scenarioName, moduleName, moduleComment);
   if (entries.length === 0) {
     return Promise.resolve([]);
   }
@@ -794,7 +803,8 @@ async function processModule(
   const inserted = await insertCategoryEntries(
     df_categories,
     scenario?.Name,
-    module?.Name
+    module?.Name,
+    module?.Comment
   );
 
   // Return metadata about processing

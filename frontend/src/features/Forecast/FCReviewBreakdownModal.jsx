@@ -56,7 +56,9 @@ export default function FCReviewBreakdownModal({
       try {
         // Call the API endpoint to retrieve the audit trail data
         const response = await fetch(
-          `/api/forecast/audittrail/${encodeURIComponent(scenarioName)}/${encodeURIComponent(moduleName)}`
+          `/api/forecast/audittrail/${encodeURIComponent(
+            scenarioName
+          )}/${encodeURIComponent(moduleName)}`
         );
 
         if (!response.ok) {
@@ -66,8 +68,7 @@ export default function FCReviewBreakdownModal({
             isOpen: true,
             title: modalTitle,
             error:
-              errorData.error ||
-              "No audit trail file found for this module.",
+              errorData.error || "No audit trail file found for this module.",
           });
           return;
         }
@@ -202,6 +203,9 @@ export default function FCReviewBreakdownModal({
                     <th style={{ textAlign: "left", minWidth: "90px" }}>
                       Year
                     </th>
+                    <th style={{ textAlign: "left", minWidth: "160px" }}>
+                      Comment
+                    </th>
                     <th
                       className="trans-budget-table__value--numeric"
                       style={{ minWidth: "140px" }}
@@ -242,6 +246,9 @@ export default function FCReviewBreakdownModal({
                         )}
                       </td>
                       <td>{entry?.Year ?? "-"}</td>
+                      <td style={{ whiteSpace: "pre-wrap" }}>
+                        {entry?.Comment || "-"}
+                      </td>
                       <td
                         className="trans-budget-table__value--numeric"
                         style={{

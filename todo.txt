@@ -20,8 +20,8 @@ Need to clear audit trails at some point
 
 Ability to adjust the tax rate on some income (e.g. UB)
 
-look at how transfers are done -> add to transfer line on cash flow
 
-Ability to add comments to inc/exp entries and modules?
+
+Fix period transfer in in/out flows for modules
 
 Fix unmatched input in FC Inc Exp so that if not matched, base can be set manually
