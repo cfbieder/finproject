@@ -268,15 +268,16 @@ export default function FCModuleManage() {
    * Opens the edit modal with the selected module's data.
    * Formats dates and transfer arrays for form display.
    */
-  const openEditModal = () => {
-    if (!selectedModule) return;
+  const openEditModal = (moduleToEdit = selectedModule) => {
+    const moduleData = moduleToEdit || selectedModule;
+    if (!moduleData) return;
     setEditError("");
     const normalizedModule = {
-      ...selectedModule,
-      BaseValue: selectedModule.BaseValue ?? 0,
-      BaseValueUSD: selectedModule.BaseValueUSD ?? 0,
-      MarketValue: selectedModule.MarketValue ?? 0,
-      MarketValueUSD: selectedModule.MarketValueUSD ?? 0,
+      ...moduleData,
+      BaseValue: moduleData.BaseValue ?? 0,
+      BaseValueUSD: moduleData.BaseValueUSD ?? 0,
+      MarketValue: moduleData.MarketValue ?? 0,
+      MarketValueUSD: moduleData.MarketValueUSD ?? 0,
     };
     setEditForm({
       ...normalizedModule,
@@ -539,6 +540,7 @@ export default function FCModuleManage() {
           modulesError={modulesError}
           modulesLoading={modulesLoading}
           onSelectModule={setSelectedModuleId}
+          onRowDoubleClick={openEditModal}
           selectedModule={selectedModule}
           selectedModuleId={selectedModuleId}
         />

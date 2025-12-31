@@ -157,6 +157,7 @@ const renderIncomePct = (incomePct) => {
  * @param {string} props.selectedModuleId - ID of the selected module
  * @param {Function} props.onSelectModule - Callback when a module row is clicked
  * @param {Function} props.getModuleId - Function to extract unique ID from a module
+ * @param {Function} props.onRowDoubleClick - Callback when a module row is double clicked
  * @returns {JSX.Element} The modules table and details panel section
  */
 export default function FCModulesTable({
@@ -167,6 +168,7 @@ export default function FCModulesTable({
   selectedModuleId,
   onSelectModule,
   getModuleId,
+  onRowDoubleClick,
 }) {
   const [typeFilter, setTypeFilter] = useState("all");
   const [matchedFilter, setMatchedFilter] = useState("all");
@@ -391,6 +393,12 @@ export default function FCModulesTable({
                             isSelected ? "fc-modules-table__row--selected" : ""
                           }`}
                           onClick={() => onSelectModule(moduleId)}
+                          onDoubleClick={() => {
+                            onSelectModule(moduleId);
+                            if (onRowDoubleClick) {
+                              onRowDoubleClick(module);
+                            }
+                          }}
                         >
                           <td className="fc-modules-table__td fc-modules-table__td--name">
                             <span className="fc-modules-table__name-text">

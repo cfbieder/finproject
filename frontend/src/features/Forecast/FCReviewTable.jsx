@@ -27,6 +27,28 @@ export default function FCReviewTable({
   onZoomIn,
   onZoomOut,
 }) {
+  const accountColumnStickyStyle = {
+    position: "sticky",
+    left: 0,
+    boxShadow: "inset -1px 0 0 var(--border)",
+  };
+
+  const accountHeaderStyle = {
+    ...accountColumnStickyStyle,
+    minWidth: "240px",
+    textAlign: "left",
+    top: 0,
+    zIndex: 3,
+    background:
+      "linear-gradient(180deg, var(--surface-muted) 0%, var(--surface) 100%)",
+  };
+
+  const accountCellBaseStyle = {
+    ...accountColumnStickyStyle,
+    zIndex: 2,
+    background: "var(--surface)",
+  };
+
   return (
     <section className="section-table">
       <div className="section-table__content">
@@ -103,14 +125,12 @@ export default function FCReviewTable({
             ref={tableRef}
             style={{
               transform: `scale(${zoomLevel || 1})`,
-              transformOrigin: 'top left',
+              transformOrigin: "top left",
             }}
           >
             <thead>
               <tr>
-                <th style={{ minWidth: "240px", textAlign: "left" }}>
-                  Account
-                </th>
+                <th style={accountHeaderStyle}>Account</th>
                 {sortedYears.length ? (
                   sortedYears.map((year) => (
                     <th
@@ -208,6 +228,7 @@ export default function FCReviewTable({
                     <tr key={`cash-${row.label}-${index}`}>
                       <td
                         style={{
+                          ...accountCellBaseStyle,
                           fontWeight: row.isNet
                             ? 700
                             : row.level === 1
@@ -282,12 +303,9 @@ export default function FCReviewTable({
                     >
                       <td
                         style={{
+                          ...accountCellBaseStyle,
                           fontWeight:
-                            row.level === 1
-                              ? 700
-                              : row.level === 2
-                              ? 600
-                              : 500,
+                            row.level === 1 ? 700 : row.level === 2 ? 600 : 500,
                           paddingLeft:
                             row.level === 3
                               ? "2.5rem"

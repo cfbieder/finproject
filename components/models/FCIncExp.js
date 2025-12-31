@@ -22,6 +22,7 @@ var FCIncExp = new Schema({
   BaseValue: { type: Number },
   BaseValueUSD: { type: Number },
   Growth: { type: Number },
+  Comment: { type: String },
   Changes: [changesSchema],
 });
 
