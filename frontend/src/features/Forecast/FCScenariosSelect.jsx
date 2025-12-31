@@ -32,6 +32,7 @@ export default function FCScenariosSelect({
   setTaxRate,
   makeDefaultScenario,
   onCopyScenario,
+  hasPendingChanges,
 }) {
   // Disable controls when loading, no data, or errors
   const isDisabled = !assumptions || !!loadError || isLoading;
@@ -51,6 +52,14 @@ export default function FCScenariosSelect({
             <p className="fc-scenarios-header__subtitle">
               Manage scenario assumptions for financial forecasting
             </p>
+            {hasPendingChanges && (
+              <p
+                className="fc-scenarios-header__pending-warning"
+                style={{ color: "#dc2626", fontWeight: 700, margin: "0.35rem 0 0" }}
+              >
+                You have uncommitted changes.
+              </p>
+            )}
           </div>
           {loadError && (
             <div className="fc-scenarios-error-banner">

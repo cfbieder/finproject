@@ -7,8 +7,6 @@ review how income, growth and expense calculated in fcbuilder
 
 When copying modules to other scenarios automatically update base date and values
 
-On forecast page when changes made ensure to highlight to that commit changes is entered
-
 
 Add ability to edit in/out cash directl in FC review page
 
@@ -21,7 +19,3 @@ Need to clear audit trails at some point
 Ability to adjust the tax rate on some income (e.g. UB)
 
 
-
-Fix period transfer in in/out flows for modules
-
-Fix unmatched input in FC Inc Exp so that if not matched, base can be set manually

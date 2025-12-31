@@ -67,6 +67,9 @@ export default function FCScenarios() {
   /** Local working copy of tax rates by scenario */
   const [localTaxRates, setLocalTaxRates] = useState([]);
 
+  /** Tracks whether there are local changes that need to be committed */
+  const [hasPendingChanges, setHasPendingChanges] = useState(false);
+
   /** Modal state for various dialogs (edit, delete, commit) */
   const [modalState, setModalState] = useState({ type: null, payload: null });
 
@@ -91,6 +94,7 @@ export default function FCScenarios() {
       setLocalInflation(data?.inflation || []);
       setLocalFX(data?.FX || []);
       setLocalTaxRates(data?.["Tax Rate"] || []);
+      setHasPendingChanges(false);
 
       // Verify selected scenario still exists after reload
       const scenarioNames = (data?.scenarios || []).map((item) => item.Name);
@@ -127,6 +131,7 @@ export default function FCScenarios() {
           setLocalInflation(data?.inflation || []);
           setLocalFX(data?.FX || []);
           setLocalTaxRates(data?.["Tax Rate"] || []);
+          setHasPendingChanges(false);
           setLoadError("");
         }
       } catch (error) {
@@ -209,6 +214,19 @@ export default function FCScenarios() {
     isNewScenario ? currentYear - 3 : currentYear - 3,
     isNewScenario ? currentYear + 50 : currentYear + 50
   );
+
+  /** Marks the current state as having uncommitted changes */
+  const markPendingChanges = () => setHasPendingChanges(true);
+
+  const handlePeriodStartChange = (value) => {
+    setPeriodStart(value);
+    markPendingChanges();
+  };
+
+  const handlePeriodEndChange = (value) => {
+    setPeriodEnd(value);
+    markPendingChanges();
+  };
 
   /**
    * Sorts array of items by Year property in ascending order
@@ -320,6 +338,7 @@ export default function FCScenarios() {
     }
 
     setLocalInflation(next);
+    markPendingChanges();
     closeModal();
   };
 
@@ -338,6 +357,7 @@ export default function FCScenarios() {
           )
       )
     );
+    markPendingChanges();
     closeModal();
   };
 
@@ -377,6 +397,7 @@ export default function FCScenarios() {
     }
 
     setLocalFX(next);
+    markPendingChanges();
     closeModal();
   };
 
@@ -395,6 +416,7 @@ export default function FCScenarios() {
           )
       )
     );
+    markPendingChanges();
     closeModal();
   };
 
@@ -436,6 +458,7 @@ export default function FCScenarios() {
       }
       return next;
     });
+    markPendingChanges();
   };
 
   // ============================================================================
@@ -525,7 +548,7 @@ export default function FCScenarios() {
       setModalState({ type: "nameScenario", payload: { Name: "" } });
       return;
     }
-    setModalState({ type: "commit" });
+    setModalState({ type: "commit", payload: { hasPendingChanges } });
   };
 
   /**
@@ -638,6 +661,7 @@ export default function FCScenarios() {
             }
           : prev
       );
+      setHasPendingChanges(false);
 
       closeModal();
     } catch (error) {
@@ -773,6 +797,7 @@ export default function FCScenarios() {
             }
           : prev
       );
+      setHasPendingChanges(false);
 
       // Select the newly created scenario
       setSelectedScenario(newScenarioName);
@@ -793,6 +818,9 @@ export default function FCScenarios() {
   const scenarioDeleteName = modalState.payload?.Name || selectedScenario;
   const commitOpen = modalState.type === "commit";
   const commitScenarioName = selectedScenario;
+  const commitWarning = hasPendingChanges
+    ? "Uncommitted changes detected. Committing will overwrite server assumptions for this scenario."
+    : "This will overwrite server assumptions for this scenario.";
 
   return (
     <div className="page-shell">
@@ -806,9 +834,9 @@ export default function FCScenarios() {
           selectedScenario={selectedScenario}
           setSelectedScenario={setSelectedScenario}
           periodStart={periodStart}
-          setPeriodStart={setPeriodStart}
+          setPeriodStart={handlePeriodStartChange}
           periodEnd={periodEnd}
-          setPeriodEnd={setPeriodEnd}
+          setPeriodEnd={handlePeriodEndChange}
           periodYears={periodYears}
           confirmCommit={confirmCommit}
           reloadDefaults={reloadDefaults}
@@ -818,6 +846,7 @@ export default function FCScenarios() {
           setTaxRate={updateTaxRate}
           makeDefaultScenario={makeDefaultScenario}
           onCopyScenario={openCopyScenarioModal}
+          hasPendingChanges={hasPendingChanges}
         />
 
         {/* Data tables for inflation and FX assumptions */}
@@ -859,7 +888,7 @@ export default function FCScenarios() {
           title="Commit Changes"
           itemLabel={commitScenarioName || "this scenario"}
           description="Save all changes to scenarios, inflation, and FX data?"
-          warning="This will overwrite server assumptions for this scenario."
+          warning={commitWarning}
           confirmLabel="Commit"
           confirmBusyLabel="Committing..."
           context={

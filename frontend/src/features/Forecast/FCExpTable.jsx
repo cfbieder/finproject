@@ -12,6 +12,7 @@
  * @param {Array} props.sortedEntries - Sorted array of forecast entries
  * @param {string} props.selectedEntryId - ID of selected entry
  * @param {Function} props.onSelectEntry - Callback when an entry is selected
+ * @param {Function} props.onRowDoubleClick - Callback when an entry row is double clicked
  * @param {Function} props.getEntryId - Function to get unique ID for an entry
  * @param {Function} props.formatDate - Function to format date values
  * @param {Function} props.formatNumber - Function to format number values
@@ -22,11 +23,12 @@ export default function FCExpTable({
   entriesError,
   selectedScenario,
   sortedEntries,
-  selectedEntryId,
+ selectedEntryId,
   onSelectEntry,
   getEntryId,
   formatDate,
   formatNumber,
+  onRowDoubleClick,
 }) {
   return (
     <section
@@ -68,41 +70,49 @@ export default function FCExpTable({
                 </tr>
               </thead>
               <tbody>
-                {sortedEntries.map((entry) => (
-                  <tr
-                    key={getEntryId(entry)}
-                    className={`trans-budget-table__row ${
-                      getEntryId(entry) === selectedEntryId
-                        ? "trans-budget-table__row--selected"
-                        : ""
-                    }`}
-                    onClick={() => onSelectEntry(getEntryId(entry))}
-                  >
-                    <td className="trans-budget-table__value">
-                      {entry.Account || "—"}
-                    </td>
-                    <td className="trans-budget-table__value">
-                      {entry.Name || "—"}
-                    </td>
-                    <td className="trans-budget-table__value">
-                      {entry.Type || "—"}
-                    </td>
-                    <td className="trans-budget-table__value">
-                      {formatDate(entry.BaseDate)}
-                    </td>
-                    <td className="trans-budget-table__value trans-budget-table__value--numeric">
-                      {formatNumber(entry.BaseValueUSD)}
-                    </td>
-                    <td className="trans-budget-table__value trans-budget-table__value--numeric">
-                      {typeof entry.Growth === "number"
-                        ? `${entry.Growth.toFixed(2)}%`
-                        : "—"}
-                    </td>
-                    <td className="trans-budget-table__value">
-                      {entry.Matched ? "Yes" : "No"}
-                    </td>
-                  </tr>
-                ))}
+                {sortedEntries.map((entry) => {
+                  const entryId = getEntryId(entry);
+                  const isSelected = entryId === selectedEntryId;
+                  return (
+                    <tr
+                      key={entryId}
+                      className={`trans-budget-table__row ${
+                        isSelected ? "trans-budget-table__row--selected" : ""
+                      }`}
+                      onClick={() => onSelectEntry(entryId)}
+                      onDoubleClick={() => {
+                        onSelectEntry(entryId);
+                        if (onRowDoubleClick) {
+                          onRowDoubleClick(entry);
+                        }
+                      }}
+                    >
+                      <td className="trans-budget-table__value">
+                        {entry.Account || "—"}
+                      </td>
+                      <td className="trans-budget-table__value">
+                        {entry.Name || "—"}
+                      </td>
+                      <td className="trans-budget-table__value">
+                        {entry.Type || "—"}
+                      </td>
+                      <td className="trans-budget-table__value">
+                        {formatDate(entry.BaseDate)}
+                      </td>
+                      <td className="trans-budget-table__value trans-budget-table__value--numeric">
+                        {formatNumber(entry.BaseValueUSD)}
+                      </td>
+                      <td className="trans-budget-table__value trans-budget-table__value--numeric">
+                        {typeof entry.Growth === "number"
+                          ? `${entry.Growth.toFixed(2)}%`
+                          : "—"}
+                      </td>
+                      <td className="trans-budget-table__value">
+                        {entry.Matched ? "Yes" : "No"}
+                      </td>
+                    </tr>
+                  );
+                })}
               </tbody>
             </table>
           )}

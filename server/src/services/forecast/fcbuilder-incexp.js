@@ -283,7 +283,7 @@ async function processModule(
   const periodStart = _years[0];
   const inflationLen = inflationSeries.length;
 
-  // Initialize change arrays: P = percentage changes, D = dollar amount changes, O = on-off dollar changes
+  // Initialize change arrays: P = percentage changes, D = dollar amount changes, O = one-off dollar changes
   const changeDValues = new Array(yearsCount).fill(0);
   const changePValues = new Array(yearsCount);
   const changeOValues = new Array(yearsCount).fill(0);
@@ -318,7 +318,7 @@ async function processModule(
 
   // Calculate income/expense values for each year
   const incexpValues = new Array(yearsCount);
-  const baseValues = new Array(yearsCount); // Track base values without on-off amounts for growth calculation
+  const baseValues = new Array(yearsCount); // Track base values without one-off amounts for growth calculation
   const taxValues = new Array(yearsCount).fill(0);
   const cashChange = new Array(yearsCount);
 
@@ -333,16 +333,16 @@ async function processModule(
   }
 
   // Subsequent years: Apply percentage growth and dollar changes
-  // Note: On-Off values are only applied in the specific year, not carried forward
+  // Note: One-Off values are only applied in the specific year, not carried forward
   // The baseValues array tracks the recurring amount (used for growth), while incexpValues includes one-time amounts
   for (let i = 1; i < yearsCount; i++) {
     const year = startyear + i;
     const idx = year - periodStart;
 
     if (idx >= 0 && idx < inflationLen) {
-      // Calculate base value from previous base (excluding on-off amounts)
+      // Calculate base value from previous base (excluding one-off amounts)
       baseValues[i] = baseValues[i - 1] * (1 + changePValues[i] / 100) + changeDValues[i];
-      // Add on-off amount only to the actual income/expense value
+      // Add one-off amount only to the actual income/expense value
       incexpValues[i] = baseValues[i] + changeOValues[i];
     } else {
       baseValues[i] = 0;

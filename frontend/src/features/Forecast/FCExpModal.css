@@ -398,6 +398,14 @@
   text-align: right;
 }
 
+.fc-exp-modal__input--positive {
+  color: #059669;
+}
+
+.fc-exp-modal__input--negative {
+  color: #dc2626;
+}
+
 /* ============================================================================
    PERIODIC CHANGES
    ============================================================================ */
@@ -586,6 +594,18 @@
   align-items: center;
   justify-content: flex-end;
   min-height: 41px;
+}
+
+.fc-exp-modal__change-amount {
+  font-weight: 700;
+}
+
+.fc-exp-modal__change-amount--positive {
+  color: #059669;
+}
+
+.fc-exp-modal__change-amount--negative {
+  color: #dc2626;
 }
 
 .fc-exp-modal__change-remove {

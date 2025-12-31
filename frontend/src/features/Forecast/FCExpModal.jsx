@@ -2,7 +2,6 @@ import { useEffect } from "react";
 import "./FCModulesEdit.css";
 import "./FCExpModal.css";
 import Rest from "../../js/rest.js";
-
 /**
  * FCExpModal - Edit modal for forecast income/expense entries
  *
@@ -49,6 +48,20 @@ export default function FCExpModal({
   // Normalize changes array
   const changes = Array.isArray(editForm?.Changes) ? editForm.Changes : [];
 
+  // Format base value for display
+  const baseValueNumber = Number(editForm?.BaseValue);
+  const baseValueDisplay = Number.isFinite(baseValueNumber)
+    ? (() => {
+        const abs = Math.abs(baseValueNumber).toLocaleString(undefined, {
+          minimumFractionDigits: 2,
+          maximumFractionDigits: 2,
+        });
+        return baseValueNumber < 0 ? `(${abs})` : abs;
+      })()
+    : "";
+  const baseValueNegative =
+    Number.isFinite(baseValueNumber) && baseValueNumber < 0;
+
   // Format base value USD for display (with accounting notation for negatives)
   const baseValueUsdNumber = Number(editForm?.BaseValueUSD);
   const baseValueUsdDisplay = Number.isFinite(baseValueUsdNumber)
@@ -66,7 +79,7 @@ export default function FCExpModal({
   /**
    * Format change amount based on flag type
    * @param {number} amount - Amount value
-   * @param {string} flag - Type flag ("Fixed $", "Percent %", or "On-Off $")
+   * @param {string} flag - Type flag ("Fixed $", "Percent %", or "One-Off $")
    * @returns {string} Formatted amount string
    */
   const formatChangeAmount = (amount, flag) => {
@@ -384,6 +397,52 @@ export default function FCExpModal({
                 />
               </div>
 
+              {/* Base Value */}
+              <div className="fc-exp-modal__field">
+                <label className="fc-exp-modal__label">
+                  Base Value
+                  {editForm?.Matched && (
+                    <span className="fc-exp-modal__label-badge">
+                      Auto-loaded
+                    </span>
+                  )}
+                </label>
+                {editForm?.Matched ? (
+                  <input
+                    className={`fc-exp-modal__input fc-exp-modal__input--readonly fc-exp-modal__input--currency ${
+                      baseValueNegative
+                        ? "fc-exp-modal__input--negative"
+                        : "fc-exp-modal__input--positive"
+                    }`}
+                    type="text"
+                    value={baseValueDisplay}
+                    readOnly
+                  />
+                ) : (
+                  <input
+                    className={`fc-exp-modal__input fc-exp-modal__input--currency ${
+                      baseValueNegative
+                        ? "fc-exp-modal__input--negative"
+                        : "fc-exp-modal__input--positive"
+                    }`}
+                    type="number"
+                    step="0.01"
+                    value={
+                      editForm?.BaseValue === null ||
+                      editForm?.BaseValue === undefined
+                        ? ""
+                        : editForm.BaseValue
+                    }
+                    onChange={(e) => {
+                      const nextValue = e.target.value;
+                      onFieldChange("BaseValue", nextValue);
+                      onFieldChange("BaseValueUSD", nextValue);
+                    }}
+                    placeholder="0.00"
+                  />
+                )}
+              </div>
+
               {/* Base Value USD */}
               <div className="fc-exp-modal__field">
                 <label className="fc-exp-modal__label">
@@ -394,15 +453,40 @@ export default function FCExpModal({
                     </span>
                   )}
                 </label>
-                <input
-                  className="fc-exp-modal__input fc-exp-modal__input--readonly fc-exp-modal__input--currency"
-                  type="text"
-                  value={baseValueUsdDisplay}
-                  readOnly
-                  style={{
-                    color: baseValueUsdNegative ? "#dc2626" : "#059669",
-                  }}
-                />
+                {editForm?.Matched ? (
+                  <input
+                    className={`fc-exp-modal__input fc-exp-modal__input--readonly fc-exp-modal__input--currency ${
+                      baseValueUsdNegative
+                        ? "fc-exp-modal__input--negative"
+                        : "fc-exp-modal__input--positive"
+                    }`}
+                    type="text"
+                    value={baseValueUsdDisplay}
+                    readOnly
+                  />
+                ) : (
+                  <input
+                    className={`fc-exp-modal__input fc-exp-modal__input--currency ${
+                      baseValueUsdNegative
+                        ? "fc-exp-modal__input--negative"
+                        : "fc-exp-modal__input--positive"
+                    }`}
+                    type="number"
+                    step="0.01"
+                    value={
+                      editForm?.BaseValueUSD === null ||
+                      editForm?.BaseValueUSD === undefined
+                        ? ""
+                        : editForm.BaseValueUSD
+                    }
+                    onChange={(e) => {
+                      const nextValue = e.target.value;
+                      onFieldChange("BaseValueUSD", nextValue);
+                      onFieldChange("BaseValue", nextValue);
+                    }}
+                    placeholder="0.00"
+                  />
+                )}
               </div>
 
               {/* Growth */}
@@ -525,7 +609,7 @@ export default function FCExpModal({
                         >
                           <option value="Fixed $">Fixed Amount ($)</option>
                           <option value="Percent %">Percentage (%)</option>
-                          <option value="On-Off $">On-Off ($)</option>
+                          <option value="One-Off $">One-Off ($)</option>
                         </select>
                       </div>
 
@@ -557,14 +641,12 @@ export default function FCExpModal({
                         </label>
                         <div className="fc-exp-modal__change-preview">
                           <span
-                            style={{
-                              color:
-                                change?.Flag !== "Percent %" &&
-                                Number(change?.Amount) < 0
-                                  ? "#dc2626"
-                                  : "#059669",
-                              fontWeight: "700",
-                            }}
+                            className={`fc-exp-modal__change-amount ${
+                              change?.Flag !== "Percent %" &&
+                              Number(change?.Amount) < 0
+                                ? "fc-exp-modal__change-amount--negative"
+                                : "fc-exp-modal__change-amount--positive"
+                            }`}
                           >
                             {formatChangeAmount(change?.Amount, change?.Flag)}
                           </span>

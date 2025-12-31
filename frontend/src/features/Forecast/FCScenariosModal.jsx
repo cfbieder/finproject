@@ -135,7 +135,8 @@ export default function FCScenariosModal({
                 Delete Inflation Entry
               </h3>
               <p className="fc-scenarios-modal__description">
-                Delete inflation rate for year <strong>{modalState.payload?.Year}</strong>?
+                Delete inflation rate for year{" "}
+                <strong>{modalState.payload?.Year}</strong>?
               </p>
             </div>
             <div className="fc-scenarios-modal__body">
@@ -230,7 +231,8 @@ export default function FCScenariosModal({
                 Delete FX Entry
               </h3>
               <p className="fc-scenarios-modal__description">
-                Delete FX rates for year <strong>{modalState.payload?.Year}</strong>?
+                Delete FX rates for year{" "}
+                <strong>{modalState.payload?.Year}</strong>?
               </p>
             </div>
             <div className="fc-scenarios-modal__body">
@@ -272,7 +274,8 @@ export default function FCScenariosModal({
             <div className="fc-scenarios-modal__body">
               <div className="fc-scenarios-modal__warning">
                 <span className="fc-scenarios-modal__warning-icon">⚠️</span>
-                This will remove all related inflation and FX data. This action cannot be undone.
+                This will remove all related inflation and FX data. This action
+                cannot be undone.
               </div>
             </div>
             <div className="fc-scenarios-modal__actions">
@@ -348,6 +351,13 @@ export default function FCScenariosModal({
               </p>
             </div>
             <div className="fc-scenarios-modal__body">
+              {modalState.payload?.hasPendingChanges && (
+                <div className="fc-scenarios-modal__warning">
+                  <span className="fc-scenarios-modal__warning-icon">⚠️</span>
+                  Uncommitted changes detected. Committing will overwrite the
+                  server data for this scenario.
+                </div>
+              )}
               <div className="fc-scenarios-modal__info">
                 <span className="fc-scenarios-modal__info-icon">ℹ️</span>
                 Your changes will be permanently saved to the server.
@@ -380,8 +390,9 @@ export default function FCScenariosModal({
                 Copy Scenario
               </h3>
               <p className="fc-scenarios-modal__description">
-                Copy <strong>"{modalState.payload?.sourceScenario}"</strong> to a new scenario.
-                This will copy all assumptions, modules, and income/expense entries.
+                Copy <strong>"{modalState.payload?.sourceScenario}"</strong> to
+                a new scenario. This will copy all assumptions, modules, and
+                income/expense entries.
               </p>
             </div>
             <div className="fc-scenarios-modal__body">

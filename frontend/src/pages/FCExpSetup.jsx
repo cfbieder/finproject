@@ -807,6 +807,7 @@ export default function FCExpSetup() {
             getEntryId={getEntryId}
             formatDate={formatDate}
             formatNumber={formatNumber}
+            onRowDoubleClick={openEditModal}
           />
           <FCExpTableDetails
             selectedScenario={selectedScenario}
