@@ -20,6 +20,7 @@ export default function FCReviewTable({
   balanceDisplayValues,
   totalAssetsByYear,
   onCellDoubleClick,
+  onCashTransferClick,
   tableWrapperRef,
   tableRef,
   scrollTableByYears,
@@ -292,57 +293,67 @@ export default function FCReviewTable({
                   )}
 
                   {/* ========== BALANCE SHEET SECTION ========== */}
-                  {balanceAccounts.map((row, index) => (
-                    <tr
-                      key={`balance-${row.label}-${index}`}
-                      style={
-                        index === 0 && cashAccounts.length === 0
-                          ? { borderTop: "2px solid var(--border)" }
-                          : undefined
-                      }
-                    >
-                      <td
+                  {balanceAccounts.map((row, index) => {
+                    const isBankAccounts = row.label === "Bank Accounts";
+                    return (
+                      <tr
+                        key={`balance-${row.label}-${index}`}
                         style={{
-                          ...accountCellBaseStyle,
-                          fontWeight:
-                            row.level === 1 ? 700 : row.level === 2 ? 600 : 500,
-                          paddingLeft:
-                            row.level === 3
-                              ? "2.5rem"
-                              : row.level === 2
-                              ? "1.75rem"
-                              : "0.75rem",
+                          ...(index === 0 && cashAccounts.length === 0
+                            ? { borderTop: "2px solid var(--border)" }
+                            : undefined),
+                          ...(isBankAccounts
+                            ? { outline: "2px solid var(--danger)" }
+                            : undefined),
                         }}
                       >
-                        {row.label}
-                      </td>
-                      {sortedYears.map((year, yearIndex) => {
-                        const values =
-                          row.label === "Assets"
-                            ? totalAssetsByYear
-                            : balanceDisplayValues.get(row.label);
-                        const displayValue =
-                          values?.[yearIndex] ?? getCellValue(row, year, false);
-                        return (
-                          <td
-                            key={`${row.label}-${year}`}
-                            className="trans-budget-table__value--numeric"
-                            style={{
-                              color:
-                                Number(displayValue) < 0
-                                  ? "var(--danger)"
-                                  : undefined,
-                            }}
-                            onDoubleClick={() =>
-                              onCellDoubleClick?.(row, year, false)
-                            }
-                          >
-                            {formatAmount(displayValue)}
-                          </td>
-                        );
-                      })}
-                    </tr>
-                  ))}
+                        <td
+                          style={{
+                            ...accountCellBaseStyle,
+                            fontWeight:
+                              row.level === 1 ? 700 : row.level === 2 ? 600 : 500,
+                            paddingLeft:
+                              row.level === 3
+                                ? "2.5rem"
+                                : row.level === 2
+                                ? "1.75rem"
+                                : "0.75rem",
+                          }}
+                        >
+                          {row.label}
+                        </td>
+                        {sortedYears.map((year, yearIndex) => {
+                          const values =
+                            row.label === "Assets"
+                              ? totalAssetsByYear
+                              : balanceDisplayValues.get(row.label);
+                          const displayValue =
+                            values?.[yearIndex] ?? getCellValue(row, year, false);
+                          return (
+                            <td
+                              key={`${row.label}-${year}`}
+                              className="trans-budget-table__value--numeric"
+                              style={{
+                                color:
+                                  Number(displayValue) < 0
+                                    ? "var(--danger)"
+                                    : undefined,
+                              }}
+                              onDoubleClick={() => {
+                                if (isBankAccounts) {
+                                  onCashTransferClick?.(row, year);
+                                } else {
+                                  onCellDoubleClick?.(row, year, false);
+                                }
+                              }}
+                            >
+                              {formatAmount(displayValue)}
+                            </td>
+                          );
+                        })}
+                      </tr>
+                    );
+                  })}
                 </>
               )}
             </tbody>

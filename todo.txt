@@ -16,3 +16,6 @@ Export to excel
 
 Ability to adjust the tax rate on some income (e.g. UB)
 
+Fixed $ transfer not working in expense modules
+
+Allow edit of values clicked in Review detials

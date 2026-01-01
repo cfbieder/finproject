@@ -31,6 +31,7 @@ import { useBaseYearActuals } from "../features/Forecast/hooks/useBaseYearActual
 import { useBaseYearBalanceSheet } from "../features/Forecast/hooks/useBaseYearBalanceSheet.js";
 import FCReviewTable from "../features/Forecast/FCReviewTable.jsx";
 import FCReviewBreakdownModal from "../features/Forecast/FCReviewBreakdownModal.jsx";
+import FCCashTransferModal from "../features/Forecast/FCCashTransferModal.jsx";
 import { formatAmount } from "../features/Forecast/utils/fcReviewUtils.js";
 import Rest from "../js/rest.js";
 import "./PageLayout.css";
@@ -111,6 +112,11 @@ export default function FCReview() {
     amount: null,
     entryTotal: 0,
     entries: [],
+  });
+  const [cashTransferModal, setCashTransferModal] = useState({
+    isOpen: false,
+    title: "",
+    year: null,
   });
 
   const tableWrapperRef = useRef(null);
@@ -543,6 +549,23 @@ export default function FCReview() {
     setBreakdownModal((prev) => ({ ...prev, isOpen: false }));
   }, []);
 
+  const handleCashTransferClick = useCallback((row, year) => {
+    setCashTransferModal({
+      isOpen: true,
+      title: `${row.label} • ${year}`,
+      year,
+    });
+  }, []);
+
+  const closeCashTransferModal = useCallback(() => {
+    setCashTransferModal((prev) => ({ ...prev, isOpen: false }));
+  }, []);
+
+  const handleTransferComplete = useCallback(() => {
+    // Reload forecast data after transfer
+    reloadForecastData();
+  }, [reloadForecastData]);
+
   const scrollTableByYears = useCallback((direction) => {
     const wrapper = tableWrapperRef.current;
     if (!wrapper) return;
@@ -611,6 +634,7 @@ export default function FCReview() {
           balanceDisplayValues={balanceDisplayValues}
           totalAssetsByYear={totalAssetsByYear}
           onCellDoubleClick={handleCellDoubleClick}
+          onCashTransferClick={handleCashTransferClick}
           tableWrapperRef={tableWrapperRef}
           tableRef={tableRef}
           scrollTableByYears={scrollTableByYears}
@@ -623,6 +647,14 @@ export default function FCReview() {
         breakdownModal={breakdownModal}
         onClose={closeBreakdownModal}
         scenarioName={selectedScenario}
+      />
+      <FCCashTransferModal
+        isOpen={cashTransferModal.isOpen}
+        onClose={closeCashTransferModal}
+        title={cashTransferModal.title}
+        year={cashTransferModal.year}
+        scenarioName={selectedScenario}
+        onTransferComplete={handleTransferComplete}
       />
     </div>
   );

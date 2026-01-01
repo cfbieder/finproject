@@ -371,6 +371,25 @@ export default function FCExpSetup() {
       : "—";
 
   /**
+   * Format number for table display: no decimals, comma separators, negatives in red brackets
+   * @param {number} value - Number to format
+   * @returns {string|JSX.Element} Formatted number or placeholder
+   */
+  const formatTableNumber = (value) => {
+    if (typeof value !== "number" || Number.isNaN(value)) {
+      return "—";
+    }
+    const formatted = Math.abs(Math.trunc(value)).toLocaleString(undefined, {
+      minimumFractionDigits: 0,
+      maximumFractionDigits: 0,
+    });
+    if (value < 0) {
+      return <span style={{ color: "red" }}>{`(${formatted})`}</span>;
+    }
+    return formatted;
+  };
+
+  /**
    * Sorted list of income/expense entries
    * Sorts by Account name, then by Name
    */
@@ -436,11 +455,15 @@ export default function FCExpSetup() {
 
   /** @returns {number|null} Start year of current scenario */
   const getScenarioStartYear = () =>
-    getScenarioYear(selectedScenarioDetails?.PeriodStart ?? assumptions?.PeriodStart);
+    getScenarioYear(
+      selectedScenarioDetails?.PeriodStart ?? assumptions?.PeriodStart
+    );
 
   /** @returns {number|null} End year of current scenario */
   const getScenarioEndYear = () =>
-    getScenarioYear(selectedScenarioDetails?.PeriodEnd ?? assumptions?.PeriodEnd);
+    getScenarioYear(
+      selectedScenarioDetails?.PeriodEnd ?? assumptions?.PeriodEnd
+    );
 
   /**
    * Array of years in the scenario period range
@@ -676,7 +699,7 @@ export default function FCExpSetup() {
           Flag: flagValue,
         };
       })
-    .filter(Boolean);
+      .filter(Boolean);
   };
 
   /**
@@ -764,9 +787,7 @@ export default function FCExpSetup() {
     const names = accountNameOptions[targetAccount] || [];
     const allowAll = name === "All";
     if (names.length && !names.includes(name) && !allowAll) {
-      setEditForm((prev) =>
-        prev ? { ...prev, Name: names[0] || "" } : prev
-      );
+      setEditForm((prev) => (prev ? { ...prev, Name: names[0] || "" } : prev));
     }
   }, [
     accountNameOptions,
@@ -806,7 +827,7 @@ export default function FCExpSetup() {
             onSelectEntry={setSelectedEntryId}
             getEntryId={getEntryId}
             formatDate={formatDate}
-            formatNumber={formatNumber}
+            formatNumber={formatTableNumber}
             onRowDoubleClick={openEditModal}
           />
           <FCExpTableDetails
