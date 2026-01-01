@@ -1116,4 +1116,45 @@ router.get("/audittrail/:scenario/:module", (req, res) => {
   }
 });
 
+/**
+ * DELETE /audittrail/:scenario
+ *
+ * Deletes all audit trail files for a given scenario. Matches any file in the
+ * auditTrail directory whose normalized filename begins with the normalized
+ * scenario name.
+ */
+router.delete("/audittrail/:scenario", (req, res) => {
+  const scenario = req.params.scenario?.trim();
+
+  if (!scenario) {
+    return res.status(400).json({ error: "Scenario name is required" });
+  }
+
+  try {
+    const auditTrailDir = path.join(COMPONENTS_DATA_DIR, "auditTrail");
+
+    if (!fs.existsSync(auditTrailDir)) {
+      return res.json({ deleted: 0, filesDeleted: [] });
+    }
+
+    const normalizedScenario = normalizeAuditTrailKey(scenario);
+    const files = fs.readdirSync(auditTrailDir);
+    const filesToDelete = files.filter((file) =>
+      normalizeAuditTrailKey(file).startsWith(normalizedScenario)
+    );
+
+    filesToDelete.forEach((file) =>
+      fs.unlinkSync(path.join(auditTrailDir, file))
+    );
+
+    return res.json({
+      deleted: filesToDelete.length,
+      filesDeleted: filesToDelete,
+    });
+  } catch (error) {
+    console.error(`Failed to clear audit trail for "${scenario}":`, error);
+    return res.status(500).json({ error: "Failed to clear audit trail" });
+  }
+});
+
 module.exports = router;

@@ -14,8 +14,5 @@ Add ability to edit in/out cash directl in FC review page
 Export to excel
 
 
-Need to clear audit trails at some point
-
 Ability to adjust the tax rate on some income (e.g. UB)
-
 

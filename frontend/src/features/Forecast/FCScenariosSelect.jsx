@@ -26,6 +26,7 @@ export default function FCScenariosSelect({
   periodYears,
   confirmCommit,
   reloadDefaults,
+  clearAuditTrail,
   openDeleteModal,
   isLoading,
   taxRate,
@@ -168,6 +169,16 @@ export default function FCScenariosSelect({
             >
               <span className="fc-scenarios-button-icon">💾</span>
               Commit Changes
+            </button>
+            <button
+              type="button"
+              className="fc-scenarios-action-button"
+              onClick={clearAuditTrail}
+              disabled={!canDeleteScenario || isLoading}
+              title="Remove audit trail files for this scenario"
+            >
+              <span className="fc-scenarios-button-icon">🧹</span>
+              Clear Audit
             </button>
             <button
               type="button"

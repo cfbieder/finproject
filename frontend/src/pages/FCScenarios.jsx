@@ -483,20 +483,33 @@ export default function FCScenarios() {
    */
   const deleteScenario = async () => {
     const name = modalState.payload?.Name;
-    if (!name) {
+   if (!name) {
       closeModal();
       return;
     }
 
+    const encodedName = encodeURIComponent(name);
+
     // Attempt to delete scenario-linked modules/inc-exp on the server
     try {
-      const encoded = encodeURIComponent(name);
-      await Rest.fetchJson(`/api/forecast/scenarios/${encoded}`, {
+      await Rest.fetchJson(`/api/forecast/scenarios/${encodedName}`, {
         method: "DELETE",
       });
     } catch (error) {
       console.error(
         "Failed to delete scenario-related modules/inc-exp:",
+        error
+      );
+    }
+
+    // Delete audit trail files for this scenario
+    try {
+      await Rest.fetchJson(`/api/forecast/audittrail/${encodedName}`, {
+        method: "DELETE",
+      });
+    } catch (error) {
+      console.error(
+        `Failed to delete audit trail files for scenario "${name}":`,
         error
       );
     }
@@ -682,6 +695,29 @@ export default function FCScenarios() {
     commitChanges(name);
   };
 
+  /**
+   * Clears audit trail files for the selected scenario
+   * Deletes any audit trail CSV whose filename starts with the scenario name
+   */
+  const clearAuditTrail = async () => {
+    if (!selectedScenario || selectedScenario === "__new_scenario__") {
+      return;
+    }
+
+    setIsLoading(true);
+    try {
+      const encoded = encodeURIComponent(selectedScenario);
+      await Rest.fetchJson(`/api/forecast/audittrail/${encoded}`, {
+        method: "DELETE",
+      });
+      setLoadError("");
+    } catch (error) {
+      setLoadError(error.message || "Failed to clear audit trail");
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
   // ============================================================================
   // SCENARIO COPY OPERATIONS
   // ============================================================================
@@ -840,6 +876,7 @@ export default function FCScenarios() {
           periodYears={periodYears}
           confirmCommit={confirmCommit}
           reloadDefaults={reloadDefaults}
+          clearAuditTrail={clearAuditTrail}
           openDeleteModal={openDeleteModal}
           isLoading={isLoading}
           taxRate={String(selectedTaxRate ?? "")}

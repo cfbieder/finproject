@@ -26,25 +26,55 @@ export default function Home() {
       color: "success",
     },
     {
+      title: "Forecast Scenarios",
+      description: "Build and analyze forecast scenarios",
+      path: "/forecast-scenarios",
+      icon: "🔮",
+      color: "primary",
+    },
+    {
       title: "Net Worth Chart",
       description: "Visualize wealth over time",
       path: "/balance-chart",
       icon: "📈",
-      color: "primary",
+      color: "accent",
+    },
+    {
+      title: "Transaction History",
+      description: "View and manage transactions",
+      path: "/trans-actual",
+      icon: "🧾",
+      color: "success",
     },
   ];
 
   const features = [
     {
-      category: "Reports",
+      category: "Forecasting",
+      description: "Build and analyze financial forecasts",
+      icon: "🔮",
+      items: [
+        { label: "Forecast Scenarios", path: "/forecast-scenarios" },
+        { label: "Forecast Modules", path: "/forecast-modules" },
+        { label: "Forecast Expenditures Setup", path: "/forecast-setup-exp" },
+        { label: "Forecast Review", path: "/forecast-review" },
+      ],
+    },
+    {
+      category: "Reports & Graphs",
+      description: "Analyze your financial data",
+      icon: "📊",
       items: [
         { label: "Balance Summary", path: "/balance" },
         { label: "Cash Flow Summary", path: "/cash-flow" },
         { label: "Cash Flow Monthly", path: "/cash-flow-monthly" },
+        { label: "Net Worth Chart", path: "/balance-chart" },
       ],
     },
     {
       category: "Budgeting",
+      description: "Plan and track your budget",
+      icon: "📝",
       items: [
         { label: "Budget Worksheet", path: "/budget-worksheet" },
         { label: "Budget Realization", path: "/budget-realization" },
@@ -52,24 +82,28 @@ export default function Home() {
     },
     {
       category: "Transactions",
+      description: "Manage transaction records",
+      icon: "🧾",
       items: [
-        { label: "Transaction History", path: "/trans-actual" },
-        { label: "Budget Transactions", path: "/trans-budget" },
+        { label: "History", path: "/trans-actual" },
+        { label: "Budget", path: "/trans-budget" },
       ],
     },
     {
-      category: "Data Management",
+      category: "Database",
+      description: "Import and refresh data",
+      icon: "💾",
       items: [
-        { label: "Upload PS Data", path: "/upload-ps" },
-        { label: "Refresh PS Data", path: "/refresh-ps" },
+        { label: "Upload PS", path: "/upload-ps" },
+        { label: "Refresh PS", path: "/refresh-ps" },
+      ],
+    },
+    {
+      category: "Settings",
+      description: "Configure your workspace",
+      icon: "⚙️",
+      items: [
         { label: "FX Options", path: "/fx-options" },
-      ],
-    },
-    {
-      category: "Analytics",
-      items: [
-        { label: "Net Worth Chart", path: "/balance-chart" },
-        { label: "Option Analysis", path: "/option-analysis" },
       ],
     },
   ];
@@ -112,7 +146,13 @@ export default function Home() {
           <div className="home-features-grid">
             {features.map((feature) => (
               <div key={feature.category} className="feature-category">
-                <h3 className="feature-category__title">{feature.category}</h3>
+                <div className="feature-category__header">
+                  <span className="feature-category__icon">{feature.icon}</span>
+                  <div>
+                    <h3 className="feature-category__title">{feature.category}</h3>
+                    <p className="feature-category__description">{feature.description}</p>
+                  </div>
+                </div>
                 <ul className="feature-category__list">
                   {feature.items.map((item) => (
                     <li key={item.path}>
