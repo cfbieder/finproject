@@ -58,6 +58,13 @@ export default function FCReview() {
     loadError: scenariosError,
   } = useScenarios();
 
+  // Get the selected scenario object to access PeriodStart
+  const selectedScenarioObj = useMemo(
+    () => scenarios.find((s) => s.Name === selectedScenario),
+    [scenarios, selectedScenario]
+  );
+  const periodStart = selectedScenarioObj?.PeriodStart;
+
   // Load forecast years and entries for selected scenario
   const {
     years,
@@ -87,17 +94,17 @@ export default function FCReview() {
 
   // Load base year actuals for cash flow (P&L)
   const {
-    baseActualTotals,
+    baseActualTotalsByYear,
     loading: baseActualLoading,
     error: baseActualError,
-  } = useBaseYearActuals(years);
+  } = useBaseYearActuals(periodStart);
 
   // Load base year actuals for balance sheet
   const {
-    baseBalanceTotals,
+    baseBalanceTotalsByYear,
     loading: baseBalanceLoading,
     error: baseBalanceError,
-  } = useBaseYearBalanceSheet(years, balanceAccountMap);
+  } = useBaseYearBalanceSheet(periodStart, balanceAccountMap);
 
   // =============================================================================
   // STATE - Forecast Generation
@@ -166,10 +173,25 @@ export default function FCReview() {
   // COMPUTED VALUES - Memoized for Performance
   // =============================================================================
 
-  const sortedYears = useMemo(
-    () => [...years].sort((a, b) => Number(a) - Number(b)),
-    [years]
-  );
+  // Calculate base years (PeriodStart - 2 and PeriodStart - 1)
+  const baseYears = useMemo(() => {
+    const yearsSet = new Set();
+    if (periodStart) {
+      yearsSet.add(Number(periodStart) - 2);
+      yearsSet.add(Number(periodStart) - 1);
+    }
+    return yearsSet;
+  }, [periodStart]);
+
+  // Combine base years with forecast years for display
+  const sortedYears = useMemo(() => {
+    const allYears = [...years];
+    if (periodStart) {
+      allYears.unshift(Number(periodStart) - 1);
+      allYears.unshift(Number(periodStart) - 2);
+    }
+    return [...new Set(allYears)].sort((a, b) => Number(a) - Number(b));
+  }, [years, periodStart]);
 
   const baseYear = sortedYears[0];
 
@@ -301,7 +323,7 @@ export default function FCReview() {
    * Gets the cell value for a specific row and year.
    *
    * Logic:
-   * - For base year: Returns actuals from P&L or balance sheet reports
+   * - For base years (first two years): Returns actuals from P&L or balance sheet reports
    * - For forecast years: Returns aggregated forecast entry amounts
    * - For Net Cash Flow row: Calculates Income + Expense
    *
@@ -312,26 +334,35 @@ export default function FCReview() {
    */
   const getCellValue = useCallback(
     (row, year, isCashSection) => {
+      const numericYear = Number(year);
+      const isBaseYear = baseYears.has(numericYear);
+
       // ========== Cash Flow - Base Year Actuals ==========
-      if (isCashSection && year === baseYear) {
+      if (isCashSection && isBaseYear) {
+        const yearData = baseActualTotalsByYear.get(numericYear);
+        if (!yearData) return null;
+
         if (row.isNet) {
-          return baseActualTotals.net;
+          return yearData.net;
         }
         if (row.level === 1) {
-          return baseActualTotals.level1.get(row.label) ?? null;
+          return yearData.level1.get(row.label) ?? null;
         }
-        return baseActualTotals.level2.get(row.label) ?? null;
+        return yearData.level2.get(row.label) ?? null;
       }
 
       // ========== Balance Sheet - Base Year Actuals ==========
-      if (!isCashSection && year === baseYear) {
+      if (!isCashSection && isBaseYear) {
+        const yearData = baseBalanceTotalsByYear.get(numericYear);
+        if (!yearData) return null;
+
         if (row.level === 1) {
-          return baseBalanceTotals.level1.get(row.label) ?? null;
+          return yearData.level1.get(row.label) ?? null;
         }
         if (row.level === 2) {
-          return baseBalanceTotals.level2.get(row.label) ?? null;
+          return yearData.level2.get(row.label) ?? null;
         }
-        return baseBalanceTotals.level3?.get(row.label) ?? null;
+        return yearData.level3?.get(row.label) ?? null;
       }
 
       // ========== Balance Sheet - Forecast Years ==========
@@ -364,7 +395,7 @@ export default function FCReview() {
       }
       return entryMaps.cash.byLabel.get(row.label)?.get(year) ?? null;
     },
-    [baseYear, baseActualTotals, baseBalanceTotals, entryMaps]
+    [baseYears, baseActualTotalsByYear, baseBalanceTotalsByYear, entryMaps]
   );
 
   /**
@@ -621,6 +652,7 @@ export default function FCReview() {
         <FCReviewTable
           sortedYears={sortedYears}
           baseYear={baseYear}
+          baseYears={baseYears}
           tableColSpan={tableColSpan}
           yearsLoading={yearsLoading}
           accountsLoading={accountsLoading}

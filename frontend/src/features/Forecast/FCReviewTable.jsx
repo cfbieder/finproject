@@ -4,6 +4,7 @@ import FCReviewTableControls from "./FCReviewTableControls.jsx";
 export default function FCReviewTable({
   sortedYears,
   baseYear,
+  baseYears,
   tableColSpan,
   yearsLoading,
   accountsLoading,
@@ -135,28 +136,39 @@ export default function FCReviewTable({
               <tr>
                 <th style={accountHeaderStyle}>Account</th>
                 {sortedYears.length ? (
-                  sortedYears.map((year) => (
-                    <th
-                      key={year}
-                      className="trans-budget-table__value"
-                      style={{ minWidth: "120px" }}
-                    >
-                      {year}
-                      {year === baseYear && (
-                        <span
-                          style={{
-                            display: "block",
-                            fontSize: "0.75rem",
-                            fontWeight: 500,
-                            color: "var(--muted)",
-                            marginTop: "0.25rem",
-                          }}
-                        >
-                          (Actual)
-                        </span>
-                      )}
-                    </th>
-                  ))
+                  sortedYears.map((year) => {
+                    const isBaseYear = baseYears?.has(Number(year));
+                    return (
+                      <th
+                        key={year}
+                        className="trans-budget-table__value"
+                        style={{
+                          minWidth: "120px",
+                          ...(isBaseYear && {
+                            background: "linear-gradient(180deg, #f8f9fa 0%, #e9ecef 100%)",
+                            fontWeight: 600,
+                            borderLeft: "1px solid #cbd5e0",
+                            borderRight: "1px solid #cbd5e0",
+                          }),
+                        }}
+                      >
+                        {year}
+                        {isBaseYear && (
+                          <span
+                            style={{
+                              display: "block",
+                              fontSize: "0.75rem",
+                              fontWeight: 500,
+                              color: "#718096",
+                              marginTop: "0.25rem",
+                            }}
+                          >
+                            (Actual)
+                          </span>
+                        )}
+                      </th>
+                    );
+                  })
                 ) : (
                   <th>Year</th>
                 )}
@@ -230,14 +242,7 @@ export default function FCReviewTable({
                   {cashRowsWithNet.map((row, index) => {
                     const isTransfers = row.label === "Transfers";
                     return (
-                      <tr
-                        key={`cash-${row.label}-${index}`}
-                        style={
-                          isTransfers
-                            ? { outline: "2px solid var(--primary)" }
-                            : undefined
-                        }
-                      >
+                      <tr key={`cash-${row.label}-${index}`}>
                         <td
                           style={{
                             ...accountCellBaseStyle,
@@ -257,6 +262,8 @@ export default function FCReviewTable({
                             color: row.isNet ? "var(--ink)" : undefined,
                             backgroundColor: row.isNet
                               ? "var(--surface-muted)"
+                              : isTransfers
+                              ? "#f0f7ff"
                               : undefined,
                           }}
                         >
@@ -266,6 +273,7 @@ export default function FCReviewTable({
                         </td>
                         {sortedYears.map((year) => {
                           const value = getCellValue(row, year, true);
+                          const isBaseYear = baseYears?.has(Number(year));
                           return (
                             <td
                               key={`${row.label}-${year}`}
@@ -277,8 +285,19 @@ export default function FCReviewTable({
                                     : undefined,
                                 backgroundColor: row.isNet
                                   ? "var(--surface-muted)"
+                                  : isTransfers && !isBaseYear
+                                  ? "#f0f7ff"
+                                  : isBaseYear
+                                  ? "#fafafa"
                                   : undefined,
                                 fontWeight: row.isNet ? 600 : undefined,
+                                borderLeft: isBaseYear ? "1px solid #cbd5e0" : undefined,
+                                borderRight: isBaseYear ? "1px solid #cbd5e0" : undefined,
+                                ...(isTransfers &&
+                                  !isBaseYear && {
+                                    borderTop: "2px solid #3b82f6",
+                                    borderBottom: "2px solid #3b82f6",
+                                  }),
                               }}
                               onDoubleClick={() =>
                                 onCellDoubleClick?.(row, year, true)
@@ -296,13 +315,28 @@ export default function FCReviewTable({
                   {balanceAccounts.length > 0 && cashAccounts.length > 0 && (
                     <tr>
                       <td
-                        colSpan={tableColSpan}
                         style={{
                           borderTop: "2px solid var(--border)",
                           padding: 0,
                           height: "1rem",
                         }}
                       />
+                      {sortedYears.map((year) => {
+                        const isBaseYear = baseYears?.has(Number(year));
+                        return (
+                          <td
+                            key={`divider-${year}`}
+                            style={{
+                              borderTop: "2px solid var(--border)",
+                              padding: 0,
+                              height: "1rem",
+                              backgroundColor: isBaseYear ? "#fafafa" : undefined,
+                              borderLeft: isBaseYear ? "1px solid #cbd5e0" : undefined,
+                              borderRight: isBaseYear ? "1px solid #cbd5e0" : undefined,
+                            }}
+                          />
+                        );
+                      })}
                     </tr>
                   )}
 
@@ -315,9 +349,6 @@ export default function FCReviewTable({
                         style={{
                           ...(index === 0 && cashAccounts.length === 0
                             ? { borderTop: "2px solid var(--border)" }
-                            : undefined),
-                          ...(isBankAccounts
-                            ? { outline: "2px solid var(--danger)" }
                             : undefined),
                         }}
                       >
@@ -336,6 +367,7 @@ export default function FCReviewTable({
                                 : row.level === 2
                                 ? "1.75rem"
                                 : "0.75rem",
+                            backgroundColor: isBankAccounts ? "#fff5f5" : undefined,
                           }}
                         >
                           {row.label}
@@ -348,6 +380,7 @@ export default function FCReviewTable({
                           const displayValue =
                             values?.[yearIndex] ??
                             getCellValue(row, year, false);
+                          const isBaseYear = baseYears?.has(Number(year));
                           return (
                             <td
                               key={`${row.label}-${year}`}
@@ -357,6 +390,18 @@ export default function FCReviewTable({
                                   Number(displayValue) < 0
                                     ? "var(--danger)"
                                     : undefined,
+                                backgroundColor: isBankAccounts && !isBaseYear
+                                  ? "#fff5f5"
+                                  : isBaseYear
+                                  ? "#fafafa"
+                                  : undefined,
+                                borderLeft: isBaseYear ? "1px solid #cbd5e0" : undefined,
+                                borderRight: isBaseYear ? "1px solid #cbd5e0" : undefined,
+                                ...(isBankAccounts &&
+                                  !isBaseYear && {
+                                    borderTop: "2px solid #ef4444",
+                                    borderBottom: "2px solid #ef4444",
+                                  }),
                               }}
                               onDoubleClick={() => {
                                 if (isBankAccounts) {

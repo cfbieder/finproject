@@ -20,3 +20,5 @@ Allow edit of values clicked in Review detials
 On liabilities the expense needs to a negative percent, can this be fixed
 
 budget realization allow drill down
+
+put currency after amount in transfer edit form

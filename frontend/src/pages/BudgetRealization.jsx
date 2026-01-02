@@ -5,6 +5,7 @@ import BudgetBalancePanel, {
   YEAR_OPTIONS,
 } from "../features/Budgets/BudgetBalancePanel.jsx";
 import BudgetRealizationContent from "../features/Budgets/BudgetRealizationContent.jsx";
+import BudgetDetailModal from "../features/Budgets/BudgetDetailModal.jsx";
 import Rest from "../js/rest.js";
 import "../features/CashFlow/CashFlowReport.css";
 import coaData from "../../../components/data/coa.json";
@@ -324,6 +325,17 @@ const isIncomePath = (path) => {
   );
 };
 
+const collectLeafCategoryNames = (node) => {
+  if (!node || typeof node !== "object") {
+    return [];
+  }
+  const hasChildren = Array.isArray(node.children) && node.children.length > 0;
+  if (!hasChildren) {
+    return node.name ? [node.name] : [];
+  }
+  return node.children.flatMap((child) => collectLeafCategoryNames(child));
+};
+
 // ============================================================================
 // UTILITY FUNCTIONS - Rendering
 // ============================================================================
@@ -337,6 +349,8 @@ const isIncomePath = (path) => {
  * @param {Function} getActualValue - Actual value resolver
  * @param {Map} leafBudgetTotals - Map of budget totals
  * @param {Function} getBudgetValue - Budget value resolver
+ * @param {Function} onBudgetCellDoubleClick - Callback for budget cell double click
+ * @param {Function} onActualCellDoubleClick - Callback for actual cell double click
  * @param {number} level - Indentation level
  * @param {Array} path - Current path
  * @returns {Array} Array of React elements
@@ -349,6 +363,8 @@ const renderCategoryRows = (
   getActualValue,
   leafBudgetTotals,
   getBudgetValue,
+  onBudgetCellDoubleClick,
+  onActualCellDoubleClick,
   level = 0,
   path = []
 ) => {
@@ -376,6 +392,7 @@ const renderCategoryRows = (
       hasBudgetData && typeof getBudgetValue === "function"
         ? getBudgetValue(node, pathKey)
         : 0;
+    const leafCategories = collectLeafCategoryNames(node);
     const actualDisplay = hasActualData
       ? formatCurrencyValue(resolvedActualValue)
       : "—";
@@ -392,6 +409,55 @@ const renderCategoryRows = (
     const varianceDisplay = hasVarianceData
       ? formatCurrencyValue(varianceValue)
       : "—";
+    const pathLabel = currentPath.join(" › ");
+
+    const handleBudgetCellDoubleClick =
+      hasBudgetData && typeof onBudgetCellDoubleClick === "function"
+        ? (event) => {
+            event.stopPropagation();
+            onBudgetCellDoubleClick({
+              type: "budget",
+              name: node.name,
+              path: currentPath,
+              pathKey,
+              pathLabel,
+              budgetValue: resolvedBudgetValue,
+              budgetDisplay,
+              actualValue: resolvedActualValue,
+              actualDisplay,
+              varianceValue,
+              varianceDisplay,
+              hasBudgetData,
+              hasActualData,
+              hasVarianceData,
+              categories: leafCategories,
+            });
+          }
+        : undefined;
+
+    const handleActualCellDoubleClick =
+      hasActualData && typeof onActualCellDoubleClick === "function"
+        ? (event) => {
+            event.stopPropagation();
+            onActualCellDoubleClick({
+              type: "actual",
+              name: node.name,
+              path: currentPath,
+              pathKey,
+              pathLabel,
+              budgetValue: resolvedBudgetValue,
+              budgetDisplay,
+              actualValue: resolvedActualValue,
+              actualDisplay,
+              varianceValue,
+              varianceDisplay,
+              hasBudgetData,
+              hasActualData,
+              hasVarianceData,
+              categories: leafCategories,
+            });
+          }
+        : undefined;
 
     const row = (
       <tr key={pathKey}>
@@ -418,27 +484,18 @@ const renderCategoryRows = (
           <span className="balance-report-table__name-text">{node.name}</span>
         </td>
         <td
-          className={getValueCellClassName(
-            resolvedBudgetValue,
-            hasBudgetData
-          )}
+          className={getValueCellClassName(resolvedBudgetValue, hasBudgetData)}
+          onDoubleClick={handleBudgetCellDoubleClick}
         >
           {budgetDisplay}
         </td>
         <td
-          className={getValueCellClassName(
-            resolvedActualValue,
-            hasActualData
-          )}
+          className={getValueCellClassName(resolvedActualValue, hasActualData)}
+          onDoubleClick={handleActualCellDoubleClick}
         >
           {actualDisplay}
         </td>
-        <td
-          className={getValueCellClassName(
-            varianceValue,
-            hasVarianceData
-          )}
-        >
+        <td className={getValueCellClassName(varianceValue, hasVarianceData)}>
           {varianceDisplay}
         </td>
       </tr>
@@ -454,6 +511,8 @@ const renderCategoryRows = (
             getActualValue,
             leafBudgetTotals,
             getBudgetValue,
+            onBudgetCellDoubleClick,
+            onActualCellDoubleClick,
             level + 1,
             currentPath
           )
@@ -533,6 +592,7 @@ export default function BudgetRealization() {
 
   // ========== State: UI ==========
   const [collapsedPaths, setCollapsedPaths] = useState(new Set());
+  const [entryDetail, setEntryDetail] = useState(null);
 
   // ========== Computed Values: Date Range ==========
   const budgetPeriodRange = useMemo(
@@ -616,8 +676,10 @@ export default function BudgetRealization() {
     ? formatCurrencyValue(netVarianceValue)
     : "—";
 
-  const netBudgetHasValue = netBudgetValue !== null && netBudgetValue !== undefined;
-  const netActualHasValue = netActualValue !== null && netActualValue !== undefined;
+  const netBudgetHasValue =
+    netBudgetValue !== null && netBudgetValue !== undefined;
+  const netActualHasValue =
+    netActualValue !== null && netActualValue !== undefined;
   const netVarianceHasValue = showNetVariance;
 
   const netBudgetCellClass = getValueCellClassName(
@@ -789,6 +851,46 @@ export default function BudgetRealization() {
     }
   };
 
+  const handleBudgetCellDoubleClick = (detail) => {
+    if (!detail) {
+      setEntryDetail(null);
+      return;
+    }
+    const categories =
+      Array.isArray(detail.categories) && detail.categories.length
+        ? detail.categories
+        : detail.name
+        ? [detail.name]
+        : [];
+    setEntryDetail({
+      ...detail,
+      categories,
+      period: budgetPeriodRange,
+    });
+  };
+
+  const handleActualCellDoubleClick = (detail) => {
+    if (!detail) {
+      setEntryDetail(null);
+      return;
+    }
+    const categories =
+      Array.isArray(detail.categories) && detail.categories.length
+        ? detail.categories
+        : detail.name
+        ? [detail.name]
+        : [];
+    setEntryDetail({
+      ...detail,
+      categories,
+      period: actualPeriodRange,
+    });
+  };
+
+  const handleBudgetDetailClose = () => {
+    setEntryDetail(null);
+  };
+
   // ========== Render ==========
 
   return (
@@ -811,6 +913,8 @@ export default function BudgetRealization() {
           netActualCellClass={netActualCellClass}
           netVarianceCellClass={netVarianceCellClass}
           renderCategoryRows={renderCategoryRows}
+          onBudgetCellDoubleClick={handleBudgetCellDoubleClick}
+          onActualCellDoubleClick={handleActualCellDoubleClick}
         />
         <div className="budget-realization-sidebar">
           <BudgetBalancePanel
@@ -832,6 +936,10 @@ export default function BudgetRealization() {
           />
         </div>
       </main>
+      <BudgetDetailModal
+        detail={entryDetail}
+        onClose={handleBudgetDetailClose}
+      />
     </div>
   );
 }

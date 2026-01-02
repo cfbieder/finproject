@@ -899,6 +899,20 @@
   border-top: 1px solid var(--border);
 }
 
+.budget-detail-modal {
+  width: min(1100px, 98vw);
+  max-height: 72vh;
+}
+
+.budget-detail-modal .fc-scenarios-modal__body {
+  max-height: 50vh;
+  overflow-y: auto;
+}
+
+.budget-detail-modal .balance-report__table-wrapper {
+  max-height: 45vh;
+}
+
 .section-table__content {
   height: 100%;
   display: flex;

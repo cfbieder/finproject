@@ -16,6 +16,8 @@ function BudgetRealizationContent({
   netActualCellClass,
   netVarianceCellClass,
   renderCategoryRows,
+  onBudgetCellDoubleClick,
+  onActualCellDoubleClick,
 }) {
   return (
     <div className="budget-realization-content">
@@ -23,7 +25,8 @@ function BudgetRealizationContent({
         <section className="budget-region realization-header">
           <p className="budget-region__label">Budget vs Actual</p>
           <p className="budget-region__description">
-            Compare budgeted amounts with actual performance by category, and track variance.
+            Compare budgeted amounts with actual performance by category, and
+            track variance.
           </p>
         </section>
         <section className="budget-region realization-table-section">
@@ -48,7 +51,9 @@ function BudgetRealizationContent({
                     leafActualTotals,
                     actualValueResolver,
                     leafBudgetTotals,
-                    budgetValueResolver
+                    budgetValueResolver,
+                    onBudgetCellDoubleClick,
+                    onActualCellDoubleClick
                   )}
                   {showNetRow && (
                     <tr className="balance-report-table__totals-row">
@@ -57,12 +62,8 @@ function BudgetRealizationContent({
                           Net Cash Flow
                         </span>
                       </td>
-                      <td className={netBudgetCellClass}>
-                        {netBudgetDisplay}
-                      </td>
-                      <td className={netActualCellClass}>
-                        {netActualDisplay}
-                      </td>
+                      <td className={netBudgetCellClass}>{netBudgetDisplay}</td>
+                      <td className={netActualCellClass}>{netActualDisplay}</td>
                       <td className={netVarianceCellClass}>
                         {netVarianceDisplay}
                       </td>
