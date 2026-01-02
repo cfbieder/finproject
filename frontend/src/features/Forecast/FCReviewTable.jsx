@@ -225,34 +225,43 @@ export default function FCReviewTable({
                 /* Forecast Data */
                 <>
                   {/* ========== CASH FLOW SECTION ========== */}
-                  {cashRowsWithNet.map((row, index) => (
-                    <tr key={`cash-${row.label}-${index}`}>
-                      <td
-                        style={{
-                          ...accountCellBaseStyle,
-                          fontWeight: row.isNet
-                            ? 700
-                            : row.level === 1
-                            ? 700
-                            : row.level === 2
-                            ? 600
-                            : 500,
-                          paddingLeft:
-                            row.level === 3
-                              ? "2.5rem"
-                              : row.level === 2
-                              ? "1.75rem"
-                              : "0.75rem",
-                          color: row.isNet ? "var(--ink)" : undefined,
-                          backgroundColor: row.isNet
-                            ? "var(--surface-muted)"
-                            : undefined,
-                        }}
+                  {cashRowsWithNet.map((row, index) => {
+                    const isTransfers = row.label === "Transfers";
+                    return (
+                      <tr
+                        key={`cash-${row.label}-${index}`}
+                        style={
+                          isTransfers
+                            ? { outline: "2px solid var(--primary)" }
+                            : undefined
+                        }
                       >
-                        {row.isNet
-                          ? "Net Cash Flow (Income + Expense)"
-                          : row.label}
-                      </td>
+                        <td
+                          style={{
+                            ...accountCellBaseStyle,
+                            fontWeight: row.isNet
+                              ? 700
+                              : row.level === 1
+                              ? 700
+                              : row.level === 2
+                              ? 600
+                              : 500,
+                            paddingLeft:
+                              row.level === 3
+                                ? "2.5rem"
+                                : row.level === 2
+                                ? "1.75rem"
+                                : "0.75rem",
+                            color: row.isNet ? "var(--ink)" : undefined,
+                            backgroundColor: row.isNet
+                              ? "var(--surface-muted)"
+                              : undefined,
+                          }}
+                        >
+                          {row.isNet
+                            ? "Net Cash Flow (Income + Expense)"
+                            : row.label}
+                        </td>
                       {sortedYears.map((year) => {
                         const value = getCellValue(row, year, true);
                         return (
@@ -275,8 +284,9 @@ export default function FCReviewTable({
                           </td>
                         );
                       })}
-                    </tr>
-                  ))}
+                      </tr>
+                    );
+                  })}
 
                   {/* ========== SECTION DIVIDER ========== */}
                   {balanceAccounts.length > 0 && cashAccounts.length > 0 && (

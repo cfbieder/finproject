@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { formatAmount } from "./utils/fcReviewUtils.js";
 import FCReviewAuditTrailModal from "./FCReviewAuditTrailModal.jsx";
+import FCReviewAdjustTransferModal from "./FCReviewAdjustTransferModal.jsx";
 
 const initialAuditState = {
   isOpen: false,
@@ -9,6 +10,11 @@ const initialAuditState = {
   rows: [],
   loading: false,
   error: null,
+};
+
+const initialAdjustTransferState = {
+  isOpen: false,
+  entry: null,
 };
 
 export default function FCReviewBreakdownModal({
@@ -23,10 +29,14 @@ export default function FCReviewBreakdownModal({
   const { title, amount, entryTotal, entries = [] } = breakdownModal || {};
   const hasEntries = entries.length > 0;
   const [auditTrailModal, setAuditTrailModal] = useState(initialAuditState);
+  const [adjustTransferModal, setAdjustTransferModal] = useState(
+    initialAdjustTransferState
+  );
 
   useEffect(() => {
     if (!breakdownModal?.isOpen) {
       setAuditTrailModal(initialAuditState);
+      setAdjustTransferModal(initialAdjustTransferState);
     }
   }, [breakdownModal?.isOpen]);
 
@@ -108,6 +118,17 @@ export default function FCReviewBreakdownModal({
 
   const handleCloseAuditModal = useCallback(() => {
     setAuditTrailModal(initialAuditState);
+  }, []);
+
+  const handleAmountClick = useCallback((entry) => {
+    setAdjustTransferModal({
+      isOpen: true,
+      entry,
+    });
+  }, []);
+
+  const handleCloseAdjustTransferModal = useCallback(() => {
+    setAdjustTransferModal(initialAdjustTransferState);
   }, []);
 
   return (
@@ -256,7 +277,19 @@ export default function FCReviewBreakdownModal({
                             Number(entry?.Amount) < 0
                               ? "var(--danger)"
                               : undefined,
+                          cursor: "pointer",
+                          textDecoration: "underline dotted",
+                          textDecorationColor: "var(--primary)",
+                          textUnderlineOffset: "3px",
                         }}
+                        onDoubleClick={() => handleAmountClick(entry)}
+                        onMouseEnter={(e) => {
+                          e.currentTarget.style.backgroundColor = "rgba(37, 99, 235, 0.08)";
+                        }}
+                        onMouseLeave={(e) => {
+                          e.currentTarget.style.backgroundColor = "";
+                        }}
+                        title="Double-click to modify"
                       >
                         {formatAmount(entry?.Amount)}
                       </td>
@@ -281,6 +314,12 @@ export default function FCReviewBreakdownModal({
       <FCReviewAuditTrailModal
         auditModal={auditTrailModal}
         onClose={handleCloseAuditModal}
+      />
+      <FCReviewAdjustTransferModal
+        isOpen={adjustTransferModal.isOpen}
+        onClose={handleCloseAdjustTransferModal}
+        entry={adjustTransferModal.entry}
+        scenarioName={scenarioName}
       />
     </>
   );

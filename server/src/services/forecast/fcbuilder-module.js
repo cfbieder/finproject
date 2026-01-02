@@ -259,7 +259,12 @@ const writeAuditTrail = async (
  * @param {string} moduleComment - Optional comment from the module
  * @returns {Array<Object>} Array of FCEntries documents ready for insertion
  */
-const buildFcEntriesPayload = (dfCategories, scenarioName, moduleName, moduleComment) => {
+const buildFcEntriesPayload = (
+  dfCategories,
+  scenarioName,
+  moduleName,
+  moduleComment
+) => {
   const columns = dfCategories?.columns || [];
   const rows = dfCategories?.values || [];
   const indexValues = getIndexValues(dfCategories);
@@ -312,12 +317,22 @@ const buildFcEntriesPayload = (dfCategories, scenarioName, moduleName, moduleCom
  * @param {string} moduleComment - Optional comment from the module
  * @returns {Promise<Array>} Promise resolving to inserted documents
  */
-const insertCategoryEntries = (dfCategories, scenarioName, moduleName, moduleComment) => {
+const insertCategoryEntries = (
+  dfCategories,
+  scenarioName,
+  moduleName,
+  moduleComment
+) => {
   if (!scenarioName || mongoose.connection.readyState === 0) {
     return Promise.resolve([]);
   }
 
-  const entries = buildFcEntriesPayload(dfCategories, scenarioName, moduleName, moduleComment);
+  const entries = buildFcEntriesPayload(
+    dfCategories,
+    scenarioName,
+    moduleName,
+    moduleComment
+  );
   if (entries.length === 0) {
     return Promise.resolve([]);
   }
@@ -458,10 +473,10 @@ async function processModule(
   if (Array.isArray(module.IncomePct) && module.IncomePct.length > 0) {
     // Sort entries by year to ensure we process them chronologically
     const sortedIncomePct = [...module.IncomePct]
-      .filter(entry => entry && entry.Date && entry.Value != null)
-      .map(entry => ({
+      .filter((entry) => entry && entry.Date && entry.Value != null)
+      .map((entry) => ({
         year: new Date(entry.Date).getFullYear(),
-        value: entry.Value
+        value: entry.Value,
       }))
       .sort((a, b) => a.year - b.year);
 
@@ -549,9 +564,10 @@ async function processModule(
         // For full disposal, recalculate unrealized gain as half the year's growth
         unrealizedGainValues[idx] =
           (marketValues[idx] - marketValues[idx - 1]) / 2;
-        disposeValues[idx] = marketValues[idx - 1] + unrealizedGainValues[idx];
-        realizedGainValues[idx] = disposeValues[idx] - baseValues[idx];
-
+        disposeValues[idx] = -marketValues[idx - 1] - unrealizedGainValues[idx];
+        realizedGainValues[idx] = -disposeValues[idx] - baseValues[idx];
+        baseValues[idx] = 0;
+        marketValues[idx] = 0;
         // Zero out all future years after full disposal
         for (let j = idx + 1; j < yearsCount; j++) {
           baseValues[j] = 0;
@@ -729,8 +745,9 @@ async function processModule(
   // Write invest/dispose values to df_categories (net transfers to/from bank)
   categoryRowIndex = df_categories.index.indexOf("Transfer - Bank");
   const transferValues = disposeValuesUSD.map(
-    (dispose, idx) => dispose - investValuesUSD[idx]
+    (dispose, idx) => -dispose - investValuesUSD[idx]
   );
+
   writeValuesToCategoryRow(
     categoryRowIndex,
     df_categories,

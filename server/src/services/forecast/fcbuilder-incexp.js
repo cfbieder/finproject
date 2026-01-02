@@ -115,7 +115,12 @@ const writeEntriesAuditTrail = (dfCategories, scenarioName, accountName) => {
  * @param {string} moduleComment - Optional comment from the module
  * @returns {Array<Object>} Array of entry objects ready for database insertion
  */
-const buildFcEntriesPayload = (dfCategories, scenarioName, moduleName, moduleComment) => {
+const buildFcEntriesPayload = (
+  dfCategories,
+  scenarioName,
+  moduleName,
+  moduleComment
+) => {
   const columns = dfCategories?.columns || [];
   const rows = dfCategories?.values || [];
   const indexValues = getIndexValues(dfCategories);
@@ -164,12 +169,22 @@ const buildFcEntriesPayload = (dfCategories, scenarioName, moduleName, moduleCom
  * @param {string} moduleComment - Optional comment from the module
  * @returns {Promise<Array>} Promise resolving to inserted documents or empty array
  */
-const insertCategoryEntries = (dfCategories, scenarioName, moduleName, moduleComment) => {
+const insertCategoryEntries = (
+  dfCategories,
+  scenarioName,
+  moduleName,
+  moduleComment
+) => {
   if (!scenarioName || mongoose.connection.readyState === 0) {
     return Promise.resolve([]);
   }
 
-  const entries = buildFcEntriesPayload(dfCategories, scenarioName, moduleName, moduleComment);
+  const entries = buildFcEntriesPayload(
+    dfCategories,
+    scenarioName,
+    moduleName,
+    moduleComment
+  );
   if (entries.length === 0) {
     return Promise.resolve([]);
   }
@@ -341,7 +356,8 @@ async function processModule(
 
     if (idx >= 0 && idx < inflationLen) {
       // Calculate base value from previous base (excluding one-off amounts)
-      baseValues[i] = baseValues[i - 1] * (1 + changePValues[i] / 100) + changeDValues[i];
+      baseValues[i] =
+        baseValues[i - 1] * (1 + changePValues[i] / 100) + changeDValues[i];
       // Add one-off amount only to the actual income/expense value
       incexpValues[i] = baseValues[i] + changeOValues[i];
     } else {
@@ -407,7 +423,7 @@ async function processModule(
     module?.Comment
   );
 
-  console.log(df_categories.toString());
+  //console.log(df_categories.toString());
 
   // Return metadata about processing
   return {
