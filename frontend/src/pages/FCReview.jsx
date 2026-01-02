@@ -562,6 +562,9 @@ export default function FCReview() {
   }, []);
 
   const handleTransferComplete = useCallback(() => {
+    // Close all modals
+    setBreakdownModal((prev) => ({ ...prev, isOpen: false }));
+    setCashTransferModal((prev) => ({ ...prev, isOpen: false }));
     // Reload forecast data after transfer
     reloadForecastData();
   }, [reloadForecastData]);
@@ -647,6 +650,7 @@ export default function FCReview() {
         breakdownModal={breakdownModal}
         onClose={closeBreakdownModal}
         scenarioName={selectedScenario}
+        onTransferComplete={handleTransferComplete}
       />
       <FCCashTransferModal
         isOpen={cashTransferModal.isOpen}

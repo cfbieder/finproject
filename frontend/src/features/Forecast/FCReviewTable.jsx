@@ -28,6 +28,8 @@ export default function FCReviewTable({
   onZoomIn,
   onZoomOut,
 }) {
+  const zoomScale = zoomLevel || 1;
+
   const accountColumnStickyStyle = {
     position: "sticky",
     left: 0,
@@ -120,14 +122,14 @@ export default function FCReviewTable({
         </div>
 
         {/* Forecast Table */}
-        <div className="trans-budget-table-wrapper" ref={tableWrapperRef}>
+        <div
+          className="trans-budget-table-wrapper"
+          ref={tableWrapperRef}
+          style={{ zoom: zoomScale }}
+        >
           <table
             className="trans-budget-table fc-review-table"
             ref={tableRef}
-            style={{
-              transform: `scale(${zoomLevel || 1})`,
-              transformOrigin: "top left",
-            }}
           >
             <thead>
               <tr>
@@ -262,28 +264,30 @@ export default function FCReviewTable({
                             ? "Net Cash Flow (Income + Expense)"
                             : row.label}
                         </td>
-                      {sortedYears.map((year) => {
-                        const value = getCellValue(row, year, true);
-                        return (
-                          <td
-                            key={`${row.label}-${year}`}
-                            className="trans-budget-table__value--numeric"
-                            style={{
-                              color:
-                                Number(value) < 0 ? "var(--danger)" : undefined,
-                              backgroundColor: row.isNet
-                                ? "var(--surface-muted)"
-                                : undefined,
-                              fontWeight: row.isNet ? 600 : undefined,
-                            }}
-                            onDoubleClick={() =>
-                              onCellDoubleClick?.(row, year, true)
-                            }
-                          >
-                            {formatAmount(value)}
-                          </td>
-                        );
-                      })}
+                        {sortedYears.map((year) => {
+                          const value = getCellValue(row, year, true);
+                          return (
+                            <td
+                              key={`${row.label}-${year}`}
+                              className="trans-budget-table__value--numeric"
+                              style={{
+                                color:
+                                  Number(value) < 0
+                                    ? "var(--danger)"
+                                    : undefined,
+                                backgroundColor: row.isNet
+                                  ? "var(--surface-muted)"
+                                  : undefined,
+                                fontWeight: row.isNet ? 600 : undefined,
+                              }}
+                              onDoubleClick={() =>
+                                onCellDoubleClick?.(row, year, true)
+                              }
+                            >
+                              {formatAmount(value)}
+                            </td>
+                          );
+                        })}
                       </tr>
                     );
                   })}
@@ -321,7 +325,11 @@ export default function FCReviewTable({
                           style={{
                             ...accountCellBaseStyle,
                             fontWeight:
-                              row.level === 1 ? 700 : row.level === 2 ? 600 : 500,
+                              row.level === 1
+                                ? 700
+                                : row.level === 2
+                                ? 600
+                                : 500,
                             paddingLeft:
                               row.level === 3
                                 ? "2.5rem"
@@ -338,7 +346,8 @@ export default function FCReviewTable({
                               ? totalAssetsByYear
                               : balanceDisplayValues.get(row.label);
                           const displayValue =
-                            values?.[yearIndex] ?? getCellValue(row, year, false);
+                            values?.[yearIndex] ??
+                            getCellValue(row, year, false);
                           return (
                             <td
                               key={`${row.label}-${year}`}

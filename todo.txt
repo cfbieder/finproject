@@ -8,9 +8,6 @@ review how income, growth and expense calculated in fcbuilder
 When copying modules to other scenarios automatically update base date and values
 
 
-Add ability to edit in/out cash directl in FC review page
-
-
 Export to excel
 
 
@@ -19,3 +16,7 @@ Ability to adjust the tax rate on some income (e.g. UB)
 Fixed $ transfer not working in expense modules
 
 Allow edit of values clicked in Review detials
+
+On liabilities the expense needs to a negative percent, can this be fixed
+
+budget realization allow drill down

@@ -178,7 +178,16 @@
 .fc-review-selector__header {
   display: flex;
   align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  flex-wrap: wrap;
+}
+
+.fc-review-selector__title-row {
+  display: flex;
+  align-items: center;
   gap: 0.75rem;
+  min-width: 260px;
 }
 
 .fc-review-selector__pill {
@@ -219,7 +228,7 @@
 
 .fc-review-selector__select {
   width: 100%;
-  padding: 0.85rem 1rem;
+  padding: 0.57rem 1rem;
   padding-right: 2.5rem;
   border-radius: 0.9rem;
   border: 1px solid rgba(37, 99, 235, 0.25);
@@ -251,6 +260,9 @@
   flex-wrap: wrap;
   align-items: stretch;
   gap: 0.75rem;
+  flex: 1;
+  justify-content: flex-end;
+  min-width: 320px;
 }
 
 .fc-review-selector__generate {

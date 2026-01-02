@@ -1,3 +1,4 @@
+import { useEffect, useMemo, useRef } from "react";
 import PropTypes from "prop-types";
 
 /**
@@ -58,7 +59,57 @@ export default function FCReviewAuditTrailModal({ auditModal, onClose }) {
   }
 
   const { title, headers = [], rows = [], loading, error } = auditModal;
-  const hasData = headers.length > 0 && rows.length > 0;
+  const topScrollRef = useRef(null);
+  const topScrollInnerRef = useRef(null);
+  const tableScrollRef = useRef(null);
+
+  const yearHeaders = useMemo(
+    () => headers.filter((header) => /^\d{4}$/.test(header)),
+    [headers]
+  );
+
+  const filteredRows = useMemo(() => {
+    if (!yearHeaders.length) {
+      return rows;
+    }
+
+    return rows.filter((row) =>
+      yearHeaders.some((year) => {
+        const value = Number(row[year] ?? 0);
+        return !Number.isNaN(value) && value !== 0;
+      })
+    );
+  }, [rows, yearHeaders]);
+
+  const hasData = headers.length > 0 && filteredRows.length > 0;
+
+  useEffect(() => {
+    const topScroll = topScrollRef.current;
+    const topInner = topScrollInnerRef.current;
+    const tableScroll = tableScrollRef.current;
+    if (!topScroll || !topInner || !tableScroll) {
+      return;
+    }
+
+    const syncScroll = (source, target) => {
+      if (target.scrollLeft !== source.scrollLeft) {
+        target.scrollLeft = source.scrollLeft;
+      }
+    };
+
+    const handleTopScroll = () => syncScroll(topScroll, tableScroll);
+    const handleTableScroll = () => syncScroll(tableScroll, topScroll);
+
+    topScroll.addEventListener("scroll", handleTopScroll);
+    tableScroll.addEventListener("scroll", handleTableScroll);
+
+    topInner.style.width = `${tableScroll.scrollWidth}px`;
+
+    return () => {
+      topScroll.removeEventListener("scroll", handleTopScroll);
+      tableScroll.removeEventListener("scroll", handleTableScroll);
+    };
+  }, [headers, filteredRows]);
 
   return (
     <div
@@ -197,9 +248,24 @@ export default function FCReviewAuditTrailModal({ auditModal, onClose }) {
                 fontWeight: 600,
               }}
             >
-              {rows.length} {rows.length === 1 ? "entry" : "entries"}
+              {filteredRows.length}{" "}
+              {filteredRows.length === 1 ? "entry" : "entries"}
             </div>
             <div
+              ref={topScrollRef}
+              style={{
+                overflowX: "auto",
+                overflowY: "hidden",
+                marginBottom: "0.5rem",
+              }}
+            >
+              <div
+                ref={topScrollInnerRef}
+                style={{ height: "1px", width: "100%" }}
+              />
+            </div>
+            <div
+              ref={tableScrollRef}
               style={{
                 overflowX: "auto",
                 border: "1px solid var(--border, #e5e7eb)",
@@ -244,7 +310,7 @@ export default function FCReviewAuditTrailModal({ auditModal, onClose }) {
                   </tr>
                 </thead>
                 <tbody>
-                  {rows.map((row, rowIndex) => (
+                  {filteredRows.map((row, rowIndex) => (
                     <tr
                       key={`${rowIndex}-${title || "audit"}`}
                       style={{
@@ -269,9 +335,13 @@ export default function FCReviewAuditTrailModal({ auditModal, onClose }) {
                         const cellValue = row[header] ?? "-";
                         const isNumericHeader = isNumericColumn(header);
                         const numValue = Number(cellValue);
-                        const isActuallyNumeric = !isNaN(numValue) && cellValue !== "" && cellValue !== "-";
+                        const isActuallyNumeric =
+                          !isNaN(numValue) &&
+                          cellValue !== "" &&
+                          cellValue !== "-";
                         const isNegative = isActuallyNumeric && numValue < 0;
-                        const shouldFormat = isNumericHeader && isActuallyNumeric;
+                        const shouldFormat =
+                          isNumericHeader && isActuallyNumeric;
 
                         return (
                           <td
@@ -287,9 +357,7 @@ export default function FCReviewAuditTrailModal({ auditModal, onClose }) {
                               fontVariantNumeric: "tabular-nums",
                             }}
                           >
-                            {shouldFormat
-                              ? formatNumber(cellValue)
-                              : cellValue}
+                            {shouldFormat ? formatNumber(cellValue) : cellValue}
                           </td>
                         );
                       })}

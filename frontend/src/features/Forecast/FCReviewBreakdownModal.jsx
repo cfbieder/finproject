@@ -21,6 +21,7 @@ export default function FCReviewBreakdownModal({
   breakdownModal,
   onClose,
   scenarioName,
+  onTransferComplete,
 }) {
   if (!breakdownModal?.isOpen) {
     return null;
@@ -32,6 +33,11 @@ export default function FCReviewBreakdownModal({
   const [adjustTransferModal, setAdjustTransferModal] = useState(
     initialAdjustTransferState
   );
+
+  // Check if this breakdown modal was opened from the Transfers row
+  const isTransfersRow = useMemo(() => {
+    return title?.startsWith("Transfers");
+  }, [title]);
 
   useEffect(() => {
     if (!breakdownModal?.isOpen) {
@@ -277,19 +283,34 @@ export default function FCReviewBreakdownModal({
                             Number(entry?.Amount) < 0
                               ? "var(--danger)"
                               : undefined,
-                          cursor: "pointer",
-                          textDecoration: "underline dotted",
-                          textDecorationColor: "var(--primary)",
-                          textUnderlineOffset: "3px",
+                          ...(isTransfersRow && {
+                            cursor: "pointer",
+                            textDecoration: "underline dotted",
+                            textDecorationColor: "var(--primary)",
+                            textUnderlineOffset: "3px",
+                          }),
                         }}
-                        onDoubleClick={() => handleAmountClick(entry)}
-                        onMouseEnter={(e) => {
-                          e.currentTarget.style.backgroundColor = "rgba(37, 99, 235, 0.08)";
-                        }}
-                        onMouseLeave={(e) => {
-                          e.currentTarget.style.backgroundColor = "";
-                        }}
-                        title="Double-click to modify"
+                        onDoubleClick={
+                          isTransfersRow
+                            ? () => handleAmountClick(entry)
+                            : undefined
+                        }
+                        onMouseEnter={
+                          isTransfersRow
+                            ? (e) => {
+                                e.currentTarget.style.backgroundColor =
+                                  "rgba(37, 99, 235, 0.08)";
+                              }
+                            : undefined
+                        }
+                        onMouseLeave={
+                          isTransfersRow
+                            ? (e) => {
+                                e.currentTarget.style.backgroundColor = "";
+                              }
+                            : undefined
+                        }
+                        title={isTransfersRow ? "Double-click to modify" : undefined}
                       >
                         {formatAmount(entry?.Amount)}
                       </td>
@@ -320,6 +341,7 @@ export default function FCReviewBreakdownModal({
         onClose={handleCloseAdjustTransferModal}
         entry={adjustTransferModal.entry}
         scenarioName={scenarioName}
+        onTransferComplete={onTransferComplete}
       />
     </>
   );
