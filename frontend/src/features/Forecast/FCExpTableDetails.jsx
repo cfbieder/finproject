@@ -15,6 +15,8 @@
  * @param {Function} props.formatNumber - Function to format number values
  * @returns {JSX.Element} The entry details panel
  */
+import "./FCExpTableDetails.css";
+
 export default function FCExpTableDetails({
   selectedScenario,
   selectedEntry,
@@ -40,6 +42,21 @@ export default function FCExpTableDetails({
     return num < 0 ? `($${abs})` : `$${abs}`;
   };
 
+  const formatBaseValue = (value) => {
+    const num = Number(value);
+    if (!Number.isFinite(num)) {
+      return { text: "—", isNegative: false };
+    }
+    const formatted = formatNumber(Math.abs(num), 2);
+    return {
+      text: num < 0 ? `(${formatted})` : formatted,
+      isNegative: num < 0,
+    };
+  };
+
+  const baseValue = formatBaseValue(selectedEntry?.BaseValue);
+  const baseValueUsd = formatBaseValue(selectedEntry?.BaseValueUSD);
+
   return (
     <section
       className="exp-setup-table section-table"
@@ -58,395 +75,106 @@ export default function FCExpTableDetails({
             </p>
           ) : (
             <>
-              <div
-                style={{
-                  display: "grid",
-                  gridTemplateColumns: "repeat(auto-fit, minmax(240px, 1fr))",
-                  gap: "1rem 1.25rem",
-                  padding: "0.5rem 0",
-                }}
-              >
-                <div
-                  style={{
-                    display: "flex",
-                    flexDirection: "column",
-                    gap: "0.25rem",
-                  }}
-                >
-                  <span
-                    style={{
-                      fontSize: "0.75rem",
-                      color: "var(--muted)",
-                      textTransform: "uppercase",
-                      letterSpacing: "0.05em",
-                      fontWeight: "600",
-                    }}
-                  >
-                    Account
-                  </span>
-                  <span
-                    style={{
-                      fontSize: "1rem",
-                      fontWeight: "700",
-                      color: "var(--ink)",
-                    }}
-                  >
+              <div className="fc-exp-details-grid">
+                <div className="fc-exp-details-item">
+                  <span className="fc-exp-details-label">Account</span>
+                  <span className="fc-exp-details-value">
                     {selectedEntry.Account || "—"}
                   </span>
                 </div>
-                <div
-                  style={{
-                    display: "flex",
-                    flexDirection: "column",
-                    gap: "0.25rem",
-                  }}
-                >
-                  <span
-                    style={{
-                      fontSize: "0.75rem",
-                      color: "var(--muted)",
-                      textTransform: "uppercase",
-                      letterSpacing: "0.05em",
-                      fontWeight: "600",
-                    }}
-                  >
-                    Name
-                  </span>
-                  <span
-                    style={{
-                      fontSize: "1rem",
-                      fontWeight: "700",
-                      color: "var(--ink)",
-                    }}
-                  >
+                <div className="fc-exp-details-item">
+                  <span className="fc-exp-details-label">Name</span>
+                  <span className="fc-exp-details-value">
                     {selectedEntry.Name || "—"}
                   </span>
                 </div>
-                <div
-                  style={{
-                    display: "flex",
-                    flexDirection: "column",
-                    gap: "0.25rem",
-                  }}
-                >
-                  <span
-                    style={{
-                      fontSize: "0.75rem",
-                      color: "var(--muted)",
-                      textTransform: "uppercase",
-                      letterSpacing: "0.05em",
-                      fontWeight: "600",
-                    }}
-                  >
-                    Type
-                  </span>
-                  <span
-                    style={{
-                      fontSize: "1rem",
-                      fontWeight: "700",
-                      color: "var(--ink)",
-                    }}
-                  >
+                <div className="fc-exp-details-item">
+                  <span className="fc-exp-details-label">Type</span>
+                  <span className="fc-exp-details-value">
                     {selectedEntry.Type || "—"}
                   </span>
                 </div>
-                <div
-                  style={{
-                    display: "flex",
-                    flexDirection: "column",
-                    gap: "0.25rem",
-                  }}
-                >
-                  <span
-                    style={{
-                      fontSize: "0.75rem",
-                      color: "var(--muted)",
-                      textTransform: "uppercase",
-                      letterSpacing: "0.05em",
-                      fontWeight: "600",
-                    }}
-                  >
-                    Currency
-                  </span>
-                  <span
-                    style={{
-                      fontSize: "1rem",
-                      fontWeight: "700",
-                      color: "var(--ink)",
-                    }}
-                  >
+                <div className="fc-exp-details-item">
+                  <span className="fc-exp-details-label">Currency</span>
+                  <span className="fc-exp-details-value">
                     {selectedEntry.Currency || "—"}
                   </span>
                 </div>
-                <div
-                  style={{
-                    display: "flex",
-                    flexDirection: "column",
-                    gap: "0.25rem",
-                  }}
-                >
-                  <span
-                    style={{
-                      fontSize: "0.75rem",
-                      color: "var(--muted)",
-                      textTransform: "uppercase",
-                      letterSpacing: "0.05em",
-                      fontWeight: "600",
-                    }}
-                  >
-                    Base Date
-                  </span>
-                  <span
-                    style={{
-                      fontSize: "1rem",
-                      fontWeight: "700",
-                      color: "var(--ink)",
-                    }}
-                  >
+                <div className="fc-exp-details-item">
+                  <span className="fc-exp-details-label">Base Date</span>
+                  <span className="fc-exp-details-value">
                     {formatDate(selectedEntry.BaseDate)}
                   </span>
                 </div>
-                <div
-                  style={{
-                    display: "flex",
-                    flexDirection: "column",
-                    gap: "0.25rem",
-                  }}
-                >
+                <div className="fc-exp-details-item">
+                  <span className="fc-exp-details-label">Base Value</span>
                   <span
-                    style={{
-                      fontSize: "0.75rem",
-                      color: "var(--muted)",
-                      textTransform: "uppercase",
-                      letterSpacing: "0.05em",
-                      fontWeight: "600",
-                    }}
+                    className={`fc-exp-details-value ${
+                      baseValue.isNegative ? "fc-exp-details-value--negative" : ""
+                    }`}
                   >
-                    Base Value
-                  </span>
-                  <span
-                    style={{
-                      fontSize: "1rem",
-                      fontWeight: "700",
-                      color: "var(--ink)",
-                    }}
-                  >
-                    {formatNumber(selectedEntry.BaseValue)}
+                    {baseValue.text}
                   </span>
                 </div>
-                <div
-                  style={{
-                    display: "flex",
-                    flexDirection: "column",
-                    gap: "0.25rem",
-                  }}
-                >
+                <div className="fc-exp-details-item">
+                  <span className="fc-exp-details-label">Base Value (USD)</span>
                   <span
-                    style={{
-                      fontSize: "0.75rem",
-                      color: "var(--muted)",
-                      textTransform: "uppercase",
-                      letterSpacing: "0.05em",
-                      fontWeight: "600",
-                    }}
+                    className={`fc-exp-details-value fc-exp-details-value--primary ${
+                      baseValueUsd.isNegative
+                        ? "fc-exp-details-value--negative"
+                        : ""
+                    }`}
                   >
-                    Base Value (USD)
-                  </span>
-                  <span
-                    style={{
-                      fontSize: "1rem",
-                      fontWeight: "700",
-                      color: "var(--primary)",
-                    }}
-                  >
-                    {formatNumber(selectedEntry.BaseValueUSD)}
+                    {baseValueUsd.text}
                   </span>
                 </div>
-                <div
-                  style={{
-                    display: "flex",
-                    flexDirection: "column",
-                    gap: "0.25rem",
-                  }}
-                >
-                  <span
-                    style={{
-                      fontSize: "0.75rem",
-                      color: "var(--muted)",
-                      textTransform: "uppercase",
-                      letterSpacing: "0.05em",
-                      fontWeight: "600",
-                    }}
-                  >
-                    Growth Rate
-                  </span>
-                  <span
-                    style={{
-                      fontSize: "1rem",
-                      fontWeight: "700",
-                      color: "#059669",
-                    }}
-                  >
+                <div className="fc-exp-details-item">
+                  <span className="fc-exp-details-label">Growth Rate</span>
+                  <span className="fc-exp-details-value fc-exp-details-value--success">
                     {typeof selectedEntry.Growth === "number"
                       ? `${selectedEntry.Growth.toFixed(2)}%`
                       : "—"}
                   </span>
                 </div>
-                <div
-                  style={{
-                    display: "flex",
-                    flexDirection: "column",
-                    gap: "0.25rem",
-                  }}
-                >
-                  <span
-                    style={{
-                      fontSize: "0.75rem",
-                      color: "var(--muted)",
-                      textTransform: "uppercase",
-                      letterSpacing: "0.05em",
-                      fontWeight: "600",
-                    }}
-                  >
-                    Changes
-                  </span>
-                  <span
-                    style={{
-                      fontSize: "1rem",
-                      fontWeight: "700",
-                      color: "var(--ink)",
-                    }}
-                  >
+                <div className="fc-exp-details-item">
+                  <span className="fc-exp-details-label">Changes</span>
+                  <span className="fc-exp-details-value">
                     {Array.isArray(selectedEntry.Changes)
                       ? selectedEntry.Changes.length
                       : 0}
                   </span>
                 </div>
-                <div
-                  style={{
-                    display: "flex",
-                    flexDirection: "column",
-                    gap: "0.25rem",
-                  }}
-                >
+                <div className="fc-exp-details-item">
+                  <span className="fc-exp-details-label">Matched</span>
                   <span
-                    style={{
-                      fontSize: "0.75rem",
-                      color: "var(--muted)",
-                      textTransform: "uppercase",
-                      letterSpacing: "0.05em",
-                      fontWeight: "600",
-                    }}
-                  >
-                    Matched
-                  </span>
-                  <span
-                    style={{
-                      fontSize: "0.9rem",
-                      fontWeight: "700",
-                      padding: "0.25rem 0.65rem",
-                      borderRadius: "0.4rem",
-                      display: "inline-block",
-                      width: "fit-content",
-                      background: selectedEntry.Matched
-                        ? "rgba(16, 185, 129, 0.15)"
-                        : "rgba(100, 116, 139, 0.15)",
-                      color: selectedEntry.Matched ? "#059669" : "var(--muted)",
-                    }}
+                    className={`fc-exp-details-status ${
+                      selectedEntry.Matched
+                        ? "fc-exp-details-status--yes"
+                        : "fc-exp-details-status--no"
+                    }`}
                   >
                     {selectedEntry.Matched ? "Yes" : "No"}
                   </span>
                 </div>
-                <div
-                  style={{
-                    display: "flex",
-                    flexDirection: "column",
-                    gap: "0.25rem",
-                  }}
-                >
-                  <span
-                    style={{
-                      fontSize: "0.75rem",
-                      color: "var(--muted)",
-                      textTransform: "uppercase",
-                      letterSpacing: "0.05em",
-                      fontWeight: "600",
-                    }}
-                  >
-                    Scenario
-                  </span>
-                  <span
-                    style={{
-                      fontSize: "1rem",
-                      fontWeight: "700",
-                      color: "var(--ink)",
-                    }}
-                  >
+                <div className="fc-exp-details-item">
+                  <span className="fc-exp-details-label">Scenario</span>
+                  <span className="fc-exp-details-value">
                     {selectedEntry.Scenario || selectedScenario || "—"}
                   </span>
                 </div>
-                <div
-                  style={{
-                    gridColumn: "1 / -1",
-                    display: "flex",
-                    flexDirection: "column",
-                    gap: "0.25rem",
-                    padding: "0.85rem 0.95rem",
-                    background: "rgba(248, 250, 252, 0.7)",
-                    border: "1px solid rgba(148, 163, 184, 0.25)",
-                    borderRadius: "0.65rem",
-                  }}
-                >
-                  <span
-                    style={{
-                      fontSize: "0.75rem",
-                      color: "var(--muted)",
-                      textTransform: "uppercase",
-                      letterSpacing: "0.05em",
-                      fontWeight: "600",
-                    }}
-                  >
-                    Comment
-                  </span>
-                  <span
-                    style={{
-                      fontSize: "0.95rem",
-                      fontWeight: "600",
-                      color: "var(--ink)",
-                      whiteSpace: "pre-wrap",
-                      lineHeight: 1.35,
-                    }}
-                  >
+                <div className="fc-exp-details-comment">
+                  <span className="fc-exp-details-label">Comment</span>
+                  <span className="fc-exp-details-comment__text">
                     {(selectedEntry.Comment || "").trim() || "—"}
                   </span>
                 </div>
               </div>
               {!!(selectedEntry.Changes || []).length && (
-                <div
-                  style={{
-                    marginTop: "1.5rem",
-                    padding: "1.25rem",
-                    background:
-                      "linear-gradient(135deg, rgba(248, 250, 252, 0.8) 0%, rgba(241, 245, 249, 0.6) 100%)",
-                    borderRadius: "0.85rem",
-                    border: "1px solid rgba(37, 99, 235, 0.12)",
-                  }}
-                >
-                  <div
-                    style={{
-                      fontSize: "0.8rem",
-                      fontWeight: "800",
-                      color: "var(--primary)",
-                      textTransform: "uppercase",
-                      letterSpacing: "0.1em",
-                      marginBottom: "1rem",
-                      paddingBottom: "0.75rem",
-                      borderBottom: "2px solid rgba(37, 99, 235, 0.15)",
-                    }}
-                  >
+                <div className="fc-exp-details-changes">
+                  <div className="fc-exp-details-changes__title">
                     Periodic Changes ({(selectedEntry.Changes || []).length})
                   </div>
-                  <div style={{ display: "grid", gap: "0.75rem" }}>
+                  <div className="fc-exp-details-changes__list">
                     {(selectedEntry.Changes || []).map((change, idx) => {
                       const formattedAmount = formatChangeAmount(
                         change?.Amount,
@@ -458,87 +186,35 @@ export default function FCExpTableDetails({
                       return (
                         <div
                           key={idx}
-                          style={{
-                            display: "grid",
-                            gridTemplateColumns: "auto 1fr auto",
-                            gap: "1rem",
-                            alignItems: "center",
-                            padding: "0.85rem 1rem",
-                            background: "white",
-                            borderRadius: "0.65rem",
-                            border: "1px solid rgba(37, 99, 235, 0.1)",
-                            boxShadow: "0 2px 6px -2px rgba(37, 99, 235, 0.08)",
-                          }}
+                          className="fc-exp-details-change"
                         >
                           <div
-                            style={{
-                              display: "flex",
-                              flexDirection: "column",
-                              gap: "0.15rem",
-                            }}
+                            className="fc-exp-change-group"
                           >
-                            <span
-                              style={{
-                                fontSize: "0.7rem",
-                                color: "var(--muted)",
-                                fontWeight: "600",
-                              }}
-                            >
-                              Year
-                            </span>
-                            <span
-                              style={{
-                                fontSize: "1rem",
-                                fontWeight: "700",
-                                color: "var(--ink)",
-                              }}
-                            >
+                            <span className="fc-exp-change-label">Year</span>
+                            <span className="fc-exp-change-value">
                               {formatDate(change?.Date) || "—"}
                             </span>
                           </div>
                           <div
-                            style={{
-                              display: "flex",
-                              flexDirection: "column",
-                              gap: "0.15rem",
-                            }}
+                            className="fc-exp-change-group"
                           >
+                            <span className="fc-exp-change-label">Amount</span>
                             <span
-                              style={{
-                                fontSize: "0.7rem",
-                                color: "var(--muted)",
-                                fontWeight: "600",
-                              }}
-                            >
-                              Amount
-                            </span>
-                            <span
-                              style={{
-                                fontSize: "1.1rem",
-                                fontWeight: "700",
-                                color: isNegative ? "#dc2626" : "#059669",
-                              }}
+                              className={`fc-exp-change-amount ${
+                                isNegative ? "fc-exp-change-amount--negative" : ""
+                              }`}
                             >
                               {formattedAmount}
                             </span>
                           </div>
                           <div>
                             <span
-                              style={{
-                                fontSize: "0.8rem",
-                                fontWeight: "700",
-                                padding: "0.35rem 0.75rem",
-                                borderRadius: "0.4rem",
-                                background:
-                                  change?.Flag === "Percent %"
-                                    ? "rgba(59, 130, 246, 0.15)"
-                                    : "rgba(16, 185, 129, 0.15)",
-                                color:
-                                  change?.Flag === "Percent %"
-                                    ? "#2563eb"
-                                    : "#059669",
-                                whiteSpace: "nowrap",
-                              }}
+                              className={`fc-exp-change-flag ${
+                                change?.Flag === "Percent %"
+                                  ? "fc-exp-change-flag--percent"
+                                  : "fc-exp-change-flag--fixed"
+                              }`}
                             >
                               {change?.Flag || "—"}
                             </span>

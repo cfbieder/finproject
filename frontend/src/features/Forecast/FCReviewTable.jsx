@@ -298,9 +298,10 @@ export default function FCReviewTable({
                                     borderTop: "2px solid #3b82f6",
                                     borderBottom: "2px solid #3b82f6",
                                   }),
+                                cursor: isBaseYear ? "default" : undefined,
                               }}
                               onDoubleClick={() =>
-                                onCellDoubleClick?.(row, year, true)
+                                !isBaseYear && onCellDoubleClick?.(row, year, true)
                               }
                             >
                               {formatAmount(value)}
@@ -402,8 +403,10 @@ export default function FCReviewTable({
                                     borderTop: "2px solid #ef4444",
                                     borderBottom: "2px solid #ef4444",
                                   }),
+                                cursor: isBaseYear ? "default" : undefined,
                               }}
                               onDoubleClick={() => {
+                                if (isBaseYear) return;
                                 if (isBankAccounts) {
                                   onCashTransferClick?.(row, year);
                                 } else {

@@ -220,11 +220,8 @@ export default function FCExpModal({
   ]);
 
   return (
-    <div className="fc-exp-modal-overlay" onClick={onClose}>
-      <div
-        className="fc-exp-modal"
-        onClick={(event) => event.stopPropagation()}
-      >
+    <div className="fc-exp-modal-overlay">
+      <div className="fc-exp-modal" onClick={(event) => event.stopPropagation()}>
         {/* Header */}
         <div className="fc-exp-modal__header">
           <div className="fc-exp-modal__header-content">
@@ -375,7 +372,6 @@ export default function FCExpModal({
               </div>
             </div>
           </div>
-
           {/* Base Values Section */}
           <div className="fc-exp-modal__section">
             <div className="fc-exp-modal__section-header">
@@ -399,8 +395,17 @@ export default function FCExpModal({
 
               {/* Base Value */}
               <div className="fc-exp-modal__field">
-                <label className="fc-exp-modal__label">
+                <label className="fc-exp-modal__label fc-exp-modal__label--with-tooltip">
                   Base Value
+                  <span
+                    className="fc-exp-modal__tooltip-icon"
+                    aria-hidden="true"
+                  >
+                    i
+                  </span>
+                  <div className="fc-exp-modal__tooltip" role="tooltip">
+                    Enter a negative amount for cost.
+                  </div>
                   {editForm?.Matched && (
                     <span className="fc-exp-modal__label-badge">
                       Auto-loaded
@@ -509,7 +514,6 @@ export default function FCExpModal({
               </div>
             </div>
           </div>
-
           {/* Changes Section */}
           <div className="fc-exp-modal__section fc-exp-modal__section--changes">
             <div className="fc-exp-modal__section-header">
@@ -598,6 +602,31 @@ export default function FCExpModal({
                       <div className="fc-exp-modal__change-field">
                         <label className="fc-exp-modal__change-label">
                           Type
+                          <span
+                            className="fc-exp-modal__tooltip-icon"
+                            aria-hidden="true"
+                          >
+                            i
+                          </span>
+                          <div className="fc-exp-modal__tooltip" role="tooltip">
+                            <div className="fc-exp-modal__tooltip-title">
+                              How adjustments work
+                            </div>
+                            <ul className="fc-exp-modal__tooltip-list">
+                              <li>
+                                <span className="fc-exp-modal__tooltip-flag">Fixed Amount</span>
+                                {` `}adds or subtracts $X every year.
+                              </li>
+                              <li>
+                                <span className="fc-exp-modal__tooltip-flag">Percent</span>
+                                {` `}increases or decreases by X% each year.
+                              </li>
+                              <li>
+                                <span className="fc-exp-modal__tooltip-flag">One-Off</span>
+                                {` `}adds or subtracts $X only in the chosen year.
+                              </li>
+                            </ul>
+                          </div>
                         </label>
                         <select
                           className="fc-exp-modal__change-input"

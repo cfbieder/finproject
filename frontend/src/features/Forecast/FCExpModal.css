@@ -13,10 +13,10 @@
   background: rgba(15, 23, 42, 0.6);
   backdrop-filter: blur(6px);
   display: flex;
-  align-items: center;
+  align-items: flex-start;
   justify-content: center;
-  padding: 2rem;
-  z-index: 1000;
+  padding: 8rem 2rem 2rem;
+  z-index: 2000;
   animation: expModalFadeIn 0.2s ease-out;
 }
 
@@ -35,7 +35,7 @@
 
 .fc-exp-modal {
   width: min(900px, 96vw);
-  max-height: 90vh;
+  max-height: calc(100vh - 10rem);
   background: white;
   border-radius: 1.25rem;
   box-shadow:
@@ -349,6 +349,10 @@
   gap: 0.5rem;
 }
 
+.fc-exp-modal__label--with-tooltip {
+  position: relative;
+}
+
 .fc-exp-modal__label-badge {
   padding: 0.15rem 0.5rem;
   background: linear-gradient(135deg, rgba(34, 197, 94, 0.12) 0%, rgba(34, 197, 94, 0.08) 100%);
@@ -496,7 +500,7 @@
   border-radius: 0.85rem;
   transition: all 0.2s ease;
   position: relative;
-  overflow: hidden;
+  overflow: visible;
 }
 
 .fc-exp-modal__change-card::before {
@@ -554,6 +558,10 @@
   color: #64748b;
   text-transform: uppercase;
   letter-spacing: 0.08em;
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
 }
 
 .fc-exp-modal__change-input {
@@ -582,6 +590,80 @@
   opacity: 0.5;
   cursor: not-allowed;
   background: #f8fafc;
+}
+
+.fc-exp-modal__tooltip {
+  position: absolute;
+  left: 0;
+  top: calc(100% + 8px);
+  width: 260px;
+  padding: 0.75rem 0.85rem;
+  background: white;
+  border: 1.5px solid rgba(37, 99, 235, 0.25);
+  border-radius: 0.65rem;
+  box-shadow: 0 10px 30px -12px rgba(15, 23, 42, 0.25);
+  opacity: 0;
+  visibility: hidden;
+  transform: translateY(4px);
+  transition: all 0.15s ease;
+  z-index: 1100;
+}
+
+.fc-exp-modal__tooltip::before {
+  content: '';
+  position: absolute;
+  top: -6px;
+  left: 14px;
+  width: 12px;
+  height: 12px;
+  background: white;
+  border-left: 1.5px solid rgba(37, 99, 235, 0.25);
+  border-top: 1.5px solid rgba(37, 99, 235, 0.25);
+  transform: rotate(45deg);
+}
+
+.fc-exp-modal__change-label:hover .fc-exp-modal__tooltip,
+.fc-exp-modal__label--with-tooltip:hover .fc-exp-modal__tooltip {
+  opacity: 1;
+  visibility: visible;
+  transform: translateY(0);
+}
+
+.fc-exp-modal__tooltip-title {
+  font-weight: 700;
+  color: var(--ink);
+  margin-bottom: 0.35rem;
+  font-size: 0.8rem;
+}
+
+.fc-exp-modal__tooltip-list {
+  margin: 0;
+  padding-left: 1rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.2rem;
+  font-size: 0.8rem;
+  color: #475569;
+}
+
+.fc-exp-modal__tooltip-flag {
+  font-weight: 700;
+  color: var(--primary);
+}
+
+.fc-exp-modal__tooltip-icon {
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  border: 1.5px solid var(--primary);
+  color: var(--primary);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 0.65rem;
+  font-weight: 800;
+  background: white;
+  box-shadow: 0 2px 6px -3px rgba(37, 99, 235, 0.6);
 }
 
 .fc-exp-modal__change-preview {
@@ -816,7 +898,7 @@
 
 @media (max-width: 640px) {
   .fc-exp-modal-overlay {
-    padding: 1rem;
+    padding: 6rem 1rem 1rem;
   }
 
   .fc-exp-modal {

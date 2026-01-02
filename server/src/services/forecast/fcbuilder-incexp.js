@@ -322,7 +322,7 @@ async function processModule(
       if (idx >= 0 && idx < yearsCount) {
         if (entry.Flag[0] === "P") {
           changePValues[idx] = entry.Amount;
-        } else if (entry.Flag[0] === "D") {
+        } else if (entry.Flag[0] === "F") {
           changeDValues[idx] = entry.Amount;
         } else if (entry.Flag[0] === "O") {
           changeOValues[idx] = entry.Amount;

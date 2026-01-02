@@ -1,0 +1,163 @@
+.fc-exp-details-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+  gap: 1rem 1.25rem;
+  padding: 0.5rem 0;
+}
+
+.fc-exp-details-item {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+}
+
+.fc-exp-details-label {
+  font-size: 0.75rem;
+  color: var(--muted);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  font-weight: 600;
+}
+
+.fc-exp-details-value {
+  font-size: 1rem;
+  font-weight: 700;
+  color: var(--ink);
+}
+
+.fc-exp-details-value--primary {
+  color: var(--primary);
+}
+
+.fc-exp-details-value--success {
+  color: #059669;
+}
+
+.fc-exp-details-value--negative {
+  color: var(--danger);
+}
+
+.fc-exp-details-status {
+  font-size: 0.9rem;
+  font-weight: 700;
+  padding: 0.25rem 0.65rem;
+  border-radius: 0.4rem;
+  display: inline-block;
+  width: fit-content;
+}
+
+.fc-exp-details-status--yes {
+  background: rgba(16, 185, 129, 0.15);
+  color: #059669;
+}
+
+.fc-exp-details-status--no {
+  background: rgba(100, 116, 139, 0.15);
+  color: var(--muted);
+}
+
+.fc-exp-details-comment {
+  grid-column: 1 / -1;
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+  padding: 0.85rem 0.95rem;
+  background: rgba(248, 250, 252, 0.7);
+  border: 1px solid rgba(148, 163, 184, 0.25);
+  border-radius: 0.65rem;
+}
+
+.fc-exp-details-comment__text {
+  font-size: 0.95rem;
+  font-weight: 600;
+  color: var(--ink);
+  white-space: pre-wrap;
+  line-height: 1.35;
+}
+
+.fc-exp-details-changes {
+  margin-top: 1.5rem;
+  padding: 1.25rem;
+  background: linear-gradient(
+    135deg,
+    rgba(248, 250, 252, 0.8) 0%,
+    rgba(241, 245, 249, 0.6) 100%
+  );
+  border-radius: 0.85rem;
+  border: 1px solid rgba(37, 99, 235, 0.12);
+}
+
+.fc-exp-details-changes__title {
+  font-size: 0.8rem;
+  font-weight: 800;
+  color: var(--primary);
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  margin-bottom: 1rem;
+  padding-bottom: 0.75rem;
+  border-bottom: 2px solid rgba(37, 99, 235, 0.15);
+}
+
+.fc-exp-details-changes__list {
+  display: grid;
+  gap: 0.75rem;
+}
+
+.fc-exp-details-change {
+  display: grid;
+  grid-template-columns: auto 1fr auto;
+  gap: 1rem;
+  align-items: center;
+  padding: 0.85rem 1rem;
+  background: white;
+  border-radius: 0.65rem;
+  border: 1px solid rgba(37, 99, 235, 0.1);
+  box-shadow: 0 2px 6px -2px rgba(37, 99, 235, 0.08);
+}
+
+.fc-exp-change-group {
+  display: flex;
+  flex-direction: column;
+  gap: 0.15rem;
+}
+
+.fc-exp-change-label {
+  font-size: 0.7rem;
+  color: var(--muted);
+  font-weight: 600;
+}
+
+.fc-exp-change-value {
+  font-size: 1rem;
+  font-weight: 700;
+  color: var(--ink);
+}
+
+.fc-exp-change-amount {
+  font-size: 1.1rem;
+  font-weight: 700;
+  color: #059669;
+}
+
+.fc-exp-change-amount--negative {
+  color: #dc2626;
+}
+
+.fc-exp-change-flag {
+  font-size: 0.8rem;
+  font-weight: 700;
+  padding: 0.35rem 0.75rem;
+  border-radius: 0.4rem;
+  white-space: nowrap;
+  display: inline-block;
+}
+
+.fc-exp-change-flag--percent {
+  background: rgba(59, 130, 246, 0.15);
+  color: #2563eb;
+}
+
+.fc-exp-change-flag--fixed {
+  background: rgba(16, 185, 129, 0.15);
+  color: #059669;
+}
