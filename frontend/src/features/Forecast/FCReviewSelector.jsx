@@ -9,9 +9,12 @@ export default function FCReviewSelector({
   generateDisabled,
   generateError,
   generateResult,
+  onExcelExport,
+  excelDisabled,
 }) {
   const disableGenerate =
     generateDisabled || !selectedScenario || isLoading || !!loadError;
+  const disableExcel = excelDisabled ?? disableGenerate;
 
   return (
     <section className="section-filters" style={{ height: "auto" }}>
@@ -54,6 +57,17 @@ export default function FCReviewSelector({
                 disabled={disableGenerate}
               >
                 {generateLoading ? "Generating..." : "Generate Forecast"}
+              </button>
+              <button
+                type="button"
+                className="fc-review-selector__excel"
+                onClick={onExcelExport}
+                disabled={disableExcel}
+              >
+                <span aria-hidden="true" className="fc-review-selector__excel-icon">
+                  📊
+                </span>
+                Excel Export
               </button>
             </div>
           </div>

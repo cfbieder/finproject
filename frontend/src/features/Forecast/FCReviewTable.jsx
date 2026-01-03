@@ -128,10 +128,7 @@ export default function FCReviewTable({
           ref={tableWrapperRef}
           style={{ zoom: zoomScale }}
         >
-          <table
-            className="trans-budget-table fc-review-table"
-            ref={tableRef}
-          >
+          <table className="trans-budget-table fc-review-table" ref={tableRef}>
             <thead>
               <tr>
                 <th style={accountHeaderStyle}>Account</th>
@@ -145,7 +142,8 @@ export default function FCReviewTable({
                         style={{
                           minWidth: "120px",
                           ...(isBaseYear && {
-                            background: "linear-gradient(180deg, #f8f9fa 0%, #e9ecef 100%)",
+                            background:
+                              "linear-gradient(180deg, #f8f9fa 0%, #e9ecef 100%)",
                             fontWeight: 600,
                             borderLeft: "1px solid #cbd5e0",
                             borderRight: "1px solid #cbd5e0",
@@ -241,6 +239,7 @@ export default function FCReviewTable({
                   {/* ========== CASH FLOW SECTION ========== */}
                   {cashRowsWithNet.map((row, index) => {
                     const isTransfers = row.label === "Transfers";
+                    const isCashFlow = row.isCashFlow;
                     return (
                       <tr key={`cash-${row.label}-${index}`}>
                         <td
@@ -259,21 +258,26 @@ export default function FCReviewTable({
                                 : row.level === 2
                                 ? "1.75rem"
                                 : "0.75rem",
-                            color: row.isNet ? "var(--ink)" : undefined,
-                            backgroundColor: row.isNet
-                              ? "var(--surface-muted)"
-                              : isTransfers
-                              ? "#f0f7ff"
-                              : undefined,
+                            color:
+                              row.isNet || isCashFlow
+                                ? "var(--ink)"
+                                : undefined,
+                            backgroundColor:
+                              row.isNet || isCashFlow
+                                ? "var(--surface-muted)"
+                                : undefined,
                           }}
                         >
                           {row.isNet
-                            ? "Net Cash Flow (Income + Expense)"
+                            ? "Net Cash Flow"
+                            : isCashFlow
+                            ? "Cash Flow"
                             : row.label}
                         </td>
                         {sortedYears.map((year) => {
                           const value = getCellValue(row, year, true);
                           const isBaseYear = baseYears?.has(Number(year));
+                          const canDoubleClick = isTransfers && !isBaseYear;
                           return (
                             <td
                               key={`${row.label}-${year}`}
@@ -283,25 +287,32 @@ export default function FCReviewTable({
                                   Number(value) < 0
                                     ? "var(--danger)"
                                     : undefined,
-                                backgroundColor: row.isNet
-                                  ? "var(--surface-muted)"
-                                  : isTransfers && !isBaseYear
-                                  ? "#f0f7ff"
-                                  : isBaseYear
-                                  ? "#fafafa"
+                                backgroundColor:
+                                  row.isNet || isCashFlow
+                                    ? "var(--surface-muted)"
+                                    : isBaseYear
+                                    ? "#fafafa"
+                                    : undefined,
+                                fontWeight:
+                                  row.isNet || isCashFlow ? 600 : undefined,
+                                borderLeft: isBaseYear
+                                  ? "1px solid #cbd5e0"
                                   : undefined,
-                                fontWeight: row.isNet ? 600 : undefined,
-                                borderLeft: isBaseYear ? "1px solid #cbd5e0" : undefined,
-                                borderRight: isBaseYear ? "1px solid #cbd5e0" : undefined,
-                                ...(isTransfers &&
-                                  !isBaseYear && {
-                                    borderTop: "2px solid #3b82f6",
-                                    borderBottom: "2px solid #3b82f6",
-                                  }),
-                                cursor: isBaseYear ? "default" : undefined,
+                                borderRight: isBaseYear
+                                  ? "1px solid #cbd5e0"
+                                  : undefined,
+                                cursor: isBaseYear
+                                  ? "default"
+                                  : canDoubleClick
+                                  ? "pointer"
+                                  : undefined,
+                                textDecoration: canDoubleClick
+                                  ? "underline dotted"
+                                  : undefined,
                               }}
                               onDoubleClick={() =>
-                                !isBaseYear && onCellDoubleClick?.(row, year, true)
+                                !isBaseYear &&
+                                onCellDoubleClick?.(row, year, true)
                               }
                             >
                               {formatAmount(value)}
@@ -331,9 +342,15 @@ export default function FCReviewTable({
                               borderTop: "2px solid var(--border)",
                               padding: 0,
                               height: "1rem",
-                              backgroundColor: isBaseYear ? "#fafafa" : undefined,
-                              borderLeft: isBaseYear ? "1px solid #cbd5e0" : undefined,
-                              borderRight: isBaseYear ? "1px solid #cbd5e0" : undefined,
+                              backgroundColor: isBaseYear
+                                ? "#fafafa"
+                                : undefined,
+                              borderLeft: isBaseYear
+                                ? "1px solid #cbd5e0"
+                                : undefined,
+                              borderRight: isBaseYear
+                                ? "1px solid #cbd5e0"
+                                : undefined,
                             }}
                           />
                         );
@@ -368,7 +385,6 @@ export default function FCReviewTable({
                                 : row.level === 2
                                 ? "1.75rem"
                                 : "0.75rem",
-                            backgroundColor: isBankAccounts ? "#fff5f5" : undefined,
                           }}
                         >
                           {row.label}
@@ -382,6 +398,7 @@ export default function FCReviewTable({
                             values?.[yearIndex] ??
                             getCellValue(row, year, false);
                           const isBaseYear = baseYears?.has(Number(year));
+                          const canDoubleClick = isBankAccounts && !isBaseYear;
                           return (
                             <td
                               key={`${row.label}-${year}`}
@@ -391,22 +408,25 @@ export default function FCReviewTable({
                                   Number(displayValue) < 0
                                     ? "var(--danger)"
                                     : undefined,
-                                backgroundColor: isBankAccounts && !isBaseYear
-                                  ? "#fff5f5"
-                                  : isBaseYear
+                                backgroundColor: isBaseYear
                                   ? "#fafafa"
                                   : undefined,
-                                borderLeft: isBaseYear ? "1px solid #cbd5e0" : undefined,
-                                borderRight: isBaseYear ? "1px solid #cbd5e0" : undefined,
-                                ...(isBankAccounts &&
-                                  !isBaseYear && {
-                                    borderTop: "2px solid #ef4444",
-                                    borderBottom: "2px solid #ef4444",
-                                  }),
-                                cursor: isBaseYear ? "default" : undefined,
+                                borderLeft: isBaseYear
+                                  ? "1px solid #cbd5e0"
+                                  : undefined,
+                                borderRight: isBaseYear
+                                  ? "1px solid #cbd5e0"
+                                  : undefined,
+                                cursor: isBaseYear
+                                  ? "default"
+                                  : canDoubleClick
+                                  ? "pointer"
+                                  : undefined,
+                                textDecoration: canDoubleClick
+                                  ? "underline dotted"
+                                  : undefined,
                               }}
                               onDoubleClick={() => {
-                                if (isBaseYear) return;
                                 if (isBankAccounts) {
                                   onCashTransferClick?.(row, year);
                                 } else {

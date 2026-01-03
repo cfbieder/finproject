@@ -136,10 +136,6 @@ export default function FCReview() {
     setGenerateResult(null);
   }, [selectedScenario]);
 
-  // =============================================================================
-  // ACTIONS - Generate Forecast
-  // =============================================================================
-
   const handleGenerateForecast = useCallback(async () => {
     const scenario = selectedScenario?.trim();
     if (!scenario || generateLoading) {
@@ -238,13 +234,20 @@ export default function FCReview() {
   const cashRowsWithNet = useMemo(() => {
     const rows = [];
     for (const row of cashAccounts) {
-      rows.push(row);
       if (row.label === "Transfers") {
+        rows.push({
+          label: "Cash Flow",
+          level: 1,
+          isCashFlow: true,
+        });
+        rows.push(row);
         rows.push({
           label: "Net Cash Flow",
           level: 1,
           isNet: true,
         });
+      } else {
+        rows.push(row);
       }
     }
     return rows;
@@ -338,17 +341,40 @@ export default function FCReview() {
       const isBaseYear = baseYears.has(numericYear);
 
       // ========== Cash Flow - Base Year Actuals ==========
-      if (isCashSection && isBaseYear) {
-        const yearData = baseActualTotalsByYear.get(numericYear);
-        if (!yearData) return null;
+    if (isCashSection && isBaseYear) {
+      const yearData = baseActualTotalsByYear.get(numericYear);
+      if (!yearData) return null;
 
-        if (row.isNet) {
-          return yearData.net;
+      if (row.isCashFlow) {
+        const income = yearData.level1.get("Income");
+        const expense = yearData.level1.get("Expense");
+        const transfers =
+          yearData.level1.get("Transfers") ||
+          yearData.level2.get("Transfers") ||
+          0;
+        if (income == null && expense == null) {
+          return null;
         }
-        if (row.level === 1) {
-          return yearData.level1.get(row.label) ?? null;
+        const expenseAdjusted =
+          (expense == null ? 0 : expense) - transfers;
+        return (income == null ? 0 : income) + expenseAdjusted;
+      }
+
+      if (row.isNet) {
+        return yearData.net;
+      }
+      if (row.level === 1) {
+        const baseValue = yearData.level1.get(row.label);
+        if (row.label === "Expense") {
+          const transfersBase =
+            yearData.level1.get("Transfers") ||
+            yearData.level2.get("Transfers") ||
+            0;
+          return baseValue == null ? null : baseValue - transfersBase;
         }
-        return yearData.level2.get(row.label) ?? null;
+        return baseValue ?? null;
+      }
+      return yearData.level2.get(row.label) ?? null;
       }
 
       // ========== Balance Sheet - Base Year Actuals ==========
@@ -375,23 +401,54 @@ export default function FCReview() {
         return entryMaps.balance.byLabel.get(row.label)?.get(year) ?? null;
       }
 
-      // ========== Cash Flow - Net Row Calculation ==========
+      // ========== Cash Flow - Cash Flow / Net Row Calculation ==========
+      if (row.isCashFlow) {
+        const incomeMap = entryMaps.cash.level1Totals.get("Income");
+        const expenseMap = entryMaps.cash.level1Totals.get("Expense");
+        const transferMap =
+          entryMaps.cash.byLabel.get("Transfers") ||
+          entryMaps.cash.level1Totals.get("Transfers");
+        const hasIncome = incomeMap?.has(year);
+        const hasExpense = expenseMap?.has(year);
+        const hasTransfer = transferMap?.has(year);
+        if (!hasIncome && !hasExpense && !hasTransfer) {
+          return null;
+        }
+        const income = incomeMap?.get(year) || 0;
+        const transfers = transferMap?.get(year) || 0;
+        const expense = expenseMap?.get(year) || 0;
+        const expenseAdjusted = expense - transfers;
+        return income + expenseAdjusted;
+      }
+
       if (row.isNet) {
         const incomeMap = entryMaps.cash.level1Totals.get("Income");
         const expenseMap = entryMaps.cash.level1Totals.get("Expense");
+        const transferMap = entryMaps.cash.level1Totals.get("Transfers");
         const hasIncome = incomeMap?.has(year);
         const hasExpense = expenseMap?.has(year);
-        if (!hasIncome && !hasExpense) {
+        const hasTransfer = transferMap?.has(year);
+        if (!hasIncome && !hasExpense && !hasTransfer) {
           return null;
         }
         const income = incomeMap?.get(year) || 0;
         const expense = expenseMap?.get(year) || 0;
-        return income + expense;
+        const transfers = transferMap?.get(year) || 0;
+        return income + expense + transfers;
       }
 
       // ========== Cash Flow - Forecast Years ==========
       if (row.level === 1) {
-        return entryMaps.cash.level1Totals.get(row.label)?.get(year) ?? null;
+        const baseValue =
+          entryMaps.cash.level1Totals.get(row.label)?.get(year) ?? null;
+        if (row.label === "Expense") {
+          const transfersVal =
+            entryMaps.cash.byLabel.get("Transfers")?.get(year) ||
+            entryMaps.cash.level1Totals.get("Transfers")?.get(year) ||
+            0;
+          return baseValue == null ? null : baseValue - transfersVal;
+        }
+        return baseValue;
       }
       return entryMaps.cash.byLabel.get(row.label)?.get(year) ?? null;
     },
@@ -466,6 +523,205 @@ export default function FCReview() {
     }
     return totals;
   }, [balanceAccounts, balanceAccountMap, balanceDisplayValues, sortedYears]);
+
+  // =============================================================================
+  // ACTIONS - Export Excel
+  // =============================================================================
+
+  const handleExcelExport = useCallback(() => {
+    if (
+      !selectedScenario ||
+      generateLoading ||
+      yearsLoading ||
+      entriesLoading ||
+      accountsLoading ||
+      balanceLoading ||
+      baseActualLoading ||
+      baseBalanceLoading ||
+      !sortedYears.length
+    ) {
+      return;
+    }
+
+    const thStyleBase =
+      "padding:8px 10px;border:1px solid #d9e2ec;background:#f8fafc;font-weight:700;text-align:left;";
+    const tdStyleBase = "padding:6px 10px;border:1px solid #e2e8f0;";
+
+    const headerRow = sortedYears
+      .map((year) => {
+        const isBase = baseYears.has(Number(year));
+        const baseStyle = isBase
+          ? "background:linear-gradient(180deg,#f8f9fa 0%,#e9ecef 100%);font-weight:700;border-left:1px solid #cbd5e0;border-right:1px solid #cbd5e0;"
+          : "";
+        const actualLabel = isBase
+          ? '<div style="font-size:11px;color:#6b7280;">(Actual)</div>'
+          : "";
+        return `<th style="${thStyleBase}${baseStyle};min-width:120px;text-align:center;">${year}${actualLabel}</th>`;
+      })
+      .join("");
+
+    const formatLabelCell = (label, level, extraStyle = "") => {
+      const weight = level === 1 ? 700 : level === 2 ? 600 : 500;
+      const padding =
+        level === 3 ? "padding-left:40px;" : level === 2 ? "padding-left:28px;" : "padding-left:12px;";
+      return `<td style="${tdStyleBase}${padding}font-weight:${weight};${extraStyle}">${label}</td>`;
+    };
+
+    const cashRowsHtml = cashRowsWithNet
+      .map((row) => {
+        const isTransfers = row.label === "Transfers";
+        const label = row.isNet ? "Net Cash Flow (Income + Expense)" : row.label;
+        const labelBg = row.isNet
+          ? "background:#f8fafc;font-weight:700;color:#0f172a;"
+          : isTransfers
+          ? "background:#f0f7ff;"
+          : "";
+        const cells = sortedYears
+          .map((year) => {
+            const value = getCellValue(row, year, true);
+            const isBase = baseYears.has(Number(year));
+            const numStyle = Number(value) < 0 ? "color:#dc2626;" : "";
+            const baseStyle = isBase
+              ? "background:#fafafa;border-left:1px solid #cbd5e0;border-right:1px solid #cbd5e0;"
+              : "";
+            const transferStyle =
+              isTransfers && !isBase
+                ? "background:#f0f7ff;border-top:2px solid #3b82f6;border-bottom:2px solid #3b82f6;"
+                : isTransfers
+                ? "background:#f0f7ff;"
+                : "";
+            const netStyle = row.isNet ? "background:#f8fafc;font-weight:600;" : "";
+            return `<td style="${tdStyleBase}${numStyle}${baseStyle}${transferStyle}${netStyle}text-align:right;">${formatAmount(
+              value
+            )}</td>`;
+          })
+          .join("");
+        return `<tr>${formatLabelCell(label, row.level || 1, labelBg)}${cells}</tr>`;
+      })
+      .join("");
+
+    const balanceRowsHtml = balanceAccounts
+      .map((row, index) => {
+        const isBank = row.label === "Bank Accounts";
+        const labelBg = isBank
+          ? "background:#fff5f5;"
+          : index === 0 && cashAccounts.length === 0
+          ? "border-top:2px solid #e2e8f0;"
+          : "";
+        const cells = sortedYears
+          .map((year, yearIndex) => {
+            const values =
+              row.label === "Assets"
+                ? totalAssetsByYear
+                : balanceDisplayValues.get(row.label);
+            const displayValue =
+              values?.[yearIndex] ?? getCellValue(row, year, false);
+            const isBase = baseYears.has(Number(year));
+            const baseStyle = isBase
+              ? "background:#fafafa;border-left:1px solid #cbd5e0;border-right:1px solid #cbd5e0;"
+              : "";
+            const bankStyle =
+              isBank && !isBase
+                ? "background:#fff5f5;border-top:2px solid #ef4444;border-bottom:2px solid #ef4444;"
+                : isBank
+                ? "background:#fff5f5;"
+                : "";
+            const dangerStyle = Number(displayValue) < 0 ? "color:#dc2626;" : "";
+            return `<td style="${tdStyleBase}${baseStyle}${bankStyle}${dangerStyle}text-align:right;">${formatAmount(
+              displayValue
+            )}</td>`;
+          })
+          .join("");
+        return `<tr>${formatLabelCell(row.label, row.level, labelBg)}${cells}</tr>`;
+      })
+      .join("");
+
+    const dividerRow =
+      balanceAccounts.length > 0 && cashAccounts.length > 0
+        ? `<tr><td style="padding:0;border-top:2px solid #e2e8f0;height:12px;"></td>${sortedYears
+            .map((year) => {
+              const isBase = baseYears.has(Number(year));
+              const baseStyle = isBase
+                ? "background:#fafafa;border-left:1px solid #cbd5e0;border-right:1px solid #cbd5e0;"
+                : "";
+              return `<td style="padding:0;border-top:2px solid #e2e8f0;height:12px;${baseStyle}"></td>`;
+            })
+            .join("")}</tr>`
+        : "";
+
+    const tableHtml = `<table style="border-collapse:collapse;font-family:Inter,Helvetica,Arial,sans-serif;font-size:12px;color:#0f172a;width:100%;">
+      <thead>
+        <tr>
+          <th style="${thStyleBase}min-width:240px;">Account</th>
+          ${headerRow}
+        </tr>
+      </thead>
+      <tbody>
+        ${cashRowsHtml}
+        ${dividerRow}
+        ${balanceRowsHtml}
+      </tbody>
+    </table>`;
+
+    const documentStyles = `
+      body { margin: 16px; background: #ffffff; }
+      h2 { margin: 0 0 12px; font-size: 18px; color: #0f172a; }
+      p { margin: 4px 0 12px; color: #475569; font-size: 12px; }
+    `;
+
+    const html = `
+      <html>
+        <head>
+          <meta charset="UTF-8" />
+          <style>${documentStyles}</style>
+        </head>
+        <body>
+          <h2>Forecast Review - ${selectedScenario}</h2>
+          <p>Years: ${sortedYears[0]} - ${sortedYears[sortedYears.length - 1]}</p>
+          ${tableHtml}
+        </body>
+      </html>
+    `;
+
+    const blob = new Blob([html], {
+      type: "application/vnd.ms-excel;charset=utf-8;",
+    });
+    const url = URL.createObjectURL(blob);
+    const safeScenario = String(selectedScenario || "export")
+      .replace(/[^a-z0-9\-\._\s]/gi, "_")
+      .replace(/\s+/g, "_")
+      .replace(/_{2,}/g, "_")
+      .replace(/^_+|_+$/g, "")
+      .trim();
+    const filename =
+      safeScenario.length > 0
+        ? `ForecastReview-${safeScenario}.xls`
+        : "ForecastReview-export.xls";
+    const link = document.createElement("a");
+    link.href = url;
+    link.download = filename;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    URL.revokeObjectURL(url);
+  }, [
+    selectedScenario,
+    generateLoading,
+    yearsLoading,
+    entriesLoading,
+    accountsLoading,
+    balanceLoading,
+    baseActualLoading,
+    baseBalanceLoading,
+    sortedYears,
+    baseYears,
+    cashRowsWithNet,
+    getCellValue,
+    balanceAccounts,
+    cashAccounts,
+    totalAssetsByYear,
+    balanceDisplayValues,
+  ]);
 
   // =============================================================================
   // RENDER
@@ -648,6 +904,17 @@ export default function FCReview() {
           }
           generateError={generateError}
           generateResult={generateResult}
+          onExcelExport={handleExcelExport}
+          excelDisabled={
+            !selectedScenario ||
+            generateLoading ||
+            yearsLoading ||
+            entriesLoading ||
+            accountsLoading ||
+            balanceLoading ||
+            baseActualLoading ||
+            baseBalanceLoading
+          }
         />
         <FCReviewTable
           sortedYears={sortedYears}

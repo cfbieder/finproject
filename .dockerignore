@@ -7,6 +7,12 @@ pnpm-debug.log
 .gitignore
 .vscode
 frontend/.next
+frontend/dist
 frontend/node_modules
+server/node_modules
 mongo_data/diagnostic.data
 mongo_data
+*.md
+.env
+.env.local
+.env.*.local

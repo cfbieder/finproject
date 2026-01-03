@@ -290,6 +290,38 @@
   box-shadow: none;
 }
 
+.fc-review-selector__excel {
+  padding: 0.85rem 1rem;
+  border-radius: 0.9rem;
+  border: 1px solid var(--border);
+  background: white;
+  color: var(--ink);
+  font-weight: 750;
+  letter-spacing: 0.01em;
+  box-shadow: 0 10px 26px -18px rgba(15, 23, 42, 0.3);
+  cursor: pointer;
+  transition: transform 0.12s ease, box-shadow 0.12s ease, opacity 0.12s ease;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.45rem;
+}
+
+.fc-review-selector__excel:not(:disabled):hover {
+  transform: translateY(-1px);
+  box-shadow: 0 12px 30px -18px rgba(15, 23, 42, 0.4);
+}
+
+.fc-review-selector__excel:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+  box-shadow: none;
+}
+
+.fc-review-selector__excel-icon {
+  font-size: 1.05rem;
+  line-height: 1;
+}
+
 .fc-review-selector__chevron {
   position: absolute;
   right: 0.85rem;

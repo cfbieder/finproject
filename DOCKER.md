@@ -1,6 +1,6 @@
-# Docker Setup for Fin Server
+# Docker Setup for Fin Application
 
-This document explains how to run the Fin server in a Docker container.
+This document explains how to run the complete Fin application (frontend + backend + database) using Docker containers.
 
 ## Prerequisites
 
@@ -18,9 +18,11 @@ docker-compose up -d
 ```
 
 This will:
-- Build the server Docker image
+- Build the frontend Docker image (React app with nginx)
+- Build the server Docker image (Node.js API)
 - Start MongoDB on port 27018
-- Start the Fin server on port 3005
+- Start the Fin server on internal port 3005
+- Start the frontend on port 3000
 - Create a persistent volume for MongoDB data
 
 ### 2. View Logs
@@ -34,6 +36,9 @@ docker-compose logs -f server
 
 # View only MongoDB logs
 docker-compose logs -f mongo
+
+# View only frontend logs
+docker-compose logs -f frontend
 ```
 
 ### 3. Check Service Status
@@ -53,6 +58,35 @@ To also remove volumes (⚠️ this will delete all MongoDB data):
 ```bash
 docker-compose down -v
 ```
+
+### 5. Access the Application
+
+Once all services are running:
+
+- **Frontend**: http://localhost:3000
+- **Backend API**: http://localhost:3000/api (proxied through nginx)
+- **MongoDB**: localhost:27018 (for direct database access)
+
+The frontend nginx server automatically proxies all `/api/*` requests to the backend server.
+
+## Architecture
+
+The application consists of three Docker services:
+
+1. **frontend** (Port 3000)
+   - Nginx serving the built React application
+   - Proxies API requests to the backend server
+   - Built from `frontend/Dockerfile` using multi-stage build
+
+2. **server** (Internal Port 3005)
+   - Node.js Express API server
+   - Not directly exposed to host (only accessible via frontend proxy)
+   - Built from `server/Dockerfile`
+
+3. **mongo** (Port 27018)
+   - MongoDB database
+   - Data persisted in `mongo_data` Docker volume
+   - Exposed to host for development/backup access
 
 ## Configuration
 
@@ -173,7 +207,7 @@ docker exec mongofin rm -rf /tmp/restore
 The server includes a built-in health check:
 
 ```bash
-curl http://localhost:3005/api/health
+curl http://localhost:3000/api/health
 ```
 
 Expected response:
@@ -184,15 +218,15 @@ Expected response:
 }
 ```
 
-### Container Health Check
+### Container Health Checks
 
-Docker automatically monitors the health of both containers:
+Docker automatically monitors the health of all containers:
 
 ```bash
 docker-compose ps
 ```
 
-Look for "healthy" status in the output.
+Look for "healthy" status in the output. All three services (frontend, server, mongo) include health checks.
 
 ## Development vs Production
 
@@ -221,6 +255,28 @@ Uses:
 - Production environment variables from `docker-compose.yml`
 
 ## Troubleshooting
+
+### Frontend won't start or shows errors
+
+1. Check if frontend container is running:
+   ```bash
+   docker-compose logs frontend
+   ```
+
+2. Verify the build completed successfully:
+   ```bash
+   docker-compose build frontend
+   ```
+
+3. Check nginx configuration:
+   ```bash
+   docker exec fin-frontend cat /etc/nginx/conf.d/default.conf
+   ```
+
+4. If seeing 502 Bad Gateway errors, ensure the server is running:
+   ```bash
+   docker-compose ps server
+   ```
 
 ### Server won't start
 
@@ -258,13 +314,17 @@ If issues persist:
 
 ### Rebuild after changes
 
-If you've made changes to the server code:
+If you've made changes to the frontend or server code:
 
 ```bash
-# Rebuild and restart
+# Rebuild specific service and restart
+docker-compose up -d --build frontend
+docker-compose up -d --build server
+
+# Rebuild all services
 docker-compose up -d --build
 
-# Or rebuild without cache
+# Or rebuild without cache (for major changes)
 docker-compose build --no-cache
 docker-compose up -d
 ```
@@ -285,6 +345,9 @@ docker run -p 3005:3005 \
 ### Access container shell
 
 ```bash
+# Frontend container
+docker exec -it fin-frontend sh
+
 # Server container
 docker exec -it fin-server sh
 
@@ -300,19 +363,25 @@ docker stats
 
 ## API Endpoints
 
-Once running, the server exposes these endpoints:
+Once running, the application exposes these endpoints through the frontend (http://localhost:3000):
 
-- `GET /` - Service info and available routes
+- `GET /` - Frontend React application
+- `GET /api/` - Service info and available routes
 - `GET /api/health` - Health check
 - `GET /api/balance` - Balance sheet data
 - `GET /api/cash-flow` - Cash flow data
 - `GET /api/forecast` - Forecast data
 - `POST /api/forecast/scenarios/:scenario/copy` - Copy scenario
-- And more... (see server/src/routes/)
+- And more... (see [server/src/routes/](server/src/routes/))
+
+All `/api/*` requests are automatically proxied from the frontend nginx server to the backend.
 
 ## Notes
 
+- The frontend is accessible at http://localhost:3000
+- The backend server is NOT directly exposed to the host (only accessible via nginx proxy)
 - The MongoDB port (27018) is exposed on the host for development access
 - Data volumes persist across container restarts
 - The server includes automatic MongoDB connection retry logic
 - Health checks ensure services are ready before accepting traffic
+- Nginx handles gzip compression and caching for optimal performance

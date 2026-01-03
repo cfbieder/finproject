@@ -1,8 +1,10 @@
 Add option to update budget FX rates on transactions page
 
+Test to check if fx rates in fc periods work, if changed
+
 add COA management
 
-review how income, growth and expense calculated in fcbuilder
+review how income, growth and expense calculated in fcbuilder/ put tooltips
 
 
 When copying modules to other scenarios automatically update base date and values
@@ -18,6 +20,8 @@ Allow edit of values clicked in Review detials
 
 On liabilities the expense needs to a negative percent, can this be fixed
 
-budget realization allow drill down
+Change lines of FC Review table
+    - add boarder around balance sheet and PL
 
-put currency after amount in transfer edit form
+
+Add some KPI to Budget Page and Forecast Page with graphics
