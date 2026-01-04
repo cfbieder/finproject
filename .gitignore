@@ -6,3 +6,6 @@ mongo_backups/
 old/
 components/data/.temp/
 components/data/auditTrail/
+
+# local dev certs
+certs/

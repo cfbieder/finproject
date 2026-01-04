@@ -28,12 +28,12 @@ COPY --from=builder /app/dist /usr/share/nginx/html
 # Copy nginx configuration from frontend directory
 COPY frontend/nginx.conf /etc/nginx/conf.d/default.conf
 
-# Expose port 80
-EXPOSE 80
+# Expose ports 80 and 443
+EXPOSE 80 443
 
-# Health check
+# Health check (check HTTPS endpoint)
 HEALTHCHECK --interval=30s --timeout=3s --start-period=10s --retries=3 \
-  CMD wget --quiet --tries=1 --spider http://localhost:80/ || exit 1
+  CMD wget --quiet --tries=1 --spider --no-check-certificate https://localhost:443/ || exit 1
 
 # Start nginx
 CMD ["nginx", "-g", "daemon off;"]
