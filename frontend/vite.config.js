@@ -8,6 +8,10 @@ export default defineConfig(() => {
   const certKeyPath = path.resolve(__dirname, "../certs/localhost-key.pem");
   const certPath = path.resolve(__dirname, "../certs/localhost.pem");
   const certsExist = fs.existsSync(certKeyPath) && fs.existsSync(certPath);
+  const useHttps =
+    certsExist &&
+    (process.env.VITE_ENABLE_HTTPS === "true" ||
+      process.env.DEV_HTTPS === "true");
 
   return {
     plugins: [react()],
@@ -26,18 +30,18 @@ export default defineConfig(() => {
     server: {
       host: "0.0.0.0",
       port: 5174,
-      ...(certsExist && {
-        https: {
-          key: fs.readFileSync(certKeyPath),
-          cert: fs.readFileSync(certPath),
-        },
-      }),
       proxy: {
         "/api": {
           target: "https://localhost:3005",
           changeOrigin: true,
         },
       },
+      https: useHttps
+        ? {
+            key: fs.readFileSync(certKeyPath),
+            cert: fs.readFileSync(certPath),
+          }
+        : false,
     },
   };
 });

@@ -16,7 +16,6 @@ Export to excel
 Ability to adjust the tax rate on some income (e.g. UB)
 
 
-Allow edit of values clicked in Review detials
 
 On liabilities the expense needs to a negative percent, can this be fixed
 
