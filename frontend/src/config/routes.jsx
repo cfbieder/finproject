@@ -5,29 +5,29 @@
  * Used to generate both the router and navigation menu.
  */
 
-import { lazy } from 'react';
-import { ForecastProvider } from '../contexts';
+import { lazy } from "react";
+import { ForecastProvider } from "../contexts";
 
 // Eagerly loaded pages (for fast initial render)
-import Home from '../pages/Home';
+import Home from "../pages/Home";
 
 // Lazy loaded pages (for code splitting)
-const Balance = lazy(() => import('../pages/Balance'));
-const BalanceChart = lazy(() => import('../pages/BalanceChart'));
-const BudgetInput = lazy(() => import('../pages/BudgetInput'));
-const BudgetRealization = lazy(() => import('../pages/BudgetRealization'));
-const CashFlow = lazy(() => import('../pages/CashFlow'));
-const CashFlowMonthly = lazy(() => import('../pages/CashFlowMonthly'));
-const FCExpSetup = lazy(() => import('../pages/FCExpSetup'));
-const FCModuleManage = lazy(() => import('../pages/FCModuleManage'));
-const FCReview = lazy(() => import('../pages/FCReview'));
-const FCScenarios = lazy(() => import('../pages/FCScenarios'));
-const FXOptions = lazy(() => import('../pages/FXOptions'));
-const RefreshPS = lazy(() => import('../pages/RefreshPS'));
-const TransActual = lazy(() => import('../pages/TransActual'));
-const TransBudget = lazy(() => import('../pages/TransBudget'));
-const UploadPS = lazy(() => import('../pages/UploadPS'));
-const COAManagement = lazy(() => import('../pages/COAManagement'));
+const Balance = lazy(() => import("../pages/Balance"));
+const BalanceChart = lazy(() => import("../pages/BalanceChart"));
+const BudgetInput = lazy(() => import("../pages/BudgetInput"));
+const BudgetRealization = lazy(() => import("../pages/BudgetRealization"));
+const CashFlow = lazy(() => import("../pages/CashFlow"));
+const CashFlowMonthly = lazy(() => import("../pages/CashFlowMonthly"));
+const FCExpSetup = lazy(() => import("../pages/FCExpSetup"));
+const FCModuleManage = lazy(() => import("../pages/FCModuleManage"));
+const FCReview = lazy(() => import("../pages/FCReview"));
+const FCScenarios = lazy(() => import("../pages/FCScenarios"));
+const FXOptions = lazy(() => import("../pages/FXOptions"));
+const RefreshPS = lazy(() => import("../pages/RefreshPS"));
+const TransActual = lazy(() => import("../pages/TransActual"));
+const TransBudget = lazy(() => import("../pages/TransBudget"));
+const UploadPS = lazy(() => import("../pages/UploadPS"));
+const COAManagement = lazy(() => import("../pages/COAManagement"));
 
 /**
  * Route configuration object.
@@ -45,138 +45,138 @@ const COAManagement = lazy(() => import('../pages/COAManagement'));
 export const routes = [
   // Home
   {
-    path: '/',
+    path: "/",
     component: Home,
-    label: 'Home',
+    label: "Home",
     showInNav: true,
     category: null, // Shows at root level in nav
   },
 
   // Database
   {
-    path: '/upload-ps',
+    path: "/upload-ps",
     component: UploadPS,
-    label: 'Upload PS',
-    category: 'Database',
+    label: "Upload PS",
+    category: "Database",
   },
   {
-    path: '/refresh-ps',
+    path: "/refresh-ps",
     component: RefreshPS,
-    label: 'Refresh PS',
-    category: 'Database',
+    label: "Refresh PS",
+    category: "Database",
   },
 
   // Budgeting
   {
-    path: '/budget-worksheet',
+    path: "/budget-worksheet",
     component: BudgetInput,
-    label: 'Budget Worksheet',
-    category: 'Budgeting',
+    label: "Budget Worksheet",
+    category: "Budgeting",
   },
   {
-    path: '/budget-realization',
+    path: "/budget-realization",
     component: BudgetRealization,
-    label: 'Budget Realization',
-    category: 'Budgeting',
+    label: "Budget Realization",
+    category: "Budgeting",
   },
 
   // Forecasting (wrapped in ForecastProvider)
   {
-    path: '/forecast-scenarios',
+    path: "/forecast-scenarios",
     component: FCScenarios,
-    label: 'Forecast Scenarios',
-    category: 'Forecasting',
+    label: "Forecast Scenarios",
+    category: "Forecasting",
     wrapper: ForecastProvider,
   },
   {
-    path: '/forecast-modules',
+    path: "/forecast-modules",
     component: FCModuleManage,
-    label: 'Forecast Modules',
-    category: 'Forecasting',
+    label: "Forecast Modules",
+    category: "Forecasting",
     wrapper: ForecastProvider,
   },
   {
-    path: '/forecast-setup-exp',
+    path: "/forecast-setup-exp",
     component: FCExpSetup,
-    label: 'Forecast Expenditures Setup',
-    category: 'Forecasting',
+    label: "Forecast Expenditures Setup",
+    category: "Forecasting",
     wrapper: ForecastProvider,
   },
   {
-    path: '/forecast-review',
+    path: "/forecast-review",
     component: FCReview,
-    label: 'Forecast Review',
-    category: 'Forecasting',
+    label: "Forecast Review",
+    category: "Forecasting",
     wrapper: ForecastProvider,
   },
 
   // Reports & Graphs > Reports
   {
-    path: '/balance',
+    path: "/balance",
     component: Balance,
-    label: 'Balance Summary',
-    category: 'Reports & Graphs',
-    subcategory: 'Reports',
+    label: "Balance Summary",
+    category: "Reports & Graphs",
+    subcategory: "Reports",
   },
   {
-    path: '/cash-flow',
+    path: "/cash-flow",
     component: CashFlow,
-    label: 'Cash Flow Summary',
-    category: 'Reports & Graphs',
-    subcategory: 'Reports',
+    label: "Cash Flow Summary",
+    category: "Reports & Graphs",
+    subcategory: "Reports",
   },
   {
-    path: '/cash-flow-monthly',
+    path: "/cash-flow-monthly",
     component: CashFlowMonthly,
-    label: 'Cash Flow Monthly',
-    category: 'Reports & Graphs',
-    subcategory: 'Reports',
+    label: "Cash Flow Monthly",
+    category: "Reports & Graphs",
+    subcategory: "Reports",
   },
 
   // Reports & Graphs > Graphs
   {
-    path: '/balance-chart',
+    path: "/balance-chart",
     component: BalanceChart,
-    label: 'Net Worth Chart',
-    category: 'Reports & Graphs',
-    subcategory: 'Graphs',
+    label: "Net Worth Chart",
+    category: "Reports & Graphs",
+    subcategory: "Graphs",
   },
 
   // Analytics
   {
-    path: '/option-analysis',
+    path: "/option-analysis",
     component: null, // Not implemented yet
-    label: 'Option Analysis',
-    category: 'Analytics',
+    label: "Option Analysis",
+    category: "Analytics",
     showInNav: true,
   },
 
   // Transactions
   {
-    path: '/trans-actual',
+    path: "/trans-actual",
     component: TransActual,
-    label: 'History',
-    category: 'Transactions',
+    label: "Actuals",
+    category: "Transactions",
   },
   {
-    path: '/trans-budget',
+    path: "/trans-budget",
     component: TransBudget,
-    label: 'Budget',
-    category: 'Transactions',
+    label: "Budget",
+    category: "Transactions",
   },
 
   // Settings
   {
-    path: '/fx-options',
+    path: "/fx-options",
     component: FXOptions,
-    label: 'FX Options',
-    category: 'Settings',
+    label: "FX Options",
+    category: "Settings",
   },
   {
-    path: '/coa-management',
+    path: "/coa-management",
     component: COAManagement,
-    label: 'Chart of Account Management',
-    category: 'Settings',
+    label: "Chart of Account Management",
+    category: "Settings",
   },
 ];
 
@@ -189,7 +189,7 @@ export function generateMenuItems() {
   const menuMap = new Map();
 
   // Group routes by category
-  routes.forEach(route => {
+  routes.forEach((route) => {
     if (route.showInNav === false) return;
 
     // Home route (no category)
@@ -232,11 +232,11 @@ export function generateMenuItems() {
   });
 
   // Convert to array and flatten subcategories
-  const menuItems = Array.from(menuMap.values()).map(category => {
+  const menuItems = Array.from(menuMap.values()).map((category) => {
     const submenu = [...category.submenu];
 
     // Add subcategories to submenu
-    category.subcategories.forEach(subcategory => {
+    category.subcategories.forEach((subcategory) => {
       submenu.push({
         label: subcategory.label,
         submenu: subcategory.submenu,
@@ -250,7 +250,7 @@ export function generateMenuItems() {
   });
 
   // Add Help at the end
-  menuItems.push({ label: 'Help' });
+  menuItems.push({ label: "Help" });
 
   return menuItems;
 }
@@ -261,7 +261,7 @@ export function generateMenuItems() {
  * @returns {Array} Array of route objects
  */
 export function getRouterRoutes() {
-  return routes.filter(route => route.component !== null);
+  return routes.filter((route) => route.component !== null);
 }
 
 export default routes;

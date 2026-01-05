@@ -11,6 +11,8 @@ export default function FCReviewSelector({
   generateResult,
   onExcelExport,
   excelDisabled,
+  onGraphClick,
+  graphDisabled,
 }) {
   const disableGenerate =
     generateDisabled || !selectedScenario || isLoading || !!loadError;
@@ -52,22 +54,36 @@ export default function FCReviewSelector({
               </div>
               <button
                 type="button"
-                className="fc-review-selector__generate"
+                className="fc-review-selector__action-btn fc-review-selector__generate"
                 onClick={onGenerateForecast}
                 disabled={disableGenerate}
               >
-                {generateLoading ? "Generating..." : "Generate Forecast"}
+                <span aria-hidden="true" className="fc-review-selector__action-icon">
+                  ⚡
+                </span>
+                {generateLoading ? "Generating..." : "Generate"}
               </button>
               <button
                 type="button"
-                className="fc-review-selector__excel"
+                className="fc-review-selector__action-btn fc-review-selector__excel"
                 onClick={onExcelExport}
                 disabled={disableExcel}
               >
-                <span aria-hidden="true" className="fc-review-selector__excel-icon">
+                <span aria-hidden="true" className="fc-review-selector__action-icon">
                   📊
                 </span>
                 Excel Export
+              </button>
+              <button
+                type="button"
+                className="fc-review-selector__action-btn fc-review-selector__graph"
+                disabled={graphDisabled}
+                onClick={onGraphClick}
+              >
+                <span aria-hidden="true" className="fc-review-selector__action-icon">
+                  📈
+                </span>
+                Graph
               </button>
             </div>
           </div>

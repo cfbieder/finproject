@@ -1,0 +1,211 @@
+/**
+ * COA Management Page Styles
+ * Modern, clean layout for chart of accounts management
+ */
+
+/* Main container */
+.coa-management-container {
+  width: 100%;
+  max-width: 1400px;
+  margin: 0 auto;
+  padding: 0 1.5rem 2rem;
+}
+
+/* Header section */
+.coa-management-header {
+  margin-bottom: 2rem;
+  text-align: center;
+}
+
+.coa-management-header__title {
+  margin: 0 0 0.5rem;
+  font-size: 2rem;
+  font-weight: 700;
+  color: var(--primary);
+  letter-spacing: -0.02em;
+}
+
+.coa-management-header__subtitle {
+  margin: 0;
+  font-size: 1rem;
+  color: var(--muted);
+  font-weight: 500;
+}
+
+/* Filters section */
+.coa-management-filters {
+  background: linear-gradient(135deg, rgba(255, 255, 255, 0.98) 0%, rgba(248, 250, 252, 1) 100%);
+  border: 1px solid rgba(37, 99, 235, 0.12);
+  border-radius: 1rem;
+  padding: 1.5rem;
+  margin-bottom: 1.5rem;
+  box-shadow: 0 2px 12px -4px rgba(15, 23, 42, 0.08),
+              0 4px 16px -6px rgba(37, 99, 235, 0.08);
+}
+
+.coa-management-filters__title {
+  margin: 0 0 1rem 0;
+  font-size: 1rem;
+  font-weight: 700;
+  color: var(--primary);
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
+}
+
+.coa-management-filters__grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: 1rem;
+}
+
+.coa-management-filters__grid .filter-field {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.coa-management-filters__grid .filter-field__label {
+  font-size: 0.75rem;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--primary);
+}
+
+/* Table section */
+.coa-management-table-section {
+  background: #fff;
+  border: 1px solid rgba(37, 99, 235, 0.12);
+  border-radius: 1rem;
+  padding: 1.5rem;
+  box-shadow: 0 2px 12px -4px rgba(15, 23, 42, 0.08),
+              0 4px 16px -6px rgba(37, 99, 235, 0.08);
+}
+
+.coa-management-table-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 1.25rem;
+  padding-bottom: 1rem;
+  border-bottom: 2px solid rgba(37, 99, 235, 0.15);
+}
+
+.coa-management-table-header__title {
+  margin: 0;
+  font-size: 1.25rem;
+  font-weight: 700;
+  color: var(--primary);
+}
+
+.coa-management-table-header__count {
+  margin: 0;
+  font-size: 0.875rem;
+  color: var(--muted);
+  font-weight: 600;
+}
+
+.coa-management-actions {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+}
+
+.coa-management-status {
+  margin-bottom: 1rem;
+}
+
+/* Category row highlighting */
+.coa-table-row--category {
+  background: rgba(37, 99, 235, 0.05);
+  font-weight: 600;
+}
+
+.coa-table-row--category td:first-child {
+  font-weight: 700;
+  color: var(--primary);
+}
+
+.coa-action-row td {
+  padding: 0.85rem;
+  background: #f8fafc;
+}
+
+.coa-action-button {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.45rem;
+  padding: 0.65rem 1rem;
+  border-radius: 0.75rem;
+  border: 1px solid var(--border);
+  background: #fff;
+  color: #0f172a;
+  font-weight: 700;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.coa-action-button:hover {
+  border-color: var(--primary);
+  color: var(--primary);
+  box-shadow: var(--shadow-soft);
+}
+
+.coa-action-button--add {
+  border-color: rgba(22, 163, 74, 0.25);
+  color: #166534;
+}
+
+.coa-action-button--delete {
+  border-color: rgba(220, 38, 38, 0.25);
+  color: #991b1b;
+}
+
+.coa-action-button--edit {
+  border-color: rgba(59, 130, 246, 0.25);
+  color: #1d4ed8;
+}
+
+.coa-action-button--analyze {
+  border-color: rgba(16, 185, 129, 0.25);
+  color: #0f766e;
+}
+
+.coa-action-button__icon {
+  font-weight: 900;
+  width: 1.2rem;
+  text-align: center;
+}
+
+.coa-action-button__label.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
+
+/* Responsive adjustments */
+@media (max-width: 768px) {
+  .coa-management-container {
+    padding: 0 1rem 1.5rem;
+  }
+
+  .coa-management-header__title {
+    font-size: 1.5rem;
+  }
+
+  .coa-management-filters__grid {
+    grid-template-columns: 1fr;
+  }
+
+  .coa-management-table-header {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 0.5rem;
+  }
+}

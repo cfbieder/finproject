@@ -32,9 +32,19 @@ import { useBaseYearBalanceSheet } from "../features/Forecast/hooks/useBaseYearB
 import FCReviewTable from "../features/Forecast/FCReviewTable.jsx";
 import FCReviewBreakdownModal from "../features/Forecast/FCReviewBreakdownModal.jsx";
 import FCCashTransferModal from "../features/Forecast/FCCashTransferModal.jsx";
+import FCReviewTableGraphModal from "../features/Forecast/FCReviewTableGraphModal.jsx";
 import { formatAmount } from "../features/Forecast/utils/fcReviewUtils.js";
 import Rest from "../js/rest.js";
 import "./PageLayout.css";
+
+const GRAPH_COLORS = [
+  "#2563eb",
+  "#16a34a",
+  "#f59e0b",
+  "#ef4444",
+  "#8b5cf6",
+  "#0ea5e9",
+];
 
 /**
  * Main Forecast Review component
@@ -125,6 +135,8 @@ export default function FCReview() {
     title: "",
     year: null,
   });
+  const [selectedSeries, setSelectedSeries] = useState([]);
+  const [graphModalOpen, setGraphModalOpen] = useState(false);
 
   const tableWrapperRef = useRef(null);
   const tableRef = useRef(null);
@@ -134,6 +146,8 @@ export default function FCReview() {
   useEffect(() => {
     setGenerateError("");
     setGenerateResult(null);
+    setSelectedSeries([]);
+    setGraphModalOpen(false);
   }, [selectedScenario]);
 
   const handleGenerateForecast = useCallback(async () => {
@@ -880,6 +894,57 @@ export default function FCReview() {
     setZoomLevel((prev) => Math.max(prev - 0.1, 0.5));
   }, []);
 
+  const handleToggleSeries = useCallback(
+    (series) => {
+      if (!series || !series.id) return;
+      const numericValues = sortedYears.map((_, index) => {
+        const value = series.values?.[index];
+        const num = Number(value);
+        return Number.isFinite(num) ? num : 0;
+      });
+
+      setSelectedSeries((prev) => {
+        const exists = prev.find((item) => item.id === series.id);
+        if (exists) {
+          return prev.filter((item) => item.id !== series.id);
+        }
+        return [...prev, { ...series, values: numericValues }];
+      });
+    },
+    [sortedYears]
+  );
+
+  const handleGraphClick = useCallback(() => {
+    if (selectedSeries.length === 0) return;
+    setGraphModalOpen(true);
+  }, [selectedSeries.length]);
+
+  const handleCloseGraph = useCallback(() => setGraphModalOpen(false), []);
+
+  const selectedSeriesIds = useMemo(
+    () => new Set(selectedSeries.map((series) => series.id)),
+    [selectedSeries]
+  );
+
+  const graphDisabled =
+    !selectedScenario ||
+    selectedSeries.length === 0 ||
+    yearsLoading ||
+    entriesLoading ||
+    accountsLoading ||
+    balanceLoading ||
+    baseActualLoading ||
+    baseBalanceLoading;
+
+  const graphSeries = useMemo(
+    () =>
+      selectedSeries.map((series, index) => ({
+        ...series,
+        color: GRAPH_COLORS[index % GRAPH_COLORS.length],
+      })),
+    [selectedSeries]
+  );
+
   return (
     <div className="page-shell">
       <NavigationMenu />
@@ -915,6 +980,8 @@ export default function FCReview() {
             baseActualLoading ||
             baseBalanceLoading
           }
+          onGraphClick={handleGraphClick}
+          graphDisabled={graphDisabled}
         />
         <FCReviewTable
           sortedYears={sortedYears}
@@ -937,6 +1004,8 @@ export default function FCReview() {
           totalAssetsByYear={totalAssetsByYear}
           onCellDoubleClick={handleCellDoubleClick}
           onCashTransferClick={handleCashTransferClick}
+          selectedSeriesIds={selectedSeriesIds}
+          onToggleSeries={handleToggleSeries}
           tableWrapperRef={tableWrapperRef}
           tableRef={tableRef}
           scrollTableByYears={scrollTableByYears}
@@ -958,6 +1027,12 @@ export default function FCReview() {
         year={cashTransferModal.year}
         scenarioName={selectedScenario}
         onTransferComplete={handleTransferComplete}
+      />
+      <FCReviewTableGraphModal
+        isOpen={graphModalOpen}
+        onClose={handleCloseGraph}
+        graphSeries={graphSeries}
+        sortedYears={sortedYears}
       />
     </div>
   );

@@ -1,0 +1,64 @@
+/**
+ * FX Options Page Styles
+ * Modern, clean layout for FX rate management
+ */
+
+/* Main container */
+.fx-options-container {
+  width: 100%;
+  max-width: 1400px;
+  margin: 0 auto;
+  padding: 0 1.5rem 2rem;
+}
+
+/* Header section */
+.fx-options-header {
+  margin-bottom: 2rem;
+  text-align: center;
+}
+
+.fx-options-header__title {
+  margin: 0 0 0.5rem;
+  font-size: 2rem;
+  font-weight: 700;
+  color: var(--primary);
+  letter-spacing: -0.02em;
+}
+
+.fx-options-header__subtitle {
+  margin: 0;
+  font-size: 1rem;
+  color: var(--muted);
+  font-weight: 500;
+}
+
+/* Exchange rates section */
+.fx-options-section {
+  background: #fff;
+  border: 1px solid rgba(37, 99, 235, 0.12);
+  border-radius: 1rem;
+  padding: 1.5rem;
+  margin-bottom: 1.5rem;
+  box-shadow: 0 2px 12px -4px rgba(15, 23, 42, 0.08),
+              0 4px 16px -6px rgba(37, 99, 235, 0.08);
+}
+
+.fx-options-section__title {
+  margin: 0 0 1.25rem 0;
+  font-size: 1.25rem;
+  font-weight: 700;
+  color: var(--primary);
+  padding-bottom: 0.75rem;
+  border-bottom: 2px solid rgba(37, 99, 235, 0.15);
+}
+
+/* Responsive adjustments */
+@media (max-width: 768px) {
+  .fx-options-container {
+    padding: 0 1rem 1.5rem;
+  }
+
+  .fx-options-header__title {
+    font-size: 1.5rem;
+  }
+}

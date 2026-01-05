@@ -147,6 +147,7 @@ export default function TransactionBudgetFilter({
 
   return (
     <section className="section-filters" aria-label="Budget filters">
+      <h2 className="section-filters-title">Budget Transaction</h2>
       <div className="filters-grid">
         <label className="filter-field">
           <span className="filter-with-checkbox">

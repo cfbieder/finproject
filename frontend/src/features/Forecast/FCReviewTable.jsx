@@ -22,6 +22,8 @@ export default function FCReviewTable({
   totalAssetsByYear,
   onCellDoubleClick,
   onCashTransferClick,
+  selectedSeriesIds,
+  onToggleSeries,
   tableWrapperRef,
   tableRef,
   scrollTableByYears,
@@ -32,9 +34,22 @@ export default function FCReviewTable({
   const zoomScale = zoomLevel || 1;
   const sectionBorder = "2px solid var(--border-strong)";
 
-  const accountColumnStickyStyle = {
+  const selectColumnWidth = 44;
+  const selectColumnStickyStyle = {
     position: "sticky",
     left: 0,
+    zIndex: 4,
+    top: 0,
+    background:
+      "linear-gradient(180deg, var(--surface-muted) 0%, var(--surface) 100%)",
+    textAlign: "center",
+    width: `${selectColumnWidth}px`,
+    minWidth: `${selectColumnWidth}px`,
+  };
+
+  const accountColumnStickyStyle = {
+    position: "sticky",
+    left: selectColumnWidth,
     boxShadow: "inset -1px 0 0 var(--border)",
   };
 
@@ -53,6 +68,16 @@ export default function FCReviewTable({
     zIndex: 2,
     background: "var(--surface)",
   };
+
+  const selectCellBaseStyle = {
+    ...selectColumnStickyStyle,
+    top: undefined,
+    background: "var(--surface)",
+    zIndex: 2,
+    boxShadow: "inset -1px 0 0 var(--border)",
+  };
+
+  const totalColSpan = tableColSpan + 1;
 
   return (
     <section className="section-table">
@@ -132,6 +157,7 @@ export default function FCReviewTable({
           <table className="trans-budget-table fc-review-table" ref={tableRef}>
             <thead>
               <tr>
+                <th style={selectColumnStickyStyle} aria-label="Selection" />
                 <th style={accountHeaderStyle}>Account</th>
                 {sortedYears.length ? (
                   sortedYears.map((year) => {
@@ -183,7 +209,7 @@ export default function FCReviewTable({
               baseBalanceLoading ? (
                 <tr>
                   <td
-                    colSpan={tableColSpan}
+                    colSpan={totalColSpan}
                     style={{ textAlign: "center", padding: "2rem" }}
                   >
                     <div style={{ color: "var(--muted)" }}>
@@ -194,7 +220,7 @@ export default function FCReviewTable({
               ) : /* Error State */ tableError ? (
                 <tr>
                   <td
-                    colSpan={tableColSpan}
+                    colSpan={totalColSpan}
                     style={{ color: "var(--danger)", padding: "2rem" }}
                   >
                     {tableError}
@@ -203,7 +229,7 @@ export default function FCReviewTable({
               ) : /* No Scenario Selected */ !selectedScenario ? (
                 <tr>
                   <td
-                    colSpan={tableColSpan}
+                    colSpan={totalColSpan}
                     style={{ textAlign: "center", padding: "2rem" }}
                   >
                     <div style={{ color: "var(--muted)" }}>
@@ -214,7 +240,7 @@ export default function FCReviewTable({
               ) : /* No Years Available */ !sortedYears.length ? (
                 <tr>
                   <td
-                    colSpan={tableColSpan}
+                    colSpan={totalColSpan}
                     style={{ textAlign: "center", padding: "2rem" }}
                   >
                     <div style={{ color: "var(--muted)" }}>
@@ -226,7 +252,7 @@ export default function FCReviewTable({
                 !balanceAccounts.length ? (
                 <tr>
                   <td
-                    colSpan={tableColSpan}
+                    colSpan={totalColSpan}
                     style={{ textAlign: "center", padding: "2rem" }}
                   >
                     <div style={{ color: "var(--muted)" }}>
@@ -244,6 +270,10 @@ export default function FCReviewTable({
                     const isFirstCashRow = index === 0;
                     const isLastCashRow =
                       index === cashRowsWithNet.length - 1;
+                    const rowId = `cash-${row.label}-${index}`;
+                    const rowValues = sortedYears.map((year) =>
+                      getCellValue(row, year, true)
+                    );
                     const cashSectionBorders = {
                       borderLeft: sectionBorder,
                       borderRight: sectionBorder,
@@ -252,6 +282,20 @@ export default function FCReviewTable({
                     };
                     return (
                       <tr key={`cash-${row.label}-${index}`}>
+                        <td style={selectCellBaseStyle}>
+                          <input
+                            type="checkbox"
+                            aria-label={`Select ${row.label}`}
+                            checked={selectedSeriesIds?.has(rowId) || false}
+                            onChange={() =>
+                              onToggleSeries?.({
+                                id: rowId,
+                                label: row.label,
+                                values: rowValues,
+                              })
+                            }
+                          />
+                        </td>
                         <td
                           style={{
                             ...accountCellBaseStyle,
@@ -340,6 +384,14 @@ export default function FCReviewTable({
                           borderTop: "2px solid var(--border)",
                           padding: 0,
                           height: "1rem",
+                          backgroundColor: "var(--surface)",
+                        }}
+                      />
+                      <td
+                        style={{
+                          borderTop: "2px solid var(--border)",
+                          padding: 0,
+                          height: "1rem",
                         }}
                       />
                       {sortedYears.map((year) => {
@@ -373,6 +425,17 @@ export default function FCReviewTable({
                     const isFirstBalanceRow = index === 0;
                     const isLastBalanceRow =
                       index === balanceAccounts.length - 1;
+                    const rowId = `balance-${row.label}-${index}`;
+                    const rowValues = sortedYears.map((year, yearIndex) => {
+                      const values =
+                        row.label === "Assets"
+                          ? totalAssetsByYear
+                          : balanceDisplayValues.get(row.label);
+                      const displayValue =
+                        values?.[yearIndex] ??
+                        getCellValue(row, year, false);
+                      return displayValue;
+                    });
                     const balanceSectionBorders = {
                       borderLeft: sectionBorder,
                       borderRight: sectionBorder,
@@ -390,6 +453,20 @@ export default function FCReviewTable({
                             : undefined),
                         }}
                       >
+                        <td style={selectCellBaseStyle}>
+                          <input
+                            type="checkbox"
+                            aria-label={`Select ${row.label}`}
+                            checked={selectedSeriesIds?.has(rowId) || false}
+                            onChange={() =>
+                              onToggleSeries?.({
+                                id: rowId,
+                                label: row.label,
+                                values: rowValues,
+                              })
+                            }
+                          />
+                        </td>
                         <td
                           style={{
                             ...accountCellBaseStyle,

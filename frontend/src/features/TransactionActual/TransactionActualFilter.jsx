@@ -59,6 +59,12 @@ export default function TransactionActualFilter({
   const [selectedCategory, setSelectedCategory] = useState("");
 
   useEffect(() => {
+    if (typeof document !== "undefined") {
+      document.title = "Actual Transactions History";
+    }
+  }, []);
+
+  useEffect(() => {
     if (typeof onFiltersChange !== "function") {
       return;
     }
@@ -155,6 +161,7 @@ export default function TransactionActualFilter({
 
   return (
     <section className="section-filters" aria-label="Actual filters">
+      <h2 className="section-filters-title">Actual Transaction History</h2>
       <div className="filters-grid">
         <label className="filter-field">
           <span>Year</span>

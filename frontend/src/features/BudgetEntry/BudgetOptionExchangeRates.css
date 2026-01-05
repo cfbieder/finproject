@@ -6,9 +6,11 @@
   box-shadow: var(--shadow-soft);
   display: flex;
   flex-direction: column;
-  justify-content: center;
+  justify-content: flex-start;
   align-items: center;
   text-align: center;
+  min-height: fit-content;
+  height: auto;
 }
 
 .budget-options-region__title {

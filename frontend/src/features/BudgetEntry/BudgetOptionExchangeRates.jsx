@@ -317,13 +317,5 @@ export default function BudgetOptionExchangeRates() {
     );
   };
 
-  return (
-    <section className="budget-options-region">
-      <p className="budget-options-region__title">Budget Exchange Rates</p>
-      {renderBody()}
-      <p className="budget-options-region__note">
-        Placeholder for interactive controls, filters, or context.
-      </p>
-    </section>
-  );
+  return <div>{renderBody()}</div>;
 }
