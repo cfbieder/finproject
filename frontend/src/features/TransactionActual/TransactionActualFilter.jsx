@@ -50,9 +50,7 @@ export default function TransactionActualFilter({
   const defaultMonth =
     MONTH_OPTIONS[currentMonthIndex] ?? MONTH_OPTIONS[0] ?? "";
   const [selectedYear, setSelectedYear] = useState(() =>
-    YEAR_OPTIONS.includes(DEFAULT_YEAR)
-      ? DEFAULT_YEAR
-      : YEAR_OPTIONS[0] ?? ""
+    YEAR_OPTIONS.includes(DEFAULT_YEAR) ? DEFAULT_YEAR : YEAR_OPTIONS[0] ?? ""
   );
   const [selectedMonth, setSelectedMonth] = useState(defaultMonth);
   const yearEnabled = true;
@@ -71,9 +69,7 @@ export default function TransactionActualFilter({
     const normalizedValueFrom = valueFromEnabled
       ? parseAmountValue(valueFrom)
       : null;
-    const normalizedValueTo = valueToEnabled
-      ? parseAmountValue(valueTo)
-      : null;
+    const normalizedValueTo = valueToEnabled ? parseAmountValue(valueTo) : null;
     onFiltersChange({
       yearEnabled,
       year: selectedYear,
@@ -123,7 +119,10 @@ export default function TransactionActualFilter({
         setAccountOptions(Array.isArray(accounts) ? accounts : []);
         setCategoryOptions(Array.isArray(categories) ? categories : []);
       } catch (error) {
-        console.error("[TransactionActualFilter] Failed to load psdata options:", error);
+        console.error(
+          "[TransactionActualFilter] Failed to load psdata options:",
+          error
+        );
       }
     };
 
@@ -262,9 +261,7 @@ export default function TransactionActualFilter({
               type="checkbox"
               aria-label="Enable description search"
               checked={descriptionEnabled}
-              onChange={(event) =>
-                setDescriptionEnabled(event.target.checked)
-              }
+              onChange={(event) => setDescriptionEnabled(event.target.checked)}
             />
             Description
           </span>

@@ -19,8 +19,9 @@ Ability to adjust the tax rate on some income (e.g. UB)
 
 On liabilities the expense needs to a negative percent, can this be fixed
 
-Change lines of FC Review table
-    - add boarder around balance sheet and PL
-
 
 Add some KPI to Budget Page and Forecast Page with graphics
+
+Add way to re-export changes back to PS?
+
+Fix exchange rate page

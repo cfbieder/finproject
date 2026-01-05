@@ -30,6 +30,7 @@ export default function FCReviewTable({
   onZoomOut,
 }) {
   const zoomScale = zoomLevel || 1;
+  const sectionBorder = "2px solid var(--border-strong)";
 
   const accountColumnStickyStyle = {
     position: "sticky",
@@ -240,6 +241,15 @@ export default function FCReviewTable({
                   {cashRowsWithNet.map((row, index) => {
                     const isTransfers = row.label === "Transfers";
                     const isCashFlow = row.isCashFlow;
+                    const isFirstCashRow = index === 0;
+                    const isLastCashRow =
+                      index === cashRowsWithNet.length - 1;
+                    const cashSectionBorders = {
+                      borderLeft: sectionBorder,
+                      borderRight: sectionBorder,
+                      ...(isFirstCashRow ? { borderTop: sectionBorder } : {}),
+                      ...(isLastCashRow ? { borderBottom: sectionBorder } : {}),
+                    };
                     return (
                       <tr key={`cash-${row.label}-${index}`}>
                         <td
@@ -266,6 +276,7 @@ export default function FCReviewTable({
                               row.isNet || isCashFlow
                                 ? "var(--surface-muted)"
                                 : undefined,
+                            ...cashSectionBorders,
                           }}
                         >
                           {row.isNet
@@ -295,12 +306,6 @@ export default function FCReviewTable({
                                     : undefined,
                                 fontWeight:
                                   row.isNet || isCashFlow ? 600 : undefined,
-                                borderLeft: isBaseYear
-                                  ? "1px solid #cbd5e0"
-                                  : undefined,
-                                borderRight: isBaseYear
-                                  ? "1px solid #cbd5e0"
-                                  : undefined,
                                 cursor: isBaseYear
                                   ? "default"
                                   : canDoubleClick
@@ -309,6 +314,10 @@ export default function FCReviewTable({
                                 textDecoration: canDoubleClick
                                   ? "underline dotted"
                                   : undefined,
+                                boxShadow: isBaseYear
+                                  ? "inset 1px 0 0 #cbd5e0, inset -1px 0 0 #cbd5e0"
+                                  : undefined,
+                                ...cashSectionBorders,
                               }}
                               onDoubleClick={() =>
                                 !isBaseYear &&
@@ -361,6 +370,17 @@ export default function FCReviewTable({
                   {/* ========== BALANCE SHEET SECTION ========== */}
                   {balanceAccounts.map((row, index) => {
                     const isBankAccounts = row.label === "Bank Accounts";
+                    const isFirstBalanceRow = index === 0;
+                    const isLastBalanceRow =
+                      index === balanceAccounts.length - 1;
+                    const balanceSectionBorders = {
+                      borderLeft: sectionBorder,
+                      borderRight: sectionBorder,
+                      ...(isFirstBalanceRow ? { borderTop: sectionBorder } : {}),
+                      ...(isLastBalanceRow
+                        ? { borderBottom: sectionBorder }
+                        : {}),
+                    };
                     return (
                       <tr
                         key={`balance-${row.label}-${index}`}
@@ -385,6 +405,7 @@ export default function FCReviewTable({
                                 : row.level === 2
                                 ? "1.75rem"
                                 : "0.75rem",
+                            ...balanceSectionBorders,
                           }}
                         >
                           {row.label}
@@ -411,12 +432,6 @@ export default function FCReviewTable({
                                 backgroundColor: isBaseYear
                                   ? "#fafafa"
                                   : undefined,
-                                borderLeft: isBaseYear
-                                  ? "1px solid #cbd5e0"
-                                  : undefined,
-                                borderRight: isBaseYear
-                                  ? "1px solid #cbd5e0"
-                                  : undefined,
                                 cursor: isBaseYear
                                   ? "default"
                                   : canDoubleClick
@@ -425,6 +440,10 @@ export default function FCReviewTable({
                                 textDecoration: canDoubleClick
                                   ? "underline dotted"
                                   : undefined,
+                                boxShadow: isBaseYear
+                                  ? "inset 1px 0 0 #cbd5e0, inset -1px 0 0 #cbd5e0"
+                                  : undefined,
+                                ...balanceSectionBorders,
                               }}
                               onDoubleClick={() => {
                                 if (isBankAccounts) {

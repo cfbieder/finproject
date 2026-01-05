@@ -27,6 +27,7 @@ const RefreshPS = lazy(() => import('../pages/RefreshPS'));
 const TransActual = lazy(() => import('../pages/TransActual'));
 const TransBudget = lazy(() => import('../pages/TransBudget'));
 const UploadPS = lazy(() => import('../pages/UploadPS'));
+const COAManagement = lazy(() => import('../pages/COAManagement'));
 
 /**
  * Route configuration object.
@@ -169,6 +170,12 @@ export const routes = [
     path: '/fx-options',
     component: FXOptions,
     label: 'FX Options',
+    category: 'Settings',
+  },
+  {
+    path: '/coa-management',
+    component: COAManagement,
+    label: 'Chart of Account Management',
     category: 'Settings',
   },
 ];
