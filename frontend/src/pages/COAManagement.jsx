@@ -1,8 +1,8 @@
-import { useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import NavigationMenu from "../components/NavigationMenu.jsx";
-import UploadFeedback from "../features/Database/UploadFeedback.jsx";
-import coaData from "../../../components/data/coa.json";
-import coaTraits from "../../../components/data/coa_traits.json";
+import COAManagementFilters from "../features/COAManagement/COAManagementFilters.jsx";
+import COAEditModal from "../features/COAManagement/COAEditModal.jsx";
+import COAManagementTableSection from "../features/COAManagement/COAManagementTableSection.jsx";
 import Rest from "../js/rest.js";
 import "../features/BudgetEntry/BudgetOptionExchangeRates.css";
 import "./PageLayout.css";
@@ -29,36 +29,73 @@ const collectCoaRows = (node, path = [], rows = []) => {
   return rows;
 };
 
+const buildCoaRows = (coaData = [], traitsMap = {}) => {
+  const rows = collectCoaRows(coaData);
+  return rows.map(({ name, path, isCategory }) => {
+    const traits = isCategory ? {} : traitsMap?.[name] || {};
+    const type = isCategory ? "Category" : traits.Type || "Unspecified";
+    const currency = isCategory ? "—" : traits.Currency || "Unspecified";
+    return {
+      id: `${path.join("|")}-${name}`,
+      name,
+      path,
+      depth: path.length,
+      pathLabel: path.length ? path.join(" › ") : "Root",
+      type,
+      currency,
+      accountNumber: traits.AccountNumber || "",
+      isCategory,
+    };
+  });
+};
+
 export default function COAManagement() {
   const [typeFilter, setTypeFilter] = useState("all");
   const [currencyFilter, setCurrencyFilter] = useState("all");
   const [searchTerm, setSearchTerm] = useState("");
   const [analyzeStatus, setAnalyzeStatus] = useState(null);
   const [isAnalyzing, setIsAnalyzing] = useState(false);
+  const [coaRows, setCoaRows] = useState(() => buildCoaRows());
+  const [editModal, setEditModal] = useState({ open: false, row: null });
+  const [customTypeEnabled, setCustomTypeEnabled] = useState(false);
+  const [customTypeValue, setCustomTypeValue] = useState("");
+  const [editSaving, setEditSaving] = useState(false);
+  const [editError, setEditError] = useState("");
+  const [coaLoadError, setCoaLoadError] = useState("");
+  const [isLoadingCoa, setIsLoadingCoa] = useState(true);
+  const [currencyChoices, setCurrencyChoices] = useState([]);
 
-  const coaRows = useMemo(() => {
-    const rows = collectCoaRows(coaData);
-    return rows.map(({ name, path, isCategory }) => {
-      const traits = isCategory ? {} : coaTraits?.[name] || {};
-      const type = isCategory ? "Category" : traits.Type || "Unspecified";
-      const currency = isCategory ? "—" : traits.Currency || "Unspecified";
-      return {
-        name,
-        path,
-        depth: path.length,
-        pathLabel: path.length ? path.join(" › ") : "Root",
-        type,
-        currency,
-        accountNumber: traits.AccountNumber || "",
-        isCategory,
-      };
-    });
+  const loadCoaData = useCallback(async (withLoading = true) => {
+    if (withLoading) {
+      setIsLoadingCoa(true);
+    }
+    setCoaLoadError("");
+    try {
+      const [coaSections, traits, currencyPayload] = await Promise.all([
+        Rest.fetchCoaSections(),
+        Rest.fetchCoaTraits().catch(() => ({})),
+        Rest.fetchCurrencyOptions().catch(() => null),
+      ]);
+      setCoaRows(buildCoaRows(coaSections, traits || {}));
+      const currencies = currencyPayload?.currencies;
+      if (Array.isArray(currencies)) {
+        setCurrencyChoices(currencies);
+      } else {
+        setCurrencyChoices([]);
+      }
+    } catch (error) {
+      setCoaLoadError(error?.message || "Failed to load COA data.");
+      setCoaRows([]);
+    } finally {
+      if (withLoading) {
+        setIsLoadingCoa(false);
+      }
+    }
   }, []);
 
-  const getRowShade = (depth) => {
-    const lightness = Math.max(98 - depth * 6, 70);
-    return `hsl(215, 45%, ${lightness}%)`;
-  };
+  useEffect(() => {
+    loadCoaData(true);
+  }, [loadCoaData]);
 
   const typeOptions = useMemo(() => {
     const set = new Set();
@@ -71,6 +108,27 @@ export default function COAManagement() {
     coaRows.forEach((row) => set.add(row.currency));
     return ["all", ...Array.from(set).sort()];
   }, [coaRows]);
+
+  const currencySelectOptions = useMemo(() => {
+    const set = new Set();
+    (currencyChoices || []).forEach((currency) => {
+      if (typeof currency === "string" && currency.trim()) {
+        set.add(currency.trim());
+      }
+    });
+    coaRows.forEach((row) => {
+      const currency = row.currency;
+      if (
+        typeof currency === "string" &&
+        currency.trim() &&
+        currency !== "—" &&
+        currency !== "Unspecified"
+      ) {
+        set.add(currency.trim());
+      }
+    });
+    return Array.from(set).sort();
+  }, [currencyChoices, coaRows]);
 
   const filteredRows = useMemo(() => {
     const search = searchTerm.trim().toLowerCase();
@@ -85,6 +143,74 @@ export default function COAManagement() {
       );
     });
   }, [coaRows, typeFilter, currencyFilter, searchTerm]);
+
+  const openEditModal = (row) => {
+    setEditModal({
+      open: true,
+      row: {
+        ...row,
+        originalName: row.name,
+      },
+    });
+    setCustomTypeEnabled(false);
+    setCustomTypeValue("");
+    setEditError("");
+  };
+
+  const closeEditModal = () => setEditModal({ open: false, row: null });
+
+  const handleEditFieldChange = (field, value) => {
+    setEditModal((prev) =>
+      prev.open ? { ...prev, row: { ...prev.row, [field]: value } } : prev
+    );
+  };
+
+  const handleSaveEdit = async () => {
+    if (!editModal.open || !editModal.row) return;
+    const updated = editModal.row;
+    setEditSaving(true);
+    setEditError("");
+    try {
+      const pathForApi = [
+        ...updated.path,
+        updated.isCategory
+          ? updated.originalName || updated.name
+          : updated.originalName || updated.name,
+      ];
+      await Rest.fetchJson("/api/coa/update", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          path: pathForApi,
+          oldName: updated.originalName || updated.name,
+          name: updated.name,
+          type: updated.type,
+          currency: updated.currency,
+          accountNumber: updated.accountNumber,
+        }),
+      });
+      setCoaRows((prev) =>
+        prev.map((row) =>
+          row.id === updated.id
+            ? {
+                ...row,
+                ...updated,
+                id: `${updated.path.join("|")}-${updated.name}`,
+                originalName: undefined,
+              }
+            : row
+        )
+      );
+      loadCoaData(false).catch(() => {});
+      closeEditModal();
+    } catch (error) {
+      setEditError(error?.message || "Failed to save changes.");
+    } finally {
+      setEditSaving(false);
+    }
+  };
 
   const handleAnalyzeClick = async () => {
     if (isAnalyzing) {
@@ -205,155 +331,47 @@ export default function COAManagement() {
               Chart of Account Management
             </h1>
             <p className="coa-management-header__subtitle">
-              View and filter your chart of accounts by type, currency, or search term
+              View and filter your chart of accounts by type, currency, or
+              search term
             </p>
           </header>
-
-          <section className="coa-management-filters">
-            <h2 className="coa-management-filters__title">Filters</h2>
-            <div className="coa-management-filters__grid">
-              <label className="filter-field">
-                <span className="filter-field__label">Type</span>
-                <select
-                  className="form-input"
-                  value={typeFilter}
-                  onChange={(event) => setTypeFilter(event.target.value)}
-                >
-                  {typeOptions.map((option) => (
-                    <option key={option} value={option}>
-                      {option === "all" ? "All types" : option}
-                    </option>
-                  ))}
-                </select>
-              </label>
-              <label className="filter-field">
-                <span className="filter-field__label">Currency</span>
-                <select
-                  className="form-input"
-                  value={currencyFilter}
-                  onChange={(event) => setCurrencyFilter(event.target.value)}
-                >
-                  {currencyOptions.map((option) => (
-                    <option key={option} value={option}>
-                      {option === "all" ? "All currencies" : option}
-                    </option>
-                  ))}
-                </select>
-              </label>
-              <label className="filter-field">
-                <span className="filter-field__label">Search</span>
-                <input
-                  className="form-input"
-                  type="search"
-                  placeholder="Search account or path"
-                  value={searchTerm}
-                  onChange={(event) => setSearchTerm(event.target.value)}
-                />
-              </label>
-            </div>
-          </section>
-
-          <section className="coa-management-table-section">
-            <div className="coa-management-table-header">
-              <div>
-                <h2 className="coa-management-table-header__title">Accounts</h2>
-                <p className="coa-management-table-header__count">
-                  Showing {filteredRows.length} of {coaRows.length} accounts
-                </p>
-              </div>
-              <div className="coa-management-actions">
-                <button
-                  className="coa-action-button coa-action-button--analyze"
-                  type="button"
-                  onClick={handleAnalyzeClick}
-                  disabled={isAnalyzing}
-                >
-                  <span className="coa-action-button__icon" aria-hidden="true">
-                    🔍
-                  </span>
-                  <span>{isAnalyzing ? "Analyzing..." : "Analyze PS Data"}</span>
-                </button>
-              </div>
-            </div>
-            <div className="coa-management-status">
-              <UploadFeedback
-                lastIngestStatus={null}
-                lastRefreshStatus={null}
-                psDataCountStatus={null}
-                uploadStatus={null}
-                clearStatus={null}
-                ingestStatus={null}
-                analyzeStatus={analyzeStatus}
-              />
-            </div>
-            <div className="budget-options-table-wrapper">
-              <table className="budget-options-table">
-                <thead>
-                  <tr>
-                    <th style={{ width: "40%" }}>Account</th>
-                    <th>Type</th>
-                    <th>Currency</th>
-                    <th style={{ width: "18%" }}>Account #</th>
-                    <th>Add</th>
-                    <th>Delete</th>
-                    <th>Edit</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {filteredRows.length === 0 ? (
-                    <tr>
-                      <td colSpan="7" style={{ textAlign: "center" }}>
-                        No accounts match the selected filters.
-                      </td>
-                    </tr>
-                  ) : (
-                    filteredRows.map((row) => (
-                      <tr
-                        key={`${row.pathLabel}-${row.name}`}
-                        className={
-                          row.isCategory ? "coa-table-row--category" : ""
-                        }
-                        style={{ backgroundColor: getRowShade(row.depth) }}
-                      >
-                        <td style={{ paddingLeft: `${row.depth * 16}px` }}>
-                          {row.name}
-                        </td>
-                        <td>{row.type}</td>
-                        <td>{row.currency}</td>
-                        <td>{row.accountNumber || "—"}</td>
-                        <td style={{ textAlign: "center" }}>
-                          <button className="coa-action-button coa-action-button--add" type="button">
-                            <span className="coa-action-button__icon" aria-hidden="true">
-                              +
-                            </span>
-                            <span className="coa-action-button__label sr-only">Add (placeholder)</span>
-                          </button>
-                        </td>
-                        <td style={{ textAlign: "center" }}>
-                          <button className="coa-action-button coa-action-button--delete" type="button">
-                            <span className="coa-action-button__icon" aria-hidden="true">
-                              -
-                            </span>
-                            <span className="coa-action-button__label sr-only">Delete (placeholder)</span>
-                          </button>
-                        </td>
-                        <td style={{ textAlign: "center" }}>
-                          <button className="coa-action-button coa-action-button--edit" type="button">
-                            <span className="coa-action-button__icon" aria-hidden="true">
-                              ✎
-                            </span>
-                            <span className="coa-action-button__label sr-only">Edit (placeholder)</span>
-                          </button>
-                        </td>
-                      </tr>
-                    ))
-                  )}
-                </tbody>
-              </table>
-            </div>
-          </section>
+          <COAManagementFilters
+            typeOptions={typeOptions}
+            currencyOptions={currencyOptions}
+            typeFilter={typeFilter}
+            currencyFilter={currencyFilter}
+            searchTerm={searchTerm}
+            onTypeChange={setTypeFilter}
+            onCurrencyChange={setCurrencyFilter}
+            onSearchChange={setSearchTerm}
+          />
+          <COAManagementTableSection
+            filteredRows={filteredRows}
+            totalRowCount={coaRows.length}
+            isAnalyzing={isAnalyzing}
+            onAnalyzeClick={handleAnalyzeClick}
+            analyzeStatus={analyzeStatus}
+            isLoadingCoa={isLoadingCoa}
+            coaLoadError={coaLoadError}
+            onEditRow={openEditModal}
+          />
         </div>
       </main>
+      <COAEditModal
+        open={editModal.open}
+        row={editModal.row}
+        onClose={closeEditModal}
+        onFieldChange={handleEditFieldChange}
+        onSave={handleSaveEdit}
+        typeOptions={typeOptions}
+        currencyOptions={currencySelectOptions}
+        editError={editError}
+        editSaving={editSaving}
+        customTypeEnabled={customTypeEnabled}
+        setCustomTypeEnabled={setCustomTypeEnabled}
+        customTypeValue={customTypeValue}
+        setCustomTypeValue={setCustomTypeValue}
+      />
     </div>
   );
 }

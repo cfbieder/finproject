@@ -35,7 +35,11 @@
                   "Revolut-PLN"
                 ]
               },
-              { "Other Bank Accounts": ["WISE - GBP"] }
+              {
+                "Other Bank Accounts": [
+                  "WISE - GBP"
+                ]
+              }
             ]
           },
           {
@@ -46,13 +50,22 @@
             ]
           },
           {
-            "Fidelity Fixed Income": ["Fidelity Cash Mgt", "Fidelity Bond"]
+            "Fidelity Fixed Income": [
+              "Fidelity Cash Mgt",
+              "Fidelity Bond"
+            ]
           },
           {
-            "CVC Investments": ["CVC Fund VIII", "CVC Fund IX"]
+            "CVC Investments": [
+              "CVC Fund VIII",
+              "CVC Fund IX"
+            ]
           },
           {
-            "US - Properties": ["US - Nokomis", "US - Casarina"]
+            "US - Properties": [
+              "US - Nokomis",
+              "US - Casarina"
+            ]
           },
           {
             "SP - Properties": [
@@ -69,17 +82,36 @@
             ]
           },
           {
-            "PL - Properties": ["PL - Niemena", "PL - Muszlowa"]
+            "PL - Properties": [
+              "PL - Niemena",
+              "PL - Muszlowa"
+            ]
           },
-          { "CVC - MIP": ["CVC - MIP"] },
-          { "Misc Investments": ["Misc Investments"] }
+          {
+            "CVC - MIP": [
+              "CVC - MIP"
+            ]
+          },
+          {
+            "Misc Investments": [
+              "Misc Investments"
+            ]
+          }
         ]
       },
       {
         "Liabilities": [
-          { "Tax Reserve": ["Tax Reserve - US", "Tax Reserve - PL"] },
           {
-            "US - Mortgages": ["Mortgage - Nokomis", "Mortgage - Casarina"]
+            "Tax Reserve": [
+              "Tax Reserve - US",
+              "Tax Reserve - PL"
+            ]
+          },
+          {
+            "US - Mortgages": [
+              "Mortgage - Nokomis",
+              "Mortgage - Casarina"
+            ]
           },
           {
             "USD Credit Cards": [
@@ -120,7 +152,12 @@
               "Other Inc"
             ]
           },
-          { "Total Salary": ["Base Salary", "Bonus"] }
+          {
+            "Total Salary": [
+              "Base Salary",
+              "Bonus"
+            ]
+          }
         ]
       },
       {
@@ -248,7 +285,9 @@
                   "Leisure - Health And Fitness"
                 ]
               },
-              { "Other Exp": "Other Exp" },
+              {
+                "Other Exp": "Other Exp"
+              },
               {
                 "Healthcare": [
                   "Healthcare - Doctor",
@@ -257,7 +296,9 @@
                   "Healthcare - Pharmacy"
                 ]
               },
-              { "Education": "Education" },
+              {
+                "Education": "Education"
+              },
               {
                 "Children": [
                   {
@@ -280,8 +321,12 @@
                   }
                 ]
               },
-              { "Groceries": "Groceries" },
-              { "Food and Drink": "Food and Drink" },
+              {
+                "Groceries": "Groceries"
+              },
+              {
+                "Food and Drink": "Food and Drink"
+              },
               {
                 "Car Expense": [
                   "Car - Gas And Fuel",
@@ -314,7 +359,9 @@
               "Tax Adjustment"
             ]
           },
-          { "Uncategorized": "" },
+          {
+            "Uncategorized": ""
+          },
           {
             "Transfers": [
               "Transfer - Bank",

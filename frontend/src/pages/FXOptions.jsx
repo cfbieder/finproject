@@ -1,5 +1,6 @@
 import NavigationMenu from "../components/NavigationMenu.jsx";
 import BudgetOptionExchangeRates from "../features/BudgetEntry/BudgetOptionExchangeRates.jsx";
+import ForecastFXAssumptions from "../features/BudgetEntry/ForecastFXAssumptions.jsx";
 import "./PageLayout.css";
 import "./FXOptions.css";
 
@@ -19,6 +20,14 @@ export default function FXOptions() {
           <section className="fx-options-section">
             <h2 className="fx-options-section__title">Budget Exchange Rates</h2>
             <BudgetOptionExchangeRates />
+          </section>
+
+          <section className="fx-options-section">
+            <h2 className="fx-options-section__title">Forecast FX Assumptions</h2>
+            <p className="fx-options-section__description">
+              Exchange rate assumptions used in forecast scenarios
+            </p>
+            <ForecastFXAssumptions />
           </section>
         </div>
       </main>

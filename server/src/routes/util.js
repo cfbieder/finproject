@@ -17,14 +17,9 @@ const router = express.Router();
 const FC_SETUP_PATH = path.join(COMPONENTS_DATA_DIR, "fc_setup.json");
 const COA_TRAITS_PATH = path.join(COMPONENTS_DATA_DIR, "coa_traits.json");
 
-let cachedCoaTraits = null;
-
 const loadCoaTraits = () => {
-  if (!cachedCoaTraits) {
-    const raw = fs.readFileSync(COA_TRAITS_PATH, "utf8");
-    cachedCoaTraits = JSON.parse(raw);
-  }
-  return cachedCoaTraits;
+  const raw = fs.readFileSync(COA_TRAITS_PATH, "utf8");
+  return JSON.parse(raw);
 };
 
 const buildDataPathsSummary = () => {

@@ -292,6 +292,22 @@ const formatTwoDecimals = (value) => {
   });
 };
 
+const evaluateNumericExpression = (value) => {
+  const raw = String(value ?? "").trim();
+  if (!raw) return "";
+  const normalized = raw.replace(/,/g, "");
+  const asNumber = Number(normalized);
+  if (Number.isFinite(asNumber)) return asNumber;
+  if (!/^[\d+\-*/().\s]+$/.test(normalized)) return normalized;
+  try {
+    const result = Function(`"use strict"; return (${normalized});`)(); // limited to basic math
+    const parsed = Number(result);
+    return Number.isFinite(parsed) ? parsed : normalized;
+  } catch {
+    return normalized;
+  }
+};
+
 const findBalanceNode = (nodes, targetName) => {
   if (!nodes || !targetName) return null;
   const normalizedTarget = String(targetName).trim();
@@ -495,7 +511,11 @@ export default function FCModulesEditModal({
   }, [effectiveName, editForm?.BaseDate, isMatched, isOpen, refreshToken]);
 
   const parseNumber = (value) => {
-    const num = Number(String(value ?? "").replace(/,/g, ""));
+    const evaluated = evaluateNumericExpression(value);
+    const num =
+      typeof evaluated === "number"
+        ? evaluated
+        : Number(String(evaluated ?? "").replace(/,/g, ""));
     return Number.isFinite(num) ? num : null;
   };
 
@@ -1091,7 +1111,13 @@ export default function FCModulesEditModal({
                     inputValue = 0;
                   }
                   if (isValueField) {
-                    inputValue = formatWithCommas(inputValue);
+                    const formatted = formatWithCommas(inputValue);
+                    inputValue =
+                      formatted === "" &&
+                      inputValue !== "" &&
+                      !Number.isFinite(Number(inputValue))
+                        ? inputValue
+                        : formatted;
                   }
                   const inputClassName = [
                     "form-input",
@@ -1099,19 +1125,36 @@ export default function FCModulesEditModal({
                   ]
                     .filter(Boolean)
                     .join(" ");
+                  const resolvedType =
+                    field === "BaseValue" ||
+                    field === "MarketValue" ||
+                    field === "BaseValueUSD" ||
+                    field === "MarketValueUSD"
+                      ? "text"
+                      : type === "number"
+                      ? "text"
+                      : type;
+                  const isNumericInput = type === "number" || isValueField;
+                  const inputMode = isNumericInput ? "decimal" : undefined;
+                  const handleNumericChange = (event) => {
+                    const rawValue = event.target.value.replace(/,/g, "");
+                    onFieldChange(field, rawValue);
+                  };
+                  const handleNumericBlur = (event) => {
+                    const evaluated = evaluateNumericExpression(
+                      event.target.value
+                    );
+                    if (Number.isFinite(evaluated)) {
+                      onFieldChange(field, evaluated);
+                    }
+                  };
 
                   return (
                     <label key={field} className="fc-modules-modal__field">
                       <span>{label}</span>
                       <input
-                        type={
-                          field === "BaseValue" ||
-                          field === "MarketValue" ||
-                          field === "BaseValueUSD" ||
-                          field === "MarketValueUSD"
-                            ? "text"
-                            : type
-                        }
+                        type={resolvedType}
+                        inputMode={inputMode}
                         className={inputClassName}
                         value={inputValue}
                         readOnly={isReadOnlyValue}
@@ -1119,11 +1162,16 @@ export default function FCModulesEditModal({
                         onChange={
                           isLockedField || isReadOnlyValue
                             ? undefined
-                            : (event) =>
-                                onFieldChange(
-                                  field,
-                                  event.target.value.replace(/,/g, "")
-                                )
+                            : isNumericInput
+                            ? handleNumericChange
+                            : (event) => onFieldChange(field, event.target.value)
+                        }
+                        onBlur={
+                          isLockedField ||
+                          isReadOnlyValue ||
+                          !isNumericInput
+                            ? undefined
+                            : handleNumericBlur
                         }
                       />
                     </label>
@@ -1247,7 +1295,8 @@ export default function FCModulesEditModal({
                                     {isIncomePct ? "Percentage" : "Amount"}
                                   </label>
                                   <input
-                                    type="number"
+                                    type="text"
+                                    inputMode="decimal"
                                     className="fc-modules-modal__input fc-modules-modal__input--small"
                                     value={fieldValue}
                                     onChange={(event) =>
@@ -1255,9 +1304,23 @@ export default function FCModulesEditModal({
                                         field,
                                         index,
                                         fieldKey,
-                                        event.target.value
+                                        event.target.value.replace(/,/g, "")
                                       )
                                     }
+                                    onBlur={(event) => {
+                                      const evaluated =
+                                        evaluateNumericExpression(
+                                          event.target.value
+                                        );
+                                      if (Number.isFinite(evaluated)) {
+                                        updateTransferEntry(
+                                          field,
+                                          index,
+                                          fieldKey,
+                                          evaluated
+                                        );
+                                      }
+                                    }}
                                     placeholder={isIncomePct ? "0" : "0"}
                                     step={isIncomePct ? "0.01" : "1"}
                                   />

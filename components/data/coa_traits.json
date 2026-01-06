@@ -254,9 +254,24 @@
     "AccountNumber": "",
     "Type": "Cash"
   },
+  "Financial Income - Dividend": {
+    "Type": "Income",
+    "Currency": "N/A",
+    "AccountNumber": ""
+  },
   "WISE - USD - Old": {
-    "Currency": "",
+    "Currency": "USD",
     "AccountNumber": "",
     "Type": "Cash"
+  },
+  "Financial Income - UB Dividend": {
+    "Type": "Income",
+    "Currency": "N/A",
+    "AccountNumber": ""
+  },
+  "Interest Income": {
+    "Type": "Income",
+    "Currency": "N/A",
+    "AccountNumber": ""
   }
 }

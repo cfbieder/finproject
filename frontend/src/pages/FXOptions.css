@@ -52,6 +52,13 @@
   border-bottom: 2px solid rgba(37, 99, 235, 0.15);
 }
 
+.fx-options-section__description {
+  margin: 0 0 1rem 0;
+  font-size: 0.9rem;
+  color: var(--muted);
+  font-weight: 500;
+}
+
 /* Responsive adjustments */
 @media (max-width: 768px) {
   .fx-options-container {

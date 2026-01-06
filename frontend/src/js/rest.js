@@ -125,6 +125,22 @@ export default class Rest {
     return Rest.fetchJson("/api/util/currencies");
   }
 
+  static async fetchCoaSections() {
+    const [balanceSheet, cashFlow] = await Promise.all([
+      Rest.fetchJson("/api/coa/BalanceSheet"),
+      Rest.fetchJson("/api/coa/CashFlow"),
+    ]);
+
+    return [
+      { "Balance Sheet Accounts": balanceSheet ?? [] },
+      { "Profit & Loss Accounts": cashFlow ?? [] },
+    ];
+  }
+
+  static async fetchCoaTraits() {
+    return Rest.fetchJson("/api/util/coa-traits");
+  }
+
   static async fetchBudgetBalances({
     fromMonth,
     toMonth,
