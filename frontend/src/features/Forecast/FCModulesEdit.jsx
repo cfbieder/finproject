@@ -1134,6 +1134,12 @@ export default function FCModulesEditModal({
                       : type === "number"
                       ? "text"
                       : type;
+                  const tooltip =
+                    field === "Growth"
+                      ? "Enter as a percentage of inflation rate"
+                      : field === "ExpensePct"
+                      ? "Enter a % of market value"
+                      : undefined;
                   const isNumericInput = type === "number" || isValueField;
                   const inputMode = isNumericInput ? "decimal" : undefined;
                   const handleNumericChange = (event) => {
@@ -1150,13 +1156,18 @@ export default function FCModulesEditModal({
                   };
 
                   return (
-                    <label key={field} className="fc-modules-modal__field">
+                    <label
+                      key={field}
+                      className="fc-modules-modal__field"
+                      title={tooltip}
+                    >
                       <span>{label}</span>
                       <input
                         type={resolvedType}
                         inputMode={inputMode}
                         className={inputClassName}
                         value={inputValue}
+                        title={tooltip}
                         readOnly={isReadOnlyValue}
                         disabled={isLockedField}
                         onChange={
@@ -1164,12 +1175,11 @@ export default function FCModulesEditModal({
                             ? undefined
                             : isNumericInput
                             ? handleNumericChange
-                            : (event) => onFieldChange(field, event.target.value)
+                            : (event) =>
+                                onFieldChange(field, event.target.value)
                         }
                         onBlur={
-                          isLockedField ||
-                          isReadOnlyValue ||
-                          !isNumericInput
+                          isLockedField || isReadOnlyValue || !isNumericInput
                             ? undefined
                             : handleNumericBlur
                         }
@@ -1291,7 +1301,14 @@ export default function FCModulesEditModal({
                                   </select>
                                 </div>
                                 <div className="fc-modules-modal__transfer-field">
-                                  <label className="fc-modules-modal__transfer-label">
+                                  <label
+                                    className="fc-modules-modal__transfer-label"
+                                    title={
+                                      isIncomePct
+                                        ? "Enter a % of market value"
+                                        : undefined
+                                    }
+                                  >
                                     {isIncomePct ? "Percentage" : "Amount"}
                                   </label>
                                   <input
@@ -1299,6 +1316,11 @@ export default function FCModulesEditModal({
                                     inputMode="decimal"
                                     className="fc-modules-modal__input fc-modules-modal__input--small"
                                     value={fieldValue}
+                                    title={
+                                      isIncomePct
+                                        ? "Enter a % of market value"
+                                        : undefined
+                                    }
                                     onChange={(event) =>
                                       updateTransferEntry(
                                         field,

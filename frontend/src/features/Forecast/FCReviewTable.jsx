@@ -1,3 +1,4 @@
+import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { formatAmount } from "./utils/fcReviewUtils.js";
 import FCReviewTableControls from "./FCReviewTableControls.jsx";
 
@@ -31,20 +32,81 @@ export default function FCReviewTable({
   onZoomIn,
   onZoomOut,
 }) {
+  const topScrollRef = useRef(null);
+  const [topScrollWidth, setTopScrollWidth] = useState(0);
   const zoomScale = zoomLevel || 1;
   const sectionBorder = "2px solid var(--border-strong)";
+  const tableWidth = topScrollWidth || tableRef?.current?.scrollWidth || 0;
+
+  useEffect(() => {
+    const topScroller = topScrollRef.current;
+    const mainScroller = tableWrapperRef?.current;
+    if (!topScroller || !mainScroller) return;
+
+    const syncFromTop = () => {
+      if (mainScroller.scrollLeft !== topScroller.scrollLeft) {
+        mainScroller.scrollLeft = topScroller.scrollLeft;
+      }
+    };
+    const syncFromMain = () => {
+      if (topScroller.scrollLeft !== mainScroller.scrollLeft) {
+        topScroller.scrollLeft = mainScroller.scrollLeft;
+      }
+    };
+
+    topScroller.addEventListener("scroll", syncFromTop);
+    mainScroller.addEventListener("scroll", syncFromMain);
+
+    topScroller.scrollLeft = mainScroller.scrollLeft;
+
+    return () => {
+      topScroller.removeEventListener("scroll", syncFromTop);
+      mainScroller.removeEventListener("scroll", syncFromMain);
+    };
+  }, [tableWrapperRef, tableRef, sortedYears.length, zoomScale]);
+
+  useLayoutEffect(() => {
+    const updateWidth = () => {
+      const scrollWidth = tableRef?.current?.scrollWidth || 0;
+      // Account for zoom scale in the width calculation
+      const width = scrollWidth * zoomScale;
+      if (width && width !== topScrollWidth) {
+        setTopScrollWidth(width);
+      }
+    };
+
+    updateWidth();
+
+    const resizeObserver =
+      typeof ResizeObserver !== "undefined"
+        ? new ResizeObserver(updateWidth)
+        : null;
+    if (resizeObserver && tableRef?.current) {
+      resizeObserver.observe(tableRef.current);
+    }
+
+    const handleWindowResize = () => updateWidth();
+    window.addEventListener("resize", handleWindowResize);
+
+    return () => {
+      resizeObserver?.disconnect();
+      window.removeEventListener("resize", handleWindowResize);
+    };
+  }, [tableRef, sortedYears.length, zoomScale, topScrollWidth]);
 
   const selectColumnWidth = 44;
   const selectColumnStickyStyle = {
     position: "sticky",
     left: 0,
-    zIndex: 4,
+    zIndex: 11,
     top: 0,
     background:
       "linear-gradient(180deg, var(--surface-muted) 0%, var(--surface) 100%)",
     textAlign: "center",
     width: `${selectColumnWidth}px`,
     minWidth: `${selectColumnWidth}px`,
+    boxShadow: "5px 0 0 0 var(--surface)",
+    borderRight: `1px solid var(--border)`,
   };
 
   const accountColumnStickyStyle = {
@@ -73,8 +135,9 @@ export default function FCReviewTable({
     ...selectColumnStickyStyle,
     top: undefined,
     background: "var(--surface)",
-    zIndex: 2,
-    boxShadow: "inset -1px 0 0 var(--border)",
+    zIndex: 10,
+    boxShadow: "5px 0 0 0 var(--surface), inset -1px 0 0 var(--border)",
+    borderRight: `1px solid var(--border)`,
   };
 
   const totalColSpan = tableColSpan + 1;
@@ -148,7 +211,26 @@ export default function FCReviewTable({
           )}
         </div>
 
-        {/* Forecast Table */}
+        {/* Top Scrollbar */}
+        <div
+          className="trans-budget-table-wrapper"
+          ref={topScrollRef}
+          style={{
+            flex: "0 0 auto",
+            height: "17px",
+            overflowX: "auto",
+            overflowY: "hidden",
+            marginBottom: "0.5rem",
+          }}
+          aria-hidden="true"
+        >
+          <div
+            style={{
+              width: tableWidth ? `${tableWidth}px` : "100%",
+              height: "100%",
+            }}
+          />
+        </div>
         <div
           className="trans-budget-table-wrapper"
           ref={tableWrapperRef}
@@ -280,9 +362,13 @@ export default function FCReviewTable({
                       ...(isFirstCashRow ? { borderTop: sectionBorder } : {}),
                       ...(isLastCashRow ? { borderBottom: sectionBorder } : {}),
                     };
+                    const selectCellCashBorders = {
+                      ...(isFirstCashRow ? { borderTop: sectionBorder } : {}),
+                      ...(isLastCashRow ? { borderBottom: sectionBorder } : {}),
+                    };
                     return (
                       <tr key={`cash-${row.label}-${index}`}>
-                        <td style={selectCellBaseStyle}>
+                        <td style={{...selectCellBaseStyle, ...selectCellCashBorders}}>
                           <input
                             type="checkbox"
                             aria-label={`Select ${row.label}`}
@@ -316,10 +402,6 @@ export default function FCReviewTable({
                               row.isNet || isCashFlow
                                 ? "var(--ink)"
                                 : undefined,
-                            backgroundColor:
-                              row.isNet || isCashFlow
-                                ? "var(--surface-muted)"
-                                : undefined,
                             ...cashSectionBorders,
                           }}
                         >
@@ -342,12 +424,9 @@ export default function FCReviewTable({
                                   Number(value) < 0
                                     ? "var(--danger)"
                                     : undefined,
-                                backgroundColor:
-                                  row.isNet || isCashFlow
-                                    ? "var(--surface-muted)"
-                                    : isBaseYear
-                                    ? "#fafafa"
-                                    : undefined,
+                                backgroundColor: isBaseYear
+                                  ? "#fafafa"
+                                  : undefined,
                                 fontWeight:
                                   row.isNet || isCashFlow ? 600 : undefined,
                                 cursor: isBaseYear
@@ -444,6 +523,12 @@ export default function FCReviewTable({
                         ? { borderBottom: sectionBorder }
                         : {}),
                     };
+                    const selectCellBalanceBorders = {
+                      ...(isFirstBalanceRow ? { borderTop: sectionBorder } : {}),
+                      ...(isLastBalanceRow
+                        ? { borderBottom: sectionBorder }
+                        : {}),
+                    };
                     return (
                       <tr
                         key={`balance-${row.label}-${index}`}
@@ -453,7 +538,7 @@ export default function FCReviewTable({
                             : undefined),
                         }}
                       >
-                        <td style={selectCellBaseStyle}>
+                        <td style={{...selectCellBaseStyle, ...selectCellBalanceBorders}}>
                           <input
                             type="checkbox"
                             aria-label={`Select ${row.label}`}

@@ -1,9 +1,4 @@
 {
-  "PKO - USD": {
-    "Currency": "USD",
-    "AccountNumber": "",
-    "Type": "Cash"
-  },
   "PKO EUR": {
     "Currency": "EUR",
     "AccountNumber": "",
@@ -271,6 +266,71 @@
   },
   "Interest Income": {
     "Type": "Income",
+    "Currency": "N/A",
+    "AccountNumber": ""
+  },
+  "Rental - Spain": {
+    "Type": "Income",
+    "Currency": "N/A",
+    "AccountNumber": ""
+  },
+  "Bank Fees": {
+    "Type": "Expense",
+    "Currency": "N/A",
+    "AccountNumber": ""
+  },
+  "Interest Expense": {
+    "Type": "Expense",
+    "Currency": "N/A",
+    "AccountNumber": ""
+  },
+  "Unrealized G/L": {
+    "Type": "Expense",
+    "Currency": "N/A",
+    "AccountNumber": ""
+  },
+  "Option Trade": {
+    "Type": "Income",
+    "Currency": "N/A",
+    "AccountNumber": ""
+  },
+  "Utilities - Electricity - US": {
+    "Type": "Expense",
+    "Currency": "N/A",
+    "AccountNumber": ""
+  },
+  "Property - Condo Fees - US": {
+    "Type": "Expense",
+    "Currency": "N/A",
+    "AccountNumber": ""
+  },
+  "Property Tax - US": {
+    "Type": "Expense",
+    "Currency": "N/A",
+    "AccountNumber": ""
+  },
+  "House Maintenance - US": {
+    "Type": "Expense",
+    "Currency": "N/A",
+    "AccountNumber": ""
+  },
+  "Utilities - TV and Internet - US": {
+    "Type": "Expense",
+    "Currency": "N/A",
+    "AccountNumber": ""
+  },
+  "Balance Sheet Accounts": {
+    "Type": "Category",
+    "Currency": "—",
+    "AccountNumber": "10000"
+  },
+  "PKO - USD": {
+    "Currency": "USD",
+    "AccountNumber": "10001",
+    "Type": "Cash"
+  },
+  "Transfer - Bank": {
+    "Type": "Transfer",
     "Currency": "N/A",
     "AccountNumber": ""
   }

@@ -1,3 +1,4 @@
+import { useState } from "react";
 import PropTypes from "prop-types";
 import { formatAmount } from "./utils/fcReviewUtils.js";
 import "./FCReviewTableGraphModal.css";
@@ -8,6 +9,8 @@ export default function FCReviewTableGraphModal({
   graphSeries,
   sortedYears,
 }) {
+  const [mousePosition, setMousePosition] = useState(null);
+
   if (!isOpen) {
     return null;
   }
@@ -58,6 +61,41 @@ export default function FCReviewTableGraphModal({
     value: yMax - (yMax - yMin) * ratio,
   }));
 
+  // Find the closest year index based on mouse position
+  const getClosestYearIndex = (svgX) => {
+    if (yearsList.length === 0) return null;
+    const distances = yearsList.map((_, idx) => {
+      const yearX = scaleX(idx);
+      return Math.abs(svgX - yearX);
+    });
+    const minDistance = Math.min(...distances);
+    return distances.indexOf(minDistance);
+  };
+
+  const handleMouseMove = (event) => {
+    const svg = event.currentTarget;
+    const rect = svg.getBoundingClientRect();
+    const svgX = ((event.clientX - rect.left) / rect.width) * chartWidth;
+    const svgY = ((event.clientY - rect.top) / rect.height) * chartHeight;
+
+    // Only show crosshair within chart bounds
+    if (
+      svgX >= paddingX &&
+      svgX <= chartWidth - paddingX &&
+      svgY >= paddingTop &&
+      svgY <= xAxisY
+    ) {
+      const yearIndex = getClosestYearIndex(svgX);
+      setMousePosition({ x: scaleX(yearIndex), y: svgY, yearIndex });
+    } else {
+      setMousePosition(null);
+    }
+  };
+
+  const handleMouseLeave = () => {
+    setMousePosition(null);
+  };
+
   return (
     <div className="graph-modal-overlay">
       <div className="graph-modal-content">
@@ -102,6 +140,8 @@ export default function FCReviewTableGraphModal({
                 height="100%"
                 viewBox="0 0 1600 700"
                 preserveAspectRatio="xMidYMid meet"
+                onMouseMove={handleMouseMove}
+                onMouseLeave={handleMouseLeave}
               >
                 <>
                   <line
@@ -164,6 +204,16 @@ export default function FCReviewTableGraphModal({
                       </g>
                     );
                   })}
+                  {/* Red line at y=0 */}
+                  <line
+                    x1={paddingX}
+                    y1={scaleY(0)}
+                    x2={chartWidth - paddingX}
+                    y2={scaleY(0)}
+                    stroke="red"
+                    strokeWidth="2"
+                    strokeDasharray="none"
+                  />
                   {seriesList.map((series) => {
                     const points = yearsList
                       .map((_, idx) => {
@@ -202,6 +252,34 @@ export default function FCReviewTableGraphModal({
                       </g>
                     );
                   })}
+                  {/* Vertical crosshair line and year highlight */}
+                  {mousePosition && (
+                    <>
+                      <line
+                        x1={mousePosition.x}
+                        y1={paddingTop}
+                        x2={mousePosition.x}
+                        y2={xAxisY}
+                        stroke="#666"
+                        strokeWidth="1.5"
+                        strokeDasharray="4 2"
+                        pointerEvents="none"
+                      />
+                      <text
+                        x={mousePosition.x}
+                        y={paddingTop - 10}
+                        textAnchor="middle"
+                        style={{
+                          fontSize: "16px",
+                          fontWeight: "bold",
+                          fill: "#333",
+                        }}
+                        pointerEvents="none"
+                      >
+                        {yearsList[mousePosition.yearIndex]}
+                      </text>
+                    </>
+                  )}
                 </>
               </svg>
             </div>

@@ -12,6 +12,9 @@ export default function COAEditModal({
   setCustomTypeEnabled,
   customTypeValue,
   setCustomTypeValue,
+  isMultiEdit = false,
+  selectedCount = 0,
+  mixedFields = {},
 }) {
   if (!open || !row) {
     return null;
@@ -50,7 +53,16 @@ export default function COAEditModal({
             justifyContent: "space-between",
           }}
         >
-          <h3 style={{ margin: 0 }}>Edit Account</h3>
+          <div>
+            <h3 style={{ margin: 0 }}>
+              {isMultiEdit ? "Edit Accounts" : "Edit Account"}
+            </h3>
+            {isMultiEdit && (
+              <p style={{ margin: 0, color: "#475569", fontSize: "0.9rem" }}>
+                {selectedCount} selected
+              </p>
+            )}
+          </div>
           <button
             type="button"
             onClick={onClose}
@@ -76,8 +88,10 @@ export default function COAEditModal({
           <span style={{ fontWeight: 700, color: "#0f172a" }}>Account</span>
           <input
             className="form-input"
-            value={row.name}
+            value={isMultiEdit ? "Multiple accounts selected" : row.name}
             onChange={(event) => onFieldChange("name", event.target.value)}
+            disabled={isMultiEdit}
+            readOnly={isMultiEdit}
           />
         </label>
         <label
@@ -108,6 +122,9 @@ export default function COAEditModal({
               }
             }}
           >
+            {isMultiEdit && mixedFields?.type && (
+              <option value="">Multiple values</option>
+            )}
             {(typeOptions || [])
               .filter((option) => option !== "all")
               .map((option) => (
@@ -143,6 +160,9 @@ export default function COAEditModal({
             value={row.currency || ""}
             onChange={(event) => onFieldChange("currency", event.target.value)}
           >
+            {isMultiEdit && mixedFields?.currency && (
+              <option value="">Multiple values</option>
+            )}
             <option value="">Select currency</option>
             {currencyOptions.map((option) => (
               <option key={option} value={option}>
@@ -162,6 +182,11 @@ export default function COAEditModal({
           <input
             className="form-input"
             value={row.accountNumber}
+            placeholder={
+              isMultiEdit && mixedFields?.accountNumber
+                ? "Multiple values"
+                : undefined
+            }
             onChange={(event) =>
               onFieldChange("accountNumber", event.target.value)
             }

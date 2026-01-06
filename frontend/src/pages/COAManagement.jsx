@@ -64,6 +64,7 @@ export default function COAManagement() {
   const [coaLoadError, setCoaLoadError] = useState("");
   const [isLoadingCoa, setIsLoadingCoa] = useState(true);
   const [currencyChoices, setCurrencyChoices] = useState([]);
+  const [selectedRowKeys, setSelectedRowKeys] = useState([]);
 
   const loadCoaData = useCallback(async (withLoading = true) => {
     if (withLoading) {
@@ -144,13 +145,65 @@ export default function COAManagement() {
     });
   }, [coaRows, typeFilter, currencyFilter, searchTerm]);
 
-  const openEditModal = (row) => {
+  const getRowKey = useCallback((row) => {
+    return row?.id || `${row?.pathLabel || ""}-${row?.name || ""}`;
+  }, []);
+
+  const selectedRows = useMemo(() => {
+    const keySet = new Set(selectedRowKeys);
+    return coaRows.filter((row) => keySet.has(getRowKey(row)));
+  }, [coaRows, getRowKey, selectedRowKeys]);
+
+  const toggleRowSelection = (row) => {
+    const key = getRowKey(row);
+    setSelectedRowKeys((prev) => {
+      const next = new Set(prev);
+      if (next.has(key)) {
+        next.delete(key);
+      } else {
+        next.add(key);
+      }
+      return Array.from(next);
+    });
+  };
+
+  const openEditModal = (row, options = {}) => {
+    const selection =
+      Array.isArray(options.selection) && options.selection.length
+        ? options.selection
+        : [row];
+    const isMulti = selection.length > 1;
+    const sharedValue = (field) => {
+      const values = Array.from(
+        new Set(selection.map((item) => String(item?.[field] ?? "").trim()))
+      );
+      return values.length === 1 ? values[0] : "";
+    };
+    const mixedFields = {
+      type: isMulti && sharedValue("type") === "",
+      currency: isMulti && sharedValue("currency") === "",
+      accountNumber: isMulti && sharedValue("accountNumber") === "",
+    };
+    const editRow = isMulti
+      ? {
+          ...selection[0],
+          name: "Multiple accounts selected",
+          type: sharedValue("type"),
+          currency: sharedValue("currency"),
+          accountNumber: sharedValue("accountNumber"),
+          originalName: selection[0]?.name,
+        }
+      : {
+          ...row,
+          originalName: row.name,
+        };
     setEditModal({
       open: true,
-      row: {
-        ...row,
-        originalName: row.name,
-      },
+      row: editRow,
+      isMulti,
+      selectedRows: selection,
+      mixedFields,
+      changedFields: {},
     });
     setCustomTypeEnabled(false);
     setCustomTypeValue("");
@@ -161,50 +214,94 @@ export default function COAManagement() {
 
   const handleEditFieldChange = (field, value) => {
     setEditModal((prev) =>
-      prev.open ? { ...prev, row: { ...prev.row, [field]: value } } : prev
+      prev.open
+        ? {
+            ...prev,
+            row: { ...prev.row, [field]: value },
+            changedFields: { ...(prev.changedFields || {}), [field]: true },
+          }
+        : prev
     );
   };
 
   const handleSaveEdit = async () => {
     if (!editModal.open || !editModal.row) return;
-    const updated = editModal.row;
+    const targets = editModal.isMulti ? editModal.selectedRows || [] : [editModal.row];
+    if (!targets.length) return;
     setEditSaving(true);
     setEditError("");
     try {
-      const pathForApi = [
-        ...updated.path,
-        updated.isCategory
-          ? updated.originalName || updated.name
-          : updated.originalName || updated.name,
-      ];
-      await Rest.fetchJson("/api/coa/update", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          path: pathForApi,
-          oldName: updated.originalName || updated.name,
-          name: updated.name,
-          type: updated.type,
-          currency: updated.currency,
-          accountNumber: updated.accountNumber,
-        }),
-      });
+      const resolveField = (field, row) => {
+        const mixed = editModal.mixedFields?.[field];
+        const changed = editModal.changedFields?.[field];
+        const value = editModal.row?.[field];
+        if (editModal.isMulti && mixed && !changed) {
+          return row[field];
+        }
+        return value ?? row[field];
+      };
+
+      const updates = [];
+
+      for (const target of targets) {
+        const nextName = editModal.isMulti ? target.name : editModal.row.name;
+        const nextType = resolveField("type", target);
+        const nextCurrency = resolveField("currency", target);
+        const nextAccountNumber = resolveField("accountNumber", target);
+
+        const pathForApi = [
+          ...target.path,
+          target.isCategory
+            ? target.originalName || target.name
+            : target.originalName || target.name,
+        ];
+
+        await Rest.fetchJson("/api/coa/update", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            path: pathForApi,
+            oldName: target.originalName || target.name,
+            name: nextName,
+            type: nextType,
+            currency: nextCurrency,
+            accountNumber: nextAccountNumber,
+          }),
+        });
+
+        updates.push({
+          targetId: target.id,
+          updatedRow: {
+            ...target,
+            name: nextName,
+            type: nextType,
+            currency: nextCurrency,
+            accountNumber: nextAccountNumber,
+            id: `${target.path.join("|")}-${nextName}`,
+            originalName: undefined,
+          },
+        });
+      }
+
       setCoaRows((prev) =>
-        prev.map((row) =>
-          row.id === updated.id
-            ? {
-                ...row,
-                ...updated,
-                id: `${updated.path.join("|")}-${updated.name}`,
-                originalName: undefined,
-              }
-            : row
-        )
+        prev.map((row) => {
+          const found = updates.find((entry) => entry.targetId === row.id);
+          return found ? found.updatedRow : row;
+        })
       );
+      setSelectedRowKeys((prev) => {
+        const map = new Map(
+          updates.map((entry) => [entry.targetId, entry.updatedRow.id])
+        );
+        return Array.from(
+          new Set(prev.map((key) => map.get(key) || key))
+        );
+      });
       loadCoaData(false).catch(() => {});
       closeEditModal();
+      setSelectedRowKeys([]);
     } catch (error) {
       setEditError(error?.message || "Failed to save changes.");
     } finally {
@@ -344,6 +441,13 @@ export default function COAManagement() {
             onTypeChange={setTypeFilter}
             onCurrencyChange={setCurrencyFilter}
             onSearchChange={setSearchTerm}
+            onEditSelected={() =>
+              selectedRows.length
+                ? openEditModal(selectedRows[0], { selection: selectedRows })
+                : null
+            }
+            selectedCount={selectedRows.length}
+            onClearSelected={() => setSelectedRowKeys([])}
           />
           <COAManagementTableSection
             filteredRows={filteredRows}
@@ -353,7 +457,9 @@ export default function COAManagement() {
             analyzeStatus={analyzeStatus}
             isLoadingCoa={isLoadingCoa}
             coaLoadError={coaLoadError}
-            onEditRow={openEditModal}
+            selectedRowKeys={selectedRowKeys}
+            onToggleRowSelection={toggleRowSelection}
+            getRowKey={getRowKey}
           />
         </div>
       </main>
@@ -371,6 +477,9 @@ export default function COAManagement() {
         setCustomTypeEnabled={setCustomTypeEnabled}
         customTypeValue={customTypeValue}
         setCustomTypeValue={setCustomTypeValue}
+        isMultiEdit={Boolean(editModal.isMulti)}
+        selectedCount={editModal.selectedRows?.length || 0}
+        mixedFields={editModal.mixedFields || {}}
       />
     </div>
   );
