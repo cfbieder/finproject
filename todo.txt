@@ -18,4 +18,4 @@ Add some KPI to Budget Page and Forecast Page with graphics
 
 Add way to re-export changes back to PS?
 
-Ability to see totals by currency for periods.
+Start on Option Analysis

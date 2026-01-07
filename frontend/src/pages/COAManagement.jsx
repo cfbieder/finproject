@@ -432,35 +432,41 @@ export default function COAManagement() {
               search term
             </p>
           </header>
-          <COAManagementFilters
-            typeOptions={typeOptions}
-            currencyOptions={currencyOptions}
-            typeFilter={typeFilter}
-            currencyFilter={currencyFilter}
-            searchTerm={searchTerm}
-            onTypeChange={setTypeFilter}
-            onCurrencyChange={setCurrencyFilter}
-            onSearchChange={setSearchTerm}
-            onEditSelected={() =>
-              selectedRows.length
-                ? openEditModal(selectedRows[0], { selection: selectedRows })
-                : null
-            }
-            selectedCount={selectedRows.length}
-            onClearSelected={() => setSelectedRowKeys([])}
-          />
-          <COAManagementTableSection
-            filteredRows={filteredRows}
-            totalRowCount={coaRows.length}
-            isAnalyzing={isAnalyzing}
-            onAnalyzeClick={handleAnalyzeClick}
-            analyzeStatus={analyzeStatus}
-            isLoadingCoa={isLoadingCoa}
-            coaLoadError={coaLoadError}
-            selectedRowKeys={selectedRowKeys}
-            onToggleRowSelection={toggleRowSelection}
-            getRowKey={getRowKey}
-          />
+          <div className="coa-management-layout">
+            <div className="coa-management-sidebar">
+              <COAManagementFilters
+                typeOptions={typeOptions}
+                currencyOptions={currencyOptions}
+                typeFilter={typeFilter}
+                currencyFilter={currencyFilter}
+                searchTerm={searchTerm}
+                onTypeChange={setTypeFilter}
+                onCurrencyChange={setCurrencyFilter}
+                onSearchChange={setSearchTerm}
+                onEditSelected={() =>
+                  selectedRows.length
+                    ? openEditModal(selectedRows[0], { selection: selectedRows })
+                    : null
+                }
+                selectedCount={selectedRows.length}
+                onClearSelected={() => setSelectedRowKeys([])}
+              />
+            </div>
+            <div className="coa-management-main">
+              <COAManagementTableSection
+                filteredRows={filteredRows}
+                totalRowCount={coaRows.length}
+                isAnalyzing={isAnalyzing}
+                onAnalyzeClick={handleAnalyzeClick}
+                analyzeStatus={analyzeStatus}
+                isLoadingCoa={isLoadingCoa}
+                coaLoadError={coaLoadError}
+                selectedRowKeys={selectedRowKeys}
+                onToggleRowSelection={toggleRowSelection}
+                getRowKey={getRowKey}
+              />
+            </div>
+          </div>
         </div>
       </main>
       <COAEditModal

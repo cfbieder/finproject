@@ -2,6 +2,16 @@
   --cashflow-indent-unit: 1.25rem;
 }
 
+.cash-flow-report__title {
+  justify-content: center;
+  text-align: center;
+  width: 100%;
+}
+
+.cash-flow-report__title::before {
+  content: none;
+}
+
 .cash-flow-report .balance-report-table__name {
   padding-left: calc(var(--cashflow-indent-level, 0) * var(--cashflow-indent-unit));
 }

@@ -75,11 +75,36 @@ const renderCashFlowRows = (
     const comparisonValues = comparisonMaps.map(
       (map) => map?.get(pathKey) ?? 0
     );
+    const hasNonZeroValue =
+      (node.total ?? 0) !== 0 ||
+      comparisonValues.some((value) => (value ?? 0) !== 0);
     const isHighlighted = highlightedPaths.has(pathKey);
+
+    const childrenRows =
+      hasChildren && !isCollapsed
+        ? renderCashFlowRows(
+            node.children,
+            level + 1,
+            [...path, node.name],
+            comparisonMaps,
+            collapsedPaths,
+            onToggle,
+            onValueDoubleClick,
+            highlightedPaths,
+            onToggleHighlight
+          )
+        : [];
+
+    if (!hasNonZeroValue && childrenRows.length === 0) {
+      return [];
+    }
+
     const row = (
       <tr
         key={pathKey}
-        className={isHighlighted ? "balance-report-table__row--highlighted" : ""}
+        className={
+          isHighlighted ? "balance-report-table__row--highlighted" : ""
+        }
       >
         <td
           className="balance-report-table__name"
@@ -133,21 +158,6 @@ const renderCashFlowRows = (
         ))}
       </tr>
     );
-
-    const childrenRows =
-      hasChildren && !isCollapsed
-        ? renderCashFlowRows(
-            node.children,
-            level + 1,
-            [...path, node.name],
-            comparisonMaps,
-            collapsedPaths,
-            onToggle,
-            onValueDoubleClick,
-            highlightedPaths,
-            onToggleHighlight
-          )
-        : [];
 
     return hasChildren ? [row, ...childrenRows] : [row];
   });
@@ -313,53 +323,54 @@ export default function CashFlowReport({
       {hasReport ? (
         <>
           <section className="budget-region realization-header">
-            <p className="budget-region__label">Cash Flow Comparison</p>
-            <p className="budget-region__description">
-              Compare cash flow across multiple periods to analyze income, expenses, and net cash flow trends.
+            <p className="budget-region__label cash-flow-report__title">
+              Cash Flow Comparison
             </p>
           </section>
           <div className="balance-report">
             <div className="balance-report__table-wrapper">
-            <table className="balance-report-table" ref={tableRef}>
-              <caption className="balance-report-table__caption"></caption>
-              <colgroup>
-                <col style={{ width: `${categoryColumnWidth}px` }} />
-                <col />
-                {activeLabels.slice(1).map((_, index) => (
-                  <col key={`cashflow-period-col-${index + 2}`} />
-                ))}
-              </colgroup>
-              <thead>
-                <tr>
-                  <th className="balance-report-table__category">
-                    <span>Category</span>
-                    <span
-                      className="balance-report-table__column-resizer"
-                      role="presentation"
-                      onMouseDown={startResizingCategory}
-                    />
-                  </th>
-                  <th>{activeLabels[0] ?? "Period 1"}</th>
-                  {activeLabels.slice(1).map((label, index) => (
-                    <th key={`cashflow-period-header-${index + 2}`}>{label}</th>
+              <table className="balance-report-table" ref={tableRef}>
+                <caption className="balance-report-table__caption"></caption>
+                <colgroup>
+                  <col style={{ width: `${categoryColumnWidth}px` }} />
+                  <col />
+                  {activeLabels.slice(1).map((_, index) => (
+                    <col key={`cashflow-period-col-${index + 2}`} />
                   ))}
-                </tr>
-              </thead>
-              <tbody>
-                {renderCashFlowRows(
-                  baseReport,
-                  0,
-                  [],
-                  comparisonMaps,
-                  collapsedPaths,
-                  onTogglePath,
-                  handleValueDoubleClick,
-                  highlightedRows,
-                  toggleRowHighlight
-                )}
-              </tbody>
-            </table>
-          </div>
+                </colgroup>
+                <thead>
+                  <tr>
+                    <th className="balance-report-table__category">
+                      <span>Category</span>
+                      <span
+                        className="balance-report-table__column-resizer"
+                        role="presentation"
+                        onMouseDown={startResizingCategory}
+                      />
+                    </th>
+                    <th>{activeLabels[0] ?? "Period 1"}</th>
+                    {activeLabels.slice(1).map((label, index) => (
+                      <th key={`cashflow-period-header-${index + 2}`}>
+                        {label}
+                      </th>
+                    ))}
+                  </tr>
+                </thead>
+                <tbody>
+                  {renderCashFlowRows(
+                    baseReport,
+                    0,
+                    [],
+                    comparisonMaps,
+                    collapsedPaths,
+                    onTogglePath,
+                    handleValueDoubleClick,
+                    highlightedRows,
+                    toggleRowHighlight
+                  )}
+                </tbody>
+              </table>
+            </div>
           </div>
         </>
       ) : (

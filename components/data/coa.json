@@ -228,7 +228,9 @@
                     ]
                   },
                   {
-                    "Property - Other": "Property - Other"
+                    "Property - Other": [
+                      "Property - Other"
+                    ]
                   }
                 ]
               }

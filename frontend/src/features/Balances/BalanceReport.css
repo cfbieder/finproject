@@ -2,6 +2,16 @@
   --balance-indent-unit: 1.25rem;
 }
 
+.balance-report__title {
+  justify-content: center;
+  text-align: center;
+  width: 100%;
+}
+
+.balance-report__title::before {
+  content: none;
+}
+
 .balance-report .balance-report-table__name {
   padding-left: calc(
     0.95rem + var(--balance-indent-level, 0) * var(--balance-indent-unit)

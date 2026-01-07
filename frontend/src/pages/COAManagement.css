@@ -6,7 +6,7 @@
 /* Main container */
 .coa-management-container {
   width: 100%;
-  max-width: 1400px;
+  max-width: 1800px;
   margin: 0 auto;
   padding: 0 1.5rem 2rem;
 }
@@ -30,6 +30,27 @@
   font-size: 1rem;
   color: var(--muted);
   font-weight: 500;
+}
+
+/* Layout */
+.coa-management-layout {
+  display: flex;
+  gap: 1.5rem;
+  align-items: flex-start;
+}
+
+.coa-management-sidebar {
+  flex: 0 0 320px;
+  max-width: 360px;
+}
+
+.coa-management-sidebar .coa-management-filters {
+  margin-bottom: 0;
+}
+
+.coa-management-main {
+  flex: 1;
+  min-width: 0;
 }
 
 /* Filters section */
@@ -205,6 +226,15 @@
 @media (max-width: 768px) {
   .coa-management-container {
     padding: 0 1rem 1.5rem;
+  }
+
+  .coa-management-layout {
+    flex-direction: column;
+  }
+
+  .coa-management-sidebar {
+    max-width: none;
+    width: 100%;
   }
 
   .coa-management-header__title {

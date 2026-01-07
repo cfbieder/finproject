@@ -392,6 +392,14 @@ const renderCategoryRows = (
       hasBudgetData && typeof getBudgetValue === "function"
         ? getBudgetValue(node, pathKey)
         : 0;
+    if (
+      hasActualData &&
+      hasBudgetData &&
+      resolvedActualValue === 0 &&
+      resolvedBudgetValue === 0
+    ) {
+      return [];
+    }
     const leafCategories = collectLeafCategoryNames(node);
     const actualDisplay = hasActualData
       ? formatCurrencyValue(resolvedActualValue)

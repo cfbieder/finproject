@@ -161,7 +161,10 @@
 }
 
 .section-table {
-  height: 750px;
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
 }
 
 .fc-review-selector {

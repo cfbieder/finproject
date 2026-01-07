@@ -1,6 +1,5 @@
 .navbar {
-  position: sticky;
-  top: 0;
+  position: relative;
   z-index: 9999;
   width: 100%;
   max-width: 100vw;

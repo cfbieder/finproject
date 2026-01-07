@@ -227,54 +227,53 @@ export default function BalanceReport({
       {hasReport ? (
         <>
           <section className="budget-region realization-header">
-            <p className="budget-region__label">Balance Sheet</p>
-            <p className="budget-region__description">
-              View account balances across multiple periods to track changes in financial position.
+            <p className="budget-region__label balance-report__title">
+              Balance Sheet
             </p>
           </section>
           <div className="balance-report">
             <div className="balance-report__table-wrapper">
-            <table className="balance-report-table" ref={tableRef}>
-              <caption className="balance-report-table__caption">
-                <div className="balance-report-table__caption-row"></div>
-              </caption>
-              <colgroup>
-                <col style={{ width: `${categoryColumnWidth}px` }} />
-                <col />
-                {periodLabels.slice(1).map((_, index) => (
-                  <col key={`period-col-${index + 2}`} />
-                ))}
-              </colgroup>
-              <thead className="balance-report-table__head">
-                <tr>
-                  <th className="balance-report-table__category">
-                    <span>Account</span>
-                    <span
-                      className="balance-report-table__column-resizer"
-                      role="presentation"
-                      onMouseDown={startResizingCategory}
-                    />
-                  </th>
-                  <th>{periodLabels[0] ?? "Period 1"}</th>
-                  {periodLabels.slice(1).map((label, index) => (
-                    <th key={`period-header-${index + 2}`}>{label}</th>
+              <table className="balance-report-table" ref={tableRef}>
+                <caption className="balance-report-table__caption">
+                  <div className="balance-report-table__caption-row"></div>
+                </caption>
+                <colgroup>
+                  <col style={{ width: `${categoryColumnWidth}px` }} />
+                  <col />
+                  {periodLabels.slice(1).map((_, index) => (
+                    <col key={`period-col-${index + 2}`} />
                   ))}
-                </tr>
-              </thead>
-              <tbody>
-                {renderAccountRows(
-                  baseReport,
-                  0,
-                  [],
-                  comparisonMaps,
-                  collapsedPaths,
-                  onTogglePath,
-                  highlightedRows,
-                  toggleRowHighlight
-                )}
-              </tbody>
-            </table>
-          </div>
+                </colgroup>
+                <thead className="balance-report-table__head">
+                  <tr>
+                    <th className="balance-report-table__category">
+                      <span>Account</span>
+                      <span
+                        className="balance-report-table__column-resizer"
+                        role="presentation"
+                        onMouseDown={startResizingCategory}
+                      />
+                    </th>
+                    <th>{periodLabels[0] ?? "Period 1"}</th>
+                    {periodLabels.slice(1).map((label, index) => (
+                      <th key={`period-header-${index + 2}`}>{label}</th>
+                    ))}
+                  </tr>
+                </thead>
+                <tbody>
+                  {renderAccountRows(
+                    baseReport,
+                    0,
+                    [],
+                    comparisonMaps,
+                    collapsedPaths,
+                    onTogglePath,
+                    highlightedRows,
+                    toggleRowHighlight
+                  )}
+                </tbody>
+              </table>
+            </div>
           </div>
         </>
       ) : (

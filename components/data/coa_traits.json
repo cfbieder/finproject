@@ -254,11 +254,6 @@
     "Currency": "N/A",
     "AccountNumber": ""
   },
-  "WISE - USD - Old": {
-    "Currency": "USD",
-    "AccountNumber": "",
-    "Type": "Cash"
-  },
   "Financial Income - UB Dividend": {
     "Type": "Income",
     "Currency": "N/A",
@@ -331,6 +326,271 @@
   },
   "Transfer - Bank": {
     "Type": "Transfer",
+    "Currency": "N/A",
+    "AccountNumber": ""
+  },
+  "WISE - USD - Old": {
+    "Currency": "USD",
+    "AccountNumber": "10002",
+    "Type": "Cash"
+  },
+  "Transfer - Credit Card Payments": {
+    "Type": "Transfer",
+    "Currency": "N/A",
+    "AccountNumber": ""
+  },
+  "Transfer - Matched": {
+    "Type": "Transfer",
+    "Currency": "N/A",
+    "AccountNumber": ""
+  },
+  "Transfer - Mortgage": {
+    "Type": "Transfer",
+    "Currency": "N/A",
+    "AccountNumber": ""
+  },
+  "Transfer - Real Estate Investment": {
+    "Type": "Transfer",
+    "Currency": "N/A",
+    "AccountNumber": ""
+  },
+  "Transfer - Securities Trades": {
+    "Type": "Transfer",
+    "Currency": "N/A",
+    "AccountNumber": ""
+  },
+  "Transfer - Unmatched": {
+    "Type": "Transfer",
+    "Currency": "N/A",
+    "AccountNumber": ""
+  },
+  "FX": {
+    "Type": "Transfer",
+    "Currency": "N/A",
+    "AccountNumber": ""
+  },
+  "USD Bank Accounts": {
+    "Type": "Income",
+    "Currency": "—",
+    "AccountNumber": ""
+  },
+  "Financial Income - BC Holding": {
+    "Type": "Income",
+    "Currency": "N/A",
+    "AccountNumber": ""
+  },
+  "Financial Income - CVC": {
+    "Type": "Income",
+    "Currency": "N/A",
+    "AccountNumber": ""
+  },
+  "Financial Income - Other Investments": {
+    "Type": "Income",
+    "Currency": "N/A",
+    "AccountNumber": ""
+  },
+  "Other Inc": {
+    "Type": "Income",
+    "Currency": "N/A",
+    "AccountNumber": ""
+  },
+  "Base Salary": {
+    "Type": "Income",
+    "Currency": "N/A",
+    "AccountNumber": ""
+  },
+  "Bonus": {
+    "Type": "Income",
+    "Currency": "N/A",
+    "AccountNumber": ""
+  },
+  "Utilities - Water - PL": {
+    "Type": "Expense",
+    "Currency": "N/A",
+    "AccountNumber": ""
+  },
+  "Utilities - Gas": {
+    "Type": "Expense",
+    "Currency": "N/A",
+    "AccountNumber": ""
+  },
+  "Utilities - TV and Internet - PL": {
+    "Type": "Expense",
+    "Currency": "N/A",
+    "AccountNumber": ""
+  },
+  "Utilities - Security": {
+    "Type": "Expense",
+    "Currency": "N/A",
+    "AccountNumber": ""
+  },
+  "Maintenance Fee - PL": {
+    "Type": "Expense",
+    "Currency": "N/A",
+    "AccountNumber": ""
+  },
+  "Property Tax - PL": {
+    "Type": "Expense",
+    "Currency": "N/A",
+    "AccountNumber": ""
+  },
+  "Property Insruance - PL": {
+    "Type": "Expense",
+    "Currency": "N/A",
+    "AccountNumber": ""
+  },
+  "House Maintenance - PL": {
+    "Type": "Expense",
+    "Currency": "N/A",
+    "AccountNumber": ""
+  },
+  "Utilities - Electricity - SP - SS": {
+    "Type": "Expense",
+    "Currency": "N/A",
+    "AccountNumber": ""
+  },
+  "Utilities - Water - SP - SS": {
+    "Type": "Expense",
+    "Currency": "N/A",
+    "AccountNumber": ""
+  },
+  "Property - Condo Fees - SP - SS": {
+    "Type": "Expense",
+    "Currency": "N/A",
+    "AccountNumber": ""
+  },
+  "Utilities - TV and Internet - SP - SS": {
+    "Type": "Expense",
+    "Currency": "N/A",
+    "AccountNumber": ""
+  },
+  "Property Insurance - Spain - SS": {
+    "Type": "Expense",
+    "Currency": "N/A",
+    "AccountNumber": ""
+  },
+  "House Maintenance - SP - SS": {
+    "Type": "Expense",
+    "Currency": "N/A",
+    "AccountNumber": ""
+  },
+  "Utilities - Electricity - SP - PM4": {
+    "Type": "Expense",
+    "Currency": "N/A",
+    "AccountNumber": ""
+  },
+  "Utilities - Water - SP - PM4": {
+    "Type": "Expense",
+    "Currency": "N/A",
+    "AccountNumber": ""
+  },
+  "Property - Condo Fees - SP - PM4": {
+    "Type": "Expense",
+    "Currency": "N/A",
+    "AccountNumber": ""
+  },
+  "Utilities - TV and Internet - SP - PM4": {
+    "Type": "Expense",
+    "Currency": "N/A",
+    "AccountNumber": ""
+  },
+  "Property Insurance - Spain - PM4": {
+    "Type": "Expense",
+    "Currency": "N/A",
+    "AccountNumber": ""
+  },
+  "House Maintenance - SP - PM4": {
+    "Type": "Expense",
+    "Currency": "N/A",
+    "AccountNumber": ""
+  },
+  "Utilities - Electricity - SP - PM6": {
+    "Type": "Expense",
+    "Currency": "N/A",
+    "AccountNumber": ""
+  },
+  "Utilities - Water - SP - PM6": {
+    "Type": "Expense",
+    "Currency": "N/A",
+    "AccountNumber": ""
+  },
+  "Property - Condo Fees - SP - PM6": {
+    "Type": "Expense",
+    "Currency": "N/A",
+    "AccountNumber": ""
+  },
+  "Utilities - TV and Internet - SP - PM6": {
+    "Type": "Expense",
+    "Currency": "N/A",
+    "AccountNumber": ""
+  },
+  "Property Insurance - Spain - PM6": {
+    "Type": "Expense",
+    "Currency": "N/A",
+    "AccountNumber": ""
+  },
+  "House Maintenance - SP - PM6": {
+    "Type": "Expense",
+    "Currency": "N/A",
+    "AccountNumber": ""
+  },
+  "Utilities - Electricity - PL": {
+    "Type": "Expense",
+    "Currency": "N/A",
+    "AccountNumber": ""
+  },
+  "Utilities - Garden": {
+    "Type": "Expense",
+    "Currency": "N/A",
+    "AccountNumber": ""
+  },
+  "Utilities - Garbage": {
+    "Type": "Expense",
+    "Currency": "N/A",
+    "AccountNumber": ""
+  },
+  "Purchases - Kasia": {
+    "Type": "Expense",
+    "Currency": "N/A",
+    "AccountNumber": ""
+  },
+  "Purchases - Chris": {
+    "Type": "Expense",
+    "Currency": "N/A",
+    "AccountNumber": ""
+  },
+  "Purchases - Subscriptions": {
+    "Type": "Expense",
+    "Currency": "N/A",
+    "AccountNumber": ""
+  },
+  "Purchases - Clothing": {
+    "Type": "Expense",
+    "Currency": "N/A",
+    "AccountNumber": ""
+  },
+  "Property One-Off": {
+    "Type": "Expense",
+    "Currency": "N/A",
+    "AccountNumber": ""
+  },
+  "Car Purchase/Sale": {
+    "Type": "Expense",
+    "Currency": "N/A",
+    "AccountNumber": ""
+  },
+  "Tax Adjustment": {
+    "Type": "Expense",
+    "Currency": "N/A",
+    "AccountNumber": ""
+  },
+  "Taxes PL": {
+    "Type": "Expense",
+    "Currency": "N/A",
+    "AccountNumber": ""
+  },
+  "Property - Other": {
+    "Type": "Expense",
     "Currency": "N/A",
     "AccountNumber": ""
   }

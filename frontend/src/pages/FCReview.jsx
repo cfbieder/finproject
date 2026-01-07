@@ -560,6 +560,7 @@ export default function FCReview() {
     const thStyleBase =
       "padding:8px 10px;border:1px solid #d9e2ec;background:#f8fafc;font-weight:700;text-align:left;";
     const tdStyleBase = "padding:6px 10px;border:1px solid #e2e8f0;";
+    const sectionBorder = "2px solid #334155";
 
     const headerRow = sortedYears
       .map((year) => {
@@ -574,22 +575,30 @@ export default function FCReview() {
       })
       .join("");
 
-    const formatLabelCell = (label, level, extraStyle = "") => {
+    const formatLabelCell = (label, level, extraStyle = "", sectionBorders = "") => {
       const weight = level === 1 ? 700 : level === 2 ? 600 : 500;
       const padding =
         level === 3 ? "padding-left:40px;" : level === 2 ? "padding-left:28px;" : "padding-left:12px;";
-      return `<td style="${tdStyleBase}${padding}font-weight:${weight};${extraStyle}">${label}</td>`;
+      return `<td style="${tdStyleBase}${padding}font-weight:${weight};${extraStyle}${sectionBorders}">${label}</td>`;
     };
 
     const cashRowsHtml = cashRowsWithNet
-      .map((row) => {
+      .map((row, index) => {
         const isTransfers = row.label === "Transfers";
-        const label = row.isNet ? "Net Cash Flow (Income + Expense)" : row.label;
+        const isCashFlow = row.isCashFlow;
+        const isFirstCashRow = index === 0;
+        const isLastCashRow = index === cashRowsWithNet.length - 1;
+        const label = row.isNet ? "Net Cash Flow" : isCashFlow ? "Cash Flow" : row.label;
         const labelBg = row.isNet
           ? "background:#f8fafc;font-weight:700;color:#0f172a;"
-          : isTransfers
-          ? "background:#f0f7ff;"
+          : isCashFlow
+          ? "background:#f8fafc;"
           : "";
+
+        const cashSectionBorders = `border-left:${sectionBorder};border-right:${sectionBorder};${
+          isFirstCashRow ? `border-top:${sectionBorder};` : ""
+        }${isLastCashRow ? `border-bottom:${sectionBorder};` : ""}`;
+
         const cells = sortedYears
           .map((year) => {
             const value = getCellValue(row, year, true);
@@ -600,28 +609,30 @@ export default function FCReview() {
               : "";
             const transferStyle =
               isTransfers && !isBase
-                ? "background:#f0f7ff;border-top:2px solid #3b82f6;border-bottom:2px solid #3b82f6;"
-                : isTransfers
-                ? "background:#f0f7ff;"
+                ? "border-top:2px solid #3b82f6;border-bottom:2px solid #3b82f6;"
                 : "";
             const netStyle = row.isNet ? "background:#f8fafc;font-weight:600;" : "";
-            return `<td style="${tdStyleBase}${numStyle}${baseStyle}${transferStyle}${netStyle}text-align:right;">${formatAmount(
+            const cashFlowStyle = isCashFlow ? "background:#f8fafc;font-weight:600;" : "";
+            return `<td style="${tdStyleBase}${numStyle}${baseStyle}${transferStyle}${netStyle}${cashFlowStyle}text-align:right;${cashSectionBorders}">${formatAmount(
               value
             )}</td>`;
           })
           .join("");
-        return `<tr>${formatLabelCell(label, row.level || 1, labelBg)}${cells}</tr>`;
+        return `<tr>${formatLabelCell(label, row.level || 1, labelBg, cashSectionBorders)}${cells}</tr>`;
       })
       .join("");
 
     const balanceRowsHtml = balanceAccounts
       .map((row, index) => {
         const isBank = row.label === "Bank Accounts";
-        const labelBg = isBank
-          ? "background:#fff5f5;"
-          : index === 0 && cashAccounts.length === 0
-          ? "border-top:2px solid #e2e8f0;"
-          : "";
+        const isFirstBalanceRow = index === 0;
+        const isLastBalanceRow = index === balanceAccounts.length - 1;
+        const labelBg = isBank ? "background:#fff5f5;" : "";
+
+        const balanceSectionBorders = `border-left:${sectionBorder};border-right:${sectionBorder};${
+          isFirstBalanceRow ? `border-top:${sectionBorder};` : ""
+        }${isLastBalanceRow ? `border-bottom:${sectionBorder};` : ""}`;
+
         const cells = sortedYears
           .map((year, yearIndex) => {
             const values =
@@ -641,12 +652,12 @@ export default function FCReview() {
                 ? "background:#fff5f5;"
                 : "";
             const dangerStyle = Number(displayValue) < 0 ? "color:#dc2626;" : "";
-            return `<td style="${tdStyleBase}${baseStyle}${bankStyle}${dangerStyle}text-align:right;">${formatAmount(
+            return `<td style="${tdStyleBase}${baseStyle}${bankStyle}${dangerStyle}text-align:right;${balanceSectionBorders}">${formatAmount(
               displayValue
             )}</td>`;
           })
           .join("");
-        return `<tr>${formatLabelCell(row.label, row.level, labelBg)}${cells}</tr>`;
+        return `<tr>${formatLabelCell(row.label, row.level, labelBg, balanceSectionBorders)}${cells}</tr>`;
       })
       .join("");
 
