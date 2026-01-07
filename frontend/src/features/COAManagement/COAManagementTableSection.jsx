@@ -52,10 +52,13 @@ export default function COAManagementTableSection({
         />
       </div>
       <div className="budget-options-table-wrapper coa-table-scroll">
-        <table className="budget-options-table coa-table">
+        <table
+          className="budget-options-table coa-table"
+          style={{ minWidth: "100%", width: "max-content" }}
+        >
           <thead>
             <tr>
-              <th style={{ width: "40%" }}>Account</th>
+              <th style={{ width: "50%" }}>Account</th>
               <th>Type</th>
               <th>Currency</th>
               <th style={{ width: "18%" }}>Account #</th>
@@ -101,9 +104,9 @@ export default function COAManagementTableSection({
                         ? "#d8e8ff"
                         : getRowShade(row.depth),
                     }}
-                    onClick={() =>
+                    onClick={(event) =>
                       typeof onToggleRowSelection === "function" &&
-                      onToggleRowSelection(row)
+                      onToggleRowSelection(row, { multi: event.shiftKey })
                     }
                   >
                     <td style={{ paddingLeft: `${row.depth * 16}px` }}>

@@ -3,6 +3,7 @@ import NavigationMenu from "../components/NavigationMenu.jsx";
 import COAManagementFilters from "../features/COAManagement/COAManagementFilters.jsx";
 import COAEditModal from "../features/COAManagement/COAEditModal.jsx";
 import COAManagementTableSection from "../features/COAManagement/COAManagementTableSection.jsx";
+import FCExpConfirmDeleteModal from "../features/Forecast/FCExpConfirmDeleteModal.jsx";
 import Rest from "../js/rest.js";
 import "../features/BudgetEntry/BudgetOptionExchangeRates.css";
 import "./PageLayout.css";
@@ -56,11 +57,18 @@ export default function COAManagement() {
   const [analyzeStatus, setAnalyzeStatus] = useState(null);
   const [isAnalyzing, setIsAnalyzing] = useState(false);
   const [coaRows, setCoaRows] = useState(() => buildCoaRows());
-  const [editModal, setEditModal] = useState({ open: false, row: null });
+  const [editModal, setEditModal] = useState({
+    open: false,
+    row: null,
+    mode: "edit",
+  });
   const [customTypeEnabled, setCustomTypeEnabled] = useState(false);
   const [customTypeValue, setCustomTypeValue] = useState("");
   const [editSaving, setEditSaving] = useState(false);
   const [editError, setEditError] = useState("");
+  const [deleteModalOpen, setDeleteModalOpen] = useState(false);
+  const [deleteSaving, setDeleteSaving] = useState(false);
+  const [deleteError, setDeleteError] = useState("");
   const [coaLoadError, setCoaLoadError] = useState("");
   const [isLoadingCoa, setIsLoadingCoa] = useState(true);
   const [currencyChoices, setCurrencyChoices] = useState([]);
@@ -154,8 +162,28 @@ export default function COAManagement() {
     return coaRows.filter((row) => keySet.has(getRowKey(row)));
   }, [coaRows, getRowKey, selectedRowKeys]);
 
-  const toggleRowSelection = (row) => {
+  const selectedCategoryRow =
+    selectedRows.length === 1 &&
+    (selectedRows[0].isCategory || selectedRows[0].type === "Category")
+      ? selectedRows[0]
+      : null;
+  const canAddSelected = Boolean(selectedCategoryRow);
+
+  const deletableRows = useMemo(() => {
+    return selectedRows.filter(
+      (row) => row && !row.isCategory && row.type !== "Category"
+    );
+  }, [selectedRows]);
+
+  const canDeleteSelected =
+    selectedRows.length > 0 && deletableRows.length === selectedRows.length;
+
+  const toggleRowSelection = (row, options = {}) => {
     const key = getRowKey(row);
+    if (!options.multi) {
+      setSelectedRowKeys([key]);
+      return;
+    }
     setSelectedRowKeys((prev) => {
       const next = new Set(prev);
       if (next.has(key)) {
@@ -204,29 +232,107 @@ export default function COAManagement() {
       selectedRows: selection,
       mixedFields,
       changedFields: {},
+      mode: "edit",
     });
     setCustomTypeEnabled(false);
     setCustomTypeValue("");
     setEditError("");
   };
 
-  const closeEditModal = () => setEditModal({ open: false, row: null });
+  const openAddModal = (parentRow) => {
+    const parentPath = [...(parentRow?.path || []), parentRow?.name].filter(
+      Boolean
+    );
+    const defaultType =
+      typeOptions.find(
+        (option) => option !== "all" && option !== "Category"
+      ) || typeOptions.find((option) => option !== "all") || "";
+    setEditModal({
+      open: true,
+      row: {
+        name: "",
+        type: defaultType,
+        currency: "",
+        accountNumber: "",
+        isCategory: false,
+        path: parentPath,
+      },
+      mode: "add",
+      parentPath,
+    });
+    setCustomTypeEnabled(false);
+    setCustomTypeValue("");
+    setEditError("");
+  };
+
+  const closeEditModal = () =>
+    setEditModal({ open: false, row: null, mode: "edit" });
+
+  const openDeleteModal = () => {
+    setDeleteError("");
+    setDeleteModalOpen(true);
+  };
+
+  const closeDeleteModal = () => {
+    setDeleteModalOpen(false);
+    setDeleteError("");
+  };
 
   const handleEditFieldChange = (field, value) => {
     setEditModal((prev) =>
       prev.open
-        ? {
-            ...prev,
-            row: { ...prev.row, [field]: value },
-            changedFields: { ...(prev.changedFields || {}), [field]: true },
-          }
+        ? prev.row?.isCategory && field !== "name"
+          ? prev
+          : {
+              ...prev,
+              row: { ...prev.row, [field]: value },
+              changedFields: { ...(prev.changedFields || {}), [field]: true },
+            }
         : prev
     );
   };
 
   const handleSaveEdit = async () => {
     if (!editModal.open || !editModal.row) return;
-    const targets = editModal.isMulti ? editModal.selectedRows || [] : [editModal.row];
+    if (editModal.mode === "add") {
+      const trimmedName = String(editModal.row.name || "").trim();
+      if (!trimmedName) {
+        setEditError("Account name is required.");
+        return;
+      }
+      if (!editModal.parentPath || editModal.parentPath.length === 0) {
+        setEditError("Select a category to add this account.");
+        return;
+      }
+      setEditSaving(true);
+      setEditError("");
+      try {
+        await Rest.fetchJson("/api/coa/add", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            path: editModal.parentPath,
+            name: trimmedName,
+            type: editModal.row.type,
+            currency: editModal.row.currency,
+            accountNumber: editModal.row.accountNumber,
+            isCategory: false,
+          }),
+        });
+        loadCoaData(false).catch(() => {});
+        closeEditModal();
+      } catch (error) {
+        setEditError(error?.message || "Failed to add account.");
+      } finally {
+        setEditSaving(false);
+      }
+      return;
+    }
+    const targets = editModal.isMulti
+      ? editModal.selectedRows || []
+      : [editModal.row];
     if (!targets.length) return;
     setEditSaving(true);
     setEditError("");
@@ -245,9 +351,17 @@ export default function COAManagement() {
 
       for (const target of targets) {
         const nextName = editModal.isMulti ? target.name : editModal.row.name;
-        const nextType = resolveField("type", target);
-        const nextCurrency = resolveField("currency", target);
-        const nextAccountNumber = resolveField("accountNumber", target);
+        const isCategoryTarget =
+          target.isCategory || target.type === "Category";
+        const nextType = isCategoryTarget
+          ? target.type
+          : resolveField("type", target);
+        const nextCurrency = isCategoryTarget
+          ? target.currency
+          : resolveField("currency", target);
+        const nextAccountNumber = isCategoryTarget
+          ? target.accountNumber
+          : resolveField("accountNumber", target);
 
         const pathForApi = [
           ...target.path,
@@ -295,9 +409,7 @@ export default function COAManagement() {
         const map = new Map(
           updates.map((entry) => [entry.targetId, entry.updatedRow.id])
         );
-        return Array.from(
-          new Set(prev.map((key) => map.get(key) || key))
-        );
+        return Array.from(new Set(prev.map((key) => map.get(key) || key)));
       });
       loadCoaData(false).catch(() => {});
       closeEditModal();
@@ -306,6 +418,38 @@ export default function COAManagement() {
       setEditError(error?.message || "Failed to save changes.");
     } finally {
       setEditSaving(false);
+    }
+  };
+
+  const handleConfirmDelete = async () => {
+    if (!deletableRows.length) {
+      setDeleteError("No deleteable accounts selected.");
+      return;
+    }
+    setDeleteSaving(true);
+    setDeleteError("");
+    try {
+      await Promise.all(
+        deletableRows.map((row) =>
+          Rest.fetchJson("/api/coa/delete", {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+            },
+            body: JSON.stringify({
+              path: [...row.path, row.name],
+              name: row.name,
+            }),
+          })
+        )
+      );
+      setDeleteModalOpen(false);
+      loadCoaData(false).catch(() => {});
+      setSelectedRowKeys([]);
+    } catch (error) {
+      setDeleteError(error?.message || "Failed to delete selected accounts.");
+    } finally {
+      setDeleteSaving(false);
     }
   };
 
@@ -445,27 +589,35 @@ export default function COAManagement() {
                 onSearchChange={setSearchTerm}
                 onEditSelected={() =>
                   selectedRows.length
-                    ? openEditModal(selectedRows[0], { selection: selectedRows })
+                    ? openEditModal(selectedRows[0], {
+                        selection: selectedRows,
+                      })
                     : null
+                }
+                onAddSelected={() =>
+                  canAddSelected ? openAddModal(selectedCategoryRow) : null
+                }
+                onDeleteSelected={() =>
+                  canDeleteSelected ? openDeleteModal() : null
                 }
                 selectedCount={selectedRows.length}
                 onClearSelected={() => setSelectedRowKeys([])}
+                addDisabled={!canAddSelected}
+                deleteDisabled={!canDeleteSelected}
               />
             </div>
-            <div className="coa-management-main">
-              <COAManagementTableSection
-                filteredRows={filteredRows}
-                totalRowCount={coaRows.length}
-                isAnalyzing={isAnalyzing}
-                onAnalyzeClick={handleAnalyzeClick}
-                analyzeStatus={analyzeStatus}
-                isLoadingCoa={isLoadingCoa}
-                coaLoadError={coaLoadError}
-                selectedRowKeys={selectedRowKeys}
-                onToggleRowSelection={toggleRowSelection}
-                getRowKey={getRowKey}
-              />
-            </div>
+            <COAManagementTableSection
+              filteredRows={filteredRows}
+              totalRowCount={coaRows.length}
+              isAnalyzing={isAnalyzing}
+              onAnalyzeClick={handleAnalyzeClick}
+              analyzeStatus={analyzeStatus}
+              isLoadingCoa={isLoadingCoa}
+              coaLoadError={coaLoadError}
+              selectedRowKeys={selectedRowKeys}
+              onToggleRowSelection={toggleRowSelection}
+              getRowKey={getRowKey}
+            />
           </div>
         </div>
       </main>
@@ -483,9 +635,30 @@ export default function COAManagement() {
         setCustomTypeEnabled={setCustomTypeEnabled}
         customTypeValue={customTypeValue}
         setCustomTypeValue={setCustomTypeValue}
+        mode={editModal.mode}
         isMultiEdit={Boolean(editModal.isMulti)}
         selectedCount={editModal.selectedRows?.length || 0}
         mixedFields={editModal.mixedFields || {}}
+      />
+      <FCExpConfirmDeleteModal
+        isOpen={deleteModalOpen}
+        selectedEntry={deletableRows[0] || null}
+        error={deleteError}
+        isSaving={deleteSaving}
+        onClose={closeDeleteModal}
+        onConfirm={handleConfirmDelete}
+        title="Delete Accounts"
+        itemLabel={
+          deletableRows.length > 1
+            ? `${deletableRows.length} accounts`
+            : deletableRows[0]?.name
+        }
+        description={
+          deletableRows.length > 1
+            ? `Are you sure you want to delete ${deletableRows.length} accounts?`
+            : undefined
+        }
+        confirmLabel="Delete"
       />
     </div>
   );

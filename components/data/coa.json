@@ -31,8 +31,7 @@
                   "PKO Savings",
                   "WISE - PLN",
                   "PKO - Deposits",
-                  "Santandar",
-                  "Revolut-PLN"
+                  "Santandar"
                 ]
               },
               {
@@ -166,7 +165,8 @@
             "Financial Expenses": [
               "Bank Fees",
               "Interest Expense",
-              "Unrealized G/L"
+              "Unrealized G/L",
+              "Mortgage Payments"
             ]
           },
           {

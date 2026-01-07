@@ -31,9 +31,9 @@ COPY frontend/nginx.conf /etc/nginx/conf.d/default.conf
 # Expose ports 80 and 443
 EXPOSE 80 443
 
-# Health check (check HTTPS endpoint)
+# Health check (check HTTP endpoint on port 80)
 HEALTHCHECK --interval=30s --timeout=3s --start-period=10s --retries=3 \
-  CMD wget --quiet --tries=1 --spider --no-check-certificate https://localhost:443/ || exit 1
+  CMD curl --fail --silent http://localhost:80/ || exit 1
 
 # Start nginx
 CMD ["nginx", "-g", "daemon off;"]

@@ -179,11 +179,6 @@
     "AccountNumber": "",
     "Type": "Cash"
   },
-  "Revolut-PLN": {
-    "Currency": "PLN",
-    "AccountNumber": "",
-    "Type": "Cash"
-  },
   "Santandar": {
     "Currency": "PLN",
     "AccountNumber": "",
@@ -201,11 +196,6 @@
   },
   "PKO Savings": {
     "Currency": "PLN",
-    "AccountNumber": "",
-    "Type": "Cash"
-  },
-  "Revolut-EUR": {
-    "Currency": "EUR",
     "AccountNumber": "",
     "Type": "Cash"
   },
@@ -240,11 +230,6 @@
     "Type": "Cash"
   },
   "Chase Saving": {
-    "Currency": "USD",
-    "AccountNumber": "",
-    "Type": "Cash"
-  },
-  "Chase Checking": {
     "Currency": "USD",
     "AccountNumber": "",
     "Type": "Cash"
@@ -367,11 +352,6 @@
   "FX": {
     "Type": "Transfer",
     "Currency": "N/A",
-    "AccountNumber": ""
-  },
-  "USD Bank Accounts": {
-    "Type": "Income",
-    "Currency": "—",
     "AccountNumber": ""
   },
   "Financial Income - BC Holding": {
@@ -590,6 +570,26 @@
     "AccountNumber": ""
   },
   "Property - Other": {
+    "Type": "Expense",
+    "Currency": "N/A",
+    "AccountNumber": ""
+  },
+  "Chase Checking": {
+    "Currency": "USD",
+    "AccountNumber": "10003",
+    "Type": "Cash"
+  },
+  "USD Bank Accounts": {
+    "Type": "Category",
+    "Currency": "—",
+    "AccountNumber": ""
+  },
+  "Revolut-EUR": {
+    "Type": "Cash",
+    "Currency": "EUR",
+    "AccountNumber": ""
+  },
+  "Mortgage Payments": {
     "Type": "Expense",
     "Currency": "N/A",
     "AccountNumber": ""

@@ -11,7 +11,15 @@ services:
     networks:
       - fin-network
     healthcheck:
-      test: ["CMD", "mongosh", "--port", "27018", "--eval", "db.adminCommand('ping')"]
+      test:
+        [
+          "CMD",
+          "mongosh",
+          "--port",
+          "27018",
+          "--eval",
+          "db.adminCommand('ping')",
+        ]
       interval: 10s
       timeout: 5s
       retries: 5
@@ -53,7 +61,7 @@ services:
       - server
     ports:
       - "3000:80"
-      - "3443:443"
+      - "5174:443"
     volumes:
       - ./certs:/etc/nginx/certs:ro
     networks:

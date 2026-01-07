@@ -8,8 +8,12 @@ export default function COAManagementFilters({
   onCurrencyChange,
   onSearchChange,
   onEditSelected,
+  onAddSelected,
+  onDeleteSelected,
   selectedCount = 0,
   onClearSelected,
+  addDisabled = true,
+  deleteDisabled = true,
 }) {
   return (
     <section className="coa-management-filters">
@@ -64,6 +68,28 @@ export default function COAManagementFilters({
         >
           <span aria-hidden="true">✕</span>
           <span>Clear Selected</span>
+        </button>
+        <button
+          type="button"
+          className="coa-action-button coa-action-button--add"
+          onClick={onAddSelected}
+          disabled={addDisabled}
+          style={{ display: "inline-flex", alignItems: "center", gap: "0.4rem", marginRight: "0.5rem" }}
+        >
+          <span aria-hidden="true">＋</span>
+          <span>Add</span>
+        </button>
+        <button
+          type="button"
+          className="coa-action-button coa-action-button--delete"
+          onClick={onDeleteSelected}
+          disabled={deleteDisabled}
+          style={{ display: "inline-flex", alignItems: "center", gap: "0.4rem", marginRight: "0.5rem" }}
+        >
+          <span aria-hidden="true">🗑</span>
+          <span>
+            {selectedCount <= 1 ? "Delete Selected" : `Delete ${selectedCount} Selected`}
+          </span>
         </button>
         <button
           type="button"

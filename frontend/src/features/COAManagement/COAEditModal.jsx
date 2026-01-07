@@ -12,6 +12,7 @@ export default function COAEditModal({
   setCustomTypeEnabled,
   customTypeValue,
   setCustomTypeValue,
+  mode = "edit",
   isMultiEdit = false,
   selectedCount = 0,
   mixedFields = {},
@@ -19,6 +20,15 @@ export default function COAEditModal({
   if (!open || !row) {
     return null;
   }
+  const isCategoryEdit = row.isCategory || row.type === "Category";
+  const isAdd = mode === "add";
+  const title = isMultiEdit
+    ? "Edit Accounts"
+    : isAdd
+    ? "Add Account"
+    : "Edit Account";
+  const saveLabel = isAdd ? "Add" : "Save";
+  const savingLabel = isAdd ? "Adding..." : "Saving...";
 
   return (
     <div
@@ -54,9 +64,7 @@ export default function COAEditModal({
           }}
         >
           <div>
-            <h3 style={{ margin: 0 }}>
-              {isMultiEdit ? "Edit Accounts" : "Edit Account"}
-            </h3>
+            <h3 style={{ margin: 0 }}>{title}</h3>
             {isMultiEdit && (
               <p style={{ margin: 0, color: "#475569", fontSize: "0.9rem" }}>
                 {selectedCount} selected
@@ -109,7 +117,9 @@ export default function COAEditModal({
                 ? "__custom"
                 : row.type
             }
+            disabled={isCategoryEdit}
             onChange={(event) => {
+              if (isCategoryEdit) return;
               const value = event.target.value;
               if (value === "__custom") {
                 setCustomTypeEnabled(true);
@@ -140,7 +150,9 @@ export default function COAEditModal({
               style={{ marginTop: "0.35rem" }}
               placeholder="Enter new type"
               value={customTypeValue}
+              disabled={isCategoryEdit}
               onChange={(event) => {
+                if (isCategoryEdit) return;
                 setCustomTypeValue(event.target.value);
                 onFieldChange("type", event.target.value);
               }}
@@ -158,6 +170,7 @@ export default function COAEditModal({
           <select
             className="form-input"
             value={row.currency || ""}
+            disabled={isCategoryEdit}
             onChange={(event) => onFieldChange("currency", event.target.value)}
           >
             {isMultiEdit && mixedFields?.currency && (
@@ -187,6 +200,7 @@ export default function COAEditModal({
                 ? "Multiple values"
                 : undefined
             }
+            disabled={isCategoryEdit}
             onChange={(event) =>
               onFieldChange("accountNumber", event.target.value)
             }
@@ -225,7 +239,7 @@ export default function COAEditModal({
             }}
             disabled={editSaving}
           >
-            {editSaving ? "Saving..." : "Save"}
+            {editSaving ? savingLabel : saveLabel}
           </button>
         </div>
       </div>
