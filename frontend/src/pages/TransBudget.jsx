@@ -1,4 +1,4 @@
-import { useCallback, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import NavigationMenu from "../components/NavigationMenu.jsx";
 import TransactionBudgetFilter from "../features/TransactionBudget/TransactionBudgetFilter.jsx";
 import TransactionBudgetTable, {
@@ -15,6 +15,7 @@ import { useTransBudgetSelection } from "../features/TransactionBudget/hooks/use
 import { useTransBudgetDelete } from "../features/TransactionBudget/hooks/useTransBudgetDelete.js";
 import { useTransBudgetEdit } from "../features/TransactionBudget/hooks/useTransBudgetEdit.js";
 import { normalizeStringOptions, DEFAULT_FILTERS } from "../features/TransactionBudget/utils/transBudgetUtils.js";
+import Rest from "../js/rest.js";
 import "./PageLayout.css";
 
 /**
@@ -31,6 +32,7 @@ import "./PageLayout.css";
 export default function TransBudget() {
   // Get filter state first so we can pass to useTransBudgetTransactions
   const [filters, setFilters] = useState(() => ({ ...DEFAULT_FILTERS }));
+  const [filteredTotalsByCurrency, setFilteredTotalsByCurrency] = useState([]);
 
   // Get reference data from custom hooks
   const categoryOptions = useTransactionBudgetCategoryOptions();
@@ -63,6 +65,105 @@ export default function TransBudget() {
     handleSort,
     handleSelectAllToggle,
   } = useTransBudgetSelection(filteredTransactions);
+
+  useEffect(() => {
+    const controller = new AbortController();
+    let isActive = true;
+    const appendListParam = (params, key, values) => {
+      const list = Array.isArray(values) ? values : values ? [values] : [];
+      list.forEach((value) => {
+        if (value !== undefined && value !== null && value !== "") {
+          params.append(key, String(value));
+        }
+      });
+    };
+
+    const loadFilteredTotals = async () => {
+      try {
+        const query = new URLSearchParams();
+        const setParam = (key, value) => {
+          if (value !== undefined && value !== null && value !== "") {
+            query.set(key, String(value));
+          }
+        };
+        if (filters.yearEnabled && filters.year) {
+          const year = Number.parseInt(filters.year, 10);
+          if (Number.isFinite(year)) {
+            let fromMonth = 1;
+            let toMonth = 12;
+            if (
+              filters.monthEnabled &&
+              filters.month !== undefined &&
+              filters.month !== null
+            ) {
+              const month = Number(filters.month);
+              if (Number.isFinite(month) && month >= 0 && month <= 11) {
+                fromMonth = month + 1;
+                toMonth = month + 1;
+              }
+            }
+            const fromDate = new Date(Date.UTC(year, fromMonth - 1, 1));
+            const toDate = new Date(Date.UTC(year, toMonth, 1));
+            setParam("fromDate", fromDate.toISOString());
+            setParam("toDate", toDate.toISOString());
+          }
+        }
+        if (filters.accountEnabled && filters.account) {
+          appendListParam(query, "account", filters.account);
+        }
+        if (filters.categoryEnabled && filters.category) {
+          appendListParam(query, "category", filters.category);
+        }
+        if (filters.currencyEnabled && filters.currency) {
+          appendListParam(query, "currency", filters.currency);
+        }
+        setParam("limit", 2000);
+
+        const path = `/api/budget${
+          query.toString() ? `?${query.toString()}` : ""
+        }`;
+        const payload = await Rest.fetchJson(path, {
+          signal: controller.signal,
+        });
+        const entries = Array.isArray(payload) ? payload : [];
+        const totals = new Map();
+        entries.forEach((entry) => {
+          const currency = entry?.Currency || "Unknown";
+          const amount = Number(entry?.Amount);
+          if (!Number.isFinite(amount)) {
+            return;
+          }
+          totals.set(currency, (totals.get(currency) || 0) + amount);
+        });
+        if (isActive) {
+          setFilteredTotalsByCurrency(
+            Array.from(totals.entries()).map(([currency, amount]) => ({
+              currency,
+              amount,
+            }))
+          );
+        }
+      } catch (error) {
+        if (error?.name === "AbortError") {
+          return;
+        }
+        console.error(
+          "[TransBudget] Failed to load filtered totals:",
+          error
+        );
+        if (isActive) {
+          setFilteredTotalsByCurrency([]);
+        }
+      }
+    };
+
+    loadFilteredTotals();
+
+    return () => {
+      isActive = false;
+      controller.abort();
+    };
+  }, [filters]);
 
   // Success callback: reload data and clear selection
   const handleSuccess = useCallback(async () => {
@@ -150,6 +251,7 @@ export default function TransBudget() {
           canDelete={selectedRows.size > 0}
           canEdit={selectedRows.size > 0}
           isAllSelected={isAllSelected}
+          filteredTotalsByCurrency={filteredTotalsByCurrency}
         />
         <TransactionBudgetTable
           isLoading={isLoading}

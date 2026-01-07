@@ -35,9 +35,11 @@ export default function TransactionBudgetFilter({
   canDelete,
   canEdit,
   isAllSelected,
+  filteredTotalsByCurrency = [],
 }) {
   const [accountOptions, setAccountOptions] = useState([]);
   const [categoryOptions, setCategoryOptions] = useState([]);
+  const [currencyOptions, setCurrencyOptions] = useState([]);
   const [valueFromEnabled, setValueFromEnabled] = useState(false);
   const [valueToEnabled, setValueToEnabled] = useState(false);
   const [valueFrom, setValueFrom] = useState("");
@@ -46,14 +48,22 @@ export default function TransactionBudgetFilter({
   const [monthEnabled, setMonthEnabled] = useState(false);
   const [accountEnabled, setAccountEnabled] = useState(false);
   const [categoryEnabled, setCategoryEnabled] = useState(false);
+  const [currencyEnabled, setCurrencyEnabled] = useState(false);
   const [selectedYear, setSelectedYear] = useState(() =>
     YEAR_OPTIONS.includes(DEFAULT_YEAR)
       ? DEFAULT_YEAR
       : YEAR_OPTIONS[0] ?? ""
   );
   const [selectedMonth, setSelectedMonth] = useState(MONTH_OPTIONS[0] ?? "");
-  const [selectedAccount, setSelectedAccount] = useState("");
-  const [selectedCategory, setSelectedCategory] = useState("");
+  const [selectedAccount, setSelectedAccount] = useState([]);
+  const [selectedCategory, setSelectedCategory] = useState([]);
+  const [selectedCurrency, setSelectedCurrency] = useState([]);
+  const formatAmount = (amount) =>
+    new Intl.NumberFormat(undefined, {
+      minimumFractionDigits: 2,
+      maximumFractionDigits: 2,
+    }).format(amount);
+  const multiSelectSize = 8;
 
   useEffect(() => {
     if (typeof onFiltersChange !== "function") {
@@ -82,10 +92,14 @@ export default function TransactionBudgetFilter({
       valueFrom: normalizedValueFrom,
       valueToEnabled,
       valueTo: normalizedValueTo,
+      currencyEnabled,
+      currency: selectedCurrency,
     });
   }, [
     accountEnabled,
     categoryEnabled,
+    currencyEnabled,
+    selectedCurrency,
     monthEnabled,
     selectedAccount,
     selectedCategory,
@@ -126,28 +140,97 @@ export default function TransactionBudgetFilter({
   }, []);
 
   useEffect(() => {
-    if (!accountOptions.length) {
-      setSelectedAccount("");
-      return;
-    }
+    let isActive = true;
+
+    const loadCurrencies = async () => {
+      try {
+        const payload = await Rest.fetchCurrencyOptions();
+        if (!isActive) {
+          return;
+        }
+        const currencies = payload?.currencies ?? [];
+        setCurrencyOptions(Array.isArray(currencies) ? currencies : []);
+      } catch (error) {
+        console.error(
+          "[TransactionBudgetFilter] Failed to load currencies:",
+          error
+        );
+      }
+    };
+
+    loadCurrencies();
+
+    return () => {
+      isActive = false;
+    };
+  }, []);
+
+  useEffect(() => {
     setSelectedAccount((previous) =>
-      accountOptions.includes(previous) ? previous : accountOptions[0]
+      Array.isArray(previous)
+        ? previous.filter((value) => accountOptions.includes(value))
+        : []
     );
   }, [accountOptions]);
 
   useEffect(() => {
-    if (!categoryOptions.length) {
-      setSelectedCategory("");
-      return;
-    }
     setSelectedCategory((previous) =>
-      categoryOptions.includes(previous) ? previous : categoryOptions[0]
+      Array.isArray(previous)
+        ? previous.filter((value) => categoryOptions.includes(value))
+        : []
     );
   }, [categoryOptions]);
+
+  useEffect(() => {
+    setSelectedCurrency((previous) =>
+      Array.isArray(previous)
+        ? previous.filter((value) => currencyOptions.includes(value))
+        : []
+    );
+  }, [currencyOptions]);
+
+  const handleMultiChange = (event, setter) => {
+    const values = Array.from(event.target.selectedOptions).map(
+      (option) => option.value
+    );
+    setter(values);
+  };
 
   return (
     <section className="section-filters" aria-label="Budget filters">
       <h2 className="section-filters-title">Budget Transaction</h2>
+      <div
+        style={{
+          display: "flex",
+          flexWrap: "wrap",
+          alignItems: "center",
+          gap: "0.75rem",
+          marginBottom: "0.5rem",
+        }}
+      >
+        <strong style={{ fontSize: "0.95rem" }}>Filtered totals:</strong>
+        {filteredTotalsByCurrency.length ? (
+          filteredTotalsByCurrency.map(({ currency, amount }) => (
+            <span
+              key={currency}
+              style={{
+                padding: "0.25rem 0.5rem",
+                borderRadius: "6px",
+                background: "var(--surface-muted)",
+                border: "1px solid var(--border)",
+                fontWeight: 600,
+                fontSize: "0.9rem",
+              }}
+            >
+              {currency}: {formatAmount(amount)}
+            </span>
+          ))
+        ) : (
+          <span style={{ color: "var(--muted)", fontSize: "0.9rem" }}>
+            No totals available
+          </span>
+        )}
+      </div>
       <div className="filters-grid">
         <label className="filter-field">
           <span className="filter-with-checkbox">
@@ -208,11 +291,13 @@ export default function TransactionBudgetFilter({
             Account
           </span>
           <select
+            multiple
+            size={multiSelectSize}
             className="form-input"
             name="account"
             disabled={!accountEnabled || !accountOptions.length}
             value={selectedAccount}
-            onChange={(event) => setSelectedAccount(event.target.value)}
+            onChange={(event) => handleMultiChange(event, setSelectedAccount)}
           >
             {accountOptions.length ? (
               accountOptions.map((account) => (
@@ -238,16 +323,50 @@ export default function TransactionBudgetFilter({
             Category
           </span>
           <select
+            multiple
+            size={multiSelectSize}
             className="form-input"
             name="category"
             disabled={!categoryEnabled || !categoryOptions.length}
             value={selectedCategory}
-            onChange={(event) => setSelectedCategory(event.target.value)}
+            onChange={(event) => handleMultiChange(event, setSelectedCategory)}
           >
             {categoryOptions.length ? (
               categoryOptions.map((category) => (
                 <option value={category} key={category}>
                   {category}
+                </option>
+              ))
+            ) : (
+              <option value="" disabled>
+                Loading...
+              </option>
+            )}
+          </select>
+        </label>
+        <label className="filter-field">
+          <span className="filter-with-checkbox">
+            <input
+              type="checkbox"
+              aria-label="Enable currency filter"
+              checked={currencyEnabled}
+              onChange={(event) => setCurrencyEnabled(event.target.checked)}
+            />
+            Currency
+          </span>
+          <select
+            multiple
+            size={multiSelectSize}
+            className="form-input"
+            name="currency"
+            disabled={!currencyEnabled || !currencyOptions.length}
+            value={selectedCurrency}
+            onChange={(event) => handleMultiChange(event, setSelectedCurrency)}
+          >
+            {currencyOptions.length ? (
+              currencyOptions.map((currency) => (
+                <option value={currency} key={currency}>
+                  {currency}
                 </option>
               ))
             ) : (

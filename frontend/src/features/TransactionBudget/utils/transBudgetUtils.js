@@ -17,15 +17,27 @@ export const EDIT_FIELDS = [
 export const DEFAULT_SORT = { key: "Date", direction: "desc" };
 export const SELECTION_COLUMN_KEY = "selected";
 
+const arrayEqual = (left, right) => {
+  const l = Array.isArray(left) ? left : left ? [left] : [];
+  const r = Array.isArray(right) ? right : right ? [right] : [];
+  if (l.length !== r.length) return false;
+  for (let i = 0; i < l.length; i += 1) {
+    if (l[i] !== r[i]) return false;
+  }
+  return true;
+};
+
 export const DEFAULT_FILTERS = {
   yearEnabled: false,
   monthEnabled: false,
   accountEnabled: false,
   categoryEnabled: false,
+  currencyEnabled: false,
   year: "",
   month: "",
-  account: "",
-  category: "",
+  account: [],
+  category: [],
+  currency: [],
   valueFromEnabled: false,
   valueToEnabled: false,
   valueFrom: null,
@@ -244,10 +256,12 @@ export const filtersAreEqual = (a, b) => {
     a.monthEnabled === b.monthEnabled &&
     a.accountEnabled === b.accountEnabled &&
     a.categoryEnabled === b.categoryEnabled &&
+    a.currencyEnabled === b.currencyEnabled &&
     a.year === b.year &&
     a.month === b.month &&
-    a.account === b.account &&
-    a.category === b.category &&
+    arrayEqual(a.account, b.account) &&
+    arrayEqual(a.category, b.category) &&
+    arrayEqual(a.currency, b.currency) &&
     a.valueFromEnabled === b.valueFromEnabled &&
     a.valueToEnabled === b.valueToEnabled &&
     a.valueFrom === b.valueFrom &&

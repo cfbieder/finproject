@@ -191,15 +191,26 @@ export const filtersAreEqual = (a, b) => {
   if (!a || !b) {
     return false;
   }
+  const sameList = (left, right) => {
+    const l = Array.isArray(left) ? left : left ? [left] : [];
+    const r = Array.isArray(right) ? right : right ? [right] : [];
+    if (l.length !== r.length) return false;
+    for (let i = 0; i < l.length; i += 1) {
+      if (l[i] !== r[i]) return false;
+    }
+    return true;
+  };
   return (
     a.yearEnabled === b.yearEnabled &&
     a.monthEnabled === b.monthEnabled &&
     a.accountEnabled === b.accountEnabled &&
     a.categoryEnabled === b.categoryEnabled &&
+    a.currencyEnabled === b.currencyEnabled &&
     a.year === b.year &&
     a.month === b.month &&
-    a.account === b.account &&
-    a.category === b.category &&
+    sameList(a.account, b.account) &&
+    sameList(a.category, b.category) &&
+    sameList(a.currency, b.currency) &&
     a.valueFromEnabled === b.valueFromEnabled &&
     a.valueToEnabled === b.valueToEnabled &&
     a.descriptionEnabled === b.descriptionEnabled &&
@@ -218,10 +229,12 @@ export const DEFAULT_FILTERS = {
   accountEnabled: false,
   categoryEnabled: false,
   descriptionEnabled: false,
+  currencyEnabled: false,
   year: new Date().getFullYear().toString(),
   month: new Date().getMonth(),
-  account: "",
-  category: "",
+  account: [],
+  category: [],
+  currency: [],
   description: "",
   valueFromEnabled: false,
   valueToEnabled: false,

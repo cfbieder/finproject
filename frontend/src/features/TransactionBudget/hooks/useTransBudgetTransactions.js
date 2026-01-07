@@ -41,6 +41,14 @@ export function useTransBudgetTransactions(filters) {
             query.set(key, String(value));
           }
         };
+        const appendListParam = (key, values) => {
+          const list = Array.isArray(values) ? values : values ? [values] : [];
+          list.forEach((value) => {
+            if (value !== undefined && value !== null && value !== "") {
+              query.append(key, String(value));
+            }
+          });
+        };
 
         // Build date range from year and month filters
         if (filters.yearEnabled && filters.year) {
@@ -73,10 +81,13 @@ export function useTransBudgetTransactions(filters) {
         }
 
         if (filters.accountEnabled && filters.account) {
-          setParam("account", filters.account);
+          appendListParam("account", filters.account);
         }
         if (filters.categoryEnabled && filters.category) {
-          setParam("category", filters.category);
+          appendListParam("category", filters.category);
+        }
+        if (filters.currencyEnabled && filters.currency) {
+          appendListParam("currency", filters.currency);
         }
         if (
           filters.valueFromEnabled &&
