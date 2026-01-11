@@ -833,7 +833,7 @@
   align-items: center;
   justify-content: center;
   padding: 1.5rem;
-  z-index: 1000;
+  z-index: 10000;
   animation: fc-scenarios-fade-in 0.2s ease-out;
 }
 

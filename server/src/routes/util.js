@@ -1,6 +1,9 @@
 const express = require("express");
 const fs = require("fs");
 const path = require("path");
+const { exec } = require("child_process");
+const { promisify } = require("util");
+const archiver = require("archiver");
 const {
   COMPONENTS_DATA_DIR,
   TEMP_DIR,
@@ -11,6 +14,8 @@ const {
 } = require("../utils/dataPaths");
 const { getExchangeRate } = require("../utils/frankfurterExchangeRates");
 const PSdata = require("../../../components/models/PSdata");
+
+const execAsync = promisify(exec);
 
 const router = express.Router();
 
@@ -324,6 +329,111 @@ router.get("/currencies", async (req, res) => {
     return res.status(500).json({
       error: "Unable to list currencies from PS data",
     });
+  }
+});
+
+router.post("/backup-database", async (req, res) => {
+  // Configuration - using mongodump within the server container
+  const TIMESTAMP = new Date().toISOString().replace(/[-:]/g, '').replace(/\..+/, '').replace('T', '_');
+  const BACKUP_NAME = `backup_${TIMESTAMP}`;
+  const BACKUP_DIR = path.join("/data", "mongo_backups");
+  const backupPath = path.join(BACKUP_DIR, BACKUP_NAME);
+
+  try {
+    console.log("[BACKUP] Starting database backup...");
+    console.log("[BACKUP] Backup name:", BACKUP_NAME);
+    console.log("[BACKUP] Backup path:", backupPath);
+
+    // Ensure backup directory exists
+    if (!fs.existsSync(BACKUP_DIR)) {
+      console.log("[BACKUP] Creating backup directory:", BACKUP_DIR);
+      fs.mkdirSync(BACKUP_DIR, { recursive: true });
+    }
+
+    // Create backup using mongodump directly (server can connect to mongo via network)
+    console.log("[BACKUP] Creating backup with mongodump...");
+    try {
+      const { stdout: dumpOutput } = await execAsync(
+        `mongodump --host=mongo --port=27018 --out="${backupPath}"`,
+        { maxBuffer: 10 * 1024 * 1024 } // 10MB buffer
+      );
+      console.log("[BACKUP] Mongodump completed");
+      if (dumpOutput) {
+        console.log("[BACKUP] Output:", dumpOutput);
+      }
+    } catch (error) {
+      console.error("[BACKUP] Mongodump failed:", error);
+      return res.status(500).json({
+        error: `Failed to create backup: ${error.message}`,
+      });
+    }
+
+    // Verify backup was created
+    if (!fs.existsSync(backupPath)) {
+      console.error("[BACKUP] Backup directory not found:", backupPath);
+      return res.status(500).json({
+        error: "Backup directory was not created",
+      });
+    }
+
+    // Create a tar.gz archive of the backup
+    const archiveName = `${BACKUP_NAME}.tar.gz`;
+    const archivePath = path.join(BACKUP_DIR, archiveName);
+
+    console.log("[BACKUP] Creating archive:", archiveName);
+
+    const output = fs.createWriteStream(archivePath);
+    const archive = archiver("tar", {
+      gzip: true,
+      gzipOptions: { level: 9 },
+    });
+
+    // Handle archive events
+    output.on("close", () => {
+      console.log(
+        `[BACKUP] Archive created: ${archiveName} (${archive.pointer()} bytes)`
+      );
+
+      // Get file size
+      const stats = fs.statSync(archivePath);
+      const sizeInBytes = stats.size;
+      const sizeInMB = (sizeInBytes / (1024 * 1024)).toFixed(2);
+
+      // Send the file to the client
+      res.download(archivePath, archiveName, (err) => {
+        if (err) {
+          console.error("[BACKUP] Download error:", err);
+        }
+
+        // Clean up: remove the archive after sending
+        try {
+          fs.unlinkSync(archivePath);
+          console.log("[BACKUP] Archive cleaned up");
+        } catch (cleanupError) {
+          console.warn("[BACKUP] Failed to clean up archive:", cleanupError);
+        }
+      });
+    });
+
+    archive.on("error", (err) => {
+      console.error("[BACKUP] Archive error:", err);
+      if (!res.headersSent) {
+        return res.status(500).json({
+          error: "Failed to create backup archive",
+        });
+      }
+    });
+
+    archive.pipe(output);
+    archive.directory(backupPath, BACKUP_NAME);
+    await archive.finalize();
+  } catch (error) {
+    console.error("[BACKUP] Backup failed:", error);
+    if (!res.headersSent) {
+      return res.status(500).json({
+        error: error.message || "Failed to create database backup",
+      });
+    }
   }
 });
 

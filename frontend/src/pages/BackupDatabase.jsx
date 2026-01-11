@@ -1,0 +1,168 @@
+import { useState } from "react";
+import NavigationMenu from "../components/NavigationMenu.jsx";
+import "./PageLayout.css";
+import "./BackupDatabase.css";
+
+/**
+ * BackupDatabase - Database backup page
+ *
+ * Provides functionality to backup the MongoDB database and download the backup file.
+ */
+export default function BackupDatabase() {
+  const [isBackingUp, setIsBackingUp] = useState(false);
+  const [backupStatus, setBackupStatus] = useState(null);
+  const [error, setError] = useState(null);
+
+  const handleBackup = async () => {
+    setIsBackingUp(true);
+    setBackupStatus(null);
+    setError(null);
+
+    try {
+      // Call the backup API - this will trigger a file download
+      const response = await fetch("/api/util/backup-database", {
+        method: "POST",
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}));
+        throw new Error(errorData.error || "Failed to create backup");
+      }
+
+      // Get the filename from the Content-Disposition header
+      const contentDisposition = response.headers.get("Content-Disposition");
+      let filename = "backup.tar.gz";
+      if (contentDisposition) {
+        const filenameMatch = contentDisposition.match(/filename="?(.+)"?/);
+        if (filenameMatch) {
+          filename = filenameMatch[1];
+        }
+      }
+
+      // Get the blob and trigger download
+      const blob = await response.blob();
+      const url = window.URL.createObjectURL(blob);
+      const downloadLink = document.createElement("a");
+      downloadLink.href = url;
+      downloadLink.download = filename;
+      document.body.appendChild(downloadLink);
+      downloadLink.click();
+      document.body.removeChild(downloadLink);
+      window.URL.revokeObjectURL(url);
+
+      // Get file size
+      const sizeInMB = (blob.size / (1024 * 1024)).toFixed(2);
+
+      setBackupStatus({
+        message: "Backup created successfully!",
+        backupName: filename.replace(".tar.gz", ""),
+        size: `${sizeInMB} MB`,
+        timestamp: new Date().toLocaleString(),
+      });
+    } catch (err) {
+      console.error("Backup failed:", err);
+      setError(err.message || "Failed to create backup");
+    } finally {
+      setIsBackingUp(false);
+    }
+  };
+
+  return (
+    <div className="page-shell">
+      <NavigationMenu />
+      <main className="page-main backup-database-main">
+        <div className="backup-database-container">
+          <div className="backup-database-header">
+            <h1 className="backup-database-title">Database Backup</h1>
+            <p className="backup-database-subtitle">
+              Create and download a backup of the MongoDB database
+            </p>
+          </div>
+
+          <div className="backup-database-content">
+            <div className="backup-database-card">
+              <div className="backup-database-card-header">
+                <h2 className="backup-database-card-title">Backup Database</h2>
+                <p className="backup-database-card-description">
+                  This will create a complete backup of all collections in the database.
+                  The backup will be automatically downloaded to your computer.
+                </p>
+              </div>
+
+              <div className="backup-database-card-body">
+                {error && (
+                  <div className="backup-database-alert backup-database-alert--error">
+                    <strong>Error:</strong> {error}
+                  </div>
+                )}
+
+                {backupStatus && (
+                  <div className="backup-database-alert backup-database-alert--success">
+                    <div className="backup-database-success-content">
+                      <strong>✓ {backupStatus.message}</strong>
+                      <div className="backup-database-details">
+                        <div className="backup-database-detail-item">
+                          <span className="backup-database-detail-label">Backup Name:</span>
+                          <span className="backup-database-detail-value">
+                            {backupStatus.backupName}
+                          </span>
+                        </div>
+                        {backupStatus.size && (
+                          <div className="backup-database-detail-item">
+                            <span className="backup-database-detail-label">Size:</span>
+                            <span className="backup-database-detail-value">
+                              {backupStatus.size}
+                            </span>
+                          </div>
+                        )}
+                        <div className="backup-database-detail-item">
+                          <span className="backup-database-detail-label">Timestamp:</span>
+                          <span className="backup-database-detail-value">
+                            {backupStatus.timestamp}
+                          </span>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                )}
+
+                <button
+                  type="button"
+                  className="backup-database-button"
+                  onClick={handleBackup}
+                  disabled={isBackingUp}
+                >
+                  {isBackingUp ? (
+                    <>
+                      <span className="backup-database-spinner" />
+                      Creating Backup...
+                    </>
+                  ) : (
+                    "Create Backup"
+                  )}
+                </button>
+
+                <div className="backup-database-info">
+                  <h3 className="backup-database-info-title">What happens during backup?</h3>
+                  <ol className="backup-database-info-list">
+                    <li>MongoDB dump is created inside the container</li>
+                    <li>Backup is copied to the server</li>
+                    <li>Backup is compressed and prepared for download</li>
+                    <li>File download dialog opens automatically</li>
+                    <li>Save the backup file to your preferred location</li>
+                  </ol>
+                </div>
+
+                <div className="backup-database-warning">
+                  <strong>Note:</strong> The backup process may take a few moments depending
+                  on the size of your database. Please do not close this window until the
+                  backup is complete.
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </main>
+    </div>
+  );
+}

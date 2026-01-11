@@ -1,0 +1,234 @@
+.budget-graph-content {
+  padding: 24px;
+  overflow-y: auto;
+  max-height: calc(100vh - 80px);
+}
+
+.budget-graph-header {
+  margin-bottom: 32px;
+  padding-bottom: 16px;
+  border-bottom: 2px solid #e5e7eb;
+}
+
+.budget-graph-title {
+  font-size: 28px;
+  font-weight: 600;
+  color: #111827;
+  margin: 0 0 8px 0;
+}
+
+.budget-graph-subtitle {
+  font-size: 14px;
+  color: #6b7280;
+  margin: 0;
+}
+
+.budget-graph-empty {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 400px;
+  font-size: 16px;
+  color: #6b7280;
+}
+
+.budget-graph-container {
+  display: flex;
+  flex-direction: column;
+  gap: 32px;
+}
+
+.budget-graph-section {
+  background: #ffffff;
+  border: 1px solid #e5e7eb;
+  border-radius: 8px;
+  padding: 24px;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+}
+
+.budget-graph-section-title {
+  font-size: 20px;
+  font-weight: 600;
+  color: #111827;
+  margin: 0 0 16px 0;
+  padding-bottom: 12px;
+  border-bottom: 1px solid #e5e7eb;
+}
+
+.budget-graph-section-title--clickable {
+  cursor: pointer;
+  transition: color 0.2s ease, border-color 0.2s ease;
+  user-select: none;
+}
+
+.budget-graph-section-title--clickable:hover {
+  color: #2563eb;
+  border-bottom-color: #2563eb;
+}
+
+.budget-graph-category-summary {
+  display: flex;
+  gap: 32px;
+  margin-bottom: 24px;
+  padding: 16px;
+  background: #f9fafb;
+  border-radius: 6px;
+}
+
+.budget-graph-summary-item {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.budget-graph-summary-label {
+  font-size: 12px;
+  font-weight: 500;
+  color: #6b7280;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.budget-graph-summary-value {
+  font-size: 18px;
+  font-weight: 600;
+  color: #111827;
+}
+
+.budget-graph-summary-value--negative {
+  color: #dc2626;
+}
+
+.budget-graph-bars {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+
+.budget-graph-bar-group {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.budget-graph-bar-label {
+  font-size: 14px;
+  font-weight: 500;
+  color: #374151;
+  margin-bottom: 4px;
+}
+
+.budget-graph-bar-label--clickable {
+  cursor: pointer;
+  transition: color 0.2s ease;
+  user-select: none;
+}
+
+.budget-graph-bar-label--clickable:hover {
+  color: #2563eb;
+  text-decoration: underline;
+}
+
+.budget-graph-bars-wrapper {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.budget-graph-bar-row {
+  display: grid;
+  grid-template-columns: 60px 1fr 100px;
+  align-items: center;
+  gap: 12px;
+}
+
+.budget-graph-bar-type {
+  font-size: 12px;
+  font-weight: 500;
+  color: #6b7280;
+  text-align: right;
+}
+
+.budget-graph-bar-container {
+  position: relative;
+  height: 24px;
+  background: #f3f4f6;
+  border-radius: 4px;
+  overflow: hidden;
+}
+
+.budget-graph-bar {
+  height: 100%;
+  transition: width 0.3s ease, opacity 0.2s ease;
+  cursor: pointer;
+  border-radius: 4px;
+}
+
+.budget-graph-bar:hover {
+  opacity: 0.85;
+}
+
+.budget-graph-bar--budget {
+  background: linear-gradient(90deg, #3b82f6 0%, #2563eb 100%);
+}
+
+.budget-graph-bar--actual {
+  background: linear-gradient(90deg, #10b981 0%, #059669 100%);
+}
+
+.budget-graph-bar-value {
+  font-size: 13px;
+  font-weight: 500;
+  color: #374151;
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+
+.budget-graph-tooltip {
+  position: fixed;
+  background: rgba(17, 24, 39, 0.95);
+  color: #ffffff;
+  padding: 8px 12px;
+  border-radius: 6px;
+  font-size: 13px;
+  pointer-events: none;
+  z-index: 1000;
+  transform: translateX(-50%);
+  white-space: nowrap;
+  box-shadow: 0 4px 6px rgba(0, 0, 0, 0.2);
+}
+
+.budget-graph-tooltip-label {
+  font-weight: 600;
+  margin-bottom: 4px;
+}
+
+.budget-graph-tooltip-value {
+  font-weight: 400;
+  opacity: 0.9;
+}
+
+/* Responsive adjustments */
+@media (max-width: 768px) {
+  .budget-graph-content {
+    padding: 16px;
+  }
+
+  .budget-graph-category-summary {
+    flex-direction: column;
+    gap: 16px;
+  }
+
+  .budget-graph-bar-row {
+    grid-template-columns: 50px 1fr 80px;
+    gap: 8px;
+  }
+
+  .budget-graph-bar-type {
+    font-size: 11px;
+  }
+
+  .budget-graph-bar-value {
+    font-size: 12px;
+  }
+}

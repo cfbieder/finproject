@@ -12,10 +12,12 @@ import { ForecastProvider } from "../contexts";
 import Home from "../pages/Home";
 
 // Lazy loaded pages (for code splitting)
+const BackupDatabase = lazy(() => import("../pages/BackupDatabase"));
 const Balance = lazy(() => import("../pages/Balance"));
 const BalanceChart = lazy(() => import("../pages/BalanceChart"));
 const BudgetInput = lazy(() => import("../pages/BudgetInput"));
 const BudgetRealization = lazy(() => import("../pages/BudgetRealization"));
+const BudgetRealizationGraph = lazy(() => import("../pages/BudgetRealizationGraph"));
 const CashFlow = lazy(() => import("../pages/CashFlow"));
 const CashFlowMonthly = lazy(() => import("../pages/CashFlowMonthly"));
 const FCExpSetup = lazy(() => import("../pages/FCExpSetup"));
@@ -65,6 +67,12 @@ export const routes = [
     label: "Refresh PS",
     category: "Database",
   },
+  {
+    path: "/backup-database",
+    component: BackupDatabase,
+    label: "Backup Database",
+    category: "Database",
+  },
 
   // Budgeting
   {
@@ -77,6 +85,12 @@ export const routes = [
     path: "/budget-realization",
     component: BudgetRealization,
     label: "Budget Realization",
+    category: "Budgeting",
+  },
+  {
+    path: "/budget-graph",
+    component: BudgetRealizationGraph,
+    label: "Budget Graph",
     category: "Budgeting",
   },
 
