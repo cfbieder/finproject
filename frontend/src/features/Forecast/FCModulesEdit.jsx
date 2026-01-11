@@ -169,6 +169,10 @@ export const expenseCategoryOptions = (() => {
     collectLeafStrings(propertyOther, results);
   }
 
+  if (!results.includes("Tax Reserve")) {
+    results.push("Tax Reserve");
+  }
+
   return Array.from(new Set(results)).sort();
 })();
 

@@ -21,7 +21,6 @@ import "./PageLayout.css";
 import "../features/Forecast/FCModulesEdit.css";
 import "../features/Forecast/FCExpDeleteModal.css";
 
-
 const traitDefaultValues = (() => {
   const typeValues = new Set();
   const currencyValues = new Set();
@@ -110,7 +109,6 @@ export default function FCModuleManage() {
   const [selectedUnmatchedItem, setSelectedUnmatchedItem] = useState(null);
   const [creatingFromUnmatched, setCreatingFromUnmatched] = useState(false);
   const [pendingSelectInfo, setPendingSelectInfo] = useState(null);
-
 
   /**
    * Dynamically adjusts scenario select width to fit content.
@@ -207,7 +205,6 @@ export default function FCModuleManage() {
     }
   }, [modules, selectedScenario, pendingSelectInfo, setSelectedModuleId]);
 
-
   const handleCreateNewModule = async () => {
     if (!selectedScenario) {
       return;
@@ -246,11 +243,11 @@ export default function FCModuleManage() {
           BaseValueUSD: 0,
           MarketValueUSD: 0,
           Growth: null,
-      Invest: [],
-      Dispose: [],
-      IncomePct: [],
-    }),
-  });
+          Invest: [],
+          Dispose: [],
+          IncomePct: [],
+        }),
+      });
 
       setPendingSelectInfo({
         scenario: selectedScenario,
@@ -263,15 +260,17 @@ export default function FCModuleManage() {
     }
   };
 
-
   /**
    * Opens the edit modal with the selected module's data.
    * Formats dates and transfer arrays for form display.
    */
   const openEditModal = (moduleToEdit) => {
     // If moduleToEdit is an event object or not provided, use selectedModule
-    const isEvent = moduleToEdit && typeof moduleToEdit === 'object' && 'nativeEvent' in moduleToEdit;
-    const moduleData = (isEvent || !moduleToEdit) ? selectedModule : moduleToEdit;
+    const isEvent =
+      moduleToEdit &&
+      typeof moduleToEdit === "object" &&
+      "nativeEvent" in moduleToEdit;
+    const moduleData = isEvent || !moduleToEdit ? selectedModule : moduleToEdit;
     if (!moduleData) return;
 
     setEditError("");
