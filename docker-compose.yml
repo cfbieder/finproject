@@ -1,7 +1,10 @@
 services:
-  mongo:
-    image: mongo:7
-    container_name: mongofin
+  fin-mongo:
+    build:
+      context: .
+      dockerfile: mongo/Dockerfile
+    image: fin-mongodb
+    container_name: fin-mongo
     restart: unless-stopped
     command: ["mongod", "--port", "27018"]
     ports:
@@ -32,12 +35,12 @@ services:
     container_name: fin-server
     restart: unless-stopped
     depends_on:
-      mongo:
+      fin-mongo:
         condition: service_healthy
     environment:
       NODE_ENV: production
       PORT: 3005
-      MONGO_URI: mongodb://mongo:27018/fin
+      MONGO_URI: mongodb://fin-mongo:27018/fin
       ACCOUNT_NAMES_PATH: ../../components/data/account_names.json
       CATEGORY_NAMES_PATH: ../../components/data/category_names.json
       COA_PATH: ../../components/data/coa.json

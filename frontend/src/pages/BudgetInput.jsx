@@ -21,6 +21,7 @@ import {
   CATEGORY_GROUP_LABELS,
   ensureAllOption,
   buildBudgetMonthValue,
+  buildMonthSequence,
   isOperationalExpenseExcluded,
   getOperationalExpenseCategories,
   isCategoryGroupValue,
