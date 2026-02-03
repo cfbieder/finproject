@@ -70,9 +70,9 @@ export default function FCReviewBreakdownModal({
       }));
 
       try {
-        // Call the API endpoint to retrieve the audit trail data
+        // Call the v2 API endpoint to retrieve the audit trail data
         const response = await fetch(
-          `/api/forecast/audittrail/${encodeURIComponent(
+          `/api/v2/forecast/audittrail/${encodeURIComponent(
             scenarioName
           )}/${encodeURIComponent(moduleName)}`
         );

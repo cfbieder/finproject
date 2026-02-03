@@ -54,12 +54,14 @@ export function useModules(selectedScenario) {
     const loadModules = async () => {
       setLoading(true);
       try {
-        const data = await Rest.fetchJson("/api/forecast/modules");
+        // Using v2 API (PostgreSQL) - returns modules for specific scenario
+        const data = await Rest.fetchJson(
+          `/api/v2/forecast/modules?scenario=${encodeURIComponent(selectedScenario)}`
+        );
         if (!isMounted) return;
 
-        const filtered = (data || []).filter(
-          (entry) => entry?.Scenario === selectedScenario
-        );
+        // v2 API returns array directly with PascalCase fields for compatibility
+        const filtered = data || [];
         setModules(filtered);
         setError("");
 

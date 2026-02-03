@@ -27,7 +27,8 @@ export function useAssumptions() {
     const loadAssumptions = async () => {
       setIsLoading(true);
       try {
-        const data = await Rest.fetchJson("/api/forecast/assumptions");
+        // Using v2 API (PostgreSQL for scenarios, file-based for other assumptions)
+        const data = await Rest.fetchJson("/api/v2/forecast/assumptions");
         if (isMounted) {
           setAssumptions(data);
           setError("");

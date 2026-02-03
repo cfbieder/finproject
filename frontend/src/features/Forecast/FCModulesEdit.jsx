@@ -406,7 +406,8 @@ export default function FCModulesEditModal({
     setAssumptionsLoading(true);
     (async () => {
       try {
-        const data = await Rest.fetchJson("/api/forecast/assumptions");
+        // Using v2 API (PostgreSQL)
+        const data = await Rest.fetchJson("/api/v2/forecast/assumptions");
         if (isActive) {
           setAssumptions(data || null);
         }

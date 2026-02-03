@@ -226,4 +226,253 @@ export default class Rest {
     const path = `/api/budget/actual-entries${query ? `?${query}` : ""}`;
     return Rest.fetchJson(path);
   }
+
+  // ============================================================================
+  // V2 API Methods (PostgreSQL)
+  // ============================================================================
+
+  /**
+   * Fetch transactions from v2 API (PostgreSQL)
+   */
+  static async fetchTransactionsV2({
+    year,
+    month,
+    accountId,
+    categoryId,
+    currency,
+    description,
+    minAmount,
+    maxAmount,
+    limit,
+    offset,
+  } = {}) {
+    const params = new URLSearchParams();
+    if (year !== undefined && year !== null) {
+      params.set("year", Number(year));
+    }
+    if (month !== undefined && month !== null) {
+      params.set("month", Number(month));
+    }
+    if (accountId !== undefined && accountId !== null) {
+      params.set("accountId", Number(accountId));
+    }
+    if (categoryId !== undefined && categoryId !== null) {
+      params.set("categoryId", Number(categoryId));
+    }
+    if (currency) {
+      params.set("currency", currency);
+    }
+    if (description) {
+      params.set("description", description);
+    }
+    if (minAmount !== undefined && minAmount !== null) {
+      params.set("minAmount", Number(minAmount));
+    }
+    if (maxAmount !== undefined && maxAmount !== null) {
+      params.set("maxAmount", Number(maxAmount));
+    }
+    if (limit !== undefined && limit !== null) {
+      params.set("limit", Number(limit));
+    }
+    if (offset !== undefined && offset !== null) {
+      params.set("offset", Number(offset));
+    }
+
+    const query = params.toString();
+    const path = `/api/v2/transactions${query ? `?${query}` : ""}`;
+    const response = await Rest.fetchJson(path);
+    return response?.data ?? [];
+  }
+
+  /**
+   * Fetch accounts from v2 API (PostgreSQL)
+   */
+  static async fetchAccountsV2({ section, type, activeOnly = true } = {}) {
+    const params = new URLSearchParams();
+    if (section) params.set("section", section);
+    if (type) params.set("type", type);
+    if (activeOnly !== undefined) params.set("activeOnly", String(activeOnly));
+
+    const query = params.toString();
+    const path = `/api/v2/accounts${query ? `?${query}` : ""}`;
+    const response = await Rest.fetchJson(path);
+    return response?.data ?? [];
+  }
+
+  /**
+   * Fetch categories from v2 API (PostgreSQL)
+   */
+  static async fetchCategoriesV2({ activeOnly = true } = {}) {
+    const params = new URLSearchParams();
+    if (activeOnly !== undefined) params.set("activeOnly", String(activeOnly));
+
+    const query = params.toString();
+    const path = `/api/v2/categories${query ? `?${query}` : ""}`;
+    const response = await Rest.fetchJson(path);
+    return response?.data ?? [];
+  }
+
+  /**
+   * Fetch forecast scenarios from v2 API
+   */
+  static async fetchForecastScenariosV2({ activeOnly = true } = {}) {
+    const params = new URLSearchParams();
+    if (activeOnly !== undefined) params.set("activeOnly", String(activeOnly));
+
+    const query = params.toString();
+    const path = `/api/v2/forecast/scenarios${query ? `?${query}` : ""}`;
+    const response = await Rest.fetchJson(path);
+    return response?.data ?? [];
+  }
+
+  /**
+   * Update a transaction via v2 API
+   */
+  static async updateTransactionV2(id, data) {
+    const response = await fetch(Rest.buildUrl(`/api/v2/transactions/${id}`), {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(data),
+    });
+    return Rest.handleResponse(response);
+  }
+
+  /**
+   * Delete a transaction via v2 API
+   */
+  static async deleteTransactionV2(id) {
+    const response = await fetch(Rest.buildUrl(`/api/v2/transactions/${id}`), {
+      method: "DELETE",
+    });
+    if (!response.ok) {
+      throw new Error(`Failed to delete transaction: ${response.statusText}`);
+    }
+    return true;
+  }
+
+  /**
+   * Fetch balance sheet report from v2 API (PostgreSQL)
+   */
+  static async fetchBalanceReportV2(asOfDate) {
+    const encodedDate = encodeURIComponent(asOfDate ?? "");
+    const report = await Rest.fetchJson(`/api/v2/reports/balance?asOfDate=${encodedDate}`);
+    return report?.["Balance Sheet Accounts"] ?? null;
+  }
+
+  /**
+   * Fetch cash flow report from v2 API (PostgreSQL)
+   */
+  static async fetchCashFlowReportV2({
+    fromDate,
+    toDate,
+    transfers,
+    includeUnrealizedGL,
+  } = {}) {
+    const params = new URLSearchParams();
+    if (fromDate) params.set("fromDate", fromDate);
+    if (toDate) params.set("toDate", toDate);
+    if (transfers) params.set("transfers", transfers);
+    if (typeof includeUnrealizedGL === "boolean") {
+      params.set("includeUnrealizedGL", includeUnrealizedGL);
+    }
+
+    const query = params.toString();
+    const path = `/api/v2/reports/cash-flow${query ? `?${query}` : ""}`;
+    const report = await Rest.fetchJson(path);
+    return report?.["Profit & Loss Accounts"] ?? null;
+  }
+
+  /**
+   * Fetch budget summary (actual vs budget by month) from v2 API
+   */
+  static async fetchBudgetBalancesV2({
+    fromMonth,
+    toMonth,
+    actualYear,
+    budgetYear,
+    categories,
+    accounts,
+  } = {}) {
+    const params = new URLSearchParams();
+    if (fromMonth) params.set("fromMonth", fromMonth);
+    if (toMonth) params.set("toMonth", toMonth);
+    if (actualYear !== undefined && actualYear !== null) {
+      params.set("actualYear", Number(actualYear));
+    }
+    if (budgetYear !== undefined && budgetYear !== null) {
+      params.set("budgetYear", Number(budgetYear));
+    }
+    if (Array.isArray(categories) && categories.length) {
+      for (const category of categories) {
+        if (category) params.append("category", category);
+      }
+    }
+    if (Array.isArray(accounts) && accounts.length) {
+      for (const account of accounts) {
+        if (account) params.append("accounts", account);
+      }
+    }
+
+    const query = params.toString();
+    const path = `/api/v2/budget/summary${query ? `?${query}` : ""}`;
+    return Rest.fetchJson(path);
+  }
+
+  /**
+   * Fetch category groups (Income/Expense) from v2 API
+   */
+  static async fetchCategoryGroupsV2() {
+    return Rest.fetchJson("/api/v2/budget/category-groups");
+  }
+
+  /**
+   * Fetch currency options from v2 API
+   */
+  static async fetchCurrencyOptionsV2() {
+    return Rest.fetchJson("/api/v2/util/currencies");
+  }
+
+  /**
+   * Fetch app data from v2 API
+   */
+  static async fetchAppDataV2() {
+    return Rest.fetchJson("/api/v2/util/appdata");
+  }
+
+  /**
+   * Create budget entry via v2 API
+   */
+  static async createBudgetEntryV2(data) {
+    const response = await fetch(Rest.buildUrl("/api/v2/budget/entries"), {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(data),
+    });
+    return Rest.handleResponse(response);
+  }
+
+  /**
+   * Update budget entry via v2 API
+   */
+  static async updateBudgetEntryV2(id, data) {
+    const response = await fetch(Rest.buildUrl(`/api/v2/budget/entries/${id}`), {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(data),
+    });
+    return Rest.handleResponse(response);
+  }
+
+  /**
+   * Delete budget entry via v2 API
+   */
+  static async deleteBudgetEntryV2(id) {
+    const response = await fetch(Rest.buildUrl(`/api/v2/budget/entries/${id}`), {
+      method: "DELETE",
+    });
+    if (!response.ok) {
+      throw new Error(`Failed to delete budget entry: ${response.statusText}`);
+    }
+    return true;
+  }
 }

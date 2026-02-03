@@ -32,9 +32,10 @@ export function useCurrencyData() {
       setLoading(true);
       setError("");
       try {
+        // Using v2 API (PostgreSQL)
         const [currencyPayload, appDataPayload] = await Promise.all([
-          Rest.fetchCurrencyOptions(),
-          Rest.fetchJson("/api/util/getappdata"),
+          Rest.fetchCurrencyOptionsV2(),
+          Rest.fetchAppDataV2(),
         ]);
 
         if (!isActive) return;

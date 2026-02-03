@@ -41,8 +41,9 @@ export function useTransBudgetDelete(selectedRows, onSuccess) {
    * Calls onSuccess callback after successful deletion.
    */
   const handleConfirmDelete = useCallback(async () => {
+    // Use numeric id for v2 API, fall back to _id for v1 compatibility
     const ids = Array.from(selectedRows.values())
-      .map((entry) => entry?._id)
+      .map((entry) => entry?.id ?? entry?._id)
       .filter(Boolean);
 
     if (!ids.length) {
@@ -52,16 +53,18 @@ export function useTransBudgetDelete(selectedRows, onSuccess) {
 
     setIsDeleting(true);
     try {
+      // Using v2 API (PostgreSQL)
       await Promise.all(
         ids.map((id) =>
-          fetch(Rest.buildUrl(`/api/budget/${id}`), {
+          fetch(Rest.buildUrl(`/api/v2/budget/entries/${id}`), {
             method: "DELETE",
           }).then(async (response) => {
             if (!response.ok) {
               const payload = await response.json().catch(() => null);
               throw new Error(payload?.error || "Failed to delete entry");
             }
-            return response.json().catch(() => null);
+            // v2 API returns 204 No Content on success
+            return true;
           })
         )
       );

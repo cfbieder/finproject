@@ -526,7 +526,8 @@ export default function BudgetInput() {
       : entriesToPersist[0];
 
     try {
-      await Rest.fetchJson("/api/budget", {
+      // Using v2 API (PostgreSQL)
+      await Rest.fetchJson("/api/v2/budget/entries", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",

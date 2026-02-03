@@ -27,8 +27,17 @@ export function useScenarios() {
     const loadScenarios = async () => {
       setIsLoading(true);
       try {
-        const data = await Rest.fetchJson("/api/forecast/assumptions");
-        const list = data?.scenarios || [];
+        // Using v2 API (PostgreSQL)
+        const response = await Rest.fetchJson("/api/v2/forecast/scenarios");
+        const rawList = response?.data || [];
+
+        // Transform v2 format (snake_case) to v1 format (PascalCase) for compatibility
+        const list = rawList.map((s) => ({
+          ...s,
+          Name: s.name,
+          Description: s.description,
+          IsActive: s.is_active,
+        }));
         setScenarios(list);
 
         setSelectedScenario((current) => {

@@ -93,9 +93,9 @@ export default function FCCashTransferModal({
         body: JSON.stringify(updatePayload),
       });
 
-      // Generate forecast
+      // Generate forecast (v2 API wraps v1 generator)
       const encodedScenario = encodeURIComponent(scenarioName);
-      await Rest.fetchJson(`/api/forecast/generate/${encodedScenario}`, {
+      await Rest.fetchJson(`/api/v2/forecast/generate/${encodedScenario}`, {
         method: "POST",
       });
 

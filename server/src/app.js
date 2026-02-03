@@ -10,6 +10,7 @@ const ingestRouter = require("./routes/ingestPs");
 const utilRouter = require("./routes/util");
 const budgetRouter = require("./routes/budget");
 const forecastRouter = require("./routes/forecast");
+const v2Routes = require("./v2/routes");
 const app = express();
 
 app.use(morgan("tiny"));
@@ -24,10 +25,22 @@ app.use("/api/coa", coaRouter);
 app.use("/api/ingest-ps", ingestRouter);
 app.use("/api/budget", budgetRouter);
 app.use("/api/forecast", forecastRouter);
+app.use("/api/v2", v2Routes);
 
 // URL of MongoDB server
 var db = process.env.MONGO_URI;
 console.log("[SERVER] Mongo URI: ", db);
+
+// PostgreSQL connection
+const postgres = require("./v2/db");
+console.log("[SERVER] PostgreSQL URL: ", process.env.DATABASE_URL ? "configured" : "not configured");
+
+// Test PostgreSQL connection on startup
+if (process.env.DATABASE_URL) {
+  postgres.healthCheck()
+    .then(() => console.log("[SERVER] Connected to PostgreSQL"))
+    .catch((err) => console.log("[SERVER] PostgreSQL connection pending:", err.message));
+}
 
 app.get("/", (req, res) => {
   res.json({
@@ -44,6 +57,14 @@ app.get("/", (req, res) => {
       "/api/ingest-ps/analyze-ps",
       "/api/ingest-ps/refresh-ps",
       "/api/forecast",
+    ],
+    v2Routes: [
+      "/api/v2/health",
+      "/api/v2/transactions",
+      "/api/v2/accounts",
+      "/api/v2/categories",
+      "/api/v2/budget",
+      "/api/v2/forecast",
     ],
   });
 });

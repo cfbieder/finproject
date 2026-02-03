@@ -101,7 +101,8 @@ export default function FCExpSetup() {
     const loadAssumptions = async () => {
       setIsLoading(true);
       try {
-        const data = await Rest.fetchJson("/api/forecast/assumptions");
+        // Using v2 API (PostgreSQL)
+        const data = await Rest.fetchJson("/api/v2/forecast/assumptions");
         if (isMounted) {
           setAssumptions(data);
           setError("");

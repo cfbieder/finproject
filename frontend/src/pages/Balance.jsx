@@ -71,8 +71,9 @@ export default function Balance() {
     setIsFetchingReport(true);
     const activeDates = periodDates.slice(0, activePeriodCount);
     try {
+      // Using v2 API (PostgreSQL)
       const reports = await Promise.all(
-        activeDates.map((date) => Rest.fetchBalanceReport(date))
+        activeDates.map((date) => Rest.fetchBalanceReportV2(date))
       );
       setBalanceReports(reports);
       const collapsiblePaths = collectCollapsiblePaths(reports[0]);

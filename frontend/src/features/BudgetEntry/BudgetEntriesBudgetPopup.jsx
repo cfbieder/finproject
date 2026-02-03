@@ -939,7 +939,8 @@ const BudgetEntriesBudgetPopup = ({ request }) => {
     }
 
     try {
-      await Rest.fetchJson(`/api/budget/${entryId}`, {
+      // Using v2 API (PostgreSQL)
+      await Rest.fetchJson(`/api/v2/budget/entries/${entryId}`, {
         method: "PATCH",
         headers: {
           "Content-Type": "application/json",
@@ -962,7 +963,8 @@ const BudgetEntriesBudgetPopup = ({ request }) => {
     }
     try {
       console.log('[BudgetEntriesBudgetPopup] Deleting entry:', entryId);
-      await Rest.fetchJson(`/api/budget/${entryId}`, {
+      // Using v2 API (PostgreSQL)
+      await Rest.fetchJson(`/api/v2/budget/entries/${entryId}`, {
         method: "DELETE",
       });
       console.log('[BudgetEntriesBudgetPopup] Entry deleted, refreshing list...');

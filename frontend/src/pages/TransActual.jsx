@@ -9,7 +9,8 @@ import TransactionActualTable, {
 } from "../features/TransactionActual/TransactionActualTable.jsx";
 import TransActualEditModal from "../features/TransactionActual/TransActualEditModal.jsx";
 import TransActualDeleteModal from "../features/TransactionActual/TransActualDeleteModal.jsx";
-import { useTransactions } from "../features/TransactionActual/hooks/useTransactions.js";
+// Using v2 API (PostgreSQL) - switch back to useTransactions.js for MongoDB
+import { useTransactionsV2 as useTransactions } from "../features/TransactionActual/hooks/useTransactionsV2.js";
 import { useTransActualFilters } from "../features/TransactionActual/hooks/useTransActualFilters.js";
 import { useTransActualSelection } from "../features/TransactionActual/hooks/useTransActualSelection.js";
 import { useTransActualEdit } from "../features/TransactionActual/hooks/useTransActualEdit.js";

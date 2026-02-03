@@ -61,7 +61,8 @@ export function useBalanceData({
         const accountsToFilter = getSelectedAccountFilters(selectedAccounts);
         const categoryFilters = expandedCategories;
 
-        const payload = await Rest.fetchBudgetBalances({
+        // Using v2 API (PostgreSQL)
+        const payload = await Rest.fetchBudgetBalancesV2({
           fromMonth,
           toMonth,
           actualYear,

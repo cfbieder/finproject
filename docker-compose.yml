@@ -1,4 +1,28 @@
 services:
+  # PostgreSQL - New primary database
+  fin-postgres:
+    image: postgres:16-alpine
+    container_name: fin-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: fin
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-findev123}
+      POSTGRES_DB: fin
+    ports:
+      - "5433:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./server/db/migrations:/docker-entrypoint-initdb.d:ro
+    networks:
+      - fin-network
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U fin -d fin"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+
+  # MongoDB - Legacy database (keep running during migration)
   fin-mongo:
     build:
       context: .
@@ -37,10 +61,13 @@ services:
     depends_on:
       fin-mongo:
         condition: service_healthy
+      fin-postgres:
+        condition: service_healthy
     environment:
       NODE_ENV: production
       PORT: 3005
       MONGO_URI: mongodb://fin-mongo:27018/fin
+      DATABASE_URL: postgres://fin:${POSTGRES_PASSWORD:-findev123}@fin-postgres:5432/fin
       ACCOUNT_NAMES_PATH: ../../components/data/account_names.json
       CATEGORY_NAMES_PATH: ../../components/data/category_names.json
       COA_PATH: ../../components/data/coa.json
@@ -56,6 +83,7 @@ services:
     networks:
       - fin-network
 
+  # Frontend - New (PostgreSQL/v2 API)
   frontend:
     build:
       context: .
@@ -65,10 +93,29 @@ services:
     depends_on:
       - server
     ports:
-      - "3000:80"
-      - "5174:443"
+      - "3006:80"
+      - "5175:443"
     volumes:
       - ./certs:/etc/nginx/certs:ro
+      - ./frontend/nginx.conf:/etc/nginx/conf.d/default.conf:ro
+    networks:
+      - fin-network
+
+  # Frontend - Legacy (MongoDB/v1 API)
+  frontend-legacy:
+    build:
+      context: .
+      dockerfile: frontend/Dockerfile
+    container_name: fin-frontend-legacy
+    restart: unless-stopped
+    depends_on:
+      - server
+    ports:
+      - "3007:80"
+      - "5176:443"
+    volumes:
+      - ./certs:/etc/nginx/certs:ro
+      - ./frontend/nginx-legacy.conf:/etc/nginx/conf.d/default.conf:ro
     networks:
       - fin-network
 
@@ -78,4 +125,6 @@ networks:
 
 volumes:
   mongo_data:
+    driver: local
+  postgres_data:
     driver: local

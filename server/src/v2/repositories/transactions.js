@@ -1,0 +1,368 @@
+/**
+ * Transactions Repository
+ *
+ * Database operations for the transactions table.
+ */
+
+const db = require('../db');
+
+/**
+ * Get all transactions with optional filtering
+ */
+async function findAll({ startDate, endDate, categoryId, accountId, limit = 1000, offset = 0 } = {}) {
+  const conditions = [];
+  const params = [];
+  let paramIndex = 1;
+
+  if (startDate) {
+    conditions.push(`t.transaction_date >= $${paramIndex++}`);
+    params.push(startDate);
+  }
+  if (endDate) {
+    conditions.push(`t.transaction_date <= $${paramIndex++}`);
+    params.push(endDate);
+  }
+  if (categoryId) {
+    conditions.push(`t.category_id = $${paramIndex++}`);
+    params.push(categoryId);
+  }
+  if (accountId) {
+    conditions.push(`t.account_id = $${paramIndex++}`);
+    params.push(accountId);
+  }
+
+  const whereClause = conditions.length > 0 ? `WHERE ${conditions.join(' AND ')}` : '';
+
+  const sql = `
+    SELECT
+      t.id, t.ps_id, t.transaction_date, t.description1, t.description2,
+      t.amount, t.currency, t.base_amount, t.base_currency,
+      t.transaction_type, t.closing_balance, t.labels, t.memo, t.note, t.bank, t.source,
+      t.account_id, a.name as account_name,
+      t.category_id, c.name as category_name
+    FROM transactions t
+    LEFT JOIN accounts a ON t.account_id = a.id
+    LEFT JOIN categories c ON t.category_id = c.id
+    ${whereClause}
+    ORDER BY t.transaction_date DESC, t.id DESC
+    LIMIT $${paramIndex++} OFFSET $${paramIndex}
+  `;
+
+  params.push(limit, offset);
+  const result = await db.query(sql, params);
+  return result.rows;
+}
+
+/**
+ * Get all transactions with extended filtering (currency, description, amount range)
+ * Supports both ID-based and name-based filtering for accounts/categories
+ */
+async function findAllExtended({
+  startDate, endDate, categoryId, accountId,
+  categoryNames, accountNames,  // Support name-based filtering for v1 compatibility
+  currency, description, minAmount, maxAmount,
+  limit = 1000, offset = 0
+} = {}) {
+  const conditions = [];
+  const params = [];
+  let paramIndex = 1;
+
+  if (startDate) {
+    conditions.push(`t.transaction_date >= $${paramIndex++}`);
+    params.push(startDate);
+  }
+  if (endDate) {
+    conditions.push(`t.transaction_date <= $${paramIndex++}`);
+    params.push(endDate);
+  }
+  if (categoryId) {
+    conditions.push(`t.category_id = $${paramIndex++}`);
+    params.push(categoryId);
+  }
+  if (accountId) {
+    conditions.push(`t.account_id = $${paramIndex++}`);
+    params.push(accountId);
+  }
+  // Name-based filtering (for v1 API compatibility)
+  if (categoryNames && categoryNames.length > 0) {
+    const placeholders = categoryNames.map(() => `$${paramIndex++}`).join(', ');
+    conditions.push(`c.name IN (${placeholders})`);
+    params.push(...categoryNames);
+  }
+  if (accountNames && accountNames.length > 0) {
+    const placeholders = accountNames.map(() => `$${paramIndex++}`).join(', ');
+    conditions.push(`a.name IN (${placeholders})`);
+    params.push(...accountNames);
+  }
+  if (currency) {
+    conditions.push(`t.currency = $${paramIndex++}`);
+    params.push(currency);
+  }
+  if (description) {
+    conditions.push(`(t.description1 ILIKE $${paramIndex} OR t.description2 ILIKE $${paramIndex})`);
+    params.push(`%${description}%`);
+    paramIndex++;
+  }
+  if (minAmount !== undefined && minAmount !== null) {
+    conditions.push(`t.base_amount >= $${paramIndex++}`);
+    params.push(minAmount);
+  }
+  if (maxAmount !== undefined && maxAmount !== null) {
+    conditions.push(`t.base_amount <= $${paramIndex++}`);
+    params.push(maxAmount);
+  }
+
+  const whereClause = conditions.length > 0 ? `WHERE ${conditions.join(' AND ')}` : '';
+
+  const sql = `
+    SELECT
+      t.id, t.ps_id, t.transaction_date, t.description1, t.description2,
+      t.amount, t.currency, t.base_amount, t.base_currency,
+      t.transaction_type, t.closing_balance, t.labels, t.memo, t.note, t.bank, t.source,
+      t.account_id, a.name as account_name,
+      t.category_id, c.name as category_name
+    FROM transactions t
+    LEFT JOIN accounts a ON t.account_id = a.id
+    LEFT JOIN categories c ON t.category_id = c.id
+    ${whereClause}
+    ORDER BY t.transaction_date DESC, t.id DESC
+    LIMIT $${paramIndex++} OFFSET $${paramIndex}
+  `;
+
+  params.push(limit, offset);
+  const result = await db.query(sql, params);
+  return result.rows;
+}
+
+/**
+ * Get transaction by ID
+ */
+async function findById(id) {
+  const sql = `
+    SELECT
+      t.*, a.name as account_name, c.name as category_name
+    FROM transactions t
+    LEFT JOIN accounts a ON t.account_id = a.id
+    LEFT JOIN categories c ON t.category_id = c.id
+    WHERE t.id = $1
+  `;
+  const result = await db.query(sql, [id]);
+  return result.rows[0] || null;
+}
+
+/**
+ * Get transaction by PocketSmith ID
+ */
+async function findByPsId(psId) {
+  const sql = `SELECT * FROM transactions WHERE ps_id = $1`;
+  const result = await db.query(sql, [psId]);
+  return result.rows[0] || null;
+}
+
+/**
+ * Count transactions with optional filters
+ */
+async function count({ startDate, endDate, categoryId, accountId } = {}) {
+  const conditions = [];
+  const params = [];
+  let paramIndex = 1;
+
+  if (startDate) {
+    conditions.push(`transaction_date >= $${paramIndex++}`);
+    params.push(startDate);
+  }
+  if (endDate) {
+    conditions.push(`transaction_date <= $${paramIndex++}`);
+    params.push(endDate);
+  }
+  if (categoryId) {
+    conditions.push(`category_id = $${paramIndex++}`);
+    params.push(categoryId);
+  }
+  if (accountId) {
+    conditions.push(`account_id = $${paramIndex++}`);
+    params.push(accountId);
+  }
+
+  const whereClause = conditions.length > 0 ? `WHERE ${conditions.join(' AND ')}` : '';
+  const sql = `SELECT COUNT(*)::int as count FROM transactions ${whereClause}`;
+
+  const result = await db.query(sql, params);
+  return result.rows[0].count;
+}
+
+/**
+ * Get transactions grouped by category for a date range
+ */
+async function sumByCategory({ startDate, endDate, section } = {}) {
+  const conditions = ['t.category_id IS NOT NULL'];
+  const params = [];
+  let paramIndex = 1;
+
+  if (startDate) {
+    conditions.push(`t.transaction_date >= $${paramIndex++}`);
+    params.push(startDate);
+  }
+  if (endDate) {
+    conditions.push(`t.transaction_date <= $${paramIndex++}`);
+    params.push(endDate);
+  }
+  if (section) {
+    conditions.push(`a.section = $${paramIndex++}`);
+    params.push(section);
+  }
+
+  const sql = `
+    SELECT
+      c.id as category_id,
+      c.name as category_name,
+      a.name as account_name,
+      a.account_type,
+      SUM(t.base_amount) as total_amount,
+      COUNT(*)::int as transaction_count
+    FROM transactions t
+    JOIN categories c ON t.category_id = c.id
+    LEFT JOIN accounts a ON c.mapped_account_id = a.id
+    WHERE ${conditions.join(' AND ')}
+    GROUP BY c.id, c.name, a.name, a.account_type
+    ORDER BY ABS(SUM(t.base_amount)) DESC
+  `;
+
+  const result = await db.query(sql, params);
+  return result.rows;
+}
+
+/**
+ * Get monthly totals for a date range
+ */
+async function sumByMonth({ startDate, endDate, categoryId } = {}) {
+  const conditions = [];
+  const params = [];
+  let paramIndex = 1;
+
+  if (startDate) {
+    conditions.push(`transaction_date >= $${paramIndex++}`);
+    params.push(startDate);
+  }
+  if (endDate) {
+    conditions.push(`transaction_date <= $${paramIndex++}`);
+    params.push(endDate);
+  }
+  if (categoryId) {
+    conditions.push(`category_id = $${paramIndex++}`);
+    params.push(categoryId);
+  }
+
+  const whereClause = conditions.length > 0 ? `WHERE ${conditions.join(' AND ')}` : '';
+
+  const sql = `
+    SELECT
+      DATE_TRUNC('month', transaction_date)::date as month,
+      SUM(base_amount) as total_amount,
+      COUNT(*)::int as transaction_count
+    FROM transactions
+    ${whereClause}
+    GROUP BY DATE_TRUNC('month', transaction_date)
+    ORDER BY month
+  `;
+
+  const result = await db.query(sql, params);
+  return result.rows;
+}
+
+/**
+ * Create a new transaction
+ */
+async function create(data) {
+  const sql = `
+    INSERT INTO transactions (
+      ps_id, transaction_date, description1, description2,
+      amount, currency, base_amount, base_currency,
+      transaction_type, account_id, closing_balance,
+      category_id, labels, memo, note, bank, source
+    )
+    VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17)
+    RETURNING *
+  `;
+
+  const result = await db.query(sql, [
+    data.ps_id || null,
+    data.transaction_date,
+    data.description1 || null,
+    data.description2 || null,
+    data.amount,
+    data.currency || 'USD',
+    data.base_amount || data.amount,
+    data.base_currency || 'USD',
+    data.transaction_type || null,
+    data.account_id || null,
+    data.closing_balance || null,
+    data.category_id || null,
+    data.labels || null,
+    data.memo || null,
+    data.note || null,
+    data.bank || null,
+    data.source || 'manual'
+  ]);
+
+  return result.rows[0];
+}
+
+/**
+ * Update a transaction
+ */
+async function update(id, data) {
+  const fields = [];
+  const params = [];
+  let paramIndex = 1;
+
+  const allowedFields = [
+    'transaction_date', 'description1', 'description2', 'amount', 'currency',
+    'base_amount', 'base_currency', 'transaction_type', 'account_id',
+    'closing_balance', 'category_id', 'labels', 'memo', 'note', 'bank'
+  ];
+
+  for (const field of allowedFields) {
+    if (data[field] !== undefined) {
+      fields.push(`${field} = $${paramIndex++}`);
+      params.push(data[field]);
+    }
+  }
+
+  if (fields.length === 0) return null;
+
+  fields.push(`updated_at = NOW()`);
+  params.push(id);
+
+  const sql = `
+    UPDATE transactions
+    SET ${fields.join(', ')}
+    WHERE id = $${paramIndex}
+    RETURNING *
+  `;
+
+  const result = await db.query(sql, params);
+  return result.rows[0] || null;
+}
+
+/**
+ * Delete a transaction
+ */
+async function remove(id) {
+  const sql = `DELETE FROM transactions WHERE id = $1 RETURNING id`;
+  const result = await db.query(sql, [id]);
+  return result.rowCount > 0;
+}
+
+module.exports = {
+  findAll,
+  findAllExtended,
+  findById,
+  findByPsId,
+  count,
+  sumByCategory,
+  sumByMonth,
+  create,
+  update,
+  remove
+};

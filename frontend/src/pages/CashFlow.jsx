@@ -177,9 +177,10 @@ export default function CashFlow() {
               : `Period ${index + 1}`,
         })
       );
+      // Using v2 API (PostgreSQL)
       const rawReports = await Promise.all(
         activePeriods.map(({ fromDate, toDate }) =>
-          Rest.fetchCashFlowReport({
+          Rest.fetchCashFlowReportV2({
             fromDate,
             toDate,
             transfers,

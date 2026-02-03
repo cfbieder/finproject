@@ -118,17 +118,27 @@ export default function TransactionBudgetFilter({
 
     const loadOptions = async () => {
       try {
-        const payload = await Rest.fetchPsDataOptions();
+        // Using v2 API (PostgreSQL)
+        const [accountsData, categoriesData] = await Promise.all([
+          Rest.fetchAccountsV2({ activeOnly: true }),
+          Rest.fetchCategoriesV2({ activeOnly: true }),
+        ]);
         if (!isActive) {
           return;
         }
 
-        const { accounts = [], categories = [] } = payload ?? {};
+        // Extract names from v2 response objects
+        const accounts = Array.isArray(accountsData)
+          ? accountsData.map((acc) => acc?.name).filter(Boolean)
+          : [];
+        const categories = Array.isArray(categoriesData)
+          ? categoriesData.map((cat) => cat?.name).filter(Boolean)
+          : [];
 
-        setAccountOptions(Array.isArray(accounts) ? accounts : []);
-        setCategoryOptions(Array.isArray(categories) ? categories : []);
+        setAccountOptions(accounts);
+        setCategoryOptions(categories);
       } catch (error) {
-        console.error("[TransactionBudgetFilter] Failed to load psdata options:", error);
+        console.error("[TransactionBudgetFilter] Failed to load options:", error);
       }
     };
 

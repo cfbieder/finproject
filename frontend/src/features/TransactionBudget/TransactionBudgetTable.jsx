@@ -204,12 +204,16 @@ export function useTransactionBudgetCategoryOptions() {
 
     (async () => {
       try {
-        const payload = await Rest.fetchPsDataOptions();
+        // Using v2 API (PostgreSQL)
+        const categories = await Rest.fetchCategoriesV2({ activeOnly: true });
         if (!isActive) {
           return;
         }
-        const categories = payload?.categories ?? [];
-        setCategoryOptions(Array.isArray(categories) ? categories : []);
+        // Extract names from v2 response objects
+        const names = Array.isArray(categories)
+          ? categories.map((cat) => cat?.name).filter(Boolean)
+          : [];
+        setCategoryOptions(names);
       } catch (error) {
         console.error(
           "[TransactionBudgetCategoryOptions] Failed to load categories:",
@@ -234,12 +238,16 @@ export function useTransactionBudgetAccountOptions() {
 
     (async () => {
       try {
-        const payload = await Rest.fetchPsDataOptions();
+        // Using v2 API (PostgreSQL)
+        const accounts = await Rest.fetchAccountsV2({ activeOnly: true });
         if (!isActive) {
           return;
         }
-        const accounts = payload?.accounts ?? [];
-        setAccountOptions(Array.isArray(accounts) ? accounts : []);
+        // Extract names from v2 response objects
+        const names = Array.isArray(accounts)
+          ? accounts.map((acc) => acc?.name).filter(Boolean)
+          : [];
+        setAccountOptions(names);
       } catch (error) {
         console.error(
           "[TransactionBudgetAccountOptions] Failed to load accounts:",

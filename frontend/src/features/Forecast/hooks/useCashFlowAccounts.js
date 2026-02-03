@@ -26,7 +26,8 @@ export function useCashFlowAccounts() {
       setLoading(true);
       setError("");
       try {
-        const data = await Rest.fetchJson("/api/coa/CashFlow");
+        // Using v2 API (PostgreSQL)
+        const data = await Rest.fetchJson("/api/v2/util/coa/CashFlow");
         if (!isMounted) return;
 
         const parsed = parseLevelAccounts(data, true);

@@ -42,9 +42,10 @@ export function useForecastData(selectedScenario) {
       setYearsLoading(true);
       setYearsError("");
       try {
+        // Using v2 API (PostgreSQL)
         const encodedScenario = encodeURIComponent(selectedScenario);
         const data = await Rest.fetchJson(
-          `/api/forecast/scenarios/years/${encodedScenario}`
+          `/api/v2/forecast/scenarios/years/${encodedScenario}`
         );
         if (!isMounted) return;
 
@@ -84,9 +85,10 @@ export function useForecastData(selectedScenario) {
       setEntriesLoading(true);
       setEntriesError("");
       try {
+        // Using v2 API (PostgreSQL)
         const encoded = encodeURIComponent(selectedScenario);
         const data = await Rest.fetchJson(
-          `/api/forecast/entries?scenario=${encoded}`
+          `/api/v2/forecast/entries?scenario=${encoded}`
         );
         if (!isMounted) return;
 

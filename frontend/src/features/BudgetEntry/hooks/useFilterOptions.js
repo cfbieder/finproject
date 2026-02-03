@@ -48,19 +48,27 @@ export function useFilterOptions() {
       setLoading(true);
       setError("");
       try {
-        const [psOptions, categoryGroupPayload] = await Promise.all([
-          Rest.fetchPsDataOptions(),
-          Rest.fetchCategoryGroups(),
+        // Using v2 API (PostgreSQL) for accounts, categories, and category groups
+        const [accountsData, categoriesData, categoryGroupPayload] = await Promise.all([
+          Rest.fetchAccountsV2({ activeOnly: true }),
+          Rest.fetchCategoriesV2({ activeOnly: true }),
+          Rest.fetchCategoryGroupsV2(),
         ]);
         if (!isMounted) return;
 
-        const { accounts = [], categories = [] } = psOptions ?? {};
+        // Extract names from v2 response objects
+        const accounts = Array.isArray(accountsData)
+          ? accountsData.map((acc) => acc?.name).filter(Boolean)
+          : [];
+        const categories = Array.isArray(categoriesData)
+          ? categoriesData.map((cat) => cat?.name).filter(Boolean)
+          : [];
 
-        if (Array.isArray(accounts)) {
+        if (accounts.length) {
           setAccountOptions(ensureAllOption(accounts));
         }
 
-        if (Array.isArray(categories) && categories.length) {
+        if (categories.length) {
           setCategoryOptions(categories);
         }
 

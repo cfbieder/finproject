@@ -26,7 +26,8 @@ export function useBalanceSheetAccounts() {
       setLoading(true);
       setError("");
       try {
-        const data = await Rest.fetchJson("/api/coa/BalanceSheet");
+        // Using v2 API (PostgreSQL)
+        const data = await Rest.fetchJson("/api/v2/util/coa/BalanceSheet");
         if (!isMounted) return;
 
         const parsed = parseLevelAccounts(data, true);

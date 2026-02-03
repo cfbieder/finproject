@@ -176,11 +176,13 @@ export function useTransBudgetEdit(selectedRows, budgetRates, onSuccess) {
       try {
         await Promise.all(
           Array.from(selectedRows.values()).map((entry) => {
-            const id = entry?._id;
+            // Use numeric id for v2 API, fall back to _id for v1 compatibility
+            const id = entry?.id ?? entry?._id;
             if (!id) {
               throw new Error("Some selected entries cannot be edited.");
             }
-            return fetch(Rest.buildUrl(`/api/budget/${id}`), {
+            // Using v2 API (PostgreSQL)
+            return fetch(Rest.buildUrl(`/api/v2/budget/entries/${id}`), {
               method: "PATCH",
               headers: { "Content-Type": "application/json" },
               body: JSON.stringify(payload),

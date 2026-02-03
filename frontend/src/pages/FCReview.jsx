@@ -161,9 +161,10 @@ export default function FCReview() {
     setGenerateLoading(true);
 
     try {
+      // Using v2 API (wraps v1 generator)
       const encodedScenario = encodeURIComponent(scenario);
       const result = await Rest.fetchJson(
-        `/api/forecast/generate/${encodedScenario}`,
+        `/api/v2/forecast/generate/${encodedScenario}`,
         {
           method: "POST",
         }

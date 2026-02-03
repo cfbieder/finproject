@@ -139,11 +139,13 @@ export function useTransActualEdit(editFields, actualRates, onSuccess) {
       try {
         await Promise.all(
           Array.from(selectedRows.values()).map((entry) => {
-            const id = entry?._id;
+            // Use numeric id for v2 API, fall back to _id for v1 compatibility
+            const id = entry?.id ?? entry?._id;
             if (!id) {
               throw new Error("Some selected entries cannot be edited.");
             }
-            return fetch(Rest.buildUrl(`/api/budget/actual-entries/${id}`), {
+            // Using v2 API (PostgreSQL) - accepts both v1 field names and v2 snake_case
+            return fetch(Rest.buildUrl(`/api/v2/transactions/${id}`), {
               method: "PATCH",
               headers: { "Content-Type": "application/json" },
               body: JSON.stringify(payload),

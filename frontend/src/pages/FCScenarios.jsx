@@ -88,7 +88,8 @@ export default function FCScenarios() {
   const reloadDefaults = async () => {
     setIsLoading(true);
     try {
-      const data = await Rest.fetchJson("/api/forecast/assumptions");
+      // Using v2 API (PostgreSQL)
+        const data = await Rest.fetchJson("/api/v2/forecast/assumptions");
       setAssumptions(data);
       setScenarios(data?.scenarios || []);
       setLocalInflation(data?.inflation || []);
@@ -124,7 +125,8 @@ export default function FCScenarios() {
     const fetchAssumptions = async () => {
       setIsLoading(true);
       try {
-        const data = await Rest.fetchJson("/api/forecast/assumptions");
+        // Using v2 API (PostgreSQL)
+        const data = await Rest.fetchJson("/api/v2/forecast/assumptions");
         if (isMounted) {
           setAssumptions(data);
           setScenarios(data?.scenarios || []);

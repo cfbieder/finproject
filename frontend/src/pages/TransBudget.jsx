@@ -9,7 +9,7 @@ import TransactionBudgetTable, {
 } from "../features/TransactionBudget/TransactionBudgetTable.jsx";
 import TransBudgetDeleteModal from "../features/TransactionBudget/components/TransBudgetDeleteModal.jsx";
 import TransBudgetEditModal from "../features/TransactionBudget/components/TransBudgetEditModal.jsx";
-import { useTransBudgetTransactions } from "../features/TransactionBudget/hooks/useTransBudgetTransactions.js";
+import { useTransBudgetTransactionsV2 } from "../features/TransactionBudget/hooks/useTransBudgetTransactionsV2.js";
 import { useTransBudgetFilters } from "../features/TransactionBudget/hooks/useTransBudgetFilters.js";
 import { useTransBudgetSelection } from "../features/TransactionBudget/hooks/useTransBudgetSelection.js";
 import { useTransBudgetDelete } from "../features/TransactionBudget/hooks/useTransBudgetDelete.js";
@@ -49,7 +49,7 @@ export default function TransBudget() {
     error,
     setTransactionLimit,
     reload,
-  } = useTransBudgetTransactions(filters);
+  } = useTransBudgetTransactionsV2(filters);
 
   // Use custom hooks for feature management
   const { filteredTransactions, handleFilterChange } =
@@ -119,17 +119,20 @@ export default function TransBudget() {
         }
         setParam("limit", 2000);
 
-        const path = `/api/budget${
+        // Using v2 API (PostgreSQL)
+        const path = `/api/v2/budget/entries${
           query.toString() ? `?${query.toString()}` : ""
         }`;
         const payload = await Rest.fetchJson(path, {
           signal: controller.signal,
         });
-        const entries = Array.isArray(payload) ? payload : [];
+        // v2 API returns { data: [...] }
+        const entries = Array.isArray(payload?.data) ? payload.data : [];
         const totals = new Map();
         entries.forEach((entry) => {
-          const currency = entry?.Currency || "Unknown";
-          const amount = Number(entry?.Amount);
+          // v2 API uses snake_case field names
+          const currency = entry?.currency || "Unknown";
+          const amount = Number(entry?.amount);
           if (!Number.isFinite(amount)) {
             return;
           }
