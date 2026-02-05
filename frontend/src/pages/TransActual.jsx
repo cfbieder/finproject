@@ -9,7 +9,7 @@ import TransactionActualTable, {
 } from "../features/TransactionActual/TransactionActualTable.jsx";
 import TransActualEditModal from "../features/TransactionActual/TransActualEditModal.jsx";
 import TransActualDeleteModal from "../features/TransactionActual/TransActualDeleteModal.jsx";
-// Using v2 API (PostgreSQL) - switch back to useTransactions.js for MongoDB
+// Using v2 API (PostgreSQL)
 import { useTransactionsV2 as useTransactions } from "../features/TransactionActual/hooks/useTransactionsV2.js";
 import { useTransActualFilters } from "../features/TransactionActual/hooks/useTransActualFilters.js";
 import { useTransActualSelection } from "../features/TransactionActual/hooks/useTransActualSelection.js";
@@ -196,7 +196,8 @@ export default function TransActual() {
         }
         setParam("limit", 2000);
 
-        const path = `/api/budget/actual-entries${
+        // Using v2 API (PostgreSQL)
+        const path = `/api/v2/budget/actual-entries${
           query.toString() ? `?${query.toString()}` : ""
         }`;
         const payload = await Rest.fetchJson(path, {

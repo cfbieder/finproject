@@ -22,7 +22,8 @@ export default function UploadPS() {
     setUploadStatus(null);
     try {
       const csvContent = await file.text();
-      await Rest.fetchJson("/api/ingest-ps/upload-ps", {
+      // Using v2 API (wraps v1)
+      await Rest.fetchJson("/api/v2/ingest-ps/upload-ps", {
         method: "POST",
         headers: {
           "Content-Type": "text/csv",

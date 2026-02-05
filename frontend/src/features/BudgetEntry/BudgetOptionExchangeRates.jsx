@@ -15,7 +15,8 @@ export default function BudgetOptionExchangeRates() {
     }
 
     try {
-      const response = await fetch("/api/util/appdata", {
+      // Using v2 API (PostgreSQL)
+      const response = await fetch("/api/v2/util/appdata", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
@@ -102,8 +103,9 @@ export default function BudgetOptionExchangeRates() {
     const fetchRateForCurrency = async (currency) => {
       const encodedCurrency = encodeURIComponent(currency);
       try {
+        // Using v2 API (PostgreSQL)
         const response = await fetch(
-          `/api/util/exchange-rate?currency=${encodedCurrency}`
+          `/api/v2/util/exchange-rate?currency=${encodedCurrency}`
         );
 
         if (!response.ok) {
@@ -131,7 +133,8 @@ export default function BudgetOptionExchangeRates() {
 
     const fetchAppDataDoc = async () => {
       try {
-        const response = await fetch("/api/util/getappdata");
+        // Using v2 API (PostgreSQL)
+        const response = await fetch("/api/v2/util/appdata");
         const payload = await response.json().catch(() => null);
         if (!response.ok) {
           console.warn(
@@ -155,8 +158,9 @@ export default function BudgetOptionExchangeRates() {
 
     const fetchExchangeData = async () => {
       try {
+        // Using v2 API (PostgreSQL)
         const [currenciesResponse, appDataDoc] = await Promise.all([
-          fetch("/api/util/currencies"),
+          fetch("/api/v2/util/currencies"),
           fetchAppDataDoc(),
         ]);
 

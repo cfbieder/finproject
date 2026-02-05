@@ -440,4 +440,73 @@ function buildCashFlowNode(name, value, categoryTotals, transfers, transferCateg
   return { name, total, children };
 }
 
+// ============================================================================
+// Cash Flow Transactions (v1 compatibility)
+// ============================================================================
+
+/**
+ * GET /api/v2/reports/cash-flow/transactions
+ * Returns transactions for specific categories within a date range
+ */
+router.get('/cash-flow/transactions', async (req, res, next) => {
+  try {
+    const { category, fromDate, toDate, limit = 100 } = req.query;
+
+    // Handle category as array
+    const categoryList = Array.isArray(category)
+      ? category
+      : (category ? [category] : []);
+
+    if (categoryList.length === 0) {
+      return res.json([]);
+    }
+
+    let sql = `
+      SELECT t.*, c.name as category_name, a.name as account_name
+      FROM transactions t
+      LEFT JOIN categories c ON t.category_id = c.id
+      LEFT JOIN accounts a ON t.account_id = a.id
+      WHERE c.name = ANY($1)
+    `;
+    const params = [categoryList];
+    let paramIndex = 2;
+
+    if (fromDate) {
+      sql += ` AND t.transaction_date >= $${paramIndex++}`;
+      params.push(fromDate);
+    }
+    if (toDate) {
+      sql += ` AND t.transaction_date <= $${paramIndex++}`;
+      params.push(toDate);
+    }
+
+    sql += ` ORDER BY t.transaction_date DESC`;
+
+    if (limit) {
+      sql += ` LIMIT $${paramIndex}`;
+      params.push(parseInt(limit));
+    }
+
+    const result = await db.query(sql, params);
+
+    // Transform to v1 format
+    const v1Transactions = result.rows.map(row => ({
+      _id: row.id,
+      Date: row.transaction_date,
+      Description1: row.description,
+      Amount: parseFloat(row.amount),
+      Currency: row.currency,
+      BaseAmount: parseFloat(row.base_amount),
+      BaseCurrency: row.base_currency,
+      Account: row.account_name,
+      Category: row.category_name,
+    }));
+
+    res.json(v1Transactions);
+  } catch (error) {
+    console.error('[v2/reports/cash-flow/transactions] Failed:', error);
+    next(error);
+  }
+});
+
 module.exports = router;

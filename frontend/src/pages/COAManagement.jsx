@@ -307,7 +307,8 @@ export default function COAManagement() {
       setEditSaving(true);
       setEditError("");
       try {
-        await Rest.fetchJson("/api/coa/add", {
+        // Using v2 API
+        await Rest.fetchJson("/api/v2/util/coa/add", {
           method: "POST",
           headers: {
             "Content-Type": "application/json",
@@ -370,7 +371,8 @@ export default function COAManagement() {
             : target.originalName || target.name,
         ];
 
-        await Rest.fetchJson("/api/coa/update", {
+        // Using v2 API
+        await Rest.fetchJson("/api/v2/util/coa/update", {
           method: "POST",
           headers: {
             "Content-Type": "application/json",
@@ -429,9 +431,10 @@ export default function COAManagement() {
     setDeleteSaving(true);
     setDeleteError("");
     try {
+      // Using v2 API
       await Promise.all(
         deletableRows.map((row) =>
-          Rest.fetchJson("/api/coa/delete", {
+          Rest.fetchJson("/api/v2/util/coa/delete", {
             method: "POST",
             headers: {
               "Content-Type": "application/json",
@@ -465,7 +468,8 @@ export default function COAManagement() {
     setIsAnalyzing(true);
 
     try {
-      const result = await Rest.fetchJson("/api/ingest-ps/analyze-ps");
+      // Using v2 API (wraps v1)
+      const result = await Rest.fetchJson("/api/v2/ingest-ps/analyze-ps");
       const {
         misAcct = {},
         missCOAact = {},

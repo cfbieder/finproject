@@ -839,8 +839,9 @@ const BudgetEntriesBudgetPopup = ({ request }) => {
     }
     params.set("limit", "500");
     try {
+      // Using v2 API (PostgreSQL)
       const payload = await Rest.fetchJson(
-        `/api/budget?${params.toString()}`
+        `/api/v2/budget?${params.toString()}`
       );
       const fetchedEntries = Array.isArray(payload)
         ? payload

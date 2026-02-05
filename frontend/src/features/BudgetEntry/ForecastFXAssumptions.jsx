@@ -13,7 +13,8 @@ export default function ForecastFXAssumptions() {
 
     const fetchAssumptions = async () => {
       try {
-        const response = await fetch("/api/forecast/assumptions");
+        // Using v2 API (PostgreSQL)
+        const response = await fetch("/api/v2/forecast/assumptions");
 
         if (!response.ok) {
           throw new Error("Failed to load forecast assumptions");

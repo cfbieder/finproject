@@ -26,6 +26,7 @@ export default function NavigationMenu() {
               <img src={banner} alt="Fin" />
             </div>
             <span className="navbar__title">Fin</span>
+            <span className="navbar__version-badge">v2</span>
           </Link>
           <nav className={navLinksClassName}>
             <Link className="navlink" to="/">

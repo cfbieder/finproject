@@ -86,7 +86,8 @@ export function useTransactions(filters) {
           setParam("valueTo", filters.valueTo);
         }
         setParam("limit", fetchLimit);
-        const path = `/api/budget/actual-entries${
+        // Using v2 API (PostgreSQL)
+        const path = `/api/v2/budget/actual-entries${
           query.toString() ? `?${query.toString()}` : ""
         }`;
         const payload = await Rest.fetchJson(path, { signal });

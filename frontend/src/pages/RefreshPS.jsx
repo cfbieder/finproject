@@ -36,7 +36,8 @@ export default function RefreshPS() {
 
   const fetchLastIngest = useCallback(async () => {
     try {
-      const appdata = await Rest.fetchJson("/api/util/getappdata");
+      // Using v2 API (PostgreSQL)
+      const appdata = await Rest.fetchJson("/api/v2/util/appdata");
       const records = Array.isArray(appdata) ? appdata : [];
       const parseDates = (field) =>
         records
@@ -91,7 +92,7 @@ export default function RefreshPS() {
     }
 
     try {
-      const countResult = await Rest.fetchJson("/api/ingest-ps/psdata/count");
+      const countResult = await Rest.fetchJson("/api/v2/ingest-ps/psdata/count");
       const count =
         Number.isFinite(countResult?.count) && countResult.count >= 0
           ? countResult.count
@@ -100,7 +101,7 @@ export default function RefreshPS() {
         type: "info",
         message:
           count !== null
-            ? `PS records in MongoDB: ${count}`
+            ? `PS records in database: ${count}`
             : "PS record count unavailable.",
       });
     } catch (countError) {
@@ -124,7 +125,7 @@ export default function RefreshPS() {
    **************************/
   const updateLastRefreshTimestamp = async () => {
     const { modifiedCount = 0, upsertedCount = 0 } =
-      (await Rest.fetchJson("/api/ingest-ps/appdata/last-refresh", {
+      (await Rest.fetchJson("/api/v2/ingest-ps/appdata/last-refresh", {
         method: "POST",
       })) ?? {};
 
@@ -154,10 +155,10 @@ export default function RefreshPS() {
 
     try {
       const {
-        mongoImportReport = 0,
+        importReport = 0,
         all = 0,
-        mongoUpdateReport = 0,
-      } = await Rest.fetchJson("/api/ingest-ps/refresh-ps", {
+        updateReport = 0,
+      } = await Rest.fetchJson("/api/v2/ingest-ps/refresh-ps", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
@@ -165,9 +166,9 @@ export default function RefreshPS() {
         body: JSON.stringify({ daysHistory: daysHistoryValue }),
       });
 
-      const inserted = Number(mongoImportReport) || 0;
+      const inserted = Number(importReport) || 0;
       const totalReceived = Number(all) || 0;
-      const updated = Number(mongoUpdateReport) || 0;
+      const updated = Number(updateReport) || 0;
 
       let lastRefreshUpdated = false;
       try {
@@ -202,7 +203,7 @@ export default function RefreshPS() {
     setNewTransactionsError(null);
     setIsLoadingNewTransactions(true);
     try {
-      const data = await Rest.fetchJson("/api/ingest-ps/new-transactions");
+      const data = await Rest.fetchJson("/api/v2/ingest-ps/new-transactions");
       const parsed = Array.isArray(data)
         ? data
         : Array.isArray(data?.transactions)
@@ -226,7 +227,7 @@ export default function RefreshPS() {
     setIsLoadingModifiedTransactions(true);
     try {
       const data = await Rest.fetchJson(
-        "/api/ingest-ps/modified-transactions"
+        "/api/v2/ingest-ps/modified-transactions"
       );
       const parsed = Array.isArray(data)
         ? data
@@ -287,7 +288,7 @@ export default function RefreshPS() {
           <h1 className="page__title">Refresh PS Data</h1>
           <p className="page__description">
             Pull the latest PocketSmith transactions and sync them with your
-            MongoDB store.
+            database.
           </p>
           <ul className="upload-guidance">
             <UploadFeedback

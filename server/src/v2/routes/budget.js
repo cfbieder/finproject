@@ -515,4 +515,173 @@ router.get('/category-groups', async (req, res, next) => {
   }
 });
 
+// ============================================================================
+// V1 Compatibility Routes
+// ============================================================================
+
+/**
+ * GET /api/v2/budget (v1 compatibility)
+ * Fetches budget entries - proxies to /entries
+ */
+router.get('/', async (req, res, next) => {
+  try {
+    const {
+      year, month, category, account, categories, accounts,
+      fromDate, toDate, currency, limit = 1000, offset = 0
+    } = req.query;
+
+    // Handle category/categories as array
+    const categoryNames = categories
+      ? (Array.isArray(categories) ? categories : [categories])
+      : (category ? (Array.isArray(category) ? category : [category]) : undefined);
+
+    // Handle account/accounts as array
+    const accountNames = accounts
+      ? (Array.isArray(accounts) ? accounts : [accounts])
+      : (account ? (Array.isArray(account) ? account : [account]) : undefined);
+
+    const entries = await repo.findAllExtended({
+      year: year ? parseInt(year) : undefined,
+      month: month ? parseInt(month) : undefined,
+      startDate: fromDate,
+      endDate: toDate,
+      categoryNames,
+      accountNames,
+      currency,
+      limit: parseInt(limit),
+      offset: parseInt(offset)
+    });
+
+    // Transform to v1 format if needed
+    const v1Entries = entries.map(entry => ({
+      ...entry,
+      _id: entry.id,
+      Date: entry.entry_date,
+      Description1: entry.description,
+      Amount: entry.amount,
+      Currency: entry.currency,
+      BaseAmount: entry.base_amount,
+      BaseCurrency: entry.base_currency,
+      Account: entry.account_name,
+      Category: entry.category_name,
+      Note: entry.note,
+    }));
+
+    res.json(v1Entries);
+  } catch (error) {
+    console.error('[v2/budget v1-compat] Failed:', error);
+    next(error);
+  }
+});
+
+/**
+ * GET /api/v2/budget/actual-entries (v1 compatibility)
+ * Fetches actual transaction entries for budget comparison
+ */
+router.get('/actual-entries', async (req, res, next) => {
+  try {
+    const {
+      actualYear, month, fromMonth, toMonth,
+      category, categories, account, accounts,
+      limit = 1000
+    } = req.query;
+
+    const db = require('../db');
+    const currentYear = new Date().getFullYear();
+    const year = actualYear ? parseInt(actualYear) : currentYear;
+
+    // Handle category/categories as array
+    const categoryList = categories
+      ? (Array.isArray(categories) ? categories : [categories])
+      : (category ? (Array.isArray(category) ? category : [category]) : []);
+
+    // Handle account/accounts as array
+    const accountList = accounts
+      ? (Array.isArray(accounts) ? accounts : [accounts])
+      : (account ? (Array.isArray(account) ? account : [account]) : []);
+
+    let sql = `
+      SELECT t.*, c.name as category_name, a.name as account_name
+      FROM transactions t
+      LEFT JOIN categories c ON t.category_id = c.id
+      LEFT JOIN accounts a ON t.account_id = a.id
+      WHERE EXTRACT(YEAR FROM t.transaction_date) = $1
+    `;
+    const params = [year];
+    let paramIndex = 2;
+
+    // Month filter
+    if (month) {
+      sql += ` AND EXTRACT(MONTH FROM t.transaction_date) = $${paramIndex++}`;
+      params.push(parseInt(month));
+    } else if (fromMonth && toMonth) {
+      sql += ` AND EXTRACT(MONTH FROM t.transaction_date) >= $${paramIndex++}`;
+      params.push(parseInt(fromMonth));
+      sql += ` AND EXTRACT(MONTH FROM t.transaction_date) <= $${paramIndex++}`;
+      params.push(parseInt(toMonth));
+    }
+
+    // Category filter
+    if (categoryList.length > 0) {
+      const placeholders = categoryList.map((_, i) => `$${paramIndex + i}`).join(', ');
+      sql += ` AND c.name IN (${placeholders})`;
+      params.push(...categoryList);
+      paramIndex += categoryList.length;
+    }
+
+    // Account filter
+    if (accountList.length > 0) {
+      const placeholders = accountList.map((_, i) => `$${paramIndex + i}`).join(', ');
+      sql += ` AND a.name IN (${placeholders})`;
+      params.push(...accountList);
+      paramIndex += accountList.length;
+    }
+
+    sql += ` ORDER BY t.transaction_date DESC`;
+
+    if (limit) {
+      sql += ` LIMIT $${paramIndex}`;
+      params.push(parseInt(limit));
+    }
+
+    const result = await db.query(sql, params);
+
+    // Transform to v1 format
+    const v1Entries = result.rows.map(row => ({
+      _id: row.id,
+      Date: row.transaction_date,
+      Description1: row.description,
+      Amount: parseFloat(row.amount),
+      Currency: row.currency,
+      BaseAmount: parseFloat(row.base_amount),
+      BaseCurrency: row.base_currency,
+      Account: row.account_name,
+      Category: row.category_name,
+      Note: row.note,
+    }));
+
+    res.json(v1Entries);
+  } catch (error) {
+    console.error('[v2/budget/actual-entries] Failed:', error);
+    next(error);
+  }
+});
+
+/**
+ * GET /api/v2/budget/cash-flow (v1 compatibility)
+ * Returns budget cash flow report - wraps v1 service
+ */
+router.get('/cash-flow', async (req, res, next) => {
+  try {
+    // Use existing v1 budget cash-flow service
+    const { buildBudgetCashFlowReport } = require('../../services/budget');
+    const report = await buildBudgetCashFlowReport(req.query);
+    res.json(report);
+  } catch (error) {
+    // If v1 service not available, return empty
+    console.error('[v2/budget/cash-flow] Failed:', error);
+    res.json({ 'Profit & Loss Accounts': [] });
+  }
+});
+
 module.exports = router;

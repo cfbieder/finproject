@@ -370,7 +370,7 @@ async function setIncomePct(moduleId, data) {
 // ============================================================================
 
 /**
- * Get all income/expense items for a scenario
+ * Get all income/expense items for a scenario (with changes)
  */
 async function findIncExpByScenario(scenarioId) {
   const sql = `
@@ -381,7 +381,37 @@ async function findIncExpByScenario(scenarioId) {
     ORDER BY ie.item_type, ie.name
   `;
   const result = await db.query(sql, [scenarioId]);
-  return result.rows;
+  const items = result.rows;
+
+  // Fetch changes for all items in one query
+  if (items.length > 0) {
+    const itemIds = items.map(item => item.id);
+    const changesResult = await db.query(`
+      SELECT * FROM forecast_incexp_changes
+      WHERE incexp_id = ANY($1)
+      ORDER BY change_date
+    `, [itemIds]);
+
+    // Group changes by incexp_id
+    const changesByItem = {};
+    for (const change of changesResult.rows) {
+      if (!changesByItem[change.incexp_id]) {
+        changesByItem[change.incexp_id] = [];
+      }
+      changesByItem[change.incexp_id].push({
+        Date: change.change_date,
+        Amount: change.amount,
+        Flag: change.flag || '',
+      });
+    }
+
+    // Attach changes to items
+    for (const item of items) {
+      item.changes = changesByItem[item.id] || [];
+    }
+  }
+
+  return items;
 }
 
 /**
@@ -448,6 +478,46 @@ async function addIncExpChange(incexpId, data) {
   `;
   const result = await db.query(sql, [incexpId, data.change_date, data.amount, data.flag, data.note]);
   return result.rows[0];
+}
+
+/**
+ * Update income/expense item
+ */
+async function updateIncExp(id, data) {
+  const fields = [];
+  const params = [];
+  let paramIndex = 1;
+
+  const allowedFields = [
+    'account_id', 'name', 'item_type', 'currency',
+    'base_date', 'base_value', 'base_value_usd',
+    'growth_rate', 'comment', 'is_matched'
+  ];
+
+  for (const field of allowedFields) {
+    if (data[field] !== undefined) {
+      fields.push(`${field} = $${paramIndex++}`);
+      params.push(data[field]);
+    }
+  }
+
+  if (fields.length === 0) return null;
+
+  fields.push('updated_at = NOW()');
+  params.push(id);
+
+  const sql = `UPDATE forecast_income_expense SET ${fields.join(', ')} WHERE id = $${paramIndex} RETURNING *`;
+  const result = await db.query(sql, params);
+  return result.rows[0] || null;
+}
+
+/**
+ * Delete income/expense item
+ */
+async function deleteIncExp(id) {
+  const sql = `DELETE FROM forecast_income_expense WHERE id = $1 RETURNING id`;
+  const result = await db.query(sql, [id]);
+  return result.rowCount > 0;
 }
 
 // ============================================================================
@@ -550,6 +620,8 @@ module.exports = {
   findIncExpByScenario,
   findIncExpById,
   createIncExp,
+  updateIncExp,
+  deleteIncExp,
   addIncExpChange,
   // Entries
   findYearsByScenario,

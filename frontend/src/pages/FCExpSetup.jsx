@@ -169,7 +169,8 @@ export default function FCExpSetup() {
 
     const loadAccounts = async () => {
       try {
-        const data = await Rest.fetchJson("/api/coa/CashFlow");
+        // Using v2 API
+        const data = await Rest.fetchJson("/api/v2/util/coa/CashFlow");
         if (!isMounted) return;
 
         const options = [];
@@ -308,8 +309,9 @@ export default function FCExpSetup() {
     const loadEntries = async () => {
       setEntriesLoading(true);
       try {
+        // Using v2 API (PostgreSQL)
         const payload = await Rest.fetchJson(
-          `/api/forecast/incomeexpense?scenario=${encodeURIComponent(
+          `/api/v2/forecast/incomeexpense?scenario=${encodeURIComponent(
             selectedScenario
           )}`
         );
@@ -406,7 +408,7 @@ export default function FCExpSetup() {
 
   /**
    * Generate unique ID for an entry
-   * Uses MongoDB _id if available, otherwise creates composite key
+   * Uses id if available, otherwise creates composite key
    * @param {Object} entry - Income/expense entry
    * @returns {string} Unique identifier for the entry
    */
@@ -507,7 +509,8 @@ export default function FCExpSetup() {
     setEntriesError("");
     setEntriesLoading(true);
     try {
-      await Rest.fetchJson("/api/forecast/incomeexpense", {
+      // Using v2 API (PostgreSQL)
+      await Rest.fetchJson("/api/v2/forecast/incomeexpense", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -526,7 +529,7 @@ export default function FCExpSetup() {
       });
 
       const payload = await Rest.fetchJson(
-        `/api/forecast/incomeexpense?scenario=${encodeURIComponent(
+        `/api/v2/forecast/incomeexpense?scenario=${encodeURIComponent(
           selectedScenario
         )}`
       );
@@ -580,12 +583,13 @@ export default function FCExpSetup() {
     setDeleteError("");
     setDeleteSaving(true);
     try {
+      // Using v2 API (PostgreSQL)
       await Rest.fetchJson(
-        `/api/forecast/incomeexpense/${encodeURIComponent(selectedEntry._id)}`,
+        `/api/v2/forecast/incomeexpense/${encodeURIComponent(selectedEntry._id)}`,
         { method: "DELETE" }
       );
       const payload = await Rest.fetchJson(
-        `/api/forecast/incomeexpense?scenario=${encodeURIComponent(
+        `/api/v2/forecast/incomeexpense?scenario=${encodeURIComponent(
           selectedScenario
         )}`
       );
@@ -734,8 +738,9 @@ export default function FCExpSetup() {
     setEditError("");
     setEditSaving(true);
     try {
+      // Using v2 API (PostgreSQL)
       await Rest.fetchJson(
-        `/api/forecast/incomeexpense/${encodeURIComponent(selectedEntry._id)}`,
+        `/api/v2/forecast/incomeexpense/${encodeURIComponent(selectedEntry._id)}`,
         {
           method: "PUT",
           headers: { "Content-Type": "application/json" },
@@ -743,7 +748,7 @@ export default function FCExpSetup() {
         }
       );
       const refreshed = await Rest.fetchJson(
-        `/api/forecast/incomeexpense?scenario=${encodeURIComponent(
+        `/api/v2/forecast/incomeexpense?scenario=${encodeURIComponent(
           selectedScenario
         )}`
       );

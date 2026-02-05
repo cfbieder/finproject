@@ -85,7 +85,8 @@ export default function FCCashTransferModal({
         [transferType]: updatedTransfers,
       };
 
-      await Rest.fetchJson(`/api/forecast/modules/${moduleToUpdate._id}`, {
+      // Using v2 API (PostgreSQL) with v1-compatible format
+      await Rest.fetchJson(`/api/v2/forecast/modules/v1/${moduleToUpdate._id}`, {
         method: "PUT",
         headers: {
           "Content-Type": "application/json",

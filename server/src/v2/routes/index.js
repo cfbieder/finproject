@@ -16,6 +16,7 @@ const forecastRouter = require('./forecast');
 const healthRouter = require('./health');
 const reportsRouter = require('./reports');
 const utilRouter = require('./util');
+const ingestPsRouter = require('./ingestPs');
 
 // Mount routes
 router.use('/health', healthRouter);
@@ -26,6 +27,7 @@ router.use('/budget', budgetRouter);
 router.use('/forecast', forecastRouter);
 router.use('/reports', reportsRouter);
 router.use('/util', utilRouter);
+router.use('/ingest-ps', ingestPsRouter);
 
 // API root info
 router.get('/', (req, res) => {
@@ -40,7 +42,8 @@ router.get('/', (req, res) => {
       '/api/v2/budget',
       '/api/v2/forecast',
       '/api/v2/reports',
-      '/api/v2/util'
+      '/api/v2/util',
+      '/api/v2/ingest-ps'
     ]
   });
 });

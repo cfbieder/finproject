@@ -22,7 +22,8 @@ export default function UploadPS() {
   const [psDataCountStatus, setPsDataCountStatus] = useState(null);
   const fetchAppStatus = useCallback(async () => {
     try {
-      const appdata = await Rest.fetchJson("/api/util/getappdata");
+      // Using v2 API (PostgreSQL)
+      const appdata = await Rest.fetchJson("/api/v2/util/appdata");
       const records = Array.isArray(appdata) ? appdata : [];
       const parseDates = (field) =>
         records
@@ -77,7 +78,7 @@ export default function UploadPS() {
     }
 
     try {
-      const countResult = await Rest.fetchJson("/api/ingest-ps/psdata/count");
+      const countResult = await Rest.fetchJson("/api/v2/ingest-ps/psdata/count");
       const count =
         Number.isFinite(countResult?.count) && countResult.count >= 0
           ? countResult.count
@@ -86,7 +87,7 @@ export default function UploadPS() {
         type: "info",
         message:
           count !== null
-            ? `PS records in MongoDB: ${count}`
+            ? `PS records in database: ${count}`
             : "PS record count unavailable.",
       });
     } catch (countError) {
@@ -115,7 +116,7 @@ export default function UploadPS() {
 
     setIngestStatus({
       type: "info",
-      message: "Ingesting PS data into MongoDB...",
+      message: "Ingesting PS data into database...",
     });
 
     try {
@@ -123,7 +124,7 @@ export default function UploadPS() {
         insertedCount = 0,
         skippedCount = 0,
         updatedCount = 0,
-      } = await Rest.fetchJson("/api/ingest-ps", {
+      } = await Rest.fetchJson("/api/v2/ingest-ps", {
         method: "POST",
       });
       const inserted = Number(insertedCount) || 0;
@@ -161,23 +162,23 @@ export default function UploadPS() {
     setIngestStatus(null);
     setClearStatus({
       type: "info",
-      message: "Clearing all PS records in MongoDB (clear operation)...",
+      message: "Clearing all PS records (clear operation)...",
     });
     setIsClearing(true);
     try {
-      await Rest.fetchJson("/api/ingest-ps/clearall", {
+      await Rest.fetchJson("/api/v2/ingest-ps/clearall", {
         method: "POST",
       });
       setClearStatus({
         type: "success",
         message:
-          "All PS records cleared from MongoDB (clear operation complete).",
+          "All PS records cleared (clear operation complete).",
       });
       fetchAppStatus();
     } catch (error) {
       setClearStatus({
         type: "error",
-        message: error?.message ?? "Failed to clear PS records from MongoDB.",
+        message: error?.message ?? "Failed to clear PS records.",
       });
     } finally {
       setIsClearing(false);
@@ -205,7 +206,7 @@ export default function UploadPS() {
     setIsAnalyzing(true);
 
     try {
-      const result = await Rest.fetchJson("/api/ingest-ps/analyze-ps");
+      const result = await Rest.fetchJson("/api/v2/ingest-ps/analyze-ps");
       const {
         misAcct = {},
         missCOAact = {},

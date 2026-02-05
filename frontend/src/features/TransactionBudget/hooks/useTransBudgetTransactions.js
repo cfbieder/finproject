@@ -108,7 +108,8 @@ export function useTransBudgetTransactions(filters) {
         }
         setParam("limit", fetchLimit);
 
-        const path = `/api/budget${
+        // Using v2 API (PostgreSQL)
+        const path = `/api/v2/budget${
           query.toString() ? `?${query.toString()}` : ""
         }`;
         const payload = await Rest.fetchJson(path, { signal });

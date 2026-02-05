@@ -43,8 +43,9 @@ export default class Rest {
   }
 
   static async fetchBalanceReport(asOfDate) {
+    // Using v2 API (PostgreSQL)
     const encodedDate = encodeURIComponent(asOfDate ?? "");
-    const report = await Rest.fetchJson(`/api/balance?asOfDate=${encodedDate}`);
+    const report = await Rest.fetchJson(`/api/v2/reports/balance?asOfDate=${encodedDate}`);
     return report?.["Balance Sheet Accounts"] ?? null;
   }
 
@@ -54,6 +55,7 @@ export default class Rest {
     transfers,
     includeUnrealizedGL,
   } = {}) {
+    // Using v2 API (PostgreSQL)
     const params = new URLSearchParams();
     if (fromDate) params.set("fromDate", fromDate);
     if (toDate) params.set("toDate", toDate);
@@ -63,7 +65,7 @@ export default class Rest {
     }
 
     const query = params.toString();
-    const path = `/api/cash-flow${query ? `?${query}` : ""}`;
+    const path = `/api/v2/reports/cash-flow${query ? `?${query}` : ""}`;
     const report = await Rest.fetchJson(path);
     return report?.["Profit & Loss Accounts"] ?? null;
   }
@@ -83,7 +85,8 @@ export default class Rest {
     }
 
     const query = params.toString();
-    const path = `/api/budget/cash-flow${query ? `?${query}` : ""}`;
+    // Using v2 API (PostgreSQL)
+    const path = `/api/v2/budget/cash-flow${query ? `?${query}` : ""}`;
     const report = await Rest.fetchJson(path);
     return report?.["Profit & Loss Accounts"] ?? null;
   }
@@ -109,26 +112,31 @@ export default class Rest {
     if (toDate) params.set("toDate", toDate);
     if (limit) params.set("limit", limit);
     const query = params.toString();
-    const path = `/api/cash-flow/transactions${query ? `?${query}` : ""}`;
+    // Using v2 API (PostgreSQL)
+    const path = `/api/v2/reports/cash-flow/transactions${query ? `?${query}` : ""}`;
     return Rest.fetchJson(path);
   }
 
   static async fetchPsDataOptions() {
-    return Rest.fetchJson("/api/ingest-ps/psdata/options");
+    // Using v2 API (wraps v1)
+    return Rest.fetchJson("/api/v2/ingest-ps/psdata/options");
   }
 
   static async fetchCategoryGroups() {
-    return Rest.fetchJson("/api/budget/category-groups");
+    // Using v2 API (PostgreSQL)
+    return Rest.fetchJson("/api/v2/budget/category-groups");
   }
 
   static async fetchCurrencyOptions() {
-    return Rest.fetchJson("/api/util/currencies");
+    // Using v2 API (PostgreSQL)
+    return Rest.fetchJson("/api/v2/util/currencies");
   }
 
   static async fetchCoaSections() {
+    // Using v2 API
     const [balanceSheet, cashFlow] = await Promise.all([
-      Rest.fetchJson("/api/coa/BalanceSheet"),
-      Rest.fetchJson("/api/coa/CashFlow"),
+      Rest.fetchJson("/api/v2/util/coa/BalanceSheet"),
+      Rest.fetchJson("/api/v2/util/coa/CashFlow"),
     ]);
 
     return [
@@ -138,7 +146,8 @@ export default class Rest {
   }
 
   static async fetchCoaTraits() {
-    return Rest.fetchJson("/api/util/coa-traits");
+    // Using v2 API
+    return Rest.fetchJson("/api/v2/util/coa-traits");
   }
 
   static async fetchBudgetBalances({
@@ -178,7 +187,8 @@ export default class Rest {
     }
 
     const query = params.toString();
-    const path = `/api/budget/summary${query ? `?${query}` : ""}`;
+    // Using v2 API (PostgreSQL)
+    const path = `/api/v2/budget/summary${query ? `?${query}` : ""}`;
     return Rest.fetchJson(path);
   }
 
@@ -223,7 +233,8 @@ export default class Rest {
     }
 
     const query = params.toString();
-    const path = `/api/budget/actual-entries${query ? `?${query}` : ""}`;
+    // Using v2 API (PostgreSQL)
+    const path = `/api/v2/budget/actual-entries${query ? `?${query}` : ""}`;
     return Rest.fetchJson(path);
   }
 

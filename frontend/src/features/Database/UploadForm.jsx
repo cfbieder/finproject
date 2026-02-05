@@ -40,7 +40,7 @@ export default function UploadForm({
         </button>
         {isClearConfirmOpen && !isClearing && (
           <ConfirmationDialog
-            message="This will permanently delete all imported PS records. Confirming will wipe every record from MongoDB."
+            message="This will permanently delete all imported PS records. Confirming will wipe every record from the database."
             onConfirm={handleClearConfirm}
             onCancel={handleClearCancel}
             confirmLabel="Confirm clear"

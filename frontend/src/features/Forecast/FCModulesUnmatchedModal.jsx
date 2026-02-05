@@ -41,7 +41,8 @@ export default function FCModulesUnmatchedModal({
 
     const loadTraits = async () => {
       try {
-        const data = await Rest.fetchJson("/api/util/coa-traits");
+        // Using v2 API (PostgreSQL)
+        const data = await Rest.fetchJson("/api/v2/util/coa-traits");
         if (!cancelled && data && typeof data === "object") {
           setCoaTraits(data);
         }

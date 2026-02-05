@@ -144,8 +144,8 @@ export default function FCReviewAdjustTransferModal({
         }
       });
 
-      // Update the module
-      await Rest.fetchJson(`/api/forecast/modules/${moduleData._id}`, {
+      // Update the module using v2 API (PostgreSQL)
+      await Rest.fetchJson(`/api/v2/forecast/modules/v1/${moduleData._id}`, {
         method: "PUT",
         headers: {
           "Content-Type": "application/json",

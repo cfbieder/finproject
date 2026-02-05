@@ -224,7 +224,8 @@ export default function FCModuleManage() {
         : null;
 
     try {
-      await Rest.fetchJson("/api/forecast/modules", {
+      // Using v2 API (PostgreSQL) with v1-compatible format
+      await Rest.fetchJson("/api/v2/forecast/modules/v1", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -392,7 +393,8 @@ export default function FCModuleManage() {
 
     setEditSaving(true);
     try {
-      await Rest.fetchJson(`/api/forecast/modules/${moduleId}`, {
+      // Using v2 API (PostgreSQL) with v1-compatible format
+      await Rest.fetchJson(`/api/v2/forecast/modules/v1/${moduleId}`, {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(payload),
@@ -439,7 +441,8 @@ export default function FCModuleManage() {
     }
     setDeleteSaving(true);
     try {
-      await Rest.fetchJson(`/api/forecast/modules/${moduleId}`, {
+      // Using v2 API (PostgreSQL)
+      await Rest.fetchJson(`/api/v2/forecast/modules/v1/${moduleId}`, {
         method: "DELETE",
       });
       reloadModules();
@@ -495,7 +498,8 @@ export default function FCModuleManage() {
       const moduleType = traits.Type || "";
       const moduleCurrency = traits.Currency || "USD";
 
-      await Rest.fetchJson("/api/forecast/modules", {
+      // Using v2 API (PostgreSQL) with v1-compatible format
+      await Rest.fetchJson("/api/v2/forecast/modules/v1", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({

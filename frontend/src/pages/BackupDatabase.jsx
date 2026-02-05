@@ -6,7 +6,7 @@ import "./BackupDatabase.css";
 /**
  * BackupDatabase - Database backup page
  *
- * Provides functionality to backup the MongoDB database and download the backup file.
+ * Provides functionality to backup the PostgreSQL database and download the backup file.
  */
 export default function BackupDatabase() {
   const [isBackingUp, setIsBackingUp] = useState(false);
@@ -19,8 +19,8 @@ export default function BackupDatabase() {
     setError(null);
 
     try {
-      // Call the backup API - this will trigger a file download
-      const response = await fetch("/api/util/backup-database", {
+      // Call the v2 backup API (PostgreSQL) - this will trigger a file download
+      const response = await fetch("/api/v2/util/backup-database", {
         method: "POST",
       });
 
@@ -75,7 +75,7 @@ export default function BackupDatabase() {
           <div className="backup-database-header">
             <h1 className="backup-database-title">Database Backup</h1>
             <p className="backup-database-subtitle">
-              Create and download a backup of the MongoDB database
+              Create and download a backup of the PostgreSQL database
             </p>
           </div>
 
@@ -145,8 +145,7 @@ export default function BackupDatabase() {
                 <div className="backup-database-info">
                   <h3 className="backup-database-info-title">What happens during backup?</h3>
                   <ol className="backup-database-info-list">
-                    <li>MongoDB dump is created inside the container</li>
-                    <li>Backup is copied to the server</li>
+                    <li>PostgreSQL dump (pg_dump) is created</li>
                     <li>Backup is compressed and prepared for download</li>
                     <li>File download dialog opens automatically</li>
                     <li>Save the backup file to your preferred location</li>

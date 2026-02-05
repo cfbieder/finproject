@@ -86,7 +86,8 @@ const BudgetDetailModal = ({ detail, onClose }) => {
             params.append("category", category);
           }
           params.set("limit", "500");
-          payload = await Rest.fetchJson(`/api/budget?${params.toString()}`);
+          // Using v2 API (PostgreSQL)
+          payload = await Rest.fetchJson(`/api/v2/budget?${params.toString()}`);
         }
 
         if (!isActive) {

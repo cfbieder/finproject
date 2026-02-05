@@ -492,7 +492,8 @@ export function useTransactionBudgetExchangeRates() {
 
     (async () => {
       try {
-        const payload = await Rest.fetchJson("/api/util/getappdata");
+        // Using v2 API (PostgreSQL)
+        const payload = await Rest.fetchJson("/api/v2/util/appdata");
         if (!isActive) {
           return;
         }

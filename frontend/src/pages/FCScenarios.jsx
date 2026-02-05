@@ -493,8 +493,9 @@ export default function FCScenarios() {
     const encodedName = encodeURIComponent(name);
 
     // Attempt to delete scenario-linked modules/inc-exp on the server
+    // Using v2 API (PostgreSQL) with scenario name
     try {
-      await Rest.fetchJson(`/api/forecast/scenarios/${encodedName}`, {
+      await Rest.fetchJson(`/api/v2/forecast/scenarios/byname/${encodedName}`, {
         method: "DELETE",
       });
     } catch (error) {
@@ -505,8 +506,9 @@ export default function FCScenarios() {
     }
 
     // Delete audit trail files for this scenario
+    // Using v2 API
     try {
-      await Rest.fetchJson(`/api/forecast/audittrail/${encodedName}`, {
+      await Rest.fetchJson(`/api/v2/forecast/audittrail/${encodedName}`, {
         method: "DELETE",
       });
     } catch (error) {
@@ -642,8 +644,8 @@ export default function FCScenarios() {
     });
 
     try {
-      // Persist to server
-      await Rest.fetchJson("/api/forecast/assumptions", {
+      // Persist to server using v2 API (PostgreSQL)
+      await Rest.fetchJson("/api/v2/forecast/assumptions", {
         method: "PUT",
         body: JSON.stringify({
           ...assumptions,
@@ -708,8 +710,9 @@ export default function FCScenarios() {
 
     setIsLoading(true);
     try {
+      // Using v2 API (PostgreSQL)
       const encoded = encodeURIComponent(selectedScenario);
-      await Rest.fetchJson(`/api/forecast/audittrail/${encoded}`, {
+      await Rest.fetchJson(`/api/v2/forecast/audittrail/${encoded}`, {
         method: "DELETE",
       });
       setLoadError("");
@@ -798,8 +801,8 @@ export default function FCScenarios() {
       const updatedFX = [...localFX, ...copiedFX];
       const updatedTaxRates = [...localTaxRates, copiedTaxRate];
 
-      // Save to server
-      await Rest.fetchJson("/api/forecast/assumptions", {
+      // Save to server using v2 API (PostgreSQL)
+      await Rest.fetchJson("/api/v2/forecast/assumptions", {
         method: "PUT",
         body: JSON.stringify({
           ...assumptions,
@@ -811,9 +814,9 @@ export default function FCScenarios() {
         headers: { "Content-Type": "application/json" },
       });
 
-      // Copy modules and inc/exp entries via the backend API
+      // Copy modules and inc/exp entries via the v2 backend API
       const encoded = encodeURIComponent(sourceScenario);
-      await Rest.fetchJson(`/api/forecast/scenarios/${encoded}/copy`, {
+      await Rest.fetchJson(`/api/v2/forecast/scenarios/byname/${encoded}/copy`, {
         method: "POST",
         body: JSON.stringify({ newScenarioName }),
         headers: { "Content-Type": "application/json" },
