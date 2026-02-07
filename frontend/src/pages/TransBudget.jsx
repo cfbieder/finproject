@@ -1,5 +1,4 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
-import NavigationMenu from "../components/NavigationMenu.jsx";
 import TransactionBudgetFilter from "../features/TransactionBudget/TransactionBudgetFilter.jsx";
 import TransactionBudgetTable, {
   useTransactionBudgetAccountOptions,
@@ -243,8 +242,7 @@ export default function TransBudget() {
   const hasFilteredTransactions = filteredTransactions.length > 0;
 
   return (
-    <div className="page-shell">
-      <NavigationMenu />
+    <>
       <main className="page-main trans-budget-main">
         <TransactionBudgetFilter
           onFiltersChange={onFiltersChange}
@@ -291,6 +289,6 @@ export default function TransBudget() {
           onConfirm={handleConfirmDelete}
         />
       </main>
-    </div>
+    </>
   );
 }

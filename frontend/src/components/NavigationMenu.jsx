@@ -1,96 +1,81 @@
-import { Link } from "react-router-dom";
-import { generateMenuItems } from "../config/routes";
+import { useState } from "react";
+import { Link, useLocation } from "react-router-dom";
+import { getCategories, getCategoryPath, routes } from "../config/routes";
+import { Menu, X } from "lucide-react";
 import banner from "../assets/banner.png";
 import "./NavigationMenu.css";
 
-/**
- * Navigation Menu Component
- *
- * Automatically generates navigation menu from routes configuration.
- * Supports nested dropdowns for hierarchical menu structure.
- */
 export default function NavigationMenu() {
-  const menuItems = generateMenuItems();
-  const preventDropdownClick = (event) => {
-    event.preventDefault();
-    event.stopPropagation();
-  };
+  const { pathname } = useLocation();
+  const categories = getCategories();
+  const [mobileOpen, setMobileOpen] = useState(false);
 
-  const navLinksClassName = "navbar__links navbar__links--left";
+  // Determine which category is active based on current path
+  const currentRoute = routes.find((r) => r.path === pathname);
+  const activeCategory = currentRoute?.category || null;
+
+  // Also check if we're on a category landing page
+  const activeCatFromLanding = categories.find(
+    (cat) => getCategoryPath(cat) === pathname
+  );
+
+  const isActive = (cat) =>
+    cat === activeCategory || cat === activeCatFromLanding;
+
+  const closeMobile = () => setMobileOpen(false);
+
   return (
     <header className="navbar">
       <div className="navbar__inner">
         <div className="navbar__left">
-          <Link className="navbar__brand" to="/">
+          <Link className="navbar__brand" to="/" onClick={closeMobile}>
             <div className="navbar__brand-image">
               <img src={banner} alt="Fin" />
             </div>
             <span className="navbar__title">Fin</span>
             <span className="navbar__version-badge">v2</span>
           </Link>
-          <nav className={navLinksClassName}>
-            <Link className="navlink" to="/">
+
+          <button
+            type="button"
+            className="navbar__hamburger"
+            onClick={() => setMobileOpen((prev) => !prev)}
+            aria-label={mobileOpen ? "Close menu" : "Open menu"}
+          >
+            {mobileOpen ? <X size={22} /> : <Menu size={22} />}
+          </button>
+
+          <nav
+            className={`navbar__links${mobileOpen ? " navbar__links--open" : ""}`}
+          >
+            <Link
+              className={`navlink${pathname === "/" ? " navlink--active" : ""}`}
+              to="/"
+              onClick={closeMobile}
+            >
               Home
             </Link>
-            {menuItems.map((item) =>
-              item.submenu ? (
-                <div key={item.label} className="dropdown">
-                  <button
-                    type="button"
-                    className="navlink navlink--dropdown"
-                    onMouseDown={preventDropdownClick}
-                  >
-                    <span>{item.label}</span>
-                    <span aria-hidden>▾</span>
-                  </button>
-                  <div className="dropdown__menu">
-                    {item.submenu.map((subItem) =>
-                      subItem.submenu ? (
-                        <div key={subItem.label} className="dropdown__submenu">
-                          <span className="dropdown__submenu-title">
-                            {subItem.label}
-                          </span>
-                          {subItem.submenu.map((nestedItem) => (
-                            <Link
-                              key={nestedItem.label}
-                              className="dropdown__link"
-                              to={nestedItem.path}
-                            >
-                              {nestedItem.label}
-                              <span className="dropdown__arrow" aria-hidden>
-                                ↗
-                              </span>
-                            </Link>
-                          ))}
-                        </div>
-                      ) : (
-                        <Link
-                          key={subItem.label}
-                          className="dropdown__link"
-                          to={subItem.path}
-                        >
-                          {subItem.label}
-                          <span className="dropdown__arrow" aria-hidden>
-                            ↗
-                          </span>
-                        </Link>
-                      )
-                    )}
-                  </div>
-                </div>
-              ) : item.path ? (
-                <Link key={item.label} className="navlink" to={item.path}>
-                  {item.label}
-                </Link>
-              ) : (
-                <span key={item.label} className="navlink navlink--static">
-                  {item.label}
-                </span>
-              )
-            )}
+            {categories.map((cat) => (
+              <Link
+                key={cat}
+                className={`navlink${isActive(cat) ? " navlink--active" : ""}`}
+                to={getCategoryPath(cat)}
+                onClick={closeMobile}
+              >
+                {cat}
+              </Link>
+            ))}
           </nav>
         </div>
       </div>
+
+      {mobileOpen && (
+        <div
+          className="navbar__overlay"
+          onClick={closeMobile}
+          aria-hidden="true"
+        />
+      )}
     </header>
   );
 }

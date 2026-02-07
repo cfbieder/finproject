@@ -5,7 +5,6 @@
  *************************************************************/
 
 import { useCallback, useEffect, useState } from "react";
-import NavigationMenu from "../components/NavigationMenu.jsx";
 import UploadFeedback from "../features/Database/UploadFeedback.jsx";
 import Rest from "../js/rest.js";
 import "./PageLayout.css";
@@ -281,8 +280,7 @@ export default function RefreshPS() {
   };
 
   return (
-    <div className="page-shell">
-      <NavigationMenu />
+    <>
       <main className="page-main upload-grid">
         <section className="upload-panel">
           <h1 className="page__title">Refresh PS Data</h1>
@@ -482,6 +480,6 @@ export default function RefreshPS() {
           </div>
         </section>
       </main>
-    </div>
+    </>
   );
 }

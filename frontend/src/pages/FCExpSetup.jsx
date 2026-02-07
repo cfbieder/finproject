@@ -1,5 +1,4 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import NavigationMenu from "../components/NavigationMenu.jsx";
 import FCExpConfirmDeleteModal from "../features/Forecast/FCExpConfirmDeleteModal.jsx";
 import FCExpModal from "../features/Forecast/FCExpModal.jsx";
 import FCExpFilter from "../features/Forecast/FCExpFilter.jsx";
@@ -804,8 +803,7 @@ export default function FCExpSetup() {
   ]);
 
   return (
-    <div className="page-shell">
-      <NavigationMenu />
+    <>
       <main className="page-content">
         <FCExpFilter
           assumptions={assumptions}
@@ -864,6 +862,6 @@ export default function FCExpSetup() {
         accountNameOptions={accountNameOptions}
         periodYears={periodYears}
       />
-    </div>
+    </>
   );
 }

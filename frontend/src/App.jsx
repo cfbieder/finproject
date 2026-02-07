@@ -1,63 +1,46 @@
-import { Suspense } from 'react';
-import { BrowserRouter, Routes, Route } from 'react-router-dom';
-import { getRouterRoutes } from './config/routes';
+import { lazy, Suspense } from "react";
+import { BrowserRouter, Routes, Route } from "react-router-dom";
+import { getRouterRoutes, getCategoryRoutes } from "./config/routes";
+import Layout from "./components/Layout";
+import LoadingSpinner from "./components/LoadingSpinner";
 
-/**
- * Loading fallback component for lazy-loaded routes.
- * Displays a simple loading message while the route component is being loaded.
- */
-function RouteLoading() {
-  return (
-    <div style={{
-      display: 'flex',
-      alignItems: 'center',
-      justifyContent: 'center',
-      minHeight: '100vh',
-      fontSize: '1.125rem',
-      color: '#6b7280'
-    }}>
-      Loading...
-    </div>
-  );
-}
+const CategoryLandingPage = lazy(() => import("./pages/CategoryLandingPage"));
 
-/**
- * Main App Component
- *
- * Uses unified routes configuration for automatic route generation.
- * All routes are lazy-loaded (except Home) for optimal bundle splitting.
- * Routes can be wrapped with context providers as specified in config.
- */
 function App() {
   const routes = getRouterRoutes();
+  const categoryRoutes = getCategoryRoutes();
 
   return (
     <BrowserRouter>
-      <Suspense fallback={<RouteLoading />}>
-        <Routes>
-          {routes.map((route) => {
-            const Component = route.component;
-            const Wrapper = route.wrapper;
+      <Layout>
+        <Suspense fallback={<LoadingSpinner size="lg" label="Loading page..." />}>
+          <Routes>
+            {routes.map((route) => {
+              const Component = route.component;
+              const Wrapper = route.wrapper;
 
-            // Create the element with optional wrapper
-            const element = Wrapper ? (
-              <Wrapper>
+              const element = Wrapper ? (
+                <Wrapper>
+                  <Component />
+                </Wrapper>
+              ) : (
                 <Component />
-              </Wrapper>
-            ) : (
-              <Component />
-            );
+              );
 
-            return (
+              return (
+                <Route key={route.path} path={route.path} element={element} />
+              );
+            })}
+            {categoryRoutes.map((cat) => (
               <Route
-                key={route.path}
-                path={route.path}
-                element={element}
+                key={cat.path}
+                path={cat.path}
+                element={<CategoryLandingPage />}
               />
-            );
-          })}
-        </Routes>
-      </Suspense>
+            ))}
+          </Routes>
+        </Suspense>
+      </Layout>
     </BrowserRouter>
   );
 }

@@ -21,7 +21,6 @@
  */
 
 import { useEffect, useMemo, useState, useCallback, useRef } from "react";
-import NavigationMenu from "../components/NavigationMenu.jsx";
 import FCReviewSelector from "../features/Forecast/FCReviewSelector.jsx";
 import { useScenarios } from "../features/Forecast/hooks/useScenarios.js";
 import { useCashFlowAccounts } from "../features/Forecast/hooks/useCashFlowAccounts.js";
@@ -958,8 +957,7 @@ export default function FCReview() {
   );
 
   return (
-    <div className="page-shell">
-      <NavigationMenu />
+    <>
       <main className="page-main trans-budget-main">
         {/* Scenario Selector */}
         <FCReviewSelector
@@ -1046,6 +1044,6 @@ export default function FCReview() {
         graphSeries={graphSeries}
         sortedYears={sortedYears}
       />
-    </div>
+    </>
   );
 }

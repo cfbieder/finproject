@@ -1,5 +1,4 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import NavigationMenu from "../components/NavigationMenu.jsx";
 import handleUpload from "../js/handleUpload.js";
 import Rest from "../js/rest.js";
 import UploadFeedback from "../features/Database/UploadFeedback.jsx";
@@ -304,8 +303,7 @@ export default function UploadPS() {
   };
 
   return (
-    <div className="page-shell">
-      <NavigationMenu />
+    <>
       <main className="page-main upload-grid">
         <section className="upload-panel">
           <h1 className="page__title">Upload PS CSV Spreadsheet</h1>
@@ -337,6 +335,6 @@ export default function UploadPS() {
           isAnalyzing={isAnalyzing}
         />
       </main>
-    </div>
+    </>
   );
 }

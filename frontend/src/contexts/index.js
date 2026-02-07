@@ -5,3 +5,4 @@
  */
 
 export { ForecastProvider, useForecast } from './ForecastContext';
+export { ToastProvider, useToast } from './ToastContext';

@@ -1,4 +1,3 @@
-import NavigationMenu from "../components/NavigationMenu.jsx";
 import BudgetOptionExchangeRates from "../features/BudgetEntry/BudgetOptionExchangeRates.jsx";
 import ForecastFXAssumptions from "../features/BudgetEntry/ForecastFXAssumptions.jsx";
 import "./PageLayout.css";
@@ -6,8 +5,7 @@ import "./FXOptions.css";
 
 export default function FXOptions() {
   return (
-    <div className="page-shell">
-      <NavigationMenu />
+    <>
       <main className="page-main">
         <div className="fx-options-container">
           <header className="fx-options-header">
@@ -31,6 +29,6 @@ export default function FXOptions() {
           </section>
         </div>
       </main>
-    </div>
+    </>
   );
 }

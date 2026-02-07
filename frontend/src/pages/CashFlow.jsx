@@ -1,5 +1,4 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
-import NavigationMenu from "../components/NavigationMenu.jsx";
 import Rest from "../js/rest.js";
 import "./PageLayout.css";
 import "../features/Balances/BalanceDateSelector.css";
@@ -280,8 +279,7 @@ export default function CashFlow() {
   }, [collapsiblePaths]);
 
   return (
-    <div className="page-shell">
-      <NavigationMenu />
+    <>
       <main className="page-main balance-grid">
         <div className="balance-layout-wrapper">
           <div className="report-scroll-container">
@@ -315,6 +313,6 @@ export default function CashFlow() {
           />
         </div>
       </main>
-    </div>
+    </>
   );
 }

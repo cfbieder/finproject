@@ -1,5 +1,4 @@
 import { useMemo, useState, useEffect } from "react";
-import NavigationMenu from "../components/NavigationMenu.jsx";
 import BudgetBalancePanel, {
   MONTH_OPTIONS,
   YEAR_OPTIONS,
@@ -716,8 +715,7 @@ export default function BudgetRealizationGraph() {
   // ========== Render ==========
 
   return (
-    <div className="budget-realization-shell">
-      <NavigationMenu />
+    <>
       <main className="budget-realization-main">
         <div className="budget-graph-content">
           <div className="budget-graph-header">
@@ -753,6 +751,6 @@ export default function BudgetRealizationGraph() {
         onClose={handleModalClose}
         onCategoryClick={handleCategoryClick}
       />
-    </div>
+    </>
   );
 }

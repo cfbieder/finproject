@@ -1,5 +1,4 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
-import NavigationMenu from "../components/NavigationMenu.jsx";
 import Rest from "../js/rest.js";
 import BudgetEntriesAtualPopup from "../features/BudgetEntry/BudgetEntriesAtualPopup.jsx";
 import BudgetEntriesBudgetPopup from "../features/BudgetEntry/BudgetEntriesBudgetPopup.jsx";
@@ -696,8 +695,7 @@ export default function BudgetInput() {
   // ========== Render ==========
 
   return (
-    <div className="page-shell page-shell--budget-input">
-      <NavigationMenu />
+    <>
       <main className="page-main">
         <div className="budget-input-grid">
           <BudgetRegionSelectors
@@ -753,6 +751,6 @@ export default function BudgetInput() {
       />
       <BudgetEntriesAtualPopup request={actualEntriesPopupRequest} />
       <BudgetEntriesBudgetPopup request={budgetEntriesPopupRequest} />
-    </div>
+    </>
   );
 }

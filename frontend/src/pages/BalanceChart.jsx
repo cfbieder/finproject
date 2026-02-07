@@ -1,7 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import BalanceChartPanel from "../features/Charts/BalanceChartPanel.jsx";
 import CashFlowDateSelectorMonthYearOneP from "../features/Charts/BalanceChartDateSelectorMonthYear.jsx";
-import NavigationMenu from "../components/NavigationMenu.jsx";
 import Rest from "../js/rest.js";
 import "./PageLayout.css";
 
@@ -532,8 +531,7 @@ export default function Balance() {
   }, [chartPoints, hasChartData]);
 
   return (
-    <div className="page-shell">
-      <NavigationMenu />
+    <>
       <main className="page-main balance-grid">
         <div className="balance-layout-wrapper">
           <BalanceChartPanel
@@ -567,6 +565,6 @@ export default function Balance() {
           />
         </div>
       </main>
-    </div>
+    </>
   );
 }

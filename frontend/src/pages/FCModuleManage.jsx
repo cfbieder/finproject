@@ -1,5 +1,4 @@
 import { useEffect, useRef, useState } from "react";
-import NavigationMenu from "../components/NavigationMenu.jsx";
 import FCModulesFilter from "../features/Forecast/FCModulesFilter.jsx";
 import FCModulesEditModal, {
   expenseCategoryOptions,
@@ -532,8 +531,7 @@ export default function FCModuleManage() {
   };
 
   return (
-    <div className="page-shell page-shell--fc-modules">
-      <NavigationMenu />
+    <>
       <main className="page-main trans-budget-main fc-modules-main">
         <FCModulesFilter
           assumptions={assumptions}
@@ -596,6 +594,6 @@ export default function FCModuleManage() {
           onCreate={handleCreateFromUnmatched}
         />
       </main>
-    </div>
+    </>
   );
 }

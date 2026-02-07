@@ -1,5 +1,4 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
-import NavigationMenu from "../components/NavigationMenu.jsx";
 import TransactionActualFilter from "../features/TransactionActual/TransactionActualFilter.jsx";
 import TransactionActualTable, {
   useTransactionActualAccountOptions,
@@ -316,8 +315,7 @@ export default function TransActual() {
   const hasFilteredTransactions = locallyFilteredTransactions.length > 0;
 
   return (
-    <div className="page-shell">
-      <NavigationMenu />
+    <>
       <main className="page-main trans-budget-main">
         <TransactionActualFilter
           onFiltersChange={handleFilterChange}
@@ -390,6 +388,6 @@ export default function TransActual() {
           onConfirm={() => handleConfirmDelete(selectedRows)}
         />
       </main>
-    </div>
+    </>
   );
 }

@@ -24,7 +24,6 @@
  */
 
 import { useEffect, useState } from "react";
-import NavigationMenu from "../components/NavigationMenu.jsx";
 import FCScenariosSelect from "../features/Forecast/FCScenariosSelect.jsx";
 import FCScenariosTable from "../features/Forecast/FCScenariosTable.jsx";
 import FCScenariosModal from "../features/Forecast/FCScenariosModal.jsx";
@@ -864,8 +863,7 @@ export default function FCScenarios() {
     : "This will overwrite server assumptions for this scenario.";
 
   return (
-    <div className="page-shell">
-      <NavigationMenu />
+    <>
       <main className="page-main trans-budget-main">
         {/* Header section with scenario selection and actions */}
         <FCScenariosSelect
@@ -949,6 +947,6 @@ export default function FCScenarios() {
           context="This removes the scenario, its inflation/FX assumptions, and deletes related modules and income/expense entries."
         />
       </main>
-    </div>
+    </>
   );
 }

@@ -1,5 +1,4 @@
 import { useState } from "react";
-import NavigationMenu from "../components/NavigationMenu.jsx";
 import "./PageLayout.css";
 import "./BackupDatabase.css";
 
@@ -68,8 +67,7 @@ export default function BackupDatabase() {
   };
 
   return (
-    <div className="page-shell">
-      <NavigationMenu />
+    <>
       <main className="page-main backup-database-main">
         <div className="backup-database-container">
           <div className="backup-database-header">
@@ -162,6 +160,6 @@ export default function BackupDatabase() {
           </div>
         </div>
       </main>
-    </div>
+    </>
   );
 }

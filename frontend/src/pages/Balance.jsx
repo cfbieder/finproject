@@ -1,7 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import BalanceDateSelector from "../features/Balances/BalanceDateSelector.jsx";
 import BalanceReport from "../features/Balances/BalanceReport.jsx";
-import NavigationMenu from "../components/NavigationMenu.jsx";
 import Rest from "../js/rest.js";
 import "./PageLayout.css";
 
@@ -133,8 +132,7 @@ export default function Balance() {
   const hasLoadedReport = balanceReports.length > 0;
 
   return (
-    <div className="page-shell">
-      <NavigationMenu />
+    <>
       <main className="page-main balance-grid">
         <div className="balance-layout-wrapper">
           <div className="report-scroll-container">
@@ -168,6 +166,6 @@ export default function Balance() {
           />
         </div>
       </main>
-    </div>
+    </>
   );
 }

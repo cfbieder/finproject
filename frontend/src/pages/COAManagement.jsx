@@ -1,5 +1,4 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
-import NavigationMenu from "../components/NavigationMenu.jsx";
 import COAManagementFilters from "../features/COAManagement/COAManagementFilters.jsx";
 import COAEditModal from "../features/COAManagement/COAEditModal.jsx";
 import COAManagementTableSection from "../features/COAManagement/COAManagementTableSection.jsx";
@@ -567,8 +566,7 @@ export default function COAManagement() {
   };
 
   return (
-    <div className="page-shell">
-      <NavigationMenu />
+    <>
       <main className="page-main">
         <div className="coa-management-container">
           <header className="coa-management-header">
@@ -664,6 +662,6 @@ export default function COAManagement() {
         }
         confirmLabel="Delete"
       />
-    </div>
+    </>
   );
 }
