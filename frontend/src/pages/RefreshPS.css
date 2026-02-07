@@ -13,6 +13,14 @@
   border-radius: 0.75rem;
   border: 1px solid var(--border, #e2e8f0);
   box-shadow: var(--shadow-soft, 0 1px 3px rgba(0, 0, 0, 0.08));
+  background:
+    linear-gradient(var(--surface) 30%, transparent) top,
+    linear-gradient(transparent, var(--surface) 70%) bottom,
+    radial-gradient(farthest-side at 50% 0, rgba(0, 0, 0, 0.07), transparent) top,
+    radial-gradient(farthest-side at 50% 100%, rgba(0, 0, 0, 0.07), transparent) bottom;
+  background-size: 100% 40px, 100% 40px, 100% 10px, 100% 10px;
+  background-repeat: no-repeat;
+  background-attachment: local, local, scroll, scroll;
 }
 
 .refresh-txn-table-wrapper .balance-report-table {

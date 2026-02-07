@@ -139,13 +139,56 @@
 .coa-table-scroll {
   max-height: 600px;
   overflow: auto;
+  background:
+    linear-gradient(var(--surface) 30%, transparent) top,
+    linear-gradient(transparent, var(--surface) 70%) bottom,
+    radial-gradient(farthest-side at 50% 0, rgba(0, 0, 0, 0.07), transparent) top,
+    radial-gradient(farthest-side at 50% 100%, rgba(0, 0, 0, 0.07), transparent) bottom;
+  background-size: 100% 40px, 100% 40px, 100% 10px, 100% 10px;
+  background-repeat: no-repeat;
+  background-attachment: local, local, scroll, scroll;
 }
 
 .coa-table thead th {
   position: sticky;
   top: 0;
   z-index: 2;
-  background: #f8fafc;
+  background: var(--surface-muted);
+  box-shadow: 0 2px 4px -1px rgba(0, 0, 0, 0.06);
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  font-size: 0.6875rem;
+  color: var(--muted);
+  font-weight: 700;
+  border-bottom: 1px solid var(--border);
+  padding: 0.75rem 1rem;
+}
+
+.coa-table tbody tr {
+  transition: background var(--transition-fast);
+}
+
+.coa-table tbody tr:hover {
+  background: rgba(37, 99, 235, 0.04);
+}
+
+.coa-table tbody tr:nth-child(even):not(.coa-table-row--category) {
+  background: rgba(248, 250, 254, 0.35);
+}
+
+.coa-table tbody tr:nth-child(even):not(.coa-table-row--category):hover {
+  background: rgba(37, 99, 235, 0.04);
+}
+
+.coa-table tbody td {
+  padding: 0.75rem 1rem;
+  border-bottom: 1px solid var(--border-subtle);
+  font-size: 0.9375rem;
+}
+
+.coa-table-row--selected td {
+  background: var(--primary-subtle) !important;
+  box-shadow: inset 3px 0 0 var(--primary);
 }
 
 /* Category row highlighting */

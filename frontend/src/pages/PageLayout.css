@@ -910,6 +910,14 @@
   overflow: auto;
   display: flex;
   flex-direction: column;
+  background:
+    linear-gradient(var(--surface) 30%, transparent) top,
+    linear-gradient(transparent, var(--surface) 70%) bottom,
+    radial-gradient(farthest-side at 50% 0, rgba(0, 0, 0, 0.07), transparent) top,
+    radial-gradient(farthest-side at 50% 100%, rgba(0, 0, 0, 0.07), transparent) bottom;
+  background-size: 100% 40px, 100% 40px, 100% 10px, 100% 10px;
+  background-repeat: no-repeat;
+  background-attachment: local, local, scroll, scroll;
 }
 
 .trans-budget-table {
@@ -920,16 +928,17 @@
 
 .trans-budget-table thead th {
   text-transform: uppercase;
-  letter-spacing: 0.05em;
-  font-size: 0.8125rem;
-  color: var(--ink-secondary);
+  letter-spacing: 0.06em;
+  font-size: 0.6875rem;
+  color: var(--muted);
   font-weight: 700;
-  border-bottom: 2px solid var(--border-strong);
+  border-bottom: 1px solid var(--border);
   padding: 0.75rem 1rem;
   position: sticky;
   top: 0;
-  background: linear-gradient(180deg, var(--surface-muted) 0%, var(--surface) 100%);
+  background: var(--surface);
   z-index: 1;
+  box-shadow: 0 2px 4px -1px rgba(0, 0, 0, 0.06);
 }
 
 .fc-review-table thead th:first-child {
@@ -976,8 +985,10 @@
 
 .trans-budget-table__sort-indicator {
   font-size: 0.75rem;
-  opacity: 0.6;
+  opacity: 0.45;
   transition: opacity var(--transition-fast);
+  display: inline-flex;
+  align-items: center;
 }
 
 .trans-budget-table__sort-button:hover .trans-budget-table__sort-indicator {
@@ -997,7 +1008,7 @@
 }
 
 .trans-budget-table tbody tr:hover {
-  box-shadow: inset 0 0 0 1px var(--border-strong);
+  background: rgba(37, 99, 235, 0.04);
 }
 
 .trans-budget-table__value {
@@ -1024,7 +1035,7 @@
 }
 
 .trans-budget-table tbody tr:nth-child(even) td {
-  background: rgba(248, 249, 254, 0.5);
+  background: rgba(248, 250, 254, 0.35);
 }
 
 .fc-review-table tbody tr:nth-child(even) td {
@@ -1035,6 +1046,7 @@
   background: linear-gradient(135deg, var(--primary-subtle) 0%, rgba(219, 234, 254, 0.5) 100%);
   border-color: var(--primary-light);
   font-weight: 600;
+  box-shadow: inset 3px 0 0 var(--primary);
 }
 
 .trans-budget-table__value--numeric {
@@ -2059,7 +2071,8 @@
   top: 0;
   z-index: 5;
   composes: table-header-gradient;
-  border-bottom: 2px solid var(--border);
+  border-bottom: 1px solid var(--border);
+  box-shadow: 0 2px 4px -1px rgba(0, 0, 0, 0.06);
 }
 
 .balance-report-table thead th:first-child,
@@ -2106,11 +2119,11 @@
 
 .balance-report-table th {
   text-transform: uppercase;
-  letter-spacing: 0.05em;
+  letter-spacing: 0.06em;
   font-weight: 700;
-  font-size: 0.8125rem;
-  color: var(--ink-secondary);
-  background: linear-gradient(180deg, var(--surface-muted) 0%, var(--surface) 100%);
+  font-size: 0.6875rem;
+  color: var(--muted);
+  background: var(--surface);
 }
 
 .balance-report-table td {
@@ -2122,7 +2135,7 @@
 }
 
 .balance-report-table tbody tr:nth-child(even) td {
-  background: rgb(248, 249, 254);
+  background: rgba(248, 250, 254, 0.35);
 }
 
 .balance-report-table tbody tr:nth-child(even):hover td {
@@ -2133,7 +2146,7 @@
   text-align: right;
   font-family: var(--font-mono);
   font-weight: 600;
-  tabular-nums: tabular-nums;
+  font-variant-numeric: tabular-nums;
   letter-spacing: -0.01em;
 }
 
@@ -2447,34 +2460,48 @@
    ============================================================================ */
 
 .realization-header {
-  background: linear-gradient(
-    135deg,
-    rgba(255, 255, 255, 0.95) 0%,
-    rgba(248, 250, 252, 0.98) 100%
-  );
-  border: 1px solid rgba(37, 99, 235, 0.12);
-  box-shadow: 0 2px 8px -2px rgba(15, 23, 42, 0.08),
-    0 4px 12px -4px rgba(37, 99, 235, 0.08);
+  padding: 1.25rem 1.5rem;
 }
 
 .realization-table-section {
-  padding: 1.75rem 2rem;
-  background: linear-gradient(
-    135deg,
-    rgba(255, 255, 255, 0.98) 0%,
-    rgba(241, 245, 249, 0.96) 100%
-  );
-  border: 1px solid rgba(37, 99, 235, 0.12);
+  padding: 1.25rem 1.5rem;
+}
+
+.realization-table-section:hover,
+.realization-header:hover {
+  transform: none;
   box-shadow: 0 4px 12px -4px rgba(15, 23, 42, 0.1),
     0 2px 6px -2px rgba(37, 99, 235, 0.08);
 }
 
+.realization-table-section::before {
+  height: 2px;
+}
+
+.realization-table-section .balance-report-table th,
+.realization-table-section .balance-report-table td {
+  border-left: none;
+  padding: 0.75rem 1rem;
+}
+
+.realization-table-section .balance-report-table__name {
+  box-shadow: none;
+  border-right: 1px solid var(--border-subtle);
+}
+
 .budget-realization-table__wrapper {
   width: 100%;
-  overflow-x: auto;
-  border-radius: 0.75rem;
-  box-shadow: 0 1px 3px 0 rgba(15, 23, 42, 0.1),
-    0 1px 2px 0 rgba(15, 23, 42, 0.06);
+  overflow: auto;
+  max-height: 70vh;
+  border-radius: 0.5rem;
+  background:
+    linear-gradient(var(--surface) 30%, transparent) top,
+    linear-gradient(transparent, var(--surface) 70%) bottom,
+    radial-gradient(farthest-side at 50% 0, rgba(0, 0, 0, 0.07), transparent) top,
+    radial-gradient(farthest-side at 50% 100%, rgba(0, 0, 0, 0.07), transparent) bottom;
+  background-size: 100% 40px, 100% 40px, 100% 10px, 100% 10px;
+  background-repeat: no-repeat;
+  background-attachment: local, local, scroll, scroll;
 }
 
 .balance-report-table__totals-row {
@@ -2483,11 +2510,11 @@
     rgba(241, 245, 249, 0.95) 0%,
     rgba(226, 232, 240, 0.9) 100%
   );
-  border-top: 2px solid rgba(37, 99, 235, 0.25);
   font-weight: 700;
 }
 
 .balance-report-table__totals-row td {
+  border-top: 2px solid var(--border-strong);
   padding: 1.25rem 0.95rem;
   font-size: 1rem;
 }
@@ -2585,7 +2612,7 @@
   }
 
   .realization-table-section {
-    padding: 1.5rem 1.75rem;
+    padding: 1.25rem;
   }
 }
 
@@ -2639,7 +2666,7 @@
   }
 
   .realization-table-section {
-    padding: 1.5rem;
+    padding: 1rem;
   }
 }
 
@@ -2707,7 +2734,7 @@
   }
 
   .realization-table-section {
-    padding: 1.25rem;
+    padding: 0.75rem;
   }
 
   .budget-entry-form__actions {

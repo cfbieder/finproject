@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { ChevronUp, ChevronDown, ChevronsUpDown } from "lucide-react";
 import Rest from "../../js/rest";
 
 const numberFormatter = new Intl.NumberFormat(undefined, {
@@ -132,9 +133,9 @@ export default function TransactionActualTable({
                       <span className="trans-budget-table__sort-indicator">
                         {sortConfig.key === SELECTION_COLUMN.key
                           ? sortConfig.direction === "desc"
-                            ? "▼"
-                            : "▲"
-                          : "↕"}
+                            ? <ChevronDown size={14} />
+                            : <ChevronUp size={14} />
+                          : <ChevronsUpDown size={14} />}
                       </span>
                     </button>
                   </th>
@@ -149,9 +150,9 @@ export default function TransactionActualTable({
                         <span className="trans-budget-table__sort-indicator">
                           {sortConfig.key === column.key
                             ? sortConfig.direction === "desc"
-                              ? "▼"
-                              : "▲"
-                            : "↕"}
+                              ? <ChevronDown size={14} />
+                              : <ChevronUp size={14} />
+                            : <ChevronsUpDown size={14} />}
                         </span>
                       </button>
                     </th>

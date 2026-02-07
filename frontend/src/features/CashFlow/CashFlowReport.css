@@ -21,12 +21,25 @@
   background: none;
   border: none;
   cursor: pointer;
-  padding: 0;
+  padding: 0.2rem;
   font-size: 0.9rem;
+  color: var(--primary);
+  line-height: 1;
+  min-width: 1.35rem;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 0.25rem;
+  transition: background 0.15s ease;
+}
+
+.cash-flow-report__toggle-button:hover:not(:disabled) {
+  background: rgba(37, 99, 235, 0.08);
 }
 
 .cash-flow-report__toggle-button:disabled {
   cursor: default;
+  color: transparent;
 }
 
 .cash-flow-report .balance-report-table thead {

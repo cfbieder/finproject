@@ -1,0 +1,34 @@
+/**
+ * DataTable.css - Shared base styles for all data tables
+ *
+ * Provides consistent styling for headers, rows, cells, scroll indicators,
+ * and interactive states across balance-report, trans-budget, fc-modules,
+ * COA, and other table systems.
+ */
+
+/* ============================================================
+   Scroll shadow indicators for table wrappers
+   ============================================================ */
+
+.data-table-scroll {
+  background:
+    linear-gradient(var(--surface) 30%, transparent) top,
+    linear-gradient(transparent, var(--surface) 70%) bottom,
+    radial-gradient(farthest-side at 50% 0, rgba(0, 0, 0, 0.07), transparent) top,
+    radial-gradient(farthest-side at 50% 100%, rgba(0, 0, 0, 0.07), transparent) bottom;
+  background-size: 100% 40px, 100% 40px, 100% 10px, 100% 10px;
+  background-repeat: no-repeat;
+  background-attachment: local, local, scroll, scroll;
+}
+
+/* Horizontal scroll variant */
+.data-table-scroll--horizontal {
+  background:
+    linear-gradient(to right, var(--surface) 30%, transparent) left,
+    linear-gradient(to left, var(--surface) 30%, transparent) right,
+    radial-gradient(farthest-side at 0 50%, rgba(0, 0, 0, 0.07), transparent) left,
+    radial-gradient(farthest-side at 100% 50%, rgba(0, 0, 0, 0.07), transparent) right;
+  background-size: 40px 100%, 40px 100%, 10px 100%, 10px 100%;
+  background-repeat: no-repeat;
+  background-attachment: local, local, scroll, scroll;
+}
