@@ -9,7 +9,5 @@
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1"
   },
-  "dependencies": {
-    "mongoose": "^8.20.0"
-  }
+  "dependencies": {}
 }
