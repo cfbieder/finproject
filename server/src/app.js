@@ -3,14 +3,8 @@ const cors = require("cors");
 const morgan = require("morgan");
 
 const healthRouter = require("./routes/health");
-// Legacy v1 routes (MongoDB-based) - Commented out after migration to PostgreSQL
-// const balanceRouter = require("./routes/balance");
-// const cashFlowRouter = require("./routes/cashFlow");
 const coaRouter = require("./routes/coa");
-// const ingestRouter = require("./routes/ingestPs");
 const utilRouter = require("./routes/util");
-// const budgetRouter = require("./routes/budget");
-// const forecastRouter = require("./routes/forecast");
 const v2Routes = require("./v2/routes");
 const app = express();
 
@@ -24,13 +18,6 @@ app.use("/api/util", utilRouter);
 app.use("/api/health", healthRouter);
 app.use("/api/coa", coaRouter);
 app.use("/api/v2", v2Routes);
-
-// Legacy v1 routes (MongoDB-based) - nginx rewrites these to v2
-// app.use("/api/balance", balanceRouter);
-// app.use("/api/cash-flow", cashFlowRouter);
-// app.use("/api/ingest-ps", ingestRouter);
-// app.use("/api/budget", budgetRouter);
-// app.use("/api/forecast", forecastRouter);
 
 // PostgreSQL connection
 const postgres = require("./v2/db");

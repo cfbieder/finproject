@@ -39,6 +39,8 @@ const dataPaths = {
     "ps-transactions.csv"
   ),
   psData: resolveDataPath(process.env.PS_DATA_PATH, "psdata.json"),
+  appData: resolveDataPath(process.env.APP_DATA_PATH, "appdata.json"),
+  fcAssump: resolveDataPath(process.env.FC_ASSUMP_PATH, "FCAssump.json"),
 };
 
 const tempFiles = {

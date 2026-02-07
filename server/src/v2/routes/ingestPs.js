@@ -108,137 +108,98 @@ const orderCategoriesByCoa = (psCategories, coaCategories) => {
 async function syncStagingToTransactions() {
   const db = require('../db');
 
-  // Get account name to ID mapping
-  const accountsResult = await db.query('SELECT id, name FROM accounts');
-  const accountMap = new Map();
-  for (const row of accountsResult.rows) {
-    accountMap.set(row.name?.toLowerCase(), row.id);
-  }
+  // Check for unmapped accounts/categories first
+  const unmappedAcctResult = await db.query(`
+    SELECT DISTINCT s.account_name
+    FROM psdata_staging s
+    LEFT JOIN accounts a ON LOWER(s.account_name) = LOWER(a.name)
+    WHERE s.account_name IS NOT NULL AND a.id IS NULL
+  `);
+  const unmappedAccounts = unmappedAcctResult.rows.map(r => r.account_name);
 
-  // Get category name to ID mapping
-  const categoriesResult = await db.query('SELECT id, name FROM categories');
-  const categoryMap = new Map();
-  for (const row of categoriesResult.rows) {
-    categoryMap.set(row.name?.toLowerCase(), row.id);
-  }
+  const unmappedCatResult = await db.query(`
+    SELECT DISTINCT s.category_name
+    FROM psdata_staging s
+    LEFT JOIN categories c ON LOWER(s.category_name) = LOWER(c.name)
+    WHERE s.category_name IS NOT NULL AND c.id IS NULL
+  `);
+  const unmappedCategories = unmappedCatResult.rows.map(r => r.category_name);
 
-  // Get all staging records
-  const stagingResult = await db.query('SELECT * FROM psdata_staging');
-  const stagingRecords = stagingResult.rows;
+  // Count records that will be skipped (missing required fields or unmapped account)
+  const skippedResult = await db.query(`
+    SELECT COUNT(*) as cnt FROM psdata_staging s
+    LEFT JOIN accounts a ON LOWER(s.account_name) = LOWER(a.name)
+    WHERE a.id IS NULL OR s.amount IS NULL OR s.transaction_date IS NULL OR s.currency IS NULL
+  `);
+  const skipped = parseInt(skippedResult.rows[0].cnt, 10);
 
-  let inserted = 0;
-  let updated = 0;
-  let skipped = 0;
-  const unmappedAccounts = new Set();
-  const unmappedCategories = new Set();
+  // Bulk upsert: INSERT ... ON CONFLICT (ps_id) DO UPDATE
+  // Uses a single SQL statement joining staging with accounts and categories
+  const upsertResult = await db.query(`
+    WITH staged AS (
+      SELECT
+        s.ps_id::bigint as ps_id,
+        s.transaction_date,
+        s.description1,
+        s.description2,
+        s.amount,
+        s.currency,
+        s.base_amount,
+        s.base_currency,
+        s.transaction_type,
+        a.id as account_id,
+        c.id as category_id,
+        s.closing_balance,
+        CASE WHEN s.labels IS NOT NULL AND s.labels != ''
+          THEN string_to_array(s.labels, ',')
+          ELSE NULL
+        END as labels,
+        s.memo,
+        s.note,
+        s.bank
+      FROM psdata_staging s
+      LEFT JOIN accounts a ON LOWER(s.account_name) = LOWER(a.name)
+      LEFT JOIN categories c ON LOWER(s.category_name) = LOWER(c.name)
+      WHERE a.id IS NOT NULL
+        AND s.amount IS NOT NULL
+        AND s.transaction_date IS NOT NULL
+        AND s.currency IS NOT NULL
+    )
+    INSERT INTO transactions (
+      ps_id, transaction_date, description1, description2,
+      amount, currency, base_amount, base_currency,
+      transaction_type, account_id, category_id,
+      closing_balance, labels, memo, note, bank, source
+    )
+    SELECT
+      ps_id, transaction_date, description1, description2,
+      amount, currency, base_amount, base_currency,
+      transaction_type, account_id, category_id,
+      closing_balance, labels, memo, note, bank, 'pocketsmith'
+    FROM staged
+    ON CONFLICT (ps_id) DO UPDATE SET
+      transaction_date = EXCLUDED.transaction_date,
+      description1 = EXCLUDED.description1,
+      description2 = EXCLUDED.description2,
+      amount = EXCLUDED.amount,
+      currency = EXCLUDED.currency,
+      base_amount = EXCLUDED.base_amount,
+      base_currency = EXCLUDED.base_currency,
+      transaction_type = EXCLUDED.transaction_type,
+      account_id = EXCLUDED.account_id,
+      category_id = EXCLUDED.category_id,
+      closing_balance = EXCLUDED.closing_balance,
+      labels = EXCLUDED.labels,
+      memo = EXCLUDED.memo,
+      note = EXCLUDED.note,
+      bank = EXCLUDED.bank,
+      updated_at = NOW()
+    RETURNING id,
+      (xmax = 0) as was_inserted
+  `);
 
-  for (const record of stagingRecords) {
-    const accountId = record.account_name
-      ? accountMap.get(record.account_name.toLowerCase())
-      : null;
-    const categoryId = record.category_name
-      ? categoryMap.get(record.category_name.toLowerCase())
-      : null;
-
-    // Track unmapped values
-    if (record.account_name && !accountId) {
-      unmappedAccounts.add(record.account_name);
-    }
-    if (record.category_name && !categoryId) {
-      unmappedCategories.add(record.category_name);
-    }
-
-    // Skip if missing required fields
-    if (!accountId || !record.amount || !record.transaction_date || !record.currency) {
-      skipped++;
-      continue;
-    }
-
-    // Convert labels string to array (or null if empty)
-    const labelsArray = record.labels
-      ? record.labels.split(',').map(s => s.trim()).filter(Boolean)
-      : null;
-
-    // Convert ps_id to number for bigint column
-    const psIdNum = record.ps_id ? parseInt(record.ps_id, 10) : null;
-
-    // Check if transaction exists by ps_id
-    const existingResult = await db.query(
-      'SELECT id FROM transactions WHERE ps_id = $1',
-      [psIdNum]
-    );
-
-    if (existingResult.rows.length > 0) {
-      // Update existing
-      await db.query(`
-        UPDATE transactions SET
-          transaction_date = $1,
-          description1 = $2,
-          description2 = $3,
-          amount = $4,
-          currency = $5,
-          base_amount = $6,
-          base_currency = $7,
-          transaction_type = $8,
-          account_id = $9,
-          category_id = $10,
-          closing_balance = $11,
-          labels = $12,
-          memo = $13,
-          note = $14,
-          bank = $15,
-          source = 'pocketsmith',
-          updated_at = NOW()
-        WHERE ps_id = $16
-      `, [
-        record.transaction_date,
-        record.description1,
-        record.description2,
-        record.amount,
-        record.currency,
-        record.base_amount,
-        record.base_currency,
-        record.transaction_type,
-        accountId,
-        categoryId,
-        record.closing_balance,
-        labelsArray,
-        record.memo,
-        record.note,
-        record.bank,
-        psIdNum
-      ]);
-      updated++;
-    } else {
-      // Insert new
-      await db.query(`
-        INSERT INTO transactions (
-          ps_id, transaction_date, description1, description2,
-          amount, currency, base_amount, base_currency,
-          transaction_type, account_id, category_id,
-          closing_balance, labels, memo, note, bank, source
-        ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, 'pocketsmith')
-      `, [
-        psIdNum,
-        record.transaction_date,
-        record.description1,
-        record.description2,
-        record.amount,
-        record.currency,
-        record.base_amount,
-        record.base_currency,
-        record.transaction_type,
-        accountId,
-        categoryId,
-        record.closing_balance,
-        labelsArray,
-        record.memo,
-        record.note,
-        record.bank
-      ]);
-      inserted++;
-    }
-  }
+  const inserted = upsertResult.rows.filter(r => r.was_inserted).length;
+  const updated = upsertResult.rows.filter(r => !r.was_inserted).length;
 
   console.log(`[v2/ingest-ps] Sync complete: ${inserted} inserted, ${updated} updated, ${skipped} skipped`);
 
@@ -246,9 +207,9 @@ async function syncStagingToTransactions() {
     inserted,
     updated,
     skipped,
-    total: stagingRecords.length,
-    unmappedAccounts: Array.from(unmappedAccounts),
-    unmappedCategories: Array.from(unmappedCategories)
+    total: inserted + updated + skipped,
+    unmappedAccounts,
+    unmappedCategories
   };
 }
 
@@ -482,7 +443,14 @@ router.post('/refresh-ps', async (req, res, next) => {
     const { processTransactionsV2, logTransactionFileCounts } = require('../services/refreshPsApiV2');
     const { daysHistory } = req.body ?? {};
     await processTransactionsV2(daysHistory);
-    res.json(logTransactionFileCounts());
+    const fileCounts = logTransactionFileCounts();
+
+    // Auto-sync staging to transactions table
+    console.log('[v2/ingest-ps] Auto-syncing staging to transactions after API refresh...');
+    const syncResult = await syncStagingToTransactions();
+    console.log('[v2/ingest-ps] Auto-sync after refresh complete:', syncResult);
+
+    res.json({ ...fileCounts, syncResult });
   } catch (error) {
     console.error('[v2/ingest-ps] Failed to refresh PS data:', error);
     next(error);

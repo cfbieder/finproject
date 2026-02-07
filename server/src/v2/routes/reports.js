@@ -165,22 +165,47 @@ async function fetchAccountBalances(asOfDate) {
     }
   }
 
-  // Fetch all exchange rates in parallel
+  // Fetch exchange rates from local database (with API fallback)
   const exchangeRates = { USD: 1 };
   if (currencies.size > 0) {
     console.log('[v2/reports/balance] Fetching exchange rates for currencies:', Array.from(currencies));
-    const ratePromises = Array.from(currencies).map(async (currency) => {
-      try {
-        const rate = await frankfurterExchangeRates.getExchangeRate('USD', currency, asOfDate);
-        return { currency, rate: (typeof rate === 'number' && rate > 0) ? rate : 1 };
-      } catch (err) {
-        console.warn('[v2/reports/balance] Failed to get rate for', currency, err.message);
-        return { currency, rate: 1 };
+    const currencyArr = Array.from(currencies);
+
+    // Try local exchange_rates table first (closest date match)
+    const localRates = await db.query(`
+      SELECT DISTINCT ON (from_currency)
+        from_currency, rate
+      FROM exchange_rates
+      WHERE from_currency = ANY($1) AND to_currency = 'USD'
+      ORDER BY from_currency, ABS(rate_date - $2::date) ASC
+    `, [currencyArr, asOfDate]);
+
+    const foundLocal = new Set();
+    for (const row of localRates.rows) {
+      const localRate = parseFloat(row.rate);
+      if (localRate > 0) {
+        exchangeRates[row.from_currency] = 1 / localRate;
+        foundLocal.add(row.from_currency);
       }
-    });
-    const rates = await Promise.all(ratePromises);
-    for (const { currency, rate } of rates) {
-      exchangeRates[currency] = rate;
+    }
+
+    // Fallback to API for any missing currencies
+    const missing = currencyArr.filter(c => !foundLocal.has(c));
+    if (missing.length > 0) {
+      console.log('[v2/reports/balance] Fetching from API for:', missing);
+      const ratePromises = missing.map(async (currency) => {
+        try {
+          const rate = await frankfurterExchangeRates.getExchangeRate('USD', currency, asOfDate);
+          return { currency, rate: (typeof rate === 'number' && rate > 0) ? rate : 1 };
+        } catch (err) {
+          console.warn('[v2/reports/balance] Failed to get rate for', currency, err.message);
+          return { currency, rate: 1 };
+        }
+      });
+      const rates = await Promise.all(ratePromises);
+      for (const { currency, rate } of rates) {
+        exchangeRates[currency] = rate;
+      }
     }
   }
 

@@ -367,6 +367,32 @@ async function compareToActual({ versionId, year }) {
  * Create a new budget entry
  */
 async function create(data) {
+  const currency = data.currency || 'USD';
+  let baseAmount = data.base_amount;
+
+  // Auto-calculate base_amount if not provided
+  if (baseAmount === undefined || baseAmount === null || baseAmount === '') {
+    if (currency === 'USD') {
+      baseAmount = data.amount;
+    } else {
+      // Look up exchange rate from exchange_rates table (closest date)
+      const entryDate = data.entry_date || new Date().toISOString().split('T')[0];
+      const rateResult = await db.query(`
+        SELECT rate FROM exchange_rates
+        WHERE from_currency = $1 AND to_currency = 'USD'
+        ORDER BY ABS(rate_date - $2::date) ASC
+        LIMIT 1
+      `, [currency, entryDate]);
+
+      const rate = rateResult.rows[0]?.rate;
+      if (rate && parseFloat(rate) > 0) {
+        baseAmount = Math.round(data.amount * parseFloat(rate) * 100) / 100;
+      } else {
+        baseAmount = data.amount; // Fallback if no rate available
+      }
+    }
+  }
+
   const sql = `
     INSERT INTO budget_entries (
       version_id, entry_date, description, amount, currency,
@@ -382,8 +408,8 @@ async function create(data) {
     data.entry_date,
     data.description || null,
     data.amount,
-    data.currency || 'USD',
-    data.base_amount || data.amount,
+    currency,
+    baseAmount,
     data.base_currency || 'USD',
     data.account_id || null,
     data.category_id || null,
