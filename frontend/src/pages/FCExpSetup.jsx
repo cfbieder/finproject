@@ -4,6 +4,7 @@ import FCExpModal from "../features/Forecast/FCExpModal.jsx";
 import FCExpFilter from "../features/Forecast/FCExpFilter.jsx";
 import FCExpTable from "../features/Forecast/FCExpTable.jsx";
 import FCExpTableDetails from "../features/Forecast/FCExpTableDetails.jsx";
+import { useToast } from "../contexts";
 import Rest from "../js/rest.js";
 import "../features/Forecast/FCModulesFilter.css";
 import "./PageLayout.css";
@@ -27,6 +28,7 @@ import "./FCExpSetup.css";
  * @returns {JSX.Element} The forecast expense setup page
  */
 export default function FCExpSetup() {
+  const { showSuccess, showError: showErrorToast } = useToast();
   // ========== Core Data State ==========
   /** @type {[Object|null, Function]} Forecast assumptions including scenarios and period ranges */
   const [assumptions, setAssumptions] = useState(null);
@@ -543,8 +545,10 @@ export default function FCExpSetup() {
         (existingIds.has(prevSelectedId) ? prevSelectedId : "") ||
         (nextEntries[0] ? getEntryId(nextEntries[0]) : "");
       setSelectedEntryId(nextSelectedId);
+      showSuccess("Forecast entry added");
     } catch (err) {
       setEntriesError(err.message || "Failed to add income/expense entry");
+      showErrorToast(err.message || "Failed to add forecast entry");
     } finally {
       setEntriesLoading(false);
     }
@@ -594,8 +598,10 @@ export default function FCExpSetup() {
       );
       setIncomeExpenseEntries(payload?.entries || []);
       setShowDeleteModal(false);
+      showSuccess("Forecast entry deleted");
     } catch (err) {
       setDeleteError(err.message || "Failed to delete entry");
+      showErrorToast(err.message || "Failed to delete forecast entry");
     } finally {
       setDeleteSaving(false);
     }
@@ -753,8 +759,10 @@ export default function FCExpSetup() {
       );
       setIncomeExpenseEntries(refreshed?.entries || []);
       setShowEditModal(false);
+      showSuccess("Forecast entry updated");
     } catch (err) {
       setEditError(err.message || "Failed to update entry");
+      showErrorToast(err.message || "Failed to update forecast entry");
     } finally {
       setEditSaving(false);
     }

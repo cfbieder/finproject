@@ -1,11 +1,13 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import handleUpload from "../js/handleUpload.js";
 import Rest from "../js/rest.js";
+import { useToast } from "../contexts";
 import UploadFeedback from "../features/Database/UploadFeedback.jsx";
 import UploadForm from "../features/Database/UploadForm.jsx";
 import "./PageLayout.css";
 
 export default function UploadPS() {
+  const { showSuccess, showError: showErrorToast } = useToast();
   const fileInputRef = useRef(null);
   const [isUploading, setIsUploading] = useState(false);
   const [isClearing, setIsClearing] = useState(false);
@@ -133,6 +135,7 @@ export default function UploadPS() {
         type: "success",
         message: `PS ingest complete: ${inserted} inserted, ${updated} updated, ${skipped} skipped.`,
       });
+      showSuccess(`PS ingest complete: ${inserted} inserted, ${updated} updated`);
       fetchAppStatus();
       if (fileInputRef.current) {
         fileInputRef.current.value = "";
@@ -143,6 +146,7 @@ export default function UploadPS() {
         type: "error",
         message: error?.message ?? "Failed to ingest PS data after upload.",
       });
+      showErrorToast(error?.message ?? "Failed to ingest PS data");
     }
   };
   // Handle clearing all PS records
@@ -173,12 +177,14 @@ export default function UploadPS() {
         message:
           "All PS records cleared (clear operation complete).",
       });
+      showSuccess("All PS records cleared");
       fetchAppStatus();
     } catch (error) {
       setClearStatus({
         type: "error",
         message: error?.message ?? "Failed to clear PS records.",
       });
+      showErrorToast(error?.message ?? "Failed to clear PS records");
     } finally {
       setIsClearing(false);
     }

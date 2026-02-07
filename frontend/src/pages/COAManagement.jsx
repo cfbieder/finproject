@@ -3,6 +3,7 @@ import COAManagementFilters from "../features/COAManagement/COAManagementFilters
 import COAEditModal from "../features/COAManagement/COAEditModal.jsx";
 import COAManagementTableSection from "../features/COAManagement/COAManagementTableSection.jsx";
 import FCExpConfirmDeleteModal from "../features/Forecast/FCExpConfirmDeleteModal.jsx";
+import { useToast } from "../contexts";
 import Rest from "../js/rest.js";
 import "../features/BudgetEntry/BudgetOptionExchangeRates.css";
 import "./PageLayout.css";
@@ -50,6 +51,7 @@ const buildCoaRows = (coaData = [], traitsMap = {}) => {
 };
 
 export default function COAManagement() {
+  const { showSuccess, showError: showErrorToast } = useToast();
   const [typeFilter, setTypeFilter] = useState("all");
   const [currencyFilter, setCurrencyFilter] = useState("all");
   const [searchTerm, setSearchTerm] = useState("");
@@ -323,8 +325,10 @@ export default function COAManagement() {
         });
         loadCoaData(false).catch(() => {});
         closeEditModal();
+        showSuccess("Account added successfully");
       } catch (error) {
         setEditError(error?.message || "Failed to add account.");
+        showErrorToast(error?.message || "Failed to add account");
       } finally {
         setEditSaving(false);
       }
@@ -415,8 +419,10 @@ export default function COAManagement() {
       loadCoaData(false).catch(() => {});
       closeEditModal();
       setSelectedRowKeys([]);
+      showSuccess("Account updated successfully");
     } catch (error) {
       setEditError(error?.message || "Failed to save changes.");
+      showErrorToast(error?.message || "Failed to save changes");
     } finally {
       setEditSaving(false);
     }
@@ -448,8 +454,10 @@ export default function COAManagement() {
       setDeleteModalOpen(false);
       loadCoaData(false).catch(() => {});
       setSelectedRowKeys([]);
+      showSuccess("Accounts deleted successfully");
     } catch (error) {
       setDeleteError(error?.message || "Failed to delete selected accounts.");
+      showErrorToast(error?.message || "Failed to delete selected accounts");
     } finally {
       setDeleteSaving(false);
     }

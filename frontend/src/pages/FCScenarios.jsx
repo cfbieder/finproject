@@ -28,10 +28,12 @@ import FCScenariosSelect from "../features/Forecast/FCScenariosSelect.jsx";
 import FCScenariosTable from "../features/Forecast/FCScenariosTable.jsx";
 import FCScenariosModal from "../features/Forecast/FCScenariosModal.jsx";
 import FCExpConfirmDeleteModal from "../features/Forecast/FCExpConfirmDeleteModal.jsx";
+import { useToast } from "../contexts";
 import Rest from "../js/rest.js";
 import "./PageLayout.css";
 
 export default function FCScenarios() {
+  const { showSuccess, showError: showErrorToast } = useToast();
   // ============================================================================
   // STATE MANAGEMENT
   // ============================================================================
@@ -103,8 +105,10 @@ export default function FCScenarios() {
       }
 
       setLoadError("");
+      showSuccess("Defaults reloaded");
     } catch (error) {
       setLoadError(error.message || "Failed to reload defaults");
+      showErrorToast(error.message || "Failed to reload defaults");
     } finally {
       setIsLoading(false);
     }
@@ -547,6 +551,7 @@ export default function FCScenarios() {
     setLocalFX((prev) => prev.filter((item) => item.Scenario !== name));
     setLocalTaxRates((prev) => prev.filter((item) => item.Scenario !== name));
 
+    showSuccess(`Scenario "${name}" deleted`);
     closeModal();
   };
 
@@ -678,10 +683,12 @@ export default function FCScenarios() {
           : prev
       );
       setHasPendingChanges(false);
+      showSuccess("Changes committed successfully");
 
       closeModal();
     } catch (error) {
       setLoadError(error.message || "Failed to commit changes");
+      showErrorToast(error.message || "Failed to commit changes");
       closeModal();
     }
   };
@@ -715,8 +722,10 @@ export default function FCScenarios() {
         method: "DELETE",
       });
       setLoadError("");
+      showSuccess("Audit trail cleared");
     } catch (error) {
       setLoadError(error.message || "Failed to clear audit trail");
+      showErrorToast(error.message || "Failed to clear audit trail");
     } finally {
       setIsLoading(false);
     }
@@ -841,10 +850,12 @@ export default function FCScenarios() {
 
       // Select the newly created scenario
       setSelectedScenario(newScenarioName);
+      showSuccess(`Scenario copied as "${newScenarioName}"`);
 
       closeModal();
     } catch (error) {
       setLoadError(error.message || "Failed to copy scenario");
+      showErrorToast(error.message || "Failed to copy scenario");
     } finally {
       setIsLoading(false);
     }

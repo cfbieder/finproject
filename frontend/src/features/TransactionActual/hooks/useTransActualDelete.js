@@ -1,4 +1,5 @@
 import { useCallback, useState } from "react";
+import { useToast } from "../../../contexts";
 import Rest from "../../../js/rest.js";
 
 /**
@@ -8,6 +9,7 @@ import Rest from "../../../js/rest.js";
  * @returns {Object} Delete modal state and handlers
  */
 export function useTransActualDelete(onSuccess) {
+  const { showSuccess, showError } = useToast();
   const [showDeleteConfirmation, setShowDeleteConfirmation] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
   const [deleteError, setDeleteError] = useState("");
@@ -55,10 +57,12 @@ export function useTransActualDelete(onSuccess) {
           )
         );
         setShowDeleteConfirmation(false);
+        showSuccess("Transactions deleted successfully");
         await onSuccess();
       } catch (err) {
         console.error("[useTransActualDelete] Failed to delete entries:", err);
         setDeleteError(err?.message ?? "Failed to delete selected entries");
+        showError(err?.message ?? "Failed to delete selected entries");
       } finally {
         setIsDeleting(false);
       }

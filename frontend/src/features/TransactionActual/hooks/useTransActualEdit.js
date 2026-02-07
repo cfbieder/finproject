@@ -1,4 +1,5 @@
 import { useCallback, useState } from "react";
+import { useToast } from "../../../contexts";
 import Rest from "../../../js/rest.js";
 import {
   createEditFieldMap,
@@ -20,6 +21,7 @@ import {
  * @returns {Object} Edit modal state and handlers
  */
 export function useTransActualEdit(editFields, actualRates, onSuccess) {
+  const { showSuccess, showError: showErrorToast } = useToast();
   const [showEditModal, setShowEditModal] = useState(false);
   const [editFormValues, setEditFormValues] = useState(() =>
     createEditFieldMap(editFields, "")
@@ -161,10 +163,12 @@ export function useTransActualEdit(editFields, actualRates, onSuccess) {
           })
         );
         setShowEditModal(false);
+        showSuccess("Transactions updated successfully");
         await onSuccess();
       } catch (err) {
         console.error("[useTransActualEdit] Failed to update entries:", err);
         setEditError(err?.message ?? "Failed to update selected entries");
+        showErrorToast(err?.message ?? "Failed to update selected entries");
       } finally {
         setIsEditing(false);
       }

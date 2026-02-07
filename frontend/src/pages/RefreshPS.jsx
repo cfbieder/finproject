@@ -6,10 +6,12 @@
 
 import { useCallback, useEffect, useState } from "react";
 import UploadFeedback from "../features/Database/UploadFeedback.jsx";
+import { useToast } from "../contexts";
 import Rest from "../js/rest.js";
 import "./PageLayout.css";
 
 export default function RefreshPS() {
+  const { showSuccess, showError: showErrorToast } = useToast();
   const [lastIngestStatus, setLastIngestStatus] = useState(null);
   const [lastRefreshStatus, setLastRefreshStatus] = useState(null);
   const [psDataCountStatus, setPsDataCountStatus] = useState(null);
@@ -187,12 +189,14 @@ export default function RefreshPS() {
           lastRefreshUpdated ? "" : " Last refresh timestamp not saved."
         }`,
       });
+      showSuccess(`PS refresh complete: ${inserted} inserted, ${updated} updated`);
       await fetchLastIngest();
     } catch (error) {
       setRefreshStatus({
         type: "error",
         message: error?.message ?? "Failed to refresh PS data.",
       });
+      showErrorToast(error?.message ?? "Failed to refresh PS data");
     } finally {
       setIsRefreshing(false);
     }

@@ -1,4 +1,5 @@
 import { useState, useCallback } from "react";
+import { useToast } from "../../../contexts";
 import Rest from "../../../js/rest.js";
 
 /**
@@ -10,6 +11,7 @@ import Rest from "../../../js/rest.js";
  * @returns {Object} Delete state and methods
  */
 export function useTransBudgetDelete(selectedRows, onSuccess) {
+  const { showSuccess, showError } = useToast();
   const [showDeleteConfirmation, setShowDeleteConfirmation] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
   const [deleteError, setDeleteError] = useState("");
@@ -69,12 +71,14 @@ export function useTransBudgetDelete(selectedRows, onSuccess) {
         )
       );
       setShowDeleteConfirmation(false);
+      showSuccess("Budget entries deleted successfully");
       if (onSuccess) {
         await onSuccess();
       }
     } catch (err) {
       console.error("[useTransBudgetDelete] Failed to delete entries:", err);
       setDeleteError(err?.message ?? "Failed to delete selected entries");
+      showError(err?.message ?? "Failed to delete selected entries");
     } finally {
       setIsDeleting(false);
     }

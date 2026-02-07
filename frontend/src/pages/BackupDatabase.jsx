@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { useToast } from "../contexts";
 import "./PageLayout.css";
 import "./BackupDatabase.css";
 
@@ -8,6 +9,7 @@ import "./BackupDatabase.css";
  * Provides functionality to backup the PostgreSQL database and download the backup file.
  */
 export default function BackupDatabase() {
+  const { showSuccess, showError: showErrorToast } = useToast();
   const [isBackingUp, setIsBackingUp] = useState(false);
   const [backupStatus, setBackupStatus] = useState(null);
   const [error, setError] = useState(null);
@@ -58,9 +60,11 @@ export default function BackupDatabase() {
         size: `${sizeInMB} MB`,
         timestamp: new Date().toLocaleString(),
       });
+      showSuccess("Backup created and downloaded successfully");
     } catch (err) {
       console.error("Backup failed:", err);
       setError(err.message || "Failed to create backup");
+      showErrorToast(err.message || "Failed to create backup");
     } finally {
       setIsBackingUp(false);
     }

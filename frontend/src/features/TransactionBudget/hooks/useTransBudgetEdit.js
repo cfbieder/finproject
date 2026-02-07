@@ -1,4 +1,5 @@
 import { useState, useCallback, useEffect } from "react";
+import { useToast } from "../../../contexts";
 import Rest from "../../../js/rest.js";
 import {
   EDIT_FIELDS,
@@ -22,6 +23,7 @@ import {
  * @returns {Object} Edit state and methods
  */
 export function useTransBudgetEdit(selectedRows, budgetRates, onSuccess) {
+  const { showSuccess, showError: showErrorToast } = useToast();
   const [showEditModal, setShowEditModal] = useState(false);
   const [editFormValues, setEditFormValues] = useState(() =>
     createEditFieldMap("")
@@ -196,12 +198,14 @@ export function useTransBudgetEdit(selectedRows, budgetRates, onSuccess) {
           })
         );
         setShowEditModal(false);
+        showSuccess("Budget entries updated successfully");
         if (onSuccess) {
           await onSuccess();
         }
       } catch (err) {
         console.error("[useTransBudgetEdit] Failed to update entries:", err);
         setEditError(err?.message ?? "Failed to update selected entries");
+        showErrorToast(err?.message ?? "Failed to update selected entries");
       } finally {
         setIsEditing(false);
       }
