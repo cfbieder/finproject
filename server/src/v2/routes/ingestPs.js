@@ -98,26 +98,197 @@ const orderCategoriesByCoa = (psCategories, coaCategories) => {
 };
 
 // ============================================================================
+// Sync Helper Function
+// ============================================================================
+
+/**
+ * Sync staging data to transactions table
+ * Maps account_name/category_name to account_id/category_id
+ */
+async function syncStagingToTransactions() {
+  const db = require('../db');
+
+  // Get account name to ID mapping
+  const accountsResult = await db.query('SELECT id, name FROM accounts');
+  const accountMap = new Map();
+  for (const row of accountsResult.rows) {
+    accountMap.set(row.name?.toLowerCase(), row.id);
+  }
+
+  // Get category name to ID mapping
+  const categoriesResult = await db.query('SELECT id, name FROM categories');
+  const categoryMap = new Map();
+  for (const row of categoriesResult.rows) {
+    categoryMap.set(row.name?.toLowerCase(), row.id);
+  }
+
+  // Get all staging records
+  const stagingResult = await db.query('SELECT * FROM psdata_staging');
+  const stagingRecords = stagingResult.rows;
+
+  let inserted = 0;
+  let updated = 0;
+  let skipped = 0;
+  const unmappedAccounts = new Set();
+  const unmappedCategories = new Set();
+
+  for (const record of stagingRecords) {
+    const accountId = record.account_name
+      ? accountMap.get(record.account_name.toLowerCase())
+      : null;
+    const categoryId = record.category_name
+      ? categoryMap.get(record.category_name.toLowerCase())
+      : null;
+
+    // Track unmapped values
+    if (record.account_name && !accountId) {
+      unmappedAccounts.add(record.account_name);
+    }
+    if (record.category_name && !categoryId) {
+      unmappedCategories.add(record.category_name);
+    }
+
+    // Skip if missing required fields
+    if (!accountId || !record.amount || !record.transaction_date || !record.currency) {
+      skipped++;
+      continue;
+    }
+
+    // Convert labels string to array (or null if empty)
+    const labelsArray = record.labels
+      ? record.labels.split(',').map(s => s.trim()).filter(Boolean)
+      : null;
+
+    // Convert ps_id to number for bigint column
+    const psIdNum = record.ps_id ? parseInt(record.ps_id, 10) : null;
+
+    // Check if transaction exists by ps_id
+    const existingResult = await db.query(
+      'SELECT id FROM transactions WHERE ps_id = $1',
+      [psIdNum]
+    );
+
+    if (existingResult.rows.length > 0) {
+      // Update existing
+      await db.query(`
+        UPDATE transactions SET
+          transaction_date = $1,
+          description1 = $2,
+          description2 = $3,
+          amount = $4,
+          currency = $5,
+          base_amount = $6,
+          base_currency = $7,
+          transaction_type = $8,
+          account_id = $9,
+          category_id = $10,
+          closing_balance = $11,
+          labels = $12,
+          memo = $13,
+          note = $14,
+          bank = $15,
+          source = 'pocketsmith',
+          updated_at = NOW()
+        WHERE ps_id = $16
+      `, [
+        record.transaction_date,
+        record.description1,
+        record.description2,
+        record.amount,
+        record.currency,
+        record.base_amount,
+        record.base_currency,
+        record.transaction_type,
+        accountId,
+        categoryId,
+        record.closing_balance,
+        labelsArray,
+        record.memo,
+        record.note,
+        record.bank,
+        psIdNum
+      ]);
+      updated++;
+    } else {
+      // Insert new
+      await db.query(`
+        INSERT INTO transactions (
+          ps_id, transaction_date, description1, description2,
+          amount, currency, base_amount, base_currency,
+          transaction_type, account_id, category_id,
+          closing_balance, labels, memo, note, bank, source
+        ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, 'pocketsmith')
+      `, [
+        psIdNum,
+        record.transaction_date,
+        record.description1,
+        record.description2,
+        record.amount,
+        record.currency,
+        record.base_amount,
+        record.base_currency,
+        record.transaction_type,
+        accountId,
+        categoryId,
+        record.closing_balance,
+        labelsArray,
+        record.memo,
+        record.note,
+        record.bank
+      ]);
+      inserted++;
+    }
+  }
+
+  console.log(`[v2/ingest-ps] Sync complete: ${inserted} inserted, ${updated} updated, ${skipped} skipped`);
+
+  return {
+    inserted,
+    updated,
+    skipped,
+    total: stagingRecords.length,
+    unmappedAccounts: Array.from(unmappedAccounts),
+    unmappedCategories: Array.from(unmappedCategories)
+  };
+}
+
+// ============================================================================
 // Routes
 // ============================================================================
 
 /**
  * POST /api/v2/ingest-ps
  * Ingest PS transactions from CSV into PostgreSQL
+ * Automatically syncs to transactions table after ingestion
  */
 router.post('/', async (req, res, next) => {
   try {
     const PsCsvIngestorV2 = require('../services/psCsvIngestorV2');
     const ingestor = new PsCsvIngestorV2();
-    const result = await ingestor.ingestPsTransactionsFromCsv();
+    const ingestResult = await ingestor.ingestPsTransactionsFromCsv();
 
     // Update lastIngest timestamp
     await psdata.setAppData('lastIngest', new Date().toISOString());
 
+    console.log('[v2/ingest-ps] Auto-syncing to transactions table...');
+
+    // Auto-sync to transactions table
+    const syncResult = await syncStagingToTransactions();
+
     res.json({
-      insertedCount: result.insertedCount || 0,
-      skippedCount: result.skippedCount || 0,
-      updatedCount: result.updatedCount || 0,
+      ingest: {
+        insertedCount: ingestResult.insertedCount || 0,
+        skippedCount: ingestResult.skippedCount || 0,
+        updatedCount: ingestResult.updatedCount || 0,
+      },
+      sync: {
+        inserted: syncResult.inserted,
+        updated: syncResult.updated,
+        skipped: syncResult.skipped,
+        total: syncResult.total,
+        unmappedAccounts: syncResult.unmappedAccounts,
+        unmappedCategories: syncResult.unmappedCategories,
+      }
     });
   } catch (error) {
     console.error('[v2/ingest-ps] Failed to ingest PS transactions:', error);
@@ -171,14 +342,19 @@ const analyzePsHandler = async (req, res, next) => {
 
     // Create a proxy object that mimics the MongoDB model interface
     const PSdataProxy = {
-      distinct: async (field) => {
-        if (field === 'Account') {
-          return psdata.distinctAccounts();
-        }
-        if (field === 'Category') {
-          return psdata.distinctCategories();
-        }
-        return [];
+      distinct: (field) => {
+        // Return an object with an exec() method to match MongoDB API
+        return {
+          exec: async () => {
+            if (field === 'Account') {
+              return psdata.distinctAccounts();
+            }
+            if (field === 'Category') {
+              return psdata.distinctCategories();
+            }
+            return [];
+          }
+        };
       }
     };
 
@@ -309,6 +485,21 @@ router.post('/refresh-ps', async (req, res, next) => {
     res.json(logTransactionFileCounts());
   } catch (error) {
     console.error('[v2/ingest-ps] Failed to refresh PS data:', error);
+    next(error);
+  }
+});
+
+/**
+ * POST /api/v2/ingest-ps/sync-to-transactions
+ * Sync PS staging data to main transactions table
+ * Maps account_name/category_name to account_id/category_id
+ */
+router.post('/sync-to-transactions', async (req, res, next) => {
+  try {
+    const result = await syncStagingToTransactions();
+    res.json(result);
+  } catch (error) {
+    console.error('[v2/ingest-ps] Failed to sync to transactions:', error);
     next(error);
   }
 });

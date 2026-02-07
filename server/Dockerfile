@@ -1,13 +1,5 @@
 FROM node:20
 
-# Install MongoDB Database Tools
-RUN apt-get update && apt-get install -y wget gnupg && \
-    wget -qO - https://www.mongodb.org/static/pgp/server-7.0.asc | gpg --dearmor -o /usr/share/keyrings/mongodb-archive-keyring.gpg && \
-    echo "deb [signed-by=/usr/share/keyrings/mongodb-archive-keyring.gpg] https://repo.mongodb.org/apt/debian bullseye/mongodb-org/7.0 main" | tee /etc/apt/sources.list.d/mongodb-org-7.0.list && \
-    apt-get update && \
-    apt-get install -y mongodb-database-tools && \
-    apt-get clean && rm -rf /var/lib/apt/lists/*
-
 # Set working directory
 WORKDIR /app
 
@@ -26,7 +18,6 @@ COPY server ./server
 # Set environment variables
 ENV NODE_ENV=production \
     PORT=3005 \
-    MONGO_URI=mongodb://mongo:27018/fin \
     ACCOUNT_NAMES_PATH=../../components/data/account_names.json \
     CATEGORY_NAMES_PATH=../../components/data/category_names.json \
     COA_PATH=../../components/data/coa.json

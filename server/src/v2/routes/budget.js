@@ -668,20 +668,174 @@ router.get('/actual-entries', async (req, res, next) => {
 });
 
 /**
- * GET /api/v2/budget/cash-flow (v1 compatibility)
- * Returns budget cash flow report - wraps v1 service
+ * GET /api/v2/budget/cash-flow
+ * Returns budget cash flow report in hierarchical COA structure
  */
 router.get('/cash-flow', async (req, res, next) => {
   try {
-    // Use existing v1 budget cash-flow service
-    const { buildBudgetCashFlowReport } = require('../../services/budget');
-    const report = await buildBudgetCashFlowReport(req.query);
-    res.json(report);
+    const { fromDate, toDate, transfers = 'exclude', includeUnrealizedGL = false } = req.query;
+
+    if (!fromDate || !toDate) {
+      return res.status(400).json({
+        error: "Missing required query parameters 'fromDate' and 'toDate'",
+      });
+    }
+
+    const db = require('../db');
+    const fs = require('node:fs');
+    const { dataPaths } = require('../../utils/dataPaths');
+
+    // Load COA structure from JSON file
+    const coaPath = dataPaths.coa;
+    const coaData = JSON.parse(fs.readFileSync(coaPath, 'utf8'));
+
+    const profitLossEntry = Array.isArray(coaData) && coaData.find(
+      item => item && typeof item === 'object' &&
+      Object.prototype.hasOwnProperty.call(item, 'Profit & Loss Accounts')
+    );
+
+    if (!profitLossEntry) {
+      return res.json({ 'Profit & Loss Accounts': [] });
+    }
+
+    const structure = profitLossEntry['Profit & Loss Accounts'];
+
+    // Extract transfer categories from structure
+    const transferCategories = extractTransferCategories(structure);
+    const transferCategorySet = transferCategories.length
+      ? new Set(transferCategories.map(c => c.toLowerCase()))
+      : new Set();
+
+    // Fetch budget totals from PostgreSQL
+    const budgetSql = `
+      SELECT
+        c.name as category_name,
+        SUM(e.base_amount) as total_amount
+      FROM budget_entries e
+      JOIN categories c ON e.category_id = c.id
+      WHERE e.entry_date >= $1
+        AND e.entry_date <= $2
+      GROUP BY c.name
+    `;
+
+    const result = await db.query(budgetSql, [fromDate, toDate]);
+    const budgetTotals = {};
+
+    for (const row of result.rows) {
+      const categoryName = row.category_name;
+      const isTransfer = transferCategorySet.has(categoryName.toLowerCase());
+
+      // Apply transfer filtering
+      if (transfers === 'exclude' && isTransfer) continue;
+      if (transfers === 'only' && !isTransfer) continue;
+
+      budgetTotals[categoryName] = parseFloat(row.total_amount) || 0;
+    }
+
+    // Build hierarchical tree structure
+    const nodes = [];
+    for (const item of structure) {
+      if (!item || typeof item !== 'object') continue;
+
+      for (const [name, value] of Object.entries(item)) {
+        const node = buildBudgetCashFlowNode(name, value, budgetTotals, transfers, transferCategorySet);
+        if (node) {
+          nodes.push(node);
+        }
+      }
+    }
+
+    res.json({ 'Profit & Loss Accounts': nodes });
   } catch (error) {
-    // If v1 service not available, return empty
     console.error('[v2/budget/cash-flow] Failed:', error);
-    res.json({ 'Profit & Loss Accounts': [] });
+    next(error);
   }
 });
+
+/**
+ * Extract transfer category names from COA structure
+ */
+function extractTransferCategories(structure) {
+  const categories = [];
+
+  const findTransfers = (items) => {
+    if (!Array.isArray(items)) return;
+
+    for (const item of items) {
+      if (typeof item === 'string' && item.toLowerCase().includes('transfer')) {
+        categories.push(item);
+      } else if (item && typeof item === 'object') {
+        for (const [name, value] of Object.entries(item)) {
+          if (name.toLowerCase().includes('transfer')) {
+            if (typeof value === 'string') {
+              categories.push(value);
+            } else if (Array.isArray(value)) {
+              value.forEach(v => {
+                if (typeof v === 'string') categories.push(v);
+              });
+            }
+          }
+          if (Array.isArray(value)) {
+            findTransfers(value);
+          }
+        }
+      }
+    }
+  };
+
+  findTransfers(structure);
+  return categories;
+}
+
+/**
+ * Build a budget cash flow node recursively
+ */
+function buildBudgetCashFlowNode(name, value, budgetTotals, transfers, transferCategorySet) {
+  if (!name) return null;
+
+  if (!Array.isArray(value)) {
+    const categoryName = typeof value === 'string' && value.trim().length > 0
+      ? value.trim()
+      : name;
+
+    const isTransfer = transferCategorySet.has(categoryName.toLowerCase());
+    if (transfers === 'exclude' && isTransfer) return null;
+    if (transfers === 'only' && !isTransfer) return null;
+
+    const total = budgetTotals[categoryName] || 0;
+    return { name, total };
+  }
+
+  const children = [];
+  let total = 0;
+
+  for (const entry of value) {
+    if (typeof entry === 'string') {
+      const categoryName = entry.trim();
+      if (!categoryName) continue;
+
+      const isTransfer = transferCategorySet.has(categoryName.toLowerCase());
+      if (transfers === 'exclude' && isTransfer) continue;
+      if (transfers === 'only' && !isTransfer) continue;
+
+      const categoryTotal = budgetTotals[categoryName] || 0;
+      children.push({ name: categoryName, total: categoryTotal });
+      total += categoryTotal;
+      continue;
+    }
+
+    if (entry && typeof entry === 'object') {
+      for (const [childName, childValue] of Object.entries(entry)) {
+        const childNode = buildBudgetCashFlowNode(childName, childValue, budgetTotals, transfers, transferCategorySet);
+        if (childNode) {
+          children.push(childNode);
+          total += childNode.total || 0;
+        }
+      }
+    }
+  }
+
+  return { name, total, children };
+}
 
 module.exports = router;

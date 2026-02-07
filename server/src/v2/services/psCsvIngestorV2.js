@@ -8,7 +8,7 @@
 const fs = require('node:fs');
 const readline = require('node:readline');
 const psdata = require('../repositories/psdata');
-const { toNumber, toDate } = require('../../../components/helpers/utils');
+const { toNumber, toDate } = require('../../../../components/helpers/utils');
 const {
   dataPaths,
   resolveDataPath,
