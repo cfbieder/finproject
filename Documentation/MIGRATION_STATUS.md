@@ -1,53 +1,65 @@
 # Fin Project - Full Status Report
 
 **Date:** 2026-02-07
-**Machine:** Linux 6.8.0-90-generic (Ubuntu)
-**Location:** `/home/cfbieder/Programs/fin`
+**Production VM:** `192.168.1.82` (Ubuntu 24.04 LTS, KVM guest)
+**Project Path:** `/home/cfbieder/Programs/fin`
 
 ---
 
-## 1. Git Status
+## 1. Infrastructure
+
+### VM Host
+
+| Field | Value |
+|-------|-------|
+| KVM Host | `192.168.1.61` (user: `cfbieder`, SSH key auth) |
+| Hypervisor | KVM/libvirt (`qemu:///system`) |
+| Storage Pool | `vm-ssd` (`/mnt/vm-ssd`) |
+| VM Disk | `fin.qcow2` (40 GB, qcow2 overlay on Ubuntu 24.04 cloud image) |
+| Cockpit | `https://192.168.1.61:9090` |
+
+### VM (fin)
+
+| Field | Value |
+|-------|-------|
+| IP | `192.168.1.82` (static, bridged via `br0`) |
+| Gateway / DNS | `192.168.1.1` |
+| OS | Ubuntu 24.04 LTS (Noble) |
+| vCPUs | 2 |
+| RAM | 4 GB |
+| User | `cfbieder` (sudo, SSH key auth from KVM host) |
+| Autostart | Enabled (`virsh autostart fin`) |
+
+### SSH Access
+
+```bash
+# From any machine with the SSH key:
+ssh cfbieder@192.168.1.82
+
+# To the KVM host:
+ssh cfbieder@192.168.1.61
+
+# VM management (from KVM host):
+virsh --connect qemu:///system list --all
+virsh --connect qemu:///system start fin
+virsh --connect qemu:///system shutdown fin
+virsh --connect qemu:///system console fin
+```
+
+---
+
+## 2. Git Status
 
 | Field | Value |
 |-------|-------|
 | Remote | `https://github.com/cfbieder/psproject.git` |
 | Branch | `main` (only branch) |
-| Remote sync | **1 commit ahead of origin/main** (unpushed) |
-| Stashes | None |
+| Remote sync | Up to date with `origin/main` |
 
-### Unpushed commit (on local, not on GitHub)
-
-```
-82f49b8 upgrade ui
-```
-
-Files in that commit:
-- `Documentation/PROJECT_STRUCTURE.md` (new)
-- `frontend/src/components/DataTable.css` (new)
-- `frontend/src/components/Layout.jsx`
-- `frontend/src/features/CashFlow/CashFlowReport.css`
-- `frontend/src/features/Forecast/FCModulesTable.css`
-- `frontend/src/features/TransactionActual/TransactionActualTable.jsx`
-- `frontend/src/features/TransactionBudget/TransactionBudgetTable.jsx`
-- `frontend/src/pages/COAManagement.css`
-- `frontend/src/pages/PageLayout.css`
-- `frontend/src/pages/RefreshPS.css`
-
-### Uncommitted changes (modified, not staged)
-
-| File | Changes |
-|------|---------|
-| `frontend/index.html` | Moved Google Fonts from CSS @import to HTML link tags with preconnect |
-| `frontend/src/index.css` | Removed @import for Google Fonts (moved to index.html) |
-| `frontend/src/pages/PageLayout.css` | Removed all `composes:` CSS Modules syntax (11 usages inlined), fixed stray `font-weight: 600` outside rule block, budget realization table decluttering |
-
-**Action needed:** Commit and push these changes, or they will be lost.
-
----
-
-## 2. Recent Commit History
+### Recent Commit History
 
 ```
+d6e325e fix: remove composes CSS syntax, fix stray CSS, move fonts to HTML link tags, add migration docs
 82f49b8 upgrade ui
 4e265e2 UI polish: replace emoji with Lucide icons, extract inline styles
 560d6c5 Remove tracked mongo_backups from repository
@@ -56,9 +68,6 @@ Files in that commit:
 43bef3f Remove remaining MongoDB dependencies and dead code
 528ade6 migration part 3
 5be8026 migration continued
-294ca5a migration continued
-824d6ff ve update
-67779cb new migration plan developed
 ```
 
 ---
@@ -77,10 +86,12 @@ Files in that commit:
 
 | URL | Description |
 |-----|-------------|
-| `https://localhost:5175` | Frontend (HTTPS, self-signed cert) |
-| `http://localhost:3006` | Frontend (HTTP, redirects to HTTPS) |
-| `http://localhost:3005` | API server direct |
-| `localhost:5433` | PostgreSQL direct (user: `fin`, password: `findev123`, db: `fin`) |
+| `https://192.168.1.82:5175` | Frontend (HTTPS, mkcert cert) |
+| `http://192.168.1.82:3006` | Frontend (HTTP) |
+| `http://192.168.1.82:3005` | API server direct |
+| `192.168.1.82:5433` | PostgreSQL direct (user: `fin`, password: `findev123`, db: `fin`) |
+
+From the VM itself, `localhost` works in place of `192.168.1.82`.
 
 ### Tech Stack
 
@@ -92,6 +103,13 @@ Files in that commit:
 | Backend | Node.js 20 + Express |
 | Database | PostgreSQL 16 |
 | Proxy | Nginx (SSL termination + SPA routing + API rewrite) |
+
+### Docker Versions (on VM)
+
+| Tool | Version |
+|------|---------|
+| Docker | 29.2.1 |
+| Docker Compose | v5.0.2 |
 
 ---
 
@@ -134,25 +152,41 @@ Files in that commit:
 - Name: `fin_postgres_data`
 - Mountpoint: `/var/lib/docker/volumes/fin_postgres_data/_data`
 
+### Database Backup / Restore
+
+```bash
+# SSH to VM
+ssh cfbieder@192.168.1.82
+
+# Export
+docker exec fin-postgres pg_dump -U fin -d fin -Fc > fin_backup.dump
+
+# Restore (on same or new machine)
+docker exec -i fin-postgres pg_restore -U fin -d fin --clean --if-exists < fin_backup.dump
+```
+
 ---
 
-## 5. Files NOT in Git (must be manually transferred)
+## 5. Files NOT in Git
 
-### SSL Certificates
+### SSL Certificates (on VM)
 
 ```
-certs/localhost.pem
-certs/localhost-key.pem
+~/Programs/fin/certs/localhost.pem      (covers localhost + 192.168.1.82)
+~/Programs/fin/certs/localhost-key.pem
 ```
 
-Required for HTTPS. Generate on new machine with:
+Generated with mkcert. To regenerate:
 ```bash
-# Install mkcert if not available
-mkcert -install
-mkdir -p certs
-cd certs
-mkcert localhost
+cd ~/Programs/fin/certs
+mkcert localhost 192.168.1.82
+mv localhost+1.pem localhost.pem
+mv localhost+1-key.pem localhost-key.pem
 ```
+
+### Local-only nginx change (on VM, not committed)
+
+`frontend/nginx.conf` has `server_name localhost 192.168.1.82 _` instead of `192.168.1.252`. This is intentional — the VM IP differs from the old dev machine.
 
 ### Shared Data Files
 
@@ -168,33 +202,7 @@ components/data/FCAssump copy.json
 components/data/coa copy.json
 ```
 
-These are mounted into the server container and referenced by environment variables. They ARE in the git repo (not gitignored), so they will transfer with `git clone`.
-
-### Database Data
-
-The PostgreSQL data lives in a Docker volume (`fin_postgres_data`), NOT in the git repo. To transfer:
-
-**Option A: pg_dump/restore (recommended)**
-```bash
-# On OLD machine - export
-docker exec fin-postgres pg_dump -U fin -d fin -Fc > fin_backup.dump
-
-# Transfer fin_backup.dump to new machine
-
-# On NEW machine - first start postgres, then restore
-docker compose up -d fin-postgres
-docker exec -i fin-postgres pg_restore -U fin -d fin --clean --if-exists < fin_backup.dump
-```
-
-**Option B: Volume copy**
-```bash
-# On OLD machine
-docker run --rm -v fin_postgres_data:/data -v $(pwd):/backup alpine tar czf /backup/pgdata.tar.gz -C /data .
-
-# On NEW machine
-docker volume create fin_postgres_data
-docker run --rm -v fin_postgres_data:/data -v $(pwd):/backup alpine tar xzf /backup/pgdata.tar.gz -C /data
-```
+These ARE in the git repo (not gitignored) and transfer with `git clone`.
 
 ---
 
@@ -213,55 +221,47 @@ No `.env` file exists. All config uses defaults from `docker-compose.yml`:
 
 ---
 
-## 7. Setup on New Machine
+## 7. Common Operations
 
-### Prerequisites
-
-| Tool | Tested Version |
-|------|----------------|
-| Node.js | v25.2.0 |
-| npm | 11.6.2 |
-| Docker | 29.1.3 |
-| Docker Compose | v2.40.3 |
-| Git | any recent |
-| mkcert | for SSL certs |
-
-### Steps
+### Restart the stack
 
 ```bash
-# 1. Clone repository
-git clone https://github.com/cfbieder/psproject.git fin
-cd fin
-
-# 2. Generate SSL certificates
-mkdir -p certs
-cd certs
-mkcert localhost
-cd ..
-
-# 3. Export database from old machine (run on OLD machine)
-docker exec fin-postgres pg_dump -U fin -d fin -Fc > fin_backup.dump
-# Transfer fin_backup.dump to new machine's fin/ directory
-
-# 4. Start services
-docker compose up -d
-
-# 5. Wait for postgres to be healthy, then restore data
-docker compose exec fin-postgres pg_isready -U fin
-docker exec -i fin-postgres pg_restore -U fin -d fin --clean --if-exists < fin_backup.dump
-
-# 6. Verify
-curl -k https://localhost:5175          # Frontend loads
-curl http://localhost:3005/api/v2/health # API responds (if health endpoint exists)
+ssh cfbieder@192.168.1.82
+cd ~/Programs/fin
+docker compose restart
 ```
 
-### If building frontend locally (dev mode)
+### Rebuild after code changes
 
 ```bash
-cd frontend
-npm install
-npx vite            # Dev server at http://localhost:5173
-npx vite build      # Production build to dist/
+ssh cfbieder@192.168.1.82
+cd ~/Programs/fin
+git pull
+docker compose up -d --build
+```
+
+### View logs
+
+```bash
+docker compose logs -f              # all services
+docker compose logs -f server       # server only
+docker compose logs -f fin-postgres # database only
+```
+
+### Check container health
+
+```bash
+docker compose ps
+```
+
+### VM management (from KVM host)
+
+```bash
+ssh cfbieder@192.168.1.61
+virsh --connect qemu:///system list --all       # list VMs
+virsh --connect qemu:///system shutdown fin      # graceful shutdown
+virsh --connect qemu:///system start fin         # start VM
+virsh --connect qemu:///system reboot fin        # reboot VM
 ```
 
 ---
@@ -326,14 +326,32 @@ All API routes are under `/api/v2/`. Nginx rewrites legacy `/api/*` paths to `/a
 
 ## 10. Known Issues / Notes
 
-1. **Legacy Docker images still present:** `fin-frontend-legacy` (65MB) and `fin-mongodb` (845MB) can be pruned on new machine - they're from the MongoDB era.
+1. **`/api/v2/accounts/categories`** returns 500 — pre-existing issue, not migration-related.
 
-2. **`components/data/` copy files:** `FCAssump copy.json` and `coa copy.json` appear to be backups - can likely be removed.
+2. **`/api/v2/exchange-rates`** returns 404 — pre-existing issue, route may not be implemented.
 
-3. **`/var/run/docker.sock` mount:** The server container has access to the Docker socket (used for backup/restore operations).
+3. **`components/data/` copy files:** `FCAssump copy.json` and `coa copy.json` appear to be backups — can likely be removed.
 
-4. **Build is warning-free** after fixing the stray CSS and removing `composes` syntax.
+4. **`/var/run/docker.sock` mount:** The server container has access to the Docker socket (used for backup/restore operations).
 
-5. **No test suite** exists currently.
+5. **Build is warning-free** after fixing the stray CSS and removing `composes` syntax.
 
-6. **MongoDB fully removed** - all references cleaned up in commit `43bef3f`.
+6. **No test suite** exists currently.
+
+7. **MongoDB fully removed** — all references cleaned up in commit `43bef3f`.
+
+8. **Cloud-init ISO** still attached to the VM as a CD-ROM. Harmless but can be ejected:
+   ```bash
+   # On KVM host
+   virsh --connect qemu:///system change-media fin sda --eject
+   ```
+
+---
+
+## 11. Migration History
+
+| Date | Event |
+|------|-------|
+| 2026-02-07 | Migrated from dev machine to KVM VM at 192.168.1.82 |
+| Earlier | Migrated from MongoDB to PostgreSQL 16 |
+| Earlier | UI overhaul: Lucide icons, shared layout, category landing pages |
