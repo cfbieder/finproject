@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { Check } from "lucide-react";
 import { useToast } from "../contexts";
 import "./PageLayout.css";
 import "./BackupDatabase.css";
@@ -101,7 +102,7 @@ export default function BackupDatabase() {
                 {backupStatus && (
                   <div className="backup-database-alert backup-database-alert--success">
                     <div className="backup-database-success-content">
-                      <strong>✓ {backupStatus.message}</strong>
+                      <strong><Check size={16} strokeWidth={2.5} style={{ verticalAlign: "middle", marginRight: 4 }} /> {backupStatus.message}</strong>
                       <div className="backup-database-details">
                         <div className="backup-database-detail-item">
                           <span className="backup-database-detail-label">Backup Name:</span>

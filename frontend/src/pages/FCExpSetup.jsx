@@ -388,7 +388,7 @@ export default function FCExpSetup() {
       maximumFractionDigits: 0,
     });
     if (value < 0) {
-      return <span style={{ color: "red" }}>{`(${formatted})`}</span>;
+      return <span className="text--negative">{`(${formatted})`}</span>;
     }
     return formatted;
   };

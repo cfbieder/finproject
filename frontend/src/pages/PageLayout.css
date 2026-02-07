@@ -2137,8 +2137,9 @@
   letter-spacing: -0.01em;
 }
 
-.balance-report-table td.balance-report-table__value--negative {
-  color: var(--growth-negative);
+.balance-report-table td.balance-report-table__value--negative,
+.text--negative {
+  color: var(--growth-negative, #dc2626);
   font-weight: 700;
 }
 

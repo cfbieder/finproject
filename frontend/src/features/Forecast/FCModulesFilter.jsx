@@ -1,3 +1,4 @@
+import { AlertTriangle } from "lucide-react";
 import "./FCModulesFilter.css";
 
 /**
@@ -60,7 +61,7 @@ export default function FCModulesFilter({
         )}
         {error && !isLoading && (
           <div className="fc-modules-filter__error">
-            <span className="fc-modules-filter__error-icon">⚠</span>
+            <span className="fc-modules-filter__error-icon"><AlertTriangle size={16} /></span>
             <p>{error}</p>
           </div>
         )}

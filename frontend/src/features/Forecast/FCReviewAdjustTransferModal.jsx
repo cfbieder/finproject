@@ -1,4 +1,5 @@
 import { useState, useEffect, useMemo } from "react";
+import { AlertTriangle } from "lucide-react";
 import { formatAmount } from "./utils/fcReviewUtils.js";
 import Rest from "../../js/rest.js";
 import "./FCReviewAdjustTransferModal.css";
@@ -401,7 +402,7 @@ export default function FCReviewAdjustTransferModal({
             {saveError && (
               <div className="fc-review-transfer-modal__save-error">
                 <span className="fc-review-transfer-modal__save-error-icon">
-                  ⚠
+                  <AlertTriangle size={16} />
                 </span>
                 <span>{saveError}</span>
               </div>

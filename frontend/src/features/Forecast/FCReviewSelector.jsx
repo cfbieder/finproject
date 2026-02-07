@@ -1,3 +1,5 @@
+import { BarChart3, TrendingUp } from "lucide-react";
+
 export default function FCReviewSelector({
   scenarios,
   selectedScenario,
@@ -70,7 +72,7 @@ export default function FCReviewSelector({
                 disabled={disableExcel}
               >
                 <span aria-hidden="true" className="fc-review-selector__action-icon">
-                  📊
+                  <BarChart3 size={16} />
                 </span>
                 Excel Export
               </button>
@@ -81,7 +83,7 @@ export default function FCReviewSelector({
                 onClick={onGraphClick}
               >
                 <span aria-hidden="true" className="fc-review-selector__action-icon">
-                  📈
+                  <TrendingUp size={16} />
                 </span>
                 Graph
               </button>

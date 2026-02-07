@@ -1,4 +1,5 @@
 import { useMemo, useState } from "react";
+import { AlertTriangle } from "lucide-react";
 import "./FCModulesTable.css";
 
 /**
@@ -345,7 +346,7 @@ export default function FCModulesTable({
               )}
               {!modulesLoading && modulesError && (
                 <div className="fc-modules-table__message fc-modules-table__message--error">
-                  <span className="fc-modules-table__error-icon">⚠</span>
+                  <span className="fc-modules-table__error-icon"><AlertTriangle size={16} /></span>
                   <p>{modulesError}</p>
                 </div>
               )}

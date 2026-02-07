@@ -28,6 +28,7 @@
  * @param {Function} copyScenario - Handler for copying a scenario
  */
 
+import { BarChart3, Trash2, AlertTriangle, Info } from "lucide-react";
 import "./FCScenariosModal.css";
 
 export default function FCScenariosModal({
@@ -81,7 +82,7 @@ export default function FCScenariosModal({
           <>
             <div className="fc-scenarios-modal__header">
               <h3 className="fc-scenarios-modal__title">
-                <span className="fc-scenarios-modal__title-icon">📊</span>
+                <span className="fc-scenarios-modal__title-icon"><BarChart3 size={18} /></span>
                 {modalState.payload?.isNew ? "Add" : "Edit"} Inflation Rate
               </h3>
               <p className="fc-scenarios-modal__description">
@@ -131,7 +132,7 @@ export default function FCScenariosModal({
           <>
             <div className="fc-scenarios-modal__header">
               <h3 className="fc-scenarios-modal__title">
-                <span className="fc-scenarios-modal__title-icon">🗑️</span>
+                <span className="fc-scenarios-modal__title-icon"><Trash2 size={18} /></span>
                 Delete Inflation Entry
               </h3>
               <p className="fc-scenarios-modal__description">
@@ -141,7 +142,7 @@ export default function FCScenariosModal({
             </div>
             <div className="fc-scenarios-modal__body">
               <div className="fc-scenarios-modal__warning">
-                <span className="fc-scenarios-modal__warning-icon">⚠️</span>
+                <span className="fc-scenarios-modal__warning-icon"><AlertTriangle size={16} /></span>
                 This action cannot be undone.
               </div>
             </div>
@@ -227,7 +228,7 @@ export default function FCScenariosModal({
           <>
             <div className="fc-scenarios-modal__header">
               <h3 className="fc-scenarios-modal__title">
-                <span className="fc-scenarios-modal__title-icon">🗑️</span>
+                <span className="fc-scenarios-modal__title-icon"><Trash2 size={18} /></span>
                 Delete FX Entry
               </h3>
               <p className="fc-scenarios-modal__description">
@@ -237,7 +238,7 @@ export default function FCScenariosModal({
             </div>
             <div className="fc-scenarios-modal__body">
               <div className="fc-scenarios-modal__warning">
-                <span className="fc-scenarios-modal__warning-icon">⚠️</span>
+                <span className="fc-scenarios-modal__warning-icon"><AlertTriangle size={16} /></span>
                 This action cannot be undone.
               </div>
             </div>
@@ -264,7 +265,7 @@ export default function FCScenariosModal({
           <>
             <div className="fc-scenarios-modal__header">
               <h3 className="fc-scenarios-modal__title">
-                <span className="fc-scenarios-modal__title-icon">🗑️</span>
+                <span className="fc-scenarios-modal__title-icon"><Trash2 size={18} /></span>
                 Delete Scenario
               </h3>
               <p className="fc-scenarios-modal__description">
@@ -273,7 +274,7 @@ export default function FCScenariosModal({
             </div>
             <div className="fc-scenarios-modal__body">
               <div className="fc-scenarios-modal__warning">
-                <span className="fc-scenarios-modal__warning-icon">⚠️</span>
+                <span className="fc-scenarios-modal__warning-icon"><AlertTriangle size={16} /></span>
                 This will remove all related inflation and FX data. This action
                 cannot be undone.
               </div>
@@ -353,13 +354,13 @@ export default function FCScenariosModal({
             <div className="fc-scenarios-modal__body">
               {modalState.payload?.hasPendingChanges && (
                 <div className="fc-scenarios-modal__warning">
-                  <span className="fc-scenarios-modal__warning-icon">⚠️</span>
+                  <span className="fc-scenarios-modal__warning-icon"><AlertTriangle size={16} /></span>
                   Uncommitted changes detected. Committing will overwrite the
                   server data for this scenario.
                 </div>
               )}
               <div className="fc-scenarios-modal__info">
-                <span className="fc-scenarios-modal__info-icon">ℹ️</span>
+                <span className="fc-scenarios-modal__info-icon"><Info size={16} /></span>
                 Your changes will be permanently saved to the server.
               </div>
             </div>
@@ -408,7 +409,7 @@ export default function FCScenariosModal({
                 />
               </label>
               <div className="fc-scenarios-modal__info">
-                <span className="fc-scenarios-modal__info-icon">ℹ️</span>
+                <span className="fc-scenarios-modal__info-icon"><Info size={16} /></span>
                 The new scenario will include all data from the source scenario.
               </div>
             </div>

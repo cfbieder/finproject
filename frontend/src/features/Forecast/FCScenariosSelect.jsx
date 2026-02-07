@@ -1,3 +1,5 @@
+import { AlertTriangle } from "lucide-react";
+
 /**
  * FCScenariosSelect Component
  *
@@ -64,7 +66,7 @@ export default function FCScenariosSelect({
           </div>
           {loadError && (
             <div className="fc-scenarios-error-banner">
-              <span className="fc-scenarios-error-icon">⚠</span>
+              <span className="fc-scenarios-error-icon"><AlertTriangle size={16} /></span>
               <span>{loadError}</span>
             </div>
           )}

@@ -9,6 +9,7 @@ import UploadFeedback from "../features/Database/UploadFeedback.jsx";
 import { useToast } from "../contexts";
 import Rest from "../js/rest.js";
 import "./PageLayout.css";
+import "./RefreshPS.css";
 
 export default function RefreshPS() {
   const { showSuccess, showError: showErrorToast } = useToast();
@@ -303,8 +304,8 @@ export default function RefreshPS() {
             />
           </ul>
           {showNewTransactions && (
-            <div style={{ marginTop: "1.25rem" }}>
-              <p style={{ fontWeight: 600, margin: "0 0 0.5rem" }}>
+            <div className="refresh-txn-section">
+              <p className="refresh-txn-section__title">
                 New Transactions
               </p>
               {isLoadingNewTransactions ? (
@@ -318,19 +319,8 @@ export default function RefreshPS() {
                   No new transactions were found in the latest import.
                 </p>
               ) : (
-                <div
-                  style={{
-                    maxHeight: "320px",
-                    overflowY: "auto",
-                    borderRadius: "0.75rem",
-                    border: "1px solid var(--border)",
-                    boxShadow: "var(--shadow-soft)",
-                  }}
-                >
-                  <table
-                    className="balance-report-table"
-                    style={{ margin: 0, border: "0" }}
-                  >
+                <div className="refresh-txn-table-wrapper">
+                  <table className="balance-report-table">
                     <thead>
                       <tr>
                         <th>Date</th>
@@ -364,8 +354,8 @@ export default function RefreshPS() {
             </div>
           )}
           {showModifiedTransactions && (
-            <div style={{ marginTop: "1.25rem" }}>
-              <p style={{ fontWeight: 600, margin: "0 0 0.5rem" }}>
+            <div className="refresh-txn-section">
+              <p className="refresh-txn-section__title">
                 Modified Transactions
               </p>
               {isLoadingModifiedTransactions ? (
@@ -381,19 +371,8 @@ export default function RefreshPS() {
                   No modified transactions were found in the latest update.
                 </p>
               ) : (
-                <div
-                  style={{
-                    maxHeight: "320px",
-                    overflowY: "auto",
-                    borderRadius: "0.75rem",
-                    border: "1px solid var(--border)",
-                    boxShadow: "var(--shadow-soft)",
-                  }}
-                >
-                  <table
-                    className="balance-report-table"
-                    style={{ margin: 0, border: "0" }}
-                  >
+                <div className="refresh-txn-table-wrapper">
+                  <table className="balance-report-table">
                     <thead>
                       <tr>
                         <th>Date</th>

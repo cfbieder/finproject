@@ -1,4 +1,5 @@
 import PropTypes from "prop-types";
+import { TrendingUp } from "lucide-react";
 
 /**
  * FCScenariosTable Component
@@ -54,7 +55,7 @@ export default function FCScenariosTable({
             <div className="fc-scenarios-data__section">
               <div className="fc-scenarios-data__header">
                 <h3 className="fc-scenarios-data__title">
-                  <span className="fc-scenarios-data__icon">📈</span>
+                  <span className="fc-scenarios-data__icon"><TrendingUp size={18} /></span>
                   Inflation Assumptions
                 </h3>
                 <button
