@@ -1,6 +1,11 @@
 # Stage 1: Build the application
 FROM node:20 AS builder
 
+# Accept version as build argument
+ARG VITE_APP_VERSION=2.0.0
+ARG VITE_APP_MODE=prod
+ARG VITE_APP_API=""
+
 # Set working directory
 WORKDIR /app
 
@@ -17,7 +22,11 @@ COPY components/data/ ../components/data/
 COPY frontend/ ./
 
 # Build the application for production
-RUN npm run build
+# Environment variables are passed to Vite during build
+RUN VITE_APP_VERSION=$VITE_APP_VERSION \
+    VITE_APP_MODE=$VITE_APP_MODE \
+    VITE_APP_API=$VITE_APP_API \
+    npm run build
 
 # Stage 2: Serve with nginx
 FROM nginx:alpine

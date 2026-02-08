@@ -27,28 +27,67 @@
 
 All development and production runs on the VM at `192.168.1.82`.
 
-### Connect and Run
+### Production Environment
+
+Production runs entirely in Docker containers:
 
 ```bash
 ssh cfbieder@192.168.1.82
 cd ~/Programs/fin
-docker compose up --build -d
+docker compose up -d
 ```
 
+**Access Points:**
+- **Tailscale HTTPS:** https://fin.tail413695.ts.net (recommended)
 - Frontend (HTTPS): https://192.168.1.82:5175
 - Frontend (HTTP): http://192.168.1.82:3006
 - API Server: http://192.168.1.82:3005
 - PostgreSQL: 192.168.1.82:5433
 
-### Development (on VM)
+**Environment Indicator:** Blue browser tab
+
+### Development Environment
+
+Development uses Docker for the database and backend, with frontend via Vite dev server for hot module replacement:
 
 ```bash
-# Backend (with auto-reload)
-cd server && npm install && npm run dev
+ssh cfbieder@192.168.1.82
+cd ~/Programs/fin
 
-# Frontend (with HMR, separate terminal)
-cd frontend && npm install && npm run dev
+# Start development containers (database + backend)
+docker compose -f docker-compose.dev.yml up -d
+
+# Start frontend dev server (in separate terminal or tmux)
+cd frontend && npm run tail
 ```
+
+**Access Points:**
+- **Tailscale:** http://100.100.162.49:5174 (auto-assigned Vite port)
+- Dev Backend: http://192.168.1.82:3105
+- Dev Database: 192.168.1.82:5434
+
+**Environment Indicator:** Yellow browser tab, "[DEV]" in page title
+
+**Features:**
+- Frontend: Hot module replacement (instant updates)
+- Backend: Auto-restart via nodemon (~2-3 seconds)
+- Separate database with production data for safe testing
+
+### Development Workflow with tmux
+
+For a streamlined development experience, use the provided tmux setup:
+
+```bash
+./dev-start.sh
+```
+
+This creates a tmux session with 4 windows:
+1. **database** - Database container logs
+2. **backend** - Backend server with nodemon auto-restart
+3. **frontend** - Frontend dev server with hot reload
+4. **shell** - Command shell for running scripts
+
+See [TMUX_GUIDE.md](../TMUX_GUIDE.md) for navigation and usage details.
 
 ### VM Provisioning (from scratch)
 
@@ -72,10 +111,15 @@ fin/
 │   ├── data/                    # Shared JSON data files (COA, account names, etc.)
 │   └── reports/                 # Generated report output
 ├── Documentation/               # Project documentation
+│   ├── PROJECT_STRUCTURE.md     # This file - project architecture
+│   ├── MIGRATION_PLAN.md        # MongoDB → PostgreSQL migration plan
+│   ├── MIGRATION_STATUS.md      # Migration completion status
+│   └── DOCKER.md                # Docker setup and deployment
 ├── frontend/                    # React SPA
 │   ├── Dockerfile               # Multi-stage build: Vite → nginx
 │   ├── nginx.conf               # API proxy + SPA routing
 │   ├── package.json             # React 19, Vite 7, React Router 7
+│   ├── .env-cmdrc               # Environment configurations (development, tail, production, etc.)
 │   └── src/
 │       ├── App.jsx              # Router, Layout wrapper, lazy routes
 │       ├── main.jsx             # Entry point, ToastProvider
@@ -110,6 +154,8 @@ fin/
 ├── server/                      # Express API server
 │   ├── Dockerfile
 │   ├── package.json             # Express 5, pg, arquero, danfojs-node
+│   ├── nodemon.json             # Nodemon configuration for auto-restart in dev
+│   ├── .env-cmdrc               # Backend environment configurations
 │   ├── db/
 │   │   └── migrations/          # PostgreSQL schema (run on container init)
 │   │       ├── 001_initial_schema.sql
@@ -141,12 +187,107 @@ fin/
 │           │   └── transactions.js
 │           └── services/        # Business logic (forecast engine)
 ├── certs/                       # TLS certificates for nginx (generated on VM)
-├── docker-compose.yml           # 3 services: postgres, server, frontend
+├── VERSION                      # Current version number (e.g., 2.0.1)
+├── docker-compose.yml           # Production: 3 services (postgres, server, frontend)
+├── docker-compose.dev.yml       # Development: postgres-dev, server-dev (frontend via npm)
 ├── provision-vm.sh              # Create 'fin' KVM guest on vmhost (192.168.1.61)
 ├── deploy-on-vm.sh              # Clone repo + deploy on VM (192.168.1.82)
 ├── rebuild-frontend.sh          # Rebuild and restart frontend container
+├── sync-db-prod-to-dev.sh       # Copy production database to development
+├── deploy-to-production.sh      # Deploy development changes to production
+├── bump-version.sh              # Increment version (patch/minor/major)
+├── dev-start.sh                 # Start tmux development environment
+├── TMUX_GUIDE.md                # Guide for tmux development workflow
+├── NOTES.md                     # Quick reference notes
 └── .env.example                 # Environment variable template
 ```
+
+---
+
+## Development & Deployment Scripts
+
+### Version Management
+
+**`bump-version.sh`** - Semantic version management
+
+```bash
+./bump-version.sh patch    # 2.0.0 → 2.0.1
+./bump-version.sh minor    # 2.0.0 → 2.1.0
+./bump-version.sh major    # 2.0.0 → 3.0.0
+./bump-version.sh 2.1.5    # Set specific version
+```
+
+Updates:
+- `VERSION` file
+- All `VITE_APP_VERSION` entries in `frontend/.env-cmdrc`
+- `package.json` files (root, frontend, server)
+- Optionally creates git commit and tag
+
+The version is displayed in the navigation menu navbar and can be incremented at any time.
+
+### Database Management
+
+**`sync-db-prod-to-dev.sh`** - Copy production data to development
+
+```bash
+./sync-db-prod-to-dev.sh
+```
+
+- Creates PostgreSQL backup from production database
+- Restores backup to development database
+- Includes safety prompts and transaction count verification
+- Allows testing with real production data in a safe development environment
+
+### Deployment
+
+**`deploy-to-production.sh`** - Deploy changes to production
+
+```bash
+./deploy-to-production.sh           # Deploy without git operations
+./deploy-to-production.sh --with-git # Deploy with git commit/push
+```
+
+- Creates database backup before deployment
+- Rebuilds and restarts production containers
+- Verifies container health after deployment
+- Git operations are opt-in (use `--with-git` flag)
+
+**`rebuild-frontend.sh`** - Quick frontend rebuild
+
+```bash
+./rebuild-frontend.sh
+```
+
+Rebuilds and restarts only the frontend container (faster than full deployment).
+
+### Environment Management
+
+**Frontend environments** (`.env-cmdrc`):
+
+| Environment | npm script | API Base | Use Case |
+|-------------|-----------|----------|----------|
+| `development` | `npm run dev` | `http://localhost:3105` | Local development (requires dev backend) |
+| `tail` | `npm run tail` | `http://100.100.162.49:3105` | Remote dev via Tailscale |
+| `tail-prod` | `npm run tail-prod` | `http://100.100.162.49:3005` | Remote prod testing via Tailscale |
+| `dev-prod` | `npm run dev-prod` | `http://localhost:3005` | Local testing against production backend |
+| `docker` | `npm run docker` | (empty - uses nginx proxy) | Production Docker build |
+| `production` | `npm run production` | `http://192.168.1.82:3005` | Direct production API access |
+
+**Backend environments** (`.env-cmdrc`):
+
+| Environment | npm script | Database | Port |
+|-------------|-----------|----------|------|
+| `development` | `npm run dev` | `localhost:5434` | 3005 |
+| `production` | `npm run dok` | (Docker network) | 3005 |
+
+### Visual Environment Indicators
+
+The application uses visual cues to distinguish environments:
+
+- **Development:** Yellow/amber browser tab color (`#f59e0b`), page title shows "FI [DEV]"
+- **Production:** Dark blue browser tab color (`#1a1f36`), page title shows "FI"
+
+This is controlled by `VITE_APP_MODE` in `.env-cmdrc` and implemented in `main.jsx`.
 
 ---
 
@@ -380,36 +521,165 @@ SQL migrations in `server/db/migrations/` run automatically on PostgreSQL contai
 
 ## Docker Services
 
-| Service | Image | Port | Purpose |
-|---------|-------|------|---------|
+### Production Environment
+
+Configured in `docker-compose.yml`:
+
+| Container | Image | Ports | Purpose |
+|-----------|-------|-------|---------|
 | `fin-postgres` | postgres:16-alpine | 5433:5432 | PostgreSQL database |
-| `server` | Custom (Node.js) | 3005:3005 | Express API server |
-| `frontend` | Custom (nginx) | 3006:80, 5175:443 | SPA hosting + API proxy |
+| `fin-server` | Custom (Node.js) | 3005:3005 | Express API server |
+| `fin-frontend` | Custom (nginx) | 3006:80, 5175:443 | SPA hosting + API proxy |
+
+All services connected via `fin_fin-network` Docker bridge network.
+
+### Development Environment
+
+Configured in `docker-compose.dev.yml`:
+
+| Container | Image | Ports | Purpose |
+|-----------|-------|-------|---------|
+| `fin-postgres-dev` | postgres:16-alpine | 5434:5432 | Development PostgreSQL database |
+| `fin-server-dev` | Custom (Node.js) | 3105:3005 | Development Express API server |
+
+- Frontend runs via `npm run tail` on host (Vite dev server with hot reload)
+- All services connected via `fin_fin-network-dev` Docker bridge network
+- Uses nodemon for backend auto-restart on file changes
+
+### Tailscale Integration
+
+The VM has Tailscale installed for secure remote HTTPS access:
+
+```bash
+# View Tailscale status
+sudo tailscale status
+
+# View serve configuration
+sudo tailscale serve status
+```
+
+**Current configuration:**
+- Tailscale URL: `https://fin.tail413695.ts.net`
+- Proxies to: `https+insecure://localhost:5175` (production frontend)
+- Auto-starts on boot via systemd
+
+This provides automatic HTTPS certificates and secure access to the application from any device on your Tailnet without exposing ports to the internet.
 
 ### Build Commands
 
 ```bash
-# Full rebuild (on VM)
-ssh cfbieder@192.168.1.82
-cd ~/Programs/fin
+# Production - Full rebuild
 docker compose up --build -d
 
-# Rebuild single service
+# Production - Rebuild single service
 docker compose up --build -d frontend
 
-# View logs
+# Production - View logs
 docker compose logs -f server
 
-# Database shell
+# Development - Start all dev services
+docker compose -f docker-compose.dev.yml up -d
+
+# Development - Start specific service
+docker compose -f docker-compose.dev.yml up -d server
+
+# Development - View logs
+docker compose -f docker-compose.dev.yml logs -f server
+
+# Database shell (production)
 docker compose exec fin-postgres psql -U fin -d fin
+
+# Database shell (development)
+docker compose -f docker-compose.dev.yml exec fin-postgres-dev psql -U fin -d fin
 ```
 
 ### Volumes
 
+**Production:**
 - `postgres_data` - PostgreSQL data persistence
 - `./components/data` - Shared JSON data files (mounted in server)
 - `./components/reports` - Generated reports (mounted in server)
 - `./certs` - TLS certificates (mounted in frontend/nginx)
+
+**Development:**
+- `postgres_data_dev` - Development PostgreSQL data persistence (separate from production)
+- Same component mounts as production
+
+---
+
+## Development Workflow
+
+### Typical Development Session
+
+1. **Start development environment:**
+   ```bash
+   # Option A: Using tmux (recommended)
+   ./dev-start.sh
+
+   # Option B: Manual
+   docker compose -f docker-compose.dev.yml up -d
+   cd frontend && npm run tail
+   ```
+
+2. **Sync production data (if needed):**
+   ```bash
+   ./sync-db-prod-to-dev.sh
+   ```
+
+3. **Make changes:**
+   - Frontend changes: Save → Instant hot reload
+   - Backend changes: Save → Auto-restart in ~2-3 seconds (via nodemon)
+   - Database changes: Run SQL directly in dev database
+
+4. **Test changes:**
+   - Access via Tailscale: `http://100.100.162.49:5174`
+   - Yellow tab confirms development environment
+
+5. **Increment version (when ready):**
+   ```bash
+   ./bump-version.sh patch
+   ```
+
+6. **Deploy to production:**
+   ```bash
+   ./deploy-to-production.sh
+   ```
+
+7. **Verify production:**
+   - Access via Tailscale: `https://fin.tail413695.ts.net`
+   - Blue tab confirms production environment
+
+### Key Development Features
+
+**Hot Module Replacement (Frontend):**
+- Changes to React components appear instantly in browser
+- No manual refresh needed
+- Preserves application state during updates
+
+**Auto-Restart (Backend):**
+- Nodemon watches `src/` and `db/` directories
+- Restarts server automatically on file changes
+- 1-second delay to batch multiple changes
+- See `server/nodemon.json` for configuration
+
+**Separate Databases:**
+- Production and development use completely separate PostgreSQL instances
+- Safe to experiment with schema changes in development
+- Use `sync-db-prod-to-dev.sh` to refresh development data from production
+- Development database persists across container restarts
+
+**Environment Isolation:**
+- Production and development run on separate Docker networks
+- Different ports prevent conflicts
+- Can run both environments simultaneously on the same VM
+
+### Best Practices
+
+1. **Always test in development first** - Never make changes directly in production
+2. **Sync data regularly** - Keep development database current with `sync-db-prod-to-dev.sh`
+3. **Use version numbers** - Increment version before deploying significant changes
+4. **Monitor deployments** - Check container health after deployment
+5. **Keep tmux running** - Detach from tmux (Ctrl+b d) instead of stopping; reattach when needed
 
 ---
 

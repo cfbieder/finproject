@@ -127,7 +127,13 @@ fi
 
 echo ""
 echo "Building new images..."
-docker compose build --no-cache
+# Read VERSION file and pass to Docker build
+VERSION=$(cat VERSION)
+echo "Building with version: $VERSION"
+docker compose build --no-cache \
+  --build-arg VITE_APP_VERSION="$VERSION" \
+  --build-arg VITE_APP_MODE="prod" \
+  --build-arg VITE_APP_API=""
 
 echo ""
 echo "Restarting production services..."

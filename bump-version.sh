@@ -125,9 +125,6 @@ if [[ $REPLY =~ ^[Yy]$ ]]; then
     if [[ $REPLY =~ ^[Yy]$ ]]; then
         git tag -a "v${NEW_VERSION}" -m "Version ${NEW_VERSION}"
         echo -e "${GREEN}✓ Git tag created: v${NEW_VERSION}${NC}"
-        echo ""
-        echo "To push tag to remote:"
-        echo "  git push origin v${NEW_VERSION}"
     fi
 fi
 
