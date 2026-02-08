@@ -1,8 +1,12 @@
 # Fin Project - Full Status Report
 
 **Date:** 2026-02-08
-**Production VM:** `192.168.1.82` (Ubuntu 24.04 LTS, KVM guest)
+**Production VM:** `192.168.1.82` (Ubuntu 24.04 LTS, KVM guest) — **sole environment**
 **Project Path:** `/home/cfbieder/Programs/fin`
+
+> The original dev machine (linux1) has been decommissioned. All development
+> and production now runs on the VM. Code changes are made via SSH or by
+> pushing to GitHub and pulling on the VM.
 
 ---
 
@@ -45,14 +49,11 @@ All VM images are stored in `/mnt/vm-ssd/` via the `vm-ssd` libvirt storage pool
 ### SSH Access
 
 ```bash
-# From dev machine to VM:
+# SSH to the VM (primary workflow):
 ssh cfbieder@192.168.1.82
 
-# From dev machine to KVM host:
+# SSH to KVM host (VM management only):
 ssh cfbieder@192.168.1.61
-
-# From KVM host to VM:
-ssh cfbieder@192.168.1.82
 
 # VM management (from KVM host):
 virsh --connect qemu:///system list --all
@@ -256,10 +257,11 @@ No `.env` file exists. All config uses defaults from `docker-compose.yml`:
 
 ## 7. Common Operations
 
+All commands below run on the VM (`ssh cfbieder@192.168.1.82`).
+
 ### Restart the stack
 
 ```bash
-ssh cfbieder@192.168.1.82
 cd ~/Programs/fin
 docker compose restart
 ```
@@ -267,7 +269,6 @@ docker compose restart
 ### Rebuild after code changes
 
 ```bash
-ssh cfbieder@192.168.1.82
 cd ~/Programs/fin
 git pull
 docker compose up -d --build
@@ -287,10 +288,9 @@ docker compose logs -f fin-postgres # database only
 docker compose ps
 ```
 
-### VM management (from KVM host)
+### VM management (from KVM host — `ssh cfbieder@192.168.1.61`)
 
 ```bash
-ssh cfbieder@192.168.1.61
 virsh --connect qemu:///system list --all       # list VMs
 virsh --connect qemu:///system shutdown fin      # graceful shutdown
 virsh --connect qemu:///system start fin         # start VM
@@ -379,7 +379,7 @@ All API routes are under `/api/v2/`. Nginx rewrites legacy `/api/*` paths to `/a
    virsh --connect qemu:///system change-media fin sda --eject
    ```
 
-9. **Database is empty after VM recreation** — schema is auto-applied from migrations but data must be restored from a backup.
+9. **Server Dockerfile** includes `postgresql-client-16` from the PGDG repo so `pg_dump` works in the backup endpoint. The Node.js 20 base image (Debian Bookworm) only ships PG client 15, which refuses to dump a PG 16 server.
 
 ---
 
@@ -387,6 +387,9 @@ All API routes are under `/api/v2/`. Nginx rewrites legacy `/api/*` paths to `/a
 
 | Date | Event |
 |------|-------|
+| 2026-02-08 | Decommissioned dev machine (linux1). VM is now sole environment. |
+| 2026-02-08 | Restored database from dev machine to VM via `pg_dump`/`pg_restore`. All 25k+ transactions, budgets, forecasts confirmed. |
+| 2026-02-08 | Fixed server Dockerfile: added `postgresql-client-16` for backup endpoint. |
 | 2026-02-08 | Recreated VM after loss (cloud image was in /tmp). All images now in /mnt/vm-ssd via libvirt pool. Added `provision-vm.sh` and `deploy-on-vm.sh` scripts. |
 | 2026-02-07 | Migrated from dev machine to KVM VM at 192.168.1.82 |
 | Earlier | Migrated from MongoDB to PostgreSQL 16 |

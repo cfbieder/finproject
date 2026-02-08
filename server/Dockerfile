@@ -1,7 +1,12 @@
 FROM node:20
 
-# Install PostgreSQL client tools (needed for pg_dump in backup endpoint)
-RUN apt-get update && apt-get install -y --no-install-recommends postgresql-client \
+# Install PostgreSQL 16 client tools (needed for pg_dump in backup endpoint)
+RUN apt-get update \
+ && apt-get install -y --no-install-recommends gnupg \
+ && echo "deb http://apt.postgresql.org/pub/repos/apt bookworm-pgdg main" > /etc/apt/sources.list.d/pgdg.list \
+ && curl -fsSL https://www.postgresql.org/media/keys/ACCC4CF8.asc | gpg --dearmor -o /etc/apt/trusted.gpg.d/pgdg.gpg \
+ && apt-get update \
+ && apt-get install -y --no-install-recommends postgresql-client-16 \
  && rm -rf /var/lib/apt/lists/*
 
 # Set working directory

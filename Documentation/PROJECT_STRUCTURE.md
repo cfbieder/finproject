@@ -25,7 +25,9 @@
 
 ## Quick Start
 
-### Production (VM at 192.168.1.82)
+All development and production runs on the VM at `192.168.1.82`.
+
+### Connect and Run
 
 ```bash
 ssh cfbieder@192.168.1.82
@@ -38,23 +40,25 @@ docker compose up --build -d
 - API Server: http://192.168.1.82:3005
 - PostgreSQL: 192.168.1.82:5433
 
-### Local Development
+### Development (on VM)
 
 ```bash
-# Backend
+# Backend (with auto-reload)
 cd server && npm install && npm run dev
 
-# Frontend (separate terminal)
+# Frontend (with HMR, separate terminal)
 cd frontend && npm install && npm run dev
 ```
 
 ### VM Provisioning (from scratch)
 
+If the VM needs to be recreated:
+
 ```bash
-# Create the VM on KVM host
+# From any machine with SSH access to the KVM host
 ssh cfbieder@192.168.1.61 'bash -s' < provision-vm.sh
 
-# Wait ~3-5 min, then deploy the application
+# Wait ~3-5 min for cloud-init, then deploy
 ssh cfbieder@192.168.1.82 'bash -s' < deploy-on-vm.sh
 ```
 

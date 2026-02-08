@@ -1,6 +1,6 @@
 # Docker Setup for Fin Application
 
-This document explains how to run the Fin application (frontend + backend + database) using Docker containers on the production VM.
+This document explains how to run the Fin application (frontend + backend + database) using Docker containers. All development and production runs on the VM at `192.168.1.82`.
 
 ## Prerequisites
 
@@ -191,32 +191,29 @@ Look for "healthy" status in the output. All three services include health check
 
 ## Development vs Production
 
-### Development (Local)
+Both modes run on the VM (`ssh cfbieder@192.168.1.82`).
+
+### Development (with auto-reload)
 
 ```bash
-# In server directory
+cd ~/Programs/fin
+
+# Stop Docker services first if running
+docker compose down
+
+# Backend (with nodemon auto-reload)
 cd server && npm run dev
 
-# In frontend directory (separate terminal)
+# Frontend (separate terminal, with Vite HMR)
 cd frontend && npm run dev
 ```
 
-Uses:
-- `nodemon` for auto-reload (server)
-- Vite dev server with HMR (frontend)
-- Development environment variables from `.env-cmdrc`
-
-### Docker (Production)
+### Production (Docker)
 
 ```bash
-# From project root on the VM
+cd ~/Programs/fin
 docker compose up -d --build
 ```
-
-Uses:
-- `node` (no auto-reload)
-- nginx serving static build
-- Production environment variables from `docker-compose.yml`
 
 ## Troubleshooting
 
@@ -328,14 +325,18 @@ docker compose exec fin-postgres psql -U fin -d fin -f /docker-entrypoint-initdb
 
 ## VM Provisioning
 
-If the VM needs to be recreated, use the provisioning scripts:
+If the VM needs to be recreated, use the provisioning scripts from any machine with SSH access to the KVM host:
 
 ```bash
-# From dev machine — create the VM on the KVM host
+# Create the VM on the KVM host
 ssh cfbieder@192.168.1.61 'bash -s' < provision-vm.sh
 
 # Wait ~3-5 min for cloud-init to complete, then deploy
 ssh cfbieder@192.168.1.82 'bash -s' < deploy-on-vm.sh
+
+# Restore database from backup
+scp fin_backup.dump cfbieder@192.168.1.82:~/Programs/fin/
+ssh cfbieder@192.168.1.82 "docker exec -i fin-postgres pg_restore -U fin -d fin --clean --if-exists < ~/Programs/fin/fin_backup.dump"
 ```
 
 See `provision-vm.sh` and `deploy-on-vm.sh` for details. All VM images are stored in `/mnt/vm-ssd/` via the `vm-ssd` libvirt storage pool.
