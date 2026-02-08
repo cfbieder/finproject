@@ -15,15 +15,15 @@ set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 cd "$SCRIPT_DIR"
 
-SKIP_GIT=false
+SKIP_GIT=true  # Skip git by default - handle manually
 NO_BACKUP=false
 BACKUP_FILE="fin_backup_$(date +%Y%m%d_%H%M%S).dump"
 
 # Parse arguments
 for arg in "$@"; do
     case $arg in
-        --skip-git)
-            SKIP_GIT=true
+        --with-git)
+            SKIP_GIT=false
             shift
             ;;
         --no-backup)
@@ -31,12 +31,14 @@ for arg in "$@"; do
             shift
             ;;
         --help|-h)
-            echo "Usage: $0 [--skip-git] [--no-backup]"
+            echo "Usage: $0 [--with-git] [--no-backup]"
             echo ""
             echo "Options:"
-            echo "  --skip-git    Skip git commit and push"
+            echo "  --with-git    Enable git commit and push (skipped by default)"
             echo "  --no-backup   Skip database backup (not recommended)"
             echo "  --help        Show this help message"
+            echo ""
+            echo "Default behavior: Skips git, backs up database, deploys to production"
             exit 0
             ;;
     esac
