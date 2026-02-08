@@ -1,0 +1,87 @@
+# Development Docker Compose Configuration
+# Runs alongside production with different ports
+
+services:
+  fin-postgres-dev:
+    image: postgres:16-alpine
+    container_name: fin-postgres-dev
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: fin
+      POSTGRES_PASSWORD: findev123
+      POSTGRES_DB: fin
+    ports:
+      - "5434:5432"  # Dev port (production uses 5433)
+    volumes:
+      - postgres_data_dev:/var/lib/postgresql/data
+      - ./server/db/migrations:/docker-entrypoint-initdb.d:ro
+    networks:
+      - fin-network-dev
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U fin -d fin"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  server:
+    build:
+      context: .
+      dockerfile: server/Dockerfile
+    container_name: fin-server-dev
+    restart: unless-stopped
+    ports:
+      - "3105:3005"  # Dev port (production uses 3005)
+    environment:
+      NODE_ENV: development
+      PORT: 3005
+      DATABASE_URL: postgres://fin:findev123@fin-postgres-dev:5432/fin
+      POSTGRES_PASSWORD: findev123
+      ACCOUNT_NAMES_PATH: /app/components/data/account_names.json
+      CATEGORY_NAMES_PATH: /app/components/data/category_names.json
+      COA_PATH: /app/components/data/coa.json
+      PS_API_KEY: "${PS_API_KEY:-7916e6eba6fa3a5a59af4a6f5e7ae8c66f0cdd3b94d5eaf2d25cdb06e43e6a4f}"
+      PS_USER_ID: "${PS_USER_ID:-330430}"
+    volumes:
+      - ./components/data:/app/components/data
+      - ./components/reports:/app/components/reports
+      - /var/run/docker.sock:/var/run/docker.sock
+    networks:
+      - fin-network-dev
+    depends_on:
+      fin-postgres-dev:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://localhost:3005/api/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+
+  frontend:
+    build:
+      context: .
+      dockerfile: frontend/Dockerfile
+    container_name: fin-frontend-dev
+    restart: unless-stopped
+    ports:
+      - "3106:80"    # Dev HTTP port (production uses 3006)
+      - "5176:443"   # Dev HTTPS port (production uses 5175)
+    volumes:
+      - ./certs:/etc/nginx/certs:ro
+      - ./frontend/nginx.conf:/etc/nginx/conf.d/default.conf:ro
+    networks:
+      - fin-network-dev
+    depends_on:
+      - server
+    healthcheck:
+      test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://localhost:80"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+networks:
+  fin-network-dev:
+    driver: bridge
+
+volumes:
+  postgres_data_dev:

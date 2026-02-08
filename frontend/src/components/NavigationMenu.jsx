@@ -33,7 +33,7 @@ export default function NavigationMenu() {
               <img src={banner} alt="Fin" />
             </div>
             <span className="navbar__title">Fin</span>
-            <span className="navbar__version-badge">v2</span>
+            <span className="navbar__version-badge">v{import.meta.env.VITE_APP_VERSION || '2.0.0'}</span>
           </Link>
 
           <button
