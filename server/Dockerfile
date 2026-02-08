@@ -1,5 +1,9 @@
 FROM node:20
 
+# Install PostgreSQL client tools (needed for pg_dump in backup endpoint)
+RUN apt-get update && apt-get install -y --no-install-recommends postgresql-client \
+ && rm -rf /var/lib/apt/lists/*
+
 # Set working directory
 WORKDIR /app
 

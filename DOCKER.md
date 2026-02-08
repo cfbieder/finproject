@@ -1,186 +1,148 @@
 # Docker Setup for Fin Application
 
-This document explains how to run the complete Fin application (frontend + backend + database) using Docker containers.
+This document explains how to run the Fin application (frontend + backend + database) using Docker containers on the production VM.
 
 ## Prerequisites
 
-- Docker Engine 20.10 or higher
-- Docker Compose 2.0 or higher
+- Docker Engine 29+ (installed via cloud-init during VM provisioning)
+- Docker Compose v5+ (included with Docker)
+- Production VM: `192.168.1.82` (Ubuntu 24.04 LTS, KVM guest on `192.168.1.61`)
 
 ## Quick Start
 
 ### 1. Build and Start Services
 
-From the project root directory:
+From the project root directory on the VM:
 
 ```bash
-docker-compose up -d
+docker compose up -d --build
 ```
 
 This will:
+- Pull the PostgreSQL 16 Alpine image
+- Build the server Docker image (Node.js Express API)
 - Build the frontend Docker image (React app with nginx)
-- Build the server Docker image (Node.js API)
-- Start MongoDB on port 27018
-- Start the Fin server on internal port 3005
-- Start the frontend on port 3000
-- Create a persistent volume for MongoDB data
+- Start PostgreSQL on port 5433
+- Start the API server on port 3005
+- Start the frontend on ports 3006 (HTTP) and 5175 (HTTPS)
+- Create a persistent volume for PostgreSQL data
+- Auto-apply database migrations on first run
 
 ### 2. View Logs
 
 ```bash
 # View all logs
-docker-compose logs -f
+docker compose logs -f
 
 # View only server logs
-docker-compose logs -f server
+docker compose logs -f server
 
-# View only MongoDB logs
-docker-compose logs -f mongo
+# View only database logs
+docker compose logs -f fin-postgres
 
 # View only frontend logs
-docker-compose logs -f frontend
+docker compose logs -f frontend
 ```
 
 ### 3. Check Service Status
 
 ```bash
-docker-compose ps
+docker compose ps
 ```
 
 ### 4. Stop Services
 
 ```bash
-docker-compose down
+docker compose down
 ```
 
-To also remove volumes (⚠️ this will delete all MongoDB data):
+To also remove volumes (this will delete all PostgreSQL data):
 
 ```bash
-docker-compose down -v
+docker compose down -v
 ```
 
 ### 5. Access the Application
 
 Once all services are running:
 
-- **Frontend**: http://localhost:3000
-- **Backend API**: http://localhost:3000/api (proxied through nginx)
-- **MongoDB**: localhost:27018 (for direct database access)
+- **Frontend (HTTPS)**: https://192.168.1.82:5175
+- **Frontend (HTTP)**: http://192.168.1.82:3006
+- **Backend API**: http://192.168.1.82:3005/api/health
+- **PostgreSQL**: `192.168.1.82:5433` (user: `fin`, password: `findev123`, db: `fin`)
 
-The frontend nginx server automatically proxies all `/api/*` requests to the backend server.
+The frontend nginx server proxies all `/api/*` requests to the backend server and rewrites legacy paths to `/api/v2/*`.
 
 ## Architecture
 
 The application consists of three Docker services:
 
-1. **frontend** (Port 3000)
-   - Nginx serving the built React application
-   - Proxies API requests to the backend server
-   - Built from `frontend/Dockerfile` using multi-stage build
+1. **fin-postgres** (Port 5433:5432)
+   - PostgreSQL 16 Alpine
+   - Data persisted in `postgres_data` Docker volume
+   - Migrations auto-applied from `server/db/migrations/` on first run
+   - Health check: `pg_isready -U fin -d fin`
 
-2. **server** (Internal Port 3005)
-   - Node.js Express API server
-   - Not directly exposed to host (only accessible via frontend proxy)
+2. **server** (Port 3005:3005)
+   - Node.js 20 Express API server
+   - Waits for PostgreSQL to be healthy before starting
    - Built from `server/Dockerfile`
+   - Health check: HTTP GET to `/api/health`
 
-3. **mongo** (Port 27018)
-   - MongoDB database
-   - Data persisted in `mongo_data` Docker volume
-   - Exposed to host for development/backup access
+3. **frontend** (Ports 3006:80, 5175:443)
+   - Multi-stage build: Vite → nginx:alpine
+   - SSL termination with mkcert certificates
+   - SPA routing + API reverse proxy
+   - Built from `frontend/Dockerfile`
+   - Health check: curl to port 80
+
+All services communicate over the `fin-network` bridge network.
 
 ## Configuration
 
 ### Environment Variables
 
-The server uses the following environment variables (configured in docker-compose.yml):
+The server uses the following environment variables (configured in `docker-compose.yml`):
 
 - `NODE_ENV`: Set to `production` in Docker
 - `PORT`: Server port (default: 3005)
-- `MONGO_URI`: MongoDB connection string
+- `DATABASE_URL`: PostgreSQL connection string
+- `POSTGRES_PASSWORD`: Database password (default: `findev123`)
 - `ACCOUNT_NAMES_PATH`: Path to account names JSON
 - `CATEGORY_NAMES_PATH`: Path to category names JSON
 - `COA_PATH`: Path to chart of accounts JSON
 - `PS_API_KEY`: PocketSmith API key (required)
 - `PS_USER_ID`: PocketSmith user ID (required)
 
-### Custom Environment Variables
-
-To customize environment variables:
-
-1. Copy `.env.example` to `.env`:
-   ```bash
-   cp .env.example .env
-   ```
-
-2. Edit `.env` with your values:
-   ```bash
-   PS_API_KEY=your_actual_api_key
-   PS_USER_ID=your_actual_user_id
-   ```
-
-3. Docker Compose will automatically use these values
-
-**Note:** Default values are provided in `docker-compose.yml`, but it's recommended to use a `.env` file for sensitive data like API keys.
+No `.env` file is used — all defaults are in `docker-compose.yml`.
 
 ### Data Persistence
 
 The following directories are mounted as volumes:
 
-- `./components/data` → `/app/components/data` (application data)
+- `postgres_data` volume → PostgreSQL database files
+- `./components/data` → `/app/components/data` (shared JSON data files)
 - `./components/reports` → `/app/components/reports` (generated reports)
-- `mongo_data` volume → MongoDB database files
+- `./certs` → `/etc/nginx/certs` (TLS certificates, read-only)
+- `./frontend/nginx.conf` → nginx config (read-only)
 
 ## Backup and Restore
 
 ### Creating a Backup
 
-Use the provided backup script to create a full MongoDB backup:
-
 ```bash
-./backup-mongo.sh
-```
+# SSH to VM
+ssh cfbieder@192.168.1.82
 
-This will:
-- Create a timestamped backup in `mongo_backups/`
-- Include all databases and collections
-- Show backup size and contents
-
-**Manual backup:**
-```bash
-# Create backup inside container
-docker exec mongofin mongodump --port 27018 --out /tmp/backup
-
-# Copy to host
-docker cp mongofin:/tmp/backup ./mongo_backups/backup_$(date +%Y%m%d_%H%M%S)
-
-# Clean up container
-docker exec mongofin rm -rf /tmp/backup
+# Export database as custom format dump
+docker exec fin-postgres pg_dump -U fin -d fin -Fc > fin_backup.dump
 ```
 
 ### Restoring a Backup
 
-Use the provided restore script:
-
 ```bash
-./restore-mongo.sh /path/to/backup_directory
-```
-
-The script will:
-- Ask for confirmation (restore drops all existing data)
-- Copy backup to container
-- Restore all collections
-- Display document counts after restore
-
-**Manual restore:**
-```bash
-# Copy backup to container
-docker cp /path/to/backup mongofin:/tmp/restore
-
-# Restore (--drop removes existing data first)
-docker exec mongofin mongorestore --port 27018 --drop /tmp/restore
-
-# Clean up
-docker exec mongofin rm -rf /tmp/restore
+# Restore (drops and recreates objects)
+docker exec -i fin-postgres pg_restore -U fin -d fin --clean --if-exists < fin_backup.dump
 ```
 
 ### Backup Best Practices
@@ -190,31 +152,30 @@ docker exec mongofin rm -rf /tmp/restore
    - Upgrading Docker containers
    - Testing new features
 
-2. **Backup Storage**: Keep backups in `mongo_backups/` directory (already in `.gitignore`)
-
-3. **Verify Backups**: After creating a backup, check the file sizes to ensure data was captured
-
-4. **Automated Backups**: Add a cron job for daily backups:
+2. **Off-VM Storage**: Copy backups to the dev machine or KVM host:
    ```bash
-   # Add to crontab (crontab -e)
-   0 2 * * * /home/cfbieder/Programs/fin/backup-mongo.sh
+   scp cfbieder@192.168.1.82:~/Programs/fin/fin_backup.dump ./
+   ```
+
+3. **Automated Backups**: Add a cron job for daily backups:
+   ```bash
+   # Add to crontab (crontab -e) on the VM
+   0 2 * * * docker exec fin-postgres pg_dump -U fin -d fin -Fc > /home/cfbieder/Programs/fin/fin_backup_$(date +\%Y\%m\%d).dump
    ```
 
 ## Health Checks
 
 ### Application Health Check
 
-The server includes a built-in health check:
-
 ```bash
-curl http://localhost:3000/api/health
+curl http://192.168.1.82:3005/api/health
 ```
 
 Expected response:
 ```json
 {
   "status": "ok",
-  "timestamp": "2025-12-29T..."
+  "timestamp": "2026-02-08T..."
 }
 ```
 
@@ -223,10 +184,10 @@ Expected response:
 Docker automatically monitors the health of all containers:
 
 ```bash
-docker-compose ps
+docker compose ps
 ```
 
-Look for "healthy" status in the output. All three services (frontend, server, mongo) include health checks.
+Look for "healthy" status in the output. All three services include health checks.
 
 ## Development vs Production
 
@@ -234,24 +195,27 @@ Look for "healthy" status in the output. All three services (frontend, server, m
 
 ```bash
 # In server directory
-npm run dev
+cd server && npm run dev
+
+# In frontend directory (separate terminal)
+cd frontend && npm run dev
 ```
 
 Uses:
-- `nodemon` for auto-reload
-- Local MongoDB connection
+- `nodemon` for auto-reload (server)
+- Vite dev server with HMR (frontend)
 - Development environment variables from `.env-cmdrc`
 
-### Docker (Production-like)
+### Docker (Production)
 
 ```bash
-# From project root
-docker-compose up -d
+# From project root on the VM
+docker compose up -d --build
 ```
 
 Uses:
 - `node` (no auto-reload)
-- Containerized MongoDB
+- nginx serving static build
 - Production environment variables from `docker-compose.yml`
 
 ## Troubleshooting
@@ -260,12 +224,12 @@ Uses:
 
 1. Check if frontend container is running:
    ```bash
-   docker-compose logs frontend
+   docker compose logs frontend
    ```
 
 2. Verify the build completed successfully:
    ```bash
-   docker-compose build frontend
+   docker compose build frontend
    ```
 
 3. Check nginx configuration:
@@ -275,41 +239,44 @@ Uses:
 
 4. If seeing 502 Bad Gateway errors, ensure the server is running:
    ```bash
-   docker-compose ps server
+   docker compose ps server
    ```
 
 ### Server won't start
 
-1. Check if MongoDB is ready:
+1. Check if PostgreSQL is ready:
    ```bash
-   docker-compose logs mongo
+   docker compose logs fin-postgres
    ```
 
 2. Verify network connectivity:
    ```bash
    docker network ls
-   docker network inspect fin-network
+   docker network inspect fin_fin-network
    ```
 
 3. Check server logs for errors:
    ```bash
-   docker-compose logs server
+   docker compose logs server
    ```
 
-### MongoDB connection issues
+### PostgreSQL connection issues
 
-The server automatically retries MongoDB connections every 5 seconds. Wait up to 40 seconds for the initial connection.
+The server depends on PostgreSQL health check (`service_healthy` condition). If PostgreSQL isn't starting:
 
-If issues persist:
-
-1. Check MongoDB is running:
+1. Check PostgreSQL is running:
    ```bash
-   docker-compose ps mongo
+   docker compose ps fin-postgres
    ```
 
-2. Test MongoDB connection:
+2. Test PostgreSQL connection:
    ```bash
-   docker exec -it mongofin mongosh --port 27018
+   docker compose exec fin-postgres psql -U fin -d fin -c "SELECT 1"
+   ```
+
+3. Check migration errors:
+   ```bash
+   docker compose logs fin-postgres | grep ERROR
    ```
 
 ### Rebuild after changes
@@ -318,29 +285,18 @@ If you've made changes to the frontend or server code:
 
 ```bash
 # Rebuild specific service and restart
-docker-compose up -d --build frontend
-docker-compose up -d --build server
+docker compose up -d --build frontend
+docker compose up -d --build server
 
 # Rebuild all services
-docker-compose up -d --build
+docker compose up -d --build
 
 # Or rebuild without cache (for major changes)
-docker-compose build --no-cache
-docker-compose up -d
+docker compose build --no-cache
+docker compose up -d
 ```
 
 ## Advanced Usage
-
-### Run server only (use external MongoDB)
-
-```bash
-docker build -t fin-server -f server/Dockerfile .
-docker run -p 3005:3005 \
-  -e MONGO_URI=mongodb://your-mongo-host:27018/fin \
-  -v $(pwd)/components/data:/app/components/data \
-  -v $(pwd)/components/reports:/app/components/reports \
-  fin-server
-```
 
 ### Access container shell
 
@@ -351,8 +307,8 @@ docker exec -it fin-frontend sh
 # Server container
 docker exec -it fin-server sh
 
-# MongoDB container
-docker exec -it mongofin sh
+# PostgreSQL shell
+docker compose exec fin-postgres psql -U fin -d fin
 ```
 
 ### View resource usage
@@ -361,27 +317,25 @@ docker exec -it mongofin sh
 docker stats
 ```
 
-## API Endpoints
+### Run database migrations manually
 
-Once running, the application exposes these endpoints through the frontend (http://localhost:3000):
+Migrations run automatically on first PostgreSQL start. To re-run on an existing database:
 
-- `GET /` - Frontend React application
-- `GET /api/` - Service info and available routes
-- `GET /api/health` - Health check
-- `GET /api/balance` - Balance sheet data
-- `GET /api/cash-flow` - Cash flow data
-- `GET /api/forecast` - Forecast data
-- `POST /api/forecast/scenarios/:scenario/copy` - Copy scenario
-- And more... (see [server/src/routes/](server/src/routes/))
+```bash
+docker compose exec fin-postgres psql -U fin -d fin -f /docker-entrypoint-initdb.d/001_initial_schema.sql
+docker compose exec fin-postgres psql -U fin -d fin -f /docker-entrypoint-initdb.d/002_psdata_staging.sql
+```
 
-All `/api/*` requests are automatically proxied from the frontend nginx server to the backend.
+## VM Provisioning
 
-## Notes
+If the VM needs to be recreated, use the provisioning scripts:
 
-- The frontend is accessible at http://localhost:3000
-- The backend server is NOT directly exposed to the host (only accessible via nginx proxy)
-- The MongoDB port (27018) is exposed on the host for development access
-- Data volumes persist across container restarts
-- The server includes automatic MongoDB connection retry logic
-- Health checks ensure services are ready before accepting traffic
-- Nginx handles gzip compression and caching for optimal performance
+```bash
+# From dev machine — create the VM on the KVM host
+ssh cfbieder@192.168.1.61 'bash -s' < provision-vm.sh
+
+# Wait ~3-5 min for cloud-init to complete, then deploy
+ssh cfbieder@192.168.1.82 'bash -s' < deploy-on-vm.sh
+```
+
+See `provision-vm.sh` and `deploy-on-vm.sh` for details. All VM images are stored in `/mnt/vm-ssd/` via the `vm-ssd` libvirt storage pool.

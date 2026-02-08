@@ -25,15 +25,18 @@
 
 ## Quick Start
 
-### Docker (Production)
+### Production (VM at 192.168.1.82)
 
 ```bash
+ssh cfbieder@192.168.1.82
+cd ~/Programs/fin
 docker compose up --build -d
 ```
 
-- Frontend: http://localhost:3006
-- API Server: http://localhost:3005
-- PostgreSQL: localhost:5433
+- Frontend (HTTPS): https://192.168.1.82:5175
+- Frontend (HTTP): http://192.168.1.82:3006
+- API Server: http://192.168.1.82:3005
+- PostgreSQL: 192.168.1.82:5433
 
 ### Local Development
 
@@ -43,6 +46,16 @@ cd server && npm install && npm run dev
 
 # Frontend (separate terminal)
 cd frontend && npm install && npm run dev
+```
+
+### VM Provisioning (from scratch)
+
+```bash
+# Create the VM on KVM host
+ssh cfbieder@192.168.1.61 'bash -s' < provision-vm.sh
+
+# Wait ~3-5 min, then deploy the application
+ssh cfbieder@192.168.1.82 'bash -s' < deploy-on-vm.sh
 ```
 
 ---
@@ -123,9 +136,12 @@ fin/
 │           │   ├── psdata.js
 │           │   └── transactions.js
 │           └── services/        # Business logic (forecast engine)
-├── certs/                       # TLS certificates for nginx
+├── certs/                       # TLS certificates for nginx (generated on VM)
 ├── docker-compose.yml           # 3 services: postgres, server, frontend
-└── .env                         # Environment variables (PS_API_KEY, etc.)
+├── provision-vm.sh              # Create 'fin' KVM guest on vmhost (192.168.1.61)
+├── deploy-on-vm.sh              # Clone repo + deploy on VM (192.168.1.82)
+├── rebuild-frontend.sh          # Rebuild and restart frontend container
+└── .env.example                 # Environment variable template
 ```
 
 ---
@@ -369,7 +385,9 @@ SQL migrations in `server/db/migrations/` run automatically on PostgreSQL contai
 ### Build Commands
 
 ```bash
-# Full rebuild
+# Full rebuild (on VM)
+ssh cfbieder@192.168.1.82
+cd ~/Programs/fin
 docker compose up --build -d
 
 # Rebuild single service

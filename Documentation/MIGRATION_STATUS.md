@@ -1,6 +1,6 @@
 # Fin Project - Full Status Report
 
-**Date:** 2026-02-07
+**Date:** 2026-02-08
 **Production VM:** `192.168.1.82` (Ubuntu 24.04 LTS, KVM guest)
 **Project Path:** `/home/cfbieder/Programs/fin`
 
@@ -14,9 +14,18 @@
 |-------|-------|
 | KVM Host | `192.168.1.61` (user: `cfbieder`, SSH key auth) |
 | Hypervisor | KVM/libvirt (`qemu:///system`) |
-| Storage Pool | `vm-ssd` (`/mnt/vm-ssd`) |
-| VM Disk | `fin.qcow2` (40 GB, qcow2 overlay on Ubuntu 24.04 cloud image) |
+| Storage Pools | `vm-ssd` (`/mnt/vm-ssd`), `vm-hdd` (`/mnt/vm-hdd`) |
 | Cockpit | `https://192.168.1.61:9090` |
+
+### VM Storage (all in `vm-ssd` pool)
+
+| File | Size | Purpose |
+|------|------|---------|
+| `fin-base.qcow2` | 598 MB | Ubuntu 24.04 cloud image (backing store) |
+| `fin.qcow2` | ~7 GB | VM disk (40 GB qcow2 overlay on base image) |
+| `fin-seed.iso` | 368 KB | Cloud-init seed ISO |
+
+All VM images are stored in `/mnt/vm-ssd/` via the `vm-ssd` libvirt storage pool. Nothing is stored in `/tmp`.
 
 ### VM (fin)
 
@@ -27,23 +36,53 @@
 | OS | Ubuntu 24.04 LTS (Noble) |
 | vCPUs | 2 |
 | RAM | 4 GB |
-| User | `cfbieder` (sudo, SSH key auth from KVM host) |
+| Disk | 40 GB (qcow2 overlay) |
+| User | `cfbieder` (sudo NOPASSWD, SSH key auth) |
 | Autostart | Enabled (`virsh autostart fin`) |
+| Docker | 29.2.1 |
+| Docker Compose | v5.0.2 |
 
 ### SSH Access
 
 ```bash
-# From any machine with the SSH key:
+# From dev machine to VM:
 ssh cfbieder@192.168.1.82
 
-# To the KVM host:
+# From dev machine to KVM host:
 ssh cfbieder@192.168.1.61
+
+# From KVM host to VM:
+ssh cfbieder@192.168.1.82
 
 # VM management (from KVM host):
 virsh --connect qemu:///system list --all
 virsh --connect qemu:///system start fin
 virsh --connect qemu:///system shutdown fin
 virsh --connect qemu:///system console fin
+```
+
+### VM Provisioning
+
+The VM is provisioned via `provision-vm.sh`, which:
+- Downloads the Ubuntu 24.04 cloud image to a staging directory
+- Uploads it to the `vm-ssd` libvirt pool via `virsh vol-create-as` / `virsh vol-upload`
+- Creates a qcow2 overlay disk with backing store
+- Generates a cloud-init ISO (static IP, SSH keys, Docker install)
+- Creates the VM with `virt-install`
+
+All operations use libvirt volume management (no sudo required, user must be in `libvirt` group).
+
+To recreate the VM from scratch:
+```bash
+# On KVM host — destroy and remove old VM (if exists)
+virsh --connect qemu:///system destroy fin
+virsh --connect qemu:///system undefine fin --remove-all-storage
+
+# From dev machine — run provisioning script
+ssh cfbieder@192.168.1.61 'bash -s' < provision-vm.sh
+
+# Wait ~3-5 min for cloud-init, then deploy
+ssh cfbieder@192.168.1.82 'bash -s' < deploy-on-vm.sh
 ```
 
 ---
@@ -59,6 +98,7 @@ virsh --connect qemu:///system console fin
 ### Recent Commit History
 
 ```
+b11a718 migration completed
 d6e325e fix: remove composes CSS syntax, fix stray CSS, move fonts to HTML link tags, add migration docs
 82f49b8 upgrade ui
 4e265e2 UI polish: replace emoji with Lucide icons, extract inline styles
@@ -100,16 +140,9 @@ From the VM itself, `localhost` works in place of `192.168.1.82`.
 | Frontend | React 19.2.0 + Vite 7.2.4 + React Router DOM 7.9.6 |
 | Icons | Lucide React |
 | Charts | Recharts |
-| Backend | Node.js 20 + Express |
+| Backend | Node.js 20 + Express 5 |
 | Database | PostgreSQL 16 |
 | Proxy | Nginx (SSL termination + SPA routing + API rewrite) |
-
-### Docker Versions (on VM)
-
-| Tool | Version |
-|------|---------|
-| Docker | 29.2.1 |
-| Docker Compose | v5.0.2 |
 
 ---
 
@@ -186,7 +219,7 @@ mv localhost+1-key.pem localhost-key.pem
 
 ### Local-only nginx change (on VM, not committed)
 
-`frontend/nginx.conf` has `server_name localhost 192.168.1.82 _` instead of `192.168.1.252`. This is intentional — the VM IP differs from the old dev machine.
+`frontend/nginx.conf` has `server_name localhost 192.168.1.82 _` instead of the original value. This is intentional — the VM IP differs from the old dev machine.
 
 ### Shared Data Files
 
@@ -346,12 +379,15 @@ All API routes are under `/api/v2/`. Nginx rewrites legacy `/api/*` paths to `/a
    virsh --connect qemu:///system change-media fin sda --eject
    ```
 
+9. **Database is empty after VM recreation** — schema is auto-applied from migrations but data must be restored from a backup.
+
 ---
 
 ## 11. Migration History
 
 | Date | Event |
 |------|-------|
+| 2026-02-08 | Recreated VM after loss (cloud image was in /tmp). All images now in /mnt/vm-ssd via libvirt pool. Added `provision-vm.sh` and `deploy-on-vm.sh` scripts. |
 | 2026-02-07 | Migrated from dev machine to KVM VM at 192.168.1.82 |
 | Earlier | Migrated from MongoDB to PostgreSQL 16 |
 | Earlier | UI overhaul: Lucide icons, shared layout, category landing pages |
