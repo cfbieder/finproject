@@ -1,257 +1,6 @@
 import { Fragment, useEffect, useState } from "react";
-import coa from "../../../../components/data/coa.json";
-import coaTraits from "../../../../components/data/coa_traits.json";
 import Rest from "../../js/rest";
 import "./FCModulesEdit.css";
-
-export const currencyOptions = (() => {
-  const values = new Set();
-  for (const traits of Object.values(coaTraits || {})) {
-    if (traits && typeof traits === "object" && traits.Currency) {
-      values.add(traits.Currency);
-    }
-  }
-  if (!values.has("USD")) {
-    values.add("USD");
-  }
-  return Array.from(values).sort();
-})();
-
-const balanceSheetLevel2Options = (() => {
-  const entries =
-    Array.isArray(coa) &&
-    coa.find((entry) =>
-      Object.prototype.hasOwnProperty.call(entry, "Balance Sheet Accounts")
-    )?.["Balance Sheet Accounts"];
-
-  const results = [];
-
-  const walk = (nodes, depth) => {
-    if (!Array.isArray(nodes)) return;
-    for (const node of nodes) {
-      const [key, value] = Object.entries(node || {})[0] || [];
-      if (!key) continue;
-      if (depth === 2) {
-        results.push(key);
-      }
-      if (Array.isArray(value)) {
-        walk(value, depth + 1);
-      } else if (value && typeof value === "object") {
-        walk([value], depth + 1);
-      }
-    }
-  };
-
-  walk(entries, 1);
-  return Array.from(new Set(results)).filter(
-    (name) => name !== "Bank Accounts"
-  );
-})();
-
-const getChildCategoriesForAccount = (accountName) => {
-  if (!accountName) return [];
-
-  const entries =
-    Array.isArray(coa) &&
-    coa.find((entry) =>
-      Object.prototype.hasOwnProperty.call(entry, "Balance Sheet Accounts")
-    )?.["Balance Sheet Accounts"];
-
-  const children = [];
-
-  const walk = (nodes, depth) => {
-    if (!Array.isArray(nodes)) return;
-    for (const node of nodes) {
-      const [key, value] = Object.entries(node || {})[0] || [];
-      if (!key) continue;
-
-      if (depth === 2 && key === accountName) {
-        if (Array.isArray(value)) {
-          for (const child of value) {
-            if (child && typeof child === "object") {
-              const childKey = Object.keys(child)[0];
-              if (childKey) {
-                children.push(childKey);
-              }
-            } else if (typeof child === "string") {
-              children.push(child);
-            }
-          }
-        } else if (typeof value === "string") {
-          children.push(value);
-        }
-        return;
-      }
-
-      if (Array.isArray(value)) {
-        walk(value, depth + 1);
-      } else if (value && typeof value === "object") {
-        walk([value], depth + 1);
-      }
-    }
-  };
-
-  walk(entries, 1);
-  return Array.from(new Set(children));
-};
-
-export const expenseCategoryOptions = (() => {
-  const entries =
-    Array.isArray(coa) &&
-    coa.find((entry) =>
-      Object.prototype.hasOwnProperty.call(entry, "Profit & Loss Accounts")
-    )?.["Profit & Loss Accounts"];
-
-  const collectLeafStrings = (node, results) => {
-    if (!node) return;
-    if (Array.isArray(node)) {
-      node.forEach((item) => collectLeafStrings(item, results));
-      return;
-    }
-    if (typeof node === "string") {
-      const trimmed = node.trim();
-      if (trimmed) results.push(trimmed);
-      return;
-    }
-    if (typeof node === "object") {
-      for (const [key, value] of Object.entries(node)) {
-        if (typeof value === "string") {
-          const trimmed = value.trim() || key.trim();
-          if (trimmed) results.push(trimmed);
-          continue;
-        }
-        collectLeafStrings(value, results);
-      }
-    }
-  };
-
-  const findKey = (node, targetKey) => {
-    if (!node || typeof node !== "object") return null;
-    if (Object.prototype.hasOwnProperty.call(node, targetKey)) {
-      return node[targetKey];
-    }
-    if (Array.isArray(node)) {
-      for (const item of node) {
-        const found = findKey(item, targetKey);
-        if (found !== null && found !== undefined) {
-          return found;
-        }
-      }
-      return null;
-    }
-    for (const value of Object.values(node)) {
-      if (value && typeof value === "object") {
-        const found = findKey(value, targetKey);
-        if (found !== null && found !== undefined) {
-          return found;
-        }
-      }
-    }
-    return null;
-  };
-
-  const results = [];
-
-  if (Array.isArray(entries)) {
-    const expenseEntry = entries.find(
-      (entry) =>
-        entry &&
-        typeof entry === "object" &&
-        Object.prototype.hasOwnProperty.call(entry, "Expense")
-    );
-    const expenseTree = expenseEntry?.Expense;
-    const financialExpenses = findKey(expenseTree, "Financial Expenses");
-    collectLeafStrings(financialExpenses, results);
-
-    const propertyCosts = findKey(expenseTree, "Property Costs");
-    const propertySp = findKey(propertyCosts, "Property - SP");
-    const propertyOther = findKey(propertySp, "Property - Other");
-    collectLeafStrings(propertyOther, results);
-  }
-
-  if (!results.includes("Tax Reserve")) {
-    results.push("Tax Reserve");
-  }
-
-  return Array.from(new Set(results)).sort();
-})();
-
-export const incomeCategoryOptions = (() => {
-  const entries =
-    Array.isArray(coa) &&
-    coa.find((entry) =>
-      Object.prototype.hasOwnProperty.call(entry, "Profit & Loss Accounts")
-    )?.["Profit & Loss Accounts"];
-
-  const collectLeafStrings = (node, results) => {
-    if (!node) return;
-    if (Array.isArray(node)) {
-      node.forEach((item) => collectLeafStrings(item, results));
-      return;
-    }
-    if (typeof node === "string") {
-      const trimmed = node.trim();
-      if (trimmed) {
-        results.push(trimmed);
-      }
-      return;
-    }
-    if (typeof node === "object") {
-      for (const [key, value] of Object.entries(node)) {
-        if (typeof value === "string") {
-          const trimmed = value.trim();
-          const resolved = trimmed || key.trim();
-          if (resolved) {
-            results.push(resolved);
-          }
-          continue;
-        }
-        collectLeafStrings(value, results);
-      }
-    }
-  };
-
-  const findKey = (node, targetKey) => {
-    if (!node || typeof node !== "object") return null;
-    if (Object.prototype.hasOwnProperty.call(node, targetKey)) {
-      return node[targetKey];
-    }
-    if (Array.isArray(node)) {
-      for (const item of node) {
-        const found = findKey(item, targetKey);
-        if (found !== null && found !== undefined) {
-          return found;
-        }
-      }
-      return null;
-    }
-    for (const value of Object.values(node)) {
-      if (value && typeof value === "object") {
-        const found = findKey(value, targetKey);
-        if (found !== null && found !== undefined) {
-          return found;
-        }
-      }
-    }
-    return null;
-  };
-
-  const results = [];
-
-  if (Array.isArray(entries)) {
-    const incomeEntry = entries.find(
-      (entry) =>
-        entry &&
-        typeof entry === "object" &&
-        Object.prototype.hasOwnProperty.call(entry, "Income")
-    );
-    const incomeTree = incomeEntry?.Income;
-    const financialIncome = findKey(incomeTree, "Financial Income");
-    collectLeafStrings(financialIncome, results);
-  }
-
-  return Array.from(new Set(results)).sort();
-})();
 
 const normalizeBaseDate = (value) => {
   if (!value) return "";
@@ -339,6 +88,11 @@ export default function FCModulesEditModal({
   onFieldChange,
   onSubmit,
   refreshToken,
+  traits = {},
+  bsLevel2Options = [],
+  getChildCategoriesForAccount = () => [],
+  expenseCategoryOptions = [],
+  incomeCategoryOptions = [],
 }) {
   const isMatched = Boolean(editForm?.Matched);
   const nameOptions = getChildCategoriesForAccount(editForm?.Account);
@@ -350,11 +104,11 @@ export default function FCModulesEditModal({
       : ""
     : editForm?.Name ?? "";
   const traitKey =
-    (editForm?.Name && coaTraits?.[editForm.Name] ? editForm.Name : "") ||
-    (effectiveName && coaTraits?.[effectiveName] ? effectiveName : "") ||
+    (editForm?.Name && traits?.[editForm.Name] ? editForm.Name : "") ||
+    (effectiveName && traits?.[effectiveName] ? effectiveName : "") ||
     editForm?.Account ||
     "";
-  const accountTraits = coaTraits?.[traitKey] || {};
+  const accountTraits = traits?.[traitKey] || {};
   const traitType = accountTraits?.Type ?? "";
   const traitCurrency = accountTraits?.Currency ?? "";
   const [accountBalance, setAccountBalance] = useState({
@@ -389,10 +143,10 @@ export default function FCModulesEditModal({
   const traitValueOptions = (() => {
     const typeValues = new Set();
     const currencyValues = new Set();
-    for (const traits of Object.values(coaTraits || {})) {
-      if (!traits || typeof traits !== "object") continue;
-      if (traits.Type) typeValues.add(traits.Type);
-      if (traits.Currency) currencyValues.add(traits.Currency);
+    for (const t of Object.values(traits || {})) {
+      if (!t || typeof t !== "object") continue;
+      if (t.Type) typeValues.add(t.Type);
+      if (t.Currency) currencyValues.add(t.Currency);
     }
     return {
       Type: Array.from(typeValues).sort(),
@@ -813,13 +567,13 @@ export default function FCModulesEditModal({
                             onFieldChange("Account", event.target.value)
                           }
                         >
-                          {balanceSheetLevel2Options.map((option) => (
+                          {bsLevel2Options.map((option) => (
                             <option key={option} value={option}>
                               {option}
                             </option>
                           ))}
                           {editForm.Account &&
-                            !balanceSheetLevel2Options.includes(
+                            !bsLevel2Options.includes(
                               editForm.Account
                             ) && (
                               <option value={editForm.Account}>

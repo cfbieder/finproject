@@ -50,7 +50,7 @@ export function useFilterOptions() {
       try {
         // Using v2 API (PostgreSQL) for accounts, categories, and category groups
         const [accountsData, categoriesData, categoryGroupPayload] = await Promise.all([
-          Rest.fetchAccountsV2({ activeOnly: true }),
+          Rest.fetchAccountsV2({ activeOnly: true, section: 'balance_sheet' }),
           Rest.fetchCategoriesV2({ activeOnly: true }),
           Rest.fetchCategoryGroupsV2(),
         ]);

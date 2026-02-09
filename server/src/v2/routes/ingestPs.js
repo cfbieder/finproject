@@ -34,44 +34,32 @@ const normalizeStringList = (values) => {
   return Array.from(unique).sort((a, b) => a.localeCompare(b, undefined, { sensitivity: 'base' }));
 };
 
-const collectProfitAndLossCategories = (coaData) => {
-  if (!Array.isArray(coaData)) return [];
-  const categories = [];
-  const seen = new Set();
-
-  const traverse = (node) => {
-    if (Array.isArray(node)) {
-      for (const child of node) traverse(child);
-      return;
-    }
-    if (node && typeof node === 'object') {
-      for (const value of Object.values(node)) traverse(value);
-      return;
-    }
-    if (typeof node === 'string') {
-      const trimmed = node.trim();
-      if (trimmed && !seen.has(trimmed)) {
-        seen.add(trimmed);
-        categories.push(trimmed);
-      }
-    }
-  };
-
-  for (const entry of coaData) {
-    if (entry?.['Profit & Loss Accounts']) {
-      traverse(entry['Profit & Loss Accounts']);
-      break;
-    }
-  }
-  return categories;
-};
-
 const readCoaCategories = async () => {
   try {
-    const raw = await fs.readFile(dataPaths.coa, 'utf8');
-    return collectProfitAndLossCategories(JSON.parse(raw));
+    const db = require('../db');
+    // Get leaf-level P&L account names in display order using recursive CTE
+    const result = await db.query(`
+      WITH RECURSIVE cat_tree AS (
+        SELECT id, name, parent_id, display_order,
+               ARRAY[display_order, id] as sort_path
+        FROM accounts
+        WHERE section = 'profit_loss' AND parent_id IS NULL AND is_active = TRUE
+        UNION ALL
+        SELECT a.id, a.name, a.parent_id, a.display_order,
+               ct.sort_path || ARRAY[a.display_order, a.id]
+        FROM accounts a
+        JOIN cat_tree ct ON a.parent_id = ct.id
+        WHERE a.is_active = TRUE
+      )
+      SELECT ct.name FROM cat_tree ct
+      WHERE ct.id NOT IN (
+        SELECT DISTINCT parent_id FROM accounts WHERE parent_id IS NOT NULL AND is_active = TRUE
+      )
+      ORDER BY ct.sort_path
+    `);
+    return result.rows.map(r => r.name);
   } catch (error) {
-    console.error('[v2/ingest-ps] Unable to read COA file:', error);
+    console.error('[v2/ingest-ps] Unable to read COA from DB:', error);
     return [];
   }
 };
@@ -320,12 +308,12 @@ const analyzePsHandler = async (req, res, next) => {
     };
 
     await DataAnalyzerUtils.writeAccountNamesFile(PSdataProxy, dataPaths.accountNames);
-    const misAcct = DataAnalyzerUtils.reportMissingAccounts(dataPaths.accountNames, dataPaths.coa);
-    const missCOAact = DataAnalyzerUtils.reportUnknownCoaAccounts(dataPaths.accountNames, dataPaths.coa);
+    const misAcct = await DataAnalyzerUtils.reportMissingAccounts(dataPaths.accountNames);
+    const missCOAact = await DataAnalyzerUtils.reportUnknownCoaAccounts(dataPaths.accountNames);
 
     await DataAnalyzerUtils.writeCategoryNamesFile(PSdataProxy, dataPaths.categoryNames);
-    const misCat = DataAnalyzerUtils.reportMissingCategories(dataPaths.categoryNames, dataPaths.coa);
-    const missCOACat = DataAnalyzerUtils.reportUnknownCoaCategories(dataPaths.categoryNames, dataPaths.coa);
+    const misCat = await DataAnalyzerUtils.reportMissingCategories(dataPaths.categoryNames);
+    const missCOACat = await DataAnalyzerUtils.reportUnknownCoaCategories(dataPaths.categoryNames);
 
     res.json({
       misAcct,

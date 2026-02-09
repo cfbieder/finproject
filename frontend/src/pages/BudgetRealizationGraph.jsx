@@ -5,8 +5,8 @@ import BudgetBalancePanel, {
 } from "../features/Budgets/BudgetBalancePanel.jsx";
 import BudgetGraphModal from "../features/Budgets/BudgetGraphModal.jsx";
 import Rest from "../js/rest.js";
+import { useCoa } from "../hooks/useCoa.js";
 import "../features/CashFlow/CashFlowReport.css";
-import coaData from "../../../components/data/coa.json";
 import "./PageLayout.css";
 import "./BudgetRealizationGraph.css";
 
@@ -374,6 +374,9 @@ const buildChartData = (
 // ============================================================================
 
 export default function BudgetRealizationGraph() {
+  // ========== COA Data ==========
+  const { plTree, loading: coaLoading } = useCoa();
+
   // ========== State: Report Parameters ==========
   const [reportType, setReportType] = useState("month");
   const [selectedMonth, setSelectedMonth] = useState(
@@ -414,18 +417,8 @@ export default function BudgetRealizationGraph() {
   );
 
   // ========== Computed Values: Category Tree ==========
-  const categoryTree = useMemo(() => {
-    const profitLossSection = coaData.find(
-      (entry) =>
-        entry &&
-        typeof entry === "object" &&
-        Object.prototype.hasOwnProperty.call(entry, "Profit & Loss Accounts")
-    );
-    const profitLossNodes = profitLossSection
-      ? profitLossSection["Profit & Loss Accounts"]
-      : [];
-    return buildCategoryTree(profitLossNodes);
-  }, []);
+  // plTree from useCoa() is already in { name, children } shape
+  const categoryTree = plTree;
 
   const filteredCategoryTree = useMemo(
     () =>

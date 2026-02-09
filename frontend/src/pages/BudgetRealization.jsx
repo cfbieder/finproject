@@ -6,8 +6,8 @@ import BudgetBalancePanel, {
 import BudgetRealizationContent from "../features/Budgets/BudgetRealizationContent.jsx";
 import BudgetDetailModal from "../features/Budgets/BudgetDetailModal.jsx";
 import Rest from "../js/rest.js";
+import { useCoa } from "../hooks/useCoa.js";
 import "../features/CashFlow/CashFlowReport.css";
-import coaData from "../../../components/data/coa.json";
 import "./PageLayout.css";
 
 // ============================================================================
@@ -586,6 +586,9 @@ const filterCategoryTree = (nodes, { includeUnrealized, includeTransfers }) => {
  * - Optional inclusion of unrealized G/L and transfers
  */
 export default function BudgetRealization() {
+  // ========== COA Data ==========
+  const { plTree, loading: coaLoading } = useCoa();
+
   // ========== State: Report Parameters ==========
   const [reportType, setReportType] = useState("month");
   const [selectedMonth, setSelectedMonth] = useState(
@@ -628,18 +631,8 @@ export default function BudgetRealization() {
   );
 
   // ========== Computed Values: Category Tree ==========
-  const categoryTree = useMemo(() => {
-    const profitLossSection = coaData.find(
-      (entry) =>
-        entry &&
-        typeof entry === "object" &&
-        Object.prototype.hasOwnProperty.call(entry, "Profit & Loss Accounts")
-    );
-    const profitLossNodes = profitLossSection
-      ? profitLossSection["Profit & Loss Accounts"]
-      : [];
-    return buildCategoryTree(profitLossNodes);
-  }, []);
+  // plTree from useCoa() is already in { name, children } shape
+  const categoryTree = plTree;
 
   const filteredCategoryTree = useMemo(
     () =>

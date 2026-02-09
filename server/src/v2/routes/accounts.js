@@ -24,9 +24,23 @@ router.get('/', async (req, res, next) => {
 // GET /api/v2/accounts/tree - Hierarchical tree
 router.get('/tree', async (req, res, next) => {
   try {
-    const { section } = req.query;
+    const { section, format } = req.query;
+    if (format === 'nested') {
+      const tree = await repo.getNestedTree({ section });
+      return res.json({ data: tree });
+    }
     const tree = await repo.getTree({ section });
     res.json({ data: tree });
+  } catch (error) {
+    next(error);
+  }
+});
+
+// GET /api/v2/accounts/traits - Traits map (replaces coa_traits.json)
+router.get('/traits', async (req, res, next) => {
+  try {
+    const traits = await repo.getTraitsMap();
+    res.json(traits);
   } catch (error) {
     next(error);
   }

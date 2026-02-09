@@ -296,6 +296,26 @@ export default class Rest {
   }
 
   /**
+   * Fetch account tree as nested { name, children } structure from v2 API
+   */
+  static async fetchAccountTreeV2({ section } = {}) {
+    const params = new URLSearchParams();
+    if (section) params.set("section", section);
+    params.set("format", "nested");
+    const query = params.toString();
+    const path = `/api/v2/accounts/tree${query ? `?${query}` : ""}`;
+    const response = await Rest.fetchJson(path);
+    return response?.data ?? [];
+  }
+
+  /**
+   * Fetch account traits map from v2 API (replaces coa_traits.json)
+   */
+  static async fetchAccountTraitsV2() {
+    return Rest.fetchJson("/api/v2/accounts/traits");
+  }
+
+  /**
    * Fetch accounts from v2 API (PostgreSQL)
    */
   static async fetchAccountsV2({ section, type, activeOnly = true } = {}) {

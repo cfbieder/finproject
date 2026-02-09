@@ -155,25 +155,36 @@ class DataAnalyzerUtils {
   }
 
   /************************************************************
-   * Integrity Check Functions
+   * Integrity Check Functions (PostgreSQL-backed)
    ************************************************************/
-  // Reports account names that are missing from the COA file
-  static reportMissingAccounts(accountNamesPath, coaPath) {
+
+  /**
+   * Get all active account names from the PostgreSQL accounts table.
+   */
+  static async getCoaAccountNames(section) {
+    const db = require("../../v2/db");
+    const conditions = ["is_active = TRUE"];
+    const params = [];
+    if (section) {
+      conditions.push("section = $1");
+      params.push(section);
+    }
+    const sql = `SELECT name FROM accounts WHERE ${conditions.join(" AND ")} ORDER BY name`;
+    const result = await db.query(sql, params);
+    return new Set(result.rows.map((r) => r.name));
+  }
+
+  // Reports account names that are missing from the COA (accounts table)
+  static async reportMissingAccounts(accountNamesPath) {
     const accountNamesFile = resolveDataPath(
       typeof accountNamesPath === "string" && accountNamesPath.trim()
         ? accountNamesPath
         : null,
       "account_names.json"
     );
-    const coaFile = resolveDataPath(
-      typeof coaPath === "string" && coaPath.trim() ? coaPath : null,
-      "coa.json"
-    );
 
     const accountNamesData = this.readJson(accountNamesFile);
-    const coaData = this.readJson(coaFile);
-
-    const coaAccounts = this.collectCoaStrings(coaData);
+    const coaAccounts = await this.getCoaAccountNames();
 
     const missing = [];
     for (const name of Object.keys(accountNamesData)) {
@@ -189,40 +200,17 @@ class DataAnalyzerUtils {
     };
   }
 
-  // Reports category names that are missing from the COA file
-  static reportMissingCategories(categoryNamesPath, coaPath) {
+  // Reports category names that are missing from the COA P&L section
+  static async reportMissingCategories(categoryNamesPath) {
     const categoryNamesFile = resolveDataPath(
       typeof categoryNamesPath === "string" && categoryNamesPath.trim()
         ? categoryNamesPath
         : null,
       "category_names.json"
     );
-    const coaFile = resolveDataPath(
-      typeof coaPath === "string" && coaPath.trim() ? coaPath : null,
-      "coa.json"
-    );
 
     const categoryNamesData = this.readJson(categoryNamesFile);
-    const coaData = this.readJson(coaFile);
-    const profitLossEntry =
-      Array.isArray(coaData) &&
-      coaData.find(
-        (item) =>
-          item &&
-          typeof item === "object" &&
-          Object.prototype.hasOwnProperty.call(item, "Profit & Loss Accounts")
-      );
-
-    if (!profitLossEntry) {
-      return {
-        status: "profit_loss_missing",
-        missingCategories: [],
-        missingCount: 0,
-      };
-    }
-
-    const profitLossData = profitLossEntry["Profit & Loss Accounts"];
-    const coaCategories = this.collectCoaStrings(profitLossData);
+    const coaCategories = await this.getCoaAccountNames("profit_loss");
 
     const missing = [];
     for (const name of Object.keys(categoryNamesData)) {
@@ -239,7 +227,7 @@ class DataAnalyzerUtils {
   }
 
   // Reports COA accounts that are unknown in the account names file
-  static reportUnknownCoaAccounts(accountNamesPath, coaPath) {
+  static async reportUnknownCoaAccounts(accountNamesPath) {
     const accountNamesFile = resolveDataPath(
       typeof accountNamesPath === "string" && accountNamesPath.trim()
         ? accountNamesPath
@@ -252,44 +240,24 @@ class DataAnalyzerUtils {
         (name) => typeof name === "string" && name.length > 0
       )
     );
-    const coaFile = resolveDataPath(
-      typeof coaPath === "string" && coaPath.trim() ? coaPath : null,
-      "coa.json"
-    );
-    const coaData = this.readJson(coaFile);
-    const balanceSheetEntry =
-      Array.isArray(coaData) &&
-      coaData.find(
-        (item) =>
-          item &&
-          typeof item === "object" &&
-          Object.prototype.hasOwnProperty.call(item, "Balance Sheet Accounts")
-      );
 
-    if (!balanceSheetEntry) {
-      return {
-        status: "balance_sheet_missing",
-        unknownAccounts: [],
-        unknownCount: 0,
-      };
+    const coaAccounts = await this.getCoaAccountNames("balance_sheet");
+    const unknown = [];
+    for (const name of coaAccounts) {
+      if (!knownAccounts.has(name)) {
+        unknown.push(name);
+      }
     }
 
-    const balanceSheetData = balanceSheetEntry["Balance Sheet Accounts"];
-    const unknownAccounts = this.collectCoaStrings(
-      balanceSheetData,
-      (name) => !knownAccounts.has(name)
-    );
-
-    const accounts = Array.from(unknownAccounts);
     return {
       status: "ok",
-      unknownAccounts: accounts,
-      unknownCount: accounts.length,
+      unknownAccounts: unknown,
+      unknownCount: unknown.length,
     };
   }
 
   // Reports COA categories that are unknown in the category names file
-  static reportUnknownCoaCategories(categoryNamesPath, coaPath) {
+  static async reportUnknownCoaCategories(categoryNamesPath) {
     const categoryNamesFile = resolveDataPath(
       typeof categoryNamesPath === "string" && categoryNamesPath.trim()
         ? categoryNamesPath
@@ -302,39 +270,19 @@ class DataAnalyzerUtils {
         (name) => typeof name === "string" && name.length > 0
       )
     );
-    const coaFile = resolveDataPath(
-      typeof coaPath === "string" && coaPath.trim() ? coaPath : null,
-      "coa.json"
-    );
-    const coaData = this.readJson(coaFile);
-    const profitLossEntry =
-      Array.isArray(coaData) &&
-      coaData.find(
-        (item) =>
-          item &&
-          typeof item === "object" &&
-          Object.prototype.hasOwnProperty.call(item, "Profit & Loss Accounts")
-      );
 
-    if (!profitLossEntry) {
-      return {
-        status: "profit_loss_missing",
-        unknownCategories: [],
-        unknownCount: 0,
-      };
+    const coaCategories = await this.getCoaAccountNames("profit_loss");
+    const unknown = [];
+    for (const name of coaCategories) {
+      if (!knownCategories.has(name)) {
+        unknown.push(name);
+      }
     }
 
-    const profitLossData = profitLossEntry["Profit & Loss Accounts"];
-    const unknownCategories = this.collectCoaStrings(
-      profitLossData,
-      (name) => !knownCategories.has(name)
-    );
-
-    const categories = Array.from(unknownCategories);
     return {
       status: "ok",
-      unknownCategories: categories,
-      unknownCount: categories.length,
+      unknownCategories: unknown,
+      unknownCount: unknown.length,
     };
   }
 

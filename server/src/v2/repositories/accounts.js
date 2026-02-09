@@ -254,14 +254,66 @@ async function remove(id) {
   return result.rowCount > 0;
 }
 
+/**
+ * Get account hierarchy as a nested { name, children } tree.
+ *
+ * Uses the flat rows from getTree() and assembles them into a nested
+ * structure suitable for frontend rendering.
+ */
+async function getNestedTree({ section } = {}) {
+  const rows = await getTree({ section });
+
+  const nodeMap = new Map();
+  const roots = [];
+
+  for (const row of rows) {
+    const node = { name: row.name, children: [] };
+    nodeMap.set(row.id, node);
+
+    if (row.parent_id && nodeMap.has(row.parent_id)) {
+      nodeMap.get(row.parent_id).children.push(node);
+    } else {
+      roots.push(node);
+    }
+  }
+
+  return roots;
+}
+
+/**
+ * Get a traits map mirroring the shape of coa_traits.json.
+ *
+ * Returns { "AccountName": { Currency, Type, AccountNumber } }
+ */
+async function getTraitsMap() {
+  const sql = `
+    SELECT name, currency, account_type, account_number
+    FROM accounts
+    WHERE is_active = TRUE
+    ORDER BY name
+  `;
+  const result = await db.query(sql);
+  const traits = {};
+  for (const row of result.rows) {
+    traits[row.name] = {
+      Currency: row.currency || 'N/A',
+      Type: row.account_type,
+      AccountNumber: row.account_number || '',
+    };
+  }
+  return traits;
+}
+
 module.exports = {
   findAll,
   findById,
   findByName,
   getTree,
+  getNestedTree,
   getChildren,
   getDescendants,
   getBalances,
+  getTraitsMap,
   create,
   update,
   remove

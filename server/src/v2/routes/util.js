@@ -172,27 +172,19 @@ router.post('/appdata', async (req, res, next) => {
   }
 });
 
+// ============================================================================
+// COA endpoints (PostgreSQL-backed)
+// ============================================================================
+
+const accountsRepo = require('../repositories').accounts;
+
 /**
  * GET /api/v2/util/coa-traits
- * Get Chart of Accounts traits
+ * Get Chart of Accounts traits from PostgreSQL
  */
 router.get('/coa-traits', async (req, res, next) => {
   try {
-    const fs = require('fs');
-    const { dataPaths } = require('../../utils/dataPaths');
-
-    const coaTraitsPath = dataPaths.coaTraits;
-    let traits = {};
-
-    try {
-      if (fs.existsSync(coaTraitsPath)) {
-        const content = fs.readFileSync(coaTraitsPath, 'utf8');
-        traits = JSON.parse(content);
-      }
-    } catch (readError) {
-      console.warn('[v2/util/coa-traits] Could not read coa_traits file:', readError.message);
-    }
-
+    const traits = await accountsRepo.getTraitsMap();
     res.json(traits);
   } catch (error) {
     console.error('[v2/util/coa-traits] Failed to fetch coa-traits:', error);
@@ -202,31 +194,14 @@ router.get('/coa-traits', async (req, res, next) => {
 
 /**
  * GET /api/v2/util/coa/BalanceSheet
- * Get Balance Sheet section of Chart of Accounts
+ * Get Balance Sheet section as nested tree from PostgreSQL
  */
 router.get('/coa/BalanceSheet', async (req, res, next) => {
   try {
-    const fs = require('fs');
-    const { dataPaths } = require('../../utils/dataPaths');
-
-    const coaPath = dataPaths.coa;
-    const coaData = JSON.parse(fs.readFileSync(coaPath, 'utf8'));
-
-    if (!Array.isArray(coaData)) {
-      return res.json([]);
-    }
-
-    // Find Balance Sheet Accounts section
-    const bsEntry = coaData.find(
-      item => item && typeof item === 'object' &&
-      Object.prototype.hasOwnProperty.call(item, 'Balance Sheet Accounts')
-    );
-
-    if (!bsEntry) {
-      return res.json([]);
-    }
-
-    res.json(bsEntry['Balance Sheet Accounts'] || []);
+    const tree = await accountsRepo.getNestedTree({ section: 'balance_sheet' });
+    // Return the children of the root "Balance Sheet Accounts" node
+    const root = tree.find(n => n.name === 'Balance Sheet Accounts');
+    res.json(root ? root.children : tree);
   } catch (error) {
     console.error('[v2/util/coa/BalanceSheet] Failed:', error);
     next(error);
@@ -235,168 +210,24 @@ router.get('/coa/BalanceSheet', async (req, res, next) => {
 
 /**
  * GET /api/v2/util/coa/CashFlow
- * Get Profit & Loss (Cash Flow) section of Chart of Accounts
+ * Get Profit & Loss (Cash Flow) section as nested tree from PostgreSQL
  */
 router.get('/coa/CashFlow', async (req, res, next) => {
   try {
-    const fs = require('fs');
-    const { dataPaths } = require('../../utils/dataPaths');
-
-    const coaPath = dataPaths.coa;
-    const coaData = JSON.parse(fs.readFileSync(coaPath, 'utf8'));
-
-    if (!Array.isArray(coaData)) {
-      return res.json([]);
-    }
-
-    // Find Profit & Loss Accounts section
-    const plEntry = coaData.find(
-      item => item && typeof item === 'object' &&
-      Object.prototype.hasOwnProperty.call(item, 'Profit & Loss Accounts')
-    );
-
-    if (!plEntry) {
-      return res.json([]);
-    }
-
-    res.json(plEntry['Profit & Loss Accounts'] || []);
+    const tree = await accountsRepo.getNestedTree({ section: 'profit_loss' });
+    // Return the children of the root "Profit & Loss Accounts" node
+    const root = tree.find(n => n.name === 'Profit & Loss Accounts');
+    res.json(root ? root.children : tree);
   } catch (error) {
     console.error('[v2/util/coa/CashFlow] Failed:', error);
     next(error);
   }
 });
 
-// ============================================================================
-// COA Management (file-based operations)
-// ============================================================================
-
-const COA_TRAITS_PATH = require('path').join(
-  require('path').dirname(dataPaths.coa),
-  'coa_traits.json'
-);
-
-const loadJson = async (filePath) => {
-  const fsp = require('fs/promises');
-  const raw = await fsp.readFile(filePath, 'utf8');
-  return JSON.parse(raw);
-};
-
-const saveJson = async (filePath, data) => {
-  const fsp = require('fs/promises');
-  await fsp.writeFile(filePath, JSON.stringify(data, null, 2), 'utf8');
-};
-
-const updateCoaEntryName = (data, pathParts, oldName, newName) => {
-  if (!Array.isArray(data) || !Array.isArray(pathParts) || pathParts.length === 0) {
-    return false;
-  }
-  const targetName = pathParts[pathParts.length - 1];
-  const parentPath = pathParts.slice(0, -1);
-
-  let current = data;
-  for (const key of parentPath) {
-    const match = current.find(
-      (entry) => entry && typeof entry === 'object' && !Array.isArray(entry) &&
-        Object.prototype.hasOwnProperty.call(entry, key)
-    );
-    if (!match) return false;
-    current = match[key];
-    if (!Array.isArray(current)) return false;
-  }
-
-  const idxString = current.findIndex((item) => item === targetName);
-  if (idxString !== -1) {
-    current[idxString] = newName;
-    return true;
-  }
-
-  for (let i = 0; i < current.length; i++) {
-    const entry = current[i];
-    if (entry && typeof entry === 'object' && !Array.isArray(entry) &&
-        Object.prototype.hasOwnProperty.call(entry, targetName)) {
-      const value = entry[targetName];
-      current[i] = { [newName]: value };
-      return true;
-    }
-  }
-  return false;
-};
-
-const deleteCoaEntry = (data, pathParts, targetName) => {
-  if (!Array.isArray(data) || !Array.isArray(pathParts) || pathParts.length === 0) {
-    return false;
-  }
-  const parentPath = pathParts.slice(0, -1);
-  const nameToDelete = targetName || pathParts[pathParts.length - 1];
-
-  let current = data;
-  for (const key of parentPath) {
-    const match = current.find(
-      (entry) => entry && typeof entry === 'object' && !Array.isArray(entry) &&
-        Object.prototype.hasOwnProperty.call(entry, key)
-    );
-    if (!match) return false;
-    current = match[key];
-    if (!Array.isArray(current)) return false;
-  }
-
-  const idxString = current.findIndex((item) => item === nameToDelete);
-  if (idxString !== -1) {
-    current.splice(idxString, 1);
-    return true;
-  }
-
-  const idxObject = current.findIndex(
-    (entry) => entry && typeof entry === 'object' && !Array.isArray(entry) &&
-      Object.prototype.hasOwnProperty.call(entry, nameToDelete)
-  );
-  if (idxObject !== -1) {
-    current.splice(idxObject, 1);
-    return true;
-  }
-  return false;
-};
-
-const addCoaEntry = (data, pathParts, entry) => {
-  if (!Array.isArray(data) || !Array.isArray(pathParts) || pathParts.length === 0) {
-    return { ok: false, reason: 'invalid' };
-  }
-  const name = entry?.name;
-  if (!name) {
-    return { ok: false, reason: 'invalid' };
-  }
-
-  let current = data;
-  for (const key of pathParts) {
-    const match = current.find(
-      (item) => item && typeof item === 'object' && !Array.isArray(item) &&
-        Object.prototype.hasOwnProperty.call(item, key)
-    );
-    if (!match) return { ok: false, reason: 'not_found' };
-    current = match[key];
-    if (!Array.isArray(current)) return { ok: false, reason: 'not_found' };
-  }
-
-  const exists = current.some((item) => {
-    if (typeof item === 'string') return item === name;
-    if (item && typeof item === 'object' && !Array.isArray(item)) {
-      return Object.prototype.hasOwnProperty.call(item, name);
-    }
-    return false;
-  });
-  if (exists) {
-    return { ok: false, reason: 'exists' };
-  }
-
-  if (entry.isCategory) {
-    current.push({ [name]: [] });
-  } else {
-    current.push(name);
-  }
-  return { ok: true };
-};
-
-// POST /api/v2/util/coa/add
+/**
+ * POST /api/v2/util/coa/add
+ * Add a new account to the COA via PostgreSQL
+ */
 router.post('/coa/add', async (req, res, next) => {
   try {
     const { path: pathParts, name, type, currency, accountNumber, isCategory } = req.body || {};
@@ -408,88 +239,64 @@ router.post('/coa/add', async (req, res, next) => {
       return res.status(400).json({ error: 'Missing account name' });
     }
 
-    const coaData = await loadJson(dataPaths.coa);
-    const result = addCoaEntry(coaData, pathParts, {
+    // Check if name already exists
+    const existing = await accountsRepo.findByName(trimmedName);
+    if (existing) {
+      return res.status(409).json({ error: 'COA entry already exists.' });
+    }
+
+    // Resolve parent from path — last element in path is the direct parent
+    const parentName = pathParts[pathParts.length - 1];
+    const parent = await accountsRepo.findByName(parentName);
+    if (!parent) {
+      return res.status(404).json({ error: 'COA entry not found for the provided path.' });
+    }
+
+    const account = await accountsRepo.create({
       name: trimmedName,
-      isCategory: Boolean(isCategory),
+      parent_id: parent.id,
+      account_type: parent.account_type,
+      section: parent.section,
+      currency: currency || parent.currency || 'USD',
+      account_number: accountNumber || null,
     });
 
-    if (!result.ok) {
-      if (result.reason === 'exists') {
-        return res.status(409).json({ error: 'COA entry already exists.' });
-      }
-      if (result.reason === 'not_found') {
-        return res.status(404).json({ error: 'COA entry not found for the provided path.' });
-      }
-      return res.status(400).json({ error: 'Invalid request' });
-    }
-
-    await saveJson(dataPaths.coa, coaData);
-
-    if (!isCategory) {
-      let traits = {};
-      try {
-        traits = await loadJson(COA_TRAITS_PATH);
-      } catch (e) {
-        traits = {};
-      }
-      traits[trimmedName] = {
-        Type: type || '',
-        Currency: currency || '',
-        AccountNumber: accountNumber || '',
-      };
-      await saveJson(COA_TRAITS_PATH, traits);
-    }
-
-    res.json({ success: true, added: true, name: trimmedName });
+    res.json({ success: true, added: true, name: trimmedName, id: account.id });
   } catch (error) {
     console.error('[v2/util/coa/add] Failed:', error);
     next(error);
   }
 });
 
-// POST /api/v2/util/coa/update
+/**
+ * POST /api/v2/util/coa/update
+ * Rename / update an account in the COA via PostgreSQL
+ */
 router.post('/coa/update', async (req, res, next) => {
   try {
-    const { path: pathParts, oldName, name, type, currency, accountNumber } = req.body || {};
-    if (!Array.isArray(pathParts) || pathParts.length === 0) {
-      return res.status(400).json({ error: 'Invalid path' });
-    }
+    const { oldName, name, type, currency, accountNumber } = req.body || {};
     if (!oldName || !name) {
       return res.status(400).json({ error: 'Missing account name' });
     }
 
-    const coaData = await loadJson(dataPaths.coa);
-    const updated = updateCoaEntryName(coaData, pathParts, String(oldName), String(name));
-    if (!updated) {
+    const account = await accountsRepo.findByName(String(oldName));
+    if (!account) {
       return res.status(404).json({ error: 'COA entry not found for the provided path/name.' });
     }
 
-    await saveJson(dataPaths.coa, coaData);
+    const updates = { name: String(name) };
+    if (currency) updates.currency = currency;
+    if (accountNumber !== undefined) updates.account_number = accountNumber;
 
-    let traits = {};
-    try {
-      traits = await loadJson(COA_TRAITS_PATH);
-    } catch (e) {
-      traits = {};
-    }
-    const existingTraits = traits[oldName] || {};
-    delete traits[oldName];
-    traits[name] = {
-      ...existingTraits,
-      Type: type || existingTraits.Type || '',
-      Currency: currency || existingTraits.Currency || '',
-      AccountNumber: accountNumber || existingTraits.AccountNumber || '',
-    };
-    await saveJson(COA_TRAITS_PATH, traits);
+    const updated = await accountsRepo.update(account.id, updates);
 
     res.json({
       success: true,
       updated: {
-        name,
-        type: traits[name].Type,
-        currency: traits[name].Currency,
-        accountNumber: traits[name].AccountNumber,
+        name: updated.name,
+        type: updated.account_type,
+        currency: updated.currency,
+        accountNumber: updated.account_number || '',
       },
     });
   } catch (error) {
@@ -498,37 +305,24 @@ router.post('/coa/update', async (req, res, next) => {
   }
 });
 
-// POST /api/v2/util/coa/delete
+/**
+ * POST /api/v2/util/coa/delete
+ * Soft-delete an account from the COA via PostgreSQL
+ */
 router.post('/coa/delete', async (req, res, next) => {
   try {
     const { path: pathParts, name } = req.body || {};
-    if (!Array.isArray(pathParts) || pathParts.length === 0) {
-      return res.status(400).json({ error: 'Invalid path' });
-    }
-    const targetName = String(name || pathParts[pathParts.length - 1] || '');
+    const targetName = String(name || (Array.isArray(pathParts) ? pathParts[pathParts.length - 1] : '') || '');
     if (!targetName) {
       return res.status(400).json({ error: 'Missing account name' });
     }
 
-    const coaData = await loadJson(dataPaths.coa);
-    const deleted = deleteCoaEntry(coaData, pathParts, targetName);
-    if (!deleted) {
+    const account = await accountsRepo.findByName(targetName);
+    if (!account) {
       return res.status(404).json({ error: 'COA entry not found for the provided path/name.' });
     }
 
-    await saveJson(dataPaths.coa, coaData);
-
-    let traits = {};
-    try {
-      traits = await loadJson(COA_TRAITS_PATH);
-    } catch (e) {
-      traits = {};
-    }
-    if (traits[targetName]) {
-      delete traits[targetName];
-      await saveJson(COA_TRAITS_PATH, traits);
-    }
-
+    await accountsRepo.remove(account.id);
     res.json({ success: true, deleted: true, name: targetName });
   } catch (error) {
     console.error('[v2/util/coa/delete] Failed:', error);

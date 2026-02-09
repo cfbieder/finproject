@@ -9,6 +9,7 @@ import BudgetExpenseSignModal from "../features/BudgetEntry/components/BudgetExp
 import { useFilterOptions } from "../features/BudgetEntry/hooks/useFilterOptions.js";
 import { useBalanceData } from "../features/BudgetEntry/hooks/useBalanceData.js";
 import { useCurrencyData } from "../features/BudgetEntry/hooks/useCurrencyData.js";
+import { useCoa } from "../hooks/useCoa.js";
 import {
   MONTH_OPTIONS,
   YEAR_OPTIONS,
@@ -66,6 +67,9 @@ export default function BudgetInput() {
 
   // Load currency options and exchange rates
   const { currencyOptions, budgetRates } = useCurrencyData();
+
+  // Load COA data (expense account names, currency map)
+  const { expenseAccountNames, accountCurrencyMap } = useCoa();
 
   // ========== State: Date Range ==========
   const [fromMonth, setFromMonth] = useState(MONTH_OPTIONS[0].value);
@@ -739,6 +743,8 @@ export default function BudgetInput() {
             currencyOptions={currencyOptions}
             entryStatus={entryStatus}
             onSubmit={handleBudgetEntrySubmit}
+            expenseAccountNames={expenseAccountNames}
+            accountCurrencyMap={accountCurrencyMap}
           />
         </div>
       </main>

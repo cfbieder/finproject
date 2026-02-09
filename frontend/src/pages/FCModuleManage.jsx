@@ -1,9 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import FCModulesFilter from "../features/Forecast/FCModulesFilter.jsx";
-import FCModulesEditModal, {
-  expenseCategoryOptions,
-  incomeCategoryOptions,
-} from "../features/Forecast/FCModulesEdit.jsx";
+import FCModulesEditModal from "../features/Forecast/FCModulesEdit.jsx";
 import FCModulesTable from "../features/Forecast/FCModulesTable.jsx";
 import FCExpConfirmDeleteModal from "../features/Forecast/FCExpConfirmDeleteModal.jsx";
 import FCModulesUnmatchedModal from "../features/Forecast/FCModulesUnmatchedModal.jsx";
@@ -15,29 +12,10 @@ import {
   normalizeTransfers,
 } from "../features/Forecast/utils/fcModuleManageUtils.js";
 import Rest from "../js/rest.js";
-import coaTraits from "../../../components/data/coa_traits.json";
+import { useCoa } from "../hooks/useCoa.js";
 import "./PageLayout.css";
 import "../features/Forecast/FCModulesEdit.css";
 import "../features/Forecast/FCExpDeleteModal.css";
-
-const traitDefaultValues = (() => {
-  const typeValues = new Set();
-  const currencyValues = new Set();
-  for (const traits of Object.values(coaTraits || {})) {
-    if (!traits || typeof traits !== "object") continue;
-    if (traits.Type) typeValues.add(traits.Type);
-    if (traits.Currency) currencyValues.add(traits.Currency);
-  }
-  const typeOptions = Array.from(typeValues).sort();
-  const currencyOptions = Array.from(currencyValues).sort();
-  return {
-    Type: typeOptions[0] || "",
-    Currency: currencyOptions[0] || "",
-  };
-})();
-
-const defaultExpenseCategory = expenseCategoryOptions[0] || "";
-const defaultIncomeCategory = incomeCategoryOptions[0] || "";
 
 /**
  * FCModuleManage component manages forecast modules for different scenarios.
@@ -60,6 +38,19 @@ const defaultIncomeCategory = incomeCategoryOptions[0] || "";
  * @returns {JSX.Element} The forecast module management page
  */
 export default function FCModuleManage() {
+  // Load COA data from PostgreSQL
+  const {
+    traits,
+    bsLevel2Options,
+    getChildCategoriesForAccount,
+    expenseCategoryOptions,
+    incomeCategoryOptions,
+    traitDefaults,
+  } = useCoa();
+
+  const defaultExpenseCategory = expenseCategoryOptions[0] || "";
+  const defaultIncomeCategory = incomeCategoryOptions[0] || "";
+
   // Custom hooks for data loading
   const {
     assumptions,
@@ -232,8 +223,8 @@ export default function FCModuleManage() {
           Matched: false,
           Account: "",
           Name: "",
-          Type: traitDefaultValues.Type,
-          Currency: traitDefaultValues.Currency,
+          Type: traitDefaults.Type,
+          Currency: traitDefaults.Currency,
           ExpCategory: defaultExpenseCategory,
           IncomeCategory: defaultIncomeCategory,
           BaseDate: baseDate,
@@ -493,9 +484,9 @@ export default function FCModuleManage() {
           : null;
 
       // Get Type and Currency from COA traits if available
-      const traits = coaTraits?.[moduleName] || {};
-      const moduleType = traits.Type || "";
-      const moduleCurrency = traits.Currency || "USD";
+      const moduleTraits = traits?.[moduleName] || {};
+      const moduleType = moduleTraits.Type || "";
+      const moduleCurrency = moduleTraits.Currency || "USD";
 
       // Using v2 API (PostgreSQL) with v1-compatible format
       await Rest.fetchJson("/api/v2/forecast/modules/v1", {
@@ -568,6 +559,11 @@ export default function FCModuleManage() {
           onFieldChange={handleEditFieldChange}
           onSubmit={handleSaveEdit}
           refreshToken={editRefreshToken}
+          traits={traits}
+          bsLevel2Options={bsLevel2Options}
+          getChildCategoriesForAccount={getChildCategoriesForAccount}
+          expenseCategoryOptions={expenseCategoryOptions}
+          incomeCategoryOptions={incomeCategoryOptions}
         />
         <FCExpConfirmDeleteModal
           isOpen={showDeleteModal}
