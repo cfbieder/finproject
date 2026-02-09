@@ -70,26 +70,28 @@ async function findByName(name) {
  * Get account hierarchy as tree (using recursive CTE)
  */
 async function getTree({ section, rootOnly = false } = {}) {
-  const conditions = ['a.is_active = TRUE'];
+  const conditions = [];
   const params = [];
   let paramIndex = 1;
 
   if (section) {
-    conditions.push(`a.section = $${paramIndex++}`);
+    conditions.push(`section = $${paramIndex++}`);
     params.push(section);
   }
   if (rootOnly) {
-    conditions.push('a.parent_id IS NULL');
+    conditions.push('parent_id IS NULL');
   }
 
-  const whereClause = conditions.join(' AND ');
+  const whereClause = conditions.length > 0
+    ? `WHERE ${conditions.join(' AND ')}`
+    : '';
 
   const sql = `
     WITH RECURSIVE account_tree AS (
       -- Base case: root accounts (no parent)
       SELECT
         id, name, parent_id, account_type, section, currency,
-        display_order, 0 as depth, ARRAY[id] as path, name as full_path
+        display_order, 0 as depth, ARRAY[id] as path, name::text as full_path
       FROM accounts
       WHERE parent_id IS NULL AND is_active = TRUE
 
@@ -104,7 +106,7 @@ async function getTree({ section, rootOnly = false } = {}) {
       WHERE a.is_active = TRUE
     )
     SELECT * FROM account_tree
-    WHERE ${whereClause}
+    ${whereClause}
     ORDER BY path
   `;
 

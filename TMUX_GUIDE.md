@@ -13,7 +13,7 @@ This creates a tmux session with 4 windows:
 3. **frontend** - Frontend with hot reload
 4. **shell** - Command shell
 
-Access your app at: **http://localhost:5173**
+Access your app at: **http://localhost:5174**
 
 ---
 

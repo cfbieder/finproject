@@ -6,7 +6,7 @@
 # Start complete dev environment in tmux
 ./dev-start.sh
 
-# Access at: http://localhost:5173
+# Access at: http://localhost:5174
 ```
 
 ---

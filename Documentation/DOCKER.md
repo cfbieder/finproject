@@ -191,24 +191,24 @@ Look for "healthy" status in the output. All three services include health check
 
 ## Development vs Production
 
-Both modes run on the VM (`ssh cfbieder@192.168.1.82`).
+Both modes run on the VM (`ssh cfbieder@192.168.1.82`). See [DEV_WORKFLOW.md](DEV_WORKFLOW.md) for the full development guide.
 
-### Development (with auto-reload)
+### Development
+
+Only the database runs in Docker. Backend and frontend run locally via npm:
 
 ```bash
 cd ~/Programs/fin
 
-# Stop Docker services first if running
-docker compose down
-
-# Backend (with nodemon auto-reload)
-cd server && npm run dev
-
-# Frontend (separate terminal, with Vite HMR)
-cd frontend && npm run dev
+# Start dev environment (database + backend + frontend in tmux)
+./dev-start.sh
 ```
 
+Development backend runs on port 3105 (separate from production on 3005), so both can run simultaneously.
+
 ### Production (Docker)
+
+All three services run in Docker:
 
 ```bash
 cd ~/Programs/fin

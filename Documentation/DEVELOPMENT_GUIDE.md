@@ -1,274 +1,139 @@
-# Development Guide - Hot Reload Setup
+# Development Guide
 
-This guide shows you how to develop with instant hot reload for the fastest development experience.
+This guide explains how to set up and use the development environment.
 
 ---
 
-## Quick Start: Hot Reload Development
+## How Development Works
 
-### 1. Start Backend Services
+Development runs on the VM (`192.168.1.82`), accessed remotely via Tailscale (`100.100.162.49`).
+
+**Only the database runs in Docker.** The backend and frontend run locally via npm for instant code reload:
+
+| Component | Runs via | Port | Auto-reload |
+|-----------|----------|------|-------------|
+| Database | Docker `fin-postgres-dev` | 5434 | N/A |
+| Backend | `npm run dev` (nodemon) | 3105 | Yes, ~1-2s on file save |
+| Frontend | `npm run tail` (Vite) | 5174 | Yes, instant HMR |
+
+Development and production use different ports, so both can run simultaneously.
+
+---
+
+## Quick Start
 
 ```bash
+ssh cfbieder@192.168.1.82
 cd ~/Programs/fin
 
-# Start development database and API
-docker compose -f docker-compose.dev.yml up -d server fin-postgres-dev
+# Start dev environment
+./dev-start.sh
 ```
 
-### 2. Run Frontend with Hot Reload
+`dev-start.sh` creates a tmux session (`fin-dev`) with 4 windows:
+1. **database** — Starts `fin-postgres-dev` Docker container, shows logs
+2. **backend** — Runs `cd server && npm run dev` (nodemon auto-restart)
+3. **frontend** — Runs `cd frontend && npm run tail` (Vite hot reload)
+4. **shell** — Command shell for running scripts
 
-```bash
-cd frontend
-npm install  # First time only
-npm run dev
-```
+### Access from Remote Machine
 
-The frontend dev server will start on **`http://localhost:5173`**
+Open browser to: `http://100.100.162.49:5174`
 
-### 3. Make Changes
+Yellow browser tab and "[DEV]" in the page title confirm you're in the development environment.
 
+---
+
+## Making Changes
+
+### Frontend
 - Edit any file in `frontend/src/`
 - Save the file
-- **Changes appear instantly in your browser!** ✨
-- No rebuild needed!
+- Changes appear instantly in the browser (Vite HMR)
 
----
+### Backend
+- Edit any file in `server/src/`
+- Save the file
+- Nodemon detects the change and restarts the server (~1-2 seconds)
+- See `server/nodemon.json` for watch configuration
 
-## Environment Modes
-
-The frontend has different API endpoint configurations:
-
-| Command | API Backend | Use Case |
-|---------|-------------|----------|
-| `npm run dev` | `localhost:3105` | **Local development** (connects to dev backend) |
-| `npm run dev-prod` | `localhost:3005` | Test with production backend locally |
-| `npm run tail` | `100.100.162.49:3105` | Access dev backend via Tailscale |
-| `npm run tail-prod` | `100.100.162.49:3005` | Access prod backend via Tailscale |
-
-To add these commands, update `frontend/package.json`:
-
-```json
-"scripts": {
-  "dev": "env-cmd -e development -- vite",
-  "dev-prod": "env-cmd -e dev-prod -- vite",
-  "tail": "env-cmd -e tail -- vite",
-  "tail-prod": "env-cmd -e tail-prod -- vite",
-  "build": "vite build",
-  "preview": "vite preview"
-}
-```
-
----
-
-## Development Workflows
-
-### Workflow 1: Full Hot Reload (Recommended)
-
-**Best for:** Active UI development, testing changes quickly
-
+### Database
 ```bash
-# Terminal 1: Start backend services
-docker compose -f docker-compose.dev.yml up -d server fin-postgres-dev
-
-# Terminal 2: Run frontend dev server
-cd frontend && npm run dev
-
-# Access at: http://localhost:5173
-```
-
-**Benefits:**
-- ✅ Instant hot reload
-- ✅ Changes appear in < 1 second
-- ✅ No rebuilding needed
-- ✅ Full React DevTools support
-- ✅ Source maps for debugging
-
----
-
-### Workflow 2: Docker Development
-
-**Best for:** Testing production build, nginx configuration
-
-```bash
-# Start all services
-docker compose -f docker-compose.dev.yml up -d
-
-# After making changes, rebuild frontend
-docker compose -f docker-compose.dev.yml up -d --build frontend
-
-# Access at: https://localhost:5176
-```
-
-**When to use:**
-- Testing nginx configuration
-- Testing HTTPS setup
-- Verifying production build
-- Testing Docker-specific behavior
-
----
-
-### Workflow 3: Hybrid (Backend in Docker, Frontend Local)
-
-**Best for:** Full-stack development
-
-```bash
-# Terminal 1: Backend services only
-docker compose -f docker-compose.dev.yml up -d server fin-postgres-dev
-docker compose -f docker-compose.dev.yml logs -f server
-
-# Terminal 2: Frontend with hot reload
-cd frontend && npm run dev
-
-# Terminal 3: Make backend changes
-cd server/src && vim some-file.js
-
-# Restart backend to see changes
-docker compose -f docker-compose.dev.yml restart server
+# Access dev database
+docker compose -f docker-compose.dev.yml exec fin-postgres-dev psql -U fin -d fin
 ```
 
 ---
 
-## Common Development Tasks
+## Syncing Production Data
 
-### Sync Production Data
+To test with real production data:
 
 ```bash
 ./sync-db-prod-to-dev.sh
 ```
 
-This gives you real production data to test with.
-
-### View Backend Logs
-
-```bash
-docker compose -f docker-compose.dev.yml logs -f server
-```
-
-### Restart Backend After Code Changes
-
-```bash
-# Backend changes require rebuild
-docker compose -f docker-compose.dev.yml up -d --build server
-
-# Or restart if no dependency changes
-docker compose -f docker-compose.dev.yml restart server
-```
-
-### Access Development Database
-
-```bash
-docker exec -it fin-postgres-dev psql -U fin -d fin
-```
-
-### Test API Directly
-
-```bash
-# Development API
-curl http://localhost:3105/api/health
-
-# Production API
-curl http://localhost:3005/api/health
-```
+This copies the production database to the development database. Safe to run anytime — only affects the dev database.
 
 ---
 
-## Debugging
-
-### Frontend Not Connecting to Backend
-
-Check that:
-1. Backend is running: `docker compose -f docker-compose.dev.yml ps`
-2. Backend is healthy: `curl http://localhost:3105/api/health`
-3. CORS is configured correctly (should be already)
-
-### Backend Changes Not Appearing
-
-Backend is not watched for changes. You need to restart:
+## Stopping Development
 
 ```bash
-docker compose -f docker-compose.dev.yml restart server
-```
+# Detach from tmux (keeps running)
+Ctrl+b d
 
-### Hot Reload Not Working
+# Or kill the session entirely
+tmux kill-session -t fin-dev
 
-Check that:
-1. Vite dev server is running (should see "Local: http://localhost:5173")
-2. You're accessing `localhost:5173`, not `localhost:5176`
-3. Browser DevTools are open (F12) to see errors
-
----
-
-## Performance Tips
-
-### Keep Development Lightweight
-
-When not actively developing:
-```bash
-# Stop dev frontend (use Docker version)
-# Ctrl+C in the npm run dev terminal
-
-# Or stop all dev services
+# Stop dev database
 docker compose -f docker-compose.dev.yml down
 ```
 
-### Frontend-Only Changes
-
-If you're only changing frontend code:
-```bash
-# Just run frontend dev server
-cd frontend && npm run dev
-
-# No need to run Docker at all if using production API
-npm run dev-prod  # Uses production backend
-```
-
 ---
 
-## Port Reference
-
-| Service | Development | Production |
-|---------|-------------|------------|
-| **Frontend (Hot Reload)** | `http://localhost:5173` | - |
-| **Frontend (Docker HTTPS)** | `https://localhost:5176` | `https://192.168.1.82:5175` |
-| **Frontend (Docker HTTP)** | `http://localhost:3106` | `http://192.168.1.82:3006` |
-| **API** | `http://localhost:3105` | `http://192.168.1.82:3005` |
-| **Database** | `localhost:5434` | `192.168.1.82:5433` |
-
----
-
-## Quick Reference
+## Deploying to Production
 
 ```bash
-# Start development with hot reload
-docker compose -f docker-compose.dev.yml up -d server fin-postgres-dev
-cd frontend && npm run dev
-
-# Sync production data
-./sync-db-prod-to-dev.sh
-
-# View backend logs
-docker compose -f docker-compose.dev.yml logs -f server
-
-# Restart backend after changes
-docker compose -f docker-compose.dev.yml restart server
-
-# Deploy to production
 ./deploy-to-production.sh
 ```
 
----
-
-## Recommended VSCode Extensions
-
-For the best development experience:
-
-- **ES7+ React/Redux/React-Native snippets** - Code snippets
-- **ESLint** - JavaScript linting
-- **Prettier** - Code formatting
-- **Auto Rename Tag** - Rename paired HTML/JSX tags
-- **Path Intellisense** - Autocomplete filenames
-- **GitLens** - Git integration
+This script:
+1. Backs up the production database
+2. Optionally commits and pushes to git
+3. Rebuilds production Docker containers
+4. Verifies container health
 
 ---
 
-**Happy coding!** Changes to frontend code now appear instantly with hot reload! 🚀
+## Tmux Quick Reference
+
+| Key | Action |
+|-----|--------|
+| `Ctrl+b n` | Next window |
+| `Ctrl+b p` | Previous window |
+| `Ctrl+b 1-4` | Jump to window number |
+| `Ctrl+b d` | Detach (session keeps running) |
+| `Ctrl+b [` | Scroll mode (q to exit) |
+
+Reattach to an existing session:
+```bash
+tmux attach -t fin-dev
+```
+
+---
+
+## Frontend npm Scripts and API Targets
+
+| npm script | API Target | When to Use |
+|-----------|------------|-------------|
+| `npm run tail` | `100.100.162.49:3105` | **Development via Tailscale (recommended)** |
+| `npm run dev` | `localhost:3105` | Development on the VM directly |
+| `npm run docker` | (nginx proxy) | Production Docker build |
+| `npm run production` | `192.168.1.82:3005` | Direct production API access |
+
+All development environments point to port 3105 (the local npm backend).
+
+---
+
+*Last updated: 2026-02-09*

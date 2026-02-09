@@ -48,46 +48,75 @@ docker compose up -d
 
 ### Development Environment
 
-Development uses Docker for the database and backend, with frontend via Vite dev server for hot module replacement:
+Development uses **Docker only for the database**. The backend and frontend run locally via npm for instant code reload:
 
-```bash
-ssh cfbieder@192.168.1.82
-cd ~/Programs/fin
-
-# Start development containers (database + backend)
-docker compose -f docker-compose.dev.yml up -d
-
-# Start frontend dev server (in separate terminal or tmux)
-cd frontend && npm run tail
+```
+┌─────────────────────────────────────────────────────────────┐
+│  VM (192.168.1.82)                                          │
+│                                                             │
+│  ┌─────────────────────┐   ┌──────────────────────────┐    │
+│  │ Docker               │   │ Local npm processes      │    │
+│  │                      │   │                          │    │
+│  │  fin-postgres-dev    │   │  Backend (nodemon)       │    │
+│  │  Port 5434           │◄──│  npm run dev             │    │
+│  │                      │   │  Port 3105               │    │
+│  └──────────────────────┘   │                          │    │
+│                              │  Frontend (Vite HMR)     │    │
+│                              │  npm run tail            │    │
+│                              │  Port 5174               │    │
+│                              └──────────────────────────┘    │
+│                                        ▲                     │
+│  Tailscale IP: 100.100.162.49          │                     │
+└────────────────────────────────────────┼─────────────────────┘
+                                         │
+                              ┌──────────┴─────────────┐
+                              │ Remote machine          │
+                              │ (access via Tailscale)  │
+                              └─────────────────────────┘
 ```
 
-**Access Points:**
-- **Tailscale:** http://100.100.162.49:5174 (auto-assigned Vite port)
-- Dev Backend: http://192.168.1.82:3105
-- Dev Database: 192.168.1.82:5434
+**What runs where:**
+
+| Component | How it runs | Port | Auto-reload? |
+|-----------|-------------|------|--------------|
+| **Database** | Docker (`fin-postgres-dev`) | 5434 | N/A |
+| **Backend** | Local `npm run dev` (nodemon) | 3105 | Yes (~1-2s on file save) |
+| **Frontend** | Local `npm run tail` (Vite) | 5174 | Yes (instant HMR) |
+
+Development and production use different ports, so both can run simultaneously.
+
+**Access Points (via Tailscale from remote machine):**
+- Frontend: `http://100.100.162.49:5174`
+- Dev Backend: `http://100.100.162.49:3105`
+- Dev Database: `100.100.162.49:5434`
 
 **Environment Indicator:** Yellow browser tab, "[DEV]" in page title
 
 **Features:**
-- Frontend: Hot module replacement (instant updates)
-- Backend: Auto-restart via nodemon (~2-3 seconds)
+- Frontend: Hot module replacement (instant updates on save)
+- Backend: Auto-restart via nodemon (~1-2 seconds on save)
 - Separate database with production data for safe testing
+- Production remains fully running (no port conflicts)
 
-### Development Workflow with tmux
+### Starting Development
 
-For a streamlined development experience, use the provided tmux setup:
+Use the tmux script for the recommended setup:
 
 ```bash
+ssh cfbieder@192.168.1.82
+cd ~/Programs/fin
 ./dev-start.sh
 ```
 
 This creates a tmux session with 4 windows:
-1. **database** - Database container logs
-2. **backend** - Backend server with nodemon auto-restart
-3. **frontend** - Frontend dev server with hot reload
-4. **shell** - Command shell for running scripts
+1. **database** - Starts Docker `fin-postgres-dev` + shows logs
+2. **backend** - Runs `npm run dev` in `server/` (nodemon)
+3. **frontend** - Runs `npm run tail` in `frontend/` (Vite HMR)
+4. **shell** - Command shell for scripts
 
 See [TMUX_GUIDE.md](../TMUX_GUIDE.md) for navigation and usage details.
+
+**Note:** `dev-start.sh` only starts the database in Docker. It does NOT start `server-dev` from `docker-compose.dev.yml`. The backend runs directly on the VM via nodemon for instant code reload.
 
 ### VM Provisioning (from scratch)
 
@@ -189,7 +218,7 @@ fin/
 ├── certs/                       # TLS certificates for nginx (generated on VM)
 ├── VERSION                      # Current version number (e.g., 2.0.1)
 ├── docker-compose.yml           # Production: 3 services (postgres, server, frontend)
-├── docker-compose.dev.yml       # Development: postgres-dev, server-dev (frontend via npm)
+├── docker-compose.dev.yml       # Development: postgres-dev only (backend + frontend via npm)
 ├── provision-vm.sh              # Create 'fin' KVM guest on vmhost (192.168.1.61)
 ├── deploy-on-vm.sh              # Clone repo + deploy on VM (192.168.1.82)
 ├── rebuild-frontend.sh          # Rebuild and restart frontend container
@@ -266,18 +295,18 @@ Rebuilds and restarts only the frontend container (faster than full deployment).
 
 | Environment | npm script | API Base | Use Case |
 |-------------|-----------|----------|----------|
-| `development` | `npm run dev` | `http://localhost:3105` | Local development (requires dev backend) |
-| `tail` | `npm run tail` | `http://100.100.162.49:3105` | Remote dev via Tailscale |
-| `tail-prod` | `npm run tail-prod` | `http://100.100.162.49:3005` | Remote prod testing via Tailscale |
-| `dev-prod` | `npm run dev-prod` | `http://localhost:3005` | Local testing against production backend |
+| `development` | `npm run dev` | `http://localhost:3105` | **Development on the VM** (local backend) |
+| `tail` | `npm run tail` | `http://100.100.162.49:3105` | **Development via Tailscale** (recommended) |
 | `docker` | `npm run docker` | (empty - uses nginx proxy) | Production Docker build |
 | `production` | `npm run production` | `http://192.168.1.82:3005` | Direct production API access |
+
+All development environments point to port 3105 (the local npm backend). The `tail` env is the standard choice since development is done remotely via Tailscale.
 
 **Backend environments** (`.env-cmdrc`):
 
 | Environment | npm script | Database | Port |
 |-------------|-----------|----------|------|
-| `development` | `npm run dev` | `localhost:5434` | 3005 |
+| `development` | `npm run dev` | `localhost:5434` | 3105 |
 | `production` | `npm run dok` | (Docker network) | 3005 |
 
 ### Visual Environment Indicators
@@ -535,16 +564,15 @@ All services connected via `fin_fin-network` Docker bridge network.
 
 ### Development Environment
 
-Configured in `docker-compose.dev.yml`:
+Only the database runs in Docker for development. Backend and frontend run locally via npm:
 
-| Container | Image | Ports | Purpose |
-|-----------|-------|-------|---------|
-| `fin-postgres-dev` | postgres:16-alpine | 5434:5432 | Development PostgreSQL database |
-| `fin-server-dev` | Custom (Node.js) | 3105:3005 | Development Express API server |
+| Component | How it runs | Port |
+|-----------|-------------|------|
+| `fin-postgres-dev` | Docker (`docker-compose.dev.yml`) | 5434:5432 |
+| Backend | Local `npm run dev` (nodemon) | 3105 |
+| Frontend | Local `npm run tail` (Vite) | 5174 |
 
-- Frontend runs via `npm run tail` on host (Vite dev server with hot reload)
-- All services connected via `fin_fin-network-dev` Docker bridge network
-- Uses nodemon for backend auto-restart on file changes
+**Note:** `docker-compose.dev.yml` also defines a `server-dev` container (port 3105), but this is NOT used for active development. The local npm backend with nodemon provides instant auto-reload on file changes, which the Docker container does not (it requires a rebuild).
 
 ### Tailscale Integration
 
@@ -577,14 +605,14 @@ docker compose up --build -d frontend
 # Production - View logs
 docker compose logs -f server
 
-# Development - Start all dev services
-docker compose -f docker-compose.dev.yml up -d
+# Development - Start database only
+docker compose -f docker-compose.dev.yml up -d fin-postgres-dev
 
-# Development - Start specific service
-docker compose -f docker-compose.dev.yml up -d server
+# Development - Start backend (separate terminal)
+cd server && npm run dev
 
-# Development - View logs
-docker compose -f docker-compose.dev.yml logs -f server
+# Development - Start frontend (separate terminal)
+cd frontend && npm run tail
 
 # Database shell (production)
 docker compose exec fin-postgres psql -U fin -d fin
@@ -603,7 +631,6 @@ docker compose -f docker-compose.dev.yml exec fin-postgres-dev psql -U fin -d fi
 
 **Development:**
 - `postgres_data_dev` - Development PostgreSQL data persistence (separate from production)
-- Same component mounts as production
 
 ---
 
@@ -616,9 +643,10 @@ docker compose -f docker-compose.dev.yml exec fin-postgres-dev psql -U fin -d fi
    # Option A: Using tmux (recommended)
    ./dev-start.sh
 
-   # Option B: Manual
-   docker compose -f docker-compose.dev.yml up -d
-   cd frontend && npm run tail
+   # Option B: Manual (3 terminals)
+   docker compose -f docker-compose.dev.yml up -d fin-postgres-dev
+   cd server && npm run dev        # Terminal 1: backend (nodemon)
+   cd frontend && npm run tail     # Terminal 2: frontend (Vite)
    ```
 
 2. **Sync production data (if needed):**
@@ -628,7 +656,7 @@ docker compose -f docker-compose.dev.yml exec fin-postgres-dev psql -U fin -d fi
 
 3. **Make changes:**
    - Frontend changes: Save → Instant hot reload
-   - Backend changes: Save → Auto-restart in ~2-3 seconds (via nodemon)
+   - Backend changes: Save → Auto-restart in ~1-2 seconds (via nodemon)
    - Database changes: Run SQL directly in dev database
 
 4. **Test changes:**
@@ -669,9 +697,9 @@ docker compose -f docker-compose.dev.yml exec fin-postgres-dev psql -U fin -d fi
 - Development database persists across container restarts
 
 **Environment Isolation:**
-- Production and development run on separate Docker networks
-- Different ports prevent conflicts
-- Can run both environments simultaneously on the same VM
+- Production and development use completely separate databases (ports 5433 vs 5434)
+- Production backend (port 3005) and dev backend (port 3105) use different ports — no conflicts
+- Both environments can run simultaneously
 
 ### Best Practices
 

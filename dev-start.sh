@@ -42,8 +42,8 @@ tmux send-keys -t "$SESSION_NAME:backend" "npm run dev" C-m
 
 # Window 3: Frontend
 tmux new-window -t "$SESSION_NAME" -n "frontend" -c "$PROJECT_DIR/frontend"
-tmux send-keys -t "$SESSION_NAME:frontend" "# Frontend with hot reload" C-m
-tmux send-keys -t "$SESSION_NAME:frontend" "npm run dev" C-m
+tmux send-keys -t "$SESSION_NAME:frontend" "# Frontend with hot reload (Tailscale → local backend on port 3105)" C-m
+tmux send-keys -t "$SESSION_NAME:frontend" "npm run tail" C-m
 
 # Window 4: Shell for commands
 tmux new-window -t "$SESSION_NAME" -n "shell" -c "$PROJECT_DIR"
@@ -75,7 +75,7 @@ echo "  Ctrl+b 1-4   - Switch to window number"
 echo "  Ctrl+b d     - Detach (keeps running)"
 echo "  Ctrl+b [     - Scroll mode (q to exit)"
 echo ""
-echo "Access application at: http://localhost:5173"
+echo "Access application at: http://100.100.162.49:5174 (via Tailscale)"
 echo ""
 echo "Attaching to session..."
 sleep 2
