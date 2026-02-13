@@ -128,6 +128,8 @@ The following directories are mounted as volumes:
 
 ## Backup and Restore
 
+All backups are saved to the `Backups/` directory (git-ignored).
+
 ### Creating a Backup
 
 ```bash
@@ -135,14 +137,17 @@ The following directories are mounted as volumes:
 ssh cfbieder@192.168.1.82
 
 # Export database as custom format dump
-docker exec fin-postgres pg_dump -U fin -d fin -Fc > fin_backup.dump
+mkdir -p Backups
+docker exec fin-postgres pg_dump -U fin -d fin -Fc > Backups/fin_backup.dump
 ```
+
+The deploy script (`deploy-to-production.sh`) automatically creates a timestamped backup in `Backups/` before deploying.
 
 ### Restoring a Backup
 
 ```bash
 # Restore (drops and recreates objects)
-docker exec -i fin-postgres pg_restore -U fin -d fin --clean --if-exists < fin_backup.dump
+docker exec -i fin-postgres pg_restore -U fin -d fin --clean --if-exists < Backups/fin_backup.dump
 ```
 
 ### Backup Best Practices
@@ -154,13 +159,13 @@ docker exec -i fin-postgres pg_restore -U fin -d fin --clean --if-exists < fin_b
 
 2. **Off-VM Storage**: Copy backups to the dev machine or KVM host:
    ```bash
-   scp cfbieder@192.168.1.82:~/Programs/fin/fin_backup.dump ./
+   scp cfbieder@192.168.1.82:~/Programs/fin/Backups/fin_backup.dump ./
    ```
 
 3. **Automated Backups**: Add a cron job for daily backups:
    ```bash
    # Add to crontab (crontab -e) on the VM
-   0 2 * * * docker exec fin-postgres pg_dump -U fin -d fin -Fc > /home/cfbieder/Programs/fin/fin_backup_$(date +\%Y\%m\%d).dump
+   0 2 * * * docker exec fin-postgres pg_dump -U fin -d fin -Fc > /home/cfbieder/Programs/fin/Backups/fin_backup_$(date +\%Y\%m\%d).dump
    ```
 
 ## Health Checks
@@ -335,8 +340,8 @@ ssh cfbieder@192.168.1.61 'bash -s' < provision-vm.sh
 ssh cfbieder@192.168.1.82 'bash -s' < deploy-on-vm.sh
 
 # Restore database from backup
-scp fin_backup.dump cfbieder@192.168.1.82:~/Programs/fin/
-ssh cfbieder@192.168.1.82 "docker exec -i fin-postgres pg_restore -U fin -d fin --clean --if-exists < ~/Programs/fin/fin_backup.dump"
+scp fin_backup.dump cfbieder@192.168.1.82:~/Programs/fin/Backups/
+ssh cfbieder@192.168.1.82 "docker exec -i fin-postgres pg_restore -U fin -d fin --clean --if-exists < ~/Programs/fin/Backups/fin_backup.dump"
 ```
 
 See `provision-vm.sh` and `deploy-on-vm.sh` for details. All VM images are stored in `/mnt/vm-ssd/` via the `vm-ssd` libvirt storage pool.

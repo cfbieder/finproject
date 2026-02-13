@@ -45,7 +45,7 @@ docker compose up -d && docker compose -f docker-compose.dev.yml up -d
 ```bash
 ./deploy-to-production.sh
 ```
-- Backs up production first
+- Backs up production first (saved to `Backups/`)
 - Rebuilds and restarts production
 - Verifies health after deployment
 
@@ -108,11 +108,12 @@ docker exec -it fin-postgres psql -U fin -d fin
 # Development Database
 docker exec -it fin-postgres-dev psql -U fin -d fin
 
-# Manual Backup
-docker exec fin-postgres pg_dump -U fin -d fin -Fc > backup.dump
+# Manual Backup (saved to Backups/ directory)
+mkdir -p Backups
+docker exec fin-postgres pg_dump -U fin -d fin -Fc > Backups/backup.dump
 
 # Manual Restore
-docker exec -i fin-postgres-dev pg_restore -U fin -d fin --clean < backup.dump
+docker exec -i fin-postgres-dev pg_restore -U fin -d fin --clean < Backups/backup.dump
 ```
 
 ## 🔢 Version Management

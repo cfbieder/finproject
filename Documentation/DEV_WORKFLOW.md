@@ -121,13 +121,8 @@ When development is ready:
 tmux kill-session -t fin-dev
 docker compose -f docker-compose.dev.yml down
 
-# Deploy (backs up DB, rebuilds containers, verifies health)
+# Deploy (backs up DB to Backups/, rebuilds containers, verifies health)
 ./deploy-to-production.sh
-```
-
-Or for a quick deploy without git operations:
-```bash
-./deploy-to-production.sh --skip-git
 ```
 
 ---
@@ -164,4 +159,16 @@ docker compose -f docker-compose.dev.yml up -d fin-postgres-dev
 
 ---
 
-*Last updated: 2026-02-09*
+## Git Commit Messages
+
+A `prepare-commit-msg` git hook automatically prepends the current version and date to all commit messages:
+
+```
+[v2.0.4 2026-02-13] your commit message here
+```
+
+The version is read from the `VERSION` file. This hook is local to this clone (lives in `.git/hooks/`).
+
+---
+
+*Last updated: 2026-02-13*
