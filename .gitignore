@@ -7,5 +7,9 @@ old/
 components/data/.temp/
 components/data/auditTrail/
 
+# database backups
+Backups/
+*.dump
+
 # local dev certs
 certs/

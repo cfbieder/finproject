@@ -160,14 +160,22 @@ class DataAnalyzerUtils {
 
   /**
    * Get all active account names from the PostgreSQL accounts table.
+   * @param {string} [section] - Optional section filter ('balance_sheet' or 'profit_loss')
+   * @param {boolean} [leafOnly=false] - If true, exclude parent accounts (those that have children)
    */
-  static async getCoaAccountNames(section) {
+  static async getCoaAccountNames(section, { leafOnly = false } = {}) {
     const db = require("../../v2/db");
     const conditions = ["is_active = TRUE"];
     const params = [];
+    let paramIndex = 1;
     if (section) {
-      conditions.push("section = $1");
+      conditions.push(`section = $${paramIndex++}`);
       params.push(section);
+    }
+    if (leafOnly) {
+      conditions.push(
+        "id NOT IN (SELECT DISTINCT parent_id FROM accounts WHERE parent_id IS NOT NULL AND is_active = TRUE)"
+      );
     }
     const sql = `SELECT name FROM accounts WHERE ${conditions.join(" AND ")} ORDER BY name`;
     const result = await db.query(sql, params);
@@ -241,7 +249,7 @@ class DataAnalyzerUtils {
       )
     );
 
-    const coaAccounts = await this.getCoaAccountNames("balance_sheet");
+    const coaAccounts = await this.getCoaAccountNames("balance_sheet", { leafOnly: true });
     const unknown = [];
     for (const name of coaAccounts) {
       if (!knownAccounts.has(name)) {
@@ -271,7 +279,7 @@ class DataAnalyzerUtils {
       )
     );
 
-    const coaCategories = await this.getCoaAccountNames("profit_loss");
+    const coaCategories = await this.getCoaAccountNames("profit_loss", { leafOnly: true });
     const unknown = [];
     for (const name of coaCategories) {
       if (!knownCategories.has(name)) {

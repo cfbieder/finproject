@@ -17,7 +17,9 @@ cd "$SCRIPT_DIR"
 
 SKIP_GIT=true  # Skip git by default - handle manually
 NO_BACKUP=false
-BACKUP_FILE="fin_backup_$(date +%Y%m%d_%H%M%S).dump"
+BACKUP_DIR="$SCRIPT_DIR/Backups"
+mkdir -p "$BACKUP_DIR"
+BACKUP_FILE="$BACKUP_DIR/fin_backup_$(date +%Y%m%d_%H%M%S).dump"
 
 # Parse arguments
 for arg in "$@"; do
