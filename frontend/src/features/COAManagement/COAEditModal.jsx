@@ -1,3 +1,5 @@
+import COACategoryPicker from "./COACategoryPicker.jsx";
+
 export default function COAEditModal({
   open,
   row,
@@ -16,14 +18,20 @@ export default function COAEditModal({
   isMultiEdit = false,
   selectedCount = 0,
   mixedFields = {},
+  coaSections = [],
+  parentPath = [],
+  onParentPathChange,
 }) {
   if (!open || !row) {
     return null;
   }
   const isCategoryEdit = row.isCategory || row.type === "Category";
-  const isAdd = mode === "add";
+  const isAdd = mode === "add" || mode === "quickadd";
+  const isQuickAdd = mode === "quickadd";
   const title = isMultiEdit
     ? "Edit Accounts"
+    : isQuickAdd
+    ? "Add Missing Account"
     : isAdd
     ? "Add Account"
     : "Edit Account";
@@ -47,8 +55,10 @@ export default function COAEditModal({
         style={{
           background: "#fff",
           borderRadius: "14px",
-          width: "520px",
+          width: isQuickAdd ? "600px" : "520px",
           maxWidth: "95vw",
+          maxHeight: "90vh",
+          overflowY: "auto",
           boxShadow: "0 18px 40px -18px rgba(15,23,42,0.35)",
           padding: "1.25rem",
           display: "flex",
@@ -102,6 +112,35 @@ export default function COAEditModal({
             readOnly={isMultiEdit}
           />
         </label>
+        {isQuickAdd && (
+          <div
+            style={{
+              display: "flex",
+              flexDirection: "column",
+              gap: "0.35rem",
+            }}
+          >
+            <span style={{ fontWeight: 700, color: "#0f172a" }}>
+              Place under category
+            </span>
+            <COACategoryPicker
+              coaSections={coaSections}
+              selectedPath={parentPath}
+              onSelect={onParentPathChange}
+            />
+            {parentPath && parentPath.length > 0 && (
+              <span
+                style={{
+                  fontSize: "0.8rem",
+                  color: "#475569",
+                  marginTop: "0.15rem",
+                }}
+              >
+                Selected: {parentPath.join(" › ")}
+              </span>
+            )}
+          </div>
+        )}
         <label
           style={{
             display: "flex",

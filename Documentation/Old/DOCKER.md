@@ -141,7 +141,7 @@ mkdir -p Backups
 docker exec fin-postgres pg_dump -U fin -d fin -Fc > Backups/fin_backup.dump
 ```
 
-The deploy script (`deploy-to-production.sh`) automatically creates a timestamped backup in `Backups/` before deploying.
+The deploy script (`Scripts/deploy-to-production.sh`) automatically creates a timestamped backup in `Backups/` before deploying.
 
 ### Restoring a Backup
 
@@ -206,7 +206,7 @@ Only the database runs in Docker. Backend and frontend run locally via npm:
 cd ~/Programs/fin
 
 # Start dev environment (database + backend + frontend in tmux)
-./dev-start.sh
+./Scripts/dev-start.sh
 ```
 
 Development backend runs on port 3105 (separate from production on 3005), so both can run simultaneously.
@@ -334,14 +334,14 @@ If the VM needs to be recreated, use the provisioning scripts from any machine w
 
 ```bash
 # Create the VM on the KVM host
-ssh cfbieder@192.168.1.61 'bash -s' < provision-vm.sh
+ssh cfbieder@192.168.1.61 'bash -s' < Scripts/provision-vm.sh
 
 # Wait ~3-5 min for cloud-init to complete, then deploy
-ssh cfbieder@192.168.1.82 'bash -s' < deploy-on-vm.sh
+ssh cfbieder@192.168.1.82 'bash -s' < Scripts/deploy-on-vm.sh
 
 # Restore database from backup
 scp fin_backup.dump cfbieder@192.168.1.82:~/Programs/fin/Backups/
 ssh cfbieder@192.168.1.82 "docker exec -i fin-postgres pg_restore -U fin -d fin --clean --if-exists < ~/Programs/fin/Backups/fin_backup.dump"
 ```
 
-See `provision-vm.sh` and `deploy-on-vm.sh` for details. All VM images are stored in `/mnt/vm-ssd/` via the `vm-ssd` libvirt storage pool.
+See `Scripts/provision-vm.sh` and `Scripts/deploy-on-vm.sh` for details. All VM images are stored in `/mnt/vm-ssd/` via the `vm-ssd` libvirt storage pool.

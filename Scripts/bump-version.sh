@@ -11,7 +11,8 @@
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-cd "$SCRIPT_DIR"
+PROJECT_DIR="$(cd "$SCRIPT_DIR/.." && pwd)"
+cd "$PROJECT_DIR"
 
 VERSION_FILE="VERSION"
 FRONTEND_ENV="frontend/.env-cmdrc"
@@ -78,9 +79,13 @@ esac
 
 echo -e "${GREEN}New version: ${NEW_VERSION}${NC}"
 echo ""
+echo "This will:"
+echo "  1. Update version files (VERSION, .env-cmdrc, package.json)"
+echo "  2. Create git commit: \"chore: bump version to $NEW_VERSION\""
+echo "  3. Create git tag: v${NEW_VERSION}"
+echo ""
 
-# Confirm
-read -p "Proceed with version bump? (y/N) " -n 1 -r
+read -p "Proceed? (y/N) " -n 1 -r
 echo
 if [[ ! $REPLY =~ ^[Yy]$ ]]; then
     echo "Cancelled."
@@ -93,7 +98,6 @@ echo "✓ Updated VERSION file"
 
 # Update frontend/.env-cmdrc
 if [ -f "$FRONTEND_ENV" ]; then
-    # Use sed to replace all instances of the old version
     sed -i "s/\"VITE_APP_VERSION\": \"$CURRENT_VERSION\"/\"VITE_APP_VERSION\": \"$NEW_VERSION\"/g" "$FRONTEND_ENV"
     echo "✓ Updated $FRONTEND_ENV"
 fi
@@ -101,36 +105,22 @@ fi
 # Update package.json files if they exist
 for pkg in package.json frontend/package.json server/package.json; do
     if [ -f "$pkg" ]; then
-        # Update version in package.json
         sed -i "s/\"version\": \"$CURRENT_VERSION\"/\"version\": \"$NEW_VERSION\"/g" "$pkg"
         echo "✓ Updated $pkg"
     fi
 done
 
-echo ""
-echo -e "${GREEN}Version bumped: ${CURRENT_VERSION} → ${NEW_VERSION}${NC}"
-echo ""
+# Git commit and tag
+git add VERSION "$FRONTEND_ENV" package.json frontend/package.json server/package.json 2>/dev/null || true
+git commit -m "chore: bump version to $NEW_VERSION" || echo "Note: Some files may not exist or already committed"
+echo -e "${GREEN}✓ Git commit created${NC}"
 
-# Ask to commit
-read -p "Create git commit for version bump? (y/N) " -n 1 -r
-echo
-if [[ $REPLY =~ ^[Yy]$ ]]; then
-    git add VERSION "$FRONTEND_ENV" package.json frontend/package.json server/package.json 2>/dev/null || true
-    git commit -m "chore: bump version to $NEW_VERSION" || echo "Note: Some files may not exist or already committed"
-    echo -e "${GREEN}✓ Git commit created${NC}"
-
-    # Ask to tag
-    read -p "Create git tag v${NEW_VERSION}? (y/N) " -n 1 -r
-    echo
-    if [[ $REPLY =~ ^[Yy]$ ]]; then
-        git tag -a "v${NEW_VERSION}" -m "Version ${NEW_VERSION}"
-        echo -e "${GREEN}✓ Git tag created: v${NEW_VERSION}${NC}"
-    fi
-fi
+git tag -a "v${NEW_VERSION}" -m "Version ${NEW_VERSION}"
+echo -e "${GREEN}✓ Git tag created: v${NEW_VERSION}${NC}"
 
 echo ""
 echo -e "${YELLOW}Next steps:${NC}"
 echo "1. Rebuild frontend to see new version: docker compose -f docker-compose.dev.yml up -d --build frontend"
 echo "2. Or if using hot reload: Changes will appear on next refresh"
-echo "3. Deploy to production: ./deploy-to-production.sh"
+echo "3. Deploy to production: ./Scripts/deploy-to-production.sh"
 echo ""

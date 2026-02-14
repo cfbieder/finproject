@@ -6,11 +6,24 @@
 
 const express = require('express');
 const router = express.Router();
-const fs = require('fs');
-const path = require('path');
 const db = require('../db');
-const { dataPaths } = require('../../utils/dataPaths');
+const accountsRepo = require('../repositories').accounts;
 const frankfurterExchangeRates = require('../../utils/frankfurterExchangeRates');
+
+// ============================================================================
+// Date Helpers
+// ============================================================================
+
+/**
+ * Validate a date string is in YYYY-MM-DD format and represents a real date.
+ * Pass date strings directly to PostgreSQL instead of using JavaScript Date
+ * objects, which are timezone-sensitive and can shift dates by ±1 day.
+ */
+function isValidDateString(str) {
+  if (typeof str !== 'string' || !/^\d{4}-\d{2}-\d{2}$/.test(str)) return false;
+  const date = new Date(str + 'T00:00:00Z');
+  return !Number.isNaN(date.getTime());
+}
 
 // ============================================================================
 // Balance Sheet Report
@@ -30,14 +43,13 @@ router.get('/balance', async (req, res, next) => {
       });
     }
 
-    const asOfDate = new Date(asOfDateString);
-    if (Number.isNaN(asOfDate.getTime())) {
+    if (!isValidDateString(asOfDateString)) {
       return res.status(400).json({
-        error: "Invalid 'asOfDate' query parameter; expected a valid date"
+        error: "Invalid 'asOfDate' query parameter; expected a valid date in YYYY-MM-DD format"
       });
     }
 
-    const report = await buildBalanceSheetReport(asOfDate);
+    const report = await buildBalanceSheetReport(asOfDateString);
     res.json(report);
   } catch (error) {
     console.error('[v2/reports/balance] Failed to build report:', error);
@@ -59,19 +71,17 @@ router.get('/cash-flow', async (req, res, next) => {
       });
     }
 
-    const start = new Date(fromDate);
-    const end = new Date(toDate);
-    if (Number.isNaN(start.getTime()) || Number.isNaN(end.getTime())) {
+    if (!isValidDateString(fromDate) || !isValidDateString(toDate)) {
       return res.status(400).json({
-        error: "Invalid 'fromDate' or 'toDate'; expected valid dates"
+        error: "Invalid 'fromDate' or 'toDate'; expected valid dates in YYYY-MM-DD format"
       });
     }
 
     const transferMode = transfers === 'include' || transfers === 'only' ? transfers : 'exclude';
 
     const report = await buildCashFlowReport({
-      fromDate: start,
-      toDate: end,
+      fromDate,
+      toDate,
       transfers: transferMode,
       includeUnrealizedGL: includeUnrealizedGL === 'true'
     });
@@ -90,33 +100,23 @@ router.get('/cash-flow', async (req, res, next) => {
  * Build balance sheet report using PostgreSQL data
  */
 async function buildBalanceSheetReport(asOfDate) {
-  // Load COA structure from JSON file
-  const coaPath = dataPaths.coa;
-  const coaData = JSON.parse(fs.readFileSync(coaPath, 'utf8'));
+  const tree = await accountsRepo.getNestedTree({ section: 'balance_sheet' });
 
-  const balanceSheetEntry = Array.isArray(coaData) && coaData.find(
-    entry => entry && typeof entry === 'object' &&
-    Object.prototype.hasOwnProperty.call(entry, 'Balance Sheet Accounts')
-  );
-
-  if (!balanceSheetEntry) {
+  if (!tree || tree.length === 0) {
     return { 'Balance Sheet Accounts': [] };
   }
 
-  // Fetch account balances from PostgreSQL
+  // Unwrap the section root node (e.g. "Balance Sheet Accounts" → its children)
+  const root = tree.find(n => n.name === 'Balance Sheet Accounts');
+  const structure = root && root.children.length > 0 ? root.children : tree;
+
   const accountBalances = await fetchAccountBalances(asOfDate);
 
-  const structure = balanceSheetEntry['Balance Sheet Accounts'];
   const nodes = [];
-
   for (const item of structure) {
-    if (!item || typeof item !== 'object') continue;
-
-    for (const [name, value] of Object.entries(item)) {
-      const node = buildBalanceSheetNode(name, value, accountBalances);
-      if (node) {
-        nodes.push(node);
-      }
+    const node = buildBalanceSheetNode(item, accountBalances);
+    if (node) {
+      nodes.push(node);
     }
   }
 
@@ -225,57 +225,37 @@ async function fetchAccountBalances(asOfDate) {
 }
 
 /**
- * Build a balance sheet node recursively
+ * Build a balance sheet node recursively from { name, children } tree
  */
-function buildBalanceSheetNode(name, value, accountBalances) {
-  if (!name) return null;
+function buildBalanceSheetNode(node, accountBalances) {
+  if (!node || !node.name) return null;
 
-  if (!Array.isArray(value)) {
-    const accountName = typeof value === 'string' && value.trim().length > 0
-      ? value.trim()
-      : name;
-    const balanceEntry = getAccountBalanceEntry(accountName, accountBalances);
+  const { name, children } = node;
+  const isLeaf = !children || children.length === 0;
+
+  if (isLeaf) {
+    const balanceEntry = getAccountBalanceEntry(name, accountBalances);
     const totalUSD = balanceEntry ? balanceEntry.balanceInUSD : 0;
-    const node = { name, totalUSD };
+    const result = { name, totalUSD };
     if (balanceEntry) {
-      node.currency = balanceEntry.currency;
-      node.total = balanceEntry.balance;
+      result.currency = balanceEntry.currency;
+      result.total = balanceEntry.balance;
     }
-    return node;
+    return result;
   }
 
-  const children = [];
+  const childNodes = [];
   let totalUSD = 0;
 
-  for (const entry of value) {
-    if (typeof entry === 'string') {
-      const accountName = entry.trim();
-      if (!accountName) continue;
-
-      const balanceEntry = getAccountBalanceEntry(accountName, accountBalances);
-      const childBalance = balanceEntry ? balanceEntry.balanceInUSD : 0;
-      const childNode = { name: accountName, totalUSD: childBalance };
-      if (balanceEntry) {
-        childNode.currency = balanceEntry.currency;
-        childNode.total = balanceEntry.balance;
-      }
-      children.push(childNode);
-      totalUSD += childBalance;
-      continue;
-    }
-
-    if (entry && typeof entry === 'object') {
-      for (const [childName, childValue] of Object.entries(entry)) {
-        const childNode = buildBalanceSheetNode(childName, childValue, accountBalances);
-        if (childNode) {
-          children.push(childNode);
-          totalUSD += childNode.totalUSD || 0;
-        }
-      }
+  for (const child of children) {
+    const childNode = buildBalanceSheetNode(child, accountBalances);
+    if (childNode) {
+      childNodes.push(childNode);
+      totalUSD += childNode.totalUSD || 0;
     }
   }
 
-  return { name, totalUSD, children };
+  return { name, totalUSD, children: childNodes };
 }
 
 /**
@@ -307,20 +287,15 @@ function getAccountBalanceEntry(accountName, accountBalances) {
  * Build cash flow (P&L) report using PostgreSQL data
  */
 async function buildCashFlowReport({ fromDate, toDate, transfers = 'exclude', includeUnrealizedGL = false }) {
-  // Load COA structure from JSON file
-  const coaPath = dataPaths.coa;
-  const coaData = JSON.parse(fs.readFileSync(coaPath, 'utf8'));
+  const tree = await accountsRepo.getNestedTree({ section: 'profit_loss' });
 
-  const profitLossEntry = Array.isArray(coaData) && coaData.find(
-    item => item && typeof item === 'object' &&
-    Object.prototype.hasOwnProperty.call(item, 'Profit & Loss Accounts')
-  );
-
-  if (!profitLossEntry) {
+  if (!tree || tree.length === 0) {
     return { 'Profit & Loss Accounts': [] };
   }
 
-  const structure = profitLossEntry['Profit & Loss Accounts'];
+  // Unwrap the section root node (e.g. "Profit & Loss Accounts" → its children)
+  const root = tree.find(n => n.name === 'Profit & Loss Accounts');
+  const structure = root && root.children.length > 0 ? root.children : tree;
 
   // Extract transfer categories from structure
   const transferCategories = extractTransferCategories(structure);
@@ -333,13 +308,9 @@ async function buildCashFlowReport({ fromDate, toDate, transfers = 'exclude', in
 
   const nodes = [];
   for (const item of structure) {
-    if (!item || typeof item !== 'object') continue;
-
-    for (const [name, value] of Object.entries(item)) {
-      const node = buildCashFlowNode(name, value, categoryTotals, transfers, transferCategorySet);
-      if (node) {
-        nodes.push(node);
-      }
+    const node = buildCashFlowNode(item, categoryTotals, transfers, transferCategorySet);
+    if (node) {
+      nodes.push(node);
     }
   }
 
@@ -380,89 +351,70 @@ async function fetchCategoryTotals(fromDate, toDate, transfers, transferCategory
 }
 
 /**
- * Extract transfer category names from COA structure
+ * Extract transfer category leaf names from { name, children } tree
  */
-function extractTransferCategories(structure) {
+function extractTransferCategories(nodes) {
   const categories = [];
 
-  const findTransfers = (items) => {
-    if (!Array.isArray(items)) return;
-
-    for (const item of items) {
-      if (typeof item === 'string' && item.toLowerCase().includes('transfer')) {
-        categories.push(item);
-      } else if (item && typeof item === 'object') {
-        for (const [name, value] of Object.entries(item)) {
-          if (name.toLowerCase().includes('transfer')) {
-            if (typeof value === 'string') {
-              categories.push(value);
-            } else if (Array.isArray(value)) {
-              value.forEach(v => {
-                if (typeof v === 'string') categories.push(v);
-              });
-            }
-          }
-          if (Array.isArray(value)) {
-            findTransfers(value);
-          }
-        }
+  const collectLeaves = (items) => {
+    for (const node of items) {
+      if (!node.children || node.children.length === 0) {
+        categories.push(node.name);
+      } else {
+        collectLeaves(node.children);
       }
     }
   };
 
-  findTransfers(structure);
+  const walk = (items) => {
+    for (const node of items) {
+      if (!node || !node.name) continue;
+      if (node.name.toLowerCase().includes('transfer')) {
+        if (!node.children || node.children.length === 0) {
+          categories.push(node.name);
+        } else {
+          collectLeaves(node.children);
+        }
+      } else if (node.children && node.children.length > 0) {
+        walk(node.children);
+      }
+    }
+  };
+
+  walk(nodes);
   return categories;
 }
 
 /**
- * Build a cash flow node recursively
+ * Build a cash flow node recursively from { name, children } tree
  */
-function buildCashFlowNode(name, value, categoryTotals, transfers, transferCategorySet) {
-  if (!name) return null;
+function buildCashFlowNode(node, categoryTotals, transfers, transferCategorySet) {
+  if (!node || !node.name) return null;
 
-  if (!Array.isArray(value)) {
-    const categoryName = typeof value === 'string' && value.trim().length > 0
-      ? value.trim()
-      : name;
+  const { name, children } = node;
+  const isLeaf = !children || children.length === 0;
 
-    const isTransfer = transferCategorySet.has(categoryName.toLowerCase());
+  if (isLeaf) {
+    const isTransfer = transferCategorySet.has(name.toLowerCase());
     if (transfers === 'exclude' && isTransfer) return null;
     if (transfers === 'only' && !isTransfer) return null;
 
-    const total = categoryTotals[categoryName] || 0;
+    const total = categoryTotals[name] || 0;
     return { name, total };
   }
 
-  const children = [];
+  const childNodes = [];
   let total = 0;
 
-  for (const entry of value) {
-    if (typeof entry === 'string') {
-      const categoryName = entry.trim();
-      if (!categoryName) continue;
-
-      const isTransfer = transferCategorySet.has(categoryName.toLowerCase());
-      if (transfers === 'exclude' && isTransfer) continue;
-      if (transfers === 'only' && !isTransfer) continue;
-
-      const categoryTotal = categoryTotals[categoryName] || 0;
-      children.push({ name: categoryName, total: categoryTotal });
-      total += categoryTotal;
-      continue;
-    }
-
-    if (entry && typeof entry === 'object') {
-      for (const [childName, childValue] of Object.entries(entry)) {
-        const childNode = buildCashFlowNode(childName, childValue, categoryTotals, transfers, transferCategorySet);
-        if (childNode) {
-          children.push(childNode);
-          total += childNode.total || 0;
-        }
-      }
+  for (const child of children) {
+    const childNode = buildCashFlowNode(child, categoryTotals, transfers, transferCategorySet);
+    if (childNode) {
+      childNodes.push(childNode);
+      total += childNode.total || 0;
     }
   }
 
-  return { name, total, children };
+  return { name, total, children: childNodes };
 }
 
 // ============================================================================

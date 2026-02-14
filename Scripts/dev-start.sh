@@ -49,9 +49,9 @@ tmux send-keys -t "$SESSION_NAME:frontend" "npm run tail" C-m
 tmux new-window -t "$SESSION_NAME" -n "shell" -c "$PROJECT_DIR"
 tmux send-keys -t "$SESSION_NAME:shell" "# Development shell" C-m
 tmux send-keys -t "$SESSION_NAME:shell" "echo 'Quick commands:'" C-m
-tmux send-keys -t "$SESSION_NAME:shell" "echo '  ./sync-db-prod-to-dev.sh  - Sync production data'" C-m
-tmux send-keys -t "$SESSION_NAME:shell" "echo '  ./bump-version.sh patch   - Increment version'" C-m
-tmux send-keys -t "$SESSION_NAME:shell" "echo '  ./deploy-to-production.sh - Deploy when ready'" C-m
+tmux send-keys -t "$SESSION_NAME:shell" "echo '  ./Scripts/sync-db-prod-to-dev.sh  - Sync production data'" C-m
+tmux send-keys -t "$SESSION_NAME:shell" "echo '  ./Scripts/bump-version.sh patch   - Increment version'" C-m
+tmux send-keys -t "$SESSION_NAME:shell" "echo '  ./Scripts/deploy-to-production.sh - Deploy when ready'" C-m
 tmux send-keys -t "$SESSION_NAME:shell" "echo ''" C-m
 
 # Select frontend window

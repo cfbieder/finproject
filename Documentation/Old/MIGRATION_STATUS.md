@@ -64,7 +64,7 @@ virsh --connect qemu:///system console fin
 
 ### VM Provisioning
 
-The VM is provisioned via `provision-vm.sh`, which:
+The VM is provisioned via `Scripts/provision-vm.sh`, which:
 - Downloads the Ubuntu 24.04 cloud image to a staging directory
 - Uploads it to the `vm-ssd` libvirt pool via `virsh vol-create-as` / `virsh vol-upload`
 - Creates a qcow2 overlay disk with backing store
@@ -80,10 +80,10 @@ virsh --connect qemu:///system destroy fin
 virsh --connect qemu:///system undefine fin --remove-all-storage
 
 # From dev machine — run provisioning script
-ssh cfbieder@192.168.1.61 'bash -s' < provision-vm.sh
+ssh cfbieder@192.168.1.61 'bash -s' < Scripts/provision-vm.sh
 
 # Wait ~3-5 min for cloud-init, then deploy
-ssh cfbieder@192.168.1.82 'bash -s' < deploy-on-vm.sh
+ssh cfbieder@192.168.1.82 'bash -s' < Scripts/deploy-on-vm.sh
 ```
 
 ---
@@ -390,7 +390,7 @@ All API routes are under `/api/v2/`. Nginx rewrites legacy `/api/*` paths to `/a
 | 2026-02-08 | Decommissioned dev machine (linux1). VM is now sole environment. |
 | 2026-02-08 | Restored database from dev machine to VM via `pg_dump`/`pg_restore`. All 25k+ transactions, budgets, forecasts confirmed. |
 | 2026-02-08 | Fixed server Dockerfile: added `postgresql-client-16` for backup endpoint. |
-| 2026-02-08 | Recreated VM after loss (cloud image was in /tmp). All images now in /mnt/vm-ssd via libvirt pool. Added `provision-vm.sh` and `deploy-on-vm.sh` scripts. |
+| 2026-02-08 | Recreated VM after loss (cloud image was in /tmp). All images now in /mnt/vm-ssd via libvirt pool. Added `Scripts/provision-vm.sh` and `Scripts/deploy-on-vm.sh` scripts. |
 | 2026-02-07 | Migrated from dev machine to KVM VM at 192.168.1.82 |
 | Earlier | Migrated from MongoDB to PostgreSQL 16 |
 | Earlier | UI overhaul: Lucide icons, shared layout, category landing pages |

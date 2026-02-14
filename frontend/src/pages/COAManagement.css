@@ -265,6 +265,48 @@
   border: 0;
 }
 
+/* Quick-add missing accounts action row */
+.coa-missing-accounts-actions {
+  margin-top: 0.75rem;
+  padding: 0.75rem;
+  background: rgba(22, 163, 74, 0.04);
+  border: 1px solid rgba(22, 163, 74, 0.15);
+  border-radius: 0.5rem;
+}
+
+/* Category picker */
+.coa-category-picker {
+  max-height: 250px;
+  overflow-y: auto;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 0.35rem;
+  background: #fafbfc;
+}
+
+.coa-category-picker__item {
+  padding: 0.35rem 0.5rem;
+  cursor: pointer;
+  border-radius: 6px;
+  font-weight: 600;
+  font-size: 0.875rem;
+  color: #334155;
+  transition: background 0.12s ease;
+}
+
+.coa-category-picker__item:hover {
+  background: #f1f5f9;
+}
+
+.coa-category-picker__item--selected {
+  background: #dbeafe;
+  color: #1d4ed8;
+}
+
+.coa-category-picker__item--selected:hover {
+  background: #dbeafe;
+}
+
 /* Responsive adjustments */
 @media (max-width: 768px) {
   .coa-management-container {

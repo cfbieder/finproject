@@ -105,7 +105,7 @@ Use the tmux script for the recommended setup:
 ```bash
 ssh cfbieder@192.168.1.82
 cd ~/Programs/fin
-./dev-start.sh
+./Scripts/dev-start.sh
 ```
 
 This creates a tmux session with 4 windows:
@@ -114,9 +114,9 @@ This creates a tmux session with 4 windows:
 3. **frontend** - Runs `npm run tail` in `frontend/` (Vite HMR)
 4. **shell** - Command shell for scripts
 
-See [TMUX_GUIDE.md](../TMUX_GUIDE.md) for navigation and usage details.
+See [TMUX_GUIDE.md](TMUX_GUIDE.md) for navigation and usage details.
 
-**Note:** `dev-start.sh` only starts the database in Docker. It does NOT start `server-dev` from `docker-compose.dev.yml`. The backend runs directly on the VM via nodemon for instant code reload.
+**Note:** `Scripts/dev-start.sh` only starts the database in Docker. It does NOT start `server-dev` from `docker-compose.dev.yml`. The backend runs directly on the VM via nodemon for instant code reload.
 
 ### VM Provisioning (from scratch)
 
@@ -124,10 +124,10 @@ If the VM needs to be recreated:
 
 ```bash
 # From any machine with SSH access to the KVM host
-ssh cfbieder@192.168.1.61 'bash -s' < provision-vm.sh
+ssh cfbieder@192.168.1.61 'bash -s' < Scripts/provision-vm.sh
 
 # Wait ~3-5 min for cloud-init, then deploy
-ssh cfbieder@192.168.1.82 'bash -s' < deploy-on-vm.sh
+ssh cfbieder@192.168.1.82 'bash -s' < Scripts/deploy-on-vm.sh
 ```
 
 ---
@@ -219,14 +219,16 @@ fin/
 ├── VERSION                      # Current version number (e.g., 2.0.1)
 ├── docker-compose.yml           # Production: 3 services (postgres, server, frontend)
 ├── docker-compose.dev.yml       # Development: postgres-dev only (backend + frontend via npm)
-├── provision-vm.sh              # Create 'fin' KVM guest on vmhost (192.168.1.61)
-├── deploy-on-vm.sh              # Clone repo + deploy on VM (192.168.1.82)
-├── rebuild-frontend.sh          # Rebuild and restart frontend container
-├── sync-db-prod-to-dev.sh       # Copy production database to development
-├── deploy-to-production.sh      # Deploy development changes to production
-├── bump-version.sh              # Increment version (patch/minor/major)
-├── dev-start.sh                 # Start tmux development environment
-├── TMUX_GUIDE.md                # Guide for tmux development workflow
+├── Scripts/                     # Shell scripts
+│   ├── provision-vm.sh          # Create 'fin' KVM guest on vmhost (192.168.1.61)
+│   ├── deploy-on-vm.sh          # Clone repo + deploy on VM (192.168.1.82)
+│   ├── rebuild-frontend.sh      # Rebuild and restart frontend container
+│   ├── sync-db-prod-to-dev.sh   # Copy production database to development
+│   ├── deploy-to-production.sh  # Deploy development changes to production
+│   ├── bump-version.sh          # Increment version (patch/minor/major)
+│   ├── dev-start.sh             # Start tmux development environment
+│   ├── backup-mongo.sh          # Legacy MongoDB backup (deprecated)
+│   └── restore-mongo.sh         # Legacy MongoDB restore (deprecated)
 ├── NOTES.md                     # Quick reference notes
 └── .env.example                 # Environment variable template
 ```
@@ -237,13 +239,13 @@ fin/
 
 ### Version Management
 
-**`bump-version.sh`** - Semantic version management
+**`Scripts/bump-version.sh`** - Semantic version management
 
 ```bash
-./bump-version.sh patch    # 2.0.0 → 2.0.1
-./bump-version.sh minor    # 2.0.0 → 2.1.0
-./bump-version.sh major    # 2.0.0 → 3.0.0
-./bump-version.sh 2.1.5    # Set specific version
+./Scripts/bump-version.sh patch    # 2.0.0 → 2.0.1
+./Scripts/bump-version.sh minor    # 2.0.0 → 2.1.0
+./Scripts/bump-version.sh major    # 2.0.0 → 3.0.0
+./Scripts/bump-version.sh 2.1.5    # Set specific version
 ```
 
 Updates:
@@ -256,10 +258,10 @@ The version is displayed in the navigation menu navbar and can be incremented at
 
 ### Database Management
 
-**`sync-db-prod-to-dev.sh`** - Copy production data to development
+**`Scripts/sync-db-prod-to-dev.sh`** - Copy production data to development
 
 ```bash
-./sync-db-prod-to-dev.sh
+./Scripts/sync-db-prod-to-dev.sh
 ```
 
 - Creates PostgreSQL backup from production database
@@ -269,11 +271,11 @@ The version is displayed in the navigation menu navbar and can be incremented at
 
 ### Deployment
 
-**`deploy-to-production.sh`** - Deploy changes to production
+**`Scripts/deploy-to-production.sh`** - Deploy changes to production
 
 ```bash
-./deploy-to-production.sh           # Deploy without git operations
-./deploy-to-production.sh --with-git # Deploy with git commit/push
+./Scripts/deploy-to-production.sh           # Deploy without git operations
+./Scripts/deploy-to-production.sh --with-git # Deploy with git commit/push
 ```
 
 - Creates database backup before deployment
@@ -281,10 +283,10 @@ The version is displayed in the navigation menu navbar and can be incremented at
 - Verifies container health after deployment
 - Git operations are opt-in (use `--with-git` flag)
 
-**`rebuild-frontend.sh`** - Quick frontend rebuild
+**`Scripts/rebuild-frontend.sh`** - Quick frontend rebuild
 
 ```bash
-./rebuild-frontend.sh
+./Scripts/rebuild-frontend.sh
 ```
 
 Rebuilds and restarts only the frontend container (faster than full deployment).
@@ -641,7 +643,7 @@ docker compose -f docker-compose.dev.yml exec fin-postgres-dev psql -U fin -d fi
 1. **Start development environment:**
    ```bash
    # Option A: Using tmux (recommended)
-   ./dev-start.sh
+   ./Scripts/dev-start.sh
 
    # Option B: Manual (3 terminals)
    docker compose -f docker-compose.dev.yml up -d fin-postgres-dev
@@ -651,7 +653,7 @@ docker compose -f docker-compose.dev.yml exec fin-postgres-dev psql -U fin -d fi
 
 2. **Sync production data (if needed):**
    ```bash
-   ./sync-db-prod-to-dev.sh
+   ./Scripts/sync-db-prod-to-dev.sh
    ```
 
 3. **Make changes:**
@@ -665,12 +667,12 @@ docker compose -f docker-compose.dev.yml exec fin-postgres-dev psql -U fin -d fi
 
 5. **Increment version (when ready):**
    ```bash
-   ./bump-version.sh patch
+   ./Scripts/bump-version.sh patch
    ```
 
 6. **Deploy to production:**
    ```bash
-   ./deploy-to-production.sh
+   ./Scripts/deploy-to-production.sh
    ```
 
 7. **Verify production:**
@@ -693,7 +695,7 @@ docker compose -f docker-compose.dev.yml exec fin-postgres-dev psql -U fin -d fi
 **Separate Databases:**
 - Production and development use completely separate PostgreSQL instances
 - Safe to experiment with schema changes in development
-- Use `sync-db-prod-to-dev.sh` to refresh development data from production
+- Use `Scripts/sync-db-prod-to-dev.sh` to refresh development data from production
 - Development database persists across container restarts
 
 **Environment Isolation:**
@@ -704,7 +706,7 @@ docker compose -f docker-compose.dev.yml exec fin-postgres-dev psql -U fin -d fi
 ### Best Practices
 
 1. **Always test in development first** - Never make changes directly in production
-2. **Sync data regularly** - Keep development database current with `sync-db-prod-to-dev.sh`
+2. **Sync data regularly** - Keep development database current with `Scripts/sync-db-prod-to-dev.sh`
 3. **Use version numbers** - Increment version before deploying significant changes
 4. **Monitor deployments** - Check container health after deployment
 5. **Keep tmux running** - Detach from tmux (Ctrl+b d) instead of stopping; reattach when needed

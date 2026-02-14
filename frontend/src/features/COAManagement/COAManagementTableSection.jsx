@@ -1,5 +1,3 @@
-import UploadFeedback from "../Database/UploadFeedback.jsx";
-
 export default function COAManagementTableSection({
   filteredRows,
   totalRowCount,
@@ -11,11 +9,16 @@ export default function COAManagementTableSection({
   selectedRowKeys = [],
   onToggleRowSelection,
   getRowKey,
+  onQuickAddAccount,
 }) {
   const getRowShade = (depth) => {
     const lightness = Math.max(98 - depth * 6, 70);
     return `hsl(215, 45%, ${lightness}%)`;
   };
+
+  const missingAccounts = Array.isArray(analyzeStatus?.missingAccounts)
+    ? analyzeStatus.missingAccounts
+    : [];
 
   return (
     <section className="coa-management-table-section">
@@ -41,15 +44,51 @@ export default function COAManagementTableSection({
         </div>
       </div>
       <div className="coa-management-status">
-        <UploadFeedback
-          lastIngestStatus={null}
-          lastRefreshStatus={null}
-          psDataCountStatus={null}
-          uploadStatus={null}
-          clearStatus={null}
-          ingestStatus={null}
-          analyzeStatus={analyzeStatus}
-        />
+        {analyzeStatus?.message && (
+          <p
+            className={`upload-feedback upload-feedback_${analyzeStatus.type ?? "info"}`}
+          >
+            {analyzeStatus.message}
+          </p>
+        )}
+        {Array.isArray(analyzeStatus?.details) &&
+          analyzeStatus.details.length > 0 && (
+            <ul className="upload-feedback-details">
+              {analyzeStatus.details.map((detail) => (
+                <li key={detail}>{detail}</li>
+              ))}
+            </ul>
+          )}
+        {missingAccounts.length > 0 && (
+          <div className="coa-missing-accounts-actions">
+            <p
+              style={{
+                fontWeight: 700,
+                margin: "0 0 0.5rem",
+                fontSize: "0.875rem",
+                color: "#166534",
+              }}
+            >
+              Quick-add missing accounts:
+            </p>
+            <div style={{ display: "flex", flexWrap: "wrap", gap: "0.5rem" }}>
+              {missingAccounts.map((name) => (
+                <button
+                  key={name}
+                  type="button"
+                  className="coa-action-button coa-action-button--add"
+                  style={{ fontSize: "0.85rem", padding: "0.4rem 0.75rem" }}
+                  onClick={() =>
+                    typeof onQuickAddAccount === "function" &&
+                    onQuickAddAccount(name)
+                  }
+                >
+                  <span aria-hidden="true">+</span> {name}
+                </button>
+              ))}
+            </div>
+          </div>
+        )}
       </div>
       <div className="budget-options-table-wrapper coa-table-scroll">
         <table

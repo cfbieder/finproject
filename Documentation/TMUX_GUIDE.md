@@ -4,7 +4,7 @@
 
 ```bash
 # Start development environment (creates tmux session automatically)
-./dev-start.sh
+./Scripts/dev-start.sh
 ```
 
 This creates a tmux session with 4 windows:
@@ -53,7 +53,7 @@ tmux kill-session -t fin-dev
 
 ```bash
 # Option 1: Use tmux (recommended)
-./dev-start.sh
+./Scripts/dev-start.sh
 
 # Option 2: Manual (if you prefer separate terminals)
 docker compose -f docker-compose.dev.yml up -d fin-postgres-dev
@@ -78,9 +78,9 @@ cd frontend && npm run dev
    - Use `Ctrl+b [` to scroll through logs
 
 4. **Run commands** (Window 4)
-   - Sync database: `./sync-db-prod-to-dev.sh`
-   - Bump version: `./bump-version.sh patch`
-   - Deploy: `./deploy-to-production.sh`
+   - Sync database: `./Scripts/sync-db-prod-to-dev.sh`
+   - Bump version: `./Scripts/bump-version.sh patch`
+   - Deploy: `./Scripts/deploy-to-production.sh`
 
 ### Stopping Development
 
@@ -104,7 +104,7 @@ From the shell window (Window 4):
 cat VERSION
 
 # Increment version
-./bump-version.sh patch
+./Scripts/bump-version.sh patch
 
 # Changes will appear after frontend hot reload
 ```
@@ -198,7 +198,7 @@ Ctrl+b %
 Ctrl+b 4
 
 # Run your command
-./sync-db-prod-to-dev.sh
+./Scripts/sync-db-prod-to-dev.sh
 
 # Switch back to frontend
 Ctrl+b 3
@@ -208,7 +208,7 @@ Ctrl+b 3
 
 ## Customizing Your Session
 
-Edit `dev-start.sh` to:
+Edit `Scripts/dev-start.sh` to:
 - Change window names
 - Add more windows
 - Customize startup commands

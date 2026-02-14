@@ -9,6 +9,15 @@ const accountsRepo = require('../repositories').accounts;
 const categoriesRepo = require('../repositories').categories;
 
 /**
+ * Validate a date string is in YYYY-MM-DD format and represents a real date.
+ */
+function isValidDateString(str) {
+  if (typeof str !== 'string' || !/^\d{4}-\d{2}-\d{2}$/.test(str)) return false;
+  const date = new Date(str + 'T00:00:00Z');
+  return !Number.isNaN(date.getTime());
+}
+
+/**
  * Transform v1-style field names to v2 format for budget entries
  * Maps: Date → entry_date, Amount → amount, etc.
  */
@@ -442,69 +451,35 @@ router.get('/summary', async (req, res, next) => {
  */
 router.get('/category-groups', async (req, res, next) => {
   try {
-    const fs = require('fs');
-    const { dataPaths } = require('../../utils/dataPaths');
-
-    const coaPath = dataPaths.coa;
-    const coaData = JSON.parse(fs.readFileSync(coaPath, 'utf8'));
-
+    const tree = await accountsRepo.getNestedTree({ section: 'profit_loss' });
     const groups = { Income: [], Expense: [] };
 
-    if (!Array.isArray(coaData)) {
+    if (!tree || tree.length === 0) {
       return res.json(groups);
     }
 
-    // Find Profit & Loss Accounts section
-    const plEntry = coaData.find(
-      item => item && typeof item === 'object' &&
-      Object.prototype.hasOwnProperty.call(item, 'Profit & Loss Accounts')
-    );
+    // Unwrap section root
+    const root = tree.find(n => n.name === 'Profit & Loss Accounts');
+    const structure = root && root.children.length > 0 ? root.children : tree;
 
-    if (!plEntry) {
-      return res.json(groups);
-    }
-
-    const structure = plEntry['Profit & Loss Accounts'];
-    if (!Array.isArray(structure)) {
-      return res.json(groups);
-    }
-
-    // Extract categories from structure
-    const extractCategories = (items, targetGroup) => {
-      if (!Array.isArray(items)) return;
-      for (const item of items) {
-        if (typeof item === 'string') {
-          targetGroup.push(item);
-        } else if (item && typeof item === 'object') {
-          for (const [, value] of Object.entries(item)) {
-            if (typeof value === 'string') {
-              targetGroup.push(value);
-            } else if (Array.isArray(value)) {
-              extractCategories(value, targetGroup);
-            }
-          }
+    // Collect leaf category names from a { name, children } tree
+    const collectLeaves = (nodes, targetGroup) => {
+      for (const node of nodes) {
+        if (!node.children || node.children.length === 0) {
+          targetGroup.push(node.name);
+        } else {
+          collectLeaves(node.children, targetGroup);
         }
       }
     };
 
     // Find Income and Expense sections
-    for (const item of structure) {
-      if (!item || typeof item !== 'object') continue;
-      for (const [name, value] of Object.entries(item)) {
-        const lowerName = name.toLowerCase();
-        if (lowerName.includes('income') || lowerName.includes('revenue')) {
-          if (Array.isArray(value)) {
-            extractCategories(value, groups.Income);
-          } else if (typeof value === 'string') {
-            groups.Income.push(value);
-          }
-        } else if (lowerName.includes('expense') || lowerName.includes('cost')) {
-          if (Array.isArray(value)) {
-            extractCategories(value, groups.Expense);
-          } else if (typeof value === 'string') {
-            groups.Expense.push(value);
-          }
-        }
+    for (const node of structure) {
+      const lowerName = node.name.toLowerCase();
+      if (lowerName.includes('income') || lowerName.includes('revenue')) {
+        collectLeaves(node.children || [], groups.Income);
+      } else if (lowerName.includes('expense') || lowerName.includes('cost')) {
+        collectLeaves(node.children || [], groups.Expense);
       }
     }
 
@@ -681,24 +656,24 @@ router.get('/cash-flow', async (req, res, next) => {
       });
     }
 
+    if (!isValidDateString(fromDate) || !isValidDateString(toDate)) {
+      return res.status(400).json({
+        error: "Invalid 'fromDate' or 'toDate'; expected valid dates in YYYY-MM-DD format",
+      });
+    }
+
     const db = require('../db');
-    const fs = require('node:fs');
-    const { dataPaths } = require('../../utils/dataPaths');
 
-    // Load COA structure from JSON file
-    const coaPath = dataPaths.coa;
-    const coaData = JSON.parse(fs.readFileSync(coaPath, 'utf8'));
+    // Load COA structure from SQL
+    const tree = await accountsRepo.getNestedTree({ section: 'profit_loss' });
 
-    const profitLossEntry = Array.isArray(coaData) && coaData.find(
-      item => item && typeof item === 'object' &&
-      Object.prototype.hasOwnProperty.call(item, 'Profit & Loss Accounts')
-    );
-
-    if (!profitLossEntry) {
+    if (!tree || tree.length === 0) {
       return res.json({ 'Profit & Loss Accounts': [] });
     }
 
-    const structure = profitLossEntry['Profit & Loss Accounts'];
+    // Unwrap the section root node (e.g. "Profit & Loss Accounts" → its children)
+    const root = tree.find(n => n.name === 'Profit & Loss Accounts');
+    const structure = root && root.children.length > 0 ? root.children : tree;
 
     // Extract transfer categories from structure
     const transferCategories = extractTransferCategories(structure);
@@ -735,13 +710,9 @@ router.get('/cash-flow', async (req, res, next) => {
     // Build hierarchical tree structure
     const nodes = [];
     for (const item of structure) {
-      if (!item || typeof item !== 'object') continue;
-
-      for (const [name, value] of Object.entries(item)) {
-        const node = buildBudgetCashFlowNode(name, value, budgetTotals, transfers, transferCategorySet);
-        if (node) {
-          nodes.push(node);
-        }
+      const node = buildBudgetCashFlowNode(item, budgetTotals, transfers, transferCategorySet);
+      if (node) {
+        nodes.push(node);
       }
     }
 
@@ -753,89 +724,70 @@ router.get('/cash-flow', async (req, res, next) => {
 });
 
 /**
- * Extract transfer category names from COA structure
+ * Extract transfer category leaf names from { name, children } tree
  */
-function extractTransferCategories(structure) {
+function extractTransferCategories(nodes) {
   const categories = [];
 
-  const findTransfers = (items) => {
-    if (!Array.isArray(items)) return;
-
-    for (const item of items) {
-      if (typeof item === 'string' && item.toLowerCase().includes('transfer')) {
-        categories.push(item);
-      } else if (item && typeof item === 'object') {
-        for (const [name, value] of Object.entries(item)) {
-          if (name.toLowerCase().includes('transfer')) {
-            if (typeof value === 'string') {
-              categories.push(value);
-            } else if (Array.isArray(value)) {
-              value.forEach(v => {
-                if (typeof v === 'string') categories.push(v);
-              });
-            }
-          }
-          if (Array.isArray(value)) {
-            findTransfers(value);
-          }
-        }
+  const collectLeaves = (items) => {
+    for (const node of items) {
+      if (!node.children || node.children.length === 0) {
+        categories.push(node.name);
+      } else {
+        collectLeaves(node.children);
       }
     }
   };
 
-  findTransfers(structure);
+  const walk = (items) => {
+    for (const node of items) {
+      if (!node || !node.name) continue;
+      if (node.name.toLowerCase().includes('transfer')) {
+        if (!node.children || node.children.length === 0) {
+          categories.push(node.name);
+        } else {
+          collectLeaves(node.children);
+        }
+      } else if (node.children && node.children.length > 0) {
+        walk(node.children);
+      }
+    }
+  };
+
+  walk(nodes);
   return categories;
 }
 
 /**
- * Build a budget cash flow node recursively
+ * Build a budget cash flow node recursively from { name, children } tree
  */
-function buildBudgetCashFlowNode(name, value, budgetTotals, transfers, transferCategorySet) {
-  if (!name) return null;
+function buildBudgetCashFlowNode(node, budgetTotals, transfers, transferCategorySet) {
+  if (!node || !node.name) return null;
 
-  if (!Array.isArray(value)) {
-    const categoryName = typeof value === 'string' && value.trim().length > 0
-      ? value.trim()
-      : name;
+  const { name, children } = node;
+  const isLeaf = !children || children.length === 0;
 
-    const isTransfer = transferCategorySet.has(categoryName.toLowerCase());
+  if (isLeaf) {
+    const isTransfer = transferCategorySet.has(name.toLowerCase());
     if (transfers === 'exclude' && isTransfer) return null;
     if (transfers === 'only' && !isTransfer) return null;
 
-    const total = budgetTotals[categoryName] || 0;
+    const total = budgetTotals[name] || 0;
     return { name, total };
   }
 
-  const children = [];
+  const childNodes = [];
   let total = 0;
 
-  for (const entry of value) {
-    if (typeof entry === 'string') {
-      const categoryName = entry.trim();
-      if (!categoryName) continue;
-
-      const isTransfer = transferCategorySet.has(categoryName.toLowerCase());
-      if (transfers === 'exclude' && isTransfer) continue;
-      if (transfers === 'only' && !isTransfer) continue;
-
-      const categoryTotal = budgetTotals[categoryName] || 0;
-      children.push({ name: categoryName, total: categoryTotal });
-      total += categoryTotal;
-      continue;
-    }
-
-    if (entry && typeof entry === 'object') {
-      for (const [childName, childValue] of Object.entries(entry)) {
-        const childNode = buildBudgetCashFlowNode(childName, childValue, budgetTotals, transfers, transferCategorySet);
-        if (childNode) {
-          children.push(childNode);
-          total += childNode.total || 0;
-        }
-      }
+  for (const child of children) {
+    const childNode = buildBudgetCashFlowNode(child, budgetTotals, transfers, transferCategorySet);
+    if (childNode) {
+      childNodes.push(childNode);
+      total += childNode.total || 0;
     }
   }
 
-  return { name, total, children };
+  return { name, total, children: childNodes };
 }
 
 module.exports = router;

@@ -1,0 +1,514 @@
+# Fin - Personal Finance Manager
+
+## 1. Architecture Overview
+
+```
+                        +----------------------------+
+                        |       nginx (port 80)      |
+                        |   React SPA + API proxy    |
+                        +-----------+----------------+
+                                    | /api/*
+                        +-----------v----------------+
+                        |   Express 5 (port 3005)    |
+                        |   Node.js Backend          |
+                        +-----------+----------------+
+                                    |
+                        +-----------v----------------+
+                        |  PostgreSQL 16 (port 5432) |
+                        |  fin database              |
+                        +----------------------------+
+```
+
+**Three-service architecture:** PostgreSQL database, Node.js/Express API server, and nginx-served React SPA. All services run in Docker containers orchestrated by Docker Compose.
+
+---
+
+## 2. Infrastructure
+
+### VM
+
+| Field | Value |
+|-------|-------|
+| IP | `192.168.1.82` (static, bridged via `br0`) |
+| OS | Ubuntu 24.04 LTS (Noble) |
+| vCPUs / RAM / Disk | 2 / 4 GB / 40 GB (qcow2 overlay) |
+| User | `cfbieder` (sudo NOPASSWD, SSH key auth) |
+| Docker | 29.2.1, Compose v5.0.2 |
+| Autostart | Enabled (`virsh autostart fin`) |
+
+### KVM Host
+
+| Field | Value |
+|-------|-------|
+| IP | `192.168.1.61` |
+| Storage Pools | `vm-ssd` (`/mnt/vm-ssd`), `vm-hdd` (`/mnt/vm-hdd`) |
+| Cockpit | `https://192.168.1.61:9090` |
+
+All VM images (base, overlay, cloud-init ISO) stored in `/mnt/vm-ssd/` via the `vm-ssd` libvirt pool.
+
+### SSH Access
+
+```bash
+ssh cfbieder@192.168.1.82          # VM (primary)
+ssh cfbieder@192.168.1.61          # KVM host (VM management only)
+```
+
+### Tailscale
+
+- URL: `https://fin.tail413695.ts.net`
+- Proxies to: `https+insecure://localhost:5175` (production frontend)
+- Auto-starts on boot via systemd
+
+### Access URLs
+
+| Environment | Frontend HTTPS | Frontend HTTP | API | Database |
+|-------------|---------------|---------------|-----|----------|
+| **Production** | `https://192.168.1.82:5175` | `http://192.168.1.82:3006` | `http://192.168.1.82:3005` | `192.168.1.82:5433` |
+| **Production (Tailscale)** | `https://fin.tail413695.ts.net` | - | - | - |
+| **Development** | `http://100.100.162.49:5174` | - | `http://100.100.162.49:3105` | `100.100.162.49:5434` |
+
+---
+
+## 3. Tech Stack
+
+### Frontend
+
+| Library | Version | Purpose |
+|---------|---------|---------|
+| React | 19.2.0 | UI framework |
+| Vite | 7.2.4 | Build tool & dev server |
+| React Router DOM | 7.9.6 | Client-side routing |
+| Lucide React | 0.563.0 | SVG icon library |
+| env-cmd | 11.0.0 | Environment management |
+
+### Backend
+
+| Library | Version | Purpose |
+|---------|---------|---------|
+| Express | 5.1.0 | HTTP framework |
+| pg | 8.13.1 | PostgreSQL client |
+| Arquero | 8.0.3 | Data transformation |
+| danfojs-node | 1.2.0 | DataFrame operations |
+| archiver | 7.0.1 | Backup compression |
+| pino | 9.6.0 | Structured logging |
+| morgan | 1.10.1 | HTTP request logging |
+
+---
+
+## 4. Project Structure
+
+```
+fin/
+├── components/
+│   ├── data/                    # Legacy JSON data files (being phased out; COA now in SQL)
+│   └── reports/                 # Generated report output
+├── Documentation/               # Project documentation
+│   ├── PROJECT_DESCRIPTION.md   # This file
+│   ├── PROJECT_ROADMAP.md       # Future work and known issues
+│   ├── TMUX_GUIDE.md            # tmux development guide
+│   └── Old/                     # Archived documentation
+├── frontend/                    # React SPA
+│   ├── Dockerfile               # Multi-stage build: Vite -> nginx
+│   ├── nginx.conf               # API proxy + SPA routing
+│   ├── package.json
+│   ├── .env-cmdrc               # Environment configurations
+│   └── src/
+│       ├── App.jsx              # Router, Layout wrapper, lazy routes
+│       ├── main.jsx             # Entry point, ToastProvider
+│       ├── components/          # Shared UI (Layout, NavigationMenu, Breadcrumbs, Footer, Toast, LoadingSpinner, MonthYearPicker, PeriodCountSelector)
+│       ├── config/routes.jsx    # Central route config (paths, icons, categories)
+│       ├── contexts/            # ToastContext, ForecastContext
+│       ├── features/            # Feature modules (Balances, BudgetEntry, Budgets, CashFlow, Charts, COAManagement, Database, Forecast, TransactionActual, TransactionBudget)
+│       ├── js/                  # API helpers (rest.js, handleUpload.js)
+│       └── pages/               # Page components (19 pages + category landing)
+├── server/                      # Express API server
+│   ├── Dockerfile
+│   ├── package.json
+│   ├── nodemon.json
+│   ├── .env-cmdrc
+│   ├── db/migrations/           # PostgreSQL schema (001_initial_schema.sql, 002_psdata_staging.sql)
+│   └── src/
+│       ├── server.js            # HTTP server entry point
+│       ├── app.js               # Express app config, route mounting
+│       ├── routes/              # Legacy routes (health, coa, util)
+│       └── v2/                  # PostgreSQL-based API
+│           ├── db.js            # PostgreSQL connection pool
+│           ├── routes/          # Route handlers (accounts, budget, categories, forecast, health, ingestPs, reports, transactions, util)
+│           ├── repositories/    # Data access layer (accounts, budget, categories, forecast, psdata, transactions)
+│           └── services/        # Business logic (psCsvIngestorV2, refreshPsApiV2)
+├── Scripts/                     # Shell scripts
+│   ├── dev-start.sh             # Start tmux development environment
+│   ├── deploy-to-production.sh  # Deploy development changes to production
+│   ├── sync-db-prod-to-dev.sh   # Copy production database to development
+│   ├── bump-version.sh          # Increment version (patch/minor/major)
+│   ├── rebuild-frontend.sh      # Rebuild and restart frontend container
+│   ├── provision-vm.sh          # Create 'fin' KVM guest on vmhost
+│   ├── deploy-on-vm.sh          # Clone repo + deploy on VM
+│   ├── backup-mongo.sh          # Legacy (deprecated)
+│   └── restore-mongo.sh         # Legacy (deprecated)
+├── Backups/                     # Database backups (git-ignored)
+├── certs/                       # TLS certificates (git-ignored)
+├── VERSION                      # Current version number
+├── docker-compose.yml           # Production: 3 services
+├── docker-compose.dev.yml       # Development: postgres-dev only
+└── NOTES.md                     # Quick reference notes
+```
+
+---
+
+## 5. Frontend
+
+### Pages & Routes
+
+| Path | Page | Category | Description |
+|------|------|----------|-------------|
+| `/` | Home | - | Dashboard with quick actions |
+| `/upload-ps` | UploadPS | Database | Upload PocketSmith CSV data |
+| `/refresh-ps` | RefreshPS | Database | Refresh data via PocketSmith API |
+| `/backup-database` | BackupDatabase | Database | Download database backup |
+| `/budget-worksheet` | BudgetInput | Budgeting | Create/edit monthly budget |
+| `/budget-realization` | BudgetRealization | Budgeting | Budget vs actual comparison |
+| `/budget-graph` | BudgetRealizationGraph | Budgeting | Visual budget analysis |
+| `/forecast-scenarios` | FCScenarios | Forecasting | Manage forecast scenarios |
+| `/forecast-modules` | FCModuleManage | Forecasting | Configure balance sheet modules |
+| `/forecast-setup-exp` | FCExpSetup | Forecasting | Income/expense forecast items |
+| `/forecast-review` | FCReview | Forecasting | Review generated forecasts |
+| `/balance` | Balance | Reports & Graphs | Balance sheet summary |
+| `/cash-flow` | CashFlow | Reports & Graphs | Cash flow P&L analysis |
+| `/cash-flow-monthly` | CashFlowMonthly | Reports & Graphs | Monthly cash flow breakdown |
+| `/balance-chart` | BalanceChart | Reports & Graphs | Net worth chart over time |
+| `/trans-actual` | TransActual | Transactions | Actual transactions browser |
+| `/trans-budget` | TransBudget | Transactions | Budget transactions browser |
+| `/fx-options` | FXOptions | Settings | Exchange rate configuration |
+| `/coa-management` | COAManagement | Settings | Chart of accounts CRUD, PS analysis, quick-add |
+
+### Navigation
+
+Category landing pages instead of dropdowns. Each category has a landing page at `/<category-slug>` showing feature cards with Lucide icons. Generated from `routes.jsx` via `getCategoryRoutes()`.
+
+### State Management
+
+- **React Context**: `ToastContext` (global toasts), `ForecastContext` (forecast state shared across FC pages)
+- **Local state**: Page-level `useState`/`useCallback` for form state, loading, and API responses
+- **Custom hooks**: `useTransActualEdit`, `useTransActualDelete`, `useTransBudgetEdit`, `useTransBudgetDelete` encapsulate CRUD logic with toast notifications
+
+### Key Patterns
+
+- **Shared Layout**: `Layout.jsx` renders `NavigationMenu` + `Breadcrumbs` + page content + `Footer`. Reusable `MonthYearPicker` and `PeriodCountSelector` components shared across pages
+- **Lazy loading**: All pages except Home use `React.lazy()` with `Suspense` + `LoadingSpinner`
+- **Feature modules**: 10 feature directories under `features/` (Balances, BudgetEntry, Budgets, CashFlow, Charts, COAManagement, Database, Forecast, TransactionActual, TransactionBudget) with hooks, utils, and table components
+- **Toast notifications**: All CRUD operations use `useToast()` for success/error feedback
+
+### Visual Environment Indicators
+
+- **Development:** Yellow/amber browser tab (`#f59e0b`), title shows "FI [DEV]"
+- **Production:** Dark blue browser tab (`#1a1f36`), title shows "FI"
+
+Controlled by `VITE_APP_MODE` in `.env-cmdrc`, implemented in `main.jsx`.
+
+---
+
+## 6. Backend
+
+### API Endpoints
+
+All v2 endpoints mounted at `/api/v2`. Nginx rewrites legacy `/api/*` paths to `/api/v2/*`.
+
+#### Transactions (`/api/v2/transactions`)
+- `GET /` — List (with filtering, pagination) | `GET /:id` — Single | `POST /` — Create | `PATCH /:id` — Update | `DELETE /` — Bulk delete
+
+#### Accounts (`/api/v2/accounts`)
+- `GET /` — List | `GET /:id` — Single | `POST /` — Create | `PUT /:id` — Update | `DELETE /:id` — Delete
+
+#### Categories (`/api/v2/categories`)
+- `GET /` — List | `GET /:id` — Single | `POST /` — Create | `PUT /:id` — Update | `DELETE /:id` — Delete
+
+#### Budget (`/api/v2/budget`)
+- `GET /entries` — List (by year, version) | `POST /entries` — Create | `PATCH /entries/:id` — Update | `DELETE /entries` — Bulk delete | `GET /rates` — FX rates
+
+#### Forecast (`/api/v2/forecast`)
+- `GET /scenarios` | `POST /scenarios` | `DELETE /scenarios/:id` | `POST /scenarios/:id/copy` | `POST /scenarios/:id/commit`
+- `GET /modules` | `POST /modules` | `PUT /modules/:id` | `DELETE /modules/:id`
+- `GET /income-expense` | `POST /income-expense` | `PUT /income-expense/:id` | `DELETE /income-expense/:id`
+- `GET /entries` | `POST /reload-defaults`
+
+#### Budget (`/api/v2/budget`) — continued
+- `GET /cash-flow` — Budget vs actual cash flow (P&L) | `GET /category-groups` — Income/Expense category groups from COA
+
+#### Reports (`/api/v2/reports`)
+- `GET /balance` | `GET /cash-flow` | `GET /cash-flow/transactions` | `GET /cash-flow-monthly`
+
+#### Ingest PS (`/api/v2/ingest-ps`)
+- `POST /` — Ingest CSV | `POST /refresh-ps` — Fetch from API | `POST /clearall` — Clear staging | `POST /sync-to-transactions` — Sync staging to transactions
+- `GET /psdata/count` | `GET /analyze-ps` | `GET /new-transactions` | `GET /modified-transactions` | `POST /appdata/last-refresh`
+
+#### Utility (`/api/v2/util`)
+- `GET /appdata` | `POST /backup-database`
+- `GET /coa/BalanceSheet` | `GET /coa/CashFlow` | `GET /coa/traits` | `GET /coa/currencies`
+- `POST /coa/add` | `POST /coa/update` | `POST /coa/delete`
+
+#### Health (`/api/v2/health`)
+- `GET /` — Health check with DB connectivity
+
+### Repository Pattern
+
+| Repository | Tables |
+|-----------|--------|
+| `accounts.js` | accounts |
+| `categories.js` | categories |
+| `transactions.js` | transactions, pending_transactions |
+| `budget.js` | budget_entries, budget_versions |
+| `forecast.js` | forecast_scenarios, forecast_modules, forecast_income_expense, forecast_entries, and sub-tables |
+| `psdata.js` | psdata_staging, app_data |
+
+### Forecast Engine
+
+Located in `server/src/v2/services/`. Generates multi-year financial projections:
+1. Takes a scenario with modules (balance sheet items) and income/expense items
+2. Applies growth rates, investments, disposals, and income percentage schedules
+3. Produces yearly forecast entries stored in `forecast_entries`
+
+---
+
+## 7. Database
+
+### PostgreSQL Schema
+
+**Enum types:** `account_type` (asset, liability, equity, income, expense), `account_section` (balance_sheet, profit_loss)
+
+#### Core Tables
+
+| Table | Purpose |
+|-------|---------|
+| `accounts` | Chart of accounts with hierarchy (adjacency list via `parent_id`) |
+| `categories` | PocketSmith categories mapped to accounts |
+| `transactions` | Actual financial transactions |
+| `pending_transactions` | Staging for new/modified PocketSmith transactions |
+| `budget_versions` | Named budget versions per year |
+| `budget_entries` | Individual budget line items |
+
+#### Forecast Tables
+
+| Table | Purpose |
+|-------|---------|
+| `forecast_scenarios` | Named forecast scenarios |
+| `forecast_modules` | Balance sheet forecast modules |
+| `forecast_module_income_pct` | Module income percentage schedules |
+| `forecast_module_investments` | Planned module investments |
+| `forecast_module_disposals` | Planned module disposals |
+| `forecast_income_expense` | Income/expense forecast items |
+| `forecast_incexp_changes` | Scheduled income/expense changes |
+| `forecast_entries` | Generated forecast output |
+
+#### Configuration Tables
+
+| Table | Purpose |
+|-------|---------|
+| `forecast_assumptions` | Scenario-level or global assumptions (JSONB) |
+| `exchange_rates` | Historical FX rates |
+| `sync_metadata` | PocketSmith sync tracking |
+| `audit_log` | Change audit trail (JSONB old/new values) |
+| `psdata_staging` | Raw PocketSmith CSV/API data |
+| `app_data` | Application metadata (last ingest/refresh timestamps) |
+
+#### Views
+
+| View | Purpose |
+|------|---------|
+| `v_balance_sheet` | Pre-joined balance sheet data |
+| `v_budget_vs_actual` | Budget vs actual comparison with variance |
+
+### Size
+
+~29 MB, 20 tables, 25.5k transactions.
+
+### Migrations
+
+SQL migrations in `server/db/migrations/` run automatically on PostgreSQL container initialization via Docker's `initdb.d` volume mount.
+
+---
+
+## 8. Docker Services
+
+### Production (`docker-compose.yml`)
+
+| Container | Image | Ports | Purpose |
+|-----------|-------|-------|---------|
+| `fin-postgres` | postgres:16-alpine | 5433:5432 | PostgreSQL database |
+| `fin-server` | Custom (Node.js 20) | 3005:3005 | Express API server |
+| `fin-frontend` | Custom (nginx:alpine) | 3006:80, 5175:443 | SPA + API proxy |
+
+All services connected via `fin_fin-network` Docker bridge network.
+
+### Development (`docker-compose.dev.yml`)
+
+Only the database runs in Docker. Backend and frontend run locally via npm:
+
+| Component | How it runs | Port |
+|-----------|-------------|------|
+| `fin-postgres-dev` | Docker | 5434 |
+| Backend | `npm run dev` (nodemon) | 3105 |
+| Frontend | `npm run tail` (Vite) | 5174 |
+
+Production and development use different ports, so both can run simultaneously.
+
+### Volumes
+
+**Production:** `postgres_data`, `./components/data`, `./components/reports`, `./certs`
+**Development:** `postgres_data_dev`
+
+---
+
+## 9. Development Workflow
+
+### Quick Start
+
+```bash
+ssh cfbieder@192.168.1.82
+cd ~/Programs/fin
+./Scripts/dev-start.sh
+```
+
+Creates a tmux session (`fin-dev`) with 4 windows: database logs, backend (nodemon), frontend (Vite HMR), shell.
+
+See [TMUX_GUIDE.md](TMUX_GUIDE.md) for navigation details.
+
+### Making Changes
+
+- **Frontend** (`frontend/src/`): Save -> instant hot reload (Vite HMR)
+- **Backend** (`server/src/`): Save -> auto-restart in ~1-2s (nodemon)
+- **Database**: `docker compose -f docker-compose.dev.yml exec fin-postgres-dev psql -U fin -d fin`
+
+### Frontend Environments (`.env-cmdrc`)
+
+| npm script | API Target | Use Case |
+|-----------|------------|----------|
+| `npm run tail` | `http://100.100.162.49:3105` | **Development via Tailscale (recommended)** |
+| `npm run dev` | `http://localhost:3105` | Development on the VM directly |
+| `npm run docker` | (nginx proxy) | Production Docker build |
+
+### Deploying to Production
+
+```bash
+./Scripts/deploy-to-production.sh
+```
+
+Backs up DB to `Backups/`, rebuilds containers, verifies health.
+
+---
+
+## 10. Scripts
+
+All scripts are in the `Scripts/` folder.
+
+| Script | Purpose | Usage |
+|--------|---------|-------|
+| `dev-start.sh` | Start tmux dev environment | `./Scripts/dev-start.sh` |
+| `deploy-to-production.sh` | Deploy to production | `./Scripts/deploy-to-production.sh [--with-git] [--no-backup]` |
+| `sync-db-prod-to-dev.sh` | Copy prod DB to dev | `./Scripts/sync-db-prod-to-dev.sh` |
+| `bump-version.sh` | Version management | `./Scripts/bump-version.sh patch\|minor\|major\|X.Y.Z` |
+| `rebuild-frontend.sh` | Quick frontend rebuild | `./Scripts/rebuild-frontend.sh` |
+| `provision-vm.sh` | Create VM on KVM host | `ssh cfbieder@192.168.1.61 'bash -s' < Scripts/provision-vm.sh` |
+| `deploy-on-vm.sh` | Deploy app on VM | `ssh cfbieder@192.168.1.82 'bash -s' < Scripts/deploy-on-vm.sh` |
+
+---
+
+## 11. Backup & Restore
+
+All backups are saved to the `Backups/` directory (git-ignored).
+
+The deploy script automatically creates a timestamped backup before deploying.
+
+```bash
+# Manual backup
+mkdir -p Backups
+docker exec fin-postgres pg_dump -U fin -d fin -Fc > Backups/fin_backup.dump
+
+# Restore
+docker exec -i fin-postgres pg_restore -U fin -d fin --clean --if-exists < Backups/fin_backup.dump
+
+# Copy backup off-VM
+scp cfbieder@192.168.1.82:~/Programs/fin/Backups/fin_backup.dump ./
+```
+
+---
+
+## 12. Git Hooks
+
+A `prepare-commit-msg` hook automatically prepends version and date to all commit messages:
+
+```
+[v2.0.6 2026-02-13] your commit message here
+```
+
+Version is read from the `VERSION` file. The hook is local to this clone (`.git/hooks/`).
+
+---
+
+## 13. Environment Variables
+
+No `.env` file. All config uses defaults from `docker-compose.yml`:
+
+| Variable | Default Value | Purpose |
+|----------|---------------|---------|
+| `POSTGRES_PASSWORD` | `findev123` | Database password |
+| `DATABASE_URL` | `postgres://fin:findev123@fin-postgres:5432/fin` | Server DB connection |
+| `PS_API_KEY` | (in docker-compose.yml) | PocketSmith API key |
+| `PS_USER_ID` | `330430` | PocketSmith user ID |
+| `NODE_ENV` | `production` | Server environment |
+| `PORT` | `3005` | Server port |
+
+---
+
+## 14. Data Files
+
+Located in `components/data/` (mounted into server container):
+
+| File | Purpose | Status |
+|------|---------|--------|
+| `account_names.json` | PocketSmith account name mappings | Active |
+| `category_names.json` | PocketSmith category name mappings | Active |
+| `coa.json` | Chart of accounts definition | **Legacy** — COA hierarchy now lives in the `accounts` table (adjacency list via `parent_id`). Reports, budget, and category-groups endpoints use SQL. Still read by `forecast.js` and V1 legacy routes. |
+| `coa_traits.json` | Account traits (type, currency, account number) | **Legacy** — traits now queryable via `accounts` table (`getTraitsMap()`). Still read by V1 `util.js` route. |
+| `appdata.json` | Application metadata (last ingest/refresh timestamps) | Active |
+| `.temp/` | Temporary files for PS API refresh pipeline (all_transactions, new/existing/updated splits, import/update reports) | Active |
+
+**COA Migration Note:** The chart of accounts has been migrated from `coa.json` to PostgreSQL. The `accounts` table uses a self-referencing `parent_id` hierarchy with `section` (balance_sheet / profit_loss) and `account_type` (asset / liability / income / expense) enums. The `accounts` repository provides `getNestedTree({ section })` which returns `{ name, children }` trees via recursive CTE. V2 reports, budget cash-flow, and category-groups endpoints all use this SQL-based COA.
+
+---
+
+## 15. Quick Reference
+
+```bash
+# Start dev environment
+./Scripts/dev-start.sh
+
+# Deploy to production
+./Scripts/deploy-to-production.sh
+
+# Sync prod data to dev
+./Scripts/sync-db-prod-to-dev.sh
+
+# Bump version
+./Scripts/bump-version.sh patch
+
+# Container status
+docker compose ps                                    # Production
+docker compose -f docker-compose.dev.yml ps          # Development
+
+# View logs
+docker compose logs -f server                        # Production
+docker compose -f docker-compose.dev.yml logs -f     # Development
+
+# Database shell
+docker exec -it fin-postgres psql -U fin -d fin      # Production
+docker exec -it fin-postgres-dev psql -U fin -d fin  # Development
+
+# Stop services
+docker compose down                                  # Production
+docker compose -f docker-compose.dev.yml down        # Development
+```
+
+---
+
+*Last updated: 2026-02-14*

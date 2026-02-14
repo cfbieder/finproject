@@ -9,22 +9,50 @@ import "../features/BudgetEntry/BudgetOptionExchangeRates.css";
 import "./PageLayout.css";
 import "./COAManagement.css";
 
-const collectCoaRows = (node, path = [], rows = []) => {
-  if (Array.isArray(node)) {
-    node.forEach((child) => collectCoaRows(child, path, rows));
+/**
+ * Flatten the COA tree into rows.
+ * coaData is: [{ "Balance Sheet Accounts": [{name, children}, ...] }, ...]
+ * Nodes with non-empty children are categories; leaf nodes are accounts.
+ */
+const collectCoaRows = (coaData, path = [], rows = []) => {
+  if (Array.isArray(coaData)) {
+    coaData.forEach((item) => collectCoaRows(item, path, rows));
     return rows;
   }
 
-  if (node && typeof node === "object") {
-    Object.entries(node).forEach(([key, value]) => {
+  if (coaData && typeof coaData === "object") {
+    // {name, children} node from PostgreSQL tree
+    if ("name" in coaData && "children" in coaData) {
+      const hasChildren =
+        Array.isArray(coaData.children) && coaData.children.length > 0;
+      rows.push({ name: coaData.name, path, isCategory: hasChildren });
+      if (hasChildren) {
+        const childPath = [...path, coaData.name];
+        coaData.children.forEach((child) =>
+          collectCoaRows(child, childPath, rows)
+        );
+      }
+      return rows;
+    }
+
+    // {children: [...]} node missing its name — skip the key, recurse children
+    if (!("name" in coaData) && "children" in coaData) {
+      if (Array.isArray(coaData.children)) {
+        coaData.children.forEach((child) => collectCoaRows(child, path, rows));
+      }
+      return rows;
+    }
+
+    // Top-level section wrapper: { "Balance Sheet Accounts": [...] }
+    Object.entries(coaData).forEach(([key, value]) => {
       rows.push({ name: key, path, isCategory: true });
       collectCoaRows(value, [...path, key], rows);
     });
     return rows;
   }
 
-  if (typeof node === "string") {
-    rows.push({ name: node, path, isCategory: false });
+  if (typeof coaData === "string") {
+    rows.push({ name: coaData, path, isCategory: false });
   }
 
   return rows;
@@ -32,12 +60,17 @@ const collectCoaRows = (node, path = [], rows = []) => {
 
 const buildCoaRows = (coaData = [], traitsMap = {}) => {
   const rows = collectCoaRows(coaData);
+  const seenIds = new Map();
   return rows.map(({ name, path, isCategory }) => {
     const traits = isCategory ? {} : traitsMap?.[name] || {};
     const type = isCategory ? "Category" : traits.Type || "Unspecified";
     const currency = isCategory ? "—" : traits.Currency || "Unspecified";
+    const baseId = `${path.join("|")}-${name}`;
+    const count = seenIds.get(baseId) || 0;
+    seenIds.set(baseId, count + 1);
+    const id = count > 0 ? `${baseId}#${count}` : baseId;
     return {
-      id: `${path.join("|")}-${name}`,
+      id,
       name,
       path,
       depth: path.length,
@@ -58,6 +91,7 @@ export default function COAManagement() {
   const [analyzeStatus, setAnalyzeStatus] = useState(null);
   const [isAnalyzing, setIsAnalyzing] = useState(false);
   const [coaRows, setCoaRows] = useState(() => buildCoaRows());
+  const [coaSections, setCoaSections] = useState([]);
   const [editModal, setEditModal] = useState({
     open: false,
     row: null,
@@ -86,6 +120,7 @@ export default function COAManagement() {
         Rest.fetchCoaTraits().catch(() => ({})),
         Rest.fetchCurrencyOptions().catch(() => null),
       ]);
+      setCoaSections(coaSections);
       setCoaRows(buildCoaRows(coaSections, traits || {}));
       const currencies = currencyPayload?.currencies;
       if (Array.isArray(currencies)) {
@@ -266,6 +301,39 @@ export default function COAManagement() {
     setEditError("");
   };
 
+  const openQuickAddModal = (accountName) => {
+    setEditModal({
+      open: true,
+      row: {
+        name: accountName,
+        type: "",
+        currency: "",
+        accountNumber: "",
+        isCategory: false,
+        path: [],
+      },
+      mode: "quickadd",
+      parentPath: [],
+    });
+    setCustomTypeEnabled(false);
+    setCustomTypeValue("");
+    setEditError("");
+  };
+
+  const handleQuickAddParentChange = (newPath) => {
+    setEditModal((prev) => {
+      if (!prev.open) return prev;
+      return {
+        ...prev,
+        parentPath: newPath,
+        row: {
+          ...prev.row,
+          path: newPath,
+        },
+      };
+    });
+  };
+
   const closeEditModal = () =>
     setEditModal({ open: false, row: null, mode: "edit" });
 
@@ -295,7 +363,7 @@ export default function COAManagement() {
 
   const handleSaveEdit = async () => {
     if (!editModal.open || !editModal.row) return;
-    if (editModal.mode === "add") {
+    if (editModal.mode === "add" || editModal.mode === "quickadd") {
       const trimmedName = String(editModal.row.name || "").trim();
       if (!trimmedName) {
         setEditError("Account name is required.");
@@ -325,7 +393,19 @@ export default function COAManagement() {
         });
         loadCoaData(false).catch(() => {});
         closeEditModal();
-        showSuccess("Account added successfully");
+        if (editModal.mode === "quickadd") {
+          try {
+            await Rest.fetchJson("/api/v2/ingest-ps/sync-to-transactions", {
+              method: "POST",
+            });
+          } catch (syncError) {
+            console.warn("Staging sync after quick-add failed:", syncError);
+          }
+          handleAnalyzeClick();
+          showSuccess("Account added and transactions synced");
+        } else {
+          showSuccess("Account added successfully");
+        }
       } catch (error) {
         setEditError(error?.message || "Failed to add account.");
         showErrorToast(error?.message || "Failed to add account");
@@ -562,6 +642,7 @@ export default function COAManagement() {
         type: "success",
         message: `Analysis complete: ${missingAccountCount} missing accounts, ${unknownAccountCount} unknown accounts; ${missingCategoryCount} missing categories, ${unknownCategoryCount} unknown categories.`,
         details,
+        missingAccounts,
       });
     } catch (error) {
       setAnalyzeStatus({
@@ -627,6 +708,7 @@ export default function COAManagement() {
               selectedRowKeys={selectedRowKeys}
               onToggleRowSelection={toggleRowSelection}
               getRowKey={getRowKey}
+              onQuickAddAccount={openQuickAddModal}
             />
           </div>
         </div>
@@ -649,6 +731,9 @@ export default function COAManagement() {
         isMultiEdit={Boolean(editModal.isMulti)}
         selectedCount={editModal.selectedRows?.length || 0}
         mixedFields={editModal.mixedFields || {}}
+        coaSections={coaSections}
+        parentPath={editModal.parentPath || []}
+        onParentPathChange={handleQuickAddParentChange}
       />
       <FCExpConfirmDeleteModal
         isOpen={deleteModalOpen}

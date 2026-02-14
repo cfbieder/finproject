@@ -4,7 +4,7 @@
 
 ```bash
 # Start complete dev environment in tmux
-./dev-start.sh
+./Scripts/dev-start.sh
 
 # Access at: http://localhost:5174
 ```
@@ -36,14 +36,14 @@ docker compose up -d && docker compose -f docker-compose.dev.yml up -d
 
 ### 1. Copy Production Data to Dev
 ```bash
-./sync-db-prod-to-dev.sh
+./Scripts/sync-db-prod-to-dev.sh
 ```
 - Use this to test with real production data
 - Safe: only affects development database
 
 ### 2. Deploy to Production
 ```bash
-./deploy-to-production.sh
+./Scripts/deploy-to-production.sh
 ```
 - Backs up production first (saved to `Backups/`)
 - Rebuilds and restarts production
@@ -69,7 +69,7 @@ docker ps
 docker compose -f docker-compose.dev.yml up -d --build
 
 # Rebuild Production (use deploy script instead!)
-./deploy-to-production.sh
+./Scripts/deploy-to-production.sh
 ```
 
 ## 📝 View Logs
@@ -123,12 +123,12 @@ docker exec -i fin-postgres-dev pg_restore -U fin -d fin --clean < Backups/backu
 cat VERSION
 
 # Increment version
-./bump-version.sh patch   # 2.0.0 → 2.0.1
-./bump-version.sh minor   # 2.0.0 → 2.1.0
-./bump-version.sh major   # 2.0.0 → 3.0.0
+./Scripts/bump-version.sh patch   # 2.0.0 → 2.0.1
+./Scripts/bump-version.sh minor   # 2.0.0 → 2.1.0
+./Scripts/bump-version.sh major   # 2.0.0 → 3.0.0
 
 # Set specific version
-./bump-version.sh 2.1.5
+./Scripts/bump-version.sh 2.1.5
 ```
 
 ---
@@ -138,7 +138,7 @@ cat VERSION
 ```bash
 # 1. Start dev with fresh data
 docker compose -f docker-compose.dev.yml up -d
-./sync-db-prod-to-dev.sh
+./Scripts/sync-db-prod-to-dev.sh
 
 # 2. Make code changes
 # (edit files in your IDE)
@@ -148,7 +148,7 @@ docker compose -f docker-compose.dev.yml up -d --build
 # Access: https://localhost:5176
 
 # 4. Deploy when ready
-./deploy-to-production.sh
+./Scripts/deploy-to-production.sh
 ```
 
 ## 🔍 Troubleshooting

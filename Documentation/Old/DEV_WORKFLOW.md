@@ -61,10 +61,10 @@ ssh cfbieder@192.168.1.82
 cd ~/Programs/fin
 
 # Start dev environment (tmux with 4 windows)
-./dev-start.sh
+./Scripts/dev-start.sh
 ```
 
-`dev-start.sh` does the following:
+`Scripts/dev-start.sh` does the following:
 1. Starts `fin-postgres-dev` in Docker (port 5434)
 2. Opens tmux with: database logs, backend (nodemon), frontend (Vite), shell
 
@@ -105,7 +105,7 @@ docker compose -f docker-compose.dev.yml down
 ### Copy Production Data to Development
 
 ```bash
-./sync-db-prod-to-dev.sh
+./Scripts/sync-db-prod-to-dev.sh
 ```
 
 This dumps the production database and restores it to the dev database. Run this to get fresh production data for testing.
@@ -122,7 +122,7 @@ tmux kill-session -t fin-dev
 docker compose -f docker-compose.dev.yml down
 
 # Deploy (backs up DB to Backups/, rebuilds containers, verifies health)
-./deploy-to-production.sh
+./Scripts/deploy-to-production.sh
 ```
 
 ---

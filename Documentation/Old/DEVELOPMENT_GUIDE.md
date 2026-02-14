@@ -27,10 +27,10 @@ ssh cfbieder@192.168.1.82
 cd ~/Programs/fin
 
 # Start dev environment
-./dev-start.sh
+./Scripts/dev-start.sh
 ```
 
-`dev-start.sh` creates a tmux session (`fin-dev`) with 4 windows:
+`Scripts/dev-start.sh` creates a tmux session (`fin-dev`) with 4 windows:
 1. **database** — Starts `fin-postgres-dev` Docker container, shows logs
 2. **backend** — Runs `cd server && npm run dev` (nodemon auto-restart)
 3. **frontend** — Runs `cd frontend && npm run tail` (Vite hot reload)
@@ -70,7 +70,7 @@ docker compose -f docker-compose.dev.yml exec fin-postgres-dev psql -U fin -d fi
 To test with real production data:
 
 ```bash
-./sync-db-prod-to-dev.sh
+./Scripts/sync-db-prod-to-dev.sh
 ```
 
 This copies the production database to the development database. Safe to run anytime — only affects the dev database.
@@ -95,7 +95,7 @@ docker compose -f docker-compose.dev.yml down
 ## Deploying to Production
 
 ```bash
-./deploy-to-production.sh
+./Scripts/deploy-to-production.sh
 ```
 
 This script:

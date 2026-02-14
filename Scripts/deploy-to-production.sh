@@ -13,11 +13,12 @@
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-cd "$SCRIPT_DIR"
+PROJECT_DIR="$(cd "$SCRIPT_DIR/.." && pwd)"
+cd "$PROJECT_DIR"
 
 SKIP_GIT=true  # Skip git by default - handle manually
 NO_BACKUP=false
-BACKUP_DIR="$SCRIPT_DIR/Backups"
+BACKUP_DIR="$PROJECT_DIR/Backups"
 mkdir -p "$BACKUP_DIR"
 BACKUP_FILE="$BACKUP_DIR/fin_backup_$(date +%Y%m%d_%H%M%S).dump"
 
