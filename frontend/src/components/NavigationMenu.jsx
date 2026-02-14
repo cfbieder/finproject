@@ -5,6 +5,8 @@ import { Menu, X } from "lucide-react";
 import banner from "../assets/banner.png";
 import "./NavigationMenu.css";
 
+const isDev = import.meta.env.VITE_APP_MODE === 'dev';
+
 export default function NavigationMenu() {
   const { pathname } = useLocation();
   const categories = getCategories();
@@ -25,7 +27,7 @@ export default function NavigationMenu() {
   const closeMobile = () => setMobileOpen(false);
 
   return (
-    <header className="navbar">
+    <header className={`navbar${isDev ? ' navbar--dev' : ''}`}>
       <div className="navbar__inner">
         <div className="navbar__left">
           <Link className="navbar__brand" to="/" onClick={closeMobile}>

@@ -100,7 +100,7 @@ ssh cfbieder@192.168.1.61          # KVM host (VM management only)
 ```
 fin/
 ├── components/
-│   ├── data/                    # Legacy JSON data files (being phased out; COA now in SQL)
+│   ├── data/                    # Runtime data files (appdata, PS name mappings, forecast assumptions)
 │   └── reports/                 # Generated report output
 ├── Documentation/               # Project documentation
 │   ├── PROJECT_DESCRIPTION.md   # This file
@@ -130,8 +130,7 @@ fin/
 │   └── src/
 │       ├── server.js            # HTTP server entry point
 │       ├── app.js               # Express app config, route mounting
-│       ├── routes/              # Legacy routes (health, coa, util)
-│       └── v2/                  # PostgreSQL-based API
+│       └── v2/                  # PostgreSQL-based API (all routes)
 │           ├── db.js            # PostgreSQL connection pool
 │           ├── routes/          # Route handlers (accounts, budget, categories, forecast, health, ingestPs, reports, transactions, util)
 │           ├── repositories/    # Data access layer (accounts, budget, categories, forecast, psdata, transactions)
@@ -212,43 +211,41 @@ Controlled by `VITE_APP_MODE` in `.env-cmdrc`, implemented in `main.jsx`.
 
 ### API Endpoints
 
-All v2 endpoints mounted at `/api/v2`. Nginx rewrites legacy `/api/*` paths to `/api/v2/*`.
-
-#### Transactions (`/api/v2/transactions`)
-- `GET /` — List (with filtering, pagination) | `GET /:id` — Single | `POST /` — Create | `PATCH /:id` — Update | `DELETE /` — Bulk delete
+All endpoints mounted at `/api/v2`. Nginx rewrites legacy `/api/*` paths to `/api/v2/*`. No V1 routes remain.
 
 #### Accounts (`/api/v2/accounts`)
 - `GET /` — List | `GET /:id` — Single | `POST /` — Create | `PUT /:id` — Update | `DELETE /:id` — Delete
 
+#### Budget (`/api/v2/budget`)
+- `GET /entries` — List (by year, version) | `POST /entries` — Create | `PATCH /entries/:id` — Update | `DELETE /entries` — Bulk delete | `GET /rates` — FX rates
+- `GET /cash-flow` — Budget vs actual cash flow (P&L) | `GET /category-groups` — Income/Expense category groups from COA
+
 #### Categories (`/api/v2/categories`)
 - `GET /` — List | `GET /:id` — Single | `POST /` — Create | `PUT /:id` — Update | `DELETE /:id` — Delete
 
-#### Budget (`/api/v2/budget`)
-- `GET /entries` — List (by year, version) | `POST /entries` — Create | `PATCH /entries/:id` — Update | `DELETE /entries` — Bulk delete | `GET /rates` — FX rates
-
 #### Forecast (`/api/v2/forecast`)
 - `GET /scenarios` | `POST /scenarios` | `DELETE /scenarios/:id` | `POST /scenarios/:id/copy` | `POST /scenarios/:id/commit`
-- `GET /modules` | `POST /modules` | `PUT /modules/:id` | `DELETE /modules/:id`
+- `GET /modules` | `GET /modules/unmatched` | `POST /modules` | `PUT /modules/:id` | `DELETE /modules/:id`
 - `GET /income-expense` | `POST /income-expense` | `PUT /income-expense/:id` | `DELETE /income-expense/:id`
-- `GET /entries` | `POST /reload-defaults`
+- `GET /entries` | `POST /generate/:scenario`
 
-#### Budget (`/api/v2/budget`) — continued
-- `GET /cash-flow` — Budget vs actual cash flow (P&L) | `GET /category-groups` — Income/Expense category groups from COA
-
-#### Reports (`/api/v2/reports`)
-- `GET /balance` | `GET /cash-flow` | `GET /cash-flow/transactions` | `GET /cash-flow-monthly`
+#### Health (`/api/v2/health`)
+- `GET /` — Health check with DB connectivity
 
 #### Ingest PS (`/api/v2/ingest-ps`)
 - `POST /` — Ingest CSV | `POST /refresh-ps` — Fetch from API | `POST /clearall` — Clear staging | `POST /sync-to-transactions` — Sync staging to transactions
 - `GET /psdata/count` | `GET /analyze-ps` | `GET /new-transactions` | `GET /modified-transactions` | `POST /appdata/last-refresh`
 
-#### Utility (`/api/v2/util`)
-- `GET /appdata` | `POST /backup-database`
-- `GET /coa/BalanceSheet` | `GET /coa/CashFlow` | `GET /coa/traits` | `GET /coa/currencies`
-- `POST /coa/add` | `POST /coa/update` | `POST /coa/delete`
+#### Reports (`/api/v2/reports`)
+- `GET /balance` | `GET /cash-flow` | `GET /cash-flow/transactions` | `GET /cash-flow-monthly`
 
-#### Health (`/api/v2/health`)
-- `GET /` — Health check with DB connectivity
+#### Transactions (`/api/v2/transactions`)
+- `GET /` — List (with filtering, pagination) | `GET /:id` — Single | `POST /` — Create | `PATCH /:id` — Update | `DELETE /` — Bulk delete
+
+#### Utility (`/api/v2/util`)
+- `GET /appdata` | `POST /appdata` | `POST /backup-database`
+- `GET /coa/BalanceSheet` | `GET /coa/CashFlow` | `GET /coa-traits` | `GET /currencies`
+- `POST /coa/add` | `POST /coa/update` | `POST /coa/delete`
 
 ### Repository Pattern
 
@@ -464,16 +461,15 @@ No `.env` file. All config uses defaults from `docker-compose.yml`:
 
 Located in `components/data/` (mounted into server container):
 
-| File | Purpose | Status |
-|------|---------|--------|
-| `account_names.json` | PocketSmith account name mappings | Active |
-| `category_names.json` | PocketSmith category name mappings | Active |
-| `coa.json` | Chart of accounts definition | **Legacy** — COA hierarchy now lives in the `accounts` table (adjacency list via `parent_id`). Reports, budget, and category-groups endpoints use SQL. Still read by `forecast.js` and V1 legacy routes. |
-| `coa_traits.json` | Account traits (type, currency, account number) | **Legacy** — traits now queryable via `accounts` table (`getTraitsMap()`). Still read by V1 `util.js` route. |
-| `appdata.json` | Application metadata (last ingest/refresh timestamps) | Active |
-| `.temp/` | Temporary files for PS API refresh pipeline (all_transactions, new/existing/updated splits, import/update reports) | Active |
+| File | Purpose |
+|------|---------|
+| `account_names.json` | PocketSmith account name mappings |
+| `category_names.json` | PocketSmith category name mappings |
+| `appdata.json` | Application metadata (last ingest/refresh timestamps) |
+| `FCAssump.json` | Forecast assumptions (inflation, FX, tax rates) |
+| `.temp/` | Temporary files for PS API refresh pipeline |
 
-**COA Migration Note:** The chart of accounts has been migrated from `coa.json` to PostgreSQL. The `accounts` table uses a self-referencing `parent_id` hierarchy with `section` (balance_sheet / profit_loss) and `account_type` (asset / liability / income / expense) enums. The `accounts` repository provides `getNestedTree({ section })` which returns `{ name, children }` trees via recursive CTE. V2 reports, budget cash-flow, and category-groups endpoints all use this SQL-based COA.
+**COA in SQL:** The chart of accounts lives in the `accounts` table (adjacency list via `parent_id`) with `section` (balance_sheet / profit_loss) and `account_type` enums. The accounts repository provides `getNestedTree({ section })` returning `{ name, children }` trees via recursive CTE. All endpoints (reports, budget, forecast, COA management) use this SQL-based COA. The former `coa.json` and `coa_traits.json` files have been removed.
 
 ---
 

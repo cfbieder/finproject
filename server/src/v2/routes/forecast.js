@@ -5,6 +5,7 @@
 const express = require('express');
 const router = express.Router();
 const repo = require('../repositories').forecast;
+const accountsRepo = require('../repositories').accounts;
 
 // ============================================================================
 // Assumptions (v1 API compatible - combines PostgreSQL scenarios with file-based assumptions)
@@ -230,57 +231,33 @@ router.get('/scenarios/:scenarioId/modules', async (req, res, next) => {
 // NOTE: Must be defined BEFORE /modules/:id to avoid route conflict
 router.get('/modules/unmatched', async (req, res, next) => {
   try {
-    const fs = require('fs');
-    const { dataPaths } = require('../../utils/dataPaths');
     const scenarioName = req.query.scenario?.trim();
 
-    // Load all balance sheet accounts from COA file
-    const coaPath = dataPaths.coa;
-    const coaData = JSON.parse(fs.readFileSync(coaPath, 'utf8'));
-
-    let balanceSheetSection = null;
-    if (Array.isArray(coaData)) {
-      for (const section of coaData) {
-        if (section && typeof section === 'object' && section['Balance Sheet Accounts']) {
-          balanceSheetSection = section['Balance Sheet Accounts'];
-          break;
-        }
-      }
-    } else if (coaData && typeof coaData === 'object') {
-      balanceSheetSection = coaData['Balance Sheet Accounts'];
-    }
-
-    if (!balanceSheetSection) {
+    // Load balance sheet accounts from SQL
+    const tree = await accountsRepo.getNestedTree({ section: 'balance_sheet' });
+    if (!tree || tree.length === 0) {
       return res.json([]);
     }
 
-    // Extract all accounts from balance sheet
+    // Unwrap section root
+    const root = tree.find(n => n.name === 'Balance Sheet Accounts');
+    const structure = root && root.children.length > 0 ? root.children : tree;
+
+    // Extract all leaf accounts with their parent category
     const allAccounts = [];
-    const stack = [{ node: balanceSheetSection, category: null }];
-
-    while (stack.length) {
-      const { node, category } = stack.pop();
-
-      if (typeof node === 'string') {
-        const isBankAccount = typeof category === 'string' &&
-          category.toLowerCase().includes('bank account');
-        allAccounts.push({ name: node, category, isBankAccount });
-        continue;
-      }
-
-      if (Array.isArray(node)) {
-        for (const item of node) {
-          stack.push({ node: item, category });
-        }
-        continue;
-      }
-
-      if (node && typeof node === 'object') {
-        for (const key in node) {
-          stack.push({ node: node[key], category: key });
+    const collectLeaves = (nodes, category) => {
+      for (const node of nodes) {
+        if (!node || !node.name) continue;
+        if (!node.children || node.children.length === 0) {
+          const isBankAccount = typeof category === 'string' &&
+            category.toLowerCase().includes('bank account');
+          allAccounts.push({ name: node.name, category, isBankAccount });
+        } else {
+          collectLeaves(node.children, node.name);
         }
       }
-    }
+    };
+    collectLeaves(structure, null);
 
     // Get matched names for the scenario
     let matchedNames = new Set();

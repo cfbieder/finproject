@@ -33,7 +33,6 @@ const dataPaths = {
     process.env.CATEGORY_NAMES_PATH,
     "category_names.json"
   ),
-  coa: resolveDataPath(process.env.COA_PATH, "coa.json"),
   psTransactions: resolveDataPath(
     process.env.PS_TRANSACTIONS_PATH,
     "ps-transactions.csv"
