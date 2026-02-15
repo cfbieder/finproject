@@ -37,20 +37,22 @@ Items from active development notes:
 
 Proposals from the original migration plan for future frontend refactoring.
 
-### 3.1 God Components to Split
+### 3.1 God Components — Completed (v2.0.9)
 
-| Component | Lines | Recommendation |
-|-----------|-------|----------------|
-| `BudgetInput.jsx` | 757 | 50+ state variables, mixed concerns. Split into 5-6 focused components. |
-| `FCExpSetup.jsx` | 600+ | Handles assumptions, entries, modals, account loading. Split into 3-4 components. |
-| `TransActual.jsx` | 393 | Near-identical to TransBudget (DRY violation). Extract shared base component. |
-| `TransBudget.jsx` | 293 | Near-identical to TransActual (DRY violation). Extract shared base component. |
+All four god components have been refactored:
+
+| Component | Before | After | What Changed |
+|-----------|--------|-------|--------------|
+| `BudgetInput.jsx` | 762 | 445 | Extracted `useBudgetEntrySubmit` hook (submission logic, expense sign modal) |
+| `FCExpSetup.jsx` | 869 | 159 | Extracted 4 hooks: `useFCExpAssumptions`, `useFCExpAccountHierarchy`, `useFCExpEntries`, `useFCExpCrud` |
+| `TransActual.jsx` | 393 | 282 | Unified with TransBudget via shared `features/Transaction/` module |
+| `TransBudget.jsx` | 295 | 204 | Unified with TransActual via shared `features/Transaction/` module |
 
 ### 3.2 DRY Violations
 
-1. **Transaction filter logic** (~80 lines) duplicated across TransActual, TransBudget, useTransactions
+1. ~~**Transaction filter logic** (~80 lines) duplicated across TransActual, TransBudget, useTransactions~~ — **Resolved:** Unified into `features/Transaction/` with config-driven shared hooks and components
 2. **`collectCollapsiblePaths()`** duplicated in Balance.jsx and BalanceChart.jsx — move to shared `treeHelpers.js`
-3. **Date initialization logic** independently calculated in TransActual, TransBudget, BudgetInput — extract to `useDateRange` hook
+3. **Date initialization logic** independently calculated in BudgetInput — extract to `useDateRange` hook
 4. **Month options array** defined in budgetInputUtils.js but recreated in multiple components — move to shared constants
 5. **FX rate lookup** duplicated in BudgetInput and various transaction modals — move to shared `currency.js`
 
@@ -68,29 +70,31 @@ Proposals from the original migration plan for future frontend refactoring.
 | `<DateRangePicker>` | 4+ places | Date selection varies |
 | `<CurrencyInput>` | 3+ places | Amount inputs inconsistent |
 
-### 3.4 Proposed Component Architecture
+### 3.4 Component Architecture (Partially Implemented)
 
-Organize frontend into feature modules:
+The feature module pattern is now in use. Current structure:
 
 ```
 frontend/src/
-├── components/          # Shared, reusable components
-│   ├── ui/              # Base primitives (Button, Input, Select, Modal, Spinner)
-│   ├── data-display/    # DataTable, StatCard, TreeView, Chart
-│   ├── forms/           # FormField, DatePicker, CurrencyInput, AccountSelect
-│   ├── feedback/        # Toast, ConfirmDialog, EmptyState, LoadingSkeleton
-│   └── layout/          # PageHeader, PageLayout, Sidebar
+├── components/          # Shared UI (Layout, NavigationMenu, Breadcrumbs, Footer, Toast, LoadingSpinner)
 ├── features/            # Domain-specific feature modules
-│   ├── transactions/    # Unified actual + budget transactions
-│   ├── budget/          # Budget worksheet, realization, charts
-│   ├── forecast/        # Scenarios, modules, assumptions, review
-│   ├── reports/         # Balance sheet, cash flow, charts
-│   └── settings/        # COA manager, FX settings
-├── hooks/               # Shared hooks (useAPI, useDateRange, useDebounce, useLocalStorage)
-├── utils/               # Shared utilities (formatting, validation, tree helpers)
-├── constants/           # Shared constants (dates, currencies, routes)
-└── pages/               # Thin page wrappers that compose feature components
+│   ├── Transaction/     # ✅ Unified actual + budget (config-driven shared hooks, components, utils)
+│   ├── BudgetEntry/     # ✅ Budget worksheet (hooks: useFilterOptions, useBalanceData, useCurrencyData, useBudgetEntrySubmit)
+│   ├── Forecast/        # ✅ Scenarios, modules, assumptions (hooks: useFCExpAssumptions, useFCExpAccountHierarchy, useFCExpEntries, useFCExpCrud)
+│   ├── Balances/        # Balance sheet components
+│   ├── Budgets/         # Budget realization
+│   ├── CashFlow/        # Cash flow reports
+│   ├── Charts/          # Chart components
+│   ├── COAManagement/   # COA CRUD
+│   └── Database/        # Upload, refresh, backup
+├── hooks/               # Shared hooks (useCoa)
+├── contexts/            # ToastContext, ForecastContext
+├── js/                  # API helpers (rest.js)
+├── config/              # Route configuration
+└── pages/               # Page components (thin wrappers composing feature components)
 ```
+
+Future: Extract shared `components/ui/`, `components/forms/`, `components/feedback/` primitives from feature modules.
 
 ### 3.5 UI/UX Improvements
 
@@ -197,12 +201,12 @@ Skip component tests — they often test implementation details and break on ref
 
 ### Success Metrics
 
-| Metric | Current | Target |
-|--------|---------|--------|
-| Largest component (lines) | 757 | <200 |
-| Duplicated code blocks | 5+ | 0 |
-| Shared components | ~3 | 15+ |
-| Test coverage | 0% | >60% |
+| Metric | Before | Current | Target |
+|--------|--------|---------|--------|
+| Largest page component (lines) | 869 | 445 | <200 |
+| Transaction duplication (files) | 22 | 0 | 0 |
+| Shared transaction components | 0 | 9 | — |
+| Test coverage | 0% | 0% | >60% |
 
 ---
 
@@ -212,6 +216,7 @@ Timeline of the MongoDB-to-PostgreSQL migration and infrastructure changes.
 
 | Date | Event |
 |------|-------|
+| 2026-02-15 | **Frontend refactoring:** Unified `TransactionActual/` and `TransactionBudget/` into shared `features/Transaction/` module — config-driven architecture (`ACTUAL_CONFIG`, `BUDGET_CONFIG`) with 5 shared hooks and 4 shared components. Deleted 22 duplicate files (~3,100 lines removed, ~900 added = ~2,200 net reduction). Extracted 4 hooks from `FCExpSetup.jsx` (869→159 LOC): `useFCExpAssumptions`, `useFCExpAccountHierarchy`, `useFCExpEntries`, `useFCExpCrud`. Extracted `useBudgetEntrySubmit` from `BudgetInput.jsx` (762→445 LOC). |
 | 2026-02-14 | **V1 compat removal:** Consolidated forecast routes — removed ~300 lines of unused v2-only REST endpoints (individual scenario/module/incexp CRUD), merged `/modules/v1` into `/modules`, removed `_id` fields from responses, cleaned up v1 compat comments in frontend. Renamed `mongoImportReport`/`mongoUpdateReport` to `importReport`/`updateReport` in dataPaths.js. |
 | 2026-02-14 | **Data fix:** Re-parented "Tax Reserve - US" (id 53) and "Tax Reserve - PL" (id 54) from "Tax Reserve" (id 52, profit_loss) to "Liabilities" (id 51, balance_sheet). They are independent balance sheet nodes, not children of the P&L Tax Reserve account. Applied to both prod and dev databases. |
 | 2026-02-14 | **Endpoint fixes:** Implemented `GET /api/v2/accounts/categories` (categories mapped to accounts) and `GET /api/v2/util/exchange-rates` (bulk/historical exchange rates). Both were listed as known issues (500/404) but had never been implemented. Audited and corrected API documentation to match actual routes. |
@@ -230,4 +235,4 @@ Timeline of the MongoDB-to-PostgreSQL migration and infrastructure changes.
 
 ---
 
-*Last updated: 2026-02-14*
+*Last updated: 2026-02-15*

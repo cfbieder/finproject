@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import Rest from "../../js/rest";
-import "./TransactionBudgetFilter.css";
+import "./TransactionFilter.css";
 
 const currentYear = new Date().getFullYear();
 const YEAR_OPTIONS = Array.from({ length: 7 }, (_, index) =>
@@ -27,7 +27,8 @@ const parseAmountValue = (value) => {
   return Number.isFinite(parsed) ? parsed : null;
 };
 
-export default function TransactionBudgetFilter({
+export default function TransactionFilter({
+  config,
   onFiltersChange,
   onDeleteClick,
   onSelectAllToggle,
@@ -44,17 +45,28 @@ export default function TransactionBudgetFilter({
   const [valueToEnabled, setValueToEnabled] = useState(false);
   const [valueFrom, setValueFrom] = useState("");
   const [valueTo, setValueTo] = useState("");
-  const [yearEnabled, setYearEnabled] = useState(false);
-  const [monthEnabled, setMonthEnabled] = useState(false);
   const [accountEnabled, setAccountEnabled] = useState(false);
   const [categoryEnabled, setCategoryEnabled] = useState(false);
   const [currencyEnabled, setCurrencyEnabled] = useState(false);
-  const [selectedYear, setSelectedYear] = useState(() =>
-    YEAR_OPTIONS.includes(DEFAULT_YEAR)
-      ? DEFAULT_YEAR
-      : YEAR_OPTIONS[0] ?? ""
+
+  // Actual always has year enabled (no checkbox), Budget has toggleable year
+  const [yearEnabled, setYearEnabled] = useState(config.yearAlwaysEnabled);
+  const [monthEnabled, setMonthEnabled] = useState(
+    config.yearAlwaysEnabled // Actual defaults month on, Budget defaults off
   );
-  const [selectedMonth, setSelectedMonth] = useState(MONTH_OPTIONS[0] ?? "");
+
+  // Description filter (Actual only)
+  const [descriptionEnabled, setDescriptionEnabled] = useState(false);
+  const [descriptionValue, setDescriptionValue] = useState("");
+
+  const currentMonthIndex = new Date().getMonth();
+  const defaultMonth = config.yearAlwaysEnabled
+    ? MONTH_OPTIONS[currentMonthIndex] ?? MONTH_OPTIONS[0] ?? ""
+    : MONTH_OPTIONS[0] ?? "";
+  const [selectedYear, setSelectedYear] = useState(() =>
+    YEAR_OPTIONS.includes(DEFAULT_YEAR) ? DEFAULT_YEAR : YEAR_OPTIONS[0] ?? ""
+  );
+  const [selectedMonth, setSelectedMonth] = useState(defaultMonth);
   const [selectedAccount, setSelectedAccount] = useState([]);
   const [selectedCategory, setSelectedCategory] = useState([]);
   const [selectedCurrency, setSelectedCurrency] = useState([]);
@@ -64,6 +76,16 @@ export default function TransactionBudgetFilter({
       maximumFractionDigits: 2,
     }).format(amount);
   const multiSelectSize = 8;
+
+  const title = config.yearAlwaysEnabled
+    ? "Actual Transaction History"
+    : "Budget Transaction";
+
+  useEffect(() => {
+    if (typeof document !== "undefined") {
+      document.title = title;
+    }
+  }, [title]);
 
   useEffect(() => {
     if (typeof onFiltersChange !== "function") {
@@ -76,10 +98,8 @@ export default function TransactionBudgetFilter({
     const normalizedValueFrom = valueFromEnabled
       ? parseAmountValue(valueFrom)
       : null;
-    const normalizedValueTo = valueToEnabled
-      ? parseAmountValue(valueTo)
-      : null;
-    onFiltersChange({
+    const normalizedValueTo = valueToEnabled ? parseAmountValue(valueTo) : null;
+    const filterPayload = {
       yearEnabled,
       year: selectedYear,
       monthEnabled,
@@ -94,7 +114,12 @@ export default function TransactionBudgetFilter({
       valueTo: normalizedValueTo,
       currencyEnabled,
       currency: selectedCurrency,
-    });
+    };
+    if (config.hasDescriptionFilter) {
+      filterPayload.descriptionEnabled = descriptionEnabled;
+      filterPayload.description = descriptionValue;
+    }
+    onFiltersChange(filterPayload);
   }, [
     accountEnabled,
     categoryEnabled,
@@ -110,7 +135,10 @@ export default function TransactionBudgetFilter({
     valueTo,
     valueToEnabled,
     yearEnabled,
+    descriptionEnabled,
+    descriptionValue,
     onFiltersChange,
+    config.hasDescriptionFilter,
   ]);
 
   useEffect(() => {
@@ -118,7 +146,6 @@ export default function TransactionBudgetFilter({
 
     const loadOptions = async () => {
       try {
-        // Using v2 API (PostgreSQL)
         const [accountsData, categoriesData] = await Promise.all([
           Rest.fetchAccountsV2({ activeOnly: true, section: 'balance_sheet' }),
           Rest.fetchCategoriesV2({ activeOnly: true }),
@@ -126,19 +153,19 @@ export default function TransactionBudgetFilter({
         if (!isActive) {
           return;
         }
-
-        // Extract names from v2 response objects
         const accounts = Array.isArray(accountsData)
           ? accountsData.map((acc) => acc?.name).filter(Boolean)
           : [];
         const categories = Array.isArray(categoriesData)
           ? categoriesData.map((cat) => cat?.name).filter(Boolean)
           : [];
-
         setAccountOptions(accounts);
         setCategoryOptions(categories);
       } catch (error) {
-        console.error("[TransactionBudgetFilter] Failed to load options:", error);
+        console.error(
+          `[${config.logPrefix}Filter] Failed to load options:`,
+          error
+        );
       }
     };
 
@@ -147,7 +174,7 @@ export default function TransactionBudgetFilter({
     return () => {
       isActive = false;
     };
-  }, []);
+  }, [config.logPrefix]);
 
   useEffect(() => {
     let isActive = true;
@@ -162,7 +189,7 @@ export default function TransactionBudgetFilter({
         setCurrencyOptions(Array.isArray(currencies) ? currencies : []);
       } catch (error) {
         console.error(
-          "[TransactionBudgetFilter] Failed to load currencies:",
+          `[${config.logPrefix}Filter] Failed to load currencies:`,
           error
         );
       }
@@ -173,7 +200,7 @@ export default function TransactionBudgetFilter({
     return () => {
       isActive = false;
     };
-  }, []);
+  }, [config.logPrefix]);
 
   useEffect(() => {
     setSelectedAccount((previous) =>
@@ -207,8 +234,8 @@ export default function TransactionBudgetFilter({
   };
 
   return (
-    <section className="section-filters" aria-label="Budget filters">
-      <h2 className="section-filters-title">Budget Transaction</h2>
+    <section className="section-filters" aria-label={`${title} filters`}>
+      <h2 className="section-filters-title">{title}</h2>
       <div
         style={{
           display: "flex",
@@ -243,15 +270,19 @@ export default function TransactionBudgetFilter({
       </div>
       <div className="filters-grid">
         <label className="filter-field">
-          <span className="filter-with-checkbox">
-            <input
-              type="checkbox"
-              aria-label="Enable year filter"
-              checked={yearEnabled}
-              onChange={(event) => setYearEnabled(event.target.checked)}
-            />
-            Year
-          </span>
+          {config.yearAlwaysEnabled ? (
+            <span>Year</span>
+          ) : (
+            <span className="filter-with-checkbox">
+              <input
+                type="checkbox"
+                aria-label="Enable year filter"
+                checked={yearEnabled}
+                onChange={(event) => setYearEnabled(event.target.checked)}
+              />
+              Year
+            </span>
+          )}
           <select
             className="form-input"
             name="year"
@@ -386,6 +417,28 @@ export default function TransactionBudgetFilter({
             )}
           </select>
         </label>
+        {config.hasDescriptionFilter && (
+          <label className="filter-field">
+            <span className="filter-with-checkbox">
+              <input
+                type="checkbox"
+                aria-label="Enable description search"
+                checked={descriptionEnabled}
+                onChange={(event) => setDescriptionEnabled(event.target.checked)}
+              />
+              Description
+            </span>
+            <input
+              className="form-input"
+              type="text"
+              name="description"
+              placeholder="Search description"
+              value={descriptionValue}
+              disabled={!descriptionEnabled}
+              onChange={(event) => setDescriptionValue(event.target.value)}
+            />
+          </label>
+        )}
       </div>
       <div className="range-inputs">
         <div className="range-input-group">

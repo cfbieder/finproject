@@ -2,45 +2,44 @@ import { useState, useCallback, useEffect } from "react";
 import { useToast } from "../../../contexts";
 import Rest from "../../../js/rest.js";
 import {
-  EDIT_FIELDS,
   createEditFieldMap,
   getConsensusValue,
   formatEditInputValue,
   parseEditFormValue,
-} from "../utils/transBudgetUtils.js";
-import {
-  computeTransactionBudgetBaseAmount,
-  DEFAULT_TRANSACTION_BASE_CURRENCY,
-} from "../TransactionBudgetTable.jsx";
+} from "../transactionUtils.js";
 
 /**
- * Custom hook for editing budget transactions.
- * Manages edit modal state, form values, and submission logic.
+ * Shared hook for managing the edit modal state and operations.
  *
+ * @param {Object} config - Transaction config (ACTUAL_CONFIG or BUDGET_CONFIG)
  * @param {Map} selectedRows - Map of selected row IDs to entries
- * @param {Array} budgetRates - Exchange rates for currency conversion
- * @param {Function} onSuccess - Callback after successful edit
- * @returns {Object} Edit state and methods
+ * @param {Object} exchangeRates - Exchange rates for currency conversion
+ * @param {Function} computeBaseAmount - Function to compute base amount from amount, currency, rates
+ * @param {Function} onSuccess - Success callback (reload transactions)
+ * @returns {Object} Edit modal state and handlers
  */
-export function useTransBudgetEdit(selectedRows, budgetRates, onSuccess) {
+export function useTransactionEdit(
+  config,
+  selectedRows,
+  exchangeRates,
+  computeBaseAmount,
+  onSuccess
+) {
+  const { editFields, endpoint, editSuccessMessage, logPrefix } = config;
   const { showSuccess, showError: showErrorToast } = useToast();
   const [showEditModal, setShowEditModal] = useState(false);
   const [editFormValues, setEditFormValues] = useState(() =>
-    createEditFieldMap("")
+    createEditFieldMap(editFields, "")
   );
   const [editTouchedFields, setEditTouchedFields] = useState(() =>
-    createEditFieldMap(false)
+    createEditFieldMap(editFields, false)
   );
   const [editConsensusFields, setEditConsensusFields] = useState(() =>
-    createEditFieldMap(false)
+    createEditFieldMap(editFields, false)
   );
   const [isEditing, setIsEditing] = useState(false);
   const [editError, setEditError] = useState("");
 
-  /**
-   * Opens the edit modal with consensus values from selected transactions.
-   * Fields where all selected rows have the same value are pre-filled.
-   */
   const handleEditRequest = useCallback(() => {
     if (!selectedRows.size) {
       return;
@@ -48,17 +47,17 @@ export function useTransBudgetEdit(selectedRows, budgetRates, onSuccess) {
     const entries = Array.from(selectedRows.values());
     const nextValues = {};
     const nextConsensus = {};
-    for (const field of EDIT_FIELDS) {
+    for (const field of editFields) {
       const consensus = getConsensusValue(entries, field.key);
       nextConsensus[field.key] = consensus !== null && consensus !== undefined;
       nextValues[field.key] = formatEditInputValue(consensus, field.type);
     }
     setEditFormValues(nextValues);
-    setEditTouchedFields(createEditFieldMap(false));
+    setEditTouchedFields(createEditFieldMap(editFields, false));
     setEditConsensusFields(nextConsensus);
     setEditError("");
     setShowEditModal(true);
-  }, [selectedRows]);
+  }, [selectedRows, editFields]);
 
   const handleEditFieldChange = useCallback((fieldKey, value) => {
     setEditFormValues((previous) => ({
@@ -71,16 +70,15 @@ export function useTransBudgetEdit(selectedRows, budgetRates, onSuccess) {
     }));
   }, []);
 
+  // Automatically recalculate base amount when amount or currency changes
   const amountInputValue = editFormValues.Amount;
   const currencyInputValue = editFormValues.Currency;
 
-  // Automatically recalculate base amount when amount or currency changes
   useEffect(() => {
-    const derivedBaseAmount = computeTransactionBudgetBaseAmount(
+    const derivedBaseAmount = computeBaseAmount(
       amountInputValue,
       currencyInputValue,
-      budgetRates,
-      DEFAULT_TRANSACTION_BASE_CURRENCY
+      exchangeRates
     );
     const nextBaseValue = Number.isFinite(derivedBaseAmount)
       ? String(derivedBaseAmount)
@@ -91,17 +89,11 @@ export function useTransBudgetEdit(selectedRows, budgetRates, onSuccess) {
       }
       return { ...previous, BaseAmount: nextBaseValue };
     });
-  }, [amountInputValue, currencyInputValue, budgetRates]);
+  }, [amountInputValue, currencyInputValue, exchangeRates, computeBaseAmount]);
 
-  /**
-   * Builds the API payload for updating selected transactions.
-   * Only includes fields that were touched or had consensus values.
-   * Recalculates base amount if amount or currency changed.
-   * @returns {{payload: Object|null, error: string|null}}
-   */
   const buildEditPayload = useCallback(() => {
     const payload = {};
-    for (const field of EDIT_FIELDS) {
+    for (const field of editFields) {
       const shouldInclude =
         editTouchedFields[field.key] || editConsensusFields[field.key];
       if (!shouldInclude) {
@@ -127,11 +119,10 @@ export function useTransBudgetEdit(selectedRows, budgetRates, onSuccess) {
       payload.Amount !== undefined || payload.Currency !== undefined;
 
     if (shouldRecalculateBaseAmount) {
-      const derivedBaseAmount = computeTransactionBudgetBaseAmount(
+      const derivedBaseAmount = computeBaseAmount(
         editFormValues.Amount,
         editFormValues.Currency,
-        budgetRates,
-        DEFAULT_TRANSACTION_BASE_CURRENCY
+        exchangeRates
       );
       if (Number.isFinite(derivedBaseAmount)) {
         payload.BaseAmount = derivedBaseAmount;
@@ -141,11 +132,15 @@ export function useTransBudgetEdit(selectedRows, budgetRates, onSuccess) {
     }
 
     return { payload, error: null };
-  }, [editFormValues, editTouchedFields, editConsensusFields, budgetRates]);
+  }, [
+    editFields,
+    editFormValues,
+    editTouchedFields,
+    editConsensusFields,
+    exchangeRates,
+    computeBaseAmount,
+  ]);
 
-  /**
-   * Closes the edit modal, clearing any errors.
-   */
   const handleEditCancel = useCallback(() => {
     if (isEditing) {
       return;
@@ -154,10 +149,6 @@ export function useTransBudgetEdit(selectedRows, budgetRates, onSuccess) {
     setEditError("");
   }, [isEditing]);
 
-  /**
-   * Submits edit form data to update all selected transactions.
-   * Validates payload, sends PATCH requests, and calls onSuccess on completion.
-   */
   const handleEditSubmit = useCallback(
     async (event) => {
       event.preventDefault();
@@ -178,44 +169,45 @@ export function useTransBudgetEdit(selectedRows, budgetRates, onSuccess) {
       try {
         await Promise.all(
           Array.from(selectedRows.values()).map((entry) => {
-            // Use numeric id for v2 API, fall back to _id for v1 compatibility
             const id = entry?.id ?? entry?._id;
             if (!id) {
               throw new Error("Some selected entries cannot be edited.");
             }
-            // Using v2 API (PostgreSQL)
-            return fetch(Rest.buildUrl(`/api/v2/budget/entries/${id}`), {
+            return fetch(Rest.buildUrl(`${endpoint}/${id}`), {
               method: "PATCH",
               headers: { "Content-Type": "application/json" },
               body: JSON.stringify(payload),
             }).then(async (response) => {
               if (!response.ok) {
                 const responseBody = await response.json().catch(() => null);
-                throw new Error(responseBody?.error || "Failed to update entry");
+                throw new Error(
+                  responseBody?.error || "Failed to update entry"
+                );
               }
               return response.json().catch(() => null);
             });
           })
         );
         setShowEditModal(false);
-        showSuccess("Budget entries updated successfully");
+        showSuccess(editSuccessMessage);
         if (onSuccess) {
           await onSuccess();
         }
       } catch (err) {
-        console.error("[useTransBudgetEdit] Failed to update entries:", err);
+        console.error(`[${logPrefix}] Failed to update entries:`, err);
         setEditError(err?.message ?? "Failed to update selected entries");
         showErrorToast(err?.message ?? "Failed to update selected entries");
       } finally {
         setIsEditing(false);
       }
     },
-    [selectedRows, buildEditPayload, onSuccess]
+    [selectedRows, buildEditPayload, onSuccess, endpoint, editSuccessMessage, logPrefix]
   );
 
   return {
     showEditModal,
     editFormValues,
+    setEditFormValues,
     isEditing,
     editError,
     handleEditRequest,

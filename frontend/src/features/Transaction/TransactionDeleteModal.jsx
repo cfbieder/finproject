@@ -1,18 +1,8 @@
 /**
- * TransBudgetDeleteModal Component
- *
- * Confirmation modal for deleting selected budget transactions.
- * Displays a warning message and provides cancel/confirm actions.
- *
- * @param {Object} props
- * @param {boolean} props.isOpen - Whether the modal is visible
- * @param {number} props.selectedCount - Number of transactions to delete
- * @param {boolean} props.isDeleting - Whether deletion is in progress
- * @param {string} props.error - Error message to display (if any)
- * @param {Function} props.onCancel - Callback when cancel is clicked
- * @param {Function} props.onConfirm - Callback when delete is confirmed
+ * Shared delete confirmation modal for transactions.
+ * Displays count and requires user confirmation before deletion.
  */
-export default function TransBudgetDeleteModal({
+export default function TransactionDeleteModal({
   isOpen,
   selectedCount,
   isDeleting,
@@ -38,9 +28,7 @@ export default function TransBudgetDeleteModal({
           {selectedCount === 1 ? "" : "s"}. This cannot be undone.
         </p>
         {error && (
-          <p className="trans-budget-delete-modal__error">
-            {error}
-          </p>
+          <p className="trans-budget-delete-modal__error">{error}</p>
         )}
         <div className="trans-budget-delete-modal__actions">
           <button

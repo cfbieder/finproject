@@ -2602,6 +2602,189 @@
 }
 
 /* ============================================================================
+   BUDGET REALIZATION - Single Column Layout & Toolbar
+   ============================================================================ */
+
+.budget-realization-main--single {
+  grid-template-columns: 1fr;
+  max-width: 1400px;
+}
+
+/* Compact page header */
+.realization-toolbar-header {
+  display: flex;
+  align-items: baseline;
+  gap: 1rem;
+  padding: 0.75rem 0 0.25rem;
+}
+
+.realization-toolbar-header__text {
+  display: flex;
+  align-items: baseline;
+  gap: 1rem;
+  flex-wrap: wrap;
+}
+
+.realization-toolbar-header__title {
+  margin: 0;
+  font-size: 1.35rem;
+  font-weight: 700;
+  color: var(--primary);
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  white-space: nowrap;
+}
+
+.realization-toolbar-header__title::before {
+  content: "";
+  display: inline-block;
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  background: var(--primary);
+  flex-shrink: 0;
+}
+
+.realization-toolbar-header__description {
+  margin: 0;
+  color: var(--muted);
+  font-size: 0.875rem;
+  line-height: 1.4;
+}
+
+/* Toolbar container */
+.realization-toolbar {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 1.25rem;
+  padding: 1rem 1.25rem;
+  background: linear-gradient(
+    135deg,
+    rgba(255, 255, 255, 0.98) 0%,
+    rgba(248, 250, 252, 1) 100%
+  );
+  border: 1px solid rgba(37, 99, 235, 0.12);
+  border-radius: var(--radius-md);
+  box-shadow: 0 2px 12px -4px rgba(15, 23, 42, 0.08),
+    0 4px 16px -6px rgba(37, 99, 235, 0.08);
+}
+
+/* Left group: period selectors */
+.realization-toolbar__group--selectors {
+  display: flex;
+  align-items: flex-end;
+  gap: 0.875rem;
+  flex-wrap: wrap;
+  flex: 1 1 auto;
+}
+
+/* Right group: toggles + action button */
+.realization-toolbar__group--toggles {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  flex-shrink: 0;
+}
+
+/* Individual filter field */
+.realization-toolbar__field {
+  display: flex;
+  flex-direction: column;
+  gap: 0.3rem;
+  min-width: 120px;
+}
+
+.realization-toolbar__label {
+  font-size: 0.7rem;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--primary);
+}
+
+.realization-toolbar__select {
+  padding: 0.55rem 0.75rem;
+  font-size: 0.875rem;
+  font-weight: 500;
+  min-width: 110px;
+  border-radius: var(--radius-sm);
+  border: 1.5px solid var(--border);
+  background: var(--surface);
+  color: var(--ink);
+  cursor: pointer;
+  transition: border-color var(--transition-fast), box-shadow var(--transition-fast);
+}
+
+.realization-toolbar__select:hover {
+  border-color: var(--primary-light);
+}
+
+.realization-toolbar__select:focus-visible {
+  outline: none;
+  border-color: var(--primary);
+  box-shadow: var(--shadow-focus);
+}
+
+/* Checkbox toggle label */
+.realization-toolbar__toggle {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  cursor: pointer;
+  user-select: none;
+  white-space: nowrap;
+}
+
+.realization-toolbar__checkbox {
+  width: 16px;
+  height: 16px;
+  cursor: pointer;
+  accent-color: var(--primary);
+  border-radius: 0.25rem;
+}
+
+.realization-toolbar__toggle-text {
+  font-size: 0.8rem;
+  font-weight: 600;
+  color: var(--ink);
+  letter-spacing: 0.02em;
+}
+
+/* Action button */
+.realization-toolbar__action-button {
+  padding: 0.55rem 1rem;
+  border-radius: 0.65rem;
+  border: 1px solid var(--border);
+  background: var(--surface-muted);
+  color: var(--ink);
+  font-weight: 600;
+  font-size: 0.8rem;
+  cursor: pointer;
+  transition: border-color var(--transition-fast), background var(--transition-fast);
+  white-space: nowrap;
+}
+
+.realization-toolbar__action-button:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+.realization-toolbar__action-button:not(:disabled):hover {
+  border-color: var(--primary);
+  background: rgba(37, 99, 235, 0.08);
+}
+
+.realization-toolbar__action-button:focus-visible,
+.realization-toolbar__checkbox:focus-visible {
+  outline: 2px solid var(--primary);
+  outline-offset: 2px;
+}
+
+/* ============================================================================
    RESPONSIVE BREAKPOINTS
    ============================================================================ */
 
@@ -2622,6 +2805,25 @@
   .budget-realization-main {
     padding: 1rem;
     gap: 1.5rem;
+  }
+
+  .budget-realization-main--single {
+    padding: 1rem;
+  }
+
+  .realization-toolbar {
+    flex-wrap: wrap;
+  }
+
+  .realization-toolbar__group--selectors {
+    flex-basis: 100%;
+  }
+
+  .realization-toolbar__group--toggles {
+    flex-basis: 100%;
+    justify-content: flex-start;
+    padding-top: 0.75rem;
+    border-top: 1px solid rgba(37, 99, 235, 0.1);
   }
 
   .balance-layout-holder,
@@ -2763,6 +2965,39 @@
   .budget-realization-main {
     padding: 0.5rem;
     gap: 1rem;
+  }
+
+  .budget-realization-main--single {
+    padding: 0.5rem;
+  }
+
+  .realization-toolbar {
+    flex-direction: column;
+    align-items: stretch;
+    padding: 0.875rem;
+  }
+
+  .realization-toolbar__group--selectors {
+    flex-direction: column;
+  }
+
+  .realization-toolbar__field {
+    min-width: 100%;
+  }
+
+  .realization-toolbar__group--toggles {
+    flex-wrap: wrap;
+    gap: 0.75rem;
+  }
+
+  .realization-toolbar-header {
+    flex-direction: column;
+    gap: 0.25rem;
+  }
+
+  .realization-toolbar-header__text {
+    flex-direction: column;
+    gap: 0.25rem;
   }
 
   .budget-region {

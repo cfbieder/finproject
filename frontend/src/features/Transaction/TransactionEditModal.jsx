@@ -1,58 +1,34 @@
-import { useEffect } from "react";
 import {
+  TransactionDateSelector,
   TRANSACTION_DESCRIPTION_FIELD_KEY,
-  TransactionActualDateSelector,
-  computeTransactionActualBaseAmount,
-  DEFAULT_TRANSACTION_BASE_CURRENCY,
-} from "./TransactionActualTable.jsx";
+} from "./TransactionTable.jsx";
 
 /**
- * Edit modal for bulk editing actual transactions.
+ * Shared edit modal for bulk editing transactions.
  * Displays a form for editing multiple selected transactions at once.
- *
- * @component
- * @param {Object} props - Component props
- * @param {boolean} props.isOpen - Whether modal is visible
- * @param {number} props.selectedCount - Number of selected transactions
- * @param {Array} props.editFields - Field configuration array
- * @param {Object} props.editFormValues - Current form values
- * @param {Object} props.safeCategoryOptions - Available category options
- * @param {Object} props.safeAccountOptions - Available account options
- * @param {Object} props.safeCurrencyOptions - Available currency options
- * @param {Array} props.categoryOptions - Raw category options for placeholder
- * @param {Array} props.accountOptions - Raw account options for placeholder
- * @param {Array} props.currencyOptions - Raw currency options for placeholder
- * @param {Object} props.actualRates - Exchange rates
- * @param {boolean} props.isEditing - Whether save is in progress
- * @param {string} props.editError - Error message
- * @param {Function} props.onFieldChange - Field change callback
- * @param {Function} props.onCancel - Cancel callback
- * @param {Function} props.onSubmit - Submit callback
- * @param {Function} props.setEditFormValues - Direct form values setter for BaseAmount
- * @returns {JSX.Element|null} Edit modal or null if not open
  */
-export default function TransActualEditModal({
+export default function TransactionEditModal({
+  config,
   isOpen,
   selectedCount,
-  editFields,
-  editFormValues,
-  safeCategoryOptions,
-  safeAccountOptions,
-  safeCurrencyOptions,
+  isEditing,
+  error,
+  formValues,
   categoryOptions,
   accountOptions,
   currencyOptions,
-  actualRates,
-  isEditing,
-  editError,
+  safeCategoryOptions,
+  safeAccountOptions,
+  safeCurrencyOptions,
   onFieldChange,
   onCancel,
   onSubmit,
-  setEditFormValues,
 }) {
   if (!isOpen) {
     return null;
   }
+
+  const { editFields } = config;
 
   const descriptionField = editFields.find(
     (field) => field.key === TRANSACTION_DESCRIPTION_FIELD_KEY
@@ -64,33 +40,11 @@ export default function TransActualEditModal({
       field.key !== "Category"
   );
 
-  const amountInputValue = editFormValues.Amount;
-  const currencyInputValue = editFormValues.Currency;
-
-  // Auto-calculate BaseAmount when Amount or Currency changes
-  useEffect(() => {
-    const derivedBaseAmount = computeTransactionActualBaseAmount(
-      amountInputValue,
-      currencyInputValue,
-      actualRates,
-      DEFAULT_TRANSACTION_BASE_CURRENCY
-    );
-    const nextBaseValue = Number.isFinite(derivedBaseAmount)
-      ? String(derivedBaseAmount)
-      : "";
-    setEditFormValues((previous) => {
-      if (previous.BaseAmount === nextBaseValue) {
-        return previous;
-      }
-      return { ...previous, BaseAmount: nextBaseValue };
-    });
-  }, [amountInputValue, currencyInputValue, actualRates, setEditFormValues]);
-
   const renderEditField = (field, extraClass = "") => {
     if (!field) {
       return null;
     }
-    const fieldValue = editFormValues[field.key] ?? "";
+    const fieldValue = formValues[field.key] ?? "";
     const isCategoryField = field.key === "Category";
     const isAccountField = field.key === "Account";
     const isCurrencyField = field.key === "Currency";
@@ -101,19 +55,19 @@ export default function TransActualEditModal({
       selectOptions = isCategoryField
         ? safeCategoryOptions
         : isAccountField
-        ? safeAccountOptions
-        : safeCurrencyOptions;
+          ? safeAccountOptions
+          : safeCurrencyOptions;
       placeholderMessage = isCategoryField
         ? categoryOptions.length
           ? "Select category"
           : "Loading categories..."
         : isAccountField
-        ? accountOptions.length
-          ? "Select account"
-          : "Loading accounts..."
-        : currencyOptions.length
-        ? "Select currency"
-        : "Loading currencies...";
+          ? accountOptions.length
+            ? "Select account"
+            : "Loading accounts..."
+          : currencyOptions.length
+            ? "Select currency"
+            : "Loading currencies...";
     }
     const isDateField = field.type === "date";
     const isBaseAmountField = field.key === "BaseAmount";
@@ -140,7 +94,7 @@ export default function TransActualEditModal({
             ))}
           </select>
         ) : isDateField ? (
-          <TransactionActualDateSelector
+          <TransactionDateSelector
             value={fieldValue}
             onChange={(nextValue) => onFieldChange(field.key, nextValue)}
             disabled={isEditing}
@@ -180,9 +134,7 @@ export default function TransActualEditModal({
           Updating {selectedCount} transaction
           {selectedCount === 1 ? "" : "s"}.
         </p>
-        {editError && (
-          <p className="trans-budget-edit-modal__error">{editError}</p>
-        )}
+        {error && <p className="trans-budget-edit-modal__error">{error}</p>}
         <form onSubmit={onSubmit}>
           <div className="trans-budget-edit-modal__grid">
             {dataFields.map((field) =>

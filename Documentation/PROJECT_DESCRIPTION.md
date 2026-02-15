@@ -118,7 +118,7 @@ fin/
 │       ├── components/          # Shared UI (Layout, NavigationMenu, Breadcrumbs, Footer, Toast, LoadingSpinner, MonthYearPicker, PeriodCountSelector)
 │       ├── config/routes.jsx    # Central route config (paths, icons, categories)
 │       ├── contexts/            # ToastContext, ForecastContext
-│       ├── features/            # Feature modules (Balances, BudgetEntry, Budgets, CashFlow, Charts, COAManagement, Database, Forecast, TransactionActual, TransactionBudget)
+│       ├── features/            # Feature modules (Balances, BudgetEntry, Budgets, CashFlow, Charts, COAManagement, Database, Forecast, Transaction)
 │       ├── js/                  # API helpers (rest.js, handleUpload.js)
 │       └── pages/               # Page components (19 pages + category landing)
 ├── server/                      # Express API server
@@ -189,13 +189,13 @@ Category landing pages instead of dropdowns. Each category has a landing page at
 
 - **React Context**: `ToastContext` (global toasts), `ForecastContext` (forecast state shared across FC pages)
 - **Local state**: Page-level `useState`/`useCallback` for form state, loading, and API responses
-- **Custom hooks**: `useTransActualEdit`, `useTransActualDelete`, `useTransBudgetEdit`, `useTransBudgetDelete` encapsulate CRUD logic with toast notifications
+- **Custom hooks**: `useTransactionEdit`, `useTransactionDelete`, `useBudgetEntrySubmit`, `useFCExpCrud` encapsulate CRUD logic with toast notifications
 
 ### Key Patterns
 
 - **Shared Layout**: `Layout.jsx` renders `NavigationMenu` + `Breadcrumbs` + page content + `Footer`. Reusable `MonthYearPicker` and `PeriodCountSelector` components shared across pages
 - **Lazy loading**: All pages except Home use `React.lazy()` with `Suspense` + `LoadingSpinner`
-- **Feature modules**: 10 feature directories under `features/` (Balances, BudgetEntry, Budgets, CashFlow, Charts, COAManagement, Database, Forecast, TransactionActual, TransactionBudget) with hooks, utils, and table components
+- **Feature modules**: 9 feature directories under `features/` (Balances, BudgetEntry, Budgets, CashFlow, Charts, COAManagement, Database, Forecast, Transaction) with hooks, utils, and table components
 - **Toast notifications**: All CRUD operations use `useToast()` for success/error feedback
 
 ### Visual Environment Indicators
@@ -520,4 +520,4 @@ docker compose -f docker-compose.dev.yml down        # Development
 
 ---
 
-*Last updated: 2026-02-14*
+*Last updated: 2026-02-15*

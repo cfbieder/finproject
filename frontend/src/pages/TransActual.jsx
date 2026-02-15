@@ -1,48 +1,30 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
-import TransactionActualFilter from "../features/TransactionActual/TransactionActualFilter.jsx";
-import TransactionActualTable, {
-  useTransactionActualAccountOptions,
-  useTransactionActualCategoryOptions,
-  useTransactionActualCurrencyOptions,
-  useTransactionActualExchangeRates,
-} from "../features/TransactionActual/TransactionActualTable.jsx";
-import TransActualEditModal from "../features/TransactionActual/TransActualEditModal.jsx";
-import TransActualDeleteModal from "../features/TransactionActual/TransActualDeleteModal.jsx";
-// Using v2 API (PostgreSQL)
-import { useTransactionsV2 as useTransactions } from "../features/TransactionActual/hooks/useTransactionsV2.js";
-import { useTransActualFilters } from "../features/TransactionActual/hooks/useTransActualFilters.js";
-import { useTransActualSelection } from "../features/TransactionActual/hooks/useTransActualSelection.js";
-import { useTransActualEdit } from "../features/TransactionActual/hooks/useTransActualEdit.js";
-import { useTransActualDelete } from "../features/TransactionActual/hooks/useTransActualDelete.js";
-import {
-  DEFAULT_FILTERS,
-  parseEntryDate,
-} from "../features/TransactionActual/transActualUtils.js";
+import { ACTUAL_CONFIG } from "../features/Transaction/transactionConfig.js";
+import { parseEntryDate, normalizeStringOptions } from "../features/Transaction/transactionUtils.js";
+import { useTransactions } from "../features/Transaction/hooks/useTransactions.js";
+import { useTransactionSelection } from "../features/Transaction/hooks/useTransactionSelection.js";
+import { useTransactionEdit } from "../features/Transaction/hooks/useTransactionEdit.js";
+import { useTransactionDelete } from "../features/Transaction/hooks/useTransactionDelete.js";
+import TransactionFilter from "../features/Transaction/TransactionFilter.jsx";
+import TransactionTable, {
+  useTransactionCategoryOptions,
+  useTransactionAccountOptions,
+  useTransactionCurrencyOptions,
+  useTransactionExchangeRates,
+  computeTransactionBaseAmount,
+} from "../features/Transaction/TransactionTable.jsx";
+import TransactionEditModal from "../features/Transaction/TransactionEditModal.jsx";
+import TransactionDeleteModal from "../features/Transaction/TransactionDeleteModal.jsx";
 import Rest from "../js/rest.js";
 import "./PageLayout.css";
 
-const EDIT_FIELDS = [
-  { key: "Date", label: "Date", type: "date" },
-  { key: "Description1", label: "Description", type: "text" },
-  { key: "Amount", label: "LC Amount", type: "number" },
-  { key: "Currency", label: "Currency", type: "text" },
-  { key: "BaseAmount", label: "USD Amount", type: "number" },
-  { key: "Account", label: "Account", type: "text" },
-  { key: "Category", label: "Category", type: "text" },
-];
-
+const config = ACTUAL_CONFIG;
 const TRANSACTION_BATCH_SIZE = 500;
 
-/**
- * TransActual component manages the actual transaction history page.
- * Provides functionality to view, filter, edit, and delete actual transactions.
- */
 export default function TransActual() {
-  // Get filter state first so we can pass to useTransactions
-  const [filters, setFilters] = useState(() => ({ ...DEFAULT_FILTERS }));
+  const [filters, setFilters] = useState(() => ({ ...config.defaultFilters }));
   const [filteredTotalsByCurrency, setFilteredTotalsByCurrency] = useState([]);
 
-  // Load transactions with current filters
   const {
     transactions,
     transactionLimit,
@@ -51,33 +33,14 @@ export default function TransActual() {
     error,
     setTransactionLimit,
     reload,
-  } = useTransactions(filters);
+  } = useTransactions(config, filters);
 
-  // Get reference data from custom hooks
-  const categoryOptions = useTransactionActualCategoryOptions();
-  const accountOptions = useTransactionActualAccountOptions();
-  const currencyOptions = useTransactionActualCurrencyOptions();
-  const actualRates = useTransactionActualExchangeRates();
+  const categoryOptions = useTransactionCategoryOptions();
+  const accountOptions = useTransactionAccountOptions();
+  const currencyOptions = useTransactionCurrencyOptions();
+  const rates = useTransactionExchangeRates();
 
-  // Normalize options with current edit form values
-  const safeCategoryOptions = useMemo(() => {
-    const baseOptions = Array.isArray(categoryOptions) ? categoryOptions : [];
-    return [...new Set(baseOptions.filter((opt) => typeof opt === "string"))];
-  }, [categoryOptions]);
-
-  const safeAccountOptions = useMemo(() => {
-    const baseOptions = Array.isArray(accountOptions) ? accountOptions : [];
-    return [...new Set(baseOptions.filter((opt) => typeof opt === "string"))];
-  }, [accountOptions]);
-
-  const safeCurrencyOptions = useMemo(() => {
-    const baseOptions = Array.isArray(currencyOptions) ? currencyOptions : [];
-    return [...new Set(baseOptions.filter((opt) => typeof opt === "string"))];
-  }, [currencyOptions]);
-
-  // Apply client-side filters (for additional filtering beyond API)
-  const { filteredTransactions } = useTransActualFilters(transactions);
-
+  // Client-side filtering (Actual-specific: server returns broader results)
   const locallyFilteredTransactions = useMemo(() => {
     const accountList = Array.isArray(filters.account)
       ? filters.account
@@ -94,7 +57,7 @@ export default function TransActual() {
       : filters.currency
       ? [filters.currency]
       : [];
-    return filteredTransactions.filter((entry) => {
+    return transactions.filter((entry) => {
       if (filters.yearEnabled) {
         const date = parseEntryDate(entry);
         if (!date || date.getFullYear().toString() !== filters.year) {
@@ -135,85 +98,29 @@ export default function TransActual() {
       }
       return true;
     });
-  }, [filteredTransactions, filters]);
+  }, [transactions, filters]);
 
+  // Load filtered totals
   useEffect(() => {
     const controller = new AbortController();
     let isActive = true;
-    const appendListParam = (params, key, values) => {
-      const list = Array.isArray(values) ? values : values ? [values] : [];
-      list.forEach((value) => {
-        if (value !== undefined && value !== null && value !== "") {
-          params.append(key, String(value));
-        }
-      });
-    };
 
     const loadFilteredTotals = async () => {
       try {
         const query = new URLSearchParams();
-        const setParam = (key, value) => {
-          if (value !== undefined && value !== null && value !== "") {
-            query.set(key, String(value));
-          }
-        };
-        if (filters.yearEnabled && filters.year) {
-          setParam("actualYear", filters.year);
-        }
-        if (
-          filters.monthEnabled &&
-          filters.month !== undefined &&
-          filters.month !== null
-        ) {
-          setParam("month", filters.month + 1);
-        }
-        if (filters.accountEnabled && filters.account) {
-          appendListParam(query, "account", filters.account);
-        }
-        if (filters.categoryEnabled && filters.category) {
-          appendListParam(query, "category", filters.category);
-        }
-        if (filters.currencyEnabled && filters.currency) {
-          appendListParam(query, "currency", filters.currency);
-        }
-        if (filters.descriptionEnabled && filters.description) {
-          setParam("description", filters.description);
-        }
-        if (
-          filters.valueFromEnabled &&
-          typeof filters.valueFrom === "number" &&
-          Number.isFinite(filters.valueFrom)
-        ) {
-          setParam("valueFrom", filters.valueFrom);
-        }
-        if (
-          filters.valueToEnabled &&
-          typeof filters.valueTo === "number" &&
-          Number.isFinite(filters.valueTo)
-        ) {
-          setParam("valueTo", filters.valueTo);
-        }
-        setParam("limit", 2000);
-
-        // Using v2 API (PostgreSQL)
-        const path = `/api/v2/budget/actual-entries${
+        config.buildTotalsQuery(query, filters);
+        const path = `${config.totalsEndpoint}${
           query.toString() ? `?${query.toString()}` : ""
         }`;
         const payload = await Rest.fetchJson(path, {
           signal: controller.signal,
         });
-        const entries = Array.isArray(payload)
-          ? payload
-          : Array.isArray(payload?.entries)
-          ? payload.entries
-          : [];
+        const entries = config.parseTotalsEntries(payload);
         const totals = new Map();
         entries.forEach((entry) => {
-          const currency = entry?.Currency || "Unknown";
-          const amount = Number(entry?.Amount);
-          if (!Number.isFinite(amount)) {
-            return;
-          }
+          const currency = config.getTotalsCurrency(entry);
+          const amount = config.getTotalsAmount(entry);
+          if (!Number.isFinite(amount)) return;
           totals.set(currency, (totals.get(currency) || 0) + amount);
         });
         if (isActive) {
@@ -224,29 +131,20 @@ export default function TransActual() {
             }))
           );
         }
-      } catch (error) {
-        if (error?.name === "AbortError") {
-          return;
-        }
-        console.error(
-          "[TransActual] Failed to load filtered totals:",
-          error
-        );
-        if (isActive) {
-          setFilteredTotalsByCurrency([]);
-        }
+      } catch (err) {
+        if (err?.name === "AbortError") return;
+        console.error("[TransActual] Failed to load filtered totals:", err);
+        if (isActive) setFilteredTotalsByCurrency([]);
       }
     };
 
     loadFilteredTotals();
-
     return () => {
       isActive = false;
       controller.abort();
     };
   }, [filters]);
 
-  // Selection and sorting
   const {
     selectedRows,
     sortConfig,
@@ -256,71 +154,63 @@ export default function TransActual() {
     toggleRowSelection,
     handleSort,
     handleSelectAllToggle,
-  } = useTransActualSelection(locallyFilteredTransactions);
+  } = useTransactionSelection(locallyFilteredTransactions);
 
-  // Success callback: reload data and clear selection
   const handleSuccess = useCallback(async () => {
     clearSelection();
     await reload();
   }, [clearSelection, reload]);
 
-  // Edit modal
-  const {
-    showEditModal,
-    editFormValues,
-    setEditFormValues,
-    isEditing,
-    editError,
-    handleEditRequest,
-    handleEditFieldChange,
-    handleEditCancel,
-    handleEditSubmit,
-  } = useTransActualEdit(EDIT_FIELDS, actualRates, handleSuccess);
+  const computeBase = useCallback(
+    (amount, currency, r) => computeTransactionBaseAmount(amount, currency, r),
+    []
+  );
 
-  // Delete modal
-  const {
-    showDeleteConfirmation,
-    isDeleting,
-    deleteError,
-    handleDeleteRequest,
-    handleDeleteCancel,
-    handleConfirmDelete,
-  } = useTransActualDelete(handleSuccess);
+  const edit = useTransactionEdit(config, selectedRows, rates, computeBase, handleSuccess);
+  const del = useTransactionDelete(config, selectedRows, handleSuccess);
 
-  // Filter change handler
+  const safeCategoryOptions = useMemo(
+    () => normalizeStringOptions(categoryOptions, edit.editFormValues.Category ?? ""),
+    [categoryOptions, edit.editFormValues.Category]
+  );
+  const safeAccountOptions = useMemo(
+    () => normalizeStringOptions(accountOptions, edit.editFormValues.Account ?? ""),
+    [accountOptions, edit.editFormValues.Account]
+  );
+  const safeCurrencyOptions = useMemo(() => {
+    const baseOptions = Array.isArray(currencyOptions) ? currencyOptions : [];
+    return [...new Set(baseOptions.filter((opt) => typeof opt === "string"))];
+  }, [currencyOptions]);
+
   const handleFilterChange = useCallback(
     (nextFilters) => {
-      if (!nextFilters) {
-        return;
-      }
+      if (!nextFilters) return;
       setFilters(nextFilters);
       setTransactionLimit(TRANSACTION_BATCH_SIZE);
     },
     [setTransactionLimit]
   );
 
-  // Batch loading handlers
-  const handleLoadMoreTransactions = useCallback(() => {
-    setTransactionLimit((previous) => previous + TRANSACTION_BATCH_SIZE);
+  const handleLoadMore = useCallback(() => {
+    setTransactionLimit((prev) => prev + TRANSACTION_BATCH_SIZE);
   }, [setTransactionLimit]);
 
-  const handleLoadPreviousTransactions = useCallback(() => {
-    setTransactionLimit((previous) =>
-      Math.max(TRANSACTION_BATCH_SIZE, previous - TRANSACTION_BATCH_SIZE)
+  const handleLoadPrevious = useCallback(() => {
+    setTransactionLimit((prev) =>
+      Math.max(TRANSACTION_BATCH_SIZE, prev - TRANSACTION_BATCH_SIZE)
     );
   }, [setTransactionLimit]);
 
   const canLoadPrevious = transactionLimit > TRANSACTION_BATCH_SIZE;
-  const hasTransactions = transactions.length > 0;
-  const hasFilteredTransactions = locallyFilteredTransactions.length > 0;
 
   return (
     <>
       <main className="page-main trans-budget-main">
-        <TransactionActualFilter
+        <TransactionFilter
+          config={config}
           onFiltersChange={handleFilterChange}
-          onDeleteClick={() => handleDeleteRequest()}
-          onEditClick={() => handleEditRequest(selectedRows)}
+          onDeleteClick={del.handleDeleteRequest}
+          onEditClick={edit.handleEditRequest}
           onSelectAllToggle={handleSelectAllToggle}
           canDelete={selectedRows.size > 0}
           canEdit={selectedRows.size > 0}
@@ -334,7 +224,7 @@ export default function TransActual() {
           <button
             className="generate-report-button"
             type="button"
-            onClick={handleLoadPreviousTransactions}
+            onClick={handleLoadPrevious}
             disabled={isLoading || !canLoadPrevious}
             style={{ minWidth: "150px", whiteSpace: "nowrap" }}
           >
@@ -343,49 +233,48 @@ export default function TransActual() {
           <button
             className="generate-report-button"
             type="button"
-            onClick={handleLoadMoreTransactions}
+            onClick={handleLoadMore}
             disabled={isLoading || !hasMoreTransactions}
             style={{ minWidth: "150px", whiteSpace: "nowrap" }}
           >
             {isLoading ? "Loading…" : "Next batch"}
           </button>
         </div>
-        <TransactionActualTable
+        <TransactionTable
+          config={config}
           isLoading={isLoading}
           error={error}
-          hasTransactions={hasTransactions}
-          hasFilteredTransactions={hasFilteredTransactions}
+          hasTransactions={transactions.length > 0}
+          hasFilteredTransactions={locallyFilteredTransactions.length > 0}
           sortedTransactions={sortedTransactions}
           sortConfig={sortConfig}
           onSort={handleSort}
           onRowToggle={toggleRowSelection}
         />
-        <TransActualEditModal
-          isOpen={showEditModal}
+        <TransactionEditModal
+          config={config}
+          isOpen={edit.showEditModal}
           selectedCount={selectedRows.size}
-          editFields={EDIT_FIELDS}
-          editFormValues={editFormValues}
-          safeCategoryOptions={safeCategoryOptions}
-          safeAccountOptions={safeAccountOptions}
-          safeCurrencyOptions={safeCurrencyOptions}
+          isEditing={edit.isEditing}
+          error={edit.editError}
+          formValues={edit.editFormValues}
           categoryOptions={categoryOptions}
           accountOptions={accountOptions}
           currencyOptions={currencyOptions}
-          actualRates={actualRates}
-          isEditing={isEditing}
-          editError={editError}
-          onFieldChange={handleEditFieldChange}
-          onCancel={handleEditCancel}
-          onSubmit={(e) => handleEditSubmit(e, selectedRows)}
-          setEditFormValues={setEditFormValues}
+          safeCategoryOptions={safeCategoryOptions}
+          safeAccountOptions={safeAccountOptions}
+          safeCurrencyOptions={safeCurrencyOptions}
+          onFieldChange={edit.handleEditFieldChange}
+          onCancel={edit.handleEditCancel}
+          onSubmit={edit.handleEditSubmit}
         />
-        <TransActualDeleteModal
-          isOpen={showDeleteConfirmation}
+        <TransactionDeleteModal
+          isOpen={del.showDeleteConfirmation}
           selectedCount={selectedRows.size}
-          isDeleting={isDeleting}
-          deleteError={deleteError}
-          onCancel={handleDeleteCancel}
-          onConfirm={() => handleConfirmDelete(selectedRows)}
+          isDeleting={del.isDeleting}
+          error={del.deleteError}
+          onCancel={del.handleDeleteCancel}
+          onConfirm={del.handleConfirmDelete}
         />
       </main>
     </>

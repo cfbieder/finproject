@@ -94,7 +94,8 @@ const renderMessage = (message, isError = false) => (
   </p>
 );
 
-export default function TransactionActualTable({
+export default function TransactionTable({
+  config,
   isLoading,
   error,
   hasTransactions,
@@ -104,21 +105,24 @@ export default function TransactionActualTable({
   onSort,
   onRowToggle,
 }) {
+  const label = config.logPrefix === "TransActual" ? "Actual" : "Budget";
+  const lcLabel = label.toLowerCase();
+
   return (
-    <section className="section-table" aria-label="Actual table">
+    <section className="section-table" aria-label={`${label} table`}>
       <div className="section-table__content">
         <div className="trans-budget-table-wrapper">
-          {isLoading && renderMessage("Loading actual transactions...", false)}
+          {isLoading && renderMessage(`Loading ${lcLabel} transactions...`, false)}
           {!isLoading && error && renderMessage(error, true)}
           {!isLoading &&
             !error &&
             !hasTransactions &&
-            renderMessage("No actual transactions available.")}
+            renderMessage(`No ${lcLabel} transactions available.`)}
           {!isLoading &&
             !error &&
             hasTransactions &&
             !hasFilteredTransactions &&
-            renderMessage("No actual transactions match the filters.")}
+            renderMessage(`No ${lcLabel} transactions match the filters.`)}
           {!isLoading && !error && hasFilteredTransactions && (
             <table className="trans-budget-table">
               <thead>
@@ -197,7 +201,9 @@ export default function TransactionActualTable({
   );
 }
 
-export function useTransactionActualCategoryOptions() {
+// ---------- Shared reference data hooks ----------
+
+export function useTransactionCategoryOptions() {
   const [categoryOptions, setCategoryOptions] = useState([]);
 
   useEffect(() => {
@@ -205,19 +211,17 @@ export function useTransactionActualCategoryOptions() {
 
     (async () => {
       try {
-        // Using v2 API (PostgreSQL)
         const categories = await Rest.fetchCategoriesV2({ activeOnly: true });
         if (!isActive) {
           return;
         }
-        // Extract names from v2 response objects
         const names = Array.isArray(categories)
           ? categories.map((cat) => cat?.name).filter(Boolean)
           : [];
         setCategoryOptions(names);
       } catch (error) {
         console.error(
-          "[TransactionActualCategoryOptions] Failed to load categories:",
+          "[TransactionCategoryOptions] Failed to load categories:",
           error
         );
       }
@@ -231,7 +235,7 @@ export function useTransactionActualCategoryOptions() {
   return categoryOptions;
 }
 
-export function useTransactionActualAccountOptions() {
+export function useTransactionAccountOptions() {
   const [accountOptions, setAccountOptions] = useState([]);
 
   useEffect(() => {
@@ -239,19 +243,17 @@ export function useTransactionActualAccountOptions() {
 
     (async () => {
       try {
-        // Using v2 API (PostgreSQL)
         const accounts = await Rest.fetchAccountsV2({ activeOnly: true, section: 'balance_sheet' });
         if (!isActive) {
           return;
         }
-        // Extract names from v2 response objects
         const names = Array.isArray(accounts)
           ? accounts.map((acc) => acc?.name).filter(Boolean)
           : [];
         setAccountOptions(names);
       } catch (error) {
         console.error(
-          "[TransactionActualAccountOptions] Failed to load accounts:",
+          "[TransactionAccountOptions] Failed to load accounts:",
           error
         );
       }
@@ -265,7 +267,7 @@ export function useTransactionActualAccountOptions() {
   return accountOptions;
 }
 
-export function useTransactionActualCurrencyOptions() {
+export function useTransactionCurrencyOptions() {
   const [currencyOptions, setCurrencyOptions] = useState([]);
 
   useEffect(() => {
@@ -281,7 +283,7 @@ export function useTransactionActualCurrencyOptions() {
         setCurrencyOptions(Array.isArray(currencies) ? currencies : []);
       } catch (error) {
         console.error(
-          "[TransactionActualCurrencyOptions] Failed to load currencies:",
+          "[TransactionCurrencyOptions] Failed to load currencies:",
           error
         );
       }
@@ -294,6 +296,122 @@ export function useTransactionActualCurrencyOptions() {
 
   return currencyOptions;
 }
+
+// ---------- Exchange rates ----------
+
+export const DEFAULT_TRANSACTION_BASE_CURRENCY = "USD";
+
+const normalizeCurrencyCode = (value) => {
+  if (typeof value !== "string") {
+    return "";
+  }
+  return value.trim().toUpperCase();
+};
+
+const buildRateMap = (doc) => {
+  const map = { [DEFAULT_TRANSACTION_BASE_CURRENCY]: 1 };
+  if (!doc || typeof doc !== "object") {
+    return map;
+  }
+  for (const [key, value] of Object.entries(doc)) {
+    if (!key || typeof key !== "string") {
+      continue;
+    }
+    const normalizedKey = key.trim().toUpperCase();
+    if (!normalizedKey.endsWith("/USD")) {
+      continue;
+    }
+    const [currencyCode] = normalizedKey.split("/USD");
+    if (!currencyCode) {
+      continue;
+    }
+    const parsedRate = Number(value);
+    if (!Number.isFinite(parsedRate)) {
+      continue;
+    }
+    map[currencyCode] = parsedRate;
+  }
+  return map;
+};
+
+const resolveExchangeRate = (
+  currencyValue,
+  rates,
+  baseCurrency = DEFAULT_TRANSACTION_BASE_CURRENCY
+) => {
+  const normalizedBaseCurrency = normalizeCurrencyCode(baseCurrency);
+  const normalizedCurrency = normalizeCurrencyCode(currencyValue);
+  if (!normalizedCurrency || normalizedCurrency === normalizedBaseCurrency) {
+    return 1;
+  }
+  const rate =
+    rates && typeof rates === "object"
+      ? rates[normalizedCurrency]
+      : undefined;
+  return Number.isFinite(rate) ? rate : undefined;
+};
+
+export const computeTransactionBaseAmount = (
+  amountValue,
+  currencyValue,
+  rates,
+  baseCurrency = DEFAULT_TRANSACTION_BASE_CURRENCY
+) => {
+  const parsedAmount = Number(amountValue);
+  if (!Number.isFinite(parsedAmount)) {
+    return undefined;
+  }
+  const rate = resolveExchangeRate(
+    currencyValue,
+    rates,
+    baseCurrency
+  );
+  if (!Number.isFinite(rate)) {
+    return undefined;
+  }
+  return parsedAmount / rate;
+};
+
+const createDefaultRateMap = () => ({
+  [DEFAULT_TRANSACTION_BASE_CURRENCY]: 1,
+});
+
+export function useTransactionExchangeRates() {
+  const [rates, setRates] = useState(createDefaultRateMap);
+
+  useEffect(() => {
+    let isActive = true;
+
+    (async () => {
+      try {
+        const payload = await Rest.fetchJson("/api/v2/util/appdata");
+        if (!isActive) {
+          return;
+        }
+        const appData =
+          Array.isArray(payload) && payload.length ? payload[0] : {};
+        setRates(buildRateMap(appData));
+      } catch (error) {
+        if (!isActive) {
+          return;
+        }
+        console.error(
+          "[TransactionExchangeRates] Failed to load rates:",
+          error
+        );
+        setRates(createDefaultRateMap());
+      }
+    })();
+
+    return () => {
+      isActive = false;
+    };
+  }, []);
+
+  return rates;
+}
+
+// ---------- Date selector ----------
 
 const TRANSACTION_DATE_YEAR_RANGE = 4;
 const TRANSACTION_DATE_CURRENT_YEAR = new Date().getUTCFullYear();
@@ -354,7 +472,7 @@ const getIsoFromYearMonth = (yearValue, monthValue) => {
   return Number.isFinite(date.getTime()) ? date.toISOString().slice(0, 10) : "";
 };
 
-export function TransactionActualDateSelector({
+export function TransactionDateSelector({
   value,
   onChange,
   disabled = false,
@@ -407,118 +525,3 @@ export function TransactionActualDateSelector({
 }
 
 export const TRANSACTION_DESCRIPTION_FIELD_KEY = "Description1";
-
-const DEFAULT_TRANSACTION_BASE_CURRENCY = "USD";
-
-const normalizeCurrencyCode = (value) => {
-  if (typeof value !== "string") {
-    return "";
-  }
-  return value.trim().toUpperCase();
-};
-
-const buildTransactionActualRateMap = (doc) => {
-  const map = { [DEFAULT_TRANSACTION_BASE_CURRENCY]: 1 };
-  if (!doc || typeof doc !== "object") {
-    return map;
-  }
-  for (const [key, value] of Object.entries(doc)) {
-    if (!key || typeof key !== "string") {
-      continue;
-    }
-    const normalizedKey = key.trim().toUpperCase();
-    if (!normalizedKey.endsWith("/USD")) {
-      continue;
-    }
-    const [currencyCode] = normalizedKey.split("/USD");
-    if (!currencyCode) {
-      continue;
-    }
-    const parsedRate = Number(value);
-    if (!Number.isFinite(parsedRate)) {
-      continue;
-    }
-    map[currencyCode] = parsedRate;
-  }
-  return map;
-};
-
-const resolveTransactionActualExchangeRate = (
-  currencyValue,
-  actualRates,
-  baseCurrency = DEFAULT_TRANSACTION_BASE_CURRENCY
-) => {
-  const normalizedBaseCurrency = normalizeCurrencyCode(baseCurrency);
-  const normalizedCurrency = normalizeCurrencyCode(currencyValue);
-  if (!normalizedCurrency || normalizedCurrency === normalizedBaseCurrency) {
-    return 1;
-  }
-  const rate =
-    actualRates && typeof actualRates === "object"
-      ? actualRates[normalizedCurrency]
-      : undefined;
-  return Number.isFinite(rate) ? rate : undefined;
-};
-
-export const computeTransactionActualBaseAmount = (
-  amountValue,
-  currencyValue,
-  actualRates,
-  baseCurrency = DEFAULT_TRANSACTION_BASE_CURRENCY
-) => {
-  const parsedAmount = Number(amountValue);
-  if (!Number.isFinite(parsedAmount)) {
-    return undefined;
-  }
-  const rate = resolveTransactionActualExchangeRate(
-    currencyValue,
-    actualRates,
-    baseCurrency
-  );
-  if (!Number.isFinite(rate)) {
-    return undefined;
-  }
-  return parsedAmount / rate;
-};
-
-const createDefaultActualRateMap = () => ({
-  [DEFAULT_TRANSACTION_BASE_CURRENCY]: 1,
-});
-
-export function useTransactionActualExchangeRates() {
-  const [actualRates, setActualRates] = useState(createDefaultActualRateMap);
-
-  useEffect(() => {
-    let isActive = true;
-
-    (async () => {
-      try {
-        // Using v2 API (PostgreSQL)
-        const payload = await Rest.fetchJson("/api/v2/util/appdata");
-        if (!isActive) {
-          return;
-        }
-        const appData =
-          Array.isArray(payload) && payload.length ? payload[0] : {};
-        setActualRates(buildTransactionActualRateMap(appData));
-      } catch (error) {
-        if (!isActive) {
-          return;
-        }
-        console.error(
-          "[TransactionActualRates] Failed to load actual rates:",
-          error
-        );
-        setActualRates(createDefaultActualRateMap());
-      }
-    })();
-
-    return () => {
-      isActive = false;
-    };
-  }, []);
-
-  return actualRates;
-}
-
-export { DEFAULT_TRANSACTION_BASE_CURRENCY };

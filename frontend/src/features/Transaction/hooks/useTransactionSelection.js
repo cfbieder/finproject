@@ -1,17 +1,41 @@
 import { useCallback, useMemo, useState } from "react";
-import { getSortValue } from "../transActualUtils.js";
-
-const DEFAULT_SORT = { key: "Date", direction: "desc" };
+import { getSortValue, DEFAULT_SORT } from "../transactionUtils.js";
 
 /**
- * Custom hook for managing row selection and sorting.
+ * Shared hook for managing row selection and sorting.
  *
  * @param {Array} transactions - Filtered transactions
  * @returns {Object} Selection and sorting state and handlers
  */
-export function useTransActualSelection(transactions) {
+export function useTransactionSelection(transactions) {
   const [selectedRows, setSelectedRows] = useState(() => new Map());
   const [sortConfig, setSortConfig] = useState(DEFAULT_SORT);
+
+  const clearSelection = useCallback(() => {
+    setSelectedRows(new Map());
+  }, []);
+
+  const toggleRowSelection = useCallback((rowId, entry) => {
+    setSelectedRows((previous) => {
+      const next = new Map(previous);
+      if (next.has(rowId)) {
+        next.delete(rowId);
+      } else if (entry) {
+        next.set(rowId, entry);
+      }
+      return next;
+    });
+  }, []);
+
+  const handleSort = useCallback((key) => {
+    setSortConfig((previous) => {
+      if (previous.key === key) {
+        const direction = previous.direction === "desc" ? "asc" : "desc";
+        return { key, direction };
+      }
+      return { key, direction: "desc" };
+    });
+  }, []);
 
   const sortedTransactions = useMemo(() => {
     const entries = transactions.map((entry, index) => {
@@ -67,32 +91,6 @@ export function useTransActualSelection(transactions) {
     });
     setSelectedRows(nextSelection);
   }, [sortedTransactions, isAllSelected]);
-
-  const toggleRowSelection = useCallback((rowId, entry) => {
-    setSelectedRows((previous) => {
-      const next = new Map(previous);
-      if (next.has(rowId)) {
-        next.delete(rowId);
-      } else if (entry) {
-        next.set(rowId, entry);
-      }
-      return next;
-    });
-  }, []);
-
-  const handleSort = useCallback((key) => {
-    setSortConfig((previous) => {
-      if (previous.key === key) {
-        const direction = previous.direction === "desc" ? "asc" : "desc";
-        return { key, direction };
-      }
-      return { key, direction: "desc" };
-    });
-  }, []);
-
-  const clearSelection = useCallback(() => {
-    setSelectedRows(new Map());
-  }, []);
 
   return {
     selectedRows,

@@ -1,21 +1,10 @@
 /**
- * TransBudget Utility Functions
- * Pure utility functions for transaction budget management
+ * Shared Transaction Utility Functions
+ * Pure utility functions used by both actual and budget transaction pages.
  */
 
-// Field configuration for the edit modal
-export const EDIT_FIELDS = [
-  { key: "Date", label: "Date", type: "date" },
-  { key: "Description1", label: "Description", type: "text" },
-  { key: "Amount", label: "LC Amount", type: "number" },
-  { key: "Currency", label: "Currency", type: "text" },
-  { key: "BaseAmount", label: "USD Amount", type: "number" },
-  { key: "Account", label: "Account", type: "text" },
-  { key: "Category", label: "Category", type: "text" },
-];
-
-export const DEFAULT_SORT = { key: "Date", direction: "desc" };
 export const SELECTION_COLUMN_KEY = "selected";
+export const DEFAULT_SORT = { key: "Date", direction: "desc" };
 
 const arrayEqual = (left, right) => {
   const l = Array.isArray(left) ? left : left ? [left] : [];
@@ -25,52 +14,6 @@ const arrayEqual = (left, right) => {
     if (l[i] !== r[i]) return false;
   }
   return true;
-};
-
-export const DEFAULT_FILTERS = {
-  yearEnabled: false,
-  monthEnabled: false,
-  accountEnabled: false,
-  categoryEnabled: false,
-  currencyEnabled: false,
-  year: "",
-  month: "",
-  account: [],
-  category: [],
-  currency: [],
-  valueFromEnabled: false,
-  valueToEnabled: false,
-  valueFrom: null,
-  valueTo: null,
-};
-
-/**
- * Normalizes a list of string options, removing duplicates and invalid values.
- * Optionally includes a fallback value if it doesn't already exist in the list.
- * @param {Array} baseOptions - The original array of options
- * @param {string} fallbackValue - Optional fallback value to include
- * @returns {Array<string>} Normalized array of unique, valid string options
- */
-export const normalizeStringOptions = (baseOptions, fallbackValue = "") => {
-  const safeOptions = Array.isArray(baseOptions) ? baseOptions : [];
-  const seen = new Set();
-  const normalized = [];
-
-  for (const option of safeOptions) {
-    if (typeof option !== "string") {
-      continue;
-    }
-    if (!seen.has(option)) {
-      seen.add(option);
-      normalized.push(option);
-    }
-  }
-
-  if (fallbackValue && typeof fallbackValue === "string" && !seen.has(fallbackValue)) {
-    normalized.push(fallbackValue);
-  }
-
-  return normalized;
 };
 
 /**
@@ -89,7 +32,6 @@ export const parseEntryDate = (entry) => {
 
 /**
  * Extracts a sortable value from a transaction entry for a given field key.
- * Handles special cases for selection state and date fields.
  * @param {Object} entry - The transaction entry
  * @param {string} key - The field key to extract
  * @param {Object} meta - Metadata object containing isSelected flag
@@ -127,11 +69,12 @@ export const getSortValue = (entry, key, meta = {}) => {
 
 /**
  * Creates an object mapping each edit field key to an initial value.
+ * @param {Array} editFields - Array of field objects with 'key' property
  * @param {*} initialValue - The value to assign to each field
  * @returns {Object} Map of field keys to initial values
  */
-export const createEditFieldMap = (initialValue) =>
-  EDIT_FIELDS.reduce((map, field) => {
+export const createEditFieldMap = (editFields, initialValue) =>
+  editFields.reduce((map, field) => {
     map[field.key] = initialValue;
     return map;
   }, {});
@@ -264,7 +207,38 @@ export const filtersAreEqual = (a, b) => {
     arrayEqual(a.currency, b.currency) &&
     a.valueFromEnabled === b.valueFromEnabled &&
     a.valueToEnabled === b.valueToEnabled &&
+    a.descriptionEnabled === b.descriptionEnabled &&
+    a.description === b.description &&
     a.valueFrom === b.valueFrom &&
     a.valueTo === b.valueTo
   );
+};
+
+/**
+ * Normalizes a list of string options, removing duplicates and invalid values.
+ * Optionally includes a fallback value if it doesn't already exist in the list.
+ * @param {Array} baseOptions - The original array of options
+ * @param {string} fallbackValue - Optional fallback value to include
+ * @returns {Array<string>} Normalized array of unique, valid string options
+ */
+export const normalizeStringOptions = (baseOptions, fallbackValue = "") => {
+  const safeOptions = Array.isArray(baseOptions) ? baseOptions : [];
+  const seen = new Set();
+  const normalized = [];
+
+  for (const option of safeOptions) {
+    if (typeof option !== "string") {
+      continue;
+    }
+    if (!seen.has(option)) {
+      seen.add(option);
+      normalized.push(option);
+    }
+  }
+
+  if (fallbackValue && typeof fallbackValue === "string" && !seen.has(fallbackValue)) {
+    normalized.push(fallbackValue);
+  }
+
+  return normalized;
 };
