@@ -1,179 +1,218 @@
-# Quick Reference Card
+# Quick Reference - Phases 1 & 2
 
-## ⚡ Quick Start with tmux
+## Path Aliases
 
-```bash
-# Start complete dev environment in tmux
-./Scripts/dev-start.sh
-
-# Access at: http://localhost:5174
+```javascript
+import Component from '@/App';                    // src/
+import Nav from '@components/NavigationMenu';     // src/components/
+import Balance from '@pages/Balance';             // src/pages/
+import Report from '@features/Balances/BalanceReport';  // src/features/
+import { formatCurrency } from '@utils';          // src/utils/ (Phase 2)
+import Rest from '@lib/rest';                     // src/js/
+import logo from '@assets/banner.png';            // src/assets/
+import coa from '@data/coa.json';                 // components/data/
 ```
 
----
+## Hooks
 
-## 🚀 Starting Environments (Manual)
+### useModal
+```javascript
+import { useModal } from '@/hooks';
 
-```bash
-# Start Production
-docker compose up -d
+const modal = useModal();
 
-# Start Development
-docker compose -f docker-compose.dev.yml up -d
+// Methods
+modal.open()
+modal.close()
+modal.openWithData(data)
+modal.setLoading(true)
+modal.setError('Error message')
 
-# Start Both
-docker compose up -d && docker compose -f docker-compose.dev.yml up -d
+// State
+modal.isOpen
+modal.data
+modal.isLoading
+modal.error
 ```
 
-## 🔗 Access URLs
+### useAPI
+```javascript
+import { useAPI } from '@/hooks';
 
-| Environment | Frontend HTTPS | Frontend HTTP | API | Database |
-|-------------|---------------|---------------|-----|----------|
-| **Production** | `https://192.168.1.82:5175` | `http://192.168.1.82:3006` | `http://192.168.1.82:3005` | `192.168.1.82:5433` |
-| **Production (Tailscale)** | `https://fin.tail413695.ts.net` | - | - | - |
-| **Development** | `https://localhost:5176` | `http://localhost:3106` | `http://localhost:3105` | `localhost:5434` |
+// Auto-fetch
+const { data, isLoading, error, refetch } = useAPI(
+  () => Rest.fetchJson('/api/endpoint'),
+  { immediate: true }
+);
 
-## 📋 Two Key Scripts
-
-### 1. Copy Production Data to Dev
-```bash
-./Scripts/sync-db-prod-to-dev.sh
-```
-- Use this to test with real production data
-- Safe: only affects development database
-
-### 2. Deploy to Production
-```bash
-./Scripts/deploy-to-production.sh
-```
-- Backs up production first (saved to `Backups/`)
-- Rebuilds and restarts production
-- Verifies health after deployment
-
-## 📊 Check Status
-
-```bash
-# Production
-docker compose ps
-
-# Development
-docker compose -f docker-compose.dev.yml ps
-
-# All containers
-docker ps
+// Manual
+const { execute } = useAPI(
+  (id) => Rest.fetchJson(`/api/item/${id}`)
+);
+execute(123);
 ```
 
-## 🔄 Rebuild After Changes
+### useFormState
+```javascript
+import { useFormState } from '@/hooks';
 
-```bash
-# Rebuild Development
-docker compose -f docker-compose.dev.yml up -d --build
+const form = useFormState(
+  { name: '', email: '' },
+  {
+    validate: (values) => {
+      const errors = {};
+      if (!values.name) errors.name = 'Required';
+      return errors;
+    },
+    onSubmit: async (values) => {
+      await Rest.postJson('/api/submit', values);
+    }
+  }
+);
 
-# Rebuild Production (use deploy script instead!)
-./Scripts/deploy-to-production.sh
+<input
+  value={form.values.name}
+  onChange={form.handleChange('name')}
+  onBlur={form.handleBlur('name')}
+/>
+{form.errors.name && <span>{form.errors.name}</span>}
+<button onClick={form.handleSubmit}>Submit</button>
 ```
 
-## 📝 View Logs
+## PropTypes
 
-```bash
-# Production logs
-docker compose logs -f
+```javascript
+import PropTypes from 'prop-types';
 
-# Development logs
-docker compose -f docker-compose.dev.yml logs -f server-dev
+MyComponent.propTypes = {
+  // Primitives
+  name: PropTypes.string,
+  count: PropTypes.number,
+  isActive: PropTypes.bool,
+  onClick: PropTypes.func,
 
-# Specific service
-docker compose logs -f server
-docker compose -f docker-compose.dev.yml logs -f fin-postgres-dev
+  // Required
+  id: PropTypes.string.isRequired,
+
+  // Arrays
+  items: PropTypes.array,
+  names: PropTypes.arrayOf(PropTypes.string),
+
+  // Objects
+  user: PropTypes.object,
+  config: PropTypes.shape({
+    name: PropTypes.string,
+    age: PropTypes.number,
+  }),
+
+  // Multiple types
+  value: PropTypes.oneOfType([
+    PropTypes.string,
+    PropTypes.number,
+  ]),
+
+  // Specific values
+  size: PropTypes.oneOf(['small', 'medium', 'large']),
+
+  // Instances
+  paths: PropTypes.instanceOf(Set),
+};
 ```
 
-## 🛑 Stop Services
+## Common Patterns
 
-```bash
-# Stop Production
-docker compose down
+### Replace Modal State
+```javascript
+// Before
+const [showModal, setShowModal] = useState(false);
+const [data, setData] = useState(null);
+const [isLoading, setIsLoading] = useState(false);
+const [error, setError] = useState('');
 
-# Stop Development
-docker compose -f docker-compose.dev.yml down
-
-# Stop Both
-docker compose down && docker compose -f docker-compose.dev.yml down
+// After
+const modal = useModal({ initialData: null });
 ```
 
-## 🗄️ Database Access
+### Replace API State
+```javascript
+// Before
+const [data, setData] = useState(null);
+const [isLoading, setIsLoading] = useState(false);
+const [error, setError] = useState('');
+const isMountedRef = useRef(true);
 
-```bash
-# Production Database
-docker exec -it fin-postgres psql -U fin -d fin
+useEffect(() => {
+  // ... complex fetch logic with isMounted checks
+}, []);
 
-# Development Database
-docker exec -it fin-postgres-dev psql -U fin -d fin
-
-# Manual Backup (saved to Backups/ directory)
-mkdir -p Backups
-docker exec fin-postgres pg_dump -U fin -d fin -Fc > Backups/backup.dump
-
-# Manual Restore
-docker exec -i fin-postgres-dev pg_restore -U fin -d fin --clean < Backups/backup.dump
+// After
+const { data, isLoading, error } = useAPI(
+  () => Rest.fetchJson('/api/data'),
+  { immediate: true }
+);
 ```
 
-## 🔢 Version Management
+### Update Imports
+```javascript
+// Before
+import coa from '../../../../components/data/coa.json';
+import Rest from '../../js/rest.js';
 
-```bash
-# View current version
-cat VERSION
-
-# Increment version
-./Scripts/bump-version.sh patch   # 2.0.0 → 2.0.1
-./Scripts/bump-version.sh minor   # 2.0.0 → 2.1.0
-./Scripts/bump-version.sh major   # 2.0.0 → 3.0.0
-
-# Set specific version
-./Scripts/bump-version.sh 2.1.5
+// After
+import coa from '@data/coa.json';
+import Rest from '@utils/rest';
 ```
 
----
+## Phase 2: Utilities
 
-## 📦 Typical Workflow
+### Formatters
+```javascript
+import { formatCurrency, formatPercentage, formatRate } from '@utils';
 
-```bash
-# 1. Start dev with fresh data
-docker compose -f docker-compose.dev.yml up -d
-./Scripts/sync-db-prod-to-dev.sh
-
-# 2. Make code changes
-# (edit files in your IDE)
-
-# 3. Test changes
-docker compose -f docker-compose.dev.yml up -d --build
-# Access: https://localhost:5176
-
-# 4. Deploy when ready
-./Scripts/deploy-to-production.sh
+formatCurrency(1234.56);    // '$1,234.56'
+formatCurrency(-1234.56);   // '($1,234.56)'
+formatPercentage(0.15);     // '15.00%'
+formatRate(2.5);            // '2.50%'
 ```
 
-## 🔍 Troubleshooting
+### Date Helpers
+```javascript
+import { getToday, getMonthOptions, formatLocalDate } from '@utils';
 
-```bash
-# Container not starting?
-docker compose -f docker-compose.dev.yml logs service-name
-
-# Port already in use?
-sudo netstat -tlnp | grep PORT_NUMBER
-
-# Clean up everything (WARNING: removes all unused Docker resources)
-docker system prune -a
-
-# Restart specific service
-docker compose restart server
-docker compose -f docker-compose.dev.yml restart server-dev
+const today = getToday();              // '2024-01-15'
+const months = getMonthOptions();      // [{ value: '01', label: 'January' }, ...]
+const date = formatLocalDate(new Date()); // '2024-01-15'
 ```
 
-## 📄 Full Documentation
+### Tree Traversal
+```javascript
+import { collectCollapsiblePaths, buildAccountValueMap } from '@utils';
 
-- **DEV_WORKFLOW.md** - Complete development workflow guide
-- **DOCKER.md** - Docker setup and operations
-- **MIGRATION_STATUS.md** - Project status and architecture
+const paths = collectCollapsiblePaths(accounts);  // Set of expandable paths
+const map = buildAccountValueMap(accounts);       // Map of path -> value
+```
 
----
+## Phase 2: Forecast Context
 
-**Quick Help:** Run `docker compose ps` and `docker compose -f docker-compose.dev.yml ps` to see what's running.
+```javascript
+import { useForecast } from '@/contexts';
+
+const {
+  scenarios,           // Array of scenarios
+  assumptions,         // Full assumptions object
+  isLoadingAssumptions, // Loading state
+  refreshAssumptions   // Refresh after changes
+} = useForecast();
+
+// Use scenarios without fetching
+<select>
+  {scenarios.map(s => <option key={s.Name}>{s.Name}</option>)}
+</select>
+```
+
+## Full Documentation
+
+- **ARCHITECTURE_GUIDE.md** - Phase 1 complete guide
+- **PHASE2_ARCHITECTURE.md** - Phase 2 utilities and contexts
+- **PHASE1_COMPLETE.md** - Phase 1 implementation details
+- **PHASE2_COMPLETE.md** - Phase 2 implementation details
