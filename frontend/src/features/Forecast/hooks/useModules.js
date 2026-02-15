@@ -9,9 +9,7 @@ import Rest from "../../../js/rest.js";
  * @returns {string} Unique module identifier
  */
 export const getModuleId = (module) =>
-  module?._id ??
   module?.id ??
-  module?.Id ??
   `${module?.Scenario ?? "module"}-${module?.Account ?? module?.Name ?? ""}`;
 
 /**
@@ -54,13 +52,11 @@ export function useModules(selectedScenario) {
     const loadModules = async () => {
       setLoading(true);
       try {
-        // Using v2 API (PostgreSQL) - returns modules for specific scenario
         const data = await Rest.fetchJson(
           `/api/v2/forecast/modules?scenario=${encodeURIComponent(selectedScenario)}`
         );
         if (!isMounted) return;
 
-        // v2 API returns array directly with PascalCase fields for compatibility
         const filtered = data || [];
         setModules(filtered);
         setError("");

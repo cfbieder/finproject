@@ -120,7 +120,7 @@ export default function TransactionBudgetFilter({
       try {
         // Using v2 API (PostgreSQL)
         const [accountsData, categoriesData] = await Promise.all([
-          Rest.fetchAccountsV2({ activeOnly: true }),
+          Rest.fetchAccountsV2({ activeOnly: true, section: 'balance_sheet' }),
           Rest.fetchCategoriesV2({ activeOnly: true }),
         ]);
         if (!isActive) {

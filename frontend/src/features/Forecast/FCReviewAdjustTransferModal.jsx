@@ -34,7 +34,6 @@ export default function FCReviewAdjustTransferModal({
       setLoading(true);
       setError(null);
       try {
-        // Using v2 API (PostgreSQL)
         const response = await Rest.fetchJson(
           `/api/v2/forecast/modules?scenario=${encodeURIComponent(scenarioName)}`
         );
@@ -145,8 +144,7 @@ export default function FCReviewAdjustTransferModal({
         }
       });
 
-      // Update the module using v2 API (PostgreSQL)
-      await Rest.fetchJson(`/api/v2/forecast/modules/v1/${moduleData._id}`, {
+      await Rest.fetchJson(`/api/v2/forecast/modules/${moduleData.id}`, {
         method: "PUT",
         headers: {
           "Content-Type": "application/json",
@@ -157,7 +155,6 @@ export default function FCReviewAdjustTransferModal({
         }),
       });
 
-      // Generate forecast (v2 API wraps v1 generator)
       const encodedScenario = encodeURIComponent(scenarioName);
       await Rest.fetchJson(`/api/v2/forecast/generate/${encodedScenario}`, {
         method: "POST",

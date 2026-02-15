@@ -6,15 +6,12 @@ Future work, known issues, and improvement proposals for the Fin application.
 
 ## 1. Known Issues
 
-1. **`/api/v2/accounts/categories`** returns 500 — pre-existing issue, not migration-related.
-2. **`/api/v2/exchange-rates`** returns 404 — route may not be implemented.
-3. **No test suite** exists currently.
-4. **Cloud-init ISO** still attached to the VM as a CD-ROM. Harmless but can be ejected:
+1. **No test suite** exists currently.
+2. **Cloud-init ISO** still attached to the VM as a CD-ROM. Harmless but can be ejected:
    ```bash
    virsh --connect qemu:///system change-media fin sda --eject
    ```
-5. **Tax Reserve orphan accounts:** "Tax Reserve - US" (id 53) and "Tax Reserve - PL" (id 54) have `section=balance_sheet` but their parent "Tax Reserve" (id 52) has `section=profit_loss`. This causes them to appear as orphan root nodes in the balance sheet SQL tree. Pre-existing data issue — needs decision on whether Tax Reserve belongs in balance_sheet or profit_loss.
-6. **Timezone-sensitive date handling:** The `pg` (node-postgres) library serializes JavaScript `Date` objects using the server's local timezone. Production containers run in UTC; the dev host runs in America/New_York (EST, UTC-5). Fixed in `reports.js` and `budget.js` by passing YYYY-MM-DD strings directly to PostgreSQL. Any future date-based queries should follow the same pattern — never use `new Date()` for date-only values passed to SQL.
+3. **Timezone-sensitive date handling:** The `pg` (node-postgres) library serializes JavaScript `Date` objects using the server's local timezone. Production containers run in UTC; the dev host runs in America/New_York (EST, UTC-5). Fixed in `reports.js` and `budget.js` by passing YYYY-MM-DD strings directly to PostgreSQL. Any future date-based queries should follow the same pattern — never use `new Date()` for date-only values passed to SQL.
 
 ---
 
@@ -215,6 +212,9 @@ Timeline of the MongoDB-to-PostgreSQL migration and infrastructure changes.
 
 | Date | Event |
 |------|-------|
+| 2026-02-14 | **V1 compat removal:** Consolidated forecast routes — removed ~300 lines of unused v2-only REST endpoints (individual scenario/module/incexp CRUD), merged `/modules/v1` into `/modules`, removed `_id` fields from responses, cleaned up v1 compat comments in frontend. Renamed `mongoImportReport`/`mongoUpdateReport` to `importReport`/`updateReport` in dataPaths.js. |
+| 2026-02-14 | **Data fix:** Re-parented "Tax Reserve - US" (id 53) and "Tax Reserve - PL" (id 54) from "Tax Reserve" (id 52, profit_loss) to "Liabilities" (id 51, balance_sheet). They are independent balance sheet nodes, not children of the P&L Tax Reserve account. Applied to both prod and dev databases. |
+| 2026-02-14 | **Endpoint fixes:** Implemented `GET /api/v2/accounts/categories` (categories mapped to accounts) and `GET /api/v2/util/exchange-rates` (bulk/historical exchange rates). Both were listed as known issues (500/404) but had never been implemented. Audited and corrected API documentation to match actual routes. |
 | 2026-02-14 | **V1 retirement:** Removed all V1 legacy routes (`routes/coa.js`, `routes/util.js`, `routes/health.js`) and the `server/src/routes/` directory. Removed `coa.json`, `coa_traits.json`, and backup copies from `components/data/`. Migrated `forecast.js` `/modules/unmatched` from coa.json to SQL. Removed `coa` entry from `dataPaths.js`. All endpoints now exclusively use PostgreSQL via V2 routes. |
 | 2026-02-14 | **Timezone fix:** Fixed ±1 day date shift in `reports.js` and `budget.js` caused by `pg` library serializing JS `Date` objects in local timezone (UTC on prod vs EST on dev). Now passes YYYY-MM-DD strings directly to PostgreSQL. |
 | 2026-02-14 | **COA migration to SQL:** Migrated `reports.js` (balance sheet, cash flow), `budget.js` (cash flow, category-groups) from reading `coa.json` to using `accountsRepo.getNestedTree()` with recursive CTE. |

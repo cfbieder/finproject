@@ -48,6 +48,63 @@ router.get('/currencies', async (req, res, next) => {
 });
 
 /**
+ * GET /api/v2/util/exchange-rates
+ * Get exchange rates from the local database (bulk/historical)
+ * Query params: currencies (comma-separated), fromDate, toDate, latest (boolean)
+ */
+router.get('/exchange-rates', async (req, res, next) => {
+  try {
+    const { currencies, fromDate, toDate, latest } = req.query;
+
+    const conditions = ['to_currency = \'USD\''];
+    const params = [];
+    let paramIndex = 1;
+
+    if (currencies) {
+      const currencyList = currencies.split(',').map(c => c.trim().toUpperCase()).filter(Boolean);
+      if (currencyList.length > 0) {
+        conditions.push(`from_currency = ANY($${paramIndex++})`);
+        params.push(currencyList);
+      }
+    }
+
+    if (fromDate) {
+      conditions.push(`rate_date >= $${paramIndex++}`);
+      params.push(fromDate);
+    }
+
+    if (toDate) {
+      conditions.push(`rate_date <= $${paramIndex++}`);
+      params.push(toDate);
+    }
+
+    let sql;
+    if (latest === 'true') {
+      sql = `
+        SELECT DISTINCT ON (from_currency)
+          from_currency, to_currency, rate, rate_date, source
+        FROM exchange_rates
+        WHERE ${conditions.join(' AND ')}
+        ORDER BY from_currency, rate_date DESC
+      `;
+    } else {
+      sql = `
+        SELECT from_currency, to_currency, rate, rate_date, source
+        FROM exchange_rates
+        WHERE ${conditions.join(' AND ')}
+        ORDER BY from_currency, rate_date DESC
+      `;
+    }
+
+    const result = await db.query(sql, params);
+    res.json({ data: result.rows });
+  } catch (error) {
+    console.error('[v2/util/exchange-rates] Failed:', error);
+    next(error);
+  }
+});
+
+/**
  * GET /api/v2/util/exchange-rate
  * Get exchange rate for a currency pair
  */

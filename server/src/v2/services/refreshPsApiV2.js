@@ -31,8 +31,8 @@ const OUTPUT_FILES = {
   updated: tempFiles.updatedTransactions,
   new: tempFiles.newTransactions,
   existing: tempFiles.existingTransactions,
-  mongoImportReport: tempFiles.mongoImportReport,
-  mongoUpdateReport: tempFiles.mongoUpdateReport,
+  importReport: tempFiles.importReport,
+  updateReport: tempFiles.updateReport,
 };
 
 /**
@@ -415,7 +415,7 @@ async function updateTransactionsInPostgres(filePath) {
       console.log(
         `${PSAPI_PREFIX} No entries found in ${filePath}; nothing to update.`
       );
-      const reportPath = OUTPUT_FILES.mongoUpdateReport;
+      const reportPath = OUTPUT_FILES.updateReport;
       fs.mkdirSync(path.dirname(reportPath), { recursive: true });
       fs.writeFileSync(reportPath, '[]');
       return { matched: 0, modified: 0, upserted: 0, skipped: 0, total: 0 };
@@ -434,7 +434,7 @@ async function updateTransactionsInPostgres(filePath) {
       console.log(
         `${PSAPI_PREFIX} Parsed 0 transactions from ${filePath}; nothing to update.`
       );
-      const reportPath = OUTPUT_FILES.mongoUpdateReport;
+      const reportPath = OUTPUT_FILES.updateReport;
       fs.mkdirSync(path.dirname(reportPath), { recursive: true });
       fs.writeFileSync(reportPath, '[]');
       return { matched: 0, modified: 0, upserted: 0, skipped: 0, total: 0 };
@@ -446,7 +446,7 @@ async function updateTransactionsInPostgres(filePath) {
       console.log(
         `${PSAPI_PREFIX} No PSdata records produced from ${filePath}; nothing to update.`
       );
-      const reportPath = OUTPUT_FILES.mongoUpdateReport;
+      const reportPath = OUTPUT_FILES.updateReport;
       fs.mkdirSync(path.dirname(reportPath), { recursive: true });
       fs.writeFileSync(reportPath, '[]');
       return {
@@ -484,7 +484,7 @@ async function updateTransactionsInPostgres(filePath) {
       }
     }
 
-    const reportPath = OUTPUT_FILES.mongoUpdateReport;
+    const reportPath = OUTPUT_FILES.updateReport;
     fs.mkdirSync(path.dirname(reportPath), { recursive: true });
     fs.writeFileSync(reportPath, JSON.stringify(modifiedRecords, null, 2));
 
@@ -499,7 +499,7 @@ async function updateTransactionsInPostgres(filePath) {
       `${PSAPI_PREFIX} Failed to update transactions from ${filePath}:`,
       err.message
     );
-    const reportPath = OUTPUT_FILES.mongoUpdateReport;
+    const reportPath = OUTPUT_FILES.updateReport;
     fs.mkdirSync(path.dirname(reportPath), { recursive: true });
     fs.writeFileSync(reportPath, '[]');
     return null;
@@ -548,7 +548,7 @@ async function processTransactionsV2(daysHistoryInput) {
   );
   await importTransactionsToPostgres(
     OUTPUT_FILES.new,
-    OUTPUT_FILES.mongoImportReport
+    OUTPUT_FILES.importReport
   );
 
   // Step 5: Update changed transactions in PostgreSQL
@@ -556,7 +556,7 @@ async function processTransactionsV2(daysHistoryInput) {
     `${PSAPI_PREFIX} Processing changed transactions from ${OUTPUT_FILES.updated} into PostgreSQL...`
   );
   const modificationResult = await updateTransactionsInPostgres(OUTPUT_FILES.updated);
-  const modificationResultPath = OUTPUT_FILES.mongoUpdateReport;
+  const modificationResultPath = OUTPUT_FILES.updateReport;
   fs.mkdirSync(path.dirname(modificationResultPath), { recursive: true });
   fs.writeFileSync(
     modificationResultPath,

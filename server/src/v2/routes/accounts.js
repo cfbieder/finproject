@@ -57,6 +57,31 @@ router.get('/balances', async (req, res, next) => {
   }
 });
 
+// GET /api/v2/accounts/categories - Categories mapped to accounts
+router.get('/categories', async (req, res, next) => {
+  try {
+    const sql = `
+      SELECT
+        a.id as account_id,
+        a.name as account_name,
+        a.section,
+        a.account_type,
+        c.id as category_id,
+        c.name as category_name,
+        c.is_transfer
+      FROM accounts a
+      INNER JOIN categories c ON c.mapped_account_id = a.id
+      WHERE a.is_active = TRUE
+      ORDER BY a.name, c.name
+    `;
+    const db = require('../db');
+    const result = await db.query(sql);
+    res.json({ data: result.rows });
+  } catch (error) {
+    next(error);
+  }
+});
+
 // GET /api/v2/accounts/:id
 router.get('/:id', async (req, res, next) => {
   try {

@@ -102,7 +102,6 @@ export default function FCExpSetup() {
     const loadAssumptions = async () => {
       setIsLoading(true);
       try {
-        // Using v2 API (PostgreSQL)
         const data = await Rest.fetchJson("/api/v2/forecast/assumptions");
         if (isMounted) {
           setAssumptions(data);
@@ -170,7 +169,6 @@ export default function FCExpSetup() {
 
     const loadAccounts = async () => {
       try {
-        // Using v2 API
         const data = await Rest.fetchJson("/api/v2/util/coa/CashFlow");
         if (!isMounted) return;
 
@@ -310,7 +308,6 @@ export default function FCExpSetup() {
     const loadEntries = async () => {
       setEntriesLoading(true);
       try {
-        // Using v2 API (PostgreSQL)
         const payload = await Rest.fetchJson(
           `/api/v2/forecast/incomeexpense?scenario=${encodeURIComponent(
             selectedScenario
@@ -414,7 +411,7 @@ export default function FCExpSetup() {
    * @returns {string} Unique identifier for the entry
    */
   const getEntryId = (entry) =>
-    entry?._id || `${entry?.Account || ""}-${entry?.Name || ""}`;
+    entry?.id || `${entry?.Account || ""}-${entry?.Name || ""}`;
 
   /**
    * Effect: Auto-select first entry when entries list changes
@@ -510,7 +507,6 @@ export default function FCExpSetup() {
     setEntriesError("");
     setEntriesLoading(true);
     try {
-      // Using v2 API (PostgreSQL)
       await Rest.fetchJson("/api/v2/forecast/incomeexpense", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -578,7 +574,7 @@ export default function FCExpSetup() {
    * Refreshes the entries list on success
    */
   const handleDeleteEntry = async () => {
-    if (!selectedEntry?._id) {
+    if (!selectedEntry?.id) {
       setDeleteError("Cannot delete entry without an identifier.");
       return;
     }
@@ -586,9 +582,8 @@ export default function FCExpSetup() {
     setDeleteError("");
     setDeleteSaving(true);
     try {
-      // Using v2 API (PostgreSQL)
       await Rest.fetchJson(
-        `/api/v2/forecast/incomeexpense/${encodeURIComponent(selectedEntry._id)}`,
+        `/api/v2/forecast/incomeexpense/${encodeURIComponent(selectedEntry.id)}`,
         { method: "DELETE" }
       );
       const payload = await Rest.fetchJson(
@@ -717,7 +712,7 @@ export default function FCExpSetup() {
    * Validates and normalizes data before sending to API
    */
   const handleSaveEdit = async () => {
-    if (!selectedEntry?._id || !editForm) {
+    if (!selectedEntry?.id || !editForm) {
       return;
     }
 
@@ -743,9 +738,8 @@ export default function FCExpSetup() {
     setEditError("");
     setEditSaving(true);
     try {
-      // Using v2 API (PostgreSQL)
       await Rest.fetchJson(
-        `/api/v2/forecast/incomeexpense/${encodeURIComponent(selectedEntry._id)}`,
+        `/api/v2/forecast/incomeexpense/${encodeURIComponent(selectedEntry.id)}`,
         {
           method: "PUT",
           headers: { "Content-Type": "application/json" },

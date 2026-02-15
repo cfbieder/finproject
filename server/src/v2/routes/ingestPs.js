@@ -392,7 +392,7 @@ router.post('/appdata/last-refresh', async (req, res, next) => {
  */
 router.get('/new-transactions', async (req, res) => {
   try {
-    const raw = await fs.readFile(tempFiles.mongoImportReport, 'utf8');
+    const raw = await fs.readFile(tempFiles.importReport, 'utf8');
     const parsed = raw.trim() ? JSON.parse(raw) : [];
     res.json(Array.isArray(parsed) ? parsed : [parsed].filter(Boolean));
   } catch (error) {
@@ -410,7 +410,7 @@ router.get('/new-transactions', async (req, res) => {
  */
 router.get('/modified-transactions', async (req, res) => {
   try {
-    const raw = await fs.readFile(tempFiles.mongoUpdateReport, 'utf8');
+    const raw = await fs.readFile(tempFiles.updateReport, 'utf8');
     const parsed = raw.trim() ? JSON.parse(raw) : [];
     res.json(Array.isArray(parsed) ? parsed : [parsed].filter(Boolean));
   } catch (error) {

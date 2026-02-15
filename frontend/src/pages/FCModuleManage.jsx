@@ -214,8 +214,7 @@ export default function FCModuleManage() {
         : null;
 
     try {
-      // Using v2 API (PostgreSQL) with v1-compatible format
-      await Rest.fetchJson("/api/v2/forecast/modules/v1", {
+      await Rest.fetchJson("/api/v2/forecast/modules", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -329,8 +328,7 @@ export default function FCModuleManage() {
     event.preventDefault();
     if (!selectedModule || !editForm) return;
 
-    const moduleId =
-      selectedModule._id || selectedModule.id || selectedModule.Id;
+    const moduleId = selectedModule.id;
     if (!moduleId) {
       setEditError("Cannot edit this module because it has no id.");
       return;
@@ -383,8 +381,7 @@ export default function FCModuleManage() {
 
     setEditSaving(true);
     try {
-      // Using v2 API (PostgreSQL) with v1-compatible format
-      await Rest.fetchJson(`/api/v2/forecast/modules/v1/${moduleId}`, {
+      await Rest.fetchJson(`/api/v2/forecast/modules/${moduleId}`, {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(payload),
@@ -423,16 +420,14 @@ export default function FCModuleManage() {
    */
   const handleDeleteModule = async () => {
     if (!selectedModule) return;
-    const moduleId =
-      selectedModule._id || selectedModule.id || selectedModule.Id;
+    const moduleId = selectedModule.id;
     if (!moduleId) {
       setDeleteError("Cannot delete this module because it has no id.");
       return;
     }
     setDeleteSaving(true);
     try {
-      // Using v2 API (PostgreSQL)
-      await Rest.fetchJson(`/api/v2/forecast/modules/v1/${moduleId}`, {
+      await Rest.fetchJson(`/api/v2/forecast/modules/${moduleId}`, {
         method: "DELETE",
       });
       reloadModules();
@@ -488,8 +483,7 @@ export default function FCModuleManage() {
       const moduleType = moduleTraits.Type || "";
       const moduleCurrency = moduleTraits.Currency || "USD";
 
-      // Using v2 API (PostgreSQL) with v1-compatible format
-      await Rest.fetchJson("/api/v2/forecast/modules/v1", {
+      await Rest.fetchJson("/api/v2/forecast/modules", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({

@@ -240,7 +240,7 @@ export function useTransactionActualAccountOptions() {
     (async () => {
       try {
         // Using v2 API (PostgreSQL)
-        const accounts = await Rest.fetchAccountsV2({ activeOnly: true });
+        const accounts = await Rest.fetchAccountsV2({ activeOnly: true, section: 'balance_sheet' });
         if (!isActive) {
           return;
         }

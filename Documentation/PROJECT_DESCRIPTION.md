@@ -214,37 +214,50 @@ Controlled by `VITE_APP_MODE` in `.env-cmdrc`, implemented in `main.jsx`.
 All endpoints mounted at `/api/v2`. Nginx rewrites legacy `/api/*` paths to `/api/v2/*`. No V1 routes remain.
 
 #### Accounts (`/api/v2/accounts`)
-- `GET /` — List | `GET /:id` — Single | `POST /` — Create | `PUT /:id` — Update | `DELETE /:id` — Delete
+- `GET /` — List | `GET /tree` — Hierarchical tree | `GET /traits` — Traits map | `GET /balances` — Account balances
+- `GET /categories` — Categories mapped to accounts | `GET /:id` — Single | `GET /:id/children` | `GET /:id/descendants`
+- `POST /` — Create | `PATCH /:id` — Update | `DELETE /:id` — Soft delete
 
 #### Budget (`/api/v2/budget`)
-- `GET /entries` — List (by year, version) | `POST /entries` — Create | `PATCH /entries/:id` — Update | `DELETE /entries` — Bulk delete | `GET /rates` — FX rates
-- `GET /cash-flow` — Budget vs actual cash flow (P&L) | `GET /category-groups` — Income/Expense category groups from COA
+- `GET /versions` — List versions | `GET /versions/:id` | `POST /versions` | `POST /versions/:id/copy` | `PATCH /versions/:id`
+- `GET /entries` — List entries | `GET /entries/:id` | `POST /entries` — Create (single/batch) | `PATCH /entries/:id` | `DELETE /entries/:id`
+- `GET /entries/summary/by-category` | `GET /entries/summary/by-month` | `GET /compare` — Budget vs actual
+- `GET /summary` — Budget vs actual by month | `GET /category-groups` — Income/Expense groups from COA
+- `GET /` — v1 compat entries | `GET /actual-entries` — v1 compat actuals | `GET /cash-flow` — Budget cash flow P&L
 
 #### Categories (`/api/v2/categories`)
-- `GET /` — List | `GET /:id` — Single | `POST /` — Create | `PUT /:id` — Update | `DELETE /:id` — Delete
+- `GET /` — List | `GET /tree` — Hierarchical tree | `GET /totals` — Category totals
+- `GET /:id` — Single | `POST /` — Create | `PATCH /:id` — Update | `DELETE /:id` — Soft delete
 
 #### Forecast (`/api/v2/forecast`)
-- `GET /scenarios` | `POST /scenarios` | `DELETE /scenarios/:id` | `POST /scenarios/:id/copy` | `POST /scenarios/:id/commit`
+- `GET /assumptions` | `PUT /assumptions` — File-based assumptions with PostgreSQL scenarios
+- `GET /scenarios` | `GET /scenarios/years/:scenario` | `DELETE /scenarios/byname/:name` | `POST /scenarios/byname/:name/copy`
 - `GET /modules` | `GET /modules/unmatched` | `POST /modules` | `PUT /modules/:id` | `DELETE /modules/:id`
-- `GET /income-expense` | `POST /income-expense` | `PUT /income-expense/:id` | `DELETE /income-expense/:id`
+- `GET /incomeexpense` | `POST /incomeexpense` | `PUT /incomeexpense/:id` | `DELETE /incomeexpense/:id`
 - `GET /entries` | `POST /generate/:scenario`
+- `GET /audittrail/:scenario/:module` | `DELETE /audittrail/:scenario`
 
 #### Health (`/api/v2/health`)
 - `GET /` — Health check with DB connectivity
 
 #### Ingest PS (`/api/v2/ingest-ps`)
-- `POST /` — Ingest CSV | `POST /refresh-ps` — Fetch from API | `POST /clearall` — Clear staging | `POST /sync-to-transactions` — Sync staging to transactions
-- `GET /psdata/count` | `GET /analyze-ps` | `GET /new-transactions` | `GET /modified-transactions` | `POST /appdata/last-refresh`
+- `POST /` — Ingest CSV (auto-sync) | `POST /upload-ps` — Upload CSV file | `POST /refresh-ps` — Fetch from API (auto-sync)
+- `POST /clearall` — Clear staging | `POST /sync-to-transactions` — Sync staging to transactions
+- `GET /psdata/count` | `GET /psdata/options` — Distinct accounts/categories
+- `GET /analyze-ps` | `POST /analyze-ps` — Analyze for missing accounts/categories
+- `GET /new-transactions` | `GET /modified-transactions` | `POST /appdata/last-refresh`
 
 #### Reports (`/api/v2/reports`)
-- `GET /balance` | `GET /cash-flow` | `GET /cash-flow/transactions` | `GET /cash-flow-monthly`
+- `GET /balance` — Balance sheet | `GET /cash-flow` — P&L report | `GET /cash-flow/transactions` — Transactions by category
 
 #### Transactions (`/api/v2/transactions`)
-- `GET /` — List (with filtering, pagination) | `GET /:id` — Single | `POST /` — Create | `PATCH /:id` — Update | `DELETE /` — Bulk delete
+- `GET /` — List (with filtering, pagination) | `GET /summary/by-category` | `GET /summary/by-month`
+- `GET /:id` — Single | `POST /` — Create | `PATCH /:id` — Update | `DELETE /:id` — Delete
 
 #### Utility (`/api/v2/util`)
 - `GET /appdata` | `POST /appdata` | `POST /backup-database`
-- `GET /coa/BalanceSheet` | `GET /coa/CashFlow` | `GET /coa-traits` | `GET /currencies`
+- `GET /exchange-rates` — Bulk/historical rates | `GET /exchange-rate` — Single rate lookup | `GET /currencies`
+- `GET /coa/BalanceSheet` | `GET /coa/CashFlow` | `GET /coa-traits`
 - `POST /coa/add` | `POST /coa/update` | `POST /coa/delete`
 
 ### Repository Pattern

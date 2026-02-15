@@ -47,8 +47,8 @@ const tempFiles = {
   updatedTransactions: path.join(TEMP_DIR, "updated_transactions.json"),
   newTransactions: path.join(TEMP_DIR, "new_transactions.json"),
   existingTransactions: path.join(TEMP_DIR, "existing_transactions.json"),
-  mongoImportReport: path.join(TEMP_DIR, "mongo_import_report.json"),
-  mongoUpdateReport: path.join(TEMP_DIR, "mongo_update_report.json"),
+  importReport: path.join(TEMP_DIR, "import_report.json"),
+  updateReport: path.join(TEMP_DIR, "update_report.json"),
 };
 
 const resolveTempFile = (filename) => path.join(TEMP_DIR, filename);
