@@ -55,12 +55,13 @@ const SELECTION_COLUMN = { key: "selected", label: "Selected" };
 
 const TRANSACTION_COLUMNS = [
   { key: "Date", label: "Date", render: formatDateValue, noWrap: true },
-  { key: "Description1", label: "Description", render: formatTextValue },
+  { key: "Description1", label: "Description", render: formatTextValue, style: { maxWidth: "220px", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" } },
   {
     key: "Amount",
     label: "LC Amount",
     render: formatNumberValue,
     alignRight: true,
+    noWrap: true,
   },
   { key: "Currency", label: "Currency", render: formatTextValue },
   {
@@ -68,6 +69,7 @@ const TRANSACTION_COLUMNS = [
     label: "USD Amount",
     render: formatNumberValue,
     alignRight: true,
+    noWrap: true,
   },
   { key: "Account", label: "Account", render: formatTextValue },
   { key: "Category", label: "Category", render: formatTextValue },
@@ -177,7 +179,10 @@ export default function TransactionTable({
                             ? " trans-budget-table__value--numeric"
                             : ""
                         }`}
-                        style={column.noWrap ? { whiteSpace: "nowrap" } : undefined}
+                        style={{
+                          ...(column.noWrap ? { whiteSpace: "nowrap" } : undefined),
+                          ...column.style,
+                        }}
                       >
                         {column.render(entry[column.key])}
                       </td>

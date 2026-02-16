@@ -45,8 +45,8 @@ All four god components have been refactored:
 |-----------|--------|-------|--------------|
 | `BudgetInput.jsx` | 762 | 549 | Extracted `useBudgetEntrySubmit` hook; replaced inline selectors with shared `CategorySelector`, `AccountSelector`, `PeriodSelector`; added tabbed Balances/Entry panel and collapsible filters |
 | `FCExpSetup.jsx` | 869 | 159 | Extracted 4 hooks: `useFCExpAssumptions`, `useFCExpAccountHierarchy`, `useFCExpEntries`, `useFCExpCrud` |
-| `TransActual.jsx` | 393 | 282 | Unified with TransBudget via shared `features/Transaction/` module |
-| `TransBudget.jsx` | 295 | 204 | Unified with TransActual via shared `features/Transaction/` module |
+| `TransActual.jsx` | 393 | 282 | Unified with TransBudget via shared `features/Transaction/` module. Filter bar redesigned with `TransactionFilterActual` using shared `PeriodSelector`, `CategorySelector`, `AccountSelector`. |
+| `TransBudget.jsx` | 295 | 204 | Unified with TransActual via shared `features/Transaction/` module. Filter bar redesigned with `TransactionFilterBudget` using shared `PeriodSelector`, `CategorySelector`, `AccountSelector`. |
 
 ### 3.2 DRY Violations
 
@@ -62,7 +62,7 @@ All four god components have been refactored:
 |-----------|---------|---------------|
 | `<Modal>` | 5+ places | Each modal is custom-built |
 | `<DataTable>` | 6+ places | Tables are custom each time |
-| `<FilterPanel>` | 4+ places | Filter UI duplicated |
+| ~~`<FilterPanel>`~~ | 4+ places | Partially addressed: Budget Worksheet, Actual Transactions, and Budget Transactions now use shared `PeriodSelector` + `CategorySelector` + `AccountSelector` in collapsible three-column layout. |
 | `<FormField>` | 10+ places | Inputs are custom per form |
 | `<LoadingSpinner>` | All pages | "Loading..." text varies |
 | `<ErrorMessage>` | All pages | Error display inconsistent |
@@ -78,7 +78,7 @@ The feature module pattern is now in use. Current structure:
 frontend/src/
 ├── components/          # Shared UI (Layout, NavigationMenu, Breadcrumbs, Footer, Toast, LoadingSpinner, CategorySelector, PeriodSelector, AccountSelector)
 ├── features/            # Domain-specific feature modules
-│   ├── Transaction/     # ✅ Unified actual + budget + review (config-driven: ACTUAL_CONFIG, BUDGET_CONFIG, REVIEW_CONFIG; shared hooks, components, utils)
+│   ├── Transaction/     # ✅ Unified actual + budget + review (config-driven: ACTUAL_CONFIG, BUDGET_CONFIG, REVIEW_CONFIG; shared hooks, components, utils; TransactionFilterActual + TransactionFilterBudget with PeriodSelector/CategorySelector/AccountSelector)
 │   ├── BudgetEntry/     # ✅ Budget worksheet (hooks: useFilterOptions, useBalanceData, useCurrencyData, useBudgetEntrySubmit)
 │   ├── Forecast/        # ✅ Scenarios, modules, assumptions (hooks: useFCExpAssumptions, useFCExpAccountHierarchy, useFCExpEntries, useFCExpCrud)
 │   ├── Balances/        # Balance sheet components
@@ -105,7 +105,7 @@ Future: Extract shared `components/ui/`, `components/forms/`, `components/feedba
 | Empty states | Inconsistent messages | Unified `<EmptyState>` |
 | Button styles | `.generate-report-button` everywhere | Button variants: primary, secondary, danger |
 | Form validation | Scattered, inconsistent | Centralized validation with error messages |
-| Date selection | Different controls per page | Partially addressed: `PeriodSelector` with presets on Budget Worksheet. Other pages pending. |
+| Date selection | Different controls per page | Partially addressed: `PeriodSelector` with presets on Budget Worksheet, Actual Transactions, and Budget Transactions. Other pages pending. |
 
 ### 3.6 Performance Optimizations
 
@@ -216,6 +216,7 @@ Timeline of the MongoDB-to-PostgreSQL migration and infrastructure changes.
 
 | Date | Event |
 |------|-------|
+| 2026-02-16 | **Transaction pages filter bar redesign:** Replaced raw HTML multi-select elements and checkbox-toggled filters on both `/trans-actual` and `/trans-budget` with the standard shared components (`PeriodSelector`, `CategorySelector`, `AccountSelector`). Added collapsible Show/Hide filter toggle matching Budget Worksheet pattern. Removed separate currency filter (now implicit via AccountSelector's currency grouping). Added `hideBudgetYear` prop to `PeriodSelector` for non-budget contexts. Changed transaction table date format from "Month Year" to mm/dd/yy. New files: `TransactionFilterActual.jsx`, `TransactionFilterBudget.jsx`, `TransactionFilterActual.css`. Old `TransactionFilter.jsx` retained as legacy (unused). |
 | 2026-02-16 | **RefreshPS page enhancements:** Added "Review & Edit New Transactions" feature — editable transaction table on `/refresh-ps` using shared `TransactionTable`, `TransactionEditModal`, and `REVIEW_CONFIG` (Description + Category fields only). New backend endpoint `POST /api/v2/ingest-ps/review-new-transactions` queries `psdata_staging` LEFT JOINed with `transactions` to include unsynced records. Replaced toggle buttons with radio-style tab selector (Review & Edit New / New Transactions / Modified — one active at a time, default: Review). Integrated `CategorySelector` component into `TransactionEditModal` for hierarchical, searchable single-select category picking (via new `plTree` prop). Fixed `GET /api/v2/util/appdata` to merge JSON file data with PostgreSQL `app_data` table (resolving "No ingest/refresh recorded" display bug). Improved toolbar styling with dedicated action button and tab layout. |
 | 2026-02-16 | **Budget Worksheet UI overhaul:** Created three reusable shared components — `CategorySelector` (COA-hierarchy-ordered, searchable multi-select), `AccountSelector` (currency-grouped, searchable multi-select), `PeriodSelector` (preset-based: This Month, Last Month, This/Last Year, Custom). Replaced inline filter controls with shared components. Added collapsible filter controls (Show/Hide toggle). Replaced side-by-side Balances + Budget Entry layout with a tabbed panel showing selected category in the tab header. Removed redundant `budget-region` wrappers from `BudgetRegionBalances` and `BudgetRegionBudgetEntry`. |
 | 2026-02-15 | **New feature:** Added Budget Variances page (`/budget-variances`) — flat line-item table showing budget vs actual with variance, sorted by largest absolute variance. Uses same data-fetching pattern as Budget Realization (cash-flow + budget cash-flow APIs) with leaf-level extraction. Simple month/year selector defaulting to current month. |
