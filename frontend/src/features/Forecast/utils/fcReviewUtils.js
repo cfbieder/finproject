@@ -21,6 +21,53 @@ export const parseLevelAccounts = (data, includeMapping = false) => {
   }
 
   const mapping = new Map();
+
+  // Detect format: new format uses { name, children } objects from PostgreSQL
+  const isTreeFormat =
+    data.length > 0 && data[0] && typeof data[0].name === "string";
+
+  if (isTreeFormat) {
+    const rows = [];
+    for (const level1Node of data) {
+      if (!level1Node || !level1Node.name) continue;
+      const level1 = level1Node.name;
+      rows.push({ label: level1, level: 1 });
+
+      const children = Array.isArray(level1Node.children)
+        ? level1Node.children
+        : [];
+      for (const level2Node of children) {
+        if (!level2Node || !level2Node.name) continue;
+        const level2 = level2Node.name;
+        rows.push({ label: level2, level: 2 });
+
+        if (includeMapping) {
+          mapping.set(level2, { level2, level1 });
+
+          const addDescendants = (node) => {
+            if (!node || typeof node !== "object") return;
+            if (node.name) {
+              mapping.set(node.name, { level2, level1 });
+            }
+            if (Array.isArray(node.children)) {
+              for (const child of node.children) {
+                addDescendants(child);
+              }
+            }
+          };
+
+          if (Array.isArray(level2Node.children)) {
+            for (const child of level2Node.children) {
+              addDescendants(child);
+            }
+          }
+        }
+      }
+    }
+    return { rows, mapping };
+  }
+
+  // Legacy format: [{ "Income": [{ "Salary": [...] }] }]
   const rows = data.flatMap((group) => {
     if (!group || typeof group !== "object") {
       return [];
@@ -39,11 +86,9 @@ export const parseLevelAccounts = (data, includeMapping = false) => {
           if (level2) {
             rows.push({ label: level2, level: 2 });
 
-            // Build mapping for leaf accounts if requested
             if (includeMapping) {
               mapping.set(level2, { level2, level1 });
 
-              // Recursively add all leaf account mappings
               const addLeaf = (node) => {
                 if (typeof node === "string") {
                   mapping.set(node, { level2, level1 });

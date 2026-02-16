@@ -8,15 +8,94 @@ export default function BalanceDateSelector({
   isLoading,
   periodCount,
   onPeriodCountChange,
-  onToggleCollapseAll,
-  collapseToggleLabel,
+  onExpandOneLayer,
+  onCollapseOneLayer,
+  isFullyCollapsed,
+  isFullyExpanded,
   collapseToggleDisabled,
   showCollapseToggle = false,
+  layout,
 }) {
   const normalizedDates = Array.isArray(periodDates) ? periodDates : [];
   const clampedPeriodCount = Math.min(Math.max(periodCount ?? 1, 1), 3);
   const currentYear = new Date().getFullYear();
   const maxBalanceDate = `${currentYear}-12-31`;
+
+  if (layout === "toolbar") {
+    return (
+      <section className="report-toolbar report-toolbar--stacked" aria-label="Report filters">
+        <div className="report-toolbar__control-row">
+          <div className="report-toolbar__field">
+            <PeriodCountSelector
+              id="balance-date-period-count"
+              value={clampedPeriodCount}
+              onChange={onPeriodCountChange}
+              labelClassName="report-toolbar__label"
+              inputClassName="report-toolbar__select"
+            />
+          </div>
+          <div className="report-toolbar__control-row-actions">
+            <button
+              className="report-toolbar__button report-toolbar__button--primary"
+              type="button"
+              onClick={onGenerateReport}
+              disabled={isLoading}
+            >
+              {isLoading ? "Generating..." : "Generate"}
+            </button>
+            {showCollapseToggle && !isFullyExpanded && (
+              <button
+                className="report-toolbar__button"
+                type="button"
+                onClick={onExpandOneLayer}
+                disabled={collapseToggleDisabled}
+              >
+                Expand +
+              </button>
+            )}
+            {showCollapseToggle && !isFullyCollapsed && (
+              <button
+                className="report-toolbar__button"
+                type="button"
+                onClick={onCollapseOneLayer}
+                disabled={collapseToggleDisabled}
+              >
+                Collapse −
+              </button>
+            )}
+          </div>
+        </div>
+        <div className="report-toolbar__periods-column">
+          {Array.from({ length: clampedPeriodCount }).map((_, index) => {
+            const periodLabel = index + 1;
+            const inputId = `balance-date-period-${periodLabel}`;
+            return (
+              <div key={inputId} className="report-toolbar__period-group">
+                <span className="report-toolbar__period-label">
+                  {`P${periodLabel}`}
+                </span>
+                <div className="report-toolbar__field">
+                  <label htmlFor={inputId} className="report-toolbar__label">
+                    Balance Date
+                  </label>
+                  <input
+                    id={inputId}
+                    type="date"
+                    className="report-toolbar__date-input"
+                    value={normalizedDates[index] ?? ""}
+                    max={maxBalanceDate}
+                    onChange={(event) =>
+                      onPeriodDateChange?.(index, event.target.value)
+                    }
+                  />
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      </section>
+    );
+  }
 
   return (
     <div className="balance-layout">
@@ -64,14 +143,24 @@ export default function BalanceDateSelector({
         >
           {isLoading ? "Generating..." : "Generate Report"}
         </button>
-        {showCollapseToggle && (
+        {showCollapseToggle && !isFullyExpanded && (
           <button
             className="generate-report-button"
             type="button"
-            onClick={onToggleCollapseAll}
+            onClick={onExpandOneLayer}
             disabled={collapseToggleDisabled}
           >
-            {collapseToggleLabel}
+            Expand +
+          </button>
+        )}
+        {showCollapseToggle && !isFullyCollapsed && (
+          <button
+            className="generate-report-button"
+            type="button"
+            onClick={onCollapseOneLayer}
+            disabled={collapseToggleDisabled}
+          >
+            Collapse −
           </button>
         )}
       </aside>

@@ -38,8 +38,11 @@ export default function BudgetBalancePanel({
   month: selectedMonthProp,
   onMonthChange,
   isFullyCollapsed,
-  onToggleCollapseAll,
+  isFullyExpanded,
+  onExpandOneLayer,
+  onCollapseOneLayer,
   hasCollapsiblePaths,
+  layout,
 }) {
   const [reportTypeState, setReportTypeState] = useState("month");
   const [selectedYearState, setSelectedYearState] = useState(YEAR_OPTIONS[3]);
@@ -92,6 +95,119 @@ export default function BudgetBalancePanel({
     }
     onMonthChange?.(value);
   };
+
+  if (layout === "toolbar") {
+    return (
+      <section className="realization-toolbar" aria-label="Report filters">
+        <div className="realization-toolbar__group realization-toolbar__group--selectors">
+          <div className="realization-toolbar__field">
+            <label htmlFor="budget-period-window" className="realization-toolbar__label">
+              Report Type
+            </label>
+            <select
+              id="budget-period-window"
+              className="realization-toolbar__select"
+              value={reportType}
+              onChange={(event) => handleReportSelectionChange(event.target.value)}
+            >
+              <option value="month">Month</option>
+              <option value="ytd">YTD</option>
+              <option value="full-year">Full Year</option>
+            </select>
+          </div>
+          <div className="realization-toolbar__field">
+            <label htmlFor="budget-period-year" className="realization-toolbar__label">
+              Budget Year
+            </label>
+            <select
+              id="budget-period-year"
+              className="realization-toolbar__select"
+              value={selectedYear}
+              onChange={(event) => handleYearSelectionChange(event.target.value)}
+            >
+              {YEAR_OPTIONS.map((year) => (
+                <option key={year} value={year}>{year}</option>
+              ))}
+            </select>
+          </div>
+          <div className="realization-toolbar__field">
+            <label htmlFor="budget-period-actual-year" className="realization-toolbar__label">
+              Actual Year
+            </label>
+            <select
+              id="budget-period-actual-year"
+              className="realization-toolbar__select"
+              value={actualYear}
+              onChange={(event) => handleActualYearSelectionChange(event.target.value)}
+            >
+              {YEAR_OPTIONS.map((year) => (
+                <option key={year} value={year}>{year}</option>
+              ))}
+            </select>
+          </div>
+          {["month", "ytd"].includes(reportType) && (
+            <div className="realization-toolbar__field">
+              <label htmlFor="budget-period-month" className="realization-toolbar__label">
+                Month
+              </label>
+              <select
+                id="budget-period-month"
+                className="realization-toolbar__select"
+                value={selectedMonth}
+                onChange={(event) => handleMonthSelectionChange(event.target.value)}
+              >
+                {MONTH_OPTIONS.map(({ label, value }) => (
+                  <option key={value} value={value}>{label}</option>
+                ))}
+              </select>
+            </div>
+          )}
+        </div>
+        <div className="realization-toolbar__group realization-toolbar__group--toggles">
+          <label className="realization-toolbar__toggle" htmlFor="budget-include-unrealized">
+            <input
+              id="budget-include-unrealized"
+              type="checkbox"
+              className="realization-toolbar__checkbox"
+              checked={includeUnrealized}
+              onChange={(event) => handleIncludeUnrealizedChange(event.target.checked)}
+            />
+            <span className="realization-toolbar__toggle-text">Unrealized</span>
+          </label>
+          <label className="realization-toolbar__toggle" htmlFor="budget-include-transfers">
+            <input
+              id="budget-include-transfers"
+              type="checkbox"
+              className="realization-toolbar__checkbox"
+              checked={includeTransfers}
+              onChange={(event) => handleIncludeTransfersChange(event.target.checked)}
+            />
+            <span className="realization-toolbar__toggle-text">Transfers</span>
+          </label>
+          {!isFullyExpanded && (
+            <button
+              type="button"
+              className="realization-toolbar__action-button"
+              onClick={onExpandOneLayer}
+              disabled={!hasCollapsiblePaths}
+            >
+              Expand +
+            </button>
+          )}
+          {!isFullyCollapsed && (
+            <button
+              type="button"
+              className="realization-toolbar__action-button"
+              onClick={onCollapseOneLayer}
+              disabled={!hasCollapsiblePaths}
+            >
+              Collapse −
+            </button>
+          )}
+        </div>
+      </section>
+    );
+  }
 
   return (
     <section className="balance-panel">
@@ -200,14 +316,26 @@ export default function BudgetBalancePanel({
         />
       </div>
       <div className="balance-panel__actions">
-        <button
-          type="button"
-          className="balance-panel__action-button"
-          onClick={onToggleCollapseAll}
-          disabled={!hasCollapsiblePaths}
-        >
-          {isFullyCollapsed ? "Expand All" : "Collapse All"}
-        </button>
+        {!isFullyExpanded && (
+          <button
+            type="button"
+            className="balance-panel__action-button"
+            onClick={onExpandOneLayer}
+            disabled={!hasCollapsiblePaths}
+          >
+            Expand +
+          </button>
+        )}
+        {!isFullyCollapsed && (
+          <button
+            type="button"
+            className="balance-panel__action-button"
+            onClick={onCollapseOneLayer}
+            disabled={!hasCollapsiblePaths}
+          >
+            Collapse −
+          </button>
+        )}
       </div>
     </section>
   );

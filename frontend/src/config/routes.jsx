@@ -26,6 +26,7 @@ import {
   Calculator,
   Eye,
   ArrowLeftRight,
+  ArrowUpDown,
   Wallet,
 } from "lucide-react";
 
@@ -39,6 +40,7 @@ const BalanceChart = lazy(() => import("../pages/BalanceChart"));
 const BudgetInput = lazy(() => import("../pages/BudgetInput"));
 const BudgetRealization = lazy(() => import("../pages/BudgetRealization"));
 const BudgetRealizationGraph = lazy(() => import("../pages/BudgetRealizationGraph"));
+const BudgetVariances = lazy(() => import("../pages/BudgetVariances"));
 const CashFlow = lazy(() => import("../pages/CashFlow"));
 const CashFlowMonthly = lazy(() => import("../pages/CashFlowMonthly"));
 const FCExpSetup = lazy(() => import("../pages/FCExpSetup"));
@@ -158,6 +160,14 @@ export const routes = [
     category: "Budgeting",
     description: "Visual budget analysis and variance charts",
     icon: BarChart3,
+  },
+  {
+    path: "/budget-variances",
+    component: BudgetVariances,
+    label: "Budget Variances",
+    category: "Budgeting",
+    description: "Line items ranked by largest budget-to-actual variance",
+    icon: ArrowUpDown,
   },
 
   // Forecasting (wrapped in ForecastProvider)

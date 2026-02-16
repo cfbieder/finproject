@@ -120,7 +120,7 @@ fin/
 │       ├── contexts/            # ToastContext, ForecastContext
 │       ├── features/            # Feature modules (Balances, BudgetEntry, Budgets, CashFlow, Charts, COAManagement, Database, Forecast, Transaction)
 │       ├── js/                  # API helpers (rest.js, handleUpload.js)
-│       └── pages/               # Page components (19 pages + category landing)
+│       └── pages/               # Page components (20 pages + category landing)
 ├── server/                      # Express API server
 │   ├── Dockerfile
 │   ├── package.json
@@ -168,6 +168,7 @@ fin/
 | `/budget-worksheet` | BudgetInput | Budgeting | Create/edit monthly budget |
 | `/budget-realization` | BudgetRealization | Budgeting | Budget vs actual comparison |
 | `/budget-graph` | BudgetRealizationGraph | Budgeting | Visual budget analysis |
+| `/budget-variances` | BudgetVariances | Budgeting | Line items ranked by largest variance |
 | `/forecast-scenarios` | FCScenarios | Forecasting | Manage forecast scenarios |
 | `/forecast-modules` | FCModuleManage | Forecasting | Configure balance sheet modules |
 | `/forecast-setup-exp` | FCExpSetup | Forecasting | Income/expense forecast items |

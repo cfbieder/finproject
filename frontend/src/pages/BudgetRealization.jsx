@@ -1,5 +1,5 @@
 import { useMemo, useState, useEffect } from "react";
-import BudgetBalancePanel, {
+import {
   MONTH_OPTIONS,
   YEAR_OPTIONS,
 } from "../features/Budgets/BudgetBalancePanel.jsx";
@@ -826,32 +826,56 @@ export default function BudgetRealization() {
     });
   };
 
-  /**
-   * Collapses all category paths
-   */
-  const handleCollapseAll = () => {
-    setCollapsedPaths(new Set(collapsiblePaths));
-  };
-
-  /**
-   * Expands all category paths
-   */
-  const handleExpandAll = () => {
-    setCollapsedPaths(new Set());
-  };
-
   const isFullyCollapsed =
     collapsiblePaths.size > 0 && collapsedPaths.size === collapsiblePaths.size;
 
+  const isFullyExpanded =
+    collapsiblePaths.size > 0 && collapsedPaths.size === 0;
+
   /**
-   * Toggles between fully collapsed and fully expanded states
+   * Expands one layer of collapsed paths (shallowest collapsed depth)
    */
-  const handleToggleCollapseAll = () => {
-    if (isFullyCollapsed) {
-      handleExpandAll();
-    } else {
-      handleCollapseAll();
-    }
+  const handleExpandOneLayer = () => {
+    setCollapsedPaths((prev) => {
+      if (prev.size === 0) return prev;
+      let minDepth = Infinity;
+      for (const pathKey of prev) {
+        const depth = pathKey.split(">").length - 1;
+        if (depth < minDepth) minDepth = depth;
+      }
+      const next = new Set(prev);
+      for (const pathKey of prev) {
+        if (pathKey.split(">").length - 1 === minDepth) {
+          next.delete(pathKey);
+        }
+      }
+      return next;
+    });
+  };
+
+  /**
+   * Collapses one layer of expanded paths (deepest expanded depth)
+   */
+  const handleCollapseOneLayer = () => {
+    setCollapsedPaths((prev) => {
+      const expandedPaths = [];
+      for (const pathKey of collapsiblePaths) {
+        if (!prev.has(pathKey)) expandedPaths.push(pathKey);
+      }
+      if (expandedPaths.length === 0) return prev;
+      let maxDepth = -1;
+      for (const pathKey of expandedPaths) {
+        const depth = pathKey.split(">").length - 1;
+        if (depth > maxDepth) maxDepth = depth;
+      }
+      const next = new Set(prev);
+      for (const pathKey of expandedPaths) {
+        if (pathKey.split(">").length - 1 === maxDepth) {
+          next.add(pathKey);
+        }
+      }
+      return next;
+    });
   };
 
   const handleBudgetCellDoubleClick = (detail) => {
@@ -894,11 +918,47 @@ export default function BudgetRealization() {
     setEntryDetail(null);
   };
 
+  // ========== Computed Values: Toolbar Props ==========
+  const toolbarProps = useMemo(
+    () => ({
+      includeUnrealized,
+      onIncludeUnrealizedChange: setIncludeUnrealized,
+      includeTransfers,
+      onIncludeTransfersChange: setIncludeTransfers,
+      reportType,
+      onReportTypeChange: setReportType,
+      year: selectedYear,
+      actualYear,
+      onYearChange: setSelectedYear,
+      onActualYearChange: setActualYear,
+      month: selectedMonth,
+      onMonthChange: setSelectedMonth,
+      isFullyCollapsed,
+      isFullyExpanded,
+      onExpandOneLayer: handleExpandOneLayer,
+      onCollapseOneLayer: handleCollapseOneLayer,
+      hasCollapsiblePaths: collapsiblePaths.size > 0,
+    }),
+    [
+      includeUnrealized,
+      includeTransfers,
+      reportType,
+      selectedYear,
+      actualYear,
+      selectedMonth,
+      isFullyCollapsed,
+      isFullyExpanded,
+      handleExpandOneLayer,
+      handleCollapseOneLayer,
+      collapsiblePaths.size,
+    ]
+  );
+
   // ========== Render ==========
 
   return (
     <>
-      <main className="budget-realization-main">
+      <main className="budget-realization-main budget-realization-main--single">
         <BudgetRealizationContent
           filteredCategoryTree={filteredCategoryTree}
           collapsedPaths={collapsedPaths}
@@ -917,26 +977,8 @@ export default function BudgetRealization() {
           renderCategoryRows={renderCategoryRows}
           onBudgetCellDoubleClick={handleBudgetCellDoubleClick}
           onActualCellDoubleClick={handleActualCellDoubleClick}
+          toolbarProps={toolbarProps}
         />
-        <div className="budget-realization-sidebar">
-          <BudgetBalancePanel
-            includeUnrealized={includeUnrealized}
-            onIncludeUnrealizedChange={setIncludeUnrealized}
-            includeTransfers={includeTransfers}
-            onIncludeTransfersChange={setIncludeTransfers}
-            reportType={reportType}
-            onReportTypeChange={setReportType}
-            year={selectedYear}
-            actualYear={actualYear}
-            onYearChange={setSelectedYear}
-            onActualYearChange={setActualYear}
-            month={selectedMonth}
-            onMonthChange={setSelectedMonth}
-            isFullyCollapsed={isFullyCollapsed}
-            onToggleCollapseAll={handleToggleCollapseAll}
-            hasCollapsiblePaths={collapsiblePaths.size > 0}
-          />
-        </div>
       </main>
       <BudgetDetailModal
         detail={entryDetail}

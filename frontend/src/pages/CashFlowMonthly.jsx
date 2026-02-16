@@ -347,18 +347,51 @@ export default function CashFlow() {
   const isFullyCollapsed =
     collapsiblePaths.size > 0 && collapsedPaths.size === collapsiblePaths.size;
 
+  const isFullyExpanded =
+    collapsiblePaths.size > 0 && collapsedPaths.size === 0;
+
   const periodLabels = useMemo(
     () => monthlyPeriods.map((period) => period.label),
     [monthlyPeriods]
   );
 
-  const handleToggleCollapseAll = () => {
-    if (collapsiblePaths.size === 0) return;
+  const handleExpandOneLayer = () => {
     setCollapsedPaths((prev) => {
-      if (prev.size === collapsiblePaths.size) {
-        return new Set();
+      if (prev.size === 0) return prev;
+      let minDepth = Infinity;
+      for (const pathKey of prev) {
+        const depth = pathKey.split(">").length - 1;
+        if (depth < minDepth) minDepth = depth;
       }
-      return new Set(collapsiblePaths);
+      const next = new Set(prev);
+      for (const pathKey of prev) {
+        if (pathKey.split(">").length - 1 === minDepth) {
+          next.delete(pathKey);
+        }
+      }
+      return next;
+    });
+  };
+
+  const handleCollapseOneLayer = () => {
+    setCollapsedPaths((prev) => {
+      const expandedPaths = [];
+      for (const pathKey of collapsiblePaths) {
+        if (!prev.has(pathKey)) expandedPaths.push(pathKey);
+      }
+      if (expandedPaths.length === 0) return prev;
+      let maxDepth = -1;
+      for (const pathKey of expandedPaths) {
+        const depth = pathKey.split(">").length - 1;
+        if (depth > maxDepth) maxDepth = depth;
+      }
+      const next = new Set(prev);
+      for (const pathKey of expandedPaths) {
+        if (pathKey.split(">").length - 1 === maxDepth) {
+          next.add(pathKey);
+        }
+      }
+      return next;
     });
   };
 
@@ -403,7 +436,38 @@ export default function CashFlow() {
 
   return (
     <>
-      <main className="page-main balance-grid">
+      <main className="page-main balance-grid balance-grid--single">
+        <div className="report-toolbar-header">
+          <div className="report-toolbar-header__text">
+            <h1 className="report-toolbar-header__title">Cash Flow Monthly</h1>
+            <p className="report-toolbar-header__description">
+              Month-by-month cash flow breakdown with export.
+            </p>
+          </div>
+        </div>
+        <CashFlowDateSelectorMonthYearOne
+          activePeriodCount={activePeriodCount}
+          fromDates={fromDates}
+          toDates={toDates}
+          onFromDateChange={handleFromDateChange}
+          onToDateChange={handleToDateChange}
+          includeUnrealizedGL={includeUnrealizedGL}
+          onIncludeUnrealizedChange={setIncludeUnrealizedGL}
+          transfers={transfers}
+          onTransfersChange={setTransfers}
+          onGenerateReport={handleGenerateReport}
+          isLoading={isLoading}
+          collapsiblePaths={collapsiblePaths}
+          onExpandOneLayer={handleExpandOneLayer}
+          onCollapseOneLayer={handleCollapseOneLayer}
+          isFullyCollapsed={isFullyCollapsed}
+          isFullyExpanded={isFullyExpanded}
+          error={error}
+          showPeriodSelector={false}
+          onExport={handleExport}
+          canExport={hasReport}
+          layout="toolbar"
+        />
         <div className="balance-layout-wrapper">
           <div className="report-scroll-container">
             <CashFlowReport
@@ -414,28 +478,6 @@ export default function CashFlow() {
               periods={monthlyPeriods}
             />
           </div>
-        </div>
-        <div className="balance-layout-holder">
-          <CashFlowDateSelectorMonthYearOne
-            activePeriodCount={activePeriodCount}
-            fromDates={fromDates}
-            toDates={toDates}
-            onFromDateChange={handleFromDateChange}
-            onToDateChange={handleToDateChange}
-            includeUnrealizedGL={includeUnrealizedGL}
-            onIncludeUnrealizedChange={setIncludeUnrealizedGL}
-            transfers={transfers}
-            onTransfersChange={setTransfers}
-            onGenerateReport={handleGenerateReport}
-            isLoading={isLoading}
-            collapsiblePaths={collapsiblePaths}
-            onToggleCollapseAll={handleToggleCollapseAll}
-            isFullyCollapsed={isFullyCollapsed}
-            error={error}
-            showPeriodSelector={false}
-            onExport={handleExport}
-            canExport={hasReport}
-          />
         </div>
       </main>
     </>

@@ -308,7 +308,7 @@ async function buildCashFlowReport({ fromDate, toDate, transfers = 'exclude', in
 
   const nodes = [];
   for (const item of structure) {
-    const node = buildCashFlowNode(item, categoryTotals, transfers, transferCategorySet);
+    const node = buildCashFlowNode(item, categoryTotals, transfers, transferCategorySet, includeUnrealizedGL);
     if (node) {
       nodes.push(node);
     }
@@ -388,10 +388,15 @@ function extractTransferCategories(nodes) {
 /**
  * Build a cash flow node recursively from { name, children } tree
  */
-function buildCashFlowNode(node, categoryTotals, transfers, transferCategorySet) {
+function buildCashFlowNode(node, categoryTotals, transfers, transferCategorySet, includeUnrealizedGL = false) {
   if (!node || !node.name) return null;
 
   const { name, children } = node;
+  const isUnrealized = name.toLowerCase() === 'unrealized g/l';
+
+  // Filter out Unrealized G/L when not included
+  if (isUnrealized && !includeUnrealizedGL) return null;
+
   const isLeaf = !children || children.length === 0;
 
   if (isLeaf) {
@@ -407,7 +412,7 @@ function buildCashFlowNode(node, categoryTotals, transfers, transferCategorySet)
   let total = 0;
 
   for (const child of children) {
-    const childNode = buildCashFlowNode(child, categoryTotals, transfers, transferCategorySet);
+    const childNode = buildCashFlowNode(child, categoryTotals, transfers, transferCategorySet, includeUnrealizedGL);
     if (childNode) {
       childNodes.push(childNode);
       total += childNode.total || 0;

@@ -1,4 +1,5 @@
 import { memo } from "react";
+import BudgetBalancePanel from "./BudgetBalancePanel.jsx";
 
 function BudgetRealizationContent({
   filteredCategoryTree,
@@ -18,18 +19,26 @@ function BudgetRealizationContent({
   renderCategoryRows,
   onBudgetCellDoubleClick,
   onActualCellDoubleClick,
+  toolbarProps,
 }) {
   return (
     <div className="budget-realization-content">
-      <div className="budget-realization-scroll">
-        <section className="budget-region realization-header">
-          <p className="budget-region__label">Budget vs Actual</p>
-          <p className="budget-region__description">
+      <div className="realization-toolbar-header">
+        <div className="realization-toolbar-header__text">
+          <h1 className="realization-toolbar-header__title">Budget vs Actual</h1>
+          <p className="realization-toolbar-header__description">
             Compare budgeted amounts with actual performance by category, and
             track variance.
           </p>
-        </section>
-        <section className="budget-region realization-table-section">
+        </div>
+      </div>
+
+      {toolbarProps && (
+        <BudgetBalancePanel {...toolbarProps} layout="toolbar" />
+      )}
+
+      <div className="budget-realization-scroll">
+        <section className="realization-table-section">
           <div className="budget-realization-table__wrapper">
             <div className="cash-flow-report">
               <table className="balance-report-table">

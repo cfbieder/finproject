@@ -116,16 +116,46 @@ export default function Balance() {
   const isFullyCollapsed =
     collapsiblePaths.size > 0 && collapsedPaths.size === collapsiblePaths.size;
 
-  const handleToggleCollapseAll = useCallback(() => {
-    if (collapsiblePaths.size === 0) {
-      return;
-    }
+  const isFullyExpanded =
+    collapsiblePaths.size > 0 && collapsedPaths.size === 0;
 
+  const handleExpandOneLayer = useCallback(() => {
     setCollapsedPaths((prev) => {
-      if (prev.size === collapsiblePaths.size) {
-        return new Set();
+      if (prev.size === 0) return prev;
+      let minDepth = Infinity;
+      for (const pathKey of prev) {
+        const depth = pathKey.split(">").length - 1;
+        if (depth < minDepth) minDepth = depth;
       }
-      return new Set(collapsiblePaths);
+      const next = new Set(prev);
+      for (const pathKey of prev) {
+        if (pathKey.split(">").length - 1 === minDepth) {
+          next.delete(pathKey);
+        }
+      }
+      return next;
+    });
+  }, []);
+
+  const handleCollapseOneLayer = useCallback(() => {
+    setCollapsedPaths((prev) => {
+      const expandedPaths = [];
+      for (const pathKey of collapsiblePaths) {
+        if (!prev.has(pathKey)) expandedPaths.push(pathKey);
+      }
+      if (expandedPaths.length === 0) return prev;
+      let maxDepth = -1;
+      for (const pathKey of expandedPaths) {
+        const depth = pathKey.split(">").length - 1;
+        if (depth > maxDepth) maxDepth = depth;
+      }
+      const next = new Set(prev);
+      for (const pathKey of expandedPaths) {
+        if (pathKey.split(">").length - 1 === maxDepth) {
+          next.add(pathKey);
+        }
+      }
+      return next;
     });
   }, [collapsiblePaths]);
 
@@ -133,7 +163,34 @@ export default function Balance() {
 
   return (
     <>
-      <main className="page-main balance-grid">
+      <main className="page-main balance-grid balance-grid--single">
+        <div className="report-toolbar-header">
+          <div className="report-toolbar-header__text">
+            <h1 className="report-toolbar-header__title">Balance Sheet</h1>
+            <p className="report-toolbar-header__description">
+              View account balances across periods.
+            </p>
+          </div>
+        </div>
+        <BalanceDateSelector
+          periodDates={periodDates}
+          onPeriodDateChange={handlePeriodDateChange}
+          onGenerateReport={handleGenerateReport}
+          isLoading={isFetchingReport}
+          error={reportError}
+          report={balanceReports[0]}
+          periodCount={activePeriodCount}
+          onPeriodCountChange={setPeriodCount}
+          onExpandOneLayer={handleExpandOneLayer}
+          onCollapseOneLayer={handleCollapseOneLayer}
+          isFullyCollapsed={isFullyCollapsed}
+          isFullyExpanded={isFullyExpanded}
+          collapseToggleDisabled={
+            collapsiblePaths.size === 0 || isFetchingReport
+          }
+          showCollapseToggle={hasLoadedReport}
+          layout="toolbar"
+        />
         <div className="balance-layout-wrapper">
           <div className="report-scroll-container">
             <BalanceReport
@@ -144,26 +201,6 @@ export default function Balance() {
               onTogglePath={handleTogglePath}
             />
           </div>
-        </div>
-        <div className="balance-layout-holder">
-          <BalanceDateSelector
-            periodDates={periodDates}
-            onPeriodDateChange={handlePeriodDateChange}
-            onGenerateReport={handleGenerateReport}
-            isLoading={isFetchingReport}
-            error={reportError}
-            report={balanceReports[0]}
-            periodCount={activePeriodCount}
-            onPeriodCountChange={setPeriodCount}
-            onToggleCollapseAll={handleToggleCollapseAll}
-            collapseToggleLabel={
-              isFullyCollapsed ? "Expand All" : "Collapse All"
-            }
-            collapseToggleDisabled={
-              collapsiblePaths.size === 0 || isFetchingReport
-            }
-            showCollapseToggle={hasLoadedReport}
-          />
         </div>
       </main>
     </>
