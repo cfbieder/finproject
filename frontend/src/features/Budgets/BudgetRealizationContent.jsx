@@ -1,5 +1,5 @@
 import { memo } from "react";
-import BudgetBalancePanel from "./BudgetBalancePanel.jsx";
+import PeriodSelector from "../../components/PeriodSelector/PeriodSelector.jsx";
 
 function BudgetRealizationContent({
   filteredCategoryTree,
@@ -19,7 +19,8 @@ function BudgetRealizationContent({
   renderCategoryRows,
   onBudgetCellDoubleClick,
   onActualCellDoubleClick,
-  toolbarProps,
+  periodProps,
+  toggleProps,
 }) {
   return (
     <div className="budget-realization-content">
@@ -33,8 +34,54 @@ function BudgetRealizationContent({
         </div>
       </div>
 
-      {toolbarProps && (
-        <BudgetBalancePanel {...toolbarProps} layout="toolbar" />
+      {periodProps && (
+        <section className="realization-toolbar" aria-label="Report filters">
+          <div className="realization-toolbar__group realization-toolbar__group--selectors">
+            <PeriodSelector {...periodProps} />
+          </div>
+          <div className="realization-toolbar__group realization-toolbar__group--toggles">
+            <label className="realization-toolbar__toggle" htmlFor="budget-include-unrealized">
+              <input
+                id="budget-include-unrealized"
+                type="checkbox"
+                className="realization-toolbar__checkbox"
+                checked={toggleProps.includeUnrealized}
+                onChange={(event) => toggleProps.onIncludeUnrealizedChange(event.target.checked)}
+              />
+              <span className="realization-toolbar__toggle-text">Unrealized</span>
+            </label>
+            <label className="realization-toolbar__toggle" htmlFor="budget-include-transfers">
+              <input
+                id="budget-include-transfers"
+                type="checkbox"
+                className="realization-toolbar__checkbox"
+                checked={toggleProps.includeTransfers}
+                onChange={(event) => toggleProps.onIncludeTransfersChange(event.target.checked)}
+              />
+              <span className="realization-toolbar__toggle-text">Transfers</span>
+            </label>
+            {!toggleProps.isFullyExpanded && (
+              <button
+                type="button"
+                className="realization-toolbar__action-button"
+                onClick={toggleProps.onExpandOneLayer}
+                disabled={!toggleProps.hasCollapsiblePaths}
+              >
+                Expand +
+              </button>
+            )}
+            {!toggleProps.isFullyCollapsed && (
+              <button
+                type="button"
+                className="realization-toolbar__action-button"
+                onClick={toggleProps.onCollapseOneLayer}
+                disabled={!toggleProps.hasCollapsiblePaths}
+              >
+                Collapse −
+              </button>
+            )}
+          </div>
+        </section>
       )}
 
       <div className="budget-realization-scroll">

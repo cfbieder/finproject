@@ -1,8 +1,9 @@
-import { useMemo, useState, useEffect } from "react";
+import { useCallback, useMemo, useState, useEffect } from "react";
 import {
   MONTH_OPTIONS,
   YEAR_OPTIONS,
-} from "../features/Budgets/BudgetBalancePanel.jsx";
+  BUDGET_YEAR_OPTIONS,
+} from "../features/BudgetEntry/utils/budgetInputUtils.js";
 import BudgetRealizationContent from "../features/Budgets/BudgetRealizationContent.jsx";
 import BudgetDetailModal from "../features/Budgets/BudgetDetailModal.jsx";
 import Rest from "../js/rest.js";
@@ -89,48 +90,21 @@ const buildLeafActualTotalsMap = (nodes, map = new Map()) => {
 
 /**
  * Computes the date range for the selected period
- * @param {string} reportType - Type of report (month, ytd, full-year)
- * @param {string} selectedMonth - Selected month value
- * @param {string} selectedYear - Selected year value
+ * @param {string} fromMonth - Start month ("01"-"12")
+ * @param {string} toMonth - End month ("01"-"12")
+ * @param {number|string} year - Year value
  * @returns {Object|null} Object with start and end dates
  */
-const computePeriodRange = (reportType, selectedMonth, selectedYear) => {
-  const yearNumber = Number.parseInt(selectedYear, 10);
+const computePeriodRange = (fromMonth, toMonth, year) => {
+  const yearNumber = Number.parseInt(year, 10);
   if (!Number.isFinite(yearNumber)) {
     return null;
   }
-
-  const normalizedReportType =
-    typeof reportType === "string" ? reportType : "month";
-  let startMonth = 1;
-  let endMonth = 12;
-
-  if (normalizedReportType === "month") {
-    const monthNumber = Number.parseInt(selectedMonth, 10);
-    if (!Number.isFinite(monthNumber)) {
-      return null;
-    }
-    startMonth = monthNumber;
-    endMonth = monthNumber;
-  } else if (normalizedReportType === "ytd") {
-    const monthNumber = Number.parseInt(selectedMonth, 10);
-    if (!Number.isFinite(monthNumber)) {
-      return null;
-    }
-    startMonth = 1;
-    endMonth = Math.min(Math.max(monthNumber, 1), 12);
-  } else if (normalizedReportType === "full-year") {
-    startMonth = 1;
-    endMonth = 12;
-  } else {
-    const monthNumber = Number.parseInt(selectedMonth, 10);
-    if (!Number.isFinite(monthNumber)) {
-      return null;
-    }
-    startMonth = monthNumber;
-    endMonth = monthNumber;
+  const startMonth = Number.parseInt(fromMonth, 10);
+  const endMonth = Number.parseInt(toMonth, 10);
+  if (!Number.isFinite(startMonth) || !Number.isFinite(endMonth)) {
+    return null;
   }
-
   const start = new Date(yearNumber, startMonth - 1, 1);
   const end = new Date(yearNumber, endMonth, 0);
   return { start, end };
@@ -590,12 +564,11 @@ export default function BudgetRealization() {
   const { plTree, loading: coaLoading } = useCoa();
 
   // ========== State: Report Parameters ==========
-  const [reportType, setReportType] = useState("month");
-  const [selectedMonth, setSelectedMonth] = useState(
-    MONTH_OPTIONS[new Date().getMonth()].value
-  );
-  const [selectedYear, setSelectedYear] = useState(YEAR_OPTIONS[3]);
-  const [actualYear, setActualYear] = useState(YEAR_OPTIONS[3]);
+  const currentMonthValue = MONTH_OPTIONS[new Date().getMonth()].value;
+  const [fromMonth, setFromMonth] = useState(currentMonthValue);
+  const [toMonth, setToMonth] = useState(currentMonthValue);
+  const [actualYear, setActualYear] = useState(YEAR_OPTIONS[0]);
+  const [budgetYear, setBudgetYear] = useState(YEAR_OPTIONS[0]);
   const [includeUnrealized, setIncludeUnrealized] = useState(false);
   const [includeTransfers, setIncludeTransfers] = useState(false);
 
@@ -609,12 +582,12 @@ export default function BudgetRealization() {
 
   // ========== Computed Values: Date Range ==========
   const budgetPeriodRange = useMemo(
-    () => computePeriodRange(reportType, selectedMonth, selectedYear),
-    [reportType, selectedMonth, selectedYear]
+    () => computePeriodRange(fromMonth, toMonth, budgetYear),
+    [fromMonth, toMonth, budgetYear]
   );
   const actualPeriodRange = useMemo(
-    () => computePeriodRange(reportType, selectedMonth, actualYear),
-    [reportType, selectedMonth, actualYear]
+    () => computePeriodRange(fromMonth, toMonth, actualYear),
+    [fromMonth, toMonth, actualYear]
   );
 
   // ========== Computed Values: Resolvers ==========
@@ -918,21 +891,39 @@ export default function BudgetRealization() {
     setEntryDetail(null);
   };
 
+  // ========== Event Handlers: Period ==========
+  const handlePeriodChange = useCallback(
+    ({ fromMonth, toMonth, actualYear, budgetYear }) => {
+      setFromMonth(fromMonth);
+      setToMonth(toMonth);
+      setActualYear(actualYear);
+      setBudgetYear(budgetYear);
+    },
+    []
+  );
+
   // ========== Computed Values: Toolbar Props ==========
-  const toolbarProps = useMemo(
+  const periodProps = useMemo(
+    () => ({
+      fromMonth,
+      toMonth,
+      actualYear,
+      budgetYear,
+      monthOptions: MONTH_OPTIONS,
+      yearOptions: YEAR_OPTIONS,
+      budgetYearOptions: BUDGET_YEAR_OPTIONS,
+      onChange: handlePeriodChange,
+      defaultPreset: "this-month",
+    }),
+    [fromMonth, toMonth, actualYear, budgetYear, handlePeriodChange]
+  );
+
+  const toggleProps = useMemo(
     () => ({
       includeUnrealized,
       onIncludeUnrealizedChange: setIncludeUnrealized,
       includeTransfers,
       onIncludeTransfersChange: setIncludeTransfers,
-      reportType,
-      onReportTypeChange: setReportType,
-      year: selectedYear,
-      actualYear,
-      onYearChange: setSelectedYear,
-      onActualYearChange: setActualYear,
-      month: selectedMonth,
-      onMonthChange: setSelectedMonth,
       isFullyCollapsed,
       isFullyExpanded,
       onExpandOneLayer: handleExpandOneLayer,
@@ -942,10 +933,6 @@ export default function BudgetRealization() {
     [
       includeUnrealized,
       includeTransfers,
-      reportType,
-      selectedYear,
-      actualYear,
-      selectedMonth,
       isFullyCollapsed,
       isFullyExpanded,
       handleExpandOneLayer,
@@ -977,7 +964,8 @@ export default function BudgetRealization() {
           renderCategoryRows={renderCategoryRows}
           onBudgetCellDoubleClick={handleBudgetCellDoubleClick}
           onActualCellDoubleClick={handleActualCellDoubleClick}
-          toolbarProps={toolbarProps}
+          periodProps={periodProps}
+          toggleProps={toggleProps}
         />
       </main>
       <BudgetDetailModal

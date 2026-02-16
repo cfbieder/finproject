@@ -1265,12 +1265,78 @@
   width: 100%;
   max-width: 100%;
   display: grid;
-  grid-template-columns: minmax(0, 1.8fr) minmax(280px, 1fr);
+  grid-template-columns: 1fr;
   grid-template-rows: auto 1fr;
   gap: 1.75rem;
   grid-column: 1 / -1;
   align-items: stretch;
   padding: 1.5rem;
+}
+
+/* ── Tabbed Panel ──────────────────────────────── */
+
+.budget-tabs {
+  grid-column: 1 / -1;
+}
+
+.budget-tabs__header {
+  display: flex;
+  align-items: center;
+  gap: 0;
+  border-bottom: 2px solid var(--border);
+  margin-bottom: 0;
+}
+
+.budget-tabs__tab {
+  padding: 0.75rem 1.5rem;
+  border: none;
+  background: none;
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: var(--muted);
+  cursor: pointer;
+  position: relative;
+  transition: color 0.15s ease;
+  white-space: nowrap;
+}
+
+.budget-tabs__tab:hover {
+  color: var(--ink);
+}
+
+.budget-tabs__tab--active {
+  color: var(--primary);
+  font-weight: 700;
+}
+
+.budget-tabs__tab--active::after {
+  content: "";
+  position: absolute;
+  bottom: -2px;
+  left: 0;
+  right: 0;
+  height: 2px;
+  background: var(--primary);
+  border-radius: 1px 1px 0 0;
+}
+
+.budget-tabs__category {
+  margin-left: auto;
+  padding: 0.35rem 0.85rem;
+  border-radius: 1rem;
+  background: linear-gradient(135deg, rgba(37, 99, 235, 0.1) 0%, rgba(37, 99, 235, 0.06) 100%);
+  border: 1px solid rgba(37, 99, 235, 0.2);
+  font-size: 0.8rem;
+  font-weight: 600;
+  color: var(--primary);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 300px;
+}
+
+.budget-tabs__body {
+  padding: 1.5rem 0 0;
 }
 
 /* Expense sign modal improvements */
@@ -2391,9 +2457,7 @@
 }
 
 .budget-region__label::before {
-  content: "●";
-  font-size: 0.7rem;
-  color: var(--primary);
+  content: none;
 }
 
 .budget-region__description {
@@ -2931,15 +2995,6 @@
   white-space: nowrap;
 }
 
-.realization-toolbar-header__title::before {
-  content: "";
-  display: inline-block;
-  width: 10px;
-  height: 10px;
-  border-radius: 50%;
-  background: var(--primary);
-  flex-shrink: 0;
-}
 
 .realization-toolbar-header__description {
   margin: 0;

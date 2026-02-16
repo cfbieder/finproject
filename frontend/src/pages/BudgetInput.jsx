@@ -2,7 +2,6 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import BudgetEntriesAtualPopup from "../features/BudgetEntry/BudgetEntriesAtualPopup.jsx";
 import BudgetEntriesBudgetPopup from "../features/BudgetEntry/BudgetEntriesBudgetPopup.jsx";
 import BudgetRegionBalances from "../features/BudgetEntry/BudgetRegionBalances.jsx";
-import BudgetRegionSelectors from "../features/BudgetEntry/BudgetRegionSelectors.jsx";
 import BudgetRegionBudgetEntry from "../features/BudgetEntry/BudgetRegionBudgetEntry.jsx";
 import BudgetExpenseSignModal from "../features/BudgetEntry/components/BudgetExpenseSignModal.jsx";
 import { useFilterOptions } from "../features/BudgetEntry/hooks/useFilterOptions.js";
@@ -10,6 +9,10 @@ import { useBalanceData } from "../features/BudgetEntry/hooks/useBalanceData.js"
 import { useCurrencyData } from "../features/BudgetEntry/hooks/useCurrencyData.js";
 import { useBudgetEntrySubmit } from "../features/BudgetEntry/hooks/useBudgetEntrySubmit.js";
 import { useCoa } from "../hooks/useCoa.js";
+import AccountSelector from "../components/AccountSelector/AccountSelector.jsx";
+import CategorySelector from "../components/CategorySelector/CategorySelector.jsx";
+import PeriodSelector from "../components/PeriodSelector/PeriodSelector.jsx";
+import "../features/BudgetEntry/BudgetRegionSelectors.css";
 import {
   MONTH_OPTIONS,
   YEAR_OPTIONS,
@@ -45,7 +48,7 @@ export default function BudgetInput() {
   } = useFilterOptions();
 
   const { currencyOptions, budgetRates } = useCurrencyData();
-  const { expenseAccountNames, accountCurrencyMap } = useCoa();
+  const { expenseAccountNames, accountCurrencyMap, plTree } = useCoa();
 
   // ========== State: Date Range ==========
   const [fromMonth, setFromMonth] = useState(MONTH_OPTIONS[0].value);
@@ -63,6 +66,10 @@ export default function BudgetInput() {
     currency: "USD",
     note: "",
   });
+
+  // ========== State: UI ==========
+  const [filtersCollapsed, setFiltersCollapsed] = useState(false);
+  const [activeTab, setActiveTab] = useState("balances");
 
   // ========== State: Popups ==========
   const [actualEntriesPopupRequest, setActualEntriesPopupRequest] =
@@ -281,21 +288,29 @@ export default function BudgetInput() {
 
   // ========== Event Handlers ==========
 
-  const handleAccountsChange = (event) => {
-    const nextValues = Array.from(
-      event.target.selectedOptions,
-      (option) => option.value
-    );
-    setSelectedAccounts(nextValues);
-  };
+  const handleAccountsChange = useCallback(
+    (nextValues) => {
+      setSelectedAccounts(nextValues);
+    },
+    [setSelectedAccounts]
+  );
 
-  const handleCategoriesChange = (event) => {
-    const nextValues = Array.from(
-      event.target.selectedOptions,
-      (option) => option.value
-    );
-    setSelectedCategories(nextValues);
-  };
+  const handleCategoriesChange = useCallback(
+    (nextValues) => {
+      setSelectedCategories(nextValues);
+    },
+    [setSelectedCategories]
+  );
+
+  const handlePeriodChange = useCallback(
+    ({ fromMonth, toMonth, actualYear, budgetYear }) => {
+      setFromMonth(fromMonth);
+      setToMonth(toMonth);
+      setActualYear(actualYear);
+      setBudgetYear(budgetYear);
+    },
+    []
+  );
 
   const handleActualEntryCopy = useCallback(
     (entry, rowMonthNumber) => {
@@ -384,50 +399,140 @@ export default function BudgetInput() {
     <>
       <main className="page-main">
         <div className="budget-input-grid">
-          <BudgetRegionSelectors
-            monthOptions={MONTH_OPTIONS}
-            yearOptions={YEAR_OPTIONS}
-            budgetYearOptions={BUDGET_YEAR_OPTIONS}
-            fromMonth={fromMonth}
-            toMonth={toMonth}
-            actualYear={actualYear}
-            budgetYear={budgetYear}
-            accountOptions={accountOptions}
-            categoryOptions={categoryOptions}
-            categoryGroupOptions={categoryGroupSelectOptions}
-            selectedAccounts={selectedAccounts}
-            selectedCategories={selectedCategories}
-            totals={balanceTotals}
-            formatCurrencyValue={formatCurrencyValue}
-            onFromMonthChange={setFromMonth}
-            onToMonthChange={setToMonth}
-            onActualYearChange={setActualYear}
-            onBudgetYearChange={setBudgetYear}
-            onAccountsChange={handleAccountsChange}
-            onCategoriesChange={handleCategoriesChange}
-          />
-          <BudgetRegionBalances
-            balanceRows={balanceRows}
-            balancesStatus={balancesStatus}
-            formatCurrencyValue={formatCurrencyValue}
-            onActualDoubleClick={handleBalanceActualDoubleClick}
-            onBudgetDoubleClick={handleBalanceBudgetDoubleClick}
-          />
-      <BudgetRegionBudgetEntry
-        derivedCategoryIsGroup={derivedCategoryIsGroup}
-        derivedCategoryLabel={derivedCategoryLabel}
-        monthSelectOptions={monthSelectOptions}
-        entryForm={entryForm}
-            setEntryForm={setEntryForm}
-            filteredAccountOptions={filteredAccountOptions}
-            computedBaseAmount={computedBaseAmount}
-            formatCurrencyValue={formatCurrencyValue}
-            currencyOptions={currencyOptions}
-            entryStatus={entryStatus}
-            onSubmit={handleBudgetEntrySubmit}
-            expenseAccountNames={expenseAccountNames}
-            accountCurrencyMap={accountCurrencyMap}
-          />
+          <section className="budget-region selector-area">
+            <div className="selector-area__header">
+              <p className="budget-region__label">Filter Controls</p>
+              <button
+                type="button"
+                className="selector-area__toggle"
+                onClick={() => setFiltersCollapsed((prev) => !prev)}
+                aria-expanded={!filtersCollapsed}
+              >
+                {filtersCollapsed ? "Show Filters" : "Hide Filters"}
+              </button>
+            </div>
+            {!filtersCollapsed && (
+              <p className="budget-region__description">
+                Choose the period and slices that drive the budget comparison.
+              </p>
+            )}
+            <div
+              className={`selector-grid selector-grid--three${filtersCollapsed ? " selector-grid--collapsed" : ""}`}
+            >
+              {/* Column 1: Period + Totals */}
+              <div className="selector-column">
+                <div className="selector-control">
+                  <span className="selector-control__label">Period</span>
+                  <PeriodSelector
+                    fromMonth={fromMonth}
+                    toMonth={toMonth}
+                    actualYear={actualYear}
+                    budgetYear={budgetYear}
+                    monthOptions={MONTH_OPTIONS}
+                    yearOptions={YEAR_OPTIONS}
+                    budgetYearOptions={BUDGET_YEAR_OPTIONS}
+                    onChange={handlePeriodChange}
+                  />
+                </div>
+                <div className="selector-summary-group selector-summary-group--inline">
+                  <div className="selector-summary selector-summary--compact selector-summary--inline">
+                    <span className="selector-summary__label">Total Actual</span>
+                    <span className="selector-summary__value">
+                      {formatCurrencyValue(balanceTotals.actual)}
+                    </span>
+                  </div>
+                  <div className="selector-summary selector-summary--compact selector-summary--inline">
+                    <span className="selector-summary__label">Total Budget</span>
+                    <span className="selector-summary__value">
+                      {formatCurrencyValue(balanceTotals.budget)}
+                    </span>
+                  </div>
+                  <div className="selector-summary selector-summary--compact selector-summary--inline selector-summary--muted">
+                    <span className="selector-summary__label">Difference</span>
+                    <span className="selector-summary__value">
+                      {formatCurrencyValue(balanceTotals.difference)}
+                    </span>
+                  </div>
+                </div>
+              </div>
+
+              {/* Column 2: Categories */}
+              <div className="selector-column selector-column--category">
+                <div className="selector-control selector-control--fill">
+                  <span className="selector-control__label">Categories</span>
+                  <CategorySelector
+                    plTree={plTree}
+                    selectedCategories={selectedCategories}
+                    onCategoriesChange={handleCategoriesChange}
+                    categoryGroupOptions={categoryGroupSelectOptions}
+                    categoryOptions={categoryOptions}
+                  />
+                </div>
+              </div>
+
+              {/* Column 3: Accounts */}
+              <div className="selector-column selector-column--accounts">
+                <div className="selector-control selector-control--fill">
+                  <span className="selector-control__label">Accounts</span>
+                  <AccountSelector
+                    accountOptions={accountOptions}
+                    accountCurrencyMap={accountCurrencyMap}
+                    selectedAccounts={selectedAccounts}
+                    onAccountsChange={handleAccountsChange}
+                  />
+                </div>
+              </div>
+            </div>
+          </section>
+          <section className="budget-region budget-tabs">
+            <div className="budget-tabs__header">
+              <button
+                type="button"
+                className={`budget-tabs__tab${activeTab === "balances" ? " budget-tabs__tab--active" : ""}`}
+                onClick={() => setActiveTab("balances")}
+              >
+                Balances
+              </button>
+              <button
+                type="button"
+                className={`budget-tabs__tab${activeTab === "entry" ? " budget-tabs__tab--active" : ""}`}
+                onClick={() => setActiveTab("entry")}
+              >
+                Budget Entry
+              </button>
+              <span className="budget-tabs__category" title={derivedCategoryLabel}>
+                {derivedCategoryLabel}
+              </span>
+            </div>
+            <div className="budget-tabs__body">
+              {activeTab === "balances" && (
+                <BudgetRegionBalances
+                  balanceRows={balanceRows}
+                  balancesStatus={balancesStatus}
+                  formatCurrencyValue={formatCurrencyValue}
+                  onActualDoubleClick={handleBalanceActualDoubleClick}
+                  onBudgetDoubleClick={handleBalanceBudgetDoubleClick}
+                />
+              )}
+              {activeTab === "entry" && (
+                <BudgetRegionBudgetEntry
+                  derivedCategoryIsGroup={derivedCategoryIsGroup}
+                  derivedCategoryLabel={derivedCategoryLabel}
+                  monthSelectOptions={monthSelectOptions}
+                  entryForm={entryForm}
+                  setEntryForm={setEntryForm}
+                  filteredAccountOptions={filteredAccountOptions}
+                  computedBaseAmount={computedBaseAmount}
+                  formatCurrencyValue={formatCurrencyValue}
+                  currencyOptions={currencyOptions}
+                  entryStatus={entryStatus}
+                  onSubmit={handleBudgetEntrySubmit}
+                  expenseAccountNames={expenseAccountNames}
+                  accountCurrencyMap={accountCurrencyMap}
+                />
+              )}
+            </div>
+          </section>
         </div>
       </main>
       <BudgetExpenseSignModal

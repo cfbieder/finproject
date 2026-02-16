@@ -153,14 +153,7 @@ export default function BudgetRegionBudgetEntry({
   };
 
   return (
-    <section className="budget-region input-area">
-      <div>
-        <p className="budget-region__label">Budget Entry</p>
-        <p className="budget-region__description">
-          Submit a budget entry to persist a new record via the API.
-        </p>
-      </div>
-
+    <div className="input-area">
       {derivedCategoryIsGroup ? (
         <div className="budget-entry-form budget-entry-form--disabled">
           <p className="budget-entry-form__disabled-message">
@@ -312,6 +305,6 @@ export default function BudgetRegionBudgetEntry({
           </div>
         </form>
       )}
-    </section>
+    </div>
   );
 }

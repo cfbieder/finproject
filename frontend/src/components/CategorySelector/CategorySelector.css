@@ -1,0 +1,249 @@
+.category-selector {
+  display: flex;
+  flex-direction: column;
+  border-radius: 0.75rem;
+  border: 2px solid var(--border);
+  background: #ffffff;
+  overflow: hidden;
+  transition: border-color 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+  box-shadow: 0 1px 2px 0 rgba(15, 23, 42, 0.05);
+}
+
+.category-selector:focus-within {
+  border-color: var(--primary);
+  box-shadow: 0 0 0 4px rgba(37, 99, 235, 0.12),
+    0 1px 3px 0 rgba(15, 23, 42, 0.1);
+}
+
+/* ── Search ─────────────────────────────────────── */
+
+.category-selector__search {
+  position: relative;
+  padding: 0.5rem;
+  border-bottom: 1px solid var(--border);
+}
+
+.category-selector__search-input {
+  width: 100%;
+  padding: 0.5rem 2rem 0.5rem 0.65rem;
+  border: 1px solid var(--border);
+  border-radius: 0.5rem;
+  background: var(--surface);
+  font-size: 0.85rem;
+  color: var(--ink);
+  outline: none;
+  box-sizing: border-box;
+  transition: border-color 0.15s ease;
+}
+
+.category-selector__search-input::placeholder {
+  color: var(--muted);
+}
+
+.category-selector__search-input:focus {
+  border-color: var(--primary);
+}
+
+.category-selector__search-clear {
+  position: absolute;
+  right: 0.75rem;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 1.4rem;
+  height: 1.4rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: none;
+  border-radius: 50%;
+  background: rgba(15, 23, 42, 0.08);
+  color: var(--ink);
+  font-size: 0.85rem;
+  line-height: 1;
+  cursor: pointer;
+  padding: 0;
+  transition: background 0.15s ease;
+}
+
+.category-selector__search-clear:hover {
+  background: rgba(15, 23, 42, 0.15);
+}
+
+/* ── Group Buttons ──────────────────────────────── */
+
+.category-selector__groups {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35rem;
+  padding: 0.5rem;
+  border-bottom: 1px solid var(--border);
+  background: rgba(248, 250, 252, 0.6);
+}
+
+.category-selector__group-item {
+  padding: 0.35rem 0.65rem;
+  border-radius: 0.4rem;
+  border: 1px solid var(--border);
+  background: #ffffff;
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: var(--ink);
+  cursor: pointer;
+  transition: all 0.15s ease;
+  white-space: nowrap;
+}
+
+.category-selector__group-item:hover {
+  border-color: rgba(37, 99, 235, 0.3);
+  background: rgba(37, 99, 235, 0.04);
+}
+
+.category-selector__group-item--selected {
+  background: linear-gradient(
+    135deg,
+    rgba(37, 99, 235, 0.15) 0%,
+    rgba(37, 99, 235, 0.1) 100%
+  );
+  border-color: rgba(37, 99, 235, 0.4);
+  color: var(--primary);
+  font-weight: 700;
+}
+
+.category-selector__group-item--income.category-selector__group-item--selected {
+  background: linear-gradient(
+    135deg,
+    rgba(59, 130, 246, 0.18) 0%,
+    rgba(37, 99, 235, 0.12) 100%
+  );
+  border-color: rgba(59, 130, 246, 0.5);
+  color: rgb(30, 64, 175);
+}
+
+.category-selector__group-item--expense.category-selector__group-item--selected {
+  background: linear-gradient(
+    135deg,
+    rgba(100, 116, 139, 0.18) 0%,
+    rgba(71, 85, 105, 0.12) 100%
+  );
+  border-color: rgba(100, 116, 139, 0.5);
+  color: rgb(51, 65, 85);
+}
+
+.category-selector__group-item--disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+/* ── Scrollable List ────────────────────────────── */
+
+.category-selector__list {
+  overflow-y: auto;
+  max-height: 260px;
+  padding: 0.35rem 0.25rem;
+  scrollbar-width: thin;
+  scrollbar-color: rgba(37, 99, 235, 0.3) rgba(15, 23, 42, 0.05);
+}
+
+.category-selector__list::-webkit-scrollbar {
+  width: 10px;
+}
+
+.category-selector__list::-webkit-scrollbar-track {
+  background: rgba(15, 23, 42, 0.05);
+  border-radius: 0 0 0.5rem 0;
+}
+
+.category-selector__list::-webkit-scrollbar-thumb {
+  background: rgba(37, 99, 235, 0.3);
+  border-radius: 5px;
+  border: 2px solid #ffffff;
+}
+
+.category-selector__list::-webkit-scrollbar-thumb:hover {
+  background: rgba(37, 99, 235, 0.5);
+}
+
+/* ── Header (top-level: Income, Expense) ────────── */
+
+.category-selector__header {
+  font-size: 0.7rem;
+  font-weight: 700;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--primary);
+  padding: 0.6rem 0.5rem 0.25rem;
+  user-select: none;
+}
+
+.category-selector__header:not(:first-child) {
+  margin-top: 0.35rem;
+  border-top: 1px solid rgba(37, 99, 235, 0.08);
+  padding-top: 0.65rem;
+}
+
+/* ── Parent (branch label: Financial Income, etc.) ─ */
+
+.category-selector__parent {
+  font-size: 0.8rem;
+  font-weight: 600;
+  color: var(--ink-muted, #64748b);
+  padding: 0.3rem 0.5rem;
+  user-select: none;
+}
+
+/* ── Leaf item (selectable) ─────────────────────── */
+
+.category-selector__item {
+  padding: 0.45rem 0.65rem;
+  margin: 0.15rem 0.25rem;
+  border-radius: 0.4rem;
+  font-size: 0.85rem;
+  font-weight: 500;
+  color: var(--ink);
+  cursor: pointer;
+  transition: all 0.12s ease;
+  border-left: 3px solid transparent;
+  user-select: none;
+}
+
+.category-selector__item:hover {
+  background: linear-gradient(
+    135deg,
+    rgba(37, 99, 235, 0.06) 0%,
+    rgba(37, 99, 235, 0.03) 100%
+  );
+}
+
+.category-selector__item:focus-visible {
+  outline: 2px solid var(--primary);
+  outline-offset: -2px;
+}
+
+.category-selector__item--selected {
+  background: linear-gradient(
+    135deg,
+    rgba(37, 99, 235, 0.14) 0%,
+    rgba(37, 99, 235, 0.08) 100%
+  );
+  border-left-color: var(--primary);
+  font-weight: 700;
+  color: var(--primary);
+}
+
+.category-selector__item--selected:hover {
+  background: linear-gradient(
+    135deg,
+    rgba(37, 99, 235, 0.18) 0%,
+    rgba(37, 99, 235, 0.12) 100%
+  );
+}
+
+/* ── Empty state ────────────────────────────────── */
+
+.category-selector__empty {
+  padding: 1.25rem 0.75rem;
+  text-align: center;
+  font-size: 0.85rem;
+  color: var(--muted);
+  font-style: italic;
+}

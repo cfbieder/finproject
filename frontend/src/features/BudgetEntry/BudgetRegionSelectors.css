@@ -10,6 +10,45 @@
   font-size: 1rem;
 }
 
+/* ── Collapsible header ─────────────────────────── */
+
+.selector-area__header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 1rem;
+}
+
+.selector-area__toggle {
+  flex-shrink: 0;
+  padding: 0.35rem 0.75rem;
+  border-radius: 1rem;
+  border: 1px solid var(--border);
+  background: #ffffff;
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: var(--ink);
+  cursor: pointer;
+  transition: all 0.15s ease;
+  white-space: nowrap;
+}
+
+.selector-area__toggle:hover {
+  border-color: rgba(37, 99, 235, 0.35);
+  background: rgba(37, 99, 235, 0.04);
+  color: var(--primary);
+}
+
+/* ── Collapse animation ─────────────────────────── */
+
+.selector-grid {
+  transition: grid-template-rows 0.25s ease, opacity 0.2s ease;
+}
+
+.selector-grid.selector-grid--collapsed {
+  display: none;
+}
+
 .selector-grid {
   width: 100%;
   display: grid;

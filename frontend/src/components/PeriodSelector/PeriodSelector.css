@@ -1,0 +1,114 @@
+.period-selector {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+
+/* ── Preset Buttons ─────────────────────────────── */
+
+.period-selector__presets {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+}
+
+.period-selector__preset {
+  padding: 0.35rem 0.7rem;
+  border-radius: 1rem;
+  border: 1px solid var(--border);
+  background: #ffffff;
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: var(--ink);
+  cursor: pointer;
+  transition: all 0.15s ease;
+  white-space: nowrap;
+}
+
+.period-selector__preset:hover {
+  border-color: rgba(37, 99, 235, 0.35);
+  background: rgba(37, 99, 235, 0.04);
+  color: var(--primary);
+}
+
+.period-selector__preset--active {
+  background: var(--primary);
+  border-color: var(--primary);
+  color: #ffffff;
+  box-shadow: 0 1px 3px rgba(37, 99, 235, 0.3);
+}
+
+.period-selector__preset--active:hover {
+  background: var(--primary);
+  border-color: var(--primary);
+  color: #ffffff;
+  opacity: 0.9;
+}
+
+/* ── Summary (shows resolved period when a preset is active) ── */
+
+.period-selector__summary {
+  font-size: 0.8rem;
+  font-weight: 500;
+  color: var(--ink-muted, #64748b);
+  padding: 0.4rem 0.5rem;
+  background: rgba(248, 250, 252, 0.8);
+  border-radius: 0.4rem;
+  border: 1px solid rgba(37, 99, 235, 0.08);
+}
+
+/* ── Custom Dropdowns Grid ──────────────────────── */
+
+.period-selector__custom {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 0.65rem;
+}
+
+.period-selector__field {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+}
+
+.period-selector__label {
+  font-size: 0.7rem;
+  font-weight: 700;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--primary);
+}
+
+.period-selector__select {
+  width: 100%;
+  padding: 0.55rem 0.75rem;
+  border-radius: 0.5rem;
+  border: 1.5px solid var(--border);
+  background: #ffffff;
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: var(--ink);
+  box-sizing: border-box;
+  transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+  box-shadow: 0 1px 2px 0 rgba(15, 23, 42, 0.05);
+}
+
+.period-selector__select:hover {
+  border-color: rgba(37, 99, 235, 0.3);
+}
+
+.period-selector__select:focus,
+.period-selector__select:focus-visible {
+  outline: none;
+  border-color: var(--primary);
+  box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.1),
+    0 1px 2px 0 rgba(15, 23, 42, 0.08);
+}
+
+/* ── Responsive ─────────────────────────────────── */
+
+@media (max-width: 640px) {
+  .period-selector__custom {
+    grid-template-columns: 1fr;
+  }
+}

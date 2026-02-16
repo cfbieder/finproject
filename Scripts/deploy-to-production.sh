@@ -167,7 +167,7 @@ done
 echo ""
 
 # Test API endpoint
-if curl -f -s http://localhost:3005/api/health > /dev/null; then
+if curl -f -s http://localhost:3005/api/v2/health > /dev/null; then
     echo "✓ API health check passed"
 else
     echo "✗ API health check failed"

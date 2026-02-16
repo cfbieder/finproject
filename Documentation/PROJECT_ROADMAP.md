@@ -43,7 +43,7 @@ All four god components have been refactored:
 
 | Component | Before | After | What Changed |
 |-----------|--------|-------|--------------|
-| `BudgetInput.jsx` | 762 | 445 | Extracted `useBudgetEntrySubmit` hook (submission logic, expense sign modal) |
+| `BudgetInput.jsx` | 762 | 549 | Extracted `useBudgetEntrySubmit` hook; replaced inline selectors with shared `CategorySelector`, `AccountSelector`, `PeriodSelector`; added tabbed Balances/Entry panel and collapsible filters |
 | `FCExpSetup.jsx` | 869 | 159 | Extracted 4 hooks: `useFCExpAssumptions`, `useFCExpAccountHierarchy`, `useFCExpEntries`, `useFCExpCrud` |
 | `TransActual.jsx` | 393 | 282 | Unified with TransBudget via shared `features/Transaction/` module |
 | `TransBudget.jsx` | 295 | 204 | Unified with TransActual via shared `features/Transaction/` module |
@@ -52,7 +52,7 @@ All four god components have been refactored:
 
 1. ~~**Transaction filter logic** (~80 lines) duplicated across TransActual, TransBudget, useTransactions~~ — **Resolved:** Unified into `features/Transaction/` with config-driven shared hooks and components
 2. **`collectCollapsiblePaths()`** duplicated in Balance.jsx and BalanceChart.jsx — move to shared `treeHelpers.js`
-3. **Date initialization logic** independently calculated in BudgetInput — extract to `useDateRange` hook
+3. ~~**Date initialization logic** independently calculated in BudgetInput~~ — **Resolved:** `PeriodSelector` shared component handles period presets (This Month, Last Month, This/Last Year, Custom) with auto-computed date ranges
 4. **Month options array** defined in budgetInputUtils.js but recreated in multiple components — move to shared constants
 5. **FX rate lookup** duplicated in BudgetInput and various transaction modals — move to shared `currency.js`
 
@@ -67,7 +67,7 @@ All four god components have been refactored:
 | `<LoadingSpinner>` | All pages | "Loading..." text varies |
 | `<ErrorMessage>` | All pages | Error display inconsistent |
 | `<ConfirmDialog>` | 5+ places | Delete confirms duplicated |
-| `<DateRangePicker>` | 4+ places | Date selection varies |
+| ~~`<DateRangePicker>`~~ | 4+ places | Partially addressed: `PeriodSelector` covers budget/report period selection with presets. Other pages still use custom date controls. |
 | `<CurrencyInput>` | 3+ places | Amount inputs inconsistent |
 
 ### 3.4 Component Architecture (Partially Implemented)
@@ -76,7 +76,7 @@ The feature module pattern is now in use. Current structure:
 
 ```
 frontend/src/
-├── components/          # Shared UI (Layout, NavigationMenu, Breadcrumbs, Footer, Toast, LoadingSpinner)
+├── components/          # Shared UI (Layout, NavigationMenu, Breadcrumbs, Footer, Toast, LoadingSpinner, CategorySelector, PeriodSelector, AccountSelector)
 ├── features/            # Domain-specific feature modules
 │   ├── Transaction/     # ✅ Unified actual + budget (config-driven shared hooks, components, utils)
 │   ├── BudgetEntry/     # ✅ Budget worksheet (hooks: useFilterOptions, useBalanceData, useCurrencyData, useBudgetEntrySubmit)
@@ -105,7 +105,7 @@ Future: Extract shared `components/ui/`, `components/forms/`, `components/feedba
 | Empty states | Inconsistent messages | Unified `<EmptyState>` |
 | Button styles | `.generate-report-button` everywhere | Button variants: primary, secondary, danger |
 | Form validation | Scattered, inconsistent | Centralized validation with error messages |
-| Date selection | Different controls per page | Unified `<DateRangePicker>` |
+| Date selection | Different controls per page | Partially addressed: `PeriodSelector` with presets on Budget Worksheet. Other pages pending. |
 
 ### 3.6 Performance Optimizations
 
@@ -216,6 +216,7 @@ Timeline of the MongoDB-to-PostgreSQL migration and infrastructure changes.
 
 | Date | Event |
 |------|-------|
+| 2026-02-16 | **Budget Worksheet UI overhaul:** Created three reusable shared components — `CategorySelector` (COA-hierarchy-ordered, searchable multi-select), `AccountSelector` (currency-grouped, searchable multi-select), `PeriodSelector` (preset-based: This Month, Last Month, This/Last Year, Custom). Replaced inline filter controls with shared components. Added collapsible filter controls (Show/Hide toggle). Replaced side-by-side Balances + Budget Entry layout with a tabbed panel showing selected category in the tab header. Removed redundant `budget-region` wrappers from `BudgetRegionBalances` and `BudgetRegionBudgetEntry`. |
 | 2026-02-15 | **New feature:** Added Budget Variances page (`/budget-variances`) — flat line-item table showing budget vs actual with variance, sorted by largest absolute variance. Uses same data-fetching pattern as Budget Realization (cash-flow + budget cash-flow APIs) with leaf-level extraction. Simple month/year selector defaulting to current month. |
 | 2026-02-15 | **Frontend refactoring:** Unified `TransactionActual/` and `TransactionBudget/` into shared `features/Transaction/` module — config-driven architecture (`ACTUAL_CONFIG`, `BUDGET_CONFIG`) with 5 shared hooks and 4 shared components. Deleted 22 duplicate files (~3,100 lines removed, ~900 added = ~2,200 net reduction). Extracted 4 hooks from `FCExpSetup.jsx` (869→159 LOC): `useFCExpAssumptions`, `useFCExpAccountHierarchy`, `useFCExpEntries`, `useFCExpCrud`. Extracted `useBudgetEntrySubmit` from `BudgetInput.jsx` (762→445 LOC). |
 | 2026-02-14 | **V1 compat removal:** Consolidated forecast routes — removed ~300 lines of unused v2-only REST endpoints (individual scenario/module/incexp CRUD), merged `/modules/v1` into `/modules`, removed `_id` fields from responses, cleaned up v1 compat comments in frontend. Renamed `mongoImportReport`/`mongoUpdateReport` to `importReport`/`updateReport` in dataPaths.js. |
@@ -236,4 +237,4 @@ Timeline of the MongoDB-to-PostgreSQL migration and infrastructure changes.
 
 ---
 
-*Last updated: 2026-02-15*
+*Last updated: 2026-02-16*

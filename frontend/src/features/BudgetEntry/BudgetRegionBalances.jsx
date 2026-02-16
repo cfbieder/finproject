@@ -31,18 +31,10 @@ export default function BudgetRegionBalances({
   const totals = computeTotals(balanceRows);
 
   return (
-    <section className="budget-region balances-area">
-      <div className="balances-area__header">
-        <div>
-          <p className="budget-region__label">Balances</p>
-          <p className="budget-region__description">
-            Comparing actual and budget BaseAmount for the selected months.
-          </p>
-        </div>
-        {balancesStatus.loading && (
-          <p className="balances-area__status">Loading balances…</p>
-        )}
-      </div>
+    <div className="balances-area">
+      {balancesStatus.loading && (
+        <p className="balances-area__status">Loading balances…</p>
+      )}
 
       {balancesStatus.error && (
         <p className="balances-area__status balances-area__status--error">
@@ -113,6 +105,6 @@ export default function BudgetRegionBalances({
           ) : null}
         </table>
       </div>
-    </section>
+    </div>
   );
 }

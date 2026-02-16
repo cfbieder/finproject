@@ -115,7 +115,7 @@ fin/
 │   └── src/
 │       ├── App.jsx              # Router, Layout wrapper, lazy routes
 │       ├── main.jsx             # Entry point, ToastProvider
-│       ├── components/          # Shared UI (Layout, NavigationMenu, Breadcrumbs, Footer, Toast, LoadingSpinner, MonthYearPicker, PeriodCountSelector)
+│       ├── components/          # Shared UI (Layout, NavigationMenu, Breadcrumbs, Footer, Toast, LoadingSpinner, MonthYearPicker, PeriodCountSelector, CategorySelector, PeriodSelector, AccountSelector)
 │       ├── config/routes.jsx    # Central route config (paths, icons, categories)
 │       ├── contexts/            # ToastContext, ForecastContext
 │       ├── features/            # Feature modules (Balances, BudgetEntry, Budgets, CashFlow, Charts, COAManagement, Database, Forecast, Transaction)
@@ -165,7 +165,7 @@ fin/
 | `/upload-ps` | UploadPS | Database | Upload PocketSmith CSV data |
 | `/refresh-ps` | RefreshPS | Database | Refresh data via PocketSmith API |
 | `/backup-database` | BackupDatabase | Database | Download database backup |
-| `/budget-worksheet` | BudgetInput | Budgeting | Create/edit monthly budget |
+| `/budget-worksheet` | BudgetInput | Budgeting | Budget worksheet with collapsible filter controls (PeriodSelector, CategorySelector, AccountSelector), tabbed Balances/Budget Entry panel showing selected category |
 | `/budget-realization` | BudgetRealization | Budgeting | Budget vs actual comparison |
 | `/budget-graph` | BudgetRealizationGraph | Budgeting | Visual budget analysis |
 | `/budget-variances` | BudgetVariances | Budgeting | Line items ranked by largest variance |
@@ -195,9 +195,27 @@ Category landing pages instead of dropdowns. Each category has a landing page at
 ### Key Patterns
 
 - **Shared Layout**: `Layout.jsx` renders `NavigationMenu` + `Breadcrumbs` + page content + `Footer`. Reusable `MonthYearPicker` and `PeriodCountSelector` components shared across pages
+- **Shared selectors**: `CategorySelector` (COA-hierarchy, searchable), `AccountSelector` (currency-grouped, searchable), `PeriodSelector` (preset-based periods) — reusable across pages
+- **Collapsible sections**: Budget Worksheet filter controls use a Show/Hide toggle to maximize screen space for data tables
+- **Tabbed panels**: Budget Worksheet uses a tabbed interface to switch between Balances and Budget Entry in the same card, with the selected category displayed in the tab header
 - **Lazy loading**: All pages except Home use `React.lazy()` with `Suspense` + `LoadingSpinner`
 - **Feature modules**: 9 feature directories under `features/` (Balances, BudgetEntry, Budgets, CashFlow, Charts, COAManagement, Database, Forecast, Transaction) with hooks, utils, and table components
 - **Toast notifications**: All CRUD operations use `useToast()` for success/error feedback
+
+### Shared Components (frontend/src/components/)
+
+| Component | File | Description |
+|-----------|------|-------------|
+| Layout | `Layout.jsx` | NavigationMenu + Breadcrumbs + page content + Footer wrapper |
+| NavigationMenu | `NavigationMenu.jsx` | Top navigation bar with category links |
+| Breadcrumbs | `Breadcrumbs.jsx` | Page breadcrumb trail |
+| LoadingSpinner | `LoadingSpinner.jsx` | Suspense fallback spinner |
+| Toast | `Toast.jsx` | Toast notification popups |
+| MonthYearPicker | `MonthYearPicker.jsx` | Dual month + year select, accepts className props |
+| PeriodCountSelector | `PeriodCountSelector.jsx` | Dropdown for 1-3 period counts |
+| **CategorySelector** | `CategorySelector/CategorySelector.jsx` | Searchable, COA-hierarchy-ordered category multi-select. Accepts `plTree` (from `useCoa`) for hierarchy ordering, `selectedCategories` + `onCategoriesChange` for selection, `categoryGroupOptions` for group presets (Income all, Expense all, etc.). Includes type-to-filter search input. Used on Budget Worksheet. |
+| **PeriodSelector** | `PeriodSelector/PeriodSelector.jsx` | Preset-based period picker with standard presets: This Month, This Month Prior Year, Last Month, Last Month Prior Year, This Year, Last Year, Custom. Auto-computes `fromMonth`/`toMonth`/`actualYear`/`budgetYear` from selected preset. "Custom" reveals manual dropdowns. Supports controlled + uncontrolled modes (dual-state pattern). Used on Budget Worksheet. |
+| **AccountSelector** | `AccountSelector/AccountSelector.jsx` | Searchable, currency-grouped account multi-select. Accepts `accountOptions` (string[]) and `accountCurrencyMap` (Map from `useCoa`) to group accounts by currency. Includes type-to-filter search, "All" option pinned at top, and currency group headers (USD, EUR, etc.). `selectedAccounts` + `onAccountsChange` for selection. Used on Budget Worksheet. |
 
 ### Visual Environment Indicators
 
@@ -521,4 +539,4 @@ docker compose -f docker-compose.dev.yml down        # Development
 
 ---
 
-*Last updated: 2026-02-15*
+*Last updated: 2026-02-16*
