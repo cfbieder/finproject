@@ -18,6 +18,7 @@ import TransactionTable, {
   computeTransactionBaseAmount,
 } from "../features/Transaction/TransactionTable.jsx";
 import TransactionEditModal from "../features/Transaction/TransactionEditModal.jsx";
+import { useCoa } from "../hooks/useCoa.js";
 import "./PageLayout.css";
 import "./RefreshPS.css";
 
@@ -31,27 +32,27 @@ export default function RefreshPS() {
   const [refreshStatus, setRefreshStatus] = useState(null);
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [newTransactions, setNewTransactions] = useState([]);
-  const [showNewTransactions, setShowNewTransactions] = useState(false);
   const [isLoadingNewTransactions, setIsLoadingNewTransactions] =
     useState(false);
   const [newTransactionsError, setNewTransactionsError] = useState(null);
   const [modifiedTransactions, setModifiedTransactions] = useState([]);
-  const [showModifiedTransactions, setShowModifiedTransactions] =
-    useState(false);
   const [isLoadingModifiedTransactions, setIsLoadingModifiedTransactions] =
     useState(false);
   const [modifiedTransactionsError, setModifiedTransactionsError] =
     useState(null);
   const [daysHistory, setDaysHistory] = useState(7);
 
+  // Active view: which table section to display (radio-style, one at a time)
+  const [activeView, setActiveView] = useState("review");
+
   // Review & Edit state
   const [reviewTransactions, setReviewTransactions] = useState([]);
-  const [showReviewTable, setShowReviewTable] = useState(false);
   const [isLoadingReview, setIsLoadingReview] = useState(false);
   const [reviewError, setReviewError] = useState(null);
 
   const categoryOptions = useTransactionCategoryOptions();
   const rates = useTransactionExchangeRates();
+  const { plTree } = useCoa();
 
   /***************************
    * Fetch last ingest and refresh timestamps
@@ -272,20 +273,12 @@ export default function RefreshPS() {
     }
   }, []);
 
-  const handleToggleNewTransactions = async () => {
-    const nextShow = !showNewTransactions;
-    setShowNewTransactions(nextShow);
-    if (nextShow) {
-      await loadNewTransactions();
-    }
-  };
-
-  const handleToggleModifiedTransactions = async () => {
-    const nextShow = !showModifiedTransactions;
-    setShowModifiedTransactions(nextShow);
-    if (nextShow) {
-      await loadModifiedTransactions();
-    }
+  const handleViewChange = async (view) => {
+    if (view === activeView) return;
+    setActiveView(view);
+    if (view === "new") await loadNewTransactions();
+    else if (view === "modified") await loadModifiedTransactions();
+    else if (view === "review") await loadReviewTransactions();
   };
 
   /**************************
@@ -310,13 +303,10 @@ export default function RefreshPS() {
     }
   }, []);
 
-  const handleToggleReviewTable = async () => {
-    const nextShow = !showReviewTable;
-    setShowReviewTable(nextShow);
-    if (nextShow) {
-      await loadReviewTransactions();
-    }
-  };
+  // Load review data on mount (default active view)
+  useEffect(() => {
+    loadReviewTransactions();
+  }, [loadReviewTransactions]);
 
   const {
     selectedRows,
@@ -379,13 +369,37 @@ export default function RefreshPS() {
 
   return (
     <>
-      <main className="page-main upload-grid">
-        <section className="upload-panel">
-          <h1 className="page__title">Refresh PS Data</h1>
-          <p className="page__description">
-            Pull the latest PocketSmith transactions and sync them with your
-            database.
-          </p>
+      <main className="page-main refresh-ps-layout">
+        <section className="upload-panel refresh-ps-toolbar">
+          <div className="refresh-ps-toolbar__top">
+            <div>
+              <h1 className="refresh-ps-toolbar__title">Refresh PS Data</h1>
+              <p className="refresh-ps-toolbar__desc">
+                Pull the latest PocketSmith transactions and sync them with
+                your database.
+              </p>
+            </div>
+            <div className="refresh-ps-toolbar__right">
+              <div className="refresh-ps-toolbar__days">
+                <label htmlFor="daysHistory">Days</label>
+                <input
+                  id="daysHistory"
+                  type="number"
+                  min="1"
+                  value={daysHistory}
+                  onChange={(event) => setDaysHistory(event.target.value)}
+                />
+              </div>
+              <button
+                type="button"
+                className="refresh-ps-btn refresh-ps-btn--action"
+                onClick={handleRefreshClick}
+                disabled={isRefreshing}
+              >
+                {isRefreshing ? "Refreshing..." : "Refresh PS Data"}
+              </button>
+            </div>
+          </div>
           <ul className="upload-guidance">
             <UploadFeedback
               lastIngestStatus={lastIngestStatus}
@@ -396,235 +410,187 @@ export default function RefreshPS() {
               ingestStatus={null}
             />
           </ul>
-          {showNewTransactions && (
-            <div className="refresh-txn-section">
-              <p className="refresh-txn-section__title">
-                New Transactions
+          <div className="refresh-ps-toolbar__tabs">
+            <button
+              type="button"
+              className={`refresh-ps-tab${activeView === "review" ? " refresh-ps-tab--active" : ""}`}
+              onClick={() => handleViewChange("review")}
+            >
+              Review & Edit New
+            </button>
+            <button
+              type="button"
+              className={`refresh-ps-tab${activeView === "new" ? " refresh-ps-tab--active" : ""}`}
+              onClick={() => handleViewChange("new")}
+            >
+              New Transactions
+            </button>
+            <button
+              type="button"
+              className={`refresh-ps-tab${activeView === "modified" ? " refresh-ps-tab--active" : ""}`}
+              onClick={() => handleViewChange("modified")}
+            >
+              Modified
+            </button>
+          </div>
+        </section>
+        {activeView === "new" && (
+          <section className="upload-panel refresh-ps-content">
+            <p className="refresh-txn-section__title">New Transactions</p>
+            {isLoadingNewTransactions ? (
+              <p className="upload-feedback">Loading new transactions...</p>
+            ) : newTransactionsError ? (
+              <p className="upload-feedback upload-feedback_error">
+                {newTransactionsError}
               </p>
-              {isLoadingNewTransactions ? (
-                <p className="upload-feedback">Loading new transactions...</p>
-              ) : newTransactionsError ? (
-                <p className="upload-feedback upload-feedback_error">
-                  {newTransactionsError}
-                </p>
-              ) : newTransactions.length === 0 ? (
-                <p className="upload-feedback">
-                  No new transactions were found in the latest import.
-                </p>
-              ) : (
-                <div className="refresh-txn-table-wrapper">
-                  <table className="balance-report-table">
-                    <thead>
-                      <tr>
-                        <th>Date</th>
-                        <th>Description1</th>
-                        <th>Amount</th>
-                        <th>Currency</th>
-                        <th>Account</th>
-                        <th>Category</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {newTransactions.map((txn, index) => (
-                        <tr key={txn.ID ?? txn._id ?? index}>
-                          <td>{formatDate(txn.Date ?? txn.date)}</td>
-                          <td>
-                            {txn.Description1 ??
-                              txn.description1 ??
-                              txn.description ??
-                              ""}
-                          </td>
-                          <td>{formatAmount(txn.Amount ?? txn.amount)}</td>
-                          <td>{txn.Currency ?? txn.currency ?? ""}</td>
-                          <td>{txn.Account ?? txn.account ?? ""}</td>
-                          <td>{txn.Category ?? txn.category ?? ""}</td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
-              )}
-            </div>
-          )}
-          {showModifiedTransactions && (
-            <div className="refresh-txn-section">
-              <p className="refresh-txn-section__title">
-                Modified Transactions
+            ) : newTransactions.length === 0 ? (
+              <p className="upload-feedback">
+                No new transactions were found in the latest import.
               </p>
-              {isLoadingModifiedTransactions ? (
-                <p className="upload-feedback">
-                  Loading modified transactions...
-                </p>
-              ) : modifiedTransactionsError ? (
-                <p className="upload-feedback upload-feedback_error">
-                  {modifiedTransactionsError}
-                </p>
-              ) : modifiedTransactions.length === 0 ? (
-                <p className="upload-feedback">
-                  No modified transactions were found in the latest update.
-                </p>
-              ) : (
-                <div className="refresh-txn-table-wrapper">
-                  <table className="balance-report-table">
-                    <thead>
-                      <tr>
-                        <th>Date</th>
-                        <th>Description1</th>
-                        <th>Amount</th>
-                        <th>Currency</th>
-                        <th>Account</th>
-                        <th>Category</th>
+            ) : (
+              <div className="refresh-txn-table-wrapper">
+                <table className="balance-report-table">
+                  <thead>
+                    <tr>
+                      <th>Date</th>
+                      <th>Description1</th>
+                      <th>Amount</th>
+                      <th>Currency</th>
+                      <th>Account</th>
+                      <th>Category</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {newTransactions.map((txn, index) => (
+                      <tr key={txn.ID ?? txn._id ?? index}>
+                        <td>{formatDate(txn.Date ?? txn.date)}</td>
+                        <td>
+                          {txn.Description1 ??
+                            txn.description1 ??
+                            txn.description ??
+                            ""}
+                        </td>
+                        <td>{formatAmount(txn.Amount ?? txn.amount)}</td>
+                        <td>{txn.Currency ?? txn.currency ?? ""}</td>
+                        <td>{txn.Account ?? txn.account ?? ""}</td>
+                        <td>{txn.Category ?? txn.category ?? ""}</td>
                       </tr>
-                    </thead>
-                    <tbody>
-                      {modifiedTransactions.map((txn, index) => (
-                        <tr key={txn.ID ?? txn._id ?? index}>
-                          <td>{formatDate(txn.Date ?? txn.date)}</td>
-                          <td>
-                            {txn.Description1 ??
-                              txn.description1 ??
-                              txn.description ??
-                              ""}
-                          </td>
-                          <td>{formatAmount(txn.Amount ?? txn.amount)}</td>
-                          <td>{txn.Currency ?? txn.currency ?? ""}</td>
-                          <td>{txn.Account ?? txn.account ?? ""}</td>
-                          <td>{txn.Category ?? txn.category ?? ""}</td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
-              )}
-            </div>
-          )}
-          {showReviewTable && (
-            <div className="refresh-txn-section">
-              <div className="refresh-txn-section__header">
-                <p className="refresh-txn-section__title">
-                  Review & Edit New Transactions
-                </p>
-                <div className="refresh-txn-section__actions">
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </section>
+        )}
+        {activeView === "modified" && (
+          <section className="upload-panel refresh-ps-content">
+            <p className="refresh-txn-section__title">
+              Modified Transactions
+            </p>
+            {isLoadingModifiedTransactions ? (
+              <p className="upload-feedback">
+                Loading modified transactions...
+              </p>
+            ) : modifiedTransactionsError ? (
+              <p className="upload-feedback upload-feedback_error">
+                {modifiedTransactionsError}
+              </p>
+            ) : modifiedTransactions.length === 0 ? (
+              <p className="upload-feedback">
+                No modified transactions were found in the latest update.
+              </p>
+            ) : (
+              <div className="refresh-txn-table-wrapper">
+                <table className="balance-report-table">
+                  <thead>
+                    <tr>
+                      <th>Date</th>
+                      <th>Description1</th>
+                      <th>Amount</th>
+                      <th>Currency</th>
+                      <th>Account</th>
+                      <th>Category</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {modifiedTransactions.map((txn, index) => (
+                      <tr key={txn.ID ?? txn._id ?? index}>
+                        <td>{formatDate(txn.Date ?? txn.date)}</td>
+                        <td>
+                          {txn.Description1 ??
+                            txn.description1 ??
+                            txn.description ??
+                            ""}
+                        </td>
+                        <td>{formatAmount(txn.Amount ?? txn.amount)}</td>
+                        <td>{txn.Currency ?? txn.currency ?? ""}</td>
+                        <td>{txn.Account ?? txn.account ?? ""}</td>
+                        <td>{txn.Category ?? txn.category ?? ""}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </section>
+        )}
+        {activeView === "review" && (
+          <section className="upload-panel refresh-ps-content">
+            <div className="refresh-txn-section__header">
+              <p className="refresh-txn-section__title">
+                Review & Edit New Transactions
+              </p>
+              <div className="refresh-txn-section__actions">
+                <button
+                  type="button"
+                  className="generate-report-button"
+                  onClick={handleSelectAllToggle}
+                  disabled={reviewTransactions.length === 0}
+                >
+                  {isAllSelected ? "Deselect All" : "Select All"}
+                </button>
+                {selectedRows.size > 0 && (
                   <button
                     type="button"
                     className="generate-report-button"
-                    onClick={handleSelectAllToggle}
-                    disabled={reviewTransactions.length === 0}
+                    onClick={edit.handleEditRequest}
                   >
-                    {isAllSelected ? "Deselect All" : "Select All"}
+                    Edit Selected ({selectedRows.size})
                   </button>
-                  {selectedRows.size > 0 && (
-                    <button
-                      type="button"
-                      className="generate-report-button"
-                      onClick={edit.handleEditRequest}
-                    >
-                      Edit Selected ({selectedRows.size})
-                    </button>
-                  )}
-                </div>
+                )}
               </div>
-              <TransactionTable
-                config={reviewConfig}
-                isLoading={isLoadingReview}
-                error={reviewError}
-                hasTransactions={reviewTransactions.length > 0}
-                hasFilteredTransactions={reviewTransactions.length > 0}
-                sortedTransactions={sortedReviewTransactions}
-                sortConfig={sortConfig}
-                onSort={handleSort}
-                onRowToggle={toggleRowSelection}
-              />
-              <TransactionEditModal
-                config={reviewConfig}
-                isOpen={edit.showEditModal}
-                selectedCount={selectedRows.size}
-                isEditing={edit.isEditing}
-                error={edit.editError}
-                formValues={edit.editFormValues}
-                categoryOptions={categoryOptions}
-                accountOptions={[]}
-                currencyOptions={[]}
-                safeCategoryOptions={safeCategoryOptions}
-                safeAccountOptions={[]}
-                safeCurrencyOptions={[]}
-                onFieldChange={edit.handleEditFieldChange}
-                onCancel={edit.handleEditCancel}
-                onSubmit={edit.handleEditSubmit}
-              />
             </div>
-          )}
-        </section>
-        <section className="upload-panel upload-form">
-          <div className="upload-form-field">
-            <p>
-              Kick off a refresh to download new or updated transactions and
-              import them into the database.
-            </p>
-          </div>
-          <div className="upload-form-field">
-            <label htmlFor="daysHistory">Days of history to fetch</label>
-            <input
-              id="daysHistory"
-              type="number"
-              min="1"
-              value={daysHistory}
-              onChange={(event) => setDaysHistory(event.target.value)}
+            <TransactionTable
+              config={reviewConfig}
+              isLoading={isLoadingReview}
+              error={reviewError}
+              hasTransactions={reviewTransactions.length > 0}
+              hasFilteredTransactions={reviewTransactions.length > 0}
+              sortedTransactions={sortedReviewTransactions}
+              sortConfig={sortConfig}
+              onSort={handleSort}
+              onRowToggle={toggleRowSelection}
             />
-          </div>
-          <div className="upload-actions">
-            <button
-              type="button"
-              className="upload-submit"
-              onClick={handleRefreshClick}
-              disabled={isRefreshing}
-            >
-              {isRefreshing ? "Refreshing..." : "Refresh PS data"}
-            </button>
-          </div>
-          <div className="upload-actions">
-            <button
-              type="button"
-              className="upload-submit"
-              onClick={handleToggleReviewTable}
-              disabled={isLoadingReview}
-            >
-              {isLoadingReview
-                ? "Loading..."
-                : showReviewTable
-                ? "Hide Review Table"
-                : "Review & Edit New Transactions"}
-            </button>
-          </div>
-          <div className="upload-actions">
-            <button
-              type="button"
-              className="upload-submit"
-              onClick={handleToggleNewTransactions}
-              disabled={isLoadingNewTransactions}
-            >
-              {isLoadingNewTransactions
-                ? "Loading transactions..."
-                : showNewTransactions
-                ? "Hide New Transactions"
-                : "Show New Transactions"}
-            </button>
-          </div>
-          <div className="upload-actions">
-            <button
-              type="button"
-              className="upload-submit"
-              onClick={handleToggleModifiedTransactions}
-              disabled={isLoadingModifiedTransactions}
-            >
-              {isLoadingModifiedTransactions
-                ? "Loading transactions..."
-                : showModifiedTransactions
-                ? "Hide Modified Transactions"
-                : "Show Modified Transactions"}
-            </button>
-          </div>
-        </section>
+            <TransactionEditModal
+              config={reviewConfig}
+              isOpen={edit.showEditModal}
+              selectedCount={selectedRows.size}
+              isEditing={edit.isEditing}
+              error={edit.editError}
+              formValues={edit.editFormValues}
+              categoryOptions={categoryOptions}
+              accountOptions={[]}
+              currencyOptions={[]}
+              safeCategoryOptions={safeCategoryOptions}
+              safeAccountOptions={[]}
+              safeCurrencyOptions={[]}
+              plTree={plTree}
+              onFieldChange={edit.handleEditFieldChange}
+              onCancel={edit.handleEditCancel}
+              onSubmit={edit.handleEditSubmit}
+            />
+          </section>
+        )}
       </main>
     </>
   );

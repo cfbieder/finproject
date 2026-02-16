@@ -150,8 +150,9 @@ router.get('/appdata', async (req, res, next) => {
   try {
     const fs = require('fs');
     const { dataPaths } = require('../../utils/dataPaths');
+    const psdata = require('../repositories').psdata;
 
-    // Try to read appData from JSON file if it exists
+    // Read from JSON file
     const appDataPath = dataPaths.appData;
     let appData = {};
 
@@ -163,6 +164,14 @@ router.get('/appdata', async (req, res, next) => {
       }
     } catch (readError) {
       console.warn('[v2/util/appdata] Could not read appData file:', readError.message);
+    }
+
+    // Merge with database app_data (lastIngest, lastRefresh are stored there)
+    try {
+      const dbData = await psdata.getAllAppData();
+      Object.assign(appData, dbData);
+    } catch (dbError) {
+      console.warn('[v2/util/appdata] Could not read app_data from DB:', dbError.message);
     }
 
     res.json([appData]);

@@ -244,8 +244,10 @@ export const REVIEW_CONFIG = {
   ],
 
   transformEntry(txn) {
+    // id may be null if the record hasn't been synced to transactions yet
+    const entryId = txn.id != null ? txn.id : `ps-${txn.ps_id}`;
     return {
-      _id: String(txn.id),
+      _id: String(entryId),
       id: txn.id,
       ps_id: txn.ps_id,
       Date: txn.transaction_date,

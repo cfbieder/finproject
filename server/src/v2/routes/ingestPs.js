@@ -447,8 +447,9 @@ router.post('/refresh-ps', async (req, res, next) => {
 
 /**
  * POST /api/v2/ingest-ps/review-new-transactions
- * Fetch synced transactions from the transactions table
- * for all ps_ids found in the import report.
+ * Fetch new transactions for review. Uses psdata_staging as the primary
+ * source (always present after import) and LEFT JOINs the transactions
+ * table to obtain the editable transaction id when the record was synced.
  * Returns data in the same shape as GET /api/v2/transactions.
  */
 router.post('/review-new-transactions', async (req, res) => {
@@ -473,16 +474,29 @@ router.post('/review-new-transactions', async (req, res) => {
     const db = require('../db');
     const result = await db.query(`
       SELECT
-        t.id, t.ps_id, t.transaction_date, t.description1, t.description2,
-        t.amount, t.currency, t.base_amount, t.base_currency,
-        t.transaction_type, t.closing_balance, t.labels, t.memo, t.note, t.bank, t.source,
-        t.account_id, a.name as account_name,
-        t.category_id, c.name as category_name
-      FROM transactions t
-      LEFT JOIN accounts a ON t.account_id = a.id
-      LEFT JOIN categories c ON t.category_id = c.id
-      WHERE t.ps_id = ANY($1::bigint[])
-      ORDER BY t.transaction_date DESC, t.id DESC
+        t.id,
+        s.ps_id,
+        COALESCE(t.transaction_date, s.transaction_date) as transaction_date,
+        COALESCE(t.description1, s.description1) as description1,
+        COALESCE(t.description2, s.description2) as description2,
+        COALESCE(t.amount, s.amount) as amount,
+        COALESCE(t.currency, s.currency) as currency,
+        COALESCE(t.base_amount, s.base_amount) as base_amount,
+        COALESCE(t.base_currency, s.base_currency) as base_currency,
+        s.account_name,
+        s.category_name,
+        t.account_id,
+        t.category_id,
+        t.closing_balance,
+        t.labels,
+        t.memo,
+        t.note,
+        t.bank,
+        t.source
+      FROM psdata_staging s
+      LEFT JOIN transactions t ON t.ps_id = s.ps_id::bigint
+      WHERE s.ps_id = ANY($1)
+      ORDER BY s.transaction_date DESC, s.id DESC
     `, [psIds]);
 
     res.json({ data: result.rows });

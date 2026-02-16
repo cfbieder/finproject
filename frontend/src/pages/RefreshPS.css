@@ -1,3 +1,149 @@
+/* ── Page layout ────────────────────────────────── */
+
+/* Layout override is in PageLayout.css alongside .trans-budget-main */
+
+/* ── Toolbar (top card) ──────────────────────────── */
+
+.refresh-ps-toolbar {
+  padding: 1.5rem 1.75rem 1rem;
+}
+
+.refresh-ps-toolbar__top {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 1.5rem;
+}
+
+.refresh-ps-toolbar__title {
+  font-size: 1.35rem;
+  font-weight: 700;
+  color: var(--ink, #1e293b);
+  margin: 0;
+  letter-spacing: -0.01em;
+}
+
+.refresh-ps-toolbar__desc {
+  margin: 0.25rem 0 0;
+  font-size: 0.85rem;
+  color: var(--muted, #64748b);
+  line-height: 1.45;
+}
+
+.refresh-ps-toolbar__right {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  flex-shrink: 0;
+}
+
+.refresh-ps-toolbar__days {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  flex-shrink: 0;
+}
+
+.refresh-ps-toolbar__days label {
+  font-size: 0.8rem;
+  font-weight: 500;
+  color: var(--muted, #64748b);
+  white-space: nowrap;
+}
+
+.refresh-ps-toolbar__days input {
+  width: 4.5rem;
+  border-radius: 0.5rem;
+  padding: 0.4rem 0.6rem;
+  border: 1px solid var(--border, #e2e8f0);
+  background: var(--surface-muted, #f8fafc);
+  color: var(--ink, #1e293b);
+  font-size: 0.85rem;
+}
+
+/* ── Refresh action button ───────────────────────── */
+
+.refresh-ps-btn--action {
+  padding: 0.5rem 1.25rem;
+  border-radius: 0.6rem;
+  border: none;
+  font-size: 0.85rem;
+  font-weight: 600;
+  white-space: nowrap;
+  background: linear-gradient(135deg, var(--primary, #2563eb), #3b82f6);
+  color: #fff;
+  box-shadow: 0 2px 8px -2px rgba(37, 99, 235, 0.45);
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.refresh-ps-btn--action:hover:not(:disabled) {
+  box-shadow: 0 4px 14px -3px rgba(37, 99, 235, 0.6);
+  transform: translateY(-1px);
+}
+
+.refresh-ps-btn--action:disabled {
+  background: var(--border, #e2e8f0);
+  color: var(--muted, #64748b);
+  box-shadow: none;
+  cursor: not-allowed;
+}
+
+/* ── Status list ─────────────────────────────────── */
+
+.refresh-ps-toolbar .upload-guidance {
+  margin: 0.75rem 0 0;
+  padding-left: 1rem;
+  font-size: 0.82rem;
+  color: var(--muted, #64748b);
+}
+
+/* ── View-switching tabs ─────────────────────────── */
+
+.refresh-ps-toolbar__tabs {
+  display: flex;
+  gap: 0.35rem;
+  margin-top: 1rem;
+  border-top: 1px solid var(--border, #e2e8f0);
+  padding-top: 0.75rem;
+}
+
+.refresh-ps-tab {
+  flex: 1 1 0;
+  padding: 0.55rem 1rem;
+  border: 1px solid var(--border, #e2e8f0);
+  border-radius: 0.5rem;
+  background: var(--surface-muted, #f8fafc);
+  color: var(--muted, #64748b);
+  font-size: 0.82rem;
+  font-weight: 500;
+  text-align: center;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.refresh-ps-tab:hover:not(.refresh-ps-tab--active) {
+  background: var(--surface, #fff);
+  color: var(--ink, #1e293b);
+  border-color: var(--primary, #2563eb);
+}
+
+.refresh-ps-tab--active {
+  background: var(--primary, #2563eb);
+  color: #fff;
+  border-color: var(--primary, #2563eb);
+  font-weight: 600;
+  box-shadow: 0 2px 8px -2px rgba(37, 99, 235, 0.4);
+}
+
+/* ── Content sections (tables below toolbar) ───── */
+
+.refresh-ps-content {
+  width: 100%;
+}
+
+/* ── Shared transaction section pieces ─────────── */
+
 .refresh-txn-section {
   margin-top: 1.25rem;
 }

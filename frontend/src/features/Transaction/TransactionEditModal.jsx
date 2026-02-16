@@ -2,6 +2,7 @@ import {
   TransactionDateSelector,
   TRANSACTION_DESCRIPTION_FIELD_KEY,
 } from "./TransactionTable.jsx";
+import CategorySelector from "../../components/CategorySelector/CategorySelector.jsx";
 
 /**
  * Shared edit modal for bulk editing transactions.
@@ -20,6 +21,7 @@ export default function TransactionEditModal({
   safeCategoryOptions,
   safeAccountOptions,
   safeCurrencyOptions,
+  plTree,
   onFieldChange,
   onCancel,
   onSubmit,
@@ -146,11 +148,30 @@ export default function TransactionEditModal({
               )
             )}
           </div>
-          {categoryField &&
+          {categoryField && plTree?.length > 0 ? (
+            <label className="trans-budget-edit-modal__field trans-budget-edit-modal__field--full-row">
+              <span>{categoryField.label}</span>
+              <CategorySelector
+                plTree={plTree}
+                selectedCategories={
+                  formValues.Category ? [formValues.Category] : []
+                }
+                onCategoriesChange={(selected) => {
+                  const picked = selected.length > 0
+                    ? selected[selected.length - 1]
+                    : "";
+                  onFieldChange("Category", picked);
+                }}
+                categoryGroupOptions={[]}
+              />
+            </label>
+          ) : (
+            categoryField &&
             renderEditField(
               categoryField,
               "trans-budget-edit-modal__field--full-row"
-            )}
+            )
+          )}
           {descriptionField &&
             renderEditField(
               descriptionField,
