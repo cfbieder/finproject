@@ -462,8 +462,8 @@ export default function RefreshPS() {
                   </thead>
                   <tbody>
                     {newTransactions.map((txn, index) => (
-                      <tr key={txn.ID ?? txn._id ?? index}>
-                        <td>{formatDate(txn.Date ?? txn.date)}</td>
+                      <tr key={txn.ID ?? txn.ps_id ?? txn._id ?? index}>
+                        <td>{formatDate(txn.Date ?? txn.transaction_date ?? txn.date)}</td>
                         <td>
                           {txn.Description1 ??
                             txn.description1 ??
@@ -472,8 +472,8 @@ export default function RefreshPS() {
                         </td>
                         <td>{formatAmount(txn.Amount ?? txn.amount)}</td>
                         <td>{txn.Currency ?? txn.currency ?? ""}</td>
-                        <td>{txn.Account ?? txn.account ?? ""}</td>
-                        <td>{txn.Category ?? txn.category ?? ""}</td>
+                        <td>{txn.Account ?? txn.account_name ?? txn.account ?? ""}</td>
+                        <td>{txn.Category ?? txn.category_name ?? txn.category ?? ""}</td>
                       </tr>
                     ))}
                   </tbody>
@@ -514,8 +514,8 @@ export default function RefreshPS() {
                   </thead>
                   <tbody>
                     {modifiedTransactions.map((txn, index) => (
-                      <tr key={txn.ID ?? txn._id ?? index}>
-                        <td>{formatDate(txn.Date ?? txn.date)}</td>
+                      <tr key={txn.ID ?? txn.ps_id ?? txn._id ?? index}>
+                        <td>{formatDate(txn.Date ?? txn.transaction_date ?? txn.date)}</td>
                         <td>
                           {txn.Description1 ??
                             txn.description1 ??
@@ -524,8 +524,8 @@ export default function RefreshPS() {
                         </td>
                         <td>{formatAmount(txn.Amount ?? txn.amount)}</td>
                         <td>{txn.Currency ?? txn.currency ?? ""}</td>
-                        <td>{txn.Account ?? txn.account ?? ""}</td>
-                        <td>{txn.Category ?? txn.category ?? ""}</td>
+                        <td>{txn.Account ?? txn.account_name ?? txn.account ?? ""}</td>
+                        <td>{txn.Category ?? txn.category_name ?? txn.category ?? ""}</td>
                       </tr>
                     ))}
                   </tbody>

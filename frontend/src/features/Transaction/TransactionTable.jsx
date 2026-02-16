@@ -15,21 +15,10 @@ const formatDateValue = (value) => {
   if (!Number.isFinite(next.getTime())) {
     return "-";
   }
-  const monthNames = [
-    "January",
-    "February",
-    "March",
-    "April",
-    "May",
-    "June",
-    "July",
-    "August",
-    "September",
-    "October",
-    "November",
-    "December",
-  ];
-  return `${monthNames[next.getUTCMonth()]} ${next.getUTCFullYear()}`;
+  const mm = String(next.getUTCMonth() + 1).padStart(2, "0");
+  const dd = String(next.getUTCDate()).padStart(2, "0");
+  const yy = String(next.getUTCFullYear()).slice(-2);
+  return `${mm}/${dd}/${yy}`;
 };
 
 const formatTextValue = (value) => {
@@ -65,7 +54,7 @@ const formatNumberValue = (value) => {
 const SELECTION_COLUMN = { key: "selected", label: "Selected" };
 
 const TRANSACTION_COLUMNS = [
-  { key: "Date", label: "Date", render: formatDateValue },
+  { key: "Date", label: "Date", render: formatDateValue, noWrap: true },
   { key: "Description1", label: "Description", render: formatTextValue },
   {
     key: "Amount",
@@ -188,6 +177,7 @@ export default function TransactionTable({
                             ? " trans-budget-table__value--numeric"
                             : ""
                         }`}
+                        style={column.noWrap ? { whiteSpace: "nowrap" } : undefined}
                       >
                         {column.render(entry[column.key])}
                       </td>

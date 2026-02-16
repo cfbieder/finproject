@@ -50,7 +50,7 @@ All four god components have been refactored:
 
 ### 3.2 DRY Violations
 
-1. ~~**Transaction filter logic** (~80 lines) duplicated across TransActual, TransBudget, useTransactions~~ — **Resolved:** Unified into `features/Transaction/` with config-driven shared hooks and components
+1. ~~**Transaction filter logic** (~80 lines) duplicated across TransActual, TransBudget, useTransactions~~ — **Resolved:** Unified into `features/Transaction/` with config-driven shared hooks and components (`ACTUAL_CONFIG`, `BUDGET_CONFIG`, `REVIEW_CONFIG`). Now also reused on RefreshPS page for review/edit of new transactions.
 2. **`collectCollapsiblePaths()`** duplicated in Balance.jsx and BalanceChart.jsx — move to shared `treeHelpers.js`
 3. ~~**Date initialization logic** independently calculated in BudgetInput~~ — **Resolved:** `PeriodSelector` shared component handles period presets (This Month, Last Month, This/Last Year, Custom) with auto-computed date ranges
 4. **Month options array** defined in budgetInputUtils.js but recreated in multiple components — move to shared constants
@@ -78,7 +78,7 @@ The feature module pattern is now in use. Current structure:
 frontend/src/
 ├── components/          # Shared UI (Layout, NavigationMenu, Breadcrumbs, Footer, Toast, LoadingSpinner, CategorySelector, PeriodSelector, AccountSelector)
 ├── features/            # Domain-specific feature modules
-│   ├── Transaction/     # ✅ Unified actual + budget (config-driven shared hooks, components, utils)
+│   ├── Transaction/     # ✅ Unified actual + budget + review (config-driven: ACTUAL_CONFIG, BUDGET_CONFIG, REVIEW_CONFIG; shared hooks, components, utils)
 │   ├── BudgetEntry/     # ✅ Budget worksheet (hooks: useFilterOptions, useBalanceData, useCurrencyData, useBudgetEntrySubmit)
 │   ├── Forecast/        # ✅ Scenarios, modules, assumptions (hooks: useFCExpAssumptions, useFCExpAccountHierarchy, useFCExpEntries, useFCExpCrud)
 │   ├── Balances/        # Balance sheet components
@@ -216,6 +216,7 @@ Timeline of the MongoDB-to-PostgreSQL migration and infrastructure changes.
 
 | Date | Event |
 |------|-------|
+| 2026-02-16 | **RefreshPS page enhancements:** Added "Review & Edit New Transactions" feature — editable transaction table on `/refresh-ps` using shared `TransactionTable`, `TransactionEditModal`, and `REVIEW_CONFIG` (Description + Category fields only). New backend endpoint `POST /api/v2/ingest-ps/review-new-transactions` queries `psdata_staging` LEFT JOINed with `transactions` to include unsynced records. Replaced toggle buttons with radio-style tab selector (Review & Edit New / New Transactions / Modified — one active at a time, default: Review). Integrated `CategorySelector` component into `TransactionEditModal` for hierarchical, searchable single-select category picking (via new `plTree` prop). Fixed `GET /api/v2/util/appdata` to merge JSON file data with PostgreSQL `app_data` table (resolving "No ingest/refresh recorded" display bug). Improved toolbar styling with dedicated action button and tab layout. |
 | 2026-02-16 | **Budget Worksheet UI overhaul:** Created three reusable shared components — `CategorySelector` (COA-hierarchy-ordered, searchable multi-select), `AccountSelector` (currency-grouped, searchable multi-select), `PeriodSelector` (preset-based: This Month, Last Month, This/Last Year, Custom). Replaced inline filter controls with shared components. Added collapsible filter controls (Show/Hide toggle). Replaced side-by-side Balances + Budget Entry layout with a tabbed panel showing selected category in the tab header. Removed redundant `budget-region` wrappers from `BudgetRegionBalances` and `BudgetRegionBudgetEntry`. |
 | 2026-02-15 | **New feature:** Added Budget Variances page (`/budget-variances`) — flat line-item table showing budget vs actual with variance, sorted by largest absolute variance. Uses same data-fetching pattern as Budget Realization (cash-flow + budget cash-flow APIs) with leaf-level extraction. Simple month/year selector defaulting to current month. |
 | 2026-02-15 | **Frontend refactoring:** Unified `TransactionActual/` and `TransactionBudget/` into shared `features/Transaction/` module — config-driven architecture (`ACTUAL_CONFIG`, `BUDGET_CONFIG`) with 5 shared hooks and 4 shared components. Deleted 22 duplicate files (~3,100 lines removed, ~900 added = ~2,200 net reduction). Extracted 4 hooks from `FCExpSetup.jsx` (869→159 LOC): `useFCExpAssumptions`, `useFCExpAccountHierarchy`, `useFCExpEntries`, `useFCExpCrud`. Extracted `useBudgetEntrySubmit` from `BudgetInput.jsx` (762→445 LOC). |

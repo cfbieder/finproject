@@ -202,6 +202,8 @@ export const filtersAreEqual = (a, b) => {
     a.currencyEnabled === b.currencyEnabled &&
     a.year === b.year &&
     a.month === b.month &&
+    a.fromMonth === b.fromMonth &&
+    a.toMonth === b.toMonth &&
     arrayEqual(a.account, b.account) &&
     arrayEqual(a.category, b.category) &&
     arrayEqual(a.currency, b.currency) &&

@@ -181,6 +181,7 @@ export default function PeriodSelector({
   id = "period-selector",
   className = "",
   defaultPreset = "custom",
+  hideBudgetYear = false,
 }) {
   // ── Internal state (uncontrolled fallbacks) ──
   const [preset, setPreset] = useState(defaultPreset);
@@ -359,26 +360,28 @@ export default function PeriodSelector({
             </select>
           </div>
 
-          <div className="period-selector__field">
-            <label
-              htmlFor={`${id}-budget-year`}
-              className="period-selector__label"
-            >
-              Budget Year
-            </label>
-            <select
-              id={`${id}-budget-year`}
-              className="period-selector__select"
-              value={budgetYear}
-              onChange={(e) => handleManualChange("budgetYear", e.target.value)}
-            >
-              {budgetYearOptions.map((y) => (
-                <option key={`budget-${y}`} value={y}>
-                  {y}
-                </option>
-              ))}
-            </select>
-          </div>
+          {!hideBudgetYear && (
+            <div className="period-selector__field">
+              <label
+                htmlFor={`${id}-budget-year`}
+                className="period-selector__label"
+              >
+                Budget Year
+              </label>
+              <select
+                id={`${id}-budget-year`}
+                className="period-selector__select"
+                value={budgetYear}
+                onChange={(e) => handleManualChange("budgetYear", e.target.value)}
+              >
+                {budgetYearOptions.map((y) => (
+                  <option key={`budget-${y}`} value={y}>
+                    {y}
+                  </option>
+                ))}
+              </select>
+            </div>
+          )}
         </div>
       )}
     </div>

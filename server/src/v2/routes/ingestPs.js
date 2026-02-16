@@ -483,8 +483,8 @@ router.post('/review-new-transactions', async (req, res) => {
         COALESCE(t.currency, s.currency) as currency,
         COALESCE(t.base_amount, s.base_amount) as base_amount,
         COALESCE(t.base_currency, s.base_currency) as base_currency,
-        s.account_name,
-        s.category_name,
+        COALESCE(a.name, s.account_name) as account_name,
+        COALESCE(c.name, s.category_name) as category_name,
         t.account_id,
         t.category_id,
         t.closing_balance,
@@ -494,7 +494,9 @@ router.post('/review-new-transactions', async (req, res) => {
         t.bank,
         t.source
       FROM psdata_staging s
-      LEFT JOIN transactions t ON t.ps_id = s.ps_id::bigint
+      JOIN transactions t ON t.ps_id = s.ps_id::bigint
+      LEFT JOIN accounts a ON t.account_id = a.id
+      LEFT JOIN categories c ON t.category_id = c.id
       WHERE s.ps_id = ANY($1)
       ORDER BY s.transaction_date DESC, s.id DESC
     `, [psIds]);

@@ -172,6 +172,15 @@
 .refresh-txn-table-wrapper .balance-report-table {
   margin: 0;
   border: 0;
+  table-layout: fixed;
+  width: 100%;
+}
+
+.refresh-txn-table-wrapper .balance-report-table td,
+.refresh-txn-table-wrapper .balance-report-table th {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .refresh-txn-section__header {

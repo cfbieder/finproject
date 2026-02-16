@@ -123,7 +123,7 @@ export const routes = [
     path: "/refresh-ps",
     component: RefreshPS,
     label: "Refresh PS",
-    category: "Database",
+    category: "Transactions",
     description: "Refresh and sync data from staging tables",
     icon: RefreshCw,
   },

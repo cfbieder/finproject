@@ -5,7 +5,7 @@ import { useTransactions } from "../features/Transaction/hooks/useTransactions.j
 import { useTransactionSelection } from "../features/Transaction/hooks/useTransactionSelection.js";
 import { useTransactionEdit } from "../features/Transaction/hooks/useTransactionEdit.js";
 import { useTransactionDelete } from "../features/Transaction/hooks/useTransactionDelete.js";
-import TransactionFilter from "../features/Transaction/TransactionFilter.jsx";
+import TransactionFilterBudget from "../features/Transaction/TransactionFilterBudget.jsx";
 import TransactionTable, {
   useTransactionCategoryOptions,
   useTransactionAccountOptions,
@@ -151,7 +151,7 @@ export default function TransBudget() {
   return (
     <>
       <main className="page-main trans-budget-main">
-        <TransactionFilter
+        <TransactionFilterBudget
           config={config}
           onFiltersChange={onFiltersChange}
           onDeleteClick={del.handleDeleteRequest}

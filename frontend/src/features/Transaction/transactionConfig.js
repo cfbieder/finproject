@@ -41,6 +41,14 @@ const buildDateRangeParams = (query, filters) => {
       fromMonth = month + 1;
       toMonth = month + 1;
     }
+  } else if (filters.fromMonth && filters.toMonth) {
+    // Month range from PeriodSelector
+    const fm = Number(filters.fromMonth);
+    const tm = Number(filters.toMonth);
+    if (Number.isFinite(fm) && Number.isFinite(tm)) {
+      fromMonth = fm;
+      toMonth = tm;
+    }
   }
   const fromDate = new Date(Date.UTC(year, fromMonth - 1, 1));
   const toDate = new Date(Date.UTC(year, toMonth, 1));
@@ -94,6 +102,8 @@ export const ACTUAL_CONFIG = {
     currencyEnabled: false,
     year: new Date().getFullYear().toString(),
     month: new Date().getMonth(),
+    fromMonth: String(new Date().getMonth() + 1).padStart(2, "0"),
+    toMonth: String(new Date().getMonth() + 1).padStart(2, "0"),
     account: [],
     category: [],
     currency: [],
@@ -121,6 +131,7 @@ export const ACTUAL_CONFIG = {
     ) {
       query.set("month", filters.month + 1);
     }
+    // Month range support: send only year, client-side handles range filtering
     appendCommonFilterParams(query, filters);
     if (filters.descriptionEnabled && filters.description) {
       query.set("description", filters.description);
@@ -296,13 +307,15 @@ export const BUDGET_CONFIG = {
 
   // Default filter state
   defaultFilters: {
-    yearEnabled: false,
+    yearEnabled: true,
     monthEnabled: false,
     accountEnabled: false,
     categoryEnabled: false,
     currencyEnabled: false,
-    year: "",
+    year: new Date().getFullYear().toString(),
     month: "",
+    fromMonth: "01",
+    toMonth: "12",
     account: [],
     category: [],
     currency: [],

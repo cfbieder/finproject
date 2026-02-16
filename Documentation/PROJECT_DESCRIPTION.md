@@ -163,7 +163,7 @@ fin/
 |------|------|----------|-------------|
 | `/` | Home | - | Dashboard with quick actions |
 | `/upload-ps` | UploadPS | Database | Upload PocketSmith CSV data |
-| `/refresh-ps` | RefreshPS | Database | Refresh data via PocketSmith API |
+| `/refresh-ps` | RefreshPS | Database | Refresh data via PocketSmith API; tabbed view (Review & Edit New / New Transactions / Modified) with inline transaction editing using shared `TransactionTable` + `TransactionEditModal` + `CategorySelector` |
 | `/backup-database` | BackupDatabase | Database | Download database backup |
 | `/budget-worksheet` | BudgetInput | Budgeting | Budget worksheet with collapsible filter controls (PeriodSelector, CategorySelector, AccountSelector), tabbed Balances/Budget Entry panel showing selected category |
 | `/budget-realization` | BudgetRealization | Budgeting | Budget vs actual comparison |
@@ -177,8 +177,8 @@ fin/
 | `/cash-flow` | CashFlow | Reports & Graphs | Cash flow P&L analysis |
 | `/cash-flow-monthly` | CashFlowMonthly | Reports & Graphs | Monthly cash flow breakdown |
 | `/balance-chart` | BalanceChart | Reports & Graphs | Net worth chart over time |
-| `/trans-actual` | TransActual | Transactions | Actual transactions browser |
-| `/trans-budget` | TransBudget | Transactions | Budget transactions browser |
+| `/trans-actual` | TransActual | Transactions | Actual transactions browser with collapsible filter bar (PeriodSelector, CategorySelector, AccountSelector), description search, value range filters, date format mm/dd/yy |
+| `/trans-budget` | TransBudget | Transactions | Budget transactions browser with collapsible filter bar (PeriodSelector, CategorySelector, AccountSelector), value range filters, date format mm/dd/yy |
 | `/fx-options` | FXOptions | Settings | Exchange rate configuration |
 | `/coa-management` | COAManagement | Settings | Chart of accounts CRUD, PS analysis, quick-add |
 
@@ -190,13 +190,13 @@ Category landing pages instead of dropdowns. Each category has a landing page at
 
 - **React Context**: `ToastContext` (global toasts), `ForecastContext` (forecast state shared across FC pages)
 - **Local state**: Page-level `useState`/`useCallback` for form state, loading, and API responses
-- **Custom hooks**: `useTransactionEdit`, `useTransactionDelete`, `useBudgetEntrySubmit`, `useFCExpCrud` encapsulate CRUD logic with toast notifications
+- **Custom hooks**: `useTransactionEdit`, `useTransactionDelete`, `useTransactionSelection`, `useBudgetEntrySubmit`, `useFCExpCrud` encapsulate CRUD logic with toast notifications
 
 ### Key Patterns
 
 - **Shared Layout**: `Layout.jsx` renders `NavigationMenu` + `Breadcrumbs` + page content + `Footer`. Reusable `MonthYearPicker` and `PeriodCountSelector` components shared across pages
 - **Shared selectors**: `CategorySelector` (COA-hierarchy, searchable), `AccountSelector` (currency-grouped, searchable), `PeriodSelector` (preset-based periods) — reusable across pages
-- **Collapsible sections**: Budget Worksheet filter controls use a Show/Hide toggle to maximize screen space for data tables
+- **Collapsible sections**: Budget Worksheet and Transaction pages (Actual, Budget) use a Show/Hide toggle to maximize screen space for data tables
 - **Tabbed panels**: Budget Worksheet uses a tabbed interface to switch between Balances and Budget Entry in the same card, with the selected category displayed in the tab header
 - **Lazy loading**: All pages except Home use `React.lazy()` with `Suspense` + `LoadingSpinner`
 - **Feature modules**: 9 feature directories under `features/` (Balances, BudgetEntry, Budgets, CashFlow, Charts, COAManagement, Database, Forecast, Transaction) with hooks, utils, and table components
@@ -213,7 +213,7 @@ Category landing pages instead of dropdowns. Each category has a landing page at
 | Toast | `Toast.jsx` | Toast notification popups |
 | MonthYearPicker | `MonthYearPicker.jsx` | Dual month + year select, accepts className props |
 | PeriodCountSelector | `PeriodCountSelector.jsx` | Dropdown for 1-3 period counts |
-| **CategorySelector** | `CategorySelector/CategorySelector.jsx` | Searchable, COA-hierarchy-ordered category multi-select. Accepts `plTree` (from `useCoa`) for hierarchy ordering, `selectedCategories` + `onCategoriesChange` for selection, `categoryGroupOptions` for group presets (Income all, Expense all, etc.). Includes type-to-filter search input. Used on Budget Worksheet. |
+| **CategorySelector** | `CategorySelector/CategorySelector.jsx` | Searchable, COA-hierarchy-ordered category selector. Accepts `plTree` (from `useCoa`) for hierarchy ordering, `selectedCategories` + `onCategoriesChange` for selection, `categoryGroupOptions` for group presets (Income all, Expense all, etc.). Includes type-to-filter search input. Used on Budget Worksheet (multi-select) and in `TransactionEditModal` (single-select mode via `plTree` prop). |
 | **PeriodSelector** | `PeriodSelector/PeriodSelector.jsx` | Preset-based period picker with standard presets: This Month, This Month Prior Year, Last Month, Last Month Prior Year, This Year, Last Year, Custom. Auto-computes `fromMonth`/`toMonth`/`actualYear`/`budgetYear` from selected preset. "Custom" reveals manual dropdowns. Supports controlled + uncontrolled modes (dual-state pattern). Used on Budget Worksheet. |
 | **AccountSelector** | `AccountSelector/AccountSelector.jsx` | Searchable, currency-grouped account multi-select. Accepts `accountOptions` (string[]) and `accountCurrencyMap` (Map from `useCoa`) to group accounts by currency. Includes type-to-filter search, "All" option pinned at top, and currency group headers (USD, EUR, etc.). `selectedAccounts` + `onAccountsChange` for selection. Used on Budget Worksheet. |
 
@@ -264,7 +264,8 @@ All endpoints mounted at `/api/v2`. Nginx rewrites legacy `/api/*` paths to `/ap
 - `POST /clearall` — Clear staging | `POST /sync-to-transactions` — Sync staging to transactions
 - `GET /psdata/count` | `GET /psdata/options` — Distinct accounts/categories
 - `GET /analyze-ps` | `POST /analyze-ps` — Analyze for missing accounts/categories
-- `GET /new-transactions` | `GET /modified-transactions` | `POST /appdata/last-refresh`
+- `GET /new-transactions` | `GET /modified-transactions` | `POST /review-new-transactions` — Review editable new transactions (queries `psdata_staging` LEFT JOIN `transactions`)
+- `POST /appdata/last-refresh`
 
 #### Reports (`/api/v2/reports`)
 - `GET /balance` — Balance sheet | `GET /cash-flow` — P&L report | `GET /cash-flow/transactions` — Transactions by category
@@ -274,7 +275,7 @@ All endpoints mounted at `/api/v2`. Nginx rewrites legacy `/api/*` paths to `/ap
 - `GET /:id` — Single | `POST /` — Create | `PATCH /:id` — Update | `DELETE /:id` — Delete
 
 #### Utility (`/api/v2/util`)
-- `GET /appdata` | `POST /appdata` | `POST /backup-database`
+- `GET /appdata` (merges JSON file + PostgreSQL `app_data` table) | `POST /appdata` | `POST /backup-database`
 - `GET /exchange-rates` — Bulk/historical rates | `GET /exchange-rate` — Single rate lookup | `GET /currencies`
 - `GET /coa/BalanceSheet` | `GET /coa/CashFlow` | `GET /coa-traits`
 - `POST /coa/add` | `POST /coa/update` | `POST /coa/delete`

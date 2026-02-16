@@ -1,0 +1,253 @@
+/**
+ * TransactionFilterActual - Redesigned filter bar
+ * Follows BudgetRegionSelectors pattern with three-column collapsible layout.
+ */
+
+/* ── Container ──────────────────────────── */
+
+.trans-filter-actual {
+  background: linear-gradient(135deg, rgba(255, 255, 255, 0.98) 0%, rgba(248, 250, 252, 1) 100%);
+  border: 1px solid rgba(37, 99, 235, 0.12);
+  border-radius: 1rem;
+  padding: 1.25rem 1.5rem 1.5rem;
+  margin-bottom: 1.5rem;
+  box-shadow: 0 2px 12px -4px rgba(15, 23, 42, 0.08),
+              0 4px 16px -6px rgba(37, 99, 235, 0.08);
+}
+
+.trans-filter-actual .section-filters-title {
+  font-size: 1rem;
+  font-weight: 700;
+  color: var(--primary);
+  letter-spacing: 0.02em;
+  line-height: 1.2;
+}
+
+/* ── Header row ─────────────────────────── */
+
+.trans-filter-actual__header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 1rem;
+  margin-bottom: 1rem;
+}
+
+.trans-filter-actual__header-left {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  min-width: 0;
+}
+
+.trans-filter-actual__header-left .section-filters-title {
+  margin: 0;
+}
+
+/* ── Filtered totals ─────────────────────── */
+
+.trans-filter-actual__totals {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.trans-filter-actual__totals-label {
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: var(--ink);
+}
+
+.trans-filter-actual__total-badge {
+  padding: 0.2rem 0.5rem;
+  border-radius: 6px;
+  background: var(--surface-muted);
+  border: 1px solid var(--border);
+  font-weight: 600;
+  font-size: 0.85rem;
+  white-space: nowrap;
+}
+
+.trans-filter-actual__total-empty {
+  color: var(--muted);
+  font-size: 0.85rem;
+}
+
+/* ── Three-column filter grid ──────────── */
+
+.trans-filter-actual__grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+  gap: 1.25rem;
+  align-items: stretch;
+}
+
+.trans-filter-actual__column {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+  height: 100%;
+}
+
+/* ── Text inputs ───────────────────────── */
+
+.trans-filter-actual__input {
+  width: 100%;
+  padding: 0.55rem 0.75rem;
+  border-radius: 0.6rem;
+  border: 2px solid var(--border);
+  background: #ffffff;
+  font-size: 0.875rem;
+  font-weight: 500;
+  color: var(--ink);
+  box-sizing: border-box;
+  transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+  box-shadow: 0 1px 2px 0 rgba(15, 23, 42, 0.05);
+}
+
+.trans-filter-actual__input:hover:not(:disabled) {
+  border-color: rgba(37, 99, 235, 0.3);
+}
+
+.trans-filter-actual__input:focus,
+.trans-filter-actual__input:focus-visible {
+  outline: none;
+  border-color: var(--primary);
+  box-shadow: 0 0 0 4px rgba(37, 99, 235, 0.12), 0 1px 3px 0 rgba(15, 23, 42, 0.1);
+}
+
+.trans-filter-actual__input:disabled {
+  background: rgba(241, 245, 249, 0.95);
+  border-color: rgba(148, 163, 184, 0.3);
+  color: rgba(100, 116, 139, 0.7);
+  cursor: not-allowed;
+}
+
+/* ── Value range row ───────────────────── */
+
+.trans-filter-actual__range-row {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 0.75rem;
+}
+
+.trans-filter-actual__range-controls {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.trans-filter-actual__range-checkbox {
+  width: 16px;
+  height: 16px;
+  cursor: pointer;
+  accent-color: var(--primary);
+  flex-shrink: 0;
+  transition: all 0.2s ease;
+}
+
+.trans-filter-actual__range-checkbox:hover {
+  transform: scale(1.1);
+}
+
+.trans-filter-actual__range-controls .trans-filter-actual__input {
+  flex: 1;
+  min-width: 0;
+}
+
+/* ── Action buttons ────────────────────── */
+
+.trans-filter-actual__actions {
+  display: flex;
+  gap: 0.5rem;
+  margin-top: auto;
+  padding-top: 0.5rem;
+}
+
+.trans-filter-actual__action-btn {
+  flex: 1;
+  min-width: 70px;
+  padding: 0.55rem 0.75rem;
+  border-radius: 0.6rem;
+  font-weight: 700;
+  font-size: 0.8rem;
+  letter-spacing: 0.02em;
+  transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+  border: 2px solid var(--primary);
+  background: white;
+  color: var(--primary);
+  cursor: pointer;
+  box-shadow: 0 1px 3px 0 rgba(15, 23, 42, 0.08);
+}
+
+.trans-filter-actual__action-btn:hover:not(:disabled) {
+  background: var(--primary);
+  color: white;
+  transform: translateY(-1px);
+  box-shadow: 0 4px 12px -2px rgba(37, 99, 235, 0.3);
+}
+
+.trans-filter-actual__action-btn:active:not(:disabled) {
+  transform: translateY(0);
+}
+
+.trans-filter-actual__action-btn:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+  transform: none;
+}
+
+/* Delete button styling */
+.trans-filter-actual__action-btn--delete {
+  border-color: rgba(220, 38, 38, 0.3);
+  color: rgba(220, 38, 38, 0.7);
+  background: white;
+}
+
+.trans-filter-actual__action-btn--delete:hover:not(:disabled) {
+  background: rgb(220, 38, 38);
+  color: white;
+  border-color: rgb(220, 38, 38);
+  box-shadow: 0 4px 12px -2px rgba(220, 38, 38, 0.3);
+}
+
+.trans-filter-actual__action-btn--delete-active {
+  border-color: rgb(220, 38, 38);
+  color: rgb(220, 38, 38);
+}
+
+/* ── Responsive ────────────────────────── */
+
+@media (max-width: 1024px) {
+  .trans-filter-actual__grid {
+    grid-template-columns: 1fr 1fr;
+  }
+
+  .trans-filter-actual__column--period {
+    grid-column: 1 / -1;
+  }
+}
+
+@media (max-width: 640px) {
+  .trans-filter-actual__grid {
+    grid-template-columns: 1fr;
+  }
+
+  .trans-filter-actual__range-row {
+    grid-template-columns: 1fr;
+  }
+
+  .trans-filter-actual__header {
+    flex-direction: column;
+    gap: 0.75rem;
+  }
+}
+
+/* ── Focus visible accessibility ───────── */
+
+.trans-filter-actual__input:focus-visible,
+.trans-filter-actual__range-checkbox:focus-visible {
+  outline: 2px solid var(--primary);
+  outline-offset: 2px;
+}

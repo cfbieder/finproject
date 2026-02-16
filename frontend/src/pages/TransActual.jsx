@@ -5,7 +5,7 @@ import { useTransactions } from "../features/Transaction/hooks/useTransactions.j
 import { useTransactionSelection } from "../features/Transaction/hooks/useTransactionSelection.js";
 import { useTransactionEdit } from "../features/Transaction/hooks/useTransactionEdit.js";
 import { useTransactionDelete } from "../features/Transaction/hooks/useTransactionDelete.js";
-import TransactionFilter from "../features/Transaction/TransactionFilter.jsx";
+import TransactionFilterActual from "../features/Transaction/TransactionFilterActual.jsx";
 import TransactionTable, {
   useTransactionCategoryOptions,
   useTransactionAccountOptions,
@@ -66,6 +66,16 @@ export default function TransActual() {
         if (filters.monthEnabled && Number.isFinite(filters.month)) {
           if (date.getMonth() !== Number(filters.month)) {
             return false;
+          }
+        } else if (filters.fromMonth && filters.toMonth) {
+          // Month range filtering (from PeriodSelector custom mode)
+          const monthNum = date.getMonth() + 1;
+          const from = Number(filters.fromMonth);
+          const to = Number(filters.toMonth);
+          if (Number.isFinite(from) && Number.isFinite(to) && from !== 1 && to !== 12) {
+            if (monthNum < from || monthNum > to) {
+              return false;
+            }
           }
         }
       }
@@ -206,7 +216,7 @@ export default function TransActual() {
   return (
     <>
       <main className="page-main trans-budget-main">
-        <TransactionFilter
+        <TransactionFilterActual
           config={config}
           onFiltersChange={handleFilterChange}
           onDeleteClick={del.handleDeleteRequest}
