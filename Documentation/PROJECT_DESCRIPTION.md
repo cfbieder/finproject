@@ -173,7 +173,7 @@ fin/
 | `/forecast-modules` | FCModuleManage | Forecasting | Configure balance sheet modules |
 | `/forecast-setup-exp` | FCExpSetup | Forecasting | Income/expense forecast items |
 | `/forecast-review` | FCReview | Forecasting | Review generated forecasts |
-| `/balance` | Balance | Reports & Graphs | Balance sheet summary |
+| `/balance` | Balance | Reports & Graphs | Balance sheet with multi-period comparison, collapsible account tree, and Net Worth summary row (Assets + Liabilities) |
 | `/cash-flow` | CashFlow | Reports & Graphs | Cash flow P&L analysis |
 | `/cash-flow-monthly` | CashFlowMonthly | Reports & Graphs | Monthly cash flow breakdown |
 | `/balance-chart` | BalanceChart | Reports & Graphs | Net worth chart over time |

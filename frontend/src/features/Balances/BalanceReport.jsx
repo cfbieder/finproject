@@ -16,6 +16,19 @@ const formatCurrency = (value) => {
     : currencyFormatter.format(amount);
 };
 
+// Computes Net Worth (Assets + Liabilities) from a report's top-level accounts
+const computeNetWorth = (accounts) => {
+  if (!Array.isArray(accounts)) return 0;
+  let total = 0;
+  for (const account of accounts) {
+    const name = (account.name ?? "").toLowerCase();
+    if (name === "assets" || name === "liabilities") {
+      total += account.totalUSD ?? 0;
+    }
+  }
+  return total;
+};
+
 // Builds a map of account paths to their total USD values for quick lookup
 const buildAccountValueMap = (accounts, path = [], map = new Map()) => {
   if (!Array.isArray(accounts)) {
@@ -272,6 +285,29 @@ export default function BalanceReport({
                     toggleRowHighlight
                   )}
                 </tbody>
+                <tfoot>
+                  <tr className="balance-report-table__net-worth">
+                    <td className="balance-report-table__name">
+                      <span className="balance-report-table__name-text">
+                        Net Worth
+                      </span>
+                    </td>
+                    <td className={`balance-report-table__value ${computeNetWorth(baseReport) < 0 ? "balance-report-table__value--negative" : ""}`}>
+                      {formatCurrency(computeNetWorth(baseReport))}
+                    </td>
+                    {activeReports.slice(1).map((report, index) => {
+                      const nw = computeNetWorth(report);
+                      return (
+                        <td
+                          key={`net-worth-${index}`}
+                          className={`balance-report-table__value ${nw < 0 ? "balance-report-table__value--negative" : ""}`}
+                        >
+                          {formatCurrency(nw)}
+                        </td>
+                      );
+                    })}
+                  </tr>
+                </tfoot>
               </table>
             </div>
           </div>
