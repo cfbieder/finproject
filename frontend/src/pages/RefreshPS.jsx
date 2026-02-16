@@ -4,12 +4,24 @@
  *
  *************************************************************/
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import UploadFeedback from "../features/Database/UploadFeedback.jsx";
 import { useToast } from "../contexts";
 import Rest from "../js/rest.js";
+import { REVIEW_CONFIG } from "../features/Transaction/transactionConfig.js";
+import { normalizeStringOptions } from "../features/Transaction/transactionUtils.js";
+import { useTransactionSelection } from "../features/Transaction/hooks/useTransactionSelection.js";
+import { useTransactionEdit } from "../features/Transaction/hooks/useTransactionEdit.js";
+import TransactionTable, {
+  useTransactionCategoryOptions,
+  useTransactionExchangeRates,
+  computeTransactionBaseAmount,
+} from "../features/Transaction/TransactionTable.jsx";
+import TransactionEditModal from "../features/Transaction/TransactionEditModal.jsx";
 import "./PageLayout.css";
 import "./RefreshPS.css";
+
+const reviewConfig = REVIEW_CONFIG;
 
 export default function RefreshPS() {
   const { showSuccess, showError: showErrorToast } = useToast();
@@ -31,6 +43,15 @@ export default function RefreshPS() {
   const [modifiedTransactionsError, setModifiedTransactionsError] =
     useState(null);
   const [daysHistory, setDaysHistory] = useState(7);
+
+  // Review & Edit state
+  const [reviewTransactions, setReviewTransactions] = useState([]);
+  const [showReviewTable, setShowReviewTable] = useState(false);
+  const [isLoadingReview, setIsLoadingReview] = useState(false);
+  const [reviewError, setReviewError] = useState(null);
+
+  const categoryOptions = useTransactionCategoryOptions();
+  const rates = useTransactionExchangeRates();
 
   /***************************
    * Fetch last ingest and refresh timestamps
@@ -267,6 +288,78 @@ export default function RefreshPS() {
     }
   };
 
+  /**************************
+   * Review & Edit new transactions
+   **************************/
+
+  const loadReviewTransactions = useCallback(async () => {
+    setReviewError(null);
+    setIsLoadingReview(true);
+    try {
+      const response = await Rest.fetchJson(
+        "/api/v2/ingest-ps/review-new-transactions",
+        { method: "POST" }
+      );
+      const data = response?.data ?? [];
+      setReviewTransactions(data.map(reviewConfig.transformEntry));
+    } catch (error) {
+      setReviewTransactions([]);
+      setReviewError(error?.message ?? "Unable to load review transactions.");
+    } finally {
+      setIsLoadingReview(false);
+    }
+  }, []);
+
+  const handleToggleReviewTable = async () => {
+    const nextShow = !showReviewTable;
+    setShowReviewTable(nextShow);
+    if (nextShow) {
+      await loadReviewTransactions();
+    }
+  };
+
+  const {
+    selectedRows,
+    sortConfig,
+    sortedTransactions: sortedReviewTransactions,
+    isAllSelected,
+    clearSelection,
+    toggleRowSelection,
+    handleSort,
+    handleSelectAllToggle,
+  } = useTransactionSelection(reviewTransactions);
+
+  const handleReviewEditSuccess = useCallback(async () => {
+    clearSelection();
+    await loadReviewTransactions();
+  }, [clearSelection, loadReviewTransactions]);
+
+  const computeBase = useCallback(
+    (amount, currency, r) => computeTransactionBaseAmount(amount, currency, r),
+    []
+  );
+
+  const edit = useTransactionEdit(
+    reviewConfig,
+    selectedRows,
+    rates,
+    computeBase,
+    handleReviewEditSuccess
+  );
+
+  const safeCategoryOptions = useMemo(
+    () =>
+      normalizeStringOptions(
+        categoryOptions,
+        edit.editFormValues.Category ?? ""
+      ),
+    [categoryOptions, edit.editFormValues.Category]
+  );
+
+  /**************************
+   * Formatters for read-only tables
+   **************************/
+
   const formatDate = (value) => {
     const date = value ? new Date(value) : null;
     return date && !Number.isNaN(date.getTime())
@@ -405,6 +498,62 @@ export default function RefreshPS() {
               )}
             </div>
           )}
+          {showReviewTable && (
+            <div className="refresh-txn-section">
+              <div className="refresh-txn-section__header">
+                <p className="refresh-txn-section__title">
+                  Review & Edit New Transactions
+                </p>
+                <div className="refresh-txn-section__actions">
+                  <button
+                    type="button"
+                    className="generate-report-button"
+                    onClick={handleSelectAllToggle}
+                    disabled={reviewTransactions.length === 0}
+                  >
+                    {isAllSelected ? "Deselect All" : "Select All"}
+                  </button>
+                  {selectedRows.size > 0 && (
+                    <button
+                      type="button"
+                      className="generate-report-button"
+                      onClick={edit.handleEditRequest}
+                    >
+                      Edit Selected ({selectedRows.size})
+                    </button>
+                  )}
+                </div>
+              </div>
+              <TransactionTable
+                config={reviewConfig}
+                isLoading={isLoadingReview}
+                error={reviewError}
+                hasTransactions={reviewTransactions.length > 0}
+                hasFilteredTransactions={reviewTransactions.length > 0}
+                sortedTransactions={sortedReviewTransactions}
+                sortConfig={sortConfig}
+                onSort={handleSort}
+                onRowToggle={toggleRowSelection}
+              />
+              <TransactionEditModal
+                config={reviewConfig}
+                isOpen={edit.showEditModal}
+                selectedCount={selectedRows.size}
+                isEditing={edit.isEditing}
+                error={edit.editError}
+                formValues={edit.editFormValues}
+                categoryOptions={categoryOptions}
+                accountOptions={[]}
+                currencyOptions={[]}
+                safeCategoryOptions={safeCategoryOptions}
+                safeAccountOptions={[]}
+                safeCurrencyOptions={[]}
+                onFieldChange={edit.handleEditFieldChange}
+                onCancel={edit.handleEditCancel}
+                onSubmit={edit.handleEditSubmit}
+              />
+            </div>
+          )}
         </section>
         <section className="upload-panel upload-form">
           <div className="upload-form-field">
@@ -431,6 +580,20 @@ export default function RefreshPS() {
               disabled={isRefreshing}
             >
               {isRefreshing ? "Refreshing..." : "Refresh PS data"}
+            </button>
+          </div>
+          <div className="upload-actions">
+            <button
+              type="button"
+              className="upload-submit"
+              onClick={handleToggleReviewTable}
+              disabled={isLoadingReview}
+            >
+              {isLoadingReview
+                ? "Loading..."
+                : showReviewTable
+                ? "Hide Review Table"
+                : "Review & Edit New Transactions"}
             </button>
           </div>
           <div className="upload-actions">

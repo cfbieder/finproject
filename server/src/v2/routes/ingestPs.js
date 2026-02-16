@@ -446,6 +446,56 @@ router.post('/refresh-ps', async (req, res, next) => {
 });
 
 /**
+ * POST /api/v2/ingest-ps/review-new-transactions
+ * Fetch synced transactions from the transactions table
+ * for all ps_ids found in the import report.
+ * Returns data in the same shape as GET /api/v2/transactions.
+ */
+router.post('/review-new-transactions', async (req, res) => {
+  try {
+    const raw = await fs.readFile(tempFiles.importReport, 'utf8');
+    const parsed = raw.trim() ? JSON.parse(raw) : [];
+    const records = Array.isArray(parsed) ? parsed : [parsed].filter(Boolean);
+
+    if (!records.length) {
+      return res.json({ data: [] });
+    }
+
+    const psIds = records
+      .map(r => r.ps_id || r.ID)
+      .filter(id => id !== undefined && id !== null)
+      .map(String);
+
+    if (!psIds.length) {
+      return res.json({ data: [] });
+    }
+
+    const db = require('../db');
+    const result = await db.query(`
+      SELECT
+        t.id, t.ps_id, t.transaction_date, t.description1, t.description2,
+        t.amount, t.currency, t.base_amount, t.base_currency,
+        t.transaction_type, t.closing_balance, t.labels, t.memo, t.note, t.bank, t.source,
+        t.account_id, a.name as account_name,
+        t.category_id, c.name as category_name
+      FROM transactions t
+      LEFT JOIN accounts a ON t.account_id = a.id
+      LEFT JOIN categories c ON t.category_id = c.id
+      WHERE t.ps_id = ANY($1::bigint[])
+      ORDER BY t.transaction_date DESC, t.id DESC
+    `, [psIds]);
+
+    res.json({ data: result.rows });
+  } catch (error) {
+    if (error.code === 'ENOENT') {
+      return res.json({ data: [] });
+    }
+    console.error('[v2/ingest-ps] Failed to load review transactions:', error);
+    res.status(500).json({ error: 'Unable to load review transactions' });
+  }
+});
+
+/**
  * POST /api/v2/ingest-ps/sync-to-transactions
  * Sync PS staging data to main transactions table
  * Maps account_name/category_name to account_id/category_id

@@ -27,3 +27,21 @@
   margin: 0;
   border: 0;
 }
+
+.refresh-txn-section__header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  margin-bottom: 0.5rem;
+}
+
+.refresh-txn-section__header .refresh-txn-section__title {
+  margin: 0;
+}
+
+.refresh-txn-section__actions {
+  display: flex;
+  gap: 0.5rem;
+}

@@ -105,7 +105,9 @@ export default function TransactionTable({
   onSort,
   onRowToggle,
 }) {
-  const label = config.logPrefix === "TransActual" ? "Actual" : "Budget";
+  const label = config.logPrefix === "TransActual" ? "Actual"
+    : config.logPrefix === "ReviewNew" ? "New"
+    : "Budget";
   const lcLabel = label.toLowerCase();
 
   return (

@@ -233,6 +233,47 @@ export const ACTUAL_CONFIG = {
   logPrefix: "TransActual",
 };
 
+// ---------- Review Config (RefreshPS new-transaction review) ----------
+
+export const REVIEW_CONFIG = {
+  endpoint: "/api/v2/transactions",
+
+  editFields: [
+    { key: "Description1", label: "Description", type: "text" },
+    { key: "Category", label: "Category", type: "text" },
+  ],
+
+  transformEntry(txn) {
+    return {
+      _id: String(txn.id),
+      id: txn.id,
+      ps_id: txn.ps_id,
+      Date: txn.transaction_date,
+      Description1: txn.description1,
+      Description2: txn.description2,
+      Amount: parseFloat(txn.amount),
+      Currency: txn.currency,
+      BaseAmount: parseFloat(txn.base_amount),
+      BaseCurrency: txn.base_currency,
+      Account: txn.account_name,
+      account_id: txn.account_id,
+      Category: txn.category_name,
+      category_id: txn.category_id,
+      ClosingBalance: txn.closing_balance
+        ? parseFloat(txn.closing_balance)
+        : null,
+      Labels: txn.labels,
+      Memo: txn.memo,
+      Note: txn.note,
+      Bank: txn.bank,
+      Source: txn.source,
+    };
+  },
+
+  editSuccessMessage: "Transactions updated successfully",
+  logPrefix: "ReviewNew",
+};
+
 // ---------- Budget Config ----------
 
 export const BUDGET_CONFIG = {
