@@ -110,15 +110,7 @@ export const routes = [
     icon: LayoutDashboard,
   },
 
-  // Database
-  {
-    path: "/upload-ps",
-    component: UploadPS,
-    label: "Upload PS",
-    category: "Database",
-    description: "Upload PocketSmith CSV spreadsheet data",
-    icon: Upload,
-  },
+  // Transactions
   {
     path: "/refresh-ps",
     component: RefreshPS,
@@ -128,12 +120,20 @@ export const routes = [
     icon: RefreshCw,
   },
   {
-    path: "/backup-database",
-    component: BackupDatabase,
-    label: "Backup Database",
-    category: "Database",
-    description: "Create and manage database backups",
-    icon: HardDrive,
+    path: "/trans-actual",
+    component: TransActual,
+    label: "Actuals",
+    category: "Transactions",
+    description: "View, search, and manage actual transactions",
+    icon: Receipt,
+  },
+  {
+    path: "/trans-budget",
+    component: TransBudget,
+    label: "Budget",
+    category: "Transactions",
+    description: "View and manage budget transaction entries",
+    icon: FileSpreadsheet,
   },
 
   // Budgeting
@@ -248,22 +248,22 @@ export const routes = [
     icon: LineChart,
   },
 
-  // Transactions
+  // Database
   {
-    path: "/trans-actual",
-    component: TransActual,
-    label: "Actuals",
-    category: "Transactions",
-    description: "View, search, and manage actual transactions",
-    icon: Receipt,
+    path: "/upload-ps",
+    component: UploadPS,
+    label: "Upload PS",
+    category: "Database",
+    description: "Upload PocketSmith CSV spreadsheet data",
+    icon: Upload,
   },
   {
-    path: "/trans-budget",
-    component: TransBudget,
-    label: "Budget",
-    category: "Transactions",
-    description: "View and manage budget transaction entries",
-    icon: FileSpreadsheet,
+    path: "/backup-database",
+    component: BackupDatabase,
+    label: "Backup Database",
+    category: "Database",
+    description: "Create and manage database backups",
+    icon: HardDrive,
   },
 
   // Settings

@@ -2700,6 +2700,12 @@
   align-items: stretch;
 }
 
+.report-toolbar--inline {
+  flex-direction: row;
+  align-items: center;
+  flex-wrap: wrap;
+}
+
 .report-toolbar__control-row {
   display: flex;
   align-items: center;
@@ -2898,13 +2904,9 @@
 
 .report-toolbar__period-group {
   display: flex;
-  align-items: flex-end;
-  gap: 0.875rem;
-  flex-wrap: wrap;
-  padding: 0.625rem 0.875rem;
-  background: rgba(241, 245, 249, 0.6);
-  border: 1px solid var(--border-subtle);
-  border-radius: var(--radius-sm);
+  align-items: center;
+  gap: 0.5rem;
+  flex-wrap: nowrap;
 }
 
 .report-toolbar__period-label {
@@ -2912,9 +2914,11 @@
   font-weight: 700;
   letter-spacing: 0.06em;
   text-transform: uppercase;
-  color: var(--muted);
-  align-self: center;
+  color: var(--primary);
   white-space: nowrap;
+  padding: 0.2rem 0.5rem;
+  background: rgba(37, 99, 235, 0.08);
+  border-radius: 0.375rem;
 }
 
 .report-toolbar__error {
@@ -2953,13 +2957,7 @@
 }
 
 .report-toolbar-header__title::before {
-  content: "";
-  display: inline-block;
-  width: 10px;
-  height: 10px;
-  border-radius: 50%;
-  background: var(--primary);
-  flex-shrink: 0;
+  display: none;
 }
 
 .report-toolbar-header__description {

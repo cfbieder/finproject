@@ -163,7 +163,7 @@ fin/
 |------|------|----------|-------------|
 | `/` | Home | - | Dashboard with quick actions |
 | `/upload-ps` | UploadPS | Database | Upload PocketSmith CSV data |
-| `/refresh-ps` | RefreshPS | Database | Refresh data via PocketSmith API; tabbed view (Review & Edit New / New Transactions / Modified) with inline transaction editing using shared `TransactionTable` + `TransactionEditModal` + `CategorySelector` |
+| `/refresh-ps` | RefreshPS | Transactions | Refresh data via PocketSmith API; tabbed view (Review & Edit New / New Transactions / Modified) with inline transaction editing using shared `TransactionTable` + `TransactionEditModal` + `CategorySelector` |
 | `/backup-database` | BackupDatabase | Database | Download database backup |
 | `/budget-worksheet` | BudgetInput | Budgeting | Budget worksheet with collapsible filter controls (PeriodSelector, CategorySelector, AccountSelector), tabbed Balances/Budget Entry panel showing selected category |
 | `/budget-realization` | BudgetRealization | Budgeting | Budget vs actual comparison |
@@ -177,8 +177,8 @@ fin/
 | `/cash-flow` | CashFlow | Reports & Graphs | Cash flow P&L analysis |
 | `/cash-flow-monthly` | CashFlowMonthly | Reports & Graphs | Monthly cash flow breakdown |
 | `/balance-chart` | BalanceChart | Reports & Graphs | Net worth chart over time |
-| `/trans-actual` | TransActual | Transactions | Actual transactions browser with collapsible filter bar (PeriodSelector, CategorySelector, AccountSelector), description search, value range filters, date format mm/dd/yy |
-| `/trans-budget` | TransBudget | Transactions | Budget transactions browser with collapsible filter bar (PeriodSelector, CategorySelector, AccountSelector), value range filters, date format mm/dd/yy |
+| `/trans-actual` | TransActual | Transactions | Actual transactions browser with collapsible filter bar (PeriodSelector, CategorySelector, AccountSelector), description search, value range filters, date format mm/dd/yy, optimized column widths (noWrap amounts, ellipsis description) |
+| `/trans-budget` | TransBudget | Transactions | Budget transactions browser with collapsible filter bar (PeriodSelector, CategorySelector, AccountSelector), value range filters, date format mm/dd/yy, optimized column widths (noWrap amounts, ellipsis description) |
 | `/fx-options` | FXOptions | Settings | Exchange rate configuration |
 | `/coa-management` | COAManagement | Settings | Chart of accounts CRUD, PS analysis, quick-add |
 
