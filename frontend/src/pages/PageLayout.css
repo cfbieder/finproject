@@ -2899,8 +2899,8 @@
 
 .report-toolbar__periods-column {
   display: flex;
-  flex-direction: column;
-  gap: 0.625rem;
+  flex-wrap: wrap;
+  gap: 0.875rem;
 }
 
 .report-toolbar__period-group {
@@ -2908,6 +2908,23 @@
   align-items: center;
   gap: 0.5rem;
   flex-wrap: nowrap;
+}
+
+.report-toolbar__period-selector-group {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.5rem;
+  flex: 1 1 280px;
+  min-width: 0;
+}
+
+.report-toolbar__period-selector-group .report-toolbar__period-label {
+  margin-top: 0.3rem;
+}
+
+.report-toolbar__period-selector-group .period-selector {
+  flex: 1;
+  min-width: 0;
 }
 
 .report-toolbar__period-label {

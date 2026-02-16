@@ -1,4 +1,5 @@
 import PeriodCountSelector from "../../components/PeriodCountSelector";
+import PeriodSelector from "../../components/PeriodSelector/PeriodSelector.jsx";
 import MonthYearPicker from "../../components/MonthYearPicker";
 import "./CashFlowDateSelectorMonthYear.css";
 const monthOptions = [
@@ -138,10 +139,19 @@ export default function CashFlowDateSelectorMonthYear({
     onToDateChange?.(index, toDate);
   };
 
+  const handlePeriodSelectorChange = (index, { fromMonth, toMonth, actualYear }) => {
+    const fromMonthNum = Number.parseInt(fromMonth, 10);
+    const toMonthNum = Number.parseInt(toMonth, 10);
+    const yearNum = Number.parseInt(actualYear, 10);
+    if (!Number.isFinite(fromMonthNum) || !Number.isFinite(toMonthNum) || !Number.isFinite(yearNum)) return;
+    onFromDateChange?.(index, firstDayOfMonthIso(yearNum, fromMonthNum));
+    onToDateChange?.(index, lastDayOfMonthIso(yearNum, toMonthNum));
+  };
+
   if (layout === "toolbar") {
     return (
-      <section className="report-toolbar report-toolbar--inline" aria-label="Report filters">
-        <div className="report-toolbar__group report-toolbar__group--controls">
+      <section className="report-toolbar report-toolbar--stacked" aria-label="Report filters">
+        <div className="report-toolbar__control-row">
           {showPeriodSelector && (
             <div className="report-toolbar__field">
               <PeriodCountSelector
@@ -186,6 +196,49 @@ export default function CashFlowDateSelectorMonthYear({
               <option value="only">Only</option>
             </select>
           </div>
+          <div className="report-toolbar__control-row-actions">
+            <button
+              className="report-toolbar__button report-toolbar__button--primary"
+              type="button"
+              onClick={onGenerateReport}
+              disabled={isLoading}
+            >
+              {isLoading ? "Generating..." : "Generate"}
+            </button>
+            {!isFullyExpanded && (
+              <button
+                className="report-toolbar__button"
+                type="button"
+                onClick={onExpandOneLayer}
+                disabled={isCollapseToggleDisabled}
+              >
+                Expand +
+              </button>
+            )}
+            {!isFullyCollapsed && (
+              <button
+                className="report-toolbar__button"
+                type="button"
+                onClick={onCollapseOneLayer}
+                disabled={isCollapseToggleDisabled}
+              >
+                Collapse −
+              </button>
+            )}
+            {typeof onExport === "function" && (
+              <button
+                className="report-toolbar__button"
+                type="button"
+                onClick={onExport}
+                disabled={isExportDisabled}
+              >
+                Export
+              </button>
+            )}
+          </div>
+          {error && <p className="report-toolbar__error">{error}</p>}
+        </div>
+        <div className="report-toolbar__periods-column">
           {Array.from({ length: clampedPeriodCount }).map((_, index) => {
             const periodLabel = index + 1;
             const fromParts = getFromParts(index);
@@ -193,88 +246,23 @@ export default function CashFlowDateSelectorMonthYear({
             return (
               <div
                 key={`cashflow-period-${periodLabel}`}
-                className="report-toolbar__period-group"
+                className="report-toolbar__period-selector-group"
               >
                 <span className="report-toolbar__period-label">
                   {`P${periodLabel}`}
                 </span>
-                <MonthYearPicker
-                  monthId={`cashflow-from-month-${periodLabel}`}
-                  yearId={`cashflow-from-year-${periodLabel}`}
-                  monthValue={fromParts.month || ""}
-                  yearValue={fromParts.year || ""}
-                  monthOptions={monthOptions}
-                  yearOptions={yearOptions}
-                  onMonthChange={(value) =>
-                    updateFromDate(index, value, undefined)
-                  }
-                  onYearChange={(value) =>
-                    updateFromDate(index, undefined, value)
-                  }
-                  rowClassName="report-toolbar__month-year-row"
-                  inputClassName="report-toolbar__select"
-                />
-                <span className="report-toolbar__range-separator">–</span>
-                <MonthYearPicker
-                  monthId={`cashflow-to-month-${periodLabel}`}
-                  yearId={`cashflow-to-year-${periodLabel}`}
-                  monthValue={toParts.month || ""}
-                  yearValue={toParts.year || ""}
-                  monthOptions={monthOptions}
-                  yearOptions={yearOptions}
-                  onMonthChange={(value) =>
-                    updateToDate(index, value, undefined)
-                  }
-                  onYearChange={(value) =>
-                    updateToDate(index, undefined, value)
-                  }
-                  rowClassName="report-toolbar__month-year-row"
-                  inputClassName="report-toolbar__select"
+                <PeriodSelector
+                  id={`cashflow-period-${periodLabel}`}
+                  fromMonth={String(fromParts.month).padStart(2, "0")}
+                  toMonth={String(toParts.month).padStart(2, "0")}
+                  actualYear={fromParts.year}
+                  onChange={(values) => handlePeriodSelectorChange(index, values)}
+                  defaultPreset="this-year"
+                  hideBudgetYear
                 />
               </div>
             );
           })}
-          {error && <p className="report-toolbar__error">{error}</p>}
-        </div>
-        <div className="report-toolbar__group report-toolbar__group--actions">
-          <button
-            className="report-toolbar__button report-toolbar__button--primary"
-            type="button"
-            onClick={onGenerateReport}
-            disabled={isLoading}
-          >
-            {isLoading ? "Generating..." : "Generate"}
-          </button>
-          {!isFullyExpanded && (
-            <button
-              className="report-toolbar__button"
-              type="button"
-              onClick={onExpandOneLayer}
-              disabled={isCollapseToggleDisabled}
-            >
-              Expand +
-            </button>
-          )}
-          {!isFullyCollapsed && (
-            <button
-              className="report-toolbar__button"
-              type="button"
-              onClick={onCollapseOneLayer}
-              disabled={isCollapseToggleDisabled}
-            >
-              Collapse −
-            </button>
-          )}
-          {typeof onExport === "function" && (
-            <button
-              className="report-toolbar__button"
-              type="button"
-              onClick={onExport}
-              disabled={isExportDisabled}
-            >
-              Export
-            </button>
-          )}
         </div>
       </section>
     );

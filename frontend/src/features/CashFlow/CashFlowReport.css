@@ -1,5 +1,5 @@
 .cash-flow-report {
-  --cashflow-indent-unit: 1.25rem;
+  --cashflow-indent-unit: 1.6rem;
 }
 
 .cash-flow-report__title {
@@ -13,7 +13,7 @@
 }
 
 .cash-flow-report .balance-report-table__name {
-  padding-left: calc(var(--cashflow-indent-level, 0) * var(--cashflow-indent-unit));
+  padding-left: calc(0.5rem + var(--cashflow-indent-level, 0) * var(--cashflow-indent-unit));
   position: relative;
 }
 
@@ -21,22 +21,22 @@
 .cash-flow-report .balance-report-table__name::before {
   content: '';
   position: absolute;
-  left: calc(var(--cashflow-indent-level, 0) * var(--cashflow-indent-unit) - 0.75rem);
+  left: calc(var(--cashflow-indent-level, 0) * var(--cashflow-indent-unit) - 0.5rem);
   top: -1px;
   height: 50%;
   width: 2px;
-  background: rgba(148, 163, 184, 0.25);
+  background: rgba(148, 163, 184, 0.4);
 }
 
 /* Horizontal connector line */
 .cash-flow-report .balance-report-table__name::after {
   content: '';
   position: absolute;
-  left: calc(var(--cashflow-indent-level, 0) * var(--cashflow-indent-unit) - 0.75rem);
+  left: calc(var(--cashflow-indent-level, 0) * var(--cashflow-indent-unit) - 0.5rem);
   top: 50%;
   width: 0.5rem;
   height: 2px;
-  background: rgba(148, 163, 184, 0.25);
+  background: rgba(148, 163, 184, 0.4);
 }
 
 /* Hide tree lines for top-level items (level 0) */
@@ -45,7 +45,7 @@
   display: none;
 }
 
-/* Subtle background color progression for hierarchy levels */
+/* Base transition for all rows */
 .cash-flow-report .balance-report-table tbody tr {
   transition: background-color 0.15s ease;
 }
@@ -82,49 +82,72 @@
   color: transparent;
 }
 
-/* Font weight variations for hierarchy levels */
+/* ── Level 0: Top-level categories (Income, Expense) ── */
+.cash-flow-report .balance-report-table tbody tr[style*="--cashflow-indent-level:0"] {
+  background: transparent;
+  border-left: 3px solid var(--primary);
+}
+
 .cash-flow-report .balance-report-table tbody tr[style*="--cashflow-indent-level:0"] .balance-report-table__name-text {
-  font-weight: 600;
+  font-weight: 700;
   font-size: 0.95rem;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+  color: var(--primary);
+}
+
+.cash-flow-report .balance-report-table tbody tr[style*="--cashflow-indent-level:0"] .balance-report-table__value {
+  font-weight: 700;
+}
+
+/* ── Level 1: Sub-categories ── */
+.cash-flow-report .balance-report-table tbody tr[style*="--cashflow-indent-level:1"] {
+  background: rgba(37, 99, 235, 0.03);
+  border-left: 3px solid rgba(37, 99, 235, 0.25);
 }
 
 .cash-flow-report .balance-report-table tbody tr[style*="--cashflow-indent-level:1"] .balance-report-table__name-text {
-  font-weight: 500;
+  font-weight: 600;
+  font-size: 0.875rem;
 }
 
-.cash-flow-report .balance-report-table tbody tr[style*="--cashflow-indent-level"] .balance-report-table__name-text {
-  font-weight: 400;
+.cash-flow-report .balance-report-table tbody tr[style*="--cashflow-indent-level:1"] .balance-report-table__value {
+  font-weight: 600;
 }
 
-/* Add subtle border-left for visual hierarchy */
-.cash-flow-report .balance-report-table tbody tr {
-  border-left: none;
-}
-
-/* Specific color overrides for each level - subtle and clean */
-.cash-flow-report .balance-report-table tbody tr[style*="--cashflow-indent-level:0"] {
-  background: transparent;
-  border-left: none;
-}
-
-.cash-flow-report .balance-report-table tbody tr[style*="--cashflow-indent-level:1"] {
-  background: rgba(241, 245, 249, 0.6);
-  border-left: 3px solid rgba(148, 163, 184, 0.4);
-}
-
+/* ── Level 2: Leaf accounts ── */
 .cash-flow-report .balance-report-table tbody tr[style*="--cashflow-indent-level:2"] {
-  background: rgba(226, 232, 240, 0.6);
-  border-left: 3px solid rgba(148, 163, 184, 0.5);
+  background: rgba(241, 245, 249, 0.5);
+  border-left: 3px solid rgba(148, 163, 184, 0.35);
 }
 
+.cash-flow-report .balance-report-table tbody tr[style*="--cashflow-indent-level:2"] .balance-report-table__name-text {
+  font-weight: 400;
+  font-size: 0.84rem;
+  color: var(--ink-muted, #475569);
+}
+
+/* ── Level 3+: Deep leaves ── */
 .cash-flow-report .balance-report-table tbody tr[style*="--cashflow-indent-level:3"] {
-  background: rgba(203, 213, 225, 0.6);
-  border-left: 3px solid rgba(148, 163, 184, 0.6);
+  background: rgba(241, 245, 249, 0.7);
+  border-left: 3px solid rgba(148, 163, 184, 0.25);
+}
+
+.cash-flow-report .balance-report-table tbody tr[style*="--cashflow-indent-level:3"] .balance-report-table__name-text {
+  font-weight: 400;
+  font-size: 0.82rem;
+  color: var(--ink-muted, #475569);
 }
 
 .cash-flow-report .balance-report-table tbody tr[style*="--cashflow-indent-level:4"] {
-  background: rgba(186, 230, 253, 0.4);
-  border-left: 3px solid rgba(148, 163, 184, 0.7);
+  background: rgba(241, 245, 249, 0.8);
+  border-left: 3px solid rgba(148, 163, 184, 0.2);
+}
+
+.cash-flow-report .balance-report-table tbody tr[style*="--cashflow-indent-level:4"] .balance-report-table__name-text {
+  font-weight: 400;
+  font-size: 0.8rem;
+  color: var(--ink-muted, #475569);
 }
 
 .cash-flow-report .balance-report-table thead {
@@ -144,4 +167,23 @@
 
 .cash-flow-report .balance-report-table tbody tr.balance-report-table__row--highlighted td:first-child {
   z-index: 10;
+}
+
+/* ── Net Cash Flow footer row (mirrors Net Worth in Balance Sheet) ── */
+
+.balance-report-table__net-cash-flow td {
+  font-weight: 700;
+  border-top: 2px solid var(--primary);
+  background: rgba(37, 99, 235, 0.04);
+  color: var(--ink);
+  padding-top: 0.75rem;
+  padding-bottom: 0.75rem;
+}
+
+.balance-report-table__net-cash-flow .balance-report-table__name {
+  padding-left: 0.95rem;
+  font-size: 0.95rem;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--primary);
 }

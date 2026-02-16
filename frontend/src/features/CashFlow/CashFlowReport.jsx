@@ -358,7 +358,9 @@ export default function CashFlowReport({
                 </thead>
                 <tbody>
                   {renderCashFlowRows(
-                    baseReport,
+                    baseReport.filter(
+                      (n) => (n.name ?? "").toLowerCase() !== "net cash flow"
+                    ),
                     0,
                     [],
                     comparisonMaps,
@@ -369,6 +371,56 @@ export default function CashFlowReport({
                     toggleRowHighlight
                   )}
                 </tbody>
+                <tfoot>
+                  {(() => {
+                    const netNode = baseReport.find(
+                      (n) => (n.name ?? "").toLowerCase() === "net cash flow"
+                    );
+                    if (!netNode) return null;
+                    const baseValue = netNode.total ?? 0;
+                    return (
+                      <tr className="balance-report-table__net-cash-flow">
+                        <td className="balance-report-table__name">
+                          <span className="balance-report-table__name-text">
+                            Net Cash Flow
+                          </span>
+                        </td>
+                        <td
+                          className={`balance-report-table__value ${
+                            baseValue < 0
+                              ? "balance-report-table__value--negative"
+                              : ""
+                          }`}
+                        >
+                          {formatCurrency(baseValue)}
+                        </td>
+                        {comparisonMaps.map((map, index) => {
+                          const val = (() => {
+                            const compReport = activeReports[index + 1];
+                            if (!Array.isArray(compReport)) return 0;
+                            const node = compReport.find(
+                              (n) =>
+                                (n.name ?? "").toLowerCase() === "net cash flow"
+                            );
+                            return node?.total ?? 0;
+                          })();
+                          return (
+                            <td
+                              key={`net-cash-flow-${index}`}
+                              className={`balance-report-table__value ${
+                                val < 0
+                                  ? "balance-report-table__value--negative"
+                                  : ""
+                              }`}
+                            >
+                              {formatCurrency(val)}
+                            </td>
+                          );
+                        })}
+                      </tr>
+                    );
+                  })()}
+                </tfoot>
               </table>
             </div>
           </div>

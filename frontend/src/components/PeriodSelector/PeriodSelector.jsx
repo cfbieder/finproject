@@ -96,6 +96,26 @@ const PERIOD_PRESETS = [
     },
   },
   {
+    id: "ytd",
+    label: "YTD",
+    compute: () => ({
+      fromMonth: "01",
+      toMonth: CURRENT_MONTH,
+      actualYear: CURRENT_YEAR,
+      budgetYear: CURRENT_YEAR,
+    }),
+  },
+  {
+    id: "ytd-prior-year",
+    label: "YTD PY",
+    compute: () => ({
+      fromMonth: "01",
+      toMonth: CURRENT_MONTH,
+      actualYear: CURRENT_YEAR - 1,
+      budgetYear: CURRENT_YEAR - 1,
+    }),
+  },
+  {
     id: "this-year",
     label: "This Year",
     compute: () => ({

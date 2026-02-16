@@ -475,7 +475,10 @@ router.get('/cash-flow/transactions', async (req, res, next) => {
     const v1Transactions = result.rows.map(row => ({
       _id: row.id,
       Date: row.transaction_date,
-      Description1: row.description,
+      Description1: row.description1,
+      Description2: row.description2,
+      Memo: row.memo,
+      Note: row.note,
       Amount: parseFloat(row.amount),
       Currency: row.currency,
       BaseAmount: parseFloat(row.base_amount),
