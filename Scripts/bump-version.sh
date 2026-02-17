@@ -110,13 +110,6 @@ for pkg in package.json frontend/package.json server/package.json; do
     fi
 done
 
-# Git commit and tag
-git add VERSION "$FRONTEND_ENV" package.json frontend/package.json server/package.json 2>/dev/null || true
-git commit -m "chore: bump version to $NEW_VERSION" || echo "Note: Some files may not exist or already committed"
-echo -e "${GREEN}✓ Git commit created${NC}"
-
-git tag -a "v${NEW_VERSION}" -m "Version ${NEW_VERSION}"
-echo -e "${GREEN}✓ Git tag created: v${NEW_VERSION}${NC}"
 
 echo ""
 echo -e "${YELLOW}Next steps:${NC}"

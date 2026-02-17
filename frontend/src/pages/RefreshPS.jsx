@@ -4,20 +4,14 @@
  *
  *************************************************************/
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import UploadFeedback from "../features/Database/UploadFeedback.jsx";
 import { useToast } from "../contexts";
 import Rest from "../js/rest.js";
 import { REVIEW_CONFIG } from "../features/Transaction/transactionConfig.js";
-import { normalizeStringOptions } from "../features/Transaction/transactionUtils.js";
 import { useTransactionSelection } from "../features/Transaction/hooks/useTransactionSelection.js";
-import { useTransactionEdit } from "../features/Transaction/hooks/useTransactionEdit.js";
-import TransactionTable, {
-  useTransactionCategoryOptions,
-  useTransactionExchangeRates,
-  computeTransactionBaseAmount,
-} from "../features/Transaction/TransactionTable.jsx";
-import TransactionEditModal from "../features/Transaction/TransactionEditModal.jsx";
+import TransactionTable from "../features/Transaction/TransactionTable.jsx";
+import CategorySelector from "../components/CategorySelector/CategorySelector.jsx";
 import { useCoa } from "../hooks/useCoa.js";
 import "./PageLayout.css";
 import "./RefreshPS.css";
@@ -50,8 +44,6 @@ export default function RefreshPS() {
   const [isLoadingReview, setIsLoadingReview] = useState(false);
   const [reviewError, setReviewError] = useState(null);
 
-  const categoryOptions = useTransactionCategoryOptions();
-  const rates = useTransactionExchangeRates();
   const { plTree } = useCoa();
 
   /***************************
@@ -309,42 +301,98 @@ export default function RefreshPS() {
   }, [loadReviewTransactions]);
 
   const {
-    selectedRows,
     sortConfig,
     sortedTransactions: sortedReviewTransactions,
-    isAllSelected,
-    clearSelection,
-    toggleRowSelection,
     handleSort,
-    handleSelectAllToggle,
   } = useTransactionSelection(reviewTransactions);
 
-  const handleReviewEditSuccess = useCallback(async () => {
-    clearSelection();
-    await loadReviewTransactions();
-  }, [clearSelection, loadReviewTransactions]);
+  // Inline edit state for Description
+  const [editingDescription, setEditingDescription] = useState(null); // { rowId, entry }
+  const [descriptionValue, setDescriptionValue] = useState("");
+  const [isSavingDescription, setIsSavingDescription] = useState(false);
 
-  const computeBase = useCallback(
-    (amount, currency, r) => computeTransactionBaseAmount(amount, currency, r),
-    []
-  );
+  // Inline edit state for Category
+  const [editingCategory, setEditingCategory] = useState(null); // { rowId, entry }
+  const [isSavingCategory, setIsSavingCategory] = useState(false);
 
-  const edit = useTransactionEdit(
-    reviewConfig,
-    selectedRows,
-    rates,
-    computeBase,
-    handleReviewEditSuccess
-  );
+  const handleDescriptionClick = useCallback((rowId, entry) => {
+    setEditingDescription({ rowId, entry });
+    setDescriptionValue(entry.Description1 ?? "");
+  }, []);
 
-  const safeCategoryOptions = useMemo(
-    () =>
-      normalizeStringOptions(
-        categoryOptions,
-        edit.editFormValues.Category ?? ""
-      ),
-    [categoryOptions, edit.editFormValues.Category]
-  );
+  const handleDescriptionCancel = useCallback(() => {
+    setEditingDescription(null);
+    setDescriptionValue("");
+  }, []);
+
+  const handleDescriptionSave = useCallback(async () => {
+    if (!editingDescription) return;
+    const { entry } = editingDescription;
+    const id = entry?.id ?? entry?._id;
+    if (!id) return;
+    setIsSavingDescription(true);
+    try {
+      const response = await fetch(
+        Rest.buildUrl(`${reviewConfig.endpoint}/${id}`),
+        {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ Description1: descriptionValue }),
+        }
+      );
+      if (!response.ok) {
+        const body = await response.json().catch(() => null);
+        throw new Error(body?.error || "Failed to update description");
+      }
+      setEditingDescription(null);
+      setDescriptionValue("");
+      showSuccess("Description updated");
+      await loadReviewTransactions();
+    } catch (err) {
+      showErrorToast(err?.message ?? "Failed to update description");
+    } finally {
+      setIsSavingDescription(false);
+    }
+  }, [editingDescription, descriptionValue, loadReviewTransactions, showSuccess, showErrorToast]);
+
+  const handleCategoryClick = useCallback((rowId, entry) => {
+    setEditingCategory({ rowId, entry });
+  }, []);
+
+  const handleCategoryCancel = useCallback(() => {
+    setEditingCategory(null);
+  }, []);
+
+  const handleCategorySelect = useCallback(async (selected) => {
+    if (!editingCategory) return;
+    const picked = selected.length > 0 ? selected[selected.length - 1] : "";
+    if (!picked) return;
+    const { entry } = editingCategory;
+    const id = entry?.id ?? entry?._id;
+    if (!id) return;
+    setIsSavingCategory(true);
+    try {
+      const response = await fetch(
+        Rest.buildUrl(`${reviewConfig.endpoint}/${id}`),
+        {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ Category: picked }),
+        }
+      );
+      if (!response.ok) {
+        const body = await response.json().catch(() => null);
+        throw new Error(body?.error || "Failed to update category");
+      }
+      setEditingCategory(null);
+      showSuccess("Category updated");
+      await loadReviewTransactions();
+    } catch (err) {
+      showErrorToast(err?.message ?? "Failed to update category");
+    } finally {
+      setIsSavingCategory(false);
+    }
+  }, [editingCategory, loadReviewTransactions, showSuccess, showErrorToast]);
 
   /**************************
    * Formatters for read-only tables
@@ -540,25 +588,6 @@ export default function RefreshPS() {
               <p className="refresh-txn-section__title">
                 Review & Edit New Transactions
               </p>
-              <div className="refresh-txn-section__actions">
-                <button
-                  type="button"
-                  className="generate-report-button"
-                  onClick={handleSelectAllToggle}
-                  disabled={reviewTransactions.length === 0}
-                >
-                  {isAllSelected ? "Deselect All" : "Select All"}
-                </button>
-                {selectedRows.size > 0 && (
-                  <button
-                    type="button"
-                    className="generate-report-button"
-                    onClick={edit.handleEditRequest}
-                  >
-                    Edit Selected ({selectedRows.size})
-                  </button>
-                )}
-              </div>
             </div>
             <TransactionTable
               config={reviewConfig}
@@ -569,26 +598,99 @@ export default function RefreshPS() {
               sortedTransactions={sortedReviewTransactions}
               sortConfig={sortConfig}
               onSort={handleSort}
-              onRowToggle={toggleRowSelection}
+              showSelection={false}
+              onDescriptionClick={handleDescriptionClick}
+              onCategoryClick={handleCategoryClick}
             />
-            <TransactionEditModal
-              config={reviewConfig}
-              isOpen={edit.showEditModal}
-              selectedCount={selectedRows.size}
-              isEditing={edit.isEditing}
-              error={edit.editError}
-              formValues={edit.editFormValues}
-              categoryOptions={categoryOptions}
-              accountOptions={[]}
-              currencyOptions={[]}
-              safeCategoryOptions={safeCategoryOptions}
-              safeAccountOptions={[]}
-              safeCurrencyOptions={[]}
-              plTree={plTree}
-              onFieldChange={edit.handleEditFieldChange}
-              onCancel={edit.handleEditCancel}
-              onSubmit={edit.handleEditSubmit}
-            />
+            {editingDescription && (
+              <div
+                className="trans-budget-edit-modal-overlay"
+                role="dialog"
+                aria-modal="true"
+                aria-label="Edit description"
+              >
+                <div className="trans-budget-edit-modal">
+                  <h3>Edit Description</h3>
+                  <form
+                    onSubmit={(e) => {
+                      e.preventDefault();
+                      handleDescriptionSave();
+                    }}
+                  >
+                    <label className="trans-budget-edit-modal__field trans-budget-edit-modal__field--full-row">
+                      <span>Description</span>
+                      <input
+                        className="form-input"
+                        type="text"
+                        value={descriptionValue}
+                        onChange={(e) => setDescriptionValue(e.target.value)}
+                        disabled={isSavingDescription}
+                        autoFocus
+                        autoComplete="off"
+                      />
+                    </label>
+                    <div className="trans-budget-edit-modal__actions">
+                      <button
+                        className="generate-report-button"
+                        type="button"
+                        onClick={handleDescriptionCancel}
+                        disabled={isSavingDescription}
+                      >
+                        Cancel
+                      </button>
+                      <button
+                        className="generate-report-button"
+                        type="submit"
+                        disabled={isSavingDescription}
+                      >
+                        {isSavingDescription ? "Saving\u2026" : "Save"}
+                      </button>
+                    </div>
+                  </form>
+                </div>
+              </div>
+            )}
+            {editingCategory && (
+              <div
+                className="trans-budget-edit-modal-overlay"
+                role="dialog"
+                aria-modal="true"
+                aria-label="Select category"
+              >
+                <div className="trans-budget-edit-modal">
+                  <h3>Select Category</h3>
+                  {isSavingCategory && (
+                    <p className="trans-budget-edit-modal__count">Saving…</p>
+                  )}
+                  {plTree?.length > 0 ? (
+                    <CategorySelector
+                      plTree={plTree}
+                      selectedCategories={
+                        editingCategory.entry.Category
+                          ? [editingCategory.entry.Category]
+                          : []
+                      }
+                      onCategoriesChange={handleCategorySelect}
+                      categoryGroupOptions={[]}
+                    />
+                  ) : (
+                    <p className="trans-budget-edit-modal__count">
+                      Loading categories…
+                    </p>
+                  )}
+                  <div className="trans-budget-edit-modal__actions">
+                    <button
+                      className="generate-report-button"
+                      type="button"
+                      onClick={handleCategoryCancel}
+                      disabled={isSavingCategory}
+                    >
+                      Cancel
+                    </button>
+                  </div>
+                </div>
+              </div>
+            )}
           </section>
         )}
       </main>

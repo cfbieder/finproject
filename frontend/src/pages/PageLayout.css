@@ -1068,6 +1068,22 @@
   font-weight: 700;
 }
 
+.trans-budget-table__value--clickable {
+  cursor: pointer;
+  color: var(--primary, #2563eb);
+  text-decoration: underline;
+  text-decoration-color: transparent;
+  transition: text-decoration-color 0.15s ease, color 0.15s ease;
+}
+
+.trans-budget-table__value--clickable:hover {
+  text-decoration-color: var(--primary, #2563eb);
+}
+
+.trans-budget-table__row--no-select {
+  cursor: default;
+}
+
 .trans-budget-delete-modal-overlay {
   position: fixed;
   inset: 0;

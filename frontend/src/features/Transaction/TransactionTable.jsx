@@ -95,6 +95,9 @@ export default function TransactionTable({
   sortConfig = { key: "", direction: "" },
   onSort,
   onRowToggle,
+  showSelection = true,
+  onDescriptionClick,
+  onCategoryClick,
 }) {
   const label = config.logPrefix === "TransActual" ? "Actual"
     : config.logPrefix === "ReviewNew" ? "New"
@@ -120,22 +123,24 @@ export default function TransactionTable({
             <table className="trans-budget-table">
               <thead>
                 <tr>
-                  <th>
-                    <button
-                      type="button"
-                      className="trans-budget-table__sort-button"
-                      onClick={() => onSort?.(SELECTION_COLUMN.key)}
-                    >
-                      <span>{SELECTION_COLUMN.label}</span>
-                      <span className="trans-budget-table__sort-indicator">
-                        {sortConfig.key === SELECTION_COLUMN.key
-                          ? sortConfig.direction === "desc"
-                            ? <ChevronDown size={14} />
-                            : <ChevronUp size={14} />
-                          : <ChevronsUpDown size={14} />}
-                      </span>
-                    </button>
-                  </th>
+                  {showSelection && (
+                    <th>
+                      <button
+                        type="button"
+                        className="trans-budget-table__sort-button"
+                        onClick={() => onSort?.(SELECTION_COLUMN.key)}
+                      >
+                        <span>{SELECTION_COLUMN.label}</span>
+                        <span className="trans-budget-table__sort-indicator">
+                          {sortConfig.key === SELECTION_COLUMN.key
+                            ? sortConfig.direction === "desc"
+                              ? <ChevronDown size={14} />
+                              : <ChevronUp size={14} />
+                            : <ChevronsUpDown size={14} />}
+                        </span>
+                      </button>
+                    </th>
+                  )}
                   {TRANSACTION_COLUMNS.map((column) => (
                     <th key={column.key}>
                       <button
@@ -160,33 +165,48 @@ export default function TransactionTable({
                 {sortedTransactions.map(({ entry, rowId, isSelected }) => (
                   <tr
                     key={rowId}
-                    className="trans-budget-table__row"
-                    onClick={() => onRowToggle?.(rowId, entry)}
+                    className={`trans-budget-table__row${showSelection ? "" : " trans-budget-table__row--no-select"}`}
+                    onClick={showSelection ? () => onRowToggle?.(rowId, entry) : undefined}
                   >
-                    <td className="trans-budget-table__checkbox-cell">
-                      <input
-                        type="checkbox"
-                        checked={isSelected}
-                        readOnly
-                        aria-label={`Select transaction ${rowId}`}
-                      />
-                    </td>
-                    {TRANSACTION_COLUMNS.map((column) => (
-                      <td
-                        key={column.key}
-                        className={`trans-budget-table__value${
-                          column.alignRight
-                            ? " trans-budget-table__value--numeric"
-                            : ""
-                        }`}
-                        style={{
-                          ...(column.noWrap ? { whiteSpace: "nowrap" } : undefined),
-                          ...column.style,
-                        }}
-                      >
-                        {column.render(entry[column.key])}
+                    {showSelection && (
+                      <td className="trans-budget-table__checkbox-cell">
+                        <input
+                          type="checkbox"
+                          checked={isSelected}
+                          readOnly
+                          aria-label={`Select transaction ${rowId}`}
+                        />
                       </td>
-                    ))}
+                    )}
+                    {TRANSACTION_COLUMNS.map((column) => {
+                      const isClickable =
+                        (column.key === "Description1" && onDescriptionClick) ||
+                        (column.key === "Category" && onCategoryClick);
+                      const handleCellClick = isClickable
+                        ? (event) => {
+                            event.stopPropagation();
+                            if (column.key === "Description1") onDescriptionClick(rowId, entry);
+                            else if (column.key === "Category") onCategoryClick(rowId, entry);
+                          }
+                        : undefined;
+                      return (
+                        <td
+                          key={column.key}
+                          className={`trans-budget-table__value${
+                            column.alignRight
+                              ? " trans-budget-table__value--numeric"
+                              : ""
+                          }${isClickable ? " trans-budget-table__value--clickable" : ""}`}
+                          style={{
+                            ...(column.noWrap ? { whiteSpace: "nowrap" } : undefined),
+                            ...column.style,
+                          }}
+                          onClick={handleCellClick}
+                        >
+                          {column.render(entry[column.key])}
+                        </td>
+                      );
+                    })}
                   </tr>
                 ))}
               </tbody>
