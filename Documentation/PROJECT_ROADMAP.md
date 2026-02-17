@@ -216,6 +216,7 @@ Timeline of the MongoDB-to-PostgreSQL migration and infrastructure changes.
 
 | Date | Event |
 |------|-------|
+| 2026-02-17 | **Transaction acceptance:** Added `accepted BOOLEAN DEFAULT FALSE` column to `transactions` table (migration `003_accepted_field.sql`). Accepted transactions are protected from overwrite during PS data refresh/ingest sync (`WHERE transactions.accepted IS NOT TRUE` on upsert). Added Accept button and Accept All button to Review & Edit New tab on `/refresh-ps`. Accepted transactions disappear from review table. Any manual edit via `PATCH /api/v2/transactions/:id` (including from `/trans-actual`) auto-sets `accepted=true`, protecting user edits from future refreshes. Uses existing PATCH endpoint — no new API routes needed. |
 | 2026-02-16 | **Balance Sheet UI improvements:** Removed decorative dot from page title (`::before` pseudo-element on `.report-toolbar-header__title`). Redesigned filter bar from two-row stacked layout to single horizontal row (inline layout matching budget realization pattern) — period count selector and date inputs now sit alongside Generate/Expand/Collapse buttons in one row. Removed redundant "Balance Date" labels and border separator. Added `P1`/`P2`/`P3` pill-style badges next to date inputs. Fixed inconsistent vertical spacing between collapsed and expanded states by adding `align-content: start` to the grid container. Added **Net Worth summary row** (`<tfoot>`) to the balance sheet table showing Assets + Liabilities, styled with a primary-color top border and subtle blue background. |
 | 2026-02-16 | **Transaction table column optimization:** Added `noWrap` to Date, LC Amount, and USD Amount columns to prevent numeric values from wrapping to two lines. Constrained Description column with `maxWidth: 220px` and text-overflow ellipsis to give amount columns more space. Applied to shared `TransactionTable.jsx` — affects both `/trans-actual` and `/trans-budget`. |
 | 2026-02-16 | **Route reorganization:** Moved `/refresh-ps` from Database category to Transactions category in `routes.jsx`, grouping it with related transaction management pages. |
@@ -242,4 +243,4 @@ Timeline of the MongoDB-to-PostgreSQL migration and infrastructure changes.
 
 ---
 
-*Last updated: 2026-02-16*
+*Last updated: 2026-02-17*

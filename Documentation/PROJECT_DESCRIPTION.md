@@ -126,7 +126,7 @@ fin/
 │   ├── package.json
 │   ├── nodemon.json
 │   ├── .env-cmdrc
-│   ├── db/migrations/           # PostgreSQL schema (001_initial_schema.sql, 002_psdata_staging.sql)
+│   ├── db/migrations/           # PostgreSQL schema (001_initial_schema.sql, 002_psdata_staging.sql, 003_accepted_field.sql)
 │   └── src/
 │       ├── server.js            # HTTP server entry point
 │       ├── app.js               # Express app config, route mounting
@@ -163,7 +163,7 @@ fin/
 |------|------|----------|-------------|
 | `/` | Home | - | Dashboard with quick actions |
 | `/upload-ps` | UploadPS | Database | Upload PocketSmith CSV data |
-| `/refresh-ps` | RefreshPS | Transactions | Refresh data via PocketSmith API; tabbed view (Review & Edit New / New Transactions / Modified) with inline transaction editing using shared `TransactionTable` + `TransactionEditModal` + `CategorySelector` |
+| `/refresh-ps` | RefreshPS | Transactions | Refresh data via PocketSmith API; tabbed view (Review & Edit New / New Transactions / Modified) with inline transaction editing using shared `TransactionTable` + `TransactionEditModal` + `CategorySelector`. Accept/Accept All buttons mark transactions as accepted, protecting them from future refresh overwrites and hiding them from the review table. |
 | `/backup-database` | BackupDatabase | Database | Download database backup |
 | `/budget-worksheet` | BudgetInput | Budgeting | Budget worksheet with collapsible filter controls (PeriodSelector, CategorySelector, AccountSelector), tabbed Balances/Budget Entry panel showing selected category |
 | `/budget-realization` | BudgetRealization | Budgeting | Budget vs actual comparison |
@@ -264,7 +264,7 @@ All endpoints mounted at `/api/v2`. Nginx rewrites legacy `/api/*` paths to `/ap
 - `POST /clearall` — Clear staging | `POST /sync-to-transactions` — Sync staging to transactions
 - `GET /psdata/count` | `GET /psdata/options` — Distinct accounts/categories
 - `GET /analyze-ps` | `POST /analyze-ps` — Analyze for missing accounts/categories
-- `GET /new-transactions` | `GET /modified-transactions` | `POST /review-new-transactions` — Review editable new transactions (queries `psdata_staging` LEFT JOIN `transactions`)
+- `GET /new-transactions` | `GET /modified-transactions` | `POST /review-new-transactions` — Review editable new transactions (queries `psdata_staging` JOIN `transactions`, excludes accepted)
 - `POST /appdata/last-refresh`
 
 #### Reports (`/api/v2/reports`)
@@ -272,7 +272,7 @@ All endpoints mounted at `/api/v2`. Nginx rewrites legacy `/api/*` paths to `/ap
 
 #### Transactions (`/api/v2/transactions`)
 - `GET /` — List (with filtering, pagination) | `GET /summary/by-category` | `GET /summary/by-month`
-- `GET /:id` — Single | `POST /` — Create | `PATCH /:id` — Update | `DELETE /:id` — Delete
+- `GET /:id` — Single | `POST /` — Create | `PATCH /:id` — Update (auto-sets `accepted=true`) | `DELETE /:id` — Delete
 
 #### Utility (`/api/v2/util`)
 - `GET /appdata` (merges JSON file + PostgreSQL `app_data` table) | `POST /appdata` | `POST /backup-database`
@@ -312,7 +312,7 @@ Located in `server/src/v2/services/`. Generates multi-year financial projections
 |-------|---------|
 | `accounts` | Chart of accounts with hierarchy (adjacency list via `parent_id`) |
 | `categories` | PocketSmith categories mapped to accounts |
-| `transactions` | Actual financial transactions |
+| `transactions` | Actual financial transactions (`accepted` flag protects from PS refresh overwrite) |
 | `pending_transactions` | Staging for new/modified PocketSmith transactions |
 | `budget_versions` | Named budget versions per year |
 | `budget_entries` | Individual budget line items |
@@ -354,7 +354,7 @@ Located in `server/src/v2/services/`. Generates multi-year financial projections
 
 ### Migrations
 
-SQL migrations in `server/db/migrations/` run automatically on PostgreSQL container initialization via Docker's `initdb.d` volume mount.
+SQL migrations in `server/db/migrations/` run automatically on PostgreSQL container initialization via Docker's `initdb.d` volume mount. For existing databases, new migrations must be applied manually via `psql`.
 
 ---
 
@@ -540,4 +540,4 @@ docker compose -f docker-compose.dev.yml down        # Development
 
 ---
 
-*Last updated: 2026-02-16*
+*Last updated: 2026-02-17*

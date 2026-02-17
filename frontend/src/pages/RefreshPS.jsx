@@ -43,6 +43,7 @@ export default function RefreshPS() {
   const [reviewTransactions, setReviewTransactions] = useState([]);
   const [isLoadingReview, setIsLoadingReview] = useState(false);
   const [reviewError, setReviewError] = useState(null);
+  const [acceptingId, setAcceptingId] = useState(null);
 
   const { plTree } = useCoa();
 
@@ -395,6 +396,72 @@ export default function RefreshPS() {
   }, [editingCategory, loadReviewTransactions, showSuccess, showErrorToast]);
 
   /**************************
+   * Accept transactions
+   **************************/
+
+  const handleAcceptClick = useCallback(async (rowId, entry) => {
+    const id = entry?.id ?? entry?._id;
+    if (!id || typeof id !== "number") {
+      showErrorToast("Cannot accept: transaction not yet synced to database");
+      return;
+    }
+    setAcceptingId(id);
+    try {
+      const response = await fetch(
+        Rest.buildUrl(`${reviewConfig.endpoint}/${id}`),
+        {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ accepted: true }),
+        }
+      );
+      if (!response.ok) {
+        const body = await response.json().catch(() => null);
+        throw new Error(body?.error || "Failed to accept transaction");
+      }
+      showSuccess("Transaction accepted");
+      await loadReviewTransactions();
+    } catch (err) {
+      showErrorToast(err?.message ?? "Failed to accept transaction");
+    } finally {
+      setAcceptingId(null);
+    }
+  }, [loadReviewTransactions, showSuccess, showErrorToast]);
+
+  const handleAcceptAll = useCallback(async () => {
+    const unacceptedIds = reviewTransactions
+      .map((t) => t.id)
+      .filter((id) => typeof id === "number");
+    if (unacceptedIds.length === 0) {
+      showErrorToast("No transactions to accept");
+      return;
+    }
+    setAcceptingId("all");
+    try {
+      const results = await Promise.all(
+        unacceptedIds.map((id) =>
+          fetch(Rest.buildUrl(`${reviewConfig.endpoint}/${id}`), {
+            method: "PATCH",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ accepted: true }),
+          })
+        )
+      );
+      const failCount = results.filter((r) => !r.ok).length;
+      if (failCount > 0) {
+        showErrorToast(`${failCount} transaction(s) failed to accept`);
+      } else {
+        showSuccess(`${unacceptedIds.length} transaction(s) accepted`);
+      }
+      await loadReviewTransactions();
+    } catch (err) {
+      showErrorToast(err?.message ?? "Failed to accept all transactions");
+    } finally {
+      setAcceptingId(null);
+    }
+  }, [reviewTransactions, loadReviewTransactions, showSuccess, showErrorToast]);
+
+  /**************************
    * Formatters for read-only tables
    **************************/
 
@@ -588,6 +655,18 @@ export default function RefreshPS() {
               <p className="refresh-txn-section__title">
                 Review & Edit New Transactions
               </p>
+              {reviewTransactions.length > 0 && (
+                <div className="refresh-txn-section__actions">
+                  <button
+                    type="button"
+                    className="refresh-ps-btn refresh-ps-btn--accept-all"
+                    onClick={handleAcceptAll}
+                    disabled={acceptingId != null}
+                  >
+                    {acceptingId === "all" ? "Accepting..." : "Accept All"}
+                  </button>
+                </div>
+              )}
             </div>
             <TransactionTable
               config={reviewConfig}
@@ -601,6 +680,7 @@ export default function RefreshPS() {
               showSelection={false}
               onDescriptionClick={handleDescriptionClick}
               onCategoryClick={handleCategoryClick}
+              onAcceptClick={handleAcceptClick}
             />
             {editingDescription && (
               <div

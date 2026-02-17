@@ -81,14 +81,10 @@ export const ACTUAL_CONFIG = {
   endpoint: "/api/v2/transactions",
   totalsEndpoint: "/api/v2/budget/actual-entries",
 
-  // Edit field definitions
+  // Edit field definitions (Amount, Currency, Account are PS-sourced and not editable)
   editFields: [
     { key: "Date", label: "Date", type: "date" },
     { key: "Description1", label: "Description", type: "text" },
-    { key: "Amount", label: "LC Amount", type: "number" },
-    { key: "Currency", label: "Currency", type: "text" },
-    { key: "BaseAmount", label: "USD Amount", type: "number" },
-    { key: "Account", label: "Account", type: "text" },
     { key: "Category", label: "Category", type: "text" },
   ],
 

@@ -16,6 +16,7 @@ import TransactionTable, {
 import TransactionEditModal from "../features/Transaction/TransactionEditModal.jsx";
 import TransactionDeleteModal from "../features/Transaction/TransactionDeleteModal.jsx";
 import Rest from "../js/rest.js";
+import { useCoa } from "../hooks/useCoa.js";
 import "./PageLayout.css";
 
 const config = BUDGET_CONFIG;
@@ -38,6 +39,7 @@ export default function TransBudget() {
   const accountOptions = useTransactionAccountOptions();
   const currencyOptions = useTransactionCurrencyOptions();
   const rates = useTransactionExchangeRates();
+  const { plTree } = useCoa();
 
   // Load filtered totals
   useEffect(() => {
@@ -189,6 +191,7 @@ export default function TransBudget() {
           onFieldChange={edit.handleEditFieldChange}
           onCancel={edit.handleEditCancel}
           onSubmit={edit.handleEditSubmit}
+          plTree={plTree}
         />
         <TransactionDeleteModal
           isOpen={del.showDeleteConfirmation}

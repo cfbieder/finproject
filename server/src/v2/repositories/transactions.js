@@ -319,7 +319,8 @@ async function update(id, data) {
   const allowedFields = [
     'transaction_date', 'description1', 'description2', 'amount', 'currency',
     'base_amount', 'base_currency', 'transaction_type', 'account_id',
-    'closing_balance', 'category_id', 'labels', 'memo', 'note', 'bank'
+    'closing_balance', 'category_id', 'labels', 'memo', 'note', 'bank',
+    'accepted'
   ];
 
   for (const field of allowedFields) {

@@ -182,6 +182,7 @@ async function syncStagingToTransactions() {
       note = EXCLUDED.note,
       bank = EXCLUDED.bank,
       updated_at = NOW()
+    WHERE transactions.accepted IS NOT TRUE
     RETURNING id,
       (xmax = 0) as was_inserted
   `);
@@ -189,12 +190,25 @@ async function syncStagingToTransactions() {
   const inserted = upsertResult.rows.filter(r => r.was_inserted).length;
   const updated = upsertResult.rows.filter(r => !r.was_inserted).length;
 
-  console.log(`[v2/ingest-ps] Sync complete: ${inserted} inserted, ${updated} updated, ${skipped} skipped`);
+  // Count accepted transactions that were protected from overwrite
+  const protectedResult = await db.query(`
+    SELECT COUNT(*) as cnt
+    FROM psdata_staging s
+    JOIN transactions t ON t.ps_id = s.ps_id::bigint
+    WHERE t.accepted = TRUE
+      AND s.amount IS NOT NULL
+      AND s.transaction_date IS NOT NULL
+      AND s.currency IS NOT NULL
+  `);
+  const protectedCount = parseInt(protectedResult.rows[0].cnt, 10);
+
+  console.log(`[v2/ingest-ps] Sync complete: ${inserted} inserted, ${updated} updated, ${skipped} skipped, ${protectedCount} protected (accepted)`);
 
   return {
     inserted,
     updated,
     skipped,
+    protectedCount,
     total: inserted + updated + skipped,
     unmappedAccounts,
     unmappedCategories
@@ -498,6 +512,7 @@ router.post('/review-new-transactions', async (req, res) => {
       LEFT JOIN accounts a ON t.account_id = a.id
       LEFT JOIN categories c ON t.category_id = c.id
       WHERE s.ps_id = ANY($1)
+        AND t.accepted IS NOT TRUE
       ORDER BY s.transaction_date DESC, s.id DESC
     `, [psIds]);
 

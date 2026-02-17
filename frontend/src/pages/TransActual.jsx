@@ -16,6 +16,7 @@ import TransactionTable, {
 import TransactionEditModal from "../features/Transaction/TransactionEditModal.jsx";
 import TransactionDeleteModal from "../features/Transaction/TransactionDeleteModal.jsx";
 import Rest from "../js/rest.js";
+import { useCoa } from "../hooks/useCoa.js";
 import "./PageLayout.css";
 
 const config = ACTUAL_CONFIG;
@@ -39,6 +40,7 @@ export default function TransActual() {
   const accountOptions = useTransactionAccountOptions();
   const currencyOptions = useTransactionCurrencyOptions();
   const rates = useTransactionExchangeRates();
+  const { plTree } = useCoa();
 
   // Client-side filtering (Actual-specific: server returns broader results)
   const locallyFilteredTransactions = useMemo(() => {
@@ -277,6 +279,7 @@ export default function TransActual() {
           onFieldChange={edit.handleEditFieldChange}
           onCancel={edit.handleEditCancel}
           onSubmit={edit.handleEditSubmit}
+          plTree={plTree}
         />
         <TransactionDeleteModal
           isOpen={del.showDeleteConfirmation}

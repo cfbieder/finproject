@@ -98,6 +98,7 @@ export default function TransactionTable({
   showSelection = true,
   onDescriptionClick,
   onCategoryClick,
+  onAcceptClick,
 }) {
   const label = config.logPrefix === "TransActual" ? "Actual"
     : config.logPrefix === "ReviewNew" ? "New"
@@ -159,6 +160,9 @@ export default function TransactionTable({
                       </button>
                     </th>
                   ))}
+                  {onAcceptClick && (
+                    <th className="trans-budget-table__accept-header">Accept</th>
+                  )}
                 </tr>
               </thead>
               <tbody>
@@ -207,6 +211,21 @@ export default function TransactionTable({
                         </td>
                       );
                     })}
+                    {onAcceptClick && (
+                      <td className="trans-budget-table__accept-cell">
+                        <button
+                          type="button"
+                          className="trans-budget-table__accept-btn"
+                          onClick={(event) => {
+                            event.stopPropagation();
+                            onAcceptClick(rowId, entry);
+                          }}
+                          aria-label={`Accept transaction ${rowId}`}
+                        >
+                          Accept
+                        </button>
+                      </td>
+                    )}
                   </tr>
                 ))}
               </tbody>

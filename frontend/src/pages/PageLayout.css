@@ -1084,6 +1084,36 @@
   cursor: default;
 }
 
+/* Accept button in transaction table */
+.trans-budget-table__accept-header {
+  width: 80px;
+  text-align: center;
+}
+
+.trans-budget-table__accept-cell {
+  text-align: center;
+  padding: 0.25rem 0.4rem;
+}
+
+.trans-budget-table__accept-btn {
+  padding: 0.25rem 0.75rem;
+  border-radius: 0.4rem;
+  border: 1px solid #86efac;
+  background: #f0fdf4;
+  color: #166534;
+  font-size: 0.75rem;
+  font-weight: 600;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: all 0.15s ease;
+}
+
+.trans-budget-table__accept-btn:hover {
+  background: #dcfce7;
+  border-color: #166534;
+  box-shadow: 0 1px 4px rgba(22, 101, 52, 0.15);
+}
+
 .trans-budget-delete-modal-overlay {
   position: fixed;
   inset: 0;
