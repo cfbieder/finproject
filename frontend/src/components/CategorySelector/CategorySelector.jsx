@@ -132,22 +132,36 @@ export default function CategorySelector({
     [selectedCategories]
   );
 
+  // Set of group values for mutual-exclusivity checks
+  const groupValueSet = useMemo(
+    () => new Set(categoryGroupOptions.map((g) => g.value)),
+    [categoryGroupOptions]
+  );
+
   const handleItemClick = useCallback(
     (categoryName) => {
-      const next = selectedSet.has(categoryName)
-        ? selectedCategories.filter((c) => c !== categoryName)
-        : [...selectedCategories, categoryName];
-      onCategoriesChange(next);
+      if (selectedSet.has(categoryName)) {
+        // Deselecting – just remove it
+        onCategoriesChange(selectedCategories.filter((c) => c !== categoryName));
+      } else {
+        // Selecting a leaf – remove any active group presets
+        const next = selectedCategories.filter((c) => !groupValueSet.has(c));
+        next.push(categoryName);
+        onCategoriesChange(next);
+      }
     },
-    [selectedCategories, selectedSet, onCategoriesChange]
+    [selectedCategories, selectedSet, groupValueSet, onCategoriesChange]
   );
 
   const handleGroupClick = useCallback(
     (groupValue) => {
-      const next = selectedSet.has(groupValue)
-        ? selectedCategories.filter((c) => c !== groupValue)
-        : [...selectedCategories, groupValue];
-      onCategoriesChange(next);
+      if (selectedSet.has(groupValue)) {
+        // Deselecting – just remove it
+        onCategoriesChange(selectedCategories.filter((c) => c !== groupValue));
+      } else {
+        // Selecting a group – replace all selections with this group
+        onCategoriesChange([groupValue]);
+      }
     },
     [selectedCategories, selectedSet, onCategoriesChange]
   );

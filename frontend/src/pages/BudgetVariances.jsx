@@ -1,8 +1,6 @@
-import { useMemo, useState, useEffect } from "react";
-import {
-  MONTH_OPTIONS,
-  YEAR_OPTIONS,
-} from "../features/Budgets/BudgetBalancePanel.jsx";
+import { useCallback, useMemo, useState, useEffect } from "react";
+import PeriodSelector from "../components/PeriodSelector/PeriodSelector.jsx";
+import BudgetDetailModal from "../features/Budgets/BudgetDetailModal.jsx";
 import Rest from "../js/rest.js";
 import "../features/CashFlow/CashFlowReport.css";
 import "./PageLayout.css";
@@ -63,17 +61,14 @@ const buildLeafActualTotalsMap = (nodes, map = new Map()) => {
   return map;
 };
 
-const computePeriodRange = (selectedMonth, selectedYear) => {
-  const yearNumber = Number.parseInt(selectedYear, 10);
-  if (!Number.isFinite(yearNumber)) {
-    return null;
-  }
-  const monthNumber = Number.parseInt(selectedMonth, 10);
-  if (!Number.isFinite(monthNumber)) {
-    return null;
-  }
-  const start = new Date(yearNumber, monthNumber - 1, 1);
-  const end = new Date(yearNumber, monthNumber, 0);
+const computePeriodRange = (fromMonth, toMonth, year) => {
+  const yearNumber = Number.isFinite(Number(year)) ? Number(year) : NaN;
+  if (!Number.isFinite(yearNumber)) return null;
+  const from = Number.parseInt(fromMonth, 10);
+  const to = Number.parseInt(toMonth, 10);
+  if (!Number.isFinite(from) || !Number.isFinite(to)) return null;
+  const start = new Date(yearNumber, from - 1, 1);
+  const end = new Date(yearNumber, to, 0);
   return { start, end };
 };
 
@@ -91,19 +86,34 @@ const formatDateParam = (value) => {
 // MAIN COMPONENT
 // ============================================================================
 
+const CURRENT_MONTH = String(new Date().getMonth() + 1).padStart(2, "0");
+const CURRENT_YEAR = new Date().getFullYear();
+
 export default function BudgetVariances() {
   // ========== State ==========
-  const [selectedMonth, setSelectedMonth] = useState(
-    MONTH_OPTIONS[new Date().getMonth()].value
-  );
-  const [selectedYear, setSelectedYear] = useState(YEAR_OPTIONS[3]);
+  const [periodValues, setPeriodValues] = useState({
+    fromMonth: CURRENT_MONTH,
+    toMonth: CURRENT_MONTH,
+    actualYear: CURRENT_YEAR,
+    budgetYear: CURRENT_YEAR,
+  });
   const [leafActualTotals, setLeafActualTotals] = useState(null);
   const [leafBudgetTotals, setLeafBudgetTotals] = useState(null);
+  const [entryDetail, setEntryDetail] = useState(null);
+
+  const handlePeriodChange = useCallback((values) => {
+    setPeriodValues(values);
+  }, []);
 
   // ========== Computed: Period Range ==========
   const periodRange = useMemo(
-    () => computePeriodRange(selectedMonth, selectedYear),
-    [selectedMonth, selectedYear]
+    () =>
+      computePeriodRange(
+        periodValues.fromMonth,
+        periodValues.toMonth,
+        periodValues.actualYear
+      ),
+    [periodValues.fromMonth, periodValues.toMonth, periodValues.actualYear]
   );
 
   // ========== Effects: Fetch Actuals ==========
@@ -227,6 +237,31 @@ export default function BudgetVariances() {
     return rows;
   }, [leafBudgetTotals, leafActualTotals]);
 
+  // ========== Handlers: Double-Click ==========
+  const handleValueDoubleClick = useCallback(
+    (name, type) => {
+      if (!periodRange) return;
+      setEntryDetail({
+        name,
+        categories: [name],
+        period: periodRange,
+        type,
+      });
+    },
+    [periodRange]
+  );
+
+  // ========== Computed: Totals ==========
+  const totals = useMemo(() => {
+    let budget = 0;
+    let actual = 0;
+    for (const row of varianceRows) {
+      budget += row.budget;
+      actual += row.actual;
+    }
+    return { budget, actual, variance: actual - budget };
+  }, [varianceRows]);
+
   // ========== Render ==========
   return (
     <main className="budget-realization-main budget-realization-main--single">
@@ -239,55 +274,19 @@ export default function BudgetVariances() {
             </h1>
             <p className="realization-toolbar-header__description">
               Line items ranked by largest budget-to-actual variance for the
-              selected month.
+              selected period.
             </p>
           </div>
         </div>
 
         {/* Toolbar */}
         <section className="realization-toolbar" aria-label="Report filters">
-          <div className="realization-toolbar__group realization-toolbar__group--selectors">
-            <div className="realization-toolbar__field">
-              <label
-                htmlFor="variance-year"
-                className="realization-toolbar__label"
-              >
-                Year
-              </label>
-              <select
-                id="variance-year"
-                className="realization-toolbar__select"
-                value={selectedYear}
-                onChange={(e) => setSelectedYear(e.target.value)}
-              >
-                {YEAR_OPTIONS.map((year) => (
-                  <option key={year} value={year}>
-                    {year}
-                  </option>
-                ))}
-              </select>
-            </div>
-            <div className="realization-toolbar__field">
-              <label
-                htmlFor="variance-month"
-                className="realization-toolbar__label"
-              >
-                Month
-              </label>
-              <select
-                id="variance-month"
-                className="realization-toolbar__select"
-                value={selectedMonth}
-                onChange={(e) => setSelectedMonth(e.target.value)}
-              >
-                {MONTH_OPTIONS.map(({ label, value }) => (
-                  <option key={value} value={value}>
-                    {label}
-                  </option>
-                ))}
-              </select>
-            </div>
-          </div>
+          <PeriodSelector
+            onChange={handlePeriodChange}
+            defaultPreset="this-month"
+            hideBudgetYear
+            id="variance-period"
+          />
         </section>
 
         {/* Table */}
@@ -319,11 +318,15 @@ export default function BudgetVariances() {
                         </td>
                         <td
                           className={getValueCellClassName(row.budget, true)}
+                          onDoubleClick={() => handleValueDoubleClick(row.name, "budget")}
+                          style={{ cursor: "pointer" }}
                         >
                           {formatCurrencyValue(row.budget)}
                         </td>
                         <td
                           className={getValueCellClassName(row.actual, true)}
+                          onDoubleClick={() => handleValueDoubleClick(row.name, "actual")}
+                          style={{ cursor: "pointer" }}
                         >
                           {formatCurrencyValue(row.actual)}
                         </td>
@@ -350,12 +353,36 @@ export default function BudgetVariances() {
                         </tr>
                       )}
                   </tbody>
+                  {varianceRows.length > 0 && (
+                    <tfoot>
+                      <tr className="balance-report-table__net-cash-flow">
+                        <td className="balance-report-table__name">
+                          <span className="balance-report-table__name-text">
+                            Total
+                          </span>
+                        </td>
+                        <td className={getValueCellClassName(totals.budget, true)}>
+                          {formatCurrencyValue(totals.budget)}
+                        </td>
+                        <td className={getValueCellClassName(totals.actual, true)}>
+                          {formatCurrencyValue(totals.actual)}
+                        </td>
+                        <td className={getValueCellClassName(totals.variance, true)}>
+                          {formatCurrencyValue(totals.variance)}
+                        </td>
+                      </tr>
+                    </tfoot>
+                  )}
                 </table>
               </div>
             </div>
           </section>
         </div>
       </div>
+      <BudgetDetailModal
+        detail={entryDetail}
+        onClose={() => setEntryDetail(null)}
+      />
     </main>
   );
 }

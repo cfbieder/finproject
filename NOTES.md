@@ -31,6 +31,10 @@ https://fin.tail413695.ts.net/dev
     tmux attach -t <name>
     Ctrl+B c
 
+## Linux Commands
+    docker system prune
+
+
 
 ## TO DO ITEMS
 

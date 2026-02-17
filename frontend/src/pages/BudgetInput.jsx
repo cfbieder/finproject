@@ -302,6 +302,15 @@ export default function BudgetInput() {
     [setSelectedCategories]
   );
 
+  const handleClearAll = useCallback(() => {
+    setFromMonth(MONTH_OPTIONS[0].value);
+    setToMonth(MONTH_OPTIONS[11].value);
+    setActualYear(YEAR_OPTIONS[0]);
+    setBudgetYear(BUDGET_YEAR_OPTIONS[2]);
+    setSelectedCategories([]);
+    setSelectedAccounts(["All"]);
+  }, [setSelectedCategories, setSelectedAccounts]);
+
   const handlePeriodChange = useCallback(
     ({ fromMonth, toMonth, actualYear, budgetYear }) => {
       setFromMonth(fromMonth);
@@ -402,14 +411,23 @@ export default function BudgetInput() {
           <section className="budget-region selector-area">
             <div className="selector-area__header">
               <p className="budget-region__label">Filter Controls</p>
-              <button
-                type="button"
-                className="selector-area__toggle"
-                onClick={() => setFiltersCollapsed((prev) => !prev)}
-                aria-expanded={!filtersCollapsed}
-              >
-                {filtersCollapsed ? "Show Filters" : "Hide Filters"}
-              </button>
+              <div className="selector-area__header-actions">
+                <button
+                  type="button"
+                  className="selector-area__toggle"
+                  onClick={handleClearAll}
+                >
+                  Clear All
+                </button>
+                <button
+                  type="button"
+                  className="selector-area__toggle"
+                  onClick={() => setFiltersCollapsed((prev) => !prev)}
+                  aria-expanded={!filtersCollapsed}
+                >
+                  {filtersCollapsed ? "Show Filters" : "Hide Filters"}
+                </button>
+              </div>
             </div>
             {!filtersCollapsed && (
               <p className="budget-region__description">

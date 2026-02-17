@@ -190,6 +190,22 @@ export default function TransactionFilterActual({
     [setSelectedCategories]
   );
 
+  const handleClearFilters = useCallback(() => {
+    setPeriodValues({
+      fromMonth: CURRENT_MONTH,
+      toMonth: CURRENT_MONTH,
+      actualYear: CURRENT_YEAR,
+      budgetYear: CURRENT_YEAR,
+    });
+    setDescriptionValue("");
+    setValueFromEnabled(false);
+    setValueToEnabled(false);
+    setValueFrom("");
+    setValueTo("");
+    setSelectedCategories([]);
+    setSelectedAccounts(["All"]);
+  }, [setSelectedCategories, setSelectedAccounts]);
+
   // ========== Render ==========
   return (
     <section
@@ -341,6 +357,13 @@ export default function TransactionFilterActual({
                 disabled={!canDelete}
               >
                 Delete
+              </button>
+              <button
+                className="trans-filter-actual__action-btn trans-filter-actual__action-btn--clear"
+                type="button"
+                onClick={handleClearFilters}
+              >
+                Clear Filters
               </button>
             </div>
           </div>

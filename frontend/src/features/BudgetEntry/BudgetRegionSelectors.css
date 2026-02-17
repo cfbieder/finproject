@@ -19,6 +19,12 @@
   gap: 1rem;
 }
 
+.selector-area__header-actions {
+  display: flex;
+  gap: 0.5rem;
+  align-items: center;
+}
+
 .selector-area__toggle {
   flex-shrink: 0;
   padding: 0.35rem 0.75rem;

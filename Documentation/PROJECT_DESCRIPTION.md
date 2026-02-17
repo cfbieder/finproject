@@ -177,8 +177,8 @@ fin/
 | `/cash-flow` | CashFlow | Reports & Graphs | Cash flow P&L analysis |
 | `/cash-flow-monthly` | CashFlowMonthly | Reports & Graphs | Monthly cash flow breakdown |
 | `/balance-chart` | BalanceChart | Reports & Graphs | Net worth chart over time |
-| `/trans-actual` | TransActual | Transactions | Actual transactions browser with collapsible filter bar (PeriodSelector, CategorySelector, AccountSelector), description search, value range filters, date format mm/dd/yy, optimized column widths (noWrap amounts, ellipsis description) |
-| `/trans-budget` | TransBudget | Transactions | Budget transactions browser with collapsible filter bar (PeriodSelector, CategorySelector, AccountSelector), value range filters, date format mm/dd/yy, optimized column widths (noWrap amounts, ellipsis description) |
+| `/trans-actual` | TransActual | Transactions | Actual transactions browser with collapsible filter bar (PeriodSelector, CategorySelector, AccountSelector), description search, value range filters, Clear Filters button, date format mm/dd/yy, optimized column widths (noWrap amounts, ellipsis description). Edit modal supports Description and Category only (Amount, Currency, Account are PS-sourced and not editable). Uses hierarchical `CategorySelector` via `plTree` prop. |
+| `/trans-budget` | TransBudget | Transactions | Budget transactions browser with collapsible filter bar (PeriodSelector, CategorySelector, AccountSelector), value range filters, Clear Filters button, date format mm/dd/yy, optimized column widths (noWrap amounts, ellipsis description). Edit modal uses hierarchical `CategorySelector` via `plTree` prop. |
 | `/fx-options` | FXOptions | Settings | Exchange rate configuration |
 | `/coa-management` | COAManagement | Settings | Chart of accounts CRUD, PS analysis, quick-add |
 
