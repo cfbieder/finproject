@@ -44,3 +44,21 @@
   color: var(--muted-light);
   font-weight: 400;
 }
+
+@media (max-width: 640px) {
+  .breadcrumbs {
+    padding: 0 0.75rem;
+  }
+
+  .breadcrumbs__list {
+    font-size: 0.75rem;
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+    flex-wrap: nowrap;
+    scrollbar-width: none;
+  }
+
+  .breadcrumbs__list::-webkit-scrollbar {
+    display: none;
+  }
+}

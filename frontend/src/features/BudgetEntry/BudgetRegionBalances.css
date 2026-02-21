@@ -135,3 +135,32 @@
   padding: 2rem 1.25rem;
   font-style: italic;
 }
+
+@media (max-width: 768px) {
+  .balances-area {
+    min-height: 300px;
+  }
+
+  .balances-table th,
+  .balances-table td {
+    padding: 0.65rem 0.85rem;
+    font-size: 0.875rem;
+  }
+
+  .balances-table tfoot td {
+    padding: 0.85rem;
+    font-size: 0.9rem;
+  }
+}
+
+@media (max-width: 640px) {
+  .balances-area {
+    min-height: 200px;
+  }
+
+  .balances-table th,
+  .balances-table td {
+    padding: 0.5rem 0.65rem;
+    font-size: 0.825rem;
+  }
+}

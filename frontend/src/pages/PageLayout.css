@@ -3293,6 +3293,10 @@
   .realization-table-section {
     padding: 1.25rem;
   }
+
+  .fc-modules-panels {
+    grid-template-columns: 1fr;
+  }
 }
 
 @media (max-width: 768px) {
@@ -3346,6 +3350,14 @@
 
   .realization-table-section {
     padding: 1rem;
+  }
+
+  .fc-review-selector__actions {
+    min-width: 0;
+  }
+
+  .budget-options-layout {
+    grid-template-columns: 1fr;
   }
 }
 
@@ -3483,6 +3495,45 @@
   .budget-entry-form__submit {
     width: 100%;
     text-align: center;
+  }
+
+  .fc-review-selector__actions {
+    flex-direction: column;
+  }
+
+  .fc-review-selector__action-btn {
+    min-width: 0;
+    width: 100%;
+  }
+
+  .budget-tabs__header {
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  .budget-tabs__tab {
+    padding: 0.65rem 1rem;
+    font-size: 0.8rem;
+  }
+
+  .section-table__content {
+    padding: 0.75rem;
+  }
+
+  .balance-report-table th,
+  .balance-report-table td {
+    padding: 0.5rem 0.65rem;
+    font-size: 0.825rem;
+  }
+
+  .page-main.trans-budget-main,
+  .page-main.refresh-ps-layout {
+    padding: 0.75rem;
+    gap: 1rem;
+  }
+
+  .page-main.trans-budget-main.fc-modules-main {
+    padding: 0.5rem 0.65rem 0.75rem;
   }
 }
 

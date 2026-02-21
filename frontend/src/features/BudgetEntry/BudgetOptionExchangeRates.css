@@ -80,3 +80,19 @@
 .budget-options-table__input:focus {
   outline: none;
 }
+
+@media (max-width: 640px) {
+  .budget-options-region {
+    padding: 1rem;
+  }
+
+  .budget-options-region__title {
+    font-size: 1.25rem;
+  }
+
+  .budget-options-table th,
+  .budget-options-table td {
+    padding: 0.4rem 0.5rem;
+    font-size: 0.85rem;
+  }
+}

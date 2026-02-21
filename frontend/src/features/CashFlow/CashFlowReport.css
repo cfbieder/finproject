@@ -187,3 +187,26 @@
   letter-spacing: 0.04em;
   color: var(--primary);
 }
+
+@media (max-width: 768px) {
+  .cash-flow-report {
+    --cashflow-indent-unit: 1.1rem;
+  }
+}
+
+@media (max-width: 640px) {
+  .cash-flow-report {
+    --cashflow-indent-unit: 0.8rem;
+  }
+
+  .cash-flow-report__toggle-button {
+    min-width: 1.1rem;
+    padding: 0.15rem;
+    font-size: 0.8rem;
+  }
+
+  .cash-flow-report .balance-report-table__name::before,
+  .cash-flow-report .balance-report-table__name::after {
+    display: none;
+  }
+}

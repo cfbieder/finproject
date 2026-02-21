@@ -356,3 +356,70 @@
     opacity: 0.5;
   }
 }
+
+@media (max-width: 768px) {
+  .fc-review-transfer-modal {
+    width: 100vw;
+    max-height: 100vh;
+    border-radius: 0;
+  }
+
+  .fc-review-transfer-modal__header {
+    padding: 1.25rem 1rem;
+    gap: 1rem;
+  }
+
+  .fc-review-transfer-modal__content {
+    padding: 1.25rem;
+  }
+
+  .fc-review-transfer-modal__footer {
+    padding: 1.25rem 1rem;
+  }
+
+  .fc-review-transfer-modal__table thead tr th,
+  .fc-review-transfer-modal__table tbody tr td {
+    padding: 0.65rem 0.85rem;
+  }
+
+  .fc-review-transfer-modal__table-heading--amount {
+    min-width: 120px;
+  }
+
+  .fc-review-transfer-modal__amount-input {
+    width: 120px;
+  }
+
+  .fc-review-transfer-modal__actions {
+    flex-direction: column;
+    gap: 0.75rem;
+  }
+
+  .fc-review-transfer-modal__buttons {
+    width: 100%;
+  }
+
+  .fc-review-transfer-modal__button {
+    flex: 1;
+    padding: 0.75rem 1rem;
+    text-align: center;
+  }
+}
+
+@media (max-width: 640px) {
+  .fc-review-transfer-modal__title {
+    font-size: 1.2rem;
+  }
+
+  .fc-review-transfer-modal__amount-input {
+    width: 100px;
+  }
+
+  .fc-review-transfer-modal__table-heading--amount {
+    min-width: 100px;
+  }
+
+  .fc-review-transfer-modal__meta-row {
+    flex-wrap: wrap;
+  }
+}

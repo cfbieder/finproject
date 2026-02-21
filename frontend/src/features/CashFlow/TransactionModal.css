@@ -91,3 +91,33 @@
 .transaction-modal__error-message {
   color: #b00020;
 }
+
+@media (max-width: 768px) {
+  .transaction-modal__overlay {
+    padding: 1rem 0.5rem;
+    align-items: flex-start;
+  }
+
+  .transaction-modal {
+    min-width: 0;
+    width: calc(100% - 1rem);
+    max-height: 90vh;
+    resize: none;
+  }
+
+  .transaction-modal__description-cell {
+    max-width: 200px;
+  }
+}
+
+@media (max-width: 640px) {
+  .transaction-modal__overlay {
+    padding: 0;
+  }
+
+  .transaction-modal {
+    width: 100%;
+    max-height: 100vh;
+    border-radius: 0;
+  }
+}

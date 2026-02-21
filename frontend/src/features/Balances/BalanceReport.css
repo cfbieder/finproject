@@ -108,3 +108,21 @@
 .balance-report-empty--alert {
   color: var(--primary);
 }
+
+@media (max-width: 768px) {
+  .balance-report {
+    --balance-indent-unit: 0.85rem;
+  }
+}
+
+@media (max-width: 640px) {
+  .balance-report {
+    --balance-indent-unit: 0.65rem;
+  }
+
+  .balance-report__toggle-button {
+    min-width: 1.25rem;
+    padding: 0.15rem;
+    font-size: 0.85rem;
+  }
+}
