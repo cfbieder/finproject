@@ -3300,10 +3300,6 @@
 }
 
 @media (max-width: 768px) {
-  .navbar__inner {
-    padding: 0.65rem 1rem;
-  }
-
   .page-main {
     gap: 1.25rem;
   }
@@ -3363,8 +3359,8 @@
 
 @media (max-width: 640px) {
   .navbar {
-    margin-bottom: 1.5rem;
-    padding: 0.75rem 0;
+    margin-bottom: 1rem;
+    padding: 0.25rem 0;
   }
 
   .home-container {

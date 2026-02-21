@@ -119,8 +119,10 @@ fin/
 │       ├── config/routes.jsx    # Central route config (paths, icons, categories)
 │       ├── contexts/            # ToastContext, ForecastContext
 │       ├── features/            # Feature modules (Balances, BudgetEntry, Budgets, CashFlow, Charts, COAManagement, Database, Forecast, Transaction)
+│       ├── hooks/               # Custom React hooks (useAPI, useCoa, useFormState, useModal)
+│       ├── utils/               # Shared helpers (formatters, dateHelpers, cashFlowHelpers, forecastHelpers, treeTraversal)
 │       ├── js/                  # API helpers (rest.js, handleUpload.js)
-│       └── pages/               # Page components (20 pages + category landing)
+│       └── pages/               # Page components (21 pages + category landing)
 ├── server/                      # Express API server
 │   ├── Dockerfile
 │   ├── package.json
@@ -177,7 +179,7 @@ fin/
 | `/cash-flow` | CashFlow | Reports & Graphs | Cash flow P&L analysis |
 | `/cash-flow-monthly` | CashFlowMonthly | Reports & Graphs | Monthly cash flow breakdown |
 | `/balance-chart` | BalanceChart | Reports & Graphs | Net worth chart over time |
-| `/trans-actual` | TransActual | Transactions | Actual transactions browser with collapsible filter bar (PeriodSelector, CategorySelector, AccountSelector), description search, value range filters, Clear Filters button, date format mm/dd/yy, optimized column widths (noWrap amounts, ellipsis description). Edit modal supports Description and Category only (Amount, Currency, Account are PS-sourced and not editable). Uses hierarchical `CategorySelector` via `plTree` prop. |
+| `/trans-actual` | TransActual | Transactions | Actual transactions browser with collapsible filter bar (PeriodSelector, CategorySelector, AccountSelector), description search, value range filters, Clear Filters button, date format mm/dd/yy, optimized column widths (noWrap amounts, ellipsis description). Edit modal supports Date, Description, and Category (Amount, Currency, Account are PS-sourced and not editable). Uses hierarchical `CategorySelector` via `plTree` prop. |
 | `/trans-budget` | TransBudget | Transactions | Budget transactions browser with collapsible filter bar (PeriodSelector, CategorySelector, AccountSelector), value range filters, Clear Filters button, date format mm/dd/yy, optimized column widths (noWrap amounts, ellipsis description). Edit modal uses hierarchical `CategorySelector` via `plTree` prop. |
 | `/fx-options` | FXOptions | Settings | Exchange rate configuration |
 | `/coa-management` | COAManagement | Settings | Chart of accounts CRUD, PS analysis, quick-add |
@@ -190,7 +192,9 @@ Category landing pages instead of dropdowns. Each category has a landing page at
 
 - **React Context**: `ToastContext` (global toasts), `ForecastContext` (forecast state shared across FC pages)
 - **Local state**: Page-level `useState`/`useCallback` for form state, loading, and API responses
-- **Custom hooks**: `useTransactionEdit`, `useTransactionDelete`, `useTransactionSelection`, `useBudgetEntrySubmit`, `useFCExpCrud` encapsulate CRUD logic with toast notifications
+- **Shared hooks** (`hooks/`): `useAPI` (API call management with loading/error states), `useCoa` (Chart of Accounts data and derived category/account maps), `useFormState` (form state and validation), `useModal` (modal open/close with data management)
+- **Feature hooks**: `useTransactionEdit`, `useTransactionDelete`, `useTransactionSelection`, `useBudgetEntrySubmit`, `useFCExpCrud` encapsulate CRUD logic with toast notifications
+- **Shared utilities** (`utils/`): `formatters` (currency/number formatting), `dateHelpers` (date manipulation), `cashFlowHelpers`, `forecastHelpers`, `treeTraversal` (tree structure navigation for COA hierarchy)
 
 ### Key Patterns
 
@@ -223,6 +227,38 @@ Category landing pages instead of dropdowns. Each category has a landing page at
 - **Production:** Dark blue browser tab (`#1a1f36`), title shows "FI"
 
 Controlled by `VITE_APP_MODE` in `.env-cmdrc`, implemented in `main.jsx`.
+
+### CSS Design System
+
+Pure vanilla CSS with CSS custom properties (no Tailwind, SCSS, or CSS-in-JS). Global design tokens defined in `index.css`:
+
+- **Colors:** Navy blue primary (`--primary: #1e40af`), emerald accent (`--accent: #047857`), semantic success/warning/danger, financial chart palette (7 colors)
+- **Typography:** "Plus Jakarta Sans" (body), "Space Grotesk" (headings), SF Mono (financial data). Weights 400-700
+- **Spacing:** `--space-xs` (0.25rem) through `--space-2xl` (3rem)
+- **Border radius:** `--radius-sm` (8px) through `--radius-full` (9999px)
+- **Shadows:** 4 levels (soft, md, lg, xl) plus focus ring
+- **Transitions:** Fast (150ms), base (200ms), slow (300ms) with cubic-bezier easing
+- **Visual effects:** Glassmorphism (backdrop-filter blur), gradient backgrounds, radial gradient body overlay
+
+### Responsive Design
+
+Desktop-first approach with three breakpoint tiers:
+
+| Breakpoint | Target | Key changes |
+|-----------|--------|-------------|
+| `1080px` | Large tablet | 2-column grids collapse to 1-column, toolbar wraps |
+| `768px` | Tablet | Hamburger nav, sidebar panels stack above content, modals go full-width, heading sizes reduce |
+| `640px` | Mobile phone | Edge-to-edge navbar, full-screen modals, stacked form actions, reduced padding/font sizes, horizontal scroll for tabs/breadcrumbs, version badge hidden |
+
+**Navigation:** Horizontal link bar inside glassmorphic pill on desktop. On mobile (768px): links hidden behind hamburger toggle, revealed as a fixed slide-out drawer (280px) with overlay backdrop. `backdrop-filter` is disabled on `.navbar__inner` at mobile to prevent CSS containing-block issues with `position: fixed` children. Brand image scales down (44px → 34px → 30px), version badge hidden at 640px. Navbar pill loses border-radius at 640px for edge-to-edge appearance.
+
+**Tables:** Horizontal scroll via `overflow-x: auto` wrappers with gradient scroll indicators. Sticky headers with z-index layering. Reduced cell padding and font sizes at mobile breakpoints.
+
+**Reports:** Balance sheet and cash flow use CSS custom properties (`--balance-indent-unit`, `--cashflow-indent-unit`) for tree indentation, progressively reduced at smaller breakpoints. Cash flow tree connector lines hidden at 640px.
+
+**Modals:** Scale from fixed-width containers (`min(900px, 96vw)`) to full-screen at 640px with no border-radius. Footer action buttons stack vertically on mobile.
+
+**Typography:** Heading sizes scale down at each breakpoint (e.g. h1: 2.25rem → 1.875rem → 1.5rem). Toast notifications reflow to fill available width at 640px.
 
 ---
 
@@ -540,4 +576,4 @@ docker compose -f docker-compose.dev.yml down        # Development
 
 ---
 
-*Last updated: 2026-02-17*
+*Last updated: 2026-02-21*

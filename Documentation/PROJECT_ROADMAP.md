@@ -129,7 +129,7 @@ Benefits: compile-time type checking for financial calculations, better IDE supp
 |----------|--------|
 | Component library | Radix UI + custom styling |
 | Charting library | Recharts (already in use) |
-| Mobile support | Desktop only |
+| Mobile support | Responsive (desktop-first with 1080px/768px/640px breakpoints) |
 | State management | Enhanced React Context (upgrade to Zustand if complexity grows) |
 
 ---
@@ -216,6 +216,7 @@ Timeline of the MongoDB-to-PostgreSQL migration and infrastructure changes.
 
 | Date | Event |
 |------|-------|
+| 2026-02-21 | **Full responsive/mobile-friendly UI:** Added `@media` breakpoints (1080px, 768px, 640px) across 14 CSS files. Responsive typography scaling in `index.css`. Toast overflow fix at 640px. PageLayout: collapsed grids, stacked form actions, reduced table padding, horizontal-scroll tabs. Sidebar panels (Balance, Cash Flow date selectors) stack above content at 768px. Modals (FCReviewAdjustTransferModal, TransactionModal) go full-width at 768px, full-screen at 640px. Budget tables reduce min-height and cell sizing. Report tree indentation scales via CSS custom properties. Breadcrumbs get horizontal scroll. RefreshPS toolbar stacks vertically. **Navigation fix:** Disabled `backdrop-filter` on `.navbar__inner` at mobile — CSS spec causes `backdrop-filter` to create a containing block for `position: fixed` descendants, breaking the slide-out drawer. Nav links now properly hidden behind hamburger with `display: none`/`display: flex` toggle. Brand scales down (44px → 30px), version badge hidden at 640px, navbar goes edge-to-edge at 640px. |
 | 2026-02-17 | **Clear Filters button:** Added Clear Filters button to both `/trans-actual` and `/trans-budget` filter bars. Resets all filter state to defaults — period (current month for Actual, full year for Budget), description, value range, categories, and accounts. Styled with muted/neutral appearance (gray border, subtle background) that turns dark on hover. |
 | 2026-02-17 | **Transaction edit modal improvements:** Restricted `/trans-actual` edit modal to Description and Category fields only (removed Amount, Currency, BaseAmount, Account — these are PS-sourced and should not be manually editable). Enabled hierarchical `CategorySelector` in edit modals on both `/trans-actual` and `/trans-budget` by passing `plTree` from `useCoa()` hook. |
 | 2026-02-17 | **Transaction acceptance:** Added `accepted BOOLEAN DEFAULT FALSE` column to `transactions` table (migration `003_accepted_field.sql`). Accepted transactions are protected from overwrite during PS data refresh/ingest sync (`WHERE transactions.accepted IS NOT TRUE` on upsert). Added Accept button and Accept All button to Review & Edit New tab on `/refresh-ps`. Accepted transactions disappear from review table. Any manual edit via `PATCH /api/v2/transactions/:id` (including from `/trans-actual`) auto-sets `accepted=true`, protecting user edits from future refreshes. Uses existing PATCH endpoint — no new API routes needed. |
@@ -245,4 +246,4 @@ Timeline of the MongoDB-to-PostgreSQL migration and infrastructure changes.
 
 ---
 
-*Last updated: 2026-02-17*
+*Last updated: 2026-02-21*
