@@ -207,6 +207,11 @@ export default function RefreshPS() {
       });
       showSuccess(`PS refresh complete: ${inserted} inserted, ${updated} updated`);
       await fetchLastIngest();
+
+      // Reload the active table view with fresh data
+      if (activeView === "review") await loadReviewTransactions();
+      else if (activeView === "new") await loadNewTransactions();
+      else if (activeView === "modified") await loadModifiedTransactions();
     } catch (error) {
       setRefreshStatus({
         type: "error",
@@ -314,6 +319,7 @@ export default function RefreshPS() {
 
   // Inline edit state for Category
   const [editingCategory, setEditingCategory] = useState(null); // { rowId, entry }
+  const [categoryValue, setCategoryValue] = useState("");
   const [isSavingCategory, setIsSavingCategory] = useState(false);
 
   const handleDescriptionClick = useCallback((rowId, entry) => {
@@ -358,16 +364,21 @@ export default function RefreshPS() {
 
   const handleCategoryClick = useCallback((rowId, entry) => {
     setEditingCategory({ rowId, entry });
+    setCategoryValue(entry.Category ?? "");
   }, []);
 
   const handleCategoryCancel = useCallback(() => {
     setEditingCategory(null);
+    setCategoryValue("");
   }, []);
 
-  const handleCategorySelect = useCallback(async (selected) => {
-    if (!editingCategory) return;
+  const handleCategoryChange = useCallback((selected) => {
     const picked = selected.length > 0 ? selected[selected.length - 1] : "";
-    if (!picked) return;
+    if (picked) setCategoryValue(picked);
+  }, []);
+
+  const handleCategorySave = useCallback(async () => {
+    if (!editingCategory || !categoryValue) return;
     const { entry } = editingCategory;
     const id = entry?.id ?? entry?._id;
     if (!id) return;
@@ -378,7 +389,7 @@ export default function RefreshPS() {
         {
           method: "PATCH",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ Category: picked }),
+          body: JSON.stringify({ Category: categoryValue }),
         }
       );
       if (!response.ok) {
@@ -386,6 +397,7 @@ export default function RefreshPS() {
         throw new Error(body?.error || "Failed to update category");
       }
       setEditingCategory(null);
+      setCategoryValue("");
       showSuccess("Category updated");
       await loadReviewTransactions();
     } catch (err) {
@@ -393,7 +405,7 @@ export default function RefreshPS() {
     } finally {
       setIsSavingCategory(false);
     }
-  }, [editingCategory, loadReviewTransactions, showSuccess, showErrorToast]);
+  }, [editingCategory, categoryValue, loadReviewTransactions, showSuccess, showErrorToast]);
 
   /**************************
    * Accept transactions
@@ -746,11 +758,9 @@ export default function RefreshPS() {
                     <CategorySelector
                       plTree={plTree}
                       selectedCategories={
-                        editingCategory.entry.Category
-                          ? [editingCategory.entry.Category]
-                          : []
+                        categoryValue ? [categoryValue] : []
                       }
-                      onCategoriesChange={handleCategorySelect}
+                      onCategoriesChange={handleCategoryChange}
                       categoryGroupOptions={[]}
                     />
                   ) : (
@@ -766,6 +776,14 @@ export default function RefreshPS() {
                       disabled={isSavingCategory}
                     >
                       Cancel
+                    </button>
+                    <button
+                      className="generate-report-button"
+                      type="button"
+                      onClick={handleCategorySave}
+                      disabled={isSavingCategory || !categoryValue}
+                    >
+                      {isSavingCategory ? "Saving…" : "Save"}
                     </button>
                   </div>
                 </div>

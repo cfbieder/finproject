@@ -252,10 +252,13 @@ export const REVIEW_CONFIG = {
 
   transformEntry(txn) {
     // id may be null if the record hasn't been synced to transactions yet
-    const entryId = txn.id != null ? txn.id : `ps-${txn.ps_id}`;
+    // pg driver returns BIGSERIAL as string, so parse to number
+    const parsedId = txn.id != null ? Number(txn.id) : null;
+    const safeId = Number.isFinite(parsedId) ? parsedId : null;
+    const entryId = safeId != null ? safeId : `ps-${txn.ps_id}`;
     return {
       _id: String(entryId),
-      id: txn.id,
+      id: safeId,
       ps_id: txn.ps_id,
       Date: txn.transaction_date,
       Description1: txn.description1,

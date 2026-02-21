@@ -5,6 +5,8 @@
 
 https://fin.tail413695.ts.net/dev
 
+pkill -f 'claude.*--output-format stream-json'
+
 
 ### Deploy scripts
 

@@ -185,7 +185,7 @@ export default function CategorySelector({
         <input
           type="text"
           className="category-selector__search-input"
-          placeholder="Filter categories\u2026"
+          placeholder="Filter categories…"
           value={filterText}
           onChange={(e) => setFilterText(e.target.value)}
           aria-label="Filter categories"

@@ -167,11 +167,6 @@ router.patch('/:id', async (req, res, next) => {
       delete data.category_name;
     }
 
-    // Auto-accept: any manual edit protects the transaction from PS refresh overwrite
-    if (data.accepted === undefined) {
-      data.accepted = true;
-    }
-
     const transaction = await repo.update(parseInt(req.params.id), data);
     if (!transaction) {
       return res.status(404).json({ error: 'Transaction not found' });
