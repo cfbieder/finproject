@@ -461,44 +461,26 @@ router.post('/refresh-ps', async (req, res, next) => {
 
 /**
  * POST /api/v2/ingest-ps/review-new-transactions
- * Fetch new transactions for review. Uses psdata_staging as the primary
- * source (always present after import) and LEFT JOINs the transactions
- * table to obtain the editable transaction id when the record was synced.
- * Returns data in the same shape as GET /api/v2/transactions.
+ * Fetch all unaccepted transactions for review.
+ * Queries the transactions table directly so entries persist across
+ * refreshes until explicitly accepted.
  */
 router.post('/review-new-transactions', async (req, res) => {
   try {
-    const raw = await fs.readFile(tempFiles.importReport, 'utf8');
-    const parsed = raw.trim() ? JSON.parse(raw) : [];
-    const records = Array.isArray(parsed) ? parsed : [parsed].filter(Boolean);
-
-    if (!records.length) {
-      return res.json({ data: [] });
-    }
-
-    const psIds = records
-      .map(r => r.ps_id || r.ID)
-      .filter(id => id !== undefined && id !== null)
-      .map(String);
-
-    if (!psIds.length) {
-      return res.json({ data: [] });
-    }
-
     const db = require('../db');
     const result = await db.query(`
       SELECT
         t.id,
-        s.ps_id,
-        COALESCE(t.transaction_date, s.transaction_date) as transaction_date,
-        COALESCE(t.description1, s.description1) as description1,
-        COALESCE(t.description2, s.description2) as description2,
-        COALESCE(t.amount, s.amount) as amount,
-        COALESCE(t.currency, s.currency) as currency,
-        COALESCE(t.base_amount, s.base_amount) as base_amount,
-        COALESCE(t.base_currency, s.base_currency) as base_currency,
-        COALESCE(a.name, s.account_name) as account_name,
-        COALESCE(c.name, s.category_name) as category_name,
+        t.ps_id,
+        t.transaction_date,
+        t.description1,
+        t.description2,
+        t.amount,
+        t.currency,
+        t.base_amount,
+        t.base_currency,
+        COALESCE(a.name, '') as account_name,
+        COALESCE(c.name, '') as category_name,
         t.account_id,
         t.category_id,
         t.closing_balance,
@@ -507,20 +489,15 @@ router.post('/review-new-transactions', async (req, res) => {
         t.note,
         t.bank,
         t.source
-      FROM psdata_staging s
-      JOIN transactions t ON t.ps_id = s.ps_id::bigint
+      FROM transactions t
       LEFT JOIN accounts a ON t.account_id = a.id
       LEFT JOIN categories c ON t.category_id = c.id
-      WHERE s.ps_id = ANY($1)
-        AND t.accepted IS NOT TRUE
-      ORDER BY s.transaction_date DESC, s.id DESC
-    `, [psIds]);
+      WHERE t.accepted IS NOT TRUE
+      ORDER BY t.transaction_date DESC, t.id DESC
+    `);
 
     res.json({ data: result.rows });
   } catch (error) {
-    if (error.code === 'ENOENT') {
-      return res.json({ data: [] });
-    }
     console.error('[v2/ingest-ps] Failed to load review transactions:', error);
     res.status(500).json({ error: 'Unable to load review transactions' });
   }

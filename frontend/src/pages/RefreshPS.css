@@ -201,6 +201,30 @@
   gap: 0.5rem;
 }
 
+/* Bulk Category button */
+.refresh-ps-btn--bulk-category {
+  padding: 0.4rem 1rem;
+  border-radius: 0.5rem;
+  border: 1px solid #93c5fd;
+  background: #eff6ff;
+  color: #1e40af;
+  font-size: 0.8rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.refresh-ps-btn--bulk-category:hover:not(:disabled) {
+  background: #dbeafe;
+  border-color: #1e40af;
+  box-shadow: 0 2px 8px -2px rgba(30, 64, 175, 0.25);
+}
+
+.refresh-ps-btn--bulk-category:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
 /* Accept All button */
 .refresh-ps-btn--accept-all {
   padding: 0.4rem 1rem;

@@ -307,8 +307,11 @@ export default function RefreshPS() {
   }, [loadReviewTransactions]);
 
   const {
+    selectedRows,
     sortConfig,
     sortedTransactions: sortedReviewTransactions,
+    clearSelection,
+    toggleRowSelection,
     handleSort,
   } = useTransactionSelection(reviewTransactions);
 
@@ -321,6 +324,7 @@ export default function RefreshPS() {
   const [editingCategory, setEditingCategory] = useState(null); // { rowId, entry }
   const [categoryValue, setCategoryValue] = useState("");
   const [isSavingCategory, setIsSavingCategory] = useState(false);
+  const [bulkCategoryMode, setBulkCategoryMode] = useState(false);
 
   const handleDescriptionClick = useCallback((rowId, entry) => {
     setEditingDescription({ rowId, entry });
@@ -363,6 +367,7 @@ export default function RefreshPS() {
   }, [editingDescription, descriptionValue, loadReviewTransactions, showSuccess, showErrorToast]);
 
   const handleCategoryClick = useCallback((rowId, entry) => {
+    setBulkCategoryMode(false);
     setEditingCategory({ rowId, entry });
     setCategoryValue(entry.Category ?? "");
   }, []);
@@ -370,6 +375,7 @@ export default function RefreshPS() {
   const handleCategoryCancel = useCallback(() => {
     setEditingCategory(null);
     setCategoryValue("");
+    setBulkCategoryMode(false);
   }, []);
 
   const handleCategoryChange = useCallback((selected) => {
@@ -377,35 +383,73 @@ export default function RefreshPS() {
     if (picked) setCategoryValue(picked);
   }, []);
 
+  const patchInBatches = useCallback(async (ids, body, batchSize = 5) => {
+    const results = [];
+    for (let i = 0; i < ids.length; i += batchSize) {
+      const batch = ids.slice(i, i + batchSize);
+      const batchResults = await Promise.all(
+        batch.map((id) =>
+          fetch(Rest.buildUrl(`${reviewConfig.endpoint}/${id}`), {
+            method: "PATCH",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify(body),
+          })
+        )
+      );
+      results.push(...batchResults);
+    }
+    return results;
+  }, []);
+
   const handleCategorySave = useCallback(async () => {
-    if (!editingCategory || !categoryValue) return;
-    const { entry } = editingCategory;
-    const id = entry?.id ?? entry?._id;
-    if (!id) return;
+    if (!categoryValue) return;
     setIsSavingCategory(true);
     try {
-      const response = await fetch(
-        Rest.buildUrl(`${reviewConfig.endpoint}/${id}`),
-        {
-          method: "PATCH",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ Category: categoryValue }),
+      if (bulkCategoryMode) {
+        const ids = Array.from(selectedRows.values())
+          .map((entry) => entry?.id ?? entry?._id)
+          .filter((id) => typeof id === "number");
+        if (ids.length === 0) {
+          showErrorToast("No valid transactions selected for category update");
+          return;
         }
-      );
-      if (!response.ok) {
-        const body = await response.json().catch(() => null);
-        throw new Error(body?.error || "Failed to update category");
+        const results = await patchInBatches(ids, { Category: categoryValue });
+        const failCount = results.filter((r) => !r.ok).length;
+        if (failCount > 0) {
+          showErrorToast(`${failCount} transaction(s) failed to update category`);
+        } else {
+          showSuccess(`Category updated for ${ids.length} transaction(s)`);
+        }
+        clearSelection();
+      } else {
+        if (!editingCategory) return;
+        const { entry } = editingCategory;
+        const id = entry?.id ?? entry?._id;
+        if (!id) return;
+        const response = await fetch(
+          Rest.buildUrl(`${reviewConfig.endpoint}/${id}`),
+          {
+            method: "PATCH",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ Category: categoryValue }),
+          }
+        );
+        if (!response.ok) {
+          const body = await response.json().catch(() => null);
+          throw new Error(body?.error || "Failed to update category");
+        }
+        showSuccess("Category updated");
       }
       setEditingCategory(null);
       setCategoryValue("");
-      showSuccess("Category updated");
+      setBulkCategoryMode(false);
       await loadReviewTransactions();
     } catch (err) {
       showErrorToast(err?.message ?? "Failed to update category");
     } finally {
       setIsSavingCategory(false);
     }
-  }, [editingCategory, categoryValue, loadReviewTransactions, showSuccess, showErrorToast]);
+  }, [bulkCategoryMode, editingCategory, categoryValue, selectedRows, clearSelection, patchInBatches, loadReviewTransactions, showSuccess, showErrorToast]);
 
   /**************************
    * Accept transactions
@@ -450,15 +494,7 @@ export default function RefreshPS() {
     }
     setAcceptingId("all");
     try {
-      const results = await Promise.all(
-        unacceptedIds.map((id) =>
-          fetch(Rest.buildUrl(`${reviewConfig.endpoint}/${id}`), {
-            method: "PATCH",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ accepted: true }),
-          })
-        )
-      );
+      const results = await patchInBatches(unacceptedIds, { accepted: true });
       const failCount = results.filter((r) => !r.ok).length;
       if (failCount > 0) {
         showErrorToast(`${failCount} transaction(s) failed to accept`);
@@ -471,7 +507,7 @@ export default function RefreshPS() {
     } finally {
       setAcceptingId(null);
     }
-  }, [reviewTransactions, loadReviewTransactions, showSuccess, showErrorToast]);
+  }, [reviewTransactions, patchInBatches, loadReviewTransactions, showSuccess, showErrorToast]);
 
   /**************************
    * Formatters for read-only tables
@@ -669,6 +705,20 @@ export default function RefreshPS() {
               </p>
               {reviewTransactions.length > 0 && (
                 <div className="refresh-txn-section__actions">
+                  {selectedRows.size > 0 && (
+                    <button
+                      type="button"
+                      className="refresh-ps-btn refresh-ps-btn--bulk-category"
+                      onClick={() => {
+                        setBulkCategoryMode(true);
+                        setCategoryValue("");
+                        setEditingCategory({ rowId: null, entry: null });
+                      }}
+                      disabled={acceptingId != null || isSavingCategory}
+                    >
+                      Change Category ({selectedRows.size})
+                    </button>
+                  )}
                   <button
                     type="button"
                     className="refresh-ps-btn refresh-ps-btn--accept-all"
@@ -689,7 +739,8 @@ export default function RefreshPS() {
               sortedTransactions={sortedReviewTransactions}
               sortConfig={sortConfig}
               onSort={handleSort}
-              showSelection={false}
+              showSelection={true}
+              onRowToggle={toggleRowSelection}
               onDescriptionClick={handleDescriptionClick}
               onCategoryClick={handleCategoryClick}
               onAcceptClick={handleAcceptClick}
@@ -750,7 +801,7 @@ export default function RefreshPS() {
                 aria-label="Select category"
               >
                 <div className="trans-budget-edit-modal">
-                  <h3>Select Category</h3>
+                  <h3>{bulkCategoryMode ? `Select Category for ${selectedRows.size} Transaction(s)` : "Select Category"}</h3>
                   {isSavingCategory && (
                     <p className="trans-budget-edit-modal__count">Saving…</p>
                   )}

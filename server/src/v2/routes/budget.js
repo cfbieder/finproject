@@ -635,7 +635,7 @@ router.get('/actual-entries', async (req, res, next) => {
       Note: row.note,
     }));
 
-    res.json(v1Entries);
+    res.json({ entries: v1Entries });
   } catch (error) {
     console.error('[v2/budget/actual-entries] Failed:', error);
     next(error);
