@@ -93,6 +93,8 @@ function filterGroups(groups, searchText) {
  * @param {string[]}          props.selectedAccounts  – Currently selected values
  * @param {Function}          props.onAccountsChange  – (nextSelected: string[]) => void
  * @param {boolean}           [props.showAll]         – Show "All" option (default: true)
+ * @param {boolean}           [props.singleSelect]    – Single-select mode (default: false)
+ * @param {boolean}           [props.showNone]        – Show "None" pinned option (default: false)
  * @param {string}            [props.primaryCurrency] – Currency to show first (default: "USD")
  * @param {string}            [props.id]              – Root element ID
  * @param {string}            [props.className]       – Additional CSS class
@@ -103,6 +105,8 @@ export default function AccountSelector({
   selectedAccounts = [],
   onAccountsChange,
   showAll = true,
+  singleSelect = false,
+  showNone = false,
   primaryCurrency = "USD",
   id = "account-selector",
   className = "",
@@ -140,12 +144,17 @@ export default function AccountSelector({
 
   const handleItemClick = useCallback(
     (accountName) => {
+      if (singleSelect) {
+        const next = selectedSet.has(accountName) ? [] : [accountName];
+        onAccountsChange(next);
+        return;
+      }
       const next = selectedSet.has(accountName)
         ? selectedAccounts.filter((a) => a !== accountName)
         : [...selectedAccounts, accountName];
       onAccountsChange(next);
     },
-    [selectedAccounts, selectedSet, onAccountsChange]
+    [selectedAccounts, selectedSet, onAccountsChange, singleSelect]
   );
 
   const handleAllClick = useCallback(() => {
@@ -154,6 +163,27 @@ export default function AccountSelector({
       : [...selectedAccounts, "All"];
     onAccountsChange(next);
   }, [selectedAccounts, selectedSet, onAccountsChange]);
+
+  const handleNoneClick = useCallback(() => {
+    if (singleSelect) {
+      onAccountsChange(selectedSet.has("None") ? [] : ["None"]);
+      return;
+    }
+    const next = selectedSet.has("None")
+      ? selectedAccounts.filter((a) => a !== "None")
+      : [...selectedAccounts, "None"];
+    onAccountsChange(next);
+  }, [selectedAccounts, selectedSet, onAccountsChange, singleSelect]);
+
+  const handleNoneKeyDown = useCallback(
+    (event) => {
+      if (event.key === "Enter" || event.key === " ") {
+        event.preventDefault();
+        handleNoneClick();
+      }
+    },
+    [handleNoneClick]
+  );
 
   const handleFilterClear = () => setFilterText("");
 
@@ -213,11 +243,25 @@ export default function AccountSelector({
       <div
         className="account-selector__list"
         role="listbox"
-        aria-multiselectable="true"
+        aria-multiselectable={!singleSelect}
         aria-label="Account list"
       >
+        {/* "None" option — pinned, only shown in showNone mode when not filtering */}
+        {showNone && !filterText.trim() && (
+          <div
+            role="option"
+            aria-selected={selectedSet.has("None")}
+            className={`account-selector__all-item${selectedSet.has("None") ? " account-selector__all-item--selected" : ""}`}
+            onClick={handleNoneClick}
+            onKeyDown={handleNoneKeyDown}
+            tabIndex={0}
+          >
+            None
+          </div>
+        )}
+
         {/* "All" option — pinned, only shown when not filtering */}
-        {hasAll && !filterText.trim() && (
+        {hasAll && !singleSelect && !filterText.trim() && (
           <div
             role="option"
             aria-selected={selectedSet.has("All")}

@@ -326,6 +326,12 @@ export default function RefreshPS() {
   const [isSavingCategory, setIsSavingCategory] = useState(false);
   const [bulkCategoryMode, setBulkCategoryMode] = useState(false);
 
+  // Split transaction state
+  const [splitTransaction, setSplitTransaction] = useState(null);
+  const [splitCount, setSplitCount] = useState(2);
+  const [splits, setSplits] = useState([]);
+  const [isSavingSplit, setIsSavingSplit] = useState(false);
+
   const handleDescriptionClick = useCallback((rowId, entry) => {
     setEditingDescription({ rowId, entry });
     setDescriptionValue(entry.Description1 ?? "");
@@ -508,6 +514,115 @@ export default function RefreshPS() {
       setAcceptingId(null);
     }
   }, [reviewTransactions, patchInBatches, loadReviewTransactions, showSuccess, showErrorToast]);
+
+  /**************************
+   * Split transaction
+   **************************/
+
+  const handleSplitClick = useCallback(() => {
+    if (selectedRows.size !== 1) return;
+    const entry = [...selectedRows.values()][0];
+    const originalAmount = Number(entry.Amount);
+    if (!Number.isFinite(originalAmount)) return;
+
+    setSplitTransaction(entry);
+    setSplitCount(2);
+    setSplits([
+      { amount: originalAmount, categoryName: entry.Category ?? "" },
+      { amount: 0, categoryName: entry.Category ?? "" },
+    ]);
+  }, [selectedRows]);
+
+  const handleSplitCountChange = useCallback(
+    (newCount) => {
+      const count = Math.max(2, Math.min(5, newCount));
+      setSplitCount(count);
+      setSplits((prev) => {
+        const next = [];
+        for (let i = 0; i < count; i++) {
+          if (i < prev.length) {
+            next.push(prev[i]);
+          } else {
+            next.push({ amount: 0, categoryName: splitTransaction?.Category ?? "" });
+          }
+        }
+        return next;
+      });
+    },
+    [splitTransaction]
+  );
+
+  const handleSplitAmountChange = useCallback((index, value) => {
+    setSplits((prev) => {
+      const next = [...prev];
+      next[index] = { ...next[index], amount: value };
+      return next;
+    });
+  }, []);
+
+  const handleSplitCategoryChange = useCallback((index, selected) => {
+    const categoryName = selected.length > 0 ? selected[selected.length - 1] : "";
+    setSplits((prev) => {
+      const next = [...prev];
+      next[index] = { ...next[index], categoryName };
+      return next;
+    });
+  }, []);
+
+  const handleSplitSave = useCallback(async () => {
+    if (!splitTransaction) return;
+    const id = splitTransaction.id ?? splitTransaction._id;
+    if (!id || typeof id !== "number") return;
+
+    const originalAmount = Number(splitTransaction.Amount);
+    const splitSum = splits.reduce((sum, s) => sum + (Number(s.amount) || 0), 0);
+    if (Math.abs(splitSum - originalAmount) > 0.01) {
+      showErrorToast("Split amounts must equal the original amount");
+      return;
+    }
+
+    for (const s of splits) {
+      if (!Number.isFinite(Number(s.amount)) || Number(s.amount) === 0) {
+        showErrorToast("All splits must have a non-zero amount");
+        return;
+      }
+    }
+
+    setIsSavingSplit(true);
+    try {
+      const response = await fetch(
+        Rest.buildUrl(`${reviewConfig.endpoint}/${id}/split`),
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            splits: splits.map((s) => ({
+              amount: Number(s.amount),
+              category_name: s.categoryName || undefined,
+            })),
+          }),
+        }
+      );
+      if (!response.ok) {
+        const body = await response.json().catch(() => null);
+        throw new Error(body?.error || "Failed to split transaction");
+      }
+      setSplitTransaction(null);
+      setSplits([]);
+      clearSelection();
+      showSuccess("Transaction split successfully");
+      await loadReviewTransactions();
+    } catch (err) {
+      showErrorToast(err?.message ?? "Failed to split transaction");
+    } finally {
+      setIsSavingSplit(false);
+    }
+  }, [splitTransaction, splits, clearSelection, loadReviewTransactions, showSuccess, showErrorToast]);
+
+  const handleSplitCancel = useCallback(() => {
+    setSplitTransaction(null);
+    setSplits([]);
+  }, []);
 
   /**************************
    * Formatters for read-only tables
@@ -719,6 +834,16 @@ export default function RefreshPS() {
                       Change Category ({selectedRows.size})
                     </button>
                   )}
+                  {selectedRows.size === 1 && (
+                    <button
+                      type="button"
+                      className="refresh-ps-btn refresh-ps-btn--split"
+                      onClick={handleSplitClick}
+                      disabled={acceptingId != null || isSavingSplit}
+                    >
+                      Split Transaction
+                    </button>
+                  )}
                   <button
                     type="button"
                     className="refresh-ps-btn refresh-ps-btn--accept-all"
@@ -835,6 +960,126 @@ export default function RefreshPS() {
                       disabled={isSavingCategory || !categoryValue}
                     >
                       {isSavingCategory ? "Saving…" : "Save"}
+                    </button>
+                  </div>
+                </div>
+              </div>
+            )}
+            {splitTransaction && (
+              <div
+                className="trans-budget-edit-modal-overlay"
+                role="dialog"
+                aria-modal="true"
+                aria-label="Split transaction"
+              >
+                <div className="trans-budget-edit-modal split-modal">
+                  <h3>Split Transaction</h3>
+                  <div className="split-modal__summary">
+                    <span><strong>Date:</strong> {formatDate(splitTransaction.Date)}</span>
+                    <span><strong>Description:</strong> {splitTransaction.Description1 ?? ""}</span>
+                    <span><strong>Amount:</strong> {formatAmount(splitTransaction.Amount)} {splitTransaction.Currency}</span>
+                    <span><strong>Account:</strong> {splitTransaction.Account ?? ""}</span>
+                  </div>
+                  <label className="split-modal__count-label">
+                    <span>Number of splits:</span>
+                    <select
+                      className="form-input split-modal__count-select"
+                      value={splitCount}
+                      onChange={(e) => handleSplitCountChange(Number(e.target.value))}
+                      disabled={isSavingSplit}
+                    >
+                      {[2, 3, 4, 5].map((n) => (
+                        <option key={n} value={n}>{n}</option>
+                      ))}
+                    </select>
+                  </label>
+                  <div className="split-modal__entries">
+                    {splits.map((split, index) => (
+                      <div key={index} className="split-modal__entry">
+                        <label className="split-modal__entry-label">
+                          <span>Split {index + 1} Amount</span>
+                          <input
+                            className="form-input"
+                            type="text"
+                            inputMode="decimal"
+                            value={split.amount}
+                            onChange={(e) => {
+                              const raw = e.target.value;
+                              if (raw === "" || raw === "-" || raw === "." || raw === "-.") {
+                                handleSplitAmountChange(index, raw);
+                              } else {
+                                const parsed = parseFloat(raw);
+                                if (!Number.isNaN(parsed)) {
+                                  handleSplitAmountChange(index, raw);
+                                }
+                              }
+                            }}
+                            disabled={isSavingSplit}
+                          />
+                        </label>
+                        <div className="split-modal__entry-category">
+                          <span>Category</span>
+                          {plTree?.length > 0 ? (
+                            <CategorySelector
+                              plTree={plTree}
+                              selectedCategories={
+                                split.categoryName ? [split.categoryName] : []
+                              }
+                              onCategoriesChange={(selected) =>
+                                handleSplitCategoryChange(index, selected)
+                              }
+                              categoryGroupOptions={[]}
+                            />
+                          ) : (
+                            <p className="trans-budget-edit-modal__count">
+                              Loading categories…
+                            </p>
+                          )}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                  {(() => {
+                    const unallocated =
+                      Number(splitTransaction.Amount) -
+                      splits.reduce((sum, s) => sum + (Number(s.amount) || 0), 0);
+                    return (
+                      <p
+                        className={`split-modal__unallocated${
+                          Math.abs(unallocated) > 0.01
+                            ? " split-modal__unallocated--warning"
+                            : ""
+                        }`}
+                      >
+                        Unallocated: {formatAmount(unallocated)} {splitTransaction.Currency}
+                      </p>
+                    );
+                  })()}
+                  <div className="trans-budget-edit-modal__actions">
+                    <button
+                      className="generate-report-button"
+                      type="button"
+                      onClick={handleSplitCancel}
+                      disabled={isSavingSplit}
+                    >
+                      Cancel
+                    </button>
+                    <button
+                      className="generate-report-button"
+                      type="button"
+                      onClick={handleSplitSave}
+                      disabled={
+                        isSavingSplit ||
+                        Math.abs(
+                          Number(splitTransaction.Amount) -
+                            splits.reduce(
+                              (sum, s) => sum + (Number(s.amount) || 0),
+                              0
+                            )
+                        ) > 0.01
+                      }
+                    >
+                      {isSavingSplit ? "Saving\u2026" : "Save Split"}
                     </button>
                   </div>
                 </div>

@@ -177,6 +177,45 @@ router.patch('/:id', async (req, res, next) => {
   }
 });
 
+// POST /api/v2/transactions/:id/split
+// Splits a transaction into 2-5 entries, distributing the original amount.
+router.post('/:id/split', async (req, res, next) => {
+  try {
+    const id = parseInt(req.params.id);
+    const { splits } = req.body;
+
+    if (!Array.isArray(splits) || splits.length < 2 || splits.length > 5) {
+      return res.status(400).json({ error: 'splits must be an array of 2-5 entries' });
+    }
+
+    for (const split of splits) {
+      if (typeof split.amount !== 'number' || !Number.isFinite(split.amount)) {
+        return res.status(400).json({ error: 'Each split must have a valid numeric amount' });
+      }
+    }
+
+    // Resolve category names to IDs
+    const resolvedSplits = [];
+    for (const split of splits) {
+      const resolved = { amount: split.amount };
+      if (split.category_name) {
+        const category = await categoriesRepo.findByName(split.category_name);
+        if (category) {
+          resolved.category_id = category.id;
+        }
+      } else if (split.category_id !== undefined) {
+        resolved.category_id = split.category_id;
+      }
+      resolvedSplits.push(resolved);
+    }
+
+    const result = await repo.split(id, resolvedSplits);
+    res.json({ data: result });
+  } catch (error) {
+    next(error);
+  }
+});
+
 // DELETE /api/v2/transactions/:id
 router.delete('/:id', async (req, res, next) => {
   try {

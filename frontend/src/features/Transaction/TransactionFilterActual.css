@@ -217,6 +217,20 @@
   color: rgb(220, 38, 38);
 }
 
+/* Split button styling */
+.trans-filter-actual__action-btn--split {
+  border-color: #c4b5fd;
+  color: #5b21b6;
+  background: #f5f3ff;
+}
+
+.trans-filter-actual__action-btn--split:hover:not(:disabled) {
+  background: #5b21b6;
+  color: white;
+  border-color: #5b21b6;
+  box-shadow: 0 4px 12px -2px rgba(91, 33, 182, 0.3);
+}
+
 /* Clear Filters button styling */
 .trans-filter-actual__action-btn--clear {
   border-color: var(--border, #e2e8f0);

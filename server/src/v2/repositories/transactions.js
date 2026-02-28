@@ -355,6 +355,81 @@ async function remove(id) {
   return result.rowCount > 0;
 }
 
+/**
+ * Split a transaction into multiple entries.
+ * Updates the original with the first split's amount and creates new rows for the rest.
+ * Account is always preserved from the original; each split can have a different category.
+ *
+ * @param {number} id - Original transaction ID
+ * @param {Array<{amount: number, category_id?: number}>} splits - 2-5 split entries
+ * @returns {Promise<{updated: object, created: object[]}>}
+ */
+async function split(id, splits) {
+  const original = await findById(id);
+  if (!original) throw new Error('Transaction not found');
+
+  const originalAmount = parseFloat(original.amount);
+  const originalBaseAmount = parseFloat(original.base_amount);
+
+  return db.transaction(async (client) => {
+    // Update original transaction with first split
+    const first = splits[0];
+    const firstRatio = first.amount / originalAmount;
+    const firstBaseAmount = parseFloat((originalBaseAmount * firstRatio).toFixed(2));
+    const firstCategoryId = first.category_id !== undefined ? first.category_id : original.category_id;
+
+    const updateSql = `
+      UPDATE transactions
+      SET amount = $1, base_amount = $2, category_id = $3, updated_at = NOW()
+      WHERE id = $4
+      RETURNING *
+    `;
+    const updatedResult = await client.query(updateSql, [
+      first.amount, firstBaseAmount, firstCategoryId, id
+    ]);
+
+    // Create new transactions for remaining splits
+    const created = [];
+    for (let i = 1; i < splits.length; i++) {
+      const s = splits[i];
+      const ratio = s.amount / originalAmount;
+      const baseAmount = parseFloat((originalBaseAmount * ratio).toFixed(2));
+      const categoryId = s.category_id !== undefined ? s.category_id : original.category_id;
+
+      const insertSql = `
+        INSERT INTO transactions (
+          ps_id, transaction_date, description1, description2,
+          amount, currency, base_amount, base_currency,
+          transaction_type, account_id, closing_balance,
+          category_id, labels, memo, note, bank, source
+        )
+        VALUES (NULL, $1, $2, $3, $4, $5, $6, $7, $8, $9, NULL, $10, $11, $12, $13, $14, $15)
+        RETURNING *
+      `;
+      const result = await client.query(insertSql, [
+        original.transaction_date,
+        original.description1,
+        original.description2,
+        s.amount,
+        original.currency,
+        baseAmount,
+        original.base_currency,
+        original.transaction_type,
+        original.account_id,
+        categoryId,
+        original.labels,
+        original.memo,
+        original.note,
+        original.bank,
+        'split'
+      ]);
+      created.push(result.rows[0]);
+    }
+
+    return { updated: updatedResult.rows[0], created };
+  });
+}
+
 module.exports = {
   findAll,
   findAllExtended,
@@ -365,5 +440,6 @@ module.exports = {
   sumByMonth,
   create,
   update,
-  remove
+  remove,
+  split
 };

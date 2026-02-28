@@ -35,8 +35,10 @@ export default function TransactionFilterActual({
   onDeleteClick,
   onSelectAllToggle,
   onEditClick,
+  onSplitClick,
   canDelete,
   canEdit,
+  canSplit,
   isAllSelected,
   filteredTotalsByCurrency = [],
 }) {
@@ -340,6 +342,14 @@ export default function TransactionFilterActual({
                 disabled={!canEdit}
               >
                 Edit
+              </button>
+              <button
+                className="trans-filter-actual__action-btn trans-filter-actual__action-btn--split"
+                type="button"
+                onClick={onSplitClick}
+                disabled={!canSplit}
+              >
+                Split
               </button>
               <button
                 className="trans-filter-actual__action-btn"

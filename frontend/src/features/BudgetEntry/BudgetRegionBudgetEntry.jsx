@@ -10,6 +10,7 @@
  * - Conditionally disables the form when a category group is selected
  */
 
+import AccountSelector from "../../components/AccountSelector/AccountSelector.jsx";
 import "./BudgetRegionBudgetEntry.css";
 
 const EMPTY_SET = new Set();
@@ -112,8 +113,11 @@ export default function BudgetRegionBudgetEntry({
     }));
   };
 
-  const handleAccountChange = (event) => {
-    const nextValue = event?.target?.value;
+  const handleAccountChange = (nextSelected) => {
+    const nextValue =
+      Array.isArray(nextSelected) && nextSelected.length > 0
+        ? nextSelected[0]
+        : "None";
     const nextCurrency = getAccountCurrency(nextValue, accountCurrencyMap);
     setEntryForm((previous) => ({
       ...previous,
@@ -180,24 +184,24 @@ export default function BudgetRegionBudgetEntry({
               </select>
             </label>
 
-            <label className="budget-entry-form__control">
+            <div className="budget-entry-form__control">
               <span className="budget-entry-form__label">Account</span>
-              <select
-                className="budget-entry-form__input"
-                value={entryForm.account}
-                onChange={handleAccountChange}
-              >
-                <option value="None">None</option>
-                <option value="" disabled>
-                  Select account
-                </option>
-                {filteredAccountOptions.map((option) => (
-                  <option key={option} value={option}>
-                    {option}
-                  </option>
-                ))}
-              </select>
-            </label>
+              <AccountSelector
+                accountOptions={filteredAccountOptions}
+                accountCurrencyMap={accountCurrencyMap}
+                selectedAccounts={
+                  entryForm.account && entryForm.account !== "None"
+                    ? [entryForm.account]
+                    : ["None"]
+                }
+                onAccountsChange={handleAccountChange}
+                singleSelect
+                showNone
+                showAll={false}
+                id="budget-entry-account"
+                className="budget-entry-form__account-selector"
+              />
+            </div>
 
             <div className="budget-entry-form__control">
               <span className="budget-entry-form__label">Category</span>

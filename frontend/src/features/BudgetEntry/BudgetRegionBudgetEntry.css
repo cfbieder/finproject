@@ -102,6 +102,10 @@
   box-shadow: inset 0 1px 3px 0 rgba(37, 99, 235, 0.1);
 }
 
+.budget-entry-form__account-selector .account-selector__list {
+  max-height: 180px;
+}
+
 @media (max-width: 640px) {
   .budget-entry-form__control--spanning {
     grid-column: span 1;

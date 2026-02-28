@@ -165,7 +165,7 @@ fin/
 |------|------|----------|-------------|
 | `/` | Home | - | Dashboard with quick actions |
 | `/upload-ps` | UploadPS | Database | Upload PocketSmith CSV data |
-| `/refresh-ps` | RefreshPS | Transactions | Refresh data via PocketSmith API; tabbed view (Review & Edit New / New Transactions / Modified) with inline transaction editing using shared `TransactionTable` + `TransactionEditModal` + `CategorySelector`. Accept/Accept All buttons mark transactions as accepted, protecting them from future refresh overwrites and hiding them from the review table. |
+| `/refresh-ps` | RefreshPS | Transactions | Refresh data via PocketSmith API; tabbed view (Review & Edit New / New Transactions / Modified) with inline transaction editing using shared `TransactionTable` + `TransactionEditModal` + `CategorySelector`. Accept/Accept All buttons mark transactions as accepted, protecting them from future refresh overwrites and hiding them from the review table. **Split Transaction:** Select a single transaction and click "Split Transaction" to open a modal that divides the original amount across 2-5 entries, each with optional category selection via `CategorySelector`. Unallocated amount displayed in real-time. Uses `POST /api/v2/transactions/:id/split`. |
 | `/backup-database` | BackupDatabase | Database | Download database backup |
 | `/budget-worksheet` | BudgetInput | Budgeting | Budget worksheet with collapsible filter controls (PeriodSelector, CategorySelector, AccountSelector), tabbed Balances/Budget Entry panel showing selected category |
 | `/budget-realization` | BudgetRealization | Budgeting | Budget vs actual comparison |
@@ -179,7 +179,7 @@ fin/
 | `/cash-flow` | CashFlow | Reports & Graphs | Cash flow P&L analysis |
 | `/cash-flow-monthly` | CashFlowMonthly | Reports & Graphs | Monthly cash flow breakdown |
 | `/balance-chart` | BalanceChart | Reports & Graphs | Net worth chart over time |
-| `/trans-actual` | TransActual | Transactions | Actual transactions browser with collapsible filter bar (PeriodSelector, CategorySelector, AccountSelector), description search, value range filters, Clear Filters button, date format mm/dd/yy, optimized column widths (noWrap amounts, ellipsis description). Edit modal supports Date, Description, and Category (Amount, Currency, Account are PS-sourced and not editable). Uses hierarchical `CategorySelector` via `plTree` prop. |
+| `/trans-actual` | TransActual | Transactions | Actual transactions browser with collapsible filter bar (PeriodSelector, CategorySelector, AccountSelector), description search, value range filters, Clear Filters button, date format mm/dd/yy, optimized column widths (noWrap amounts, ellipsis description). Edit modal supports Date, Description, and Category (Amount, Currency, Account are PS-sourced and not editable). Uses hierarchical `CategorySelector` via `plTree` prop. **Split Transaction:** Select a single transaction and click "Split" to open a modal that divides the original amount across 2-5 entries, each with optional category selection. Uses `POST /api/v2/transactions/:id/split`. |
 | `/trans-budget` | TransBudget | Transactions | Budget transactions browser with collapsible filter bar (PeriodSelector, CategorySelector, AccountSelector), value range filters, Clear Filters button, date format mm/dd/yy, optimized column widths (noWrap amounts, ellipsis description). Edit modal uses hierarchical `CategorySelector` via `plTree` prop. |
 | `/fx-options` | FXOptions | Settings | Exchange rate configuration |
 | `/coa-management` | COAManagement | Settings | Chart of accounts CRUD, PS analysis, quick-add |
@@ -309,6 +309,7 @@ All endpoints mounted at `/api/v2`. Nginx rewrites legacy `/api/*` paths to `/ap
 #### Transactions (`/api/v2/transactions`)
 - `GET /` — List (with filtering, pagination) | `GET /summary/by-category` | `GET /summary/by-month`
 - `GET /:id` — Single | `POST /` — Create | `PATCH /:id` — Update (auto-sets `accepted=true`) | `DELETE /:id` — Delete
+- `POST /:id/split` — Split transaction into 2-5 entries. Accepts `{ splits: [{ amount, category_name? }] }`. Updates original with first split's amount; creates new rows for remaining splits. Account preserved from original, category optionally changed per split. `base_amount` calculated proportionally to preserve exchange rates. New rows get `ps_id=null`, `source='split'`. Uses DB transaction for atomicity.
 
 #### Utility (`/api/v2/util`)
 - `GET /appdata` (merges JSON file + PostgreSQL `app_data` table) | `POST /appdata` | `POST /backup-database`
@@ -576,4 +577,4 @@ docker compose -f docker-compose.dev.yml down        # Development
 
 ---
 
-*Last updated: 2026-02-21*
+*Last updated: 2026-02-28*
