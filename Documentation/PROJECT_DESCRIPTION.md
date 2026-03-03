@@ -183,7 +183,7 @@ psproject/                          # ~/Programs/fin symlinks here
 | `/trans-actual` | TransActual | Transactions | Actual transactions browser with collapsible filter bar (PeriodSelector, CategorySelector, AccountSelector), description search, value range filters, Clear Filters button, date format mm/dd/yy, optimized column widths (noWrap amounts, ellipsis description). Edit modal supports Date, Description, and Category (Amount, Currency, Account are PS-sourced and not editable). Uses hierarchical `CategorySelector` via `plTree` prop. **Split Transaction:** Select a single transaction and click "Split" to open a modal that divides the original amount across 2-5 entries, each with optional category selection. Uses `POST /api/v2/transactions/:id/split`. |
 | `/trans-budget` | TransBudget | Transactions | Budget transactions browser with collapsible filter bar (PeriodSelector, CategorySelector, AccountSelector), value range filters, Clear Filters button, date format mm/dd/yy, optimized column widths (noWrap amounts, ellipsis description). Edit modal uses hierarchical `CategorySelector` via `plTree` prop. |
 | `/fx-options` | FXOptions | Settings | Exchange rate configuration |
-| `/coa-management` | COAManagement | Settings | Chart of accounts CRUD, PS analysis, quick-add |
+| `/coa-management` | COAManagement | Settings | Chart of accounts CRUD, PS analysis, quick-add for accounts and categories |
 
 ### Navigation
 

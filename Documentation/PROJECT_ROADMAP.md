@@ -85,7 +85,7 @@ frontend/src/
 │   ├── Budgets/         # Budget realization
 │   ├── CashFlow/        # Cash flow reports
 │   ├── Charts/          # Chart components
-│   ├── COAManagement/   # COA CRUD
+│   ├── COAManagement/   # COA CRUD, quick-add accounts/categories
 │   └── Database/        # Upload, refresh, backup
 ├── hooks/               # Shared hooks (useCoa)
 ├── contexts/            # ToastContext, ForecastContext
@@ -216,6 +216,7 @@ Timeline of the MongoDB-to-PostgreSQL migration and infrastructure changes.
 
 | Date | Event |
 |------|-------|
+| 2026-03-03 | **Quick Add for missing categories:** Extended the COA Management page's "Analyze PS Data" feature to support quick-adding missing categories, matching the existing quick-add for missing accounts. After analysis, missing categories appear as blue `+` buttons (accounts use green). Clicking opens a simplified "Add Missing Category" modal showing just the category name (read-only) and a parent category picker — Type, Currency, and Account # fields are hidden since they don't apply to categories. On save, the category is added to the COA tree under the selected parent, transactions are synced, and analysis re-runs. Reuses the existing `POST /api/v2/util/coa/add` endpoint with `isCategory: true`. Modified: `COAManagement.jsx` (new handler, updated save logic), `COAManagementTableSection.jsx` (category quick-add buttons), `COAEditModal.jsx` (new `quickadd-category` mode). |
 | 2026-02-28 | **Split Transaction feature:** Added ability to split a single transaction into 2-5 entries on both `/refresh-ps` and `/trans-actual` pages. New backend endpoint `POST /api/v2/transactions/:id/split` updates the original transaction with the first split's amount and creates new rows for remaining splits. Account is always preserved from the original; each split can have a different category via `CategorySelector`. `base_amount` is calculated proportionally to preserve exchange rates. New transactions get `ps_id=null`, `source='split'`, `closing_balance=null`. Wrapped in a PostgreSQL transaction for atomicity. Frontend modal shows original transaction summary, split count selector (2-5), amount inputs (`type="text" inputMode="decimal"` to support negative amounts), category selector per split, and real-time unallocated amount display (green when balanced, red when non-zero). Save disabled until amounts sum to original. Added purple-themed "Split Transaction" button on RefreshPS (visible when 1 row selected) and "Split" button in TransactionFilterActual action bar. New files: split modal CSS in `PageLayout.css` (`.split-modal*` classes). Modified: `transactions.js` (repo + route), `RefreshPS.jsx`, `RefreshPS.css`, `TransActual.jsx`, `TransactionFilterActual.jsx`, `TransactionFilterActual.css`. |
 | 2026-02-21 | **Full responsive/mobile-friendly UI:** Added `@media` breakpoints (1080px, 768px, 640px) across 14 CSS files. Responsive typography scaling in `index.css`. Toast overflow fix at 640px. PageLayout: collapsed grids, stacked form actions, reduced table padding, horizontal-scroll tabs. Sidebar panels (Balance, Cash Flow date selectors) stack above content at 768px. Modals (FCReviewAdjustTransferModal, TransactionModal) go full-width at 768px, full-screen at 640px. Budget tables reduce min-height and cell sizing. Report tree indentation scales via CSS custom properties. Breadcrumbs get horizontal scroll. RefreshPS toolbar stacks vertically. **Navigation fix:** Disabled `backdrop-filter` on `.navbar__inner` at mobile — CSS spec causes `backdrop-filter` to create a containing block for `position: fixed` descendants, breaking the slide-out drawer. Nav links now properly hidden behind hamburger with `display: none`/`display: flex` toggle. Brand scales down (44px → 30px), version badge hidden at 640px, navbar goes edge-to-edge at 640px. |
 | 2026-02-17 | **Clear Filters button:** Added Clear Filters button to both `/trans-actual` and `/trans-budget` filter bars. Resets all filter state to defaults — period (current month for Actual, full year for Budget), description, value range, categories, and accounts. Styled with muted/neutral appearance (gray border, subtle background) that turns dark on hover. |
@@ -247,4 +248,4 @@ Timeline of the MongoDB-to-PostgreSQL migration and infrastructure changes.
 
 ---
 
-*Last updated: 2026-02-28*
+*Last updated: 2026-03-03*
