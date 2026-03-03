@@ -29,11 +29,12 @@
 
 | Field | Value |
 |-------|-------|
-| IP | `192.168.1.82` (static, bridged via `br0`) |
+| IP | `192.168.1.87` (DHCP via `enp1s0`) |
 | OS | Ubuntu 24.04 LTS (Noble) |
-| vCPUs / RAM / Disk | 2 / 4 GB / 40 GB (qcow2 overlay) |
+| vCPUs / RAM / Disk | 4 / 8 GB / 77 GB (LVM) |
 | User | `cfbieder` (sudo NOPASSWD, SSH key auth) |
-| Docker | 29.2.1, Compose v5.0.2 |
+| Docker | 29.2.1, Compose v5.1.0 |
+| Project path | `/home/cfbieder/psproject` (symlink: `~/Programs/fin` → `~/psproject`) |
 | Autostart | Enabled (`virsh autostart fin`) |
 
 ### KVM Host
@@ -49,7 +50,7 @@ All VM images (base, overlay, cloud-init ISO) stored in `/mnt/vm-ssd/` via the `
 ### SSH Access
 
 ```bash
-ssh cfbieder@192.168.1.82          # VM (primary)
+ssh cfbieder@192.168.1.87          # VM (primary)
 ssh cfbieder@192.168.1.61          # KVM host (VM management only)
 ```
 
@@ -63,9 +64,9 @@ ssh cfbieder@192.168.1.61          # KVM host (VM management only)
 
 | Environment | Frontend HTTPS | Frontend HTTP | API | Database |
 |-------------|---------------|---------------|-----|----------|
-| **Production** | `https://192.168.1.82:5175` | `http://192.168.1.82:3006` | `http://192.168.1.82:3005` | `192.168.1.82:5433` |
+| **Production** | `https://192.168.1.87:5175` | `http://192.168.1.87:3006` | `http://192.168.1.87:3005` | `192.168.1.87:5433` |
 | **Production (Tailscale)** | `https://fin.tail413695.ts.net` | - | - | - |
-| **Development** | `http://100.100.162.49:5174` | - | `http://100.100.162.49:3105` | `100.100.162.49:5434` |
+| **Development** | `http://100.94.46.62:5174` | - | `http://100.94.46.62:3105` | `100.94.46.62:5434` |
 
 ---
 
@@ -98,7 +99,7 @@ ssh cfbieder@192.168.1.61          # KVM host (VM management only)
 ## 4. Project Structure
 
 ```
-fin/
+psproject/                          # ~/Programs/fin symlinks here
 ├── components/
 │   ├── data/                    # Runtime data files (appdata, PS name mappings, forecast assumptions)
 │   └── reports/                 # Generated report output
@@ -409,12 +410,12 @@ All services connected via `fin_fin-network` Docker bridge network.
 
 ### Development (`docker-compose.dev.yml`)
 
-Only the database runs in Docker. Backend and frontend run locally via npm:
+Database and backend run in Docker. Frontend runs locally via npm:
 
 | Component | How it runs | Port |
 |-----------|-------------|------|
 | `fin-postgres-dev` | Docker | 5434 |
-| Backend | `npm run dev` (nodemon) | 3105 |
+| `fin-server-dev` | Docker | 3105 |
 | Frontend | `npm run tail` (Vite) | 5174 |
 
 Production and development use different ports, so both can run simultaneously.
@@ -431,8 +432,8 @@ Production and development use different ports, so both can run simultaneously.
 ### Quick Start
 
 ```bash
-ssh cfbieder@192.168.1.82
-cd ~/Programs/fin
+ssh cfbieder@192.168.1.87
+cd ~/psproject                     # or ~/Programs/fin (symlink)
 ./Scripts/dev-start.sh
 ```
 
@@ -450,7 +451,7 @@ See [TMUX_GUIDE.md](TMUX_GUIDE.md) for navigation details.
 
 | npm script | API Target | Use Case |
 |-----------|------------|----------|
-| `npm run tail` | `http://100.100.162.49:3105` | **Development via Tailscale (recommended)** |
+| `npm run tail` | `http://100.94.46.62:3105` | **Development via Tailscale (recommended)** |
 | `npm run dev` | `http://localhost:3105` | Development on the VM directly |
 | `npm run docker` | (nginx proxy) | Production Docker build |
 
@@ -476,7 +477,7 @@ All scripts are in the `Scripts/` folder.
 | `bump-version.sh` | Version management | `./Scripts/bump-version.sh patch\|minor\|major\|X.Y.Z` |
 | `rebuild-frontend.sh` | Quick frontend rebuild | `./Scripts/rebuild-frontend.sh` |
 | `provision-vm.sh` | Create VM on KVM host | `ssh cfbieder@192.168.1.61 'bash -s' < Scripts/provision-vm.sh` |
-| `deploy-on-vm.sh` | Deploy app on VM | `ssh cfbieder@192.168.1.82 'bash -s' < Scripts/deploy-on-vm.sh` |
+| `deploy-on-vm.sh` | Deploy app on VM | `ssh cfbieder@192.168.1.87 'bash -s' < Scripts/deploy-on-vm.sh` |
 
 ---
 
@@ -495,7 +496,7 @@ docker exec fin-postgres pg_dump -U fin -d fin -Fc > Backups/fin_backup.dump
 docker exec -i fin-postgres pg_restore -U fin -d fin --clean --if-exists < Backups/fin_backup.dump
 
 # Copy backup off-VM
-scp cfbieder@192.168.1.82:~/Programs/fin/Backups/fin_backup.dump ./
+scp cfbieder@192.168.1.87:~/psproject/Backups/fin_backup.dump ./
 ```
 
 ---
@@ -514,7 +515,7 @@ Version is read from the `VERSION` file. The hook is local to this clone (`.git/
 
 ## 13. Environment Variables
 
-No `.env` file. All config uses defaults from `docker-compose.yml`:
+Config uses `.env` file (git-ignored) for secrets, with defaults in `docker-compose.yml`:
 
 | Variable | Default Value | Purpose |
 |----------|---------------|---------|
@@ -577,4 +578,4 @@ docker compose -f docker-compose.dev.yml down        # Development
 
 ---
 
-*Last updated: 2026-02-28*
+*Last updated: 2026-03-03*

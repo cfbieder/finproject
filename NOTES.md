@@ -1,7 +1,8 @@
 
 ## Linux commmands and scripts
 
-
+kill -9 $(lsof -t -i :5174)
+kill -9 $(lsof -t -i :3105)
 
 https://fin.tail413695.ts.net/dev
 

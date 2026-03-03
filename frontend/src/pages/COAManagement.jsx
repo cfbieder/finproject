@@ -320,6 +320,25 @@ export default function COAManagement() {
     setEditError("");
   };
 
+  const openQuickAddCategoryModal = (categoryName) => {
+    setEditModal({
+      open: true,
+      row: {
+        name: categoryName,
+        type: "",
+        currency: "",
+        accountNumber: "",
+        isCategory: true,
+        path: [],
+      },
+      mode: "quickadd-category",
+      parentPath: [],
+    });
+    setCustomTypeEnabled(false);
+    setCustomTypeValue("");
+    setEditError("");
+  };
+
   const handleQuickAddParentChange = (newPath) => {
     setEditModal((prev) => {
       if (!prev.open) return prev;
@@ -643,6 +662,7 @@ export default function COAManagement() {
         message: `Analysis complete: ${missingAccountCount} missing accounts, ${unknownAccountCount} unknown accounts; ${missingCategoryCount} missing categories, ${unknownCategoryCount} unknown categories.`,
         details,
         missingAccounts,
+        missingCategories,
       });
     } catch (error) {
       setAnalyzeStatus({
