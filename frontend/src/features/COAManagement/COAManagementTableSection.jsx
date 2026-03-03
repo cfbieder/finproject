@@ -10,6 +10,7 @@ export default function COAManagementTableSection({
   onToggleRowSelection,
   getRowKey,
   onQuickAddAccount,
+  onQuickAddCategory,
 }) {
   const getRowShade = (depth) => {
     const lightness = Math.max(98 - depth * 6, 70);
@@ -18,6 +19,10 @@ export default function COAManagementTableSection({
 
   const missingAccounts = Array.isArray(analyzeStatus?.missingAccounts)
     ? analyzeStatus.missingAccounts
+    : [];
+
+  const missingCategories = Array.isArray(analyzeStatus?.missingCategories)
+    ? analyzeStatus.missingCategories
     : [];
 
   return (
@@ -81,6 +86,36 @@ export default function COAManagementTableSection({
                   onClick={() =>
                     typeof onQuickAddAccount === "function" &&
                     onQuickAddAccount(name)
+                  }
+                >
+                  <span aria-hidden="true">+</span> {name}
+                </button>
+              ))}
+            </div>
+          </div>
+        )}
+        {missingCategories.length > 0 && (
+          <div className="coa-missing-accounts-actions">
+            <p
+              style={{
+                fontWeight: 700,
+                margin: "0 0 0.5rem",
+                fontSize: "0.875rem",
+                color: "#1d4ed8",
+              }}
+            >
+              Quick-add missing categories:
+            </p>
+            <div style={{ display: "flex", flexWrap: "wrap", gap: "0.5rem" }}>
+              {missingCategories.map((name) => (
+                <button
+                  key={name}
+                  type="button"
+                  className="coa-action-button coa-action-button--add"
+                  style={{ fontSize: "0.85rem", padding: "0.4rem 0.75rem" }}
+                  onClick={() =>
+                    typeof onQuickAddCategory === "function" &&
+                    onQuickAddCategory(name)
                   }
                 >
                   <span aria-hidden="true">+</span> {name}

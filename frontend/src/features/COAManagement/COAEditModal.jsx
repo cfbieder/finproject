@@ -26,11 +26,14 @@ export default function COAEditModal({
     return null;
   }
   const isCategoryEdit = row.isCategory || row.type === "Category";
-  const isAdd = mode === "add" || mode === "quickadd";
-  const isQuickAdd = mode === "quickadd";
+  const isAdd = mode === "add" || mode === "quickadd" || mode === "quickadd-category";
+  const isQuickAdd = mode === "quickadd" || mode === "quickadd-category";
+  const isQuickAddCategory = mode === "quickadd-category";
   const title = isMultiEdit
     ? "Edit Accounts"
-    : isQuickAdd
+    : isQuickAddCategory
+    ? "Add Missing Category"
+    : mode === "quickadd"
     ? "Add Missing Account"
     : isAdd
     ? "Add Account"
@@ -103,7 +106,7 @@ export default function COAEditModal({
             gap: "0.35rem",
           }}
         >
-          <span style={{ fontWeight: 700, color: "#0f172a" }}>Account</span>
+          <span style={{ fontWeight: 700, color: "#0f172a" }}>{isQuickAddCategory ? "Category" : "Account"}</span>
           <input
             className="form-input"
             value={isMultiEdit ? "Multiple accounts selected" : row.name}
@@ -121,7 +124,7 @@ export default function COAEditModal({
             }}
           >
             <span style={{ fontWeight: 700, color: "#0f172a" }}>
-              Place under category
+              {isQuickAddCategory ? "Place under parent category" : "Place under category"}
             </span>
             <COACategoryPicker
               coaSections={coaSections}
@@ -141,7 +144,7 @@ export default function COAEditModal({
             )}
           </div>
         )}
-        <label
+        {!isQuickAddCategory && <label
           style={{
             display: "flex",
             flexDirection: "column",
@@ -197,8 +200,8 @@ export default function COAEditModal({
               }}
             />
           )}
-        </label>
-        <label
+        </label>}
+        {!isQuickAddCategory && <label
           style={{
             display: "flex",
             flexDirection: "column",
@@ -222,8 +225,8 @@ export default function COAEditModal({
               </option>
             ))}
           </select>
-        </label>
-        <label
+        </label>}
+        {!isQuickAddCategory && <label
           style={{
             display: "flex",
             flexDirection: "column",
@@ -244,7 +247,7 @@ export default function COAEditModal({
               onFieldChange("accountNumber", event.target.value)
             }
           />
-        </label>
+        </label>}
         {editError && (
           <p style={{ margin: 0, color: "#b91c1c", fontWeight: 700 }}>
             {editError}

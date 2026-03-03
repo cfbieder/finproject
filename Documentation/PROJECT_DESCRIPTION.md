@@ -476,6 +476,7 @@ All scripts are in the `Scripts/` folder.
 | `sync-db-prod-to-dev.sh` | Copy prod DB to dev | `./Scripts/sync-db-prod-to-dev.sh` |
 | `bump-version.sh` | Version management | `./Scripts/bump-version.sh patch\|minor\|major\|X.Y.Z` |
 | `rebuild-frontend.sh` | Quick frontend rebuild | `./Scripts/rebuild-frontend.sh` |
+| `backup-to-remote.sh` | Backup DB + config to 192.168.1.252 | `./Scripts/backup-to-remote.sh` (crontab: every 2 days) |
 | `provision-vm.sh` | Create VM on KVM host | `ssh cfbieder@192.168.1.61 'bash -s' < Scripts/provision-vm.sh` |
 | `deploy-on-vm.sh` | Deploy app on VM | `ssh cfbieder@192.168.1.87 'bash -s' < Scripts/deploy-on-vm.sh` |
 
@@ -483,9 +484,37 @@ All scripts are in the `Scripts/` folder.
 
 ## 11. Backup & Restore
 
-All backups are saved to the `Backups/` directory (git-ignored).
+### Automated Remote Backup
 
-The deploy script automatically creates a timestamped backup before deploying.
+Automated backups run every 2 days at 2:00 AM via crontab, transferring to `192.168.1.252`.
+
+| Field | Value |
+|-------|-------|
+| Script | `Scripts/backup-to-remote.sh` |
+| Schedule | `0 2 */2 * *` (every 2 days, 2 AM) |
+| Remote | `cfbieder@192.168.1.252:/home/cfbieder/backups/fin/` |
+| Retention | 30 days (auto-cleanup) |
+| Log | `Backups/backup-remote.log` |
+
+**What's backed up:** PostgreSQL dump, `.env` files, `components/data/`, `certs/`
+
+```bash
+# Manual remote backup
+./Scripts/backup-to-remote.sh
+
+# Dry run (preview only)
+./Scripts/backup-to-remote.sh --dry-run
+
+# View backup log
+cat Backups/backup-remote.log
+
+# List backups on remote
+ssh cfbieder@192.168.1.252 "ls -lh /home/cfbieder/backups/fin/"
+```
+
+### Local Backup & Restore
+
+Local backups are saved to the `Backups/` directory (git-ignored). The deploy script automatically creates a timestamped backup before deploying.
 
 ```bash
 # Manual backup
@@ -497,6 +526,14 @@ docker exec -i fin-postgres pg_restore -U fin -d fin --clean --if-exists < Backu
 
 # Copy backup off-VM
 scp cfbieder@192.168.1.87:~/psproject/Backups/fin_backup.dump ./
+
+# Restore from remote backup
+scp cfbieder@192.168.1.252:/home/cfbieder/backups/fin/fin_backup_YYYYMMDD_HHMMSS.tar.gz .
+tar xzf fin_backup_*.tar.gz
+docker exec -i fin-postgres pg_restore -U fin -d fin --clean --if-exists < fin_backup_*/database.dump
+cp fin_backup_*/dot-env /home/cfbieder/psproject/.env
+cp -r fin_backup_*/components-data/* /home/cfbieder/psproject/components/data/
+cp -r fin_backup_*/certs/* /home/cfbieder/psproject/certs/
 ```
 
 ---

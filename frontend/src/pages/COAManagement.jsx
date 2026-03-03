@@ -382,14 +382,15 @@ export default function COAManagement() {
 
   const handleSaveEdit = async () => {
     if (!editModal.open || !editModal.row) return;
-    if (editModal.mode === "add" || editModal.mode === "quickadd") {
+    if (editModal.mode === "add" || editModal.mode === "quickadd" || editModal.mode === "quickadd-category") {
       const trimmedName = String(editModal.row.name || "").trim();
+      const isQuickAddCategory = editModal.mode === "quickadd-category";
       if (!trimmedName) {
-        setEditError("Account name is required.");
+        setEditError(isQuickAddCategory ? "Category name is required." : "Account name is required.");
         return;
       }
       if (!editModal.parentPath || editModal.parentPath.length === 0) {
-        setEditError("Select a category to add this account.");
+        setEditError(isQuickAddCategory ? "Select a parent category." : "Select a category to add this account.");
         return;
       }
       setEditSaving(true);
@@ -407,12 +408,12 @@ export default function COAManagement() {
             type: editModal.row.type,
             currency: editModal.row.currency,
             accountNumber: editModal.row.accountNumber,
-            isCategory: false,
+            isCategory: isQuickAddCategory,
           }),
         });
         loadCoaData(false).catch(() => {});
         closeEditModal();
-        if (editModal.mode === "quickadd") {
+        if (editModal.mode === "quickadd" || isQuickAddCategory) {
           try {
             await Rest.fetchJson("/api/v2/ingest-ps/sync-to-transactions", {
               method: "POST",
@@ -421,7 +422,7 @@ export default function COAManagement() {
             console.warn("Staging sync after quick-add failed:", syncError);
           }
           handleAnalyzeClick();
-          showSuccess("Account added and transactions synced");
+          showSuccess(isQuickAddCategory ? "Category added and transactions synced" : "Account added and transactions synced");
         } else {
           showSuccess("Account added successfully");
         }
@@ -729,6 +730,7 @@ export default function COAManagement() {
               onToggleRowSelection={toggleRowSelection}
               getRowKey={getRowKey}
               onQuickAddAccount={openQuickAddModal}
+              onQuickAddCategory={openQuickAddCategoryModal}
             />
           </div>
         </div>
