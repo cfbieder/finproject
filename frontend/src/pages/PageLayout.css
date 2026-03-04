@@ -896,6 +896,40 @@
 
 .budget-detail-modal .balance-report__table-wrapper {
   max-height: 45vh;
+  overflow-x: auto;
+}
+
+.budget-detail-modal .balance-report-table {
+  width: 100%;
+  table-layout: fixed;
+}
+
+.budget-detail-modal .balance-report-table th,
+.budget-detail-modal .balance-report-table td {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.budget-detail-modal .balance-report-table th:nth-child(1),
+.budget-detail-modal .balance-report-table td:nth-child(1) { width: 110px; }
+
+.budget-detail-modal .balance-report-table th:nth-child(2),
+.budget-detail-modal .balance-report-table td:nth-child(2) { width: 35%; }
+
+.budget-detail-modal .balance-report-table th:nth-child(3),
+.budget-detail-modal .balance-report-table td:nth-child(3) { width: 15%; }
+
+.budget-detail-modal .balance-report-table th:nth-child(4),
+.budget-detail-modal .balance-report-table td:nth-child(4) { width: 15%; }
+
+.budget-detail-modal .balance-report-table th:nth-child(5),
+.budget-detail-modal .balance-report-table td:nth-child(5) { width: 120px; }
+
+.budget-detail-modal .balance-report-table thead th:first-child,
+.budget-detail-modal .balance-report-table tbody td:first-child {
+  position: static;
+  z-index: auto;
 }
 
 .section-table__content {

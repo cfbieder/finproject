@@ -305,17 +305,30 @@ router.post('/coa/add', async (req, res, next) => {
       return res.status(400).json({ error: 'Missing account name' });
     }
 
-    // Check if name already exists
-    const existing = await accountsRepo.findByName(trimmedName);
-    if (existing) {
-      return res.status(409).json({ error: 'COA entry already exists.' });
-    }
-
     // Resolve parent from path — last element in path is the direct parent
     const parentName = pathParts[pathParts.length - 1];
     const parent = await accountsRepo.findByName(parentName);
     if (!parent) {
       return res.status(404).json({ error: 'COA entry not found for the provided path.' });
+    }
+
+    // Check if name already exists
+    const existing = await accountsRepo.findByName(trimmedName);
+    if (existing) {
+      // If already under the same parent and active, it's a genuine duplicate
+      if (existing.parent_id === parent.id && existing.is_active) {
+        return res.status(409).json({ error: 'COA entry already exists.' });
+      }
+      // Otherwise re-parent / reactivate the existing entry
+      const updated = await accountsRepo.update(existing.id, {
+        parent_id: parent.id,
+        account_type: parent.account_type,
+        section: parent.section,
+        currency: currency || existing.currency || parent.currency || 'USD',
+        account_number: accountNumber || existing.account_number || null,
+        is_active: true,
+      });
+      return res.json({ success: true, added: true, moved: true, name: trimmedName, id: updated.id });
     }
 
     const account = await accountsRepo.create({
