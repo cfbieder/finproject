@@ -143,16 +143,23 @@ export default function AccountSelector({
   );
 
   const handleItemClick = useCallback(
-    (accountName) => {
+    (accountName, event) => {
       if (singleSelect) {
         const next = selectedSet.has(accountName) ? [] : [accountName];
         onAccountsChange(next);
         return;
       }
-      const next = selectedSet.has(accountName)
-        ? selectedAccounts.filter((a) => a !== accountName)
-        : [...selectedAccounts, accountName];
-      onAccountsChange(next);
+      const isCtrl = event && (event.ctrlKey || event.metaKey);
+      if (isCtrl) {
+        // Ctrl+click: toggle item in/out of multi-selection
+        const next = selectedSet.has(accountName)
+          ? selectedAccounts.filter((a) => a !== accountName)
+          : [...selectedAccounts, accountName];
+        onAccountsChange(next);
+      } else {
+        // Plain click: select only this item
+        onAccountsChange([accountName]);
+      }
     },
     [selectedAccounts, selectedSet, onAccountsChange, singleSelect]
   );
@@ -191,7 +198,7 @@ export default function AccountSelector({
     (event, accountName) => {
       if (event.key === "Enter" || event.key === " ") {
         event.preventDefault();
-        handleItemClick(accountName);
+        handleItemClick(accountName, event);
       }
     },
     [handleItemClick]
@@ -293,7 +300,7 @@ export default function AccountSelector({
                   role="option"
                   aria-selected={isSelected}
                   className={`account-selector__item${isSelected ? " account-selector__item--selected" : ""}`}
-                  onClick={() => handleItemClick(name)}
+                  onClick={(e) => handleItemClick(name, e)}
                   onKeyDown={(e) => handleItemKeyDown(e, name)}
                   tabIndex={0}
                 >

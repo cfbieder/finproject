@@ -139,15 +139,20 @@ export default function CategorySelector({
   );
 
   const handleItemClick = useCallback(
-    (categoryName) => {
-      if (selectedSet.has(categoryName)) {
-        // Deselecting – just remove it
-        onCategoriesChange(selectedCategories.filter((c) => c !== categoryName));
+    (categoryName, event) => {
+      const isCtrl = event && (event.ctrlKey || event.metaKey);
+      if (isCtrl) {
+        // Ctrl+click: toggle item in/out of multi-selection
+        if (selectedSet.has(categoryName)) {
+          onCategoriesChange(selectedCategories.filter((c) => c !== categoryName));
+        } else {
+          const next = selectedCategories.filter((c) => !groupValueSet.has(c));
+          next.push(categoryName);
+          onCategoriesChange(next);
+        }
       } else {
-        // Selecting a leaf – remove any active group presets
-        const next = selectedCategories.filter((c) => !groupValueSet.has(c));
-        next.push(categoryName);
-        onCategoriesChange(next);
+        // Plain click: select only this item
+        onCategoriesChange([categoryName]);
       }
     },
     [selectedCategories, selectedSet, groupValueSet, onCategoriesChange]
@@ -172,7 +177,7 @@ export default function CategorySelector({
     (event, categoryName) => {
       if (event.key === "Enter" || event.key === " ") {
         event.preventDefault();
-        handleItemClick(categoryName);
+        handleItemClick(categoryName, event);
       }
     },
     [handleItemClick]
@@ -280,7 +285,7 @@ export default function CategorySelector({
               aria-selected={isSelected}
               className={`category-selector__item${isSelected ? " category-selector__item--selected" : ""}`}
               style={{ paddingLeft: `${item.depth * 0.75 + 0.5}rem` }}
-              onClick={() => handleItemClick(item.name)}
+              onClick={(e) => handleItemClick(item.name, e)}
               onKeyDown={(e) => handleItemKeyDown(e, item.name)}
               tabIndex={0}
             >

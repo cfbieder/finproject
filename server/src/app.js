@@ -48,7 +48,8 @@ app.use((req, res, next) => {
   next(err);
 });
 
-app.use((err, req, res) => {
+// eslint-disable-next-line no-unused-vars
+app.use((err, req, res, next) => {
   res.status(err.status || 500).json({
     error: err.message,
     status: err.status || 500,

@@ -818,8 +818,17 @@ const BudgetEntriesBudgetPopup = ({ request }) => {
     syncEditorBaseAmountField();
 
     editor.classList.remove("budget-entries-popup__editor--hidden");
-    setStatusMessage(`Editing ${escapeHtml(entry.Description1 ?? "budget entry")}…`);
-    setStatusType("neutral");
+
+    // Update status message via DOM directly to avoid triggering a full
+    // innerHTML rebuild (which would destroy the editor state we just set up).
+    const statusEl = contentRef.current.querySelector(
+      "#budget-entries-popup-status"
+    );
+    if (statusEl) {
+      statusEl.textContent = `Editing ${entry.Description1 ?? "budget entry"}…`;
+      statusEl.className =
+        "budget-entries-popup__status budget-entries-popup__status--neutral";
+    }
   };
 
   const fetchEntries = async () => {
@@ -965,9 +974,7 @@ const BudgetEntriesBudgetPopup = ({ request }) => {
     try {
       console.log('[BudgetEntriesBudgetPopup] Deleting entry:', entryId);
       // Using v2 API (PostgreSQL)
-      await Rest.fetchJson(`/api/v2/budget/entries/${entryId}`, {
-        method: "DELETE",
-      });
+      await Rest.deleteBudgetEntryV2(entryId);
       console.log('[BudgetEntriesBudgetPopup] Entry deleted, refreshing list...');
       setStatusMessage("Budget entry deleted.");
       setStatusType("success");
