@@ -48,6 +48,7 @@ const FCModuleManage = lazy(() => import("../pages/FCModuleManage"));
 const FCReview = lazy(() => import("../pages/FCReview"));
 const FCScenarios = lazy(() => import("../pages/FCScenarios"));
 const FXOptions = lazy(() => import("../pages/FXOptions"));
+const ProgramSettings = lazy(() => import("../pages/ProgramSettings"));
 const RefreshPS = lazy(() => import("../pages/RefreshPS"));
 const TransActual = lazy(() => import("../pages/TransActual"));
 const TransBudget = lazy(() => import("../pages/TransBudget"));
@@ -282,6 +283,14 @@ export const routes = [
     category: "Settings",
     description: "Manage account hierarchy, types, and categories",
     icon: BookOpen,
+  },
+  {
+    path: "/program-settings",
+    component: ProgramSettings,
+    label: "Program Settings",
+    category: "Settings",
+    description: "Configure application preferences and defaults",
+    icon: Settings2,
   },
 ];
 

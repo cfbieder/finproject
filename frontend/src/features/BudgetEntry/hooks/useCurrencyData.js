@@ -19,6 +19,7 @@ import {
 export function useCurrencyData() {
   const [currencyOptions, setCurrencyOptions] = useState([BASE_CURRENCY]);
   const [budgetRates, setBudgetRates] = useState({ USD: 1 });
+  const [defaultBudgetYear, setDefaultBudgetYear] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
 
@@ -52,6 +53,11 @@ export function useCurrencyData() {
             ? appDataPayload[0]
             : {};
         setBudgetRates(buildBudgetRateMap(appDataDoc));
+
+        if (appDataDoc.defaultBudgetYear != null) {
+          const yr = Number(appDataDoc.defaultBudgetYear);
+          if (Number.isFinite(yr)) setDefaultBudgetYear(yr);
+        }
       } catch (err) {
         if (!isActive) return;
 
@@ -76,6 +82,7 @@ export function useCurrencyData() {
   return {
     currencyOptions,
     budgetRates,
+    defaultBudgetYear,
     loading,
     error,
   };

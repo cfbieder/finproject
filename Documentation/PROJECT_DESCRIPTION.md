@@ -184,6 +184,7 @@ psproject/                          # ~/Programs/fin symlinks here
 | `/trans-budget` | TransBudget | Transactions | Budget transactions browser with collapsible filter bar (PeriodSelector, CategorySelector, AccountSelector), value range filters, Clear Filters button, date format mm/dd/yy, optimized column widths (noWrap amounts, ellipsis description). Edit modal uses hierarchical `CategorySelector` via `plTree` prop. |
 | `/fx-options` | FXOptions | Settings | Exchange rate configuration |
 | `/coa-management` | COAManagement | Settings | Chart of accounts CRUD, PS analysis, quick-add for accounts and categories |
+| `/program-settings` | ProgramSettings | Settings | Application preferences (default budget year) |
 
 ### Navigation
 

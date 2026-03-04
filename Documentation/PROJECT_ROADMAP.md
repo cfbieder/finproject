@@ -19,6 +19,7 @@ Future work, known issues, and improvement proposals for the Fin application.
 
 Items from active development notes:
 
+- [x] Add Program Settings page with configurable default budget year
 - [ ] Add option to update budget FX rates on transactions page
 - [ ] Test to check if fx rates in fc periods work, if changed
 - [x] Add COA management (SQL-based; frontend CRUD at `/coa-management`)

@@ -47,7 +47,7 @@ export default function BudgetInput() {
     setSelectedCategories,
   } = useFilterOptions();
 
-  const { currencyOptions, budgetRates } = useCurrencyData();
+  const { currencyOptions, budgetRates, defaultBudgetYear } = useCurrencyData();
   const { expenseAccountNames, accountCurrencyMap, plTree } = useCoa();
 
   // ========== State: Date Range ==========
@@ -55,6 +55,13 @@ export default function BudgetInput() {
   const [toMonth, setToMonth] = useState(MONTH_OPTIONS[11].value);
   const [actualYear, setActualYear] = useState(YEAR_OPTIONS[0]);
   const [budgetYear, setBudgetYear] = useState(BUDGET_YEAR_OPTIONS[2]);
+
+  // Apply default budget year from program settings once loaded
+  useEffect(() => {
+    if (defaultBudgetYear != null && BUDGET_YEAR_OPTIONS.includes(defaultBudgetYear)) {
+      setBudgetYear(defaultBudgetYear);
+    }
+  }, [defaultBudgetYear]);
 
   // ========== State: Entry Form ==========
   const [entryForm, setEntryForm] = useState({
