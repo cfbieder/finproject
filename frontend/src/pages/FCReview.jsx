@@ -33,6 +33,8 @@ import FCReviewBreakdownModal from "../features/Forecast/FCReviewBreakdownModal.
 import FCCashTransferModal from "../features/Forecast/FCCashTransferModal.jsx";
 import FCReviewTableGraphModal from "../features/Forecast/FCReviewTableGraphModal.jsx";
 import { formatAmount } from "../features/Forecast/utils/fcReviewUtils.js";
+import { KpiCard, KpiCardRow } from "../components/KpiCards.jsx";
+import { TrendingUp, TrendingDown, DollarSign, Landmark } from "lucide-react";
 import Rest from "../js/rest.js";
 import "./PageLayout.css";
 
@@ -539,6 +541,56 @@ export default function FCReview() {
   }, [balanceAccounts, balanceAccountMap, balanceDisplayValues, sortedYears]);
 
   // =============================================================================
+  // COMPUTED VALUES - KPI Summary Data
+  // =============================================================================
+
+  const kpiValues = useMemo(() => {
+    if (!sortedYears.length || (!entries.length && !baseActualTotalsByYear.size)) {
+      return null;
+    }
+
+    // Helper: get income/expense/net for each year
+    const incomeByYear = sortedYears.map((year) => {
+      const row = { label: "Income", level: 1 };
+      return { value: getCellValue(row, year, true) ?? 0 };
+    });
+
+    const expenseByYear = sortedYears.map((year) => {
+      const row = { label: "Expense", level: 1 };
+      return { value: getCellValue(row, year, true) ?? 0 };
+    });
+
+    const netCashFlowByYear = sortedYears.map((year) => {
+      const row = { isNet: true };
+      return { value: getCellValue(row, year, true) ?? 0 };
+    });
+
+    const totalAssetsByYearChart = totalAssetsByYear.map((v) => ({
+      value: Number.isFinite(v) ? v : 0,
+    }));
+
+    const lastYear = sortedYears.length - 1;
+    const prevYear = Math.max(0, lastYear - 1);
+
+    return {
+      incomeLatest: incomeByYear[lastYear]?.value ?? 0,
+      incomeChange: (incomeByYear[lastYear]?.value ?? 0) - (incomeByYear[prevYear]?.value ?? 0),
+      incomeChart: incomeByYear,
+      expenseLatest: expenseByYear[lastYear]?.value ?? 0,
+      expenseChange: (expenseByYear[lastYear]?.value ?? 0) - (expenseByYear[prevYear]?.value ?? 0),
+      expenseChart: expenseByYear,
+      netLatest: netCashFlowByYear[lastYear]?.value ?? 0,
+      netChange: (netCashFlowByYear[lastYear]?.value ?? 0) - (netCashFlowByYear[prevYear]?.value ?? 0),
+      netChart: netCashFlowByYear,
+      assetsLatest: totalAssetsByYearChart[lastYear]?.value ?? 0,
+      assetsChange: (totalAssetsByYearChart[lastYear]?.value ?? 0) - (totalAssetsByYearChart[prevYear]?.value ?? 0),
+      assetsChart: totalAssetsByYearChart,
+      lastYearLabel: sortedYears[lastYear],
+      prevYearLabel: sortedYears[prevYear],
+    };
+  }, [sortedYears, entries, baseActualTotalsByYear, getCellValue, totalAssetsByYear]);
+
+  // =============================================================================
   // ACTIONS - Export Excel
   // =============================================================================
 
@@ -993,6 +1045,54 @@ export default function FCReview() {
           onGraphClick={handleGraphClick}
           graphDisabled={graphDisabled}
         />
+        {kpiValues && (
+          <KpiCardRow>
+            <KpiCard
+              title="Total Assets"
+              value={kpiValues.assetsLatest}
+              icon={<Landmark size={16} />}
+              changeValue={kpiValues.assetsChange}
+              changeLabel={`vs ${kpiValues.prevYearLabel}`}
+              positiveIsGood={true}
+              chartData={kpiValues.assetsChart}
+              chartType="area"
+              chartColor="#1e40af"
+            />
+            <KpiCard
+              title="Net Cash Flow"
+              value={kpiValues.netLatest}
+              icon={<DollarSign size={16} />}
+              changeValue={kpiValues.netChange}
+              changeLabel={`vs ${kpiValues.prevYearLabel}`}
+              positiveIsGood={true}
+              chartData={kpiValues.netChart}
+              chartType="area"
+              chartColor="#047857"
+            />
+            <KpiCard
+              title="Income"
+              value={kpiValues.incomeLatest}
+              icon={<TrendingUp size={16} />}
+              changeValue={kpiValues.incomeChange}
+              changeLabel={`vs ${kpiValues.prevYearLabel}`}
+              positiveIsGood={true}
+              chartData={kpiValues.incomeChart}
+              chartType="area"
+              chartColor="#059669"
+            />
+            <KpiCard
+              title="Expenses"
+              value={kpiValues.expenseLatest}
+              icon={<TrendingDown size={16} />}
+              changeValue={kpiValues.expenseChange}
+              changeLabel={`vs ${kpiValues.prevYearLabel}`}
+              positiveIsGood={false}
+              chartData={kpiValues.expenseChart}
+              chartType="area"
+              chartColor="#dc2626"
+            />
+          </KpiCardRow>
+        )}
         <FCReviewTable
           sortedYears={sortedYears}
           baseYear={baseYear}

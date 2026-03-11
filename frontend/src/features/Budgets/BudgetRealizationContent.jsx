@@ -1,5 +1,7 @@
 import { memo } from "react";
+import { DollarSign, TrendingUp, TrendingDown, Target } from "lucide-react";
 import PeriodSelector from "../../components/PeriodSelector/PeriodSelector.jsx";
+import { KpiCard, KpiCardRow } from "../../components/KpiCards.jsx";
 
 function BudgetRealizationContent({
   filteredCategoryTree,
@@ -23,6 +25,7 @@ function BudgetRealizationContent({
   toggleProps,
   onExport,
   canExport = false,
+  kpiData,
 }) {
   return (
     <div className="budget-realization-content">
@@ -93,6 +96,70 @@ function BudgetRealizationContent({
             )}
           </div>
         </section>
+      )}
+
+      {kpiData && (
+        <KpiCardRow>
+          <KpiCard
+            title="Income"
+            value={kpiData.incomeActual}
+            icon={<TrendingUp size={16} />}
+            changeValue={kpiData.incomeActual - kpiData.incomeBudget}
+            changeLabel="vs budget"
+            positiveIsGood={true}
+            chartData={[
+              { value: kpiData.incomeBudget },
+              { value: kpiData.incomeActual },
+            ]}
+            chartType="bar"
+            chartColor="#047857"
+          />
+          <KpiCard
+            title="Expenses"
+            value={kpiData.expenseActual}
+            icon={<TrendingDown size={16} />}
+            changeValue={kpiData.expenseActual - kpiData.expenseBudget}
+            changeLabel="vs budget"
+            positiveIsGood={false}
+            chartData={[
+              { value: Math.abs(kpiData.expenseBudget) },
+              { value: Math.abs(kpiData.expenseActual) },
+            ]}
+            chartType="bar"
+            chartColor="#dc2626"
+          />
+          <KpiCard
+            title="Net Cash Flow"
+            value={kpiData.netActualValue}
+            icon={<DollarSign size={16} />}
+            changeValue={kpiData.netVarianceValue}
+            changeLabel="variance"
+            positiveIsGood={true}
+            chartData={[
+              { value: kpiData.netBudgetValue },
+              { value: kpiData.netActualValue },
+            ]}
+            chartType="bar"
+            chartColor="#1e40af"
+          />
+          <KpiCard
+            title="Savings Rate"
+            value={0}
+            formattedValue={
+              kpiData.incomeActual !== 0
+                ? `${((kpiData.netActualValue / kpiData.incomeActual) * 100).toFixed(1)}%`
+                : "N/A"
+            }
+            icon={<Target size={16} />}
+            subtitle={
+              kpiData.incomeActual !== 0
+                ? `${((kpiData.netActualValue / kpiData.incomeActual) * 100).toFixed(1)}% of income saved`
+                : ""
+            }
+            chartType="area"
+            chartColor="#8b5cf6"
+          />
+        </KpiCardRow>
       )}
 
       <div className="budget-realization-scroll">

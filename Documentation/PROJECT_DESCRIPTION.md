@@ -19,7 +19,7 @@
                         +----------------------------+
 ```
 
-**Three-service architecture:** PostgreSQL database, Node.js/Express API server, and nginx-served React SPA. All services run in Docker containers orchestrated by Docker Compose.
+**Three-service architecture (production):** PostgreSQL database, Node.js/Express API server, and nginx-served React SPA. Production services run in Docker containers orchestrated by Docker Compose.
 
 ---
 
@@ -80,6 +80,7 @@ ssh cfbieder@192.168.1.61          # KVM host (VM management only)
 | Vite | 7.2.4 | Build tool & dev server |
 | React Router DOM | 7.9.6 | Client-side routing |
 | Lucide React | 0.563.0 | SVG icon library |
+| Recharts | 2.x | Chart library (KPI sparklines, mini-charts) |
 | xlsx (SheetJS) | 0.18.5 | Excel file generation |
 | env-cmd | 11.0.0 | Environment management |
 
@@ -107,7 +108,7 @@ psproject/                          # ~/Programs/fin symlinks here
 ├── Documentation/               # Project documentation
 │   ├── PROJECT_DESCRIPTION.md   # This file
 │   ├── PROJECT_ROADMAP.md       # Future work and known issues
-│   ├── TMUX_GUIDE.md            # tmux development guide
+│   ├── Guides/                  # Operational guides (tmux, backups, restore)
 │   └── Old/                     # Archived documentation
 ├── frontend/                    # React SPA
 │   ├── Dockerfile               # Multi-stage build: Vite -> nginx
@@ -135,7 +136,7 @@ psproject/                          # ~/Programs/fin symlinks here
 │       ├── server.js            # HTTP server entry point
 │       ├── app.js               # Express app config, route mounting
 │       └── v2/                  # PostgreSQL-based API (all routes)
-│           ├── db.js            # PostgreSQL connection pool
+│           ├── db/              # PostgreSQL module exports + pool implementation
 │           ├── routes/          # Route handlers (accounts, budget, categories, forecast, health, ingestPs, reports, transactions, util)
 │           ├── repositories/    # Data access layer (accounts, budget, categories, forecast, psdata, transactions)
 │           └── services/        # Business logic (psCsvIngestorV2, refreshPsApiV2)
@@ -153,7 +154,7 @@ psproject/                          # ~/Programs/fin symlinks here
 ├── certs/                       # TLS certificates (git-ignored)
 ├── VERSION                      # Current version number
 ├── docker-compose.yml           # Production: 3 services
-├── docker-compose.dev.yml       # Development: postgres-dev only
+├── docker-compose.dev.yml       # Development: postgres-dev + server-dev
 └── NOTES.md                     # Quick reference notes
 ```
 
@@ -170,13 +171,13 @@ psproject/                          # ~/Programs/fin symlinks here
 | `/refresh-ps` | RefreshPS | Transactions | Refresh data via PocketSmith API; tabbed view (Review & Edit New / New Transactions / Modified) with inline transaction editing using shared `TransactionTable` + `TransactionEditModal` + `CategorySelector`. Accept/Accept All buttons mark transactions as accepted, protecting them from future refresh overwrites and hiding them from the review table. **Split Transaction:** Select a single transaction and click "Split Transaction" to open a modal that divides the original amount across 2-5 entries, each with optional category selection via `CategorySelector`. Unallocated amount displayed in real-time. Uses `POST /api/v2/transactions/:id/split`. |
 | `/backup-database` | BackupDatabase | Database | Download database backup |
 | `/budget-worksheet` | BudgetInput | Budgeting | Budget worksheet with collapsible filter controls (PeriodSelector, CategorySelector, AccountSelector), tabbed Balances/Budget Entry panel showing selected category |
-| `/budget-realization` | BudgetRealization | Budgeting | Budget vs actual comparison |
+| `/budget-realization` | BudgetRealization | Budgeting | Budget vs actual comparison with KPI summary cards (Income, Expenses, Net Cash Flow, Savings Rate) |
 | `/budget-graph` | BudgetRealizationGraph | Budgeting | Visual budget analysis |
 | `/budget-variances` | BudgetVariances | Budgeting | Line items ranked by largest variance |
 | `/forecast-scenarios` | FCScenarios | Forecasting | Manage forecast scenarios |
 | `/forecast-modules` | FCModuleManage | Forecasting | Configure balance sheet modules |
 | `/forecast-setup-exp` | FCExpSetup | Forecasting | Income/expense forecast items |
-| `/forecast-review` | FCReview | Forecasting | Review generated forecasts |
+| `/forecast-review` | FCReview | Forecasting | Review generated forecasts with KPI summary cards (Total Assets, Net Cash Flow, Income, Expenses trends) |
 | `/balance` | Balance | Reports & Graphs | Balance sheet with multi-period comparison, collapsible account tree, and Net Worth summary row (Assets + Liabilities) |
 | `/cash-flow` | CashFlow | Reports & Graphs | Cash flow P&L analysis |
 | `/cash-flow-monthly` | CashFlowMonthly | Reports & Graphs | Monthly cash flow breakdown |
@@ -222,6 +223,7 @@ Category landing pages instead of dropdowns. Each category has a landing page at
 | PeriodCountSelector | `PeriodCountSelector.jsx` | Dropdown for 1-3 period counts |
 | **CategorySelector** | `CategorySelector/CategorySelector.jsx` | Searchable, COA-hierarchy-ordered category selector. Accepts `plTree` (from `useCoa`) for hierarchy ordering, `selectedCategories` + `onCategoriesChange` for selection, `categoryGroupOptions` for group presets (Income all, Expense all, etc.). Includes type-to-filter search input. Plain click selects a single item; Ctrl+click (Cmd+click on Mac) toggles multi-select. Used on Budget Worksheet, Actual Transactions, Budget Transactions, and in `TransactionEditModal` (single-select mode via `plTree` prop). |
 | **PeriodSelector** | `PeriodSelector/PeriodSelector.jsx` | Preset-based period picker with standard presets: This Month, This Month Prior Year, Last Month, Last Month Prior Year, This Year, Last Year, Custom. Auto-computes `fromMonth`/`toMonth`/`actualYear`/`budgetYear` from selected preset. "Custom" reveals manual dropdowns (Budget Year hidden via `hideBudgetYear` prop). Supports controlled + uncontrolled modes (dual-state pattern). Used on Budget Worksheet, Actual Transactions, Budget Transactions. |
+| **KpiCards** | `KpiCards.jsx` | Reusable KPI summary cards with Recharts mini-charts (bar/area). Used on Budget Realization and Forecast Review pages. Supports `formattedValue` override, trend icons, and responsive grid layout via `KpiCardRow`. |
 | **AccountSelector** | `AccountSelector/AccountSelector.jsx` | Searchable, currency-grouped account selector. Accepts `accountOptions` (string[]) and `accountCurrencyMap` (Map from `useCoa`) to group accounts by currency. Includes type-to-filter search, "All" option pinned at top, and currency group headers (USD, EUR, etc.). Plain click selects a single item; Ctrl+click (Cmd+click on Mac) toggles multi-select. `selectedAccounts` + `onAccountsChange` for selection. Used on Budget Worksheet, Actual Transactions, Budget Transactions. Eliminates the need for a separate currency filter on transaction pages. |
 
 ### Visual Environment Indicators
@@ -303,7 +305,7 @@ All endpoints mounted at `/api/v2`. Nginx rewrites legacy `/api/*` paths to `/ap
 - `POST /clearall` — Clear staging | `POST /sync-to-transactions` — Sync staging to transactions
 - `GET /psdata/count` | `GET /psdata/options` — Distinct accounts/categories
 - `GET /analyze-ps` | `POST /analyze-ps` — Analyze for missing accounts/categories
-- `GET /new-transactions` | `GET /modified-transactions` | `POST /review-new-transactions` — Review editable new transactions (queries `psdata_staging` JOIN `transactions`, excludes accepted)
+- `GET /new-transactions` | `GET /modified-transactions` | `POST /review-new-transactions` — Review unaccepted transactions (queries `transactions` table where `accepted IS NOT TRUE`)
 - `POST /appdata/last-refresh`
 
 #### Reports (`/api/v2/reports`)
@@ -311,7 +313,7 @@ All endpoints mounted at `/api/v2`. Nginx rewrites legacy `/api/*` paths to `/ap
 
 #### Transactions (`/api/v2/transactions`)
 - `GET /` — List (with filtering, pagination) | `GET /summary/by-category` | `GET /summary/by-month`
-- `GET /:id` — Single | `POST /` — Create | `PATCH /:id` — Update (auto-sets `accepted=true`) | `DELETE /:id` — Delete
+- `GET /:id` — Single | `POST /` — Create | `PATCH /:id` — Update (supports explicit `accepted` updates, does not auto-set) | `DELETE /:id` — Delete
 - `POST /:id/split` — Split transaction into 2-5 entries. Accepts `{ splits: [{ amount, category_name? }] }`. Updates original with first split's amount; creates new rows for remaining splits. Account preserved from original, category optionally changed per split. `base_amount` calculated proportionally to preserve exchange rates. New rows get `ps_id=null`, `source='split'`. Uses DB transaction for atomicity.
 
 #### Utility (`/api/v2/util`)
@@ -441,7 +443,7 @@ cd ~/psproject                     # or ~/Programs/fin (symlink)
 
 Creates a tmux session (`fin-dev`) with 4 windows: database logs, backend (nodemon), frontend (Vite HMR), shell.
 
-See [TMUX_GUIDE.md](TMUX_GUIDE.md) for navigation details.
+See [TMUX Guide](Guides/TMUX_GUIDE.md) for navigation details.
 
 ### Making Changes
 
@@ -617,4 +619,4 @@ docker compose -f docker-compose.dev.yml down        # Development
 
 ---
 
-*Last updated: 2026-03-03*
+*Last updated: 2026-03-11*

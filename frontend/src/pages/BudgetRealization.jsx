@@ -653,6 +653,42 @@ export default function BudgetRealization() {
     ? formatCurrencyValue(netVarianceValue)
     : "—";
 
+  // ========== Computed Values: Per-Category KPI Values ==========
+  const incomeActual =
+    hasActualData && actualValueResolver
+      ? resolveTopLevelNodeValue(filteredCategoryTree, "Income", actualValueResolver)
+      : null;
+  const incomeBudget =
+    hasBudgetData && budgetValueResolver
+      ? resolveTopLevelNodeValue(filteredCategoryTree, "Income", budgetValueResolver)
+      : null;
+  const expenseActual =
+    hasActualData && actualValueResolver
+      ? resolveTopLevelNodeValue(filteredCategoryTree, "Expense", actualValueResolver)
+      : null;
+  const expenseBudget =
+    hasBudgetData && budgetValueResolver
+      ? resolveTopLevelNodeValue(filteredCategoryTree, "Expense", budgetValueResolver)
+      : null;
+
+  const kpiData = useMemo(() => {
+    if (!hasActualData && !hasBudgetData) return null;
+    return {
+      incomeActual: safeNumber(incomeActual),
+      incomeBudget: safeNumber(incomeBudget),
+      expenseActual: safeNumber(expenseActual),
+      expenseBudget: safeNumber(expenseBudget),
+      netActualValue: safeNumber(netActualValue),
+      netBudgetValue: safeNumber(netBudgetValue),
+      netVarianceValue,
+    };
+  }, [
+    hasActualData, hasBudgetData,
+    incomeActual, incomeBudget,
+    expenseActual, expenseBudget,
+    netActualValue, netBudgetValue, netVarianceValue,
+  ]);
+
   const netBudgetHasValue =
     netBudgetValue !== null && netBudgetValue !== undefined;
   const netActualHasValue =
@@ -980,6 +1016,7 @@ export default function BudgetRealization() {
           toggleProps={toggleProps}
           onExport={handleExport}
           canExport={hasActualData || hasBudgetData}
+          kpiData={kpiData}
         />
       </main>
       <BudgetDetailModal
