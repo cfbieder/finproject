@@ -1,8 +1,10 @@
 {
   "permissions": {
     "allow": [
-      "Bash(ls:*)",
-      "Bash(du -sh /home/cfbieder/psproject/*)"
+      "Bash(*)",
+      "Write(*)",
+      "Read(*)",
+      "Bash(npm install xlsx)"
     ]
   }
 }

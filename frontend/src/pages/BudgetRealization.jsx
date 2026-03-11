@@ -8,6 +8,7 @@ import BudgetRealizationContent from "../features/Budgets/BudgetRealizationConte
 import BudgetDetailModal from "../features/Budgets/BudgetDetailModal.jsx";
 import Rest from "../js/rest.js";
 import { useCoa } from "../hooks/useCoa.js";
+import { exportBudgetRealization } from "../utils/excelExporter.js";
 import "../features/CashFlow/CashFlowReport.css";
 import "./PageLayout.css";
 
@@ -444,7 +445,7 @@ const renderCategoryRows = (
         : undefined;
 
     const row = (
-      <tr key={pathKey}>
+      <tr key={pathKey} data-level={level}>
         <td
           className="balance-report-table__name"
           style={{ "--cashflow-indent-level": level }}
@@ -941,6 +942,17 @@ export default function BudgetRealization() {
     ]
   );
 
+  // ========== Export ==========
+  const handleExport = useCallback(() => {
+    exportBudgetRealization(
+      filteredCategoryTree,
+      actualValueResolver,
+      budgetValueResolver,
+      hasActualData,
+      hasBudgetData
+    );
+  }, [filteredCategoryTree, actualValueResolver, budgetValueResolver, hasActualData, hasBudgetData]);
+
   // ========== Render ==========
 
   return (
@@ -966,6 +978,8 @@ export default function BudgetRealization() {
           onActualCellDoubleClick={handleActualCellDoubleClick}
           periodProps={periodProps}
           toggleProps={toggleProps}
+          onExport={handleExport}
+          canExport={hasActualData || hasBudgetData}
         />
       </main>
       <BudgetDetailModal

@@ -59,7 +59,7 @@ function createZerosMatrix(rowCount, colCount) {
 async function loadModulesForScenario(scenarioId) {
   // Get modules with account names
   const modulesResult = await db.query(`
-    SELECT m.*, a.name as account_name
+    SELECT m.*, a.name as account_name, a.account_type
     FROM forecast_modules m
     LEFT JOIN accounts a ON m.account_id = a.id
     WHERE m.scenario_id = $1
@@ -90,6 +90,7 @@ async function loadModulesForScenario(scenarioId) {
     mod.ExpCategory = mod.expense_category || '';
     mod.Comment = mod.comment;
     mod.Matched = mod.is_matched;
+    mod.AccountType = mod.account_type || '';
 
     // Transform nested arrays to v1 format
     mod.IncomePct = incomePct.rows.map(r => ({

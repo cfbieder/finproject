@@ -39,6 +39,8 @@ export default function TransactionFilterBudget({
   canEdit,
   isAllSelected,
   filteredTotalsByCurrency = [],
+  onExport,
+  canExport = false,
 }) {
   // ========== Data Hooks ==========
   const { accountCurrencyMap, plTree } = useCoa();
@@ -346,6 +348,16 @@ export default function TransactionFilterBudget({
               >
                 Clear Filters
               </button>
+              {onExport && (
+                <button
+                  className="trans-filter-actual__action-btn"
+                  type="button"
+                  onClick={onExport}
+                  disabled={!canExport}
+                >
+                  Export
+                </button>
+              )}
             </div>
           </div>
 

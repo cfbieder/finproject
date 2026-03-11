@@ -209,7 +209,7 @@ async function copyScenario(sourceId, newName) {
  */
 async function findModulesByScenario(scenarioId) {
   const sql = `
-    SELECT m.*, a.name as account_name
+    SELECT m.*, a.name as account_name, a.account_type
     FROM forecast_modules m
     LEFT JOIN accounts a ON m.account_id = a.id
     WHERE m.scenario_id = $1
@@ -224,7 +224,7 @@ async function findModulesByScenario(scenarioId) {
  */
 async function findModuleById(id) {
   const moduleResult = await db.query(`
-    SELECT m.*, a.name as account_name
+    SELECT m.*, a.name as account_name, a.account_type
     FROM forecast_modules m
     LEFT JOIN accounts a ON m.account_id = a.id
     WHERE m.id = $1

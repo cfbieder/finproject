@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import Rest from "../js/rest.js";
+import { exportCashFlow } from "../utils/excelExporter.js";
 import "./PageLayout.css";
 import "../features/Balances/BalanceDateSelector.css";
 import CashFlowReport from "../features/CashFlow/CashFlowReport.jsx";
@@ -310,6 +311,12 @@ export default function CashFlow() {
     });
   }, [collapsiblePaths]);
 
+  const hasReport = Array.isArray(reports?.[0]) && reports[0].length > 0;
+
+  const handleExport = useCallback(() => {
+    exportCashFlow(reports, periodLabels);
+  }, [reports, periodLabels]);
+
   return (
     <>
       <main className="page-main balance-grid balance-grid--single">
@@ -340,6 +347,8 @@ export default function CashFlow() {
           isFullyCollapsed={isFullyCollapsed}
           isFullyExpanded={isFullyExpanded}
           error={error}
+          onExport={handleExport}
+          canExport={hasReport}
           layout="toolbar"
         />
         <div className="balance-layout-wrapper">

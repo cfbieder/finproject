@@ -17,6 +17,7 @@ import TransactionEditModal from "../features/Transaction/TransactionEditModal.j
 import TransactionDeleteModal from "../features/Transaction/TransactionDeleteModal.jsx";
 import Rest from "../js/rest.js";
 import { useCoa } from "../hooks/useCoa.js";
+import { exportTransactions } from "../utils/excelExporter.js";
 import "./PageLayout.css";
 
 const config = BUDGET_CONFIG;
@@ -150,6 +151,10 @@ export default function TransBudget() {
 
   const hasTransactions = transactions.length > 0;
 
+  const handleExport = useCallback(() => {
+    exportTransactions(sortedTransactions, "Budget Transactions", "budget-transactions");
+  }, [sortedTransactions]);
+
   return (
     <>
       <main className="page-main trans-budget-main">
@@ -163,6 +168,8 @@ export default function TransBudget() {
           canEdit={selectedRows.size > 0}
           isAllSelected={isAllSelected}
           filteredTotalsByCurrency={filteredTotalsByCurrency}
+          onExport={handleExport}
+          canExport={sortedTransactions.length > 0}
         />
         <TransactionTable
           config={config}

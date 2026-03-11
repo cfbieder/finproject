@@ -80,6 +80,7 @@ ssh cfbieder@192.168.1.61          # KVM host (VM management only)
 | Vite | 7.2.4 | Build tool & dev server |
 | React Router DOM | 7.9.6 | Client-side routing |
 | Lucide React | 0.563.0 | SVG icon library |
+| xlsx (SheetJS) | 0.18.5 | Excel file generation |
 | env-cmd | 11.0.0 | Environment management |
 
 ### Backend
@@ -121,7 +122,7 @@ psproject/                          # ~/Programs/fin symlinks here
 │       ├── contexts/            # ToastContext, ForecastContext
 │       ├── features/            # Feature modules (Balances, BudgetEntry, Budgets, CashFlow, Charts, COAManagement, Database, Forecast, Transaction)
 │       ├── hooks/               # Custom React hooks (useAPI, useCoa, useFormState, useModal)
-│       ├── utils/               # Shared helpers (formatters, dateHelpers, cashFlowHelpers, forecastHelpers, treeTraversal)
+│       ├── utils/               # Shared helpers (formatters, dateHelpers, cashFlowHelpers, forecastHelpers, treeTraversal, excelExporter)
 │       ├── js/                  # API helpers (rest.js, handleUpload.js)
 │       └── pages/               # Page components (21 pages + category landing)
 ├── server/                      # Express API server

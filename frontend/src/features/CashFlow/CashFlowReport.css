@@ -1,5 +1,5 @@
 .cash-flow-report {
-  --cashflow-indent-unit: 1.6rem;
+  --cashflow-indent-unit: 2rem;
 }
 
 .cash-flow-report__title {
@@ -40,8 +40,8 @@
 }
 
 /* Hide tree lines for top-level items (level 0) */
-.cash-flow-report .balance-report-table tbody tr[style*="--cashflow-indent-level:0"] .balance-report-table__name::before,
-.cash-flow-report .balance-report-table tbody tr[style*="--cashflow-indent-level:0"] .balance-report-table__name::after {
+.cash-flow-report .balance-report-table tbody tr[data-level="0"] .balance-report-table__name::before,
+.cash-flow-report .balance-report-table tbody tr[data-level="0"] .balance-report-table__name::after {
   display: none;
 }
 
@@ -83,12 +83,18 @@
 }
 
 /* ── Level 0: Top-level categories (Income, Expense) ── */
-.cash-flow-report .balance-report-table tbody tr[style*="--cashflow-indent-level:0"] {
-  background: transparent;
+.cash-flow-report .balance-report-table tbody tr[data-level="0"] {
   border-left: 3px solid var(--primary);
 }
 
-.cash-flow-report .balance-report-table tbody tr[style*="--cashflow-indent-level:0"] .balance-report-table__name-text {
+.cash-flow-report .balance-report-table tbody tr[data-level="0"] td {
+  background: #dbe4ff !important;
+  border-bottom: 2px solid rgba(37, 99, 235, 0.25);
+  padding-top: 1.1rem;
+  padding-bottom: 0.7rem;
+}
+
+.cash-flow-report .balance-report-table tbody tr[data-level="0"] .balance-report-table__name-text {
   font-weight: 700;
   font-size: 0.95rem;
   text-transform: uppercase;
@@ -96,58 +102,86 @@
   color: var(--primary);
 }
 
-.cash-flow-report .balance-report-table tbody tr[style*="--cashflow-indent-level:0"] .balance-report-table__value {
-  font-weight: 700;
+.cash-flow-report .balance-report-table tbody tr[data-level="0"] .balance-report-table__value {
+  font-weight: 700 !important;
 }
 
 /* ── Level 1: Sub-categories ── */
-.cash-flow-report .balance-report-table tbody tr[style*="--cashflow-indent-level:1"] {
-  background: rgba(37, 99, 235, 0.03);
+.cash-flow-report .balance-report-table tbody tr[data-level="1"] {
   border-left: 3px solid rgba(37, 99, 235, 0.25);
 }
 
-.cash-flow-report .balance-report-table tbody tr[style*="--cashflow-indent-level:1"] .balance-report-table__name-text {
+.cash-flow-report .balance-report-table tbody tr[data-level="1"] td {
+  background: #edf0fa !important;
+  border-top: 1px solid #e2e8f0;
+}
+
+.cash-flow-report .balance-report-table tbody tr[data-level="1"] .balance-report-table__name-text {
   font-weight: 600;
   font-size: 0.875rem;
 }
 
-.cash-flow-report .balance-report-table tbody tr[style*="--cashflow-indent-level:1"] .balance-report-table__value {
-  font-weight: 600;
+.cash-flow-report .balance-report-table tbody tr[data-level="1"] .balance-report-table__value {
+  font-weight: 600 !important;
 }
 
 /* ── Level 2: Leaf accounts ── */
-.cash-flow-report .balance-report-table tbody tr[style*="--cashflow-indent-level:2"] {
-  background: rgba(241, 245, 249, 0.5);
+.cash-flow-report .balance-report-table tbody tr[data-level="2"] {
   border-left: 3px solid rgba(148, 163, 184, 0.35);
 }
 
-.cash-flow-report .balance-report-table tbody tr[style*="--cashflow-indent-level:2"] .balance-report-table__name-text {
+.cash-flow-report .balance-report-table tbody tr[data-level="2"] td {
+  background: #f5f6f8 !important;
+}
+
+.cash-flow-report .balance-report-table tbody tr[data-level="2"] .balance-report-table__name-text {
   font-weight: 400;
   font-size: 0.84rem;
   color: var(--ink-muted, #475569);
 }
 
+.cash-flow-report .balance-report-table tbody tr[data-level="2"] .balance-report-table__value {
+  font-weight: 400 !important;
+  opacity: 0.7;
+}
+
 /* ── Level 3+: Deep leaves ── */
-.cash-flow-report .balance-report-table tbody tr[style*="--cashflow-indent-level:3"] {
-  background: rgba(241, 245, 249, 0.7);
+.cash-flow-report .balance-report-table tbody tr[data-level="3"] {
   border-left: 3px solid rgba(148, 163, 184, 0.25);
 }
 
-.cash-flow-report .balance-report-table tbody tr[style*="--cashflow-indent-level:3"] .balance-report-table__name-text {
+.cash-flow-report .balance-report-table tbody tr[data-level="3"] td {
+  background: #f9fafb !important;
+}
+
+.cash-flow-report .balance-report-table tbody tr[data-level="3"] .balance-report-table__name-text {
   font-weight: 400;
   font-size: 0.82rem;
   color: var(--ink-muted, #475569);
 }
 
-.cash-flow-report .balance-report-table tbody tr[style*="--cashflow-indent-level:4"] {
-  background: rgba(241, 245, 249, 0.8);
+.cash-flow-report .balance-report-table tbody tr[data-level="3"] .balance-report-table__value {
+  font-weight: 400 !important;
+  opacity: 0.6;
+}
+
+.cash-flow-report .balance-report-table tbody tr[data-level="4"] {
   border-left: 3px solid rgba(148, 163, 184, 0.2);
 }
 
-.cash-flow-report .balance-report-table tbody tr[style*="--cashflow-indent-level:4"] .balance-report-table__name-text {
+.cash-flow-report .balance-report-table tbody tr[data-level="4"] td {
+  background: #fcfcfd !important;
+}
+
+.cash-flow-report .balance-report-table tbody tr[data-level="4"] .balance-report-table__name-text {
   font-weight: 400;
   font-size: 0.8rem;
   color: var(--ink-muted, #475569);
+}
+
+.cash-flow-report .balance-report-table tbody tr[data-level="4"] .balance-report-table__value {
+  font-weight: 400 !important;
+  opacity: 0.55;
 }
 
 .cash-flow-report .balance-report-table thead {

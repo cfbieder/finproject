@@ -19,6 +19,7 @@ import CategorySelector from "../components/CategorySelector/CategorySelector.js
 import Rest from "../js/rest.js";
 import { useToast } from "../contexts";
 import { useCoa } from "../hooks/useCoa.js";
+import { exportTransactions } from "../utils/excelExporter.js";
 import "./PageLayout.css";
 
 const config = ACTUAL_CONFIG;
@@ -335,6 +336,10 @@ export default function TransActual() {
     setTransactionLimit((prev) => prev + TRANSACTION_BATCH_SIZE);
   }, [setTransactionLimit]);
 
+  const handleExport = useCallback(() => {
+    exportTransactions(sortedTransactions, "Actual Transactions", "actual-transactions");
+  }, [sortedTransactions]);
+
   const handleLoadPrevious = useCallback(() => {
     setTransactionLimit((prev) =>
       Math.max(TRANSACTION_BATCH_SIZE, prev - TRANSACTION_BATCH_SIZE)
@@ -358,6 +363,8 @@ export default function TransActual() {
           canSplit={selectedRows.size === 1}
           isAllSelected={isAllSelected}
           filteredTotalsByCurrency={filteredTotalsByCurrency}
+          onExport={handleExport}
+          canExport={sortedTransactions.length > 0}
         />
         <div
           className="trans-budget-load-more"

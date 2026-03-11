@@ -21,6 +21,8 @@ function BudgetRealizationContent({
   onActualCellDoubleClick,
   periodProps,
   toggleProps,
+  onExport,
+  canExport = false,
 }) {
   return (
     <div className="budget-realization-content">
@@ -78,6 +80,15 @@ function BudgetRealizationContent({
                 disabled={!toggleProps.hasCollapsiblePaths}
               >
                 Collapse −
+              </button>
+            )}
+            {canExport && onExport && (
+              <button
+                type="button"
+                className="realization-toolbar__action-button"
+                onClick={onExport}
+              >
+                Export
               </button>
             )}
           </div>

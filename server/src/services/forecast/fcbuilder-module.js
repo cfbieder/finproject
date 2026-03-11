@@ -181,13 +181,17 @@ async function processModule(module, scenario, df_assumptions, df_categories, ca
 
   const growthPct = module.Growth ?? 0;
   const expPct = module.ExpensePct ?? 0;
+  const isLiability = module.AccountType === 'liability';
   const incomePctValues = new Array(yearsCount).fill(0);
   const growthValues = new Array(yearsCount);
   const expPctValues = new Array(yearsCount);
+  // For assets, negate expPct so expenses reduce value.
+  // For liabilities, keep expPct as-is so users can enter positive values.
+  const effectiveExpPct = isLiability ? expPct : -expPct;
   for (let i = 0, year = startyear; year <= endyear; i++, year++) {
     const idx = year - periodStart;
     growthValues[i] = idx >= 0 && idx < inflationLen ? growthPct * inflationSeries[idx] : 0;
-    expPctValues[i] = idx >= 0 && idx < inflationLen ? -expPct : 0;
+    expPctValues[i] = idx >= 0 && idx < inflationLen ? effectiveExpPct : 0;
   }
 
   // Process IncomePct array

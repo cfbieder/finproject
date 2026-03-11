@@ -102,6 +102,7 @@ const renderCashFlowRows = (
     const row = (
       <tr
         key={pathKey}
+        data-level={level}
         className={
           isHighlighted ? "balance-report-table__row--highlighted" : ""
         }

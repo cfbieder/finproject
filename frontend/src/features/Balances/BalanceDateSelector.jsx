@@ -14,6 +14,8 @@ export default function BalanceDateSelector({
   isFullyExpanded,
   collapseToggleDisabled,
   showCollapseToggle = false,
+  onExport,
+  canExport = false,
   layout,
 }) {
   const normalizedDates = Array.isArray(periodDates) ? periodDates : [];
@@ -83,6 +85,15 @@ export default function BalanceDateSelector({
               disabled={collapseToggleDisabled}
             >
               Collapse −
+            </button>
+          )}
+          {canExport && onExport && (
+            <button
+              className="report-toolbar__button"
+              type="button"
+              onClick={onExport}
+            >
+              Export
             </button>
           )}
         </div>

@@ -41,6 +41,8 @@ export default function TransactionFilterActual({
   canSplit,
   isAllSelected,
   filteredTotalsByCurrency = [],
+  onExport,
+  canExport = false,
 }) {
   // ========== Data Hooks ==========
   const { accountCurrencyMap, plTree } = useCoa();
@@ -375,6 +377,16 @@ export default function TransactionFilterActual({
               >
                 Clear Filters
               </button>
+              {onExport && (
+                <button
+                  className="trans-filter-actual__action-btn"
+                  type="button"
+                  onClick={onExport}
+                  disabled={!canExport}
+                >
+                  Export
+                </button>
+              )}
             </div>
           </div>
 

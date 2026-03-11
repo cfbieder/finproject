@@ -893,11 +893,14 @@ export default function FCModulesEditModal({
                       : type === "number"
                       ? "text"
                       : type;
+                  const isLiabilityAccount = editForm?.account_type === "liability";
                   const tooltip =
                     field === "Growth"
                       ? "Enter as a percentage of inflation rate"
                       : field === "ExpensePct"
-                      ? "Enter a % of market value"
+                      ? isLiabilityAccount
+                        ? "Enter a positive % of market value (liability cost)"
+                        : "Enter a positive % of market value (expense on asset)"
                       : undefined;
                   const isNumericInput = type === "number" || isValueField;
                   const inputMode = isNumericInput ? "decimal" : undefined;

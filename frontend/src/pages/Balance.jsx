@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import BalanceDateSelector from "../features/Balances/BalanceDateSelector.jsx";
 import BalanceReport from "../features/Balances/BalanceReport.jsx";
 import Rest from "../js/rest.js";
+import { exportBalanceSheet } from "../utils/excelExporter.js";
 import "./PageLayout.css";
 
 /**
@@ -161,6 +162,11 @@ export default function Balance() {
 
   const hasLoadedReport = balanceReports.length > 0;
 
+  const handleExport = useCallback(() => {
+    const activeDates = periodDates.slice(0, activePeriodCount);
+    exportBalanceSheet(balanceReports.slice(0, activePeriodCount), activeDates);
+  }, [balanceReports, periodDates, activePeriodCount]);
+
   return (
     <>
       <main className="page-main balance-grid balance-grid--single">
@@ -189,6 +195,8 @@ export default function Balance() {
             collapsiblePaths.size === 0 || isFetchingReport
           }
           showCollapseToggle={hasLoadedReport}
+          onExport={handleExport}
+          canExport={hasLoadedReport}
           layout="toolbar"
         />
         <div className="balance-layout-wrapper">
