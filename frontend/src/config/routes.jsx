@@ -54,6 +54,7 @@ const TransActual = lazy(() => import("../pages/TransActual"));
 const TransBudget = lazy(() => import("../pages/TransBudget"));
 const UploadPS = lazy(() => import("../pages/UploadPS"));
 const COAManagement = lazy(() => import("../pages/COAManagement"));
+const BudgetFX = lazy(() => import("../pages/BudgetFX"));
 
 /**
  * Category metadata for landing pages.
@@ -170,6 +171,14 @@ export const routes = [
     description: "Line items ranked by largest budget-to-actual variance",
     icon: ArrowUpDown,
   },
+  {
+    path: "/budget-fx",
+    component: BudgetFX,
+    label: "Budget FX Rates",
+    category: "Budgeting",
+    description: "Manage monthly budget exchange rates by currency",
+    icon: DollarSign,
+  },
 
   // Forecasting (wrapped in ForecastProvider)
   {
@@ -273,7 +282,7 @@ export const routes = [
     component: FXOptions,
     label: "FX Options",
     category: "Settings",
-    description: "Configure foreign exchange rate settings",
+    description: "Configure forecast exchange rate assumptions",
     icon: DollarSign,
   },
   {

@@ -7,6 +7,7 @@ const router = express.Router();
 const repo = require('../repositories').budget;
 const accountsRepo = require('../repositories').accounts;
 const categoriesRepo = require('../repositories').categories;
+const budgetFxRatesRepo = require('../repositories').budgetFxRates;
 
 /**
  * Validate a date string is in YYYY-MM-DD format and represents a real date.
@@ -108,6 +109,107 @@ router.patch('/versions/:id', async (req, res, next) => {
       return res.status(404).json({ error: 'Budget version not found' });
     }
     res.json({ data: version });
+  } catch (error) {
+    next(error);
+  }
+});
+
+// ============================================================================
+// Budget FX Rates
+// ============================================================================
+
+// GET /api/v2/budget/fx-rates?year=2026
+router.get('/fx-rates', async (req, res, next) => {
+  try {
+    const year = req.query.year ? parseInt(req.query.year) : new Date().getFullYear();
+    const rates = await budgetFxRatesRepo.findByYear(year);
+    res.json({ data: rates });
+  } catch (error) {
+    next(error);
+  }
+});
+
+// GET /api/v2/budget/fx-rates/rate-map?year=2026&month=3
+router.get('/fx-rates/rate-map', async (req, res, next) => {
+  try {
+    const year = req.query.year ? parseInt(req.query.year) : new Date().getFullYear();
+    const month = req.query.month ? parseInt(req.query.month) : (new Date().getMonth() + 1);
+    const rateMap = await budgetFxRatesRepo.getRateMap(year, month);
+    res.json({ data: rateMap });
+  } catch (error) {
+    next(error);
+  }
+});
+
+// GET /api/v2/budget/fx-rates/preview?year=2026&month=3
+router.get('/fx-rates/preview', async (req, res, next) => {
+  try {
+    const year = req.query.year ? parseInt(req.query.year) : null;
+    const month = req.query.month ? parseInt(req.query.month) : null;
+    if (!year || !month) {
+      return res.status(400).json({ error: 'year and month are required' });
+    }
+    const previews = await budgetFxRatesRepo.getRecalcPreview(year, month);
+    res.json({ data: previews });
+  } catch (error) {
+    next(error);
+  }
+});
+
+// PUT /api/v2/budget/fx-rates
+router.put('/fx-rates', async (req, res, next) => {
+  try {
+    const { currency, year, month, rate } = req.body;
+    if (!currency || !year || !month || rate == null) {
+      return res.status(400).json({ error: 'currency, year, month, and rate are required' });
+    }
+    const parsedRate = parseFloat(rate);
+    if (!Number.isFinite(parsedRate) || parsedRate <= 0) {
+      return res.status(400).json({ error: 'rate must be a positive number' });
+    }
+    const result = await budgetFxRatesRepo.upsertRate(currency, year, month, parsedRate);
+    res.json({ data: result });
+  } catch (error) {
+    next(error);
+  }
+});
+
+// POST /api/v2/budget/fx-rates/recalculate
+router.post('/fx-rates/recalculate', async (req, res, next) => {
+  try {
+    const { currency, year, month } = req.body;
+    if (!currency || !year || !month) {
+      return res.status(400).json({ error: 'currency, year, and month are required' });
+    }
+
+    // Get current rate
+    const currentRateResult = await budgetFxRatesRepo.findRate(currency, year, month);
+
+    // Get average actual rate
+    const { budgetRate: newRate, dataPoints } = await budgetFxRatesRepo.getAvgActualRate(currency, year, month);
+    if (!newRate) {
+      return res.status(400).json({
+        error: `No actual exchange rate data found for ${currency} in ${year}-${String(month).padStart(2, '0')}`
+      });
+    }
+
+    // Update the rate
+    await budgetFxRatesRepo.upsertRate(currency, year, month, newRate);
+
+    // Recalculate budget entries
+    const entriesUpdated = await budgetFxRatesRepo.recalculateBudgetEntries(currency, year, month, newRate);
+
+    res.json({
+      data: {
+        currency,
+        year,
+        month,
+        oldRate: currentRateResult,
+        newRate,
+        dataPoints,
+        entriesUpdated,
+      }
+    });
   } catch (error) {
     next(error);
   }

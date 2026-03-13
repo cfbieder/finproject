@@ -8,6 +8,9 @@
 #   - components/data/ (runtime data, forecast assumptions)
 #   - certs/ (TLS certificates)
 #
+# Also prunes Docker resources older than 48h:
+#   - Build cache, dangling images, stopped containers, unused networks
+#
 # Runs every 2 days via crontab. Retains 30 days of backups on remote.
 #
 # Usage:
@@ -124,7 +127,18 @@ DELETED=$(ssh "${REMOTE_USER}@${REMOTE_HOST}" \
     "find ${REMOTE_DIR} -name 'fin_backup_*.tar.gz' -mtime +${RETENTION_DAYS} -delete -print | wc -l")
 log "  Removed ${DELETED} old backup(s)"
 
-# --- 8. Verify ---
+# --- 8. Docker cleanup (items older than 48h) ---
+log "Pruning Docker build cache older than 48h..."
+docker builder prune --filter "until=48h" -f >> "$LOG_FILE" 2>&1
+log "Pruning dangling images older than 48h..."
+docker image prune --filter "until=48h" -f >> "$LOG_FILE" 2>&1
+log "Pruning stopped containers older than 48h..."
+docker container prune --filter "until=48h" -f >> "$LOG_FILE" 2>&1
+log "Pruning unused networks older than 48h..."
+docker network prune --filter "until=48h" -f >> "$LOG_FILE" 2>&1
+log "  Docker cleanup complete"
+
+# --- 9. Verify ---
 REMOTE_COUNT=$(ssh "${REMOTE_USER}@${REMOTE_HOST}" \
     "ls -1 ${REMOTE_DIR}/fin_backup_*.tar.gz 2>/dev/null | wc -l")
 log "Backup complete. ${REMOTE_COUNT} backup(s) on remote. Size: ${TARBALL_SIZE}"

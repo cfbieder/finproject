@@ -375,20 +375,32 @@ async function create(data) {
     if (currency === 'USD') {
       baseAmount = data.amount;
     } else {
-      // Look up exchange rate from exchange_rates table (closest date)
       const entryDate = data.entry_date || new Date().toISOString().split('T')[0];
-      const rateResult = await db.query(`
-        SELECT rate FROM exchange_rates
-        WHERE from_currency = $1 AND to_currency = 'USD'
-        ORDER BY ABS(rate_date - $2::date) ASC
-        LIMIT 1
-      `, [currency, entryDate]);
+      const entryYear = parseInt(entryDate.substring(0, 4));
+      const entryMonth = parseInt(entryDate.substring(5, 7));
 
-      const rate = rateResult.rows[0]?.rate;
-      if (rate && parseFloat(rate) > 0) {
-        baseAmount = Math.round(data.amount * parseFloat(rate) * 100) / 100;
+      // Try budget_fx_rates table first (with fallback to prior months)
+      const budgetFxRatesRepo = require('./budgetFxRates');
+      const budgetRate = await budgetFxRatesRepo.findRate(currency, entryYear, entryMonth);
+
+      if (budgetRate && budgetRate > 0) {
+        // Budget rate convention: base_amount = amount / rate
+        baseAmount = Math.round((data.amount / budgetRate) * 100) / 100;
       } else {
-        baseAmount = data.amount; // Fallback if no rate available
+        // Last resort: exchange_rates table (market rate)
+        const rateResult = await db.query(`
+          SELECT rate FROM exchange_rates
+          WHERE from_currency = $1 AND to_currency = 'USD'
+          ORDER BY ABS(rate_date - $2::date) ASC
+          LIMIT 1
+        `, [currency, entryDate]);
+
+        const rate = rateResult.rows[0]?.rate;
+        if (rate && parseFloat(rate) > 0) {
+          baseAmount = Math.round(data.amount * parseFloat(rate) * 100) / 100;
+        } else {
+          baseAmount = data.amount; // Fallback if no rate available
+        }
       }
     }
   }

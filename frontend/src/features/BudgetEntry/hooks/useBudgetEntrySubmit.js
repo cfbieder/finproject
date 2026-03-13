@@ -150,6 +150,8 @@ export function useBudgetEntrySubmit({
       const paddedYear = String(Math.floor(budgetYearNumber)).padStart(4, "0");
       const basePayload = { ...sanitizedPayload };
       delete basePayload.Date;
+      // Remove BaseAmount so each month's entry gets its own rate from the backend
+      delete basePayload.BaseAmount;
 
       entriesToPersist = monthSequence.map((monthNumber) => {
         const paddedMonth = String(monthNumber).padStart(2, "0");

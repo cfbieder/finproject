@@ -174,6 +174,7 @@ psproject/                          # ~/Programs/fin symlinks here
 | `/budget-realization` | BudgetRealization | Budgeting | Budget vs actual comparison with KPI summary cards (Income, Expenses, Net Cash Flow, Savings Rate) |
 | `/budget-graph` | BudgetRealizationGraph | Budgeting | Visual budget analysis |
 | `/budget-variances` | BudgetVariances | Budgeting | Line items ranked by largest variance |
+| `/budget-fx` | BudgetFX | Budgeting | Monthly budget FX rates per currency per year. Year selector, 12-month table with double-click editing, per-month Recalculate from average actual FX with preview modal. Uses `budget_fx_rates` DB table. |
 | `/forecast-scenarios` | FCScenarios | Forecasting | Manage forecast scenarios |
 | `/forecast-modules` | FCModuleManage | Forecasting | Configure balance sheet modules |
 | `/forecast-setup-exp` | FCExpSetup | Forecasting | Income/expense forecast items |
@@ -184,7 +185,7 @@ psproject/                          # ~/Programs/fin symlinks here
 | `/balance-chart` | BalanceChart | Reports & Graphs | Net worth chart over time |
 | `/trans-actual` | TransActual | Transactions | Actual transactions browser with collapsible filter bar (PeriodSelector, CategorySelector, AccountSelector), description search, value range filters, Clear Filters button, date format mm/dd/yy, optimized column widths (noWrap amounts, ellipsis description). Edit modal supports Date, Description, and Category (Amount, Currency, Account are PS-sourced and not editable). Uses hierarchical `CategorySelector` via `plTree` prop. **Split Transaction:** Select a single transaction and click "Split" to open a modal that divides the original amount across 2-5 entries, each with optional category selection. Uses `POST /api/v2/transactions/:id/split`. |
 | `/trans-budget` | TransBudget | Transactions | Budget transactions browser with collapsible filter bar (PeriodSelector, CategorySelector, AccountSelector), value range filters, Clear Filters button, date format mm/dd/yy, optimized column widths (noWrap amounts, ellipsis description). Edit modal uses hierarchical `CategorySelector` via `plTree` prop. |
-| `/fx-options` | FXOptions | Settings | Exchange rate configuration |
+| `/fx-options` | FXOptions | Settings | Forecast FX assumptions (budget rates moved to `/budget-fx`) |
 | `/coa-management` | COAManagement | Settings | Chart of accounts CRUD, PS analysis, quick-add for accounts and categories |
 | `/program-settings` | ProgramSettings | Settings | Application preferences (default budget year) |
 
@@ -283,6 +284,8 @@ All endpoints mounted at `/api/v2`. Nginx rewrites legacy `/api/*` paths to `/ap
 - `GET /entries` — List entries | `GET /entries/:id` | `POST /entries` — Create (single/batch) | `PATCH /entries/:id` | `DELETE /entries/:id`
 - `GET /entries/summary/by-category` | `GET /entries/summary/by-month` | `GET /compare` — Budget vs actual
 - `GET /summary` — Budget vs actual by month | `GET /category-groups` — Income/Expense groups from COA
+- `GET /fx-rates?year=` — Monthly budget FX rates for year | `PUT /fx-rates` — Upsert single rate | `GET /fx-rates/rate-map?year=&month=` — Rate map for budget entry creation
+- `GET /fx-rates/preview?year=&month=` — Recalculate preview (all currencies) | `POST /fx-rates/recalculate` — Execute recalculate for currency/month
 - `GET /` — v1 compat entries | `GET /actual-entries` — v1 compat actuals | `GET /cash-flow` — Budget cash flow P&L
 
 #### Categories (`/api/v2/categories`)
@@ -330,6 +333,7 @@ All endpoints mounted at `/api/v2`. Nginx rewrites legacy `/api/*` paths to `/ap
 | `categories.js` | categories |
 | `transactions.js` | transactions, pending_transactions |
 | `budget.js` | budget_entries, budget_versions |
+| `budgetFxRates.js` | budget_fx_rates |
 | `forecast.js` | forecast_scenarios, forecast_modules, forecast_income_expense, forecast_entries, and sub-tables |
 | `psdata.js` | psdata_staging, app_data |
 
@@ -377,7 +381,8 @@ Located in `server/src/v2/services/`. Generates multi-year financial projections
 | Table | Purpose |
 |-------|---------|
 | `forecast_assumptions` | Scenario-level or global assumptions (JSONB) |
-| `exchange_rates` | Historical FX rates |
+| `exchange_rates` | Historical FX rates (market data from Frankfurter API) |
+| `budget_fx_rates` | Monthly budget exchange rates per currency per year (user-managed, budget convention: X foreign per 1 USD) |
 | `sync_metadata` | PocketSmith sync tracking |
 | `audit_log` | Change audit trail (JSONB old/new values) |
 | `psdata_staging` | Raw PocketSmith CSV/API data |
@@ -480,7 +485,7 @@ All scripts are in the `Scripts/` folder.
 | `sync-db-prod-to-dev.sh` | Copy prod DB to dev | `./Scripts/sync-db-prod-to-dev.sh` |
 | `bump-version.sh` | Version management | `./Scripts/bump-version.sh patch\|minor\|major\|X.Y.Z` |
 | `rebuild-frontend.sh` | Quick frontend rebuild | `./Scripts/rebuild-frontend.sh` |
-| `backup-to-remote.sh` | Backup DB + config to 192.168.1.252 | `./Scripts/backup-to-remote.sh` (crontab: every 2 days) |
+| `backup-to-remote.sh` | Backup DB + config to 192.168.1.252; prune Docker resources >48h | `./Scripts/backup-to-remote.sh` (crontab: every 2 days) |
 | `provision-vm.sh` | Create VM on KVM host | `ssh cfbieder@192.168.1.61 'bash -s' < Scripts/provision-vm.sh` |
 | `deploy-on-vm.sh` | Deploy app on VM | `ssh cfbieder@192.168.1.87 'bash -s' < Scripts/deploy-on-vm.sh` |
 
@@ -501,6 +506,8 @@ Automated backups run every 2 days at 2:00 AM via crontab, transferring to `192.
 | Log | `Backups/backup-remote.log` |
 
 **What's backed up:** PostgreSQL dump, `.env` files, `components/data/`, `certs/`
+
+**Docker cleanup:** Also prunes build cache, dangling images, stopped containers, and unused networks older than 48 hours.
 
 ```bash
 # Manual remote backup

@@ -47,7 +47,7 @@ export default function BudgetInput() {
     setSelectedCategories,
   } = useFilterOptions();
 
-  const { currencyOptions, budgetRates, defaultBudgetYear } = useCurrencyData();
+  const { currencyOptions, budgetRates, budgetRatesByMonth, defaultBudgetYear } = useCurrencyData();
   const { expenseAccountNames, accountCurrencyMap, plTree } = useCoa();
 
   // ========== State: Date Range ==========
@@ -209,9 +209,25 @@ export default function BudgetInput() {
     const normalizedCurrency = normalizeCurrencyCode(entryForm.currency);
     if (!normalizedCurrency) return undefined;
     if (normalizedCurrency === BASE_CURRENCY) return 1;
+
+    // Try month-specific rate from budgetRatesByMonth
+    if (budgetRatesByMonth[normalizedCurrency] && entryForm.date) {
+      const entryMonth = parseInt(entryForm.date.substring(5, 7));
+      if (Number.isFinite(entryMonth)) {
+        const monthRate = budgetRatesByMonth[normalizedCurrency][entryMonth];
+        if (Number.isFinite(monthRate)) return monthRate;
+        // Fallback: most recent prior month in the same year
+        for (let m = entryMonth - 1; m >= 1; m--) {
+          const fallback = budgetRatesByMonth[normalizedCurrency][m];
+          if (Number.isFinite(fallback)) return fallback;
+        }
+      }
+    }
+
+    // Fallback to flat rate map
     const rate = budgetRates[normalizedCurrency];
     return Number.isFinite(rate) ? rate : undefined;
-  }, [entryForm.currency, budgetRates]);
+  }, [entryForm.currency, entryForm.date, budgetRates, budgetRatesByMonth]);
 
   const computedBaseAmount = useMemo(() => {
     const parsedAmount = parseNumericInput(entryForm.amount);

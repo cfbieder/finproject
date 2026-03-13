@@ -20,7 +20,7 @@ Future work, known issues, and improvement proposals for the Fin application.
 Items from active development notes:
 
 - [x] Add Program Settings page with configurable default budget year
-- [ ] Add option to update budget FX rates on transactions page
+- [x] Add monthly budget FX rates page (`/budget-fx`) with per-month, per-year rates and recalculate from actual
 - [ ] Test to check if fx rates in fc periods work, if changed
 - [x] Add COA management (SQL-based; frontend CRUD at `/coa-management`)
 - [ ] Review how income, growth and expense calculated in fcbuilder / put tooltips
@@ -31,6 +31,7 @@ Items from active development notes:
 - [x] Add some KPIs to Budget Page and Forecast Page with graphics
 - [ ] Add way to re-export changes back to PocketSmith
 - [ ] Start on Option Analysis
+- [ ] Move Forecast FX Assumptions from Settings `/fx-options` to Forecasting category
 
 ---
 
@@ -217,6 +218,8 @@ Timeline of the MongoDB-to-PostgreSQL migration and infrastructure changes.
 
 | Date | Event |
 |------|-------|
+| 2026-03-13 | **Monthly Budget FX Rates:** Added new `/budget-fx` page under Budgeting category for managing monthly exchange rates per currency per year. New `budget_fx_rates` table (migration `004_budget_fx_rates.sql`) stores rates with budget convention (X foreign currency per 1 USD). Features: year selector, 12-month x N-currency table with double-click inline editing, per-month "Recalculate" button that fetches average actual FX from `exchange_rates` table, shows preview modal (current rate, new avg actual, data points, entries affected), and on confirm updates both the rate and all affected budget entries' `base_amount`. Backend: new repository `budgetFxRates.js` with 7 functions, 5 new endpoints on `/api/v2/budget/fx-rates/*`. Integration: `useCurrencyData` hook now loads all rates for the budget year and builds `budgetRatesByMonth` map; `BudgetInput.jsx` uses month-specific rates; `useBudgetEntrySubmit` strips `BaseAmount` for multi-month entries so backend calculates per-month; `budget.js` repository `create()` now checks `budget_fx_rates` before falling back to `exchange_rates` table. Moved budget rates section out of `/fx-options` (Settings) — FX Options now only shows Forecast FX Assumptions. New files: `BudgetFX.jsx`, `BudgetFX.css`, `budgetFxRates.js`, `004_budget_fx_rates.sql`. Modified: `budget.js` routes + repo, `routes.jsx`, `useCurrencyData.js`, `BudgetInput.jsx`, `useBudgetEntrySubmit.js`, `FXOptions.jsx`. |
+| 2026-03-13 | **Docker cleanup in backup cron:** Added Docker pruning to `backup-to-remote.sh` (step 8). Prunes build cache, dangling images, stopped containers, and unused networks older than 48 hours. Runs as part of the existing every-2-days crontab schedule. Preserves recent builds by using `--filter "until=48h"`. |
 | 2026-03-11 | **KPI Summary Cards:** Added KPI summary cards with Recharts mini-charts to Budget Realization and Forecast Review pages. Installed `recharts` library. New shared component `KpiCards.jsx` + `KpiCards.css` — reusable `KpiCard` (title, value, trend icon, change indicator, mini area/bar chart) and `KpiCardRow` (responsive grid container). **Budget Realization** shows 4 cards: Income (actual vs budget bar), Expenses (actual vs budget bar), Net Cash Flow (variance bar), Savings Rate (percentage). **Forecast Review** shows 4 cards: Total Assets (area trend), Net Cash Flow (area trend), Income (area trend), Expenses (area trend) — all across forecast years with year-over-year change indicators. |
 | 2026-03-11 | **Export to Excel:** Added client-side Excel (.xlsx) export to 6 pages using SheetJS (`xlsx` package). New shared utility `frontend/src/utils/excelExporter.js` with functions: `exportBalanceSheet` (hierarchical with Net Worth), `exportCashFlow` (hierarchical with periods), `exportBudgetRealization` (budget/actual/variance), `exportTransactions` (flat table). Export buttons added to: Balance Sheet (`BalanceDateSelector`), Cash Flow (`CashFlowDateSelectorMonthYear`), Budget Realization (`BudgetRealizationContent`), Actual Transactions (`TransactionFilterActual`), Budget Transactions (`TransactionFilterBudget`). Cash Flow Monthly upgraded from CSV to Excel export. All exports flatten hierarchical trees with indentation and proper column widths. |
 | 2026-03-11 | **Liability expense percent fix:** Fixed sign logic in `fcbuilder-module.js` line 190 where `expPct` was always negated (`-expPct`), which was correct for assets but wrong for liabilities. Now checks `module.AccountType` — for liabilities, the expense percentage is kept as-is so users can enter positive values. Added `a.account_type` to module queries in `forecast/index.js`, `repositories/forecast.js` (`findModulesByScenario`, `findModuleById`). Updated `FCModulesEdit.jsx` tooltip for ExpensePct field to show account-type-aware guidance. |
@@ -252,4 +255,4 @@ Timeline of the MongoDB-to-PostgreSQL migration and infrastructure changes.
 
 ---
 
-*Last updated: 2026-03-11*
+*Last updated: 2026-03-13*
