@@ -430,6 +430,69 @@ async function split(id, splits) {
   });
 }
 
+/**
+ * Neutralize a transaction by creating an offsetting entry.
+ * Used for brokerage security trades where a purchase/sale should not
+ * change the account balance (cash exchanged for shares).
+ *
+ * Creates an offsetting transaction with negated amount, assigns both
+ * the original and offset to the "Transfer - Security Trade" category,
+ * and marks both as accepted.
+ *
+ * @param {number} id - Original transaction ID
+ * @param {number} categoryId - Category ID for "Transfer - Security Trade"
+ * @returns {Promise<{original: object, offset: object}>}
+ */
+async function neutralize(id, categoryId) {
+  const original = await findById(id);
+  if (!original) throw new Error('Transaction not found');
+
+  const negatedAmount = parseFloat((-parseFloat(original.amount)).toFixed(2));
+  const negatedBaseAmount = parseFloat((-parseFloat(original.base_amount)).toFixed(2));
+
+  return db.transaction(async (client) => {
+    // Update original: set category and mark accepted
+    const updateSql = `
+      UPDATE transactions
+      SET category_id = $1, accepted = TRUE, updated_at = NOW()
+      WHERE id = $2
+      RETURNING *
+    `;
+    const updatedResult = await client.query(updateSql, [categoryId, id]);
+
+    // Create offsetting transaction
+    const insertSql = `
+      INSERT INTO transactions (
+        ps_id, transaction_date, description1, description2,
+        amount, currency, base_amount, base_currency,
+        transaction_type, account_id, closing_balance,
+        category_id, labels, memo, note, bank, source, accepted
+      )
+      VALUES (NULL, $1, $2, $3, $4, $5, $6, $7, $8, $9, NULL, $10, $11, $12, $13, $14, $15, TRUE)
+      RETURNING *
+    `;
+    const offsetResult = await client.query(insertSql, [
+      original.transaction_date,
+      original.description1,
+      original.description2,
+      negatedAmount,
+      original.currency,
+      negatedBaseAmount,
+      original.base_currency,
+      original.transaction_type,
+      original.account_id,
+      categoryId,
+      original.labels,
+      original.memo,
+      original.note,
+      original.bank,
+      'auto-offset'
+    ]);
+
+    return { original: updatedResult.rows[0], offset: offsetResult.rows[0] };
+  });
+}
+
 module.exports = {
   findAll,
   findAllExtended,
@@ -441,5 +504,6 @@ module.exports = {
   create,
   update,
   remove,
-  split
+  split,
+  neutralize
 };

@@ -231,6 +231,20 @@
   box-shadow: 0 4px 12px -2px rgba(91, 33, 182, 0.3);
 }
 
+/* Neutralize button styling */
+.trans-filter-actual__action-btn--neutralize {
+  border-color: #fdba74;
+  color: #9a3412;
+  background: #fff7ed;
+}
+
+.trans-filter-actual__action-btn--neutralize:hover:not(:disabled) {
+  background: #9a3412;
+  color: white;
+  border-color: #9a3412;
+  box-shadow: 0 4px 12px -2px rgba(154, 52, 18, 0.3);
+}
+
 /* Clear Filters button styling */
 .trans-filter-actual__action-btn--clear {
   border-color: var(--border, #e2e8f0);

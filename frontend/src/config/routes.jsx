@@ -81,7 +81,7 @@ export const CATEGORY_META = {
     icon: Receipt,
   },
   Settings: {
-    description: "Configure exchange rates, chart of accounts, and preferences",
+    description: "Configure chart of accounts and application preferences",
     icon: Settings2,
   },
 };
@@ -217,6 +217,14 @@ export const routes = [
     description: "Review and analyze generated forecasts",
     icon: Eye,
   },
+  {
+    path: "/fx-options",
+    component: FXOptions,
+    label: "Forecast FX Assumptions",
+    category: "Forecasting",
+    description: "Manage exchange rate assumptions for forecast scenarios",
+    icon: DollarSign,
+  },
 
   // Reports & Graphs > Reports
   {
@@ -277,14 +285,6 @@ export const routes = [
   },
 
   // Settings
-  {
-    path: "/fx-options",
-    component: FXOptions,
-    label: "FX Options",
-    category: "Settings",
-    description: "Configure forecast exchange rate assumptions",
-    icon: DollarSign,
-  },
   {
     path: "/coa-management",
     component: COAManagement,

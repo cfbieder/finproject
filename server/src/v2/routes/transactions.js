@@ -216,6 +216,29 @@ router.post('/:id/split', async (req, res, next) => {
   }
 });
 
+// POST /api/v2/transactions/:id/neutralize
+// Creates an offsetting entry for brokerage security trades.
+// Both transactions are categorized as "Transfer - Security Trade" and marked accepted.
+router.post('/:id/neutralize', async (req, res, next) => {
+  try {
+    const id = parseInt(req.params.id);
+    const categoryName = req.body.category_name || 'Transfer - Security Trade';
+
+    // Resolve category name to ID
+    const category = await categoriesRepo.findByName(categoryName);
+    if (!category) {
+      return res.status(400).json({
+        error: `Category "${categoryName}" not found. Please create it in COA Management first.`
+      });
+    }
+
+    const result = await repo.neutralize(id, category.id);
+    res.json({ data: result });
+  } catch (error) {
+    next(error);
+  }
+});
+
 // DELETE /api/v2/transactions/:id
 router.delete('/:id', async (req, res, next) => {
   try {

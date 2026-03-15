@@ -310,6 +310,41 @@ export default function TransActual() {
     setSplits([]);
   }, []);
 
+  // Neutralize transaction (brokerage security trades)
+  const [isNeutralizing, setIsNeutralizing] = useState(false);
+
+  const handleNeutralizeClick = useCallback(async () => {
+    if (selectedRows.size !== 1) return;
+    const entry = [...selectedRows.values()][0];
+    const id = entry?.id ?? entry?._id;
+    if (!id || typeof id !== "number") {
+      showErrorToast("Cannot neutralize: transaction not synced to database");
+      return;
+    }
+
+    setIsNeutralizing(true);
+    try {
+      const response = await fetch(
+        Rest.buildUrl(`${config.endpoint}/${id}/neutralize`),
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({}),
+        }
+      );
+      if (!response.ok) {
+        const body = await response.json().catch(() => null);
+        throw new Error(body?.error || "Failed to neutralize transaction");
+      }
+      showSuccess("Transaction neutralized — offsetting entry created");
+      await handleSuccess();
+    } catch (err) {
+      showErrorToast(err?.message ?? "Failed to neutralize transaction");
+    } finally {
+      setIsNeutralizing(false);
+    }
+  }, [selectedRows, config.endpoint, handleSuccess, showSuccess, showErrorToast]);
+
   const safeCategoryOptions = useMemo(
     () => normalizeStringOptions(categoryOptions, edit.editFormValues.Category ?? ""),
     [categoryOptions, edit.editFormValues.Category]
@@ -357,10 +392,12 @@ export default function TransActual() {
           onDeleteClick={del.handleDeleteRequest}
           onEditClick={edit.handleEditRequest}
           onSplitClick={handleSplitClick}
+          onNeutralizeClick={handleNeutralizeClick}
           onSelectAllToggle={handleSelectAllToggle}
           canDelete={selectedRows.size > 0}
           canEdit={selectedRows.size > 0}
           canSplit={selectedRows.size === 1}
+          canNeutralize={selectedRows.size === 1 && !isNeutralizing}
           isAllSelected={isAllSelected}
           filteredTotalsByCurrency={filteredTotalsByCurrency}
           onExport={handleExport}

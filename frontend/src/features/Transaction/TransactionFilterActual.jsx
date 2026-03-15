@@ -36,9 +36,11 @@ export default function TransactionFilterActual({
   onSelectAllToggle,
   onEditClick,
   onSplitClick,
+  onNeutralizeClick,
   canDelete,
   canEdit,
   canSplit,
+  canNeutralize = false,
   isAllSelected,
   filteredTotalsByCurrency = [],
   onExport,
@@ -352,6 +354,14 @@ export default function TransactionFilterActual({
                 disabled={!canSplit}
               >
                 Split
+              </button>
+              <button
+                className="trans-filter-actual__action-btn trans-filter-actual__action-btn--neutralize"
+                type="button"
+                onClick={onNeutralizeClick}
+                disabled={!canNeutralize}
+              >
+                Neutralize
               </button>
               <button
                 className="trans-filter-actual__action-btn"

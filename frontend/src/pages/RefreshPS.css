@@ -273,6 +273,30 @@
   cursor: not-allowed;
 }
 
+/* Neutralize button */
+.refresh-ps-btn--neutralize {
+  padding: 0.4rem 1rem;
+  border-radius: 0.5rem;
+  border: 1px solid #fdba74;
+  background: #fff7ed;
+  color: #9a3412;
+  font-size: 0.8rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.refresh-ps-btn--neutralize:hover:not(:disabled) {
+  background: #fed7aa;
+  border-color: #9a3412;
+  box-shadow: 0 2px 8px -2px rgba(154, 52, 18, 0.25);
+}
+
+.refresh-ps-btn--neutralize:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
 @media (max-width: 640px) {
   .refresh-ps-toolbar {
     padding: 1rem 1.25rem 0.75rem;

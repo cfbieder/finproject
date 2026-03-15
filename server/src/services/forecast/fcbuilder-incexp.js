@@ -148,6 +148,23 @@ async function processModule(module, scenario, df_assumptions, df_categories, ca
   const periodStart = years[0];
   const inflationLen = inflationSeries.length;
 
+  // Build FX rate array for non-USD currencies
+  const fxrates = new Array(yearsCount).fill(1);
+  if (module.Currency && module.Currency !== "USD") {
+    const fxColumn =
+      module.Currency === "PLN" ? categories[2] :
+      module.Currency === "EUR" ? categories[3] : null;
+    if (fxColumn && df_assumptions.columns.includes(fxColumn)) {
+      const fxSeries = df_assumptions.column(fxColumn).values;
+      for (let i = 0, year = startyear; year <= endyear; i++, year++) {
+        const idx = year - periodStart;
+        if (idx >= 0 && idx < fxSeries.length) {
+          fxrates[i] = fxSeries[idx];
+        }
+      }
+    }
+  }
+
   const changeDValues = new Array(yearsCount).fill(0);
   const changePValues = new Array(yearsCount);
   const changeOValues = new Array(yearsCount).fill(0);
@@ -204,8 +221,15 @@ async function processModule(module, scenario, df_assumptions, df_categories, ca
     }
   }
 
+  // Convert LC to USD using FX rates
+  const incexpValuesUSD = new Array(yearsCount);
+  const taxValuesUSD = new Array(yearsCount);
+  const cashChangeUSD = new Array(yearsCount);
+
   for (let i = 0; i < yearsCount; i++) {
-    cashChange[i] = incexpValues[i] + taxValues[i];
+    incexpValuesUSD[i] = incexpValues[i] / fxrates[i];
+    taxValuesUSD[i] = taxValues[i] / fxrates[i];
+    cashChangeUSD[i] = incexpValuesUSD[i] + taxValuesUSD[i];
   }
 
   // Clear and populate df_categories
@@ -215,19 +239,19 @@ async function processModule(module, scenario, df_assumptions, df_categories, ca
   }
 
   let categoryRowIndex = df_categories.index.indexOf(module.Account);
-  writeValuesToCategoryRow(categoryRowIndex, df_categories, incexpValues, startyear);
+  writeValuesToCategoryRow(categoryRowIndex, df_categories, incexpValuesUSD, startyear);
 
   if (module.Account === "Taxes") {
-    for (let i = 0; i < taxValues.length; i++) {
-      taxValues[i] += incexpValues[i];
+    for (let i = 0; i < taxValuesUSD.length; i++) {
+      taxValuesUSD[i] += incexpValuesUSD[i];
     }
   }
 
   categoryRowIndex = df_categories.index.indexOf("Taxes");
-  writeValuesToCategoryRow(categoryRowIndex, df_categories, taxValues, startyear);
+  writeValuesToCategoryRow(categoryRowIndex, df_categories, taxValuesUSD, startyear);
 
   categoryRowIndex = df_categories.index.indexOf("Bank Accounts");
-  writeValuesToCategoryRow(categoryRowIndex, df_categories, cashChange, startyear);
+  writeValuesToCategoryRow(categoryRowIndex, df_categories, cashChangeUSD, startyear);
 
   // Write audit trail
   writeEntriesAuditTrail(df_categories, scenario?.Name, module?.Account);
