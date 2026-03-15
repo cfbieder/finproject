@@ -495,6 +495,22 @@ export default class Rest {
   }
 
   /**
+   * Fetch category trend report (actual vs budget by month for selected categories)
+   */
+  static async fetchCategoryTrend({ startDate, endDate, categories } = {}) {
+    const params = new URLSearchParams();
+    if (startDate) params.set("startDate", startDate);
+    if (endDate) params.set("endDate", endDate);
+    if (Array.isArray(categories)) {
+      for (const cat of categories) {
+        if (cat) params.append("category", cat);
+      }
+    }
+    const query = params.toString();
+    return Rest.fetchJson(`/api/v2/reports/category-trend${query ? `?${query}` : ""}`);
+  }
+
+  /**
    * Delete budget entry via v2 API
    */
   static async deleteBudgetEntryV2(id) {

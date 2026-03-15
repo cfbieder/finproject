@@ -55,6 +55,7 @@ const TransBudget = lazy(() => import("../pages/TransBudget"));
 const UploadPS = lazy(() => import("../pages/UploadPS"));
 const COAManagement = lazy(() => import("../pages/COAManagement"));
 const BudgetFX = lazy(() => import("../pages/BudgetFX"));
+const CategoryTrend = lazy(() => import("../pages/CategoryTrend"));
 
 /**
  * Category metadata for landing pages.
@@ -264,6 +265,15 @@ export const routes = [
     subcategory: "Graphs",
     description: "Visualize net worth and asset growth over time",
     icon: LineChart,
+  },
+  {
+    path: "/category-trend",
+    component: CategoryTrend,
+    label: "Category Trend",
+    category: "Reports & Graphs",
+    subcategory: "Graphs",
+    description: "Track category spending or income trends vs budget over time",
+    icon: TrendingUp,
   },
 
   // Database

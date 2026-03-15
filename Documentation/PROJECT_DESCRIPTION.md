@@ -125,7 +125,7 @@ psproject/                          # ~/Programs/fin symlinks here
 │       ├── hooks/               # Custom React hooks (useAPI, useCoa, useFormState, useModal)
 │       ├── utils/               # Shared helpers (formatters, dateHelpers, cashFlowHelpers, forecastHelpers, treeTraversal, excelExporter)
 │       ├── js/                  # API helpers (rest.js, handleUpload.js)
-│       └── pages/               # Page components (21 pages + category landing)
+│       └── pages/               # Page components (22 pages + category landing)
 ├── server/                      # Express API server
 │   ├── Dockerfile
 │   ├── package.json
@@ -183,6 +183,7 @@ psproject/                          # ~/Programs/fin symlinks here
 | `/cash-flow` | CashFlow | Reports & Graphs | Cash flow P&L analysis |
 | `/cash-flow-monthly` | CashFlowMonthly | Reports & Graphs | Monthly cash flow breakdown |
 | `/balance-chart` | BalanceChart | Reports & Graphs | Net worth chart over time |
+| `/category-trend` | CategoryTrend | Reports & Graphs | Grouped bar chart comparing actual vs budget monthly values for selected income/expense categories over a standard period (YTD, This Year, Last Year, Last 6/12/24 Months). Expense values displayed as positive for visual comparison. |
 | `/trans-actual` | TransActual | Transactions | Actual transactions browser with collapsible filter bar (PeriodSelector, CategorySelector, AccountSelector), description search, value range filters, Clear Filters button, date format mm/dd/yy, optimized column widths (noWrap amounts, ellipsis description). Edit modal supports Date, Description, and Category (Amount, Currency, Account are PS-sourced and not editable). Uses hierarchical `CategorySelector` via `plTree` prop. **Split Transaction:** Select a single transaction and click "Split" to open a modal that divides the original amount across 2-5 entries, each with optional category selection. Uses `POST /api/v2/transactions/:id/split`. **Neutralize:** Select a single transaction and click "Neutralize" to create an offsetting entry for brokerage security trades. Uses `POST /api/v2/transactions/:id/neutralize`. |
 | `/trans-budget` | TransBudget | Transactions | Budget transactions browser with collapsible filter bar (PeriodSelector, CategorySelector, AccountSelector), value range filters, Clear Filters button, date format mm/dd/yy, optimized column widths (noWrap amounts, ellipsis description). Edit modal uses hierarchical `CategorySelector` via `plTree` prop. |
 | `/fx-options` | FXOptions | Forecasting | Forecast FX assumptions (budget rates at `/budget-fx`) |
@@ -313,6 +314,7 @@ All endpoints mounted at `/api/v2`. Nginx rewrites legacy `/api/*` paths to `/ap
 
 #### Reports (`/api/v2/reports`)
 - `GET /balance` — Balance sheet | `GET /cash-flow` — P&L report | `GET /cash-flow/transactions` — Transactions by category
+- `GET /category-trend?startDate=&endDate=&category=` — Monthly actual vs budget by category (repeatable `category` param)
 
 #### Transactions (`/api/v2/transactions`)
 - `GET /` — List (with filtering, pagination) | `GET /summary/by-category` | `GET /summary/by-month`
@@ -627,4 +629,4 @@ docker compose -f docker-compose.dev.yml down        # Development
 
 ---
 
-*Last updated: 2026-03-11*
+*Last updated: 2026-03-15*

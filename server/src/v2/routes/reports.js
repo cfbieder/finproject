@@ -494,4 +494,110 @@ router.get('/cash-flow/transactions', async (req, res, next) => {
   }
 });
 
+// ============================================================================
+// Category Trend Report
+// ============================================================================
+
+/**
+ * GET /api/v2/reports/category-trend
+ * Returns monthly actual and budget totals for selected categories over a date range.
+ *
+ * Query params:
+ *   startDate  - YYYY-MM-DD (required)
+ *   endDate    - YYYY-MM-DD (required)
+ *   category   - category name(s), repeat for multiple (required, at least one)
+ *
+ * Response: {
+ *   months: ["2025-01", "2025-02", ...],
+ *   actual: { "2025-01": number, ... },
+ *   budget: { "2025-01": number, ... }
+ * }
+ */
+router.get('/category-trend', async (req, res, next) => {
+  try {
+    const { startDate, endDate, category } = req.query;
+
+    if (!startDate || !endDate) {
+      return res.status(400).json({ error: 'startDate and endDate are required' });
+    }
+    if (!isValidDateString(startDate) || !isValidDateString(endDate)) {
+      return res.status(400).json({ error: 'Invalid date format. Use YYYY-MM-DD.' });
+    }
+
+    const categoryList = Array.isArray(category) ? category : (category ? [category] : []);
+    if (categoryList.length === 0) {
+      return res.status(400).json({ error: 'At least one category is required' });
+    }
+
+    // Build category placeholders
+    const categoryPlaceholders = categoryList.map((_, i) => `$${i + 1}`).join(', ');
+    const baseParams = [...categoryList];
+    const dateStartIdx = baseParams.length + 1;
+
+    // Query actual transactions by month
+    const actualSql = `
+      SELECT
+        TO_CHAR(DATE_TRUNC('month', t.transaction_date), 'YYYY-MM') as month,
+        SUM(t.base_amount) as total
+      FROM transactions t
+      JOIN categories c ON t.category_id = c.id
+      WHERE c.name IN (${categoryPlaceholders})
+        AND t.transaction_date >= $${dateStartIdx}
+        AND t.transaction_date <= $${dateStartIdx + 1}
+      GROUP BY DATE_TRUNC('month', t.transaction_date)
+      ORDER BY month
+    `;
+
+    // Query budget entries by month
+    const budgetSql = `
+      SELECT
+        TO_CHAR(DATE_TRUNC('month', e.entry_date), 'YYYY-MM') as month,
+        SUM(e.base_amount) as total
+      FROM budget_entries e
+      JOIN categories c ON e.category_id = c.id
+      WHERE c.name IN (${categoryPlaceholders})
+        AND e.entry_date >= $${dateStartIdx}
+        AND e.entry_date <= $${dateStartIdx + 1}
+      GROUP BY DATE_TRUNC('month', e.entry_date)
+      ORDER BY month
+    `;
+
+    const allParams = [...baseParams, startDate, endDate];
+
+    const [actualResult, budgetResult] = await Promise.all([
+      db.query(actualSql, allParams),
+      db.query(budgetSql, allParams),
+    ]);
+
+    // Build month sequence between startDate and endDate
+    const start = new Date(startDate + 'T00:00:00Z');
+    const end = new Date(endDate + 'T00:00:00Z');
+    const months = [];
+    const cursor = new Date(Date.UTC(start.getUTCFullYear(), start.getUTCMonth(), 1));
+    const lastMonth = new Date(Date.UTC(end.getUTCFullYear(), end.getUTCMonth(), 1));
+    while (cursor <= lastMonth) {
+      const y = cursor.getUTCFullYear();
+      const m = String(cursor.getUTCMonth() + 1).padStart(2, '0');
+      months.push(`${y}-${m}`);
+      cursor.setUTCMonth(cursor.getUTCMonth() + 1);
+    }
+
+    // Build month -> total maps
+    const actual = {};
+    for (const row of actualResult.rows) {
+      actual[row.month] = parseFloat(row.total) || 0;
+    }
+
+    const budget = {};
+    for (const row of budgetResult.rows) {
+      budget[row.month] = parseFloat(row.total) || 0;
+    }
+
+    res.json({ months, actual, budget });
+  } catch (error) {
+    console.error('[v2/reports/category-trend] Failed:', error);
+    next(error);
+  }
+});
+
 module.exports = router;

@@ -1,4 +1,4 @@
-import { useCallback, useMemo, useState } from "react";
+import { useCallback, useMemo, useRef, useState } from "react";
 import "./CategorySelector.css";
 
 // ============================================================================
@@ -99,11 +99,16 @@ function groupModifier(value) {
  * Reusable shared component – accepts a `plTree` (from useCoa) to render
  * categories in hierarchy order with type-to-filter search and group presets.
  *
+ * Selection modes:
+ * - Default: click selects single, ctrl/cmd+click toggles multi-select
+ * - multiSelect prop: click always toggles, shift+click selects range
+ *
  * @param {Object} props
  * @param {Array}    props.plTree              – COA tree [{name, children}, …]
  * @param {string[]} props.selectedCategories  – Currently selected values
  * @param {Function} props.onCategoriesChange  – (nextSelected: string[]) => void
  * @param {Array}    props.categoryGroupOptions – [{value, label, disabled}]
+ * @param {boolean}  [props.multiSelect]       – Always-on multi-select with shift-click range
  * @param {string}   [props.id]                – Root element ID
  * @param {string}   [props.className]         – Additional CSS class
  */
@@ -112,10 +117,12 @@ export default function CategorySelector({
   selectedCategories = [],
   onCategoriesChange,
   categoryGroupOptions = [],
+  multiSelect = false,
   id = "category-selector",
   className = "",
 }) {
   const [filterText, setFilterText] = useState("");
+  const lastClickedRef = useRef(null);
 
   // Flatten tree into ordered display list
   const flattenedHierarchy = useMemo(() => flattenPlTree(plTree), [plTree]);
@@ -124,6 +131,12 @@ export default function CategorySelector({
   const filteredItems = useMemo(
     () => filterHierarchy(flattenedHierarchy, filterText),
     [flattenedHierarchy, filterText]
+  );
+
+  // Leaf-only items for shift-click range (uses filtered list)
+  const leafItems = useMemo(
+    () => filteredItems.filter((item) => item.type === "leaf"),
+    [filteredItems]
   );
 
   // O(1) lookup for selected state
@@ -140,9 +153,35 @@ export default function CategorySelector({
 
   const handleItemClick = useCallback(
     (categoryName, event) => {
+      if (multiSelect) {
+        // Multi-select mode: shift+click selects range, plain click toggles
+        if (event?.shiftKey && lastClickedRef.current) {
+          // Range select: find indices of last-clicked and current in leaf list
+          const lastIdx = leafItems.findIndex((l) => l.name === lastClickedRef.current);
+          const curIdx = leafItems.findIndex((l) => l.name === categoryName);
+          if (lastIdx >= 0 && curIdx >= 0) {
+            const from = Math.min(lastIdx, curIdx);
+            const to = Math.max(lastIdx, curIdx);
+            const rangeNames = leafItems.slice(from, to + 1).map((l) => l.name);
+            const merged = new Set([...selectedCategories, ...rangeNames]);
+            onCategoriesChange([...merged]);
+            // Don't update lastClickedRef on shift-click
+            return;
+          }
+        }
+        // Toggle single item
+        lastClickedRef.current = categoryName;
+        if (selectedSet.has(categoryName)) {
+          onCategoriesChange(selectedCategories.filter((c) => c !== categoryName));
+        } else {
+          onCategoriesChange([...selectedCategories, categoryName]);
+        }
+        return;
+      }
+
+      // Original mode: ctrl/cmd toggles, plain click selects single
       const isCtrl = event && (event.ctrlKey || event.metaKey);
       if (isCtrl) {
-        // Ctrl+click: toggle item in/out of multi-selection
         if (selectedSet.has(categoryName)) {
           onCategoriesChange(selectedCategories.filter((c) => c !== categoryName));
         } else {
@@ -151,11 +190,10 @@ export default function CategorySelector({
           onCategoriesChange(next);
         }
       } else {
-        // Plain click: select only this item
         onCategoriesChange([categoryName]);
       }
     },
-    [selectedCategories, selectedSet, groupValueSet, onCategoriesChange]
+    [selectedCategories, selectedSet, groupValueSet, onCategoriesChange, multiSelect, leafItems]
   );
 
   const handleGroupClick = useCallback(
