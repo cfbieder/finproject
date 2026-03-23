@@ -99,7 +99,10 @@ export default function TransactionTable({
   onDescriptionClick,
   onCategoryClick,
   onAcceptClick,
+  onSplitClick,
+  onNeutralizeClick,
 }) {
+  const hasRowActions = !!(onAcceptClick || onSplitClick || onNeutralizeClick);
   const label = config.logPrefix === "TransActual" ? "Actual"
     : config.logPrefix === "ReviewNew" ? "New"
     : "Budget";
@@ -160,8 +163,8 @@ export default function TransactionTable({
                       </button>
                     </th>
                   ))}
-                  {onAcceptClick && (
-                    <th className="trans-budget-table__accept-header">Accept</th>
+                  {hasRowActions && (
+                    <th className="trans-budget-table__actions-header">Actions</th>
                   )}
                 </tr>
               </thead>
@@ -211,19 +214,60 @@ export default function TransactionTable({
                         </td>
                       );
                     })}
-                    {onAcceptClick && (
-                      <td className="trans-budget-table__accept-cell">
-                        <button
-                          type="button"
-                          className="trans-budget-table__accept-btn"
-                          onClick={(event) => {
-                            event.stopPropagation();
-                            onAcceptClick(rowId, entry);
-                          }}
-                          aria-label={`Accept transaction ${rowId}`}
-                        >
-                          Accept
-                        </button>
+                    {hasRowActions && (
+                      <td className="trans-budget-table__actions-cell">
+                        {onCategoryClick && (
+                          <button
+                            type="button"
+                            className="trans-budget-table__action-btn trans-budget-table__action-btn--category"
+                            onClick={(event) => {
+                              event.stopPropagation();
+                              onCategoryClick(rowId, entry);
+                            }}
+                            aria-label={`Change category for transaction ${rowId}`}
+                          >
+                            Category
+                          </button>
+                        )}
+                        {onSplitClick && (
+                          <button
+                            type="button"
+                            className="trans-budget-table__action-btn trans-budget-table__action-btn--split"
+                            onClick={(event) => {
+                              event.stopPropagation();
+                              onSplitClick(rowId, entry);
+                            }}
+                            aria-label={`Split transaction ${rowId}`}
+                          >
+                            Split
+                          </button>
+                        )}
+                        {onNeutralizeClick && (
+                          <button
+                            type="button"
+                            className="trans-budget-table__action-btn trans-budget-table__action-btn--neutralize"
+                            onClick={(event) => {
+                              event.stopPropagation();
+                              onNeutralizeClick(rowId, entry);
+                            }}
+                            aria-label={`Neutralize transaction ${rowId}`}
+                          >
+                            Neutralize
+                          </button>
+                        )}
+                        {onAcceptClick && (
+                          <button
+                            type="button"
+                            className="trans-budget-table__action-btn trans-budget-table__action-btn--accept"
+                            onClick={(event) => {
+                              event.stopPropagation();
+                              onAcceptClick(rowId, entry);
+                            }}
+                            aria-label={`Accept transaction ${rowId}`}
+                          >
+                            Accept
+                          </button>
+                        )}
                       </td>
                     )}
                   </tr>
@@ -279,7 +323,7 @@ export function useTransactionAccountOptions() {
 
     (async () => {
       try {
-        const accounts = await Rest.fetchAccountsV2({ activeOnly: true, section: 'balance_sheet' });
+        const accounts = await Rest.fetchAccountsV2({ activeOnly: true, section: 'balance_sheet', leafOnly: true });
         if (!isActive) {
           return;
         }

@@ -160,13 +160,14 @@
 
 .trans-filter-actual__actions {
   display: flex;
+  flex-wrap: wrap;
   gap: 0.5rem;
-  margin-top: auto;
-  padding-top: 0.5rem;
+  margin-top: 1rem;
+  padding-top: 0.75rem;
+  border-top: 1px solid rgba(37, 99, 235, 0.1);
 }
 
 .trans-filter-actual__action-btn {
-  flex: 1;
   min-width: 70px;
   padding: 0.55rem 0.75rem;
   border-radius: 0.6rem;

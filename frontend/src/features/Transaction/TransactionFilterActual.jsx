@@ -250,7 +250,7 @@ export default function TransactionFilterActual({
       </div>
 
       {/* Collapsible filter grid */}
-      {!filtersCollapsed && (
+      {!filtersCollapsed && (<>
         <div className="trans-filter-actual__grid">
           {/* Column 1: Period + Description + Value Range + Actions */}
           <div className="trans-filter-actual__column trans-filter-actual__column--period">
@@ -338,66 +338,6 @@ export default function TransactionFilterActual({
               </div>
             </div>
 
-            <div className="trans-filter-actual__actions">
-              <button
-                className="trans-filter-actual__action-btn"
-                type="button"
-                onClick={onEditClick}
-                disabled={!canEdit}
-              >
-                Edit
-              </button>
-              <button
-                className="trans-filter-actual__action-btn trans-filter-actual__action-btn--split"
-                type="button"
-                onClick={onSplitClick}
-                disabled={!canSplit}
-              >
-                Split
-              </button>
-              <button
-                className="trans-filter-actual__action-btn trans-filter-actual__action-btn--neutralize"
-                type="button"
-                onClick={onNeutralizeClick}
-                disabled={!canNeutralize}
-              >
-                Neutralize
-              </button>
-              <button
-                className="trans-filter-actual__action-btn"
-                type="button"
-                onClick={onSelectAllToggle}
-              >
-                All
-              </button>
-              <button
-                className={`trans-filter-actual__action-btn trans-filter-actual__action-btn--delete${
-                  canDelete ? " trans-filter-actual__action-btn--delete-active" : ""
-                }`}
-                type="button"
-                onClick={onDeleteClick}
-                disabled={!canDelete}
-              >
-                Delete
-              </button>
-              <button
-                className="trans-filter-actual__action-btn trans-filter-actual__action-btn--clear"
-                type="button"
-                onClick={handleClearFilters}
-              >
-                Clear Filters
-              </button>
-              {onExport && (
-                <button
-                  className="trans-filter-actual__action-btn"
-                  type="button"
-                  onClick={onExport}
-                  disabled={!canExport}
-                >
-                  Export
-                </button>
-              )}
-            </div>
           </div>
 
           {/* Column 2: Categories */}
@@ -426,7 +366,69 @@ export default function TransactionFilterActual({
             </div>
           </div>
         </div>
-      )}
+
+        {/* Action buttons — separate row below the filter grid */}
+        <div className="trans-filter-actual__actions">
+          <button
+            className="trans-filter-actual__action-btn"
+            type="button"
+            onClick={onEditClick}
+            disabled={!canEdit}
+          >
+            Edit
+          </button>
+          <button
+            className="trans-filter-actual__action-btn trans-filter-actual__action-btn--split"
+            type="button"
+            onClick={onSplitClick}
+            disabled={!canSplit}
+          >
+            Split
+          </button>
+          <button
+            className="trans-filter-actual__action-btn trans-filter-actual__action-btn--neutralize"
+            type="button"
+            onClick={onNeutralizeClick}
+            disabled={!canNeutralize}
+          >
+            Neutralize
+          </button>
+          <button
+            className="trans-filter-actual__action-btn"
+            type="button"
+            onClick={onSelectAllToggle}
+          >
+            All
+          </button>
+          <button
+            className={`trans-filter-actual__action-btn trans-filter-actual__action-btn--delete${
+              canDelete ? " trans-filter-actual__action-btn--delete-active" : ""
+            }`}
+            type="button"
+            onClick={onDeleteClick}
+            disabled={!canDelete}
+          >
+            Delete
+          </button>
+          <button
+            className="trans-filter-actual__action-btn trans-filter-actual__action-btn--clear"
+            type="button"
+            onClick={handleClearFilters}
+          >
+            Clear Filters
+          </button>
+          {onExport && (
+            <button
+              className="trans-filter-actual__action-btn"
+              type="button"
+              onClick={onExport}
+              disabled={!canExport}
+            >
+              Export
+            </button>
+          )}
+        </div>
+      </>)}
     </section>
   );
 }

@@ -283,6 +283,25 @@ export default function CategorySelector({
         aria-multiselectable="true"
         aria-label="Category list"
       >
+        {/* "All" option — pinned, clears category filter */}
+        {!filterText.trim() && (
+          <div
+            role="option"
+            aria-selected={selectedCategories.length === 0}
+            className={`category-selector__all-item${selectedCategories.length === 0 ? " category-selector__all-item--selected" : ""}`}
+            onClick={() => onCategoriesChange([])}
+            onKeyDown={(e) => {
+              if (e.key === "Enter" || e.key === " ") {
+                e.preventDefault();
+                onCategoriesChange([]);
+              }
+            }}
+            tabIndex={0}
+          >
+            All
+          </div>
+        )}
+
         {filteredItems.length === 0 && filterText.trim() && (
           <div className="category-selector__empty">
             No matching categories

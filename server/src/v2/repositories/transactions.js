@@ -436,11 +436,11 @@ async function split(id, splits) {
  * change the account balance (cash exchanged for shares).
  *
  * Creates an offsetting transaction with negated amount, assigns both
- * the original and offset to the "Transfer - Security Trade" category,
+ * the original and offset to the "Transfer - Securities Trades" category,
  * and marks both as accepted.
  *
  * @param {number} id - Original transaction ID
- * @param {number} categoryId - Category ID for "Transfer - Security Trade"
+ * @param {number} categoryId - Category ID for "Transfer - Securities Trades"
  * @returns {Promise<{original: object, offset: object}>}
  */
 async function neutralize(id, categoryId) {

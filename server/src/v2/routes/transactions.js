@@ -218,11 +218,11 @@ router.post('/:id/split', async (req, res, next) => {
 
 // POST /api/v2/transactions/:id/neutralize
 // Creates an offsetting entry for brokerage security trades.
-// Both transactions are categorized as "Transfer - Security Trade" and marked accepted.
+// Both transactions are categorized as "Transfer - Securities Trades" and marked accepted.
 router.post('/:id/neutralize', async (req, res, next) => {
   try {
     const id = parseInt(req.params.id);
-    const categoryName = req.body.category_name || 'Transfer - Security Trade';
+    const categoryName = req.body.category_name || 'Transfer - Securities Trades';
 
     // Resolve category name to ID
     const category = await categoriesRepo.findByName(categoryName);

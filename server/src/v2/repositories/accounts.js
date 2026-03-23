@@ -10,7 +10,7 @@ const db = require('../db');
 /**
  * Get all accounts
  */
-async function findAll({ section, accountType, activeOnly = true } = {}) {
+async function findAll({ section, accountType, activeOnly = true, leafOnly = false } = {}) {
   const conditions = [];
   const params = [];
   let paramIndex = 1;
@@ -25,6 +25,9 @@ async function findAll({ section, accountType, activeOnly = true } = {}) {
   if (accountType) {
     conditions.push(`a.account_type = $${paramIndex++}`);
     params.push(accountType);
+  }
+  if (leafOnly) {
+    conditions.push('NOT EXISTS (SELECT 1 FROM accounts c WHERE c.parent_id = a.id)');
   }
 
   const whereClause = conditions.length > 0 ? `WHERE ${conditions.join(' AND ')}` : '';

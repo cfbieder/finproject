@@ -50,13 +50,13 @@ export function useFilterOptions() {
       try {
         // Using v2 API (PostgreSQL) for accounts, categories, and category groups
         const [accountsData, categoriesData, categoryGroupPayload] = await Promise.all([
-          Rest.fetchAccountsV2({ activeOnly: true, section: 'balance_sheet' }),
+          Rest.fetchAccountsV2({ activeOnly: true, section: 'balance_sheet', leafOnly: true }),
           Rest.fetchCategoriesV2({ activeOnly: true }),
           Rest.fetchCategoryGroupsV2(),
         ]);
         if (!isMounted) return;
 
-        // Extract names from v2 response objects
+        // Extract names from v2 response objects (leafOnly excludes parent/grouping nodes)
         const accounts = Array.isArray(accountsData)
           ? accountsData.map((acc) => acc?.name).filter(Boolean)
           : [];

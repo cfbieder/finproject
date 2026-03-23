@@ -1118,17 +1118,84 @@
   cursor: default;
 }
 
-/* Accept button in transaction table */
-.trans-budget-table__accept-header {
-  width: 80px;
+/* Row action buttons in transaction table */
+.trans-budget-table__actions-header {
   text-align: center;
+  white-space: nowrap;
 }
 
-.trans-budget-table__accept-cell {
+.trans-budget-table__actions-cell {
   text-align: center;
   padding: 0.25rem 0.4rem;
+  white-space: nowrap;
+  display: flex;
+  gap: 0.25rem;
+  justify-content: center;
+  align-items: center;
 }
 
+.trans-budget-table__action-btn {
+  padding: 0.2rem 0.5rem;
+  border-radius: 0.35rem;
+  font-size: 0.7rem;
+  font-weight: 600;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: all 0.15s ease;
+  border: 1px solid;
+}
+
+/* Accept */
+.trans-budget-table__action-btn--accept {
+  border-color: #86efac;
+  background: #f0fdf4;
+  color: #166534;
+}
+.trans-budget-table__action-btn--accept:hover {
+  background: #dcfce7;
+  border-color: #166534;
+  box-shadow: 0 1px 4px rgba(22, 101, 52, 0.15);
+}
+
+/* Split */
+.trans-budget-table__action-btn--split {
+  border-color: #c4b5fd;
+  background: #f5f3ff;
+  color: #5b21b6;
+}
+.trans-budget-table__action-btn--split:hover {
+  background: #ede9fe;
+  border-color: #5b21b6;
+  box-shadow: 0 1px 4px rgba(91, 33, 182, 0.15);
+}
+
+/* Neutralize */
+.trans-budget-table__action-btn--neutralize {
+  border-color: #fdba74;
+  background: #fff7ed;
+  color: #9a3412;
+}
+.trans-budget-table__action-btn--neutralize:hover {
+  background: #fed7aa;
+  border-color: #9a3412;
+  box-shadow: 0 1px 4px rgba(154, 52, 18, 0.15);
+}
+
+/* Category */
+.trans-budget-table__action-btn--category {
+  border-color: #93c5fd;
+  background: #eff6ff;
+  color: #1e40af;
+}
+.trans-budget-table__action-btn--category:hover {
+  background: #dbeafe;
+  border-color: #1e40af;
+  box-shadow: 0 1px 4px rgba(30, 64, 175, 0.15);
+}
+
+/* Keep legacy class for backward compat */
+.trans-budget-table__accept-header { width: 80px; text-align: center; }
+.trans-budget-table__accept-cell { text-align: center; padding: 0.25rem 0.4rem; }
 .trans-budget-table__accept-btn {
   padding: 0.25rem 0.75rem;
   border-radius: 0.4rem;
@@ -1141,7 +1208,6 @@
   white-space: nowrap;
   transition: all 0.15s ease;
 }
-
 .trans-budget-table__accept-btn:hover {
   background: #dcfce7;
   border-color: #166534;

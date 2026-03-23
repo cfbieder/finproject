@@ -318,11 +318,12 @@ export default class Rest {
   /**
    * Fetch accounts from v2 API (PostgreSQL)
    */
-  static async fetchAccountsV2({ section, type, activeOnly = true } = {}) {
+  static async fetchAccountsV2({ section, type, activeOnly = true, leafOnly = false } = {}) {
     const params = new URLSearchParams();
     if (section) params.set("section", section);
     if (type) params.set("type", type);
     if (activeOnly !== undefined) params.set("activeOnly", String(activeOnly));
+    if (leafOnly) params.set("leafOnly", "true");
 
     const query = params.toString();
     const path = `/api/v2/accounts${query ? `?${query}` : ""}`;

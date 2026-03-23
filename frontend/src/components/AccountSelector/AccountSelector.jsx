@@ -165,10 +165,12 @@ export default function AccountSelector({
   );
 
   const handleAllClick = useCallback(() => {
-    const next = selectedSet.has("All")
-      ? selectedAccounts.filter((a) => a !== "All")
-      : [...selectedAccounts, "All"];
-    onAccountsChange(next);
+    if (selectedSet.has("All")) {
+      onAccountsChange(selectedAccounts.filter((a) => a !== "All"));
+    } else {
+      // Selecting "All" clears individual account selections
+      onAccountsChange(["All"]);
+    }
   }, [selectedAccounts, selectedSet, onAccountsChange]);
 
   const handleNoneClick = useCallback(() => {
@@ -229,7 +231,7 @@ export default function AccountSelector({
         <input
           type="text"
           className="account-selector__search-input"
-          placeholder="Filter accounts\u2026"
+          placeholder="Filter accounts…"
           value={filterText}
           onChange={(e) => setFilterText(e.target.value)}
           aria-label="Filter accounts"

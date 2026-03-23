@@ -206,9 +206,9 @@ export default function TransActual() {
   const [splits, setSplits] = useState([]);
   const [isSavingSplit, setIsSavingSplit] = useState(false);
 
-  const handleSplitClick = useCallback(() => {
-    if (selectedRows.size !== 1) return;
-    const entry = [...selectedRows.values()][0];
+  const handleSplitClick = useCallback((_rowId, entryArg) => {
+    const entry = entryArg || (selectedRows.size === 1 ? [...selectedRows.values()][0] : null);
+    if (!entry) return;
     const originalAmount = Number(entry.Amount);
     if (!Number.isFinite(originalAmount)) return;
 
@@ -313,9 +313,9 @@ export default function TransActual() {
   // Neutralize transaction (brokerage security trades)
   const [isNeutralizing, setIsNeutralizing] = useState(false);
 
-  const handleNeutralizeClick = useCallback(async () => {
-    if (selectedRows.size !== 1) return;
-    const entry = [...selectedRows.values()][0];
+  const handleNeutralizeClick = useCallback(async (_rowId, entryArg) => {
+    const entry = entryArg || (selectedRows.size === 1 ? [...selectedRows.values()][0] : null);
+    if (!entry) return;
     const id = entry?.id ?? entry?._id;
     if (!id || typeof id !== "number") {
       showErrorToast("Cannot neutralize: transaction not synced to database");
@@ -436,6 +436,8 @@ export default function TransActual() {
           sortConfig={sortConfig}
           onSort={handleSort}
           onRowToggle={toggleRowSelection}
+          onSplitClick={handleSplitClick}
+          onNeutralizeClick={handleNeutralizeClick}
         />
         <TransactionEditModal
           config={config}

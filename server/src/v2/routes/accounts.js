@@ -9,11 +9,12 @@ const repo = require('../repositories').accounts;
 // GET /api/v2/accounts - List accounts
 router.get('/', async (req, res, next) => {
   try {
-    const { section, accountType, activeOnly = 'true' } = req.query;
+    const { section, accountType, activeOnly = 'true', leafOnly = 'false' } = req.query;
     const accounts = await repo.findAll({
       section,
       accountType,
-      activeOnly: activeOnly === 'true'
+      activeOnly: activeOnly === 'true',
+      leafOnly: leafOnly === 'true',
     });
     res.json({ data: accounts });
   } catch (error) {

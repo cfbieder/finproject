@@ -519,17 +519,17 @@ export default function RefreshPS() {
    * Split transaction
    **************************/
 
-  const handleSplitClick = useCallback(() => {
-    if (selectedRows.size !== 1) return;
-    const entry = [...selectedRows.values()][0];
-    const originalAmount = Number(entry.Amount);
+  const handleSplitClick = useCallback((_rowId, entry) => {
+    const target = entry || (selectedRows.size === 1 ? [...selectedRows.values()][0] : null);
+    if (!target) return;
+    const originalAmount = Number(target.Amount);
     if (!Number.isFinite(originalAmount)) return;
 
-    setSplitTransaction(entry);
+    setSplitTransaction(target);
     setSplitCount(2);
     setSplits([
-      { amount: originalAmount, categoryName: entry.Category ?? "" },
-      { amount: 0, categoryName: entry.Category ?? "" },
+      { amount: originalAmount, categoryName: target.Category ?? "" },
+      { amount: 0, categoryName: target.Category ?? "" },
     ]);
   }, [selectedRows]);
 
@@ -630,9 +630,9 @@ export default function RefreshPS() {
 
   const [isNeutralizing, setIsNeutralizing] = useState(false);
 
-  const handleNeutralizeClick = useCallback(async () => {
-    if (selectedRows.size !== 1) return;
-    const entry = [...selectedRows.values()][0];
+  const handleNeutralizeClick = useCallback(async (_rowId, entryArg) => {
+    const entry = entryArg || (selectedRows.size === 1 ? [...selectedRows.values()][0] : null);
+    if (!entry) return;
     const id = entry?.id ?? entry?._id;
     if (!id || typeof id !== "number") {
       showErrorToast("Cannot neutralize: transaction not yet synced to database");
@@ -859,40 +859,6 @@ export default function RefreshPS() {
               </p>
               {reviewTransactions.length > 0 && (
                 <div className="refresh-txn-section__actions">
-                  {selectedRows.size > 0 && (
-                    <button
-                      type="button"
-                      className="refresh-ps-btn refresh-ps-btn--bulk-category"
-                      onClick={() => {
-                        setBulkCategoryMode(true);
-                        setCategoryValue("");
-                        setEditingCategory({ rowId: null, entry: null });
-                      }}
-                      disabled={acceptingId != null || isSavingCategory}
-                    >
-                      Change Category ({selectedRows.size})
-                    </button>
-                  )}
-                  {selectedRows.size === 1 && (
-                    <button
-                      type="button"
-                      className="refresh-ps-btn refresh-ps-btn--split"
-                      onClick={handleSplitClick}
-                      disabled={acceptingId != null || isSavingSplit}
-                    >
-                      Split Transaction
-                    </button>
-                  )}
-                  {selectedRows.size === 1 && (
-                    <button
-                      type="button"
-                      className="refresh-ps-btn refresh-ps-btn--neutralize"
-                      onClick={handleNeutralizeClick}
-                      disabled={acceptingId != null || isNeutralizing}
-                    >
-                      {isNeutralizing ? "Neutralizing..." : "Neutralize"}
-                    </button>
-                  )}
                   <button
                     type="button"
                     className="refresh-ps-btn refresh-ps-btn--accept-all"
@@ -913,11 +879,12 @@ export default function RefreshPS() {
               sortedTransactions={sortedReviewTransactions}
               sortConfig={sortConfig}
               onSort={handleSort}
-              showSelection={true}
-              onRowToggle={toggleRowSelection}
+              showSelection={false}
               onDescriptionClick={handleDescriptionClick}
               onCategoryClick={handleCategoryClick}
               onAcceptClick={handleAcceptClick}
+              onSplitClick={handleSplitClick}
+              onNeutralizeClick={handleNeutralizeClick}
             />
             {editingDescription && (
               <div
