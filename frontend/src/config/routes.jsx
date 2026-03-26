@@ -36,8 +36,9 @@ import Home from "../pages/Home";
 // Lazy loaded pages (for code splitting)
 const BackupDatabase = lazy(() => import("../pages/BackupDatabase"));
 const Balance = lazy(() => import("../pages/Balance"));
+const BalanceV2 = lazy(() => import("../pages/BalanceV2"));
 const BalanceChart = lazy(() => import("../pages/BalanceChart"));
-const BudgetInput = lazy(() => import("../pages/BudgetInput"));
+const BudgetInput = lazy(() => import("../pages/BudgetWorksheetV2"));
 const BudgetRealization = lazy(() => import("../pages/BudgetRealization"));
 const BudgetRealizationGraph = lazy(() => import("../pages/BudgetRealizationGraph"));
 const BudgetVariances = lazy(() => import("../pages/BudgetVariances"));
@@ -52,6 +53,7 @@ const ProgramSettings = lazy(() => import("../pages/ProgramSettings"));
 const RefreshPS = lazy(() => import("../pages/RefreshPS"));
 const TransActual = lazy(() => import("../pages/TransActual"));
 const TransBudget = lazy(() => import("../pages/TransBudget"));
+const TransferAnalysis = lazy(() => import("../pages/TransferAnalysis"));
 const UploadPS = lazy(() => import("../pages/UploadPS"));
 const COAManagement = lazy(() => import("../pages/COAManagement"));
 const BudgetFX = lazy(() => import("../pages/BudgetFX"));
@@ -137,6 +139,14 @@ export const routes = [
     category: "Transactions",
     description: "View and manage budget transaction entries",
     icon: FileSpreadsheet,
+  },
+  {
+    path: "/transfer-analysis",
+    component: TransferAnalysis,
+    label: "Transfer Analysis",
+    category: "Transactions",
+    description: "Match and analyze transfer transactions across accounts",
+    icon: ArrowLeftRight,
   },
 
   // Budgeting
@@ -235,6 +245,15 @@ export const routes = [
     category: "Reports & Graphs",
     subcategory: "Reports",
     description: "Balance sheet at specific dates with multi-period comparison",
+    icon: Wallet,
+  },
+  {
+    path: "/balance-v2",
+    component: BalanceV2,
+    label: "Balance V2",
+    showInNav: false,
+    category: null,
+    description: "Redesigned balance sheet (preview)",
     icon: Wallet,
   },
   {

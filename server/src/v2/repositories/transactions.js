@@ -493,6 +493,84 @@ async function neutralize(id, categoryId) {
   });
 }
 
+/**
+ * Fetch all transfer-category transactions for a date range.
+ * Returns rows joined with account/category names, filtered to categories
+ * where is_transfer = TRUE.
+ */
+async function findTransfers({ startDate, endDate } = {}) {
+  const conditions = ['c.is_transfer = TRUE'];
+  const params = [];
+  let paramIndex = 1;
+
+  if (startDate) {
+    conditions.push(`t.transaction_date >= $${paramIndex++}`);
+    params.push(startDate);
+  }
+  if (endDate) {
+    conditions.push(`t.transaction_date <= $${paramIndex++}`);
+    params.push(endDate);
+  }
+
+  const sql = `
+    SELECT
+      t.id, t.transaction_date, t.description1, t.description2,
+      t.amount, t.currency, t.base_amount, t.base_currency,
+      t.account_id, a.name as account_name,
+      t.category_id, c.name as category_name
+    FROM transactions t
+    LEFT JOIN accounts a ON t.account_id = a.id
+    JOIN categories c ON t.category_id = c.id
+    WHERE ${conditions.join(' AND ')}
+    ORDER BY c.name, t.transaction_date, t.id
+  `;
+
+  const result = await db.query(sql, params);
+  return result.rows;
+}
+
+/**
+ * Find the implied FX rate for a given currency on (or near) a specific date.
+ * Looks for another transaction with the same currency where both amount and
+ * base_amount are non-zero, then derives rate = amount / base_amount.
+ * Searches exact date first, then widens to ±1, ±2, ±3 days.
+ * Picks the transaction with the largest absolute amount for a stable ratio.
+ *
+ * @param {string} currency - e.g. "EUR"
+ * @param {string} targetDate - YYYY-MM-DD
+ * @param {number} excludeId - transaction ID to exclude from lookup
+ * @returns {Promise<{rate: number, source_date: string, source_id: number} | null>}
+ */
+async function findImpliedRate(currency, targetDate, excludeId) {
+  const sql = `
+    SELECT id, transaction_date, amount, base_amount,
+           ABS(transaction_date::date - $1::date) AS day_diff
+    FROM transactions
+    WHERE currency = $2
+      AND id != $3
+      AND amount != 0
+      AND base_amount != 0
+      AND ABS(transaction_date::date - $1::date) <= 3
+    ORDER BY
+      ABS(transaction_date::date - $1::date) ASC,
+      ABS(amount) DESC
+    LIMIT 1
+  `;
+  const result = await db.query(sql, [targetDate, currency, excludeId]);
+  if (result.rows.length === 0) return null;
+
+  const row = result.rows[0];
+  const amount = parseFloat(row.amount);
+  const baseAmount = parseFloat(row.base_amount);
+  if (!Number.isFinite(amount) || !Number.isFinite(baseAmount) || baseAmount === 0) return null;
+
+  return {
+    rate: amount / baseAmount,
+    source_date: row.transaction_date,
+    source_id: row.id,
+  };
+}
+
 module.exports = {
   findAll,
   findAllExtended,
@@ -505,5 +583,7 @@ module.exports = {
   update,
   remove,
   split,
-  neutralize
+  neutralize,
+  findTransfers,
+  findImpliedRate
 };

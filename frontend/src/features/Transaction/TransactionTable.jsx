@@ -96,6 +96,7 @@ export default function TransactionTable({
   onSort,
   onRowToggle,
   showSelection = true,
+  onDateClick,
   onDescriptionClick,
   onCategoryClick,
   onAcceptClick,
@@ -187,12 +188,14 @@ export default function TransactionTable({
                     )}
                     {TRANSACTION_COLUMNS.map((column) => {
                       const isClickable =
+                        (column.key === "Date" && onDateClick) ||
                         (column.key === "Description1" && onDescriptionClick) ||
                         (column.key === "Category" && onCategoryClick);
                       const handleCellClick = isClickable
                         ? (event) => {
                             event.stopPropagation();
-                            if (column.key === "Description1") onDescriptionClick(rowId, entry);
+                            if (column.key === "Date") onDateClick(rowId, entry);
+                            else if (column.key === "Description1") onDescriptionClick(rowId, entry);
                             else if (column.key === "Category") onCategoryClick(rowId, entry);
                           }
                         : undefined;

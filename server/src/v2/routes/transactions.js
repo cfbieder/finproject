@@ -119,6 +119,113 @@ router.get('/summary/by-month', async (req, res, next) => {
   }
 });
 
+// GET /api/v2/transactions/transfer-analysis
+// Matches transfer transactions (debit/credit pairs) within a period.
+// Standard categories: exact base_amount match, configurable date tolerance (default 5 days).
+// FX category: 1% base_amount tolerance, 1-day date tolerance (FX spreads cause
+// ~0.5-0.7% differences in converted base amounts).
+router.get('/transfer-analysis', async (req, res, next) => {
+  try {
+    const { year, month, dateTolerance: dtParam } = req.query;
+    const dateTolerance = dtParam ? parseInt(dtParam) : 5; // days
+
+    if (!year) {
+      return res.status(400).json({ error: 'year is required' });
+    }
+
+    const y = parseInt(year);
+    let startDate, endDate;
+    if (month) {
+      const m = parseInt(month);
+      startDate = `${y}-${String(m).padStart(2, '0')}-01`;
+      const lastDay = new Date(y, m, 0).getDate();
+      endDate = `${y}-${String(m).padStart(2, '0')}-${lastDay}`;
+    } else {
+      startDate = `${y}-01-01`;
+      endDate = `${y}-12-31`;
+    }
+
+    const transfers = await repo.findTransfers({ startDate, endDate });
+
+    // Group by category
+    const byCategory = {};
+    for (const txn of transfers) {
+      const cat = txn.category_name || 'Uncategorized';
+      if (!byCategory[cat]) byCategory[cat] = [];
+      byCategory[cat].push(txn);
+    }
+
+    // Determine if a category uses fuzzy (FX) matching
+    const isFxCategory = (name) => name === 'FX';
+
+    // Match within each category
+    const result = {};
+    for (const [category, txns] of Object.entries(byCategory)) {
+      const matched = [];
+      const used = new Set();
+      const isFx = isFxCategory(category);
+
+      // FX: 1% amount tolerance, 1-day date window (FX spreads cause ~0.5-0.7% differences)
+      // Others: exact amount (within $0.01), configurable date window
+      const maxDateDays = isFx ? 1 : dateTolerance;
+
+      // Sort: negatives first to drive matching
+      const sorted = [...txns].sort((a, b) => parseFloat(a.base_amount) - parseFloat(b.base_amount));
+
+      for (let i = 0; i < sorted.length; i++) {
+        if (used.has(sorted[i].id)) continue;
+        const amt = parseFloat(sorted[i].base_amount);
+        if (amt >= 0) continue; // only start from negatives
+
+        const dateI = new Date(sorted[i].transaction_date);
+        const absAmt = Math.abs(amt);
+
+        // Find a matching positive
+        for (let j = 0; j < sorted.length; j++) {
+          if (i === j || used.has(sorted[j].id)) continue;
+          const amtJ = parseFloat(sorted[j].base_amount);
+          if (amtJ <= 0) continue; // need a positive counterpart
+
+          // Amount check
+          if (isFx) {
+            // FX: allow 1% difference between absolute values
+            const pctDiff = Math.abs(absAmt - amtJ) / Math.max(absAmt, amtJ);
+            if (pctDiff > 0.01) continue;
+          } else {
+            // Standard: exact match (within rounding)
+            if (Math.abs(amt + amtJ) > 0.01) continue;
+          }
+
+          // Date check
+          const dateJ = new Date(sorted[j].transaction_date);
+          const daysDiff = Math.abs(dateI - dateJ) / (1000 * 60 * 60 * 24);
+          if (daysDiff > maxDateDays) continue;
+
+          matched.push({ debit: sorted[i], credit: sorted[j] });
+          used.add(sorted[i].id);
+          used.add(sorted[j].id);
+          break;
+        }
+      }
+
+      const unmatched = txns.filter(t => !used.has(t.id));
+
+      result[category] = {
+        matched,
+        unmatched,
+        matchedCount: matched.length,
+        unmatchedCount: unmatched.length,
+        matchedTotal: matched.reduce((s, p) => s + Math.abs(parseFloat(p.debit.base_amount)), 0),
+        unmatchedTotal: unmatched.reduce((s, t) => s + parseFloat(t.base_amount), 0),
+      };
+    }
+
+    res.json({ data: result, period: { year: y, month: month ? parseInt(month) : null, startDate, endDate } });
+  } catch (error) {
+    next(error);
+  }
+});
+
 // GET /api/v2/transactions/:id
 router.get('/:id', async (req, res, next) => {
   try {
@@ -144,8 +251,11 @@ router.post('/', async (req, res, next) => {
 
 // PATCH /api/v2/transactions/:id
 // Accepts both v1 (PascalCase) and v2 (snake_case) field names
+// When transaction_date changes and currency != base_currency, recalculates
+// base_amount using the implied FX rate from a nearby transaction.
 router.patch('/:id', async (req, res, next) => {
   try {
+    const id = parseInt(req.params.id);
     // Transform v1 field names to v2
     const data = transformV1ToV2Fields(req.body);
 
@@ -167,11 +277,38 @@ router.patch('/:id', async (req, res, next) => {
       delete data.category_name;
     }
 
-    const transaction = await repo.update(parseInt(req.params.id), data);
+    // If the date is changing, recalculate base_amount using implied FX rate
+    let rateInfo = null;
+    if (data.transaction_date && data.base_amount === undefined) {
+      const existing = await repo.findById(id);
+      if (existing && existing.currency && existing.base_currency
+          && existing.currency !== existing.base_currency) {
+        const implied = await repo.findImpliedRate(
+          existing.currency,
+          data.transaction_date,
+          id
+        );
+        if (implied && Number.isFinite(implied.rate) && implied.rate !== 0) {
+          const amount = parseFloat(existing.amount);
+          if (Number.isFinite(amount)) {
+            data.base_amount = parseFloat((amount / implied.rate).toFixed(2));
+            rateInfo = {
+              implied_rate: implied.rate,
+              source_date: implied.source_date,
+              source_id: implied.source_id,
+              old_base_amount: parseFloat(existing.base_amount),
+              new_base_amount: data.base_amount,
+            };
+          }
+        }
+      }
+    }
+
+    const transaction = await repo.update(id, data);
     if (!transaction) {
       return res.status(404).json({ error: 'Transaction not found' });
     }
-    res.json({ data: transaction });
+    res.json({ data: transaction, rateInfo });
   } catch (error) {
     next(error);
   }

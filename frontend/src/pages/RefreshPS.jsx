@@ -315,6 +315,11 @@ export default function RefreshPS() {
     handleSort,
   } = useTransactionSelection(reviewTransactions);
 
+  // Inline edit state for Date
+  const [editingDate, setEditingDate] = useState(null); // { rowId, entry }
+  const [dateValue, setDateValue] = useState("");
+  const [isSavingDate, setIsSavingDate] = useState(false);
+
   // Inline edit state for Description
   const [editingDescription, setEditingDescription] = useState(null); // { rowId, entry }
   const [descriptionValue, setDescriptionValue] = useState("");
@@ -331,6 +336,65 @@ export default function RefreshPS() {
   const [splitCount, setSplitCount] = useState(2);
   const [splits, setSplits] = useState([]);
   const [isSavingSplit, setIsSavingSplit] = useState(false);
+
+  const handleDateClick = useCallback((rowId, entry) => {
+    setEditingDate({ rowId, entry });
+    // Convert stored date to YYYY-MM-DD for <input type="date">
+    const raw = entry.Date ?? "";
+    const parsed = raw ? new Date(raw) : null;
+    if (parsed && Number.isFinite(parsed.getTime())) {
+      const yyyy = parsed.getUTCFullYear();
+      const mm = String(parsed.getUTCMonth() + 1).padStart(2, "0");
+      const dd = String(parsed.getUTCDate()).padStart(2, "0");
+      setDateValue(`${yyyy}-${mm}-${dd}`);
+    } else {
+      setDateValue("");
+    }
+  }, []);
+
+  const handleDateCancel = useCallback(() => {
+    setEditingDate(null);
+    setDateValue("");
+  }, []);
+
+  const handleDateSave = useCallback(async () => {
+    if (!editingDate || !dateValue) return;
+    const { entry } = editingDate;
+    const id = entry?.id ?? entry?._id;
+    if (!id) return;
+    setIsSavingDate(true);
+    try {
+      const response = await fetch(
+        Rest.buildUrl(`${reviewConfig.endpoint}/${id}`),
+        {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ Date: dateValue }),
+        }
+      );
+      if (!response.ok) {
+        const body = await response.json().catch(() => null);
+        throw new Error(body?.error || "Failed to update date");
+      }
+      const result = await response.json().catch(() => null);
+      setEditingDate(null);
+      setDateValue("");
+      if (result?.rateInfo) {
+        const { implied_rate, old_base_amount, new_base_amount } = result.rateInfo;
+        const rateStr = implied_rate.toFixed(4);
+        const oldStr = old_base_amount.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+        const newStr = new_base_amount.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+        showSuccess(`Date updated — USD recalculated: ${oldStr} → ${newStr} (rate ${rateStr})`);
+      } else {
+        showSuccess("Date updated");
+      }
+      await loadReviewTransactions();
+    } catch (err) {
+      showErrorToast(err?.message ?? "Failed to update date");
+    } finally {
+      setIsSavingDate(false);
+    }
+  }, [editingDate, dateValue, loadReviewTransactions, showSuccess, showErrorToast]);
 
   const handleDescriptionClick = useCallback((rowId, entry) => {
     setEditingDescription({ rowId, entry });
@@ -859,6 +923,19 @@ export default function RefreshPS() {
               </p>
               {reviewTransactions.length > 0 && (
                 <div className="refresh-txn-section__actions">
+                  {selectedRows.size > 0 && (
+                    <button
+                      type="button"
+                      className="refresh-ps-btn refresh-ps-btn--bulk-category"
+                      onClick={() => {
+                        setBulkCategoryMode(true);
+                        setEditingCategory({ rowId: null, entry: null });
+                        setCategoryValue("");
+                      }}
+                    >
+                      Category ({selectedRows.size})
+                    </button>
+                  )}
                   <button
                     type="button"
                     className="refresh-ps-btn refresh-ps-btn--accept-all"
@@ -879,13 +956,62 @@ export default function RefreshPS() {
               sortedTransactions={sortedReviewTransactions}
               sortConfig={sortConfig}
               onSort={handleSort}
-              showSelection={false}
+              showSelection={true}
+              onRowToggle={toggleRowSelection}
+              onDateClick={handleDateClick}
               onDescriptionClick={handleDescriptionClick}
               onCategoryClick={handleCategoryClick}
               onAcceptClick={handleAcceptClick}
               onSplitClick={handleSplitClick}
               onNeutralizeClick={handleNeutralizeClick}
             />
+            {editingDate && (
+              <div
+                className="trans-budget-edit-modal-overlay"
+                role="dialog"
+                aria-modal="true"
+                aria-label="Edit date"
+              >
+                <div className="trans-budget-edit-modal">
+                  <h3>Edit Date</h3>
+                  <form
+                    onSubmit={(e) => {
+                      e.preventDefault();
+                      handleDateSave();
+                    }}
+                  >
+                    <label className="trans-budget-edit-modal__field trans-budget-edit-modal__field--full-row">
+                      <span>Date</span>
+                      <input
+                        className="form-input"
+                        type="date"
+                        value={dateValue}
+                        onChange={(e) => setDateValue(e.target.value)}
+                        disabled={isSavingDate}
+                        autoFocus
+                      />
+                    </label>
+                    <div className="trans-budget-edit-modal__actions">
+                      <button
+                        className="generate-report-button"
+                        type="button"
+                        onClick={handleDateCancel}
+                        disabled={isSavingDate}
+                      >
+                        Cancel
+                      </button>
+                      <button
+                        className="generate-report-button"
+                        type="submit"
+                        disabled={isSavingDate || !dateValue}
+                      >
+                        {isSavingDate ? "Saving\u2026" : "Save"}
+                      </button>
+                    </div>
+                  </form>
+                </div>
+              </div>
+            )}
             {editingDescription && (
               <div
                 className="trans-budget-edit-modal-overlay"

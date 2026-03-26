@@ -246,6 +246,7 @@ export const REVIEW_CONFIG = {
   endpoint: "/api/v2/transactions",
 
   editFields: [
+    { key: "Date", label: "Date", type: "date" },
     { key: "Description1", label: "Description", type: "text" },
     { key: "Category", label: "Category", type: "text" },
   ],

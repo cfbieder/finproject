@@ -1,0 +1,329 @@
+/* ================================================================
+   BalanceV2 — Redesigned Balance Sheet
+   ================================================================ */
+
+/* ── Page Container ── */
+.balv2 {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+  padding: 1.25rem 1.5rem;
+  min-height: calc(100vh - 3.5rem);
+  max-width: 1520px;
+  margin: 0 auto;
+  width: 100%;
+}
+
+/* ── Header ── */
+.balv2-header {
+  display: flex;
+  align-items: baseline;
+  gap: 0.75rem;
+  flex-wrap: wrap;
+}
+
+.balv2-header__title {
+  font-family: var(--font-heading);
+  font-size: 1.625rem;
+  font-weight: 700;
+  color: var(--ink);
+  letter-spacing: -0.02em;
+  margin: 0;
+}
+
+/* ── KPI Strip ── */
+.balv2-kpis {
+  display: flex;
+  gap: 0.75rem;
+  flex-wrap: wrap;
+}
+
+.balv2-kpi {
+  display: flex;
+  flex-direction: column;
+  gap: 0.2rem;
+  padding: 0.75rem 1.25rem;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  min-width: 180px;
+  flex: 1;
+  max-width: 280px;
+  transition: var(--transition-fast);
+}
+
+.balv2-kpi:hover {
+  border-color: var(--border-strong);
+  box-shadow: var(--shadow-soft);
+}
+
+.balv2-kpi--highlight {
+  border-color: var(--primary);
+  background: linear-gradient(135deg, var(--surface), var(--primary-subtle));
+}
+
+.balv2-kpi__label {
+  font-size: 0.7rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--muted);
+}
+
+.balv2-kpi__value {
+  font-size: 1.2rem;
+  font-weight: 700;
+  color: var(--ink);
+  font-variant-numeric: tabular-nums;
+  font-family: var(--font-mono);
+}
+
+.balv2-kpi__value--positive {
+  color: var(--success);
+}
+
+.balv2-kpi__value--negative {
+  color: var(--danger);
+}
+
+/* ── Toolbar ── */
+.balv2-toolbar {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  padding: 0.625rem 0.875rem;
+}
+
+.balv2-toolbar__sep {
+  width: 1px;
+  height: 1.5rem;
+  background: var(--border);
+  flex-shrink: 0;
+}
+
+.balv2-toolbar__spacer {
+  flex: 1;
+}
+
+/* Shared button */
+.balv2-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.375rem;
+  padding: 0.45rem 0.75rem;
+  border: 1.5px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--surface);
+  color: var(--ink-secondary);
+  font-size: 0.8rem;
+  font-weight: 500;
+  cursor: pointer;
+  transition: var(--transition-fast);
+  white-space: nowrap;
+  line-height: 1;
+}
+
+.balv2-btn:hover {
+  background: var(--surface-muted);
+  border-color: var(--border-strong);
+  color: var(--ink);
+}
+
+.balv2-btn:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+.balv2-btn--primary {
+  background: var(--primary);
+  border-color: var(--primary);
+  color: #fff;
+}
+
+.balv2-btn--primary:hover {
+  background: var(--primary-hover);
+  border-color: var(--primary-hover);
+  color: #fff;
+}
+
+.balv2-btn--primary:disabled {
+  opacity: 0.5;
+}
+
+.balv2-btn--icon {
+  padding: 0.4rem;
+}
+
+/* ── Period Controls ── */
+.balv2-periods {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.balv2-period-count {
+  display: flex;
+  align-items: center;
+  gap: 0.3rem;
+}
+
+.balv2-period-count__label {
+  font-size: 0.7rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--muted);
+}
+
+.balv2-period-count__select {
+  padding: 0.35rem 0.5rem;
+  border: 1.5px solid var(--border);
+  border-radius: var(--radius-sm);
+  font-size: 0.8rem;
+  color: var(--ink);
+  background: var(--surface);
+  cursor: pointer;
+  outline: none;
+  transition: var(--transition-fast);
+}
+
+.balv2-period-count__select:focus {
+  border-color: var(--primary);
+  box-shadow: var(--shadow-focus);
+}
+
+.balv2-period-group {
+  display: flex;
+  align-items: center;
+  gap: 0.3rem;
+}
+
+.balv2-period-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 1.5rem;
+  height: 1.5rem;
+  border-radius: var(--radius-full);
+  background: var(--primary-subtle);
+  color: var(--primary);
+  font-size: 0.65rem;
+  font-weight: 700;
+  flex-shrink: 0;
+}
+
+.balv2-date-input {
+  padding: 0.35rem 0.5rem;
+  border: 1.5px solid var(--border);
+  border-radius: var(--radius-sm);
+  font-size: 0.8rem;
+  color: var(--ink);
+  background: var(--surface);
+  outline: none;
+  transition: var(--transition-fast);
+}
+
+.balv2-date-input:focus {
+  border-color: var(--primary);
+  box-shadow: var(--shadow-focus);
+}
+
+/* ── Report Wrapper ── */
+.balv2-report-wrap {
+  flex: 1;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  overflow: hidden;
+}
+
+.balv2-report-scroll {
+  overflow: auto;
+  max-height: calc(100vh - 16rem);
+}
+
+/* ── Empty / Loading States ── */
+.balv2-state {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 3rem 1rem;
+  gap: 0.75rem;
+  color: var(--muted);
+}
+
+.balv2-state__icon {
+  color: var(--muted-light);
+}
+
+.balv2-state__text {
+  font-size: 0.9rem;
+  font-weight: 500;
+}
+
+.balv2-state__text--error {
+  color: var(--danger);
+}
+
+/* ── Responsive ── */
+@media (max-width: 768px) {
+  .balv2 {
+    padding: 0.75rem;
+  }
+
+  .balv2-header__title {
+    font-size: 1.35rem;
+  }
+
+  .balv2-kpis {
+    gap: 0.5rem;
+  }
+
+  .balv2-kpi {
+    min-width: 130px;
+    padding: 0.5rem 0.75rem;
+  }
+
+  .balv2-toolbar {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .balv2-toolbar__sep,
+  .balv2-toolbar__spacer {
+    display: none;
+  }
+
+  .balv2-periods {
+    flex-wrap: wrap;
+  }
+
+  .balv2-report-scroll {
+    max-height: none;
+  }
+}
+
+@media (max-width: 640px) {
+  .balv2-kpi {
+    min-width: 0;
+    flex-basis: calc(50% - 0.25rem);
+  }
+
+  .balv2-periods {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .balv2-period-group {
+    width: 100%;
+  }
+
+  .balv2-date-input {
+    flex: 1;
+  }
+}
