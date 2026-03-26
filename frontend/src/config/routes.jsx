@@ -35,8 +35,7 @@ import Home from "../pages/Home";
 
 // Lazy loaded pages (for code splitting)
 const BackupDatabase = lazy(() => import("../pages/BackupDatabase"));
-const Balance = lazy(() => import("../pages/Balance"));
-const BalanceV2 = lazy(() => import("../pages/BalanceV2"));
+const Balance = lazy(() => import("../pages/BalanceV2"));
 const BalanceChart = lazy(() => import("../pages/BalanceChart"));
 const BudgetInput = lazy(() => import("../pages/BudgetWorksheetV2"));
 const BudgetRealization = lazy(() => import("../pages/BudgetRealization"));
@@ -245,15 +244,6 @@ export const routes = [
     category: "Reports & Graphs",
     subcategory: "Reports",
     description: "Balance sheet at specific dates with multi-period comparison",
-    icon: Wallet,
-  },
-  {
-    path: "/balance-v2",
-    component: BalanceV2,
-    label: "Balance V2",
-    showInNav: false,
-    category: null,
-    description: "Redesigned balance sheet (preview)",
     icon: Wallet,
   },
   {

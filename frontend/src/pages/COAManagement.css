@@ -1,6 +1,6 @@
 /**
  * COA Management Page Styles
- * Modern, clean layout for chart of accounts management
+ * Tree-based layout with toolbar and inline actions
  */
 
 /* Main container */
@@ -11,15 +11,15 @@
   padding: 0 1.5rem 2rem;
 }
 
-/* Header section */
+/* Header */
 .coa-management-header {
-  margin-bottom: 2rem;
+  margin-bottom: 1.5rem;
   text-align: center;
 }
 
 .coa-management-header__title {
-  margin: 0 0 0.5rem;
-  font-size: 2rem;
+  margin: 0 0 0.25rem;
+  font-size: 1.75rem;
   font-weight: 700;
   color: var(--primary);
   letter-spacing: -0.02em;
@@ -27,254 +27,530 @@
 
 .coa-management-header__subtitle {
   margin: 0;
-  font-size: 1rem;
+  font-size: 0.95rem;
   color: var(--muted);
   font-weight: 500;
 }
 
-/* Layout */
-.coa-management-layout {
+/* ─── Toolbar ─── */
+.coa-toolbar {
   display: flex;
-  gap: 1.5rem;
-  align-items: flex-start;
-}
-
-.coa-management-sidebar {
-  flex: 0 0 320px;
-  max-width: 360px;
-}
-
-.coa-management-sidebar .coa-management-filters {
-  margin-bottom: 0;
-}
-
-.coa-management-main {
-  flex: 1;
-  min-width: 0;
-}
-
-/* Filters section */
-.coa-management-filters {
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  padding: 0.75rem 1rem;
   background: linear-gradient(135deg, rgba(255, 255, 255, 0.98) 0%, rgba(248, 250, 252, 1) 100%);
   border: 1px solid rgba(37, 99, 235, 0.12);
-  border-radius: 1rem;
-  padding: 1.5rem;
-  margin-bottom: 1.5rem;
-  box-shadow: 0 2px 12px -4px rgba(15, 23, 42, 0.08),
-              0 4px 16px -6px rgba(37, 99, 235, 0.08);
-}
-
-.coa-management-filters__title {
-  margin: 0 0 1rem 0;
-  font-size: 1rem;
-  font-weight: 700;
-  color: var(--primary);
-  letter-spacing: 0.02em;
-  text-transform: uppercase;
-}
-
-.coa-management-filters__grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
-  gap: 1rem;
-}
-
-.coa-management-filters__grid .filter-field {
-  display: flex;
-  flex-direction: column;
-  gap: 0.5rem;
-}
-
-.coa-management-filters__grid .filter-field__label {
-  font-size: 0.75rem;
-  font-weight: 700;
-  letter-spacing: 0.06em;
-  text-transform: uppercase;
-  color: var(--primary);
-}
-
-/* Table section */
-.coa-management-table-section {
-  background: #fff;
-  border: 1px solid rgba(37, 99, 235, 0.12);
-  border-radius: 1rem;
-  padding: 1.5rem;
-  box-shadow: 0 2px 12px -4px rgba(15, 23, 42, 0.08),
-              0 4px 16px -6px rgba(37, 99, 235, 0.08);
-}
-
-.coa-management-table-header {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  margin-bottom: 1.25rem;
-  padding-bottom: 1rem;
-  border-bottom: 2px solid rgba(37, 99, 235, 0.15);
-}
-
-.coa-management-table-header__title {
-  margin: 0;
-  font-size: 1.25rem;
-  font-weight: 700;
-  color: var(--primary);
-}
-
-.coa-management-table-header__count {
-  margin: 0;
-  font-size: 0.875rem;
-  color: var(--muted);
-  font-weight: 600;
-}
-
-.coa-management-actions {
-  display: flex;
-  align-items: center;
-  gap: 0.75rem;
-}
-
-.coa-management-status {
+  border-radius: 0.75rem;
   margin-bottom: 1rem;
+  box-shadow: 0 1px 4px -2px rgba(15, 23, 42, 0.06);
+  flex-wrap: wrap;
 }
 
-.coa-table-scroll {
-  max-height: 600px;
-  overflow: auto;
-  background:
-    linear-gradient(var(--surface) 30%, transparent) top,
-    linear-gradient(transparent, var(--surface) 70%) bottom,
-    radial-gradient(farthest-side at 50% 0, rgba(0, 0, 0, 0.07), transparent) top,
-    radial-gradient(farthest-side at 50% 100%, rgba(0, 0, 0, 0.07), transparent) bottom;
-  background-size: 100% 40px, 100% 40px, 100% 10px, 100% 10px;
-  background-repeat: no-repeat;
-  background-attachment: local, local, scroll, scroll;
+.coa-toolbar__filters {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  flex-wrap: wrap;
 }
 
-.coa-table thead th {
-  position: sticky;
-  top: 0;
-  z-index: 2;
-  background: var(--surface-muted);
-  box-shadow: 0 2px 4px -1px rgba(0, 0, 0, 0.06);
-  text-transform: uppercase;
-  letter-spacing: 0.06em;
-  font-size: 0.6875rem;
-  color: var(--muted);
+.coa-toolbar__search {
+  position: relative;
+  display: flex;
+  align-items: center;
+}
+
+.coa-toolbar__search-icon {
+  position: absolute;
+  left: 0.65rem;
+  color: #94a3b8;
+  pointer-events: none;
+}
+
+.coa-toolbar__search-input {
+  padding-left: 2rem !important;
+  min-width: 200px;
+}
+
+.coa-toolbar__select {
+  min-width: 130px;
+}
+
+.coa-toolbar__actions {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+}
+
+.coa-toolbar__selection-badge {
+  font-size: 0.8rem;
   font-weight: 700;
-  border-bottom: 1px solid var(--border);
-  padding: 0.75rem 1rem;
+  color: #2563eb;
+  background: #eff6ff;
+  padding: 0.3rem 0.6rem;
+  border-radius: 6px;
+  white-space: nowrap;
 }
 
-.coa-table tbody tr {
-  transition: background var(--transition-fast);
+.coa-toolbar__divider {
+  width: 1px;
+  height: 24px;
+  background: #e2e8f0;
+  margin: 0 0.25rem;
 }
 
-.coa-table tbody tr:hover {
-  background: rgba(37, 99, 235, 0.04);
-}
-
-.coa-table tbody tr:nth-child(even):not(.coa-table-row--category) {
-  background: rgba(248, 250, 254, 0.35);
-}
-
-.coa-table tbody tr:nth-child(even):not(.coa-table-row--category):hover {
-  background: rgba(37, 99, 235, 0.04);
-}
-
-.coa-table tbody td {
-  padding: 0.75rem 1rem;
-  border-bottom: 1px solid var(--border-subtle);
-  font-size: 0.9375rem;
-}
-
-.coa-table-row--selected td {
-  background: var(--primary-subtle) !important;
-  box-shadow: inset 3px 0 0 var(--primary);
-}
-
-/* Category row highlighting */
-.coa-table-row--category {
-  background: rgba(37, 99, 235, 0.05);
-  font-weight: 600;
-}
-
-.coa-table-row--category td:first-child {
-  font-weight: 700;
-  color: var(--primary);
-}
-
-.coa-action-row td {
-  padding: 0.85rem;
-  background: #f8fafc;
-}
-
-.coa-action-button {
+/* Toolbar buttons */
+.coa-toolbar-btn {
   display: inline-flex;
   align-items: center;
-  gap: 0.45rem;
-  padding: 0.65rem 1rem;
-  border-radius: 0.75rem;
+  gap: 0.35rem;
+  padding: 0.5rem 0.75rem;
+  border-radius: 0.5rem;
   border: 1px solid var(--border);
   background: #fff;
-  color: #0f172a;
-  font-weight: 700;
+  color: #334155;
+  font-weight: 600;
+  font-size: 0.85rem;
   cursor: pointer;
   transition: all 0.15s ease;
+  white-space: nowrap;
 }
 
-.coa-action-button:hover {
+.coa-toolbar-btn:hover:not(:disabled) {
   border-color: var(--primary);
   color: var(--primary);
-  box-shadow: var(--shadow-soft);
+  box-shadow: 0 1px 3px rgba(37, 99, 235, 0.1);
 }
 
-.coa-action-button--add {
-  border-color: rgba(22, 163, 74, 0.25);
+.coa-toolbar-btn:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+.coa-toolbar-btn--ghost {
+  border-color: transparent;
+  background: transparent;
+  padding: 0.4rem;
+}
+
+.coa-toolbar-btn--ghost:hover:not(:disabled) {
+  background: #f1f5f9;
+  border-color: transparent;
+  box-shadow: none;
+}
+
+.coa-toolbar-btn--add {
+  border-color: rgba(22, 163, 74, 0.3);
   color: #166534;
+  background: rgba(22, 163, 74, 0.04);
 }
 
-.coa-action-button--delete {
+.coa-toolbar-btn--add:hover:not(:disabled) {
+  border-color: #16a34a;
+  color: #166534;
+  background: rgba(22, 163, 74, 0.08);
+  box-shadow: 0 1px 3px rgba(22, 163, 74, 0.12);
+}
+
+.coa-toolbar-btn--edit {
+  border-color: rgba(59, 130, 246, 0.3);
+  color: #1d4ed8;
+}
+
+.coa-toolbar-btn--edit:hover:not(:disabled) {
+  border-color: #3b82f6;
+  background: rgba(59, 130, 246, 0.06);
+  box-shadow: 0 1px 3px rgba(59, 130, 246, 0.12);
+}
+
+.coa-toolbar-btn--delete {
   border-color: rgba(220, 38, 38, 0.25);
   color: #991b1b;
 }
 
-.coa-action-button--edit {
-  border-color: rgba(59, 130, 246, 0.25);
-  color: #1d4ed8;
+.coa-toolbar-btn--delete:hover:not(:disabled) {
+  border-color: #dc2626;
+  background: rgba(220, 38, 38, 0.06);
+  box-shadow: 0 1px 3px rgba(220, 38, 38, 0.12);
 }
 
-.coa-action-button--analyze {
-  border-color: rgba(16, 185, 129, 0.25);
+.coa-toolbar-btn--analyze {
+  border-color: rgba(16, 185, 129, 0.3);
   color: #0f766e;
 }
 
-.coa-action-button__icon {
-  font-weight: 900;
-  width: 1.2rem;
-  text-align: center;
+.coa-toolbar-btn--analyze:hover:not(:disabled) {
+  border-color: #10b981;
+  background: rgba(16, 185, 129, 0.06);
+  box-shadow: 0 1px 3px rgba(16, 185, 129, 0.12);
 }
 
-.coa-action-button__label.sr-only {
-  position: absolute;
-  width: 1px;
-  height: 1px;
-  padding: 0;
-  margin: -1px;
-  overflow: hidden;
-  clip: rect(0, 0, 0, 0);
-  white-space: nowrap;
-  border: 0;
+/* ─── Tree Section ─── */
+.coa-tree-section {
+  background: #fff;
+  border: 1px solid rgba(37, 99, 235, 0.12);
+  border-radius: 0.75rem;
+  padding: 1.25rem;
+  box-shadow: 0 2px 12px -4px rgba(15, 23, 42, 0.08),
+              0 4px 16px -6px rgba(37, 99, 235, 0.06);
 }
 
-/* Quick-add missing accounts action row */
-.coa-missing-accounts-actions {
-  margin-top: 0.75rem;
-  padding: 0.75rem;
-  background: rgba(22, 163, 74, 0.04);
-  border: 1px solid rgba(22, 163, 74, 0.15);
+.coa-tree-section__header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 0.75rem;
+}
+
+.coa-tree-section__count {
+  font-size: 0.8rem;
+  color: var(--muted);
+  font-weight: 600;
+}
+
+/* Analysis banner */
+.coa-analysis-banner {
+  margin-bottom: 1rem;
+  padding: 0.75rem 1rem;
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
   border-radius: 0.5rem;
 }
 
-/* Category picker */
+.coa-analysis-banner__msg {
+  margin: 0;
+  font-size: 0.875rem;
+  font-weight: 600;
+}
+
+.coa-analysis-banner__msg--info { color: #1e40af; }
+.coa-analysis-banner__msg--success { color: #166534; }
+.coa-analysis-banner__msg--error { color: #991b1b; }
+
+.coa-analysis-banner__details {
+  margin: 0.5rem 0 0;
+  padding-left: 1.25rem;
+  font-size: 0.825rem;
+  color: #475569;
+}
+
+.coa-analysis-banner__details li {
+  margin-bottom: 0.2rem;
+}
+
+/* Quick-add groups */
+.coa-quickadd-group {
+  margin-top: 0.75rem;
+  padding: 0.6rem 0.75rem;
+  background: rgba(22, 163, 74, 0.04);
+  border: 1px solid rgba(22, 163, 74, 0.12);
+  border-radius: 0.5rem;
+}
+
+.coa-quickadd-group__label {
+  font-weight: 700;
+  margin: 0 0 0.4rem;
+  font-size: 0.825rem;
+}
+
+.coa-quickadd-group__label--account { color: #166534; }
+.coa-quickadd-group__label--category { color: #1d4ed8; }
+
+.coa-quickadd-group__buttons {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+}
+
+.coa-quickadd-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+  padding: 0.35rem 0.6rem;
+  border-radius: 0.375rem;
+  border: 1px solid rgba(22, 163, 74, 0.25);
+  background: #fff;
+  color: #166534;
+  font-weight: 600;
+  font-size: 0.8rem;
+  cursor: pointer;
+  transition: all 0.12s ease;
+}
+
+.coa-quickadd-btn:hover {
+  background: rgba(22, 163, 74, 0.08);
+  border-color: #16a34a;
+}
+
+.coa-quickadd-btn--category {
+  border-color: rgba(37, 99, 235, 0.25);
+  color: #1d4ed8;
+}
+
+.coa-quickadd-btn--category:hover {
+  background: rgba(37, 99, 235, 0.06);
+  border-color: #3b82f6;
+}
+
+/* ─── Tree Table ─── */
+.coa-tree-scroll {
+  max-height: 650px;
+  overflow: auto;
+  border-radius: 0.5rem;
+  border: 1px solid #e2e8f0;
+}
+
+.coa-tree-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.9rem;
+}
+
+.coa-tree-table thead th {
+  position: sticky;
+  top: 0;
+  z-index: 2;
+  background: #f1f5f9;
+  padding: 0.6rem 1rem;
+  text-align: left;
+  font-size: 0.7rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: #64748b;
+  border-bottom: 1px solid #e2e8f0;
+}
+
+.coa-tree-table tbody td {
+  padding: 0.55rem 1rem;
+  border-bottom: 1px solid #f1f5f9;
+  color: #334155;
+}
+
+.coa-tree-table__empty {
+  text-align: center;
+  padding: 2rem 1rem !important;
+  color: #94a3b8;
+  font-weight: 500;
+}
+
+/* ─── Tree Row ─── */
+.coa-tree-row {
+  cursor: pointer;
+  transition: background 0.1s ease;
+}
+
+.coa-tree-row:hover {
+  background: rgba(37, 99, 235, 0.03);
+}
+
+/* Category rows */
+.coa-tree-row--category {
+  background: rgba(37, 99, 235, 0.03);
+}
+
+.coa-tree-row--category td:first-child {
+  font-weight: 700;
+  color: var(--primary);
+}
+
+.coa-tree-row--category:hover {
+  background: rgba(37, 99, 235, 0.06);
+}
+
+/* Selected rows */
+.coa-tree-row--selected {
+  background: #eff6ff !important;
+}
+
+.coa-tree-row--selected td:first-child {
+  box-shadow: inset 3px 0 0 #2563eb;
+}
+
+/* Row name layout */
+.coa-tree-row__name {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.15rem;
+}
+
+.coa-tree-row__leaf-spacer {
+  display: inline-block;
+  width: 22px;
+}
+
+/* ─── Chevron ─── */
+.coa-chevron {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 22px;
+  height: 22px;
+  border: none;
+  background: none;
+  cursor: pointer;
+  color: #94a3b8;
+  padding: 0;
+  border-radius: 4px;
+  transition: transform 0.15s ease, color 0.15s ease, background 0.12s ease;
+}
+
+.coa-chevron:hover {
+  color: #2563eb;
+  background: rgba(37, 99, 235, 0.08);
+}
+
+.coa-chevron--expanded {
+  transform: rotate(90deg);
+}
+
+.coa-chevron--collapsed {
+  transform: rotate(0deg);
+}
+
+/* ─── Inline Row Actions ─── */
+.coa-tree-row__actions-cell {
+  width: 120px;
+  text-align: right;
+}
+
+.coa-row-actions {
+  display: inline-flex;
+  gap: 0.15rem;
+  opacity: 0;
+  transition: opacity 0.12s ease;
+}
+
+.coa-tree-row:hover .coa-row-actions,
+.coa-tree-row--selected .coa-row-actions {
+  opacity: 1;
+}
+
+.coa-row-action-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  border: none;
+  background: none;
+  cursor: pointer;
+  color: #94a3b8;
+  padding: 0;
+  border-radius: 6px;
+  transition: color 0.12s ease, background 0.12s ease;
+}
+
+.coa-row-action-btn:hover {
+  color: #2563eb;
+  background: rgba(37, 99, 235, 0.08);
+}
+
+.coa-row-action-btn--add:hover {
+  color: #16a34a;
+  background: rgba(22, 163, 74, 0.08);
+}
+
+.coa-row-action-btn--move:hover {
+  color: #7c3aed;
+  background: rgba(124, 58, 237, 0.08);
+}
+
+.coa-row-action-btn--delete:hover {
+  color: #dc2626;
+  background: rgba(220, 38, 38, 0.08);
+}
+
+/* ─── Modal (shared) ─── */
+.coa-modal-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(15, 23, 42, 0.45);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 3000;
+  padding: 1rem;
+}
+
+.coa-modal {
+  background: #fff;
+  border-radius: 14px;
+  max-width: 95vw;
+  max-height: 90vh;
+  overflow-y: auto;
+  box-shadow: 0 18px 40px -18px rgba(15, 23, 42, 0.35);
+  display: flex;
+  flex-direction: column;
+}
+
+.coa-modal__header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 1rem 1.25rem;
+  border-bottom: 1px solid #e2e8f0;
+}
+
+.coa-modal__title {
+  margin: 0;
+  font-size: 1.1rem;
+  font-weight: 700;
+  color: #0f172a;
+}
+
+.coa-modal__close {
+  border: 1px solid var(--border);
+  background: #fff;
+  border-radius: 8px;
+  padding: 0.3rem 0.65rem;
+  cursor: pointer;
+  font-weight: 700;
+  font-size: 1.1rem;
+  color: #64748b;
+  line-height: 1;
+}
+
+.coa-modal__close:hover {
+  color: #0f172a;
+  border-color: #94a3b8;
+}
+
+.coa-modal__body {
+  padding: 1rem 1.25rem;
+}
+
+.coa-modal__footer {
+  display: flex;
+  justify-content: flex-end;
+  gap: 0.5rem;
+  padding: 0.75rem 1.25rem;
+  border-top: 1px solid #e2e8f0;
+}
+
+/* Move info rows */
+.coa-move-info {
+  display: flex;
+  align-items: baseline;
+  gap: 0.5rem;
+  margin-bottom: 0.35rem;
+}
+
+.coa-move-info__label {
+  font-size: 0.8rem;
+  font-weight: 600;
+  color: #64748b;
+  min-width: 100px;
+}
+
+.coa-move-info__value {
+  font-size: 0.9rem;
+  font-weight: 700;
+  color: #0f172a;
+}
+
+/* ─── Category Picker (reused in modal) ─── */
 .coa-category-picker {
   max-height: 250px;
   overflow-y: auto;
@@ -307,32 +583,40 @@
   background: #dbeafe;
 }
 
-/* Responsive adjustments */
+/* ─── Responsive ─── */
 @media (max-width: 768px) {
   .coa-management-container {
-    padding: 0 1rem 1.5rem;
-  }
-
-  .coa-management-layout {
-    flex-direction: column;
-  }
-
-  .coa-management-sidebar {
-    max-width: none;
-    width: 100%;
+    padding: 0 0.75rem 1.5rem;
   }
 
   .coa-management-header__title {
-    font-size: 1.5rem;
+    font-size: 1.35rem;
   }
 
-  .coa-management-filters__grid {
-    grid-template-columns: 1fr;
-  }
-
-  .coa-management-table-header {
+  .coa-toolbar {
     flex-direction: column;
-    align-items: flex-start;
-    gap: 0.5rem;
+    align-items: stretch;
+  }
+
+  .coa-toolbar__filters {
+    flex-direction: column;
+  }
+
+  .coa-toolbar__search-input {
+    min-width: 0;
+    width: 100%;
+  }
+
+  .coa-toolbar__select {
+    min-width: 0;
+    width: 100%;
+  }
+
+  .coa-toolbar__actions {
+    justify-content: flex-end;
+  }
+
+  .coa-tree-section {
+    padding: 0.75rem;
   }
 }

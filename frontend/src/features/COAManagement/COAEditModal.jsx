@@ -29,12 +29,16 @@ export default function COAEditModal({
   const isAdd = mode === "add" || mode === "quickadd" || mode === "quickadd-category";
   const isQuickAdd = mode === "quickadd" || mode === "quickadd-category";
   const isQuickAddCategory = mode === "quickadd-category";
+  const isCategoryAdd = isAdd && row.isCategory;
+  const showCategoryPicker = isQuickAdd || (mode === "add" && !parentPath?.length);
   const title = isMultiEdit
     ? "Edit Accounts"
     : isQuickAddCategory
     ? "Add Missing Category"
     : mode === "quickadd"
     ? "Add Missing Account"
+    : isCategoryAdd
+    ? "Add Category"
     : isAdd
     ? "Add Account"
     : "Edit Account";
@@ -115,7 +119,31 @@ export default function COAEditModal({
             readOnly={isMultiEdit}
           />
         </label>
-        {isQuickAdd && (
+        {mode === "add" && !isQuickAdd && (
+          <label
+            style={{
+              display: "flex",
+              alignItems: "center",
+              gap: "0.5rem",
+              padding: "0.5rem 0.75rem",
+              background: "#f8fafc",
+              borderRadius: "8px",
+              border: "1px solid #e2e8f0",
+              cursor: "pointer",
+            }}
+          >
+            <input
+              type="checkbox"
+              checked={!!row.isCategory}
+              onChange={(e) => onFieldChange("isCategory", e.target.checked)}
+              style={{ width: "16px", height: "16px", accentColor: "#2563eb" }}
+            />
+            <span style={{ fontWeight: 600, color: "#334155", fontSize: "0.9rem" }}>
+              Create as category (container for sub-accounts)
+            </span>
+          </label>
+        )}
+        {(isQuickAdd || showCategoryPicker) && (
           <div
             style={{
               display: "flex",
@@ -124,7 +152,7 @@ export default function COAEditModal({
             }}
           >
             <span style={{ fontWeight: 700, color: "#0f172a" }}>
-              {isQuickAddCategory ? "Place under parent category" : "Place under category"}
+              {isCategoryAdd || isQuickAddCategory ? "Place under parent category" : "Place under category"}
             </span>
             <COACategoryPicker
               coaSections={coaSections}
@@ -139,12 +167,12 @@ export default function COAEditModal({
                   marginTop: "0.15rem",
                 }}
               >
-                Selected: {parentPath.join(" › ")}
+                Selected: {parentPath.join(" \u203A ")}
               </span>
             )}
           </div>
         )}
-        {!isQuickAddCategory && <label
+        {!isQuickAddCategory && !isCategoryAdd && <label
           style={{
             display: "flex",
             flexDirection: "column",
@@ -201,7 +229,7 @@ export default function COAEditModal({
             />
           )}
         </label>}
-        {!isQuickAddCategory && <label
+        {!isQuickAddCategory && !isCategoryAdd && <label
           style={{
             display: "flex",
             flexDirection: "column",
@@ -226,7 +254,7 @@ export default function COAEditModal({
             ))}
           </select>
         </label>}
-        {!isQuickAddCategory && <label
+        {!isQuickAddCategory && !isCategoryAdd && <label
           style={{
             display: "flex",
             flexDirection: "column",
