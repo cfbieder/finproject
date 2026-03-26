@@ -23,7 +23,7 @@ Items from active development notes:
 - [x] Add monthly budget FX rates page (`/budget-fx`) with per-month, per-year rates and recalculate from actual
 - [x] Test to check if fx rates in fc periods work, if changed
 - [x] Add COA management (SQL-based; frontend CRUD at `/coa-management`)
-- [x] Add Ledger report page (`/ledger`) — account-level transaction listing with running balance for asset/liability accounts
+- [x] Add Ledger report page (`/ledger`) — account-level transaction listing with running balance for asset/liability accounts, dynamic cascading COA selectors (variable depth), collapsible filters, row selection with edit/delete, add transaction drawer
 - [ ] Review how income, growth and expense calculated in fcbuilder / put tooltips
 - [ ] When copying modules to other scenarios, automatically update base date and values
 - [x] Export to excel
