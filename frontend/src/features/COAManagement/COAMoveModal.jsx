@@ -62,6 +62,8 @@ export default function COAMoveModal({
               coaSections={coaSections}
               selectedPath={targetPath}
               onSelect={setTargetPath}
+              includeAllNodes
+              excludeName={row.name}
             />
             {targetPath.length > 0 && (
               <span

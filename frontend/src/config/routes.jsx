@@ -53,6 +53,7 @@ const RefreshPS = lazy(() => import("../pages/RefreshPS"));
 const TransActual = lazy(() => import("../pages/TransActual"));
 const TransBudget = lazy(() => import("../pages/TransBudget"));
 const TransferAnalysis = lazy(() => import("../pages/TransferAnalysis"));
+const Ledger = lazy(() => import("../pages/Ledger"));
 const UploadPS = lazy(() => import("../pages/UploadPS"));
 const COAManagement = lazy(() => import("../pages/COAManagement"));
 const BudgetFX = lazy(() => import("../pages/BudgetFX"));
@@ -146,6 +147,14 @@ export const routes = [
     category: "Transactions",
     description: "Match and analyze transfer transactions across accounts",
     icon: ArrowLeftRight,
+  },
+  {
+    path: "/ledger",
+    component: Ledger,
+    label: "Ledger",
+    category: "Transactions",
+    description: "Account ledger with running balance for assets and liabilities",
+    icon: BookOpen,
   },
 
   // Budgeting

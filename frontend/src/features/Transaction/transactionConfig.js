@@ -287,6 +287,95 @@ export const REVIEW_CONFIG = {
   logPrefix: "ReviewNew",
 };
 
+// ---------- Ledger Config ----------
+
+export const LEDGER_CONFIG = {
+  // API endpoint — reuses the existing transactions endpoint
+  endpoint: "/api/v2/transactions",
+
+  // No totals needed for ledger view
+  totalsEndpoint: null,
+
+  // Read-only report — no editing
+  editFields: [],
+
+  // Default filter state — requires an account to be selected
+  defaultFilters: {
+    yearEnabled: false,
+    monthEnabled: false,
+    accountEnabled: false,
+    categoryEnabled: false,
+    currencyEnabled: false,
+    year: "",
+    month: "",
+    fromMonth: "",
+    toMonth: "",
+    account: [],
+    category: [],
+    currency: [],
+    valueFromEnabled: false,
+    valueToEnabled: false,
+    valueFrom: null,
+    valueTo: null,
+  },
+
+  // Filter UI behavior
+  yearAlwaysEnabled: false,
+  hasDescriptionFilter: false,
+  hasClientSideFiltering: false,
+
+  // Build query params — fetch all transactions for selected account, no date limit by default
+  buildFilterQuery(query, filters, fetchLimit) {
+    appendCommonFilterParams(query, filters);
+    if (filters.yearEnabled && filters.year) {
+      buildDateRangeParams(query, filters);
+    }
+    query.set("limit", fetchLimit);
+  },
+
+  // No totals query needed
+  buildTotalsQuery() {},
+
+  // Transform API response entry to component format (same as ACTUAL_CONFIG)
+  transformEntry(txn) {
+    return {
+      _id: String(txn.id),
+      id: txn.id,
+      ps_id: txn.ps_id,
+      Date: txn.transaction_date,
+      Description1: txn.description1,
+      Description2: txn.description2,
+      Amount: parseFloat(txn.amount),
+      Currency: txn.currency,
+      BaseAmount: parseFloat(txn.base_amount),
+      BaseCurrency: txn.base_currency,
+      Account: txn.account_name,
+      account_id: txn.account_id,
+      Category: txn.category_name,
+      category_id: txn.category_id,
+      ClosingBalance: txn.closing_balance
+        ? parseFloat(txn.closing_balance)
+        : null,
+      Labels: txn.labels,
+      Memo: txn.memo,
+      Note: txn.note,
+      Bank: txn.bank,
+      Source: txn.source,
+    };
+  },
+
+  // No totals parsing needed
+  parseTotalsEntries() { return []; },
+  getTotalsCurrency() { return "Unknown"; },
+  getTotalsAmount() { return 0; },
+
+  // Messages
+  editSuccessMessage: "",
+  deleteSuccessMessage: "",
+  loadErrorMessage: "Failed to load ledger transactions",
+  logPrefix: "Ledger",
+};
+
 // ---------- Budget Config ----------
 
 export const BUDGET_CONFIG = {

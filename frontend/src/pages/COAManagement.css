@@ -583,6 +583,11 @@
   background: #dbeafe;
 }
 
+.coa-category-picker__item--category {
+  font-weight: 700;
+  color: var(--primary);
+}
+
 /* ─── Responsive ─── */
 @media (max-width: 768px) {
   .coa-management-container {

@@ -411,6 +411,15 @@ export default function COAManagement() {
       setMoveError("Select a destination category.");
       return;
     }
+    // Check if destination is the same as current parent
+    const currentParentPath = row.path || [];
+    if (
+      targetPath.length === currentParentPath.length &&
+      targetPath.every((seg, i) => seg === currentParentPath[i])
+    ) {
+      setMoveError("This account is already under that parent. Select a different destination.");
+      return;
+    }
     setMoveSaving(true);
     setMoveError("");
     try {
