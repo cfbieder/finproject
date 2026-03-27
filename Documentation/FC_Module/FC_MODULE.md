@@ -111,7 +111,7 @@ Older or simplified version with fewer asset classes; appears to be a quick-refe
 | G2 | **Deposit rate / interest income** | Deposits earn interest at a configurable rate per year | Deposits are static BS modules with no interest calculation |
 | G3 | **Cash auto-balance (target cash)** | Cash is the residual bucket; excess flows to deposits, shortfalls trigger sales | `Bank Accounts` accumulates cash changes but no target or rebalancing |
 | G4 | **Tax deferral** | Capital gains tax is paid the following year | Tax is calculated in the same year as the gain |
-| G5 | **Living expenses from actuals** | Living expenses baseline comes from actual prior-year spending | Income/expense base values are manually entered |
+| G5 | **Income/Expense from budget** | Living expenses and income baselines are planned forward-looking values | Income/expense base values are manually entered; no link to budget |
 | G6 | **Liability interest model** | Interest rate = base × inflation × multiplier; auto-calculated interest expense | Liabilities exist as modules but no dedicated interest calculation |
 | G7 | **Age tracking** | Row showing age for each forecast year | Not present |
 | G8 | **Property costs as absolute amounts** | Property costs are absolute values growing at inflation | App uses `expense_pct` (percentage of market value) |
@@ -128,7 +128,7 @@ Older or simplified version with fewer asset classes; appears to be a quick-refe
 | G2 | Deposit rate / interest income | **Reuse `IncomePct` as deposit rate** | For deposit-type modules, `IncomePct` schedule = deposit rate per year. Interest = market value × rate. Flows to "Interest Income" category. No schema changes. |
 | G3 | Cash auto-balance | **Post-processing with target, manual rebalance** | New `target_cash` field on scenario. After generation, compute cash gap per year. Excess → adds to deposits. Shortfall → flagged in output for user to add disposals. |
 | G4 | Tax deferral | **One-year shift on all realized gains tax** | Shift `taxValues` array by +1 year in `fcbuilder-module.js`. Small code change, correct US tax behavior. |
-| G5 | Income/Expense from actuals | **"Seed from Actuals" button** on Income/Expense page | Backend queries prior-year P&L by category, auto-fills base values for matched items. User reviews (important for filtering one-offs). |
+| G5 | Income/Expense from budget | **"Seed from Budget" button** on Income/Expense page | Backend queries current-year budget entries summed by category, auto-fills base values for matched items. Budget is forward-looking and already curated — better than prior-year actuals which include one-offs. Fallback to prior-year actuals if no budget entry exists. |
 | G6 | Liability interest model | **Reuse existing fields** | `expense_pct` = interest rate, `Dispose` array = repayment schedule. Engine adjusts calculation for `account_type = 'liability'`. No schema changes. |
 | G7 | Age tracking | **Birth year in Program Settings** | Single field in app settings. Review page displays `year - birth_year` as header row. Pure display, no engine changes. |
 | G8 | Property costs absolute amounts | **Support both modes** | `expense_amount` column already exists in DB. If `expense_amount > 0`, use as absolute base grown at inflation. If 0, fall back to `expense_pct`. Frontend shows both fields. |
@@ -185,16 +185,21 @@ Older or simplified version with fewer asset classes; appears to be a quick-refe
   - Checkboxes to select which modules to update
   - "Apply" commits the bulk update
 
-**G5 — Seed Income/Expense Base Values**
-- New API endpoint: `POST /api/v2/forecast/incomeexpense/seed-from-actuals`
-  - Query params: `scenario`, `baseYear`
-  - Backend calls cash flow / P&L report for full year `baseYear`
-  - Matches forecast income/expense items by `account_id` to P&L categories
-  - Returns proposed updates: `[{ incexp_id, current_base_value, proposed_base_value, account_name, actual_amount }]`
+**G5 — Seed Income/Expense from Budget**
+- New API endpoint: `POST /api/v2/forecast/incomeexpense/seed-from-budget`
+  - Query params: `scenario`, `budgetYear` (e.g. 2026 — the first forecast year)
+  - Backend queries `budget_entries` for the given year, summed by category (annualized)
+  - For each `forecast_income_expense` item in the scenario, match by `account_id` to budget category totals
+  - Returns proposed updates: `[{ incexp_id, current_base_value, proposed_base_value, account_name, budget_amount, actual_amount }]`
+  - `actual_amount` included as reference (prior-year P&L) so user can compare budget vs actual
+  - Fallback: if no budget entry exists for a category, show prior-year actual instead (marked as "from actuals")
 - New API endpoint: `PATCH /api/v2/forecast/incomeexpense/bulk-update`
   - Same pattern as modules
-- Frontend: "Seed from Actuals" button on FCExpSetup page
-  - Same review modal pattern as G1
+- Frontend: "Seed from Budget" button on FCExpSetup page
+  - Opens review modal showing: Item Name | Current Value | Budget Amount | Prior Year Actual | Source (Budget/Actual)
+  - Checkboxes to select which items to update
+  - "Apply" commits the bulk update
+- **Rationale:** Budget is forward-looking and already curated (no one-offs). The forecast year 1 P&L should match the budget, then grow from there via inflation/growth rates.
 
 ### Phase 3: Deposit Rate (interest income)
 
@@ -367,13 +372,15 @@ Each phase has:
 | 2.4 | Bulk update rejects invalid IDs | PATCH with non-existent module ID | 404 or partial success with error for invalid ID |
 | 2.5 | Base date set to Dec 31 of base year | Seed with baseYear = 2025 | All proposed base_date values = "2025-12-31" |
 
-**Test Group: Seed Income/Expense (G5)**
+**Test Group: Seed Income/Expense from Budget (G5)**
 
 | # | Test | Setup | Expected |
 |---|------|-------|----------|
-| 2.6 | Returns proposed values for matched items | 3 income/expense items, 2 match P&L categories | 2 proposals returned with actual amounts |
-| 2.7 | Handles income (positive) and expense (negative) | Mix of income and expense items | Positive values for income, negative for expense categories |
-| 2.8 | Bulk update applies values | PATCH with updates | DB rows updated with new base_value, base_value_usd |
+| 2.6 | Returns proposed values from budget | 3 income/expense items, 2 have budget entries for the year | 2 proposals with `proposed_base_value` from budget totals, source = "Budget" |
+| 2.7 | Falls back to prior-year actual | Item with no budget entry but has prior-year P&L activity | Proposal returned with source = "Actual" |
+| 2.8 | Handles income (positive) and expense (negative) | Mix of income and expense budget entries | Positive values for income, negative for expense categories |
+| 2.9 | Includes actual as reference | Items with both budget and actual data | Response includes both `budget_amount` and `actual_amount` for comparison |
+| 2.10 | Bulk update applies values | PATCH with updates | DB rows updated with new base_value, base_value_usd |
 
 #### Manual Walkthrough
 
@@ -386,9 +393,11 @@ Each phase has:
 | M2.5 | Verify unmatched shown | Check for modules with no match | Unmatched modules show "No match" or are absent from list |
 | M2.6 | Select and apply | Check 2 modules, click Apply | Toast confirms update, module list refreshes with new values |
 | M2.7 | Verify persisted | Close and reopen the module edit form | Base values reflect the applied actuals |
-| M2.8 | Repeat for Income/Expense | Navigate to Income/Expense page, click "Seed from Actuals" | Review modal shows P&L actual values for matched items |
-| M2.9 | Verify income/expense proposals | Compare to Cash Flow report for 2025 | Amounts match actual P&L totals per category |
-| M2.10 | Apply and regenerate | Apply seed, then generate forecast | Forecast starts from actual values; review page shows realistic projections |
+| M2.8 | Repeat for Income/Expense | Navigate to Income/Expense page, click "Seed from Budget" | Review modal opens with budget year selector |
+| M2.9 | Verify budget proposals | Compare proposed values to Budget Worksheet totals for 2026 | Budget amounts match per category; "Source" column shows "Budget" |
+| M2.10 | Verify fallback to actual | Check an item that has no budget entry | Shows prior-year actual amount, "Source" column shows "Actual" |
+| M2.11 | Verify reference column | Check the "Prior Year Actual" column | Shows 2025 actual values alongside budget for comparison |
+| M2.12 | Apply and regenerate | Apply seed, then generate forecast | Forecast year 1 P&L aligns with budget; subsequent years grow from there |
 
 ---
 

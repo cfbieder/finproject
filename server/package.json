@@ -16,6 +16,7 @@
   "license": "ISC",
   "type": "commonjs",
   "dependencies": {
+    "@tensorflow/tfjs-node": "^4.22.0",
     "archiver": "^7.0.1",
     "arquero": "^8.0.3",
     "cors": "^2.8.5",

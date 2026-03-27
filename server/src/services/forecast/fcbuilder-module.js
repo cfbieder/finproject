@@ -273,13 +273,36 @@ async function processModule(module, scenario, df_assumptions, df_categories, ca
     }
   }
 
-  // Calculate income and expense values
+  // Calculate expense values
+  // If expense_amount is set (> 0), use absolute amount grown at inflation (for property costs, etc.)
+  // Otherwise, use expense_pct as percentage of average market value (existing behavior)
   const expenseValues = new Array(yearsCount).fill(0);
-  for (let i = 0, year = startyear; year <= endyear; i++, year++) {
-    const idx = year - periodStart;
-    expenseValues[i] = idx >= 0 && idx < inflationLen
-      ? (((marketValues[i] + (marketValues[i - 1] ?? 0)) / 2) * expPctValues[i]) / 100
-      : 0;
+  const absExpenseAmount = parseFloat(module.expense_amount) || 0;
+
+  if (absExpenseAmount > 0) {
+    // Absolute expense amount, compounded at inflation from base year
+    for (let i = 0, year = startyear; year <= endyear; i++, year++) {
+      const idx = year - periodStart;
+      if (idx >= 0 && idx < inflationLen) {
+        // Compound inflation from base year to current year
+        let compounded = absExpenseAmount;
+        for (let j = 1; j <= i; j++) {
+          const jIdx = (startyear + j) - periodStart;
+          if (jIdx >= 0 && jIdx < inflationLen) {
+            compounded *= (1 + inflationSeries[jIdx] / 100);
+          }
+        }
+        // Negate for assets (expense reduces value), keep as-is for liabilities
+        expenseValues[i] = isLiability ? compounded : -compounded;
+      }
+    }
+  } else {
+    for (let i = 0, year = startyear; year <= endyear; i++, year++) {
+      const idx = year - periodStart;
+      expenseValues[i] = idx >= 0 && idx < inflationLen
+        ? (((marketValues[i] + (marketValues[i - 1] ?? 0)) / 2) * expPctValues[i]) / 100
+        : 0;
+    }
   }
 
   const incomeValues = new Array(yearsCount).fill(0);
@@ -290,14 +313,20 @@ async function processModule(module, scenario, df_assumptions, df_categories, ca
       : 0;
   }
 
-  // Calculate tax values
+  // Calculate tax values (deferred by one year — US tax is paid the year after the gain)
   const taxValues = new Array(yearsCount).fill(0);
   const taxRate = Number(scenario?.TaxRate ?? 0);
   if (Number.isFinite(taxRate) && taxRate !== 0) {
     const rateFactor = -taxRate / 100;
     for (let i = 0; i < yearsCount; i++) {
-      if (realizedGainValues[i] > 0) taxValues[i] = rateFactor * realizedGainValues[i];
-      if (incomeValues[i] > 0) taxValues[i] += rateFactor * incomeValues[i];
+      let currentYearTax = 0;
+      if (realizedGainValues[i] > 0) currentYearTax = rateFactor * realizedGainValues[i];
+      if (incomeValues[i] > 0) currentYearTax += rateFactor * incomeValues[i];
+      // Defer tax to next year; if this is the last year, tax stays in that year
+      if (currentYearTax !== 0) {
+        const targetIdx = i + 1 < yearsCount ? i + 1 : i;
+        taxValues[targetIdx] += currentYearTax;
+      }
     }
   }
 

@@ -197,12 +197,9 @@ async function processModule(module, scenario, df_assumptions, df_categories, ca
   const taxValues = new Array(yearsCount).fill(0);
   const cashChange = new Array(yearsCount);
 
+  // Calculate base and incexp values first, then apply deferred tax
   baseValues[0] = module.BaseValue * (1 + (changePValues[0] ?? 0) / 100) + (changeDValues[0] ?? 0);
   incexpValues[0] = baseValues[0] + (changeOValues[0] ?? 0);
-
-  if (incexpValues[0] > 0) {
-    taxValues[0] = -(incexpValues[0] * scenario.TaxRate) / 100;
-  }
 
   for (let i = 1; i < yearsCount; i++) {
     const year = startyear + i;
@@ -215,9 +212,14 @@ async function processModule(module, scenario, df_assumptions, df_categories, ca
       baseValues[i] = 0;
       incexpValues[i] = 0;
     }
+  }
 
+  // Calculate tax values (deferred by one year — US tax is paid the year after the income)
+  for (let i = 0; i < yearsCount; i++) {
     if (incexpValues[i] > 0) {
-      taxValues[i] = -(incexpValues[i] * scenario.TaxRate) / 100;
+      const currentYearTax = -(incexpValues[i] * scenario.TaxRate) / 100;
+      const targetIdx = i + 1 < yearsCount ? i + 1 : i;
+      taxValues[targetIdx] += currentYearTax;
     }
   }
 
