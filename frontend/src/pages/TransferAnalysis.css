@@ -6,7 +6,7 @@
   display: flex;
   flex-direction: column;
   gap: 1.5rem;
-  padding: 1rem;
+  padding: 1.25rem 1.5rem;
   max-width: 100%;
 }
 
@@ -223,6 +223,124 @@
   padding: 1rem;
   font-size: 0.875rem;
   font-style: italic;
+}
+
+/* Manual matching — link bar */
+.transfer-analysis-link-bar {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  padding: 0.75rem 1.25rem;
+  background: var(--primary-light, #dbeafe);
+  border: 1px solid var(--primary, #2563eb);
+  border-radius: var(--radius-lg);
+  font-size: 0.875rem;
+  font-weight: 600;
+  color: var(--primary, #2563eb);
+  position: sticky;
+  top: 0;
+  z-index: 10;
+}
+
+.transfer-analysis-link-net {
+  font-variant-numeric: tabular-nums;
+  color: #fecaca;
+}
+
+.transfer-analysis-link-net--zero {
+  color: #bbf7d0;
+}
+
+.transfer-analysis-link-btn {
+  padding: 0.4rem 1rem;
+  border: none;
+  border-radius: var(--radius-md, 6px);
+  font-size: 0.8125rem;
+  font-weight: 600;
+  cursor: pointer;
+  background: var(--primary, #2563eb);
+  color: #fff;
+  transition: opacity var(--transition-base);
+}
+
+.transfer-analysis-link-btn:hover {
+  opacity: 0.9;
+}
+
+.transfer-analysis-link-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.transfer-analysis-link-btn--secondary {
+  background: transparent;
+  color: var(--primary, #2563eb);
+  border: 1px solid var(--primary, #2563eb);
+}
+
+/* Checkbox column */
+.transfer-analysis-checkbox-col {
+  width: 2rem;
+  text-align: center;
+}
+
+/* Selected row highlight */
+.transfer-analysis-row--selected {
+  background: var(--primary-light, #dbeafe) !important;
+}
+
+/* Manual match group styles */
+.transfer-analysis-category-badge--manual {
+  background: var(--surface-muted, #e2e8f0);
+  color: var(--ink, #334155);
+}
+
+.transfer-analysis-section-title--manual {
+  color: var(--ink, #334155);
+  border-bottom-color: var(--border, #e2e8f0);
+}
+
+.transfer-analysis-manual-group {
+  border: 1px solid var(--border-light, #f1f5f9);
+  border-radius: var(--radius-md, 6px);
+  padding: 0.75rem;
+}
+
+.transfer-analysis-manual-group-header {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  flex-wrap: wrap;
+  margin-bottom: 0.5rem;
+}
+
+.transfer-analysis-manual-group-header .transfer-analysis-section-title {
+  flex: 0 0 auto;
+  border-bottom: none;
+  padding-bottom: 0;
+}
+
+.transfer-analysis-manual-group-totals {
+  font-size: 0.75rem;
+  color: var(--muted);
+  flex: 1;
+}
+
+.transfer-analysis-unlink-btn {
+  padding: 0.25rem 0.75rem;
+  border: 1px solid var(--danger, #dc2626);
+  border-radius: var(--radius-md, 6px);
+  background: transparent;
+  color: var(--danger, #dc2626);
+  font-size: 0.75rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background var(--transition-base), color var(--transition-base);
+}
+
+.transfer-analysis-unlink-btn:hover {
+  background: var(--danger, #dc2626);
+  color: #fff;
 }
 
 /* Responsive */

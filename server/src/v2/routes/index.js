@@ -17,6 +17,7 @@ const healthRouter = require('./health');
 const reportsRouter = require('./reports');
 const utilRouter = require('./util');
 const ingestPsRouter = require('./ingestPs');
+const transferMatchGroupsRouter = require('./transferMatchGroups');
 
 // Mount routes
 router.use('/health', healthRouter);
@@ -28,6 +29,7 @@ router.use('/forecast', forecastRouter);
 router.use('/reports', reportsRouter);
 router.use('/util', utilRouter);
 router.use('/ingest-ps', ingestPsRouter);
+router.use('/transfer-match-groups', transferMatchGroupsRouter);
 
 // API root info
 router.get('/', (req, res) => {
@@ -43,7 +45,8 @@ router.get('/', (req, res) => {
       '/api/v2/forecast',
       '/api/v2/reports',
       '/api/v2/util',
-      '/api/v2/ingest-ps'
+      '/api/v2/ingest-ps',
+      '/api/v2/transfer-match-groups'
     ]
   });
 });

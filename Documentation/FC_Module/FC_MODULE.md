@@ -167,6 +167,12 @@ Older or simplified version with fewer asset classes; appears to be a quick-refe
   - After full repayment, zero out all subsequent years
 - Existing sign-handling for liabilities already inverts `expense_pct` — verify this works correctly with interest model
 
+**Phase 1 Status: COMPLETE (2026-03-27)**
+- G4 Tax Deferral: Implemented and verified (tax shifts +1 year in both fcbuilder-module.js and fcbuilder-incexp.js)
+- G8 Absolute Expenses: Implemented and verified (expense_amount > 0 uses absolute value grown at inflation, falls back to expense_pct)
+- G6 Liability Interest: Verified working with existing fields (expense_pct = interest rate, Dispose = repayments)
+- 19 automated tests passing, 9 manual checks confirmed
+
 ### Phase 2: Seed from Actuals (automation)
 
 **Goal:** One-click population of forecast starting values from actual data.
@@ -200,6 +206,11 @@ Older or simplified version with fewer asset classes; appears to be a quick-refe
   - Checkboxes to select which items to update
   - "Apply" commits the bulk update
 - **Rationale:** Budget is forward-looking and already curated (no one-offs). The forecast year 1 P&L should match the budget, then grow from there via inflation/growth rates.
+
+**Phase 2 Status: COMPLETE (2026-03-27)**
+- G1 Seed from Actuals: 2 new endpoints (POST seed-from-actuals, PATCH bulk-update). Frontend modal with review table on Modules page.
+- G5 Seed from Budget: 2 new endpoints (POST seed-from-budget with recursive CTE for P&L hierarchy, PATCH bulk-update). Frontend modal with budget/actual/source columns on Inc/Exp page. Fallback to prior-year actuals when no budget entry exists.
+- Generic `Rest.post()` and `Rest.patch()` methods added to frontend REST helper.
 
 ### Phase 3: Deposit Rate (interest income)
 
@@ -266,7 +277,7 @@ Older or simplified version with fewer asset classes; appears to be a quick-refe
 | `server/src/services/forecast/fcbuilder-module.js` | 1, 3 | Tax deferral, absolute expense amounts, liability interest, deposit rate verification |
 | `server/src/services/forecast/fcbuilder-incexp.js` | 1 | Tax deferral on income items |
 | `server/src/services/forecast/index.js` | 4 | Cash auto-balance post-processing step |
-| `server/src/v2/routes/forecast.js` | 2 | New seed-from-actuals and bulk-update endpoints |
+| `server/src/v2/routes/forecast.js` | 2 | New seed-from-actuals and bulk-update endpoints (4 new endpoints: POST seed-from-actuals, PATCH modules/bulk-update, POST seed-from-budget, PATCH incomeexpense/bulk-update) |
 | `server/src/v2/repositories/forecast.js` | 2, 4 | Bulk update queries, target_cash field |
 | `server/db/migrations/` | 4 | Add `target_cash` to `forecast_scenarios` |
 
@@ -275,6 +286,7 @@ Older or simplified version with fewer asset classes; appears to be a quick-refe
 |------|--------|---------|
 | `frontend/src/features/Forecast/FCModulesEdit.jsx` | 1 | Show `expense_amount` field |
 | `frontend/src/pages/FCModuleManage.jsx` | 2 | "Seed from Actuals" button + review modal |
+| `frontend/src/js/rest.js` | 2 | Generic `Rest.post()` and `Rest.patch()` methods |
 | `frontend/src/pages/FCExpSetup.jsx` | 2 | "Seed from Actuals" button + review modal |
 | `frontend/src/features/Forecast/FCScenariosModal.jsx` | 4 | `target_cash` field in scenario edit |
 | `frontend/src/pages/FCReview.jsx` | 4, 5 | Cash shortfall highlighting, age row, equity bridge |

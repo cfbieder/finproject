@@ -43,6 +43,7 @@ import "./Ledger.css";
 const LEDGER_EDIT_CONFIG = {
   ...LEDGER_CONFIG,
   editFields: [
+    { key: "Date", label: "Date", type: "date" },
     { key: "Description1", label: "Description", type: "text" },
     { key: "Category", label: "Category", type: "text" },
   ],

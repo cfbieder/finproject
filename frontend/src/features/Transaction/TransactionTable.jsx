@@ -522,9 +522,9 @@ const TRANSACTION_DATE_MONTH_NAMES = [
   "December",
 ];
 
-const getYearMonthFromValue = (value) => {
+const getYearMonthDayFromValue = (value) => {
   if (!value) {
-    return { year: "", month: "" };
+    return { year: "", month: "", day: "" };
   }
   const normalized =
     typeof value === "string"
@@ -533,26 +533,38 @@ const getYearMonthFromValue = (value) => {
       ? value.toISOString()
       : "";
   if (!normalized) {
-    return { year: "", month: "" };
+    return { year: "", month: "", day: "" };
   }
   const parsed = new Date(normalized);
   if (!Number.isFinite(parsed.getTime())) {
-    return { year: "", month: "" };
+    return { year: "", month: "", day: "" };
   }
   return {
     year: parsed.getUTCFullYear().toString(),
     month: parsed.getUTCMonth().toString(),
+    day: parsed.getUTCDate().toString(),
   };
 };
 
-const getIsoFromYearMonth = (yearValue, monthValue) => {
+const getIsoFromYearMonthDay = (yearValue, monthValue, dayValue) => {
   const normalizedYear = Number.parseInt(yearValue, 10);
   const normalizedMonth = Number.parseInt(monthValue, 10);
+  const normalizedDay = Number.parseInt(dayValue, 10);
   if (!Number.isFinite(normalizedYear) || !Number.isFinite(normalizedMonth)) {
     return "";
   }
-  const date = new Date(Date.UTC(normalizedYear, normalizedMonth, 1));
+  const day = Number.isFinite(normalizedDay) ? normalizedDay : 1;
+  const date = new Date(Date.UTC(normalizedYear, normalizedMonth, day));
   return Number.isFinite(date.getTime()) ? date.toISOString().slice(0, 10) : "";
+};
+
+const getDaysInMonth = (yearValue, monthValue) => {
+  const year = Number.parseInt(yearValue, 10);
+  const month = Number.parseInt(monthValue, 10);
+  if (!Number.isFinite(year) || !Number.isFinite(month)) {
+    return 31;
+  }
+  return new Date(Date.UTC(year, month + 1, 0)).getUTCDate();
 };
 
 export function TransactionDateSelector({
@@ -560,27 +572,47 @@ export function TransactionDateSelector({
   onChange,
   disabled = false,
 }) {
-  const { year, month } = getYearMonthFromValue(value);
+  const { year, month, day } = getYearMonthDayFromValue(value);
+  const maxDay = getDaysInMonth(year, month);
 
-  const triggerChange = (nextYear, nextMonth) => {
+  const triggerChange = (nextYear, nextMonth, nextDay) => {
     if (typeof onChange !== "function") {
       return;
     }
-    if (!nextYear || !nextMonth) {
+    if (!nextYear || nextMonth === "" || !nextDay) {
       onChange("");
       return;
     }
-    onChange(getIsoFromYearMonth(nextYear, nextMonth));
+    // Clamp day if it exceeds the new month's max
+    const clampedDay = Math.min(
+      Number.parseInt(nextDay, 10),
+      getDaysInMonth(nextYear, nextMonth)
+    ).toString();
+    onChange(getIsoFromYearMonthDay(nextYear, nextMonth, clampedDay));
   };
 
   return (
     <div className="trans-budget-edit-modal__date-selector">
       <select
         className="form-input"
+        aria-label="Select day"
+        disabled={disabled}
+        value={day}
+        onChange={(event) => triggerChange(year, month, event.target.value)}
+      >
+        <option value="">Day</option>
+        {Array.from({ length: maxDay }, (_, i) => i + 1).map((d) => (
+          <option value={d.toString()} key={d}>
+            {d}
+          </option>
+        ))}
+      </select>
+      <select
+        className="form-input"
         aria-label="Select month"
         disabled={disabled}
         value={month}
-        onChange={(event) => triggerChange(year, event.target.value)}
+        onChange={(event) => triggerChange(year, event.target.value, day)}
       >
         <option value="">Month</option>
         {TRANSACTION_DATE_MONTH_NAMES.map((monthName, index) => (
@@ -594,7 +626,7 @@ export function TransactionDateSelector({
         aria-label="Select year"
         disabled={disabled}
         value={year}
-        onChange={(event) => triggerChange(event.target.value, month)}
+        onChange={(event) => triggerChange(event.target.value, month, day)}
       >
         <option value="">Year</option>
         {TRANSACTION_DATE_YEAR_OPTIONS.map((yearOption) => (

@@ -37,9 +37,11 @@ export default function FCExpFilter({
   onAddClick,
   onEditClick,
   onDeleteClick,
+  onSeedClick,
   addDisabled,
   editDisabled,
   deleteDisabled,
+  seedDisabled,
 }) {
   const scenarios = assumptions?.scenarios || [];
 
@@ -109,6 +111,13 @@ export default function FCExpFilter({
                       disabled: deleteDisabled,
                       onClick: onDeleteClick,
                       danger: true,
+                    },
+                    {
+                      label: "Seed Budget",
+                      icon: "↓",
+                      disabled: seedDisabled,
+                      onClick: onSeedClick,
+                      primary: !seedDisabled,
                     },
                   ].map(
                     ({

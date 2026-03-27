@@ -146,6 +146,9 @@ export const ACTUAL_CONFIG = {
     ) {
       query.set("maxAmount", filters.valueTo);
     }
+    if (filters.transferMatched !== undefined && filters.transferMatched !== "") {
+      query.set("transferMatched", filters.transferMatched);
+    }
     query.set("limit", fetchLimit);
   },
 
@@ -215,6 +218,7 @@ export const ACTUAL_CONFIG = {
       Note: txn.note,
       Bank: txn.bank,
       Source: txn.source,
+      TransferMatched: txn.transfer_matched,
     };
   },
 

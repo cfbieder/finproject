@@ -137,8 +137,8 @@ psproject/                          # ~/Programs/fin symlinks here
 │       ├── app.js               # Express app config, route mounting
 │       └── v2/                  # PostgreSQL-based API (all routes)
 │           ├── db/              # PostgreSQL module exports + pool implementation
-│           ├── routes/          # Route handlers (accounts, budget, categories, forecast, health, ingestPs, reports, transactions, util)
-│           ├── repositories/    # Data access layer (accounts, budget, categories, forecast, psdata, transactions)
+│           ├── routes/          # Route handlers (accounts, budget, categories, forecast, health, ingestPs, reports, transactions, transferMatchGroups, util)
+│           ├── repositories/    # Data access layer (accounts, budget, budgetFxRates, categories, forecast, psdata, transactions, transferMatchGroups)
 │           └── services/        # Business logic (psCsvIngestorV2, refreshPsApiV2)
 ├── Scripts/                     # Shell scripts
 │   ├── dev-start.sh             # Start tmux development environment
@@ -184,9 +184,9 @@ psproject/                          # ~/Programs/fin symlinks here
 | `/cash-flow-monthly` | CashFlowMonthly | Reports & Graphs | Monthly cash flow breakdown |
 | `/balance-chart` | BalanceChart | Reports & Graphs | Net worth chart over time |
 | `/category-trend` | CategoryTrend | Reports & Graphs | Grouped bar chart comparing actual vs budget monthly values for selected income/expense categories over a standard period (YTD, This Year, Last Year, Last 6/12/24 Months). Expense values displayed as positive for visual comparison. |
-| `/trans-actual` | TransActual | Transactions | Redesigned transaction explorer. KPI summary cards (per-currency totals, income/expenses). Unified toolbar with instant search bar, collapsible filter panel (PeriodSelector, CategorySelector, AccountSelector, value range), active filter chips with one-click removal. Contextual selection bar appears on row selection (Edit, Split, Neutralize, Delete). Clean table with custom checkboxes, hover row actions (split/neutralize icons), color-coded amounts, monospace tabular-nums. Split uses slide-in drawer instead of modal. Client-side filtering for period, account, category, description, value range. Shares `TransactionExplorer.css` with TransBudget. **Split:** `POST /api/v2/transactions/:id/split`. **Neutralize:** `POST /api/v2/transactions/:id/neutralize`. |
+| `/trans-actual` | TransActual | Transactions | Redesigned transaction explorer. KPI summary cards (per-currency totals, income/expenses). Unified toolbar with instant search bar, collapsible filter panel (PeriodSelector, CategorySelector, AccountSelector, value range, Transfer Status dropdown), active filter chips with one-click removal. Transfer Status filter (All/Matched/Unmatched) filters by `transfer_matched` flag set during Transfer Analysis — requires running analysis first to populate flags. Contextual selection bar appears on row selection (Edit, Split, Neutralize, Delete). Clean table with custom checkboxes, hover row actions (split/neutralize icons), color-coded amounts, monospace tabular-nums. Split uses slide-in drawer instead of modal. Client-side filtering for period, account, category, description, value range. Shares `TransactionExplorer.css` with TransBudget. **Split:** `POST /api/v2/transactions/:id/split`. **Neutralize:** `POST /api/v2/transactions/:id/neutralize`. |
 | `/trans-budget` | TransBudget | Transactions | Redesigned budget transaction explorer matching TransActual pattern. KPI summary cards, toolbar with search/filters/export, collapsible filter panel with category group options (Income/Expense/Operational). Contextual selection bar (Edit, Delete — no split/neutralize). Default period: full year. Edit modal supports all fields (Date, Description, Amount, Currency, BaseAmount, Account, Category). Shares `TransactionExplorer.css` with TransActual. |
-| `/transfer-analysis` | TransferAnalysis | Transactions | Transfer matching analysis. Select a period via PeriodSelector, then analyze all transfer-category transactions. Matches debit/credit pairs by same absolute base_amount within 5-day tolerance. Shows summary cards (matched pairs, unmatched count/totals), collapsible category sections with matched pairs table (debit + credit side-by-side) and unmatched transactions table. Uses `GET /api/v2/transactions/transfer-analysis`. |
+| `/transfer-analysis` | TransferAnalysis | Transactions | Transfer matching analysis. Select a period via PeriodSelector, then analyze all transfer-category transactions. Matches debit/credit pairs by same absolute base_amount within 5-day tolerance. Shows summary cards (matched pairs, manual groups, unmatched count/totals), collapsible category sections with matched pairs table (debit + credit side-by-side) and unmatched transactions table with checkboxes for manual matching. **Manual Match Groups:** Users can select 2+ unmatched transactions across categories and link them as a persistent match group (e.g., one lump credit matching multiple split debits). Linked groups appear in an auto-expanded "Manually Matched Groups" section with debit/credit totals, net amount, and an Unlink button. Sticky action bar appears when 2+ rows are checked, showing selection count, net base amount (green when zero, red otherwise), Link as Matched button, and Clear button. **Transfer Matched Flags:** Running analysis persists `transfer_matched` boolean on all transfer transactions in the period (true for auto-matched + manual groups, false for unmatched), enabling the Transfer Status filter on the Actuals page. Uses `GET /api/v2/transactions/transfer-analysis`, `POST/DELETE /api/v2/transfer-match-groups`. |
 | `/ledger` | Ledger | Transactions | Account ledger report with running balance. Dynamic cascading dropdown selectors follow the COA hierarchy (Type → Group → Sub-Group → Account) adapting to variable tree depth (3 or 4 levels). Prominent blue account banner shows selected account name, currency badge, and record count. Collapsible filter panel with optional period filter (PeriodSelector). Toolbar with search, Add transaction (slide-in drawer with date/description/amount/currency/category fields, posts `POST /api/v2/transactions` with `source:'manual'`), and Export. Table with checkbox selection, sortable columns (Date, Description, Amount, Ccy, Category, Balance), bulk edit (description/category) and delete via selection bar. Running balance computed client-side from chronological order. Uses `LEDGER_CONFIG`/`LEDGER_EDIT_CONFIG` in `transactionConfig.js` and reuses `GET /api/v2/transactions` with account filter. |
 | `/fx-options` | FXOptions | Forecasting | Forecast FX assumptions (budget rates at `/budget-fx`) |
 | `/coa-management` | COAManagement | Settings | Chart of accounts CRUD with tree view (expand/collapse hierarchy), horizontal toolbar (search, filters, add), inline row actions on hover (edit, delete, add child, move), PS analysis, quick-add for accounts and categories. "Add as category" toggle in Add modal for creating categories anywhere in the hierarchy. Move modal with full-tree category picker to re-parent accounts under any node. Components: `COAManagementToolbar.jsx`, `COATreeTable.jsx`, `COATreeRow.jsx`, `COAEditModal.jsx`, `COAMoveModal.jsx`, `COACategoryPicker.jsx`. |
@@ -319,11 +319,16 @@ All endpoints mounted at `/api/v2`. Nginx rewrites legacy `/api/*` paths to `/ap
 - `GET /category-trend?startDate=&endDate=&category=` — Monthly actual vs budget by category (repeatable `category` param)
 
 #### Transactions (`/api/v2/transactions`)
-- `GET /` — List (with filtering, pagination) | `GET /summary/by-category` | `GET /summary/by-month`
+- `GET /?year=&month=&category=&account=&currency=&description=&minAmount=&maxAmount=&transferMatched=&limit=&offset=` — List with filtering and pagination. `transferMatched=true|false` filters by transfer match status (populated when Transfer Analysis runs). | `GET /summary/by-category` | `GET /summary/by-month`
 - `GET /:id` — Single | `POST /` — Create | `PATCH /:id` — Update (supports explicit `accepted` updates, does not auto-set) | `DELETE /:id` — Delete
 - `POST /:id/split` — Split transaction into 2-5 entries. Accepts `{ splits: [{ amount, category_name? }] }`. Updates original with first split's amount; creates new rows for remaining splits. Account preserved from original, category optionally changed per split. `base_amount` calculated proportionally to preserve exchange rates. New rows get `ps_id=null`, `source='split'`. Uses DB transaction for atomicity.
 - `POST /:id/neutralize` — Create offsetting entry for brokerage security trades. Accepts optional `{ category_name }` (defaults to "Transfer - Securities Trades"). Creates a new transaction with negated amount/base_amount, same account/date/currency. Both original and offset are assigned the category and marked `accepted=true`. Offset gets `source='auto-offset'`. Uses DB transaction for atomicity.
-- `GET /transfer-analysis?year=&month=&dateTolerance=` — Analyze transfer transactions for a period. Fetches all transactions in `is_transfer=TRUE` categories, groups by category, and matches debit/credit pairs by same absolute `base_amount` within date tolerance (default 5 days). Returns `{ data: { [category]: { matched, unmatched, matchedCount, unmatchedCount, matchedTotal, unmatchedTotal } }, period }`. Repository method: `findTransfers()`.
+- `GET /transfer-analysis?year=&month=&dateTolerance=` — Analyze transfer transactions for a period. Fetches all transactions in `is_transfer=TRUE` categories, groups by category, and matches debit/credit pairs by same absolute `base_amount` within date tolerance (default 5 days). Excludes transactions in manual match groups from auto-matching. **Side effect:** persists `transfer_matched` boolean flag on all transfer transactions in the period (true for auto-matched pairs and manual group members, false for unmatched). Returns `{ data: { [category]: { matched, unmatched, matchedCount, unmatchedCount, matchedTotal, unmatchedTotal } }, manualGroups: [{ id, note, created_at, transactions }], period }`. Repository methods: `findTransfers()`, `transferMatchGroups.findMatchedTransactionIds()`, `transferMatchGroups.findAll()`, `updateTransferMatchedFlags()`.
+
+#### Transfer Match Groups (`/api/v2/transfer-match-groups`)
+- `POST /` — Create manual match group. Body: `{ transactionIds: number[], note?: string }`. Requires 2+ IDs. Returns 409 if any transaction is already in a group. Uses DB transaction for atomicity.
+- `GET /?startDate=&endDate=` — List all match groups (optionally filtered by member transaction dates). Returns groups with full transaction details.
+- `DELETE /:id` — Remove a match group (cascade deletes members, returning transactions to unmatched pool).
 
 #### Utility (`/api/v2/util`)
 - `GET /appdata` (merges JSON file + PostgreSQL `app_data` table) | `POST /appdata` | `POST /backup-database`
@@ -342,6 +347,7 @@ All endpoints mounted at `/api/v2`. Nginx rewrites legacy `/api/*` paths to `/ap
 | `budgetFxRates.js` | budget_fx_rates |
 | `forecast.js` | forecast_scenarios, forecast_modules, forecast_income_expense, forecast_entries, and sub-tables |
 | `psdata.js` | psdata_staging, app_data |
+| `transferMatchGroups.js` | transfer_match_groups, transfer_match_group_members |
 
 ### Forecast Engine
 
@@ -364,10 +370,12 @@ Located in `server/src/v2/services/`. Generates multi-year financial projections
 |-------|---------|
 | `accounts` | Chart of accounts with hierarchy (adjacency list via `parent_id`) |
 | `categories` | PocketSmith categories mapped to accounts |
-| `transactions` | Actual financial transactions (`accepted` flag protects from PS refresh overwrite) |
+| `transactions` | Actual financial transactions (`accepted` flag protects from PS refresh overwrite, `transfer_matched` boolean set by Transfer Analysis for filtering matched/unmatched transfers) |
 | `pending_transactions` | Staging for new/modified PocketSmith transactions |
 | `budget_versions` | Named budget versions per year |
 | `budget_entries` | Individual budget line items |
+| `transfer_match_groups` | User-created manual match groups for transfer transactions |
+| `transfer_match_group_members` | Links transactions to match groups (unique constraint: one group per transaction) |
 
 #### Forecast Tables
 

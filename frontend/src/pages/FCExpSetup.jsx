@@ -1,6 +1,8 @@
+import { useState } from "react";
 import FCExpConfirmDeleteModal from "../features/Forecast/FCExpConfirmDeleteModal.jsx";
 import FCExpModal from "../features/Forecast/FCExpModal.jsx";
 import FCExpFilter from "../features/Forecast/FCExpFilter.jsx";
+import FCSeedFromBudgetModal from "../features/Forecast/FCSeedFromBudgetModal.jsx";
 import FCExpTable from "../features/Forecast/FCExpTable.jsx";
 import FCExpTableDetails from "../features/Forecast/FCExpTableDetails.jsx";
 import { useFCExpAssumptions } from "../features/Forecast/hooks/useFCExpAssumptions.js";
@@ -94,6 +96,15 @@ export default function FCExpSetup() {
     leafAccountLookup
   );
 
+  const [showSeedModal, setShowSeedModal] = useState(false);
+
+  const reloadEntries = () => {
+    // Trigger re-fetch by toggling scenario
+    const current = selectedScenario;
+    setSelectedScenario("");
+    setTimeout(() => setSelectedScenario(current), 50);
+  };
+
   return (
     <>
       <main className="page-content">
@@ -112,6 +123,8 @@ export default function FCExpSetup() {
           addDisabled={!selectedScenario || entriesLoading}
           editDisabled={!selectedScenario || !sortedEntries.length}
           deleteDisabled={!selectedScenario || !sortedEntries.length}
+          onSeedClick={() => setShowSeedModal(true)}
+          seedDisabled={!selectedScenario}
         />
         <div className="exp-setup-sections">
           <FCExpTable
@@ -153,6 +166,12 @@ export default function FCExpSetup() {
         accountOptions={accountOptions}
         accountNameOptions={accountNameOptions}
         periodYears={periodYears}
+      />
+      <FCSeedFromBudgetModal
+        isOpen={showSeedModal}
+        onClose={() => setShowSeedModal(false)}
+        scenario={selectedScenario}
+        onApplied={reloadEntries}
       />
     </>
   );

@@ -4,6 +4,7 @@ import FCModulesEditModal from "../features/Forecast/FCModulesEdit.jsx";
 import FCModulesTable from "../features/Forecast/FCModulesTable.jsx";
 import FCExpConfirmDeleteModal from "../features/Forecast/FCExpConfirmDeleteModal.jsx";
 import FCModulesUnmatchedModal from "../features/Forecast/FCModulesUnmatchedModal.jsx";
+import FCSeedFromActualsModal from "../features/Forecast/FCSeedFromActualsModal.jsx";
 import { useAssumptions } from "../features/Forecast/hooks/useAssumptions.js";
 import { useModules } from "../features/Forecast/hooks/useModules.js";
 import { useUnmatchedItems } from "../features/Forecast/hooks/useUnmatchedItems.js";
@@ -93,6 +94,9 @@ export default function FCModuleManage() {
   const [showDeleteModal, setShowDeleteModal] = useState(false);
   const [deleteSaving, setDeleteSaving] = useState(false);
   const [deleteError, setDeleteError] = useState("");
+
+  // Seed from Actuals modal state
+  const [showSeedModal, setShowSeedModal] = useState(false);
 
   // Unmatched modal state
   const [showUnmatchedModal, setShowUnmatchedModal] = useState(false);
@@ -527,10 +531,12 @@ export default function FCModuleManage() {
           onEditClick={openEditModal}
           onDeleteClick={openDeleteModal}
           onUnmatchedClick={openUnmatchedModal}
+          onSeedClick={() => setShowSeedModal(true)}
           scenarioSelectRef={scenarioSelectRef}
           selectedScenario={selectedScenario}
           selectedScenarioDetails={selectedScenarioDetails}
           unmatchedDisabled={!selectedScenario}
+          seedDisabled={!selectedScenario}
           hasSelectedModule={Boolean(selectedModule)}
           newDisabled={!selectedScenario || modulesLoading || isLoading}
         />
@@ -582,6 +588,12 @@ export default function FCModuleManage() {
           onClose={closeUnmatchedModal}
           onSelectItem={setSelectedUnmatchedItem}
           onCreate={handleCreateFromUnmatched}
+        />
+        <FCSeedFromActualsModal
+          isOpen={showSeedModal}
+          onClose={() => setShowSeedModal(false)}
+          scenario={selectedScenario}
+          onApplied={reloadModules}
         />
       </main>
     </>

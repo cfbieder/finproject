@@ -102,9 +102,17 @@ router.put('/assumptions', async (req, res, next) => {
       }
     }
 
-    // Save non-scenario data (inflation, FX, tax rates) to file
+    // Save to file — keep scenarios with PeriodStart/PeriodEnd (needed by forecast engine)
+    // but sync name/description/active status to PostgreSQL above
     const merged = { ...existing, ...body };
-    delete merged.scenarios;
+
+    // Preserve scenarios in file — they carry PeriodStart/PeriodEnd which the engine needs
+    // If body included scenarios, those are already saved; if not, keep existing
+    if (Array.isArray(body.scenarios)) {
+      merged.scenarios = body.scenarios;
+    } else if (Array.isArray(existing.scenarios)) {
+      merged.scenarios = existing.scenarios;
+    }
 
     fs.writeFileSync(fcAssumpPath, JSON.stringify(merged, null, 2), 'utf8');
 
@@ -506,6 +514,329 @@ router.delete('/modules/:id', async (req, res, next) => {
     res.json({ success: true });
   } catch (error) {
     console.error('[forecast/modules DELETE] Failed:', error);
+    next(error);
+  }
+});
+
+// ============================================================================
+// Seed from Actuals / Budget
+// ============================================================================
+
+// POST /api/v2/forecast/modules/seed-from-actuals
+// Returns proposed base value updates for modules matched to actual balance sheet
+router.post('/modules/seed-from-actuals', async (req, res, next) => {
+  try {
+    const db = require('../db');
+    const { scenario, baseYear } = req.query;
+    if (!scenario || !baseYear) {
+      return res.status(400).json({ error: 'Missing required query params: scenario, baseYear' });
+    }
+
+    const asOfDate = `${baseYear}-12-31`;
+
+    // Get scenario ID
+    const scenarioRow = await repo.findScenarioByName(scenario);
+    if (!scenarioRow) {
+      return res.status(404).json({ error: `Scenario "${scenario}" not found` });
+    }
+
+    // Get modules for this scenario with account info
+    const modulesResult = await db.query(`
+      SELECT m.id, m.name, m.account_id, m.base_value, m.base_value_usd,
+             m.market_value, m.market_value_usd, m.base_date, m.currency,
+             a.name as account_name, a.currency as account_currency
+      FROM forecast_modules m
+      LEFT JOIN accounts a ON m.account_id = a.id
+      WHERE m.scenario_id = $1
+    `, [scenarioRow.id]);
+
+    // Get closing balances rolled up to parent account level
+    // Modules point to parent accounts (e.g. "Fidelity Stock" id=25) but
+    // transactions have closing_balance on leaf accounts (Fidelity IRA, Fidelity Stocks, etc.)
+    // Use recursive CTE to aggregate children up to each module's account
+    const moduleAccountIds = modulesResult.rows
+      .map((m) => m.account_id)
+      .filter(Boolean);
+
+    let balanceMap = {};
+
+    if (moduleAccountIds.length > 0) {
+      const balancesResult = await db.query(`
+        WITH RECURSIVE descendants AS (
+          SELECT id, id as root_id, currency
+          FROM accounts
+          WHERE id = ANY($2)
+          UNION ALL
+          SELECT a.id, d.root_id, a.currency
+          FROM accounts a
+          JOIN descendants d ON a.parent_id = d.id
+        ),
+        latest_transactions AS (
+          SELECT DISTINCT ON (account_id)
+            account_id, currency, closing_balance
+          FROM transactions
+          WHERE transaction_date <= $1 AND closing_balance IS NOT NULL
+          ORDER BY account_id, transaction_date DESC, id DESC
+        )
+        SELECT
+          d.root_id as account_id,
+          root_a.name as account_name,
+          root_a.currency as account_currency,
+          lt.currency as transaction_currency,
+          lt.closing_balance,
+          lt.account_id as leaf_account_id
+        FROM descendants d
+        JOIN accounts root_a ON d.root_id = root_a.id
+        LEFT JOIN latest_transactions lt ON lt.account_id = d.id
+      `, [asOfDate, moduleAccountIds]);
+
+      // Get FX rates for conversion
+      const currencies = new Set();
+      for (const row of balancesResult.rows) {
+        const ccy = row.transaction_currency || row.account_currency || 'USD';
+        if (ccy !== 'USD') currencies.add(ccy);
+      }
+
+      const fxRates = { USD: 1 };
+      if (currencies.size > 0) {
+        const ratesResult = await db.query(`
+          SELECT DISTINCT ON (from_currency)
+            from_currency, rate
+          FROM exchange_rates
+          WHERE from_currency = ANY($1) AND to_currency = 'USD'
+          ORDER BY from_currency, ABS(rate_date - $2::date) ASC
+        `, [Array.from(currencies), asOfDate]);
+        for (const row of ratesResult.rows) {
+          const rate = parseFloat(row.rate);
+          if (rate > 0) fxRates[row.from_currency] = 1 / rate;
+        }
+      }
+
+      // Aggregate balances by root account (sum children)
+      for (const row of balancesResult.rows) {
+        const ccy = row.transaction_currency || row.account_currency || 'USD';
+        const balance = parseFloat(row.closing_balance) || 0;
+        const fxRate = fxRates[ccy] || 1;
+        const balanceUsd = balance / fxRate;
+
+        if (!balanceMap[row.account_id]) {
+          balanceMap[row.account_id] = { balance_lc: 0, balance_usd: 0, currency: ccy };
+        }
+        balanceMap[row.account_id].balance_lc += balance;
+        balanceMap[row.account_id].balance_usd += balanceUsd;
+      }
+    }
+
+    // Match modules to actual balances by account_id
+    const proposals = [];
+    for (const mod of modulesResult.rows) {
+      const actual = balanceMap[mod.account_id];
+      const hasBalance = actual && actual.balance_lc !== 0;
+      proposals.push({
+        module_id: mod.id,
+        module_name: mod.name,
+        account_name: mod.account_name,
+        currency: mod.currency,
+        current_base_value: parseFloat(mod.base_value) || 0,
+        current_base_value_usd: parseFloat(mod.base_value_usd) || 0,
+        current_market_value: parseFloat(mod.market_value) || 0,
+        current_market_value_usd: parseFloat(mod.market_value_usd) || 0,
+        current_base_date: mod.base_date,
+        proposed_base_value: actual ? actual.balance_lc : null,
+        proposed_base_value_usd: actual ? actual.balance_usd : null,
+        proposed_market_value: actual ? actual.balance_lc : null,
+        proposed_market_value_usd: actual ? actual.balance_usd : null,
+        proposed_base_date: asOfDate,
+        matched: hasBalance,
+      });
+    }
+
+    res.json({ data: proposals, baseYear: Number(baseYear), asOfDate });
+  } catch (error) {
+    console.error('[forecast/modules/seed-from-actuals] Failed:', error);
+    next(error);
+  }
+});
+
+// PATCH /api/v2/forecast/modules/bulk-update
+// Accepts array of module updates: [{ id, base_value, base_value_usd, market_value, market_value_usd, base_date }]
+router.patch('/modules/bulk-update', async (req, res, next) => {
+  try {
+    const db = require('../db');
+    const { updates } = req.body;
+    if (!Array.isArray(updates) || updates.length === 0) {
+      return res.status(400).json({ error: 'Missing or empty updates array' });
+    }
+
+    const results = [];
+    for (const update of updates) {
+      if (!update.id) continue;
+      const fields = {};
+      if (update.base_value !== undefined) fields.base_value = update.base_value;
+      if (update.base_value_usd !== undefined) fields.base_value_usd = update.base_value_usd;
+      if (update.market_value !== undefined) fields.market_value = update.market_value;
+      if (update.market_value_usd !== undefined) fields.market_value_usd = update.market_value_usd;
+      if (update.base_date !== undefined) fields.base_date = update.base_date;
+
+      if (Object.keys(fields).length > 0) {
+        const updated = await repo.updateModule(update.id, fields);
+        results.push({ id: update.id, success: !!updated });
+      }
+    }
+
+    res.json({ data: results, updated: results.filter(r => r.success).length });
+  } catch (error) {
+    console.error('[forecast/modules/bulk-update] Failed:', error);
+    next(error);
+  }
+});
+
+// POST /api/v2/forecast/incomeexpense/seed-from-budget
+// Returns proposed base value updates for income/expense items matched to budget
+router.post('/incomeexpense/seed-from-budget', async (req, res, next) => {
+  try {
+    const db = require('../db');
+    const { scenario, budgetYear } = req.query;
+    if (!scenario || !budgetYear) {
+      return res.status(400).json({ error: 'Missing required query params: scenario, budgetYear' });
+    }
+
+    const scenarioRow = await repo.findScenarioByName(scenario);
+    if (!scenarioRow) {
+      return res.status(404).json({ error: `Scenario "${scenario}" not found` });
+    }
+
+    // Get income/expense items for this scenario
+    const itemsResult = await db.query(`
+      SELECT ie.id, ie.name, ie.account_id, ie.base_value, ie.base_value_usd,
+             ie.currency, ie.item_type, a.name as account_name
+      FROM forecast_income_expense ie
+      LEFT JOIN accounts a ON ie.account_id = a.id
+      WHERE ie.scenario_id = $1
+    `, [scenarioRow.id]);
+
+    // Get budget totals grouped by P&L account hierarchy for the budget year
+    // Budget entries → categories → mapped_account_id → leaf P&L accounts
+    // Forecast incexp items may point to parent P&L accounts (e.g. "Travel")
+    // so we need to roll up leaf totals to parent level using the account tree
+    const budgetResult = await db.query(`
+      WITH RECURSIVE account_tree AS (
+        SELECT id, parent_id, id as root_id
+        FROM accounts
+        WHERE section = 'profit_loss'
+        UNION ALL
+        SELECT a.id, a.parent_id, at.root_id
+        FROM accounts a
+        JOIN account_tree at ON a.parent_id = at.id
+      )
+      SELECT
+        at.root_id as pl_account_id,
+        root_a.name as pl_account_name,
+        SUM(be.base_amount) as budget_total
+      FROM budget_entries be
+      JOIN categories c ON be.category_id = c.id
+      JOIN account_tree at ON c.mapped_account_id = at.id
+      JOIN accounts root_a ON at.root_id = root_a.id
+      WHERE be.budget_year = $1
+      GROUP BY at.root_id, root_a.name
+    `, [budgetYear]);
+
+    const budgetMap = {};
+    for (const row of budgetResult.rows) {
+      budgetMap[row.pl_account_id] = {
+        budget_total: parseFloat(row.budget_total) || 0,
+        account_name: row.pl_account_name,
+      };
+    }
+
+    // Get prior year actuals as fallback (rolled up to parent account level)
+    const priorYear = Number(budgetYear) - 1;
+    const actualsResult = await db.query(`
+      WITH RECURSIVE account_tree AS (
+        SELECT id, parent_id, id as root_id
+        FROM accounts
+        WHERE section = 'profit_loss'
+        UNION ALL
+        SELECT a.id, a.parent_id, at.root_id
+        FROM accounts a
+        JOIN account_tree at ON a.parent_id = at.id
+      )
+      SELECT
+        at.root_id as account_id,
+        root_a.name as account_name,
+        SUM(t.base_amount) as actual_total
+      FROM transactions t
+      JOIN categories c ON t.category_id = c.id
+      JOIN account_tree at ON c.mapped_account_id = at.id
+      JOIN accounts root_a ON at.root_id = root_a.id
+      WHERE t.transaction_date >= $1 AND t.transaction_date <= $2
+      GROUP BY at.root_id, root_a.name
+    `, [`${priorYear}-01-01`, `${priorYear}-12-31`]);
+
+    const actualMap = {};
+    for (const row of actualsResult.rows) {
+      actualMap[row.account_id] = {
+        actual_total: parseFloat(row.actual_total) || 0,
+        account_name: row.account_name,
+      };
+    }
+
+    // Match items to budget (with actual fallback)
+    const proposals = [];
+    for (const item of itemsResult.rows) {
+      const budget = budgetMap[item.account_id];
+      const actual = actualMap[item.account_id];
+      const hasBudget = budget && budget.budget_total !== 0;
+
+      proposals.push({
+        incexp_id: item.id,
+        item_name: item.name,
+        account_name: item.account_name,
+        currency: item.currency,
+        item_type: item.item_type,
+        current_base_value: parseFloat(item.base_value) || 0,
+        current_base_value_usd: parseFloat(item.base_value_usd) || 0,
+        proposed_base_value: hasBudget ? budget.budget_total : (actual ? actual.actual_total : null),
+        budget_amount: budget ? budget.budget_total : null,
+        actual_amount: actual ? actual.actual_total : null,
+        source: hasBudget ? 'Budget' : (actual ? 'Actual' : 'None'),
+        matched: hasBudget || !!actual,
+      });
+    }
+
+    res.json({ data: proposals, budgetYear: Number(budgetYear), priorYear });
+  } catch (error) {
+    console.error('[forecast/incomeexpense/seed-from-budget] Failed:', error);
+    next(error);
+  }
+});
+
+// PATCH /api/v2/forecast/incomeexpense/bulk-update
+// Accepts array of income/expense updates: [{ id, base_value, base_value_usd }]
+router.patch('/incomeexpense/bulk-update', async (req, res, next) => {
+  try {
+    const { updates } = req.body;
+    if (!Array.isArray(updates) || updates.length === 0) {
+      return res.status(400).json({ error: 'Missing or empty updates array' });
+    }
+
+    const results = [];
+    for (const update of updates) {
+      if (!update.id) continue;
+      const fields = {};
+      if (update.base_value !== undefined) fields.base_value = update.base_value;
+      if (update.base_value_usd !== undefined) fields.base_value_usd = update.base_value_usd;
+      if (update.base_date !== undefined) fields.base_date = update.base_date;
+
+      if (Object.keys(fields).length > 0) {
+        const updated = await repo.updateIncExp(update.id, fields);
+        results.push({ id: update.id, success: !!updated });
+      }
+    }
+
+    res.json({ data: results, updated: results.filter(r => r.success).length });
+  } catch (error) {
+    console.error('[forecast/incomeexpense/bulk-update] Failed:', error);
     next(error);
   }
 });

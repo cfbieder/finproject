@@ -1,4 +1,31 @@
 {
+  "scenarios": [
+    {
+      "Name": "2025_Base",
+      "PeriodStart": 2025,
+      "PeriodEnd": 2040
+    },
+    {
+      "Name": "Baseline",
+      "PeriodStart": 2025,
+      "PeriodEnd": 2040
+    },
+    {
+      "Name": "Testing",
+      "PeriodStart": 2025,
+      "PeriodEnd": 2030
+    },
+    {
+      "Name": "2026_Base",
+      "PeriodStart": 2026,
+      "PeriodEnd": 2045
+    },
+    {
+      "Name": "Test_Phase1",
+      "PeriodStart": 2026,
+      "PeriodEnd": 2035
+    }
+  ],
   "category": [
     "Year",
     "Inflation",
@@ -48,8 +75,83 @@
       "Rate": 2
     },
     {
-      "Scenario": "2026_Base",
+      "Scenario": "Test_Phase1",
       "Year": 2026,
+      "Rate": 2
+    },
+    {
+      "Scenario": "2025_Base",
+      "Year": 2025,
+      "Rate": 3
+    },
+    {
+      "Scenario": "2025_Base",
+      "Year": 2027,
+      "Rate": 2.5
+    },
+    {
+      "Scenario": "2025_Base",
+      "Year": 2028,
+      "Rate": 2
+    },
+    {
+      "Scenario": "2026_Base",
+      "Year": 2025,
+      "Rate": 3
+    },
+    {
+      "Scenario": "2026_Base",
+      "Year": 2027,
+      "Rate": 2.5
+    },
+    {
+      "Scenario": "2026_Base",
+      "Year": 2028,
+      "Rate": 2
+    },
+    {
+      "Scenario": "2026_Base",
+      "Year": 2025,
+      "Rate": 3
+    },
+    {
+      "Scenario": "2026_Base",
+      "Year": 2027,
+      "Rate": 2.5
+    },
+    {
+      "Scenario": "2026_Base",
+      "Year": 2028,
+      "Rate": 2
+    },
+    {
+      "Scenario": "2026_Base",
+      "Year": 2025,
+      "Rate": 3
+    },
+    {
+      "Scenario": "2026_Base",
+      "Year": 2027,
+      "Rate": 2.5
+    },
+    {
+      "Scenario": "2026_Base",
+      "Year": 2028,
+      "Rate": 2
+    },
+    {
+      "Scenario": "2026_Base",
+      "Year": 2025,
+      "Rate": 3
+    },
+    {
+      "Scenario": "2026_Base",
+      "Year": 2027,
+      "Rate": 2.5
+    },
+    {
+      "Scenario": "2026_Base",
+      "Year": 2028,
       "Rate": 2
     }
   ],
@@ -95,11 +197,51 @@
       }
     },
     {
-      "Scenario": "2026_Base",
+      "Scenario": "Test_Phase1",
       "Year": 2026,
       "Rates": {
-        "USDPLN": 3.9,
-        "USDEUR": 0.86
+        "USDPLN": 4,
+        "USDEUR": 0.9
+      }
+    },
+    {
+      "Scenario": "2025_Base",
+      "Year": 2025,
+      "Rates": {
+        "USDPLN": 3.8,
+        "USDEUR": 0.87
+      }
+    },
+    {
+      "Scenario": "2026_Base",
+      "Year": 2025,
+      "Rates": {
+        "USDPLN": 3.8,
+        "USDEUR": 0.87
+      }
+    },
+    {
+      "Scenario": "2026_Base",
+      "Year": 2025,
+      "Rates": {
+        "USDPLN": 3.8,
+        "USDEUR": 0.87
+      }
+    },
+    {
+      "Scenario": "2026_Base",
+      "Year": 2025,
+      "Rates": {
+        "USDPLN": 3.8,
+        "USDEUR": 0.87
+      }
+    },
+    {
+      "Scenario": "2026_Base",
+      "Year": 2025,
+      "Rates": {
+        "USDPLN": 3.8,
+        "USDEUR": 0.87
       }
     }
   ],
@@ -118,6 +260,18 @@
     },
     {
       "Scenario": "2025_Base",
+      "Rate": 25
+    },
+    {
+      "Scenario": "Test_Phase1",
+      "Rate": 25
+    },
+    {
+      "Scenario": "2025_Base",
+      "Rate": 25
+    },
+    {
+      "Scenario": "2026_Base",
       "Rate": 25
     },
     {

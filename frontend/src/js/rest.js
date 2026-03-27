@@ -42,6 +42,22 @@ export default class Rest {
     return Rest.handleResponse(response);
   }
 
+  static async post(path, body) {
+    return Rest.fetchJson(`/api/v2${path}`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: body ? JSON.stringify(body) : undefined,
+    });
+  }
+
+  static async patch(path, body) {
+    return Rest.fetchJson(`/api/v2${path}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: body ? JSON.stringify(body) : undefined,
+    });
+  }
+
   static async fetchBalanceReport(asOfDate) {
     // Using v2 API (PostgreSQL)
     const encodedDate = encodeURIComponent(asOfDate ?? "");

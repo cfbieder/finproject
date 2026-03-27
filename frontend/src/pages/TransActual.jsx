@@ -102,6 +102,9 @@ export default function TransActual() {
   const [valueFrom, setValueFrom] = useState("");
   const [valueTo, setValueTo] = useState("");
 
+  // Transfer match status
+  const [transferMatched, setTransferMatched] = useState("");
+
   // Data hooks
   const {
     transactions,
@@ -386,6 +389,7 @@ export default function TransActual() {
     if (filters.currencyEnabled) count++;
     if (filters.valueFromEnabled) count++;
     if (filters.valueToEnabled) count++;
+    if (filters.transferMatched) count++;
     return count;
   }, [filters]);
 
@@ -446,6 +450,13 @@ export default function TransActual() {
         removable: true,
       });
     }
+    if (filters.transferMatched) {
+      chips.push({
+        key: "transferMatched",
+        label: `Transfers: ${filters.transferMatched === "true" ? "Matched" : "Unmatched"}`,
+        removable: true,
+      });
+    }
     return chips;
   }, [filters]);
 
@@ -471,6 +482,9 @@ export default function TransActual() {
       } else if (key === "description") {
         next.descriptionEnabled = false;
         next.description = "";
+      } else if (key === "transferMatched") {
+        next.transferMatched = "";
+        setTransferMatched("");
       }
       return next;
     });
@@ -544,6 +558,7 @@ export default function TransActual() {
       next.valueFrom = Number.isFinite(from) ? from : null;
       next.valueToEnabled = Number.isFinite(to);
       next.valueTo = Number.isFinite(to) ? to : null;
+      next.transferMatched = transferMatched;
       return next;
     });
     setTransactionLimit(BATCH_SIZE);
@@ -557,6 +572,7 @@ export default function TransActual() {
     setSelectedCategories([]);
     setValueFrom("");
     setValueTo("");
+    setTransferMatched("");
     setSearchText("");
     setPeriodValues({
       fromMonth: CURRENT_MONTH,
@@ -787,6 +803,18 @@ export default function TransActual() {
                   value={valueTo}
                   onChange={(e) => setValueTo(e.target.value)}
                 />
+              </div>
+              <div className="txv2-filters__range-field">
+                <label>Transfer Status</label>
+                <select
+                  className="txv2-filters__select"
+                  value={transferMatched}
+                  onChange={(e) => setTransferMatched(e.target.value)}
+                >
+                  <option value="">All</option>
+                  <option value="true">Matched</option>
+                  <option value="false">Unmatched</option>
+                </select>
               </div>
             </div>
             <button type="button" className="txv2-btn" onClick={clearAllFilters}>

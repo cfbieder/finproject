@@ -38,6 +38,7 @@ async function findAll({ startDate, endDate, categoryId, accountId, limit = 1000
       t.id, t.ps_id, t.transaction_date, t.description1, t.description2,
       t.amount, t.currency, t.base_amount, t.base_currency,
       t.transaction_type, t.closing_balance, t.labels, t.memo, t.note, t.bank, t.source,
+      t.transfer_matched,
       t.account_id, a.name as account_name,
       t.category_id, c.name as category_name
     FROM transactions t
@@ -61,6 +62,7 @@ async function findAllExtended({
   startDate, endDate, categoryId, accountId,
   categoryNames, accountNames,  // Support name-based filtering for v1 compatibility
   currency, description, minAmount, maxAmount,
+  transferMatched,
   limit = 1000, offset = 0
 } = {}) {
   const conditions = [];
@@ -111,6 +113,13 @@ async function findAllExtended({
     conditions.push(`t.base_amount <= $${paramIndex++}`);
     params.push(maxAmount);
   }
+  if (transferMatched !== undefined && transferMatched !== null && transferMatched !== '') {
+    if (transferMatched === 'true') {
+      conditions.push(`t.transfer_matched = TRUE`);
+    } else if (transferMatched === 'false') {
+      conditions.push(`t.transfer_matched = FALSE`);
+    }
+  }
 
   const whereClause = conditions.length > 0 ? `WHERE ${conditions.join(' AND ')}` : '';
 
@@ -119,6 +128,7 @@ async function findAllExtended({
       t.id, t.ps_id, t.transaction_date, t.description1, t.description2,
       t.amount, t.currency, t.base_amount, t.base_currency,
       t.transaction_type, t.closing_balance, t.labels, t.memo, t.note, t.bank, t.source,
+      t.transfer_matched,
       t.account_id, a.name as account_name,
       t.category_id, c.name as category_name
     FROM transactions t
@@ -571,6 +581,45 @@ async function findImpliedRate(currency, targetDate, excludeId) {
   };
 }
 
+/**
+ * Bulk-update the transfer_matched flag for transfer-category transactions.
+ * Sets matched=true for matchedIds, matched=false for unmatchedIds,
+ * and NULL for any transfer transactions outside the given date range.
+ */
+async function updateTransferMatchedFlags({ matchedIds, unmatchedIds, startDate, endDate }) {
+  // Ensure IDs are integers (pg returns bigint as string)
+  const matchedInts = matchedIds.map(id => parseInt(id));
+  const unmatchedInts = unmatchedIds.map(id => parseInt(id));
+
+  const client = await db.getClient();
+  try {
+    await client.query('BEGIN');
+
+    // Set matched = true
+    if (matchedInts.length > 0) {
+      await client.query(
+        `UPDATE transactions SET transfer_matched = TRUE WHERE id = ANY($1::bigint[])`,
+        [matchedInts]
+      );
+    }
+
+    // Set matched = false
+    if (unmatchedInts.length > 0) {
+      await client.query(
+        `UPDATE transactions SET transfer_matched = FALSE WHERE id = ANY($1::bigint[])`,
+        [unmatchedInts]
+      );
+    }
+
+    await client.query('COMMIT');
+  } catch (err) {
+    await client.query('ROLLBACK');
+    throw err;
+  } finally {
+    client.release();
+  }
+}
+
 module.exports = {
   findAll,
   findAllExtended,
@@ -585,5 +634,6 @@ module.exports = {
   split,
   neutralize,
   findTransfers,
-  findImpliedRate
+  findImpliedRate,
+  updateTransferMatchedFlags
 };

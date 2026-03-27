@@ -41,7 +41,9 @@ export default function FCModulesFilter({
   onEditClick,
   onDeleteClick,
   onUnmatchedClick,
+  onSeedClick,
   unmatchedDisabled,
+  seedDisabled,
    newDisabled,
 }) {
   const scenarios = assumptions?.scenarios || [];
@@ -123,6 +125,13 @@ export default function FCModulesFilter({
                       icon: "⚡",
                       disabled: unmatchedDisabled,
                       onClick: onUnmatchedClick,
+                    },
+                    {
+                      label: "Seed Actuals",
+                      icon: "↓",
+                      disabled: seedDisabled,
+                      onClick: onSeedClick,
+                      primary: !seedDisabled,
                     },
                   ].map(
                     ({

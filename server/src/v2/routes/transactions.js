@@ -7,6 +7,7 @@ const router = express.Router();
 const repo = require('../repositories').transactions;
 const accountsRepo = require('../repositories').accounts;
 const categoriesRepo = require('../repositories').categories;
+const transferMatchGroupsRepo = require('../repositories').transferMatchGroups;
 
 /**
  * Transform v1-style field names to v2 format
@@ -45,6 +46,7 @@ router.get('/', async (req, res, next) => {
       startDate, endDate, categoryId, accountId,
       category, account,  // Support name-based filtering for compatibility
       year, month, currency, description, minAmount, maxAmount,
+      transferMatched,
       limit = 100, offset = 0
     } = req.query;
 
@@ -81,6 +83,7 @@ router.get('/', async (req, res, next) => {
       description,
       minAmount: minAmount ? parseFloat(minAmount) : undefined,
       maxAmount: maxAmount ? parseFloat(maxAmount) : undefined,
+      transferMatched,
       limit: parseInt(limit),
       offset: parseInt(offset)
     });
@@ -145,11 +148,19 @@ router.get('/transfer-analysis', async (req, res, next) => {
       endDate = `${y}-12-31`;
     }
 
-    const transfers = await repo.findTransfers({ startDate, endDate });
+    // Fetch transfers and manual match groups in parallel
+    const [transfers, manualMatchedIds, manualGroups] = await Promise.all([
+      repo.findTransfers({ startDate, endDate }),
+      transferMatchGroupsRepo.findMatchedTransactionIds({ startDate, endDate }),
+      transferMatchGroupsRepo.findAll({ startDate, endDate }),
+    ]);
+
+    // Exclude manually matched transactions from auto-matching
+    const autoTransfers = transfers.filter(t => !manualMatchedIds.has(t.id));
 
     // Group by category
     const byCategory = {};
-    for (const txn of transfers) {
+    for (const txn of autoTransfers) {
       const cat = txn.category_name || 'Uncategorized';
       if (!byCategory[cat]) byCategory[cat] = [];
       byCategory[cat].push(txn);
@@ -220,7 +231,35 @@ router.get('/transfer-analysis', async (req, res, next) => {
       };
     }
 
-    res.json({ data: result, period: { year: y, month: month ? parseInt(month) : null, startDate, endDate } });
+    // Persist transfer_matched flags
+    const allMatchedIds = [];
+    const allUnmatchedIds = [];
+    for (const catData of Object.values(result)) {
+      for (const pair of catData.matched) {
+        allMatchedIds.push(pair.debit.id, pair.credit.id);
+      }
+      for (const txn of catData.unmatched) {
+        allUnmatchedIds.push(txn.id);
+      }
+    }
+    // Manual group members are also matched
+    for (const group of manualGroups) {
+      for (const txn of group.transactions) {
+        allMatchedIds.push(txn.id);
+      }
+    }
+    await repo.updateTransferMatchedFlags({
+      matchedIds: allMatchedIds,
+      unmatchedIds: allUnmatchedIds,
+      startDate,
+      endDate,
+    });
+
+    res.json({
+      data: result,
+      manualGroups,
+      period: { year: y, month: month ? parseInt(month) : null, startDate, endDate }
+    });
   } catch (error) {
     next(error);
   }
