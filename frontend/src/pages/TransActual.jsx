@@ -31,14 +31,12 @@ import {
 } from "../features/Transaction/TransactionTable.jsx";
 import TransactionEditModal from "../features/Transaction/TransactionEditModal.jsx";
 import TransactionDeleteModal from "../features/Transaction/TransactionDeleteModal.jsx";
-import CategorySelector from "../components/CategorySelector/CategorySelector.jsx";
-import AccountSelector from "../components/AccountSelector/AccountSelector.jsx";
+import HierarchyFilter from "../components/HierarchyFilter/HierarchyFilter.jsx";
 import PeriodSelector from "../components/PeriodSelector/PeriodSelector.jsx";
 import Rest from "../js/rest.js";
 import { useToast } from "../contexts";
 import { useCoa } from "../hooks/useCoa.js";
 import { useFilterOptions } from "../features/BudgetEntry/hooks/useFilterOptions.js";
-import { expandSelectedCategories } from "../features/BudgetEntry/utils/budgetInputUtils.js";
 import { exportTransactions } from "../utils/excelExporter.js";
 import "./TransactionExplorer.css";
 
@@ -120,7 +118,7 @@ export default function TransActual() {
   const accountOptions = useTransactionAccountOptions();
   const currencyOptions = useTransactionCurrencyOptions();
   const rates = useTransactionExchangeRates();
-  const { accountCurrencyMap, plTree } = useCoa();
+  const { accountCurrencyMap, plTree, bsTree } = useCoa();
   const {
     accountOptions: filterAccountOptions,
     selectedAccounts,
@@ -128,6 +126,52 @@ export default function TransActual() {
     setSelectedAccounts,
     setSelectedCategories,
   } = useFilterOptions();
+
+  // ─── HierarchyFilter groups ───
+  const categoryGroups = useMemo(() => {
+    if (!plTree?.length) return [];
+    const groups = [];
+    for (const node of plTree) {
+      // Income, Expense are top-level. "Transfers" is nested under Expense.
+      if (node.name === "Income") {
+        groups.push({ key: "income", label: "Income", node });
+      } else if (node.name === "Expense") {
+        // Split Expense into non-transfer children + a separate Transfers group
+        const transferNode = node.children?.find((c) => c.name === "Transfers");
+        const expenseChildren = (node.children || []).filter((c) => c.name !== "Transfers");
+        groups.push({
+          key: "expense",
+          label: "Expense",
+          node: { ...node, children: expenseChildren },
+        });
+        if (transferNode) {
+          groups.push({ key: "transfers", label: "Transfers", node: transferNode });
+        }
+      } else {
+        groups.push({ key: node.name, label: node.name, node });
+      }
+    }
+    return groups;
+  }, [plTree]);
+
+  const accountGroups = useMemo(() => {
+    if (!bsTree?.length) return [];
+    const groups = [];
+    for (const topNode of bsTree) {
+      // Assets, Liabilities are top-level
+      if (topNode.children?.length) {
+        for (const child of topNode.children) {
+          groups.push({ key: child.name, label: child.name, node: child });
+        }
+      } else {
+        groups.push({ key: topNode.name, label: topNode.name, node: topNode });
+      }
+    }
+    return groups;
+  }, [bsTree]);
+
+  // Track which category group is active for conditional transfer match UI
+  const [activeCategoryGroup, setActiveCategoryGroup] = useState("__all__");
 
   // ─── Client-side filtering ───
   const locallyFilteredTransactions = useMemo(() => {
@@ -517,35 +561,47 @@ export default function TransActual() {
     [setTransactionLimit]
   );
 
-  // ─── Account change handler ───
-  const handleAccountsChange = useCallback(
-    (selected) => {
-      setSelectedAccounts(selected);
-      const isAll = selected.includes("All") || selected.length === 0;
+  // ─── Account change handler (HierarchyFilter) ───
+  const handleAccountSelection = useCallback(
+    (leafNames) => {
+      const hasSelection = leafNames.length > 0;
       setFilters((prev) => ({
         ...prev,
-        accountEnabled: !isAll,
-        account: isAll ? [] : selected.filter((a) => a !== "All"),
+        accountEnabled: hasSelection,
+        account: leafNames,
       }));
       setTransactionLimit(BATCH_SIZE);
     },
-    [setSelectedAccounts, setTransactionLimit]
+    [setTransactionLimit]
   );
 
-  // ─── Category change handler ───
-  const handleCategoriesChange = useCallback(
-    (selected) => {
-      setSelectedCategories(selected);
-      const expanded = plTree?.length ? expandSelectedCategories(selected, plTree) : selected;
-      const hasSelection = expanded.length > 0;
+  // ─── Category change handler (HierarchyFilter) ───
+  const handleCategorySelection = useCallback(
+    (leafNames) => {
+      const hasSelection = leafNames.length > 0;
       setFilters((prev) => ({
         ...prev,
         categoryEnabled: hasSelection,
-        category: expanded,
+        category: leafNames,
+        // Clear transfer match filter if not on transfers group
+        transferMatched: hasSelection ? prev.transferMatched : "",
       }));
       setTransactionLimit(BATCH_SIZE);
     },
-    [setSelectedCategories, plTree, setTransactionLimit]
+    [setTransactionLimit]
+  );
+
+  // ─── Category group change handler — track active group for transfer match toggle ───
+  const handleCategoryGroupChange = useCallback(
+    (groupKey) => {
+      setActiveCategoryGroup(groupKey);
+      // Clear transfer match filter when switching away from transfers
+      if (groupKey !== "transfers") {
+        setTransferMatched("");
+        setFilters((prev) => ({ ...prev, transferMatched: "" }));
+      }
+    },
+    []
   );
 
   // ─── Value range apply ───
@@ -558,7 +614,6 @@ export default function TransActual() {
       next.valueFrom = Number.isFinite(from) ? from : null;
       next.valueToEnabled = Number.isFinite(to);
       next.valueTo = Number.isFinite(to) ? to : null;
-      next.transferMatched = transferMatched;
       return next;
     });
     setTransactionLimit(BATCH_SIZE);
@@ -573,6 +628,7 @@ export default function TransActual() {
     setValueFrom("");
     setValueTo("");
     setTransferMatched("");
+    setActiveCategoryGroup("__all__");
     setSearchText("");
     setPeriodValues({
       fromMonth: CURRENT_MONTH,
@@ -756,13 +812,32 @@ export default function TransActual() {
 
             {/* Categories */}
             <div className="txv2-filters__section">
-              <span className="txv2-filters__label">Categories</span>
-              {plTree?.length > 0 ? (
-                <CategorySelector
-                  plTree={plTree}
-                  selectedCategories={selectedCategories}
-                  onCategoriesChange={handleCategoriesChange}
-                  categoryGroupOptions={[]}
+              {categoryGroups.length > 0 ? (
+                <HierarchyFilter
+                  label="Categories"
+                  groups={categoryGroups}
+                  onSelectionChange={handleCategorySelection}
+                  onGroupChange={handleCategoryGroupChange}
+                  extraSlot={
+                    activeCategoryGroup === "transfers" ? (
+                      <div className="hf__sub-toggle">
+                        <span className="hf__sub-toggle-label">Match Status:</span>
+                        {["", "true", "false"].map((val) => (
+                          <button
+                            key={val}
+                            type="button"
+                            className={`hf__sub-pill ${transferMatched === val ? "hf__sub-pill--active" : ""}`}
+                            onClick={() => {
+                              setTransferMatched(val);
+                              setFilters((prev) => ({ ...prev, transferMatched: val }));
+                            }}
+                          >
+                            {val === "" ? "All" : val === "true" ? "Matched" : "Unmatched"}
+                          </button>
+                        ))}
+                      </div>
+                    ) : null
+                  }
                 />
               ) : (
                 <span style={{ fontSize: "0.8rem", color: "var(--muted)" }}>Loading...</span>
@@ -771,13 +846,15 @@ export default function TransActual() {
 
             {/* Accounts */}
             <div className="txv2-filters__section">
-              <span className="txv2-filters__label">Accounts</span>
-              <AccountSelector
-                accountOptions={filterAccountOptions}
-                accountCurrencyMap={accountCurrencyMap}
-                selectedAccounts={selectedAccounts}
-                onAccountsChange={handleAccountsChange}
-              />
+              {accountGroups.length > 0 ? (
+                <HierarchyFilter
+                  label="Accounts"
+                  groups={accountGroups}
+                  onSelectionChange={handleAccountSelection}
+                />
+              ) : (
+                <span style={{ fontSize: "0.8rem", color: "var(--muted)" }}>Loading...</span>
+              )}
             </div>
           </div>
 
@@ -803,18 +880,6 @@ export default function TransActual() {
                   value={valueTo}
                   onChange={(e) => setValueTo(e.target.value)}
                 />
-              </div>
-              <div className="txv2-filters__range-field">
-                <label>Transfer Status</label>
-                <select
-                  className="txv2-filters__select"
-                  value={transferMatched}
-                  onChange={(e) => setTransferMatched(e.target.value)}
-                >
-                  <option value="">All</option>
-                  <option value="true">Matched</option>
-                  <option value="false">Unmatched</option>
-                </select>
               </div>
             </div>
             <button type="button" className="txv2-btn" onClick={clearAllFilters}>

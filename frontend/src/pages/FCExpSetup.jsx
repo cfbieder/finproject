@@ -3,6 +3,7 @@ import FCExpConfirmDeleteModal from "../features/Forecast/FCExpConfirmDeleteModa
 import FCExpModal from "../features/Forecast/FCExpModal.jsx";
 import FCExpFilter from "../features/Forecast/FCExpFilter.jsx";
 import FCSeedFromBudgetModal from "../features/Forecast/FCSeedFromBudgetModal.jsx";
+import FCCoverageCheckModal from "../features/Forecast/FCCoverageCheckModal.jsx";
 import FCExpTable from "../features/Forecast/FCExpTable.jsx";
 import FCExpTableDetails from "../features/Forecast/FCExpTableDetails.jsx";
 import { useFCExpAssumptions } from "../features/Forecast/hooks/useFCExpAssumptions.js";
@@ -97,6 +98,7 @@ export default function FCExpSetup() {
   );
 
   const [showSeedModal, setShowSeedModal] = useState(false);
+  const [showCoverageModal, setShowCoverageModal] = useState(false);
 
   const reloadEntries = () => {
     // Trigger re-fetch by toggling scenario
@@ -124,7 +126,9 @@ export default function FCExpSetup() {
           editDisabled={!selectedScenario || !sortedEntries.length}
           deleteDisabled={!selectedScenario || !sortedEntries.length}
           onSeedClick={() => setShowSeedModal(true)}
+          onCoverageClick={() => setShowCoverageModal(true)}
           seedDisabled={!selectedScenario}
+          coverageDisabled={!selectedScenario}
         />
         <div className="exp-setup-sections">
           <FCExpTable
@@ -172,6 +176,11 @@ export default function FCExpSetup() {
         onClose={() => setShowSeedModal(false)}
         scenario={selectedScenario}
         onApplied={reloadEntries}
+      />
+      <FCCoverageCheckModal
+        isOpen={showCoverageModal}
+        onClose={() => setShowCoverageModal(false)}
+        scenario={selectedScenario}
       />
     </>
   );

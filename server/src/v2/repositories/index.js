@@ -12,6 +12,7 @@ const forecast = require('./forecast');
 const psdata = require('./psdata');
 const budgetFxRates = require('./budgetFxRates');
 const transferMatchGroups = require('./transferMatchGroups');
+const fcLines = require('./fcLines');
 
 module.exports = {
   transactions,
@@ -21,5 +22,6 @@ module.exports = {
   forecast,
   psdata,
   budgetFxRates,
-  transferMatchGroups
+  transferMatchGroups,
+  fcLines
 };

@@ -16,6 +16,9 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_DIR="$(cd "$SCRIPT_DIR/.." && pwd)"
 cd "$PROJECT_DIR"
 
+# Always use canonical path to avoid Docker project name mismatches from symlinks
+export COMPOSE_PROJECT_NAME="psproject"
+
 SKIP_GIT=true  # Skip git by default - handle manually
 NO_BACKUP=false
 BACKUP_DIR="$PROJECT_DIR/Backups"
@@ -147,7 +150,16 @@ docker compose build --no-cache
 
 echo ""
 echo "Restarting production services..."
-docker compose up -d --force-recreate
+# Only restart server and frontend — postgres stays running
+docker rm -f fin-server fin-frontend 2>/dev/null || true
+docker compose up -d --no-deps server frontend
+
+# Ensure all containers are on the same network as postgres
+POSTGRES_NET=$(docker inspect fin-postgres --format '{{range $k,$v := .NetworkSettings.Networks}}{{$k}}{{end}}' 2>/dev/null | head -1)
+if [ -n "$POSTGRES_NET" ]; then
+    docker network connect "$POSTGRES_NET" fin-server 2>/dev/null || true
+    docker network connect "$POSTGRES_NET" fin-frontend 2>/dev/null || true
+fi
 
 echo ""
 echo "Waiting for services to be healthy..."

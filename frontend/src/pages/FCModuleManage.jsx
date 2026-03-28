@@ -342,6 +342,8 @@ export default function FCModuleManage() {
     const numericFields = [
       "Expense",
       "ExpensePct",
+      "ExpenseAmount",
+      "IncomeAmount",
       "Income",
       "BaseValue",
       "MarketValue",
@@ -362,6 +364,9 @@ export default function FCModuleManage() {
       IncomeCategory:
         (editForm.IncomeCategory ?? "").toString().trim() ||
         defaultIncomeCategory,
+      ExpenseFcLineId: editForm.ExpenseFcLineId || null,
+      IncomeFcLineId: editForm.IncomeFcLineId || null,
+      ExpenseGrowthMethod: editForm.ExpenseGrowthMethod || "inflation",
       Matched: Boolean(editForm.Matched),
       BaseDate: editForm.BaseDate
         ? new Date(editForm.BaseDate).toISOString()
@@ -564,6 +569,7 @@ export default function FCModuleManage() {
           getChildCategoriesForAccount={getChildCategoriesForAccount}
           expenseCategoryOptions={expenseCategoryOptions}
           incomeCategoryOptions={incomeCategoryOptions}
+          allModules={modules}
         />
         <FCExpConfirmDeleteModal
           isOpen={showDeleteModal}

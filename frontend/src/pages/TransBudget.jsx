@@ -29,20 +29,11 @@ import {
 } from "../features/Transaction/TransactionTable.jsx";
 import TransactionEditModal from "../features/Transaction/TransactionEditModal.jsx";
 import TransactionDeleteModal from "../features/Transaction/TransactionDeleteModal.jsx";
-import CategorySelector from "../components/CategorySelector/CategorySelector.jsx";
-import AccountSelector from "../components/AccountSelector/AccountSelector.jsx";
+import HierarchyFilter from "../components/HierarchyFilter/HierarchyFilter.jsx";
 import PeriodSelector from "../components/PeriodSelector/PeriodSelector.jsx";
 import Rest from "../js/rest.js";
 import { useCoa } from "../hooks/useCoa.js";
 import { useFilterOptions } from "../features/BudgetEntry/hooks/useFilterOptions.js";
-import {
-  CATEGORY_GROUP_INCOME,
-  CATEGORY_GROUP_EXPENSE,
-  CATEGORY_GROUP_EXPENSE_OPERATIONAL,
-  CATEGORY_GROUP_LABELS,
-  getOperationalExpenseCategories,
-  expandSelectedCategories,
-} from "../features/BudgetEntry/utils/budgetInputUtils.js";
 import { exportTransactions } from "../utils/excelExporter.js";
 import "./TransactionExplorer.css";
 
@@ -109,7 +100,7 @@ export default function TransBudget() {
   const accountOptions = useTransactionAccountOptions();
   const currencyOptions = useTransactionCurrencyOptions();
   const rates = useTransactionExchangeRates();
-  const { accountCurrencyMap, plTree } = useCoa();
+  const { accountCurrencyMap, plTree, bsTree } = useCoa();
   const {
     accountOptions: filterAccountOptions,
     categoryGroups,
@@ -129,29 +120,45 @@ export default function TransBudget() {
     }
   }, [initialized, setSelectedCategories, setSelectedAccounts]);
 
-  // Category group options for CategorySelector
-  const operationalExpenseCategories = useMemo(
-    () => getOperationalExpenseCategories(categoryGroups?.Expense),
-    [categoryGroups]
-  );
+  // ─── HierarchyFilter groups ───
+  const categoryHierarchyGroups = useMemo(() => {
+    if (!plTree?.length) return [];
+    const groups = [];
+    for (const node of plTree) {
+      if (node.name === "Income") {
+        groups.push({ key: "income", label: "Income", node });
+      } else if (node.name === "Expense") {
+        const transferNode = node.children?.find((c) => c.name === "Transfers");
+        const expenseChildren = (node.children || []).filter((c) => c.name !== "Transfers");
+        groups.push({
+          key: "expense",
+          label: "Expense",
+          node: { ...node, children: expenseChildren },
+        });
+        if (transferNode) {
+          groups.push({ key: "transfers", label: "Transfers", node: transferNode });
+        }
+      } else {
+        groups.push({ key: node.name, label: node.name, node });
+      }
+    }
+    return groups;
+  }, [plTree]);
 
-  const categoryGroupSelectOptions = useMemo(() => [
-    {
-      value: CATEGORY_GROUP_INCOME,
-      label: CATEGORY_GROUP_LABELS[CATEGORY_GROUP_INCOME],
-      disabled: !categoryGroups?.Income?.length,
-    },
-    {
-      value: CATEGORY_GROUP_EXPENSE,
-      label: CATEGORY_GROUP_LABELS[CATEGORY_GROUP_EXPENSE],
-      disabled: !categoryGroups?.Expense?.length,
-    },
-    {
-      value: CATEGORY_GROUP_EXPENSE_OPERATIONAL,
-      label: CATEGORY_GROUP_LABELS[CATEGORY_GROUP_EXPENSE_OPERATIONAL],
-      disabled: !operationalExpenseCategories.length,
-    },
-  ], [categoryGroups, operationalExpenseCategories]);
+  const accountHierarchyGroups = useMemo(() => {
+    if (!bsTree?.length) return [];
+    const groups = [];
+    for (const topNode of bsTree) {
+      if (topNode.children?.length) {
+        for (const child of topNode.children) {
+          groups.push({ key: child.name, label: child.name, node: child });
+        }
+      } else {
+        groups.push({ key: topNode.name, label: topNode.name, node: topNode });
+      }
+    }
+    return groups;
+  }, [bsTree]);
 
   // Additional search-bar filter (instant, client-side)
   const searchFilteredTransactions = useMemo(() => {
@@ -342,40 +349,32 @@ export default function TransBudget() {
     [setTransactionLimit]
   );
 
-  // ─── Account change handler ───
-  const handleAccountsChange = useCallback(
-    (selected) => {
-      setSelectedAccounts(selected);
-      const isAll = selected.includes("All") || selected.length === 0;
+  // ─── Account change handler (HierarchyFilter) ───
+  const handleAccountSelection = useCallback(
+    (leafNames) => {
+      const hasSelection = leafNames.length > 0;
       setFilters((prev) => ({
         ...prev,
-        accountEnabled: !isAll,
-        account: isAll ? [] : selected.filter((a) => a !== "All"),
+        accountEnabled: hasSelection,
+        account: leafNames,
       }));
       setTransactionLimit(BATCH_SIZE);
     },
-    [setSelectedAccounts, setTransactionLimit]
+    [setTransactionLimit]
   );
 
-  // ─── Category change handler ───
-  const handleCategoriesChange = useCallback(
-    (selected) => {
-      setSelectedCategories(selected);
-      const expanded = expandSelectedCategories(
-        selected,
-        categoryGroups?.Expense,
-        operationalExpenseCategories,
-        categoryGroups
-      );
-      const hasSelection = expanded.length > 0;
+  // ─── Category change handler (HierarchyFilter) ───
+  const handleCategorySelection = useCallback(
+    (leafNames) => {
+      const hasSelection = leafNames.length > 0;
       setFilters((prev) => ({
         ...prev,
         categoryEnabled: hasSelection,
-        category: expanded,
+        category: leafNames,
       }));
       setTransactionLimit(BATCH_SIZE);
     },
-    [setSelectedCategories, categoryGroups, operationalExpenseCategories, setTransactionLimit]
+    [setTransactionLimit]
   );
 
   // ─── Value range apply ───
@@ -597,13 +596,11 @@ export default function TransBudget() {
 
             {/* Categories */}
             <div className="txv2-filters__section">
-              <span className="txv2-filters__label">Categories</span>
-              {plTree?.length > 0 ? (
-                <CategorySelector
-                  plTree={plTree}
-                  selectedCategories={selectedCategories}
-                  onCategoriesChange={handleCategoriesChange}
-                  categoryGroupOptions={categoryGroupSelectOptions}
+              {categoryHierarchyGroups.length > 0 ? (
+                <HierarchyFilter
+                  label="Categories"
+                  groups={categoryHierarchyGroups}
+                  onSelectionChange={handleCategorySelection}
                 />
               ) : (
                 <span style={{ fontSize: "0.8rem", color: "var(--muted)" }}>Loading...</span>
@@ -612,13 +609,15 @@ export default function TransBudget() {
 
             {/* Accounts */}
             <div className="txv2-filters__section">
-              <span className="txv2-filters__label">Accounts</span>
-              <AccountSelector
-                accountOptions={filterAccountOptions}
-                accountCurrencyMap={accountCurrencyMap}
-                selectedAccounts={selectedAccounts}
-                onAccountsChange={handleAccountsChange}
-              />
+              {accountHierarchyGroups.length > 0 ? (
+                <HierarchyFilter
+                  label="Accounts"
+                  groups={accountHierarchyGroups}
+                  onSelectionChange={handleAccountSelection}
+                />
+              ) : (
+                <span style={{ fontSize: "0.8rem", color: "var(--muted)" }}>Loading...</span>
+              )}
             </div>
           </div>
 

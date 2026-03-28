@@ -58,6 +58,22 @@ export default class Rest {
     });
   }
 
+  static async get(path) {
+    return Rest.fetchJson(`/api/v2${path}`);
+  }
+
+  static async put(path, body) {
+    return Rest.fetchJson(`/api/v2${path}`, {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: body ? JSON.stringify(body) : undefined,
+    });
+  }
+
+  static async del(path) {
+    return Rest.fetchJson(`/api/v2${path}`, { method: "DELETE" });
+  }
+
   static async fetchBalanceReport(asOfDate) {
     // Using v2 API (PostgreSQL)
     const encodedDate = encodeURIComponent(asOfDate ?? "");

@@ -119,13 +119,35 @@ async function copyScenario(sourceId, newName) {
     const source = await client.query('SELECT * FROM forecast_scenarios WHERE id = $1', [sourceId]);
     if (source.rows.length === 0) throw new Error('Source scenario not found');
 
-    const newScenario = await client.query(`
-      INSERT INTO forecast_scenarios (name, description, is_active)
-      VALUES ($1, $2, TRUE)
-      RETURNING *
-    `, [newName, `Copy of ${source.rows[0].name}`]);
+    // If target scenario already exists, use it (clear its modules/incexp first)
+    // Otherwise create a new one
+    const existing = await client.query('SELECT * FROM forecast_scenarios WHERE name = $1', [newName]);
+    let newId;
 
-    const newId = newScenario.rows[0].id;
+    if (existing.rows.length > 0) {
+      newId = existing.rows[0].id;
+      // Clear existing data so we can copy fresh
+      const oldModules = await client.query('SELECT id FROM forecast_modules WHERE scenario_id = $1', [newId]);
+      for (const m of oldModules.rows) {
+        await client.query('DELETE FROM forecast_module_income_pct WHERE module_id = $1', [m.id]);
+        await client.query('DELETE FROM forecast_module_investments WHERE module_id = $1', [m.id]);
+        await client.query('DELETE FROM forecast_module_disposals WHERE module_id = $1', [m.id]);
+      }
+      await client.query('DELETE FROM forecast_modules WHERE scenario_id = $1', [newId]);
+      const oldIncexp = await client.query('SELECT id FROM forecast_income_expense WHERE scenario_id = $1', [newId]);
+      for (const ie of oldIncexp.rows) {
+        await client.query('DELETE FROM forecast_incexp_changes WHERE incexp_id = $1', [ie.id]);
+      }
+      await client.query('DELETE FROM forecast_income_expense WHERE scenario_id = $1', [newId]);
+      await client.query('DELETE FROM forecast_entries WHERE scenario_id = $1', [newId]);
+    } else {
+      const newScenario = await client.query(`
+        INSERT INTO forecast_scenarios (name, description, is_active)
+        VALUES ($1, $2, TRUE)
+        RETURNING *
+      `, [newName, `Copy of ${source.rows[0].name}`]);
+      newId = newScenario.rows[0].id;
+    }
 
     // Copy modules
     const modules = await client.query('SELECT * FROM forecast_modules WHERE scenario_id = $1', [sourceId]);
@@ -196,7 +218,9 @@ async function copyScenario(sourceId, newName) {
       `, [newItemId, item.id]);
     }
 
-    return newScenario.rows[0];
+    // Return the target scenario
+    const result = await client.query('SELECT * FROM forecast_scenarios WHERE id = $1', [newId]);
+    return result.rows[0];
   });
 }
 
@@ -256,11 +280,12 @@ async function createModule(data) {
     INSERT INTO forecast_modules (
       scenario_id, account_id, name, module_type, currency,
       expense_category, expense_amount, expense_pct,
+      expense_fc_line_id, income_fc_line_id, expense_growth_method,
       income_category, income_amount, base_date, base_value,
       market_value, base_value_usd, market_value_usd,
       growth_rate, comment, is_matched
     )
-    VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18)
+    VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21)
     RETURNING *
   `;
 
@@ -273,6 +298,9 @@ async function createModule(data) {
     data.expense_category || null,
     data.expense_amount || 0,
     data.expense_pct || 0,
+    data.expense_fc_line_id || null,
+    data.income_fc_line_id || null,
+    data.expense_growth_method || 'inflation',
     data.income_category || null,
     data.income_amount || 0,
     data.base_date || null,
@@ -299,6 +327,7 @@ async function updateModule(id, data) {
   const allowedFields = [
     'account_id', 'name', 'module_type', 'currency',
     'expense_category', 'expense_amount', 'expense_pct',
+    'expense_fc_line_id', 'income_fc_line_id', 'expense_growth_method',
     'income_category', 'income_amount', 'base_date', 'base_value',
     'market_value', 'base_value_usd', 'market_value_usd',
     'growth_rate', 'comment', 'is_matched'

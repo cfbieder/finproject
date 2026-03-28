@@ -93,6 +93,7 @@ export default function FCModulesEditModal({
   getChildCategoriesForAccount = () => [],
   expenseCategoryOptions = [],
   incomeCategoryOptions = [],
+  allModules = [],
 }) {
   const isMatched = Boolean(editForm?.Matched);
   const nameOptions = getChildCategoriesForAccount(editForm?.Account);
@@ -119,6 +120,8 @@ export default function FCModulesEditModal({
   const [accountBalanceLoading, setAccountBalanceLoading] = useState(false);
   const [assumptions, setAssumptions] = useState(null);
   const [assumptionsLoading, setAssumptionsLoading] = useState(false);
+  const [fcLines, setFcLines] = useState([]);
+  const [fcBudgetTotals, setFcBudgetTotals] = useState({});
   const formatWithCommas = (value) => {
     const num = Number(value);
     if (!Number.isFinite(num)) {
@@ -179,6 +182,26 @@ export default function FCModulesEditModal({
     return () => {
       isActive = false;
     };
+  }, [isOpen]);
+
+  useEffect(() => {
+    if (!isOpen) return;
+    (async () => {
+      try {
+        const [linesRes, budgetRes] = await Promise.all([
+          Rest.get("/fc-lines"),
+          Rest.get(`/fc-lines/budget-totals?budgetYear=${new Date().getFullYear()}`),
+        ]);
+        setFcLines(linesRes.data || []);
+        const totMap = {};
+        for (const t of budgetRes.data || []) {
+          totMap[t.fc_line_id] = parseFloat(t.budget_total) || 0;
+        }
+        setFcBudgetTotals(totMap);
+      } catch (err) {
+        console.error("Failed to fetch FC Lines:", err);
+      }
+    })();
   }, [isOpen]);
 
   useEffect(() => {
@@ -383,17 +406,19 @@ export default function FCModulesEditModal({
   const scenarioPeriodEnd =
     scenarioDetails?.PeriodEnd ?? assumptions?.PeriodEnd ?? null;
   const currentYear = new Date().getFullYear();
-  const transferYearStart = Number.isFinite(Number(scenarioPeriodStart))
+  const transferYearStart = Number(scenarioPeriodStart) > 1900
     ? Number(scenarioPeriodStart)
     : currentYear;
-  const transferYearEndCandidate = Number.isFinite(Number(scenarioPeriodEnd))
+  const transferYearEndCandidate = Number(scenarioPeriodEnd) > 1900
     ? Number(scenarioPeriodEnd)
-    : transferYearStart + 40;
+    : transferYearStart + 20;
   const transferYearEnd = Math.max(transferYearStart, transferYearEndCandidate);
   const transferYearOptions = Array.from(
     { length: transferYearEnd - transferYearStart + 1 },
     (_, index) => transferYearStart + index
   );
+  // For Income %, exclude budget year (year 1) since that's covered by Income Amount
+  const incomePctYearOptions = transferYearOptions.filter((y) => y > transferYearStart);
   const transferFlagOptionsI = ["OneTime", "Periodic"];
   const transferFlagOptionsD = ["Full", "OneTime", "Periodic"];
   const transferSections = [
@@ -451,9 +476,11 @@ export default function FCModulesEditModal({
     ["Market Value", "MarketValue", "number"],
     ["Market Value (USD)", "MarketValueUSD", "number"],
     ["Growth %", "Growth", "number"],
-    ["Expense Category", "ExpCategory", "text"],
-    ["Expense %", "ExpensePct", "number"],
-    ["Income Category", "IncomeCategory", "text"],
+    ["Expense Line", "ExpenseFcLineId", "fc-line-expense"],
+    ["Expense Amount (Yr 1)", "ExpenseAmount", "number"],
+    ["Expense Growth", "ExpenseGrowthMethod", "growth-method"],
+    ["Income Line", "IncomeFcLineId", "fc-line-income"],
+    ["Income Amount (Yr 1)", "IncomeAmount", "number"],
     ["Comment", "Comment", "textarea"],
   ];
 
@@ -467,7 +494,6 @@ export default function FCModulesEditModal({
       role="dialog"
       aria-modal="true"
       aria-label="Edit forecast module"
-      onClick={onClose}
     >
       <div
         className="fc-modules-modal"
@@ -768,40 +794,66 @@ export default function FCModulesEditModal({
                     );
                   }
 
-                  if (field === "ExpCategory") {
-                    const currentValue = editForm.ExpCategory ?? "";
+                  if (type === "fc-line-expense" || type === "fc-line-income") {
+                    const isExpense = type === "fc-line-expense";
+                    const lineType = isExpense ? "bs_module_expense" : "bs_module_income";
+                    const lineField = isExpense ? "ExpenseFcLineId" : "IncomeFcLineId";
+                    const amountField = isExpense ? "expense_amount" : "income_amount";
+                    const availableLines = fcLines.filter((l) => l.line_type === lineType);
+                    const currentValue = editForm[field] ?? "";
+                    const lineId = currentValue ? Number(currentValue) : null;
+                    const budgetTotal = lineId ? Math.abs(fcBudgetTotals[lineId] || 0) : 0;
+
+                    // Compute allocation: how much of this line's budget is used by OTHER modules
+                    const currentModuleId = editForm?.id;
+                    const otherModulesAmount = lineId
+                      ? allModules
+                          .filter((m) => {
+                            const mLineId = isExpense
+                              ? (m.ExpenseFcLineId || m.expense_fc_line_id)
+                              : (m.IncomeFcLineId || m.income_fc_line_id);
+                            return Number(mLineId) === lineId && m.id !== currentModuleId;
+                          })
+                          .reduce((sum, m) => sum + Math.abs(parseFloat(isExpense ? (m.ExpenseAmount ?? m.expense_amount ?? 0) : (m.IncomeAmount ?? m.income_amount ?? 0))), 0)
+                      : 0;
+                    const thisModuleAmount = Math.abs(parseFloat(isExpense ? (editForm.ExpenseAmount ?? 0) : (editForm.IncomeAmount ?? 0)));
+                    const remaining = budgetTotal - otherModulesAmount - thisModuleAmount;
+
                     return (
                       <label key={field} className="fc-modules-modal__field">
                         <span className="fc-modules-modal__label">{label}</span>
-                        <div className="fc-modules-edit__expense-grid">
-                          <select
-                            className="fc-modules-modal__input"
-                            value={currentValue}
-                            onChange={(event) =>
-                              onFieldChange("ExpCategory", event.target.value)
-                            }
-                          >
-                            {expenseCategoryOptions.map((option) => (
-                              <option key={option} value={option}>
-                                {option}
-                              </option>
-                            ))}
-                            {currentValue &&
-                              !expenseCategoryOptions.includes(
-                                currentValue
-                              ) && (
-                                <option value={currentValue}>
-                                  {currentValue}
-                                </option>
-                              )}
-                          </select>
-                        </div>
+                        <select
+                          className="fc-modules-modal__input"
+                          value={currentValue || ""}
+                          onChange={(event) =>
+                            onFieldChange(field, event.target.value ? Number(event.target.value) : null)
+                          }
+                        >
+                          <option value="">None</option>
+                          {availableLines.map((line) => (
+                            <option key={line.id} value={line.id}>
+                              {line.name}
+                              {fcBudgetTotals[line.id] ? ` (${Math.abs(fcBudgetTotals[line.id]).toLocaleString("en-US", { maximumFractionDigits: 0 })})` : ""}
+                            </option>
+                          ))}
+                        </select>
+                        {lineId && budgetTotal > 0 && (
+                          <div style={{ fontSize: "0.75rem", color: "var(--text-secondary)", marginTop: "0.2rem", lineHeight: 1.5 }}>
+                            <span>Budget: <b>{budgetTotal.toLocaleString("en-US", { maximumFractionDigits: 0 })}</b></span>
+                            {otherModulesAmount > 0 && (
+                              <span> — Other modules: {otherModulesAmount.toLocaleString("en-US", { maximumFractionDigits: 0 })}</span>
+                            )}
+                            <span> — Remaining: <b style={{ color: remaining < 0 ? "var(--danger, #ef4444)" : remaining === 0 ? "var(--success, #22c55e)" : undefined }}>
+                              {remaining.toLocaleString("en-US", { maximumFractionDigits: 0 })}
+                            </b></span>
+                          </div>
+                        )}
                       </label>
                     );
                   }
 
-                  if (field === "IncomeCategory") {
-                    const currentValue = editForm.IncomeCategory ?? "";
+                  if (type === "growth-method") {
+                    const currentValue = editForm.ExpenseGrowthMethod || "inflation";
                     return (
                       <label key={field} className="fc-modules-modal__field">
                         <span className="fc-modules-modal__label">{label}</span>
@@ -809,20 +861,11 @@ export default function FCModulesEditModal({
                           className="fc-modules-modal__input"
                           value={currentValue}
                           onChange={(event) =>
-                            onFieldChange("IncomeCategory", event.target.value)
+                            onFieldChange("ExpenseGrowthMethod", event.target.value)
                           }
                         >
-                          {incomeCategoryOptions.map((option) => (
-                            <option key={option} value={option}>
-                              {option}
-                            </option>
-                          ))}
-                          {currentValue &&
-                            !incomeCategoryOptions.includes(currentValue) && (
-                              <option value={currentValue}>
-                                {currentValue}
-                              </option>
-                            )}
+                          <option value="inflation">Grow at Inflation</option>
+                          <option value="pct_of_value">Grow as % of Asset Value</option>
                         </select>
                       </label>
                     );
@@ -1055,7 +1098,7 @@ export default function FCModulesEditModal({
                                     }
                                   >
                                     <option value="">Select year</option>
-                                    {transferYearOptions.map((year) => (
+                                    {(isIncomePct ? incomePctYearOptions : transferYearOptions).map((year) => (
                                       <option key={year} value={year}>
                                         {year}
                                       </option>

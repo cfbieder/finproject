@@ -44,6 +44,7 @@ const BudgetVariances = lazy(() => import("../pages/BudgetVariances"));
 const CashFlow = lazy(() => import("../pages/CashFlow"));
 const CashFlowMonthly = lazy(() => import("../pages/CashFlowMonthly"));
 const FCExpSetup = lazy(() => import("../pages/FCExpSetup"));
+const FCLineMapping = lazy(() => import("../pages/FCLineMapping"));
 const FCModuleManage = lazy(() => import("../pages/FCModuleManage"));
 const FCReview = lazy(() => import("../pages/FCReview"));
 const FCScenarios = lazy(() => import("../pages/FCScenarios"));
@@ -200,6 +201,14 @@ export const routes = [
   },
 
   // Forecasting (wrapped in ForecastProvider)
+  {
+    path: "/forecast-mapping",
+    component: FCLineMapping,
+    label: "FC Inc/Exp Mapping",
+    category: "Forecasting",
+    description: "Map budget categories to forecast income and expense lines",
+    icon: ArrowLeftRight,
+  },
   {
     path: "/forecast-scenarios",
     component: FCScenarios,

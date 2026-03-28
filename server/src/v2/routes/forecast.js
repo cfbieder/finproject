@@ -246,6 +246,9 @@ router.get('/modules', async (req, res, next) => {
       ExpenseCategory: m.expense_category,
       ExpenseAmount: m.expense_amount,
       ExpensePct: m.expense_pct,
+      ExpenseFcLineId: m.expense_fc_line_id,
+      IncomeFcLineId: m.income_fc_line_id,
+      ExpenseGrowthMethod: m.expense_growth_method || 'inflation',
       IncomeCategory: m.income_category,
       IncomeAmount: m.income_amount,
       BaseDate: m.base_date,
@@ -341,6 +344,9 @@ router.post('/modules', async (req, res, next) => {
       expense_category: body.ExpCategory || null,
       expense_amount: body.ExpenseAmount || 0,
       expense_pct: body.ExpensePct || 0,
+      expense_fc_line_id: body.ExpenseFcLineId || null,
+      income_fc_line_id: body.IncomeFcLineId || null,
+      expense_growth_method: body.ExpenseGrowthMethod || 'inflation',
       income_category: body.IncomeCategory || null,
       income_amount: body.IncomeAmount || 0,
       base_date: body.BaseDate || null,
@@ -424,6 +430,9 @@ router.put('/modules/:id', async (req, res, next) => {
     if (body.ExpCategory !== undefined) updateData.expense_category = body.ExpCategory;
     if (body.ExpenseAmount !== undefined) updateData.expense_amount = body.ExpenseAmount;
     if (body.ExpensePct !== undefined) updateData.expense_pct = body.ExpensePct;
+    if (body.ExpenseFcLineId !== undefined) updateData.expense_fc_line_id = body.ExpenseFcLineId;
+    if (body.IncomeFcLineId !== undefined) updateData.income_fc_line_id = body.IncomeFcLineId;
+    if (body.ExpenseGrowthMethod !== undefined) updateData.expense_growth_method = body.ExpenseGrowthMethod;
     if (body.IncomeCategory !== undefined) updateData.income_category = body.IncomeCategory;
     if (body.IncomeAmount !== undefined) updateData.income_amount = body.IncomeAmount;
     if (body.BaseDate !== undefined) updateData.base_date = body.BaseDate;

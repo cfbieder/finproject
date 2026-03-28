@@ -38,10 +38,12 @@ export default function FCExpFilter({
   onEditClick,
   onDeleteClick,
   onSeedClick,
+  onCoverageClick,
   addDisabled,
   editDisabled,
   deleteDisabled,
   seedDisabled,
+  coverageDisabled,
 }) {
   const scenarios = assumptions?.scenarios || [];
 
@@ -118,6 +120,12 @@ export default function FCExpFilter({
                       disabled: seedDisabled,
                       onClick: onSeedClick,
                       primary: !seedDisabled,
+                    },
+                    {
+                      label: "Coverage",
+                      icon: "?",
+                      disabled: coverageDisabled,
+                      onClick: onCoverageClick,
                     },
                   ].map(
                     ({

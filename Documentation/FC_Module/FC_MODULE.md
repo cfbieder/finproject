@@ -207,10 +207,34 @@ Older or simplified version with fewer asset classes; appears to be a quick-refe
   - "Apply" commits the bulk update
 - **Rationale:** Budget is forward-looking and already curated (no one-offs). The forecast year 1 P&L should match the budget, then grow from there via inflation/growth rates.
 
-**Phase 2 Status: COMPLETE (2026-03-27)**
-- G1 Seed from Actuals: 2 new endpoints (POST seed-from-actuals, PATCH bulk-update). Frontend modal with review table on Modules page.
-- G5 Seed from Budget: 2 new endpoints (POST seed-from-budget with recursive CTE for P&L hierarchy, PATCH bulk-update). Frontend modal with budget/actual/source columns on Inc/Exp page. Fallback to prior-year actuals when no budget entry exists.
+**Phase 2 Status: IN PROGRESS (2026-03-27)**
+- G1 Seed from Actuals: DONE — 2 new endpoints (POST seed-from-actuals with recursive descendant aggregation, PATCH bulk-update). Frontend modal with review table on Modules page. Tested end-to-end on dev server.
+- G5 Seed from Budget: DONE — 2 new endpoints (POST seed-from-budget with recursive CTE for P&L hierarchy, PATCH bulk-update). Frontend modal with budget/actual/source columns on Inc/Exp page. Fallback to prior-year actuals when no budget entry exists.
 - Generic `Rest.post()` and `Rest.patch()` methods added to frontend REST helper.
+- Budget Coverage Check: DONE — New endpoint (POST coverage-check) with recursive category parent fallback for unmapped categories. Frontend modal with 3 collapsible sections (Not Covered, FC IncExp, BS Module) and summary cards. "Coverage" button on Inc/Exp page.
+- Property Cost Seeding: PENDING — Need to build smart seeding that sums property-related budget categories per property and proposes as `expense_amount` on BS modules.
+
+**Additional fixes applied during Phase 2:**
+- Fixed `PUT /assumptions` to preserve `scenarios` array in FCAssump.json (was being stripped, breaking forecast generation)
+- Fixed `copyScenario` to handle existing target scenarios (clears and re-copies instead of failing with duplicate key)
+- Fixed duplicate key error on assumptions PUT with try/catch for race condition with copy
+- Fixed deploy script: `--no-deps server frontend` to avoid postgres container conflicts, `COMPOSE_PROJECT_NAME=psproject` for consistent Docker networking, auto-connect to postgres network
+- Fixed `expense_amount` column already existed in DB but wasn't used in calculation — now implemented in Phase 1
+
+**End-to-end walkthrough status (dev server `http://100.94.46.62:5174`):**
+1. Create scenario on Scenarios page — PASS
+2. Copy 2025_Base → 2026_Base (27 modules, 6 incexp) — PASS
+3. Seed Actuals on Modules page (22/27 matched) — PASS, values applied
+4. Coverage Check on IncExp page — PASS (44 FC IncExp, 6 BS Module, 31 Not Covered)
+5. Seed Budget on IncExp page — NOT YET TESTED
+6. Property cost seeding — NOT YET BUILT
+7. Generate forecast — NOT YET TESTED
+8. Review results — NOT YET TESTED
+
+**Remaining "Not Covered" items from coverage check (31 categories, -115K):**
+- Taxes (US, SP, PL, Preparation): Handled by engine tax calculation — OK
+- Property costs (Condo Fees, Property Tax, Utilities, Insurance, Maintenance per property): Need `expense_amount` on BS modules — TO BE BUILT via property cost seeding
+- Base Salary (3.8K): Small, could add as FC IncExp item
 
 ### Phase 3: Deposit Rate (interest income)
 
@@ -536,3 +560,466 @@ cd server && npm test -- --testPathPattern="fcbuilder-module"
 # With coverage
 cd server && npm run test:coverage -- --testPathPattern="forecast"
 ```
+
+---
+
+## 7. FC Inc/Exp Mapping Layer — Design (Phase 2B)
+
+### 7.1 Problem Statement
+
+The original Phase 2 approach attempted to match budget categories to forecast modules and expenses using ad-hoc logic (name matching, category hierarchy traversal, property-specific seeding). This led to:
+- Fragile matching that breaks when names change
+- No single place to see which budget categories are covered
+- Separate "seed" flows for different category types (actuals, budget, property costs)
+- No clean link between budget granularity (~130 categories) and forecast granularity (~20-30 lines)
+
+### 7.2 Solution: FC Inc/Exp Mapping Layer
+
+Introduce a **global mapping layer** that sits between budget categories and the forecast engine. The user defines a set of **FC Lines** (forecast income and expense lines), assigns every budget category to a line, and designates each line's destination (BS Module or Forecast Inc/Exp).
+
+### 7.3 Design Decisions
+
+| # | Decision | Choice | Rationale |
+|---|----------|--------|-----------|
+| D1 | Scope | Global (not per-scenario) | Budget categories don't change per scenario; mapping is foundational |
+| D2 | Line creation | User-defined with "Generate suggestions" from P&L account hierarchy | Full control; P&L hierarchy provides good starting names |
+| D3 | Category assignment | Drag/drop; each category assigned to exactly one line; unassigned clearly visible | Prevents double-counting; ensures complete coverage |
+| D4 | Line type | Set on mapping page; changeable. Values: BS Module - Expense, BS Module - Income, Forecast Expense, Forecast Income, Unassigned | Full visibility on mapping page; prevents accidental dual-use |
+| D5 | BS Module linkage | Module edit form picks FC Lines (BS Module types) + "None" for expense/income category; replaces old string-based dropdowns | Clean FK relationship; old strings were placeholders |
+| D6 | Multi-module allocation | One line can be assigned to multiple modules; user manually splits amount; allocation tracking shows over/under | Handles US/PL cases where budget isn't per-property |
+| D7 | Forecast Inc/Exp linkage | User selects which Forecast-type lines to include per scenario; budget total pre-fills base_value | Per-scenario control; budget auto-seeds values |
+| D8 | Year 1 expense seeding | Budget total auto-seeds expense_amount for year 1 | Grounds forecast in actual budget |
+| D9 | Growth method | User chooses per module: "Grow at inflation" or "Grow as % of asset value" | Property tax scales with value; condo fees scale with inflation |
+| D10 | Workflow order | FC Mapping page comes BEFORE scenario creation in the UI | Mapping is foundational; modules and expenses reference lines |
+| D11 | Income handling | Same system for income and expense lines | Unified coverage; rental income, interest, dividends all mapped |
+| D12 | Migration | Existing expense_category/income_category strings auto-matched to new FC Lines; unmatched flagged | Clean break; old strings were placeholders anyway |
+
+### 7.4 Data Model
+
+#### New Table: `fc_lines`
+
+| Column | Type | Description |
+|--------|------|-------------|
+| `id` | SERIAL PRIMARY KEY | |
+| `name` | VARCHAR(200) UNIQUE | User-defined line name (e.g., "Prop Costs - PM4") |
+| `line_type` | VARCHAR(30) | `bs_module_expense`, `bs_module_income`, `forecast_expense`, `forecast_income`, `unassigned` |
+| `display_order` | INTEGER | Sort order on mapping page |
+| `created_at` | TIMESTAMPTZ | |
+| `updated_at` | TIMESTAMPTZ | |
+
+#### New Table: `fc_line_categories`
+
+| Column | Type | Description |
+|--------|------|-------------|
+| `id` | SERIAL PRIMARY KEY | |
+| `fc_line_id` | INTEGER FK → fc_lines | Parent line |
+| `category_id` | INTEGER FK → categories UNIQUE | Each category assigned to exactly one line |
+| `created_at` | TIMESTAMPTZ | |
+
+UNIQUE constraint on `category_id` ensures no double-assignment.
+
+#### Modified Table: `forecast_modules`
+
+| Column | Change | Description |
+|--------|--------|-------------|
+| `expense_category` | **REMOVE** (after migration) | Replaced by `expense_fc_line_id` |
+| `income_category` | **REMOVE** (after migration) | Replaced by `income_fc_line_id` |
+| `expense_fc_line_id` | **ADD** INTEGER FK → fc_lines, NULLABLE | Links to FC Line typed as `bs_module_expense`, NULL = "None" |
+| `income_fc_line_id` | **ADD** INTEGER FK → fc_lines, NULLABLE | Links to FC Line typed as `bs_module_income`, NULL = "None" |
+| `expense_growth_method` | **ADD** VARCHAR(20) DEFAULT 'inflation' | `inflation` or `pct_of_value` — controls year 2+ expense growth |
+
+#### Modified Table: `forecast_income_expense`
+
+| Column | Change | Description |
+|--------|--------|-------------|
+| `fc_line_id` | **ADD** INTEGER FK → fc_lines, NULLABLE | Links to FC Line typed as `forecast_expense` or `forecast_income` |
+
+`account_id` is **derived** from the FC Line — see Data Integrity Rules below. It is set automatically when `fc_line_id` is assigned, not independently editable.
+
+#### Data Integrity Rules
+
+**FK Delete Behavior:**
+
+| FK | ON DELETE | Rationale |
+|----|----------|-----------|
+| `fc_line_categories.fc_line_id` → `fc_lines` | **CASCADE** | Deleting a line unassigns all its categories |
+| `fc_line_categories.category_id` → `categories` | **CASCADE** | If a category is removed from the system, its assignment is cleaned up |
+| `forecast_modules.expense_fc_line_id` → `fc_lines` | **SET NULL** | If a line is deleted, module reverts to "None" (no expense line) |
+| `forecast_modules.income_fc_line_id` → `fc_lines` | **SET NULL** | Same — reverts to "None" |
+| `forecast_income_expense.fc_line_id` → `fc_lines` | **RESTRICT** | Cannot delete a line that has active forecast items referencing it; user must remove items first |
+
+**Line Deletion Service Rules:**
+- Before deleting an FC Line, the API checks for `forecast_income_expense` rows referencing it
+- If references exist, return 409 Conflict with a list of scenarios using the line
+- `forecast_modules` references are safe to orphan (SET NULL) since "None" is a valid state
+
+**`account_id` Derivation (forecast_income_expense):**
+- `account_id` on `forecast_income_expense` is **derived from the FC Line**, not independently set
+- When a forecast item is created from an FC Line, the system resolves the `account_id` by finding the common P&L ancestor of the line's assigned categories (via `categories.mapped_account_id` → account hierarchy)
+- If the line's categories span multiple P&L branches, use the nearest common parent account
+- This ensures P&L posting is always consistent with the category mapping
+- `account_id` is still stored on the row (for query performance) but is recalculated if the line's category assignments change
+
+**Budget Year for Pre-fill:**
+- When adding FC Lines to a scenario's Forecast Expenses, the budget year used for pre-filling `base_value` defaults to the **scenario's first forecast year** (i.e., `PeriodStart` year from the scenario assumptions)
+- The user can override this on the "Add from FC Lines" dialog (dropdown with available budget years)
+- The chosen budget year is stored on `forecast_income_expense.budget_source_year` (new column, INTEGER, nullable) for reproducibility and audit
+
+**Expense Growth Method — Formula Precedence:**
+
+The `expense_growth_method` field on `forecast_modules` controls how the engine calculates expenses for year 2+. It **replaces** the existing `expense_pct` and `expense_amount` fields with a single coherent model:
+
+| Method | Year 1 | Year 2+ | Engine Formula |
+|--------|--------|---------|----------------|
+| `inflation` | `expense_amount` (seeded from budget) | `expense_amount × (1 + inflation)^(year - baseYear)` | Absolute amount growing at inflation — same as current `expense_amount` behavior |
+| `pct_of_value` | `expense_amount` (seeded from budget) | `expense_amount / market_value_year1 × avg(MV[year], MV[year-1])` | Derives an implicit % from year 1, then applies to asset value each year |
+
+**Field consolidation:**
+- `expense_amount` — **KEEP**: holds the year-1 base amount (seeded from budget via FC Line)
+- `expense_pct` — **REMOVE** (after migration): its role is replaced by `expense_growth_method = 'pct_of_value'` which derives the % from `expense_amount / market_value` rather than storing a separate manual %
+- During migration, if a module has `expense_pct > 0` and `expense_amount = 0`, convert: `expense_amount = market_value × expense_pct / 100`, set `expense_growth_method = 'pct_of_value'`
+
+### 7.5 Workflow
+
+```
+┌─────────────────────────────────────────────────────────────┐
+│  Step 0: FC Inc/Exp Mapping Page (global, do once)          │
+│                                                             │
+│  1. Click "Generate Suggestions" → empty lines from P&L     │
+│  2. Create / rename / delete lines as needed                │
+│  3. Drag budget categories into lines                       │
+│  4. Set each line's type:                                   │
+│     • BS Module - Expense                                   │
+│     • BS Module - Income                                    │
+│     • Forecast Expense                                      │
+│     • Forecast Income                                       │
+│     • Unassigned (gap — clearly flagged)                    │
+│                                                             │
+│  Coverage indicator: "128/131 categories assigned"          │
+└──────────────────────────┬──────────────────────────────────┘
+                           │
+          ┌────────────────┴────────────────┐
+          │                                 │
+          ▼                                 ▼
+┌─────────────────────┐          ┌──────────────────────────┐
+│ BS Module - Expense  │          │ Forecast Expense/Income   │
+│ BS Module - Income   │          │                          │
+│                     │          │ Step 3: FC Expenses page  │
+│ Step 2: Module Edit │          │ Select lines to include   │
+│ Expense Line: [▼]  │          │ in this scenario          │
+│ Income Line:  [▼]  │          │ Budget pre-fills values   │
+│ Growth: [inflation▼]│          │                          │
+│                     │          │ [✓] Living Expenses  -45K │
+│ Budget seeds year 1 │          │ [✓] Travel           -8K  │
+│ expense_amount      │          │ [ ] One-Off Items     -2K │
+│                     │          │                          │
+│ Multi-module split: │          │                          │
+│ Line total: $33,725 │          │                          │
+│ This module: $32,000│          │                          │
+│ Remaining: $1,725   │          │                          │
+└─────────────────────┘          └──────────────────────────┘
+```
+
+### 7.6 Coverage Check (Simplified)
+
+With the mapping layer, coverage becomes trivial:
+
+- **Fully covered:** Category assigned to a line with type ≠ `unassigned`
+- **Mapped but untyped:** Category assigned to a line typed `unassigned` → user needs to set the type
+- **Unmapped:** Category not assigned to any line → user needs to assign it
+
+The existing `POST /forecast/coverage-check` endpoint and `FCCoverageCheckModal` are **replaced** by the mapping page itself — the mapping page IS the coverage view.
+
+### 7.7 Code Cleanup — Items to Remove
+
+The mapping layer replaces several ad-hoc features built during Phase 2. These must be removed to avoid dead code:
+
+#### Backend — Remove
+| Item | File | Reason |
+|------|------|--------|
+| `POST /forecast/incomeexpense/seed-from-budget` | `server/src/v2/routes/forecast.js` | Replaced by FC line → scenario inclusion with budget pre-fill |
+| `POST /forecast/coverage-check` | `server/src/v2/routes/forecast.js` | Replaced by mapping page; coverage is inherent in assignment status |
+| `PATCH /forecast/incomeexpense/bulk-update` | `server/src/v2/routes/forecast.js` | Replaced by line-based scenario inclusion |
+
+**Keep:**
+- `POST /forecast/modules/seed-from-actuals` — still needed for seeding BS module base values (market values) from balance sheet
+- `PATCH /forecast/modules/bulk-update` — still needed, and now extended with `expense_fc_line_id`, `income_fc_line_id`, `expense_growth_method`
+
+#### Frontend — Remove
+| Item | File | Reason |
+|------|------|--------|
+| `FCSeedFromBudgetModal` | `frontend/src/features/Forecast/FCSeedFromBudgetModal.jsx` | Replaced by line-based scenario inclusion |
+| `FCCoverageCheckModal` | `frontend/src/features/Forecast/FCCoverageCheckModal.jsx` | Replaced by mapping page |
+| Seed Budget button | `frontend/src/features/Forecast/FCExpFilter.jsx` | Remove `onSeedClick` / `seedDisabled` props and button |
+| Coverage button | `frontend/src/features/Forecast/FCExpFilter.jsx` | Remove `onCoverageClick` / `coverageDisabled` props and button |
+| Seed/Coverage state | `frontend/src/pages/FCExpSetup.jsx` | Remove `showSeedModal`, `showCoverageModal` state and modal renders |
+
+**Keep:**
+- `FCSeedFromActualsModal` — still used for seeding BS module market values
+- Seed Actuals button on `FCModulesFilter.jsx` — still needed
+
+#### Frontend — Modify
+| Item | File | Change |
+|------|------|--------|
+| `FCModulesEdit.jsx` | `frontend/src/features/Forecast/` | Replace `expense_category` / `income_category` string dropdowns with FC Line pickers (filtered by type). Add "None" option. Add `expense_growth_method` selector. |
+| `FCExpSetup.jsx` | `frontend/src/pages/` | Replace manual item creation with "Add from FC Lines" flow. Show available Forecast-type lines, user selects which to include. Budget pre-fills base_value. |
+| `FCModulesFilter.jsx` | `frontend/src/features/Forecast/` | Keep Seed Actuals button. Remove any coverage-related buttons if present. |
+
+#### Database — Migration
+| Action | Description |
+|--------|-------------|
+| Create `fc_lines` table | New table per schema above |
+| Create `fc_line_categories` table | New table per schema above |
+| Add `expense_fc_line_id` to `forecast_modules` | FK → fc_lines, nullable, ON DELETE SET NULL |
+| Add `income_fc_line_id` to `forecast_modules` | FK → fc_lines, nullable, ON DELETE SET NULL |
+| Add `expense_growth_method` to `forecast_modules` | VARCHAR(20) DEFAULT 'inflation' |
+| Add `fc_line_id` to `forecast_income_expense` | FK → fc_lines, nullable, ON DELETE RESTRICT |
+| Add `budget_source_year` to `forecast_income_expense` | INTEGER, nullable — records which budget year was used for pre-fill |
+| Migrate `expense_category` / `income_category` strings | Match to FC lines by name where possible |
+| Migrate `expense_pct` → `expense_amount` + `expense_growth_method` | Where `expense_pct > 0` and `expense_amount = 0`: set `expense_amount = market_value × expense_pct / 100`, `expense_growth_method = 'pct_of_value'` |
+| Drop `expense_category` from `forecast_modules` | After migration verified |
+| Drop `income_category` from `forecast_modules` | After migration verified |
+| Drop `expense_pct` from `forecast_modules` | After migration verified — replaced by `expense_growth_method` |
+
+### 7.8 Implementation Plan
+
+**Gate rule:** Each phase has a test checkpoint. All automated tests pass AND all manual checks confirmed before moving to the next phase.
+
+---
+
+#### Phase 2B-1: Database & API Foundation
+
+**Build:**
+1. Write migration: create `fc_lines`, `fc_line_categories` tables with FK constraints per §7.4
+2. Write migration: add new columns to `forecast_modules` and `forecast_income_expense`
+3. Create `server/src/v2/repositories/fcLines.js` — CRUD for lines and category assignments
+4. Create `server/src/v2/routes/fcLines.js` — REST API endpoints:
+   - `GET /api/v2/fc-lines` — list all lines with assigned categories
+   - `POST /api/v2/fc-lines` — create a line
+   - `PUT /api/v2/fc-lines/:id` — update name, type, display_order
+   - `DELETE /api/v2/fc-lines/:id` — delete line (unassigns its categories)
+   - `POST /api/v2/fc-lines/:id/categories` — assign categories to a line
+   - `DELETE /api/v2/fc-lines/:id/categories/:categoryId` — unassign a category
+   - `POST /api/v2/fc-lines/generate-suggestions` — auto-create lines from P&L hierarchy
+   - `GET /api/v2/fc-lines/unassigned-categories` — list categories not assigned to any line
+   - `GET /api/v2/fc-lines/budget-totals?budgetYear=2026` — budget sum per line for a given year
+
+**Test Checkpoint 2B-1:**
+
+Automated tests — `server/src/v2/routes/__tests__/fc-lines.test.js`:
+
+| # | Test | Action | Expected |
+|---|------|--------|----------|
+| T1.1 | Create line | POST `/fc-lines` with name + type | 201, line returned with id |
+| T1.2 | Duplicate name rejected | POST with existing name | 409 Conflict |
+| T1.3 | List lines with categories | GET `/fc-lines` after assigning 3 categories to a line | Line includes `categories` array with 3 items |
+| T1.4 | Assign category | POST `/fc-lines/:id/categories` with category_id | 200, category appears in line |
+| T1.5 | Double-assign rejected | Assign same category to a second line | 409 Conflict (UNIQUE on category_id) |
+| T1.6 | Unassign category | DELETE `/fc-lines/:id/categories/:catId` | 200, category no longer in line |
+| T1.7 | Delete line cascades | Delete line with 3 assigned categories | Line deleted, categories now in unassigned list |
+| T1.8 | Delete line with FC items blocked | Delete line referenced by `forecast_income_expense` | 409 Conflict with list of referencing scenarios |
+| T1.9 | Delete line with modules allowed | Delete line referenced by `forecast_modules` | 200, module's `fc_line_id` set to NULL |
+| T1.10 | Generate suggestions | POST `/fc-lines/generate-suggestions` | Lines created from P&L parent accounts; no categories auto-assigned |
+| T1.11 | Unassigned categories | GET `/fc-lines/unassigned-categories` after assigning some | Returns only categories not in any line |
+| T1.12 | Budget totals | GET `/fc-lines/budget-totals?budgetYear=2026` | Returns sum of budget_entries per line based on assigned categories |
+| T1.13 | Update line type | PUT `/fc-lines/:id` changing type to `bs_module_expense` | 200, type updated |
+
+Manual checks:
+
+| # | Check | Action | Verify |
+|---|-------|--------|--------|
+| M1.1 | Migration runs clean | Run migration on dev DB | Tables created, columns added, no errors |
+| M1.2 | Existing forecast still works | Generate a forecast with existing scenario | Forecast generation succeeds (old code path still intact) |
+| M1.3 | API responds | `curl GET /api/v2/fc-lines` on dev server | 200 with empty array |
+| M1.4 | Generate suggestions | `curl POST /api/v2/fc-lines/generate-suggestions` | Lines created matching P&L parent account names |
+
+---
+
+#### Phase 2B-2: FC Mapping Page (Frontend)
+
+**Build:**
+1. Create `frontend/src/pages/FCLineMapping.jsx` — the main mapping page
+   - Left panel: list of FC Lines with type badges and category counts
+   - Right panel: assigned categories (drag targets) + unassigned pool
+   - "Generate Suggestions" button
+   - Coverage indicator bar
+   - Line CRUD (create, rename, delete, set type)
+   - Drag/drop category assignment
+2. Add route and navigation link (before Scenarios in the FC nav)
+
+**Test Checkpoint 2B-2:**
+
+| # | Check | Action | Verify |
+|---|-------|--------|--------|
+| M2.1 | Page loads | Navigate to FC Mapping page | Page renders with empty state (no lines yet) |
+| M2.2 | Generate suggestions | Click "Generate Suggestions" | Lines appear named from P&L hierarchy (Property Costs, Living Expenses, Travel, etc.) |
+| M2.3 | Create custom line | Click "New Line", enter "Prop Costs - PM4" | Line appears in list |
+| M2.4 | Rename line | Double-click line name, change it | Name updates on blur/enter |
+| M2.5 | Set line type | Select "BS Module - Expense" from type dropdown | Badge updates, type persists on reload |
+| M2.6 | Assign categories | Drag "Property - Condo Fees - SP - PM4" from unassigned pool into "Prop Costs - PM4" | Category moves to the line; disappears from unassigned pool |
+| M2.7 | No double-assign | Try to drag an already-assigned category to another line | Blocked or moves (reassigns) — never duplicated |
+| M2.8 | Unassigned visibility | Leave 5 categories unassigned | Unassigned pool shows 5 items; coverage bar shows "X/Y assigned" |
+| M2.9 | Delete line | Delete a line with 3 assigned categories | Line removed; 3 categories return to unassigned pool |
+| M2.10 | Delete blocked | Delete a line referenced by a forecast expense item | Error message listing the scenario(s) using it |
+| M2.11 | Budget totals | Assign categories to a line, check displayed budget total | Total matches sum of those categories' budget entries for current year |
+| M2.12 | Persist on reload | Refresh the page | All lines, assignments, and types preserved |
+
+---
+
+#### Phase 2B-3: Module Edit Integration
+
+**Build:**
+1. Modify `FCModulesEdit.jsx`:
+   - Replace `expense_category` dropdown with FC Line picker (BS Module - Expense lines + "None")
+   - Replace `income_category` dropdown with FC Line picker (BS Module - Income lines + "None")
+   - Add `expense_growth_method` toggle (Inflation / % of Asset Value)
+   - Show budget total for selected line + allocation tracking (total / allocated to other modules / remaining)
+2. Update module create/update API to handle `expense_fc_line_id`, `income_fc_line_id`, `expense_growth_method`
+
+**Test Checkpoint 2B-3:**
+
+| # | Check | Action | Verify |
+|---|-------|--------|--------|
+| M3.1 | Expense line picker | Open module edit for a RealEstate module | Expense Category dropdown shows only BS Module - Expense lines + "None" |
+| M3.2 | Income line picker | Same module | Income Category dropdown shows only BS Module - Income lines + "None" |
+| M3.3 | Select "None" | Set expense line to "None", save | Module saves with `expense_fc_line_id = NULL`; no expense calculated |
+| M3.4 | Select a line | Set expense line to "Prop Costs - PM4", save | Module saves with correct `expense_fc_line_id` |
+| M3.5 | Budget total shown | After selecting a line | Budget total for that line displayed (e.g., "$2,411 for 2026") |
+| M3.6 | Allocation tracking | Assign same line to two modules, enter amounts | Shows "Total: $2,411 / This module: $2,000 / Other modules: $200 / Remaining: $211" |
+| M3.7 | Growth method toggle | Toggle "Inflation" → "% of Asset Value" | `expense_growth_method` changes; persists on save and reload |
+| M3.8 | Existing modules load | Open a module that had old `expense_category` string | Field shows "None" (old string not migrated yet — that's Phase 2B-6) |
+
+---
+
+#### Phase 2B-4: Forecast Expenses Integration
+
+**Build:**
+1. Modify `FCExpSetup.jsx`:
+   - Add "Add from FC Lines" button that shows available Forecast Expense/Income lines
+   - User selects lines to include; budget total pre-fills `base_value` (default: scenario's `PeriodStart` year)
+   - Budget year override dropdown on the "Add from FC Lines" dialog
+   - `budget_source_year` stored on created items for audit
+   - Remove old Seed Budget and Coverage buttons/modals
+2. Update income/expense create API to accept `fc_line_id` and `budget_source_year`
+
+**Test Checkpoint 2B-4:**
+
+| # | Check | Action | Verify |
+|---|-------|--------|--------|
+| M4.1 | "Add from FC Lines" button | Navigate to Forecast Expenses page with a scenario selected | Button visible, enabled |
+| M4.2 | Available lines shown | Click "Add from FC Lines" | Dialog shows Forecast Expense and Forecast Income type lines with budget totals |
+| M4.3 | Already-added lines excluded | Add "Living Expenses" to scenario, reopen dialog | "Living Expenses" not shown (already included) |
+| M4.4 | Budget pre-fills | Select "Travel" line (budget: $8,000 for 2026) | New FC expense item created with `base_value = -8000` |
+| M4.5 | Budget year default | Open dialog without changing year | Default year = scenario's PeriodStart year |
+| M4.6 | Budget year override | Change budget year to 2025 in dropdown | Totals refresh to 2025 budget amounts |
+| M4.7 | budget_source_year stored | Add item, then query DB | `forecast_income_expense` row has `budget_source_year = 2026` (or overridden year) |
+| M4.8 | Old buttons removed | Check Forecast Expenses toolbar | No "Seed Budget" button; no "Coverage" button |
+| M4.9 | account_id derived | Add item from FC Line, check DB | `account_id` set to common P&L ancestor of the line's assigned categories |
+| M4.10 | Multiple items | Add 5 FC Lines to scenario | All 5 appear as forecast expense/income items with correct pre-filled values |
+
+---
+
+#### Phase 2B-5: Engine Update
+
+**Build:**
+1. **Preload FC Line name map** in `fcbuilder-module.js` at forecast generation time:
+   - Query `fc_lines` table, build `Map<id, name>`
+   - When creating `forecast_entries`, resolve `expense_fc_line_id` → `fc_lines.name` for the P&L entry label (replaces old `expense_category` string lookup)
+   - Same for `income_fc_line_id` → income entry label
+2. **Implement `expense_growth_method = 'pct_of_value'`** in expense calculation block:
+   - `inflation` mode (default): `expenseValues[i] = expense_amount × (1 + inflation)^(year - baseYear)` — existing behavior
+   - `pct_of_value` mode: `derived_pct = expense_amount / market_value_base`, then `expenseValues[i] = derived_pct × avg(MV[i], MV[i-1])` — scales with asset value
+3. **Remove `expense_pct` logic** from engine — replaced by `expense_growth_method`
+
+**Test Checkpoint 2B-5:**
+
+Automated tests — `server/src/services/forecast/__tests__/fcbuilder-module.test.js` (new tests):
+
+| # | Test | Setup | Expected |
+|---|------|-------|----------|
+| T5.1 | Inflation growth method | Module: `expense_amount = 1000`, `expense_growth_method = 'inflation'`, inflation = 3%, 3-year forecast | Year 1: 1000, Year 2: 1030, Year 3: 1060.9 |
+| T5.2 | Pct of value growth method | Module: `expense_amount = 1000`, `expense_growth_method = 'pct_of_value'`, `market_value = 100000`, MV grows 5%/yr | derived_pct = 1%, Year 1: 1000, Year 2: ~1050 (1% of avg 100K, 105K), Year 3: ~1102 |
+| T5.3 | No expense when fc_line_id NULL | Module with `expense_fc_line_id = NULL` | No expense entries generated |
+| T5.4 | Entry label from FC Line name | Module with `expense_fc_line_id` pointing to line named "Prop Costs - PM4" | `forecast_entries` have `account = 'Prop Costs - PM4'` |
+| T5.5 | Income label from FC Line name | Module with `income_fc_line_id` pointing to line named "Rental Income - PM4" | Income entries labeled "Rental Income - PM4" |
+| T5.6 | Pct of value with zero market value | `expense_amount = 1000`, `market_value = 0` | Falls back to inflation method (avoid division by zero) |
+
+Manual checks:
+
+| # | Check | Action | Verify |
+|---|-------|--------|--------|
+| M5.1 | Generate with FC Lines | Set up modules with FC Line expense/income, generate forecast | Forecast completes without errors |
+| M5.2 | Audit trail labels | Download audit trail CSV for a module | Expense/income columns labeled with FC Line names, not old category strings |
+| M5.3 | Review page values | Open FC Review page | Expense amounts match expected inflation or pct_of_value growth |
+| M5.4 | Compare to Phase 1 baseline | For a module that previously used `expense_pct`, compare before/after | Values should match (since migration converts `expense_pct` to equivalent `expense_amount + pct_of_value`) |
+
+---
+
+#### Phase 2B-6: Migration Script (run BEFORE cleanup)
+
+**Build:**
+1. Write migration script `server/src/scripts/migrate-fc-lines.js` that:
+   - Creates FC Lines from existing `expense_category` / `income_category` string values on modules
+   - Converts `expense_pct` → `expense_amount` + `expense_growth_method` where applicable
+   - Maps existing modules to the new `expense_fc_line_id` / `income_fc_line_id` columns
+   - Reports unmatched items for manual resolution
+2. Script must be idempotent (safe to re-run)
+
+**Test Checkpoint 2B-6:**
+
+| # | Check | Action | Verify |
+|---|-------|--------|--------|
+| M6.1 | Run migration on dev | Execute `node server/src/scripts/migrate-fc-lines.js` | Completes with summary: X lines created, Y modules mapped, Z unmatched |
+| M6.2 | Idempotent | Run the script again | No errors, no duplicates, same summary |
+| M6.3 | expense_pct converted | Query modules that had `expense_pct > 0` and `expense_amount = 0` | Now have `expense_amount = market_value × expense_pct / 100`, `expense_growth_method = 'pct_of_value'` |
+| M6.4 | FC Line IDs populated | Query `forecast_modules` where old `expense_category` was not "Bank Fees" | `expense_fc_line_id` is not NULL, points to a valid FC Line |
+| M6.5 | Forecast still generates | Generate forecast for 2026_Base scenario after migration | Results identical to pre-migration (values haven't changed, only field names) |
+| M6.6 | Comparison test | Export audit trail CSV before and after migration for same scenario | Values match within rounding tolerance ($1) |
+| M6.7 | Run migration on production | Execute on production DB | Same results as dev |
+
+**Gate:** M6.5 and M6.6 must pass before proceeding to Phase 2B-7.
+
+---
+
+#### Phase 2B-7: Cleanup (run AFTER migration verified)
+
+**Build:**
+1. **Remove backend endpoints:**
+   - `POST /forecast/incomeexpense/seed-from-budget`
+   - `POST /forecast/coverage-check`
+   - `PATCH /forecast/incomeexpense/bulk-update`
+2. **Remove frontend files:**
+   - `FCSeedFromBudgetModal.jsx`
+   - `FCCoverageCheckModal.jsx`
+3. **Remove frontend props/state** in `FCExpFilter.jsx` and `FCExpSetup.jsx` related to seed/coverage
+4. **Database column drops** (separate migration, only after code no longer references them):
+   - Drop `expense_category` from `forecast_modules`
+   - Drop `income_category` from `forecast_modules`
+   - Drop `expense_pct` from `forecast_modules`
+
+**Test Checkpoint 2B-7:**
+
+| # | Check | Action | Verify |
+|---|-------|--------|--------|
+| M7.1 | Removed endpoints 404 | `curl POST /api/v2/forecast/coverage-check` | 404 Not Found |
+| M7.2 | Removed endpoints 404 | `curl POST /api/v2/forecast/incomeexpense/seed-from-budget` | 404 Not Found |
+| M7.3 | Removed files gone | Check `frontend/src/features/Forecast/` | No `FCSeedFromBudgetModal.jsx` or `FCCoverageCheckModal.jsx` |
+| M7.4 | FCExpSetup clean | Open Forecast Expenses page | No "Seed Budget" or "Coverage" buttons; "Add from FC Lines" is the only way to add items |
+| M7.5 | Full end-to-end | Create scenario → Mapping → Modules → Expenses → Generate → Review | Entire workflow works with no references to old code |
+| M7.6 | No dead code | `grep -r "seed-from-budget\|coverage-check\|expense_category\|income_category\|expense_pct" server/src/ frontend/src/` | Zero matches (excluding test files, migration script, and this doc) |
+| M7.7 | Column drops clean | Run column drop migration on dev | No errors; existing queries still work (no code references dropped columns) |
+| M7.8 | Deploy to production | Deploy full stack | All pages load; forecast generates correctly |
+
+### 7.9 API Endpoints Summary
+
+| Method | Path | Description |
+|--------|------|-------------|
+| GET | `/api/v2/fc-lines` | List all FC Lines with categories and budget totals |
+| POST | `/api/v2/fc-lines` | Create a new FC Line |
+| PUT | `/api/v2/fc-lines/:id` | Update line name, type, display_order |
+| DELETE | `/api/v2/fc-lines/:id` | Delete a line (categories become unassigned) |
+| POST | `/api/v2/fc-lines/:id/categories` | Assign category IDs to a line |
+| DELETE | `/api/v2/fc-lines/:id/categories/:categoryId` | Unassign a category |
+| POST | `/api/v2/fc-lines/generate-suggestions` | Auto-create empty lines from P&L account hierarchy |
+| GET | `/api/v2/fc-lines/unassigned-categories` | List categories not assigned to any line |
+| GET | `/api/v2/fc-lines/budget-totals` | Budget totals per line for a given year |
