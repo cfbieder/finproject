@@ -30,6 +30,7 @@ import FCScenariosModal from "../features/Forecast/FCScenariosModal.jsx";
 import FCExpConfirmDeleteModal from "../features/Forecast/FCExpConfirmDeleteModal.jsx";
 import { useToast } from "../contexts";
 import Rest from "../js/rest.js";
+import FCStepNav from "../features/Forecast/FCStepNav.jsx";
 import "./PageLayout.css";
 
 export default function FCScenarios() {
@@ -256,7 +257,10 @@ export default function FCScenarios() {
 
   /** All unique FX rate keys (e.g., "USDPLN", "USDEUR") across all scenarios */
   const fxKeys = Array.from(
-    new Set((localFX || []).flatMap((row) => Object.keys(row.Rates || {})))
+    new Set([
+      "PLN", "EUR",
+      ...(localFX || []).flatMap((row) => Object.keys(row.Rates || {})),
+    ])
   );
 
   // ============================================================================
@@ -564,8 +568,11 @@ export default function FCScenarios() {
    * For new scenarios: Opens modal to name the scenario
    * For existing scenarios: Opens confirmation modal
    */
-  const confirmCommit = () => {
-    if (selectedScenario === "__new_scenario__") {
+  const confirmCommit = (forceNew) => {
+    if (forceNew === "__new_scenario__" || selectedScenario === "__new_scenario__") {
+      if (forceNew === "__new_scenario__") {
+        setSelectedScenario("__new_scenario__");
+      }
       setModalState({ type: "nameScenario", payload: { Name: "" } });
       return;
     }
@@ -876,6 +883,7 @@ export default function FCScenarios() {
   return (
     <>
       <main className="page-main trans-budget-main">
+        <FCStepNav />
         {/* Header section with scenario selection and actions */}
         <FCScenariosSelect
           assumptions={assumptions}

@@ -2,8 +2,7 @@ import { useState } from "react";
 import FCExpConfirmDeleteModal from "../features/Forecast/FCExpConfirmDeleteModal.jsx";
 import FCExpModal from "../features/Forecast/FCExpModal.jsx";
 import FCExpFilter from "../features/Forecast/FCExpFilter.jsx";
-import FCSeedFromBudgetModal from "../features/Forecast/FCSeedFromBudgetModal.jsx";
-import FCCoverageCheckModal from "../features/Forecast/FCCoverageCheckModal.jsx";
+import FCAddFromLinesModal from "../features/Forecast/FCAddFromLinesModal.jsx";
 import FCExpTable from "../features/Forecast/FCExpTable.jsx";
 import FCExpTableDetails from "../features/Forecast/FCExpTableDetails.jsx";
 import { useFCExpAssumptions } from "../features/Forecast/hooks/useFCExpAssumptions.js";
@@ -11,6 +10,7 @@ import { useFCExpAccountHierarchy } from "../features/Forecast/hooks/useFCExpAcc
 import { useFCExpEntries } from "../features/Forecast/hooks/useFCExpEntries.js";
 import { useFCExpCrud } from "../features/Forecast/hooks/useFCExpCrud.js";
 import "../features/Forecast/FCModulesFilter.css";
+import FCStepNav from "../features/Forecast/FCStepNav.jsx";
 import "./PageLayout.css";
 import "./FCExpSetup.css";
 
@@ -33,12 +33,13 @@ const formatNumber = (value) =>
     : "—";
 
 const formatTableNumber = (value) => {
-  if (typeof value !== "number" || Number.isNaN(value)) return "—";
-  const formatted = Math.abs(Math.trunc(value)).toLocaleString(undefined, {
+  const num = typeof value === "number" ? value : Number(value);
+  if (!Number.isFinite(num)) return "—";
+  const formatted = Math.abs(Math.trunc(num)).toLocaleString(undefined, {
     minimumFractionDigits: 0,
     maximumFractionDigits: 0,
   });
-  if (value < 0) {
+  if (num < 0) {
     return <span className="text--negative">{`(${formatted})`}</span>;
   }
   return formatted;
@@ -97,8 +98,7 @@ export default function FCExpSetup() {
     leafAccountLookup
   );
 
-  const [showSeedModal, setShowSeedModal] = useState(false);
-  const [showCoverageModal, setShowCoverageModal] = useState(false);
+  const [showAddFromLinesModal, setShowAddFromLinesModal] = useState(false);
 
   const reloadEntries = () => {
     // Trigger re-fetch by toggling scenario
@@ -110,6 +110,7 @@ export default function FCExpSetup() {
   return (
     <>
       <main className="page-content">
+        <FCStepNav />
         <FCExpFilter
           assumptions={assumptions}
           error={error}
@@ -125,10 +126,8 @@ export default function FCExpSetup() {
           addDisabled={!selectedScenario || entriesLoading}
           editDisabled={!selectedScenario || !sortedEntries.length}
           deleteDisabled={!selectedScenario || !sortedEntries.length}
-          onSeedClick={() => setShowSeedModal(true)}
-          onCoverageClick={() => setShowCoverageModal(true)}
-          seedDisabled={!selectedScenario}
-          coverageDisabled={!selectedScenario}
+          onAddFromLinesClick={() => setShowAddFromLinesModal(true)}
+          addFromLinesDisabled={!selectedScenario}
         />
         <div className="exp-setup-sections">
           <FCExpTable
@@ -171,16 +170,12 @@ export default function FCExpSetup() {
         accountNameOptions={accountNameOptions}
         periodYears={periodYears}
       />
-      <FCSeedFromBudgetModal
-        isOpen={showSeedModal}
-        onClose={() => setShowSeedModal(false)}
+      <FCAddFromLinesModal
+        isOpen={showAddFromLinesModal}
+        onClose={() => setShowAddFromLinesModal(false)}
         scenario={selectedScenario}
-        onApplied={reloadEntries}
-      />
-      <FCCoverageCheckModal
-        isOpen={showCoverageModal}
-        onClose={() => setShowCoverageModal(false)}
-        scenario={selectedScenario}
+        existingEntries={sortedEntries}
+        onAdded={reloadEntries}
       />
     </>
   );

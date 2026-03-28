@@ -20,7 +20,8 @@ const mockRepo = {
   unassignCategory: jest.fn(),
   findUnassignedCategories: jest.fn(),
   getBudgetTotals: jest.fn(),
-  generateSuggestions: jest.fn(),
+  getSuggestions: jest.fn(),
+  createBatch: jest.fn(),
 };
 
 jest.mock('../../repositories/fcLines', () => mockRepo);
@@ -193,18 +194,32 @@ describe('FC Lines API', () => {
     expect(res.status).toBe(404);
   });
 
-  // T1.10: Generate suggestions
-  test('POST /generate-suggestions creates lines from P&L hierarchy', async () => {
-    mockRepo.generateSuggestions.mockResolvedValue([
-      { id: 1, name: 'Property Costs', line_type: 'unassigned' },
-      { id: 2, name: 'Living Expenses', line_type: 'unassigned' },
+  // T1.10a: Get suggestions preview
+  test('GET /suggestions returns P&L names not yet created', async () => {
+    mockRepo.getSuggestions.mockResolvedValue([
+      { account_id: 1, name: 'Property Costs' },
+      { account_id: 2, name: 'Living Expenses' },
     ]);
 
-    const res = await request(app, 'POST', '/generate-suggestions', {});
+    const res = await request(app, 'GET', '/suggestions', null);
 
     expect(res.status).toBe(200);
     expect(res.body.data).toHaveLength(2);
-    expect(res.body.created_count).toBe(2);
+  });
+
+  // T1.10b: Create from selected suggestions
+  test('POST /create-from-suggestions creates selected lines', async () => {
+    mockRepo.createBatch.mockResolvedValue([
+      { id: 1, name: 'Property Costs', line_type: 'unassigned' },
+    ]);
+
+    const res = await request(app, 'POST', '/create-from-suggestions', {
+      names: ['Property Costs'],
+    });
+
+    expect(res.status).toBe(200);
+    expect(res.body.data).toHaveLength(1);
+    expect(res.body.created_count).toBe(1);
   });
 
   // T1.11: Unassigned categories

@@ -15,7 +15,7 @@ import { useBalanceData } from "../features/BudgetEntry/hooks/useBalanceData.js"
 import { useCurrencyData } from "../features/BudgetEntry/hooks/useCurrencyData.js";
 import { useBudgetEntrySubmit } from "../features/BudgetEntry/hooks/useBudgetEntrySubmit.js";
 import { useCoa } from "../hooks/useCoa.js";
-import AccountSelector from "../components/AccountSelector/AccountSelector.jsx";
+import HierarchyFilter from "../components/HierarchyFilter/HierarchyFilter.jsx";
 import CategorySelector from "../components/CategorySelector/CategorySelector.jsx";
 import PeriodSelector from "../components/PeriodSelector/PeriodSelector.jsx";
 import {
@@ -59,7 +59,7 @@ export default function BudgetWorksheetV2() {
 
   const { currencyOptions, budgetRates, budgetRatesByMonth, defaultBudgetYear } =
     useCurrencyData();
-  const { expenseAccountNames, accountCurrencyMap, plTree } = useCoa();
+  const { expenseAccountNames, accountCurrencyMap, plTree, bsTree } = useCoa();
 
   // ========== State: Date Range ==========
   const [fromMonth, setFromMonth] = useState(MONTH_OPTIONS[0].value);
@@ -130,6 +130,46 @@ export default function BudgetWorksheetV2() {
     ],
     [categoryGroups, operationalExpenseCategories]
   );
+
+  // ========== HierarchyFilter groups (pill-style) ==========
+  const hfCategoryGroups = useMemo(() => {
+    if (!plTree?.length) return [];
+    const groups = [];
+    for (const node of plTree) {
+      if (node.name === "Income") {
+        groups.push({ key: "income", label: "Income", node });
+      } else if (node.name === "Expense") {
+        const transferNode = node.children?.find((c) => c.name === "Transfers");
+        const expenseChildren = (node.children || []).filter((c) => c.name !== "Transfers");
+        groups.push({
+          key: "expense",
+          label: "Expense",
+          node: { ...node, children: expenseChildren },
+        });
+        if (transferNode) {
+          groups.push({ key: "transfers", label: "Transfers", node: transferNode });
+        }
+      } else {
+        groups.push({ key: node.name, label: node.name, node });
+      }
+    }
+    return groups;
+  }, [plTree]);
+
+  const hfAccountGroups = useMemo(() => {
+    if (!bsTree?.length) return [];
+    const groups = [];
+    for (const topNode of bsTree) {
+      if (topNode.children?.length) {
+        for (const child of topNode.children) {
+          groups.push({ key: child.name, label: child.name, node: child });
+        }
+      } else {
+        groups.push({ key: topNode.name, label: topNode.name, node: topNode });
+      }
+    }
+    return groups;
+  }, [bsTree]);
 
   const activeMonthRange = useMemo(() => {
     const start = normalizeMonthNumber(fromMonth, 1);
@@ -311,6 +351,22 @@ export default function BudgetWorksheetV2() {
   const handleCategoriesChange = useCallback(
     (next) => setSelectedCategories(next),
     [setSelectedCategories]
+  );
+
+  // HierarchyFilter handlers — bridge leaf-name arrays to selected state
+  const handleHfCategorySelection = useCallback(
+    (leafNames) => {
+      // empty array from HierarchyFilter means "All" selected — clear filter
+      setSelectedCategories(leafNames.length > 0 ? leafNames : []);
+    },
+    [setSelectedCategories]
+  );
+
+  const handleHfAccountSelection = useCallback(
+    (leafNames) => {
+      setSelectedAccounts(leafNames.length > 0 ? leafNames : ["All"]);
+    },
+    [setSelectedAccounts]
   );
 
   const handleClearAll = useCallback(() => {
@@ -666,14 +722,11 @@ export default function BudgetWorksheetV2() {
               />
             </div>
             <div className="bwv2-filters__section">
-              <span className="bwv2-filters__label">Categories</span>
-              {plTree?.length > 0 ? (
-                <CategorySelector
-                  plTree={plTree}
-                  selectedCategories={selectedCategories}
-                  onCategoriesChange={handleCategoriesChange}
-                  categoryGroupOptions={categoryGroupSelectOptions}
-                  categoryOptions={categoryOptions}
+              {hfCategoryGroups.length > 0 ? (
+                <HierarchyFilter
+                  label="Categories"
+                  groups={hfCategoryGroups}
+                  onSelectionChange={handleHfCategorySelection}
                 />
               ) : (
                 <span style={{ fontSize: "0.8rem", color: "var(--muted)" }}>
@@ -682,22 +735,33 @@ export default function BudgetWorksheetV2() {
               )}
             </div>
             <div className="bwv2-filters__section">
-              <span className="bwv2-filters__label">Accounts</span>
-              <AccountSelector
-                accountOptions={accountOptions}
-                accountCurrencyMap={accountCurrencyMap}
-                selectedAccounts={selectedAccounts}
-                onAccountsChange={handleAccountsChange}
-              />
+              {hfAccountGroups.length > 0 ? (
+                <HierarchyFilter
+                  label="Accounts"
+                  groups={hfAccountGroups}
+                  onSelectionChange={handleHfAccountSelection}
+                />
+              ) : (
+                <span style={{ fontSize: "0.8rem", color: "var(--muted)" }}>
+                  Loading...
+                </span>
+              )}
             </div>
           </div>
           <div className="bwv2-filters__footer">
             <button
               type="button"
               className="bwv2-btn"
+              onClick={handleClearAll}
+            >
+              Reset
+            </button>
+            <button
+              type="button"
+              className="bwv2-btn bwv2-btn--primary"
               onClick={() => setShowFilters(false)}
             >
-              Close
+              Apply
             </button>
           </div>
         </div>

@@ -56,7 +56,7 @@ function createZerosMatrix(rowCount, colCount) {
 /**
  * Loads modules from PostgreSQL and transforms to v1 format for processing
  */
-async function loadModulesForScenario(scenarioId) {
+async function loadModulesForScenario(scenarioId, fcLineNameMap) {
   // Get modules with account names
   const modulesResult = await db.query(`
     SELECT m.*, a.name as account_name, a.account_type
@@ -85,9 +85,21 @@ async function loadModulesForScenario(scenarioId) {
     mod.MarketValueUSD = parseFloat(mod.market_value_usd) || 0;
     mod.Currency = (mod.currency || 'USD').trim();
     mod.Growth = parseFloat(mod.growth_rate) || 0;
-    mod.ExpensePct = parseFloat(mod.expense_pct) || 0;
-    mod.IncomeCategory = mod.income_category || '';
-    mod.ExpCategory = mod.expense_category || '';
+    mod.ExpensePct = 0; // Legacy field — replaced by expense_growth_method
+    mod.expense_fc_line_id = mod.expense_fc_line_id || null;
+    mod.income_fc_line_id = mod.income_fc_line_id || null;
+    mod.expense_growth_method = mod.expense_growth_method || 'inflation';
+
+    // Resolve FC Line names for entry labels
+    mod.ExpCategory = '';
+    mod.IncomeCategory = '';
+    if (mod.expense_fc_line_id && fcLineNameMap) {
+      mod.ExpCategory = fcLineNameMap.get(mod.expense_fc_line_id) || '';
+    }
+    if (mod.income_fc_line_id && fcLineNameMap) {
+      mod.IncomeCategory = fcLineNameMap.get(mod.income_fc_line_id) || '';
+    }
+
     mod.Comment = mod.comment;
     mod.Matched = mod.is_matched;
     mod.AccountType = mod.account_type || '';
@@ -172,21 +184,37 @@ async function loadIncExpModulesForScenario(scenarioId) {
 /**
  * Extracts unique categories from modules
  */
-async function loadCategoriesForScenario(scenarioId) {
+async function loadCategoriesForScenario(scenarioId, fcLineNameMap) {
   const result = await db.query(`
     SELECT
-      array_agg(DISTINCT m.expense_category) FILTER (WHERE m.expense_category IS NOT NULL) as expense_categories,
-      array_agg(DISTINCT m.income_category) FILTER (WHERE m.income_category IS NOT NULL) as income_categories,
-      array_agg(DISTINCT a.name) FILTER (WHERE a.name IS NOT NULL) as account_names
+      array_agg(DISTINCT a.name) FILTER (WHERE a.name IS NOT NULL) as account_names,
+      array_agg(DISTINCT m.expense_fc_line_id) FILTER (WHERE m.expense_fc_line_id IS NOT NULL) as expense_fc_line_ids,
+      array_agg(DISTINCT m.income_fc_line_id) FILTER (WHERE m.income_fc_line_id IS NOT NULL) as income_fc_line_ids
     FROM forecast_modules m
     LEFT JOIN accounts a ON m.account_id = a.id
     WHERE m.scenario_id = $1
   `, [scenarioId]);
 
+  const row = result.rows[0] || {};
+  const expenseCategories = [];
+  const incomeCategories = [];
+
+  // Build category lists from FC Line names
+  if (fcLineNameMap) {
+    for (const id of (row.expense_fc_line_ids || [])) {
+      const name = fcLineNameMap.get(id);
+      if (name && !expenseCategories.includes(name)) expenseCategories.push(name);
+    }
+    for (const id of (row.income_fc_line_ids || [])) {
+      const name = fcLineNameMap.get(id);
+      if (name && !incomeCategories.includes(name)) incomeCategories.push(name);
+    }
+  }
+
   return {
-    expenseCategories: result.rows[0]?.expense_categories || [],
-    incomeCategories: result.rows[0]?.income_categories || [],
-    accountNames: result.rows[0]?.account_names || [],
+    expenseCategories,
+    incomeCategories,
+    accountNames: row.account_names || [],
   };
 }
 
@@ -240,12 +268,20 @@ async function generateForecast(scenarioName) {
     const deletedCount = deleteResult.rowCount;
     console.log(`[FORECAST-GENERATE] Deleted ${deletedCount} existing entries`);
 
+    // Step 3b: Preload FC Line name map (id → name)
+    const fcLinesResult = await db.query('SELECT id, name FROM fc_lines');
+    const fcLineNameMap = new Map();
+    for (const row of fcLinesResult.rows) {
+      fcLineNameMap.set(row.id, row.name);
+    }
+    console.log(`[FORECAST-GENERATE] Loaded ${fcLineNameMap.size} FC Line names`);
+
     // Step 4: Load modules and categories in parallel
     const [bsModules, incexpModules, { expenseCategories, incomeCategories, accountNames }, { incexpCategories }] =
       await Promise.all([
-        loadModulesForScenario(scenarioId),
+        loadModulesForScenario(scenarioId, fcLineNameMap),
         loadIncExpModulesForScenario(scenarioId),
-        loadCategoriesForScenario(scenarioId),
+        loadCategoriesForScenario(scenarioId, fcLineNameMap),
         loadIncExpCategoriesForScenario(scenarioId),
       ]);
 
@@ -284,7 +320,7 @@ async function generateForecast(scenarioName) {
           { columns: columns, index: scenarioCategories }
         );
         df_module_categories.config.setMaxRow(1000);
-        return processBSModule(module, scenario, df_assumptions, df_module_categories, categories, years, db, scenarioId);
+        return processBSModule(module, scenario, df_assumptions, df_module_categories, categories, years, db, scenarioId, fcLineNameMap);
       }),
       ...incexpModules.map((module) => {
         const df_module_categories2 = new dfd.DataFrame(

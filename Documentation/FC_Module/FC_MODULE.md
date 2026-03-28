@@ -207,12 +207,46 @@ Older or simplified version with fewer asset classes; appears to be a quick-refe
   - "Apply" commits the bulk update
 - **Rationale:** Budget is forward-looking and already curated (no one-offs). The forecast year 1 P&L should match the budget, then grow from there via inflation/growth rates.
 
-**Phase 2 Status: IN PROGRESS (2026-03-27)**
-- G1 Seed from Actuals: DONE — 2 new endpoints (POST seed-from-actuals with recursive descendant aggregation, PATCH bulk-update). Frontend modal with review table on Modules page. Tested end-to-end on dev server.
-- G5 Seed from Budget: DONE — 2 new endpoints (POST seed-from-budget with recursive CTE for P&L hierarchy, PATCH bulk-update). Frontend modal with budget/actual/source columns on Inc/Exp page. Fallback to prior-year actuals when no budget entry exists.
-- Generic `Rest.post()` and `Rest.patch()` methods added to frontend REST helper.
-- Budget Coverage Check: DONE — New endpoint (POST coverage-check) with recursive category parent fallback for unmapped categories. Frontend modal with 3 collapsible sections (Not Covered, FC IncExp, BS Module) and summary cards. "Coverage" button on Inc/Exp page.
-- Property Cost Seeding: PENDING — Need to build smart seeding that sums property-related budget categories per property and proposes as `expense_amount` on BS modules.
+**Phase 2 Status: SUPERSEDED BY PHASE 2B (2026-03-27)**
+- G1 Seed from Actuals: REPLACED by "Add from Actuals" (tree-based module creation)
+- G5 Seed from Budget: REPLACED by "Add from FC Lines" (FC Mapping → Forecast Expenses)
+- Coverage Check: REPLACED by FC Mapping page coverage bar
+- Property Cost Seeding: REPLACED by FC Line assignment on BS modules
+
+**Phase 2B Status: COMPLETE (2026-03-28)**
+- Phase 2B-1 DB & API Foundation: DONE — Migration 007_fc_lines.sql, fc_lines + fc_line_categories tables, 9 REST endpoints, 15 automated tests passing
+- Phase 2B-2 FC Mapping Page: DONE — FCLineMapping.jsx with line CRUD, drag/drop category assignment, multi-select (Ctrl+Click), type dropdowns, coverage bar, budget totals, category detail modal on double-click
+- Phase 2B-3 Module Edit Integration: DONE — Expense/Income Line pickers (FC Line dropdowns filtered by type + "None"), Expense/Income Amount (Yr 1) fields, Expense Growth method toggle, allocation tracking (Budget / Other modules / Remaining), Income % year dropdown fixed, modal no longer closes on overlay click
+- Phase 2B-4 Forecast Expenses Integration: DONE — "Add from FC Lines" button replaces "Seed Budget" and "Coverage" buttons. Modal shows Forecast Expense/Income lines with budget totals, creates items with budget pre-fill, base date, fc_line_id, budget_source_year. Old FCSeedFromBudgetModal and FCCoverageCheckModal removed from imports.
+- Phase 2B-4b Add from Actuals: DONE — "Add from Actuals" replaces "Seed Actuals" on Modules page. New endpoint `POST /forecast/modules/add-from-actuals` returns BS account tree with year-end balances (excluding Bank Accounts). Tree view modal with expand/collapse, leaf pre-selection, parent aggregation toggle. Creates modules with balances pre-filled. Old `seed-from-actuals` endpoint and `FCSeedFromActualsModal.jsx` deleted.
+- Phase 2B-5 Engine Update: DONE — FC Line name map preloaded in index.js, expense_growth_method (inflation/pct_of_value) implemented in processModule, expense_fc_line_id/income_fc_line_id resolved to entry labels, 6 new tests (T5.1-T5.6), 41 total tests passing
+- Phase 2B-6 Migration Script: SKIPPED — FC data wiped clean instead of migrating; fresh start on both dev and production
+- Phase 2B-7 Cleanup: DONE — Removed seed-from-budget and bulk-update endpoints, deleted FCSeedFromBudgetModal.jsx and FCCoverageCheckModal.jsx, removed expense_category/income_category/expense_pct from routes/repository/engine/frontend, dropped 3 DB columns (migration 008), frontend builds clean, 41 tests passing
+
+**Additional fixes applied during Phase 2B (2026-03-28):**
+- Fixed `findUnassignedCategories` to use recursive CTE — children of assigned parent categories now excluded from unmatched list
+- Fixed `modules/unmatched` endpoint — children of matched parent accounts excluded via `ancestorMatched` flag during tree traversal
+- Fixed group heading capitalization in FCModulesUnmatchedModal — `asset` → `Asset`, `liability` → `Liability`
+- Fixed `IsMatched` field mapping — API returns `IsMatched` but edit form expected `Matched`, causing checkbox to always appear unchecked
+- Fixed Account/Name fields in edit modal — now read-only (disabled) when module is matched to COA
+- Fixed FX rates modal showing no currency fields — added default `["PLN", "EUR"]` to `fxKeys` so fields appear even on fresh scenarios
+- Fixed Generate Suggestions — now opens selectable checklist modal instead of auto-creating all lines; re-running shows only remaining suggestions
+- Fixed FC Mapping page scrolling — both FC Lines and Unassigned panels now have independent scroll via `maxHeight: calc(100vh - 320px)`
+- Fixed new scenario naming — selecting "+ New Scenario" immediately opens naming modal instead of going to placeholder state
+- Added FCStepNav component — prev/next step navigation arrows on all 5 forecast pages (Mapping → Scenarios → Modules → Expenses → Review)
+- Fixed `writeValuesToCategoryRow` year offset — BaseDate year before DataFrame's first column caused all entries to be silently dropped
+- Fixed audit trail duplicate column keys — when IncomeCategory/ExpCategory both empty, DataFrame column names collided
+- Fixed FX division by zero — missing FX assumptions produced 0 rates, causing Infinity on EUR/PLN modules; now guards with `fx || 1`
+
+**Additional fixes applied during Phase 2/2B (prior sessions):**
+- Fixed `PUT /assumptions` to preserve `scenarios` array in FCAssump.json (was being stripped, breaking forecast generation)
+- Fixed `copyScenario` to handle existing target scenarios (clears and re-copies instead of failing with duplicate key)
+- Fixed duplicate key error on assumptions PUT with try/catch for race condition with copy
+- Fixed deploy script: `--no-deps server frontend` to avoid postgres container conflicts, `COMPOSE_PROJECT_NAME=psproject` for consistent Docker networking, auto-connect to postgres network
+- Fixed `formatTableNumber` in FCExpSetup to handle string values from DB (was showing "—" for valid numbers)
+- Fixed Income % year dropdown showing only "0" when PeriodStart not set (fallback to currentYear)
+- Added `Rest.get()`, `Rest.put()`, `Rest.del()` to frontend REST helper
+- Vite dev proxy pointed to dev API (port 3105) for testing
 
 **Additional fixes applied during Phase 2:**
 - Fixed `PUT /assumptions` to preserve `scenarios` array in FCAssump.json (was being stripped, breaking forecast generation)

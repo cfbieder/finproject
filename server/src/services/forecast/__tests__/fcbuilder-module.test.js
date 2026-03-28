@@ -371,3 +371,142 @@ describe("G6 — Liability Interest Model", () => {
     });
   });
 });
+
+
+// ============================================================
+// Phase 2B-5 — Engine Update (FC Lines + Growth Methods)
+// ============================================================
+describe("Phase 2B-5 — Engine Update", () => {
+
+  test("T5.1 Inflation growth method", async () => {
+    // expense_amount = 1000, expense_growth_method = 'inflation', inflation = 3%, 3-year forecast
+    const { db } = await runModule({
+      BaseValue: 500000, BaseValueUSD: 500000,
+      MarketValue: 500000, MarketValueUSD: 500000,
+      Growth: 0, ExpensePct: 0,
+      expense_amount: 1000,
+      expense_growth_method: 'inflation',
+      ExpCategory: "Prop Costs",
+      Dispose: [],
+    }, { PeriodStart: 2026, PeriodEnd: 2028, TaxRate: 0 }, { inflation: [3, 3, 3] });
+
+    const expEntries = getEntriesForAccount(db, "Prop Costs");
+    const expByYear = {};
+    expEntries.forEach((e) => { expByYear[e.forecast_year] = e.amount; });
+
+    // Year 0 (2025) = base, no forecast entry
+    // Year 1 (2026): 1000 * 1.03 = 1030
+    // Year 2 (2027): 1000 * 1.03^2 = 1060.9
+    // Year 3 (2028): 1000 * 1.03^3 = 1092.727
+    expect(expByYear[2026]).toBeCloseTo(-1030, 0);
+    expect(expByYear[2027]).toBeCloseTo(-1060.9, 0);
+    expect(expByYear[2028]).toBeCloseTo(-1092.727, 0);
+  });
+
+  test("T5.2 Pct of value growth method", async () => {
+    // expense_amount = 1000, expense_growth_method = 'pct_of_value', market_value = 100000, MV grows 5%/yr
+    // derived_pct = 1000 / 100000 = 1%
+    const { db } = await runModule({
+      BaseValue: 100000, BaseValueUSD: 100000,
+      MarketValue: 100000, MarketValueUSD: 100000,
+      Growth: 1, // growth multiplier applied to inflation
+      ExpensePct: 0,
+      expense_amount: 1000,
+      expense_growth_method: 'pct_of_value',
+      ExpCategory: "Prop Costs",
+      Dispose: [],
+    }, { PeriodStart: 2026, PeriodEnd: 2028, TaxRate: 0 }, { inflation: [5, 5, 5] });
+
+    const expEntries = getEntriesForAccount(db, "Prop Costs");
+    const expByYear = {};
+    expEntries.forEach((e) => { expByYear[e.forecast_year] = e.amount; });
+
+    // derived_pct = 1000 / 100000 = 0.01
+    // Growth = 1 * 5% inflation = 5% market value growth per year
+    // Year 1 (2026): MV[0]=100000, MV[1] = 100000 + 100000*5% = 105000
+    //   avg = (105000 + 100000) / 2 = 102500, expense = 0.01 * 102500 = 1025
+    // Year 2 (2027): MV[2] = 105000 + 105000*5% = 110250
+    //   avg = (110250 + 105000) / 2 = 107625, expense = 0.01 * 107625 = 1076.25
+    expect(expByYear[2026]).toBeCloseTo(-1025, 0);
+    expect(expByYear[2027]).toBeCloseTo(-1076.25, 0);
+  });
+
+  test("T5.3 No expense when expense_fc_line_id NULL", async () => {
+    const { db } = await runModule({
+      BaseValue: 100000, BaseValueUSD: 100000,
+      MarketValue: 100000, MarketValueUSD: 100000,
+      Growth: 0, ExpensePct: 0,
+      expense_amount: 0,
+      expense_fc_line_id: null,
+      ExpCategory: "Prop Costs",
+      Dispose: [],
+    }, { TaxRate: 0 });
+
+    const expEntries = getEntriesForAccount(db, "Prop Costs");
+    expect(expEntries.length).toBe(0);
+  });
+
+  test("T5.4 Entry label from FC Line name (expense)", async () => {
+    // Module with expense_fc_line_id pointing to a line named "Prop Costs - PM4"
+    // The FC Line name resolution happens in index.js (sets ExpCategory from fcLineNameMap),
+    // so in tests we simulate this by setting ExpCategory to the resolved name
+    const { db } = await runModule({
+      BaseValue: 100000, BaseValueUSD: 100000,
+      MarketValue: 100000, MarketValueUSD: 100000,
+      Growth: 0, ExpensePct: 0,
+      expense_amount: 500,
+      expense_growth_method: 'inflation',
+      expense_fc_line_id: 42, // simulated fc_line_id
+      ExpCategory: "Prop Costs - PM4", // resolved name (done by index.js in production)
+      Dispose: [],
+    }, { TaxRate: 0 });
+
+    // Entries should be labeled with the FC Line name
+    const entries = getEntriesForAccount(db, "Prop Costs - PM4");
+    expect(entries.length).toBeGreaterThan(0);
+    entries.forEach((e) => {
+      expect(e.account).toBe("Prop Costs - PM4");
+    });
+  });
+
+  test("T5.5 Income label from FC Line name", async () => {
+    // Module with income_fc_line_id resolved to "Rental Income - PM4"
+    const { db } = await runModule({
+      BaseValue: 100000, BaseValueUSD: 100000,
+      MarketValue: 100000, MarketValueUSD: 100000,
+      Growth: 0, ExpensePct: 0,
+      expense_amount: 0,
+      income_fc_line_id: 43,
+      IncomeCategory: "Rental Income - PM4", // resolved name
+      IncomePct: [{ Date: "2026-01-01", Value: 5 }],
+      Dispose: [],
+    }, { TaxRate: 0 });
+
+    const incEntries = getEntriesForAccount(db, "Rental Income - PM4");
+    expect(incEntries.length).toBeGreaterThan(0);
+    incEntries.forEach((e) => {
+      expect(e.account).toBe("Rental Income - PM4");
+    });
+  });
+
+  test("T5.6 Pct of value with zero market value falls back to inflation", async () => {
+    // expense_amount = 1000, market_value = 0 → derivedPct = 0 → fallback to inflation
+    const { db } = await runModule({
+      BaseValue: 0, BaseValueUSD: 0,
+      MarketValue: 0, MarketValueUSD: 0,
+      Growth: 0, ExpensePct: 0,
+      expense_amount: 1000,
+      expense_growth_method: 'pct_of_value',
+      ExpCategory: "Prop Costs",
+      Dispose: [],
+    }, { PeriodStart: 2026, PeriodEnd: 2028, TaxRate: 0 }, { inflation: [3, 3, 3] });
+
+    const expEntries = getEntriesForAccount(db, "Prop Costs");
+    const expByYear = {};
+    expEntries.forEach((e) => { expByYear[e.forecast_year] = e.amount; });
+
+    // Should fall back to inflation method: 1000 * 1.03 = 1030, 1000 * 1.03^2, etc.
+    expect(expByYear[2026]).toBeCloseTo(-1030, 0);
+    expect(expByYear[2027]).toBeCloseTo(-1060.9, 0);
+  });
+});

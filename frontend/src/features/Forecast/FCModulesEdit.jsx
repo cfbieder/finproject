@@ -91,8 +91,6 @@ export default function FCModulesEditModal({
   traits = {},
   bsLevel2Options = [],
   getChildCategoriesForAccount = () => [],
-  expenseCategoryOptions = [],
-  incomeCategoryOptions = [],
   allModules = [],
 }) {
   const isMatched = Boolean(editForm?.Matched);
@@ -586,27 +584,36 @@ export default function FCModulesEditModal({
                     return (
                       <label key={field} className="fc-modules-modal__field">
                         <span className="fc-modules-modal__label">{label}</span>
-                        <select
-                          className="fc-modules-modal__input"
-                          value={editForm.Account ?? ""}
-                          onChange={(event) =>
-                            onFieldChange("Account", event.target.value)
-                          }
-                        >
-                          {bsLevel2Options.map((option) => (
-                            <option key={option} value={option}>
-                              {option}
-                            </option>
-                          ))}
-                          {editForm.Account &&
-                            !bsLevel2Options.includes(
-                              editForm.Account
-                            ) && (
-                              <option value={editForm.Account}>
-                                {editForm.Account}
+                        {isMatched ? (
+                          <input
+                            className="fc-modules-modal__input"
+                            value={editForm.Account ?? ""}
+                            readOnly
+                            disabled
+                          />
+                        ) : (
+                          <select
+                            className="fc-modules-modal__input"
+                            value={editForm.Account ?? ""}
+                            onChange={(event) =>
+                              onFieldChange("Account", event.target.value)
+                            }
+                          >
+                            {bsLevel2Options.map((option) => (
+                              <option key={option} value={option}>
+                                {option}
                               </option>
-                            )}
-                        </select>
+                            ))}
+                            {editForm.Account &&
+                              !bsLevel2Options.includes(
+                                editForm.Account
+                              ) && (
+                                <option value={editForm.Account}>
+                                  {editForm.Account}
+                                </option>
+                              )}
+                          </select>
+                        )}
                       </label>
                     );
                   }
@@ -617,22 +624,12 @@ export default function FCModulesEditModal({
                           <span className="fc-modules-modal__label">
                             {label}
                           </span>
-                          <select
+                          <input
                             className="fc-modules-modal__input"
-                            value={effectiveName}
-                            onChange={(event) =>
-                              onFieldChange("Name", event.target.value)
-                            }
-                          >
-                            {nameOptions.map((option) => (
-                              <option key={option} value={option}>
-                                {option}
-                              </option>
-                            ))}
-                            {!nameOptions.length && (
-                              <option value="">No options</option>
-                            )}
-                          </select>
+                            value={editForm.Name ?? ""}
+                            readOnly
+                            disabled
+                          />
                         </label>
                       );
                     }
@@ -940,10 +937,6 @@ export default function FCModulesEditModal({
                   const tooltip =
                     field === "Growth"
                       ? "Enter as a percentage of inflation rate"
-                      : field === "ExpensePct"
-                      ? isLiabilityAccount
-                        ? "Enter a positive % of market value (liability cost)"
-                        : "Enter a positive % of market value (expense on asset)"
                       : undefined;
                   const isNumericInput = type === "number" || isValueField;
                   const inputMode = isNumericInput ? "decimal" : undefined;

@@ -23,15 +23,26 @@ const getIndexValues = (df) => {
 
 const writeValuesToCategoryRow = (rowIndex, dfCategories, valuesToWrite, startYear) => {
   if (rowIndex < 0) return false;
-  const startColumnIndex = dfCategories.columns.indexOf(startYear);
-  if (startColumnIndex === -1) return false;
+  let startColumnIndex = dfCategories.columns.indexOf(startYear);
+  let valueOffset = 0;
+
+  // If startYear is before the first column, offset into the values array
+  if (startColumnIndex === -1) {
+    const firstCol = dfCategories.columns[0];
+    if (startYear < firstCol) {
+      valueOffset = firstCol - startYear;
+      startColumnIndex = 0;
+    } else {
+      return false;
+    }
+  }
 
   const rowValues = dfCategories.values[rowIndex];
   const columnsLength = dfCategories.columns.length;
   const valuesLength = valuesToWrite.length;
 
-  for (let i = 0; i < valuesLength; i++) {
-    const columnIndex = startColumnIndex + i;
+  for (let i = valueOffset; i < valuesLength; i++) {
+    const columnIndex = startColumnIndex + (i - valueOffset);
     if (columnIndex >= columnsLength) break;
     rowValues[columnIndex] = valuesToWrite[i];
   }
@@ -141,7 +152,7 @@ const insertCategoryEntries = async (db, dfCategories, scenarioId, moduleName, m
  * @param {Object} db - PostgreSQL db module
  * @param {number} scenarioId - PostgreSQL scenario ID
  */
-async function processModule(module, scenario, df_assumptions, df_categories, categories, years, db, scenarioId) {
+async function processModule(module, scenario, df_assumptions, df_categories, categories, years, db, scenarioId, fcLineNameMap) {
   console.log(`Processing module: ${module.Name}`);
   console.log(`Processing account: ${module.Account}`);
 
@@ -273,18 +284,55 @@ async function processModule(module, scenario, df_assumptions, df_categories, ca
     }
   }
 
-  // Calculate expense values
-  // If expense_amount is set (> 0), use absolute amount grown at inflation (for property costs, etc.)
-  // Otherwise, use expense_pct as percentage of average market value (existing behavior)
+  // Calculate expense values using expense_growth_method
+  // - 'inflation' (default): absolute expense_amount compounded at inflation
+  // - 'pct_of_value': derive % from expense_amount/market_value_base, apply to avg MV each year
+  // - Legacy fallback: if no expense_amount but expense_pct exists, use old pct logic
   const expenseValues = new Array(yearsCount).fill(0);
   const absExpenseAmount = parseFloat(module.expense_amount) || 0;
+  const growthMethod = module.expense_growth_method || 'inflation';
 
-  if (absExpenseAmount > 0) {
-    // Absolute expense amount, compounded at inflation from base year
+  // Determine if expenses should be generated
+  // If fc_line_id system is in use (expense_fc_line_id field exists on module),
+  // skip expenses when expense_fc_line_id is NULL — "None" means no expense line
+  const hasExpenseFcLineField = module.expense_fc_line_id !== undefined;
+  const skipExpense = hasExpenseFcLineField && !module.expense_fc_line_id && absExpenseAmount === 0;
+
+  if (!skipExpense && absExpenseAmount > 0 && growthMethod === 'pct_of_value') {
+    // Pct of value: derive implicit % from year-1 amount / market value base
+    const marketValueBase = module.MarketValue || 0;
+    const derivedPct = marketValueBase !== 0 ? absExpenseAmount / marketValueBase : 0;
+
+    if (derivedPct === 0) {
+      // Zero market value fallback: use inflation method instead
+      for (let i = 0, year = startyear; year <= endyear; i++, year++) {
+        const idx = year - periodStart;
+        if (idx >= 0 && idx < inflationLen) {
+          let compounded = absExpenseAmount;
+          for (let j = 1; j <= i; j++) {
+            const jIdx = (startyear + j) - periodStart;
+            if (jIdx >= 0 && jIdx < inflationLen) {
+              compounded *= (1 + inflationSeries[jIdx] / 100);
+            }
+          }
+          expenseValues[i] = isLiability ? compounded : -compounded;
+        }
+      }
+    } else {
+      for (let i = 0, year = startyear; year <= endyear; i++, year++) {
+        const idx = year - periodStart;
+        if (idx >= 0 && idx < inflationLen) {
+          const avgMV = (marketValues[i] + (marketValues[i - 1] ?? 0)) / 2;
+          const val = derivedPct * avgMV;
+          expenseValues[i] = isLiability ? val : -val;
+        }
+      }
+    }
+  } else if (!skipExpense && absExpenseAmount > 0) {
+    // Inflation mode (default): absolute expense amount compounded at inflation from base year
     for (let i = 0, year = startyear; year <= endyear; i++, year++) {
       const idx = year - periodStart;
       if (idx >= 0 && idx < inflationLen) {
-        // Compound inflation from base year to current year
         let compounded = absExpenseAmount;
         for (let j = 1; j <= i; j++) {
           const jIdx = (startyear + j) - periodStart;
@@ -292,11 +340,11 @@ async function processModule(module, scenario, df_assumptions, df_categories, ca
             compounded *= (1 + inflationSeries[jIdx] / 100);
           }
         }
-        // Negate for assets (expense reduces value), keep as-is for liabilities
         expenseValues[i] = isLiability ? compounded : -compounded;
       }
     }
-  } else {
+  } else if (!skipExpense) {
+    // Legacy fallback: expense_pct as percentage of average market value
     for (let i = 0, year = startyear; year <= endyear; i++, year++) {
       const idx = year - periodStart;
       expenseValues[i] = idx >= 0 && idx < inflationLen
@@ -342,15 +390,16 @@ async function processModule(module, scenario, df_assumptions, df_categories, ca
   const taxValuesUSD = new Array(yearsCount).fill(0);
 
   for (let i = 0; i < yearsCount; i++) {
-    baseValuesUSD[i] = baseValues[i] / fxrates[i];
-    marketValuesUSD[i] = marketValues[i] / fxrates[i];
-    investValuesUSD[i] = investValues[i] / fxrates[i];
-    disposeValuesUSD[i] = disposeValues[i] / fxrates[i];
-    unrealizedGainValuesUSD[i] = unrealizedGainValues[i] / fxrates[i];
-    realizedGainValuesUSD[i] = realizedGainValues[i] / fxrates[i];
-    incomeValuesUSD[i] = incomeValues[i] / fxrates[i];
-    expenseValuesUSD[i] = expenseValues[i] / fxrates[i];
-    taxValuesUSD[i] = taxValues[i] / fxrates[i];
+    const fx = fxrates[i] || 1; // Guard against zero FX rate
+    baseValuesUSD[i] = baseValues[i] / fx;
+    marketValuesUSD[i] = marketValues[i] / fx;
+    investValuesUSD[i] = investValues[i] / fx;
+    disposeValuesUSD[i] = disposeValues[i] / fx;
+    unrealizedGainValuesUSD[i] = unrealizedGainValues[i] / fx;
+    realizedGainValuesUSD[i] = realizedGainValues[i] / fx;
+    incomeValuesUSD[i] = incomeValues[i] / fx;
+    expenseValuesUSD[i] = expenseValues[i] / fx;
+    taxValuesUSD[i] = taxValues[i] / fx;
   }
 
   baseValuesUSD[0] = module.BaseValueUSD ?? 0;
@@ -358,18 +407,23 @@ async function processModule(module, scenario, df_assumptions, df_categories, ca
   fxrates[0] = baseValuesUSD[0] !== 0 ? baseValues[0] / baseValuesUSD[0] : 1;
 
   // Create dataframes for audit trail
+  const incomeLabel = module.IncomeCategory || 'Income';
+  const expenseLabel = module.ExpCategory || 'Expense';
+  // Avoid duplicate column keys if both resolve to the same name
+  const safeExpenseLabel = expenseLabel === incomeLabel ? expenseLabel + '_Exp' : expenseLabel;
+
   const df_module_LC = new dfd.DataFrame({
     FX: fxrates, GrowthPct: growthValues, IncomePct: incomePctValues, ExpensePct: expPctValues,
     BaseValue: baseValues, MarketValue: marketValues, UnrealizedGain: unrealizedGainValues,
     RealizedGain: realizedGainValues, Invest: investValues, Dispose: disposeValues,
-    [module.IncomeCategory]: incomeValues, [module.ExpCategory]: expenseValues, Tax: taxValues,
+    [incomeLabel]: incomeValues, [safeExpenseLabel]: expenseValues, Tax: taxValues,
   }, { index: yearsArr });
 
   const df_module_USD = new dfd.DataFrame({
     FX: fxrates, GrowthPct: growthValues, IncomePct: incomePctValues, ExpensePct: expPctValues,
     BaseValueUSD: baseValuesUSD, marketValuesUSD: marketValuesUSD, UnrealizedGain: unrealizedGainValuesUSD,
     RealizedGain: realizedGainValuesUSD, Invest: investValuesUSD, Dispose: disposeValuesUSD,
-    [module.IncomeCategory]: incomeValuesUSD, [module.ExpCategory]: expenseValuesUSD, Tax: taxValuesUSD,
+    [incomeLabel]: incomeValuesUSD, [safeExpenseLabel]: expenseValuesUSD, Tax: taxValuesUSD,
   }, { index: yearsArr });
 
   // Clear and populate df_categories

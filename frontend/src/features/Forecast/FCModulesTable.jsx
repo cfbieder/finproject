@@ -488,20 +488,6 @@ export default function FCModulesTable({
                       span: false,
                     },
                     {
-                      label: "Expense %",
-                      value:
-                        selectedModule.ExpensePct === null ||
-                        selectedModule.ExpensePct === undefined
-                          ? null
-                          : `${selectedModule.ExpensePct}%`,
-                      span: false,
-                    },
-                    {
-                      label: "Income Category",
-                      value: selectedModule.IncomeCategory,
-                      span: false,
-                    },
-                    {
                       label: "Income %",
                       value: Array.isArray(selectedModule.IncomePct)
                         ? selectedModule.IncomePct.length > 0

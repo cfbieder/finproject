@@ -85,7 +85,15 @@ export default function FCScenariosSelect({
                 id="scenario-select"
                 className="form-input"
                 value={selectedScenario}
-                onChange={(event) => setSelectedScenario(event.target.value)}
+                onChange={(event) => {
+                  const val = event.target.value;
+                  if (val === "__new_scenario__") {
+                    // Immediately prompt for name instead of going to placeholder state
+                    confirmCommit("__new_scenario__");
+                    return;
+                  }
+                  setSelectedScenario(val);
+                }}
                 disabled={isDisabled}
               >
                 <option value="" disabled>

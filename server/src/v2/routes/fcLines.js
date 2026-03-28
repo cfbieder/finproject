@@ -49,6 +49,35 @@ router.post('/', async (req, res, next) => {
   }
 });
 
+// GET /api/v2/fc-lines/suggestions
+// Preview: returns P&L account names not yet created as FC Lines
+router.get('/suggestions', async (req, res, next) => {
+  try {
+    const suggestions = await repo.getSuggestions();
+    res.json({ data: suggestions });
+  } catch (error) {
+    console.error('[fc-lines] GET /suggestions failed:', error);
+    next(error);
+  }
+});
+
+// POST /api/v2/fc-lines/create-from-suggestions
+// Create FC Lines from selected names
+// Body: { names: ["Living Expenses", "Travel", ...] }
+router.post('/create-from-suggestions', async (req, res, next) => {
+  try {
+    const { names } = req.body;
+    if (!Array.isArray(names) || names.length === 0) {
+      return res.status(400).json({ error: 'names array is required' });
+    }
+    const created = await repo.createBatch(names);
+    res.json({ data: created, created_count: created.length });
+  } catch (error) {
+    console.error('[fc-lines] POST /create-from-suggestions failed:', error);
+    next(error);
+  }
+});
+
 // PUT /api/v2/fc-lines/:id
 // Update an FC Line (name, type, display_order)
 router.put('/:id', async (req, res, next) => {
@@ -146,18 +175,6 @@ router.delete('/:id/categories/:categoryId', async (req, res, next) => {
     res.json({ success: true });
   } catch (error) {
     console.error('[fc-lines] DELETE /:id/categories/:categoryId failed:', error);
-    next(error);
-  }
-});
-
-// POST /api/v2/fc-lines/generate-suggestions
-// Auto-create empty lines from P&L account hierarchy
-router.post('/generate-suggestions', async (req, res, next) => {
-  try {
-    const created = await repo.generateSuggestions();
-    res.json({ data: created, created_count: created.length });
-  } catch (error) {
-    console.error('[fc-lines] POST /generate-suggestions failed:', error);
     next(error);
   }
 });

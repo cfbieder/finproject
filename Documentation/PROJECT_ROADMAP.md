@@ -6,7 +6,7 @@ Future work, known issues, and improvement proposals for the Fin application.
 
 ## 1. Known Issues
 
-1. **No test suite** exists currently.
+1. ~~**No test suite** exists currently.~~ **41 automated tests** — 16 FC Lines API tests, 19 engine tests (fcbuilder-module), 6 incexp tests. Run: `cd server && npm test`
 2. **Cloud-init ISO** still attached to the VM as a CD-ROM. Harmless but can be ejected:
    ```bash
    virsh --connect qemu:///system change-media fin sda --eject
@@ -41,16 +41,17 @@ Items from active development notes:
 - [x] Forecast: Tax deferral — capital gains tax shifted to following year (Phase 1)
 - [x] Forecast: Absolute expense amounts — expense_amount field used for property costs growing at inflation (Phase 1)
 - [x] Forecast: Liability interest model — verified working with expense_pct as interest rate (Phase 1)
-- [x] Forecast: Seed from Actuals — one-click BS module base values from prior-year balance sheet (Phase 2)
-- [x] Forecast: Seed from Budget — one-click income/expense values from current-year budget with actual fallback (Phase 2)
-- [ ] Forecast: FC Inc/Exp Mapping Layer (Phase 2B) — global mapping page where user defines FC Lines, assigns budget categories via drag/drop, sets line types (BS Module Expense/Income, Forecast Expense/Income). Replaces ad-hoc seed-from-budget, coverage-check, and property cost seeding with a proper mapping layer. See `Documentation/FC_Module/FC_MODULE.md` §7 for full design.
-  - [ ] Phase 2B-1: Database & API foundation (fc_lines, fc_line_categories tables, REST endpoints)
-  - [ ] Phase 2B-2: FC Mapping Page frontend (drag/drop, generate suggestions, coverage indicator)
-  - [ ] Phase 2B-3: Module Edit integration (FC Line pickers, growth method, allocation tracking)
-  - [ ] Phase 2B-4: Forecast Expenses integration (add from FC Lines, budget pre-fill)
-  - [ ] Phase 2B-5: Engine update (FC Line name preload for entry labels, pct_of_value growth method)
-  - [ ] Phase 2B-6: Migration script (existing data → new FC Lines) — run BEFORE cleanup
-  - [ ] Phase 2B-7: Cleanup (remove seed-from-budget, coverage-check, old modals/buttons, drop old columns)
+- [x] Forecast: Seed from Actuals — replaced by "Add from Actuals" tree-based module creation (Phase 2B-4b)
+- [x] Forecast: Seed from Budget — replaced by "Add from FC Lines" on Forecast Expenses page (Phase 2B-4)
+- [x] Forecast: FC Inc/Exp Mapping Layer (Phase 2B) — global mapping page where user defines FC Lines, assigns budget categories via drag/drop, sets line types (BS Module Expense/Income, Forecast Expense/Income). See `Documentation/FC_Module/FC_MODULE.md` §7 for full design.
+  - [x] Phase 2B-1: Database & API foundation (fc_lines, fc_line_categories tables, REST endpoints, 15 tests)
+  - [x] Phase 2B-2: FC Mapping Page frontend (drag/drop, multi-select, generate suggestions, coverage bar, budget detail modal)
+  - [x] Phase 2B-3: Module Edit integration (FC Line pickers, growth method toggle, allocation tracking, Expense/Income Amount Yr 1)
+  - [x] Phase 2B-4: Forecast Expenses integration ("Add from FC Lines" replaces Seed Budget + Coverage)
+  - [x] Phase 2B-4b: Add from Actuals ("Add from Actuals" tree view replaces Seed Actuals on Modules page)
+  - [x] Phase 2B-5: Engine update (FC Line name map, expense_growth_method inflation/pct_of_value, fc_line_id→label resolution, 40 tests passing)
+  - [x] Phase 2B-6: Migration script — SKIPPED (FC data wiped clean for fresh start)
+  - [x] Phase 2B-7: Cleanup (removed old endpoints/files/columns, migration 008, 40 tests passing)
 
 ---
 
@@ -83,7 +84,7 @@ All four god components have been refactored:
 |-----------|---------|---------------|
 | `<Modal>` | 5+ places | Each modal is custom-built |
 | `<DataTable>` | 6+ places | Tables are custom each time |
-| ~~`<FilterPanel>`~~ | 4+ places | Partially addressed: Budget Worksheet, Actual Transactions, and Budget Transactions now use shared `PeriodSelector` + `CategorySelector` + `AccountSelector` in collapsible three-column layout. |
+| ~~`<FilterPanel>`~~ | 4+ places | Partially addressed: Budget Worksheet now uses `HierarchyFilter` (pill-style with counts + checklist) for categories and accounts, matching Actual Transactions page. Budget Transactions uses `CategorySelector` + `AccountSelector`. All share `PeriodSelector` in collapsible layout. |
 | `<FormField>` | 10+ places | Inputs are custom per form |
 | `<LoadingSpinner>` | All pages | "Loading..." text varies |
 | `<ErrorMessage>` | All pages | Error display inconsistent |
@@ -97,7 +98,7 @@ The feature module pattern is now in use. Current structure:
 
 ```
 frontend/src/
-├── components/          # Shared UI (Layout, NavigationMenu, Breadcrumbs, Footer, Toast, LoadingSpinner, CategorySelector, PeriodSelector, AccountSelector)
+├── components/          # Shared UI (Layout, NavigationMenu, Breadcrumbs, Footer, Toast, LoadingSpinner, HierarchyFilter, CategorySelector, PeriodSelector, AccountSelector)
 ├── features/            # Domain-specific feature modules
 │   ├── Transaction/     # ✅ Unified actual + budget + review (config-driven: ACTUAL_CONFIG, BUDGET_CONFIG, REVIEW_CONFIG; shared hooks, components, utils; TransactionFilterActual + TransactionFilterBudget with PeriodSelector/CategorySelector/AccountSelector)
 │   ├── BudgetEntry/     # ✅ Budget worksheet (hooks: useFilterOptions, useBalanceData, useCurrencyData, useBudgetEntrySubmit)
@@ -237,6 +238,11 @@ Timeline of the MongoDB-to-PostgreSQL migration and infrastructure changes.
 
 | Date | Event |
 |------|-------|
+| 2026-03-28 | **Budget Worksheet filters switched to HierarchyFilter:** Replaced `CategorySelector` and `AccountSelector` in the Budget Worksheet collapsible filter panel with `HierarchyFilter` pill-style components, matching the pattern used on Actual and Budget transaction pages. Category pills: All / Income / Expense / Transfers with leaf counts and drill-down checklist. Account pills: BS COA hierarchy groups (Bank Accounts / Fidelity Stock / CVC Investments / Properties / Liabilities sub-groups etc.) with leaf counts and drill-down checklist. Filter footer now has Reset + Apply buttons. `CategorySelector` retained only for the right-click category quick-pick popover. Modified: `BudgetWorksheetV2.jsx`. |
+| 2026-03-28 | **FC Module Phase 2B-5 Engine Update:** Updated forecast engine to support FC Line system. `index.js`: preloads FC Line name map (id → name), resolves `expense_fc_line_id`/`income_fc_line_id` to entry labels, passes map through `loadModulesForScenario` and `loadCategoriesForScenario`. `fcbuilder-module.js`: `processModule` now accepts `fcLineNameMap`, implements `expense_growth_method` with two modes — `inflation` (absolute amount compounded at inflation, default) and `pct_of_value` (derives implicit % from expense_amount/market_value, applies to average MV each year). Skips expense generation when `expense_fc_line_id` field exists but is null (user selected "None"). Legacy `expense_pct` fallback preserved for backward compatibility. 6 new tests (T5.1-T5.6), 40 total tests passing. Modified: `fcbuilder-module.js`, `index.js`, `fcbuilder-module.test.js`. |
+| 2026-03-28 | **FC Module Phase 2B-4b Add from Actuals:** Replaced "Seed from Actuals" with "Add from Actuals" on Modules page. New `POST /forecast/modules/add-from-actuals` endpoint returns BS account tree with year-end balances, excluding Bank Accounts subtree and accounts already used as modules in the scenario (including children of matched parent accounts). New `FCAddFromActualsModal.jsx` with tree view featuring expand/collapse, leaf pre-selection, parent aggregation toggle. Creates modules with balances pre-filled. Old `seed-from-actuals` endpoint and `FCSeedFromActualsModal.jsx` deleted. Modified: `forecast.js` (routes), `FCModuleManage.jsx`. New: `FCAddFromActualsModal.jsx`. Deleted: `FCSeedFromActualsModal.jsx`. |
+| 2026-03-28 | **FC Module Phase 2B-4 Forecast Expenses Integration:** "Add from FC Lines" button replaces "Seed Budget" and "Coverage" buttons on Forecast Expenses page. New `FCAddFromLinesModal.jsx` shows Forecast Expense/Income lines with budget totals, creates income/expense items with budget pre-fill, base date, `fc_line_id`, `budget_source_year`. Old `FCSeedFromBudgetModal` and `FCCoverageCheckModal` removed from imports. Modified: `FCExpFilter.jsx`, `FCExpSetup.jsx`. New: `FCAddFromLinesModal.jsx`. |
+| 2026-03-28 | **Unmatched modules endpoint fix:** Updated `GET /forecast/modules/unmatched` to exclude children of matched parent accounts (e.g., if "Fidelity Stock" is matched as a module, its children like "AAPL", "MSFT" are no longer shown as unmatched). Moved matched-name lookup before leaf collection so `collectLeaves` can track ancestor match state. Modified: `forecast.js` (routes). |
 | 2026-03-27 | **Manual Match Groups for Transfer Analysis:** Added persistent many-to-one transfer matching to `/transfer-analysis` page. Users can select 2+ unmatched transactions via checkboxes across categories and link them as a match group (e.g., one lump 200k PLN credit matching five split debits). Linked groups appear in an auto-expanded "Manually Matched Groups" section with debit/credit totals, net amount, and an Unlink button. Sticky action bar appears when 2+ rows are selected, showing selection count, net base amount (green when zero, light red otherwise), Link as Matched, and Clear buttons. Manually matched transactions are excluded from the auto-matching algorithm. New DB tables: `transfer_match_groups`, `transfer_match_group_members` (migration `005_transfer_match_groups.sql`). New API: `POST/GET/DELETE /api/v2/transfer-match-groups`. New files: `transferMatchGroups.js` (repository + route). Modified: `transactions.js` (route — transfer-analysis endpoint), `TransferAnalysis.jsx`, `TransferAnalysis.css`, `repositories/index.js`, `routes/index.js`. |
 | 2026-03-27 | **Transfer Matched flag + Actuals Transfer Status filter:** Added `transfer_matched` boolean column to transactions table (migration `006_transfer_matched_flag.sql`, partial index). Transfer Analysis endpoint now persists this flag as a side effect — `true` for auto-matched pairs and manual group members, `false` for unmatched transfers. Added `transferMatched` query parameter to `GET /api/v2/transactions` for server-side filtering. Row transform includes `TransferMatched` field. Modified: `transactions.js` (repository — `findAllExtended`, `updateTransferMatchedFlags`; route — GET `/` and transfer-analysis), `transactionConfig.js` (row transform + buildFilterQuery). |
 | 2026-03-27 | **HierarchyFilter component — cascading category/account filters:** New shared component `HierarchyFilter/HierarchyFilter.jsx` replaces `CategorySelector` and `AccountSelector` on Actual and Budget transaction pages. Two-stage design: Stage 1 pill buttons for COA hierarchy groups (Categories: All/Income/Expense/Transfers; Accounts: Bank Accounts/Fidelity Stock/CVC Investments/Properties/Liabilities sub-groups etc.), each showing item count. Stage 2 compact scrollable checklist of leaf items under the active group — all checked by default, uncheck to narrow. Right-click any item to solo-select (deselects all others). Transfer Match Status toggle (All/Matched/Unmatched) appears contextually only when the Transfers category group is active, replacing the previous always-visible dropdown. Props: `groups`, `onSelectionChange`, `onGroupChange`, `extraSlot`, `label`. New files: `HierarchyFilter.jsx`, `HierarchyFilter.css`. Modified: `TransActual.jsx`, `TransBudget.jsx` (replaced CategorySelector/AccountSelector with HierarchyFilter, new group derivation from plTree/bsTree, new handler functions). |
@@ -287,4 +293,4 @@ Timeline of the MongoDB-to-PostgreSQL migration and infrastructure changes.
 
 ---
 
-*Last updated: 2026-03-26*
+*Last updated: 2026-03-28*

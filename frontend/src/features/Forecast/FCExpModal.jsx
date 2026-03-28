@@ -287,7 +287,8 @@ export default function FCExpModal({
                   <input
                     type="checkbox"
                     checked={Boolean(editForm?.Matched)}
-                    onChange={(e) => onFieldChange("Matched", e.target.checked)}
+                    onChange={(e) => !editForm?.FcLineId && onFieldChange("Matched", e.target.checked)}
+                    disabled={Boolean(editForm?.FcLineId)}
                     className="fc-exp-modal__toggle-input"
                   />
                   <span className="fc-exp-modal__toggle-slider"></span>
@@ -307,23 +308,39 @@ export default function FCExpModal({
               {/* Account */}
               <div className="fc-exp-modal__field">
                 <label className="fc-exp-modal__label">Account</label>
-                <select
-                  className="fc-exp-modal__input"
-                  value={editForm?.Account || ""}
-                  onChange={(e) => onFieldChange("Account", e.target.value)}
-                >
-                  {accountOptions.map((option) => (
-                    <option key={option} value={option}>
-                      {option}
-                    </option>
-                  ))}
-                </select>
+                {editForm?.FcLineId ? (
+                  <input
+                    className="fc-exp-modal__input"
+                    value={editForm?.Account || ""}
+                    readOnly
+                    disabled
+                  />
+                ) : (
+                  <select
+                    className="fc-exp-modal__input"
+                    value={editForm?.Account || ""}
+                    onChange={(e) => onFieldChange("Account", e.target.value)}
+                  >
+                    {accountOptions.map((option) => (
+                      <option key={option} value={option}>
+                        {option}
+                      </option>
+                    ))}
+                  </select>
+                )}
               </div>
 
               {/* Name */}
               <div className="fc-exp-modal__field">
                 <label className="fc-exp-modal__label">Name</label>
-                {editForm?.Matched ? (
+                {editForm?.FcLineId ? (
+                  <input
+                    className="fc-exp-modal__input"
+                    value={editForm?.Name || ""}
+                    readOnly
+                    disabled
+                  />
+                ) : editForm?.Matched ? (
                   <select
                     className="fc-exp-modal__input"
                     value={editForm?.Name || ""}
@@ -354,7 +371,9 @@ export default function FCExpModal({
                   className="fc-exp-modal__input"
                   type="text"
                   value={editForm?.Type || ""}
-                  onChange={(e) => onFieldChange("Type", e.target.value)}
+                  onChange={(e) => !editForm?.FcLineId && onFieldChange("Type", e.target.value)}
+                  readOnly={Boolean(editForm?.FcLineId)}
+                  disabled={Boolean(editForm?.FcLineId)}
                   placeholder="Enter type"
                 />
               </div>

@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback } from "react";
 import Rest from "../js/rest.js";
+import FCStepNav from "../features/Forecast/FCStepNav.jsx";
 import "./PageLayout.css";
 import "../features/Forecast/FCModulesFilter.css";
 
@@ -34,6 +35,10 @@ export default function FCLineMapping() {
   const [searchTerm, setSearchTerm] = useState("");
   const [selectedCatIds, setSelectedCatIds] = useState(new Set());
   const [detailLine, setDetailLine] = useState(null);
+  const [showSuggestions, setShowSuggestions] = useState(false);
+  const [suggestions, setSuggestions] = useState([]);
+  const [sugSelected, setSugSelected] = useState(new Set());
+  const [sugLoading, setSugLoading] = useState(false);
 
   const loadData = useCallback(async () => {
     setLoading(true);
@@ -60,12 +65,35 @@ export default function FCLineMapping() {
 
   useEffect(() => { loadData(); }, [loadData]);
 
-  const handleGenerateSuggestions = async () => {
+  const openSuggestionsModal = async () => {
+    setSugLoading(true);
+    setShowSuggestions(true);
     try {
-      await Rest.post("/fc-lines/generate-suggestions");
+      const res = await Rest.get("/fc-lines/suggestions");
+      const items = res.data || [];
+      setSuggestions(items);
+      setSugSelected(new Set(items.map((s) => s.name)));
+    } catch (err) {
+      setError(err.message);
+      setShowSuggestions(false);
+    } finally {
+      setSugLoading(false);
+    }
+  };
+
+  const handleCreateSuggestions = async () => {
+    if (sugSelected.size === 0) return;
+    setSugLoading(true);
+    try {
+      await Rest.post("/fc-lines/create-from-suggestions", {
+        names: Array.from(sugSelected),
+      });
+      setShowSuggestions(false);
       await loadData();
     } catch (err) {
       setError(err.message);
+    } finally {
+      setSugLoading(false);
     }
   };
 
@@ -218,6 +246,7 @@ export default function FCLineMapping() {
 
   return (
     <main className="page-main trans-budget-main">
+      <FCStepNav />
       {/* Filter / toolbar card */}
       <section className="section-filters" style={{ height: "auto" }}>
         <div className="section-table__content">
@@ -258,7 +287,7 @@ export default function FCLineMapping() {
 
             {/* Toolbar */}
             <div style={{ display: "flex", gap: "0.5rem", flexWrap: "wrap", alignItems: "center" }}>
-              <button className="btn btn--primary" onClick={handleGenerateSuggestions} disabled={loading}>
+              <button className="btn btn--primary" onClick={openSuggestionsModal} disabled={loading}>
                 Generate Suggestions
               </button>
         <form
@@ -288,13 +317,13 @@ export default function FCLineMapping() {
       </section>
 
       {/* Main two-panel layout */}
-      <div style={{ display: "flex", gap: "1rem", padding: "0 1rem", minHeight: "60vh" }}>
+      <div style={{ display: "flex", gap: "1rem", padding: "0 1rem" }}>
         {/* Left panel: FC Lines */}
-        <div style={{ flex: "1 1 55%", display: "flex", flexDirection: "column", minWidth: 0 }}>
+        <div style={{ flex: "1 1 55%", display: "flex", flexDirection: "column", minWidth: 0, minHeight: 0, overflow: "hidden" }}>
           <h3 style={{ margin: "0 0 0.5rem", fontSize: "0.95rem", fontWeight: 600 }}>
             FC Lines ({lines.length})
           </h3>
-          <div style={{ flex: 1, overflow: "auto", border: "1px solid #e2e8f0", borderRadius: "0.5rem" }}>
+          <div style={{ flex: 1, overflow: "auto", border: "1px solid #e2e8f0", borderRadius: "0.5rem", maxHeight: "calc(100vh - 320px)" }}>
             {lines.length === 0 ? (
               <div style={{ padding: "2rem", textAlign: "center", color: "var(--text-secondary)" }}>
                 No lines yet. Click "Generate Suggestions" or create one manually.
@@ -431,7 +460,7 @@ export default function FCLineMapping() {
 
         {/* Right panel: Unassigned categories */}
         <div
-          style={{ flex: "1 1 35%", display: "flex", flexDirection: "column", minWidth: 0 }}
+          style={{ flex: "1 1 35%", display: "flex", flexDirection: "column", minWidth: 0, minHeight: 0, overflow: "hidden" }}
           onDragOver={onDragOver}
           onDrop={onDropOnUnassigned}
         >
@@ -471,6 +500,7 @@ export default function FCLineMapping() {
           </div>
           <div style={{
             flex: 1, overflow: "auto", border: "1px solid #e2e8f0", borderRadius: "0.5rem",
+            maxHeight: "calc(100vh - 320px)",
             background: draggedCatId ? "#fef3c7" : undefined, transition: "background 0.2s",
           }}>
             {filteredUnassigned.length === 0 ? (
@@ -579,6 +609,107 @@ export default function FCLineMapping() {
                   </tr>
                 </tfoot>
               </table>
+            </div>
+          </div>
+        </div>
+      )}
+      {/* Suggestions Modal */}
+      {showSuggestions && (
+        <div
+          style={{
+            position: "fixed", inset: 0, background: "rgba(15,23,42,0.6)",
+            backdropFilter: "blur(6px)", display: "flex", alignItems: "center",
+            justifyContent: "center", padding: "2rem", zIndex: 1000,
+          }}
+        >
+          <div
+            onClick={(e) => e.stopPropagation()}
+            style={{
+              width: "min(500px, 96vw)", maxHeight: "80vh", background: "white",
+              borderRadius: "1.25rem", boxShadow: "0 20px 60px -12px rgba(37,99,235,0.25)",
+              display: "flex", flexDirection: "column", overflow: "hidden",
+            }}
+          >
+            <div style={{ padding: "1.5rem 2rem", borderBottom: "1px solid #e2e8f0" }}>
+              <h3 style={{ margin: 0, fontSize: "1.1rem", fontWeight: 700 }}>Generate Suggestions</h3>
+              <span style={{ fontSize: "0.8rem", color: "var(--text-secondary)" }}>
+                Select P&L categories to create as FC Lines.
+              </span>
+            </div>
+            <div style={{ flex: 1, overflow: "auto", padding: "0.75rem 2rem" }}>
+              {sugLoading ? (
+                <p>Loading...</p>
+              ) : suggestions.length === 0 ? (
+                <p style={{ color: "var(--text-secondary)", textAlign: "center", padding: "2rem 0" }}>
+                  All suggestions already created.
+                </p>
+              ) : (
+                <>
+                  <div style={{ display: "flex", gap: "0.5rem", marginBottom: "0.75rem", fontSize: "0.8rem" }}>
+                    <button
+                      type="button"
+                      style={{ background: "none", border: "none", color: "var(--primary)", cursor: "pointer", padding: 0, textDecoration: "underline" }}
+                      onClick={() => setSugSelected(new Set(suggestions.map((s) => s.name)))}
+                    >
+                      Select All
+                    </button>
+                    <button
+                      type="button"
+                      style={{ background: "none", border: "none", color: "var(--primary)", cursor: "pointer", padding: 0, textDecoration: "underline" }}
+                      onClick={() => setSugSelected(new Set())}
+                    >
+                      Clear
+                    </button>
+                  </div>
+                  {suggestions.map((s) => (
+                    <label
+                      key={s.name}
+                      style={{
+                        display: "flex", alignItems: "center", gap: "0.5rem",
+                        padding: "0.4rem 0", fontSize: "0.85rem", cursor: "pointer",
+                      }}
+                    >
+                      <input
+                        type="checkbox"
+                        checked={sugSelected.has(s.name)}
+                        onChange={() => {
+                          setSugSelected((prev) => {
+                            const next = new Set(prev);
+                            if (next.has(s.name)) next.delete(s.name);
+                            else next.add(s.name);
+                            return next;
+                          });
+                        }}
+                      />
+                      {s.name}
+                    </label>
+                  ))}
+                </>
+              )}
+            </div>
+            <div style={{ padding: "1rem 2rem", borderTop: "1px solid #e2e8f0", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+              <span style={{ fontSize: "0.8rem", color: "var(--text-secondary)" }}>
+                {sugSelected.size} of {suggestions.length} selected
+              </span>
+              <div style={{ display: "flex", gap: "0.75rem" }}>
+                <button
+                  onClick={() => setShowSuggestions(false)}
+                  style={{ padding: "0.5rem 1.25rem", borderRadius: "0.5rem", border: "1px solid #cbd5e1", background: "white", cursor: "pointer" }}
+                >
+                  Close
+                </button>
+                <button
+                  onClick={handleCreateSuggestions}
+                  disabled={sugSelected.size === 0 || sugLoading}
+                  style={{
+                    padding: "0.5rem 1.25rem", borderRadius: "0.5rem", border: "none",
+                    background: sugSelected.size > 0 ? "var(--primary, #1e40af)" : "#94a3b8",
+                    color: "white", cursor: sugSelected.size > 0 ? "pointer" : "not-allowed", fontWeight: 600,
+                  }}
+                >
+                  {sugLoading ? "Creating..." : `Add ${sugSelected.size} Line${sugSelected.size !== 1 ? "s" : ""}`}
+                </button>
+              </div>
             </div>
           </div>
         </div>

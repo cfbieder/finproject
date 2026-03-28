@@ -36,6 +36,7 @@ import { formatAmount } from "../features/Forecast/utils/fcReviewUtils.js";
 import { KpiCard, KpiCardRow } from "../components/KpiCards.jsx";
 import { TrendingUp, TrendingDown, DollarSign, Landmark } from "lucide-react";
 import Rest from "../js/rest.js";
+import FCStepNav from "../features/Forecast/FCStepNav.jsx";
 import "./PageLayout.css";
 
 const GRAPH_COLORS = [
@@ -1011,6 +1012,7 @@ export default function FCReview() {
   return (
     <>
       <main className="page-main trans-budget-main">
+        <FCStepNav />
         {/* Scenario Selector */}
         <FCReviewSelector
           scenarios={scenarios}

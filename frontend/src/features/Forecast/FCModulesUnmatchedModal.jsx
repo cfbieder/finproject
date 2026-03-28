@@ -78,8 +78,9 @@ export default function FCModulesUnmatchedModal({
       const name = item.name ?? item.Name ?? "";
       const normalizedName = typeof name === "string" ? name.trim() : "";
       const typeValue = normalizedName && coaTraits?.[normalizedName]?.Type;
-      const type =
+      const rawType =
         (typeof typeValue === "string" && typeValue.trim()) || "Other";
+      const type = rawType.charAt(0).toUpperCase() + rawType.slice(1);
 
       if (!groups.has(type)) {
         groups.set(type, []);

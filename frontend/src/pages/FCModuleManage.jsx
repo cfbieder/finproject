@@ -4,7 +4,7 @@ import FCModulesEditModal from "../features/Forecast/FCModulesEdit.jsx";
 import FCModulesTable from "../features/Forecast/FCModulesTable.jsx";
 import FCExpConfirmDeleteModal from "../features/Forecast/FCExpConfirmDeleteModal.jsx";
 import FCModulesUnmatchedModal from "../features/Forecast/FCModulesUnmatchedModal.jsx";
-import FCSeedFromActualsModal from "../features/Forecast/FCSeedFromActualsModal.jsx";
+import FCAddFromActualsModal from "../features/Forecast/FCAddFromActualsModal.jsx";
 import { useAssumptions } from "../features/Forecast/hooks/useAssumptions.js";
 import { useModules } from "../features/Forecast/hooks/useModules.js";
 import { useUnmatchedItems } from "../features/Forecast/hooks/useUnmatchedItems.js";
@@ -13,6 +13,7 @@ import {
   normalizeTransfers,
 } from "../features/Forecast/utils/fcModuleManageUtils.js";
 import Rest from "../js/rest.js";
+import FCStepNav from "../features/Forecast/FCStepNav.jsx";
 import { useCoa } from "../hooks/useCoa.js";
 import "./PageLayout.css";
 import "../features/Forecast/FCModulesEdit.css";
@@ -44,13 +45,8 @@ export default function FCModuleManage() {
     traits,
     bsLevel2Options,
     getChildCategoriesForAccount,
-    expenseCategoryOptions,
-    incomeCategoryOptions,
     traitDefaults,
   } = useCoa();
-
-  const defaultExpenseCategory = expenseCategoryOptions[0] || "";
-  const defaultIncomeCategory = incomeCategoryOptions[0] || "";
 
   // Custom hooks for data loading
   const {
@@ -95,8 +91,8 @@ export default function FCModuleManage() {
   const [deleteSaving, setDeleteSaving] = useState(false);
   const [deleteError, setDeleteError] = useState("");
 
-  // Seed from Actuals modal state
-  const [showSeedModal, setShowSeedModal] = useState(false);
+  // Add from Actuals modal state
+  const [showAddFromActualsModal, setShowAddFromActualsModal] = useState(false);
 
   // Unmatched modal state
   const [showUnmatchedModal, setShowUnmatchedModal] = useState(false);
@@ -228,8 +224,6 @@ export default function FCModuleManage() {
           Name: "",
           Type: traitDefaults.Type,
           Currency: traitDefaults.Currency,
-          ExpCategory: defaultExpenseCategory,
-          IncomeCategory: defaultIncomeCategory,
           BaseDate: baseDate,
           BaseYear: baseYear,
           BaseValue: 0,
@@ -258,7 +252,7 @@ export default function FCModuleManage() {
    * Opens the edit modal with the selected module's data.
    * Formats dates and transfer arrays for form display.
    */
-  const openEditModal = (moduleToEdit) => {
+  const openEditModal = async (moduleToEdit) => {
     // If moduleToEdit is an event object or not provided, use selectedModule
     const isEvent =
       moduleToEdit &&
@@ -268,12 +262,25 @@ export default function FCModuleManage() {
     if (!moduleData) return;
 
     setEditError("");
+
+    // Fetch full module data with nested arrays (IncomePct, Invest, Dispose)
+    let fullModule = moduleData;
+    if (moduleData.id) {
+      try {
+        const res = await Rest.get(`/forecast/modules/${moduleData.id}`);
+        if (res.data) fullModule = { ...moduleData, ...res.data };
+      } catch (err) {
+        // Fall back to list data if single-module fetch fails
+        console.warn("Could not load full module data:", err.message);
+      }
+    }
+
     const normalizedModule = {
-      ...moduleData,
-      BaseValue: moduleData.BaseValue ?? 0,
-      BaseValueUSD: moduleData.BaseValueUSD ?? 0,
-      MarketValue: moduleData.MarketValue ?? 0,
-      MarketValueUSD: moduleData.MarketValueUSD ?? 0,
+      ...fullModule,
+      BaseValue: fullModule.BaseValue ?? 0,
+      BaseValueUSD: fullModule.BaseValueUSD ?? 0,
+      MarketValue: fullModule.MarketValue ?? 0,
+      MarketValueUSD: fullModule.MarketValueUSD ?? 0,
     };
 
     setEditForm({
@@ -281,7 +288,7 @@ export default function FCModuleManage() {
       BaseDate: normalizedModule.BaseDate
         ? new Date(normalizedModule.BaseDate).toISOString().slice(0, 10)
         : "",
-      Matched: Boolean(normalizedModule.Matched),
+      Matched: Boolean(normalizedModule.Matched ?? normalizedModule.IsMatched ?? normalizedModule.is_matched),
       Comment: normalizedModule.Comment || "",
       Invest: formatTransferForm(normalizedModule.Invest),
       Dispose: formatTransferForm(normalizedModule.Dispose),
@@ -341,7 +348,6 @@ export default function FCModuleManage() {
     // Define numeric fields that need special handling
     const numericFields = [
       "Expense",
-      "ExpensePct",
       "ExpenseAmount",
       "IncomeAmount",
       "Income",
@@ -358,12 +364,6 @@ export default function FCModuleManage() {
       Name: editForm.Name ?? "",
       Type: editForm.Type ?? "",
       Currency: editForm.Currency ?? "",
-      ExpCategory:
-        (editForm.ExpCategory ?? "").toString().trim() ||
-        defaultExpenseCategory,
-      IncomeCategory:
-        (editForm.IncomeCategory ?? "").toString().trim() ||
-        defaultIncomeCategory,
       ExpenseFcLineId: editForm.ExpenseFcLineId || null,
       IncomeFcLineId: editForm.IncomeFcLineId || null,
       ExpenseGrowthMethod: editForm.ExpenseGrowthMethod || "inflation",
@@ -502,8 +502,6 @@ export default function FCModuleManage() {
           Type: moduleType,
           Currency: moduleCurrency,
           BaseDate: baseDate,
-          ExpCategory: defaultExpenseCategory,
-          IncomeCategory: defaultIncomeCategory,
           Matched: true,
           IncomePct: [],
           Invest: [],
@@ -527,6 +525,7 @@ export default function FCModuleManage() {
   return (
     <>
       <main className="page-main trans-budget-main fc-modules-main">
+        <FCStepNav />
         <FCModulesFilter
           assumptions={assumptions}
           error={error}
@@ -536,7 +535,7 @@ export default function FCModuleManage() {
           onEditClick={openEditModal}
           onDeleteClick={openDeleteModal}
           onUnmatchedClick={openUnmatchedModal}
-          onSeedClick={() => setShowSeedModal(true)}
+          onSeedClick={() => setShowAddFromActualsModal(true)}
           scenarioSelectRef={scenarioSelectRef}
           selectedScenario={selectedScenario}
           selectedScenarioDetails={selectedScenarioDetails}
@@ -567,8 +566,6 @@ export default function FCModuleManage() {
           traits={traits}
           bsLevel2Options={bsLevel2Options}
           getChildCategoriesForAccount={getChildCategoriesForAccount}
-          expenseCategoryOptions={expenseCategoryOptions}
-          incomeCategoryOptions={incomeCategoryOptions}
           allModules={modules}
         />
         <FCExpConfirmDeleteModal
@@ -595,11 +592,11 @@ export default function FCModuleManage() {
           onSelectItem={setSelectedUnmatchedItem}
           onCreate={handleCreateFromUnmatched}
         />
-        <FCSeedFromActualsModal
-          isOpen={showSeedModal}
-          onClose={() => setShowSeedModal(false)}
+        <FCAddFromActualsModal
+          isOpen={showAddFromActualsModal}
+          onClose={() => setShowAddFromActualsModal(false)}
           scenario={selectedScenario}
-          onApplied={reloadModules}
+          onAdded={reloadModules}
         />
       </main>
     </>

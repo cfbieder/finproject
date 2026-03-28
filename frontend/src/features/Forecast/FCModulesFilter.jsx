@@ -127,7 +127,7 @@ export default function FCModulesFilter({
                       onClick: onUnmatchedClick,
                     },
                     {
-                      label: "Seed Actuals",
+                      label: "Add from Actuals",
                       icon: "↓",
                       disabled: seedDisabled,
                       onClick: onSeedClick,

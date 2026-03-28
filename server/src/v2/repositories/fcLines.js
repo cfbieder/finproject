@@ -182,16 +182,25 @@ async function unassignCategory(fcLineId, categoryId) {
  */
 async function findUnassignedCategories(budgetYear) {
   const result = await db.query(`
+    WITH RECURSIVE assigned_tree AS (
+      -- Direct assignments
+      SELECT category_id AS id FROM fc_line_categories
+      UNION
+      -- Recursively include all children of assigned categories
+      SELECT c.id
+      FROM categories c
+      JOIN assigned_tree at ON c.parent_id = at.id
+    )
     SELECT c.id, c.name, c.parent_id, pc.name as parent_name,
            c.mapped_account_id, a.name as mapped_account_name,
            COALESCE(SUM(be.base_amount), 0) as budget_total
     FROM categories c
     LEFT JOIN categories pc ON c.parent_id = pc.id
     LEFT JOIN accounts a ON c.mapped_account_id = a.id
-    LEFT JOIN fc_line_categories flc ON flc.category_id = c.id
     LEFT JOIN budget_entries be ON be.category_id = c.id
       AND ($1::int IS NULL OR be.budget_year = $1)
-    WHERE flc.id IS NULL AND c.is_active = TRUE
+    WHERE c.id NOT IN (SELECT id FROM assigned_tree)
+      AND c.is_active = TRUE
     GROUP BY c.id, c.name, c.parent_id, pc.name, c.mapped_account_id, a.name
     ORDER BY c.name
   `, [budgetYear || null]);
@@ -218,12 +227,10 @@ async function getBudgetTotals(budgetYear) {
 }
 
 /**
- * Generate suggested FC Lines from P&L account hierarchy.
- * Creates empty lines (no category assignments) named from parent-level P&L accounts.
- * Only creates lines that don't already exist (by name).
+ * Get suggested FC Line names from P&L account hierarchy.
+ * Returns names that don't already exist as FC Lines.
  */
-async function generateSuggestions() {
-  // Get P&L parent accounts (accounts with children, section = profit_loss)
+async function getSuggestions() {
   const result = await db.query(`
     SELECT DISTINCT parent_a.id, parent_a.name
     FROM accounts parent_a
@@ -233,16 +240,27 @@ async function generateSuggestions() {
     ORDER BY parent_a.name
   `);
 
+  const existing = await db.query('SELECT name FROM fc_lines');
+  const existingNames = new Set(existing.rows.map(r => r.name));
+
+  return result.rows
+    .filter(a => !existingNames.has(a.name))
+    .map(a => ({ account_id: a.id, name: a.name }));
+}
+
+/**
+ * Create FC Lines from a list of names.
+ */
+async function createBatch(names) {
   const created = [];
   let order = 0;
 
-  for (const account of result.rows) {
-    // Skip if line with this name already exists
-    const existing = await findByName(account.name);
+  for (const name of names) {
+    const existing = await findByName(name);
     if (existing) continue;
 
     const line = await create({
-      name: account.name,
+      name,
       line_type: 'unassigned',
       display_order: order++,
     });
@@ -263,5 +281,6 @@ module.exports = {
   unassignCategory,
   findUnassignedCategories,
   getBudgetTotals,
-  generateSuggestions,
+  getSuggestions,
+  createBatch,
 };

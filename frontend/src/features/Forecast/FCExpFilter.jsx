@@ -37,13 +37,11 @@ export default function FCExpFilter({
   onAddClick,
   onEditClick,
   onDeleteClick,
-  onSeedClick,
-  onCoverageClick,
+  onAddFromLinesClick,
   addDisabled,
   editDisabled,
   deleteDisabled,
-  seedDisabled,
-  coverageDisabled,
+  addFromLinesDisabled,
 }) {
   const scenarios = assumptions?.scenarios || [];
 
@@ -115,17 +113,11 @@ export default function FCExpFilter({
                       danger: true,
                     },
                     {
-                      label: "Seed Budget",
+                      label: "Add from FC Lines",
                       icon: "↓",
-                      disabled: seedDisabled,
-                      onClick: onSeedClick,
-                      primary: !seedDisabled,
-                    },
-                    {
-                      label: "Coverage",
-                      icon: "?",
-                      disabled: coverageDisabled,
-                      onClick: onCoverageClick,
+                      disabled: addFromLinesDisabled,
+                      onClick: onAddFromLinesClick,
+                      primary: !addFromLinesDisabled,
                     },
                   ].map(
                     ({

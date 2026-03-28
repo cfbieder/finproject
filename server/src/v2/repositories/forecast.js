@@ -156,8 +156,8 @@ async function copyScenario(sourceId, newName) {
       const newModule = await client.query(`
         INSERT INTO forecast_modules (
           scenario_id, account_id, name, module_type, currency,
-          expense_category, expense_amount, expense_pct,
-          income_category, income_amount, base_date, base_value,
+          expense_amount, expense_fc_line_id, income_fc_line_id, expense_growth_method,
+          income_amount, base_date, base_value,
           market_value, base_value_usd, market_value_usd,
           growth_rate, comment, is_matched
         )
@@ -165,8 +165,8 @@ async function copyScenario(sourceId, newName) {
         RETURNING id
       `, [
         newId, mod.account_id, mod.name, mod.module_type, mod.currency,
-        mod.expense_category, mod.expense_amount, mod.expense_pct,
-        mod.income_category, mod.income_amount, mod.base_date, mod.base_value,
+        mod.expense_amount, mod.expense_fc_line_id, mod.income_fc_line_id, mod.expense_growth_method || 'inflation',
+        mod.income_amount, mod.base_date, mod.base_value,
         mod.market_value, mod.base_value_usd, mod.market_value_usd,
         mod.growth_rate, mod.comment, mod.is_matched
       ]);
@@ -279,13 +279,12 @@ async function createModule(data) {
   const sql = `
     INSERT INTO forecast_modules (
       scenario_id, account_id, name, module_type, currency,
-      expense_category, expense_amount, expense_pct,
-      expense_fc_line_id, income_fc_line_id, expense_growth_method,
-      income_category, income_amount, base_date, base_value,
+      expense_amount, expense_fc_line_id, income_fc_line_id, expense_growth_method,
+      income_amount, base_date, base_value,
       market_value, base_value_usd, market_value_usd,
       growth_rate, comment, is_matched
     )
-    VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21)
+    VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18)
     RETURNING *
   `;
 
@@ -295,13 +294,10 @@ async function createModule(data) {
     data.name,
     data.module_type || null,
     data.currency || 'USD',
-    data.expense_category || null,
     data.expense_amount || 0,
-    data.expense_pct || 0,
     data.expense_fc_line_id || null,
     data.income_fc_line_id || null,
     data.expense_growth_method || 'inflation',
-    data.income_category || null,
     data.income_amount || 0,
     data.base_date || null,
     data.base_value || 0,
@@ -326,9 +322,8 @@ async function updateModule(id, data) {
 
   const allowedFields = [
     'account_id', 'name', 'module_type', 'currency',
-    'expense_category', 'expense_amount', 'expense_pct',
-    'expense_fc_line_id', 'income_fc_line_id', 'expense_growth_method',
-    'income_category', 'income_amount', 'base_date', 'base_value',
+    'expense_amount', 'expense_fc_line_id', 'income_fc_line_id', 'expense_growth_method',
+    'income_amount', 'base_date', 'base_value',
     'market_value', 'base_value_usd', 'market_value_usd',
     'growth_rate', 'comment', 'is_matched'
   ];
@@ -473,9 +468,10 @@ async function createIncExp(data) {
   const sql = `
     INSERT INTO forecast_income_expense (
       scenario_id, account_id, name, item_type, currency,
-      base_date, base_value, base_value_usd, growth_rate, comment, is_matched
+      base_date, base_value, base_value_usd, growth_rate, comment, is_matched,
+      fc_line_id, budget_source_year
     )
-    VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
+    VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)
     RETURNING *
   `;
 
@@ -490,7 +486,9 @@ async function createIncExp(data) {
     data.base_value_usd || 0,
     data.growth_rate || 0,
     data.comment || null,
-    data.is_matched || false
+    data.is_matched || false,
+    data.fc_line_id || null,
+    data.budget_source_year || null
   ]);
 
   return result.rows[0];
