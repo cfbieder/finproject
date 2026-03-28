@@ -826,7 +826,7 @@ router.get('/incomeexpense', async (req, res, next) => {
       Scenario: scenarioName,
       Name: item.name,
       Account: item.account_name,
-      Type: item.item_type,
+      Type: item.item_type ? item.item_type.charAt(0).toUpperCase() + item.item_type.slice(1) : '',
       Currency: item.currency,
       BaseDate: item.base_date,
       BaseValue: item.base_value,
@@ -863,6 +863,36 @@ router.post('/incomeexpense', async (req, res, next) => {
     let accountId = null;
     if (body.Account) {
       accountId = await lookupAccountByName(body.Account);
+    }
+
+    // If created from FC Line and no account specified, resolve from line's categories
+    // Find common parent P&L account for all categories in the line
+    if (!accountId && body.FcLineId) {
+      const db = require('../db');
+      // Try to find an account whose name matches the FC Line name (most common case)
+      const fcLineResult = await db.query('SELECT name FROM fc_lines WHERE id = $1', [body.FcLineId]);
+      if (fcLineResult.rows.length > 0) {
+        const matchingAccount = await db.query(
+          'SELECT id FROM accounts WHERE name = $1 AND section = $2 LIMIT 1',
+          [fcLineResult.rows[0].name, 'profit_loss']
+        );
+        if (matchingAccount.rows.length > 0) {
+          accountId = matchingAccount.rows[0].id;
+        }
+      }
+      // Fallback: use first category's mapped_account_id
+      if (!accountId) {
+        const lineAccount = await db.query(`
+          SELECT DISTINCT c.mapped_account_id
+          FROM fc_line_categories flc
+          JOIN categories c ON flc.category_id = c.id
+          WHERE flc.fc_line_id = $1 AND c.mapped_account_id IS NOT NULL
+          LIMIT 1
+        `, [body.FcLineId]);
+        if (lineAccount.rows.length > 0) {
+          accountId = lineAccount.rows[0].mapped_account_id;
+        }
+      }
     }
 
     const itemData = {

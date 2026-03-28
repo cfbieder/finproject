@@ -194,9 +194,9 @@ export function useFCExpCrud(
     }
   };
 
-  // Auto-correct Account/Name when Matched mode is enabled
+  // Auto-correct Account/Name when Matched mode is enabled (skip for FC Line items)
   useEffect(() => {
-    if (!editForm?.Matched) return;
+    if (!editForm?.Matched || editForm?.FcLineId) return;
     const account = editForm.Account;
     const name = editForm.Name;
 

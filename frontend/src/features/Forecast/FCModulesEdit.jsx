@@ -473,7 +473,7 @@ export default function FCModulesEditModal({
     ["Base Value (USD)", "BaseValueUSD", "number"],
     ["Market Value", "MarketValue", "number"],
     ["Market Value (USD)", "MarketValueUSD", "number"],
-    ["Growth %", "Growth", "number"],
+    ["Growth (x Inflation)", "Growth", "number"],
     ["Expense Line", "ExpenseFcLineId", "fc-line-expense"],
     ["Expense Amount (Yr 1)", "ExpenseAmount", "number"],
     ["Expense Growth", "ExpenseGrowthMethod", "growth-method"],
@@ -936,7 +936,7 @@ export default function FCModulesEditModal({
                   const isLiabilityAccount = editForm?.account_type === "liability";
                   const tooltip =
                     field === "Growth"
-                      ? "Enter as a percentage of inflation rate"
+                      ? "Multiplier of inflation (e.g. 1 = inflation, 0 = no growth, 2 = 2x inflation)"
                       : undefined;
                   const isNumericInput = type === "number" || isValueField;
                   const inputMode = isNumericInput ? "decimal" : undefined;

@@ -535,7 +535,7 @@ export default function FCModulesTable({
                       span: false,
                     },
                     {
-                      label: "Growth",
+                      label: "Growth (x Inflation)",
                       value:
                         selectedModule.Growth === null ||
                         selectedModule.Growth === undefined

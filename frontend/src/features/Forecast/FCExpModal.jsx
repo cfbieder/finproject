@@ -516,12 +516,13 @@ export default function FCExpModal({
               {/* Growth */}
               <div className="fc-exp-modal__field">
                 <label className="fc-exp-modal__label">
-                  Annual Growth Rate (%)
+                  Growth (x Inflation)
                 </label>
                 <input
                   className="fc-exp-modal__input"
                   type="number"
                   step="0.01"
+                  title="Multiplier of inflation (e.g. 1 = inflation, 0 = no growth, 2 = 2x inflation)"
                   value={
                     editForm?.Growth === null || editForm?.Growth === undefined
                       ? ""
