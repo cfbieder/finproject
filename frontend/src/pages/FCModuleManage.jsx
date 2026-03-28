@@ -356,6 +356,7 @@ export default function FCModuleManage() {
       "BaseValueUSD",
       "MarketValueUSD",
       "Growth",
+      "TaxRateOverride",
     ];
 
     // Build base payload with string and boolean fields

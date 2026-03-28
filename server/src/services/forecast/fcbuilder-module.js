@@ -362,8 +362,11 @@ async function processModule(module, scenario, df_assumptions, df_categories, ca
   }
 
   // Calculate tax values (deferred by one year — US tax is paid the year after the gain)
+  // Per-module tax rate override: if set, uses module-specific rate instead of scenario default
   const taxValues = new Array(yearsCount).fill(0);
-  const taxRate = Number(scenario?.TaxRate ?? 0);
+  const taxRate = module.tax_rate_override != null
+    ? Number(module.tax_rate_override)
+    : Number(scenario?.TaxRate ?? 0);
   if (Number.isFinite(taxRate) && taxRate !== 0) {
     const rateFactor = -taxRate / 100;
     for (let i = 0; i < yearsCount; i++) {

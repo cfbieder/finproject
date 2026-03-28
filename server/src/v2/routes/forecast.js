@@ -182,6 +182,21 @@ router.delete('/scenarios/byname/:name', async (req, res, next) => {
 });
 
 // POST /api/v2/forecast/scenarios/byname/:name/copy
+// PUT /api/v2/forecast/scenarios/:id
+router.put('/scenarios/:id', async (req, res, next) => {
+  try {
+    const { id } = req.params;
+    const updated = await repo.updateScenario(Number(id), req.body);
+    if (!updated) {
+      return res.status(404).json({ error: 'Scenario not found' });
+    }
+    res.json({ data: updated });
+  } catch (error) {
+    console.error('[forecast/scenarios/:id] PUT failed:', error);
+    next(error);
+  }
+});
+
 router.post('/scenarios/byname/:name/copy', async (req, res, next) => {
   try {
     const sourceName = req.params.name?.trim();
@@ -200,6 +215,54 @@ router.post('/scenarios/byname/:name/copy', async (req, res, next) => {
     }
 
     const newScenario = await repo.copyScenario(sourceScenario.id, newName);
+
+    // If refreshFromActuals is set, update module base values from latest actuals
+    const baseYear = req.body.baseYear || null;
+    if (baseYear) {
+      const db = require('../db');
+      const asOfDate = `${baseYear}-12-31`;
+
+      // Get year-end balances for all accounts
+      const balances = await db.query(`
+        SELECT a.id as account_id, a.name,
+          SUM(CASE WHEN t.currency = 'USD' THEN t.base_amount ELSE 0 END) as balance_usd,
+          SUM(t.base_amount) as balance_lc
+        FROM transactions t
+        JOIN accounts a ON t.account_id = a.id
+        WHERE t.transaction_date <= $1
+        GROUP BY a.id, a.name
+      `, [asOfDate]);
+
+      const balMap = {};
+      for (const b of balances.rows) {
+        balMap[b.account_id] = {
+          balance_usd: parseFloat(b.balance_usd) || 0,
+          balance_lc: parseFloat(b.balance_lc) || 0,
+        };
+      }
+
+      // Update each module in the new scenario
+      const modules = await db.query(
+        'SELECT id, account_id FROM forecast_modules WHERE scenario_id = $1',
+        [newScenario.id]
+      );
+
+      let updated = 0;
+      for (const mod of modules.rows) {
+        const bal = balMap[mod.account_id];
+        if (bal) {
+          await db.query(`
+            UPDATE forecast_modules
+            SET base_value = $1, base_value_usd = $2, market_value = $1, market_value_usd = $2,
+                base_date = $3, updated_at = NOW()
+            WHERE id = $4
+          `, [bal.balance_lc, bal.balance_usd, `${baseYear}-12-31`, mod.id]);
+          updated++;
+        }
+      }
+      console.log(`[copy] Updated ${updated}/${modules.rows.length} modules with ${baseYear} actuals`);
+    }
+
     res.status(201).json({ success: true, data: newScenario });
   } catch (error) {
     console.error('[forecast/scenarios/byname/copy] Failed:', error);
@@ -247,6 +310,7 @@ router.get('/modules', async (req, res, next) => {
       ExpenseFcLineId: m.expense_fc_line_id,
       IncomeFcLineId: m.income_fc_line_id,
       ExpenseGrowthMethod: m.expense_growth_method || 'inflation',
+      TaxRateOverride: m.tax_rate_override != null ? parseFloat(m.tax_rate_override) : null,
       IncomeAmount: m.income_amount,
       BaseDate: m.base_date,
       BaseValue: m.base_value,
@@ -342,6 +406,7 @@ router.get('/modules/:id', async (req, res, next) => {
         ExpenseFcLineId: m.expense_fc_line_id,
         IncomeFcLineId: m.income_fc_line_id,
         ExpenseGrowthMethod: m.expense_growth_method || 'inflation',
+        TaxRateOverride: m.tax_rate_override != null ? parseFloat(m.tax_rate_override) : null,
         IncomeAmount: m.income_amount,
         BaseDate: m.base_date,
         BaseValue: m.base_value,
@@ -486,6 +551,7 @@ router.put('/modules/:id', async (req, res, next) => {
     if (body.ExpenseFcLineId !== undefined) updateData.expense_fc_line_id = body.ExpenseFcLineId;
     if (body.IncomeFcLineId !== undefined) updateData.income_fc_line_id = body.IncomeFcLineId;
     if (body.ExpenseGrowthMethod !== undefined) updateData.expense_growth_method = body.ExpenseGrowthMethod;
+    if (body.TaxRateOverride !== undefined) updateData.tax_rate_override = body.TaxRateOverride;
     if (body.IncomeAmount !== undefined) updateData.income_amount = body.IncomeAmount;
     if (body.BaseDate !== undefined) updateData.base_date = body.BaseDate;
     if (body.BaseValue !== undefined) updateData.base_value = body.BaseValue;

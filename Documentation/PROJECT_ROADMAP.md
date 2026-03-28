@@ -24,14 +24,13 @@ Items from active development notes:
 - [x] Test to check if fx rates in fc periods work, if changed
 - [x] Add COA management (SQL-based; frontend CRUD at `/coa-management`)
 - [x] Add Ledger report page (`/ledger`) — account-level transaction listing with running balance for asset/liability accounts, dynamic cascading COA selectors (variable depth), collapsible filters, row selection with edit/delete, add transaction drawer
-- [ ] Review how income, growth and expense calculated in fcbuilder / put tooltips
-- [ ] When copying modules to other scenarios, automatically update base date and values
+- [x] Review how income, growth and expense calculated in fcbuilder / put tooltips — Growth relabeled to "Growth (x Inflation)" with tooltips on BS module + IncExp edit forms
+- [x] When copying modules to other scenarios, automatically update base date and values — "Update base values from actuals" checkbox on copy modal with year picker
 - [x] Export to excel
-- [ ] Ability to adjust the tax rate on some income (e.g. UB)
+- [x] Ability to adjust the tax rate on some income (e.g. UB) — per-module `tax_rate_override` field (migration 010), NULL = scenario default
 - [x] On liabilities the expense needs to be a negative percent — can this be fixed
 - [x] Add some KPIs to Budget Page and Forecast Page with graphics
 - [ ] Add way to re-export changes back to PocketSmith
-- [ ] Start on Option Analysis
 - [x] Move Forecast FX Assumptions from Settings `/fx-options` to Forecasting category
 - [x] Add Transfer Analysis page (`/transfer-analysis`) — match debit/credit transfer pairs by amount within date tolerance, show matched and unmatched transfers by category
 - [x] Add Manual Match Groups to Transfer Analysis — persistent many-to-one transfer matching via checkbox selection + "Link as Matched" action, with Unlink capability. DB tables: `transfer_match_groups`, `transfer_match_group_members`. API: `POST/GET/DELETE /api/v2/transfer-match-groups`
@@ -52,6 +51,11 @@ Items from active development notes:
   - [x] Phase 2B-5: Engine update (FC Line name map, expense_growth_method inflation/pct_of_value, fc_line_id→label resolution, 40 tests passing)
   - [x] Phase 2B-6: Migration script — SKIPPED (FC data wiped clean for fresh start)
   - [x] Phase 2B-7: Cleanup (removed old endpoints/files/columns, migration 008, 40 tests passing)
+- [x] Forecast: Phase 3 — Deposit Rate labeling (IncomePct label contextually shows "Yield / Deposit Rate %" for deposit-type modules)
+- [x] Forecast: Phase 4 — Cash Target & Auto-Balance (target_cash on scenarios, post-processing creates Cash Rebalance / Cash Shortfall entries, Target Cash field on Scenarios page)
+- [x] Forecast: Phase 5 — Display Enhancements (G7 age tracking with birth year in Settings + age row in Review; G9 equity bridge "Change in Net Worth" collapsible section)
+- [x] Forecast: Per-module tax rate override (migration 010, Tax Rate Override field in module edit, engine uses per-module rate when set)
+- [x] Forecast: E2E engine test suite — 8 comprehensive tests covering equity/property/fixed-income/liability/incexp/FX/tax-deferral/no-expense scenarios. 49 total automated tests.
 
 ---
 

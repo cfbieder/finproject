@@ -1,11 +1,113 @@
-import { useEffect, useLayoutEffect, useRef, useState } from "react";
+import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { formatAmount } from "./utils/fcReviewUtils.js";
 import FCReviewTableControls from "./FCReviewTableControls.jsx";
+
+function EquityBridge({ sortedYears, cashRowsWithNet, balanceAccounts, getCellValue, totalAssetsByYear, balanceDisplayValues, baseYears }) {
+  const [collapsed, setCollapsed] = useState(false);
+
+  // Compute bridge rows from available data
+  const bridge = useMemo(() => {
+    const operating = []; // Income - Expenses (P&L excl tax)
+    const tax = [];
+    const netWorthChange = []; // Total year-over-year NW change
+
+    for (let yi = 0; yi < sortedYears.length; yi++) {
+      let opTotal = 0;
+      let taxTotal = 0;
+
+      // Sum P&L entries (cash rows)
+      for (const row of (cashRowsWithNet || [])) {
+        const label = row.label || "";
+        if (label === "Net Cash Flow") continue;
+        const val = Number(getCellValue(row, sortedYears[yi], true)) || 0;
+        if (label.toLowerCase().includes("tax")) {
+          taxTotal += val;
+        } else {
+          opTotal += val;
+        }
+      }
+      operating.push(opTotal);
+      tax.push(taxTotal);
+
+      // Net worth = total assets (includes liabilities as negative)
+      const nw = totalAssetsByYear?.[yi] || 0;
+      const prevNw = yi > 0 ? (totalAssetsByYear?.[yi - 1] || 0) : nw;
+      netWorthChange.push(yi > 0 ? nw - prevNw : 0);
+    }
+
+    // Unrealized = NW change - operating - tax (the residual)
+    const unrealized = sortedYears.map((_, yi) =>
+      netWorthChange[yi] - operating[yi] - tax[yi]
+    );
+
+    return { operating, tax, unrealized, netWorthChange };
+  }, [sortedYears, cashRowsWithNet, getCellValue, totalAssetsByYear]);
+
+  const rows = [
+    { label: "Operating (Income - Expenses)", values: bridge.operating },
+    { label: "Tax", values: bridge.tax },
+    { label: "Asset Value Changes", values: bridge.unrealized },
+    { label: "Total Change in Net Worth", values: bridge.netWorthChange, bold: true },
+  ];
+
+  return (
+    <div style={{ marginTop: "0.5rem" }}>
+      <button
+        onClick={() => setCollapsed((p) => !p)}
+        style={{
+          background: "none", border: "none", cursor: "pointer",
+          fontSize: "0.85rem", fontWeight: 600, color: "var(--primary, #1e40af)",
+          display: "flex", alignItems: "center", gap: "0.35rem", padding: "0.35rem 0",
+        }}
+      >
+        {collapsed ? "+" : "-"} Change in Net Worth
+      </button>
+      {!collapsed && (
+        <table className="trans-budget-table data-table" style={{ width: "100%", fontSize: "0.8rem" }}>
+          <tbody>
+            {rows.map((row) => (
+              <tr key={row.label}>
+                <td style={{
+                  position: "sticky", left: 0, background: "white", zIndex: 1,
+                  minWidth: "200px", padding: "0.3rem 0.75rem",
+                  fontWeight: row.bold ? 700 : 400,
+                  borderTop: row.bold ? "2px solid #e2e8f0" : undefined,
+                }}>
+                  {row.label}
+                </td>
+                {sortedYears.map((year, yi) => {
+                  const val = row.values[yi] || 0;
+                  const isBase = baseYears?.has(Number(year));
+                  return (
+                    <td
+                      key={`${row.label}-${year}`}
+                      className="trans-budget-table__value--numeric"
+                      style={{
+                        color: val < -0.5 ? "var(--danger)" : val > 0.5 ? "var(--success, #16a34a)" : undefined,
+                        fontWeight: row.bold ? 700 : 400,
+                        borderTop: row.bold ? "2px solid #e2e8f0" : undefined,
+                        minWidth: "120px",
+                        ...(isBase && { background: "#f8f9fa" }),
+                      }}
+                    >
+                      {Math.abs(val) > 0.5 ? formatAmount(val) : "—"}
+                    </td>
+                  );
+                })}
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      )}
+    </div>
+  );
+}
 
 export default function FCReviewTable({
   sortedYears,
   baseYear,
   baseYears,
+  birthYear,
   tableColSpan,
   yearsLoading,
   accountsLoading,
@@ -280,6 +382,17 @@ export default function FCReviewTable({
                   <th>Year</th>
                 )}
               </tr>
+              {birthYear && (
+                <tr>
+                  <td style={selectColumnStickyStyle} />
+                  <td style={{ ...accountHeaderStyle, fontSize: "0.7rem", color: "#94a3b8", fontWeight: 500, padding: "0.15rem 0.5rem" }}>Age</td>
+                  {sortedYears.map((year) => (
+                    <td key={`age-${year}`} className="trans-budget-table__value" style={{ fontSize: "0.7rem", color: "#94a3b8", fontWeight: 500, padding: "0.15rem 0.5rem" }}>
+                      {Number(year) - birthYear}
+                    </td>
+                  ))}
+                </tr>
+              )}
             </thead>
             <tbody>
               {/* Loading State */}
@@ -626,6 +739,19 @@ export default function FCReviewTable({
               )}
             </tbody>
           </table>
+
+          {/* Equity Bridge — Change in Net Worth */}
+          {!tableError && sortedYears.length > 0 && cashRowsWithNet?.length > 0 && (
+            <EquityBridge
+              sortedYears={sortedYears}
+              cashRowsWithNet={cashRowsWithNet}
+              balanceAccounts={balanceAccounts}
+              getCellValue={getCellValue}
+              totalAssetsByYear={totalAssetsByYear}
+              balanceDisplayValues={balanceDisplayValues}
+              baseYears={baseYears}
+            />
+          )}
         </div>
       </div>
     </section>

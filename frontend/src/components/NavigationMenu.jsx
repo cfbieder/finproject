@@ -5,7 +5,7 @@ import { Menu, X } from "lucide-react";
 import banner from "../assets/banner.png";
 import "./NavigationMenu.css";
 
-const isDev = import.meta.env.VITE_APP_MODE === 'dev';
+const isDev = import.meta.env.DEV || import.meta.env.VITE_APP_MODE === 'dev';
 
 export default function NavigationMenu() {
   const { pathname } = useLocation();
@@ -35,7 +35,7 @@ export default function NavigationMenu() {
               <img src={banner} alt="Fin" />
             </div>
             <span className="navbar__title">Fin</span>
-            <span className="navbar__version-badge">v{import.meta.env.VITE_APP_VERSION || '2.0.0'}</span>
+            <span className="navbar__version-badge">v{import.meta.env.VITE_APP_VERSION || '2.0.0'}{isDev ? ' DEV' : ''}</span>
           </Link>
 
           <button

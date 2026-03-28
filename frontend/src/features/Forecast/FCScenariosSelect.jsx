@@ -33,6 +33,8 @@ export default function FCScenariosSelect({
   isLoading,
   taxRate,
   setTaxRate,
+  targetCash,
+  setTargetCash,
   makeDefaultScenario,
   onCopyScenario,
   hasPendingChanges,
@@ -166,6 +168,25 @@ export default function FCScenariosSelect({
                 min="0"
                 max="100"
                 step="0.1"
+              />
+            </div>
+            <div className="fc-scenarios-row__field">
+              <label
+                className="fc-scenarios-select__label"
+                htmlFor="target-cash-input"
+              >
+                Target Cash
+              </label>
+              <input
+                id="target-cash-input"
+                type="number"
+                className="form-input"
+                value={targetCash}
+                onChange={(event) => setTargetCash(event.target.value)}
+                disabled={isDisabled}
+                min="0"
+                step="1000"
+                placeholder="Optional"
               />
             </div>
           </div>

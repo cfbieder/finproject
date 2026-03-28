@@ -419,10 +419,16 @@ export default function FCModulesEditModal({
   const incomePctYearOptions = transferYearOptions.filter((y) => y > transferYearStart);
   const transferFlagOptionsI = ["OneTime", "Periodic"];
   const transferFlagOptionsD = ["Full", "OneTime", "Periodic"];
+  const incomePctLabel = (() => {
+    const t = (editForm?.Type || "").toLowerCase();
+    if (t.includes("deposit") || t.includes("fixed income") || t.includes("bond"))
+      return "Yield / Deposit Rate %";
+    return "Income / Yield %";
+  })();
   const transferSections = [
     ["Invest", "Invest"],
     ["Dispose", "Dispose"],
-    ["Income %", "IncomePct"],
+    [incomePctLabel, "IncomePct"],
   ];
 
   const updateTransferEntry = (field, index, key, value) => {
@@ -479,6 +485,7 @@ export default function FCModulesEditModal({
     ["Expense Growth", "ExpenseGrowthMethod", "growth-method"],
     ["Income Line", "IncomeFcLineId", "fc-line-income"],
     ["Income Amount (Yr 1)", "IncomeAmount", "number"],
+    ["Tax Rate Override (%)", "TaxRateOverride", "number"],
     ["Comment", "Comment", "textarea"],
   ];
 

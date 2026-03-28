@@ -237,6 +237,14 @@ Older or simplified version with fewer asset classes; appears to be a quick-refe
 - Fixed `writeValuesToCategoryRow` year offset — BaseDate year before DataFrame's first column caused all entries to be silently dropped
 - Fixed audit trail duplicate column keys — when IncomeCategory/ExpCategory both empty, DataFrame column names collided
 - Fixed FX division by zero — missing FX assumptions produced 0 rates, causing Infinity on EUR/PLN modules; now guards with `fx || 1`
+- Added `GET /api/v2/forecast/modules/:id` endpoint — returns single module with nested arrays (IncomePct, Invest, Dispose); edit modal now fetches full data before opening (fixes Income % entries not loading/saving)
+- Fixed FC Expense edit modal — Account/Name/Type/Matched locked when item created from FC Line (`FcLineId` set); auto-correct effect skipped for FC Line items
+- Fixed account resolution for FC Line items — backend resolves `account_id` from FC Line name → P&L account on creation
+- Added `FcLineId` to incexp GET response for frontend lock logic
+- Fixed incexp Type capitalization — "expense" → "Expense", "income" → "Income" in API response
+- Fixed Graph button disabled — removed unnecessary loading state dependencies; now enabled when rows are selected
+- Added `PUT /api/v2/forecast/scenarios/:id` endpoint for updating scenario fields (target_cash)
+- Added Select All / Clear buttons to Add from Actuals modal
 
 **Additional fixes applied during Phase 2/2B (prior sessions):**
 - Fixed `PUT /assumptions` to preserve `scenarios` array in FCAssump.json (was being stripped, breaking forecast generation)
@@ -256,14 +264,15 @@ Older or simplified version with fewer asset classes; appears to be a quick-refe
 - Fixed `expense_amount` column already existed in DB but wasn't used in calculation — now implemented in Phase 1
 
 **End-to-end walkthrough status (dev server `http://100.94.46.62:5174`):**
-1. Create scenario on Scenarios page — PASS
-2. Copy 2025_Base → 2026_Base (27 modules, 6 incexp) — PASS
-3. Seed Actuals on Modules page (22/27 matched) — PASS, values applied
-4. Coverage Check on IncExp page — PASS (44 FC IncExp, 6 BS Module, 31 Not Covered)
-5. Seed Budget on IncExp page — NOT YET TESTED
-6. Property cost seeding — NOT YET BUILT
-7. Generate forecast — NOT YET TESTED
-8. Review results — NOT YET TESTED
+1. FC Mapping page: Generate Suggestions → select lines → assign categories → set types — PASS
+2. Create scenario (+ New Scenario → immediate naming modal) — PASS
+3. Set inflation, FX rates, tax rate, target cash — PASS
+4. Add from Actuals on Modules page (tree view, Select All/Clear) — PASS
+5. Edit modules: Growth, Expense/Income Lines, Expense Amount, Income % — PASS (nested arrays now load correctly)
+6. Add from FC Lines on Expenses page (budget pre-fill, locked fields) — PASS
+7. Generate forecast — PASS (391 entries, all BS + P&L accounts populated)
+8. Review results — PASS (values match hand calculations, graph works)
+9. Automated e2e test: 8 complex tests covering equity/property/fixed-income/liability/incexp/FX/tax-deferral — PASS
 
 **Remaining "Not Covered" items from coverage check (31 categories, -115K):**
 - Taxes (US, SP, PL, Preparation): Handled by engine tax calculation — OK
@@ -274,44 +283,44 @@ Older or simplified version with fewer asset classes; appears to be a quick-refe
 
 **Goal:** Deposits earn interest at a configurable rate.
 
-**G2 — Deposit Rate via IncomePct**
-- File: `server/src/services/forecast/fcbuilder-module.js`
-- Change: The `IncomePct` schedule already generates `incomeValues[]` as:
-  `incomeValues[i] = avg(marketValues[i], marketValues[i-1]) × incomePctValues[i] / 100`
-- This already works for deposit interest! The `IncomePct` value IS the deposit rate.
-- The income flows to `module.IncomeCategory` (e.g. "Interest Income")
-- Verification: Set up a deposit module with `IncomePct = [{ Date: 2026, Value: 3.0 }]` and `IncomeCategory = "Interest Income"`. Confirm interest = avg balance × 3%.
-- Frontend: On the module edit form, when module type is "deposit" or similar, label the `IncomePct` field as "Deposit Rate %" for clarity
-- May already work — primarily a labeling/documentation task
+**Phase 3 Status: COMPLETE (2026-03-28)**
+- Engine already supports deposit/yield rates via IncomePct schedule: `income = avg(MV_current, MV_prior) × rate%`
+- Frontend label dynamically shows "Yield / Deposit Rate %" for deposit/fixed-income/bond module types, "Income / Yield %" for others
+- Verified in e2e test: 1M fixed income at 4% yield produces 40K/year income
+- Growth field relabeled to "Growth (x Inflation)" with tooltip on both BS module and IncExp edit forms
 
 ### Phase 4: Cash Target & Auto-Balance
 
 **Goal:** Maintain target cash balance; excess to deposits, shortfall flagged.
 
-**G3 — Cash Auto-Balance**
-- Schema: Add `target_cash` column to `forecast_scenarios` table (NUMERIC, nullable, default NULL)
-  - Migration: `ALTER TABLE forecast_scenarios ADD COLUMN target_cash NUMERIC DEFAULT NULL`
-- File: `server/src/services/forecast/index.js`
-- Change: After all modules and income/expense items are processed, add a post-processing step:
-  1. Query all `forecast_entries` for the scenario where `account = 'Bank Accounts'`
-  2. Sum by year to get projected cash balance per year
-  3. If `target_cash` is set:
-     - For each year where cash > target: create entry `account = 'Fixed Income Deposit'`, `amount = cash - target` (excess reinvested)
-     - For each year where cash < target: create entry `account = 'Cash Shortfall'`, `amount = target - cash` (flagged for user)
-  4. Recompute final cash balance after adjustments
-- Frontend: Add `target_cash` field to scenario edit modal
-- Frontend: In FC Review, highlight years with cash shortfall in red/warning color
-- Frontend: Show "Cash Gap" row in the balance sheet section when shortfalls exist
+**Phase 4 Status: COMPLETE (2026-03-28)**
+- Migration 009: `target_cash` NUMERIC column added to `forecast_scenarios`
+- Engine post-processing in `index.js`: after all modules processed, computes cumulative cash balance vs target
+  - Excess cash → creates `Cash Rebalance - Deposits` entries (positive) and reduces `Bank Accounts`
+  - Shortfall → creates `Cash Shortfall` entries (negative, flagged for user)
+- Frontend: `Target Cash` field on Scenarios page (FCScenariosSelect), saved to DB via `PUT /api/v2/forecast/scenarios/:id`
+- Review page: Cash Shortfall and Cash Rebalance rows appear automatically as forecast entries
+- 49 automated tests passing (8 new e2e engine tests)
 
 ### Phase 5: Display Enhancements
 
-**Goal:** Better context and analysis in the Review page.
+**Phase 5 Status: COMPLETE (2026-03-28)**
 
-**G7 — Age Tracking**
-- Schema: Add `birth_year` to `app_data` table (or as a key in the existing JSON app_data store)
-- File: `frontend/src/pages/ProgramSettings.jsx` — add "Birth Year" field
-- File: `frontend/src/pages/FCReview.jsx` — read birth year from app settings, display `year - birthYear` as a sub-header row beneath the year columns
+**G7 — Age Tracking: DONE**
+- Birth year stored in appdata JSON via `POST /api/v2/util/appdata` (key: `birthYear`)
+- Program Settings page: new "Forecast" section with Birth Year input field
+- FC Review page: age row displayed below year headers (`year - birthYear`), styled in muted gray
 - No backend engine changes
+
+**G9 — Equity Bridge: DONE**
+- Collapsible "Change in Net Worth" section at bottom of Review table
+- Rows: Operating (Income - Expenses), Tax, Asset Value Changes (residual), Total Change in Net Worth
+- Computed from existing P&L entries and year-over-year total assets change
+- Green/red color coding, bold total row with separator
+
+**Additional features implemented (2026-03-28):**
+- Per-module tax rate override: `tax_rate_override` column on `forecast_modules` (migration 010), `Tax Rate Override (%)` field in module edit form, engine uses module-specific rate when set (NULL = scenario default)
+- Copy scenario auto-refresh: "Update base values from actuals" checkbox + year picker on copy modal; updates module base_value/market_value/base_date from year-end balances when copying
 
 **G9 — Equity Bridge**
 - File: `frontend/src/utils/forecastHelpers.js` — new function `computeEquityBridge(entries, years)`

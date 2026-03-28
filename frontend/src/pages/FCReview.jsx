@@ -119,6 +119,18 @@ export default function FCReview() {
   } = useBaseYearBalanceSheet(periodStart, balanceAccountMap);
 
   // =============================================================================
+  // STATE - App Settings
+  // =============================================================================
+
+  const [birthYear, setBirthYear] = useState(null);
+  useEffect(() => {
+    Rest.fetchAppDataV2().then((data) => {
+      const doc = Array.isArray(data) && data.length > 0 ? data[0] : data;
+      if (doc?.birthYear) setBirthYear(Number(doc.birthYear));
+    }).catch(() => {});
+  }, []);
+
+  // =============================================================================
   // STATE - Forecast Generation
   // =============================================================================
 
@@ -992,13 +1004,7 @@ export default function FCReview() {
 
   const graphDisabled =
     !selectedScenario ||
-    selectedSeries.length === 0 ||
-    yearsLoading ||
-    entriesLoading ||
-    accountsLoading ||
-    balanceLoading ||
-    baseActualLoading ||
-    baseBalanceLoading;
+    selectedSeries.length === 0;
 
   const graphSeries = useMemo(
     () =>
@@ -1099,6 +1105,7 @@ export default function FCReview() {
           sortedYears={sortedYears}
           baseYear={baseYear}
           baseYears={baseYears}
+          birthYear={birthYear}
           tableColSpan={tableColSpan}
           yearsLoading={yearsLoading}
           accountsLoading={accountsLoading}

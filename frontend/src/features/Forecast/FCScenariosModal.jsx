@@ -408,9 +408,31 @@ export default function FCScenariosModal({
                   placeholder="e.g., Q2 2025 Conservative"
                 />
               </label>
+              <label className="fc-scenarios-modal__field" style={{ flexDirection: "row", alignItems: "center", gap: "0.5rem" }}>
+                <input
+                  type="checkbox"
+                  checked={Boolean(modalState.payload?.refreshBaseYear)}
+                  onChange={(e) =>
+                    handleFieldChange("refreshBaseYear", e.target.checked ? new Date().getFullYear() - 1 : null)
+                  }
+                />
+                <span>Update base values from actuals</span>
+                {modalState.payload?.refreshBaseYear && (
+                  <input
+                    type="number"
+                    value={modalState.payload.refreshBaseYear}
+                    onChange={(e) => handleFieldChange("refreshBaseYear", Number(e.target.value))}
+                    style={{ width: "5rem", marginLeft: "0.5rem" }}
+                    min="2020"
+                    max="2030"
+                  />
+                )}
+              </label>
               <div className="fc-scenarios-modal__info">
                 <span className="fc-scenarios-modal__info-icon"><Info size={16} /></span>
-                The new scenario will include all data from the source scenario.
+                {modalState.payload?.refreshBaseYear
+                  ? `Module base values will be updated from ${modalState.payload.refreshBaseYear} year-end balances.`
+                  : "The new scenario will include all data from the source scenario."}
               </div>
             </div>
             <div className="fc-scenarios-modal__actions">

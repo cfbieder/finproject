@@ -69,6 +69,9 @@ export default function FCScenarios() {
   /** Local working copy of tax rates by scenario */
   const [localTaxRates, setLocalTaxRates] = useState([]);
 
+  /** Local working copy of target cash per scenario */
+  const [localTargetCash, setLocalTargetCash] = useState({});
+
   /** Tracks whether there are local changes that need to be committed */
   const [hasPendingChanges, setHasPendingChanges] = useState(false);
 
@@ -98,6 +101,16 @@ export default function FCScenarios() {
       setLocalFX(data?.FX || []);
       setLocalTaxRates(data?.["Tax Rate"] || []);
       setHasPendingChanges(false);
+
+      // Load target_cash from DB scenarios
+      try {
+        const dbScenarios = await Rest.get("/forecast/scenarios?activeOnly=false");
+        const cashMap = {};
+        for (const s of dbScenarios.data || []) {
+          if (s.target_cash != null) cashMap[s.name] = parseFloat(s.target_cash) || 0;
+        }
+        setLocalTargetCash(cashMap);
+      } catch (_) { /* ignore — target_cash is optional */ }
 
       // Verify selected scenario still exists after reload
       const scenarioNames = (data?.scenarios || []).map((item) => item.Name);
@@ -139,6 +152,16 @@ export default function FCScenarios() {
           setLocalTaxRates(data?.["Tax Rate"] || []);
           setHasPendingChanges(false);
           setLoadError("");
+
+          // Load target_cash from DB scenarios
+          try {
+            const dbScenarios = await Rest.get("/forecast/scenarios?activeOnly=false");
+            const cashMap = {};
+            for (const s of (dbScenarios.data || [])) {
+              if (s.target_cash != null) cashMap[s.name] = parseFloat(s.target_cash) || 0;
+            }
+            if (isMounted) setLocalTargetCash(cashMap);
+          } catch (_) { /* optional */ }
         }
       } catch (error) {
         if (isMounted) {
@@ -254,6 +277,18 @@ export default function FCScenarios() {
   const selectedTaxRate =
     (localTaxRates || []).find((item) => item.Scenario === selectedScenario)
       ?.Rate ?? "";
+
+  /** Target cash for the selected scenario */
+  const selectedTargetCash = isNewScenario ? "" : (localTargetCash[selectedScenario] ?? "");
+
+  const updateTargetCash = (value) => {
+    setHasPendingChanges(true);
+    const scenarioName = selectedScenario === "__new_scenario__" ? "__new_scenario__" : selectedScenario;
+    setLocalTargetCash((prev) => ({
+      ...prev,
+      [scenarioName]: value === "" ? null : Number(value),
+    }));
+  };
 
   /** All unique FX rate keys (e.g., "USDPLN", "USDEUR") across all scenarios */
   const fxKeys = Array.from(
@@ -668,6 +703,31 @@ export default function FCScenarios() {
         headers: { "Content-Type": "application/json" },
       });
 
+      // Save target_cash to DB scenario
+      const tcValue = isCreatingNew
+        ? (localTargetCash["__new_scenario__"] ?? null)
+        : (localTargetCash[scenarioName] ?? null);
+      try {
+        const dbScenarios = await Rest.get("/forecast/scenarios?activeOnly=false");
+        const dbScenario = (dbScenarios.data || []).find((s) => s.name === scenarioName);
+        if (dbScenario) {
+          await Rest.fetchJson(`/api/v2/forecast/scenarios/${dbScenario.id}`, {
+            method: "PUT",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ target_cash: tcValue }),
+          });
+        }
+      } catch (_) { /* target_cash save is best-effort */ }
+
+      // Update local target_cash state
+      if (isCreatingNew) {
+        setLocalTargetCash((prev) => {
+          const next = { ...prev, [scenarioName]: tcValue };
+          delete next["__new_scenario__"];
+          return next;
+        });
+      }
+
       // Update local state to match server
       setScenarios(updatedScenarios);
       setLocalInflation(updatedInflation);
@@ -830,10 +890,12 @@ export default function FCScenarios() {
       });
 
       // Copy modules and inc/exp entries via the v2 backend API
+      // If refreshBaseYear is set, update module base values from actuals
       const encoded = encodeURIComponent(sourceScenario);
+      const refreshBaseYear = modalState.payload?.refreshBaseYear || null;
       await Rest.fetchJson(`/api/v2/forecast/scenarios/byname/${encoded}/copy`, {
         method: "POST",
-        body: JSON.stringify({ newScenarioName }),
+        body: JSON.stringify({ newScenarioName, baseYear: refreshBaseYear }),
         headers: { "Content-Type": "application/json" },
       });
 
@@ -903,6 +965,8 @@ export default function FCScenarios() {
           isLoading={isLoading}
           taxRate={String(selectedTaxRate ?? "")}
           setTaxRate={updateTaxRate}
+          targetCash={String(selectedTargetCash ?? "")}
+          setTargetCash={updateTargetCash}
           makeDefaultScenario={makeDefaultScenario}
           onCopyScenario={openCopyScenarioModal}
           hasPendingChanges={hasPendingChanges}

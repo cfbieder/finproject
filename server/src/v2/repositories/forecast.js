@@ -53,14 +53,15 @@ async function findScenarioByName(name) {
  */
 async function createScenario(data) {
   const sql = `
-    INSERT INTO forecast_scenarios (name, description, is_active)
-    VALUES ($1, $2, $3)
+    INSERT INTO forecast_scenarios (name, description, is_active, target_cash)
+    VALUES ($1, $2, $3, $4)
     RETURNING *
   `;
   const result = await db.query(sql, [
     data.name,
     data.description || null,
-    data.is_active !== false
+    data.is_active !== false,
+    data.target_cash ?? null,
   ]);
   return result.rows[0];
 }
@@ -84,6 +85,10 @@ async function updateScenario(id, data) {
   if (data.is_active !== undefined) {
     fields.push(`is_active = $${paramIndex++}`);
     params.push(data.is_active);
+  }
+  if (data.target_cash !== undefined) {
+    fields.push(`target_cash = $${paramIndex++}`);
+    params.push(data.target_cash);
   }
 
   if (fields.length === 0) return null;
@@ -323,7 +328,7 @@ async function updateModule(id, data) {
   const allowedFields = [
     'account_id', 'name', 'module_type', 'currency',
     'expense_amount', 'expense_fc_line_id', 'income_fc_line_id', 'expense_growth_method',
-    'income_amount', 'base_date', 'base_value',
+    'income_amount', 'base_date', 'base_value', 'tax_rate_override',
     'market_value', 'base_value_usd', 'market_value_usd',
     'growth_rate', 'comment', 'is_matched'
   ];

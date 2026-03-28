@@ -257,11 +257,12 @@ async function generateForecast(scenarioName) {
     );
 
     // Step 2: Find scenario in PostgreSQL
-    const scenarioResult = await db.query('SELECT id FROM forecast_scenarios WHERE name = $1', [scenarioName]);
+    const scenarioResult = await db.query('SELECT id, target_cash FROM forecast_scenarios WHERE name = $1', [scenarioName]);
     if (scenarioResult.rows.length === 0) {
       throw new Error(`Scenario "${scenarioName}" not found in database`);
     }
     const scenarioId = scenarioResult.rows[0].id;
+    const targetCash = parseFloat(scenarioResult.rows[0].target_cash) || null;
 
     // Step 3: Clear existing entries
     const deleteResult = await db.query('DELETE FROM forecast_entries WHERE scenario_id = $1', [scenarioId]);
@@ -332,8 +333,70 @@ async function generateForecast(scenarioName) {
       }),
     ]);
 
-    // Step 7: Calculate statistics
-    const totalEntries = results.reduce((sum, r) => sum + (r?.entriesCount || 0), 0);
+    // Step 7: Cash Target Auto-Balance (post-processing)
+    let rebalanceEntries = 0;
+    if (targetCash !== null && Number.isFinite(targetCash)) {
+      console.log(`[FORECAST-GENERATE] Running cash auto-balance (target: ${targetCash})`);
+
+      // Sum Bank Accounts entries by year to get projected cash balance
+      const cashResult = await db.query(`
+        SELECT forecast_year, SUM(amount) as cash_total
+        FROM forecast_entries
+        WHERE scenario_id = $1 AND account = 'Bank Accounts'
+        GROUP BY forecast_year
+        ORDER BY forecast_year
+      `, [scenarioId]);
+
+      // Build cumulative cash balance (Bank Accounts entries are year-over-year changes)
+      let cumulativeCash = 0;
+      const cashByYear = {};
+      for (const row of cashResult.rows) {
+        cumulativeCash += parseFloat(row.cash_total) || 0;
+        cashByYear[row.forecast_year] = cumulativeCash;
+      }
+
+      // For each year, compute excess/shortfall vs target
+      const rebalanceValues = [];
+      for (const year of years) {
+        const projectedCash = cashByYear[year] || 0;
+        const gap = projectedCash - targetCash;
+
+        if (Math.abs(gap) > 0.01) {
+          if (gap > 0) {
+            // Excess: move to deposits (reduce Bank Accounts, increase Deposits)
+            rebalanceValues.push(
+              { year, account: 'Bank Accounts', amount: -gap, module: '_rebalance', comment: 'Cash target rebalance' },
+              { year, account: 'Cash Rebalance - Deposits', amount: gap, module: '_rebalance', comment: 'Excess cash to deposits' }
+            );
+          } else {
+            // Shortfall: flag it (don't auto-sell, just show the gap)
+            rebalanceValues.push(
+              { year, account: 'Cash Shortfall', amount: gap, module: '_rebalance', comment: 'Cash below target' }
+            );
+          }
+        }
+      }
+
+      // Insert rebalance entries
+      if (rebalanceValues.length > 0) {
+        const values = [];
+        const params = [];
+        let paramIdx = 1;
+        for (const entry of rebalanceValues) {
+          values.push(`($${paramIdx++}, $${paramIdx++}, $${paramIdx++}, $${paramIdx++}, $${paramIdx++}, $${paramIdx++})`);
+          params.push(scenarioId, entry.year, entry.amount, entry.account, entry.module, entry.comment);
+        }
+        await db.query(`
+          INSERT INTO forecast_entries (scenario_id, forecast_year, amount, account, module, comment)
+          VALUES ${values.join(", ")}
+        `, params);
+        rebalanceEntries = rebalanceValues.length;
+        console.log(`[FORECAST-GENERATE] Created ${rebalanceEntries} rebalance entries`);
+      }
+    }
+
+    // Step 8: Calculate statistics
+    const totalEntries = results.reduce((sum, r) => sum + (r?.entriesCount || 0), 0) + rebalanceEntries;
     const durationMs = Date.now() - startTime;
 
     console.log(`[FORECAST-GENERATE] Forecast generation completed successfully`);
