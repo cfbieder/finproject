@@ -48,6 +48,19 @@ export default function FCModuleManage() {
     traitDefaults,
   } = useCoa();
 
+  // Load module types from appdata
+  const [moduleTypes, setModuleTypes] = useState(null);
+  useEffect(() => {
+    Rest.fetchAppDataV2().then((data) => {
+      const doc = Array.isArray(data) && data.length > 0 ? data[0] : data;
+      if (Array.isArray(doc?.moduleTypes) && doc.moduleTypes.length > 0) {
+        setModuleTypes(doc.moduleTypes);
+      }
+    }).catch(() => {});
+  }, []);
+
+  const traitsWithModuleTypes = { ...traits, moduleTypes };
+
   // Custom hooks for data loading
   const {
     assumptions,
@@ -374,6 +387,7 @@ export default function FCModuleManage() {
         : null,
       AccountNumber: editForm.AccountNumber ?? "",
       Comment: (editForm.Comment ?? "").toString().trim(),
+      SetupStatus: editForm.SetupStatus || "new",
     };
 
     // Process numeric fields with validation
@@ -564,7 +578,7 @@ export default function FCModuleManage() {
           onFieldChange={handleEditFieldChange}
           onSubmit={handleSaveEdit}
           refreshToken={editRefreshToken}
-          traits={traits}
+          traits={traitsWithModuleTypes}
           bsLevel2Options={bsLevel2Options}
           getChildCategoriesForAccount={getChildCategoriesForAccount}
           allModules={modules}

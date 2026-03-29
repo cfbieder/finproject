@@ -131,7 +131,7 @@ psproject/                          # ~/Programs/fin symlinks here
 │   ├── package.json
 │   ├── nodemon.json
 │   ├── .env-cmdrc
-│   ├── db/migrations/           # PostgreSQL schema (001_initial_schema.sql, 002_psdata_staging.sql, 003_accepted_field.sql)
+│   ├── db/migrations/           # PostgreSQL schema (001-006: core, 007: fc_lines, 008: drop old fc cols, 009: target_cash, 010: tax_rate_override, 011: setup_status)
 │   └── src/
 │       ├── server.js            # HTTP server entry point
 │       ├── app.js               # Express app config, route mounting
@@ -175,11 +175,12 @@ psproject/                          # ~/Programs/fin symlinks here
 | `/budget-graph` | BudgetRealizationGraph | Budgeting | Visual budget analysis |
 | `/budget-variances` | BudgetVariances | Budgeting | Line items ranked by largest variance |
 | `/budget-fx` | BudgetFX | Budgeting | Monthly budget FX rates per currency per year. Year selector, 12-month table with double-click editing, per-month Recalculate from average actual FX with preview modal. Uses `budget_fx_rates` DB table. |
-| `/forecast-mapping` | FCLineMapping | Forecasting | Step 1 — FC Inc/Exp Mapping. Define FC Lines, assign budget categories via drag/drop (Ctrl+Click multi-select), set line types. "Generate Suggestions" opens selectable checklist of P&L parent accounts (only shows names not yet created). Independent scroll panels for FC Lines and Unassigned categories. Coverage bar, budget totals, category detail modal. Unassigned list excludes children of assigned parents (recursive CTE). API: `GET/POST /api/v2/fc-lines`, `GET /suggestions`, `POST /create-from-suggestions`, `GET /unassigned-categories`, `GET /budget-totals`. |
-| `/forecast-scenarios` | FCScenarios | Forecasting | Step 2 — Manage forecast scenarios. "+ New Scenario" immediately prompts for name. Default FX keys (PLN, EUR) always shown in FX modal even on fresh scenarios. |
-| `/forecast-modules` | FCModuleManage | Forecasting | Step 3 — Configure BS modules. "Add from Actuals" creates modules from year-end balances (tree view, excludes Bank Accounts and children of matched parents). "Unmatched" excludes children of matched parent accounts. Edit form: Account/Name read-only when matched; Expense/Income Line pickers, Expense Amount (Yr 1), Growth method toggle. |
-| `/forecast-setup-exp` | FCExpSetup | Forecasting | Step 4 — Income/expense forecast items. "Add from FC Lines" shows Forecast Expense/Income lines with budget pre-fill, creates items with base date, fc_line_id, budget_source_year. |
-| `/forecast-review` | FCReview | Forecasting | Step 5 — Review generated forecasts with KPI summary cards (Total Assets, Net Cash Flow, Income, Expenses trends). |
+| `/forecast-mapping` | FCLineMapping | Forecasting | Step 1 — FC Inc/Exp Mapping. Define FC Lines, assign budget categories via drag/drop (Ctrl+Click multi-select), set line types. "Generate Suggestions" opens selectable checklist of P&L parent accounts (only shows names not yet created). Independent scroll panels. Coverage bar, budget totals, category detail modal. Unassigned list excludes children of assigned parents (recursive CTE). |
+| `/forecast-scenarios` | FCScenarios | Forecasting | Step 2 — Manage forecast scenarios. "+ New Scenario" immediately prompts for name. Target Cash field for auto-balance. Copy scenario with optional "Update base values from actuals" checkbox. |
+| `/forecast-modules` | FCModuleManage | Forecasting | Step 3 — Configure BS modules. "Add from Actuals" creates modules from year-end balances (tree view with Select All/Clear). Setup status tracking (New/In Progress/Complete) with color-coded badges and filter. Edit form: Account/Name read-only when matched; Type editable from configurable list; Expense/Income Line pickers, Growth (x Inflation), Expense Amount, Income/Yield %, Tax Rate Override. |
+| `/forecast-setup-exp` | FCExpSetup | Forecasting | Step 4 — Income/expense forecast items. "Add from FC Lines" shows Forecast Expense/Income lines with budget pre-fill. Account/Name/Type locked for FC Line items. |
+| `/forecast-review` | FCReview | Forecasting | Step 5 — Review generated forecasts with KPI cards, age row (from birth year), collapsible "Change in Net Worth" equity bridge section (Operating, Tax, Asset Value Changes, Total). Cash Shortfall/Rebalance rows from target cash auto-balance. |
+| `/fc-settings` | FCSettings | Forecasting | FC Settings — Birth Year (age row in Review), Module Types (configurable dropdown list), and FX Rate Assumptions (moved from old `/fx-options`). |
 | `/balance` | BalanceV2 | Reports & Graphs | Redesigned balance sheet. KPI cards for Net Worth (highlighted), Total Assets, Total Liabilities. Compact toolbar with inline period controls (1-3 periods with P1/P2/P3 badges + date pickers), Generate button, expand/collapse icon buttons, and Export. Reuses existing `BalanceReport` component for the hierarchical account tree table with sticky headers/columns, resizable account column, row highlighting, path-based collapse state, and Net Worth footer row. Auto-generates report on page load. |
 | `/cash-flow` | CashFlow | Reports & Graphs | Cash flow P&L analysis |
 | `/cash-flow-monthly` | CashFlowMonthly | Reports & Graphs | Monthly cash flow breakdown |

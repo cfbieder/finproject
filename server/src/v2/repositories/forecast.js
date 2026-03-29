@@ -328,7 +328,7 @@ async function updateModule(id, data) {
   const allowedFields = [
     'account_id', 'name', 'module_type', 'currency',
     'expense_amount', 'expense_fc_line_id', 'income_fc_line_id', 'expense_growth_method',
-    'income_amount', 'base_date', 'base_value', 'tax_rate_override',
+    'income_amount', 'base_date', 'base_value', 'tax_rate_override', 'setup_status',
     'market_value', 'base_value_usd', 'market_value_usd',
     'growth_rate', 'comment', 'is_matched'
   ];
@@ -523,7 +523,7 @@ async function updateIncExp(id, data) {
   const allowedFields = [
     'account_id', 'name', 'item_type', 'currency',
     'base_date', 'base_value', 'base_value_usd',
-    'growth_rate', 'comment', 'is_matched'
+    'growth_rate', 'comment', 'is_matched', 'setup_status'
   ];
 
   for (const field of allowedFields) {

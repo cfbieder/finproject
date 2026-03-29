@@ -62,7 +62,7 @@ async function loadModulesForScenario(scenarioId, fcLineNameMap) {
     SELECT m.*, a.name as account_name, a.account_type
     FROM forecast_modules m
     LEFT JOIN accounts a ON m.account_id = a.id
-    WHERE m.scenario_id = $1
+    WHERE m.scenario_id = $1 AND COALESCE(m.setup_status, 'new') = 'complete'
   `, [scenarioId]);
 
   const modules = modulesResult.rows;
@@ -134,7 +134,7 @@ async function loadIncExpModulesForScenario(scenarioId) {
     SELECT ie.*, a.name as account_name
     FROM forecast_income_expense ie
     LEFT JOIN accounts a ON ie.account_id = a.id
-    WHERE ie.scenario_id = $1
+    WHERE ie.scenario_id = $1 AND COALESCE(ie.setup_status, 'new') = 'complete'
   `, [scenarioId]);
 
   const items = itemsResult.rows;
@@ -192,7 +192,7 @@ async function loadCategoriesForScenario(scenarioId, fcLineNameMap) {
       array_agg(DISTINCT m.income_fc_line_id) FILTER (WHERE m.income_fc_line_id IS NOT NULL) as income_fc_line_ids
     FROM forecast_modules m
     LEFT JOIN accounts a ON m.account_id = a.id
-    WHERE m.scenario_id = $1
+    WHERE m.scenario_id = $1 AND COALESCE(m.setup_status, 'new') = 'complete'
   `, [scenarioId]);
 
   const row = result.rows[0] || {};
@@ -226,7 +226,7 @@ async function loadIncExpCategoriesForScenario(scenarioId) {
     SELECT array_agg(DISTINCT a.name) FILTER (WHERE a.name IS NOT NULL) as incexp_categories
     FROM forecast_income_expense ie
     LEFT JOIN accounts a ON ie.account_id = a.id
-    WHERE ie.scenario_id = $1
+    WHERE ie.scenario_id = $1 AND COALESCE(ie.setup_status, 'new') = 'complete'
   `, [scenarioId]);
 
   return {

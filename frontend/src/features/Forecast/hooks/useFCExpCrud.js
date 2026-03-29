@@ -166,6 +166,7 @@ export function useFCExpCrud(
       BaseValueUSD: normalizeNumber(editForm.BaseValueUSD),
       Growth: normalizeNumber(editForm.Growth),
       Comment: (editForm.Comment || "").trim(),
+      SetupStatus: editForm.SetupStatus || "new",
       Changes: normalizeChanges(editForm.Changes),
     };
 

@@ -304,7 +304,7 @@ router.get('/modules', async (req, res, next) => {
       Scenario: m.scenario_name || scenario,
       Name: m.name,
       Account: m.account_name,
-      Type: m.module_type,
+      Type: m.module_type ? m.module_type.charAt(0).toUpperCase() + m.module_type.slice(1) : '',
       Currency: m.currency,
       ExpenseAmount: m.expense_amount,
       ExpenseFcLineId: m.expense_fc_line_id,
@@ -320,6 +320,8 @@ router.get('/modules', async (req, res, next) => {
       GrowthRate: m.growth_rate,
       Comment: m.comment,
       IsMatched: m.is_matched,
+      Matched: m.is_matched,
+      SetupStatus: m.setup_status || 'new',
     }));
 
     res.json(transformed);
@@ -418,6 +420,7 @@ router.get('/modules/:id', async (req, res, next) => {
         Comment: m.comment,
         IsMatched: m.is_matched,
         Matched: m.is_matched,
+        SetupStatus: m.setup_status || 'new',
         IncomePct: (m.income_pct || []).map(r => ({
           Date: r.effective_date,
           Value: parseFloat(r.value) || 0,
@@ -552,6 +555,7 @@ router.put('/modules/:id', async (req, res, next) => {
     if (body.IncomeFcLineId !== undefined) updateData.income_fc_line_id = body.IncomeFcLineId;
     if (body.ExpenseGrowthMethod !== undefined) updateData.expense_growth_method = body.ExpenseGrowthMethod;
     if (body.TaxRateOverride !== undefined) updateData.tax_rate_override = body.TaxRateOverride;
+    if (body.SetupStatus !== undefined) updateData.setup_status = body.SetupStatus;
     if (body.IncomeAmount !== undefined) updateData.income_amount = body.IncomeAmount;
     if (body.BaseDate !== undefined) updateData.base_date = body.BaseDate;
     if (body.BaseValue !== undefined) updateData.base_value = body.BaseValue;
@@ -901,6 +905,7 @@ router.get('/incomeexpense', async (req, res, next) => {
       Comment: item.comment,
       Matched: item.is_matched,
       FcLineId: item.fc_line_id || null,
+      SetupStatus: item.setup_status || 'new',
       Changes: item.changes || [],
     }));
 
@@ -1025,6 +1030,7 @@ router.put('/incomeexpense/:id', async (req, res, next) => {
     if (body.Growth !== undefined) updateData.growth_rate = body.Growth;
     if (body.Comment !== undefined) updateData.comment = body.Comment;
     if (body.Matched !== undefined) updateData.is_matched = Boolean(body.Matched);
+    if (body.SetupStatus !== undefined) updateData.setup_status = body.SetupStatus;
 
     const item = await repo.updateIncExp(id, updateData);
     if (!item) {

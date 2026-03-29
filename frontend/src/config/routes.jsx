@@ -48,7 +48,7 @@ const FCLineMapping = lazy(() => import("../pages/FCLineMapping"));
 const FCModuleManage = lazy(() => import("../pages/FCModuleManage"));
 const FCReview = lazy(() => import("../pages/FCReview"));
 const FCScenarios = lazy(() => import("../pages/FCScenarios"));
-const FXOptions = lazy(() => import("../pages/FXOptions"));
+const FCSettings = lazy(() => import("../pages/FCSettings"));
 const ProgramSettings = lazy(() => import("../pages/ProgramSettings"));
 const RefreshPS = lazy(() => import("../pages/RefreshPS"));
 const TransActual = lazy(() => import("../pages/TransActual"));
@@ -246,11 +246,11 @@ export const routes = [
     icon: Eye,
   },
   {
-    path: "/fx-options",
-    component: FXOptions,
-    label: "Forecast FX Assumptions",
+    path: "/fc-settings",
+    component: FCSettings,
+    label: "FC Settings",
     category: "Forecasting",
-    description: "Manage exchange rate assumptions for forecast scenarios",
+    description: "Birth year, module types, and FX rate assumptions",
     icon: DollarSign,
   },
 

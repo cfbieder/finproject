@@ -173,6 +173,7 @@ export default function FCModulesTable({
 }) {
   const [typeFilter, setTypeFilter] = useState("all");
   const [matchedFilter, setMatchedFilter] = useState("all");
+  const [statusFilter, setStatusFilter] = useState("all");
   const [accountFilter, setAccountFilter] = useState("all");
   const [sortField, setSortField] = useState("");
   const [sortDirection, setSortDirection] = useState("asc");
@@ -207,7 +208,9 @@ export default function FCModulesTable({
         (matchedFilter === "matched" ? module?.Matched : !module?.Matched);
       const accountMatches =
         accountFilter === "all" || (module?.Account ?? "") === accountFilter;
-      return typeMatches && matchedMatches && accountMatches;
+      const statusMatches =
+        statusFilter === "all" || (module?.SetupStatus ?? "new") === statusFilter;
+      return typeMatches && matchedMatches && accountMatches && statusMatches;
     });
 
     if (!sortField) {
@@ -239,6 +242,7 @@ export default function FCModulesTable({
     modules,
     typeFilter,
     matchedFilter,
+    statusFilter,
     accountFilter,
     sortField,
     sortDirection,
@@ -287,6 +291,19 @@ export default function FCModulesTable({
                 <option value="all">All</option>
                 <option value="matched">Matched</option>
                 <option value="unmatched">Unmatched</option>
+              </select>
+
+              <select
+                id="fc-filter-status"
+                className="form-input fc-modules-table__filter-select"
+                value={statusFilter}
+                onChange={(event) => setStatusFilter(event.target.value)}
+                aria-label="Filter by setup status"
+              >
+                <option value="all">All Status</option>
+                <option value="new">New</option>
+                <option value="in_progress">In Progress</option>
+                <option value="complete">Complete</option>
               </select>
 
               <select
@@ -371,6 +388,9 @@ export default function FCModulesTable({
                       <th className="fc-modules-table__th fc-modules-table__th--center">
                         Matched
                       </th>
+                      <th className="fc-modules-table__th fc-modules-table__th--center">
+                        Status
+                      </th>
                       <th className="fc-modules-table__th fc-modules-table__th--numeric">
                         Base (USD)
                       </th>
@@ -423,6 +443,18 @@ export default function FCModulesTable({
                               }`}
                             >
                               {module?.Matched ? "Yes" : "No"}
+                            </span>
+                          </td>
+                          <td className="fc-modules-table__td fc-modules-table__td--center">
+                            <span
+                              style={{
+                                display: "inline-block", padding: "0.15rem 0.5rem", borderRadius: "1rem",
+                                fontSize: "0.75rem", fontWeight: 600,
+                                background: (module?.SetupStatus || "new") === "complete" ? "#dcfce7" : (module?.SetupStatus) === "in_progress" ? "#fef3c7" : "#f1f5f9",
+                                color: (module?.SetupStatus || "new") === "complete" ? "#16a34a" : (module?.SetupStatus) === "in_progress" ? "#d97706" : "#64748b",
+                              }}
+                            >
+                              {(module?.SetupStatus || "new") === "complete" ? "Complete" : (module?.SetupStatus) === "in_progress" ? "In Progress" : "New"}
                             </span>
                           </td>
                           <td className="fc-modules-table__td fc-modules-table__td--numeric">

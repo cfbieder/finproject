@@ -486,6 +486,7 @@ export default function FCModulesEditModal({
     ["Income Line", "IncomeFcLineId", "fc-line-income"],
     ["Income Amount (Yr 1)", "IncomeAmount", "number"],
     ["Tax Rate Override (%)", "TaxRateOverride", "number"],
+    ["Status", "SetupStatus", "setup-status"],
     ["Comment", "Comment", "textarea"],
   ];
 
@@ -707,6 +708,12 @@ export default function FCModulesEditModal({
                     const currentValue = editForm[field] ?? "";
                     if (isMatched) {
                       if (field === "Type") {
+                        // Type stays editable even when matched
+                        const capitalize = (v) => v ? v.charAt(0).toUpperCase() + v.slice(1) : "";
+                        const typeValue = capitalize(currentValue);
+                        const typeOpts = (traits?.moduleTypes && traits.moduleTypes.length > 0)
+                          ? traits.moduleTypes
+                          : ["Asset", "Liability", "Deposit", "Fixed Income", "Bond", "Real Estate", "Private Equity", "Business"];
                         return (
                           <label
                             key={field}
@@ -715,12 +722,18 @@ export default function FCModulesEditModal({
                             <span className="fc-modules-modal__label">
                               {label}
                             </span>
-                            <input
-                              type="text"
+                            <select
                               className="fc-modules-modal__input"
-                              value={accountTraits[field] ?? currentValue}
-                              disabled
-                            />
+                              value={typeValue}
+                              onChange={(e) => onFieldChange("Type", e.target.value)}
+                            >
+                              {typeOpts.map((opt) => (
+                                <option key={opt} value={opt}>{opt}</option>
+                              ))}
+                              {typeValue && !typeOpts.includes(typeValue) && (
+                                <option value={typeValue}>{typeValue}</option>
+                              )}
+                            </select>
                           </label>
                         );
                       }
@@ -870,6 +883,24 @@ export default function FCModulesEditModal({
                         >
                           <option value="inflation">Grow at Inflation</option>
                           <option value="pct_of_value">Grow as % of Asset Value</option>
+                        </select>
+                      </label>
+                    );
+                  }
+
+                  if (type === "setup-status") {
+                    const statusValue = editForm.SetupStatus || "new";
+                    return (
+                      <label key={field} className="fc-modules-modal__field">
+                        <span className="fc-modules-modal__label">{label}</span>
+                        <select
+                          className="fc-modules-modal__input"
+                          value={statusValue}
+                          onChange={(event) => onFieldChange("SetupStatus", event.target.value)}
+                        >
+                          <option value="new">New</option>
+                          <option value="in_progress">In Progress</option>
+                          <option value="complete">Complete</option>
                         </select>
                       </label>
                     );

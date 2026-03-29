@@ -1,7 +1,7 @@
 {
   "scenarios": [
     {
-      "Name": "Test",
+      "Name": "2026 Base",
       "PeriodStart": 2027,
       "PeriodEnd": 2037
     }
@@ -19,6 +19,11 @@
       "Scenario": "Test",
       "Year": 2026,
       "Rate": 3
+    },
+    {
+      "Scenario": "2026 Base",
+      "Year": 2026,
+      "Rate": 2.5
     }
   ],
   "FX": [
@@ -29,11 +34,23 @@
         "PLN": 4,
         "EUR": 0.85
       }
+    },
+    {
+      "Scenario": "2026 Base",
+      "Year": 2026,
+      "Rates": {
+        "PLN": 3.9,
+        "EUR": 0.86
+      }
     }
   ],
   "Tax Rate": [
     {
       "Scenario": "Test",
+      "Rate": 25
+    },
+    {
+      "Scenario": "2026 Base",
       "Rate": 25
     }
   ]

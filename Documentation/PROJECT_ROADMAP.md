@@ -31,7 +31,7 @@ Items from active development notes:
 - [x] On liabilities the expense needs to be a negative percent — can this be fixed
 - [x] Add some KPIs to Budget Page and Forecast Page with graphics
 - [ ] Add way to re-export changes back to PocketSmith
-- [x] Move Forecast FX Assumptions from Settings `/fx-options` to Forecasting category
+- [x] Move Forecast FX Assumptions from Settings `/fx-options` to Forecasting category — now part of FC Settings page (`/fc-settings`)
 - [x] Add Transfer Analysis page (`/transfer-analysis`) — match debit/credit transfer pairs by amount within date tolerance, show matched and unmatched transfers by category
 - [x] Add Manual Match Groups to Transfer Analysis — persistent many-to-one transfer matching via checkbox selection + "Link as Matched" action, with Unlink capability. DB tables: `transfer_match_groups`, `transfer_match_group_members`. API: `POST/GET/DELETE /api/v2/transfer-match-groups`
 - [x] Transfer Matched flag + Actuals filter — `transfer_matched` boolean column on transactions (migration `006`), persisted when Transfer Analysis runs. Transfer Status dropdown (All/Matched/Unmatched) added to Actuals filter panel footer. Link bar shows net base amount of selected transactions (green when zero)
@@ -56,6 +56,9 @@ Items from active development notes:
 - [x] Forecast: Phase 5 — Display Enhancements (G7 age tracking with birth year in Settings + age row in Review; G9 equity bridge "Change in Net Worth" collapsible section)
 - [x] Forecast: Per-module tax rate override (migration 010, Tax Rate Override field in module edit, engine uses per-module rate when set)
 - [x] Forecast: E2E engine test suite — 8 comprehensive tests covering equity/property/fixed-income/liability/incexp/FX/tax-deferral/no-expense scenarios. 49 total automated tests.
+- [x] Forecast: FC Settings page (`/fc-settings`) — combines Birth Year, Module Types (configurable list), and FX Assumptions (moved from `/fx-options`)
+- [x] Forecast: Module setup status tracking — `setup_status` column (migration 011), color-coded badges (New/In Progress/Complete), table filter, edit dropdown
+- [x] Forecast: Module Type editable when matched, configurable type list from appdata, capitalized in API response
 
 ---
 

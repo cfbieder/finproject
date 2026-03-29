@@ -99,6 +99,11 @@ export default function FCExpSetup() {
   );
 
   const [showAddFromLinesModal, setShowAddFromLinesModal] = useState(false);
+  const [statusFilter, setStatusFilter] = useState("all");
+
+  const filteredEntries = statusFilter === "all"
+    ? sortedEntries
+    : sortedEntries.filter((e) => (e.SetupStatus || "new") === statusFilter);
 
   const reloadEntries = () => {
     // Trigger re-fetch by toggling scenario
@@ -128,13 +133,15 @@ export default function FCExpSetup() {
           deleteDisabled={!selectedScenario || !sortedEntries.length}
           onAddFromLinesClick={() => setShowAddFromLinesModal(true)}
           addFromLinesDisabled={!selectedScenario}
+          statusFilter={statusFilter}
+          onStatusFilterChange={setStatusFilter}
         />
         <div className="exp-setup-sections">
           <FCExpTable
             entriesLoading={entriesLoading}
             entriesError={entriesError}
             selectedScenario={selectedScenario}
-            sortedEntries={sortedEntries}
+            sortedEntries={filteredEntries}
             selectedEntryId={selectedEntryId}
             onSelectEntry={setSelectedEntryId}
             getEntryId={getEntryId}

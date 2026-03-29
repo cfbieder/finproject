@@ -378,6 +378,20 @@ export default function FCExpModal({
                 />
               </div>
 
+              {/* Status */}
+              <div className="fc-exp-modal__field">
+                <label className="fc-exp-modal__label">Status</label>
+                <select
+                  className="fc-exp-modal__input"
+                  value={editForm?.SetupStatus || "new"}
+                  onChange={(e) => onFieldChange("SetupStatus", e.target.value)}
+                >
+                  <option value="new">New</option>
+                  <option value="in_progress">In Progress</option>
+                  <option value="complete">Complete</option>
+                </select>
+              </div>
+
               {/* Comment */}
               <div className="fc-exp-modal__field fc-exp-modal__field--full">
                 <label className="fc-exp-modal__label">Comment</label>

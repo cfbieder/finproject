@@ -42,6 +42,8 @@ export default function FCExpFilter({
   editDisabled,
   deleteDisabled,
   addFromLinesDisabled,
+  statusFilter,
+  onStatusFilterChange,
 }) {
   const scenarios = assumptions?.scenarios || [];
 
@@ -158,6 +160,22 @@ export default function FCExpFilter({
                 </div>
               </div>
             </div>
+
+            {onStatusFilterChange && (
+              <div style={{ marginTop: "0.5rem" }}>
+                <select
+                  className="form-input"
+                  value={statusFilter || "all"}
+                  onChange={(e) => onStatusFilterChange(e.target.value)}
+                  style={{ fontSize: "0.8rem", width: "auto" }}
+                >
+                  <option value="all">All Status</option>
+                  <option value="new">New</option>
+                  <option value="in_progress">In Progress</option>
+                  <option value="complete">Complete</option>
+                </select>
+              </div>
+            )}
 
             {(periodStart || periodEnd) && (
               <div className="fc-modules-filter__period">

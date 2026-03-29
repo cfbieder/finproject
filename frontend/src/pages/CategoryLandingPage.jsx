@@ -79,6 +79,7 @@ export default function CategoryLandingPage() {
           </div>
         </section>
       ))}
+
     </div>
   );
 }

@@ -245,6 +245,11 @@ Older or simplified version with fewer asset classes; appears to be a quick-refe
 - Fixed Graph button disabled — removed unnecessary loading state dependencies; now enabled when rows are selected
 - Added `PUT /api/v2/forecast/scenarios/:id` endpoint for updating scenario fields (target_cash)
 - Added Select All / Clear buttons to Add from Actuals modal
+- Added `Matched` field to module list GET response (was only `IsMatched`, table read `Matched`)
+- Module Type capitalized in API response and editable even when matched (dropdown with configurable types)
+- Module Type dropdown options sourced from appdata `moduleTypes` (configurable via FC Settings page)
+- New FC Settings page (`/fc-settings`) — combines Birth Year, Module Types, and FX Assumptions (replaces old `/fx-options`)
+- Module setup status tracking: `setup_status` column (migration 011), color-coded badges (New/In Progress/Complete), table filter, edit form dropdown
 
 **Additional fixes applied during Phase 2/2B (prior sessions):**
 - Fixed `PUT /assumptions` to preserve `scenarios` array in FCAssump.json (was being stripped, breaking forecast generation)
