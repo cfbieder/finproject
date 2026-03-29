@@ -97,6 +97,29 @@
   background: var(--hover, #f8fafc);
 }
 
+/* ── Category filter ── */
+.ledger-filters__category {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+  min-width: 180px;
+}
+
+/* ── Total amount in footer ── */
+.ledger-total-amount {
+  font-weight: 600;
+  font-size: 0.82rem;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.ledger-total-amount__ccy {
+  margin-left: 0.3rem;
+  font-size: 0.7rem;
+  font-weight: 400;
+  color: var(--muted, #64748b);
+}
+
 /* Balance column styling */
 .ledger-td--balance {
   font-weight: 600;
@@ -137,6 +160,11 @@
   }
 
   .ledger-cascade__field {
+    min-width: unset;
+    width: 100%;
+  }
+
+  .ledger-filters__category {
     min-width: unset;
     width: 100%;
   }

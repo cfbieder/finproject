@@ -101,6 +101,9 @@ export default function Ledger() {
   // ─── Search ───
   const [searchText, setSearchText] = useState("");
 
+  // ─── Category filter ───
+  const [selectedCategory, setSelectedCategory] = useState("");
+
   // ─── Filters derived from account + period selection ───
   const [filters, setFilters] = useState(() => ({ ...LEDGER_CONFIG.defaultFilters }));
 
@@ -225,23 +228,41 @@ export default function Ledger() {
     hasAccount ? filters : { ...LEDGER_CONFIG.defaultFilters, accountEnabled: false, account: [] }
   );
 
-  // ─── Search filtering ───
+  // ─── Unique category list from loaded transactions ───
+  const transactionCategories = useMemo(() => {
+    const cats = new Set();
+    for (const t of transactions) {
+      if (t.Category) cats.add(t.Category);
+    }
+    return [...cats].sort((a, b) => a.localeCompare(b));
+  }, [transactions]);
+
+  // ─── Search + category filtering ───
   const searchFiltered = useMemo(() => {
-    if (!searchText.trim()) return transactions;
-    const q = searchText.trim().toLowerCase();
-    return transactions.filter((entry) => {
-      const haystack = [
-        entry?.Description1,
-        entry?.Description2,
-        entry?.Category,
-        String(entry?.Amount),
-      ]
-        .filter(Boolean)
-        .join(" ")
-        .toLowerCase();
-      return haystack.includes(q);
-    });
-  }, [transactions, searchText]);
+    let filtered = transactions;
+
+    if (selectedCategory) {
+      filtered = filtered.filter((entry) => entry?.Category === selectedCategory);
+    }
+
+    if (searchText.trim()) {
+      const q = searchText.trim().toLowerCase();
+      filtered = filtered.filter((entry) => {
+        const haystack = [
+          entry?.Description1,
+          entry?.Description2,
+          entry?.Category,
+          String(entry?.Amount),
+        ]
+          .filter(Boolean)
+          .join(" ")
+          .toLowerCase();
+        return haystack.includes(q);
+      });
+    }
+
+    return filtered;
+  }, [transactions, searchText, selectedCategory]);
 
   // ─── Sort + Selection ───
   const {
@@ -313,6 +334,16 @@ export default function Ledger() {
       runningBalance: balanceMap.get(item.rowId) ?? 0,
     }));
   }, [sortedTransactions]);
+
+  // ─── Total amount for displayed transactions ───
+  const totalAmount = useMemo(() => {
+    let sum = 0;
+    for (const { entry } of transactionsWithBalance) {
+      const n = Number(entry.Amount);
+      if (Number.isFinite(n)) sum += n;
+    }
+    return sum;
+  }, [transactionsWithBalance]);
 
   const handleLoadMore = useCallback(() => {
     setTransactionLimit((prev) => prev + BATCH_SIZE);
@@ -540,6 +571,23 @@ export default function Ledger() {
                 />
               )}
             </div>
+
+            {/* Category filter */}
+            {hasAccount && transactionCategories.length > 0 && (
+              <div className="ledger-filters__category">
+                <span className="txv2-filters__label">Category</span>
+                <select
+                  className="ledger-cascade__select"
+                  value={selectedCategory}
+                  onChange={(e) => setSelectedCategory(e.target.value)}
+                >
+                  <option value="">All Categories</option>
+                  {transactionCategories.map((cat) => (
+                    <option key={cat} value={cat}>{cat}</option>
+                  ))}
+                </select>
+              </div>
+            )}
           </div>
         </div>
       )}
@@ -686,6 +734,10 @@ export default function Ledger() {
                   {hasMoreTransactions
                     ? `${transactionLimit.toLocaleString()}+`
                     : transactionsWithBalance.length.toLocaleString()}
+                </span>
+                <span className={`ledger-total-amount ${totalAmount < 0 ? "txv2-amount--negative" : "txv2-amount--positive"}`}>
+                  Total: {formatAmount(totalAmount)}
+                  {accountCurrency && <span className="ledger-total-amount__ccy">{accountCurrency}</span>}
                 </span>
                 {hasMoreTransactions && (
                   <button
