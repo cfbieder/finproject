@@ -57,7 +57,7 @@ Items from active development notes:
 - [x] Forecast: Per-module tax rate override (migration 010, Tax Rate Override field in module edit, engine uses per-module rate when set)
 - [x] Forecast: E2E engine test suite — 8 comprehensive tests covering equity/property/fixed-income/liability/incexp/FX/tax-deferral/no-expense scenarios. 49 total automated tests.
 - [x] Forecast: FC Settings page (`/fc-settings`) — combines Birth Year, Module Types (configurable list), and FX Assumptions (moved from `/fx-options`)
-- [x] Forecast: Module setup status tracking — `setup_status` column (migration 011), color-coded badges (New/In Progress/Complete), table filter, edit dropdown
+- [x] Forecast: Module setup status tracking — `setup_status` column (migration 011) on both modules and expenses, color-coded badges (New/In Progress/Complete), table filter, edit dropdown. Engine only generates from "Complete" items for incremental review.
 - [x] Forecast: Module Type editable when matched, configurable type list from appdata, capitalized in API response
 
 ---
