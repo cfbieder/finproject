@@ -181,10 +181,14 @@ async function processModule(module, scenario, df_assumptions, df_categories, ca
       module.Currency === "EUR" ? categories[3] : null;
     if (fxColumn && df_assumptions.columns.includes(fxColumn)) {
       const fxSeries = df_assumptions.column(fxColumn).values;
+      const firstFxRate = fxSeries[0] || 1;
       for (let i = 0, year = startyear; year <= endyear; i++, year++) {
         const idx = year - periodStart;
         if (idx >= 0 && idx < fxSeries.length) {
           fxrates[i] = fxSeries[idx];
+        } else if (idx < 0) {
+          // Pre-period years: use first available FX rate
+          fxrates[i] = firstFxRate;
         }
       }
     }
@@ -299,49 +303,40 @@ async function processModule(module, scenario, df_assumptions, df_categories, ca
   const skipExpense = hasExpenseFcLineField && !module.expense_fc_line_id && absExpenseAmount === 0;
 
   if (!skipExpense && absExpenseAmount > 0 && growthMethod === 'pct_of_value') {
-    // Pct of value: derive implicit % from year-1 amount / market value base
+    // Pct of value: derive % from base expense / base MV, apply to avg MV each period
     const marketValueBase = module.MarketValue || 0;
     const derivedPct = marketValueBase !== 0 ? absExpenseAmount / marketValueBase : 0;
 
-    if (derivedPct === 0) {
-      // Zero market value fallback: use inflation method instead
-      for (let i = 0, year = startyear; year <= endyear; i++, year++) {
-        const idx = year - periodStart;
-        if (idx >= 0 && idx < inflationLen) {
-          let compounded = absExpenseAmount;
-          for (let j = 1; j <= i; j++) {
-            const jIdx = (startyear + j) - periodStart;
-            if (jIdx >= 0 && jIdx < inflationLen) {
-              compounded *= (1 + inflationSeries[jIdx] / 100);
-            }
-          }
-          expenseValues[i] = isLiability ? compounded : -compounded;
-        }
-      }
-    } else {
-      for (let i = 0, year = startyear; year <= endyear; i++, year++) {
-        const idx = year - periodStart;
-        if (idx >= 0 && idx < inflationLen) {
-          const avgMV = (marketValues[i] + (marketValues[i - 1] ?? 0)) / 2;
-          const val = derivedPct * avgMV;
-          expenseValues[i] = isLiability ? val : -val;
-        }
-      }
-    }
-  } else if (!skipExpense && absExpenseAmount > 0) {
-    // Inflation mode (default): absolute expense amount compounded at inflation from base year
     for (let i = 0, year = startyear; year <= endyear; i++, year++) {
       const idx = year - periodStart;
-      if (idx >= 0 && idx < inflationLen) {
+      if (idx < 0 || idx >= inflationLen) continue;
+
+      if (derivedPct !== 0) {
+        const avgMV = (marketValues[i] + (marketValues[i - 1] ?? 0)) / 2;
+        const val = derivedPct * avgMV;
+        expenseValues[i] = isLiability ? val : -val;
+      } else {
+        // Zero MV fallback: grow base at inflation
+        const periodNum = year - periodStart + 1;
         let compounded = absExpenseAmount;
-        for (let j = 1; j <= i; j++) {
-          const jIdx = (startyear + j) - periodStart;
-          if (jIdx >= 0 && jIdx < inflationLen) {
-            compounded *= (1 + inflationSeries[jIdx] / 100);
-          }
+        for (let j = 0; j < periodNum; j++) {
+          if (j >= 0 && j < inflationLen) compounded *= (1 + inflationSeries[j] / 100);
         }
         expenseValues[i] = isLiability ? compounded : -compounded;
       }
+    }
+  } else if (!skipExpense && absExpenseAmount > 0) {
+    // Inflation mode: grow base year amount at inflation for each period
+    for (let i = 0, year = startyear; year <= endyear; i++, year++) {
+      const idx = year - periodStart;
+      if (idx < 0 || idx >= inflationLen) continue;
+      const periodNum = year - periodStart + 1;
+
+      let compounded = absExpenseAmount;
+      for (let j = 0; j < periodNum; j++) {
+        if (j >= 0 && j < inflationLen) compounded *= (1 + inflationSeries[j] / 100);
+      }
+      expenseValues[i] = isLiability ? compounded : -compounded;
     }
   } else if (!skipExpense) {
     // Legacy fallback: expense_pct as percentage of average market value
@@ -353,12 +348,52 @@ async function processModule(module, scenario, df_assumptions, df_categories, ca
     }
   }
 
+  // Calculate income values
+  // - income_amount (Base Yr): base year income amount — grown at inflation for Period 1+
+  // - IncomePct (yield %): percentage of avg market value — overrides income_amount from Period 2+
+  // Period 1 = income_amount × (1 + inflation), Period 2+ = yield if set, else keep compounding
   const incomeValues = new Array(yearsCount).fill(0);
+  const absIncomeAmount = parseFloat(module.income_amount) || 0;
+  const hasIncomePct = incomePctValues.some(v => v !== 0);
+
   for (let i = 0, year = startyear; year <= endyear; i++, year++) {
     const idx = year - periodStart;
-    incomeValues[i] = idx >= 0 && idx < inflationLen
-      ? (((marketValues[i] + (marketValues[i - 1] ?? 0)) / 2) * incomePctValues[i]) / 100
-      : 0;
+    if (idx < 0 || idx >= inflationLen) continue;
+
+    const yieldIncome = (((marketValues[i] + (marketValues[i - 1] ?? 0)) / 2) * incomePctValues[i]) / 100;
+
+    if (hasIncomePct) {
+      // Module has yield schedule → use yield for all periods (0% means no income)
+      incomeValues[i] = yieldIncome;
+    } else if (absIncomeAmount > 0) {
+      // No yield schedule at all → grow income_amount at inflation from base year
+      const periodNum = year - periodStart + 1;
+      let compounded = absIncomeAmount;
+      for (let j = 0; j < periodNum; j++) {
+        if (j >= 0 && j < inflationLen) {
+          compounded *= (1 + inflationSeries[j] / 100);
+        }
+      }
+      incomeValues[i] = compounded;
+    }
+  }
+
+  // Apply Full disposal adjustments: 50% expense/income in disposal year, 0 after
+  if (Array.isArray(module.Dispose)) {
+    for (const entry of module.Dispose) {
+      if (entry.Flag !== "Full") continue;
+      const dispIdx = new Date(entry.Date).getFullYear() - startyear;
+      if (dispIdx >= 0 && dispIdx < yearsCount) {
+        // Disposal year: 50% of calculated expense/income (asset only owned part of year)
+        expenseValues[dispIdx] = expenseValues[dispIdx] / 2;
+        incomeValues[dispIdx] = incomeValues[dispIdx] / 2;
+        // Zero out all years after disposal
+        for (let j = dispIdx + 1; j < yearsCount; j++) {
+          expenseValues[j] = 0;
+          incomeValues[j] = 0;
+        }
+      }
+    }
   }
 
   // Calculate tax values (deferred by one year — US tax is paid the year after the gain)

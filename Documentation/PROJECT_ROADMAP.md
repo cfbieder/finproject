@@ -59,7 +59,12 @@ Items from active development notes:
 - [x] Forecast: FC Settings page (`/fc-settings`) — combines Birth Year, Module Types (configurable list), and FX Assumptions (moved from `/fx-options`)
 - [x] Forecast: Module setup status tracking — `setup_status` column (migration 011) on both modules and expenses, color-coded badges (New/In Progress/Complete), table filter, edit dropdown. Engine only generates from "Complete" items for incremental review.
 - [x] Forecast: Module Type editable when matched, configurable type list from appdata, capitalized in API response
+- [x] Forecast: Review P&L driven by FC Lines — engine writes entries with FC Line names, Review builds P&L from `/fc-lines/review-structure` instead of COA tree. Unified "Taxes" account name.
+- [x] Forecast: Base Year / Period terminology standardized — `expense_amount` and `income_amount` are Base Year values (renamed from "Yr 1"). Engine grows Base Year values at inflation for Period 1 (first forecast year). Review base year column shows raw base values from completed modules/expenses via `/api/v2/forecast/base-year-values`. Consistent across BS modules and IncExp items.
 - [x] Forecast: Module edit Account Value fix — Base Date changed from Dec 13 to Dec 31 year-end; fixed null values displaying as "0.00" instead of "-"; fixed balance lookup for leaf accounts not found at level 2 in COA tree; multi-child accounts now show all child names in scrollable list and sum all children's account values
+- [ ] Forecast: G10 — Movements/rebalancing summary (shows investment flows and rebalancing totals per year; referenced in spreadsheet Outputs sheet but not yet designed or implemented)
+- [ ] Forecast: Property cost seeding — 31 property cost categories (~$115K total) not yet mapped as individual `expense_amount` values on BS modules (Condo Fees, Property Tax, Utilities, Insurance, Maintenance per property). Requires assigning FC Lines to modules and setting expense amounts from budget.
+- [ ] Forecast: Frontend test framework — Vitest for testing frontend forecast helpers (e.g., `computeEquityBridge`); currently all 49 tests are backend-only
 
 ---
 

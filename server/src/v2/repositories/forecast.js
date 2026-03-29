@@ -379,7 +379,8 @@ async function addDisposal(moduleId, data) {
     VALUES ($1, $2, $3, $4, $5)
     RETURNING *
   `;
-  const result = await db.query(sql, [moduleId, data.disposal_date, data.amount, data.flag, data.note]);
+  const amount = data.amount ?? (data.flag === 'Full' ? 0 : null);
+  const result = await db.query(sql, [moduleId, data.disposal_date, amount, data.flag, data.note]);
   return result.rows[0];
 }
 

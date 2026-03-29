@@ -199,11 +199,11 @@ describe("G8 — Absolute Expense Amounts", () => {
     const expByYear = {};
     expEntries.forEach((e) => { expByYear[e.forecast_year] = e.amount; });
 
-    // Base year (2025) is actuals — no forecast expense entry
-    // Year 1 (2026): 30 * 1.02 = 30.6, Year 2 (2027): 30 * 1.02^2 = 31.212, Year 3 (2028): 30 * 1.02^3
-    expect(expByYear[2025]).toBeUndefined();             // base year has no forecast expense
-    expect(expByYear[2026]).toBeCloseTo(-30.6, 1);       // 30 * (1 + 2%)
-    expect(expByYear[2027]).toBeCloseTo(-31.212, 1);     // 30 * (1 + 2%)^2
+    // expense_amount = 30 is Base Year value
+    // Period 1 (2026): 30 * 1.02 = 30.6, Period 2 (2027): 30 * 1.02^2 = 31.212
+    expect(expByYear[2025]).toBeUndefined();
+    expect(expByYear[2026]).toBeCloseTo(-30.6, 1);       // Period 1: base * (1+2%)
+    expect(expByYear[2027]).toBeCloseTo(-31.212, 1);     // Period 2: base * (1+2%)^2
   });
 
   test("1.7 expense_amount overrides expense_pct", async () => {
@@ -394,10 +394,10 @@ describe("Phase 2B-5 — Engine Update", () => {
     const expByYear = {};
     expEntries.forEach((e) => { expByYear[e.forecast_year] = e.amount; });
 
-    // Year 0 (2025) = base, no forecast entry
-    // Year 1 (2026): 1000 * 1.03 = 1030
-    // Year 2 (2027): 1000 * 1.03^2 = 1060.9
-    // Year 3 (2028): 1000 * 1.03^3 = 1092.727
+    // expense_amount = 1000 is Base Year value
+    // Period 1 (2026): 1000 * 1.03 = 1030
+    // Period 2 (2027): 1000 * 1.03^2 = 1060.9
+    // Period 3 (2028): 1000 * 1.03^3 = 1092.727
     expect(expByYear[2026]).toBeCloseTo(-1030, 0);
     expect(expByYear[2027]).toBeCloseTo(-1060.9, 0);
     expect(expByYear[2028]).toBeCloseTo(-1092.727, 0);
@@ -421,12 +421,10 @@ describe("Phase 2B-5 — Engine Update", () => {
     const expByYear = {};
     expEntries.forEach((e) => { expByYear[e.forecast_year] = e.amount; });
 
-    // derived_pct = 1000 / 100000 = 0.01
-    // Growth = 1 * 5% inflation = 5% market value growth per year
-    // Year 1 (2026): MV[0]=100000, MV[1] = 100000 + 100000*5% = 105000
-    //   avg = (105000 + 100000) / 2 = 102500, expense = 0.01 * 102500 = 1025
-    // Year 2 (2027): MV[2] = 105000 + 105000*5% = 110250
-    //   avg = (110250 + 105000) / 2 = 107625, expense = 0.01 * 107625 = 1076.25
+    // derived_pct = 1000 / 100000 = 0.01 (1%)
+    // Growth = 1 * 5% = 5% MV growth per year
+    // Period 1 (2026): MV[1] = 105K, avg(100K,105K) = 102.5K, 1% = 1025
+    // Period 2 (2027): MV[2] = 110.25K, avg(105K,110.25K) = 107.625K, 1% = 1076.25
     expect(expByYear[2026]).toBeCloseTo(-1025, 0);
     expect(expByYear[2027]).toBeCloseTo(-1076.25, 0);
   });
@@ -505,7 +503,7 @@ describe("Phase 2B-5 — Engine Update", () => {
     const expByYear = {};
     expEntries.forEach((e) => { expByYear[e.forecast_year] = e.amount; });
 
-    // Should fall back to inflation method: 1000 * 1.03 = 1030, 1000 * 1.03^2, etc.
+    // Base = 1000, Period 1 = 1000 * 1.03 = 1030, Period 2 = 1000 * 1.03^2 = 1060.9
     expect(expByYear[2026]).toBeCloseTo(-1030, 0);
     expect(expByYear[2027]).toBeCloseTo(-1060.9, 0);
   });

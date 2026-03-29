@@ -34,13 +34,6 @@ router.get('/assumptions', async (req, res, next) => {
     // Get scenarios from PostgreSQL
     const scenarios = await repo.findAllScenarios({ activeOnly: false });
 
-    const scenariosFormatted = scenarios.map((s) => ({
-      Name: s.name,
-      Description: s.description,
-      IsActive: s.is_active,
-      id: s.id,
-    }));
-
     // Read other assumptions (inflation, FX, tax rates) from file
     let fileAssumptions = {};
     try {
@@ -52,6 +45,21 @@ router.get('/assumptions', async (req, res, next) => {
     } catch (readErr) {
       console.warn('[forecast/assumptions] Could not read FCAssump.json:', readErr.message);
     }
+
+    // Build a lookup from file scenarios to merge PeriodStart/PeriodEnd into DB scenarios
+    const fileScenarioMap = {};
+    for (const fsc of (fileAssumptions.scenarios || [])) {
+      if (fsc.Name) fileScenarioMap[fsc.Name] = fsc;
+    }
+
+    const scenariosFormatted = scenarios.map((s) => ({
+      Name: s.name,
+      Description: s.description,
+      IsActive: s.is_active,
+      id: s.id,
+      ...(fileScenarioMap[s.name]?.PeriodStart != null && { PeriodStart: fileScenarioMap[s.name].PeriodStart }),
+      ...(fileScenarioMap[s.name]?.PeriodEnd != null && { PeriodEnd: fileScenarioMap[s.name].PeriodEnd }),
+    }));
 
     res.json({
       ...fileAssumptions,
@@ -1096,6 +1104,69 @@ router.get('/entries', async (req, res, next) => {
 });
 
 // POST /api/v2/forecast/generate/:scenario
+// GET /api/v2/forecast/base-year-values
+// Returns base year P&L values from completed modules and expenses, grouped by FC Line name
+router.get('/base-year-values', async (req, res, next) => {
+  try {
+    const scenarioName = req.query.scenario?.trim();
+    if (!scenarioName) return res.status(400).json({ error: 'scenario is required' });
+
+    const scenario = await repo.findScenarioByName(scenarioName);
+    if (!scenario) return res.status(404).json({ error: 'Scenario not found' });
+
+    const db = require('../db');
+
+    // Get income/expense amounts from BS modules (by FC Line name)
+    const bsResult = await db.query(`
+      SELECT
+        COALESCE(exp_line.name, 'Unassigned Expense') as label,
+        'expense' as type,
+        SUM(CASE WHEN m.expense_amount IS NOT NULL AND m.expense_amount != 0
+            THEN -m.expense_amount ELSE 0 END) as amount
+      FROM forecast_modules m
+      LEFT JOIN fc_lines exp_line ON m.expense_fc_line_id = exp_line.id
+      WHERE m.scenario_id = $1 AND COALESCE(m.setup_status, 'new') = 'complete'
+        AND m.expense_fc_line_id IS NOT NULL
+      GROUP BY exp_line.name
+      UNION ALL
+      SELECT
+        COALESCE(inc_line.name, 'Unassigned Income') as label,
+        'income' as type,
+        SUM(COALESCE(m.income_amount, 0)) as amount
+      FROM forecast_modules m
+      LEFT JOIN fc_lines inc_line ON m.income_fc_line_id = inc_line.id
+      WHERE m.scenario_id = $1 AND COALESCE(m.setup_status, 'new') = 'complete'
+        AND m.income_fc_line_id IS NOT NULL
+      GROUP BY inc_line.name
+    `, [scenario.id]);
+
+    // Get base values from IncExp items (by FC Line name or item name)
+    const incexpResult = await db.query(`
+      SELECT
+        COALESCE(fl.name, ie.name) as label,
+        ie.base_value as amount
+      FROM forecast_income_expense ie
+      LEFT JOIN fc_lines fl ON ie.fc_line_id = fl.id
+      WHERE ie.scenario_id = $1 AND COALESCE(ie.setup_status, 'new') = 'complete'
+    `, [scenario.id]);
+
+    const values = {};
+    for (const row of bsResult.rows) {
+      const amt = parseFloat(row.amount) || 0;
+      if (amt !== 0) values[row.label] = (values[row.label] || 0) + amt;
+    }
+    for (const row of incexpResult.rows) {
+      const amt = parseFloat(row.amount) || 0;
+      if (amt !== 0) values[row.label] = (values[row.label] || 0) + amt;
+    }
+
+    res.json({ data: values });
+  } catch (error) {
+    console.error('[forecast/base-year-values] Failed:', error);
+    next(error);
+  }
+});
+
 router.post('/generate/:scenario', async (req, res, next) => {
   try {
     const scenario = req.params.scenario?.trim();

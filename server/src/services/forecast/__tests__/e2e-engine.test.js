@@ -150,13 +150,13 @@ describe("E2E — Complex Multi-Module Scenario", () => {
       Dispose: [],
     }, { TaxRate: 0 }, { inflation: [3, 3, 3, 3] });
 
-    // derived_pct = 3000 / 300000 = 1%
-    // 2027: MV = 300K * 1.03 = 309K, avg = (300K + 309K)/2 = 304.5K, expense = 1% × 304.5K = 3045
+    // derived_pct = 3000 / 300000 = 1%, Growth = 1x3% = 3% MV growth
+    // Period 1 (2027): MV=309K, avg(300K,309K) = 304.5K, 1% = 3045
+    // Period 2 (2028): MV=318.27K, avg(309K,318.27K) = 313.635K, 1% = 3136
     const expEntries = getEntriesForAccount(db, "Prop Costs");
     const exp2027 = expEntries.find(e => e.forecast_year === 2027);
     expect(exp2027.amount).toBeCloseTo(-3045, -1);
 
-    // 2028: MV = 309K * 1.03 = 318.27K, avg = (309K + 318.27K)/2 = 313.635K, expense = 3136.35
     const exp2028 = expEntries.find(e => e.forecast_year === 2028);
     expect(exp2028.amount).toBeCloseTo(-3136, -1);
   });

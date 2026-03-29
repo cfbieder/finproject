@@ -84,8 +84,8 @@ function loadScenarioConfig(scenarioName) {
   for (let i = 0; i < FCAssump.FX.length; i++) {
     const entry = FCAssump.FX[i];
     if (entry.Scenario === scenario.Name) {
-      fxratePLN.push({ Year: entry.Year, Rate: entry.Rates.USDPLN });
-      fxrateEUR.push({ Year: entry.Year, Rate: entry.Rates.USDEUR });
+      fxratePLN.push({ Year: entry.Year, Rate: entry.Rates.PLN ?? entry.Rates.USDPLN ?? 0 });
+      fxrateEUR.push({ Year: entry.Year, Rate: entry.Rates.EUR ?? entry.Rates.USDEUR ?? 0 });
     }
   }
   fxratePLN.sort((a, b) => a.Year - b.Year);

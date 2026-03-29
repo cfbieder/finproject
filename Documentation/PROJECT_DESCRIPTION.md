@@ -177,9 +177,9 @@ psproject/                          # ~/Programs/fin symlinks here
 | `/budget-fx` | BudgetFX | Budgeting | Monthly budget FX rates per currency per year. Year selector, 12-month table with double-click editing, per-month Recalculate from average actual FX with preview modal. Uses `budget_fx_rates` DB table. |
 | `/forecast-mapping` | FCLineMapping | Forecasting | Step 1 — FC Inc/Exp Mapping. Define FC Lines, assign budget categories via drag/drop (Ctrl+Click multi-select), set line types. "Generate Suggestions" opens selectable checklist of P&L parent accounts (only shows names not yet created). Independent scroll panels. Coverage bar, budget totals, category detail modal. Unassigned list excludes children of assigned parents (recursive CTE). |
 | `/forecast-scenarios` | FCScenarios | Forecasting | Step 2 — Manage forecast scenarios. "+ New Scenario" immediately prompts for name. Target Cash field for auto-balance. Copy scenario with optional "Update base values from actuals" checkbox. |
-| `/forecast-modules` | FCModuleManage | Forecasting | Step 3 — Configure BS modules. "Add from Actuals" creates modules from year-end balances (tree view with Select All/Clear). Setup status tracking (New/In Progress/Complete) with color-coded badges and filter. Only "Complete" modules included in forecast generation. Edit form: Account/Name read-only when matched; Type editable from configurable list; Expense/Income Line pickers, Growth (x Inflation), Expense Amount, Income/Yield %, Tax Rate Override, Status. Base Date uses Dec 31 year-end. Account Value displays actual balance from balance report (fetched via `/api/v2/reports/balance`); for multi-child accounts (level-2 parent with children), Name field shows scrollable list of all child accounts and Account Value sums all children's balances. Copy Market/Copy Base buttons copy Account Value into respective fields. |
-| `/forecast-setup-exp` | FCExpSetup | Forecasting | Step 4 — Income/expense forecast items. "Add from FC Lines" shows Forecast Expense/Income lines with budget pre-fill. Account/Name/Type locked for FC Line items. Setup status tracking with filter — only "Complete" items included in generation. |
-| `/forecast-review` | FCReview | Forecasting | Step 5 — Review generated forecasts with KPI cards, age row (from birth year), collapsible "Change in Net Worth" equity bridge section (Operating, Tax, Asset Value Changes, Total). Cash Shortfall/Rebalance rows from target cash auto-balance. Only modules/expenses marked "Complete" are included. |
+| `/forecast-modules` | FCModuleManage | Forecasting | Step 3 — Configure BS modules. "Add from Actuals" creates modules from year-end balances. Setup status (New/In Progress/Complete) with filter — only "Complete" included in generation. Edit form: Account/Name read-only when matched; Type from configurable list; Expense/Income Line pickers; Expense Amount (Base Yr) and Income Amount (Base Yr) — base year values that get grown into Period 1; Growth (x Inflation); Tax Rate Override; Income/Yield % schedule. |
+| `/forecast-setup-exp` | FCExpSetup | Forecasting | Step 4 — Income/expense forecast items. "Add from FC Lines" with budget pre-fill. Account/Name/Type locked for FC Line items. Base Value = base year amount. Setup status filter — only "Complete" items in generation. |
+| `/forecast-review` | FCReview | Forecasting | Step 5 — Review generated forecasts. P&L section driven by FC Lines (not COA). Base Year column shows base values from completed modules/expenses. Period 1+ columns show engine-calculated values. KPI cards, age row, equity bridge, cash target auto-balance. |
 | `/fc-settings` | FCSettings | Forecasting | FC Settings — Birth Year (age row in Review), Module Types (configurable dropdown list), and FX Rate Assumptions (moved from old `/fx-options`). |
 | `/balance` | BalanceV2 | Reports & Graphs | Redesigned balance sheet. KPI cards for Net Worth (highlighted), Total Assets, Total Liabilities. Compact toolbar with inline period controls (1-3 periods with P1/P2/P3 badges + date pickers), Generate button, expand/collapse icon buttons, and Export. Reuses existing `BalanceReport` component for the hierarchical account tree table with sticky headers/columns, resizable account column, row highlighting, path-based collapse state, and Net Worth footer row. Auto-generates report on page load. |
 | `/cash-flow` | CashFlow | Reports & Graphs | Cash flow P&L analysis |
@@ -355,12 +355,84 @@ All endpoints mounted at `/api/v2`. Nginx rewrites legacy `/api/*` paths to `/ap
 | `psdata.js` | psdata_staging, app_data |
 | `transferMatchGroups.js` | transfer_match_groups, transfer_match_group_members |
 
-### Forecast Engine
+### Forecast (FC) Module
 
-Located in `server/src/v2/services/`. Generates multi-year financial projections:
-1. Takes a scenario with modules (balance sheet items) and income/expense items
-2. Applies growth rates, investments, disposals, and income percentage schedules
-3. Produces yearly forecast entries stored in `forecast_entries`
+Multi-year personal financial projection system modeled after `2026 Retirement Estimator v1.xlsm`. Generates P&L, balance sheet, and equity bridge forecasts across configurable scenarios with multi-currency support.
+
+#### 5-Step Workflow
+
+| Step | Page | Route | Purpose |
+|------|------|-------|---------|
+| 1 | FC Inc/Exp Mapping | `/forecast-mapping` | Define FC Lines (forecast income/expense lines), assign budget categories via drag/drop, set line types |
+| 2 | Scenarios | `/forecast-scenarios` | Create/copy/configure scenarios with inflation, FX, tax, and target cash assumptions |
+| 3 | BS Modules | `/forecast-modules` | Configure balance sheet modules (assets, liabilities, investments) with growth rates, investments, disposals |
+| 4 | Income/Expenses | `/forecast-setup-exp` | Add forecast income/expense items from FC Lines with budget pre-fill |
+| 5 | Review | `/forecast-review` | View generated multi-year forecast with P&L, balance sheet, KPIs, and equity bridge |
+
+Supporting page: FC Settings (`/fc-settings`) — Birth Year (age row), Module Types (configurable list), FX Rate Assumptions.
+
+#### FC Lines Mapping Layer
+
+Global mapping layer between budget categories and the forecast engine. Users define FC Lines, assign budget categories (each to exactly one line), and designate each line's destination:
+
+| Line Type | Destination | Example |
+|-----------|-------------|---------|
+| `bs_module_expense` | BS module expense line picker | Prop Costs - PM4 |
+| `bs_module_income` | BS module income line picker | Rental Income - PM4 |
+| `forecast_expense` | Forecast expense item | Living Expenses |
+| `forecast_income` | Forecast income item | Base Salary |
+| `unassigned` | Not yet mapped | — |
+
+Tables: `fc_lines`, `fc_line_categories`. Coverage indicator on mapping page shows assignment completeness.
+
+#### Engine Architecture
+
+Located in `server/src/services/forecast/`. Three main files:
+
+| File | Purpose |
+|------|---------|
+| `index.js` | Orchestration — loads scenarios, modules, FC Line name map; runs module + incexp builders; post-processing (cash target auto-balance) |
+| `fcbuilder-module.js` | BS module projections — market value growth, investments/disposals, income (yield/deposit rate), expenses (inflation or % of value), realized/unrealized gains, tax with 1-year deferral, FX conversion, audit trail CSV |
+| `fcbuilder-incexp.js` | Income/expense projections — base value with growth, scheduled changes, tax deferral, FX conversion |
+| `fcbuilder-setup.js` | Loads FCAssump.json, builds rate schedules (inflation, FX, tax) as danfo.js DataFrames |
+
+Key engine features:
+- **Tax deferral:** Capital gains tax shifted +1 year (US tax behavior)
+- **Expense growth methods:** `inflation` (absolute amount compounded at inflation) or `pct_of_value` (derives % from expense_amount/market_value, scales with asset value)
+- **Deposit/yield rates:** IncomePct schedule — `income = avg(MV_current, MV_prior) × rate%`
+- **Liability interest:** `expense_pct` as interest rate, `Dispose` entries as repayments reducing balance
+- **Cash target auto-balance:** Post-processing creates Cash Rebalance (excess → deposits) and Cash Shortfall (deficit flagged) entries
+- **Per-module tax rate override:** `tax_rate_override` column, NULL falls back to scenario default
+- **Setup status tracking:** `setup_status` column (New/In Progress/Complete) on modules and expenses — only "Complete" items included in generation
+- **FC Line resolution:** Engine resolves `expense_fc_line_id`/`income_fc_line_id` to FC Line names for P&L entry labels
+- **Multi-currency:** FX conversion for PLN/EUR modules using scenario FX assumptions
+- **Audit trail:** Per-module CSV export (LC values, USD values, entries)
+
+#### Module Creation Helpers
+
+- **Add from Actuals** (Modules page): `POST /forecast/modules/add-from-actuals` returns BS account tree with year-end balances; creates modules with balances pre-filled
+- **Add from FC Lines** (Expenses page): `POST /forecast/incomeexpense/add-from-lines` returns FC Lines with budget totals; creates items with budget pre-fill and `budget_source_year`
+- **Copy Scenario:** Deep copy with optional "Update base values from actuals" checkbox + year picker
+
+#### Review Page Features
+
+- **P&L driven by FC Lines:** Income/Expense sections show FC Line names grouped by type (via `/api/v2/fc-lines/review-structure`)
+- **Age row:** Computed from birth year setting (`year - birthYear`)
+- **KPI cards:** Total Assets, Net Cash Flow, Income, Expenses with Recharts area trend charts
+- **Equity bridge:** Collapsible "Change in Net Worth" section — Operating, Tax, Asset Value Changes, Total
+- **Cash Shortfall/Rebalance rows:** Automatically generated from target cash auto-balance
+
+#### Test Coverage
+
+49 automated tests (Jest): 16 FC Lines API tests, 19 engine tests (fcbuilder-module), 6 incexp tests, 8 E2E engine tests covering equity/property/fixed-income/liability/incexp/FX/tax-deferral scenarios. Run: `cd server && npm test`
+
+#### Frontend Components
+
+24 React components in `frontend/src/features/Forecast/`, 14 custom hooks in `hooks/` subdirectory. Shared state via `ForecastContext`. Step navigation via `FCStepNav` component.
+
+#### Detailed Documentation
+
+Full design document, implementation plan, and test strategy: `Documentation/FC_Module/FC_MODULE.md`
 
 ---
 

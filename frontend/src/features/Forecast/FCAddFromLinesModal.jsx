@@ -210,7 +210,7 @@ export default function FCAddFromLinesModal({
                       }}
                       onClick={() => toggleSelect(line.id)}
                     >
-                      <td>
+                      <td onClick={(e) => e.stopPropagation()}>
                         <input
                           type="checkbox"
                           checked={selected.has(line.id)}

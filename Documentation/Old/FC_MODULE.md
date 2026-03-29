@@ -103,20 +103,20 @@ Older or simplified version with fewer asset classes; appears to be a quick-refe
 | Frontend: Review page | Done | Multi-year table with KPIs and graphs |
 | Frontend: FX Assumptions page | Done | Manage FX rate assumptions |
 
-### 2.2 Gaps vs. Spreadsheet
+### 2.2 Gaps vs. Spreadsheet (original analysis → current status)
 
-| # | Gap | Spreadsheet Behavior | Current App Behavior |
-|---|-----|---------------------|---------------------|
-| G1 | **Auto-populate base values from actuals** | 2025 YE balance sheet values are the starting point for 2026 FC | Module base values are manually entered; no link to actual balances |
-| G2 | **Deposit rate / interest income** | Deposits earn interest at a configurable rate per year | Deposits are static BS modules with no interest calculation |
-| G3 | **Cash auto-balance (target cash)** | Cash is the residual bucket; excess flows to deposits, shortfalls trigger sales | `Bank Accounts` accumulates cash changes but no target or rebalancing |
-| G4 | **Tax deferral** | Capital gains tax is paid the following year | Tax is calculated in the same year as the gain |
-| G5 | **Income/Expense from budget** | Living expenses and income baselines are planned forward-looking values | Income/expense base values are manually entered; no link to budget |
-| G6 | **Liability interest model** | Interest rate = base × inflation × multiplier; auto-calculated interest expense | Liabilities exist as modules but no dedicated interest calculation |
-| G7 | **Age tracking** | Row showing age for each forecast year | Not present |
-| G8 | **Property costs as absolute amounts** | Property costs are absolute values growing at inflation | App uses `expense_pct` (percentage of market value) |
-| G9 | **Equity bridge (change in NW)** | Operating + Tax + Unrealized + Realized + Debt = equity change | Not computed |
-| G10 | **Movements / rebalancing summary** | Shows investment flows and rebalancing totals | Not tracked |
+| # | Gap | Spreadsheet Behavior | Status | Implemented In |
+|---|-----|---------------------|--------|----------------|
+| G1 | **Auto-populate base values from actuals** | 2025 YE balance sheet values are the starting point for 2026 FC | **DONE** | Phase 2B-4b — "Add from Actuals" tree view |
+| G2 | **Deposit rate / interest income** | Deposits earn interest at a configurable rate per year | **DONE** | Phase 3 — IncomePct as deposit rate |
+| G3 | **Cash auto-balance (target cash)** | Cash is the residual bucket; excess flows to deposits, shortfalls trigger sales | **DONE** | Phase 4 — target_cash + post-processing |
+| G4 | **Tax deferral** | Capital gains tax is paid the following year | **DONE** | Phase 1 — +1 year shift |
+| G5 | **Income/Expense from budget** | Living expenses and income baselines are planned forward-looking values | **DONE** | Phase 2B-4 — "Add from FC Lines" with budget pre-fill |
+| G6 | **Liability interest model** | Interest rate = base × inflation × multiplier; auto-calculated interest expense | **DONE** | Phase 1 — expense_pct as interest rate |
+| G7 | **Age tracking** | Row showing age for each forecast year | **DONE** | Phase 5 — birth year in Settings |
+| G8 | **Property costs as absolute amounts** | Property costs are absolute values growing at inflation | **DONE** | Phase 1 — expense_amount field |
+| G9 | **Equity bridge (change in NW)** | Operating + Tax + Unrealized + Realized + Debt = equity change | **DONE** | Phase 5 — collapsible Review section |
+| G10 | **Movements / rebalancing summary** | Shows investment flows and rebalancing totals | **NOT DONE** | Not yet designed or implemented |
 
 ---
 
@@ -251,6 +251,7 @@ Older or simplified version with fewer asset classes; appears to be a quick-refe
 - New FC Settings page (`/fc-settings`) — combines Birth Year, Module Types, and FX Assumptions (replaces old `/fx-options`)
 - Module setup status tracking: `setup_status` column (migration 011) on both `forecast_modules` and `forecast_income_expense`, color-coded badges (New/In Progress/Complete), table filter, edit form dropdown
 - Forecast engine only includes modules and expenses with `setup_status = 'complete'` — allows incremental setup and review (mark complete → generate → see impact → mark next complete)
+- **Engine: P&L now driven by FC Lines** — IncExp items resolve `fc_line_id` to FC Line name for entry labels (instead of COA account names). Standardized tax account name from "Taxes US" to "Taxes" across both engines. Review page P&L section rebuilt from FC Lines via `useFCLineStructure` hook and `/api/v2/fc-lines/review-structure` endpoint. Income/Expense sections show FC Line names grouped by type.
 
 **Additional fixes applied during Phase 2/2B (prior sessions):**
 - Fixed `PUT /assumptions` to preserve `scenarios` array in FCAssump.json (was being stripped, breaking forecast generation)
@@ -342,30 +343,57 @@ Older or simplified version with fewer asset classes; appears to be a quick-refe
 
 ---
 
-## 5. Files Affected Summary
+## 5. Files Affected Summary (final state, all phases)
 
 ### Backend
 | File | Phases | Changes |
 |------|--------|---------|
-| `server/src/services/forecast/fcbuilder-module.js` | 1, 3 | Tax deferral, absolute expense amounts, liability interest, deposit rate verification |
-| `server/src/services/forecast/fcbuilder-incexp.js` | 1 | Tax deferral on income items |
-| `server/src/services/forecast/index.js` | 4 | Cash auto-balance post-processing step |
-| `server/src/v2/routes/forecast.js` | 2 | New seed-from-actuals and bulk-update endpoints (4 new endpoints: POST seed-from-actuals, PATCH modules/bulk-update, POST seed-from-budget, PATCH incomeexpense/bulk-update) |
-| `server/src/v2/repositories/forecast.js` | 2, 4 | Bulk update queries, target_cash field |
-| `server/db/migrations/` | 4 | Add `target_cash` to `forecast_scenarios` |
+| `server/src/services/forecast/fcbuilder-module.js` | 1, 2B-5, 3 | Tax deferral, absolute expense amounts, liability interest, expense_growth_method (inflation/pct_of_value), FC Line name resolution, deposit rate |
+| `server/src/services/forecast/fcbuilder-incexp.js` | 1, 2B-5 | Tax deferral on income items, FC Line name resolution, FX conversion fix |
+| `server/src/services/forecast/index.js` | 2B-5, 4 | FC Line name map preload, cash auto-balance post-processing |
+| `server/src/v2/routes/forecast.js` | 2B-4, 2B-4b | add-from-actuals, add-from-lines, modules/:id GET, scenarios/:id PUT, setup_status support |
+| `server/src/v2/routes/fcLines.js` | 2B-1 | FC Lines CRUD, category assignment, suggestions, unassigned, budget-totals, review-structure |
+| `server/src/v2/repositories/forecast.js` | 2B, 4, 5 | Module/incexp CRUD with FC Line fields, target_cash, tax_rate_override, setup_status |
+| `server/src/v2/repositories/fcLines.js` | 2B-1 | FC Lines and category assignment CRUD, budget totals aggregation |
+| `server/db/migrations/007_fc_lines.sql` | 2B-1 | fc_lines + fc_line_categories tables |
+| `server/db/migrations/008_drop_old_fc_columns.sql` | 2B-7 | Drop expense_category, income_category, expense_pct |
+| `server/db/migrations/009_target_cash.sql` | 4 | Add target_cash to forecast_scenarios |
+| `server/db/migrations/010_tax_rate_override.sql` | 5 | Add tax_rate_override to forecast_modules |
+| `server/db/migrations/011_setup_status.sql` | 5 | Add setup_status to forecast_modules and forecast_income_expense |
 
-### Frontend
+### Frontend — Pages
 | File | Phases | Changes |
 |------|--------|---------|
-| `frontend/src/features/Forecast/FCModulesEdit.jsx` | 1 | Show `expense_amount` field |
-| `frontend/src/pages/FCModuleManage.jsx` | 2 | "Seed from Actuals" button + review modal |
-| `frontend/src/js/rest.js` | 2 | Generic `Rest.post()` and `Rest.patch()` methods |
-| `frontend/src/pages/FCExpSetup.jsx` | 2 | "Seed from Actuals" button + review modal |
-| `frontend/src/features/Forecast/FCScenariosModal.jsx` | 4 | `target_cash` field in scenario edit |
-| `frontend/src/pages/FCReview.jsx` | 4, 5 | Cash shortfall highlighting, age row, equity bridge |
-| `frontend/src/features/Forecast/FCReviewTable.jsx` | 5 | Equity bridge collapsible section |
-| `frontend/src/utils/forecastHelpers.js` | 5 | `computeEquityBridge()` function |
+| `frontend/src/pages/FCLineMapping.jsx` | 2B-2 | FC Mapping page with drag/drop, multi-select, generate suggestions, coverage bar |
+| `frontend/src/pages/FCModuleManage.jsx` | 2B-4b | "Add from Actuals" tree view, setup status filter |
+| `frontend/src/pages/FCExpSetup.jsx` | 2B-4 | "Add from FC Lines" button, setup status filter, locked fields for FC Line items |
+| `frontend/src/pages/FCReview.jsx` | 4, 5 | Cash shortfall/rebalance rows, age row, KPI cards, FC Line-driven P&L |
+| `frontend/src/pages/FCScenarios.jsx` | 4 | Target Cash field |
+| `frontend/src/pages/FCSettings.jsx` | 5 | Birth Year, Module Types, FX Assumptions (combined page) |
 | `frontend/src/pages/ProgramSettings.jsx` | 5 | Birth year field |
+
+### Frontend — Components
+| File | Phases | Changes |
+|------|--------|---------|
+| `frontend/src/features/Forecast/FCModulesEdit.jsx` | 1, 2B-3 | expense_amount, FC Line pickers, growth method toggle, allocation tracking, tax rate override, setup status |
+| `frontend/src/features/Forecast/FCAddFromActualsModal.jsx` | 2B-4b | Tree view with expand/collapse, leaf pre-selection, Select All/Clear |
+| `frontend/src/features/Forecast/FCAddFromLinesModal.jsx` | 2B-4 | FC Lines with budget totals, budget year picker |
+| `frontend/src/features/Forecast/FCReviewTable.jsx` | 5 | Equity bridge collapsible section, FC Line-driven P&L structure |
+| `frontend/src/features/Forecast/FCStepNav.jsx` | 2B | Step navigation arrows across all 5 forecast pages |
+| `frontend/src/features/Forecast/FCScenariosSelect.jsx` | 4 | Target Cash display |
+| `frontend/src/utils/forecastHelpers.js` | 5 | `computeEquityBridge()` function |
+| `frontend/src/contexts/ForecastContext.jsx` | 2B | Shared forecast state |
+| `frontend/src/js/rest.js` | 2B | `Rest.get()`, `Rest.put()`, `Rest.del()` methods |
+
+### Files Removed (Phase 2B-7 Cleanup)
+| File | Reason |
+|------|--------|
+| `FCSeedFromBudgetModal.jsx` | Replaced by "Add from FC Lines" |
+| `FCCoverageCheckModal.jsx` | Replaced by FC Mapping page coverage |
+| `FCSeedFromActualsModal.jsx` | Replaced by `FCAddFromActualsModal.jsx` |
+| `seed-from-budget` endpoint | Replaced by FC Line flow |
+| `coverage-check` endpoint | Replaced by mapping page |
+| `expense_category`, `income_category`, `expense_pct` columns | Replaced by FC Line FKs + expense_growth_method |
 
 ---
 

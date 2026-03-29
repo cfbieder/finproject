@@ -441,8 +441,8 @@ export default function FCModulesEditModal({
     { length: transferYearEnd - transferYearStart + 1 },
     (_, index) => transferYearStart + index
   );
-  // For Income %, exclude budget year (year 1) since that's covered by Income Amount
-  const incomePctYearOptions = transferYearOptions.filter((y) => y > transferYearStart);
+  // Income % available from Period 1 (PeriodStart) onward
+  const incomePctYearOptions = transferYearOptions;
   const transferFlagOptionsI = ["OneTime", "Periodic"];
   const transferFlagOptionsD = ["Full", "OneTime", "Periodic"];
   const incomePctLabel = (() => {
@@ -507,10 +507,10 @@ export default function FCModulesEditModal({
     ["Market Value (USD)", "MarketValueUSD", "number"],
     ["Growth (x Inflation)", "Growth", "number"],
     ["Expense Line", "ExpenseFcLineId", "fc-line-expense"],
-    ["Expense Amount (Yr 1)", "ExpenseAmount", "number"],
+    ["Expense Amount (Base Yr)", "ExpenseAmount", "number"],
     ["Expense Growth", "ExpenseGrowthMethod", "growth-method"],
     ["Income Line", "IncomeFcLineId", "fc-line-income"],
-    ["Income Amount (Yr 1)", "IncomeAmount", "number"],
+    ["Income Amount (Base Yr)", "IncomeAmount", "number"],
     ["Tax Rate Override (%)", "TaxRateOverride", "number"],
     ["Status", "SetupStatus", "setup-status"],
     ["Comment", "Comment", "textarea"],

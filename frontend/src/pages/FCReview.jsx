@@ -131,6 +131,19 @@ export default function FCReview() {
   }, []);
 
   // =============================================================================
+  // STATE - Base Year Budget (P&L base year column)
+  // =============================================================================
+
+  // Base year values from completed modules/expenses (grouped by FC Line name)
+  const [baseYearValues, setBaseYearValues] = useState({});
+  useEffect(() => {
+    if (!selectedScenario) return;
+    Rest.get(`/forecast/base-year-values?scenario=${encodeURIComponent(selectedScenario)}`)
+      .then((res) => setBaseYearValues(res.data || {}))
+      .catch(() => {});
+  }, [selectedScenario]);
+
+  // =============================================================================
   // STATE - Forecast Generation
   // =============================================================================
 
@@ -369,41 +382,10 @@ export default function FCReview() {
       const numericYear = Number(year);
       const isBaseYear = baseYears.has(numericYear);
 
-      // ========== Cash Flow - Base Year Actuals ==========
-    if (isCashSection && isBaseYear) {
-      const yearData = baseActualTotalsByYear.get(numericYear);
-      if (!yearData) return null;
-
-      if (row.isCashFlow) {
-        const income = yearData.level1.get("Income");
-        const expense = yearData.level1.get("Expense");
-        const transfers =
-          yearData.level1.get("Transfers") ||
-          yearData.level2.get("Transfers") ||
-          0;
-        if (income == null && expense == null) {
-          return null;
-        }
-        const expenseAdjusted =
-          (expense == null ? 0 : expense) - transfers;
-        return (income == null ? 0 : income) + expenseAdjusted;
-      }
-
-      if (row.isNet) {
-        return yearData.net;
-      }
-      if (row.level === 1) {
-        const baseValue = yearData.level1.get(row.label);
-        if (row.label === "Expense") {
-          const transfersBase =
-            yearData.level1.get("Transfers") ||
-            yearData.level2.get("Transfers") ||
-            0;
-          return baseValue == null ? null : baseValue - transfersBase;
-        }
-        return baseValue ?? null;
-      }
-      return yearData.level2.get(row.label) ?? null;
+      // ========== Cash Flow - Base Year ==========
+      // Base year P&L values are handled by FCReviewTable directly via baseYearBudget prop
+      if (isCashSection && isBaseYear) {
+        return null;
       }
 
       // ========== Balance Sheet - Base Year Actuals ==========
@@ -481,7 +463,7 @@ export default function FCReview() {
       }
       return entryMaps.cash.byLabel.get(row.label)?.get(year) ?? null;
     },
-    [baseYears, baseActualTotalsByYear, baseBalanceTotalsByYear, entryMaps]
+    [baseYears, baseActualTotalsByYear, baseBalanceTotalsByYear, entryMaps, baseYearValues, cashAccountMap]
   );
 
   /**
@@ -1106,6 +1088,8 @@ export default function FCReview() {
           baseYear={baseYear}
           baseYears={baseYears}
           birthYear={birthYear}
+          baseYearBudget={baseYearValues}
+          cashAccountMap={cashAccountMap}
           tableColSpan={tableColSpan}
           yearsLoading={yearsLoading}
           accountsLoading={accountsLoading}

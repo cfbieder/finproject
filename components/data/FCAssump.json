@@ -2,6 +2,9 @@
   "scenarios": [
     {
       "Name": "2026 Base",
+      "Description": null,
+      "IsActive": true,
+      "id": 47,
       "PeriodStart": 2027,
       "PeriodEnd": 2037
     }
