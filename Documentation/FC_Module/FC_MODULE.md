@@ -249,7 +249,8 @@ Older or simplified version with fewer asset classes; appears to be a quick-refe
 - Module Type capitalized in API response and editable even when matched (dropdown with configurable types)
 - Module Type dropdown options sourced from appdata `moduleTypes` (configurable via FC Settings page)
 - New FC Settings page (`/fc-settings`) — combines Birth Year, Module Types, and FX Assumptions (replaces old `/fx-options`)
-- Module setup status tracking: `setup_status` column (migration 011), color-coded badges (New/In Progress/Complete), table filter, edit form dropdown
+- Module setup status tracking: `setup_status` column (migration 011) on both `forecast_modules` and `forecast_income_expense`, color-coded badges (New/In Progress/Complete), table filter, edit form dropdown
+- Forecast engine only includes modules and expenses with `setup_status = 'complete'` — allows incremental setup and review (mark complete → generate → see impact → mark next complete)
 
 **Additional fixes applied during Phase 2/2B (prior sessions):**
 - Fixed `PUT /assumptions` to preserve `scenarios` array in FCAssump.json (was being stripped, breaking forecast generation)
