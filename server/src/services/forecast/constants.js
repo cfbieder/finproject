@@ -4,7 +4,7 @@ const { COMPONENTS_DATA_DIR } = require("../../utils/dataPaths");
 const CATEGORIES = {
   BANK_ACCOUNTS: "Bank Accounts",
   TRANSFER_BANK: "Transfer - Bank",
-  TAXES_US: "Taxes US",
+  TAXES_US: "Taxes",
   TAXES: "Taxes",
   INFLATION: "Inflation",
   FX_PLN: "FX - PLN",

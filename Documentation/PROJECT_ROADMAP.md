@@ -59,6 +59,7 @@ Items from active development notes:
 - [x] Forecast: FC Settings page (`/fc-settings`) — combines Birth Year, Module Types (configurable list), and FX Assumptions (moved from `/fx-options`)
 - [x] Forecast: Module setup status tracking — `setup_status` column (migration 011) on both modules and expenses, color-coded badges (New/In Progress/Complete), table filter, edit dropdown. Engine only generates from "Complete" items for incremental review.
 - [x] Forecast: Module Type editable when matched, configurable type list from appdata, capitalized in API response
+- [x] Forecast: Module edit Account Value fix — Base Date changed from Dec 13 to Dec 31 year-end; fixed null values displaying as "0.00" instead of "-"; fixed balance lookup for leaf accounts not found at level 2 in COA tree; multi-child accounts now show all child names in scrollable list and sum all children's account values
 
 ---
 

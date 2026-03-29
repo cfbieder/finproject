@@ -129,7 +129,7 @@ async function loadModulesForScenario(scenarioId, fcLineNameMap) {
 /**
  * Loads income/expense items from PostgreSQL and transforms to v1 format
  */
-async function loadIncExpModulesForScenario(scenarioId) {
+async function loadIncExpModulesForScenario(scenarioId, fcLineNameMap) {
   const itemsResult = await db.query(`
     SELECT ie.*, a.name as account_name
     FROM forecast_income_expense ie
@@ -168,7 +168,12 @@ async function loadIncExpModulesForScenario(scenarioId) {
   // Transform to v1 format
   for (const item of items) {
     item.Name = item.name;
-    item.Account = item.account_name;
+    // Resolve FC Line name for account label (instead of COA account name)
+    if (item.fc_line_id && fcLineNameMap) {
+      item.Account = fcLineNameMap.get(item.fc_line_id) || item.account_name || item.name;
+    } else {
+      item.Account = item.account_name || item.name;
+    }
     item.BaseValue = parseFloat(item.base_value) || 0;
     item.BaseValueUSD = parseFloat(item.base_value_usd) || 0;
     item.Currency = (item.currency || 'USD').trim();
@@ -219,18 +224,27 @@ async function loadCategoriesForScenario(scenarioId, fcLineNameMap) {
 }
 
 /**
- * Extracts unique income/expense categories
+ * Extracts unique income/expense categories — uses FC Line names when available
  */
-async function loadIncExpCategoriesForScenario(scenarioId) {
+async function loadIncExpCategoriesForScenario(scenarioId, fcLineNameMap) {
   const result = await db.query(`
-    SELECT array_agg(DISTINCT a.name) FILTER (WHERE a.name IS NOT NULL) as incexp_categories
+    SELECT ie.fc_line_id, a.name as account_name
     FROM forecast_income_expense ie
     LEFT JOIN accounts a ON ie.account_id = a.id
     WHERE ie.scenario_id = $1 AND COALESCE(ie.setup_status, 'new') = 'complete'
   `, [scenarioId]);
 
+  const categories = new Set();
+  for (const row of result.rows) {
+    if (row.fc_line_id && fcLineNameMap) {
+      const name = fcLineNameMap.get(row.fc_line_id);
+      if (name) { categories.add(name); continue; }
+    }
+    if (row.account_name) categories.add(row.account_name);
+  }
+
   return {
-    incexpCategories: result.rows[0]?.incexp_categories || [],
+    incexpCategories: Array.from(categories),
   };
 }
 
@@ -281,9 +295,9 @@ async function generateForecast(scenarioName) {
     const [bsModules, incexpModules, { expenseCategories, incomeCategories, accountNames }, { incexpCategories }] =
       await Promise.all([
         loadModulesForScenario(scenarioId, fcLineNameMap),
-        loadIncExpModulesForScenario(scenarioId),
+        loadIncExpModulesForScenario(scenarioId, fcLineNameMap),
         loadCategoriesForScenario(scenarioId, fcLineNameMap),
-        loadIncExpCategoriesForScenario(scenarioId),
+        loadIncExpCategoriesForScenario(scenarioId, fcLineNameMap),
       ]);
 
     console.log(`[FORECAST-GENERATE] Loaded ${bsModules.length} FCModule entries for scenario ${scenarioName}`);

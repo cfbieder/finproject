@@ -192,6 +192,28 @@ router.get('/unassigned-categories', async (req, res, next) => {
   }
 });
 
+// GET /api/v2/fc-lines/review-structure
+// Returns FC Lines grouped as Income/Expense for the Review page P&L section
+router.get('/review-structure', async (req, res, next) => {
+  try {
+    const lines = await repo.findAll(null);
+    const income = [];
+    const expense = [];
+    for (const line of lines) {
+      const entry = { name: line.name, id: line.id, type: line.line_type };
+      if (line.line_type === 'bs_module_income' || line.line_type === 'forecast_income') {
+        income.push(entry);
+      } else if (line.line_type === 'bs_module_expense' || line.line_type === 'forecast_expense') {
+        expense.push(entry);
+      }
+    }
+    res.json({ income, expense });
+  } catch (error) {
+    console.error('[fc-lines] GET /review-structure failed:', error);
+    next(error);
+  }
+});
+
 // GET /api/v2/fc-lines/budget-totals
 // Budget totals per FC Line for a given year
 router.get('/budget-totals', async (req, res, next) => {

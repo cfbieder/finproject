@@ -448,7 +448,7 @@ async function processModule(module, scenario, df_assumptions, df_categories, ca
   categoryRowIndex = df_categories.index.indexOf(module.ExpCategory);
   writeValuesToCategoryRow(categoryRowIndex, df_categories, expenseValuesUSD, startyear);
 
-  categoryRowIndex = df_categories.index.indexOf("Taxes US");
+  categoryRowIndex = df_categories.index.indexOf("Taxes");
   writeValuesToCategoryRow(categoryRowIndex, df_categories, taxValuesUSD, startyear);
 
   const cashChange = new Array(yearsCount);

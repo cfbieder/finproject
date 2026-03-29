@@ -38,7 +38,7 @@ async function runModule(moduleOverrides = {}, scenarioOverrides = {}, assumptio
   const assumptions = createMockAssumptions(scenario, assumptionOverrides);
   const catNames = [
     mod.Account, "Bank Accounts", "Transfer - Bank",
-    mod.IncomeCategory, mod.ExpCategory, "Taxes US",
+    mod.IncomeCategory, mod.ExpCategory, "Taxes",
   ];
   const catDF = createMockCategoriesDF(catNames, years);
   const db = createMockDb();
@@ -61,7 +61,7 @@ describe("G4 — Tax Deferral", () => {
       Dispose: [{ Date: "2028-06-01", Amount: 500, Flag: "" }],
     });
 
-    const taxEntries = getEntriesForAccount(db, "Taxes US");
+    const taxEntries = getEntriesForAccount(db, "Taxes");
     const taxByYear = {};
     taxEntries.forEach((e) => { taxByYear[e.forecast_year] = e.amount; });
 
@@ -80,7 +80,7 @@ describe("G4 — Tax Deferral", () => {
     });
 
     const year2028 = getEntriesForYear(db, 2028);
-    const taxIn2028 = year2028.filter((e) => e.account === "Taxes US");
+    const taxIn2028 = year2028.filter((e) => e.account === "Taxes");
     expect(taxIn2028.length).toBe(0);
   });
 
@@ -92,7 +92,7 @@ describe("G4 — Tax Deferral", () => {
       Dispose: [{ Date: "2030-06-01", Amount: 500, Flag: "" }],
     });
 
-    const taxEntries = getEntriesForAccount(db, "Taxes US");
+    const taxEntries = getEntriesForAccount(db, "Taxes");
     const taxByYear = {};
     taxEntries.forEach((e) => { taxByYear[e.forecast_year] = e.amount; });
 
@@ -109,7 +109,7 @@ describe("G4 — Tax Deferral", () => {
       Dispose: [{ Date: "2028-06-01", Amount: 500, Flag: "" }],
     });
 
-    const taxEntries = getEntriesForAccount(db, "Taxes US");
+    const taxEntries = getEntriesForAccount(db, "Taxes");
     // No tax entries expected when selling at a loss
     const nonZeroTax = taxEntries.filter((e) => e.amount !== 0);
     expect(nonZeroTax.length).toBe(0);
@@ -126,7 +126,7 @@ describe("G4 — Tax Deferral", () => {
       ],
     });
 
-    const taxEntries = getEntriesForAccount(db, "Taxes US");
+    const taxEntries = getEntriesForAccount(db, "Taxes");
     const taxByYear = {};
     taxEntries.forEach((e) => { taxByYear[e.forecast_year] = (taxByYear[e.forecast_year] || 0) + e.amount; });
 
@@ -151,7 +151,7 @@ describe("G4 — Tax Deferral", () => {
       Dispose: [],
     });
 
-    const taxEntries = getEntriesForAccount(db, "Taxes US");
+    const taxEntries = getEntriesForAccount(db, "Taxes");
     const taxByYear = {};
     taxEntries.forEach((e) => { taxByYear[e.forecast_year] = (taxByYear[e.forecast_year] || 0) + e.amount; });
 
@@ -174,7 +174,7 @@ describe("G4 — Tax Deferral", () => {
       { TaxRate: 0 },
     );
 
-    const taxEntries = getEntriesForAccount(db, "Taxes US");
+    const taxEntries = getEntriesForAccount(db, "Taxes");
     expect(taxEntries.length).toBe(0);
   });
 });

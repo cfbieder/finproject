@@ -23,7 +23,7 @@
 import { useEffect, useMemo, useState, useCallback, useRef } from "react";
 import FCReviewSelector from "../features/Forecast/FCReviewSelector.jsx";
 import { useScenarios } from "../features/Forecast/hooks/useScenarios.js";
-import { useCashFlowAccounts } from "../features/Forecast/hooks/useCashFlowAccounts.js";
+import { useFCLineStructure } from "../features/Forecast/hooks/useFCLineStructure.js";
 import { useBalanceSheetAccounts } from "../features/Forecast/hooks/useBalanceSheetAccounts.js";
 import { useForecastData } from "../features/Forecast/hooks/useForecastData.js";
 import { useBaseYearActuals } from "../features/Forecast/hooks/useBaseYearActuals.js";
@@ -88,13 +88,13 @@ export default function FCReview() {
     reload: reloadForecastData,
   } = useForecastData(selectedScenario);
 
-  // Load cash flow chart of accounts (Income, Expense, Transfers)
+  // Load FC Line structure for P&L section (replaces COA-based cash flow accounts)
   const {
     cashAccounts,
     cashAccountMap,
     loading: accountsLoading,
     error: accountsError,
-  } = useCashFlowAccounts();
+  } = useFCLineStructure();
 
   // Load balance sheet chart of accounts (Assets, Liabilities)
   const {

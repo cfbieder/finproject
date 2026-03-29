@@ -1984,3 +1984,20 @@ input.fc-modules-modal__input:read-only {
     font-size: 0.9rem;
   }
 }
+
+/* Name list for multi-child accounts */
+.fc-modules-modal__name-list {
+  max-height: 7.5rem;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+  padding: 0.5rem 1rem;
+  background: var(--bg-secondary, #f8fafc);
+}
+
+.fc-modules-modal__name-item {
+  font-size: 0.875rem;
+  color: var(--ink);
+  line-height: 1.4;
+}

@@ -5,7 +5,7 @@ import "./FCModulesEdit.css";
 const normalizeBaseDate = (value) => {
   if (!value) return "";
   const [year] = String(value).split("-");
-  return year ? `${year}-12-13` : "";
+  return year ? `${year}-12-31` : "";
 };
 
 const getBaseYear = (value, fallbackYear) => {
@@ -95,12 +95,15 @@ export default function FCModulesEditModal({
 }) {
   const isMatched = Boolean(editForm?.Matched);
   const nameOptions = getChildCategoriesForAccount(editForm?.Account);
+  const hasMultipleChildren = nameOptions.length > 1;
   const effectiveName = isMatched
-    ? editForm?.Name && nameOptions.includes(editForm.Name)
+    ? hasMultipleChildren
+      ? editForm?.Account || ""
+      : editForm?.Name && nameOptions.includes(editForm.Name)
       ? editForm.Name
-      : nameOptions.length
+      : nameOptions.length === 1
       ? nameOptions[0]
-      : ""
+      : editForm?.Name || editForm?.Account || ""
     : editForm?.Name ?? "";
   const traitKey =
     (editForm?.Name && traits?.[editForm.Name] ? editForm.Name : "") ||
@@ -131,6 +134,9 @@ export default function FCModulesEditModal({
     });
   };
   const formatAccountValue = (value, currency) => {
+    if (value === null || value === undefined) {
+      return "-";
+    }
     const parsed = Number(value);
     if (!Number.isFinite(parsed)) {
       return "-";
@@ -229,7 +235,7 @@ export default function FCModulesEditModal({
 
   useEffect(() => {
     if (!isOpen || !editForm?.BaseDate) return;
-    if (editForm.BaseDate.endsWith("-12-13")) return;
+    if (editForm.BaseDate.endsWith("-12-31")) return;
     const normalized = normalizeBaseDate(editForm.BaseDate);
     if (normalized && normalized !== editForm.BaseDate) {
       onFieldChange("BaseDate", normalized);
@@ -255,16 +261,36 @@ export default function FCModulesEditModal({
         if (!isActive) return;
         const node = findBalanceNode(report, effectiveName);
         if (node) {
-          const rawLocal = Number(node.total);
-          const hasLocal = Number.isFinite(rawLocal);
+          let rawLocal, currency;
           const rawUsd = Number(node.totalUSD);
           const hasUsd = Number.isFinite(rawUsd);
-          const currency =
-            typeof node.currency === "string" && node.currency
-              ? node.currency
-              : hasUsd && !hasLocal
-              ? "USD"
-              : "";
+          if (Array.isArray(node.children) && node.children.length > 0) {
+            // Parent node: sum children's local values and detect currency
+            let localSum = 0;
+            let localCount = 0;
+            let commonCurrency = null;
+            for (const child of node.children) {
+              const childLocal = Number(child.total);
+              if (Number.isFinite(childLocal)) {
+                localSum += childLocal;
+                localCount++;
+                const cc = typeof child.currency === "string" ? child.currency : "";
+                if (commonCurrency === null) commonCurrency = cc;
+                else if (commonCurrency !== cc) commonCurrency = "";
+              }
+            }
+            rawLocal = localCount > 0 ? localSum : NaN;
+            currency = commonCurrency || (hasUsd ? "USD" : "");
+          } else {
+            rawLocal = Number(node.total);
+            currency =
+              typeof node.currency === "string" && node.currency
+                ? node.currency
+                : hasUsd && !Number.isFinite(rawLocal)
+                ? "USD"
+                : "";
+          }
+          const hasLocal = Number.isFinite(rawLocal);
           const localValue = hasLocal ? rawLocal : hasUsd ? rawUsd : null;
           setAccountBalance({
             value: localValue,
@@ -632,12 +658,25 @@ export default function FCModulesEditModal({
                           <span className="fc-modules-modal__label">
                             {label}
                           </span>
-                          <input
-                            className="fc-modules-modal__input"
-                            value={editForm.Name ?? ""}
-                            readOnly
-                            disabled
-                          />
+                          {hasMultipleChildren ? (
+                            <div
+                              className="fc-modules-modal__input fc-modules-modal__name-list"
+                              title={nameOptions.join(", ")}
+                            >
+                              {nameOptions.map((name) => (
+                                <div key={name} className="fc-modules-modal__name-item">
+                                  {name}
+                                </div>
+                              ))}
+                            </div>
+                          ) : (
+                            <input
+                              className="fc-modules-modal__input"
+                              value={editForm.Name ?? ""}
+                              readOnly
+                              disabled
+                            />
+                          )}
                         </label>
                       );
                     }
@@ -685,7 +724,7 @@ export default function FCModulesEditModal({
                             onChange={(event) =>
                               onFieldChange(
                                 "BaseDate",
-                                `${event.target.value}-12-13`
+                                `${event.target.value}-12-31`
                               )
                             }
                           >
@@ -696,7 +735,7 @@ export default function FCModulesEditModal({
                             ))}
                           </select>
                           <span className="fc-modules-edit__base-date-hint">
-                            Dec 13
+                            Dec 31
                           </span>
                         </div>
                       </label>

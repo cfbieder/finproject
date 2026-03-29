@@ -48,7 +48,7 @@ async function runBSModule(moduleOverrides = {}, scenarioOverrides = {}, assumpt
   const assumptions = createMockAssumptions(scenario, assumptionOverrides);
   const catNames = [
     mod.Account, "Bank Accounts", "Transfer - Bank",
-    mod.IncomeCategory || "Income", mod.ExpCategory || "Expense", "Taxes US",
+    mod.IncomeCategory || "Income", mod.ExpCategory || "Expense", "Taxes",
   ];
   // Deduplicate
   const uniqueCats = [...new Set(catNames)];
@@ -74,7 +74,7 @@ async function runIncExp(moduleOverrides = {}, scenarioOverrides = {}, assumptio
 
   const categories = createMockCategories();
   const assumptions = createMockAssumptions(scenario, assumptionOverrides);
-  const catNames = [...new Set([mod.Account, "Bank Accounts", "Taxes US", "Taxes"])];
+  const catNames = [...new Set([mod.Account, "Bank Accounts", "Taxes", "Taxes"])];
   const catDF = createMockCategoriesDF(catNames, years);
   const db = createMockDb();
 
@@ -116,7 +116,7 @@ describe("E2E — Complex Multi-Module Scenario", () => {
     expect(div2027.amount).toBeCloseTo(10150, -1);
 
     // Tax should be deferred: no tax in 2027 (income taxed next year)
-    const taxEntries = getEntriesForAccount(db, "Taxes US");
+    const taxEntries = getEntriesForAccount(db, "Taxes");
     const tax2027 = taxEntries.find(e => e.forecast_year === 2027);
     expect(tax2027).toBeUndefined(); // No tax in year 1
 
@@ -186,7 +186,7 @@ describe("E2E — Complex Multi-Module Scenario", () => {
     expect(int2030.amount).toBeCloseTo(40000, -1);
 
     // Tax deferred: 25% of 40K = -10K, deferred to next year
-    const taxEntries = getEntriesForAccount(db, "Taxes US");
+    const taxEntries = getEntriesForAccount(db, "Taxes");
     const tax2028 = taxEntries.find(e => e.forecast_year === 2028);
     expect(tax2028.amount).toBeCloseTo(-10000, -1);
   });
@@ -257,7 +257,7 @@ describe("E2E — Complex Multi-Module Scenario", () => {
     expect(e2027.amount).toBeCloseTo(102000, -1);
 
     // Tax: 25% of 102K = -25,500, deferred to 2028
-    // IncExp engine writes tax to "Taxes" (not "Taxes US")
+    // IncExp engine writes tax to "Taxes" (not "Taxes")
     const taxEntries = getEntriesForAccount(db, "Taxes");
     const tax2027 = taxEntries.find(e => e.forecast_year === 2027);
     expect(tax2027).toBeUndefined(); // No tax in income year
