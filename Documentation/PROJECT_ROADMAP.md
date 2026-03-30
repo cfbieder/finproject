@@ -60,11 +60,22 @@ Items from active development notes:
 - [x] Forecast: Module setup status tracking — `setup_status` column (migration 011) on both modules and expenses, color-coded badges (New/In Progress/Complete), table filter, edit dropdown. Engine only generates from "Complete" items for incremental review.
 - [x] Forecast: Module Type editable when matched, configurable type list from appdata, capitalized in API response
 - [x] Forecast: Review P&L driven by FC Lines — engine writes entries with FC Line names, Review builds P&L from `/fc-lines/review-structure` instead of COA tree. Unified "Taxes" account name.
-- [x] Forecast: Base Year / Period terminology standardized — `expense_amount` and `income_amount` are Base Year values (renamed from "Yr 1"). Engine grows Base Year values at inflation for Period 1 (first forecast year). Review base year column shows raw base values from completed modules/expenses via `/api/v2/forecast/base-year-values`. Consistent across BS modules and IncExp items.
+- [x] Forecast: Base Year / Period terminology standardized — `expense_amount` and `income_amount` are Base Year values (renamed from "Yr 1"). Review base year column shows raw base values from completed modules/expenses via `/api/v2/forecast/base-year-values`.
+- [x] Forecast: Engine income logic — yield % takes priority over income_amount for all years where set (0% = no income, explicitly). Income_amount used only when no yield schedule exists (grown at inflation). Base year income generates deferred tax in Period 1.
+- [x] Forecast: Engine expense logic — pct_of_value applies derived % from Period 1 (not inflation for P1). Inflation mode compounds from base year for all periods.
+- [x] Forecast: Full disposal handling — 50% expense/income in disposal year, 0 after. Full disposal with amount=0 allowed (DB constraint fixed).
+- [x] Forecast: FX setup fix — `entry.Rates.PLN`/`EUR` format supported (previously only `USDPLN`/`USDEUR`). Pre-period years use first available FX rate.
+- [x] Forecast: Equity bridge inside main table — rows aligned with data columns. Operating = Net Cash Flow - Tax. Capital & Unrealized = residual.
+- [x] Forecast: Base year totals — Cash Flow, Net Cash Flow, Income/Expense level-1 totals computed from base year values in Review.
+- [x] Forecast: IncomePct year dropdown includes Period 1 (was excluded, preventing user from setting yield for first forecast year).
 - [x] Forecast: Module edit Account Value fix — Base Date changed from Dec 13 to Dec 31 year-end; fixed null values displaying as "0.00" instead of "-"; fixed balance lookup for leaf accounts not found at level 2 in COA tree; multi-child accounts now show all child names in scrollable list and sum all children's account values
-- [ ] Forecast: G10 — Movements/rebalancing summary (shows investment flows and rebalancing totals per year; referenced in spreadsheet Outputs sheet but not yet designed or implemented)
-- [ ] Forecast: Property cost seeding — 31 property cost categories (~$115K total) not yet mapped as individual `expense_amount` values on BS modules (Condo Fees, Property Tax, Utilities, Insurance, Maintenance per property). Requires assigning FC Lines to modules and setting expense amounts from budget.
-- [ ] Forecast: Frontend test framework — Vitest for testing frontend forecast helpers (e.g., `computeEquityBridge`); currently all 49 tests are backend-only
+
+### Open Items
+- [ ] Forecast: Equity bridge formula review — Operating (excl Tax) still shows values that don't match Cash Flow - Tax in some scenarios. Needs investigation.
+- [ ] Forecast: baseYears Set is empty — the `baseYears` computed in FCReview is empty (periodStart undefined at compute time). Currently worked around by checking `value == null` for base year detection. Should be fixed properly.
+- [ ] Forecast: Deploy latest code to production — significant changes since last deploy (engine fixes, FX, equity bridge, base year display)
+- [ ] Forecast: Frontend test framework — Vitest for testing frontend forecast helpers; currently all 49 tests are backend-only
+- [ ] Add way to re-export changes back to PocketSmith
 
 ---
 

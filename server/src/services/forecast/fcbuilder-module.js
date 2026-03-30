@@ -404,6 +404,15 @@ async function processModule(module, scenario, df_assumptions, df_categories, ca
     : Number(scenario?.TaxRate ?? 0);
   if (Number.isFinite(taxRate) && taxRate !== 0) {
     const rateFactor = -taxRate / 100;
+
+    // Tax on base year income (income_amount) deferred to Period 1
+    if (absIncomeAmount > 0) {
+      const period1Idx = periodStart - startyear;
+      if (period1Idx >= 0 && period1Idx < yearsCount) {
+        taxValues[period1Idx] += rateFactor * absIncomeAmount;
+      }
+    }
+
     for (let i = 0; i < yearsCount; i++) {
       let currentYearTax = 0;
       if (realizedGainValues[i] > 0) currentYearTax = rateFactor * realizedGainValues[i];

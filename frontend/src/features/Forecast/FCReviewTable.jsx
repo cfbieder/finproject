@@ -105,6 +105,7 @@ export default function FCReviewTable({
   birthYear,
   baseYearBudget,
   cashAccountMap,
+  periodStart,
   tableColSpan,
   yearsLoading,
   accountsLoading,
@@ -524,11 +525,16 @@ export default function FCReviewTable({
                         {sortedYears.map((year) => {
                           let value = getCellValue(row, year, true);
                           const isBaseYear = baseYears?.has(Number(year));
-                          // For base year P&L only (first year in table), show base values
-                          const isBaseColumn = Number(year) === Number(sortedYears[0]);
-                          const isBaseForBudget = isBaseColumn && baseYearBudget && Object.keys(baseYearBudget).length > 0;
+                          // Base year = year before periodStart
+                          // Show base values when no forecast data exists for this cell
+                          const isBaseForBudget = value == null && baseYearBudget && Object.keys(baseYearBudget).length > 0;
                           if (isBaseForBudget) {
-                            if (row.level === 2 && !row.isCashFlow && !row.isNet && baseYearBudget[row.label] != null) {
+                            if (row.isNet || row.isCashFlow) {
+                              // Cash Flow / Net Cash Flow = sum of all base year values
+                              let total = 0;
+                              for (const amt of Object.values(baseYearBudget)) total += amt;
+                              if (total !== 0) value = total;
+                            } else if (row.level === 2 && baseYearBudget[row.label] != null) {
                               value = baseYearBudget[row.label];
                             } else if (row.level === 1 && cashAccountMap?.size > 0) {
                               let total = 0; let found = false;
@@ -536,10 +542,6 @@ export default function FCReviewTable({
                                 if (mp.level1 === row.label && baseYearBudget[ln] != null) { total += baseYearBudget[ln]; found = true; }
                               }
                               if (found) value = total;
-                            } else if (row.isNet || row.isCashFlow) {
-                              let total = 0;
-                              for (const amt of Object.values(baseYearBudget)) total += amt;
-                              if (total !== 0) value = total;
                             }
                           }
                           const canDoubleClick = isTransfers && !isBaseYear;

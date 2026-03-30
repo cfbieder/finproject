@@ -1090,6 +1090,7 @@ export default function FCReview() {
           birthYear={birthYear}
           baseYearBudget={baseYearValues}
           cashAccountMap={cashAccountMap}
+          periodStart={periodStart}
           tableColSpan={tableColSpan}
           yearsLoading={yearsLoading}
           accountsLoading={accountsLoading}
