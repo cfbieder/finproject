@@ -2,12 +2,12 @@ import { useEffect, useState } from "react";
 import Rest from "../../../js/rest.js";
 
 /**
- * Custom hook for loading base year balance sheet actuals.
- * Loads balance sheet as of end of two years before the forecast period starts.
+ * Custom hook for loading LastActualYear (PeriodStart - 2) balance sheet actuals.
+ * BaseYear (PeriodStart - 1) BS values come from the FC engine, not actuals.
  *
  * @param {number} periodStart - First year of the forecast period
  * @param {Map} balanceAccountMap - Map of account name -> { level1, level2 }
- * @returns {Object} Base year balance sheet state
+ * @returns {Object} LastActualYear balance sheet state
  * @property {Map} baseBalanceTotalsByYear - Map of year -> { level1, level2, level3 }
  * @property {boolean} loading - Whether balance sheet is being loaded
  * @property {string} error - Error message if loading failed
@@ -25,8 +25,7 @@ export function useBaseYearBalanceSheet(periodStart, balanceAccountMap) {
       return;
     }
 
-    const baseYear1 = Number(periodStart) - 2;
-    const baseYear2 = Number(periodStart) - 1;
+    const lastActualYear = Number(periodStart) - 2;
 
     let isMounted = true;
 
@@ -112,17 +111,10 @@ export function useBaseYearBalanceSheet(periodStart, balanceAccountMap) {
       try {
         const yearDataMap = new Map();
 
-        // Load first base year
-        const data1 = await loadBalanceForYear(baseYear1);
+        // Load LastActualYear (PeriodStart - 2) only
+        const data = await loadBalanceForYear(lastActualYear);
         if (!isMounted) return;
-        yearDataMap.set(Number(baseYear1), data1);
-
-        // Load second base year if it exists
-        if (baseYear2) {
-          const data2 = await loadBalanceForYear(baseYear2);
-          if (!isMounted) return;
-          yearDataMap.set(Number(baseYear2), data2);
-        }
+        yearDataMap.set(Number(lastActualYear), data);
 
         setBaseBalanceTotalsByYear(yearDataMap);
       } catch (err) {

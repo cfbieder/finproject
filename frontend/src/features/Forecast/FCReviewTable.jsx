@@ -102,8 +102,11 @@ export default function FCReviewTable({
   sortedYears,
   baseYear,
   baseYears,
+  lastActualYears,
   birthYear,
   baseYearBudget,
+  baseActualTotalsByYear,
+  categoryToLineMap,
   cashAccountMap,
   periodStart,
   tableColSpan,
@@ -344,13 +347,16 @@ export default function FCReviewTable({
                 {sortedYears.length ? (
                   sortedYears.map((year) => {
                     const isBaseYear = baseYears?.has(Number(year));
+                    const isLastActualYear = lastActualYears?.has(Number(year));
+                    const isPreForecast = isBaseYear || isLastActualYear;
+                    const columnLabel = isBaseYear ? "(Budget)" : isLastActualYear ? "(Actual)" : null;
                     return (
                       <th
                         key={year}
                         className="trans-budget-table__value"
                         style={{
                           minWidth: "120px",
-                          ...(isBaseYear && {
+                          ...(isPreForecast && {
                             background:
                               "linear-gradient(180deg, #f8f9fa 0%, #e9ecef 100%)",
                             fontWeight: 600,
@@ -360,7 +366,7 @@ export default function FCReviewTable({
                         }}
                       >
                         {year}
-                        {isBaseYear && (
+                        {columnLabel && (
                           <span
                             style={{
                               display: "block",
@@ -370,7 +376,7 @@ export default function FCReviewTable({
                               marginTop: "0.25rem",
                             }}
                           >
-                            (Actual)
+                            {columnLabel}
                           </span>
                         )}
                       </th>
@@ -525,15 +531,48 @@ export default function FCReviewTable({
                         {sortedYears.map((year) => {
                           let value = getCellValue(row, year, true);
                           const isBaseYear = baseYears?.has(Number(year));
-                          // Base year = year before periodStart
-                          // Show base values when no forecast data exists for this cell
-                          const isBaseForBudget = value == null && baseYearBudget && Object.keys(baseYearBudget).length > 0;
+                          const isLastActualYear = lastActualYears?.has(Number(year));
+
+                          // LastActualYear P&L from actuals
+                          if (isLastActualYear && value == null && baseActualTotalsByYear?.size > 0) {
+                            const yearData = baseActualTotalsByYear.get(Number(year));
+                            if (yearData) {
+                              if (row.isNet || row.isCashFlow) {
+                                value = yearData.net ?? null;
+                              } else if (row.level === 1) {
+                                value = yearData.level1.get(row.label) ?? null;
+                              } else if (row.level === 2 && yearData.leafTotals && categoryToLineMap?.size > 0) {
+                                // Aggregate leaf COA actuals into FC Line total
+                                let total = 0; let found = false;
+                                for (const [catName, amt] of yearData.leafTotals.entries()) {
+                                  if (categoryToLineMap.get(catName) === row.label) {
+                                    total += amt;
+                                    found = true;
+                                  }
+                                }
+                                if (found) value = total;
+                              } else if (row.level === 2) {
+                                // Fallback: try direct COA L2 match
+                                value = yearData.level2.get(row.label) ?? null;
+                              }
+                            }
+                          }
+
+                          // BaseYear P&L from budget
+                          const isBaseForBudget = isBaseYear && value == null && baseYearBudget && Object.keys(baseYearBudget).length > 0;
                           if (isBaseForBudget) {
-                            if (row.isNet || row.isCashFlow) {
-                              // Cash Flow / Net Cash Flow = sum of all base year values
+                            if (row.isCashFlow) {
+                              // Cash Flow = sum of budget P&L (Income - Expense)
                               let total = 0;
                               for (const amt of Object.values(baseYearBudget)) total += amt;
                               if (total !== 0) value = total;
+                            } else if (row.isNet) {
+                              // Net Cash Flow = budget P&L + engine Transfers
+                              let plTotal = 0;
+                              for (const amt of Object.values(baseYearBudget)) plTotal += amt;
+                              const transfers = getCellValue({ label: "Transfers", level: 2 }, year, true) || 0;
+                              const netTotal = plTotal + transfers;
+                              if (netTotal !== 0) value = netTotal;
                             } else if (row.level === 2 && baseYearBudget[row.label] != null) {
                               value = baseYearBudget[row.label];
                             } else if (row.level === 1 && cashAccountMap?.size > 0) {
@@ -544,7 +583,7 @@ export default function FCReviewTable({
                               if (found) value = total;
                             }
                           }
-                          const canDoubleClick = isTransfers && !isBaseYear;
+                          const canDoubleClick = isTransfers && !isBaseYear && !isLastActualYear;
                           return (
                             <td
                               key={`${row.label}-${year}`}
@@ -554,12 +593,12 @@ export default function FCReviewTable({
                                   Number(value) < 0
                                     ? "var(--danger)"
                                     : undefined,
-                                backgroundColor: isBaseYear
+                                backgroundColor: (isBaseYear || isLastActualYear)
                                   ? "#fafafa"
                                   : undefined,
                                 fontWeight:
                                   row.isNet || isCashFlow ? 600 : undefined,
-                                cursor: isBaseYear
+                                cursor: (isBaseYear || isLastActualYear)
                                   ? "default"
                                   : canDoubleClick
                                   ? "pointer"
@@ -604,7 +643,7 @@ export default function FCReviewTable({
                         }}
                       />
                       {sortedYears.map((year) => {
-                        const isBaseYear = baseYears?.has(Number(year));
+                        const isPreForecast = baseYears?.has(Number(year)) || lastActualYears?.has(Number(year));
                         return (
                           <td
                             key={`divider-${year}`}
@@ -612,13 +651,13 @@ export default function FCReviewTable({
                               borderTop: "2px solid var(--border)",
                               padding: 0,
                               height: "1rem",
-                              backgroundColor: isBaseYear
+                              backgroundColor: isPreForecast
                                 ? "#fafafa"
                                 : undefined,
-                              borderLeft: isBaseYear
+                              borderLeft: isPreForecast
                                 ? "1px solid #cbd5e0"
                                 : undefined,
-                              borderRight: isBaseYear
+                              borderRight: isPreForecast
                                 ? "1px solid #cbd5e0"
                                 : undefined,
                             }}
@@ -711,7 +750,9 @@ export default function FCReviewTable({
                             values?.[yearIndex] ??
                             getCellValue(row, year, false);
                           const isBaseYear = baseYears?.has(Number(year));
-                          const canDoubleClick = isBankAccounts && !isBaseYear;
+                          const isLastActualYr = lastActualYears?.has(Number(year));
+                          const isPreForecast = isBaseYear || isLastActualYr;
+                          const canDoubleClick = isBankAccounts && !isPreForecast;
                           return (
                             <td
                               key={`${row.label}-${year}`}
@@ -721,10 +762,10 @@ export default function FCReviewTable({
                                   Number(displayValue) < 0
                                     ? "var(--danger)"
                                     : undefined,
-                                backgroundColor: isBaseYear
+                                backgroundColor: isPreForecast
                                   ? "#fafafa"
                                   : undefined,
-                                cursor: isBaseYear
+                                cursor: isPreForecast
                                   ? "default"
                                   : canDoubleClick
                                   ? "pointer"
@@ -732,7 +773,7 @@ export default function FCReviewTable({
                                 textDecoration: canDoubleClick
                                   ? "underline dotted"
                                   : undefined,
-                                boxShadow: isBaseYear
+                                boxShadow: isPreForecast
                                   ? "inset 1px 0 0 #cbd5e0, inset -1px 0 0 #cbd5e0"
                                   : undefined,
                                 ...balanceSectionBorders,

@@ -178,8 +178,8 @@ psproject/                          # ~/Programs/fin symlinks here
 | `/forecast-mapping` | FCLineMapping | Forecasting | Step 1 — FC Inc/Exp Mapping. Define FC Lines, assign budget categories via drag/drop (Ctrl+Click multi-select), set line types. "Generate Suggestions" opens selectable checklist of P&L parent accounts (only shows names not yet created). Independent scroll panels. Coverage bar, budget totals, category detail modal. Unassigned list excludes children of assigned parents (recursive CTE). |
 | `/forecast-scenarios` | FCScenarios | Forecasting | Step 2 — Manage forecast scenarios. "+ New Scenario" immediately prompts for name. Target Cash field for auto-balance. Copy scenario with optional "Update base values from actuals" checkbox. |
 | `/forecast-modules` | FCModuleManage | Forecasting | Step 3 — Configure BS modules. "Add from Actuals" creates modules from year-end balances (Select All/Clear). Setup status (New/In Progress/Complete) with color-coded badges and filter — only "Complete" included in generation. Edit form: Account/Name read-only when matched; Type from configurable list (FC Settings); Expense/Income Line pickers (FC Lines); Expense Amount (Base Yr) and Income Amount (Base Yr); Growth (x Inflation); Expense Growth method (Inflate / % of Asset Value); Income/Yield % schedule (year + percentage); Tax Rate Override (%); Invest/Dispose arrays; Full disposal handling. `GET /modules/:id` loads nested arrays. |
-| `/forecast-setup-exp` | FCExpSetup | Forecasting | Step 4 — Income/expense forecast items. "Add from FC Lines" with budget pre-fill. Account/Name/Type locked for FC Line items. Base Value = base year amount. Setup status (New/In Progress/Complete) with filter — only "Complete" in generation. |
-| `/forecast-review` | FCReview | Forecasting | Step 5 — Review generated forecasts. P&L driven by FC Lines (`/fc-lines/review-structure`). Base Year column shows base values from completed modules/expenses (`/forecast/base-year-values`). Period 1+ columns show engine-calculated values (yield, inflation growth, pct_of_value). Equity bridge rows inside main table. KPI cards, age row, graph, cash target auto-balance. |
+| `/forecast-setup-exp` | FCExpSetup | Forecasting | Step 4 — Income/expense forecast items. "Add from FC Lines" with budget pre-fill. Account/Name/Type locked for FC Line items. Base Value = BaseYear budget amount. Setup status (New/In Progress/Complete) with filter — only "Complete" in generation. Engine starts from PeriodStart (BaseYear P&L covered by budget). |
+| `/forecast-review` | FCReview | Forecasting | Step 5 — Review generated forecasts. P&L driven by FC Lines (`/fc-lines/review-structure`). Three column types: LastActualYear "(Actual)" from ledger, BaseYear "(Budget)" P&L from budget + BS from engine, PeriodStart+ from FC engines. Invest/Dispose transfers available from BaseYear onward. Equity bridge rows inside main table. KPI cards, age row, graph, cash target auto-balance. |
 | `/fc-settings` | FCSettings | Forecasting | FC Settings — Birth Year (age row in Review), Module Types (configurable dropdown list), and FX Rate Assumptions (moved from old `/fx-options`). |
 | `/balance` | BalanceV2 | Reports & Graphs | Redesigned balance sheet. KPI cards for Net Worth (highlighted), Total Assets, Total Liabilities. Compact toolbar with inline period controls (1-3 periods with P1/P2/P3 badges + date pickers), Generate button, expand/collapse icon buttons, and Export. Reuses existing `BalanceReport` component for the hierarchical account tree table with sticky headers/columns, resizable account column, row highlighting, path-based collapse state, and Net Worth footer row. Auto-generates report on page load. |
 | `/cash-flow` | CashFlow | Reports & Graphs | Cash flow P&L analysis |
@@ -387,12 +387,25 @@ Tables: `fc_lines`, `fc_line_categories`. Coverage indicator on mapping page sho
 
 #### Terminology
 
-| Term | Definition | Example |
-|------|-----------|---------|
-| **Base Year** | PeriodStart - 1 | 2026 |
-| **Period 1** | PeriodStart (first forecast year) | 2027 |
-| **Base Value** | User-entered amount for the Base Year | Income Amount (Base Yr) = 40,000 |
-| **Period 1 value** | Engine-calculated from Base Value using growth method | 40,000 × 1.025 = 41,000 |
+See also: `Documentation/FC_MODULE_MAPPING.md` for full data source mapping.
+
+**Period Definitions:**
+
+| Term | Formula | Example (PeriodStart=2027) | Description |
+|------|---------|---------------------------|-------------|
+| **PeriodStart** | — | 2027 | First forecast year. All FC IncExp projections begin here. |
+| **BaseYear** | PeriodStart − 1 | 2026 | Budget year. P&L sourced from budget. BS modules project ending balances via engine. |
+| **LastActualYear** | PeriodStart − 2 | 2025 | Most recent completed year. P&L and BS sourced from actuals (ledger/reports). |
+
+**Value Definitions:**
+
+| Term | Description | Example |
+|------|-------------|---------|
+| **PY Actual** | Prior year-end actual account value (imported from financial accounts) | 3,918,992 PLN |
+| **Cost Basis** | Original cost / book value of asset at start of forecast. Used to calculate realized gains on disposal. | 3,918,992 |
+| **Market Value** | Current fair market value at start of forecast. May differ from Cost Basis for assets with unrealized gains. | 3,918,992 |
+| **Income Amount (Base Yr)** | User-entered base year income amount — grown at inflation or yield for forecast periods | 40,000 |
+| **Expense Amount (Base Yr)** | User-entered base year expense amount — grown at inflation or % of value for forecast periods | 2,500 |
 
 #### Engine Architecture
 
@@ -401,37 +414,43 @@ Located in `server/src/services/forecast/`. Four main files:
 | File | Purpose |
 |------|---------|
 | `index.js` | Orchestration — loads scenarios, modules, FC Line name map; runs module + incexp builders; post-processing (cash target auto-balance). Only processes modules/expenses with `setup_status = 'complete'`. |
-| `fcbuilder-module.js` | BS module projections — market value growth, investments/disposals, income (yield or base amount), expenses (inflation or % of value), realized/unrealized gains, tax with 1-year deferral, FX conversion, Full disposal handling (50% in disposal year, 0 after), audit trail CSV |
-| `fcbuilder-incexp.js` | Income/expense projections — base value with inflation growth, scheduled changes, tax deferral, FX conversion |
+| `fcbuilder-module.js` | BS module projections — starts from LastActualYear (BaseDate). Market value growth, investments/disposals (including BaseYear transfers), income (yield or base amount), expenses (inflation or % of value), realized/unrealized gains, tax with 1-year deferral, FX conversion, Full disposal handling (BaseYear: P&L kept as budget, future zeroed; forecast years: 50% in disposal year, 0 after), audit trail CSV |
+| `fcbuilder-incexp.js` | Income/expense projections — starts from PeriodStart (BaseYear P&L covered by budget). Base year amount with inflation growth, scheduled changes, tax deferral, FX conversion |
 | `fcbuilder-setup.js` | Loads FCAssump.json, builds rate schedules (inflation, FX, tax) as danfo.js DataFrames. FX keys support both `PLN`/`EUR` and legacy `USDPLN`/`USDEUR` formats. |
 
 #### Engine Calculation Logic
 
 **Income (BS Modules):**
 - If module has Income/Yield % schedule (IncomePct entries) → uses yield for all years where set: `income = avg(MV_current, MV_prior) × yield%`
-- If no yield schedule but `income_amount` (Base Yr) is set → grows at inflation: `income = base × (1 + inflation)^periodNum`
+- If no yield schedule but Income Amount (Base Yr) is set → grows at inflation: `income = base × (1 + inflation)^periodNum`
 - Yield takes priority: if yield is 0% for a year, income is 0 (not fallback to base amount)
-- Base Year income (from `income_amount`) generates deferred tax in Period 1
+- BaseYear income (from Income Amount) generates deferred tax in PeriodStart
 
 **Expenses (BS Modules):**
 - `expense_growth_method = 'inflation'`: `expense = base × (1 + inflation)^periodNum` for all periods
 - `expense_growth_method = 'pct_of_value'`: derives implicit % from `expense_amount / market_value`, applies `% × avg(MV)` for all periods
-- `expense_amount` (Base Yr) is the base year value — all forecast periods apply the growth method
+- Expense Amount (Base Yr) is the base year value — all forecast periods apply the growth method
 
 **Full Disposal:**
-- In disposal year: 50% of calculated expense/income (asset only owned part of year)
+- BaseYear disposal: P&L kept as budget (no halving), all forecast years zeroed (MV, expenses, income)
+- Forecast year disposal: 50% of calculated expense/income in disposal year, 0 after
 - After disposal: all expense/income/growth zeroed, market value = 0
+
+**Invest/Dispose Transfers:**
+- Available from BaseYear (PeriodStart − 1) onward in the year dropdown
+- BaseYear transfers adjust the ending balance that becomes PeriodStart opening balance
+- Transfer-Bank entries generated for cash impact in all periods including BaseYear
 
 **Tax:**
 - Deferred 1 year: tax on income/gains in year N appears in year N+1
-- Base year income generates tax in Period 1
+- BaseYear income generates tax in PeriodStart
 - Per-module override via `tax_rate_override` (NULL = scenario default)
 
 **FX Conversion:**
 - All entries stored in USD
 - Non-USD modules (PLN, EUR) converted using scenario FX assumptions
 - Pre-period years use first available FX rate (forward-fill)
-- Year-0 FX back-calculated from BaseValue/BaseValueUSD ratio
+- Year-0 FX back-calculated from Cost Basis / Cost Basis (USD) ratio
 
 Key engine features:
 - **Setup status gating:** Only modules/expenses with `setup_status = 'complete'` are included in forecast generation — enables incremental build and review
@@ -444,12 +463,15 @@ Key engine features:
 
 - **Add from Actuals** (Modules page): `POST /forecast/modules/add-from-actuals` returns BS account tree with year-end balances; creates modules with balances pre-filled
 - **Add from FC Lines** (Expenses page): `POST /forecast/incomeexpense/add-from-lines` returns FC Lines with budget totals; creates items with budget pre-fill and `budget_source_year`
-- **Copy Scenario:** Deep copy with optional "Update base values from actuals" checkbox + year picker
+- **Copy Scenario:** Deep copy with optional "Update PY Actual values from actuals" checkbox + year picker
 
 #### Review Page Features
 
-- **P&L driven by FC Lines:** Income/Expense sections show FC Line names grouped by type (via `/api/v2/fc-lines/review-structure`). No dependency on COA account hierarchy.
-- **Base Year column:** Shows base values from completed modules/expenses (via `/api/v2/forecast/base-year-values`). Displayed when no forecast entry exists for a cell.
+- **P&L driven by FC Lines:** Income/Expense sections show FC Line names grouped by type (via `/api/v2/fc-lines/review-structure`). The review-structure API also returns mapped COA category names per FC Line for actuals aggregation. No dependency on COA account hierarchy.
+- **LastActualYear column:** Labeled "(Actual)". P&L from ledger actuals aggregated into FC Line names via `categoryToLineMap` (leaf COA → FC Line mapping). BS from ledger year-end balances.
+- **BaseYear column:** Labeled "(Budget)". P&L from budget (via `/api/v2/forecast/base-year-values`). Transfers from FC BS Module engine. BS from FC BS Module engine. Net Cash Flow = budget P&L + engine transfers.
+- **PeriodStart+ columns:** All values from FC engines (IncExp for P&L, BS Module for balance sheet).
+- **Bank Accounts:** Running cash balance derived in display layer. LastActualYear = actual ledger balance (fixed). All subsequent years = prior year cash + current year Net Cash Flow. Engine Bank Accounts entries are not used.
 - **Age row:** Computed from birth year setting (`year - birthYear`)
 - **KPI cards:** Total Assets, Net Cash Flow, Income, Expenses with Recharts area trend charts
 - **Equity bridge:** Collapsible "Change in Net Worth" rows inside the main table — Operating (excl Tax), Tax, Capital & Unrealized, Total Change in Net Worth. Operating = Net Cash Flow - Tax.

@@ -14,41 +14,37 @@ export default function FCStepNav() {
   const idx = STEPS.findIndex((s) => s.path === pathname);
   if (idx === -1) return null;
 
-  const prev = idx > 0 ? STEPS[idx - 1] : null;
-  const next = idx < STEPS.length - 1 ? STEPS[idx + 1] : null;
-
   return (
     <div style={{
-      display: "flex", justifyContent: "space-between", alignItems: "center",
-      padding: "0.35rem 1rem", fontSize: "0.8rem",
+      display: "flex", justifyContent: "center", alignItems: "center",
+      gap: "0.25rem", padding: "0.4rem 1rem",
     }}>
-      {prev ? (
-        <button
-          onClick={() => navigate(prev.path)}
-          style={{
-            background: "none", border: "none", cursor: "pointer",
-            color: "var(--primary, #1e40af)", fontWeight: 500, fontSize: "0.8rem",
-            display: "flex", alignItems: "center", gap: "0.25rem",
-          }}
-        >
-          &larr; {prev.label}
-        </button>
-      ) : <span />}
-      <span style={{ color: "var(--text-secondary)", fontSize: "0.75rem" }}>
-        Step {idx + 1} of {STEPS.length}
-      </span>
-      {next ? (
-        <button
-          onClick={() => navigate(next.path)}
-          style={{
-            background: "none", border: "none", cursor: "pointer",
-            color: "var(--primary, #1e40af)", fontWeight: 500, fontSize: "0.8rem",
-            display: "flex", alignItems: "center", gap: "0.25rem",
-          }}
-        >
-          {next.label} &rarr;
-        </button>
-      ) : <span />}
+      {STEPS.map((step, i) => {
+        const isCurrent = i === idx;
+        return (
+          <button
+            key={step.path}
+            onClick={() => !isCurrent && navigate(step.path)}
+            style={{
+              padding: "0.3rem 0.75rem",
+              fontSize: "0.78rem",
+              fontWeight: isCurrent ? 600 : 400,
+              border: "1px solid",
+              borderColor: isCurrent ? "var(--primary, #1e40af)" : "#d1d5db",
+              borderRadius: "999px",
+              background: isCurrent ? "var(--primary, #1e40af)" : "white",
+              color: isCurrent ? "white" : "#4b5563",
+              cursor: isCurrent ? "default" : "pointer",
+              transition: "all 0.15s",
+              whiteSpace: "nowrap",
+            }}
+            onMouseEnter={(e) => { if (!isCurrent) { e.target.style.background = "#f0f4ff"; e.target.style.borderColor = "var(--primary, #1e40af)"; e.target.style.color = "var(--primary, #1e40af)"; }}}
+            onMouseLeave={(e) => { if (!isCurrent) { e.target.style.background = "white"; e.target.style.borderColor = "#d1d5db"; e.target.style.color = "#4b5563"; }}}
+          >
+            {i + 1}. {step.label}
+          </button>
+        );
+      })}
     </div>
   );
 }

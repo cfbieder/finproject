@@ -133,8 +133,9 @@ export default function FCExpModal({
   };
 
   /**
-   * Effect: Auto-load base year totals from cash flow report when in Matched mode
-   * Fetches historical data and populates BaseValue and BaseValueUSD fields
+   * Effect: Auto-load base year totals when in Matched mode.
+   * If item has fc_line_id, uses budget-totals API (recursive children included).
+   * Otherwise falls back to cash flow report lookup by name.
    */
   useEffect(() => {
     let cancelled = false;
@@ -169,6 +170,24 @@ export default function FCExpModal({
 
     const loadBaseYearTotals = async () => {
       try {
+        // If linked to an FC Line, use budget-totals API (includes recursive children)
+        if (editForm?.FcLineId) {
+          const budgetRes = await Rest.get(`/fc-lines/budget-totals?budgetYear=${year}`);
+          if (cancelled) return;
+          const match = (budgetRes.data || []).find((t) => t.fc_line_id === editForm.FcLineId);
+          if (match) {
+            const val = normalizeNumber(match.budget_total);
+            if (val !== null && val !== normalizeNumber(editForm?.BaseValue)) {
+              onFieldChange("BaseValue", val);
+            }
+            if (val !== null && val !== normalizeNumber(editForm?.BaseValueUSD)) {
+              onFieldChange("BaseValueUSD", val);
+            }
+          }
+          return;
+        }
+
+        // Fallback: search P&L report by name
         const fromDate = `${year}-01-01`;
         const toDate = `${year}-12-31`;
         const report = await Rest.fetchCashFlowReport({

@@ -253,6 +253,17 @@ async function processModule(module, scenario, df_assumptions, df_categories, ca
   // Calculate yearly realized and unrealized gains/losses
   const unrealizedGainValues = new Array(yearsCount).fill(0);
   const realizedGainValues = new Array(yearsCount).fill(0);
+
+  // Apply base year (idx 0) invest/dispose to starting values
+  if (investValues[0] !== 0 || disposeValues[0] !== 0) {
+    const origMarket = marketValues[0];
+    const origBase = baseValues[0];
+    const safeDisposeAdj = origMarket === 0 ? 0 : (disposeValues[0] * origBase) / origMarket;
+    baseValues[0] = origBase + investValues[0] + safeDisposeAdj;
+    marketValues[0] = origMarket + investValues[0] + disposeValues[0];
+    realizedGainValues[0] = -disposeValues[0] + (origMarket === 0 ? 0 : (disposeValues[0] * origBase) / origMarket);
+  }
+
   for (let i = 1; i < yearsCount; i++) {
     unrealizedGainValues[i] = marketValues[i - 1] * (growthValues[i] / 100);
 
@@ -271,8 +282,10 @@ async function processModule(module, scenario, df_assumptions, df_categories, ca
       if (entry.Flag != "Full") continue;
       const idx = new Date(entry.Date).getFullYear() - startyear;
       if (idx >= 0 && idx < yearsCount) {
-        unrealizedGainValues[idx] = (marketValues[idx] - marketValues[idx - 1]) / 2;
-        disposeValues[idx] = -marketValues[idx - 1] - unrealizedGainValues[idx];
+        // For base year (idx 0), use original module values as "previous"
+        const prevMV = idx === 0 ? (module.MarketValue ?? 0) : marketValues[idx - 1];
+        unrealizedGainValues[idx] = idx === 0 ? 0 : (marketValues[idx] - prevMV) / 2;
+        disposeValues[idx] = -prevMV - unrealizedGainValues[idx];
         realizedGainValues[idx] = -disposeValues[idx] - baseValues[idx];
         baseValues[idx] = 0;
         marketValues[idx] = 0;
@@ -384,13 +397,21 @@ async function processModule(module, scenario, df_assumptions, df_categories, ca
       if (entry.Flag !== "Full") continue;
       const dispIdx = new Date(entry.Date).getFullYear() - startyear;
       if (dispIdx >= 0 && dispIdx < yearsCount) {
-        // Disposal year: 50% of calculated expense/income (asset only owned part of year)
-        expenseValues[dispIdx] = expenseValues[dispIdx] / 2;
-        incomeValues[dispIdx] = incomeValues[dispIdx] / 2;
-        // Zero out all years after disposal
-        for (let j = dispIdx + 1; j < yearsCount; j++) {
-          expenseValues[j] = 0;
-          incomeValues[j] = 0;
+        if (dispIdx === 0) {
+          // Base year disposal: base year stays as budget, zero all forecast years
+          for (let j = 1; j < yearsCount; j++) {
+            expenseValues[j] = 0;
+            incomeValues[j] = 0;
+          }
+        } else {
+          // Disposal year: 50% of calculated expense/income (asset only owned part of year)
+          expenseValues[dispIdx] = expenseValues[dispIdx] / 2;
+          incomeValues[dispIdx] = incomeValues[dispIdx] / 2;
+          // Zero out all years after disposal
+          for (let j = dispIdx + 1; j < yearsCount; j++) {
+            expenseValues[j] = 0;
+            incomeValues[j] = 0;
+          }
         }
       }
     }

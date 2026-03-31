@@ -430,9 +430,11 @@ export default function FCModulesEditModal({
   const scenarioPeriodEnd =
     scenarioDetails?.PeriodEnd ?? assumptions?.PeriodEnd ?? null;
   const currentYear = new Date().getFullYear();
-  const transferYearStart = Number(scenarioPeriodStart) > 1900
+  const periodStartNum = Number(scenarioPeriodStart) > 1900
     ? Number(scenarioPeriodStart)
     : currentYear;
+  // Invest/Dispose transfers available from Base Year (PeriodStart - 1) onward
+  const transferYearStart = periodStartNum - 1;
   const transferYearEndCandidate = Number(scenarioPeriodEnd) > 1900
     ? Number(scenarioPeriodEnd)
     : transferYearStart + 20;
@@ -442,7 +444,7 @@ export default function FCModulesEditModal({
     (_, index) => transferYearStart + index
   );
   // Income % available from Period 1 (PeriodStart) onward
-  const incomePctYearOptions = transferYearOptions;
+  const incomePctYearOptions = transferYearOptions.filter(y => y >= periodStartNum);
   const transferFlagOptionsI = ["OneTime", "Periodic"];
   const transferFlagOptionsD = ["Full", "OneTime", "Periodic"];
   const incomePctLabel = (() => {
@@ -501,8 +503,8 @@ export default function FCModulesEditModal({
     ["Base Date", "BaseDate", "date"],
     ["Type", "Type", "text"],
     ["Currency", "Currency", "text"],
-    ["Base Value", "BaseValue", "number"],
-    ["Base Value (USD)", "BaseValueUSD", "number"],
+    ["Cost Basis", "BaseValue", "number"],
+    ["Cost Basis (USD)", "BaseValueUSD", "number"],
     ["Market Value", "MarketValue", "number"],
     ["Market Value (USD)", "MarketValueUSD", "number"],
     ["Growth (x Inflation)", "Growth", "number"],
@@ -793,7 +795,7 @@ export default function FCModulesEditModal({
                             />
                           </label>
                           <label className="fc-modules-modal__field">
-                            <span>Account Value</span>
+                            <span>PY Actual ({editForm?.BaseDate ? new Date(editForm.BaseDate).getFullYear() : ""})</span>
                             <input
                               type="text"
                               className="fc-modules-modal__input"
@@ -809,7 +811,7 @@ export default function FCModulesEditModal({
                             />
                           </label>
                           <label className="fc-modules-modal__field">
-                            <span>Account Value USD</span>
+                            <span>PY Actual (USD)</span>
                             <input
                               type="text"
                               className="fc-modules-modal__input"
@@ -1322,7 +1324,7 @@ export default function FCModulesEditModal({
               onClick={() => copyAccountValueTo("MarketValue")}
               disabled={editSaving || !accountValueAvailable}
             >
-              Copy Market
+              PY → Market Value
             </button>
             <button
               type="button"
@@ -1330,7 +1332,7 @@ export default function FCModulesEditModal({
               onClick={() => copyAccountValueTo("BaseValue")}
               disabled={editSaving || !accountValueAvailable}
             >
-              Copy Base
+              PY → Cost Basis
             </button>
             <button
               type="submit"

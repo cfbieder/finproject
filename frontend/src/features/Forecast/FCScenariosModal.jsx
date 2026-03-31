@@ -416,7 +416,7 @@ export default function FCScenariosModal({
                     handleFieldChange("refreshBaseYear", e.target.checked ? new Date().getFullYear() - 1 : null)
                   }
                 />
-                <span>Update base values from actuals</span>
+                <span>Update PY Actual values from actuals</span>
                 {modalState.payload?.refreshBaseYear && (
                   <input
                     type="number"

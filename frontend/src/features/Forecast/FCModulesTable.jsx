@@ -537,7 +537,7 @@ export default function FCModulesTable({
                       span: false,
                     },
                     {
-                      label: "Base Value",
+                      label: "Cost Basis",
                       value:
                         selectedModule.BaseValue === null ||
                         selectedModule.BaseValue === undefined
@@ -555,7 +555,7 @@ export default function FCModulesTable({
                       span: false,
                     },
                     {
-                      label: "Base Value (USD)",
+                      label: "Cost Basis (USD)",
                       value: formatCurrency(
                         selectedModule.BaseValueUSD ?? selectedModule.BaseValue
                       ),

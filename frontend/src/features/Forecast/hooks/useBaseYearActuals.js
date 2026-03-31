@@ -2,11 +2,11 @@ import { useEffect, useState } from "react";
 import Rest from "../../../js/rest.js";
 
 /**
- * Custom hook for loading base year actual cash flow data.
- * Loads P&L actuals for two years before the forecast period starts.
+ * Custom hook for loading LastActualYear (PeriodStart - 2) P&L actuals.
+ * BaseYear (PeriodStart - 1) P&L comes from budget, not actuals.
  *
  * @param {number} periodStart - First year of the forecast period
- * @returns {Object} Base year actuals state
+ * @returns {Object} LastActualYear P&L actuals state
  * @property {Map} baseActualTotalsByYear - Map of year -> { level1, level2, net }
  * @property {boolean} loading - Whether actuals are being loaded
  * @property {string} error - Error message if loading failed
@@ -24,8 +24,7 @@ export function useBaseYearActuals(periodStart) {
       return;
     }
 
-    const baseYear1 = Number(periodStart) - 2;
-    const baseYear2 = Number(periodStart) - 1;
+    const lastActualYear = Number(periodStart) - 2;
 
     let isMounted = true;
 
@@ -41,6 +40,7 @@ export function useBaseYearActuals(periodStart) {
 
       const level1 = new Map();
       const level2 = new Map();
+      const leafTotals = new Map(); // Leaf COA category name → totalUSD
       let unrealizedAdjustment = 0;
       let unrealizedLevel2 = "";
 
@@ -87,9 +87,12 @@ export function useBaseYearActuals(periodStart) {
             level2.set(name, total);
           }
 
-          // Recurse into children
+          // Recurse into children or collect leaf totals
           if (Array.isArray(node.children) && node.children.length > 0) {
             traverse(node.children, level + 1, nextLevel1, nextLevel2);
+          } else if (name && level >= 3) {
+            // Leaf node — collect by name for FC Line mapping
+            leafTotals.set(name, (leafTotals.get(name) ?? 0) + total);
           }
         }
       };
@@ -108,7 +111,7 @@ export function useBaseYearActuals(periodStart) {
 
       const income = level1.get("Income") ?? 0;
       const expense = level1.get("Expense") ?? 0;
-      return { level1, level2, net: income + expense };
+      return { level1, level2, leafTotals, net: income + expense };
     };
 
     const loadActuals = async () => {
@@ -117,17 +120,10 @@ export function useBaseYearActuals(periodStart) {
       try {
         const yearDataMap = new Map();
 
-        // Load first base year
-        const data1 = await loadActualsForYear(baseYear1);
+        // Load LastActualYear (PeriodStart - 2) only
+        const data = await loadActualsForYear(lastActualYear);
         if (!isMounted) return;
-        yearDataMap.set(Number(baseYear1), data1);
-
-        // Load second base year if it exists
-        if (baseYear2) {
-          const data2 = await loadActualsForYear(baseYear2);
-          if (!isMounted) return;
-          yearDataMap.set(Number(baseYear2), data2);
-        }
+        yearDataMap.set(Number(lastActualYear), data);
 
         setBaseActualTotalsByYear(yearDataMap);
       } catch (err) {

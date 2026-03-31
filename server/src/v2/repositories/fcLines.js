@@ -20,15 +20,38 @@ async function findAll(budgetYear) {
   `);
 
   const catsResult = await db.query(`
+    WITH RECURSIVE cat_tree AS (
+      -- Directly assigned categories
+      SELECT flc.fc_line_id, flc.category_id as root_id, c.id as id
+      FROM fc_line_categories flc
+      JOIN categories c ON flc.category_id = c.id
+      UNION ALL
+      -- Recursively include children
+      SELECT ct.fc_line_id, ct.root_id, ch.id
+      FROM cat_tree ct
+      JOIN categories ch ON ch.parent_id = ct.id
+    ),
+    -- Deduplicate leaves per root, then sum budget
+    distinct_leaves AS (
+      SELECT DISTINCT fc_line_id, root_id, id
+      FROM cat_tree
+      WHERE NOT EXISTS (SELECT 1 FROM categories ch WHERE ch.parent_id = cat_tree.id)
+    ),
+    leaf_budget AS (
+      SELECT dl.fc_line_id, dl.root_id,
+             COALESCE(SUM(be.base_amount), 0) as budget_total
+      FROM distinct_leaves dl
+      LEFT JOIN budget_entries be ON be.category_id = dl.id
+        AND ($1::int IS NULL OR be.budget_year = $1)
+      GROUP BY dl.fc_line_id, dl.root_id
+    )
     SELECT flc.fc_line_id, flc.category_id, c.name as category_name,
            c.parent_id, pc.name as parent_name,
-           COALESCE(SUM(be.base_amount), 0) as budget_total
+           COALESCE(lb.budget_total, 0) as budget_total
     FROM fc_line_categories flc
     JOIN categories c ON flc.category_id = c.id
     LEFT JOIN categories pc ON c.parent_id = pc.id
-    LEFT JOIN budget_entries be ON be.category_id = c.id
-      AND ($1::int IS NULL OR be.budget_year = $1)
-    GROUP BY flc.fc_line_id, flc.category_id, c.name, c.parent_id, pc.name
+    LEFT JOIN leaf_budget lb ON lb.fc_line_id = flc.fc_line_id AND lb.root_id = flc.category_id
     ORDER BY c.name
   `, [budgetYear || null]);
 
@@ -212,14 +235,29 @@ async function findUnassignedCategories(budgetYear) {
  */
 async function getBudgetTotals(budgetYear) {
   const result = await db.query(`
+    WITH RECURSIVE cat_tree AS (
+      SELECT flc.fc_line_id, c.id
+      FROM fc_line_categories flc
+      JOIN categories c ON flc.category_id = c.id
+      UNION ALL
+      SELECT ct.fc_line_id, ch.id
+      FROM cat_tree ct
+      JOIN categories ch ON ch.parent_id = ct.id
+    ),
+    -- Deduplicate: each leaf counted once per fc_line
+    distinct_leaves AS (
+      SELECT DISTINCT fc_line_id, id
+      FROM cat_tree ct
+      WHERE NOT EXISTS (SELECT 1 FROM categories ch WHERE ch.parent_id = ct.id)
+    )
     SELECT
       l.id as fc_line_id,
       l.name as fc_line_name,
       l.line_type,
       COALESCE(SUM(be.base_amount), 0) as budget_total
     FROM fc_lines l
-    LEFT JOIN fc_line_categories flc ON flc.fc_line_id = l.id
-    LEFT JOIN budget_entries be ON be.category_id = flc.category_id AND be.budget_year = $1
+    LEFT JOIN distinct_leaves dl ON dl.fc_line_id = l.id
+    LEFT JOIN budget_entries be ON be.category_id = dl.id AND be.budget_year = $1
     GROUP BY l.id, l.name, l.line_type
     ORDER BY l.display_order, l.name
   `, [budgetYear]);

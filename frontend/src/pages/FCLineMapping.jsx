@@ -221,9 +221,11 @@ export default function FCLineMapping() {
   };
 
   const selectedLine = lines.find((l) => l.id === selectedLineId);
-  const totalCategories = lines.reduce((s, l) => s + (l.categories?.length || 0), 0) + unassigned.length;
-  const assignedCount = totalCategories - unassigned.length;
-  const assignedPct = totalCategories > 0 ? Math.round((assignedCount / totalCategories) * 100) : 0;
+  // Budget-value-based coverage: sum of absolute budget amounts assigned vs total
+  const assignedBudget = Object.values(budgetTotals).reduce((s, v) => s + Math.abs(v || 0), 0);
+  const unassignedBudget = unassigned.reduce((s, c) => s + Math.abs(parseFloat(c.budget_total) || 0), 0);
+  const totalBudget = assignedBudget + unassignedBudget;
+  const assignedPct = totalBudget > 0 ? Math.round((assignedBudget / totalBudget) * 100) : 0;
 
   const filteredUnassigned = searchTerm
     ? unassigned.filter((c) =>
@@ -268,7 +270,7 @@ export default function FCLineMapping() {
             {/* Coverage bar */}
             <div style={{ display: "flex", alignItems: "center", gap: "1rem", marginBottom: "0.75rem" }}>
               <span style={{ fontSize: "0.85rem", color: "var(--text-secondary)" }}>
-                Coverage: {assignedCount}/{totalCategories} assigned ({assignedPct}%)
+                Coverage: {fmt(assignedBudget)}/{fmt(totalBudget)} budget mapped ({assignedPct}%)
               </span>
               <div style={{ flex: 1, height: "6px", background: "#e2e8f0", borderRadius: "3px", overflow: "hidden" }}>
                 <div style={{ width: `${assignedPct}%`, height: "100%", background: assignedPct === 100 ? "#22c55e" : "#3b82f6", transition: "width 0.3s" }} />
@@ -339,8 +341,15 @@ export default function FCLineMapping() {
                     <th style={{ width: "5rem" }}>Actions</th>
                   </tr>
                 </thead>
-                <tbody>
-                  {lines.map((line) => (
+                {(() => {
+                  const incomeLines = lines.filter((l) => l.line_type === "forecast_income" || l.line_type === "bs_module_income");
+                  const expenseLines = lines.filter((l) => l.line_type === "forecast_expense" || l.line_type === "bs_module_expense");
+                  const unassignedLines = lines.filter((l) => l.line_type === "unassigned");
+                  const incomeSubtotal = incomeLines.reduce((s, l) => s + (budgetTotals[l.id] || 0), 0);
+                  const expenseSubtotal = expenseLines.reduce((s, l) => s + (budgetTotals[l.id] || 0), 0);
+                  const grandTotal = incomeSubtotal + expenseSubtotal;
+
+                  const renderLineRow = (line) => (
                     <tr
                       key={line.id}
                       onClick={() => setSelectedLineId(line.id)}
@@ -412,8 +421,55 @@ export default function FCLineMapping() {
                         </button>
                       </td>
                     </tr>
-                  ))}
-                </tbody>
+                  );
+
+                  const subtotalRow = (label, total, color) => (
+                    <tr key={`subtotal-${label}`} style={{ fontWeight: 700, background: "#f8fafc", borderTop: "1px solid #e2e8f0" }}>
+                      <td colSpan={3}>{label}</td>
+                      <td style={{ textAlign: "right", fontFamily: "var(--font-mono)", color }}>
+                        {total !== 0 ? (total < 0 ? "-" : "") + fmt(total) : "—"}
+                      </td>
+                      <td />
+                    </tr>
+                  );
+
+                  return (
+                    <>
+                      {incomeLines.length > 0 && (
+                        <tbody>
+                          <tr><td colSpan={5} style={{ fontWeight: 700, paddingTop: "0.5rem", fontSize: "0.8rem", color: "var(--success, #22c55e)", borderBottom: "1px solid #e2e8f0" }}>Income</td></tr>
+                          {incomeLines.map(renderLineRow)}
+                          {subtotalRow("Subtotal Income", incomeSubtotal, "var(--success, #22c55e)")}
+                        </tbody>
+                      )}
+                      {expenseLines.length > 0 && (
+                        <tbody>
+                          <tr><td colSpan={5} style={{ fontWeight: 700, paddingTop: "0.75rem", fontSize: "0.8rem", color: "var(--danger, #ef4444)", borderBottom: "1px solid #e2e8f0" }}>Expense</td></tr>
+                          {expenseLines.map(renderLineRow)}
+                          {subtotalRow("Subtotal Expense", expenseSubtotal, "var(--danger, #ef4444)")}
+                        </tbody>
+                      )}
+                      {unassignedLines.length > 0 && (
+                        <tbody>
+                          <tr><td colSpan={5} style={{ fontWeight: 700, paddingTop: "0.75rem", fontSize: "0.8rem", color: "var(--text-secondary)", borderBottom: "1px solid #e2e8f0" }}>Unassigned</td></tr>
+                          {unassignedLines.map(renderLineRow)}
+                        </tbody>
+                      )}
+                      <tfoot>
+                        <tr style={{ fontWeight: 700, borderTop: "2px solid #cbd5e0" }}>
+                          <td colSpan={3}>Total</td>
+                          <td style={{
+                            textAlign: "right", fontFamily: "var(--font-mono)",
+                            color: grandTotal < 0 ? "var(--danger, #ef4444)" : grandTotal > 0 ? "var(--success, #22c55e)" : undefined,
+                          }}>
+                            {grandTotal !== 0 ? (grandTotal < 0 ? "-" : "") + fmt(grandTotal) : "—"}
+                          </td>
+                          <td />
+                        </tr>
+                      </tfoot>
+                    </>
+                  );
+                })()}
               </table>
             )}
           </div>
@@ -509,7 +565,12 @@ export default function FCLineMapping() {
               </div>
             ) : (
               <div style={{ padding: "0.5rem", display: "flex", flexDirection: "column", gap: "0.15rem" }}>
-                {filteredUnassigned.map((cat) => (
+                {filteredUnassigned
+                  .slice()
+                  .sort((a, b) => Math.abs(parseFloat(b.budget_total) || 0) - Math.abs(parseFloat(a.budget_total) || 0))
+                  .map((cat) => {
+                  const bt = parseFloat(cat.budget_total) || 0;
+                  return (
                   <div
                     key={cat.id}
                     draggable
@@ -521,7 +582,7 @@ export default function FCLineMapping() {
                     onDoubleClick={() => selectedLineId && handleAssignCategory(selectedLineId, cat.id)}
                     style={{
                       padding: "0.3rem 0.5rem",
-                      background: selectedCatIds.has(cat.id) ? "#dbeafe" : "#fff",
+                      background: selectedCatIds.has(cat.id) ? "#dbeafe" : bt !== 0 ? "#fef9ee" : "#fff",
                       borderRadius: "0.25rem",
                       fontSize: "0.8rem", cursor: "pointer",
                       border: selectedCatIds.has(cat.id) ? "1px solid #3b82f6" : "1px solid #e2e8f0",
@@ -530,17 +591,36 @@ export default function FCLineMapping() {
                     title="Click to select, Ctrl+Click for multi-select, double-click to assign"
                   >
                     <span style={{ flex: 1 }}>{cat.name}</span>
-                    {parseFloat(cat.budget_total) !== 0 && (
-                      <span style={{
-                        fontFamily: "var(--font-mono)", fontSize: "0.75rem",
-                        color: parseFloat(cat.budget_total) < 0 ? "var(--danger, #ef4444)" : "var(--success, #22c55e)",
-                      }}>
-                        {fmt(cat.budget_total)}
-                      </span>
-                    )}
+                    <span style={{
+                      fontFamily: "var(--font-mono)", fontSize: "0.75rem",
+                      color: bt < 0 ? "var(--danger, #ef4444)" : bt > 0 ? "var(--success, #22c55e)" : "#94a3b8",
+                    }}>
+                      {bt !== 0 ? (bt < 0 ? "-" : "") + fmt(bt) : "—"}
+                    </span>
                     <span style={{ color: "#94a3b8", fontSize: "0.75rem", whiteSpace: "nowrap" }}>{cat.parent_name || ""}</span>
                   </div>
-                ))}
+                  );
+                })}
+                {(() => {
+                  const unassignedTotal = filteredUnassigned.reduce((s, c) => s + (parseFloat(c.budget_total) || 0), 0);
+                  const withBudget = filteredUnassigned.filter((c) => (parseFloat(c.budget_total) || 0) !== 0).length;
+                  return unassignedTotal !== 0 ? (
+                    <div style={{
+                      padding: "0.4rem 0.5rem", marginTop: "0.25rem",
+                      fontWeight: 700, fontSize: "0.8rem",
+                      borderTop: "2px solid #e2e8f0",
+                      display: "flex", justifyContent: "space-between",
+                    }}>
+                      <span>Unassigned Total ({withBudget} with budget)</span>
+                      <span style={{
+                        fontFamily: "var(--font-mono)",
+                        color: unassignedTotal < 0 ? "var(--danger, #ef4444)" : "var(--success, #22c55e)",
+                      }}>
+                        {(unassignedTotal < 0 ? "-" : "") + fmt(unassignedTotal)}
+                      </span>
+                    </div>
+                  ) : null;
+                })()}
               </div>
             )}
           </div>
@@ -573,41 +653,95 @@ export default function FCLineMapping() {
                 <thead>
                   <tr>
                     <th>Category</th>
-                    <th>Parent</th>
                     <th style={{ textAlign: "right" }}>Budget (USD)</th>
+                    <th style={{ width: "2rem" }} />
                   </tr>
                 </thead>
-                <tbody>
-                  {(detailLine.categories || [])
-                    .slice()
-                    .sort((a, b) => Math.abs(parseFloat(b.budget_total) || 0) - Math.abs(parseFloat(a.budget_total) || 0))
-                    .map((cat) => {
-                      const bt = parseFloat(cat.budget_total) || 0;
-                      return (
-                        <tr key={cat.category_id}>
-                          <td>{cat.category_name}</td>
-                          <td style={{ color: "var(--text-secondary)" }}>{cat.parent_name || ""}</td>
+                {(() => {
+                  const allCats = (detailLine.categories || []).slice();
+                  // Group by parent name
+                  const parentGroups = new Map();
+                  for (const cat of allCats) {
+                    const parent = cat.parent_name || "Other";
+                    if (!parentGroups.has(parent)) parentGroups.set(parent, []);
+                    parentGroups.get(parent).push(cat);
+                  }
+                  // Sort categories within each group by absolute budget
+                  for (const cats of parentGroups.values()) {
+                    cats.sort((a, b) => Math.abs(parseFloat(b.budget_total) || 0) - Math.abs(parseFloat(a.budget_total) || 0));
+                  }
+                  // Sort parent groups by absolute subtotal
+                  const sortedParents = [...parentGroups.entries()]
+                    .map(([parent, cats]) => ({
+                      parent,
+                      cats,
+                      subtotal: cats.reduce((s, c) => s + (parseFloat(c.budget_total) || 0), 0),
+                    }))
+                    .sort((a, b) => Math.abs(b.subtotal) - Math.abs(a.subtotal));
+                  const grandTotal = sortedParents.reduce((s, g) => s + g.subtotal, 0);
+
+                  const renderRow = (cat) => {
+                    const bt = parseFloat(cat.budget_total) || 0;
+                    return (
+                      <tr key={cat.category_id}>
+                        <td style={{ paddingLeft: "1rem" }}>{cat.category_name}</td>
+                        <td style={{
+                          textAlign: "right", fontFamily: "var(--font-mono)",
+                          color: bt < 0 ? "var(--danger, #ef4444)" : bt > 0 ? "var(--success, #22c55e)" : undefined,
+                        }}>
+                          {bt !== 0 ? (bt < 0 ? "-" : "") + fmt(bt) : "—"}
+                        </td>
+                        <td style={{ textAlign: "center" }}>
+                          <button
+                            onClick={async () => {
+                              await handleUnassignCategory(detailLine.id, cat.category_id);
+                              setDetailLine((prev) => prev ? {
+                                ...prev,
+                                categories: prev.categories.filter((c) => c.category_id !== cat.category_id),
+                              } : null);
+                            }}
+                            title="Remove category"
+                            style={{ background: "none", border: "none", cursor: "pointer", color: "#94a3b8", fontSize: "1rem", padding: "0 0.25rem", lineHeight: 1 }}
+                          >
+                            &times;
+                          </button>
+                        </td>
+                      </tr>
+                    );
+                  };
+
+                  return (
+                    <>
+                      {sortedParents.map(({ parent, cats, subtotal }) => (
+                        <tbody key={parent}>
+                          <tr>
+                            <td style={{ fontWeight: 700, paddingTop: "0.5rem", borderBottom: "1px solid #e2e8f0" }}>{parent}</td>
+                            <td style={{
+                              fontWeight: 700, textAlign: "right", fontFamily: "var(--font-mono)", paddingTop: "0.5rem", borderBottom: "1px solid #e2e8f0",
+                              color: subtotal < 0 ? "var(--danger, #ef4444)" : subtotal > 0 ? "var(--success, #22c55e)" : undefined,
+                            }}>
+                              {subtotal !== 0 ? (subtotal < 0 ? "-" : "") + fmt(subtotal) : "—"}
+                            </td>
+                            <td style={{ borderBottom: "1px solid #e2e8f0" }} />
+                          </tr>
+                          {cats.map(renderRow)}
+                        </tbody>
+                      ))}
+                      <tfoot>
+                        <tr style={{ fontWeight: 700, borderTop: "2px solid #e2e8f0" }}>
+                          <td>Total</td>
                           <td style={{
                             textAlign: "right", fontFamily: "var(--font-mono)",
-                            color: bt < 0 ? "var(--danger, #ef4444)" : bt > 0 ? "var(--success, #22c55e)" : undefined,
+                            color: grandTotal < 0 ? "var(--danger, #ef4444)" : grandTotal > 0 ? "var(--success, #22c55e)" : undefined,
                           }}>
-                            {bt !== 0 ? (bt < 0 ? "-" : "") + fmt(bt) : "—"}
+                            {grandTotal !== 0 ? (grandTotal < 0 ? "-" : "") + fmt(grandTotal) : "—"}
                           </td>
+                          <td />
                         </tr>
-                      );
-                    })}
-                </tbody>
-                <tfoot>
-                  <tr style={{ fontWeight: 700, borderTop: "2px solid #e2e8f0" }}>
-                    <td colSpan={2}>Total</td>
-                    <td style={{
-                      textAlign: "right", fontFamily: "var(--font-mono)",
-                      color: (budgetTotals[detailLine.id] || 0) < 0 ? "var(--danger, #ef4444)" : undefined,
-                    }}>
-                      {budgetTotals[detailLine.id] ? ((budgetTotals[detailLine.id] < 0 ? "-" : "") + fmt(budgetTotals[detailLine.id])) : "—"}
-                    </td>
-                  </tr>
-                </tfoot>
+                      </tfoot>
+                    </>
+                  );
+                })()}
               </table>
             </div>
           </div>

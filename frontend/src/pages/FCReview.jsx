@@ -70,7 +70,7 @@ export default function FCReview() {
     loadError: scenariosError,
   } = useScenarios();
 
-  // Get the selected scenario object to access PeriodStart
+  // Get the selected scenario object to access PeriodStart/PeriodEnd
   const selectedScenarioObj = useMemo(
     () => scenarios.find((s) => s.Name === selectedScenario),
     [scenarios, selectedScenario]
@@ -92,6 +92,7 @@ export default function FCReview() {
   const {
     cashAccounts,
     cashAccountMap,
+    categoryToLineMap,
     loading: accountsLoading,
     error: accountsError,
   } = useFCLineStructure();
@@ -211,17 +212,25 @@ export default function FCReview() {
   // COMPUTED VALUES - Memoized for Performance
   // =============================================================================
 
-  // Calculate base years (PeriodStart - 2 and PeriodStart - 1)
+  // BaseYear = PeriodStart - 1 (budget year), LastActualYear = PeriodStart - 2 (actuals)
+  const lastActualYear = periodStart ? Number(periodStart) - 2 : undefined;
   const baseYears = useMemo(() => {
     const yearsSet = new Set();
     if (periodStart) {
-      yearsSet.add(Number(periodStart) - 2);
       yearsSet.add(Number(periodStart) - 1);
     }
     return yearsSet;
   }, [periodStart]);
 
-  // Combine base years with forecast years for display
+  const lastActualYears = useMemo(() => {
+    const yearsSet = new Set();
+    if (lastActualYear) {
+      yearsSet.add(lastActualYear);
+    }
+    return yearsSet;
+  }, [lastActualYear]);
+
+  // Combine LastActualYear + BaseYear + forecast years for display
   const sortedYears = useMemo(() => {
     const allYears = [...years];
     if (periodStart) {
@@ -381,15 +390,15 @@ export default function FCReview() {
     (row, year, isCashSection) => {
       const numericYear = Number(year);
       const isBaseYear = baseYears.has(numericYear);
+      const isLastActualYear = lastActualYears.has(numericYear);
 
-      // ========== Cash Flow - Base Year ==========
-      // Base year P&L values are handled by FCReviewTable directly via baseYearBudget prop
-      if (isCashSection && isBaseYear) {
-        return null;
+      // ========== LastActualYear - P&L from actuals ==========
+      if (isCashSection && isLastActualYear) {
+        return null; // Handled by FCReviewTable via baseYearBudget for LastActualYear actuals
       }
 
-      // ========== Balance Sheet - Base Year Actuals ==========
-      if (!isCashSection && isBaseYear) {
+      // ========== LastActualYear - BS from actuals ==========
+      if (!isCashSection && isLastActualYear) {
         const yearData = baseBalanceTotalsByYear.get(numericYear);
         if (!yearData) return null;
 
@@ -402,6 +411,12 @@ export default function FCReview() {
         return yearData.level3?.get(row.label) ?? null;
       }
 
+      // ========== BaseYear - P&L from budget, Transfers from engine ==========
+      if (isCashSection && isBaseYear && row.label !== "Transfers") {
+        return null; // P&L, Cash Flow, Net handled by FCReviewTable via baseYearBudget prop
+      }
+
+      // ========== BaseYear - BS from engine (same as forecast years) ==========
       // ========== Balance Sheet - Forecast Years ==========
       if (!isCashSection) {
         if (row.level === 1) {
@@ -463,7 +478,7 @@ export default function FCReview() {
       }
       return entryMaps.cash.byLabel.get(row.label)?.get(year) ?? null;
     },
-    [baseYears, baseActualTotalsByYear, baseBalanceTotalsByYear, entryMaps, baseYearValues, cashAccountMap]
+    [baseYears, lastActualYears, baseActualTotalsByYear, baseBalanceTotalsByYear, entryMaps, baseYearValues, cashAccountMap]
   );
 
   /**
@@ -474,6 +489,32 @@ export default function FCReview() {
    *
    * @returns {Map<string, Array<number>>} Map of account label to array of values per year
    */
+  // Compute Net Cash Flow per year for Bank Accounts running balance
+  // Net Cash Flow = Income + Expense + Transfers (for forecast years and BaseYear)
+  const netCashFlowByYear = useMemo(() => {
+    return sortedYears.map((year) => {
+      const isBase = baseYears.has(Number(year));
+      if (isBase) {
+        // BaseYear: budget P&L + engine transfers
+        let plTotal = 0;
+        if (baseYearValues && Object.keys(baseYearValues).length > 0) {
+          for (const amt of Object.values(baseYearValues)) plTotal += amt;
+        }
+        const transfers = entryMaps.cash.byLabel.get("Transfers")?.get(year) ||
+          entryMaps.cash.level1Totals.get("Transfers")?.get(year) || 0;
+        return plTotal + transfers;
+      }
+      // Forecast years: from engine entries
+      const incomeMap = entryMaps.cash.level1Totals.get("Income");
+      const expenseMap = entryMaps.cash.level1Totals.get("Expense");
+      const transferMap = entryMaps.cash.level1Totals.get("Transfers");
+      const income = incomeMap?.get(year) || 0;
+      const expense = expenseMap?.get(year) || 0;
+      const transfers = transferMap?.get(year) || 0;
+      return income + expense + transfers;
+    });
+  }, [sortedYears, baseYears, baseYearValues, entryMaps]);
+
   const balanceDisplayValues = useMemo(() => {
     const valuesByRow = new Map();
     for (const row of balanceAccounts) {
@@ -481,13 +522,14 @@ export default function FCReview() {
       const perYear = sortedYears.map((year, index) => {
         const baseValue = getCellValue(row, year, false);
         if (row.label === "Bank Accounts" || bankAccountLabels.has(row.label)) {
-          const numericValue = Number.isFinite(Number(baseValue))
-            ? Number(baseValue)
-            : 0;
           if (index === 0) {
-            runningBankTotal = numericValue;
+            // LastActualYear: actual cash balance from ledger
+            runningBankTotal = Number.isFinite(Number(baseValue))
+              ? Number(baseValue)
+              : 0;
           } else {
-            runningBankTotal = (runningBankTotal ?? 0) + numericValue;
+            // BaseYear+: prior cash + Net Cash Flow
+            runningBankTotal = (runningBankTotal ?? 0) + (netCashFlowByYear[index] ?? 0);
           }
           return runningBankTotal;
         }
@@ -498,7 +540,7 @@ export default function FCReview() {
       valuesByRow.set(row.label, perYear);
     }
     return valuesByRow;
-  }, [balanceAccounts, sortedYears, getCellValue, bankAccountLabels]);
+  }, [balanceAccounts, sortedYears, getCellValue, bankAccountLabels, netCashFlowByYear]);
 
   /**
    * Calculates total Assets by summing all level 2 asset categories.
@@ -612,13 +654,17 @@ export default function FCReview() {
     const headerRow = sortedYears
       .map((year) => {
         const isBase = baseYears.has(Number(year));
-        const baseStyle = isBase
+        const isLastActual = lastActualYears.has(Number(year));
+        const isPreForecast = isBase || isLastActual;
+        const preStyle = isPreForecast
           ? "background:linear-gradient(180deg,#f8f9fa 0%,#e9ecef 100%);font-weight:700;border-left:1px solid #cbd5e0;border-right:1px solid #cbd5e0;"
           : "";
-        const actualLabel = isBase
+        const columnLabel = isBase
+          ? '<div style="font-size:11px;color:#6b7280;">(Budget)</div>'
+          : isLastActual
           ? '<div style="font-size:11px;color:#6b7280;">(Actual)</div>'
           : "";
-        return `<th style="${thStyleBase}${baseStyle};min-width:120px;text-align:center;">${year}${actualLabel}</th>`;
+        return `<th style="${thStyleBase}${preStyle};min-width:120px;text-align:center;">${year}${columnLabel}</th>`;
       })
       .join("");
 
@@ -1087,8 +1133,11 @@ export default function FCReview() {
           sortedYears={sortedYears}
           baseYear={baseYear}
           baseYears={baseYears}
+          lastActualYears={lastActualYears}
           birthYear={birthYear}
           baseYearBudget={baseYearValues}
+          baseActualTotalsByYear={baseActualTotalsByYear}
+          categoryToLineMap={categoryToLineMap}
           cashAccountMap={cashAccountMap}
           periodStart={periodStart}
           tableColSpan={tableColSpan}

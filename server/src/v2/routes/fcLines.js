@@ -200,7 +200,8 @@ router.get('/review-structure', async (req, res, next) => {
     const income = [];
     const expense = [];
     for (const line of lines) {
-      const entry = { name: line.name, id: line.id, type: line.line_type };
+      const categoryNames = (line.categories || []).map(c => c.category_name);
+      const entry = { name: line.name, id: line.id, type: line.line_type, categories: categoryNames };
       if (line.line_type === 'bs_module_income' || line.line_type === 'forecast_income') {
         income.push(entry);
       } else if (line.line_type === 'bs_module_expense' || line.line_type === 'forecast_expense') {
