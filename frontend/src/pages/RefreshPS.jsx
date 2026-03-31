@@ -579,6 +579,32 @@ export default function RefreshPS() {
     }
   }, [reviewTransactions, patchInBatches, loadReviewTransactions, showSuccess, showErrorToast]);
 
+  const handleAcceptSelected = useCallback(async () => {
+    const selectedIds = [...selectedRows.values()]
+      .map((t) => t.id ?? t.Id)
+      .filter((id) => typeof id === "number");
+    if (selectedIds.length === 0) {
+      showErrorToast("No valid transactions selected");
+      return;
+    }
+    setAcceptingId("selected");
+    try {
+      const results = await patchInBatches(selectedIds, { accepted: true });
+      const failCount = results.filter((r) => !r.ok).length;
+      if (failCount > 0) {
+        showErrorToast(`${failCount} transaction(s) failed to accept`);
+      } else {
+        showSuccess(`${selectedIds.length} transaction(s) accepted`);
+      }
+      clearSelection();
+      await loadReviewTransactions();
+    } catch (err) {
+      showErrorToast(err?.message ?? "Failed to accept selected transactions");
+    } finally {
+      setAcceptingId(null);
+    }
+  }, [selectedRows, patchInBatches, loadReviewTransactions, clearSelection, showSuccess, showErrorToast]);
+
   /**************************
    * Split transaction
    **************************/
@@ -934,6 +960,18 @@ export default function RefreshPS() {
                       }}
                     >
                       Category ({selectedRows.size})
+                    </button>
+                  )}
+                  {selectedRows.size > 0 && (
+                    <button
+                      type="button"
+                      className="refresh-ps-btn refresh-ps-btn--accept-all"
+                      onClick={handleAcceptSelected}
+                      disabled={acceptingId != null}
+                    >
+                      {acceptingId === "selected"
+                        ? "Accepting..."
+                        : `Accept Selected (${selectedRows.size})`}
                     </button>
                   )}
                   <button

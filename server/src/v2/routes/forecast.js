@@ -1125,7 +1125,7 @@ router.get('/base-year-values', async (req, res, next) => {
             THEN -m.expense_amount ELSE 0 END) as amount
       FROM forecast_modules m
       LEFT JOIN fc_lines exp_line ON m.expense_fc_line_id = exp_line.id
-      WHERE m.scenario_id = $1 AND COALESCE(m.setup_status, 'new') = 'complete'
+      WHERE m.scenario_id = $1 AND COALESCE(m.setup_status, 'new') != 'new'
         AND m.expense_fc_line_id IS NOT NULL
       GROUP BY exp_line.name
       UNION ALL
@@ -1135,7 +1135,7 @@ router.get('/base-year-values', async (req, res, next) => {
         SUM(COALESCE(m.income_amount, 0)) as amount
       FROM forecast_modules m
       LEFT JOIN fc_lines inc_line ON m.income_fc_line_id = inc_line.id
-      WHERE m.scenario_id = $1 AND COALESCE(m.setup_status, 'new') = 'complete'
+      WHERE m.scenario_id = $1 AND COALESCE(m.setup_status, 'new') != 'new'
         AND m.income_fc_line_id IS NOT NULL
       GROUP BY inc_line.name
     `, [scenario.id]);
@@ -1147,7 +1147,7 @@ router.get('/base-year-values', async (req, res, next) => {
         ie.base_value as amount
       FROM forecast_income_expense ie
       LEFT JOIN fc_lines fl ON ie.fc_line_id = fl.id
-      WHERE ie.scenario_id = $1 AND COALESCE(ie.setup_status, 'new') = 'complete'
+      WHERE ie.scenario_id = $1 AND COALESCE(ie.setup_status, 'new') != 'new'
     `, [scenario.id]);
 
     const values = {};

@@ -208,23 +208,19 @@ export default function FCModulesEditModal({
     })();
   }, [isOpen]);
 
+  // Auto-set Type and Currency from traits only on initial open (not on every change)
+  const [traitApplied, setTraitApplied] = useState(false);
   useEffect(() => {
-    if (!isOpen || !editForm || !isMatched) return;
-    if (traitType && editForm.Type !== traitType) {
+    if (!isOpen) { setTraitApplied(false); return; }
+    if (traitApplied || !editForm || !isMatched) return;
+    if (traitType && !editForm.Type) {
       onFieldChange("Type", traitType);
     }
-    if (traitCurrency && editForm.Currency !== traitCurrency) {
+    if (traitCurrency && !editForm.Currency) {
       onFieldChange("Currency", traitCurrency);
     }
-  }, [
-    editForm?.Currency,
-    editForm?.Type,
-    isOpen,
-    isMatched,
-    onFieldChange,
-    traitCurrency,
-    traitType,
-  ]);
+    setTraitApplied(true);
+  }, [isOpen, editForm, isMatched, traitType, traitCurrency, onFieldChange, traitApplied]);
 
   useEffect(() => {
     if (!isOpen || !isMatched) return;
@@ -514,8 +510,6 @@ export default function FCModulesEditModal({
     ["Income Line", "IncomeFcLineId", "fc-line-income"],
     ["Income Amount (Base Yr)", "IncomeAmount", "number"],
     ["Tax Rate Override (%)", "TaxRateOverride", "number"],
-    ["Status", "SetupStatus", "setup-status"],
-    ["Comment", "Comment", "textarea"],
   ];
 
   if (!isOpen || !editForm) {
@@ -613,6 +607,33 @@ export default function FCModulesEditModal({
                     Matched to COA
                   </span>
                 )}
+              </div>
+              {/* Status & Notes bar */}
+              <div style={{ display: "flex", gap: "1rem", alignItems: "flex-start", padding: "0.5rem 0 0.75rem", borderBottom: "1px solid #e2e8f0", marginBottom: "0.75rem" }}>
+                <label style={{ display: "flex", flexDirection: "column", gap: "0.25rem", minWidth: "10rem" }}>
+                  <span className="fc-modules-modal__label">Status</span>
+                  <select
+                    className="fc-modules-modal__input"
+                    value={editForm.SetupStatus ?? "new"}
+                    onChange={(e) => onFieldChange("SetupStatus", e.target.value)}
+                    style={{ width: "10rem" }}
+                  >
+                    <option value="new">New</option>
+                    <option value="in_progress">In Progress</option>
+                    <option value="complete">Complete</option>
+                  </select>
+                </label>
+                <label style={{ display: "flex", flexDirection: "column", gap: "0.25rem", flex: 1 }}>
+                  <span className="fc-modules-modal__label">Notes</span>
+                  <textarea
+                    className="fc-modules-modal__input"
+                    value={editForm.Comment ?? ""}
+                    onChange={(e) => onFieldChange("Comment", e.target.value)}
+                    placeholder="Items to check, update, or review..."
+                    style={{ resize: "vertical", minHeight: "2.2rem", lineHeight: "1.4", fontFamily: "inherit", fontSize: "0.85rem" }}
+                    rows="1"
+                  />
+                </label>
               </div>
               <div className="fc-modules-modal__fields-grid">
                 {fields.map(([label, field, type, source]) => {
@@ -960,7 +981,7 @@ export default function FCModulesEditModal({
                           onChange={(event) =>
                             onFieldChange(field, event.target.value)
                           }
-                          placeholder="Add a comment or note"
+                          placeholder="Items to check, update, or review..."
                           rows="2"
                         />
                       </label>
