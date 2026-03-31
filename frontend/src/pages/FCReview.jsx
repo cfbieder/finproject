@@ -1186,6 +1186,7 @@ export default function FCReview() {
         onClose={handleCloseGraph}
         graphSeries={graphSeries}
         sortedYears={sortedYears}
+        birthYear={birthYear}
       />
     </>
   );

@@ -775,7 +775,7 @@ export default function FCModulesEditModal({
                         const typeValue = capitalize(currentValue);
                         const typeOpts = (traits?.moduleTypes && traits.moduleTypes.length > 0)
                           ? traits.moduleTypes
-                          : ["Asset", "Liability", "Deposit", "Fixed Income", "Bond", "Real Estate", "Private Equity", "Business"];
+                          : ["Asset", "Liability", "Stocks", "Deposit", "Fixed Income", "Bond", "Real Estate", "Private Equity", "Business"];
                         return (
                           <label
                             key={field}

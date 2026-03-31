@@ -8,6 +8,7 @@ export default function FCReviewTableGraphModal({
   onClose,
   graphSeries,
   sortedYears,
+  birthYear,
 }) {
   const [mousePosition, setMousePosition] = useState(null);
 
@@ -36,8 +37,11 @@ export default function FCReviewTableGraphModal({
       .map((val) => Number(val))
       .filter((v) => Number.isFinite(v))
   );
-  const minValue = allValues.length > 0 ? Math.min(...allValues) : 0;
-  const maxValue = allValues.length > 0 ? Math.max(...allValues) : 1;
+  const rawMin = allValues.length > 0 ? Math.min(...allValues) : 0;
+  const rawMax = allValues.length > 0 ? Math.max(...allValues) : 1;
+  // Always include zero in the range
+  const minValue = Math.min(rawMin, 0);
+  const maxValue = Math.max(rawMax, 0);
   const range = maxValue - minValue === 0 ? 1 : maxValue - minValue;
   const yMin = maxValue - minValue === 0 ? minValue - 1 : minValue;
   const yMax = maxValue - minValue === 0 ? maxValue + 1 : maxValue;
@@ -177,7 +181,7 @@ export default function FCReviewTableGraphModal({
                           className="graph-x-axis-label"
                           transform={`rotate(-45, ${x}, ${labelY})`}
                         >
-                          {year}
+                          {year}{birthYear ? ` (${Number(year) - birthYear})` : ""}
                         </text>
                       </g>
                     );
@@ -276,7 +280,7 @@ export default function FCReviewTableGraphModal({
                         }}
                         pointerEvents="none"
                       >
-                        {yearsList[mousePosition.yearIndex]}
+                        {yearsList[mousePosition.yearIndex]}{birthYear ? ` (${Number(yearsList[mousePosition.yearIndex]) - birthYear})` : ""}
                       </text>
                     </>
                   )}
@@ -304,4 +308,5 @@ FCReviewTableGraphModal.propTypes = {
   sortedYears: PropTypes.arrayOf(
     PropTypes.oneOfType([PropTypes.string, PropTypes.number])
   ),
+  birthYear: PropTypes.number,
 };
