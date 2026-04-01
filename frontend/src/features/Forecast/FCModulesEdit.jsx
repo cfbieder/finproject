@@ -626,6 +626,15 @@ export default function FCModulesEditModal({
                     <option value="exclude">Exclude</option>
                   </select>
                 </label>
+                <label style={{ display: "flex", alignItems: "center", gap: "0.5rem", minWidth: "10rem", paddingTop: "1.4rem" }}>
+                  <input
+                    type="checkbox"
+                    checked={editForm.CashSweepTarget ?? false}
+                    onChange={(e) => onFieldChange("CashSweepTarget", e.target.checked)}
+                    style={{ width: "1rem", height: "1rem", cursor: "pointer" }}
+                  />
+                  <span className="fc-modules-modal__label" style={{ margin: 0, whiteSpace: "nowrap" }}>Cash Sweep Target</span>
+                </label>
                 <label style={{ display: "flex", flexDirection: "column", gap: "0.25rem", flex: 1 }}>
                   <span className="fc-modules-modal__label">Notes</span>
                   <textarea

@@ -34,7 +34,7 @@ function AuditTable({ title, data }) {
                   key={h}
                   style={{
                     position: "sticky", top: 0, background: "#f8fafc", zIndex: 1,
-                    textAlign: h === "index" ? "left" : "right",
+                    textAlign: h === "index" || h === "Year" || h === "Action" ? "left" : "right",
                     padding: "0.4rem 0.6rem", fontWeight: 600, fontSize: "0.72rem",
                     borderBottom: "2px solid #e2e8f0",
                   }}
@@ -50,22 +50,34 @@ function AuditTable({ title, data }) {
                 {row.map((cell, ci) => {
                   const colName = headers[ci];
                   const isIndex = ci === 0;
+                  const isAction = colName === "Action";
                   const isPct = pctColumns.has(colName);
                   const isFx = colName === "FX";
                   const n = Number(cell);
                   const display = isIndex ? cell
+                    : isAction ? cell
                     : isPct ? fmtPct(cell)
                     : isFx && Number.isFinite(n) ? n.toFixed(4)
                     : fmt(cell);
+
+                  // Color-code sweep actions
+                  let actionColor;
+                  if (isAction) {
+                    if (cell === "sweep_in") actionColor = "#16a34a";
+                    else if (cell === "sweep_out") actionColor = "#d97706";
+                    else if (cell === "shortfall") actionColor = "#dc2626";
+                    else if (cell === "deposit") actionColor = "#2563eb";
+                  }
+
                   return (
                     <td
                       key={ci}
                       style={{
-                        textAlign: isIndex ? "left" : "right",
+                        textAlign: isIndex || isAction ? "left" : "right",
                         padding: "0.3rem 0.6rem",
-                        fontFamily: isIndex ? "inherit" : "var(--font-mono)",
-                        fontWeight: isIndex ? 600 : 400,
-                        color: !isIndex && Number.isFinite(n) && n < 0 ? "var(--danger, #ef4444)" : undefined,
+                        fontFamily: isIndex || isAction ? "inherit" : "var(--font-mono)",
+                        fontWeight: isIndex || isAction ? 600 : 400,
+                        color: actionColor || (!isIndex && !isAction && Number.isFinite(n) && n < 0 ? "var(--danger, #ef4444)" : undefined),
                       }}
                     >
                       {display}
@@ -83,19 +95,32 @@ function AuditTable({ title, data }) {
 
 export default function FCModuleAuditModal({ isOpen, onClose, scenario, moduleName }) {
   const [data, setData] = useState(null);
+  const [sweepData, setSweepData] = useState(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
-  const [view, setView] = useState("lc"); // "lc" or "usd"
+  const [view, setView] = useState("lc"); // "lc", "usd", or "sweep"
 
   useEffect(() => {
     if (!isOpen || !scenario || !moduleName) {
       setData(null);
+      setSweepData(null);
       return;
     }
     setLoading(true);
     setError("");
-    Rest.get(`/forecast/audittrail/${encodeURIComponent(scenario)}/${encodeURIComponent(moduleName)}/detail`)
-      .then((res) => setData(res))
+
+    // Fetch module audit trail and cash sweep audit trail in parallel
+    Promise.all([
+      Rest.get(`/forecast/audittrail/${encodeURIComponent(scenario)}/${encodeURIComponent(moduleName)}/detail`)
+        .catch(() => null),
+      Rest.get(`/forecast/audittrail/${encodeURIComponent(scenario)}/cash-sweep`)
+        .catch(() => null),
+    ])
+      .then(([moduleData, sweep]) => {
+        setData(moduleData);
+        setSweepData(sweep);
+        if (!moduleData && !sweep) setError("No audit trail found. Generate the forecast first.");
+      })
       .catch((err) => setError(err.message || "Failed to load audit trail"))
       .finally(() => setLoading(false));
   }, [isOpen, scenario, moduleName]);
@@ -104,6 +129,7 @@ export default function FCModuleAuditModal({ isOpen, onClose, scenario, moduleNa
 
   const lastMod = data?.lc?.lastModified || data?.usd?.lastModified;
   const lastModStr = lastMod ? new Date(lastMod).toLocaleString() : null;
+  const hasSweep = sweepData && sweepData.headers && sweepData.rows?.length > 0;
 
   return (
     <div
@@ -145,11 +171,12 @@ export default function FCModuleAuditModal({ isOpen, onClose, scenario, moduleNa
         </div>
 
         {/* Toggle */}
-        {data && !loading && (
+        {(data || hasSweep) && !loading && (
           <div style={{ padding: "0.75rem 1.5rem 0", display: "flex", gap: "0.25rem" }}>
             {[
               { key: "lc", label: "Local Currency" },
               { key: "usd", label: "USD" },
+              ...(hasSweep ? [{ key: "sweep", label: "Cash Sweep" }] : []),
             ].map((tab) => (
               <button
                 key={tab.key}
@@ -157,8 +184,8 @@ export default function FCModuleAuditModal({ isOpen, onClose, scenario, moduleNa
                 style={{
                   padding: "0.35rem 1rem", fontSize: "0.8rem", fontWeight: view === tab.key ? 600 : 400,
                   border: "1px solid", borderRadius: "999px",
-                  borderColor: view === tab.key ? "var(--primary, #1e40af)" : "#d1d5db",
-                  background: view === tab.key ? "var(--primary, #1e40af)" : "white",
+                  borderColor: view === tab.key ? (tab.key === "sweep" ? "#059669" : "var(--primary, #1e40af)") : "#d1d5db",
+                  background: view === tab.key ? (tab.key === "sweep" ? "#059669" : "var(--primary, #1e40af)") : "white",
                   color: view === tab.key ? "white" : "#4b5563",
                   cursor: "pointer", transition: "all 0.15s",
                 }}
@@ -173,11 +200,14 @@ export default function FCModuleAuditModal({ isOpen, onClose, scenario, moduleNa
         <div style={{ padding: "1rem 1.5rem", overflow: "auto", flex: 1 }}>
           {loading && <p style={{ color: "var(--text-secondary)" }}>Loading audit trail...</p>}
           {error && <p style={{ color: "var(--danger, #ef4444)" }}>{error}</p>}
-          {data && !loading && (
-            <AuditTable
-              title={view === "lc" ? "Local Currency Values" : "USD Values"}
-              data={view === "lc" ? data.lc : data.usd}
-            />
+          {data && !loading && view === "lc" && (
+            <AuditTable title="Local Currency Values" data={data.lc} />
+          )}
+          {data && !loading && view === "usd" && (
+            <AuditTable title="USD Values" data={data.usd} />
+          )}
+          {hasSweep && !loading && view === "sweep" && (
+            <AuditTable title="Cash Sweep Summary" data={sweepData} />
           )}
         </div>
       </div>

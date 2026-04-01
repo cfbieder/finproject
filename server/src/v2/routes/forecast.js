@@ -330,6 +330,7 @@ router.get('/modules', async (req, res, next) => {
       IsMatched: m.is_matched,
       Matched: m.is_matched,
       SetupStatus: m.setup_status || 'new',
+      CashSweepTarget: m.cash_sweep_target || false,
     }));
 
     res.json(transformed);
@@ -573,6 +574,18 @@ router.put('/modules/:id', async (req, res, next) => {
     if (body.Growth !== undefined) updateData.growth_rate = body.Growth;
     if (body.Comment !== undefined) updateData.comment = body.Comment;
     if (body.Matched !== undefined) updateData.is_matched = Boolean(body.Matched);
+    if (body.CashSweepTarget !== undefined) updateData.cash_sweep_target = Boolean(body.CashSweepTarget);
+
+    // If setting cash_sweep_target = true, clear it from other modules in the same scenario first
+    if (updateData.cash_sweep_target === true) {
+      const existing = await repo.findModuleById(id);
+      if (existing) {
+        await db.query(
+          'UPDATE forecast_modules SET cash_sweep_target = FALSE WHERE scenario_id = $1 AND id != $2 AND cash_sweep_target = TRUE',
+          [existing.scenario_id, id]
+        );
+      }
+    }
 
     // Update module fields if any provided
     let module = null;
@@ -1297,6 +1310,43 @@ router.get('/audittrail/:scenario/:module/detail', (req, res, next) => {
     res.json({ lc, usd, entries, scenario, module: moduleName });
   } catch (error) {
     console.error('[forecast/audittrail/detail] Failed:', error);
+    next(error);
+  }
+});
+
+// GET /api/v2/forecast/audittrail/:scenario/cash-sweep
+// Returns the cash sweep audit trail CSV for a scenario
+router.get('/audittrail/:scenario/cash-sweep', (req, res, next) => {
+  try {
+    const fs = require('fs');
+    const path = require('path');
+    const { PATHS } = require('../../services/forecast/constants');
+    const scenario = req.params.scenario?.trim();
+
+    if (!scenario) {
+      return res.status(400).json({ error: 'Scenario name is required' });
+    }
+
+    const safeScenario = (scenario || '').replace(/[^a-z0-9]/gi, '_');
+    const auditDir = PATHS.AUDIT_TRAIL_DIR;
+    const filePath = path.join(auditDir, `${safeScenario}_cash_sweep.csv`);
+
+    if (!fs.existsSync(filePath)) {
+      return res.status(404).json({ error: 'No cash sweep audit trail found. Generate the forecast with a cash target and sweep module first.' });
+    }
+
+    const stat = fs.statSync(filePath);
+    const content = fs.readFileSync(filePath, 'utf8');
+    const lines = content.split('\n').filter(l => l.trim());
+    if (lines.length === 0) {
+      return res.json({ headers: [], rows: [], lastModified: stat.mtime });
+    }
+    const headers = lines[0].split(',').map(h => h.trim());
+    const rows = lines.slice(1).map(line => line.split(',').map(v => v.trim()));
+
+    res.json({ headers, rows, lastModified: stat.mtime, scenario });
+  } catch (error) {
+    console.error('[forecast/audittrail/cash-sweep] Failed:', error);
     next(error);
   }
 });

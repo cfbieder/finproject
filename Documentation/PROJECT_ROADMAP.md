@@ -70,11 +70,16 @@ Items from active development notes:
 - [x] Forecast: IncomePct year dropdown includes Period 1 (was excluded, preventing user from setting yield for first forecast year).
 - [x] Forecast: Module edit Account Value fix — Base Date changed from Dec 13 to Dec 31 year-end; fixed null values displaying as "0.00" instead of "-"; fixed balance lookup for leaf accounts not found at level 2 in COA tree; multi-child accounts now show all child names in scrollable list and sum all children's account values
 
+- [x] Forecast: Exclude status — new `exclude` setup_status option, engine filters out excluded modules/expenses, inline status dropdown on modules table
+- [x] Forecast: Module Audit Modal — "View Output" button on module edit shows LC/USD/entries audit trail CSVs via `/api/v2/forecast/audittrail/:scenario/:module/detail`
+- [x] Forecast: Cash Sweep — two-pass engine feature (migration 012, `cash_sweep_target` boolean on forecast_modules). Excess cash swept into designated module, shortfalls withdrawn (partial if insufficient). Pass 2 recalculates yield on adjusted balances with deferred tax. Audit trail tab in module View Output modal. 12 new tests (61 total). See `cash-sweep.js` for pure computation functions.
+
 ### Open Items
-- [ ] Forecast: Equity bridge formula review — Operating (excl Tax) still shows values that don't match Cash Flow - Tax in some scenarios. Needs investigation.
-- [ ] Forecast: baseYears Set is empty — the `baseYears` computed in FCReview is empty (periodStart undefined at compute time). Currently worked around by checking `value == null` for base year detection. Should be fixed properly.
-- [ ] Forecast: Deploy latest code to production — significant changes since last deploy (engine fixes, FX, equity bridge, base year display)
-- [ ] Forecast: Frontend test framework — Vitest for testing frontend forecast helpers; currently all 49 tests are backend-only
+- [x] Forecast: Equity bridge formula review — fixed in commit `adbe652`: Operating = Net Cash Flow - Tax, Capital & Unrealized = residual.
+- [ ] Forecast: baseYears workaround cleanup — `baseYears` is now properly populated but `value == null` detection pattern still in FCReviewTable. Low-priority cosmetic fix.
+- [ ] Forecast: Deploy latest code to production — significant changes since last deploy (engine fixes, FX, equity bridge, base year display, cash sweep)
+- [ ] Forecast: Frontend test framework — Vitest for testing frontend forecast helpers; currently all 61 tests are backend-only
+- [ ] Forecast: Cash Sweep Phase C — multi-module priority-order sweeps (withdraw from multiple modules in priority order on shortfall)
 - [ ] Add way to re-export changes back to PocketSmith
 
 ---

@@ -131,7 +131,7 @@ psproject/                          # ~/Programs/fin symlinks here
 │   ├── package.json
 │   ├── nodemon.json
 │   ├── .env-cmdrc
-│   ├── db/migrations/           # PostgreSQL schema (001-006: core, 007: fc_lines + fc_line_categories + module FK columns, 008: drop old expense_category/income_category/expense_pct, 009: target_cash on scenarios, 010: tax_rate_override on modules, 011: setup_status on modules + income_expense)
+│   ├── db/migrations/           # PostgreSQL schema (001-006: core, 007: fc_lines + fc_line_categories + module FK columns, 008: drop old expense_category/income_category/expense_pct, 009: target_cash on scenarios, 010: tax_rate_override on modules, 011: setup_status on modules + income_expense, 012: cash_sweep_target on modules)
 │   └── src/
 │       ├── server.js            # HTTP server entry point
 │       ├── app.js               # Express app config, route mounting
@@ -413,7 +413,8 @@ Located in `server/src/services/forecast/`. Four main files:
 
 | File | Purpose |
 |------|---------|
-| `index.js` | Orchestration — loads scenarios, modules, FC Line name map; runs module + incexp builders; post-processing (cash target auto-balance). Only processes modules/expenses with `setup_status = 'complete'`. |
+| `index.js` | Orchestration — loads scenarios, modules, FC Line name map; runs module + incexp builders; post-processing (cash sweep & auto-balance, two-pass). Only processes modules/expenses with `setup_status = 'complete'`. |
+| `cash-sweep.js` | Pure computation functions for two-pass cash sweep: `computeCashSweep` (Pass 1 — sweep excess/withdraw shortfall) and `computeSweepYield` (Pass 2 — yield on adjusted balances with deferred tax). |
 | `fcbuilder-module.js` | BS module projections — starts from LastActualYear (BaseDate). Market value growth, investments/disposals (including BaseYear transfers), income (yield or base amount), expenses (inflation or % of value), realized/unrealized gains, tax with 1-year deferral, FX conversion, Full disposal handling (BaseYear: P&L kept as budget, future zeroed; forecast years: 50% in disposal year, 0 after), audit trail CSV |
 | `fcbuilder-incexp.js` | Income/expense projections — starts from PeriodStart (BaseYear P&L covered by budget). Base year amount with inflation growth, scheduled changes, tax deferral, FX conversion |
 | `fcbuilder-setup.js` | Loads FCAssump.json, builds rate schedules (inflation, FX, tax) as danfo.js DataFrames. FX keys support both `PLN`/`EUR` and legacy `USDPLN`/`USDEUR` formats. |
@@ -454,7 +455,7 @@ Located in `server/src/services/forecast/`. Four main files:
 
 Key engine features:
 - **Setup status gating:** Only modules/expenses with `setup_status = 'complete'` are included in forecast generation — enables incremental build and review
-- **Cash target auto-balance:** Post-processing creates Cash Rebalance (excess → deposits) and Cash Shortfall (deficit flagged) entries
+- **Cash Sweep & Auto-Balance (two-pass):** Pass 1 — if a module has `cash_sweep_target = true`, excess cash is swept into it and shortfalls withdrawn (partial if insufficient, remainder shown as Cash Shortfall). Pass 2 — recalculates yield on adjusted sweep module balance (year-end sweep, yield earned next year, tax deferred). Falls back to old deposit/shortfall behavior if no sweep module designated. Audit trail CSV written per scenario.
 - **P&L driven by FC Lines:** All P&L entries use FC Line names as labels (not COA account names). Review page builds P&L structure from FC Lines.
 - **Unified tax account:** Both BS module and IncExp engines write to "Taxes" (previously split between "Taxes US" and "Taxes")
 - **Audit trail:** Per-module CSV export (LC values, USD values, entries)
@@ -516,7 +517,7 @@ Full design document, implementation plan, and test strategy: `Documentation/FC_
 | Table | Purpose | Key Columns |
 |-------|---------|-------------|
 | `forecast_scenarios` | Named forecast scenarios | `target_cash` (auto-balance) |
-| `forecast_modules` | Balance sheet forecast modules | `expense_fc_line_id`, `income_fc_line_id`, `expense_growth_method`, `expense_amount`, `income_amount`, `tax_rate_override`, `setup_status` |
+| `forecast_modules` | Balance sheet forecast modules | `expense_fc_line_id`, `income_fc_line_id`, `expense_growth_method`, `expense_amount`, `income_amount`, `tax_rate_override`, `setup_status`, `cash_sweep_target` (unique per scenario) |
 | `forecast_module_income_pct` | Module income/yield % schedules | `effective_date`, `value` |
 | `forecast_module_investments` | Planned module investments | `investment_date`, `amount` |
 | `forecast_module_disposals` | Planned module disposals | `disposal_date`, `amount`, `flag` (Full = complete sale) |

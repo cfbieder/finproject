@@ -9,11 +9,14 @@
  */
 
 const dfd = require("danfojs-node");
+const fs = require("fs");
+const path = require("path");
 const db = require("../../v2/db");
 const { loadScenarioConfig } = require("./fcbuilder-setup");
 const { processModule: processBSModule } = require("./fcbuilder-module");
 const { processModule: processIncExpModule } = require("./fcbuilder-incexp");
-const { CATEGORIES } = require("./constants");
+const { CATEGORIES, PATHS } = require("./constants");
+const { computeCashSweep, computeSweepYield } = require("./cash-sweep");
 
 function buildScenarioCategories(accountNames, incomeCategories, expenseCategories) {
   const seen = new Set();
@@ -347,12 +350,26 @@ async function generateForecast(scenarioName) {
       }),
     ]);
 
-    // Step 7: Cash Target Auto-Balance (post-processing)
+    // Step 7: Cash Sweep & Auto-Balance (two-pass post-processing)
     let rebalanceEntries = 0;
     if (targetCash !== null && Number.isFinite(targetCash)) {
-      console.log(`[FORECAST-GENERATE] Running cash auto-balance (target: ${targetCash})`);
+      console.log(`[FORECAST-GENERATE] Running cash sweep & auto-balance (target: ${targetCash})`);
 
-      // Sum Bank Accounts entries by year to get projected cash balance
+      // Find the designated cash sweep target module for this scenario
+      const sweepModuleResult = await db.query(`
+        SELECT m.*, a.name as account_name
+        FROM forecast_modules m
+        LEFT JOIN accounts a ON m.account_id = a.id
+        WHERE m.scenario_id = $1 AND m.cash_sweep_target = TRUE
+      `, [scenarioId]);
+      const sweepModule = sweepModuleResult.rows[0] || null;
+
+      if (sweepModule) {
+        console.log(`[FORECAST-GENERATE] Cash sweep target module: ${sweepModule.name}`);
+      }
+
+      // --- PASS 1: Compute natural cash trajectory and determine sweep amounts ---
+
       const cashResult = await db.query(`
         SELECT forecast_year, SUM(amount) as cash_total
         FROM forecast_entries
@@ -361,7 +378,6 @@ async function generateForecast(scenarioName) {
         ORDER BY forecast_year
       `, [scenarioId]);
 
-      // Build cumulative cash balance (Bank Accounts entries are year-over-year changes)
       let cumulativeCash = 0;
       const cashByYear = {};
       for (const row of cashResult.rows) {
@@ -369,29 +385,31 @@ async function generateForecast(scenarioName) {
         cashByYear[row.forecast_year] = cumulativeCash;
       }
 
-      // For each year, compute excess/shortfall vs target
-      const rebalanceValues = [];
-      for (const year of years) {
-        const projectedCash = cashByYear[year] || 0;
-        const gap = projectedCash - targetCash;
+      // Get sweep module's current market value trajectory (USD) for withdrawal limits
+      let sweepModuleBalanceByYear = {};
+      if (sweepModule) {
+        const sweepBalResult = await db.query(`
+          SELECT forecast_year, SUM(amount) as bal_total
+          FROM forecast_entries
+          WHERE scenario_id = $1 AND account = $2 AND module = $3
+          GROUP BY forecast_year
+          ORDER BY forecast_year
+        `, [scenarioId, sweepModule.account_name, sweepModule.name]);
 
-        if (Math.abs(gap) > 0.01) {
-          if (gap > 0) {
-            // Excess: move to deposits (reduce Bank Accounts, increase Deposits)
-            rebalanceValues.push(
-              { year, account: 'Bank Accounts', amount: -gap, module: '_rebalance', comment: 'Cash target rebalance' },
-              { year, account: 'Cash Rebalance - Deposits', amount: gap, module: '_rebalance', comment: 'Excess cash to deposits' }
-            );
-          } else {
-            // Shortfall: flag it (don't auto-sell, just show the gap)
-            rebalanceValues.push(
-              { year, account: 'Cash Shortfall', amount: gap, module: '_rebalance', comment: 'Cash below target' }
-            );
-          }
+        // Build cumulative balance for the sweep module
+        let sweepCumBal = parseFloat(sweepModule.market_value_usd) || 0;
+        for (const row of sweepBalResult.rows) {
+          sweepCumBal += parseFloat(row.bal_total) || 0;
+          sweepModuleBalanceByYear[row.forecast_year] = sweepCumBal;
         }
       }
 
-      // Insert rebalance entries
+      // Compute sweep amounts per year (pure function)
+      const { rebalanceValues, sweepLog, sweepCumulativeAdj } = computeCashSweep({
+        years, targetCash, cashByYear, sweepModule, sweepModuleBalanceByYear,
+      });
+
+      // Insert Pass 1 rebalance entries
       if (rebalanceValues.length > 0) {
         const values = [];
         const params = [];
@@ -405,7 +423,78 @@ async function generateForecast(scenarioName) {
           VALUES ${values.join(", ")}
         `, params);
         rebalanceEntries = rebalanceValues.length;
-        console.log(`[FORECAST-GENERATE] Created ${rebalanceEntries} rebalance entries`);
+        console.log(`[FORECAST-GENERATE] Pass 1: Created ${rebalanceEntries} cash sweep/rebalance entries`);
+      }
+
+      // --- PASS 2: Recalculate yield on adjusted sweep module balance (pure function) ---
+      if (sweepModule && sweepCumulativeAdj !== 0) {
+        const yieldResult = await db.query(
+          'SELECT effective_date, value FROM forecast_module_income_pct WHERE module_id = $1 ORDER BY effective_date',
+          [sweepModule.id]
+        );
+        const yieldSchedule = yieldResult.rows.map(r => ({
+          year: new Date(r.effective_date).getFullYear(),
+          pct: parseFloat(r.value) || 0,
+        }));
+
+        // Build yield % by year (carry forward last known rate)
+        const yieldByYear = {};
+        let lastYield = 0;
+        for (const year of years) {
+          const entry = yieldSchedule.find(y => y.year === year);
+          if (entry) lastYield = entry.pct;
+          yieldByYear[year] = lastYield;
+        }
+
+        const incomeCategory = sweepModule.income_fc_line_id && fcLineNameMap
+          ? fcLineNameMap.get(sweepModule.income_fc_line_id) : null;
+        const taxRate = sweepModule.tax_rate_override != null
+          ? parseFloat(sweepModule.tax_rate_override) : (scenario.TaxRate || 0);
+
+        const { pass2Entries } = computeSweepYield({
+          years, sweepLog, yieldByYear, incomeCategory, taxRate, sweepModule,
+        });
+
+        if (pass2Entries.length > 0) {
+          const values = [];
+          const params = [];
+          let paramIdx = 1;
+          for (const entry of pass2Entries) {
+            values.push(`($${paramIdx++}, $${paramIdx++}, $${paramIdx++}, $${paramIdx++}, $${paramIdx++}, $${paramIdx++})`);
+            params.push(scenarioId, entry.year, entry.amount, entry.account, entry.module, entry.comment);
+          }
+          await db.query(`
+            INSERT INTO forecast_entries (scenario_id, forecast_year, amount, account, module, comment)
+            VALUES ${values.join(", ")}
+          `, params);
+          const pass2Count = pass2Entries.length;
+          rebalanceEntries += pass2Count;
+          console.log(`[FORECAST-GENERATE] Pass 2: Created ${pass2Count} yield adjustment entries`);
+        }
+      }
+
+      // Write cash sweep audit trail
+      if (sweepLog.length > 0) {
+        try {
+          const auditDir = PATHS.AUDIT_TRAIL_DIR;
+          fs.mkdirSync(auditDir, { recursive: true });
+          const scenarioSafe = (scenarioName || '').replace(/[^a-z0-9]/gi, '_');
+          const csvPath = path.join(auditDir, `${scenarioSafe}_cash_sweep.csv`);
+          const headers = ['Year', 'Action', 'Amount', 'Shortfall', 'YieldIncome', 'CashBefore', 'CashAfter', 'SweepModuleBalance'];
+          const lines = [headers.join(',')];
+          for (const row of sweepLog) {
+            lines.push([
+              row.year, row.action, (row.amount || 0).toFixed(2),
+              (row.shortfall || 0).toFixed(2), (row.yieldIncome || 0).toFixed(2),
+              (row.cashBefore || 0).toFixed(2), (row.cashAfter || 0).toFixed(2),
+              (row.sweepBalance || 0).toFixed(2),
+            ].join(','));
+          }
+          fs.writeFileSync(csvPath, lines.join('\n'), 'utf8');
+          console.log(`[FORECAST-GENERATE] Cash sweep audit trail written to ${csvPath}`);
+        } catch (auditErr) {
+          console.error('[FORECAST-GENERATE] Failed to write cash sweep audit:', auditErr.message);
+        }
       }
     }
 
