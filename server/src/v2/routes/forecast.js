@@ -1217,6 +1217,44 @@ router.post('/generate/:scenario', async (req, res, next) => {
 // Audit Trail (file-based)
 // ============================================================================
 
+// GET /api/v2/forecast/audittrail/:scenario/cash-sweep
+// Returns the cash sweep audit trail CSV for a scenario
+// NOTE: Must be before /:scenario/:module to avoid wildcard match
+router.get('/audittrail/:scenario/cash-sweep', (req, res, next) => {
+  try {
+    const fs = require('fs');
+    const path = require('path');
+    const { PATHS } = require('../../services/forecast/constants');
+    const scenario = req.params.scenario?.trim();
+
+    if (!scenario) {
+      return res.status(400).json({ error: 'Scenario name is required' });
+    }
+
+    const safeScenario = (scenario || '').replace(/[^a-z0-9]/gi, '_');
+    const auditDir = PATHS.AUDIT_TRAIL_DIR;
+    const filePath = path.join(auditDir, `${safeScenario}_cash_sweep.csv`);
+
+    if (!fs.existsSync(filePath)) {
+      return res.status(404).json({ error: 'No cash sweep audit trail found. Generate the forecast with a cash target and sweep module first.' });
+    }
+
+    const stat = fs.statSync(filePath);
+    const content = fs.readFileSync(filePath, 'utf8');
+    const lines = content.split('\n').filter(l => l.trim());
+    if (lines.length === 0) {
+      return res.json({ headers: [], rows: [], lastModified: stat.mtime });
+    }
+    const headers = lines[0].split(',').map(h => h.trim());
+    const rows = lines.slice(1).map(line => line.split(',').map(v => v.trim()));
+
+    res.json({ headers, rows, lastModified: stat.mtime, scenario });
+  } catch (error) {
+    console.error('[forecast/audittrail/cash-sweep] Failed:', error);
+    next(error);
+  }
+});
+
 // GET /api/v2/forecast/audittrail/:scenario/:module
 router.get('/audittrail/:scenario/:module', (req, res, next) => {
   try {
@@ -1310,43 +1348,6 @@ router.get('/audittrail/:scenario/:module/detail', (req, res, next) => {
     res.json({ lc, usd, entries, scenario, module: moduleName });
   } catch (error) {
     console.error('[forecast/audittrail/detail] Failed:', error);
-    next(error);
-  }
-});
-
-// GET /api/v2/forecast/audittrail/:scenario/cash-sweep
-// Returns the cash sweep audit trail CSV for a scenario
-router.get('/audittrail/:scenario/cash-sweep', (req, res, next) => {
-  try {
-    const fs = require('fs');
-    const path = require('path');
-    const { PATHS } = require('../../services/forecast/constants');
-    const scenario = req.params.scenario?.trim();
-
-    if (!scenario) {
-      return res.status(400).json({ error: 'Scenario name is required' });
-    }
-
-    const safeScenario = (scenario || '').replace(/[^a-z0-9]/gi, '_');
-    const auditDir = PATHS.AUDIT_TRAIL_DIR;
-    const filePath = path.join(auditDir, `${safeScenario}_cash_sweep.csv`);
-
-    if (!fs.existsSync(filePath)) {
-      return res.status(404).json({ error: 'No cash sweep audit trail found. Generate the forecast with a cash target and sweep module first.' });
-    }
-
-    const stat = fs.statSync(filePath);
-    const content = fs.readFileSync(filePath, 'utf8');
-    const lines = content.split('\n').filter(l => l.trim());
-    if (lines.length === 0) {
-      return res.json({ headers: [], rows: [], lastModified: stat.mtime });
-    }
-    const headers = lines[0].split(',').map(h => h.trim());
-    const rows = lines.slice(1).map(line => line.split(',').map(v => v.trim()));
-
-    res.json({ headers, rows, lastModified: stat.mtime, scenario });
-  } catch (error) {
-    console.error('[forecast/audittrail/cash-sweep] Failed:', error);
     next(error);
   }
 });

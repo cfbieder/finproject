@@ -388,6 +388,7 @@ export default function FCModuleManage() {
       AccountNumber: editForm.AccountNumber ?? "",
       Comment: (editForm.Comment ?? "").toString().trim(),
       SetupStatus: editForm.SetupStatus || "new",
+      CashSweepTarget: Boolean(editForm.CashSweepTarget),
     };
 
     // Process numeric fields with validation

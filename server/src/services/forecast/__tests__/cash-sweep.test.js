@@ -36,7 +36,7 @@ describe("computeCashSweep — Pass 1", () => {
     // Year 2027: excess = 80000 - 50000 = 30000
     const yr2027 = rebalanceValues.filter(e => e.year === 2027);
     expect(yr2027).toHaveLength(2);
-    expect(yr2027[0]).toMatchObject({ account: "Bank Accounts", amount: -30000 });
+    expect(yr2027[0]).toMatchObject({ account: "Transfer - Bank", amount: -30000 });
     expect(yr2027[1]).toMatchObject({ account: "Fixed Income Account", amount: 30000 });
 
     const log2027 = sweepLog.find(l => l.year === 2027);
@@ -58,7 +58,7 @@ describe("computeCashSweep — Pass 1", () => {
     const entries = rebalanceValues.filter(e => e.year === 2027);
     expect(entries).toHaveLength(2);
     expect(entries[0]).toMatchObject({ account: "Fixed Income Account", amount: -20000 });
-    expect(entries[1]).toMatchObject({ account: "Bank Accounts", amount: 20000 });
+    expect(entries[1]).toMatchObject({ account: "Transfer - Bank", amount: 20000 });
 
     expect(sweepLog[0].action).toBe("sweep_out");
     expect(sweepLog[0].amount).toBe(-20000);
@@ -74,7 +74,7 @@ describe("computeCashSweep — Pass 1", () => {
     });
 
     // Shortfall = 40000, available = 25000 → withdraw 25000, shortfall 15000
-    const sweepEntries = rebalanceValues.filter(e => e.account === "Bank Accounts");
+    const sweepEntries = rebalanceValues.filter(e => e.account === "Transfer - Bank");
     expect(sweepEntries[0].amount).toBe(25000);
 
     const shortfallEntries = rebalanceValues.filter(e => e.account === "Cash Shortfall");
@@ -95,7 +95,7 @@ describe("computeCashSweep — Pass 1", () => {
     });
 
     expect(rebalanceValues).toHaveLength(2);
-    expect(rebalanceValues[0]).toMatchObject({ account: "Bank Accounts", amount: -30000, module: "_rebalance" });
+    expect(rebalanceValues[0]).toMatchObject({ account: "Transfer - Bank", amount: -30000, module: "_rebalance" });
     expect(rebalanceValues[1]).toMatchObject({ account: "Cash Rebalance - Deposits", amount: 30000, module: "_rebalance" });
     expect(sweepLog[0].action).toBe("deposit");
   });
@@ -173,11 +173,6 @@ describe("computeSweepYield — Pass 2", () => {
     const yr2028Income = pass2Entries.filter(e => e.year === 2028 && e.account === "Interest Income");
     expect(yr2028Income).toHaveLength(1);
     expect(yr2028Income[0].amount).toBe(4000);
-
-    // 2028: also has Bank Accounts entry for income
-    const yr2028Bank = pass2Entries.filter(e => e.year === 2028 && e.account === "Bank Accounts" && e.comment === "Yield on swept funds");
-    expect(yr2028Bank).toHaveLength(1);
-    expect(yr2028Bank[0].amount).toBe(4000);
 
     // 2029: yield on same 100k = 4000
     const yr2029Income = pass2Entries.filter(e => e.year === 2029 && e.account === "Interest Income");

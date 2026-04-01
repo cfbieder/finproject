@@ -35,7 +35,7 @@ function computeCashSweep({ years, targetCash, cashByYear, sweepModule, sweepMod
     if (gap > 0 && sweepModule) {
       const sweepAmount = gap;
       rebalanceValues.push(
-        { year, account: 'Bank Accounts', amount: -sweepAmount, module: '_cash_sweep', comment: `Cash sweep to ${sweepModule.name}` },
+        { year, account: 'Transfer - Bank', amount: -sweepAmount, module: '_cash_sweep', comment: `Cash sweep to ${sweepModule.name}` },
         { year, account: sweepModule.account_name, amount: sweepAmount, module: '_cash_sweep', comment: 'Cash sweep deposit' }
       );
       sweepCumulativeAdj -= sweepAmount;
@@ -53,7 +53,7 @@ function computeCashSweep({ years, targetCash, cashByYear, sweepModule, sweepMod
       if (withdrawAmount > 0.01) {
         rebalanceValues.push(
           { year, account: sweepModule.account_name, amount: -withdrawAmount, module: '_cash_sweep', comment: 'Cash sweep withdrawal' },
-          { year, account: 'Bank Accounts', amount: withdrawAmount, module: '_cash_sweep', comment: `Cash sweep from ${sweepModule.name}` }
+          { year, account: 'Transfer - Bank', amount: withdrawAmount, module: '_cash_sweep', comment: `Cash sweep from ${sweepModule.name}` }
         );
         sweepCumulativeAdj += withdrawAmount;
       }
@@ -72,7 +72,7 @@ function computeCashSweep({ years, targetCash, cashByYear, sweepModule, sweepMod
       });
     } else if (gap > 0 && !sweepModule) {
       rebalanceValues.push(
-        { year, account: 'Bank Accounts', amount: -gap, module: '_rebalance', comment: 'Cash target rebalance' },
+        { year, account: 'Transfer - Bank', amount: -gap, module: '_rebalance', comment: 'Cash target rebalance' },
         { year, account: 'Cash Rebalance - Deposits', amount: gap, module: '_rebalance', comment: 'Excess cash to deposits' }
       );
       sweepCumulativeAdj -= gap;
@@ -112,16 +112,14 @@ function computeSweepYield({ years, sweepLog, yieldByYear, incomeCategory, taxRa
       const additionalIncome = cumulativeSweepBalance * (yieldByYear[year] / 100);
       if (Math.abs(additionalIncome) > 0.01) {
         pass2Entries.push(
-          { year, account: incomeCategory, amount: additionalIncome, module: '_cash_sweep', comment: 'Yield on swept funds' },
-          { year, account: 'Bank Accounts', amount: additionalIncome, module: '_cash_sweep', comment: 'Yield on swept funds' }
+          { year, account: incomeCategory, amount: additionalIncome, module: '_cash_sweep', comment: 'Yield on swept funds' }
         );
 
         if (taxRate > 0) {
           const tax = -additionalIncome * (taxRate / 100);
           const taxYear = (i + 1 < years.length) ? years[i + 1] : year;
           pass2Entries.push(
-            { year: taxYear, account: CATEGORIES.TAXES, amount: tax, module: '_cash_sweep', comment: 'Tax on sweep yield' },
-            { year: taxYear, account: 'Bank Accounts', amount: tax, module: '_cash_sweep', comment: 'Tax on sweep yield' }
+            { year: taxYear, account: CATEGORIES.TAXES, amount: tax, module: '_cash_sweep', comment: 'Tax on sweep yield' }
           );
         }
 
