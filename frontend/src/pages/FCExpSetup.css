@@ -111,10 +111,18 @@
 .trans-budget-table-wrapper {
   flex: 1;
   overflow-y: auto;
-  overflow-x: auto;
+  overflow-x: scroll; /* always show horizontal scrollbar */
   min-height: 0;
   border-radius: 0.75rem;
   position: relative;
+  overscroll-behavior-x: contain; /* prevent page scroll when table reaches edge */
+}
+
+/* Make the horizontal scrollbar sticky at the bottom of the viewport */
+@supports (overflow: overlay) {
+  .trans-budget-table-wrapper {
+    overflow-x: overlay;
+  }
 }
 
 /* ============================================================================
@@ -294,7 +302,7 @@
 
 .trans-budget-table-wrapper::-webkit-scrollbar {
   width: 10px;
-  height: 10px;
+  height: 14px; /* thicker horizontal scrollbar for easier grabbing */
 }
 
 .trans-budget-table-wrapper::-webkit-scrollbar-track {

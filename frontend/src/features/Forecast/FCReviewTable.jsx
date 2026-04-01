@@ -314,7 +314,7 @@ export default function FCReviewTable({
           )}
         </div>
 
-        {/* Top Scrollbar */}
+        {/* Top Scrollbar — sticky so it stays visible when scrolling vertically */}
         <div
           className="trans-budget-table-wrapper"
           ref={topScrollRef}
@@ -323,7 +323,11 @@ export default function FCReviewTable({
             height: "17px",
             overflowX: "auto",
             overflowY: "hidden",
-            marginBottom: "0.5rem",
+            position: "sticky",
+            top: 0,
+            zIndex: 20,
+            background: "var(--surface, white)",
+            marginBottom: "0.25rem",
           }}
           aria-hidden="true"
         >
@@ -662,6 +666,26 @@ export default function FCReviewTable({
                                 : undefined,
                             }}
                           />
+                        );
+                      })}
+                    </tr>
+                  )}
+
+                  {/* ========== BALANCE SHEET — Year header row ========== */}
+                  {balanceAccounts.length > 0 && (
+                    <tr>
+                      <td style={{ ...selectCellBaseStyle, background: "var(--surface-muted)", borderBottom: "2px solid var(--border)" }} />
+                      <td style={{ ...accountCellBaseStyle, background: "var(--surface-muted)", fontWeight: 700, fontSize: "0.72rem", color: "var(--muted)", letterSpacing: "0.04em", textTransform: "uppercase", padding: "0.35rem 0.5rem", borderBottom: "2px solid var(--border)" }}>Balance Sheet</td>
+                      {sortedYears.map((year) => {
+                        const isPreForecast = baseYears?.has(Number(year)) || lastActualYears?.has(Number(year));
+                        return (
+                          <td key={`bs-yr-${year}`} style={{
+                            textAlign: "right", fontWeight: 700, fontSize: "0.78rem", padding: "0.35rem 0.5rem",
+                            color: "var(--muted)", background: "var(--surface-muted)", borderBottom: "2px solid var(--border)",
+                            ...(isPreForecast && { background: "#f0f1f3", borderLeft: "1px solid #cbd5e0", borderRight: "1px solid #cbd5e0" }),
+                          }}>
+                            {year}
+                          </td>
                         );
                       })}
                     </tr>

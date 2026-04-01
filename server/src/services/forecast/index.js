@@ -16,7 +16,7 @@ const { loadScenarioConfig } = require("./fcbuilder-setup");
 const { processModule: processBSModule } = require("./fcbuilder-module");
 const { processModule: processIncExpModule } = require("./fcbuilder-incexp");
 const { CATEGORIES, PATHS } = require("./constants");
-const { computeCashSweep, computeSweepYield } = require("./cash-sweep");
+const { computeCashSweepIterative } = require("./cash-sweep");
 
 function buildScenarioCategories(accountNames, incomeCategories, expenseCategories) {
   const seen = new Set();
@@ -274,12 +274,13 @@ async function generateForecast(scenarioName) {
     );
 
     // Step 2: Find scenario in PostgreSQL
-    const scenarioResult = await db.query('SELECT id, target_cash FROM forecast_scenarios WHERE name = $1', [scenarioName]);
+    const scenarioResult = await db.query('SELECT id, cash_sweep_low, cash_sweep_high FROM forecast_scenarios WHERE name = $1', [scenarioName]);
     if (scenarioResult.rows.length === 0) {
       throw new Error(`Scenario "${scenarioName}" not found in database`);
     }
     const scenarioId = scenarioResult.rows[0].id;
-    const targetCash = parseFloat(scenarioResult.rows[0].target_cash) || null;
+    const cashSweepLow = parseFloat(scenarioResult.rows[0].cash_sweep_low) || null;
+    const cashSweepHigh = parseFloat(scenarioResult.rows[0].cash_sweep_high) || null;
 
     // Step 3: Clear existing entries
     const deleteResult = await db.query('DELETE FROM forecast_entries WHERE scenario_id = $1', [scenarioId]);
@@ -350,12 +351,17 @@ async function generateForecast(scenarioName) {
       }),
     ]);
 
-    // Step 7: Cash Sweep & Auto-Balance (two-pass post-processing)
+    // Step 7: Cash Sweep & Auto-Balance (iterative year-by-year)
     let rebalanceEntries = 0;
-    if (targetCash !== null && Number.isFinite(targetCash)) {
-      console.log(`[FORECAST-GENERATE] Running cash sweep & auto-balance (target: ${targetCash})`);
+    const hasSweepBand = (cashSweepLow !== null && Number.isFinite(cashSweepLow))
+      || (cashSweepHigh !== null && Number.isFinite(cashSweepHigh));
 
-      // Find the designated cash sweep target module for this scenario
+    if (hasSweepBand) {
+      const effectiveLow = cashSweepLow ?? cashSweepHigh ?? 0;
+      const effectiveHigh = cashSweepHigh ?? cashSweepLow ?? 0;
+      console.log(`[FORECAST-GENERATE] Running cash sweep (band: ${effectiveLow} – ${effectiveHigh})`);
+
+      // Find the designated cash sweep target module
       const sweepModuleResult = await db.query(`
         SELECT m.*, a.name as account_name
         FROM forecast_modules m
@@ -363,13 +369,45 @@ async function generateForecast(scenarioName) {
         WHERE m.scenario_id = $1 AND m.cash_sweep_target = TRUE
       `, [scenarioId]);
       const sweepModule = sweepModuleResult.rows[0] || null;
-
       if (sweepModule) {
         console.log(`[FORECAST-GENERATE] Cash sweep target module: ${sweepModule.name}`);
       }
 
-      // --- PASS 1: Compute natural cash trajectory and determine sweep amounts ---
+      // Get actual bank balance from ledger (LastActualYear = PeriodStart - 2)
+      const lastActualYear = scenario.PeriodStart - 2;
+      const lastActualDate = `${lastActualYear}-12-31`;
+      const bankBalResult = await db.query(`
+        WITH RECURSIVE bank_tree AS (
+          SELECT id, currency FROM accounts WHERE name = 'Bank Accounts'
+          UNION ALL
+          SELECT a.id, a.currency FROM accounts a JOIN bank_tree bt ON a.parent_id = bt.id
+        ),
+        latest_balances AS (
+          SELECT DISTINCT ON (t.account_id)
+            t.account_id, t.closing_balance,
+            COALESCE(t.currency, bt.currency, 'USD') as currency
+          FROM transactions t
+          JOIN bank_tree bt ON t.account_id = bt.id
+          WHERE t.transaction_date <= $1 AND t.closing_balance IS NOT NULL
+          ORDER BY t.account_id, t.transaction_date DESC, t.id DESC
+        )
+        SELECT lb.closing_balance, lb.currency,
+          COALESCE(
+            (SELECT er.rate FROM exchange_rates er
+             WHERE er.from_currency = lb.currency AND er.to_currency = 'USD'
+             ORDER BY ABS(er.rate_date - $1::date) ASC LIMIT 1),
+            1.0
+          ) as fx_rate
+        FROM latest_balances lb
+      `, [lastActualDate]);
 
+      let startingCash = 0;
+      for (const row of bankBalResult.rows) {
+        startingCash += (parseFloat(row.closing_balance) || 0) * (parseFloat(row.fx_rate) || 1);
+      }
+      console.log(`[FORECAST-GENERATE] Starting cash balance (${lastActualYear}): ${startingCash.toFixed(0)}`);
+
+      // Get year-over-year cash deltas from Bank Accounts entries
       const cashResult = await db.query(`
         SELECT forecast_year, SUM(amount) as cash_total
         FROM forecast_entries
@@ -377,44 +415,75 @@ async function generateForecast(scenarioName) {
         GROUP BY forecast_year
         ORDER BY forecast_year
       `, [scenarioId]);
-
-      let cumulativeCash = 0;
-      const cashByYear = {};
+      const cashDeltaByYear = {};
       for (const row of cashResult.rows) {
-        cumulativeCash += parseFloat(row.cash_total) || 0;
-        cashByYear[row.forecast_year] = cumulativeCash;
+        cashDeltaByYear[row.forecast_year] = parseFloat(row.cash_total) || 0;
       }
 
-      // Get sweep module's current market value trajectory (USD) for withdrawal limits
-      let sweepModuleBalanceByYear = {};
+      // Fix BaseYear delta: Review uses budget P&L + engine transfers (not engine Bank Accounts)
+      // This ensures sweep's cash matches what the Review displays
+      const baseYear = scenario.PeriodStart - 1;
+      if (cashDeltaByYear[baseYear] !== undefined) {
+        // Get budget NCF for BaseYear (same query as base-year-values endpoint)
+        const budgetResult = await db.query(`
+          SELECT COALESCE(SUM(val.amount), 0)::numeric as budget_ncf FROM (
+            SELECT SUM(CASE WHEN a.account_type = 'liability' THEN -m.expense_amount ELSE 0 END) as amount
+            FROM forecast_modules m LEFT JOIN accounts a ON m.account_id = a.id LEFT JOIN fc_lines exp_line ON m.expense_fc_line_id = exp_line.id
+            WHERE m.scenario_id = $1 AND COALESCE(m.setup_status, 'new') NOT IN ('new', 'exclude') AND m.expense_fc_line_id IS NOT NULL
+            UNION ALL
+            SELECT SUM(COALESCE(m.income_amount, 0)) FROM forecast_modules m LEFT JOIN fc_lines inc_line ON m.income_fc_line_id = inc_line.id
+            WHERE m.scenario_id = $1 AND COALESCE(m.setup_status, 'new') NOT IN ('new', 'exclude') AND m.income_fc_line_id IS NOT NULL
+            UNION ALL
+            SELECT ie.base_value FROM forecast_income_expense ie LEFT JOIN fc_lines fl ON ie.fc_line_id = fl.id
+            WHERE ie.scenario_id = $1 AND COALESCE(ie.setup_status, 'new') NOT IN ('new', 'exclude')
+          ) val
+        `, [scenarioId]);
+        const budgetNCF = parseFloat(budgetResult.rows[0]?.budget_ncf) || 0;
+
+        // Get engine transfers for BaseYear (Transfer - Bank entries)
+        const transferResult = await db.query(`
+          SELECT COALESCE(SUM(amount), 0)::numeric as transfers
+          FROM forecast_entries
+          WHERE scenario_id = $1 AND forecast_year = $2 AND account = 'Transfer - Bank'
+        `, [scenarioId, baseYear]);
+        const baseYearTransfers = parseFloat(transferResult.rows[0]?.transfers) || 0;
+
+        const correctedBaseYearDelta = budgetNCF + baseYearTransfers;
+        console.log(`[FORECAST-GENERATE] BaseYear ${baseYear} delta corrected: ${cashDeltaByYear[baseYear].toFixed(0)} → ${correctedBaseYearDelta.toFixed(0)} (budget NCF: ${budgetNCF.toFixed(0)}, transfers: ${baseYearTransfers.toFixed(0)})`);
+        cashDeltaByYear[baseYear] = correctedBaseYearDelta;
+      }
+
+      // Load sweep module's market value by year (for emergency withdrawal limits)
+      const moduleBalanceByYear = {};
       if (sweepModule) {
-        const sweepBalResult = await db.query(`
-          SELECT forecast_year, SUM(amount) as bal_total
+        const mvResult = await db.query(`
+          SELECT forecast_year, SUM(amount)::numeric as mv
           FROM forecast_entries
           WHERE scenario_id = $1 AND account = $2 AND module = $3
-          GROUP BY forecast_year
-          ORDER BY forecast_year
+          GROUP BY forecast_year ORDER BY forecast_year
         `, [scenarioId, sweepModule.account_name, sweepModule.name]);
-
-        // Build cumulative balance for the sweep module
-        let sweepCumBal = parseFloat(sweepModule.market_value_usd) || 0;
-        for (const row of sweepBalResult.rows) {
-          sweepCumBal += parseFloat(row.bal_total) || 0;
-          sweepModuleBalanceByYear[row.forecast_year] = sweepCumBal;
+        for (const row of mvResult.rows) {
+          moduleBalanceByYear[row.forecast_year] = parseFloat(row.mv) || 0;
         }
       }
 
-      // Compute sweep amounts per year (pure function)
-      const { rebalanceValues, sweepLog, sweepCumulativeAdj } = computeCashSweep({
-        years, targetCash, cashByYear, sweepModule, sweepModuleBalanceByYear,
+      // Run iterative sweep (pure function — transfers only, no yield)
+      const { entries: sweepEntries, sweepLog } = computeCashSweepIterative({
+        years,
+        cashSweepLow: effectiveLow,
+        cashSweepHigh: effectiveHigh,
+        cashDeltaByYear,
+        startingCash,
+        sweepModule,
+        moduleBalanceByYear,
       });
 
-      // Insert Pass 1 rebalance entries
-      if (rebalanceValues.length > 0) {
+      // Insert sweep entries
+      if (sweepEntries.length > 0) {
         const values = [];
         const params = [];
         let paramIdx = 1;
-        for (const entry of rebalanceValues) {
+        for (const entry of sweepEntries) {
           values.push(`($${paramIdx++}, $${paramIdx++}, $${paramIdx++}, $${paramIdx++}, $${paramIdx++}, $${paramIdx++})`);
           params.push(scenarioId, entry.year, entry.amount, entry.account, entry.module, entry.comment);
         }
@@ -422,58 +491,11 @@ async function generateForecast(scenarioName) {
           INSERT INTO forecast_entries (scenario_id, forecast_year, amount, account, module, comment)
           VALUES ${values.join(", ")}
         `, params);
-        rebalanceEntries = rebalanceValues.length;
-        console.log(`[FORECAST-GENERATE] Pass 1: Created ${rebalanceEntries} cash sweep/rebalance entries`);
+        rebalanceEntries = sweepEntries.length;
+        console.log(`[FORECAST-GENERATE] Cash sweep: Created ${rebalanceEntries} entries`);
       }
 
-      // --- PASS 2: Recalculate yield on adjusted sweep module balance (pure function) ---
-      if (sweepModule && sweepCumulativeAdj !== 0) {
-        const yieldResult = await db.query(
-          'SELECT effective_date, value FROM forecast_module_income_pct WHERE module_id = $1 ORDER BY effective_date',
-          [sweepModule.id]
-        );
-        const yieldSchedule = yieldResult.rows.map(r => ({
-          year: new Date(r.effective_date).getFullYear(),
-          pct: parseFloat(r.value) || 0,
-        }));
-
-        // Build yield % by year (carry forward last known rate)
-        const yieldByYear = {};
-        let lastYield = 0;
-        for (const year of years) {
-          const entry = yieldSchedule.find(y => y.year === year);
-          if (entry) lastYield = entry.pct;
-          yieldByYear[year] = lastYield;
-        }
-
-        const incomeCategory = sweepModule.income_fc_line_id && fcLineNameMap
-          ? fcLineNameMap.get(sweepModule.income_fc_line_id) : null;
-        const taxRate = sweepModule.tax_rate_override != null
-          ? parseFloat(sweepModule.tax_rate_override) : (scenario.TaxRate || 0);
-
-        const { pass2Entries } = computeSweepYield({
-          years, sweepLog, yieldByYear, incomeCategory, taxRate, sweepModule,
-        });
-
-        if (pass2Entries.length > 0) {
-          const values = [];
-          const params = [];
-          let paramIdx = 1;
-          for (const entry of pass2Entries) {
-            values.push(`($${paramIdx++}, $${paramIdx++}, $${paramIdx++}, $${paramIdx++}, $${paramIdx++}, $${paramIdx++})`);
-            params.push(scenarioId, entry.year, entry.amount, entry.account, entry.module, entry.comment);
-          }
-          await db.query(`
-            INSERT INTO forecast_entries (scenario_id, forecast_year, amount, account, module, comment)
-            VALUES ${values.join(", ")}
-          `, params);
-          const pass2Count = pass2Entries.length;
-          rebalanceEntries += pass2Count;
-          console.log(`[FORECAST-GENERATE] Pass 2: Created ${pass2Count} yield adjustment entries`);
-        }
-      }
-
-      // Write cash sweep audit trail
+      // Write audit trail
       if (sweepLog.length > 0) {
         try {
           const auditDir = PATHS.AUDIT_TRAIL_DIR;
@@ -491,7 +513,7 @@ async function generateForecast(scenarioName) {
             ].join(','));
           }
           fs.writeFileSync(csvPath, lines.join('\n'), 'utf8');
-          console.log(`[FORECAST-GENERATE] Cash sweep audit trail written to ${csvPath}`);
+          console.log(`[FORECAST-GENERATE] Cash sweep audit trail written`);
         } catch (auditErr) {
           console.error('[FORECAST-GENERATE] Failed to write cash sweep audit:', auditErr.message);
         }

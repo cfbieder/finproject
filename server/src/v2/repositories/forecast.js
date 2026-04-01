@@ -53,15 +53,16 @@ async function findScenarioByName(name) {
  */
 async function createScenario(data) {
   const sql = `
-    INSERT INTO forecast_scenarios (name, description, is_active, target_cash)
-    VALUES ($1, $2, $3, $4)
+    INSERT INTO forecast_scenarios (name, description, is_active, cash_sweep_low, cash_sweep_high)
+    VALUES ($1, $2, $3, $4, $5)
     RETURNING *
   `;
   const result = await db.query(sql, [
     data.name,
     data.description || null,
     data.is_active !== false,
-    data.target_cash ?? null,
+    data.cash_sweep_low ?? null,
+    data.cash_sweep_high ?? null,
   ]);
   return result.rows[0];
 }
@@ -86,9 +87,13 @@ async function updateScenario(id, data) {
     fields.push(`is_active = $${paramIndex++}`);
     params.push(data.is_active);
   }
-  if (data.target_cash !== undefined) {
-    fields.push(`target_cash = $${paramIndex++}`);
-    params.push(data.target_cash);
+  if (data.cash_sweep_low !== undefined) {
+    fields.push(`cash_sweep_low = $${paramIndex++}`);
+    params.push(data.cash_sweep_low);
+  }
+  if (data.cash_sweep_high !== undefined) {
+    fields.push(`cash_sweep_high = $${paramIndex++}`);
+    params.push(data.cash_sweep_high);
   }
 
   if (fields.length === 0) return null;

@@ -1,142 +1,135 @@
 /**
- * Cash Sweep — Pure computation functions for two-pass cash sweep logic.
+ * Cash Sweep — Iterative year-by-year transfer between cash and a designated module.
  *
- * Pass 1: Determine sweep amounts (excess → sweep module, shortfall → withdraw)
- * Pass 2: Calculate additional yield on swept funds
+ * The sweep is purely a transfer mechanism — no yield or tax calculations.
+ * Interest on the module (including swept funds) is handled by the module builder.
+ *
+ * After normal forecast generation completes, this runs sequentially:
+ *   1. Compute actual cash balance for the year
+ *   2. If cash > high band → sweep excess into designated module
+ *   3. If cash < low band → withdraw from module (swept balance first, then module's own balance)
+ *   4. Move to next year
  */
-
-const { CATEGORIES } = require("./constants");
 
 /**
- * Computes cash sweep entries (Pass 1) and audit log.
- *
  * @param {Object} params
  * @param {number[]} params.years - Forecast period years
- * @param {number} params.targetCash - Cash target amount
- * @param {Object} params.cashByYear - { year: cumulativeCash } from Bank Accounts entries
- * @param {Object|null} params.sweepModule - { name, account_name, market_value_usd } or null
- * @param {Object} params.sweepModuleBalanceByYear - { year: cumulativeBalance } for sweep module
- * @returns {{ rebalanceValues: Array, sweepLog: Array, sweepCumulativeAdj: number }}
+ * @param {number} params.cashSweepLow - Low band (withdraw when below)
+ * @param {number} params.cashSweepHigh - High band (sweep when above)
+ * @param {Object} params.cashDeltaByYear - { year: netCashDelta } from Bank Accounts entries
+ * @param {number} params.startingCash - Actual ledger cash balance at LastActualYear
+ * @param {Object|null} params.sweepModule - { name, account_name }
+ * @param {Object} params.moduleBalanceByYear - { year: absoluteMarketValue } for the sweep module
+ * @returns {{ entries: Array, sweepLog: Array }}
  */
-function computeCashSweep({ years, targetCash, cashByYear, sweepModule, sweepModuleBalanceByYear }) {
+function computeCashSweepIterative({
+  years, cashSweepLow, cashSweepHigh, cashDeltaByYear, startingCash,
+  sweepModule, moduleBalanceByYear,
+}) {
+  const entries = [];
   const sweepLog = [];
-  const rebalanceValues = [];
-  let sweepCumulativeAdj = 0;
+  let runningCash = startingCash;
+  let netSweptBalance = 0; // Funds deposited via sweep (tracked separately from module's own balance)
 
   for (const year of years) {
-    const projectedCash = (cashByYear[year] || 0) + sweepCumulativeAdj;
-    const gap = projectedCash - targetCash;
+    // Step 1: Apply this year's natural cash delta
+    runningCash += (cashDeltaByYear[year] || 0);
 
-    if (Math.abs(gap) < 0.01) {
-      sweepLog.push({ year, action: 'none', amount: 0, cashBefore: projectedCash, cashAfter: projectedCash, sweepBalance: (sweepModuleBalanceByYear[year] || 0) + sweepCumulativeAdj });
-      continue;
-    }
+    // Step 2: Check cash against band and sweep
+    const cashBeforeSweep = runningCash;
+    let sweepAmount = 0;
+    let action = 'none';
+    let shortfall = 0;
 
-    if (gap > 0 && sweepModule) {
-      const sweepAmount = gap;
-      rebalanceValues.push(
-        { year, account: 'Transfer - Bank', amount: -sweepAmount, module: '_cash_sweep', comment: `Cash sweep to ${sweepModule.name}` },
-        { year, account: sweepModule.account_name, amount: sweepAmount, module: '_cash_sweep', comment: 'Cash sweep deposit' }
+    if (runningCash > cashSweepHigh && sweepModule) {
+      // EXCESS: sweep into module
+      sweepAmount = runningCash - cashSweepHigh;
+      entries.push(
+        { year, account: 'Transfer - Bank', amount: -sweepAmount, module: '_cash_sweep', comment: `Cash sweep to ${sweepModule.name}` }
       );
-      sweepCumulativeAdj -= sweepAmount;
-      sweepLog.push({
-        year, action: 'sweep_in', amount: sweepAmount,
-        cashBefore: projectedCash, cashAfter: projectedCash - sweepAmount,
-        sweepBalance: (sweepModuleBalanceByYear[year] || 0) + sweepCumulativeAdj + sweepAmount,
-      });
-    } else if (gap < 0 && sweepModule) {
-      const shortfall = Math.abs(gap);
-      const availableBalance = Math.max(0, (sweepModuleBalanceByYear[year] || 0) + sweepCumulativeAdj);
-      const withdrawAmount = Math.min(shortfall, availableBalance);
-      const remainingShortfall = shortfall - withdrawAmount;
+      runningCash -= sweepAmount;
+      netSweptBalance += sweepAmount;
+      action = 'sweep_in';
 
-      if (withdrawAmount > 0.01) {
-        rebalanceValues.push(
-          { year, account: sweepModule.account_name, amount: -withdrawAmount, module: '_cash_sweep', comment: 'Cash sweep withdrawal' },
-          { year, account: 'Transfer - Bank', amount: withdrawAmount, module: '_cash_sweep', comment: `Cash sweep from ${sweepModule.name}` }
+    } else if (runningCash < cashSweepLow && sweepModule) {
+      // SHORTFALL: withdraw from swept balance first, then module's own balance
+      const needed = cashSweepLow - runningCash;
+
+      // First: draw from swept balance
+      const fromSwept = Math.min(needed, Math.max(0, netSweptBalance));
+      // Second: draw from module's own balance (emergency withdrawal)
+      const stillNeeded = needed - fromSwept;
+      const moduleOwnBalance = (moduleBalanceByYear[year] || 0);
+      const fromModule = Math.min(stillNeeded, Math.max(0, moduleOwnBalance));
+      const totalWithdraw = fromSwept + fromModule;
+      const remainingShortfall = needed - totalWithdraw;
+
+      if (totalWithdraw > 0.01) {
+        entries.push(
+          { year, account: 'Transfer - Bank', amount: totalWithdraw, module: '_cash_sweep', comment: `Cash sweep from ${sweepModule.name}` }
         );
-        sweepCumulativeAdj += withdrawAmount;
+        // Negative BS entry to reduce module balance for the module-own portion
+        if (fromModule > 0.01) {
+          entries.push(
+            { year, account: sweepModule.account_name, amount: -fromModule, module: '_cash_sweep', comment: 'Emergency withdrawal from module' }
+          );
+        }
+        runningCash += totalWithdraw;
+        netSweptBalance -= fromSwept;
+        sweepAmount = -totalWithdraw;
+        action = 'sweep_out';
       }
 
       if (remainingShortfall > 0.01) {
-        rebalanceValues.push(
+        entries.push(
           { year, account: 'Cash Shortfall', amount: -remainingShortfall, module: '_cash_sweep', comment: 'Cash below target after sweep' }
         );
+        shortfall = remainingShortfall;
+        if (action === 'none') action = 'shortfall';
       }
 
-      sweepLog.push({
-        year, action: withdrawAmount > 0.01 ? 'sweep_out' : 'shortfall',
-        amount: -withdrawAmount, shortfall: remainingShortfall > 0.01 ? remainingShortfall : 0,
-        cashBefore: projectedCash, cashAfter: projectedCash + withdrawAmount,
-        sweepBalance: (sweepModuleBalanceByYear[year] || 0) + sweepCumulativeAdj,
-      });
-    } else if (gap > 0 && !sweepModule) {
-      rebalanceValues.push(
-        { year, account: 'Transfer - Bank', amount: -gap, module: '_rebalance', comment: 'Cash target rebalance' },
-        { year, account: 'Cash Rebalance - Deposits', amount: gap, module: '_rebalance', comment: 'Excess cash to deposits' }
+    } else if (runningCash > cashSweepHigh && !sweepModule) {
+      sweepAmount = runningCash - cashSweepHigh;
+      entries.push(
+        { year, account: 'Transfer - Bank', amount: -sweepAmount, module: '_rebalance', comment: 'Cash target rebalance' },
+        { year, account: 'Cash Rebalance - Deposits', amount: sweepAmount, module: '_rebalance', comment: 'Excess cash to deposits' }
       );
-      sweepCumulativeAdj -= gap;
-      sweepLog.push({ year, action: 'deposit', amount: gap, cashBefore: projectedCash, cashAfter: projectedCash - gap, sweepBalance: 0 });
-    } else {
-      rebalanceValues.push(
-        { year, account: 'Cash Shortfall', amount: gap, module: '_rebalance', comment: 'Cash below target' }
+      runningCash -= sweepAmount;
+      action = 'deposit';
+
+    } else if (runningCash < cashSweepLow && !sweepModule) {
+      shortfall = cashSweepLow - runningCash;
+      entries.push(
+        { year, account: 'Cash Shortfall', amount: -shortfall, module: '_rebalance', comment: 'Cash below target' }
       );
-      sweepLog.push({ year, action: 'shortfall', amount: 0, shortfall: Math.abs(gap), cashBefore: projectedCash, cashAfter: projectedCash, sweepBalance: 0 });
+      action = 'shortfall';
+    }
+
+    sweepLog.push({
+      year, action, amount: sweepAmount, shortfall,
+      yieldIncome: 0,
+      cashBefore: cashBeforeSweep, cashAfter: runningCash,
+      sweepBalance: netSweptBalance,
+    });
+  }
+
+  // BS entries: write absolute netSweptBalance for each year where non-zero
+  // Uses sweepBalance from the log (tracks only swept funds, not emergency withdrawals)
+  if (sweepModule) {
+    for (const logEntry of sweepLog) {
+      if (Math.abs(logEntry.sweepBalance) > 0.01) {
+        entries.push({
+          year: logEntry.year,
+          account: sweepModule.account_name,
+          amount: logEntry.sweepBalance,
+          module: '_cash_sweep',
+          comment: 'Sweep balance',
+        });
+      }
     }
   }
 
-  return { rebalanceValues, sweepLog, sweepCumulativeAdj };
+  return { entries, sweepLog };
 }
 
-/**
- * Computes Pass 2 yield entries on swept funds.
- *
- * @param {Object} params
- * @param {number[]} params.years - Forecast period years
- * @param {Array} params.sweepLog - Sweep log from Pass 1
- * @param {Object} params.yieldByYear - { year: yieldPct }
- * @param {string|null} params.incomeCategory - FC Line name for income
- * @param {number} params.taxRate - Tax rate (e.g. 25 for 25%)
- * @param {Object} params.sweepModule - { name, account_name }
- * @returns {{ pass2Entries: Array, updatedSweepLog: Array }}
- */
-function computeSweepYield({ years, sweepLog, yieldByYear, incomeCategory, taxRate, sweepModule }) {
-  let cumulativeSweepBalance = 0;
-  const pass2Entries = [];
-
-  for (let i = 0; i < years.length; i++) {
-    const year = years[i];
-
-    // Income on accumulated sweep balance from prior years
-    if (cumulativeSweepBalance !== 0 && yieldByYear[year] > 0 && incomeCategory) {
-      const additionalIncome = cumulativeSweepBalance * (yieldByYear[year] / 100);
-      if (Math.abs(additionalIncome) > 0.01) {
-        pass2Entries.push(
-          { year, account: incomeCategory, amount: additionalIncome, module: '_cash_sweep', comment: 'Yield on swept funds' }
-        );
-
-        if (taxRate > 0) {
-          const tax = -additionalIncome * (taxRate / 100);
-          const taxYear = (i + 1 < years.length) ? years[i + 1] : year;
-          pass2Entries.push(
-            { year: taxYear, account: CATEGORIES.TAXES, amount: tax, module: '_cash_sweep', comment: 'Tax on sweep yield' }
-          );
-        }
-
-        const logEntry = sweepLog.find(l => l.year === year);
-        if (logEntry) logEntry.yieldIncome = additionalIncome;
-      }
-    }
-
-    // Update cumulative sweep balance
-    const logEntry = sweepLog.find(l => l.year === year);
-    if (logEntry) {
-      if (logEntry.action === 'sweep_in') cumulativeSweepBalance += logEntry.amount;
-      else if (logEntry.action === 'sweep_out') cumulativeSweepBalance += logEntry.amount; // negative
-    }
-  }
-
-  return { pass2Entries, updatedSweepLog: sweepLog };
-}
-
-module.exports = { computeCashSweep, computeSweepYield };
+module.exports = { computeCashSweepIterative };

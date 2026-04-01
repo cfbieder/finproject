@@ -69,8 +69,9 @@ export default function FCScenarios() {
   /** Local working copy of tax rates by scenario */
   const [localTaxRates, setLocalTaxRates] = useState([]);
 
-  /** Local working copy of target cash per scenario */
-  const [localTargetCash, setLocalTargetCash] = useState({});
+  /** Local working copy of cash sweep band per scenario */
+  const [localSweepLow, setLocalSweepLow] = useState({});
+  const [localSweepHigh, setLocalSweepHigh] = useState({});
 
   /** Tracks whether there are local changes that need to be committed */
   const [hasPendingChanges, setHasPendingChanges] = useState(false);
@@ -102,15 +103,17 @@ export default function FCScenarios() {
       setLocalTaxRates(data?.["Tax Rate"] || []);
       setHasPendingChanges(false);
 
-      // Load target_cash from DB scenarios
+      // Load cash sweep band from DB scenarios
       try {
         const dbScenarios = await Rest.get("/forecast/scenarios?activeOnly=false");
-        const cashMap = {};
+        const lowMap = {}, highMap = {};
         for (const s of dbScenarios.data || []) {
-          if (s.target_cash != null) cashMap[s.name] = parseFloat(s.target_cash) || 0;
+          if (s.cash_sweep_low != null) lowMap[s.name] = parseFloat(s.cash_sweep_low) || 0;
+          if (s.cash_sweep_high != null) highMap[s.name] = parseFloat(s.cash_sweep_high) || 0;
         }
-        setLocalTargetCash(cashMap);
-      } catch (_) { /* ignore — target_cash is optional */ }
+        setLocalSweepLow(lowMap);
+        setLocalSweepHigh(highMap);
+      } catch (_) { /* ignore — sweep band is optional */ }
 
       // Verify selected scenario still exists after reload
       const scenarioNames = (data?.scenarios || []).map((item) => item.Name);
@@ -153,14 +156,15 @@ export default function FCScenarios() {
           setHasPendingChanges(false);
           setLoadError("");
 
-          // Load target_cash from DB scenarios
+          // Load cash sweep band from DB scenarios
           try {
             const dbScenarios = await Rest.get("/forecast/scenarios?activeOnly=false");
-            const cashMap = {};
+            const lowMap = {}, highMap = {};
             for (const s of (dbScenarios.data || [])) {
-              if (s.target_cash != null) cashMap[s.name] = parseFloat(s.target_cash) || 0;
+              if (s.cash_sweep_low != null) lowMap[s.name] = parseFloat(s.cash_sweep_low) || 0;
+              if (s.cash_sweep_high != null) highMap[s.name] = parseFloat(s.cash_sweep_high) || 0;
             }
-            if (isMounted) setLocalTargetCash(cashMap);
+            if (isMounted) { setLocalSweepLow(lowMap); setLocalSweepHigh(highMap); }
           } catch (_) { /* optional */ }
         }
       } catch (error) {
@@ -278,16 +282,19 @@ export default function FCScenarios() {
     (localTaxRates || []).find((item) => item.Scenario === selectedScenario)
       ?.Rate ?? "";
 
-  /** Target cash for the selected scenario */
-  const selectedTargetCash = isNewScenario ? "" : (localTargetCash[selectedScenario] ?? "");
+  /** Cash sweep band for the selected scenario */
+  const selectedSweepLow = isNewScenario ? "" : (localSweepLow[selectedScenario] ?? "");
+  const selectedSweepHigh = isNewScenario ? "" : (localSweepHigh[selectedScenario] ?? "");
 
-  const updateTargetCash = (value) => {
+  const updateSweepLow = (value) => {
     setHasPendingChanges(true);
-    const scenarioName = selectedScenario === "__new_scenario__" ? "__new_scenario__" : selectedScenario;
-    setLocalTargetCash((prev) => ({
-      ...prev,
-      [scenarioName]: value === "" ? null : Number(value),
-    }));
+    const key = selectedScenario === "__new_scenario__" ? "__new_scenario__" : selectedScenario;
+    setLocalSweepLow((prev) => ({ ...prev, [key]: value === "" ? null : Number(value) }));
+  };
+  const updateSweepHigh = (value) => {
+    setHasPendingChanges(true);
+    const key = selectedScenario === "__new_scenario__" ? "__new_scenario__" : selectedScenario;
+    setLocalSweepHigh((prev) => ({ ...prev, [key]: value === "" ? null : Number(value) }));
   };
 
   /** All unique FX rate keys (e.g., "USDPLN", "USDEUR") across all scenarios */
@@ -703,10 +710,10 @@ export default function FCScenarios() {
         headers: { "Content-Type": "application/json" },
       });
 
-      // Save target_cash to DB scenario
-      const tcValue = isCreatingNew
-        ? (localTargetCash["__new_scenario__"] ?? null)
-        : (localTargetCash[scenarioName] ?? null);
+      // Save cash sweep band to DB scenario
+      const key = isCreatingNew ? "__new_scenario__" : scenarioName;
+      const sweepLowVal = localSweepLow[key] ?? null;
+      const sweepHighVal = localSweepHigh[key] ?? null;
       try {
         const dbScenarios = await Rest.get("/forecast/scenarios?activeOnly=false");
         const dbScenario = (dbScenarios.data || []).find((s) => s.name === scenarioName);
@@ -714,18 +721,15 @@ export default function FCScenarios() {
           await Rest.fetchJson(`/api/v2/forecast/scenarios/${dbScenario.id}`, {
             method: "PUT",
             headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ target_cash: tcValue }),
+            body: JSON.stringify({ cash_sweep_low: sweepLowVal, cash_sweep_high: sweepHighVal }),
           });
         }
-      } catch (_) { /* target_cash save is best-effort */ }
+      } catch (_) { /* sweep band save is best-effort */ }
 
-      // Update local target_cash state
+      // Update local sweep state
       if (isCreatingNew) {
-        setLocalTargetCash((prev) => {
-          const next = { ...prev, [scenarioName]: tcValue };
-          delete next["__new_scenario__"];
-          return next;
-        });
+        setLocalSweepLow((prev) => { const n = { ...prev, [scenarioName]: sweepLowVal }; delete n["__new_scenario__"]; return n; });
+        setLocalSweepHigh((prev) => { const n = { ...prev, [scenarioName]: sweepHighVal }; delete n["__new_scenario__"]; return n; });
       }
 
       // Update local state to match server
@@ -965,8 +969,10 @@ export default function FCScenarios() {
           isLoading={isLoading}
           taxRate={String(selectedTaxRate ?? "")}
           setTaxRate={updateTaxRate}
-          targetCash={String(selectedTargetCash ?? "")}
-          setTargetCash={updateTargetCash}
+          sweepLow={String(selectedSweepLow ?? "")}
+          setSweepLow={updateSweepLow}
+          sweepHigh={String(selectedSweepHigh ?? "")}
+          setSweepHigh={updateSweepHigh}
           makeDefaultScenario={makeDefaultScenario}
           onCopyScenario={openCopyScenarioModal}
           hasPendingChanges={hasPendingChanges}
