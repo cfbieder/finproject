@@ -66,10 +66,10 @@ describe("computeCashSweepIterative", () => {
     expect(sweepLog[0].action).toBe("sweep_out");
     expect(sweepLog[0].cashAfter).toBe(100000);
 
-    // Should have emergency withdrawal BS entry
-    const emergencyEntry = entries.find(e => e.comment === "Emergency withdrawal from module");
-    expect(emergencyEntry).toBeDefined();
-    expect(emergencyEntry.amount).toBe(-150000);
+    // BS entry should reflect cumulative module withdrawal (negative)
+    const bsEntry = entries.find(e => e.account === "Fixed Income Account" && e.comment === "Sweep balance");
+    expect(bsEntry).toBeDefined();
+    expect(bsEntry.amount).toBe(-150000); // cumulative withdrawal from module
   });
 
   test("no action when cash within band", () => {

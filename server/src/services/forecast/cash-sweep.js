@@ -30,6 +30,7 @@ function computeCashSweepIterative({
   const sweepLog = [];
   let runningCash = startingCash;
   let netSweptBalance = 0; // Funds deposited via sweep (tracked separately from module's own balance)
+  let cumulativeModuleWithdrawal = 0; // Running total withdrawn from module's own balance (absolute)
 
   for (const year of years) {
     // Step 1: Apply this year's natural cash delta
@@ -59,8 +60,8 @@ function computeCashSweepIterative({
       const fromSwept = Math.min(needed, Math.max(0, netSweptBalance));
       // Second: draw from module's own balance (emergency withdrawal)
       const stillNeeded = needed - fromSwept;
-      const moduleOwnBalance = (moduleBalanceByYear[year] || 0);
-      const fromModule = Math.min(stillNeeded, Math.max(0, moduleOwnBalance));
+      const moduleOwnBalance = Math.max(0, (moduleBalanceByYear[year] || 0) - cumulativeModuleWithdrawal);
+      const fromModule = Math.min(stillNeeded, moduleOwnBalance);
       const totalWithdraw = fromSwept + fromModule;
       const remainingShortfall = needed - totalWithdraw;
 
@@ -68,11 +69,8 @@ function computeCashSweepIterative({
         entries.push(
           { year, account: 'Transfer - Bank', amount: totalWithdraw, module: '_cash_sweep', comment: `Cash sweep from ${sweepModule.name}` }
         );
-        // Negative BS entry to reduce module balance for the module-own portion
         if (fromModule > 0.01) {
-          entries.push(
-            { year, account: sweepModule.account_name, amount: -fromModule, module: '_cash_sweep', comment: 'Emergency withdrawal from module' }
-          );
+          cumulativeModuleWithdrawal += fromModule;
         }
         runningCash += totalWithdraw;
         netSweptBalance -= fromSwept;
@@ -110,18 +108,20 @@ function computeCashSweepIterative({
       yieldIncome: 0,
       cashBefore: cashBeforeSweep, cashAfter: runningCash,
       sweepBalance: netSweptBalance,
+      moduleWithdrawal: cumulativeModuleWithdrawal,
     });
   }
 
-  // BS entries: write absolute netSweptBalance for each year where non-zero
-  // Uses sweepBalance from the log (tracks only swept funds, not emergency withdrawals)
+  // BS entries: write absolute net adjustment (swept balance minus cumulative emergency withdrawals)
+  // Module builder writes absolute MV, so sweep must also write absolute adjustments
   if (sweepModule) {
     for (const logEntry of sweepLog) {
-      if (Math.abs(logEntry.sweepBalance) > 0.01) {
+      const netAdjustment = logEntry.sweepBalance - logEntry.moduleWithdrawal;
+      if (Math.abs(netAdjustment) > 0.01) {
         entries.push({
           year: logEntry.year,
           account: sweepModule.account_name,
-          amount: logEntry.sweepBalance,
+          amount: netAdjustment,
           module: '_cash_sweep',
           comment: 'Sweep balance',
         });
