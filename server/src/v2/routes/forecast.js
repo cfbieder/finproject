@@ -1125,7 +1125,7 @@ router.get('/base-year-values', async (req, res, next) => {
             THEN -m.expense_amount ELSE 0 END) as amount
       FROM forecast_modules m
       LEFT JOIN fc_lines exp_line ON m.expense_fc_line_id = exp_line.id
-      WHERE m.scenario_id = $1 AND COALESCE(m.setup_status, 'new') != 'new'
+      WHERE m.scenario_id = $1 AND COALESCE(m.setup_status, 'new') NOT IN ('new', 'exclude')
         AND m.expense_fc_line_id IS NOT NULL
       GROUP BY exp_line.name
       UNION ALL
@@ -1135,7 +1135,7 @@ router.get('/base-year-values', async (req, res, next) => {
         SUM(COALESCE(m.income_amount, 0)) as amount
       FROM forecast_modules m
       LEFT JOIN fc_lines inc_line ON m.income_fc_line_id = inc_line.id
-      WHERE m.scenario_id = $1 AND COALESCE(m.setup_status, 'new') != 'new'
+      WHERE m.scenario_id = $1 AND COALESCE(m.setup_status, 'new') NOT IN ('new', 'exclude')
         AND m.income_fc_line_id IS NOT NULL
       GROUP BY inc_line.name
     `, [scenario.id]);
@@ -1147,7 +1147,7 @@ router.get('/base-year-values', async (req, res, next) => {
         ie.base_value as amount
       FROM forecast_income_expense ie
       LEFT JOIN fc_lines fl ON ie.fc_line_id = fl.id
-      WHERE ie.scenario_id = $1 AND COALESCE(ie.setup_status, 'new') != 'new'
+      WHERE ie.scenario_id = $1 AND COALESCE(ie.setup_status, 'new') NOT IN ('new', 'exclude')
     `, [scenario.id]);
 
     const values = {};
@@ -1252,6 +1252,51 @@ router.get('/audittrail/:scenario/:module', (req, res, next) => {
     res.json({ headers, rows });
   } catch (error) {
     console.error('[forecast/audittrail] Failed:', error);
+    next(error);
+  }
+});
+
+// GET /api/v2/forecast/audittrail/:scenario/:module/detail
+// Returns LC, USD, and entries audit trail CSVs for a BS module
+router.get('/audittrail/:scenario/:module/detail', (req, res, next) => {
+  try {
+    const fs = require('fs');
+    const path = require('path');
+    const { PATHS } = require('../../services/forecast/constants');
+    const scenario = req.params.scenario?.trim();
+    const moduleName = req.params.module?.trim();
+
+    if (!scenario || !moduleName) {
+      return res.status(400).json({ error: 'Scenario and module name are required' });
+    }
+
+    const sanitize = (v) => (v || '').replace(/[^a-z0-9]/gi, '_');
+    const safeScenario = sanitize(scenario);
+    const safeModule = sanitize(moduleName);
+    const auditDir = PATHS.AUDIT_TRAIL_DIR;
+
+    const parseCsv = (filePath) => {
+      if (!fs.existsSync(filePath)) return null;
+      const stat = fs.statSync(filePath);
+      const content = fs.readFileSync(filePath, 'utf8');
+      const lines = content.split('\n').filter(l => l.trim());
+      if (lines.length === 0) return { headers: [], rows: [], lastModified: stat.mtime };
+      const headers = lines[0].split(',').map(h => h.trim());
+      const rows = lines.slice(1).map(line => line.split(',').map(v => v.trim()));
+      return { headers, rows, lastModified: stat.mtime };
+    };
+
+    const lc = parseCsv(path.join(auditDir, `${safeScenario}_${safeModule}_LC.csv`));
+    const usd = parseCsv(path.join(auditDir, `${safeScenario}_${safeModule}_USD.csv`));
+    const entries = parseCsv(path.join(auditDir, `${safeScenario}_${safeModule}_entries.csv`));
+
+    if (!lc && !usd && !entries) {
+      return res.status(404).json({ error: 'No audit trail found. Generate the forecast first.' });
+    }
+
+    res.json({ lc, usd, entries, scenario, module: moduleName });
+  } catch (error) {
+    console.error('[forecast/audittrail/detail] Failed:', error);
     next(error);
   }
 });

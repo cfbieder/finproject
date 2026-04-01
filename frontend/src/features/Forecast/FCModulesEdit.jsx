@@ -1,5 +1,6 @@
 import { Fragment, useEffect, useState } from "react";
 import Rest from "../../js/rest";
+import FCModuleAuditModal from "./FCModuleAuditModal.jsx";
 import "./FCModulesEdit.css";
 
 const normalizeBaseDate = (value) => {
@@ -113,6 +114,7 @@ export default function FCModulesEditModal({
   const accountTraits = traits?.[traitKey] || {};
   const traitType = accountTraits?.Type ?? "";
   const traitCurrency = accountTraits?.Currency ?? "";
+  const [showAuditModal, setShowAuditModal] = useState(false);
   const [accountBalance, setAccountBalance] = useState({
     value: null,
     valueUSD: null,
@@ -621,6 +623,7 @@ export default function FCModulesEditModal({
                     <option value="new">New</option>
                     <option value="in_progress">In Progress</option>
                     <option value="complete">Complete</option>
+                    <option value="exclude">Exclude</option>
                   </select>
                 </label>
                 <label style={{ display: "flex", flexDirection: "column", gap: "0.25rem", flex: 1 }}>
@@ -1334,6 +1337,14 @@ export default function FCModulesEditModal({
             <button
               type="button"
               className="fc-modules-modal__button fc-modules-modal__button--cancel"
+              onClick={() => setShowAuditModal(true)}
+              style={{ marginRight: "auto" }}
+            >
+              View Output
+            </button>
+            <button
+              type="button"
+              className="fc-modules-modal__button fc-modules-modal__button--cancel"
               onClick={onClose}
               disabled={editSaving}
             >
@@ -1396,6 +1407,12 @@ export default function FCModulesEditModal({
           </div>
         </form>
       </div>
+      <FCModuleAuditModal
+        isOpen={showAuditModal}
+        onClose={() => setShowAuditModal(false)}
+        scenario={editForm?.Scenario}
+        moduleName={editForm?.Name}
+      />
     </div>
   );
 }

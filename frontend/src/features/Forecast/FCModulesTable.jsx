@@ -304,6 +304,7 @@ export default function FCModulesTable({
                 <option value="new">New</option>
                 <option value="in_progress">In Progress</option>
                 <option value="complete">Complete</option>
+                <option value="exclude">Exclude</option>
               </select>
 
               <select
@@ -446,16 +447,49 @@ export default function FCModulesTable({
                             </span>
                           </td>
                           <td className="fc-modules-table__td fc-modules-table__td--center">
-                            <span
-                              style={{
-                                display: "inline-block", padding: "0.15rem 0.5rem", borderRadius: "1rem",
-                                fontSize: "0.75rem", fontWeight: 600,
-                                background: (module?.SetupStatus || "new") === "complete" ? "#dcfce7" : (module?.SetupStatus) === "in_progress" ? "#fef3c7" : "#f1f5f9",
-                                color: (module?.SetupStatus || "new") === "complete" ? "#16a34a" : (module?.SetupStatus) === "in_progress" ? "#d97706" : "#64748b",
-                              }}
-                            >
-                              {(module?.SetupStatus || "new") === "complete" ? "Complete" : (module?.SetupStatus) === "in_progress" ? "In Progress" : "New"}
-                            </span>
+                            {(() => {
+                              const status = module?.SetupStatus || "new";
+                              const statusStyles = {
+                                complete: { bg: "#dcfce7", color: "#16a34a", label: "Complete" },
+                                in_progress: { bg: "#fef3c7", color: "#d97706", label: "In Progress" },
+                                exclude: { bg: "#fee2e2", color: "#dc2626", label: "Exclude" },
+                                new: { bg: "#f1f5f9", color: "#64748b", label: "New" },
+                              };
+                              const s = statusStyles[status] || statusStyles.new;
+                              return (
+                                <select
+                                  value={status}
+                                  onChange={async (e) => {
+                                    e.stopPropagation();
+                                    const newStatus = e.target.value;
+                                    try {
+                                      const Rest = (await import("../../js/rest.js")).default;
+                                      await Rest.put(`/forecast/modules/${module.id || module.Id}`, { SetupStatus: newStatus });
+                                      if (module) module.SetupStatus = newStatus;
+                                      onSelectModule?.(selectedModuleId);
+                                    } catch (err) {
+                                      console.error("Failed to update status:", err);
+                                    }
+                                  }}
+                                  onClick={(e) => e.stopPropagation()}
+                                  style={{
+                                    appearance: "none", WebkitAppearance: "none",
+                                    padding: "0.15rem 0.5rem", borderRadius: "1rem",
+                                    fontSize: "0.75rem", fontWeight: 600,
+                                    background: s.bg, color: s.color,
+                                    border: "1px solid transparent",
+                                    cursor: "pointer", textAlign: "center",
+                                  }}
+                                  onFocus={(e) => { e.target.style.appearance = "auto"; e.target.style.WebkitAppearance = "auto"; }}
+                                  onBlur={(e) => { e.target.style.appearance = "none"; e.target.style.WebkitAppearance = "none"; }}
+                                >
+                                  <option value="new">New</option>
+                                  <option value="in_progress">In Progress</option>
+                                  <option value="complete">Complete</option>
+                                  <option value="exclude">Exclude</option>
+                                </select>
+                              );
+                            })()}
                           </td>
                           <td className="fc-modules-table__td fc-modules-table__td--numeric">
                             {formatCurrencyNoDecimals(baseValue)}
