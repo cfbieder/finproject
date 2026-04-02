@@ -159,6 +159,20 @@ export default function FCAIReviewDrawer({ isOpen, onClose, scenarioName }) {
     }
   };
 
+  const handleDeleteReview = async (e, reviewId) => {
+    e.stopPropagation();
+    try {
+      await Rest.del(`/ai-review/${reviewId}`);
+      setReviews(prev => prev.filter(r => r.id !== reviewId));
+      if (activeReviewId === reviewId) {
+        setActiveReviewId(null);
+        setMessages([]);
+      }
+    } catch (e) {
+      setError(e.message || "Failed to delete review");
+    }
+  };
+
   const handleApply = (action, key) => {
     setConfirmAction({ action, key });
   };
@@ -184,7 +198,7 @@ export default function FCAIReviewDrawer({ isOpen, onClose, scenarioName }) {
         onClick={onClose}
         style={{
           position: "fixed", inset: 0, background: "rgba(15,23,42,0.3)",
-          backdropFilter: "blur(2px)", zIndex: 1050,
+          backdropFilter: "blur(2px)", zIndex: 10100,
         }}
       />
 
@@ -192,7 +206,7 @@ export default function FCAIReviewDrawer({ isOpen, onClose, scenarioName }) {
       <div style={{
         position: "fixed", top: 0, right: 0, bottom: 0, width: "min(600px, 90vw)",
         background: "white", boxShadow: "-8px 0 30px rgba(0,0,0,0.15)",
-        display: "flex", flexDirection: "column", zIndex: 1060,
+        display: "flex", flexDirection: "column", zIndex: 10200,
         animation: "slideInRight 0.2s ease-out",
       }}>
         {/* Header */}
@@ -240,12 +254,27 @@ export default function FCAIReviewDrawer({ isOpen, onClose, scenarioName }) {
                   padding: "0.6rem 0.75rem", cursor: "pointer", borderBottom: "1px solid #e2e8f0",
                   background: r.id === activeReviewId ? "#eff6ff" : "transparent",
                   fontWeight: r.id === activeReviewId ? 600 : 400,
+                  position: "relative",
                 }}
               >
+                <button
+                  onClick={(e) => handleDeleteReview(e, r.id)}
+                  title="Delete review"
+                  style={{
+                    position: "absolute", top: "0.35rem", right: "0.35rem",
+                    background: "none", border: "none", cursor: "pointer",
+                    color: "#94a3b8", fontSize: "0.85rem", lineHeight: 1,
+                    padding: "0.1rem 0.25rem", borderRadius: "0.25rem",
+                  }}
+                  onMouseEnter={e => e.currentTarget.style.color = "#ef4444"}
+                  onMouseLeave={e => e.currentTarget.style.color = "#94a3b8"}
+                >
+                  &times;
+                </button>
                 <div style={{ fontSize: "0.75rem", color: "#64748b" }}>
                   {new Date(r.created_at).toLocaleDateString()}
                 </div>
-                <div style={{ marginTop: "0.15rem", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                <div style={{ marginTop: "0.15rem", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", paddingRight: "1rem" }}>
                   {r.title || "Review"}
                 </div>
               </div>
@@ -340,7 +369,7 @@ export default function FCAIReviewDrawer({ isOpen, onClose, scenarioName }) {
         <div style={{
           position: "fixed", inset: 0, background: "rgba(15,23,42,0.5)",
           display: "flex", alignItems: "center", justifyContent: "center",
-          zIndex: 1100,
+          zIndex: 10300,
         }}>
           <div style={{
             background: "white", borderRadius: "0.75rem", padding: "1.5rem",

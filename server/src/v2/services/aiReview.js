@@ -223,21 +223,27 @@ function fmt(v) {
  * Calls Claude API with the forecast context and conversation history
  */
 async function callClaude({ systemPrompt, messages, forecastContext }) {
-  // Get API key from app_data
-  const apiKey = await psdataRepo.getAppData("anthropic_api_key");
+  // Get API key: env var first, then app_data table
+  const apiKey = process.env.ANTHROPIC_API_KEY || await psdataRepo.getAppData("anthropic_api_key");
   if (!apiKey) {
-    throw new Error("Anthropic API key not configured. Go to FC Settings to add it.");
+    throw new Error("Anthropic API key not configured. Set ANTHROPIC_API_KEY env var or add it in FC Settings.");
   }
 
   const client = new Anthropic({ apiKey: typeof apiKey === "string" ? apiKey : String(apiKey) });
 
-  const fullSystem = `${systemPrompt}\n\n--- FORECAST DATA ---\n${forecastContext}`;
+  // Inject forecast data into the first user message so all models process it
+  const augmentedMessages = messages.map((m, i) => {
+    if (i === 0 && m.role === "user") {
+      return { role: "user", content: `${m.content}\n\n--- FORECAST DATA ---\n${forecastContext}` };
+    }
+    return { role: m.role, content: m.content };
+  });
 
   const response = await client.messages.create({
-    model: "claude-sonnet-4-6-20250514",
+    model: process.env.ANTHROPIC_MODEL || "claude-3-haiku-20240307",
     max_tokens: 4096,
-    system: fullSystem,
-    messages: messages.map(m => ({ role: m.role, content: m.content })),
+    system: systemPrompt,
+    messages: augmentedMessages,
   });
 
   const content = response.content?.[0]?.text || "";

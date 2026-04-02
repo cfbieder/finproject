@@ -1,6 +1,7 @@
 node_modules/
 mongo_data/
 mongo_backups/
+.env
 .env-cmdrc
 .DS_Store
 old/

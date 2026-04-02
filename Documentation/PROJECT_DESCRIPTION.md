@@ -181,7 +181,7 @@ psproject/                          # ~/Programs/fin symlinks here
 | `/forecast-modules` | FCModuleManage | Forecasting | Step 3 — Configure BS modules. "Add from Actuals" creates modules from year-end balances (Select All/Clear). Setup status (New/In Progress/Complete) with color-coded badges and filter — only "Complete" included in generation. Edit form: Account/Name read-only when matched; Type from configurable list (FC Settings); Expense/Income Line pickers (FC Lines); Expense Amount (Base Yr) and Income Amount (Base Yr); Growth (x Inflation); Expense Growth method (Inflate / % of Asset Value); Income/Yield % schedule (year + percentage); Tax Rate Override (%); Invest/Dispose arrays; Full disposal handling. `GET /modules/:id` loads nested arrays. |
 | `/forecast-setup-exp` | FCExpSetup | Forecasting | Step 4 — Income/expense forecast items. "Add from FC Lines" with budget pre-fill. Account/Name/Type locked for FC Line items. Base Value = BaseYear budget amount. Setup status (New/In Progress/Complete) with filter — only "Complete" in generation. Engine starts from PeriodStart (BaseYear P&L covered by budget). |
 | `/forecast-review` | FCReview | Forecasting | Step 5 — Review generated forecasts. P&L driven by FC Lines (`/fc-lines/review-structure`). Three column types: LastActualYear "(Actual)" from ledger, BaseYear "(Budget)" P&L from budget + BS from engine, PeriodStart+ from FC engines. Invest/Dispose transfers available from BaseYear onward. Equity bridge rows inside main table. KPI cards, age row, graph, cash target auto-balance. Year headers above Balance Sheet section. AI Review button (purple, BrainCircuit icon) opens `FCAIReviewDrawer` slide-out drawer for AI-powered plan review. Sticky top scrollbar for horizontal scrolling, thicker scrollbar (14px), `overscroll-behavior-x: contain`. |
-| `/fc-settings` | FCSettings | Forecasting | FC Settings — Birth Year (age row in Review), Module Types (configurable dropdown list), FX Rate Assumptions (moved from old `/fx-options`), Anthropic API Key (password input), and AI System Prompt (textarea with default). API key and system prompt stored in `app_data`. |
+| `/fc-settings` | FCSettings | Forecasting | FC Settings — Birth Year (age row in Review), Module Types (configurable dropdown list), FX Rate Assumptions (moved from old `/fx-options`), and AI System Prompt (textarea with default). AI system prompt stored in `app_data`. Anthropic API key is read from `ANTHROPIC_API_KEY` environment variable (with fallback to `app_data` table); it is no longer stored in `appdata.json`. |
 | `/balance` | BalanceV2 | Reports & Graphs | Redesigned balance sheet. KPI cards for Net Worth (highlighted), Total Assets, Total Liabilities. Compact toolbar with inline period controls (1-3 periods with P1/P2/P3 badges + date pickers), Generate button, expand/collapse icon buttons, and Export. Reuses existing `BalanceReport` component for the hierarchical account tree table with sticky headers/columns, resizable account column, row highlighting, path-based collapse state, and Net Worth footer row. Auto-generates report on page load. |
 | `/cash-flow` | CashFlow | Reports & Graphs | Cash flow P&L analysis |
 | `/cash-flow-monthly` | CashFlowMonthly | Reports & Graphs | Monthly cash flow breakdown |
@@ -337,7 +337,7 @@ All endpoints mounted at `/api/v2`. Nginx rewrites legacy `/api/*` paths to `/ap
 - `DELETE /:id` — Remove a match group (cascade deletes members, returning transactions to unmatched pool).
 
 #### AI Review (`/api/v2/ai-review`)
-- `POST /` — Create new AI review for a scenario. Builds context from 6 data sources (scenario metadata, modules with nested data, inc/exp items, FX assumptions, base year budget, generated forecast entries), sends structured prompt to Claude Sonnet 4.6 (`claude-sonnet-4-6-20250514`). Returns review with Strong Points / Concerns / Recommendations / Key Risks / Questions.
+- `POST /` — Create new AI review for a scenario. Builds context from 6 data sources (scenario metadata, modules with nested data, inc/exp items, FX assumptions, base year budget, generated forecast entries), sends structured prompt to Claude via Anthropic API. Model is configurable via `ANTHROPIC_MODEL` env var (defaults to `claude-3-haiku-20240307`). Returns review with Strong Points / Concerns / Recommendations / Key Risks / Questions.
 - `POST /:reviewId/message` — Send follow-up message in existing review conversation. Free-form response.
 - `GET /scenario/:scenarioName` — List all reviews for a scenario.
 - `GET /:reviewId` — Get full conversation history for a review.
@@ -378,7 +378,7 @@ Multi-year personal financial projection system modeled after `2026 Retirement E
 | 4 | Income/Expenses | `/forecast-setup-exp` | Add forecast income/expense items from FC Lines with budget pre-fill |
 | 5 | Review | `/forecast-review` | View generated multi-year forecast with P&L, balance sheet, KPIs, and equity bridge |
 
-Supporting page: FC Settings (`/fc-settings`) — Birth Year (age row), Module Types (configurable list), FX Rate Assumptions, Anthropic API Key, AI System Prompt.
+Supporting page: FC Settings (`/fc-settings`) — Birth Year (age row), Module Types (configurable list), FX Rate Assumptions, AI System Prompt. Anthropic API key is supplied via `ANTHROPIC_API_KEY` env var (not stored in settings UI).
 
 #### FC Lines Mapping Layer
 
@@ -736,6 +736,10 @@ Config uses `.env` file (git-ignored) for secrets, with defaults in `docker-comp
 | `PS_USER_ID` | `330430` | PocketSmith user ID |
 | `NODE_ENV` | `production` | Server environment |
 | `PORT` | `3005` | Server port |
+| `ANTHROPIC_API_KEY` | (none — must be set in `.env`) | Anthropic API key for AI Review. Passed to server container via `docker-compose.yml` and `docker-compose.dev.yml`. Fallback: `app_data` table. |
+| `ANTHROPIC_MODEL` | `claude-3-haiku-20240307` | Anthropic model used for AI Review. Override via env var when a better model is available. |
+
+> **Note:** `.env` is git-ignored. Secrets (`ANTHROPIC_API_KEY`, etc.) must be set there and are never committed. `appdata.json` no longer contains the Anthropic API key.
 
 ---
 
@@ -747,7 +751,7 @@ Located in `components/data/` (mounted into server container):
 |------|---------|
 | `account_names.json` | PocketSmith account name mappings |
 | `category_names.json` | PocketSmith category name mappings |
-| `appdata.json` | Application metadata (last ingest/refresh timestamps) |
+| `appdata.json` | Application metadata (last ingest/refresh timestamps). No longer stores Anthropic API key — use `ANTHROPIC_API_KEY` env var instead. |
 | `FCAssump.json` | Forecast assumptions (inflation, FX, tax rates) |
 | `.temp/` | Temporary files for PS API refresh pipeline |
 

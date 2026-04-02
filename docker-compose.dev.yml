@@ -41,6 +41,7 @@ services:
       COA_PATH: /app/components/data/coa.json
       PS_API_KEY: "${PS_API_KEY:-7916e6eba6fa3a5a59af4a6f5e7ae8c66f0cdd3b94d5eaf2d25cdb06e43e6a4f}"
       PS_USER_ID: "${PS_USER_ID:-330430}"
+      ANTHROPIC_API_KEY: "${ANTHROPIC_API_KEY:-}"
     volumes:
       - ./components/data:/app/components/data
       - ./components/reports:/app/components/reports
