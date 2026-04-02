@@ -1,4 +1,4 @@
-import { BarChart3, TrendingUp } from "lucide-react";
+import { BarChart3, TrendingUp, BrainCircuit } from "lucide-react";
 
 export default function FCReviewSelector({
   scenarios,
@@ -15,6 +15,8 @@ export default function FCReviewSelector({
   excelDisabled,
   onGraphClick,
   graphDisabled,
+  onAIReviewClick,
+  aiReviewDisabled,
 }) {
   const disableGenerate =
     generateDisabled || !selectedScenario || isLoading || !!loadError;
@@ -86,6 +88,18 @@ export default function FCReviewSelector({
                   <TrendingUp size={16} />
                 </span>
                 Graph
+              </button>
+              <button
+                type="button"
+                className="fc-review-selector__action-btn"
+                disabled={aiReviewDisabled ?? disableGenerate}
+                onClick={onAIReviewClick}
+                style={{ background: "linear-gradient(135deg, #7c3aed, #4f46e5)", color: "white", border: "none" }}
+              >
+                <span aria-hidden="true" className="fc-review-selector__action-icon">
+                  <BrainCircuit size={16} />
+                </span>
+                AI Review
               </button>
             </div>
           </div>

@@ -19,6 +19,7 @@ const utilRouter = require('./util');
 const ingestPsRouter = require('./ingestPs');
 const transferMatchGroupsRouter = require('./transferMatchGroups');
 const fcLinesRouter = require('./fcLines');
+const aiReviewRouter = require('./aiReview');
 
 // Mount routes
 router.use('/health', healthRouter);
@@ -32,6 +33,7 @@ router.use('/reports', reportsRouter);
 router.use('/util', utilRouter);
 router.use('/ingest-ps', ingestPsRouter);
 router.use('/transfer-match-groups', transferMatchGroupsRouter);
+router.use('/ai-review', aiReviewRouter);
 
 // API root info
 router.get('/', (req, res) => {

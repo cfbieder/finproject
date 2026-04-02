@@ -95,6 +95,7 @@ ssh cfbieder@192.168.1.61          # KVM host (VM management only)
 | archiver | 7.0.1 | Backup compression |
 | pino | 9.6.0 | Structured logging |
 | morgan | 1.10.1 | HTTP request logging |
+| @anthropic-ai/sdk | latest | Anthropic Claude API client (AI Review) |
 
 ---
 
@@ -131,15 +132,15 @@ psproject/                          # ~/Programs/fin symlinks here
 │   ├── package.json
 │   ├── nodemon.json
 │   ├── .env-cmdrc
-│   ├── db/migrations/           # PostgreSQL schema (001-006: core, 007: fc_lines + fc_line_categories + module FK columns, 008: drop old expense_category/income_category/expense_pct, 009: target_cash on scenarios, 010: tax_rate_override on modules, 011: setup_status on modules + income_expense, 012: cash_sweep_target on modules)
+│   ├── db/migrations/           # PostgreSQL schema (001-006: core, 007: fc_lines + fc_line_categories + module FK columns, 008: drop old expense_category/income_category/expense_pct, 009: target_cash on scenarios, 010: tax_rate_override on modules, 011: setup_status on modules + income_expense, 012: cash_sweep_target on modules, 013: cash_sweep_band replacing target_cash on scenarios, 014: ai_reviews)
 │   └── src/
 │       ├── server.js            # HTTP server entry point
 │       ├── app.js               # Express app config, route mounting
 │       └── v2/                  # PostgreSQL-based API (all routes)
 │           ├── db/              # PostgreSQL module exports + pool implementation
-│           ├── routes/          # Route handlers (accounts, budget, categories, forecast, health, ingestPs, reports, transactions, transferMatchGroups, util)
+│           ├── routes/          # Route handlers (accounts, aiReview, budget, categories, forecast, health, ingestPs, reports, transactions, transferMatchGroups, util)
 │           ├── repositories/    # Data access layer (accounts, budget, budgetFxRates, categories, forecast, psdata, transactions, transferMatchGroups)
-│           └── services/        # Business logic (psCsvIngestorV2, refreshPsApiV2)
+│           └── services/        # Business logic (psCsvIngestorV2, refreshPsApiV2, aiReview.js — context builder + Claude API call, forecast/ engine)
 ├── Scripts/                     # Shell scripts
 │   ├── dev-start.sh             # Start tmux development environment
 │   ├── deploy-to-production.sh  # Deploy development changes to production
@@ -179,8 +180,8 @@ psproject/                          # ~/Programs/fin symlinks here
 | `/forecast-scenarios` | FCScenarios | Forecasting | Step 2 — Manage forecast scenarios. "+ New Scenario" immediately prompts for name. Target Cash field for auto-balance. Copy scenario with optional "Update base values from actuals" checkbox. |
 | `/forecast-modules` | FCModuleManage | Forecasting | Step 3 — Configure BS modules. "Add from Actuals" creates modules from year-end balances (Select All/Clear). Setup status (New/In Progress/Complete) with color-coded badges and filter — only "Complete" included in generation. Edit form: Account/Name read-only when matched; Type from configurable list (FC Settings); Expense/Income Line pickers (FC Lines); Expense Amount (Base Yr) and Income Amount (Base Yr); Growth (x Inflation); Expense Growth method (Inflate / % of Asset Value); Income/Yield % schedule (year + percentage); Tax Rate Override (%); Invest/Dispose arrays; Full disposal handling. `GET /modules/:id` loads nested arrays. |
 | `/forecast-setup-exp` | FCExpSetup | Forecasting | Step 4 — Income/expense forecast items. "Add from FC Lines" with budget pre-fill. Account/Name/Type locked for FC Line items. Base Value = BaseYear budget amount. Setup status (New/In Progress/Complete) with filter — only "Complete" in generation. Engine starts from PeriodStart (BaseYear P&L covered by budget). |
-| `/forecast-review` | FCReview | Forecasting | Step 5 — Review generated forecasts. P&L driven by FC Lines (`/fc-lines/review-structure`). Three column types: LastActualYear "(Actual)" from ledger, BaseYear "(Budget)" P&L from budget + BS from engine, PeriodStart+ from FC engines. Invest/Dispose transfers available from BaseYear onward. Equity bridge rows inside main table. KPI cards, age row, graph, cash target auto-balance. |
-| `/fc-settings` | FCSettings | Forecasting | FC Settings — Birth Year (age row in Review), Module Types (configurable dropdown list), and FX Rate Assumptions (moved from old `/fx-options`). |
+| `/forecast-review` | FCReview | Forecasting | Step 5 — Review generated forecasts. P&L driven by FC Lines (`/fc-lines/review-structure`). Three column types: LastActualYear "(Actual)" from ledger, BaseYear "(Budget)" P&L from budget + BS from engine, PeriodStart+ from FC engines. Invest/Dispose transfers available from BaseYear onward. Equity bridge rows inside main table. KPI cards, age row, graph, cash target auto-balance. Year headers above Balance Sheet section. AI Review button (purple, BrainCircuit icon) opens `FCAIReviewDrawer` slide-out drawer for AI-powered plan review. Sticky top scrollbar for horizontal scrolling, thicker scrollbar (14px), `overscroll-behavior-x: contain`. |
+| `/fc-settings` | FCSettings | Forecasting | FC Settings — Birth Year (age row in Review), Module Types (configurable dropdown list), FX Rate Assumptions (moved from old `/fx-options`), Anthropic API Key (password input), and AI System Prompt (textarea with default). API key and system prompt stored in `app_data`. |
 | `/balance` | BalanceV2 | Reports & Graphs | Redesigned balance sheet. KPI cards for Net Worth (highlighted), Total Assets, Total Liabilities. Compact toolbar with inline period controls (1-3 periods with P1/P2/P3 badges + date pickers), Generate button, expand/collapse icon buttons, and Export. Reuses existing `BalanceReport` component for the hierarchical account tree table with sticky headers/columns, resizable account column, row highlighting, path-based collapse state, and Net Worth footer row. Auto-generates report on page load. |
 | `/cash-flow` | CashFlow | Reports & Graphs | Cash flow P&L analysis |
 | `/cash-flow-monthly` | CashFlowMonthly | Reports & Graphs | Monthly cash flow breakdown |
@@ -335,6 +336,14 @@ All endpoints mounted at `/api/v2`. Nginx rewrites legacy `/api/*` paths to `/ap
 - `GET /?startDate=&endDate=` — List all match groups (optionally filtered by member transaction dates). Returns groups with full transaction details.
 - `DELETE /:id` — Remove a match group (cascade deletes members, returning transactions to unmatched pool).
 
+#### AI Review (`/api/v2/ai-review`)
+- `POST /` — Create new AI review for a scenario. Builds context from 6 data sources (scenario metadata, modules with nested data, inc/exp items, FX assumptions, base year budget, generated forecast entries), sends structured prompt to Claude Sonnet 4.6 (`claude-sonnet-4-6-20250514`). Returns review with Strong Points / Concerns / Recommendations / Key Risks / Questions.
+- `POST /:reviewId/message` — Send follow-up message in existing review conversation. Free-form response.
+- `GET /scenario/:scenarioName` — List all reviews for a scenario.
+- `GET /:reviewId` — Get full conversation history for a review.
+- `DELETE /:reviewId` — Delete a review and its messages.
+- `POST /apply` — Auto-apply AI-suggested changes. Supports action types: `update_module` (growth_rate, income_amount, expense_amount, tax_rate_override), `update_incexp` (base_value, growth_rate), `update_scenario` (cash_sweep_low, cash_sweep_high).
+
 #### Utility (`/api/v2/util`)
 - `GET /appdata` (merges JSON file + PostgreSQL `app_data` table) | `POST /appdata` | `POST /backup-database`
 - `GET /exchange-rates` — Bulk/historical rates | `GET /exchange-rate` — Single rate lookup | `GET /currencies`
@@ -350,7 +359,7 @@ All endpoints mounted at `/api/v2`. Nginx rewrites legacy `/api/*` paths to `/ap
 | `transactions.js` | transactions, pending_transactions |
 | `budget.js` | budget_entries, budget_versions |
 | `budgetFxRates.js` | budget_fx_rates |
-| `forecast.js` | forecast_scenarios, forecast_modules, forecast_income_expense, forecast_entries, and sub-tables |
+| `forecast.js` | forecast_scenarios, forecast_modules, forecast_income_expense, forecast_entries, fc_ai_reviews, fc_ai_messages, and sub-tables |
 | `fcLines.js` | fc_lines, fc_line_categories |
 | `psdata.js` | psdata_staging, app_data |
 | `transferMatchGroups.js` | transfer_match_groups, transfer_match_group_members |
@@ -369,7 +378,7 @@ Multi-year personal financial projection system modeled after `2026 Retirement E
 | 4 | Income/Expenses | `/forecast-setup-exp` | Add forecast income/expense items from FC Lines with budget pre-fill |
 | 5 | Review | `/forecast-review` | View generated multi-year forecast with P&L, balance sheet, KPIs, and equity bridge |
 
-Supporting page: FC Settings (`/fc-settings`) — Birth Year (age row), Module Types (configurable list), FX Rate Assumptions.
+Supporting page: FC Settings (`/fc-settings`) — Birth Year (age row), Module Types (configurable list), FX Rate Assumptions, Anthropic API Key, AI System Prompt.
 
 #### FC Lines Mapping Layer
 
@@ -414,7 +423,7 @@ Located in `server/src/services/forecast/`. Four main files:
 | File | Purpose |
 |------|---------|
 | `index.js` | Orchestration — loads scenarios, modules, FC Line name map; runs module + incexp builders; post-processing (cash sweep & auto-balance, two-pass). Only processes modules/expenses with `setup_status = 'complete'`. |
-| `cash-sweep.js` | Pure computation functions for two-pass cash sweep: `computeCashSweep` (Pass 1 — sweep excess/withdraw shortfall) and `computeSweepYield` (Pass 2 — yield on adjusted balances with deferred tax). |
+| `cash-sweep.js` | Pure computation functions for iterative year-by-year cash sweep: sweeps excess above high band into designated module, withdraws from module on shortfall below low band. No yield calculation — yield handled by normal module engine on adjusted balances. |
 | `fcbuilder-module.js` | BS module projections — starts from LastActualYear (BaseDate). Market value growth, investments/disposals (including BaseYear transfers), income (yield or base amount), expenses (inflation or % of value), realized/unrealized gains, tax with 1-year deferral, FX conversion, Full disposal handling (BaseYear: P&L kept as budget, future zeroed; forecast years: 50% in disposal year, 0 after), audit trail CSV |
 | `fcbuilder-incexp.js` | Income/expense projections — starts from PeriodStart (BaseYear P&L covered by budget). Base year amount with inflation growth, scheduled changes, tax deferral, FX conversion |
 | `fcbuilder-setup.js` | Loads FCAssump.json, builds rate schedules (inflation, FX, tax) as danfo.js DataFrames. FX keys support both `PLN`/`EUR` and legacy `USDPLN`/`USDEUR` formats. |
@@ -455,7 +464,7 @@ Located in `server/src/services/forecast/`. Four main files:
 
 Key engine features:
 - **Setup status gating:** Only modules/expenses with `setup_status = 'complete'` are included in forecast generation — enables incremental build and review
-- **Cash Sweep & Auto-Balance (two-pass):** Pass 1 — if a module has `cash_sweep_target = true`, excess cash is swept into it and shortfalls withdrawn (partial if insufficient, remainder shown as Cash Shortfall). Pass 2 — recalculates yield on adjusted sweep module balance (year-end sweep, yield earned next year, tax deferred). Falls back to old deposit/shortfall behavior if no sweep module designated. Audit trail CSV written per scenario.
+- **Cash Sweep & Auto-Balance (iterative year-by-year):** If a module has `cash_sweep_target = true`, the engine uses `cash_sweep_low`/`cash_sweep_high` bands on the scenario. Excess cash above the high band is swept into the designated module; shortfalls below the low band trigger emergency withdrawal from the module's own balance (partial if insufficient, remainder shown as Cash Shortfall). No yield calculation in sweep — yield is computed by the normal module engine on adjusted balances. Falls back to old deposit/shortfall behavior if no sweep module designated. Audit trail CSV written per scenario.
 - **P&L driven by FC Lines:** All P&L entries use FC Line names as labels (not COA account names). Review page builds P&L structure from FC Lines.
 - **Unified tax account:** Both BS module and IncExp engines write to "Taxes" (previously split between "Taxes US" and "Taxes")
 - **Audit trail:** Per-module CSV export (LC values, USD values, entries)
@@ -478,14 +487,15 @@ Key engine features:
 - **Equity bridge:** Collapsible "Change in Net Worth" rows inside the main table — Operating (excl Tax), Tax, Capital & Unrealized, Total Change in Net Worth. Operating = Net Cash Flow - Tax.
 - **Cash Shortfall/Rebalance rows:** Automatically generated from target cash auto-balance
 - **Graph:** Select rows via checkboxes, click Graph to chart selected series over time
+- **AI Review:** Purple BrainCircuit button in toolbar opens `FCAIReviewDrawer` — slide-out drawer from right with conversation history sidebar, message bubbles (user/assistant), follow-up input, inline "Apply" buttons parsed from AI action blocks (`update_module`, `update_incexp`, `update_scenario`), and confirmation modal before applying. Conversations persisted in PostgreSQL (`fc_ai_reviews`, `fc_ai_messages`).
 
 #### Test Coverage
 
-49 automated tests (Jest): 16 FC Lines API tests, 19 engine tests (fcbuilder-module), 6 incexp tests, 8 E2E engine tests covering equity/property/fixed-income/liability/incexp/FX/tax-deferral scenarios. Run: `cd server && npm test`
+56 automated tests (Jest): 16 FC Lines API tests, 19 engine tests (fcbuilder-module), 6 incexp tests, 8 E2E engine tests covering equity/property/fixed-income/liability/incexp/FX/tax-deferral scenarios, cash-sweep tests. Run: `cd server && npm test`
 
 #### Frontend Components
 
-24 React components in `frontend/src/features/Forecast/`, 14 custom hooks in `hooks/` subdirectory. Shared state via `ForecastContext`. Step navigation via `FCStepNav` component.
+25 React components in `frontend/src/features/Forecast/` (including `FCAIReviewDrawer.jsx`), 14 custom hooks in `hooks/` subdirectory. Shared state via `ForecastContext`. Step navigation via `FCStepNav` component.
 
 #### Detailed Documentation
 
@@ -516,7 +526,7 @@ Full design document, implementation plan, and test strategy: `Documentation/FC_
 
 | Table | Purpose | Key Columns |
 |-------|---------|-------------|
-| `forecast_scenarios` | Named forecast scenarios | `target_cash` (auto-balance) |
+| `forecast_scenarios` | Named forecast scenarios | `cash_sweep_low`, `cash_sweep_high` (cash band for auto-balance) |
 | `forecast_modules` | Balance sheet forecast modules | `expense_fc_line_id`, `income_fc_line_id`, `expense_growth_method`, `expense_amount`, `income_amount`, `tax_rate_override`, `setup_status`, `cash_sweep_target` (unique per scenario) |
 | `forecast_module_income_pct` | Module income/yield % schedules | `effective_date`, `value` |
 | `forecast_module_investments` | Planned module investments | `investment_date`, `amount` |
@@ -526,6 +536,8 @@ Full design document, implementation plan, and test strategy: `Documentation/FC_
 | `forecast_entries` | Generated forecast output | `account` (FC Line name), `forecast_year`, `amount` (USD) |
 | `fc_lines` | FC Line definitions | `name`, `line_type`, `display_order` |
 | `fc_line_categories` | FC Line ↔ budget category assignments | `fc_line_id`, `category_id` (UNIQUE) |
+| `fc_ai_reviews` | AI review sessions for forecast plans | `scenario_id`, `status`, `summary` |
+| `fc_ai_messages` | AI review conversation messages | `review_id`, `role`, `content` |
 
 #### Configuration Tables
 
@@ -777,4 +789,4 @@ docker compose -f docker-compose.dev.yml down        # Development
 
 ---
 
-*Last updated: 2026-03-28*
+*Last updated: 2026-04-02*

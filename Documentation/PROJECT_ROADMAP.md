@@ -6,7 +6,7 @@ Future work, known issues, and improvement proposals for the Fin application.
 
 ## 1. Known Issues
 
-1. ~~**No test suite** exists currently.~~ **41 automated tests** — 16 FC Lines API tests, 19 engine tests (fcbuilder-module), 6 incexp tests. Run: `cd server && npm test`
+1. ~~**No test suite** exists currently.~~ **56 automated tests** — 16 FC Lines API tests, 19 engine tests (fcbuilder-module), 6 incexp tests, 8 E2E engine tests, cash-sweep tests. Run: `cd server && npm test`
 2. **Cloud-init ISO** still attached to the VM as a CD-ROM. Harmless but can be ejected:
    ```bash
    virsh --connect qemu:///system change-media fin sda --eject
@@ -72,14 +72,16 @@ Items from active development notes:
 
 - [x] Forecast: Exclude status — new `exclude` setup_status option, engine filters out excluded modules/expenses, inline status dropdown on modules table
 - [x] Forecast: Module Audit Modal — "View Output" button on module edit shows LC/USD/entries audit trail CSVs via `/api/v2/forecast/audittrail/:scenario/:module/detail`
-- [x] Forecast: Cash Sweep — two-pass engine feature (migration 012, `cash_sweep_target` boolean on forecast_modules). Excess cash swept into designated module, shortfalls withdrawn (partial if insufficient). Pass 2 recalculates yield on adjusted balances with deferred tax. Audit trail tab in module View Output modal. 12 new tests (61 total). See `cash-sweep.js` for pure computation functions.
+- [x] Forecast: Cash Sweep — iterative year-by-year engine feature (migrations 012–013). Low/high cash band (`cash_sweep_low`/`cash_sweep_high` on forecast_scenarios, replacing `target_cash`). Excess above high band swept into designated module; shortfalls below low band trigger emergency withdrawal from module's own balance (partial if insufficient). No yield calculation in sweep — yield computed by normal module engine on adjusted balances. Audit trail tab in module View Output modal. See `cash-sweep.js` for pure computation functions.
 
 ### Open Items
 - [x] Forecast: Equity bridge formula review — fixed in commit `adbe652`: Operating = Net Cash Flow - Tax, Capital & Unrealized = residual.
 - [ ] Forecast: baseYears workaround cleanup — `baseYears` is now properly populated but `value == null` detection pattern still in FCReviewTable. Low-priority cosmetic fix.
-- [ ] Forecast: Deploy latest code to production — significant changes since last deploy (engine fixes, FX, equity bridge, base year display, cash sweep)
-- [ ] Forecast: Frontend test framework — Vitest for testing frontend forecast helpers; currently all 61 tests are backend-only
+- [x] Forecast: Deploy latest code to production — significant changes since last deploy (engine fixes, FX, equity bridge, base year display, cash sweep)
+- [ ] Forecast: Frontend test framework — Vitest for testing frontend forecast helpers; currently all 56 tests are backend-only
 - [ ] Forecast: Cash Sweep Phase C — multi-module priority-order sweeps (withdraw from multiple modules in priority order on shortfall)
+- [x] Forecast: AI Review of FC Plan — full implementation complete. Backend: `aiReview.js` service (context builder with 6 data sources + Claude Sonnet 4.6 API call), `aiReview.js` routes at `/api/v2/ai-review` (create review, follow-up, list, get, delete, auto-apply). Frontend: `FCAIReviewDrawer.jsx` slide-out drawer with conversation sidebar, message bubbles, inline Apply buttons, confirmation modal. FC Settings: Anthropic API Key + AI System Prompt. Auto-apply supports `update_module`, `update_incexp`, `update_scenario` actions. Migration 014 (`fc_ai_reviews`, `fc_ai_messages` tables).
+- [x] Forecast: UX improvements — year headers above Balance Sheet in FCReviewTable, sticky top scrollbar for horizontal scrolling, thicker scrollbar (14px), `overscroll-behavior-x: contain` on table wrapper
 - [ ] Add way to re-export changes back to PocketSmith
 
 ---

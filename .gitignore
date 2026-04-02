@@ -6,6 +6,7 @@ mongo_backups/
 old/
 components/data/.temp/
 components/data/auditTrail/
+components/data/appdata.json
 
 # database backups
 Backups/

@@ -22,6 +22,7 @@
 
 import { useEffect, useMemo, useState, useCallback, useRef } from "react";
 import FCReviewSelector from "../features/Forecast/FCReviewSelector.jsx";
+import FCAIReviewDrawer from "../features/Forecast/FCAIReviewDrawer.jsx";
 import { useScenarios } from "../features/Forecast/hooks/useScenarios.js";
 import { useFCLineStructure } from "../features/Forecast/hooks/useFCLineStructure.js";
 import { useBalanceSheetAccounts } from "../features/Forecast/hooks/useBalanceSheetAccounts.js";
@@ -1025,6 +1026,11 @@ export default function FCReview() {
 
   const handleCloseGraph = useCallback(() => setGraphModalOpen(false), []);
 
+  // AI Review drawer
+  const [aiDrawerOpen, setAiDrawerOpen] = useState(false);
+  const handleAIReviewClick = useCallback(() => setAiDrawerOpen(true), []);
+  const handleCloseAIDrawer = useCallback(() => setAiDrawerOpen(false), []);
+
   const selectedSeriesIds = useMemo(
     () => new Set(selectedSeries.map((series) => series.id)),
     [selectedSeries]
@@ -1080,6 +1086,8 @@ export default function FCReview() {
           }
           onGraphClick={handleGraphClick}
           graphDisabled={graphDisabled}
+          onAIReviewClick={handleAIReviewClick}
+          aiReviewDisabled={!selectedScenario}
         />
         {kpiValues && (
           <KpiCardRow>
@@ -1187,6 +1195,11 @@ export default function FCReview() {
         graphSeries={graphSeries}
         sortedYears={sortedYears}
         birthYear={birthYear}
+      />
+      <FCAIReviewDrawer
+        isOpen={aiDrawerOpen}
+        onClose={handleCloseAIDrawer}
+        scenarioName={selectedScenario}
       />
     </>
   );
