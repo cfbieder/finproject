@@ -6,7 +6,8 @@
  * 2. Shortfall withdrawn from swept balance, then module's own balance
  * 3. Cash within band — no action
  * 4. No sweep module — deposit/shortfall fallback
- * 5. BS entries are absolute swept balance per year
+ * 5. Matching transfer pairs (bank + module sides)
+ * 6. Prior-years carry-forward entries for correct MV adjustment
  */
 
 const { computeCashSweepIterative } = require("../cash-sweep");
@@ -66,10 +67,11 @@ describe("computeCashSweepIterative", () => {
     expect(sweepLog[0].action).toBe("sweep_out");
     expect(sweepLog[0].cashAfter).toBe(100000);
 
-    // BS entry should reflect cumulative module withdrawal (negative)
-    const bsEntry = entries.find(e => e.account === "Fixed Income Account" && e.comment === "Sweep balance");
-    expect(bsEntry).toBeDefined();
-    expect(bsEntry.amount).toBe(-150000); // cumulative withdrawal from module
+    // Module-side transfer entry should match the bank-side withdrawal
+    const moduleTransfer = entries.find(e => e.account === "Fixed Income Account" && e.module === "_cash_sweep");
+    expect(moduleTransfer).toBeDefined();
+    expect(moduleTransfer.amount).toBe(-150000);
+    expect(moduleTransfer.comment).toBe("Cash sweep to bank");
   });
 
   test("no action when cash within band", () => {
@@ -110,7 +112,33 @@ describe("computeCashSweepIterative", () => {
     expect(incomeEntries).toHaveLength(0);
   });
 
-  test("BS entries are absolute swept balance", () => {
+  test("creates matching transfer pairs for bank and module sides", () => {
+    const { entries } = computeCashSweepIterative({
+      years: [2027, 2028],
+      cashSweepLow: 50000, cashSweepHigh: 100000,
+      cashDeltaByYear: { 2027: 200000, 2028: -300000 },
+      startingCash: 100000,
+      sweepModule, moduleBalanceByYear: { 2028: 500000 },
+    });
+
+    // 2027: 100k + 200k = 300k → sweep in 200k
+    const bankIn2027 = entries.find(e => e.year === 2027 && e.account === "Transfer - Bank" && e.module === "_cash_sweep");
+    const moduleIn2027 = entries.find(e => e.year === 2027 && e.account === "Fixed Income Account" && e.module === "_cash_sweep");
+    expect(bankIn2027.amount).toBe(-200000);
+    expect(moduleIn2027.amount).toBe(200000);
+    // Amounts are equal and opposite
+    expect(bankIn2027.amount + moduleIn2027.amount).toBe(0);
+
+    // 2028: 100k - 300k = -200k → need 250k to reach 50k low
+    // fromSwept = 200k, fromModule = 50k → total withdraw 250k
+    const bankOut2028 = entries.find(e => e.year === 2028 && e.account === "Transfer - Bank" && e.module === "_cash_sweep");
+    const moduleOut2028 = entries.find(e => e.year === 2028 && e.account === "Fixed Income Account" && e.module === "_cash_sweep");
+    expect(bankOut2028.amount).toBe(250000);
+    expect(moduleOut2028.amount).toBe(-250000);
+    expect(bankOut2028.amount + moduleOut2028.amount).toBe(0);
+  });
+
+  test("prior-years carry-forward adjusts module MV correctly", () => {
     const { entries } = computeCashSweepIterative({
       years: [2027, 2028, 2029],
       cashSweepLow: 50000, cashSweepHigh: 100000,
@@ -119,10 +147,26 @@ describe("computeCashSweepIterative", () => {
       sweepModule, moduleBalanceByYear: { 2029: 500000 },
     });
 
-    const bsEntries = entries.filter(e => e.account === "Fixed Income Account" && e.comment === "Sweep balance");
-    expect(bsEntries.find(e => e.year === 2027).amount).toBe(200000);
-    expect(bsEntries.find(e => e.year === 2028).amount).toBe(250000);
-    // 2029: withdraw all swept (250k) + some from module → net swept = 0
-    expect(bsEntries.find(e => e.year === 2029)).toBeUndefined();
+    // 2027: sweep in 200k → module-side transfer +200k, no carry-forward (first year)
+    const carryFwd2027 = entries.filter(e => e.year === 2027 && e.module === "_sweep_bal");
+    expect(carryFwd2027).toHaveLength(0);
+
+    // 2028: sweep in 50k → module-side transfer +50k, carry-forward +200k (from 2027)
+    const carryFwd2028 = entries.find(e => e.year === 2028 && e.module === "_sweep_bal");
+    expect(carryFwd2028.amount).toBe(200000);
+
+    // Total effect on module for 2028: +50k (this year) + 200k (carry-forward) = +250k ✓
+    const moduleEntries2028 = entries.filter(e => e.year === 2028 && e.account === "Fixed Income Account");
+    const totalEffect2028 = moduleEntries2028.reduce((sum, e) => sum + e.amount, 0);
+    expect(totalEffect2028).toBe(250000);
+
+    // 2029: withdraw 250k (all swept) → module-side transfer -250k, carry-forward +250k
+    const carryFwd2029 = entries.find(e => e.year === 2029 && e.module === "_sweep_bal");
+    expect(carryFwd2029.amount).toBe(250000);
+
+    // Total effect on module for 2029: -250k + 250k = 0 (fully unwound)
+    const moduleEntries2029 = entries.filter(e => e.year === 2029 && e.account === "Fixed Income Account");
+    const totalEffect2029 = moduleEntries2029.reduce((sum, e) => sum + e.amount, 0);
+    expect(totalEffect2029).toBe(0);
   });
 });

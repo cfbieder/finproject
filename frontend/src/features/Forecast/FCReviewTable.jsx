@@ -128,6 +128,7 @@ export default function FCReviewTable({
   onCashTransferClick,
   selectedSeriesIds,
   onToggleSeries,
+  onAccountDoubleClick,
   tableWrapperRef,
   tableRef,
   scrollTableByYears,
@@ -135,6 +136,64 @@ export default function FCReviewTable({
   onZoomIn,
   onZoomOut,
 }) {
+  // Resolves the display value for a cash P&L row, including base/actual year overlays
+  const resolveCashValue = (row, year) => {
+    let value = getCellValue(row, year, true);
+    const isBaseYear = baseYears?.has(Number(year));
+    const isLastActualYear = lastActualYears?.has(Number(year));
+
+    // LastActualYear P&L from actuals
+    if (isLastActualYear && value == null && baseActualTotalsByYear?.size > 0) {
+      const yearData = baseActualTotalsByYear.get(Number(year));
+      if (yearData) {
+        if (row.isNet || row.isCashFlow) {
+          value = yearData.net ?? null;
+        } else if (row.level === 1) {
+          value = yearData.level1.get(row.label) ?? null;
+        } else if (row.level === 2 && yearData.leafTotals && categoryToLineMap?.size > 0) {
+          let total = 0; let found = false;
+          for (const [catName, amt] of yearData.leafTotals.entries()) {
+            if (categoryToLineMap.get(catName) === row.label) { total += amt; found = true; }
+          }
+          if (found) value = total;
+        } else if (row.level === 2) {
+          value = yearData.level2.get(row.label) ?? null;
+        }
+      }
+    }
+
+    // BaseYear P&L from budget
+    const isBaseForBudget = isBaseYear && value == null && baseYearBudget && Object.keys(baseYearBudget).length > 0;
+    if (isBaseForBudget) {
+      if (row.isCashFlow) {
+        let total = 0;
+        for (const amt of Object.values(baseYearBudget)) total += amt;
+        if (total !== 0) value = total;
+      } else if (row.isNet) {
+        let plTotal = 0;
+        for (const amt of Object.values(baseYearBudget)) plTotal += amt;
+        const transfers = getCellValue({ label: "Transfers", level: 2 }, year, true) || 0;
+        const netTotal = plTotal + transfers;
+        if (netTotal !== 0) value = netTotal;
+      } else if (row.level === 2 && baseYearBudget[row.label] != null) {
+        value = baseYearBudget[row.label];
+      } else if (row.level === 1 && cashAccountMap?.size > 0) {
+        let total = 0; let found = false;
+        for (const [ln, mp] of cashAccountMap.entries()) {
+          if (mp.level1 === row.label && baseYearBudget[ln] != null) { total += baseYearBudget[ln]; found = true; }
+        }
+        if (found) value = total;
+      }
+    }
+    return value;
+  };
+
+  // Resolves the display value for a balance sheet row
+  const resolveBalanceValue = (row, year, yearIndex) => {
+    const values = row.label === "Assets" ? totalAssetsByYear : balanceDisplayValues.get(row.label);
+    return values?.[yearIndex] ?? getCellValue(row, year, false);
+  };
+
   const topScrollRef = useRef(null);
   const [topScrollWidth, setTopScrollWidth] = useState(0);
   const zoomScale = zoomLevel || 1;
@@ -475,7 +534,7 @@ export default function FCReviewTable({
                       index === cashRowsWithNet.length - 1;
                     const rowId = `cash-${row.label}-${index}`;
                     const rowValues = sortedYears.map((year) =>
-                      getCellValue(row, year, true)
+                      resolveCashValue(row, year)
                     );
                     const cashSectionBorders = {
                       borderLeft: sectionBorder,
@@ -523,8 +582,16 @@ export default function FCReviewTable({
                               row.isNet || isCashFlow
                                 ? "var(--ink)"
                                 : undefined,
+                            cursor: "pointer",
                             ...cashSectionBorders,
                           }}
+                          onDoubleClick={() =>
+                            onAccountDoubleClick?.({
+                              id: rowId,
+                              label: row.isNet ? "Net Cash Flow" : isCashFlow ? "Cash Flow" : row.label,
+                              values: rowValues,
+                            })
+                          }
                         >
                           {row.isNet
                             ? "Net Cash Flow"
@@ -533,60 +600,9 @@ export default function FCReviewTable({
                             : row.label}
                         </td>
                         {sortedYears.map((year) => {
-                          let value = getCellValue(row, year, true);
+                          const value = resolveCashValue(row, year);
                           const isBaseYear = baseYears?.has(Number(year));
                           const isLastActualYear = lastActualYears?.has(Number(year));
-
-                          // LastActualYear P&L from actuals
-                          if (isLastActualYear && value == null && baseActualTotalsByYear?.size > 0) {
-                            const yearData = baseActualTotalsByYear.get(Number(year));
-                            if (yearData) {
-                              if (row.isNet || row.isCashFlow) {
-                                value = yearData.net ?? null;
-                              } else if (row.level === 1) {
-                                value = yearData.level1.get(row.label) ?? null;
-                              } else if (row.level === 2 && yearData.leafTotals && categoryToLineMap?.size > 0) {
-                                // Aggregate leaf COA actuals into FC Line total
-                                let total = 0; let found = false;
-                                for (const [catName, amt] of yearData.leafTotals.entries()) {
-                                  if (categoryToLineMap.get(catName) === row.label) {
-                                    total += amt;
-                                    found = true;
-                                  }
-                                }
-                                if (found) value = total;
-                              } else if (row.level === 2) {
-                                // Fallback: try direct COA L2 match
-                                value = yearData.level2.get(row.label) ?? null;
-                              }
-                            }
-                          }
-
-                          // BaseYear P&L from budget
-                          const isBaseForBudget = isBaseYear && value == null && baseYearBudget && Object.keys(baseYearBudget).length > 0;
-                          if (isBaseForBudget) {
-                            if (row.isCashFlow) {
-                              // Cash Flow = sum of budget P&L (Income - Expense)
-                              let total = 0;
-                              for (const amt of Object.values(baseYearBudget)) total += amt;
-                              if (total !== 0) value = total;
-                            } else if (row.isNet) {
-                              // Net Cash Flow = budget P&L + engine Transfers
-                              let plTotal = 0;
-                              for (const amt of Object.values(baseYearBudget)) plTotal += amt;
-                              const transfers = getCellValue({ label: "Transfers", level: 2 }, year, true) || 0;
-                              const netTotal = plTotal + transfers;
-                              if (netTotal !== 0) value = netTotal;
-                            } else if (row.level === 2 && baseYearBudget[row.label] != null) {
-                              value = baseYearBudget[row.label];
-                            } else if (row.level === 1 && cashAccountMap?.size > 0) {
-                              let total = 0; let found = false;
-                              for (const [ln, mp] of cashAccountMap.entries()) {
-                                if (mp.level1 === row.label && baseYearBudget[ln] != null) { total += baseYearBudget[ln]; found = true; }
-                              }
-                              if (found) value = total;
-                            }
-                          }
                           const canDoubleClick = isTransfers && !isBaseYear && !isLastActualYear;
                           return (
                             <td
@@ -698,16 +714,9 @@ export default function FCReviewTable({
                     const isLastBalanceRow =
                       index === balanceAccounts.length - 1;
                     const rowId = `balance-${row.label}-${index}`;
-                    const rowValues = sortedYears.map((year, yearIndex) => {
-                      const values =
-                        row.label === "Assets"
-                          ? totalAssetsByYear
-                          : balanceDisplayValues.get(row.label);
-                      const displayValue =
-                        values?.[yearIndex] ??
-                        getCellValue(row, year, false);
-                      return displayValue;
-                    });
+                    const rowValues = sortedYears.map((year, yearIndex) =>
+                      resolveBalanceValue(row, year, yearIndex)
+                    );
                     const balanceSectionBorders = {
                       borderLeft: sectionBorder,
                       borderRight: sectionBorder,
@@ -760,8 +769,16 @@ export default function FCReviewTable({
                                 : row.level === 2
                                 ? "1.75rem"
                                 : "0.75rem",
+                            cursor: "pointer",
                             ...balanceSectionBorders,
                           }}
+                          onDoubleClick={() =>
+                            onAccountDoubleClick?.({
+                              id: rowId,
+                              label: row.label,
+                              values: rowValues,
+                            })
+                          }
                         >
                           {row.label}
                         </td>

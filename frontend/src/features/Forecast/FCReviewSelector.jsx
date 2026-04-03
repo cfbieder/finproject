@@ -1,4 +1,4 @@
-import { BarChart3, TrendingUp, BrainCircuit } from "lucide-react";
+import { BarChart3, TrendingUp, BrainCircuit, ArrowRightLeft } from "lucide-react";
 
 export default function FCReviewSelector({
   scenarios,
@@ -17,6 +17,8 @@ export default function FCReviewSelector({
   graphDisabled,
   onAIReviewClick,
   aiReviewDisabled,
+  onCashSweepClick,
+  cashSweepDisabled,
 }) {
   const disableGenerate =
     generateDisabled || !selectedScenario || isLoading || !!loadError;
@@ -66,6 +68,18 @@ export default function FCReviewSelector({
                   ⚡
                 </span>
                 {generateLoading ? "Generating..." : "Generate"}
+              </button>
+              <button
+                type="button"
+                className="fc-review-selector__action-btn"
+                disabled={cashSweepDisabled ?? disableGenerate}
+                onClick={onCashSweepClick}
+                style={{ background: "#059669", color: "white", border: "none" }}
+              >
+                <span aria-hidden="true" className="fc-review-selector__action-icon">
+                  <ArrowRightLeft size={16} />
+                </span>
+                Cash Sweep
               </button>
               <button
                 type="button"

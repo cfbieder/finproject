@@ -46,7 +46,8 @@ function computeCashSweepIterative({
       // EXCESS: sweep into module
       sweepAmount = runningCash - cashSweepHigh;
       entries.push(
-        { year, account: 'Transfer - Bank', amount: -sweepAmount, module: '_cash_sweep', comment: `Cash sweep to ${sweepModule.name}` }
+        { year, account: 'Transfer - Bank', amount: -sweepAmount, module: '_cash_sweep', comment: `Cash sweep to ${sweepModule.name}` },
+        { year, account: sweepModule.account_name, amount: sweepAmount, module: '_cash_sweep', comment: `Cash sweep from bank` }
       );
       runningCash -= sweepAmount;
       netSweptBalance += sweepAmount;
@@ -67,7 +68,8 @@ function computeCashSweepIterative({
 
       if (totalWithdraw > 0.01) {
         entries.push(
-          { year, account: 'Transfer - Bank', amount: totalWithdraw, module: '_cash_sweep', comment: `Cash sweep from ${sweepModule.name}` }
+          { year, account: 'Transfer - Bank', amount: totalWithdraw, module: '_cash_sweep', comment: `Cash sweep from ${sweepModule.name}` },
+          { year, account: sweepModule.account_name, amount: -totalWithdraw, module: '_cash_sweep', comment: `Cash sweep to bank` }
         );
         if (fromModule > 0.01) {
           cumulativeModuleWithdrawal += fromModule;
@@ -112,20 +114,21 @@ function computeCashSweepIterative({
     });
   }
 
-  // BS entries: write absolute net adjustment (swept balance minus cumulative emergency withdrawals)
-  // Module builder writes absolute MV, so sweep must also write absolute adjustments
+  // Prior-years carry-forward: each year needs the cumulative sweep effect from ALL prior years
+  // so the review table shows the correct adjusted MV (module builder MV + prior carry-forward + this year's transfer)
   if (sweepModule) {
+    let prevNetAdjustment = 0;
     for (const logEntry of sweepLog) {
-      const netAdjustment = logEntry.sweepBalance - logEntry.moduleWithdrawal;
-      if (Math.abs(netAdjustment) > 0.01) {
+      if (Math.abs(prevNetAdjustment) > 0.01) {
         entries.push({
           year: logEntry.year,
           account: sweepModule.account_name,
-          amount: netAdjustment,
-          module: '_cash_sweep',
-          comment: 'Sweep balance',
+          amount: prevNetAdjustment,
+          module: '_sweep_bal',
+          comment: 'Sweep balance (prior years)',
         });
       }
+      prevNetAdjustment = logEntry.sweepBalance - logEntry.moduleWithdrawal;
     }
   }
 

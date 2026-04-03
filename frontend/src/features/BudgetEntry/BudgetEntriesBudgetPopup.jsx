@@ -837,9 +837,11 @@ const BudgetEntriesBudgetPopup = ({ request }) => {
     }
     const startDate = new Date(safeBudgetYear, row.monthNumber - 1, 1);
     const endDate = new Date(safeBudgetYear, row.monthNumber, 0);
+    const pad = (v) => String(v).padStart(2, "0");
+    const fmtLocal = (d) => `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
     const params = new URLSearchParams();
-    params.set("fromDate", startDate.toISOString().split("T")[0]);
-    params.set("toDate", endDate.toISOString().split("T")[0]);
+    params.set("fromDate", fmtLocal(startDate));
+    params.set("toDate", fmtLocal(endDate));
     for (const category of safeExpandedCategories) {
       params.append("category", category);
     }

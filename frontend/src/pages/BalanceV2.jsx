@@ -63,7 +63,11 @@ const getTopLevelValue = (accounts, targetName) => {
   return node?.totalUSD ?? 0;
 };
 
-const getToday = () => new Date().toISOString().split("T")[0];
+const getToday = () => {
+  const d = new Date();
+  const pad = (v) => String(v).padStart(2, "0");
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
+};
 
 // ── Component ──
 

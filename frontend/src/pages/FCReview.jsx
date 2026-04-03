@@ -33,6 +33,7 @@ import FCReviewTable from "../features/Forecast/FCReviewTable.jsx";
 import FCReviewBreakdownModal from "../features/Forecast/FCReviewBreakdownModal.jsx";
 import FCCashTransferModal from "../features/Forecast/FCCashTransferModal.jsx";
 import FCReviewTableGraphModal from "../features/Forecast/FCReviewTableGraphModal.jsx";
+import FCCashSweepModal from "../features/Forecast/FCCashSweepModal.jsx";
 import { formatAmount } from "../features/Forecast/utils/fcReviewUtils.js";
 import { KpiCard, KpiCardRow } from "../components/KpiCards.jsx";
 import { TrendingUp, TrendingDown, DollarSign, Landmark } from "lucide-react";
@@ -1024,12 +1025,32 @@ export default function FCReview() {
     setGraphModalOpen(true);
   }, [selectedSeries.length]);
 
+  const handleAccountDoubleClick = useCallback(
+    (series) => {
+      if (!series || !series.id) return;
+      const numericValues = sortedYears.map((_, index) => {
+        const value = series.values?.[index];
+        const num = Number(value);
+        return Number.isFinite(num) ? num : 0;
+      });
+      const graphEntry = { ...series, values: numericValues, color: GRAPH_COLORS[0] };
+      setSelectedSeries([{ id: series.id, label: series.label, values: numericValues }]);
+      setGraphModalOpen(true);
+    },
+    [sortedYears]
+  );
+
   const handleCloseGraph = useCallback(() => setGraphModalOpen(false), []);
 
   // AI Review drawer
   const [aiDrawerOpen, setAiDrawerOpen] = useState(false);
   const handleAIReviewClick = useCallback(() => setAiDrawerOpen(true), []);
   const handleCloseAIDrawer = useCallback(() => setAiDrawerOpen(false), []);
+
+  // Cash Sweep modal
+  const [cashSweepOpen, setCashSweepOpen] = useState(false);
+  const handleCashSweepClick = useCallback(() => setCashSweepOpen(true), []);
+  const handleCloseCashSweep = useCallback(() => setCashSweepOpen(false), []);
 
   const selectedSeriesIds = useMemo(
     () => new Set(selectedSeries.map((series) => series.id)),
@@ -1088,6 +1109,8 @@ export default function FCReview() {
           graphDisabled={graphDisabled}
           onAIReviewClick={handleAIReviewClick}
           aiReviewDisabled={!selectedScenario}
+          onCashSweepClick={handleCashSweepClick}
+          cashSweepDisabled={!selectedScenario}
         />
         {kpiValues && (
           <KpiCardRow>
@@ -1167,6 +1190,7 @@ export default function FCReview() {
           onCashTransferClick={handleCashTransferClick}
           selectedSeriesIds={selectedSeriesIds}
           onToggleSeries={handleToggleSeries}
+          onAccountDoubleClick={handleAccountDoubleClick}
           tableWrapperRef={tableWrapperRef}
           tableRef={tableRef}
           scrollTableByYears={scrollTableByYears}
@@ -1200,6 +1224,11 @@ export default function FCReview() {
         isOpen={aiDrawerOpen}
         onClose={handleCloseAIDrawer}
         scenarioName={selectedScenario}
+      />
+      <FCCashSweepModal
+        isOpen={cashSweepOpen}
+        onClose={handleCloseCashSweep}
+        scenario={selectedScenario}
       />
     </>
   );

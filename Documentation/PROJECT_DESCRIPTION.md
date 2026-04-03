@@ -137,7 +137,7 @@ psproject/                          # ~/Programs/fin symlinks here
 │       ├── server.js            # HTTP server entry point
 │       ├── app.js               # Express app config, route mounting
 │       └── v2/                  # PostgreSQL-based API (all routes)
-│           ├── db/              # PostgreSQL module exports + pool implementation
+│           ├── db/              # PostgreSQL module exports + pool (DATE type parser returns YYYY-MM-DD strings, avoiding timezone shift)
 │           ├── routes/          # Route handlers (accounts, aiReview, budget, categories, forecast, health, ingestPs, reports, transactions, transferMatchGroups, util)
 │           ├── repositories/    # Data access layer (accounts, budget, budgetFxRates, categories, forecast, psdata, transactions, transferMatchGroups)
 │           └── services/        # Business logic (psCsvIngestorV2, refreshPsApiV2, aiReview.js — context builder + Claude API call, forecast/ engine)
@@ -423,7 +423,7 @@ Located in `server/src/services/forecast/`. Four main files:
 | File | Purpose |
 |------|---------|
 | `index.js` | Orchestration — loads scenarios, modules, FC Line name map; runs module + incexp builders; post-processing (cash sweep & auto-balance, two-pass). Only processes modules/expenses with `setup_status = 'complete'`. |
-| `cash-sweep.js` | Pure computation functions for iterative year-by-year cash sweep: sweeps excess above high band into designated module, withdraws from module on shortfall below low band. No yield calculation — yield handled by normal module engine on adjusted balances. |
+| `cash-sweep.js` | Pure computation functions for iterative year-by-year cash sweep: sweeps excess above high band into designated module, withdraws from module on shortfall below low band. Creates matching transfer pairs (bank + module sides with equal amounts) plus prior-years carry-forward entries (`_sweep_bal`) for correct cumulative MV adjustment. No yield calculation — yield handled by normal module engine on adjusted balances. |
 | `fcbuilder-module.js` | BS module projections — starts from LastActualYear (BaseDate). Market value growth, investments/disposals (including BaseYear transfers), income (yield or base amount), expenses (inflation or % of value), realized/unrealized gains, tax with 1-year deferral, FX conversion, Full disposal handling (BaseYear: P&L kept as budget, future zeroed; forecast years: 50% in disposal year, 0 after), audit trail CSV |
 | `fcbuilder-incexp.js` | Income/expense projections — starts from PeriodStart (BaseYear P&L covered by budget). Base year amount with inflation growth, scheduled changes, tax deferral, FX conversion |
 | `fcbuilder-setup.js` | Loads FCAssump.json, builds rate schedules (inflation, FX, tax) as danfo.js DataFrames. FX keys support both `PLN`/`EUR` and legacy `USDPLN`/`USDEUR` formats. |
@@ -464,7 +464,7 @@ Located in `server/src/services/forecast/`. Four main files:
 
 Key engine features:
 - **Setup status gating:** Only modules/expenses with `setup_status = 'complete'` are included in forecast generation — enables incremental build and review
-- **Cash Sweep & Auto-Balance (iterative year-by-year):** If a module has `cash_sweep_target = true`, the engine uses `cash_sweep_low`/`cash_sweep_high` bands on the scenario. Excess cash above the high band is swept into the designated module; shortfalls below the low band trigger emergency withdrawal from the module's own balance (partial if insufficient, remainder shown as Cash Shortfall). No yield calculation in sweep — yield is computed by the normal module engine on adjusted balances. Falls back to old deposit/shortfall behavior if no sweep module designated. Audit trail CSV written per scenario.
+- **Cash Sweep & Auto-Balance (iterative year-by-year):** If a module has `cash_sweep_target = true`, the engine uses `cash_sweep_low`/`cash_sweep_high` bands on the scenario. Excess cash above the high band is swept into the designated module; shortfalls below the low band trigger emergency withdrawal from the module's own balance (partial if insufficient, remainder shown as Cash Shortfall). Creates matching transfer pairs: bank-side entry (`_cash_sweep` module) and module-side entry (equal opposite amount) so entry breakdowns show matching flows. Prior-years cumulative MV adjustment written as separate `_sweep_bal` entries for correct balance sheet display. No yield calculation in sweep — yield is computed by the normal module engine on adjusted balances. Falls back to old deposit/shortfall behavior if no sweep module designated. Audit trail CSV (Year, Action, Amount, CashBefore, CashAfter, NetModuleEffect) written per scenario.
 - **P&L driven by FC Lines:** All P&L entries use FC Line names as labels (not COA account names). Review page builds P&L structure from FC Lines.
 - **Unified tax account:** Both BS module and IncExp engines write to "Taxes" (previously split between "Taxes US" and "Taxes")
 - **Audit trail:** Per-module CSV export (LC values, USD values, entries)
@@ -486,8 +486,10 @@ Key engine features:
 - **KPI cards:** Total Assets, Net Cash Flow, Income, Expenses with Recharts area trend charts
 - **Equity bridge:** Collapsible "Change in Net Worth" rows inside the main table — Operating (excl Tax), Tax, Capital & Unrealized, Total Change in Net Worth. Operating = Net Cash Flow - Tax.
 - **Cash Shortfall/Rebalance rows:** Automatically generated from target cash auto-balance
-- **Graph:** Select rows via checkboxes, click Graph to chart selected series over time
-- **AI Review:** Purple BrainCircuit button in toolbar opens `FCAIReviewDrawer` — slide-out drawer from right with conversation history sidebar, message bubbles (user/assistant), follow-up input, inline "Apply" buttons parsed from AI action blocks (`update_module`, `update_incexp`, `update_scenario`), and confirmation modal before applying. Conversations persisted in PostgreSQL (`fc_ai_reviews`, `fc_ai_messages`).
+- **Graph:** Select rows via checkboxes, click Graph to chart selected series over time. Double-click any Account column cell to instantly open the graph for that single row (selects it and opens modal).
+- **Row values:** Base/actual year values are resolved with budget/actual overlays via `resolveCashValue()` and `resolveBalanceValue()` helpers in `FCReviewTable.jsx`, ensuring graph series show correct values for all years (not just forecast years).
+- **Cash Sweep Summary:** Green ArrowRightLeft button in toolbar opens `FCCashSweepModal` — shows the cash sweep audit trail (Year, Action, Amount, CashBefore, CashAfter, NetModuleEffect) with color-coded actions. Previously embedded as a tab in the Module Output modal, now a standalone modal on the Review page.
+- **AI Review:** Purple BrainCircuit button in toolbar opens `FCAIReviewDrawer` — slide-out drawer from right with conversation history sidebar (with per-review delete buttons), message bubbles (user/assistant), follow-up input, inline "Apply" buttons parsed from AI action blocks (`update_module`, `update_incexp`, `update_scenario`), and confirmation modal before applying. Conversations persisted in PostgreSQL (`fc_ai_reviews`, `fc_ai_messages`). Forecast data is included in the user message (not system prompt) for reliable processing by all model sizes. Drawer z-index set above navigation menu (10100/10200).
 
 #### Test Coverage
 
@@ -495,7 +497,7 @@ Key engine features:
 
 #### Frontend Components
 
-25 React components in `frontend/src/features/Forecast/` (including `FCAIReviewDrawer.jsx`), 14 custom hooks in `hooks/` subdirectory. Shared state via `ForecastContext`. Step navigation via `FCStepNav` component.
+26 React components in `frontend/src/features/Forecast/` (including `FCAIReviewDrawer.jsx`, `FCCashSweepModal.jsx`), 14 custom hooks in `hooks/` subdirectory. Shared state via `ForecastContext`. Step navigation via `FCStepNav` component.
 
 #### Detailed Documentation
 

@@ -502,14 +502,14 @@ async function generateForecast(scenarioName) {
           fs.mkdirSync(auditDir, { recursive: true });
           const scenarioSafe = (scenarioName || '').replace(/[^a-z0-9]/gi, '_');
           const csvPath = path.join(auditDir, `${scenarioSafe}_cash_sweep.csv`);
-          const headers = ['Year', 'Action', 'Amount', 'Shortfall', 'YieldIncome', 'CashBefore', 'CashAfter', 'SweepModuleBalance'];
+          const headers = ['Year', 'Action', 'Amount', 'CashBefore', 'CashAfter', 'NetModuleEffect'];
           const lines = [headers.join(',')];
           for (const row of sweepLog) {
+            const netEffect = (row.sweepBalance || 0) - (row.moduleWithdrawal || 0);
             lines.push([
               row.year, row.action, (row.amount || 0).toFixed(2),
-              (row.shortfall || 0).toFixed(2), (row.yieldIncome || 0).toFixed(2),
               (row.cashBefore || 0).toFixed(2), (row.cashAfter || 0).toFixed(2),
-              (row.sweepBalance || 0).toFixed(2),
+              netEffect.toFixed(2),
             ].join(','));
           }
           fs.writeFileSync(csvPath, lines.join('\n'), 'utf8');

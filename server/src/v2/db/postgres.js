@@ -5,7 +5,11 @@
  * Uses DATABASE_URL environment variable for connection configuration.
  */
 
-const { Pool } = require('pg');
+const { Pool, types } = require('pg');
+
+// Fix DATE (OID 1082) timezone shift: return as 'YYYY-MM-DD' string
+// instead of JavaScript Date (which shifts by one day in non-UTC timezones)
+types.setTypeParser(1082, (val) => val);
 
 // Connection pool - created lazily on first use
 let pool = null;

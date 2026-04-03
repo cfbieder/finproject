@@ -29,8 +29,7 @@ export function formatLocalDate(date) {
  * getToday(); // '2024-01-15'
  */
 export function getToday() {
-  const today = new Date();
-  return today.toISOString().split("T")[0];
+  return formatLocalDate(new Date());
 }
 
 /**

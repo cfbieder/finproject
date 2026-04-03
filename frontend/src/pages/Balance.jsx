@@ -37,7 +37,8 @@ const collectCollapsiblePaths = (accounts, path = [], result = new Set()) => {
 export default function Balance() {
   const getToday = () => {
     const today = new Date();
-    return today.toISOString().split("T")[0];
+    const pad = (v) => String(v).padStart(2, "0");
+    return `${today.getFullYear()}-${pad(today.getMonth() + 1)}-${pad(today.getDate())}`;
   };
 
   const [periodDates, setPeriodDates] = useState(() => {

@@ -597,7 +597,7 @@ async function findEntriesByScenario(scenarioId) {
 async function findAllEntries(scenarioName) {
   let sql = `
     SELECT fe.forecast_year as "Year", fe.account as "Account", fe.amount as "Amount",
-           fe.module as "Module", fe.entry_type as "EntryType", fs.name as "Scenario"
+           fe.module as "Module", fe.entry_type as "EntryType", fe.comment as "Comment", fs.name as "Scenario"
     FROM forecast_entries fe
     JOIN forecast_scenarios fs ON fe.scenario_id = fs.id
   `;
