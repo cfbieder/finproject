@@ -443,6 +443,7 @@ router.get('/modules/:id', async (req, res, next) => {
           Date: r.disposal_date,
           Amount: parseFloat(r.amount) || 0,
           Flag: r.flag || '',
+          DateEnd: r.date_end || null,
         })),
       },
     });
@@ -515,6 +516,7 @@ router.post('/modules', async (req, res, next) => {
             amount: disp.Amount,
             flag: disp.Flag || '',
             note: disp.Note || '',
+            date_end: disp.DateEnd || null,
           });
         }
       }
@@ -625,6 +627,7 @@ router.put('/modules/:id', async (req, res, next) => {
             amount: disp.Amount,
             flag: disp.Flag || '',
             note: disp.Note || '',
+            date_end: disp.DateEnd || null,
           });
         }
       }

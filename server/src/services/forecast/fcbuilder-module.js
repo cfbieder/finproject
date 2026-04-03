@@ -242,11 +242,21 @@ async function processModule(module, scenario, df_assumptions, df_categories, ca
   }
 
   // Process disposal transactions
+  // Periodic entries expand across years from Date (start) to DateEnd (optional end).
+  // If no DateEnd, periodic continues until account depleted or plan ends.
   if (Array.isArray(module.Dispose)) {
     for (const entry of module.Dispose) {
       if (!entry || !entry.Date || entry.Amount == null) continue;
-      const idx = new Date(entry.Date).getFullYear() - startyear;
-      if (idx >= 0 && idx < yearsCount) disposeValues[idx] = -entry.Amount;
+      const startIdx = new Date(entry.Date).getFullYear() - startyear;
+      if (entry.Flag === "Periodic") {
+        const endYear = entry.DateEnd ? new Date(entry.DateEnd).getFullYear() : endyear;
+        const endIdx = Math.min(endYear - startyear, yearsCount - 1);
+        for (let j = Math.max(0, startIdx); j <= endIdx; j++) {
+          disposeValues[j] += -entry.Amount;
+        }
+      } else if (entry.Flag !== "Full") {
+        if (startIdx >= 0 && startIdx < yearsCount) disposeValues[startIdx] = -entry.Amount;
+      }
     }
   }
 
@@ -258,6 +268,13 @@ async function processModule(module, scenario, df_assumptions, df_categories, ca
   if (investValues[0] !== 0 || disposeValues[0] !== 0) {
     const origMarket = marketValues[0];
     const origBase = baseValues[0];
+    // Cap dispose so market value cannot go negative
+    const availableMarket = origMarket + investValues[0];
+    if (disposeValues[0] < -availableMarket && availableMarket > 0) {
+      disposeValues[0] = -availableMarket;
+    } else if (availableMarket <= 0) {
+      disposeValues[0] = 0;
+    }
     const safeDisposeAdj = origMarket === 0 ? 0 : (disposeValues[0] * origBase) / origMarket;
     baseValues[0] = origBase + investValues[0] + safeDisposeAdj;
     marketValues[0] = origMarket + investValues[0] + disposeValues[0];
@@ -269,6 +286,15 @@ async function processModule(module, scenario, df_assumptions, df_categories, ca
 
     const prevMarket = marketValues[i - 1];
     const prevBase = baseValues[i - 1];
+
+    // Cap dispose so market value cannot go negative
+    const availableMarket = prevMarket + unrealizedGainValues[i] + investValues[i];
+    if (disposeValues[i] < -availableMarket && availableMarket > 0) {
+      disposeValues[i] = -availableMarket;
+    } else if (availableMarket <= 0) {
+      disposeValues[i] = 0;
+    }
+
     const safeDisposeAdjustment = prevMarket === 0 ? 0 : (disposeValues[i] * prevBase) / prevMarket;
 
     baseValues[i] = prevBase + investValues[i] + safeDisposeAdjustment;

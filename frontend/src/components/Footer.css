@@ -1,28 +1,28 @@
 .app-footer {
   width: 100%;
   margin-top: auto;
-  padding: 1.5rem 0 1rem;
+  padding: 2.25rem 0 1.5rem;
 }
 
 .app-footer__inner {
   display: flex;
   align-items: center;
   justify-content: center;
-  gap: 0.5rem;
-  font-size: 0.75rem;
+  gap: 0.625rem;
+  font-size: 0.8rem;
   color: var(--muted-light);
-  letter-spacing: 0.02em;
+  letter-spacing: -0.01em;
 }
 
 .app-footer__brand {
-  font-weight: 700;
+  font-weight: 600;
   color: var(--muted);
 }
 
 .app-footer__separator {
-  opacity: 0.4;
+  opacity: 0.3;
 }
 
 .app-footer__tagline {
-  font-weight: 500;
+  font-weight: 400;
 }

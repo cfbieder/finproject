@@ -224,12 +224,7 @@ export default function FCModulesEditModal({
     setTraitApplied(true);
   }, [isOpen, editForm, isMatched, traitType, traitCurrency, onFieldChange, traitApplied]);
 
-  useEffect(() => {
-    if (!isOpen || !isMatched) return;
-    if (nameOptions.length && !nameOptions.includes(editForm?.Name)) {
-      onFieldChange("Name", nameOptions[0]);
-    }
-  }, [editForm?.Name, isMatched, isOpen, nameOptions, onFieldChange]);
+  // No longer auto-default Name to first option — let the user type or pick freely
 
   useEffect(() => {
     if (!isOpen || !editForm?.BaseDate) return;
@@ -687,34 +682,6 @@ export default function FCModulesEditModal({
                     );
                   }
                   if (field === "Name") {
-                    if (isMatched) {
-                      return (
-                        <label key={field} className="fc-modules-modal__field">
-                          <span className="fc-modules-modal__label">
-                            {label}
-                          </span>
-                          {hasMultipleChildren ? (
-                            <div
-                              className="fc-modules-modal__input fc-modules-modal__name-list"
-                              title={nameOptions.join(", ")}
-                            >
-                              {nameOptions.map((name) => (
-                                <div key={name} className="fc-modules-modal__name-item">
-                                  {name}
-                                </div>
-                              ))}
-                            </div>
-                          ) : (
-                            <input
-                              className="fc-modules-modal__input"
-                              value={editForm.Name ?? ""}
-                              readOnly
-                              disabled
-                            />
-                          )}
-                        </label>
-                      );
-                    }
                     return (
                       <label key={field} className="fc-modules-modal__field">
                         <span className="fc-modules-modal__label">{label}</span>
@@ -725,7 +692,16 @@ export default function FCModulesEditModal({
                           onChange={(event) =>
                             onFieldChange("Name", event.target.value)
                           }
+                          list={isMatched && nameOptions.length > 0 ? "fc-name-suggestions" : undefined}
+                          placeholder="Enter module name"
                         />
+                        {isMatched && nameOptions.length > 0 && (
+                          <datalist id="fc-name-suggestions">
+                            {nameOptions.map((name) => (
+                              <option key={name} value={name} />
+                            ))}
+                          </datalist>
+                        )}
                       </label>
                     );
                   }
@@ -1185,9 +1161,35 @@ export default function FCModulesEditModal({
                                 {index + 1}
                               </div>
                               <div className="fc-modules-modal__transfer-fields">
+                                {!isIncomePct && (
+                                  <div className="fc-modules-modal__transfer-field">
+                                    <label className="fc-modules-modal__transfer-label">
+                                      Type
+                                    </label>
+                                    <select
+                                      className="fc-modules-modal__input fc-modules-modal__input--small"
+                                      value={entry?.Flag ?? ""}
+                                      onChange={(event) =>
+                                        updateTransferEntry(
+                                          field,
+                                          index,
+                                          "Flag",
+                                          event.target.value
+                                        )
+                                      }
+                                    >
+                                      <option value="">Select type</option>
+                                      {transferFlagOptions.map((flag) => (
+                                        <option key={flag} value={flag}>
+                                          {flag}
+                                        </option>
+                                      ))}
+                                    </select>
+                                  </div>
+                                )}
                                 <div className="fc-modules-modal__transfer-field">
                                   <label className="fc-modules-modal__transfer-label">
-                                    Year
+                                    {entry?.Flag === "Periodic" ? "Start Year" : "Year"}
                                   </label>
                                   <select
                                     className="fc-modules-modal__input fc-modules-modal__input--small"
@@ -1210,6 +1212,34 @@ export default function FCModulesEditModal({
                                     ))}
                                   </select>
                                 </div>
+                                {entry?.Flag === "Periodic" && (
+                                  <div className="fc-modules-modal__transfer-field">
+                                    <label className="fc-modules-modal__transfer-label">
+                                      End Year <span style={{ fontSize: "0.75em", color: "#888" }}>(optional)</span>
+                                    </label>
+                                    <select
+                                      className="fc-modules-modal__input fc-modules-modal__input--small"
+                                      value={getYearFromDate(entry?.DateEnd) || ""}
+                                      onChange={(event) =>
+                                        updateTransferEntry(
+                                          field,
+                                          index,
+                                          "DateEnd",
+                                          event.target.value ? `${event.target.value}-07-01` : null
+                                        )
+                                      }
+                                    >
+                                      <option value="">No end (until depleted)</option>
+                                      {transferYearOptions
+                                        .filter((y) => y >= Number(getYearFromDate(entry?.Date) || 0))
+                                        .map((year) => (
+                                          <option key={year} value={year}>
+                                            {year}
+                                          </option>
+                                        ))}
+                                    </select>
+                                  </div>
+                                )}
                                 <div className="fc-modules-modal__transfer-field">
                                   <label
                                     className="fc-modules-modal__transfer-label"
@@ -1219,7 +1249,7 @@ export default function FCModulesEditModal({
                                         : undefined
                                     }
                                   >
-                                    {isIncomePct ? "Percentage" : "Amount"}
+                                    {isIncomePct ? "Percentage" : entry?.Flag === "Periodic" ? "Amount / Year" : "Amount"}
                                   </label>
                                   <input
                                     type="text"
@@ -1229,6 +1259,8 @@ export default function FCModulesEditModal({
                                     title={
                                       isIncomePct
                                         ? "Enter a % of market value"
+                                        : entry?.Flag === "Periodic"
+                                        ? "Amount disposed each year"
                                         : undefined
                                     }
                                     onChange={(event) =>
@@ -1257,32 +1289,6 @@ export default function FCModulesEditModal({
                                     step={isIncomePct ? "0.01" : "1"}
                                   />
                                 </div>
-                                {!isIncomePct && (
-                                  <div className="fc-modules-modal__transfer-field">
-                                    <label className="fc-modules-modal__transfer-label">
-                                      Type
-                                    </label>
-                                    <select
-                                      className="fc-modules-modal__input fc-modules-modal__input--small"
-                                      value={entry?.Flag ?? ""}
-                                      onChange={(event) =>
-                                        updateTransferEntry(
-                                          field,
-                                          index,
-                                          "Flag",
-                                          event.target.value
-                                        )
-                                      }
-                                    >
-                                      <option value="">Select type</option>
-                                      {transferFlagOptions.map((flag) => (
-                                        <option key={flag} value={flag}>
-                                          {flag}
-                                        </option>
-                                      ))}
-                                    </select>
-                                  </div>
-                                )}
                               </div>
                               <button
                                 type="button"

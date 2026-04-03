@@ -24,11 +24,16 @@ export const formatTransferForm = (transfers) => {
     const hasAmount = entry?.Amount !== undefined;
     const hasValue = entry?.Value !== undefined;
 
+    const dateEnd = entry?.DateEnd ? new Date(entry.DateEnd) : null;
+    const endYear =
+      dateEnd && !Number.isNaN(dateEnd.getTime()) ? dateEnd.getFullYear() : null;
+
     return {
       Date: year ? `${year}-07-01` : "",
       Amount: hasAmount ? (entry?.Amount ?? "") : (hasValue ? entry?.Value ?? "" : ""),
       Value: hasValue ? entry?.Value ?? "" : undefined,
       Flag: entry?.Flag ?? "",
+      ...(endYear ? { DateEnd: `${endYear}-07-01` } : {}),
     };
   });
 };
@@ -74,7 +79,15 @@ export const normalizeTransfers = (transfers) => {
       if (hasValue) {
         return { Date: date, Value: numericValue };
       }
-      return { Date: date, Amount: numericValue, Flag: flag };
+
+      // Include DateEnd for Periodic transfers
+      const dateEndValue = entry.DateEnd ? new Date(entry.DateEnd) : null;
+      const dateEnd =
+        dateEndValue && !Number.isNaN(dateEndValue.getTime())
+          ? dateEndValue.toISOString()
+          : null;
+
+      return { Date: date, Amount: numericValue, Flag: flag, ...(dateEnd ? { DateEnd: dateEnd } : {}) };
     })
     .filter(Boolean);
 };

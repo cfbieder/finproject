@@ -271,7 +271,7 @@ export default function FCReviewTableGraphModal({
                       />
                       <text
                         x={mousePosition.x}
-                        y={paddingTop - 10}
+                        y={paddingTop - 10 - seriesList.length * 18}
                         textAnchor="middle"
                         style={{
                           fontSize: "16px",
@@ -282,6 +282,22 @@ export default function FCReviewTableGraphModal({
                       >
                         {yearsList[mousePosition.yearIndex]}{birthYear ? ` (${Number(yearsList[mousePosition.yearIndex]) - birthYear})` : ""}
                       </text>
+                      {seriesList.map((series, sIdx) => (
+                        <text
+                          key={series.id || sIdx}
+                          x={mousePosition.x}
+                          y={paddingTop - 10 - (seriesList.length - 1 - sIdx) * 18}
+                          textAnchor="middle"
+                          style={{
+                            fontSize: "13px",
+                            fontWeight: "500",
+                            fill: series.color || "#333",
+                          }}
+                          pointerEvents="none"
+                        >
+                          {series.label}: {formatAmount(series.values[mousePosition.yearIndex])}
+                        </text>
+                      ))}
                     </>
                   )}
                 </>

@@ -123,6 +123,7 @@ async function loadModulesForScenario(scenarioId, fcLineNameMap) {
       Date: r.disposal_date,
       Amount: parseFloat(r.amount) || 0,
       Flag: r.flag || '',
+      DateEnd: r.date_end || null,
     }));
   }
 
