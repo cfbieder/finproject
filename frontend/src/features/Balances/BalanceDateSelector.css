@@ -42,7 +42,7 @@
 .balance-date-picker__input {
   width: 100%;
   padding: 0.8rem 1rem;
-  border-radius: 0.75rem;
+  border-radius: var(--radius-md);
   border: 1px solid var(--border);
   background: var(--surface-muted);
   font-size: 1rem;
@@ -69,7 +69,7 @@
 
 .balance-period-group {
   border: 1px solid var(--border);
-  border-radius: 0.75rem;
+  border-radius: var(--radius-md);
   padding: 1rem 1.1rem;
   background: var(--surface);
   box-shadow: 0 1px 3px 0 rgba(45, 52, 54, 0.1);
@@ -122,9 +122,9 @@
 .generate-report-button {
   width: 100%;
   padding: 0.9rem 1.25rem;
-  border-radius: 0.75rem;
+  border-radius: var(--radius-md);
   border: none;
-  background: linear-gradient(120deg, var(--primary), #3b82f6);
+  background: linear-gradient(120deg, var(--primary), var(--primary-light));
   color: #fff;
   font-size: 1rem;
   font-weight: 600;

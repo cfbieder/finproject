@@ -16,7 +16,7 @@
   padding: 0.35rem 0.7rem;
   border-radius: 1rem;
   border: 1px solid var(--border);
-  background: #ffffff;
+  background: var(--surface);
   font-size: 0.75rem;
   font-weight: 600;
   color: var(--ink);
@@ -53,7 +53,7 @@
   color: var(--ink-muted, #64748b);
   padding: 0.4rem 0.5rem;
   background: rgba(250, 249, 245, 0.8);
-  border-radius: 0.4rem;
+  border-radius: var(--radius-md);
   border: 1px solid rgba(107, 142, 107, 0.08);
 }
 
@@ -82,9 +82,9 @@
 .period-selector__select {
   width: 100%;
   padding: 0.55rem 0.75rem;
-  border-radius: 0.5rem;
+  border-radius: var(--radius-md);
   border: 1.5px solid var(--border);
-  background: #ffffff;
+  background: var(--surface);
   font-size: 0.85rem;
   font-weight: 600;
   color: var(--ink);

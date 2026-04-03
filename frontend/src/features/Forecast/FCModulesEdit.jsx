@@ -606,7 +606,7 @@ export default function FCModulesEditModal({
                 )}
               </div>
               {/* Status & Notes bar */}
-              <div style={{ display: "flex", gap: "1rem", alignItems: "flex-start", padding: "0.5rem 0 0.75rem", borderBottom: "1px solid #e2e8f0", marginBottom: "0.75rem" }}>
+              <div style={{ display: "flex", gap: "1rem", alignItems: "flex-start", padding: "0.5rem 0 0.75rem", borderBottom: "1px solid #E8E6DF", marginBottom: "0.75rem" }}>
                 <label style={{ display: "flex", flexDirection: "column", gap: "0.25rem", minWidth: "10rem" }}>
                   <span className="fc-modules-modal__label">Status</span>
                   <select
@@ -910,7 +910,7 @@ export default function FCModulesEditModal({
                             {otherModulesAmount > 0 && (
                               <span> — Other modules: {otherModulesAmount.toLocaleString("en-US", { maximumFractionDigits: 0 })}</span>
                             )}
-                            <span> — Remaining: <b style={{ color: remaining < 0 ? "var(--danger, #ef4444)" : remaining === 0 ? "var(--success, #22c55e)" : undefined }}>
+                            <span> — Remaining: <b style={{ color: remaining < 0 ? "var(--danger, #C0504D)" : remaining === 0 ? "var(--success, #5B8C5B)" : undefined }}>
                               {remaining.toLocaleString("en-US", { maximumFractionDigits: 0 })}
                             </b></span>
                           </div>

@@ -41,7 +41,7 @@
 }
 
 .transfer-analysis-error {
-  color: var(--danger, #dc2626);
+  color: var(--danger, var(--danger));
   background: var(--danger-bg, #fef2f2);
   border: 1px solid var(--danger-border, #fecaca);
   border-radius: var(--radius-md);
@@ -210,7 +210,7 @@
 }
 
 .amount-negative {
-  color: var(--danger, #dc2626);
+  color: var(--danger, var(--danger));
 }
 
 .amount-positive {
@@ -328,10 +328,10 @@
 
 .transfer-analysis-unlink-btn {
   padding: 0.25rem 0.75rem;
-  border: 1px solid var(--danger, #dc2626);
+  border: 1px solid var(--danger, var(--danger));
   border-radius: var(--radius-md, 6px);
   background: transparent;
-  color: var(--danger, #dc2626);
+  color: var(--danger, var(--danger));
   font-size: 0.75rem;
   font-weight: 600;
   cursor: pointer;
@@ -339,7 +339,7 @@
 }
 
 .transfer-analysis-unlink-btn:hover {
-  background: var(--danger, #dc2626);
+  background: var(--danger, var(--danger));
   color: #fff;
 }
 

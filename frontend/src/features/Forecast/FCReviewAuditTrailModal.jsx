@@ -206,7 +206,7 @@ export default function FCReviewAuditTrailModal({ auditModal, onClose }) {
                   width: "40px",
                   height: "40px",
                   border: "3px solid var(--border, #e5e7eb)",
-                  borderTopColor: "var(--primary, #3b82f6)",
+                  borderTopColor: "var(--primary, #7FA37F)",
                   borderRadius: "50%",
                   animation: "spin 1s linear infinite",
                   margin: "0 auto 1rem",
@@ -351,7 +351,7 @@ export default function FCReviewAuditTrailModal({ auditModal, onClose }) {
                               padding: "0.75rem 1rem",
                               fontSize: "0.9rem",
                               color: isNegative
-                                ? "var(--danger, #ef4444)"
+                                ? "var(--danger, #C0504D)"
                                 : "var(--ink)",
                               fontWeight: shouldFormat ? 600 : 400,
                               fontVariantNumeric: "tabular-nums",

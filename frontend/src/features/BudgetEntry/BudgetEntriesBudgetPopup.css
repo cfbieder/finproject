@@ -9,7 +9,7 @@
   --popup-ink: #0f172a;
   --popup-muted: #64748b;
   --popup-primary: var(--primary);
-  --popup-primary-strong: #1e40af;
+  --popup-primary-strong: var(--primary);
   --popup-success: #10b981;
   --popup-danger: #ef4444;
   --popup-border: #e2e8f0;
@@ -27,8 +27,8 @@
   left: 0;
   right: 0;
   bottom: 0;
-  background: rgba(45, 52, 54, 0.5);
-  backdrop-filter: blur(4px);
+  background: rgba(45, 52, 54, 0.15);
+  
   display: flex;
   align-items: center;
   justify-content: center;
@@ -80,7 +80,7 @@
 }
 
 .budget-entries-modal__header h1 {
-  font-family: "Outfit", "Plus Jakarta Sans", sans-serif;
+  font-family: "Outfit", "Outfit", sans-serif;
   margin: 0;
   font-size: 1.5rem;
   font-weight: 600;
@@ -118,7 +118,7 @@
 }
 
 h2 {
-  font-family: "Outfit", "Plus Jakarta Sans", sans-serif;
+  font-family: "Outfit", "Outfit", sans-serif;
   margin: 0 0 1rem;
   font-weight: 600;
   letter-spacing: -0.02em;
@@ -230,7 +230,7 @@ h2 {
 .budget-entries-popup__amount-cell,
 .budget-entries-popup__base-amount-cell {
   text-align: right;
-  font-family: "Outfit", "Plus Jakarta Sans", sans-serif;
+  font-family: "Outfit", "Outfit", sans-serif;
 }
 
 .budget-entries-popup__base-amount-cell {
@@ -263,7 +263,7 @@ h2 {
 .budget-entries-popup__action-button {
   width: 28px;
   height: 28px;
-  border-radius: 6px;
+  border-radius: var(--radius-sm);
   border: 1px solid var(--popup-border);
   background: var(--popup-surface);
   cursor: pointer;
@@ -398,7 +398,7 @@ h2 {
 }
 
 .budget-entries-popup__editor button[type="submit"] {
-  background: linear-gradient(135deg, var(--popup-primary) 0%, #3b82f6 100%);
+  background: linear-gradient(135deg, var(--popup-primary) 0%, var(--primary-light) 100%);
   color: #fff;
   box-shadow: 0 4px 6px -1px rgba(107, 142, 107, 0.3);
 }
@@ -484,7 +484,7 @@ h2 {
 }
 
 .budget-entries-popup__delete-confirmation button[data-delete-confirmation-confirm]:hover {
-  background: #dc2626;
+  background: var(--danger);
   transform: translateY(-1px);
   box-shadow: 0 10px 15px -3px rgba(239, 68, 68, 0.3);
 }

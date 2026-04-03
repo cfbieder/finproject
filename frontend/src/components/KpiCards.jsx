@@ -127,7 +127,7 @@ function KpiCard({
           <ResponsiveContainer width="100%" height={48}>
             {chartType === "bar" ? (
               <BarChart data={chartData} margin={{ top: 2, right: 0, bottom: 2, left: 0 }}>
-                <Bar dataKey="value" fill={chartColor} radius={[2, 2, 0, 0]} />
+                <Bar dataKey="value" fill={chartColor} radius={[6, 6, 0, 0]} />
               </BarChart>
             ) : (
               <AreaChart data={chartData} margin={{ top: 2, right: 0, bottom: 2, left: 0 }}>
@@ -138,10 +138,11 @@ function KpiCard({
                   </linearGradient>
                 </defs>
                 <Area
-                  type="monotone"
+                  type="natural"
                   dataKey="value"
                   stroke={chartColor}
-                  strokeWidth={1.5}
+                  strokeWidth={2}
+                  strokeLinecap="round"
                   fill={`url(#kpi-gradient-${title})`}
                   dot={false}
                 />

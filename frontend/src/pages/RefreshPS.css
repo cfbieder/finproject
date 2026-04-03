@@ -53,7 +53,7 @@
 
 .refresh-ps-toolbar__days input {
   width: 4.5rem;
-  border-radius: 0.5rem;
+  border-radius: var(--radius-md);
   padding: 0.4rem 0.6rem;
   border: 1px solid var(--border, #e2e8f0);
   background: var(--surface-muted, #FAF9F5);
@@ -70,7 +70,7 @@
   font-size: 0.85rem;
   font-weight: 600;
   white-space: nowrap;
-  background: linear-gradient(135deg, var(--primary, var(--primary)), #3b82f6);
+  background: linear-gradient(135deg, var(--primary, var(--primary)), var(--primary-light));
   color: #fff;
   box-shadow: 0 2px 8px -2px rgba(107, 142, 107, 0.45);
   cursor: pointer;
@@ -112,7 +112,7 @@
   flex: 1 1 0;
   padding: 0.55rem 1rem;
   border: 1px solid var(--border, #e2e8f0);
-  border-radius: 0.5rem;
+  border-radius: var(--radius-md);
   background: var(--surface-muted, #FAF9F5);
   color: var(--muted, #64748b);
   font-size: 0.82rem;
@@ -156,7 +156,7 @@
 .refresh-txn-table-wrapper {
   max-height: 320px;
   overflow-y: auto;
-  border-radius: 0.75rem;
+  border-radius: var(--radius-md);
   border: 1px solid var(--border, #e2e8f0);
   box-shadow: var(--shadow-soft, 0 1px 3px rgba(0, 0, 0, 0.08));
   background:
@@ -204,10 +204,10 @@
 /* Bulk Category button */
 .refresh-ps-btn--bulk-category {
   padding: 0.4rem 1rem;
-  border-radius: 0.5rem;
+  border-radius: var(--radius-md);
   border: 1px solid #93c5fd;
   background: #eff6ff;
-  color: #1e40af;
+  color: var(--primary);
   font-size: 0.8rem;
   font-weight: 600;
   cursor: pointer;
@@ -216,7 +216,7 @@
 
 .refresh-ps-btn--bulk-category:hover:not(:disabled) {
   background: #dbeafe;
-  border-color: #1e40af;
+  border-color: var(--primary);
   box-shadow: 0 2px 8px -2px rgba(86, 120, 86, 0.25);
 }
 
@@ -228,7 +228,7 @@
 /* Accept All button */
 .refresh-ps-btn--accept-all {
   padding: 0.4rem 1rem;
-  border-radius: 0.5rem;
+  border-radius: var(--radius-md);
   border: 1px solid #86efac;
   background: #f0fdf4;
   color: #166534;
@@ -252,7 +252,7 @@
 /* Split Transaction button */
 .refresh-ps-btn--split {
   padding: 0.4rem 1rem;
-  border-radius: 0.5rem;
+  border-radius: var(--radius-md);
   border: 1px solid #c4b5fd;
   background: #f5f3ff;
   color: #5b21b6;
@@ -276,7 +276,7 @@
 /* Neutralize button */
 .refresh-ps-btn--neutralize {
   padding: 0.4rem 1rem;
-  border-radius: 0.5rem;
+  border-radius: var(--radius-md);
   border: 1px solid #fdba74;
   background: #fff7ed;
   color: #9a3412;

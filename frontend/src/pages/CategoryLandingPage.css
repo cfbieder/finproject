@@ -80,8 +80,7 @@
 }
 
 .feature-card:hover {
-  border-color: var(--primary-subtle, #e0ecff);
-  box-shadow: var(--shadow-lg);
+  box-shadow: var(--shadow-xl);
   transform: translateY(-2px);
 }
 
@@ -104,7 +103,7 @@
   height: 48px;
   border-radius: var(--radius-md);
   background: linear-gradient(135deg, var(--primary-subtle, #e0ecff) 0%, rgba(232, 240, 233, 0.5) 100%);
-  color: var(--primary, #1e40af);
+  color: var(--primary, var(--primary));
   transition: all var(--transition-base);
 }
 
@@ -131,7 +130,7 @@
 
 .feature-card__arrow {
   flex-shrink: 0;
-  color: var(--primary, #1e40af);
+  color: var(--primary, var(--primary));
   opacity: 0.3;
   transition: all var(--transition-base);
 }

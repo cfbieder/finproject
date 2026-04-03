@@ -36,7 +36,7 @@
 }
 
 .backup-database-card {
-  background: #ffffff;
+  background: var(--surface);
   border: 1px solid #e5e7eb;
   border-radius: 12px;
   box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
@@ -125,7 +125,7 @@
   font-size: 16px;
   font-weight: 600;
   color: #ffffff;
-  background: linear-gradient(135deg, var(--primary) 0%, #1d4ed8 100%);
+  background: linear-gradient(135deg, var(--primary) 0%, var(--primary-strong) 100%);
   border: none;
   border-radius: 8px;
   cursor: pointer;
@@ -138,7 +138,7 @@
 }
 
 .backup-database-button:hover:not(:disabled) {
-  background: linear-gradient(135deg, #1d4ed8 0%, #1e40af 100%);
+  background: linear-gradient(135deg, var(--primary-strong) 0%, var(--primary) 100%);
   transform: translateY(-1px);
   box-shadow: 0 4px 8px rgba(107, 142, 107, 0.3);
 }

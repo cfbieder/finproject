@@ -98,7 +98,7 @@ export default function COAMoveModal({
           <button
             type="button"
             className="coa-toolbar-btn coa-toolbar-btn--edit"
-            style={{ color: "#fff", background: "#2563eb", borderColor: "#2563eb" }}
+            style={{ color: "#fff", background: "#6B8E6B", borderColor: "#6B8E6B" }}
             onClick={() => onConfirm(row, targetPath)}
             disabled={isSaving || targetPath.length === 0}
           >

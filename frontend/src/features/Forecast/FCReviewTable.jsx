@@ -52,17 +52,17 @@ function EquityBridgeRows({ sortedYears, cashRowsWithNet, getCellValue, totalAss
     <>
       {/* Bridge header row */}
       <tr>
-        <td style={{ ...selectCellBaseStyle, top: undefined, borderTop: "2px solid var(--primary, #1e40af)" }} />
+        <td style={{ ...selectCellBaseStyle, top: undefined, borderTop: "2px solid var(--primary, #567856)" }} />
         <td
-          style={{ ...accountCellBaseStyle, borderTop: "2px solid var(--primary, #1e40af)", padding: "0.4rem 0.75rem", cursor: "pointer" }}
+          style={{ ...accountCellBaseStyle, borderTop: "2px solid var(--primary, #567856)", padding: "0.4rem 0.75rem", cursor: "pointer" }}
           onClick={() => setCollapsed((p) => !p)}
         >
-          <span style={{ color: "var(--primary, #1e40af)", fontWeight: 600, fontSize: "0.85rem" }}>
+          <span style={{ color: "var(--primary, #567856)", fontWeight: 600, fontSize: "0.85rem" }}>
             {collapsed ? "+" : "-"} Change in Net Worth
           </span>
         </td>
         {sortedYears.map((y) => (
-          <td key={`bridge-hdr-${y}`} style={{ borderTop: "2px solid var(--primary, #1e40af)" }} />
+          <td key={`bridge-hdr-${y}`} style={{ borderTop: "2px solid var(--primary, #567856)" }} />
         ))}
       </tr>
       {/* Bridge data rows */}
@@ -72,7 +72,7 @@ function EquityBridgeRows({ sortedYears, cashRowsWithNet, getCellValue, totalAss
           <td style={{
             ...accountCellBaseStyle, padding: "0.3rem 0.75rem 0.3rem 1.5rem",
             fontWeight: row.bold ? 700 : 400,
-            borderTop: row.bold ? "2px solid #e2e8f0" : undefined,
+            borderTop: row.bold ? "2px solid #E8E6DF" : undefined,
           }}>
             {row.label}
           </td>
@@ -83,9 +83,9 @@ function EquityBridgeRows({ sortedYears, cashRowsWithNet, getCellValue, totalAss
                 key={`bridge-${row.label}-${year}`}
                 className="trans-budget-table__value--numeric"
                 style={{
-                  color: val < -0.5 ? "var(--danger)" : val > 0.5 ? "var(--success, #16a34a)" : undefined,
+                  color: val < -0.5 ? "var(--danger)" : val > 0.5 ? "var(--success, #5B9E9E)" : undefined,
                   fontWeight: row.bold ? 700 : 400,
-                  borderTop: row.bold ? "2px solid #e2e8f0" : undefined,
+                  borderTop: row.bold ? "2px solid #E8E6DF" : undefined,
                 }}
               >
                 {Math.abs(val) > 0.5 ? formatAmount(val) : "—"}

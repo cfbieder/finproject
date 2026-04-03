@@ -120,8 +120,8 @@ const formatMonthLabel = (monthKey) => {
 // HELPERS
 // ============================================================================
 
-const ACTUAL_COLOR = "#2563eb";
-const BUDGET_COLOR = "#f59e0b";
+const ACTUAL_COLOR = "#6B8E6B";
+const BUDGET_COLOR = "#C4923A";
 
 /** Collect all leaf names from a plTree */
 function collectLeafNames(nodes, results = []) {

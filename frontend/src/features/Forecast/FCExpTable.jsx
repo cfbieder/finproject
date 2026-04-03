@@ -116,7 +116,7 @@ export default function FCExpTable({
                           display: "inline-block", padding: "0.15rem 0.5rem", borderRadius: "1rem",
                           fontSize: "0.75rem", fontWeight: 600,
                           background: (entry.SetupStatus || "new") === "complete" ? "#dcfce7" : entry.SetupStatus === "in_progress" ? "#fef3c7" : "#f1f5f9",
-                          color: (entry.SetupStatus || "new") === "complete" ? "#16a34a" : entry.SetupStatus === "in_progress" ? "#d97706" : "#64748b",
+                          color: (entry.SetupStatus || "new") === "complete" ? "#5B9E9E" : entry.SetupStatus === "in_progress" ? "#d97706" : "#64748b",
                         }}>
                           {(entry.SetupStatus || "new") === "complete" ? "Complete" : entry.SetupStatus === "in_progress" ? "In Progress" : "New"}
                         </span>

@@ -30,7 +30,7 @@
   padding: 0.35rem 0.75rem;
   border-radius: 1rem;
   border: 1px solid var(--border);
-  background: #ffffff;
+  background: var(--surface);
   font-size: 0.75rem;
   font-weight: 600;
   color: var(--ink);
@@ -96,9 +96,9 @@
 .selector-control__input {
   width: 100%;
   padding: 0.8rem 1rem;
-  border-radius: 0.75rem;
+  border-radius: var(--radius-md);
   border: 2px solid var(--border);
-  background: #ffffff;
+  background: var(--surface);
   font-size: 1rem;
   font-weight: 600;
   color: var(--ink);
@@ -149,7 +149,7 @@
 .selector-control__input[multiple] option {
   padding: 0.65rem 0.75rem;
   margin: 0.25rem 0.5rem;
-  border-radius: 0.5rem;
+  border-radius: var(--radius-md);
   font-weight: 500;
   transition: all 0.15s ease;
   cursor: pointer;
@@ -241,7 +241,7 @@
   color: var(--ink);
   padding: 0.65rem 0.75rem;
   margin: 0.25rem 0.5rem;
-  border-radius: 0.5rem;
+  border-radius: var(--radius-md);
   transition: all 0.15s ease;
 }
 

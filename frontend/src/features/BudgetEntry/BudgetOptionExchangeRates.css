@@ -1,7 +1,7 @@
 .budget-options-region {
   border: 3px solid #1a1a1a;
-  border-radius: 10px;
-  background: #fff;
+  border-radius: var(--radius-sm);
+  background: var(--surface);
   padding: 1.75rem;
   box-shadow: var(--shadow-soft);
   display: flex;

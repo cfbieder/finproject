@@ -39,7 +39,7 @@
 }
 
 .budget-graph-section {
-  background: #ffffff;
+  background: var(--surface);
   border: 1px solid #e5e7eb;
   border-radius: 8px;
   padding: 24px;
@@ -72,7 +72,7 @@
   margin-bottom: 24px;
   padding: 16px;
   background: #f9fafb;
-  border-radius: 6px;
+  border-radius: var(--radius-sm);
 }
 
 .budget-graph-summary-item {
@@ -96,7 +96,7 @@
 }
 
 .budget-graph-summary-value--negative {
-  color: #dc2626;
+  color: var(--danger);
 }
 
 .budget-graph-bars {
@@ -153,7 +153,7 @@
   position: relative;
   height: 24px;
   background: #f3f4f6;
-  border-radius: 4px;
+  border-radius: 8px;
   overflow: hidden;
 }
 
@@ -161,7 +161,7 @@
   height: 100%;
   transition: width 0.3s ease, opacity 0.2s ease;
   cursor: pointer;
-  border-radius: 4px;
+  border-radius: 8px;
 }
 
 .budget-graph-bar:hover {
@@ -169,7 +169,7 @@
 }
 
 .budget-graph-bar--budget {
-  background: linear-gradient(90deg, #3b82f6 0%, var(--primary) 100%);
+  background: linear-gradient(90deg, var(--primary-light) 0%, var(--primary) 100%);
 }
 
 .budget-graph-bar--actual {
@@ -189,7 +189,7 @@
   background: rgba(17, 24, 39, 0.95);
   color: #ffffff;
   padding: 8px 12px;
-  border-radius: 6px;
+  border-radius: var(--radius-sm);
   font-size: 13px;
   pointer-events: none;
   z-index: 1000;

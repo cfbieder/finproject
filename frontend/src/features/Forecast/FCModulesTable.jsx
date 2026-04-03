@@ -458,9 +458,9 @@ export default function FCModulesTable({
                             {(() => {
                               const status = module?.SetupStatus || "new";
                               const statusStyles = {
-                                complete: { bg: "#dcfce7", color: "#16a34a", label: "Complete" },
+                                complete: { bg: "#dcfce7", color: "#5B9E9E", label: "Complete" },
                                 in_progress: { bg: "#fef3c7", color: "#d97706", label: "In Progress" },
-                                exclude: { bg: "#fee2e2", color: "#dc2626", label: "Exclude" },
+                                exclude: { bg: "#fee2e2", color: "#C0504D", label: "Exclude" },
                                 new: { bg: "#f1f5f9", color: "#64748b", label: "New" },
                               };
                               const s = statusStyles[status] || statusStyles.new;

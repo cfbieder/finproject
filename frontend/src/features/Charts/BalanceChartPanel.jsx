@@ -67,12 +67,12 @@ const BalanceChartPanel = ({
           >
             <defs>
               <linearGradient id="positive-gradient" x1="0%" y1="0%" x2="0%" y2="100%">
-                <stop offset="0%" stopColor="#2563eb" stopOpacity="0.95" />
-                <stop offset="100%" stopColor="#3b82f6" stopOpacity="0.85" />
+                <stop offset="0%" stopColor="#6B8E6B" stopOpacity="0.9" />
+                <stop offset="100%" stopColor="#7FA37F" stopOpacity="0.7" />
               </linearGradient>
               <linearGradient id="negative-gradient" x1="0%" y1="0%" x2="0%" y2="100%">
-                <stop offset="0%" stopColor="#ef4444" stopOpacity="0.95" />
-                <stop offset="100%" stopColor="#dc2626" stopOpacity="0.85" />
+                <stop offset="0%" stopColor="#C0504D" stopOpacity="0.9" />
+                <stop offset="100%" stopColor="#D06360" stopOpacity="0.7" />
               </linearGradient>
             </defs>
             <g className="balance-chart-graph__grid">

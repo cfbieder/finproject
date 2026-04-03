@@ -32,19 +32,19 @@
 }
 
 .toast--success {
-  border-left: 3px solid var(--success, #047857);
+  border-left: 3px solid var(--success, var(--success));
 }
 
 .toast--success .toast__icon {
-  color: var(--success, #047857);
+  color: var(--success, var(--success));
 }
 
 .toast--error {
-  border-left: 3px solid var(--danger, #dc2626);
+  border-left: 3px solid var(--danger, var(--danger));
 }
 
 .toast--error .toast__icon {
-  color: var(--danger, #dc2626);
+  color: var(--danger, var(--danger));
 }
 
 .toast--warning {
@@ -56,11 +56,11 @@
 }
 
 .toast--info {
-  border-left: 3px solid var(--primary, #1e40af);
+  border-left: 3px solid var(--primary, var(--primary));
 }
 
 .toast--info .toast__icon {
-  color: var(--primary, #1e40af);
+  color: var(--primary, var(--primary));
 }
 
 .toast__message {

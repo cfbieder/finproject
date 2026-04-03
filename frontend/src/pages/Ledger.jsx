@@ -810,7 +810,7 @@ export default function Ledger() {
                 </p>
 
                 {addError && (
-                  <p style={{ color: "var(--danger, #ef4444)", fontSize: "0.8rem", marginBottom: "0.75rem" }}>
+                  <p style={{ color: "var(--danger, #C0504D)", fontSize: "0.8rem", marginBottom: "0.75rem" }}>
                     {addError}
                   </p>
                 )}

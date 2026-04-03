@@ -20,7 +20,7 @@
   color: var(--primary);
   padding: 0.5rem 1rem;
   background: rgba(107, 142, 107, 0.08);
-  border-radius: 0.5rem;
+  border-radius: var(--radius-md);
 }
 
 .balances-area__status--error {
@@ -32,7 +32,7 @@
   width: 100%;
   overflow-x: auto;
   margin-top: 1.5rem;
-  border-radius: 0.75rem;
+  border-radius: var(--radius-md);
   box-shadow: 0 1px 3px 0 rgba(45, 52, 54, 0.1), 0 1px 2px 0 rgba(45, 52, 54, 0.06);
 }
 
@@ -41,8 +41,8 @@
   border-collapse: separate;
   border-spacing: 0;
   font-size: 0.95rem;
-  background: #ffffff;
-  border-radius: 0.75rem;
+  background: var(--surface);
+  border-radius: var(--radius-md);
   overflow: hidden;
 }
 
@@ -93,7 +93,7 @@
 .balances-table__numeric {
   text-align: right;
   font-weight: 600;
-  font-family: "Outfit", "Plus Jakarta Sans", monospace;
+  font-family: "Outfit", "Outfit", monospace;
 }
 
 .balances-table__numeric--negative {
@@ -105,7 +105,7 @@
   cursor: pointer;
   position: relative;
   transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
-  border-radius: 0.5rem;
+  border-radius: var(--radius-md);
 }
 
 .balances-table__numeric--interactive:hover {

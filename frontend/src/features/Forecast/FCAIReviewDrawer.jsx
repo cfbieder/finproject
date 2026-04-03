@@ -71,7 +71,7 @@ function MessageContent({ content, onApply, appliedActions }) {
                 onClick={() => onApply(a, part.key)}
                 style={{
                   marginTop: "0.4rem", padding: "0.25rem 0.75rem", borderRadius: "0.375rem",
-                  border: "1px solid #3b82f6", background: "#3b82f6", color: "white",
+                  border: "1px solid #7FA37F", background: "#7FA37F", color: "white",
                   fontSize: "0.78rem", fontWeight: 600, cursor: "pointer",
                 }}
               >
@@ -211,7 +211,7 @@ export default function FCAIReviewDrawer({ isOpen, onClose, scenarioName }) {
       }}>
         {/* Header */}
         <div style={{
-          padding: "1rem 1.25rem", borderBottom: "1px solid #e2e8f0",
+          padding: "1rem 1.25rem", borderBottom: "1px solid #E8E6DF",
           display: "flex", justifyContent: "space-between", alignItems: "center",
         }}>
           <div>
@@ -224,7 +224,7 @@ export default function FCAIReviewDrawer({ isOpen, onClose, scenarioName }) {
               disabled={loading}
               style={{
                 padding: "0.35rem 0.75rem", borderRadius: "0.375rem", fontSize: "0.8rem",
-                fontWeight: 600, border: "1px solid #3b82f6", background: "#3b82f6",
+                fontWeight: 600, border: "1px solid #7FA37F", background: "#7FA37F",
                 color: "white", cursor: loading ? "wait" : "pointer",
               }}
             >
@@ -243,7 +243,7 @@ export default function FCAIReviewDrawer({ isOpen, onClose, scenarioName }) {
         <div style={{ flex: 1, display: "flex", overflow: "hidden" }}>
           {/* Review list */}
           <div style={{
-            width: "160px", borderRight: "1px solid #e2e8f0", overflowY: "auto",
+            width: "160px", borderRight: "1px solid #E8E6DF", overflowY: "auto",
             background: "#f8fafc", flexShrink: 0, fontSize: "0.78rem",
           }}>
             {reviews.map(r => (
@@ -251,7 +251,7 @@ export default function FCAIReviewDrawer({ isOpen, onClose, scenarioName }) {
                 key={r.id}
                 onClick={() => loadConversation(r.id)}
                 style={{
-                  padding: "0.6rem 0.75rem", cursor: "pointer", borderBottom: "1px solid #e2e8f0",
+                  padding: "0.6rem 0.75rem", cursor: "pointer", borderBottom: "1px solid #E8E6DF",
                   background: r.id === activeReviewId ? "#eff6ff" : "transparent",
                   fontWeight: r.id === activeReviewId ? 600 : 400,
                   position: "relative",
@@ -266,7 +266,7 @@ export default function FCAIReviewDrawer({ isOpen, onClose, scenarioName }) {
                     color: "#94a3b8", fontSize: "0.85rem", lineHeight: 1,
                     padding: "0.1rem 0.25rem", borderRadius: "0.25rem",
                   }}
-                  onMouseEnter={e => e.currentTarget.style.color = "#ef4444"}
+                  onMouseEnter={e => e.currentTarget.style.color = "#C0504D"}
                   onMouseLeave={e => e.currentTarget.style.color = "#94a3b8"}
                 >
                   &times;
@@ -302,7 +302,7 @@ export default function FCAIReviewDrawer({ isOpen, onClose, scenarioName }) {
                   padding: "0.75rem 1rem",
                   borderRadius: "0.75rem",
                   background: msg.role === "user" ? "#eff6ff" : "#f8fafc",
-                  border: `1px solid ${msg.role === "user" ? "#bfdbfe" : "#e2e8f0"}`,
+                  border: `1px solid ${msg.role === "user" ? "#bfdbfe" : "#E8E6DF"}`,
                   fontSize: "0.85rem", lineHeight: 1.6,
                 }}>
                   <div style={{ fontWeight: 700, fontSize: "0.72rem", color: "#64748b", marginBottom: "0.35rem", textTransform: "uppercase", letterSpacing: "0.05em" }}>
@@ -323,7 +323,7 @@ export default function FCAIReviewDrawer({ isOpen, onClose, scenarioName }) {
               )}
 
               {error && (
-                <div style={{ padding: "0.75rem", background: "#fef2f2", border: "1px solid #fecaca", borderRadius: "0.5rem", color: "#dc2626", fontSize: "0.85rem" }}>
+                <div style={{ padding: "0.75rem", background: "#fef2f2", border: "1px solid #fecaca", borderRadius: "0.5rem", color: "#C0504D", fontSize: "0.85rem" }}>
                   {error}
                 </div>
               )}
@@ -334,7 +334,7 @@ export default function FCAIReviewDrawer({ isOpen, onClose, scenarioName }) {
             {/* Input */}
             {activeReviewId && (
               <form onSubmit={handleSendMessage} style={{
-                padding: "0.75rem 1rem", borderTop: "1px solid #e2e8f0",
+                padding: "0.75rem 1rem", borderTop: "1px solid #E8E6DF",
                 display: "flex", gap: "0.5rem",
               }}>
                 <input
@@ -352,7 +352,7 @@ export default function FCAIReviewDrawer({ isOpen, onClose, scenarioName }) {
                   style={{
                     padding: "0.4rem 1rem", borderRadius: "0.375rem", fontSize: "0.85rem",
                     fontWeight: 600, border: "none", cursor: "pointer",
-                    background: input.trim() ? "#3b82f6" : "#e2e8f0",
+                    background: input.trim() ? "#7FA37F" : "#E8E6DF",
                     color: input.trim() ? "white" : "#94a3b8",
                   }}
                 >
@@ -388,7 +388,7 @@ export default function FCAIReviewDrawer({ isOpen, onClose, scenarioName }) {
                 </tr>
                 <tr>
                   <td style={{ padding: "0.4rem 0", color: "#64748b" }}>Proposed</td>
-                  <td style={{ padding: "0.4rem 0", fontWeight: 600, color: "#2563eb" }}>{confirmAction.action.proposed_value}</td>
+                  <td style={{ padding: "0.4rem 0", fontWeight: 600, color: "#6B8E6B" }}>{confirmAction.action.proposed_value}</td>
                 </tr>
                 {confirmAction.action.reason && (
                   <tr>
@@ -407,7 +407,7 @@ export default function FCAIReviewDrawer({ isOpen, onClose, scenarioName }) {
               </button>
               <button
                 onClick={confirmApply}
-                style={{ padding: "0.4rem 1rem", borderRadius: "0.375rem", border: "none", background: "#3b82f6", color: "white", cursor: "pointer", fontSize: "0.85rem", fontWeight: 600 }}
+                style={{ padding: "0.4rem 1rem", borderRadius: "0.375rem", border: "none", background: "#7FA37F", color: "white", cursor: "pointer", fontSize: "0.85rem", fontWeight: 600 }}
               >
                 Apply
               </button>

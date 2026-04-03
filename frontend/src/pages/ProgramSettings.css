@@ -30,7 +30,7 @@
 }
 
 .program-settings-section {
-  background: #fff;
+  background: var(--surface);
   border: 1px solid rgba(107, 142, 107, 0.12);
   border-radius: 1rem;
   padding: 1.5rem;
@@ -74,8 +74,8 @@
   padding: 0.5rem 0.75rem;
   font-size: 0.95rem;
   border: 1px solid rgba(107, 142, 107, 0.2);
-  border-radius: 0.5rem;
-  background: #fff;
+  border-radius: var(--radius-md);
+  background: var(--surface);
   color: var(--text);
   cursor: pointer;
   transition: border-color var(--transition-fast);

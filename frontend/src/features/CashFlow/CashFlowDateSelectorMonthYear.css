@@ -120,7 +120,7 @@
   padding: 0.9rem 1.25rem;
   border-radius: 0.85rem;
   border: none;
-  background: linear-gradient(120deg, var(--primary), #3b82f6);
+  background: linear-gradient(120deg, var(--primary), var(--primary-light));
   color: #fff;
   font-size: 1rem;
   font-weight: 600;

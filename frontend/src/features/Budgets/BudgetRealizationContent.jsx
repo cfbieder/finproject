@@ -112,7 +112,7 @@ function BudgetRealizationContent({
               { value: kpiData.incomeActual },
             ]}
             chartType="bar"
-            chartColor="#047857"
+            chartColor="#5B8C5B"
           />
           <KpiCard
             title="Expenses"
@@ -126,7 +126,7 @@ function BudgetRealizationContent({
               { value: Math.abs(kpiData.expenseActual) },
             ]}
             chartType="bar"
-            chartColor="#dc2626"
+            chartColor="#C0504D"
           />
           <KpiCard
             title="Net Cash Flow"
@@ -140,7 +140,7 @@ function BudgetRealizationContent({
               { value: kpiData.netActualValue },
             ]}
             chartType="bar"
-            chartColor="#1e40af"
+            chartColor="#567856"
           />
           <KpiCard
             title="Savings Rate"

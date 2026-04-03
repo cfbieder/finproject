@@ -61,7 +61,7 @@
 
 .trans-filter-actual__total-badge {
   padding: 0.2rem 0.5rem;
-  border-radius: 6px;
+  border-radius: var(--radius-sm);
   background: var(--surface-muted);
   border: 1px solid var(--border);
   font-weight: 600;
@@ -97,7 +97,7 @@
   padding: 0.55rem 0.75rem;
   border-radius: 0.6rem;
   border: 2px solid var(--border);
-  background: #ffffff;
+  background: var(--surface);
   font-size: 0.875rem;
   font-weight: 500;
   color: var(--ink);
@@ -176,7 +176,7 @@
   letter-spacing: 0.02em;
   transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
   border: 2px solid var(--primary);
-  background: white;
+  background: var(--surface);
   color: var(--primary);
   cursor: pointer;
   box-shadow: 0 1px 3px 0 rgba(45, 52, 54, 0.08);
@@ -203,7 +203,7 @@
 .trans-filter-actual__action-btn--delete {
   border-color: rgba(220, 38, 38, 0.3);
   color: rgba(220, 38, 38, 0.7);
-  background: white;
+  background: var(--surface);
 }
 
 .trans-filter-actual__action-btn--delete:hover:not(:disabled) {

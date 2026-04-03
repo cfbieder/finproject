@@ -352,7 +352,7 @@
   cursor: pointer;
   position: relative;
   transition: var(--transition-fast);
-  border-radius: 4px;
+  border-radius: 8px;
 }
 
 .bwv2-td--interactive:hover {

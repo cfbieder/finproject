@@ -128,7 +128,7 @@ export default function COAEditModal({
               padding: "0.5rem 0.75rem",
               background: "#f8fafc",
               borderRadius: "8px",
-              border: "1px solid #e2e8f0",
+              border: "1px solid #E8E6DF",
               cursor: "pointer",
             }}
           >
@@ -136,7 +136,7 @@ export default function COAEditModal({
               type="checkbox"
               checked={!!row.isCategory}
               onChange={(e) => onFieldChange("isCategory", e.target.checked)}
-              style={{ width: "16px", height: "16px", accentColor: "#2563eb" }}
+              style={{ width: "16px", height: "16px", accentColor: "#6B8E6B" }}
             />
             <span style={{ fontWeight: 600, color: "#334155", fontSize: "0.9rem" }}>
               Create as category (container for sub-accounts)
@@ -304,8 +304,8 @@ export default function COAEditModal({
             className="coa-action-button coa-action-button--edit"
             style={{
               color: "#fff",
-              background: "#2563eb",
-              borderColor: "#2563eb",
+              background: "#6B8E6B",
+              borderColor: "#6B8E6B",
             }}
             disabled={editSaving}
           >

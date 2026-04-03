@@ -10,7 +10,7 @@
 .fc-delete-modal-overlay {
   position: fixed;
   inset: 0;
-  background: rgba(45, 52, 54, 0.6);
+  background: rgba(45, 52, 54, 0.18);
   backdrop-filter: blur(6px);
   display: flex;
   align-items: center;
@@ -35,7 +35,7 @@
 
 .fc-delete-modal {
   width: min(480px, 92vw);
-  background: white;
+  background: var(--surface);
   border-radius: 1.25rem;
   padding: 2rem;
   box-shadow:
@@ -78,7 +78,7 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  color: #dc2626;
+  color: var(--danger);
   animation: deleteIconPulse 2s ease-in-out infinite;
 }
 
@@ -130,7 +130,7 @@
   margin: 0;
   font-size: 0.9rem;
   font-weight: 600;
-  color: #dc2626;
+  color: var(--danger);
   text-align: center;
   padding: 0.75rem 1rem;
   background: linear-gradient(135deg, rgba(239, 68, 68, 0.08) 0%, rgba(239, 68, 68, 0.04) 100%);
@@ -149,8 +149,8 @@
   padding: 1rem 1.25rem;
   background: linear-gradient(135deg, rgba(239, 68, 68, 0.12) 0%, rgba(239, 68, 68, 0.06) 100%);
   border: 1.5px solid rgba(239, 68, 68, 0.3);
-  border-radius: 0.75rem;
-  color: #dc2626;
+  border-radius: var(--radius-md);
+  color: var(--danger);
   font-weight: 600;
   font-size: 0.95rem;
   animation: deleteErrorShake 0.4s ease-in-out;
@@ -164,7 +164,7 @@
 
 .fc-delete-modal__error svg {
   flex-shrink: 0;
-  color: #dc2626;
+  color: var(--danger);
 }
 
 /* ============================================================================
@@ -180,7 +180,7 @@
 
 .fc-delete-modal__button {
   padding: 0.875rem 1.5rem;
-  border-radius: 0.75rem;
+  border-radius: var(--radius-md);
   font-weight: 700;
   font-size: 1rem;
   cursor: pointer;
@@ -232,14 +232,14 @@
 
 /* Delete Button */
 .fc-delete-modal__button--delete {
-  background: linear-gradient(135deg, #ef4444 0%, #dc2626 100%);
+  background: linear-gradient(135deg, #ef4444 0%, var(--danger) 100%);
   color: white;
   border-color: transparent;
   box-shadow: 0 4px 12px -4px rgba(239, 68, 68, 0.5);
 }
 
 .fc-delete-modal__button--delete:hover:not(:disabled) {
-  background: linear-gradient(135deg, #dc2626 0%, #b91c1c 100%);
+  background: linear-gradient(135deg, var(--danger) 0%, #b91c1c 100%);
   transform: translateY(-2px);
   box-shadow: 0 8px 20px -6px rgba(239, 68, 68, 0.6),
     0 0 0 3px rgba(239, 68, 68, 0.2);

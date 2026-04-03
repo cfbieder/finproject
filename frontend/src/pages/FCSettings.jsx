@@ -88,7 +88,7 @@ export default function FCSettings() {
                     style={{
                       display: "inline-flex", alignItems: "center", gap: "0.3rem",
                       padding: "0.25rem 0.6rem", borderRadius: "1rem",
-                      background: "#f1f5f9", fontSize: "0.8rem", border: "1px solid #e2e8f0",
+                      background: "#f1f5f9", fontSize: "0.8rem", border: "1px solid #E8E6DF",
                     }}
                   >
                     {type}
@@ -134,7 +134,7 @@ export default function FCSettings() {
                   style={{
                     fontSize: "0.85rem", padding: "0.3rem 0.75rem", borderRadius: "0.5rem",
                     border: "1px solid #cbd5e1",
-                    background: newType.trim() ? "var(--primary, #1e40af)" : "#e2e8f0",
+                    background: newType.trim() ? "var(--primary, #567856)" : "#E8E6DF",
                     color: newType.trim() ? "white" : "#94a3b8",
                     cursor: newType.trim() ? "pointer" : "not-allowed",
                   }}

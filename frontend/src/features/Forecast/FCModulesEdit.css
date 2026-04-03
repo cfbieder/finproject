@@ -73,7 +73,7 @@
   padding: 0.35rem 0.75rem;
   background: rgba(107, 142, 107, 0.1);
   color: var(--primary);
-  border-radius: 0.5rem;
+  border-radius: var(--radius-md);
   font-size: 0.85rem;
   font-weight: 700;
   font-variant-numeric: tabular-nums;
@@ -85,7 +85,7 @@
   display: flex;
   flex-direction: column;
   min-height: 0;
-  border-radius: 0.75rem;
+  border-radius: var(--radius-md);
 }
 
 /* Table states */
@@ -126,7 +126,7 @@
     rgba(241, 245, 249, 0.4) 0%,
     rgba(226, 232, 240, 0.3) 100%
   );
-  border-radius: 0.75rem;
+  border-radius: var(--radius-md);
   border: 2px dashed rgba(107, 142, 107, 0.2);
 }
 
@@ -229,7 +229,7 @@
   padding: 0.25rem 0.65rem;
   background: rgba(107, 142, 107, 0.1);
   color: var(--primary);
-  border-radius: 0.4rem;
+  border-radius: var(--radius-md);
   font-size: 0.85rem;
   font-weight: 600;
 }
@@ -237,7 +237,7 @@
 .fc-modules-table__matched-badge {
   display: inline-block;
   padding: 0.3rem 0.75rem;
-  border-radius: 0.5rem;
+  border-radius: var(--radius-md);
   font-size: 0.8rem;
   font-weight: 700;
   text-transform: uppercase;
@@ -275,7 +275,7 @@
   padding: 3rem 2rem;
   text-align: center;
   min-height: 300px;
-  border-radius: 0.75rem;
+  border-radius: var(--radius-md);
   background: linear-gradient(
     135deg,
     rgba(241, 245, 249, 0.4) 0%,
@@ -347,7 +347,7 @@
 .fc-modules-details__matched-badge {
   display: inline-block;
   padding: 0.35rem 0.85rem;
-  border-radius: 0.5rem;
+  border-radius: var(--radius-md);
   font-size: 0.85rem;
   font-weight: 700;
   text-transform: uppercase;
@@ -371,7 +371,7 @@
   gap: 0.5rem;
   padding: 0.75rem;
   background: var(--surface-muted);
-  border-radius: 0.5rem;
+  border-radius: var(--radius-md);
   border: 1px solid var(--border);
 }
 
@@ -394,7 +394,7 @@
   gap: 0.5rem;
   padding: 0.5rem;
   background: var(--surface);
-  border-radius: 0.4rem;
+  border-radius: var(--radius-md);
   font-size: 0.9rem;
   font-weight: 600;
   align-items: center;
@@ -450,7 +450,7 @@
   position: fixed;
   inset: 0;
   background: rgba(45, 52, 54, 0.75);
-  backdrop-filter: blur(8px);
+  
   display: flex;
   align-items: flex-start;
   justify-content: center;
@@ -476,7 +476,7 @@
   background: linear-gradient(to bottom, #ffffff 0%, #fafbfc 50%, #f5f7fa 100%);
   border-radius: 1.5rem;
   padding: 0;
-  box-shadow: 0 32px 80px -16px rgba(45, 52, 54, 0.35),
+  box-shadow: 0 32px 80px -16px rgba(45, 52, 54, 0.12),
     0 12px 32px -8px rgba(107, 142, 107, 0.25), 0 0 0 1px rgba(107, 142, 107, 0.12);
   display: flex;
   flex-direction: column;
@@ -526,7 +526,7 @@
     rgba(107, 142, 107, 0.5) 50%,
     var(--primary) 100%
   );
-  border-radius: 3px 3px 0 0;
+  border-radius: 8px 3px 0 0;
 }
 
 /* Modal Body */
@@ -578,10 +578,10 @@
   position: absolute;
   top: -0.75rem;
   left: 1.5rem;
-  background: linear-gradient(135deg, var(--primary) 0%, #3b82f6 100%);
+  background: linear-gradient(135deg, var(--primary) 0%, var(--primary-light) 100%);
   color: white;
   padding: 0.35rem 1rem;
-  border-radius: 0.5rem;
+  border-radius: var(--radius-md);
   font-size: 0.7rem;
   font-weight: 800;
   text-transform: uppercase;
@@ -640,10 +640,10 @@
 .fc-scenarios-modal__field .form-input {
   transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
   border: 2px solid rgba(107, 142, 107, 0.15);
-  border-radius: 0.75rem;
+  border-radius: var(--radius-md);
   padding: 0.85rem 1.1rem;
   font-weight: 600;
-  background: white;
+  background: var(--surface);
   box-shadow: 0 2px 6px -2px rgba(45, 52, 54, 0.08),
     inset 0 1px 0 rgba(255, 255, 255, 0.9);
 }
@@ -678,7 +678,7 @@
 .fc-scenarios-modal__field input[type="checkbox"] {
   width: 1.5rem;
   height: 1.5rem;
-  border-radius: 0.5rem;
+  border-radius: var(--radius-md);
   border: 2.5px solid rgba(16, 185, 129, 0.3);
   accent-color: #059669;
   cursor: pointer;
@@ -755,7 +755,7 @@
   background: linear-gradient(
     135deg,
     var(--primary) 0%,
-    #3b82f6 100%
+    var(--primary-light) 100%
   ) !important;
   color: white !important;
   border: none !important;
@@ -779,7 +779,7 @@
   > div[style*="margin-top"]
   > div
   > div[style*="grid-template-columns"]:not(:first-child) {
-  background: white;
+  background: var(--surface);
   padding: 0.85rem 1rem !important;
   border-radius: 0.85rem;
   border: 1px solid rgba(107, 142, 107, 0.1);
@@ -802,14 +802,14 @@
   form
   > div[style*="margin-top"]
   button[style*="padding: 0.35rem"] {
-  border-radius: 0.5rem !important;
+  border-radius: var(--radius-md) !important;
   border: 1.5px solid rgba(239, 68, 68, 0.3) !important;
   background: linear-gradient(
     135deg,
     rgba(239, 68, 68, 0.1) 0%,
     rgba(239, 68, 68, 0.05) 100%
   ) !important;
-  color: #dc2626 !important;
+  color: var(--danger) !important;
   font-weight: 700 !important;
   transition: all 0.2s ease !important;
   box-shadow: 0 2px 6px -2px rgba(239, 68, 68, 0.2) !important;
@@ -819,7 +819,7 @@
   form
   > div[style*="margin-top"]
   button[style*="padding: 0.35rem"]:hover {
-  border-color: #dc2626 !important;
+  border-color: var(--danger) !important;
   background: linear-gradient(
     135deg,
     rgba(239, 68, 68, 0.15) 0%,
@@ -874,7 +874,7 @@
 }
 
 .fc-scenarios-modal__actions .generate-report-button:last-child {
-  background: linear-gradient(135deg, var(--primary) 0%, #3b82f6 100%);
+  background: linear-gradient(135deg, var(--primary) 0%, var(--primary-light) 100%);
   color: #fff;
   border-color: transparent;
   box-shadow: 0 6px 20px -6px rgba(107, 142, 107, 0.5),
@@ -908,7 +908,7 @@
   );
   border: 2px solid rgba(239, 68, 68, 0.35);
   border-radius: 0.85rem;
-  color: #dc2626;
+  color: var(--danger);
   font-weight: 700;
   margin: 0;
   display: flex;
@@ -927,7 +927,7 @@
   justify-content: center;
   width: 2rem;
   height: 2rem;
-  background: white;
+  background: var(--surface);
   border-radius: 50%;
   flex-shrink: 0;
 }
@@ -952,7 +952,7 @@
     rgba(107, 142, 107, 0.4),
     rgba(107, 142, 107, 0.6)
   );
-  border-radius: 6px;
+  border-radius: var(--radius-sm);
   border: 3px solid transparent;
   background-clip: content-box;
   transition: background 0.2s ease;
@@ -1145,7 +1145,7 @@
   padding: 0.5rem 1rem;
   font-size: 0.85rem;
   border-radius: 0.65rem;
-  background: linear-gradient(135deg, var(--primary) 0%, #3b82f6 100%);
+  background: linear-gradient(135deg, var(--primary) 0%, var(--primary-light) 100%);
   color: white;
   border: none;
   font-weight: 700;
@@ -1185,7 +1185,7 @@
   gap: 0.5rem;
   align-items: center;
   margin-top: 0.75rem;
-  background: white;
+  background: var(--surface);
   padding: 0.85rem 1rem;
   border-radius: 0.85rem;
   border: 1px solid rgba(107, 142, 107, 0.1);
@@ -1202,21 +1202,21 @@
 .fc-modules-edit__remove-button {
   padding: 0.35rem 0.6rem;
   font-size: 0.75rem;
-  border-radius: 0.5rem;
+  border-radius: var(--radius-md);
   border: 1.5px solid rgba(239, 68, 68, 0.3);
   background: linear-gradient(
     135deg,
     rgba(239, 68, 68, 0.1) 0%,
     rgba(239, 68, 68, 0.05) 100%
   );
-  color: #dc2626;
+  color: var(--danger);
   font-weight: 700;
   transition: all 0.2s ease;
   box-shadow: 0 2px 6px -2px rgba(239, 68, 68, 0.2);
 }
 
 .fc-modules-edit__remove-button:hover {
-  border-color: #dc2626;
+  border-color: var(--danger);
   background: linear-gradient(
     135deg,
     rgba(239, 68, 68, 0.15) 0%,
@@ -1239,7 +1239,7 @@
 .fc-modules-modal-overlay {
   position: fixed;
   inset: 0;
-  background: rgba(45, 52, 54, 0.6);
+  background: rgba(45, 52, 54, 0.18);
   backdrop-filter: blur(6px);
   display: flex;
   align-items: center;
@@ -1262,7 +1262,7 @@
 .fc-modules-modal {
   width: min(1000px, 96vw);
   max-height: 90vh;
-  background: white;
+  background: var(--surface);
   border-radius: 1.25rem;
   box-shadow:
     0 20px 60px -12px rgba(107, 142, 107, 0.25),
@@ -1303,7 +1303,7 @@
   left: 0;
   right: 0;
   height: 3px;
-  background: linear-gradient(90deg, var(--primary) 0%, #3b82f6 100%);
+  background: linear-gradient(90deg, var(--primary) 0%, var(--primary-light) 100%);
 }
 
 .fc-modules-modal__header-content {
@@ -1315,7 +1315,7 @@
 .fc-modules-modal__icon {
   width: 48px;
   height: 48px;
-  border-radius: 0.75rem;
+  border-radius: var(--radius-md);
   background: linear-gradient(135deg, rgba(107, 142, 107, 0.1) 0%, rgba(127, 163, 127, 0.15) 100%);
   display: flex;
   align-items: center;
@@ -1345,7 +1345,7 @@
   height: 40px;
   border-radius: 0.65rem;
   border: 1px solid rgba(107, 142, 107, 0.15);
-  background: white;
+  background: var(--surface);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -1358,7 +1358,7 @@
 .fc-modules-modal__close:hover:not(:disabled) {
   background: linear-gradient(135deg, rgba(239, 68, 68, 0.1) 0%, rgba(239, 68, 68, 0.05) 100%);
   border-color: rgba(239, 68, 68, 0.3);
-  color: #dc2626;
+  color: var(--danger);
   transform: rotate(90deg);
 }
 
@@ -1393,7 +1393,7 @@
 
 .fc-modules-modal__body::-webkit-scrollbar-track {
   background: rgba(241, 245, 249, 0.5);
-  border-radius: 4px;
+  border-radius: 8px;
 }
 
 .fc-modules-modal__body::-webkit-scrollbar-thumb {
@@ -1402,7 +1402,7 @@
     rgba(107, 142, 107, 0.3),
     rgba(107, 142, 107, 0.5)
   );
-  border-radius: 4px;
+  border-radius: 8px;
 }
 
 .fc-modules-modal__body::-webkit-scrollbar-thumb:hover {
@@ -1415,7 +1415,7 @@
 
 /* Sections */
 .fc-modules-modal__section {
-  background: white;
+  background: var(--surface);
   border: 1px solid rgba(107, 142, 107, 0.12);
   border-radius: 1rem;
   padding: 1.5rem;
@@ -1451,15 +1451,15 @@
   content: '';
   width: 3px;
   height: 20px;
-  background: linear-gradient(180deg, var(--primary) 0%, #3b82f6 100%);
-  border-radius: 2px;
+  background: linear-gradient(180deg, var(--primary) 0%, var(--primary-light) 100%);
+  border-radius: var(--radius-sm);
 }
 
 .fc-modules-modal__matched-badge {
   padding: 0.35rem 0.85rem;
   background: linear-gradient(135deg, rgba(34, 197, 94, 0.12) 0%, rgba(34, 197, 94, 0.08) 100%);
   border: 1px solid rgba(34, 197, 94, 0.25);
-  border-radius: 0.5rem;
+  border-radius: var(--radius-md);
   font-size: 0.75rem;
   font-weight: 700;
   color: #059669;
@@ -1498,7 +1498,7 @@
   font-size: 0.95rem;
   font-weight: 500;
   color: var(--ink);
-  background: white;
+  background: var(--surface);
   transition: all 0.2s ease;
   font-family: inherit;
 }
@@ -1597,8 +1597,8 @@ input.fc-modules-modal__input:read-only {
   content: '';
   width: 3px;
   height: 18px;
-  background: linear-gradient(180deg, var(--primary) 0%, #3b82f6 100%);
-  border-radius: 2px;
+  background: linear-gradient(180deg, var(--primary) 0%, var(--primary-light) 100%);
+  border-radius: var(--radius-sm);
 }
 
 .fc-modules-modal__add-transfer-button {
@@ -1606,7 +1606,7 @@ input.fc-modules-modal__input:read-only {
   align-items: center;
   gap: 0.5rem;
   padding: 0.65rem 1.15rem;
-  background: linear-gradient(135deg, var(--primary) 0%, #3b82f6 100%);
+  background: linear-gradient(135deg, var(--primary) 0%, var(--primary-light) 100%);
   color: white;
   border: none;
   border-radius: 0.65rem;
@@ -1641,9 +1641,9 @@ input.fc-modules-modal__input:read-only {
   gap: 0.75rem;
   color: #94a3b8;
   text-align: center;
-  background: white;
+  background: var(--surface);
   border: 2px dashed rgba(148, 163, 184, 0.3);
-  border-radius: 0.75rem;
+  border-radius: var(--radius-md);
 }
 
 .fc-modules-modal__transfer-empty svg {
@@ -1677,7 +1677,7 @@ input.fc-modules-modal__input:read-only {
   gap: 1rem;
   align-items: start;
   padding: 1.25rem;
-  background: white;
+  background: var(--surface);
   border: 1.5px solid rgba(107, 142, 107, 0.15);
   border-radius: 0.85rem;
   transition: all 0.2s ease;
@@ -1692,7 +1692,7 @@ input.fc-modules-modal__input:read-only {
   top: 0;
   bottom: 0;
   width: 4px;
-  background: linear-gradient(180deg, var(--primary) 0%, #3b82f6 100%);
+  background: linear-gradient(180deg, var(--primary) 0%, var(--primary-light) 100%);
   opacity: 0;
   transition: opacity 0.2s ease;
 }
@@ -1709,8 +1709,8 @@ input.fc-modules-modal__input:read-only {
 .fc-modules-modal__transfer-number {
   width: 32px;
   height: 32px;
-  border-radius: 0.5rem;
-  background: linear-gradient(135deg, var(--primary) 0%, #3b82f6 100%);
+  border-radius: var(--radius-md);
+  background: linear-gradient(135deg, var(--primary) 0%, var(--primary-light) 100%);
   color: white;
   display: flex;
   align-items: center;
@@ -1745,10 +1745,10 @@ input.fc-modules-modal__input:read-only {
 .fc-modules-modal__transfer-remove {
   width: 36px;
   height: 36px;
-  border-radius: 0.5rem;
+  border-radius: var(--radius-md);
   border: 1.5px solid rgba(239, 68, 68, 0.2);
   background: linear-gradient(135deg, rgba(239, 68, 68, 0.08) 0%, rgba(239, 68, 68, 0.04) 100%);
-  color: #dc2626;
+  color: var(--danger);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -1777,8 +1777,8 @@ input.fc-modules-modal__input:read-only {
   margin: 0 2rem;
   background: linear-gradient(135deg, rgba(239, 68, 68, 0.12) 0%, rgba(239, 68, 68, 0.06) 100%);
   border: 1.5px solid rgba(239, 68, 68, 0.3);
-  border-radius: 0.75rem;
-  color: #dc2626;
+  border-radius: var(--radius-md);
+  color: var(--danger);
   font-weight: 600;
   font-size: 0.95rem;
   animation: modulesErrorShake 0.4s ease-in-out;
@@ -1807,7 +1807,7 @@ input.fc-modules-modal__input:read-only {
 
 .fc-modules-modal__button {
   padding: 0.875rem 1.75rem;
-  border-radius: 0.75rem;
+  border-radius: var(--radius-md);
   font-weight: 700;
   font-size: 1rem;
   cursor: pointer;
@@ -1858,14 +1858,14 @@ input.fc-modules-modal__input:read-only {
 }
 
 .fc-modules-modal__button--save {
-  background: linear-gradient(135deg, var(--primary) 0%, #3b82f6 100%);
+  background: linear-gradient(135deg, var(--primary) 0%, var(--primary-light) 100%);
   color: white;
   border-color: transparent;
   box-shadow: 0 4px 12px -4px rgba(107, 142, 107, 0.5);
 }
 
 .fc-modules-modal__button--save:hover:not(:disabled) {
-  background: linear-gradient(135deg, #1d4ed8 0%, var(--primary) 100%);
+  background: linear-gradient(135deg, var(--primary-strong) 0%, var(--primary) 100%);
   transform: translateY(-2px);
   box-shadow: 0 8px 20px -6px rgba(107, 142, 107, 0.6),
     0 0 0 3px rgba(107, 142, 107, 0.2);
@@ -1924,7 +1924,7 @@ input.fc-modules-modal__input:read-only {
     width: 100%;
     height: auto;
     padding: 0.5rem;
-    border-radius: 0.5rem 0.5rem 0 0;
+    border-radius: var(--radius-md) 0.5rem 0 0;
     margin: -1.25rem -1.25rem 0 -1.25rem;
   }
 
@@ -1932,7 +1932,7 @@ input.fc-modules-modal__input:read-only {
     width: 100%;
     height: auto;
     padding: 0.75rem;
-    border-radius: 0.5rem;
+    border-radius: var(--radius-md);
   }
 }
 

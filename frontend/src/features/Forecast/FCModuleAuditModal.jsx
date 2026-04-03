@@ -25,7 +25,7 @@ function AuditTable({ title, data }) {
   return (
     <div style={{ marginBottom: "1.5rem" }}>
       <h4 style={{ margin: "0 0 0.5rem", fontSize: "0.9rem", fontWeight: 700 }}>{title}</h4>
-      <div style={{ overflow: "auto", maxHeight: "40vh", border: "1px solid #e2e8f0", borderRadius: "0.5rem" }}>
+      <div style={{ overflow: "auto", maxHeight: "40vh", border: "1px solid #E8E6DF", borderRadius: "0.5rem" }}>
         <table className="data-table" style={{ width: "100%", fontSize: "0.78rem", whiteSpace: "nowrap" }}>
           <thead>
             <tr>
@@ -36,7 +36,7 @@ function AuditTable({ title, data }) {
                     position: "sticky", top: 0, background: "#f8fafc", zIndex: 1,
                     textAlign: h === "index" || h === "Year" || h === "Action" ? "left" : "right",
                     padding: "0.4rem 0.6rem", fontWeight: 600, fontSize: "0.72rem",
-                    borderBottom: "2px solid #e2e8f0",
+                    borderBottom: "2px solid #E8E6DF",
                   }}
                 >
                   {h === "index" ? "Year" : h}
@@ -63,10 +63,10 @@ function AuditTable({ title, data }) {
                   // Color-code sweep actions
                   let actionColor;
                   if (isAction) {
-                    if (cell === "sweep_in") actionColor = "#16a34a";
+                    if (cell === "sweep_in") actionColor = "#5B9E9E";
                     else if (cell === "sweep_out") actionColor = "#d97706";
-                    else if (cell === "shortfall") actionColor = "#dc2626";
-                    else if (cell === "deposit") actionColor = "#2563eb";
+                    else if (cell === "shortfall") actionColor = "#C0504D";
+                    else if (cell === "deposit") actionColor = "#6B8E6B";
                   }
 
                   return (
@@ -77,7 +77,7 @@ function AuditTable({ title, data }) {
                         padding: "0.3rem 0.6rem",
                         fontFamily: isIndex || isAction ? "inherit" : "var(--font-mono)",
                         fontWeight: isIndex || isAction ? 600 : 400,
-                        color: actionColor || (!isIndex && !isAction && Number.isFinite(n) && n < 0 ? "var(--danger, #ef4444)" : undefined),
+                        color: actionColor || (!isIndex && !isAction && Number.isFinite(n) && n < 0 ? "var(--danger, #C0504D)" : undefined),
                       }}
                     >
                       {display}
@@ -140,7 +140,7 @@ export default function FCModuleAuditModal({ isOpen, onClose, scenario, moduleNa
       >
         {/* Header */}
         <div style={{
-          padding: "1rem 1.5rem", borderBottom: "1px solid #e2e8f0",
+          padding: "1rem 1.5rem", borderBottom: "1px solid #E8E6DF",
           display: "flex", justifyContent: "space-between", alignItems: "center",
         }}>
           <div>
@@ -173,8 +173,8 @@ export default function FCModuleAuditModal({ isOpen, onClose, scenario, moduleNa
                 style={{
                   padding: "0.35rem 1rem", fontSize: "0.8rem", fontWeight: view === tab.key ? 600 : 400,
                   border: "1px solid", borderRadius: "999px",
-                  borderColor: view === tab.key ? "var(--primary, #1e40af)" : "#d1d5db",
-                  background: view === tab.key ? "var(--primary, #1e40af)" : "white",
+                  borderColor: view === tab.key ? "var(--primary, #567856)" : "#d1d5db",
+                  background: view === tab.key ? "var(--primary, #567856)" : "white",
                   color: view === tab.key ? "white" : "#4b5563",
                   cursor: "pointer", transition: "all 0.15s",
                 }}
@@ -188,7 +188,7 @@ export default function FCModuleAuditModal({ isOpen, onClose, scenario, moduleNa
         {/* Body */}
         <div style={{ padding: "1rem 1.5rem", overflow: "auto", flex: 1 }}>
           {loading && <p style={{ color: "var(--text-secondary)" }}>Loading audit trail...</p>}
-          {error && <p style={{ color: "var(--danger, #ef4444)" }}>{error}</p>}
+          {error && <p style={{ color: "var(--danger, #C0504D)" }}>{error}</p>}
           {data && !loading && view === "lc" && (
             <AuditTable title="Local Currency Values" data={data.lc} />
           )}

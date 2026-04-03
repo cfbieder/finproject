@@ -39,9 +39,9 @@
 
 .budget-entry-form__input {
   width: 100%;
-  border-radius: 0.75rem;
+  border-radius: var(--radius-md);
   border: 2px solid var(--border);
-  background: #ffffff;
+  background: var(--surface);
   padding: 0.85rem 1rem;
   font-size: 1rem;
   font-weight: 600;
@@ -81,7 +81,7 @@
 
 .budget-entry-form__input--shaded {
   background: linear-gradient(135deg, rgba(107, 142, 107, 0.08) 0%, rgba(127, 163, 127, 0.12) 100%);
-  font-family: "Outfit", "Plus Jakarta Sans", monospace;
+  font-family: "Outfit", "Outfit", monospace;
 }
 
 .budget-entry-form__input--negative {
@@ -91,7 +91,7 @@
 
 .budget-entry-form__derived-value {
   min-height: 4.8rem;
-  border-radius: 0.75rem;
+  border-radius: var(--radius-md);
   border: 2px dashed rgba(107, 142, 107, 0.3);
   background: linear-gradient(135deg, rgba(107, 142, 107, 0.06) 0%, rgba(127, 163, 127, 0.08) 100%);
   padding: 0.85rem 1rem;
@@ -122,7 +122,7 @@
 .budget-entry-form__status {
   margin: 0;
   padding: 0.75rem 1rem;
-  border-radius: 0.5rem;
+  border-radius: var(--radius-md);
   color: var(--primary);
   background: rgba(107, 142, 107, 0.08);
   border-left: 3px solid var(--primary);
@@ -145,9 +145,9 @@
 
 .budget-entry-form__clear {
   border: 2px solid var(--border);
-  border-radius: 0.75rem;
+  border-radius: var(--radius-md);
   padding: 0.85rem 1.5rem;
-  background: #ffffff;
+  background: var(--surface);
   color: var(--ink);
   font-size: 0.95rem;
   font-weight: 700;
@@ -176,9 +176,9 @@
 
 .budget-entry-form__submit {
   border: none;
-  border-radius: 0.75rem;
+  border-radius: var(--radius-md);
   padding: 0.85rem 2rem;
-  background: linear-gradient(135deg, var(--primary) 0%, #3b82f6 100%);
+  background: linear-gradient(135deg, var(--primary) 0%, var(--primary-light) 100%);
   color: #ffffff;
   font-size: 0.95rem;
   font-weight: 700;
@@ -209,7 +209,7 @@
   border: 2px dashed rgba(107, 142, 107, 0.2);
   padding: 2rem;
   background: linear-gradient(135deg, rgba(107, 142, 107, 0.04) 0%, rgba(127, 163, 127, 0.06) 100%);
-  border-radius: 0.75rem;
+  border-radius: var(--radius-md);
 }
 
 .budget-entry-form__disabled-message {

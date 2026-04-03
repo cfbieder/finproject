@@ -4,7 +4,7 @@
  */
 
 .fc-modules-filter {
-  background: white;
+  background: var(--surface);
   border: none;
   border-bottom: 1px solid rgba(107, 142, 107, 0.12);
   box-shadow: 0 2px 12px -4px rgba(45, 52, 54, 0.08),
@@ -117,7 +117,7 @@
   gap: 1.25rem;
   padding: 0.85rem 1.25rem;
   border: 1px solid rgba(107, 142, 107, 0.15);
-  border-radius: 0.75rem;
+  border-radius: var(--radius-md);
   background: linear-gradient(
     135deg,
     rgba(239, 246, 255, 0.5) 0%,
@@ -175,7 +175,7 @@
   justify-content: center;
   gap: 0.5rem;
   padding: 0.75rem 1rem;
-  border-radius: 0.75rem;
+  border-radius: var(--radius-md);
   border: 1px solid var(--border);
   background: var(--surface);
   font-weight: 600;
@@ -204,7 +204,7 @@
 }
 
 .fc-modules-filter__action-btn--primary {
-  background: linear-gradient(135deg, var(--primary) 0%, #3b82f6 100%);
+  background: linear-gradient(135deg, var(--primary) 0%, var(--primary-light) 100%);
   color: #fff;
   border-color: transparent;
   box-shadow: 0 4px 12px -4px rgba(107, 142, 107, 0.5);
@@ -216,7 +216,7 @@
 }
 
 .fc-modules-filter__action-btn--danger {
-  background: linear-gradient(135deg, #ef4444 0%, #dc2626 100%);
+  background: linear-gradient(135deg, #ef4444 0%, var(--danger) 100%);
   color: #fff;
   border-color: transparent;
   box-shadow: 0 4px 12px -4px rgba(239, 68, 68, 0.5);

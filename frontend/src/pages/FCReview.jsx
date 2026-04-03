@@ -42,19 +42,19 @@ import FCStepNav from "../features/Forecast/FCStepNav.jsx";
 import "./PageLayout.css";
 
 const GRAPH_COLORS = [
-  "#2563eb",
-  "#16a34a",
-  "#f59e0b",
-  "#ef4444",
-  "#8b5cf6",
-  "#0ea5e9",
+  "#6B8E6B",
+  "#5B9E9E",
+  "#C4923A",
+  "#C0504D",
+  "#8B7BB5",
+  "#5B7B9A",
 ];
 
 const BAR_CHART_COLORS = [
-  "#2563eb", "#16a34a", "#f59e0b", "#ef4444", "#8b5cf6",
-  "#0ea5e9", "#d946ef", "#f97316", "#14b8a6", "#e11d48",
-  "#6366f1", "#84cc16", "#06b6d4", "#a855f7", "#ec4899",
-  "#10b981", "#f43f5e", "#3b82f6", "#eab308", "#22d3ee",
+  "#6B8E6B", "#5B9E9E", "#C4923A", "#C0504D", "#8B7BB5",
+  "#5B7B9A", "#9B7B9B", "#D4A74E", "#5B8C5B", "#B5637B",
+  "#6B7BB5", "#8BAF5B", "#5BA5B5", "#9B7BB5", "#C07B8B",
+  "#7FA37F", "#C06363", "#7B9EB5", "#B5A03A", "#6BBFBF",
 ];
 
 /**
@@ -711,9 +711,9 @@ export default function FCReview() {
     }
 
     const thStyleBase =
-      "padding:8px 10px;border:1px solid #d9e2ec;background:#f8fafc;font-weight:700;text-align:left;";
-    const tdStyleBase = "padding:6px 10px;border:1px solid #e2e8f0;";
-    const sectionBorder = "2px solid #334155";
+      "padding:8px 10px;border:1px solid #E8E6DF;background:#FAF9F5;font-weight:700;text-align:left;";
+    const tdStyleBase = "padding:6px 10px;border:1px solid #E8E6DF;";
+    const sectionBorder = "2px solid #4A5568";
 
     const headerRow = sortedYears
       .map((year) => {
@@ -721,7 +721,7 @@ export default function FCReview() {
         const isLastActual = lastActualYears.has(Number(year));
         const isPreForecast = isBase || isLastActual;
         const preStyle = isPreForecast
-          ? "background:linear-gradient(180deg,#f8f9fa 0%,#e9ecef 100%);font-weight:700;border-left:1px solid #cbd5e0;border-right:1px solid #cbd5e0;"
+          ? "background:linear-gradient(180deg,#FAF9F5 0%,#F0EFE9 100%);font-weight:700;border-left:1px solid #D5D2C9;border-right:1px solid #D5D2C9;"
           : "";
         const columnLabel = isBase
           ? '<div style="font-size:11px;color:#6b7280;">(Budget)</div>'
@@ -747,9 +747,9 @@ export default function FCReview() {
         const isLastCashRow = index === cashRowsWithNet.length - 1;
         const label = row.isNet ? "Net Cash Flow" : isCashFlow ? "Cash Flow" : row.label;
         const labelBg = row.isNet
-          ? "background:#f8fafc;font-weight:700;color:#0f172a;"
+          ? "background:#FAF9F5;font-weight:700;color:#2D3436;"
           : isCashFlow
-          ? "background:#f8fafc;"
+          ? "background:#FAF9F5;"
           : "";
 
         const cashSectionBorders = `border-left:${sectionBorder};border-right:${sectionBorder};${
@@ -760,16 +760,16 @@ export default function FCReview() {
           .map((year) => {
             const value = getCellValue(row, year, true);
             const isBase = baseYears.has(Number(year));
-            const numStyle = Number(value) < 0 ? "color:#dc2626;" : "";
+            const numStyle = Number(value) < 0 ? "color:#C0504D;" : "";
             const baseStyle = isBase
-              ? "background:#fafafa;border-left:1px solid #cbd5e0;border-right:1px solid #cbd5e0;"
+              ? "background:#FAF9F5;border-left:1px solid #D5D2C9;border-right:1px solid #D5D2C9;"
               : "";
             const transferStyle =
               isTransfers && !isBase
-                ? "border-top:2px solid #3b82f6;border-bottom:2px solid #3b82f6;"
+                ? "border-top:2px solid #7FA37F;border-bottom:2px solid #7FA37F;"
                 : "";
-            const netStyle = row.isNet ? "background:#f8fafc;font-weight:600;" : "";
-            const cashFlowStyle = isCashFlow ? "background:#f8fafc;font-weight:600;" : "";
+            const netStyle = row.isNet ? "background:#FAF9F5;font-weight:600;" : "";
+            const cashFlowStyle = isCashFlow ? "background:#FAF9F5;font-weight:600;" : "";
             return `<td style="${tdStyleBase}${numStyle}${baseStyle}${transferStyle}${netStyle}${cashFlowStyle}text-align:right;${cashSectionBorders}">${formatAmount(
               value
             )}</td>`;
@@ -804,11 +804,11 @@ export default function FCReview() {
               : "";
             const bankStyle =
               isBank && !isBase
-                ? "background:#fff5f5;border-top:2px solid #ef4444;border-bottom:2px solid #ef4444;"
+                ? "background:#fff5f5;border-top:2px solid #C0504D;border-bottom:2px solid #C0504D;"
                 : isBank
                 ? "background:#fff5f5;"
                 : "";
-            const dangerStyle = Number(displayValue) < 0 ? "color:#dc2626;" : "";
+            const dangerStyle = Number(displayValue) < 0 ? "color:#C0504D;" : "";
             return `<td style="${tdStyleBase}${baseStyle}${bankStyle}${dangerStyle}text-align:right;${balanceSectionBorders}">${formatAmount(
               displayValue
             )}</td>`;
@@ -820,13 +820,13 @@ export default function FCReview() {
 
     const dividerRow =
       balanceAccounts.length > 0 && cashAccounts.length > 0
-        ? `<tr><td style="padding:0;border-top:2px solid #e2e8f0;height:12px;"></td>${sortedYears
+        ? `<tr><td style="padding:0;border-top:2px solid #E8E6DF;height:12px;"></td>${sortedYears
             .map((year) => {
               const isBase = baseYears.has(Number(year));
               const baseStyle = isBase
                 ? "background:#fafafa;border-left:1px solid #cbd5e0;border-right:1px solid #cbd5e0;"
                 : "";
-              return `<td style="padding:0;border-top:2px solid #e2e8f0;height:12px;${baseStyle}"></td>`;
+              return `<td style="padding:0;border-top:2px solid #E8E6DF;height:12px;${baseStyle}"></td>`;
             })
             .join("")}</tr>`
         : "";
@@ -1200,7 +1200,7 @@ export default function FCReview() {
               positiveIsGood={true}
               chartData={kpiValues.assetsChart}
               chartType="area"
-              chartColor="#1e40af"
+              chartColor="#567856"
             />
             <KpiCard
               title="Net Cash Flow"
@@ -1211,7 +1211,7 @@ export default function FCReview() {
               positiveIsGood={true}
               chartData={kpiValues.netChart}
               chartType="area"
-              chartColor="#047857"
+              chartColor="#5B8C5B"
             />
             <KpiCard
               title="Income"
@@ -1233,7 +1233,7 @@ export default function FCReview() {
               positiveIsGood={false}
               chartData={kpiValues.expenseChart}
               chartType="area"
-              chartColor="#dc2626"
+              chartColor="#C0504D"
             />
           </KpiCardRow>
         )}

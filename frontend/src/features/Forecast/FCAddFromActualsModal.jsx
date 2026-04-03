@@ -246,7 +246,7 @@ export default function FCAddFromActualsModal({
           <span style={{ flex: 1, fontWeight: hasChildren && !node.is_leaf ? 600 : 400 }}>
             {node.account_name}
             {isDisabled && <span style={{ color: "#94a3b8", fontSize: "0.75rem", marginLeft: "0.5rem" }}>(already added)</span>}
-            {!node.is_leaf && isSelected && <span style={{ color: "#3b82f6", fontSize: "0.75rem", marginLeft: "0.5rem" }}>(aggregated)</span>}
+            {!node.is_leaf && isSelected && <span style={{ color: "#7FA37F", fontSize: "0.75rem", marginLeft: "0.5rem" }}>(aggregated)</span>}
           </span>
 
           {/* Currency */}
@@ -257,7 +257,7 @@ export default function FCAddFromActualsModal({
           {/* Balance */}
           <span style={{
             width: "7rem", textAlign: "right", fontFamily: "var(--font-mono)", fontSize: "0.8rem",
-            color: node.balance_usd < -0.01 ? "var(--danger, #ef4444)" : node.balance_usd > 0.01 ? undefined : "#94a3b8",
+            color: node.balance_usd < -0.01 ? "var(--danger, #C0504D)" : node.balance_usd > 0.01 ? undefined : "#94a3b8",
           }}>
             {Math.abs(node.balance_usd) > 0.01 ? (node.balance_usd < 0 ? "-" : "") + fmt(node.balance_usd) : "—"}
           </span>
@@ -286,7 +286,7 @@ export default function FCAddFromActualsModal({
         }}
       >
         {/* Header */}
-        <div style={{ padding: "1.5rem 2rem", borderBottom: "1px solid #e2e8f0", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+        <div style={{ padding: "1.5rem 2rem", borderBottom: "1px solid #E8E6DF", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
           <div>
             <h2 style={{ margin: 0, fontSize: "1.25rem", fontWeight: 700 }}>Add from Actuals</h2>
             <span style={{ fontSize: "0.8rem", color: "var(--text-secondary)" }}>
@@ -345,13 +345,13 @@ export default function FCAddFromActualsModal({
           ) : tree.length === 0 ? (
             <p style={{ color: "var(--text-secondary)" }}>No balance sheet accounts found.</p>
           ) : (
-            <div style={{ border: "1px solid #e2e8f0", borderRadius: "0.5rem", overflow: "hidden" }}>
+            <div style={{ border: "1px solid #E8E6DF", borderRadius: "0.5rem", overflow: "hidden" }}>
               {/* Header row */}
               <div style={{
                 display: "flex", alignItems: "center", gap: "0.5rem",
                 padding: "0.5rem", background: "#f8fafc", fontSize: "0.75rem",
                 fontWeight: 600, textTransform: "uppercase", color: "#64748b",
-                borderBottom: "1px solid #e2e8f0",
+                borderBottom: "1px solid #E8E6DF",
               }}>
                 <span style={{ width: "1rem" }} />
                 <span style={{ width: "1.2rem" }} />
@@ -365,7 +365,7 @@ export default function FCAddFromActualsModal({
         </div>
 
         {/* Footer */}
-        <div style={{ padding: "1rem 2rem", borderTop: "1px solid #e2e8f0", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+        <div style={{ padding: "1rem 2rem", borderTop: "1px solid #E8E6DF", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
           <span style={{ fontSize: "0.85rem", color: "var(--text-secondary)" }}>
             {selected.size} modules to create
             {selectedTotal > 0 && ` — Total: ${fmt(selectedTotal)} USD`}
@@ -382,7 +382,7 @@ export default function FCAddFromActualsModal({
               disabled={selected.size === 0 || applying}
               style={{
                 padding: "0.5rem 1.25rem", borderRadius: "0.5rem", border: "none",
-                background: selected.size > 0 ? "var(--primary, #1e40af)" : "#94a3b8",
+                background: selected.size > 0 ? "var(--primary, #567856)" : "#94a3b8",
                 color: "white", cursor: selected.size > 0 ? "pointer" : "not-allowed", fontWeight: 600,
               }}
             >

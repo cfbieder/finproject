@@ -11,7 +11,7 @@
 .fc-scenarios-modal-overlay {
   position: fixed;
   inset: 0;
-  background: rgba(45, 52, 54, 0.6);
+  background: rgba(45, 52, 54, 0.18);
   backdrop-filter: blur(6px);
   display: flex;
   align-items: center;
@@ -36,7 +36,7 @@
 
 .fc-scenarios-modal {
   width: min(520px, 94vw);
-  background: white;
+  background: var(--surface);
   border-radius: 1.25rem;
   box-shadow:
     0 20px 60px -12px rgba(107, 142, 107, 0.25),
@@ -78,7 +78,7 @@
   left: 0;
   right: 0;
   height: 3px;
-  background: linear-gradient(90deg, var(--primary) 0%, #3b82f6 100%);
+  background: linear-gradient(90deg, var(--primary) 0%, var(--primary-light) 100%);
 }
 
 .fc-scenarios-modal__title {
@@ -136,7 +136,7 @@
 
 .fc-scenarios-modal__body::-webkit-scrollbar-track {
   background: rgba(241, 245, 249, 0.5);
-  border-radius: 3px;
+  border-radius: 8px;
 }
 
 .fc-scenarios-modal__body::-webkit-scrollbar-thumb {
@@ -145,7 +145,7 @@
     rgba(107, 142, 107, 0.3),
     rgba(107, 142, 107, 0.5)
   );
-  border-radius: 3px;
+  border-radius: 8px;
 }
 
 .fc-scenarios-modal__body::-webkit-scrollbar-thumb:hover {
@@ -184,11 +184,11 @@
 .fc-scenarios-modal__field select {
   padding: 0.9rem 1.15rem;
   border: 1.5px solid rgba(107, 142, 107, 0.2);
-  border-radius: 0.75rem;
+  border-radius: var(--radius-md);
   font-size: 1rem;
   font-weight: 500;
   color: var(--ink);
-  background: white;
+  background: var(--surface);
   transition: all 0.2s ease;
   font-family: inherit;
 }
@@ -254,7 +254,7 @@ input[type="number"].fc-scenarios-modal__field input {
 
 .fc-scenarios-action-button {
   padding: 0.875rem 1.75rem;
-  border-radius: 0.75rem;
+  border-radius: var(--radius-md);
   font-weight: 700;
   font-size: 1rem;
   cursor: pointer;
@@ -307,14 +307,14 @@ input[type="number"].fc-scenarios-modal__field input {
 
 /* Primary Button */
 .fc-scenarios-action-button--primary {
-  background: linear-gradient(135deg, var(--primary) 0%, #3b82f6 100%);
+  background: linear-gradient(135deg, var(--primary) 0%, var(--primary-light) 100%);
   color: white;
   border-color: transparent;
   box-shadow: 0 4px 12px -4px rgba(107, 142, 107, 0.5);
 }
 
 .fc-scenarios-action-button--primary:hover:not(:disabled) {
-  background: linear-gradient(135deg, #1d4ed8 0%, var(--primary) 100%);
+  background: linear-gradient(135deg, var(--primary-strong) 0%, var(--primary) 100%);
   transform: translateY(-2px);
   box-shadow: 0 8px 20px -6px rgba(107, 142, 107, 0.6),
     0 0 0 3px rgba(107, 142, 107, 0.2);
@@ -322,14 +322,14 @@ input[type="number"].fc-scenarios-modal__field input {
 
 /* Danger Button */
 .fc-scenarios-action-button--danger {
-  background: linear-gradient(135deg, #ef4444 0%, #dc2626 100%);
+  background: linear-gradient(135deg, #ef4444 0%, var(--danger) 100%);
   color: white;
   border-color: transparent;
   box-shadow: 0 4px 12px -4px rgba(239, 68, 68, 0.5);
 }
 
 .fc-scenarios-action-button--danger:hover:not(:disabled) {
-  background: linear-gradient(135deg, #dc2626 0%, #b91c1c 100%);
+  background: linear-gradient(135deg, var(--danger) 0%, #b91c1c 100%);
   transform: translateY(-2px);
   box-shadow: 0 8px 20px -6px rgba(239, 68, 68, 0.6),
     0 0 0 3px rgba(239, 68, 68, 0.2);
@@ -343,7 +343,7 @@ input[type="number"].fc-scenarios-modal__field input {
   padding: 1rem 1.25rem;
   background: linear-gradient(135deg, rgba(251, 146, 60, 0.12) 0%, rgba(251, 146, 60, 0.06) 100%);
   border: 1.5px solid rgba(251, 146, 60, 0.3);
-  border-radius: 0.75rem;
+  border-radius: var(--radius-md);
   color: #ea580c;
   font-weight: 600;
   font-size: 0.95rem;
@@ -361,7 +361,7 @@ input[type="number"].fc-scenarios-modal__field input {
   padding: 1rem 1.25rem;
   background: linear-gradient(135deg, rgba(127, 163, 127, 0.12) 0%, rgba(127, 163, 127, 0.06) 100%);
   border: 1.5px solid rgba(127, 163, 127, 0.3);
-  border-radius: 0.75rem;
+  border-radius: var(--radius-md);
   color: var(--primary);
   font-weight: 600;
   font-size: 0.95rem;
