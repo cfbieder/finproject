@@ -8,7 +8,7 @@
   --popup-surface-muted: #f5f7fc;
   --popup-ink: #0f172a;
   --popup-muted: #64748b;
-  --popup-primary: #2563eb;
+  --popup-primary: var(--primary);
   --popup-primary-strong: #1e40af;
   --popup-success: #10b981;
   --popup-danger: #ef4444;
@@ -27,7 +27,7 @@
   left: 0;
   right: 0;
   bottom: 0;
-  background: rgba(15, 23, 42, 0.5);
+  background: rgba(45, 52, 54, 0.5);
   backdrop-filter: blur(4px);
   display: flex;
   align-items: center;
@@ -80,7 +80,7 @@
 }
 
 .budget-entries-modal__header h1 {
-  font-family: "Space Grotesk", "Plus Jakarta Sans", sans-serif;
+  font-family: "Outfit", "Plus Jakarta Sans", sans-serif;
   margin: 0;
   font-size: 1.5rem;
   font-weight: 600;
@@ -118,7 +118,7 @@
 }
 
 h2 {
-  font-family: "Space Grotesk", "Plus Jakarta Sans", sans-serif;
+  font-family: "Outfit", "Plus Jakarta Sans", sans-serif;
   margin: 0 0 1rem;
   font-weight: 600;
   letter-spacing: -0.02em;
@@ -189,12 +189,12 @@ h2 {
 }
 
 .budget-entries-popup__sort-button:hover {
-  background: rgba(37, 99, 235, 0.08);
+  background: rgba(107, 142, 107, 0.08);
   color: var(--popup-primary);
 }
 
 .budget-entries-popup__sort-button:active {
-  background: rgba(37, 99, 235, 0.12);
+  background: rgba(107, 142, 107, 0.12);
 }
 
 .budget-entries-popup__table td {
@@ -204,15 +204,15 @@ h2 {
 }
 
 .budget-entries-popup__table tbody tr:hover {
-  background: rgba(37, 99, 235, 0.03);
+  background: rgba(107, 142, 107, 0.03);
 }
 
 .budget-entries-popup__table tbody tr:nth-child(even) {
-  background: rgba(37, 99, 235, 0.02);
+  background: rgba(107, 142, 107, 0.02);
 }
 
 .budget-entries-popup__table tbody tr:nth-child(even):hover {
-  background: rgba(37, 99, 235, 0.05);
+  background: rgba(107, 142, 107, 0.05);
 }
 
 .budget-entries-popup__table tbody tr:last-child td:first-child {
@@ -230,11 +230,11 @@ h2 {
 .budget-entries-popup__amount-cell,
 .budget-entries-popup__base-amount-cell {
   text-align: right;
-  font-family: "Space Grotesk", "Plus Jakarta Sans", sans-serif;
+  font-family: "Outfit", "Plus Jakarta Sans", sans-serif;
 }
 
 .budget-entries-popup__base-amount-cell {
-  background: rgba(37, 99, 235, 0.04);
+  background: rgba(107, 142, 107, 0.04);
   font-weight: 600;
 }
 
@@ -359,7 +359,7 @@ h2 {
   outline: none;
   border-color: var(--popup-primary);
   background: var(--popup-surface);
-  box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.12);
+  box-shadow: 0 0 0 3px rgba(107, 142, 107, 0.12);
 }
 
 .budget-entries-popup__editor-input--negative {
@@ -368,7 +368,7 @@ h2 {
 }
 
 .budget-entries-popup__editor-input[data-budget-entry-base-amount] {
-  background: rgba(37, 99, 235, 0.05);
+  background: rgba(107, 142, 107, 0.05);
   font-weight: 600;
   cursor: not-allowed;
 }
@@ -400,12 +400,12 @@ h2 {
 .budget-entries-popup__editor button[type="submit"] {
   background: linear-gradient(135deg, var(--popup-primary) 0%, #3b82f6 100%);
   color: #fff;
-  box-shadow: 0 4px 6px -1px rgba(37, 99, 235, 0.3);
+  box-shadow: 0 4px 6px -1px rgba(107, 142, 107, 0.3);
 }
 
 .budget-entries-popup__editor button[type="submit"]:hover {
   transform: translateY(-1px);
-  box-shadow: 0 10px 15px -3px rgba(37, 99, 235, 0.3);
+  box-shadow: 0 10px 15px -3px rgba(107, 142, 107, 0.3);
 }
 
 .budget-entries-popup__editor button[type="submit"]:active {

@@ -56,7 +56,7 @@
   border-radius: 0.5rem;
   padding: 0.4rem 0.6rem;
   border: 1px solid var(--border, #e2e8f0);
-  background: var(--surface-muted, #f8fafc);
+  background: var(--surface-muted, #FAF9F5);
   color: var(--ink, #1e293b);
   font-size: 0.85rem;
 }
@@ -70,15 +70,15 @@
   font-size: 0.85rem;
   font-weight: 600;
   white-space: nowrap;
-  background: linear-gradient(135deg, var(--primary, #2563eb), #3b82f6);
+  background: linear-gradient(135deg, var(--primary, var(--primary)), #3b82f6);
   color: #fff;
-  box-shadow: 0 2px 8px -2px rgba(37, 99, 235, 0.45);
+  box-shadow: 0 2px 8px -2px rgba(107, 142, 107, 0.45);
   cursor: pointer;
   transition: all 0.15s ease;
 }
 
 .refresh-ps-btn--action:hover:not(:disabled) {
-  box-shadow: 0 4px 14px -3px rgba(37, 99, 235, 0.6);
+  box-shadow: 0 4px 14px -3px rgba(107, 142, 107, 0.6);
   transform: translateY(-1px);
 }
 
@@ -113,7 +113,7 @@
   padding: 0.55rem 1rem;
   border: 1px solid var(--border, #e2e8f0);
   border-radius: 0.5rem;
-  background: var(--surface-muted, #f8fafc);
+  background: var(--surface-muted, #FAF9F5);
   color: var(--muted, #64748b);
   font-size: 0.82rem;
   font-weight: 500;
@@ -125,15 +125,15 @@
 .refresh-ps-tab:hover:not(.refresh-ps-tab--active) {
   background: var(--surface, #fff);
   color: var(--ink, #1e293b);
-  border-color: var(--primary, #2563eb);
+  border-color: var(--primary, var(--primary));
 }
 
 .refresh-ps-tab--active {
-  background: var(--primary, #2563eb);
+  background: var(--primary, var(--primary));
   color: #fff;
-  border-color: var(--primary, #2563eb);
+  border-color: var(--primary, var(--primary));
   font-weight: 600;
-  box-shadow: 0 2px 8px -2px rgba(37, 99, 235, 0.4);
+  box-shadow: 0 2px 8px -2px rgba(107, 142, 107, 0.4);
 }
 
 /* ── Content sections (tables below toolbar) ───── */
@@ -217,7 +217,7 @@
 .refresh-ps-btn--bulk-category:hover:not(:disabled) {
   background: #dbeafe;
   border-color: #1e40af;
-  box-shadow: 0 2px 8px -2px rgba(30, 64, 175, 0.25);
+  box-shadow: 0 2px 8px -2px rgba(86, 120, 86, 0.25);
 }
 
 .refresh-ps-btn--bulk-category:disabled {

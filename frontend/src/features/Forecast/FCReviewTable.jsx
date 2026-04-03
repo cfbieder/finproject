@@ -124,6 +124,9 @@ export default function FCReviewTable({
   getCellValue,
   balanceDisplayValues,
   totalAssetsByYear,
+  totalLiabilitiesByYear,
+  netAssetsByYear,
+  onNetAssetsDoubleClick,
   onCellDoubleClick,
   onCashTransferClick,
   selectedSeriesIds,
@@ -682,6 +685,62 @@ export default function FCReviewTable({
                                 : undefined,
                             }}
                           />
+                        );
+                      })}
+                    </tr>
+                  )}
+
+                  {/* ========== NET ASSETS ROW ========== */}
+                  {balanceAccounts.length > 0 && netAssetsByYear && (
+                    <tr>
+                      <td style={{ ...selectCellBaseStyle, borderTop: "2px solid var(--border)" }}>
+                        <input
+                          type="checkbox"
+                          aria-label="Select Net Assets"
+                          checked={selectedSeriesIds?.has("net-assets") || false}
+                          onChange={() =>
+                            onToggleSeries?.({
+                              id: "net-assets",
+                              label: "Net Assets",
+                              values: netAssetsByYear,
+                            })
+                          }
+                        />
+                      </td>
+                      <td
+                        style={{
+                          ...accountCellBaseStyle,
+                          fontWeight: 700,
+                          padding: "0.5rem 0.75rem",
+                          borderTop: "2px solid var(--border)",
+                          borderBottom: "2px solid var(--border)",
+                          cursor: "pointer",
+                        }}
+                        onDoubleClick={() => onNetAssetsDoubleClick?.()}
+                      >
+                        Net Assets
+                      </td>
+                      {sortedYears.map((year) => {
+                        const yearIndex = sortedYears.indexOf(year);
+                        const displayValue = netAssetsByYear[yearIndex] ?? 0;
+                        const isPreForecast = baseYears?.has(Number(year)) || lastActualYears?.has(Number(year));
+                        return (
+                          <td
+                            key={`net-assets-${year}`}
+                            className="trans-budget-table__value--numeric"
+                            style={{
+                              fontWeight: 700,
+                              color: Number(displayValue) < 0 ? "var(--danger)" : undefined,
+                              backgroundColor: isPreForecast ? "#fafafa" : undefined,
+                              borderTop: "2px solid var(--border)",
+                              borderBottom: "2px solid var(--border)",
+                              cursor: "pointer",
+                              boxShadow: isPreForecast ? "inset 1px 0 0 #cbd5e0, inset -1px 0 0 #cbd5e0" : undefined,
+                            }}
+                            onDoubleClick={() => onNetAssetsDoubleClick?.()}
+                          >
+                            {formatAmount(displayValue)}
+                          </td>
                         );
                       })}
                     </tr>

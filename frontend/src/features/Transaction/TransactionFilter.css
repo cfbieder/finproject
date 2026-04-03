@@ -5,14 +5,14 @@
 
 /* Main filter container */
 .section-filters {
-  background: linear-gradient(135deg, rgba(255, 255, 255, 0.98) 0%, rgba(248, 250, 252, 1) 100%);
-  border: 1px solid rgba(37, 99, 235, 0.12);
+  background: linear-gradient(135deg, rgba(255, 255, 255, 0.98) 0%, rgba(250, 249, 245, 1) 100%);
+  border: 1px solid rgba(107, 142, 107, 0.12);
   border-radius: 1rem;
   padding: 1.25rem 1.5rem 1.5rem;
   margin-top: 0;
   margin-bottom: 1.5rem;
-  box-shadow: 0 2px 12px -4px rgba(15, 23, 42, 0.08),
-              0 4px 16px -6px rgba(37, 99, 235, 0.08);
+  box-shadow: 0 2px 12px -4px rgba(45, 52, 54, 0.08),
+              0 4px 16px -6px rgba(107, 142, 107, 0.08);
   min-height: fit-content;
   height: auto;
   overflow: visible;
@@ -87,18 +87,18 @@
   color: var(--ink);
   box-sizing: border-box;
   transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
-  box-shadow: 0 1px 2px 0 rgba(15, 23, 42, 0.05);
+  box-shadow: 0 1px 2px 0 rgba(45, 52, 54, 0.05);
 }
 
 .filter-field .form-input:hover:not(:disabled) {
-  border-color: rgba(37, 99, 235, 0.3);
+  border-color: rgba(107, 142, 107, 0.3);
 }
 
 .filter-field .form-input:focus,
 .filter-field .form-input:focus-visible {
   outline: none;
   border-color: var(--primary);
-  box-shadow: 0 0 0 4px rgba(37, 99, 235, 0.12), 0 1px 3px 0 rgba(15, 23, 42, 0.1);
+  box-shadow: 0 0 0 4px rgba(107, 142, 107, 0.12), 0 1px 3px 0 rgba(45, 52, 54, 0.1);
   transform: translateY(-1px);
 }
 
@@ -106,7 +106,7 @@
 .filter-field select.form-input:disabled {
   background: rgba(241, 245, 249, 0.95);
   border: 1px solid rgba(148, 163, 184, 0.3);
-  color: rgba(100, 116, 139, 0.7);
+  color: rgba(128, 142, 155, 0.7);
   cursor: not-allowed;
   opacity: 1;
   -webkit-appearance: none;
@@ -121,7 +121,7 @@
   grid-template-columns: 1fr 1fr 1.5fr;
   gap: 0.875rem;
   padding-top: 1rem;
-  border-top: 1px solid rgba(37, 99, 235, 0.1);
+  border-top: 1px solid rgba(107, 142, 107, 0.1);
 }
 
 .range-input-group {
@@ -178,14 +178,14 @@
   background: white;
   color: var(--primary);
   cursor: pointer;
-  box-shadow: 0 1px 3px 0 rgba(15, 23, 42, 0.08);
+  box-shadow: 0 1px 3px 0 rgba(45, 52, 54, 0.08);
 }
 
 .range-input-actions .generate-report-button:hover:not(:disabled) {
   background: var(--primary);
   color: white;
   transform: translateY(-2px);
-  box-shadow: 0 4px 12px -2px rgba(37, 99, 235, 0.3);
+  box-shadow: 0 4px 12px -2px rgba(107, 142, 107, 0.3);
 }
 
 .range-input-actions .generate-report-button:active:not(:disabled) {

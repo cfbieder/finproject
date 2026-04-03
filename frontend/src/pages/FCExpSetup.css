@@ -38,11 +38,11 @@
   flex-direction: column;
   min-height: 0;
   background: white;
-  border: 1px solid rgba(37, 99, 235, 0.15);
+  border: 1px solid rgba(107, 142, 107, 0.15);
   border-radius: 1.25rem;
   box-shadow:
-    0 1px 3px rgba(15, 23, 42, 0.08),
-    0 8px 24px -8px rgba(37, 99, 235, 0.12);
+    0 1px 3px rgba(45, 52, 54, 0.08),
+    0 8px 24px -8px rgba(107, 142, 107, 0.12);
   overflow: hidden;
   transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
   position: relative;
@@ -62,9 +62,9 @@
 
 .exp-setup-table:hover {
   box-shadow:
-    0 2px 6px rgba(15, 23, 42, 0.1),
-    0 12px 32px -12px rgba(37, 99, 235, 0.2);
-  border-color: rgba(37, 99, 235, 0.25);
+    0 2px 6px rgba(45, 52, 54, 0.1),
+    0 12px 32px -12px rgba(107, 142, 107, 0.2);
+  border-color: rgba(107, 142, 107, 0.25);
   transform: translateY(-2px);
 }
 
@@ -88,7 +88,7 @@
   color: var(--ink);
   letter-spacing: -0.02em;
   padding-bottom: 1rem;
-  border-bottom: 2px solid rgba(37, 99, 235, 0.12);
+  border-bottom: 2px solid rgba(107, 142, 107, 0.12);
   position: relative;
   display: flex;
   align-items: center;
@@ -101,7 +101,7 @@
   height: 24px;
   background: linear-gradient(180deg, var(--primary) 0%, #3b82f6 100%);
   border-radius: 2px;
-  box-shadow: 0 2px 8px -2px rgba(37, 99, 235, 0.5);
+  box-shadow: 0 2px 8px -2px rgba(107, 142, 107, 0.5);
 }
 
 /* ============================================================================
@@ -168,7 +168,7 @@
   top: 0;
   background: linear-gradient(
     135deg,
-    rgba(248, 250, 252, 0.98) 0%,
+    rgba(250, 249, 245, 0.98) 0%,
     rgba(241, 245, 249, 0.96) 100%
   );
   z-index: 1;
@@ -182,7 +182,7 @@
   text-transform: uppercase;
   letter-spacing: 0.08em;
   color: var(--primary);
-  border-bottom: 2px solid rgba(37, 99, 235, 0.15);
+  border-bottom: 2px solid rgba(107, 142, 107, 0.15);
   white-space: nowrap;
 }
 
@@ -198,22 +198,22 @@
 .trans-budget-table tbody tr {
   cursor: pointer;
   transition: all 0.2s ease;
-  border-bottom: 1px solid rgba(37, 99, 235, 0.08);
+  border-bottom: 1px solid rgba(107, 142, 107, 0.08);
 }
 
 .trans-budget-table tbody tr:hover {
   background: linear-gradient(
     90deg,
-    rgba(37, 99, 235, 0.06) 0%,
-    rgba(37, 99, 235, 0.02) 100%
+    rgba(107, 142, 107, 0.06) 0%,
+    rgba(107, 142, 107, 0.02) 100%
   );
 }
 
 .trans-budget-table__row--selected {
   background: linear-gradient(
     90deg,
-    rgba(37, 99, 235, 0.12) 0%,
-    rgba(37, 99, 235, 0.06) 100%
+    rgba(107, 142, 107, 0.12) 0%,
+    rgba(107, 142, 107, 0.06) 100%
   ) !important;
   box-shadow: inset 3px 0 0 var(--primary);
 }
@@ -221,8 +221,8 @@
 .trans-budget-table__row--selected:hover {
   background: linear-gradient(
     90deg,
-    rgba(37, 99, 235, 0.16) 0%,
-    rgba(37, 99, 235, 0.08) 100%
+    rgba(107, 142, 107, 0.16) 0%,
+    rgba(107, 142, 107, 0.08) 100%
   ) !important;
 }
 
@@ -313,8 +313,8 @@
 .trans-budget-table-wrapper::-webkit-scrollbar-thumb {
   background: linear-gradient(
     to bottom,
-    rgba(37, 99, 235, 0.3),
-    rgba(37, 99, 235, 0.5)
+    rgba(107, 142, 107, 0.3),
+    rgba(107, 142, 107, 0.5)
   );
   border-radius: 5px;
   border: 2px solid transparent;
@@ -324,8 +324,8 @@
 .trans-budget-table-wrapper::-webkit-scrollbar-thumb:hover {
   background: linear-gradient(
     to bottom,
-    rgba(37, 99, 235, 0.5),
-    rgba(37, 99, 235, 0.7)
+    rgba(107, 142, 107, 0.5),
+    rgba(107, 142, 107, 0.7)
   );
   background-clip: content-box;
 }

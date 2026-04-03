@@ -6,7 +6,7 @@ Future work, known issues, and improvement proposals for the Fin application.
 
 ## 1. Known Issues
 
-1. ~~**No test suite** exists currently.~~ **56 automated tests** — 16 FC Lines API tests, 19 engine tests (fcbuilder-module), 6 incexp tests, 8 E2E engine tests, cash-sweep tests. Run: `cd server && npm test`
+1. ~~**No test suite** exists currently.~~ **57 automated tests** — 16 FC Lines API tests, 19 engine tests (fcbuilder-module), 6 incexp tests, 8 E2E engine tests, cash-sweep tests. Run: `cd server && npm test`
 2. **Cloud-init ISO** still attached to the VM as a CD-ROM. Harmless but can be ejected:
    ```bash
    virsh --connect qemu:///system change-media fin sda --eject
@@ -87,6 +87,9 @@ Items from active development notes:
 - [x] Forecast: Graph base year fix — extracted `resolveCashValue()` and `resolveBalanceValue()` helpers in `FCReviewTable.jsx` to resolve display values including base/actual year overlays. Graph series now show correct budget/actual values for base years instead of zero.
 - [ ] Forecast: AI Review model upgrade — current API key only has access to `claude-3-haiku-20240307`. When a key with broader access is available, switch `ANTHROPIC_MODEL` to `claude-3-5-sonnet` or newer for higher-quality reviews.
 - [x] Forecast: UX improvements — year headers above Balance Sheet in FCReviewTable, sticky top scrollbar for horizontal scrolling, thicker scrollbar (14px), `overscroll-behavior-x: contain` on table wrapper
+- [x] Forecast: Editable module Name — Name field is now always editable (free-text input with datalist suggestions from COA children when matched). Previously auto-defaulted to first child name and was read-only.
+- [x] Forecast: Periodic dispose transfers — Periodic flag now correctly repeats the disposal amount each year from Start Year to optional End Year (DB column `date_end`, migration 015). Engine caps each year's disposal at available market value so balances never go negative. UI shows Type first, then Start Year, End Year (optional), and Amount/Year. Multiple periodic entries supported for start/stop windows.
+- [x] Forecast: Net Assets row + bar chart — "Net Assets" (Assets − Liabilities) summary row above Balance Sheet section in FCReviewTable. Double-clicking opens stacked bar chart with per-account breakdown (leaf accounts only, liabilities shown as negative). HTML tooltip shows account values and total for hovered year. New `totalLiabilitiesByYear`, `netAssetsByYear`, and `netAssetsAccountBreakdown` computed values in FCReview.jsx. Graph modal supports `chartMode="bar"` prop.
 - [ ] Add way to re-export changes back to PocketSmith
 
 ---

@@ -10,7 +10,7 @@
 .fc-exp-modal-overlay {
   position: fixed;
   inset: 0;
-  background: rgba(15, 23, 42, 0.6);
+  background: rgba(45, 52, 54, 0.6);
   backdrop-filter: blur(6px);
   display: flex;
   align-items: flex-start;
@@ -39,9 +39,9 @@
   background: white;
   border-radius: 1.25rem;
   box-shadow:
-    0 20px 60px -12px rgba(37, 99, 235, 0.25),
-    0 8px 24px -8px rgba(15, 23, 42, 0.15),
-    0 0 0 1px rgba(37, 99, 235, 0.1);
+    0 20px 60px -12px rgba(107, 142, 107, 0.25),
+    0 8px 24px -8px rgba(45, 52, 54, 0.15),
+    0 0 0 1px rgba(107, 142, 107, 0.1);
   animation: expModalSlideUp 0.3s cubic-bezier(0.34, 1.56, 0.64, 1);
   display: flex;
   flex-direction: column;
@@ -68,8 +68,8 @@
   align-items: center;
   justify-content: space-between;
   padding: 1.75rem 2rem;
-  background: linear-gradient(135deg, #f8fafc 0%, #f1f5f9 100%);
-  border-bottom: 2px solid rgba(37, 99, 235, 0.12);
+  background: linear-gradient(135deg, #FAF9F5 0%, #f1f5f9 100%);
+  border-bottom: 2px solid rgba(107, 142, 107, 0.12);
   position: relative;
 }
 
@@ -93,7 +93,7 @@
   width: 48px;
   height: 48px;
   border-radius: 0.75rem;
-  background: linear-gradient(135deg, rgba(37, 99, 235, 0.1) 0%, rgba(59, 130, 246, 0.15) 100%);
+  background: linear-gradient(135deg, rgba(107, 142, 107, 0.1) 0%, rgba(127, 163, 127, 0.15) 100%);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -121,7 +121,7 @@
   width: 40px;
   height: 40px;
   border-radius: 0.65rem;
-  border: 1px solid rgba(37, 99, 235, 0.15);
+  border: 1px solid rgba(107, 142, 107, 0.15);
   background: white;
   display: flex;
   align-items: center;
@@ -170,8 +170,8 @@
 .fc-exp-modal__body::-webkit-scrollbar-thumb {
   background: linear-gradient(
     to bottom,
-    rgba(37, 99, 235, 0.3),
-    rgba(37, 99, 235, 0.5)
+    rgba(107, 142, 107, 0.3),
+    rgba(107, 142, 107, 0.5)
   );
   border-radius: 4px;
 }
@@ -179,8 +179,8 @@
 .fc-exp-modal__body::-webkit-scrollbar-thumb:hover {
   background: linear-gradient(
     to bottom,
-    rgba(37, 99, 235, 0.5),
-    rgba(37, 99, 235, 0.7)
+    rgba(107, 142, 107, 0.5),
+    rgba(107, 142, 107, 0.7)
   );
 }
 
@@ -190,16 +190,16 @@
 
 .fc-exp-modal__section {
   background: white;
-  border: 1px solid rgba(37, 99, 235, 0.12);
+  border: 1px solid rgba(107, 142, 107, 0.12);
   border-radius: 1rem;
   padding: 1.5rem;
-  box-shadow: 0 2px 8px -2px rgba(15, 23, 42, 0.08);
+  box-shadow: 0 2px 8px -2px rgba(45, 52, 54, 0.08);
   transition: all 0.2s ease;
 }
 
 .fc-exp-modal__section:hover {
-  box-shadow: 0 4px 12px -4px rgba(37, 99, 235, 0.15);
-  border-color: rgba(37, 99, 235, 0.2);
+  box-shadow: 0 4px 12px -4px rgba(107, 142, 107, 0.15);
+  border-color: rgba(107, 142, 107, 0.2);
 }
 
 .fc-exp-modal__section-header {
@@ -208,7 +208,7 @@
   justify-content: space-between;
   margin-bottom: 1.25rem;
   padding-bottom: 1rem;
-  border-bottom: 2px solid rgba(37, 99, 235, 0.1);
+  border-bottom: 2px solid rgba(107, 142, 107, 0.1);
 }
 
 .fc-exp-modal__section-title {
@@ -231,8 +231,8 @@
 
 .fc-exp-modal__section-badge {
   padding: 0.35rem 0.85rem;
-  background: linear-gradient(135deg, rgba(37, 99, 235, 0.1) 0%, rgba(59, 130, 246, 0.08) 100%);
-  border: 1px solid rgba(37, 99, 235, 0.2);
+  background: linear-gradient(135deg, rgba(107, 142, 107, 0.1) 0%, rgba(127, 163, 127, 0.08) 100%);
+  border: 1px solid rgba(107, 142, 107, 0.2);
   border-radius: 0.5rem;
   font-size: 0.8rem;
   font-weight: 700;
@@ -251,15 +251,15 @@
   gap: 1rem;
   cursor: pointer;
   padding: 1rem 1.25rem;
-  background: linear-gradient(135deg, #f8fafc 0%, #f1f5f9 100%);
-  border: 1px solid rgba(37, 99, 235, 0.15);
+  background: linear-gradient(135deg, #FAF9F5 0%, #f1f5f9 100%);
+  border: 1px solid rgba(107, 142, 107, 0.15);
   border-radius: 0.75rem;
   transition: all 0.2s ease;
 }
 
 .fc-exp-modal__toggle:hover {
-  border-color: rgba(37, 99, 235, 0.25);
-  box-shadow: 0 2px 8px -2px rgba(37, 99, 235, 0.15);
+  border-color: rgba(107, 142, 107, 0.25);
+  box-shadow: 0 2px 8px -2px rgba(107, 142, 107, 0.15);
 }
 
 .fc-exp-modal__toggle-input {
@@ -367,7 +367,7 @@
 
 .fc-exp-modal__input {
   padding: 0.85rem 1rem;
-  border: 1.5px solid rgba(37, 99, 235, 0.2);
+  border: 1.5px solid rgba(107, 142, 107, 0.2);
   border-radius: 0.65rem;
   font-size: 0.95rem;
   font-weight: 500;
@@ -378,22 +378,22 @@
 }
 
 .fc-exp-modal__input:hover:not(:disabled):not(:read-only) {
-  border-color: rgba(37, 99, 235, 0.35);
-  box-shadow: 0 2px 8px -2px rgba(37, 99, 235, 0.15);
+  border-color: rgba(107, 142, 107, 0.35);
+  box-shadow: 0 2px 8px -2px rgba(107, 142, 107, 0.15);
 }
 
 .fc-exp-modal__input:focus {
   outline: none;
   border-color: var(--primary);
-  box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.1),
-              0 2px 8px -2px rgba(37, 99, 235, 0.25);
+  box-shadow: 0 0 0 3px rgba(107, 142, 107, 0.1),
+              0 2px 8px -2px rgba(107, 142, 107, 0.25);
 }
 
 .fc-exp-modal__input--readonly {
-  background: linear-gradient(135deg, #f8fafc 0%, #f1f5f9 100%);
+  background: linear-gradient(135deg, #FAF9F5 0%, #f1f5f9 100%);
   color: #475569;
   cursor: not-allowed;
-  border-color: rgba(37, 99, 235, 0.1);
+  border-color: rgba(107, 142, 107, 0.1);
 }
 
 .fc-exp-modal__input--currency {
@@ -415,7 +415,7 @@
    ============================================================================ */
 
 .fc-exp-modal__section--changes {
-  background: linear-gradient(135deg, rgba(248, 250, 252, 0.5) 0%, rgba(241, 245, 249, 0.3) 100%);
+  background: linear-gradient(135deg, rgba(250, 249, 245, 0.5) 0%, rgba(241, 245, 249, 0.3) 100%);
 }
 
 .fc-exp-modal__add-button {
@@ -431,12 +431,12 @@
   font-size: 0.9rem;
   cursor: pointer;
   transition: all 0.2s ease;
-  box-shadow: 0 2px 8px -2px rgba(37, 99, 235, 0.5);
+  box-shadow: 0 2px 8px -2px rgba(107, 142, 107, 0.5);
 }
 
 .fc-exp-modal__add-button:hover:not(:disabled) {
   transform: translateY(-2px);
-  box-shadow: 0 6px 16px -6px rgba(37, 99, 235, 0.6);
+  box-shadow: 0 6px 16px -6px rgba(107, 142, 107, 0.6);
 }
 
 .fc-exp-modal__add-button:active:not(:disabled) {
@@ -496,7 +496,7 @@
   align-items: start;
   padding: 1.25rem;
   background: white;
-  border: 1.5px solid rgba(37, 99, 235, 0.15);
+  border: 1.5px solid rgba(107, 142, 107, 0.15);
   border-radius: 0.85rem;
   transition: all 0.2s ease;
   position: relative;
@@ -516,8 +516,8 @@
 }
 
 .fc-exp-modal__change-card:hover {
-  border-color: rgba(37, 99, 235, 0.3);
-  box-shadow: 0 4px 12px -4px rgba(37, 99, 235, 0.2);
+  border-color: rgba(107, 142, 107, 0.3);
+  box-shadow: 0 4px 12px -4px rgba(107, 142, 107, 0.2);
 }
 
 .fc-exp-modal__change-card:hover::before {
@@ -536,7 +536,7 @@
   font-weight: 800;
   font-size: 0.9rem;
   flex-shrink: 0;
-  box-shadow: 0 2px 8px -2px rgba(37, 99, 235, 0.5);
+  box-shadow: 0 2px 8px -2px rgba(107, 142, 107, 0.5);
 }
 
 .fc-exp-modal__change-fields {
@@ -566,7 +566,7 @@
 
 .fc-exp-modal__change-input {
   padding: 0.7rem 0.85rem;
-  border: 1.5px solid rgba(37, 99, 235, 0.2);
+  border: 1.5px solid rgba(107, 142, 107, 0.2);
   border-radius: 0.5rem;
   font-size: 0.9rem;
   font-weight: 500;
@@ -577,19 +577,19 @@
 }
 
 .fc-exp-modal__change-input:hover:not(:disabled) {
-  border-color: rgba(37, 99, 235, 0.35);
+  border-color: rgba(107, 142, 107, 0.35);
 }
 
 .fc-exp-modal__change-input:focus {
   outline: none;
   border-color: var(--primary);
-  box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.1);
+  box-shadow: 0 0 0 3px rgba(107, 142, 107, 0.1);
 }
 
 .fc-exp-modal__change-input:disabled {
   opacity: 0.5;
   cursor: not-allowed;
-  background: #f8fafc;
+  background: #FAF9F5;
 }
 
 .fc-exp-modal__tooltip {
@@ -599,9 +599,9 @@
   width: 260px;
   padding: 0.75rem 0.85rem;
   background: white;
-  border: 1.5px solid rgba(37, 99, 235, 0.25);
+  border: 1.5px solid rgba(107, 142, 107, 0.25);
   border-radius: 0.65rem;
-  box-shadow: 0 10px 30px -12px rgba(15, 23, 42, 0.25);
+  box-shadow: 0 10px 30px -12px rgba(45, 52, 54, 0.25);
   opacity: 0;
   visibility: hidden;
   transform: translateY(4px);
@@ -617,8 +617,8 @@
   width: 12px;
   height: 12px;
   background: white;
-  border-left: 1.5px solid rgba(37, 99, 235, 0.25);
-  border-top: 1.5px solid rgba(37, 99, 235, 0.25);
+  border-left: 1.5px solid rgba(107, 142, 107, 0.25);
+  border-top: 1.5px solid rgba(107, 142, 107, 0.25);
   transform: rotate(45deg);
 }
 
@@ -663,13 +663,13 @@
   font-size: 0.65rem;
   font-weight: 800;
   background: white;
-  box-shadow: 0 2px 6px -3px rgba(37, 99, 235, 0.6);
+  box-shadow: 0 2px 6px -3px rgba(107, 142, 107, 0.6);
 }
 
 .fc-exp-modal__change-preview {
   padding: 0.7rem 0.85rem;
-  background: linear-gradient(135deg, #f8fafc 0%, #f1f5f9 100%);
-  border: 1.5px solid rgba(37, 99, 235, 0.1);
+  background: linear-gradient(135deg, #FAF9F5 0%, #f1f5f9 100%);
+  border: 1.5px solid rgba(107, 142, 107, 0.1);
   border-radius: 0.5rem;
   font-variant-numeric: tabular-nums;
   display: flex;
@@ -755,8 +755,8 @@
   justify-content: flex-end;
   gap: 0.75rem;
   padding: 1.5rem 2rem;
-  background: linear-gradient(135deg, #f8fafc 0%, #f1f5f9 100%);
-  border-top: 2px solid rgba(37, 99, 235, 0.12);
+  background: linear-gradient(135deg, #FAF9F5 0%, #f1f5f9 100%);
+  border-top: 2px solid rgba(107, 142, 107, 0.12);
 }
 
 .fc-exp-modal__button {
@@ -808,21 +808,21 @@
   background: linear-gradient(135deg, #e2e8f0 0%, #cbd5e1 100%);
   border-color: #94a3b8;
   transform: translateY(-2px);
-  box-shadow: 0 6px 16px -6px rgba(71, 85, 105, 0.3);
+  box-shadow: 0 6px 16px -6px rgba(99, 110, 114, 0.3);
 }
 
 .fc-exp-modal__button--save {
   background: linear-gradient(135deg, var(--primary) 0%, #3b82f6 100%);
   color: white;
   border-color: transparent;
-  box-shadow: 0 4px 12px -4px rgba(37, 99, 235, 0.5);
+  box-shadow: 0 4px 12px -4px rgba(107, 142, 107, 0.5);
 }
 
 .fc-exp-modal__button--save:hover:not(:disabled) {
   background: linear-gradient(135deg, #1d4ed8 0%, var(--primary) 100%);
   transform: translateY(-2px);
-  box-shadow: 0 8px 20px -6px rgba(37, 99, 235, 0.6),
-    0 0 0 3px rgba(37, 99, 235, 0.2);
+  box-shadow: 0 8px 20px -6px rgba(107, 142, 107, 0.6),
+    0 0 0 3px rgba(107, 142, 107, 0.2);
 }
 
 .fc-exp-modal__button--save svg {

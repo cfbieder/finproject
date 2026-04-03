@@ -50,6 +50,13 @@ const GRAPH_COLORS = [
   "#0ea5e9",
 ];
 
+const BAR_CHART_COLORS = [
+  "#2563eb", "#16a34a", "#f59e0b", "#ef4444", "#8b5cf6",
+  "#0ea5e9", "#d946ef", "#f97316", "#14b8a6", "#e11d48",
+  "#6366f1", "#84cc16", "#06b6d4", "#a855f7", "#ec4899",
+  "#10b981", "#f43f5e", "#3b82f6", "#eab308", "#22d3ee",
+];
+
 /**
  * Main Forecast Review component
  *
@@ -167,6 +174,7 @@ export default function FCReview() {
   });
   const [selectedSeries, setSelectedSeries] = useState([]);
   const [graphModalOpen, setGraphModalOpen] = useState(false);
+  const [graphMode, setGraphMode] = useState("line"); // "line" or "bar"
 
   const tableWrapperRef = useRef(null);
   const tableRef = useRef(null);
@@ -178,6 +186,7 @@ export default function FCReview() {
     setGenerateResult(null);
     setSelectedSeries([]);
     setGraphModalOpen(false);
+    setGraphMode("line");
   }, [selectedScenario]);
 
   const handleGenerateForecast = useCallback(async () => {
@@ -578,6 +587,59 @@ export default function FCReview() {
     }
     return totals;
   }, [balanceAccounts, balanceAccountMap, balanceDisplayValues, sortedYears]);
+
+  /**
+   * Calculates total Liabilities by summing all level 2 liability categories.
+   */
+  const totalLiabilitiesByYear = useMemo(() => {
+    const totals = sortedYears.map(() => 0);
+    for (const row of balanceAccounts) {
+      if (row.label === "Liabilities") continue;
+      const mapping = balanceAccountMap.get(row.label);
+      const isLiabilityLevel2 = mapping?.level1 === "Liabilities" && row.level === 2;
+      if (!isLiabilityLevel2) continue;
+      const values = balanceDisplayValues.get(row.label);
+      if (!values) continue;
+      values.forEach((value, index) => {
+        if (Number.isFinite(Number(value))) {
+          totals[index] += Number(value);
+        }
+      });
+    }
+    return totals;
+  }, [balanceAccounts, balanceAccountMap, balanceDisplayValues, sortedYears]);
+
+  /**
+   * Net Assets = Total Assets - Total Liabilities
+   */
+  const netAssetsByYear = useMemo(() => {
+    return sortedYears.map((_, index) => {
+      return (totalAssetsByYear[index] || 0) - (totalLiabilitiesByYear[index] || 0);
+    });
+  }, [sortedYears, totalAssetsByYear, totalLiabilitiesByYear]);
+
+  /**
+   * Builds per-account breakdown data for Net Assets bar chart.
+   * Returns all level 2 accounts (e.g. Bank Accounts, Fidelity Stock, Mortgage)
+   * excluding the level 1 subtotals (Assets, Liabilities).
+   * Liability values are negated so the chart shows net contribution.
+   */
+  const netAssetsAccountBreakdown = useMemo(() => {
+    const accounts = [];
+    for (const row of balanceAccounts) {
+      if (row.level !== 2) continue;
+      const values = balanceDisplayValues.get(row.label);
+      if (!values) continue;
+      const mapping = balanceAccountMap.get(row.label);
+      const sign = mapping?.level1 === "Liabilities" ? -1 : 1;
+      accounts.push({
+        label: row.label,
+        level1: mapping?.level1,
+        values: values.map((v) => (Number.isFinite(Number(v)) ? Number(v) * sign : 0)),
+      });
+    }
+    return accounts;
+  }, [balanceAccounts, balanceDisplayValues, balanceAccountMap]);
 
   // =============================================================================
   // COMPUTED VALUES - KPI Summary Data
@@ -1033,14 +1095,29 @@ export default function FCReview() {
         const num = Number(value);
         return Number.isFinite(num) ? num : 0;
       });
-      const graphEntry = { ...series, values: numericValues, color: GRAPH_COLORS[0] };
       setSelectedSeries([{ id: series.id, label: series.label, values: numericValues }]);
+      setGraphMode("line");
       setGraphModalOpen(true);
     },
     [sortedYears]
   );
 
-  const handleCloseGraph = useCallback(() => setGraphModalOpen(false), []);
+  const handleNetAssetsDoubleClick = useCallback(() => {
+    const barSeries = netAssetsAccountBreakdown.map((acct, idx) => ({
+      id: `net-assets-${acct.label}`,
+      label: acct.label,
+      values: acct.values,
+      color: BAR_CHART_COLORS[idx % BAR_CHART_COLORS.length],
+    }));
+    setSelectedSeries(barSeries);
+    setGraphMode("bar");
+    setGraphModalOpen(true);
+  }, [netAssetsAccountBreakdown]);
+
+  const handleCloseGraph = useCallback(() => {
+    setGraphModalOpen(false);
+    setGraphMode("line");
+  }, []);
 
   // AI Review drawer
   const [aiDrawerOpen, setAiDrawerOpen] = useState(false);
@@ -1186,6 +1263,9 @@ export default function FCReview() {
           getCellValue={getCellValue}
           balanceDisplayValues={balanceDisplayValues}
           totalAssetsByYear={totalAssetsByYear}
+          totalLiabilitiesByYear={totalLiabilitiesByYear}
+          netAssetsByYear={netAssetsByYear}
+          onNetAssetsDoubleClick={handleNetAssetsDoubleClick}
           onCellDoubleClick={handleCellDoubleClick}
           onCashTransferClick={handleCashTransferClick}
           selectedSeriesIds={selectedSeriesIds}
@@ -1219,6 +1299,7 @@ export default function FCReview() {
         graphSeries={graphSeries}
         sortedYears={sortedYears}
         birthYear={birthYear}
+        chartMode={graphMode}
       />
       <FCAIReviewDrawer
         isOpen={aiDrawerOpen}

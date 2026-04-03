@@ -1,8 +1,8 @@
 .selector-area {
   grid-column: 1 / -1;
-  background: linear-gradient(135deg, rgba(255, 255, 255, 0.95) 0%, rgba(248, 250, 252, 0.98) 100%);
-  border: 1px solid rgba(37, 99, 235, 0.12);
-  box-shadow: 0 2px 8px -2px rgba(15, 23, 42, 0.08), 0 4px 12px -4px rgba(37, 99, 235, 0.08);
+  background: linear-gradient(135deg, rgba(255, 255, 255, 0.95) 0%, rgba(250, 249, 245, 0.98) 100%);
+  border: 1px solid rgba(107, 142, 107, 0.12);
+  box-shadow: 0 2px 8px -2px rgba(45, 52, 54, 0.08), 0 4px 12px -4px rgba(107, 142, 107, 0.08);
 }
 
 .selector-area .budget-region__description {
@@ -40,8 +40,8 @@
 }
 
 .selector-area__toggle:hover {
-  border-color: rgba(37, 99, 235, 0.35);
-  background: rgba(37, 99, 235, 0.04);
+  border-color: rgba(107, 142, 107, 0.35);
+  background: rgba(107, 142, 107, 0.04);
   color: var(--primary);
 }
 
@@ -104,18 +104,18 @@
   color: var(--ink);
   box-sizing: border-box;
   transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
-  box-shadow: 0 1px 2px 0 rgba(15, 23, 42, 0.05);
+  box-shadow: 0 1px 2px 0 rgba(45, 52, 54, 0.05);
 }
 
 .selector-control__input:hover {
-  border-color: rgba(37, 99, 235, 0.3);
+  border-color: rgba(107, 142, 107, 0.3);
 }
 
 .selector-control__input:focus,
 .selector-control__input:focus-visible {
   outline: none;
   border-color: var(--primary);
-  box-shadow: 0 0 0 4px rgba(37, 99, 235, 0.12), 0 1px 3px 0 rgba(15, 23, 42, 0.1);
+  box-shadow: 0 0 0 4px rgba(107, 142, 107, 0.12), 0 1px 3px 0 rgba(45, 52, 54, 0.1);
   transform: translateY(-1px);
 }
 
@@ -123,7 +123,7 @@
 .selector-control__input[multiple] {
   padding: 0.5rem;
   scrollbar-width: thin;
-  scrollbar-color: rgba(37, 99, 235, 0.3) rgba(15, 23, 42, 0.05);
+  scrollbar-color: rgba(107, 142, 107, 0.3) rgba(45, 52, 54, 0.05);
 }
 
 .selector-control__input[multiple]::-webkit-scrollbar {
@@ -131,18 +131,18 @@
 }
 
 .selector-control__input[multiple]::-webkit-scrollbar-track {
-  background: rgba(15, 23, 42, 0.05);
+  background: rgba(45, 52, 54, 0.05);
   border-radius: 0 0.5rem 0.5rem 0;
 }
 
 .selector-control__input[multiple]::-webkit-scrollbar-thumb {
-  background: rgba(37, 99, 235, 0.3);
+  background: rgba(107, 142, 107, 0.3);
   border-radius: 5px;
   border: 2px solid #ffffff;
 }
 
 .selector-control__input[multiple]::-webkit-scrollbar-thumb:hover {
-  background: rgba(37, 99, 235, 0.5);
+  background: rgba(107, 142, 107, 0.5);
 }
 
 /* Enhanced option styling for multi-select */
@@ -156,11 +156,11 @@
 }
 
 .selector-control__input[multiple] option:hover {
-  background: linear-gradient(135deg, rgba(37, 99, 235, 0.08) 0%, rgba(37, 99, 235, 0.05) 100%);
+  background: linear-gradient(135deg, rgba(107, 142, 107, 0.08) 0%, rgba(107, 142, 107, 0.05) 100%);
 }
 
 .selector-control__input[multiple] option:checked {
-  background: linear-gradient(135deg, rgba(37, 99, 235, 0.18) 0%, rgba(37, 99, 235, 0.12) 100%);
+  background: linear-gradient(135deg, rgba(107, 142, 107, 0.18) 0%, rgba(107, 142, 107, 0.12) 100%);
   font-weight: 700;
   color: var(--primary);
   border-left: 3px solid var(--primary);
@@ -171,15 +171,15 @@
 .selector-control__input[multiple] option[value="All"] {
   font-weight: 700;
   color: var(--ink);
-  border-bottom: 1px solid rgba(37, 99, 235, 0.15);
+  border-bottom: 1px solid rgba(107, 142, 107, 0.15);
   margin-bottom: 0.5rem;
   padding-bottom: 0.75rem;
 }
 
 .selector-control__input[multiple] option[value="All"]:checked {
-  background: linear-gradient(135deg, rgba(99, 102, 241, 0.18) 0%, rgba(99, 102, 241, 0.12) 100%);
-  color: #6366f1;
-  border-left-color: #6366f1;
+  background: linear-gradient(135deg, rgba(107, 142, 107, 0.18) 0%, rgba(107, 142, 107, 0.12) 100%);
+  color: var(--primary);
+  border-left-color: var(--primary);
 }
 
 .selector-control--fill {
@@ -202,8 +202,8 @@
 .selector-summary {
   padding: 0.6rem 0.85rem;
   border-radius: 0.6rem;
-  border: 1px solid rgba(37, 99, 235, 0.12);
-  background: #f8fafc;
+  border: 1px solid rgba(107, 142, 107, 0.12);
+  background: #FAF9F5;
   display: flex;
   flex-direction: column;
   gap: 0.2rem;
@@ -246,41 +246,41 @@
 }
 
 .category-group-option--income {
-  background: linear-gradient(135deg, rgba(59, 130, 246, 0.08) 0%, rgba(37, 99, 235, 0.06) 100%);
-  border-left: 4px solid rgba(59, 130, 246, 0.5);
+  background: linear-gradient(135deg, rgba(127, 163, 127, 0.08) 0%, rgba(107, 142, 107, 0.06) 100%);
+  border-left: 4px solid rgba(127, 163, 127, 0.5);
   padding-left: calc(0.75rem - 4px);
-  color: rgb(30, 64, 175);
+  color: var(--primary-strong);
 }
 
 .category-group-option--income:hover {
-  background: linear-gradient(135deg, rgba(59, 130, 246, 0.12) 0%, rgba(37, 99, 235, 0.09) 100%);
-  border-left-color: rgba(59, 130, 246, 0.7);
+  background: linear-gradient(135deg, rgba(127, 163, 127, 0.12) 0%, rgba(107, 142, 107, 0.09) 100%);
+  border-left-color: rgba(127, 163, 127, 0.7);
 }
 
 .category-group-option--income:checked {
-  background: linear-gradient(135deg, rgba(59, 130, 246, 0.18) 0%, rgba(37, 99, 235, 0.14) 100%);
+  background: linear-gradient(135deg, rgba(127, 163, 127, 0.18) 0%, rgba(107, 142, 107, 0.14) 100%);
   color: rgb(29, 78, 216);
   border-left-color: rgb(59, 130, 246);
-  box-shadow: inset 0 1px 3px rgba(59, 130, 246, 0.15);
+  box-shadow: inset 0 1px 3px rgba(127, 163, 127, 0.15);
 }
 
 .category-group-option--expense {
-  background: linear-gradient(135deg, rgba(100, 116, 139, 0.08) 0%, rgba(71, 85, 105, 0.06) 100%);
-  border-left: 4px solid rgba(100, 116, 139, 0.5);
+  background: linear-gradient(135deg, rgba(128, 142, 155, 0.08) 0%, rgba(99, 110, 114, 0.06) 100%);
+  border-left: 4px solid rgba(128, 142, 155, 0.5);
   padding-left: calc(0.75rem - 4px);
-  color: rgb(51, 65, 85);
+  color: var(--ink-secondary);
 }
 
 .category-group-option--expense:hover {
-  background: linear-gradient(135deg, rgba(100, 116, 139, 0.12) 0%, rgba(71, 85, 105, 0.09) 100%);
-  border-left-color: rgba(100, 116, 139, 0.7);
+  background: linear-gradient(135deg, rgba(128, 142, 155, 0.12) 0%, rgba(99, 110, 114, 0.09) 100%);
+  border-left-color: rgba(128, 142, 155, 0.7);
 }
 
 .category-group-option--expense:checked {
-  background: linear-gradient(135deg, rgba(100, 116, 139, 0.18) 0%, rgba(71, 85, 105, 0.14) 100%);
+  background: linear-gradient(135deg, rgba(128, 142, 155, 0.18) 0%, rgba(99, 110, 114, 0.14) 100%);
   color: rgb(30, 41, 59);
   border-left-color: rgb(100, 116, 139);
-  box-shadow: inset 0 1px 3px rgba(100, 116, 139, 0.15);
+  box-shadow: inset 0 1px 3px rgba(128, 142, 155, 0.15);
 }
 
 .category-group-option--expense-operational {
@@ -297,7 +297,7 @@
 
 .category-group-option--expense-operational:checked {
   background: linear-gradient(135deg, rgba(148, 163, 184, 0.18) 0%, rgba(125, 143, 169, 0.14) 100%);
-  color: rgb(51, 65, 85);
+  color: var(--ink-secondary);
   border-left-color: rgb(148, 163, 184);
   box-shadow: inset 0 1px 3px rgba(148, 163, 184, 0.15);
 }

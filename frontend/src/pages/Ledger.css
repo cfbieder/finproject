@@ -6,7 +6,7 @@
   align-items: baseline;
   gap: 1rem;
   padding: 0.75rem 1.25rem;
-  background: linear-gradient(135deg, var(--primary, #3b82f6) 0%, #2563eb 100%);
+  background: linear-gradient(135deg, var(--primary, #3b82f6) 0%, var(--primary) 100%);
   color: #fff;
   border-radius: 0.5rem;
   margin-bottom: 0.75rem;
@@ -88,13 +88,13 @@
 
 .ledger-cascade__select:focus {
   border-color: var(--primary, #3b82f6);
-  box-shadow: 0 0 0 2px rgba(59, 130, 246, 0.15);
+  box-shadow: 0 0 0 2px rgba(127, 163, 127, 0.15);
 }
 
 .ledger-cascade__select:disabled {
   opacity: 0.5;
   cursor: not-allowed;
-  background: var(--hover, #f8fafc);
+  background: var(--hover, #FAF9F5);
 }
 
 /* ── Category filter ── */
@@ -144,7 +144,7 @@
 }
 
 .ledger-table tbody tr:hover {
-  background: var(--hover, #f8fafc);
+  background: var(--hover, #FAF9F5);
 }
 
 /* Responsive */

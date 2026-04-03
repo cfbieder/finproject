@@ -26,8 +26,8 @@
 }
 
 .period-selector__preset:hover {
-  border-color: rgba(37, 99, 235, 0.35);
-  background: rgba(37, 99, 235, 0.04);
+  border-color: rgba(107, 142, 107, 0.35);
+  background: rgba(107, 142, 107, 0.04);
   color: var(--primary);
 }
 
@@ -35,7 +35,7 @@
   background: var(--primary);
   border-color: var(--primary);
   color: #ffffff;
-  box-shadow: 0 1px 3px rgba(37, 99, 235, 0.3);
+  box-shadow: 0 1px 3px rgba(107, 142, 107, 0.3);
 }
 
 .period-selector__preset--active:hover {
@@ -52,9 +52,9 @@
   font-weight: 500;
   color: var(--ink-muted, #64748b);
   padding: 0.4rem 0.5rem;
-  background: rgba(248, 250, 252, 0.8);
+  background: rgba(250, 249, 245, 0.8);
   border-radius: 0.4rem;
-  border: 1px solid rgba(37, 99, 235, 0.08);
+  border: 1px solid rgba(107, 142, 107, 0.08);
 }
 
 /* ── Custom Dropdowns Grid ──────────────────────── */
@@ -90,19 +90,19 @@
   color: var(--ink);
   box-sizing: border-box;
   transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
-  box-shadow: 0 1px 2px 0 rgba(15, 23, 42, 0.05);
+  box-shadow: 0 1px 2px 0 rgba(45, 52, 54, 0.05);
 }
 
 .period-selector__select:hover {
-  border-color: rgba(37, 99, 235, 0.3);
+  border-color: rgba(107, 142, 107, 0.3);
 }
 
 .period-selector__select:focus,
 .period-selector__select:focus-visible {
   outline: none;
   border-color: var(--primary);
-  box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.1),
-    0 1px 2px 0 rgba(15, 23, 42, 0.08);
+  box-shadow: 0 0 0 3px rgba(107, 142, 107, 0.1),
+    0 1px 2px 0 rgba(45, 52, 54, 0.08);
 }
 
 /* ── Responsive ─────────────────────────────────── */

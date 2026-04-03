@@ -101,7 +101,7 @@
   gap: 0.75rem;
   width: 100%;
   padding: 0.875rem 1.25rem;
-  background: var(--surface-muted, #f8fafc);
+  background: var(--surface-muted, #FAF9F5);
   border: none;
   cursor: pointer;
   font-size: 1rem;
@@ -132,7 +132,7 @@
   padding: 0.2rem 0.6rem;
   border-radius: var(--radius-full, 999px);
   background: var(--primary-light, #dbeafe);
-  color: var(--primary, #2563eb);
+  color: var(--primary, var(--primary));
 }
 
 .transfer-analysis-category-badge--warning {
@@ -157,7 +157,7 @@
 .transfer-analysis-section-title {
   font-size: 0.875rem;
   font-weight: 600;
-  color: var(--primary, #2563eb);
+  color: var(--primary, var(--primary));
   margin: 0;
   padding-bottom: 0.25rem;
   border-bottom: 2px solid var(--primary-light, #dbeafe);
@@ -195,7 +195,7 @@
 }
 
 .transfer-analysis-table tbody tr:hover {
-  background: var(--surface-hover, #f8fafc);
+  background: var(--surface-hover, #FAF9F5);
 }
 
 .transfer-analysis-table .text-right {
@@ -232,11 +232,11 @@
   gap: 0.75rem;
   padding: 0.75rem 1.25rem;
   background: var(--primary-light, #dbeafe);
-  border: 1px solid var(--primary, #2563eb);
+  border: 1px solid var(--primary, var(--primary));
   border-radius: var(--radius-lg);
   font-size: 0.875rem;
   font-weight: 600;
-  color: var(--primary, #2563eb);
+  color: var(--primary, var(--primary));
   position: sticky;
   top: 0;
   z-index: 10;
@@ -258,7 +258,7 @@
   font-size: 0.8125rem;
   font-weight: 600;
   cursor: pointer;
-  background: var(--primary, #2563eb);
+  background: var(--primary, var(--primary));
   color: #fff;
   transition: opacity var(--transition-base);
 }
@@ -274,8 +274,8 @@
 
 .transfer-analysis-link-btn--secondary {
   background: transparent;
-  color: var(--primary, #2563eb);
-  border: 1px solid var(--primary, #2563eb);
+  color: var(--primary, var(--primary));
+  border: 1px solid var(--primary, var(--primary));
 }
 
 /* Checkbox column */

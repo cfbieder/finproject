@@ -15,17 +15,16 @@
   justify-content: space-between;
   gap: var(--space-sm);
   background: var(--surface-elevated);
-  border: 1px solid var(--border);
+  border: none;
   border-radius: var(--radius-lg);
-  box-shadow: var(--shadow-soft);
+  box-shadow: var(--shadow-lg);
   padding: var(--space-md) var(--space-lg);
-  transition: box-shadow var(--transition-fast), border-color var(--transition-fast);
+  transition: box-shadow var(--transition-fast);
   min-height: 88px;
 }
 
 .kpi-card:hover {
-  box-shadow: var(--shadow-md);
-  border-color: var(--border-strong);
+  box-shadow: var(--shadow-xl);
 }
 
 /* ---- Header ---- */

@@ -40,13 +40,13 @@
 }
 
 .hf__pill:hover {
-  border-color: var(--primary, #2563eb);
-  color: var(--primary, #2563eb);
+  border-color: var(--primary, var(--primary));
+  color: var(--primary, var(--primary));
 }
 
 .hf__pill--active {
-  background: var(--primary, #2563eb);
-  border-color: var(--primary, #2563eb);
+  background: var(--primary, var(--primary));
+  border-color: var(--primary, var(--primary));
   color: #fff;
 }
 
@@ -86,7 +86,7 @@
 }
 
 .hf__item:hover {
-  background: var(--surface-hover, #f8fafc);
+  background: var(--surface-hover, #FAF9F5);
 }
 
 .hf__item--off {
@@ -96,7 +96,7 @@
 .hf__checkbox {
   width: 0.85rem;
   height: 0.85rem;
-  accent-color: var(--primary, #2563eb);
+  accent-color: var(--primary, var(--primary));
   cursor: pointer;
   flex-shrink: 0;
 }
@@ -137,11 +137,11 @@
 }
 
 .hf__sub-pill:hover {
-  border-color: var(--primary, #2563eb);
+  border-color: var(--primary, var(--primary));
 }
 
 .hf__sub-pill--active {
-  background: var(--primary, #2563eb);
-  border-color: var(--primary, #2563eb);
+  background: var(--primary, var(--primary));
+  border-color: var(--primary, var(--primary));
   color: #fff;
 }

@@ -31,12 +31,12 @@
 
 .program-settings-section {
   background: #fff;
-  border: 1px solid rgba(37, 99, 235, 0.12);
+  border: 1px solid rgba(107, 142, 107, 0.12);
   border-radius: 1rem;
   padding: 1.5rem;
   margin-bottom: 1.5rem;
-  box-shadow: 0 2px 12px -4px rgba(15, 23, 42, 0.08),
-              0 4px 16px -6px rgba(37, 99, 235, 0.08);
+  box-shadow: 0 2px 12px -4px rgba(45, 52, 54, 0.08),
+              0 4px 16px -6px rgba(107, 142, 107, 0.08);
 }
 
 .program-settings-section__title {
@@ -45,7 +45,7 @@
   font-weight: 700;
   color: var(--primary);
   padding-bottom: 0.75rem;
-  border-bottom: 2px solid rgba(37, 99, 235, 0.15);
+  border-bottom: 2px solid rgba(107, 142, 107, 0.15);
 }
 
 .program-settings-field {
@@ -73,7 +73,7 @@
   max-width: 300px;
   padding: 0.5rem 0.75rem;
   font-size: 0.95rem;
-  border: 1px solid rgba(37, 99, 235, 0.2);
+  border: 1px solid rgba(107, 142, 107, 0.2);
   border-radius: 0.5rem;
   background: #fff;
   color: var(--text);
@@ -84,7 +84,7 @@
 .program-settings-field__select:focus {
   outline: none;
   border-color: var(--primary);
-  box-shadow: 0 0 0 3px rgba(30, 64, 175, 0.1);
+  box-shadow: 0 0 0 3px rgba(86, 120, 86, 0.1);
 }
 
 @media (max-width: 768px) {

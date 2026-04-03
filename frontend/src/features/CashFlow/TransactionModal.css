@@ -30,8 +30,8 @@
   align-items: center;
   justify-content: space-between;
   padding: 0.85rem 1rem;
-  border-bottom: 1px solid #d9e2ef;
-  background: linear-gradient(135deg, #f5f9ff, #eef3fc);
+  border-bottom: 1px solid var(--border);
+  background: linear-gradient(135deg, #FAF9F5, #F7F6F1);
   cursor: grab;
   user-select: none;
 }
@@ -42,7 +42,7 @@
 }
 
 .transaction-modal__close-button {
-  border: 1px solid #c2cee5;
+  border: 1px solid var(--border-strong);
   background: #fff;
   border-radius: 6px;
   padding: 0.35rem 0.75rem;

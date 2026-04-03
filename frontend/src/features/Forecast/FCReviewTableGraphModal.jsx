@@ -9,6 +9,7 @@ export default function FCReviewTableGraphModal({
   graphSeries,
   sortedYears,
   birthYear,
+  chartMode = "line",
 }) {
   const [mousePosition, setMousePosition] = useState(null);
 
@@ -29,16 +30,38 @@ export default function FCReviewTableGraphModal({
     chartHeight - paddingTop - paddingBottom > 0
       ? chartHeight - paddingTop - paddingBottom
       : chartHeight;
-  const xStep =
-    yearsList.length > 1 ? usableWidth / (yearsList.length - 1) : 0;
+  const isBar = chartMode === "bar";
+  const xStep = yearsList.length > 1
+    ? usableWidth / (isBar ? yearsList.length : yearsList.length - 1)
+    : 0;
 
-  const allValues = seriesList.flatMap((series) =>
-    (series.values || [])
-      .map((val) => Number(val))
-      .filter((v) => Number.isFinite(v))
-  );
-  const rawMin = allValues.length > 0 ? Math.min(...allValues) : 0;
-  const rawMax = allValues.length > 0 ? Math.max(...allValues) : 1;
+  // For bar charts, compute stacked positive/negative totals per year
+  let rawMin, rawMax;
+  if (isBar) {
+    let stackMax = 0;
+    let stackMin = 0;
+    for (let yi = 0; yi < yearsList.length; yi++) {
+      let posSum = 0;
+      let negSum = 0;
+      for (const series of seriesList) {
+        const v = Number(series.values?.[yi]) || 0;
+        if (v >= 0) posSum += v;
+        else negSum += v;
+      }
+      stackMax = Math.max(stackMax, posSum);
+      stackMin = Math.min(stackMin, negSum);
+    }
+    rawMin = stackMin;
+    rawMax = stackMax;
+  } else {
+    const allValues = seriesList.flatMap((series) =>
+      (series.values || [])
+        .map((val) => Number(val))
+        .filter((v) => Number.isFinite(v))
+    );
+    rawMin = allValues.length > 0 ? Math.min(...allValues) : 0;
+    rawMax = allValues.length > 0 ? Math.max(...allValues) : 1;
+  }
   // Always include zero in the range
   const minValue = Math.min(rawMin, 0);
   const maxValue = Math.max(rawMax, 0);
@@ -46,7 +69,7 @@ export default function FCReviewTableGraphModal({
   const yMin = maxValue - minValue === 0 ? minValue - 1 : minValue;
   const yMax = maxValue - minValue === 0 ? maxValue + 1 : maxValue;
 
-  const scaleX = (index) => paddingX + xStep * index;
+  const scaleX = (index) => paddingX + xStep * (isBar ? index + 0.5 : index);
   const scaleY = (value) => {
     const numeric = Number(value);
     const safeValue = Number.isFinite(numeric) ? numeric : 0;
@@ -109,7 +132,7 @@ export default function FCReviewTableGraphModal({
               Graph
             </p>
             <h3 className="graph-modal-header__title">
-              Selected series over forecast years
+              {isBar ? "Net Assets breakdown by account" : "Selected series over forecast years"}
             </h3>
           </div>
           <button
@@ -218,46 +241,90 @@ export default function FCReviewTableGraphModal({
                     strokeWidth="2"
                     strokeDasharray="none"
                   />
-                  {seriesList.map((series) => {
-                    const points = yearsList
-                      .map((_, idx) => {
-                        const x = scaleX(idx);
-                        const y = scaleY(series.values[idx]);
-                        return `${x},${y}`;
-                      })
-                      .join(" ");
-                    return (
-                      <g key={series.id}>
-                        <polyline
-                          fill="none"
-                          stroke={series.color}
-                          strokeWidth="3"
-                          points={points}
-                          strokeLinejoin="round"
-                          strokeLinecap="round"
-                          className="graph-series-line"
-                        />
-                        {yearsList.map((_, idx) => {
+                  {isBar ? (
+                    /* ===== STACKED BAR CHART ===== */
+                    yearsList.map((_, yi) => {
+                      const barWidth = xStep * 0.7;
+                      const barX = scaleX(yi) - barWidth / 2;
+                      const zeroY = scaleY(0);
+                      let posOffset = 0;
+                      let negOffset = 0;
+                      return (
+                        <g key={`bar-group-${yi}`}>
+                          {seriesList.map((series) => {
+                            const val = Number(series.values?.[yi]) || 0;
+                            if (val === 0) return null;
+                            let y, h;
+                            if (val >= 0) {
+                              const top = scaleY(posOffset + val);
+                              y = top;
+                              h = zeroY - scaleY(posOffset) - (zeroY - scaleY(posOffset + val));
+                              h = scaleY(posOffset) - scaleY(posOffset + val);
+                              posOffset += val;
+                            } else {
+                              const top = scaleY(negOffset);
+                              y = top;
+                              h = scaleY(negOffset + val) - scaleY(negOffset);
+                              negOffset += val;
+                            }
+                            return (
+                              <rect
+                                key={`${series.id}-bar-${yi}`}
+                                x={barX}
+                                y={y}
+                                width={barWidth}
+                                height={Math.max(h, 0)}
+                                fill={series.color}
+                                opacity={0.85}
+                              />
+                            );
+                          })}
+                        </g>
+                      );
+                    })
+                  ) : (
+                    /* ===== LINE CHART ===== */
+                    seriesList.map((series) => {
+                      const points = yearsList
+                        .map((_, idx) => {
                           const x = scaleX(idx);
                           const y = scaleY(series.values[idx]);
-                          return (
-                            <circle
-                              key={`${series.id}-pt-${idx}`}
-                              cx={x}
-                              cy={y}
-                              r={5}
-                              fill={series.color}
-                              stroke="#fff"
-                              strokeWidth="2"
-                              className="graph-data-point"
-                            />
-                          );
-                        })}
-                      </g>
-                    );
-                  })}
+                          return `${x},${y}`;
+                        })
+                        .join(" ");
+                      return (
+                        <g key={series.id}>
+                          <polyline
+                            fill="none"
+                            stroke={series.color}
+                            strokeWidth="3"
+                            points={points}
+                            strokeLinejoin="round"
+                            strokeLinecap="round"
+                            className="graph-series-line"
+                          />
+                          {yearsList.map((_, idx) => {
+                            const x = scaleX(idx);
+                            const y = scaleY(series.values[idx]);
+                            return (
+                              <circle
+                                key={`${series.id}-pt-${idx}`}
+                                cx={x}
+                                cy={y}
+                                r={5}
+                                fill={series.color}
+                                stroke="#fff"
+                                strokeWidth="2"
+                                className="graph-data-point"
+                              />
+                            );
+                          })}
+                        </g>
+                      );
+                    })
+                  )}
                   {/* Vertical crosshair line and year highlight */}
-                  {mousePosition && (
+                  {mousePosition && !isBar && (
                     <>
                       <line
                         x1={mousePosition.x}
@@ -300,8 +367,66 @@ export default function FCReviewTableGraphModal({
                       ))}
                     </>
                   )}
+                  {/* Bar chart crosshair */}
+                  {mousePosition && isBar && (
+                    <line
+                      x1={mousePosition.x}
+                      y1={paddingTop}
+                      x2={mousePosition.x}
+                      y2={xAxisY}
+                      stroke="#666"
+                      strokeWidth="1.5"
+                      strokeDasharray="4 2"
+                      pointerEvents="none"
+                    />
+                  )}
                 </>
               </svg>
+              {/* Bar chart HTML tooltip */}
+              {isBar && mousePosition && (() => {
+                const yi = mousePosition.yearIndex;
+                const nonZeroSeries = seriesList.filter((s) => (Number(s.values?.[yi]) || 0) !== 0);
+                if (nonZeroSeries.length === 0) return null;
+                const total = nonZeroSeries.reduce((sum, s) => sum + (Number(s.values?.[yi]) || 0), 0);
+                return (
+                  <div
+                    style={{
+                      position: "absolute",
+                      top: "60px",
+                      right: "20px",
+                      background: "white",
+                      border: "1px solid #e2e8f0",
+                      borderRadius: "8px",
+                      padding: "12px 16px",
+                      boxShadow: "0 4px 12px rgba(0,0,0,0.1)",
+                      maxHeight: "500px",
+                      overflowY: "auto",
+                      fontSize: "13px",
+                      pointerEvents: "none",
+                      zIndex: 10,
+                    }}
+                  >
+                    <div style={{ fontWeight: 700, marginBottom: "6px", fontSize: "14px" }}>
+                      {yearsList[yi]}{birthYear ? ` (${Number(yearsList[yi]) - birthYear})` : ""}
+                    </div>
+                    {nonZeroSeries.map((series) => (
+                      <div key={series.id} style={{ display: "flex", justifyContent: "space-between", gap: "16px", lineHeight: "1.6" }}>
+                        <span style={{ display: "flex", alignItems: "center", gap: "6px" }}>
+                          <span style={{ width: "10px", height: "10px", borderRadius: "2px", background: series.color, display: "inline-block" }} />
+                          {series.label}
+                        </span>
+                        <span style={{ fontWeight: 600, fontVariantNumeric: "tabular-nums" }}>
+                          {formatAmount(series.values[yi])}
+                        </span>
+                      </div>
+                    ))}
+                    <div style={{ borderTop: "1px solid #e2e8f0", marginTop: "6px", paddingTop: "6px", fontWeight: 700, display: "flex", justifyContent: "space-between" }}>
+                      <span>Net Assets</span>
+                      <span>{formatAmount(total)}</span>
+                    </div>
+                  </div>
+                );
+              })()}
             </div>
           </>
         )}
@@ -325,4 +450,5 @@ FCReviewTableGraphModal.propTypes = {
     PropTypes.oneOfType([PropTypes.string, PropTypes.number])
   ),
   birthYear: PropTypes.number,
+  chartMode: PropTypes.oneOf(["line", "bar"]),
 };

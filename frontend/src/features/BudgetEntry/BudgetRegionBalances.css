@@ -1,8 +1,8 @@
 .balances-area {
   min-height: 500px;
   background: linear-gradient(135deg, rgba(255, 255, 255, 0.98) 0%, rgba(241, 245, 249, 0.96) 100%);
-  border: 1px solid rgba(37, 99, 235, 0.12);
-  box-shadow: 0 4px 12px -4px rgba(15, 23, 42, 0.1), 0 2px 6px -2px rgba(37, 99, 235, 0.08);
+  border: 1px solid rgba(107, 142, 107, 0.12);
+  box-shadow: 0 4px 12px -4px rgba(45, 52, 54, 0.1), 0 2px 6px -2px rgba(107, 142, 107, 0.08);
 }
 
 .balances-area__header {
@@ -19,7 +19,7 @@
   font-weight: 600;
   color: var(--primary);
   padding: 0.5rem 1rem;
-  background: rgba(37, 99, 235, 0.08);
+  background: rgba(107, 142, 107, 0.08);
   border-radius: 0.5rem;
 }
 
@@ -33,7 +33,7 @@
   overflow-x: auto;
   margin-top: 1.5rem;
   border-radius: 0.75rem;
-  box-shadow: 0 1px 3px 0 rgba(15, 23, 42, 0.1), 0 1px 2px 0 rgba(15, 23, 42, 0.06);
+  box-shadow: 0 1px 3px 0 rgba(45, 52, 54, 0.1), 0 1px 2px 0 rgba(45, 52, 54, 0.06);
 }
 
 .balances-table {
@@ -54,7 +54,7 @@
 }
 
 .balances-table thead {
-  background: linear-gradient(135deg, rgba(241, 245, 249, 0.9) 0%, rgba(248, 250, 252, 0.95) 100%);
+  background: linear-gradient(135deg, rgba(241, 245, 249, 0.9) 0%, rgba(250, 249, 245, 0.95) 100%);
 }
 
 .balances-table th {
@@ -63,7 +63,7 @@
   font-weight: 700;
   letter-spacing: 0.1em;
   color: var(--primary);
-  border-bottom: 2px solid rgba(37, 99, 235, 0.2);
+  border-bottom: 2px solid rgba(107, 142, 107, 0.2);
 }
 
 .balances-table tbody tr {
@@ -71,7 +71,7 @@
 }
 
 .balances-table tbody tr:hover {
-  background-color: rgba(248, 250, 252, 0.6);
+  background-color: rgba(250, 249, 245, 0.6);
 }
 
 .balances-table tbody tr:last-child td {
@@ -81,7 +81,7 @@
 .balances-table tfoot {
   background: linear-gradient(135deg, rgba(241, 245, 249, 0.95) 0%, rgba(226, 232, 240, 0.9) 100%);
   font-weight: 700;
-  border-top: 2px solid rgba(37, 99, 235, 0.25);
+  border-top: 2px solid rgba(107, 142, 107, 0.25);
 }
 
 .balances-table tfoot td {
@@ -93,7 +93,7 @@
 .balances-table__numeric {
   text-align: right;
   font-weight: 600;
-  font-family: "Space Grotesk", "Plus Jakarta Sans", monospace;
+  font-family: "Outfit", "Plus Jakarta Sans", monospace;
 }
 
 .balances-table__numeric--negative {
@@ -109,9 +109,9 @@
 }
 
 .balances-table__numeric--interactive:hover {
-  background: linear-gradient(135deg, rgba(37, 99, 235, 0.08) 0%, rgba(37, 99, 235, 0.12) 100%);
+  background: linear-gradient(135deg, rgba(107, 142, 107, 0.08) 0%, rgba(107, 142, 107, 0.12) 100%);
   color: var(--primary);
-  box-shadow: inset 0 0 0 1px rgba(37, 99, 235, 0.2);
+  box-shadow: inset 0 0 0 1px rgba(107, 142, 107, 0.2);
   transform: scale(1.02);
 }
 
