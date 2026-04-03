@@ -2,6 +2,7 @@ import { useCallback, useMemo, useState } from "react";
 import Rest from "../js/rest.js";
 import PeriodSelector from "../components/PeriodSelector/PeriodSelector.jsx";
 import "./PageLayout.css";
+import EmptyState from "../components/EmptyState.jsx";
 import "./TransferAnalysis.css";
 
 const CURRENT_YEAR = new Date().getFullYear();
@@ -524,9 +525,7 @@ export default function TransferAnalysis() {
             ))}
 
             {Object.keys(data).length === 0 && manualGroups.length === 0 && (
-              <p className="transfer-analysis-placeholder">
-                No transfer transactions found for the selected period.
-              </p>
+              <EmptyState variant="wallet" message="No transfer transactions found for the selected period." />
             )}
           </>
         )}

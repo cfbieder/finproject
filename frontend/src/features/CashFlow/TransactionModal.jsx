@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from "react";
+import EmptyState from "../../components/EmptyState.jsx";
 import "./TransactionModal.css";
 
 const TRANSACTION_COLUMNS = [
@@ -201,7 +202,7 @@ export default function TransactionModal({
               {transactionModal.error}
             </p>
           ) : transactions.length === 0 ? (
-            <p>No transactions found for this period.</p>
+            <EmptyState variant="wallet" message="No transactions found for this period." />
           ) : (
             <table className="balance-report-table transaction-modal__table">
               <thead>

@@ -35,6 +35,7 @@ import Rest from "../js/rest.js";
 import { useCoa } from "../hooks/useCoa.js";
 import { useFilterOptions } from "../features/BudgetEntry/hooks/useFilterOptions.js";
 import { exportTransactions } from "../utils/excelExporter.js";
+import EmptyState from "../components/EmptyState.jsx";
 import "./TransactionExplorer.css";
 
 const config = BUDGET_CONFIG;
@@ -714,12 +715,10 @@ export default function TransBudget() {
         )}
 
         {!isLoading && !error && sortedTransactions.length === 0 && (
-          <div className="txv2-state">
-            <Inbox size={32} className="txv2-state__icon" />
-            <span className="txv2-state__text">
-              {transactions.length === 0 ? "No budget entries found" : "No entries match current filters"}
-            </span>
-          </div>
+          <EmptyState
+            variant={transactions.length === 0 ? "finance" : "searching"}
+            message={transactions.length === 0 ? "No budget entries found" : "No entries match current filters"}
+          />
         )}
 
         {!isLoading && !error && sortedTransactions.length > 0 && (

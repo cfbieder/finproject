@@ -409,9 +409,10 @@ async function setIncomePct(moduleId, data) {
  */
 async function findIncExpByScenario(scenarioId) {
   const sql = `
-    SELECT ie.*, a.name as account_name
+    SELECT ie.*, a.name as account_name, fl.name as fc_line_name
     FROM forecast_income_expense ie
     LEFT JOIN accounts a ON ie.account_id = a.id
+    LEFT JOIN fc_lines fl ON ie.fc_line_id = fl.id
     WHERE ie.scenario_id = $1
     ORDER BY ie.item_type, ie.name
   `;

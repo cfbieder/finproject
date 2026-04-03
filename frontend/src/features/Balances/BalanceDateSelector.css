@@ -149,7 +149,7 @@
 }
 
 .generate-report-button:disabled {
-  background: #cbd5e1;
+  background: var(--border-strong);
   color: var(--muted);
   box-shadow: none;
   transform: none;

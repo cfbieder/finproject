@@ -1,5 +1,6 @@
 import { useMemo, useState } from "react";
 import { AlertTriangle } from "lucide-react";
+import EmptyState from "../../components/EmptyState.jsx";
 import "./FCModulesTable.css";
 
 /**
@@ -369,13 +370,7 @@ export default function FCModulesTable({
                 </div>
               )}
               {!modulesLoading && !modulesError && !modules.length && (
-                <div className="fc-modules-table__message fc-modules-table__message--empty">
-                  <span className="fc-modules-table__empty-icon">📋</span>
-                  <p>No modules found for this scenario.</p>
-                  <span className="fc-modules-table__empty-hint">
-                    Select a different scenario or create a new module
-                  </span>
-                </div>
+                <EmptyState variant="empty" message="No modules found for this scenario. Select a different scenario or create a new module." />
               )}
               {!modulesLoading && !modulesError && modules.length > 0 && (
                 <table className="fc-modules-table">
@@ -461,7 +456,7 @@ export default function FCModulesTable({
                                 complete: { bg: "#dcfce7", color: "#5B9E9E", label: "Complete" },
                                 in_progress: { bg: "#fef3c7", color: "#d97706", label: "In Progress" },
                                 exclude: { bg: "#fee2e2", color: "#C0504D", label: "Exclude" },
-                                new: { bg: "#f1f5f9", color: "#64748b", label: "New" },
+                                new: { bg: "#F2F1EC", color: "#808E9B", label: "New" },
                               };
                               const s = statusStyles[status] || statusStyles.new;
                               return (

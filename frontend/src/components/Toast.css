@@ -84,7 +84,7 @@
 
 .toast__close:hover {
   background: rgba(0, 0, 0, 0.06);
-  color: var(--ink, #0a1628);
+  color: var(--ink, var(--ink));
 }
 
 @keyframes toast-enter {

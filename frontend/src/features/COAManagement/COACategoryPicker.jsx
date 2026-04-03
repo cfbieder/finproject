@@ -80,7 +80,7 @@ export default function COACategoryPicker({
         );
       })}
       {filtered.length === 0 && (
-        <p style={{ margin: "0.5rem", color: "#94a3b8", fontSize: "0.85rem" }}>
+        <p style={{ margin: "0.5rem", color: "#A0AEB9", fontSize: "0.85rem" }}>
           No categories available.
         </p>
       )}

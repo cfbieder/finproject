@@ -42,7 +42,7 @@
 
 .transfer-analysis-error {
   color: var(--danger, var(--danger));
-  background: var(--danger-bg, #fef2f2);
+  background: var(--danger-bg, var(--danger-subtle));
   border: 1px solid var(--danger-border, #fecaca);
   border-radius: var(--radius-md);
   padding: 0.75rem 1rem;
@@ -112,7 +112,7 @@
 }
 
 .transfer-analysis-category-header:hover {
-  background: var(--surface-hover, #f1f5f9);
+  background: var(--surface-hover, var(--bg-secondary));
 }
 
 .transfer-analysis-category-toggle {
@@ -131,7 +131,7 @@
   font-weight: 600;
   padding: 0.2rem 0.6rem;
   border-radius: var(--radius-full, 999px);
-  background: var(--primary-light, #dbeafe);
+  background: var(--primary-light, #E8F0E9);
   color: var(--primary, var(--primary));
 }
 
@@ -160,7 +160,7 @@
   color: var(--primary, var(--primary));
   margin: 0;
   padding-bottom: 0.25rem;
-  border-bottom: 2px solid var(--primary-light, #dbeafe);
+  border-bottom: 2px solid var(--primary-light, #E8F0E9);
 }
 
 .transfer-analysis-section-title--warning {
@@ -189,7 +189,7 @@
 
 .transfer-analysis-table td {
   padding: 0.4rem 0.625rem;
-  border-bottom: 1px solid var(--border-light, #f1f5f9);
+  border-bottom: 1px solid var(--border-light, var(--bg-secondary));
   color: var(--ink);
   white-space: nowrap;
 }
@@ -214,7 +214,7 @@
 }
 
 .amount-positive {
-  color: var(--success, #16a34a);
+  color: var(--success, var(--success));
 }
 
 .transfer-analysis-empty {
@@ -231,7 +231,7 @@
   align-items: center;
   gap: 0.75rem;
   padding: 0.75rem 1.25rem;
-  background: var(--primary-light, #dbeafe);
+  background: var(--primary-light, #E8F0E9);
   border: 1px solid var(--primary, var(--primary));
   border-radius: var(--radius-lg);
   font-size: 0.875rem;
@@ -286,22 +286,22 @@
 
 /* Selected row highlight */
 .transfer-analysis-row--selected {
-  background: var(--primary-light, #dbeafe) !important;
+  background: var(--primary-light, #E8F0E9) !important;
 }
 
 /* Manual match group styles */
 .transfer-analysis-category-badge--manual {
-  background: var(--surface-muted, #e2e8f0);
-  color: var(--ink, #334155);
+  background: var(--surface-muted, var(--border));
+  color: var(--ink, var(--ink-secondary));
 }
 
 .transfer-analysis-section-title--manual {
-  color: var(--ink, #334155);
-  border-bottom-color: var(--border, #e2e8f0);
+  color: var(--ink, var(--ink-secondary));
+  border-bottom-color: var(--border, var(--border));
 }
 
 .transfer-analysis-manual-group {
-  border: 1px solid var(--border-light, #f1f5f9);
+  border: 1px solid var(--border-light, var(--bg-secondary));
   border-radius: var(--radius-md, 6px);
   padding: 0.75rem;
 }

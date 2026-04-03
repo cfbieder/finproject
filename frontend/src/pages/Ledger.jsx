@@ -37,6 +37,7 @@ import { useToast } from "../contexts";
 import { useCoa } from "../hooks/useCoa.js";
 import { exportTransactions } from "../utils/excelExporter.js";
 import "./TransactionExplorer.css";
+import EmptyState from "../components/EmptyState.jsx";
 import "./Ledger.css";
 
 // ─── Editable config for ledger (description + category) ───
@@ -655,14 +656,12 @@ export default function Ledger() {
           )}
 
           {!isLoading && !error && transactionsWithBalance.length === 0 && (
-            <div className="txv2-state">
-              <Inbox size={32} className="txv2-state__icon" />
-              <span className="txv2-state__text">
-                {transactions.length === 0
-                  ? "No transactions found for this account"
-                  : "No transactions match current search"}
-              </span>
-            </div>
+            <EmptyState
+              variant={transactions.length === 0 ? "wallet" : "searching"}
+              message={transactions.length === 0
+                ? "No transactions found for this account"
+                : "No transactions match current search"}
+            />
           )}
 
           {!isLoading && !error && transactionsWithBalance.length > 0 && (

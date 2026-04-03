@@ -18,6 +18,8 @@
  * @param {Function} props.formatNumber - Function to format number values
  * @returns {JSX.Element} The forecast entries table
  */
+import EmptyState from "../../components/EmptyState.jsx";
+
 export default function FCExpTable({
   entriesLoading,
   entriesError,
@@ -51,9 +53,7 @@ export default function FCExpTable({
               Select a scenario to view forecast income/expense entries.
             </p>
           ) : !sortedEntries.length ? (
-            <p className="trans-budget-table__message">
-              No forecast income/expense entries to display.
-            </p>
+            <EmptyState variant="empty" message="No forecast income/expense entries to display." />
           ) : (
             <table className="trans-budget-table">
               <thead>
@@ -115,8 +115,8 @@ export default function FCExpTable({
                         <span style={{
                           display: "inline-block", padding: "0.15rem 0.5rem", borderRadius: "1rem",
                           fontSize: "0.75rem", fontWeight: 600,
-                          background: (entry.SetupStatus || "new") === "complete" ? "#dcfce7" : entry.SetupStatus === "in_progress" ? "#fef3c7" : "#f1f5f9",
-                          color: (entry.SetupStatus || "new") === "complete" ? "#5B9E9E" : entry.SetupStatus === "in_progress" ? "#d97706" : "#64748b",
+                          background: (entry.SetupStatus || "new") === "complete" ? "#dcfce7" : entry.SetupStatus === "in_progress" ? "#fef3c7" : "#F2F1EC",
+                          color: (entry.SetupStatus || "new") === "complete" ? "#5B9E9E" : entry.SetupStatus === "in_progress" ? "#d97706" : "#808E9B",
                         }}>
                           {(entry.SetupStatus || "new") === "complete" ? "Complete" : entry.SetupStatus === "in_progress" ? "In Progress" : "New"}
                         </span>

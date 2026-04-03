@@ -38,6 +38,7 @@ import {
   getMonthLabel,
   parseNumericInput,
 } from "../features/BudgetEntry/utils/budgetInputUtils.js";
+import EmptyState from "../components/EmptyState.jsx";
 import "./BudgetWorksheetV2.css";
 
 const MONTH_NAMES_SHORT = [
@@ -794,12 +795,7 @@ export default function BudgetWorksheetV2() {
           {!balancesStatus.loading &&
             !balancesStatus.error &&
             (!balanceRows || balanceRows.length === 0) && (
-              <div className="bwv2-state">
-                <Inbox size={32} className="bwv2-state__icon" />
-                <span className="bwv2-state__text">
-                  No balance data for current filters
-                </span>
-              </div>
+              <EmptyState variant="finance" message="No balance data for current filters" />
             )}
 
           {!balancesStatus.loading &&

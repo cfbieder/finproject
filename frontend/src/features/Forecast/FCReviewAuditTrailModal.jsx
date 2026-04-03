@@ -147,7 +147,7 @@ export default function FCReviewAuditTrailModal({ auditModal, onClose }) {
             alignItems: "flex-start",
             gap: "1rem",
             paddingBottom: "1rem",
-            borderBottom: "2px solid var(--border, #e5e7eb)",
+            borderBottom: "2px solid var(--border, #E8E6DF)",
             marginBottom: "1.25rem",
           }}
         >
@@ -205,7 +205,7 @@ export default function FCReviewAuditTrailModal({ auditModal, onClose }) {
                 style={{
                   width: "40px",
                   height: "40px",
-                  border: "3px solid var(--border, #e5e7eb)",
+                  border: "3px solid var(--border, #E8E6DF)",
                   borderTopColor: "var(--primary, #7FA37F)",
                   borderRadius: "50%",
                   animation: "spin 1s linear infinite",
@@ -268,7 +268,7 @@ export default function FCReviewAuditTrailModal({ auditModal, onClose }) {
               ref={tableScrollRef}
               style={{
                 overflowX: "auto",
-                border: "1px solid var(--border, #e5e7eb)",
+                border: "1px solid var(--border, #E8E6DF)",
                 borderRadius: "6px",
               }}
             >
@@ -283,7 +283,7 @@ export default function FCReviewAuditTrailModal({ auditModal, onClose }) {
                 <thead>
                   <tr
                     style={{
-                      backgroundColor: "var(--background-secondary, #f9fafb)",
+                      backgroundColor: "var(--background-secondary, #FAF9F5)",
                     }}
                   >
                     {headers.map((header) => {
@@ -300,7 +300,7 @@ export default function FCReviewAuditTrailModal({ auditModal, onClose }) {
                             letterSpacing: "0.05em",
                             textTransform: "uppercase",
                             color: "var(--muted)",
-                            borderBottom: "2px solid var(--border, #e5e7eb)",
+                            borderBottom: "2px solid var(--border, #E8E6DF)",
                           }}
                         >
                           {header}
@@ -317,18 +317,18 @@ export default function FCReviewAuditTrailModal({ auditModal, onClose }) {
                         backgroundColor:
                           rowIndex % 2 === 0
                             ? "white"
-                            : "var(--background-alt, #f9fafb)",
+                            : "var(--background-alt, #FAF9F5)",
                         transition: "background-color 0.15s ease",
                       }}
                       onMouseEnter={(e) => {
                         e.currentTarget.style.backgroundColor =
-                          "var(--background-hover, #f3f4f6)";
+                          "var(--background-hover, #F0EFE9)";
                       }}
                       onMouseLeave={(e) => {
                         e.currentTarget.style.backgroundColor =
                           rowIndex % 2 === 0
                             ? "white"
-                            : "var(--background-alt, #f9fafb)";
+                            : "var(--background-alt, #FAF9F5)";
                       }}
                     >
                       {headers.map((header) => {
@@ -372,7 +372,7 @@ export default function FCReviewAuditTrailModal({ auditModal, onClose }) {
             style={{
               padding: "2rem 1rem",
               textAlign: "center",
-              backgroundColor: "var(--background-alt, #f9fafb)",
+              backgroundColor: "var(--background-alt, #FAF9F5)",
               borderRadius: "6px",
             }}
           >

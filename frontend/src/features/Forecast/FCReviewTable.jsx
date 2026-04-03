@@ -424,7 +424,7 @@ export default function FCReviewTable({
                           minWidth: "120px",
                           ...(isPreForecast && {
                             background:
-                              "linear-gradient(180deg, #f8f9fa 0%, #e9ecef 100%)",
+                              "linear-gradient(180deg, #FAF9F5 0%, #F0EFE9 100%)",
                             fontWeight: 600,
                             borderLeft: "1px solid #cbd5e0",
                             borderRight: "1px solid #cbd5e0",
@@ -455,9 +455,9 @@ export default function FCReviewTable({
               {birthYear && (
                 <tr>
                   <td style={selectColumnStickyStyle} />
-                  <td style={{ ...accountHeaderStyle, fontSize: "0.7rem", color: "#94a3b8", fontWeight: 500, padding: "0.15rem 0.5rem" }}>Age</td>
+                  <td style={{ ...accountHeaderStyle, fontSize: "0.7rem", color: "#A0AEB9", fontWeight: 500, padding: "0.15rem 0.5rem" }}>Age</td>
                   {sortedYears.map((year) => (
-                    <td key={`age-${year}`} className="trans-budget-table__value" style={{ fontSize: "0.7rem", color: "#94a3b8", fontWeight: 500, padding: "0.15rem 0.5rem" }}>
+                    <td key={`age-${year}`} className="trans-budget-table__value" style={{ fontSize: "0.7rem", color: "#A0AEB9", fontWeight: 500, padding: "0.15rem 0.5rem" }}>
                       {Number(year) - birthYear}
                     </td>
                   ))}

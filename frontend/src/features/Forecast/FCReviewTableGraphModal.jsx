@@ -10,6 +10,7 @@ export default function FCReviewTableGraphModal({
   sortedYears,
   birthYear,
   chartMode = "line",
+  onPointDoubleClick,
 }) {
   const [mousePosition, setMousePosition] = useState(null);
 
@@ -306,6 +307,7 @@ export default function FCReviewTableGraphModal({
                           {yearsList.map((_, idx) => {
                             const x = scaleX(idx);
                             const y = scaleY(series.values[idx]);
+                            const isAdjustable = series.hasModule && onPointDoubleClick;
                             return (
                               <circle
                                 key={`${series.id}-pt-${idx}`}
@@ -316,6 +318,21 @@ export default function FCReviewTableGraphModal({
                                 stroke="#fff"
                                 strokeWidth="2"
                                 className="graph-data-point"
+                                style={isAdjustable ? { cursor: "pointer" } : undefined}
+                                onDoubleClick={
+                                  isAdjustable
+                                    ? (e) => {
+                                        e.stopPropagation();
+                                        onPointDoubleClick(
+                                          series.id,
+                                          series.label,
+                                          idx,
+                                          yearsList[idx],
+                                          series.values[idx]
+                                        );
+                                      }
+                                    : undefined
+                                }
                               />
                             );
                           })}
@@ -444,6 +461,7 @@ FCReviewTableGraphModal.propTypes = {
       label: PropTypes.string.isRequired,
       values: PropTypes.arrayOf(PropTypes.number).isRequired,
       color: PropTypes.string.isRequired,
+      hasModule: PropTypes.bool,
     })
   ),
   sortedYears: PropTypes.arrayOf(
@@ -451,4 +469,5 @@ FCReviewTableGraphModal.propTypes = {
   ),
   birthYear: PropTypes.number,
   chartMode: PropTypes.oneOf(["line", "bar"]),
+  onPointDoubleClick: PropTypes.func,
 };

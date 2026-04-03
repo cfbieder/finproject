@@ -7,6 +7,7 @@ import {
   getMonthLabel,
 } from "../features/BudgetEntry/utils/budgetInputUtils.js";
 import "./PageLayout.css";
+import EmptyState from "../components/EmptyState.jsx";
 import "./BudgetFX.css";
 
 const CURRENT_MONTH = new Date().getMonth() + 1;
@@ -320,10 +321,7 @@ export default function BudgetFX() {
           </div>
 
           {currencies.length === 0 ? (
-            <p className="budget-fx-empty">
-              No non-USD currencies found. Budget entries must exist with
-              foreign currencies to manage FX rates.
-            </p>
+            <EmptyState variant="finance" message="No non-USD currencies found. Budget entries must exist with foreign currencies to manage FX rates." />
           ) : (
             <div className="budget-fx-table-wrapper">
               <table className="budget-fx-table">

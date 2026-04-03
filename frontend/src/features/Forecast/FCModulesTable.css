@@ -311,7 +311,7 @@
 
 .fc-modules-table__matched-badge--yes {
   background: rgba(16, 185, 129, 0.15);
-  color: #059669;
+  color: var(--success-light);
 }
 
 .fc-modules-table__matched-badge--no {
@@ -417,7 +417,7 @@
 
 .fc-modules-details__matched-badge--yes {
   background: rgba(16, 185, 129, 0.15);
-  color: #059669;
+  color: var(--success-light);
 }
 
 .fc-modules-details__matched-badge--no {

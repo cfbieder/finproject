@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef, useCallback } from "react";
 import Rest from "../../js/rest.js";
+import EmptyState from "../../components/EmptyState.jsx";
 
 /**
  * Parses action blocks from AI response content.
@@ -63,9 +64,9 @@ function MessageContent({ content, onApply, appliedActions }) {
             <div style={{ fontWeight: 600, marginBottom: "0.25rem" }}>
               {part.isApplied ? "Applied" : "Recommendation"}:
               {" "}{a.field?.replace(/_/g, " ")} → {a.proposed_value}
-              {a.current_value != null && <span style={{ color: "#64748b" }}> (was {a.current_value})</span>}
+              {a.current_value != null && <span style={{ color: "#808E9B" }}> (was {a.current_value})</span>}
             </div>
-            {a.reason && <div style={{ color: "#475569", fontSize: "0.78rem" }}>{a.reason}</div>}
+            {a.reason && <div style={{ color: "#4A5568", fontSize: "0.78rem" }}>{a.reason}</div>}
             {!part.isApplied && (
               <button
                 onClick={() => onApply(a, part.key)}
@@ -216,7 +217,7 @@ export default function FCAIReviewDrawer({ isOpen, onClose, scenarioName }) {
         }}>
           <div>
             <h3 style={{ margin: 0, fontSize: "1.1rem", fontWeight: 700 }}>AI Plan Review</h3>
-            <span style={{ fontSize: "0.8rem", color: "#64748b" }}>Scenario: {scenarioName}</span>
+            <span style={{ fontSize: "0.8rem", color: "#808E9B" }}>Scenario: {scenarioName}</span>
           </div>
           <div style={{ display: "flex", gap: "0.5rem", alignItems: "center" }}>
             <button
@@ -232,7 +233,7 @@ export default function FCAIReviewDrawer({ isOpen, onClose, scenarioName }) {
             </button>
             <button
               onClick={onClose}
-              style={{ background: "none", border: "none", fontSize: "1.5rem", cursor: "pointer", color: "#64748b" }}
+              style={{ background: "none", border: "none", fontSize: "1.5rem", cursor: "pointer", color: "#808E9B" }}
             >
               &times;
             </button>
@@ -263,15 +264,15 @@ export default function FCAIReviewDrawer({ isOpen, onClose, scenarioName }) {
                   style={{
                     position: "absolute", top: "0.35rem", right: "0.35rem",
                     background: "none", border: "none", cursor: "pointer",
-                    color: "#94a3b8", fontSize: "0.85rem", lineHeight: 1,
+                    color: "#A0AEB9", fontSize: "0.85rem", lineHeight: 1,
                     padding: "0.1rem 0.25rem", borderRadius: "0.25rem",
                   }}
                   onMouseEnter={e => e.currentTarget.style.color = "#C0504D"}
-                  onMouseLeave={e => e.currentTarget.style.color = "#94a3b8"}
+                  onMouseLeave={e => e.currentTarget.style.color = "#A0AEB9"}
                 >
                   &times;
                 </button>
-                <div style={{ fontSize: "0.75rem", color: "#64748b" }}>
+                <div style={{ fontSize: "0.75rem", color: "#808E9B" }}>
                   {new Date(r.created_at).toLocaleDateString()}
                 </div>
                 <div style={{ marginTop: "0.15rem", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", paddingRight: "1rem" }}>
@@ -280,7 +281,7 @@ export default function FCAIReviewDrawer({ isOpen, onClose, scenarioName }) {
               </div>
             ))}
             {reviews.length === 0 && (
-              <div style={{ padding: "1rem", color: "#94a3b8", textAlign: "center" }}>
+              <div style={{ padding: "1rem", color: "#A0AEB9", textAlign: "center" }}>
                 No reviews yet
               </div>
             )}
@@ -290,10 +291,7 @@ export default function FCAIReviewDrawer({ isOpen, onClose, scenarioName }) {
           <div style={{ flex: 1, display: "flex", flexDirection: "column", overflow: "hidden" }}>
             <div style={{ flex: 1, overflowY: "auto", padding: "1rem" }}>
               {messages.length === 0 && !loading && (
-                <div style={{ textAlign: "center", color: "#94a3b8", padding: "3rem 1rem" }}>
-                  <p style={{ fontSize: "1.1rem", fontWeight: 600 }}>Ready to review your plan</p>
-                  <p style={{ fontSize: "0.85rem" }}>Click "+ New Review" to send your forecast to Claude for analysis.</p>
-                </div>
+                <EmptyState variant="ai-review" message="Ready to review your plan. Click &quot;+ New Review&quot; to send your forecast to Claude for analysis." />
               )}
 
               {messages.map((msg, i) => (
@@ -305,7 +303,7 @@ export default function FCAIReviewDrawer({ isOpen, onClose, scenarioName }) {
                   border: `1px solid ${msg.role === "user" ? "#bfdbfe" : "#E8E6DF"}`,
                   fontSize: "0.85rem", lineHeight: 1.6,
                 }}>
-                  <div style={{ fontWeight: 700, fontSize: "0.72rem", color: "#64748b", marginBottom: "0.35rem", textTransform: "uppercase", letterSpacing: "0.05em" }}>
+                  <div style={{ fontWeight: 700, fontSize: "0.72rem", color: "#808E9B", marginBottom: "0.35rem", textTransform: "uppercase", letterSpacing: "0.05em" }}>
                     {msg.role === "user" ? "You" : "AI Advisor"}
                   </div>
                   <MessageContent
@@ -317,7 +315,7 @@ export default function FCAIReviewDrawer({ isOpen, onClose, scenarioName }) {
               ))}
 
               {loading && (
-                <div style={{ padding: "1rem", color: "#64748b", fontStyle: "italic" }}>
+                <div style={{ padding: "1rem", color: "#808E9B", fontStyle: "italic" }}>
                   Analyzing your plan...
                 </div>
               )}
@@ -353,7 +351,7 @@ export default function FCAIReviewDrawer({ isOpen, onClose, scenarioName }) {
                     padding: "0.4rem 1rem", borderRadius: "0.375rem", fontSize: "0.85rem",
                     fontWeight: 600, border: "none", cursor: "pointer",
                     background: input.trim() ? "#7FA37F" : "#E8E6DF",
-                    color: input.trim() ? "white" : "#94a3b8",
+                    color: input.trim() ? "white" : "#A0AEB9",
                   }}
                 >
                   Send
@@ -379,20 +377,20 @@ export default function FCAIReviewDrawer({ isOpen, onClose, scenarioName }) {
             <table style={{ width: "100%", fontSize: "0.85rem", borderCollapse: "collapse" }}>
               <tbody>
                 <tr>
-                  <td style={{ padding: "0.4rem 0", color: "#64748b" }}>Field</td>
+                  <td style={{ padding: "0.4rem 0", color: "#808E9B" }}>Field</td>
                   <td style={{ padding: "0.4rem 0", fontWeight: 600 }}>{confirmAction.action.field?.replace(/_/g, " ")}</td>
                 </tr>
                 <tr>
-                  <td style={{ padding: "0.4rem 0", color: "#64748b" }}>Current</td>
+                  <td style={{ padding: "0.4rem 0", color: "#808E9B" }}>Current</td>
                   <td style={{ padding: "0.4rem 0" }}>{confirmAction.action.current_value}</td>
                 </tr>
                 <tr>
-                  <td style={{ padding: "0.4rem 0", color: "#64748b" }}>Proposed</td>
+                  <td style={{ padding: "0.4rem 0", color: "#808E9B" }}>Proposed</td>
                   <td style={{ padding: "0.4rem 0", fontWeight: 600, color: "#6B8E6B" }}>{confirmAction.action.proposed_value}</td>
                 </tr>
                 {confirmAction.action.reason && (
                   <tr>
-                    <td style={{ padding: "0.4rem 0", color: "#64748b" }}>Reason</td>
+                    <td style={{ padding: "0.4rem 0", color: "#808E9B" }}>Reason</td>
                     <td style={{ padding: "0.4rem 0", fontSize: "0.8rem" }}>{confirmAction.action.reason}</td>
                   </tr>
                 )}

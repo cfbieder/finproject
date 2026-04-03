@@ -34,6 +34,7 @@ import FCReviewBreakdownModal from "../features/Forecast/FCReviewBreakdownModal.
 import FCCashTransferModal from "../features/Forecast/FCCashTransferModal.jsx";
 import FCReviewTableGraphModal from "../features/Forecast/FCReviewTableGraphModal.jsx";
 import FCCashSweepModal from "../features/Forecast/FCCashSweepModal.jsx";
+import FCGraphAdjustModal from "../features/Forecast/FCGraphAdjustModal.jsx";
 import { formatAmount } from "../features/Forecast/utils/fcReviewUtils.js";
 import { KpiCard, KpiCardRow } from "../components/KpiCards.jsx";
 import { TrendingUp, TrendingDown, DollarSign, Landmark } from "lucide-react";
@@ -139,6 +140,42 @@ export default function FCReview() {
       if (doc?.birthYear) setBirthYear(Number(doc.birthYear));
     }).catch(() => {});
   }, []);
+
+  // =============================================================================
+  // STATE - FC Exp Entries (for graph point adjustments)
+  // =============================================================================
+
+  const [fcExpEntries, setFcExpEntries] = useState([]);
+  useEffect(() => {
+    if (!selectedScenario) { setFcExpEntries([]); return; }
+    Rest.fetchJson(`/api/v2/forecast/incomeexpense?scenario=${encodeURIComponent(selectedScenario)}`)
+      .then((res) => setFcExpEntries(res?.entries || []))
+      .catch(() => setFcExpEntries([]));
+  }, [selectedScenario]);
+
+  // Map: series label (FC Line name) → array of FC Exp entries under that line
+  const fcExpByLabel = useMemo(() => {
+    const map = new Map();
+    for (const entry of fcExpEntries) {
+      // Use FcLineName (the FC Line name that appears as level 2 label in the review table)
+      // Fall back to Name if FcLineName is not set
+      const label = entry.FcLineName || entry.Name || "";
+      if (!label) continue;
+      const arr = map.get(label) || [];
+      arr.push(entry);
+      map.set(label, arr);
+    }
+    return map;
+  }, [fcExpEntries]);
+
+  // Graph point adjustment modal state
+  const [graphAdjustModal, setGraphAdjustModal] = useState({
+    isOpen: false,
+    entry: null,
+    year: null,
+    currentValue: null,
+    seriesLabel: "",
+  });
 
   // =============================================================================
   // STATE - Base Year Budget (P&L base year column)
@@ -724,9 +761,9 @@ export default function FCReview() {
           ? "background:linear-gradient(180deg,#FAF9F5 0%,#F0EFE9 100%);font-weight:700;border-left:1px solid #D5D2C9;border-right:1px solid #D5D2C9;"
           : "";
         const columnLabel = isBase
-          ? '<div style="font-size:11px;color:#6b7280;">(Budget)</div>'
+          ? '<div style="font-size:11px;color:#808E9B;">(Budget)</div>'
           : isLastActual
-          ? '<div style="font-size:11px;color:#6b7280;">(Actual)</div>'
+          ? '<div style="font-size:11px;color:#808E9B;">(Actual)</div>'
           : "";
         return `<th style="${thStyleBase}${preStyle};min-width:120px;text-align:center;">${year}${columnLabel}</th>`;
       })
@@ -831,7 +868,7 @@ export default function FCReview() {
             .join("")}</tr>`
         : "";
 
-    const tableHtml = `<table style="border-collapse:collapse;font-family:Inter,Helvetica,Arial,sans-serif;font-size:12px;color:#0f172a;width:100%;">
+    const tableHtml = `<table style="border-collapse:collapse;font-family:Inter,Helvetica,Arial,sans-serif;font-size:12px;color:#2D3436;width:100%;">
       <thead>
         <tr>
           <th style="${thStyleBase}min-width:240px;">Account</th>
@@ -847,8 +884,8 @@ export default function FCReview() {
 
     const documentStyles = `
       body { margin: 16px; background: #ffffff; }
-      h2 { margin: 0 0 12px; font-size: 18px; color: #0f172a; }
-      p { margin: 4px 0 12px; color: #475569; font-size: 12px; }
+      h2 { margin: 0 0 12px; font-size: 18px; color: #2D3436; }
+      p { margin: 4px 0 12px; color: #4A5568; font-size: 12px; }
     `;
 
     const html = `
@@ -1119,6 +1156,80 @@ export default function FCReview() {
     setGraphMode("line");
   }, []);
 
+  // Graph point double-click → open adjustment modal
+  const handleGraphPointDoubleClick = useCallback(
+    (seriesId, seriesLabel, yearIndex, year, currentValue) => {
+      const entries = fcExpByLabel.get(seriesLabel);
+      if (!entries || entries.length === 0) return; // not an FC Exp line
+
+      // If multiple entries under this FC Line, pick the first (most common case is 1:1)
+      // Future: could show a picker if entries.length > 1
+      const entry = entries.length === 1 ? entries[0] : entries[0];
+
+      setGraphAdjustModal({
+        isOpen: true,
+        entry,
+        year: Number(year),
+        currentValue,
+        seriesLabel,
+      });
+    },
+    [fcExpByLabel]
+  );
+
+  const handleCloseGraphAdjust = useCallback(() => {
+    setGraphAdjustModal((prev) => ({ ...prev, isOpen: false }));
+  }, []);
+
+  const handleGraphAdjustSave = useCallback(
+    async (entryId, change) => {
+      // 1. Find the entry from our cached fcExpEntries (avoid re-fetch race conditions)
+      const entry = fcExpEntries.find((e) => String(e.id) === String(entryId));
+      if (!entry) throw new Error("Income/Expense item not found");
+
+      // 2. Merge changes: replace existing change for this year/flag or add new
+      const existingChanges = Array.isArray(entry.Changes) ? [...entry.Changes] : [];
+      const changeYear = change.Date.slice(0, 4);
+      const existingIdx = existingChanges.findIndex(
+        (c) => c.Date && c.Date.slice(0, 4) === changeYear && c.Flag === change.Flag
+      );
+      if (existingIdx >= 0) {
+        existingChanges[existingIdx] = change;
+      } else {
+        existingChanges.push(change);
+      }
+
+      // 3. Save via PUT
+      await Rest.fetchJson(
+        `/api/v2/forecast/incomeexpense/${encodeURIComponent(entryId)}`,
+        {
+          method: "PUT",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ Changes: existingChanges }),
+        }
+      );
+
+      // 4. Regenerate forecast
+      await Rest.fetchJson(
+        `/api/v2/forecast/generate/${encodeURIComponent(selectedScenario)}`,
+        { method: "POST" }
+      );
+
+      // 5. Reload data
+      reloadForecastData();
+
+      // 6. Refresh FC Exp entries cache
+      const refreshed = await Rest.fetchJson(
+        `/api/v2/forecast/incomeexpense?scenario=${encodeURIComponent(selectedScenario)}`
+      );
+      setFcExpEntries(refreshed?.entries || []);
+
+      // 7. Close adjust modal (graph stays open — it will re-render with new data)
+      setGraphAdjustModal((prev) => ({ ...prev, isOpen: false }));
+    },
+    [selectedScenario, reloadForecastData, fcExpEntries]
+  );
+
   // AI Review drawer
   const [aiDrawerOpen, setAiDrawerOpen] = useState(false);
   const handleAIReviewClick = useCallback(() => setAiDrawerOpen(true), []);
@@ -1134,6 +1245,48 @@ export default function FCReview() {
     [selectedSeries]
   );
 
+  // Refresh selected series values when forecast data changes (e.g., after regeneration)
+  useEffect(() => {
+    if (selectedSeries.length === 0 || !sortedYears.length) return;
+    setSelectedSeries((prev) =>
+      prev.map((series) => {
+        const isCash = series.id.startsWith("cash-");
+        const isBalance = series.id.startsWith("balance-");
+        if (!isCash && !isBalance) return series;
+
+        const label = series.label;
+        const newValues = sortedYears.map((year) => {
+          if (isCash) {
+            // Rebuild cash row to match getCellValue
+            const isNet = label === "Net Cash Flow";
+            const isCashFlow = label === "Cash Flow";
+            const row = isNet
+              ? { label, isNet: true }
+              : isCashFlow
+              ? { label, isCashFlow: true }
+              : { label, level: cashAccountMap.get(label) ? 2 : 1 };
+            const val = getCellValue(row, year, true);
+            const num = Number(val);
+            return Number.isFinite(num) ? num : 0;
+          }
+          // Balance
+          const row = { label, level: balanceAccountMap.get(label) ? 2 : 1 };
+          const yearIndex = sortedYears.indexOf(year);
+          const values =
+            label === "Assets"
+              ? totalAssetsByYear
+              : balanceDisplayValues.get(label);
+          const val = values?.[yearIndex] ?? getCellValue(row, year, false);
+          const num = Number(val);
+          return Number.isFinite(num) ? num : 0;
+        });
+
+        return { ...series, values: newValues };
+      })
+    );
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [entryMaps]);
+
   const graphDisabled =
     !selectedScenario ||
     selectedSeries.length === 0;
@@ -1143,8 +1296,9 @@ export default function FCReview() {
       selectedSeries.map((series, index) => ({
         ...series,
         color: GRAPH_COLORS[index % GRAPH_COLORS.length],
+        hasModule: fcExpByLabel.has(series.label),
       })),
-    [selectedSeries]
+    [selectedSeries, fcExpByLabel]
   );
 
   return (
@@ -1300,6 +1454,16 @@ export default function FCReview() {
         sortedYears={sortedYears}
         birthYear={birthYear}
         chartMode={graphMode}
+        onPointDoubleClick={handleGraphPointDoubleClick}
+      />
+      <FCGraphAdjustModal
+        isOpen={graphAdjustModal.isOpen}
+        onClose={handleCloseGraphAdjust}
+        onSave={handleGraphAdjustSave}
+        entry={graphAdjustModal.entry}
+        year={graphAdjustModal.year}
+        currentValue={graphAdjustModal.currentValue}
+        seriesLabel={graphAdjustModal.seriesLabel}
       />
       <FCAIReviewDrawer
         isOpen={aiDrawerOpen}

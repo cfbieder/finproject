@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import Rest from "../../js/rest";
+import EmptyState from "../../components/EmptyState.jsx";
 
 /**
  * Modal for viewing and creating modules from unmatched items.
@@ -137,7 +138,7 @@ export default function FCModulesUnmatchedModal({
                           backgroundColor: "#f8fafc",
                           borderBottom: "1px solid rgba(15, 23, 42, 0.08)",
                           fontWeight: 600,
-                          color: "#0f172a",
+                          color: "#2D3436",
                         }}
                       >
                         {type}
@@ -177,7 +178,7 @@ export default function FCModulesUnmatchedModal({
                               {item.category ? (
                                 <span
                                   style={{
-                                    color: "#475569",
+                                    color: "#4A5568",
                                     fontSize: "0.9rem",
                                   }}
                                 >
@@ -191,9 +192,7 @@ export default function FCModulesUnmatchedModal({
                     </div>
                   ))
                 ) : (
-                  <div className="fc-modules-table__message">
-                    <p>No unmatched items found.</p>
-                  </div>
+                  <EmptyState variant="searching" message="No unmatched items found." />
                 )}
               </div>
               <div className="fc-scenarios-modal__actions">

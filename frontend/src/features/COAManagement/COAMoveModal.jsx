@@ -50,7 +50,7 @@ export default function COAMoveModal({
             <span
               style={{
                 fontWeight: 700,
-                color: "#0f172a",
+                color: "#2D3436",
                 fontSize: "0.9rem",
                 display: "block",
                 marginBottom: "0.35rem",
@@ -69,7 +69,7 @@ export default function COAMoveModal({
               <span
                 style={{
                   fontSize: "0.8rem",
-                  color: "#475569",
+                  color: "#4A5568",
                   marginTop: "0.25rem",
                   display: "block",
                 }}

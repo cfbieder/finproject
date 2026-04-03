@@ -83,7 +83,7 @@ export default function COAEditModal({
           <div>
             <h3 style={{ margin: 0 }}>{title}</h3>
             {isMultiEdit && (
-              <p style={{ margin: 0, color: "#475569", fontSize: "0.9rem" }}>
+              <p style={{ margin: 0, color: "#4A5568", fontSize: "0.9rem" }}>
                 {selectedCount} selected
               </p>
             )}
@@ -110,7 +110,7 @@ export default function COAEditModal({
             gap: "0.35rem",
           }}
         >
-          <span style={{ fontWeight: 700, color: "#0f172a" }}>{isQuickAddCategory ? "Category" : "Account"}</span>
+          <span style={{ fontWeight: 700, color: "#2D3436" }}>{isQuickAddCategory ? "Category" : "Account"}</span>
           <input
             className="form-input"
             value={isMultiEdit ? "Multiple accounts selected" : row.name}
@@ -138,7 +138,7 @@ export default function COAEditModal({
               onChange={(e) => onFieldChange("isCategory", e.target.checked)}
               style={{ width: "16px", height: "16px", accentColor: "#6B8E6B" }}
             />
-            <span style={{ fontWeight: 600, color: "#334155", fontSize: "0.9rem" }}>
+            <span style={{ fontWeight: 600, color: "#4A5568", fontSize: "0.9rem" }}>
               Create as category (container for sub-accounts)
             </span>
           </label>
@@ -151,7 +151,7 @@ export default function COAEditModal({
               gap: "0.35rem",
             }}
           >
-            <span style={{ fontWeight: 700, color: "#0f172a" }}>
+            <span style={{ fontWeight: 700, color: "#2D3436" }}>
               {isCategoryAdd || isQuickAddCategory ? "Place under parent category" : "Place under category"}
             </span>
             <COACategoryPicker
@@ -163,7 +163,7 @@ export default function COAEditModal({
               <span
                 style={{
                   fontSize: "0.8rem",
-                  color: "#475569",
+                  color: "#4A5568",
                   marginTop: "0.15rem",
                 }}
               >
@@ -179,7 +179,7 @@ export default function COAEditModal({
             gap: "0.35rem",
           }}
         >
-          <span style={{ fontWeight: 700, color: "#0f172a" }}>Type</span>
+          <span style={{ fontWeight: 700, color: "#2D3436" }}>Type</span>
           <select
             className="form-input"
             value={
@@ -236,7 +236,7 @@ export default function COAEditModal({
             gap: "0.35rem",
           }}
         >
-          <span style={{ fontWeight: 700, color: "#0f172a" }}>Currency</span>
+          <span style={{ fontWeight: 700, color: "#2D3436" }}>Currency</span>
           <select
             className="form-input"
             value={row.currency || ""}
@@ -261,7 +261,7 @@ export default function COAEditModal({
             gap: "0.35rem",
           }}
         >
-          <span style={{ fontWeight: 700, color: "#0f172a" }}>Account #</span>
+          <span style={{ fontWeight: 700, color: "#2D3436" }}>Account #</span>
           <input
             className="form-input"
             value={row.accountNumber}

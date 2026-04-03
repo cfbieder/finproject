@@ -116,7 +116,7 @@
   margin: 0;
   font-size: 0.9375rem;
   font-weight: 650;
-  color: var(--ink, #0a1628);
+  color: var(--ink, var(--ink));
   line-height: 1.3;
 }
 

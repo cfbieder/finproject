@@ -186,7 +186,7 @@
 .category-selector__parent {
   font-size: 0.8rem;
   font-weight: 600;
-  color: var(--ink-muted, #64748b);
+  color: var(--ink-muted, var(--muted));
   padding: 0.3rem 0.5rem;
   user-select: none;
 }

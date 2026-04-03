@@ -929,6 +929,7 @@ router.get('/incomeexpense', async (req, res, next) => {
       Comment: item.comment,
       Matched: item.is_matched,
       FcLineId: item.fc_line_id || null,
+      FcLineName: item.fc_line_name || null,
       SetupStatus: item.setup_status || 'new',
       Changes: item.changes || [],
     }));
@@ -1056,9 +1057,18 @@ router.put('/incomeexpense/:id', async (req, res, next) => {
     if (body.Matched !== undefined) updateData.is_matched = Boolean(body.Matched);
     if (body.SetupStatus !== undefined) updateData.setup_status = body.SetupStatus;
 
-    const item = await repo.updateIncExp(id, updateData);
-    if (!item) {
-      return res.status(404).json({ error: 'Income/Expense item not found' });
+    let item;
+    if (Object.keys(updateData).length > 0) {
+      item = await repo.updateIncExp(id, updateData);
+      if (!item) {
+        return res.status(404).json({ error: 'Income/Expense item not found' });
+      }
+    } else {
+      // No main fields to update — verify the item exists
+      item = await repo.findIncExpById(id);
+      if (!item) {
+        return res.status(404).json({ error: 'Income/Expense item not found' });
+      }
     }
 
     // Handle changes — replace all if provided

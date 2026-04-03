@@ -5,7 +5,7 @@ import "./PageLayout.css";
 import "../features/Forecast/FCModulesFilter.css";
 
 const LINE_TYPES = [
-  { value: "unassigned", label: "Unassigned", color: "#94a3b8" },
+  { value: "unassigned", label: "Unassigned", color: "#A0AEB9" },
   { value: "bs_module_expense", label: "BS Module - Expense", color: "#C0504D" },
   { value: "bs_module_income", label: "BS Module - Income", color: "#5B8C5B" },
   { value: "forecast_expense", label: "Forecast Expense", color: "#f97316" },
@@ -13,7 +13,7 @@ const LINE_TYPES = [
 ];
 
 const typeLabel = (t) => LINE_TYPES.find((lt) => lt.value === t)?.label || t;
-const typeColor = (t) => LINE_TYPES.find((lt) => lt.value === t)?.color || "#94a3b8";
+const typeColor = (t) => LINE_TYPES.find((lt) => lt.value === t)?.color || "#A0AEB9";
 
 const fmt = (v) =>
   v != null
@@ -494,14 +494,14 @@ export default function FCLineMapping() {
                         onDragStart={(e) => onDragStart(e, cat.category_id)}
                         style={{
                           display: "inline-flex", alignItems: "center", gap: "0.35rem",
-                          padding: "0.2rem 0.5rem", background: "#f1f5f9", borderRadius: "0.25rem",
+                          padding: "0.2rem 0.5rem", background: "#F2F1EC", borderRadius: "0.25rem",
                           fontSize: "0.8rem", cursor: "grab",
                         }}
                       >
                         {cat.category_name}
                         <button
                           onClick={() => handleUnassignCategory(selectedLine.id, cat.category_id)}
-                          style={{ background: "none", border: "none", cursor: "pointer", color: "#94a3b8", fontSize: "0.85rem", padding: 0, lineHeight: 1 }}
+                          style={{ background: "none", border: "none", cursor: "pointer", color: "#A0AEB9", fontSize: "0.85rem", padding: 0, lineHeight: 1 }}
                         >
                           x
                         </button>
@@ -547,7 +547,7 @@ export default function FCLineMapping() {
                 </button>
                 <button
                   onClick={() => setSelectedCatIds(new Set())}
-                  style={{ background: "none", border: "none", cursor: "pointer", color: "#94a3b8", fontSize: "0.8rem" }}
+                  style={{ background: "none", border: "none", cursor: "pointer", color: "#A0AEB9", fontSize: "0.8rem" }}
                 >
                   Clear
                 </button>
@@ -593,11 +593,11 @@ export default function FCLineMapping() {
                     <span style={{ flex: 1 }}>{cat.name}</span>
                     <span style={{
                       fontFamily: "var(--font-mono)", fontSize: "0.75rem",
-                      color: bt < 0 ? "var(--danger, #C0504D)" : bt > 0 ? "var(--success, #5B8C5B)" : "#94a3b8",
+                      color: bt < 0 ? "var(--danger, #C0504D)" : bt > 0 ? "var(--success, #5B8C5B)" : "#A0AEB9",
                     }}>
                       {bt !== 0 ? (bt < 0 ? "-" : "") + fmt(bt) : "—"}
                     </span>
-                    <span style={{ color: "#94a3b8", fontSize: "0.75rem", whiteSpace: "nowrap" }}>{cat.parent_name || ""}</span>
+                    <span style={{ color: "#A0AEB9", fontSize: "0.75rem", whiteSpace: "nowrap" }}>{cat.parent_name || ""}</span>
                   </div>
                   );
                 })}
@@ -644,7 +644,7 @@ export default function FCLineMapping() {
                   {detailLine.categories?.length || 0} categories — Budget Year {budgetYear}
                 </span>
               </div>
-              <button onClick={() => setDetailLine(null)} style={{ background: "none", border: "none", fontSize: "1.5rem", cursor: "pointer", color: "#64748b" }}>
+              <button onClick={() => setDetailLine(null)} style={{ background: "none", border: "none", fontSize: "1.5rem", cursor: "pointer", color: "#808E9B" }}>
                 &times;
               </button>
             </div>
@@ -701,7 +701,7 @@ export default function FCLineMapping() {
                               } : null);
                             }}
                             title="Remove category"
-                            style={{ background: "none", border: "none", cursor: "pointer", color: "#94a3b8", fontSize: "1rem", padding: "0 0.25rem", lineHeight: 1 }}
+                            style={{ background: "none", border: "none", cursor: "pointer", color: "#A0AEB9", fontSize: "1rem", padding: "0 0.25rem", lineHeight: 1 }}
                           >
                             &times;
                           </button>
@@ -828,7 +828,7 @@ export default function FCLineMapping() {
               <div style={{ display: "flex", gap: "0.75rem" }}>
                 <button
                   onClick={() => setShowSuggestions(false)}
-                  style={{ padding: "0.5rem 1.25rem", borderRadius: "0.5rem", border: "1px solid #cbd5e1", background: "white", cursor: "pointer" }}
+                  style={{ padding: "0.5rem 1.25rem", borderRadius: "0.5rem", border: "1px solid #D5D2C9", background: "white", cursor: "pointer" }}
                 >
                   Close
                 </button>
@@ -837,7 +837,7 @@ export default function FCLineMapping() {
                   disabled={sugSelected.size === 0 || sugLoading}
                   style={{
                     padding: "0.5rem 1.25rem", borderRadius: "0.5rem", border: "none",
-                    background: sugSelected.size > 0 ? "var(--primary, #567856)" : "#94a3b8",
+                    background: sugSelected.size > 0 ? "var(--primary, #567856)" : "#A0AEB9",
                     color: "white", cursor: sugSelected.size > 0 ? "pointer" : "not-allowed", fontWeight: 600,
                   }}
                 >

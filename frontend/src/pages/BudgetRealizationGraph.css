@@ -7,19 +7,19 @@
 .budget-graph-header {
   margin-bottom: 32px;
   padding-bottom: 16px;
-  border-bottom: 2px solid #e5e7eb;
+  border-bottom: 2px solid var(--border);
 }
 
 .budget-graph-title {
   font-size: 28px;
   font-weight: 600;
-  color: #111827;
+  color: var(--ink);
   margin: 0 0 8px 0;
 }
 
 .budget-graph-subtitle {
   font-size: 14px;
-  color: #6b7280;
+  color: var(--muted);
   margin: 0;
 }
 
@@ -29,7 +29,7 @@
   justify-content: center;
   min-height: 400px;
   font-size: 16px;
-  color: #6b7280;
+  color: var(--muted);
 }
 
 .budget-graph-container {
@@ -40,7 +40,7 @@
 
 .budget-graph-section {
   background: var(--surface);
-  border: 1px solid #e5e7eb;
+  border: 1px solid var(--border);
   border-radius: 8px;
   padding: 24px;
   box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
@@ -49,10 +49,10 @@
 .budget-graph-section-title {
   font-size: 20px;
   font-weight: 600;
-  color: #111827;
+  color: var(--ink);
   margin: 0 0 16px 0;
   padding-bottom: 12px;
-  border-bottom: 1px solid #e5e7eb;
+  border-bottom: 1px solid var(--border);
 }
 
 .budget-graph-section-title--clickable {
@@ -71,7 +71,7 @@
   gap: 32px;
   margin-bottom: 24px;
   padding: 16px;
-  background: #f9fafb;
+  background: var(--bg-secondary);
   border-radius: var(--radius-sm);
 }
 
@@ -84,7 +84,7 @@
 .budget-graph-summary-label {
   font-size: 12px;
   font-weight: 500;
-  color: #6b7280;
+  color: var(--muted);
   text-transform: uppercase;
   letter-spacing: 0.5px;
 }
@@ -92,7 +92,7 @@
 .budget-graph-summary-value {
   font-size: 18px;
   font-weight: 600;
-  color: #111827;
+  color: var(--ink);
 }
 
 .budget-graph-summary-value--negative {
@@ -145,7 +145,7 @@
 .budget-graph-bar-type {
   font-size: 12px;
   font-weight: 500;
-  color: #6b7280;
+  color: var(--muted);
   text-align: right;
 }
 
@@ -173,7 +173,7 @@
 }
 
 .budget-graph-bar--actual {
-  background: linear-gradient(90deg, #10b981 0%, #059669 100%);
+  background: linear-gradient(90deg, var(--success-lighter) 0%, var(--success-light) 100%);
 }
 
 .budget-graph-bar-value {

@@ -14,6 +14,7 @@ import TransactionTable from "../features/Transaction/TransactionTable.jsx";
 import CategorySelector from "../components/CategorySelector/CategorySelector.jsx";
 import { useCoa } from "../hooks/useCoa.js";
 import "./PageLayout.css";
+import EmptyState from "../components/EmptyState.jsx";
 import "./RefreshPS.css";
 
 const reviewConfig = REVIEW_CONFIG;
@@ -851,9 +852,7 @@ export default function RefreshPS() {
                 {newTransactionsError}
               </p>
             ) : newTransactions.length === 0 ? (
-              <p className="upload-feedback">
-                No new transactions were found in the latest import.
-              </p>
+              <EmptyState variant="upload" message="No new transactions were found in the latest import." />
             ) : (
               <div className="refresh-txn-table-wrapper">
                 <table className="balance-report-table">
@@ -903,9 +902,7 @@ export default function RefreshPS() {
                 {modifiedTransactionsError}
               </p>
             ) : modifiedTransactions.length === 0 ? (
-              <p className="upload-feedback">
-                No modified transactions were found in the latest update.
-              </p>
+              <EmptyState variant="upload" message="No modified transactions were found in the latest update." />
             ) : (
               <div className="refresh-txn-table-wrapper">
                 <table className="balance-report-table">

@@ -26,7 +26,7 @@
 .refresh-ps-toolbar__desc {
   margin: 0.25rem 0 0;
   font-size: 0.85rem;
-  color: var(--muted, #64748b);
+  color: var(--muted, var(--muted));
   line-height: 1.45;
 }
 
@@ -47,7 +47,7 @@
 .refresh-ps-toolbar__days label {
   font-size: 0.8rem;
   font-weight: 500;
-  color: var(--muted, #64748b);
+  color: var(--muted, var(--muted));
   white-space: nowrap;
 }
 
@@ -55,7 +55,7 @@
   width: 4.5rem;
   border-radius: var(--radius-md);
   padding: 0.4rem 0.6rem;
-  border: 1px solid var(--border, #e2e8f0);
+  border: 1px solid var(--border, var(--border));
   background: var(--surface-muted, #FAF9F5);
   color: var(--ink, #1e293b);
   font-size: 0.85rem;
@@ -83,8 +83,8 @@
 }
 
 .refresh-ps-btn--action:disabled {
-  background: var(--border, #e2e8f0);
-  color: var(--muted, #64748b);
+  background: var(--border, var(--border));
+  color: var(--muted, var(--muted));
   box-shadow: none;
   cursor: not-allowed;
 }
@@ -95,7 +95,7 @@
   margin: 0.75rem 0 0;
   padding-left: 1rem;
   font-size: 0.82rem;
-  color: var(--muted, #64748b);
+  color: var(--muted, var(--muted));
 }
 
 /* ── View-switching tabs ─────────────────────────── */
@@ -104,17 +104,17 @@
   display: flex;
   gap: 0.35rem;
   margin-top: 1rem;
-  border-top: 1px solid var(--border, #e2e8f0);
+  border-top: 1px solid var(--border, var(--border));
   padding-top: 0.75rem;
 }
 
 .refresh-ps-tab {
   flex: 1 1 0;
   padding: 0.55rem 1rem;
-  border: 1px solid var(--border, #e2e8f0);
+  border: 1px solid var(--border, var(--border));
   border-radius: var(--radius-md);
   background: var(--surface-muted, #FAF9F5);
-  color: var(--muted, #64748b);
+  color: var(--muted, var(--muted));
   font-size: 0.82rem;
   font-weight: 500;
   text-align: center;
@@ -157,7 +157,7 @@
   max-height: 320px;
   overflow-y: auto;
   border-radius: var(--radius-md);
-  border: 1px solid var(--border, #e2e8f0);
+  border: 1px solid var(--border, var(--border));
   box-shadow: var(--shadow-soft, 0 1px 3px rgba(0, 0, 0, 0.08));
   background:
     linear-gradient(var(--surface) 30%, transparent) top,
@@ -206,7 +206,7 @@
   padding: 0.4rem 1rem;
   border-radius: var(--radius-md);
   border: 1px solid #93c5fd;
-  background: #eff6ff;
+  background: #F0EFE9;
   color: var(--primary);
   font-size: 0.8rem;
   font-weight: 600;
@@ -215,7 +215,7 @@
 }
 
 .refresh-ps-btn--bulk-category:hover:not(:disabled) {
-  background: #dbeafe;
+  background: #E8F0E9;
   border-color: var(--primary);
   box-shadow: 0 2px 8px -2px rgba(86, 120, 86, 0.25);
 }
@@ -230,8 +230,8 @@
   padding: 0.4rem 1rem;
   border-radius: var(--radius-md);
   border: 1px solid #86efac;
-  background: #f0fdf4;
-  color: #166534;
+  background: var(--success-subtle);
+  color: var(--success-strong);
   font-size: 0.8rem;
   font-weight: 600;
   cursor: pointer;
@@ -240,7 +240,7 @@
 
 .refresh-ps-btn--accept-all:hover:not(:disabled) {
   background: #dcfce7;
-  border-color: #166534;
+  border-color: var(--success-strong);
   box-shadow: 0 2px 8px -2px rgba(22, 101, 52, 0.25);
 }
 
@@ -253,9 +253,9 @@
 .refresh-ps-btn--split {
   padding: 0.4rem 1rem;
   border-radius: var(--radius-md);
-  border: 1px solid #c4b5fd;
-  background: #f5f3ff;
-  color: #5b21b6;
+  border: 1px solid #B5A8D5;
+  background: #F5F3F8;
+  color: #6B5B9B;
   font-size: 0.8rem;
   font-weight: 600;
   cursor: pointer;
@@ -264,7 +264,7 @@
 
 .refresh-ps-btn--split:hover:not(:disabled) {
   background: #ede9fe;
-  border-color: #5b21b6;
+  border-color: #6B5B9B;
   box-shadow: 0 2px 8px -2px rgba(91, 33, 182, 0.25);
 }
 
@@ -277,9 +277,9 @@
 .refresh-ps-btn--neutralize {
   padding: 0.4rem 1rem;
   border-radius: var(--radius-md);
-  border: 1px solid #fdba74;
+  border: 1px solid #E4C078;
   background: #fff7ed;
-  color: #9a3412;
+  color: var(--warning-strong);
   font-size: 0.8rem;
   font-weight: 600;
   cursor: pointer;
@@ -288,7 +288,7 @@
 
 .refresh-ps-btn--neutralize:hover:not(:disabled) {
   background: #fed7aa;
-  border-color: #9a3412;
+  border-color: var(--warning-strong);
   box-shadow: 0 2px 8px -2px rgba(154, 52, 18, 0.25);
 }
 

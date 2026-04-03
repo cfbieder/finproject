@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import Rest from "../../js/rest.js";
+import EmptyState from "../../components/EmptyState.jsx";
 
 const formatDateParam = (value) => {
   if (!(value instanceof Date) || Number.isNaN(value.getTime())) {
@@ -255,9 +256,7 @@ const BudgetDetailModal = ({ detail, onClose }) => {
             <p className="fc-scenarios-modal__description">{error}</p>
           )}
           {!loading && !error && entries.length === 0 && (
-            <p className="fc-scenarios-modal__description">
-              No transactions found for this selection.
-            </p>
+            <EmptyState variant="wallet" message="No transactions found for this selection." />
           )}
           {!loading && !error && entries.length > 0 && (
             <div className="balance-report__table-wrapper">

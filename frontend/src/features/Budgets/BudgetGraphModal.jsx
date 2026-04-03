@@ -1,5 +1,6 @@
 import PropTypes from "prop-types";
 import { useState } from "react";
+import EmptyState from "../../components/EmptyState.jsx";
 import "./BudgetGraphModal.css";
 
 const chartCurrencyFormatter = new Intl.NumberFormat("en-US", {
@@ -88,9 +89,7 @@ const BudgetGraphModal = ({ category, onClose, onCategoryClick }) => {
           </div>
 
           {children.length === 0 ? (
-            <p className="fc-scenarios-modal__description">
-              No subcategories available for this category.
-            </p>
+            <EmptyState variant="empty" message="No subcategories available for this category." />
           ) : (
             <div className="budget-graph-modal-bars">
               {children.map((child, childIndex) => {

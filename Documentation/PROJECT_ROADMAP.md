@@ -91,6 +91,7 @@ Items from active development notes:
 - [x] Forecast: Periodic dispose transfers — Periodic flag now correctly repeats the disposal amount each year from Start Year to optional End Year (DB column `date_end`, migration 015). Engine caps each year's disposal at available market value so balances never go negative. UI shows Type first, then Start Year, End Year (optional), and Amount/Year. Multiple periodic entries supported for start/stop windows.
 - [x] Forecast: Net Assets row + bar chart — "Net Assets" (Assets − Liabilities) summary row above Balance Sheet section in FCReviewTable. Double-clicking opens stacked bar chart with per-account breakdown (leaf accounts only, liabilities shown as negative). HTML tooltip shows account values and total for hovered year. New `totalLiabilitiesByYear`, `netAssetsByYear`, and `netAssetsAccountBreakdown` computed values in FCReview.jsx. Graph modal supports `chartMode="bar"` prop.
 - [ ] Add way to re-export changes back to PocketSmith
+- [x] UI Overhaul: "Mindful Minimalist" design system — complete visual transformation across all 50+ CSS files and chart JSX. Warm cream background (`#FDFCF8`), muted forest green accent (`#6B8E6B`), Outfit font (Google Fonts), elevation-based depth (soft shadows instead of borders), generous 1.5x whitespace, 24px rounded containers, organic muted chart palette, borderless cards/panels/modals/toasts, unDraw SVG illustrations for empty states (8 variants wired into 14 components). Phases: (1) design tokens + typography, (2) layout + navigation, (3) component restyling, (4) icons — skipped (Lucide already rounded), (5) chart visualization, (6) empty states + polish.
 
 ---
 
@@ -137,7 +138,7 @@ The feature module pattern is now in use. Current structure:
 
 ```
 frontend/src/
-├── components/          # Shared UI (Layout, NavigationMenu, Breadcrumbs, Footer, Toast, LoadingSpinner, HierarchyFilter, CategorySelector, PeriodSelector, AccountSelector)
+├── components/          # Shared UI (Layout, NavigationMenu, Breadcrumbs, Footer, Toast, LoadingSpinner, EmptyState, KpiCards, HierarchyFilter, CategorySelector, PeriodSelector, AccountSelector)
 ├── features/            # Domain-specific feature modules
 │   ├── Transaction/     # ✅ Unified actual + budget + review (config-driven: ACTUAL_CONFIG, BUDGET_CONFIG, REVIEW_CONFIG; shared hooks, components, utils; TransactionFilterActual + TransactionFilterBudget with PeriodSelector/CategorySelector/AccountSelector)
 │   ├── BudgetEntry/     # ✅ Budget worksheet (hooks: useFilterOptions, useBalanceData, useCurrencyData, useBudgetEntrySubmit)
@@ -163,7 +164,7 @@ Future: Extract shared `components/ui/`, `components/forms/`, `components/feedba
 |-------|--------------|--------------|
 | Loading states | Mix of "Loading...", spinners | Unified `<LoadingSkeleton>` |
 | Error display | Different per page | Unified `<ErrorBanner>` with retry |
-| Empty states | Inconsistent messages | Unified `<EmptyState>` |
+| ~~Empty states~~ | ~~Inconsistent messages~~ | ~~Unified `<EmptyState>`~~ — **Done:** `EmptyState` component with 8 unDraw illustration variants (void, no-data, empty, wallet, finance, searching, upload, ai-review). Wired into 14 pages/components. |
 | Button styles | `.generate-report-button` everywhere | Button variants: primary, secondary, danger |
 | Form validation | Scattered, inconsistent | Centralized validation with error messages |
 | Date selection | Different controls per page | Partially addressed: `PeriodSelector` with presets on Budget Worksheet, Actual Transactions, and Budget Transactions. Other pages pending. |

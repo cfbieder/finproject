@@ -30,7 +30,7 @@
 }
 
 .fc-exp-details-value--success {
-  color: #059669;
+  color: var(--success-light);
 }
 
 .fc-exp-details-value--negative {
@@ -48,7 +48,7 @@
 
 .fc-exp-details-status--yes {
   background: rgba(16, 185, 129, 0.15);
-  color: #059669;
+  color: var(--success-light);
 }
 
 .fc-exp-details-status--no {
@@ -136,7 +136,7 @@
 .fc-exp-change-amount {
   font-size: 1.1rem;
   font-weight: 700;
-  color: #059669;
+  color: var(--success-light);
 }
 
 .fc-exp-change-amount--negative {
@@ -159,5 +159,5 @@
 
 .fc-exp-change-flag--fixed {
   background: rgba(16, 185, 129, 0.15);
-  color: #059669;
+  color: var(--success-light);
 }

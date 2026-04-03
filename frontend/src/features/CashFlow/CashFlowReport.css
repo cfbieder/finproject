@@ -113,7 +113,7 @@
 
 .cash-flow-report .balance-report-table tbody tr[data-level="1"] td {
   background: #edf0fa !important;
-  border-top: 1px solid #e2e8f0;
+  border-top: 1px solid var(--border);
 }
 
 .cash-flow-report .balance-report-table tbody tr[data-level="1"] .balance-report-table__name-text {
@@ -137,7 +137,7 @@
 .cash-flow-report .balance-report-table tbody tr[data-level="2"] .balance-report-table__name-text {
   font-weight: 400;
   font-size: 0.84rem;
-  color: var(--ink-muted, #475569);
+  color: var(--ink-muted, var(--ink-secondary));
 }
 
 .cash-flow-report .balance-report-table tbody tr[data-level="2"] .balance-report-table__value {
@@ -151,13 +151,13 @@
 }
 
 .cash-flow-report .balance-report-table tbody tr[data-level="3"] td {
-  background: #f9fafb !important;
+  background: var(--bg-secondary) !important;
 }
 
 .cash-flow-report .balance-report-table tbody tr[data-level="3"] .balance-report-table__name-text {
   font-weight: 400;
   font-size: 0.82rem;
-  color: var(--ink-muted, #475569);
+  color: var(--ink-muted, var(--ink-secondary));
 }
 
 .cash-flow-report .balance-report-table tbody tr[data-level="3"] .balance-report-table__value {
@@ -176,7 +176,7 @@
 .cash-flow-report .balance-report-table tbody tr[data-level="4"] .balance-report-table__name-text {
   font-weight: 400;
   font-size: 0.8rem;
-  color: var(--ink-muted, #475569);
+  color: var(--ink-muted, var(--ink-secondary));
 }
 
 .cash-flow-report .balance-report-table tbody tr[data-level="4"] .balance-report-table__value {

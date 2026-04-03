@@ -84,6 +84,8 @@ ssh cfbieder@192.168.1.61          # KVM host (VM management only)
 | xlsx (SheetJS) | 0.18.5 | Excel file generation |
 | env-cmd | 11.0.0 | Environment management |
 
+**Design System:** "Mindful Minimalist" — warm cream palette (`#FDFCF8`), muted forest green accents (`#6B8E6B`), Outfit font, soft diffused shadows (elevation over borders), generous whitespace (1.5x spacing), rounded geometry (`24px` containers, `12px` buttons), unDraw illustrations for empty states.
+
 ### Backend
 
 | Library | Version | Purpose |
@@ -119,7 +121,7 @@ psproject/                          # ~/Programs/fin symlinks here
 │   └── src/
 │       ├── App.jsx              # Router, Layout wrapper, lazy routes
 │       ├── main.jsx             # Entry point, ToastProvider
-│       ├── components/          # Shared UI (Layout, NavigationMenu, Breadcrumbs, Footer, Toast, LoadingSpinner, MonthYearPicker, PeriodCountSelector, HierarchyFilter, CategorySelector, PeriodSelector, AccountSelector)
+│       ├── components/          # Shared UI (Layout, NavigationMenu, Breadcrumbs, Footer, Toast, LoadingSpinner, EmptyState, MonthYearPicker, PeriodCountSelector, HierarchyFilter, CategorySelector, PeriodSelector, AccountSelector)
 │       ├── config/routes.jsx    # Central route config (paths, icons, categories)
 │       ├── contexts/            # ToastContext, ForecastContext
 │       ├── features/            # Feature modules (Balances, BudgetEntry, Budgets, CashFlow, Charts, COAManagement, Database, Forecast, Transaction)

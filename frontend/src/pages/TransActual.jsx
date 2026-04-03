@@ -38,6 +38,7 @@ import { useToast } from "../contexts";
 import { useCoa } from "../hooks/useCoa.js";
 import { useFilterOptions } from "../features/BudgetEntry/hooks/useFilterOptions.js";
 import { exportTransactions } from "../utils/excelExporter.js";
+import EmptyState from "../components/EmptyState.jsx";
 import "./TransactionExplorer.css";
 
 const config = ACTUAL_CONFIG;
@@ -972,12 +973,10 @@ export default function TransActual() {
         )}
 
         {!isLoading && !error && sortedTransactions.length === 0 && (
-          <div className="txv2-state">
-            <Inbox size={32} className="txv2-state__icon" />
-            <span className="txv2-state__text">
-              {transactions.length === 0 ? "No transactions found" : "No transactions match current filters"}
-            </span>
-          </div>
+          <EmptyState
+            variant={transactions.length === 0 ? "wallet" : "searching"}
+            message={transactions.length === 0 ? "No transactions found" : "No transactions match current filters"}
+          />
         )}
 
         {!isLoading && !error && sortedTransactions.length > 0 && (

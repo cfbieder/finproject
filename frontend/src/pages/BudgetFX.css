@@ -27,7 +27,7 @@
 .budget-fx-header__subtitle {
   margin: 0;
   font-size: 0.95rem;
-  color: var(--text-muted, #64748b);
+  color: var(--text-muted, var(--muted));
 }
 
 /* --- Section card --- */
@@ -133,7 +133,7 @@
 }
 
 .budget-fx-table__empty {
-  color: #94a3b8;
+  color: var(--muted-light);
 }
 
 .budget-fx-table__input {
@@ -177,7 +177,7 @@
 .budget-fx-empty {
   text-align: center;
   padding: 2rem 0;
-  color: var(--text-muted, #64748b);
+  color: var(--text-muted, var(--muted));
   font-size: 0.95rem;
 }
 
@@ -220,14 +220,14 @@
 .budget-fx-modal__subtitle {
   margin: 0 0 1.25rem;
   font-size: 0.9rem;
-  color: var(--text-muted, #64748b);
+  color: var(--text-muted, var(--muted));
 }
 
 .budget-fx-modal__loading,
 .budget-fx-modal__empty {
   text-align: center;
   padding: 1.5rem 0;
-  color: var(--text-muted, #64748b);
+  color: var(--text-muted, var(--muted));
 }
 
 .budget-fx-modal__table {
@@ -286,13 +286,13 @@
 }
 
 .budget-fx-modal__btn--cancel {
-  background: #f1f5f9;
-  color: #475569;
-  border-color: #cbd5e1;
+  background: var(--bg-secondary);
+  color: var(--ink-secondary);
+  border-color: var(--border-strong);
 }
 
 .budget-fx-modal__btn--cancel:hover:not(:disabled) {
-  background: #e2e8f0;
+  background: var(--border);
 }
 
 .budget-fx-modal__btn--confirm {

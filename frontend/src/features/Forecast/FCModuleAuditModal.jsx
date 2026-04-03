@@ -154,7 +154,7 @@ export default function FCModuleAuditModal({ isOpen, onClose, scenario, moduleNa
           </div>
           <button
             onClick={onClose}
-            style={{ background: "none", border: "none", fontSize: "1.5rem", cursor: "pointer", color: "#64748b" }}
+            style={{ background: "none", border: "none", fontSize: "1.5rem", cursor: "pointer", color: "#808E9B" }}
           >
             &times;
           </button>
