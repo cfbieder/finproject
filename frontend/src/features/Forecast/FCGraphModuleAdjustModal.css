@@ -1,0 +1,339 @@
+/**
+ * FCGraphModuleAdjustModal - Quick adjustment modal for balance sheet graph points
+ */
+
+.fc-graph-mod-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(45, 52, 54, 0.35);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 10001;
+  padding: 1rem;
+  animation: fcGraphModFadeIn 0.15s ease-out;
+}
+
+@keyframes fcGraphModFadeIn {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+.fc-graph-mod-modal {
+  background: var(--surface);
+  border-radius: var(--radius-lg);
+  width: 100%;
+  max-width: 640px;
+  max-height: 85vh;
+  box-shadow: var(--shadow-xl);
+  padding: 1.5rem;
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+  animation: fcGraphModSlideUp 0.2s ease-out;
+}
+
+@keyframes fcGraphModSlideUp {
+  from { opacity: 0; transform: translateY(12px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+/* Header */
+.fc-graph-mod-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 1rem;
+}
+
+.fc-graph-mod-header__label {
+  margin: 0;
+  font-size: 0.75rem;
+  color: var(--muted);
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  font-weight: 600;
+}
+
+.fc-graph-mod-header__title {
+  margin: 0.25rem 0 0;
+  font-size: 1.15rem;
+  font-weight: 600;
+  color: var(--primary);
+  line-height: 1.3;
+}
+
+.fc-graph-mod-close {
+  border: none;
+  background: var(--bg-secondary);
+  border-radius: var(--radius-md);
+  padding: 0.5rem 1rem;
+  cursor: pointer;
+  font-weight: 600;
+  font-size: 0.85rem;
+  color: var(--ink);
+  transition: all 0.15s ease;
+}
+
+.fc-graph-mod-close:hover {
+  background: var(--primary-subtle);
+  color: var(--primary);
+}
+
+/* Info */
+.fc-graph-mod-info {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+  padding: 0.75rem;
+  background: var(--bg-secondary);
+  border-radius: var(--radius-md);
+}
+
+.fc-graph-mod-info__item {
+  display: flex;
+  flex-direction: column;
+  gap: 0.2rem;
+  flex: 1;
+  min-width: 120px;
+}
+
+.fc-graph-mod-info__label {
+  font-size: 0.72rem;
+  color: var(--muted);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  font-weight: 600;
+}
+
+.fc-graph-mod-info__value {
+  font-size: 0.95rem;
+  font-weight: 600;
+  color: var(--ink);
+}
+
+/* Body / scrollable area */
+.fc-graph-mod-body {
+  display: flex;
+  flex-direction: column;
+  gap: 1.25rem;
+  overflow-y: auto;
+  max-height: 50vh;
+  padding-right: 0.25rem;
+}
+
+/* Loading */
+.fc-graph-mod-loading {
+  text-align: center;
+  padding: 2rem;
+  color: var(--muted);
+  font-weight: 500;
+}
+
+/* Transfer sections */
+.fc-graph-mod-section {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.fc-graph-mod-section__header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding-bottom: 0.35rem;
+  border-bottom: 2px solid var(--primary);
+}
+
+.fc-graph-mod-section__title {
+  margin: 0;
+  font-size: 0.95rem;
+  font-weight: 700;
+  color: var(--ink);
+}
+
+.fc-graph-mod-section__add {
+  border: none;
+  background: var(--primary);
+  color: white;
+  border-radius: var(--radius-md);
+  padding: 0.4rem 0.85rem;
+  font-size: 0.8rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: opacity 0.15s ease;
+}
+
+.fc-graph-mod-section__add:hover {
+  opacity: 0.9;
+}
+
+.fc-graph-mod-section__add:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.fc-graph-mod-section__empty {
+  padding: 0.75rem;
+  text-align: center;
+  color: var(--muted);
+  font-size: 0.85rem;
+  font-style: italic;
+  background: var(--bg-secondary);
+  border-radius: var(--radius-md);
+}
+
+/* Transfer cards */
+.fc-graph-mod-card {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.75rem;
+  padding: 0.75rem;
+  background: var(--bg-secondary);
+  border-radius: var(--radius-md);
+  border: 1px solid var(--border);
+  transition: border-color 0.15s ease, box-shadow 0.15s ease;
+}
+
+.fc-graph-mod-card--highlighted {
+  border-color: var(--primary);
+  box-shadow: 0 0 0 2px var(--primary-subtle);
+}
+
+.fc-graph-mod-card__number {
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  background: var(--primary);
+  color: white;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 0.78rem;
+  font-weight: 700;
+  flex-shrink: 0;
+  margin-top: 1.2rem;
+}
+
+.fc-graph-mod-card__fields {
+  flex: 1;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}
+
+.fc-graph-mod-card__field {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+  flex: 1;
+  min-width: 100px;
+}
+
+.fc-graph-mod-card__label {
+  font-size: 0.72rem;
+  font-weight: 600;
+  color: var(--muted);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.fc-graph-mod-card__input {
+  padding: 0.45rem 0.6rem;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  font-size: 0.88rem;
+  font-weight: 500;
+  color: var(--ink);
+  background: var(--surface);
+  transition: border-color 0.15s ease;
+}
+
+.fc-graph-mod-card__input:focus {
+  outline: none;
+  border-color: var(--primary);
+  box-shadow: 0 0 0 2px var(--primary-subtle);
+}
+
+.fc-graph-mod-card__input:disabled {
+  background: var(--bg-secondary);
+  color: var(--muted);
+  cursor: not-allowed;
+}
+
+.fc-graph-mod-card__remove {
+  border: none;
+  background: none;
+  cursor: pointer;
+  color: var(--danger);
+  opacity: 0.5;
+  padding: 0.25rem;
+  border-radius: var(--radius-md);
+  transition: opacity 0.15s ease, background 0.15s ease;
+  flex-shrink: 0;
+  margin-top: 1.2rem;
+}
+
+.fc-graph-mod-card__remove:hover {
+  opacity: 1;
+  background: #fef2f2;
+}
+
+.fc-graph-mod-card__remove:disabled {
+  opacity: 0.3;
+  cursor: not-allowed;
+}
+
+/* Error */
+.fc-graph-mod-error {
+  padding: 0.5rem 0.75rem;
+  background: #fef2f2;
+  border: 1px solid #fecaca;
+  border-radius: var(--radius-md);
+  color: var(--danger);
+  font-size: 0.85rem;
+  font-weight: 500;
+}
+
+/* Actions */
+.fc-graph-mod-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 0.75rem;
+  padding-top: 0.5rem;
+  border-top: 1px solid var(--border-subtle);
+}
+
+.fc-graph-mod-btn {
+  padding: 0.6rem 1.25rem;
+  border-radius: var(--radius-md);
+  font-weight: 600;
+  font-size: 0.9rem;
+  cursor: pointer;
+  transition: all 0.15s ease;
+  border: none;
+}
+
+.fc-graph-mod-btn--cancel {
+  background: var(--bg-secondary);
+  color: var(--ink);
+}
+
+.fc-graph-mod-btn--cancel:hover {
+  background: var(--border);
+}
+
+.fc-graph-mod-btn--save {
+  background: var(--primary);
+  color: white;
+}
+
+.fc-graph-mod-btn--save:hover {
+  opacity: 0.9;
+  box-shadow: var(--shadow-md);
+}
+
+.fc-graph-mod-btn--save:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}

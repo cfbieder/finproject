@@ -266,3 +266,62 @@ img {
     font-size: 1rem;
   }
 }
+
+/* ============================================================================
+   PWA & MOBILE ENHANCEMENTS
+   ============================================================================ */
+
+/* Safe area insets for notched devices (iPhone X+) */
+@supports (padding: env(safe-area-inset-top)) {
+  body {
+    padding-top: env(safe-area-inset-top);
+    padding-bottom: env(safe-area-inset-bottom);
+    padding-left: env(safe-area-inset-left);
+    padding-right: env(safe-area-inset-right);
+  }
+}
+
+/* Standalone PWA mode adjustments */
+@media (display-mode: standalone) {
+  body {
+    -webkit-user-select: none;
+    user-select: none;
+    overscroll-behavior-y: contain;
+  }
+
+  /* Re-enable text selection on content areas */
+  .page-content-area,
+  table,
+  .kpi-card__value,
+  input,
+  textarea,
+  select {
+    -webkit-user-select: text;
+    user-select: text;
+  }
+}
+
+/* Touch-friendly tap targets (min 44px per WCAG) */
+@media (pointer: coarse) {
+  button,
+  a.navlink,
+  select,
+  input[type="checkbox"],
+  input[type="radio"] {
+    min-height: 44px;
+    min-width: 44px;
+  }
+
+  select,
+  .form-input {
+    min-height: 44px;
+    font-size: 16px; /* prevents iOS zoom on focus */
+  }
+}
+
+/* Prevent pull-to-refresh interfering with scroll in PWA */
+@media (display-mode: standalone) {
+  html {
+    overscroll-behavior: none;
+  }
+}

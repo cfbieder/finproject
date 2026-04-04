@@ -1,6 +1,7 @@
 import { StrictMode } from 'react'
 import { createRoot } from 'react-dom/client'
 import { ToastProvider } from './contexts'
+import PWAUpdatePrompt from './components/PWAUpdatePrompt'
 import './index.css'
 import App from './App.jsx'
 
@@ -18,6 +19,7 @@ createRoot(document.getElementById('root')).render(
   <StrictMode>
     <ToastProvider>
       <App />
+      <PWAUpdatePrompt />
     </ToastProvider>
   </StrictMode>,
 )

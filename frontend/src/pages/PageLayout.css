@@ -3709,6 +3709,11 @@
     font-size: 0.8rem;
   }
 
+  .section-filters {
+    height: auto;
+    min-height: 0;
+  }
+
   .section-table__content {
     padding: 0.75rem;
   }

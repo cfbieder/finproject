@@ -78,11 +78,15 @@ ssh cfbieder@192.168.1.61          # KVM host (VM management only)
 |---------|---------|---------|
 | React | 19.2.0 | UI framework |
 | Vite | 7.2.4 | Build tool & dev server |
+| vite-plugin-pwa | 1.2.0 | PWA support (service worker, manifest, precache) |
+| workbox-window | 7.4.0 | Service worker registration & update detection |
 | React Router DOM | 7.9.6 | Client-side routing |
 | Lucide React | 0.563.0 | SVG icon library |
 | Recharts | 2.x | Chart library (KPI sparklines, mini-charts) |
 | xlsx (SheetJS) | 0.18.5 | Excel file generation |
 | env-cmd | 11.0.0 | Environment management |
+
+**PWA:** Installable Progressive Web App with offline-capable service worker. Cache-first strategy for hashed Vite assets (JS/CSS/fonts) — new builds generate new filenames so the SW detects changes and prompts users to update. API calls are network-only (never cached). Update prompt toast appears when a new version is available. Icons: 192px, 512px, Apple Touch 180px. Safe area insets and touch-friendly 44px tap targets for mobile.
 
 **Design System:** "Mindful Minimalist" — warm cream palette (`#FDFCF8`), muted forest green accents (`#6B8E6B`), Outfit font, soft diffused shadows (elevation over borders), generous whitespace (1.5x spacing), rounded geometry (`24px` containers, `12px` buttons), unDraw illustrations for empty states.
 

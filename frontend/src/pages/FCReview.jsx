@@ -35,6 +35,7 @@ import FCCashTransferModal from "../features/Forecast/FCCashTransferModal.jsx";
 import FCReviewTableGraphModal from "../features/Forecast/FCReviewTableGraphModal.jsx";
 import FCCashSweepModal from "../features/Forecast/FCCashSweepModal.jsx";
 import FCGraphAdjustModal from "../features/Forecast/FCGraphAdjustModal.jsx";
+import FCGraphModuleAdjustModal from "../features/Forecast/FCGraphModuleAdjustModal.jsx";
 import { formatAmount } from "../features/Forecast/utils/fcReviewUtils.js";
 import { KpiCard, KpiCardRow } from "../components/KpiCards.jsx";
 import { TrendingUp, TrendingDown, DollarSign, Landmark } from "lucide-react";
@@ -1194,25 +1195,39 @@ export default function FCReview() {
     setGraphMode("line");
   }, []);
 
-  // Graph point double-click → open adjustment modal
+  // Graph point double-click → open adjustment modal (FC Exp or FC Module)
   const handleGraphPointDoubleClick = useCallback(
     (seriesId, seriesLabel, yearIndex, year, currentValue) => {
-      const entries = fcExpByLabel.get(seriesLabel);
-      if (!entries || entries.length === 0) return; // not an FC Exp line
+      // Check FC Exp entries first (cash flow / P&L series)
+      const expEntries = fcExpByLabel.get(seriesLabel);
+      if (expEntries && expEntries.length > 0) {
+        const entry = expEntries[0];
+        setGraphAdjustModal({
+          isOpen: true,
+          entry,
+          year: Number(year),
+          currentValue,
+          seriesLabel,
+        });
+        return;
+      }
 
-      // If multiple entries under this FC Line, pick the first (most common case is 1:1)
-      // Future: could show a picker if entries.length > 1
-      const entry = entries.length === 1 ? entries[0] : entries[0];
-
-      setGraphAdjustModal({
-        isOpen: true,
-        entry,
-        year: Number(year),
-        currentValue,
-        seriesLabel,
-      });
+      // Check FC Modules (balance sheet series)
+      const modules = fcModulesByLabel.get(seriesLabel);
+      if (modules && modules.length > 0) {
+        // If multiple modules under this label, pick the first for now
+        const mod = modules[0];
+        setGraphModuleAdjustModal({
+          isOpen: true,
+          moduleId: mod.id,
+          year: Number(year),
+          currentValue,
+          seriesLabel,
+        });
+        return;
+      }
     },
-    [fcExpByLabel]
+    [fcExpByLabel, fcModulesByLabel]
   );
 
   const handleCloseGraphAdjust = useCallback(() => {
@@ -1266,6 +1281,44 @@ export default function FCReview() {
       setGraphAdjustModal((prev) => ({ ...prev, isOpen: false }));
     },
     [selectedScenario, reloadForecastData, fcExpEntries]
+  );
+
+  // FC Module adjust modal handlers
+  const handleCloseGraphModuleAdjust = useCallback(() => {
+    setGraphModuleAdjustModal((prev) => ({ ...prev, isOpen: false }));
+  }, []);
+
+  const handleGraphModuleAdjustSave = useCallback(
+    async (moduleId, invest, dispose) => {
+      // 1. Save via PUT (sends full Invest/Dispose arrays)
+      await Rest.fetchJson(
+        `/api/v2/forecast/modules/${encodeURIComponent(moduleId)}`,
+        {
+          method: "PUT",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ Invest: invest, Dispose: dispose }),
+        }
+      );
+
+      // 2. Regenerate forecast
+      await Rest.fetchJson(
+        `/api/v2/forecast/generate/${encodeURIComponent(selectedScenario)}`,
+        { method: "POST" }
+      );
+
+      // 3. Reload data
+      reloadForecastData();
+
+      // 4. Refresh FC Modules cache
+      const refreshed = await Rest.fetchJson(
+        `/api/v2/forecast/modules?scenario=${encodeURIComponent(selectedScenario)}`
+      );
+      setFcModules(Array.isArray(refreshed) ? refreshed : []);
+
+      // 5. Close modal (graph stays open)
+      setGraphModuleAdjustModal((prev) => ({ ...prev, isOpen: false }));
+    },
+    [selectedScenario, reloadForecastData]
   );
 
   // AI Review drawer
@@ -1334,9 +1387,9 @@ export default function FCReview() {
       selectedSeries.map((series, index) => ({
         ...series,
         color: GRAPH_COLORS[index % GRAPH_COLORS.length],
-        hasModule: fcExpByLabel.has(series.label),
+        hasModule: fcExpByLabel.has(series.label) || fcModulesByLabel.has(series.label),
       })),
-    [selectedSeries, fcExpByLabel]
+    [selectedSeries, fcExpByLabel, fcModulesByLabel]
   );
 
   return (
@@ -1502,6 +1555,16 @@ export default function FCReview() {
         year={graphAdjustModal.year}
         currentValue={graphAdjustModal.currentValue}
         seriesLabel={graphAdjustModal.seriesLabel}
+      />
+      <FCGraphModuleAdjustModal
+        isOpen={graphModuleAdjustModal.isOpen}
+        onClose={handleCloseGraphModuleAdjust}
+        onSave={handleGraphModuleAdjustSave}
+        moduleId={graphModuleAdjustModal.moduleId}
+        year={graphModuleAdjustModal.year}
+        currentValue={graphModuleAdjustModal.currentValue}
+        seriesLabel={graphModuleAdjustModal.seriesLabel}
+        selectedScenario={selectedScenario}
       />
       <FCAIReviewDrawer
         isOpen={aiDrawerOpen}

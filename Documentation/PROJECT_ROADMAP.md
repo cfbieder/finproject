@@ -30,6 +30,7 @@ Items from active development notes:
 - [x] Ability to adjust the tax rate on some income (e.g. UB) — per-module `tax_rate_override` field (migration 010), NULL = scenario default
 - [x] On liabilities the expense needs to be a negative percent — can this be fixed
 - [x] Add some KPIs to Budget Page and Forecast Page with graphics
+- [x] PWA & Mobile-Friendly UI — installable Progressive Web App via `vite-plugin-pwa`. Cache-first for hashed Vite assets (JS/CSS/fonts/images), network-only for `/api/` calls. Auto-update detection every 60s with toast prompt ("A new version is available" + Update/Later buttons). PWA manifest (`standalone`, `any` orientation), icons (192px, 512px, maskable, Apple Touch 180px). Mobile enhancements: safe area insets for notched devices, 44px touch targets on `pointer: coarse`, `font-size: 16px` on inputs (prevents iOS zoom), `overscroll-behavior: none` in standalone mode, DataTable mobile breakpoints (responsive font/padding), `section-filters` auto-height on small screens. `PWAUpdatePrompt.jsx` component in `main.jsx`.
 - [ ] Add way to re-export changes back to PocketSmith
 - [x] Move Forecast FX Assumptions from Settings `/fx-options` to Forecasting category — now part of FC Settings page (`/fc-settings`)
 - [x] Add Transfer Analysis page (`/transfer-analysis`) — match debit/credit transfer pairs by amount within date tolerance, show matched and unmatched transfers by category

@@ -32,3 +32,42 @@
   background-repeat: no-repeat;
   background-attachment: local, local, scroll, scroll;
 }
+
+/* ============================================================
+   Mobile table responsiveness
+   ============================================================ */
+
+@media (max-width: 768px) {
+  .data-table-scroll,
+  .data-table-scroll--horizontal {
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  .data-table-scroll table,
+  .data-table-scroll--horizontal table {
+    font-size: 0.8125rem;
+  }
+
+  .data-table-scroll th,
+  .data-table-scroll td,
+  .data-table-scroll--horizontal th,
+  .data-table-scroll--horizontal td {
+    padding: 0.5rem 0.625rem;
+    white-space: nowrap;
+  }
+}
+
+@media (max-width: 640px) {
+  .data-table-scroll table,
+  .data-table-scroll--horizontal table {
+    font-size: 0.75rem;
+  }
+
+  .data-table-scroll th,
+  .data-table-scroll td,
+  .data-table-scroll--horizontal th,
+  .data-table-scroll--horizontal td {
+    padding: 0.375rem 0.5rem;
+  }
+}
