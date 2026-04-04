@@ -1,7 +1,8 @@
 import { useState } from "react";
 import { Link, useLocation } from "react-router-dom";
 import { getCategories, getCategoryPath, routes } from "../config/routes";
-import { Menu, X } from "lucide-react";
+import { Menu, X, Download } from "lucide-react";
+import useInstallPrompt from "../hooks/useInstallPrompt";
 import banner from "../assets/banner.png";
 import "./NavigationMenu.css";
 
@@ -11,6 +12,7 @@ export default function NavigationMenu() {
   const { pathname } = useLocation();
   const categories = getCategories();
   const [mobileOpen, setMobileOpen] = useState(false);
+  const { canInstall, install } = useInstallPrompt();
 
   // Determine which category is active based on current path
   const currentRoute = routes.find((r) => r.path === pathname);
@@ -37,6 +39,18 @@ export default function NavigationMenu() {
             <span className="navbar__title">Fin</span>
             <span className="navbar__version-badge">v{import.meta.env.VITE_APP_VERSION || '2.0.0'}{isDev ? ' DEV' : ''}</span>
           </Link>
+
+          {canInstall && (
+            <button
+              type="button"
+              className="navbar__install-btn"
+              onClick={install}
+              aria-label="Install app"
+            >
+              <Download size={16} />
+              <span className="navbar__install-label">Install</span>
+            </button>
+          )}
 
           <button
             type="button"

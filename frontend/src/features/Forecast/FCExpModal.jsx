@@ -340,6 +340,9 @@ export default function FCExpModal({
                     value={editForm?.Account || ""}
                     onChange={(e) => onFieldChange("Account", e.target.value)}
                   >
+                    <option value="" disabled>
+                      Select account...
+                    </option>
                     {accountOptions.map((option) => (
                       <option key={option} value={option}>
                         {option}
@@ -386,15 +389,18 @@ export default function FCExpModal({
               {/* Type */}
               <div className="fc-exp-modal__field">
                 <label className="fc-exp-modal__label">Type</label>
-                <input
+                <select
                   className="fc-exp-modal__input"
-                  type="text"
                   value={editForm?.Type || ""}
                   onChange={(e) => !editForm?.FcLineId && onFieldChange("Type", e.target.value)}
-                  readOnly={Boolean(editForm?.FcLineId)}
                   disabled={Boolean(editForm?.FcLineId)}
-                  placeholder="Enter type"
-                />
+                >
+                  <option value="" disabled>
+                    Select type...
+                  </option>
+                  <option value="Income">Income</option>
+                  <option value="Expense">Expense</option>
+                </select>
               </div>
 
               {/* Status */}
@@ -408,6 +414,7 @@ export default function FCExpModal({
                   <option value="new">New</option>
                   <option value="in_progress">In Progress</option>
                   <option value="complete">Complete</option>
+                  <option value="exclude">Exclude</option>
                 </select>
               </div>
 

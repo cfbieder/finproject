@@ -21,44 +21,39 @@ export function useFCExpAccountHierarchy() {
         const seen = new Set();
         const namesByAccount = {};
         const leafToAccount = {};
-        const addLevel2 = (section) => {
-          if (!Array.isArray(section)) return;
-          section.forEach((entry) => {
-            if (!entry || typeof entry !== "object") return;
-            const [key] = Object.keys(entry);
-            if (key) {
-              if (!seen.has(key)) {
-                seen.add(key);
-                options.push(key);
-              }
-              const names = [];
-              const addLeaves = (node) => {
-                if (typeof node === "string") {
-                  names.push(node);
-                  if (!leafToAccount[node]) leafToAccount[node] = key;
-                  return;
-                }
-                if (Array.isArray(node)) {
-                  node.forEach((item) => addLeaves(item));
-                  return;
-                }
-                if (node && typeof node === "object") {
-                  Object.entries(node).forEach(([k, v]) => {
-                    addLeaves(k);
-                    addLeaves(v);
-                  });
-                }
-              };
-              addLeaves(entry[key]);
-              namesByAccount[key] = names;
+
+        // getNestedTree returns { name, children } nodes
+        const collectLeafNames = (children, parentKey) => {
+          if (!Array.isArray(children)) return [];
+          const names = [];
+          for (const child of children) {
+            if (!child || typeof child !== "object") continue;
+            if (child.children && child.children.length > 0) {
+              names.push(...collectLeafNames(child.children, parentKey));
+            } else if (child.name) {
+              names.push(child.name);
+              if (!leafToAccount[child.name]) leafToAccount[child.name] = parentKey;
             }
-          });
+          }
+          return names;
         };
 
-        (Array.isArray(data) ? data : []).forEach((group) => {
-          if (!group || typeof group !== "object") return;
-          Object.values(group).forEach(addLevel2);
-        });
+        // Level 1 nodes are the top-level groups (Income, Expense)
+        // Level 2 nodes are the account categories we want in the dropdown
+        const tree = Array.isArray(data) ? data : [];
+        for (const level1 of tree) {
+          if (!level1 || typeof level1 !== "object") continue;
+          const level2Children = level1.children || [];
+          for (const level2 of level2Children) {
+            if (!level2 || !level2.name) continue;
+            const key = level2.name;
+            if (!seen.has(key)) {
+              seen.add(key);
+              options.push(key);
+            }
+            namesByAccount[key] = collectLeafNames(level2.children || [], key);
+          }
+        }
 
         setAccountOptions(options);
         setAccountNameOptions(namesByAccount);
