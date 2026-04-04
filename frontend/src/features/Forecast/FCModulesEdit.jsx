@@ -93,7 +93,10 @@ export default function FCModulesEditModal({
   bsLevel2Options = [],
   getChildCategoriesForAccount = () => [],
   allModules = [],
+  scenarioName = "",
+  onSave,
 }) {
+  const [generating, setGenerating] = useState(false);
   const isMatched = Boolean(editForm?.Matched);
   const nameOptions = getChildCategoriesForAccount(editForm?.Account);
   const hasMultipleChildren = nameOptions.length > 1;
@@ -440,12 +443,7 @@ export default function FCModulesEditModal({
   const incomePctYearOptions = transferYearOptions.filter(y => y >= periodStartNum);
   const transferFlagOptionsI = ["OneTime", "Periodic"];
   const transferFlagOptionsD = ["Full", "OneTime", "Periodic"];
-  const incomePctLabel = (() => {
-    const t = (editForm?.Type || "").toLowerCase();
-    if (t.includes("deposit") || t.includes("fixed income") || t.includes("bond"))
-      return "Yield / Deposit Rate %";
-    return "Income / Yield %";
-  })();
+  const incomePctLabel = "Yield Spread";
   const transferSections = [
     ["Invest", "Invest"],
     ["Dispose", "Dispose"],
@@ -1096,6 +1094,11 @@ export default function FCModulesEditModal({
                       <h5 className="fc-modules-modal__transfer-title">
                         {label} {isIncomePct ? "" : "Transfers"}
                       </h5>
+                      {isIncomePct && (
+                        <span style={{ fontSize: "0.75em", color: "#888", fontWeight: 400 }}>
+                          Annual yield above/below inflation (%)
+                        </span>
+                      )}
                       <button
                         type="button"
                         className="fc-modules-modal__add-transfer-button"
@@ -1245,7 +1248,7 @@ export default function FCModulesEditModal({
                                     className="fc-modules-modal__transfer-label"
                                     title={
                                       isIncomePct
-                                        ? "Enter a % of market value"
+                                        ? "Annual yield above/below inflation (%)"
                                         : undefined
                                     }
                                   >
@@ -1258,7 +1261,7 @@ export default function FCModulesEditModal({
                                     value={fieldValue}
                                     title={
                                       isIncomePct
-                                        ? "Enter a % of market value"
+                                        ? "Annual yield above/below inflation (%)"
                                         : entry?.Flag === "Periodic"
                                         ? "Amount disposed each year"
                                         : undefined
@@ -1353,9 +1356,34 @@ export default function FCModulesEditModal({
               type="button"
               className="fc-modules-modal__button fc-modules-modal__button--cancel"
               onClick={() => setShowAuditModal(true)}
-              style={{ marginRight: "auto" }}
             >
               View Output
+            </button>
+            <button
+              type="button"
+              className="fc-modules-modal__button fc-modules-modal__button--generate"
+              disabled={generating || editSaving || !scenarioName}
+              style={{ marginRight: "auto" }}
+              onClick={async () => {
+                if (!scenarioName || generating) return;
+                setGenerating(true);
+                try {
+                  if (onSave) {
+                    const saved = await onSave();
+                    if (!saved) return;
+                  }
+                  await Rest.fetchJson(
+                    `/api/v2/forecast/generate/${encodeURIComponent(scenarioName)}`,
+                    { method: "POST" }
+                  );
+                } catch (e) {
+                  console.error("Generate failed:", e);
+                } finally {
+                  setGenerating(false);
+                }
+              }}
+            >
+              {generating ? "Saving & Generating..." : "Generate"}
             </button>
             <button
               type="button"

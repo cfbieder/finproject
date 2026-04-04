@@ -1875,6 +1875,17 @@ input.fc-modules-modal__input:read-only {
   flex-shrink: 0;
 }
 
+.fc-modules-modal__button--generate {
+  background: var(--primary);
+  color: white;
+  border-color: var(--primary);
+}
+
+.fc-modules-modal__button--generate:hover:not(:disabled) {
+  background: var(--primary-hover);
+  border-color: var(--primary-hover);
+}
+
 /* Loading Spinner */
 .fc-modules-modal__spinner {
   width: 16px;

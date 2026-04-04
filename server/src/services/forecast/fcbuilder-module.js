@@ -393,16 +393,19 @@ async function processModule(module, scenario, df_assumptions, df_categories, ca
   // Period 1 = income_amount × (1 + inflation), Period 2+ = yield if set, else keep compounding
   const incomeValues = new Array(yearsCount).fill(0);
   const absIncomeAmount = parseFloat(module.income_amount) || 0;
-  const hasIncomePct = incomePctValues.some(v => v !== 0);
+  // Has yield spread schedule = user created IncomePct entries (even if all 0% → inflation-only yield)
+  const hasIncomePct = Array.isArray(module.IncomePct) && module.IncomePct.length > 0;
 
   for (let i = 0, year = startyear; year <= endyear; i++, year++) {
     const idx = year - periodStart;
     if (idx < 0 || idx >= inflationLen) continue;
 
-    const yieldIncome = (((marketValues[i] + (marketValues[i - 1] ?? 0)) / 2) * incomePctValues[i]) / 100;
+    // Yield Spread: additive over inflation → effective yield = inflation% + spread%
+    const effectiveYield = (idx >= 0 && idx < inflationLen ? inflationSeries[idx] : 0) + incomePctValues[i];
+    const yieldIncome = (((marketValues[i] + (marketValues[i - 1] ?? 0)) / 2) * effectiveYield) / 100;
 
     if (hasIncomePct) {
-      // Module has yield schedule → use yield for all periods (0% means no income)
+      // Module has yield spread schedule → effective yield = inflation + spread (0% spread = inflation-only yield)
       incomeValues[i] = yieldIncome;
     } else if (absIncomeAmount > 0) {
       // No yield schedule at all → grow income_amount at inflation from base year

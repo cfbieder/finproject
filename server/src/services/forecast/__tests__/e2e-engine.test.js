@@ -88,7 +88,7 @@ async function runIncExp(moduleOverrides = {}, scenarioOverrides = {}, assumptio
 describe("E2E — Complex Multi-Module Scenario", () => {
 
   test("Equity module: growth + dividends + partial disposal + tax deferral", async () => {
-    // Equity: 500K market, 400K basis, 1x inflation growth (3%), 2% dividend, sell 100K in 2029
+    // Equity: 500K market, 400K basis, 1x inflation growth (3%), 2% yield spread, sell 100K in 2029
     const { db } = await runBSModule({
       BaseValue: 400000, BaseValueUSD: 400000,
       MarketValue: 500000, MarketValueUSD: 500000,
@@ -108,12 +108,12 @@ describe("E2E — Complex Multi-Module Scenario", () => {
     const y2027 = balEntries.find(e => e.forecast_year === 2027);
     expect(y2027.amount).toBeCloseTo(515000, -2);
 
-    // Dividends: 2% of avg MV
+    // Dividends: yield spread 2% + inflation 3% = 5% effective yield of avg MV
     const divEntries = getEntriesForAccount(db, "Dividends");
     expect(divEntries.length).toBeGreaterThan(0);
-    // 2027: 2% × avg(500K, 515K) = 2% × 507.5K = 10,150
+    // 2027: 5% × avg(500K, 515K) = 5% × 507.5K = 25,375
     const div2027 = divEntries.find(e => e.forecast_year === 2027);
-    expect(div2027.amount).toBeCloseTo(10150, -1);
+    expect(div2027.amount).toBeCloseTo(25375, -1);
 
     // Tax should be deferred: no tax in 2027 (income taxed next year)
     const taxEntries = getEntriesForAccount(db, "Taxes");
@@ -124,7 +124,7 @@ describe("E2E — Complex Multi-Module Scenario", () => {
     const tax2028 = taxEntries.find(e => e.forecast_year === 2028);
     expect(tax2028).toBeDefined();
     expect(tax2028.amount).toBeLessThan(0);
-    expect(tax2028.amount).toBeCloseTo(-10150 * 0.25, -1);
+    expect(tax2028.amount).toBeCloseTo(-25375 * 0.25, -1);
 
     // Disposal in 2029 → tax in 2030
     const tax2029 = taxEntries.find(e => e.forecast_year === 2029);
@@ -161,7 +161,7 @@ describe("E2E — Complex Multi-Module Scenario", () => {
     expect(exp2028.amount).toBeCloseTo(-3136, -1);
   });
 
-  test("Fixed income module: no growth + 4% yield", async () => {
+  test("Fixed income module: no growth + 4% yield spread", async () => {
     const { db } = await runBSModule({
       BaseValue: 1000000, BaseValueUSD: 1000000,
       MarketValue: 1000000, MarketValueUSD: 1000000,
@@ -178,17 +178,17 @@ describe("E2E — Complex Multi-Module Scenario", () => {
     const bal2027 = balEntries.find(e => e.forecast_year === 2027);
     expect(bal2027.amount).toBeCloseTo(1000000, -2);
 
-    // Interest: 4% × avg(1M, 1M) = 40,000 per year
+    // Yield spread 4% + inflation 3% = 7% effective yield × avg(1M, 1M) = 70,000 per year
     const intEntries = getEntriesForAccount(db, "Interest Income");
     const int2027 = intEntries.find(e => e.forecast_year === 2027);
-    expect(int2027.amount).toBeCloseTo(40000, -1);
+    expect(int2027.amount).toBeCloseTo(70000, -1);
     const int2030 = intEntries.find(e => e.forecast_year === 2030);
-    expect(int2030.amount).toBeCloseTo(40000, -1);
+    expect(int2030.amount).toBeCloseTo(70000, -1);
 
-    // Tax deferred: 25% of 40K = -10K, deferred to next year
+    // Tax deferred: 25% of 70K = -17,500, deferred to next year
     const taxEntries = getEntriesForAccount(db, "Taxes");
     const tax2028 = taxEntries.find(e => e.forecast_year === 2028);
-    expect(tax2028.amount).toBeCloseTo(-10000, -1);
+    expect(tax2028.amount).toBeCloseTo(-17500, -1);
   });
 
   test("Liability module: interest + repayment", async () => {

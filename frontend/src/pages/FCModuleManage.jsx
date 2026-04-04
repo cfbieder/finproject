@@ -348,17 +348,19 @@ export default function FCModuleManage() {
    *
    * @param {Event} event - Form submit event
    */
-  const handleSaveEdit = async (event) => {
-    event.preventDefault();
-    if (!selectedModule || !editForm) return;
+  /**
+   * Core save logic — builds payload and PUTs to API.
+   * Returns true on success, false on failure.
+   */
+  const saveModule = async () => {
+    if (!selectedModule || !editForm) return false;
 
     const moduleId = selectedModule.id;
     if (!moduleId) {
       setEditError("Cannot edit this module because it has no id.");
-      return;
+      return false;
     }
 
-    // Define numeric fields that need special handling
     const numericFields = [
       "Expense",
       "ExpenseAmount",
@@ -372,7 +374,6 @@ export default function FCModuleManage() {
       "TaxRateOverride",
     ];
 
-    // Build base payload with string and boolean fields
     const payload = {
       Account: editForm.Account ?? "",
       Name: editForm.Name ?? "",
@@ -391,7 +392,6 @@ export default function FCModuleManage() {
       CashSweepTarget: Boolean(editForm.CashSweepTarget),
     };
 
-    // Process numeric fields with validation
     for (const field of numericFields) {
       const raw = editForm[field];
       const parsed =
@@ -399,7 +399,6 @@ export default function FCModuleManage() {
       payload[field] = Number.isNaN(parsed) ? null : parsed;
     }
 
-    // Normalize and add transfer arrays
     payload.Invest = normalizeTransfers(editForm.Invest);
     payload.Dispose = normalizeTransfers(editForm.Dispose);
     payload.IncomePct = normalizeTransfers(editForm.IncomePct);
@@ -411,14 +410,20 @@ export default function FCModuleManage() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(payload),
       });
-
       reloadModules();
-      closeEditModal();
+      return true;
     } catch (err) {
       setEditError(err.message || "Failed to update module");
+      return false;
     } finally {
       setEditSaving(false);
     }
+  };
+
+  const handleSaveEdit = async (event) => {
+    event.preventDefault();
+    const ok = await saveModule();
+    if (ok) closeEditModal();
   };
 
   /**
@@ -583,6 +588,8 @@ export default function FCModuleManage() {
           bsLevel2Options={bsLevel2Options}
           getChildCategoriesForAccount={getChildCategoriesForAccount}
           allModules={modules}
+          scenarioName={selectedScenario}
+          onSave={saveModule}
         />
         <FCExpConfirmDeleteModal
           isOpen={showDeleteModal}

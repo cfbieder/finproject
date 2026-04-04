@@ -109,7 +109,7 @@ const renderIncomePct = (incomePct) => {
     <div className="fc-modules-details__transfers">
       <div className="fc-modules-details__transfers-header">
         <span>Date</span>
-        <span>Income %</span>
+        <span>Yield Spread</span>
         <span />
       </div>
       {incomePct.map((entry, index) => {
@@ -557,7 +557,7 @@ export default function FCModulesTable({
                       span: false,
                     },
                     {
-                      label: "Income %",
+                      label: "Yield Spread",
                       value: Array.isArray(selectedModule.IncomePct)
                         ? selectedModule.IncomePct.length > 0
                           ? `${selectedModule.IncomePct.length} entries`
@@ -618,7 +618,7 @@ export default function FCModulesTable({
                       span: true,
                     },
                     {
-                      label: "Income % Entries",
+                      label: "Yield Spread Entries",
                       value: renderIncomePct(selectedModule.IncomePct),
                       span: true,
                     },
