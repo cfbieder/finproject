@@ -9,6 +9,7 @@ const router = express.Router();
 const db = require('../db');
 const accountsRepo = require('../repositories').accounts;
 const frankfurterExchangeRates = require('../../utils/frankfurterExchangeRates');
+const { refreshStaleRates } = require('../../utils/refreshExchangeRates');
 
 // ============================================================================
 // Date Helpers
@@ -162,6 +163,13 @@ async function fetchAccountBalances(asOfDate) {
   if (currencies.size > 0) {
     console.log('[v2/reports/balance] Fetching exchange rates for currencies:', Array.from(currencies));
     const currencyArr = Array.from(currencies);
+
+    // Auto-refresh stale rates (> 3 days old) from Frankfurter
+    try {
+      await refreshStaleRates(currencyArr, asOfDate);
+    } catch (err) {
+      console.warn('[v2/reports/balance] Stale rate refresh failed (non-fatal):', err.message);
+    }
 
     // Try local exchange_rates table first (closest date match)
     const localRates = await db.query(`

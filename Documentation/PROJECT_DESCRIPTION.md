@@ -501,7 +501,7 @@ Key engine features:
 
 #### Test Coverage
 
-56 automated tests (Jest): 16 FC Lines API tests, 19 engine tests (fcbuilder-module), 6 incexp tests, 8 E2E engine tests covering equity/property/fixed-income/liability/incexp/FX/tax-deferral scenarios, cash-sweep tests. Run: `cd server && npm test`
+73 automated tests (Jest): 16 FC Lines API tests, 19 engine tests (fcbuilder-module), 6 incexp tests, 8 E2E engine tests covering equity/property/fixed-income/liability/incexp/FX/tax-deferral scenarios, cash-sweep tests, 16 balance calibration tests (calibration logic, balance calculation at multiple dates, recalibration after data changes, edge cases). Run: `cd server && npm test`
 
 #### Frontend Components
 
@@ -554,7 +554,7 @@ Full design document, implementation plan, and test strategy: `Documentation/FC_
 | Table | Purpose |
 |-------|---------|
 | `forecast_assumptions` | Scenario-level or global assumptions (JSONB) |
-| `exchange_rates` | Historical FX rates (market data from Frankfurter API) |
+| `exchange_rates` | Historical FX rates (market data from Frankfurter API). Auto-refreshed during PS sync and on-demand by balance sheet report when rates are > 3 days stale |
 | `budget_fx_rates` | Monthly budget exchange rates per currency per year (user-managed, budget convention: X foreign per 1 USD) |
 | `sync_metadata` | PocketSmith sync tracking |
 | `audit_log` | Change audit trail (JSONB old/new values) |
@@ -767,7 +767,9 @@ Located in `components/data/` (mounted into server container):
 
 **COA in SQL:** The chart of accounts lives in the `accounts` table (adjacency list via `parent_id`) with `section` (balance_sheet / profit_loss) and `account_type` enums. The accounts repository provides `getNestedTree({ section })` returning `{ name, children }` trees via recursive CTE. All endpoints (reports, budget, forecast, COA management) use this SQL-based COA. The former `coa.json` and `coa_traits.json` files have been removed.
 
-**Balance Sheet Calibration:** The `fetchAccountBalances()` query in `reports.js` computes balances as `opening_balance + SUM(transaction amounts)` instead of using PocketSmith's stale `closing_balance`. Opening balances are back-calculated via the `/api/v2/accounts/calibrate` endpoint from the most recent PocketSmith closing_balance anchor. REST helpers: `mapPsAccounts()`, `calibrateAccounts()`, `fetchCalibrationStatus()` in `frontend/src/js/rest.js`.
+**Balance Sheet Calibration:** The `fetchAccountBalances()` query in `reports.js` computes balances as `opening_balance + SUM(transaction amounts)` instead of using PocketSmith's stale `closing_balance`. Opening balances are back-calculated via the `/api/v2/accounts/calibrate` endpoint using PocketSmith's live `current_balance` from the API as the authoritative anchor (falls back to most recent transaction `closing_balance` for unmapped accounts). REST helpers: `mapPsAccounts()`, `calibrateAccounts()`, `fetchCalibrationStatus()` in `frontend/src/js/rest.js`.
+
+**FX Rate Auto-Refresh:** Exchange rates are kept current via two mechanisms: (1) the PS sync endpoint (`POST /ingest-ps/refresh-ps`) auto-refreshes all non-USD currency rates from Frankfurter API after syncing transactions, (2) the balance sheet report auto-detects stale rates (> 3 days old) and refreshes them on-demand before rendering. Shared utility: `server/src/utils/refreshExchangeRates.js`. Frankfurter API base URL: `https://api.frankfurter.dev/v1`.
 
 ---
 

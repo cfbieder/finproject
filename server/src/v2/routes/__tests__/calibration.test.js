@@ -156,9 +156,9 @@ describe('POST /accounts/calibrate', () => {
     const result = res.body.results[0];
     expect(result.accountName).toBe(TEST_ACCOUNT_NAME);
 
-    // Anchor should be the most recent transaction (Apr 01, closing_balance = 6450)
-    expect(result.anchorDate).toBe('2026-04-01');
-    expect(result.anchorClosingBalance).toBe(6450);
+    // No PS mapping, so uses closing_balance fallback (anchor = 6450)
+    expect(result.anchorBalance).toBe(6450);
+    expect(result.anchorSource).toBe('closing_balance');
 
     // SUM of all transactions: 1000 + (-200) + 750 + (-100) + 500 = 1950
     expect(result.totalTransactionAmount).toBe(1950);
@@ -327,17 +327,17 @@ describe('Recalibration after data changes', () => {
       VALUES ('2026-04-05', 'Test deposit 4', 550, 'USD', 7000, $1, 90000006, 'test')
     `, [testAccountId]);
 
-    // Recalibrate
+    // Recalibrate (uses closing_balance fallback since no PS mapping)
     const res = await request(app, 'POST', `/accounts/calibrate?accountId=${testAccountId}`);
     expect(res.status).toBe(200);
 
     const result = res.body.results[0];
 
-    // New anchor: Apr 05, closing_balance = 7000
-    expect(result.anchorDate).toBe('2026-04-05');
-    expect(result.anchorClosingBalance).toBe(7000);
+    // Fallback anchor: closing_balance = 7000 from the Apr 05 txn
+    expect(result.anchorBalance).toBe(7000);
+    expect(result.anchorSource).toBe('closing_balance');
 
-    // New SUM: 1000 + (-200) + 750 + (-100) + 500 + 550 = 2500
+    // SUM of ALL transactions: 1000 + (-200) + 750 + (-100) + 500 + 550 = 2500
     expect(result.totalTransactionAmount).toBe(2500);
 
     // New opening_balance: 7000 - 2500 = 4500 (unchanged — consistent PS data)
@@ -374,7 +374,7 @@ describe('Recalibration after data changes', () => {
 
     const result = res.body.results[0];
 
-    // SUM unchanged: 2500
+    // SUM of ALL transactions unchanged: 2500
     expect(result.totalTransactionAmount).toBe(2500);
 
     // New opening_balance: 7100 - 2500 = 4600 (shifted by +100)

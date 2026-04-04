@@ -443,6 +443,7 @@ router.get('/modified-transactions', async (req, res) => {
 router.post('/refresh-ps', async (req, res, next) => {
   try {
     const { processTransactionsV2, logTransactionFileCounts } = require('../services/refreshPsApiV2');
+    const { refreshAllRates } = require('../../utils/refreshExchangeRates');
     const { daysHistory } = req.body ?? {};
     await processTransactionsV2(daysHistory);
     const fileCounts = logTransactionFileCounts();
@@ -452,7 +453,15 @@ router.post('/refresh-ps', async (req, res, next) => {
     const syncResult = await syncStagingToTransactions();
     console.log('[v2/ingest-ps] Auto-sync after refresh complete:', syncResult);
 
-    res.json({ ...fileCounts, syncResult });
+    // Refresh exchange rates from Frankfurter
+    let fxResult = { updated: 0 };
+    try {
+      fxResult = await refreshAllRates();
+    } catch (err) {
+      console.warn('[v2/ingest-ps] FX rate refresh failed (non-fatal):', err.message);
+    }
+
+    res.json({ ...fileCounts, syncResult, fxRatesUpdated: fxResult.updated });
   } catch (error) {
     console.error('[v2/ingest-ps] Failed to refresh PS data:', error);
     next(error);

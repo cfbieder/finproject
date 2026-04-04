@@ -8,7 +8,12 @@ const repo = require('../repositories').accounts;
 const db = require('../db');
 const pocketsmith = require('../../services/retrieval/pocketsmith');
 
+const PS_API_KEY = process.env.PS_API_KEY;
 const PS_USER_ID = process.env.PS_USER_ID || '330430';
+
+if (PS_API_KEY) {
+  pocketsmith.auth(PS_API_KEY);
+}
 
 // GET /api/v2/accounts - List accounts
 router.get('/', async (req, res, next) => {
@@ -146,72 +151,102 @@ router.post('/map-ps-accounts', async (req, res, next) => {
 
 /**
  * POST /api/v2/accounts/calibrate
- * Calculate opening balances by back-calculating from the most recent closing_balance
+ * Calculate opening balances using PS API current_balance as authoritative anchor.
+ * Formula: opening_balance = PS_current_balance - SUM(all our transactions)
+ * Falls back to most recent transaction closing_balance for unmapped accounts.
  * Optional query param: accountId - calibrate a single account
  */
 router.post('/calibrate', async (req, res, next) => {
   try {
     const { accountId } = req.query;
-    const accountFilter = accountId ? `AND a.id = $1` : '';
-    const params = accountId ? [parseInt(accountId)] : [];
 
-    const sql = `
-      WITH anchor AS (
-        SELECT DISTINCT ON (t.account_id)
-          t.account_id,
-          t.transaction_date AS anchor_date,
-          t.closing_balance AS anchor_balance
-        FROM transactions t
-        JOIN accounts a ON a.id = t.account_id
-        WHERE t.closing_balance IS NOT NULL
-          AND a.is_active = TRUE
-          ${accountFilter}
-        ORDER BY t.account_id, t.transaction_date DESC, t.id DESC
-      ),
-      txn_sums AS (
-        SELECT
-          t.account_id,
-          SUM(t.amount) AS total_amount
-        FROM transactions t
-        JOIN anchor anc ON anc.account_id = t.account_id
-        WHERE t.transaction_date >= '2000-01-01'
-          AND t.transaction_date <= anc.anchor_date
-        GROUP BY t.account_id
-      )
+    // Fetch current balances from PocketSmith API
+    const psBalances = new Map();
+    try {
+      const { data: psAccounts } = await pocketsmith.getUsersIdTransaction_accounts({ id: PS_USER_ID });
+      if (Array.isArray(psAccounts)) {
+        for (const psAcct of psAccounts) {
+          psBalances.set(psAcct.id, {
+            balance: parseFloat(psAcct.current_balance) || 0,
+            name: psAcct.name
+          });
+        }
+      }
+    } catch (err) {
+      console.warn('[accounts/calibrate] Failed to fetch PS balances, falling back to closing_balance:', err.message);
+    }
+
+    // Get all active accounts with their transaction sums
+    const accountFilter = accountId ? `AND a.id = ${parseInt(accountId)}` : '';
+    const sumResult = await db.query(`
       SELECT
         a.id,
         a.name,
-        anc.anchor_date,
-        anc.anchor_balance,
-        COALESCE(ts.total_amount, 0) AS total_amount,
-        anc.anchor_balance - COALESCE(ts.total_amount, 0) AS computed_opening_balance
+        a.ps_transaction_account_id,
+        COALESCE(SUM(t.amount), 0) AS total_amount
       FROM accounts a
-      JOIN anchor anc ON anc.account_id = a.id
-      LEFT JOIN txn_sums ts ON ts.account_id = a.id
-      WHERE a.is_active = TRUE
+      LEFT JOIN transactions t
+        ON t.account_id = a.id
+        AND t.transaction_date >= '2000-01-01'
+      WHERE a.is_active = TRUE ${accountFilter}
+      GROUP BY a.id, a.name, a.ps_transaction_account_id
       ORDER BY a.name
-    `;
+    `);
 
-    const result = await db.query(sql, params);
+    // For accounts without PS mapping, get closing_balance anchor as fallback
+    const fallbackResult = await db.query(`
+      SELECT DISTINCT ON (t.account_id)
+        t.account_id,
+        t.transaction_date AS anchor_date,
+        t.closing_balance AS anchor_balance
+      FROM transactions t
+      JOIN accounts a ON a.id = t.account_id
+      WHERE t.closing_balance IS NOT NULL
+        AND a.is_active = TRUE ${accountFilter}
+      ORDER BY t.account_id, t.transaction_date DESC, t.id DESC
+    `);
+    const fallbackAnchors = new Map();
+    for (const row of fallbackResult.rows) {
+      fallbackAnchors.set(row.account_id, row);
+    }
+
     const results = [];
 
-    for (const row of result.rows) {
+    for (const row of sumResult.rows) {
+      const psId = row.ps_transaction_account_id ? Number(row.ps_transaction_account_id) : null;
+      const psData = psId ? psBalances.get(psId) : null;
+      const fallback = fallbackAnchors.get(row.id);
+
+      let anchorBalance, anchorSource;
+      if (psData) {
+        anchorBalance = psData.balance;
+        anchorSource = 'pocketsmith_api';
+      } else if (fallback) {
+        anchorBalance = parseFloat(fallback.anchor_balance);
+        anchorSource = 'closing_balance';
+      } else {
+        continue; // no anchor available
+      }
+
+      const totalAmount = parseFloat(row.total_amount);
+      const computedOpeningBalance = anchorBalance - totalAmount;
+
       await db.query(
         `UPDATE accounts
          SET opening_balance = $1,
              opening_balance_date = '2000-01-01',
              last_calibrated_at = NOW()
          WHERE id = $2`,
-        [row.computed_opening_balance, row.id]
+        [computedOpeningBalance, row.id]
       );
 
       results.push({
         accountId: row.id,
         accountName: row.name,
-        anchorDate: row.anchor_date,
-        anchorClosingBalance: parseFloat(row.anchor_balance),
-        totalTransactionAmount: parseFloat(row.total_amount),
-        computedOpeningBalance: parseFloat(row.computed_opening_balance)
+        anchorBalance,
+        anchorSource,
+        totalTransactionAmount: totalAmount,
+        computedOpeningBalance
       });
     }
 
@@ -250,17 +285,19 @@ router.get('/calibration-status', async (req, res, next) => {
       ORDER BY a.name
     `);
 
-    const psIds = balanceResult.rows
-      .filter(r => r.ps_transaction_account_id)
-      .map(r => r.ps_transaction_account_id);
+    const psIdSet = new Set(
+      balanceResult.rows
+        .filter(r => r.ps_transaction_account_id)
+        .map(r => Number(r.ps_transaction_account_id))
+    );
 
     const psBalances = new Map();
-    if (psIds.length > 0) {
+    if (psIdSet.size > 0) {
       try {
         const { data: psAccounts } = await pocketsmith.getUsersIdTransaction_accounts({ id: PS_USER_ID });
         if (Array.isArray(psAccounts)) {
           for (const psAcct of psAccounts) {
-            if (psIds.includes(psAcct.id)) {
+            if (psIdSet.has(psAcct.id)) {
               psBalances.set(psAcct.id, parseFloat(psAcct.current_balance) || 0);
             }
           }
@@ -272,9 +309,8 @@ router.get('/calibration-status', async (req, res, next) => {
 
     const accounts = balanceResult.rows.map(row => {
       const calculatedBalance = parseFloat(row.calculated_balance) || 0;
-      const psBalance = row.ps_transaction_account_id
-        ? psBalances.get(row.ps_transaction_account_id) ?? null
-        : null;
+      const psId = row.ps_transaction_account_id ? Number(row.ps_transaction_account_id) : null;
+      const psBalance = psId ? psBalances.get(psId) ?? null : null;
 
       return {
         id: row.id,

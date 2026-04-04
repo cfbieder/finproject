@@ -168,10 +168,48 @@ export default function FCReview() {
     return map;
   }, [fcExpEntries]);
 
-  // Graph point adjustment modal state
+  // Graph point adjustment modal state (FC Exp)
   const [graphAdjustModal, setGraphAdjustModal] = useState({
     isOpen: false,
     entry: null,
+    year: null,
+    currentValue: null,
+    seriesLabel: "",
+  });
+
+  // =============================================================================
+  // STATE - FC Modules (for graph point adjustments on balance sheet)
+  // =============================================================================
+
+  const [fcModules, setFcModules] = useState([]);
+  useEffect(() => {
+    if (!selectedScenario) { setFcModules([]); return; }
+    Rest.fetchJson(`/api/v2/forecast/modules?scenario=${encodeURIComponent(selectedScenario)}`)
+      .then((res) => setFcModules(Array.isArray(res) ? res : []))
+      .catch(() => setFcModules([]));
+  }, [selectedScenario]);
+
+  // Map: balance sheet level 2 label → array of FC Modules under that account
+  const fcModulesByLabel = useMemo(() => {
+    const map = new Map();
+    for (const mod of fcModules) {
+      const account = mod.Account || "";
+      if (!account) continue;
+      // The module's Account may be a leaf (level 3) account.
+      // Use balanceAccountMap to find the level 2 label that the graph shows.
+      const mapping = balanceAccountMap.get(account);
+      const level2Label = mapping?.level2 || account;
+      const arr = map.get(level2Label) || [];
+      arr.push(mod);
+      map.set(level2Label, arr);
+    }
+    return map;
+  }, [fcModules, balanceAccountMap]);
+
+  // Graph module adjustment modal state (FC Module)
+  const [graphModuleAdjustModal, setGraphModuleAdjustModal] = useState({
+    isOpen: false,
+    moduleId: null,
     year: null,
     currentValue: null,
     seriesLabel: "",

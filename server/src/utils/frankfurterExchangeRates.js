@@ -1,6 +1,6 @@
 const https = require("https");
 
-const API_BASE = "https://api.frankfurter.app";
+const API_BASE = "https://api.frankfurter.dev/v1";
 
 function toIsoDate(dateInput) {
   const date =
@@ -23,10 +23,15 @@ function buildUrl(baseCurrency, quoteCurrency, asOfDate) {
   return `${API_BASE}/${datePath}?${params.toString()}`;
 }
 
-function fetchJson(url) {
+function fetchJson(url, maxRedirects = 3) {
   return new Promise((resolve, reject) => {
     https
       .get(url, (res) => {
+        if (res.statusCode >= 300 && res.statusCode < 400 && res.headers.location && maxRedirects > 0) {
+          res.resume();
+          return resolve(fetchJson(res.headers.location, maxRedirects - 1));
+        }
+
         if (!res || res.statusCode >= 400) {
           reject(new Error(`Frankfurter API error: ${res?.statusCode || "unknown"}`));
           res?.resume?.();
