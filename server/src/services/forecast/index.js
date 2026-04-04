@@ -519,7 +519,322 @@ async function generateForecast(scenarioName) {
           console.error('[FORECAST-GENERATE] Failed to write cash sweep audit:', auditErr.message);
         }
       }
-    }
+
+      // Step 7b: Iterative income-sweep convergence for sweep target module
+      // Income depends on market value (post-sweep), but sweep depends on cash (which includes income).
+      // We iterate until income stabilises (typically 2-3 loops).
+      if (sweepModule) {
+      // Find the sweep target's original module data (already loaded at Step 3)
+      const sweepMod = bsModules.find(
+        (m) => m.id === sweepModule.id || m.Name === sweepModule.name
+      );
+      const hasYield =
+        sweepMod &&
+        Array.isArray(sweepMod.IncomePct) &&
+        sweepMod.IncomePct.length > 0;
+
+      if (sweepMod && hasYield) {
+        console.log(`[FORECAST-GENERATE] Starting income-sweep convergence for ${sweepMod.Name}`);
+        const MAX_ITERATIONS = 10;
+        const TOLERANCE = 100; // $100 convergence threshold
+
+        const modStartYear = new Date(sweepMod.BaseDate).getFullYear();
+        const modEndYear = scenario.PeriodEnd;
+        const modYearsCount = modEndYear - modStartYear + 1;
+        const inflationSeries = df_assumptions.column(categories[1]).values;
+        const periodStartYr = years[0];
+        const inflationLen = inflationSeries.length;
+
+        // Precompute static module values (same as processModule)
+        const isLiability = sweepMod.AccountType === 'liability';
+        const growthPct = sweepMod.Growth ?? 0;
+
+        // Parse IncomePct schedule
+        const sortedIncomePct = [...sweepMod.IncomePct]
+          .filter((e) => e && e.Date && e.Value != null)
+          .map((e) => ({ year: new Date(e.Date).getFullYear(), value: e.Value }))
+          .sort((a, b) => a.year - b.year);
+
+        const incomePctValues = new Array(modYearsCount).fill(0);
+        {
+          let cur = 0, ni = 0;
+          for (let i = 0, yr = modStartYear; yr <= modEndYear; i++, yr++) {
+            while (ni < sortedIncomePct.length && sortedIncomePct[ni].year <= yr) {
+              cur = sortedIncomePct[ni].value;
+              ni++;
+            }
+            incomePctValues[i] = cur;
+          }
+        }
+
+        // Compute market values array (same as processModule lines 168-303, without income)
+        const computeMarketValues = () => {
+          const mv = new Array(modYearsCount).fill(sweepMod.MarketValue ?? 0);
+          const bv = new Array(modYearsCount).fill(sweepMod.BaseValue ?? 0);
+          const inv = new Array(modYearsCount).fill(0);
+          const disp = new Array(modYearsCount).fill(0);
+
+          if (Array.isArray(sweepMod.Invest)) {
+            for (const e of sweepMod.Invest) {
+              if (!e || !e.Date || e.Amount == null) continue;
+              const idx = new Date(e.Date).getFullYear() - modStartYear;
+              if (idx >= 0 && idx < modYearsCount) inv[idx] = e.Amount;
+            }
+          }
+          if (Array.isArray(sweepMod.Dispose)) {
+            for (const e of sweepMod.Dispose) {
+              if (!e || !e.Date || e.Amount == null) continue;
+              const startIdx = new Date(e.Date).getFullYear() - modStartYear;
+              if (e.Flag === 'Periodic') {
+                const endYr = e.DateEnd ? new Date(e.DateEnd).getFullYear() : modEndYear;
+                const endIdx = Math.min(endYr - modStartYear, modYearsCount - 1);
+                for (let j = Math.max(0, startIdx); j <= endIdx; j++) disp[j] += -e.Amount;
+              } else if (e.Flag !== 'Full') {
+                if (startIdx >= 0 && startIdx < modYearsCount) disp[startIdx] = -e.Amount;
+              }
+            }
+          }
+
+          // Base year adjust
+          if (inv[0] !== 0 || disp[0] !== 0) {
+            const origM = mv[0], origB = bv[0];
+            const avail = origM + inv[0];
+            if (disp[0] < -avail && avail > 0) disp[0] = -avail;
+            else if (avail <= 0) disp[0] = 0;
+            const adj = origM === 0 ? 0 : (disp[0] * origB) / origM;
+            bv[0] = origB + inv[0] + adj;
+            mv[0] = origM + inv[0] + disp[0];
+          }
+
+          for (let i = 1; i < modYearsCount; i++) {
+            const idx = (modStartYear + i) - periodStartYr;
+            const g = idx >= 0 && idx < inflationLen ? growthPct * inflationSeries[idx] : 0;
+            const ug = mv[i - 1] * (g / 100);
+            const avail = mv[i - 1] + ug + inv[i];
+            if (disp[i] < -avail && avail > 0) disp[i] = -avail;
+            else if (avail <= 0) disp[i] = 0;
+            const adj = mv[i - 1] === 0 ? 0 : (disp[i] * bv[i - 1]) / mv[i - 1];
+            bv[i] = bv[i - 1] + inv[i] + adj;
+            mv[i] = mv[i - 1] + ug + inv[i] + disp[i];
+          }
+          return mv;
+        };
+
+        const moduleMarketValues = computeMarketValues();
+
+        // FX rates for the module
+        const modFx = new Array(modYearsCount).fill(1);
+        if (sweepMod.Currency && sweepMod.Currency !== 'USD') {
+          const fxCol = sweepMod.Currency === 'PLN' ? categories[2] : sweepMod.Currency === 'EUR' ? categories[3] : null;
+          if (fxCol && df_assumptions.columns.includes(fxCol)) {
+            const fxSeries = df_assumptions.column(fxCol).values;
+            const firstFx = fxSeries[0] || 1;
+            for (let i = 0, yr = modStartYear; yr <= modEndYear; i++, yr++) {
+              const idx = yr - periodStartYr;
+              modFx[i] = (idx >= 0 && idx < fxSeries.length) ? fxSeries[idx] : firstFx;
+            }
+          }
+        }
+        modFx[0] = (sweepMod.BaseValueUSD ?? 0) !== 0 ? (sweepMod.BaseValue ?? 0) / (sweepMod.BaseValueUSD ?? 1) : 1;
+
+        // Tax rate
+        const taxRate = sweepMod.tax_rate_override != null
+          ? Number(sweepMod.tax_rate_override)
+          : Number(scenario?.TaxRate ?? 0);
+        const rateFactor = Number.isFinite(taxRate) && taxRate !== 0 ? -taxRate / 100 : 0;
+        const absIncomeAmount = parseFloat(sweepMod.income_amount) || 0;
+        const incomeAccount = sweepMod.IncomeCategory || 'Income';
+
+        let prevIncomeUSD = null;
+
+        for (let iteration = 0; iteration < MAX_ITERATIONS; iteration++) {
+          // 1. Get current sweep adjustments per year for this module
+          const sweepAdjResult = await db.query(`
+            SELECT forecast_year,
+                   SUM(amount)::numeric as adj
+            FROM forecast_entries
+            WHERE scenario_id = $1 AND account = $2 AND module IN ('_cash_sweep', '_sweep_bal')
+            GROUP BY forecast_year ORDER BY forecast_year
+          `, [scenarioId, sweepModule.account_name]);
+
+          const sweepAdjByYear = {};
+          for (const row of sweepAdjResult.rows) {
+            sweepAdjByYear[row.forecast_year] = parseFloat(row.adj) || 0;
+          }
+
+          // 2. Compute adjusted market values (module own MV + cumulative sweep adj)
+          const adjustedMV = new Array(modYearsCount);
+          for (let i = 0; i < modYearsCount; i++) {
+            const yr = modStartYear + i;
+            // Cumulative sweep: _sweep_bal carries forward, _cash_sweep is current year
+            adjustedMV[i] = moduleMarketValues[i] + (sweepAdjByYear[yr] || 0);
+          }
+
+          // 3. Recalculate income using adjusted MV
+          const newIncome = new Array(modYearsCount).fill(0);
+          for (let i = 0, yr = modStartYear; yr <= modEndYear; i++, yr++) {
+            const idx = yr - periodStartYr;
+            if (idx < 0 || idx >= inflationLen) continue;
+            const eff = (inflationSeries[idx] || 0) + incomePctValues[i];
+            const prevMV = i > 0 ? adjustedMV[i - 1] : adjustedMV[0];
+            newIncome[i] = ((adjustedMV[i] + prevMV) / 2) * eff / 100;
+          }
+
+          // Apply Full disposal adjustments to income
+          if (Array.isArray(sweepMod.Dispose)) {
+            for (const e of sweepMod.Dispose) {
+              if (e.Flag !== 'Full') continue;
+              const di = new Date(e.Date).getFullYear() - modStartYear;
+              if (di >= 0 && di < modYearsCount) {
+                if (di === 0) { for (let j = 1; j < modYearsCount; j++) newIncome[j] = 0; }
+                else {
+                  newIncome[di] = newIncome[di] / 2;
+                  for (let j = di + 1; j < modYearsCount; j++) newIncome[j] = 0;
+                }
+              }
+            }
+          }
+
+          // Convert to USD
+          const newIncomeUSD = newIncome.map((v, i) => v / (modFx[i] || 1));
+
+          // 4. Check convergence
+          if (prevIncomeUSD) {
+            let maxDelta = 0;
+            for (let i = 0; i < modYearsCount; i++) {
+              maxDelta = Math.max(maxDelta, Math.abs(newIncomeUSD[i] - prevIncomeUSD[i]));
+            }
+            if (maxDelta < TOLERANCE) {
+              console.log(`[FORECAST-GENERATE] Income-sweep converged after ${iteration + 1} iteration(s) (maxDelta: $${maxDelta.toFixed(2)})`);
+              break;
+            }
+            console.log(`[FORECAST-GENERATE] Iteration ${iteration + 1}: maxDelta = $${maxDelta.toFixed(0)}`);
+          }
+          prevIncomeUSD = [...newIncomeUSD];
+
+          // 5. Compute income delta and adjust tax accordingly
+          // Load current income entries for this module
+          const curIncResult = await db.query(`
+            SELECT forecast_year, amount FROM forecast_entries
+            WHERE scenario_id = $1 AND module = $2 AND account = $3
+            ORDER BY forecast_year
+          `, [scenarioId, sweepMod.Name, incomeAccount]);
+          const curIncByYear = {};
+          for (const row of curIncResult.rows) curIncByYear[row.forecast_year] = parseFloat(row.amount) || 0;
+
+          // Compute income delta per year (new - current), then compute tax delta (deferred by 1 year)
+          const incomeDeltaByYear = {};
+          const taxDeltaByYear = {};
+          for (let i = 0; i < modYearsCount; i++) {
+            const yr = modStartYear + i;
+            const fx = modFx[i] || 1;
+            const curInc = curIncByYear[yr] || 0;
+            const newIncUSD = newIncome[i] / fx;
+            incomeDeltaByYear[yr] = newIncUSD - curInc;
+          }
+
+          // Tax delta: deferred by 1 year, only on positive income
+          if (rateFactor !== 0) {
+            for (let i = 0; i < modYearsCount; i++) {
+              const yr = modStartYear + i;
+              const fx = modFx[i] || 1;
+              const curInc = curIncByYear[yr] || 0;
+              const newIncUSD = newIncome[i] / fx;
+              // Tax on current income vs new income
+              const curTax = curInc > 0 ? rateFactor * curInc : 0;
+              const newTax = newIncUSD > 0 ? rateFactor * newIncUSD : 0;
+              const delta = newTax - curTax;
+              if (Math.abs(delta) > 0.01) {
+                const targetYr = i + 1 < modYearsCount ? modStartYear + i + 1 : yr;
+                taxDeltaByYear[targetYr] = (taxDeltaByYear[targetYr] || 0) + delta;
+              }
+            }
+          }
+
+          // 6. Apply deltas: UPDATE income entries, UPDATE tax entries, UPDATE bank entries
+          for (let i = 0; i < modYearsCount; i++) {
+            const yr = modStartYear + i;
+            const incDelta = incomeDeltaByYear[yr] || 0;
+            const taxDelta = taxDeltaByYear[yr] || 0;
+            const bankDelta = incDelta + taxDelta; // income and tax both affect cash
+
+            if (Math.abs(incDelta) > 0.01) {
+              await db.query(`
+                UPDATE forecast_entries SET amount = amount + $1
+                WHERE scenario_id = $2 AND forecast_year = $3 AND module = $4 AND account = $5
+              `, [incDelta, scenarioId, yr, sweepMod.Name, incomeAccount]);
+            }
+            if (Math.abs(taxDelta) > 0.01) {
+              await db.query(`
+                UPDATE forecast_entries SET amount = amount + $1
+                WHERE scenario_id = $2 AND forecast_year = $3 AND module = $4 AND account = 'Taxes'
+              `, [taxDelta, scenarioId, yr, sweepMod.Name]);
+            }
+            if (Math.abs(bankDelta) > 0.01) {
+              await db.query(`
+                UPDATE forecast_entries SET amount = amount + $1
+                WHERE scenario_id = $2 AND forecast_year = $3 AND module = $4 AND account = 'Bank Accounts'
+              `, [bankDelta, scenarioId, yr, sweepMod.Name]);
+            }
+          }
+
+          // 7. Recompute cash deltas and re-run sweep
+          await db.query(`
+            DELETE FROM forecast_entries
+            WHERE scenario_id = $1 AND module IN ('_cash_sweep', '_sweep_bal', '_rebalance')
+          `, [scenarioId]);
+
+          const newCashResult = await db.query(`
+            SELECT forecast_year, SUM(amount) as cash_total
+            FROM forecast_entries
+            WHERE scenario_id = $1 AND account = 'Bank Accounts'
+            GROUP BY forecast_year ORDER BY forecast_year
+          `, [scenarioId]);
+          const newCashDelta = {};
+          for (const row of newCashResult.rows) newCashDelta[row.forecast_year] = parseFloat(row.cash_total) || 0;
+
+          // Apply BaseYear correction (same as Step 7)
+          const baseYear = scenario.PeriodStart - 1;
+          if (newCashDelta[baseYear] !== undefined) {
+            newCashDelta[baseYear] = cashDeltaByYear[baseYear]; // Use the corrected value from Step 7
+          }
+
+          // Reload module balance (module's own entries only, excluding sweep)
+          const newMvResult = await db.query(`
+            SELECT forecast_year, SUM(amount)::numeric as mv
+            FROM forecast_entries
+            WHERE scenario_id = $1 AND account = $2 AND module = $3
+            GROUP BY forecast_year ORDER BY forecast_year
+          `, [scenarioId, sweepModule.account_name, sweepMod.Name]);
+          const newModBal = {};
+          for (const row of newMvResult.rows) newModBal[row.forecast_year] = parseFloat(row.mv) || 0;
+
+          const { entries: newSweepEntries } = computeCashSweepIterative({
+            years,
+            cashSweepLow: cashSweepLow ?? cashSweepHigh ?? 0,
+            cashSweepHigh: cashSweepHigh ?? cashSweepLow ?? 0,
+            cashDeltaByYear: newCashDelta,
+            startingCash,
+            sweepModule,
+            moduleBalanceByYear: newModBal,
+          });
+
+          if (newSweepEntries.length > 0) {
+            const sv = [], sp = [];
+            let si = 1;
+            for (const e of newSweepEntries) {
+              sv.push(`($${si++}, $${si++}, $${si++}, $${si++}, $${si++}, $${si++})`);
+              sp.push(scenarioId, e.year, e.amount, e.account, e.module, e.comment);
+            }
+            await db.query(`
+              INSERT INTO forecast_entries (scenario_id, forecast_year, amount, account, module, comment)
+              VALUES ${sv.join(', ')}
+            `, sp);
+          }
+        } // end convergence loop
+      }
+      } // end if (sweepModule)
+    } // end if (hasSweepBand)
 
     // Step 8: Calculate statistics
     const totalEntries = results.reduce((sum, r) => sum + (r?.entriesCount || 0), 0) + rebalanceEntries;
