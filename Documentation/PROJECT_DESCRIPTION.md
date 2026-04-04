@@ -134,7 +134,7 @@ psproject/                          # ~/Programs/fin symlinks here
 │   ├── package.json
 │   ├── nodemon.json
 │   ├── .env-cmdrc
-│   ├── db/migrations/           # PostgreSQL schema (001-006: core, 007: fc_lines + fc_line_categories + module FK columns, 008: drop old expense_category/income_category/expense_pct, 009: target_cash on scenarios, 010: tax_rate_override on modules, 011: setup_status on modules + income_expense, 012: cash_sweep_target on modules, 013: cash_sweep_band replacing target_cash on scenarios, 014: ai_reviews)
+│   ├── db/migrations/           # PostgreSQL schema (001-006: core, 007: fc_lines + fc_line_categories + module FK columns, 008: drop old expense_category/income_category/expense_pct, 009: target_cash on scenarios, 010: tax_rate_override on modules, 011: setup_status on modules + income_expense, 012: cash_sweep_target on modules, 013: cash_sweep_band replacing target_cash on scenarios, 014: ai_reviews, 015: periodic disposal date_end, 016: opening_balance calibration columns on accounts)
 │   └── src/
 │       ├── server.js            # HTTP server entry point
 │       ├── app.js               # Express app config, route mounting
@@ -195,7 +195,7 @@ psproject/                          # ~/Programs/fin symlinks here
 | `/ledger` | Ledger | Transactions | Account ledger report with running balance. Dynamic cascading dropdown selectors follow the COA hierarchy (Type → Group → Sub-Group → Account) adapting to variable tree depth (3 or 4 levels). Prominent blue account banner shows selected account name, currency badge, and record count. Collapsible filter panel with optional period filter (PeriodSelector) and **category filter** dropdown (populated from loaded transactions, filters client-side). Toolbar with search, Add transaction (slide-in drawer with date/description/amount/currency/category fields, posts `POST /api/v2/transactions` with `source:'manual'`), and Export. Table with checkbox selection, sortable columns (Date, Description, Amount, Ccy, Category, Balance), bulk edit (description/category) and delete via selection bar. Running balance computed client-side from chronological order. **Total Amount** displayed in table footer for currently filtered transactions. Uses `LEDGER_CONFIG`/`LEDGER_EDIT_CONFIG` in `transactionConfig.js` and reuses `GET /api/v2/transactions` with account filter. |
 | `/fx-options` | FXOptions | Forecasting | Forecast FX assumptions (budget rates at `/budget-fx`) |
 | `/coa-management` | COAManagement | Settings | Chart of accounts CRUD with tree view (expand/collapse hierarchy), horizontal toolbar (search, filters, add), inline row actions on hover (edit, delete, add child, move), PS analysis, quick-add for accounts and categories. "Add as category" toggle in Add modal for creating categories anywhere in the hierarchy. Move modal with full-tree category picker to re-parent accounts under any node. Components: `COAManagementToolbar.jsx`, `COATreeTable.jsx`, `COATreeRow.jsx`, `COAEditModal.jsx`, `COAMoveModal.jsx`, `COACategoryPicker.jsx`. |
-| `/program-settings` | ProgramSettings | Settings | Application preferences (default budget year) |
+| `/program-settings` | ProgramSettings | Settings | Application preferences (default budget year), Balance Calibration section (map PocketSmith transaction accounts, calibrate opening balances, view calibration status comparison table) |
 
 ### Navigation
 
@@ -287,6 +287,7 @@ All endpoints mounted at `/api/v2`. Nginx rewrites legacy `/api/*` paths to `/ap
 - `GET /` — List (query params: `section`, `accountType`, `activeOnly`, `leafOnly` — `leafOnly=true` excludes parent nodes with children) | `GET /tree` — Hierarchical tree | `GET /traits` — Traits map | `GET /balances` — Account balances
 - `GET /categories` — Categories mapped to accounts | `GET /:id` — Single | `GET /:id/children` | `GET /:id/descendants`
 - `POST /` — Create | `PATCH /:id` — Update | `DELETE /:id` — Soft delete
+- `POST /map-ps-accounts` — Maps PocketSmith transaction account IDs to local accounts | `POST /calibrate` — Back-calculates opening balances from most recent closing_balance anchor | `GET /calibration-status` — Shows calculated vs PocketSmith balance comparison
 
 #### Budget (`/api/v2/budget`)
 - `GET /versions` — List versions | `GET /versions/:id` | `POST /versions` | `POST /versions/:id/copy` | `PATCH /versions/:id`
@@ -522,7 +523,7 @@ Full design document, implementation plan, and test strategy: `Documentation/FC_
 
 | Table | Purpose |
 |-------|---------|
-| `accounts` | Chart of accounts with hierarchy (adjacency list via `parent_id`) |
+| `accounts` | Chart of accounts with hierarchy (adjacency list via `parent_id`). Calibration columns: `opening_balance`, `opening_balance_date`, `last_calibrated_at`, `ps_transaction_account_id` (migration 016) |
 | `categories` | PocketSmith categories mapped to accounts |
 | `transactions` | Actual financial transactions (`accepted` flag protects from PS refresh overwrite, `transfer_matched` boolean set by Transfer Analysis for filtering matched/unmatched transfers) |
 | `pending_transactions` | Staging for new/modified PocketSmith transactions |
@@ -765,6 +766,8 @@ Located in `components/data/` (mounted into server container):
 | `.temp/` | Temporary files for PS API refresh pipeline |
 
 **COA in SQL:** The chart of accounts lives in the `accounts` table (adjacency list via `parent_id`) with `section` (balance_sheet / profit_loss) and `account_type` enums. The accounts repository provides `getNestedTree({ section })` returning `{ name, children }` trees via recursive CTE. All endpoints (reports, budget, forecast, COA management) use this SQL-based COA. The former `coa.json` and `coa_traits.json` files have been removed.
+
+**Balance Sheet Calibration:** The `fetchAccountBalances()` query in `reports.js` computes balances as `opening_balance + SUM(transaction amounts)` instead of using PocketSmith's stale `closing_balance`. Opening balances are back-calculated via the `/api/v2/accounts/calibrate` endpoint from the most recent PocketSmith closing_balance anchor. REST helpers: `mapPsAccounts()`, `calibrateAccounts()`, `fetchCalibrationStatus()` in `frontend/src/js/rest.js`.
 
 ---
 

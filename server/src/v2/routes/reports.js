@@ -129,28 +129,20 @@ async function buildBalanceSheetReport(asOfDate) {
 async function fetchAccountBalances(asOfDate) {
   console.log('[v2/reports/balance] Fetching account balances for date:', asOfDate);
 
-  // Get the latest transaction record for each account up to asOfDate
-  // This mirrors the v1 behavior of getting closing balances
+  // Calculate balance as opening_balance + SUM(transaction amounts up to asOfDate)
+  // This replaces the old closing_balance approach which was prone to stale PS data
   const sql = `
-    WITH latest_transactions AS (
-      SELECT DISTINCT ON (account_id)
-        account_id,
-        transaction_date,
-        currency,
-        closing_balance
-      FROM transactions
-      WHERE transaction_date <= $1
-        AND closing_balance IS NOT NULL
-      ORDER BY account_id, transaction_date DESC, id DESC
-    )
     SELECT
-      a.name as account_name,
-      a.currency as account_currency,
-      lt.currency as transaction_currency,
-      lt.closing_balance
+      a.name AS account_name,
+      a.currency AS account_currency,
+      a.opening_balance + COALESCE(SUM(t.amount), 0) AS closing_balance
     FROM accounts a
-    LEFT JOIN latest_transactions lt ON lt.account_id = a.id
+    LEFT JOIN transactions t
+      ON t.account_id = a.id
+      AND t.transaction_date >= a.opening_balance_date
+      AND t.transaction_date <= $1
     WHERE a.is_active = TRUE
+    GROUP BY a.id, a.name, a.currency, a.opening_balance, a.opening_balance_date
   `;
 
   const result = await db.query(sql, [asOfDate]);
@@ -159,7 +151,7 @@ async function fetchAccountBalances(asOfDate) {
   // Collect unique non-USD currencies
   const currencies = new Set();
   for (const row of result.rows) {
-    const currency = row.transaction_currency || row.account_currency || 'USD';
+    const currency = row.account_currency || 'USD';
     if (currency !== 'USD') {
       currencies.add(currency);
     }
@@ -213,7 +205,7 @@ async function fetchAccountBalances(asOfDate) {
   const balances = {};
   for (const row of result.rows) {
     const accountName = row.account_name;
-    const currency = row.transaction_currency || row.account_currency || 'USD';
+    const currency = row.account_currency || 'USD';
     const balance = parseFloat(row.closing_balance) || 0;
     const exchangeRate = exchangeRates[currency] || 1;
     const balanceInUSD = balance / exchangeRate;

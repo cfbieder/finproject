@@ -195,9 +195,10 @@ async function create(data) {
   const sql = `
     INSERT INTO accounts (
       name, parent_id, account_type, section, currency,
-      account_number, display_order, is_active, ps_account_name
+      account_number, display_order, is_active, ps_account_name,
+      opening_balance, opening_balance_date, ps_transaction_account_id
     )
-    VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+    VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
     RETURNING *
   `;
 
@@ -210,7 +211,10 @@ async function create(data) {
     data.account_number || null,
     data.display_order || 0,
     data.is_active !== false,
-    data.ps_account_name || data.name
+    data.ps_account_name || data.name,
+    data.opening_balance || 0,
+    data.opening_balance_date || '2000-01-01',
+    data.ps_transaction_account_id || null
   ]);
 
   return result.rows[0];
@@ -226,7 +230,8 @@ async function update(id, data) {
 
   const allowedFields = [
     'name', 'parent_id', 'account_type', 'section', 'currency',
-    'account_number', 'display_order', 'is_active', 'ps_account_name'
+    'account_number', 'display_order', 'is_active', 'ps_account_name',
+    'opening_balance', 'opening_balance_date', 'last_calibrated_at', 'ps_transaction_account_id'
   ];
 
   for (const field of allowedFields) {
