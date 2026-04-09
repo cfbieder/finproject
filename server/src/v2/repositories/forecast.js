@@ -191,8 +191,8 @@ async function copyScenario(sourceId, newName) {
 
       // Copy investments
       await client.query(`
-        INSERT INTO forecast_module_investments (module_id, investment_date, amount, flag, note)
-        SELECT $1, investment_date, amount, flag, note FROM forecast_module_investments WHERE module_id = $2
+        INSERT INTO forecast_module_investments (module_id, investment_date, amount, flag, note, date_end)
+        SELECT $1, investment_date, amount, flag, note, date_end FROM forecast_module_investments WHERE module_id = $2
       `, [newModuleId, mod.id]);
 
       // Copy disposals
@@ -370,11 +370,11 @@ async function deleteModule(id) {
 
 async function addInvestment(moduleId, data) {
   const sql = `
-    INSERT INTO forecast_module_investments (module_id, investment_date, amount, flag, note)
-    VALUES ($1, $2, $3, $4, $5)
+    INSERT INTO forecast_module_investments (module_id, investment_date, amount, flag, note, date_end)
+    VALUES ($1, $2, $3, $4, $5, $6)
     RETURNING *
   `;
-  const result = await db.query(sql, [moduleId, data.investment_date, data.amount, data.flag, data.note]);
+  const result = await db.query(sql, [moduleId, data.investment_date, data.amount, data.flag, data.note, data.date_end || null]);
   return result.rows[0];
 }
 

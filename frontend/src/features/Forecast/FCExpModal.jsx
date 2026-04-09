@@ -722,6 +722,13 @@ export default function FCExpModal({
                           disabled={editSaving}
                           placeholder="0.00"
                         />
+                        {editForm?.Type === "Expense" &&
+                          Number(change?.Amount) > 0 && (
+                            <span className="fc-exp-modal__change-warning">
+                              Note: check if correct — expense increases are
+                              typically negative numbers
+                            </span>
+                          )}
                       </div>
 
                       <div className="fc-exp-modal__change-field">

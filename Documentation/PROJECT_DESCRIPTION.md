@@ -279,6 +279,35 @@ Desktop-first approach with three breakpoint tiers:
 
 **Typography:** Heading sizes scale down at each breakpoint (e.g. h1: 2.25rem → 1.875rem → 1.5rem). Toast notifications reflow to fill available width at 640px.
 
+### Mobile / PWA Shell
+
+A dedicated mobile shell lives under `frontend/src/mobile/` and replaces the desktop layout entirely on phones / installed PWAs. It is **not** a responsive restyle of desktop pages — it's a separate set of simplified pages that reuse the existing API endpoints.
+
+**Detection (`useIsMobile.js`):** Returns true when the page is in PWA standalone mode (`display-mode: standalone`) OR the viewport is ≤ 640px wide. Honors a `localStorage["forceDesktop"] === "true"` escape hatch so users can opt back into the full experience. Reacts to viewport resize and standalone-mode changes.
+
+**Routing (`App.jsx` → `AppShell`):** Mobile pages live under `/m/*`. A top-level effect inside the router redirects desktop URLs → `/m/*` when on mobile, and `/m/*` → desktop URLs when not on mobile, using a `DESKTOP_TO_MOBILE` map covering the 5 mobile pages plus `/` → `/m`. Mobile and desktop layouts are mutually exclusive (no shared chrome).
+
+**Shell components:**
+- `MobileLayout.jsx` — slim top bar (logo on home, back button elsewhere) + scrollable content area + fixed bottom tab bar. Honors `safe-area-inset-*` for notched devices.
+- `MobileTabBar.jsx` — fixed bottom tab bar with 5 `NavLink` tabs: Balance, Cash Flow, Refresh, Budget, Graph. Active tab uses `--primary` color.
+- `MobileHome.jsx` — pure launcher (no API calls). 5 large icon + label cards plus a "Switch to desktop view" button at the bottom that sets `localStorage.forceDesktop = "true"` and reloads.
+- `mobile.css` — single stylesheet of `m-*` classes. Reuses existing CSS tokens (colors, fonts, radii, spacing) from `index.css`. Enforces 44px tap targets, 16px+ base font (avoids iOS input auto-zoom), flat cards (no glassmorphism), generous vertical breathing room.
+
+**Shared mobile helpers:**
+- `periodPresets.js` — `PERIOD_PRESETS` array (This Month / Last Month / This Year / Last Year), each with a `range()` returning `{ fromDate, toDate }` as YYYY-MM-DD. Used by all mobile report pages that need a period selector.
+
+**Mobile pages (`frontend/src/mobile/pages/`):**
+- `MobileBalance.jsx` (`/m/balance`) — KPI cards (Net Worth hero + Total Assets + Total Liabilities), "as of [date]" pill, and collapsible Level-1 group cards (children of "Assets" and "Liabilities" from the balance report — Bank Accounts, Fidelity Stock, CVC, Properties, Liabilities). Tap a group to drill down to flattened leaf accounts. Single period (today). Uses existing `Rest.fetchBalanceReportV2(date)`.
+- `MobileCashFlow.jsx` (`/m/cash-flow`) — Period pill row (This Month / Last Month / This Year / Last Year) at the top, KPI cards (Net hero + Income + Expenses), then "Top Expenses" list (top 8 leaf categories ranked by absolute amount, "See all N" toggle for the full list) and "Top Income" list (top 5, same toggle pattern). Uses existing `Rest.fetchCashFlowReportV2()` with `transfers: "exclude"` and `includeUnrealizedGL: false`.
+- `MobileBudgetRealization.jsx` (`/m/budget-realization`) — Period pill row + 2×2 KPI grid (Income / Expenses / Net Cash Flow / Savings Rate, each showing actual + "vs budget" sub-line) + "Top Variances" card list ranked by absolute variance. Each variance card has the category name, signed delta (green for good, red for bad), an inline progress bar (actual / budget capped at 100%), and an Actual / Budget meta row. "See all N categories" toggle expands the full list. Calls `Rest.fetchCashFlowReport()` and `Rest.fetchBudgetCashFlowReport()` in parallel for the same period.
+- `MobileBudgetGraph.jsx` (`/m/budget-graph`) — Period pill row + single full-bleed horizontal grouped bar chart (Recharts `BarChart` with `layout="vertical"`) showing top 10 expense categories by max(actual, budget). Each row has two bars: Actual (red if over budget, primary green otherwise) and Budget (muted). Y-axis category labels truncated to 14 chars; X-axis values formatted as `k`/`M`. Custom mobile tooltip. Reuses the same actual/budget endpoints as Budget Realization.
+- `MobileRefreshPS.jsx` (`/m/refresh-ps`) — Header action bar with "Refresh from PS" button (calls `POST /api/v2/ingest-ps/refresh-ps` with `daysHistory: 7`) and "Accept all" button (sequential batches of 5 `PATCH /api/v2/transactions/:id` with `{accepted: true}`). Vertical card list of new transactions: each card shows description, signed amount, date · category · account meta line, and a per-row "Accept" pill. The category in the meta line is a tappable button (red "Uncategorized" if not yet set, primary-green underlined if set) that opens `MobileCategoryPicker`; on select, `PATCH /api/v2/transactions/:id` with `{Category}` updates the row optimistically and pushes the choice to the recents list. Optimistic removal on individual accept. Toast notifications via `.m-toast`. Edit/split/neutralize remain desktop-only.
+
+**Shared mobile components:**
+- `MobileCategoryPicker.jsx` — Full-screen overlay (`role="dialog"`) with close button, autofocused search input (16px to avoid iOS zoom), and a scrollable list of all P&L leaf categories grouped by top-level parent (Income / Expense / Transfers). A "Recent" group at the top shows the last 5 picks (persisted to `localStorage["mobileCategoryRecents"]` via `pushRecentCategory`/`getRecentCategories` exports). Search filters across all groups simultaneously. Locks body scroll while open and closes on Escape. Receives `plTree` from `useCoa()`. Used by `MobileRefreshPS` and reusable for any future mobile page that needs category selection.
+
+**No backend changes** — every mobile page consumes existing v2 API endpoints.
+
 ---
 
 ## 6. Backend
@@ -460,7 +489,7 @@ Located in `server/src/services/forecast/`. Four main files:
 - BaseYear transfers adjust the ending balance that becomes PeriodStart opening balance
 - Transfer-Bank entries generated for cash impact in all periods including BaseYear
 - **Transfer Flags:** OneTime (single year), Periodic (repeating), Full (complete disposal — Dispose only)
-- **Periodic transfers:** Repeat the specified Amount each year from Start Year through optional End Year. If no End Year, continues until account balance is depleted or plan ends. Multiple periodic entries can define separate start/stop windows (e.g., Start 2028 @ 10k, End 2031; then Start 2040 @ 25k, no end). Engine caps each year's disposal at the available market value so balances never go negative. DB column `date_end` (migration 015) stores optional end date.
+- **Periodic transfers:** Repeat the specified Amount each year from Start Year through optional End Year. If no End Year, continues until account balance is depleted or plan ends. Applies to both Invest and Dispose transfers. Multiple periodic entries can define separate start/stop windows (e.g., Start 2028 @ 10k, End 2031; then Start 2040 @ 25k, no end). Engine caps each year's disposal at the available market value so balances never go negative. DB column `date_end` stores optional end date (migration 015 for disposals, migration 017 for investments).
 
 **Tax:**
 - Deferred 1 year: tax on income/gains in year N appears in year N+1
@@ -545,7 +574,7 @@ Full design document, implementation plan, and test strategy: `Documentation/FC_
 | `forecast_scenarios` | Named forecast scenarios | `cash_sweep_low`, `cash_sweep_high` (cash band for auto-balance) |
 | `forecast_modules` | Balance sheet forecast modules | `expense_fc_line_id`, `income_fc_line_id`, `expense_growth_method`, `expense_amount`, `income_amount`, `tax_rate_override`, `setup_status`, `cash_sweep_target` (unique per scenario) |
 | `forecast_module_income_pct` | Module income/yield % schedules | `effective_date`, `value` |
-| `forecast_module_investments` | Planned module investments | `investment_date`, `amount` |
+| `forecast_module_investments` | Planned module investments | `investment_date`, `amount`, `flag` (OneTime/Periodic), `date_end` (optional end date for Periodic) |
 | `forecast_module_disposals` | Planned module disposals | `disposal_date`, `amount`, `flag` (Full/OneTime/Periodic), `date_end` (optional end date for Periodic) |
 | `forecast_income_expense` | Income/expense forecast items | `fc_line_id`, `budget_source_year`, `setup_status` |
 | `forecast_incexp_changes` | Scheduled income/expense changes | `change_date`, `amount`, `flag` |

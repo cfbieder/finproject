@@ -438,6 +438,7 @@ router.get('/modules/:id', async (req, res, next) => {
           Date: r.investment_date,
           Amount: parseFloat(r.amount) || 0,
           Flag: r.flag || '',
+          DateEnd: r.date_end || null,
         })),
         Dispose: (m.disposals || []).map(r => ({
           Date: r.disposal_date,
@@ -503,6 +504,7 @@ router.post('/modules', async (req, res, next) => {
             amount: inv.Amount,
             flag: inv.Flag || '',
             note: inv.Note || '',
+            date_end: inv.DateEnd || null,
           });
         }
       }
@@ -613,6 +615,7 @@ router.put('/modules/:id', async (req, res, next) => {
             amount: inv.Amount,
             flag: inv.Flag || '',
             note: inv.Note || '',
+            date_end: inv.DateEnd || null,
           });
         }
       }

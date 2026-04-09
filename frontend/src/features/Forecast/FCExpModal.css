@@ -592,6 +592,15 @@
   background: #FAF9F5;
 }
 
+.fc-exp-modal__change-warning {
+  display: block;
+  margin-top: 0.35rem;
+  font-size: 0.75rem;
+  color: #b8860b;
+  font-style: italic;
+  line-height: 1.3;
+}
+
 .fc-exp-modal__tooltip {
   position: absolute;
   left: 0;

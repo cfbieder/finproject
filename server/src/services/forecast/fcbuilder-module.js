@@ -232,12 +232,21 @@ async function processModule(module, scenario, df_assumptions, df_categories, ca
   }
 
   // Process investment transactions
+  // Periodic entries expand across years from Date (start) to DateEnd (optional end).
+  // If no DateEnd, periodic continues until plan ends.
   if (Array.isArray(module.Invest)) {
     for (const entry of module.Invest) {
       if (!entry || !entry.Date || entry.Amount == null) continue;
-      const year = new Date(entry.Date).getFullYear();
-      const idx = year - startyear;
-      if (idx >= 0 && idx < yearsCount) investValues[idx] = entry.Amount;
+      const startIdx = new Date(entry.Date).getFullYear() - startyear;
+      if (entry.Flag === "Periodic") {
+        const endYear = entry.DateEnd ? new Date(entry.DateEnd).getFullYear() : endyear;
+        const endIdx = Math.min(endYear - startyear, yearsCount - 1);
+        for (let j = Math.max(0, startIdx); j <= endIdx; j++) {
+          investValues[j] += entry.Amount;
+        }
+      } else {
+        if (startIdx >= 0 && startIdx < yearsCount) investValues[startIdx] = entry.Amount;
+      }
     }
   }
 

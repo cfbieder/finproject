@@ -117,6 +117,7 @@ async function loadModulesForScenario(scenarioId, fcLineNameMap) {
       Date: r.investment_date,
       Amount: parseFloat(r.amount) || 0,
       Flag: r.flag || '',
+      DateEnd: r.date_end || null,
     }));
 
     mod.Dispose = disposals.rows.map(r => ({
