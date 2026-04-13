@@ -14,6 +14,7 @@ import {
   Trash2,
   Plus,
   X,
+  Copy,
 } from "lucide-react";
 import { LEDGER_CONFIG } from "../features/Transaction/transactionConfig.js";
 import { useTransactions } from "../features/Transaction/hooks/useTransactions.js";
@@ -238,9 +239,62 @@ export default function Ledger() {
     return [...cats].sort((a, b) => a.localeCompare(b));
   }, [transactions]);
 
-  // ─── Search + category filtering ───
+  // ─── Duplicate detection ───
+  const [showDuplicatesOnly, setShowDuplicatesOnly] = useState(false);
+
+  const duplicateIds = useMemo(() => {
+    if (!showDuplicatesOnly || transactions.length === 0) return new Set();
+
+    const ids = new Set();
+    const groups = new Map();
+    for (const txn of transactions) {
+      const amount = Number(txn.Amount);
+      if (!Number.isFinite(amount)) continue;
+      const key = `${amount.toFixed(2)}|${txn.Currency || ""}`;
+      if (!groups.has(key)) groups.set(key, []);
+      groups.get(key).push(txn);
+    }
+
+    for (const [, group] of groups) {
+      if (group.length < 2) continue;
+      for (let i = 0; i < group.length; i++) {
+        for (let j = i + 1; j < group.length; j++) {
+          const a = group[i];
+          const b = group[j];
+          const dateA = a.Date ? new Date(a.Date) : null;
+          const dateB = b.Date ? new Date(b.Date) : null;
+          let closeDates = false;
+          if (dateA && dateB) {
+            const diffDays = Math.abs(dateA - dateB) / (1000 * 60 * 60 * 24);
+            closeDates = diffDays <= 3;
+          }
+          const descA = (a.Description1 || "").toLowerCase().trim();
+          const descB = (b.Description1 || "").toLowerCase().trim();
+          const sameDesc = descA && descB && descA === descB;
+          if (closeDates || sameDesc) {
+            ids.add(String(a.id || a._id));
+            ids.add(String(b.id || b._id));
+          }
+        }
+      }
+    }
+    return ids;
+  }, [showDuplicatesOnly, transactions]);
+
+  const handleToggleDuplicates = useCallback(() => {
+    setShowDuplicatesOnly((prev) => !prev);
+  }, []);
+
+  // ─── Search + category + duplicate filtering ───
   const searchFiltered = useMemo(() => {
     let filtered = transactions;
+
+    // Duplicate filter — show only flagged duplicates
+    if (showDuplicatesOnly && duplicateIds.size > 0) {
+      filtered = filtered.filter((entry) =>
+        duplicateIds.has(String(entry.id || entry._id))
+      );
+    }
 
     if (selectedCategory) {
       filtered = filtered.filter((entry) => entry?.Category === selectedCategory);
@@ -263,7 +317,7 @@ export default function Ledger() {
     }
 
     return filtered;
-  }, [transactions, searchText, selectedCategory]);
+  }, [transactions, searchText, selectedCategory, showDuplicatesOnly, duplicateIds]);
 
   // ─── Sort + Selection ───
   const {
@@ -511,6 +565,19 @@ export default function Ledger() {
           </button>
         )}
 
+        {hasAccount && (
+          <button
+            type="button"
+            className={`txv2-btn ${showDuplicatesOnly ? "txv2-btn--active" : ""}`}
+            onClick={handleToggleDuplicates}
+            disabled={transactions.length === 0}
+            title="Find potential duplicate entries"
+          >
+            <Copy size={14} />
+            {showDuplicatesOnly ? "Show All" : "Find Duplicates"}
+          </button>
+        )}
+
         <button
           type="button"
           className="txv2-btn"
@@ -590,6 +657,30 @@ export default function Ledger() {
               </div>
             )}
           </div>
+        </div>
+      )}
+
+      {/* ── Duplicate Detection Banner ── */}
+      {showDuplicatesOnly && hasAccount && (
+        <div className="ledger-duplicate-banner">
+          <AlertTriangle size={14} />
+          {duplicateIds.size > 0 ? (
+            <span>
+              Found <strong>{duplicateIds.size}</strong> potential duplicate transactions
+              (same amount &amp; currency, within 3 days or identical description)
+            </span>
+          ) : (
+            <span>No potential duplicates found in the loaded transactions.</span>
+          )}
+          <button
+            type="button"
+            className="txv2-btn txv2-btn--sm"
+            onClick={handleToggleDuplicates}
+            style={{ marginLeft: "auto" }}
+          >
+            <X size={12} />
+            Clear
+          </button>
         </div>
       )}
 

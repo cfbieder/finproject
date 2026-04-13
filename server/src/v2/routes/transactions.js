@@ -43,16 +43,16 @@ function transformV1ToV2Fields(data) {
 router.get('/', async (req, res, next) => {
   try {
     const {
-      startDate, endDate, categoryId, accountId,
+      startDate, endDate, fromDate, toDate, categoryId, accountId,
       category, account,  // Support name-based filtering for compatibility
       year, month, currency, description, minAmount, maxAmount,
       transferMatched,
       limit = 100, offset = 0
     } = req.query;
 
-    // Build date range from year/month if provided
-    let effectiveStartDate = startDate;
-    let effectiveEndDate = endDate;
+    // Build date range — accept startDate/endDate or fromDate/toDate
+    let effectiveStartDate = startDate || fromDate;
+    let effectiveEndDate = endDate || toDate;
 
     if (year && !startDate && !endDate) {
       const y = parseInt(year);

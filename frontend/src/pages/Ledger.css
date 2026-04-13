@@ -147,6 +147,20 @@
   background: var(--hover, #FAF9F5);
 }
 
+/* ── Duplicate Detection ── */
+.ledger-duplicate-banner {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.6rem 1rem;
+  background: #FFF8E1;
+  border: 1px solid #FFE082;
+  border-radius: var(--radius-md, 0.375rem);
+  font-size: 0.8rem;
+  color: #6D4C00;
+  margin-bottom: 0.5rem;
+}
+
 /* Responsive */
 @media (max-width: 768px) {
   .ledger-filters__body {
