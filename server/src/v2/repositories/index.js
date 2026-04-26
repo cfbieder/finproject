@@ -13,6 +13,7 @@ const psdata = require('./psdata');
 const budgetFxRates = require('./budgetFxRates');
 const transferMatchGroups = require('./transferMatchGroups');
 const fcLines = require('./fcLines');
+const categorySourceMappings = require('./categorySourceMappings');
 
 module.exports = {
   transactions,
@@ -23,5 +24,6 @@ module.exports = {
   psdata,
   budgetFxRates,
   transferMatchGroups,
-  fcLines
+  fcLines,
+  categorySourceMappings
 };

@@ -85,12 +85,7 @@ echo "  1. Update version files (VERSION, .env, frontend/.env)"
 #echo "  3. Create git tag: v${NEW_VERSION}"
 echo ""
 
-read -p "Proceed? (y/N) " -n 1 -r
-echo
-if [[ ! $REPLY =~ ^[Yy]$ ]]; then
-    echo "Cancelled."
-    exit 0
-fi
+echo "Proceeding..."
 
 # Update VERSION file
 echo "$NEW_VERSION" > "$VERSION_FILE"

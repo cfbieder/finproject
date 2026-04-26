@@ -108,7 +108,9 @@ async function syncStagingToTransactions() {
   const unmappedCatResult = await db.query(`
     SELECT DISTINCT s.category_name
     FROM psdata_staging s
-    LEFT JOIN categories c ON LOWER(s.category_name) = LOWER(c.name)
+    LEFT JOIN category_source_mappings csm
+      ON LOWER(s.category_name) = LOWER(csm.external_name) AND csm.source = 'pocketsmith'
+    LEFT JOIN categories c ON csm.category_id = c.id
     WHERE s.category_name IS NOT NULL AND c.id IS NULL
   `);
   const unmappedCategories = unmappedCatResult.rows.map(r => r.category_name);
@@ -147,7 +149,9 @@ async function syncStagingToTransactions() {
         s.bank
       FROM psdata_staging s
       LEFT JOIN accounts a ON LOWER(s.account_name) = LOWER(a.name)
-      LEFT JOIN categories c ON LOWER(s.category_name) = LOWER(c.name)
+      LEFT JOIN category_source_mappings csm
+        ON LOWER(s.category_name) = LOWER(csm.external_name) AND csm.source = 'pocketsmith'
+      LEFT JOIN categories c ON csm.category_id = c.id
       WHERE a.id IS NOT NULL
         AND s.amount IS NOT NULL
         AND s.transaction_date IS NOT NULL

@@ -172,6 +172,58 @@ export default function COAEditModal({
             )}
           </div>
         )}
+        {/* Source Mappings — visible only for single category edit */}
+        {isCategoryEdit && !isAdd && row.categoryId && (
+          <div
+            style={{
+              display: "flex",
+              flexDirection: "column",
+              gap: "0.5rem",
+              padding: "0.75rem",
+              background: "#f8fafc",
+              borderRadius: "8px",
+              border: "1px solid #E8E6DF",
+            }}
+          >
+            <span style={{ fontWeight: 700, fontSize: "0.85rem", color: "#2D3436" }}>
+              Source Mappings
+            </span>
+            <label
+              style={{
+                display: "flex",
+                flexDirection: "column",
+                gap: "0.25rem",
+              }}
+            >
+              <span style={{ fontSize: "0.8rem", color: "#4A5568", fontWeight: 600 }}>
+                PocketSmith Name
+              </span>
+              <input
+                className="form-input"
+                value={row.pocketsmithName ?? ""}
+                onChange={(e) => onFieldChange("pocketsmithName", e.target.value)}
+                placeholder="Not mapped"
+              />
+            </label>
+            <label
+              style={{
+                display: "flex",
+                flexDirection: "column",
+                gap: "0.25rem",
+              }}
+            >
+              <span style={{ fontSize: "0.8rem", color: "#4A5568", fontWeight: 600 }}>
+                Quicken Name
+              </span>
+              <input
+                className="form-input"
+                value={row.quickenName ?? ""}
+                onChange={(e) => onFieldChange("quickenName", e.target.value)}
+                placeholder="Not mapped"
+              />
+            </label>
+          </div>
+        )}
         {!isQuickAddCategory && !isCategoryAdd && <label
           style={{
             display: "flex",

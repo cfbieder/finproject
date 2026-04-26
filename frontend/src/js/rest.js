@@ -378,6 +378,37 @@ export default class Rest {
   }
 
   /**
+   * Look up a category by name (returns category with mappings)
+   */
+  static async fetchCategoryByName(name) {
+    const response = await Rest.fetchJson(
+      `/api/v2/categories/lookup?name=${encodeURIComponent(name)}`
+    );
+    return response?.data ?? null;
+  }
+
+  /**
+   * Fetch source mappings for a category
+   */
+  static async fetchCategoryMappings(categoryId) {
+    const response = await Rest.fetchJson(
+      `/api/v2/categories/${categoryId}/mappings`
+    );
+    return response?.data ?? [];
+  }
+
+  /**
+   * Save a category source mapping
+   */
+  static async saveCategoryMapping(categoryId, source, externalName) {
+    return Rest.fetchJson(`/api/v2/categories/${categoryId}/mappings`, {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ source, external_name: externalName }),
+    });
+  }
+
+  /**
    * Fetch forecast scenarios from v2 API
    */
   static async fetchForecastScenariosV2({ activeOnly = true } = {}) {

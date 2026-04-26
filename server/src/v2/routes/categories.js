@@ -5,6 +5,7 @@
 const express = require('express');
 const router = express.Router();
 const repo = require('../repositories').categories;
+const mappingsRepo = require('../repositories').categorySourceMappings;
 
 // GET /api/v2/categories - List categories
 router.get('/', async (req, res, next) => {
@@ -42,6 +43,62 @@ router.get('/totals', async (req, res, next) => {
   }
 });
 
+// GET /api/v2/categories/lookup?name=X - Find category by name with mappings
+router.get('/lookup', async (req, res, next) => {
+  try {
+    const { name } = req.query;
+    if (!name) {
+      return res.status(400).json({ error: 'name query parameter is required' });
+    }
+    const category = await repo.findByName(name);
+    if (!category) {
+      return res.status(404).json({ error: 'Category not found' });
+    }
+    const mappings = await mappingsRepo.findByCategoryId(category.id);
+    res.json({ data: { ...category, mappings } });
+  } catch (error) {
+    next(error);
+  }
+});
+
+// GET /api/v2/categories/:id/mappings - List source mappings for a category
+router.get('/:id/mappings', async (req, res, next) => {
+  try {
+    const mappings = await mappingsRepo.findByCategoryId(parseInt(req.params.id));
+    res.json({ data: mappings });
+  } catch (error) {
+    next(error);
+  }
+});
+
+// PUT /api/v2/categories/:id/mappings - Upsert a source mapping
+router.put('/:id/mappings', async (req, res, next) => {
+  try {
+    const categoryId = parseInt(req.params.id);
+    const { source, external_name } = req.body;
+    if (!source || !external_name) {
+      return res.status(400).json({ error: 'source and external_name are required' });
+    }
+    const mapping = await mappingsRepo.upsert(categoryId, source, external_name);
+    res.json({ data: mapping });
+  } catch (error) {
+    next(error);
+  }
+});
+
+// DELETE /api/v2/categories/:id/mappings/:mappingId - Remove a source mapping
+router.delete('/:id/mappings/:mappingId', async (req, res, next) => {
+  try {
+    const deleted = await mappingsRepo.remove(parseInt(req.params.mappingId));
+    if (!deleted) {
+      return res.status(404).json({ error: 'Mapping not found' });
+    }
+    res.status(204).send();
+  } catch (error) {
+    next(error);
+  }
+});
+
 // GET /api/v2/categories/:id
 router.get('/:id', async (req, res, next) => {
   try {
@@ -59,6 +116,8 @@ router.get('/:id', async (req, res, next) => {
 router.post('/', async (req, res, next) => {
   try {
     const category = await repo.create(req.body);
+    // Auto-create pocketsmith source mapping for new categories
+    await mappingsRepo.upsert(category.id, 'pocketsmith', category.name);
     res.status(201).json({ data: category });
   } catch (error) {
     next(error);

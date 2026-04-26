@@ -1,4 +1,4 @@
-import { useCallback, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import Rest from "../js/rest.js";
 import PeriodSelector from "../components/PeriodSelector/PeriodSelector.jsx";
 import "./PageLayout.css";
@@ -36,6 +36,26 @@ export default function TransferAnalysis() {
   // Selection state for manual matching
   const [selectedIds, setSelectedIds] = useState(new Set());
   const [isLinking, setIsLinking] = useState(false);
+
+  // Category change modal state
+  const [categoryModal, setCategoryModal] = useState({
+    isOpen: false,
+    transactionIds: [],
+    currentCategory: "",
+    newCategoryId: "",
+  });
+  const [transferCategories, setTransferCategories] = useState([]);
+  const [isSavingCategory, setIsSavingCategory] = useState(false);
+
+  // Fetch transfer categories on mount
+  useEffect(() => {
+    Rest.fetchJson("/api/v2/categories?includeTransfers=true&activeOnly=true")
+      .then((res) => {
+        const cats = (res?.data ?? []).filter((c) => c.is_transfer);
+        setTransferCategories(cats);
+      })
+      .catch(() => {});
+  }, []);
 
   const handlePeriodChange = useCallback((values) => {
     setPeriod((prev) => ({ ...prev, ...values }));
@@ -127,6 +147,39 @@ export default function TransferAnalysis() {
     },
     [handleGenerate]
   );
+
+  const openCategoryModal = useCallback((transactionIds, currentCategory) => {
+    setCategoryModal({
+      isOpen: true,
+      transactionIds,
+      currentCategory,
+      newCategoryId: "",
+    });
+  }, []);
+
+  const closeCategoryModal = useCallback(() => {
+    setCategoryModal({ isOpen: false, transactionIds: [], currentCategory: "", newCategoryId: "" });
+  }, []);
+
+  const handleCategoryChange = useCallback(async () => {
+    const { transactionIds, newCategoryId } = categoryModal;
+    if (!newCategoryId || transactionIds.length === 0) return;
+    setIsSavingCategory(true);
+    setError(null);
+    try {
+      await Promise.all(
+        transactionIds.map((id) =>
+          Rest.updateTransactionV2(id, { category_id: parseInt(newCategoryId) })
+        )
+      );
+      closeCategoryModal();
+      await handleGenerate();
+    } catch (err) {
+      setError(err?.message ?? "Failed to change transfer type");
+    } finally {
+      setIsSavingCategory(false);
+    }
+  }, [categoryModal, closeCategoryModal, handleGenerate]);
 
   // Compute net base_amount of selected transactions
   const selectedNet = useMemo(() => {
@@ -339,7 +392,17 @@ export default function TransferAnalysis() {
                             </thead>
                             <tbody>
                               {group.transactions.map((txn) => (
-                                <tr key={txn.id}>
+                                <tr
+                                  key={txn.id}
+                                  className="transfer-analysis-row--clickable"
+                                  onClick={() =>
+                                    openCategoryModal(
+                                      group.transactions.map((t) => t.id),
+                                      txn.category_name || "Manual Group"
+                                    )
+                                  }
+                                  title="Click to change transfer type for group"
+                                >
                                   <td>{formatDate(txn.transaction_date)}</td>
                                   <td>{txn.account_name}</td>
                                   <td className="transfer-analysis-desc">
@@ -423,7 +486,17 @@ export default function TransferAnalysis() {
                           </thead>
                           <tbody>
                             {catData.matched.map((pair, idx) => (
-                              <tr key={idx}>
+                              <tr
+                                key={idx}
+                                className="transfer-analysis-row--clickable"
+                                onClick={() =>
+                                  openCategoryModal(
+                                    [pair.debit.id, pair.credit.id],
+                                    category
+                                  )
+                                }
+                                title="Click to change transfer type"
+                              >
                                 <td>{formatDate(pair.debit.transaction_date)}</td>
                                 <td>{pair.debit.account_name}</td>
                                 <td className="transfer-analysis-desc">
@@ -469,11 +542,17 @@ export default function TransferAnalysis() {
                             {catData.unmatched.map((txn) => (
                               <tr
                                 key={txn.id}
-                                className={
+                                className={`transfer-analysis-row--clickable ${
                                   selectedIds.has(txn.id)
                                     ? "transfer-analysis-row--selected"
                                     : ""
-                                }
+                                }`}
+                                onClick={(e) => {
+                                  // Don't open modal when clicking the checkbox
+                                  if (e.target.tagName === "INPUT") return;
+                                  openCategoryModal([txn.id], category);
+                                }}
+                                title="Click to change transfer type"
                               >
                                 <td className="transfer-analysis-checkbox-col">
                                   <input
@@ -530,6 +609,71 @@ export default function TransferAnalysis() {
           </>
         )}
       </div>
+
+      {/* Change Transfer Type Modal */}
+      {categoryModal.isOpen && (
+        <div
+          className="transfer-analysis-modal-overlay"
+          role="dialog"
+          aria-modal="true"
+          aria-label="Change transfer type"
+          onClick={(e) => {
+            if (e.target === e.currentTarget) closeCategoryModal();
+          }}
+        >
+          <div className="transfer-analysis-modal">
+            <h3>Change Transfer Type</h3>
+            <p className="transfer-analysis-modal-info">
+              {categoryModal.transactionIds.length === 1
+                ? "Updating 1 transaction."
+                : `Updating ${categoryModal.transactionIds.length} transactions.`}
+            </p>
+            <p className="transfer-analysis-modal-current">
+              Current: <strong>{categoryModal.currentCategory}</strong>
+            </p>
+            {error && <p className="transfer-analysis-modal-error">{error}</p>}
+            <label className="transfer-analysis-modal-field">
+              <span>New Transfer Type</span>
+              <select
+                className="form-input"
+                value={categoryModal.newCategoryId}
+                onChange={(e) =>
+                  setCategoryModal((prev) => ({
+                    ...prev,
+                    newCategoryId: e.target.value,
+                  }))
+                }
+                disabled={isSavingCategory}
+              >
+                <option value="">Select category...</option>
+                {transferCategories.map((cat) => (
+                  <option key={cat.id} value={cat.id}>
+                    {cat.name}
+                  </option>
+                ))}
+              </select>
+            </label>
+            <div className="transfer-analysis-modal-actions">
+              <button
+                className="generate-report-button"
+                type="button"
+                onClick={closeCategoryModal}
+                disabled={isSavingCategory}
+              >
+                Cancel
+              </button>
+              <button
+                className="generate-report-button"
+                type="button"
+                onClick={handleCategoryChange}
+                disabled={isSavingCategory || !categoryModal.newCategoryId}
+              >
+                {isSavingCategory ? "Saving..." : "Save"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </main>
   );
 }

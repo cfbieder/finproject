@@ -243,6 +243,8 @@ router.post('/appdata', async (req, res, next) => {
 // ============================================================================
 
 const accountsRepo = require('../repositories').accounts;
+const categoriesRepo = require('../repositories').categories;
+const categorySourceMappingsRepo = require('../repositories').categorySourceMappings;
 
 /**
  * GET /api/v2/util/coa-traits
@@ -339,6 +341,17 @@ router.post('/coa/add', async (req, res, next) => {
       currency: currency || parent.currency || 'USD',
       account_number: accountNumber || null,
     });
+
+    // If adding a category, also create a categories table entry + source mapping
+    if (isCategory) {
+      const existing = await categoriesRepo.findByName(trimmedName);
+      if (!existing) {
+        const cat = await categoriesRepo.create({ name: trimmedName, mapped_account_id: account.id });
+        await categorySourceMappingsRepo.upsert(cat.id, 'pocketsmith', trimmedName);
+      } else {
+        await categorySourceMappingsRepo.upsert(existing.id, 'pocketsmith', trimmedName);
+      }
+    }
 
     res.json({ success: true, added: true, name: trimmedName, id: account.id });
   } catch (error) {

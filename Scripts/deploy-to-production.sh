@@ -120,16 +120,7 @@ fi
 # Step 3: Rebuild and restart production
 echo "Step 3: Deploying to production..."
 echo "----------------------------------------"
-echo "This will rebuild and restart production containers."
-read -p "Continue with deployment? (y/N) " -n 1 -r
-echo
-if [[ ! $REPLY =~ ^[Yy]$ ]]; then
-    echo "Deployment cancelled."
-    if [ "$NO_BACKUP" = false ]; then
-        echo "Backup preserved at: $BACKUP_FILE"
-    fi
-    exit 0
-fi
+echo "Rebuilding and restarting production containers..."
 
 echo ""
 echo "Building new images..."
@@ -219,6 +210,11 @@ if [ "$ALL_HEALTHY" = true ]; then
         echo "Keep this backup until you've verified everything works."
     fi
     echo "=========================================="
+
+    # Mirror version across all version files
+    echo ""
+    echo "Mirroring version $VERSION across all files..."
+    "$SCRIPT_DIR/bump-version.sh" "$VERSION"
 else
     echo "=========================================="
     echo "  ⚠ Deployment Issues Detected!"

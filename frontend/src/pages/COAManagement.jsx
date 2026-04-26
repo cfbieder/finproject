@@ -253,7 +253,7 @@ export default function COAManagement() {
     });
   };
 
-  const openEditModal = (row, options = {}) => {
+  const openEditModal = async (row, options = {}) => {
     const selection =
       Array.isArray(options.selection) && options.selection.length
         ? options.selection
@@ -283,6 +283,26 @@ export default function COAManagement() {
           ...row,
           originalName: row.name,
         };
+
+    // For single category edit, fetch source mappings
+    const isCategoryEdit =
+      !isMulti && (row.isCategory || row.type === "Category");
+    if (isCategoryEdit) {
+      try {
+        const catData = await Rest.fetchCategoryByName(row.name);
+        if (catData) {
+          editRow.categoryId = catData.id;
+          const mappings = catData.mappings || [];
+          const psMapping = mappings.find((m) => m.source === "pocketsmith");
+          const qkMapping = mappings.find((m) => m.source === "quicken");
+          editRow.pocketsmithName = psMapping?.external_name ?? "";
+          editRow.quickenName = qkMapping?.external_name ?? "";
+        }
+      } catch {
+        // Non-critical — modal still opens without mappings
+      }
+    }
+
     setEditModal({
       open: true,
       row: editRow,
@@ -576,6 +596,17 @@ export default function COAManagement() {
             accountNumber: nextAccountNumber,
           }),
         });
+
+        // Save source mappings for categories
+        if (isCategoryTarget && editModal.row.categoryId) {
+          const catId = editModal.row.categoryId;
+          if (editModal.changedFields?.pocketsmithName && editModal.row.pocketsmithName) {
+            await Rest.saveCategoryMapping(catId, "pocketsmith", editModal.row.pocketsmithName);
+          }
+          if (editModal.changedFields?.quickenName && editModal.row.quickenName) {
+            await Rest.saveCategoryMapping(catId, "quicken", editModal.row.quickenName);
+          }
+        }
 
         updates.push({
           targetId: target.id,

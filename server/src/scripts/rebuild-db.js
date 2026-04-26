@@ -355,6 +355,14 @@ async function seedCategories(client, csvRows) {
          is_active         = TRUE`,
       [catName, mappedAccountId, isTransfer]
     );
+
+    // Auto-create pocketsmith source mapping
+    await client.query(
+      `INSERT INTO category_source_mappings (category_id, source, external_name)
+       SELECT id, 'pocketsmith', name FROM categories WHERE name = $1
+       ON CONFLICT (source, external_name) DO NOTHING`,
+      [catName]
+    );
     catInserted++;
   }
 
@@ -397,7 +405,9 @@ async function ingestTransactions() {
           s.bank
         FROM psdata_staging s
         LEFT JOIN accounts a ON LOWER(s.account_name) = LOWER(a.name)
-        LEFT JOIN categories c ON LOWER(s.category_name) = LOWER(c.name)
+        LEFT JOIN category_source_mappings csm
+          ON LOWER(s.category_name) = LOWER(csm.external_name) AND csm.source = 'pocketsmith'
+        LEFT JOIN categories c ON csm.category_id = c.id
         WHERE a.id IS NOT NULL
           AND s.amount IS NOT NULL
           AND s.transaction_date IS NOT NULL
