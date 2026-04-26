@@ -55,6 +55,7 @@ const TransActual = lazy(() => import("../pages/TransActual"));
 const TransBudget = lazy(() => import("../pages/TransBudget"));
 const TransferAnalysis = lazy(() => import("../pages/TransferAnalysis"));
 const Ledger = lazy(() => import("../pages/Ledger"));
+const BalanceCalibration = lazy(() => import("../pages/BalanceCalibration"));
 const UploadPS = lazy(() => import("../pages/UploadPS"));
 const COAManagement = lazy(() => import("../pages/COAManagement"));
 const BudgetFX = lazy(() => import("../pages/BudgetFX"));
@@ -156,6 +157,14 @@ export const routes = [
     category: "Transactions",
     description: "Account ledger with running balance for assets and liabilities",
     icon: BookOpen,
+  },
+  {
+    path: "/balance-calibration",
+    component: BalanceCalibration,
+    label: "Balance Calibration",
+    category: "Transactions",
+    description: "Calibrate account opening balances for Balance Sheet accuracy",
+    icon: Target,
   },
 
   // Budgeting
