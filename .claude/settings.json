@@ -5,7 +5,8 @@
       "Write(*)",
       "Read(*)",
       "Bash(npm install xlsx)",
-      "Bash(docker exec *)"
+      "Bash(docker exec *)",
+      "Read(//home/cfbieder/**)"
     ]
   }
 }
