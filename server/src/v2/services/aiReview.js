@@ -1,5 +1,5 @@
 /**
- * AI Review Service — Gathers forecast context and calls Claude API
+ * AI Review Service — Gathers forecast context and calls the local LLM gateway
  *
  * Builds structured text from all 6 data sources:
  * 1. Scenario metadata (periods, tax rate, sweep band)
@@ -8,9 +8,12 @@
  * 4. Income/Expense items
  * 5. FX assumptions
  * 6. Base year actuals
+ *
+ * Routes through the ocr-llm gateway (POST /task, task=finance_plan_review).
+ * Local-only fallback chain: ollama_heavy:qwen3.6:35b → ollama_mid:qwen3:32b.
+ * No public-cloud LLM in the path — financial detail stays on LAN/Tailnet.
  */
 
-const Anthropic = require("@anthropic-ai/sdk");
 const db = require("../db");
 const forecastRepo = require("../repositories").forecast;
 const psdataRepo = require("../repositories").psdata;
@@ -220,35 +223,42 @@ function fmt(v) {
 }
 
 /**
- * Calls Claude API with the forecast context and conversation history
+ * Calls the local LLM gateway with the forecast context and conversation history.
+ * The /task endpoint is single-turn, so we flatten multi-turn history into a
+ * User:/Assistant: transcript and end with an "Assistant:" cue.
  */
-async function callClaude({ systemPrompt, messages, forecastContext }) {
-  // Get API key: env var first, then app_data table
-  const apiKey = process.env.ANTHROPIC_API_KEY || await psdataRepo.getAppData("anthropic_api_key");
-  if (!apiKey) {
-    throw new Error("Anthropic API key not configured. Set ANTHROPIC_API_KEY env var or add it in FC Settings.");
+async function callGateway({ systemPrompt, messages, forecastContext }) {
+  const gatewayUrl = process.env.LLM_GATEWAY_URL || "http://192.168.1.61:8080";
+
+  const lines = ["--- FORECAST DATA ---", forecastContext, "", "--- CONVERSATION ---"];
+  for (const m of messages) {
+    const speaker = m.role === "user" ? "User" : "Assistant";
+    lines.push(`${speaker}: ${m.content}`);
+    lines.push("");
+  }
+  lines.push("Assistant:");
+  const prompt = lines.join("\n");
+
+  const response = await fetch(`${gatewayUrl}/task`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      task: "finance_plan_review",
+      prompt,
+      system: systemPrompt,
+      max_tokens: 4096,
+    }),
+    signal: AbortSignal.timeout(300_000),
+  });
+
+  if (!response.ok) {
+    const errText = await response.text().catch(() => "");
+    throw new Error(`LLM gateway ${response.status}: ${errText.slice(0, 500)}`);
   }
 
-  const client = new Anthropic({ apiKey: typeof apiKey === "string" ? apiKey : String(apiKey) });
+  const data = await response.json();
+  const content = data.response || "";
 
-  // Inject forecast data into the first user message so all models process it
-  const augmentedMessages = messages.map((m, i) => {
-    if (i === 0 && m.role === "user") {
-      return { role: "user", content: `${m.content}\n\n--- FORECAST DATA ---\n${forecastContext}` };
-    }
-    return { role: m.role, content: m.content };
-  });
-
-  const response = await client.messages.create({
-    model: process.env.ANTHROPIC_MODEL || "claude-3-haiku-20240307",
-    max_tokens: 4096,
-    system: systemPrompt,
-    messages: augmentedMessages,
-  });
-
-  const content = response.content?.[0]?.text || "";
-
-  // Parse action blocks from response
   const actions = [];
   const actionRegex = /```action\s*\n([\s\S]*?)\n```/g;
   let match;
@@ -286,8 +296,7 @@ async function createReview(scenarioName) {
     [review.id, userMessage]
   );
 
-  // Call Claude
-  const { content, actions } = await callClaude({
+  const { content, actions } = await callGateway({
     systemPrompt,
     messages: [{ role: "user", content: userMessage }],
     forecastContext: context,
@@ -334,9 +343,8 @@ async function sendMessage(reviewId, userMessage) {
   const systemPrompt = (typeof customPrompt === "string" && customPrompt.trim())
     ? customPrompt : DEFAULT_SYSTEM_PROMPT;
 
-  // Call Claude with full history
   const messages = [...history, { role: "user", content: userMessage }];
-  const { content, actions } = await callClaude({
+  const { content, actions } = await callGateway({
     systemPrompt,
     messages,
     forecastContext: context,

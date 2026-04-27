@@ -40,7 +40,7 @@ services:
       COA_PATH: ../../components/data/coa.json
       PS_API_KEY: ${PS_API_KEY:-4d7decce564383ec2fd44f7a0ce668d4949e2fac864de880e081dcb4c246740481774c17b60a63a6f1062d22e4cf7b77098253291545bab106d20c0f5d90a3a3}
       PS_USER_ID: ${PS_USER_ID:-330430}
-      ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
+      LLM_GATEWAY_URL: ${LLM_GATEWAY_URL:-http://192.168.1.61:8080}
     ports:
       - "3005:3005"
     volumes:

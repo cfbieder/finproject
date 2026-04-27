@@ -101,7 +101,6 @@ ssh cfbieder@192.168.1.61          # KVM host (VM management only)
 | archiver | 7.0.1 | Backup compression |
 | pino | 9.6.0 | Structured logging |
 | morgan | 1.10.1 | HTTP request logging |
-| @anthropic-ai/sdk | latest | Anthropic Claude API client (AI Review) |
 
 ---
 
@@ -146,7 +145,7 @@ psproject/                          # ~/Programs/fin symlinks here
 │           ├── db/              # PostgreSQL module exports + pool (DATE type parser returns YYYY-MM-DD strings, avoiding timezone shift)
 │           ├── routes/          # Route handlers (accounts, aiReview, budget, categories, forecast, health, ingestPs, reports, transactions, transferMatchGroups, util)
 │           ├── repositories/    # Data access layer (accounts, budget, budgetFxRates, categories, forecast, psdata, transactions, transferMatchGroups)
-│           └── services/        # Business logic (psCsvIngestorV2, refreshPsApiV2, aiReview.js — context builder + Claude API call, forecast/ engine)
+│           └── services/        # Business logic (psCsvIngestorV2, refreshPsApiV2, aiReview.js — context builder + LLM gateway call, forecast/ engine)
 ├── Scripts/                     # Shell scripts
 │   ├── dev-start.sh             # Start tmux development environment
 │   ├── deploy-to-production.sh  # Deploy development changes to production
@@ -187,7 +186,7 @@ psproject/                          # ~/Programs/fin symlinks here
 | `/forecast-modules` | FCModuleManage | Forecasting | Step 3 — Configure BS modules. "Add from Actuals" creates modules from year-end balances (Select All/Clear). Setup status (New/In Progress/Complete) with color-coded badges and filter — only "Complete" included in generation. Edit form: Account read-only when matched; Name always editable (datalist suggestions from COA children when matched); Type from configurable list (FC Settings); Expense/Income Line pickers (FC Lines); Expense Amount (Base Yr) and Income Amount (Base Yr); Growth (x Inflation); Expense Growth method (Inflate / % of Asset Value); Yield Spread schedule (year + percentage, "Annual yield above/below inflation (%)"); Tax Rate Override (%); Invest/Dispose arrays with transfer flags (OneTime/Periodic/Full); Periodic transfers show Start Year, optional End Year, and Amount/Year; Full disposal handling. Generate button in edit modal footer (saves changes first, then runs forecast generation, stays on modal for View Output). `GET /modules/:id` loads nested arrays. |
 | `/forecast-setup-exp` | FCExpSetup | Forecasting | Step 4 — Income/expense forecast items. "Add from FC Lines" with budget pre-fill. Account/Name/Type locked for FC Line items. Base Value = BaseYear budget amount. Setup status (New/In Progress/Complete/Exclude) with filter — only "In Progress" and "Complete" in generation. Account dropdown with "Select account..." placeholder (COA Level 2 categories). Type dropdown (Income/Expense). Engine starts from PeriodStart (BaseYear P&L covered by budget). |
 | `/forecast-review` | FCReview | Forecasting | Step 5 — Review generated forecasts. P&L driven by FC Lines (`/fc-lines/review-structure`). Three column types: LastActualYear "(Actual)" from ledger, BaseYear "(Budget)" P&L from budget + BS from engine, PeriodStart+ from FC engines. Invest/Dispose transfers available from BaseYear onward. Equity bridge rows inside main table. KPI cards, age row, graph, cash target auto-balance. Year headers above Balance Sheet section. AI Review button (purple, BrainCircuit icon) opens `FCAIReviewDrawer` slide-out drawer for AI-powered plan review. Sticky top scrollbar for horizontal scrolling, thicker scrollbar (14px), `overscroll-behavior-x: contain`. |
-| `/fc-settings` | FCSettings | Forecasting | FC Settings — Birth Year (age row in Review), Module Types (configurable dropdown list), FX Rate Assumptions (moved from old `/fx-options`), and AI System Prompt (textarea with default). AI system prompt stored in `app_data`. Anthropic API key is read from `ANTHROPIC_API_KEY` environment variable (with fallback to `app_data` table); it is no longer stored in `appdata.json`. |
+| `/fc-settings` | FCSettings | Forecasting | FC Settings — Birth Year (age row in Review), Module Types (configurable dropdown list), FX Rate Assumptions (moved from old `/fx-options`), and AI System Prompt (textarea with default). AI system prompt stored in `app_data`. AI Review now routes through the local `ocr-llm` gateway (task `finance_plan_review`, heavy → mid local-only); no public-cloud LLM key required. |
 | `/balance` | BalanceV2 | Reports & Graphs | Redesigned balance sheet. KPI cards for Net Worth (highlighted), Total Assets, Total Liabilities. Compact toolbar with inline period controls (1-3 periods with P1/P2/P3 badges + date pickers), Generate button, expand/collapse icon buttons, and Export. Reuses existing `BalanceReport` component for the hierarchical account tree table with sticky headers/columns, resizable account column, row highlighting, path-based collapse state, and Net Worth footer row. Auto-generates report on page load. |
 | `/cash-flow` | CashFlow | Reports & Graphs | Cash flow P&L analysis |
 | `/cash-flow-monthly` | CashFlowMonthly | Reports & Graphs | Monthly cash flow breakdown |
@@ -378,7 +377,7 @@ All endpoints mounted at `/api/v2`. Nginx rewrites legacy `/api/*` paths to `/ap
 - `DELETE /:id` — Remove a match group (cascade deletes members, returning transactions to unmatched pool).
 
 #### AI Review (`/api/v2/ai-review`)
-- `POST /` — Create new AI review for a scenario. Builds context from 6 data sources (scenario metadata, modules with nested data, inc/exp items, FX assumptions, base year budget, generated forecast entries), sends structured prompt to Claude via Anthropic API. Model is configurable via `ANTHROPIC_MODEL` env var (defaults to `claude-3-haiku-20240307`). Returns review with Strong Points / Concerns / Recommendations / Key Risks / Questions.
+- `POST /` — Create new AI review for a scenario. Builds context from 6 data sources (scenario metadata, modules with nested data, inc/exp items, FX assumptions, base year budget, generated forecast entries), then `POST`s to the `ocr-llm` gateway at `${LLM_GATEWAY_URL}/task` with `task: "finance_plan_review"`. Conversation history is flattened into the prompt (single-turn endpoint). Local-only route: `ollama_heavy:qwen3.6:35b-a3b-q4_K_M → ollama_mid:qwen3:32b` — no public-cloud fallback. Returns review with Strong Points / Concerns / Recommendations / Key Risks / Questions.
 - `POST /:reviewId/message` — Send follow-up message in existing review conversation. Free-form response.
 - `GET /scenario/:scenarioName` — List all reviews for a scenario.
 - `GET /:reviewId` — Get full conversation history for a review.
@@ -419,7 +418,7 @@ Multi-year personal financial projection system modeled after `2026 Retirement E
 | 4 | Income/Expenses | `/forecast-setup-exp` | Add forecast income/expense items from FC Lines with budget pre-fill |
 | 5 | Review | `/forecast-review` | View generated multi-year forecast with P&L, balance sheet, KPIs, and equity bridge |
 
-Supporting page: FC Settings (`/fc-settings`) — Birth Year (age row), Module Types (configurable list), FX Rate Assumptions, AI System Prompt. Anthropic API key is supplied via `ANTHROPIC_API_KEY` env var (not stored in settings UI).
+Supporting page: FC Settings (`/fc-settings`) — Birth Year (age row), Module Types (configurable list), FX Rate Assumptions, AI System Prompt. AI Review routes through the local `ocr-llm` gateway (`LLM_GATEWAY_URL` env var, default `http://192.168.1.61:8080`); no API key needed.
 
 #### FC Lines Mapping Layer
 
@@ -537,7 +536,7 @@ Key engine features:
 - **Graph Quick Adjustments:** Double-clicking a data point on a line chart opens an inline adjustment modal. For P&L series (FC Exp lines): `FCGraphAdjustModal` allows adding/editing periodic changes (Fixed $, Percentage %, One-Off $) for the clicked year — pre-populates if a change already exists. For Balance Sheet series (FC Modules): `FCGraphModuleAdjustModal` loads full module data and displays Invest/Dispose transfer sections — existing transfers at the clicked year are highlighted, new rows default to that year. Both modals auto-regenerate the forecast on save and refresh the graph with updated values. Adjustable points show pointer cursor; non-adjustable series (totals, aggregates) use default cursor. Series enriched with `hasModule` flag via `fcExpByLabel` (FC Exp) and `fcModulesByLabel` (FC Module) lookup maps built from scenario data. Components: `FCGraphAdjustModal.jsx`, `FCGraphModuleAdjustModal.jsx`.
 - **Row values:** Base/actual year values are resolved with budget/actual overlays via `resolveCashValue()` and `resolveBalanceValue()` helpers in `FCReviewTable.jsx`, ensuring graph series show correct values for all years (not just forecast years).
 - **Cash Sweep Summary:** Green ArrowRightLeft button in toolbar opens `FCCashSweepModal` — shows the cash sweep audit trail (Year, Action, Amount, CashBefore, CashAfter, NetModuleEffect) with color-coded actions. Previously embedded as a tab in the Module Output modal, now a standalone modal on the Review page.
-- **AI Review:** Purple BrainCircuit button in toolbar opens `FCAIReviewDrawer` — slide-out drawer from right with conversation history sidebar (with per-review delete buttons), message bubbles (user/assistant), follow-up input, inline "Apply" buttons parsed from AI action blocks (`update_module`, `update_incexp`, `update_scenario`), and confirmation modal before applying. Conversations persisted in PostgreSQL (`fc_ai_reviews`, `fc_ai_messages`). Forecast data is included in the user message (not system prompt) for reliable processing by all model sizes. Drawer z-index set above navigation menu (10100/10200).
+- **AI Review:** Purple BrainCircuit button in toolbar opens `FCAIReviewDrawer` — slide-out drawer from right with conversation history sidebar (with per-review delete buttons), message bubbles (user/assistant), follow-up input, inline "Apply" buttons parsed from AI action blocks (`update_module`, `update_incexp`, `update_scenario`), and confirmation modal before applying. Conversations persisted in PostgreSQL (`fc_ai_reviews`, `fc_ai_messages`). Backend calls the local `ocr-llm` gateway (`POST /task`, task `finance_plan_review`) — heavy → mid local-only route, no public-cloud LLM. Conversation history is flattened into the prompt (the gateway endpoint is single-turn). Drawer z-index set above navigation menu (10100/10200).
 
 #### Test Coverage
 
@@ -788,10 +787,9 @@ Config uses `.env` file (git-ignored) for secrets, with defaults in `docker-comp
 | `PS_USER_ID` | `330430` | PocketSmith user ID |
 | `NODE_ENV` | `production` | Server environment |
 | `PORT` | `3005` | Server port |
-| `ANTHROPIC_API_KEY` | (none — must be set in `.env`) | Anthropic API key for AI Review. Passed to server container via `docker-compose.yml` and `docker-compose.dev.yml`. Fallback: `app_data` table. |
-| `ANTHROPIC_MODEL` | `claude-3-haiku-20240307` | Anthropic model used for AI Review. Override via env var when a better model is available. |
+| `LLM_GATEWAY_URL` | `http://192.168.1.61:8080` | Base URL of the local `ocr-llm` gateway (LAN). AI Review POSTs to `${LLM_GATEWAY_URL}/task` with `task: "finance_plan_review"`. Local-only route (heavy → mid); no API key required. |
 
-> **Note:** `.env` is git-ignored. Secrets (`ANTHROPIC_API_KEY`, etc.) must be set there and are never committed. `appdata.json` no longer contains the Anthropic API key.
+> **Note:** `.env` is git-ignored. AI Review no longer needs an Anthropic API key — all LLM calls flow through the local gateway. If the gateway is unreachable, AI Review fails closed with a clear error rather than falling back to a cloud LLM.
 
 ---
 
@@ -803,7 +801,7 @@ Located in `components/data/` (mounted into server container):
 |------|---------|
 | `account_names.json` | PocketSmith account name mappings |
 | `category_names.json` | PocketSmith category name mappings |
-| `appdata.json` | Application metadata (last ingest/refresh timestamps). No longer stores Anthropic API key — use `ANTHROPIC_API_KEY` env var instead. |
+| `appdata.json` | Application metadata (last ingest/refresh timestamps). |
 | `FCAssump.json` | Forecast assumptions (inflation, FX, tax rates) |
 | `.temp/` | Temporary files for PS API refresh pipeline |
 
