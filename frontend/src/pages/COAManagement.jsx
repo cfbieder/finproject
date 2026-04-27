@@ -284,22 +284,35 @@ export default function COAManagement() {
           originalName: row.name,
         };
 
-    // For single category edit, fetch source mappings
-    const isCategoryEdit =
-      !isMulti && (row.isCategory || row.type === "Category");
-    if (isCategoryEdit) {
+    // For single edit, try to fetch source mappings.
+    // Try category first (for P&L leaves like "FX"), then account (for BS items like "Bank of America").
+    if (!isMulti) {
+      let mappings = null;
       try {
         const catData = await Rest.fetchCategoryByName(row.name);
         if (catData) {
           editRow.categoryId = catData.id;
-          const mappings = catData.mappings || [];
-          const psMapping = mappings.find((m) => m.source === "pocketsmith");
-          const qkMapping = mappings.find((m) => m.source === "quicken");
-          editRow.pocketsmithName = psMapping?.external_name ?? "";
-          editRow.quickenName = qkMapping?.external_name ?? "";
+          mappings = catData.mappings || [];
         }
       } catch {
-        // Non-critical — modal still opens without mappings
+        // 404 — try account next
+      }
+      if (!mappings) {
+        try {
+          const acctData = await Rest.fetchAccountByName(row.name);
+          if (acctData) {
+            editRow.accountId = acctData.id;
+            mappings = acctData.mappings || [];
+          }
+        } catch {
+          // Non-critical — modal still opens without mappings
+        }
+      }
+      if (mappings) {
+        const psMapping = mappings.find((m) => m.source === "pocketsmith");
+        const qkMapping = mappings.find((m) => m.source === "quicken");
+        editRow.pocketsmithName = psMapping?.external_name ?? "";
+        editRow.quickenName = qkMapping?.external_name ?? "";
       }
     }
 
@@ -598,13 +611,21 @@ export default function COAManagement() {
         });
 
         // Save source mappings for categories
-        if (isCategoryTarget && editModal.row.categoryId) {
+        if (editModal.row.categoryId) {
           const catId = editModal.row.categoryId;
           if (editModal.changedFields?.pocketsmithName && editModal.row.pocketsmithName) {
             await Rest.saveCategoryMapping(catId, "pocketsmith", editModal.row.pocketsmithName);
           }
           if (editModal.changedFields?.quickenName && editModal.row.quickenName) {
             await Rest.saveCategoryMapping(catId, "quicken", editModal.row.quickenName);
+          }
+        } else if (editModal.row.accountId) {
+          const acctId = editModal.row.accountId;
+          if (editModal.changedFields?.pocketsmithName && editModal.row.pocketsmithName) {
+            await Rest.saveAccountMapping(acctId, "pocketsmith", editModal.row.pocketsmithName);
+          }
+          if (editModal.changedFields?.quickenName && editModal.row.quickenName) {
+            await Rest.saveAccountMapping(acctId, "quicken", editModal.row.quickenName);
           }
         }
 

@@ -245,6 +245,7 @@ router.post('/appdata', async (req, res, next) => {
 const accountsRepo = require('../repositories').accounts;
 const categoriesRepo = require('../repositories').categories;
 const categorySourceMappingsRepo = require('../repositories').categorySourceMappings;
+const accountSourceMappingsRepo = require('../repositories').accountSourceMappings;
 
 /**
  * GET /api/v2/util/coa-traits
@@ -330,6 +331,8 @@ router.post('/coa/add', async (req, res, next) => {
         account_number: accountNumber || existing.account_number || null,
         is_active: true,
       });
+      // Ensure pocketsmith mapping exists
+      await accountSourceMappingsRepo.upsert(updated.id, 'pocketsmith', trimmedName);
       return res.json({ success: true, added: true, moved: true, name: trimmedName, id: updated.id });
     }
 
@@ -341,6 +344,9 @@ router.post('/coa/add', async (req, res, next) => {
       currency: currency || parent.currency || 'USD',
       account_number: accountNumber || null,
     });
+
+    // Auto-create pocketsmith source mapping for the new account
+    await accountSourceMappingsRepo.upsert(account.id, 'pocketsmith', trimmedName);
 
     // If adding a category, also create a categories table entry + source mapping
     if (isCategory) {

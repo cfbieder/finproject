@@ -409,6 +409,27 @@ export default class Rest {
   }
 
   /**
+   * Look up an account by name (returns account with mappings)
+   */
+  static async fetchAccountByName(name) {
+    const response = await Rest.fetchJson(
+      `/api/v2/accounts/lookup?name=${encodeURIComponent(name)}`
+    );
+    return response?.data ?? null;
+  }
+
+  /**
+   * Save an account source mapping
+   */
+  static async saveAccountMapping(accountId, source, externalName) {
+    return Rest.fetchJson(`/api/v2/accounts/${accountId}/mappings`, {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ source, external_name: externalName }),
+    });
+  }
+
+  /**
    * Fetch forecast scenarios from v2 API
    */
   static async fetchForecastScenariosV2({ activeOnly = true } = {}) {

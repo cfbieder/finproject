@@ -1,5 +1,7 @@
 import { Search, Plus, Pencil, Trash2, ScanSearch, X } from "lucide-react";
 
+const capitalize = (s) => (s ? s.charAt(0).toUpperCase() + s.slice(1) : s);
+
 export default function COAManagementToolbar({
   searchTerm,
   onSearchChange,
@@ -39,7 +41,7 @@ export default function COAManagementToolbar({
         >
           {typeOptions.map((opt) => (
             <option key={opt} value={opt}>
-              {opt === "all" ? "All types" : opt}
+              {opt === "all" ? "All types" : capitalize(opt)}
             </option>
           ))}
         </select>

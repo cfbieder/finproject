@@ -1,5 +1,7 @@
 import { ChevronRight, Plus, Pencil, Trash2, MoveRight } from "lucide-react";
 
+const capitalize = (s) => (s ? s.charAt(0).toUpperCase() + s.slice(1) : s);
+
 export default function COATreeRow({
   row,
   isSelected,
@@ -46,7 +48,7 @@ export default function COATreeRow({
           {row.name}
         </span>
       </td>
-      <td>{row.type}</td>
+      <td>{capitalize(row.type)}</td>
       <td>{row.currency}</td>
       <td>{row.accountNumber || "\u2014"}</td>
       <td className="coa-tree-row__actions-cell">

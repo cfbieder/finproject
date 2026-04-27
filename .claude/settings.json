@@ -4,7 +4,8 @@
       "Bash(*)",
       "Write(*)",
       "Read(*)",
-      "Bash(npm install xlsx)"
+      "Bash(npm install xlsx)",
+      "Bash(docker exec *)"
     ]
   }
 }

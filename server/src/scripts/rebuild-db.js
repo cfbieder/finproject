@@ -240,7 +240,17 @@ async function insertAccount(client, { name, parentId, accountType, section, cur
      RETURNING id`,
     [name, parentId || null, accountType, section, currency || null, displayOrder || 0]
   );
-  return result.rows[0].id;
+  const accountId = result.rows[0].id;
+
+  // Auto-create pocketsmith source mapping
+  await client.query(
+    `INSERT INTO account_source_mappings (account_id, source, external_name)
+     VALUES ($1, 'pocketsmith', $2)
+     ON CONFLICT (source, external_name) DO NOTHING`,
+    [accountId, name]
+  );
+
+  return accountId;
 }
 
 async function seedNode(client, node, parentId, section, inheritedType, order) {
@@ -404,7 +414,9 @@ async function ingestTransactions() {
           s.note,
           s.bank
         FROM psdata_staging s
-        LEFT JOIN accounts a ON LOWER(s.account_name) = LOWER(a.name)
+        LEFT JOIN account_source_mappings asm
+          ON LOWER(s.account_name) = LOWER(asm.external_name) AND asm.source = 'pocketsmith'
+        LEFT JOIN accounts a ON asm.account_id = a.id
         LEFT JOIN category_source_mappings csm
           ON LOWER(s.category_name) = LOWER(csm.external_name) AND csm.source = 'pocketsmith'
         LEFT JOIN categories c ON csm.category_id = c.id
@@ -449,7 +461,9 @@ async function ingestTransactions() {
     // Check how many staged rows had no matching account
     const unmapped = await db.query(`
       SELECT DISTINCT s.account_name FROM psdata_staging s
-      LEFT JOIN accounts a ON LOWER(s.account_name) = LOWER(a.name)
+      LEFT JOIN account_source_mappings asm
+        ON LOWER(s.account_name) = LOWER(asm.external_name) AND asm.source = 'pocketsmith'
+      LEFT JOIN accounts a ON asm.account_id = a.id
       WHERE a.id IS NULL AND s.account_name IS NOT NULL
     `);
     if (unmapped.rows.length > 0) {

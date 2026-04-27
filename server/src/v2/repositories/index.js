@@ -14,6 +14,7 @@ const budgetFxRates = require('./budgetFxRates');
 const transferMatchGroups = require('./transferMatchGroups');
 const fcLines = require('./fcLines');
 const categorySourceMappings = require('./categorySourceMappings');
+const accountSourceMappings = require('./accountSourceMappings');
 
 module.exports = {
   transactions,
@@ -25,5 +26,6 @@ module.exports = {
   budgetFxRates,
   transferMatchGroups,
   fcLines,
-  categorySourceMappings
+  categorySourceMappings,
+  accountSourceMappings
 };

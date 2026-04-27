@@ -1,5 +1,7 @@
 import COACategoryPicker from "./COACategoryPicker.jsx";
 
+const capitalize = (s) => (s ? s.charAt(0).toUpperCase() + s.slice(1) : s);
+
 export default function COAEditModal({
   open,
   row,
@@ -172,8 +174,8 @@ export default function COAEditModal({
             )}
           </div>
         )}
-        {/* Source Mappings — visible only for single category edit */}
-        {isCategoryEdit && !isAdd && row.categoryId && (
+        {/* Source Mappings — shown when the edited row has a corresponding category or account */}
+        {!isAdd && (row.categoryId || row.accountId) && (
           <div
             style={{
               display: "flex",
@@ -261,7 +263,7 @@ export default function COAEditModal({
               .filter((option) => option !== "all")
               .map((option) => (
                 <option key={option} value={option}>
-                  {option}
+                  {capitalize(option)}
                 </option>
               ))}
             <option value="__custom">Add new type…</option>

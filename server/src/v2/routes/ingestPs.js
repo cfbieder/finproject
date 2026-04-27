@@ -100,7 +100,9 @@ async function syncStagingToTransactions() {
   const unmappedAcctResult = await db.query(`
     SELECT DISTINCT s.account_name
     FROM psdata_staging s
-    LEFT JOIN accounts a ON LOWER(s.account_name) = LOWER(a.name)
+    LEFT JOIN account_source_mappings asm
+      ON LOWER(s.account_name) = LOWER(asm.external_name) AND asm.source = 'pocketsmith'
+    LEFT JOIN accounts a ON asm.account_id = a.id
     WHERE s.account_name IS NOT NULL AND a.id IS NULL
   `);
   const unmappedAccounts = unmappedAcctResult.rows.map(r => r.account_name);
@@ -118,7 +120,9 @@ async function syncStagingToTransactions() {
   // Count records that will be skipped (missing required fields or unmapped account)
   const skippedResult = await db.query(`
     SELECT COUNT(*) as cnt FROM psdata_staging s
-    LEFT JOIN accounts a ON LOWER(s.account_name) = LOWER(a.name)
+    LEFT JOIN account_source_mappings asm
+      ON LOWER(s.account_name) = LOWER(asm.external_name) AND asm.source = 'pocketsmith'
+    LEFT JOIN accounts a ON asm.account_id = a.id
     WHERE a.id IS NULL OR s.amount IS NULL OR s.transaction_date IS NULL OR s.currency IS NULL
   `);
   const skipped = parseInt(skippedResult.rows[0].cnt, 10);
@@ -148,7 +152,9 @@ async function syncStagingToTransactions() {
         s.note,
         s.bank
       FROM psdata_staging s
-      LEFT JOIN accounts a ON LOWER(s.account_name) = LOWER(a.name)
+      LEFT JOIN account_source_mappings asm
+        ON LOWER(s.account_name) = LOWER(asm.external_name) AND asm.source = 'pocketsmith'
+      LEFT JOIN accounts a ON asm.account_id = a.id
       LEFT JOIN category_source_mappings csm
         ON LOWER(s.category_name) = LOWER(csm.external_name) AND csm.source = 'pocketsmith'
       LEFT JOIN categories c ON csm.category_id = c.id

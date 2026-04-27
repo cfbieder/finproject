@@ -138,7 +138,7 @@ psproject/                          # ~/Programs/fin symlinks here
 │   ├── package.json
 │   ├── nodemon.json
 │   ├── .env-cmdrc
-│   ├── db/migrations/           # PostgreSQL schema (001-006: core, 007: fc_lines + fc_line_categories + module FK columns, 008: drop old expense_category/income_category/expense_pct, 009: target_cash on scenarios, 010: tax_rate_override on modules, 011: setup_status on modules + income_expense, 012: cash_sweep_target on modules, 013: cash_sweep_band replacing target_cash on scenarios, 014: ai_reviews, 015: periodic disposal date_end, 016: opening_balance calibration columns on accounts, 018: category_source_mappings)
+│   ├── db/migrations/           # PostgreSQL schema (001-006: core, 007: fc_lines + fc_line_categories + module FK columns, 008: drop old expense_category/income_category/expense_pct, 009: target_cash on scenarios, 010: tax_rate_override on modules, 011: setup_status on modules + income_expense, 012: cash_sweep_target on modules, 013: cash_sweep_band replacing target_cash on scenarios, 014: ai_reviews, 015: periodic disposal date_end, 016: opening_balance calibration columns on accounts, 018: category_source_mappings, 019: account_source_mappings)
 │   └── src/
 │       ├── server.js            # HTTP server entry point
 │       ├── app.js               # Express app config, route mounting
@@ -320,7 +320,9 @@ All endpoints mounted at `/api/v2`. Nginx rewrites legacy `/api/*` paths to `/ap
 #### Accounts (`/api/v2/accounts`)
 - `GET /` — List (query params: `section`, `accountType`, `activeOnly`, `leafOnly` — `leafOnly=true` excludes parent nodes with children) | `GET /tree` — Hierarchical tree | `GET /traits` — Traits map | `GET /balances` — Account balances
 - `GET /categories` — Categories mapped to accounts | `GET /:id` — Single | `GET /:id/children` | `GET /:id/descendants`
-- `POST /` — Create | `PATCH /:id` — Update | `DELETE /:id` — Soft delete
+- `POST /` — Create (auto-creates pocketsmith mapping) | `PATCH /:id` — Update | `DELETE /:id` — Soft delete
+- `GET /lookup?name=X` — Find account by name with source mappings
+- `GET /:id/mappings` — List source mappings | `PUT /:id/mappings` — Upsert `{ source, external_name }` | `DELETE /:id/mappings/:mappingId` — Remove mapping
 - `POST /map-ps-accounts` — Maps PocketSmith transaction account IDs to local accounts | `POST /calibrate` — Back-calculates opening balances from most recent closing_balance anchor | `GET /calibration-status` — Shows calculated vs PocketSmith balance comparison
 
 #### Budget (`/api/v2/budget`)
@@ -564,6 +566,7 @@ Full design document, implementation plan, and test strategy: `Documentation/FC_
 | `accounts` | Chart of accounts with hierarchy (adjacency list via `parent_id`). Calibration columns: `opening_balance`, `opening_balance_date`, `last_calibrated_at`, `ps_transaction_account_id` (migration 016) |
 | `categories` | PocketSmith categories mapped to accounts |
 | `category_source_mappings` | Maps external system category names (PocketSmith, Quicken) to internal app categories. Decouples sync from internal renaming. `UNIQUE(source, external_name)`. Sync JOINs use this table instead of `categories.name` directly |
+| `account_source_mappings` | Maps external system account names (PocketSmith, Quicken) to internal app accounts (Assets, Liabilities, etc.). Same pattern as `category_source_mappings`. `UNIQUE(source, external_name)`. Sync JOINs resolve via this table instead of `accounts.name` directly |
 | `transactions` | Actual financial transactions (`accepted` flag protects from PS refresh overwrite, `transfer_matched` boolean set by Transfer Analysis for filtering matched/unmatched transfers) |
 | `pending_transactions` | Staging for new/modified PocketSmith transactions |
 | `budget_versions` | Named budget versions per year |
