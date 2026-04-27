@@ -291,7 +291,7 @@ export default function FCAIReviewDrawer({ isOpen, onClose, scenarioName }) {
           <div style={{ flex: 1, display: "flex", flexDirection: "column", overflow: "hidden" }}>
             <div style={{ flex: 1, overflowY: "auto", padding: "1rem" }}>
               {messages.length === 0 && !loading && (
-                <EmptyState variant="ai-review" message="Ready to review your plan. Click &quot;+ New Review&quot; to send your forecast to Claude for analysis." />
+                <EmptyState variant="ai-review" message="Ready to review your plan. Click &quot;+ New Review&quot; to send your forecast to the local AI for analysis." />
               )}
 
               {messages.map((msg, i) => (
