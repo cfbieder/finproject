@@ -1,6 +1,28 @@
 import { useState, useEffect, useRef, useCallback } from "react";
 import Rest from "../../js/rest.js";
 import EmptyState from "../../components/EmptyState.jsx";
+import { useToast } from "../../contexts";
+
+const POLL_INTERVAL_MS = 8000;
+
+function fireBrowserNotification(scenarioName) {
+  if (typeof Notification === "undefined") return;
+  if (Notification.permission !== "granted") return;
+  if (typeof document !== "undefined" && document.visibilityState === "visible") return;
+  try {
+    new Notification("AI plan review ready", {
+      body: `Your forecast review for "${scenarioName}" is complete.`,
+      tag: "fc-ai-review",
+    });
+  } catch (_) { /* noop */ }
+}
+
+async function ensureNotificationPermission() {
+  if (typeof Notification === "undefined") return;
+  if (Notification.permission === "default") {
+    try { await Notification.requestPermission(); } catch (_) { /* noop */ }
+  }
+}
 
 /**
  * Parses action blocks from AI response content.
@@ -91,11 +113,15 @@ export default function FCAIReviewDrawer({ isOpen, onClose, scenarioName }) {
   const [activeReviewId, setActiveReviewId] = useState(null);
   const [messages, setMessages] = useState([]);
   const [input, setInput] = useState("");
-  const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const [appliedActions, setAppliedActions] = useState(new Set());
   const [confirmAction, setConfirmAction] = useState(null);
   const messagesEndRef = useRef(null);
+  const { showSuccess, showError } = useToast();
+
+  const hasPendingReview = reviews.some(r => r.status === "pending");
+  const activeReview = reviews.find(r => r.id === activeReviewId);
+  const activeIsPending = activeReview?.status === "pending";
 
   // Load review history when scenario changes
   useEffect(() => {
@@ -105,7 +131,6 @@ export default function FCAIReviewDrawer({ isOpen, onClose, scenarioName }) {
       .catch(() => {});
   }, [isOpen, scenarioName]);
 
-  // Load conversation when a review is selected
   const loadConversation = useCallback(async (reviewId) => {
     try {
       const r = await Rest.get(`/ai-review/${reviewId}`);
@@ -122,41 +147,69 @@ export default function FCAIReviewDrawer({ isOpen, onClose, scenarioName }) {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages]);
 
+  // Poll for pending reviews; runs in the background even when the drawer is closed
+  // so notifications still fire.
+  useEffect(() => {
+    const pendingIds = reviews.filter(r => r.status === "pending").map(r => r.id);
+    if (pendingIds.length === 0) return;
+
+    let cancelled = false;
+    const tick = async () => {
+      for (const id of pendingIds) {
+        try {
+          const status = await Rest.get(`/ai-review/${id}/status`);
+          if (cancelled) return;
+          if (status.status === "completed") {
+            const conv = await Rest.get(`/ai-review/${id}`);
+            if (cancelled) return;
+            setReviews(prev => prev.map(r => r.id === id ? { ...r, status: "completed" } : r));
+            if (id === activeReviewId) setMessages(conv.messages || []);
+            showSuccess(`AI plan review ready${id === activeReviewId ? "" : " — open from the history list"}`);
+            fireBrowserNotification(scenarioName);
+          } else if (status.status === "failed") {
+            setReviews(prev => prev.map(r => r.id === id ? { ...r, status: "failed", error_message: status.error_message } : r));
+            const msg = status.error_message || "AI plan review failed";
+            if (id === activeReviewId) setError(msg);
+            showError(`AI plan review failed: ${msg}`);
+          }
+        } catch (_) { /* keep polling on transient errors */ }
+      }
+    };
+
+    const handle = setInterval(tick, POLL_INTERVAL_MS);
+    return () => { cancelled = true; clearInterval(handle); };
+  }, [reviews, activeReviewId, scenarioName, showSuccess, showError]);
+
   const handleNewReview = async () => {
-    setLoading(true);
+    if (hasPendingReview) return;
     setError("");
-    setMessages([]);
-    setActiveReviewId(null);
+    ensureNotificationPermission();
     try {
       const r = await Rest.post("/ai-review", { scenario: scenarioName });
-      setActiveReviewId(r.review.id);
+      const review = { ...r.review, status: "pending" };
+      setReviews(prev => [review, ...prev]);
+      setActiveReviewId(review.id);
       setMessages([
         { role: "user", content: "Please review my financial plan and provide your analysis." },
-        { role: "assistant", content: r.message.content, actions: r.message.actions },
       ]);
-      setReviews(prev => [r.review, ...prev]);
     } catch (e) {
       setError(e.message || "Failed to create review");
-    } finally {
-      setLoading(false);
     }
   };
 
   const handleSendMessage = async (e) => {
     e.preventDefault();
-    if (!input.trim() || !activeReviewId || loading) return;
+    if (!input.trim() || !activeReviewId || activeIsPending) return;
     const msg = input.trim();
     setInput("");
     setMessages(prev => [...prev, { role: "user", content: msg }]);
-    setLoading(true);
     setError("");
+    ensureNotificationPermission();
     try {
-      const r = await Rest.post(`/ai-review/${activeReviewId}/message`, { message: msg });
-      setMessages(prev => [...prev, { role: "assistant", content: r.message.content, actions: r.message.actions }]);
+      await Rest.post(`/ai-review/${activeReviewId}/message`, { message: msg });
+      setReviews(prev => prev.map(r => r.id === activeReviewId ? { ...r, status: "pending" } : r));
     } catch (e) {
       setError(e.message || "Failed to send message");
-    } finally {
-      setLoading(false);
     }
   };
 
@@ -222,14 +275,16 @@ export default function FCAIReviewDrawer({ isOpen, onClose, scenarioName }) {
           <div style={{ display: "flex", gap: "0.5rem", alignItems: "center" }}>
             <button
               onClick={handleNewReview}
-              disabled={loading}
+              disabled={hasPendingReview}
+              title={hasPendingReview ? "A review is already in progress" : ""}
               style={{
                 padding: "0.35rem 0.75rem", borderRadius: "0.375rem", fontSize: "0.8rem",
-                fontWeight: 600, border: "1px solid #7FA37F", background: "#7FA37F",
-                color: "white", cursor: loading ? "wait" : "pointer",
+                fontWeight: 600, border: "1px solid #7FA37F",
+                background: hasPendingReview ? "#cbd5cb" : "#7FA37F",
+                color: "white", cursor: hasPendingReview ? "not-allowed" : "pointer",
               }}
             >
-              {loading && !activeReviewId ? "Analyzing..." : "+ New Review"}
+              + New Review
             </button>
             <button
               onClick={onClose}
@@ -278,6 +333,17 @@ export default function FCAIReviewDrawer({ isOpen, onClose, scenarioName }) {
                 <div style={{ marginTop: "0.15rem", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", paddingRight: "1rem" }}>
                   {r.title || "Review"}
                 </div>
+                {r.status === "pending" && (
+                  <div style={{ marginTop: "0.25rem", fontSize: "0.7rem", color: "#7FA37F", fontWeight: 600 }}>
+                    <span className="fc-ai-spin" style={{ display: "inline-block", marginRight: "0.3rem" }}>⟳</span>
+                    Generating…
+                  </div>
+                )}
+                {r.status === "failed" && (
+                  <div style={{ marginTop: "0.25rem", fontSize: "0.7rem", color: "#C0504D", fontWeight: 600 }}>
+                    Failed
+                  </div>
+                )}
               </div>
             ))}
             {reviews.length === 0 && (
@@ -290,7 +356,7 @@ export default function FCAIReviewDrawer({ isOpen, onClose, scenarioName }) {
           {/* Messages */}
           <div style={{ flex: 1, display: "flex", flexDirection: "column", overflow: "hidden" }}>
             <div style={{ flex: 1, overflowY: "auto", padding: "1rem" }}>
-              {messages.length === 0 && !loading && (
+              {messages.length === 0 && !activeIsPending && (
                 <EmptyState variant="ai-review" message="Ready to review your plan. Click &quot;+ New Review&quot; to send your forecast to the local AI for analysis." />
               )}
 
@@ -314,9 +380,10 @@ export default function FCAIReviewDrawer({ isOpen, onClose, scenarioName }) {
                 </div>
               ))}
 
-              {loading && (
-                <div style={{ padding: "1rem", color: "#808E9B", fontStyle: "italic" }}>
-                  Analyzing your plan...
+              {activeIsPending && (
+                <div style={{ padding: "1rem", color: "#808E9B", fontStyle: "italic", display: "flex", alignItems: "center", gap: "0.5rem" }}>
+                  <span className="fc-ai-spin" style={{ display: "inline-block" }}>⟳</span>
+                  <span>Analyzing your plan… (this may take up to a minute on the first call — feel free to close this drawer; you'll get a notification when it's ready)</span>
                 </div>
               )}
 
@@ -339,14 +406,14 @@ export default function FCAIReviewDrawer({ isOpen, onClose, scenarioName }) {
                   type="text"
                   value={input}
                   onChange={e => setInput(e.target.value)}
-                  placeholder="Ask a follow-up question..."
-                  disabled={loading}
+                  placeholder={activeIsPending ? "Waiting for current response…" : "Ask a follow-up question..."}
+                  disabled={activeIsPending}
                   className="form-input"
                   style={{ flex: 1, fontSize: "0.85rem" }}
                 />
                 <button
                   type="submit"
-                  disabled={!input.trim() || loading}
+                  disabled={!input.trim() || activeIsPending}
                   style={{
                     padding: "0.4rem 1rem", borderRadius: "0.375rem", fontSize: "0.85rem",
                     fontWeight: 600, border: "none", cursor: "pointer",
@@ -419,6 +486,11 @@ export default function FCAIReviewDrawer({ isOpen, onClose, scenarioName }) {
           from { transform: translateX(100%); }
           to { transform: translateX(0); }
         }
+        @keyframes fcAiSpin {
+          from { transform: rotate(0deg); }
+          to { transform: rotate(360deg); }
+        }
+        .fc-ai-spin { animation: fcAiSpin 1.4s linear infinite; }
       `}</style>
     </>
   );

@@ -1,9 +1,10 @@
 /**
- * AI Review Routes — Claude-powered forecast plan evaluation
+ * AI Review Routes — local LLM forecast plan evaluation (async)
  *
- * POST   /                          Create new review (calls Claude)
- * POST   /:reviewId/message         Send follow-up message
- * GET    /scenario/:scenarioId      List reviews for scenario
+ * POST   /                          Create new review (returns immediately, runs in background)
+ * POST   /:reviewId/message         Send follow-up message (returns immediately)
+ * GET    /:reviewId/status          Poll review status (pending|completed|failed)
+ * GET    /scenario/:scenarioName    List reviews for scenario
  * GET    /:reviewId                 Get full conversation
  * DELETE /:reviewId                 Delete a review
  * POST   /apply                     Apply a recommended change
@@ -14,32 +15,44 @@ const router = express.Router();
 const db = require("../db");
 const aiReview = require("../services/aiReview");
 
-// POST /api/v2/ai-review — Create new review
+// POST /api/v2/ai-review — Create new review (async; returns immediately, work runs in background)
 router.post("/", async (req, res, next) => {
   try {
     const { scenario } = req.body;
     if (!scenario) return res.status(400).json({ error: "Scenario name is required" });
 
-    const { review, content, actions } = await aiReview.createReview(scenario);
-    res.status(201).json({ review, message: { role: "assistant", content, actions } });
+    const { review } = await aiReview.createReview(scenario);
+    res.status(202).json({ review });
   } catch (error) {
     console.error("[ai-review] Create failed:", error.message);
-    if (error.message.includes("API key")) return res.status(400).json({ error: error.message });
     next(error);
   }
 });
 
-// POST /api/v2/ai-review/:reviewId/message — Follow-up message
+// POST /api/v2/ai-review/:reviewId/message — Follow-up message (async)
 router.post("/:reviewId/message", async (req, res, next) => {
   try {
     const reviewId = parseInt(req.params.reviewId);
     const { message } = req.body;
     if (!message) return res.status(400).json({ error: "Message is required" });
 
-    const { content, actions } = await aiReview.sendMessage(reviewId, message);
-    res.json({ message: { role: "assistant", content, actions } });
+    const result = await aiReview.sendMessage(reviewId, message);
+    res.status(202).json(result);
   } catch (error) {
     console.error("[ai-review] Message failed:", error.message);
+    if (error.message.includes("already in progress")) return res.status(409).json({ error: error.message });
+    next(error);
+  }
+});
+
+// GET /api/v2/ai-review/:reviewId/status — Poll for completion
+router.get("/:reviewId/status", async (req, res, next) => {
+  try {
+    const reviewId = parseInt(req.params.reviewId);
+    const status = await aiReview.getReviewStatus(reviewId);
+    res.json(status);
+  } catch (error) {
+    if (error.message === "Review not found") return res.status(404).json({ error: error.message });
     next(error);
   }
 });

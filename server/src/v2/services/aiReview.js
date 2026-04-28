@@ -274,92 +274,132 @@ async function callGateway({ systemPrompt, messages, forecastContext }) {
 /**
  * Creates a new AI review session for a scenario
  */
+// Treat a review as stuck if it's been pending longer than this (matches the
+// gateway-call AbortSignal of 5min, plus a small buffer).
+const STALE_PENDING_MS = 6 * 60 * 1000;
+
+/**
+ * Background worker — runs the gateway call and writes results to the DB.
+ * Never thrown; failures are persisted as status='failed'.
+ */
+async function processReview(reviewId, scenarioName) {
+  try {
+    const customPrompt = await psdataRepo.getAppData("ai_review_prompt");
+    const systemPrompt = (typeof customPrompt === "string" && customPrompt.trim())
+      ? customPrompt : DEFAULT_SYSTEM_PROMPT;
+
+    const { context } = await buildForecastContext(scenarioName);
+
+    const messagesResult = await db.query(
+      "SELECT role, content FROM fc_ai_messages WHERE review_id = $1 ORDER BY created_at",
+      [reviewId]
+    );
+    const messages = messagesResult.rows;
+
+    const { content, actions } = await callGateway({
+      systemPrompt,
+      messages,
+      forecastContext: context,
+    });
+
+    await db.query(
+      "INSERT INTO fc_ai_messages (review_id, role, content, actions) VALUES ($1, 'assistant', $2, $3)",
+      [reviewId, content, actions ? JSON.stringify(actions) : null]
+    );
+    await db.query(
+      "UPDATE fc_ai_reviews SET status = 'completed', error_message = NULL, updated_at = NOW() WHERE id = $1",
+      [reviewId]
+    );
+  } catch (err) {
+    console.error(`[ai-review] background worker failed for review ${reviewId}:`, err.message);
+    await db.query(
+      "UPDATE fc_ai_reviews SET status = 'failed', error_message = $2, updated_at = NOW() WHERE id = $1",
+      [reviewId, String(err.message || err).slice(0, 1000)]
+    ).catch(() => {});
+  }
+}
+
+/**
+ * Creates a new review record + initial user message and fires the gateway
+ * call in the background. Returns immediately with status='pending'.
+ */
 async function createReview(scenarioName) {
-  const { context, scenario } = await buildForecastContext(scenarioName);
+  const scenarioResult = await db.query(
+    "SELECT id FROM forecast_scenarios WHERE name = $1",
+    [scenarioName]
+  );
+  if (scenarioResult.rows.length === 0) throw new Error(`Scenario "${scenarioName}" not found`);
+  const scenarioId = scenarioResult.rows[0].id;
 
-  // Get custom system prompt or use default
-  const customPrompt = await psdataRepo.getAppData("ai_review_prompt");
-  const systemPrompt = (typeof customPrompt === "string" && customPrompt.trim())
-    ? customPrompt : DEFAULT_SYSTEM_PROMPT;
-
-  // Create review record
   const reviewResult = await db.query(
-    "INSERT INTO fc_ai_reviews (scenario_id, title) VALUES ($1, $2) RETURNING *",
-    [scenario.id, `Review of ${scenarioName}`]
+    "INSERT INTO fc_ai_reviews (scenario_id, title, status) VALUES ($1, $2, 'pending') RETURNING *",
+    [scenarioId, `Review of ${scenarioName}`]
   );
   const review = reviewResult.rows[0];
 
-  // Initial user message
   const userMessage = "Please review my financial plan and provide your analysis.";
   await db.query(
     "INSERT INTO fc_ai_messages (review_id, role, content) VALUES ($1, 'user', $2)",
     [review.id, userMessage]
   );
 
-  const { content, actions } = await callGateway({
-    systemPrompt,
-    messages: [{ role: "user", content: userMessage }],
-    forecastContext: context,
-  });
+  // Fire-and-forget; the worker writes results to the DB. Polled via /:id/status.
+  processReview(review.id, scenarioName);
 
-  // Save assistant response
-  await db.query(
-    "INSERT INTO fc_ai_messages (review_id, role, content, actions) VALUES ($1, 'assistant', $2, $3)",
-    [review.id, content, actions ? JSON.stringify(actions) : null]
-  );
-
-  return { review, content, actions };
+  return { review };
 }
 
 /**
- * Sends a follow-up message in an existing review conversation
+ * Inserts the user's follow-up, marks the review pending, and fires the
+ * gateway call in the background. Returns immediately.
  */
 async function sendMessage(reviewId, userMessage) {
-  // Get review and scenario
   const reviewResult = await db.query(
-    "SELECT r.*, s.name as scenario_name FROM fc_ai_reviews r JOIN forecast_scenarios s ON r.scenario_id = s.id WHERE r.id = $1",
+    "SELECT r.id, r.status, s.name as scenario_name FROM fc_ai_reviews r JOIN forecast_scenarios s ON r.scenario_id = s.id WHERE r.id = $1",
     [reviewId]
   );
   const review = reviewResult.rows[0];
   if (!review) throw new Error("Review not found");
+  if (review.status === "pending") throw new Error("A review is already in progress for this conversation");
 
-  // Get conversation history
-  const messagesResult = await db.query(
-    "SELECT role, content FROM fc_ai_messages WHERE review_id = $1 ORDER BY created_at",
-    [reviewId]
-  );
-  const history = messagesResult.rows;
-
-  // Save user message
   await db.query(
     "INSERT INTO fc_ai_messages (review_id, role, content) VALUES ($1, 'user', $2)",
     [reviewId, userMessage]
   );
-
-  // Rebuild context (may have changed if user applied recommendations)
-  const { context } = await buildForecastContext(review.scenario_name);
-
-  const customPrompt = await psdataRepo.getAppData("ai_review_prompt");
-  const systemPrompt = (typeof customPrompt === "string" && customPrompt.trim())
-    ? customPrompt : DEFAULT_SYSTEM_PROMPT;
-
-  const messages = [...history, { role: "user", content: userMessage }];
-  const { content, actions } = await callGateway({
-    systemPrompt,
-    messages,
-    forecastContext: context,
-  });
-
-  // Save assistant response
   await db.query(
-    "INSERT INTO fc_ai_messages (review_id, role, content, actions) VALUES ($1, 'assistant', $2, $3)",
-    [reviewId, content, actions ? JSON.stringify(actions) : null]
+    "UPDATE fc_ai_reviews SET status = 'pending', error_message = NULL, updated_at = NOW() WHERE id = $1",
+    [reviewId]
   );
 
-  // Update review timestamp
-  await db.query("UPDATE fc_ai_reviews SET updated_at = NOW() WHERE id = $1", [reviewId]);
+  processReview(reviewId, review.scenario_name);
 
-  return { content, actions };
+  return { reviewId, status: "pending" };
+}
+
+/**
+ * Returns the current status of a review. Marks stale-pending reviews
+ * (older than STALE_PENDING_MS) as failed before returning.
+ */
+async function getReviewStatus(reviewId) {
+  await db.query(
+    `UPDATE fc_ai_reviews
+       SET status = 'failed',
+           error_message = COALESCE(error_message, 'Review timed out — server may have restarted while running.'),
+           updated_at = NOW()
+     WHERE id = $1
+       AND status = 'pending'
+       AND updated_at < NOW() - INTERVAL '${Math.floor(STALE_PENDING_MS / 1000)} seconds'`,
+    [reviewId]
+  );
+
+  const result = await db.query(
+    `SELECT r.id, r.status, r.error_message, r.updated_at,
+            (SELECT COUNT(*)::int FROM fc_ai_messages WHERE review_id = r.id) AS message_count
+       FROM fc_ai_reviews r WHERE r.id = $1`,
+    [reviewId]
+  );
+  if (result.rows.length === 0) throw new Error("Review not found");
+  return result.rows[0];
 }
 
 /**
@@ -396,4 +436,4 @@ async function applyAction(action) {
   throw new Error(`Unknown action type: ${type}`);
 }
 
-module.exports = { createReview, sendMessage, applyAction, DEFAULT_SYSTEM_PROMPT };
+module.exports = { createReview, sendMessage, getReviewStatus, applyAction, DEFAULT_SYSTEM_PROMPT };
