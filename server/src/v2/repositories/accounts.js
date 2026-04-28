@@ -3,6 +3,9 @@
  *
  * Database operations for the accounts table.
  * Includes recursive CTE queries for hierarchical account structure.
+ *
+ * As of migration 021, the legacy `categories` table has been collapsed into
+ * accounts. P&L leaves carry `is_transfer` and `ps_category_id` directly.
  */
 
 const db = require('../db');
@@ -66,6 +69,15 @@ async function findById(id) {
 async function findByName(name) {
   const sql = `SELECT * FROM accounts WHERE name = $1`;
   const result = await db.query(sql, [name]);
+  return result.rows[0] || null;
+}
+
+/**
+ * Get account by PocketSmith category ID
+ */
+async function findByPsCategoryId(psCategoryId) {
+  const sql = `SELECT * FROM accounts WHERE ps_category_id = $1`;
+  const result = await db.query(sql, [psCategoryId]);
   return result.rows[0] || null;
 }
 
@@ -155,7 +167,8 @@ async function getDescendants(accountId) {
 }
 
 /**
- * Get account balances from transactions
+ * Get account balances from transactions.
+ * After migration 021, transactions.category_id references accounts(id) directly.
  */
 async function getBalances({ asOfDate, section } = {}) {
   const conditions = ['a.is_active = TRUE'];
@@ -176,8 +189,7 @@ async function getBalances({ asOfDate, section } = {}) {
       a.id, a.name, a.account_type, a.section, a.currency, a.parent_id,
       COALESCE(SUM(t.base_amount), 0) as balance
     FROM accounts a
-    LEFT JOIN categories c ON c.mapped_account_id = a.id
-    LEFT JOIN transactions t ON t.category_id = c.id
+    LEFT JOIN transactions t ON t.category_id = a.id
       ${asOfDate ? `AND t.transaction_date <= $1` : ''}
     WHERE ${conditions.join(' AND ')}
     GROUP BY a.id, a.name, a.account_type, a.section, a.currency, a.parent_id
@@ -189,6 +201,49 @@ async function getBalances({ asOfDate, section } = {}) {
 }
 
 /**
+ * Find P&L leaves (replaces categories.findAll for the dropdown / filter use-case).
+ * Returns leaf accounts in the profit_loss section, ordered by name.
+ */
+async function findPLeaves({ activeOnly = true, includeTransfers = false } = {}) {
+  const conditions = ['a.section = \'profit_loss\''];
+  if (activeOnly) conditions.push('a.is_active = TRUE');
+  if (!includeTransfers) conditions.push('a.is_transfer = FALSE');
+  conditions.push('NOT EXISTS (SELECT 1 FROM accounts c WHERE c.parent_id = a.id AND c.is_active = TRUE)');
+
+  const sql = `
+    SELECT
+      a.id, a.name, a.parent_id, a.is_transfer, a.is_active,
+      a.ps_category_id, a.account_type,
+      p.name as parent_name
+    FROM accounts a
+    LEFT JOIN accounts p ON a.parent_id = p.id
+    WHERE ${conditions.join(' AND ')}
+    ORDER BY a.name
+  `;
+
+  const result = await db.query(sql);
+  return result.rows;
+}
+
+/**
+ * Compute is_transfer for an account based on its position in the COA tree.
+ * Returns TRUE if any ancestor is named "Transfers".
+ */
+async function computeIsTransfer(accountId) {
+  const sql = `
+    WITH RECURSIVE ancestors AS (
+      SELECT id, name, parent_id FROM accounts WHERE id = $1
+      UNION ALL
+      SELECT a.id, a.name, a.parent_id
+      FROM accounts a JOIN ancestors an ON a.id = an.parent_id
+    )
+    SELECT EXISTS (SELECT 1 FROM ancestors WHERE name = 'Transfers' AND id != $1) AS is_transfer
+  `;
+  const result = await db.query(sql, [accountId]);
+  return result.rows[0]?.is_transfer === true;
+}
+
+/**
  * Create a new account
  */
 async function create(data) {
@@ -196,9 +251,10 @@ async function create(data) {
     INSERT INTO accounts (
       name, parent_id, account_type, section, currency,
       account_number, display_order, is_active, ps_account_name,
-      opening_balance, opening_balance_date, ps_transaction_account_id
+      opening_balance, opening_balance_date, ps_transaction_account_id,
+      is_transfer, ps_category_id
     )
-    VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
+    VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14)
     RETURNING *
   `;
 
@@ -214,7 +270,9 @@ async function create(data) {
     data.ps_account_name || data.name,
     data.opening_balance || 0,
     data.opening_balance_date || '2000-01-01',
-    data.ps_transaction_account_id || null
+    data.ps_transaction_account_id || null,
+    data.is_transfer === true,
+    data.ps_category_id || null
   ]);
 
   return result.rows[0];
@@ -231,7 +289,8 @@ async function update(id, data) {
   const allowedFields = [
     'name', 'parent_id', 'account_type', 'section', 'currency',
     'account_number', 'display_order', 'is_active', 'ps_account_name',
-    'opening_balance', 'opening_balance_date', 'last_calibrated_at', 'ps_transaction_account_id'
+    'opening_balance', 'opening_balance_date', 'last_calibrated_at',
+    'ps_transaction_account_id', 'is_transfer', 'ps_category_id'
   ];
 
   for (const field of allowedFields) {
@@ -318,12 +377,15 @@ module.exports = {
   findAll,
   findById,
   findByName,
+  findByPsCategoryId,
   getTree,
   getNestedTree,
   getChildren,
   getDescendants,
   getBalances,
   getTraitsMap,
+  findPLeaves,
+  computeIsTransfer,
   create,
   update,
   remove

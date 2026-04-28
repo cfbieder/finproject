@@ -6,7 +6,6 @@ const express = require('express');
 const router = express.Router();
 const repo = require('../repositories').budget;
 const accountsRepo = require('../repositories').accounts;
-const categoriesRepo = require('../repositories').categories;
 const budgetFxRatesRepo = require('../repositories').budgetFxRates;
 
 /**
@@ -340,7 +339,7 @@ router.post('/entries', async (req, res, next) => {
 
       // Resolve category name to ID if provided
       if (data.category_name) {
-        const category = await categoriesRepo.findByName(data.category_name);
+        const category = await accountsRepo.findByName(data.category_name);
         if (category) {
           data.category_id = category.id;
         }
@@ -379,7 +378,7 @@ router.patch('/entries/:id', async (req, res, next) => {
 
     // Resolve category name to ID if provided
     if (data.category_name) {
-      const category = await categoriesRepo.findByName(data.category_name);
+      const category = await accountsRepo.findByName(data.category_name);
       if (category) {
         data.category_id = category.id;
       }
@@ -485,7 +484,7 @@ router.get('/summary', async (req, res, next) => {
         EXTRACT(MONTH FROM t.transaction_date)::int as month,
         SUM(t.base_amount) as total
       FROM transactions t
-      LEFT JOIN categories c ON t.category_id = c.id
+      LEFT JOIN accounts c ON t.category_id = c.id
       LEFT JOIN accounts a ON t.account_id = a.id
       WHERE EXTRACT(YEAR FROM t.transaction_date) = $${baseParams.length + 1}
         AND EXTRACT(MONTH FROM t.transaction_date) >= $${baseParams.length + 2}
@@ -501,7 +500,7 @@ router.get('/summary', async (req, res, next) => {
         EXTRACT(MONTH FROM e.entry_date)::int as month,
         SUM(e.base_amount) as total
       FROM budget_entries e
-      LEFT JOIN categories c ON e.category_id = c.id
+      LEFT JOIN accounts c ON e.category_id = c.id
       LEFT JOIN accounts a ON e.account_id = a.id
       WHERE e.budget_year = $${baseParams.length + 1}
         AND EXTRACT(MONTH FROM e.entry_date) >= $${baseParams.length + 2}
@@ -680,7 +679,7 @@ router.get('/actual-entries', async (req, res, next) => {
     let sql = `
       SELECT t.*, c.name as category_name, a.name as account_name
       FROM transactions t
-      LEFT JOIN categories c ON t.category_id = c.id
+      LEFT JOIN accounts c ON t.category_id = c.id
       LEFT JOIN accounts a ON t.account_id = a.id
       WHERE EXTRACT(YEAR FROM t.transaction_date) = $1
     `;
@@ -789,7 +788,7 @@ router.get('/cash-flow', async (req, res, next) => {
         c.name as category_name,
         SUM(e.base_amount) as total_amount
       FROM budget_entries e
-      JOIN categories c ON e.category_id = c.id
+      JOIN accounts c ON e.category_id = c.id
       WHERE e.entry_date >= $1
         AND e.entry_date <= $2
       GROUP BY c.name

@@ -979,17 +979,17 @@ router.post('/incomeexpense', async (req, res, next) => {
           accountId = matchingAccount.rows[0].id;
         }
       }
-      // Fallback: use first category's mapped_account_id
+      // Fallback: pick any account assigned to this FC Line.
+      // After migration 021, fc_line_categories.category_id IS the account id.
       if (!accountId) {
         const lineAccount = await db.query(`
-          SELECT DISTINCT c.mapped_account_id
+          SELECT flc.category_id AS account_id
           FROM fc_line_categories flc
-          JOIN categories c ON flc.category_id = c.id
-          WHERE flc.fc_line_id = $1 AND c.mapped_account_id IS NOT NULL
+          WHERE flc.fc_line_id = $1
           LIMIT 1
         `, [body.FcLineId]);
         if (lineAccount.rows.length > 0) {
-          accountId = lineAccount.rows[0].mapped_account_id;
+          accountId = lineAccount.rows[0].account_id;
         }
       }
     }

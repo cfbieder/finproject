@@ -6,7 +6,8 @@ const express = require('express');
 const router = express.Router();
 const repo = require('../repositories').transactions;
 const accountsRepo = require('../repositories').accounts;
-const categoriesRepo = require('../repositories').categories;
+// "Categories" are P&L leaves on the accounts table after migration 021.
+// Look up by name with `accountsRepo.findByName`; results have id/name/section.
 const transferMatchGroupsRepo = require('../repositories').transferMatchGroups;
 
 /**
@@ -309,7 +310,7 @@ router.patch('/:id', async (req, res, next) => {
 
     // Resolve category name to ID if provided
     if (data.category_name) {
-      const category = await categoriesRepo.findByName(data.category_name);
+      const category = await accountsRepo.findByName(data.category_name);
       if (category) {
         data.category_id = category.id;
       }
@@ -375,7 +376,7 @@ router.post('/:id/split', async (req, res, next) => {
     for (const split of splits) {
       const resolved = { amount: split.amount };
       if (split.category_name) {
-        const category = await categoriesRepo.findByName(split.category_name);
+        const category = await accountsRepo.findByName(split.category_name);
         if (category) {
           resolved.category_id = category.id;
         }
@@ -401,7 +402,7 @@ router.post('/:id/neutralize', async (req, res, next) => {
     const categoryName = req.body.category_name || 'Transfer - Securities Trades';
 
     // Resolve category name to ID
-    const category = await categoriesRepo.findByName(categoryName);
+    const category = await accountsRepo.findByName(categoryName);
     if (!category) {
       return res.status(400).json({
         error: `Category "${categoryName}" not found. Please create it in COA Management first.`

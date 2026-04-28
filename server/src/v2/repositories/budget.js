@@ -141,7 +141,7 @@ async function findAll({ versionId, year, categoryId, limit = 1000, offset = 0 }
     FROM budget_entries e
     LEFT JOIN budget_versions v ON e.version_id = v.id
     LEFT JOIN accounts a ON e.account_id = a.id
-    LEFT JOIN categories c ON e.category_id = c.id
+    LEFT JOIN accounts c ON e.category_id = c.id
     ${whereClause}
     ORDER BY e.entry_date, e.id
     LIMIT $${paramIndex++} OFFSET $${paramIndex}
@@ -221,7 +221,7 @@ async function findAllExtended({
     FROM budget_entries e
     LEFT JOIN budget_versions v ON e.version_id = v.id
     LEFT JOIN accounts a ON e.account_id = a.id
-    LEFT JOIN categories c ON e.category_id = c.id
+    LEFT JOIN accounts c ON e.category_id = c.id
     ${whereClause}
     ORDER BY e.entry_date DESC, e.id DESC
     LIMIT $${paramIndex++} OFFSET $${paramIndex}
@@ -241,7 +241,7 @@ async function findById(id) {
     FROM budget_entries e
     LEFT JOIN budget_versions v ON e.version_id = v.id
     LEFT JOIN accounts a ON e.account_id = a.id
-    LEFT JOIN categories c ON e.category_id = c.id
+    LEFT JOIN accounts c ON e.category_id = c.id
     WHERE e.id = $1
   `;
   const result = await db.query(sql, [id]);
@@ -276,8 +276,8 @@ async function sumByCategory({ versionId, year } = {}) {
       SUM(e.base_amount) as total_amount,
       COUNT(*)::int as entry_count
     FROM budget_entries e
-    JOIN categories c ON e.category_id = c.id
-    LEFT JOIN accounts a ON c.mapped_account_id = a.id
+    JOIN accounts c ON e.category_id = c.id
+    LEFT JOIN accounts a ON c.parent_id = a.id
     ${whereClause}
     GROUP BY c.id, c.name, a.name, a.account_type
     ORDER BY a.account_type, c.name
@@ -333,7 +333,7 @@ async function compareToActual({ versionId, year }) {
         DATE_TRUNC('month', e.entry_date)::date as month,
         SUM(e.base_amount) as budget_amount
       FROM budget_entries e
-      JOIN categories c ON e.category_id = c.id
+      JOIN accounts c ON e.category_id = c.id
       WHERE e.version_id = $1 AND e.budget_year = $2
       GROUP BY c.id, c.name, DATE_TRUNC('month', e.entry_date)
     ),
@@ -355,7 +355,7 @@ async function compareToActual({ versionId, year }) {
       COALESCE(a.actual_amount, 0) - COALESCE(b.budget_amount, 0) as variance
     FROM budget b
     FULL OUTER JOIN actual a ON b.category_id = a.category_id AND b.month = a.month
-    LEFT JOIN categories c ON a.category_id = c.id
+    LEFT JOIN accounts c ON a.category_id = c.id
     ORDER BY month, category_name
   `;
 

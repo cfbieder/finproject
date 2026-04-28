@@ -327,7 +327,7 @@ async function fetchCategoryTotals(fromDate, toDate, transfers, transferCategory
       SUM(t.base_amount) as total_amount,
       COUNT(*) as transaction_count
     FROM transactions t
-    JOIN categories c ON t.category_id = c.id
+    JOIN accounts c ON t.category_id = c.id
     WHERE t.transaction_date >= $1
       AND t.transaction_date <= $2
     GROUP BY c.name
@@ -446,7 +446,7 @@ router.get('/cash-flow/transactions', async (req, res, next) => {
     let sql = `
       SELECT t.*, c.name as category_name, a.name as account_name
       FROM transactions t
-      LEFT JOIN categories c ON t.category_id = c.id
+      LEFT JOIN accounts c ON t.category_id = c.id
       LEFT JOIN accounts a ON t.account_id = a.id
       WHERE c.name = ANY($1)
     `;
@@ -540,7 +540,7 @@ router.get('/category-trend', async (req, res, next) => {
         TO_CHAR(DATE_TRUNC('month', t.transaction_date), 'YYYY-MM') as month,
         SUM(t.base_amount) as total
       FROM transactions t
-      JOIN categories c ON t.category_id = c.id
+      JOIN accounts c ON t.category_id = c.id
       WHERE c.name IN (${categoryPlaceholders})
         AND t.transaction_date >= $${dateStartIdx}
         AND t.transaction_date <= $${dateStartIdx + 1}
@@ -554,7 +554,7 @@ router.get('/category-trend', async (req, res, next) => {
         TO_CHAR(DATE_TRUNC('month', e.entry_date), 'YYYY-MM') as month,
         SUM(e.base_amount) as total
       FROM budget_entries e
-      JOIN categories c ON e.category_id = c.id
+      JOIN accounts c ON e.category_id = c.id
       WHERE c.name IN (${categoryPlaceholders})
         AND e.entry_date >= $${dateStartIdx}
         AND e.entry_date <= $${dateStartIdx + 1}

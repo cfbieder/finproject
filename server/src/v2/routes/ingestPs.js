@@ -107,12 +107,14 @@ async function syncStagingToTransactions() {
   `);
   const unmappedAccounts = unmappedAcctResult.rows.map(r => r.account_name);
 
+  // After migration 021, "categories" are P&L leaves on the accounts table.
+  // PocketSmith category names map via account_source_mappings.
   const unmappedCatResult = await db.query(`
     SELECT DISTINCT s.category_name
     FROM psdata_staging s
-    LEFT JOIN category_source_mappings csm
-      ON LOWER(s.category_name) = LOWER(csm.external_name) AND csm.source = 'pocketsmith'
-    LEFT JOIN categories c ON csm.category_id = c.id
+    LEFT JOIN account_source_mappings asm
+      ON LOWER(s.category_name) = LOWER(asm.external_name) AND asm.source = 'pocketsmith'
+    LEFT JOIN accounts c ON asm.account_id = c.id AND c.section = 'profit_loss'
     WHERE s.category_name IS NOT NULL AND c.id IS NULL
   `);
   const unmappedCategories = unmappedCatResult.rows.map(r => r.category_name);
@@ -155,9 +157,9 @@ async function syncStagingToTransactions() {
       LEFT JOIN account_source_mappings asm
         ON LOWER(s.account_name) = LOWER(asm.external_name) AND asm.source = 'pocketsmith'
       LEFT JOIN accounts a ON asm.account_id = a.id
-      LEFT JOIN category_source_mappings csm
+      LEFT JOIN account_source_mappings csm
         ON LOWER(s.category_name) = LOWER(csm.external_name) AND csm.source = 'pocketsmith'
-      LEFT JOIN categories c ON csm.category_id = c.id
+      LEFT JOIN accounts c ON csm.account_id = c.id AND c.section = 'profit_loss'
       WHERE a.id IS NOT NULL
         AND s.amount IS NOT NULL
         AND s.transaction_date IS NOT NULL
@@ -510,7 +512,7 @@ router.post('/review-new-transactions', async (req, res) => {
         t.source
       FROM transactions t
       LEFT JOIN accounts a ON t.account_id = a.id
-      LEFT JOIN categories c ON t.category_id = c.id
+      LEFT JOIN accounts c ON t.category_id = c.id
       WHERE t.accepted IS NOT TRUE
       ORDER BY t.transaction_date DESC, t.id DESC
     `);

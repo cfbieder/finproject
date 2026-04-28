@@ -68,7 +68,7 @@ router.get('/balances', async (req, res, next) => {
   }
 });
 
-// GET /api/v2/accounts/categories - Categories mapped to accounts
+// GET /api/v2/accounts/categories - P&L leaves treated as categories
 router.get('/categories', async (req, res, next) => {
   try {
     const sql = `
@@ -77,13 +77,14 @@ router.get('/categories', async (req, res, next) => {
         a.name as account_name,
         a.section,
         a.account_type,
-        c.id as category_id,
-        c.name as category_name,
-        c.is_transfer
+        a.id as category_id,
+        a.name as category_name,
+        a.is_transfer
       FROM accounts a
-      INNER JOIN categories c ON c.mapped_account_id = a.id
       WHERE a.is_active = TRUE
-      ORDER BY a.name, c.name
+        AND a.section = 'profit_loss'
+        AND NOT EXISTS (SELECT 1 FROM accounts c WHERE c.parent_id = a.id AND c.is_active = TRUE)
+      ORDER BY a.name
     `;
     const db = require('../db');
     const result = await db.query(sql);

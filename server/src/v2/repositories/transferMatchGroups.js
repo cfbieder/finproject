@@ -100,7 +100,7 @@ async function findAll({ startDate, endDate } = {}) {
     JOIN transfer_match_group_members m ON m.group_id = g.id
     JOIN transactions t ON t.id = m.transaction_id
     LEFT JOIN accounts a ON t.account_id = a.id
-    LEFT JOIN categories c ON t.category_id = c.id
+    LEFT JOIN accounts c ON t.category_id = c.id
     ${whereClause}
     ORDER BY g.id, t.transaction_date, t.id
   `;

@@ -300,7 +300,7 @@ async function seedAccounts(client) {
 }
 
 async function seedCategories(client, csvRows) {
-  console.log('\n[2/3] Seeding P&L accounts and categories from CSV...');
+  console.log('\n[2/3] Seeding P&L accounts from CSV...');
 
   // Collect unique categories with their top-level parent breadcrumb
   const catMap = new Map(); // catName → topLevelParent
@@ -323,7 +323,6 @@ async function seedCategories(client, csvRows) {
   }
 
   let plInserted = 0;
-  let catInserted = 0;
   let order = 0;
 
   for (const [catName, topLevel] of catMap) {
@@ -335,48 +334,34 @@ async function seedCategories(client, csvRows) {
     const accountType = (topLevel === 'Total Salary' || topLevel === 'Financial Income')
       ? 'income' : 'expense';
 
-    let mappedAccountId = null;
-
-    if (!isTransfer && parentPlId) {
-      // Create a P&L account for this PS category
+    if (parentPlId) {
+      // Create / upsert a P&L account for this PS category, carrying is_transfer.
       const r = await client.query(
-        `INSERT INTO accounts (name, parent_id, account_type, section, display_order, is_active, ps_account_name)
-         VALUES ($1, $2, $3, 'profit_loss', $4, TRUE, $1)
+        `INSERT INTO accounts (name, parent_id, account_type, section, display_order, is_active, ps_account_name, is_transfer)
+         VALUES ($1, $2, $3, 'profit_loss', $4, TRUE, $1, $5)
          ON CONFLICT (name) DO UPDATE SET
            parent_id    = EXCLUDED.parent_id,
            account_type = EXCLUDED.account_type,
            section      = EXCLUDED.section,
            display_order = EXCLUDED.display_order,
-           is_active    = TRUE
+           is_active    = TRUE,
+           is_transfer  = EXCLUDED.is_transfer
          RETURNING id`,
-        [catName, parentPlId, accountType, order++]
+        [catName, parentPlId, accountType, order++, isTransfer]
       );
-      mappedAccountId = r.rows[0].id;
       plInserted++;
+
+      // Auto-create pocketsmith source mapping
+      await client.query(
+        `INSERT INTO account_source_mappings (account_id, source, external_name)
+         VALUES ($1, 'pocketsmith', $2)
+         ON CONFLICT (source, external_name) DO NOTHING`,
+        [r.rows[0].id, catName]
+      );
     }
-
-    // Insert/update the categories table entry
-    await client.query(
-      `INSERT INTO categories (name, mapped_account_id, is_transfer, is_active)
-       VALUES ($1, $2, $3, TRUE)
-       ON CONFLICT (name) DO UPDATE SET
-         mapped_account_id = COALESCE(EXCLUDED.mapped_account_id, categories.mapped_account_id),
-         is_transfer       = EXCLUDED.is_transfer,
-         is_active         = TRUE`,
-      [catName, mappedAccountId, isTransfer]
-    );
-
-    // Auto-create pocketsmith source mapping
-    await client.query(
-      `INSERT INTO category_source_mappings (category_id, source, external_name)
-       SELECT id, 'pocketsmith', name FROM categories WHERE name = $1
-       ON CONFLICT (source, external_name) DO NOTHING`,
-      [catName]
-    );
-    catInserted++;
   }
 
-  console.log(`    ✓ ${plInserted} P&L accounts added, ${catInserted} categories seeded`);
+  console.log(`    ✓ ${plInserted} P&L accounts added (categories collapsed into accounts)`);
 }
 
 async function ingestTransactions() {
@@ -417,9 +402,9 @@ async function ingestTransactions() {
         LEFT JOIN account_source_mappings asm
           ON LOWER(s.account_name) = LOWER(asm.external_name) AND asm.source = 'pocketsmith'
         LEFT JOIN accounts a ON asm.account_id = a.id
-        LEFT JOIN category_source_mappings csm
+        LEFT JOIN account_source_mappings csm
           ON LOWER(s.category_name) = LOWER(csm.external_name) AND csm.source = 'pocketsmith'
-        LEFT JOIN categories c ON csm.category_id = c.id
+        LEFT JOIN accounts c ON csm.account_id = c.id AND c.section = 'profit_loss'
         WHERE a.id IS NOT NULL
           AND s.amount IS NOT NULL
           AND s.transaction_date IS NOT NULL
@@ -511,13 +496,13 @@ async function main() {
     const { rows: summary } = await client.query(`
       SELECT
         (SELECT COUNT(*) FROM accounts WHERE is_active) as accounts,
-        (SELECT COUNT(*) FROM categories WHERE is_active) as categories,
+        (SELECT COUNT(*) FROM accounts WHERE is_active AND section='profit_loss') as pl_leaves,
         (SELECT COUNT(*) FROM psdata_staging) as staging,
         (SELECT COUNT(*) FROM transactions) as transactions
     `);
     const s = summary[0];
     console.log(`  Accounts:     ${s.accounts}`);
-    console.log(`  Categories:   ${s.categories}`);
+    console.log(`  P&L leaves:   ${s.pl_leaves}`);
     console.log(`  Staging rows: ${s.staging}`);
     console.log(`  Transactions: ${s.transactions}`);
     console.log('==============================================\n');

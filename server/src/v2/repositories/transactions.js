@@ -43,7 +43,7 @@ async function findAll({ startDate, endDate, categoryId, accountId, limit = 1000
       t.category_id, c.name as category_name
     FROM transactions t
     LEFT JOIN accounts a ON t.account_id = a.id
-    LEFT JOIN categories c ON t.category_id = c.id
+    LEFT JOIN accounts c ON t.category_id = c.id
     ${whereClause}
     ORDER BY t.transaction_date DESC, t.id DESC
     LIMIT $${paramIndex++} OFFSET $${paramIndex}
@@ -133,7 +133,7 @@ async function findAllExtended({
       t.category_id, c.name as category_name
     FROM transactions t
     LEFT JOIN accounts a ON t.account_id = a.id
-    LEFT JOIN categories c ON t.category_id = c.id
+    LEFT JOIN accounts c ON t.category_id = c.id
     ${whereClause}
     ORDER BY t.transaction_date DESC, t.id DESC
     LIMIT $${paramIndex++} OFFSET $${paramIndex}
@@ -153,7 +153,7 @@ async function findById(id) {
       t.*, a.name as account_name, c.name as category_name
     FROM transactions t
     LEFT JOIN accounts a ON t.account_id = a.id
-    LEFT JOIN categories c ON t.category_id = c.id
+    LEFT JOIN accounts c ON t.category_id = c.id
     WHERE t.id = $1
   `;
   const result = await db.query(sql, [id]);
@@ -231,8 +231,8 @@ async function sumByCategory({ startDate, endDate, section } = {}) {
       SUM(t.base_amount) as total_amount,
       COUNT(*)::int as transaction_count
     FROM transactions t
-    JOIN categories c ON t.category_id = c.id
-    LEFT JOIN accounts a ON c.mapped_account_id = a.id
+    JOIN accounts c ON t.category_id = c.id
+    LEFT JOIN accounts a ON c.parent_id = a.id
     WHERE ${conditions.join(' AND ')}
     GROUP BY c.id, c.name, a.name, a.account_type
     ORDER BY ABS(SUM(t.base_amount)) DESC
@@ -530,7 +530,7 @@ async function findTransfers({ startDate, endDate } = {}) {
       t.category_id, c.name as category_name
     FROM transactions t
     LEFT JOIN accounts a ON t.account_id = a.id
-    JOIN categories c ON t.category_id = c.id
+    JOIN accounts c ON t.category_id = c.id
     WHERE ${conditions.join(' AND ')}
     ORDER BY c.name, t.transaction_date, t.id
   `;

@@ -137,14 +137,14 @@ psproject/                          # ~/Programs/fin symlinks here
 │   ├── package.json
 │   ├── nodemon.json
 │   ├── .env-cmdrc
-│   ├── db/migrations/           # PostgreSQL schema (001-006: core, 007: fc_lines + fc_line_categories + module FK columns, 008: drop old expense_category/income_category/expense_pct, 009: target_cash on scenarios, 010: tax_rate_override on modules, 011: setup_status on modules + income_expense, 012: cash_sweep_target on modules, 013: cash_sweep_band replacing target_cash on scenarios, 014: ai_reviews, 015: periodic disposal date_end, 016: opening_balance calibration columns on accounts, 018: category_source_mappings, 019: account_source_mappings)
+│   ├── db/migrations/           # PostgreSQL schema (001-006: core, 007: fc_lines + fc_line_categories + module FK columns, 008: drop old expense_category/income_category/expense_pct, 009: target_cash on scenarios, 010: tax_rate_override on modules, 011: setup_status on modules + income_expense, 012: cash_sweep_target on modules, 013: cash_sweep_band replacing target_cash on scenarios, 014: ai_reviews, 015: periodic disposal date_end, 016: opening_balance calibration columns on accounts, 018: category_source_mappings, 019: account_source_mappings, 021: collapse `categories` table into `accounts` — P&L leaves carry `is_transfer` and `ps_category_id` directly; FK columns repointed; `categories` and `category_source_mappings` dropped)
 │   └── src/
 │       ├── server.js            # HTTP server entry point
 │       ├── app.js               # Express app config, route mounting
 │       └── v2/                  # PostgreSQL-based API (all routes)
 │           ├── db/              # PostgreSQL module exports + pool (DATE type parser returns YYYY-MM-DD strings, avoiding timezone shift)
 │           ├── routes/          # Route handlers (accounts, aiReview, budget, categories, forecast, health, ingestPs, reports, transactions, transferMatchGroups, util)
-│           ├── repositories/    # Data access layer (accounts, budget, budgetFxRates, categories, forecast, psdata, transactions, transferMatchGroups)
+│           ├── repositories/    # Data access layer (accounts, budget, budgetFxRates, forecast, psdata, transactions, transferMatchGroups, fcLines, accountSourceMappings)
 │           └── services/        # Business logic (psCsvIngestorV2, refreshPsApiV2, aiReview.js — context builder + LLM gateway call, forecast/ engine)
 ├── Scripts/                     # Shell scripts
 │   ├── dev-start.sh             # Start tmux development environment
@@ -334,10 +334,11 @@ All endpoints mounted at `/api/v2`. Nginx rewrites legacy `/api/*` paths to `/ap
 - `GET /` — v1 compat entries | `GET /actual-entries` — v1 compat actuals | `GET /cash-flow` — Budget cash flow P&L
 
 #### Categories (`/api/v2/categories`)
-- `GET /` — List | `GET /tree` — Hierarchical tree | `GET /totals` — Category totals
-- `GET /lookup?name=X` — Find category by name with source mappings
-- `GET /:id` — Single | `POST /` — Create (auto-creates pocketsmith mapping) | `PATCH /:id` — Update | `DELETE /:id` — Soft delete
-- `GET /:id/mappings` — List source mappings | `PUT /:id/mappings` — Upsert `{ source, external_name }` | `DELETE /:id/mappings/:mappingId` — Remove mapping
+After migration 021 the legacy `categories` table has been collapsed into `accounts`. "Categories" are P&L leaf accounts (`section='profit_loss'` with no children). The URL is preserved for frontend compatibility but is now backed by the accounts table.
+- `GET /` — List P&L leaves (params: `activeOnly`, `includeTransfers`)
+- `GET /lookup?name=X` — Find a P&L leaf by name (returns account row + mappings)
+- `GET /:id` — Single (numeric only) | `GET /:id/mappings` — List source mappings | `PUT /:id/mappings` — Upsert `{ source, external_name }` | `DELETE /:id/mappings/:mappingId` — Remove mapping
+- Source mappings now live in `account_source_mappings`; `category_source_mappings` was dropped.
 
 #### Forecast (`/api/v2/forecast`)
 - `GET /assumptions` | `PUT /assumptions` — File-based assumptions with PostgreSQL scenarios
@@ -563,10 +564,8 @@ Full design document, implementation plan, and test strategy: `Documentation/FC_
 
 | Table | Purpose |
 |-------|---------|
-| `accounts` | Chart of accounts with hierarchy (adjacency list via `parent_id`). Calibration columns: `opening_balance`, `opening_balance_date`, `last_calibrated_at`, `ps_transaction_account_id` (migration 016) |
-| `categories` | PocketSmith categories mapped to accounts |
-| `category_source_mappings` | Maps external system category names (PocketSmith, Quicken) to internal app categories. Decouples sync from internal renaming. `UNIQUE(source, external_name)`. Sync JOINs use this table instead of `categories.name` directly |
-| `account_source_mappings` | Maps external system account names (PocketSmith, Quicken) to internal app accounts (Assets, Liabilities, etc.). Same pattern as `category_source_mappings`. `UNIQUE(source, external_name)`. Sync JOINs resolve via this table instead of `accounts.name` directly |
+| `accounts` | Unified chart of accounts (BS + P&L) with hierarchy (adjacency list via `parent_id`). Calibration columns: `opening_balance`, `opening_balance_date`, `last_calibrated_at`, `ps_transaction_account_id` (migration 016). After migration 021 also carries `is_transfer` and `ps_category_id` — what used to be the `categories` table now lives as P&L leaves here. `transactions.category_id`, `budget_entries.category_id`, `fc_line_categories.category_id`, `pending_transactions.posted_category_id` all reference `accounts(id)`. |
+| `account_source_mappings` | Maps external system names (PocketSmith, Quicken) to internal app accounts. Used for both BS account resolution and "category" name resolution after migration 021. `UNIQUE(source, external_name)`. Sync JOINs resolve via this table instead of `accounts.name` directly. |
 | `transactions` | Actual financial transactions (`accepted` flag protects from PS refresh overwrite, `transfer_matched` boolean set by Transfer Analysis for filtering matched/unmatched transfers) |
 | `pending_transactions` | Staging for new/modified PocketSmith transactions |
 | `budget_versions` | Named budget versions per year |
@@ -587,7 +586,7 @@ Full design document, implementation plan, and test strategy: `Documentation/FC_
 | `forecast_incexp_changes` | Scheduled income/expense changes | `change_date`, `amount`, `flag` |
 | `forecast_entries` | Generated forecast output | `account` (FC Line name), `forecast_year`, `amount` (USD) |
 | `fc_lines` | FC Line definitions | `name`, `line_type`, `display_order` |
-| `fc_line_categories` | FC Line ↔ budget category assignments | `fc_line_id`, `category_id` (UNIQUE) |
+| `fc_line_categories` | FC Line ↔ P&L leaf account assignments | `fc_line_id`, `category_id` (UNIQUE; references `accounts(id)` after migration 021) |
 | `fc_ai_reviews` | AI review sessions for forecast plans | `scenario_id`, `status`, `summary` |
 | `fc_ai_messages` | AI review conversation messages | `review_id`, `role`, `content` |
 

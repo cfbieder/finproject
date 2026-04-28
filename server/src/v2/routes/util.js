@@ -243,8 +243,6 @@ router.post('/appdata', async (req, res, next) => {
 // ============================================================================
 
 const accountsRepo = require('../repositories').accounts;
-const categoriesRepo = require('../repositories').categories;
-const categorySourceMappingsRepo = require('../repositories').categorySourceMappings;
 const accountSourceMappingsRepo = require('../repositories').accountSourceMappings;
 
 /**
@@ -299,7 +297,7 @@ router.get('/coa/CashFlow', async (req, res, next) => {
  */
 router.post('/coa/add', async (req, res, next) => {
   try {
-    const { path: pathParts, name, type, currency, accountNumber, isCategory } = req.body || {};
+    const { path: pathParts, name, type, currency, accountNumber } = req.body || {};
     if (!Array.isArray(pathParts) || pathParts.length === 0) {
       return res.status(400).json({ error: 'Invalid path' });
     }
@@ -331,7 +329,11 @@ router.post('/coa/add', async (req, res, next) => {
         account_number: accountNumber || existing.account_number || null,
         is_active: true,
       });
-      // Ensure pocketsmith mapping exists
+      // Recompute is_transfer based on new placement
+      const isTransfer = await accountsRepo.computeIsTransfer(updated.id);
+      if (isTransfer !== updated.is_transfer) {
+        await accountsRepo.update(updated.id, { is_transfer: isTransfer });
+      }
       await accountSourceMappingsRepo.upsert(updated.id, 'pocketsmith', trimmedName);
       return res.json({ success: true, added: true, moved: true, name: trimmedName, id: updated.id });
     }
@@ -345,19 +347,13 @@ router.post('/coa/add', async (req, res, next) => {
       account_number: accountNumber || null,
     });
 
-    // Auto-create pocketsmith source mapping for the new account
-    await accountSourceMappingsRepo.upsert(account.id, 'pocketsmith', trimmedName);
-
-    // If adding a category, also create a categories table entry + source mapping
-    if (isCategory) {
-      const existing = await categoriesRepo.findByName(trimmedName);
-      if (!existing) {
-        const cat = await categoriesRepo.create({ name: trimmedName, mapped_account_id: account.id });
-        await categorySourceMappingsRepo.upsert(cat.id, 'pocketsmith', trimmedName);
-      } else {
-        await categorySourceMappingsRepo.upsert(existing.id, 'pocketsmith', trimmedName);
-      }
+    // Set is_transfer based on whether any ancestor in the path is "Transfers"
+    const isTransfer = await accountsRepo.computeIsTransfer(account.id);
+    if (isTransfer) {
+      await accountsRepo.update(account.id, { is_transfer: true });
     }
+
+    await accountSourceMappingsRepo.upsert(account.id, 'pocketsmith', trimmedName);
 
     res.json({ success: true, added: true, name: trimmedName, id: account.id });
   } catch (error) {
