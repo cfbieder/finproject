@@ -87,14 +87,40 @@ async function buildForecastContext(scenarioName) {
   // 3. Income/Expense items
   const incexp = await forecastRepo.findIncExpByScenario(scenario.id);
 
-  // 4. Forecast entries (generated output)
+  // 4. Forecast entries (generated output) — aggregated per (year, account, module-tag)
+  // We need both the raw flows AND a separate breakdown for BS year-end MV vs cash sweep
   const entriesResult = await db.query(`
     SELECT forecast_year, account, SUM(amount)::numeric as amount
     FROM forecast_entries
     WHERE scenario_id = $1
+      AND COALESCE(module, '') NOT IN ('_cash_sweep', '_sweep_bal')
     GROUP BY forecast_year, account
     ORDER BY forecast_year, account
   `, [scenario.id]);
+
+  // 4b. Cash sweep activity by year
+  const sweepResult = await db.query(`
+    SELECT forecast_year,
+      SUM(CASE WHEN module = '_cash_sweep' AND account = 'Transfer - Bank' THEN amount ELSE 0 END)::numeric as sweep_to_bank
+    FROM forecast_entries
+    WHERE scenario_id = $1
+    GROUP BY forecast_year
+    ORDER BY forecast_year
+  `, [scenario.id]);
+
+  // 4c. BS module year-end MV (these account names match modules — engine writes year-end MV as the entry amount)
+  const moduleNames = modules.map(m => m.name).filter(Boolean);
+  const bsResult = moduleNames.length > 0
+    ? await db.query(`
+        SELECT forecast_year, account, SUM(amount)::numeric as mv
+        FROM forecast_entries
+        WHERE scenario_id = $1
+          AND account = ANY($2::text[])
+          AND COALESCE(module, '') NOT IN ('_cash_sweep', '_sweep_bal')
+        GROUP BY forecast_year, account
+        ORDER BY forecast_year, account
+      `, [scenario.id, moduleNames])
+    : { rows: [] };
 
   // 5. Base year values
   const baseYearResult = await db.query(`
@@ -192,26 +218,82 @@ async function buildForecastContext(scenarioName) {
   }
   lines.push("");
 
-  // Generated forecast summary (key rows by year)
-  lines.push("## Generated Forecast Output (by year)");
-  const entryMap = {};
+  // Build per-year maps for the three output sections below
+  const moduleNameSet = new Set(moduleNames);
+  const flowMap = {};   // P&L flows by (year, account) — excludes cash sweep
+  const bsMap = {};     // year-end MV per BS asset module
+  const sweepMap = {};  // sweep transfer to bank per year
+
   for (const row of entriesResult.rows) {
     const yr = row.forecast_year;
-    if (!entryMap[yr]) entryMap[yr] = {};
-    entryMap[yr][row.account] = Number(row.amount);
+    if (!flowMap[yr]) flowMap[yr] = {};
+    flowMap[yr][row.account] = Number(row.amount);
   }
-  const forecastYears = Object.keys(entryMap).sort();
-  if (forecastYears.length > 0) {
-    // Get all account names
-    const allAccounts = new Set();
-    for (const yr of forecastYears) for (const acc of Object.keys(entryMap[yr])) allAccounts.add(acc);
+  for (const row of bsResult.rows) {
+    const yr = row.forecast_year;
+    if (!bsMap[yr]) bsMap[yr] = {};
+    bsMap[yr][row.account] = Number(row.mv);
+  }
+  for (const row of sweepResult.rows) {
+    sweepMap[row.forecast_year] = Number(row.sweep_to_bank);
+  }
+  const forecastYears = [...new Set([...Object.keys(flowMap), ...Object.keys(bsMap)])].sort();
 
+  // Section A: P&L Flows by year (income, expenses, transfers — NOT balances)
+  lines.push("## Annual P&L Flows by Year (USD)");
+  lines.push("Net amount per category per year. POSITIVE = inflow / income; NEGATIVE = outflow / expense.");
+  lines.push("Excludes cash sweep transfers (those are summarized separately below).");
+  lines.push("`Bank Accounts` row here is the net cash flow change for that year — it is NOT the year-end bank balance.");
+  if (forecastYears.length > 0) {
     lines.push(`\nYears: ${forecastYears.join(", ")}\n`);
-    for (const acc of [...allAccounts].sort()) {
-      const vals = forecastYears.map(yr => fmt(entryMap[yr]?.[acc] || 0));
+    const flowAccounts = new Set();
+    for (const yr of forecastYears) for (const acc of Object.keys(flowMap[yr] || {})) {
+      // Exclude BS module accounts from this section — they go in the BS section below
+      if (!moduleNameSet.has(acc)) flowAccounts.add(acc);
+    }
+    for (const acc of [...flowAccounts].sort()) {
+      const vals = forecastYears.map(yr => fmt(flowMap[yr]?.[acc] || 0));
       lines.push(`${acc}: ${vals.join(" | ")}`);
     }
   }
+  lines.push("");
+
+  // Section B: Balance Sheet — year-end Market Value of asset modules
+  lines.push("## Balance Sheet — Year-End Market Value by Module (USD)");
+  lines.push("Year-end MV per asset module, after all flows for the year (growth, yield, invest/dispose).");
+  if (forecastYears.length > 0 && Object.keys(bsMap).length > 0) {
+    lines.push(`\nYears: ${forecastYears.join(", ")}\n`);
+    const bsAccounts = new Set();
+    for (const yr of forecastYears) for (const acc of Object.keys(bsMap[yr] || {})) bsAccounts.add(acc);
+    for (const acc of [...bsAccounts].sort()) {
+      const vals = forecastYears.map(yr => fmt(bsMap[yr]?.[acc] || 0));
+      lines.push(`${acc}: ${vals.join(" | ")}`);
+    }
+  }
+  lines.push("");
+
+  // Section C: Cash Sweep activity + Bank Accounts running balance
+  lines.push("## Cash Account & Cash Sweep Activity");
+  const lowBand = scenario.cash_sweep_low;
+  const highBand = scenario.cash_sweep_high;
+  if (lowBand != null || highBand != null) {
+    lines.push(`Cash sweep band: low=${fmt(lowBand)}, high=${fmt(highBand)} (USD).`);
+    lines.push(`The engine maintains Bank Accounts within this band by transferring to/from the cash sweep target module.`);
+    lines.push(`A NEGATIVE annual P&L Bank Accounts flow is offset by a POSITIVE sweep transfer (and vice versa) so the displayed bank balance stays inside the band.`);
+  }
+  if (forecastYears.length > 0 && Object.keys(sweepMap).length > 0) {
+    lines.push("\nNet sweep transfer TO Bank Accounts per year (positive = sweep brought cash in to cover deficit; negative = excess swept out to module):");
+    const sweepLine = forecastYears.map(yr => fmt(sweepMap[yr] || 0));
+    lines.push(`Sweep → Bank: ${sweepLine.join(" | ")}`);
+    lines.push("\nNet annual change to Bank Accounts (P&L flow + sweep) — non-zero values reveal years where the bank balance materially shifted:");
+    const netLine = forecastYears.map(yr => {
+      const bankFlow = (flowMap[yr]?.["Bank Accounts"] || 0);
+      const sweep = (sweepMap[yr] || 0);
+      return fmt(bankFlow + sweep);
+    });
+    lines.push(`Net Bank Δ: ${netLine.join(" | ")}`);
+  }
+  lines.push("");
 
   return { context: lines.join("\n"), scenario, modules, incexp };
 }
