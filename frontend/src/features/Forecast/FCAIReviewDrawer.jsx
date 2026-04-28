@@ -108,7 +108,7 @@ function MessageContent({ content, onApply, appliedActions }) {
   );
 }
 
-export default function FCAIReviewDrawer({ isOpen, onClose, scenarioName }) {
+export default function FCAIReviewDrawer({ isOpen, onClose, scenarioName, onUnreadChange }) {
   const [reviews, setReviews] = useState([]);
   const [activeReviewId, setActiveReviewId] = useState(null);
   const [messages, setMessages] = useState([]);
@@ -116,8 +116,26 @@ export default function FCAIReviewDrawer({ isOpen, onClose, scenarioName }) {
   const [error, setError] = useState("");
   const [appliedActions, setAppliedActions] = useState(new Set());
   const [confirmAction, setConfirmAction] = useState(null);
+  const [unreadIds, setUnreadIds] = useState(() => new Set());
   const messagesEndRef = useRef(null);
+  const isOpenRef = useRef(isOpen);
   const { showSuccess, showError } = useToast();
+
+  // Keep a ref so the polling closure can read the latest isOpen without re-creating the interval
+  useEffect(() => { isOpenRef.current = isOpen; }, [isOpen]);
+
+  // Clear unread badge when the drawer opens. Single set on transition; no cascade risk.
+  useEffect(() => {
+    if (isOpen) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect
+      setUnreadIds(new Set());
+    }
+  }, [isOpen]);
+
+  // Notify parent whenever the unread count crosses zero
+  useEffect(() => {
+    onUnreadChange?.(unreadIds.size > 0);
+  }, [unreadIds, onUnreadChange]);
 
   const hasPendingReview = reviews.some(r => r.status === "pending");
   const activeReview = reviews.find(r => r.id === activeReviewId);
@@ -164,6 +182,13 @@ export default function FCAIReviewDrawer({ isOpen, onClose, scenarioName }) {
             if (cancelled) return;
             setReviews(prev => prev.map(r => r.id === id ? { ...r, status: "completed" } : r));
             if (id === activeReviewId) setMessages(conv.messages || []);
+            if (!isOpenRef.current) {
+              setUnreadIds(prev => {
+                const next = new Set(prev);
+                next.add(id);
+                return next;
+              });
+            }
             showSuccess(`AI plan review ready${id === activeReviewId ? "" : " — open from the history list"}`);
             fireBrowserNotification(scenarioName);
           } else if (status.status === "failed") {

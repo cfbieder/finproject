@@ -17,6 +17,7 @@ export default function FCReviewSelector({
   graphDisabled,
   onAIReviewClick,
   aiReviewDisabled,
+  aiReviewHasUnread,
   onCashSweepClick,
   cashSweepDisabled,
 }) {
@@ -108,12 +109,25 @@ export default function FCReviewSelector({
                 className="fc-review-selector__action-btn"
                 disabled={aiReviewDisabled ?? disableGenerate}
                 onClick={onAIReviewClick}
-                style={{ background: "linear-gradient(135deg, #7c3aed, #4f46e5)", color: "white", border: "none" }}
+                title={aiReviewHasUnread ? "New AI review ready" : undefined}
+                style={{ background: "linear-gradient(135deg, #7c3aed, #4f46e5)", color: "white", border: "none", position: "relative" }}
               >
                 <span aria-hidden="true" className="fc-review-selector__action-icon">
                   <BrainCircuit size={16} />
                 </span>
                 AI Review
+                {aiReviewHasUnread && (
+                  <span
+                    aria-label="new review ready"
+                    style={{
+                      position: "absolute", top: "4px", right: "4px",
+                      width: "10px", height: "10px", borderRadius: "50%",
+                      background: "#ef4444",
+                      boxShadow: "0 0 0 2px white, 0 0 8px rgba(239,68,68,0.6)",
+                      animation: "fcAiPulse 1.6s ease-in-out infinite",
+                    }}
+                  />
+                )}
               </button>
             </div>
           </div>
@@ -139,6 +153,12 @@ export default function FCReviewSelector({
           )}
         </div>
       </div>
+      <style>{`
+        @keyframes fcAiPulse {
+          0%, 100% { transform: scale(1); opacity: 1; }
+          50% { transform: scale(1.25); opacity: 0.7; }
+        }
+      `}</style>
     </section>
   );
 }

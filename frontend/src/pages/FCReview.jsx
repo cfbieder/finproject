@@ -1323,6 +1323,7 @@ export default function FCReview() {
 
   // AI Review drawer
   const [aiDrawerOpen, setAiDrawerOpen] = useState(false);
+  const [aiReviewHasUnread, setAiReviewHasUnread] = useState(false);
   const handleAIReviewClick = useCallback(() => setAiDrawerOpen(true), []);
   const handleCloseAIDrawer = useCallback(() => setAiDrawerOpen(false), []);
 
@@ -1431,6 +1432,7 @@ export default function FCReview() {
           graphDisabled={graphDisabled}
           onAIReviewClick={handleAIReviewClick}
           aiReviewDisabled={!selectedScenario}
+          aiReviewHasUnread={aiReviewHasUnread}
           onCashSweepClick={handleCashSweepClick}
           cashSweepDisabled={!selectedScenario}
         />
@@ -1570,6 +1572,7 @@ export default function FCReview() {
         isOpen={aiDrawerOpen}
         onClose={handleCloseAIDrawer}
         scenarioName={selectedScenario}
+        onUnreadChange={setAiReviewHasUnread}
       />
       <FCCashSweepModal
         isOpen={cashSweepOpen}
