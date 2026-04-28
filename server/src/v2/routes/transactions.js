@@ -168,7 +168,7 @@ router.get('/transfer-analysis', async (req, res, next) => {
     }
 
     // Determine if a category uses fuzzy (FX) matching
-    const isFxCategory = (name) => name === 'FX';
+    const isFxCategory = (name) => name === 'Transfer - FX' || name === 'FX';
 
     // Match within each category
     const result = {};
