@@ -1,3 +1,7 @@
+**Status:** OPEN — [Plan](../NEXT_STEPS.md#cr014)
+
+# CR014 — PocketSmith Replacement
+
 # PocketSmith Replacement Analysis
 
 **Date:** 2026-03-14

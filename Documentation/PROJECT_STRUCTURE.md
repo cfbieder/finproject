@@ -112,10 +112,13 @@ psproject/                          # ~/Programs/fin symlinks here
 │   ├── data/                    # Runtime data files (appdata, PS name mappings, forecast assumptions)
 │   └── reports/                 # Generated report output
 ├── Documentation/               # Project documentation
-│   ├── PROJECT_DESCRIPTION.md   # This file
-│   ├── PROJECT_ROADMAP.md       # Future work and known issues
-│   ├── Guides/                  # Operational guides (tmux, backups, restore)
-│   └── Old/                     # Archived documentation
+│   ├── PROJECT_STRUCTURE.md     # This file — current state of the project
+│   ├── NEXT_STEPS.md            # Development plan + open work + known issues
+│   ├── FC_MODULE_MAPPING.md     # Forecast terminology and data mapping reference
+│   ├── CRs/                     # Change Requests — CR_INDEX.md + CR001..CR0NN
+│   ├── Guides/                  # Operational guides (GUIDE_BACKUP, GUIDE_RESTORE, GUIDE_TMUX)
+│   ├── Testing/                 # Test overview + manual QA checklists
+│   └── Archive/                 # Historical documentation (phase reports, old design docs)
 ├── frontend/                    # React SPA
 │   ├── Dockerfile               # Multi-stage build: Vite -> nginx
 │   ├── nginx.conf               # API proxy + SPA routing
@@ -552,7 +555,7 @@ Key engine features:
 
 #### Detailed Documentation
 
-Full design document, implementation plan, and test strategy: `Documentation/FC_Module/FC_MODULE.md`
+Full design document, implementation plan, and test strategy: [Documentation/CRs/CR003_FORECAST_MODULE.md](CRs/CR003_FORECAST_MODULE.md). Terminology reference: [Documentation/FC_MODULE_MAPPING.md](FC_MODULE_MAPPING.md).
 
 ---
 
@@ -664,7 +667,7 @@ cd ~/psproject                     # or ~/Programs/fin (symlink)
 
 Creates a tmux session (`fin-dev`) with 4 windows: database logs, backend (nodemon), frontend (Vite HMR), shell.
 
-See [TMUX Guide](Guides/TMUX_GUIDE.md) for navigation details.
+See [TMUX Guide](Guides/GUIDE_TMUX.md) for navigation details.
 
 ### Making Changes
 

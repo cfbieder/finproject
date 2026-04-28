@@ -7,7 +7,7 @@
 -- between budget categories and forecast lines. Also adds new FK columns to
 -- forecast_modules and forecast_income_expense tables.
 --
--- See Documentation/FC_Module/FC_MODULE.md §7 for full design.
+-- See Documentation/CRs/CR003_FORECAST_MODULE.md §7 for full design.
 -- ============================================================================
 
 -- FC Lines: user-defined forecast income/expense lines
