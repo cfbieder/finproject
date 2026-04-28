@@ -17,10 +17,15 @@ function fireBrowserNotification(scenarioName) {
   } catch (_) { /* noop */ }
 }
 
-async function ensureNotificationPermission() {
-  if (typeof Notification === "undefined") return;
-  if (Notification.permission === "default") {
-    try { await Notification.requestPermission(); } catch (_) { /* noop */ }
+const NOTIF_PRIMER_DISMISSED_KEY = "fcAiReview.notifPrimerDismissed";
+
+function shouldShowNotificationPrimer() {
+  if (typeof Notification === "undefined") return false;
+  if (Notification.permission !== "default") return false;
+  try {
+    return localStorage.getItem(NOTIF_PRIMER_DISMISSED_KEY) !== "true";
+  } catch (_) {
+    return true;
   }
 }
 
@@ -117,9 +122,36 @@ export default function FCAIReviewDrawer({ isOpen, onClose, scenarioName, onUnre
   const [appliedActions, setAppliedActions] = useState(new Set());
   const [confirmAction, setConfirmAction] = useState(null);
   const [unreadIds, setUnreadIds] = useState(() => new Set());
+  const [notifPrimerOpen, setNotifPrimerOpen] = useState(false);
+  const pendingActionRef = useRef(null);
   const messagesEndRef = useRef(null);
   const isOpenRef = useRef(isOpen);
   const { showSuccess, showError } = useToast();
+
+  const runWithPermissionGate = useCallback((action) => {
+    if (shouldShowNotificationPrimer()) {
+      pendingActionRef.current = action;
+      setNotifPrimerOpen(true);
+    } else {
+      action();
+    }
+  }, []);
+
+  const handlePrimerAllow = async () => {
+    setNotifPrimerOpen(false);
+    try { await Notification.requestPermission(); } catch (_) { /* noop */ }
+    const action = pendingActionRef.current;
+    pendingActionRef.current = null;
+    if (action) action();
+  };
+
+  const handlePrimerDecline = () => {
+    setNotifPrimerOpen(false);
+    try { localStorage.setItem(NOTIF_PRIMER_DISMISSED_KEY, "true"); } catch (_) { /* noop */ }
+    const action = pendingActionRef.current;
+    pendingActionRef.current = null;
+    if (action) action();
+  };
 
   // Keep a ref so the polling closure can read the latest isOpen without re-creating the interval
   useEffect(() => { isOpenRef.current = isOpen; }, [isOpen]);
@@ -205,37 +237,39 @@ export default function FCAIReviewDrawer({ isOpen, onClose, scenarioName, onUnre
     return () => { cancelled = true; clearInterval(handle); };
   }, [reviews, activeReviewId, scenarioName, showSuccess, showError]);
 
-  const handleNewReview = async () => {
+  const handleNewReview = () => {
     if (hasPendingReview) return;
-    setError("");
-    ensureNotificationPermission();
-    try {
-      const r = await Rest.post("/ai-review", { scenario: scenarioName });
-      const review = { ...r.review, status: "pending" };
-      setReviews(prev => [review, ...prev]);
-      setActiveReviewId(review.id);
-      setMessages([
-        { role: "user", content: "Please review my financial plan and provide your analysis." },
-      ]);
-    } catch (e) {
-      setError(e.message || "Failed to create review");
-    }
+    runWithPermissionGate(async () => {
+      setError("");
+      try {
+        const r = await Rest.post("/ai-review", { scenario: scenarioName });
+        const review = { ...r.review, status: "pending" };
+        setReviews(prev => [review, ...prev]);
+        setActiveReviewId(review.id);
+        setMessages([
+          { role: "user", content: "Please review my financial plan and provide your analysis." },
+        ]);
+      } catch (e) {
+        setError(e.message || "Failed to create review");
+      }
+    });
   };
 
-  const handleSendMessage = async (e) => {
+  const handleSendMessage = (e) => {
     e.preventDefault();
     if (!input.trim() || !activeReviewId || activeIsPending) return;
     const msg = input.trim();
     setInput("");
     setMessages(prev => [...prev, { role: "user", content: msg }]);
     setError("");
-    ensureNotificationPermission();
-    try {
-      await Rest.post(`/ai-review/${activeReviewId}/message`, { message: msg });
-      setReviews(prev => prev.map(r => r.id === activeReviewId ? { ...r, status: "pending" } : r));
-    } catch (e) {
-      setError(e.message || "Failed to send message");
-    }
+    runWithPermissionGate(async () => {
+      try {
+        await Rest.post(`/ai-review/${activeReviewId}/message`, { message: msg });
+        setReviews(prev => prev.map(r => r.id === activeReviewId ? { ...r, status: "pending" } : r));
+      } catch (err) {
+        setError(err.message || "Failed to send message");
+      }
+    });
   };
 
   const handleDeleteReview = async (e, reviewId) => {
@@ -500,6 +534,42 @@ export default function FCAIReviewDrawer({ isOpen, onClose, scenarioName, onUnre
                 style={{ padding: "0.4rem 1rem", borderRadius: "0.375rem", border: "none", background: "#7FA37F", color: "white", cursor: "pointer", fontSize: "0.85rem", fontWeight: 600 }}
               >
                 Apply
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Notification permission primer */}
+      {notifPrimerOpen && (
+        <div style={{
+          position: "fixed", inset: 0, background: "rgba(15,23,42,0.5)",
+          display: "flex", alignItems: "center", justifyContent: "center",
+          zIndex: 10300,
+        }}>
+          <div style={{
+            background: "white", borderRadius: "0.75rem", padding: "1.5rem",
+            width: "min(440px, 90vw)", boxShadow: "0 20px 40px rgba(0,0,0,0.2)",
+          }}>
+            <h4 style={{ margin: "0 0 0.75rem", fontSize: "1rem" }}>Get notified when ready?</h4>
+            <p style={{ margin: 0, fontSize: "0.85rem", color: "#4A5568", lineHeight: 1.55 }}>
+              AI plan reviews can take up to a minute. With your permission, the browser can show a desktop notification when the review is done — even if you've switched tabs or closed this drawer.
+            </p>
+            <p style={{ margin: "0.75rem 0 0", fontSize: "0.78rem", color: "#808E9B", lineHeight: 1.5 }}>
+              You'll always see an in-app toast when the review completes. This is just for desktop notifications.
+            </p>
+            <div style={{ display: "flex", justifyContent: "flex-end", gap: "0.5rem", marginTop: "1.25rem" }}>
+              <button
+                onClick={handlePrimerDecline}
+                style={{ padding: "0.4rem 1rem", borderRadius: "0.375rem", border: "1px solid #d1d5db", background: "white", cursor: "pointer", fontSize: "0.85rem" }}
+              >
+                Not now
+              </button>
+              <button
+                onClick={handlePrimerAllow}
+                style={{ padding: "0.4rem 1rem", borderRadius: "0.375rem", border: "none", background: "#7FA37F", color: "white", cursor: "pointer", fontSize: "0.85rem", fontWeight: 600 }}
+              >
+                Enable notifications
               </button>
             </div>
           </div>
