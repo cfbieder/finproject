@@ -136,6 +136,11 @@ async function copyScenario(sourceId, newName) {
 
     if (existing.rows.length > 0) {
       newId = existing.rows[0].id;
+      // Mirror scenario-level fields from source onto target
+      await client.query(
+        'UPDATE forecast_scenarios SET cash_sweep_low = $1, cash_sweep_high = $2, updated_at = NOW() WHERE id = $3',
+        [source.rows[0].cash_sweep_low, source.rows[0].cash_sweep_high, newId]
+      );
       // Clear existing data so we can copy fresh
       const oldModules = await client.query('SELECT id FROM forecast_modules WHERE scenario_id = $1', [newId]);
       for (const m of oldModules.rows) {
@@ -152,10 +157,10 @@ async function copyScenario(sourceId, newName) {
       await client.query('DELETE FROM forecast_entries WHERE scenario_id = $1', [newId]);
     } else {
       const newScenario = await client.query(`
-        INSERT INTO forecast_scenarios (name, description, is_active)
-        VALUES ($1, $2, TRUE)
+        INSERT INTO forecast_scenarios (name, description, is_active, cash_sweep_low, cash_sweep_high)
+        VALUES ($1, $2, TRUE, $3, $4)
         RETURNING *
-      `, [newName, `Copy of ${source.rows[0].name}`]);
+      `, [newName, `Copy of ${source.rows[0].name}`, source.rows[0].cash_sweep_low, source.rows[0].cash_sweep_high]);
       newId = newScenario.rows[0].id;
     }
 
