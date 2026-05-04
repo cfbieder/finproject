@@ -7,11 +7,6 @@
       "id": 47,
       "PeriodStart": 2027,
       "PeriodEnd": 2062
-    },
-    {
-      "Name": "2026 Downside",
-      "PeriodStart": 2027,
-      "PeriodEnd": 2062
     }
   ],
   "category": [
@@ -32,11 +27,6 @@
       "Scenario": "2026 Base",
       "Year": 2026,
       "Rate": 2.5
-    },
-    {
-      "Scenario": "2026 Downside",
-      "Year": 2026,
-      "Rate": 2.5
     }
   ],
   "FX": [
@@ -55,14 +45,6 @@
         "PLN": 3.9,
         "EUR": 0.86
       }
-    },
-    {
-      "Scenario": "2026 Downside",
-      "Year": 2026,
-      "Rates": {
-        "PLN": 3.9,
-        "EUR": 0.86
-      }
     }
   ],
   "Tax Rate": [
@@ -72,10 +54,6 @@
     },
     {
       "Scenario": "2026 Base",
-      "Rate": 25
-    },
-    {
-      "Scenario": "2026 Downside",
       "Rate": 25
     }
   ]

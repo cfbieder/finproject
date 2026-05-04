@@ -230,11 +230,13 @@ router.post('/scenarios/byname/:name/copy', async (req, res, next) => {
       const db = require('../db');
       const asOfDate = `${baseYear}-12-31`;
 
-      // Get year-end balances for all accounts
+      // Get year-end balances for all accounts.
+      // base_amount is always in USD (base_currency); local-currency balance
+      // is the sum of t.amount filtered to txs in the account's currency.
       const balances = await db.query(`
         SELECT a.id as account_id, a.name,
-          SUM(CASE WHEN t.currency = 'USD' THEN t.base_amount ELSE 0 END) as balance_usd,
-          SUM(t.base_amount) as balance_lc
+          SUM(CASE WHEN t.currency = a.currency THEN t.amount ELSE 0 END) as balance_lc,
+          SUM(t.base_amount) as balance_usd
         FROM transactions t
         JOIN accounts a ON t.account_id = a.id
         WHERE t.transaction_date <= $1
@@ -249,7 +251,9 @@ router.post('/scenarios/byname/:name/copy', async (req, res, next) => {
         };
       }
 
-      // Update each module in the new scenario
+      // Update each module's base value (book) from actuals.
+      // market_value is left as carried over from the source — broker-reported
+      // MV cannot be derived from the ledger.
       const modules = await db.query(
         'SELECT id, account_id FROM forecast_modules WHERE scenario_id = $1',
         [newScenario.id]
@@ -261,7 +265,7 @@ router.post('/scenarios/byname/:name/copy', async (req, res, next) => {
         if (bal) {
           await db.query(`
             UPDATE forecast_modules
-            SET base_value = $1, base_value_usd = $2, market_value = $1, market_value_usd = $2,
+            SET base_value = $1, base_value_usd = $2,
                 base_date = $3, updated_at = NOW()
             WHERE id = $4
           `, [bal.balance_lc, bal.balance_usd, `${baseYear}-12-31`, mod.id]);
