@@ -169,16 +169,18 @@ async function copyScenario(sourceId, newName) {
           expense_amount, expense_fc_line_id, income_fc_line_id, expense_growth_method,
           income_amount, base_date, base_value,
           market_value, base_value_usd, market_value_usd,
-          growth_rate, comment, is_matched
+          growth_rate, comment, is_matched,
+          setup_status, cash_sweep_target, tax_rate_override
         )
-        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18)
+        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21)
         RETURNING id
       `, [
         newId, mod.account_id, mod.name, mod.module_type, mod.currency,
         mod.expense_amount, mod.expense_fc_line_id, mod.income_fc_line_id, mod.expense_growth_method || 'inflation',
         mod.income_amount, mod.base_date, mod.base_value,
         mod.market_value, mod.base_value_usd, mod.market_value_usd,
-        mod.growth_rate, mod.comment, mod.is_matched
+        mod.growth_rate, mod.comment, mod.is_matched,
+        mod.setup_status || 'new', mod.cash_sweep_target || false, mod.tax_rate_override
       ]);
 
       const newModuleId = newModule.rows[0].id;
@@ -209,14 +211,16 @@ async function copyScenario(sourceId, newName) {
       const newItem = await client.query(`
         INSERT INTO forecast_income_expense (
           scenario_id, account_id, name, item_type, currency,
-          base_date, base_value, base_value_usd, growth_rate, comment, is_matched
+          base_date, base_value, base_value_usd, growth_rate, comment, is_matched,
+          setup_status, fc_line_id, budget_source_year
         )
-        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
+        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14)
         RETURNING id
       `, [
         newId, item.account_id, item.name, item.item_type, item.currency,
         item.base_date, item.base_value, item.base_value_usd,
-        item.growth_rate, item.comment, item.is_matched
+        item.growth_rate, item.comment, item.is_matched,
+        item.setup_status || 'new', item.fc_line_id, item.budget_source_year
       ]);
 
       const newItemId = newItem.rows[0].id;
