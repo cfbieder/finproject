@@ -64,6 +64,68 @@
   opacity: 0.85;
 }
 
+/* Type-to-narrow search */
+.hf__search {
+  position: relative;
+  display: flex;
+  align-items: center;
+}
+
+.hf__search-input {
+  width: 100%;
+  padding: 0.3rem 1.75rem 0.3rem 0.55rem;
+  border: 1.5px solid var(--border);
+  border-radius: var(--radius-sm, 4px);
+  background: var(--surface-elevated, #fff);
+  font-size: 0.75rem;
+  color: var(--ink);
+  outline: none;
+  box-sizing: border-box;
+  transition: border-color var(--transition-fast, 0.15s);
+}
+
+.hf__search-input::placeholder {
+  color: var(--muted);
+}
+
+.hf__search-input:focus {
+  border-color: var(--primary);
+}
+
+.hf__search-clear {
+  position: absolute;
+  right: 0.35rem;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 1.1rem;
+  height: 1.1rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: none;
+  border-radius: 50%;
+  background: rgba(45, 52, 54, 0.08);
+  color: var(--ink);
+  font-size: 0.8rem;
+  line-height: 1;
+  cursor: pointer;
+  padding: 0;
+}
+
+.hf__search-clear:hover {
+  background: rgba(45, 52, 54, 0.15);
+}
+
+.hf__empty {
+  padding: 0.5rem;
+  font-size: 0.72rem;
+  font-style: italic;
+  color: var(--muted);
+  text-align: center;
+  border: 1.5px dashed var(--border);
+  border-radius: var(--radius-sm, 4px);
+}
+
 /* Stage 2: Item checklist */
 .hf__list {
   display: flex;

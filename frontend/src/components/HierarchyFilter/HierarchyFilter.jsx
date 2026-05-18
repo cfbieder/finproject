@@ -35,6 +35,8 @@ export default function HierarchyFilter({
   const [activeGroup, setActiveGroup] = useState("__all__");
   // Per-group deselected items (items explicitly unchecked within the group)
   const [deselected, setDeselected] = useState({});
+  // Type-to-narrow text for the visible checklist
+  const [filterText, setFilterText] = useState("");
 
   // Derive the leaves for each group
   const groupLeaves = useMemo(() => {
@@ -49,11 +51,14 @@ export default function HierarchyFilter({
     return map;
   }, [groups]);
 
-  // The currently displayed items
+  // The currently displayed items (narrowed by filterText)
   const visibleItems = useMemo(() => {
     if (activeGroup === "__all__") return [];
-    return groupLeaves[activeGroup] || [];
-  }, [activeGroup, groupLeaves]);
+    const all = groupLeaves[activeGroup] || [];
+    const q = filterText.trim().toLowerCase();
+    if (!q) return all;
+    return all.filter((n) => n.toLowerCase().includes(q));
+  }, [activeGroup, groupLeaves, filterText]);
 
   // Compute the effective selected leaves and notify parent
   const emitSelection = useCallback(
@@ -73,6 +78,7 @@ export default function HierarchyFilter({
   const handleGroupClick = useCallback(
     (key) => {
       setActiveGroup(key);
+      setFilterText("");
       onGroupChange?.(key);
       // Reset deselections for the new group
       setDeselected((prev) => {
@@ -142,6 +148,30 @@ export default function HierarchyFilter({
         ))}
       </div>
 
+      {/* Type-to-narrow search (only when a specific group is active) */}
+      {activeGroup !== "__all__" && (groupLeaves[activeGroup]?.length || 0) > 0 && (
+        <div className="hf__search">
+          <input
+            type="text"
+            className="hf__search-input"
+            placeholder={`Filter ${activeGroupObj?.label?.toLowerCase() || "items"}…`}
+            value={filterText}
+            onChange={(e) => setFilterText(e.target.value)}
+            aria-label="Filter items"
+          />
+          {filterText && (
+            <button
+              type="button"
+              className="hf__search-clear"
+              onClick={() => setFilterText("")}
+              aria-label="Clear filter"
+            >
+              &times;
+            </button>
+          )}
+        </div>
+      )}
+
       {/* Stage 2: Item checklist */}
       {activeGroup !== "__all__" && visibleItems.length > 0 && (
         <div className="hf__list">
@@ -166,6 +196,12 @@ export default function HierarchyFilter({
           })}
         </div>
       )}
+
+      {activeGroup !== "__all__" &&
+        (groupLeaves[activeGroup]?.length || 0) > 0 &&
+        visibleItems.length === 0 && (
+          <div className="hf__empty">No matching items</div>
+        )}
 
       {/* Extra slot — e.g. Transfer Match Status */}
       {activeGroup !== "__all__" && activeGroupObj && extraSlot}
