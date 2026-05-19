@@ -112,8 +112,8 @@ psproject/                          # ~/Programs/fin symlinks here
 │   ├── data/                    # Runtime data files (appdata, PS name mappings, forecast assumptions)
 │   └── reports/                 # Generated report output
 ├── Documentation/               # Project documentation
-│   ├── PROJECT_STRUCTURE.md     # This file — current state of the project
-│   ├── NEXT_STEPS.md            # Development plan + open work + known issues
+│   ├── FC_PROJECT_STRUCTURE.md  # This file — current state of the project
+│   ├── FC_NEXT_STEPS.md         # Development plan + open work + known issues
 │   ├── FC_MODULE_MAPPING.md     # Forecast terminology and data mapping reference
 │   ├── CRs/                     # Change Requests — CR_INDEX.md + CR001..CR0NN
 │   ├── Guides/                  # Operational guides (GUIDE_BACKUP, GUIDE_RESTORE, GUIDE_TMUX)

@@ -1,4 +1,4 @@
-**Status:** COMPLETED — [Plan](../NEXT_STEPS.md#cr001)
+**Status:** COMPLETED — [Plan](../FC_NEXT_STEPS.md#cr001)
 
 # CR001 — MongoDB → PostgreSQL Migration
 

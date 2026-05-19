@@ -1,4 +1,4 @@
-**Status:** COMPLETED — [Plan](../NEXT_STEPS.md#cr004)
+**Status:** COMPLETED — [Plan](../FC_NEXT_STEPS.md#cr004)
 
 # CR004 — FC Inc/Exp Mapping Layer (Phase 2B FC Lines)
 

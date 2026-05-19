@@ -2,17 +2,17 @@
 
 ## Before Starting Any Task
 
-1. Read `Documentation/PROJECT_STRUCTURE.md` for the current state — architecture, tech stack, file structure, API endpoints, database schema, and development workflow. Single source of truth for what *is*.
-2. Read `Documentation/NEXT_STEPS.md` for the development plan — open / in-progress / known issues. Single source of truth for what *should happen next*.
+1. Read `Documentation/FC_PROJECT_STRUCTURE.md` for the current state — architecture, tech stack, file structure, API endpoints, database schema, and development workflow. Single source of truth for what *is*.
+2. Read `Documentation/FC_NEXT_STEPS.md` for the development plan — open / in-progress / known issues. Single source of truth for what *should happen next*.
 3. If the task touches an active Change Request, read the matching CR file under `Documentation/CRs/` (see `Documentation/CRs/CR_INDEX.md` for the index).
 
 ## After Completing Any Task
 
 Update the following files to reflect the changes made:
 
-1. **`Documentation/PROJECT_STRUCTURE.md`** — Update any affected sections (project structure, routes, API endpoints, database tables, scripts, etc.).
-2. **`Documentation/NEXT_STEPS.md`** — Mark completed CRs/items as done, add new known issues if discovered, or add new entries if the work reveals them.
-3. **`Documentation/CRs/`** — If the work matches an existing CR, update its status header and body. If the work warrants a new CR (substantive feature, multi-session work, architectural impact), create the next-numbered CR file and add a row to `CR_INDEX.md`. Trivial fixes do not need a CR — leave them as bullets in `NEXT_STEPS.md`.
+1. **`Documentation/FC_PROJECT_STRUCTURE.md`** — Update any affected sections (project structure, routes, API endpoints, database tables, scripts, etc.).
+2. **`Documentation/FC_NEXT_STEPS.md`** — Mark completed CRs/items as done, add new known issues if discovered, or add new entries if the work reveals them.
+3. **`Documentation/CRs/`** — If the work matches an existing CR, update its status header and body. If the work warrants a new CR (substantive feature, multi-session work, architectural impact), create the next-numbered CR file and add a row to `CR_INDEX.md`. Trivial fixes do not need a CR — leave them as bullets in `FC_NEXT_STEPS.md`.
 
 ## When promption for questions
 

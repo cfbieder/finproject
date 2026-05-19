@@ -1,4 +1,4 @@
-**Status:** COMPLETED — [Plan](../NEXT_STEPS.md#cr006)
+**Status:** COMPLETED — [Plan](../FC_NEXT_STEPS.md#cr006)
 
 # CR006 — AI Review of FC Plan
 

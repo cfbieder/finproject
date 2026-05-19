@@ -1,7 +1,7 @@
 # CR018 — Balance Trends Report
 
 **Status:** COMPLETED 2026-05-19
-**Anchor in NEXT_STEPS.md:** [cr018](../NEXT_STEPS.md#cr018)
+**Anchor in FC_NEXT_STEPS.md:** [cr018](../FC_NEXT_STEPS.md#cr018)
 
 ## Summary
 
@@ -46,8 +46,8 @@ New report at `/balance-trends` (Reports & Graphs > Reports) showing month-end U
 | `frontend/src/pages/BalanceTrends.jsx` | New page (single component). |
 | `frontend/src/pages/BalanceTrends.css` | New stylesheet (toolbar grid, table, sticky cells, empty state). |
 | `frontend/src/config/routes.jsx` | Lazy import + route entry under Reports. |
-| `Documentation/PROJECT_STRUCTURE.md` | Routes table updated. |
-| `Documentation/NEXT_STEPS.md` | Migration History entry. |
+| `Documentation/FC_PROJECT_STRUCTURE.md` | Routes table updated. |
+| `Documentation/FC_NEXT_STEPS.md` | Migration History entry. |
 | `Documentation/CRs/CR_INDEX.md` | CR018 row added. |
 
 ## Manual QA checklist

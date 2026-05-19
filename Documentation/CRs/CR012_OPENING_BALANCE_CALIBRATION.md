@@ -1,4 +1,4 @@
-**Status:** COMPLETED — [Plan](../NEXT_STEPS.md#cr012)
+**Status:** COMPLETED — [Plan](../FC_NEXT_STEPS.md#cr012)
 
 # CR012 — Opening Balance Calibration
 

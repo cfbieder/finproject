@@ -1,4 +1,4 @@
-**Status:** COMPLETED — [Plan](../NEXT_STEPS.md#cr002)
+**Status:** COMPLETED — [Plan](../FC_NEXT_STEPS.md#cr002)
 
 # CR002 — Frontend Architecture Refactor
 
@@ -18,8 +18,8 @@ Decomposed god components, introduced the `features/` module pattern, eliminated
 - Shared hooks: `frontend/src/hooks/useCoa.js`, `frontend/src/contexts/`
 - Original architecture proposal: archived at `Documentation/Archive/ARCHITECTURE_GUIDE.md`, `PHASE2_ARCHITECTURE.md`, `IMPLEMENTATION_SUMMARY.md`, `QUICK_REFERENCE.md`, `ROUTES_GUIDE.md`.
 
-## Remaining proposals (NEXT_STEPS.md backlog)
+## Remaining proposals (FC_NEXT_STEPS.md backlog)
 
 - Some shared components still missing: `<Modal>`, `<DataTable>`, `<FormField>`, `<ConfirmDialog>`, `<CurrencyInput>`.
 - TypeScript migration is open.
-- See §3 in NEXT_STEPS.md for the full Frontend Improvements list.
+- See §3 in FC_NEXT_STEPS.md for the full Frontend Improvements list.

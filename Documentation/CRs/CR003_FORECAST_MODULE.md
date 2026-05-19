@@ -1,8 +1,8 @@
-**Status:** COMPLETED — [Plan](../NEXT_STEPS.md#cr003)
+**Status:** COMPLETED — [Plan](../FC_NEXT_STEPS.md#cr003)
 
 # CR003 — Forecast Module
 
-This CR is the original design + implementation plan document for the Forecast Module. All phases (1, 2A, 2B, 3, 4, 5) shipped. Engine code lives in `server/src/services/forecast/`. Frontend pages: `/forecast-mapping`, `/forecast-modules`, `/forecast-setup-exp`, `/forecast-review`, `/fc-settings`. 73 backend tests cover engine logic. See `NEXT_STEPS.md` for any remaining open sub-items (Cash Sweep Phase C → CR017, Frontend test framework → CR016).
+This CR is the original design + implementation plan document for the Forecast Module. All phases (1, 2A, 2B, 3, 4, 5) shipped. Engine code lives in `server/src/services/forecast/`. Frontend pages: `/forecast-mapping`, `/forecast-modules`, `/forecast-setup-exp`, `/forecast-review`, `/fc-settings`. 73 backend tests cover engine logic. See `FC_NEXT_STEPS.md` for any remaining open sub-items (Cash Sweep Phase C → CR017, Frontend test framework → CR016).
 
 ---
 

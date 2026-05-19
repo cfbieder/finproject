@@ -1,4 +1,4 @@
-**Status:** COMPLETED — [Plan](../NEXT_STEPS.md#cr008)
+**Status:** COMPLETED — [Plan](../FC_NEXT_STEPS.md#cr008)
 
 # CR008 — HierarchyFilter & Transaction Pages Redesign
 

@@ -1,4 +1,4 @@
-**Status:** OPEN — [Plan](../NEXT_STEPS.md#cr017)
+**Status:** OPEN — [Plan](../FC_NEXT_STEPS.md#cr017)
 
 # CR017 — Cash Sweep Phase C (Multi-Module Priority Sweep)
 

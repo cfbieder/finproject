@@ -2,7 +2,7 @@
 
 Status legend: **COMPLETED** · **IN-PROGRESS** · **OPEN**
 
-Each CR file's first line carries its status and links back to the matching anchor in [NEXT_STEPS.md](../NEXT_STEPS.md). New CRs get the next available number.
+Each CR file's first line carries its status and links back to the matching anchor in [NEXT_STEPS.md](../FC_NEXT_STEPS.md). New CRs get the next available number.
 
 | # | Status | Title | One-line description |
 |---|--------|-------|----------------------|

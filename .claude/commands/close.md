@@ -14,9 +14,9 @@ allowed-tools: Bash(git *), Bash(./Scripts/*), Bash(Scripts/*), Bash(cat *), Bas
 Finalize this release end-to-end for **psproject** (Fin). Follow the project conventions in `CLAUDE.md` — there is no README.md / CHANGELOG.md at the repo root; release notes live in `Documentation/`.
 
 1. **Update documentation** — Review the commits listed above and update:
-   - `Documentation/PROJECT_STRUCTURE.md` — any changed routes, API endpoints, DB tables, scripts, or architecture.
-   - `Documentation/NEXT_STEPS.md` — mark completed CRs/items as done, add a "Released vX.Y.Z (YYYY-MM-DD)" entry summarising what shipped, and capture any new known issues discovered.
-   - `Documentation/CRs/` — update the status header/body of any CR that was completed or advanced; if the release warrants a new CR (substantive feature, multi-session work, architectural impact), create the next-numbered file and add a row to `CR_INDEX.md`. Trivial fixes stay as bullets in `NEXT_STEPS.md`.
+   - `Documentation/FC_PROJECT_STRUCTURE.md` — any changed routes, API endpoints, DB tables, scripts, or architecture.
+   - `Documentation/FC_NEXT_STEPS.md` — mark completed CRs/items as done, add a "Released vX.Y.Z (YYYY-MM-DD)" entry summarising what shipped, and capture any new known issues discovered.
+   - `Documentation/CRs/` — update the status header/body of any CR that was completed or advanced; if the release warrants a new CR (substantive feature, multi-session work, architectural impact), create the next-numbered file and add a row to `CR_INDEX.md`. Trivial fixes stay as bullets in `FC_NEXT_STEPS.md`.
 
 2. **Bump version** — Decide patch/minor/major from the diff (semver). Run:
    - `./Scripts/bump-version.sh patch` (or `minor` / `major` / explicit `X.Y.Z`).

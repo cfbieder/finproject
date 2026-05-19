@@ -1,4 +1,4 @@
-**Status:** COMPLETED — [Plan](../NEXT_STEPS.md#cr010)
+**Status:** COMPLETED — [Plan](../FC_NEXT_STEPS.md#cr010)
 
 # CR010 — COA Management Redesign + Move Feature
 

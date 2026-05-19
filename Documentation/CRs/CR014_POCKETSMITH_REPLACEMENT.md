@@ -1,4 +1,4 @@
-**Status:** OPEN — [Plan](../NEXT_STEPS.md#cr014)
+**Status:** OPEN — [Plan](../FC_NEXT_STEPS.md#cr014)
 
 # CR014 — PocketSmith Replacement
 

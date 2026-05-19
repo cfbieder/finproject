@@ -1,4 +1,4 @@
-**Status:** COMPLETED — [Plan](../NEXT_STEPS.md#cr013)
+**Status:** COMPLETED — [Plan](../FC_NEXT_STEPS.md#cr013)
 
 # CR013 — Collapse `categories` Table into `accounts`
 

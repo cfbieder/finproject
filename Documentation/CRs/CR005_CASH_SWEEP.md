@@ -1,4 +1,4 @@
-**Status:** COMPLETED — [Plan](../NEXT_STEPS.md#cr005)
+**Status:** COMPLETED — [Plan](../FC_NEXT_STEPS.md#cr005)
 
 # CR005 — Cash Sweep & Auto-Balance
 

@@ -1,4 +1,4 @@
-**Status:** OPEN — [Plan](../NEXT_STEPS.md#cr015)
+**Status:** OPEN — [Plan](../FC_NEXT_STEPS.md#cr015)
 
 # CR015 — Re-export Changes Back to PocketSmith
 

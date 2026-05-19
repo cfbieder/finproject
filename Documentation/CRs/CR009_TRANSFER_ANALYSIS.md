@@ -1,4 +1,4 @@
-**Status:** COMPLETED — [Plan](../NEXT_STEPS.md#cr009)
+**Status:** COMPLETED — [Plan](../FC_NEXT_STEPS.md#cr009)
 
 # CR009 — Transfer Analysis + Manual Match Groups + transfer_matched Flag
 

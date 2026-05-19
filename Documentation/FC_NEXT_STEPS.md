@@ -1,6 +1,6 @@
-# Development Plan (NEXT_STEPS.md)
+# Development Plan (FC_NEXT_STEPS.md)
 
-Living plan for the Fin project — open Change Requests, known issues, ongoing improvement themes, and a chronological history. Companion to [PROJECT_STRUCTURE.md](PROJECT_STRUCTURE.md), which describes the *current* state of the project.
+Living plan for the Fin project — open Change Requests, known issues, ongoing improvement themes, and a chronological history. Companion to [FC_PROJECT_STRUCTURE.md](FC_PROJECT_STRUCTURE.md), which describes the *current* state of the project.
 
 For the full CR list with one-line descriptions, see [CRs/CR_INDEX.md](CRs/CR_INDEX.md).
 
@@ -188,7 +188,7 @@ Phased plan:
 
 ## 7. Migration History
 
-Chronological log of substantive infrastructure / behavioural changes. Smaller user-facing features are documented in the relevant CR file or PROJECT_STRUCTURE.md.
+Chronological log of substantive infrastructure / behavioural changes. Smaller user-facing features are documented in the relevant CR file or FC_PROJECT_STRUCTURE.md.
 
 | Date | Event |
 |------|-------|
