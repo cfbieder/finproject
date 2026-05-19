@@ -194,6 +194,7 @@ export default function PeriodSelector({
   toMonth: toMonthProp,
   actualYear: actualYearProp,
   budgetYear: budgetYearProp,
+  toYear: toYearProp,
   onChange,
   monthOptions = DEFAULT_MONTH_OPTIONS,
   yearOptions = DEFAULT_YEAR_OPTIONS,
@@ -202,6 +203,7 @@ export default function PeriodSelector({
   className = "",
   defaultPreset = "custom",
   hideBudgetYear = false,
+  enableYearRange = false,
 }) {
   // ── Internal state (uncontrolled fallbacks) ──
   const [preset, setPreset] = useState(defaultPreset);
@@ -217,12 +219,16 @@ export default function PeriodSelector({
   const [budgetYearState, setBudgetYearState] = useState(
     budgetYearOptions[2] ?? CURRENT_YEAR
   );
+  const [toYearState, setToYearState] = useState(
+    yearOptions[0] ?? CURRENT_YEAR
+  );
 
   // ── Resolve controlled vs uncontrolled ──
   const fromMonth = fromMonthProp ?? fromMonthState;
   const toMonth = toMonthProp ?? toMonthState;
   const actualYear = actualYearProp ?? actualYearState;
   const budgetYear = budgetYearProp ?? budgetYearState;
+  const toYear = toYearProp ?? toYearState;
 
   // ── Summary text (for non-custom presets) ──
   const summaryText = useMemo(
@@ -243,17 +249,30 @@ export default function PeriodSelector({
       if (toMonthProp === undefined) setToMonthState(values.toMonth);
       if (actualYearProp === undefined) setActualYearState(values.actualYear);
       if (budgetYearProp === undefined) setBudgetYearState(values.budgetYear);
+      if (enableYearRange && toYearProp === undefined) {
+        setToYearState(values.actualYear);
+      }
 
-      onChange?.({ ...values, preset: presetId });
+      const payload = { ...values, preset: presetId };
+      if (enableYearRange) payload.toYear = values.actualYear;
+      onChange?.(payload);
     },
-    [fromMonthProp, toMonthProp, actualYearProp, budgetYearProp, onChange]
+    [
+      fromMonthProp,
+      toMonthProp,
+      actualYearProp,
+      budgetYearProp,
+      toYearProp,
+      enableYearRange,
+      onChange,
+    ]
   );
 
   // ── Manual field change (Custom mode) ──
   const handleManualChange = useCallback(
     (field, rawValue) => {
       const value =
-        field === "actualYear" || field === "budgetYear"
+        field === "actualYear" || field === "budgetYear" || field === "toYear"
           ? Number(rawValue)
           : rawValue;
 
@@ -263,18 +282,21 @@ export default function PeriodSelector({
         toMonth: setToMonthState,
         actualYear: setActualYearState,
         budgetYear: setBudgetYearState,
+        toYear: setToYearState,
       };
       const props = {
         fromMonth: fromMonthProp,
         toMonth: toMonthProp,
         actualYear: actualYearProp,
         budgetYear: budgetYearProp,
+        toYear: toYearProp,
       };
       if (props[field] === undefined) {
         setters[field](value);
       }
 
       const current = { fromMonth, toMonth, actualYear, budgetYear };
+      if (enableYearRange) current.toYear = toYear;
       onChange?.({ ...current, [field]: value, preset: "custom" });
     },
     [
@@ -282,10 +304,13 @@ export default function PeriodSelector({
       toMonth,
       actualYear,
       budgetYear,
+      toYear,
       fromMonthProp,
       toMonthProp,
       actualYearProp,
       budgetYearProp,
+      toYearProp,
+      enableYearRange,
       onChange,
     ]
   );
@@ -364,7 +389,7 @@ export default function PeriodSelector({
               htmlFor={`${id}-actual-year`}
               className="period-selector__label"
             >
-              Actual Year
+              {enableYearRange ? "Year (from)" : "Actual Year"}
             </label>
             <select
               id={`${id}-actual-year`}
@@ -379,6 +404,29 @@ export default function PeriodSelector({
               ))}
             </select>
           </div>
+
+          {enableYearRange && (
+            <div className="period-selector__field">
+              <label
+                htmlFor={`${id}-to-year`}
+                className="period-selector__label"
+              >
+                Year (to)
+              </label>
+              <select
+                id={`${id}-to-year`}
+                className="period-selector__select"
+                value={toYear}
+                onChange={(e) => handleManualChange("toYear", e.target.value)}
+              >
+                {yearOptions.map((y) => (
+                  <option key={`to-year-${y}`} value={y}>
+                    {y}
+                  </option>
+                ))}
+              </select>
+            </div>
+          )}
 
           {!hideBudgetYear && (
             <div className="period-selector__field">

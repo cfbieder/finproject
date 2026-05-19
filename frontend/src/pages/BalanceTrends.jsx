@@ -18,14 +18,76 @@ const getMonthEndIso = (year, monthIdx) => {
   return `${d.getUTCFullYear()}-${pad2(d.getUTCMonth() + 1)}-${pad2(d.getUTCDate())}`;
 };
 
-const buildMonthEndSeries = (year, fromMonthStr, toMonthStr) => {
+const getTodayIso = () => {
+  const d = new Date();
+  return `${d.getFullYear()}-${pad2(d.getMonth() + 1)}-${pad2(d.getDate())}`;
+};
+
+const INTERVALS = [
+  { key: "month", label: "Month" },
+  { key: "quarter", label: "Quarter" },
+  { key: "year", label: "Year" },
+];
+
+const PARTIAL_SUFFIX = { month: "MTD", quarter: "QTD", year: "YTD" };
+
+// Quarter-end months are Mar (2), Jun (5), Sep (8), Dec (11).
+const isQuarterEnd = (monthIdx) => monthIdx === 2 || monthIdx === 5 || monthIdx === 8 || monthIdx === 11;
+
+// First day of the period that ends on `endIso`, for the given interval.
+const getPeriodStartIso = (endIso, interval) => {
+  const d = new Date(`${endIso}T00:00:00Z`);
+  if (Number.isNaN(d.getTime())) return endIso;
+  const y = d.getUTCFullYear();
+  const m = d.getUTCMonth();
+  if (interval === "year") return `${y}-01-01`;
+  if (interval === "quarter") {
+    const qStartMonth = Math.floor(m / 3) * 3;
+    return `${y}-${pad2(qStartMonth + 1)}-01`;
+  }
+  return `${y}-${pad2(m + 1)}-01`;
+};
+
+const buildEndDateSeries = (fromYear, fromMonthStr, toYear, toMonthStr, interval) => {
   const fromIdx = Math.max(0, Math.min(11, Number(fromMonthStr) - 1));
-  const toIdx = Math.max(fromIdx, Math.min(11, Number(toMonthStr) - 1));
+  const toIdx = Math.max(0, Math.min(11, Number(toMonthStr) - 1));
+  const fromAbs = Number(fromYear) * 12 + fromIdx;
+  const toAbs = Number(toYear) * 12 + toIdx;
+  if (!Number.isFinite(fromAbs) || !Number.isFinite(toAbs) || toAbs < fromAbs) return [];
   const series = [];
-  for (let m = fromIdx; m <= toIdx; m += 1) {
-    series.push(getMonthEndIso(year, m));
+  for (let abs = fromAbs; abs <= toAbs; abs += 1) {
+    const y = Math.floor(abs / 12);
+    const m = abs % 12;
+    if (interval === "quarter" && !isQuarterEnd(m)) continue;
+    if (interval === "year" && m !== 11) continue;
+    series.push(getMonthEndIso(y, m));
   }
   return series;
+};
+
+/**
+ * Drop columns whose period is entirely in the future; for a column whose
+ * period has started but whose end-date is still in the future, fetch the
+ * snapshot as of today instead of the period end.
+ *
+ * Returns [{ label, asOf, isPartial }] where `label` is the original period
+ * end-date (used for the column header) and `asOf` is the date passed to
+ * the balance endpoint.
+ */
+const planColumns = (endDates, interval, todayIso) => {
+  const planned = [];
+  for (const endIso of endDates) {
+    if (endIso <= todayIso) {
+      planned.push({ label: endIso, asOf: endIso, isPartial: false });
+      continue;
+    }
+    const startIso = getPeriodStartIso(endIso, interval);
+    if (startIso <= todayIso) {
+      planned.push({ label: endIso, asOf: todayIso, isPartial: true });
+    }
+    break;
+  }
+  return planned;
 };
 
 const flattenBalanceLeaves = (nodes, out = new Map()) => {
@@ -53,11 +115,22 @@ const usdFormatter = new Intl.NumberFormat("en-US", {
 
 const formatUSD = (v) => usdFormatter.format(Number.isFinite(v) ? v : 0);
 
-const formatMonthHeader = (iso) => {
+const formatColumnHeader = (iso, interval, isPartial) => {
   if (!iso) return "";
   const d = new Date(`${iso}T00:00:00Z`);
   if (Number.isNaN(d.getTime())) return iso;
-  return d.toLocaleString("en-US", { month: "short", year: "2-digit", timeZone: "UTC" });
+  const year = d.getUTCFullYear();
+  const monthIdx = d.getUTCMonth();
+  let base;
+  if (interval === "year") {
+    base = String(year);
+  } else if (interval === "quarter") {
+    const q = Math.floor(monthIdx / 3) + 1;
+    base = `Q${q} ${String(year).slice(-2)}`;
+  } else {
+    base = d.toLocaleString("en-US", { month: "short", year: "2-digit", timeZone: "UTC" });
+  }
+  return isPartial ? `${base} (${PARTIAL_SUFFIX[interval] ?? "PTD"})` : base;
 };
 
 export default function BalanceTrends() {
@@ -67,10 +140,12 @@ export default function BalanceTrends() {
   const [fromMonth, setFromMonth] = useState("01");
   const [toMonth, setToMonth] = useState("12");
   const [actualYear, setActualYear] = useState(CURRENT_YEAR);
+  const [toYear, setToYear] = useState(CURRENT_YEAR);
 
+  const [intervalKey, setIntervalKey] = useState("month");
   const [selectedAccounts, setSelectedAccounts] = useState([]);
-  const [monthEnds, setMonthEnds] = useState([]);
-  const [reportsByMonth, setReportsByMonth] = useState({});
+  const [columns, setColumns] = useState([]); // [{ label, asOf, isPartial }]
+  const [reportsByLabel, setReportsByLabel] = useState({});
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState("");
 
@@ -94,31 +169,39 @@ export default function BalanceTrends() {
     if (next.fromMonth !== undefined) setFromMonth(next.fromMonth);
     if (next.toMonth !== undefined) setToMonth(next.toMonth);
     if (next.actualYear !== undefined) setActualYear(Number(next.actualYear));
+    if (next.toYear !== undefined) setToYear(Number(next.toYear));
   }, []);
 
   const handleGenerate = useCallback(async () => {
     setError("");
     setIsLoading(true);
     try {
-      const series = buildMonthEndSeries(actualYear, fromMonth, toMonth);
-      const reports = await Promise.all(
-        series.map((date) => Rest.fetchBalanceReport(date))
+      const rawSeries = buildEndDateSeries(
+        actualYear,
+        fromMonth,
+        toYear,
+        toMonth,
+        intervalKey
       );
-      const nextByMonth = {};
-      series.forEach((date, idx) => {
-        nextByMonth[date] = flattenBalanceLeaves(reports[idx]);
+      const planned = planColumns(rawSeries, intervalKey, getTodayIso());
+      const reports = await Promise.all(
+        planned.map(({ asOf }) => Rest.fetchBalanceReport(asOf))
+      );
+      const nextByLabel = {};
+      planned.forEach(({ label }, idx) => {
+        nextByLabel[label] = flattenBalanceLeaves(reports[idx]);
       });
-      setMonthEnds(series);
-      setReportsByMonth(nextByMonth);
+      setColumns(planned);
+      setReportsByLabel(nextByLabel);
     } catch (err) {
       console.error("[BalanceTrends] generate failed:", err);
       setError(err?.message ?? "Failed to fetch balance trends");
-      setMonthEnds([]);
-      setReportsByMonth({});
+      setColumns([]);
+      setReportsByLabel({});
     } finally {
       setIsLoading(false);
     }
-  }, [actualYear, fromMonth, toMonth]);
+  }, [actualYear, fromMonth, toYear, toMonth, intervalKey]);
 
   // Auto-generate once when the page mounts (matches Balance/CashFlow behavior).
   useEffect(() => {
@@ -127,16 +210,16 @@ export default function BalanceTrends() {
   }, []);
 
   const rows = useMemo(() => {
-    if (!selectedAccounts.length || !monthEnds.length) return [];
+    if (!selectedAccounts.length || !columns.length) return [];
     return selectedAccounts.map((name) => {
-      const values = monthEnds.map((date) => {
-        const entry = reportsByMonth[date]?.get(name);
+      const values = columns.map(({ label }) => {
+        const entry = reportsByLabel[label]?.get(name);
         return entry ? entry.balanceInUSD : 0;
       });
       // Pick the most recent currency we saw for this account
       let currency = null;
-      for (let i = monthEnds.length - 1; i >= 0; i -= 1) {
-        const entry = reportsByMonth[monthEnds[i]]?.get(name);
+      for (let i = columns.length - 1; i >= 0; i -= 1) {
+        const entry = reportsByLabel[columns[i].label]?.get(name);
         if (entry?.currency) {
           currency = entry.currency;
           break;
@@ -144,27 +227,29 @@ export default function BalanceTrends() {
       }
       return { name, currency, values };
     });
-  }, [selectedAccounts, monthEnds, reportsByMonth]);
+  }, [selectedAccounts, columns, reportsByLabel]);
 
   const totals = useMemo(() => {
     if (!rows.length) return [];
-    return monthEnds.map((_, colIdx) =>
+    return columns.map((_, colIdx) =>
       rows.reduce((sum, row) => sum + (row.values[colIdx] || 0), 0)
     );
-  }, [rows, monthEnds]);
+  }, [rows, columns]);
 
-  const hasTable = rows.length > 0 && monthEnds.length > 0;
+  const hasTable = rows.length > 0 && columns.length > 0;
 
   const handleExport = useCallback(() => {
     if (!hasTable) return;
-    const header = ["Account", "Currency", ...monthEnds];
-    const data = [header];
+    const headers = columns.map(({ label, isPartial }) =>
+      `${label}${isPartial ? ` (${PARTIAL_SUFFIX[intervalKey] ?? "PTD"})` : ""}`
+    );
+    const data = [["Account", "Currency", ...headers]];
     for (const row of rows) {
       data.push([row.name, row.currency ?? "", ...row.values.map((v) => Math.round(v * 100) / 100)]);
     }
     data.push(["Total (selected, USD)", "", ...totals.map((v) => Math.round(v * 100) / 100)]);
     const ws = XLSX.utils.aoa_to_sheet(data);
-    ws["!cols"] = header.map((_, i) => (i === 0 ? { wch: 36 } : { wch: 14 }));
+    ws["!cols"] = [{ wch: 36 }, { wch: 8 }, ...headers.map(() => ({ wch: 14 }))];
     const wb = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(wb, ws, "Balance Trends");
     const buffer = XLSX.write(wb, { bookType: "xlsx", type: "array" });
@@ -174,12 +259,12 @@ export default function BalanceTrends() {
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a");
     a.href = url;
-    a.download = `balance-trends-${actualYear}-${fromMonth}-${toMonth}.xlsx`;
+    a.download = `balance-trends-${actualYear}${fromMonth}-${toYear}${toMonth}-${intervalKey}.xlsx`;
     document.body.appendChild(a);
     a.click();
     a.remove();
     URL.revokeObjectURL(url);
-  }, [hasTable, monthEnds, rows, totals, actualYear, fromMonth, toMonth]);
+  }, [hasTable, columns, rows, totals, actualYear, fromMonth, toYear, toMonth, intervalKey]);
 
   return (
     <main className="page-main balance-grid balance-grid--single">
@@ -215,9 +300,30 @@ export default function BalanceTrends() {
             fromMonth={fromMonth}
             toMonth={toMonth}
             actualYear={actualYear}
+            toYear={toYear}
             defaultPreset="this-year"
             hideBudgetYear
+            enableYearRange
           />
+          <div className="balance-trends-toolbar__interval">
+            <span className="balance-trends-toolbar__interval-label">Interval</span>
+            <div className="balance-trends-toolbar__interval-pills" role="radiogroup" aria-label="Interval">
+              {INTERVALS.map((opt) => (
+                <button
+                  key={opt.key}
+                  type="button"
+                  role="radio"
+                  aria-checked={intervalKey === opt.key}
+                  className={`balance-trends-toolbar__interval-pill${
+                    intervalKey === opt.key ? " is-active" : ""
+                  }`}
+                  onClick={() => setIntervalKey(opt.key)}
+                >
+                  {opt.label}
+                </button>
+              ))}
+            </div>
+          </div>
           <div className="balance-trends-toolbar__actions">
             <button
               type="button"
@@ -251,9 +357,13 @@ export default function BalanceTrends() {
                     Account
                   </th>
                   <th className="balance-trends-table__th-currency">Curr</th>
-                  {monthEnds.map((date) => (
-                    <th key={date} className="balance-trends-table__th-month" title={date}>
-                      {formatMonthHeader(date)}
+                  {columns.map((col) => (
+                    <th
+                      key={col.label}
+                      className={`balance-trends-table__th-month${col.isPartial ? " is-partial" : ""}`}
+                      title={col.isPartial ? `As of ${col.asOf}` : col.label}
+                    >
+                      {formatColumnHeader(col.label, intervalKey, col.isPartial)}
                     </th>
                   ))}
                 </tr>
@@ -267,7 +377,7 @@ export default function BalanceTrends() {
                     </td>
                     {row.values.map((v, idx) => (
                       <td
-                        key={monthEnds[idx]}
+                        key={columns[idx].label}
                         className={`balance-trends-table__td-value${v < 0 ? " is-negative" : ""}`}
                       >
                         {formatUSD(v)}
@@ -284,7 +394,7 @@ export default function BalanceTrends() {
                   <td className="balance-trends-table__td-currency is-total">USD</td>
                   {totals.map((v, idx) => (
                     <td
-                      key={monthEnds[idx]}
+                      key={columns[idx].label}
                       className={`balance-trends-table__td-value is-total${v < 0 ? " is-negative" : ""}`}
                     >
                       {formatUSD(v)}
@@ -295,9 +405,9 @@ export default function BalanceTrends() {
             </table>
           ) : (
             <div className="balance-trends-empty">
-              {monthEnds.length === 0
-                ? "Choose a period and click Generate to load month-end balances."
-                : "Select one or more accounts above to see their month-end balance trend."}
+              {columns.length === 0
+                ? "Choose a period and click Generate to load balances."
+                : "Select one or more accounts above to see their balance trend."}
             </div>
           )}
         </div>

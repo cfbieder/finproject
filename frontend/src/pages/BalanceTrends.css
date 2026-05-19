@@ -40,6 +40,55 @@
   margin: 0;
 }
 
+.balance-trends-toolbar__interval {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  flex-wrap: wrap;
+  margin-top: 0.25rem;
+}
+
+.balance-trends-toolbar__interval-label {
+  font-size: 0.75rem;
+  text-transform: uppercase;
+  letter-spacing: 0.08rem;
+  color: var(--muted);
+  font-weight: 700;
+}
+
+.balance-trends-toolbar__interval-pills {
+  display: inline-flex;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  overflow: hidden;
+  background: var(--surface-muted);
+}
+
+.balance-trends-toolbar__interval-pill {
+  padding: 0.4rem 0.95rem;
+  background: transparent;
+  border: none;
+  font-size: 0.9rem;
+  font-weight: 600;
+  color: var(--muted);
+  cursor: pointer;
+  transition: background 0.15s ease, color 0.15s ease;
+}
+
+.balance-trends-toolbar__interval-pill:hover {
+  background: rgba(107, 142, 107, 0.08);
+  color: var(--ink);
+}
+
+.balance-trends-toolbar__interval-pill.is-active {
+  background: var(--primary, #6b8e6b);
+  color: #fff;
+}
+
+.balance-trends-toolbar__interval-pill:not(:last-child) {
+  border-right: 1px solid var(--border);
+}
+
 .balance-trends-toolbar__actions {
   display: flex;
   gap: 0.75rem;
@@ -131,6 +180,10 @@
   left: 0;
   z-index: 3;
   min-width: 14rem;
+}
+
+.balance-trends-table thead th.balance-trends-table__th-month.is-partial {
+  color: var(--primary, #6b8e6b);
 }
 
 .balance-trends-table tbody td {
