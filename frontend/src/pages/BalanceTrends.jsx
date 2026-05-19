@@ -203,11 +203,14 @@ export default function BalanceTrends() {
     }
   }, [actualYear, fromMonth, toYear, toMonth, intervalKey]);
 
-  // Auto-generate once when the page mounts (matches Balance/CashFlow behavior).
+  // Auto-generate on mount and whenever the interval changes — the column
+  // shape (count + headers) depends on it, so re-running keeps the table in
+  // sync without the user having to click Generate just for an interval flip.
+  // Year / month dropdowns still require an explicit Generate click.
   useEffect(() => {
     handleGenerate();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [intervalKey]);
 
   const rows = useMemo(() => {
     if (!selectedAccounts.length || !columns.length) return [];

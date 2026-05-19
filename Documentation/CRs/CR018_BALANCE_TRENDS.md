@@ -77,3 +77,4 @@ New report at `/balance-trends` (Reports & Graphs > Reports) showing month-end U
 
 - **2026-05-19 v2.7.15** — Initial release: month-end table, single-period selector.
 - **2026-05-19 v2.7.16** — Added Year (to) dropdown via `PeriodSelector.enableYearRange`, Interval selector (Month default / Quarter / Year), and future-period filtering (current period clipped to today with `(MTD)`/`(QTD)`/`(YTD)` suffix).
+- **2026-05-19 v2.7.17** — Switching the Interval pill auto-runs Generate so the column shape stays in sync; year/month dropdowns still require an explicit Generate click.
