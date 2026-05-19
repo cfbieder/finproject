@@ -37,6 +37,7 @@ import Home from "../pages/Home";
 const BackupDatabase = lazy(() => import("../pages/BackupDatabase"));
 const Balance = lazy(() => import("../pages/BalanceV2"));
 const BalanceChart = lazy(() => import("../pages/BalanceChart"));
+const BalanceTrends = lazy(() => import("../pages/BalanceTrends"));
 const BudgetInput = lazy(() => import("../pages/BudgetWorksheetV2"));
 const BudgetRealization = lazy(() => import("../pages/BudgetRealization"));
 const BudgetRealizationGraph = lazy(() => import("../pages/BudgetRealizationGraph"));
@@ -272,6 +273,15 @@ export const routes = [
     subcategory: "Reports",
     description: "Balance sheet at specific dates with multi-period comparison",
     icon: Wallet,
+  },
+  {
+    path: "/balance-trends",
+    component: BalanceTrends,
+    label: "Balance Trends",
+    category: "Reports & Graphs",
+    subcategory: "Reports",
+    description: "Month-end USD balances of selected accounts over a period",
+    icon: TrendingUp,
   },
   {
     path: "/cash-flow",
