@@ -25,9 +25,19 @@ Naming: Jest convention `*.test.js`. Test files are colocated with the modules u
 
 Naming convention for new smoke scripts: `server/src/scripts/smoke-<topic>.js`. Run them ad hoc — they're not part of `npm test`.
 
-### Frontend tests
+### Frontend Vitest tests — `cd frontend && npm test`
 
-None today. Closing this gap is tracked in [CR016 — Frontend Test Framework](../CRs/CR016_FRONTEND_TEST_FRAMEWORK.md).
+96 tests across 5 files. Pure-function helpers tested in `jsdom`; no network, no real DB. Established under [CR016 — Frontend Test Framework](../CRs/CR016_FRONTEND_TEST_FRAMEWORK.md) (closed 2026-05-20).
+
+| File | Coverage |
+|------|----------|
+| `frontend/src/utils/__tests__/dateHelpers.test.js` | 21 tests covering all 10 exports of `dateHelpers.js` (timezone-safe formatting, leap-year month-end, `parseMonthYear` ↔ `buildDateFromMonthYear` round-trip, year/month range generators). |
+| `frontend/src/utils/__tests__/formatters.test.js` | 25 tests covering all 7 exports of `formatters.js` (accountant-style `formatCurrency`, `formatPercentage` vs `formatRate` distinction, `formatFxRate`, thousands separators, compact K/M/B notation, `parseCurrency` round-trip with `formatCurrency`). |
+| `frontend/src/utils/__tests__/treeTraversal.test.js` | 17 tests covering all 4 exports of `treeTraversal.js` (`collectCollapsiblePaths` path joining with `>`, `buildAccountValueMap` with custom valueKey, `collectLeafNames` leaf flattening, `findNodeByPath` multi-segment lookup). |
+| `frontend/src/utils/__tests__/forecastHelpers.test.js` | 20 tests covering all 4 exports of `forecastHelpers.js` — `parseLevelAccounts` (both tree `{name, children}` and legacy `[{Income: [{Salary: [...]}]}]` formats), `aggregateForecastEntries` level1/2/3 rollup with string-coercion, `calculateNetCashFlow`, `formatTableCell` negative-paren + `--negative` modifier. |
+| `frontend/src/utils/__tests__/cashFlowHelpers.test.js` | 13 tests covering all 2 exports of `cashFlowHelpers.js` — `addNetCashFlowCategory` (case-insensitive Income/Expense(s), idempotent re-append, missing-bucket → 0), `buildCashFlowValueMap` (deep path traversal, nullish-node skipping). |
+
+Naming: Vitest convention `*.test.{js,jsx}` under `__tests__/`. `npm run test:watch` for watch mode.
 
 ## Manual QA
 
@@ -45,13 +55,14 @@ A checklist should include:
 |------|-------|
 | Pure backend logic (engine, calculations) | `server/src/<module>/__tests__/<module>.test.js` (Jest). |
 | Backend route + DB integration | Add to `smoke-after-021.js` or a new `smoke-<topic>.js` script. Don't try to mock Postgres. |
-| Frontend helper / hook | Once Vitest lands (CR016), `frontend/src/<path>/__tests__/<thing>.test.js`. |
+| Frontend helper / hook | `frontend/src/<path>/__tests__/<thing>.test.js` (Vitest, jsdom). |
 | Manual UI verification | `Documentation/Testing/TEST_MANUAL_<feature>.md`. |
 
 ## Running everything before a release
 
 ```bash
 cd server && npm test                          # Jest unit/route tests
+cd frontend && npm test                        # Vitest helper tests
 node server/src/scripts/smoke-after-021.js     # HTTP smoke against live server
 ```
 

@@ -18,13 +18,14 @@ Each CR is a self-contained markdown file under [CRs/](CRs/). The first line of 
 <a id="cr015"></a>
 - **CR015 — [Re-export Changes Back to PocketSmith](CRs/CR015_PS_REEXPORT.md)** — *OPEN*. One-way push of local edits (category, description, date) back to PocketSmith. May be obsoleted by CR014.
 
-<a id="cr016"></a>
-- **CR016 — [Frontend Test Framework (Vitest)](CRs/CR016_FRONTEND_TEST_FRAMEWORK.md)** — *OPEN*. Unit tests for frontend forecast helpers and shared utilities. Closes the largest current test gap.
 
 <a id="cr017"></a>
 - **CR017 — [Cash Sweep Phase C — Multi-Module Priority Sweep](CRs/CR017_CASH_SWEEP_PHASE_C.md)** — *OPEN*. Withdraw from multiple modules in priority order on shortfall; extends CR005.
 
 ### 1.2 Completed (chronological, latest first)
+
+<a id="cr016"></a>
+- **CR016 — [Frontend Test Framework (Vitest)](CRs/CR016_FRONTEND_TEST_FRAMEWORK.md)** — *COMPLETED 2026-05-20*. Vitest + `jsdom` scaffolded; 96 tests across 5 helper modules (`dateHelpers`, `formatters`, `treeTraversal`, `forecastHelpers`, `cashFlowHelpers`); `npm test` exits non-zero on failure. Component/hook tests + Playwright E2E deferred to future CRs.
 
 <a id="cr013"></a>
 - **CR013 — [Collapse `categories` Table into `accounts`](CRs/CR013_COLLAPSE_CATEGORIES.md)** — *COMPLETED 2026-04-28*. Migration 021. Single COA source of truth; FK columns repointed; legacy table dropped.
@@ -85,7 +86,7 @@ Small fixes, refactors, and one-off cleanups that don't warrant their own CR fil
 
 ## 3. Known Issues
 
-1. **Test coverage:** 73 backend Jest tests + 17 HTTP smoke checks. **Frontend has zero coverage** — see [CR016](#cr016). Run: `cd server && npm test`. Smoke: `node server/src/scripts/smoke-after-021.js`. Full test layout: [Testing/TEST_OVERVIEW.md](Testing/TEST_OVERVIEW.md).
+1. **Test coverage:** 73 backend Jest tests + 17 HTTP smoke checks + 96 frontend Vitest tests across 5 helper modules ([CR016](#cr016) complete; component / hook tests + Playwright E2E deferred to future CRs). Run backend: `cd server && npm test`. Frontend: `cd frontend && npm test`. Smoke: `node server/src/scripts/smoke-after-021.js`. Full test layout: [Testing/TEST_OVERVIEW.md](Testing/TEST_OVERVIEW.md).
 2. **Cloud-init ISO** still attached to the VM as a CD-ROM. Harmless but can be ejected:
    ```bash
    virsh --connect qemu:///system change-media fin sda --eject
@@ -181,7 +182,7 @@ Phased plan:
 
 - **Phase 1 — Backend unit tests (Jest, in place):** Forecast engine, route handlers with mocked repos. 73 tests today.
 - **Phase 2 — HTTP smoke tests (in place):** `smoke-after-021.js` covers all SQL JOINs rewritten by migration 021. Add new smoke scripts for major schema changes.
-- **Phase 3 — Frontend unit tests (Vitest, [CR016](#cr016)):** Helpers and hooks. Skip component-level tests.
+- **Phase 3 — Frontend unit tests (Vitest, [CR016](#cr016)):** Helpers covered. *Complete 2026-05-20: 96 tests across 5 helper modules (`dateHelpers`, `formatters`, `treeTraversal`, `forecastHelpers`, `cashFlowHelpers`). Hook tests deferred to a future CR (need React Testing Library + Context mocking).*
 - **Phase 4 — E2E (Playwright, future):** Critical flows — PocketSmith sync + accept, budget entry, forecast module creation.
 
 ---
@@ -192,6 +193,7 @@ Chronological log of substantive infrastructure / behavioural changes. Smaller u
 
 | Date | Event |
 |------|-------|
+| 2026-05-20 | **CR016 closed — Frontend test framework (Vitest) complete.** Final state: 96 tests across 5 helper modules in `frontend/src/utils/__tests__/` — `dateHelpers` (21), `formatters` (25), `treeTraversal` (17), `forecastHelpers` (20), `cashFlowHelpers` (13). Infrastructure: `vitest@^2.1.9` + `jsdom@^25` in devDeps; `npm test` / `npm run test:watch` scripts; standalone `vitest.config.js` (jsdom env, mirrors Vite path aliases); exits non-zero on failure. Deterministic via `vi.useFakeTimers()` where time-sensitive; no network, no real DB. Component/hook tests and Playwright E2E deferred to future CRs. |
 | 2026-05-19 | **Balance Trends — auto-regenerate on interval change** ([CR018](#cr018)). Switching the Month/Quarter/Year pill now re-runs `handleGenerate` automatically so the column count + headers stay in sync with the selected interval (previously the table kept the prior interval's columns until the user clicked Generate). Year/month dropdowns still require an explicit Generate. |
 | 2026-05-19 | **Balance Trends — year range + Interval (Month/Quarter/Year) + future-period filter** ([CR018](#cr018)). `PeriodSelector` extended with an opt-in `enableYearRange` prop that adds a Year (to) dropdown alongside Year (from) in Custom mode (no behavior change for other pages). Interval pill bar (Month default / Quarter / Year) controls column granularity. Columns whose period start is in the future are dropped; the current period is included with snapshot as-of today and its header gains an `(MTD)`/`(QTD)`/`(YTD)` suffix in primary color. Page state renamed (`monthEnds` → `columns: [{label, asOf, isPartial}]`) to model the partial-period case cleanly; `interval` state renamed to `intervalKey` to avoid shadowing the global `setInterval`. |
 | 2026-05-19 | **Released v2.7.15** — Balance Trends report at `/balance-trends` (Reports & Graphs > Reports, [CR018](#cr018)). Month-end USD balances across the selected period for one or more BS accounts. Reuses `HierarchyFilter` (BS COA groups, right-click solo-select) + single-period `PeriodSelector` (no Transfers/Unrealized, budget year hidden). Table renders accounts × month-ends with a Total (selected, USD) footer row; Excel export. Reuses `Rest.fetchBalanceReport(asOfDate)` once per month-end (parallel) and flattens each tree to a leaf map. |
@@ -259,4 +261,4 @@ Chronological log of substantive infrastructure / behavioural changes. Smaller u
 
 ---
 
-*Last updated: 2026-04-28*
+*Last updated: 2026-05-20*

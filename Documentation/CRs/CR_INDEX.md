@@ -21,6 +21,6 @@ Each CR file's first line carries its status and links back to the matching anch
 | [CR013](CR013_COLLAPSE_CATEGORIES.md) | COMPLETED | Collapse `categories` Table into `accounts` | Single COA source of truth; FK columns repointed; legacy table dropped (migration 021). |
 | [CR014](CR014_POCKETSMITH_REPLACEMENT.md) | OPEN | PocketSmith Replacement | Evaluate alternatives to PocketSmith for bank transaction aggregation. |
 | [CR015](CR015_PS_REEXPORT.md) | OPEN | Re-export Changes Back to PocketSmith | One-way push of local edits to PocketSmith. |
-| [CR016](CR016_FRONTEND_TEST_FRAMEWORK.md) | OPEN | Frontend Test Framework (Vitest) | Add unit tests for frontend helpers; close the largest test gap. |
+| [CR016](CR016_FRONTEND_TEST_FRAMEWORK.md) | COMPLETED | Frontend Test Framework (Vitest) | Vitest + 96 unit tests across 5 helper modules; closes the largest backend/frontend test gap. |
 | [CR017](CR017_CASH_SWEEP_PHASE_C.md) | OPEN | Cash Sweep Phase C — Multi-Module Priority | Withdraw from multiple modules in priority order on shortfall. |
 | [CR018](CR018_BALANCE_TRENDS.md) | COMPLETED | Balance Trends Report | `/balance-trends` shows month-end USD balances for selected BS accounts over a chosen period; reuses `HierarchyFilter` + `PeriodSelector`. |
