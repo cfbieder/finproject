@@ -120,12 +120,14 @@ async function syncStagingToTransactions() {
   const unmappedCategories = unmappedCatResult.rows.map(r => r.category_name);
 
   // Count records that will be skipped (missing required fields or unmapped account)
+  // NULL amounts are coerced to 0 below (legitimate $0 events like expired options),
+  // so amount IS NULL alone is not a skip reason.
   const skippedResult = await db.query(`
     SELECT COUNT(*) as cnt FROM psdata_staging s
     LEFT JOIN account_source_mappings asm
       ON LOWER(s.account_name) = LOWER(asm.external_name) AND asm.source = 'pocketsmith'
     LEFT JOIN accounts a ON asm.account_id = a.id
-    WHERE a.id IS NULL OR s.amount IS NULL OR s.transaction_date IS NULL OR s.currency IS NULL
+    WHERE a.id IS NULL OR s.transaction_date IS NULL OR s.currency IS NULL
   `);
   const skipped = parseInt(skippedResult.rows[0].cnt, 10);
 
@@ -138,9 +140,9 @@ async function syncStagingToTransactions() {
         s.transaction_date,
         s.description1,
         s.description2,
-        s.amount,
+        COALESCE(s.amount, 0) as amount,
         s.currency,
-        s.base_amount,
+        COALESCE(s.base_amount, 0) as base_amount,
         s.base_currency,
         s.transaction_type,
         a.id as account_id,
@@ -161,7 +163,6 @@ async function syncStagingToTransactions() {
         ON LOWER(s.category_name) = LOWER(csm.external_name) AND csm.source = 'pocketsmith'
       LEFT JOIN accounts c ON csm.account_id = c.id AND c.section = 'profit_loss'
       WHERE a.id IS NOT NULL
-        AND s.amount IS NOT NULL
         AND s.transaction_date IS NOT NULL
         AND s.currency IS NOT NULL
     )
@@ -473,12 +474,56 @@ router.post('/refresh-ps', async (req, res, next) => {
       console.warn('[v2/ingest-ps] FX rate refresh failed (non-fatal):', err.message);
     }
 
-    res.json({ ...fileCounts, syncResult, fxRatesUpdated: fxResult.updated });
+    // Compute per-refresh review breakdown: of the ps_ids just inserted to
+    // staging, how many reached the Review queue, and why the rest dropped.
+    const reviewBreakdown = await computeRefreshReviewBreakdown();
+
+    res.json({ ...fileCounts, syncResult, fxRatesUpdated: fxResult.updated, reviewBreakdown });
   } catch (error) {
     console.error('[v2/ingest-ps] Failed to refresh PS data:', error);
     next(error);
   }
 });
+
+async function computeRefreshReviewBreakdown() {
+  try {
+    const raw = await fs.readFile(tempFiles.importReport, 'utf8');
+    if (!raw.trim()) return null;
+    const parsed = JSON.parse(raw);
+    const records = Array.isArray(parsed) ? parsed : parsed ? [parsed] : [];
+    const insertedPsIds = records
+      .map((r) => r?.ps_id ?? r?.ID)
+      .filter((id) => id !== undefined && id !== null)
+      .map(String);
+    if (insertedPsIds.length === 0) {
+      return { inserted_to_staging: 0, reviewable: 0, already_accepted: 0, missing_amount: 0, unmapped_account: 0, other_skipped: 0 };
+    }
+    const db = require('../db');
+    const result = await db.query(
+      `
+      SELECT
+        COUNT(*) FILTER (WHERE t.id IS NOT NULL AND t.accepted IS NOT TRUE)::int AS reviewable,
+        COUNT(*) FILTER (WHERE t.id IS NOT NULL AND t.accepted IS TRUE)::int AS already_accepted,
+        COUNT(*) FILTER (WHERE t.id IS NULL AND s.amount IS NULL)::int AS missing_amount,
+        COUNT(*) FILTER (WHERE t.id IS NULL AND s.amount IS NOT NULL AND a.id IS NULL)::int AS unmapped_account,
+        COUNT(*) FILTER (WHERE t.id IS NULL AND s.amount IS NOT NULL AND a.id IS NOT NULL)::int AS other_skipped
+      FROM psdata_staging s
+      LEFT JOIN account_source_mappings asm
+        ON LOWER(s.account_name) = LOWER(asm.external_name) AND asm.source = 'pocketsmith'
+      LEFT JOIN accounts a ON asm.account_id = a.id
+      LEFT JOIN transactions t ON t.ps_id = s.ps_id::bigint
+      WHERE s.ps_id = ANY($1::varchar[])
+      `,
+      [insertedPsIds]
+    );
+    return { inserted_to_staging: insertedPsIds.length, ...result.rows[0] };
+  } catch (err) {
+    if (err.code !== 'ENOENT') {
+      console.warn('[v2/ingest-ps] Failed to compute review breakdown:', err.message);
+    }
+    return null;
+  }
+}
 
 /**
  * POST /api/v2/ingest-ps/review-new-transactions

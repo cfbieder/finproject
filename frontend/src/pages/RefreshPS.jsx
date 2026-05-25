@@ -176,6 +176,7 @@ export default function RefreshPS() {
         importReport = 0,
         all = 0,
         updateReport = 0,
+        reviewBreakdown = null,
       } = await Rest.fetchJson("/api/v2/ingest-ps/refresh-ps", {
         method: "POST",
         headers: {
@@ -198,11 +199,32 @@ export default function RefreshPS() {
         );
       }
 
+      let reviewLine = "";
+      if (reviewBreakdown && Number(reviewBreakdown.inserted_to_staging) > 0) {
+        const r = Number(reviewBreakdown.reviewable) || 0;
+        const ma = Number(reviewBreakdown.missing_amount) || 0;
+        const ua = Number(reviewBreakdown.unmapped_account) || 0;
+        const aa = Number(reviewBreakdown.already_accepted) || 0;
+        const os = Number(reviewBreakdown.other_skipped) || 0;
+        const dropped = ma + ua + aa + os;
+        if (dropped > 0) {
+          const reasons = [
+            ma > 0 ? `missing amount: ${ma}` : null,
+            ua > 0 ? `unmapped account: ${ua}` : null,
+            aa > 0 ? `already accepted: ${aa}` : null,
+            os > 0 ? `other: ${os}` : null,
+          ].filter(Boolean).join(", ");
+          reviewLine = ` ${r} added to Review (${dropped} dropped — ${reasons}).`;
+        } else {
+          reviewLine = ` ${r} added to Review.`;
+        }
+      }
+
       setRefreshStatus({
         type: lastRefreshUpdated ? "success" : "warning",
         message: `PS refresh complete: ${totalReceived} received, ${inserted} inserted, ${updated} updated, ${
           totalReceived - inserted - updated
-        } skipped.${
+        } skipped.${reviewLine}${
           lastRefreshUpdated ? "" : " Last refresh timestamp not saved."
         }`,
       });
