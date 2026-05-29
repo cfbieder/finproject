@@ -25,6 +25,11 @@ export default class Rest {
       throw new Error(message || "Unable to fetch data from the API");
     }
 
+    // 204 No Content is a valid success response with no body — don't treat
+    // it as a JSON-parse failure. Returns null so callers can `await` without
+    // unwrapping anything.
+    if (response.status === 204) return null;
+
     if (!isJson) {
       const bodyText = await response.text().catch(() => "");
       throw new Error(

@@ -607,6 +607,34 @@ If the resolution table needs a new branch as the COA evolves (e.g., a new asset
 
 `ShrsIn` in account B and `ShrsOut` in account A on the same date with the same shares×security → one logical move. Dedupe key `(transaction_date, security, ABS(shares), {min(acct_a, acct_b), max(acct_a, acct_b)})`.
 
+### 8.4 Historical Accounts — closed BS account consolidation
+
+The user's Quicken file has ~50 accounts, but only ~20 are actively tracked today. The other ~30 are closed bank accounts, retired credit cards, refinanced mortgages, dormant brokerage cash — each with historical activity worth preserving but no need to appear in current Balance Sheet or Balance Trends reports as a live line item.
+
+**Pattern:** Create one COA leaf per closed Quicken account under a dedicated `Historical Accounts` parent (one per BS side):
+- `Assets / Historical Assets / <leaf per closed asset>` — closed banks, dormant brokerage cash, retired investment subaccounts
+- `Liabilities / Historical Liabilities / <leaf per closed liability>` — retired credit cards, paid-off mortgages
+
+Each leaf:
+- Carries its own currency (matching the Quicken account)
+- Receives a 1:1 mapping (`quicken_account_name → this leaf`)
+- Accumulates its own opening_balance recalibration via §6.4 step 8 (math is self-consistent per-leaf since the leaf is single-currency)
+- Is **soft-deleted** after promote (`is_active=FALSE`) — the existing soft-delete mechanism (`DELETE /api/v2/accounts/:id`) flips the flag
+
+**Why `is_active=FALSE`:** the codebase already filters on `a.is_active = TRUE` in every BS-aggregation query, Balance Trends, account picker, and Forecast actuals (verified against `server/src/v2/repositories/accounts.js`, `server/src/v2/routes/reports.js`, `server/src/v2/routes/accounts.js`, `server/src/v2/repositories/forecast.js`). Deactivating the leaf hides it from all default reports while preserving the underlying data — a `SELECT opening_balance + SUM(amount) FROM transactions JOIN accounts WHERE id = <leaf>` query still returns the historical balance at any date. Toggling `is_active=TRUE` (via COA Management) brings the leaf back into reports if you ever want to inspect.
+
+**Two bootstrap children** are seeded along with the parents (`Closed Cash (default)` under Historical Assets, `Closed Debt (default)` under Historical Liabilities). They serve two purposes:
+1. They make the Historical parents non-leaves so they show up in the Create-COA modal's parent picker (the `isLeaf` detector requires at least one child)
+2. They double as "default umbrella" leaves for genuinely trivial closed accounts (1–3 transactions, $0 closing balance) where individual leaves would be overkill — the user can map those to the default catch-all and skip the per-account-leaf work
+
+**Bulk UI:** the mapping panel supports multi-row selection and two bulk actions:
+- **Bulk-create-and-map** — for N selected Quicken-name rows, create N new leaves under a chosen parent (name = each Quicken name, currency = each Quicken row's currency or parent default) and map each Quicken name to its new leaf in a single batch
+- **Bulk-deactivate** — for N selected rows whose mapping targets are leaves you want hidden post-promote, soft-delete the target leaves (calls `DELETE /api/v2/accounts/:id`)
+
+Together they reduce the workflow for 25 closed accounts from ~75 modal interactions to two or three batch actions.
+
+**Convention, not enforcement.** Nothing in the system requires this pattern. A user could map closed Quicken accounts to a single P&L umbrella (an earlier draft considered this — Option C), or keep them as active BS leaves. The Historical Accounts pattern is the recommended workflow because it preserves per-account year-end-balance fidelity without polluting reports — but other approaches remain valid.
+
 ---
 
 ## 9. Balance Math & Calibration

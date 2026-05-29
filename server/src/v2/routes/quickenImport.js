@@ -74,9 +74,18 @@ router.get('/batches/:id', async (req, res, next) => {
       [id]
     )).rows[0];
 
-    // Distinct Quicken names with mapping status
+    // Distinct Quicken names with mapping status. Currency is set for
+    // account-kind names that appear as the origin in at least one staging
+    // row (one Quicken account = one currency stamped by the parser);
+    // categories and transfer-target-only names get null currency.
     const { rows: names } = await pool.query(
-      `WITH all_names AS (
+      `WITH origin_currencies AS (
+         SELECT quicken_account_name AS name, MIN(currency) AS currency
+           FROM quicken_staging
+           WHERE import_batch_id = $1
+           GROUP BY quicken_account_name
+       ),
+       all_names AS (
          SELECT DISTINCT quicken_account_name AS name, 'account' AS kind
            FROM quicken_staging WHERE import_batch_id = $1
          UNION
@@ -90,10 +99,13 @@ router.get('/batches/:id', async (req, res, next) => {
              AND quicken_category <> ''
        )
        SELECT n.name, n.kind,
+              oc.currency AS quicken_currency,
               asm.account_id AS mapped_account_id,
               a.name AS mapped_account_name,
-              a.section AS mapped_section
+              a.section AS mapped_section,
+              a.currency AS mapped_account_currency
          FROM all_names n
+         LEFT JOIN origin_currencies oc ON oc.name = n.name
          LEFT JOIN account_source_mappings asm
            ON asm.source = 'quicken' AND asm.external_name = n.name
          LEFT JOIN accounts a ON a.id = asm.account_id

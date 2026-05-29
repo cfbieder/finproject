@@ -826,6 +826,116 @@ async function seedFxRates(pool, currency, rows) {
   return { upserted };
 }
 
+// ───────────────────────────────────────────────────────────────────────────
+// Yahoo Finance historical FX fetch (CR019 §12)
+// Reuses Yahoo's chart endpoint but always asks for daily and aggregates to
+// monthly close ourselves — Yahoo's interval=1mo response emits inconsistent
+// timestamps near DST transitions that mis-bucket the rate.
+// ───────────────────────────────────────────────────────────────────────────
+async function fetchYahooDailyFx({ baseCurrency, quoteCurrency, startEpoch, endEpoch }) {
+  const https = require('https');
+  const symbol = `${baseCurrency.toUpperCase()}${quoteCurrency.toUpperCase()}=X`;
+  const url = `https://query1.finance.yahoo.com/v8/finance/chart/${symbol}?interval=1d&period1=${startEpoch}&period2=${endEpoch}`;
+  const data = await new Promise((resolve, reject) => {
+    https.get(url, { headers: { 'User-Agent': 'Mozilla/5.0' } }, (res) => {
+      if (res.statusCode !== 200) {
+        reject(new Error(`Yahoo API returned ${res.statusCode} for ${symbol}`));
+        res.resume();
+        return;
+      }
+      let body = '';
+      res.setEncoding('utf8');
+      res.on('data', (c) => (body += c));
+      res.on('end', () => {
+        try { resolve(JSON.parse(body)); } catch (e) { reject(e); }
+      });
+    }).on('error', reject);
+  });
+  const result = data?.chart?.result?.[0];
+  if (!result) throw new Error(`Yahoo: no chart data returned for ${symbol}`);
+  const timestamps = result.timestamp || [];
+  const closes = result.indicators?.quote?.[0]?.close || [];
+  const out = [];
+  for (let i = 0; i < timestamps.length; i++) {
+    if (typeof closes[i] === 'number' && Number.isFinite(closes[i])) {
+      out.push({ timestamp: timestamps[i], close: closes[i] });
+    }
+  }
+  return out;
+}
+
+// Group daily observations by (year, month) and keep the LAST timestamp's
+// close — equivalent to "last trading day of the month" close.
+function aggregateMonthlyClose(daily) {
+  const byMonth = new Map();
+  for (const r of daily) {
+    const d = new Date(r.timestamp * 1000);
+    const key = `${d.getUTCFullYear()}-${d.getUTCMonth() + 1}`;
+    const prev = byMonth.get(key);
+    if (!prev || r.timestamp > prev.timestamp) byMonth.set(key, r);
+  }
+  return [...byMonth.entries()]
+    .map(([key, r]) => {
+      const [year, month] = key.split('-').map(Number);
+      return { year, month, rate: r.close };
+    })
+    .sort((a, b) => (a.year - b.year) || (a.month - b.month));
+}
+
+async function runSeedFxYahoo({ currency, start, end, pool }) {
+  if (!/^[A-Z]{3}$/.test(currency)) {
+    throw new Error(`Invalid currency: ${currency}`);
+  }
+  if (!start) throw new Error('--start YYYY-MM is required');
+  const [sy, sm] = start.split('-').map(Number);
+  let ey, em;
+  if (end) {
+    [ey, em] = end.split('-').map(Number);
+  } else {
+    const now = new Date();
+    ey = now.getUTCFullYear();
+    em = now.getUTCMonth() + 1;
+  }
+  if (!Number.isFinite(sy) || !Number.isFinite(sm) || sm < 1 || sm > 12) {
+    throw new Error(`Bad --start: ${start}`);
+  }
+  if (!Number.isFinite(ey) || !Number.isFinite(em) || em < 1 || em > 12) {
+    throw new Error(`Bad --end: ${end}`);
+  }
+  const startEpoch = Math.floor(Date.UTC(sy, sm - 1, 1) / 1000);
+  // End epoch: a few days past the end-month boundary so the last close lands
+  // in the response.
+  const endEpoch = Math.floor(Date.UTC(ey, em, 7) / 1000);
+
+  const ownsPool = !pool;
+  if (ownsPool) pool = new Pool({ connectionString: CONN_STR });
+  try {
+    const daily = await fetchYahooDailyFx({
+      baseCurrency: 'USD',
+      quoteCurrency: currency,
+      startEpoch,
+      endEpoch,
+    });
+    const monthly = aggregateMonthlyClose(daily);
+    if (monthly.length === 0) {
+      throw new Error(`Yahoo returned no data for USD${currency}=X between ${start} and ${end || 'now'}`);
+    }
+    const { upserted } = await seedFxRates(pool, currency, monthly);
+    return {
+      currency,
+      symbol: `USD${currency}=X`,
+      requestedRange: { from: start, to: end || `${ey}-${String(em).padStart(2, '0')}` },
+      from: `${monthly[0].year}-${String(monthly[0].month).padStart(2, '0')}`,
+      to: `${monthly[monthly.length - 1].year}-${String(monthly[monthly.length - 1].month).padStart(2, '0')}`,
+      dailyPoints: daily.length,
+      monthlyPoints: monthly.length,
+      upserted,
+    };
+  } finally {
+    if (ownsPool) await pool.end();
+  }
+}
+
 async function runSeedFx({ csvPath, currency, pool }) {
   const ownsPool = !pool;
   if (ownsPool) pool = new Pool({ connectionString: CONN_STR });
@@ -927,6 +1037,10 @@ function parseArgs(argv) {
       args.csvPath = argv[++i];
     } else if (a === '--currency') {
       args.currency = argv[++i];
+    } else if (a === '--start') {
+      args.start = argv[++i];
+    } else if (a === '--end') {
+      args.end = argv[++i];
     }
   }
   return args;
@@ -935,10 +1049,11 @@ function parseArgs(argv) {
 function usage() {
   console.error(
     'Usage:\n' +
-      '  quicken-import.js parse    --files <f1>[:CURR][,<f2>[:CURR]...] --batch <uuid> [--label "<text>"]\n' +
-      '  quicken-import.js seed-fx  --csv <path> --currency <CCC>\n' +
-      '  quicken-import.js promote  --batch <uuid>\n' +
-      '  quicken-import.js rollback --batch <uuid>'
+      '  quicken-import.js parse         --files <f1>[:CURR][,<f2>[:CURR]...] --batch <uuid> [--label "<text>"]\n' +
+      '  quicken-import.js seed-fx       --csv <path> --currency <CCC>\n' +
+      '  quicken-import.js seed-fx-yahoo --currency <CCC> --start YYYY-MM [--end YYYY-MM]\n' +
+      '  quicken-import.js promote       --batch <uuid>\n' +
+      '  quicken-import.js rollback      --batch <uuid>'
   );
 }
 
@@ -994,6 +1109,24 @@ if (require.main === module) {
       })
       .catch((err) => {
         console.error('Seed-fx failed:', err.message);
+        process.exit(1);
+      });
+  } else if (args.command === 'seed-fx-yahoo') {
+    if (!args.currency || !args.start) {
+      usage();
+      process.exit(1);
+    }
+    runSeedFxYahoo(args)
+      .then((result) => {
+        console.log(
+          `Seeded ${result.upserted} ${result.currency} rates from Yahoo (${result.symbol}): ` +
+          `${result.from} … ${result.to} ` +
+          `(${result.dailyPoints} daily → ${result.monthlyPoints} monthly closes)`
+        );
+        process.exit(0);
+      })
+      .catch((err) => {
+        console.error('Seed-fx-yahoo failed:', err.message);
         process.exit(1);
       });
   } else if (args.command === 'promote') {

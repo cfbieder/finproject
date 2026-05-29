@@ -400,7 +400,195 @@ function BatchList({ batches, onPick, onRefresh }) {
 // ───────────────────────────────────────────────────────────────────────────
 // VIEW 2 — Mapping panels
 // ───────────────────────────────────────────────────────────────────────────
-function MappingRow({ name, kind, mapped, accountOptions, onSave, onClear, onCreateRequest }) {
+// ───────────────────────────────────────────────────────────────────────────
+// BulkCreateModal — for each selected row, creates a new COA leaf under the
+// chosen parent (name = Quicken name, currency = Quicken account's currency
+// or parent's inferred default) and maps the Quicken name to it. Designed for
+// the Historical Accounts workflow (Option J in CR019 §8.4) where you want
+// per-account preservation but don't want to click through N modals.
+// ───────────────────────────────────────────────────────────────────────────
+function BulkCreateModal({ open, selectedRows, parentOptions, batchId, onClose, onSuccess }) {
+  const [parentId, setParentId] = useState("");
+  const [saving, setSaving] = useState(false);
+  const [results, setResults] = useState([]);
+  // Per-row currency overrides — keyed by row.name. User can edit per-row in
+  // the dialog before submitting. Falls back to row.quicken_currency, then
+  // parent default, then USD.
+  const [currencyOverrides, setCurrencyOverrides] = useState({});
+
+  useEffect(() => {
+    if (open) {
+      setParentId("");
+      setResults([]);
+      setCurrencyOverrides({});
+    }
+  }, [open]);
+
+  if (!open) return null;
+
+  const parent = parentOptions.find((a) => a.id === parentId);
+  const parentDefaultCurrency = inferCurrencyFromParent(parent);
+
+  const resolveCurrency = (row) =>
+    (currencyOverrides[row.name] || row.quicken_currency || parentDefaultCurrency || "USD")
+      .toUpperCase();
+
+  const setRowCurrency = (name, value) => {
+    setCurrencyOverrides((prev) => ({ ...prev, [name]: value }));
+  };
+
+  // Currency mix summary across selected rows, after applying overrides.
+  const ccyMix = (() => {
+    const counts = new Map();
+    for (const r of selectedRows) {
+      const c = resolveCurrency(r);
+      counts.set(c, (counts.get(c) || 0) + 1);
+    }
+    return [...counts.entries()].sort((a, b) => b[1] - a[1]);
+  })();
+
+  const handleCreate = async () => {
+    if (!parent) return;
+    setSaving(true);
+    setResults([]);
+    const out = [];
+    for (const row of selectedRows) {
+      try {
+        const ccy = resolveCurrency(row);
+        if (!/^[A-Z]{3}$/.test(ccy)) {
+          throw new Error(`Invalid currency "${ccy}" — must be a 3-letter ISO code`);
+        }
+        const created = await Rest.fetchJson("/api/v2/util/coa/add", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            path: [parent.name],
+            name: row.name,
+            currency: ccy,
+          }),
+        });
+        await Rest.post(`/quicken-import/batches/${batchId}/mappings`, {
+          external_name: row.name,
+          account_id: created.id,
+        });
+        out.push({ name: row.name, id: created.id, currency: ccy, ok: true });
+      } catch (err) {
+        out.push({ name: row.name, ok: false, error: err?.message || String(err) });
+      }
+      setResults([...out]);
+    }
+    setSaving(false);
+    onSuccess(out);
+  };
+
+  const okCount = results.filter((r) => r.ok).length;
+  const failCount = results.filter((r) => !r.ok).length;
+  const done = results.length === selectedRows.length && !saving;
+
+  return (
+    <div className="qi-modal-overlay" onClick={done ? onClose : undefined}>
+      <div className="qi-modal qi-modal-wide" onClick={(e) => e.stopPropagation()} role="dialog">
+        <div className="qi-modal-header">
+          Bulk-create {selectedRows.length} new leaves and map
+        </div>
+        <div className="qi-modal-body">
+          <p className="qi-modal-hint">
+            Each row will get a new COA leaf named after its Quicken account, placed under the
+            selected parent, with currency from the Quicken account (defaults to parent's currency,
+            then USD). The Quicken name is auto-mapped to its new leaf.
+          </p>
+          <label className="qi-modal-field">
+            <span>Parent for all new leaves</span>
+            <AccountPicker
+              value={parentId}
+              options={parentOptions}
+              onChange={setParentId}
+              placeholder="Search for a parent COA account…"
+            />
+          </label>
+          {parent && (
+            <div className="qi-modal-hint">
+              Each new leaf inherits section ({parent.section === "balance_sheet" ? "Balance Sheet" : "P&L"})
+              and type from <strong>{parent.name}</strong>.
+            </div>
+          )}
+          {ccyMix.length > 0 && (
+            <div className="qi-modal-hint">
+              Currency mix across new leaves:{" "}
+              {ccyMix.map(([c, n], i) => (
+                <span key={c}>
+                  {i > 0 && ", "}<strong>{n}× {c}</strong>
+                </span>
+              ))}{" "}
+              — each row gets its own leaf with its own currency, so there's no mixing inside any one leaf.
+            </div>
+          )}
+          <table className="qi-table qi-bulk-table">
+            <thead>
+              <tr>
+                <th>Quicken name</th>
+                <th>Currency (editable)</th>
+                <th>Status</th>
+              </tr>
+            </thead>
+            <tbody>
+              {selectedRows.map((r) => {
+                const result = results.find((x) => x.name === r.name);
+                const resolvedCcy = resolveCurrency(r);
+                const isUnknown = !r.quicken_currency && !currencyOverrides[r.name];
+                return (
+                  <tr key={r.name}>
+                    <td><code>{r.name}</code></td>
+                    <td>
+                      <input
+                        type="text"
+                        className={isUnknown ? "qi-bulk-ccy-unknown" : "qi-bulk-ccy"}
+                        value={currencyOverrides[r.name] ?? r.quicken_currency ?? parentDefaultCurrency ?? "USD"}
+                        onChange={(e) => setRowCurrency(r.name, e.target.value.toUpperCase())}
+                        maxLength={3}
+                        disabled={saving}
+                        title={isUnknown
+                          ? "Currency unknown for this Quicken account (no origin file). Verify before creating."
+                          : `Quicken currency: ${r.quicken_currency || "(inherited)"}`}
+                      />
+                      {isUnknown && <span className="qi-ccy-unknown-flag" title="Currency unknown — please verify">?</span>}
+                    </td>
+                    <td>
+                      {!result && saving && <span className="qi-muted">queued…</span>}
+                      {result?.ok && <span className="qi-status-ok">✓ id={result.id} ({resolvedCcy})</span>}
+                      {result?.ok === false && <span className="qi-status-error">✗ {result.error}</span>}
+                    </td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+          {done && (
+            <div className={failCount > 0 ? "qi-modal-error" : "qi-modal-hint"}>
+              {okCount} created, {failCount} failed.
+            </div>
+          )}
+        </div>
+        <div className="qi-modal-footer">
+          <button className="qi-btn" onClick={onClose} disabled={saving}>
+            {done ? "Close" : "Cancel"}
+          </button>
+          {!done && (
+            <button
+              className="qi-btn qi-btn-primary"
+              onClick={handleCreate}
+              disabled={saving || !parent}
+            >
+              {saving ? `Creating… (${results.length}/${selectedRows.length})` : `Create ${selectedRows.length} & assign`}
+            </button>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function MappingRow({ name, kind, mapped, accountOptions, onSave, onClear, onCreateRequest, selectable, selected, onToggleSelected }) {
   const [value, setValue] = useState(mapped?.mapped_account_id || "");
   const [busy, setBusy] = useState(false);
 
@@ -409,6 +597,23 @@ function MappingRow({ name, kind, mapped, accountOptions, onSave, onClear, onCre
   useEffect(() => {
     setValue(mapped?.mapped_account_id || "");
   }, [mapped?.mapped_account_id]);
+
+  // Currency mismatch warning. Only meaningful when:
+  //   - the Quicken row has a known currency (origin account, not just a
+  //     cross-file transfer target reference), AND
+  //   - the picker has a value pointing at a balance-sheet leaf (P&L
+  //     aggregation uses base_amount in USD, so mismatch is harmless there).
+  const quickenCurrency = mapped?.quicken_currency;
+  const selectedLeaf = useMemo(
+    () => (value ? accountOptions.find((a) => a.id === parseInt(value, 10)) : null),
+    [accountOptions, value]
+  );
+  const showCurrencyWarning =
+    quickenCurrency &&
+    selectedLeaf &&
+    selectedLeaf.section === "balance_sheet" &&
+    selectedLeaf.currency &&
+    selectedLeaf.currency !== quickenCurrency;
 
   const handleSave = async () => {
     if (!value) return;
@@ -432,7 +637,24 @@ function MappingRow({ name, kind, mapped, accountOptions, onSave, onClear, onCre
   const isMapped = !!mapped?.mapped_account_id;
   return (
     <tr className={isMapped ? "qi-mapped" : "qi-unmapped"}>
-      <td><code>{name}</code></td>
+      {selectable && (
+        <td className="qi-checkbox-cell">
+          <input
+            type="checkbox"
+            checked={!!selected}
+            onChange={() => onToggleSelected && onToggleSelected()}
+            aria-label={`Select ${name}`}
+          />
+        </td>
+      )}
+      <td>
+        <code>{name}</code>
+        {quickenCurrency && (
+          <span className="qi-ccy-badge" title="Currency of this Quicken account">
+            {quickenCurrency}
+          </span>
+        )}
+      </td>
       <td className="qi-kind">{kind}</td>
       <td>
         <AccountPicker
@@ -441,6 +663,14 @@ function MappingRow({ name, kind, mapped, accountOptions, onSave, onClear, onCre
           onChange={(id) => setValue(id || "")}
           onCreateRequest={(query) => onCreateRequest(name, query)}
         />
+        {showCurrencyWarning && (
+          <div className="qi-ccy-warning">
+            ⚠ Quicken account is <strong>{quickenCurrency}</strong>; target leaf
+            is <strong>{selectedLeaf.currency}</strong>. Calibration on this
+            account will sum mixed currencies and produce incorrect numbers
+            (see CR §12).
+          </div>
+        )}
       </td>
       <td>
         {value && !isMapped && (
@@ -468,7 +698,7 @@ function MappingRow({ name, kind, mapped, accountOptions, onSave, onClear, onCre
   );
 }
 
-function MappingPanel({ batchId, detail, onSaveMapping, onClearMapping, onBack, onProceed }) {
+function MappingPanel({ batchId, detail, onSaveMapping, onClearMapping, onBack, onProceed, onReload }) {
   const { batch, counts, names } = detail;
   const [filter, setFilter] = useState("all"); // all | unmapped | accounts | categories
   const [createModal, setCreateModal] = useState({
@@ -476,6 +706,10 @@ function MappingPanel({ batchId, detail, onSaveMapping, onClearMapping, onBack, 
     forName: null,
     suggestedName: "",
   });
+  const [selectedKeys, setSelectedKeys] = useState(new Set());
+  const [bulkCreateOpen, setBulkCreateOpen] = useState(false);
+  const [bulkBusy, setBulkBusy] = useState(false);
+  const toast = useToast();
 
   // Distinguish "accounts" (referenced as origin or transfer target) from
   // "categories" (referenced as the L tag's category name). Each `names` row
@@ -542,6 +776,83 @@ function MappingPanel({ batchId, detail, onSaveMapping, onClearMapping, onBack, 
 
   const unmappedCount = names.filter((n) => !n.mapped_account_id).length;
 
+  const rowKey = (n) => `${n.kind}:${n.name}`;
+  const selectedRows = useMemo(
+    () => filtered.filter((n) => selectedKeys.has(rowKey(n))),
+    [filtered, selectedKeys]
+  );
+  const allVisibleSelected = filtered.length > 0 && selectedRows.length === filtered.length;
+  const toggleRow = (n) => {
+    setSelectedKeys((prev) => {
+      const next = new Set(prev);
+      const k = rowKey(n);
+      if (next.has(k)) next.delete(k);
+      else next.add(k);
+      return next;
+    });
+  };
+  const toggleAllVisible = () => {
+    setSelectedKeys((prev) => {
+      if (allVisibleSelected) {
+        const next = new Set(prev);
+        for (const n of filtered) next.delete(rowKey(n));
+        return next;
+      }
+      const next = new Set(prev);
+      for (const n of filtered) next.add(rowKey(n));
+      return next;
+    });
+  };
+  const clearSelection = () => setSelectedKeys(new Set());
+
+  const handleBulkDeactivate = async () => {
+    const mappedSelected = selectedRows.filter((n) => n.mapped_account_id);
+    if (mappedSelected.length === 0) {
+      toast.error("Select mapped rows first — deactivation hides the TARGET COA leaves.");
+      return;
+    }
+    const targetIds = [...new Set(mappedSelected.map((n) => n.mapped_account_id))];
+    const ok = window.confirm(
+      `Mark ${targetIds.length} COA leaf(s) as inactive (is_active=false)?\n\n` +
+      `They'll be hidden from default reports but their data and history remain queryable. ` +
+      `You can re-activate from COA Management anytime.`
+    );
+    if (!ok) return;
+    setBulkBusy(true);
+    let okCount = 0;
+    let failCount = 0;
+    for (const id of targetIds) {
+      try {
+        await Rest.del(`/accounts/${id}`);
+        okCount += 1;
+      } catch (err) {
+        failCount += 1;
+        // eslint-disable-next-line no-console
+        console.warn(`Failed to deactivate id=${id}:`, err);
+      }
+    }
+    setBulkBusy(false);
+    clearSelection();
+    if (failCount === 0) {
+      toast.success(`Deactivated ${okCount} COA leaf(s).`);
+    } else {
+      toast.error(`Deactivated ${okCount}; ${failCount} failed (see console).`);
+    }
+    if (onReload) onReload();
+  };
+
+  const handleBulkCreateSuccess = (results) => {
+    const okCount = results.filter((r) => r.ok).length;
+    const failCount = results.length - okCount;
+    if (failCount === 0) {
+      toast.success(`Created ${okCount} leaves and mapped Quicken accounts.`);
+    } else {
+      toast.error(`${okCount} succeeded, ${failCount} failed.`);
+    }
+    clearSelection();
+    if (onReload) onReload();
+  };
+
   return (
     <div className="qi-section">
       <div className="qi-section-header">
@@ -594,9 +905,41 @@ function MappingPanel({ batchId, detail, onSaveMapping, onClearMapping, onBack, 
         </button>
       </div>
 
+      {selectedKeys.size > 0 && (
+        <div className="qi-bulk-bar">
+          <span className="qi-bulk-count">{selectedKeys.size} selected</span>
+          <button
+            className="qi-btn qi-btn-primary"
+            onClick={() => setBulkCreateOpen(true)}
+            disabled={bulkBusy}
+          >
+            Bulk-create new leaves & map
+          </button>
+          <button
+            className="qi-btn qi-btn-danger"
+            onClick={handleBulkDeactivate}
+            disabled={bulkBusy}
+            title="Mark target COA leaves as inactive — they'll be hidden from default reports"
+          >
+            Deactivate target leaves
+          </button>
+          <button className="qi-btn" onClick={clearSelection} disabled={bulkBusy}>
+            Clear selection
+          </button>
+        </div>
+      )}
+
       <table className="qi-table">
         <thead>
           <tr>
+            <th className="qi-checkbox-cell">
+              <input
+                type="checkbox"
+                checked={allVisibleSelected}
+                onChange={toggleAllVisible}
+                aria-label="Select all visible rows"
+              />
+            </th>
             <th>Quicken name</th>
             <th>Kind</th>
             <th>Map to COA account</th>
@@ -614,6 +957,9 @@ function MappingPanel({ batchId, detail, onSaveMapping, onClearMapping, onBack, 
               onSave={onSaveMapping}
               onClear={onClearMapping}
               onCreateRequest={handleOpenCreateModal}
+              selectable={true}
+              selected={selectedKeys.has(rowKey(n))}
+              onToggleSelected={() => toggleRow(n)}
             />
           ))}
         </tbody>
@@ -625,6 +971,18 @@ function MappingPanel({ batchId, detail, onSaveMapping, onClearMapping, onBack, 
         parentOptions={containerOptions}
         onClose={handleCloseCreateModal}
         onCreated={handleCoaCreated}
+      />
+
+      <BulkCreateModal
+        open={bulkCreateOpen}
+        selectedRows={selectedRows}
+        parentOptions={containerOptions}
+        batchId={batchId}
+        onClose={() => setBulkCreateOpen(false)}
+        onSuccess={(results) => {
+          setBulkCreateOpen(false);
+          handleBulkCreateSuccess(results);
+        }}
       />
     </div>
   );
@@ -857,6 +1215,7 @@ export default function QuickenImport() {
           onClearMapping={handleClearMapping}
           onBack={() => { setView("list"); loadBatches(); }}
           onProceed={handleGoToPreflight}
+          onReload={() => loadDetail(pickedBatchId)}
         />
       )}
       {view === "preflight" && preflight && detail && (

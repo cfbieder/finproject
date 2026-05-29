@@ -340,7 +340,8 @@ New in `psproject/` (Phase 7+ only — none in Phase 1-6):
 | 2026-05-28 | Reject CR014's in-app dual-provider approach | Microservice + contract pattern (ocr-llm precedent) avoids dual-mode tech debt; cleaner v3 cutover |
 | 2026-05-28 | banksync.io is Plaid + regulatory-access wrap, not an independent source | Confirmed via banksync.io Developer Settings: "Securely link your bank via Plaid" |
 | 2026-05-28 | Upstream choice deferred to Phase 0 | Need to verify whether Plaid Development tier permits PKO for individual use before committing |
-| TBD (Phase 0) | Upstream selection | (pending discovery) |
+| 2026-05-29 | **Upstream: banksync.io Standard tier ($7/mo)** | Plaid Production is "In Review" with no clean timeline. banksync.io verified working with PKO; Standard tier gives 5 banks, unlimited transactions, daily syncs, webhooks (`connection.requires.attention`, `feed.sync.failed`, `transactions.new`, etc.), 2-yr historical window, 30 API calls/min. Pre-2024 history stays in existing PS data in main DB. Plaid Production review continues in background; adapter swap remains cheap if it lands. |
+| 2026-05-29 | Phase 0 closed | Discovery complete. Endpoint payload shapes (transactions, balances) deferred to Phase 2 — don't block skeleton work. |
 
 ---
 
