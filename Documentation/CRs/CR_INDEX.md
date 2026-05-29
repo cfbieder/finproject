@@ -19,8 +19,11 @@ Each CR file's first line carries its status and links back to the matching anch
 | [CR011](CR011_SOURCE_MAPPINGS.md) | COMPLETED | Source Mappings (Category + Account) | Decouples external system names from internal app names (migrations 018–019). |
 | [CR012](CR012_OPENING_BALANCE_CALIBRATION.md) | COMPLETED | Opening Balance Calibration | Accurate balance sheet via `opening_balance + SUM(transactions)` (migration 016). |
 | [CR013](CR013_COLLAPSE_CATEGORIES.md) | COMPLETED | Collapse `categories` Table into `accounts` | Single COA source of truth; FK columns repointed; legacy table dropped (migration 021). |
-| [CR014](CR014_POCKETSMITH_REPLACEMENT.md) | OPEN | PocketSmith Replacement | Evaluate alternatives to PocketSmith for bank transaction aggregation. |
-| [CR015](CR015_PS_REEXPORT.md) | OPEN | Re-export Changes Back to PocketSmith | One-way push of local edits to PocketSmith. |
+| [CR014](CR014_POCKETSMITH_REPLACEMENT.md) | SUPERSEDED | PocketSmith Replacement | Dual-provider in-app integration plan; superseded by [CR021](CR021_BANK_FEED_SERVICE.md) (microservice approach). |
+| [CR015](CR015_PS_REEXPORT.md) | OBSOLETE | Re-export Changes Back to PocketSmith | One-way push to PS; obsoleted by [CR021](CR021_BANK_FEED_SERVICE.md) (PS removed entirely). |
 | [CR016](CR016_FRONTEND_TEST_FRAMEWORK.md) | COMPLETED | Frontend Test Framework (Vitest) | Vitest + 96 unit tests across 5 helper modules; closes the largest backend/frontend test gap. |
 | [CR017](CR017_CASH_SWEEP_PHASE_C.md) | OPEN | Cash Sweep Phase C — Multi-Module Priority | Withdraw from multiple modules in priority order on shortfall. |
 | [CR018](CR018_BALANCE_TRENDS.md) | COMPLETED | Balance Trends Report | `/balance-trends` shows month-end USD balances for selected BS accounts over a chosen period; reuses `HierarchyFilter` + `PeriodSelector`. |
+| [CR019](CR019_QUICKEN_IMPORT.md) | IN-PROGRESS | Quicken Historical Import | One-time backfill of pre-2022 Quicken history (cash + lot-level investments). Owns the investment schema CR020 depends on. Phase A migration applied to dev 2026-05-22. |
+| [CR020](CR020_STOCK_INVESTMENT_MODULE.md) | OPEN | Stock Investment Module | Lot-level holdings tracking + portfolio analytics; supplements (doesn't replace) cash ledger. Depends on CR019 (Quicken Import) shipping first with shared schema. Planning skeleton. |
+| [CR021](CR021_BANK_FEED_SERVICE.md) | OPEN | Bank Feed Service | Standalone microservice for Plaid/banksync.io + Excel ingestion behind a versioned REST contract; sets up the v3 PocketSmith cutover. Supersedes CR014. |

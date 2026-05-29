@@ -1,4 +1,6 @@
-**Status:** OPEN — [Plan](../FC_NEXT_STEPS.md#cr015)
+**Status:** OBSOLETE 2026-05-28 — [Plan](../FC_NEXT_STEPS.md#cr015)
+
+> **Obsolete.** PocketSmith is being removed entirely via [CR021](CR021_BANK_FEED_SERVICE.md), so there is no longer a PS instance to re-export to.
 
 # CR015 — Re-export Changes Back to PocketSmith
 

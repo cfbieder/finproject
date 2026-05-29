@@ -1,0 +1,31 @@
+!Type:Security
+NABBOTT LABORATORIES
+SABT
+TStock
+GGrowth & Income
+^
+!Type:Security
+NABBVIE INC COM
+SABBV
+TStock
+^
+!Type:Security
+NSPDR S&P 500 ETF
+SSPY
+TETF
+^
+!Type:Prices
+"ABT",20.0241," 4/30' 9"
+^
+!Type:Prices
+"ABT",21.56," 5/29' 9"
+^
+!Type:Prices
+"ABT",22.5074," 6/30' 9"
+^
+!Type:Prices
+"SPY",100.50,"12/31' 9"
+^
+!Type:Prices
+"SPY",125.75,"6/30/14"
+^

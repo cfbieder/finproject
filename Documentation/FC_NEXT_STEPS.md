@@ -12,15 +12,21 @@ Each CR is a self-contained markdown file under [CRs/](CRs/). The first line of 
 
 ### 1.1 Open / In-Progress
 
+<a id="cr021"></a>
+- **CR021 — [Bank Feed Service](CRs/CR021_BANK_FEED_SERVICE.md)** — *OPEN*. Standalone microservice that replaces PocketSmith. Adapters for Plaid (or banksync.io, pending Phase-0 discovery) + Excel/CSV, behind a versioned `/v1/*` REST contract that v3 of the main app will consume. Mirrors the `ocr-llm` precedent: separate VM, Tailscale-routed, contract-pinned. Phase 0 discovery resolves whether Plaid Development tier allows PKO for individual use; fallbacks are GoCardless or banksync.io. Robustness layer (gap detection, balance reconciliation, dedupe, stale-feed alerts) is the key value-add — PS's bank-side instability will recur regardless of upstream, so we make failures visible. v3 cutover is a separate future CR (CR022).
+
 <a id="cr014"></a>
-- **CR014 — [PocketSmith Replacement](CRs/CR014_POCKETSMITH_REPLACEMENT.md)** — *OPEN*. Evaluate alternatives to PocketSmith for bank transaction aggregation.
+- **CR014 — [PocketSmith Replacement](CRs/CR014_POCKETSMITH_REPLACEMENT.md)** — *SUPERSEDED 2026-05-28 by [CR021](#cr021)*. Original plan integrated dual providers (GoCardless + Plaid) directly into the main `fin` app. Replaced by the microservice-with-contract approach.
 
 <a id="cr015"></a>
-- **CR015 — [Re-export Changes Back to PocketSmith](CRs/CR015_PS_REEXPORT.md)** — *OPEN*. One-way push of local edits (category, description, date) back to PocketSmith. May be obsoleted by CR014.
+- **CR015 — [Re-export Changes Back to PocketSmith](CRs/CR015_PS_REEXPORT.md)** — *OBSOLETE 2026-05-28*. PocketSmith is being removed entirely via [CR021](#cr021), so re-exporting to it no longer makes sense.
 
 
 <a id="cr017"></a>
 - **CR017 — [Cash Sweep Phase C — Multi-Module Priority Sweep](CRs/CR017_CASH_SWEEP_PHASE_C.md)** — *OPEN*. Withdraw from multiple modules in priority order on shortfall; extends CR005.
+
+<a id="cr019"></a>
+- **CR019 — [Quicken Historical Import](CRs/CR019_QUICKEN_IMPORT.md)** — *IN-PROGRESS*. One-time backfill of pre-2022 Quicken history. Cash side lands in `transactions` with per-account soft cutoff and transfer pairing; investment side builds the full lot-level schema (`securities`, `security_lots`, `security_transactions`, `security_lot_disposals`, `security_prices`, `security_source_mappings`) that CR020 depends on. Four staging tables + admin UI with three mapping surfaces + Promote with calibration. Blocks CR020. **Phases A–E shipped to dev AND prod 2026-05-22.** Parser + FX seeder at [`server/src/v2/scripts/quicken-import.js`](../server/src/v2/scripts/quicken-import.js), promote/rollback at [`quicken-promote.js`](../server/src/v2/scripts/quicken-promote.js), admin API at [`routes/quickenImport.js`](../server/src/v2/routes/quickenImport.js), admin UI at [`QuickenImport.jsx`](../frontend/src/pages/QuickenImport.jsx) (live at `/quicken-import`). **129 passing tests** including end-to-end promote+rollback on real PKO data (3,098 transactions in 3 seconds, balance preservation verified). `runPromote` guards against investment-side batches (refuses fail-loud); `findTransfers` filters by `skip_transfer_analysis`. Next: investment-side promote (lot walker, §6.4 steps 1/3/5/6/7) — schema and parser are ready, only the promote-time logic remains.
 
 ### 1.2 Completed (chronological, latest first)
 
@@ -193,6 +199,7 @@ Chronological log of substantive infrastructure / behavioural changes. Smaller u
 
 | Date | Event |
 |------|-------|
+| 2026-05-28 | **CR021 opened — Bank Feed Service** ([CR021](#cr021)). Decision to replace PocketSmith via a standalone microservice exposing a versioned REST contract (`/v1/*`), rather than CR014's in-app dual-provider integration. Upstream investigation revealed banksync.io is a regulated-entity wrap over Plaid, so the practical upstream candidates collapse to Plaid (direct, free Development tier — feasibility TBD for PKO/PSD2 individual access), GoCardless (free EU-friendly tier), or banksync.io (paid, sidesteps regulatory access). Phase 0 (1 day, no code) resolves the upstream choice. CR014 marked SUPERSEDED; CR015 marked OBSOLETE. v3 main-app cutover deferred to a future CR022. |
 | 2026-05-20 | **CR016 closed — Frontend test framework (Vitest) complete.** Final state: 96 tests across 5 helper modules in `frontend/src/utils/__tests__/` — `dateHelpers` (21), `formatters` (25), `treeTraversal` (17), `forecastHelpers` (20), `cashFlowHelpers` (13). Infrastructure: `vitest@^2.1.9` + `jsdom@^25` in devDeps; `npm test` / `npm run test:watch` scripts; standalone `vitest.config.js` (jsdom env, mirrors Vite path aliases); exits non-zero on failure. Deterministic via `vi.useFakeTimers()` where time-sensitive; no network, no real DB. Component/hook tests and Playwright E2E deferred to future CRs. |
 | 2026-05-19 | **Balance Trends — auto-regenerate on interval change** ([CR018](#cr018)). Switching the Month/Quarter/Year pill now re-runs `handleGenerate` automatically so the column count + headers stay in sync with the selected interval (previously the table kept the prior interval's columns until the user clicked Generate). Year/month dropdowns still require an explicit Generate. |
 | 2026-05-19 | **Balance Trends — year range + Interval (Month/Quarter/Year) + future-period filter** ([CR018](#cr018)). `PeriodSelector` extended with an opt-in `enableYearRange` prop that adds a Year (to) dropdown alongside Year (from) in Custom mode (no behavior change for other pages). Interval pill bar (Month default / Quarter / Year) controls column granularity. Columns whose period start is in the future are dropped; the current period is included with snapshot as-of today and its header gains an `(MTD)`/`(QTD)`/`(YTD)` suffix in primary color. Page state renamed (`monthEnds` → `columns: [{label, asOf, isPartial}]`) to model the partial-period case cleanly; `interval` state renamed to `intervalKey` to avoid shadowing the global `setInterval`. |

@@ -506,10 +506,13 @@ async function neutralize(id, categoryId) {
 /**
  * Fetch all transfer-category transactions for a date range.
  * Returns rows joined with account/category names, filtered to categories
- * where is_transfer = TRUE.
+ * where is_transfer = TRUE and skip_transfer_analysis = FALSE. The latter
+ * column (added by CR019 migration 022) excludes transfer-flagged leaves
+ * that don't have a matching pair — notably "Return of Capital" — which
+ * would otherwise surface as perpetually-unmatched in /transfer-analysis.
  */
 async function findTransfers({ startDate, endDate } = {}) {
-  const conditions = ['c.is_transfer = TRUE'];
+  const conditions = ['c.is_transfer = TRUE', 'c.skip_transfer_analysis = FALSE'];
   const params = [];
   let paramIndex = 1;
 

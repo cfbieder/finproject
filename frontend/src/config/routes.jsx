@@ -35,6 +35,7 @@ import Home from "../pages/Home";
 
 // Lazy loaded pages (for code splitting)
 const BackupDatabase = lazy(() => import("../pages/BackupDatabase"));
+const QuickenImport = lazy(() => import("../pages/QuickenImport"));
 const Balance = lazy(() => import("../pages/BalanceV2"));
 const BalanceChart = lazy(() => import("../pages/BalanceChart"));
 const BalanceTrends = lazy(() => import("../pages/BalanceTrends"));
@@ -338,6 +339,14 @@ export const routes = [
     category: "Database",
     description: "Create and manage database backups",
     icon: HardDrive,
+  },
+  {
+    path: "/quicken-import",
+    component: QuickenImport,
+    label: "Quicken Import",
+    category: "Database",
+    description: "Map, promote, and roll back Quicken backfill batches (CR019)",
+    icon: Upload,
   },
 
   // Settings

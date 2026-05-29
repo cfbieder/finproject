@@ -1,0 +1,110 @@
+!Type:Invst
+D3/23/98
+NBuy
+YPhilip Morris
+I43.1875
+Q50
+CR
+U2,179.33
+T2,179.33
+O19.95
+^
+D7/10/98
+NDiv
+YPhilip Morris
+CR
+U20.00
+T20.00
+MDIVIDEND RECEIVED
+^
+D6/10/98
+NXIn
+PTransfer
+CR
+U4,619.95
+T4,619.95
+L[Chase (C)]
+$4,619.95
+^
+D4/ 1/98
+NIntInc
+YCREDIT INTEREST      CASH
+CR
+U11.38
+T11.38
+^
+D5/15/99
+NSell
+YPhilip Morris
+I50.00
+Q25
+CR
+U1,230.05
+T1,230.05
+O19.95
+^
+D1/15/00
+NReinvDiv
+YPhilip Morris
+I52.00
+Q0.5
+CR
+U26.00
+T26.00
+^
+D3/ 1/00
+NCash
+CR
+U-500.00
+T-500.00
+LOther Exp
+^
+D6/15/00
+NMargInt
+CR
+U-15.50
+T-15.50
+^
+D9/ 1/00
+NRtrnCap
+YDummy
+CR
+U10.00
+T10.00
+^
+D12/15/00
+NCGLong
+YPhilip Morris
+CR
+U100.00
+T100.00
+^
+D2/ 1/01
+NShtSell
+YCALL INTEL CORP APR 20
+I0.24995
+Q5
+CR
+U124.97
+T124.97
+^
+D2/15/01
+NCvrShrt
+YCALL INTEL CORP APR 20
+I0.10
+Q5
+CR
+U-50.00
+T-50.00
+^
+D5/10/02
+NStkSplit
+YPhilip Morris
+Q2
+^
+D1/10/03
+NShrsIn
+YMorgan Stanley Asia
+Q100
+CR
+^

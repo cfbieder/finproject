@@ -1,0 +1,297 @@
+/**
+ * Quicken Import Admin Routes (CR019 Phase E)
+ *
+ * Mounted at /api/v2/quicken-import.
+ *
+ * Drives the admin UI: list batches, inspect one, author mappings, run
+ * pre-flight diff, promote, rollback.
+ *
+ * Parser invocation (`POST /parse`) is intentionally NOT here — parsing
+ * reads QIF files from disk and is run as a CLI, not via the web API.
+ * The UI shows already-parsed batches.
+ */
+
+const express = require('express');
+const router = express.Router();
+
+const db = require('../db');
+const { runPromote, runRollback } = require('../scripts/quicken-promote');
+
+// Convenience: pool object the route handlers query against. The v2 db
+// wrapper exposes the pg pool via getPool(). Calling getPool() lazily on
+// every handler ensures we use the same pool the rest of the server uses.
+const pool = {
+  query: (...args) => db.getPool().query(...args),
+  connect: (...args) => db.getPool().connect(...args),
+};
+
+// ───────────────────────────────────────────────────────────────────────────
+// GET /api/v2/quicken-import/batches
+// List all batches, newest first.
+// ───────────────────────────────────────────────────────────────────────────
+router.get('/batches', async (req, res, next) => {
+  try {
+    const { rows } = await pool.query(
+      `SELECT id, label, status, source_files,
+              parsed_at, mapped_at, promoted_at, rolled_back_at,
+              failure_reason, created_at, updated_at
+         FROM quicken_import_batches
+         ORDER BY created_at DESC`
+    );
+    res.json(rows);
+  } catch (err) {
+    next(err);
+  }
+});
+
+// ───────────────────────────────────────────────────────────────────────────
+// GET /api/v2/quicken-import/batches/:id
+// Detail view: batch + staging summary + distinct Quicken names with their
+// current mapping status. The admin UI uses this to populate the mapping
+// panels.
+// ───────────────────────────────────────────────────────────────────────────
+router.get('/batches/:id', async (req, res, next) => {
+  try {
+    const { id } = req.params;
+
+    const batchRows = (await pool.query(
+      `SELECT id, label, status, source_files, cutoff_overrides,
+              parsed_at, mapped_at, promoted_at, rolled_back_at,
+              failure_reason, created_at, updated_at
+         FROM quicken_import_batches WHERE id = $1`,
+      [id]
+    )).rows;
+    if (batchRows.length === 0) return res.status(404).json({ error: 'batch not found' });
+    const batch = batchRows[0];
+
+    // Staging counts
+    const counts = (await pool.query(
+      `SELECT
+         (SELECT COUNT(*)::int FROM quicken_staging WHERE import_batch_id = $1)              AS cash,
+         (SELECT COUNT(*)::int FROM quicken_securities_staging WHERE import_batch_id = $1)   AS invst,
+         (SELECT COUNT(*)::int FROM quicken_security_master_staging WHERE import_batch_id = $1) AS securities,
+         (SELECT COUNT(*)::int FROM quicken_price_staging WHERE import_batch_id = $1)        AS prices`,
+      [id]
+    )).rows[0];
+
+    // Distinct Quicken names with mapping status
+    const { rows: names } = await pool.query(
+      `WITH all_names AS (
+         SELECT DISTINCT quicken_account_name AS name, 'account' AS kind
+           FROM quicken_staging WHERE import_batch_id = $1
+         UNION
+         SELECT DISTINCT transfer_target_account AS name, 'account' AS kind
+           FROM quicken_staging
+           WHERE import_batch_id = $1 AND transfer_target_account IS NOT NULL
+         UNION
+         SELECT DISTINCT quicken_category AS name, 'category' AS kind
+           FROM quicken_staging
+           WHERE import_batch_id = $1 AND quicken_category IS NOT NULL
+             AND quicken_category <> ''
+       )
+       SELECT n.name, n.kind,
+              asm.account_id AS mapped_account_id,
+              a.name AS mapped_account_name,
+              a.section AS mapped_section
+         FROM all_names n
+         LEFT JOIN account_source_mappings asm
+           ON asm.source = 'quicken' AND asm.external_name = n.name
+         LEFT JOIN accounts a ON a.id = asm.account_id
+         ORDER BY (asm.account_id IS NULL) DESC, n.kind, n.name`,
+      [id]
+    );
+
+    res.json({ batch, counts, names });
+  } catch (err) {
+    next(err);
+  }
+});
+
+// ───────────────────────────────────────────────────────────────────────────
+// POST /api/v2/quicken-import/batches/:id/mappings
+// Body: { external_name, account_id }
+// Idempotent upsert of one mapping row (source='quicken').
+// ───────────────────────────────────────────────────────────────────────────
+router.post('/batches/:id/mappings', async (req, res, next) => {
+  try {
+    const { external_name, account_id } = req.body || {};
+    if (!external_name || !account_id) {
+      return res.status(400).json({ error: 'external_name and account_id required' });
+    }
+    // Target must be a leaf (no other account has it as parent). Transactions
+    // can only land on terminal asset/liability/income/expense accounts, not
+    // organizational containers.
+    const { rows: childCheck } = await pool.query(
+      `SELECT 1 FROM accounts WHERE parent_id = $1 LIMIT 1`,
+      [account_id]
+    );
+    if (childCheck.length > 0) {
+      const { rows: parentRows } = await pool.query(
+        `SELECT name FROM accounts WHERE id = $1`,
+        [account_id]
+      );
+      const parentName = parentRows[0]?.name || `id=${account_id}`;
+      return res.status(400).json({
+        error: `Cannot map to "${parentName}" — it is a container with child accounts. Pick a leaf account instead.`,
+      });
+    }
+    await pool.query(
+      `INSERT INTO account_source_mappings (account_id, source, external_name)
+         VALUES ($1, 'quicken', $2)
+       ON CONFLICT (source, external_name) DO UPDATE SET account_id = EXCLUDED.account_id`,
+      [account_id, external_name]
+    );
+    // Update batch.mapped_at to reflect ongoing mapping work
+    await pool.query(
+      `UPDATE quicken_import_batches SET mapped_at = NOW(), status = CASE
+         WHEN status IN ('parsed', 'mapped') THEN 'mapped' ELSE status END
+         WHERE id = $1`,
+      [req.params.id]
+    );
+    res.status(204).end();
+  } catch (err) {
+    next(err);
+  }
+});
+
+// ───────────────────────────────────────────────────────────────────────────
+// DELETE /api/v2/quicken-import/batches/:id/mappings?external_name=…
+// Remove one mapping row (admin only — useful for fixing typos).
+// ───────────────────────────────────────────────────────────────────────────
+router.delete('/batches/:id/mappings', async (req, res, next) => {
+  try {
+    const { external_name } = req.query || {};
+    if (!external_name) return res.status(400).json({ error: 'external_name required' });
+    await pool.query(
+      `DELETE FROM account_source_mappings WHERE source = 'quicken' AND external_name = $1`,
+      [external_name]
+    );
+    res.status(204).end();
+  } catch (err) {
+    next(err);
+  }
+});
+
+// ───────────────────────────────────────────────────────────────────────────
+// GET /api/v2/quicken-import/batches/:id/preflight
+// Pre-flight diff: per-account cutoff, rows kept/dropped, count of transfer
+// pairs, sample of dropped rows. Surfaces what would happen on promote.
+// ───────────────────────────────────────────────────────────────────────────
+router.get('/batches/:id/preflight', async (req, res, next) => {
+  try {
+    const { id } = req.params;
+
+    // Re-load mappings for this batch (subset of all 'quicken' mappings that
+    // actually appear in this batch's staging)
+    const { rows: mappingRows } = await pool.query(
+      `WITH names AS (
+         SELECT DISTINCT quicken_account_name AS name FROM quicken_staging WHERE import_batch_id = $1
+         UNION
+         SELECT DISTINCT transfer_target_account FROM quicken_staging
+           WHERE import_batch_id = $1 AND transfer_target_account IS NOT NULL
+       )
+       SELECT n.name, asm.account_id
+         FROM names n
+         LEFT JOIN account_source_mappings asm
+           ON asm.source = 'quicken' AND asm.external_name = n.name
+         WHERE asm.account_id IS NOT NULL`,
+      [id]
+    );
+    const accountMapping = new Map(mappingRows.map((r) => [r.name, r.account_id]));
+
+    // Unmapped names (block promote)
+    const { rows: unmapped } = await pool.query(
+      `WITH names AS (
+         SELECT DISTINCT quicken_account_name AS name FROM quicken_staging WHERE import_batch_id = $1
+         UNION
+         SELECT DISTINCT transfer_target_account FROM quicken_staging
+           WHERE import_batch_id = $1 AND transfer_target_account IS NOT NULL
+         UNION
+         SELECT DISTINCT quicken_category FROM quicken_staging
+           WHERE import_batch_id = $1 AND quicken_category IS NOT NULL
+             AND quicken_category <> ''
+       )
+       SELECT n.name FROM names n
+         LEFT JOIN account_source_mappings asm
+           ON asm.source = 'quicken' AND asm.external_name = n.name
+         WHERE asm.account_id IS NULL`,
+      [id]
+    );
+
+    // Per-account cutoff (only mapped accounts)
+    const accountIds = [...new Set(accountMapping.values())];
+    let cutoffs = [];
+    if (accountIds.length > 0) {
+      const { rows } = await pool.query(
+        `SELECT a.id AS account_id, a.name AS account_name,
+                (SELECT MIN(transaction_date) FROM transactions
+                   WHERE account_id = a.id AND source IN ('pocketsmith', 'auto-offset')) AS auto_cutoff
+           FROM accounts a WHERE a.id = ANY($1::int[])`,
+        [accountIds]
+      );
+      cutoffs = rows.map((r) => ({
+        account_id: r.account_id,
+        account_name: r.account_name,
+        auto_cutoff: r.auto_cutoff,
+      }));
+    }
+
+    // Per-Quicken-account row counts (so user can see scope)
+    const { rows: perQuickenAccount } = await pool.query(
+      `SELECT quicken_account_name, COUNT(*)::int AS rows
+         FROM quicken_staging WHERE import_batch_id = $1
+         GROUP BY quicken_account_name
+         ORDER BY rows DESC`,
+      [id]
+    );
+
+    // Transfer pair count (one per row with transfer_target_account)
+    const { rows: transfers } = await pool.query(
+      `SELECT COUNT(*)::int AS pairs FROM quicken_staging
+         WHERE import_batch_id = $1 AND transfer_target_account IS NOT NULL`,
+      [id]
+    );
+
+    res.json({
+      batchId: id,
+      unmapped: unmapped.map((u) => u.name),
+      canPromote: unmapped.length === 0 && perQuickenAccount.length > 0,
+      perQuickenAccount,
+      cutoffs,
+      transferPairs: transfers[0].pairs,
+    });
+  } catch (err) {
+    next(err);
+  }
+});
+
+// ───────────────────────────────────────────────────────────────────────────
+// POST /api/v2/quicken-import/batches/:id/promote
+// Run the cash-only promote (per CR §6.4 + this CR's Phase E vertical slice).
+// Returns the result counts or a 4xx/500 if promote failed.
+// ───────────────────────────────────────────────────────────────────────────
+router.post('/batches/:id/promote', async (req, res, next) => {
+  try {
+    const result = await runPromote({ batchId: req.params.id, pool });
+    res.json(result);
+  } catch (err) {
+    // The CLI re-throws after recording status='failed' — return 422 so the
+    // UI can surface the error message rather than treating it as a server fault.
+    res.status(422).json({ error: err.message });
+  }
+});
+
+// ───────────────────────────────────────────────────────────────────────────
+// POST /api/v2/quicken-import/batches/:id/rollback
+// Roll back a previously-promoted batch (per CR §6.5).
+// ───────────────────────────────────────────────────────────────────────────
+router.post('/batches/:id/rollback', async (req, res, next) => {
+  try {
+    const result = await runRollback({ batchId: req.params.id, pool });
+    res.json(result);
+  } catch (err) {
+    res.status(422).json({ error: err.message });
+  }
+});
+
+module.exports = router;

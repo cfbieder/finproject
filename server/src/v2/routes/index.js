@@ -20,6 +20,7 @@ const ingestPsRouter = require('./ingestPs');
 const transferMatchGroupsRouter = require('./transferMatchGroups');
 const fcLinesRouter = require('./fcLines');
 const aiReviewRouter = require('./aiReview');
+const quickenImportRouter = require('./quickenImport');
 
 // Mount routes
 router.use('/health', healthRouter);
@@ -34,6 +35,7 @@ router.use('/util', utilRouter);
 router.use('/ingest-ps', ingestPsRouter);
 router.use('/transfer-match-groups', transferMatchGroupsRouter);
 router.use('/ai-review', aiReviewRouter);
+router.use('/quicken-import', quickenImportRouter);
 
 // API root info
 router.get('/', (req, res) => {
@@ -51,7 +53,9 @@ router.get('/', (req, res) => {
       '/api/v2/reports',
       '/api/v2/util',
       '/api/v2/ingest-ps',
-      '/api/v2/transfer-match-groups'
+      '/api/v2/transfer-match-groups',
+      '/api/v2/ai-review',
+      '/api/v2/quicken-import'
     ]
   });
 });

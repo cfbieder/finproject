@@ -1,4 +1,6 @@
-**Status:** OPEN — [Plan](../FC_NEXT_STEPS.md#cr014)
+**Status:** SUPERSEDED 2026-05-28 by [CR021](CR021_BANK_FEED_SERVICE.md) — [Plan](../FC_NEXT_STEPS.md#cr014)
+
+> **Superseded.** The microservice-with-contract approach in CR021 replaces this CR's in-app dual-provider integration. The provider research below (GoCardless, Plaid, Salt Edge, TrueLayer) remains useful as reference; the implementation plan is no longer current. See [CR021](CR021_BANK_FEED_SERVICE.md) for the active plan.
 
 # CR014 — PocketSmith Replacement
 
