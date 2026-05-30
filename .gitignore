@@ -16,6 +16,7 @@ Backups/
 # local dev certs
 certs/
 ocr-llm/
+bank-feed/
 
 # Quicken personal data — only sanitized fixtures under Samples/quicken/fixtures/
 # are committed. Top-level QIF/CSV exports contain real account names and

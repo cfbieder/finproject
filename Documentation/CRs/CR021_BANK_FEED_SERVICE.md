@@ -342,6 +342,9 @@ New in `psproject/` (Phase 7+ only — none in Phase 1-6):
 | 2026-05-28 | Upstream choice deferred to Phase 0 | Need to verify whether Plaid Development tier permits PKO for individual use before committing |
 | 2026-05-29 | **Upstream: banksync.io Standard tier ($7/mo)** | Plaid Production is "In Review" with no clean timeline. banksync.io verified working with PKO; Standard tier gives 5 banks, unlimited transactions, daily syncs, webhooks (`connection.requires.attention`, `feed.sync.failed`, `transactions.new`, etc.), 2-yr historical window, 30 API calls/min. Pre-2024 history stays in existing PS data in main DB. Plaid Production review continues in background; adapter swap remains cheap if it lands. |
 | 2026-05-29 | Phase 0 closed | Discovery complete. Endpoint payload shapes (transactions, balances) deferred to Phase 2 — don't block skeleton work. |
+| 2026-05-29 | banksync.io is **multi-aggregator**, not Plaid-only | Their API Reference states banks resolve via Plaid, SaltEdge, or SnapTrade. PKO likely via SaltEdge (CR014 confirmed strong PKO coverage there). Stronger value prop than originally assessed — they abstract over three aggregators behind one API + regulatory access. |
+| 2026-05-29 | banksync.io upstream API facts pinned for Phase 2 | Base URL `https://api.banksync.io`; auth `X-API-Key` (NOT Bearer despite their Getting Started page); resource tree `banks → accounts → {transactions, balances, holdings, trades, loans}`; webhook sig `X-BankSync-Signature` HMAC-SHA256. Their "Feeds" = destination pipelines (Notion/Sheets) — we don't use them; we consume the API directly. |
+| 2026-05-29 | Investment endpoints noted for CR020 | banksync.io exposes `/holdings` and `/trades` — could feed the future Stock Investment Module. Out of scope for CR021 but worth sequencing CR020 to consume the same `bank-feed` contract. |
 
 ---
 
