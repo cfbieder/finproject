@@ -407,6 +407,26 @@ function BatchList({ batches, onPick, onRefresh }) {
 // the Historical Accounts workflow (Option J in CR019 §8.4) where you want
 // per-account preservation but don't want to click through N modals.
 // ───────────────────────────────────────────────────────────────────────────
+// Whether a selected row may get a NEW leaf under the chosen parent. Bulk-create
+// is the Historical-Accounts quick path: it only creates leaves whose role fits
+// the parent's section, so a rejected role mapping never orphans a freshly-created
+// leaf (the bug where target_only names left dangling BS leaves under e.g.
+// Historical Assets). target_only names don't get new leaves at all — they map to
+// a shared Transfer category leaf via the picker.
+function bulkEligibility(role, parent) {
+  if (!parent) return { ok: false, reason: "pick a parent first" };
+  if (role === "target_only") {
+    return { ok: false, reason: "transfer target — map to a Transfer leaf (e.g. Transfer - Historical) via the picker, not bulk-create" };
+  }
+  if (role === "category") {
+    if (parent.section === "profit_loss" && !parent.is_transfer) return { ok: true };
+    return { ok: false, reason: "category — needs a P&L (income/expense) parent" };
+  }
+  // origin / both → Balance Sheet leaf
+  if (parent.section === "balance_sheet" && !parent.is_transfer) return { ok: true };
+  return { ok: false, reason: "balance-sheet account — needs a Balance Sheet parent" };
+}
+
 function BulkCreateModal({ open, selectedRows, parentOptions, batchId, onClose, onSuccess }) {
   const [parentId, setParentId] = useState("");
   const [saving, setSaving] = useState(false);
@@ -453,6 +473,14 @@ function BulkCreateModal({ open, selectedRows, parentOptions, batchId, onClose, 
     setResults([]);
     const out = [];
     for (const row of selectedRows) {
+      // Role-aware guard: skip rows whose role doesn't fit the parent BEFORE
+      // creating anything, so we never make a leaf the mapping will reject.
+      const elig = bulkEligibility(row.role, parent);
+      if (!elig.ok) {
+        out.push({ name: row.name, ok: false, error: elig.reason });
+        setResults([...out]);
+        continue;
+      }
       try {
         const ccy = resolveCurrency(row);
         if (!/^[A-Z]{3}$/.test(ccy)) {
@@ -467,10 +495,20 @@ function BulkCreateModal({ open, selectedRows, parentOptions, batchId, onClose, 
             currency: ccy,
           }),
         });
-        await Rest.post(`/quicken-import/batches/${batchId}/mappings`, {
-          external_name: row.name,
-          account_id: created.id,
-        });
+        try {
+          await Rest.post(`/quicken-import/batches/${batchId}/mappings`, {
+            external_name: row.name,
+            account_id: created.id,
+          });
+        } catch (mapErr) {
+          // Atomic: if the mapping is rejected, undo the leaf we just created
+          // (only when it was newly added, not a reactivated existing account)
+          // so a failed map never orphans a COA entry.
+          if (created?.id && !created.moved) {
+            try { await Rest.del(`/accounts/${created.id}`); } catch { /* best-effort cleanup */ }
+          }
+          throw mapErr;
+        }
         out.push({ name: row.name, id: created.id, currency: ccy, ok: true });
       } catch (err) {
         out.push({ name: row.name, ok: false, error: err?.message || String(err) });
@@ -484,6 +522,13 @@ function BulkCreateModal({ open, selectedRows, parentOptions, batchId, onClose, 
   const okCount = results.filter((r) => r.ok).length;
   const failCount = results.filter((r) => !r.ok).length;
   const done = results.length === selectedRows.length && !saving;
+
+  // Role-aware preview: how many selected rows will actually get a new leaf vs
+  // be skipped (e.g. target_only names, which map to a Transfer leaf instead).
+  const eligibleCount = parent
+    ? selectedRows.filter((r) => bulkEligibility(r.role, parent).ok).length
+    : 0;
+  const skippedCount = selectedRows.length - eligibleCount;
 
   return (
     <div className="qi-modal-overlay" onClick={done ? onClose : undefined}>
@@ -512,6 +557,13 @@ function BulkCreateModal({ open, selectedRows, parentOptions, batchId, onClose, 
               and type from <strong>{parent.name}</strong>.
             </div>
           )}
+          {parent && skippedCount > 0 && (
+            <div className="qi-modal-error">
+              ⚠ {skippedCount} of {selectedRows.length} selected row(s) don't fit{" "}
+              <strong>{parent.name}</strong> and will be skipped (no leaf created) — see Status.
+              Transfer targets map to a Transfer leaf via the picker, not bulk-create.
+            </div>
+          )}
           {ccyMix.length > 0 && (
             <div className="qi-modal-hint">
               Currency mix across new leaves:{" "}
@@ -536,6 +588,7 @@ function BulkCreateModal({ open, selectedRows, parentOptions, batchId, onClose, 
                 const result = results.find((x) => x.name === r.name);
                 const resolvedCcy = resolveCurrency(r);
                 const isUnknown = !r.quicken_currency && !currencyOverrides[r.name];
+                const elig = parent ? bulkEligibility(r.role, parent) : null;
                 return (
                   <tr key={r.name}>
                     <td><code>{r.name}</code></td>
@@ -554,6 +607,9 @@ function BulkCreateModal({ open, selectedRows, parentOptions, batchId, onClose, 
                       {isUnknown && <span className="qi-ccy-unknown-flag" title="Currency unknown — please verify">?</span>}
                     </td>
                     <td>
+                      {!result && !saving && elig && (elig.ok
+                        ? <span className="qi-muted">will create</span>
+                        : <span className="qi-status-error">skip — {elig.reason}</span>)}
                       {!result && saving && <span className="qi-muted">queued…</span>}
                       {result?.ok && <span className="qi-status-ok">✓ id={result.id} ({resolvedCcy})</span>}
                       {result?.ok === false && <span className="qi-status-error">✗ {result.error}</span>}
@@ -577,9 +633,9 @@ function BulkCreateModal({ open, selectedRows, parentOptions, batchId, onClose, 
             <button
               className="qi-btn qi-btn-primary"
               onClick={handleCreate}
-              disabled={saving || !parent}
+              disabled={saving || !parent || eligibleCount === 0}
             >
-              {saving ? `Creating… (${results.length}/${selectedRows.length})` : `Create ${selectedRows.length} & assign`}
+              {saving ? `Creating… (${results.length}/${selectedRows.length})` : `Create ${eligibleCount} & assign`}
             </button>
           )}
         </div>
