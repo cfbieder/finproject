@@ -1,0 +1,42 @@
+!Type:Cash
+D6/19'14
+U1,500,000.00
+T1,500,000.00
+POpening Balance
+L[_qpr Mortgage]
+^
+D6/19'14
+U-22,500.00
+T-22,500.00
+PBanke Fee
+L_qpr Bank Fees
+^
+D7/ 1'14
+U0.58
+T0.58
+NDEP
+PInt In
+L_qpr Int Inc
+^
+D8/ 6'14
+U-14,118.43
+T-14,118.43
+PPKO - Bruzdowa
+L--Split--
+S_qpr Int Exp
+$-10,769.59
+S[_qpr Mortgage]
+$-3,348.84
+^
+D3/21/98
+U10,000.00
+T10,000.00
+PChase deposit
+L_qpr Deposit
+^
+D10/10' 1
+U500.00
+T500.00
+PYear 2001 transaction
+L_qpr Deposit
+^

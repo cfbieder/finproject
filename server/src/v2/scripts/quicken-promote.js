@@ -114,6 +114,63 @@ async function findUnmappedNames(client, batchId) {
   return rows.map((r) => r.name);
 }
 
+/**
+ * Find stored `quicken` mappings whose target would CORRUPT a promote given the
+ * name's role in THIS batch. `account_source_mappings` is global and survives
+ * model pivots, so stale mappings can persist. This flags only the cases that
+ * promote can't handle safely:
+ *   origin / both → must be a BS leaf (becomes the transaction's account_id;
+ *                   a P&L/transfer target would land rows on a non-account)
+ *   category      → must be a P&L leaf (becomes category_id on a P&L row;
+ *                   a BS/transfer target would mis-categorize it)
+ * `target_only` is intentionally NOT flagged here: promote uses a transfer-leaf
+ * mapping directly and otherwise derives the category via §8.2.3, so any target
+ * is handled. (A stale target_only→BS mapping is surfaced as a non-blocking
+ * warning by the mapping panel's Q3 banner instead.) Mirrors the stricter POST
+ * /mappings validator for the origin/both and category cases.
+ * Returns [{ name, role, section, is_transfer }] for each corrupting mapping.
+ */
+async function findRoleInvalidMappings(client, batchId) {
+  const { rows } = await client.query(
+    `WITH names AS (
+       SELECT DISTINCT quicken_account_name AS name, TRUE AS is_origin, FALSE AS is_target, FALSE AS is_cat
+         FROM quicken_staging WHERE import_batch_id = $1
+       UNION ALL
+       SELECT DISTINCT transfer_target_account, FALSE, TRUE, FALSE
+         FROM quicken_staging WHERE import_batch_id = $1 AND transfer_target_account IS NOT NULL
+       UNION ALL
+       SELECT DISTINCT quicken_category, FALSE, FALSE, TRUE
+         FROM quicken_staging WHERE import_batch_id = $1 AND quicken_category IS NOT NULL AND quicken_category <> ''
+     ),
+     roles AS (
+       SELECT name, bool_or(is_origin) AS is_origin, bool_or(is_target) AS is_target, bool_or(is_cat) AS is_cat
+         FROM names GROUP BY name
+     )
+     SELECT r.name, r.is_origin, r.is_target, r.is_cat, a.section, a.is_transfer
+       FROM roles r
+       JOIN account_source_mappings asm ON asm.source = 'quicken' AND asm.external_name = r.name
+       JOIN accounts a ON a.id = asm.account_id`,
+    [batchId]
+  );
+  const invalid = [];
+  for (const row of rows) {
+    const role = row.is_cat
+      ? 'category'
+      : row.is_origin && row.is_target
+        ? 'both'
+        : row.is_origin
+          ? 'origin'
+          : 'target_only';
+    let ok = true;
+    if (role === 'origin' || role === 'both') ok = row.section === 'balance_sheet' && !row.is_transfer;
+    else if (role === 'category') ok = row.section === 'profit_loss' && !row.is_transfer;
+    // target_only: any target is handled (direct transfer-leaf use, else §8.2.3
+    // derivation), so never blocked here.
+    if (!ok) invalid.push({ name: row.name, role, section: row.section, is_transfer: row.is_transfer });
+  }
+  return invalid;
+}
+
 // ═══════════════════════════════════════════════════════════════════════════
 // CUTOFFS (CR §8.1)
 // ═══════════════════════════════════════════════════════════════════════════
@@ -568,6 +625,18 @@ async function runPromote({ batchId, pool }) {
         );
       }
 
+      // Pre-flight: fail-loud if any stored mapping violates its role rule.
+      // Global account_source_mappings survive model pivots, so stale role-
+      // invalid mappings would silently route through the wrong category path.
+      const roleInvalid = await findRoleInvalidMappings(client, batchId);
+      if (roleInvalid.length > 0) {
+        const sample = roleInvalid.slice(0, 5).map((r) => `${r.name} [${r.role}]`).join(', ');
+        throw new Error(
+          `runPromote: ${roleInvalid.length} stored mapping(s) violate role rules (sample: ${sample}). ` +
+            `Remap them (the mapping panel flags role mismatches) before promoting.`
+        );
+      }
+
       // Step 0
       await snapshotBalances(client);
 
@@ -806,6 +875,7 @@ module.exports = {
   // Helpers exported for tests
   loadMappings,
   findUnmappedNames,
+  findRoleInvalidMappings,
   computeCutoffs,
   resolveBaseAmount,
   resolveTransferCategoryId,

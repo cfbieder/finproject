@@ -1101,7 +1101,7 @@ function MappingPanel({ batchId, detail, onSaveMapping, onClearMapping, onBack, 
 // ───────────────────────────────────────────────────────────────────────────
 // VIEW 3 — Pre-flight + Promote + Rollback
 // ───────────────────────────────────────────────────────────────────────────
-function PreflightView({ batchId, batch, preflight, onPromote, onRollback, onBack, busy }) {
+function PreflightView({ batch, preflight, onPromote, onRollback, onBack, busy }) {
   return (
     <div className="qi-section">
       <div className="qi-section-header">
@@ -1116,6 +1116,21 @@ function PreflightView({ batchId, batch, preflight, onPromote, onRollback, onBac
           and resolve before promoting.
           <ul>
             {preflight.unmapped.slice(0, 10).map((n) => <li key={n}><code>{n}</code></li>)}
+          </ul>
+        </div>
+      )}
+
+      {preflight.roleInvalid?.length > 0 && (
+        <div className="qi-alert qi-alert-error">
+          <strong>{preflight.roleInvalid.length} stored mapping(s) don't fit their role</strong>{" "}
+          — likely stale pre-pivot mappings. Go back to mapping and remap them (the picker flags
+          role mismatches) before promoting.
+          <ul>
+            {preflight.roleInvalid.slice(0, 10).map((r) => (
+              <li key={r.name}>
+                <code>{r.name}</code> ({r.role}) → {r.is_transfer ? "transfer leaf" : r.section === "balance_sheet" ? "BS leaf" : "P&L leaf"}
+              </li>
+            ))}
           </ul>
         </div>
       )}
@@ -1159,7 +1174,8 @@ function PreflightView({ batchId, batch, preflight, onPromote, onRollback, onBac
       )}
 
       <h3>Transfers</h3>
-      <p>{preflight.transferPairs} transfer pair(s) detected (will fan out to 2 cash rows each).</p>
+      <p>{preflight.transferPairs} transfer row(s) detected — each becomes one transaction
+        (transfer_matched=FALSE); pair them later in Transfer Analysis.</p>
 
       <div className="qi-action-bar">
         {batch.status !== "promoted" && batch.status !== "rolled_back" && (
@@ -1332,7 +1348,6 @@ export default function QuickenImport() {
       )}
       {view === "preflight" && preflight && detail && (
         <PreflightView
-          batchId={pickedBatchId}
           batch={detail.batch}
           preflight={preflight}
           onPromote={handlePromote}
