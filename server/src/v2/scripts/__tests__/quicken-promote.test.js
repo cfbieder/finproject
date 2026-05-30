@@ -15,7 +15,7 @@ const { randomUUID } = require('node:crypto');
 const { Pool } = require('pg');
 
 const { runParse } = require('../quicken-import');
-const { runPromote, runRollback } = require('../quicken-promote');
+const { runPromote, runRollback, resolveTransferCategoryId, findRoleInvalidMappings } = require('../quicken-promote');
 
 const TEST_DB_URL = 'postgres://fin:findev123@localhost:5434/fin';
 const FIXTURES_DIR = path.resolve(__dirname, '../../../../../Samples/quicken/fixtures');
@@ -61,21 +61,25 @@ dbDescribe('runPromote + runRollback (cash-only, DB-backed)', () => {
   beforeEach(async () => {
     batchId = randomUUID();
 
-    // Parse cash_simple.QIF into this batch (USD to bypass FX path)
+    // Parse cash_isolated.QIF into this batch (USD to bypass FX path). This
+    // fixture uses `_qpr `-namespaced category/transfer names (and a distinct
+    // account name) so the mappings authored below never collide with real
+    // global `quicken` mappings on the shared dev DB — the suite's cleanup used
+    // to clobber same-named real mappings (e.g. "Bank Fees", "Int Inc").
     await runParse({
-      files: [{ path: path.join(FIXTURES_DIR, 'cash_simple.QIF'), currency: 'USD' }],
+      files: [{ path: path.join(FIXTURES_DIR, 'cash_isolated.QIF'), currency: 'USD' }],
       batchId,
       pool,
     });
 
     // Author mappings (Phase 2 work that the admin UI will eventually do)
     const mappingPairs = [
-      ['cash_simple',               testCoaIds[`${SENTINEL_PREFIX}cash_origin`]],
-      ['Mortgage - PKO_Bruzdowa',   testCoaIds[`${SENTINEL_PREFIX}mortgage_target`]],
-      ['Bank Fees',                 testCoaIds[`${SENTINEL_PREFIX}bank_fees`]],
-      ['Int Inc',                   testCoaIds[`${SENTINEL_PREFIX}int_inc`]],
-      ['Int Exp',                   testCoaIds[`${SENTINEL_PREFIX}int_exp`]],
-      ['Deposit',                   testCoaIds[`${SENTINEL_PREFIX}deposit`]],
+      ['cash_isolated',     testCoaIds[`${SENTINEL_PREFIX}cash_origin`]],
+      ['_qpr Mortgage',     testCoaIds[`${SENTINEL_PREFIX}mortgage_target`]],
+      ['_qpr Bank Fees',    testCoaIds[`${SENTINEL_PREFIX}bank_fees`]],
+      ['_qpr Int Inc',      testCoaIds[`${SENTINEL_PREFIX}int_inc`]],
+      ['_qpr Int Exp',      testCoaIds[`${SENTINEL_PREFIX}int_exp`]],
+      ['_qpr Deposit',      testCoaIds[`${SENTINEL_PREFIX}deposit`]],
     ];
     for (const [name, accountId] of mappingPairs) {
       await pool.query(
@@ -101,7 +105,7 @@ dbDescribe('runPromote + runRollback (cash-only, DB-backed)', () => {
     await pool.query(`DELETE FROM quicken_import_batches WHERE id = $1`, [batchId]);
     await pool.query(
       `DELETE FROM account_source_mappings WHERE source = 'quicken' AND external_name = ANY($1::text[])`,
-      [['cash_simple', 'Mortgage - PKO_Bruzdowa', 'Bank Fees', 'Int Inc', 'Int Exp', 'Deposit']]
+      [['cash_isolated', '_qpr Mortgage', '_qpr Bank Fees', '_qpr Int Inc', '_qpr Int Exp', '_qpr Deposit']]
     );
     // Reset opening_balance on sentinels so each test starts from zero
     await pool.query(
@@ -120,7 +124,7 @@ dbDescribe('runPromote + runRollback (cash-only, DB-backed)', () => {
   // Promote tests
   // ────────────────────────────────────────────────────────────────────────
 
-  test('inserts the right number of rows from cash_simple.QIF (1→1 model)', async () => {
+  test('inserts the right number of rows from cash_isolated.QIF (1→1 model)', async () => {
     const result = await runPromote({ batchId, pool });
     // Fixture breakdown under 1→1:
     //   row 1: Opening Balance transfer to Mortgage → 1 transfer row (origin only)
@@ -246,9 +250,8 @@ dbDescribe('runPromote + runRollback (cash-only, DB-backed)', () => {
     )).rows[0].n;
     expect(groups).toBe(0);
 
-    // Auto-match (Q5): the fixture's two transfer rows are both one-sided
-    // (no counter-rows in this isolated test DB), so they don't auto-pair —
-    // transfer_matched stays FALSE on the inserted rows.
+    // Promote no longer auto-matches (matching is deferred to Transfer
+    // Analysis), so the inserted transfer rows stay transfer_matched=FALSE.
     const matched = (await pool.query(
       `SELECT COUNT(*)::int AS n FROM transactions
          WHERE import_batch_id = $1 AND transfer_matched = TRUE`,
@@ -257,10 +260,86 @@ dbDescribe('runPromote + runRollback (cash-only, DB-backed)', () => {
     expect(matched).toBe(0);
   });
 
+  test('promote is additive + reversible: does NOT auto-match or touch non-batch rows', async () => {
+    // Design guard: promote must stay cleanly reversible by runRollback, which
+    // only touches this batch's rows. So promote must NOT run the global
+    // Transfer Analysis matcher — that matcher flips transfer_matched=TRUE on
+    // unrelated PS-era rows in the date window that rollback can't restore.
+    // Matching is deferred to /api/v2/transactions/transfer-analysis.
+    const cashOriginId = testCoaIds[`${SENTINEL_PREFIX}cash_origin`];
+    const mortgageTargetId = testCoaIds[`${SENTINEL_PREFIX}mortgage_target`];
+
+    // The Opening Balance transfer (1,500,000 → Mortgage) resolves here.
+    const catId = await resolveTransferCategoryId(pool, cashOriginId, mortgageTargetId);
+
+    const stg = (await pool.query(
+      `SELECT transaction_date FROM quicken_staging
+         WHERE import_batch_id = $1 AND ABS(amount) = 1500000 LIMIT 1`,
+      [batchId]
+    )).rows;
+    expect(stg).toHaveLength(1);
+    const openingDate = stg[0].transaction_date;
+
+    // A perfect non-batch mirror leg (opposite sign, same date + category) that
+    // WOULD pair with the promoted +1.5M row if promote auto-matched. It must be
+    // left untouched.
+    const mirrorId = (await pool.query(
+      `INSERT INTO transactions
+         (account_id, category_id, transaction_date, amount, currency,
+          base_amount, base_currency, description1, source, accepted, transfer_matched)
+       VALUES ($1, $2, $3, -1500000, 'USD', -1500000, 'USD', 'mirror leg', 'test-mirror', TRUE, NULL)
+       RETURNING id`,
+      [mortgageTargetId, catId, openingDate]
+    )).rows[0].id;
+
+    try {
+      const result = await runPromote({ batchId, pool });
+
+      // Promote reports no match counts — matching isn't its job.
+      expect(result.autoMatched).toBeUndefined();
+      expect(result.unmatched).toBeUndefined();
+
+      // The non-batch mirror is untouched (still NULL — promote never reached it).
+      const mirror = (await pool.query(
+        `SELECT transfer_matched FROM transactions WHERE id = $1`,
+        [mirrorId]
+      )).rows[0];
+      expect(mirror.transfer_matched).toBeNull();
+
+      // Inserted transfer rows land additive + unmatched (FALSE), so a later
+      // Transfer Analysis run can pick them up. None auto-matched at promote.
+      const promotedTrue = (await pool.query(
+        `SELECT COUNT(*)::int AS n FROM transactions
+           WHERE import_batch_id = $1 AND transfer_matched = TRUE`,
+        [batchId]
+      )).rows[0].n;
+      expect(promotedTrue).toBe(0);
+    } finally {
+      await pool.query(`DELETE FROM transactions WHERE id = $1`, [mirrorId]);
+    }
+  });
+
+  test('flags + blocks promote on a role-corrupting stored mapping (category → BS leaf)', async () => {
+    // Repoint a category name at a Balance Sheet leaf — promote would put a BS
+    // account_id in category_id on a P&L row. findRoleInvalidMappings must flag
+    // it and runPromote must refuse. (target_only→BS is NOT flagged — that's
+    // handled by §8.2.3 derivation — but category→BS corrupts.)
+    await pool.query(
+      `UPDATE account_source_mappings SET account_id = $1
+         WHERE source = 'quicken' AND external_name = '_qpr Bank Fees'`,
+      [testCoaIds[`${SENTINEL_PREFIX}cash_origin`]]
+    );
+    const invalid = await findRoleInvalidMappings(pool, batchId);
+    expect(invalid.some((r) => r.name === '_qpr Bank Fees' && r.role === 'category')).toBe(true);
+    // A correctly-mapped target_only→BS (the _qpr Mortgage fixture mapping) is NOT flagged.
+    expect(invalid.some((r) => r.name === '_qpr Mortgage')).toBe(false);
+    await expect(runPromote({ batchId, pool })).rejects.toThrow(/violate role rules/);
+  });
+
   test('promote rejects unmapped Quicken names with fail-loud error', async () => {
     // Delete one mapping to simulate incomplete authoring
     await pool.query(
-      `DELETE FROM account_source_mappings WHERE source = 'quicken' AND external_name = 'Bank Fees'`
+      `DELETE FROM account_source_mappings WHERE source = 'quicken' AND external_name = '_qpr Bank Fees'`
     );
     await expect(runPromote({ batchId, pool })).rejects.toThrow(/unmapped Quicken names/);
 
@@ -381,7 +460,7 @@ dbDescribe('runPromote + runRollback (cash-only, DB-backed)', () => {
     const mappingsRemain = (await pool.query(
       `SELECT COUNT(*)::int AS n FROM account_source_mappings
          WHERE source = 'quicken' AND external_name = ANY($1::text[])`,
-      [['cash_simple', 'Mortgage - PKO_Bruzdowa', 'Bank Fees', 'Int Inc', 'Int Exp', 'Deposit']]
+      [['cash_isolated', '_qpr Mortgage', '_qpr Bank Fees', '_qpr Int Inc', '_qpr Int Exp', '_qpr Deposit']]
     )).rows[0].n;
     expect(mappingsRemain).toBe(6);
   });

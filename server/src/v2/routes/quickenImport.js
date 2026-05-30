@@ -15,7 +15,7 @@ const express = require('express');
 const router = express.Router();
 
 const db = require('../db');
-const { runPromote, runRollback } = require('../scripts/quicken-promote');
+const { runPromote, runRollback, findRoleInvalidMappings } = require('../scripts/quicken-promote');
 
 // Convenience: pool object the route handlers query against. The v2 db
 // wrapper exposes the pg pool via getPool(). Calling getPool() lazily on
@@ -351,10 +351,15 @@ router.get('/batches/:id/preflight', async (req, res, next) => {
       [id]
     );
 
+    // Stale/role-invalid stored mappings (global table survives model pivots) —
+    // block promote so they don't silently route through the wrong category path.
+    const roleInvalid = await findRoleInvalidMappings(pool, id);
+
     res.json({
       batchId: id,
       unmapped: unmapped.map((u) => u.name),
-      canPromote: unmapped.length === 0 && perQuickenAccount.length > 0,
+      roleInvalid,
+      canPromote: unmapped.length === 0 && roleInvalid.length === 0 && perQuickenAccount.length > 0,
       perQuickenAccount,
       cutoffs,
       transferPairs: transfers[0].pairs,

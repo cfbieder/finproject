@@ -24,3 +24,14 @@ bank-feed/
 Samples/quicken/*
 !Samples/quicken/fixtures/
 !Samples/quicken/fixtures/**
+
+# Anything dropped into Samples/Downloads/ is treated as sensitive — service
+# account JSON keys, credential exports, etc. Never commit these.
+Samples/Downloads/
+
+# Real bank-data exports from fintable / moneysheets / similar tools.
+# Contain real account UUIDs, IBANs, balances, transactions — keep local.
+Samples/Fintable/
+Samples/Moneysheets/
+
+.claude/settings.local.json
