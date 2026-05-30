@@ -588,7 +588,7 @@ function BulkCreateModal({ open, selectedRows, parentOptions, batchId, onClose, 
   );
 }
 
-function MappingRow({ name, kind, mapped, accountOptions, onSave, onClear, onCreateRequest, selectable, selected, onToggleSelected }) {
+function MappingRow({ name, kind, role, mapped, accountOptions, onSave, onClear, onCreateRequest, selectable, selected, onToggleSelected }) {
   const [value, setValue] = useState(mapped?.mapped_account_id || "");
   const [busy, setBusy] = useState(false);
 
@@ -597,6 +597,25 @@ function MappingRow({ name, kind, mapped, accountOptions, onSave, onClear, onCre
   useEffect(() => {
     setValue(mapped?.mapped_account_id || "");
   }, [mapped?.mapped_account_id]);
+
+  // Q3 role-mismatch banner: if there's an existing mapping that doesn't fit
+  // the current role (e.g., target_only mapped to a BS leaf from a previous
+  // session before role filter), surface so user can remap.
+  const roleMismatch = useMemo(() => {
+    if (!mapped?.mapped_account_id) return null;
+    const isTransfer = !!mapped.mapped_is_transfer;
+    const section = mapped.mapped_section;
+    if ((role === "origin" || role === "both") && (isTransfer || section !== "balance_sheet")) {
+      return `Current mapping is ${isTransfer ? "a Transfer category" : "a P&L leaf"}, but "${name}" is an origin account — should map to a Balance Sheet leaf. Pick a new target below.`;
+    }
+    if (role === "target_only" && !isTransfer) {
+      return `Current mapping is ${section === "balance_sheet" ? "a Balance Sheet leaf" : "a P&L leaf"}, but "${name}" is a transfer target — should map to a Transfer category leaf (e.g., Transfer - Historical). Pick a new target below.`;
+    }
+    if (role === "category" && (isTransfer || section !== "profit_loss")) {
+      return `Current mapping is ${isTransfer ? "a Transfer category" : "a Balance Sheet leaf"}, but "${name}" is a category — should map to a P&L leaf.`;
+    }
+    return null;
+  }, [role, mapped?.mapped_account_id, mapped?.mapped_is_transfer, mapped?.mapped_section, name]);
 
   // Currency mismatch warning. Only meaningful when:
   //   - the Quicken row has a known currency (origin account, not just a
@@ -649,11 +668,18 @@ function MappingRow({ name, kind, mapped, accountOptions, onSave, onClear, onCre
       )}
       <td>
         <code>{name}</code>
-        {quickenCurrency && (
+        {quickenCurrency ? (
           <span className="qi-ccy-badge" title="Currency of this Quicken account">
             {quickenCurrency}
           </span>
-        )}
+        ) : kind === "account" ? (
+          <span
+            className="qi-ccy-badge qi-ccy-badge-unknown"
+            title="Currency unknown — this Quicken account only appears as a transfer target. Currency will be inferred from the COA leaf you map to (or you can override in the bulk-create dialog)."
+          >
+            ?
+          </span>
+        ) : null}
       </td>
       <td className="qi-kind">{kind}</td>
       <td>
@@ -669,6 +695,11 @@ function MappingRow({ name, kind, mapped, accountOptions, onSave, onClear, onCre
             is <strong>{selectedLeaf.currency}</strong>. Calibration on this
             account will sum mixed currencies and produce incorrect numbers
             (see CR §12).
+          </div>
+        )}
+        {roleMismatch && (
+          <div className="qi-role-mismatch">
+            ⚠ {roleMismatch}
           </div>
         )}
       </td>
@@ -740,6 +771,28 @@ function MappingPanel({ batchId, detail, onSaveMapping, onClearMapping, onBack, 
     () => accountOptions.filter((a) => a.isLeaf),
     [accountOptions]
   );
+
+  // Q2 role-aware filter — each MappingRow gets a specific picker list:
+  //   origin/both → BS leaf only (asset/liability)
+  //   target_only → Transfer category leaf only (is_transfer=TRUE)
+  //   category    → P&L leaf only (income/expense, not transfer)
+  const bsLeafOptions = useMemo(
+    () => leafOptions.filter((a) => a.section === "balance_sheet" && !a.is_transfer),
+    [leafOptions]
+  );
+  const transferLeafOptions = useMemo(
+    () => leafOptions.filter((a) => a.is_transfer),
+    [leafOptions]
+  );
+  const plLeafOptions = useMemo(
+    () => leafOptions.filter((a) => a.section === "profit_loss" && !a.is_transfer),
+    [leafOptions]
+  );
+  const optionsForRole = (role) => {
+    if (role === "target_only") return transferLeafOptions;
+    if (role === "category") return plLeafOptions;
+    return bsLeafOptions; // origin, both
+  };
 
   // Parent picker in CreateCoaModal accepts only containers — a new leaf must
   // be added under an existing category, never under another leaf.
@@ -952,8 +1005,9 @@ function MappingPanel({ batchId, detail, onSaveMapping, onClearMapping, onBack, 
               key={`${n.kind}:${n.name}`}
               name={n.name}
               kind={n.kind}
+              role={n.role}
               mapped={n}
-              accountOptions={leafOptions}
+              accountOptions={optionsForRole(n.role)}
               onSave={onSaveMapping}
               onClear={onClearMapping}
               onCreateRequest={handleOpenCreateModal}
@@ -1167,9 +1221,11 @@ export default function QuickenImport() {
     setBusy(true);
     try {
       const result = await Rest.post(`/quicken-import/batches/${pickedBatchId}/promote`);
-      toast.success(
-        `Promoted: ${result.standaloneInserted + result.splitChildrenInserted + result.transferPairsInserted * 2} rows`
-      );
+      const totalRows = result.standaloneInserted + result.splitChildrenInserted + result.transferRowsInserted;
+      const matchMsg = typeof result.autoMatched === "number"
+        ? ` (${result.autoMatched} pairs auto-matched, ${result.unmatched} unmatched)`
+        : "";
+      toast.success(`Promoted: ${totalRows} rows${matchMsg}`);
       await loadDetail(pickedBatchId);
       await loadPreflight(pickedBatchId);
       await loadBatches();

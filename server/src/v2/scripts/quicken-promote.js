@@ -44,9 +44,15 @@ const CONN_STR =
 // ═══════════════════════════════════════════════════════════════════════════
 
 /**
- * Load the mapping (quicken external_name → COA accounts.id) for every
- * distinct Quicken name encountered in this batch (accounts and categories
- * coexist in account_source_mappings post-CR013).
+ * Load the mapping (quicken external_name → COA accounts) for every distinct
+ * Quicken name in this batch. Returns Map<name, {account_id, section, is_transfer}>.
+ *
+ * The richer payload (vs. just account_id) is needed by the 1→1 transfer
+ * model: when a transfer_target's mapping is itself a transfer-category leaf
+ * (is_transfer=TRUE, the user explicitly picked the category for a
+ * target-only name), promote uses it directly. When it's a BS leaf
+ * (is_transfer=FALSE, name had its own QIF or maps to an existing BS
+ * account), promote derives the transfer category via §8.2.3 from branches.
  */
 async function loadMappings(client, batchId) {
   // Collect every Quicken name we need to resolve.
@@ -67,12 +73,20 @@ async function loadMappings(client, batchId) {
   if (names.length === 0) return new Map();
 
   const { rows: mapped } = await client.query(
-    `SELECT external_name, account_id FROM account_source_mappings
-       WHERE source = 'quicken' AND external_name = ANY($1::text[])`,
+    `SELECT asm.external_name, asm.account_id, a.section, a.is_transfer
+       FROM account_source_mappings asm
+       JOIN accounts a ON a.id = asm.account_id
+       WHERE asm.source = 'quicken' AND asm.external_name = ANY($1::text[])`,
     [names]
   );
   const m = new Map();
-  for (const r of mapped) m.set(r.external_name, r.account_id);
+  for (const r of mapped) {
+    m.set(r.external_name, {
+      account_id: r.account_id,
+      section: r.section,
+      is_transfer: r.is_transfer,
+    });
+  }
   return m;
 }
 
@@ -111,7 +125,7 @@ async function findUnmappedNames(client, batchId) {
  * Honors `quicken_import_batches.cutoff_overrides` (JSONB) when set.
  */
 async function computeCutoffs(client, batchId, mappings) {
-  const targetAccountIds = [...new Set(mappings.values())];
+  const targetAccountIds = [...new Set([...mappings.values()].map((m) => m.account_id))];
   if (targetAccountIds.length === 0) return new Map();
 
   const { rows } = await client.query(
@@ -289,22 +303,28 @@ async function snapshotBalances(client) {
 }
 
 /**
- * Step 2 + 4 (combined for transactional efficiency).
+ * Step 2 — 1→1 promote model (CR §6.4 pivot).
  *
- * Inserts cash transactions from `quicken_staging` for this batch into
- * `transactions`, applying:
- *   - per-account cutoff
- *   - split-parent skip (parents are metadata; only children land)
- *   - transfer 1→2 fanout (one staging row → debit+credit pair)
- *   - FX base_amount resolution for non-USD rows
- *   - synthetic transfer-pair tracking for step 4
+ * Inserts cash transactions from `quicken_staging`. Every staging row becomes
+ * exactly one transaction on its mapped origin BS leaf. For transfer rows
+ * (transfer_target_account NOT NULL), the category is a transfer leaf
+ * resolved per:
+ *   - If the target's mapping is itself a transfer-category leaf
+ *     (is_transfer=TRUE — the user explicitly picked a transfer category
+ *     because the target is "target-only" with no own QIF), use it directly.
+ *   - Otherwise the target maps to a BS leaf (its own QIF was parsed, or it
+ *     resolves to an existing BS account), and we derive the transfer
+ *     category via §8.2.3 (branch comparison + cross-currency check).
  *
- * Step 4 then creates one transfer_match_groups row per pair with
- * audit_provenance, plus two members rows, sets transfer_matched=true.
+ * No fanout. No transfer_match_groups creation at promote time. Auto-matching
+ * happens in autoMatchTransfers below (Q5).
+ *
+ * Cutoff applies per-row to the ORIGIN account only — the target side
+ * doesn't get a row, so target cutoff is irrelevant.
  *
  * Returns counts for the report.
  */
-async function insertCashAndTransferGroups(client, batchId, mappings, cutoffs) {
+async function insertCashRows(client, batchId, mappings, cutoffs) {
   const { rows: stagingRows } = await client.query(
     `SELECT id, source_file, source_line, quicken_account_name,
             transaction_date, amount, currency, payee, memo,
@@ -319,22 +339,22 @@ async function insertCashAndTransferGroups(client, batchId, mappings, cutoffs) {
 
   let standaloneInserted = 0;
   let splitChildrenInserted = 0;
-  let transferPairsInserted = 0;
+  let transferRowsInserted = 0;
   let droppedByCutoff = 0;
-  const transferPairs = []; // [{ debitId, creditId, originStagingId, targetStagingId }]
 
   for (const row of stagingRows) {
     // Skip split PARENTS (have child_count > 0). They're metadata-only.
     if (parseInt(row.child_count, 10) > 0) continue;
 
-    const originAccountId = mappings.get(row.quicken_account_name);
-    if (!originAccountId) {
+    const originMapping = mappings.get(row.quicken_account_name);
+    if (!originMapping) {
       throw new Error(
-        `insertCashAndTransferGroups: no mapping for Quicken account '${row.quicken_account_name}'`
+        `insertCashRows: no mapping for Quicken account '${row.quicken_account_name}'`
       );
     }
+    const originAccountId = originMapping.account_id;
 
-    // Cutoff check (origin side)
+    // Cutoff check (origin side only — target gets no row in 1→1 model)
     if (isBeyondCutoff(row.transaction_date, cutoffs.get(originAccountId))) {
       droppedByCutoff += 1;
       continue;
@@ -348,152 +368,78 @@ async function insertCashAndTransferGroups(client, batchId, mappings, cutoffs) {
       row.transaction_date
     );
 
+    let categoryId;
+    let description2;
+
     if (row.transfer_target_account) {
-      // Transfer: fan out to 2 legs
-      const targetAccountId = mappings.get(row.transfer_target_account);
-      if (!targetAccountId) {
+      // Transfer row: resolve category from target's mapping
+      const targetMapping = mappings.get(row.transfer_target_account);
+      if (!targetMapping) {
         throw new Error(
-          `insertCashAndTransferGroups: no mapping for transfer target ` +
+          `insertCashRows: no mapping for transfer target ` +
             `'${row.transfer_target_account}' on staging row ${row.id}`
         );
       }
 
-      // Cutoff check (target side — drop pair as a unit per §8.2.2)
-      if (isBeyondCutoff(row.transaction_date, cutoffs.get(targetAccountId))) {
-        droppedByCutoff += 1;
-        continue;
-      }
-
-      const categoryId = await resolveTransferCategoryId(
-        client,
-        originAccountId,
-        targetAccountId
-      );
-
-      const description = row.payee || row.memo || 'Quicken transfer';
-
-      // Debit leg on origin (amount as-is from staging — Quicken stores it
-      // signed from the originating account's perspective)
-      const { rows: debit } = await client.query(
-        `INSERT INTO transactions
-           (account_id, category_id, transaction_date, amount, currency,
-            base_amount, base_currency, description1, description2, memo,
-            source, accepted, import_batch_id)
-         VALUES ($1, $2, $3, $4, $5, $6, 'USD', $7, $8, $9, 'quicken-import', TRUE, $10)
-         RETURNING id`,
-        [
+      if (targetMapping.is_transfer) {
+        // Target-only name explicitly mapped to a transfer leaf — use directly.
+        categoryId = targetMapping.account_id;
+      } else {
+        // Target maps to a BS leaf (origin or both role) — derive category via §8.2.3.
+        categoryId = await resolveTransferCategoryId(
+          client,
           originAccountId,
-          categoryId,
-          row.transaction_date,
-          amount,
-          row.currency,
-          baseAmount,
-          description,
-          'Quicken transfer',
-          row.memo,
-          batchId,
-        ]
-      );
-
-      // Credit leg on target: negated amount
-      const { rows: credit } = await client.query(
-        `INSERT INTO transactions
-           (account_id, category_id, transaction_date, amount, currency,
-            base_amount, base_currency, description1, description2, memo,
-            source, accepted, import_batch_id)
-         VALUES ($1, $2, $3, $4, $5, $6, 'USD', $7, $8, $9, 'quicken-import', TRUE, $10)
-         RETURNING id`,
-        [
-          targetAccountId,
-          categoryId,
-          row.transaction_date,
-          -amount,
-          row.currency,
-          -baseAmount,
-          description,
-          'Quicken transfer (target side)',
-          row.memo,
-          batchId,
-        ]
-      );
-
-      transferPairs.push({
-        debitId: debit[0].id,
-        creditId: credit[0].id,
-        stagingRow: row,
-      });
-      transferPairsInserted += 1;
-    } else {
-      // Non-transfer cash row
-      const categoryId = row.quicken_category
-        ? mappings.get(row.quicken_category)
-        : null;
-      if (row.quicken_category && !categoryId) {
-        throw new Error(
-          `insertCashAndTransferGroups: no mapping for category ` +
-            `'${row.quicken_category}' on staging row ${row.id}`
+          targetMapping.account_id
         );
       }
-
-      const description = row.payee || row.memo || row.quicken_category || 'Quicken import';
-
-      await client.query(
-        `INSERT INTO transactions
-           (account_id, category_id, transaction_date, amount, currency,
-            base_amount, base_currency, description1, description2, memo,
-            source, accepted, import_batch_id)
-         VALUES ($1, $2, $3, $4, $5, $6, 'USD', $7, $8, $9, 'quicken-import', TRUE, $10)`,
-        [
-          originAccountId,
-          categoryId,
-          row.transaction_date,
-          amount,
-          row.currency,
-          baseAmount,
-          description,
-          row.quicken_category,
-          row.memo,
-          batchId,
-        ]
-      );
-
+      description2 = `Quicken transfer → ${row.transfer_target_account}`;
+      transferRowsInserted += 1;
+    } else {
+      // Non-transfer cash row — category from quicken_category mapping
+      if (row.quicken_category) {
+        const catMapping = mappings.get(row.quicken_category);
+        if (!catMapping) {
+          throw new Error(
+            `insertCashRows: no mapping for category ` +
+              `'${row.quicken_category}' on staging row ${row.id}`
+          );
+        }
+        categoryId = catMapping.account_id;
+      } else {
+        categoryId = null;
+      }
+      description2 = row.quicken_category;
       if (row.split_parent_id !== null) splitChildrenInserted += 1;
       else standaloneInserted += 1;
     }
-  }
 
-  // Step 4: wire transfer match groups
-  for (const pair of transferPairs) {
-    const provenance = {
-      match_phase: 'a-side-only', // single-file batch — no cross-file mirror
-      a_side: {
-        file: pair.stagingRow.source_file,
-        line: pair.stagingRow.source_line,
-        staging_id: pair.stagingRow.id,
-      },
-      b_side: null,
-    };
-    const { rows: group } = await client.query(
-      `INSERT INTO transfer_match_groups (note, import_batch_id, audit_provenance)
-         VALUES ($1, $2, $3::jsonb)
-         RETURNING id`,
-      ['Quicken import', batchId, JSON.stringify(provenance)]
-    );
-    const groupId = group[0].id;
+    const description = row.payee || row.memo || row.quicken_category || 'Quicken import';
+
     await client.query(
-      `INSERT INTO transfer_match_group_members (group_id, transaction_id) VALUES ($1, $2), ($1, $3)`,
-      [groupId, pair.debitId, pair.creditId]
-    );
-    await client.query(
-      `UPDATE transactions SET transfer_matched = TRUE WHERE id = ANY($1::bigint[])`,
-      [[pair.debitId, pair.creditId]]
+      `INSERT INTO transactions
+         (account_id, category_id, transaction_date, amount, currency,
+          base_amount, base_currency, description1, description2, memo,
+          source, accepted, import_batch_id)
+       VALUES ($1, $2, $3, $4, $5, $6, 'USD', $7, $8, $9, 'quicken-import', TRUE, $10)`,
+      [
+        originAccountId,
+        categoryId,
+        row.transaction_date,
+        amount,
+        row.currency,
+        baseAmount,
+        description,
+        description2,
+        row.memo,
+        batchId,
+      ]
     );
   }
 
   return {
     standaloneInserted,
     splitChildrenInserted,
-    transferPairsInserted,
+    transferRowsInserted,
     droppedByCutoff,
   };
 }
@@ -525,6 +471,108 @@ async function recalibrate(client, batchId) {
     );
   }
   return deltas.length;
+}
+
+/**
+ * Q5 auto-match step: run the same matching logic as Transfer Analysis
+ * (routes/transactions.js:131) but inline so it commits with the work
+ * transaction. Operates over the batch's date range against ALL unmatched
+ * transfer-category transactions in that window (Quicken AND PS-era), so
+ * Quicken transfers can auto-match with PS transfers and with each other.
+ *
+ * Same matchers:
+ *   - 'FX' / 'Transfer - FX' categories: 1% base_amount tolerance, ±1 day
+ *   - Other transfer categories: exact base_amount within $0.01, ±5 days
+ *
+ * Sets transfer_matched=TRUE on matched pairs. Returns counts for the report.
+ */
+async function autoMatchTransfers(client, batchId) {
+  // Compute the batch's date range
+  const { rows: rangeRows } = await client.query(
+    `SELECT MIN(transaction_date) AS min_date, MAX(transaction_date) AS max_date
+       FROM transactions WHERE import_batch_id = $1`,
+    [batchId]
+  );
+  if (rangeRows.length === 0 || !rangeRows[0].min_date) {
+    return { matched: 0, unmatched: 0 };
+  }
+  const startDate = rangeRows[0].min_date;
+  const endDate = rangeRows[0].max_date;
+
+  // Fetch all unmatched transfer-category transactions in the batch's date
+  // range (across all sources, not just this batch — so Quicken can pair
+  // with PS-era rows).
+  const { rows: txns } = await client.query(
+    `SELECT t.id, t.transaction_date, t.amount, t.base_amount, t.currency,
+            c.id AS category_id, c.name AS category_name
+       FROM transactions t
+       JOIN accounts c ON t.category_id = c.id
+       WHERE c.is_transfer = TRUE
+         AND c.skip_transfer_analysis = FALSE
+         AND t.transfer_matched = FALSE
+         AND t.transaction_date BETWEEN $1 AND $2
+       ORDER BY c.name, t.transaction_date, t.id`,
+    [startDate, endDate]
+  );
+
+  // Group by category, run matchers
+  const byCat = new Map();
+  for (const t of txns) {
+    if (!byCat.has(t.category_name)) byCat.set(t.category_name, []);
+    byCat.get(t.category_name).push(t);
+  }
+
+  const matchedIds = [];
+  const isFx = (n) => n === 'Transfer - FX' || n === 'FX';
+
+  for (const [catName, list] of byCat.entries()) {
+    const fx = isFx(catName);
+    const dateTolerance = fx ? 1 : 5; // days
+    const sorted = [...list].sort((a, b) => parseFloat(a.base_amount) - parseFloat(b.base_amount));
+    const used = new Set();
+
+    for (let i = 0; i < sorted.length; i++) {
+      if (used.has(sorted[i].id)) continue;
+      const amt = parseFloat(sorted[i].base_amount);
+      if (amt >= 0) continue; // start from negatives
+      const dateI = new Date(sorted[i].transaction_date);
+      const absAmt = Math.abs(amt);
+
+      for (let j = 0; j < sorted.length; j++) {
+        if (i === j || used.has(sorted[j].id)) continue;
+        const amtJ = parseFloat(sorted[j].base_amount);
+        if (amtJ <= 0) continue;
+
+        if (fx) {
+          const pctDiff = Math.abs(absAmt - amtJ) / Math.max(absAmt, amtJ);
+          if (pctDiff > 0.01) continue;
+        } else {
+          if (Math.abs(amt + amtJ) > 0.01) continue;
+        }
+
+        const dateJ = new Date(sorted[j].transaction_date);
+        const daysDiff = Math.abs(dateI - dateJ) / 86400000;
+        if (daysDiff > dateTolerance) continue;
+
+        used.add(sorted[i].id);
+        used.add(sorted[j].id);
+        matchedIds.push(sorted[i].id, sorted[j].id);
+        break;
+      }
+    }
+  }
+
+  if (matchedIds.length > 0) {
+    await client.query(
+      `UPDATE transactions SET transfer_matched = TRUE WHERE id = ANY($1::bigint[])`,
+      [matchedIds]
+    );
+  }
+
+  return {
+    matched: matchedIds.length / 2, // number of pairs
+    unmatched: txns.length - matchedIds.length,
+  };
 }
 
 /**
@@ -633,14 +681,20 @@ async function runPromote({ batchId, pool }) {
       const mappings = await loadMappings(client, batchId);
       const cutoffs = await computeCutoffs(client, batchId, mappings);
 
-      // Steps 2 + 4
-      const insertResult = await insertCashAndTransferGroups(client, batchId, mappings, cutoffs);
+      // Step 2: 1→1 cash row insertion
+      const insertResult = await insertCashRows(client, batchId, mappings, cutoffs);
 
       // Step 8: recalibrate (skip if zero rows inserted — nothing to calibrate)
       const calibrated = await recalibrate(client, batchId);
 
       // Step 9: verify
       await verifyBalances(client);
+
+      // Q5: auto-run Transfer Analysis matcher over the batch's date range and
+      // persist transfer_matched=TRUE on auto-matched pairs. Same logic as
+      // /api/v2/transactions/transfer-analysis but inline so it commits with
+      // the work transaction.
+      const autoMatch = await autoMatchTransfers(client, batchId);
 
       // Step 10: finalize
       await client.query(
@@ -653,6 +707,8 @@ async function runPromote({ batchId, pool }) {
         batchId,
         ...insertResult,
         accountsRecalibrated: calibrated,
+        autoMatched: autoMatch.matched,
+        unmatched: autoMatch.unmatched,
       };
     } catch (err) {
       try { await client.query('ROLLBACK'); } catch (_) { /* swallow */ }
@@ -721,6 +777,33 @@ async function runRollback({ batchId, pool }) {
       if (externalDisposals.length > 0) {
         throw new Error(
           `runRollback: ${externalDisposals.length}+ external disposals reference this batch's lots — refusing rollback (per CR §6.5.1)`
+        );
+      }
+
+      // Q4 pre-flight: no MANUAL transfer_match_groups reference this batch's
+      // transactions (groups created post-promote in Transfer Analysis pair
+      // Quicken rows with PS rows or with each other). Auto-matched pairs
+      // don't create groups — they just set transfer_matched=TRUE — so this
+      // only fires for genuine user-curated work.
+      const { rows: externalGroups } = await client.query(
+        `SELECT DISTINCT g.id, g.note
+           FROM transfer_match_groups g
+           JOIN transfer_match_group_members m ON m.group_id = g.id
+           JOIN transactions t ON t.id = m.transaction_id
+           WHERE t.import_batch_id = $1
+             AND g.import_batch_id IS DISTINCT FROM $1
+           LIMIT 10`,
+        [batchId]
+      );
+      if (externalGroups.length > 0) {
+        const sample = externalGroups
+          .slice(0, 3)
+          .map((g) => `id=${g.id}${g.note ? ` "${g.note}"` : ''}`)
+          .join('; ');
+        throw new Error(
+          `runRollback: ${externalGroups.length}+ manual transfer_match_groups reference this batch's transactions. ` +
+            `Delete those groups in Transfer Analysis first, then re-run rollback. ` +
+            `Sample: ${sample}`
         );
       }
 

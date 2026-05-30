@@ -120,43 +120,51 @@ dbDescribe('runPromote + runRollback (cash-only, DB-backed)', () => {
   // Promote tests
   // ────────────────────────────────────────────────────────────────────────
 
-  test('inserts the right number of rows from cash_simple.QIF', async () => {
+  test('inserts the right number of rows from cash_simple.QIF (1→1 model)', async () => {
     const result = await runPromote({ batchId, pool });
-    // Fixture breakdown:
-    //   row 1: Opening Balance transfer to Mortgage → 1 transfer pair
+    // Fixture breakdown under 1→1:
+    //   row 1: Opening Balance transfer to Mortgage → 1 transfer row (origin only)
     //   row 2: -22,500 Bank Fees standalone → 1 standalone
     //   row 3: 0.58 Int Inc standalone → 1 standalone
     //   row 4: split parent (skipped) + 2 children:
     //          child A: -10,769.59 Int Exp → 1 split-child
-    //          child B: -3,348.84 to Mortgage → 1 transfer pair
+    //          child B: -3,348.84 to Mortgage → 1 transfer row (origin only; split-child path)
     //   row 5: 10,000 Deposit standalone → 1 standalone
     //   row 6: 500 Deposit standalone → 1 standalone
     expect(result.standaloneInserted).toBe(4);
     expect(result.splitChildrenInserted).toBe(1);
-    expect(result.transferPairsInserted).toBe(2);
+    expect(result.transferRowsInserted).toBe(2);
     expect(result.droppedByCutoff).toBe(0);
 
-    // Total rows in transactions: 4 standalone + 1 split-child + 2*2 transfer legs = 9
+    // Total rows: 4 standalone + 1 split-child + 2 transfer rows = 7 (under 1→1, no fanout)
     const { rows } = await pool.query(
       `SELECT COUNT(*)::int AS n FROM transactions WHERE import_batch_id = $1`,
       [batchId]
     );
-    expect(rows[0].n).toBe(9);
+    expect(rows[0].n).toBe(7);
   });
 
-  test('transfer pairs land with correct sign (debit on origin + credit on target)', async () => {
+  test('transfer rows land on origin only (1→1 model — no target-side fanout)', async () => {
     await runPromote({ batchId, pool });
+    // Under 1→1: the Opening Balance transfer (1,500,000) produces a single row
+    // on cash_origin with the staging amount. No target-side row on mortgage_target.
     const { rows } = await pool.query(
       `SELECT account_id, amount FROM transactions
-         WHERE import_batch_id = $1 AND amount IN (1500000.00, -1500000.00)
+         WHERE import_batch_id = $1 AND ABS(amount) = 1500000.00
          ORDER BY amount DESC`,
       [batchId]
     );
-    expect(rows).toHaveLength(2);
+    expect(rows).toHaveLength(1);
     expect(rows[0].account_id).toBe(testCoaIds[`${SENTINEL_PREFIX}cash_origin`]);
     expect(parseFloat(rows[0].amount)).toBe(1500000);
-    expect(rows[1].account_id).toBe(testCoaIds[`${SENTINEL_PREFIX}mortgage_target`]);
-    expect(parseFloat(rows[1].amount)).toBe(-1500000);
+
+    // Confirm mortgage_target received zero rows from this batch
+    const targetRows = (await pool.query(
+      `SELECT COUNT(*)::int AS n FROM transactions
+         WHERE import_batch_id = $1 AND account_id = $2`,
+      [batchId, testCoaIds[`${SENTINEL_PREFIX}mortgage_target`]]
+    )).rows[0].n;
+    expect(targetRows).toBe(0);
   });
 
   test('today\'s calculated balance preserved within 1¢ for every sentinel account', async () => {
@@ -201,10 +209,14 @@ dbDescribe('runPromote + runRollback (cash-only, DB-backed)', () => {
          ORDER BY qca.account_id`,
       [batchId]
     );
-    // Sentinels touched: cash_origin + mortgage_target. Both are BS.
-    expect(rows.length).toBeGreaterThanOrEqual(2);
+    // Under 1→1, only cash_origin gets rows (mortgage_target gets no target-side
+    // fanout). Cash_origin is the only sentinel BS account that's calibrated.
+    // P&L sentinels (bank_fees, int_inc, etc.) appear via category_id but
+    // calibration sums by account_id which is always BS here.
+    expect(rows.length).toBeGreaterThanOrEqual(1);
+    const cashOriginRow = rows.find((r) => r.account_id === testCoaIds[`${SENTINEL_PREFIX}cash_origin`]);
+    expect(cashOriginRow).toBeTruthy();
     for (const r of rows) {
-      // transactions.account_id is always BS by convention; no P&L cals
       expect(r.section).toBe('balance_sheet');
     }
   });
@@ -224,24 +236,25 @@ dbDescribe('runPromote + runRollback (cash-only, DB-backed)', () => {
     expect(mappings).toBeGreaterThanOrEqual(6);
   });
 
-  test('transfer_match_groups created with audit_provenance + transfer_matched flag', async () => {
+  test('1→1 model does NOT auto-create transfer_match_groups at promote', async () => {
     await runPromote({ batchId, pool });
+    // Under the 1→1 pivot, promote no longer creates transfer_match_groups
+    // (those are reserved for user-curated manual pairings in Transfer Analysis).
     const groups = (await pool.query(
-      `SELECT audit_provenance FROM transfer_match_groups WHERE import_batch_id = $1`,
+      `SELECT COUNT(*)::int AS n FROM transfer_match_groups WHERE import_batch_id = $1`,
       [batchId]
-    )).rows;
-    expect(groups).toHaveLength(2);
-    for (const g of groups) {
-      expect(g.audit_provenance.match_phase).toBe('a-side-only');
-      expect(g.audit_provenance.a_side).toBeTruthy();
-      expect(g.audit_provenance.b_side).toBeNull();
-    }
+    )).rows[0].n;
+    expect(groups).toBe(0);
+
+    // Auto-match (Q5): the fixture's two transfer rows are both one-sided
+    // (no counter-rows in this isolated test DB), so they don't auto-pair —
+    // transfer_matched stays FALSE on the inserted rows.
     const matched = (await pool.query(
       `SELECT COUNT(*)::int AS n FROM transactions
          WHERE import_batch_id = $1 AND transfer_matched = TRUE`,
       [batchId]
     )).rows[0].n;
-    expect(matched).toBe(4); // 2 pairs × 2 legs
+    expect(matched).toBe(0);
   });
 
   test('promote rejects unmapped Quicken names with fail-loud error', async () => {
@@ -312,9 +325,9 @@ dbDescribe('runPromote + runRollback (cash-only, DB-backed)', () => {
     )).rows;
 
     const result = await runRollback({ batchId, pool });
-    expect(result.deleted.transactions).toBe(9);
-    expect(result.deleted.transfer_match_groups).toBe(2);
-    expect(result.calibrationRowsReversed).toBeGreaterThanOrEqual(2);
+    expect(result.deleted.transactions).toBe(7); // 1→1: 4 standalone + 1 split-child + 2 transfer rows
+    expect(result.deleted.transfer_match_groups).toBe(0); // none auto-created under 1→1
+    expect(result.calibrationRowsReversed).toBeGreaterThanOrEqual(1); // cash_origin (only origin BS leaf)
 
     // No remnant transactions
     const remnant = (await pool.query(
@@ -386,7 +399,7 @@ dbDescribe('runPromote + runRollback (cash-only, DB-backed)', () => {
     );
 
     const result = await runPromote({ batchId, pool });
-    expect(result.transferPairsInserted).toBe(2);
+    expect(result.transferRowsInserted).toBe(2);
     expect(result.standaloneInserted + result.splitChildrenInserted).toBe(5);
   });
 

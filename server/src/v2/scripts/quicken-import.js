@@ -1140,7 +1140,11 @@ if (require.main === module) {
         console.log(`\nBatch ${result.batchId} promoted:`);
         console.log(`  standalone cash rows : ${result.standaloneInserted}`);
         console.log(`  split children       : ${result.splitChildrenInserted}`);
-        console.log(`  transfer pairs       : ${result.transferPairsInserted}`);
+        console.log(`  transfer rows        : ${result.transferRowsInserted}`);
+        if (typeof result.autoMatched === 'number') {
+          console.log(`  auto-matched pairs   : ${result.autoMatched}`);
+          console.log(`  unmatched transfers  : ${result.unmatched}`);
+        }
         console.log(`  dropped (by cutoff)  : ${result.droppedByCutoff}`);
         console.log(`  accounts recalibrated: ${result.accountsRecalibrated}`);
         process.exit(0);

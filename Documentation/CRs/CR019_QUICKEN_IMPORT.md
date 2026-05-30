@@ -394,7 +394,7 @@ On success the single work transaction has already finalized the batch — no se
 
 - **Split parents are metadata-only.** Rows in `quicken_staging` where `L--Split--` was the parent header have `split_parent_id IS NULL`; their child rows carry `split_parent_id` pointing at the parent. Only children are inserted into `transactions`. No code path can promote both parent and children, so double-counting is structurally impossible.
 - **Cash legs have two origins.** Cash rows in `transactions` come from either (a) `quicken_staging` rows that were genuine cash-account QIF rows, or (b) cash legs synthesized at promote from `quicken_securities_staging` rows per the §5.3 mapping (e.g., a Buy emits a neutralized pair, a Div emits a single credit). Step 2 handles (a); step 3 handles (b). They never overlap.
-- **Transfers fan out 1→2 at promote.** After the §8.2 positional dedupe, one staging row represents one logical transfer. Step 2 emits **both** legs (debit on origin, credit on target) for each transfer-flagged staging row, plus both legs for any `XIn`/`XOut` from step 3 — wired into one `transfer_match_groups` row in step 4.
+- **1→1 transfer model (pivot, see §8.2 for full rationale).** Each transfer row in `quicken_staging` becomes a **single** transaction on the origin BS leaf with a transfer-category category. No target-side fanout. Cross-currency pairs are recognized post-hoc by Transfer Analysis's `base_amount` matching with category-aware tolerances (1% for `Transfer - FX`, exact for others). Auto-matching runs as step 11 inside the work transaction.
 
 **Steps:**
 
@@ -402,11 +402,14 @@ On success the single work transaction has already finalized the batch — no se
 
 1. **Reconcile securities master** — Phase 2's Securities mapping panel is the sole upserter for `securities` and `security_source_mappings` rows (see §6.2). This step is an idempotent reconciliation: assert that every `quicken_security_master_staging` row in this batch has `promoted_security_id` set and that the referenced `securities.id` exists. Fail-loud if any are missing (means the user advanced to promote without completing the mapping panel — should not be reachable through the UI, but defensive). No writes to `securities` happen at promote.
 
-2. **Insert direct cash transactions** from `quicken_staging`. Begins by running the §8.2 positional dedupe over the batch's transfer rows (so that cross-file mirror entries are collapsed before any inserts happen — referenced in step 4 below). Then for each row:
-   - **Standalone non-split, non-transfer:** insert one row into `transactions` with `source='quicken-import'`, `accepted=true`, `import_batch_id`, mapped `account_id` and `category_id`, native `amount`, and `base_amount` resolved via `budget_fx_rates(currency, year, month)` for non-USD.
-   - **Split child** (`split_parent_id IS NOT NULL`): insert one row. Split parents are skipped. **Pre-insert assertion:** for every split parent in scope, `SUM(child.amount) == parent.amount` within 1¢ — abort on mismatch.
-   - **Transfer** (`transfer_target_account IS NOT NULL`): fan out to two rows in `transactions`: a debit on the mapped origin account and a credit on the mapped target account, both categorized to the appropriate transfer leaf, both stamped with a shared synthetic group id captured for step 4.
-   - Write back `promoted_transaction_id` (for non-transfer rows) or the pair of ids (for transfers) onto `quicken_staging`.
+2. **Insert direct cash transactions** from `quicken_staging` — **1→1 model**. Each non-parent staging row produces exactly one row in `transactions` on the origin's mapped BS leaf:
+   - **Standalone non-split, non-transfer:** `account_id = origin BS leaf, category_id = mapped P&L leaf, amount = row.amount` (signed from origin's perspective). `base_amount` resolved via `budget_fx_rates(currency, year, month)` for non-USD.
+   - **Split child** (`split_parent_id IS NOT NULL`): same shape as standalone. Split parents are skipped. **Pre-insert assertion:** for every split parent in scope, `SUM(child.amount) == parent.amount` within 1¢ — abort on mismatch.
+   - **Transfer** (`transfer_target_account IS NOT NULL`): one row only — `account_id = origin BS leaf, amount = row.amount`. The category resolution is role-aware:
+     - If the target's mapping is itself a transfer-category leaf (`is_transfer=TRUE`, user explicitly picked the category for a target-only name) — use it directly.
+     - Else the target maps to a BS leaf (origin/both role) — derive the category via §8.2.3 (branch + currency comparison; cross-currency wins → `Transfer - FX`).
+     - **No target-side row is created.** Pairs that span QIF files are recognized in step 11 by the auto-matcher, not by fanout. This eliminates the cross-currency bug where a single staging row's currency leaked onto the target leaf.
+   - Cutoff (§8.1) is applied per-row against the origin account only. No "drop pair as a unit" — pairs are now logical-only via post-hoc matching.
 
 3. **Synthesize investment cash legs.** For each `quicken_securities_staging` row, emit the cash side(s) per the §5.3 action mapping:
    - Buy/BuyX/Sell/SellX → 2 rows (neutralized pair, "Transfer - Securities Trades" category)
@@ -422,7 +425,7 @@ On success the single work transaction has already finalized the batch — no se
 
    All synthesized rows carry `source='quicken-import'`, `accepted=true`, `import_batch_id`, and `base_amount` resolved per the FX rules. The **primary** cash leg per source row (the one that represents the dominant economic event — the debit for Buys, the income credit for Divs/ReinvDivs, the credit for Sells) is written back to `quicken_securities_staging.promoted_cash_tx_id` so step 5 can stamp `cash_transaction_id` on the corresponding `security_transactions` row. The transfer pair from XIn/XOut shares a synthetic group id with the relevant step 2 entries.
 
-4. **Wire transfer match groups.** For every transfer pair created in steps 2 or 3 (each sharing a synthetic group id), insert one `transfer_match_groups` row with `import_batch_id` set and `audit_provenance` populated per the §8.2.1 shape (`{match_phase, a_side, b_side}`), plus two `transfer_match_group_members` rows; set `transfer_matched=true` on both `transactions`. Cross-file deduplication per §8.2 has already collapsed mirror entries before any inserts happened.
+4. **(Deleted under the 1→1 pivot.)** Step 4 previously auto-created `transfer_match_groups` for every fanout pair. With 1→1, pair recognition is post-hoc via Transfer Analysis (step 11 below). `transfer_match_groups` is now reserved for user-curated manual pairings created via the Transfer Analysis UI after promote — those carry a `note` and `audit_provenance` from the user's action and are not touched at promote time.
 
 5. **Build security events, lots, and disposals.** First, apply the **per-account cutoff** to `quicken_securities_staging` rows: drop any row whose `transaction_date >= cutoff` for the staged Quicken account's mapped target (same cutoff used in step 2 per §8.1, including any per-account overrides). This prevents Quicken-era investment events that overlap PS coverage from being double-counted in `security_transactions`. Pre-flight diff surfaces a separate row: "N investment events dropped because they overlap PS coverage."
 
@@ -439,7 +442,13 @@ On success the single work transaction has already finalized the batch — no se
 
 9. **Verify balance invariant.** For each account in `_pre_promote_balances`, compute today's post-promote calculated balance and assert equality with the snapshot within 1¢. Roll back on any mismatch (with the offending account ids surfaced in `failure_reason`).
 
-10. **Finalize batch.** Update `quicken_import_batches` row: `status='promoted'`, `promoted_at=NOW()`. This is the last write of the work transaction. The work transaction then commits. Failure-status update is handled by the outer two-transaction wrapper (see preamble above).
+10. **Auto-match transfers (Q5 pivot addition).** Run the same matching logic as `/api/v2/transactions/transfer-analysis` (in `server/src/v2/routes/transactions.js:131`) over the batch's transaction date range, against ALL unmatched `is_transfer=TRUE AND skip_transfer_analysis=FALSE` transactions in that window (Quicken AND PS-era). Match by category:
+    - **`Transfer - FX` / `FX`**: 1% `base_amount` tolerance, ±1 day
+    - **Other transfer categories**: exact `base_amount` (within $0.01), ±5 days
+
+    Set `transfer_matched=TRUE` on auto-matched pairs. Returns counts surfaced in the promote result (`autoMatched`, `unmatched`). Same logic, same outcome — wrapping at promote time eliminates a "go to TA and run analyze yourself" step the user would otherwise have to repeat for every batch.
+
+11. **Finalize batch.** Update `quicken_import_batches` row: `status='promoted'`, `promoted_at=NOW()`. This is the last write of the work transaction. The work transaction then commits. Failure-status update is handled by the outer two-transaction wrapper (see preamble above).
 
 ### 6.5 Rollback contract
 
@@ -539,69 +548,48 @@ The auto-detected cutoff can be sensitive to outliers: if PS happens to have a s
 - **Account exists in Quicken but not in COA**: caught earlier by the mapping panel (§6.2). Promote is blocked until every distinct Quicken account name has a mapping or is explicitly archived.
 - **Account exists in COA but Quicken QIF has no rows for it**: no cutoff calculation needed; account is simply absent from the diff.
 
-### 8.2 Transfers across QIF files
+### 8.2 Transfers — 1→1 model + post-hoc matching (pivot 2026-05-29)
 
-Quicken records a transfer once (in the originating account, category `[OtherAcct]`) and shows a mirror in the other account's view. When exporting per-account QIFs, the same transfer may appear in both files. A naive key like `(transaction_date, ABS(amount), {min(account_a, account_b), max(account_a, account_b)})` would silently collapse legitimate same-day same-amount duplicates (e.g., two $1,000 transfers from Checking to Savings on the same day) into one.
+**The shape of this section changed substantially.** The original draft used a 1→2 fanout at promote (one staging row → debit on origin + credit on target) with cross-file dedupe matching (§8.2.1) to collapse mirrors. That design broke on **cross-currency transfers**: amounts in PKO's PLN file (`-100 PLN to [Chase]`) and Chase's USD file (`+25 USD from [PKO]`) are real and independent (each account stores its own currency at the historical FX rate Quicken used), but ABS-amount matching can't pair them, and single-row fanout leaks the origin's currency onto the target leaf.
 
-#### 8.2.1 Matching algorithm — two-phase, prefer exact-date
+The pivot brings Quicken transfers into the same model PocketSmith data already uses:
+- Each Quicken row → **one** transaction with `account_id = origin BS leaf, category_id = transfer-category leaf` (see §8.2.3 for picking the category).
+- **No target-side fanout** at promote. The "other side" of any cross-file pair is the other file's own row when that file is also parsed.
+- **Post-hoc matching** by Transfer Analysis (`/api/v2/transactions/transfer-analysis`, `routes/transactions.js:131`) pairs them via `base_amount` comparison with category-aware tolerances:
+  - `Transfer - FX` (and the legacy `FX` leaf): **1% `base_amount` tolerance, ±1 day** — the only category that survives cross-currency FX drift
+  - All other transfer categories: exact `base_amount` within $0.01, ±5 days
+- The matcher runs automatically at the end of promote (§6.4 step 11) so the user sees pre-matched results immediately, but it can also be re-run manually in the Transfer Analysis UI at any time.
 
-The algorithm runs in two phases to avoid the ambiguity that arises when `±1 day` tolerance and positional grouping interact:
+**One-sided imports are now a first-class shape, not a bug.** If user parses pko.QIF but not chase.QIF, PKO's transfer rows land as **unmatched** Transfer-category transactions. Later when chase.QIF is parsed, Chase's rows land alongside; the next Transfer Analysis run pairs them. Until then, the unmatched count just sits in the Transfer Analysis view — no calibration drift, no orphan rows.
 
-**Phase 1 — exact-date matching:**
+#### 8.2.1 (Deleted.) Cross-file dedupe / positional matching algorithm
 
-1. Within each QIF file, for every `(date, abs(amount), counterparty_account)` triple, enumerate the rows in `source_line` order: `1st`, `2nd`, `3rd`, …
-2. Two staging rows match (and are consumed) iff:
-   - One has `quicken_account=A`, `transfer_target_account=B` and the other has `quicken_account=B`, `transfer_target_account=A`
-   - They share `(date exact, abs(amount))`
-   - They share the same positional index within their respective `(date, amount, counterparty)` groups
+Removed in the pivot. Each file's transfer rows are now independent — pairing happens at the Transfer Analysis layer based on `base_amount`, not at staging time based on amount equality. Duplicate-entry detection within a single file (two identical transfer rows from a Quicken data-entry error) still bubbles up as two unmatched transfer rows that the user can spot and reconcile in Transfer Analysis. The `transfer_match_groups.audit_provenance` column added in migration 022 is now used only by manual user-curated match groups created post-promote.
 
-**Phase 2 — adjacent-date matching over the leftovers:**
+#### 8.2.2 (Deleted.) Cutoff interaction (drop pairs as a unit)
 
-3. Over the rows not consumed in phase 1, repeat the matching but allowing `date ±1 day`. Phase 1's consumed rows are off the table — no row can be matched twice. This makes the order deterministic: exact-date matches always win over near-date matches that would otherwise compete for the same row.
+Removed in the pivot. With 1→1, only the origin row is created per staging row, so cutoffs are applied per-row against the origin account only. There's no "pair to drop as a unit" because there's no synthesized target-side row.
 
-**Phase 3 — outcomes:**
+#### 8.2.3 Transfer-category resolution (per row, kept and extended)
 
-4. Three outcomes per remaining unmatched row:
-   - **Matched pair** (from phase 1 or 2): one logical transfer. Promote step 2 fans it out to two `transactions` rows (one debit on A, one credit on B), wires them into one `transfer_match_groups` row in step 4.
-   - **A-side only** (originating row present, mirror not present in any other QIF): promote step 2 still fans out the same 2-leg structure from the present row (the row already carries amount and target account — it's not "synthetic," just doesn't have a cross-file mirror to dedupe against). The reconciliation report flags this as informational ("mirror not found, fanout was unambiguous"); no user action needed.
-   - **B-side only** (mirror present, originator not): symmetric to A-side. Less common because Quicken usually owns the originating side. Same fanout behavior.
-5. **Count mismatches** within a positional group (e.g., A's QIF has two `→B $1000` on 2014-06-19 but B's QIF has three `←A $1000`) **fail-loud** at promote — surfaced in the diff for user review. No silent collapse.
+Promote needs to pick **one** transfer-category leaf for each transfer row (the row's `category_id`). The resolution depends on the role of the `transfer_target_account` name's mapping:
 
-Source-line provenance from `quicken_staging.source_file` + `source_line` is recorded on each matched `transfer_match_groups` row via the new `audit_provenance JSONB` column (§4.3). Shape per row:
-
-```json
-{
-  "match_phase": "exact" | "tolerance",
-  "a_side": {"file": "pko.QIF", "line": 4231, "staging_id": 9012},
-  "b_side": {"file": "bnp.QIF", "line": 178, "staging_id": 9457}
-}
-```
-
-For A-side-only / B-side-only outcomes the absent side is `null`. Promote step 4 writes this column when creating each group. Any later question about which Quicken rows merged into which `transfer_match_groups` row is answerable directly from the column.
-
-#### 8.2.2 Cutoff interaction (drop pairs as a unit)
-
-§8.1 applies the per-account cutoff to individual staging rows. For transfer pairs this is unsafe: a pair whose two sides straddle the cutoff (e.g., A's cutoff is 2021-12-01, B's cutoff is 2022-03-01, transfer dated 2022-01-15) would have A's side dropped but B's side kept, leaving an orphan credit on B that silently misstates the balance.
-
-**Rule:** transfer pairs are evaluated as a unit. If *either* side's `transaction_date >= its_account_cutoff`, the entire pair is dropped — both A and B sides. A-side-only and B-side-only rows are evaluated against their single account's cutoff as usual.
-
-Pre-flight diff surfaces a dedicated row count: "N transfer pairs dropped because one side overlaps PS coverage."
-
-#### 8.2.3 Transfer-category resolution
-
-Promote needs to assign a transfer category leaf to each of the two legs it emits. The category is derived from the BS COA branches of the two mapped accounts, in this priority order:
+- **Target mapped to a transfer-category leaf** (`is_transfer=TRUE`) — this is the `target_only` role case. User explicitly picked a transfer category (e.g., `Transfer - Historical` for a closed account they don't want to track separately, or `Transfer - Bank` if they know what it should be). Use the target's mapped account_id directly as the row's category_id. No derivation.
+- **Target mapped to a BS leaf** (`is_transfer=FALSE`, `section='balance_sheet'`) — this is the `origin` or `both` role case. The target has its own QIF parsed (or maps to an existing live BS account). Walk both origin's and target's parent chains and pick a category via the priority table:
 
 | If either side's account branch is… | Category |
 |---|---|
 | Mortgage / Loan | `Transfer - Mortgage` |
 | Securities (Fidelity Stock, CVC Investments, Fidelity Fixed Income, …) | `Transfer - Securities Trades` |
-| Different base currencies (e.g., USD ↔ PLN bank, USD ↔ EUR brokerage) | `Transfer - FX` |
+| **Different base currencies** (e.g., USD ↔ PLN bank, USD ↔ EUR brokerage) | `Transfer - FX` |
 | Business-flagged account (any side) | `Transfer - Business` |
 | Otherwise (Bank ↔ Bank, Bank ↔ Credit Card, …) | `Transfer - Bank` |
 
-Categories not present in the current COA are auto-created on promote with `is_transfer=TRUE` under the `Transfers` parent so the legs always land somewhere appropriate. Resolution is deterministic — same pair always picks the same category, so re-promote after rollback is stable.
+Categories not present in the current COA are auto-created on promote with `is_transfer=TRUE` under the `Transfers` parent. Resolution is deterministic — same pair always picks the same category, so re-promote after rollback is stable.
 
-If the resolution table needs a new branch as the COA evolves (e.g., a new asset class), update the table here and add the corresponding `if` arm to the promote step; no data migration needed since the assigned category leaf is just a foreign key.
+The cross-currency check (different base currencies on the leaf accounts) is critical for matching: only `Transfer - FX` gets the 1% tolerance in §6.4 step 11, so cross-currency rows landing in `Transfer - Bank` would never auto-match.
+
+**`Transfer - Historical`** is a new leaf seeded under Transfers (CR §8.4 Option J). It's the catch-all the user picks for target-only names whose actual currency they don't know yet. After they later parse the target's QIF, the role transitions (target_only → both) and they remap to the BS leaf; promote can then derive the proper category via §8.2.3 priority. Older promoted rows that landed on `Transfer - Historical` can be re-categorized in Transfer Analysis at any time.
 
 ### 8.3 Security transfers across QIF files
 
@@ -632,6 +620,8 @@ Each leaf:
 - **Bulk-deactivate** — for N selected rows whose mapping targets are leaves you want hidden post-promote, soft-delete the target leaves (calls `DELETE /api/v2/accounts/:id`)
 
 Together they reduce the workflow for 25 closed accounts from ~75 modal interactions to two or three batch actions.
+
+**Interplay with the §8.2 1→1 pivot.** Option J still applies when you want **per-account year-end balance history** for a closed account — you parse its QIF, map it to its own leaf under Historical Assets/Liabilities, promote, then soft-delete the leaf. For closed accounts you **don't** care to track separately (no QIF parsed, no balance history needed), the alternative is the role-aware mapping path: the `transfer_target_account` name takes role `target_only`, the picker restricts to transfer-category leaves, and you map it to `Transfer - Historical` (or a more specific transfer leaf like `Transfer - Bank` if you know the type). Promote's 1→1 step emits a single transaction on the originating BS leaf (your active account) categorized as a transfer; nothing lands on the closed side because no QIF parses it. This second path produces no per-closed-account balance trail but keeps the originating account's history accurate and clean — a sensible default for accounts that hold no meaningful history.
 
 **Convention, not enforcement.** Nothing in the system requires this pattern. A user could map closed Quicken accounts to a single P&L umbrella (an earlier draft considered this — Option C), or keep them as active BS leaves. The Historical Accounts pattern is the recommended workflow because it preserves per-account year-end-balance fidelity without polluting reports — but other approaches remain valid.
 
@@ -1090,6 +1080,17 @@ This is destructive of all post-promote prod activity (anything users did betwee
 
 ## 21. Update history
 
+- **2026-05-29** — **Cash-transfer model pivot — 1→1 with post-hoc matching.** Replaced the original §6.4 step 2 fanout (1 staging row → debit+credit pair) with a single transaction per row, plus auto-run Transfer Analysis at the end of promote. Driver: the fanout leaked the source file's currency onto the target side for cross-currency transfers (PKO PLN → Chase USD), and §8.2 cross-file dedupe couldn't pair them because absolute amounts didn't match. The 1→1 model is the same shape PocketSmith data already uses; `base_amount` matching with category-aware tolerances (`Transfer - FX` 1%, others exact) handles cross-currency pair recognition correctly. Changes landed:
+  - **§6.4 step 2 rewritten** — single insert per row, `account_id = origin BS, category_id = transfer-category` (resolved per §8.2.3 role-aware logic). Target side gets no row. Cutoff per-row against origin only.
+  - **§6.4 step 4 deleted** — `transfer_match_groups` no longer auto-created at promote (reserved for user-curated manual pairings).
+  - **§6.4 step 11 added** — auto-match via the existing Transfer Analysis logic over the batch's date range; `transfer_matched=TRUE` persisted on auto-matched pairs.
+  - **§8.2.1 deleted** — cross-file positional matching gone.
+  - **§8.2.2 deleted** — pair-as-unit cutoff dropping gone.
+  - **§8.2.3 extended** — handles role-aware target mapping: if target's mapping is a transfer-category leaf (user explicitly picked one), use it directly; else derive via the existing priority table (cross-currency wins → `Transfer - FX`). New `Transfer - Historical` leaf seeded under Transfers as the catch-all for target-only names.
+  - **§8.4 extended** — Historical Accounts pattern (per-account BS leaves) now coexists with the `Transfer - Historical` quick path: use Option J for closed accounts you want balance history on (parse their QIF); use the role-aware transfer-leaf mapping for closed accounts you don't care to track separately.
+  - **Role-aware mapping picker** — API `/batches/:id` now returns `role` (origin / target_only / both / category) per Quicken name; frontend filters picker options accordingly; server-side validation rejects mismatches.
+  - **Q4 rollback pre-flight** — refuses to roll back if manual `transfer_match_groups` reference the batch's transactions (user resolves them first in Transfer Analysis).
+  - **Tests** — 13 promote tests rewritten for the new row counts and behavior; full suite stays at 57 passing.
 - **2026-05-21** — Initial planning skeleton. Decisions captured from CR019 design conversation. Awaiting alignment with CR020 author before phase A begins.
 - **2026-05-21** — Validated against user's sample QIFs (`Samples/quicken/pko.QIF`, `fidelity_stk.QIF`, `fidelity_stk_w_sec.QIF`). Findings folded in:
   - Action coverage table updated with real frequencies (17 distinct actions; Div is 3,399 — dominant).

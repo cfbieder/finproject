@@ -74,36 +74,61 @@ router.get('/batches/:id', async (req, res, next) => {
       [id]
     )).rows[0];
 
-    // Distinct Quicken names with mapping status. Currency is set for
-    // account-kind names that appear as the origin in at least one staging
-    // row (one Quicken account = one currency stamped by the parser);
-    // categories and transfer-target-only names get null currency.
+    // Distinct Quicken names with mapping status + role classification.
+    // Each name's `role` controls what kind of COA leaf it can be mapped to:
+    //   origin       — name appears only as quicken_account_name; map to BS leaf
+    //   target_only  — name appears only as transfer_target_account (no own QIF parsed); map to Transfer category leaf
+    //   both         — appears as both origin and target; map to BS leaf (origin's needs win;
+    //                  promote derives transfer category via §8.2.3 from BS branches)
+    //   category     — Quicken category (L tag value, not a bracketed transfer); map to P&L leaf
+    // Currency is set for names with origin rows (one Quicken account = one currency
+    // stamped by the parser); target_only names get null currency.
     const { rows: names } = await pool.query(
-      `WITH origin_currencies AS (
+      `WITH origins AS (
+         SELECT DISTINCT quicken_account_name AS name
+           FROM quicken_staging WHERE import_batch_id = $1
+       ),
+       targets AS (
+         SELECT DISTINCT transfer_target_account AS name
+           FROM quicken_staging
+           WHERE import_batch_id = $1 AND transfer_target_account IS NOT NULL
+       ),
+       categories AS (
+         SELECT DISTINCT quicken_category AS name
+           FROM quicken_staging
+           WHERE import_batch_id = $1 AND quicken_category IS NOT NULL
+             AND quicken_category <> ''
+       ),
+       account_names AS (
+         SELECT
+           COALESCE(o.name, t.name) AS name,
+           'account' AS kind,
+           CASE
+             WHEN o.name IS NOT NULL AND t.name IS NOT NULL THEN 'both'
+             WHEN o.name IS NOT NULL THEN 'origin'
+             ELSE 'target_only'
+           END AS role
+         FROM origins o
+         FULL OUTER JOIN targets t ON o.name = t.name
+       ),
+       all_names AS (
+         SELECT name, kind, role FROM account_names
+         UNION ALL
+         SELECT name, 'category' AS kind, 'category' AS role FROM categories
+       ),
+       origin_currencies AS (
          SELECT quicken_account_name AS name, MIN(currency) AS currency
            FROM quicken_staging
            WHERE import_batch_id = $1
            GROUP BY quicken_account_name
-       ),
-       all_names AS (
-         SELECT DISTINCT quicken_account_name AS name, 'account' AS kind
-           FROM quicken_staging WHERE import_batch_id = $1
-         UNION
-         SELECT DISTINCT transfer_target_account AS name, 'account' AS kind
-           FROM quicken_staging
-           WHERE import_batch_id = $1 AND transfer_target_account IS NOT NULL
-         UNION
-         SELECT DISTINCT quicken_category AS name, 'category' AS kind
-           FROM quicken_staging
-           WHERE import_batch_id = $1 AND quicken_category IS NOT NULL
-             AND quicken_category <> ''
        )
-       SELECT n.name, n.kind,
+       SELECT n.name, n.kind, n.role,
               oc.currency AS quicken_currency,
               asm.account_id AS mapped_account_id,
               a.name AS mapped_account_name,
               a.section AS mapped_section,
-              a.currency AS mapped_account_currency
+              a.currency AS mapped_account_currency,
+              a.is_transfer AS mapped_is_transfer
          FROM all_names n
          LEFT JOIN origin_currencies oc ON oc.name = n.name
          LEFT JOIN account_source_mappings asm
@@ -146,6 +171,68 @@ router.post('/batches/:id/mappings', async (req, res, next) => {
       return res.status(400).json({
         error: `Cannot map to "${parentName}" — it is a container with child accounts. Pick a leaf account instead.`,
       });
+    }
+    // Role-based target validation (Q2 strict filter):
+    //   origin / both → BS leaf (non-transfer)
+    //   target_only   → Transfer category leaf (is_transfer=TRUE)
+    //   category      → P&L leaf (non-transfer)
+    // Look up the name's role from staging and target's classification, then check.
+    const { rows: roleRows } = await pool.query(
+      `WITH origins AS (
+         SELECT 1 FROM quicken_staging
+         WHERE import_batch_id = $1 AND quicken_account_name = $2 LIMIT 1
+       ),
+       targets AS (
+         SELECT 1 FROM quicken_staging
+         WHERE import_batch_id = $1 AND transfer_target_account = $2 LIMIT 1
+       ),
+       cats AS (
+         SELECT 1 FROM quicken_staging
+         WHERE import_batch_id = $1 AND quicken_category = $2 LIMIT 1
+       )
+       SELECT
+         EXISTS(SELECT 1 FROM origins) AS is_origin,
+         EXISTS(SELECT 1 FROM targets) AS is_target,
+         EXISTS(SELECT 1 FROM cats)    AS is_cat`,
+      [req.params.id, external_name]
+    );
+    const role = (() => {
+      const r = roleRows[0] || {};
+      if (r.is_cat) return 'category';
+      if (r.is_origin && r.is_target) return 'both';
+      if (r.is_origin) return 'origin';
+      if (r.is_target) return 'target_only';
+      return null;
+    })();
+    const { rows: targetRows } = await pool.query(
+      `SELECT name, section, is_transfer FROM accounts WHERE id = $1`,
+      [account_id]
+    );
+    if (targetRows.length === 0) {
+      return res.status(400).json({ error: `Target account id=${account_id} not found` });
+    }
+    const target = targetRows[0];
+    if (role === 'origin' || role === 'both') {
+      if (target.section !== 'balance_sheet' || target.is_transfer) {
+        return res.status(400).json({
+          error: `"${external_name}" is an origin account — must be mapped to a Balance Sheet leaf. ` +
+                 `"${target.name}" is ${target.is_transfer ? 'a transfer category' : 'a P&L leaf'}.`,
+        });
+      }
+    } else if (role === 'target_only') {
+      if (!target.is_transfer) {
+        return res.status(400).json({
+          error: `"${external_name}" appears only as a transfer target — must be mapped to a Transfer category leaf ` +
+                 `(under the Transfers parent, with is_transfer=TRUE). "${target.name}" isn't a transfer category.`,
+        });
+      }
+    } else if (role === 'category') {
+      if (target.section !== 'profit_loss' || target.is_transfer) {
+        return res.status(400).json({
+          error: `"${external_name}" is a category — must be mapped to a P&L leaf (income or expense). ` +
+                 `"${target.name}" is ${target.is_transfer ? 'a transfer category' : 'a Balance Sheet leaf'}.`,
+        });
+      }
     }
     await pool.query(
       `INSERT INTO account_source_mappings (account_id, source, external_name)

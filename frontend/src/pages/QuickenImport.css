@@ -103,6 +103,13 @@
   vertical-align: middle;
 }
 
+.qi-ccy-badge.qi-ccy-badge-unknown {
+  background: #fff8e1;
+  border-color: #f0c674;
+  color: #6b4400;
+  cursor: help;
+}
+
 .qi-ccy-warning {
   margin-top: 0.35rem;
   padding: 0.4rem 0.6rem;
@@ -111,6 +118,17 @@
   border-radius: 4px;
   font-size: 0.8rem;
   color: #6b4400;
+  line-height: 1.4;
+}
+
+.qi-role-mismatch {
+  margin-top: 0.35rem;
+  padding: 0.4rem 0.6rem;
+  background: #fee2e2;
+  border: 1px solid #fca5a5;
+  border-radius: 4px;
+  font-size: 0.8rem;
+  color: #991b1b;
   line-height: 1.4;
 }
 
