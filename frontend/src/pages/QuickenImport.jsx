@@ -1222,10 +1222,10 @@ export default function QuickenImport() {
     try {
       const result = await Rest.post(`/quicken-import/batches/${pickedBatchId}/promote`);
       const totalRows = result.standaloneInserted + result.splitChildrenInserted + result.transferRowsInserted;
-      const matchMsg = typeof result.autoMatched === "number"
-        ? ` (${result.autoMatched} pairs auto-matched, ${result.unmatched} unmatched)`
+      const transferMsg = result.transferRowsInserted > 0
+        ? ` — ${result.transferRowsInserted} transfer rows inserted unmatched; run Transfer Analysis to pair them`
         : "";
-      toast.success(`Promoted: ${totalRows} rows${matchMsg}`);
+      toast.success(`Promoted: ${totalRows} rows${transferMsg}`);
       await loadDetail(pickedBatchId);
       await loadPreflight(pickedBatchId);
       await loadBatches();

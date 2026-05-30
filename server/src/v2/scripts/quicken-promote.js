@@ -316,8 +316,10 @@ async function snapshotBalances(client) {
  *     resolves to an existing BS account), and we derive the transfer
  *     category via §8.2.3 (branch comparison + cross-currency check).
  *
- * No fanout. No transfer_match_groups creation at promote time. Auto-matching
- * happens in autoMatchTransfers below (Q5).
+ * No fanout. No transfer_match_groups creation at promote time. No transfer
+ * matching at promote at all — transfer rows land transfer_matched=FALSE and
+ * are paired later by a manual Transfer Analysis run (removed 2026-05-30; the
+ * old promote-time matcher had global scope and made promote irreversible).
  *
  * Cutoff applies per-row to the ORIGIN account only — the target side
  * doesn't get a row, so target cutoff is irrelevant.
@@ -419,8 +421,8 @@ async function insertCashRows(client, batchId, mappings, cutoffs) {
       `INSERT INTO transactions
          (account_id, category_id, transaction_date, amount, currency,
           base_amount, base_currency, description1, description2, memo,
-          source, accepted, import_batch_id)
-       VALUES ($1, $2, $3, $4, $5, $6, 'USD', $7, $8, $9, 'quicken-import', TRUE, $10)`,
+          source, accepted, import_batch_id, transfer_matched)
+       VALUES ($1, $2, $3, $4, $5, $6, 'USD', $7, $8, $9, 'quicken-import', TRUE, $10, FALSE)`,
       [
         originAccountId,
         categoryId,
@@ -471,108 +473,6 @@ async function recalibrate(client, batchId) {
     );
   }
   return deltas.length;
-}
-
-/**
- * Q5 auto-match step: run the same matching logic as Transfer Analysis
- * (routes/transactions.js:131) but inline so it commits with the work
- * transaction. Operates over the batch's date range against ALL unmatched
- * transfer-category transactions in that window (Quicken AND PS-era), so
- * Quicken transfers can auto-match with PS transfers and with each other.
- *
- * Same matchers:
- *   - 'FX' / 'Transfer - FX' categories: 1% base_amount tolerance, ±1 day
- *   - Other transfer categories: exact base_amount within $0.01, ±5 days
- *
- * Sets transfer_matched=TRUE on matched pairs. Returns counts for the report.
- */
-async function autoMatchTransfers(client, batchId) {
-  // Compute the batch's date range
-  const { rows: rangeRows } = await client.query(
-    `SELECT MIN(transaction_date) AS min_date, MAX(transaction_date) AS max_date
-       FROM transactions WHERE import_batch_id = $1`,
-    [batchId]
-  );
-  if (rangeRows.length === 0 || !rangeRows[0].min_date) {
-    return { matched: 0, unmatched: 0 };
-  }
-  const startDate = rangeRows[0].min_date;
-  const endDate = rangeRows[0].max_date;
-
-  // Fetch all unmatched transfer-category transactions in the batch's date
-  // range (across all sources, not just this batch — so Quicken can pair
-  // with PS-era rows).
-  const { rows: txns } = await client.query(
-    `SELECT t.id, t.transaction_date, t.amount, t.base_amount, t.currency,
-            c.id AS category_id, c.name AS category_name
-       FROM transactions t
-       JOIN accounts c ON t.category_id = c.id
-       WHERE c.is_transfer = TRUE
-         AND c.skip_transfer_analysis = FALSE
-         AND t.transfer_matched = FALSE
-         AND t.transaction_date BETWEEN $1 AND $2
-       ORDER BY c.name, t.transaction_date, t.id`,
-    [startDate, endDate]
-  );
-
-  // Group by category, run matchers
-  const byCat = new Map();
-  for (const t of txns) {
-    if (!byCat.has(t.category_name)) byCat.set(t.category_name, []);
-    byCat.get(t.category_name).push(t);
-  }
-
-  const matchedIds = [];
-  const isFx = (n) => n === 'Transfer - FX' || n === 'FX';
-
-  for (const [catName, list] of byCat.entries()) {
-    const fx = isFx(catName);
-    const dateTolerance = fx ? 1 : 5; // days
-    const sorted = [...list].sort((a, b) => parseFloat(a.base_amount) - parseFloat(b.base_amount));
-    const used = new Set();
-
-    for (let i = 0; i < sorted.length; i++) {
-      if (used.has(sorted[i].id)) continue;
-      const amt = parseFloat(sorted[i].base_amount);
-      if (amt >= 0) continue; // start from negatives
-      const dateI = new Date(sorted[i].transaction_date);
-      const absAmt = Math.abs(amt);
-
-      for (let j = 0; j < sorted.length; j++) {
-        if (i === j || used.has(sorted[j].id)) continue;
-        const amtJ = parseFloat(sorted[j].base_amount);
-        if (amtJ <= 0) continue;
-
-        if (fx) {
-          const pctDiff = Math.abs(absAmt - amtJ) / Math.max(absAmt, amtJ);
-          if (pctDiff > 0.01) continue;
-        } else {
-          if (Math.abs(amt + amtJ) > 0.01) continue;
-        }
-
-        const dateJ = new Date(sorted[j].transaction_date);
-        const daysDiff = Math.abs(dateI - dateJ) / 86400000;
-        if (daysDiff > dateTolerance) continue;
-
-        used.add(sorted[i].id);
-        used.add(sorted[j].id);
-        matchedIds.push(sorted[i].id, sorted[j].id);
-        break;
-      }
-    }
-  }
-
-  if (matchedIds.length > 0) {
-    await client.query(
-      `UPDATE transactions SET transfer_matched = TRUE WHERE id = ANY($1::bigint[])`,
-      [matchedIds]
-    );
-  }
-
-  return {
-    matched: matchedIds.length / 2, // number of pairs
-    unmatched: txns.length - matchedIds.length,
-  };
 }
 
 /**
@@ -690,11 +590,14 @@ async function runPromote({ batchId, pool }) {
       // Step 9: verify
       await verifyBalances(client);
 
-      // Q5: auto-run Transfer Analysis matcher over the batch's date range and
-      // persist transfer_matched=TRUE on auto-matched pairs. Same logic as
-      // /api/v2/transactions/transfer-analysis but inline so it commits with
-      // the work transaction.
-      const autoMatch = await autoMatchTransfers(client, batchId);
+      // Transfer matching is intentionally NOT run here. Promote is purely
+      // additive and must stay cleanly reversible by runRollback (which only
+      // touches this batch's rows). The Transfer Analysis matcher has global
+      // scope (every transfer txn in the date window, all sources) and would
+      // flip transfer_matched=TRUE on unrelated PS-era rows that rollback can't
+      // restore. Inserted transfer rows land with transfer_matched=FALSE; the
+      // user runs Transfer Analysis (/api/v2/transactions/transfer-analysis)
+      // post-promote when ready — it is idempotent and re-runnable.
 
       // Step 10: finalize
       await client.query(
@@ -707,8 +610,6 @@ async function runPromote({ batchId, pool }) {
         batchId,
         ...insertResult,
         accountsRecalibrated: calibrated,
-        autoMatched: autoMatch.matched,
-        unmatched: autoMatch.unmatched,
       };
     } catch (err) {
       try { await client.query('ROLLBACK'); } catch (_) { /* swallow */ }
@@ -782,9 +683,9 @@ async function runRollback({ batchId, pool }) {
 
       // Q4 pre-flight: no MANUAL transfer_match_groups reference this batch's
       // transactions (groups created post-promote in Transfer Analysis pair
-      // Quicken rows with PS rows or with each other). Auto-matched pairs
-      // don't create groups — they just set transfer_matched=TRUE — so this
-      // only fires for genuine user-curated work.
+      // Quicken rows with PS rows or with each other). Promote no longer
+      // auto-matches, so any group here is genuine user-curated work — refuse
+      // rollback rather than orphan a user's pairing.
       const { rows: externalGroups } = await client.query(
         `SELECT DISTINCT g.id, g.note
            FROM transfer_match_groups g
