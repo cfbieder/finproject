@@ -36,6 +36,7 @@ import Home from "../pages/Home";
 // Lazy loaded pages (for code splitting)
 const BackupDatabase = lazy(() => import("../pages/BackupDatabase"));
 const QuickenImport = lazy(() => import("../pages/QuickenImport"));
+const BankFeedDiagnostic = lazy(() => import("../pages/BankFeedDiagnostic"));
 const Balance = lazy(() => import("../pages/BalanceV2"));
 const BalanceChart = lazy(() => import("../pages/BalanceChart"));
 const BalanceTrends = lazy(() => import("../pages/BalanceTrends"));
@@ -347,6 +348,14 @@ export const routes = [
     category: "Database",
     description: "Map, promote, and roll back Quicken backfill batches (CR019)",
     icon: Upload,
+  },
+  {
+    path: "/bank-feed-diagnostic",
+    component: BankFeedDiagnostic,
+    label: "Bank Feed Diagnostic",
+    category: "Database",
+    description: "Read-only view of the bank-feed microservice — staleness, sync health, balance reconciliation (CR021 Phase 7 spike)",
+    icon: Eye,
   },
 
   // Settings

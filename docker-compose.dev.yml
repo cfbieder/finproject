@@ -42,6 +42,12 @@ services:
       PS_API_KEY: "${PS_API_KEY:-7916e6eba6fa3a5a59af4a6f5e7ae8c66f0cdd3b94d5eaf2d25cdb06e43e6a4f}"
       PS_USER_ID: "${PS_USER_ID:-330430}"
       LLM_GATEWAY_URL: "${LLM_GATEWAY_URL:-http://192.168.1.61:8080}"
+      BANK_FEED_URL: "${BANK_FEED_URL:-http://host.docker.internal:3007}"
+      BANK_FEED_API_KEY: "${BANK_FEED_API_KEY:-}"
+    extra_hosts:
+      # Lets the container reach bank-feed at the host's published 3007 port
+      # via host.docker.internal on Linux (Docker Desktop sets this up auto).
+      - "host.docker.internal:host-gateway"
     volumes:
       - ./components/data:/app/components/data
       - ./components/reports:/app/components/reports

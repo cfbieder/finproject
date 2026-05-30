@@ -1,0 +1,149 @@
+.bfd-page {
+  padding: 24px;
+  max-width: 1400px;
+  margin: 0 auto;
+}
+
+.bfd-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 8px;
+}
+
+.bfd-header h1 {
+  margin: 0;
+}
+
+.bfd-subtitle {
+  color: var(--text-muted, #6b7280);
+  margin: 0 0 24px 0;
+}
+
+.bfd-section {
+  margin-bottom: 32px;
+  background: var(--surface, #fff);
+  border: 1px solid var(--border, #e5e7eb);
+  border-radius: 8px;
+  padding: 16px 20px;
+}
+
+.bfd-section h2 {
+  margin: 0 0 16px 0;
+  font-size: 1.1rem;
+  font-weight: 600;
+}
+
+.bfd-kv {
+  border-collapse: collapse;
+  width: 100%;
+}
+.bfd-kv th {
+  text-align: left;
+  font-weight: 500;
+  color: var(--text-muted, #6b7280);
+  padding: 4px 16px 4px 0;
+  width: 200px;
+}
+.bfd-kv td {
+  padding: 4px 0;
+}
+
+.bfd-pill {
+  display: inline-block;
+  padding: 2px 8px;
+  font-size: 0.75rem;
+  font-weight: 600;
+  border-radius: 4px;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+.bfd-pill-ok     { background: #d1fae5; color: #065f46; }
+.bfd-pill-warn   { background: #fef3c7; color: #92400e; }
+.bfd-pill-danger { background: #fee2e2; color: #991b1b; }
+
+.bfd-feed-card {
+  border: 1px solid var(--border, #e5e7eb);
+  border-radius: 6px;
+  padding: 12px 16px;
+  margin-bottom: 16px;
+}
+.bfd-feed-card-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 8px;
+}
+.bfd-feed-card-header h3 {
+  margin: 0;
+  font-size: 1rem;
+}
+.bfd-feed-pills {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+.bfd-feed-stats {
+  margin-bottom: 12px;
+  font-size: 0.9rem;
+}
+
+.bfd-accounts,
+.bfd-tx-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.85rem;
+}
+.bfd-accounts th,
+.bfd-accounts td,
+.bfd-tx-table th,
+.bfd-tx-table td {
+  text-align: left;
+  padding: 6px 10px;
+  border-bottom: 1px solid var(--border-subtle, #f3f4f6);
+}
+.bfd-accounts th,
+.bfd-tx-table th {
+  background: var(--surface-alt, #f9fafb);
+  font-weight: 600;
+  color: var(--text-muted, #6b7280);
+}
+.bfd-accounts .num,
+.bfd-tx-table .num {
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+  font-family: "SF Mono", Menlo, Consolas, monospace;
+}
+
+.bfd-muted   { color: var(--text-muted, #6b7280); }
+.bfd-ok      { color: #047857; }
+.bfd-danger  { color: #b91c1c; }
+
+.bfd-desc {
+  max-width: 360px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.bfd-extid {
+  font-family: "SF Mono", Menlo, Consolas, monospace;
+  font-size: 0.75rem;
+  max-width: 200px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.bfd-error {
+  background: #fef2f2;
+  border: 1px solid #fecaca;
+  color: #991b1b;
+  padding: 12px 16px;
+  border-radius: 6px;
+  margin-bottom: 16px;
+}
+.bfd-error-hint {
+  margin-top: 8px;
+  font-size: 0.85rem;
+  color: #7f1d1d;
+}
