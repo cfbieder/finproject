@@ -107,8 +107,15 @@ async function bankFeedColumnExists(db) {
   return _bankFeedColumnExists;
 }
 
-async function syncStagingToTransactions() {
+async function syncStagingToTransactions(options = {}) {
   const db = require('../db');
+
+  // Optional promote scope (added for CR022 R2.2 test isolation; also useful for
+  // syncing a subset). When onlyPsIds is provided, only those staging rows are
+  // promoted; default (undefined) promotes everything exactly as before.
+  const onlyPsIds = Array.isArray(options.onlyPsIds) ? options.onlyPsIds.map(String) : null;
+  const scopeClause = onlyPsIds ? `\n        AND s.ps_id = ANY($1::varchar[])` : '';
+  const upsertParams = onlyPsIds ? [onlyPsIds] : [];
 
   // CR022 R2.2 — reverse cross-source dedup. When a PS staging row duplicates a
   // transaction already imported via bank-feed (source='bank-feed', so a genuine
@@ -199,7 +206,7 @@ async function syncStagingToTransactions() {
       LEFT JOIN accounts c ON csm.account_id = c.id AND c.section = 'profit_loss'
       WHERE a.id IS NOT NULL
         AND s.transaction_date IS NOT NULL
-        AND s.currency IS NOT NULL${bankFeedDedupClause}
+        AND s.currency IS NOT NULL${bankFeedDedupClause}${scopeClause}
     )
     INSERT INTO transactions (
       ps_id, transaction_date, description1, description2,
@@ -233,7 +240,7 @@ async function syncStagingToTransactions() {
     WHERE transactions.accepted IS NOT TRUE
     RETURNING id,
       (xmax = 0) as was_inserted
-  `);
+  `, upsertParams);
 
   const inserted = upsertResult.rows.filter(r => r.was_inserted).length;
   const updated = upsertResult.rows.filter(r => !r.was_inserted).length;
@@ -620,3 +627,6 @@ router.post('/sync-to-transactions', async (req, res, next) => {
 });
 
 module.exports = router;
+// Exposed for tests (CR022 R2.2 reverse-dedup coverage). The router stays the
+// default export so route mounting is unaffected.
+module.exports.syncStagingToTransactions = syncStagingToTransactions;

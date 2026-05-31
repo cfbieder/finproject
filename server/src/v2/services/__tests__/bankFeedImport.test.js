@@ -392,3 +392,81 @@ dbDescribe('refreshBankFeedV2.promote (DB)', () => {
     expect(psRow.rows[0].bank_feed_external_id).toBeNull(); // PS row untouched
   });
 });
+
+// ════════════════════════════════════════════════════════════════════════════
+// DB-backed: R2.2 reverse dedup in the REAL PS promote (ingestPs §5.2 #7)
+//
+// Runs the actual syncStagingToTransactions() — the only edit to live PS code —
+// scoped via onlyPsIds so it never touches the dev DB's real ~26k staging rows.
+// ════════════════════════════════════════════════════════════════════════════
+
+dbDescribe('PS promote reverse dedup (DB)', () => {
+  const ingestPs = require('../../routes/ingestPs');
+  const db = require('../../db');
+
+  const ACCT = 3;
+  const PS_ACCT_NAME = 'TestRevAcct';
+  const PS_DUP = String(999200001);   // PS row that duplicates a bank-feed tx
+  const PS_NEW = String(999200002);   // PS row with no bank-feed twin
+  const BF_EXT = 'test-rev-bf';       // the bank-feed twin's external id
+
+  async function cleanup() {
+    await db.query(`DELETE FROM psdata_staging WHERE ps_id = ANY($1::varchar[])`, [[PS_DUP, PS_NEW]]);
+    await db.query(`DELETE FROM transactions WHERE ps_id = ANY($1::bigint[])`, [[PS_DUP, PS_NEW]]);
+    await db.query(`DELETE FROM transactions WHERE bank_feed_external_id = $1`, [BF_EXT]);
+    await db.query(`DELETE FROM account_source_mappings WHERE source='pocketsmith' AND external_name=$1`, [PS_ACCT_NAME]);
+  }
+
+  async function seedPsStaging(psId, amount) {
+    await db.query(
+      `INSERT INTO psdata_staging (ps_id, transaction_date, amount, currency, account_name)
+       VALUES ($1, '2026-04-10', $2, 'PLN', $3)`,
+      [psId, amount, PS_ACCT_NAME]
+    );
+  }
+
+  beforeEach(async () => {
+    await cleanup();
+    // pocketsmith mapping so the PS rows resolve to a fin account
+    await db.query(
+      `INSERT INTO account_source_mappings (account_id, source, external_name)
+       VALUES ($1, 'pocketsmith', $2) ON CONFLICT (source, external_name) DO UPDATE SET account_id=EXCLUDED.account_id`,
+      [ACCT, PS_ACCT_NAME]
+    );
+    // a genuine bank-feed transaction already in the canonical table (the twin)
+    await db.query(
+      `INSERT INTO transactions (transaction_date, amount, currency, account_id, source, bank_feed_external_id, accepted)
+       VALUES ('2026-04-10', -88.88, 'PLN', $1, 'bank-feed', $2, FALSE)`,
+      [ACCT, BF_EXT]
+    );
+  });
+  afterAll(async () => { await cleanup(); await db.close(); });
+
+  test('a PS row duplicating a bank-feed tx is dropped; a non-duplicate is promoted', async () => {
+    await seedPsStaging(PS_DUP, -88.88);   // matches the bank-feed twin (acct/amt/cur, same day)
+    await seedPsStaging(PS_NEW, -11.11);   // no twin
+
+    await ingestPs.syncStagingToTransactions({ onlyPsIds: [PS_DUP, PS_NEW] });
+
+    const dup = await db.query(`SELECT 1 FROM transactions WHERE ps_id = $1`, [PS_DUP]);
+    const fresh = await db.query(`SELECT 1 FROM transactions WHERE ps_id = $1`, [PS_NEW]);
+    expect(dup.rows).toHaveLength(0);   // dropped — we already hold it via bank-feed
+    expect(fresh.rows).toHaveLength(1); // promoted normally
+  });
+
+  test('with BANK_FEED_DEDUP_ENABLED=false the duplicate PS row IS promoted', async () => {
+    await seedPsStaging(PS_DUP, -88.88);
+
+    const prev = process.env.BANK_FEED_DEDUP_ENABLED;
+    process.env.BANK_FEED_DEDUP_ENABLED = 'false';
+    try {
+      await ingestPs.syncStagingToTransactions({ onlyPsIds: [PS_DUP] });
+    } finally {
+      if (prev === undefined) delete process.env.BANK_FEED_DEDUP_ENABLED;
+      else process.env.BANK_FEED_DEDUP_ENABLED = prev;
+    }
+
+    const dup = await db.query(`SELECT 1 FROM transactions WHERE ps_id = $1`, [PS_DUP]);
+    expect(dup.rows).toHaveLength(1); // source-segregated: PS row kept
+  });
+});
