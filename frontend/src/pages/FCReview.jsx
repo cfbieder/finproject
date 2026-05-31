@@ -392,6 +392,47 @@ export default function FCReview() {
   }, [cashAccounts]);
 
   /**
+   * Per-source detail rows for the Transfers line in the Cash Flow Summary.
+   *
+   * Groups every transfer entry (cash accounts mapped to level2 "Transfers")
+   * by its Module (source), summing amounts per year. Each row's per-year
+   * values therefore sum to the Transfers line for that year, and the rows
+   * collectively reconcile Income + Expense + Transfers = Net Cash Flow.
+   *
+   * @returns {Array<{module: string, values: Array<number|null>, total: number}>}
+   *   Rows sorted by absolute lifetime total (largest first).
+   */
+  const transferDetailRows = useMemo(() => {
+    const byModule = new Map(); // module -> Map<year, amount>
+    for (const entry of entries) {
+      const account = entry?.Account;
+      const mapping = cashAccountMap.get(account);
+      if (mapping?.level2 !== "Transfers") continue;
+      const year = Number(entry?.Year);
+      const amount = Number(entry?.Amount ?? 0);
+      if (Number.isNaN(year) || Number.isNaN(amount)) continue;
+      const module = entry?.Module || entry?.Comment || "(unspecified)";
+      const yearMap = byModule.get(module) || new Map();
+      yearMap.set(year, (yearMap.get(year) || 0) + amount);
+      byModule.set(module, yearMap);
+    }
+
+    const rows = [];
+    for (const [module, yearMap] of byModule.entries()) {
+      let total = 0;
+      const values = sortedYears.map((year) => {
+        const v = yearMap.get(Number(year));
+        if (v == null) return null;
+        total += v;
+        return v;
+      });
+      rows.push({ module, values, total });
+    }
+    rows.sort((a, b) => Math.abs(b.total) - Math.abs(a.total));
+    return rows;
+  }, [entries, cashAccountMap, sortedYears]);
+
+  /**
    * Aggregates forecast entries by account and year for both cash flow and balance sheet.
    *
    * Creates efficient lookup maps for:
@@ -1507,6 +1548,7 @@ export default function FCReview() {
           cashAccounts={cashAccounts}
           balanceAccounts={balanceAccounts}
           cashRowsWithNet={cashRowsWithNet}
+          transferDetailRows={transferDetailRows}
           getCellValue={getCellValue}
           balanceDisplayValues={balanceDisplayValues}
           totalAssetsByYear={totalAssetsByYear}

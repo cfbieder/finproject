@@ -98,6 +98,112 @@ function EquityBridgeRows({ sortedYears, cashRowsWithNet, getCellValue, totalAss
   );
 }
 
+/**
+ * Cash Flow Summary section: Income + Expense + Transfers (broken out by source) = Net Cash Flow.
+ *
+ * The four headline rows reuse resolveCashValue so they match the main cash-flow
+ * section exactly (including base-year budget / last-actual overlays). The Transfers
+ * line is followed by one indented sub-row per source module; those sub-rows sum to
+ * the Transfers line, and Income + Expense + Transfers reconciles to Net Cash Flow.
+ */
+function CashFlowSummaryRows({
+  sortedYears,
+  resolveCashValue,
+  transferDetailRows,
+  baseYears,
+  lastActualYears,
+  selectCellBaseStyle,
+  accountCellBaseStyle,
+}) {
+  const [collapsed, setCollapsed] = useState(false);
+
+  const incomeVals = sortedYears.map((y) => resolveCashValue({ label: "Income", level: 1 }, y));
+  const expenseVals = sortedYears.map((y) => resolveCashValue({ label: "Expense", level: 1 }, y));
+  const transferVals = sortedYears.map((y) => resolveCashValue({ label: "Transfers", level: 2 }, y));
+  const netVals = sortedYears.map((y) => resolveCashValue({ isNet: true }, y));
+
+  const shadeFor = (year) =>
+    baseYears?.has(Number(year)) || lastActualYears?.has(Number(year)) ? "#fafafa" : undefined;
+
+  const valueCells = (values, { bold } = {}) =>
+    sortedYears.map((year, yi) => {
+      const v = values[yi];
+      const num = Number(v);
+      return (
+        <td
+          key={`cfs-${year}`}
+          className="trans-budget-table__value--numeric"
+          style={{
+            color: Number.isFinite(num) && num < 0 ? "var(--danger)" : undefined,
+            backgroundColor: shadeFor(year),
+            fontWeight: bold ? 700 : undefined,
+          }}
+        >
+          {formatAmount(v)}
+        </td>
+      );
+    });
+
+  const labelCell = (label, { level = 1, bold = false, color } = {}) => (
+    <td
+      style={{
+        ...accountCellBaseStyle,
+        padding: "0.3rem 0.75rem",
+        paddingLeft: level === 3 ? "2.5rem" : level === 2 ? "1.75rem" : "0.75rem",
+        fontWeight: bold ? 700 : level === 1 ? 700 : level === 2 ? 600 : 500,
+        color,
+      }}
+    >
+      {label}
+    </td>
+  );
+
+  return (
+    <>
+      {/* Cash Flow Summary header row */}
+      <tr>
+        <td style={{ ...selectCellBaseStyle, top: undefined, borderTop: "2px solid var(--primary, #567856)" }} />
+        <td
+          style={{ ...accountCellBaseStyle, borderTop: "2px solid var(--primary, #567856)", padding: "0.4rem 0.75rem", cursor: "pointer" }}
+          onClick={() => setCollapsed((p) => !p)}
+        >
+          <span style={{ color: "var(--primary, #567856)", fontWeight: 600, fontSize: "0.85rem" }}>
+            {collapsed ? "+" : "-"} Cash Flow Summary
+          </span>
+        </td>
+        {sortedYears.map((y) => (
+          <td key={`cfs-hdr-${y}`} style={{ borderTop: "2px solid var(--primary, #567856)" }} />
+        ))}
+      </tr>
+
+      {!collapsed && (
+        <>
+          <tr><SelectSpacer style={selectCellBaseStyle} />{labelCell("Income")}{valueCells(incomeVals)}</tr>
+          <tr><SelectSpacer style={selectCellBaseStyle} />{labelCell("Expense")}{valueCells(expenseVals)}</tr>
+          <tr><SelectSpacer style={selectCellBaseStyle} />{labelCell("Transfers", { level: 2 })}{valueCells(transferVals)}</tr>
+          {transferDetailRows?.map((detail, di) => (
+            <tr key={`cfs-tr-${detail.module}-${di}`}>
+              <SelectSpacer style={selectCellBaseStyle} />
+              {labelCell(detail.module, { level: 3, color: "var(--muted)" })}
+              {valueCells(detail.values)}
+            </tr>
+          ))}
+          <tr>
+            <SelectSpacer style={selectCellBaseStyle} />
+            {labelCell("Net Cash Flow", { bold: true })}
+            {valueCells(netVals, { bold: true })}
+          </tr>
+        </>
+      )}
+    </>
+  );
+}
+
+// Sticky leading cell (matches the checkbox column) so summary rows align with the grid.
+function SelectSpacer({ style }) {
+  return <td style={{ ...style, top: undefined }} />;
+}
+
 export default function FCReviewTable({
   sortedYears,
   baseYear,
@@ -121,6 +227,7 @@ export default function FCReviewTable({
   cashAccounts,
   balanceAccounts,
   cashRowsWithNet,
+  transferDetailRows,
   getCellValue,
   balanceDisplayValues,
   totalAssetsByYear,
@@ -894,6 +1001,18 @@ export default function FCReviewTable({
                     );
                   })}
                 </>
+              )}
+              {/* Cash Flow Summary section (above the equity bridge) */}
+              {!tableError && sortedYears.length > 0 && cashRowsWithNet?.length > 0 && (
+                <CashFlowSummaryRows
+                  sortedYears={sortedYears}
+                  resolveCashValue={resolveCashValue}
+                  transferDetailRows={transferDetailRows}
+                  baseYears={baseYears}
+                  lastActualYears={lastActualYears}
+                  selectCellBaseStyle={selectCellBaseStyle}
+                  accountCellBaseStyle={accountCellBaseStyle}
+                />
               )}
               {/* Equity Bridge rows inside the same table */}
               {!tableError && sortedYears.length > 0 && cashRowsWithNet?.length > 0 && (
