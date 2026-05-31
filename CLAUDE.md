@@ -14,6 +14,16 @@ Update the following files to reflect the changes made:
 2. **`Documentation/FC_NEXT_STEPS.md`** — Mark completed CRs/items as done, add new known issues if discovered, or add new entries if the work reveals them.
 3. **`Documentation/CRs/`** — If the work matches an existing CR, update its status header and body. If the work warrants a new CR (substantive feature, multi-session work, architectural impact), create the next-numbered CR file and add a row to `CR_INDEX.md`. Trivial fixes do not need a CR — leave them as bullets in `FC_NEXT_STEPS.md`.
 
+## Git discipline
+
+This repo has a single shared working tree, index, and branch, and more than one agent thread may be active at once. To avoid one thread absorbing or wiping another's uncommitted work:
+
+1. **Always stage and commit with explicit pathspecs** — `git add <specific files>` / `git commit -- <specific files>`. **Never** `git add -A`, `git add .`, or `git commit -a` (they sweep up the other thread's changes).
+2. **Do not run `git stash`, `git checkout <paths>`, `git reset`, or branch switches while other uncommitted work may exist** — these can move or destroy it. If unsure, run `git status` first.
+3. **Before pushing:** `git pull --ff-only`, then push. **Never force-push** a shared branch.
+4. **`bank-feed/` is a separate, gitignored repo** with its own git history — it is not tracked by this repo and needs no coordination with it.
+5. **Commit `.env` never** — it carries local-only changes; leave it out of every commit.
+
 ## When promption for questions
 
 1.  Always ask the questions one by one, one after the other
