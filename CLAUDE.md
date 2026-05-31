@@ -23,6 +23,8 @@ This repo has a single shared working tree, index, and branch, and more than one
 3. **Before pushing:** `git pull --ff-only`, then push. **Never force-push** a shared branch.
 4. **`bank-feed/` is a separate, gitignored repo** with its own git history — it is not tracked by this repo and needs no coordination with it.
 5. **Commit `.env` never** — it carries local-only changes; leave it out of every commit.
+6. **`main` is the single trunk and the prod deploy source** (`Scripts/deploy-to-production.sh` pushes/deploys `main`). Apply DB migrations to **prod before** deploying code that references the new objects, or the deploy breaks the running app.
+7. **Expect the branch to move under you.** Another thread may add commits or cut a release between your reads; before committing or pushing, re-check `git log`/`git status`. **Do not push without explicit user confirmation** — local commits are fine.
 
 ## When promption for questions
 
