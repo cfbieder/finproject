@@ -1,4 +1,5 @@
 import { useCallback, useMemo, useState } from "react";
+import { EARLIEST_ACTUAL_YEAR } from "../../utils/yearOptions";
 import "./PeriodSelector.css";
 
 // ============================================================================
@@ -24,10 +25,14 @@ const DEFAULT_MONTH_OPTIONS = [
 ];
 
 const YEAR_OPTION_COUNT = 6;
+// Actual-year options must reach back far enough to view historical imports
+// (EARLIEST_ACTUAL_YEAR; the Quicken backfill goes back ~20 years). Callers can
+// still override via the `yearOptions` prop for data-driven ranges.
 const DEFAULT_YEAR_OPTIONS = Array.from(
-  { length: YEAR_OPTION_COUNT },
+  { length: CURRENT_YEAR - EARLIEST_ACTUAL_YEAR + 1 },
   (_, i) => CURRENT_YEAR - i
 );
+// Budget years are forward-looking — keep the short window.
 const DEFAULT_BUDGET_YEAR_OPTIONS = Array.from(
   { length: YEAR_OPTION_COUNT },
   (_, i) => CURRENT_YEAR - 1 + i

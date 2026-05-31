@@ -1,5 +1,6 @@
 import "../Balances/BalanceDateSelector.css";
 import MonthYearPicker from "../../components/MonthYearPicker";
+import { EARLIEST_ACTUAL_YEAR } from "../../utils/yearOptions";
 const monthOptions = [
   { value: 1, label: "January" },
   { value: 2, label: "February" },
@@ -79,9 +80,10 @@ export default function CashFlowDateSelectorMonthYear({
 
   const currentMonth = new Date().getMonth() + 1;
   const currentYear = new Date().getFullYear();
+  // Floor at EARLIEST_ACTUAL_YEAR so historical imports are selectable.
   const baseYears = Array.from(
-    { length: 21 },
-    (_, idx) => currentYear - 10 + idx
+    { length: currentYear + 10 - EARLIEST_ACTUAL_YEAR + 1 },
+    (_, idx) => EARLIEST_ACTUAL_YEAR + idx
   );
   const existingYears = [...normalizedFromDates, ...normalizedToDates]
     .map((date) => parseDateParts(date).year)

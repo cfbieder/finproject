@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { ChevronUp, ChevronDown, ChevronsUpDown } from "lucide-react";
 import Rest from "../../js/rest";
+import { EARLIEST_ACTUAL_YEAR } from "../../utils/yearOptions";
 
 const numberFormatter = new Intl.NumberFormat(undefined, {
   minimumFractionDigits: 2,
@@ -498,14 +499,11 @@ export function useTransactionExchangeRates() {
 
 const TRANSACTION_DATE_YEAR_RANGE = 4;
 const TRANSACTION_DATE_CURRENT_YEAR = new Date().getUTCFullYear();
+// Span EARLIEST_ACTUAL_YEAR → currentYear + RANGE so historical transaction dates
+// (e.g. Quicken backfill back to ~2014) can be entered/edited.
 const TRANSACTION_DATE_YEAR_OPTIONS = Array.from(
-  { length: TRANSACTION_DATE_YEAR_RANGE * 2 + 1 },
-  (_, index) =>
-    (
-      TRANSACTION_DATE_CURRENT_YEAR -
-      TRANSACTION_DATE_YEAR_RANGE +
-      index
-    ).toString()
+  { length: TRANSACTION_DATE_CURRENT_YEAR + TRANSACTION_DATE_YEAR_RANGE - EARLIEST_ACTUAL_YEAR + 1 },
+  (_, index) => (EARLIEST_ACTUAL_YEAR + index).toString()
 );
 const TRANSACTION_DATE_MONTH_NAMES = [
   "January",

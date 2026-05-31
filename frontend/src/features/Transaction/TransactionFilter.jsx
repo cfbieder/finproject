@@ -1,10 +1,14 @@
 import { useEffect, useState } from "react";
 import Rest from "../../js/rest";
+import { EARLIEST_ACTUAL_YEAR } from "../../utils/yearOptions";
 import "./TransactionFilter.css";
 
 const currentYear = new Date().getFullYear();
-const YEAR_OPTIONS = Array.from({ length: 7 }, (_, index) =>
-  (currentYear - 3 + index).toString()
+// Span EARLIEST_ACTUAL_YEAR → currentYear+3 so historical imports are selectable
+// (ascending; default selection below still picks the current year).
+const YEAR_OPTIONS = Array.from(
+  { length: currentYear + 3 - EARLIEST_ACTUAL_YEAR + 1 },
+  (_, index) => (EARLIEST_ACTUAL_YEAR + index).toString()
 );
 const DEFAULT_YEAR = currentYear.toString();
 const MONTH_OPTIONS = [
