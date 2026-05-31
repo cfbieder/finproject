@@ -341,6 +341,8 @@ quicken-import parse --files './quicken-exports/*.qif' --batch <uuid>
 - Writes **only** to the four staging tables (§5.6 — parse-phase contract). No touches to `transactions`, `securities`, `security_*`, or mapping tables.
 - Emits reconciliation report (HTML + JSON) at `quicken-import/<batch>/report.html`.
 
+**UI-driven parse (2026-05-31):** the same `runParse()` is exposed via `POST /api/v2/quicken-import/parse` (body `{files:[{name,currency,content}]}`). The admin batch list has a **New Import** modal — pick one or more `.QIF` files from the browser, confirm the derived account name (filename minus extension), set currency per file, submit. Each file becomes **its own batch** (per-account rollback + `quicken-verify --expect-account` granularity). The handler writes each upload to a temp file and calls `runParse`, then stores the friendly `name:CCY` in `source_files`. This removes the need to `docker cp` QIFs onto the server for the multi-account backfill; the CLI remains available for scripted use.
+
 ### 6.2 Phase 2 — Map (admin UI)
 
 `/admin/quicken-import/:batch` shows three mapping panels, each surfacing unmapped distinct names from staging with fuzzy-match suggestions:
