@@ -93,8 +93,43 @@ const orderCategoriesByCoa = (psCategories, coaCategories) => {
  * Sync staging data to transactions table
  * Maps account_name/category_name to account_id/category_id
  */
+// Memoized: does transactions.bank_feed_external_id exist? (CR022 migration 023).
+// PS promote must stay safe on a DB where 023 hasn't been applied (e.g. prod
+// before cutover) — referencing a missing column would break every PS refresh.
+let _bankFeedColumnExists = null;
+async function bankFeedColumnExists(db) {
+  if (_bankFeedColumnExists !== null) return _bankFeedColumnExists;
+  const r = await db.query(
+    `SELECT 1 FROM information_schema.columns
+     WHERE table_name = 'transactions' AND column_name = 'bank_feed_external_id'`
+  );
+  _bankFeedColumnExists = r.rows.length > 0;
+  return _bankFeedColumnExists;
+}
+
 async function syncStagingToTransactions() {
   const db = require('../db');
+
+  // CR022 R2.2 — reverse cross-source dedup. When a PS staging row duplicates a
+  // transaction already imported via bank-feed (source='bank-feed', so a genuine
+  // bank-feed-origin insert, NOT a PS row that was merely linked), drop the PS
+  // row: we already hold that transaction. Match on (account_id, ABS(amount),
+  // currency) within ±1 day. Applied only when BANK_FEED_DEDUP_ENABLED is on
+  // (default) AND migration 023 has landed (column present) — otherwise the
+  // clause is empty and PS promote behaves exactly as before. The column check
+  // makes this safe regardless of migrate-vs-deploy ordering.
+  const dedupOn =
+    process.env.BANK_FEED_DEDUP_ENABLED !== 'false' && (await bankFeedColumnExists(db));
+  const bankFeedDedupClause = !dedupOn ? '' : `
+        AND NOT EXISTS (
+          SELECT 1 FROM transactions bf
+          WHERE bf.source = 'bank-feed'
+            AND bf.bank_feed_external_id IS NOT NULL
+            AND bf.account_id = a.id
+            AND bf.currency = s.currency
+            AND ROUND(ABS(bf.amount), 2) = ROUND(ABS(COALESCE(s.amount, 0)), 2)
+            AND ABS(bf.transaction_date - s.transaction_date) <= 1
+        )`;
 
   // Check for unmapped accounts/categories first
   const unmappedAcctResult = await db.query(`
@@ -164,7 +199,7 @@ async function syncStagingToTransactions() {
       LEFT JOIN accounts c ON csm.account_id = c.id AND c.section = 'profit_loss'
       WHERE a.id IS NOT NULL
         AND s.transaction_date IS NOT NULL
-        AND s.currency IS NOT NULL
+        AND s.currency IS NOT NULL${bankFeedDedupClause}
     )
     INSERT INTO transactions (
       ps_id, transaction_date, description1, description2,

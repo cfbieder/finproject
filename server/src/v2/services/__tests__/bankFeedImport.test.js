@@ -255,3 +255,140 @@ dbDescribe('bankfeedStaging repository (DB)', () => {
     expect(one.external_id).toBe('a');
   });
 });
+
+// ════════════════════════════════════════════════════════════════════════════
+// DB-backed: promote — R1 opt-in gate + R2 cross-source dedup (CR022 §5.2)
+// ════════════════════════════════════════════════════════════════════════════
+
+dbDescribe('refreshBankFeedV2.promote (DB)', () => {
+  const orchestrator = require('../refreshBankFeedV2');
+  const staging = require('../../repositories/bankfeedStaging');
+  const db = require('../../db');
+
+  const ACCT = 3;                       // existing dev account (FK target)
+  const TAG = 'test-bf-phaseC';         // staging source tag
+  const UUID_OK = 'test-uuid-OK';       // mapped + not ignored
+  const UUID_IGN = 'test-uuid-IGN';     // mapped + ignored
+  const UUID_UNMAP = 'test-uuid-UNMAP'; // no mapping
+  const PS_ID_BASE = 999100000;         // sentinel ps_id range for test PS rows
+
+  async function cleanup() {
+    await db.query(`DELETE FROM bankfeed_staging WHERE source = $1`, [TAG]);
+    await db.query(`DELETE FROM transactions WHERE bank_feed_external_id LIKE 'test-bf-c-%'`);
+    await db.query(`DELETE FROM transactions WHERE ps_id >= $1 AND ps_id < $2`, [PS_ID_BASE, PS_ID_BASE + 1000]);
+    await db.query(`DELETE FROM account_source_mappings WHERE external_name LIKE 'test-uuid-%'`);
+  }
+
+  async function seedMapping(uuid, ignored) {
+    await db.query(
+      `INSERT INTO account_source_mappings (account_id, source, external_name, ignored)
+       VALUES ($1, 'bank-feed', $2, $3)
+       ON CONFLICT (source, external_name) DO UPDATE SET account_id = EXCLUDED.account_id, ignored = EXCLUDED.ignored`,
+      [ACCT, uuid, ignored]
+    );
+  }
+
+  async function seedStaging(externalId, uuid, over = {}) {
+    await staging.upsert({
+      external_id: externalId,
+      source: TAG,
+      feed_account_external_id: uuid,
+      transaction_date: '2026-03-15',
+      amount: -77.77,
+      currency: 'PLN',
+      description: 'phaseC staged',
+      pending: false,
+      raw: { external_id: externalId },
+      ...over,
+    });
+  }
+
+  async function seedPsRow(psId, over = {}) {
+    await db.query(
+      `INSERT INTO transactions (ps_id, transaction_date, description1, amount, currency, account_id, source, accepted)
+       VALUES ($1, $2, $3, $4, $5, $6, 'pocketsmith', FALSE)`,
+      [psId, over.date || '2026-03-15', over.desc || 'ps row', over.amount != null ? over.amount : -77.77, over.currency || 'PLN', ACCT]
+    );
+  }
+
+  beforeEach(cleanup);
+  afterAll(async () => { await cleanup(); await db.close(); });
+
+  test('R1: ignored skipped, unmapped pending, mapped promoted', async () => {
+    await seedMapping(UUID_OK, false);
+    await seedMapping(UUID_IGN, true);
+    await seedStaging('test-bf-c-ok', UUID_OK);
+    await seedStaging('test-bf-c-ign', UUID_IGN);
+    await seedStaging('test-bf-c-unmap', UUID_UNMAP);
+
+    const sync = await orchestrator.promote();
+
+    expect(sync.ignoredAccounts).toContain(UUID_IGN);
+    expect(sync.unmappedAccounts).toContain(UUID_UNMAP);
+    expect(sync.inserted).toBe(1); // only the mapped+un-ignored row
+
+    const promoted = await db.query(
+      `SELECT bank_feed_external_id, source, accepted FROM transactions WHERE bank_feed_external_id = 'test-bf-c-ok'`
+    );
+    expect(promoted.rows).toHaveLength(1);
+    expect(promoted.rows[0].source).toBe('bank-feed');
+    expect(promoted.rows[0].accepted).toBe(false);
+
+    // ignored + unmapped rows remain unpromoted in staging
+    const held = await db.query(
+      `SELECT external_id FROM bankfeed_staging WHERE source = $1 AND promoted_transaction_id IS NULL`, [TAG]
+    );
+    const heldIds = held.rows.map((r) => r.external_id).sort();
+    expect(heldIds).toEqual(['test-bf-c-ign', 'test-bf-c-unmap']);
+  });
+
+  test('R2: PS-first → bank-feed links onto the existing PS row (no new row)', async () => {
+    await seedMapping(UUID_OK, false);
+    await seedPsRow(PS_ID_BASE + 1);                    // PS twin, same acct/amount/date
+    await seedStaging('test-bf-c-link', UUID_OK);
+
+    const before = await db.query(`SELECT COUNT(*)::int n FROM transactions WHERE account_id = $1`, [ACCT]);
+    const sync = await orchestrator.promote();
+    const after = await db.query(`SELECT COUNT(*)::int n FROM transactions WHERE account_id = $1`, [ACCT]);
+
+    expect(sync.inserted).toBe(0);
+    expect(sync.mergedTotal).toBe(1);
+    expect(sync.mergedWithPsCount[UUID_OK]).toBe(1);
+    expect(after.rows[0].n).toBe(before.rows[0].n); // no new row — linked, not inserted
+
+    const linked = await db.query(
+      `SELECT source, bank_feed_external_id FROM transactions WHERE ps_id = $1`, [PS_ID_BASE + 1]
+    );
+    expect(linked.rows[0].source).toBe('pocketsmith');   // id stayed stable, still PS row
+    expect(linked.rows[0].bank_feed_external_id).toBe('test-bf-c-link');
+  });
+
+  test('R2: no PS twin → inserts a new bank-feed row', async () => {
+    await seedMapping(UUID_OK, false);
+    await seedStaging('test-bf-c-new', UUID_OK, { amount: -55.55, transaction_date: '2026-03-20' });
+
+    const sync = await orchestrator.promote();
+    expect(sync.inserted).toBe(1);
+    expect(sync.mergedTotal).toBe(0);
+  });
+
+  test('R2: BANK_FEED_DEDUP_ENABLED=false → inserts new row even with a PS twin', async () => {
+    await seedMapping(UUID_OK, false);
+    await seedPsRow(PS_ID_BASE + 2);
+    await seedStaging('test-bf-c-flagoff', UUID_OK);
+
+    const prev = process.env.BANK_FEED_DEDUP_ENABLED;
+    process.env.BANK_FEED_DEDUP_ENABLED = 'false';
+    try {
+      const sync = await orchestrator.promote();
+      expect(sync.inserted).toBe(1);    // source-segregated, not linked
+      expect(sync.mergedTotal).toBe(0);
+    } finally {
+      if (prev === undefined) delete process.env.BANK_FEED_DEDUP_ENABLED;
+      else process.env.BANK_FEED_DEDUP_ENABLED = prev;
+    }
+
+    const psRow = await db.query(`SELECT bank_feed_external_id FROM transactions WHERE ps_id = $1`, [PS_ID_BASE + 2]);
+    expect(psRow.rows[0].bank_feed_external_id).toBeNull(); // PS row untouched
+  });
+});

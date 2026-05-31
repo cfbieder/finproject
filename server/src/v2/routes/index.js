@@ -22,6 +22,7 @@ const fcLinesRouter = require('./fcLines');
 const aiReviewRouter = require('./aiReview');
 const quickenImportRouter = require('./quickenImport');
 const bankFeedRouter = require('./bankFeed');
+const ingestBankFeedRouter = require('./ingestBankFeed');
 
 // Mount routes
 router.use('/health', healthRouter);
@@ -38,6 +39,7 @@ router.use('/transfer-match-groups', transferMatchGroupsRouter);
 router.use('/ai-review', aiReviewRouter);
 router.use('/quicken-import', quickenImportRouter);
 router.use('/bank-feed', bankFeedRouter);
+router.use('/ingest-bank-feed', ingestBankFeedRouter);
 
 // API root info
 router.get('/', (req, res) => {
