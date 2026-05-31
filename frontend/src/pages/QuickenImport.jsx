@@ -21,7 +21,11 @@ import "./PageLayout.css";
 import "./QuickenImport.css";
 
 function formatAccountLabel(a) {
-  const prefix = `[${a.section === "balance_sheet" ? "BS" : "P&L"}]`;
+  // Transfer accounts live under "Transfers" with section=profit_loss; label them
+  // [Transfer] (not [P&L]) so they're not mistaken for income/expense accounts.
+  const prefix = a.is_transfer
+    ? "[Transfer]"
+    : `[${a.section === "balance_sheet" ? "BS" : "P&L"}]`;
   const breadcrumb = a.ancestorPath && a.ancestorPath.length > 0
     ? `${a.ancestorPath.join(" / ")} / `
     : "";
@@ -146,7 +150,7 @@ function AccountPicker({ value, options, onChange, onCreateRequest, placeholder,
                 }}
               >
                 <span className="qi-picker-section">
-                  [{a.section === "balance_sheet" ? "BS" : "P&L"}]
+                  [{a.is_transfer ? "Transfer" : a.section === "balance_sheet" ? "BS" : "P&L"}]
                 </span>{" "}
                 {a.ancestorPath && a.ancestorPath.length > 0 && (
                   <span className="qi-picker-breadcrumb">
@@ -407,23 +411,33 @@ function BatchList({ batches, onPick, onRefresh }) {
 // the Historical Accounts workflow (Option J in CR019 §8.4) where you want
 // per-account preservation but don't want to click through N modals.
 // ───────────────────────────────────────────────────────────────────────────
+// A COA node is a "transfer node" if it is, or descends from, an account named
+// "Transfers" — mirrors the server's computeIsTransfer (ancestor named
+// 'Transfers'). A new leaf created under such a parent is is_transfer=TRUE.
+function isTransferNode(opt) {
+  if (!opt) return false;
+  return opt.name === "Transfers" || (opt.ancestorPath || []).includes("Transfers");
+}
+
 // Whether a selected row may get a NEW leaf under the chosen parent. Bulk-create
-// is the Historical-Accounts quick path: it only creates leaves whose role fits
-// the parent's section, so a rejected role mapping never orphans a freshly-created
-// leaf (the bug where target_only names left dangling BS leaves under e.g.
-// Historical Assets). target_only names don't get new leaves at all — they map to
-// a shared Transfer category leaf via the picker.
+// only creates leaves whose role fits the parent, so a rejected role mapping
+// never orphans a freshly-created leaf:
+//   origin / both → Balance Sheet, non-transfer parent
+//   target_only   → Transfer parent (under "Transfers") → creates a Transfer leaf
+//   category      → P&L, non-transfer parent
 function bulkEligibility(role, parent) {
   if (!parent) return { ok: false, reason: "pick a parent first" };
+  const parentIsTransfer = isTransferNode(parent);
   if (role === "target_only") {
-    return { ok: false, reason: "transfer target — map to a Transfer leaf (e.g. Transfer - Historical) via the picker, not bulk-create" };
+    if (parentIsTransfer) return { ok: true };
+    return { ok: false, reason: "transfer target — parent must be under Transfers (creates a Transfer leaf)" };
   }
   if (role === "category") {
-    if (parent.section === "profit_loss" && !parent.is_transfer) return { ok: true };
+    if (parent.section === "profit_loss" && !parentIsTransfer) return { ok: true };
     return { ok: false, reason: "category — needs a P&L (income/expense) parent" };
   }
   // origin / both → Balance Sheet leaf
-  if (parent.section === "balance_sheet" && !parent.is_transfer) return { ok: true };
+  if (parent.section === "balance_sheet" && !parentIsTransfer) return { ok: true };
   return { ok: false, reason: "balance-sheet account — needs a Balance Sheet parent" };
 }
 
@@ -448,6 +462,29 @@ function BulkCreateModal({ open, selectedRows, parentOptions, batchId, onClose, 
 
   const parent = parentOptions.find((a) => a.id === parentId);
   const parentDefaultCurrency = inferCurrencyFromParent(parent);
+
+  // Restrict the parent picker to containers that fit the selected rows' role,
+  // so you can't pick a parent that would make every row ineligible. For a
+  // homogeneous selection: transfer targets → Transfer containers, categories →
+  // P&L containers, accounts → Balance Sheet containers. Mixed → show all (the
+  // per-row eligibility guard still applies).
+  const selRoles = new Set(selectedRows.map((r) => r.role));
+  const allTransfer = selectedRows.length > 0 && [...selRoles].every((r) => r === "target_only");
+  const allCategory = selectedRows.length > 0 && [...selRoles].every((r) => r === "category");
+  const allBS = selectedRows.length > 0 && [...selRoles].every((r) => r === "origin" || r === "both");
+  const eligibleParentOptions = parentOptions.filter((p) => {
+    if (allTransfer) return isTransferNode(p);
+    if (allCategory) return p.section === "profit_loss" && !isTransferNode(p);
+    if (allBS) return p.section === "balance_sheet" && !isTransferNode(p);
+    return true;
+  });
+  const parentScopeLabel = allTransfer
+    ? "Transfer containers (under Transfers)"
+    : allCategory
+      ? "P&L containers"
+      : allBS
+        ? "Balance Sheet containers"
+        : null;
 
   const resolveCurrency = (row) =>
     (currencyOverrides[row.name] || row.quicken_currency || parentDefaultCurrency || "USD")
@@ -546,10 +583,15 @@ function BulkCreateModal({ open, selectedRows, parentOptions, batchId, onClose, 
             <span>Parent for all new leaves</span>
             <AccountPicker
               value={parentId}
-              options={parentOptions}
+              options={eligibleParentOptions}
               onChange={setParentId}
               placeholder="Search for a parent COA account…"
             />
+            {parentScopeLabel && (
+              <span className="qi-modal-hint">
+                Restricted to <strong>{parentScopeLabel}</strong> — matches the selected rows' role.
+              </span>
+            )}
           </label>
           {parent && (
             <div className="qi-modal-hint">
@@ -561,7 +603,7 @@ function BulkCreateModal({ open, selectedRows, parentOptions, batchId, onClose, 
             <div className="qi-modal-error">
               ⚠ {skippedCount} of {selectedRows.length} selected row(s) don't fit{" "}
               <strong>{parent.name}</strong> and will be skipped (no leaf created) — see Status.
-              Transfer targets map to a Transfer leaf via the picker, not bulk-create.
+              Mixed-role selections can't share one parent; bulk-create rows of a single role at a time.
             </div>
           )}
           {ccyMix.length > 0 && (
@@ -644,6 +686,161 @@ function BulkCreateModal({ open, selectedRows, parentOptions, batchId, onClose, 
   );
 }
 
+// ───────────────────────────────────────────────────────────────────────────
+// BulkMapModal — map every selected row to ONE existing COA leaf. The catch-all
+// path (CR019 §8.4 Option J): point many transfer targets at `Transfer -
+// Historical`, or many categories at one P&L leaf, in one shot. Only works on a
+// homogeneous-role selection (one leaf can't be valid for both an account and a
+// category); the leaf picker is filtered to that role's valid leaves.
+// ───────────────────────────────────────────────────────────────────────────
+// Parent remounts this via a changing `key` on open, so useState defaults give
+// a fresh dialog each time — no reset effect needed.
+function BulkMapModal({ open, selectedRows, optionsForRole, batchId, onClose, onSuccess }) {
+  const [targetId, setTargetId] = useState("");
+  const [saving, setSaving] = useState(false);
+  const [results, setResults] = useState([]);
+
+  if (!open) return null;
+
+  const selRoles = new Set(selectedRows.map((r) => r.role));
+  const homogeneousRole = selRoles.size === 1 ? [...selRoles][0] : null;
+  const options = homogeneousRole ? optionsForRole(homogeneousRole) : [];
+  const target = options.find((a) => a.id === targetId);
+  const roleLabel =
+    homogeneousRole === "target_only" ? "Transfer category leaf"
+      : homogeneousRole === "category" ? "P&L leaf"
+        : homogeneousRole === "origin" || homogeneousRole === "both" ? "Balance Sheet leaf"
+          : null;
+
+  const handleMap = async () => {
+    if (!target) return;
+    setSaving(true);
+    setResults([]);
+    const out = [];
+    for (const row of selectedRows) {
+      try {
+        await Rest.post(`/quicken-import/batches/${batchId}/mappings`, {
+          external_name: row.name,
+          account_id: target.id,
+        });
+        out.push({ name: row.name, ok: true });
+      } catch (err) {
+        out.push({ name: row.name, ok: false, error: err?.message || String(err) });
+      }
+      setResults([...out]);
+    }
+    setSaving(false);
+    onSuccess(out);
+  };
+
+  const okCount = results.filter((r) => r.ok).length;
+  const failCount = results.filter((r) => !r.ok).length;
+  const done = results.length === selectedRows.length && !saving;
+
+  return (
+    <div className="qi-modal-overlay" onClick={done ? onClose : undefined}>
+      <div className="qi-modal qi-modal-wide" onClick={(e) => e.stopPropagation()} role="dialog">
+        <div className="qi-modal-header">
+          Bulk-map {selectedRows.length} selected → one leaf
+        </div>
+        <div className="qi-modal-body">
+          {!homogeneousRole ? (
+            <div className="qi-modal-error">
+              Your selection mixes roles ({[...selRoles].join(", ")}). One leaf can't be valid for
+              all of them — select rows of a single role (all transfer targets, all categories, or
+              all accounts) and try again.
+            </div>
+          ) : (
+            <>
+              <p className="qi-modal-hint">
+                Map all {selectedRows.length} selected <strong>{homogeneousRole}</strong> name(s) to
+                one existing <strong>{roleLabel}</strong>. Nothing is created.
+              </p>
+              <label className="qi-modal-field">
+                <span>Target leaf</span>
+                <AccountPicker
+                  value={targetId}
+                  options={options}
+                  onChange={setTargetId}
+                  placeholder={`Search ${roleLabel}s…`}
+                />
+              </label>
+              <table className="qi-table qi-bulk-table">
+                <thead>
+                  <tr><th>Quicken name</th><th>Status</th></tr>
+                </thead>
+                <tbody>
+                  {selectedRows.map((r) => {
+                    const result = results.find((x) => x.name === r.name);
+                    return (
+                      <tr key={r.name}>
+                        <td><code>{r.name}</code></td>
+                        <td>
+                          {!result && saving && <span className="qi-muted">queued…</span>}
+                          {!result && !saving && target && <span className="qi-muted">will map</span>}
+                          {result?.ok && <span className="qi-status-ok">✓ mapped</span>}
+                          {result?.ok === false && <span className="qi-status-error">✗ {result.error}</span>}
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+              {done && (
+                <div className={failCount > 0 ? "qi-modal-error" : "qi-modal-hint"}>
+                  {okCount} mapped, {failCount} failed.
+                </div>
+              )}
+            </>
+          )}
+        </div>
+        <div className="qi-modal-footer">
+          <button className="qi-btn" onClick={onClose} disabled={saving}>
+            {done ? "Close" : "Cancel"}
+          </button>
+          {!done && homogeneousRole && (
+            <button
+              className="qi-btn qi-btn-primary"
+              onClick={handleMap}
+              disabled={saving || !target}
+            >
+              {saving ? `Mapping… (${results.length}/${selectedRows.length})` : `Map ${selectedRows.length} & assign`}
+            </button>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ───────────────────────────────────────────────────────────────────────────
+// ConfirmModal — styled in-app replacement for window.confirm(). Pass a config
+// object (or null) via `state`; onConfirm/onCancel close it.
+// ───────────────────────────────────────────────────────────────────────────
+function ConfirmModal({ state, busy, onConfirm, onCancel }) {
+  if (!state) return null;
+  return (
+    <div className="qi-modal-overlay" onClick={busy ? undefined : onCancel}>
+      <div className="qi-modal" onClick={(e) => e.stopPropagation()} role="dialog" aria-modal="true">
+        <div className="qi-modal-header">{state.title}</div>
+        <div className="qi-modal-body">
+          <p className="qi-modal-hint" style={{ whiteSpace: "pre-line" }}>{state.message}</p>
+        </div>
+        <div className="qi-modal-footer">
+          <button className="qi-btn" onClick={onCancel} disabled={busy}>Cancel</button>
+          <button
+            className={`qi-btn ${state.danger ? "qi-btn-danger" : "qi-btn-primary"}`}
+            onClick={onConfirm}
+            disabled={busy}
+          >
+            {busy ? "Working…" : (state.confirmLabel || "Confirm")}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 function MappingRow({ name, kind, role, mapped, accountOptions, onSave, onClear, onCreateRequest, selectable, selected, onToggleSelected }) {
   const [value, setValue] = useState(mapped?.mapped_account_id || "");
   const [busy, setBusy] = useState(false);
@@ -710,8 +907,9 @@ function MappingRow({ name, kind, role, mapped, accountOptions, onSave, onClear,
   };
 
   const isMapped = !!mapped?.mapped_account_id;
+  const isOrigin = role === "origin" || role === "both";
   return (
-    <tr className={isMapped ? "qi-mapped" : "qi-unmapped"}>
+    <tr className={`${isMapped ? "qi-mapped" : "qi-unmapped"}${isOrigin ? " qi-row-origin" : ""}`}>
       {selectable && (
         <td className="qi-checkbox-cell">
           <input
@@ -738,6 +936,16 @@ function MappingRow({ name, kind, role, mapped, accountOptions, onSave, onClear,
         ) : null}
       </td>
       <td className="qi-kind">{kind}</td>
+      <td>
+        {(() => {
+          const t = isOrigin
+            ? { label: "BS", cls: "qi-type-bs", title: "Maps to a Balance Sheet account" }
+            : role === "category"
+              ? { label: "P&L", cls: "qi-type-pl", title: "Maps to an income/expense (P&L) account" }
+              : { label: "Transfer", cls: "qi-type-transfer", title: "Maps to a Transfer category" };
+          return <span className={`qi-type-badge ${t.cls}`} title={t.title}>{t.label}</span>;
+        })()}
+      </td>
       <td>
         <AccountPicker
           value={value ? parseInt(value, 10) : ""}
@@ -795,7 +1003,9 @@ function MappingPanel({ batchId, detail, onSaveMapping, onClearMapping, onBack, 
   });
   const [selectedKeys, setSelectedKeys] = useState(new Set());
   const [bulkCreateOpen, setBulkCreateOpen] = useState(false);
+  const [bulkMapOpen, setBulkMapOpen] = useState(false);
   const [bulkBusy, setBulkBusy] = useState(false);
+  const [confirmState, setConfirmState] = useState(null);
   const toast = useToast();
 
   // Distinguish "accounts" (referenced as origin or transfer target) from
@@ -803,13 +1013,19 @@ function MappingPanel({ batchId, detail, onSaveMapping, onClearMapping, onBack, 
   // already has a `kind` field.
 
   const filtered = useMemo(() => {
-    return names.filter((n) => {
-      if (filter === "unmapped") return !n.mapped_account_id;
-      if (filter === "mapped") return !!n.mapped_account_id;
-      if (filter === "accounts") return n.kind === "account";
-      if (filter === "categories") return n.kind === "category";
-      return true;
-    });
+    // Origin/both rows are THE accounts being imported (their QIF was parsed) —
+    // hoist them to the top so the account you're pulling is always first.
+    // Array.prototype.sort is stable, so non-origin rows keep their API order.
+    const isOriginRole = (r) => r === "origin" || r === "both";
+    return names
+      .filter((n) => {
+        if (filter === "unmapped") return !n.mapped_account_id;
+        if (filter === "mapped") return !!n.mapped_account_id;
+        if (filter === "accounts") return n.kind === "account";
+        if (filter === "categories") return n.kind === "category";
+        return true;
+      })
+      .sort((a, b) => (isOriginRole(b.role) ? 1 : 0) - (isOriginRole(a.role) ? 1 : 0));
   }, [names, filter]);
 
   const [accountOptions, setAccountOptions] = useState([]);
@@ -914,19 +1130,8 @@ function MappingPanel({ batchId, detail, onSaveMapping, onClearMapping, onBack, 
   };
   const clearSelection = () => setSelectedKeys(new Set());
 
-  const handleBulkDeactivate = async () => {
-    const mappedSelected = selectedRows.filter((n) => n.mapped_account_id);
-    if (mappedSelected.length === 0) {
-      toast.error("Select mapped rows first — deactivation hides the TARGET COA leaves.");
-      return;
-    }
-    const targetIds = [...new Set(mappedSelected.map((n) => n.mapped_account_id))];
-    const ok = window.confirm(
-      `Mark ${targetIds.length} COA leaf(s) as inactive (is_active=false)?\n\n` +
-      `They'll be hidden from default reports but their data and history remain queryable. ` +
-      `You can re-activate from COA Management anytime.`
-    );
-    if (!ok) return;
+  const doBulkDeactivate = async (targetIds) => {
+    setConfirmState(null);
     setBulkBusy(true);
     let okCount = 0;
     let failCount = 0;
@@ -943,20 +1148,49 @@ function MappingPanel({ batchId, detail, onSaveMapping, onClearMapping, onBack, 
     setBulkBusy(false);
     clearSelection();
     if (failCount === 0) {
-      toast.success(`Deactivated ${okCount} COA leaf(s).`);
+      toast.showSuccess(`Deactivated ${okCount} COA leaf(s).`);
     } else {
-      toast.error(`Deactivated ${okCount}; ${failCount} failed (see console).`);
+      toast.showError(`Deactivated ${okCount}; ${failCount} failed (see console).`);
     }
     if (onReload) onReload();
+  };
+
+  const handleBulkDeactivate = () => {
+    const mappedSelected = selectedRows.filter((n) => n.mapped_account_id);
+    if (mappedSelected.length === 0) {
+      toast.showError("Select mapped rows first — deactivation hides the TARGET COA leaves.");
+      return;
+    }
+    const targetIds = [...new Set(mappedSelected.map((n) => n.mapped_account_id))];
+    setConfirmState({
+      title: `Deactivate ${targetIds.length} COA leaf(s)?`,
+      message:
+        "Mark the target COA leaves as inactive (is_active=false). They'll be hidden from default reports but their data and history remain queryable. You can re-activate from COA Management anytime.",
+      confirmLabel: "Deactivate",
+      danger: true,
+      onConfirm: () => doBulkDeactivate(targetIds),
+    });
   };
 
   const handleBulkCreateSuccess = (results) => {
     const okCount = results.filter((r) => r.ok).length;
     const failCount = results.length - okCount;
     if (failCount === 0) {
-      toast.success(`Created ${okCount} leaves and mapped Quicken accounts.`);
+      toast.showSuccess(`Created ${okCount} leaves and mapped Quicken accounts.`);
     } else {
-      toast.error(`${okCount} succeeded, ${failCount} failed.`);
+      toast.showError(`${okCount} succeeded, ${failCount} failed.`);
+    }
+    clearSelection();
+    if (onReload) onReload();
+  };
+
+  const handleBulkMapSuccess = (results) => {
+    const okCount = results.filter((r) => r.ok).length;
+    const failCount = results.length - okCount;
+    if (failCount === 0) {
+      toast.showSuccess(`Mapped ${okCount} Quicken name(s).`);
+    } else {
+      toast.showError(`${okCount} mapped, ${failCount} failed.`);
     }
     clearSelection();
     if (onReload) onReload();
@@ -1025,6 +1259,14 @@ function MappingPanel({ batchId, detail, onSaveMapping, onClearMapping, onBack, 
             Bulk-create new leaves & map
           </button>
           <button
+            className="qi-btn qi-btn-primary"
+            onClick={() => setBulkMapOpen(true)}
+            disabled={bulkBusy}
+            title="Map all selected names to one existing COA leaf (e.g. Transfer - Historical)"
+          >
+            Bulk-map to existing leaf
+          </button>
+          <button
             className="qi-btn qi-btn-danger"
             onClick={handleBulkDeactivate}
             disabled={bulkBusy}
@@ -1051,6 +1293,7 @@ function MappingPanel({ batchId, detail, onSaveMapping, onClearMapping, onBack, 
             </th>
             <th>Quicken name</th>
             <th>Kind</th>
+            <th>Type</th>
             <th>Map to COA account</th>
             <th>Actions</th>
           </tr>
@@ -1093,6 +1336,26 @@ function MappingPanel({ batchId, detail, onSaveMapping, onClearMapping, onBack, 
           setBulkCreateOpen(false);
           handleBulkCreateSuccess(results);
         }}
+      />
+
+      <BulkMapModal
+        key={bulkMapOpen ? "bulkmap-open" : "bulkmap-closed"}
+        open={bulkMapOpen}
+        selectedRows={selectedRows}
+        optionsForRole={optionsForRole}
+        batchId={batchId}
+        onClose={() => setBulkMapOpen(false)}
+        onSuccess={(results) => {
+          setBulkMapOpen(false);
+          handleBulkMapSuccess(results);
+        }}
+      />
+
+      <ConfirmModal
+        state={confirmState}
+        busy={bulkBusy}
+        onConfirm={() => confirmState?.onConfirm?.()}
+        onCancel={() => setConfirmState(null)}
       />
     </div>
   );
@@ -1220,31 +1483,34 @@ export default function QuickenImport() {
   const [detail, setDetail] = useState(null);
   const [preflight, setPreflight] = useState(null);
   const [busy, setBusy] = useState(false);
+  const [confirmState, setConfirmState] = useState(null);
 
   const loadBatches = useCallback(async () => {
     try {
-      const rows = await Rest.get("/quicken-import/batches");
+      const rows = await Rest.get(`/quicken-import/batches?_t=${Date.now()}`);
       setBatches(rows);
     } catch (err) {
-      toast.error(`Failed to load batches: ${err.message}`);
+      toast.showError(`Failed to load batches: ${err.message}`);
     }
   }, [toast]);
 
   const loadDetail = useCallback(async (id) => {
     try {
-      const data = await Rest.get(`/quicken-import/batches/${id}`);
+      // Cache-bust: a stale/legacy service worker or HTTP cache can otherwise
+      // serve a pre-mapping snapshot, so the table never reflects saved mappings.
+      const data = await Rest.get(`/quicken-import/batches/${id}?_t=${Date.now()}`);
       setDetail(data);
     } catch (err) {
-      toast.error(`Failed to load batch: ${err.message}`);
+      toast.showError(`Failed to load batch: ${err.message}`);
     }
   }, [toast]);
 
   const loadPreflight = useCallback(async (id) => {
     try {
-      const data = await Rest.get(`/quicken-import/batches/${id}/preflight`);
+      const data = await Rest.get(`/quicken-import/batches/${id}/preflight?_t=${Date.now()}`);
       setPreflight(data);
     } catch (err) {
-      toast.error(`Failed to load pre-flight: ${err.message}`);
+      toast.showError(`Failed to load pre-flight: ${err.message}`);
     }
   }, [toast]);
 
@@ -1263,9 +1529,9 @@ export default function QuickenImport() {
         account_id: accountId,
       });
       await loadDetail(pickedBatchId);
-      toast.success(`Mapped "${externalName}"`);
+      toast.showSuccess(`Mapped "${externalName}"`);
     } catch (err) {
-      toast.error(`Failed to save mapping: ${err.message}`);
+      toast.showError(`Failed to save mapping: ${err.message}`);
     }
   }, [pickedBatchId, loadDetail, toast]);
 
@@ -1275,9 +1541,9 @@ export default function QuickenImport() {
         `/quicken-import/batches/${pickedBatchId}/mappings?external_name=${encodeURIComponent(externalName)}`
       );
       await loadDetail(pickedBatchId);
-      toast.success(`Cleared mapping for "${externalName}"`);
+      toast.showSuccess(`Cleared mapping for "${externalName}"`);
     } catch (err) {
-      toast.error(`Failed to clear mapping: ${err.message}`);
+      toast.showError(`Failed to clear mapping: ${err.message}`);
     }
   }, [pickedBatchId, loadDetail, toast]);
 
@@ -1286,10 +1552,8 @@ export default function QuickenImport() {
     loadPreflight(pickedBatchId);
   }, [pickedBatchId, loadPreflight]);
 
-  const handlePromote = useCallback(async () => {
-    if (!window.confirm(
-      "Promote this batch? This will insert rows into transactions and adjust opening_balance on touched accounts. Rollback is available afterward."
-    )) return;
+  const doPromote = useCallback(async () => {
+    setConfirmState(null);
     setBusy(true);
     try {
       const result = await Rest.post(`/quicken-import/batches/${pickedBatchId}/promote`);
@@ -1297,34 +1561,52 @@ export default function QuickenImport() {
       const transferMsg = result.transferRowsInserted > 0
         ? ` — ${result.transferRowsInserted} transfer rows inserted unmatched; run Transfer Analysis to pair them`
         : "";
-      toast.success(`Promoted: ${totalRows} rows${transferMsg}`);
+      toast.showSuccess(`Promoted: ${totalRows} rows${transferMsg}`);
       await loadDetail(pickedBatchId);
       await loadPreflight(pickedBatchId);
       await loadBatches();
     } catch (err) {
-      toast.error(`Promote failed: ${err.message}`);
+      toast.showError(`Promote failed: ${err.message}`);
     } finally {
       setBusy(false);
     }
   }, [pickedBatchId, loadDetail, loadPreflight, loadBatches, toast]);
 
-  const handleRollback = useCallback(async () => {
-    if (!window.confirm(
-      "Roll back this batch? This deletes all transactions imported by it and restores opening_balance on touched accounts. Mappings are preserved."
-    )) return;
+  const handlePromote = useCallback(() => {
+    setConfirmState({
+      title: "Promote this batch?",
+      message: "This will insert rows into transactions and adjust opening_balance on touched accounts. Rollback is available afterward.",
+      confirmLabel: "Promote",
+      danger: false,
+      onConfirm: doPromote,
+    });
+  }, [doPromote]);
+
+  const doRollback = useCallback(async () => {
+    setConfirmState(null);
     setBusy(true);
     try {
       const result = await Rest.post(`/quicken-import/batches/${pickedBatchId}/rollback`);
-      toast.success(`Rolled back: ${result.deleted.transactions} transactions removed`);
+      toast.showSuccess(`Rolled back: ${result.deleted.transactions} transactions removed`);
       await loadDetail(pickedBatchId);
       await loadPreflight(pickedBatchId);
       await loadBatches();
     } catch (err) {
-      toast.error(`Rollback failed: ${err.message}`);
+      toast.showError(`Rollback failed: ${err.message}`);
     } finally {
       setBusy(false);
     }
   }, [pickedBatchId, loadDetail, loadPreflight, loadBatches, toast]);
+
+  const handleRollback = useCallback(() => {
+    setConfirmState({
+      title: "Roll back this batch?",
+      message: "This deletes all transactions imported by it and restores opening_balance on touched accounts. Mappings are preserved.",
+      confirmLabel: "Roll back",
+      danger: true,
+      onConfirm: doRollback,
+    });
+  }, [doRollback]);
 
   return (
     <div className="page-container qi-page">
@@ -1356,6 +1638,12 @@ export default function QuickenImport() {
           busy={busy}
         />
       )}
+      <ConfirmModal
+        state={confirmState}
+        busy={busy}
+        onConfirm={() => confirmState?.onConfirm?.()}
+        onCancel={() => setConfirmState(null)}
+      />
     </div>
   );
 }
