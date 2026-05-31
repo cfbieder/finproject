@@ -798,8 +798,12 @@ Config uses `.env` file (git-ignored) for secrets, with defaults in `docker-comp
 | `NODE_ENV` | `production` | Server environment |
 | `PORT` | `3005` | Server port |
 | `LLM_GATEWAY_URL` | `http://192.168.1.61:8080` | Base URL of the local `ocr-llm` gateway (LAN). AI Review POSTs to `${LLM_GATEWAY_URL}/task` with `task: "finance_plan_review"`. Local-only route (heavy → mid); no API key required. |
+| `BANK_FEED_URL` | `http://host.docker.internal:3007` | Base URL of the CR021 bank-feed microservice. Injected into the server container by both `docker-compose.yml` and `docker-compose.dev.yml`. |
+| `BANK_FEED_API_KEY` | (empty) | Auth key for the bank-feed service (CR022). **Secret — keep in `.env` only, never commit.** Defaults to empty (`${BANK_FEED_API_KEY:-}`); the import path is dormant until wired up, so empty is safe for now. |
 
 > **Note:** `.env` is git-ignored. AI Review no longer needs an Anthropic API key — all LLM calls flow through the local gateway. If the gateway is unreachable, AI Review fails closed with a clear error rather than falling back to a cloud LLM.
+>
+> **⚠️ `.env` gotcha (fixed 2026-05-31):** `bump-version.sh` and `deploy-to-production.sh` used to *overwrite* `.env` wholesale (`cat > .env`) with just `VITE_APP_VERSION`, silently wiping any manually-added vars (this destroyed `BANK_FEED_*` during the v2.8.0 release). Both scripts now edit the `VITE_APP_VERSION` line **in place** (`sed`), preserving other vars. Secrets like `BANK_FEED_API_KEY` therefore survive a version bump. Separately, `.env` is listed in `.gitignore` but was historically force-added to git, so it remains *tracked* — run `git rm --cached .env` once to make the ignore effective and prevent the key from ever being staged.
 
 ---
 

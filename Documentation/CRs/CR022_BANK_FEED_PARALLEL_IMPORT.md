@@ -63,6 +63,16 @@ Two requirements the user explicitly flagged that must be in CR022's scope:
 
 Both R1 and R2 are **must-have** for CR022 to ship safely. They affect schema (R1 column on `account_source_mappings`, R2 already covered by `bank_feed_external_id` on `transactions`), tests (§5), and the dev walkthrough (§7 must include exercising both the ignore-list toggle and the cross-source dedup with a synthetic duplicate row).
 
+### 2.4 Runtime configuration (env vars)
+
+The fin server reaches the bank-feed service via two env vars, injected into the server container by both `docker-compose.yml` and `docker-compose.dev.yml`:
+
+- **`BANK_FEED_URL`** — base URL of the CR021 microservice (default `http://host.docker.internal:3007`).
+- **`BANK_FEED_API_KEY`** — auth key (**secret**; default empty `${BANK_FEED_API_KEY:-}`). Lives in root `.env` only; never commit it.
+- **`BANK_FEED_DEDUP_ENABLED`** — R2 dedup toggle (default `true`); see §2.3.4 / §3.
+
+**`.env` gotcha (resolved 2026-05-31):** these vars live in the git-ignored-but-historically-tracked root `.env`. The version scripts (`bump-version.sh`, `deploy-to-production.sh`) used to overwrite `.env` wholesale and wiped `BANK_FEED_*` during the v2.8.0 release; both now edit only the `VITE_APP_VERSION` line in place (preserving secrets). The key value was never committed. See [FC_PROJECT_STRUCTURE.md §13](../FC_PROJECT_STRUCTURE.md#13-environment-variables).
+
 ## 3. Architecture
 
 ### 3.1 Two ingest paths, one canonical table
