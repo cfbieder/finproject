@@ -353,17 +353,133 @@ function StatusBadge({ status }) {
 // ───────────────────────────────────────────────────────────────────────────
 // VIEW 1 — Batch list
 // ───────────────────────────────────────────────────────────────────────────
+// NewImportModal — UI-driven QIF parse. Select one or more QIF files; each
+// becomes its own batch (per-account rollback/verify granularity). The filename
+// minus extension is the Quicken account name, so it is shown read-only; only
+// currency is editable (QIF carries no currency). Reads files as text and POSTs
+// to /quicken-import/parse, which writes temp files and calls runParse().
+function NewImportModal({ onClose, onDone }) {
+  const toast = useToast();
+  const [files, setFiles] = useState([]); // [{ file, name, account, currency }]
+  const [busy, setBusy] = useState(false);
+
+  const onPick = (e) => {
+    const picked = Array.from(e.target.files || []);
+    setFiles(
+      picked.map((file) => ({
+        file,
+        name: file.name,
+        account: file.name.replace(/\.[^.]+$/, ""),
+        currency: "USD",
+      }))
+    );
+  };
+
+  const setCurrency = (idx, v) =>
+    setFiles((prev) => prev.map((f, i) => (i === idx ? { ...f, currency: v } : f)));
+
+  const submit = async () => {
+    if (files.length === 0) return;
+    setBusy(true);
+    try {
+      const payload = { files: [] };
+      for (const f of files) {
+        const content = await f.file.text();
+        payload.files.push({ name: f.name, currency: f.currency || "USD", content });
+      }
+      const { results } = await Rest.post("/quicken-import/parse", payload);
+      const ok = results.filter((r) => r.ok);
+      const bad = results.filter((r) => !r.ok);
+      if (ok.length) {
+        const staged = ok.reduce((t, r) => t + (r.totalStaged || 0), 0);
+        toast.showSuccess(`Parsed ${ok.length} file(s), ${staged} row(s) staged.`);
+      }
+      if (bad.length) {
+        toast.showError(
+          `${bad.length} file(s) failed: ${bad.map((b) => `${b.name} (${b.error})`).join("; ")}`
+        );
+      }
+      onDone();
+      if (bad.length === 0) onClose();
+    } catch (err) {
+      toast.showError(err.message || "Import failed");
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  return (
+    <div className="qi-modal-overlay" onClick={busy ? undefined : onClose}>
+      <div className="qi-modal" onClick={(e) => e.stopPropagation()} role="dialog" aria-modal="true">
+        <div className="qi-modal-header">New Quicken Import</div>
+        <div className="qi-modal-body">
+          <p className="qi-modal-hint">
+            Select one or more QIF files. Each becomes its own batch; the filename
+            (without extension) is the Quicken account name. Set the currency for each.
+          </p>
+          <input type="file" accept=".qif,.QIF" multiple onChange={onPick} disabled={busy} />
+          {files.length > 0 && (
+            <table className="qi-table" style={{ marginTop: "0.75rem" }}>
+              <thead>
+                <tr>
+                  <th>File</th>
+                  <th>Account name</th>
+                  <th>Currency</th>
+                </tr>
+              </thead>
+              <tbody>
+                {files.map((f, i) => (
+                  <tr key={i}>
+                    <td className="qi-source-files"><code>{f.name}</code></td>
+                    <td>{f.account}</td>
+                    <td>
+                      <input
+                        className="qi-select"
+                        style={{ width: "5rem" }}
+                        value={f.currency}
+                        maxLength={3}
+                        onChange={(e) => setCurrency(i, e.target.value.toUpperCase())}
+                        disabled={busy}
+                      />
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          )}
+        </div>
+        <div className="qi-modal-footer">
+          <button className="qi-btn" onClick={onClose} disabled={busy}>Cancel</button>
+          <button
+            className="qi-btn qi-btn-primary"
+            onClick={submit}
+            disabled={busy || files.length === 0}
+          >
+            {busy ? "Parsing…" : `Import ${files.length || ""} file(s)`}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 function BatchList({ batches, onPick, onRefresh }) {
+  const [showImport, setShowImport] = useState(false);
   return (
     <div className="qi-section">
       <div className="qi-section-header">
         <h2>Quicken Import Batches</h2>
-        <button className="qi-btn" onClick={onRefresh}>Refresh</button>
+        <div className="qi-header-actions">
+          <button className="qi-btn qi-btn-primary" onClick={() => setShowImport(true)}>
+            New Import
+          </button>
+          <button className="qi-btn" onClick={onRefresh}>Refresh</button>
+        </div>
       </div>
       {batches.length === 0 ? (
         <p className="qi-empty">
-          No batches yet. Run <code>node server/src/v2/scripts/quicken-import.js parse …</code> to
-          parse a QIF, then return here to map and promote.
+          No batches yet. Click <strong>New Import</strong> to upload a QIF file, then
+          return here to map and promote it.
         </p>
       ) : (
         <table className="qi-table">
@@ -396,6 +512,9 @@ function BatchList({ batches, onPick, onRefresh }) {
             ))}
           </tbody>
         </table>
+      )}
+      {showImport && (
+        <NewImportModal onClose={() => setShowImport(false)} onDone={onRefresh} />
       )}
     </div>
   );

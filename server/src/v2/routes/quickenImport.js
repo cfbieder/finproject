@@ -3,19 +3,25 @@
  *
  * Mounted at /api/v2/quicken-import.
  *
- * Drives the admin UI: list batches, inspect one, author mappings, run
- * pre-flight diff, promote, rollback.
+ * Drives the admin UI: create (parse), list batches, inspect one, author
+ * mappings, run pre-flight diff, promote, rollback.
  *
- * Parser invocation (`POST /parse`) is intentionally NOT here — parsing
- * reads QIF files from disk and is run as a CLI, not via the web API.
- * The UI shows already-parsed batches.
+ * `POST /parse` accepts uploaded QIF text (one batch per file) so the whole
+ * flow is UI-driven; the CLI parser (quicken-import.js) remains available for
+ * scripted use. The parse handler writes each upload to a temp file and calls
+ * the same runParse() the CLI uses.
  */
 
+const fs = require('fs');
+const os = require('os');
+const path = require('path');
+const crypto = require('crypto');
 const express = require('express');
 const router = express.Router();
 
 const db = require('../db');
 const { runPromote, runRollback, findRoleInvalidMappings } = require('../scripts/quicken-promote');
+const { runParse } = require('../scripts/quicken-import');
 
 // Convenience: pool object the route handlers query against. The v2 db
 // wrapper exposes the pg pool via getPool(). Calling getPool() lazily on
@@ -24,6 +30,86 @@ const pool = {
   query: (...args) => db.getPool().query(...args),
   connect: (...args) => db.getPool().connect(...args),
 };
+
+// Generous JSON body limit for QIF uploads — multi-year exports easily exceed
+// express's default 100kb. Applied only to the parse route.
+const qifJson = express.json({ limit: '25mb' });
+
+// The filename basename (minus extension) becomes the Quicken account name in
+// account_source_mappings, so keep it readable but free of path separators /
+// traversal. Falls back to a safe default if the client sends nothing usable.
+function safeBaseName(name) {
+  const base = path
+    .basename(String(name || ''))
+    .replace(/[^\w.\- ]/g, '_')
+    .trim();
+  return base || 'import.QIF';
+}
+
+// ───────────────────────────────────────────────────────────────────────────
+// POST /api/v2/quicken-import/parse
+// Body: { files: [{ name, currency, content }] }. Creates ONE batch per file
+// (CR019 backfill granularity: per-account rollback + verify). Returns a
+// per-file result array; HTTP 200 if any file parsed, 422 if all failed.
+// ───────────────────────────────────────────────────────────────────────────
+router.post('/parse', qifJson, async (req, res) => {
+  const files = Array.isArray(req.body && req.body.files) ? req.body.files : null;
+  if (!files || files.length === 0) {
+    return res.status(400).json({ error: 'files[] is required' });
+  }
+
+  const results = [];
+  for (const f of files) {
+    const name = safeBaseName(f.name);
+    const currency = String(f.currency || 'USD').toUpperCase().trim();
+    const content = typeof f.content === 'string' ? f.content : '';
+    if (!content) {
+      results.push({ name, ok: false, error: 'empty file content' });
+      continue;
+    }
+
+    const batchId = crypto.randomUUID();
+    let tmpDir;
+    try {
+      tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'qimport-'));
+      const tmpPath = path.join(tmpDir, name);
+      fs.writeFileSync(tmpPath, content, 'utf8');
+
+      const r = await runParse({
+        files: [{ path: tmpPath, currency }],
+        batchId,
+        label: name.replace(/\.[^.]+$/, ''),
+        pool,
+      });
+
+      // Store the friendly "name:CCY" (matching the CLI convention) rather than
+      // the throwaway temp path in source_files. The column is jsonb, so write
+      // a JSON-stringified array with an explicit ::jsonb cast (mirrors
+      // upsertBatch); a raw JS array would be sent as a Postgres array literal.
+      await pool.query(
+        `UPDATE quicken_import_batches SET source_files = $2::jsonb WHERE id = $1`,
+        [batchId, JSON.stringify([`${name}:${currency}`])]
+      );
+
+      results.push({
+        name,
+        batchId,
+        currency,
+        ok: true,
+        totalStaged: r.totalStaged,
+        totalSkipped: r.totalSkipped,
+      });
+    } catch (err) {
+      results.push({ name, batchId, ok: false, error: err.message });
+    } finally {
+      if (tmpDir) {
+        try { fs.rmSync(tmpDir, { recursive: true, force: true }); } catch (_) { /* ignore */ }
+      }
+    }
+  }
+
+  res.status(results.some((r) => r.ok) ? 200 : 422).json({ results });
+});
 
 // ───────────────────────────────────────────────────────────────────────────
 // GET /api/v2/quicken-import/batches
