@@ -1,4 +1,4 @@
-**Status:** OPEN — [Plan](../FC_NEXT_STEPS.md#cr022)
+**Status:** IN-PROGRESS — Phase A (migration 023) + Phase B (converter/staging/dedup + tests) shipped in v2.8.0 (2026-05-31), released ahead of the dev-walkthrough gate as dormant infrastructure. — [Plan](../FC_NEXT_STEPS.md#cr022)
 
 # CR022 — Bank Feed Parallel Import (Additive Second Source)
 
