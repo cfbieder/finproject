@@ -403,7 +403,19 @@ export default function FCReview() {
    *   Rows sorted by absolute lifetime total (largest first).
    */
   const transferDetailRows = useMemo(() => {
-    const byModule = new Map(); // module -> Map<year, amount>
+    // Synthetic engine modules (e.g. _cash_sweep) don't name the real counterparty
+    // account in the Module field — the cash-sweep engine puts it in the comment as
+    // "Cash sweep to/from <account>". Surface that account name instead of "_cash_sweep".
+    const transferLabel = (entry) => {
+      const module = entry?.Module || "";
+      if (module.startsWith("_")) {
+        const m = String(entry?.Comment || "").match(/cash sweep (?:to|from)\s+(.+)$/i);
+        if (m && m[1]) return m[1].trim();
+      }
+      return module || entry?.Comment || "(unspecified)";
+    };
+
+    const byModule = new Map(); // label -> Map<year, amount>
     for (const entry of entries) {
       const account = entry?.Account;
       const mapping = cashAccountMap.get(account);
@@ -411,7 +423,7 @@ export default function FCReview() {
       const year = Number(entry?.Year);
       const amount = Number(entry?.Amount ?? 0);
       if (Number.isNaN(year) || Number.isNaN(amount)) continue;
-      const module = entry?.Module || entry?.Comment || "(unspecified)";
+      const module = transferLabel(entry);
       const yearMap = byModule.get(module) || new Map();
       yearMap.set(year, (yearMap.get(year) || 0) + amount);
       byModule.set(module, yearMap);
