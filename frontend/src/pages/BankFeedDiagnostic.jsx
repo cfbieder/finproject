@@ -40,6 +40,10 @@ export default function BankFeedDiagnostic() {
   const [data, setData] = useState(null);
   const [error, setError] = useState(null);
   const [loading, setLoading] = useState(false);
+  const [mappings, setMappings] = useState(null);
+  const [finAccounts, setFinAccounts] = useState([]);
+  const [savingId, setSavingId] = useState(null);
+  const [mapError, setMapError] = useState(null);
 
   const load = async () => {
     setLoading(true);
@@ -54,8 +58,37 @@ export default function BankFeedDiagnostic() {
     }
   };
 
+  // CR022 R1 — per-account mapping + ignore management.
+  const loadMappings = async () => {
+    setMapError(null);
+    try {
+      const res = await Rest.fetchJson("/api/v2/bank-feed/account-mappings");
+      setMappings(res.accounts || []);
+      setFinAccounts(res.fin_accounts || []);
+    } catch (err) {
+      setMapError(err.message);
+    }
+  };
+
+  const saveMapping = async (externalId, accountId, ignored) => {
+    setSavingId(externalId);
+    setMapError(null);
+    try {
+      await Rest.put(`/api/v2/bank-feed/account-mappings/${externalId}`, {
+        accountId,
+        ignored,
+      });
+      await loadMappings();
+    } catch (err) {
+      setMapError(err.message);
+    } finally {
+      setSavingId(null);
+    }
+  };
+
   useEffect(() => {
     load();
+    loadMappings();
   }, []);
 
   return (
@@ -74,6 +107,89 @@ export default function BankFeedDiagnostic() {
         (CR021). Phase 7 spike — used to verify fin can consume bank-feed
         before v3 cutover (CR022).
       </p>
+
+      {mapError && (
+        <div className="bfd-error">
+          <strong>Mapping error:</strong> {mapError}
+        </div>
+      )}
+
+      {mappings && (
+        <section className="bfd-section">
+          <h2>Account mapping (CR022 R1)</h2>
+          <p className="bfd-subtitle">
+            Map each bank-feed account to a fin account to import its
+            transactions. An unmapped account stays <strong>pending</strong> and
+            is never imported. Toggle <em>ignore</em> to suppress a mapped
+            account. Changes save immediately.
+          </p>
+          <table className="bfd-accounts">
+            <thead>
+              <tr>
+                <th>Bank-feed account</th>
+                <th>Cur</th>
+                <th className="num">Staged (pending)</th>
+                <th>Status</th>
+                <th>Fin account</th>
+                <th>Ignore</th>
+                <th></th>
+              </tr>
+            </thead>
+            <tbody>
+              {mappings.map((m) => (
+                <tr key={m.external_id}>
+                  <td>{m.name}</td>
+                  <td>{m.currency}</td>
+                  <td className="num">{m.staged_unpromoted}</td>
+                  <td>
+                    <StatusPill
+                      label={m.status}
+                      kind={
+                        m.status === "mapped"
+                          ? "ok"
+                          : m.status === "ignored"
+                          ? "warn"
+                          : "danger"
+                      }
+                    />
+                  </td>
+                  <td>
+                    <select
+                      value={m.mapped_account_id || ""}
+                      disabled={savingId === m.external_id}
+                      onChange={(e) =>
+                        saveMapping(
+                          m.external_id,
+                          e.target.value ? Number(e.target.value) : null,
+                          m.ignored
+                        )
+                      }
+                    >
+                      <option value="">— unmapped (pending) —</option>
+                      {finAccounts.map((a) => (
+                        <option key={a.id} value={a.id}>
+                          {a.name}
+                        </option>
+                      ))}
+                    </select>
+                  </td>
+                  <td>
+                    <input
+                      type="checkbox"
+                      checked={m.ignored}
+                      disabled={savingId === m.external_id || !m.mapped_account_id}
+                      onChange={(e) =>
+                        saveMapping(m.external_id, m.mapped_account_id, e.target.checked)
+                      }
+                    />
+                  </td>
+                  <td>{savingId === m.external_id ? "saving…" : ""}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </section>
+      )}
 
       {error && (
         <div className="bfd-error">
