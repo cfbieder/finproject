@@ -13,6 +13,8 @@ const express = require('express');
 const router = express.Router();
 
 const client = require('../services/bankFeedClient');
+const accountSourceMappings = require('../repositories/accountSourceMappings');
+const db = require('../db');
 
 // Wrap a client call so any error becomes a clean JSON 502.
 function proxy(fn) {
@@ -62,6 +64,89 @@ router.get('/diagnostic', async (req, res) => {
       () => client.transactions({ limit: 20 })),
   ]);
   res.json(out);
+});
+
+// ---------------------------------------------------------------------------
+// CR022 R1 — per-account mapping + ignore management (drives the diagnostic UI)
+// ---------------------------------------------------------------------------
+
+/**
+ * GET /api/v2/bank-feed/account-mappings
+ * Each bank-feed account joined with its fin mapping (source='bank-feed') + the
+ * R1 ignore flag + its unpromoted staged count, so the UI shows what needs action.
+ */
+router.get('/account-mappings', async (req, res) => {
+  try {
+    const acctResp = await client.accounts();
+    const feedAccounts = Array.isArray(acctResp) ? acctResp : (acctResp && acctResp.accounts) || [];
+
+    const mappings = await accountSourceMappings.listBySource('bank-feed');
+    const byExternal = new Map(mappings.map((m) => [m.external_name, m]));
+
+    // Selectable fin accounts (active) + id→name map for display. Queried
+    // directly: the accounts repo doesn't export a flat list method.
+    const finRows = (await db.query(
+      `SELECT id, name, section, account_type FROM accounts WHERE is_active = TRUE ORDER BY section, name`
+    )).rows;
+    const finNameById = new Map(finRows.map((a) => [a.id, a.name]));
+
+    // unpromoted staged counts per feed account UUID
+    const staged = await db.query(`
+      SELECT feed_account_external_id AS uuid, COUNT(*)::int AS n
+      FROM bankfeed_staging
+      WHERE promoted_transaction_id IS NULL AND feed_account_external_id IS NOT NULL
+      GROUP BY feed_account_external_id
+    `);
+    const stagedByUuid = new Map(staged.rows.map((r) => [r.uuid, r.n]));
+
+    const rows = feedAccounts.map((a) => {
+      const m = byExternal.get(a.external_id) || null;
+      return {
+        external_id: a.external_id,
+        name: a.name,
+        currency: a.currency,
+        type: a.type,
+        mapped_account_id: m ? m.account_id : null,
+        mapped_account_name: m ? finNameById.get(m.account_id) || null : null,
+        ignored: m ? m.ignored === true : false,
+        status: !m ? 'pending' : (m.ignored ? 'ignored' : 'mapped'),
+        staged_unpromoted: stagedByUuid.get(a.external_id) || 0,
+      };
+    });
+
+    res.json({ accounts: rows, fin_accounts: finRows });
+  } catch (err) {
+    const status = err.status && err.status >= 400 && err.status < 600 ? err.status : 502;
+    res.status(status).json({ error: err.message, bank_feed_url: client.baseUrl });
+  }
+});
+
+/**
+ * PUT /api/v2/bank-feed/account-mappings/:externalId
+ * Body: { accountId, ignored }. accountId null/omitted → unmap (delete the row,
+ * back to pending). Otherwise upsert the mapping with the R1 ignore flag.
+ */
+router.put('/account-mappings/:externalId', async (req, res, next) => {
+  try {
+    const { externalId } = req.params;
+    const { accountId, ignored } = req.body || {};
+
+    if (accountId == null) {
+      const removed = await accountSourceMappings.removeBySourceAndName('bank-feed', externalId);
+      return res.json({ external_id: externalId, status: 'pending', removed: !!removed });
+    }
+
+    const row = await accountSourceMappings.setBankFeedMapping(externalId, accountId, ignored === true);
+    res.json({
+      external_id: externalId,
+      mapped_account_id: row.account_id,
+      ignored: row.ignored === true,
+      status: row.ignored ? 'ignored' : 'mapped',
+    });
+  } catch (err) {
+    console.error('[v2/bank-feed] set account-mapping failed:', err.message);
+    next(err);
+  }
 });
 
 module.exports = router;
