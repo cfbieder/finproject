@@ -117,16 +117,19 @@ router.post('/parse', qifJson, async (req, res) => {
 // ───────────────────────────────────────────────────────────────────────────
 router.get('/batches', async (req, res, next) => {
   try {
-    // staged_count   = records parsed from the QIF (quicken_staging rows)
+    // staged_count   = records parsed from the QIF — cash rows PLUS investment
+    //                  events (brokerage batches stage into quicken_securities_staging)
     // imported_count = rows that actually landed in `transactions`
-    // (skipped = staged − imported: already-in-PS via the cutoff, plus split
-    //  parents expanded into their children. Frontend derives it.)
+    // (skipped = staged − imported: already-in-PS via the cutoff, split parents
+    //  expanded into children, and neutral investment trades. Frontend derives it.)
     const { rows } = await pool.query(
       `SELECT b.id, b.label, b.status, b.source_files,
               b.parsed_at, b.mapped_at, b.promoted_at, b.rolled_back_at,
               b.failure_reason, b.created_at, b.updated_at,
-              (SELECT COUNT(*)::int FROM quicken_staging s
-                WHERE s.import_batch_id = b.id) AS staged_count,
+              ((SELECT COUNT(*)::int FROM quicken_staging s
+                 WHERE s.import_batch_id = b.id)
+               + (SELECT COUNT(*)::int FROM quicken_securities_staging q
+                   WHERE q.import_batch_id = b.id)) AS staged_count,
               (SELECT COUNT(*)::int FROM transactions t
                 WHERE t.import_batch_id = b.id) AS imported_count
          FROM quicken_import_batches b
