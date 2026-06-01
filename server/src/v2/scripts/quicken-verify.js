@@ -33,15 +33,16 @@ const CONN_STR =
 const MONEY_EPS = 0.01; // 1¢ tolerance for balance invariants
 
 function parseArgs(argv) {
-  const args = { batch: null, expectAccount: null, source: null };
+  const args = { batch: null, expectAccount: null, source: null, all: false };
   for (let i = 0; i < argv.length; i++) {
     const a = argv[i];
     if (a === '--batch') args.batch = argv[++i];
     else if (a === '--expect-account') args.expectAccount = Number(argv[++i]);
     else if (a === '--source') args.source = argv[++i];
+    else if (a === '--all') args.all = true;
     else throw new Error(`unknown argument: ${a}`);
   }
-  if (!args.batch) throw new Error('--batch <uuid> is required');
+  if (!args.batch && !args.all) throw new Error('--batch <uuid> or --all is required');
   return args;
 }
 
@@ -287,32 +288,56 @@ async function main() {
   } catch (e) {
     console.error(`usage error: ${e.message}`);
     console.error(
-      'usage: node quicken-verify.js --batch <uuid> [--expect-account <id>] [--source <name>]'
+      'usage: node quicken-verify.js (--batch <uuid> [--expect-account <id>] | --all) [--source <name>]'
     );
     process.exit(1);
   }
 
   const pool = new Pool({ connectionString: CONN_STR });
-  let results;
+  let anyFail = false;
   try {
-    results = await verify(pool, args);
+    if (args.all) {
+      // Sweep every promoted batch (optionally filtered by --source). No
+      // --expect-account assertion — account-integrity is reported per batch.
+      const { rows: batches } = await pool.query(
+        `select id, label from quicken_import_batches
+          where status = 'promoted'
+          order by created_at`
+      );
+      console.log(`\nquicken-verify --all — ${batches.length} promoted batch(es)\n`);
+      for (const b of batches) {
+        const res = await verify(pool, { batch: b.id, expectAccount: null, source: args.source });
+        const fails = res.filter((r) => r.status === 'FAIL');
+        const warns = res.filter((r) => r.status === 'WARN');
+        if (fails.length) anyFail = true;
+        const tag = fails.length ? '✗ FAIL' : warns.length ? '! warn' : '✓ ok';
+        const summ = res.find((r) => r.name === 'batch-exists');
+        console.log(
+          `${tag}  ${(b.label || b.id.slice(0, 8)).padEnd(22)} — ${summ ? summ.detail : ''}` +
+            (fails.length ? `  [${fails.map((f) => f.name).join(', ')}]` : '')
+        );
+      }
+      console.log(`\n${anyFail ? 'SOME BATCHES FAILED' : 'ALL BATCHES OK'} — run with --batch <id> for detail\n`);
+    } else {
+      const results = await verify(pool, args);
+      console.log(`\nquicken-verify — batch ${args.batch}\n`);
+      for (const r of results) {
+        const icon = r.status === 'PASS' ? '✓' : r.status === 'WARN' ? '!' : '✗';
+        console.log(`${icon} [${r.status}] ${r.name}: ${r.detail}`);
+      }
+      const fails = results.filter((r) => r.status === 'FAIL');
+      const warns = results.filter((r) => r.status === 'WARN');
+      anyFail = fails.length > 0;
+      console.log(
+        `\n${fails.length ? 'FAILED' : 'PASSED'} — ${
+          results.filter((r) => r.status === 'PASS').length
+        } passed, ${warns.length} warning(s), ${fails.length} failure(s)\n`
+      );
+    }
   } finally {
     await pool.end();
   }
-
-  console.log(`\nquicken-verify — batch ${args.batch}\n`);
-  for (const r of results) {
-    const icon = r.status === 'PASS' ? '✓' : r.status === 'WARN' ? '!' : '✗';
-    console.log(`${icon} [${r.status}] ${r.name}: ${r.detail}`);
-  }
-  const fails = results.filter((r) => r.status === 'FAIL');
-  const warns = results.filter((r) => r.status === 'WARN');
-  console.log(
-    `\n${fails.length ? 'FAILED' : 'PASSED'} — ${
-      results.filter((r) => r.status === 'PASS').length
-    } passed, ${warns.length} warning(s), ${fails.length} failure(s)\n`
-  );
-  process.exit(fails.length ? 1 : 0);
+  process.exit(anyFail ? 1 : 0);
 }
 
 if (require.main === module) {
