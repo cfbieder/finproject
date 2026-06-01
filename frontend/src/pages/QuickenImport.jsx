@@ -198,6 +198,12 @@ function StatusBadge({ status }) {
 // minus extension is the Quicken account name, so it is shown read-only; only
 // currency is editable (QIF carries no currency). Reads files as text and POSTs
 // to /quicken-import/parse, which writes temp files and calls runParse().
+// Currencies offered for import = USD (base) + the currencies with seeded FX
+// rates (budget_fx_rates: PLN/EUR/GBP). Picking a currency without FX coverage
+// would leave base_amount unconvertible at promote, so the list is constrained.
+// To add one: seed its FX rates (seed-fx-yahoo) first, then add it here.
+const IMPORT_CURRENCIES = ["USD", "PLN", "EUR", "GBP"];
+
 // Find an existing batch that already covers a picked file, by account name
 // (label) or source-file entry ("name:CCY"). Used to warn before re-importing.
 function findExistingBatch(batches, fileName, account) {
@@ -308,14 +314,17 @@ function NewImportModal({ batches, onClose, onDone }) {
                     <td className="qi-source-files"><code>{f.name}</code></td>
                     <td>{f.account}</td>
                     <td>
-                      <input
+                      <select
                         className="qi-select"
-                        style={{ width: "5rem" }}
+                        style={{ width: "5.5rem" }}
                         value={f.currency}
-                        maxLength={3}
-                        onChange={(e) => setCurrency(i, e.target.value.toUpperCase())}
+                        onChange={(e) => setCurrency(i, e.target.value)}
                         disabled={busy || !f.include}
-                      />
+                      >
+                        {IMPORT_CURRENCIES.map((c) => (
+                          <option key={c} value={c}>{c}</option>
+                        ))}
+                      </select>
                     </td>
                     <td>
                       {f.dup ? (
