@@ -453,6 +453,10 @@ export default function BankFeedDiagnostic() {
                               {r.reconcilable ? (
                                 r.drift_significant ? (
                                   <StatusPill label="DRIFT" kind="danger" />
+                                ) : r.balance_ahead_of_stream ? (
+                                  <span title="Bank balance is ahead of the posted transaction stream — a blocked/pending authorization, not a feed error.">
+                                    <StatusPill label="blocked tx" kind="warn" />
+                                  </span>
                                 ) : (
                                   <StatusPill label="ok" kind="ok" />
                                 )
