@@ -236,10 +236,17 @@ PS and bank-feed run side-by-side. Monitor:
 - Review-queue volume: bank-feed-sourced unaccepted rows handled at expected rate.
 - Idempotency: re-running `POST /refresh` produces `sync.inserted=0`.
 - bank-feed `feeds_health` from `/v1/health/feeds` — no `is_stale=true` for live accounts.
-- **`merged_with_ps_count` per account [R2.3].** A healthy parallel run trends toward ~1:1 link-vs-PS — i.e. nearly every bank-feed transaction finds its PS twin. A rising count of *unmerged* new bank-feed rows (or PS rows surviving the reverse-dedup) means one feed is seeing transactions the other isn't — investigate before it compounds. This counter is the primary signal that justifies eventually retiring PS in CR023.
+- **`merged_with_ps_count` per account [R2.3].** Promote-time counter: how many bank-feed rows linked to an existing PS twin. Confirms bank-feed isn't creating duplicates. **But it is blind to the inverse** — transactions PS has that bank-feed missed — so it is necessary but NOT sufficient as a cutover gate.
+- **PS-only reconciliation — the actual cutover gate (`GET /api/v2/bank-feed/reconciliation`).** Per mapped account over a window: `matched` / **`ps_only`** / `bank_feed_only`. **`ps_only` > 0 means bank-feed MISSED a transaction PocketSmith captured** — the data-quality regression that must NOT exist before PS is retired. Surfaced on the diagnostic page (PS-only column highlighted). A clean parallel run drives `total_ps_only` → **0** and holds it. `bank_feed_only` > 0 is usually fine (bank-feed more complete) but spot-check a few to confirm they're real, not mis-keyed.
 - **R1 hygiene.** Watch `unmappedAccounts` in refresh summaries — a new entry means fintable surfaced an account the user hasn't vetted. It stays pending (no silent ingest) until mapped or ignored.
 
-No removal of PS happens during this phase. After 1 month of clean parallel run **with `merged_with_ps_count` showing consistent ~1:1 linkage**, open the PS-removal CR.
+No removal of PS happens during this phase. **PS-removal exit criteria (open CR023 only when ALL hold for ≥1 month):**
+1. `reconciliation.total_ps_only` sits at **0** across all mapped PKO accounts (allow brief transients from FX-rate timing / a feed lagging a day, but it must return to 0 — a *persistent* PS-only row on any account is a hard blocker).
+2. `merged_with_ps_count` is non-trivial (proves the feeds genuinely overlap, not that PS simply went quiet).
+3. No `is_stale=true` on live accounts in `/v1/health/feeds`; idempotency holds (`sync.inserted=0` on re-run).
+4. Review-queue volume for `source='bank-feed'` rows handled at the expected rate.
+
+> **Note on the observation premise:** this gate assumes PocketSmith is *still actively syncing* in prod (confirmed 2026-06-01). If PS coverage degrades during the window, criterion 2 weakens — `merged_with_ps_count` can fall not because bank-feed is wrong but because PS stopped seeing the transactions. In that case lean on criterion 1 (`ps_only`=0) plus manual balance reconciliation rather than the merge ratio.
 
 ## 5. Test Plan
 
