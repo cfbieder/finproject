@@ -40,12 +40,13 @@ const BankFeedDiagnostic = lazy(() => import("../pages/BankFeedDiagnostic"));
 const Balance = lazy(() => import("../pages/BalanceV2"));
 const BalanceChart = lazy(() => import("../pages/BalanceChart"));
 const BalanceTrends = lazy(() => import("../pages/BalanceTrends"));
+const BalanceSheetPeriods = lazy(() => import("../pages/BalanceSheetPeriods"));
 const BudgetInput = lazy(() => import("../pages/BudgetWorksheetV2"));
 const BudgetRealization = lazy(() => import("../pages/BudgetRealization"));
 const BudgetRealizationGraph = lazy(() => import("../pages/BudgetRealizationGraph"));
 const BudgetVariances = lazy(() => import("../pages/BudgetVariances"));
 const CashFlow = lazy(() => import("../pages/CashFlow"));
-const CashFlowMonthly = lazy(() => import("../pages/CashFlowMonthly"));
+const CashFlowPeriods = lazy(() => import("../pages/CashFlowPeriods"));
 const FCExpSetup = lazy(() => import("../pages/FCExpSetup"));
 const FCLineMapping = lazy(() => import("../pages/FCLineMapping"));
 const FCModuleManage = lazy(() => import("../pages/FCModuleManage"));
@@ -295,13 +296,22 @@ export const routes = [
     icon: ArrowLeftRight,
   },
   {
-    path: "/cash-flow-monthly",
-    component: CashFlowMonthly,
-    label: "Cash Flow Monthly",
+    path: "/cash-flow-periods",
+    component: CashFlowPeriods,
+    label: "Cash Flow Periods",
     category: "Reports & Graphs",
     subcategory: "Reports",
-    description: "Monthly cash flow breakdown by category",
+    description: "Cash flow breakdown by month, quarter, or year",
     icon: PieChart,
+  },
+  {
+    path: "/balance-sheet-periods",
+    component: BalanceSheetPeriods,
+    label: "Balance Sheet Periods",
+    category: "Reports & Graphs",
+    subcategory: "Reports",
+    description: "Balance sheet as of each period end (month, quarter, or year)",
+    icon: Wallet,
   },
 
   // Reports & Graphs > Graphs

@@ -64,43 +64,76 @@ const MONTH_LABEL_FORMATTER = new Intl.DateTimeFormat("en-US", {
   timeZone: "UTC",
 });
 
-const getMonthlyPeriods = (fromDate, toDate) => {
+const pad2 = (v) => String(v).padStart(2, "0");
+const firstOfMonthIso = (year, monthIdx) => `${year}-${pad2(monthIdx + 1)}-01`;
+const lastOfMonthIso = (year, monthIdx) => {
+  const d = new Date(Date.UTC(year, monthIdx + 1, 0));
+  return `${d.getUTCFullYear()}-${pad2(d.getUTCMonth() + 1)}-${pad2(d.getUTCDate())}`;
+};
+
+/**
+ * Split a [fromDate, toDate] range into spans by frequency (month / quarter /
+ * year). Each span is the slice of that calendar period that overlaps the
+ * selected range, so the first/last span is clamped to the range bounds.
+ * Returns [{ label, fromDate, toDate }].
+ */
+const getPeriods = (fromDate, toDate, frequency = "month") => {
   if (!fromDate || !toDate) {
     return [];
   }
 
   const start = new Date(fromDate);
   const end = new Date(toDate);
-
   if (Number.isNaN(start.getTime()) || Number.isNaN(end.getTime())) {
     return [];
   }
 
-  const normalizedStart = new Date(
-    Date.UTC(start.getUTCFullYear(), start.getUTCMonth(), 1)
-  );
-  const normalizedEnd = new Date(
-    Date.UTC(end.getUTCFullYear(), end.getUTCMonth(), 1)
-  );
-
-  if (normalizedStart > normalizedEnd) {
+  const sY = start.getUTCFullYear();
+  const sM = start.getUTCMonth();
+  const eY = end.getUTCFullYear();
+  const eM = end.getUTCMonth();
+  if (sY * 12 + sM > eY * 12 + eM) {
     return [];
   }
 
+  const clampFrom = (iso) => (iso < fromDate ? fromDate : iso);
+  const clampTo = (iso) => (iso > toDate ? toDate : iso);
   const periods = [];
-  let current = normalizedStart;
-  while (current <= normalizedEnd) {
-    const year = current.getUTCFullYear();
-    const month = current.getUTCMonth();
-    const firstOfMonth = `${year}-${String(month + 1).padStart(2, "0")}-01`;
-    const lastOfMonth = new Date(Date.UTC(year, month + 1, 0));
-    const lastOfMonthIso = lastOfMonth.toISOString().split("T")[0];
-    periods.push({
-      label: MONTH_LABEL_FORMATTER.format(new Date(Date.UTC(year, month, 1))),
-      fromDate: firstOfMonth,
-      toDate: lastOfMonthIso,
-    });
-    current = new Date(Date.UTC(year, month + 1, 1));
+
+  if (frequency === "year") {
+    for (let y = sY; y <= eY; y += 1) {
+      periods.push({
+        label: String(y),
+        fromDate: clampFrom(firstOfMonthIso(y, 0)),
+        toDate: clampTo(lastOfMonthIso(y, 11)),
+      });
+    }
+  } else if (frequency === "quarter") {
+    const startQ = sY * 4 + Math.floor(sM / 3);
+    const endQ = eY * 4 + Math.floor(eM / 3);
+    for (let q = startQ; q <= endQ; q += 1) {
+      const y = Math.floor(q / 4);
+      const qIdx = q % 4; // 0..3
+      const qStartMonth = qIdx * 3;
+      const qEndMonth = qIdx * 3 + 2;
+      periods.push({
+        label: `Q${qIdx + 1} ${y}`,
+        fromDate: clampFrom(firstOfMonthIso(y, qStartMonth)),
+        toDate: clampTo(lastOfMonthIso(y, qEndMonth)),
+      });
+    }
+  } else {
+    const startAbs = sY * 12 + sM;
+    const endAbs = eY * 12 + eM;
+    for (let abs = startAbs; abs <= endAbs; abs += 1) {
+      const y = Math.floor(abs / 12);
+      const m = abs % 12;
+      periods.push({
+        label: MONTH_LABEL_FORMATTER.format(new Date(Date.UTC(y, m, 1))),
+        fromDate: firstOfMonthIso(y, m),
+        toDate: lastOfMonthIso(y, m),
+      });
+    }
   }
 
   return periods;
@@ -114,7 +147,7 @@ const formatLocalDate = (date) => {
   )}`;
 };
 
-export default function CashFlow() {
+export default function CashFlowPeriods() {
   const getYearStart = () => {
     const now = new Date();
     const firstOfYear = new Date(now.getFullYear(), 0, 1);
@@ -138,9 +171,10 @@ export default function CashFlow() {
   const [error, setError] = useState("");
   const [isLoading, setIsLoading] = useState(false);
   const [collapsedPaths, setCollapsedPaths] = useState(new Set());
-  const [monthlyPeriods, setMonthlyPeriods] = useState([]);
+  const [reportPeriods, setReportPeriods] = useState([]);
   const [includeUnrealizedGL, setIncludeUnrealizedGL] = useState(false);
   const [transfers, setTransfers] = useState("exclude");
+  const [frequency, setFrequency] = useState("month");
   const activePeriodCount = 1;
 
   const handleFromDateChange = (index, value) => {
@@ -161,13 +195,13 @@ export default function CashFlow() {
 
   const handleGenerateReport = async () => {
     setError("");
-    const periods = getMonthlyPeriods(fromDates[0], toDates[0]);
+    const periods = getPeriods(fromDates[0], toDates[0], frequency);
     if (!periods.length) {
       setReports([]);
-      setMonthlyPeriods([]);
+      setReportPeriods([]);
       setCollapsedPaths(new Set());
       setError(
-        "Select a valid month range (from date must be on or before to date) to generate the monthly view."
+        "Select a valid range (from date must be on or before to date) to generate the report."
       );
       return;
     }
@@ -186,24 +220,27 @@ export default function CashFlow() {
       );
       const processedReports = rawReports.map(addNetCashFlowCategory);
       setReports(processedReports);
-      setMonthlyPeriods(periods);
+      setReportPeriods(periods);
       const collapsiblePaths = collectCollapsiblePaths(processedReports?.[0]);
       setCollapsedPaths(new Set(collapsiblePaths));
     } catch (err) {
-      console.error("Failed to fetch monthly cash flow data:", err);
+      console.error("Failed to fetch cash flow data:", err);
       setError(err?.message ?? "Failed to fetch cash flow report");
       setReports([]);
-      setMonthlyPeriods([]);
+      setReportPeriods([]);
       setCollapsedPaths(new Set());
     } finally {
       setIsLoading(false);
     }
   };
 
-  // eslint-disable-next-line react-hooks/exhaustive-deps
+  // Auto-generate on mount and whenever the frequency changes — the column
+  // shape (count + headers) depends on it. Range / transfers / unrealized
+  // changes still require an explicit Generate click.
   useEffect(() => {
     handleGenerateReport();
-  }, []);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [frequency]);
 
   const handleTogglePath = (pathKey) => {
     setCollapsedPaths((prev) => {
@@ -228,8 +265,8 @@ export default function CashFlow() {
     collapsiblePaths.size > 0 && collapsedPaths.size === 0;
 
   const periodLabels = useMemo(
-    () => monthlyPeriods.map((period) => period.label),
-    [monthlyPeriods]
+    () => reportPeriods.map((period) => period.label),
+    [reportPeriods]
   );
 
   const handleExpandOneLayer = () => {
@@ -284,9 +321,9 @@ export default function CashFlow() {
       <main className="page-main balance-grid balance-grid--single">
         <div className="report-toolbar-header">
           <div className="report-toolbar-header__text">
-            <h1 className="report-toolbar-header__title">Cash Flow Monthly</h1>
+            <h1 className="report-toolbar-header__title">Cash Flow Periods</h1>
             <p className="report-toolbar-header__description">
-              Month-by-month cash flow breakdown with export.
+              Cash flow breakdown by period (month, quarter, or year) with export.
             </p>
           </div>
         </div>
@@ -300,6 +337,8 @@ export default function CashFlow() {
           onIncludeUnrealizedChange={setIncludeUnrealizedGL}
           transfers={transfers}
           onTransfersChange={setTransfers}
+          frequency={frequency}
+          onFrequencyChange={setFrequency}
           onGenerateReport={handleGenerateReport}
           isLoading={isLoading}
           collapsiblePaths={collapsiblePaths}
@@ -320,7 +359,7 @@ export default function CashFlow() {
               periodLabels={periodLabels}
               collapsedPaths={collapsedPaths}
               onTogglePath={handleTogglePath}
-              periods={monthlyPeriods}
+              periods={reportPeriods}
             />
           </div>
         </div>

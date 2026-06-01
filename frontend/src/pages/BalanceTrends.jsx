@@ -5,90 +5,18 @@ import HierarchyFilter from "../components/HierarchyFilter/HierarchyFilter.jsx";
 import PeriodSelector from "../components/PeriodSelector/PeriodSelector.jsx";
 import { useCoa } from "../hooks/useCoa.js";
 import Rest from "../js/rest.js";
+import {
+  INTERVALS,
+  PARTIAL_SUFFIX,
+  buildEndDateSeries,
+  planColumns,
+  getTodayIso,
+  formatColumnHeader,
+} from "../utils/periodHelpers.js";
 import "./PageLayout.css";
 import "./BalanceTrends.css";
 
 const CURRENT_YEAR = new Date().getFullYear();
-const CURRENT_MONTH = String(new Date().getMonth() + 1).padStart(2, "0");
-
-const pad2 = (v) => String(v).padStart(2, "0");
-
-const getMonthEndIso = (year, monthIdx) => {
-  const d = new Date(Date.UTC(year, monthIdx + 1, 0));
-  return `${d.getUTCFullYear()}-${pad2(d.getUTCMonth() + 1)}-${pad2(d.getUTCDate())}`;
-};
-
-const getTodayIso = () => {
-  const d = new Date();
-  return `${d.getFullYear()}-${pad2(d.getMonth() + 1)}-${pad2(d.getDate())}`;
-};
-
-const INTERVALS = [
-  { key: "month", label: "Month" },
-  { key: "quarter", label: "Quarter" },
-  { key: "year", label: "Year" },
-];
-
-const PARTIAL_SUFFIX = { month: "MTD", quarter: "QTD", year: "YTD" };
-
-// Quarter-end months are Mar (2), Jun (5), Sep (8), Dec (11).
-const isQuarterEnd = (monthIdx) => monthIdx === 2 || monthIdx === 5 || monthIdx === 8 || monthIdx === 11;
-
-// First day of the period that ends on `endIso`, for the given interval.
-const getPeriodStartIso = (endIso, interval) => {
-  const d = new Date(`${endIso}T00:00:00Z`);
-  if (Number.isNaN(d.getTime())) return endIso;
-  const y = d.getUTCFullYear();
-  const m = d.getUTCMonth();
-  if (interval === "year") return `${y}-01-01`;
-  if (interval === "quarter") {
-    const qStartMonth = Math.floor(m / 3) * 3;
-    return `${y}-${pad2(qStartMonth + 1)}-01`;
-  }
-  return `${y}-${pad2(m + 1)}-01`;
-};
-
-const buildEndDateSeries = (fromYear, fromMonthStr, toYear, toMonthStr, interval) => {
-  const fromIdx = Math.max(0, Math.min(11, Number(fromMonthStr) - 1));
-  const toIdx = Math.max(0, Math.min(11, Number(toMonthStr) - 1));
-  const fromAbs = Number(fromYear) * 12 + fromIdx;
-  const toAbs = Number(toYear) * 12 + toIdx;
-  if (!Number.isFinite(fromAbs) || !Number.isFinite(toAbs) || toAbs < fromAbs) return [];
-  const series = [];
-  for (let abs = fromAbs; abs <= toAbs; abs += 1) {
-    const y = Math.floor(abs / 12);
-    const m = abs % 12;
-    if (interval === "quarter" && !isQuarterEnd(m)) continue;
-    if (interval === "year" && m !== 11) continue;
-    series.push(getMonthEndIso(y, m));
-  }
-  return series;
-};
-
-/**
- * Drop columns whose period is entirely in the future; for a column whose
- * period has started but whose end-date is still in the future, fetch the
- * snapshot as of today instead of the period end.
- *
- * Returns [{ label, asOf, isPartial }] where `label` is the original period
- * end-date (used for the column header) and `asOf` is the date passed to
- * the balance endpoint.
- */
-const planColumns = (endDates, interval, todayIso) => {
-  const planned = [];
-  for (const endIso of endDates) {
-    if (endIso <= todayIso) {
-      planned.push({ label: endIso, asOf: endIso, isPartial: false });
-      continue;
-    }
-    const startIso = getPeriodStartIso(endIso, interval);
-    if (startIso <= todayIso) {
-      planned.push({ label: endIso, asOf: todayIso, isPartial: true });
-    }
-    break;
-  }
-  return planned;
-};
 
 const flattenBalanceLeaves = (nodes, out = new Map()) => {
   if (!Array.isArray(nodes)) return out;
@@ -114,24 +42,6 @@ const usdFormatter = new Intl.NumberFormat("en-US", {
 });
 
 const formatUSD = (v) => usdFormatter.format(Number.isFinite(v) ? v : 0);
-
-const formatColumnHeader = (iso, interval, isPartial) => {
-  if (!iso) return "";
-  const d = new Date(`${iso}T00:00:00Z`);
-  if (Number.isNaN(d.getTime())) return iso;
-  const year = d.getUTCFullYear();
-  const monthIdx = d.getUTCMonth();
-  let base;
-  if (interval === "year") {
-    base = String(year);
-  } else if (interval === "quarter") {
-    const q = Math.floor(monthIdx / 3) + 1;
-    base = `Q${q} ${String(year).slice(-2)}`;
-  } else {
-    base = d.toLocaleString("en-US", { month: "short", year: "2-digit", timeZone: "UTC" });
-  }
-  return isPartial ? `${base} (${PARTIAL_SUFFIX[interval] ?? "PTD"})` : base;
-};
 
 export default function BalanceTrends() {
   const { bsTree } = useCoa();

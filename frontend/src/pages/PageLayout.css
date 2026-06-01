@@ -3143,7 +3143,8 @@
 .report-toolbar__periods-column {
   display: flex;
   flex-wrap: wrap;
-  gap: 0.875rem;
+  align-items: flex-end;
+  gap: 0.875rem 1.25rem;
 }
 
 .report-toolbar__period-group {
@@ -3151,6 +3152,15 @@
   align-items: center;
   gap: 0.5rem;
   flex-wrap: nowrap;
+}
+
+/* Action buttons sit immediately after the From/To selectors (not pushed to
+   the far edge) so they stay easy to find regardless of table width. */
+.report-toolbar__period-actions {
+  display: flex;
+  align-items: center;
+  gap: 0.65rem;
+  flex-wrap: wrap;
 }
 
 .report-toolbar__period-selector-group {

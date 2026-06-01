@@ -160,11 +160,12 @@ export default function BalanceReport({
   balanceReports,
   periodDates,
   periodCount,
+  maxPeriods = 3,
   collapsedPaths = new Set(),
   onTogglePath = () => {},
 }) {
   const activeReports = Array.isArray(balanceReports)
-    ? balanceReports.slice(0, Math.min(periodCount ?? 1, 3))
+    ? balanceReports.slice(0, Math.min(periodCount ?? 1, maxPeriods))
     : [];
   const baseReport = activeReports[0];
   const hasReport = Array.isArray(baseReport) && baseReport.length > 0;
@@ -327,6 +328,7 @@ BalanceReport.propTypes = {
   balanceReports: PropTypes.arrayOf(PropTypes.array),
   periodDates: PropTypes.arrayOf(PropTypes.string),
   periodCount: PropTypes.number,
+  maxPeriods: PropTypes.number,
   collapsedPaths: PropTypes.instanceOf(Set),
   onTogglePath: PropTypes.func,
 };

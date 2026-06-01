@@ -60,6 +60,8 @@ export default function CashFlowDateSelectorMonthYear({
   onIncludeUnrealizedChange,
   transfers,
   onTransfersChange,
+  frequency,
+  onFrequencyChange,
   onGenerateReport,
   isLoading,
   collapsiblePaths,
@@ -157,6 +159,26 @@ export default function CashFlowDateSelectorMonthYear({
             />
             <span className="report-toolbar__toggle-text">Unrealized</span>
           </label>
+          {typeof onFrequencyChange === "function" && (
+            <div className="report-toolbar__field">
+              <label
+                htmlFor="cashflow-frequency"
+                className="report-toolbar__label"
+              >
+                Period
+              </label>
+              <select
+                id="cashflow-frequency"
+                className="report-toolbar__select"
+                value={frequency}
+                onChange={(event) => onFrequencyChange?.(event.target.value)}
+              >
+                <option value="month">Month</option>
+                <option value="quarter">Quarter</option>
+                <option value="year">Year</option>
+              </select>
+            </div>
+          )}
           <div className="report-toolbar__field">
             <label
               htmlFor="cashflow-transfers"
@@ -175,47 +197,6 @@ export default function CashFlowDateSelectorMonthYear({
               <option value="only">Only</option>
             </select>
           </div>
-          <div className="report-toolbar__control-row-actions">
-            <button
-              className="report-toolbar__button report-toolbar__button--primary"
-              type="button"
-              onClick={onGenerateReport}
-              disabled={isLoading}
-            >
-              {isLoading ? "Generating..." : "Generate"}
-            </button>
-            {!isFullyExpanded && (
-              <button
-                className="report-toolbar__button"
-                type="button"
-                onClick={onExpandOneLayer}
-                disabled={isCollapseToggleDisabled}
-              >
-                Expand +
-              </button>
-            )}
-            {!isFullyCollapsed && (
-              <button
-                className="report-toolbar__button"
-                type="button"
-                onClick={onCollapseOneLayer}
-                disabled={isCollapseToggleDisabled}
-              >
-                Collapse −
-              </button>
-            )}
-            {typeof onExport === "function" && (
-              <button
-                className="report-toolbar__button"
-                type="button"
-                onClick={onExport}
-                disabled={isExportDisabled}
-              >
-                Export
-              </button>
-            )}
-          </div>
-          {error && <p className="report-toolbar__error">{error}</p>}
         </div>
         <div className="report-toolbar__periods-column">
           <div className="report-toolbar__period-group">
@@ -260,6 +241,47 @@ export default function CashFlowDateSelectorMonthYear({
               />
             </div>
           </div>
+          <div className="report-toolbar__period-actions">
+            <button
+              className="report-toolbar__button report-toolbar__button--primary"
+              type="button"
+              onClick={onGenerateReport}
+              disabled={isLoading}
+            >
+              {isLoading ? "Generating..." : "Generate"}
+            </button>
+            {!isFullyExpanded && (
+              <button
+                className="report-toolbar__button"
+                type="button"
+                onClick={onExpandOneLayer}
+                disabled={isCollapseToggleDisabled}
+              >
+                Expand +
+              </button>
+            )}
+            {!isFullyCollapsed && (
+              <button
+                className="report-toolbar__button"
+                type="button"
+                onClick={onCollapseOneLayer}
+                disabled={isCollapseToggleDisabled}
+              >
+                Collapse −
+              </button>
+            )}
+            {typeof onExport === "function" && (
+              <button
+                className="report-toolbar__button"
+                type="button"
+                onClick={onExport}
+                disabled={isExportDisabled}
+              >
+                Export
+              </button>
+            )}
+          </div>
+          {error && <p className="report-toolbar__error">{error}</p>}
         </div>
       </section>
     );
