@@ -73,6 +73,25 @@ function parseAmount(s) {
  * Parse a single ^-delimited QIF block (without the trailing ^).
  * Returns a staging-row-shaped object.
  */
+
+// A QIF L/S (category) value. A leading [Account] denotes a TRANSFER to that
+// balance-sheet account; an optional trailing /Class tag may follow it (or a
+// plain category). The bracketed account name is what matters for mapping —
+// the class tag is dropped here but preserved in raw_payload. Without this, a
+// transfer carrying a class (e.g. "[Amazon Credit Card]/FL Property") fails the
+// naive endsWith(']') test and is mis-typed as a P&L category.
+//   "[Amazon Credit Card]/FL Property" → { transferTarget: "Amazon Credit Card" }
+//   "Auto:Fuel"                        → { category: "Auto:Fuel" }
+function splitCategoryValue(val) {
+  if (val.startsWith('[') && val.includes(']')) {
+    return { transferTarget: val.slice(1, val.indexOf(']')), category: null };
+  }
+  if (val.trim().length > 0) {
+    return { transferTarget: null, category: val };
+  }
+  return { transferTarget: null, category: null };
+}
+
 function parseQifBlock(blockText, sourceFile, sourceLine, currency = 'USD') {
   const lines = blockText.split(/\r?\n/).filter((l) => l.length > 0);
   const row = {
@@ -115,12 +134,13 @@ function parseQifBlock(blockText, sourceFile, sourceLine, currency = 'USD') {
       case 'L':
         if (val === '--Split--') {
           // Marker: subsequent S/E/$ tags define children.
-        } else if (val.startsWith('[') && val.endsWith(']')) {
-          row.transfer_target_account = val.slice(1, -1);
-        } else if (val.trim().length > 0) {
-          row.quicken_category = val;
+        } else {
+          // Bracketed [Account] (with optional /Class) → transfer; else category.
+          // Empty L stays null — Quicken's "uncategorized" marker.
+          const parsed = splitCategoryValue(val);
+          row.transfer_target_account = parsed.transferTarget;
+          row.quicken_category = parsed.category;
         }
-        // Empty L (e.g., "L\n") stays null — Quicken's "uncategorized" marker.
         break;
       case 'C':
         row.cleared_status = val[0] || null;
@@ -136,13 +156,13 @@ function parseQifBlock(blockText, sourceFile, sourceLine, currency = 'USD') {
           memo: null,
           amount: null,
         };
-        if (val.startsWith('[') && val.endsWith(']')) {
-          currentSplit.transfer_target_account = val.slice(1, -1);
-        } else if (val.trim().length > 0) {
-          currentSplit.category = val;
+        {
+          // Same [Account]/Class handling as the main-row 'L'. Empty S tag
+          // (zero-amount split-adjustment rows Quicken inserts) leaves both null.
+          const parsed = splitCategoryValue(val);
+          currentSplit.transfer_target_account = parsed.transferTarget;
+          currentSplit.category = parsed.category;
         }
-        // Empty S tag (e.g., zero-amount split-adjustment rows Quicken inserts)
-        // leaves both fields null — matches main-row 'L' behavior on line 120.
         break;
       case 'E':
         if (currentSplit) currentSplit.memo = val;
@@ -220,10 +240,9 @@ function parseInvstBlock(blockText, sourceFile, sourceLine, currency = 'USD') {
         row.memo = row.memo ? `${row.memo} ${val}` : val;
         break;
       case 'L':
-        if (val.startsWith('[') && val.endsWith(']')) {
-          row.transfer_target_account = val.slice(1, -1);
-        }
-        // Non-bracketed L in invst context is uncommon — record in raw_payload only.
+        // Bracketed [Account] (with optional /Class) → transfer target.
+        // Non-bracketed L in invst context is uncommon — raw_payload only.
+        row.transfer_target_account = splitCategoryValue(val).transferTarget;
         break;
       case '$':
         // Secondary amount on X-suffix transfers (XIn/XOut/BuyX/SellX/etc.).
