@@ -207,11 +207,28 @@ async function promote() {
   };
 }
 
+/** Stamp sync_metadata so the UI can show when fin last pulled bank-feed. */
+async function recordSync(status, count) {
+  await db.query(
+    `UPDATE sync_metadata
+       SET last_sync_at = NOW(), last_sync_status = $1, last_sync_count = $2
+     WHERE sync_type = 'bank_feed_transactions'`,
+    [status, count]
+  );
+}
+
 /** Full pipeline: ingest then promote. Mirrors the PS {ingest, sync} response. */
 async function refresh({ sinceDays = 14, since } = {}) {
-  const ingestResult = await ingest({ sinceDays, since });
-  const sync = await promote();
-  return { ingest: ingestResult, sync };
+  try {
+    const ingestResult = await ingest({ sinceDays, since });
+    const sync = await promote();
+    await recordSync('success', (sync.inserted || 0) + (sync.linked || 0));
+    return { ingest: ingestResult, sync };
+  } catch (err) {
+    // best-effort status stamp; don't mask the original error
+    try { await recordSync('error', 0); } catch { /* ignore */ }
+    throw err;
+  }
 }
 
 module.exports = {

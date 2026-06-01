@@ -352,10 +352,10 @@ export const routes = [
   {
     path: "/bank-feed-diagnostic",
     component: BankFeedDiagnostic,
-    label: "Bank Feed Diagnostic",
-    category: "Database",
-    description: "Read-only view of the bank-feed microservice — staleness, sync health, balance reconciliation (CR021 Phase 7 spike)",
-    icon: Eye,
+    label: "Refresh Bank Feed",
+    category: "Transactions",
+    description: "Import and reconcile bank-feed transactions; map accounts, check sync health",
+    icon: RefreshCw,
   },
 
   // Settings

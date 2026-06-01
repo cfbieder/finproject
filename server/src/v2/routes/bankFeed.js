@@ -63,6 +63,15 @@ router.get('/diagnostic', async (req, res) => {
     safe('balances',         () => client.balances()),
     safe('recent_transactions',
       () => client.transactions({ limit: 20 })),
+    // fin-side last pull (bank-feed → staging/transactions), distinct from the
+    // bank-feed service's own Sheet-pull cadence in feeds_health.
+    safe('last_fin_sync', async () => {
+      const r = await db.query(
+        `SELECT last_sync_at, last_sync_status, last_sync_count
+         FROM sync_metadata WHERE sync_type = 'bank_feed_transactions'`
+      );
+      return r.rows[0] || null;
+    }),
   ]);
   res.json(out);
 });

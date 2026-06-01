@@ -111,6 +111,27 @@ export default function BankFeedDiagnostic() {
     }
   };
 
+  // Trigger a fin-side import (bank-feed → staging → promote), then reload views.
+  const [importing, setImporting] = useState(false);
+  const [importMsg, setImportMsg] = useState(null);
+  const runImport = async () => {
+    setImporting(true);
+    setImportMsg(null);
+    try {
+      const res = await Rest.post("/ingest-bank-feed/refresh", { sinceDays: 30 });
+      const s = res.sync || {};
+      setImportMsg(
+        `Imported: ${s.inserted ?? 0} new, ${s.linked ?? 0} linked to PS, ` +
+        `${(s.unmappedAccounts || []).length} account(s) pending, ${(s.ignoredAccounts || []).length} ignored.`
+      );
+      await Promise.all([load(), loadMappings(), loadRecon()]);
+    } catch (err) {
+      setImportMsg(`Import failed: ${err.message}`);
+    } finally {
+      setImporting(false);
+    }
+  };
+
   useEffect(() => {
     load();
     loadMappings();
@@ -118,22 +139,52 @@ export default function BankFeedDiagnostic() {
     loadRecon();
   }, []);
 
+  // fin-side last pull (from sync_metadata via /diagnostic), with staleness color.
+  const lastSync = data?.last_fin_sync;
+  const lastSyncAt = lastSync?.last_sync_at;
+  const hoursSince = lastSyncAt ? (Date.now() - new Date(lastSyncAt).getTime()) / 3.6e6 : null;
+  const lastSyncKind =
+    hoursSince == null ? "warn" : hoursSince <= 24 ? "ok" : hoursSince <= 72 ? "warn" : "danger";
+
   return (
     <div className="bfd-page">
       <header className="bfd-header">
-        <h1>Bank Feed Diagnostic</h1>
+        <h1>Refresh Bank Feed</h1>
         <div className="bfd-actions">
+          <button onClick={runImport} disabled={importing} className="generate-report-button">
+            {importing ? "Importing…" : "Import now"}
+          </button>
           <button onClick={load} disabled={loading} className="generate-report-button">
-            {loading ? "Refreshing…" : "Refresh"}
+            {loading ? "Refreshing…" : "Refresh view"}
           </button>
         </div>
       </header>
 
       <p className="bfd-subtitle">
-        Read-only view of <code>bank-feed</code>'s <code>/v1/*</code> contract
-        (CR021). Phase 7 spike — used to verify fin can consume bank-feed
-        before v3 cutover (CR022).
+        Import and reconcile <code>bank-feed</code> transactions into fin
+        (CR022). Map accounts below, then <strong>Import now</strong> to pull the
+        latest and promote mapped accounts into the ledger.
       </p>
+
+      <div className="bfd-feed-card-header">
+        <StatusPill
+          label={
+            lastSyncAt
+              ? `last import: ${fmtDateTime(lastSyncAt)}` + (lastSync.last_sync_status === "error" ? " (errored)" : "")
+              : "never imported (fin side)"
+          }
+          kind={lastSync?.last_sync_status === "error" ? "danger" : lastSyncKind}
+        />
+        {hoursSince != null && (
+          <span className="bfd-muted">{Math.round(hoursSince)}h ago · {lastSync.last_sync_count ?? 0} rows</span>
+        )}
+      </div>
+
+      {importMsg && (
+        <div className={importMsg.startsWith("Import failed") ? "bfd-error" : "bfd-subtitle"}>
+          {importMsg}
+        </div>
+      )}
 
       {mapError && (
         <div className="bfd-error">
