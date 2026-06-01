@@ -1,4 +1,4 @@
-**Status:** IN-PROGRESS — Phases A–E done (2026-06-01): migration 023+024, converter/repo, orchestrator/routes, PS reverse-dedup, R1 mapping UI + ignore-without-mapping, full test matrix (167/167), dev walkthrough executed (§7.0). **Remaining: Phase F (prod)** — apply migration 024 to prod, then deploy. Phases A/B shipped dormant in v2.8.0. — [Plan](../FC_NEXT_STEPS.md#cr022)
+**Status:** IN-PROGRESS — Phases A–E done (2026-06-01): migration 023+024, converter/repo, orchestrator/routes, PS reverse-dedup, R1 mapping UI + ignore-without-mapping, full test matrix (167/167), dev walkthrough executed (§7.0). **Remaining: Phase F (prod)** — ⚠️ verify + apply migrations 023 **and** 024 to the real prod DB (local prod-profile DB has only through 022; "v2.8.0 shipped 023" is unverified), then deploy. Code is deploy-safe before then (§10 deploy-safety). — [Plan](../FC_NEXT_STEPS.md#cr022)
 
 # CR022 — Bank Feed Parallel Import (Additive Second Source)
 
@@ -91,7 +91,7 @@ The plan below was written before implementation. Four things landed differently
 2. **The R2.2 reverse-dedup lives in `ingestPs.js` `syncStagingToTransactions`, not `refreshPsApiV2.js`.** The actual PS staging→`transactions` promote is in the route module; `refreshPsApiV2.js` only fetches PS→staging. It's a guarded `NOT EXISTS` clause in that promote CTE, and it **self-disables when `transactions.bank_feed_external_id` is absent** (a memoized column check) so a deploy to a DB without migration 023 can't break PS refresh. `syncStagingToTransactions` also gained an optional `{ onlyPsIds }` scope (used for test isolation; also handy for subset syncs).
 3. **The contract carries an internal account id, not the mapping key.** `/v1/transactions` rows have `account_id: "6"` (bank-feed's serial id); `account_source_mappings.external_name` and `bankfeed_staging.feed_account_external_id` key on the stable account **UUID** (`/v1/accounts.external_id`). So the orchestrator fetches `/v1/accounts`, builds an id→UUID map, and the converter resolves it. A feed account whose id isn't in the map stages with `feed_account_external_id=NULL` and surfaces as unresolved/unmapped.
 
-Schema as-built: migration **023** (Phase A) + **024** (drop `NOT NULL` on `account_source_mappings.account_id`, for ignore-without-mapping). Both applied to dev; 023 also on prod (shipped dormant in v2.8.0); **024 still owed to prod** before any deploy carrying it.
+Schema as-built: migration **023** (Phase A) + **024** (drop `NOT NULL` on `account_source_mappings.account_id`, for ignore-without-mapping). Both applied to dev. **⚠️ Prod migration status UNVERIFIED (2026-06-01):** the local prod-profile DB (`fin-postgres:5433`) has migrations only through **022** — neither 023 nor 024 is present, despite an earlier doc claim that 023 shipped via v2.8.0. Migrations are **applied manually** (deploy script does not run them; `docker-entrypoint-initdb.d` only fires on a fresh empty DB). **Both 023 and 024 must be confirmed/applied on the real prod DB before the bank-feed routes will function there.** The code is deploy-safe regardless (see §10 G7 / deploy-safety note) — it just won't *work* until the migrations land.
 
 Test coverage as-built: 26 tests in `bankFeedImport.test.js` (pure converter + `findPsMatch`; DB-backed staging repo; DB-backed promote R1/R2; DB-backed PS reverse-dedup against the real function). Still open (Phase D): route tests (§5.3), the live `smoke-bank-feed.js` (§5.4), and an ignore-without-mapping promote assertion for the migration-024 state.
 
@@ -457,7 +457,7 @@ docker exec fin-postgres-dev psql -U fin -d fin -c \
 # (keeps your account_source_mappings rows; re-promote re-creates transactions)
 ```
 
-**Still owed for prod (Phase F):** apply **both** migration 023 (already on prod via v2.8.0) **and 024** to the prod DB before deploying CR022 code; the PS reverse-dedup self-disables without the column but the bank-feed routes need both.
+**Still owed for prod (Phase F):** apply **both** migration 023 **and 024** to the prod DB. ⚠️ Do NOT assume 023 is already there — the local prod-profile DB has only through 022 (the "v2.8.0 shipped 023" claim is unverified on the real prod box; verify first). The PS reverse-dedup self-disables without the column (PS stays safe), but the bank-feed routes need both migrations to function.
 
 ### 7.1 Original numbered script (pre-implementation plan — see §7.0 for corrections)
 
@@ -755,6 +755,10 @@ Surfaced during implementation + the workflow walkthrough (2026-06-01). The 5-st
 | G4 | **"Import now" button on the Refresh Bank Feed page.** | Medium | small | ✅ **DONE** (`c5fefb5`) — calls `POST /ingest-bank-feed/refresh`. |
 | G5 | **Last-pulled timestamp + staleness color (fin side).** | Low–med | small | ✅ **DONE** (`c5fefb5`) — `sync_metadata` stamped on refresh; surfaced via `/diagnostic.last_fin_sync`; banner ≤24h ok / ≤72h warn / older danger / errored red. |
 | G6 | **PKO "blocked transaction" drift false-positive** (`/v1/health/feeds`). PKO moves the balance before a transaction posts, so `drift_significant=true` fires with `subsequent_count=0`. A **bank-feed-side** (CR021) refinement: only flag `drift_significant` when `subsequent_count > 0`; expose `balance_ahead_of_stream` informationally otherwise. | Low | small | **OPEN** (bank-feed repo, not fin) |
+
+| G7 | **Prod migration state unverified + manual.** Local prod-profile DB has only through 022 (no 023/024). Migrations are manual (deploy script doesn't run them). Must verify + apply 023+024 on the real prod box before the feature works there. | High (for function) | small | **OPEN** |
+
+**Deploy-safety (answers "is partially-finished CR022 code safe to deploy from this branch?"):** **Yes — it cannot break existing functionality**, by design: (a) nothing CR022 runs at startup — only route mounting, so the server boots regardless of schema; (b) the sole edit to a live PS code path (`ingestPs.js` `syncStagingToTransactions`) self-guards via `bankFeedColumnExists()` — column absent → dedup clause empty → PS promote unchanged byte-for-byte; (c) the new `/ingest-bank-feed/*` + bank-feed routes are only reachable if a user opens the Refresh Bank Feed page, and on a pre-023 DB they return a contained error envelope (no data risk, no corruption). Worst case on a partial deploy: the Refresh Bank Feed page errors until 023+024 are applied. Existing PS/quicken/forecast paths are untouched.
 
 Other open CR021-side follow-ups (not CR022): `updated_since` query param on `/v1/transactions`; per-transaction `balance_after_transaction` on the contract.
 
