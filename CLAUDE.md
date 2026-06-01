@@ -18,7 +18,7 @@ Update the following files to reflect the changes made:
 
 This repo has a single shared working tree, index, and branch, and more than one agent thread may be active at once. To avoid one thread absorbing or wiping another's uncommitted work:
 
-1. **Always stage and commit with explicit pathspecs** — `git add <specific files>` / `git commit -- <specific files>`. **Never** `git add -A`, `git add .`, or `git commit -a` (they sweep up the other thread's changes).
+1. **Always stage AND commit with explicit pathspecs.** Scope the *commit* to your files, not just the `git add` — a bare `git commit` after `git add <files>` still commits the **entire index**, including another thread's pre-staged changes (e.g. a file they deleted). Correct forms: `git commit -m "msg" -- <files>` (note: `-m` and its message must come **before** the `-- <paths>`, or git parses the message as a pathspec) — or `git add <files>` then **verify** with `git diff --cached --name-status` before a bare commit. **Never** `git add -A`, `git add .`, or `git commit -a` (they sweep up the other thread's changes). After committing, run `git show HEAD --name-status` to confirm only your files landed; if a stray file rode along and the commit isn't pushed, `git reset --soft HEAD~1` then `git restore --staged <stray>` and re-commit.
 2. **Do not run `git stash`, `git checkout <paths>`, `git reset`, or branch switches while other uncommitted work may exist** — these can move or destroy it. If unsure, run `git status` first.
 3. **Before pushing:** `git pull --ff-only`, then push. **Never force-push** a shared branch.
 4. **`bank-feed/` is a separate, gitignored repo** with its own git history — it is not tracked by this repo and needs no coordination with it.
