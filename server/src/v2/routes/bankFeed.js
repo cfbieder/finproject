@@ -14,6 +14,7 @@ const router = express.Router();
 
 const client = require('../services/bankFeedClient');
 const accountSourceMappings = require('../repositories/accountSourceMappings');
+const bankFeedReconciliation = require('../repositories/bankFeedReconciliation');
 const db = require('../db');
 
 // Wrap a client call so any error becomes a clean JSON 502.
@@ -156,6 +157,23 @@ router.put('/account-mappings/:externalId', async (req, res, next) => {
     });
   } catch (err) {
     console.error('[v2/bank-feed] set account-mapping failed:', err.message);
+    next(err);
+  }
+});
+
+/**
+ * GET /api/v2/bank-feed/reconciliation?sinceDays=30
+ * CR022 §G trust signal: per mapped account, matched / ps_only / bank_feed_only
+ * over the window. ps_only > 0 means bank-feed MISSED transactions PS has — the
+ * regression that must reach 0 before PS removal. Read-only.
+ */
+router.get('/reconciliation', async (req, res, next) => {
+  try {
+    const sinceDays = req.query.sinceDays != null ? Number(req.query.sinceDays) : 30;
+    const result = await bankFeedReconciliation.reconcile({ sinceDays });
+    res.json(result);
+  } catch (err) {
+    console.error('[v2/bank-feed] reconciliation failed:', err.message);
     next(err);
   }
 });

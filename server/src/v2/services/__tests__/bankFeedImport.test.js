@@ -495,3 +495,79 @@ dbDescribe('PS promote reverse dedup (DB)', () => {
     expect(dup.rows).toHaveLength(1); // source-segregated: PS row kept
   });
 });
+
+// ════════════════════════════════════════════════════════════════════════════
+// DB-backed: PS↔bank-feed reconciliation (CR022 §G trust signal)
+//
+// Seeds a dedicated throwaway account so it never collides with the ~26k real
+// rows, then asserts the matched / ps_only / bank_feed_only buckets.
+// ════════════════════════════════════════════════════════════════════════════
+
+dbDescribe('bankFeedReconciliation.reconcile (DB)', () => {
+  const recon = require('../../repositories/bankFeedReconciliation');
+  const db = require('../../db');
+
+  const ACCT_NAME = 'TestReconAcct';
+  const FEED_UUID = 'test-recon-uuid';
+  let acctId;
+
+  async function cleanup() {
+    if (acctId) {
+      await db.query(`DELETE FROM transactions WHERE account_id = $1`, [acctId]);
+    }
+    await db.query(`DELETE FROM account_source_mappings WHERE external_name = $1`, [FEED_UUID]);
+    await db.query(`DELETE FROM accounts WHERE name = $1`, [ACCT_NAME]);
+  }
+
+  beforeAll(async () => {
+    await cleanup();
+    const a = await db.query(
+      `INSERT INTO accounts (name, account_type, section) VALUES ($1, 'asset', 'balance_sheet') RETURNING id`,
+      [ACCT_NAME]
+    );
+    acctId = a.rows[0].id;
+    await db.query(
+      `INSERT INTO account_source_mappings (account_id, source, external_name, ignored)
+       VALUES ($1, 'bank-feed', $2, FALSE)`,
+      [acctId, FEED_UUID]
+    );
+  });
+  afterAll(async () => { await cleanup(); await db.close(); });
+
+  test('classifies matched (linked + twin), ps_only, and bank_feed_only correctly', async () => {
+    const d = '2026-05-20';
+    // 1) PS row already linked (bank_feed_external_id set) → matched
+    await db.query(
+      `INSERT INTO transactions (transaction_date, amount, currency, account_id, source, bank_feed_external_id, accepted)
+       VALUES ($1, -10.00, 'PLN', $2, 'pocketsmith', 'recon-linked', FALSE)`, [d, acctId]);
+    // 2) PS row + a distinct bank-feed twin (same key, ±1 day) → matched
+    await db.query(
+      `INSERT INTO transactions (transaction_date, amount, currency, account_id, source, accepted)
+       VALUES ($1, -20.00, 'PLN', $2, 'pocketsmith', FALSE)`, [d, acctId]);
+    await db.query(
+      `INSERT INTO transactions (transaction_date, amount, currency, account_id, source, bank_feed_external_id, accepted)
+       VALUES ($1, -20.00, 'PLN', $2, 'bank-feed', 'recon-twin', FALSE)`, ['2026-05-21', acctId]);
+    // 3) PS row with NO bank-feed coverage → ps_only (the regression signal)
+    await db.query(
+      `INSERT INTO transactions (transaction_date, amount, currency, account_id, source, accepted)
+       VALUES ($1, -30.00, 'PLN', $2, 'pocketsmith', FALSE)`, [d, acctId]);
+    // 4) bank-feed row with no PS twin → bank_feed_only
+    await db.query(
+      `INSERT INTO transactions (transaction_date, amount, currency, account_id, source, bank_feed_external_id, accepted)
+       VALUES ($1, -40.00, 'PLN', $2, 'bank-feed', 'recon-bfonly', FALSE)`, [d, acctId]);
+
+    const out = await recon.reconcile({ sinceDays: 60 });
+    const row = out.accounts.find((r) => r.account_id === acctId);
+    expect(row).toBeDefined();
+    expect(row.matched).toBe(2);        // linked + twin
+    expect(row.ps_only).toBe(1);        // the uncovered PS row
+    expect(row.bank_feed_only).toBe(1); // the unmatched bank-feed row
+  });
+
+  test('an ignored account is excluded from reconciliation scope', async () => {
+    await db.query(`UPDATE account_source_mappings SET ignored = TRUE WHERE external_name = $1`, [FEED_UUID]);
+    const out = await recon.reconcile({ sinceDays: 60 });
+    expect(out.accounts.find((r) => r.account_id === acctId)).toBeUndefined();
+    await db.query(`UPDATE account_source_mappings SET ignored = FALSE WHERE external_name = $1`, [FEED_UUID]);
+  });
+});

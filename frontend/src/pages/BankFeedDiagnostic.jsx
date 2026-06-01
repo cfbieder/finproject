@@ -48,6 +48,7 @@ export default function BankFeedDiagnostic() {
   const [accountOptions, setAccountOptions] = useState([]);
   const [savingId, setSavingId] = useState(null);
   const [mapError, setMapError] = useState(null);
+  const [recon, setRecon] = useState(null);
 
   const load = async () => {
     setLoading(true);
@@ -83,6 +84,16 @@ export default function BankFeedDiagnostic() {
     }
   };
 
+  // CR022 §G trust signal — PS↔bank-feed reconciliation per account.
+  const loadRecon = async () => {
+    try {
+      const res = await Rest.get("/bank-feed/reconciliation?sinceDays=30");
+      setRecon(res);
+    } catch (err) {
+      setMapError(err.message);
+    }
+  };
+
   const saveMapping = async (externalId, accountId, ignored) => {
     setSavingId(externalId);
     setMapError(null);
@@ -92,6 +103,7 @@ export default function BankFeedDiagnostic() {
         ignored,
       });
       await loadMappings();
+      await loadRecon();
     } catch (err) {
       setMapError(err.message);
     } finally {
@@ -103,6 +115,7 @@ export default function BankFeedDiagnostic() {
     load();
     loadMappings();
     loadAccountOptions();
+    loadRecon();
   }, []);
 
   return (
@@ -193,6 +206,46 @@ export default function BankFeedDiagnostic() {
                     />
                   </td>
                   <td>{savingId === m.external_id ? "saving…" : ""}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </section>
+      )}
+
+      {recon && (
+        <section className="bfd-section">
+          <h2>PS ↔ bank-feed reconciliation (CR022 §G)</h2>
+          <p className="bfd-subtitle">
+            Per mapped account over the last {recon.sinceDays} days. <strong>PS-only</strong> =
+            PocketSmith transactions with no bank-feed match — i.e. transactions
+            bank-feed <em>missed</em>. A clean parallel run drives PS-only to{" "}
+            <strong>0</strong> for every account before PocketSmith can be retired.
+            bank-feed-only is informational (usually bank-feed being more complete).
+          </p>
+          <div className="bfd-feed-card-header">
+            <StatusPill
+              label={recon.total_ps_only === 0 ? "no gaps" : `${recon.total_ps_only} PS-only`}
+              kind={recon.total_ps_only === 0 ? "ok" : "danger"}
+            />
+            <span className="bfd-muted">across {recon.accounts.length} mapped account(s)</span>
+          </div>
+          <table className="bfd-accounts">
+            <thead>
+              <tr>
+                <th>Account</th>
+                <th className="num">Matched</th>
+                <th className="num">PS-only (missed)</th>
+                <th className="num">bank-feed-only</th>
+              </tr>
+            </thead>
+            <tbody>
+              {recon.accounts.map((a) => (
+                <tr key={a.account_id}>
+                  <td>{a.account_name}</td>
+                  <td className="num">{a.matched}</td>
+                  <td className={`num ${a.ps_only > 0 ? "bfd-danger" : "bfd-ok"}`}>{a.ps_only}</td>
+                  <td className="num bfd-muted">{a.bank_feed_only}</td>
                 </tr>
               ))}
             </tbody>
