@@ -361,6 +361,21 @@ function NewImportModal({ batches, onClose, onDone }) {
 const canDeleteBatch = (status) =>
   ["parsing", "parsed", "mapped", "failed"].includes(status);
 
+// Per-batch record accounting for the list. records = parsed (staged) rows;
+// imported = rows that landed in `transactions`; skipped = the difference
+// (already in PocketSmith via the cutoff, or split parents expanded into
+// children). If staging was wiped, records/skipped are unknown ("—").
+function batchCounts(b) {
+  const staged = b.staged_count ?? 0;
+  const imported = b.imported_count ?? 0;
+  const stagingGone = staged === 0 && imported > 0;
+  return {
+    records: stagingGone ? "—" : staged,
+    imported,
+    skipped: stagingGone ? "—" : Math.max(0, staged - imported),
+  };
+}
+
 function BatchList({ batches, onPick, onRefresh }) {
   const toast = useToast();
   const [showImport, setShowImport] = useState(false);
@@ -405,13 +420,20 @@ function BatchList({ batches, onPick, onRefresh }) {
               <th>Status</th>
               <th>Label</th>
               <th>Source files</th>
+              <th title="Rows parsed from the QIF">Records</th>
+              <th title="Rows that landed in this ledger">Imported</th>
+              <th title="Already in PocketSmith (date cutoff) or split-parent rows expanded into children">
+                Skipped
+              </th>
               <th>Parsed</th>
               <th>Promoted</th>
               <th>Actions</th>
             </tr>
           </thead>
           <tbody>
-            {batches.map((b) => (
+            {batches.map((b) => {
+              const c = batchCounts(b);
+              return (
               <tr key={b.id}>
                 <td><StatusBadge status={b.status} /></td>
                 <td>{b.label || <span className="qi-muted">{b.id.slice(0, 8)}…</span>}</td>
@@ -420,6 +442,15 @@ function BatchList({ batches, onPick, onRefresh }) {
                     <code key={i}>{f}</code>
                   ))}
                 </td>
+                <td style={{ textAlign: "right" }}>{c.records}</td>
+                <td style={{ textAlign: "right" }}>
+                  {c.imported === 0 && b.status === "promoted" ? (
+                    <span className="qi-muted" title="Nothing landed — all already in PocketSmith or dropped by the cutoff">0</span>
+                  ) : (
+                    c.imported
+                  )}
+                </td>
+                <td style={{ textAlign: "right" }}>{c.skipped}</td>
                 <td>{formatDate(b.parsed_at)}</td>
                 <td>{formatDate(b.promoted_at)}</td>
                 <td>
@@ -435,7 +466,8 @@ function BatchList({ batches, onPick, onRefresh }) {
                   )}
                 </td>
               </tr>
-            ))}
+              );
+            })}
           </tbody>
         </table>
       )}
