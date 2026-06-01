@@ -764,6 +764,92 @@ Other open CR021-side follow-ups (not CR022): `updated_since` query param on `/v
 
 **Balance-difference handling (workflow Q):** "reported vs computed balance differ for an account" is already answered by the bank-feed `/v1/health/feeds` per-account reconciliation (`reported_current_balance` vs `expected_current_balance`, `drift`, `drift_significant`), rendered on the page's Feed-health table. This is distinct from the fin-side **PS-only reconciliation** (§G / `GET /reconciliation`): drift = "does the feed's own math match the bank's reported balance?"; PS-only = "did bank-feed miss a transaction PocketSmith has?". G6 is the known false-positive in the drift check.
 
+## 11. Phase F — Production Cutover Runbook
+
+Owner-driven. Run **on the prod host** (`192.168.1.87`: API :3005, DB container `fin-postgres` :5433, deploy via `Scripts/deploy-to-production.sh`). Migrations are **manual** — the deploy script backs up + rebuilds but does NOT run SQL. Do the steps in order; STEP 1 gates everything.
+
+```bash
+# ──────────────────────────────────────────────────────────────────────
+# STEP 1 — Verify prod's actual migration state (do this FIRST)
+#   The local prod-profile DB had only through 022; do not assume 023 shipped.
+# ──────────────────────────────────────────────────────────────────────
+docker exec fin-postgres psql -U fin -d fin -c "\d transactions" | grep bank_feed_external_id
+docker exec fin-postgres psql -U fin -d fin -c "\d account_source_mappings" | grep -E "ignored|account_id"
+#  Decide from the output:
+#   - bank_feed_external_id ABSENT            → 023 needed
+#   - account_source_mappings.ignored ABSENT  → 023 needed
+#   - account_id shows "not null"             → 024 needed
+#   - all present + account_id nullable       → migrations already done, skip STEP 3
+
+# ──────────────────────────────────────────────────────────────────────
+# STEP 2 — Backup (rollback safety net) BEFORE any schema change
+# ──────────────────────────────────────────────────────────────────────
+docker exec fin-postgres pg_dump -U fin -d fin -Fc > ~/fin-prod-pre-cr022-$(date +%Y%m%d).dump
+ls -lh ~/fin-prod-pre-cr022-*.dump   # keep until cutover is confirmed good
+
+# ──────────────────────────────────────────────────────────────────────
+# STEP 3 — Apply the missing migration(s) (only the ones STEP 1 flagged)
+#   Both are additive + idempotent (IF NOT EXISTS / self-verifying DO blocks).
+# ──────────────────────────────────────────────────────────────────────
+git -C ~/psproject pull --ff-only origin main   # get 023 + 024 onto the host
+docker exec -i fin-postgres psql -U fin -d fin -v ON_ERROR_STOP=1 \
+  < ~/psproject/server/db/migrations/023_bank_feed_import.sql
+docker exec -i fin-postgres psql -U fin -d fin -v ON_ERROR_STOP=1 \
+  < ~/psproject/server/db/migrations/024_bank_feed_ignore_unmapped.sql
+#  Re-run STEP 1's checks to confirm all objects present + account_id nullable.
+
+# ──────────────────────────────────────────────────────────────────────
+# STEP 4 — Deploy the code (ships `main`; safe even pre-migration, but do 3 first)
+# ──────────────────────────────────────────────────────────────────────
+cd ~/psproject && ./Scripts/deploy-to-production.sh        # backs up + rebuilds containers
+curl -s -o /dev/null -w "%{http_code}\n" http://localhost:3005/api/v2/health   # expect 200
+
+# ──────────────────────────────────────────────────────────────────────
+# STEP 5 — Smoke + confirm routes live (does NOT promote — stage-only smoke is safe)
+# ──────────────────────────────────────────────────────────────────────
+BASE_URL=http://localhost:3005 node ~/psproject/server/src/scripts/smoke-bank-feed.js   # expect 7/7
+curl -s http://localhost:3005/api/v2/bank-feed/account-mappings | jq '.accounts | length'  # expect 13
+
+# ──────────────────────────────────────────────────────────────────────
+# STEP 6 — Map accounts in the UI (manual, business decision)
+#   Open the prod Refresh Bank Feed page (https://192.168.1.87:5175 → Transactions
+#   → Refresh Bank Feed). For each PKO account pick its COA account; IGNORE the
+#   Fidelity accounts (investment, out of cash scope). Unmapped = stays pending.
+# ──────────────────────────────────────────────────────────────────────
+
+# ──────────────────────────────────────────────────────────────────────
+# STEP 7 — Seed the ledger + start the parallel run
+# ──────────────────────────────────────────────────────────────────────
+# Click "Import now" once (full refresh: stage + promote mapped accounts).
+# Then verify in the review queue (/refresh-ps) that bank-feed rows appear
+# accepted=FALSE. Check the reconciliation panel — expect ps_only > 0 initially
+# (bank-feed backfilling), trending toward 0 as it catches up.
+
+# ──────────────────────────────────────────────────────────────────────
+# STEP 8 — Schedule the hands-off pull (G1) on the prod host
+# ──────────────────────────────────────────────────────────────────────
+crontab -e
+#  add (stage-only — promotion stays the manual "Import now" button):
+#  0 6 * * * BASE_URL=http://localhost:3005 SINCE_DAYS=14 /home/cfbieder/psproject/Scripts/refresh-bank-feed.sh >> /home/cfbieder/psproject/logs/refresh-bank-feed.log 2>&1
+
+# ──────────────────────────────────────────────────────────────────────
+# ROLLBACK (if anything in 3–7 goes wrong)
+# ──────────────────────────────────────────────────────────────────────
+#  Schema only (keeps PS data): run §6.3 + the 024 reverse
+#    (ALTER TABLE account_source_mappings ALTER COLUMN account_id SET NOT NULL — only
+#     safe if no ignore-only rows exist yet; else leave nullable, it's harmless).
+#  Full restore:
+#  docker exec -i fin-postgres pg_restore -U fin -d fin -c < ~/fin-prod-pre-cr022-<DATE>.dump
+```
+
+**Then:** Phase G observation (§G) for ≥1 month — watch `reconciliation.total_ps_only → 0`, `merged_with_ps_count` non-trivial, no `is_stale`, review queue handled. Only then open the PS-removal CR.
+
+---
+
+Other open CR021-side follow-ups (not CR022): `updated_since` query param on `/v1/transactions`; per-transaction `balance_after_transaction` on the contract.
+
+**Balance-difference handling (workflow Q):** "reported vs computed balance differ for an account" is already answered by the bank-feed `/v1/health/feeds` per-account reconciliation (`reported_current_balance` vs `expected_current_balance`, `drift`, `drift_significant`), rendered on the page's Feed-health table. This is distinct from the fin-side **PS-only reconciliation** (§G / `GET /reconciliation`): drift = "does the feed's own math match the bank's reported balance?"; PS-only = "did bank-feed miss a transaction PocketSmith has?". G6 is the known false-positive in the drift check.
+
 ---
 
 *Living document. Update §9 Decision Log as choices are made. CR022 closes after Phase F completes and ≥1-month parallel-run observation begins.*
