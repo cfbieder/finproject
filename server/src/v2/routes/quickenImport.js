@@ -484,4 +484,57 @@ router.post('/batches/:id/rollback', async (req, res, next) => {
   }
 });
 
+// ───────────────────────────────────────────────────────────────────────────
+// DELETE /api/v2/quicken-import/batches/:id
+// Hard-delete an UNPROMOTED batch (parsed / mapped / failed / parsing) and its
+// parse-phase staging rows. Promoted or in-flight batches have ledger rows and
+// MUST go through rollback first — refuse them (409). account_source_mappings
+// are global (keyed by source + name) and intentionally preserved, so deleting
+// a batch never loses mapping work.
+// ───────────────────────────────────────────────────────────────────────────
+const DELETABLE_STATUSES = ['parsing', 'parsed', 'mapped', 'failed'];
+const STAGING_TABLES = [
+  'quicken_staging',
+  'quicken_securities_staging',
+  'quicken_security_master_staging',
+  'quicken_price_staging',
+];
+
+router.delete('/batches/:id', async (req, res, next) => {
+  const { id } = req.params;
+  try {
+    const { rows } = await pool.query(
+      'SELECT status FROM quicken_import_batches WHERE id = $1',
+      [id]
+    );
+    if (rows.length === 0) {
+      return res.status(404).json({ error: 'batch not found' });
+    }
+    const { status } = rows[0];
+    if (!DELETABLE_STATUSES.includes(status)) {
+      return res.status(409).json({
+        error: `cannot delete a '${status}' batch — roll it back first`,
+      });
+    }
+
+    const client = await pool.connect();
+    try {
+      await client.query('BEGIN');
+      for (const t of STAGING_TABLES) {
+        await client.query(`DELETE FROM ${t} WHERE import_batch_id = $1`, [id]);
+      }
+      await client.query('DELETE FROM quicken_import_batches WHERE id = $1', [id]);
+      await client.query('COMMIT');
+    } catch (e) {
+      try { await client.query('ROLLBACK'); } catch (_) { /* ignore */ }
+      throw e;
+    } finally {
+      client.release();
+    }
+    res.status(204).end();
+  } catch (err) {
+    next(err);
+  }
+});
+
 module.exports = router;

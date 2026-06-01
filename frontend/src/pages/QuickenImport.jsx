@@ -303,8 +303,32 @@ function NewImportModal({ onClose, onDone }) {
   );
 }
 
+// Unpromoted batches (no ledger rows) can be hard-deleted; promoted/in-flight
+// ones must be rolled back instead. Mirrors the server's DELETABLE_STATUSES.
+const canDeleteBatch = (status) =>
+  ["parsing", "parsed", "mapped", "failed"].includes(status);
+
 function BatchList({ batches, onPick, onRefresh }) {
+  const toast = useToast();
   const [showImport, setShowImport] = useState(false);
+  const [confirm, setConfirm] = useState(null); // { batch } or null
+  const [busy, setBusy] = useState(false);
+
+  const doDelete = async () => {
+    if (!confirm) return;
+    setBusy(true);
+    try {
+      await Rest.del(`/quicken-import/batches/${confirm.batch.id}`);
+      toast.showSuccess(`Deleted batch "${confirm.batch.label || confirm.batch.id.slice(0, 8)}".`);
+      setConfirm(null);
+      onRefresh();
+    } catch (err) {
+      toast.showError(err.message || "Delete failed");
+    } finally {
+      setBusy(false);
+    }
+  };
+
   return (
     <div className="qi-section">
       <div className="qi-section-header">
@@ -347,6 +371,15 @@ function BatchList({ batches, onPick, onRefresh }) {
                 <td>{formatDate(b.promoted_at)}</td>
                 <td>
                   <button className="qi-btn" onClick={() => onPick(b.id)}>Open</button>
+                  {canDeleteBatch(b.status) && (
+                    <button
+                      className="qi-btn qi-btn-danger"
+                      style={{ marginLeft: "0.4rem" }}
+                      onClick={() => setConfirm({ batch: b })}
+                    >
+                      Delete
+                    </button>
+                  )}
                 </td>
               </tr>
             ))}
@@ -356,6 +389,22 @@ function BatchList({ batches, onPick, onRefresh }) {
       {showImport && (
         <NewImportModal onClose={() => setShowImport(false)} onDone={onRefresh} />
       )}
+      <ConfirmModal
+        state={
+          confirm && {
+            title: "Delete batch?",
+            message:
+              `Permanently delete the "${confirm.batch.label || confirm.batch.id.slice(0, 8)}" ` +
+              `batch and its staging rows. This does not touch already-promoted data or your ` +
+              `saved mappings. This cannot be undone.`,
+            confirmLabel: "Delete",
+            danger: true,
+          }
+        }
+        busy={busy}
+        onConfirm={doDelete}
+        onCancel={() => setConfirm(null)}
+      />
     </div>
   );
 }
