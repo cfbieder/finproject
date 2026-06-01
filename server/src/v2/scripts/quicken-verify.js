@@ -179,6 +179,74 @@ async function verify(pool, args) {
     );
   }
 
+  // 5b. Split-sum integrity (staging-level) ------------------------------------
+  // Each split parent's children must sum to the parent amount. Promote expands
+  // children into the ledger and drops parents, so this is checked against
+  // quicken_staging (retained post-promote). Skipped if staging was wiped.
+  const stagingCount = await pool.query(
+    `select count(*)::int as n from quicken_staging where import_batch_id = $1`,
+    [args.batch]
+  );
+  if (stagingCount.rows[0].n === 0) {
+    warn('split-integrity', 'no staging rows for batch — skipped (staging wiped)');
+  } else {
+    const splitMismatch = await pool.query(
+      `with kids as (
+         select split_parent_id, round(sum(amount), 2) as s
+           from quicken_staging
+          where import_batch_id = $1 and split_parent_id is not null
+          group by split_parent_id)
+       select count(*)::int as n
+         from kids k
+         join quicken_staging p on p.id = k.split_parent_id
+        where abs(round(p.amount, 2) - k.s) > $2`,
+      [args.batch, MONEY_EPS]
+    );
+    const sm = splitMismatch.rows[0].n;
+    if (sm > 0) {
+      fail('split-integrity', `${sm} split group(s) where children ≠ parent amount`);
+    } else {
+      pass('split-integrity', 'all split children sum to their parent');
+    }
+  }
+
+  // 5c. Cross-source time overlap ----------------------------------------------
+  // Historical (Quicken) data should sit BEFORE the live (PocketSmith) era on
+  // each account. If the batch's date range overlaps in time with other-source
+  // rows on the same account, the per-account cutoff likely didn't trim the QIF
+  // — a double-coverage risk even when no exact-match dupes exist (those are the
+  // hard cross-source-overlap check above).
+  const timeOverlap = await pool.query(
+    `with b as (
+       select account_id, min(transaction_date) lo, max(transaction_date) hi
+         from transactions where import_batch_id = $1 group by account_id),
+     o as (
+       select account_id, min(transaction_date) lo, max(transaction_date) hi
+         from transactions
+        where source <> (select min(source) from transactions where import_batch_id = $1)
+          and import_batch_id is distinct from $1
+        group by account_id)
+     select b.account_id,
+            greatest(b.lo, o.lo) as ov_lo,
+            least(b.hi, o.hi)    as ov_hi
+       from b join o on o.account_id = b.account_id
+      where o.lo <= b.hi and b.lo <= o.hi`,
+    [args.batch]
+  );
+  if (timeOverlap.rows.length) {
+    const detail = timeOverlap.rows
+      .map(
+        (r) =>
+          `acct ${r.account_id}: ${r.ov_lo.toISOString().slice(0, 10)}→${r.ov_hi
+            .toISOString()
+            .slice(0, 10)}`
+      )
+      .join('; ');
+    warn('time-overlap', `batch overlaps other-source dates on ${timeOverlap.rows.length} account(s): ${detail}`);
+  } else {
+    pass('time-overlap', 'no date overlap with other-source rows on the same account(s)');
+  }
+
   // 6. Within-import duplicates (informational) --------------------------------
   const dupes = await pool.query(
     `select count(*)::int as groups, coalesce(sum(c - 1), 0)::int as extra
