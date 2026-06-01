@@ -1103,6 +1103,21 @@ This is destructive of all post-promote prod activity (anything users did betwee
 
 **Code:** `insertInvestmentCashRows()` in `quicken-promote.js` (income legs + neutral skips); the prior investment-staging **promote guard is removed** and replaced by this path. Steps 5/6/7 (lots, handoff_marker, price history) and step 1 (securities-master reconcile) are **not** run. Income-leaf ids are resolved by name and must exist (seeded: Financial Income - Dividend, Interest Income, Realized Gain (Historical), Return of Capital) — fail-loud with a "seed this leaf" message if missing.
 
+## 22.1 Calibration redesign — PS-anchored (2026-06-01)
+
+**Problem found:** the original step-8 calibration (`opening_balance -= Σ(imported)`) preserved *today's* balance but **neutralized the imported history** — it set `opening_balance = −Σ(imported)`, which exactly cancels the imported flows, so every backfilled account collapsed to **$0 at the PS handoff** and ran a meaningless negative ramp before it. It went unnoticed because the balance-invariant only ever checked *today*, never historical years. Root cause: fin's balance model is `opening_balance + Σ(all tx since 1990)` with the convention `opening_balance = 0` for every account (value lives in transactions, incl. an "Opening Balance" entry — verified across all 71 PS-only accounts). The calibration violated that convention. Worse, the *pre-import* balances were already wrong for these accounts (PS-only sum from `ob=0` = net-change-since-2020, e.g. Chase Checking showed −$30k), so "preserve today" preserved a wrong number.
+
+**Fix:** anchor calibration to PocketSmith's **authoritative `closing_balance`** (the bank truth, stored per transaction):
+
+```
+opening_balance = PS_latest_closing_balance − Σ(all account transactions)   [PS-anchored]
+opening_balance = 0                                                          [no PS coverage → pure reconstruction]
+```
+
+This pins today to the real bank balance **and** lets the imported transactions backtrack history from a correct anchor. Audit stores `delta = old_ob − new_ob` so rollback (`ob += delta`) restores the pre-promote `opening_balance` exactly. `verifyBalances(batchId)` now asserts touched accounts compute to their PS `closing_balance` (untouched BS accounts unchanged); rollback no longer asserts preserve-today (it legitimately returns today to the pre-import value — it's a deterministic inverse via the stored delta + batch-scoped deletes).
+
+**Result (dev rollout, all 9 backfilled batches re-promoted):** every account's today now equals PS exactly. History is correct wherever the Quicken export reconciles with PS (`ob≈0`: Chase Saving, WISE, Naleczowska, LUXURY CARD). Accounts whose source doesn't reconcile keep a non-zero `ob` offset that distorts early years — flagged, not hidden: **PKO** (sample `pko.QIF`, overstates ~284k), **Fidelity** (value-only — market value not in flows), **Chase Checking** (real export understates ~30k; QIF completeness to review). Code: `recalibrate` + `verifyBalances` in `quicken-promote.js`; tests updated (now 60 passing, incl. a PS-anchor test and a no-PS reconstruction test).
+
 ## 21. Update history
 
 - **2026-05-30** — **End-to-end walkthrough of the 1→1 model on dev (pko.QIF) + auto-match-at-promote REMOVED.** Validated parse → role-aware mapping → bulk-create → pre-flight → promote → rollback against the PLN pko.QIF sample. Parse/roles/cutoff/calibration/rollback all behaved correctly; full row reconciliation held (2711 staged = 136 split-parents skipped + cutoff-dropped + inserted). Two real bugs found, plus the auto-matcher redesign:

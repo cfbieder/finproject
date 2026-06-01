@@ -641,60 +641,128 @@ async function insertInvestmentCashRows(client, batchId, mappings, cutoffs) {
 }
 
 /**
- * Step 8: per-account, set
- *   opening_balance := opening_balance - SUM(imported amounts for this account)
- * and record one row per touched account in quicken_calibration_audit.
+ * Step 8 (PS-anchored — CR §22.1): pin each touched account's opening_balance so
+ * today's computed balance equals PocketSmith's authoritative closing_balance
+ * (the bank truth), letting the imported transactions backtrack history from a
+ * correct anchor. Accounts with no PS coverage (closed/legacy) anchor to pure
+ * reconstruction (opening_balance = 0 — value lives entirely in the imported
+ * "Opening Balance" entry + flows). Records delta = (old_ob − new_ob) per
+ * account so rollback (ob += delta) restores the pre-promote opening_balance.
+ *
+ * (Replaces the old `ob -= Σ(imported)` model, which anchored to the pre-import
+ * balance — itself wrong, since PS-imported accounts carry opening_balance = 0 —
+ * and so neutralized the import and collapsed history to $0 at the handoff.)
  */
 async function recalibrate(client, batchId) {
-  const { rows: deltas } = await client.query(
-    `SELECT account_id, SUM(amount) AS delta
-       FROM transactions
-       WHERE import_batch_id = $1
-       GROUP BY account_id`,
+  const { rows: accts } = await client.query(
+    `SELECT DISTINCT account_id FROM transactions WHERE import_batch_id = $1`,
     [batchId]
   );
 
-  for (const r of deltas) {
-    const delta = parseFloat(r.delta);
+  for (const { account_id } of accts) {
+    const { rows: ar } = await client.query(
+      `SELECT a.opening_balance AS old_ob,
+              COALESCE(SUM(t.amount) FILTER (
+                WHERE t.transaction_date >= a.opening_balance_date), 0) AS total,
+              (SELECT x.closing_balance FROM transactions x
+                 WHERE x.account_id = a.id AND x.source <> 'quicken-import'
+                   AND x.closing_balance IS NOT NULL
+                 ORDER BY x.transaction_date DESC, x.id DESC LIMIT 1) AS ps_close
+         FROM accounts a
+         LEFT JOIN transactions t ON t.account_id = a.id
+        WHERE a.id = $1
+        GROUP BY a.id, a.opening_balance, a.opening_balance_date`,
+      [account_id]
+    );
+    const oldOb = parseFloat(ar[0].old_ob);
+    const total = parseFloat(ar[0].total);
+    const psClose = ar[0].ps_close === null ? null : parseFloat(ar[0].ps_close);
+    // PS coverage → pin today to the bank balance; else pure reconstruction.
+    const newOb = psClose === null ? 0 : psClose - total;
+    const delta = oldOb - newOb; // amount removed from ob; rollback adds it back
+
     await client.query(
-      `UPDATE accounts SET opening_balance = opening_balance - $2 WHERE id = $1`,
-      [r.account_id, delta]
+      `UPDATE accounts SET opening_balance = $2 WHERE id = $1`,
+      [account_id, newOb]
     );
     await client.query(
       `INSERT INTO quicken_calibration_audit (import_batch_id, account_id, delta_amount)
          VALUES ($1, $2, $3)`,
-      [batchId, r.account_id, delta]
+      [batchId, account_id, delta]
     );
   }
-  return deltas.length;
+  return accts.length;
 }
 
 /**
- * Step 9: assert today's calculated balance for every BS account equals the
- * step-0 snapshot within 1¢. Throws on mismatch (caller's catch triggers
- * work-tx rollback per the two-tx model).
+ * Step 9: balance verification.
+ *
+ * With `batchId` (PS-anchored promote, CR §22.1): touched accounts that have a
+ * PS anchor must now compute to that PS `closing_balance` (today = bank truth);
+ * touched accounts with no PS anchor are reconstruction-only (no assertion);
+ * every UNtouched BS account must be unchanged vs the step-0 snapshot.
+ *
+ * Without `batchId` (legacy, used by rollback): every BS account must equal the
+ * step-0 snapshot (preserve-today).
+ *
+ * Throws on mismatch (caller's catch triggers work-tx rollback).
  */
-async function verifyBalances(client) {
-  const { rows: mismatches } = await client.query(`
-    WITH post AS (
-      SELECT a.id AS account_id,
-             a.opening_balance + COALESCE(SUM(t.amount), 0) AS balance
-        FROM accounts a
-        LEFT JOIN transactions t
-          ON t.account_id = a.id
-          AND t.transaction_date >= a.opening_balance_date
-        WHERE a.section = 'balance_sheet'
-        GROUP BY a.id, a.opening_balance
-    )
-    SELECT pre.account_id, pre.balance AS pre, post.balance AS post,
-           (post.balance - pre.balance) AS diff
-      FROM _pre_promote_balances pre
-      JOIN post ON post.account_id = pre.account_id
-      WHERE ABS(post.balance - pre.balance) > 0.01
-  `);
+async function verifyBalances(client, batchId = null) {
+  let mismatches;
+  if (!batchId) {
+    ({ rows: mismatches } = await client.query(`
+      WITH post AS (
+        SELECT a.id AS account_id,
+               a.opening_balance + COALESCE(SUM(t.amount), 0) AS balance
+          FROM accounts a
+          LEFT JOIN transactions t
+            ON t.account_id = a.id AND t.transaction_date >= a.opening_balance_date
+          WHERE a.section = 'balance_sheet'
+          GROUP BY a.id, a.opening_balance
+      )
+      SELECT pre.account_id, pre.balance AS expected, post.balance AS got,
+             (post.balance - pre.balance) AS diff
+        FROM _pre_promote_balances pre
+        JOIN post ON post.account_id = pre.account_id
+        WHERE ABS(post.balance - pre.balance) > 0.01
+    `));
+  } else {
+    ({ rows: mismatches } = await client.query(`
+      WITH touched AS (SELECT DISTINCT account_id FROM transactions WHERE import_batch_id = $1),
+      post AS (
+        SELECT a.id AS account_id,
+               a.opening_balance + COALESCE(SUM(t.amount), 0) AS balance
+          FROM accounts a
+          LEFT JOIN transactions t
+            ON t.account_id = a.id AND t.transaction_date >= a.opening_balance_date
+          WHERE a.section = 'balance_sheet'
+          GROUP BY a.id, a.opening_balance
+      ),
+      anchor AS (
+        SELECT tt.account_id,
+               (SELECT x.closing_balance FROM transactions x
+                  WHERE x.account_id = tt.account_id AND x.source <> 'quicken-import'
+                    AND x.closing_balance IS NOT NULL
+                  ORDER BY x.transaction_date DESC, x.id DESC LIMIT 1) AS ps_close
+          FROM touched tt
+      )
+      -- touched accounts WITH a PS anchor: today must equal ps_close
+      SELECT post.account_id, anchor.ps_close AS expected, post.balance AS got,
+             (post.balance - anchor.ps_close) AS diff
+        FROM post JOIN anchor ON anchor.account_id = post.account_id
+        WHERE anchor.ps_close IS NOT NULL AND ABS(post.balance - anchor.ps_close) > 0.01
+      UNION ALL
+      -- untouched BS accounts: must equal the step-0 snapshot
+      SELECT post.account_id, pre.balance AS expected, post.balance AS got,
+             (post.balance - pre.balance) AS diff
+        FROM post JOIN _pre_promote_balances pre ON pre.account_id = post.account_id
+        WHERE post.account_id NOT IN (SELECT account_id FROM touched)
+          AND ABS(post.balance - pre.balance) > 0.01
+    `, [batchId]));
+  }
   if (mismatches.length > 0) {
     const sample = mismatches.slice(0, 5).map(
-      (m) => `acct=${m.account_id} pre=${m.pre} post=${m.post} diff=${m.diff}`
+      (m) => `acct=${m.account_id} expected=${m.expected} got=${m.got} diff=${m.diff}`
     );
     throw new Error(
       `Balance verification failed for ${mismatches.length} account(s): ${sample.join('; ')}`
@@ -785,8 +853,8 @@ async function runPromote({ batchId, pool }) {
       // account's opening_balance correctly.
       const calibrated = await recalibrate(client, batchId);
 
-      // Step 9: verify
-      await verifyBalances(client);
+      // Step 9: verify (PS-anchored)
+      await verifyBalances(client, batchId);
 
       // Transfer matching is intentionally NOT run here. Promote is purely
       // additive and must stay cleanly reversible by runRollback (which only
@@ -907,9 +975,6 @@ async function runRollback({ batchId, pool }) {
         );
       }
 
-      // Snapshot pre-rollback balances for the same verification as promote
-      await snapshotBalances(client);
-
       // Deletions in dependency order (§6.5.2)
       await client.query(
         `DELETE FROM transfer_match_group_members
@@ -957,13 +1022,13 @@ async function runRollback({ batchId, pool }) {
         [batchId]
       );
 
-      // Verify (same invariant as promote: today's balance per account matches pre-rollback snapshot)
-      // Pre-rollback balance + delta = original (post-promote) balance, which equals pre-promote balance.
-      // After all deletes + opening_balance reversal: today's balance returns to pre-promote.
-      // Snapshot was taken AFTER all the promoted rows existed, BEFORE deletion.
-      // So check: today's calculated balance == snapshot - sum_of_rolled_back_amounts + opening_balance_reversal
-      // Since opening_balance_reversal = +delta and rolled_back_amounts = delta, they cancel — balance unchanged.
-      await verifyBalances(client);
+      // No balance assertion here. Under PS-anchored calibration (§22.1) rollback
+      // legitimately RETURNS today's balance to the pre-import value (it doesn't
+      // preserve it — that only held under the old neutralizing calibration). The
+      // rollback is a deterministic inverse: deletes are batch-scoped and the
+      // opening_balance reversal uses the exact stored `delta` (= old_ob − new_ob),
+      // restoring opening_balance to its pre-promote value. Promote's own
+      // verifyBalances(batchId) is the calibration safety net.
 
       // Finalize batch row (§6.5.5)
       await client.query(

@@ -171,36 +171,54 @@ dbDescribe('runPromote + runRollback (cash-only, DB-backed)', () => {
     expect(targetRows).toBe(0);
   });
 
-  test('today\'s calculated balance preserved within 1¢ for every sentinel account', async () => {
-    // Pre-promote balances
-    const preBal = (await pool.query(
-      `SELECT a.id,
-              a.opening_balance + COALESCE((
-                SELECT SUM(t.amount) FROM transactions t
-                  WHERE t.account_id = a.id AND t.transaction_date >= a.opening_balance_date
-              ), 0) AS balance
-         FROM accounts a WHERE a.id = ANY($1::int[])`,
-      [Object.values(testCoaIds)]
-    )).rows;
+  test('PS-anchored: today pins to the PocketSmith closing_balance (§22.1)', async () => {
+    const originId = testCoaIds[`${SENTINEL_PREFIX}cash_origin`];
+    // Give the origin a PS anchor: a pocketsmith row carrying the bank's
+    // authoritative closing_balance. Calibration must pin today to it.
+    const PS_CLOSE = 5000.0;
+    await pool.query(
+      `INSERT INTO transactions
+         (account_id, transaction_date, amount, currency, base_amount, base_currency,
+          description1, source, accepted, closing_balance)
+       VALUES ($1, '2024-01-15', 100, 'USD', 100, 'USD', 'PS anchor', 'pocketsmith', TRUE, $2)`,
+      [originId, PS_CLOSE]
+    );
 
     await runPromote({ batchId, pool });
 
-    const postBal = (await pool.query(
-      `SELECT a.id,
-              a.opening_balance + COALESCE((
+    const bal = parseFloat((await pool.query(
+      `SELECT a.opening_balance + COALESCE((
                 SELECT SUM(t.amount) FROM transactions t
                   WHERE t.account_id = a.id AND t.transaction_date >= a.opening_balance_date
               ), 0) AS balance
-         FROM accounts a WHERE a.id = ANY($1::int[])`,
-      [Object.values(testCoaIds)]
-    )).rows;
+         FROM accounts a WHERE a.id = $1`,
+      [originId]
+    )).rows[0].balance);
+    // Today's computed balance equals the PS closing_balance regardless of how
+    // much imported history flowed through the account.
+    expect(Math.abs(bal - PS_CLOSE)).toBeLessThan(0.01);
 
-    expect(postBal).toHaveLength(preBal.length);
-    for (const post of postBal) {
-      const pre = preBal.find((r) => r.id === post.id);
-      const diff = Math.abs(parseFloat(post.balance) - parseFloat(pre.balance));
-      expect(diff).toBeLessThan(0.01);
-    }
+    // Clean up the injected anchor (afterEach only clears this batch's rows).
+    await pool.query(
+      `DELETE FROM transactions WHERE account_id = $1 AND source = 'pocketsmith' AND description1 = 'PS anchor'`,
+      [originId]
+    );
+  });
+
+  test('no-PS account anchors to pure reconstruction (opening_balance = 0)', async () => {
+    // cash_origin has no PS coverage in this case → newOb must be 0 and today =
+    // sum of imported flows (reconstruction), not a neutralized 0.
+    await runPromote({ batchId, pool });
+    const row = (await pool.query(
+      `SELECT a.opening_balance,
+              COALESCE((SELECT SUM(t.amount) FROM transactions t
+                 WHERE t.account_id = a.id AND t.transaction_date >= a.opening_balance_date), 0) AS flows
+         FROM accounts a WHERE a.id = $1`,
+      [testCoaIds[`${SENTINEL_PREFIX}cash_origin`]]
+    )).rows[0];
+    expect(parseFloat(row.opening_balance)).toBe(0);
+    // today = ob(0) + flows = the reconstructed value (non-zero for an imported account)
+    expect(parseFloat(row.flows)).not.toBe(0);
   });
 
   test('calibration audit recorded with non-zero deltas on BS accounts only', async () => {
@@ -404,10 +422,9 @@ dbDescribe('runPromote + runRollback (cash-only, DB-backed)', () => {
   // ────────────────────────────────────────────────────────────────────────
 
   test('rollback deletes inserted transactions and reverses calibration', async () => {
-    await runPromote({ batchId, pool });
-
-    // Capture pre-rollback state (≈ post-promote)
-    const preRollback = (await pool.query(
+    // Capture pre-PROMOTE state — rollback must restore exactly this (PS-anchored
+    // rollback returns today to the pre-import value, not the post-promote value).
+    const prePromote = (await pool.query(
       `SELECT a.id,
               a.opening_balance + COALESCE((
                 SELECT SUM(t.amount) FROM transactions t WHERE t.account_id = a.id
@@ -417,6 +434,8 @@ dbDescribe('runPromote + runRollback (cash-only, DB-backed)', () => {
          FROM accounts a WHERE a.id = ANY($1::int[])`,
       [Object.values(testCoaIds)]
     )).rows;
+
+    await runPromote({ batchId, pool });
 
     const result = await runRollback({ batchId, pool });
     expect(result.deleted.transactions).toBe(7); // 1→1: 4 standalone + 1 split-child + 2 transfer rows
@@ -448,7 +467,7 @@ dbDescribe('runPromote + runRollback (cash-only, DB-backed)', () => {
       [Object.values(testCoaIds)]
     )).rows;
     for (const post of postRollback) {
-      const pre = preRollback.find((r) => r.id === post.id);
+      const pre = prePromote.find((r) => r.id === post.id);
       const diff = Math.abs(parseFloat(post.balance) - parseFloat(pre.balance));
       expect(diff).toBeLessThan(0.01);
     }
