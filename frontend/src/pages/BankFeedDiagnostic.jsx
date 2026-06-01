@@ -49,7 +49,7 @@ export default function BankFeedDiagnostic() {
     setLoading(true);
     setError(null);
     try {
-      const result = await Rest.fetchJson("/api/v2/bank-feed/diagnostic");
+      const result = await Rest.get("/bank-feed/diagnostic");
       setData(result);
     } catch (err) {
       setError(err.message);
@@ -62,7 +62,7 @@ export default function BankFeedDiagnostic() {
   const loadMappings = async () => {
     setMapError(null);
     try {
-      const res = await Rest.fetchJson("/api/v2/bank-feed/account-mappings");
+      const res = await Rest.get("/bank-feed/account-mappings");
       setMappings(res.accounts || []);
       setFinAccounts(res.fin_accounts || []);
     } catch (err) {
@@ -74,7 +74,7 @@ export default function BankFeedDiagnostic() {
     setSavingId(externalId);
     setMapError(null);
     try {
-      await Rest.put(`/api/v2/bank-feed/account-mappings/${externalId}`, {
+      await Rest.put(`/bank-feed/account-mappings/${externalId}`, {
         accountId,
         ignored,
       });
