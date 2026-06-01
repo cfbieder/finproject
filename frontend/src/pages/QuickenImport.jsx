@@ -198,32 +198,51 @@ function StatusBadge({ status }) {
 // minus extension is the Quicken account name, so it is shown read-only; only
 // currency is editable (QIF carries no currency). Reads files as text and POSTs
 // to /quicken-import/parse, which writes temp files and calls runParse().
-function NewImportModal({ onClose, onDone }) {
+// Find an existing batch that already covers a picked file, by account name
+// (label) or source-file entry ("name:CCY"). Used to warn before re-importing.
+function findExistingBatch(batches, fileName, account) {
+  return (
+    (batches || []).find(
+      (b) =>
+        b.label === account ||
+        (b.source_files || []).some((sf) => String(sf).split(":")[0] === fileName)
+    ) || null
+  );
+}
+
+function NewImportModal({ batches, onClose, onDone }) {
   const toast = useToast();
-  const [files, setFiles] = useState([]); // [{ file, name, account, currency }]
+  // [{ file, name, account, currency, include, dup }]
+  const [files, setFiles] = useState([]);
   const [busy, setBusy] = useState(false);
 
   const onPick = (e) => {
     const picked = Array.from(e.target.files || []);
     setFiles(
-      picked.map((file) => ({
-        file,
-        name: file.name,
-        account: file.name.replace(/\.[^.]+$/, ""),
-        currency: "USD",
-      }))
+      picked.map((file) => {
+        const account = file.name.replace(/\.[^.]+$/, "");
+        const dup = findExistingBatch(batches, file.name, account);
+        // Already-imported files default to EXCLUDED so a re-import (and a
+        // possible double-promote) can't happen by accident; user can re-check.
+        return { file, name: file.name, account, currency: "USD", include: !dup, dup };
+      })
     );
   };
 
   const setCurrency = (idx, v) =>
     setFiles((prev) => prev.map((f, i) => (i === idx ? { ...f, currency: v } : f)));
+  const toggleInclude = (idx) =>
+    setFiles((prev) => prev.map((f, i) => (i === idx ? { ...f, include: !f.include } : f)));
+
+  const chosen = files.filter((f) => f.include);
+  const dupCount = files.filter((f) => f.dup).length;
 
   const submit = async () => {
-    if (files.length === 0) return;
+    if (chosen.length === 0) return;
     setBusy(true);
     try {
       const payload = { files: [] };
-      for (const f of files) {
+      for (const f of chosen) {
         const content = await f.file.text();
         payload.files.push({ name: f.name, currency: f.currency || "USD", content });
       }
@@ -249,8 +268,8 @@ function NewImportModal({ onClose, onDone }) {
   };
 
   return (
-    <div className="qi-modal-overlay" onClick={busy ? undefined : onClose}>
-      <div className="qi-modal" onClick={(e) => e.stopPropagation()} role="dialog" aria-modal="true">
+    <div className="qi-modal-overlay">
+      <div className="qi-modal qi-modal-wide" role="dialog" aria-modal="true">
         <div className="qi-modal-header">New Quicken Import</div>
         <div className="qi-modal-body">
           <p className="qi-modal-hint">
@@ -258,18 +277,34 @@ function NewImportModal({ onClose, onDone }) {
             (without extension) is the Quicken account name. Set the currency for each.
           </p>
           <input type="file" accept=".qif,.QIF" multiple onChange={onPick} disabled={busy} />
+          {dupCount > 0 && (
+            <div className="qi-ccy-warning" style={{ marginTop: "0.6rem" }}>
+              {dupCount} file(s) match an existing batch and were unchecked. Re-check a row
+              only if you intend to import it again (this creates a separate batch).
+            </div>
+          )}
           {files.length > 0 && (
             <table className="qi-table" style={{ marginTop: "0.75rem" }}>
               <thead>
                 <tr>
+                  <th className="qi-checkbox-cell">✓</th>
                   <th>File</th>
                   <th>Account name</th>
                   <th>Currency</th>
+                  <th>Status</th>
                 </tr>
               </thead>
               <tbody>
                 {files.map((f, i) => (
-                  <tr key={i}>
+                  <tr key={i} className={f.dup && !f.include ? "qi-unmapped" : undefined}>
+                    <td className="qi-checkbox-cell">
+                      <input
+                        type="checkbox"
+                        checked={f.include}
+                        onChange={() => toggleInclude(i)}
+                        disabled={busy}
+                      />
+                    </td>
                     <td className="qi-source-files"><code>{f.name}</code></td>
                     <td>{f.account}</td>
                     <td>
@@ -279,8 +314,17 @@ function NewImportModal({ onClose, onDone }) {
                         value={f.currency}
                         maxLength={3}
                         onChange={(e) => setCurrency(i, e.target.value.toUpperCase())}
-                        disabled={busy}
+                        disabled={busy || !f.include}
                       />
+                    </td>
+                    <td>
+                      {f.dup ? (
+                        <span className="qi-ccy-unknown-flag" title={`Existing batch: ${f.dup.label || f.dup.id}`}>
+                          already imported — {f.dup.status}
+                        </span>
+                      ) : (
+                        <span className="qi-muted">new</span>
+                      )}
                     </td>
                   </tr>
                 ))}
@@ -293,9 +337,9 @@ function NewImportModal({ onClose, onDone }) {
           <button
             className="qi-btn qi-btn-primary"
             onClick={submit}
-            disabled={busy || files.length === 0}
+            disabled={busy || chosen.length === 0}
           >
-            {busy ? "Parsing…" : `Import ${files.length || ""} file(s)`}
+            {busy ? "Parsing…" : `Import ${chosen.length || ""} file(s)`}
           </button>
         </div>
       </div>
@@ -387,7 +431,11 @@ function BatchList({ batches, onPick, onRefresh }) {
         </table>
       )}
       {showImport && (
-        <NewImportModal onClose={() => setShowImport(false)} onDone={onRefresh} />
+        <NewImportModal
+          batches={batches}
+          onClose={() => setShowImport(false)}
+          onDone={onRefresh}
+        />
       )}
       <ConfirmModal
         state={
