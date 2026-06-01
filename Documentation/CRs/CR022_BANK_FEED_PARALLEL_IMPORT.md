@@ -1,4 +1,4 @@
-**Status:** IN-PROGRESS — Phase A (migration 023) + Phase B (converter/staging/dedup + tests) shipped in v2.8.0 (2026-05-31), released ahead of the dev-walkthrough gate as dormant infrastructure. — [Plan](../FC_NEXT_STEPS.md#cr022)
+**Status:** IN-PROGRESS — Phases A–E done (2026-06-01): migration 023+024, converter/repo, orchestrator/routes, PS reverse-dedup, R1 mapping UI + ignore-without-mapping, full test matrix (167/167), dev walkthrough executed (§7.0). **Remaining: Phase F (prod)** — apply migration 024 to prod, then deploy. Phases A/B shipped dormant in v2.8.0. — [Plan](../FC_NEXT_STEPS.md#cr022)
 
 # CR022 — Bank Feed Parallel Import (Additive Second Source)
 
@@ -217,9 +217,9 @@ Apply `023_bank_feed_import.sql` (see §6 below) to dev. Verify the partial-uniq
 - `server/src/scripts/smoke-bank-feed.js` — live-server smoke against `BASE_URL=http://localhost:3005`. Coverage: health 200, accounts ≥7, ingest with 14-day window, idempotency on re-call, `?source=bank-feed` filter returns ≥1 row, **and `/diagnostic` returns per-account `ignored` + `merged_with_ps_count` fields [R1/R2 surface]**.
 - Fixtures at `server/src/v2/services/__tests__/fixtures/bank-feed-transactions.json` — 10-20 mixed rows incl. duplicate external_id, pending=true, signed amounts, multi-currency, **plus the R2 dedup trio: (a) a row whose `(account_id, date, ABS(amount), currency)` matches a seeded PS row → link; (b) a row with no PS match → insert; (c) two same-day, same-amount, same-account rows that are genuinely distinct (distinct merchant/description) → must NOT merge into each other or onto one PS row**.
 
-### Phase E — Dev walkthrough gate (½ day, manual)
+### Phase E — Dev walkthrough gate (½ day, manual) — ✅ DONE 2026-06-01
 
-See §7 for the full numbered walkthrough. This is a hard gate before any prod push. Includes a `pg_dump` rollback bracket on `fin-postgres-dev:5434`. The walkthrough must also exercise **R1** (mark one account `ignored`, confirm its rows never promote; leave one account unmapped, confirm it stays pending) and **R2** (inject a synthetic PS row that duplicates a bank-feed transaction, confirm the bank-feed promote links rather than inserts, and confirm `merged_with_ps_count` increments).
+Executed against `fin-server-dev`; see **§7.0 As-built** for results (312 live PKO tx staged, R1 fail-closed + ignore-without-mapping verified, 102 rows promoted after UI mapping, idempotent; R2 link path test-covered since PS went stale 2026-03-31 leaving no live twins). See §7 for the full numbered walkthrough. This is a hard gate before any prod push. Includes a `pg_dump` rollback bracket on `fin-postgres-dev:5434`. The walkthrough must also exercise **R1** (mark one account `ignored`, confirm its rows never promote; leave one account unmapped, confirm it stays pending) and **R2** (inject a synthetic PS row that duplicates a bank-feed transaction, confirm the bank-feed promote links rather than inserts, and confirm `merged_with_ps_count` increments).
 
 ### Phase F — Production push (½ day)
 
@@ -422,14 +422,46 @@ Safe because no PS-side code references any of the new objects. Dropping `ignore
 
 ## 7. Dev Walkthrough
 
-Hard gate before Phase F. Run against `fin-server-dev` on the dev VM. Includes a `pg_dump` rollback bracket.
+Hard gate before Phase F. Run against `fin-server-dev` on the dev VM.
+
+### 7.0 As-built walkthrough (executed + verified 2026-06-01)
+
+The numbered §7.1 script below was written from the pre-implementation plan and is **superseded** by this section. What actually ran on dev:
+
+**Corrections to the old script (do these instead):**
+- **STEP 3 is a REBUILD, not a restart.** `fin-server-dev` is built from `server/Dockerfile` (only `components/data` is volume-mounted), so a `restart` runs stale code. New routes require:
+  ```bash
+  docker compose -f docker-compose.dev.yml build server-dev && \
+  docker compose -f docker-compose.dev.yml up -d server-dev
+  ```
+- **Account mapping is UI-driven, not manual SQL** (STEP 5). The CR021 diagnostic page (`/bank-feed-diagnostic`, live via the vite dev server on `http://localhost:5174`) now has an "Account mapping (CR022 R1)" panel: per-account typeahead COA picker + ignore toggle + status pill (pending/mapped/ignored) + staged count. Map there; saves hit `PUT /api/v2/bank-feed/account-mappings/:externalId` immediately.
+- **Account count is 13, not 7** (the bank-feed grew: 5 PLN/EUR PKO + 1 USD + Fidelity-side USD accounts). Cash-side CR022 maps the PKO accounts; the Fidelity/investment USD accounts (Rollover IRA, Stocks, Options, Fixed Income…) are out of cash scope — leave pending or ignore them.
+
+**What was verified live (real data):**
+- `POST /refresh {sinceDays:30}` fetched **312 live PKO transactions**, normalized all 312 (0 unresolved — the internal-id→UUID resolution worked on every row), staged all 312.
+- **R1 fail-closed proven:** with no mappings, **0 promoted**, all accounts under `unmappedAccounts`. Nothing silently ingested.
+- After mapping 4 PKO accounts via the UI, `/refresh` promoted **102 rows** to `transactions` (`source='bank-feed'`, `accepted=FALSE`). Re-run idempotent (`insertedCount=0`).
+- **R1 ignore-without-mapping (migration 024):** ticking ignore on an unmapped account → `status='ignored'`, `account_id=NULL`, lands in `ignoredAccounts` (not `unmappedAccounts`); un-ignore → back to pending. Verified via API + UI.
+- **R2 dedup found 0 links** — *not a bug*: PocketSmith stopped syncing these PKO accounts at **2026-03-31**, so the live bank-feed (May 2026) rows have no PS twins in-window. The bank-feed fills a real ~2-month gap PS left. R2's link path is covered by the DB tests (§5.2); live proved insert + R1 + idempotency.
+- `smoke-bank-feed.js` 7/7 green; full server suite 167/167.
+
+**Cleanup after a dev run** (the smoke/refresh write real rows):
+```bash
+docker exec fin-postgres-dev psql -U fin -d fin -c \
+  "DELETE FROM bankfeed_staging; DELETE FROM transactions WHERE source='bank-feed';"
+# (keeps your account_source_mappings rows; re-promote re-creates transactions)
+```
+
+**Still owed for prod (Phase F):** apply **both** migration 023 (already on prod via v2.8.0) **and 024** to the prod DB before deploying CR022 code; the PS reverse-dedup self-disables without the column but the bank-feed routes need both.
+
+### 7.1 Original numbered script (pre-implementation plan — see §7.0 for corrections)
 
 > Open questions before running:
-> - Confirm CR022 has chosen `POST /api/v2/ingest-bank-feed/refresh` with body `{sinceDays}` as the trigger endpoint (this walkthrough assumes that shape — adjust commands if Phase C lands on a different name).
-> - Confirm `source='bank-feed'` is the discriminator value (walkthrough greps for that string).
+> - Confirm CR022 has chosen `POST /api/v2/ingest-bank-feed/refresh` with body `{sinceDays}` as the trigger endpoint (CONFIRMED as-built).
+> - Confirm `source='bank-feed'` is the discriminator value (CONFIRMED).
 > - Confirm `fin-server-dev` env has `BANK_FEED_URL=http://host.docker.internal:3007` and `BANK_FEED_API_KEY` set (already configured per `docker-compose.dev.yml:45-46`).
 > - Confirm `BANK_FEED_DEDUP_ENABLED` is unset or `true` for STEP 6/6b (cross-source dedup ON) **[R2]**; STEP 6b's optional branch toggles it `false`.
-> - **[R1]** This walkthrough deliberately leaves one PKO account unmapped in STEP 5 to exercise the unmapped=pending default. If you instead map all 7, you won't see a non-empty `unmappedAccounts` — re-skip one to test it.
+> - **[R1]** Leave one PKO account unmapped to exercise the unmapped=pending default. **STEP 3 is a rebuild, STEP 5 is UI-driven — see §7.0.**
 
 ```bash
 # ──────────────────────────────────────────────────────────────────────
