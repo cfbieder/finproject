@@ -11,6 +11,10 @@
 
 import { useEffect, useState } from "react";
 import Rest from "../js/rest";
+import {
+  AccountPicker,
+  buildHierarchyOptions,
+} from "../components/AccountPicker/AccountPicker.jsx";
 import "./BankFeedDiagnostic.css";
 
 function fmtNum(n, decimals = 2) {
@@ -41,7 +45,7 @@ export default function BankFeedDiagnostic() {
   const [error, setError] = useState(null);
   const [loading, setLoading] = useState(false);
   const [mappings, setMappings] = useState(null);
-  const [finAccounts, setFinAccounts] = useState([]);
+  const [accountOptions, setAccountOptions] = useState([]);
   const [savingId, setSavingId] = useState(null);
   const [mapError, setMapError] = useState(null);
 
@@ -64,7 +68,16 @@ export default function BankFeedDiagnostic() {
     try {
       const res = await Rest.get("/bank-feed/account-mappings");
       setMappings(res.accounts || []);
-      setFinAccounts(res.fin_accounts || []);
+    } catch (err) {
+      setMapError(err.message);
+    }
+  };
+
+  // COA options for the typeahead picker (leaves get breadcrumb labels).
+  const loadAccountOptions = async () => {
+    try {
+      const rows = await Rest.fetchAccountsV2();
+      setAccountOptions(buildHierarchyOptions(rows));
     } catch (err) {
       setMapError(err.message);
     }
@@ -89,6 +102,7 @@ export default function BankFeedDiagnostic() {
   useEffect(() => {
     load();
     loadMappings();
+    loadAccountOptions();
   }, []);
 
   return (
@@ -154,24 +168,18 @@ export default function BankFeedDiagnostic() {
                     />
                   </td>
                   <td>
-                    <select
+                    <AccountPicker
                       value={m.mapped_account_id || ""}
-                      disabled={savingId === m.external_id}
-                      onChange={(e) =>
+                      options={accountOptions}
+                      placeholder="— unmapped (pending) —"
+                      onChange={(accountId) =>
                         saveMapping(
                           m.external_id,
-                          e.target.value ? Number(e.target.value) : null,
+                          accountId ? Number(accountId) : null,
                           m.ignored
                         )
                       }
-                    >
-                      <option value="">— unmapped (pending) —</option>
-                      {finAccounts.map((a) => (
-                        <option key={a.id} value={a.id}>
-                          {a.name}
-                        </option>
-                      ))}
-                    </select>
+                    />
                   </td>
                   <td>
                     <input
