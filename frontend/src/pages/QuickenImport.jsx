@@ -105,8 +105,8 @@ function CreateCoaModal({ open, suggestedName, parentOptions, onClose, onCreated
   };
 
   return (
-    <div className="qi-modal-overlay" onClick={onClose}>
-      <div className="qi-modal" onClick={(e) => e.stopPropagation()} role="dialog">
+    <div className="qi-modal-overlay">
+      <div className="qi-modal" role="dialog">
         <div className="qi-modal-header">Create new COA entry</div>
         <div className="qi-modal-body">
           <label className="qi-modal-field">
