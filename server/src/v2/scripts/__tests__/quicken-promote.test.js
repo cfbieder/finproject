@@ -357,27 +357,42 @@ dbDescribe('runPromote + runRollback (cash-only, DB-backed)', () => {
     await expect(runPromote({ batchId, pool })).rejects.toThrow(/already promoted/);
   });
 
-  test('promote refuses if batch has investment-side rows (cash-only-phase guard)', async () => {
-    // Inject a stray quicken_securities_staging row into this batch
+  test('investment rows: trades neutral, income synthesizes a cash leg (§22 value-only)', async () => {
+    // Inject onto the mapped origin account (cash_isolated → _qpr_test_cash_origin):
+    // a Buy (neutral, no row) and a Div (income → Dividend leaf cash leg).
     await pool.query(
       `INSERT INTO quicken_securities_staging
-         (import_batch_id, source_file, quicken_account_name, transaction_date, quicken_action)
-         VALUES ($1, 'synthetic.QIF', 'fidelity', '2020-01-01', 'Buy')`,
+         (import_batch_id, source_file, quicken_account_name, transaction_date,
+          quicken_action, quicken_security_name, gross_amount)
+       VALUES
+         ($1, 'synthetic.QIF', 'cash_isolated', '2018-03-01', 'Buy', 'ACME', 1000),
+         ($1, 'synthetic.QIF', 'cash_isolated', '2018-04-01', 'Div', 'ACME', 42.50)`,
       [batchId]
     );
 
-    await expect(runPromote({ batchId, pool })).rejects.toThrow(
-      /investment event.*Investment-side promote is not yet implemented/i
-    );
+    const result = await runPromote({ batchId, pool });
+    expect(result.investmentNeutralSkipped).toBe(1); // the Buy
+    expect(result.investmentIncomeInserted).toBe(1); // the Div
 
-    // Batch should be in 'failed' status
-    const status = (await pool.query(
-      `SELECT status FROM quicken_import_batches WHERE id = $1`,
+    // Div → one income transaction categorized to Financial Income - Dividend.
+    const div = (await pool.query(
+      `SELECT t.amount, a.name AS cat
+         FROM transactions t JOIN accounts a ON a.id = t.category_id
+        WHERE t.import_batch_id = $1 AND t.description2 = 'Quicken Div'`,
       [batchId]
     )).rows[0];
-    expect(status.status).toBe('failed');
+    expect(Number(div.amount)).toBeCloseTo(42.5, 2);
+    expect(div.cat).toBe('Financial Income - Dividend');
 
-    // Clean up the injected row so afterEach can tear down
+    // Buy produced no ledger row.
+    const buyN = (await pool.query(
+      `SELECT COUNT(*)::int AS n FROM transactions
+        WHERE import_batch_id = $1 AND description2 = 'Quicken Buy'`,
+      [batchId]
+    )).rows[0];
+    expect(buyN.n).toBe(0);
+
+    // Clean up injected securities rows so afterEach can tear down.
     await pool.query(
       `DELETE FROM quicken_securities_staging WHERE import_batch_id = $1`,
       [batchId]

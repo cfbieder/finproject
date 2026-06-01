@@ -1079,6 +1079,30 @@ This is destructive of all post-promote prod activity (anything users did betwee
 
 ---
 
+## 22. Investment side — value-only promote (2026-06-01 descope)
+
+**Decision:** the full lot walker (§6.4 steps 1/3/5/6/7 — cost-basis lots, FIFO disposals, realized-gain reconstruction, price history) is **descoped**. Brokerage accounts are promoted with the **same cash/calibration machinery as cash accounts**, treating a brokerage account as a single balance-sheet asset whose historical balance is **backtracked from its current (PS-era) balance**. Cost-basis / unrealized gain/loss is **deferred to the future investment module (CR020)**; the share-level event detail stays preserved in `quicken_securities_staging` for it. CR020 remains blocked until that module is built.
+
+**Rationale:** the user is not concerned with precise *historical* market value; today's balance is the anchor (PS mark-to-markets it post-2022), and a cost-flow trajectory backtracked through the non-trade cash flows is sufficient for historical net-worth trending.
+
+**Model (what promote does for `quicken_securities_staging` rows):**
+- **Trades are neutral — no ledger row:** `Buy`, `BuyX`, `Sell`, `SellX`, `ShtSell`, `CvrShrt` (options), `StkSplit`, `ShrsIn`, `ShrsOut`. A buy/sell is an internal cash↔holdings move within the same account, so it doesn't change the account's total value. (Options are neutral too, per the descope — the original "Options Trading" P&L leaf is **not** used.)
+- **Income still hits P&L (synthesized cash leg, `+gross_amount` on the brokerage account):**
+  | Action | → category leaf |
+  |---|---|
+  | `Div`, `ReinvDiv`, `MiscInc` | Financial Income - Dividend |
+  | `IntInc` | Interest Income |
+  | `CGLong`, `CGShort`, `ReinvLg` | Realized Gain (Historical) |
+  | `RtrnCap` | Return of Capital |
+  The reinvested-buy portion of `ReinvDiv`/`ReinvLg` is neutral (only the income side is recorded).
+- **Cash-only invest actions** (`XIn`/`XOut`/`Cash`/`MargInt`) already land in `quicken_staging` and flow through the existing `insertCashRows` path unchanged.
+- **Per-account cutoff** applies to investment income rows exactly as for cash (drop rows on/after the mapped account's PS coverage start).
+- **Calibration is unchanged:** `recalibrate` sums *all* of the batch's inserted `transactions` per account (now including the synthesized income legs) and sets `opening_balance -= Σ`, so today's balance is preserved and history is backtracked.
+
+**Accepted imprecision (documented so Balance Trends isn't surprising):** because unrealized market gains are not attributed to dates, backtracking from today's balance **absorbs lifetime market gains into the opening balance** → the *early* years of a brokerage account read overstated/flat rather than growing from near-zero. Endpoints (recent/today) are correct. `ShrsIn`/`ShrsOut` between two imported brokerage accounts are treated as neutral on both sides (inter-account share moves not valued) — a known limitation given low volume.
+
+**Code:** `insertInvestmentCashRows()` in `quicken-promote.js` (income legs + neutral skips); the prior investment-staging **promote guard is removed** and replaced by this path. Steps 5/6/7 (lots, handoff_marker, price history) and step 1 (securities-master reconcile) are **not** run. Income-leaf ids are resolved by name and must exist (seeded: Financial Income - Dividend, Interest Income, Realized Gain (Historical), Return of Capital) — fail-loud with a "seed this leaf" message if missing.
+
 ## 21. Update history
 
 - **2026-05-30** — **End-to-end walkthrough of the 1→1 model on dev (pko.QIF) + auto-match-at-promote REMOVED.** Validated parse → role-aware mapping → bulk-create → pre-flight → promote → rollback against the PLN pko.QIF sample. Parse/roles/cutoff/calibration/rollback all behaved correctly; full row reconciliation held (2711 staged = 136 split-parents skipped + cutoff-dropped + inserted). Two real bugs found, plus the auto-matcher redesign:

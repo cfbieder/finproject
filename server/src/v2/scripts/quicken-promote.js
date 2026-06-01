@@ -503,6 +503,143 @@ async function insertCashRows(client, batchId, mappings, cutoffs) {
   };
 }
 
+// Value-only investment promote (CR019 §22 descope — no lot walker). Trades are
+// neutral (no ledger row); income events get a synthesized cash leg on the
+// brokerage account so dividends/interest/realized-gains still hit P&L and the
+// account's balance is backtracked correctly by recalibrate(). Cost-basis lots
+// / unrealized G/L are deferred to the future investment module.
+const NEUTRAL_INVST_ACTIONS = new Set([
+  'Buy', 'BuyX', 'Sell', 'SellX', // stock trades
+  'ShtSell', 'CvrShrt',            // options (neutral per §22 descope)
+  'StkSplit', 'ShrsIn', 'ShrsOut', // share-only events, no value change
+]);
+
+// Income actions → the consolidated P&L leaf their cash leg is categorized to.
+const INVST_INCOME_LEAF = {
+  Div: 'Financial Income - Dividend',
+  ReinvDiv: 'Financial Income - Dividend',
+  MiscInc: 'Financial Income - Dividend',
+  IntInc: 'Interest Income',
+  ReinvInt: 'Interest Income',
+  CGLong: 'Realized Gain (Historical)',
+  CGShort: 'Realized Gain (Historical)',
+  ReinvLg: 'Realized Gain (Historical)',
+  ReinvSh: 'Realized Gain (Historical)',
+  ReinvMd: 'Realized Gain (Historical)',
+  RtrnCap: 'Return of Capital',
+};
+
+async function resolveIncomeLeaf(client, leafName, cache) {
+  if (cache.has(leafName)) return cache.get(leafName);
+  const { rows } = await client.query(
+    `SELECT id FROM accounts WHERE name = $1 AND section = 'profit_loss' LIMIT 1`,
+    [leafName]
+  );
+  if (rows.length === 0) {
+    throw new Error(
+      `insertInvestmentCashRows: required income leaf '${leafName}' not found — ` +
+        `seed it before promoting investment batches`
+    );
+  }
+  cache.set(leafName, rows[0].id);
+  return rows[0].id;
+}
+
+async function insertInvestmentCashRows(client, batchId, mappings, cutoffs) {
+  const { rows } = await client.query(
+    `SELECT id, quicken_account_name, transaction_date, quicken_action,
+            quicken_security_name, gross_amount, memo
+       FROM quicken_securities_staging WHERE import_batch_id = $1
+       ORDER BY transaction_date, id`,
+    [batchId]
+  );
+
+  let investmentIncomeInserted = 0;
+  let investmentNeutralSkipped = 0;
+  let investmentDroppedByCutoff = 0;
+  let investmentZeroSkipped = 0;
+  const leafCache = new Map();
+  const ccyCache = new Map();
+
+  for (const row of rows) {
+    const action = row.quicken_action;
+    if (NEUTRAL_INVST_ACTIONS.has(action)) {
+      investmentNeutralSkipped += 1;
+      continue;
+    }
+    const leafName = INVST_INCOME_LEAF[action];
+    if (!leafName) {
+      throw new Error(
+        `insertInvestmentCashRows: unhandled investment action '${action}' on staging row ${row.id}`
+      );
+    }
+
+    const originMapping = mappings.get(row.quicken_account_name);
+    if (!originMapping) {
+      throw new Error(
+        `insertInvestmentCashRows: no mapping for Quicken account '${row.quicken_account_name}'`
+      );
+    }
+    const originAccountId = originMapping.account_id;
+
+    if (isBeyondCutoff(row.transaction_date, cutoffs.get(originAccountId))) {
+      investmentDroppedByCutoff += 1;
+      continue;
+    }
+
+    // Income is a cash inflow → positive on the asset account regardless of how
+    // the QIF signed gross_amount.
+    const gross = row.gross_amount == null ? 0 : Math.abs(parseFloat(row.gross_amount));
+    if (!gross) {
+      investmentZeroSkipped += 1;
+      continue;
+    }
+
+    // securities staging carries no currency — take the brokerage account's.
+    let currency = ccyCache.get(originAccountId);
+    if (currency === undefined) {
+      const { rows: ar } = await client.query(
+        `SELECT currency FROM accounts WHERE id = $1`,
+        [originAccountId]
+      );
+      currency = (ar[0] && ar[0].currency) || 'USD';
+      ccyCache.set(originAccountId, currency);
+    }
+
+    const categoryId = await resolveIncomeLeaf(client, leafName, leafCache);
+    const baseAmount = await resolveBaseAmount(client, gross, currency, row.transaction_date);
+    const description = row.quicken_security_name || action;
+
+    await client.query(
+      `INSERT INTO transactions
+         (account_id, category_id, transaction_date, amount, currency,
+          base_amount, base_currency, description1, description2, memo,
+          source, accepted, import_batch_id, transfer_matched)
+       VALUES ($1, $2, $3, $4, $5, $6, 'USD', $7, $8, $9, 'quicken-import', TRUE, $10, FALSE)`,
+      [
+        originAccountId,
+        categoryId,
+        row.transaction_date,
+        gross,
+        currency,
+        baseAmount,
+        description,
+        `Quicken ${action}`,
+        row.memo || null,
+        batchId,
+      ]
+    );
+    investmentIncomeInserted += 1;
+  }
+
+  return {
+    investmentIncomeInserted,
+    investmentNeutralSkipped,
+    investmentDroppedByCutoff,
+    investmentZeroSkipped,
+  };
+}
+
 /**
  * Step 8: per-account, set
  *   opening_balance := opening_balance - SUM(imported amounts for this account)
@@ -596,26 +733,12 @@ async function runPromote({ batchId, pool }) {
     try {
       await client.query('BEGIN');
 
-      // Pre-flight: fail-loud if this batch has investment-side rows that
-      // the cash-only promote would silently ignore. Investment-side promote
-      // (lot walker per §6.4 steps 1/3/5/6/7) is a separate sub-phase; until
-      // it ships, refuse to promote any batch with rows in
-      // `quicken_securities_staging` / `_security_master_staging` / `_price_staging`.
-      const { rows: invstCount } = await client.query(
-        `SELECT
-           (SELECT COUNT(*)::int FROM quicken_securities_staging WHERE import_batch_id = $1) AS invst,
-           (SELECT COUNT(*)::int FROM quicken_security_master_staging WHERE import_batch_id = $1) AS securities,
-           (SELECT COUNT(*)::int FROM quicken_price_staging WHERE import_batch_id = $1) AS prices`,
-        [batchId]
-      );
-      const { invst, securities, prices } = invstCount[0];
-      if (invst > 0 || securities > 0 || prices > 0) {
-        throw new Error(
-          `runPromote: batch contains ${invst} investment event(s), ${securities} security master row(s), ` +
-            `${prices} price row(s). Cash-only promote would silently drop them. ` +
-            `Investment-side promote is not yet implemented (CR §6.4 steps 1/3/5/6/7).`
-        );
-      }
+      // Investment-side promote is VALUE-ONLY (CR §22 descope): no lot walker,
+      // no securities-master/price-history build. quicken_securities_staging
+      // rows are handled by insertInvestmentCashRows below (income → cash leg,
+      // trades neutral); security-master and price staging are intentionally
+      // ignored. So no guard here — the prior refuse-on-investment-rows check
+      // is removed.
 
       // Pre-flight: fail-loud if any Quicken names are unmapped
       const unmapped = await findUnmappedNames(client, batchId);
@@ -653,7 +776,13 @@ async function runPromote({ batchId, pool }) {
       // Step 2: 1→1 cash row insertion
       const insertResult = await insertCashRows(client, batchId, mappings, cutoffs);
 
-      // Step 8: recalibrate (skip if zero rows inserted — nothing to calibrate)
+      // Step 3 (value-only): synthesize income cash legs from investment events;
+      // trades are neutral. No lot walker / securities / price history (§22).
+      const invstResult = await insertInvestmentCashRows(client, batchId, mappings, cutoffs);
+
+      // Step 8: recalibrate sums ALL of this batch's inserted transactions per
+      // account (cash + investment income legs), so it backtracks the brokerage
+      // account's opening_balance correctly.
       const calibrated = await recalibrate(client, batchId);
 
       // Step 9: verify
@@ -678,6 +807,7 @@ async function runPromote({ batchId, pool }) {
       result = {
         batchId,
         ...insertResult,
+        ...invstResult,
         accountsRecalibrated: calibrated,
       };
     } catch (err) {
@@ -880,4 +1010,5 @@ module.exports = {
   resolveBaseAmount,
   resolveTransferCategoryId,
   snapshotBalances,
+  insertInvestmentCashRows,
 };
