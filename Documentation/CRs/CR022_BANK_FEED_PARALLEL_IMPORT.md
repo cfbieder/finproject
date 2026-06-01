@@ -743,6 +743,23 @@ Only after steps 1–10 pass green is Phase F (prod push) authorized.
 | 2026-05-31 | **As-built: promote is JS-orchestrated (not a CTE); contract account id→UUID resolution added** | See §3.0. The ±1-day + tie-break dedup is impractical in pure SQL, so promote reuses the tested `findPsMatch` in JS. The `/v1/transactions` contract carries an internal account id, so the orchestrator resolves it to the stable UUID (the mapping key) via `/v1/accounts`. |
 | 2026-05-31 | **R2 false-merge resolved conservatively: when ambiguous, do NOT merge** | Two distinct same-day/same-amount transactions must not collapse. With no disambiguator the heuristic prefers a visible duplicate in the review queue over silent data loss. Tested explicitly (§5.2 #8). |
 
+## 10. Known Gaps / Remaining Work
+
+Surfaced during implementation + the workflow walkthrough (2026-06-01). The 5-step user workflow is: ① periodic Sheet pull → ② stage → ③ categorize + accept → ④ promote to ledger → ⑤ balance (derived, no write-back — fin computes `SUM(base_amount)` on read, so a promoted row is reflected instantly). Status of each, plus the gaps:
+
+| # | Gap | Severity | Effort | Status |
+|---|---|---|---|---|
+| G1 | **Fin-side scheduled trigger for `/ingest-bank-feed/refresh`.** Step ① has two pulls: Sheet→bank-feed (bank-feed cron, ✅) and bank-feed→fin (❌ no scheduler). The "Import now" button (G4) covers manual use, but a hands-off workflow needs a fin-side cron/interval calling `refresh`. | High | small | **OPEN** |
+| G2 | **No per-transaction "reject" action.** Model is accept-or-leave-pending (R1 ignore is per-*account*, not per-row). A bank-feed row the user doesn't want sits unaccepted indefinitely. Decide: a reject flag, or rely on account-level ignore + leaving rows unaccepted. | Medium | small–med | **OPEN** |
+| G3 | **Bank-feed rows surface in the PS review page (`RefreshPS.jsx`).** Works (queue is source-agnostic) but is a UX smell — bank-feed rows under a page named "Refresh PS". The optional `RefreshBankFeed.jsx` sibling (§3.2) was not built; instead the `/bank-feed-diagnostic` page (now "Refresh Bank Feed", in the Transactions hub) is the operational surface. Categorize/accept still happens on the PS page. | Medium (UX) | med | **PARTIAL** — console exists; review still on PS page |
+| G4 | **"Import now" button on the Refresh Bank Feed page.** | Medium | small | ✅ **DONE** (`c5fefb5`) — calls `POST /ingest-bank-feed/refresh`. |
+| G5 | **Last-pulled timestamp + staleness color (fin side).** | Low–med | small | ✅ **DONE** (`c5fefb5`) — `sync_metadata` stamped on refresh; surfaced via `/diagnostic.last_fin_sync`; banner ≤24h ok / ≤72h warn / older danger / errored red. |
+| G6 | **PKO "blocked transaction" drift false-positive** (`/v1/health/feeds`). PKO moves the balance before a transaction posts, so `drift_significant=true` fires with `subsequent_count=0`. A **bank-feed-side** (CR021) refinement: only flag `drift_significant` when `subsequent_count > 0`; expose `balance_ahead_of_stream` informationally otherwise. | Low | small | **OPEN** (bank-feed repo, not fin) |
+
+Other open CR021-side follow-ups (not CR022): `updated_since` query param on `/v1/transactions`; per-transaction `balance_after_transaction` on the contract.
+
+**Balance-difference handling (workflow Q):** "reported vs computed balance differ for an account" is already answered by the bank-feed `/v1/health/feeds` per-account reconciliation (`reported_current_balance` vs `expected_current_balance`, `drift`, `drift_significant`), rendered on the page's Feed-health table. This is distinct from the fin-side **PS-only reconciliation** (§G / `GET /reconciliation`): drift = "does the feed's own math match the bank's reported balance?"; PS-only = "did bank-feed miss a transaction PocketSmith has?". G6 is the known false-positive in the drift check.
+
 ---
 
 *Living document. Update §9 Decision Log as choices are made. CR022 closes after Phase F completes and ≥1-month parallel-run observation begins.*
