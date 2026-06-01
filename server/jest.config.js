@@ -39,6 +39,12 @@ module.exports = {
   // Timeout for tests (increased for database operations)
   testTimeout: 10000,
 
+  // Run serially: the DB-backed suites (quicken-promote, calibration,
+  // bankFeedImport) all share the one dev Postgres on :5434 with no per-worker
+  // isolation. In parallel they race on shared tables/accounts (e.g. acct 3),
+  // producing flaky balance-verification failures. One worker = deterministic.
+  maxWorkers: 1,
+
   // Clear mocks between tests
   clearMocks: true,
 

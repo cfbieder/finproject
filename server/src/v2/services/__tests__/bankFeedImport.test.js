@@ -279,12 +279,12 @@ dbDescribe('refreshBankFeedV2.promote (DB)', () => {
     await db.query(`DELETE FROM account_source_mappings WHERE external_name LIKE 'test-uuid-%'`);
   }
 
-  async function seedMapping(uuid, ignored) {
+  async function seedMapping(uuid, ignored, accountId = ACCT) {
     await db.query(
       `INSERT INTO account_source_mappings (account_id, source, external_name, ignored)
        VALUES ($1, 'bank-feed', $2, $3)
        ON CONFLICT (source, external_name) DO UPDATE SET account_id = EXCLUDED.account_id, ignored = EXCLUDED.ignored`,
-      [ACCT, uuid, ignored]
+      [accountId, uuid, ignored]
     );
   }
 
@@ -325,12 +325,14 @@ dbDescribe('refreshBankFeedV2.promote (DB)', () => {
 
     expect(sync.ignoredAccounts).toContain(UUID_IGN);
     expect(sync.unmappedAccounts).toContain(UUID_UNMAP);
-    expect(sync.inserted).toBe(1); // only the mapped+un-ignored row
 
+    // Assert on this test's own rows (TAG-scoped), not the global sync.inserted —
+    // dev may hold unrelated staged rows that also promote in the same call.
     const promoted = await db.query(
-      `SELECT bank_feed_external_id, source, accepted FROM transactions WHERE bank_feed_external_id = 'test-bf-c-ok'`
+      `SELECT bank_feed_external_id, source, accepted FROM transactions WHERE bank_feed_external_id LIKE 'test-bf-c-%'`
     );
-    expect(promoted.rows).toHaveLength(1);
+    expect(promoted.rows).toHaveLength(1); // only the mapped+un-ignored row landed
+    expect(promoted.rows[0].bank_feed_external_id).toBe('test-bf-c-ok');
     expect(promoted.rows[0].source).toBe('bank-feed');
     expect(promoted.rows[0].accepted).toBe(false);
 
@@ -342,6 +344,23 @@ dbDescribe('refreshBankFeedV2.promote (DB)', () => {
     expect(heldIds).toEqual(['test-bf-c-ign', 'test-bf-c-unmap']);
   });
 
+  test('R1: ignore-without-mapping (migration 024) — account_id NULL, reports ignored not unmapped', async () => {
+    // Ignore-only row: no fin account, ignored=TRUE.
+    await seedMapping(UUID_IGN, true, null);
+    await seedStaging('test-bf-c-ignonly', UUID_IGN);
+
+    const sync = await orchestrator.promote();
+
+    expect(sync.ignoredAccounts).toContain(UUID_IGN);
+    expect(sync.unmappedAccounts).not.toContain(UUID_IGN); // gate checks ignored first
+
+    // never promoted (TAG-scoped: this test's row stays unpromoted)
+    const held = await db.query(
+      `SELECT promoted_transaction_id FROM bankfeed_staging WHERE source = $1 AND external_id = 'test-bf-c-ignonly'`, [TAG]
+    );
+    expect(held.rows[0].promoted_transaction_id).toBeNull();
+  });
+
   test('R2: PS-first → bank-feed links onto the existing PS row (no new row)', async () => {
     await seedMapping(UUID_OK, false);
     await seedPsRow(PS_ID_BASE + 1);                    // PS twin, same acct/amount/date
@@ -351,16 +370,18 @@ dbDescribe('refreshBankFeedV2.promote (DB)', () => {
     const sync = await orchestrator.promote();
     const after = await db.query(`SELECT COUNT(*)::int n FROM transactions WHERE account_id = $1`, [ACCT]);
 
-    expect(sync.inserted).toBe(0);
-    expect(sync.mergedTotal).toBe(1);
+    // mergedWithPsCount is keyed by feed UUID, so it's already test-scoped.
     expect(sync.mergedWithPsCount[UUID_OK]).toBe(1);
     expect(after.rows[0].n).toBe(before.rows[0].n); // no new row — linked, not inserted
 
-    const linked = await db.query(
-      `SELECT source, bank_feed_external_id FROM transactions WHERE ps_id = $1`, [PS_ID_BASE + 1]
+    // The external_id is stamped onto the EXISTING PS row (link), so the only
+    // row carrying it must be that pocketsmith row — never a new bank-feed insert.
+    const carrier = await db.query(
+      `SELECT source, ps_id FROM transactions WHERE bank_feed_external_id = 'test-bf-c-link'`
     );
-    expect(linked.rows[0].source).toBe('pocketsmith');   // id stayed stable, still PS row
-    expect(linked.rows[0].bank_feed_external_id).toBe('test-bf-c-link');
+    expect(carrier.rows).toHaveLength(1);
+    expect(carrier.rows[0].source).toBe('pocketsmith');
+    expect(Number(carrier.rows[0].ps_id)).toBe(PS_ID_BASE + 1); // id stayed stable
   });
 
   test('R2: no PS twin → inserts a new bank-feed row', async () => {
@@ -368,8 +389,10 @@ dbDescribe('refreshBankFeedV2.promote (DB)', () => {
     await seedStaging('test-bf-c-new', UUID_OK, { amount: -55.55, transaction_date: '2026-03-20' });
 
     const sync = await orchestrator.promote();
-    expect(sync.inserted).toBe(1);
-    expect(sync.mergedTotal).toBe(0);
+    // TAG-scoped: this test's row inserted a new bank-feed transaction, no merge
+    const inserted = await db.query(`SELECT 1 FROM transactions WHERE bank_feed_external_id = 'test-bf-c-new'`);
+    expect(inserted.rows).toHaveLength(1);
+    expect(sync.mergedWithPsCount[UUID_OK] || 0).toBe(0);
   });
 
   test('R2: BANK_FEED_DEDUP_ENABLED=false → inserts new row even with a PS twin', async () => {
@@ -381,13 +404,15 @@ dbDescribe('refreshBankFeedV2.promote (DB)', () => {
     process.env.BANK_FEED_DEDUP_ENABLED = 'false';
     try {
       const sync = await orchestrator.promote();
-      expect(sync.inserted).toBe(1);    // source-segregated, not linked
-      expect(sync.mergedTotal).toBe(0);
+      expect(sync.mergedWithPsCount[UUID_OK] || 0).toBe(0); // no merge with flag off
     } finally {
       if (prev === undefined) delete process.env.BANK_FEED_DEDUP_ENABLED;
       else process.env.BANK_FEED_DEDUP_ENABLED = prev;
     }
 
+    // TAG-scoped: a new source-segregated bank-feed row was inserted (not linked)
+    const newRow = await db.query(`SELECT 1 FROM transactions WHERE bank_feed_external_id = 'test-bf-c-flagoff'`);
+    expect(newRow.rows).toHaveLength(1);
     const psRow = await db.query(`SELECT bank_feed_external_id FROM transactions WHERE ps_id = $1`, [PS_ID_BASE + 2]);
     expect(psRow.rows[0].bank_feed_external_id).toBeNull(); // PS row untouched
   });
