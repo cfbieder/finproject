@@ -42,7 +42,9 @@ async function listBySource(source) {
 
 /**
  * Upsert a bank-feed mapping with its R1 ignore flag (CR022).
- * external_name is the bank-feed account UUID; account_id is the fin account.
+ * external_name is the bank-feed account UUID; accountId is the fin account, or
+ * NULL for an ignore-only row (ignored=TRUE, no mapping) — legal since
+ * migration 024 dropped NOT NULL on account_id.
  */
 async function setBankFeedMapping(externalName, accountId, ignored = false) {
   const sql = `
@@ -52,7 +54,7 @@ async function setBankFeedMapping(externalName, accountId, ignored = false) {
     DO UPDATE SET account_id = EXCLUDED.account_id, ignored = EXCLUDED.ignored
     RETURNING *
   `;
-  const result = await db.query(sql, [accountId, externalName, ignored === true]);
+  const result = await db.query(sql, [accountId != null ? accountId : null, externalName, ignored === true]);
   return result.rows[0];
 }
 

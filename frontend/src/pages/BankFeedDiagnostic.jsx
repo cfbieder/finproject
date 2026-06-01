@@ -185,7 +185,8 @@ export default function BankFeedDiagnostic() {
                     <input
                       type="checkbox"
                       checked={m.ignored}
-                      disabled={savingId === m.external_id || !m.mapped_account_id}
+                      disabled={savingId === m.external_id}
+                      title="Ignore this account on every feed upload (no mapping needed)"
                       onChange={(e) =>
                         saveMapping(m.external_id, m.mapped_account_id, e.target.checked)
                       }

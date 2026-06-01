@@ -103,8 +103,11 @@ async function promote() {
   const unmappedAccounts = new Set();
   const promotable = [];
   for (const r of rows) {
-    if (r.fin_account_id == null) { unmappedAccounts.add(r.feed_account_external_id); continue; }
+    // Order matters: an ignore-only row has ignored=TRUE with fin_account_id=NULL
+    // (migration 024). Check ignored FIRST so it reports as ignored, not unmapped,
+    // and so an explicitly-ignored mapped account is also suppressed.
     if (r.ignored === true) { ignoredAccounts.add(r.feed_account_external_id); continue; }
+    if (r.fin_account_id == null) { unmappedAccounts.add(r.feed_account_external_id); continue; }
     promotable.push(r);
   }
 

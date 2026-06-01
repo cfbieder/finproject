@@ -123,25 +123,36 @@ router.get('/account-mappings', async (req, res) => {
 
 /**
  * PUT /api/v2/bank-feed/account-mappings/:externalId
- * Body: { accountId, ignored }. accountId null/omitted → unmap (delete the row,
- * back to pending). Otherwise upsert the mapping with the R1 ignore flag.
+ * Body: { accountId, ignored }. Three outcomes (CR022 R1):
+ *   - ignored=true                  → ignore this account on every feed upload;
+ *                                     never imported. accountId optional (an
+ *                                     ignore-only row has account_id=NULL).
+ *   - accountId set, ignored=false  → map + import.
+ *   - accountId null, ignored=false → unmap (delete row → back to pending).
  */
 router.put('/account-mappings/:externalId', async (req, res, next) => {
   try {
     const { externalId } = req.params;
     const { accountId, ignored } = req.body || {};
+    const ignore = ignored === true;
 
-    if (accountId == null) {
+    // Pure unmap: no account, not ignored → remove the row entirely (pending).
+    if (accountId == null && !ignore) {
       const removed = await accountSourceMappings.removeBySourceAndName('bank-feed', externalId);
       return res.json({ external_id: externalId, status: 'pending', removed: !!removed });
     }
 
-    const row = await accountSourceMappings.setBankFeedMapping(externalId, accountId, ignored === true);
+    // Otherwise upsert. account_id may be NULL (ignore-only, no mapping).
+    const row = await accountSourceMappings.setBankFeedMapping(
+      externalId,
+      accountId != null ? accountId : null,
+      ignore
+    );
     res.json({
       external_id: externalId,
       mapped_account_id: row.account_id,
       ignored: row.ignored === true,
-      status: row.ignored ? 'ignored' : 'mapped',
+      status: row.ignored ? 'ignored' : (row.account_id != null ? 'mapped' : 'pending'),
     });
   } catch (err) {
     console.error('[v2/bank-feed] set account-mapping failed:', err.message);
