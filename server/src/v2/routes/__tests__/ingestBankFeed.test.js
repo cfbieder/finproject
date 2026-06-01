@@ -10,7 +10,7 @@
 const express = require('express');
 const http = require('http');
 
-const mockRefresh = { refresh: jest.fn(), promote: jest.fn() };
+const mockRefresh = { refresh: jest.fn(), promote: jest.fn(), ingest: jest.fn() };
 const mockStaging = { count: jest.fn() };
 const mockClient = { baseUrl: 'http://bank-feed.test:3007' };
 const mockDb = { query: jest.fn() };
@@ -96,6 +96,23 @@ describe('ingestBankFeed routes', () => {
     mockRefresh.refresh.mockRejectedValue(err);
     const res = await request(app, 'POST', '/refresh', {});
     expect(res.status).toBe(401);
+  });
+
+  test('POST /ingest stages only — calls ingest(), never promote()', async () => {
+    mockRefresh.ingest.mockResolvedValue({ fetched: 310, staged: 310, insertedCount: 5 });
+    const res = await request(app, 'POST', '/ingest', { sinceDays: 30 });
+    expect(res.status).toBe(200);
+    expect(res.body.ingest.staged).toBe(310);
+    expect(mockRefresh.ingest).toHaveBeenCalledWith({ sinceDays: 30, since: undefined });
+    expect(mockRefresh.promote).not.toHaveBeenCalled(); // stage-only: ledger untouched
+    expect(mockRefresh.refresh).not.toHaveBeenCalled();
+  });
+
+  test('POST /ingest maps a timeout to 504', async () => {
+    mockRefresh.ingest.mockRejectedValue(new Error('bank-feed request timed out after 8000ms'));
+    const res = await request(app, 'POST', '/ingest', {});
+    expect(res.status).toBe(504);
+    expect(res.body.bank_feed_url).toBe('http://bank-feed.test:3007');
   });
 
   test('POST /sync-to-transactions promotes only (no fetch)', async () => {

@@ -6,6 +6,7 @@
  * `transactions` table with source='bank-feed'. PS routes are untouched.
  *
  *   POST /api/v2/ingest-bank-feed/refresh              full pipeline (ingest+promote)
+ *   POST /api/v2/ingest-bank-feed/ingest               STAGE ONLY (cron path — no promote)
  *   POST /api/v2/ingest-bank-feed/sync-to-transactions promote staging→canonical only
  *   POST /api/v2/ingest-bank-feed/review-new-transactions  unaccepted rows (any source)
  *   GET  /api/v2/ingest-bank-feed/count                staged row count
@@ -44,6 +45,25 @@ router.post('/refresh', async (req, res) => {
     res.json(result);
   } catch (error) {
     return sendUpstreamError(res, error, 'refresh');
+  }
+});
+
+/**
+ * POST /ingest — STAGE ONLY (fetch + stage to bankfeed_staging, no promote).
+ * The scheduled/cron path (G1): unattended runs stage but never touch the
+ * ledger — promotion stays behind the "Import now" button (human in the loop).
+ * Body: { sinceDays?: number (default 14), since?: 'YYYY-MM-DD' }
+ */
+router.post('/ingest', async (req, res) => {
+  const { sinceDays, since } = req.body || {};
+  try {
+    const ingest = await refreshBankFeed.ingest({
+      sinceDays: sinceDays != null ? Number(sinceDays) : undefined,
+      since,
+    });
+    res.json({ ingest });
+  } catch (error) {
+    return sendUpstreamError(res, error, 'ingest');
   }
 });
 
