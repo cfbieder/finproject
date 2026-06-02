@@ -1118,6 +1118,28 @@ This pins today to the real bank balance **and** lets the imported transactions 
 
 **Result (dev rollout, all 9 backfilled batches re-promoted):** every account's today now equals PS exactly. History is correct wherever the Quicken export reconciles with PS (`ob≈0`: Chase Saving, WISE, Naleczowska, LUXURY CARD). Accounts whose source doesn't reconcile keep a non-zero `ob` offset that distorts early years — flagged, not hidden: **PKO** (sample `pko.QIF`, overstates ~284k), **Fidelity** (value-only — market value not in flows), **Chase Checking** (real export understates ~30k; QIF completeness to review). Code: `recalibrate` + `verifyBalances` in `quicken-promote.js`; tests updated (now 60 passing, incl. a PS-anchor test and a no-PS reconstruction test).
 
+## 22.2 Non-backfill PS accounts — `ps-anchor.js` (2026-06-02, issue #3)
+
+**Problem (issue #3):** §22.1 anchors *backfilled* accounts at promote, but the ~71 non-backfilled PS accounts were never anchored. fin's balance formula sums `amount`; PocketSmith records an account's **pre-coverage balance only in `closing_balance`**, with its "Opening Balance" row carrying `amount = 0` (verified acct 19 "PKO Savings": `amount=0`, `closing_balance=569,970`). So any account whose PS coverage began after it already held a balance under-reads by exactly that opening balance. Original framing ("anchor all 71 to `closing_balance − Σtx`") was **rejected** — a blanket anchor pins today's number while silently masking accounts whose gap is actually a missing/duplicate ledger row (corruption), not a missing opening balance.
+
+**Resolution:** `server/src/v2/scripts/ps-anchor.js` — idempotent, DB-agnostic. For each active BS account with a PS anchor it classifies by the identity
+
+```
+ps_close − Σ(amount)  ==  first_ps_tx.closing_balance − first_ps_tx.amount
+└─ gap (what's missing) ┘    └─ opening_anchor (pre-coverage balance) ┘
+```
+
+- **CLEAN** (identity holds → `closing_balance` is a consistent running total of its amounts): the whole gap is one pre-coverage constant → insert a tagged `source='ps-anchor'` row = gap, dated at the first PS tx. Today **and** history reconcile; `accounts.opening_balance` stays 0 (the convention).
+- **DIVERGENT** (identity fails → `closing_balance` moved without a matching amount): brokerage **mark-to-market** (market gains aren't transactions) *or* a genuine missing/dup ledger row. **Reported, never auto-fixed** — each needs a per-account decision.
+
+Dry-run by default; `--apply` writes. Idempotent: gaps are computed *excluding* prior `ps-anchor` rows, and `--apply` deletes-then-reinserts. Reverse with `DELETE FROM transactions WHERE source='ps-anchor'`.
+
+**Dev validation (2026-06-02):** 12 CLEAN anchored, all reconcile to PS `closing_balance` exactly — incl. **PKO Savings +569,970 PLN**, **Fidelity IRA +148,590**, **Santander +17,204**. 13 DIVERGENT reported: the 4 Fidelity mark-to-market accounts (Stocks/Bond/Cash Mgt/Options) **plus** likely ledger inconsistencies on PKO credit cards (e.g. Infinity CB off ~$317 between gap and opening_anchor — a card has no market value, so this is a missing/dup row to investigate, not mark-to-market). 60 quicken tests still pass; backfilled batches unaffected.
+
+**Cutover model (decided 2026-06-02): re-run pipeline on prod (NOT dump/restore).** Prod is rebuilt deterministically — apply migration 022 + seed containers/income-leaves/FX, copy `quicken_*` staging+mappings dev→prod (or re-import QIFs), re-promote batches, **then run `ps-anchor.js --apply` on prod** (it computes from prod's own PS data — no hardcoded ids). Corollary rule for all remaining CR019 data work: **no manual SQL, no hardcoded dev ids — every fix is an idempotent script validated on dev and listed as a cutover step.** (This retires the Fidelity 635 manual-SQL handoff entry, which must be re-expressed as a script before cutover.)
+
+**Still open:** (a) the DIVERGENT brokerage decision — lump-anchor (today-correct, history-imprecise per §22) vs read-path mark-to-market from `closing_balance` (history-correct, bigger change touching `reports.js`/`accounts.js`); (b) investigate the DIVERGENT credit-card gaps (likely missing/dup rows).
+
 ## 21. Update history
 
 - **2026-05-30** — **End-to-end walkthrough of the 1→1 model on dev (pko.QIF) + auto-match-at-promote REMOVED.** Validated parse → role-aware mapping → bulk-create → pre-flight → promote → rollback against the PLN pko.QIF sample. Parse/roles/cutoff/calibration/rollback all behaved correctly; full row reconciliation held (2711 staged = 136 split-parents skipped + cutoff-dropped + inserted). Two real bugs found, plus the auto-matcher redesign:
