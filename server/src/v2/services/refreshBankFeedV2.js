@@ -82,6 +82,30 @@ async function ingest({ sinceDays = 14, since } = {}) {
  * Returns a summary that is a superset of the PS syncStagingToTransactions shape
  * so the existing review UI reads its known fields unchanged.
  */
+/**
+ * USD base_amount for a bank-feed row. PocketSmith hands fin a precomputed
+ * BaseAmount; the bank-feed contract only carries amount+currency, so fin must
+ * convert. Uses the exchange_rates table (from_currency → USD), picking the most
+ * recent rate on/before the transaction date (falling back to the nearest rate
+ * if none precedes it). Returns null only if no rate exists for the currency.
+ */
+async function usdBaseAmount(querier, amount, currency, dateText) {
+  const amt = Number(amount);
+  if (!Number.isFinite(amt)) return null;
+  if (currency === 'USD') return Math.round(amt * 100) / 100;
+  const res = await querier.query(
+    `SELECT rate FROM exchange_rates
+       WHERE from_currency = $1 AND to_currency = 'USD'
+       ORDER BY (rate_date <= $2::date) DESC, ABS(rate_date - $2::date) ASC
+       LIMIT 1`,
+    [currency, dateText]
+  );
+  if (!res.rows.length) return null;
+  const rate = Number(res.rows[0].rate);
+  if (!Number.isFinite(rate)) return null;
+  return Math.round(amt * rate * 100) / 100;
+}
+
 async function promote() {
   // Load unpromoted, non-pending staging rows with resolved fin account + ignore flag.
   // ::text on dates keeps findPsMatch on 'YYYY-MM-DD' strings (TZ-safe).
@@ -157,6 +181,11 @@ async function promote() {
         mergedWithPsCount[r.feed_account_external_id] = (mergedWithPsCount[r.feed_account_external_id] || 0) + 1;
       } else {
         // INSERT a new canonical bank-feed row (accepted=FALSE → review queue).
+        // Prefer a staging-provided base_amount; otherwise convert to USD via FX
+        // so the USD column + USD balance sheet reflect this row (CR022).
+        const baseAmt = r.base_amount != null
+          ? Number(r.base_amount)
+          : await usdBaseAmount(client, r.amount, r.currency, r.transaction_date);
         const ins = await client.query(`
           INSERT INTO transactions
             (transaction_date, description1, amount, currency, base_amount, base_currency,
@@ -170,8 +199,8 @@ async function promote() {
           r.description || r.merchant || null,
           r.amount,
           r.currency,
-          r.base_amount != null ? r.base_amount : null,
-          r.base_currency || 'USD',
+          baseAmt,
+          'USD',
           r.fin_account_id,
           r.external_id,
         ]);
