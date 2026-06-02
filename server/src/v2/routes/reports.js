@@ -130,20 +130,43 @@ async function buildBalanceSheetReport(asOfDate) {
 async function fetchAccountBalances(asOfDate) {
   console.log('[v2/reports/balance] Fetching account balances for date:', asOfDate);
 
-  // Calculate balance as opening_balance + SUM(transaction amounts up to asOfDate)
-  // This replaces the old closing_balance approach which was prone to stale PS data
+  // Calculate balance as opening_balance + SUM(transaction amounts up to asOfDate).
+  // This replaces the old closing_balance approach which was prone to stale PS data.
+  //
+  // CR024 read-override: for a leaf account whose bank-feed mapping has
+  // balance_from_feed=TRUE (the Fidelity market-value accounts), use the latest
+  // reported feed balance with balance_date <= asOfDate instead — fin's additive
+  // model can't reconstruct mark-to-market. When no feed balance exists for that
+  // as-of date (pre-coverage history, < 2026-05-30), fb.balance is NULL and we
+  // fall back to the additive value unchanged. Parent category nodes hold no
+  // mapping, so they aggregate their (overridden) children via buildBalanceSheetNode.
   const sql = `
     SELECT
       a.name AS account_name,
       a.currency AS account_currency,
-      a.opening_balance + COALESCE(SUM(t.amount), 0) AS closing_balance
+      CASE WHEN fb.balance IS NOT NULL
+           THEN fb.balance
+           ELSE a.opening_balance + COALESCE(SUM(t.amount), 0)
+      END AS closing_balance
     FROM accounts a
     LEFT JOIN transactions t
       ON t.account_id = a.id
       AND t.transaction_date >= a.opening_balance_date
       AND t.transaction_date <= $1
+    LEFT JOIN account_source_mappings m
+      ON m.account_id = a.id
+      AND m.source = 'bank-feed'
+      AND m.balance_from_feed = TRUE
+    LEFT JOIN LATERAL (
+      SELECT bb.balance
+      FROM bankfeed_balances bb
+      WHERE bb.feed_account_external_id = m.external_name
+        AND bb.balance_date <= $1
+      ORDER BY bb.balance_date DESC
+      LIMIT 1
+    ) fb ON TRUE
     WHERE a.is_active = TRUE
-    GROUP BY a.id, a.name, a.currency, a.opening_balance, a.opening_balance_date
+    GROUP BY a.id, a.name, a.currency, a.opening_balance, a.opening_balance_date, fb.balance
   `;
 
   const result = await db.query(sql, [asOfDate]);
@@ -599,5 +622,8 @@ router.get('/category-trend', async (req, res, next) => {
     next(error);
   }
 });
+
+// Exposed for tests (CR024 read-override integration). Not part of the route API.
+router._fetchAccountBalances = fetchAccountBalances;
 
 module.exports = router;

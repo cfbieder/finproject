@@ -51,7 +51,44 @@ async function buildAccountIdToUuid() {
 }
 
 /**
+ * Ingest /v1/balances into the local bankfeed_balances cache (CR024 Phase 1).
+ *
+ * Read-only snapshots — safe on the unattended cron path (no ledger writes). The
+ * balance-sheet read-override reads this cache for `balance_from_feed` accounts.
+ * The contract carries the feed's internal account_id ("1"); we resolve it to the
+ * stable UUID (the key shared with account_source_mappings.external_name) so a
+ * later re-auth that renumbers internal ids doesn't orphan the override.
+ * Upserts one row per (UUID, balance_date, source); idempotent on re-run.
+ */
+async function ingestBalances({ accountExternalIdById } = {}) {
+  const idToUuid = accountExternalIdById || (await buildAccountIdToUuid());
+  const resp = await bankFeedClient.balances();
+  const list = (resp && resp.balances) || (Array.isArray(resp) ? resp : []);
+
+  let upserted = 0;
+  let unresolved = 0;
+  for (const b of list) {
+    const uuid = idToUuid[String(b.account_id)];
+    if (!uuid) { unresolved++; continue; }
+    await db.query(`
+      INSERT INTO bankfeed_balances
+        (feed_account_external_id, balance, currency, balance_date, source, raw)
+      VALUES ($1, $2, $3, $4, $5, $6)
+      ON CONFLICT (feed_account_external_id, balance_date, source)
+      DO UPDATE SET balance = EXCLUDED.balance,
+                    currency = EXCLUDED.currency,
+                    fetched_at = NOW(),
+                    raw = EXCLUDED.raw
+    `, [uuid, b.balance, b.currency, b.balance_date, b.source || 'fintable', b.raw || null]);
+    upserted++;
+  }
+  return { fetched: list.length, upserted, unresolved };
+}
+
+/**
  * Step 1-3: fetch → normalize → stage. Returns ingest summary.
+ * Also refreshes the bankfeed_balances cache (best-effort — a balances hiccup
+ * must not fail transaction staging; the previous snapshot stays serviceable).
  */
 async function ingest({ sinceDays = 14, since } = {}) {
   const sinceDate = since || isoDaysAgo(sinceDays);
@@ -62,6 +99,14 @@ async function ingest({ sinceDays = 14, since } = {}) {
 
   const normalized = normalizeBatch(txs, { accountExternalIdById });
   const insertResult = await staging.insertMany(normalized.rows);
+
+  let balances = null;
+  try {
+    balances = await ingestBalances({ accountExternalIdById });
+  } catch (err) {
+    console.warn('[refreshBankFeedV2] balances ingest failed (non-fatal):', err.message);
+    balances = { error: err.message };
+  }
 
   return {
     since: sinceDate,
@@ -74,6 +119,7 @@ async function ingest({ sinceDays = 14, since } = {}) {
     insertedCount: insertResult.insertedCount,
     updatedCount: insertResult.updatedCount,
     skippedCount: insertResult.skippedCount,
+    balances,
   };
 }
 
@@ -263,6 +309,7 @@ async function refresh({ sinceDays = 14, since } = {}) {
 module.exports = {
   refresh,
   ingest,
+  ingestBalances,
   promote,
   buildAccountIdToUuid,
   dedupEnabled,
