@@ -5,7 +5,8 @@
  * against a LANDED (promoted, not rolled-back) batch to assert the same
  * invariants that were checked by hand on the first pko walkthrough
  * (batch 3a04495d): no cross-source overlap, account integrity, and a
- * calibration-vs-transactions balance invariant. Two informational warnings
+ * PS-anchored balance invariant (each touched account's live computed balance
+ * equals PocketSmith's closing_balance — see check 5). Two informational warnings
  * (within-import duplicates, uncategorized rows) are reported but never fail —
  * on the pko batch both were verified benign (faithful repeated Quicken rows /
  * one stray uncategorized row).
@@ -146,29 +147,51 @@ async function verify(pool, args) {
     pass('cross-source-overlap', 'no overlap with other sources');
   }
 
-  // 5. Balance invariant: calibration delta == sum(batch amounts) per account --
-  // Promote recalibrates accounts.opening_balance so today's balance is
-  // unchanged; quicken_calibration_audit.delta_amount must equal the batch's
-  // transaction sum on that account (verified on 3a04495d: both 427539.88).
+  // 5. Balance invariant (PS-anchored, CR §22.1) ------------------------------
+  // Promote pins each touched account's opening_balance so its LIVE computed
+  // balance (opening_balance + Σ all tx) equals PocketSmith's authoritative
+  // closing_balance — "today == bank truth". This check reads the live ledger
+  // (not quicken_calibration_audit.delta_amount, whose meaning changed when the
+  // PS-anchored redesign landed: delta is now old_ob − new_ob, no longer Σtx) so
+  // it validates the actual end state, mirroring promote's verifyBalances(batchId).
+  // Touched accounts with no PS anchor are reconstruction-only (info, never fail).
   const bal = await pool.query(
-    `select a.account_id,
-            a.s            as tx_sum,
-            c.delta_amount as delta
-       from (select account_id, round(sum(amount), 2) as s
-               from transactions where import_batch_id = $1
-              group by account_id) a
-       left join quicken_calibration_audit c
-         on c.import_batch_id = $1 and c.account_id = a.account_id`,
+    `with touched as (
+       select distinct account_id from transactions where import_batch_id = $1
+     ),
+     post as (
+       select a.id as account_id,
+              a.opening_balance + coalesce(sum(t.amount), 0) as computed
+         from accounts a
+         left join transactions t
+           on t.account_id = a.id and t.transaction_date >= a.opening_balance_date
+        where a.id in (select account_id from touched)
+        group by a.id, a.opening_balance
+     ),
+     anchor as (
+       select tt.account_id,
+              (select x.closing_balance from transactions x
+                 where x.account_id = tt.account_id and x.source <> 'quicken-import'
+                   and x.closing_balance is not null
+                 order by x.transaction_date desc, x.id desc limit 1) as ps_close
+         from touched tt
+     )
+     select post.account_id, post.computed, anchor.ps_close
+       from post join anchor on anchor.account_id = post.account_id`,
     [args.batch]
   );
   const balProblems = [];
+  let anchored = 0;
+  let reconOnly = 0;
   for (const r of bal.rows) {
-    if (r.delta == null) {
-      balProblems.push(`acct ${r.account_id}: no calibration audit row`);
-    } else if (Math.abs(Number(r.delta) - Number(r.tx_sum)) > MONEY_EPS) {
+    if (r.ps_close == null) {
+      reconOnly++;
+    } else if (Math.abs(Number(r.computed) - Number(r.ps_close)) > MONEY_EPS) {
       balProblems.push(
-        `acct ${r.account_id}: delta ${r.delta} ≠ tx_sum ${r.tx_sum}`
+        `acct ${r.account_id}: computed ${Number(r.computed).toFixed(2)} ≠ PS closing ${Number(r.ps_close).toFixed(2)}`
       );
+    } else {
+      anchored++;
     }
   }
   if (balProblems.length) {
@@ -176,7 +199,8 @@ async function verify(pool, args) {
   } else {
     pass(
       'balance-invariant',
-      `calibration delta matches tx_sum on ${bal.rows.length} account(s)`
+      `${anchored} account(s) match PS closing_balance` +
+        (reconOnly ? `, ${reconOnly} reconstruction-only (no PS anchor)` : '')
     );
   }
 
