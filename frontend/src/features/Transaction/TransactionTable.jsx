@@ -54,6 +54,24 @@ const formatNumberValue = (value) => {
 
 const SELECTION_COLUMN = { key: "selected", label: "Selected" };
 
+// CR022 G3: human-readable label for a transaction's import source. Generic by
+// design (the upstream provider, e.g. fintable, is deliberately hidden behind
+// 'bank-feed' — see CR022 §3.3), so we show "Bank feed", not "FT".
+const SOURCE_LABELS = {
+  pocketsmith: "PS",
+  "bank-feed": "Bank feed",
+  "quicken-import": "Quicken",
+};
+const formatSourceValue = (value) =>
+  value ? SOURCE_LABELS[value] || value : "";
+
+const SOURCE_COLUMN = {
+  key: "Source",
+  label: "Source",
+  render: formatSourceValue,
+  noWrap: true,
+};
+
 const TRANSACTION_COLUMNS = [
   { key: "Date", label: "Date", render: formatDateValue, noWrap: true },
   { key: "Description1", label: "Description", render: formatTextValue, style: { maxWidth: "220px", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" } },
@@ -109,6 +127,11 @@ export default function TransactionTable({
     : config.logPrefix === "ReviewNew" ? "New"
     : "Budget";
   const lcLabel = label.toLowerCase();
+  // CR022 G3: surface the source column only in the review queue, where PS and
+  // bank-feed rows mix. Ledger/actuals views keep their original columns.
+  const columns = config.logPrefix === "ReviewNew"
+    ? [...TRANSACTION_COLUMNS, SOURCE_COLUMN]
+    : TRANSACTION_COLUMNS;
 
   return (
     <section className="section-table" aria-label={`${label} table`}>
@@ -147,7 +170,7 @@ export default function TransactionTable({
                       </button>
                     </th>
                   )}
-                  {TRANSACTION_COLUMNS.map((column) => (
+                  {columns.map((column) => (
                     <th key={column.key}>
                       <button
                         type="button"
@@ -187,7 +210,7 @@ export default function TransactionTable({
                         />
                       </td>
                     )}
-                    {TRANSACTION_COLUMNS.map((column) => {
+                    {columns.map((column) => {
                       const isClickable =
                         (column.key === "Date" && onDateClick) ||
                         (column.key === "Description1" && onDescriptionClick) ||
