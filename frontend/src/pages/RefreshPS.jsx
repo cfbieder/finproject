@@ -33,6 +33,7 @@ export default function RefreshPS() {
   const [transferEntry, setTransferEntry] = useState(null);
   const [transferTargetId, setTransferTargetId] = useState("");
   const [isTransferring, setIsTransferring] = useState(false);
+  const [isSuggesting, setIsSuggesting] = useState(false);
   const [newTransactions, setNewTransactions] = useState([]);
   const [isLoadingNewTransactions, setIsLoadingNewTransactions] =
     useState(false);
@@ -849,6 +850,48 @@ export default function RefreshPS() {
     }
   }, [selectedRows, clearSelection, loadReviewTransactions, showSuccess, showErrorToast]);
 
+  // CR022: suggest categories for uncategorized rows from history, then apply
+  // them as pending (not accepted) so they're reviewed before committing.
+  const handleSuggestCategories = useCallback(async () => {
+    const ids = reviewTransactions
+      .filter((t) => !t.Category && typeof t.id === "number")
+      .map((t) => t.id);
+    if (ids.length === 0) {
+      showErrorToast("No uncategorized rows to suggest");
+      return;
+    }
+    setIsSuggesting(true);
+    try {
+      const res = await Rest.fetchJson(`${reviewConfig.endpoint}/category-suggestions`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ ids }),
+      });
+      const hits = (res?.data ?? []).filter((s) => s.category_id && s.category_name);
+      if (hits.length === 0) {
+        showErrorToast("No confident suggestions from history yet");
+        return;
+      }
+      // Group by category name and apply in batches (sets category, stays pending).
+      const byCat = new Map();
+      for (const s of hits) {
+        if (!byCat.has(s.category_name)) byCat.set(s.category_name, []);
+        byCat.get(s.category_name).push(s.id);
+      }
+      let applied = 0;
+      for (const [name, catIds] of byCat) {
+        const results = await patchInBatches(catIds, { Category: name });
+        applied += results.filter((r) => r.ok).length;
+      }
+      showSuccess(`Suggested categories for ${applied} row(s) — review and Accept`);
+      await loadReviewTransactions();
+    } catch (err) {
+      showErrorToast(err?.message ?? "Failed to suggest categories");
+    } finally {
+      setIsSuggesting(false);
+    }
+  }, [reviewTransactions, patchInBatches, loadReviewTransactions, showSuccess, showErrorToast]);
+
   /**************************
    * Transfer to another account (CR022)
    **************************/
@@ -1136,6 +1179,14 @@ export default function RefreshPS() {
                         : `Accept Selected (${selectedRows.size})`}
                     </button>
                   )}
+                  <button
+                    type="button"
+                    className="refresh-ps-btn refresh-ps-btn--bulk-category"
+                    onClick={handleSuggestCategories}
+                    disabled={isSuggesting || acceptingId != null}
+                  >
+                    {isSuggesting ? "Suggesting..." : "Suggest categories"}
+                  </button>
                   <button
                     type="button"
                     className="refresh-ps-btn refresh-ps-btn--accept-all"

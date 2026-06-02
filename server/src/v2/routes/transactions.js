@@ -9,6 +9,7 @@ const accountsRepo = require('../repositories').accounts;
 // "Categories" are P&L leaves on the accounts table after migration 021.
 // Look up by name with `accountsRepo.findByName`; results have id/name/section.
 const transferMatchGroupsRepo = require('../repositories').transferMatchGroups;
+const categorySuggest = require('../services/categorySuggest');
 
 /**
  * Transform v1-style field names to v2 format
@@ -411,6 +412,23 @@ router.post('/:id/neutralize', async (req, res, next) => {
 
     const result = await repo.neutralize(id, category.id);
     res.json({ data: result });
+  } catch (error) {
+    next(error);
+  }
+});
+
+// POST /api/v2/transactions/category-suggestions
+// CR022: suggest a category per transaction id from history (merchant-history
+// rules). Body: { ids: number[] }. Returns rows with category_id=null when no
+// confident suggestion exists. Single-segment path; declared before /:id/* so
+// it can never be shadowed by a param route.
+router.post('/category-suggestions', async (req, res, next) => {
+  try {
+    const ids = Array.isArray(req.body.ids)
+      ? req.body.ids.map(Number).filter(Number.isFinite)
+      : [];
+    const data = await categorySuggest.suggestForIds(ids);
+    res.json({ data });
   } catch (error) {
     next(error);
   }
