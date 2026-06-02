@@ -1150,7 +1150,7 @@ Replaces the manual-SQL Fidelity 635 handoff (the last manual-SQL artifact, requ
 
 **Tooling gaps:**
 - **G1 — COA seed script — ✅ DONE.** `server/src/v2/scripts/seed-cr019-coa.js` (idempotent, create-by-name-if-absent, dependency-ordered, dry-run + `--apply`) seeds the 10 CR019 COA objects (the 9 below + `Fidelity (historical)`). Validated on dev (all 10 present → 0 created).
-- **G2 — staging+mapping copy — OPEN.** Either (B-path) build `copy-quicken-to-prod.js` that copies `quicken_staging`(+ other staging) + `account_source_mappings(source='quicken')` + the 8 batch rows dev→prod, translating `account_id` and `cutoff_overrides` keys via a NAME map; **or** (A-path) re-import the 8 QIFs + re-map the 156 names through the admin UI on prod (needs the original QIF files, no new tooling). B-path is faster and avoids re-mapping; A-path needs no new code.
+- **G2 — staging+mapping copy — ✅ DONE (B-path).** `server/src/v2/scripts/copy-quicken-to-prod.js --target <prod-conn> [--apply]` (`--source` defaults to dev). Copies `quicken_*` staging + the 8 batch rows verbatim (preserving ids; two-pass for `quicken_staging`'s self-referencing `split_parent_id`; all `json` columns stringified+cast), with batch `status` reset to `mapped` so prod can promote; copies `account_source_mappings(source='quicken')` with `account_id` NAME-translated and the `brok_fid` `cutoff_overrides` key NAME-translated. Idempotent (ON CONFLICT), dry-run default, fail-loud if any referenced account name is missing/ambiguous in the target. Validated against a throwaway target with fresh (different) ids: 8 batches→mapped, 156 mappings translated, 14634+6006 staging rows exact, `split_parent_id` (1833) preserved, cutoff key 635→target-id translated, idempotent re-run (0 new), `raw_payload` jsonb intact.
 
 **STEP 0 — Coordinate + backup.** Confirm bank-feed/CR022 release readiness (shared `main`; deploy ships both). `pg_dump` prod (§20.1).
 
@@ -1160,7 +1160,7 @@ Replaces the manual-SQL Fidelity 635 handoff (the last manual-SQL artifact, requ
 
 **STEP 3 — Seed FX.** `seed-fx-yahoo` for **PLN, EUR, GBP** across the coverage window (1998→present).
 
-**STEP 4 — Land staging + mappings (gap G2, B-path or A-path).** After STEP 2 all target accounts exist on prod, so the dev→prod name map resolves. Translate `account_source_mappings.account_id` and the `brok_fid` `cutoff_overrides` key (`{<prod Fidelity-historical id>: "2020-01-02"}`).
+**STEP 4 — Land staging + mappings (G2, done).** `node server/src/v2/scripts/copy-quicken-to-prod.js --target <prod-conn>` (dry-run; review the name map + that all referenced accounts resolve), then `--apply`. After STEP 2 all target accounts exist, so the dev→prod name map resolves; the script translates `account_source_mappings.account_id` and the `brok_fid` `cutoff_overrides` key, and resets batch status to `mapped`.
 
 **STEP 5 — Promote the 8 batches** (UI or `runPromote`), in any order. Touched accounts (by name): pko→PKO, chase_c→Chase Checking, cc_black_card→LUXURY CARD, prop_nalecz→PL - Naleczowska, bank_tw_pln→WISE - PLN, bank_chase_s→Chase Saving, brok_fid→Fidelity (historical); **prop_nokomis→US - Nokomis lands 0 rows (redundant with PS — expected, benign).**
 
