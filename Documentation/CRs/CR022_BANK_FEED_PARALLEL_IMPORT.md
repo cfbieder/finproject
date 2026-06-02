@@ -742,6 +742,7 @@ Only after steps 1–10 pass green is Phase F (prod push) authorized.
 | 2026-05-31 | **R2 dedup is flag-gated (`BANK_FEED_DEDUP_ENABLED`, default true) and is the ONLY PS-code edit** | A single guarded reverse-lookup in the PS promote (`ingestPs.js` `syncStagingToTransactions` — as-built; the plan misattributed it to `refreshPsApiV2.js`) is unavoidable to drop PS rows that duplicate bank-feed rows. Gating it keeps the "additive, PS untouched" promise intact: flag off, no match, **or pre-023 DB (column-absent self-disable)** → PS behaves byte-for-byte as before. `false` is also the mis-fire rollback. |
 | 2026-05-31 | **As-built: promote is JS-orchestrated (not a CTE); contract account id→UUID resolution added** | See §3.0. The ±1-day + tie-break dedup is impractical in pure SQL, so promote reuses the tested `findPsMatch` in JS. The `/v1/transactions` contract carries an internal account id, so the orchestrator resolves it to the stable UUID (the mapping key) via `/v1/accounts`. |
 | 2026-05-31 | **R2 false-merge resolved conservatively: when ambiguous, do NOT merge** | Two distinct same-day/same-amount transactions must not collapse. With no disambiguator the heuristic prefers a visible duplicate in the review queue over silent data loss. Tested explicitly (§5.2 #8). |
+| 2026-06-02 | **Dev mappings vetted clean; `(PLN) (5564)` intentionally ignored (business account)** | Post-walkthrough cleanup re-verified all 13 fintable accounts against the live dev DB + bank-feed health. 6 PKO → COA (4/12/18/19/67/69), all type-aligned, no double-mapping. The 6 Fidelity accounts stay ignored (investment, out of cash scope). `(PLN) (5564)` is an *active* PKO account (bal 2,901 PLN, ad-spend debits) but is a **business** account PKO exposes via the shared connection, not part of the personal ledger — ignored deliberately, do not re-flag. This 13-account decision set is the template for Phase F STEP 6 (same accounts appear in prod). |
 
 ## 10. Known Gaps / Remaining Work
 
@@ -813,8 +814,23 @@ curl -s http://localhost:3005/api/v2/bank-feed/account-mappings | jq '.accounts 
 # ──────────────────────────────────────────────────────────────────────
 # STEP 6 — Map accounts in the UI (manual, business decision)
 #   Open the prod Refresh Bank Feed page (https://192.168.1.87:5175 → Transactions
-#   → Refresh Bank Feed). For each PKO account pick its COA account; IGNORE the
-#   Fidelity accounts (investment, out of cash scope). Unmapped = stays pending.
+#   → Refresh Bank Feed). Apply the vetted dev decision set (verified 2026-06-02):
+#
+#     MAP (6 PKO → COA account):
+#       SAVINGS (PLN) (2790)  → PKO Savings (19)         (asset)
+#       (EUR) (3255)          → PKO EUR (12)             (asset)
+#       (USD) (4185)          → PKO - USD (4)            (asset)
+#       (PLN) (5647)          → PKO (18)                 (asset)
+#       (PLN) (7249)          → PKO VISA Infinity CB (67)(liability)
+#       (PLN) (7889)          → PKO VISA Infinity KB (69)(liability)
+#
+#     IGNORE (7):
+#       (PLN) (5564)          → business account (not personal ledger)
+#       Rollover IRA / Cash Management / Individual / Stocks / Options /
+#         Fixed Income       → Fidelity (investment, out of cash scope)
+#
+#   NB: prod COA account IDs may differ from dev — match by NAME, not by the IDs
+#   above. Unmapped = stays pending (fail-closed). Confirm no double-mapping.
 # ──────────────────────────────────────────────────────────────────────
 
 # ──────────────────────────────────────────────────────────────────────
