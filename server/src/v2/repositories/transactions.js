@@ -504,6 +504,71 @@ async function neutralize(id, categoryId) {
 }
 
 /**
+ * Record a transaction as a transfer to another tracked account (CR022).
+ * Marks the original accepted (keeping its category) and creates an offsetting
+ * entry in the target account with the negated amount + base_amount, same date
+ * and category, source='auto-offset', accepted. Net effect on USD net worth is
+ * zero (the two base_amounts cancel) — e.g. a -3000 PLN PKO outflow funding the
+ * OCME business account creates a +3000 PLN entry on OCME.
+ *
+ * V1 carries the original's currency to the offset (correct for same-currency
+ * transfers, the common case); the USD balance sheet nets regardless via the
+ * negated base_amount.
+ *
+ * @param {number} id - original transaction id
+ * @param {number} targetAccountId - account to receive the offsetting entry
+ * @returns {Promise<{original: object, offset: object}>}
+ */
+async function transferToAccount(id, targetAccountId) {
+  const original = await findById(id);
+  if (!original) throw new Error('Transaction not found');
+  if (Number(targetAccountId) === Number(original.account_id)) {
+    throw new Error('Transfer target must differ from the source account');
+  }
+
+  const negatedAmount = parseFloat((-parseFloat(original.amount)).toFixed(2));
+  const negatedBaseAmount = original.base_amount != null
+    ? parseFloat((-parseFloat(original.base_amount)).toFixed(2))
+    : null;
+
+  return db.transaction(async (client) => {
+    const updated = await client.query(
+      `UPDATE transactions SET accepted = TRUE, updated_at = NOW() WHERE id = $1 RETURNING *`,
+      [id]
+    );
+    if (updated.rows.length === 0) throw new Error('Transaction not found');
+
+    const offset = await client.query(`
+      INSERT INTO transactions (
+        ps_id, transaction_date, description1, description2,
+        amount, currency, base_amount, base_currency,
+        transaction_type, account_id, closing_balance,
+        category_id, labels, memo, note, bank, source, accepted
+      )
+      VALUES (NULL, $1, $2, $3, $4, $5, $6, $7, $8, $9, NULL, $10, $11, $12, $13, $14, 'auto-offset', TRUE)
+      RETURNING *
+    `, [
+      original.transaction_date,
+      original.description1,
+      original.description2,
+      negatedAmount,
+      original.currency,
+      negatedBaseAmount,
+      original.base_currency || 'USD',
+      original.transaction_type,
+      targetAccountId,
+      original.category_id,
+      original.labels,
+      original.memo,
+      original.note,
+      original.bank,
+    ]);
+
+    return { original: updated.rows[0], offset: offset.rows[0] };
+  });
+}
+
+/**
  * Fetch all transfer-category transactions for a date range.
  * Returns rows joined with account/category names, filtered to categories
  * where is_transfer = TRUE and skip_transfer_analysis = FALSE. The latter
@@ -636,6 +701,7 @@ module.exports = {
   remove,
   split,
   neutralize,
+  transferToAccount,
   findTransfers,
   findImpliedRate,
   updateTransferMatchedFlags

@@ -121,8 +121,9 @@ export default function TransactionTable({
   onAcceptClick,
   onSplitClick,
   onNeutralizeClick,
+  onTransferClick,
 }) {
-  const hasRowActions = !!(onAcceptClick || onSplitClick || onNeutralizeClick);
+  const hasRowActions = !!(onAcceptClick || onSplitClick || onNeutralizeClick || onTransferClick);
   const label = config.logPrefix === "TransActual" ? "Actual"
     : config.logPrefix === "ReviewNew" ? "New"
     : "Budget";
@@ -280,6 +281,19 @@ export default function TransactionTable({
                             aria-label={`Neutralize transaction ${rowId}`}
                           >
                             Neutralize
+                          </button>
+                        )}
+                        {onTransferClick && (
+                          <button
+                            type="button"
+                            className="trans-budget-table__action-btn trans-budget-table__action-btn--neutralize"
+                            onClick={(event) => {
+                              event.stopPropagation();
+                              onTransferClick(rowId, entry);
+                            }}
+                            aria-label={`Record transaction ${rowId} as a transfer to another account`}
+                          >
+                            Transfer
                           </button>
                         )}
                         {onAcceptClick && (

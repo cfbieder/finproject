@@ -12,6 +12,7 @@ import { REVIEW_CONFIG } from "../features/Transaction/transactionConfig.js";
 import { useTransactionSelection } from "../features/Transaction/hooks/useTransactionSelection.js";
 import TransactionTable from "../features/Transaction/TransactionTable.jsx";
 import CategorySelector from "../components/CategorySelector/CategorySelector.jsx";
+import { AccountPicker, buildHierarchyOptions } from "../components/AccountPicker/AccountPicker.jsx";
 import { useCoa } from "../hooks/useCoa.js";
 import "./PageLayout.css";
 import EmptyState from "../components/EmptyState.jsx";
@@ -27,6 +28,11 @@ export default function RefreshPS() {
   const [refreshStatus, setRefreshStatus] = useState(null);
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [isRefreshingFeed, setIsRefreshingFeed] = useState(false);
+  // CR022 transfer-to-account action (review queue)
+  const [accountOptions, setAccountOptions] = useState([]);
+  const [transferEntry, setTransferEntry] = useState(null);
+  const [transferTargetId, setTransferTargetId] = useState("");
+  const [isTransferring, setIsTransferring] = useState(false);
   const [newTransactions, setNewTransactions] = useState([]);
   const [isLoadingNewTransactions, setIsLoadingNewTransactions] =
     useState(false);
@@ -844,6 +850,68 @@ export default function RefreshPS() {
   }, [selectedRows, clearSelection, loadReviewTransactions, showSuccess, showErrorToast]);
 
   /**************************
+   * Transfer to another account (CR022)
+   **************************/
+
+  // COA options for the transfer-target picker (flat, breadcrumb labels).
+  useEffect(() => {
+    let active = true;
+    (async () => {
+      try {
+        const rows = await Rest.fetchAccountsV2();
+        if (active) setAccountOptions(buildHierarchyOptions(rows));
+      } catch {
+        // non-fatal: the Transfer picker simply shows no options
+      }
+    })();
+    return () => { active = false; };
+  }, []);
+
+  const handleTransferClick = useCallback((_rowId, entryArg) => {
+    const entry = entryArg || (selectedRows.size === 1 ? [...selectedRows.values()][0] : null);
+    if (!entry) return;
+    if (typeof entry.id !== "number") {
+      showErrorToast("Cannot transfer: transaction not yet synced to database");
+      return;
+    }
+    setTransferEntry(entry);
+    setTransferTargetId("");
+  }, [selectedRows, showErrorToast]);
+
+  const handleTransferCancel = useCallback(() => {
+    setTransferEntry(null);
+    setTransferTargetId("");
+  }, []);
+
+  const handleTransferConfirm = useCallback(async () => {
+    if (!transferEntry || !transferTargetId) return;
+    setIsTransferring(true);
+    try {
+      const response = await fetch(
+        Rest.buildUrl(`${reviewConfig.endpoint}/${transferEntry.id}/transfer`),
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ targetAccountId: Number(transferTargetId) }),
+        }
+      );
+      if (!response.ok) {
+        const body = await response.json().catch(() => null);
+        throw new Error(body?.error || "Failed to create transfer");
+      }
+      setTransferEntry(null);
+      setTransferTargetId("");
+      clearSelection();
+      showSuccess("Transfer recorded — offsetting entry created");
+      await loadReviewTransactions();
+    } catch (err) {
+      showErrorToast(err?.message ?? "Failed to create transfer");
+    } finally {
+      setIsTransferring(false);
+    }
+  }, [transferEntry, transferTargetId, clearSelection, loadReviewTransactions, showSuccess, showErrorToast]);
+
+  /**************************
    * Formatters for read-only tables
    **************************/
 
@@ -1112,7 +1180,55 @@ export default function RefreshPS() {
               onAcceptClick={handleAcceptClick}
               onSplitClick={handleSplitClick}
               onNeutralizeClick={handleNeutralizeClick}
+              onTransferClick={handleTransferClick}
             />
+            {transferEntry && (
+              <div
+                className="trans-budget-edit-modal-overlay"
+                role="dialog"
+                aria-modal="true"
+                aria-label="Transfer to account"
+              >
+                <div className="trans-budget-edit-modal">
+                  <h3>Transfer to account</h3>
+                  <p className="refresh-ps-toolbar__desc">
+                    Creates an offsetting entry in the chosen account (the negated
+                    amount), making this a net-worth-neutral transfer. Both legs
+                    are accepted.
+                  </p>
+                  <label className="trans-budget-edit-modal__field trans-budget-edit-modal__field--full-row">
+                    <span>Destination account</span>
+                    <AccountPicker
+                      value={transferTargetId}
+                      options={accountOptions.filter(
+                        (o) => o.isLeaf && o.id !== transferEntry.account_id
+                      )}
+                      onChange={setTransferTargetId}
+                      placeholder="Search accounts…"
+                      autoFocus
+                    />
+                  </label>
+                  <div className="trans-budget-edit-modal__actions">
+                    <button
+                      className="generate-report-button"
+                      type="button"
+                      onClick={handleTransferCancel}
+                      disabled={isTransferring}
+                    >
+                      Cancel
+                    </button>
+                    <button
+                      className="generate-report-button"
+                      type="button"
+                      onClick={handleTransferConfirm}
+                      disabled={isTransferring || !transferTargetId}
+                    >
+                      {isTransferring ? "Saving…" : "Create transfer"}
+                    </button>
+                  </div>
+                </div>
+              </div>
+            )}
             {editingDate && (
               <div
                 className="trans-budget-edit-modal-overlay"

@@ -416,6 +416,26 @@ router.post('/:id/neutralize', async (req, res, next) => {
   }
 });
 
+// POST /api/v2/transactions/:id/transfer
+// CR022: mark a transaction as a transfer to another tracked account and create
+// the offsetting entry there (net-worth-neutral). Body: { targetAccountId }.
+router.post('/:id/transfer', async (req, res, next) => {
+  try {
+    const id = parseInt(req.params.id);
+    const targetAccountId = parseInt(req.body.targetAccountId);
+    if (!Number.isFinite(targetAccountId)) {
+      return res.status(400).json({ error: 'targetAccountId is required' });
+    }
+    const result = await repo.transferToAccount(id, targetAccountId);
+    res.json({ data: result });
+  } catch (error) {
+    if (/must differ|not found/i.test(error.message)) {
+      return res.status(400).json({ error: error.message });
+    }
+    next(error);
+  }
+});
+
 // DELETE /api/v2/transactions/:id
 router.delete('/:id', async (req, res, next) => {
   try {
