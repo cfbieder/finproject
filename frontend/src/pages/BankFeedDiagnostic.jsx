@@ -149,7 +149,7 @@ export default function BankFeedDiagnostic() {
   return (
     <div className="bfd-page">
       <header className="bfd-header">
-        <h1>Refresh Bank Feed</h1>
+        <h1>Bank Feed Setup</h1>
         <div className="bfd-actions">
           <button onClick={runImport} disabled={importing} className="generate-report-button">
             {importing ? "Importing…" : "Import now"}
@@ -161,9 +161,10 @@ export default function BankFeedDiagnostic() {
       </header>
 
       <p className="bfd-subtitle">
-        Import and reconcile <code>bank-feed</code> transactions into fin
-        (CR022). Map accounts below, then <strong>Import now</strong> to pull the
-        latest and promote mapped accounts into the ledger.
+        Map <code>bank-feed</code> accounts and monitor sync health &amp; PS
+        reconciliation (CR022). Map accounts below; day-to-day refresh + review
+        lives on the <strong>Refresh Feeds</strong> page. <strong>Import now</strong>{" "}
+        here pulls the latest and promotes mapped accounts into the ledger.
       </p>
 
       <div className="bfd-feed-card-header">

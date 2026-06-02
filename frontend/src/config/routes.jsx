@@ -125,9 +125,9 @@ export const routes = [
   {
     path: "/refresh-ps",
     component: RefreshPS,
-    label: "Refresh PS",
+    label: "Refresh Feeds",
     category: "Transactions",
-    description: "Refresh and sync data from staging tables",
+    description: "Refresh and review PocketSmith + bank-feed transactions",
     icon: RefreshCw,
   },
   {
@@ -362,9 +362,9 @@ export const routes = [
   {
     path: "/bank-feed-diagnostic",
     component: BankFeedDiagnostic,
-    label: "Refresh Bank Feed",
+    label: "Bank Feed Setup",
     category: "Transactions",
-    description: "Import and reconcile bank-feed transactions; map accounts, check sync health",
+    description: "Map bank-feed accounts, check sync health & PS reconciliation",
     icon: RefreshCw,
   },
 

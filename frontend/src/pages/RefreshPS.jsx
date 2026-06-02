@@ -26,6 +26,7 @@ export default function RefreshPS() {
   const [psDataCountStatus, setPsDataCountStatus] = useState(null);
   const [refreshStatus, setRefreshStatus] = useState(null);
   const [isRefreshing, setIsRefreshing] = useState(false);
+  const [isRefreshingFeed, setIsRefreshingFeed] = useState(false);
   const [newTransactions, setNewTransactions] = useState([]);
   const [isLoadingNewTransactions, setIsLoadingNewTransactions] =
     useState(false);
@@ -153,6 +154,45 @@ export default function RefreshPS() {
   /**************************
    * Handle button clicks
    **************************/
+
+  // CR022: pull + promote the bank-feed (mapped accounts) into the review queue,
+  // reusing the same Days window as the PS refresh.
+  const handleRefreshFeedClick = async () => {
+    if (isRefreshingFeed) {
+      return;
+    }
+    setRefreshStatus({
+      type: "info",
+      message: "Refreshing bank-feed data...",
+    });
+    setIsRefreshingFeed(true);
+
+    const parsedDays = Number(daysHistory);
+    const sinceDays =
+      Number.isFinite(parsedDays) && parsedDays > 0 ? parsedDays : 14;
+
+    try {
+      const res = await Rest.fetchJson("/api/v2/ingest-bank-feed/refresh", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ sinceDays }),
+      });
+      const ing = res?.ingest ?? {};
+      const syn = res?.sync ?? {};
+      setRefreshStatus({
+        type: "success",
+        message: `Bank feed refreshed: ${syn.inserted ?? 0} new, ${syn.linked ?? 0} linked to PS, ${ing.staged ?? 0} staged, ${(syn.ignoredAccounts ?? []).length} account(s) ignored.`,
+      });
+      await loadReviewTransactions();
+    } catch (err) {
+      setRefreshStatus({
+        type: "error",
+        message: err?.message ?? "Failed to refresh bank-feed data",
+      });
+    } finally {
+      setIsRefreshingFeed(false);
+    }
+  };
 
   const handleRefreshClick = async () => {
     if (isRefreshing) {
@@ -602,6 +642,33 @@ export default function RefreshPS() {
     }
   }, [reviewTransactions, patchInBatches, loadReviewTransactions, showSuccess, showErrorToast]);
 
+  // CR022: accept only the rows from one source (PS or bank-feed) in the queue.
+  const handleAcceptBySource = useCallback(async (source, label) => {
+    const ids = reviewTransactions
+      .filter((t) => t.Source === source)
+      .map((t) => t.id)
+      .filter((id) => typeof id === "number");
+    if (ids.length === 0) {
+      showErrorToast(`No ${label} transactions to accept`);
+      return;
+    }
+    setAcceptingId(source);
+    try {
+      const results = await patchInBatches(ids, { accepted: true });
+      const failCount = results.filter((r) => !r.ok).length;
+      if (failCount > 0) {
+        showErrorToast(`${failCount} transaction(s) failed to accept`);
+      } else {
+        showSuccess(`${ids.length} ${label} transaction(s) accepted`);
+      }
+      await loadReviewTransactions();
+    } catch (err) {
+      showErrorToast(err?.message ?? `Failed to accept ${label} transactions`);
+    } finally {
+      setAcceptingId(null);
+    }
+  }, [reviewTransactions, patchInBatches, loadReviewTransactions, showSuccess, showErrorToast]);
+
   const handleAcceptSelected = useCallback(async () => {
     const selectedIds = [...selectedRows.values()]
       .map((t) => t.id ?? t.Id)
@@ -803,10 +870,10 @@ export default function RefreshPS() {
         <section className="upload-panel refresh-ps-toolbar">
           <div className="refresh-ps-toolbar__top">
             <div>
-              <h1 className="refresh-ps-toolbar__title">Refresh PS Data</h1>
+              <h1 className="refresh-ps-toolbar__title">Refresh Feeds</h1>
               <p className="refresh-ps-toolbar__desc">
-                Pull the latest PocketSmith transactions and sync them with
-                your database.
+                Pull the latest PocketSmith and bank-feed transactions and sync
+                them into your database for review.
               </p>
             </div>
             <div className="refresh-ps-toolbar__right">
@@ -824,9 +891,17 @@ export default function RefreshPS() {
                 type="button"
                 className="refresh-ps-btn refresh-ps-btn--action"
                 onClick={handleRefreshClick}
-                disabled={isRefreshing}
+                disabled={isRefreshing || isRefreshingFeed}
               >
                 {isRefreshing ? "Refreshing..." : "Refresh PS Data"}
+              </button>
+              <button
+                type="button"
+                className="refresh-ps-btn refresh-ps-btn--action"
+                onClick={handleRefreshFeedClick}
+                disabled={isRefreshing || isRefreshingFeed}
+              >
+                {isRefreshingFeed ? "Refreshing..." : "Refresh Feed Data"}
               </button>
             </div>
           </div>
@@ -993,6 +1068,22 @@ export default function RefreshPS() {
                         : `Accept Selected (${selectedRows.size})`}
                     </button>
                   )}
+                  <button
+                    type="button"
+                    className="refresh-ps-btn refresh-ps-btn--accept-all"
+                    onClick={() => handleAcceptBySource("pocketsmith", "PS")}
+                    disabled={acceptingId != null}
+                  >
+                    {acceptingId === "pocketsmith" ? "Accepting..." : "Accept PS"}
+                  </button>
+                  <button
+                    type="button"
+                    className="refresh-ps-btn refresh-ps-btn--accept-all"
+                    onClick={() => handleAcceptBySource("bank-feed", "Bank feed")}
+                    disabled={acceptingId != null}
+                  >
+                    {acceptingId === "bank-feed" ? "Accepting..." : "Accept Bank Feed"}
+                  </button>
                   <button
                     type="button"
                     className="refresh-ps-btn refresh-ps-btn--accept-all"
