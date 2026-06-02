@@ -1144,6 +1144,34 @@ Dry-run by default; `--apply` writes. Idempotent: gaps are computed *excluding* 
 
 Replaces the manual-SQL Fidelity 635 handoff (the last manual-SQL artifact, required for re-run-on-prod cutover). `server/src/v2/scripts/retire-handoff.js --batch <uuid> [--handoff-date YYYY-MM-DD] [--apply]`. A "retired/consolidated" historical container (e.g. `Fidelity (historical)` 635) holds pre-cutoff history but its value continues in the live PS accounts after the cutoff → left alone it double-counts. The script inserts one `Transfer - Historical` hand-off = −(balance at cutoff) at the cutoff date, zeroing the container from the cutoff forward while preserving its pre-cutoff curve. Identifies retired accounts **structurally** (batch-promoted accounts whose ancestry includes a `Historical Assets`/`Historical Liabilities` container — no hardcoded ids); hand-off date defaults to the account's `cutoff_overrides` entry. The row is stamped with the batch's `import_batch_id` + `source='quicken-import'`, so the existing rollback removes it. **Idempotent** — deletes the prior hand-off (matched by `description2='Quicken handoff'`, including the original manual entry) and recomputes the balance excluding prior hand-offs. Validated on dev: reproduced the 635 handoff exactly (−$1,554,221.98 @ 2020-01-02; curve 1.55M by 2019 → 0 from 2020), idempotent on re-apply, 60 quicken tests pass. **Cutover step:** after re-promoting the `brok_fid` batch on prod, run `retire-handoff.js --batch <new-uuid> --apply`.
 
+## 23. Prod cutover runbook (re-run-on-prod, drafted 2026-06-02)
+
+**Model:** prod is rebuilt deterministically from the pipeline — NOT a dump/restore. Migration 022 is **already on prod** (Phase A, 2026-05-22), so no new CR019 migration. The CR019 promote *code* (1→1 pivot, value-only promote, PS-anchored calibration, the three scripts) may **already be on prod** via the bank-feed thread's `v2.8.2` deploy (2026-06-02) — STEP 1 verifies. Account ids differ dev↔prod, so everything is resolved by NAME, never by hardcoded id.
+
+**Two known tooling gaps to close before running this** (both currently ad-hoc on dev):
+- **G1 — COA seed script.** The 9 CR019 COA objects below were created ad-hoc on dev; there is no idempotent seeder. Build `seed-cr019-coa.js` (create-by-name-if-absent) — required, since re-run-on-prod forbids manual SQL.
+- **G2 — staging+mapping copy.** Either (B-path) build `copy-quicken-to-prod.js` that copies `quicken_staging`(+ other staging) + `account_source_mappings(source='quicken')` + the 8 batch rows dev→prod, translating `account_id` and `cutoff_overrides` keys via a NAME map; **or** (A-path) re-import the 8 QIFs + re-map the 156 names through the admin UI on prod (needs the original QIF files, no new tooling). B-path is faster and avoids re-mapping; A-path needs no new code.
+
+**STEP 0 — Coordinate + backup.** Confirm bank-feed/CR022 release readiness (shared `main`; deploy ships both). `pg_dump` prod (§20.1).
+
+**STEP 1 — Code on prod.** Verify prod runs the 1→1 / PS-anchored promote (check `quicken-promote.js` has no investment guard + has `recalibrate` PS-anchored). If not, deploy `main` via `Scripts/deploy-to-production.sh`.
+
+**STEP 2 — Seed prod COA (by name, idempotent — gap G1).** Create if absent: `Historical Assets` (under Assets root), `Historical Liabilities` (under Liabilities root), `Closed Cash (default)`/`Closed Debt (default)` (under those), `Transfer - Historical` (under Transfers), and income leaves `Financial Income - Dividend`, `Interest Income` (under Financial Income), `Realized Gain (Historical)`, `Return of Capital`. The historical-brokerage leaf `Fidelity (historical)` (under Historical Assets) is created here too (brok_fid maps to it).
+
+**STEP 3 — Seed FX.** `seed-fx-yahoo` for **PLN, EUR, GBP** across the coverage window (1998→present).
+
+**STEP 4 — Land staging + mappings (gap G2, B-path or A-path).** After STEP 2 all target accounts exist on prod, so the dev→prod name map resolves. Translate `account_source_mappings.account_id` and the `brok_fid` `cutoff_overrides` key (`{<prod Fidelity-historical id>: "2020-01-02"}`).
+
+**STEP 5 — Promote the 8 batches** (UI or `runPromote`), in any order. Touched accounts (by name): pko→PKO, chase_c→Chase Checking, cc_black_card→LUXURY CARD, prop_nalecz→PL - Naleczowska, bank_tw_pln→WISE - PLN, bank_chase_s→Chase Saving, brok_fid→Fidelity (historical); **prop_nokomis→US - Nokomis lands 0 rows (redundant with PS — expected, benign).**
+
+**STEP 6 — Run the cutover scripts on prod** (each idempotent, computes from prod data):
+1. `retire-handoff.js --batch <brok_fid prod uuid> --apply` — zeros Fidelity (historical) at 2020-01-02.
+2. `ps-anchor.js --apply` — anchors the missing-opening-balance cash accounts; auto-skips feed-owned brokerage (Fidelity).
+
+**STEP 7 — Verify.** `quicken-verify.js --all --source quicken-import` → all WARN/OK, no FAIL. Spot-check 5 accounts' computed balance vs PS `closing_balance` (§20.3). Net-worth sanity check.
+
+**Not covered here / coordinate separately:** the Fidelity *live*-account balances come from the bank-feed `feed_balances` (FC_NEXT_STEPS Known Issue #4, bank-feed thread) — independent of this backfill, which only populates pre-2020 history in `Fidelity (historical)`.
+
 ## 21. Update history
 
 - **2026-05-30** — **End-to-end walkthrough of the 1→1 model on dev (pko.QIF) + auto-match-at-promote REMOVED.** Validated parse → role-aware mapping → bulk-create → pre-flight → promote → rollback against the PLN pko.QIF sample. Parse/roles/cutoff/calibration/rollback all behaved correctly; full row reconciliation held (2711 staged = 136 split-parents skipped + cutoff-dropped + inserted). Two real bugs found, plus the auto-matcher redesign:
