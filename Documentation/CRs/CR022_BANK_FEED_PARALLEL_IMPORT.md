@@ -248,6 +248,11 @@ No removal of PS happens during this phase. **PS-removal exit criteria (open CR0
 
 > **Note on the observation premise:** this gate assumes PocketSmith is *still actively syncing* in prod (confirmed 2026-06-01). If PS coverage degrades during the window, criterion 2 weakens — `merged_with_ps_count` can fall not because bank-feed is wrong but because PS stopped seeing the transactions. In that case lean on criterion 1 (`ps_only`=0) plus manual balance reconciliation rather than the merge ratio.
 
+**Observation cadence (operationalizes criterion 1 — added 2026-06-02).** The reconciliation gate only produces a real signal once both feeds are live in prod — it cannot be previewed in dev (dev PS is frozen at 2026-03-31 and bank-feed was never promoted there, so `reconcile()`'s ledger-vs-ledger compare is structurally all-zero; see §9). So the measurement *is* the prod parallel run. Cadence:
+> 1. **Day one** (right after the first prod promote, §11 STEP 7): read `GET /reconciliation?sinceDays=30`. Confirm `matched > 0` on busy accounts (proves overlap). If `matched == 0` everywhere, STOP and investigate — do not start the month-long clock on a feed that isn't actually promoting.
+> 2. **Weekly** during the window: re-read `sinceDays=30`; record `total_ps_only` per account. The number should sit at 0 or return to 0 quickly after transients.
+> 3. **Before opening CR023**: read `sinceDays=30` AND `sinceDays=90`; both must show `total_ps_only=0` across all mapped accounts, held for ≥1 month. A *persistent* `ps_only` row on any account is a hard blocker (criterion 1).
+
 ## 5. Test Plan
 
 ### 5.1 Backend Jest unit tests
@@ -834,12 +839,29 @@ curl -s http://localhost:3005/api/v2/bank-feed/account-mappings | jq '.accounts 
 # ──────────────────────────────────────────────────────────────────────
 
 # ──────────────────────────────────────────────────────────────────────
-# STEP 7 — Seed the ledger + start the parallel run
+# STEP 7 — Seed the ledger + start the parallel run + DAY-ONE coverage read
 # ──────────────────────────────────────────────────────────────────────
 # Click "Import now" once (full refresh: stage + promote mapped accounts).
 # Then verify in the review queue (/refresh-ps) that bank-feed rows appear
-# accepted=FALSE. Check the reconciliation panel — expect ps_only > 0 initially
-# (bank-feed backfilling), trending toward 0 as it catches up.
+# accepted=FALSE.
+#
+# DAY-ONE reconciliation read (the coverage-caveat gate — do this immediately
+# after the first promote, while both feeds are live):
+curl -s "http://localhost:3005/api/v2/bank-feed/reconciliation?sinceDays=30" | jq '{total_ps_only, accounts: [.accounts[] | {account_name, matched, ps_only, bank_feed_only}]}'
+#   Interpret (reconcile is LEDGER-vs-LEDGER: promoted PS rows vs promoted
+#   bank-feed rows in `transactions`, NOT vs the live feed):
+#     - matched > 0 on the busy accounts  → the feeds genuinely overlap. GOOD.
+#     - matched == 0 everywhere           → bank-feed didn't promote, or the
+#                                            window predates the promote. STOP,
+#                                            investigate before observing a month.
+#     - ps_only > 0 early                 → expected transient (bank-feed
+#                                            backfilling / a feed lagging a day);
+#                                            must trend to 0, not persist.
+#     - bank_feed_only > 0                → usually fine (bank-feed more complete);
+#                                            spot-check a few are real, not mis-keyed.
+#   (Why no dev dry-run: dev PS is frozen + bank-feed was never promoted there,
+#    so reconcile is structurally all-zero in dev — see §9 2026-06-02. Prod is
+#    the first env that produces a real signal. That's inherent, not a gap.)
 
 # ──────────────────────────────────────────────────────────────────────
 # STEP 8 — Schedule the hands-off pull (G1) on the prod host
