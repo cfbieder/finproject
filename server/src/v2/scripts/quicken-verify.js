@@ -68,8 +68,28 @@ async function verify(pool, args) {
   );
   const s = summary.rows[0];
   if (s.n === 0) {
-    fail('batch-exists', `no transactions for import_batch_id=${args.batch}`);
-    return results; // nothing else is meaningful
+    // A promoted batch with 0 landed rows is BENIGN, not broken: every parsed
+    // row sat on/after its account's PocketSmith cutoff and was correctly
+    // dropped (the account's history is already in PS). The admin UI shows the
+    // same "0 — all already in PocketSmith" state. Only flag a hard FAIL when a
+    // non-promoted batch unexpectedly has no rows.
+    const { rows: br } = await pool.query(
+      `select status from quicken_import_batches where id = $1`,
+      [args.batch]
+    );
+    const status = br[0] && br[0].status;
+    if (status === 'promoted') {
+      warn(
+        'batch-exists',
+        `0 imported — all parsed rows cutoff-dropped (redundant with PocketSmith)`
+      );
+    } else {
+      fail(
+        'batch-exists',
+        `no transactions for import_batch_id=${args.batch} (status=${status || 'unknown'})`
+      );
+    }
+    return results; // nothing else is meaningful with 0 rows
   }
   pass(
     'batch-exists',
