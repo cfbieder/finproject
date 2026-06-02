@@ -503,7 +503,11 @@ router.post('/batches/:id/rollback', async (req, res, next) => {
 // are global (keyed by source + name) and intentionally preserved, so deleting
 // a batch never loses mapping work.
 // ───────────────────────────────────────────────────────────────────────────
-const DELETABLE_STATUSES = ['parsing', 'parsed', 'mapped', 'failed'];
+// Hard-deletable statuses: never-promoted batches, plus rolled_back (its ledger
+// rows + calibration were already reversed by rollback, leaving only staging).
+// 'promoted'/'promoting' are excluded — roll back first (reverses opening_balance
+// calibration safely). A transaction-count guard below is the belt-and-suspenders.
+const DELETABLE_STATUSES = ['parsing', 'parsed', 'mapped', 'failed', 'rolled_back'];
 const STAGING_TABLES = [
   'quicken_staging',
   'quicken_securities_staging',
@@ -525,6 +529,19 @@ router.delete('/batches/:id', async (req, res, next) => {
     if (!DELETABLE_STATUSES.includes(status)) {
       return res.status(409).json({
         error: `cannot delete a '${status}' batch — roll it back first`,
+      });
+    }
+
+    // Safety guard: never hard-delete a batch that still has ledger rows (would
+    // orphan transactions with a dangling import_batch_id). A rolled_back batch
+    // should have 0; refuse if not (e.g. a partial rollback).
+    const { rows: txRows } = await pool.query(
+      'SELECT COUNT(*)::int AS n FROM transactions WHERE import_batch_id = $1',
+      [id]
+    );
+    if (txRows[0].n > 0) {
+      return res.status(409).json({
+        error: `cannot delete — batch still has ${txRows[0].n} transaction(s); roll it back first`,
       });
     }
 

@@ -356,10 +356,11 @@ function NewImportModal({ batches, onClose, onDone }) {
   );
 }
 
-// Unpromoted batches (no ledger rows) can be hard-deleted; promoted/in-flight
-// ones must be rolled back instead. Mirrors the server's DELETABLE_STATUSES.
+// Hard-deletable: never-promoted batches, plus rolled_back (ledger rows already
+// reversed by rollback). promoted/in-flight must be rolled back first. Mirrors
+// the server's DELETABLE_STATUSES. So a wrongly-promoted file: Rollback → Delete.
 const canDeleteBatch = (status) =>
-  ["parsing", "parsed", "mapped", "failed"].includes(status);
+  ["parsing", "parsed", "mapped", "failed", "rolled_back"].includes(status);
 
 // Per-batch record accounting for the list. records = parsed (staged) rows;
 // imported = rows that landed in `transactions`; skipped = the difference
