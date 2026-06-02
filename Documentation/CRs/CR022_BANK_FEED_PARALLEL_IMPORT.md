@@ -767,7 +767,7 @@ Surfaced during implementation + the workflow walkthrough (2026-06-01). The 5-st
 
 **Deploy-safety (answers "is partially-finished CR022 code safe to deploy from this branch?"):** **Yes — it cannot break existing functionality**, by design: (a) nothing CR022 runs at startup — only route mounting, so the server boots regardless of schema; (b) the sole edit to a live PS code path (`ingestPs.js` `syncStagingToTransactions`) self-guards via `bankFeedColumnExists()` — column absent → dedup clause empty → PS promote unchanged byte-for-byte; (c) the new `/ingest-bank-feed/*` + bank-feed routes are only reachable if a user opens the Refresh Bank Feed page, and on a pre-023 DB they return a contained error envelope (no data risk, no corruption). Worst case on a partial deploy: the Refresh Bank Feed page errors until 023+024 are applied. Existing PS/quicken/forecast paths are untouched.
 
-Other open CR021-side follow-ups (not CR022): `updated_since` query param on `/v1/transactions`; per-transaction `balance_after_transaction` on the contract.
+Other open CR021-side follow-ups (not CR022): `updated_since` query param on `/v1/transactions`; per-transaction `balance_after_transaction` on the contract. **Feed-health drift anchor ordering** (logged 2026-06-02, bank-feed `HANDOFFS.md`): `/v1/health/feeds` anchors `latest_balance_after` by same-day ingest `id`, which PKO doesn't order chronologically — produces a false drift / "BLOCKED TX" on multi-transaction days (verified harmless: data self-consistent, ledger + `ps_only` gate unaffected). Fix anchor to use true sequence.
 
 **Balance-difference handling (workflow Q):** "reported vs computed balance differ for an account" is already answered by the bank-feed `/v1/health/feeds` per-account reconciliation (`reported_current_balance` vs `expected_current_balance`, `drift`, `drift_significant`), rendered on the page's Feed-health table. This is distinct from the fin-side **PS-only reconciliation** (§G / `GET /reconciliation`): drift = "does the feed's own math match the bank's reported balance?"; PS-only = "did bank-feed miss a transaction PocketSmith has?". G6 is the known false-positive in the drift check.
 
@@ -885,7 +885,7 @@ crontab -e
 
 ---
 
-Other open CR021-side follow-ups (not CR022): `updated_since` query param on `/v1/transactions`; per-transaction `balance_after_transaction` on the contract.
+Other open CR021-side follow-ups (not CR022): `updated_since` query param on `/v1/transactions`; per-transaction `balance_after_transaction` on the contract. **Feed-health drift anchor ordering** (logged 2026-06-02, bank-feed `HANDOFFS.md`): `/v1/health/feeds` anchors `latest_balance_after` by same-day ingest `id`, which PKO doesn't order chronologically — produces a false drift / "BLOCKED TX" on multi-transaction days (verified harmless: data self-consistent, ledger + `ps_only` gate unaffected). Fix anchor to use true sequence.
 
 **Balance-difference handling (workflow Q):** "reported vs computed balance differ for an account" is already answered by the bank-feed `/v1/health/feeds` per-account reconciliation (`reported_current_balance` vs `expected_current_balance`, `drift`, `drift_significant`), rendered on the page's Feed-health table. This is distinct from the fin-side **PS-only reconciliation** (§G / `GET /reconciliation`): drift = "does the feed's own math match the bank's reported balance?"; PS-only = "did bank-feed miss a transaction PocketSmith has?". G6 is the known false-positive in the drift check.
 
