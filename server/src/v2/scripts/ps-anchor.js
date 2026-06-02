@@ -29,6 +29,11 @@
  *     lump-anchoring brokerage history is a separate, lossy decision (§22), and
  *     a true ledger inconsistency must be investigated, not papered over.
  *
+ * Accounts under a feed-owned brokerage container (BROKERAGE_CONTAINERS) are
+ * SKIPPED entirely — their balance is mark-to-market and belongs to the bank-feed
+ * (`feed_balances`), so ps-anchor must not anchor them (it would re-create the
+ * stale row the feed integration removes). Reported, never written.
+ *
  * Idempotent: gaps are computed EXCLUDING prior 'ps-anchor' rows, and --apply
  * deletes this script's prior rows for a touched account before reinserting.
  * Safe to re-run. Computes everything from whatever DB DATABASE_URL points at —
@@ -51,6 +56,15 @@ const EPS = 0.01; // 1¢ tolerance
 const ANCHOR_SOURCE = 'ps-anchor';
 const ANCHOR_DESC = 'Opening Balance (PS anchor)';
 
+// Feed-owned brokerage subtrees — ps-anchor must NOT anchor these. Their balance
+// is mark-to-market and belongs to the bank-feed (`feed_balances`), not to a
+// transaction-sum opening balance (a lump anchor can't track market value and
+// would re-create the stale row the feed integration deletes — see CR019 §22.2 /
+// FC_NEXT_STEPS Known Issue #4). Cash accounts that happen to be bank-feed-mapped
+// are NOT excluded: their pre-coverage opening balance is real and the feed
+// (recent transactions only) does not provide it. Extend as more brokerages land.
+const BROKERAGE_CONTAINERS = ['Fidelity Stock', 'Fidelity Fixed Income'];
+
 function parseArgs(argv) {
   const args = { apply: false };
   for (const a of argv) {
@@ -72,7 +86,24 @@ async function resolveBaseAmount(client, amount, currency, transactionDate) {
   return Math.round((amount / parseFloat(rows[0].rate)) * 10000) / 10000;
 }
 
-async function classify(pool) {
+// Account ids whose ancestry includes a feed-owned brokerage container.
+async function findFeedOwnedAccountIds(pool) {
+  const { rows } = await pool.query(
+    `WITH RECURSIVE containers AS (
+       SELECT id FROM accounts WHERE name = ANY($1)
+     ),
+     down AS (
+       SELECT id FROM accounts WHERE id IN (SELECT id FROM containers)
+       UNION ALL
+       SELECT a.id FROM accounts a JOIN down ON a.parent_id = down.id
+     )
+     SELECT id FROM down`,
+    [BROKERAGE_CONTAINERS]
+  );
+  return new Set(rows.map((r) => r.id));
+}
+
+async function classify(pool, feedOwned = new Set()) {
   const { rows } = await pool.query(`
     WITH base AS (
       SELECT a.id, a.name, a.currency, a.opening_balance, a.opening_balance_date
@@ -116,11 +147,17 @@ async function classify(pool) {
   const reconciled = [];
   const clean = [];
   const divergent = [];
+  const feedOwnedSkipped = [];
   for (const r of rows) {
     const computed = r.ob + r.real_sum;
     const gap = r.ps_close - computed;
     if (Math.abs(gap) <= EPS) {
       reconciled.push(r);
+      continue;
+    }
+    // Feed-owned brokerage: never anchored (the bank-feed owns its balance).
+    if (feedOwned.has(r.id)) {
+      feedOwnedSkipped.push({ ...r, computed, gap });
       continue;
     }
     const openingAnchor =
@@ -131,7 +168,7 @@ async function classify(pool) {
     if (consistent) clean.push(rec);
     else divergent.push(rec);
   }
-  return { reconciled, clean, divergent };
+  return { reconciled, clean, divergent, feedOwnedSkipped };
 }
 
 function fmt(n) {
@@ -144,12 +181,28 @@ async function main() {
   const args = parseArgs(process.argv.slice(2));
   const pool = new Pool({ connectionString: CONN_STR });
 
-  const { reconciled, clean, divergent } = await classify(pool);
+  const feedOwned = await findFeedOwnedAccountIds(pool);
+  const { reconciled, clean, divergent, feedOwnedSkipped } = await classify(pool, feedOwned);
 
   console.log(
     `\nps-anchor — ${reconciled.length} reconciled, ${clean.length} CLEAN (fixable), ` +
-      `${divergent.length} DIVERGENT (report only)\n`
+      `${divergent.length} DIVERGENT (report only), ` +
+      `${feedOwnedSkipped.length} FEED-OWNED (skipped)\n`
   );
+
+  if (feedOwnedSkipped.length) {
+    console.log(
+      'FEED-OWNED brokerage — NOT anchored (balance belongs to the bank-feed; see\n' +
+        '  CR019 §22.2 / FC_NEXT_STEPS Known Issue #4). Any existing ps-anchor row here\n' +
+        '  is left untouched, to be superseded by the feed integration:'
+    );
+    for (const r of feedOwnedSkipped) {
+      console.log(
+        `  acct ${r.id} ${r.name} [${r.currency}]: computed ${fmt(r.computed)} vs ps_close ${fmt(r.ps_close)}`
+      );
+    }
+    console.log('');
+  }
 
   if (clean.length) {
     console.log('CLEAN — missing opening balance (will insert anchor in --apply):');
