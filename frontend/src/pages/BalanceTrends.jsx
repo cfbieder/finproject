@@ -25,14 +25,24 @@ const flattenBalanceLeaves = (nodes, out = new Map()) => {
     if (hasChildren) {
       flattenBalanceLeaves(n.children, out);
     } else if (n.name) {
+      const balanceInUSD = Number.isFinite(Number(n.totalUSD)) ? Number(n.totalUSD) : 0;
       out.set(n.name, {
         currency: n.currency ?? null,
-        balanceInUSD: Number.isFinite(Number(n.totalUSD)) ? Number(n.totalUSD) : 0,
+        balanceInUSD,
+        // Native-currency balance (`total`); falls back to USD if the node
+        // carries no native figure (e.g. USD-denominated accounts).
+        balanceNative: Number.isFinite(Number(n.total)) ? Number(n.total) : balanceInUSD,
       });
     }
   }
   return out;
 };
+
+const CURRENCY_MODES = [
+  { key: "usd", label: "USD" },
+  { key: "local", label: "Local" },
+  { key: "both", label: "Both" },
+];
 
 const usdFormatter = new Intl.NumberFormat("en-US", {
   style: "currency",
@@ -41,6 +51,29 @@ const usdFormatter = new Intl.NumberFormat("en-US", {
 });
 
 const formatUSD = (v) => usdFormatter.format(Number.isFinite(v) ? v : 0);
+
+// Native-currency formatters, cached per ISO code. Uses currencyDisplay:"code"
+// so mixed-currency columns read unambiguously (e.g. "PLN 153,300").
+const nativeFormatters = new Map();
+const formatNative = (v, code) => {
+  const amount = Number.isFinite(v) ? v : 0;
+  if (!code) return amount.toLocaleString("en-US", { maximumFractionDigits: 0 });
+  let fmt = nativeFormatters.get(code);
+  if (!fmt) {
+    try {
+      fmt = new Intl.NumberFormat("en-US", {
+        style: "currency",
+        currency: code,
+        currencyDisplay: "code",
+        maximumFractionDigits: 0,
+      });
+    } catch {
+      fmt = new Intl.NumberFormat("en-US", { maximumFractionDigits: 0 });
+    }
+    nativeFormatters.set(code, fmt);
+  }
+  return fmt.format(amount);
+};
 
 export default function BalanceTrends() {
   const { bsTree } = useCoa();
@@ -52,6 +85,7 @@ export default function BalanceTrends() {
   const [toYear, setToYear] = useState(CURRENT_YEAR);
 
   const [intervalKey, setIntervalKey] = useState("month");
+  const [currencyKey, setCurrencyKey] = useState("usd"); // usd | local | both
   const [selectedAccounts, setSelectedAccounts] = useState([]);
   const [columns, setColumns] = useState([]); // [{ label, asOf, isPartial }]
   const [reportsByLabel, setReportsByLabel] = useState({});
@@ -124,10 +158,13 @@ export default function BalanceTrends() {
   const rows = useMemo(() => {
     if (!selectedAccounts.length || !columns.length) return [];
     return selectedAccounts.map((name) => {
-      const values = columns.map(({ label }) => {
+      const values = [];
+      const nativeValues = [];
+      for (const { label } of columns) {
         const entry = reportsByLabel[label]?.get(name);
-        return entry ? entry.balanceInUSD : 0;
-      });
+        values.push(entry ? entry.balanceInUSD : 0);
+        nativeValues.push(entry ? entry.balanceNative : 0);
+      }
       // Pick the most recent currency we saw for this account
       let currency = null;
       for (let i = columns.length - 1; i >= 0; i -= 1) {
@@ -137,7 +174,7 @@ export default function BalanceTrends() {
           break;
         }
       }
-      return { name, currency, values };
+      return { name, currency, values, nativeValues };
     });
   }, [selectedAccounts, columns, reportsByLabel]);
 
@@ -153,19 +190,40 @@ export default function BalanceTrends() {
   const handleExport = useCallback(() => {
     if (!hasTable) return;
     const round2 = (v) => Math.round((v || 0) * 100) / 100;
-    const data = [
-      ["Period", ...rows.map((r) => r.name), "Total (selected, USD)"],
-      ["", ...rows.map((r) => r.currency ?? ""), "USD"],
-    ];
-    columns.forEach((col, colIdx) => {
-      data.push([
-        formatColumnHeader(col.label, intervalKey, col.isPartial),
-        ...rows.map((r) => round2(r.values[colIdx])),
-        round2(totals[colIdx]),
-      ]);
-    });
+    let header;
+    let currRow;
+    const bodyRows = [];
+    if (currencyKey === "both") {
+      // Two value columns per account (native + USD); Total stays USD.
+      header = ["Period"];
+      currRow = [""];
+      for (const r of rows) {
+        header.push(r.name, `${r.name} (USD)`);
+        currRow.push(r.currency ?? "", "USD");
+      }
+      header.push("Total (selected, USD)");
+      currRow.push("USD");
+      columns.forEach((col, colIdx) => {
+        const row = [formatColumnHeader(col.label, intervalKey, col.isPartial)];
+        for (const r of rows) row.push(round2(r.nativeValues[colIdx]), round2(r.values[colIdx]));
+        row.push(round2(totals[colIdx]));
+        bodyRows.push(row);
+      });
+    } else {
+      const useNative = currencyKey === "local";
+      header = ["Period", ...rows.map((r) => r.name), "Total (selected, USD)"];
+      currRow = ["", ...rows.map((r) => r.currency ?? ""), "USD"];
+      columns.forEach((col, colIdx) => {
+        bodyRows.push([
+          formatColumnHeader(col.label, intervalKey, col.isPartial),
+          ...rows.map((r) => round2(useNative ? r.nativeValues[colIdx] : r.values[colIdx])),
+          round2(totals[colIdx]),
+        ]);
+      });
+    }
+    const data = [header, currRow, ...bodyRows];
     const ws = XLSX.utils.aoa_to_sheet(data);
-    ws["!cols"] = [{ wch: 12 }, ...rows.map(() => ({ wch: 16 })), { wch: 18 }];
+    ws["!cols"] = header.map((_, i) => (i === 0 ? { wch: 12 } : { wch: 16 }));
     const wb = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(wb, ws, "Balance Trends");
     const buffer = XLSX.write(wb, { bookType: "xlsx", type: "array" });
@@ -175,12 +233,12 @@ export default function BalanceTrends() {
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a");
     a.href = url;
-    a.download = `balance-trends-${actualYear}${fromMonth}-${toYear}${toMonth}-${intervalKey}.xlsx`;
+    a.download = `balance-trends-${actualYear}${fromMonth}-${toYear}${toMonth}-${intervalKey}-${currencyKey}.xlsx`;
     document.body.appendChild(a);
     a.click();
     a.remove();
     URL.revokeObjectURL(url);
-  }, [hasTable, columns, rows, totals, actualYear, fromMonth, toYear, toMonth, intervalKey]);
+  }, [hasTable, columns, rows, totals, actualYear, fromMonth, toYear, toMonth, intervalKey, currencyKey]);
 
   return (
     <main className="page-main balance-grid balance-grid--single">
@@ -234,6 +292,25 @@ export default function BalanceTrends() {
                     intervalKey === opt.key ? " is-active" : ""
                   }`}
                   onClick={() => setIntervalKey(opt.key)}
+                >
+                  {opt.label}
+                </button>
+              ))}
+            </div>
+          </div>
+          <div className="balance-trends-toolbar__interval">
+            <span className="balance-trends-toolbar__interval-label">Currency</span>
+            <div className="balance-trends-toolbar__interval-pills" role="radiogroup" aria-label="Currency">
+              {CURRENCY_MODES.map((opt) => (
+                <button
+                  key={opt.key}
+                  type="button"
+                  role="radio"
+                  aria-checked={currencyKey === opt.key}
+                  className={`balance-trends-toolbar__interval-pill${
+                    currencyKey === opt.key ? " is-active" : ""
+                  }`}
+                  onClick={() => setCurrencyKey(opt.key)}
                 >
                   {opt.label}
                 </button>
@@ -300,13 +377,32 @@ export default function BalanceTrends() {
                       {formatColumnHeader(col.label, intervalKey, col.isPartial)}
                     </td>
                     {rows.map((row) => {
-                      const v = row.values[colIdx];
+                      const usd = row.values[colIdx];
+                      const nat = row.nativeValues[colIdx];
+                      if (currencyKey === "both") {
+                        return (
+                          <td key={row.name} className="balance-trends-table__td-value">
+                            <span
+                              className={`balance-trends-table__val-native${nat < 0 ? " is-negative" : ""}`}
+                            >
+                              {formatNative(nat, row.currency)}
+                            </span>
+                            <span
+                              className={`balance-trends-table__val-usd${usd < 0 ? " is-negative" : ""}`}
+                            >
+                              {formatUSD(usd)}
+                            </span>
+                          </td>
+                        );
+                      }
+                      const useNative = currencyKey === "local";
+                      const v = useNative ? nat : usd;
                       return (
                         <td
                           key={row.name}
                           className={`balance-trends-table__td-value${v < 0 ? " is-negative" : ""}`}
                         >
-                          {formatUSD(v)}
+                          {useNative ? formatNative(v, row.currency) : formatUSD(v)}
                         </td>
                       );
                     })}

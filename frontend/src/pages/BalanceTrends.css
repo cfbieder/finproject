@@ -262,6 +262,23 @@
   color: var(--danger, #b14a4a);
 }
 
+/* "Both" currency mode: native on top, USD muted beneath */
+.balance-trends-table__val-native {
+  display: block;
+}
+
+.balance-trends-table__val-usd {
+  display: block;
+  margin-top: 0.1rem;
+  font-size: 0.8rem;
+  color: var(--muted);
+}
+
+.balance-trends-table__val-native.is-negative,
+.balance-trends-table__val-usd.is-negative {
+  color: var(--danger, #b14a4a);
+}
+
 .balance-trends-table tbody tr:hover .balance-trends-table__td-account,
 .balance-trends-table tbody tr:hover td {
   background: var(--surface-hover, rgba(107, 142, 107, 0.06));
