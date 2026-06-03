@@ -24,7 +24,7 @@
  */
 
 const bankFeedClient = require('./bankFeedClient');
-const { normalizeBatch, findPsMatch } = require('../converters/bankFeedToCanonical');
+const { normalizeBatch, findPsMatch, categorizeFidelityActivity } = require('../converters/bankFeedToCanonical');
 const staging = require('../repositories/bankfeedStaging');
 const db = require('../db');
 
@@ -159,34 +159,62 @@ async function promote() {
     SELECT s.id, s.external_id, s.feed_account_external_id,
            s.transaction_date::text AS transaction_date,
            s.amount, s.currency, s.base_amount, s.base_currency,
-           s.description, s.merchant,
-           m.account_id AS fin_account_id, m.ignored
+           s.description, s.merchant, s.activity_type,
+           m.account_id AS fin_account_id, m.ignored, m.trade_treatment
     FROM bankfeed_staging s
     LEFT JOIN account_source_mappings m
       ON m.source = '${SOURCE}' AND m.external_name = s.feed_account_external_id
     WHERE s.promoted_transaction_id IS NULL
       AND s.pending = FALSE
+      AND s.suppressed = FALSE
     ORDER BY s.transaction_date, s.id
   `)).rows;
 
   const ignoredAccounts = new Set();
   const unmappedAccounts = new Set();
   const promotable = [];
+  const toSuppress = [];   // staging ids of net-zero plumbing (LOAN/JOURNALED/OPTIONEXPIRATION)
   for (const r of rows) {
     // Order matters: an ignore-only row has ignored=TRUE with fin_account_id=NULL
     // (migration 024). Check ignored FIRST so it reports as ignored, not unmapped,
     // and so an explicitly-ignored mapped account is also suppressed.
     if (r.ignored === true) { ignoredAccounts.add(r.feed_account_external_id); continue; }
     if (r.fin_account_id == null) { unmappedAccounts.add(r.feed_account_external_id); continue; }
+    // CR024 Phase 2: route by SnapTrade activity_type. Suppress net-zero plumbing
+    // so it never promotes; income/transfer carry a COA category; review = null
+    // category (PKO rows + unknown types → existing review-queue behavior).
+    const cat = categorizeFidelityActivity(r.activity_type, r.trade_treatment);
+    if (cat.action === 'suppress') { toSuppress.push(r.id); continue; }
+    r._category = cat;
     promotable.push(r);
+  }
+
+  // Resolve the categorizer's COA leaf names → ids (DB-agnostic; fail loud if a
+  // mapped name is missing so a renamed/absent category can't silently mis-book).
+  const neededNames = [...new Set(promotable.map((r) => r._category.category).filter(Boolean))];
+  const catIdByName = {};
+  if (neededNames.length) {
+    const cres = await db.query(`SELECT id, name FROM accounts WHERE name = ANY($1)`, [neededNames]);
+    for (const row of cres.rows) catIdByName[row.name] = row.id;
+    for (const n of neededNames) {
+      if (catIdByName[n] == null) throw new Error(`promote: categorizer COA leaf not found: "${n}"`);
+    }
   }
 
   let inserted = 0;
   let linked = 0;
+  let suppressed = 0;
   const mergedWithPsCount = {};
   const dedup = dedupEnabled();
 
   await db.transaction(async (client) => {
+    // Mark net-zero plumbing rows suppressed so they never promote and aren't
+    // re-evaluated on the next run.
+    if (toSuppress.length) {
+      await client.query(`UPDATE bankfeed_staging SET suppressed = TRUE WHERE id = ANY($1)`, [toSuppress]);
+      suppressed = toSuppress.length;
+    }
+
     for (const r of promotable) {
       let matchedTxId = null;
 
@@ -232,11 +260,15 @@ async function promote() {
         const baseAmt = r.base_amount != null
           ? Number(r.base_amount)
           : await usdBaseAmount(client, r.amount, r.currency, r.transaction_date);
+        // CR024 Phase 2: assign the categorizer's COA category at insert (income/
+        // transfer). 'review' (PKO + unknown types) → NULL category = existing
+        // review-queue behavior. All rows still land accepted=FALSE.
+        const categoryId = r._category && r._category.category ? catIdByName[r._category.category] : null;
         const ins = await client.query(`
           INSERT INTO transactions
             (transaction_date, description1, amount, currency, base_amount, base_currency,
-             account_id, source, bank_feed_external_id, accepted)
-          VALUES ($1, $2, $3, $4, $5, $6, $7, '${SOURCE}', $8, FALSE)
+             account_id, category_id, source, bank_feed_external_id, accepted)
+          VALUES ($1, $2, $3, $4, $5, $6, $7, $8, '${SOURCE}', $9, FALSE)
           ON CONFLICT (bank_feed_external_id) WHERE bank_feed_external_id IS NOT NULL
           DO NOTHING
           RETURNING id
@@ -248,6 +280,7 @@ async function promote() {
           baseAmt,
           'USD',
           r.fin_account_id,
+          categoryId,
           r.external_id,
         ]);
         if (ins.rows[0]) {
@@ -271,6 +304,7 @@ async function promote() {
     inserted,
     updated: 0,            // promote never re-touches an already-promoted row
     linked,
+    suppressed,            // CR024 Phase 2: net-zero plumbing rows held back
     skipped: 0,
     protectedCount: 0,
     mergedWithPsCount,

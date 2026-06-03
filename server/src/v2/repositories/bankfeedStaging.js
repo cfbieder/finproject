@@ -14,7 +14,7 @@ const db = require('../db');
 const INSERT_COLUMNS = `
   external_id, source, feed_account_external_id, transaction_date,
   amount, currency, base_amount, base_currency,
-  description, merchant, category_hint, pending, raw
+  description, merchant, category_hint, pending, raw, activity_type
 `;
 
 function insertParams(row) {
@@ -32,6 +32,7 @@ function insertParams(row) {
     row.category_hint || null,
     row.pending === true,
     row.raw != null ? JSON.stringify(row.raw) : null, // jsonb param must be a JSON string
+    row.activity_type || null,
   ];
 }
 
@@ -44,7 +45,7 @@ function insertParams(row) {
 async function upsert(row) {
   const sql = `
     INSERT INTO bankfeed_staging (${INSERT_COLUMNS})
-    VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)
+    VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14)
     ON CONFLICT (source, external_id) DO UPDATE SET
       feed_account_external_id = EXCLUDED.feed_account_external_id,
       transaction_date = EXCLUDED.transaction_date,
@@ -56,7 +57,8 @@ async function upsert(row) {
       merchant = EXCLUDED.merchant,
       category_hint = EXCLUDED.category_hint,
       pending = EXCLUDED.pending,
-      raw = EXCLUDED.raw
+      raw = EXCLUDED.raw,
+      activity_type = EXCLUDED.activity_type
     RETURNING *, (xmax = 0) AS inserted
   `;
   const result = await db.query(sql, insertParams(row));

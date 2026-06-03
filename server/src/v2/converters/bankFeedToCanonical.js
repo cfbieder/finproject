@@ -97,9 +97,42 @@ function normalizeFeedTransaction(tx, opts = {}) {
     description: tx.description != null ? String(tx.description).slice(0, 500) : null,
     merchant: tx.merchant != null ? String(tx.merchant).slice(0, 200) : null,
     category_hint: tx.category_hint != null ? String(tx.category_hint).slice(0, 100) : null,
+    activity_type: tx.activity_type != null ? String(tx.activity_type).slice(0, 40) : null,
     pending: tx.pending === true,
     raw: tx,                      // whole contract row (no separate raw field on the list endpoint)
   };
+}
+
+// ── CR024 Phase 2: Fidelity activity categorizer ──────────────────────────────
+//
+// Maps a SnapTrade activity_type (+ the account's trade_treatment) to a promote
+// action. Category names (not ids) so promote resolves them per-DB. Returns:
+//   { action: 'income'|'transfer', category: '<COA leaf name>' }  → insert, categorized
+//   { action: 'suppress' }                                        → never promote (net-zero plumbing)
+//   { action: 'review' }                                          → insert uncategorized (accepted=FALSE)
+//
+// activity_type is null for non-Fidelity rows (PKO/GoCardless) → 'review', i.e. the
+// pre-Phase-2 behavior (promote uncategorized to the review queue). Unknown/new
+// SnapTrade types (e.g. PAYMENT, FEE) fail safe to 'review' — never dropped, never
+// mis-booked.
+function categorizeFidelityActivity(activityType, tradeTreatment) {
+  if (activityType == null) return { action: 'review' };
+  switch (String(activityType).toUpperCase()) {
+    case 'INTEREST':         return { action: 'income',   category: 'Interest Income' };
+    case 'DIVIDEND':         return { action: 'income',   category: 'Financial Income - Dividend' };
+    case 'REI':              return { action: 'transfer', category: 'Transfer - Securities Trades' };
+    case 'BUY':
+    case 'SELL':
+      return tradeTreatment === 'income'
+        ? { action: 'income',   category: 'Option Trade' }
+        : { action: 'transfer', category: 'Transfer - Securities Trades' };
+    case 'CONTRIBUTION':
+    case 'WITHDRAWAL':       return { action: 'transfer', category: 'Transfer - Bank' };
+    case 'LOAN':
+    case 'JOURNALED':
+    case 'OPTIONEXPIRATION': return { action: 'suppress' };
+    default:                 return { action: 'review' };
+  }
 }
 
 /**
@@ -196,6 +229,7 @@ module.exports = {
   normalizeFeedTransaction,
   normalizeBatch,
   findPsMatch,
+  categorizeFidelityActivity,
   // exposed for tests / reuse
   MATCH_TOLERANCE_DAYS,
   _toMinorUnits4: toMinorUnits4,
