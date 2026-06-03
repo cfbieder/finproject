@@ -57,20 +57,6 @@ function parseArgs(argv) {
   return args;
 }
 
-async function resolveParentId(client, parentName) {
-  const { rows } = await client.query(
-    'SELECT id FROM accounts WHERE name = $1',
-    [parentName]
-  );
-  if (rows.length === 0) {
-    throw new Error(`required parent "${parentName}" not found — seed/check the base COA first`);
-  }
-  if (rows.length > 1) {
-    throw new Error(`parent "${parentName}" is ambiguous (${rows.length} matches) — resolve manually`);
-  }
-  return rows[0].id;
-}
-
 async function main() {
   const args = parseArgs(process.argv.slice(2));
   const pool = new Pool({ connectionString: CONN_STR });
@@ -78,6 +64,10 @@ async function main() {
 
   let created = 0;
   let exists = 0;
+  // Names that exist in the DB OR are planned to be created earlier in this run.
+  // Lets dry-run resolve a parent that --apply would have created already (e.g.
+  // "Closed Cash (default)" under the just-created "Historical Assets").
+  const seen = new Set();
   try {
     await client.query('BEGIN');
     console.log(`\nseed-cr019-coa — ${SEED_OBJECTS.length} object(s)${args.apply ? ' (--apply)' : ' (dry-run)'}\n`);
@@ -88,15 +78,34 @@ async function main() {
       );
       if (present.length > 0) {
         exists += 1;
+        seen.add(o.name);
         console.log(`  exists   "${o.name}" (id ${present.map((r) => r.id).join(',')})`);
         continue;
       }
-      const parentId = o.parent ? await resolveParentId(client, o.parent) : null;
+      // Resolve parent: prefer the DB; else accept a parent planned earlier this
+      // run (dry-run has no id for it yet → shown as "pending").
+      let parentId = null;
+      let parentLabel = '(root)';
+      if (o.parent) {
+        const { rows: pr } = await client.query('SELECT id FROM accounts WHERE name = $1', [o.parent]);
+        if (pr.length === 1) { parentId = pr[0].id; parentLabel = `"${o.parent}" (id ${parentId})`; }
+        else if (pr.length > 1) throw new Error(`parent "${o.parent}" is ambiguous (${pr.length} matches)`);
+        else if (seen.has(o.parent)) { parentLabel = `"${o.parent}" (created earlier this run)`; }
+        else throw new Error(`required parent "${o.parent}" not found — seed/check the base COA first`);
+      }
       if (!args.apply) {
-        console.log(`  CREATE   "${o.name}" → parent ${o.parent ? `"${o.parent}" (id ${parentId})` : '(root)'} [${o.section}/${o.account_type}]`);
+        console.log(`  CREATE   "${o.name}" → parent ${parentLabel} [${o.section}/${o.account_type}]`);
+        seen.add(o.name);
         created += 1;
         continue;
       }
+      // --apply: a parent planned earlier this run is now committed in-tx — re-resolve.
+      if (o.parent && parentId === null) {
+        const { rows: pr2 } = await client.query('SELECT id FROM accounts WHERE name = $1', [o.parent]);
+        if (pr2.length !== 1) throw new Error(`parent "${o.parent}" did not resolve at insert time`);
+        parentId = pr2[0].id;
+      }
+      seen.add(o.name);
       const { rows: ins } = await client.query(
         `INSERT INTO accounts
            (name, parent_id, section, account_type, currency, is_active,
