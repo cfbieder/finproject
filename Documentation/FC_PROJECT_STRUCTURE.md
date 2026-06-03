@@ -115,6 +115,7 @@ psproject/                          # ~/Programs/fin symlinks here
 │   ├── FC_PROJECT_STRUCTURE.md  # This file — current state of the project
 │   ├── FC_NEXT_STEPS.md         # Development plan + open work + known issues
 │   ├── FC_MODULE_MAPPING.md     # Forecast terminology and data mapping reference
+│   ├── OCME_BANK_FEED_IMPORT_GUIDE.md  # Hand-off: how the OCME app imports from the same fintable Sheet via the bank-feed /v1/* contract (CR021)
 │   ├── CRs/                     # Change Requests — CR_INDEX.md + CR001..CR0NN
 │   ├── Guides/                  # Operational guides (GUIDE_BACKUP, GUIDE_RESTORE, GUIDE_TMUX)
 │   ├── Testing/                 # Test overview + manual QA checklists
@@ -801,8 +802,8 @@ Config uses `.env` file (git-ignored) for secrets, with defaults in `docker-comp
 | `NODE_ENV` | `production` | Server environment |
 | `PORT` | `3005` | Server port |
 | `LLM_GATEWAY_URL` | `http://192.168.1.61:8080` | Base URL of the local `ocr-llm` gateway (LAN). AI Review POSTs to `${LLM_GATEWAY_URL}/task` with `task: "finance_plan_review"`. Local-only route (heavy → mid); no API key required. |
-| `BANK_FEED_URL` | `http://host.docker.internal:3007` | Base URL of the CR021 bank-feed microservice. Injected into the server container by both `docker-compose.yml` and `docker-compose.dev.yml`. |
-| `BANK_FEED_API_KEY` | (empty) | Auth key for the bank-feed service (CR022). **Secret — keep in `.env` only, never commit.** Defaults to empty (`${BANK_FEED_API_KEY:-}`); the import path is dormant until wired up, so empty is safe for now. |
+| `BANK_FEED_URL` | `http://host.docker.internal:3007` | Base URL of the CR021 bank-feed microservice. Injected into the server container by both `docker-compose.yml` and `docker-compose.dev.yml`. Other Tailscale nodes (e.g. the OCME app on `ocmedev`) reach the same service at `http://100.94.46.62:3007`. The contract exposes `/v1/{health,accounts,transactions,balances,connections,health/feeds}` plus `POST /v1/sync` (force a Sheet re-read; `?max_age=<min>` skip-if-fresh, `?force=true`, concurrent calls coalesce — bank-feed v0.2.0). |
+| `BANK_FEED_API_KEY` | (empty) | Auth key for the bank-feed service, sent as `X-API-Key` (or `Bearer`). **Secret — keep in `.env` only, never commit.** **Now live:** the bank-feed import path is active in prod (CR022 parallel run + CR024 Fidelity feeds), so this must hold the real key — empty disables all `/v1/*` calls. The same key is shared by the OCME consumer. The version scripts preserve it in place (see the `.env` gotcha note below). |
 
 > **Note:** `.env` is git-ignored. AI Review no longer needs an Anthropic API key — all LLM calls flow through the local gateway. If the gateway is unreachable, AI Review fails closed with a clear error rather than falling back to a cloud LLM.
 >

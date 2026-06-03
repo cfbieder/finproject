@@ -1,5 +1,7 @@
 **Status:** OPEN — [Plan](../FC_NEXT_STEPS.md#cr021)
 
+> **Post-ship update 2026-06-03 (bank-feed v0.2.0):** `POST /v1/sync` hardened for client-triggered refresh — `?max_age=<minutes>` freshness cap (skip the Sheet read if a recent sync is still fresh), `?force=true` bypass, and in-flight **coalescing** (concurrent callers + the hourly cron share one running sync). Additive within `/v1`; plain `POST /v1/sync` unchanged. Code in `fintableSync.js` (`requestSync` / pure `freshnessDecision`) + `routes/sync.js` + `scheduler.js`; tests `tests/syncGuard.test.js`; contract README updated. **Second consumer added:** the OCME app imports from the same fintable Sheet via `/v1/*` over Tailscale (it does **not** re-read the Sheet directly) — shares the existing `BANK_FEED_API_KEY`, applies its own R1 opt-in mapping, drops R2 (single-source). Build guide: [OCME_BANK_FEED_IMPORT_GUIDE.md](../OCME_BANK_FEED_IMPORT_GUIDE.md). The service now serves **3 institutions** (PKO, Fidelity, Bank Pekao) via per-institution dispatch.
+
 # CR021 — Bank Feed Service (Direct PocketSmith Replacement)
 
 **Created:** 2026-05-28
