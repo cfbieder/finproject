@@ -1563,6 +1563,8 @@ export default function FCReview() {
           transferDetailRows={transferDetailRows}
           getCellValue={getCellValue}
           balanceDisplayValues={balanceDisplayValues}
+          balanceAccountMap={balanceAccountMap}
+          bankAccountLabels={bankAccountLabels}
           totalAssetsByYear={totalAssetsByYear}
           totalLiabilitiesByYear={totalLiabilitiesByYear}
           netAssetsByYear={netAssetsByYear}

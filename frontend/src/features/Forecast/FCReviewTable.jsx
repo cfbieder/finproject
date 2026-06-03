@@ -2,55 +2,155 @@ import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { formatAmount } from "./utils/fcReviewUtils.js";
 import FCReviewTableControls from "./FCReviewTableControls.jsx";
 
-function EquityBridgeRows({ sortedYears, cashRowsWithNet, getCellValue, totalAssetsByYear, selectCellBaseStyle, accountCellBaseStyle }) {
+/**
+ * Change in Net Assets bridge.
+ *
+ * Decomposes the year-over-year change in Net Assets (Assets − Liabilities) into
+ * its two drivers, which reconcile exactly:
+ *
+ *   ΔNet Assets = Operating Cash Flow + Σ Unrealized G/L (per balance-sheet line)
+ *
+ * - **Operating Cash Flow** = Income + Expense (incl. tax). Transfers are excluded
+ *   because they are internal moves between the bank and tracked BS lines — their
+ *   bank leg would otherwise double-count against the line leg neutralised below.
+ * - **Unrealized G/L** per line = Δ(signed balance) + line transfers, where signed
+ *   balance is +balance for assets / −balance for liabilities, and "line transfers"
+ *   is that line's value from the Transfers section above (bank-impact sign:
+ *   negative = cash invested into the line). This strips invested/withdrawn cash out
+ *   of the balance change, leaving pure non-cash appreciation (incl. FX revaluation
+ *   on foreign-currency assets and liabilities).
+ *
+ * The headline rows always tie by construction (Unrealized total is derived as
+ * ΔNet Assets − Operating). The per-line detail is the explanation; any unattributed
+ * remainder is surfaced as an explicit "Other (unattributed)" line rather than hidden.
+ */
+function EquityBridgeRows({
+  sortedYears,
+  resolveCashValue,
+  transferDetailRows,
+  netAssetsByYear,
+  balanceDisplayValues,
+  balanceAccountMap,
+  bankAccountLabels,
+  balanceAccounts,
+  baseYears,
+  lastActualYears,
+  selectCellBaseStyle,
+  accountCellBaseStyle,
+}) {
   const [collapsed, setCollapsed] = useState(false);
+  const [unrealOpen, setUnrealOpen] = useState(true);
 
   const bridge = useMemo(() => {
-    const cashFlow = []; // Net Cash Flow values
-    const tax = [];
-    const operating = []; // Cash Flow excl tax
-    const netWorthChange = [];
+    const zeros = () => sortedYears.map(() => 0);
 
-    for (let yi = 0; yi < sortedYears.length; yi++) {
-      let cashFlowVal = 0;
-      let taxTotal = 0;
+    // (2) Operating Cash Flow = Income + Expense (excludes Transfers). Computed via
+    // resolveCashValue so it matches the Income / Expense rows shown in the section above.
+    const operating = sortedYears.map((y, yi) => {
+      if (yi === 0) return null; // LastActualYear has no prior year to bridge from
+      const inc = Number(resolveCashValue({ label: "Income", level: 1 }, y)) || 0;
+      const exp = Number(resolveCashValue({ label: "Expense", level: 1 }, y)) || 0;
+      return inc + exp;
+    });
 
-      // Find Cash Flow and Tax from P&L rows
-      for (const row of (cashRowsWithNet || [])) {
-        const label = row.label || "";
-        const val = Number(getCellValue(row, sortedYears[yi], true)) || 0;
-        if (row.isNet || label === "Net Cash Flow") {
-          cashFlowVal = val;
-        } else if (label.toLowerCase().includes("tax")) {
-          taxTotal += val;
-        }
-      }
-      cashFlow.push(cashFlowVal);
-      tax.push(taxTotal);
-      operating.push(cashFlowVal - taxTotal); // Operating = Cash Flow - Tax
-
-      const nw = totalAssetsByYear?.[yi] || 0;
-      const prevNw = yi > 0 ? (totalAssetsByYear?.[yi - 1] || 0) : nw;
-      netWorthChange.push(yi > 0 ? nw - prevNw : 0);
-    }
-
-    const capitalGains = sortedYears.map((_, yi) =>
-      netWorthChange[yi] - cashFlow[yi]
+    // (1) Total Change in Net Assets = NA(year) − NA(year-1)
+    const totalChange = sortedYears.map((_, yi) =>
+      yi === 0 ? null : (netAssetsByYear?.[yi] || 0) - (netAssetsByYear?.[yi - 1] || 0)
     );
 
-    return { operating, tax, capitalGains, netWorthChange };
-  }, [sortedYears, cashRowsWithNet, getCellValue, totalAssetsByYear]);
+    // Roll the per-module transfer rows up to their level-2 balance-sheet line.
+    const transfersByLine = new Map();
+    for (const detail of (transferDetailRows || [])) {
+      const line = balanceAccountMap?.get(detail.module)?.level2 || detail.module;
+      if (bankAccountLabels?.has(line)) continue; // bank side is captured by Operating CF
+      const arr = transfersByLine.get(line) || zeros();
+      (detail.values || []).forEach((v, yi) => { arr[yi] += Number(v) || 0; });
+      transfersByLine.set(line, arr);
+    }
 
-  const rows = [
-    { label: "Operating (excl Tax)", values: bridge.operating },
-    { label: "Tax", values: bridge.tax },
-    { label: "Capital & Unrealized", values: bridge.capitalGains },
-    { label: "Total Change in Net Worth", values: bridge.netWorthChange, bold: true },
-  ];
+    // (3) Per-line Unrealized G/L = Δ(signed balance) + line transfers, over every
+    // non-bank level-2 line (assets and liabilities).
+    const lineRows = [];
+    for (const row of (balanceAccounts || [])) {
+      if (row.level !== 2) continue;
+      const label = row.label;
+      if (bankAccountLabels?.has(label)) continue;
+      const mapping = balanceAccountMap?.get(label);
+      const sign = mapping?.level1 === "Liabilities" ? -1 : 1;
+      const balances = balanceDisplayValues?.get(label);
+      if (!balances) continue;
+      const lineTransfers = transfersByLine.get(label) || zeros();
+      const values = sortedYears.map((_, yi) => {
+        if (yi === 0) return null;
+        const cur = Number(balances[yi]) || 0;
+        const prev = Number(balances[yi - 1]) || 0;
+        return sign * (cur - prev) + (lineTransfers[yi] || 0);
+      });
+      if (values.some((v) => v != null && Math.abs(v) > 0.5)) {
+        lineRows.push({ label, values });
+      }
+    }
+
+    // Unrealized total is authoritative (derived from the net-asset change) so the
+    // headline always reconciles. The per-line rows explain it; "Other" absorbs any gap.
+    const unrealTotal = sortedYears.map((_, yi) =>
+      yi === 0 ? null : (totalChange[yi] || 0) - (operating[yi] || 0)
+    );
+    const residual = sortedYears.map((_, yi) => {
+      if (yi === 0) return null;
+      const lineSum = lineRows.reduce((s, r) => s + (r.values[yi] || 0), 0);
+      return (unrealTotal[yi] || 0) - lineSum;
+    });
+
+    return { operating, totalChange, unrealTotal, lineRows, residual };
+  }, [sortedYears, resolveCashValue, transferDetailRows, netAssetsByYear, balanceDisplayValues, balanceAccountMap, bankAccountLabels, balanceAccounts]);
+
+  // Renders one data row (label cell + per-year value cells).
+  const dataRow = (key, label, values, opts = {}) => {
+    const { bold = false, indent = "1.5rem", color, onClick, prefix, topBorder = false, muted = false } = opts;
+    return (
+      <tr key={key}>
+        <td style={{ ...selectCellBaseStyle, top: undefined, borderTop: topBorder ? "2px solid #E8E6DF" : undefined }} />
+        <td
+          style={{
+            ...accountCellBaseStyle,
+            padding: `0.3rem 0.75rem 0.3rem ${indent}`,
+            fontWeight: bold ? 700 : muted ? 400 : 500,
+            color: color || (muted ? "var(--muted)" : undefined),
+            borderTop: topBorder ? "2px solid #E8E6DF" : undefined,
+            cursor: onClick ? "pointer" : undefined,
+          }}
+          onClick={onClick}
+        >
+          {prefix ? `${prefix} ` : ""}{label}
+        </td>
+        {sortedYears.map((year, yi) => {
+          const val = values[yi];
+          const num = Number(val);
+          const show = val != null && Math.abs(num) > 0.5;
+          return (
+            <td
+              key={`${key}-${year}`}
+              className="trans-budget-table__value--numeric"
+              style={{
+                color: show ? (num < -0.5 ? "var(--danger)" : num > 0.5 ? "var(--success, #5B9E9E)" : undefined) : undefined,
+                fontWeight: bold ? 700 : undefined,
+                borderTop: topBorder ? "2px solid #E8E6DF" : undefined,
+              }}
+            >
+              {show ? formatAmount(num) : "—"}
+            </td>
+          );
+        })}
+      </tr>
+    );
+  };
+
+  const hasResidual = bridge.residual.some((v) => v != null && Math.abs(v) > 0.5);
 
   return (
     <>
-      {/* Bridge header row */}
+      {/* Section header row */}
       <tr>
         <td style={{ ...selectCellBaseStyle, top: undefined, borderTop: "2px solid var(--primary, #567856)" }} />
         <td
@@ -58,42 +158,61 @@ function EquityBridgeRows({ sortedYears, cashRowsWithNet, getCellValue, totalAss
           onClick={() => setCollapsed((p) => !p)}
         >
           <span style={{ color: "var(--primary, #567856)", fontWeight: 600, fontSize: "0.85rem" }}>
-            {collapsed ? "+" : "-"} Change in Net Worth
+            {collapsed ? "+" : "-"} Change in Net Assets
           </span>
         </td>
         {sortedYears.map((y) => (
           <td key={`bridge-hdr-${y}`} style={{ borderTop: "2px solid var(--primary, #567856)" }} />
         ))}
       </tr>
-      {/* Bridge data rows */}
-      {!collapsed && rows.map((row) => (
-        <tr key={`bridge-${row.label}`}>
-          <td style={{ ...selectCellBaseStyle, top: undefined }} />
-          <td style={{
-            ...accountCellBaseStyle, padding: "0.3rem 0.75rem 0.3rem 1.5rem",
-            fontWeight: row.bold ? 700 : 400,
-            borderTop: row.bold ? "2px solid #E8E6DF" : undefined,
-          }}>
-            {row.label}
-          </td>
-          {sortedYears.map((year, yi) => {
-            const val = row.values[yi] || 0;
-            return (
-              <td
-                key={`bridge-${row.label}-${year}`}
-                className="trans-budget-table__value--numeric"
-                style={{
-                  color: val < -0.5 ? "var(--danger)" : val > 0.5 ? "var(--success, #5B9E9E)" : undefined,
-                  fontWeight: row.bold ? 700 : 400,
-                  borderTop: row.bold ? "2px solid #E8E6DF" : undefined,
-                }}
-              >
-                {Math.abs(val) > 0.5 ? formatAmount(val) : "—"}
-              </td>
-            );
+      {!collapsed && (
+        <>
+          {/* Year header row — mirrors the table's top header so years stay visible. */}
+          <tr>
+            <SelectSpacer style={selectCellBaseStyle} />
+            <td style={{ ...accountCellBaseStyle, fontWeight: 600 }}>Account</td>
+            {sortedYears.map((year) => {
+              const isBaseYear = baseYears?.has(Number(year));
+              const isLastActualYear = lastActualYears?.has(Number(year));
+              const isPreForecast = isBaseYear || isLastActualYear;
+              const columnLabel = isBaseYear ? "(Budget)" : isLastActualYear ? "(Actual)" : null;
+              return (
+                <td
+                  key={`bridge-yr-${year}`}
+                  className="trans-budget-table__value"
+                  style={{
+                    minWidth: "120px",
+                    fontWeight: 600,
+                    ...(isPreForecast && {
+                      background: "linear-gradient(180deg, #FAF9F5 0%, #F0EFE9 100%)",
+                      borderLeft: "1px solid #cbd5e0",
+                      borderRight: "1px solid #cbd5e0",
+                    }),
+                  }}
+                >
+                  {year}
+                  {columnLabel && (
+                    <span style={{ display: "block", fontSize: "0.75rem", fontWeight: 500, color: "#718096", marginTop: "0.25rem" }}>
+                      {columnLabel}
+                    </span>
+                  )}
+                </td>
+              );
+            })}
+          </tr>
+          {dataRow("bridge-operating", "Operating Cash Flow", bridge.operating)}
+          {dataRow("bridge-unreal", "Unrealized Gains / (Losses)", bridge.unrealTotal, {
+            prefix: unrealOpen ? "−" : "+",
+            onClick: () => setUnrealOpen((p) => !p),
           })}
-        </tr>
-      ))}
+          {unrealOpen && bridge.lineRows.map((row) =>
+            dataRow(`bridge-unreal-${row.label}`, row.label, row.values, { indent: "2.75rem", muted: true })
+          )}
+          {unrealOpen && hasResidual &&
+            dataRow("bridge-unreal-other", "Other (unattributed)", bridge.residual, { indent: "2.75rem", muted: true })}
+          {dataRow("bridge-total", "Total Change in Net Assets", bridge.totalChange, { bold: true, topBorder: true })}
+        </>
+      )}
     </>
   );
 }
@@ -272,6 +391,8 @@ export default function FCReviewTable({
   transferDetailRows,
   getCellValue,
   balanceDisplayValues,
+  balanceAccountMap,
+  bankAccountLabels,
   totalAssetsByYear,
   totalLiabilitiesByYear,
   netAssetsByYear,
@@ -1060,9 +1181,15 @@ export default function FCReviewTable({
               {!tableError && sortedYears.length > 0 && cashRowsWithNet?.length > 0 && (
                 <EquityBridgeRows
                   sortedYears={sortedYears}
-                  cashRowsWithNet={cashRowsWithNet}
-                  getCellValue={getCellValue}
-                  totalAssetsByYear={totalAssetsByYear}
+                  resolveCashValue={resolveCashValue}
+                  transferDetailRows={transferDetailRows}
+                  netAssetsByYear={netAssetsByYear}
+                  balanceDisplayValues={balanceDisplayValues}
+                  balanceAccountMap={balanceAccountMap}
+                  bankAccountLabels={bankAccountLabels}
+                  balanceAccounts={balanceAccounts}
+                  baseYears={baseYears}
+                  lastActualYears={lastActualYears}
                   selectCellBaseStyle={selectCellBaseStyle}
                   accountCellBaseStyle={accountCellBaseStyle}
                 />
