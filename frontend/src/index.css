@@ -317,6 +317,13 @@ img {
     min-height: 44px;
     font-size: 16px; /* prevents iOS zoom on focus */
   }
+
+  /* Dense data tables opt out of the 44px tap target — the cell provides
+     the click area and inflated checkboxes break the grid layout. */
+  .fc-review-table input[type="checkbox"] {
+    min-height: 0;
+    min-width: 0;
+  }
 }
 
 /* Prevent pull-to-refresh interfering with scroll in PWA */

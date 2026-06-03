@@ -178,6 +178,48 @@ function CashFlowSummaryRows({
 
       {!collapsed && (
         <>
+          {/* Year header row — mirrors the table's top header so years stay
+              visible without scrolling back up. */}
+          <tr>
+            <SelectSpacer style={selectCellBaseStyle} />
+            <td style={{ ...accountCellBaseStyle, fontWeight: 600 }}>Account</td>
+            {sortedYears.map((year) => {
+              const isBaseYear = baseYears?.has(Number(year));
+              const isLastActualYear = lastActualYears?.has(Number(year));
+              const isPreForecast = isBaseYear || isLastActualYear;
+              const columnLabel = isBaseYear ? "(Budget)" : isLastActualYear ? "(Actual)" : null;
+              return (
+                <td
+                  key={`cfs-yr-${year}`}
+                  className="trans-budget-table__value"
+                  style={{
+                    minWidth: "120px",
+                    fontWeight: 600,
+                    ...(isPreForecast && {
+                      background: "linear-gradient(180deg, #FAF9F5 0%, #F0EFE9 100%)",
+                      borderLeft: "1px solid #cbd5e0",
+                      borderRight: "1px solid #cbd5e0",
+                    }),
+                  }}
+                >
+                  {year}
+                  {columnLabel && (
+                    <span
+                      style={{
+                        display: "block",
+                        fontSize: "0.75rem",
+                        fontWeight: 500,
+                        color: "#718096",
+                        marginTop: "0.25rem",
+                      }}
+                    >
+                      {columnLabel}
+                    </span>
+                  )}
+                </td>
+              );
+            })}
+          </tr>
           <tr><SelectSpacer style={selectCellBaseStyle} />{labelCell("Income")}{valueCells(incomeVals)}</tr>
           <tr><SelectSpacer style={selectCellBaseStyle} />{labelCell("Expense")}{valueCells(expenseVals)}</tr>
           <tr><SelectSpacer style={selectCellBaseStyle} />{labelCell("Transfers", { level: 2 })}{valueCells(transferVals)}</tr>
