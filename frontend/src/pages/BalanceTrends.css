@@ -186,6 +186,51 @@
   color: var(--primary, #6b8e6b);
 }
 
+/* Transposed layout: periods down rows, accounts across columns */
+.balance-trends-table thead th.balance-trends-table__th-period {
+  min-width: 6rem;
+}
+
+.balance-trends-table thead th.balance-trends-table__th-account-col {
+  text-align: right;
+  min-width: 7rem;
+  vertical-align: bottom;
+}
+
+.balance-trends-table__acct-name {
+  display: block;
+  text-transform: none;
+  font-size: 0.9rem;
+  font-weight: 700;
+  color: var(--ink);
+}
+
+.balance-trends-table__acct-curr {
+  display: block;
+  margin-top: 0.15rem;
+  font-size: 0.72rem;
+  font-weight: 600;
+  color: var(--muted);
+}
+
+.balance-trends-table__td-account.is-partial {
+  color: var(--primary, #6b8e6b);
+}
+
+.balance-trends-table thead th.is-total-col {
+  border-left: 2px solid var(--border-strong, var(--border));
+}
+
+.balance-trends-table tbody td.balance-trends-table__td-value.is-total {
+  background: var(--surface-muted);
+  font-weight: 700;
+  border-left: 2px solid var(--border-strong, var(--border));
+}
+
+.balance-trends-table tbody tr:hover td.balance-trends-table__td-value.is-total {
+  background: var(--surface-muted);
+}
+
 .balance-trends-table tbody td {
   padding: 0.6rem 0.85rem;
   border-bottom: 1px solid var(--border);

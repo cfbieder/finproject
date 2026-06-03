@@ -7,7 +7,6 @@ import { useCoa } from "../hooks/useCoa.js";
 import Rest from "../js/rest.js";
 import {
   INTERVALS,
-  PARTIAL_SUFFIX,
   buildEndDateSeries,
   planColumns,
   getTodayIso,
@@ -153,16 +152,20 @@ export default function BalanceTrends() {
 
   const handleExport = useCallback(() => {
     if (!hasTable) return;
-    const headers = columns.map(({ label, isPartial }) =>
-      `${label}${isPartial ? ` (${PARTIAL_SUFFIX[intervalKey] ?? "PTD"})` : ""}`
-    );
-    const data = [["Account", "Currency", ...headers]];
-    for (const row of rows) {
-      data.push([row.name, row.currency ?? "", ...row.values.map((v) => Math.round(v * 100) / 100)]);
-    }
-    data.push(["Total (selected, USD)", "", ...totals.map((v) => Math.round(v * 100) / 100)]);
+    const round2 = (v) => Math.round((v || 0) * 100) / 100;
+    const data = [
+      ["Period", ...rows.map((r) => r.name), "Total (selected, USD)"],
+      ["", ...rows.map((r) => r.currency ?? ""), "USD"],
+    ];
+    columns.forEach((col, colIdx) => {
+      data.push([
+        formatColumnHeader(col.label, intervalKey, col.isPartial),
+        ...rows.map((r) => round2(r.values[colIdx])),
+        round2(totals[colIdx]),
+      ]);
+    });
     const ws = XLSX.utils.aoa_to_sheet(data);
-    ws["!cols"] = [{ wch: 36 }, { wch: 8 }, ...headers.map(() => ({ wch: 14 }))];
+    ws["!cols"] = [{ wch: 12 }, ...rows.map(() => ({ wch: 16 })), { wch: 18 }];
     const wb = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(wb, ws, "Balance Trends");
     const buffer = XLSX.write(wb, { bookType: "xlsx", type: "array" });
@@ -266,55 +269,57 @@ export default function BalanceTrends() {
             <table className="balance-trends-table">
               <thead>
                 <tr>
-                  <th className="balance-trends-table__th-account" rowSpan={1}>
-                    Account
+                  <th className="balance-trends-table__th-account balance-trends-table__th-period">
+                    Period
                   </th>
-                  <th className="balance-trends-table__th-currency">Curr</th>
-                  {columns.map((col) => (
+                  {rows.map((row) => (
                     <th
-                      key={col.label}
-                      className={`balance-trends-table__th-month${col.isPartial ? " is-partial" : ""}`}
-                      title={col.isPartial ? `As of ${col.asOf}` : col.label}
+                      key={row.name}
+                      className="balance-trends-table__th-account-col"
+                      title={row.name}
                     >
-                      {formatColumnHeader(col.label, intervalKey, col.isPartial)}
+                      <span className="balance-trends-table__acct-name">{row.name}</span>
+                      {row.currency ? (
+                        <span className="balance-trends-table__acct-curr">{row.currency}</span>
+                      ) : null}
                     </th>
                   ))}
+                  <th className="balance-trends-table__th-account-col is-total-col">
+                    <span className="balance-trends-table__acct-name">Total (selected)</span>
+                    <span className="balance-trends-table__acct-curr">USD</span>
+                  </th>
                 </tr>
               </thead>
               <tbody>
-                {rows.map((row) => (
-                  <tr key={row.name}>
-                    <td className="balance-trends-table__td-account">{row.name}</td>
-                    <td className="balance-trends-table__td-currency">
-                      {row.currency ?? ""}
+                {columns.map((col, colIdx) => (
+                  <tr key={col.label}>
+                    <td
+                      className={`balance-trends-table__td-account${col.isPartial ? " is-partial" : ""}`}
+                      title={col.isPartial ? `As of ${col.asOf}` : col.label}
+                    >
+                      {formatColumnHeader(col.label, intervalKey, col.isPartial)}
                     </td>
-                    {row.values.map((v, idx) => (
-                      <td
-                        key={columns[idx].label}
-                        className={`balance-trends-table__td-value${v < 0 ? " is-negative" : ""}`}
-                      >
-                        {formatUSD(v)}
-                      </td>
-                    ))}
+                    {rows.map((row) => {
+                      const v = row.values[colIdx];
+                      return (
+                        <td
+                          key={row.name}
+                          className={`balance-trends-table__td-value${v < 0 ? " is-negative" : ""}`}
+                        >
+                          {formatUSD(v)}
+                        </td>
+                      );
+                    })}
+                    <td
+                      className={`balance-trends-table__td-value is-total${
+                        totals[colIdx] < 0 ? " is-negative" : ""
+                      }`}
+                    >
+                      {formatUSD(totals[colIdx])}
+                    </td>
                   </tr>
                 ))}
               </tbody>
-              <tfoot>
-                <tr>
-                  <td className="balance-trends-table__td-account is-total">
-                    Total (selected, USD)
-                  </td>
-                  <td className="balance-trends-table__td-currency is-total">USD</td>
-                  {totals.map((v, idx) => (
-                    <td
-                      key={columns[idx].label}
-                      className={`balance-trends-table__td-value is-total${v < 0 ? " is-negative" : ""}`}
-                    >
-                      {formatUSD(v)}
-                    </td>
-                  ))}
-                </tr>
-              </tfoot>
             </table>
           ) : (
             <div className="balance-trends-empty">
