@@ -1,42 +1,117 @@
-**Status:** PLANNING (open) — to be planned in a dedicated thread (one-question-at-a-time Q&A). Gathers the post-CR024 open items + the stepwise PS→Fintable cutover. — [Plan](../FC_NEXT_STEPS.md#cr023)
+**Status:** PLANNED (scope settled 2026-06-03, one-question-at-a-time Q&A) — ready to build. The cutover engine + per-account migration framework + source-aware calibration/monitoring. **Actual PS removal is a deferred tail** (criteria defined here; executed in a future CR when the last account is off PS). — [Plan](../FC_NEXT_STEPS.md#cr023)
 
-# CR023 — PocketSmith Removal & PS→Fintable Cutover Completion
+# CR023 — PocketSmith Removal & PS→Feeds Cutover
 
-**Created:** 2026-06-03 (stub; plan TBD)
+**Created:** 2026-06-03 (stub) · **Planned:** 2026-06-03
 **Follows:** [CR021](CR021_BANK_FEED_SERVICE.md) (bank-feed service), [CR022](CR022_BANK_FEED_PARALLEL_IMPORT.md) (PKO parallel import), [CR024](CR024_FIDELITY_FEEDS.md) (Fidelity feeds — DONE).
-**Related (kept separate):** [CR020](CR020_STOCK_INVESTMENT_MODULE.md) (investment lot/cost-basis) — the plan should *decide* whether to pull this forward or leave it as its own CR.
+**Related (kept separate per §0 decision):** [CR020](CR020_STOCK_INVESTMENT_MODULE.md) (investment lot/cost-basis).
+
+## 0. Planning decisions (resolved with owner, 2026-06-03)
+
+The §3 open items were worked one-by-one. Outcomes:
+
+| Decision | Resolution |
+|---|---|
+| **End-state** | **Incremental full retirement.** Migrate account-by-account PS→Feeds *as feeds become available*. PS stays the **live catch-all** until the *last* account is off it. Accounts with no obtainable feed move to **manual / Excel** ingest eventually. Full PS removal is the goal, on a long, account-paced timeline. |
+| **#1 calibration + #8 monitoring** | **Source-aware MANUAL calibrate + read-only drift monitor.** The calibrate anchor follows each account's current source automatically (fed → `feed_balances`; PS-only → PS, as today). A read-only **source-partitioned** reconciliation monitor shows drift; recalibration stays a human click (matches the stage-only-cron / manual-promote philosophy — no silent self-healing that would mask feed gaps). |
+| **#2 cutover engine** | **Add a deterministic, symmetric PS-side cutoff** (the central new code): the PS promote skips PS rows dated ≥ a fed account's `promote_from_date`. Combined with the existing feed-side cutoff, each account has a clean date handoff (PS owns `< cutoff`, feed owns `≥ cutoff`) — **no reliance on the R2 amount/date dedup heuristic**, closing the CR022 §G recurring-charge weakness. R2 stays as a backstop for the brief pre-cutoff parallel window only. |
+| **#3 OCME / unfed** | **Migrate fin account 45 (OCME) onto its Bank Pekao feed.** The bank-feed is a **shared, read-only microservice** (fin + the OCME app + future consumers), each consumer applying its own independent mapping/opt-in policy. fin mapping Pekao→45 is a purely local fin decision that does not touch OCME's policy. Genuinely-unfed residual after OCME: **US cards (Luxury, Amazon Visa, Delta, Bonvoy Amex, Hilton, Marriott), Chase Checking/Saving, Capital One, Wise-EUR/USD, Caixa EUR, Revolut-EUR, SP-Panorama** — these wait for feeds or move to manual/Excel. |
+| **#4 parked accounts** | **PKO `(PLN) (5564)` "business" and Fidelity `Individual` stay ignored in fin.** Neither has a fin COA balance-sheet account; 5564 is OCME's PKO account (served to the OCME app), Individual was the owner's CR024 call. Out of fin's ledger scope. |
+| **#5 PS removal** | **Define exit criteria + a data-preserving removal runbook; defer execution.** Removal retires PS **code/sync only**; **all historical `source='pocketsmith'` rows + `psdata_staging` are KEPT frozen** (25k+ rows back to 2000 that the balance sheet/trends/reports compute from; feeds only reach ~mid-2026). Execution is a future trigger/CR when the exit criteria hold. |
+| **#6 forecast on parent 29** | **Out of scope.** The leaf balances (30 Cash Mgt, 31 Bond) are correct via the feed override, so the forecast roll-up computes correctly. Forecast modules may legitimately combine Bond+Cash for long-horizon extrapolation; the hand-entered base is the owner's planning figure, owned in the forecast UI. No CR023 work. |
+| **#7 cutover-settings UI** | **Script-only.** `promote_from_date` / `trade_treatment` / `balance_from_feed` / un-ignore stay behind audited set-once scripts (a wrong cutoff double-counts or gaps the ledger — the same discipline CR024 used). The **only** new UI is the read-only monitor + a per-account "Calibrate to feed" button on the existing Bank Feed Setup page. |
+| **#9 CR020** | **Kept separate.** Lot/cost-basis needs a new bank-feed contract extension (`units/price/symbol/option_type`) + a fin FIFO lot-walker — orthogonal to PS removal, not on this critical path. CR024 already meets the balance-sheet + cash-flow needs for Fidelity. |
 
 ## 1. Why this CR
 
-CR022 (PKO) and CR024 (Fidelity) stood up the bank feed alongside PocketSmith and cut those accounts over with per-account cutoffs. **PocketSmith is now turned off for PKO and Fidelity.** This CR is the endgame: finish migrating every remaining account off PocketSmith, remove the last live dependencies on PS, and retire it.
+CR022 (PKO) and CR024 (Fidelity) stood up the bank feed alongside PocketSmith and cut those accounts over with per-account cutoffs. **PS is now off for PKO + Fidelity.** This CR turns that one-off pair of cutovers into a **reusable cutover engine** and migrates the remaining fed-capable accounts (starting with OCME), with source-aware calibration and a live reconciliation gate — so PS can be retired account-by-account and, eventually, entirely.
 
-## 2. Verified current state (2026-06-03)
+## 2. Verified current state (2026-06-03, live)
 
-- **PS is OFF** for PKO + Fidelity (no new uploads).
-- **Cutoffs (`promote_from_date`) set on all 11 mapped bank-feed accounts** (PKO 6 + Fidelity 5) — bank feed owns from PS-last+1; double-count-free by construction.
-- **Ledger reconciles to the bank** to the cent: all 6 PKO accounts match `feed_balances` (the 2 credit cards differ only by sign convention — fin stores liabilities negative). Fidelity uses the market-value read-override (`balance_from_feed`).
-- The 9 PKO VISA CB cross-source duplicates were cleaned + R2-linked; a full duplicate sweep is clean (0 dup external_ids, 0 cross-source overlap).
+- **PS is OFF** for PKO + Fidelity (no new uploads), but **PS is still actively feeding ~15 other accounts** (`source='pocketsmith'` rows through 2026-06-02; 25,633 PS rows total). PS remains the live catch-all.
+- **11 mapped bank-feed accounts** carry `promote_from_date` cutoffs (6 PKO: 4/12/18/19/67/69; 5 Fidelity: 26/27/28/30/31). The 5 Fidelity use `balance_from_feed=TRUE` (balance-sheet read-override); the Options account (28) uses `trade_treatment=income`. All reconcile to the bank to the cent.
+- **bank-feed exposes 14 accounts across 3 institutions** (PKO 7, Fidelity 6, Bank Pekao 1 = `OC MEDYCYNY ESTETYCZNEJ (PLN) (8781)`, UUID `466a4ae8-…`). It is a **shared read-only microservice** — the OCME app is a second consumer (consumes Pekao + 1 PKO account; see [OCME_BANK_FEED_IMPORT_GUIDE.md](../OCME_BANK_FEED_IMPORT_GUIDE.md)).
+- **2 parked feed accounts** (ignored, `account_id=NULL`): PKO `(PLN) (5564)` business (`b2416778`) and Fidelity `Individual` (`190d7bf1`). Neither maps to a fin COA account.
+- **Prod calibration mechanism = `POST /accounts/calibrate`** ([accounts.js:157](../../server/src/v2/routes/accounts.js#L157)): `opening_balance = PS_current_balance − Σ(tx)`, anchored to the **live PS API**, `closing_balance` fallback. **`ps-anchor.js` has produced 0 rows on prod** — it is the CR019 dev-cutover *script*, not the live prod mechanism. The calibrate route's PS anchor is **the last live PS tie** for the additive (PKO) accounts.
 - The daily cron is **stage-only**; promotion is manual (human-in-the-loop).
-- **Only PKO + Fidelity have a bank feed.** Other PS accounts (Chase, Delta, entity/OCME, etc.) are PocketSmith-only — no Fintable/SnapTrade connection exists for them yet.
-- Parked as `ignored`: Fidelity *Individual* and PKO *business 5564*.
+- **`ingestPs.js` `syncStagingToTransactions`** has only the R2 reverse-dedup (`NOT EXISTS` on date/ABS(amount)/currency ±1 day) — **no date-based PS cutoff** (the gap §4.A closes).
 
-## 3. Open items to plan (the scope to be decided one-by-one in the dedicated thread)
+## 3. Open items — dispositions
 
-1. **Re-anchor balance calibration to the bank feed.** `/balance-calibration` + `server/src/v2/scripts/ps-anchor.js` still anchor `opening_balance` to PS `closing_balance` — now frozen. Switch the anchor to `feed_balances` (cached locally in `bankfeed_balances`) for mapped accounts so drift can be detected/fixed without PS. *The last live tie to PS.* (Logged in CR022 §2.3 / §G.)
-2. **Stepwise PS→Fintable cutover for the remaining accounts.** The mechanism exists (un-ignore → `seed-bankfeed-cutoffs.js` → manual promote). Plan the sequence, per-account gates (reconcile-to-bank before declaring done), and rollback.
-3. **Non-PKO/Fidelity feeds (CR021 dependency).** Chase, Delta, entity/OCME accounts have no bank feed — they can't be cut over until the bank-feed service grows a connection for those institutions (CR021 Phase 4 / new adapter). Decide: in scope here, or a CR021 prerequisite?
-4. **Ignored accounts.** Fidelity *Individual* (user: leave ignored) and PKO *business 5564* — confirm final disposition.
-5. **Actual PocketSmith removal.** When/how to retire the PS code paths, sync, mappings, and `pocketsmith`-source rows. Exit criteria (all accounts reconcile to the bank; no PS-only accounts left). The hard cutover.
-6. **Forecast modules on parent account 29** (Fidelity Fixed Income) carry a hand-entered $1.24M that under-states the fed roll-up (~$1.99M). Revisit the forecast base.
-7. **UI for cutover settings.** `promote_from_date` / `trade_treatment` / `balance_from_feed` are script-only today. Decide whether to surface a small admin panel for self-service switchover.
-8. **Reconciliation monitoring.** With PS off, the §G "ps_only" gate is moot — the live gate is fin-balance vs `feed_balances`. Decide whether/how to surface this (a recon report/alert) as the cutover health signal.
+The §0 table is the authoritative resolution of the original 8 items + CR020. Build scope below.
 
-## 4. Non-goals / boundaries (proposed — confirm in planning)
+## 4. Architecture / build scope
 
-- **Investment lot/cost-basis analytics** → CR020 (decide pull-forward vs separate).
-- **bank-feed feed-health drift anchor** → already logged to the bank-feed repo `HANDOFFS.md`; bank-feed-side, display-only.
-- No PS removal until every account reconciles to the bank and no PS-only account remains.
+Likely **no new migration** — reuses existing columns (`account_source_mappings.promote_from_date` from 027, `bankfeed_balances` from 025, `balance_from_feed`/`trade_treatment`). Confirm during build.
 
-## 5. Planning approach
+### 4.A Symmetric PS-side cutoff *(the central new piece)*
+In `ingestPs.js syncStagingToTransactions`, add a guarded clause: **skip a PS staged row when the fin account it resolves to has a bank-feed mapping (`ignored=FALSE`) whose `promote_from_date ≤ row.transaction_date`.** The feed owns `≥ cutoff`; PS owns `< cutoff`.
+- Join path: PS staging row → `account_source_mappings (source='pocketsmith')` → `account_id` → `account_source_mappings (source='bank-feed', ignored=FALSE, promote_from_date IS NOT NULL)`.
+- Guard: behind a feature flag + a column-existence self-disable (mirror the existing R2 guard), so a DB without the columns is byte-for-byte unchanged.
+- Result: clean date handoff per account, immune to the recurring-charge dedup weakness. R2 dedup remains for the short pre-cutoff parallel window.
 
-Per CLAUDE.md: work through the §3 items **one question at a time**, each with a recommendation + rationale; skeptical-collaborator stance; verify live state before asserting; confirm scope before building. Then flesh out this CR, update `CR_INDEX.md` + `FC_NEXT_STEPS.md` + `FC_PROJECT_STRUCTURE.md`. No push without explicit owner OK.
+### 4.B Source-aware calibration (#1)
+In `POST /accounts/calibrate`: for an account with a bank-feed mapping (`ignored=FALSE`), anchor `opening_balance` to the latest `bankfeed_balances.balance` (the bank's reported balance) instead of the PS API. PS-only accounts keep the existing PS anchor. The anchor source thus auto-follows each account's migration. (Brokerage `balance_from_feed=TRUE` accounts are unaffected — the read-override already bypasses `opening_balance+Σtx`; calibration is a no-op for them.)
+
+### 4.C Reconciliation monitor (#8) — source-partitioned, read-only
+New endpoint (e.g. `GET /api/v2/bank-feed/balance-recon`): per fed account, fin **computed** balance (`opening_balance + Σtx`, or the read-override for brokerage) vs the bank's `feed_balances`, with drift + last-feed-date. On the **Bank Feed Setup** page:
+- **NEW "Bank reconciliation" section** — the fed accounts (computed vs `feed_balances`, drift, per-account **"Calibrate to feed"** button → the manual action from 4.B).
+- **Keep the existing "PS ↔ bank-feed reconciliation (§G)" section but SCOPE it to accounts still fed by PS** — exclude accounts now on a direct feed. As accounts migrate, the PS-rec list depopulates; when empty, the PS rec is retired.
+
+### 4.D OCME migration (#3)
+Map the Pekao UUID `466a4ae8-…` → fin account **45** (UI or a small idempotent seed step), run `seed-bankfeed-cutoffs.js` (cutoff = PS-last-tx(45)+1 ≈ 2026-05-27), promote, gate on reconcile-to-`feed_balances`. fin and the OCME app then consume the same feed independently (read-only; no shared state).
+
+### 4.E Settings stay script-only (#7)
+`seed-bankfeed-cutoffs.js` (set-once cutoffs) is the cutover tool for each new account. No editable cutover-settings UI.
+
+## 5. Per-account cutover runbook (#2)
+
+The reusable procedure (proven on PKO+Fidelity, now generalized):
+
+1. **Feed exists** — account appears in `/v1/accounts`; visible on the Bank Feed Setup page.
+2. **Map (R1)** — map the feed UUID → fin account; account leaves "pending."
+3. **Brief parallel run** — both PS + feed ingest; watch the §G PS-row recon (`ps_only`) for the transition window only.
+4. **Set cutoff** — `seed-bankfeed-cutoffs.js` sets `promote_from_date = PS-last-tx+1` (set-once). Both sides now honor it: feed holds `< cutoff`, PS skips `≥ cutoff` (§4.A).
+5. **Promote** — manual; feed rows `≥ cutoff` land `accepted=FALSE` for review.
+6. **Gate** — the account's computed balance reconciles to `feed_balances` to the cent (cash) / read-override correct (brokerage). **Not "done" until it does.**
+7. **Anchor flips** — calibration + the monitor auto-switch this account from PS-rec to bank-rec (source-aware, §4.B/4.C).
+8. **Rollback** — re-ignore the mapping, clear `promote_from_date`, delete `source='bank-feed'` rows for the account; PS resumes ownership (cutoff gone → PS no longer skips).
+
+Migration order is **driven by feed availability** (owner-paced), not a fixed schedule. OCME (45) is the first candidate (§4.D).
+
+## 6. PS-removal exit criteria + removal runbook (#5) — DEFERRED execution
+
+**Exit criteria (all must hold before executing removal):**
+1. Every *active* fin balance-sheet account is either (a) on a direct feed and reconciling to `feed_balances`, or (b) moved to manual/Excel ingest, or (c) explicitly frozen/archived.
+2. No active account still depends on PS for new data (no recent `source='pocketsmith'` activity for any active account).
+3. The source-partitioned monitor's **PS-rec list is empty** (every active account is bank/manual-anchored).
+
+**Removal runbook (future CR, when criteria hold) — data-preserving:**
+- Stop the PS sync/upload entirely.
+- Retire PS **code paths**: `refreshPsApiV2.js`, the PS-fetch in `ingestPs.js`, `psdataConverter`, the PS-side cutoff/dedup (no longer needed), and the calibrate route's PS-anchor branch.
+- **KEEP** all historical `source='pocketsmith'` rows in `transactions` and `psdata_staging` **frozen** (CR021 §2 commits PS data is never rewritten; the balance sheet/trends depend on pre-feed history). **No data deletion.**
+
+## 7. Tests
+- **PS-side cutoff (§4.A):** a fed account's PS rows `≥ cutoff` are skipped; `< cutoff` still promote; flag-off / column-absent → byte-for-byte unchanged PS behavior; an unmapped/ignored account is unaffected.
+- **Source-aware calibrate (§4.B):** fed account anchors to `bankfeed_balances`; PS-only account anchors to PS; brokerage `balance_from_feed` account is a no-op.
+- **Balance-recon endpoint (§4.C):** computed vs `feed_balances` drift per fed account; PS-rec scoped to PS-fed accounts only.
+- **OCME migration (§4.D):** smoke that account 45 maps, cutoff applies, reconciles.
+- Regression: existing PKO/Fidelity cutovers and reconciliation unaffected; `smoke-bank-feed.js` green.
+
+## 8. Risks
+- **PS-side cutoff join correctness.** The PS↔fin↔bank-feed mapping join must resolve the same `account_id` both sides key on. Test the resolution explicitly; guard self-disables if columns absent.
+- **US-card / EUR-account feeds may never arrive** (GoCardless signups closed; fintable=EU/PSD2+SnapTrade). The incremental model tolerates this — PS stays catch-all; manual/Excel is the eventual floor. PS removal (#5) cannot complete until these are resolved, by design.
+- **Shared microservice.** fin is a read-only consumer; it must never assume it owns the feed or mutate shared bank-feed state. Mappings/cutoffs are local fin state only.
+- **Monitor must not auto-heal.** Calibration stays manual so drift surfaces instead of being silently absorbed into `opening_balance` — the failure mode this project exists to catch.
+
+## 9. Non-goals / boundaries
+- Investment lot/cost-basis → CR020 (separate).
+- Reconstructing pre-feed historical market value → not recoverable from the feed; out of scope.
+- Editable cutover-settings UI → script-only.
+- Executing PS removal → deferred future CR (criteria in §6).
+- Forecast-model changes → out of scope (§0 #6).
+- bank-feed feed-health drift-anchor → logged in the bank-feed repo `HANDOFFS.md` (bank-feed-side, display-only).
+
+## 10. Decision log
+- **2026-06-03 — Investment mark-to-market via an Unrealized G/L *entry*, not a balance read-override (owner decision).** CR024 currently values the 5 Fidelity brokerage accounts with `account_source_mappings.balance_from_feed=TRUE` (balance sheet reads `feed_balances` market value directly, bypassing `opening_balance+Σtx`). The owner wants the recurring monthly mark-to-market done by **posting an adjustment transaction** instead: `amount = feed_market_value − current fin balance`, categorized to the existing **"Unrealized G/L"** P&L category (`accounts.id=88`, profit_loss/expense), dated month-end, on the investment account. Benefits: `opening_balance` stays the real opening; the transaction stream = contributions/trades (cost basis); the monthly entries accumulate to total unrealized gain and are **visible in P&L** with a per-month audit trail (vs the silent read-override, which shows the value but records no gain). This is the proper accounting treatment and supersedes `balance_from_feed` as the MTM mechanism for fed investment accounts (the read-override can stay as a fallback or be retired once the entry-based MTM lands). **Scope/owner placement:** sits between this CR's source-aware calibration and CR020 (lot/cost-basis); CR023 thread to decide whether to implement here or route to CR020. **Cash accounts are unaffected** — they keep `opening_balance ← feed_balances` calibration (§4.B); this entry mechanism is for *investment* accounts only. **Correction note:** during the 2026-06-02 PKO recalibration session, this month's Fidelity MTM was briefly applied via an `opening_balance` plug before `balance_from_feed` was understood; that change was reverted (Fidelity openings restored), and only the legitimate PKO (cash) calibration `opening 115,478.38→5,534.68` was kept.
+- **2026-06-03** — CR planned one-question-at-a-time with owner. See §0 for the full decision table. Key calls: incremental account-paced full retirement (PS = catch-all until last account off); source-aware manual calibrate + source-partitioned read-only monitor; **new symmetric PS-side cutoff** as the deterministic cutover guarantee (closes the §G dedup weakness); OCME (45) migrates onto its Pekao feed (bank-feed reaffirmed as a shared read-only microservice); parked 5564/Individual stay ignored; CR020 separate; forecast-29 out of scope; PS-removal data-preserving + deferred.
