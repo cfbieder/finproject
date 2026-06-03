@@ -167,6 +167,9 @@ async function promote() {
     WHERE s.promoted_transaction_id IS NULL
       AND s.pending = FALSE
       AND s.suppressed = FALSE
+      -- CR024 cutover gate: a mapping with promote_from_date set holds rows dated
+      -- before the cutoff (that period belongs to PS). NULL = promote all (PKO).
+      AND (m.promote_from_date IS NULL OR s.transaction_date >= m.promote_from_date)
     ORDER BY s.transaction_date, s.id
   `)).rows;
 
