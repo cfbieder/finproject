@@ -275,7 +275,7 @@ export default function BalanceV2() {
 
         <button
           type="button"
-          className="balv2-btn balv2-btn--primary"
+          className="btn btn--sm btn--primary"
           onClick={handleGenerateReport}
           disabled={isFetching}
         >
@@ -290,7 +290,7 @@ export default function BalanceV2() {
           <>
             <button
               type="button"
-              className="balv2-btn balv2-btn--icon"
+              className="btn btn--sm btn--outline btn--icon"
               onClick={handleExpandOneLayer}
               disabled={collapseDisabled || isFullyExpanded}
               title="Expand one level"
@@ -299,7 +299,7 @@ export default function BalanceV2() {
             </button>
             <button
               type="button"
-              className="balv2-btn balv2-btn--icon"
+              className="btn btn--sm btn--outline btn--icon"
               onClick={handleCollapseOneLayer}
               disabled={collapseDisabled || isFullyCollapsed}
               title="Collapse one level"
@@ -316,7 +316,7 @@ export default function BalanceV2() {
         {/* Export */}
         <button
           type="button"
-          className="balv2-btn"
+          className="btn btn--sm btn--outline"
           onClick={handleExport}
           disabled={!hasReport}
         >

@@ -661,7 +661,7 @@ export default function BudgetWorksheetV2() {
       <div className="bwv2-toolbar">
         <button
           type="button"
-          className={`bwv2-btn${showFilters ? " bwv2-btn--active" : ""}`}
+          className={`btn btn--sm btn--outline${showFilters ? " btn--active" : ""}`}
           onClick={() => setShowFilters((v) => !v)}
         >
           <SlidersHorizontal size={14} />
@@ -671,7 +671,7 @@ export default function BudgetWorksheetV2() {
           )}
         </button>
 
-        <button type="button" className="bwv2-btn" onClick={handleClearAll}>
+        <button type="button" className="btn btn--sm btn--outline" onClick={handleClearAll}>
           <RotateCcw size={13} />
           Reset
         </button>
@@ -752,14 +752,14 @@ export default function BudgetWorksheetV2() {
           <div className="bwv2-filters__footer">
             <button
               type="button"
-              className="bwv2-btn"
+              className="btn btn--sm btn--outline"
               onClick={handleClearAll}
             >
               Reset
             </button>
             <button
               type="button"
-              className="bwv2-btn bwv2-btn--primary"
+              className="btn btn--sm btn--primary"
               onClick={() => setShowFilters(false)}
             >
               Apply
@@ -1103,14 +1103,14 @@ export default function BudgetWorksheetV2() {
               <div className="bwv2-entry__actions">
                 <button
                   type="button"
-                  className="bwv2-btn"
+                  className="btn btn--sm btn--outline"
                   onClick={handleClearForm}
                 >
                   Clear
                 </button>
                 <button
                   type="button"
-                  className="bwv2-btn bwv2-btn--primary"
+                  className="btn btn--sm btn--primary"
                   onClick={handleBudgetEntrySubmit}
                   disabled={
                     entryStatus.loading ||

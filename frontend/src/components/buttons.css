@@ -171,3 +171,8 @@
   background: var(--warning-subtle);
   border-color: var(--warning-strong);
 }
+
+/* Square icon-only button (overrides size padding) */
+.btn--icon {
+  padding: 0.4rem;
+}
