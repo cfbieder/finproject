@@ -168,7 +168,7 @@ export default function CashFlowDateSelectorMonthYear({
           </div>
         </div>
         <button
-          className="generate-report-button"
+          className="btn btn--lg btn--primary btn--block"
           type="button"
           onClick={onGenerateReport}
           disabled={isLoading}
@@ -177,7 +177,7 @@ export default function CashFlowDateSelectorMonthYear({
         </button>
         {typeof onExport === "function" && (
           <button
-            className="generate-report-button"
+            className="btn btn--lg btn--primary btn--block"
             type="button"
             onClick={onExport}
             disabled={isExportDisabled}

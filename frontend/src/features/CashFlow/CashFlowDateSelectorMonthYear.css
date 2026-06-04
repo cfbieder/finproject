@@ -114,40 +114,6 @@
   color: var(--muted);
   font-weight: 600;
 }
-
-.generate-report-button {
-  width: 100%;
-  padding: 0.9rem 1.25rem;
-  border-radius: 0.85rem;
-  border: none;
-  background: var(--primary);
-  color: #fff;
-  font-size: 1rem;
-  font-weight: 600;
-  letter-spacing: 0.02em;
-  cursor: pointer;
-  box-shadow: 0 12px 30px -16px rgba(15, 107, 220, 0.9);
-  transition: transform 0.2s ease, box-shadow 0.2s ease;
-}
-
-.generate-report-button:hover,
-.generate-report-button:focus-visible {
-  transform: translateY(-1px);
-  box-shadow: 0 14px 35px -18px rgba(15, 107, 220, 0.95);
-}
-
-.generate-report-button:focus-visible {
-  outline: 2px solid rgba(15, 107, 220, 0.35);
-  outline-offset: 2px;
-}
-
-.generate-report-button:disabled {
-  background: #cdd6e6;
-  color: var(--muted);
-  box-shadow: none;
-  transform: none;
-}
-
 .balance-report-empty {
   margin: 0;
   color: #fecdd3;

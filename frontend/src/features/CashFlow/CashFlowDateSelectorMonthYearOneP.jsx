@@ -364,7 +364,7 @@ export default function CashFlowDateSelectorMonthYear({
           </select>
         </div>
         <button
-          className="generate-report-button"
+          className="btn btn--lg btn--primary btn--block"
           type="button"
           onClick={onGenerateReport}
           disabled={isLoading}
@@ -373,7 +373,7 @@ export default function CashFlowDateSelectorMonthYear({
         </button>
         {!isFullyExpanded && (
           <button
-            className="generate-report-button"
+            className="btn btn--lg btn--primary btn--block"
             type="button"
             onClick={onExpandOneLayer}
             disabled={isCollapseToggleDisabled}
@@ -383,7 +383,7 @@ export default function CashFlowDateSelectorMonthYear({
         )}
         {!isFullyCollapsed && (
           <button
-            className="generate-report-button"
+            className="btn btn--lg btn--primary btn--block"
             type="button"
             onClick={onCollapseOneLayer}
             disabled={isCollapseToggleDisabled}
@@ -393,7 +393,7 @@ export default function CashFlowDateSelectorMonthYear({
         )}
         {typeof onExport === "function" && (
           <button
-            className="generate-report-button"
+            className="btn btn--lg btn--primary btn--block"
             type="button"
             onClick={onExport}
             disabled={isExportDisabled}

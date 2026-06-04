@@ -105,7 +105,7 @@ export default function CashFlowDateSelector({
           </select>
         </div>
         <button
-          className="generate-report-button"
+          className="btn btn--lg btn--primary btn--block"
           type="button"
           onClick={onGenerateReport}
           disabled={isLoading}
@@ -113,7 +113,7 @@ export default function CashFlowDateSelector({
           {isLoading ? "Generating..." : "Generate Report"}
         </button>
         <button
-          className="generate-report-button"
+          className="btn btn--lg btn--primary btn--block"
           type="button"
           onClick={onToggleCollapseAll}
           disabled={isCollapseToggleDisabled}
