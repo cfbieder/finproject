@@ -6,7 +6,8 @@
  */
 import Breadcrumbs from "./Breadcrumbs";
 import useInstallPrompt from "../hooks/useInstallPrompt";
-import { Download } from "lucide-react";
+import useTheme from "../hooks/useTheme";
+import { Download, Moon, Sun } from "lucide-react";
 import "./TopStrip.css";
 
 const isDev = import.meta.env.DEV || import.meta.env.VITE_APP_MODE === "dev";
@@ -14,6 +15,8 @@ const version = import.meta.env.VITE_APP_VERSION || "2.0.0";
 
 export default function TopStrip() {
   const { canInstall, install } = useInstallPrompt();
+  const { theme, toggle } = useTheme();
+  const isDark = theme === "dark";
 
   return (
     <header className="topstrip">
@@ -32,6 +35,15 @@ export default function TopStrip() {
             <span>Install</span>
           </button>
         )}
+        <button
+          type="button"
+          className="topstrip__tool"
+          onClick={toggle}
+          aria-label={isDark ? "Switch to light theme" : "Switch to dark theme"}
+          title={isDark ? "Light theme" : "Dark theme"}
+        >
+          {isDark ? <Sun size={18} /> : <Moon size={18} />}
+        </button>
         <span className={`topstrip__badge${isDev ? " topstrip__badge--dev" : ""}`}>
           v{version}
           {isDev ? " DEV" : ""}

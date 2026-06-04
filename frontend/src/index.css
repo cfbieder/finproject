@@ -123,6 +123,103 @@
   text-rendering: optimizeLegibility;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
+  color-scheme: light;
+}
+
+/* ============================================================
+   CR026 P2 — Dark theme (incremental). Overrides the semantic tokens
+   under [data-theme="dark"] so every surface that uses var(--token)
+   flips automatically (sidebar, top strip, and any token-based page).
+   Pages that still hardcode hex are migrated to tokens incrementally;
+   until then they may look off in dark. Default stays light — dark is
+   opt-in via the Theme toggle (sidebar/top strip only), so legacy-nav
+   and unmigrated surfaces are never forced into dark.
+
+   Principles (research-backed): no pure black (#121316-ish surfaces),
+   off-white text (not #fff), accents lifted toward lighter/more
+   saturated so perceptual weight survives the dark background, and
+   elevation via tonal layers + borders rather than shadows.
+   ============================================================ */
+:root[data-theme="dark"] {
+  color-scheme: dark;
+
+  /* Backgrounds — tonal layers, darkest at the base */
+  --bg: #131517;
+  --bg-secondary: #17191C;
+  --bg-tertiary: #1C1F22;
+  --surface: #1C1F22;
+  --surface-muted: #23272B;
+  --surface-elevated: #262A2F;
+  --surface-glass: rgba(19, 21, 23, 0.9);
+
+  /* Text — off-white hierarchy */
+  --ink: #E2E8F0;
+  --ink-secondary: #AEB4BB;
+  --ink-tertiary: #94A3B8;
+  --muted: #828E9B;
+  --muted-light: #6B7480;
+
+  /* Primary — lifted so it reads on dark */
+  --primary: #8CB68C;
+  --primary-strong: #7FA37F;
+  --primary-light: #9DC49D;
+  --primary-lighter: #A8CDA8;
+  --primary-subtle: #233028;
+  --primary-hover: #9DC49D;
+
+  --accent: #8CB68C;
+  --accent-strong: #7FA37F;
+  --accent-light: #9DC49D;
+  --accent-lighter: #A8CDA8;
+  --accent-subtle: #233028;
+
+  /* Semantic */
+  --success: #69B369;
+  --success-strong: #5BA15B;
+  --success-light: #7FB97F;
+  --success-lighter: #8BBF8B;
+  --success-subtle: #1E2922;
+
+  --warning: #D9B05A;
+  --warning-strong: #C99A40;
+  --warning-light: #E4C078;
+  --warning-lighter: #EFD296;
+  --warning-subtle: #2A2415;
+
+  --danger: #E07A76;
+  --danger-strong: #D0605C;
+  --danger-light: #E89490;
+  --danger-lighter: #F0AAA7;
+  --danger-subtle: #2C1B1A;
+
+  --gold: #D9B05A;
+  --gold-strong: #C99A40;
+  --gold-light: #E4C078;
+  --gold-subtle: #2A2415;
+
+  /* Data viz — lifted for contrast on dark */
+  --growth-positive: #69B369;
+  --growth-negative: #E07A76;
+  --neutral: #828E9B;
+  --chart-navy: #7B9BBA;
+  --chart-emerald: #8CB68C;
+  --chart-amber: #D9B05A;
+  --chart-rose: #E07A76;
+  --chart-purple: #A99BC9;
+  --chart-teal: #6FB8B8;
+  --chart-indigo: #8B9BD0;
+
+  /* Borders — elevation via tonal borders, not shadow */
+  --border: #2A2E33;
+  --border-strong: #3F454C;
+  --border-subtle: #222529;
+
+  /* Shadows — deeper on dark */
+  --shadow-soft: 0 2px 8px -2px rgba(0, 0, 0, 0.4), 0 1px 3px -1px rgba(0, 0, 0, 0.3);
+  --shadow-md: 0 6px 16px -4px rgba(0, 0, 0, 0.45), 0 2px 6px -2px rgba(0, 0, 0, 0.3);
+  --shadow-lg: 0 10px 25px -5px rgba(0, 0, 0, 0.5), 0 8px 10px -6px rgba(0, 0, 0, 0.35);
+  --shadow-xl: 0 20px 40px -8px rgba(0, 0, 0, 0.55), 0 10px 16px -6px rgba(0, 0, 0, 0.4);
+  --shadow-focus: 0 0 0 3px rgba(140, 182, 140, 0.25);
 }
 
 *,

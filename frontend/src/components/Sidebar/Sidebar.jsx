@@ -20,7 +20,8 @@ import {
   getCategoryPath,
   getRoutesByCategory,
 } from "../../config/routes";
-import { ChevronDown, PanelLeftClose, PanelLeftOpen } from "lucide-react";
+import { ChevronDown, PanelLeftClose, PanelLeftOpen, Contrast } from "lucide-react";
+import useTheme from "../../hooks/useTheme";
 import banner from "../../assets/banner.png";
 import "./Sidebar.css";
 
@@ -48,6 +49,7 @@ export default function Sidebar() {
   const nav = getSidebarNav();
   const activeGroup = groupKeyForPath(nav, pathname);
 
+  const { theme, toggle: toggleTheme } = useTheme();
   const [collapsed, setCollapsed] = useState(
     () => localStorage.getItem("sidebarCollapsed") === "true"
   );
@@ -158,6 +160,16 @@ export default function Sidebar() {
       </nav>
 
       <div className="sidebar__footer">
+        <button
+          type="button"
+          className="sidebar__railtoggle"
+          onClick={toggleTheme}
+          title={theme === "dark" ? "Light theme" : "Dark theme"}
+          aria-label={theme === "dark" ? "Switch to light theme" : "Switch to dark theme"}
+        >
+          <Contrast size={16} />
+          {!collapsed && <span>Theme</span>}
+        </button>
         <button
           type="button"
           className="sidebar__railtoggle"

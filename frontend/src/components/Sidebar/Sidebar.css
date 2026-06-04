@@ -104,7 +104,7 @@
 .sidebar__child--active .sidebar__icon { opacity: 1; }
 
 /* footer */
-.sidebar__footer { margin-top: auto; padding-top: 8px; }
+.sidebar__footer { margin-top: auto; padding-top: 8px; display: flex; flex-direction: column; gap: 6px; }
 .sidebar__railtoggle {
   display: flex;
   align-items: center;

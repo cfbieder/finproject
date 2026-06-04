@@ -16,6 +16,20 @@
 
 .topstrip__actions { display: flex; align-items: center; gap: 10px; flex: none; }
 
+.topstrip__tool {
+  display: grid;
+  place-items: center;
+  width: 36px;
+  height: 36px;
+  border: none;
+  background: transparent;
+  border-radius: var(--radius-sm);
+  color: var(--ink-secondary);
+  cursor: pointer;
+  transition: background var(--transition-fast), color var(--transition-fast);
+}
+.topstrip__tool:hover { background: var(--surface-muted); color: var(--ink); }
+
 .topstrip__badge {
   font-size: 0.72rem;
   font-family: var(--font-mono);
