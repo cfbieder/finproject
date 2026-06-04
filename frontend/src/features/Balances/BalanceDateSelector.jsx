@@ -140,7 +140,7 @@ export default function BalanceDateSelector({
           })}
         </div>
         <button
-          className="generate-report-button"
+          className="btn btn--lg btn--primary btn--block"
           type="button"
           onClick={onGenerateReport}
           disabled={isLoading}
@@ -149,7 +149,7 @@ export default function BalanceDateSelector({
         </button>
         {showCollapseToggle && !isFullyExpanded && (
           <button
-            className="generate-report-button"
+            className="btn btn--lg btn--primary btn--block"
             type="button"
             onClick={onExpandOneLayer}
             disabled={collapseToggleDisabled}
@@ -159,7 +159,7 @@ export default function BalanceDateSelector({
         )}
         {showCollapseToggle && !isFullyCollapsed && (
           <button
-            className="generate-report-button"
+            className="btn btn--lg btn--primary btn--block"
             type="button"
             onClick={onCollapseOneLayer}
             disabled={collapseToggleDisabled}
