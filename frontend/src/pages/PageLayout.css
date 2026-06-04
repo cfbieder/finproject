@@ -1177,48 +1177,48 @@
 
 /* Accept */
 .trans-budget-table__action-btn--accept {
-  border-color: #86efac;
-  background: var(--success-subtle);
+  border-color: var(--success-light);
+  background: transparent;
   color: var(--success-strong);
 }
 .trans-budget-table__action-btn--accept:hover {
-  background: #dcfce7;
+  background: var(--success-subtle);
   border-color: var(--success-strong);
   box-shadow: 0 1px 4px rgba(22, 101, 52, 0.15);
 }
 
 /* Split */
 .trans-budget-table__action-btn--split {
-  border-color: #B5A8D5;
-  background: #F5F3F8;
-  color: #6B5B9B;
+  border-color: var(--info-border);
+  background: transparent;
+  color: var(--info-strong);
 }
 .trans-budget-table__action-btn--split:hover {
-  background: #ede9fe;
-  border-color: #6B5B9B;
+  background: var(--info-subtle);
+  border-color: var(--info-strong);
   box-shadow: 0 1px 4px rgba(91, 33, 182, 0.15);
 }
 
 /* Neutralize */
 .trans-budget-table__action-btn--neutralize {
-  border-color: #E4C078;
-  background: #fff7ed;
+  border-color: var(--warning-light);
+  background: transparent;
   color: var(--warning-strong);
 }
 .trans-budget-table__action-btn--neutralize:hover {
-  background: #fed7aa;
+  background: var(--warning-subtle);
   border-color: var(--warning-strong);
   box-shadow: 0 1px 4px rgba(154, 52, 18, 0.15);
 }
 
 /* Category */
 .trans-budget-table__action-btn--category {
-  border-color: #93c5fd;
-  background: #F0EFE9;
+  border-color: var(--primary-lighter);
+  background: transparent;
   color: var(--primary);
 }
 .trans-budget-table__action-btn--category:hover {
-  background: #E8F0E9;
+  background: var(--primary-subtle);
   border-color: var(--primary);
   box-shadow: 0 1px 4px rgba(86, 120, 86, 0.15);
 }
@@ -1229,8 +1229,8 @@
 .trans-budget-table__accept-btn {
   padding: 0.25rem 0.75rem;
   border-radius: var(--radius-md);
-  border: 1px solid #86efac;
-  background: var(--success-subtle);
+  border: 1px solid var(--success-light);
+  background: transparent;
   color: var(--success-strong);
   font-size: 0.75rem;
   font-weight: 600;
@@ -1239,7 +1239,7 @@
   transition: all 0.15s ease;
 }
 .trans-budget-table__accept-btn:hover {
-  background: #dcfce7;
+  background: var(--success-subtle);
   border-color: var(--success-strong);
   box-shadow: 0 1px 4px rgba(22, 101, 52, 0.15);
 }
@@ -2572,7 +2572,7 @@
   width: 100%;
   padding: 0.75rem 1rem;
   border-radius: var(--radius-md);
-  background: #fff6f8;
+  background: var(--danger-subtle);
   border: 1px solid rgba(239, 68, 68, 0.35);
   display: flex;
   flex-direction: column;
@@ -2628,7 +2628,7 @@
 }
 
 .upload-submit:disabled {
-  background: #cdd6e6;
+  background: var(--border-strong);
   color: var(--muted);
   box-shadow: none;
   cursor: not-allowed;

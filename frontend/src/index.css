@@ -55,6 +55,12 @@
   --gold-light: #D4A74E;
   --gold-subtle: #FBF4E4;
 
+  /* Info / accent purple — split actions, informational badges (CR026) */
+  --info: #8B7BB5;
+  --info-strong: #6B5B9B;
+  --info-subtle: #F5F3F8;
+  --info-border: #B5A8D5;
+
   /* Financial Data Visualization - Organic palette */
   --growth-positive: #5B8C5B;
   --growth-negative: #C0504D;
@@ -196,6 +202,11 @@
   --gold-strong: #C99A40;
   --gold-light: #E4C078;
   --gold-subtle: #2A2415;
+
+  --info: #A99BC9;
+  --info-strong: #BCAFD9;
+  --info-subtle: #262233;
+  --info-border: #3D3550;
 
   /* Data viz — lifted for contrast on dark */
   --growth-positive: #69B369;
