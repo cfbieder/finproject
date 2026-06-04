@@ -1,8 +1,6 @@
 .category-landing {
   width: 100%;
-  max-width: 960px;
-  margin: 0 auto;
-  padding: 1.5rem 1.5rem 3rem;
+  padding: 1.5rem 0 3rem;
 }
 
 .category-landing__header {
@@ -58,8 +56,8 @@
 
 .category-landing__grid {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
-  gap: 1rem;
+  grid-template-columns: repeat(auto-fill, minmax(330px, 1fr));
+  gap: 1.25rem;
 }
 
 /* Feature Card */
