@@ -105,4 +105,95 @@ async function reconcile({ sinceDays = 30 } = {}) {
   };
 }
 
-module.exports = { reconcile };
+/**
+ * Bank-balance reconciliation (CR023 §4.C — the live cutover gate now PS is off).
+ *
+ * Per mapped + un-ignored bank-feed account: fin's COMPUTED balance
+ * (`opening_balance + Σ(amount)`, all sources) vs the bank's reported balance
+ * (latest `bankfeed_balances` ≤ asOf). This is a DIFFERENT comparison from
+ * `reconcile()` above (which counts PS-vs-bank-feed row coverage) — it is the
+ * money-level "does fin agree with the bank?" signal that drives the
+ * source-aware calibrate / MTM action.
+ *
+ * Sign convention: fin stores liabilities negative; the feed reports the
+ * positive amount owed. So the reconciled target is `expected = -feed` for
+ * liabilities, `feed` for assets. `drift = computed - expected`.
+ *
+ * Read-only. Brokerage accounts flagged `balance_from_feed` will show a large
+ * drift by design — that is the un-booked market move the MTM entry recognizes;
+ * the read-override hides it on the balance sheet, this surfaces it here.
+ *
+ * @param {object} opts
+ * @param {string} [opts.asOf] YYYY-MM-DD; defaults to today (CURRENT_DATE).
+ * @param {number} [opts.tolerance=0.01] |drift| below this counts as reconciled.
+ * @returns {Promise<{asOf: string, accounts: Array, total_unreconciled: number}>}
+ */
+async function balanceReconcile({ asOf = null, tolerance = 0.01 } = {}) {
+  const sql = `
+    WITH mapped AS (
+      SELECT m.external_name AS feed_uuid, m.account_id,
+             m.balance_from_feed, m.promote_from_date, m.trade_treatment, m.reconcile_mode
+      FROM account_source_mappings m
+      WHERE m.source = 'bank-feed' AND m.ignored IS NOT TRUE AND m.account_id IS NOT NULL
+    ),
+    computed AS (
+      SELECT a.id AS account_id, a.name, a.account_type,
+             ROUND(a.opening_balance + COALESCE(SUM(t.amount), 0), 2) AS computed_balance
+      FROM accounts a
+      LEFT JOIN transactions t ON t.account_id = a.id
+      WHERE a.id IN (SELECT account_id FROM mapped)
+      GROUP BY a.id, a.name, a.account_type, a.opening_balance
+    ),
+    feed AS (
+      SELECT m.account_id, bb.balance AS feed_balance, bb.balance_date AS feed_date, bb.currency
+      FROM mapped m
+      LEFT JOIN LATERAL (
+        SELECT balance, balance_date, currency
+        FROM bankfeed_balances b
+        WHERE b.feed_account_external_id = m.feed_uuid
+          AND b.balance_date <= COALESCE($1::date, CURRENT_DATE)
+        ORDER BY b.balance_date DESC
+        LIMIT 1
+      ) bb ON TRUE
+    )
+    SELECT
+      c.account_id, c.name, c.account_type, c.computed_balance,
+      ROUND(f.feed_balance, 2) AS feed_balance,
+      f.feed_date::text AS feed_date,
+      f.currency,
+      m.balance_from_feed, m.promote_from_date::text AS promote_from_date, m.trade_treatment, m.reconcile_mode,
+      CASE WHEN c.account_type = 'liability' THEN ROUND(-f.feed_balance, 2)
+           ELSE ROUND(f.feed_balance, 2) END AS expected_balance,
+      CASE WHEN f.feed_balance IS NULL THEN NULL
+           ELSE ROUND(c.computed_balance
+                - (CASE WHEN c.account_type = 'liability' THEN -f.feed_balance ELSE f.feed_balance END), 2)
+      END AS drift
+    FROM computed c
+    JOIN mapped m ON m.account_id = c.account_id
+    LEFT JOIN feed f ON f.account_id = c.account_id
+  `;
+  const { rows } = await db.query(sql, [asOf]);
+  const asOfRow = await db.query(`SELECT COALESCE($1::date, CURRENT_DATE)::text AS as_of`, [asOf]);
+
+  const accounts = rows
+    .map((r) => ({
+      ...r,
+      computed_balance: r.computed_balance != null ? Number(r.computed_balance) : null,
+      feed_balance: r.feed_balance != null ? Number(r.feed_balance) : null,
+      expected_balance: r.expected_balance != null ? Number(r.expected_balance) : null,
+      drift: r.drift != null ? Number(r.drift) : null,
+      balance_from_feed: r.balance_from_feed === true,
+      // reconciled is undefined when there is no feed balance to compare against
+      reconciled: r.drift == null ? null : Math.abs(Number(r.drift)) < tolerance,
+    }))
+    .sort((a, b) => Math.abs(b.drift || 0) - Math.abs(a.drift || 0));
+
+  return {
+    asOf: asOfRow.rows[0].as_of,
+    tolerance,
+    accounts,
+    total_unreconciled: accounts.filter((a) => a.reconciled === false).length,
+  };
+}
+
+module.exports = { reconcile, balanceReconcile };

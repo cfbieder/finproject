@@ -49,6 +49,9 @@ export default function BankFeedDiagnostic() {
   const [savingId, setSavingId] = useState(null);
   const [mapError, setMapError] = useState(null);
   const [recon, setRecon] = useState(null);
+  const [balRecon, setBalRecon] = useState(null);
+  const [reconcilingId, setReconcilingId] = useState(null);
+  const [reconcileMsg, setReconcileMsg] = useState(null);
 
   const load = async () => {
     setLoading(true);
@@ -94,6 +97,43 @@ export default function BankFeedDiagnostic() {
     }
   };
 
+  // CR023 §4.C — fin computed balance vs the bank's reported balance, per fed account.
+  const loadBalanceRecon = async () => {
+    try {
+      const res = await Rest.get("/bank-feed/balance-recon");
+      setBalRecon(res);
+    } catch (err) {
+      setMapError(err.message);
+    }
+  };
+
+  // CR023 — source-aware "Reconcile to feed": brokerage posts an Unrealized-G/L
+  // (MTM) entry, cash re-anchors opening_balance. Confirm first (it writes).
+  const reconcileAccount = async (a) => {
+    const action =
+      a.reconcile_mode === "mtm"
+        ? `post a month-end Unrealized-G/L (MTM) entry for "${a.name}"`
+        : `re-anchor opening_balance for "${a.name}" to the bank's reported balance`;
+    if (!window.confirm(`Reconcile to feed will ${action}. Continue?`)) return;
+    setReconcilingId(a.account_id);
+    setReconcileMsg(null);
+    try {
+      const res = await Rest.post(`/bank-feed/reconcile/${a.account_id}`, { dryRun: false });
+      setReconcileMsg(
+        res.mode === "mtm"
+          ? `${a.name}: MTM ${fmtNum(res.mtm_amount)} dated ${res.month_end}` +
+              (res.removed_read_override ? " (read-override removed)" : "") +
+              (res.note ? ` — ${res.note}` : "")
+          : `${a.name}: opening_balance ${fmtNum(res.old_opening)} → ${fmtNum(res.new_opening)}`
+      );
+      await loadBalanceRecon();
+    } catch (err) {
+      setReconcileMsg(`${a.name}: reconcile failed — ${err.message}`);
+    } finally {
+      setReconcilingId(null);
+    }
+  };
+
   const saveMapping = async (externalId, accountId, ignored) => {
     setSavingId(externalId);
     setMapError(null);
@@ -104,6 +144,7 @@ export default function BankFeedDiagnostic() {
       });
       await loadMappings();
       await loadRecon();
+      await loadBalanceRecon();
     } catch (err) {
       setMapError(err.message);
     } finally {
@@ -124,7 +165,7 @@ export default function BankFeedDiagnostic() {
         `Imported: ${s.inserted ?? 0} new, ${s.linked ?? 0} linked to PS, ` +
         `${(s.unmappedAccounts || []).length} account(s) pending, ${(s.ignoredAccounts || []).length} ignored.`
       );
-      await Promise.all([load(), loadMappings(), loadRecon()]);
+      await Promise.all([load(), loadMappings(), loadRecon(), loadBalanceRecon()]);
     } catch (err) {
       setImportMsg(`Import failed: ${err.message}`);
     } finally {
@@ -137,6 +178,7 @@ export default function BankFeedDiagnostic() {
     loadMappings();
     loadAccountOptions();
     loadRecon();
+    loadBalanceRecon();
   }, []);
 
   // fin-side last pull (from sync_metadata via /diagnostic), with staleness color.
@@ -265,22 +307,99 @@ export default function BankFeedDiagnostic() {
         </section>
       )}
 
-      {recon && (
+      {balRecon && (
+        <section className="bfd-section">
+          <h2>Bank reconciliation (CR023)</h2>
+          <p className="bfd-subtitle">
+            Per fed account: fin's <strong>computed</strong> balance
+            (<code>opening_balance + Σ tx</code>) vs the bank's reported{" "}
+            <strong>balance</strong> (<code>feed_balances</code>), sign-aware
+            (liabilities reconcile against <code>−feed</code>). The live cutover
+            gate now PS is off. <strong>Brokerage</strong> accounts
+            (<code>balance_from_feed</code>) show drift by design — that is the
+            un-booked market move the monthly Unrealized-G/L (MTM) entry recognizes.
+          </p>
+          <div className="bfd-feed-card-header">
+            <StatusPill
+              label={balRecon.total_unreconciled === 0 ? "all reconciled" : `${balRecon.total_unreconciled} unreconciled`}
+              kind={balRecon.total_unreconciled === 0 ? "ok" : "warn"}
+            />
+            <span className="bfd-muted">as of {balRecon.asOf}</span>
+            {reconcileMsg && <span className="bfd-muted"> · {reconcileMsg}</span>}
+          </div>
+          <table className="bfd-accounts">
+            <thead>
+              <tr>
+                <th>Account</th>
+                <th>Type</th>
+                <th className="num">Computed</th>
+                <th className="num">Bank (feed)</th>
+                <th className="num">Drift</th>
+                <th>Feed date</th>
+                <th>Status</th>
+                <th></th>
+              </tr>
+            </thead>
+            <tbody>
+              {balRecon.accounts.map((a) => {
+                const isMtm = a.reconcile_mode === "mtm";
+                const driftCls =
+                  a.reconciled === true ? "bfd-ok" : isMtm ? "bfd-muted" : "bfd-danger";
+                return (
+                  <tr key={a.account_id}>
+                    <td>{a.name}</td>
+                    <td className="bfd-muted">{isMtm ? "brokerage (mtm)" : a.account_type}</td>
+                    <td className="num">{fmtNum(a.computed_balance)}</td>
+                    <td className="num">{a.feed_balance != null ? fmtNum(a.feed_balance) : "—"}</td>
+                    <td className={`num ${driftCls}`}>{a.drift != null ? fmtNum(a.drift, 2) : "—"}</td>
+                    <td className="bfd-muted">{a.feed_date || "—"}</td>
+                    <td>
+                      {a.reconciled == null ? (
+                        <StatusPill label="no feed" kind="warn" />
+                      ) : a.reconciled ? (
+                        <StatusPill label="reconciled" kind="ok" />
+                      ) : isMtm ? (
+                        <StatusPill label="MTM gap" kind="warn" />
+                      ) : (
+                        <StatusPill label="drift" kind="danger" />
+                      )}
+                    </td>
+                    <td>
+                      <button
+                        className="generate-report-button"
+                        disabled={reconcilingId === a.account_id || a.feed_balance == null}
+                        onClick={() => reconcileAccount(a)}
+                        title={isMtm ? "Post a month-end Unrealized-G/L (MTM) entry" : "Re-anchor opening_balance to the bank balance"}
+                      >
+                        {reconcilingId === a.account_id ? "…" : "Reconcile to feed"}
+                      </button>
+                    </td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        </section>
+      )}
+
+      {recon && recon.accounts.some((a) => a.matched + a.ps_only > 0) && (
         <section className="bfd-section">
           <h2>PS ↔ bank-feed reconciliation (CR022 §G)</h2>
           <p className="bfd-subtitle">
-            Per mapped account over the last {recon.sinceDays} days. <strong>PS-only</strong> =
+            Accounts <strong>still fed by PocketSmith</strong> (PS activity in the
+            last {recon.sinceDays} days), over that window. <strong>PS-only</strong> =
             PocketSmith transactions with no bank-feed match — i.e. transactions
             bank-feed <em>missed</em>. A clean parallel run drives PS-only to{" "}
-            <strong>0</strong> for every account before PocketSmith can be retired.
-            bank-feed-only is informational (usually bank-feed being more complete).
+            <strong>0</strong> before an account can be retired. bank-feed-only is
+            informational (usually bank-feed being more complete). This panel
+            depopulates as accounts migrate; once empty, the PS rec is no longer needed.
           </p>
           <div className="bfd-feed-card-header">
             <StatusPill
               label={recon.total_ps_only === 0 ? "no gaps" : `${recon.total_ps_only} PS-only`}
               kind={recon.total_ps_only === 0 ? "ok" : "danger"}
             />
-            <span className="bfd-muted">across {recon.accounts.length} mapped account(s)</span>
+            <span className="bfd-muted">across accounts still PS-fed</span>
           </div>
           <table className="bfd-accounts">
             <thead>
@@ -292,14 +411,16 @@ export default function BankFeedDiagnostic() {
               </tr>
             </thead>
             <tbody>
-              {recon.accounts.map((a) => (
-                <tr key={a.account_id}>
-                  <td>{a.account_name}</td>
-                  <td className="num">{a.matched}</td>
-                  <td className={`num ${a.ps_only > 0 ? "bfd-danger" : "bfd-ok"}`}>{a.ps_only}</td>
-                  <td className="num bfd-muted">{a.bank_feed_only}</td>
-                </tr>
-              ))}
+              {recon.accounts
+                .filter((a) => a.matched + a.ps_only > 0)
+                .map((a) => (
+                  <tr key={a.account_id}>
+                    <td>{a.account_name}</td>
+                    <td className="num">{a.matched}</td>
+                    <td className={`num ${a.ps_only > 0 ? "bfd-danger" : "bfd-ok"}`}>{a.ps_only}</td>
+                    <td className="num bfd-muted">{a.bank_feed_only}</td>
+                  </tr>
+                ))}
             </tbody>
           </table>
         </section>

@@ -497,6 +497,88 @@ dbDescribe('PS promote reverse dedup (DB)', () => {
 });
 
 // ════════════════════════════════════════════════════════════════════════════
+// DB-backed: PS-side cutoff (CR023 §4.A)
+//
+// Once a fed account has a bank-feed cutoff (promote_from_date), a PS staging row
+// dated >= the cutoff must NOT promote (the feed owns it); a row before the cutoff
+// still promotes. Deterministic, independent of the R2 dedup heuristic.
+// ════════════════════════════════════════════════════════════════════════════
+dbDescribe('PS promote cutoff (CR023 §4.A) (DB)', () => {
+  const ingestPs = require('../../routes/ingestPs');
+  const db = require('../../db');
+
+  const ACCT_NAME = 'TestCutoffAcct';
+  const FEED_UUID = 'test-cutoff-bf';
+  const PS_BEFORE = String(999300001); // dated before the cutoff → promotes
+  const PS_AFTER = String(999300002);  // dated on/after the cutoff → held (feed owns)
+  const CUTOFF = '2026-05-15';
+  let acctId;
+
+  async function cleanup() {
+    if (acctId) await db.query(`DELETE FROM transactions WHERE account_id = $1`, [acctId]);
+    await db.query(`DELETE FROM psdata_staging WHERE ps_id = ANY($1::varchar[])`, [[PS_BEFORE, PS_AFTER]]);
+    await db.query(`DELETE FROM account_source_mappings WHERE external_name = ANY($1)`, [[ACCT_NAME, FEED_UUID]]);
+    await db.query(`DELETE FROM accounts WHERE name = $1`, [ACCT_NAME]);
+    acctId = null;
+  }
+
+  async function seedPs(psId, date) {
+    await db.query(
+      `INSERT INTO psdata_staging (ps_id, transaction_date, amount, currency, account_name)
+       VALUES ($1, $2, -50.00, 'PLN', $3)`,
+      [psId, date, ACCT_NAME]
+    );
+  }
+
+  beforeEach(async () => {
+    await cleanup();
+    const a = await db.query(
+      `INSERT INTO accounts (name, account_type, section, currency) VALUES ($1,'asset','balance_sheet','PLN') RETURNING id`,
+      [ACCT_NAME]
+    );
+    acctId = a.rows[0].id;
+    await db.query(
+      `INSERT INTO account_source_mappings (account_id, source, external_name) VALUES ($1,'pocketsmith',$2)`,
+      [acctId, ACCT_NAME]
+    );
+    await db.query(
+      `INSERT INTO account_source_mappings (account_id, source, external_name, ignored, promote_from_date)
+       VALUES ($1,'bank-feed',$2, FALSE, $3)`,
+      [acctId, FEED_UUID, CUTOFF]
+    );
+  });
+  afterAll(async () => { await cleanup(); await db.close(); });
+
+  test('PS row >= cutoff is held; PS row < cutoff promotes', async () => {
+    await seedPs(PS_BEFORE, '2026-05-10');
+    await seedPs(PS_AFTER, '2026-05-20');
+
+    await ingestPs.syncStagingToTransactions({ onlyPsIds: [PS_BEFORE, PS_AFTER] });
+
+    const before = await db.query(`SELECT 1 FROM transactions WHERE ps_id = $1`, [PS_BEFORE]);
+    const after = await db.query(`SELECT 1 FROM transactions WHERE ps_id = $1`, [PS_AFTER]);
+    expect(before.rows).toHaveLength(1); // PS owns dates before the cutoff
+    expect(after.rows).toHaveLength(0);  // feed owns the cutoff date on
+  });
+
+  test('with BANK_FEED_CUTOFF_ENABLED=false the >= cutoff row IS promoted', async () => {
+    await seedPs(PS_AFTER, '2026-05-20');
+
+    const prev = process.env.BANK_FEED_CUTOFF_ENABLED;
+    process.env.BANK_FEED_CUTOFF_ENABLED = 'false';
+    try {
+      await ingestPs.syncStagingToTransactions({ onlyPsIds: [PS_AFTER] });
+    } finally {
+      if (prev === undefined) delete process.env.BANK_FEED_CUTOFF_ENABLED;
+      else process.env.BANK_FEED_CUTOFF_ENABLED = prev;
+    }
+
+    const after = await db.query(`SELECT 1 FROM transactions WHERE ps_id = $1`, [PS_AFTER]);
+    expect(after.rows).toHaveLength(1); // cutoff disabled → PS row promotes
+  });
+});
+
+// ════════════════════════════════════════════════════════════════════════════
 // DB-backed: PS↔bank-feed reconciliation (CR022 §G trust signal)
 //
 // Seeds a dedicated throwaway account so it never collides with the ~26k real

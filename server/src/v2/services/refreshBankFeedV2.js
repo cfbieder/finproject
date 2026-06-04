@@ -60,9 +60,12 @@ async function buildAccountIdToUuid() {
  * later re-auth that renumbers internal ids doesn't orphan the override.
  * Upserts one row per (UUID, balance_date, source); idempotent on re-run.
  */
-async function ingestBalances({ accountExternalIdById } = {}) {
+async function ingestBalances({ accountExternalIdById, asOf } = {}) {
   const idToUuid = accountExternalIdById || (await buildAccountIdToUuid());
-  const resp = await bankFeedClient.balances();
+  // asOf backfills a historical snapshot (e.g. a month-end the daily cron never
+  // cached); omitted → latest, the cron's default. The service returns the latest
+  // balance per account ≤ asOf, stamped with its real balance_date.
+  const resp = await bankFeedClient.balances(asOf || undefined);
   const list = (resp && resp.balances) || (Array.isArray(resp) ? resp : []);
 
   let upserted = 0;

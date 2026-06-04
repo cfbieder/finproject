@@ -15,6 +15,7 @@ const router = express.Router();
 const client = require('../services/bankFeedClient');
 const accountSourceMappings = require('../repositories/accountSourceMappings');
 const bankFeedReconciliation = require('../repositories/bankFeedReconciliation');
+const { reconcileToFeed } = require('../services/reconcileToFeed');
 const db = require('../db');
 
 // Wrap a client call so any error becomes a clean JSON 502.
@@ -184,6 +185,45 @@ router.get('/reconciliation', async (req, res, next) => {
   } catch (err) {
     console.error('[v2/bank-feed] reconciliation failed:', err.message);
     next(err);
+  }
+});
+
+/**
+ * GET /api/v2/bank-feed/balance-recon?asOf=YYYY-MM-DD
+ * CR023 §4.C: per mapped account, fin computed balance vs the bank's reported
+ * `feed_balances` (sign-aware), drift, and reconciled flag. The live cutover
+ * gate now PS is off — drives the source-aware "Reconcile to feed" action.
+ * Read-only.
+ */
+router.get('/balance-recon', async (req, res, next) => {
+  try {
+    const asOf = req.query.asOf || null;
+    const result = await bankFeedReconciliation.balanceReconcile({ asOf });
+    res.json(result);
+  } catch (err) {
+    console.error('[v2/bank-feed] balance-recon failed:', err.message);
+    next(err);
+  }
+});
+
+/**
+ * POST /api/v2/bank-feed/reconcile/:accountId  body: { asOf?, dryRun? }
+ * CR023: the source-aware "Reconcile to feed" action — brokerage posts an
+ * Unrealized-G/L (MTM) entry, cash re-anchors opening_balance. dryRun=true
+ * previews without writing. Manual only.
+ */
+router.post('/reconcile/:accountId', async (req, res, next) => {
+  try {
+    const accountId = Number(req.params.accountId);
+    if (!Number.isInteger(accountId)) {
+      return res.status(400).json({ error: 'invalid accountId' });
+    }
+    const { asOf = null, dryRun = false } = req.body || {};
+    const result = await reconcileToFeed(accountId, { asOf, dryRun: dryRun === true });
+    res.json(result);
+  } catch (err) {
+    console.error('[v2/bank-feed] reconcile failed:', err.message);
+    res.status(400).json({ error: err.message });
   }
 });
 

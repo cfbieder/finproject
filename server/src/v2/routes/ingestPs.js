@@ -107,6 +107,20 @@ async function bankFeedColumnExists(db) {
   return _bankFeedColumnExists;
 }
 
+// Memoized: does account_source_mappings.promote_from_date exist? (CR024 migration
+// 027). The CR023 PS-side cutoff references it; absent → the cutoff clause is empty
+// and PS promote behaves exactly as before (safe pre-027).
+let _promoteFromDateColumnExists = null;
+async function promoteFromDateColumnExists(db) {
+  if (_promoteFromDateColumnExists !== null) return _promoteFromDateColumnExists;
+  const r = await db.query(
+    `SELECT 1 FROM information_schema.columns
+     WHERE table_name = 'account_source_mappings' AND column_name = 'promote_from_date'`
+  );
+  _promoteFromDateColumnExists = r.rows.length > 0;
+  return _promoteFromDateColumnExists;
+}
+
 async function syncStagingToTransactions(options = {}) {
   const db = require('../db');
 
@@ -136,6 +150,26 @@ async function syncStagingToTransactions(options = {}) {
             AND bf.currency = s.currency
             AND ROUND(ABS(bf.amount), 2) = ROUND(ABS(COALESCE(s.amount, 0)), 2)
             AND ABS(bf.transaction_date - s.transaction_date) <= 1
+        )`;
+
+  // CR023 §4.A — deterministic symmetric PS-side cutoff. Once a fed account has a
+  // bank-feed cutoff (account_source_mappings.promote_from_date, set at hand-over),
+  // PS owns dates BEFORE it and the feed owns dates ON/AFTER it. So a PS staging row
+  // dated >= the cutoff is excluded from promote — a clean date handoff that does
+  // NOT rely on the R2 amount/date dedup heuristic (which mis-fired on recurring
+  // identical charges, CR022 §G). No cutoffs set → NOT EXISTS is always true → no
+  // rows excluded (dormant). Gated by BANK_FEED_CUTOFF_ENABLED (default on) and a
+  // column-existence self-disable so it is safe pre-027.
+  const cutoffOn =
+    process.env.BANK_FEED_CUTOFF_ENABLED !== 'false' && (await promoteFromDateColumnExists(db));
+  const psCutoffClause = !cutoffOn ? '' : `
+        AND NOT EXISTS (
+          SELECT 1 FROM account_source_mappings bfm
+          WHERE bfm.source = 'bank-feed'
+            AND bfm.account_id = a.id
+            AND bfm.ignored = FALSE
+            AND bfm.promote_from_date IS NOT NULL
+            AND s.transaction_date >= bfm.promote_from_date
         )`;
 
   // Check for unmapped accounts/categories first
@@ -206,7 +240,7 @@ async function syncStagingToTransactions(options = {}) {
       LEFT JOIN accounts c ON csm.account_id = c.id AND c.section = 'profit_loss'
       WHERE a.id IS NOT NULL
         AND s.transaction_date IS NOT NULL
-        AND s.currency IS NOT NULL${bankFeedDedupClause}${scopeClause}
+        AND s.currency IS NOT NULL${bankFeedDedupClause}${psCutoffClause}${scopeClause}
     )
     INSERT INTO transactions (
       ps_id, transaction_date, description1, description2,
