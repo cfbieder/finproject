@@ -176,3 +176,45 @@
 .btn--icon {
   padding: 0.4rem;
 }
+
+/* ----------------------------------------------------------------------------
+   Legacy compatibility: .generate-report-button is mid-migration onto
+   `.btn btn--primary`. Its per-component base copies have been removed, so this
+   global base keeps every not-yet-migrated usage (modals, toolbars) rendering
+   as a standard primary button. Per-context overrides (.range-input-actions,
+   .transfer-analysis-controls, .fc-scenarios-modal__actions …) still layer on
+   top. Remove this block once the remaining usages are converted to .btn.
+   ---------------------------------------------------------------------------- */
+.generate-report-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-sm);
+  padding: 0.6rem 1.15rem;
+  border-radius: var(--radius-md);
+  border: 1px solid transparent;
+  font-size: 0.9rem;
+  font-weight: 600;
+  line-height: 1;
+  background: var(--primary);
+  color: #fff;
+  cursor: pointer;
+  transition: all var(--transition-base);
+  white-space: nowrap;
+  box-shadow: 0 4px 12px -4px rgba(86, 120, 86, 0.4);
+}
+
+.generate-report-button:not(:disabled):hover {
+  transform: translateY(-1px);
+  box-shadow: 0 6px 16px -4px rgba(86, 120, 86, 0.5);
+}
+
+.generate-report-button:not(:disabled):active {
+  transform: translateY(0);
+}
+
+.generate-report-button:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+  filter: grayscale(0.2);
+}
