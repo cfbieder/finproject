@@ -1,7 +1,5 @@
 .bfd-page {
-  padding: 24px;
-  max-width: 1400px;
-  margin: 0 auto;
+  padding: 24px 0;
 }
 
 .bfd-header {

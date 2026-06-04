@@ -178,7 +178,7 @@
   border: none;
   border-radius: var(--radius-md);
   padding: 0.85rem 2rem;
-  background: linear-gradient(135deg, var(--primary) 0%, var(--primary-light) 100%);
+  background: var(--primary);
   color: #ffffff;
   font-size: 0.95rem;
   font-weight: 700;

@@ -398,7 +398,7 @@ h2 {
 }
 
 .budget-entries-popup__editor button[type="submit"] {
-  background: linear-gradient(135deg, var(--popup-primary) 0%, var(--primary-light) 100%);
+  background: var(--primary);
   color: #fff;
   box-shadow: 0 4px 6px -1px rgba(107, 142, 107, 0.3);
 }

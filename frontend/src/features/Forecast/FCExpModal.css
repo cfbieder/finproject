@@ -423,7 +423,7 @@
   align-items: center;
   gap: 0.5rem;
   padding: 0.65rem 1.15rem;
-  background: linear-gradient(135deg, var(--primary) 0%, var(--primary-light) 100%);
+  background: var(--primary);
   color: white;
   border: none;
   border-radius: 0.65rem;
@@ -821,14 +821,14 @@
 }
 
 .fc-exp-modal__button--save {
-  background: linear-gradient(135deg, var(--primary) 0%, var(--primary-light) 100%);
+  background: var(--primary);
   color: white;
   border-color: transparent;
   box-shadow: 0 4px 12px -4px rgba(107, 142, 107, 0.5);
 }
 
 .fc-exp-modal__button--save:hover:not(:disabled) {
-  background: linear-gradient(135deg, var(--primary-strong) 0%, var(--primary) 100%);
+  background: var(--primary-hover);
   transform: translateY(-2px);
   box-shadow: 0 8px 20px -6px rgba(107, 142, 107, 0.6),
     0 0 0 3px rgba(107, 142, 107, 0.2);

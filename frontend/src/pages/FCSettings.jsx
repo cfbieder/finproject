@@ -16,7 +16,6 @@ export default function FCSettings() {
   const [birthYear, setBirthYear] = useState("");
   const [moduleTypes, setModuleTypes] = useState(DEFAULT_MODULE_TYPES);
   const [newType, setNewType] = useState("");
-  const [apiKey, setApiKey] = useState("");
   const [aiPrompt, setAiPrompt] = useState(DEFAULT_AI_PROMPT);
 
   useEffect(() => {
@@ -24,7 +23,6 @@ export default function FCSettings() {
       const doc = Array.isArray(data) && data.length > 0 ? data[0] : data;
       if (doc?.birthYear) setBirthYear(String(doc.birthYear));
       if (Array.isArray(doc?.moduleTypes) && doc.moduleTypes.length > 0) setModuleTypes(doc.moduleTypes);
-      if (doc?.anthropic_api_key) setApiKey(String(doc.anthropic_api_key));
       if (doc?.ai_review_prompt) setAiPrompt(String(doc.ai_review_prompt));
     }).catch(() => {});
   }, []);
@@ -150,25 +148,6 @@ export default function FCSettings() {
         <section className="fx-options-section">
           <h2 style={{ fontSize: "1.1rem", fontWeight: 700, marginBottom: "1rem" }}>AI Review</h2>
           <div style={{ display: "flex", flexDirection: "column", gap: "1rem" }}>
-            <div>
-              <label style={{ fontSize: "0.85rem", fontWeight: 600, display: "block", marginBottom: "0.25rem" }}>
-                Anthropic API Key
-              </label>
-              <span style={{ fontSize: "0.8rem", color: "var(--text-secondary)", display: "block", marginBottom: "0.5rem" }}>
-                Required for AI-powered plan reviews. Get yours at console.anthropic.com
-              </span>
-              <input
-                type="password"
-                className="form-input"
-                value={apiKey}
-                onChange={(e) => {
-                  setApiKey(e.target.value);
-                  save("anthropic_api_key", e.target.value || null);
-                }}
-                placeholder="sk-ant-..."
-                style={{ width: "min(100%, 28rem)", fontFamily: "monospace" }}
-              />
-            </div>
             <div>
               <label style={{ fontSize: "0.85rem", fontWeight: 600, display: "block", marginBottom: "0.25rem" }}>
                 AI System Prompt

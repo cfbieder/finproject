@@ -94,6 +94,14 @@
   --space-xl: 3rem;
   --space-2xl: 4.5rem;
 
+  /* Page layout - single source of truth for content width + side gutter.
+     Every page centers its content box at --page-max-width via the shared
+     .page-shell wrapper; the navbar and breadcrumbs use the same values so
+     their edges align with the content box. */
+  --page-max-width: 1600px;
+  --page-gutter: 1.5rem;
+  --page-frame: calc(var(--page-max-width) + 2 * var(--page-gutter));
+
   /* Typography - Financial data readability */
   --font-mono: 'SF Mono', Monaco, 'Cascadia Code', 'Roboto Mono', Consolas, monospace;
   --font-weight-medium: 500;

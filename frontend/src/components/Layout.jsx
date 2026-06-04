@@ -13,7 +13,7 @@ export default function Layout({ children }) {
       <NavigationMenu />
       <Breadcrumbs />
       <div className="page-content-area" key={pathname}>
-        {children}
+        <div className="page-shell">{children}</div>
       </div>
       <Footer />
     </div>

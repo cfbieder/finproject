@@ -325,7 +325,7 @@
 }
 
 .fc-review-transfer-modal__button--primary {
-  background: linear-gradient(135deg, var(--primary-light) 0%, var(--primary) 100%);
+  background: var(--primary);
   color: white;
   box-shadow: 0 2px 8px rgba(127, 163, 127, 0.25);
 }

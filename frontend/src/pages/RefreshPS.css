@@ -70,7 +70,7 @@
   font-size: 0.85rem;
   font-weight: 600;
   white-space: nowrap;
-  background: linear-gradient(135deg, var(--primary, var(--primary)), var(--primary-light));
+  background: var(--primary);
   color: #fff;
   box-shadow: 0 2px 8px -2px rgba(107, 142, 107, 0.45);
   cursor: pointer;

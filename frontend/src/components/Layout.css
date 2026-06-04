@@ -12,6 +12,36 @@
   animation: page-enter 0.2s ease-out;
 }
 
+/* Shared page shell — the single owner of content width, centering, and side
+   gutter. Pages must NOT set their own max-width / margin: 0 auto / horizontal
+   padding on their top-level wrapper; they inherit width from here so every
+   page lines up identically (and with the navbar + breadcrumbs above). */
+.page-shell {
+  flex: 1;
+  width: 100%;
+  max-width: var(--page-frame);
+  margin: 0 auto;
+  padding: 0 var(--page-gutter);
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+/* Shrink the side gutter on narrow desktop windows so the content box keeps
+   using the available width. The navbar/breadcrumbs read the same token, so
+   they stay aligned with the page content at every breakpoint. */
+@media (max-width: 768px) {
+  :root {
+    --page-gutter: 1rem;
+  }
+}
+
+@media (max-width: 640px) {
+  :root {
+    --page-gutter: 0.75rem;
+  }
+}
+
 @keyframes page-enter {
   from {
     opacity: 0;

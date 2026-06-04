@@ -1,8 +1,8 @@
 .breadcrumbs {
   width: 100%;
-  max-width: 1400px;
+  max-width: var(--page-frame);
   margin: 0 auto;
-  padding: 0 1.5rem;
+  padding: 0 var(--page-gutter);
 }
 
 .breadcrumbs__list {

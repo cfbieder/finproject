@@ -139,7 +139,7 @@
   padding: 1rem 1.5rem;
   border-radius: 0.875rem;
   border: none;
-  background: linear-gradient(135deg, var(--primary) 0%, var(--primary-light) 100%);
+  background: var(--primary);
   color: #fff;
   font-size: 1rem;
   font-weight: 700;

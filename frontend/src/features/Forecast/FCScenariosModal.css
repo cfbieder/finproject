@@ -307,14 +307,14 @@ input[type="number"].fc-scenarios-modal__field input {
 
 /* Primary Button */
 .fc-scenarios-action-button--primary {
-  background: linear-gradient(135deg, var(--primary) 0%, var(--primary-light) 100%);
+  background: var(--primary);
   color: white;
   border-color: transparent;
   box-shadow: 0 4px 12px -4px rgba(107, 142, 107, 0.5);
 }
 
 .fc-scenarios-action-button--primary:hover:not(:disabled) {
-  background: linear-gradient(135deg, var(--primary-strong) 0%, var(--primary) 100%);
+  background: var(--primary-hover);
   transform: translateY(-2px);
   box-shadow: 0 8px 20px -6px rgba(107, 142, 107, 0.6),
     0 0 0 3px rgba(107, 142, 107, 0.2);
