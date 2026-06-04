@@ -8,6 +8,7 @@
     "tail": "env-cmd -e tail -- vite",
     "build": "vite build",
     "lint": "eslint .",
+    "lint:buttons": "bash ../Scripts/check-button-css.sh",
     "preview": "vite preview",
     "test": "vitest run",
     "test:watch": "vitest"
