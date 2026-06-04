@@ -21,6 +21,11 @@
 const BASE_URL = process.env.BANK_FEED_URL || 'http://host.docker.internal:3007';
 const API_KEY = process.env.BANK_FEED_API_KEY || '';
 
+// Which consuming app fin is — sent as ?app on /v1/{accounts,transactions,balances}
+// so the shared bank-feed serves fin only its routed accounts (OCME's go to the
+// OCME app). Additive on the bank-feed side: omitting it returns all accounts.
+const APP = process.env.BANK_FEED_APP || 'fin';
+
 const DEFAULT_TIMEOUT_MS = 8000;
 
 function ensureConfigured() {
@@ -81,12 +86,12 @@ async function request(path, { method = 'GET', query, timeoutMs = DEFAULT_TIMEOU
 function health()      { return request('/v1/health'); }
 function feedsHealth() { return request('/v1/health/feeds'); }
 function connections() { return request('/v1/connections'); }
-function accounts()    { return request('/v1/accounts'); }
-function balances(asOf) { return request('/v1/balances', { query: { as_of: asOf } }); }
+function accounts()    { return request('/v1/accounts', { query: { app: APP } }); }
+function balances(asOf) { return request('/v1/balances', { query: { as_of: asOf, app: APP } }); }
 
 function transactions({ since, until, accountId, limit = 500, offset = 0 } = {}) {
   return request('/v1/transactions', {
-    query: { since, until, account_id: accountId, limit, offset },
+    query: { since, until, account_id: accountId, app: APP, limit, offset },
   });
 }
 
