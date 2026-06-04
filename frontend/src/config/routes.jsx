@@ -28,6 +28,7 @@ import {
   ArrowLeftRight,
   ArrowUpDown,
   Wallet,
+  Palette,
 } from "lucide-react";
 
 // Eagerly loaded pages (for fast initial render)
@@ -64,6 +65,7 @@ const UploadPS = lazy(() => import("../pages/UploadPS"));
 const COAManagement = lazy(() => import("../pages/COAManagement"));
 const BudgetFX = lazy(() => import("../pages/BudgetFX"));
 const CategoryTrend = lazy(() => import("../pages/CategoryTrend"));
+const UIPreview = lazy(() => import("../pages/UIPreview"));
 
 /**
  * Category metadata for landing pages.
@@ -384,6 +386,14 @@ export const routes = [
     category: "Settings",
     description: "Configure application preferences and defaults",
     icon: Settings2,
+  },
+  {
+    path: "/ui-preview",
+    component: UIPreview,
+    label: "UI Preview (CR026)",
+    category: "Settings",
+    description: "Non-functional mockup of the proposed new look: sidebar nav, dark mode, command palette, mobile view",
+    icon: Palette,
   },
 ];
 
