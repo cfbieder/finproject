@@ -88,16 +88,16 @@
 
 .budget-fx-table th,
 .budget-fx-table td {
-  border: 1px solid #dcdce4;
+  border: 1px solid var(--border);
   padding: 0.5rem 0.65rem;
 }
 
 .budget-fx-table th {
-  background: #f3f3f3;
+  background: var(--surface-muted);
   font-size: 0.78rem;
   letter-spacing: 0.08em;
   text-transform: uppercase;
-  color: #333;
+  color: var(--ink);
   white-space: nowrap;
 }
 
@@ -239,16 +239,16 @@
 
 .budget-fx-modal__table th,
 .budget-fx-modal__table td {
-  border: 1px solid #dcdce4;
+  border: 1px solid var(--border);
   padding: 0.5rem 0.65rem;
 }
 
 .budget-fx-modal__table th {
-  background: #f3f3f3;
+  background: var(--surface-muted);
   font-size: 0.78rem;
   letter-spacing: 0.08em;
   text-transform: uppercase;
-  color: #333;
+  color: var(--ink);
   white-space: nowrap;
 }
 
@@ -297,7 +297,7 @@
 
 .budget-fx-modal__btn--confirm {
   background: var(--primary, var(--primary));
-  color: #fff;
+  color: var(--on-accent);
 }
 
 .budget-fx-modal__btn--confirm:hover:not(:disabled) {

@@ -87,7 +87,7 @@
   font-size: 0.8rem;
   font-weight: 700;
   color: var(--primary);
-  background: #F0EFE9;
+  background: var(--bg-tertiary);
   padding: 0.3rem 0.6rem;
   border-radius: var(--radius-sm);
   white-space: nowrap;
@@ -166,7 +166,7 @@
 
 .coa-toolbar-btn--delete {
   border-color: rgba(220, 38, 38, 0.25);
-  color: #991b1b;
+  color: var(--danger-strong);
 }
 
 .coa-toolbar-btn--delete:hover:not(:disabled) {
@@ -177,7 +177,7 @@
 
 .coa-toolbar-btn--analyze {
   border-color: rgba(16, 185, 129, 0.3);
-  color: #0f766e;
+  color: var(--success-strong);
 }
 
 .coa-toolbar-btn--analyze:hover:not(:disabled) {
@@ -213,7 +213,7 @@
 .coa-analysis-banner {
   margin-bottom: 1rem;
   padding: 0.75rem 1rem;
-  background: #FAF9F5;
+  background: var(--surface-muted);
   border: 1px solid var(--border);
   border-radius: var(--radius-md);
 }
@@ -226,7 +226,7 @@
 
 .coa-analysis-banner__msg--info { color: var(--primary); }
 .coa-analysis-banner__msg--success { color: var(--success-strong); }
-.coa-analysis-banner__msg--error { color: #991b1b; }
+.coa-analysis-banner__msg--error { color: var(--danger-strong); }
 
 .coa-analysis-banner__details {
   margin: 0.5rem 0 0;
@@ -361,7 +361,7 @@
 
 /* Selected rows */
 .coa-tree-row--selected {
-  background: #F0EFE9 !important;
+  background: var(--bg-tertiary) !important;
 }
 
 .coa-tree-row--selected td:first-child {
@@ -453,7 +453,7 @@
 }
 
 .coa-row-action-btn--move:hover {
-  color: #8B7BB5;
+  color: var(--info);
   background: rgba(124, 58, 237, 0.08);
 }
 
@@ -557,7 +557,7 @@
   border: 1px solid var(--border);
   border-radius: 8px;
   padding: 0.35rem;
-  background: #fafbfc;
+  background: var(--surface-muted);
 }
 
 .coa-category-picker__item {
@@ -575,12 +575,12 @@
 }
 
 .coa-category-picker__item--selected {
-  background: #E8F0E9;
+  background: var(--primary-subtle);
   color: var(--primary-strong);
 }
 
 .coa-category-picker__item--selected:hover {
-  background: #E8F0E9;
+  background: var(--primary-subtle);
 }
 
 .coa-category-picker__item--category {

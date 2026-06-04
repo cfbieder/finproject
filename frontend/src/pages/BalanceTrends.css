@@ -82,7 +82,7 @@
 
 .balance-trends-toolbar__interval-pill.is-active {
   background: var(--primary, #6b8e6b);
-  color: #fff;
+  color: var(--on-accent);
 }
 
 .balance-trends-toolbar__interval-pill:not(:last-child) {
@@ -123,7 +123,7 @@
 
 .balance-trends-toolbar__btn--primary {
   background: var(--primary, #6b8e6b);
-  color: #fff;
+  color: var(--on-accent);
   border-color: var(--primary, #6b8e6b);
 }
 
