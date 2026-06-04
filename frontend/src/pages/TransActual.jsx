@@ -741,7 +741,7 @@ export default function TransActual() {
 
         <button
           type="button"
-          className={`txv2-btn ${showFilters ? "txv2-btn--active" : ""}`}
+          className={`btn btn--sm btn--outline ${showFilters ? "btn--active" : ""}`}
           onClick={() => setShowFilters((v) => !v)}
         >
           <SlidersHorizontal size={14} />
@@ -751,7 +751,7 @@ export default function TransActual() {
 
         <button
           type="button"
-          className="txv2-btn"
+          className="btn btn--sm btn--outline"
           onClick={handleExport}
           disabled={sortedTransactions.length === 0}
         >
@@ -781,7 +781,7 @@ export default function TransActual() {
               {activeChips.some((c) => c.removable) && (
                 <button
                   type="button"
-                  className="txv2-btn"
+                  className="btn btn--sm btn--outline"
                   style={{ fontSize: "0.7rem", padding: "0.25rem 0.5rem" }}
                   onClick={clearAllFilters}
                 >
@@ -883,10 +883,10 @@ export default function TransActual() {
                 />
               </div>
             </div>
-            <button type="button" className="txv2-btn" onClick={clearAllFilters}>
+            <button type="button" className="btn btn--sm btn--outline" onClick={clearAllFilters}>
               Reset
             </button>
-            <button type="button" className="txv2-btn txv2-btn--primary" onClick={applyValueRange}>
+            <button type="button" className="btn btn--sm btn--primary" onClick={applyValueRange}>
               Apply
             </button>
           </div>
@@ -909,7 +909,7 @@ export default function TransActual() {
           <div className="txv2-selection-bar__sep" />
           <button
             type="button"
-            className="txv2-btn"
+            className="btn btn--sm btn--outline"
             onClick={edit.handleEditRequest}
           >
             <Pencil size={13} />
@@ -919,7 +919,7 @@ export default function TransActual() {
             <>
               <button
                 type="button"
-                className="txv2-btn txv2-btn--split"
+                className="btn btn--sm btn--outline btn--split"
                 onClick={() => handleSplitClick(null, null)}
               >
                 <Scissors size={13} />
@@ -927,7 +927,7 @@ export default function TransActual() {
               </button>
               <button
                 type="button"
-                className="txv2-btn txv2-btn--neutralize"
+                className="btn btn--sm btn--outline btn--neutralize"
                 onClick={() => handleNeutralizeClick(null, null)}
                 disabled={isNeutralizing}
               >
@@ -939,7 +939,7 @@ export default function TransActual() {
           <div style={{ flex: 1 }} />
           <button
             type="button"
-            className="txv2-btn txv2-btn--danger"
+            className="btn btn--sm btn--outline btn--danger-soft"
             onClick={del.handleDeleteRequest}
           >
             <Trash2 size={13} />
@@ -947,7 +947,7 @@ export default function TransActual() {
           </button>
           <button
             type="button"
-            className="txv2-btn"
+            className="btn btn--sm btn--outline"
             onClick={clearSelection}
             style={{ fontSize: "0.72rem" }}
           >
@@ -1091,7 +1091,7 @@ export default function TransActual() {
               {hasMoreTransactions && (
                 <button
                   type="button"
-                  className="txv2-btn txv2-btn--primary"
+                  className="btn btn--sm btn--primary"
                   onClick={handleLoadMore}
                   disabled={isLoading}
                   style={{ fontSize: "0.72rem", padding: "0.3rem 0.75rem" }}
@@ -1242,7 +1242,7 @@ export default function TransActual() {
             <div className="txv2-drawer__footer">
               <button
                 type="button"
-                className="txv2-btn"
+                className="btn btn--sm btn--outline"
                 onClick={() => { setSplitTransaction(null); setSplits([]); }}
                 disabled={isSavingSplit}
               >
@@ -1250,7 +1250,7 @@ export default function TransActual() {
               </button>
               <button
                 type="button"
-                className="txv2-btn txv2-btn--primary"
+                className="btn btn--sm btn--primary"
                 onClick={handleSplitSave}
                 disabled={
                   isSavingSplit ||

@@ -4,6 +4,7 @@ import Breadcrumbs from "./Breadcrumbs";
 import Footer from "./Footer";
 import "./Layout.css";
 import "./DataTable.css";
+import "./buttons.css";
 
 export default function Layout({ children }) {
   const { pathname } = useLocation();

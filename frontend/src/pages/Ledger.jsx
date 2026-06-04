@@ -547,7 +547,7 @@ export default function Ledger() {
 
         <button
           type="button"
-          className={`txv2-btn ${showFilters ? "txv2-btn--active" : ""}`}
+          className={`btn btn--sm btn--outline ${showFilters ? "btn--active" : ""}`}
           onClick={() => setShowFilters((v) => !v)}
         >
           <SlidersHorizontal size={14} />
@@ -557,7 +557,7 @@ export default function Ledger() {
         {hasAccount && (
           <button
             type="button"
-            className="txv2-btn txv2-btn--primary"
+            className="btn btn--sm btn--primary"
             onClick={openAddModal}
           >
             <Plus size={14} />
@@ -568,7 +568,7 @@ export default function Ledger() {
         {hasAccount && (
           <button
             type="button"
-            className={`txv2-btn ${showDuplicatesOnly ? "txv2-btn--active" : ""}`}
+            className={`btn btn--sm btn--outline ${showDuplicatesOnly ? "btn--active" : ""}`}
             onClick={handleToggleDuplicates}
             disabled={transactions.length === 0}
             title="Find potential duplicate entries"
@@ -580,7 +580,7 @@ export default function Ledger() {
 
         <button
           type="button"
-          className="txv2-btn"
+          className="btn btn--sm btn--outline"
           onClick={handleExport}
           disabled={transactionsWithBalance.length === 0}
         >
@@ -674,7 +674,7 @@ export default function Ledger() {
           )}
           <button
             type="button"
-            className="txv2-btn txv2-btn--sm"
+            className="btn btn--xs"
             onClick={handleToggleDuplicates}
             style={{ marginLeft: "auto" }}
           >
@@ -697,18 +697,18 @@ export default function Ledger() {
             {selectedRows.size} selected
           </span>
           <div className="txv2-selection-bar__sep" />
-          <button type="button" className="txv2-btn" onClick={edit.handleEditRequest}>
+          <button type="button" className="btn btn--sm btn--outline" onClick={edit.handleEditRequest}>
             <Pencil size={13} />
             Edit
           </button>
           <div style={{ flex: 1 }} />
-          <button type="button" className="txv2-btn txv2-btn--danger" onClick={del.handleDeleteRequest}>
+          <button type="button" className="btn btn--sm btn--outline btn--danger-soft" onClick={del.handleDeleteRequest}>
             <Trash2 size={13} />
             Delete
           </button>
           <button
             type="button"
-            className="txv2-btn"
+            className="btn btn--sm btn--outline"
             onClick={clearSelection}
             style={{ fontSize: "0.72rem" }}
           >
@@ -832,7 +832,7 @@ export default function Ledger() {
                 {hasMoreTransactions && (
                   <button
                     type="button"
-                    className="txv2-btn txv2-btn--primary"
+                    className="btn btn--sm btn--primary"
                     onClick={handleLoadMore}
                     disabled={isLoading}
                     style={{ fontSize: "0.72rem", padding: "0.3rem 0.75rem" }}
@@ -985,7 +985,7 @@ export default function Ledger() {
               <div className="txv2-drawer__footer">
                 <button
                   type="button"
-                  className="txv2-btn"
+                  className="btn btn--sm btn--outline"
                   onClick={() => setShowAddModal(false)}
                   disabled={isAdding}
                 >
@@ -993,7 +993,7 @@ export default function Ledger() {
                 </button>
                 <button
                   type="submit"
-                  className="txv2-btn txv2-btn--primary"
+                  className="btn btn--sm btn--primary"
                   disabled={isAdding}
                 >
                   {isAdding ? "Saving..." : "Add Transaction"}
