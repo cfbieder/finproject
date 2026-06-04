@@ -61,6 +61,11 @@
   --info-subtle: #F5F3F8;
   --info-border: #B5A8D5;
 
+  /* Text color for filled accent surfaces (buttons, badges, active chips).
+     Light: white on the darker light-mode accents. Dark: ink, because the
+     dark-mode accents are lightened — so dark text keeps WCAG contrast. */
+  --on-accent: #ffffff;
+
   /* Financial Data Visualization - Organic palette */
   --growth-positive: #5B8C5B;
   --growth-negative: #C0504D;
@@ -207,6 +212,8 @@
   --info-strong: #BCAFD9;
   --info-subtle: #262233;
   --info-border: #3D3550;
+
+  --on-accent: #15171A;
 
   /* Data viz — lifted for contrast on dark */
   --growth-positive: #69B369;
