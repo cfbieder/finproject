@@ -652,4 +652,11 @@ dbDescribe('bankFeedReconciliation.reconcile (DB)', () => {
     expect(out.accounts.find((r) => r.account_id === acctId)).toBeUndefined();
     await db.query(`UPDATE account_source_mappings SET ignored = FALSE WHERE external_name = $1`, [FEED_UUID]);
   });
+
+  test('a cut-over account (promote_from_date set) is excluded from the §G panel (CR023)', async () => {
+    await db.query(`UPDATE account_source_mappings SET promote_from_date = '2026-05-01' WHERE external_name = $1`, [FEED_UUID]);
+    const out = await recon.reconcile({ sinceDays: 60 });
+    expect(out.accounts.find((r) => r.account_id === acctId)).toBeUndefined();
+    await db.query(`UPDATE account_source_mappings SET promote_from_date = NULL WHERE external_name = $1`, [FEED_UUID]);
+  });
 });

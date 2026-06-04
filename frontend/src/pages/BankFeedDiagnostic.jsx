@@ -386,11 +386,13 @@ export default function BankFeedDiagnostic() {
         <section className="bfd-section">
           <h2>PS ↔ bank-feed reconciliation (CR022 §G)</h2>
           <p className="bfd-subtitle">
-            Accounts <strong>still fed by PocketSmith</strong> (PS activity in the
-            last {recon.sinceDays} days), over that window. <strong>PS-only</strong> =
+            Accounts <strong>not yet cut over</strong> — still in PS↔bank-feed
+            parallel run (no cutoff set), over the last {recon.sinceDays} days.
+            Cut-over accounts (a <code>promote_from_date</code> is set) are excluded:
+            their PS rows are pre-cutoff history, not gaps. <strong>PS-only</strong> =
             PocketSmith transactions with no bank-feed match — i.e. transactions
             bank-feed <em>missed</em>. A clean parallel run drives PS-only to{" "}
-            <strong>0</strong> before an account can be retired. bank-feed-only is
+            <strong>0</strong> before an account is cut over. bank-feed-only is
             informational (usually bank-feed being more complete). This panel
             depopulates as accounts migrate; once empty, the PS rec is no longer needed.
           </p>

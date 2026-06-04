@@ -31,11 +31,17 @@ async function reconcile({ sinceDays = 30 } = {}) {
     WITH win AS (
       SELECT (CURRENT_DATE - ($1::int))::date AS since
     ),
-    -- mapped, un-ignored bank-feed accounts (the only ones that promote)
+    -- mapped, un-ignored bank-feed accounts STILL in PS↔bank-feed parallel run.
+    -- An account with a cutoff (promote_from_date) is already cut over — the feed
+    -- owns it from the cutoff on — so PS↔bank-feed row-matching is meaningless for
+    -- it (its PS rows are pre-cutoff history, not "missed" by the feed). Excluding
+    -- cutoff accounts scopes this gate (and total_ps_only) to genuinely-parallel
+    -- accounts (CR023); the panel depopulates as accounts are cut over.
     mapped AS (
       SELECT m.external_name AS feed_uuid, m.account_id
       FROM account_source_mappings m
       WHERE m.source = 'bank-feed' AND m.ignored IS NOT TRUE AND m.account_id IS NOT NULL
+        AND m.promote_from_date IS NULL
     ),
     ps AS (
       SELECT t.id, t.account_id, t.amount, t.currency, t.transaction_date, t.bank_feed_external_id
