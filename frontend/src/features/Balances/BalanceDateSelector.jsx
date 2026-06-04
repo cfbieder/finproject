@@ -1,4 +1,5 @@
 import "./BalanceDateSelector.css";
+import { ChevronDown, ChevronUp } from "lucide-react";
 import PeriodCountSelector from "../../components/PeriodCountSelector";
 
 export default function BalanceDateSelector({
@@ -68,24 +69,10 @@ export default function BalanceDateSelector({
             {isLoading ? "Generating..." : "Generate"}
           </button>
           {showCollapseToggle && !isFullyExpanded && (
-            <button
-              className="report-toolbar__button"
-              type="button"
-              onClick={onExpandOneLayer}
-              disabled={collapseToggleDisabled}
-            >
-              Expand +
-            </button>
+            <button type="button" className="btn btn--sm btn--outline btn--icon" onClick={onExpandOneLayer} disabled={collapseToggleDisabled} title="Expand one level"><ChevronDown size={16} /></button>
           )}
           {showCollapseToggle && !isFullyCollapsed && (
-            <button
-              className="report-toolbar__button"
-              type="button"
-              onClick={onCollapseOneLayer}
-              disabled={collapseToggleDisabled}
-            >
-              Collapse −
-            </button>
+            <button type="button" className="btn btn--sm btn--outline btn--icon" onClick={onCollapseOneLayer} disabled={collapseToggleDisabled} title="Collapse one level"><ChevronUp size={16} /></button>
           )}
           {canExport && onExport && (
             <button
@@ -148,24 +135,10 @@ export default function BalanceDateSelector({
           {isLoading ? "Generating..." : "Generate Report"}
         </button>
         {showCollapseToggle && !isFullyExpanded && (
-          <button
-            className="btn btn--lg btn--primary btn--block"
-            type="button"
-            onClick={onExpandOneLayer}
-            disabled={collapseToggleDisabled}
-          >
-            Expand +
-          </button>
+          <button type="button" className="btn btn--sm btn--outline btn--icon" onClick={onExpandOneLayer} disabled={collapseToggleDisabled} title="Expand one level"><ChevronDown size={16} /></button>
         )}
         {showCollapseToggle && !isFullyCollapsed && (
-          <button
-            className="btn btn--lg btn--primary btn--block"
-            type="button"
-            onClick={onCollapseOneLayer}
-            disabled={collapseToggleDisabled}
-          >
-            Collapse −
-          </button>
+          <button type="button" className="btn btn--sm btn--outline btn--icon" onClick={onCollapseOneLayer} disabled={collapseToggleDisabled} title="Collapse one level"><ChevronUp size={16} /></button>
         )}
       </aside>
     </div>

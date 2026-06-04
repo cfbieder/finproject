@@ -1,5 +1,5 @@
 import { memo } from "react";
-import { DollarSign, TrendingUp, TrendingDown, Target } from "lucide-react";
+import { DollarSign, TrendingUp, TrendingDown, Target, ChevronDown, ChevronUp } from "lucide-react";
 import PeriodSelector from "../../components/PeriodSelector/PeriodSelector.jsx";
 import { KpiCard, KpiCardRow } from "../../components/KpiCards.jsx";
 
@@ -66,24 +66,10 @@ function BudgetRealizationContent({
               <span className="realization-toolbar__toggle-text">Transfers</span>
             </label>
             {!toggleProps.isFullyExpanded && (
-              <button
-                type="button"
-                className="realization-toolbar__action-button"
-                onClick={toggleProps.onExpandOneLayer}
-                disabled={!toggleProps.hasCollapsiblePaths}
-              >
-                Expand +
-              </button>
+              <button type="button" className="btn btn--sm btn--outline btn--icon" onClick={toggleProps.onExpandOneLayer} disabled={!toggleProps.hasCollapsiblePaths} title="Expand one level"><ChevronDown size={16} /></button>
             )}
             {!toggleProps.isFullyCollapsed && (
-              <button
-                type="button"
-                className="realization-toolbar__action-button"
-                onClick={toggleProps.onCollapseOneLayer}
-                disabled={!toggleProps.hasCollapsiblePaths}
-              >
-                Collapse −
-              </button>
+              <button type="button" className="btn btn--sm btn--outline btn--icon" onClick={toggleProps.onCollapseOneLayer} disabled={!toggleProps.hasCollapsiblePaths} title="Collapse one level"><ChevronUp size={16} /></button>
             )}
             {canExport && onExport && (
               <button

@@ -2278,7 +2278,7 @@
 .budget-realization-scroll {
   width: 100%;
   max-height: calc(100vh - 180px);
-  overflow: visible;
+  overflow: auto;
   padding-right: 0.25rem;
   position: relative;
 }

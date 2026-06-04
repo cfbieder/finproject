@@ -1,4 +1,5 @@
 import { useMemo, useState, useEffect } from "react";
+import { ChevronDown, ChevronUp } from "lucide-react";
 import Rest from "../js/rest.js";
 import { exportBalanceSheet } from "../utils/excelExporter.js";
 import {
@@ -317,24 +318,10 @@ export default function BalanceSheetPeriods() {
               {isLoading ? "Generating..." : "Generate"}
             </button>
             {!isFullyExpanded && (
-              <button
-                className="report-toolbar__button"
-                type="button"
-                onClick={handleExpandOneLayer}
-                disabled={isCollapseToggleDisabled}
-              >
-                Expand +
-              </button>
+              <button type="button" className="btn btn--sm btn--outline btn--icon" onClick={handleExpandOneLayer} disabled={isCollapseToggleDisabled} title="Expand one level"><ChevronDown size={16} /></button>
             )}
             {!isFullyCollapsed && (
-              <button
-                className="report-toolbar__button"
-                type="button"
-                onClick={handleCollapseOneLayer}
-                disabled={isCollapseToggleDisabled}
-              >
-                Collapse −
-              </button>
+              <button type="button" className="btn btn--sm btn--outline btn--icon" onClick={handleCollapseOneLayer} disabled={isCollapseToggleDisabled} title="Collapse one level"><ChevronUp size={16} /></button>
             )}
             <button
               className="report-toolbar__button"

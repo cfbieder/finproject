@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { ChevronDown, ChevronUp } from "lucide-react";
 
 const CURRENT_YEAR = new Date().getFullYear();
 const YEAR_OPTION_COUNT = 8;
@@ -185,24 +186,10 @@ export default function BudgetBalancePanel({
             <span className="realization-toolbar__toggle-text">Transfers</span>
           </label>
           {!isFullyExpanded && (
-            <button
-              type="button"
-              className="realization-toolbar__action-button"
-              onClick={onExpandOneLayer}
-              disabled={!hasCollapsiblePaths}
-            >
-              Expand +
-            </button>
+            <button type="button" className="btn btn--sm btn--outline btn--icon" onClick={onExpandOneLayer} disabled={!hasCollapsiblePaths} title="Expand one level"><ChevronDown size={16} /></button>
           )}
           {!isFullyCollapsed && (
-            <button
-              type="button"
-              className="realization-toolbar__action-button"
-              onClick={onCollapseOneLayer}
-              disabled={!hasCollapsiblePaths}
-            >
-              Collapse −
-            </button>
+            <button type="button" className="btn btn--sm btn--outline btn--icon" onClick={onCollapseOneLayer} disabled={!hasCollapsiblePaths} title="Collapse one level"><ChevronUp size={16} /></button>
           )}
         </div>
       </section>
@@ -317,24 +304,10 @@ export default function BudgetBalancePanel({
       </div>
       <div className="balance-panel__actions">
         {!isFullyExpanded && (
-          <button
-            type="button"
-            className="balance-panel__action-button"
-            onClick={onExpandOneLayer}
-            disabled={!hasCollapsiblePaths}
-          >
-            Expand +
-          </button>
+          <button type="button" className="btn btn--sm btn--outline btn--icon" onClick={onExpandOneLayer} disabled={!hasCollapsiblePaths} title="Expand one level"><ChevronDown size={16} /></button>
         )}
         {!isFullyCollapsed && (
-          <button
-            type="button"
-            className="balance-panel__action-button"
-            onClick={onCollapseOneLayer}
-            disabled={!hasCollapsiblePaths}
-          >
-            Collapse −
-          </button>
+          <button type="button" className="btn btn--sm btn--outline btn--icon" onClick={onCollapseOneLayer} disabled={!hasCollapsiblePaths} title="Collapse one level"><ChevronUp size={16} /></button>
         )}
       </div>
     </section>
