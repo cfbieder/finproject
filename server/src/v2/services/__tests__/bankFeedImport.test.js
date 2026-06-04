@@ -579,6 +579,79 @@ dbDescribe('PS promote cutoff (CR023 §4.A) (DB)', () => {
 });
 
 // ════════════════════════════════════════════════════════════════════════════
+// DB-backed: PS-side LOWER cutoff (CR023 §4.A, symmetric counterpart)
+//
+// When an earlier source backfills an account (e.g. quicken-import owns 2014–2022),
+// the PS mapping's own promote_from_date is the date PS starts owning. A PS staging
+// row dated BEFORE it must NOT promote (Quicken owns it) — even though dedup is on
+// ps_id vs the live table, so a previously-deleted pre-handoff row would otherwise
+// look "new" and resurrect on every sync. A row on/after the date still promotes.
+// ════════════════════════════════════════════════════════════════════════════
+dbDescribe('PS promote LOWER cutoff (CR023 §4.A) (DB)', () => {
+  const ingestPs = require('../../routes/ingestPs');
+  const db = require('../../db');
+
+  const ACCT_NAME = 'TestLowerCutoffAcct';
+  const PS_OLD = String(999310001); // dated before the PS lower bound → held (Quicken owns)
+  const PS_NEW = String(999310002); // dated on/after → promotes (PS owns)
+  const PS_FROM = '2022-12-01';
+  let acctId;
+
+  async function cleanup() {
+    if (acctId) await db.query(`DELETE FROM transactions WHERE account_id = $1`, [acctId]);
+    await db.query(`DELETE FROM psdata_staging WHERE ps_id = ANY($1::varchar[])`, [[PS_OLD, PS_NEW]]);
+    await db.query(`DELETE FROM account_source_mappings WHERE external_name = $1`, [ACCT_NAME]);
+    await db.query(`DELETE FROM accounts WHERE name = $1`, [ACCT_NAME]);
+    acctId = null;
+  }
+
+  async function seedPs(psId, date) {
+    await db.query(
+      `INSERT INTO psdata_staging (ps_id, transaction_date, amount, currency, account_name)
+       VALUES ($1, $2, -50.00, 'PLN', $3)`,
+      [psId, date, ACCT_NAME]
+    );
+  }
+
+  beforeEach(async () => {
+    await cleanup();
+    const a = await db.query(
+      `INSERT INTO accounts (name, account_type, section, currency) VALUES ($1,'asset','balance_sheet','PLN') RETURNING id`,
+      [ACCT_NAME]
+    );
+    acctId = a.rows[0].id;
+    await db.query(
+      `INSERT INTO account_source_mappings (account_id, source, external_name, promote_from_date)
+       VALUES ($1,'pocketsmith',$2,$3)`,
+      [acctId, ACCT_NAME, PS_FROM]
+    );
+  });
+  afterAll(async () => { await cleanup(); await db.close(); });
+
+  test('PS row < its promote_from_date is held; row on/after promotes', async () => {
+    await seedPs(PS_OLD, '2022-11-30'); // Quicken era
+    await seedPs(PS_NEW, '2022-12-01'); // PS era (boundary is inclusive)
+
+    await ingestPs.syncStagingToTransactions({ onlyPsIds: [PS_OLD, PS_NEW] });
+
+    const old = await db.query(`SELECT 1 FROM transactions WHERE ps_id = $1`, [PS_OLD]);
+    const fresh = await db.query(`SELECT 1 FROM transactions WHERE ps_id = $1`, [PS_NEW]);
+    expect(old.rows).toHaveLength(0);   // Quicken owns the pre-handoff era
+    expect(fresh.rows).toHaveLength(1); // PS owns its promote_from_date on
+  });
+
+  test('a deleted pre-handoff PS row does NOT resurrect on re-sync', async () => {
+    await seedPs(PS_OLD, '2022-11-30');
+    // First sync: held by the lower cutoff.
+    await ingestPs.syncStagingToTransactions({ onlyPsIds: [PS_OLD] });
+    // Simulate a delete + re-sync (staging persists, so this mirrors the real loop).
+    await ingestPs.syncStagingToTransactions({ onlyPsIds: [PS_OLD] });
+    const old = await db.query(`SELECT 1 FROM transactions WHERE ps_id = $1`, [PS_OLD]);
+    expect(old.rows).toHaveLength(0);
+  });
+});
+
+// ════════════════════════════════════════════════════════════════════════════
 // DB-backed: PS↔bank-feed reconciliation (CR022 §G trust signal)
 //
 // Seeds a dedicated throwaway account so it never collides with the ~26k real

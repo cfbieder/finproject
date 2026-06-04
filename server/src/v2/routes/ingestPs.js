@@ -172,6 +172,17 @@ async function syncStagingToTransactions(options = {}) {
             AND s.transaction_date >= bfm.promote_from_date
         )`;
 
+  // CR023 §4.A (lower bound) — the symmetric counterpart to the bank-feed cutoff
+  // above. When an account is backfilled from an earlier source (e.g. quicken-import
+  // owns 2014–2022), PS must NOT re-promote that era: a PS staging row dated BEFORE
+  // the PS mapping's own promote_from_date is excluded. This closes the deleted-row
+  // resurrection loop (PS dedups on ps_id vs the LIVE table, so a deleted pre-handoff
+  // row looks "new" and re-imports). `asm` is the pocketsmith mapping joined below.
+  // promote_from_date is NULL on every PS mapping by default → clause is dormant.
+  // Shares the cutoffOn gate (column-existence self-disable, safe pre-027).
+  const psLowerClause = !cutoffOn ? '' : `
+        AND (asm.promote_from_date IS NULL OR s.transaction_date >= asm.promote_from_date)`;
+
   // Check for unmapped accounts/categories first
   const unmappedAcctResult = await db.query(`
     SELECT DISTINCT s.account_name
@@ -240,7 +251,7 @@ async function syncStagingToTransactions(options = {}) {
       LEFT JOIN accounts c ON csm.account_id = c.id AND c.section = 'profit_loss'
       WHERE a.id IS NOT NULL
         AND s.transaction_date IS NOT NULL
-        AND s.currency IS NOT NULL${bankFeedDedupClause}${psCutoffClause}${scopeClause}
+        AND s.currency IS NOT NULL${bankFeedDedupClause}${psCutoffClause}${psLowerClause}${scopeClause}
     )
     INSERT INTO transactions (
       ps_id, transaction_date, description1, description2,
