@@ -47,11 +47,11 @@
 .hf__pill--active {
   background: var(--primary, var(--primary));
   border-color: var(--primary, var(--primary));
-  color: #fff;
+  color: var(--on-accent);
 }
 
 .hf__pill--active:hover {
-  color: #fff;
+  color: var(--on-accent);
   opacity: 0.9;
 }
 
@@ -148,7 +148,7 @@
 }
 
 .hf__item:hover {
-  background: var(--surface-hover, #FAF9F5);
+  background: var(--surface-muted);
 }
 
 .hf__item--off {
@@ -205,5 +205,5 @@
 .hf__sub-pill--active {
   background: var(--primary, var(--primary));
   border-color: var(--primary, var(--primary));
-  color: #fff;
+  color: var(--on-accent);
 }

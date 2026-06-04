@@ -71,7 +71,7 @@
   font-weight: 600;
   white-space: nowrap;
   background: var(--primary);
-  color: #fff;
+  color: var(--on-accent);
   box-shadow: 0 2px 8px -2px rgba(107, 142, 107, 0.45);
   cursor: pointer;
   transition: all 0.15s ease;
@@ -130,7 +130,7 @@
 
 .refresh-ps-tab--active {
   background: var(--primary, var(--primary));
-  color: #fff;
+  color: var(--on-accent);
   border-color: var(--primary, var(--primary));
   font-weight: 600;
   box-shadow: 0 2px 8px -2px rgba(107, 142, 107, 0.4);
@@ -205,8 +205,8 @@
 .refresh-ps-btn--bulk-category {
   padding: 0.4rem 1rem;
   border-radius: var(--radius-md);
-  border: 1px solid #93c5fd;
-  background: #F0EFE9;
+  border: 1px solid var(--primary-lighter);
+  background: var(--bg-tertiary);
   color: var(--primary);
   font-size: 0.8rem;
   font-weight: 600;
@@ -215,7 +215,7 @@
 }
 
 .refresh-ps-btn--bulk-category:hover:not(:disabled) {
-  background: #E8F0E9;
+  background: var(--primary-subtle);
   border-color: var(--primary);
   box-shadow: 0 2px 8px -2px rgba(86, 120, 86, 0.25);
 }
@@ -229,7 +229,7 @@
 .refresh-ps-btn--accept-all {
   padding: 0.4rem 1rem;
   border-radius: var(--radius-md);
-  border: 1px solid #86efac;
+  border: 1px solid var(--success-light);
   background: var(--success-subtle);
   color: var(--success-strong);
   font-size: 0.8rem;
@@ -239,7 +239,7 @@
 }
 
 .refresh-ps-btn--accept-all:hover:not(:disabled) {
-  background: #dcfce7;
+  background: var(--success-subtle);
   border-color: var(--success-strong);
   box-shadow: 0 2px 8px -2px rgba(22, 101, 52, 0.25);
 }
@@ -253,9 +253,9 @@
 .refresh-ps-btn--split {
   padding: 0.4rem 1rem;
   border-radius: var(--radius-md);
-  border: 1px solid #B5A8D5;
-  background: #F5F3F8;
-  color: #6B5B9B;
+  border: 1px solid var(--info-border);
+  background: var(--info-subtle);
+  color: var(--info-strong);
   font-size: 0.8rem;
   font-weight: 600;
   cursor: pointer;
@@ -263,8 +263,8 @@
 }
 
 .refresh-ps-btn--split:hover:not(:disabled) {
-  background: #ede9fe;
-  border-color: #6B5B9B;
+  background: var(--info-subtle);
+  border-color: var(--info-strong);
   box-shadow: 0 2px 8px -2px rgba(91, 33, 182, 0.25);
 }
 
@@ -277,8 +277,8 @@
 .refresh-ps-btn--neutralize {
   padding: 0.4rem 1rem;
   border-radius: var(--radius-md);
-  border: 1px solid #E4C078;
-  background: #fff7ed;
+  border: 1px solid var(--warning-light);
+  background: var(--warning-subtle);
   color: var(--warning-strong);
   font-size: 0.8rem;
   font-weight: 600;
@@ -287,7 +287,7 @@
 }
 
 .refresh-ps-btn--neutralize:hover:not(:disabled) {
-  background: #fed7aa;
+  background: var(--warning-subtle);
   border-color: var(--warning-strong);
   box-shadow: 0 2px 8px -2px rgba(154, 52, 18, 0.25);
 }
