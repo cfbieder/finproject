@@ -37,6 +37,18 @@ const TOLERANCE = 0.01;
 const MTM_IMPLAUSIBLE_PCT = 0.15;
 
 /**
+ * Convert a feed-reported balance into fin's stored sign.
+ * `feed_sign` (per-mapping, migration 029) overrides; NULL falls back to the
+ * account_type heuristic (liability -1, asset +1) — the pre-029 behavior.
+ * GoCardless/PKO reports a liability positive (→ -feed); Plaid/SnapTrade US
+ * cards report it negative (→ +feed, set feed_sign=1).
+ */
+function expectedFromFeed(m, feedVal) {
+  const factor = m.feed_sign != null ? m.feed_sign : (m.account_type === 'liability' ? -1 : 1);
+  return feedVal * factor;
+}
+
+/**
  * @param {number} accountId fin account id (must have a non-ignored bank-feed mapping)
  * @param {object} [opts]
  * @param {string|null} [opts.asOf] YYYY-MM-DD; defaults to today.
@@ -48,7 +60,7 @@ async function reconcileToFeed(accountId, { asOf = null, dryRun = false, force =
   // month-end balance is cached — the daily cron only caches recent snapshots, so
   // a month-end may be absent locally while the bank-feed service still has it.
   const m = (await db.query(
-    `SELECT m.external_name, m.reconcile_mode, m.balance_from_feed, m.ignored,
+    `SELECT m.external_name, m.reconcile_mode, m.balance_from_feed, m.ignored, m.feed_sign,
             a.name, a.account_type, a.currency, a.opening_balance
      FROM account_source_mappings m JOIN accounts a ON a.id = m.account_id
      WHERE m.source = 'bank-feed' AND m.account_id = $1`,
@@ -122,7 +134,7 @@ async function mtm(client, accountId, m, monthEnd, dryRun, force = false) {
 
   const feedVal = Number(feed.balance);
   const computed = Number(comp.computed);
-  const expected = m.account_type === 'liability' ? -feedVal : feedVal;
+  const expected = expectedFromFeed(m, feedVal);
   const amount = Math.round((expected - computed) * 100) / 100;
 
   // Phantom-gain guard (Q2): an MTM this large a share of the feed means the
@@ -187,7 +199,7 @@ async function calibrate(client, accountId, m, asOfDate, dryRun) {
   if (!feed) throw new Error(`no feed balance for account ${accountId} on/before ${asOfDate}`);
 
   const feedVal = Number(feed.balance);
-  const expected = m.account_type === 'liability' ? -feedVal : feedVal;
+  const expected = expectedFromFeed(m, feedVal);
   const sumTx = Number((await client.query(
     `SELECT COALESCE(SUM(amount), 0) AS s FROM transactions WHERE account_id = $1`,
     [accountId]

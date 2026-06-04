@@ -138,7 +138,8 @@ async function balanceReconcile({ asOf = null, tolerance = 0.01 } = {}) {
   const sql = `
     WITH mapped AS (
       SELECT m.external_name AS feed_uuid, m.account_id,
-             m.balance_from_feed, m.promote_from_date, m.trade_treatment, m.reconcile_mode
+             m.balance_from_feed, m.promote_from_date, m.trade_treatment, m.reconcile_mode,
+             m.feed_sign
       FROM account_source_mappings m
       WHERE m.source = 'bank-feed' AND m.ignored IS NOT TRUE AND m.account_id IS NOT NULL
     ),
@@ -168,11 +169,13 @@ async function balanceReconcile({ asOf = null, tolerance = 0.01 } = {}) {
       f.feed_date::text AS feed_date,
       f.currency,
       m.balance_from_feed, m.promote_from_date::text AS promote_from_date, m.trade_treatment, m.reconcile_mode,
-      CASE WHEN c.account_type = 'liability' THEN ROUND(-f.feed_balance, 2)
-           ELSE ROUND(f.feed_balance, 2) END AS expected_balance,
+      m.feed_sign,
+      -- feed_sign converts the feed's reported balance into fin's stored sign.
+      -- NULL → account_type heuristic (liability -1, asset +1) = pre-029 behavior.
+      ROUND(f.feed_balance * COALESCE(m.feed_sign, CASE WHEN c.account_type = 'liability' THEN -1 ELSE 1 END), 2) AS expected_balance,
       CASE WHEN f.feed_balance IS NULL THEN NULL
            ELSE ROUND(c.computed_balance
-                - (CASE WHEN c.account_type = 'liability' THEN -f.feed_balance ELSE f.feed_balance END), 2)
+                - f.feed_balance * COALESCE(m.feed_sign, CASE WHEN c.account_type = 'liability' THEN -1 ELSE 1 END), 2)
       END AS drift
     FROM computed c
     JOIN mapped m ON m.account_id = c.account_id

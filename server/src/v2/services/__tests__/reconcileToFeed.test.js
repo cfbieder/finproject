@@ -19,7 +19,7 @@ dbDescribe('reconcileToFeed (DB)', () => {
   const MONTH_END = '2026-05-31'; // a real month-end → engine targets it directly
   let acctId;
 
-  async function freshAccount({ type = 'asset', currency = 'USD', opening = 0, mode = 'calibrate', bff = false }) {
+  async function freshAccount({ type = 'asset', currency = 'USD', opening = 0, mode = 'calibrate', bff = false, feedSign = null }) {
     await cleanup();
     const a = await db.query(
       `INSERT INTO accounts (name, account_type, section, currency, opening_balance)
@@ -29,9 +29,9 @@ dbDescribe('reconcileToFeed (DB)', () => {
     acctId = a.rows[0].id;
     await db.query(
       `INSERT INTO account_source_mappings
-         (account_id, source, external_name, ignored, reconcile_mode, balance_from_feed)
-       VALUES ($1, 'bank-feed', $2, FALSE, $3, $4)`,
-      [acctId, UUID, mode, bff]
+         (account_id, source, external_name, ignored, reconcile_mode, balance_from_feed, feed_sign)
+       VALUES ($1, 'bank-feed', $2, FALSE, $3, $4, $5)`,
+      [acctId, UUID, mode, bff, feedSign]
     );
   }
 
@@ -132,6 +132,20 @@ dbDescribe('reconcileToFeed (DB)', () => {
 
     const out = await reconcileToFeed(acctId, { asOf: MONTH_END, dryRun: false });
     expect(out.expected).toBeCloseTo(-700, 2);
+    expect(out.new_opening).toBeCloseTo(-600, 2); // -700 - (-100)
+  });
+
+  test('calibrate: liability with feed_sign=+1 (Plaid/US card) reconciles against +feed', async () => {
+    // Plaid/SnapTrade reports a credit card NEGATIVE (matching fin), so the feed
+    // sign must NOT be flipped — feed_sign=+1 overrides the liability heuristic.
+    await freshAccount({ type: 'liability', currency: 'USD', opening: 0, mode: 'calibrate', feedSign: 1 });
+    await db.query(
+      `INSERT INTO transactions (transaction_date, amount, currency, account_id, source, accepted)
+       VALUES ('2026-05-15', -100, 'USD', $1, 'pocketsmith', TRUE)`, [acctId]);
+    await seedFeed(-700); // bank reports -700 owed (Plaid convention)
+
+    const out = await reconcileToFeed(acctId, { asOf: MONTH_END, dryRun: false });
+    expect(out.expected).toBeCloseTo(-700, 2);   // +feed, NOT +700
     expect(out.new_opening).toBeCloseTo(-600, 2); // -700 - (-100)
   });
 
