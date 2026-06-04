@@ -426,7 +426,7 @@
   background: var(--primary);
   color: white;
   border: none;
-  border-radius: 0.65rem;
+  border-radius: var(--radius-md);
   font-weight: 700;
   font-size: 0.9rem;
   cursor: pointer;

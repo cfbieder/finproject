@@ -170,7 +170,7 @@
 .trans-filter-actual__action-btn {
   min-width: 70px;
   padding: 0.55rem 0.75rem;
-  border-radius: 0.6rem;
+  border-radius: var(--radius-md);
   font-weight: 700;
   font-size: 0.8rem;
   letter-spacing: 0.02em;

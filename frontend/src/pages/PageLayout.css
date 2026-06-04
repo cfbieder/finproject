@@ -237,12 +237,12 @@
 }
 
 .fc-review-selector__action-btn {
-  padding: 0.85rem 1rem;
-  border-radius: 0.9rem;
+  padding: 0.6rem 1.15rem;
+  border-radius: var(--radius-md);
   border: 1px solid var(--border);
   background: var(--surface);
   color: var(--ink);
-  font-weight: 750;
+  font-weight: 600;
   letter-spacing: 0.01em;
   box-shadow: 0 10px 26px -18px rgba(45, 52, 54, 0.3);
   cursor: pointer;
@@ -537,12 +537,12 @@
   display: flex;
   align-items: center;
   gap: 0.5rem;
-  padding: 0.65rem 1.1rem;
-  border-radius: 0.65rem;
+  padding: 0.6rem 1.15rem;
+  border-radius: var(--radius-md);
   border: 1px solid var(--border);
   background: var(--surface);
   font-weight: 600;
-  font-size: 0.95rem;
+  font-size: 0.9rem;
   color: var(--ink);
   cursor: pointer;
   transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
@@ -1672,7 +1672,7 @@
 
 .budget-entries-modal__actions button {
   padding: 0.65rem 1.25rem;
-  border-radius: 0.65rem;
+  border-radius: var(--radius-md);
   border: 1px solid var(--border);
   background: var(--surface);
   font-weight: 600;
@@ -2719,7 +2719,7 @@
 
 .balance-panel__action-button {
   padding: 0.55rem 1rem;
-  border-radius: 0.65rem;
+  border-radius: var(--radius-md);
   border: 1px solid var(--border);
   background: var(--surface-muted);
   color: var(--ink);
@@ -3100,7 +3100,7 @@
 
 .report-toolbar__button {
   padding: 0.55rem 1rem;
-  border-radius: 0.65rem;
+  border-radius: var(--radius-md);
   border: 1px solid var(--border);
   background: var(--surface-muted);
   color: var(--ink);
@@ -3381,7 +3381,7 @@
 /* Action button */
 .realization-toolbar__action-button {
   padding: 0.55rem 1rem;
-  border-radius: 0.65rem;
+  border-radius: var(--radius-md);
   border: 1px solid var(--border);
   background: var(--surface-muted);
   color: var(--ink);

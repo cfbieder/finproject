@@ -121,13 +121,13 @@
 }
 
 .backup-database-button {
-  padding: 14px 28px;
-  font-size: 16px;
+  padding: 0.6rem 1.15rem;
+  font-size: 0.9rem;
   font-weight: 600;
   color: #ffffff;
   background: var(--primary);
   border: none;
-  border-radius: 8px;
+  border-radius: var(--radius-md);
   cursor: pointer;
   transition: all 0.2s ease;
   display: flex;

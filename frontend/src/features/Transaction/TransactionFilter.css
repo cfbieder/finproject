@@ -169,7 +169,7 @@
   flex: 1;
   min-width: 80px;
   padding: 0.65rem 1rem;
-  border-radius: 0.6rem;
+  border-radius: var(--radius-md);
   font-weight: 700;
   font-size: 0.85rem;
   letter-spacing: 0.02em;

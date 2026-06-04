@@ -751,12 +751,8 @@
   button {
   padding: 0.5rem 1rem !important;
   font-size: 0.85rem !important;
-  border-radius: 0.65rem !important;
-  background: linear-gradient(
-    135deg,
-    var(--primary) 0%,
-    var(--primary-light) 100%
-  ) !important;
+  border-radius: var(--radius-md) !important;
+  background: var(--primary) !important;
   color: white !important;
   border: none !important;
   font-weight: 700 !important;
@@ -1144,7 +1140,7 @@
 .fc-modules-edit__add-button {
   padding: 0.5rem 1rem;
   font-size: 0.85rem;
-  border-radius: 0.65rem;
+  border-radius: var(--radius-md);
   background: var(--primary);
   color: white;
   border: none;
@@ -1609,7 +1605,7 @@ input.fc-modules-modal__input:read-only {
   background: var(--primary);
   color: white;
   border: none;
-  border-radius: 0.65rem;
+  border-radius: var(--radius-md);
   font-weight: 700;
   font-size: 0.9rem;
   cursor: pointer;

@@ -257,10 +257,12 @@ Controlled by `VITE_APP_MODE` in `.env-cmdrc`, implemented in `main.jsx`.
 
 Pure vanilla CSS with CSS custom properties (no Tailwind, SCSS, or CSS-in-JS). Global design tokens defined in `index.css`:
 
-- **Colors:** Navy blue primary (`--primary: #1e40af`), emerald accent (`--accent: #047857`), semantic success/warning/danger, financial chart palette (7 colors)
-- **Typography:** "Plus Jakarta Sans" (body), "Space Grotesk" (headings), SF Mono (financial data). Weights 400-700
-- **Spacing:** `--space-xs` (0.25rem) through `--space-2xl` (3rem)
-- **Border radius:** `--radius-sm` (8px) through `--radius-full` (9999px)
+- **Colors:** Muted forest-green primary (`--primary: #6B8E6B`, `--primary-hover`, `--primary-light`/`-strong`/`-subtle`), sage accent, semantic success/warning/danger, financial chart palette (7 colors)
+- **Typography:** "Outfit" (body + headings), SF Mono (financial data). Weights 400-700
+- **Spacing:** `--space-xs` (0.375rem) through `--space-2xl` (4.5rem)
+- **Border radius:** `--radius-sm` (10px), `--radius-md` (12px), `--radius-lg` (24px), `--radius-xl` (28px), `--radius-full`
+- **Page layout (single source of truth):** `--page-max-width` (1600px content box) + `--page-gutter` (1.5rem, shrinks at ≤768/≤640px) + derived `--page-frame`. A shared **`.page-shell`** wrapper in `Layout.jsx`/`Layout.css` owns content max-width, centering, and side gutter for **every** page — page-level wrappers must NOT set their own `max-width`/`margin: 0 auto`/horizontal padding. The navbar (`.navbar__inner`) and breadcrumbs read the same tokens so their edges align with the content box.
+- **Buttons:** Canonical `.btn` family (`--primary`/`--secondary`/`--success`/`--danger`/`--ghost` × `--sm`/default/`--lg`) in `PageLayout.css`. Primary fills are **flat solid** `var(--primary)` (hover `var(--primary-hover)`) — no gradient pills. Per-page button classes (`generate-report-button`, `txv2-btn`, `fc-scenarios-action-button`, `refresh-ps-btn--action`, FC modal `--save`/`--add` buttons, etc.) share the flat-solid primary fill and `--radius-md` corners; compact dense toolbars and prominent CTAs differ only in size. Decorative `::before` accent bars/icons may still use gradients.
 - **Shadows:** 4 levels (soft, md, lg, xl) plus focus ring
 - **Transitions:** Fast (150ms), base (200ms), slow (300ms) with cubic-bezier easing
 - **Visual effects:** Glassmorphism (backdrop-filter blur), gradient backgrounds, radial gradient body overlay
