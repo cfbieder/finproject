@@ -220,23 +220,23 @@
 
 /* Split button styling */
 .trans-filter-actual__action-btn--split {
-  border-color: #B5A8D5;
-  color: #6B5B9B;
-  background: #F5F3F8;
+  border-color: var(--info-border);
+  color: var(--info-strong);
+  background: var(--info-subtle);
 }
 
 .trans-filter-actual__action-btn--split:hover:not(:disabled) {
-  background: #6B5B9B;
+  background: var(--info-strong);
   color: white;
-  border-color: #6B5B9B;
+  border-color: var(--info-strong);
   box-shadow: 0 4px 12px -2px rgba(91, 33, 182, 0.3);
 }
 
 /* Neutralize button styling */
 .trans-filter-actual__action-btn--neutralize {
-  border-color: #E4C078;
+  border-color: var(--warning-light);
   color: var(--warning-strong);
-  background: #fff7ed;
+  background: var(--warning-subtle);
 }
 
 .trans-filter-actual__action-btn--neutralize:hover:not(:disabled) {

@@ -301,7 +301,7 @@
   align-items: center;
   gap: 0.625rem;
   padding: 0.5rem 0.875rem;
-  background: linear-gradient(135deg, var(--primary-subtle), #eef3ff);
+  background: linear-gradient(135deg, var(--primary-subtle), var(--surface-muted));
   border: 1.5px solid var(--primary);
   border-radius: var(--radius-md);
   animation: txv2-slide-down 0.2s ease-out;
@@ -427,7 +427,7 @@
 }
 
 .txv2-table tbody tr.txv2-row--selected:hover {
-  background: #dbe7ff;
+  background: var(--primary-subtle);
 }
 
 .txv2-table tbody td {
@@ -530,8 +530,8 @@
 }
 
 .txv2-row-action--split:hover {
-  color: #8B7BB5;
-  background: #F5F3F8;
+  color: var(--info);
+  background: var(--info-subtle);
 }
 
 .txv2-row-action--neutralize:hover {
