@@ -94,8 +94,8 @@ dbDescribe('reconcileToFeed (DB)', () => {
     await freshAccount({ type: 'asset', currency: 'USD', opening: 0, mode: 'mtm', bff: true });
     await db.query(
       `INSERT INTO transactions (transaction_date, amount, currency, account_id, source, accepted)
-       VALUES ('2026-05-05', 100, 'USD', $1, 'pocketsmith', TRUE)`, [acctId]);
-    await seedFeed(450);
+       VALUES ('2026-05-05', 10000, 'USD', $1, 'pocketsmith', TRUE)`, [acctId]);
+    await seedFeed(10350); // mtm = 350 = ~3.4% of feed (under the guard threshold)
 
     await reconcileToFeed(acctId, { asOf: MONTH_END, dryRun: false });
     await reconcileToFeed(acctId, { asOf: MONTH_END, dryRun: false });
@@ -103,7 +103,7 @@ dbDescribe('reconcileToFeed (DB)', () => {
     const rows = (await db.query(
       `SELECT amount FROM transactions WHERE account_id = $1 AND source = $2`, [acctId, MTM_SOURCE])).rows;
     expect(rows).toHaveLength(1);
-    expect(Number(rows[0].amount)).toBeCloseTo(350, 2); // 450 - (0 + 100)
+    expect(Number(rows[0].amount)).toBeCloseTo(350, 2); // 10350 - (0 + 10000)
   });
 
   test('calibrate: re-anchors opening_balance = expected − Σtx (asset)', async () => {
@@ -144,6 +144,41 @@ dbDescribe('reconcileToFeed (DB)', () => {
     expect(n.n).toBe(0);
     const m = (await db.query(`SELECT balance_from_feed FROM account_source_mappings WHERE external_name=$1`, [UUID])).rows[0];
     expect(m.balance_from_feed).toBe(true); // not flipped on dry-run
+  });
+
+  test('guard: implausible MTM (>15% of feed) is flagged and blocked unless forced', async () => {
+    // opening 0, no tx → computed 0; feed 1000 → mtm = 1000 = 100% of feed.
+    await freshAccount({ type: 'asset', currency: 'USD', opening: 0, mode: 'mtm', bff: true });
+    await seedFeed(1000);
+
+    // dry-run: flagged, not applied
+    const dry = await reconcileToFeed(acctId, { asOf: MONTH_END, dryRun: true });
+    expect(dry.implausible).toBe(true);
+    expect(dry.implausible_pct).toBeGreaterThan(0.15);
+
+    // apply without force: refused (nothing written)
+    const blocked = await reconcileToFeed(acctId, { asOf: MONTH_END, dryRun: false });
+    expect(blocked.applied).toBe(false);
+    expect(blocked.note).toMatch(/implausible/i);
+    let n = (await db.query(`SELECT COUNT(*)::int AS n FROM transactions WHERE account_id=$1 AND source=$2`, [acctId, MTM_SOURCE])).rows[0];
+    expect(n.n).toBe(0);
+
+    // apply with force: written
+    const forced = await reconcileToFeed(acctId, { asOf: MONTH_END, dryRun: false, force: true });
+    expect(forced.applied).toBe(true);
+    n = (await db.query(`SELECT COUNT(*)::int AS n FROM transactions WHERE account_id=$1 AND source=$2`, [acctId, MTM_SOURCE])).rows[0];
+    expect(n.n).toBe(1);
+  });
+
+  test('guard: a normal-sized MTM (<15%) is not flagged', async () => {
+    await freshAccount({ type: 'asset', currency: 'USD', opening: 1000, mode: 'mtm', bff: true });
+    await db.query(
+      `INSERT INTO transactions (transaction_date, amount, currency, account_id, source, accepted)
+       VALUES ('2026-05-10', 9000, 'USD', $1, 'pocketsmith', TRUE)`, [acctId]); // computed 10000
+    await seedFeed(10500); // mtm = 500 = ~4.8% of feed
+    const out = await reconcileToFeed(acctId, { asOf: MONTH_END, dryRun: true });
+    expect(out.implausible).toBe(false);
+    expect(out.mtm_amount).toBeCloseTo(500, 2);
   });
 
   test('mtm on a non-USD account throws (no wrong base_amount)', async () => {

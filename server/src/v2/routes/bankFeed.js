@@ -218,8 +218,8 @@ router.post('/reconcile/:accountId', async (req, res, next) => {
     if (!Number.isInteger(accountId)) {
       return res.status(400).json({ error: 'invalid accountId' });
     }
-    const { asOf = null, dryRun = false } = req.body || {};
-    const result = await reconcileToFeed(accountId, { asOf, dryRun: dryRun === true });
+    const { asOf = null, dryRun = false, force = false } = req.body || {};
+    const result = await reconcileToFeed(accountId, { asOf, dryRun: dryRun === true, force: force === true });
     res.json(result);
   } catch (err) {
     console.error('[v2/bank-feed] reconcile failed:', err.message);

@@ -31,6 +31,10 @@ const UNREALIZED_GL_CATEGORY_ID = 88; // accounts.id "Unrealized G/L" (expense)
 const MTM_SOURCE = 'mtm';
 const MTM_DESCRIPTION = 'Unrealized G/L (feed MTM)';
 const TOLERANCE = 0.01;
+// Safety guard: an MTM amount this large a share of the feed almost certainly
+// means computed never tracked market (basis unanchored) — feed−computed would
+// book unrecorded principal as phantom gain. Block apply unless forced.
+const MTM_IMPLAUSIBLE_PCT = 0.15;
 
 /**
  * @param {number} accountId fin account id (must have a non-ignored bank-feed mapping)
@@ -39,7 +43,7 @@ const TOLERANCE = 0.01;
  * @param {boolean} [opts.dryRun] compute only, write nothing.
  * @returns {Promise<object>} action summary
  */
-async function reconcileToFeed(accountId, { asOf = null, dryRun = false } = {}) {
+async function reconcileToFeed(accountId, { asOf = null, dryRun = false, force = false } = {}) {
   // Pre-flight (no transaction): load mapping, and for 'mtm' make sure the target
   // month-end balance is cached — the daily cron only caches recent snapshots, so
   // a month-end may be absent locally while the bank-feed service still has it.
@@ -74,7 +78,7 @@ async function reconcileToFeed(accountId, { asOf = null, dryRun = false } = {}) 
         console.warn(`[reconcileToFeed] month-end balance backfill failed (${monthEnd}): ${e.message}`);
       }
     }
-    return db.transaction((client) => mtm(client, accountId, m, monthEnd, dryRun));
+    return db.transaction((client) => mtm(client, accountId, m, monthEnd, dryRun, force));
   }
   return db.transaction((client) => calibrate(client, accountId, m, asOfDate, dryRun));
 }
@@ -91,7 +95,7 @@ async function resolveMonthEnd(conn, asOfDate) {
   )).rows[0].d;
 }
 
-async function mtm(client, accountId, m, monthEnd, dryRun) {
+async function mtm(client, accountId, m, monthEnd, dryRun, force = false) {
   if (m.currency !== 'USD') {
     // No non-USD brokerage account exists today; fail loud rather than write a
     // wrong base_amount (USD balance sheet would mis-aggregate).
@@ -121,12 +125,25 @@ async function mtm(client, accountId, m, monthEnd, dryRun) {
   const expected = m.account_type === 'liability' ? -feedVal : feedVal;
   const amount = Math.round((expected - computed) * 100) / 100;
 
+  // Phantom-gain guard (Q2): an MTM this large a share of the feed means the
+  // account's basis was never anchored (e.g. Bond's 33%). Flag always; block
+  // apply unless forced.
+  const implausiblePct = feedVal !== 0 ? Math.abs(amount) / Math.abs(feedVal) : 0;
+  const implausible = implausiblePct > MTM_IMPLAUSIBLE_PCT;
+
   const summary = {
     account_id: accountId, name: m.name, mode: 'mtm', month_end: monthEnd,
     feed_date: feed.balance_date, feed_balance: feedVal, computed_excl_mtm: computed,
     mtm_amount: amount, category_id: UNREALIZED_GL_CATEGORY_ID,
+    implausible, implausible_pct: Math.round(implausiblePct * 1000) / 1000,
     removed_read_override: false, applied: false,
   };
+
+  if (implausible && !force) {
+    summary.note = `MTM ${amount} is ${(implausiblePct * 100).toFixed(1)}% of feed — implausible ` +
+      `(basis likely unanchored). Anchor the account's basis first, or pass force to override.`;
+    if (!dryRun) return summary; // refuse to write; surface the reason
+  }
 
   if (!dryRun) {
     await client.query(

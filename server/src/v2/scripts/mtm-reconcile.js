@@ -22,9 +22,10 @@ const db = require('../db');
 const { reconcileToFeed } = require('../services/reconcileToFeed');
 
 function parseArgs(argv) {
-  const args = { apply: false, month: null };
+  const args = { apply: false, month: null, force: false };
   for (let i = 0; i < argv.length; i++) {
     if (argv[i] === '--apply') args.apply = true;
+    else if (argv[i] === '--force') args.force = true;
     else if (argv[i] === '--month') args.month = argv[++i];
     else throw new Error(`unknown argument: ${argv[i]}`);
   }
@@ -56,7 +57,7 @@ async function main() {
   const results = [];
   for (const a of accts) {
     try {
-      results.push(await reconcileToFeed(a.account_id, { asOf, dryRun: !args.apply }));
+      results.push(await reconcileToFeed(a.account_id, { asOf, dryRun: !args.apply, force: args.force }));
     } catch (err) {
       results.push({ account_id: a.account_id, error: err.message });
     }
@@ -69,6 +70,8 @@ async function main() {
     feed: r.feed_balance,
     computed: r.computed_excl_mtm,
     mtm: r.mtm_amount,
+    pct: r.implausible_pct,
+    flag: r.implausible ? '⚠ implausible' : '',
     override_removed: r.removed_read_override,
     applied: r.applied,
     note: r.note || r.error || '',
