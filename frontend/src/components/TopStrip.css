@@ -1,0 +1,32 @@
+/* CR026 P1 — top utility strip for the sidebar layout. */
+.topstrip {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 10px var(--page-gutter);
+  min-height: 52px;
+  border-bottom: 1px solid var(--border);
+  background: var(--surface);
+}
+
+/* Breadcrumbs renders nothing on Home; keep the strip height stable regardless. */
+.topstrip__crumbs { min-width: 0; display: flex; align-items: center; }
+.topstrip__crumbs .breadcrumbs { padding: 0; }
+
+.topstrip__actions { display: flex; align-items: center; gap: 10px; flex: none; }
+
+.topstrip__badge {
+  font-size: 0.72rem;
+  font-family: var(--font-mono);
+  color: var(--muted);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-full);
+  padding: 3px 10px;
+  white-space: nowrap;
+}
+.topstrip__badge--dev { color: var(--warning); border-color: var(--warning); }
+
+@media (max-width: 640px) {
+  .topstrip__badge { display: none; }
+}

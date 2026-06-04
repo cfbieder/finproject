@@ -469,4 +469,39 @@ export function getRouterRoutes() {
   return routes.filter((route) => route.component !== null);
 }
 
+/* ------------------------------------------------------------------ *
+ * CR026 — Sidebar information architecture (additive).
+ *
+ * The sidebar groups are derived from the existing per-route `category`
+ * so we don't have to re-tag every route. This is purely additive: the
+ * legacy top-nav (`getCategories`) and category landing pages keep working
+ * unchanged. Order + labels here reflect CR026 §5 (workflow-oriented IA,
+ * with Data Sources demoted below a divider).
+ * ------------------------------------------------------------------ */
+export const SIDEBAR_GROUPS = [
+  { key: "overview", label: "Overview", icon: LayoutDashboard, path: "/", single: true },
+  { key: "accounts", label: "Accounts & Transactions", icon: Receipt, category: "Transactions" },
+  { key: "budget", label: "Budget", icon: Calculator, category: "Budgeting" },
+  { key: "forecast", label: "Forecast", icon: TrendingUp, category: "Forecasting" },
+  { key: "reports", label: "Reports", icon: BarChart3, category: "Reports & Graphs" },
+  { divider: true, key: "div-admin" },
+  { key: "data", label: "Data Sources", icon: HardDrive, category: "Database" },
+  { key: "settings", label: "Settings", icon: Settings2, category: "Settings" },
+];
+
+/**
+ * Resolve the sidebar groups to their child routes (CR026).
+ * Single groups (e.g. Overview) link directly via `path`; category groups
+ * expand to their in-nav routes.
+ */
+export function getSidebarNav() {
+  return SIDEBAR_GROUPS.map((group) => {
+    if (group.divider || group.single) return group;
+    const items = getRoutesByCategory(group.category).filter(
+      (r) => r.showInNav !== false
+    );
+    return { ...group, items };
+  });
+}
+
 export default routes;

@@ -1,0 +1,143 @@
+/* CR026 P1 — Sidebar navigation. Consumes the global index.css design tokens
+   (so P2 dark mode themes it via [data-theme]). No *-btn / *-button class names
+   (the .btn guardrail forbids new ones). */
+
+.sidebar {
+  --sidebar-w: 248px;
+  width: var(--sidebar-w);
+  flex: none;
+  position: sticky;
+  top: 0;
+  align-self: flex-start;
+  height: 100vh;
+  background: var(--bg-secondary);
+  border-right: 1px solid var(--border);
+  display: flex;
+  flex-direction: column;
+  padding: 16px 12px;
+  gap: 4px;
+  z-index: 50;
+}
+.sidebar--rail { --sidebar-w: 68px; }
+
+/* dev accent — mirrors the old navbar--dev amber cue */
+.sidebar--dev { box-shadow: inset 3px 0 0 0 var(--warning); }
+
+/* brand */
+.sidebar__brand {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 6px 8px 18px;
+  text-decoration: none;
+  color: inherit;
+}
+.sidebar__brand-mark {
+  width: 36px;
+  height: 36px;
+  flex: none;
+  display: grid;
+  place-items: center;
+  border-radius: var(--radius-sm);
+  overflow: hidden;
+  background: var(--primary);
+}
+.sidebar__brand-mark img { width: 100%; height: 100%; object-fit: cover; }
+.sidebar__brand-meta { display: flex; flex-direction: column; line-height: 1.15; min-width: 0; }
+.sidebar__brand-name { font-weight: 600; font-size: 1.05rem; color: var(--ink); }
+.sidebar__brand-ver { font-size: 0.7rem; color: var(--muted); font-family: var(--font-mono); }
+
+/* nav list */
+.sidebar__nav { display: flex; flex-direction: column; gap: 3px; flex: 1; overflow-y: auto; overflow-x: hidden; padding-right: 2px; }
+.sidebar__divider { height: 1px; background: var(--border); margin: 10px 8px; }
+.sidebar__group { display: flex; flex-direction: column; }
+
+.sidebar__item {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  width: 100%;
+  padding: 10px 12px;
+  border: none;
+  background: transparent;
+  border-radius: var(--radius-sm);
+  color: var(--ink-secondary);
+  font: inherit;
+  font-size: 0.92rem;
+  font-weight: 500;
+  cursor: pointer;
+  text-align: left;
+  text-decoration: none;
+  transition: background var(--transition-fast), color var(--transition-fast);
+}
+.sidebar__item:hover { background: var(--surface); color: var(--ink); }
+.sidebar__item--active { background: var(--primary-subtle); color: var(--primary-hover); font-weight: 600; }
+.sidebar__icon { flex: none; opacity: 0.85; }
+.sidebar__item--active .sidebar__icon { opacity: 1; }
+.sidebar__label { flex: 1; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.sidebar__chev { color: var(--muted); transition: transform var(--transition-base); }
+.sidebar__chev.is-open { transform: rotate(180deg); }
+
+/* children */
+.sidebar__children {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  margin: 2px 0 4px 20px;
+  padding-left: 12px;
+  border-left: 1.5px solid var(--border);
+}
+.sidebar__child {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 12px;
+  border-radius: var(--radius-sm);
+  color: var(--ink-secondary);
+  font-size: 0.875rem;
+  text-decoration: none;
+  transition: background var(--transition-fast), color var(--transition-fast);
+}
+.sidebar__child:hover { background: var(--surface); color: var(--ink); }
+.sidebar__child--active { background: var(--primary-subtle); color: var(--primary-hover); font-weight: 600; }
+.sidebar__child .sidebar__icon { opacity: 0.7; }
+.sidebar__child--active .sidebar__icon { opacity: 1; }
+
+/* footer */
+.sidebar__footer { margin-top: auto; padding-top: 8px; }
+.sidebar__railtoggle {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  padding: 10px 12px;
+  border: 1px solid var(--border);
+  background: var(--surface-muted);
+  border-radius: var(--radius-sm);
+  color: var(--ink-secondary);
+  font: inherit;
+  font-size: 0.875rem;
+  font-weight: 500;
+  cursor: pointer;
+  transition: background var(--transition-fast), color var(--transition-fast);
+}
+.sidebar__railtoggle:hover { background: var(--surface); color: var(--ink); }
+
+/* rail (collapsed) */
+.sidebar--rail .sidebar__brand { justify-content: center; padding: 6px 0 18px; }
+.sidebar--rail .sidebar__item { justify-content: center; padding: 11px; }
+.sidebar--rail .sidebar__railtoggle { justify-content: center; }
+.sidebar--rail .sidebar__nav { overflow: visible; }
+
+/* force rail on narrow desktop windows (phones use the /m/* shell) */
+@media (max-width: 900px) {
+  .sidebar:not(.sidebar--rail) { --sidebar-w: 68px; }
+  .sidebar:not(.sidebar--rail) .sidebar__brand-meta,
+  .sidebar:not(.sidebar--rail) .sidebar__label,
+  .sidebar:not(.sidebar--rail) .sidebar__chev,
+  .sidebar:not(.sidebar--rail) .sidebar__children,
+  .sidebar:not(.sidebar--rail) .sidebar__railtoggle span { display: none; }
+  .sidebar:not(.sidebar--rail) .sidebar__brand { justify-content: center; padding: 6px 0 18px; }
+  .sidebar:not(.sidebar--rail) .sidebar__item { justify-content: center; padding: 11px; }
+  .sidebar:not(.sidebar--rail) .sidebar__railtoggle { justify-content: center; }
+}
