@@ -50,6 +50,7 @@ export default function RefreshPS() {
 
   // Review & Edit state
   const [reviewTransactions, setReviewTransactions] = useState([]);
+  const [groupByAccount, setGroupByAccount] = useState(false);
   const [isLoadingReview, setIsLoadingReview] = useState(false);
   const [reviewError, setReviewError] = useState(null);
   const [acceptingId, setAcceptingId] = useState(null);
@@ -1154,6 +1155,14 @@ export default function RefreshPS() {
               </p>
               {reviewTransactions.length > 0 && (
                 <div className="refresh-txn-section__actions">
+                  <button
+                    type="button"
+                    className={`btn btn--sm btn--outline${groupByAccount ? " btn--active" : ""}`}
+                    onClick={() => setGroupByAccount((prev) => !prev)}
+                    title="Group review rows by account"
+                  >
+                    {groupByAccount ? "Grouped by account" : "Group by account"}
+                  </button>
                   {selectedRows.size > 0 && (
                     <button
                       type="button"
@@ -1223,6 +1232,7 @@ export default function RefreshPS() {
               sortedTransactions={sortedReviewTransactions}
               sortConfig={sortConfig}
               onSort={handleSort}
+              groupByKey={groupByAccount ? "Account" : null}
               showSelection={true}
               onRowToggle={toggleRowSelection}
               onDateClick={handleDateClick}

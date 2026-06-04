@@ -65,6 +65,25 @@ const SOURCE_LABELS = {
 const formatSourceValue = (value) =>
   value ? SOURCE_LABELS[value] || value : "";
 
+// Cluster sorted rows by a field (e.g. "Account"). Groups are ordered
+// alphabetically; rows within each group keep their incoming (already-sorted)
+// order. Empty/missing values fall into a "—" group.
+function buildAccountGroups(rows, key) {
+  const groups = new Map();
+  for (const row of rows) {
+    const raw = row?.entry?.[key];
+    const name =
+      (raw === undefined || raw === null ? "" : String(raw).trim()) || "—";
+    if (!groups.has(name)) {
+      groups.set(name, []);
+    }
+    groups.get(name).push(row);
+  }
+  return [...groups.entries()]
+    .sort((a, b) => a[0].localeCompare(b[0]))
+    .map(([name, groupRows]) => ({ name, rows: groupRows }));
+}
+
 const SOURCE_COLUMN = {
   key: "Source",
   label: "Source",
@@ -122,6 +141,7 @@ export default function TransactionTable({
   onSplitClick,
   onNeutralizeClick,
   onTransferClick,
+  groupByKey = null,
 }) {
   const hasRowActions = !!(onAcceptClick || onSplitClick || onNeutralizeClick || onTransferClick);
   const label = config.logPrefix === "TransActual" ? "Actual"
@@ -133,6 +153,21 @@ export default function TransactionTable({
   const columns = config.logPrefix === "ReviewNew"
     ? [...TRANSACTION_COLUMNS, SOURCE_COLUMN]
     : TRANSACTION_COLUMNS;
+
+  const totalColumnCount =
+    (showSelection ? 1 : 0) + columns.length + (hasRowActions ? 1 : 0);
+  // When grouping is on, interleave a header row before each account's rows.
+  const renderRows = groupByKey
+    ? buildAccountGroups(sortedTransactions, groupByKey).flatMap((group) => [
+        {
+          __groupHeader: true,
+          key: `grp-${group.name}`,
+          name: group.name,
+          count: group.rows.length,
+        },
+        ...group.rows,
+      ])
+    : sortedTransactions;
 
   return (
     <section className="section-table" aria-label={`${label} table`}>
@@ -195,7 +230,21 @@ export default function TransactionTable({
                 </tr>
               </thead>
               <tbody>
-                {sortedTransactions.map(({ entry, rowId, isSelected }) => (
+                {renderRows.map((item) => {
+                  if (item.__groupHeader) {
+                    return (
+                      <tr key={item.key} className="trans-budget-table__group-header">
+                        <td colSpan={totalColumnCount}>
+                          {item.name}
+                          <span className="trans-budget-table__group-count">
+                            ({item.count})
+                          </span>
+                        </td>
+                      </tr>
+                    );
+                  }
+                  const { entry, rowId, isSelected } = item;
+                  return (
                   <tr
                     key={rowId}
                     className={`trans-budget-table__row${showSelection ? "" : " trans-budget-table__row--no-select"}`}
@@ -312,7 +361,8 @@ export default function TransactionTable({
                       </td>
                     )}
                   </tr>
-                ))}
+                  );
+                })}
               </tbody>
             </table>
           )}

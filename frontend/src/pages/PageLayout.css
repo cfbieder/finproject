@@ -1093,6 +1093,28 @@
   box-shadow: inset 3px 0 0 var(--primary);
 }
 
+/* Account group header rows (Refresh Feeds "Group by account") */
+.trans-budget-table tbody tr.trans-budget-table__group-header td {
+  background: var(--surface-muted);
+  color: var(--ink);
+  font-weight: 700;
+  font-size: 0.85rem;
+  padding: 0.55rem 1rem;
+  border-top: 1px solid var(--border);
+  border-bottom: 1px solid var(--border);
+}
+
+.trans-budget-table__group-header {
+  cursor: default;
+}
+
+.trans-budget-table__group-count {
+  margin-left: 0.4rem;
+  color: var(--muted);
+  font-weight: 600;
+  font-size: 0.8rem;
+}
+
 .trans-budget-table__value--numeric {
   text-align: right;
   font-family: var(--font-mono);
