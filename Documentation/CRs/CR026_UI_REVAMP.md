@@ -241,6 +241,16 @@ A real-browser verification of the flag-gated sidebar/dark UI (headless Chromium
 
 **Fix:** all repointed to existing tokens — near-white → `var(--surface-elevated)`, cream → `var(--surface-muted)`, light-blue → `var(--bg-tertiary)`, status badges → semantic `--*-subtle`/`--*-strong`. Light mode is unchanged (each token's light value equals the original hex). Re-audit of all 17 affected routes is **clean** (sole remaining auditor hit is `.ct-chart-title`, a `-webkit-background-clip:text` gradient *text* effect — a false positive). Excel/HTML export strings in `FCReview.jsx` intentionally keep hardcoded hex (not theme-aware). Throwaway verification rig: `frontend/{verify-cr026,dark-audit,verify-chrome}.mjs` (needs headless Chromium). **Not yet committed.** A regression guard worth adding: a lint for `rgba(2\d\d,…)` light fills + JSX inline `background`, or wire `dark-audit.mjs` into CI — the original hex grep cannot see any of these.
 
+## 15. §6 WCAG 2.2 AA contrast audit (2026-06-05 — analytical, partial fixes applied)
+
+Token-level audit of every color pair in both themes (sRGB-linearized luminance + `(L1+.05)/(L2+.05)`; font sizes from CSS for the large-text exemption; Machado-2009 deuteranopia/protanopia sim for the palette).
+
+**Headline:** the **dark theme (P2) passes AA almost everywhere**; the failures are concentrated in the **light theme** — the original "Mindful Minimalist" palette §6.2 flagged as unverified — so this is pre-existing brand debt, not a CR026 regression.
+
+**Safe fixes applied** (look-preserving token nudges, AA-verified): light `--muted` #808E9B→#6C7782 (body text 2.9→4.5); badge text `--primary/success/warning-strong` (+ dark `--danger-strong`) darkened to clear 4.5 on their `*-subtle` bg; light `--chart-amber` #C4923A→#B88937 (2.79→3.15 vs bg, ≥3:1); `--chart-indigo` de-duplicated from `--chart-purple` (#6B7BB5→#2F6FB5 light, #8B9BD0→#5E9AE6 dark) — the two were near-identical and collapsed under CVD (separation 17→31). `index.css` only.
+
+**Deferred (brand-affecting — needs a design call, logged not fixed):** (1) **white text on filled light buttons** `--on-accent` #fff on `--primary/success/info/warning` = 3.68/3.93/3.75/**2.79** (<4.5) — the highest-traffic AA gap; fix = darker fills or darker text. (2) `--warning`/`--gold` text #C4923A = **2.65** on light surface. (3) colored financial **body** numbers at ~13.6px: success 3.73 / danger 4.43 (<4.5; large/bold uses pass at 3:1). (4) input/control **borders** `--border` 1.25:1 (<3:1, 1.4.11). (5) residual chart-palette CVD overlap (navy/purple 31, dark purple/teal 21) — a full CVD-distinct repalette is the "full AA" scope. Financial red/green still **converge under deuteranopia** — mitigated where negatives use `()`/signs, but charts rely on color alone; §6.3's ▲▼/sign cue should extend to charts.
+
 ---
 
 *Draft prepared 2026-06-04 after a frontend audit + market review. Decisions in §11 are open; nothing here is committed to code.*

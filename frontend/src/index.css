@@ -12,12 +12,12 @@
   --ink: #2D3436;
   --ink-secondary: #4A5568;
   --ink-tertiary: #636E72;
-  --muted: #808E9B;
+  --muted: #6C7782;
   --muted-light: #A0AEB9;
 
   /* Primary Brand - Muted Forest Green */
   --primary: #6B8E6B;
-  --primary-strong: #567856;
+  --primary-strong: #537453;
   --primary-light: #7FA37F;
   --primary-lighter: #93B893;
   --primary-subtle: #E8F0E9;
@@ -32,13 +32,13 @@
 
   /* Financial Semantic Colors - Softer variants */
   --success: #5B8C5B;
-  --success-strong: #4A7A4A;
+  --success-strong: #487648;
   --success-light: #6B9E6B;
   --success-lighter: #8BBF8B;
   --success-subtle: #E8F0E9;
 
   --warning: #C4923A;
-  --warning-strong: #A67B2E;
+  --warning-strong: #8D6927;
   --warning-light: #D4A74E;
   --warning-lighter: #E4C078;
   --warning-subtle: #FBF4E4;
@@ -72,11 +72,11 @@
   --neutral: #808E9B;
   --chart-navy: #5B7B9A;
   --chart-emerald: #6B8E6B;
-  --chart-amber: #C4923A;
+  --chart-amber: #B88937;
   --chart-rose: #C0504D;
   --chart-purple: #8B7BB5;
   --chart-teal: #5B9E9E;
-  --chart-indigo: #6B7BB5;
+  --chart-indigo: #2F6FB5;
 
   /* Borders & Dividers - Subtle warm tones */
   --border: #E8E6DF;
@@ -198,7 +198,7 @@
   --warning-subtle: #2A2415;
 
   --danger: #E07A76;
-  --danger-strong: #D0605C;
+  --danger-strong: #D26663;
   --danger-light: #E89490;
   --danger-lighter: #F0AAA7;
   --danger-subtle: #2C1B1A;
@@ -225,7 +225,7 @@
   --chart-rose: #E07A76;
   --chart-purple: #A99BC9;
   --chart-teal: #6FB8B8;
-  --chart-indigo: #8B9BD0;
+  --chart-indigo: #5E9AE6;
 
   /* Borders — elevation via tonal borders, not shadow */
   --border: #2A2E33;
