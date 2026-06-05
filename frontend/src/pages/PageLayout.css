@@ -2936,7 +2936,10 @@
 
 .budget-realization-main--single,
 .balance-grid--single {
-  grid-template-columns: 1fr;
+  /* minmax(0, 1fr) — the 0 minimum stops the track growing to fit a
+     max-content table, so the inner overflow:auto scroll container engages
+     (horizontal scrollbar) instead of widening the whole page. */
+  grid-template-columns: minmax(0, 1fr);
   max-width: 1400px;
   align-content: start;
 }

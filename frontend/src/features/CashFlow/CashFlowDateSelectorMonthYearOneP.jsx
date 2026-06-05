@@ -138,6 +138,26 @@ export default function CashFlowDateSelectorMonthYear({
     onToDateChange?.(0, toDate);
   };
 
+  // Year frequency: only the year matters — clamp From to Jan 1 and To to
+  // Dec 31 of the chosen year so the report shows whole calendar years.
+  const updateFromYear = (year) => {
+    const parsedYear = toNumberOrEmpty(year);
+    if (!parsedYear) {
+      onFromDateChange?.(0, "");
+      return;
+    }
+    onFromDateChange?.(0, firstDayOfMonthIso(parsedYear, 1));
+  };
+
+  const updateToYear = (year) => {
+    const parsedYear = toNumberOrEmpty(year);
+    if (!parsedYear) {
+      onToDateChange?.(0, "");
+      return;
+    }
+    onToDateChange?.(0, lastDayOfMonthIso(parsedYear, 12));
+  };
+
   const fromParts = getFromParts();
   const toParts = getToParts();
 
@@ -201,46 +221,93 @@ export default function CashFlowDateSelectorMonthYear({
         </div>
         <div className="report-toolbar__periods-column">
           <div className="report-toolbar__period-group">
-            <div className="report-toolbar__field">
-              <label
-                htmlFor="cashflow-from-month-1"
-                className="report-toolbar__label"
-              >
-                From
-              </label>
-              <MonthYearPicker
-                monthId="cashflow-from-month-1"
-                yearId="cashflow-from-year-1"
-                monthValue={fromParts.month || ""}
-                yearValue={fromParts.year || ""}
-                monthOptions={monthOptions}
-                yearOptions={yearOptions}
-                onMonthChange={(value) => updateFromDate(value, undefined)}
-                onYearChange={(value) => updateFromDate(undefined, value)}
-                rowClassName="report-toolbar__month-year-row"
-                inputClassName="report-toolbar__select"
-              />
-            </div>
-            <div className="report-toolbar__field">
-              <label
-                htmlFor="cashflow-to-month-1"
-                className="report-toolbar__label"
-              >
-                To
-              </label>
-              <MonthYearPicker
-                monthId="cashflow-to-month-1"
-                yearId="cashflow-to-year-1"
-                monthValue={toParts.month || ""}
-                yearValue={toParts.year || ""}
-                monthOptions={monthOptions}
-                yearOptions={yearOptions}
-                onMonthChange={(value) => updateToDate(value, undefined)}
-                onYearChange={(value) => updateToDate(undefined, value)}
-                rowClassName="report-toolbar__month-year-row"
-                inputClassName="report-toolbar__select"
-              />
-            </div>
+            {frequency === "year" ? (
+              <>
+                <div className="report-toolbar__field">
+                  <label
+                    htmlFor="cashflow-from-year-1"
+                    className="report-toolbar__label"
+                  >
+                    From
+                  </label>
+                  <select
+                    id="cashflow-from-year-1"
+                    className="report-toolbar__select"
+                    value={fromParts.year || ""}
+                    onChange={(event) => updateFromYear(event.target.value)}
+                  >
+                    {yearOptions.map((year) => (
+                      <option key={`cashflow-from-year-${year}`} value={year}>
+                        {year}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+                <div className="report-toolbar__field">
+                  <label
+                    htmlFor="cashflow-to-year-1"
+                    className="report-toolbar__label"
+                  >
+                    To
+                  </label>
+                  <select
+                    id="cashflow-to-year-1"
+                    className="report-toolbar__select"
+                    value={toParts.year || ""}
+                    onChange={(event) => updateToYear(event.target.value)}
+                  >
+                    {yearOptions.map((year) => (
+                      <option key={`cashflow-to-year-${year}`} value={year}>
+                        {year}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              </>
+            ) : (
+              <>
+                <div className="report-toolbar__field">
+                  <label
+                    htmlFor="cashflow-from-month-1"
+                    className="report-toolbar__label"
+                  >
+                    From
+                  </label>
+                  <MonthYearPicker
+                    monthId="cashflow-from-month-1"
+                    yearId="cashflow-from-year-1"
+                    monthValue={fromParts.month || ""}
+                    yearValue={fromParts.year || ""}
+                    monthOptions={monthOptions}
+                    yearOptions={yearOptions}
+                    onMonthChange={(value) => updateFromDate(value, undefined)}
+                    onYearChange={(value) => updateFromDate(undefined, value)}
+                    rowClassName="report-toolbar__month-year-row"
+                    inputClassName="report-toolbar__select"
+                  />
+                </div>
+                <div className="report-toolbar__field">
+                  <label
+                    htmlFor="cashflow-to-month-1"
+                    className="report-toolbar__label"
+                  >
+                    To
+                  </label>
+                  <MonthYearPicker
+                    monthId="cashflow-to-month-1"
+                    yearId="cashflow-to-year-1"
+                    monthValue={toParts.month || ""}
+                    yearValue={toParts.year || ""}
+                    monthOptions={monthOptions}
+                    yearOptions={yearOptions}
+                    onMonthChange={(value) => updateToDate(value, undefined)}
+                    onYearChange={(value) => updateToDate(undefined, value)}
+                    rowClassName="report-toolbar__month-year-row"
+                    inputClassName="report-toolbar__select"
+                  />
+                </div>
+              </>
+            )}
           </div>
           <div className="report-toolbar__period-actions">
             <button
