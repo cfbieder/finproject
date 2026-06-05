@@ -52,7 +52,7 @@
   font-weight: 500;
   color: var(--ink-muted, var(--muted));
   padding: 0.4rem 0.5rem;
-  background: rgba(250, 249, 245, 0.8);
+  background: var(--surface-muted);
   border-radius: var(--radius-md);
   border: 1px solid rgba(107, 142, 107, 0.08);
 }

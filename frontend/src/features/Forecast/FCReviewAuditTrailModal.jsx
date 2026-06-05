@@ -283,7 +283,7 @@ export default function FCReviewAuditTrailModal({ auditModal, onClose }) {
                 <thead>
                   <tr
                     style={{
-                      backgroundColor: "var(--background-secondary, #FAF9F5)",
+                      backgroundColor: "var(--surface-muted)",
                     }}
                   >
                     {headers.map((header) => {
@@ -317,18 +317,18 @@ export default function FCReviewAuditTrailModal({ auditModal, onClose }) {
                         backgroundColor:
                           rowIndex % 2 === 0
                             ? "white"
-                            : "var(--background-alt, #FAF9F5)",
+                            : "var(--surface-muted)",
                         transition: "background-color 0.15s ease",
                       }}
                       onMouseEnter={(e) => {
                         e.currentTarget.style.backgroundColor =
-                          "var(--background-hover, #F0EFE9)";
+                          "var(--bg-tertiary)";
                       }}
                       onMouseLeave={(e) => {
                         e.currentTarget.style.backgroundColor =
                           rowIndex % 2 === 0
                             ? "white"
-                            : "var(--background-alt, #FAF9F5)";
+                            : "var(--surface-muted)";
                       }}
                     >
                       {headers.map((header) => {
@@ -372,7 +372,7 @@ export default function FCReviewAuditTrailModal({ auditModal, onClose }) {
             style={{
               padding: "2rem 1rem",
               textAlign: "center",
-              backgroundColor: "var(--background-alt, #FAF9F5)",
+              backgroundColor: "var(--surface-muted)",
               borderRadius: "6px",
             }}
           >

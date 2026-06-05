@@ -1,6 +1,6 @@
 # CR026 — UI Revamp: Sidebar Navigation, Design Refresh, Mobile Expansion, Help & Commercialization-Readiness
 
-**Status:** IN-PROGRESS — **P1 (sidebar) + P2 (dark mode) shipped v2.16.0 (2026-06-05)**; P0 token-hardening effectively complete (~40 CSS files migrated); P3 (⌘K/help), P4 (mobile expansion), and the §6 WCAG audit remain. · [NEXT_STEPS anchor](../FC_NEXT_STEPS.md#cr026-ui-revamp)
+**Status:** IN-PROGRESS — **P1 (sidebar) + P2 (dark mode) shipped v2.16.0 (2026-06-05)**; P0 token-hardening effectively complete (~40 CSS files migrated); **P2 dark-mode defect pass done 2026-06-05 (D1–D12, see §14 — local, uncommitted)**; P3 (⌘K/help), P4 (mobile expansion), and the §6 WCAG audit remain. · [NEXT_STEPS anchor](../FC_NEXT_STEPS.md#cr026-ui-revamp)
 
 **Shipped (v2.16.0):** Collapsible VS Code-style sidebar (`components/Sidebar/`) + top utility strip (`components/TopStrip.jsx`) behind a `VITE_NAV_LAYOUT` flag (default **legacy** top bar; dev default flipped to **sidebar**, docker/prod stay legacy). IA regroup via additive `SIDEBAR_GROUPS`/`getSidebarNav()` in `routes.jsx`. Dark mode: `[data-theme="dark"]` token-override layer in `index.css` + `useTheme` store (default light, persisted, no-FOUC `index.html` script) + Theme toggles in the sidebar footer & top strip; new `--info` (purple) and `--on-accent` semantic tokens. ~40 page/component CSS files migrated off hardcoded hex onto tokens. Non-functional preview at `/ui-preview` (+ standalone `Documentation/CRs/CR026_UI_PREVIEW.html`). **Deferred dark-migration:** `QuickenImport.css` (low-traffic admin), `TransferAnalysis.css` (ambiguous light-mode quirk), legacy `NavigationMenu.css`, and the `/m/*` mobile shell (no toggle).
 **Created:** 2026-06-04
@@ -232,6 +232,14 @@ Each phase is independently shippable and independently revertible.
 - **Scope creep via commercialisation** — the single biggest risk; §9 boundary is the control.
 - **Two nav systems live at once** during rollout — flag discipline; delete legacy promptly once validated.
 - **`.btn` guardrail friction** — new chrome must use `.btn` + namespaced non-button classes; budget time to keep `check-button-css.sh` green.
+
+---
+
+## 14. P2 dark-mode defect pass (2026-06-05 — browser-verified, local/uncommitted)
+
+A real-browser verification of the flag-gated sidebar/dark UI (headless Chromium over all 33 routes + a gradient-aware light-surface auditor) found **12 dark-mode defect classes (D1–D12)** — light mode and the chrome/IA/⌘K/help were all clean. **Root cause:** the original migration grepped **hex** colors only, so three forms never flipped: (a) `rgba()` white/cream **`linear-gradient`** fills on toolbar/panel containers (endemic across ~15 CSS files — `.report-toolbar`, `.realization-toolbar`, `.balance-panel`, `.section-filters`, `.ct-chart-panel`, `.coa-toolbar`, the date-selector + budget-region panels, fc-module/exp modals), (b) **inline JS styles** in JSX (FCStepNav step pills, FCLineMapping unassigned chips, FCReviewTable historical columns, FC status badges), (c) a few solid light fills (`.period-selector__summary`, `.fc-review-table` striping, `.balance-report-table__totals-row`).
+
+**Fix:** all repointed to existing tokens — near-white → `var(--surface-elevated)`, cream → `var(--surface-muted)`, light-blue → `var(--bg-tertiary)`, status badges → semantic `--*-subtle`/`--*-strong`. Light mode is unchanged (each token's light value equals the original hex). Re-audit of all 17 affected routes is **clean** (sole remaining auditor hit is `.ct-chart-title`, a `-webkit-background-clip:text` gradient *text* effect — a false positive). Excel/HTML export strings in `FCReview.jsx` intentionally keep hardcoded hex (not theme-aware). Throwaway verification rig: `frontend/{verify-cr026,dark-audit,verify-chrome}.mjs` (needs headless Chromium). **Not yet committed.** A regression guard worth adding: a lint for `rgba(2\d\d,…)` light fills + JSX inline `background`, or wire `dark-audit.mjs` into CI — the original hex grep cannot see any of these.
 
 ---
 

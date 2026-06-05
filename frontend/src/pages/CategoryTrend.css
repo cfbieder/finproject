@@ -8,7 +8,7 @@
 
 .ct-chart-panel {
   width: 100%;
-  background: linear-gradient(135deg, rgba(255, 255, 255, 0.98) 0%, rgba(250, 249, 245, 0.96) 100%);
+  background: linear-gradient(135deg, var(--surface-elevated) 0%, var(--surface-muted) 100%);
   border: 1px solid rgba(107, 142, 107, 0.15);
   border-radius: var(--radius-lg);
   padding: 2rem;
@@ -200,7 +200,7 @@
   justify-content: space-between;
   padding: 0.5rem 0.65rem;
   border-top: 1px solid var(--border);
-  background: rgba(250, 249, 245, 0.6);
+  background: var(--surface-muted);
   gap: 0.5rem;
 }
 

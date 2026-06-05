@@ -115,8 +115,8 @@ export default function FCExpTable({
                         <span style={{
                           display: "inline-block", padding: "0.15rem 0.5rem", borderRadius: "1rem",
                           fontSize: "0.75rem", fontWeight: 600,
-                          background: (entry.SetupStatus || "new") === "complete" ? "#dcfce7" : entry.SetupStatus === "in_progress" ? "#fef3c7" : entry.SetupStatus === "exclude" ? "#fee2e2" : "#F2F1EC",
-                          color: (entry.SetupStatus || "new") === "complete" ? "#5B9E9E" : entry.SetupStatus === "in_progress" ? "#d97706" : entry.SetupStatus === "exclude" ? "#C0504D" : "#808E9B",
+                          background: (entry.SetupStatus || "new") === "complete" ? "var(--success-subtle)" : entry.SetupStatus === "in_progress" ? "var(--warning-subtle)" : entry.SetupStatus === "exclude" ? "var(--danger-subtle)" : "var(--surface-muted)",
+                          color: (entry.SetupStatus || "new") === "complete" ? "var(--success-strong)" : entry.SetupStatus === "in_progress" ? "var(--warning-strong)" : entry.SetupStatus === "exclude" ? "var(--danger-strong)" : "var(--muted)",
                         }}>
                           {(entry.SetupStatus || "new") === "complete" ? "Complete" : entry.SetupStatus === "in_progress" ? "In Progress" : entry.SetupStatus === "exclude" ? "Exclude" : "New"}
                         </span>

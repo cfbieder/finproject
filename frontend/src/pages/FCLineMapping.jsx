@@ -272,8 +272,8 @@ export default function FCLineMapping() {
               <span style={{ fontSize: "0.85rem", color: "var(--text-secondary)" }}>
                 Coverage: {fmt(assignedBudget)}/{fmt(totalBudget)} budget mapped ({assignedPct}%)
               </span>
-              <div style={{ flex: 1, height: "6px", background: "#E8E6DF", borderRadius: "3px", overflow: "hidden" }}>
-                <div style={{ width: `${assignedPct}%`, height: "100%", background: assignedPct === 100 ? "#5B8C5B" : "#7FA37F", transition: "width 0.3s" }} />
+              <div style={{ flex: 1, height: "6px", background: "var(--border)", borderRadius: "3px", overflow: "hidden" }}>
+                <div style={{ width: `${assignedPct}%`, height: "100%", background: assignedPct === 100 ? "var(--success)" : "var(--primary-light)", transition: "width 0.3s" }} />
               </div>
               <label style={{ fontSize: "0.85rem" }}>
                 Budget Year:
@@ -325,7 +325,7 @@ export default function FCLineMapping() {
           <h3 style={{ margin: "0 0 0.5rem", fontSize: "0.95rem", fontWeight: 600 }}>
             FC Lines ({lines.length})
           </h3>
-          <div style={{ flex: 1, overflow: "auto", border: "1px solid #E8E6DF", borderRadius: "0.5rem", maxHeight: "calc(100vh - 320px)" }}>
+          <div style={{ flex: 1, overflow: "auto", border: "1px solid var(--border)", borderRadius: "0.5rem", maxHeight: "calc(100vh - 320px)" }}>
             {lines.length === 0 ? (
               <div style={{ padding: "2rem", textAlign: "center", color: "var(--text-secondary)" }}>
                 No lines yet. Click "Generate Suggestions" or create one manually.
@@ -357,7 +357,7 @@ export default function FCLineMapping() {
                       onDrop={(e) => onDropOnLine(e, line.id)}
                       style={{
                         cursor: "pointer",
-                        background: selectedLineId === line.id ? "var(--bg-highlight, #f0f4ff)" : undefined,
+                        background: selectedLineId === line.id ? "var(--bg-highlight, var(--primary-subtle))" : undefined,
                         borderLeft: `3px solid ${typeColor(line.line_type)}`,
                       }}
                     >
@@ -424,7 +424,7 @@ export default function FCLineMapping() {
                   );
 
                   const subtotalRow = (label, total, color) => (
-                    <tr key={`subtotal-${label}`} style={{ fontWeight: 700, background: "#f8fafc", borderTop: "1px solid #E8E6DF" }}>
+                    <tr key={`subtotal-${label}`} style={{ fontWeight: 700, background: "var(--surface-muted)", borderTop: "1px solid var(--border)" }}>
                       <td colSpan={3}>{label}</td>
                       <td style={{ textAlign: "right", fontFamily: "var(--font-mono)", color }}>
                         {total !== 0 ? (total < 0 ? "-" : "") + fmt(total) : "—"}
@@ -437,26 +437,26 @@ export default function FCLineMapping() {
                     <>
                       {incomeLines.length > 0 && (
                         <tbody>
-                          <tr><td colSpan={5} style={{ fontWeight: 700, paddingTop: "0.5rem", fontSize: "0.8rem", color: "var(--success, #5B8C5B)", borderBottom: "1px solid #E8E6DF" }}>Income</td></tr>
+                          <tr><td colSpan={5} style={{ fontWeight: 700, paddingTop: "0.5rem", fontSize: "0.8rem", color: "var(--success, #5B8C5B)", borderBottom: "1px solid var(--border)" }}>Income</td></tr>
                           {incomeLines.map(renderLineRow)}
                           {subtotalRow("Subtotal Income", incomeSubtotal, "var(--success, #5B8C5B)")}
                         </tbody>
                       )}
                       {expenseLines.length > 0 && (
                         <tbody>
-                          <tr><td colSpan={5} style={{ fontWeight: 700, paddingTop: "0.75rem", fontSize: "0.8rem", color: "var(--danger, #C0504D)", borderBottom: "1px solid #E8E6DF" }}>Expense</td></tr>
+                          <tr><td colSpan={5} style={{ fontWeight: 700, paddingTop: "0.75rem", fontSize: "0.8rem", color: "var(--danger, #C0504D)", borderBottom: "1px solid var(--border)" }}>Expense</td></tr>
                           {expenseLines.map(renderLineRow)}
                           {subtotalRow("Subtotal Expense", expenseSubtotal, "var(--danger, #C0504D)")}
                         </tbody>
                       )}
                       {unassignedLines.length > 0 && (
                         <tbody>
-                          <tr><td colSpan={5} style={{ fontWeight: 700, paddingTop: "0.75rem", fontSize: "0.8rem", color: "var(--text-secondary)", borderBottom: "1px solid #E8E6DF" }}>Unassigned</td></tr>
+                          <tr><td colSpan={5} style={{ fontWeight: 700, paddingTop: "0.75rem", fontSize: "0.8rem", color: "var(--text-secondary)", borderBottom: "1px solid var(--border)" }}>Unassigned</td></tr>
                           {unassignedLines.map(renderLineRow)}
                         </tbody>
                       )}
                       <tfoot>
-                        <tr style={{ fontWeight: 700, borderTop: "2px solid #cbd5e0" }}>
+                        <tr style={{ fontWeight: 700, borderTop: "2px solid var(--border-strong)" }}>
                           <td colSpan={3}>Total</td>
                           <td style={{
                             textAlign: "right", fontFamily: "var(--font-mono)",
@@ -480,7 +480,7 @@ export default function FCLineMapping() {
               <h4 style={{ margin: "0 0 0.25rem", fontSize: "0.9rem" }}>
                 Categories in "{selectedLine.name}" ({selectedLine.categories?.length || 0})
               </h4>
-              <div style={{ maxHeight: "20vh", overflow: "auto", border: "1px solid #E8E6DF", borderRadius: "0.5rem", padding: "0.5rem" }}>
+              <div style={{ maxHeight: "20vh", overflow: "auto", border: "1px solid var(--border)", borderRadius: "0.5rem", padding: "0.5rem" }}>
                 {(!selectedLine.categories || selectedLine.categories.length === 0) ? (
                   <div style={{ color: "var(--text-secondary)", fontSize: "0.85rem" }}>
                     No categories assigned. Drag categories here from the unassigned pool.
@@ -555,7 +555,7 @@ export default function FCLineMapping() {
             )}
           </div>
           <div style={{
-            flex: 1, overflow: "auto", border: "1px solid #E8E6DF", borderRadius: "0.5rem",
+            flex: 1, overflow: "auto", border: "1px solid var(--border)", borderRadius: "0.5rem",
             maxHeight: "calc(100vh - 320px)",
             background: draggedCatId ? "#fef3c7" : undefined, transition: "background 0.2s",
           }}>
@@ -582,10 +582,10 @@ export default function FCLineMapping() {
                     onDoubleClick={() => selectedLineId && handleAssignCategory(selectedLineId, cat.id)}
                     style={{
                       padding: "0.3rem 0.5rem",
-                      background: selectedCatIds.has(cat.id) ? "#dbeafe" : bt !== 0 ? "#fef9ee" : "#fff",
+                      background: selectedCatIds.has(cat.id) ? "var(--info-subtle)" : bt !== 0 ? "var(--warning-subtle)" : "var(--surface-elevated)",
                       borderRadius: "0.25rem",
                       fontSize: "0.8rem", cursor: "pointer",
-                      border: selectedCatIds.has(cat.id) ? "1px solid #7FA37F" : "1px solid #E8E6DF",
+                      border: selectedCatIds.has(cat.id) ? "1px solid var(--primary-light)" : "1px solid var(--border)",
                       display: "flex", alignItems: "center", gap: "0.5rem",
                     }}
                     title="Click to select, Ctrl+Click for multi-select, double-click to assign"
@@ -608,7 +608,7 @@ export default function FCLineMapping() {
                     <div style={{
                       padding: "0.4rem 0.5rem", marginTop: "0.25rem",
                       fontWeight: 700, fontSize: "0.8rem",
-                      borderTop: "2px solid #E8E6DF",
+                      borderTop: "2px solid var(--border)",
                       display: "flex", justifyContent: "space-between",
                     }}>
                       <span>Unassigned Total ({withBudget} with budget)</span>
@@ -637,7 +637,7 @@ export default function FCLineMapping() {
             onClick={(e) => e.stopPropagation()}
             style={{ width: "min(600px, 96vw)", maxHeight: "80vh", background: "white", borderRadius: "1.25rem", boxShadow: "0 20px 60px -12px rgba(37,99,235,0.25)", display: "flex", flexDirection: "column", overflow: "hidden" }}
           >
-            <div style={{ padding: "1.25rem 1.5rem", borderBottom: "1px solid #E8E6DF", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+            <div style={{ padding: "1.25rem 1.5rem", borderBottom: "1px solid var(--border)", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
               <div>
                 <h2 style={{ margin: 0, fontSize: "1.15rem", fontWeight: 700 }}>{detailLine.name}</h2>
                 <span style={{ fontSize: "0.8rem", color: "var(--text-secondary)" }}>
@@ -715,20 +715,20 @@ export default function FCLineMapping() {
                       {sortedParents.map(({ parent, cats, subtotal }) => (
                         <tbody key={parent}>
                           <tr>
-                            <td style={{ fontWeight: 700, paddingTop: "0.5rem", borderBottom: "1px solid #E8E6DF" }}>{parent}</td>
+                            <td style={{ fontWeight: 700, paddingTop: "0.5rem", borderBottom: "1px solid var(--border)" }}>{parent}</td>
                             <td style={{
-                              fontWeight: 700, textAlign: "right", fontFamily: "var(--font-mono)", paddingTop: "0.5rem", borderBottom: "1px solid #E8E6DF",
+                              fontWeight: 700, textAlign: "right", fontFamily: "var(--font-mono)", paddingTop: "0.5rem", borderBottom: "1px solid var(--border)",
                               color: subtotal < 0 ? "var(--danger, #C0504D)" : subtotal > 0 ? "var(--success, #5B8C5B)" : undefined,
                             }}>
                               {subtotal !== 0 ? (subtotal < 0 ? "-" : "") + fmt(subtotal) : "—"}
                             </td>
-                            <td style={{ borderBottom: "1px solid #E8E6DF" }} />
+                            <td style={{ borderBottom: "1px solid var(--border)" }} />
                           </tr>
                           {cats.map(renderRow)}
                         </tbody>
                       ))}
                       <tfoot>
-                        <tr style={{ fontWeight: 700, borderTop: "2px solid #E8E6DF" }}>
+                        <tr style={{ fontWeight: 700, borderTop: "2px solid var(--border)" }}>
                           <td>Total</td>
                           <td style={{
                             textAlign: "right", fontFamily: "var(--font-mono)",
@@ -764,7 +764,7 @@ export default function FCLineMapping() {
               display: "flex", flexDirection: "column", overflow: "hidden",
             }}
           >
-            <div style={{ padding: "1.5rem 2rem", borderBottom: "1px solid #E8E6DF" }}>
+            <div style={{ padding: "1.5rem 2rem", borderBottom: "1px solid var(--border)" }}>
               <h3 style={{ margin: 0, fontSize: "1.1rem", fontWeight: 700 }}>Generate Suggestions</h3>
               <span style={{ fontSize: "0.8rem", color: "var(--text-secondary)" }}>
                 Select P&L categories to create as FC Lines.
@@ -821,7 +821,7 @@ export default function FCLineMapping() {
                 </>
               )}
             </div>
-            <div style={{ padding: "1rem 2rem", borderTop: "1px solid #E8E6DF", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+            <div style={{ padding: "1rem 2rem", borderTop: "1px solid var(--border)", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
               <span style={{ fontSize: "0.8rem", color: "var(--text-secondary)" }}>
                 {sugSelected.size} of {suggestions.length} selected
               </span>

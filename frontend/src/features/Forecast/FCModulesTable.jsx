@@ -453,10 +453,10 @@ export default function FCModulesTable({
                             {(() => {
                               const status = module?.SetupStatus || "new";
                               const statusStyles = {
-                                complete: { bg: "#dcfce7", color: "#5B9E9E", label: "Complete" },
-                                in_progress: { bg: "#fef3c7", color: "#d97706", label: "In Progress" },
-                                exclude: { bg: "#fee2e2", color: "#C0504D", label: "Exclude" },
-                                new: { bg: "#F2F1EC", color: "#808E9B", label: "New" },
+                                complete: { bg: "var(--success-subtle)", color: "var(--success-strong)", label: "Complete" },
+                                in_progress: { bg: "var(--warning-subtle)", color: "var(--warning-strong)", label: "In Progress" },
+                                exclude: { bg: "var(--danger-subtle)", color: "var(--danger-strong)", label: "Exclude" },
+                                new: { bg: "var(--surface-muted)", color: "var(--muted)", label: "New" },
                               };
                               const s = statusStyles[status] || statusStyles.new;
                               return (

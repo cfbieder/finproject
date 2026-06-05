@@ -51,7 +51,7 @@
 }
 
 .cash-flow-report .balance-report-table tbody tr:hover {
-  background: rgba(241, 245, 249, 0.8) !important;
+  background: var(--surface-muted) !important;
 }
 
 .cash-flow-report__toggle-button {

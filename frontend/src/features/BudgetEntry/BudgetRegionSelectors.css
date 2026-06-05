@@ -1,6 +1,6 @@
 .selector-area {
   grid-column: 1 / -1;
-  background: linear-gradient(135deg, rgba(255, 255, 255, 0.95) 0%, rgba(250, 249, 245, 0.98) 100%);
+  background: linear-gradient(135deg, var(--surface-elevated) 0%, var(--surface-muted) 100%);
   border: 1px solid rgba(107, 142, 107, 0.12);
   box-shadow: 0 2px 8px -2px rgba(45, 52, 54, 0.08), 0 4px 12px -4px rgba(107, 142, 107, 0.08);
 }

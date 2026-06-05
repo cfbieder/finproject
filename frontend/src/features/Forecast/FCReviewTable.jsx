@@ -110,14 +110,14 @@ function EquityBridgeRows({
     const { bold = false, indent = "1.5rem", color, onClick, prefix, topBorder = false, muted = false } = opts;
     return (
       <tr key={key}>
-        <td style={{ ...selectCellBaseStyle, top: undefined, borderTop: topBorder ? "2px solid #E8E6DF" : undefined }} />
+        <td style={{ ...selectCellBaseStyle, top: undefined, borderTop: topBorder ? "2px solid var(--border)" : undefined }} />
         <td
           style={{
             ...accountCellBaseStyle,
             padding: `0.3rem 0.75rem 0.3rem ${indent}`,
             fontWeight: bold ? 700 : muted ? 400 : 500,
             color: color || (muted ? "var(--muted)" : undefined),
-            borderTop: topBorder ? "2px solid #E8E6DF" : undefined,
+            borderTop: topBorder ? "2px solid var(--border)" : undefined,
             cursor: onClick ? "pointer" : undefined,
           }}
           onClick={onClick}
@@ -135,7 +135,7 @@ function EquityBridgeRows({
               style={{
                 color: show ? (num < -0.5 ? "var(--danger)" : num > 0.5 ? "var(--success, #5B9E9E)" : undefined) : undefined,
                 fontWeight: bold ? 700 : undefined,
-                borderTop: topBorder ? "2px solid #E8E6DF" : undefined,
+                borderTop: topBorder ? "2px solid var(--border)" : undefined,
               }}
             >
               {show ? formatAmount(num) : "—"}
@@ -184,9 +184,9 @@ function EquityBridgeRows({
                     minWidth: "120px",
                     fontWeight: 600,
                     ...(isPreForecast && {
-                      background: "linear-gradient(180deg, #FAF9F5 0%, #F0EFE9 100%)",
-                      borderLeft: "1px solid #cbd5e0",
-                      borderRight: "1px solid #cbd5e0",
+                      background: "linear-gradient(180deg, var(--surface-muted) 0%, var(--bg-tertiary) 100%)",
+                      borderLeft: "1px solid var(--border-strong)",
+                      borderRight: "1px solid var(--border-strong)",
                     }),
                   }}
                 >
@@ -242,7 +242,7 @@ function CashFlowSummaryRows({
   const netVals = sortedYears.map((y) => resolveCashValue({ isNet: true }, y));
 
   const shadeFor = (year) =>
-    baseYears?.has(Number(year)) || lastActualYears?.has(Number(year)) ? "#fafafa" : undefined;
+    baseYears?.has(Number(year)) || lastActualYears?.has(Number(year)) ? "var(--surface-muted)" : undefined;
 
   const valueCells = (values, { bold } = {}) =>
     sortedYears.map((year, yi) => {
@@ -315,9 +315,9 @@ function CashFlowSummaryRows({
                     minWidth: "120px",
                     fontWeight: 600,
                     ...(isPreForecast && {
-                      background: "linear-gradient(180deg, #FAF9F5 0%, #F0EFE9 100%)",
-                      borderLeft: "1px solid #cbd5e0",
-                      borderRight: "1px solid #cbd5e0",
+                      background: "linear-gradient(180deg, var(--surface-muted) 0%, var(--bg-tertiary) 100%)",
+                      borderLeft: "1px solid var(--border-strong)",
+                      borderRight: "1px solid var(--border-strong)",
                     }),
                   }}
                 >
@@ -694,10 +694,10 @@ export default function FCReviewTable({
                           minWidth: "120px",
                           ...(isPreForecast && {
                             background:
-                              "linear-gradient(180deg, #FAF9F5 0%, #F0EFE9 100%)",
+                              "linear-gradient(180deg, var(--surface-muted) 0%, var(--bg-tertiary) 100%)",
                             fontWeight: 600,
-                            borderLeft: "1px solid #cbd5e0",
-                            borderRight: "1px solid #cbd5e0",
+                            borderLeft: "1px solid var(--border-strong)",
+                            borderRight: "1px solid var(--border-strong)",
                           }),
                         }}
                       >
@@ -725,9 +725,9 @@ export default function FCReviewTable({
               {birthYear && (
                 <tr>
                   <td style={selectColumnStickyStyle} />
-                  <td style={{ ...accountHeaderStyle, fontSize: "0.7rem", color: "#A0AEB9", fontWeight: 500, padding: "0.15rem 0.5rem" }}>Age</td>
+                  <td style={{ ...accountHeaderStyle, fontSize: "0.7rem", color: "var(--muted-light)", fontWeight: 500, padding: "0.15rem 0.5rem" }}>Age</td>
                   {sortedYears.map((year) => (
-                    <td key={`age-${year}`} className="trans-budget-table__value" style={{ fontSize: "0.7rem", color: "#A0AEB9", fontWeight: 500, padding: "0.15rem 0.5rem" }}>
+                    <td key={`age-${year}`} className="trans-budget-table__value" style={{ fontSize: "0.7rem", color: "var(--muted-light)", fontWeight: 500, padding: "0.15rem 0.5rem" }}>
                       {Number(year) - birthYear}
                     </td>
                   ))}
@@ -887,7 +887,7 @@ export default function FCReviewTable({
                                     ? "var(--danger)"
                                     : undefined,
                                 backgroundColor: (isBaseYear || isLastActualYear)
-                                  ? "#fafafa"
+                                  ? "var(--surface-muted)"
                                   : undefined,
                                 fontWeight:
                                   row.isNet || isCashFlow ? 600 : undefined,
@@ -900,7 +900,7 @@ export default function FCReviewTable({
                                   ? "underline dotted"
                                   : undefined,
                                 boxShadow: isBaseYear
-                                  ? "inset 1px 0 0 #cbd5e0, inset -1px 0 0 #cbd5e0"
+                                  ? "inset 1px 0 0 var(--border-strong), inset -1px 0 0 var(--border-strong)"
                                   : undefined,
                                 ...cashSectionBorders,
                               }}
@@ -945,13 +945,13 @@ export default function FCReviewTable({
                               padding: 0,
                               height: "1rem",
                               backgroundColor: isPreForecast
-                                ? "#fafafa"
+                                ? "var(--surface-muted)"
                                 : undefined,
                               borderLeft: isPreForecast
-                                ? "1px solid #cbd5e0"
+                                ? "1px solid var(--border-strong)"
                                 : undefined,
                               borderRight: isPreForecast
-                                ? "1px solid #cbd5e0"
+                                ? "1px solid var(--border-strong)"
                                 : undefined,
                             }}
                           />
@@ -1001,11 +1001,11 @@ export default function FCReviewTable({
                             style={{
                               fontWeight: 700,
                               color: Number(displayValue) < 0 ? "var(--danger)" : undefined,
-                              backgroundColor: isPreForecast ? "#fafafa" : undefined,
+                              backgroundColor: isPreForecast ? "var(--surface-muted)" : undefined,
                               borderTop: "2px solid var(--border)",
                               borderBottom: "2px solid var(--border)",
                               cursor: "pointer",
-                              boxShadow: isPreForecast ? "inset 1px 0 0 #cbd5e0, inset -1px 0 0 #cbd5e0" : undefined,
+                              boxShadow: isPreForecast ? "inset 1px 0 0 var(--border-strong), inset -1px 0 0 var(--border-strong)" : undefined,
                             }}
                             onDoubleClick={() => onNetAssetsDoubleClick?.()}
                           >
@@ -1027,7 +1027,7 @@ export default function FCReviewTable({
                           <td key={`bs-yr-${year}`} style={{
                             textAlign: "right", fontWeight: 700, fontSize: "0.78rem", padding: "0.35rem 0.5rem",
                             color: "var(--muted)", background: "var(--surface-muted)", borderBottom: "2px solid var(--border)",
-                            ...(isPreForecast && { background: "#f0f1f3", borderLeft: "1px solid #cbd5e0", borderRight: "1px solid #cbd5e0" }),
+                            ...(isPreForecast && { background: "var(--surface-muted)", borderLeft: "1px solid var(--border-strong)", borderRight: "1px solid var(--border-strong)" }),
                           }}>
                             {year}
                           </td>
@@ -1133,7 +1133,7 @@ export default function FCReviewTable({
                                     ? "var(--danger)"
                                     : undefined,
                                 backgroundColor: isPreForecast
-                                  ? "#fafafa"
+                                  ? "var(--surface-muted)"
                                   : undefined,
                                 cursor: isPreForecast
                                   ? "default"
@@ -1144,7 +1144,7 @@ export default function FCReviewTable({
                                   ? "underline dotted"
                                   : undefined,
                                 boxShadow: isPreForecast
-                                  ? "inset 1px 0 0 #cbd5e0, inset -1px 0 0 #cbd5e0"
+                                  ? "inset 1px 0 0 var(--border-strong), inset -1px 0 0 var(--border-strong)"
                                   : undefined,
                                 ...balanceSectionBorders,
                               }}

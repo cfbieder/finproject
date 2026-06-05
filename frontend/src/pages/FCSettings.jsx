@@ -86,7 +86,7 @@ export default function FCSettings() {
                     style={{
                       display: "inline-flex", alignItems: "center", gap: "0.3rem",
                       padding: "0.25rem 0.6rem", borderRadius: "1rem",
-                      background: "#F2F1EC", fontSize: "0.8rem", border: "1px solid #E8E6DF",
+                      background: "var(--surface-muted)", fontSize: "0.8rem", border: "1px solid var(--border)",
                     }}
                   >
                     {type}
@@ -98,7 +98,7 @@ export default function FCSettings() {
                       }}
                       style={{
                         background: "none", border: "none", cursor: "pointer",
-                        color: "#A0AEB9", fontSize: "1rem", padding: 0, lineHeight: 1,
+                        color: "var(--muted-light)", fontSize: "1rem", padding: 0, lineHeight: 1,
                       }}
                     >
                       &times;
@@ -131,9 +131,9 @@ export default function FCSettings() {
                   disabled={!newType.trim()}
                   style={{
                     fontSize: "0.85rem", padding: "0.3rem 0.75rem", borderRadius: "0.5rem",
-                    border: "1px solid #D5D2C9",
-                    background: newType.trim() ? "var(--primary, #567856)" : "#E8E6DF",
-                    color: newType.trim() ? "white" : "#A0AEB9",
+                    border: "1px solid var(--border-strong)",
+                    background: newType.trim() ? "var(--primary, #567856)" : "var(--border)",
+                    color: newType.trim() ? "white" : "var(--muted-light)",
                     cursor: newType.trim() ? "pointer" : "not-allowed",
                   }}
                 >
@@ -168,7 +168,7 @@ export default function FCSettings() {
               <button
                 type="button"
                 onClick={() => { setAiPrompt(DEFAULT_AI_PROMPT); save("ai_review_prompt", DEFAULT_AI_PROMPT); }}
-                style={{ marginTop: "0.35rem", fontSize: "0.8rem", padding: "0.25rem 0.75rem", borderRadius: "0.375rem", border: "1px solid #D5D2C9", background: "white", cursor: "pointer", color: "#808E9B" }}
+                style={{ marginTop: "0.35rem", fontSize: "0.8rem", padding: "0.25rem 0.75rem", borderRadius: "0.375rem", border: "1px solid var(--border-strong)", background: "var(--surface-elevated)", cursor: "pointer", color: "var(--muted)" }}
               >
                 Reset to Default
               </button>

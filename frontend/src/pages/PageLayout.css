@@ -441,8 +441,8 @@
   height: auto;
   background: linear-gradient(
     135deg,
-    rgba(255, 255, 255, 0.98) 0%,
-    rgba(250, 249, 245, 0.96) 100%
+    var(--surface-elevated) 0%,
+    var(--surface-muted) 100%
   );
   border: 1px solid rgba(107, 142, 107, 0.12);
   box-shadow: 0 4px 12px -4px rgba(45, 52, 54, 0.1),
@@ -1083,7 +1083,7 @@
 }
 
 .fc-review-table tbody tr:nth-child(even) td {
-  background: rgb(248, 249, 254);
+  background: var(--surface-muted);
 }
 
 .trans-budget-table tbody tr.trans-budget-table__row--selected td {
@@ -2876,8 +2876,8 @@
 .balance-report-table__totals-row {
   background: linear-gradient(
     135deg,
-    rgba(241, 245, 249, 0.95) 0%,
-    rgba(226, 232, 240, 0.9) 100%
+    var(--surface-muted) 0%,
+    var(--bg-tertiary) 100%
   );
   font-weight: 700;
 }
@@ -2922,8 +2922,8 @@
   width: 100%;
   background: linear-gradient(
     135deg,
-    rgba(255, 255, 255, 0.98) 0%,
-    rgba(250, 249, 245, 0.96) 100%
+    var(--surface-elevated) 0%,
+    var(--surface-muted) 100%
   );
   border: 1px solid rgba(107, 142, 107, 0.12);
   box-shadow: 0 4px 12px -4px rgba(45, 52, 54, 0.1),
@@ -2950,8 +2950,8 @@
   padding: 1rem 1.25rem;
   background: linear-gradient(
     135deg,
-    rgba(255, 255, 255, 0.98) 0%,
-    rgba(250, 249, 245, 1) 100%
+    var(--surface-elevated) 0%,
+    var(--surface-muted) 100%
   );
   border: 1px solid rgba(107, 142, 107, 0.12);
   border-radius: var(--radius-md);
@@ -3310,8 +3310,8 @@
   padding: 1rem 1.25rem;
   background: linear-gradient(
     135deg,
-    rgba(255, 255, 255, 0.98) 0%,
-    rgba(250, 249, 245, 1) 100%
+    var(--surface-elevated) 0%,
+    var(--surface-muted) 100%
   );
   border: 1px solid rgba(107, 142, 107, 0.12);
   border-radius: var(--radius-md);

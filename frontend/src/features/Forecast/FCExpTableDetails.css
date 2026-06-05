@@ -62,7 +62,7 @@
   flex-direction: column;
   gap: 0.25rem;
   padding: 0.85rem 0.95rem;
-  background: rgba(250, 249, 245, 0.7);
+  background: var(--surface-muted);
   border: 1px solid rgba(148, 163, 184, 0.25);
   border-radius: 0.65rem;
 }
@@ -80,8 +80,8 @@
   padding: 1.25rem;
   background: linear-gradient(
     135deg,
-    rgba(250, 249, 245, 0.8) 0%,
-    rgba(241, 245, 249, 0.6) 100%
+    var(--surface-muted) 0%,
+    var(--surface-muted) 100%
   );
   border-radius: 0.85rem;
   border: 1px solid rgba(107, 142, 107, 0.12);
