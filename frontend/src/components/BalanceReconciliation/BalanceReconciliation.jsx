@@ -30,6 +30,22 @@ export default function BalanceReconciliation() {
   const [reconcilingId, setReconcilingId] = useState(null);
   const [reconcileMsg, setReconcileMsg] = useState(null);
   const [confirm, setConfirm] = useState(null); // { account, title, message, confirmLabel } | null
+  const [savingMode, setSavingMode] = useState(null);
+
+  // Set how an account reconciles: 'calibrate' (bank/cash → DRIFT) or 'mtm'
+  // (brokerage / mark-to-market holdings → MTM GAP). Harmless on its own.
+  const setMode = async (accountId, mode) => {
+    setSavingMode(accountId);
+    setReconcileMsg(null);
+    try {
+      await Rest.patch(`/bank-feed/reconcile-mode/${accountId}`, { mode });
+      await loadBalanceRecon();
+    } catch (err) {
+      setReconcileMsg(`mode change failed — ${err.message}`);
+    } finally {
+      setSavingMode(null);
+    }
+  };
 
   const loadBalanceRecon = async () => {
     try {
@@ -124,7 +140,17 @@ export default function BalanceReconciliation() {
             return (
               <tr key={a.account_id}>
                 <td>{a.name}</td>
-                <td className="bfd-muted">{isMtm ? "brokerage (mtm)" : a.account_type}</td>
+                <td className="bfd-muted">
+                  <select
+                    value={a.reconcile_mode || "calibrate"}
+                    disabled={savingMode === a.account_id}
+                    onChange={(e) => setMode(a.account_id, e.target.value)}
+                    title="How this account reconciles: bank (re-anchor opening_balance, shows DRIFT) vs brokerage (post Unrealized-G/L, shows MTM GAP)"
+                  >
+                    <option value="calibrate">bank (calibrate)</option>
+                    <option value="mtm">brokerage (mtm)</option>
+                  </select>
+                </td>
                 <td className="num">{fmtNum(a.computed_balance)}</td>
                 <td className="num">{a.feed_balance != null ? fmtNum(a.feed_balance) : "—"}</td>
                 <td className={`num ${driftCls}`}>{a.drift != null ? fmtNum(a.drift, 2) : "—"}</td>

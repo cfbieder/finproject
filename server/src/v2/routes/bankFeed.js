@@ -241,4 +241,33 @@ router.post('/reconcile/:accountId', async (req, res, next) => {
   }
 });
 
+/**
+ * PATCH /api/v2/bank-feed/reconcile-mode/:accountId  body: { mode }
+ * CR023: set how an account reconciles — 'calibrate' (bank/cash: re-anchor
+ * opening_balance; drift shows as DRIFT) or 'mtm' (brokerage / mark-to-market
+ * holdings: post an Unrealized-G/L entry; drift shows as MTM GAP). Setting the
+ * mode is harmless on its own — the reconcile action it governs is confirm-gated.
+ */
+router.patch('/reconcile-mode/:accountId', async (req, res, next) => {
+  try {
+    const accountId = Number(req.params.accountId);
+    const { mode } = req.body || {};
+    if (!Number.isInteger(accountId)) return res.status(400).json({ error: 'invalid accountId' });
+    if (!['calibrate', 'mtm'].includes(mode)) {
+      return res.status(400).json({ error: "mode must be 'calibrate' or 'mtm'" });
+    }
+    const r = await db.query(
+      `UPDATE account_source_mappings SET reconcile_mode = $2
+       WHERE source = 'bank-feed' AND account_id = $1
+       RETURNING account_id, reconcile_mode`,
+      [accountId, mode]
+    );
+    if (!r.rows[0]) return res.status(404).json({ error: 'no bank-feed mapping for that account' });
+    res.json({ data: r.rows[0] });
+  } catch (err) {
+    console.error('[v2/bank-feed] set reconcile-mode failed:', err.message);
+    next(err);
+  }
+});
+
 module.exports = router;
