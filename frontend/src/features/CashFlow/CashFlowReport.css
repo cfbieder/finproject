@@ -88,7 +88,7 @@
 }
 
 .cash-flow-report .balance-report-table tbody tr[data-level="0"] td {
-  background: #dbe4ff !important;
+  background: var(--primary-subtle) !important;
   border-bottom: 2px solid rgba(107, 142, 107, 0.25);
   padding-top: 1.1rem;
   padding-bottom: 0.7rem;
@@ -112,7 +112,7 @@
 }
 
 .cash-flow-report .balance-report-table tbody tr[data-level="1"] td {
-  background: #edf0fa !important;
+  background: var(--bg-tertiary) !important;
   border-top: 1px solid var(--border);
 }
 
@@ -131,7 +131,7 @@
 }
 
 .cash-flow-report .balance-report-table tbody tr[data-level="2"] td {
-  background: #f5f6f8 !important;
+  background: var(--surface-muted) !important;
 }
 
 .cash-flow-report .balance-report-table tbody tr[data-level="2"] .balance-report-table__name-text {
@@ -170,7 +170,7 @@
 }
 
 .cash-flow-report .balance-report-table tbody tr[data-level="4"] td {
-  background: #fcfcfd !important;
+  background: var(--surface) !important;
 }
 
 .cash-flow-report .balance-report-table tbody tr[data-level="4"] .balance-report-table__name-text {

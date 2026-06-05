@@ -86,7 +86,7 @@
   border: 1px solid rgba(107, 142, 107, 0.12);
   border-radius: 0.9rem;
   padding: 1rem 1.1rem;
-  background: linear-gradient(135deg, #ffffff 0%, #fafbfc 100%);
+  background: linear-gradient(135deg, var(--surface) 0%, var(--surface-muted) 100%);
   box-shadow:
     0 1px 3px 0 rgba(0, 0, 0, 0.05),
     0 0 0 1px rgba(255, 255, 255, 0.8) inset;

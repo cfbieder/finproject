@@ -66,7 +66,7 @@
 
 .fc-scenarios-modal__header {
   padding: 1.75rem 2rem;
-  background: linear-gradient(135deg, #FAF9F5 0%, var(--bg-secondary) 100%);
+  background: linear-gradient(135deg, var(--surface-muted) 0%, var(--bg-secondary) 100%);
   border-bottom: 2px solid rgba(107, 142, 107, 0.12);
   position: relative;
 }
@@ -211,7 +211,7 @@
 .fc-scenarios-modal__field select:disabled {
   opacity: 0.6;
   cursor: not-allowed;
-  background: linear-gradient(135deg, #FAF9F5 0%, var(--bg-secondary) 100%);
+  background: linear-gradient(135deg, var(--surface-muted) 0%, var(--bg-secondary) 100%);
 }
 
 .fc-scenarios-modal__field input::placeholder {
@@ -248,7 +248,7 @@ input[type="number"].fc-scenarios-modal__field input {
   justify-content: flex-end;
   gap: 0.85rem;
   padding: 1.5rem 2rem;
-  background: linear-gradient(135deg, #FAF9F5 0%, var(--bg-secondary) 100%);
+  background: linear-gradient(135deg, var(--surface-muted) 0%, var(--bg-secondary) 100%);
   border-top: 2px solid rgba(107, 142, 107, 0.12);
 }
 
@@ -329,7 +329,7 @@ input[type="number"].fc-scenarios-modal__field input {
 }
 
 .fc-scenarios-action-button--danger:hover:not(:disabled) {
-  background: linear-gradient(135deg, var(--danger) 0%, #b91c1c 100%);
+  background: linear-gradient(135deg, var(--danger) 0%, var(--danger-strong) 100%);
   transform: translateY(-2px);
   box-shadow: 0 8px 20px -6px rgba(239, 68, 68, 0.6),
     0 0 0 3px rgba(239, 68, 68, 0.2);
@@ -344,7 +344,7 @@ input[type="number"].fc-scenarios-modal__field input {
   background: linear-gradient(135deg, rgba(251, 146, 60, 0.12) 0%, rgba(251, 146, 60, 0.06) 100%);
   border: 1.5px solid rgba(251, 146, 60, 0.3);
   border-radius: var(--radius-md);
-  color: #ea580c;
+  color: var(--warning-strong);
   font-weight: 600;
   font-size: 0.95rem;
   display: flex;

@@ -3,9 +3,9 @@
    ============================================================================ */
 
 :root {
-  --popup-bg: #f8f9fe;
-  --popup-surface: #ffffff;
-  --popup-surface-muted: #f5f7fc;
+  --popup-bg: var(--bg-secondary);
+  --popup-surface: var(--surface);
+  --popup-surface-muted: var(--surface-muted);
   --popup-ink: var(--ink);
   --popup-muted: var(--muted);
   --popup-primary: var(--primary);
@@ -114,7 +114,7 @@
   flex: 1;
   overflow-y: auto;
   padding: 1.5rem 2rem;
-  background: linear-gradient(135deg, #f8f9fe 0%, #eef3fb 100%);
+  background: linear-gradient(135deg, var(--bg-secondary) 0%, var(--surface-muted) 100%);
 }
 
 h2 {
@@ -399,7 +399,7 @@ h2 {
 
 .budget-entries-popup__editor button[type="submit"] {
   background: var(--primary);
-  color: #fff;
+  color: var(--on-accent);
   box-shadow: 0 4px 6px -1px rgba(107, 142, 107, 0.3);
 }
 
@@ -479,7 +479,7 @@ h2 {
 
 .budget-entries-popup__delete-confirmation button[data-delete-confirmation-confirm] {
   background: var(--popup-danger);
-  color: #fff;
+  color: var(--on-accent);
   box-shadow: 0 4px 6px -1px rgba(239, 68, 68, 0.3);
 }
 

@@ -276,7 +276,7 @@
 
 .fc-graph-mod-card__remove:hover {
   opacity: 1;
-  background: #fef2f2;
+  background: var(--danger-subtle);
 }
 
 .fc-graph-mod-card__remove:disabled {
@@ -287,8 +287,8 @@
 /* Error */
 .fc-graph-mod-error {
   padding: 0.5rem 0.75rem;
-  background: #fef2f2;
-  border: 1px solid #fecaca;
+  background: var(--danger-subtle);
+  border: 1px solid var(--danger-light);
   border-radius: var(--radius-md);
   color: var(--danger);
   font-size: 0.85rem;

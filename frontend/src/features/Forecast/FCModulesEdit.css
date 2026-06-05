@@ -473,7 +473,7 @@
   width: min(900px, 96vw);
   max-height: calc(100vh - 4rem);
   overflow-y: auto;
-  background: linear-gradient(to bottom, #ffffff 0%, #fafbfc 50%, #f5f7fa 100%);
+  background: linear-gradient(to bottom, var(--surface) 0%, var(--surface-muted) 50%, var(--bg-tertiary) 100%);
   border-radius: 1.5rem;
   padding: 0;
   box-shadow: 0 32px 80px -16px rgba(45, 52, 54, 0.12),
@@ -505,7 +505,7 @@
   letter-spacing: -0.02em;
   padding: 2rem 2.5rem;
   border-bottom: none;
-  background: linear-gradient(135deg, #e0effe 0%, #E8F0E9 50%, #ffffff 100%);
+  background: linear-gradient(135deg, var(--primary-subtle) 0%, var(--primary-subtle) 50%, var(--surface) 100%);
   border-radius: 1.5rem 1.5rem 0 0;
   position: sticky;
   top: 0;
@@ -871,7 +871,7 @@
 
 .fc-scenarios-modal__actions .generate-report-button:last-child {
   background: var(--primary);
-  color: #fff;
+  color: var(--on-accent);
   border-color: transparent;
   box-shadow: 0 6px 20px -6px rgba(107, 142, 107, 0.5),
     0 0 0 1px rgba(107, 142, 107, 0.2);
@@ -1287,7 +1287,7 @@
   align-items: center;
   justify-content: space-between;
   padding: 1.75rem 2rem;
-  background: linear-gradient(135deg, #FAF9F5 0%, var(--bg-secondary) 100%);
+  background: linear-gradient(135deg, var(--surface-muted) 0%, var(--bg-secondary) 100%);
   border-bottom: 2px solid rgba(107, 142, 107, 0.12);
   position: relative;
 }
@@ -1524,7 +1524,7 @@ select.fc-modules-modal__input {
 }
 
 select.fc-modules-modal__input:disabled {
-  background: linear-gradient(135deg, #FAF9F5 0%, var(--bg-secondary) 100%);
+  background: linear-gradient(135deg, var(--surface-muted) 0%, var(--bg-secondary) 100%);
   background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' viewBox='0 0 16 16'%3E%3Cpath fill='%2394a3b8' d='M4 6l4 4 4-4'/%3E%3C/svg%3E");
   color: var(--ink-secondary);
   cursor: not-allowed;
@@ -1532,14 +1532,14 @@ select.fc-modules-modal__input:disabled {
 }
 
 input.fc-modules-modal__input:disabled {
-  background: linear-gradient(135deg, #FAF9F5 0%, var(--bg-secondary) 100%);
+  background: linear-gradient(135deg, var(--surface-muted) 0%, var(--bg-secondary) 100%);
   color: var(--ink-secondary);
   cursor: not-allowed;
   border-color: rgba(107, 142, 107, 0.1);
 }
 
 input.fc-modules-modal__input:read-only {
-  background: linear-gradient(135deg, #FAF9F5 0%, var(--bg-secondary) 100%);
+  background: linear-gradient(135deg, var(--surface-muted) 0%, var(--bg-secondary) 100%);
   color: var(--ink-secondary);
   cursor: not-allowed;
   border-color: rgba(107, 142, 107, 0.1);
@@ -1797,7 +1797,7 @@ input.fc-modules-modal__input:read-only {
   justify-content: flex-end;
   gap: 0.75rem;
   padding: 1.5rem 2rem;
-  background: linear-gradient(135deg, #FAF9F5 0%, var(--bg-secondary) 100%);
+  background: linear-gradient(135deg, var(--surface-muted) 0%, var(--bg-secondary) 100%);
   border-top: 2px solid rgba(107, 142, 107, 0.12);
 }
 

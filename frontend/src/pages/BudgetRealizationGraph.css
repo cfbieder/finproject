@@ -114,7 +114,7 @@
 .budget-graph-bar-label {
   font-size: 14px;
   font-weight: 500;
-  color: #374151;
+  color: var(--ink-secondary);
   margin-bottom: 4px;
 }
 
@@ -152,7 +152,7 @@
 .budget-graph-bar-container {
   position: relative;
   height: 24px;
-  background: #f3f4f6;
+  background: var(--surface-muted);
   border-radius: 8px;
   overflow: hidden;
 }
@@ -179,7 +179,7 @@
 .budget-graph-bar-value {
   font-size: 13px;
   font-weight: 500;
-  color: #374151;
+  color: var(--ink-secondary);
   text-align: right;
   font-variant-numeric: tabular-nums;
 }

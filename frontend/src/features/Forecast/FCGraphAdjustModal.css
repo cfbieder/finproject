@@ -185,8 +185,8 @@
 /* Error */
 .fc-graph-adjust-error {
   padding: 0.5rem 0.75rem;
-  background: #fef2f2;
-  border: 1px solid #fecaca;
+  background: var(--danger-subtle);
+  border: 1px solid var(--danger-light);
   border-radius: var(--radius-md);
   color: var(--danger);
   font-size: 0.85rem;

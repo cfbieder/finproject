@@ -1,5 +1,5 @@
 .budget-options-region {
-  border: 3px solid #1a1a1a;
+  border: 3px solid var(--ink);
   border-radius: var(--radius-sm);
   background: var(--surface);
   padding: 1.75rem;
@@ -17,7 +17,7 @@
   margin: 0;
   font-size: 1.65rem;
   font-weight: 700;
-  color: #d33b3b;
+  color: var(--danger);
   letter-spacing: 0.05em;
   text-transform: uppercase;
 }
@@ -30,7 +30,7 @@
 }
 
 .budget-options-region__note--error {
-  color: #c62828;
+  color: var(--danger-strong);
 }
 
 .budget-options-table-wrapper {
@@ -48,16 +48,16 @@
 
 .budget-options-table th,
 .budget-options-table td {
-  border: 1px solid #dcdce4;
+  border: 1px solid var(--border);
   padding: 0.5rem 0.75rem;
 }
 
 .budget-options-table th {
-  background: #f3f3f3;
+  background: var(--surface-muted);
   font-size: 0.8rem;
   letter-spacing: 0.08em;
   text-transform: uppercase;
-  color: #333;
+  color: var(--ink);
 }
 
 .budget-options-table td {
