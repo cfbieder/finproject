@@ -66,6 +66,7 @@ services:
         VITE_APP_VERSION: ${VITE_APP_VERSION:-2.0.0}
         VITE_APP_MODE: prod
         VITE_APP_API: ""
+        VITE_NAV_LAYOUT: sidebar
     container_name: fin-frontend
     restart: unless-stopped
     depends_on:

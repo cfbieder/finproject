@@ -5,6 +5,7 @@ FROM node:20 AS builder
 ARG VITE_APP_VERSION=2.0.0
 ARG VITE_APP_MODE=prod
 ARG VITE_APP_API=""
+ARG VITE_NAV_LAYOUT=legacy
 
 # Set working directory
 WORKDIR /app
@@ -26,6 +27,7 @@ COPY frontend/ ./
 RUN VITE_APP_VERSION=$VITE_APP_VERSION \
     VITE_APP_MODE=$VITE_APP_MODE \
     VITE_APP_API=$VITE_APP_API \
+    VITE_NAV_LAYOUT=$VITE_NAV_LAYOUT \
     npm run build
 
 # Stage 2: Serve with nginx
