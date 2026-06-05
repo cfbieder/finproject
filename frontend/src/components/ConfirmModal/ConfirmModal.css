@@ -1,0 +1,88 @@
+/* ConfirmModal — shared styled confirm dialog (matches the app's modal look). */
+
+.confirm-modal__overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.5);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1000;
+}
+
+.confirm-modal {
+  background: #fff;
+  border-radius: 8px;
+  width: 480px;
+  max-width: calc(100vw - 2rem);
+  max-height: calc(100vh - 2rem);
+  display: flex;
+  flex-direction: column;
+  box-shadow: 0 20px 48px rgba(0, 0, 0, 0.25);
+}
+
+.confirm-modal__header {
+  padding: 1rem 1.25rem;
+  border-bottom: 1px solid #e0e0e0;
+  font-weight: 600;
+  font-size: 1.05rem;
+  color: #1f2d3d;
+}
+
+.confirm-modal__body {
+  padding: 1.1rem 1.25rem;
+  overflow-y: auto;
+}
+
+.confirm-modal__message {
+  margin: 0;
+  white-space: pre-line;
+  font-size: 0.92rem;
+  line-height: 1.5;
+  color: #33425a;
+}
+
+.confirm-modal__footer {
+  padding: 0.85rem 1.25rem;
+  border-top: 1px solid #e0e0e0;
+  display: flex;
+  justify-content: flex-end;
+  gap: 0.5rem;
+}
+
+.confirm-modal__btn {
+  background: #f1f5f9;
+  border: 1px solid #ccd;
+  border-radius: 4px;
+  padding: 0.4rem 0.9rem;
+  font-size: 0.9rem;
+  cursor: pointer;
+  color: #223344;
+}
+
+.confirm-modal__btn:hover:not(:disabled) {
+  background: #e2eaf3;
+}
+
+.confirm-modal__btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.confirm-modal__btn--primary {
+  background: #2563eb;
+  border-color: #2563eb;
+  color: #fff;
+}
+.confirm-modal__btn--primary:hover:not(:disabled) {
+  background: #1e51c9;
+}
+
+.confirm-modal__btn--danger {
+  background: #dc2626;
+  border-color: #dc2626;
+  color: #fff;
+}
+.confirm-modal__btn--danger:hover:not(:disabled) {
+  background: #b91c1c;
+}

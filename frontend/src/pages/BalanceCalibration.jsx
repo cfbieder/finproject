@@ -1,6 +1,7 @@
 import { useCallback, useState } from "react";
 import { useToast } from "../contexts/ToastContext.jsx";
 import Rest from "../js/rest.js";
+import BalanceReconciliation from "../components/BalanceReconciliation/BalanceReconciliation.jsx";
 import "./PageLayout.css";
 import "./BalanceCalibration.css";
 
@@ -69,6 +70,14 @@ export default function BalanceCalibration() {
             from the most recent known closing balance.
           </p>
         </header>
+
+        {/* CR023 bank reconciliation — the live cutover gate (PS calibration below
+            is the legacy path, being phased out). */}
+        <BalanceReconciliation />
+
+        <h2 className="balance-calibration-header__title" style={{ fontSize: "1.15rem", marginTop: "1.75rem" }}>
+          PocketSmith calibration <span style={{ fontWeight: 400, fontSize: "0.85rem", opacity: 0.7 }}>(legacy — phasing out)</span>
+        </h2>
 
         <div className="calibration-actions">
           <button
