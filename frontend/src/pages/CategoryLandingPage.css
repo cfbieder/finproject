@@ -84,7 +84,7 @@
 
 .feature-card:hover .feature-card__icon-area {
   background: linear-gradient(135deg, var(--primary) 0%, var(--accent) 100%);
-  color: #fff;
+  color: var(--on-accent);
 }
 
 .feature-card:hover .feature-card__arrow {

@@ -34,14 +34,14 @@
 .period-selector__preset--active {
   background: var(--primary);
   border-color: var(--primary);
-  color: #ffffff;
+  color: var(--on-accent);
   box-shadow: 0 1px 3px rgba(107, 142, 107, 0.3);
 }
 
 .period-selector__preset--active:hover {
   background: var(--primary);
   border-color: var(--primary);
-  color: #ffffff;
+  color: var(--on-accent);
   opacity: 0.9;
 }
 

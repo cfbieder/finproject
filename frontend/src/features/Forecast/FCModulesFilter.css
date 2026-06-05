@@ -205,7 +205,7 @@
 
 .fc-modules-filter__action-btn--primary {
   background: var(--primary);
-  color: #fff;
+  color: var(--on-accent);
   border-color: transparent;
   box-shadow: 0 4px 12px -4px rgba(107, 142, 107, 0.5);
 }
@@ -217,7 +217,7 @@
 
 .fc-modules-filter__action-btn--danger {
   background: linear-gradient(135deg, var(--danger-light) 0%, var(--danger) 100%);
-  color: #fff;
+  color: var(--on-accent);
   border-color: transparent;
   box-shadow: 0 4px 12px -4px rgba(239, 68, 68, 0.5);
 }
@@ -228,8 +228,8 @@
 }
 
 .fc-modules-filter__action-btn--success {
-  background: linear-gradient(135deg, #22c55e 0%, var(--success) 100%);
-  color: #fff;
+  background: linear-gradient(135deg, var(--success-light) 0%, var(--success) 100%);
+  color: var(--on-accent);
   border-color: transparent;
   box-shadow: 0 4px 12px -4px rgba(34, 197, 94, 0.5);
 }

@@ -56,9 +56,9 @@
   text-transform: uppercase;
   letter-spacing: 0.04em;
 }
-.bfd-pill-ok     { background: #d1fae5; color: #065f46; }
-.bfd-pill-warn   { background: #fef3c7; color: #92400e; }
-.bfd-pill-danger { background: #fee2e2; color: #991b1b; }
+.bfd-pill-ok     { background: var(--success-subtle); color: var(--success-strong); }
+.bfd-pill-warn   { background: var(--warning-subtle); color: var(--warning-strong); }
+.bfd-pill-danger { background: var(--danger-subtle); color: var(--danger-strong); }
 
 .bfd-feed-card {
   border: 1px solid var(--border, #e5e7eb);
@@ -102,7 +102,7 @@
 }
 .bfd-accounts th,
 .bfd-tx-table th {
-  background: var(--surface-alt, #f9fafb);
+  background: var(--surface-muted);
   font-weight: 600;
   color: var(--text-muted, #6b7280);
 }
@@ -113,9 +113,9 @@
   font-family: "SF Mono", Menlo, Consolas, monospace;
 }
 
-.bfd-muted   { color: var(--text-muted, #6b7280); }
-.bfd-ok      { color: #047857; }
-.bfd-danger  { color: #b91c1c; }
+.bfd-muted   { color: var(--muted); }
+.bfd-ok      { color: var(--success-strong); }
+.bfd-danger  { color: var(--danger-strong); }
 
 .bfd-desc {
   max-width: 360px;
@@ -133,9 +133,9 @@
 }
 
 .bfd-error {
-  background: #fef2f2;
-  border: 1px solid #fecaca;
-  color: #991b1b;
+  background: var(--danger-subtle);
+  border: 1px solid var(--danger-light);
+  color: var(--danger-strong);
   padding: 12px 16px;
   border-radius: 6px;
   margin-bottom: 16px;
@@ -143,5 +143,5 @@
 .bfd-error-hint {
   margin-top: 8px;
   font-size: 0.85rem;
-  color: #7f1d1d;
+  color: var(--danger-strong);
 }
