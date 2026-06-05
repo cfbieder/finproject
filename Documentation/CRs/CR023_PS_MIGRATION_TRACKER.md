@@ -55,9 +55,11 @@ Carry balances but no transactional activity since 2026-05; illiquid funds / pro
 
 `21 PKO-Deposits (600k)`, `209 PKO TFI (400k PLN)`, `33 CVC Fund VIII (566k EUR)`, `34 CVC Fund IX (156k EUR)`, `43 United Beverages (27.6M PLN)`, `44 Barkeria (3.9M PLN)`, `47 PL-Niemena (4.3M PLN)`, `48 PL-Muszlowa (165k)`, `36 US-Nokomis (340k)`, `37 US-Casarina (920k)`, `53 Tax Reserve US (−35k)`, `22 Santander (5.2k)`, `50 Misc Investments (1.4k)`, `24 WISE-GBP (3.68)`, `41 SP-Panorama (422k EUR)`.
 
-## 4. Live exit-monitor query (run against prod :5433)
+## 4. Live exit-monitor (run against prod :5433)
 
-"Still PS-dependent" = non-fed, non-ignored account with PS rows in the last 45 days. When this returns **zero rows**, CR023 §6 criteria #2/#3 hold for the active set.
+**Reusable script:** `server/src/v2/scripts/ps-exit-monitor.js` (read-only; `--days N` window, `--json`). Prints fed count + the still-PS-dependent list + an EXIT-GATE-MET/NOT-MET verdict. Run from host against prod: `DATABASE_URL=<prod> node server/src/v2/scripts/ps-exit-monitor.js`. As of 2026-06-05: **13 fed, 13 PS-dependent** (the §2 set).
+
+The underlying query — "still PS-dependent" = non-fed, non-ignored account with PS rows in the window. When it returns **zero rows**, CR023 §6 criteria #2/#3 hold for the active set.
 
 ```sql
 WITH fed AS (
