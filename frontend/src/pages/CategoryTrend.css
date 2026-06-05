@@ -226,7 +226,7 @@
   border-radius: var(--radius-md);
   border: none;
   background: var(--primary);
-  color: #ffffff;
+  color: var(--on-accent);
   font-size: 0.8rem;
   font-weight: 600;
   cursor: pointer;
@@ -242,7 +242,7 @@
 .ct-chart-graph {
   border-radius: 1rem;
   border: 1px solid rgba(107, 142, 107, 0.12);
-  background: linear-gradient(135deg, #ffffff 0%, var(--bg-secondary) 100%);
+  background: linear-gradient(135deg, var(--surface) 0%, var(--bg-secondary) 100%);
   padding: 1.5rem;
   position: relative;
   display: flex;
@@ -348,7 +348,7 @@
 
 .ct-tooltip {
   position: absolute;
-  background: linear-gradient(135deg, #ffffff 0%, var(--bg-secondary) 100%);
+  background: linear-gradient(135deg, var(--surface) 0%, var(--bg-secondary) 100%);
   border: 1px solid rgba(107, 142, 107, 0.2);
   box-shadow:
     0 10px 15px -3px rgba(0, 0, 0, 0.1),

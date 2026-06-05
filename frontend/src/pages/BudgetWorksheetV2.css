@@ -116,7 +116,7 @@
   padding: 0 0.35rem;
   border-radius: var(--radius-full);
   background: var(--primary);
-  color: #fff;
+  color: var(--on-accent);
   font-size: 0.65rem;
   font-weight: 700;
   line-height: 1;
@@ -163,7 +163,7 @@
 
 .bwv2-chip__remove:hover {
   background: var(--primary);
-  color: #fff;
+  color: var(--on-accent);
 }
 
 /* ── Filter Panel ── */

@@ -61,7 +61,7 @@
 
 .pwa-update-toast__btn--update {
   background: var(--primary);
-  color: #fff;
+  color: var(--on-accent);
   border: none;
 }
 

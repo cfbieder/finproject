@@ -255,7 +255,7 @@
 
 .fc-review-selector__generate {
   background: var(--primary);
-  color: #fff;
+  color: var(--on-accent);
   border-color: var(--primary);
 }
 
@@ -573,7 +573,7 @@
 
 .fc-scenarios-action-button--primary {
   background: var(--primary);
-  color: #fff;
+  color: var(--on-accent);
   border-color: transparent;
   box-shadow: 0 4px 12px -4px rgba(107, 142, 107, 0.4);
 }
@@ -592,7 +592,7 @@
 
 .fc-scenarios-action-button--danger:hover:not(:disabled) {
   background: var(--danger);
-  color: #fff;
+  color: var(--on-accent);
   border-color: var(--danger);
   box-shadow: 0 0 0 3px rgba(239, 68, 68, 0.1),
     0 2px 4px rgba(45, 52, 54, 0.1);
@@ -1070,7 +1070,7 @@
 
 .trans-budget-filter__delete-button--active {
   background: var(--danger);
-  color: #fff;
+  color: var(--on-accent);
   border-color: var(--danger);
 }
 
@@ -1509,7 +1509,7 @@
 .range-input-actions .trans-budget-filter__delete-button--active {
   background: var(--danger) !important;
   border-color: var(--danger) !important;
-  color: #fff !important;
+  color: var(--on-accent) !important;
   box-shadow: 0 4px 12px rgba(239, 68, 68, 0.35);
 }
 
@@ -1707,7 +1707,7 @@
 
 .budget-entries-modal__actions button:first-child {
   background: var(--primary);
-  color: #fff;
+  color: var(--on-accent);
   border-color: transparent;
   box-shadow: 0 4px 12px -4px rgba(107, 142, 107, 0.4);
 }
@@ -2099,7 +2099,7 @@
 
 .quick-action-card:hover .quick-action-card__icon {
   background: linear-gradient(135deg, var(--primary) 0%, var(--accent) 100%);
-  color: #fff;
+  color: var(--on-accent);
 }
 
 .quick-action-card__content {
@@ -2276,7 +2276,7 @@
 
 .feature-category--linked:hover .feature-category__icon {
   background: linear-gradient(135deg, var(--primary) 0%, var(--accent) 100%);
-  color: #fff;
+  color: var(--on-accent);
 }
 
 /* ============================================================================
@@ -2622,7 +2622,7 @@
   border: none;
   font-size: 1rem;
   background: var(--primary);
-  color: #fff;
+  color: var(--on-accent);
   box-shadow: 0 12px 30px -16px rgba(107, 142, 107, 0.85);
   cursor: pointer;
 }

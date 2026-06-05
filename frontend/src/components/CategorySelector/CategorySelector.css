@@ -156,7 +156,7 @@
 .category-selector__list::-webkit-scrollbar-thumb {
   background: rgba(107, 142, 107, 0.3);
   border-radius: 5px;
-  border: 2px solid #ffffff;
+  border: 2px solid var(--surface);
 }
 
 .category-selector__list::-webkit-scrollbar-thumb:hover {
