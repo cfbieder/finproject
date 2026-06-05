@@ -15,6 +15,7 @@ import {
   Plus,
   X,
   Copy,
+  Scale,
 } from "lucide-react";
 import { LEDGER_CONFIG } from "../features/Transaction/transactionConfig.js";
 import { useTransactions } from "../features/Transaction/hooks/useTransactions.js";
@@ -349,6 +350,48 @@ export default function Ledger() {
 
   const edit = useTransactionEdit(LEDGER_EDIT_CONFIG, selectedRows, rates, computeBase, handleSuccess);
   const del = useTransactionDelete(LEDGER_EDIT_CONFIG, selectedRows, handleSuccess);
+
+  // ─── Neutralize (brokerage securities trade → Transfer) ───
+  // Smart: pairs an existing offsetting leg (e.g. a SPAXX redemption funding an
+  // assigned-puts buy) into "Transfer - Securities Trades" with no new entry;
+  // for a lone trade it creates the offsetting mirror. Backend chooses.
+  const [isNeutralizing, setIsNeutralizing] = useState(false);
+  const handleNeutralize = useCallback(async () => {
+    const entries = [...selectedRows.values()];
+    const ids = entries.map((e) => e?.id ?? e?._id).filter((x) => typeof x === "number");
+    if (!ids.length) {
+      showErrorToast("Cannot neutralize: transaction not synced");
+      return;
+    }
+    setIsNeutralizing(true);
+    try {
+      let paired = 0;
+      for (const id of ids) {
+        const response = await fetch(Rest.buildUrl(`/api/v2/transactions/${id}/neutralize`), {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({}),
+        });
+        if (!response.ok) {
+          const body = await response.json().catch(() => null);
+          throw new Error(body?.error || "Failed to neutralize");
+        }
+        const body = await response.json().catch(() => null);
+        if (body?.data?.paired) paired += 1;
+      }
+      showSuccess(
+        ids.length === 1
+          ? (paired ? "Neutralized (paired with offsetting leg)" : "Neutralized (offset entry created)")
+          : `Neutralized ${ids.length} transactions`
+      );
+      clearSelection();
+      await handleSuccess();
+    } catch (err) {
+      showErrorToast(err?.message ?? "Failed to neutralize");
+    } finally {
+      setIsNeutralizing(false);
+    }
+  }, [selectedRows, handleSuccess, clearSelection, showSuccess, showErrorToast]);
 
   const safeCategoryOptions = useMemo(
     () => normalizeStringOptions(categoryOptions, edit.editFormValues.Category ?? ""),
@@ -700,6 +743,16 @@ export default function Ledger() {
           <button type="button" className="btn btn--sm btn--outline" onClick={edit.handleEditRequest}>
             <Pencil size={13} />
             Edit
+          </button>
+          <button
+            type="button"
+            className="btn btn--sm btn--outline"
+            onClick={handleNeutralize}
+            disabled={isNeutralizing}
+            title="Neutralize: mark a securities trade as a transfer (pairs an existing offsetting leg, else creates the offset)"
+          >
+            <Scale size={13} />
+            {isNeutralizing ? "Neutralizing…" : "Neutralize"}
           </button>
           <div style={{ flex: 1 }} />
           <button type="button" className="btn btn--sm btn--outline btn--danger-soft" onClick={del.handleDeleteRequest}>

@@ -441,18 +441,27 @@ async function split(id, splits) {
 }
 
 /**
- * Neutralize a transaction by creating an offsetting entry.
- * Used for brokerage security trades where a purchase/sale should not
- * change the account balance (cash exchanged for shares).
+ * Neutralize a transaction so it doesn't distort P&L / the balance — for
+ * brokerage security trades where cash is exchanged for shares (a transfer,
+ * not income/expense).
  *
- * Creates an offsetting transaction with negated amount, assigns both
- * the original and offset to the "Transfer - Securities Trades" category,
- * and marks both as accepted.
+ * Smart behaviour:
+ *  - If an OFFSETTING row already exists in the same account (the opposite
+ *    amount, within a few days — e.g. the SPAXX "redemption from core" that
+ *    funds an assigned-puts buy), PAIR them: set BOTH to "Transfer - Securities
+ *    Trades" + accepted, create NO new entry. This is the case where the feed
+ *    already delivered both legs — creating a mirror would double-count.
+ *  - Otherwise (single-leg trade, no offset present) create the offsetting
+ *    mirror entry with the negated amount, both categorized + accepted.
+ *
+ * Works from either leg (pairing matches the opposite amount, sign-agnostic).
  *
  * @param {number} id - Original transaction ID
  * @param {number} categoryId - Category ID for "Transfer - Securities Trades"
- * @returns {Promise<{original: object, offset: object}>}
+ * @returns {Promise<{original: object, offset: object, paired: boolean}>}
  */
+const NEUTRALIZE_PAIR_DAYS = 3;
+
 async function neutralize(id, categoryId) {
   const original = await findById(id);
   if (!original) throw new Error('Transaction not found');
@@ -469,6 +478,27 @@ async function neutralize(id, categoryId) {
       RETURNING *
     `;
     const updatedResult = await client.query(updateSql, [categoryId, id]);
+
+    // Look for an existing offsetting leg in the same account (opposite amount,
+    // within ±NEUTRALIZE_PAIR_DAYS). If found, pair instead of creating a mirror.
+    const candidate = (await client.query(
+      `SELECT * FROM transactions
+       WHERE account_id = $1 AND id <> $2
+         AND amount = $3
+         AND transaction_date BETWEEN $4::date - $5::int AND $4::date + $5::int
+       ORDER BY ABS(transaction_date - $4::date), id
+       LIMIT 1`,
+      [original.account_id, id, negatedAmount, original.transaction_date, NEUTRALIZE_PAIR_DAYS]
+    )).rows[0];
+
+    if (candidate) {
+      const pairedResult = await client.query(
+        `UPDATE transactions SET category_id = $1, accepted = TRUE, updated_at = NOW()
+         WHERE id = $2 RETURNING *`,
+        [categoryId, candidate.id]
+      );
+      return { original: updatedResult.rows[0], offset: pairedResult.rows[0], paired: true };
+    }
 
     // Create offsetting transaction
     const insertSql = `
@@ -499,7 +529,7 @@ async function neutralize(id, categoryId) {
       'auto-offset'
     ]);
 
-    return { original: updatedResult.rows[0], offset: offsetResult.rows[0] };
+    return { original: updatedResult.rows[0], offset: offsetResult.rows[0], paired: false };
   });
 }
 
