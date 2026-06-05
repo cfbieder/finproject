@@ -5,7 +5,7 @@
 
 Dispositions below are **owner-confirmed (2026-06-05)**. Verify live state before acting (`balance-recon` monitor + the §4 query).
 
-## 1. Cut over — DONE (16 accounts)
+## 1. Cut over — DONE (19 accounts)
 
 On a direct bank feed, reconciling to `feed_balances` (cash/card) or by-design month-end MTM (brokerage). PS-side cutoff active.
 
@@ -22,6 +22,9 @@ On a direct bank feed, reconciling to `feed_balances` (cash/card) or by-design m
 | 63 | Hilton Honors Aspire | calibrate | Amex via Fintable; `feed_sign=+1` (cut over 2026-06-05) |
 | 61 | Bonvoy Amex (Marriott Bonvoy Brilliant) | calibrate | Amex via Fintable; `feed_sign=+1` (2026-06-05) |
 | 64 | Delta SkyMiles Reserve | calibrate | Amex via Fintable; `feed_sign=+1` (2026-06-05) |
+| 13 | WISE - EUR | calibrate | Wise via Fintable (asset, no `feed_sign`); PS stopped (2026-06-05) |
+| 8 | Wise - USD | calibrate | Wise via Fintable (asset); PS stopped (2026-06-05) |
+| 20 | WISE - PLN | calibrate | Wise via Fintable (asset, balance 0); PS stopped (2026-06-05) |
 | 26 | Fidelity IRA | mtm | |
 | 27 | Fidelity Stocks | mtm | |
 | 28 | Fidelity Options | mtm (`trade_treatment=income`) | |
@@ -40,12 +43,10 @@ Non-fed accounts with recent PS transaction activity. These currently depend on 
 | 6 | Chase Checking | asset | USD | 52,777 | 2026-06-01 | **add to Fintable → feed** |
 | 7 | Chase Saving | asset | USD | 20,439 | 2026-05-11 | **add to Fintable → feed** |
 | 10 | Capital One Savings | asset | USD | 10,257 | 2026-05-31 | **add to Fintable → feed** |
-| 13 | WISE - EUR | asset | EUR | 31,196 | 2026-06-03 | **try feed** (SnapTrade/GoCardless); **manual/CR025 if not reachable** |
-| 8 | Wise - USD | asset | USD | 4,221 | 2026-05-14 | **try feed; manual/CR025 if not reachable** |
 | 16 | Revolut-EUR | asset | EUR | 33 | 2026-05-23 | **try feed; manual/CR025 if not reachable** |
 | 41 | SP - Panorama Mar 6 | asset | EUR | 421,992 | 2026-05-25 | **manual/CR025 periodic valuation** (see §3) |
 
-**Owner-confirmed plan (2026-06-05):** the **8 US accounts** (5 cards + Chase ×2 + Capital One) → **add to Fintable, feed path** (proven by the Luxury card 62). **Fintable DOES support Amex** — the 3 Amex cards (Hilton 63, Bonvoy 61, Delta 64) cut over 2026-06-05 (all `feed_sign=+1`, reconciled to the cent; PS deactivated for them). **Remaining US:** Amazon Visa (60), Marriot Visa (59), Chase ×2 (6/7), Capital One (10) — each reports liability balances negative, so the cards need `feed_sign=+1`. **Wise ×2 + Revolut-EUR** → best-effort feed, manual/CR025 fallback. Each fed account follows the [CR023 §5](CR023_POCKETSMITH_REMOVAL.md) runbook (map → `feed_sign` if US card → `seed-bankfeed-cutoffs.js` → gate on `balance-recon`).
+**Owner-confirmed plan (2026-06-05):** the **8 US accounts** (5 cards + Chase ×2 + Capital One) → **add to Fintable, feed path** (proven by the Luxury card 62). **Fintable DOES support Amex** — the 3 Amex cards (Hilton 63, Bonvoy 61, Delta 64) cut over 2026-06-05 (all `feed_sign=+1`, reconciled to the cent; PS deactivated for them). **Remaining US:** Amazon Visa (60), Marriot Visa (59), Chase ×2 (6/7), Capital One (10) — each reports liability balances negative, so the cards need `feed_sign=+1`. **Wise ×3 (EUR/USD/PLN) cut over via Fintable 2026-06-05** (assets, no `feed_sign`; PLN reconciled, EUR/USD small recent-activity drift clearing on next Import; PS stopped). **Revolut-EUR** → best-effort feed, manual/CR025 fallback. Each fed account follows the [CR023 §5](CR023_POCKETSMITH_REMOVAL.md) runbook (map → `feed_sign` if US card → `seed-bankfeed-cutoffs.js` → gate on `balance-recon`).
 
 ## 3. Dormant holdings — periodic valuation (no streaming feed possible)
 
@@ -57,7 +58,7 @@ Carry balances but no transactional activity since 2026-05; illiquid funds / pro
 
 ## 4. Live exit-monitor (run against prod :5433)
 
-**Reusable script:** `server/src/v2/scripts/ps-exit-monitor.js` (read-only; `--days N` window, `--json`). Prints fed count + the still-PS-dependent list + an EXIT-GATE-MET/NOT-MET verdict. Run from host against prod: `DATABASE_URL=<prod> node server/src/v2/scripts/ps-exit-monitor.js`. As of 2026-06-05: **13 fed, 13 PS-dependent** (the §2 set).
+**Reusable script:** `server/src/v2/scripts/ps-exit-monitor.js` (read-only; `--days N` window, `--json`). Prints fed count + the still-PS-dependent list + an EXIT-GATE-MET/NOT-MET verdict. Run from host against prod: `DATABASE_URL=<prod> node server/src/v2/scripts/ps-exit-monitor.js`. As of 2026-06-05 (after Luxury + 3 Amex + 3 Wise): **19 fed, 8 PS-dependent**.
 
 The underlying query — "still PS-dependent" = non-fed, non-ignored account with PS rows in the window. When it returns **zero rows**, CR023 §6 criteria #2/#3 hold for the active set.
 
@@ -79,7 +80,7 @@ HAVING COUNT(*) FILTER (WHERE t.transaction_date >= CURRENT_DATE - 45) > 0
 ORDER BY last_ps DESC;
 ```
 
-As of 2026-06-05 this returns the §2 active set (≈12 accounts incl. 45). The exit gate is met when every row here is either fed (leaves the list) or the owner has switched it to manual (PS rows stop arriving, so it ages out of the 45-day window).
+As of 2026-06-05 this returns 8 accounts (Amazon Visa 60, Marriot Visa 59, Chase 6/7, Capital One 10, OCME 45, SP-Panorama 41, Revolut-EUR 16). The exit gate is met when every row here is either fed (leaves the list) or the owner has switched it to manual (PS rows stop arriving, so it ages out of the 45-day window).
 
 ## 5. Exit-criteria status (CR023 §6)
 
