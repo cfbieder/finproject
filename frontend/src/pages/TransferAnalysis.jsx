@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import Rest from "../js/rest.js";
 import PeriodSelector from "../components/PeriodSelector/PeriodSelector.jsx";
+import ConfirmModal from "../components/ConfirmModal/ConfirmModal.jsx";
 import "./PageLayout.css";
 import EmptyState from "../components/EmptyState.jsx";
 import "./TransferAnalysis.css";
@@ -180,6 +181,28 @@ export default function TransferAnalysis() {
       setIsSavingCategory(false);
     }
   }, [categoryModal, closeCategoryModal, handleGenerate]);
+
+  // ─── Remove orphan offset ───
+  // An UNMATCHED `auto-offset` row is a spurious neutralize-mirror (its real leg
+  // got paired elsewhere). Deleting it is the safe cleanup; confirmed first.
+  const [removeConfirm, setRemoveConfirm] = useState(null); // {id, message}
+  const [isRemoving, setIsRemoving] = useState(false);
+
+  const doRemoveOrphan = useCallback(async () => {
+    const id = removeConfirm?.id;
+    if (!id) return;
+    setIsRemoving(true);
+    setError(null);
+    try {
+      await Rest.deleteTransactionV2(id);
+      setRemoveConfirm(null);
+      await handleGenerate();
+    } catch (err) {
+      setError(err?.message ?? "Failed to remove orphan entry");
+    } finally {
+      setIsRemoving(false);
+    }
+  }, [removeConfirm, handleGenerate]);
 
   // Compute net base_amount of selected transactions
   const selectedNet = useMemo(() => {
@@ -536,6 +559,7 @@ export default function TransferAnalysis() {
                               <th>Currency</th>
                               <th className="text-right">Amount</th>
                               <th className="text-right">Base Amount</th>
+                              <th></th>
                             </tr>
                           </thead>
                           <tbody>
@@ -584,6 +608,25 @@ export default function TransferAnalysis() {
                                   }`}
                                 >
                                   {formatAmount(txn.base_amount)}
+                                </td>
+                                <td className="text-right">
+                                  {txn.source === "auto-offset" && (
+                                    <button
+                                      type="button"
+                                      className="btn btn--sm btn--danger-soft"
+                                      title="This is an orphaned neutralize-mirror (its real leg paired elsewhere). Remove it."
+                                      onClick={(e) => {
+                                        e.stopPropagation();
+                                        setRemoveConfirm({
+                                          id: txn.id,
+                                          message:
+                                            `Remove orphaned offset entry?\n\n${txn.account_name} · ${formatDate(txn.transaction_date)}\n${txn.description1}\n${formatAmount(txn.amount)} ${txn.currency}\n\nThis is a leftover neutralize-mirror whose real offsetting leg is matched elsewhere — deleting it removes a double-count. This cannot be undone.`,
+                                        });
+                                      }}
+                                    >
+                                      Remove
+                                    </button>
+                                  )}
                                 </td>
                               </tr>
                             ))}
@@ -674,6 +717,13 @@ export default function TransferAnalysis() {
           </div>
         </div>
       )}
+
+      <ConfirmModal
+        state={removeConfirm ? { title: "Remove orphaned offset", message: removeConfirm.message, confirmLabel: "Remove", danger: true } : null}
+        busy={isRemoving}
+        onConfirm={doRemoveOrphan}
+        onCancel={() => setRemoveConfirm(null)}
+      />
     </main>
   );
 }

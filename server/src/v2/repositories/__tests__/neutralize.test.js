@@ -70,6 +70,23 @@ dbDescribe('transactions.neutralize (DB)', () => {
     expect(out.offset.id).toBe(redemptionId);
   });
 
+  test('dryRun: previews action without writing (pair vs mirror)', async () => {
+    await freshAccount();
+    const lone = await addTx(-500);
+    const before = (await db.query(`SELECT COUNT(*)::int n FROM transactions WHERE account_id=$1`, [acctId])).rows[0].n;
+
+    const planMirror = await repo.neutralize(lone, categoryId, { dryRun: true });
+    expect(planMirror.action).toBe('mirror');
+    expect(planMirror.dryRun).toBe(true);
+
+    await addTx(500); // now there IS an offsetting leg
+    const planPair = await repo.neutralize(lone, categoryId, { dryRun: true });
+    expect(planPair.action).toBe('pair');
+
+    const after = (await db.query(`SELECT COUNT(*)::int n FROM transactions WHERE account_id=$1`, [acctId])).rows[0].n;
+    expect(after).toBe(before + 1); // only the addTx(500), nothing from dryRuns
+  });
+
   test('MIRROR: lone trade → offsetting entry created', async () => {
     await freshAccount();
     const buyId = await addTx(-41750);

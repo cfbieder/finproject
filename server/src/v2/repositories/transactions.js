@@ -462,12 +462,35 @@ async function split(id, splits) {
  */
 const NEUTRALIZE_PAIR_DAYS = 3;
 
-async function neutralize(id, categoryId) {
+async function neutralize(id, categoryId, { dryRun = false } = {}) {
   const original = await findById(id);
   if (!original) throw new Error('Transaction not found');
 
   const negatedAmount = parseFloat((-parseFloat(original.amount)).toFixed(2));
   const negatedBaseAmount = parseFloat((-parseFloat(original.base_amount)).toFixed(2));
+
+  // Find the offsetting leg FIRST (read-only) so we can preview the action.
+  // 'pair'  → an opposite-amount leg already exists nearby → re-categorize both.
+  // 'mirror'→ none found → we'd INSERT a new offsetting entry (the only path that
+  //           can create an orphan; the UI warns before doing it).
+  const candidate = (await db.query(
+    `SELECT * FROM transactions
+     WHERE account_id = $1 AND id <> $2
+       AND amount = $3
+       AND transaction_date BETWEEN $4::date - $5::int AND $4::date + $5::int
+     ORDER BY ABS(transaction_date - $4::date), id
+     LIMIT 1`,
+    [original.account_id, id, negatedAmount, original.transaction_date, NEUTRALIZE_PAIR_DAYS]
+  )).rows[0];
+  const action = candidate ? 'pair' : 'mirror';
+
+  if (dryRun) {
+    return {
+      action, dryRun: true, paired: !!candidate,
+      offset_id: candidate ? candidate.id : null,
+      offset_description: candidate ? candidate.description1 : null,
+    };
+  }
 
   return db.transaction(async (client) => {
     // Update original: set category and mark accepted
@@ -479,25 +502,13 @@ async function neutralize(id, categoryId) {
     `;
     const updatedResult = await client.query(updateSql, [categoryId, id]);
 
-    // Look for an existing offsetting leg in the same account (opposite amount,
-    // within ±NEUTRALIZE_PAIR_DAYS). If found, pair instead of creating a mirror.
-    const candidate = (await client.query(
-      `SELECT * FROM transactions
-       WHERE account_id = $1 AND id <> $2
-         AND amount = $3
-         AND transaction_date BETWEEN $4::date - $5::int AND $4::date + $5::int
-       ORDER BY ABS(transaction_date - $4::date), id
-       LIMIT 1`,
-      [original.account_id, id, negatedAmount, original.transaction_date, NEUTRALIZE_PAIR_DAYS]
-    )).rows[0];
-
     if (candidate) {
       const pairedResult = await client.query(
         `UPDATE transactions SET category_id = $1, accepted = TRUE, updated_at = NOW()
          WHERE id = $2 RETURNING *`,
         [categoryId, candidate.id]
       );
-      return { original: updatedResult.rows[0], offset: pairedResult.rows[0], paired: true };
+      return { original: updatedResult.rows[0], offset: pairedResult.rows[0], paired: true, action: 'pair' };
     }
 
     // Create offsetting transaction
@@ -529,7 +540,7 @@ async function neutralize(id, categoryId) {
       'auto-offset'
     ]);
 
-    return { original: updatedResult.rows[0], offset: offsetResult.rows[0], paired: false };
+    return { original: updatedResult.rows[0], offset: offsetResult.rows[0], paired: false, action: 'mirror' };
   });
 }
 

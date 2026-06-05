@@ -35,6 +35,7 @@ import TransactionDeleteModal from "../features/Transaction/TransactionDeleteMod
 import CategorySelector from "../components/CategorySelector/CategorySelector.jsx";
 import PeriodSelector from "../components/PeriodSelector/PeriodSelector.jsx";
 import Rest from "../js/rest.js";
+import ConfirmModal from "../components/ConfirmModal/ConfirmModal.jsx";
 import { useToast } from "../contexts";
 import { useCoa } from "../hooks/useCoa.js";
 import { exportTransactions } from "../utils/excelExporter.js";
@@ -352,39 +353,58 @@ export default function Ledger() {
   const del = useTransactionDelete(LEDGER_EDIT_CONFIG, selectedRows, handleSuccess);
 
   // ─── Neutralize (brokerage securities trade → Transfer) ───
-  // Smart: pairs an existing offsetting leg (e.g. a SPAXX redemption funding an
-  // assigned-puts buy) into "Transfer - Securities Trades" with no new entry;
-  // for a lone trade it creates the offsetting mirror. Backend chooses.
+  // Smart: pairs an existing offsetting leg into "Transfer - Securities Trades"
+  // with no new entry; only INSERTS a mirror when no offset exists — and warns
+  // first (an unwanted insert is what creates the orphan double-counts).
   const [isNeutralizing, setIsNeutralizing] = useState(false);
-  const handleNeutralize = useCallback(async () => {
-    const entries = [...selectedRows.values()];
-    // Match the delete/edit hooks: id may be a string; accept any truthy id.
-    const ids = entries.map((e) => e?.id ?? e?._id).filter(Boolean);
-    if (!ids.length) {
-      showErrorToast("Cannot neutralize: transaction not synced");
-      return;
-    }
+  const [neutralizeConfirm, setNeutralizeConfirm] = useState(null); // {ids, message, danger}
+
+  const postNeutralize = useCallback((id, dryRun) =>
+    fetch(Rest.buildUrl(`/api/v2/transactions/${id}/neutralize`), {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ dryRun }),
+    }).then(async (r) => {
+      const body = await r.json().catch(() => null);
+      if (!r.ok) throw new Error(body?.error || "Failed to neutralize");
+      return body?.data;
+    }), []);
+
+  // Step 1: preview (dry-run) each selected row, then confirm — warning if any
+  // would CREATE a new offsetting entry (no existing leg to pair with).
+  const handleNeutralizeRequest = useCallback(async () => {
+    const ids = [...selectedRows.values()].map((e) => e?.id ?? e?._id).filter(Boolean);
+    if (!ids.length) { showErrorToast("Cannot neutralize: transaction not synced"); return; }
     setIsNeutralizing(true);
     try {
-      let paired = 0;
-      for (const id of ids) {
-        const response = await fetch(Rest.buildUrl(`/api/v2/transactions/${id}/neutralize`), {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({}),
-        });
-        if (!response.ok) {
-          const body = await response.json().catch(() => null);
-          throw new Error(body?.error || "Failed to neutralize");
-        }
-        const body = await response.json().catch(() => null);
-        if (body?.data?.paired) paired += 1;
-      }
+      const plans = await Promise.all(ids.map((id) => postNeutralize(id, true)));
+      const mirrors = plans.filter((p) => p?.action === "mirror").length;
+      const pairs = plans.length - mirrors;
+      const message = mirrors > 0
+        ? `⚠ ${mirrors} of ${plans.length} selected have NO matching offsetting leg nearby — neutralizing will CREATE ${mirrors} new offsetting entr${mirrors === 1 ? "y" : "ies"} (only do this for a genuine single-leg trade; otherwise it can double-count).` +
+          (pairs > 0 ? ` The other ${pairs} will pair with an existing leg.` : "") + `\n\nContinue?`
+        : `Pair ${pairs} transaction${pairs === 1 ? "" : "s"} with their existing offsetting leg (both become "Transfer - Securities Trades"). No new entries.\n\nContinue?`;
+      setNeutralizeConfirm({ ids, message, danger: mirrors > 0, confirmLabel: "Neutralize" });
+    } catch (err) {
+      showErrorToast(err?.message ?? "Failed to preview neutralize");
+    } finally {
+      setIsNeutralizing(false);
+    }
+  }, [selectedRows, postNeutralize, showErrorToast]);
+
+  // Step 2: apply (on confirm).
+  const doNeutralize = useCallback(async () => {
+    const ids = neutralizeConfirm?.ids || [];
+    setIsNeutralizing(true);
+    try {
+      const results = await Promise.all(ids.map((id) => postNeutralize(id, false)));
+      const paired = results.filter((r) => r?.paired).length;
       showSuccess(
         ids.length === 1
           ? (paired ? "Neutralized (paired with offsetting leg)" : "Neutralized (offset entry created)")
-          : `Neutralized ${ids.length} transactions`
+          : `Neutralized ${ids.length} transactions (${paired} paired)`
       );
+      setNeutralizeConfirm(null);
       clearSelection();
       await handleSuccess();
     } catch (err) {
@@ -392,7 +412,7 @@ export default function Ledger() {
     } finally {
       setIsNeutralizing(false);
     }
-  }, [selectedRows, handleSuccess, clearSelection, showSuccess, showErrorToast]);
+  }, [neutralizeConfirm, postNeutralize, handleSuccess, clearSelection, showSuccess, showErrorToast]);
 
   const safeCategoryOptions = useMemo(
     () => normalizeStringOptions(categoryOptions, edit.editFormValues.Category ?? ""),
@@ -748,9 +768,9 @@ export default function Ledger() {
           <button
             type="button"
             className="btn btn--sm btn--outline"
-            onClick={handleNeutralize}
+            onClick={handleNeutralizeRequest}
             disabled={isNeutralizing}
-            title="Neutralize: mark a securities trade as a transfer (pairs an existing offsetting leg, else creates the offset)"
+            title="Neutralize: mark a securities trade as a transfer (pairs an existing offsetting leg, else creates the offset — with a warning)"
           >
             <Scale size={13} />
             {isNeutralizing ? "Neutralizing…" : "Neutralize"}
@@ -929,6 +949,14 @@ export default function Ledger() {
         error={del.deleteError}
         onCancel={del.handleDeleteCancel}
         onConfirm={del.handleConfirmDelete}
+      />
+
+      {/* ── Neutralize confirm (warns before creating a new offsetting entry) ── */}
+      <ConfirmModal
+        state={neutralizeConfirm ? { title: "Neutralize", message: neutralizeConfirm.message, confirmLabel: neutralizeConfirm.confirmLabel, danger: neutralizeConfirm.danger } : null}
+        busy={isNeutralizing}
+        onConfirm={doNeutralize}
+        onCancel={() => setNeutralizeConfirm(null)}
       />
 
       {/* ── Add Transaction Modal (6) ── */}

@@ -410,7 +410,8 @@ router.post('/:id/neutralize', async (req, res, next) => {
       });
     }
 
-    const result = await repo.neutralize(id, category.id);
+    const dryRun = req.body.dryRun === true;
+    const result = await repo.neutralize(id, category.id, { dryRun });
     res.json({ data: result });
   } catch (error) {
     next(error);
