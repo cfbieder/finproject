@@ -1,6 +1,8 @@
 # CR026 — UI Revamp: Sidebar Navigation, Design Refresh, Mobile Expansion, Help & Commercialization-Readiness
 
-**Status:** PLANNED (draft — key decisions settled 2026-06-04; §11.4–5 open) · [NEXT_STEPS anchor](../FC_NEXT_STEPS.md#cr026-ui-revamp)
+**Status:** IN-PROGRESS — **P1 (sidebar) + P2 (dark mode) shipped v2.16.0 (2026-06-05)**; P0 token-hardening effectively complete (~40 CSS files migrated); P3 (⌘K/help), P4 (mobile expansion), and the §6 WCAG audit remain. · [NEXT_STEPS anchor](../FC_NEXT_STEPS.md#cr026-ui-revamp)
+
+**Shipped (v2.16.0):** Collapsible VS Code-style sidebar (`components/Sidebar/`) + top utility strip (`components/TopStrip.jsx`) behind a `VITE_NAV_LAYOUT` flag (default **legacy** top bar; dev default flipped to **sidebar**, docker/prod stay legacy). IA regroup via additive `SIDEBAR_GROUPS`/`getSidebarNav()` in `routes.jsx`. Dark mode: `[data-theme="dark"]` token-override layer in `index.css` + `useTheme` store (default light, persisted, no-FOUC `index.html` script) + Theme toggles in the sidebar footer & top strip; new `--info` (purple) and `--on-accent` semantic tokens. ~40 page/component CSS files migrated off hardcoded hex onto tokens. Non-functional preview at `/ui-preview` (+ standalone `Documentation/CRs/CR026_UI_PREVIEW.html`). **Deferred dark-migration:** `QuickenImport.css` (low-traffic admin), `TransferAnalysis.css` (ambiguous light-mode quirk), legacy `NavigationMenu.css`, and the `/m/*` mobile shell (no toggle).
 **Created:** 2026-06-04
 **Owner:** cfbieder
 **Supersedes / relates to:** builds on CR002 (frontend refactor), CR007 (PWA/mobile shell), CR008 (HierarchyFilter redesign), CR010 (COA redesign). Does **not** replace them.

@@ -128,7 +128,7 @@ psproject/                          # ~/Programs/fin symlinks here
 │   └── src/
 │       ├── App.jsx              # Router, Layout wrapper, lazy routes
 │       ├── main.jsx             # Entry point, ToastProvider
-│       ├── components/          # Shared UI (Layout, NavigationMenu, Breadcrumbs, Footer, Toast, LoadingSpinner, EmptyState, MonthYearPicker, PeriodCountSelector, HierarchyFilter, CategorySelector, PeriodSelector, AccountSelector)
+│       ├── components/          # Shared UI (Layout, NavigationMenu, Sidebar [CR026], TopStrip [CR026], Breadcrumbs, Footer, Toast, LoadingSpinner, EmptyState, MonthYearPicker, PeriodCountSelector, HierarchyFilter, CategorySelector, PeriodSelector, AccountSelector)
 │       ├── config/routes.jsx    # Central route config (paths, icons, categories)
 │       ├── contexts/            # ToastContext, ForecastContext
 │       ├── features/            # Feature modules (Balances, BudgetEntry, Budgets, CashFlow, Charts, COAManagement, Database, Forecast, Transaction)
@@ -211,6 +211,10 @@ psproject/                          # ~/Programs/fin symlinks here
 
 Category landing pages instead of dropdowns. Each category has a landing page at `/<category-slug>` showing feature cards with Lucide icons. Generated from `routes.jsx` via `getCategoryRoutes()`.
 
+**CR026 — sidebar layout (flag-gated, v2.16.0):** `Layout.jsx` switches between the legacy top **`NavigationMenu`** and a collapsible VS Code-style **`Sidebar`** (`components/Sidebar/`) + **`TopStrip`** based on a nav-layout flag resolved as `localStorage.navLayout` → `VITE_NAV_LAYOUT` (build env) → `"legacy"` default. **docker/prod default `legacy`; dev default `sidebar`** (`.env-cmdrc`). The sidebar groups routes via additive `SIDEBAR_GROUPS`/`getSidebarNav()` in `routes.jsx` (derived from each route's existing `category`; the legacy nav + landing pages are untouched): Overview · Accounts & Transactions · Budget · Forecast · Reports · *(divider)* · Data Sources · Settings. Rail/expanded states persist to `localStorage.sidebarCollapsed`; active state is route-driven (`NavLink`).
+
+**Dark mode (CR026 P2):** opt-in `[data-theme="dark"]` applied to `<html>` by the `useTheme` hook (`hooks/useTheme.js`, default light, persisted, no-FOUC inline script in `index.html`); Theme toggles live in the sidebar footer + top strip (only reachable in the sidebar layout, so legacy/prod stays light). Non-functional look-and-feel mockup at `/ui-preview` (Settings landing) + standalone `Documentation/CRs/CR026_UI_PREVIEW.html`.
+
 ### State Management
 
 - **React Context**: `ToastContext` (global toasts), `ForecastContext` (forecast state shared across FC pages)
@@ -236,6 +240,8 @@ Category landing pages instead of dropdowns. Each category has a landing page at
 | Layout | `Layout.jsx` | NavigationMenu + Breadcrumbs + page content + Footer wrapper |
 | NavigationMenu | `NavigationMenu.jsx` | Top navigation bar with category links |
 | Breadcrumbs | `Breadcrumbs.jsx` | Page breadcrumb trail |
+| **Sidebar** (CR026) | `Sidebar/Sidebar.jsx` | Collapsible left nav (rail/expanded, persisted), accordion groups from `getSidebarNav()`, route-driven active state, Theme + Collapse footer toggles. Shown when the nav-layout flag = `sidebar`. |
+| **TopStrip** (CR026) | `TopStrip.jsx` | Utility bar above page content in the sidebar layout: breadcrumbs + Install (PWA) + Theme toggle + version/env badge. (⌘K palette + help slots reserved for P3.) |
 | LoadingSpinner | `LoadingSpinner.jsx` | Suspense fallback spinner |
 | Toast | `Toast.jsx` | Toast notification popups |
 | MonthYearPicker | `MonthYearPicker.jsx` | Dual month + year select, accepts className props |
@@ -263,6 +269,7 @@ Pure vanilla CSS with CSS custom properties (no Tailwind, SCSS, or CSS-in-JS). G
 - **Border radius:** `--radius-sm` (10px), `--radius-md` (12px), `--radius-lg` (24px), `--radius-xl` (28px), `--radius-full`
 - **Page layout (single source of truth):** `--page-max-width` (1600px content box) + `--page-gutter` (1.5rem, shrinks at ≤768/≤640px) + derived `--page-frame`. A shared **`.page-shell`** wrapper in `Layout.jsx`/`Layout.css` owns content max-width, centering, and side gutter for **every** page — page-level wrappers must NOT set their own `max-width`/`margin: 0 auto`/horizontal padding. The navbar (`.navbar__inner`) and breadcrumbs read the same tokens so their edges align with the content box.
 - **Buttons:** Canonical `.btn` family in **`components/buttons.css`** (loaded globally via `Layout`, so it is available on every page — do NOT bury button styles in page-scoped CSS). Intents: filled `--primary`/`--secondary`/`--success`/`--danger`/`--ghost`; compact outline toolbar `--outline` + tints `--active`/`--danger-soft`/`--split`/`--neutralize`/`--icon`. Sizes: `--xs`/`--sm`/default/`--lg` + `--block`. Primary fills are **flat solid** `var(--primary)` (hover `var(--primary-hover)`) — no gradient pills; all standard buttons use `--radius-md` corners. The `txv2`/`balv2`/`bwv2` toolbar families and the date-selector "Generate Report" CTAs have been migrated onto `.btn`; remaining legacy `*-btn` families (`fc-scenarios-action-button`, `refresh-ps-btn--*`, row-action pills) and the consolidated global `generate-report-button` shim still exist and are being migrated incrementally. **Guardrail:** `Scripts/check-button-css.sh` (also `npm run lint:buttons` in `frontend/`) fails when a new `*-btn`/`*-button` class definition appears outside the baseline (`Scripts/.button-class-baseline.txt`) — new UI must use `.btn`. Decorative `::before` accent bars/icons may still use gradients.
+- **Theming / dark mode (CR026, v2.16.0):** semantic tokens are overridden under `:root[data-theme="dark"]` in `index.css` (no pure black, off-white text, accents lifted for perceptual weight). `hooks/useTheme.js` toggles `data-theme` on `<html>` (default **light**, persisted to `localStorage.theme`, no-FOUC inline script in `index.html`). New tokens: **`--info`** (purple — split/info actions) and **`--on-accent`** (text on filled accents: white in light, dark ink in dark, so filled buttons keep WCAG contrast). ~40 page/component CSS files have been migrated off hardcoded hex onto tokens; remaining raw hex lives in deferred files (`QuickenImport.css`, `TransferAnalysis.css`, legacy `NavigationMenu.css`) + the demo `UIPreview.css` (intentional local tokens) + a few permanently-dark tooltips (white text correct in both themes). Dark mode is **opt-in via the sidebar layout only**, so legacy/prod stays light.
 - **Shadows:** 4 levels (soft, md, lg, xl) plus focus ring
 - **Transitions:** Fast (150ms), base (200ms), slow (300ms) with cubic-bezier easing
 - **Visual effects:** Glassmorphism (backdrop-filter blur), gradient backgrounds, radial gradient body overlay
