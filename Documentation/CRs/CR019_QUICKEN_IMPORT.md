@@ -1,4 +1,4 @@
-**Status:** IN-PROGRESS — Phases A (schema), B (cash parser), C (FX seeder), D (investment parser), and E (cash-only promote + rollback + admin UI) landed on **dev AND prod** (2026-05-22). Investment-side promote (lot walker) explicitly guarded — promote refuses to run on any batch with rows in investment staging tables until the lot walker is implemented. · Blocks CR020 (Stock Investment Module)
+**Status:** IN-PROGRESS — Phases A–E on **dev + prod**; investment side **descoped to value-only** (§22; lot walker deferred to CR020). **Prod cutover is underway via a per-account delete-and-replace loop (§24), which SUPERSEDES the §23 `copy-quicken-to-prod` / `retire-handoff` runbook.** Accounts done on prod: **PKO**. · Blocks CR020 (Stock Investment Module)
 
 # CR019 — Quicken Historical Import
 
@@ -1144,7 +1144,26 @@ Dry-run by default; `--apply` writes. Idempotent: gaps are computed *excluding* 
 
 Replaces the manual-SQL Fidelity 635 handoff (the last manual-SQL artifact, required for re-run-on-prod cutover). `server/src/v2/scripts/retire-handoff.js --batch <uuid> [--handoff-date YYYY-MM-DD] [--apply]`. A "retired/consolidated" historical container (e.g. `Fidelity (historical)` 635) holds pre-cutoff history but its value continues in the live PS accounts after the cutoff → left alone it double-counts. The script inserts one `Transfer - Historical` hand-off = −(balance at cutoff) at the cutoff date, zeroing the container from the cutoff forward while preserving its pre-cutoff curve. Identifies retired accounts **structurally** (batch-promoted accounts whose ancestry includes a `Historical Assets`/`Historical Liabilities` container — no hardcoded ids); hand-off date defaults to the account's `cutoff_overrides` entry. The row is stamped with the batch's `import_batch_id` + `source='quicken-import'`, so the existing rollback removes it. **Idempotent** — deletes the prior hand-off (matched by `description2='Quicken handoff'`, including the original manual entry) and recomputes the balance excluding prior hand-offs. Validated on dev: reproduced the 635 handoff exactly (−$1,554,221.98 @ 2020-01-02; curve 1.55M by 2019 → 0 from 2020), idempotent on re-apply, 60 quicken tests pass. **Cutover step:** after re-promoting the `brok_fid` batch on prod, run `retire-handoff.js --batch <new-uuid> --apply`.
 
-## 23. Prod cutover runbook (re-run-on-prod, drafted 2026-06-02)
+## 24. Prod cutover — LIVE per-account loop (actual, 2026-06-03+) — SUPERSEDES §23
+
+The §23 "re-run-on-prod" design (`copy-quicken-to-prod` → promote → `retire-handoff` → `ps-anchor`) was **not** the path taken. The actual prod cutover is an interactive, **per-account delete-and-replace loop**, run with the owner uploading each account's QIF via the New Import UI. It relies on infrastructure built by the parallel feed CRs (CR022/CR024) and especially **CR023's symmetric PS cutoff**.
+
+**Boundary:** `2022-12-01`, all accounts. Quicken owns `< 2022-12-01`; PocketSmith owns `≥ 2022-12-01`.
+
+**The loop, per account:**
+1. **Backup** — fresh `pg_dump` of prod into `Backups/` (each delete is destructive).
+2. **Delete** — `DELETE FROM transactions WHERE account_id=<id> AND transaction_date < '2022-12-01'` (in a transaction, report the count). This drops the account's auto-cutoff = `MIN(PS date)` to `2022-12-01`, so the Quicken import auto-fills `< 2022-12-01` with no `cutoff_override`.
+3. **Guard (MANDATORY — CR023 §0.1)** — set `account_source_mappings.promote_from_date='2022-12-01'` on the account's **`pocketsmith`** mapping, and sweep any already-resurrected `accepted=FALSE` re-imports. Without this, the daily PS sync **resurrects the deleted rows** — PS dedups on `ps_id` against the *live* `transactions` table, so a deleted pre-handoff row looks new and re-promotes. (This bit PKO: 2,170 rows came back as `accepted=FALSE` before the guard was added.) The clause lives in [`ingestPs.js`](../../server/src/v2/routes/ingestPs.js) `syncStagingToTransactions`; dormant when NULL.
+4. **Import** — owner uploads the full QIF (New Import → map → promote). **Non-USD: set the currency in the modal (defaults USD).**
+5. **Verify** — `quicken-verify.js --batch <uuid> --expect-account <id> --source quicken-import` (run inside `fin-server`); check it reaches Nov 2022 (no gap) and its start date (FX coverage); check the Quicken→PS boundary continuity at 2022-12-01; calibrate the current balance to the **feed** (fed accounts) or **PS** (unfed). `ps-anchor.js` is a **no-op on prod** (calibration already pins today) and is **not** used.
+
+**Fidelity correction (supersedes §22.3 / `retire-handoff` for this cutover):** there are **3** Quicken Fidelity accounts (IRA, Cash, Stocks), each mapping **1:1** to its live account — **not** one consolidated export. So they run this same loop; **no `Fidelity (historical)` container, no `retire-handoff`, no `ps-anchor`** (it skips brokerage). CR024 already wired Fidelity `feed_balances`, so their **current** balances are correct — only the **pre-2022 history** remains to backfill. **Skip** Fidelity Options + Fixed Income (created 2024+, no Quicken history).
+
+**Progress:** **PKO (acct 18)** done + verified 2026-06-03 (2,575 tx 2014–2022; guard set; current correct via feed). Remaining candidates have pre-2022 `pocketsmith` history and need the owner's QIF (e.g. Chase Checking, LUXURY CARD, Fidelity IRA/Cash/Stocks history, Amazon Visa, PKO Visa cards, mortgages).
+
+## 23. Prod cutover runbook (re-run-on-prod, drafted 2026-06-02) — SUPERSEDED by §24
+
+> **SUPERSEDED (2026-06-03):** the actual prod cutover used the live per-account loop in **§24**, not this `copy-quicken-to-prod`/`retire-handoff` design. Kept for historical context. `seed-cr019-coa.js` (COA seed) and `seed-fx-yahoo` (FX) prerequisites below **were** used; the copy/promote/retire-handoff/ps-anchor steps were **not**.
 
 **Model:** prod is rebuilt deterministically from the pipeline — NOT a dump/restore. Migration 022 is **already on prod** (Phase A, 2026-05-22), so no new CR019 migration. The CR019 promote *code* is **NOT yet on prod**: prod runs `v2.8.2` (commit `704db61`, 2026-05-31), which has the 1→1 pivot (`5d8dbc1`) but **not** value-only promote (`0ecebf0`) nor PS-anchored calibration (`de2fb47`) — both post-date the tag. So STEP 1 must ship a fresh release from current `main`. (The three *scripts* — ps-anchor/retire-handoff/seed-cr019-coa — don't need "deploying"; they run from a `main` checkout against the prod DB. Only the promote code, which the admin UI calls, must be deployed.) Account ids differ dev↔prod, so everything is resolved by NAME, never by hardcoded id.
 
