@@ -358,7 +358,8 @@ export default function Ledger() {
   const [isNeutralizing, setIsNeutralizing] = useState(false);
   const handleNeutralize = useCallback(async () => {
     const entries = [...selectedRows.values()];
-    const ids = entries.map((e) => e?.id ?? e?._id).filter((x) => typeof x === "number");
+    // Match the delete/edit hooks: id may be a string; accept any truthy id.
+    const ids = entries.map((e) => e?.id ?? e?._id).filter(Boolean);
     if (!ids.length) {
       showErrorToast("Cannot neutralize: transaction not synced");
       return;
