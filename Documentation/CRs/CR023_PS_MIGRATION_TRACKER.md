@@ -5,7 +5,7 @@
 
 Dispositions below are **owner-confirmed (2026-06-05)**. Verify live state before acting (`balance-recon` monitor + the §4 query).
 
-## 1. Cut over — DONE (13 accounts)
+## 1. Cut over — DONE (16 accounts)
 
 On a direct bank feed, reconciling to `feed_balances` (cash/card) or by-design month-end MTM (brokerage). PS-side cutoff active.
 
@@ -18,7 +18,10 @@ On a direct bank feed, reconciling to `feed_balances` (cash/card) or by-design m
 | 19 | PKO Savings | calibrate | |
 | 67 | PKO VISA Infinity CB | calibrate | |
 | 69 | PKO VISA Infinity KB | calibrate | |
-| 62 | LUXURY CARD | calibrate | **first Plaid/US card; `feed_sign=+1`** (see §10.4) |
+| 62 | LUXURY CARD | calibrate | first Plaid/US card; `feed_sign=+1` (see §10.4) |
+| 63 | Hilton Honors Aspire | calibrate | Amex via Fintable; `feed_sign=+1` (cut over 2026-06-05) |
+| 61 | Bonvoy Amex (Marriott Bonvoy Brilliant) | calibrate | Amex via Fintable; `feed_sign=+1` (2026-06-05) |
+| 64 | Delta SkyMiles Reserve | calibrate | Amex via Fintable; `feed_sign=+1` (2026-06-05) |
 | 26 | Fidelity IRA | mtm | |
 | 27 | Fidelity Stocks | mtm | |
 | 28 | Fidelity Options | mtm (`trade_treatment=income`) | |
@@ -33,9 +36,6 @@ Non-fed accounts with recent PS transaction activity. These currently depend on 
 |---|---|---|---|---|---|---|
 | 45 | OCME Sp. z o.o. | asset | PLN | 131,500 | 2026-05-26 | **manual/CR025** (loan receivable; also offset-fed from PKO transfers). No feed, no cutoff. |
 | 60 | Amazon Visa | liability | USD | −1,160 | 2026-06-02 | **add to Fintable → feed**, `feed_sign=+1` |
-| 64 | Delta SkyMiles Reserve | liability | USD | −393 | 2026-06-01 | **add to Fintable → feed**, `feed_sign=+1` |
-| 61 | Bonvoy Amex | liability | USD | 0 | 2026-06-01 | **add to Fintable → feed**, `feed_sign=+1` |
-| 63 | Hilton Honors | liability | USD | −56 | 2026-05-24 | **add to Fintable → feed**, `feed_sign=+1` |
 | 59 | Marriot Visa | liability | USD | −850 | 2026-05-18 | **add to Fintable → feed**, `feed_sign=+1` |
 | 6 | Chase Checking | asset | USD | 52,777 | 2026-06-01 | **add to Fintable → feed** |
 | 7 | Chase Saving | asset | USD | 20,439 | 2026-05-11 | **add to Fintable → feed** |
@@ -45,7 +45,7 @@ Non-fed accounts with recent PS transaction activity. These currently depend on 
 | 16 | Revolut-EUR | asset | EUR | 33 | 2026-05-23 | **try feed; manual/CR025 if not reachable** |
 | 41 | SP - Panorama Mar 6 | asset | EUR | 421,992 | 2026-05-25 | **manual/CR025 periodic valuation** (see §3) |
 
-**Owner-confirmed plan (2026-06-05):** the **8 US accounts** (5 cards + Chase ×2 + Capital One) → **add to Fintable, feed path** (proven by the Luxury card 62). The **5 US cards** report liability balances negative, so each needs `feed_sign=+1` at map time. **Wise ×2 + Revolut-EUR** → best-effort feed, manual/CR025 fallback. Each fed account follows the [CR023 §5](CR023_POCKETSMITH_REMOVAL.md) runbook (map → `feed_sign` if US card → `seed-bankfeed-cutoffs.js` → gate on `balance-recon`).
+**Owner-confirmed plan (2026-06-05):** the **8 US accounts** (5 cards + Chase ×2 + Capital One) → **add to Fintable, feed path** (proven by the Luxury card 62). **Fintable DOES support Amex** — the 3 Amex cards (Hilton 63, Bonvoy 61, Delta 64) cut over 2026-06-05 (all `feed_sign=+1`, reconciled to the cent; PS deactivated for them). **Remaining US:** Amazon Visa (60), Marriot Visa (59), Chase ×2 (6/7), Capital One (10) — each reports liability balances negative, so the cards need `feed_sign=+1`. **Wise ×2 + Revolut-EUR** → best-effort feed, manual/CR025 fallback. Each fed account follows the [CR023 §5](CR023_POCKETSMITH_REMOVAL.md) runbook (map → `feed_sign` if US card → `seed-bankfeed-cutoffs.js` → gate on `balance-recon`).
 
 ## 3. Dormant holdings — periodic valuation (no streaming feed possible)
 
