@@ -1,0 +1,88 @@
+# CR023 — PS → Feeds Migration Tracker
+
+**Status:** LIVE tracker (created 2026-06-05) · companion to [CR023](CR023_POCKETSMITH_REMOVAL.md) §5 (runbook) / §6 (exit criteria).
+**Purpose:** the per-account backlog for retiring PocketSmith. PS stays the live catch-all until **every active balance-sheet account** is (a) on a direct feed and reconciling, (b) moved to manual/Excel ([CR025](CR025_MANUAL_TRANSACTION_ENTRY.md)), or (c) explicitly frozen/archived. When the live "still PS-dependent" query (§4) returns empty, the CR023 §6 exit criteria hold and PS removal can be scheduled.
+
+Dispositions below are **owner-confirmed (2026-06-05)**. Verify live state before acting (`balance-recon` monitor + the §4 query).
+
+## 1. Cut over — DONE (13 accounts)
+
+On a direct bank feed, reconciling to `feed_balances` (cash/card) or by-design month-end MTM (brokerage). PS-side cutoff active.
+
+| fin id | account | feed mode | notes |
+|---|---|---|---|
+| 4 | PKO - USD | calibrate | |
+| 12 | PKO EUR | calibrate | |
+| 14 | Caixa EUR | calibrate | first EUR (Caixa) feed |
+| 18 | PKO | calibrate | |
+| 19 | PKO Savings | calibrate | |
+| 67 | PKO VISA Infinity CB | calibrate | |
+| 69 | PKO VISA Infinity KB | calibrate | |
+| 62 | LUXURY CARD | calibrate | **first Plaid/US card; `feed_sign=+1`** (see §10.4) |
+| 26 | Fidelity IRA | mtm | |
+| 27 | Fidelity Stocks | mtm | |
+| 28 | Fidelity Options | mtm (`trade_treatment=income`) | |
+| 30 | Fidelity Cash Mgt | calibrate | cash hub |
+| 31 | Fidelity Bond | mtm | basis-anchored |
+
+## 2. Active PS-residual — needs migration (the real backlog)
+
+Non-fed accounts with recent PS transaction activity. These currently depend on PS for new data.
+
+| fin id | account | type | cur | balance | last PS | disposition (confirmed) |
+|---|---|---|---|---|---|---|
+| 45 | OCME Sp. z o.o. | asset | PLN | 131,500 | 2026-05-26 | **manual/CR025** (loan receivable; also offset-fed from PKO transfers). No feed, no cutoff. |
+| 60 | Amazon Visa | liability | USD | −1,160 | 2026-06-02 | **add to Fintable → feed**, `feed_sign=+1` |
+| 64 | Delta SkyMiles Reserve | liability | USD | −393 | 2026-06-01 | **add to Fintable → feed**, `feed_sign=+1` |
+| 61 | Bonvoy Amex | liability | USD | 0 | 2026-06-01 | **add to Fintable → feed**, `feed_sign=+1` |
+| 63 | Hilton Honors | liability | USD | −56 | 2026-05-24 | **add to Fintable → feed**, `feed_sign=+1` |
+| 59 | Marriot Visa | liability | USD | −850 | 2026-05-18 | **add to Fintable → feed**, `feed_sign=+1` |
+| 6 | Chase Checking | asset | USD | 52,777 | 2026-06-01 | **add to Fintable → feed** |
+| 7 | Chase Saving | asset | USD | 20,439 | 2026-05-11 | **add to Fintable → feed** |
+| 10 | Capital One Savings | asset | USD | 10,257 | 2026-05-31 | **add to Fintable → feed** |
+| 13 | WISE - EUR | asset | EUR | 31,196 | 2026-06-03 | **try feed** (SnapTrade/GoCardless); **manual/CR025 if not reachable** |
+| 8 | Wise - USD | asset | USD | 4,221 | 2026-05-14 | **try feed; manual/CR025 if not reachable** |
+| 16 | Revolut-EUR | asset | EUR | 33 | 2026-05-23 | **try feed; manual/CR025 if not reachable** |
+| 41 | SP - Panorama Mar 6 | asset | EUR | 421,992 | 2026-05-25 | **manual/CR025 periodic valuation** (see §3) |
+
+**Owner-confirmed plan (2026-06-05):** the **8 US accounts** (5 cards + Chase ×2 + Capital One) → **add to Fintable, feed path** (proven by the Luxury card 62). The **5 US cards** report liability balances negative, so each needs `feed_sign=+1` at map time. **Wise ×2 + Revolut-EUR** → best-effort feed, manual/CR025 fallback. Each fed account follows the [CR023 §5](CR023_POCKETSMITH_REMOVAL.md) runbook (map → `feed_sign` if US card → `seed-bankfeed-cutoffs.js` → gate on `balance-recon`).
+
+## 3. Dormant holdings — periodic valuation (no streaming feed possible)
+
+Carry balances but no transactional activity since 2026-05; illiquid funds / property / inter-company. Never streaming-fed; PS only held occasional manual valuation entries. **Disposition: manual/Excel periodic update via CR025.** Do **not** block the "active data" exit but need a non-PS update path.
+
+**Confirmed (2026-06-05): manual/CR025 periodic for all below** (+ SP-Panorama 41 from §2):
+
+`21 PKO-Deposits (600k)`, `209 PKO TFI (400k PLN)`, `33 CVC Fund VIII (566k EUR)`, `34 CVC Fund IX (156k EUR)`, `43 United Beverages (27.6M PLN)`, `44 Barkeria (3.9M PLN)`, `47 PL-Niemena (4.3M PLN)`, `48 PL-Muszlowa (165k)`, `36 US-Nokomis (340k)`, `37 US-Casarina (920k)`, `53 Tax Reserve US (−35k)`, `22 Santander (5.2k)`, `50 Misc Investments (1.4k)`, `24 WISE-GBP (3.68)`, `41 SP-Panorama (422k EUR)`.
+
+## 4. Live exit-monitor query (run against prod :5433)
+
+"Still PS-dependent" = non-fed, non-ignored account with PS rows in the last 45 days. When this returns **zero rows**, CR023 §6 criteria #2/#3 hold for the active set.
+
+```sql
+WITH fed AS (
+  SELECT account_id FROM account_source_mappings
+  WHERE source='bank-feed' AND ignored=false AND account_id IS NOT NULL
+)
+SELECT a.id, a.name, a.account_type,
+       MAX(t.transaction_date) AS last_ps,
+       COUNT(*) FILTER (WHERE t.transaction_date >= CURRENT_DATE - 45) AS ps_last_45d
+FROM transactions t
+JOIN accounts a ON a.id = t.account_id
+WHERE t.source='pocketsmith'
+  AND a.section='balance_sheet'
+  AND a.id NOT IN (SELECT account_id FROM fed)
+GROUP BY a.id, a.name, a.account_type
+HAVING COUNT(*) FILTER (WHERE t.transaction_date >= CURRENT_DATE - 45) > 0
+ORDER BY last_ps DESC;
+```
+
+As of 2026-06-05 this returns the §2 active set (≈12 accounts incl. 45). The exit gate is met when every row here is either fed (leaves the list) or the owner has switched it to manual (PS rows stop arriving, so it ages out of the 45-day window).
+
+## 5. Exit-criteria status (CR023 §6)
+
+1. Every active account fed+reconciling / manual / frozen — **in progress** (13 fed; §2 backlog open; depends on CR025 shipping for the manual accounts incl. 45).
+2. No active account depends on PS for new data — **not yet** (§4 query non-empty).
+3. Source-partitioned PS-rec list empty — **shrinking** (depopulates as §2 accounts migrate).
+
+**Hard dependency:** CR025 (manual entry) must ship before the manual-bucket accounts (45 + §3 holdings + any §2 that go manual) can leave PS. PS removal execution stays deferred until §4 is empty.

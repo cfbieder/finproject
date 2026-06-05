@@ -85,6 +85,8 @@ Migration order is **driven by feed availability** (owner-paced), not a fixed sc
 
 ## 6. PS-removal exit criteria + removal runbook (#5) — DEFERRED execution
 
+> **Live per-account backlog + exit monitor:** [CR023_PS_MIGRATION_TRACKER.md](CR023_PS_MIGRATION_TRACKER.md) (owner-confirmed dispositions 2026-06-05; §4 query = the "still PS-dependent" gate).
+
 **Exit criteria (all must hold before executing removal):**
 1. Every *active* fin balance-sheet account is either (a) on a direct feed and reconciling to `feed_balances`, or (b) moved to manual/Excel ingest, or (c) explicitly frozen/archived.
 2. No active account still depends on PS for new data (no recent `source='pocketsmith'` activity for any active account).
