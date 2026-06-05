@@ -29,6 +29,10 @@ const staging = require('../repositories/bankfeedStaging');
 const db = require('../db');
 
 const SOURCE = 'bank-feed';
+// Default freshness window for the pre-read upstream sync: skip the Sheet pull
+// if the bank-feed synced within this many minutes (it has its own ~hourly cron,
+// so this only forces a pull when data is genuinely stale). Override per caller.
+const SYNC_MAX_AGE_MIN = Number(process.env.BANK_FEED_SYNC_MAX_AGE_MIN || 60);
 
 function dedupEnabled() {
   return process.env.BANK_FEED_DEDUP_ENABLED !== 'false';
@@ -93,8 +97,32 @@ async function ingestBalances({ accountExternalIdById, asOf } = {}) {
  * Also refreshes the bankfeed_balances cache (best-effort — a balances hiccup
  * must not fail transaction staging; the previous snapshot stays serviceable).
  */
-async function ingest({ sinceDays = 14, since } = {}) {
+/**
+ * Best-effort: ask the bank-feed to pull fresh upstream data before we read,
+ * so staging/reconciliation isn't run on morning-stale balances (the
+ * feed_balances-freeze lesson). NEVER throws — a bank-feed outage must not break
+ * the ingest/reconcile path; we fall back to the last cached data and log it.
+ * The service skips the pull if it synced within `maxAgeMin` (coalesced).
+ */
+async function syncUpstream({ maxAgeMin = SYNC_MAX_AGE_MIN, force = false } = {}) {
+  try {
+    const r = await bankFeedClient.sync({ maxAgeMin, force });
+    if (r && r.skipped) {
+      console.log(`[refreshBankFeedV2] upstream sync skipped (fresh, age ${r.age_minutes}m ≤ ${r.max_age_minutes}m)`);
+    } else {
+      console.log('[refreshBankFeedV2] upstream sync triggered');
+    }
+    return r;
+  } catch (err) {
+    console.warn(`[refreshBankFeedV2] upstream sync failed (non-fatal, using cached): ${err.message}`);
+    return { error: err.message };
+  }
+}
+
+async function ingest({ sinceDays = 14, since, syncMaxAgeMin } = {}) {
   const sinceDate = since || isoDaysAgo(sinceDays);
+  // Pull fresh upstream data first (best-effort) so this stage isn't on stale data.
+  await syncUpstream({ maxAgeMin: syncMaxAgeMin });
   const accountExternalIdById = await buildAccountIdToUuid();
 
   const resp = await bankFeedClient.transactions({ since: sinceDate, limit: 500 });
@@ -350,6 +378,7 @@ module.exports = {
   refresh,
   ingest,
   ingestBalances,
+  syncUpstream,
   promote,
   buildAccountIdToUuid,
   dedupEnabled,

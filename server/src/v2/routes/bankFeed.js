@@ -16,7 +16,12 @@ const client = require('../services/bankFeedClient');
 const accountSourceMappings = require('../repositories/accountSourceMappings');
 const bankFeedReconciliation = require('../repositories/bankFeedReconciliation');
 const { reconcileToFeed } = require('../services/reconcileToFeed');
+const refreshBankFeed = require('../services/refreshBankFeedV2');
 const db = require('../db');
+
+// Reconcile is a deliberate action that wants CURRENT balances — pull fresh
+// upstream data on a tight freshness window before reconciling.
+const RECONCILE_SYNC_MAX_AGE_MIN = 15;
 
 // Wrap a client call so any error becomes a clean JSON 502.
 function proxy(fn) {
@@ -219,8 +224,17 @@ router.post('/reconcile/:accountId', async (req, res, next) => {
       return res.status(400).json({ error: 'invalid accountId' });
     }
     const { asOf = null, dryRun = false, force = false } = req.body || {};
+    // Sync-before-reconcile: pull fresh upstream data (best-effort) and refresh
+    // fin's local balance cache so we reconcile on current, not morning-stale,
+    // balances. Both steps are non-fatal — fall back to cached data on failure.
+    const synced = await refreshBankFeed.syncUpstream({ maxAgeMin: RECONCILE_SYNC_MAX_AGE_MIN });
+    try {
+      await refreshBankFeed.ingestBalances({ asOf });
+    } catch (e) {
+      console.warn('[v2/bank-feed] pre-reconcile balance ingest failed (non-fatal):', e.message);
+    }
     const result = await reconcileToFeed(accountId, { asOf, dryRun: dryRun === true, force: force === true });
-    res.json(result);
+    res.json({ ...result, _synced: synced && !synced.error ? (synced.skipped ? 'fresh' : 'synced') : 'cached' });
   } catch (err) {
     console.error('[v2/bank-feed] reconcile failed:', err.message);
     res.status(400).json({ error: err.message });

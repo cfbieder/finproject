@@ -95,6 +95,23 @@ function transactions({ since, until, accountId, limit = 500, offset = 0 } = {})
   });
 }
 
+/**
+ * POST /v1/sync — ask the bank-feed to pull fresh data from upstream (the Sheet)
+ * before we read balances/transactions, so we don't reconcile/stage on
+ * morning-stale data. The service coalesces concurrent calls and honours
+ * `max_age` (skip if it synced within the window) / `force` (bypass). Global
+ * (no app filter — one Sheet pull serves every consumer). Longer timeout since
+ * a real pull is slower than a read. Returns the service's sync summary
+ * (`{skipped:true,reason:'fresh',...}` when within the freshness window).
+ */
+function sync({ maxAgeMin, force = false } = {}) {
+  return request('/v1/sync', {
+    method: 'POST',
+    query: { max_age: maxAgeMin, force: force ? 'true' : undefined },
+    timeoutMs: 30000,
+  });
+}
+
 module.exports = {
   health,
   feedsHealth,
@@ -102,6 +119,7 @@ module.exports = {
   accounts,
   balances,
   transactions,
+  sync,
   // exposed for diagnostic / config readback
   baseUrl: BASE_URL,
 };
