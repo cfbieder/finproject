@@ -5,8 +5,8 @@
 }
 
 .qi-section {
-  background: #fff;
-  border: 1px solid #e0e0e0;
+  background: var(--surface-elevated);
+  border: 1px solid var(--border);
   border-radius: 8px;
   padding: 1.25rem 1.5rem;
   margin-bottom: 1rem;
@@ -35,7 +35,7 @@
   display: inline-block;
   padding: 0.2rem 0.6rem;
   border-radius: 12px;
-  color: #fff;
+  color: var(--on-accent);
   font-size: 0.78rem;
   font-weight: 600;
   text-transform: uppercase;
@@ -50,27 +50,27 @@
 
 .qi-table thead th {
   text-align: left;
-  border-bottom: 2px solid #ddd;
+  border-bottom: 2px solid var(--border-strong);
   padding: 0.5rem 0.75rem;
   font-size: 0.82rem;
   text-transform: uppercase;
   letter-spacing: 0.04em;
-  color: #555;
+  color: var(--ink-secondary);
 }
 
 .qi-table tbody td {
-  border-bottom: 1px solid #eee;
+  border-bottom: 1px solid var(--border);
   padding: 0.5rem 0.75rem;
   vertical-align: middle;
   font-size: 0.92rem;
 }
 
 .qi-table tr.qi-unmapped {
-  background: #fff8f1;
+  background: var(--warning-subtle);
 }
 
 .qi-table tr.qi-mapped td:first-child {
-  color: #999;
+  color: var(--muted);
 }
 
 /* Origin account row — THE account being imported (its QIF was parsed). Sorted
@@ -79,21 +79,21 @@
 .qi-table tr.qi-row-origin,
 .qi-table tr.qi-row-origin.qi-mapped,
 .qi-table tr.qi-row-origin.qi-unmapped {
-  background: #ecfdf5;
-  box-shadow: inset 4px 0 0 #10b981;
+  background: var(--success-subtle);
+  box-shadow: inset 4px 0 0 var(--success);
 }
 .qi-table tr.qi-row-origin td:first-child code {
   font-weight: 700;
-  color: #065f46;
+  color: var(--success-strong);
 }
 .qi-table tr.qi-row-origin .qi-kind {
-  color: #047857;
+  color: var(--success-strong);
   font-weight: 700;
 }
 
 .qi-source-files code {
   display: inline-block;
-  background: #f1f5f9;
+  background: var(--surface-muted);
   padding: 1px 6px;
   border-radius: 4px;
   font-size: 0.85em;
@@ -101,13 +101,13 @@
 }
 
 .qi-muted {
-  color: #999;
+  color: var(--muted);
   font-style: italic;
 }
 
 .qi-kind {
   font-size: 0.82rem;
-  color: #666;
+  color: var(--muted);
   text-transform: uppercase;
   letter-spacing: 0.04em;
 }
@@ -124,19 +124,19 @@
   letter-spacing: 0.02em;
 }
 .qi-type-badge.qi-type-bs {
-  background: #e0ecff;
-  border-color: #b3c5ea;
-  color: #1e3a8a;
+  background: var(--info-subtle);
+  border-color: var(--info-border);
+  color: var(--info-strong);
 }
 .qi-type-badge.qi-type-pl {
-  background: #fef3c7;
-  border-color: #f0c674;
-  color: #6b4400;
+  background: var(--warning-subtle);
+  border-color: var(--warning-light);
+  color: var(--warning-strong);
 }
 .qi-type-badge.qi-type-transfer {
-  background: #ede9fe;
-  border-color: #c4b5fd;
-  color: #5b21b6;
+  background: var(--info-subtle);
+  border-color: var(--info-border);
+  color: var(--info-strong);
 }
 
 .qi-ccy-badge {
@@ -144,9 +144,9 @@
   margin-left: 0.5rem;
   padding: 1px 6px;
   border-radius: 3px;
-  background: #e6efff;
-  border: 1px solid #b3c5ea;
-  color: #1e3a8a;
+  background: var(--info-subtle);
+  border: 1px solid var(--info-border);
+  color: var(--info-strong);
   font-size: 0.72rem;
   font-weight: 600;
   letter-spacing: 0.04em;
@@ -154,31 +154,31 @@
 }
 
 .qi-ccy-badge.qi-ccy-badge-unknown {
-  background: #fff8e1;
-  border-color: #f0c674;
-  color: #6b4400;
+  background: var(--warning-subtle);
+  border-color: var(--warning-light);
+  color: var(--warning-strong);
   cursor: help;
 }
 
 .qi-ccy-warning {
   margin-top: 0.35rem;
   padding: 0.4rem 0.6rem;
-  background: #fff8e1;
-  border: 1px solid #f0c674;
+  background: var(--warning-subtle);
+  border: 1px solid var(--warning-light);
   border-radius: 4px;
   font-size: 0.8rem;
-  color: #6b4400;
+  color: var(--warning-strong);
   line-height: 1.4;
 }
 
 .qi-role-mismatch {
   margin-top: 0.35rem;
   padding: 0.4rem 0.6rem;
-  background: #fee2e2;
-  border: 1px solid #fca5a5;
+  background: var(--danger-subtle);
+  border: 1px solid var(--danger-light);
   border-radius: 4px;
   font-size: 0.8rem;
-  color: #991b1b;
+  color: var(--danger-strong);
   line-height: 1.4;
 }
 
@@ -197,14 +197,14 @@
   gap: 0.5rem;
   padding: 0.6rem 0.8rem;
   margin: 0.5rem 0;
-  background: #e0ecff;
-  border: 1px solid #b3c5ea;
+  background: var(--info-subtle);
+  border: 1px solid var(--info-border);
   border-radius: 6px;
 }
 
 .qi-bulk-count {
   font-weight: 600;
-  color: #1e3a8a;
+  color: var(--info-strong);
 }
 
 .qi-modal-wide {
@@ -225,12 +225,12 @@
 }
 
 .qi-status-ok {
-  color: #047857;
+  color: var(--success-strong);
   font-weight: 600;
 }
 
 .qi-status-error {
-  color: #b91c1c;
+  color: var(--danger-strong);
   font-weight: 600;
 }
 
@@ -238,7 +238,7 @@
 .qi-bulk-ccy-unknown {
   width: 4rem;
   padding: 0.25rem 0.4rem;
-  border: 1px solid #ccd;
+  border: 1px solid var(--border-strong);
   border-radius: 4px;
   font-size: 0.88rem;
   text-transform: uppercase;
@@ -246,16 +246,16 @@
 }
 
 .qi-bulk-ccy-unknown {
-  background: #fff8e1;
-  border-color: #f0c674;
+  background: var(--warning-subtle);
+  border-color: var(--warning-light);
 }
 
 .qi-ccy-unknown-flag {
   display: inline-block;
   margin-left: 0.35rem;
   padding: 0 6px;
-  background: #f0c674;
-  color: #6b4400;
+  background: var(--warning-light);
+  color: var(--warning-strong);
   border-radius: 999px;
   font-size: 0.7rem;
   font-weight: 700;
@@ -265,28 +265,28 @@
 .qi-empty {
   padding: 2rem;
   text-align: center;
-  color: #777;
+  color: var(--muted);
 }
 
 .qi-empty code {
-  background: #f1f5f9;
+  background: var(--surface-muted);
   padding: 2px 6px;
   border-radius: 4px;
 }
 
 /* Buttons */
 .qi-btn {
-  background: #f1f5f9;
-  border: 1px solid #ccd;
+  background: var(--surface-muted);
+  border: 1px solid var(--border-strong);
   border-radius: 4px;
   padding: 0.35rem 0.85rem;
   font-size: 0.9rem;
   cursor: pointer;
-  color: #234;
+  color: var(--ink);
 }
 
 .qi-btn:hover:not(:disabled) {
-  background: #e2eaf3;
+  background: var(--surface-muted);
 }
 
 .qi-btn:disabled {
@@ -295,18 +295,18 @@
 }
 
 .qi-btn-primary {
-  background: #2563eb;
-  border-color: #2563eb;
-  color: #fff;
+  background: var(--primary);
+  border-color: var(--primary);
+  color: var(--on-accent);
 }
-.qi-btn-primary:hover:not(:disabled) { background: #1e51c9; }
+.qi-btn-primary:hover:not(:disabled) { background: var(--primary-strong); }
 
 .qi-btn-danger {
-  background: #dc2626;
-  border-color: #dc2626;
-  color: #fff;
+  background: var(--danger);
+  border-color: var(--danger);
+  color: var(--on-accent);
 }
-.qi-btn-danger:hover:not(:disabled) { background: #b91c1c; }
+.qi-btn-danger:hover:not(:disabled) { background: var(--danger-strong); }
 
 /* Mapping page */
 .qi-summary {
@@ -317,20 +317,20 @@
 }
 
 .qi-summary-card {
-  background: #f5f7fa;
+  background: var(--surface-muted);
   border-radius: 6px;
   padding: 0.65rem 1rem;
   min-width: 110px;
 }
 
 .qi-summary-card.qi-summary-warn {
-  background: #fff4d6;
+  background: var(--warning-subtle);
 }
 
 .qi-summary-label {
   font-size: 0.75rem;
   text-transform: uppercase;
-  color: #666;
+  color: var(--muted);
   letter-spacing: 0.04em;
 }
 
@@ -350,8 +350,8 @@
 .qi-spacer { flex: 1; }
 
 .qi-pill {
-  background: #fff;
-  border: 1px solid #ccd;
+  background: var(--surface-elevated);
+  border: 1px solid var(--border-strong);
   border-radius: 999px;
   padding: 0.25rem 0.85rem;
   font-size: 0.85rem;
@@ -360,15 +360,15 @@
 }
 
 .qi-pill.qi-pill-active {
-  background: #2563eb;
-  border-color: #2563eb;
-  color: #fff;
+  background: var(--primary);
+  border-color: var(--primary);
+  color: var(--on-accent);
 }
 
 .qi-select {
   width: 100%;
   padding: 0.3rem 0.5rem;
-  border: 1px solid #ccd;
+  border: 1px solid var(--border-strong);
   border-radius: 4px;
   font-size: 0.9rem;
 }
@@ -381,9 +381,9 @@
 }
 
 .qi-alert-error {
-  background: #fee;
-  border: 1px solid #f99;
-  color: #800;
+  background: var(--danger-subtle);
+  border: 1px solid var(--danger-light);
+  color: var(--danger-strong);
 }
 
 .qi-alert-error ul {
@@ -412,7 +412,7 @@
 }
 
 .qi-modal {
-  background: #fff;
+  background: var(--surface-elevated);
   border-radius: 8px;
   width: 480px;
   max-width: calc(100vw - 2rem);
@@ -424,7 +424,7 @@
 
 .qi-modal-header {
   padding: 1rem 1.25rem;
-  border-bottom: 1px solid #e0e0e0;
+  border-bottom: 1px solid var(--border);
   font-weight: 600;
   font-size: 1.05rem;
 }
@@ -442,47 +442,47 @@
   flex-direction: column;
   gap: 0.25rem;
   font-size: 0.85rem;
-  color: #555;
+  color: var(--ink-secondary);
 }
 
 .qi-modal-field > span {
   font-weight: 600;
-  color: #333;
+  color: var(--ink);
 }
 
 .qi-modal-field input[type="text"] {
   padding: 0.4rem 0.55rem;
-  border: 1px solid #ccd;
+  border: 1px solid var(--border-strong);
   border-radius: 4px;
   font-size: 0.95rem;
 }
 
 .qi-modal-field input[type="text"]:focus {
   outline: none;
-  border-color: #2563eb;
+  border-color: var(--primary);
   box-shadow: 0 0 0 2px rgba(37, 99, 235, 0.15);
 }
 
 .qi-modal-hint {
   font-size: 0.8rem;
-  color: #666;
-  background: #f5f7fa;
+  color: var(--muted);
+  background: var(--surface-muted);
   padding: 0.5rem 0.75rem;
   border-radius: 4px;
 }
 
 .qi-modal-error {
   font-size: 0.85rem;
-  color: #800;
-  background: #fee;
-  border: 1px solid #f99;
+  color: var(--danger-strong);
+  background: var(--danger-subtle);
+  border: 1px solid var(--danger-light);
   padding: 0.5rem 0.75rem;
   border-radius: 4px;
 }
 
 .qi-modal-footer {
   padding: 0.85rem 1.25rem;
-  border-top: 1px solid #e0e0e0;
+  border-top: 1px solid var(--border);
   display: flex;
   justify-content: flex-end;
   gap: 0.5rem;

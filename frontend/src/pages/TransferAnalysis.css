@@ -43,7 +43,7 @@
 .transfer-analysis-error {
   color: var(--danger, var(--danger));
   background: var(--danger-bg, var(--danger-subtle));
-  border: 1px solid var(--danger-border, #fecaca);
+  border: 1px solid var(--danger-light);
   border-radius: var(--radius-md);
   padding: 0.75rem 1rem;
   font-size: 0.9rem;
@@ -68,8 +68,8 @@
 }
 
 .transfer-analysis-summary-card--warning {
-  border-color: var(--warning-border, #fde68a);
-  background: var(--warning-bg, #fffbeb);
+  border-color: var(--warning-light);
+  background: var(--warning-subtle);
 }
 
 .transfer-analysis-summary-label {
@@ -131,13 +131,13 @@
   font-weight: 600;
   padding: 0.2rem 0.6rem;
   border-radius: var(--radius-full, 999px);
-  background: var(--primary-light, #E8F0E9);
-  color: #2d4a2d;
+  background: var(--primary-subtle);
+  color: var(--success-strong);
 }
 
 .transfer-analysis-category-badge--warning {
-  background: var(--warning-bg, #fef3c7);
-  color: var(--warning-text, #b45309);
+  background: var(--warning-subtle);
+  color: var(--warning-strong);
 }
 
 .transfer-analysis-category-body {
@@ -164,8 +164,8 @@
 }
 
 .transfer-analysis-section-title--warning {
-  color: var(--warning-text, #b45309);
-  border-bottom-color: var(--warning-bg, #fde68a);
+  color: var(--warning-strong);
+  border-bottom-color: var(--warning-light);
 }
 
 /* Tables */
@@ -195,7 +195,7 @@
 }
 
 .transfer-analysis-table tbody tr:hover {
-  background: var(--surface-hover, #FAF9F5);
+  background: var(--surface-muted);
 }
 
 .transfer-analysis-table .text-right {
@@ -231,7 +231,7 @@
   align-items: center;
   gap: 0.75rem;
   padding: 0.75rem 1.25rem;
-  background: var(--primary-light, #E8F0E9);
+  background: var(--primary-subtle);
   border: 1px solid var(--primary, var(--primary));
   border-radius: var(--radius-lg);
   font-size: 0.875rem;
@@ -244,11 +244,11 @@
 
 .transfer-analysis-link-net {
   font-variant-numeric: tabular-nums;
-  color: #fecaca;
+  color: var(--danger);
 }
 
 .transfer-analysis-link-net--zero {
-  color: #bbf7d0;
+  color: var(--success);
 }
 
 .transfer-analysis-link-btn {
@@ -259,7 +259,7 @@
   font-weight: 600;
   cursor: pointer;
   background: var(--primary, var(--primary));
-  color: #fff;
+  color: var(--on-accent);
   transition: opacity var(--transition-base);
 }
 
@@ -286,7 +286,7 @@
 
 /* Selected row highlight */
 .transfer-analysis-row--selected {
-  background: var(--primary-light, #E8F0E9) !important;
+  background: var(--primary-subtle) !important;
 }
 
 /* Manual match group styles */
@@ -340,7 +340,7 @@
 
 .transfer-analysis-unlink-btn:hover {
   background: var(--danger, var(--danger));
-  color: #fff;
+  color: var(--on-accent);
 }
 
 /* Clickable rows */
@@ -349,7 +349,7 @@
 }
 
 .transfer-analysis-row--clickable:hover {
-  background: var(--surface-hover, #FAF9F5) !important;
+  background: var(--surface-muted) !important;
 }
 
 /* Category change modal */
