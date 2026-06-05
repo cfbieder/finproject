@@ -204,6 +204,38 @@ export default function TransferAnalysis() {
     }
   }, [removeConfirm, handleGenerate]);
 
+  // ─── Neutralize a genuine unmatched leg ───
+  // For a real (non-auto-offset) unmatched securities-trade leg, create its
+  // offsetting "Transfer - Securities Trades" entry (the backend pairs with an
+  // existing leg if one turns up, else inserts the offset). Safe here because
+  // the row is, by definition, unmatched.
+  const [neutralizeConfirm, setNeutralizeConfirm] = useState(null); // {id, message}
+  const [isNeutralizing, setIsNeutralizing] = useState(false);
+
+  const doNeutralizeLeg = useCallback(async () => {
+    const id = neutralizeConfirm?.id;
+    if (!id) return;
+    setIsNeutralizing(true);
+    setError(null);
+    try {
+      const r = await fetch(Rest.buildUrl(`/api/v2/transactions/${id}/neutralize`), {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({}),
+      });
+      if (!r.ok) {
+        const b = await r.json().catch(() => null);
+        throw new Error(b?.error || "Failed to neutralize");
+      }
+      setNeutralizeConfirm(null);
+      await handleGenerate();
+    } catch (err) {
+      setError(err?.message ?? "Failed to neutralize");
+    } finally {
+      setIsNeutralizing(false);
+    }
+  }, [neutralizeConfirm, handleGenerate]);
+
   // Compute net base_amount of selected transactions
   const selectedNet = useMemo(() => {
     if (!data || selectedIds.size === 0) return 0;
@@ -610,7 +642,7 @@ export default function TransferAnalysis() {
                                   {formatAmount(txn.base_amount)}
                                 </td>
                                 <td className="text-right">
-                                  {txn.source === "auto-offset" && (
+                                  {txn.source === "auto-offset" ? (
                                     <button
                                       type="button"
                                       className="btn btn--sm btn--danger-soft"
@@ -625,6 +657,22 @@ export default function TransferAnalysis() {
                                       }}
                                     >
                                       Remove
+                                    </button>
+                                  ) : (
+                                    <button
+                                      type="button"
+                                      className="btn btn--sm btn--outline"
+                                      title="Neutralize: create the offsetting Transfer entry for this single leg (pairs with an existing leg if one exists)."
+                                      onClick={(e) => {
+                                        e.stopPropagation();
+                                        setNeutralizeConfirm({
+                                          id: txn.id,
+                                          message:
+                                            `Neutralize this unmatched leg?\n\n${txn.account_name} · ${formatDate(txn.transaction_date)}\n${txn.description1}\n${formatAmount(txn.amount)} ${txn.currency}\n\nIf an offsetting leg exists nearby it will be paired; otherwise a new "Transfer - Securities Trades" entry of ${formatAmount(-parseFloat(txn.amount))} is created to balance it.`,
+                                        });
+                                      }}
+                                    >
+                                      Neutralize
                                     </button>
                                   )}
                                 </td>
@@ -723,6 +771,13 @@ export default function TransferAnalysis() {
         busy={isRemoving}
         onConfirm={doRemoveOrphan}
         onCancel={() => setRemoveConfirm(null)}
+      />
+
+      <ConfirmModal
+        state={neutralizeConfirm ? { title: "Neutralize leg", message: neutralizeConfirm.message, confirmLabel: "Neutralize" } : null}
+        busy={isNeutralizing}
+        onConfirm={doNeutralizeLeg}
+        onCancel={() => setNeutralizeConfirm(null)}
       />
     </main>
   );

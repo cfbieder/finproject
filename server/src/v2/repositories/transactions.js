@@ -636,7 +636,7 @@ async function findTransfers({ startDate, endDate } = {}) {
       t.id, t.transaction_date, t.description1, t.description2,
       t.amount, t.currency, t.base_amount, t.base_currency,
       t.account_id, a.name as account_name,
-      t.category_id, c.name as category_name
+      t.category_id, c.name as category_name, t.source
     FROM transactions t
     LEFT JOIN accounts a ON t.account_id = a.id
     JOIN accounts c ON t.category_id = c.id
