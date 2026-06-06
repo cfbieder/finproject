@@ -2,6 +2,14 @@ import PropTypes from "prop-types";
 import "./BalanceChartPanel.css";
 
 const getAxisLabelParts = (point) => {
+  // Prefer the period-aware parts computed by the page (month/quarter/year).
+  if (point && (point.axisTop !== undefined || point.axisBottom !== undefined)) {
+    return {
+      monthLabel: point.axisTop ?? "",
+      yearLabel: point.axisBottom ?? "",
+    };
+  }
+
   const date = point?.date ? new Date(point.date) : null;
   if (date && Number.isFinite(date.getTime())) {
     const month = String(date.getUTCMonth() + 1).padStart(2, "0");
@@ -62,7 +70,7 @@ const BalanceChartPanel = ({
             viewBox={`0 0 ${chartLayout.width} ${chartLayout.height}`}
             preserveAspectRatio="none"
             role="img"
-            aria-label="Monthly net assets trend"
+            aria-label="Net assets trend"
             className="balance-chart-graph__svg"
           >
             <defs>
@@ -218,6 +226,8 @@ BalanceChartPanel.propTypes = {
     PropTypes.shape({
       label: PropTypes.string,
       date: PropTypes.string,
+      axisTop: PropTypes.string,
+      axisBottom: PropTypes.string,
       net: PropTypes.number,
     })
   ).isRequired,

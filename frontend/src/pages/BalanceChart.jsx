@@ -2,6 +2,12 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import BalanceChartPanel from "../features/Charts/BalanceChartPanel.jsx";
 import CashFlowDateSelectorMonthYearOneP from "../features/Charts/BalanceChartDateSelectorMonthYear.jsx";
 import Rest from "../js/rest.js";
+import {
+  buildEndDateSeries,
+  planColumns,
+  formatColumnHeader,
+  getTodayIso,
+} from "../utils/periodHelpers.js";
 import "./PageLayout.css";
 
 /**
@@ -36,72 +42,55 @@ const collectCollapsiblePaths = (accounts, path = [], result = new Set()) => {
 };
 
 /**
- * Converts an ISO date string to a UTC Date object with time set to midnight.
+ * Extracts the year and 1-based month from an ISO date string.
  *
  * @param {string} isoDate - ISO format date string (YYYY-MM-DD)
- * @returns {Date|null} UTC Date object at midnight, or null if invalid
+ * @returns {{year: number, month: number}|null} Parsed parts, or null if invalid
  */
-const toUtcDate = (isoDate) => {
+const parseYearMonth = (isoDate) => {
   if (typeof isoDate !== "string") {
     return null;
   }
-  const parsed = new Date(isoDate);
-  if (Number.isNaN(parsed.getTime())) {
+  const [yearStr, monthStr] = isoDate.split("-");
+  const year = Number(yearStr);
+  const month = Number(monthStr);
+  if (!Number.isFinite(year) || year <= 0 || !Number.isFinite(month) || month <= 0) {
     return null;
   }
-  return new Date(
-    Date.UTC(parsed.getUTCFullYear(), parsed.getUTCMonth(), parsed.getUTCDate())
-  );
+  return { year, month };
 };
 
 /**
- * Gets the last day of the month for a given date in ISO format.
+ * Builds the series of period columns to render for the chart, given the
+ * selected date range and period type (month / quarter / year). Reuses the
+ * shared period helpers so the chart matches Balance Sheet Periods etc.:
+ * future periods are dropped and an in-progress period is snapshotted as of
+ * today and flagged partial.
  *
- * @param {Date} date - Date object
- * @returns {string} ISO date string (YYYY-MM-DD) for the last day of the month, or empty string if invalid
+ * @param {string} startIso - Range start date in ISO format (YYYY-MM-DD)
+ * @param {string} endIso - Range end date in ISO format (YYYY-MM-DD)
+ * @param {string} period - "month" | "quarter" | "year"
+ * @returns {Array<{label: string, asOf: string, isPartial: boolean}>}
  */
-const getMonthEndIso = (date) => {
-  if (!(date instanceof Date) || Number.isNaN(date.getTime())) {
-    return "";
-  }
-  const monthEnd = new Date(
-    Date.UTC(date.getUTCFullYear(), date.getUTCMonth() + 1, 0)
-  );
-  return monthEnd.toISOString().split("T")[0];
-};
-
-/**
- * Builds an array of month-end dates between start and end dates.
- *
- * @param {string} startIso - Start date in ISO format (YYYY-MM-DD)
- * @param {string} endIso - End date in ISO format (YYYY-MM-DD)
- * @param {number} limit - Maximum number of periods to generate (default: unlimited)
- * @returns {Array<string>} Array of ISO date strings representing month-end dates
- */
-const buildMonthlySeries = (
-  startIso,
-  endIso,
-  limit = Number.POSITIVE_INFINITY
-) => {
-  const startDate = toUtcDate(startIso);
-  const endDate = toUtcDate(endIso);
-  if (!startDate || !endDate || startDate > endDate || limit <= 0) {
+const buildPeriodSeries = (startIso, endIso, period) => {
+  const start = parseYearMonth(startIso);
+  const end = parseYearMonth(endIso);
+  if (!start || !end) {
     return [];
   }
-
-  const series = [];
-  const cursor = new Date(
-    Date.UTC(startDate.getUTCFullYear(), startDate.getUTCMonth(), 1)
+  // Year mode is selected by calendar year only, so widen the range to whole
+  // years (Jan..Dec) — this keeps both endpoint years' Dec-31 snapshots in the
+  // series even when the stored from/to dates carry mid-year months.
+  const fromMonth = period === "year" ? 1 : start.month;
+  const toMonth = period === "year" ? 12 : end.month;
+  const endDates = buildEndDateSeries(
+    start.year,
+    fromMonth,
+    end.year,
+    toMonth,
+    period
   );
-  const lastCursor = new Date(
-    Date.UTC(endDate.getUTCFullYear(), endDate.getUTCMonth(), 1)
-  );
-  while (cursor.getTime() <= lastCursor.getTime() && series.length < limit) {
-    series.push(getMonthEndIso(cursor));
-    cursor.setUTCMonth(cursor.getUTCMonth() + 1);
-  }
-
-  return series;
+  return planColumns(endDates, period, getTodayIso());
 };
 
 /**
@@ -131,25 +120,33 @@ const formatCurrencyShort = (value) =>
   chartCurrencyFormatter.format(ensureNumber(value));
 
 /**
- * Formats an ISO date string as a short month-year label.
+ * Builds the two-line x-axis label parts for a period-end date, reflecting the
+ * selected period type:
+ *   - month:   top = "01".."12", bottom = "YY"
+ *   - quarter: top = "Q1".."Q4", bottom = "YY"
+ *   - year:    top = "YYYY",      bottom = ""
  *
- * @param {string} isoDate - ISO format date string (YYYY-MM-DD)
- * @returns {string} Formatted label (e.g., "Jan 2024") or original string if invalid
+ * @param {string} isoDate - Period-end date in ISO format (YYYY-MM-DD)
+ * @param {string} period - "month" | "quarter" | "year"
+ * @returns {{top: string, bottom: string}}
  */
-const formatMonthYearLabel = (isoDate) => {
-  if (!isoDate) {
-    return "";
+const formatPeriodAxisParts = (isoDate, period) => {
+  const d = new Date(`${isoDate}T00:00:00Z`);
+  if (Number.isNaN(d.getTime())) {
+    return { top: isoDate ?? "", bottom: "" };
   }
-
-  const parsed = new Date(isoDate);
-  if (!Number.isFinite(parsed.getTime())) {
-    return isoDate;
+  const year = d.getUTCFullYear();
+  const monthIdx = d.getUTCMonth();
+  if (period === "year") {
+    return { top: String(year), bottom: "" };
   }
-
-  return parsed.toLocaleString("en-US", {
-    month: "short",
-    year: "numeric",
-  });
+  if (period === "quarter") {
+    return { top: `Q${Math.floor(monthIdx / 3) + 1}`, bottom: String(year).slice(-2) };
+  }
+  return {
+    top: String(monthIdx + 1).padStart(2, "0"),
+    bottom: String(year).slice(-2),
+  };
 };
 
 /**
@@ -210,18 +207,22 @@ const getBalanceTotals = (report) => {
 };
 
 /**
- * Builds chart data points from multiple balance reports and their corresponding date labels.
+ * Builds chart data points from balance reports and their corresponding period
+ * columns. Each point carries the full-text `label` (tooltip / range summary)
+ * plus the two-line `axisTop`/`axisBottom` parts for the x-axis, both derived
+ * from the selected period type.
  *
- * @param {Array} reports - Array of balance reports
- * @param {Array<string>} labels - Array of date labels in ISO format
- * @returns {Array<{date: string, label: string, assets: number, liabilities: number, net: number}>} Chart data points
+ * @param {Array} reports - Array of balance reports (one per period column)
+ * @param {Array<{label: string, asOf: string, isPartial: boolean}>} periods - Planned period columns
+ * @param {string} period - "month" | "quarter" | "year"
+ * @returns {Array<{date: string, label: string, axisTop: string, axisBottom: string, assets: number, liabilities: number, net: number}>}
  */
-const buildChartPoints = (reports, labels) => {
-  if (!Array.isArray(reports) || !Array.isArray(labels)) {
+const buildChartPoints = (reports, periods, period) => {
+  if (!Array.isArray(reports) || !Array.isArray(periods)) {
     return [];
   }
 
-  const length = Math.min(reports.length, labels.length);
+  const length = Math.min(reports.length, periods.length);
   if (length === 0) {
     return [];
   }
@@ -229,11 +230,15 @@ const buildChartPoints = (reports, labels) => {
   const points = [];
   for (let i = 0; i < length; i += 1) {
     const report = reports[i];
-    const date = labels[i];
+    const column = periods[i] ?? {};
+    const endIso = column.label;
     const totals = getBalanceTotals(report);
+    const axis = formatPeriodAxisParts(endIso, period);
     points.push({
-      date,
-      label: formatMonthYearLabel(date) || `Period ${i + 1}`,
+      date: endIso,
+      label: formatColumnHeader(endIso, period, column.isPartial) || `Period ${i + 1}`,
+      axisTop: axis.top,
+      axisBottom: axis.bottom,
       assets: totals.assets,
       liabilities: totals.liabilities,
       net: ensureNumber(totals.assets) + ensureNumber(totals.liabilities),
@@ -274,12 +279,13 @@ const getMonthEnd = () => {
 export default function Balance() {
   const [fromDates, setFromDates] = useState(() => [getYearStart()]);
   const [toDates, setToDates] = useState(() => [getMonthEnd()]);
+  const [period, setPeriod] = useState("month");
   const [periodCount, setPeriodCount] = useState(1);
   const [balanceReports, setBalanceReports] = useState([]);
   const [reportError, setReportError] = useState("");
   const [isFetchingReport, setIsFetchingReport] = useState(false);
   const [collapsedPaths, setCollapsedPaths] = useState(() => new Set());
-  const [chartPeriodDates, setChartPeriodDates] = useState([]);
+  const [chartPeriods, setChartPeriods] = useState([]);
   const [chartReports, setChartReports] = useState([]);
   const [tooltip, setTooltip] = useState(null);
   const chartRef = useRef(null);
@@ -319,25 +325,27 @@ export default function Balance() {
     setIsFetchingReport(true);
     const activeCount = Math.min(Math.max(periodCount ?? 1, 1), 3);
     const activeDates = toDates.slice(0, activeCount);
-    const monthlyDates = buildMonthlySeries(fromDates[0], toDates[0]);
+    const periodColumns = buildPeriodSeries(fromDates[0], toDates[0], period);
     try {
-      const [reports, monthlyReports] = await Promise.all([
+      const [reports, periodReports] = await Promise.all([
         Promise.all(activeDates.map((date) => Rest.fetchBalanceReport(date))),
-        Promise.all(monthlyDates.map((date) => Rest.fetchBalanceReport(date))),
+        Promise.all(
+          periodColumns.map((column) => Rest.fetchBalanceReport(column.asOf))
+        ),
       ]);
       setBalanceReports(reports);
-      setChartReports(monthlyReports);
-      setChartPeriodDates(monthlyDates);
+      setChartReports(periodReports);
+      setChartPeriods(periodColumns);
       setCollapsedPaths(new Set());
     } catch (error) {
       console.error("Failed to fetch balance report:", error);
       setReportError(error?.message ?? "Failed to fetch balance report");
       setChartReports([]);
-      setChartPeriodDates([]);
+      setChartPeriods([]);
     } finally {
       setIsFetchingReport(false);
     }
-  }, [periodCount, fromDates, toDates]);
+  }, [periodCount, fromDates, toDates, period]);
 
   useEffect(() => {
     handleGenerateReport();
@@ -418,8 +426,8 @@ export default function Balance() {
   );
 
   const chartPoints = useMemo(
-    () => buildChartPoints(chartReports, chartPeriodDates),
-    [chartReports, chartPeriodDates]
+    () => buildChartPoints(chartReports, chartPeriods, period),
+    [chartReports, chartPeriods, period]
   );
 
   const hasChartData = chartPoints.length > 0;
@@ -553,6 +561,8 @@ export default function Balance() {
             activePeriodCount={activePeriodCount}
             fromDates={fromDates}
             toDates={toDates}
+            period={period}
+            onPeriodChange={setPeriod}
             onFromDateChange={handleFromDateChange}
             onToDateChange={handleToDateChange}
             onPeriodCountChange={setPeriodCount}

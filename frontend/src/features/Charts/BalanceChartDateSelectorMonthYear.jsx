@@ -1,6 +1,7 @@
 import "./BalanceChartDateSelectorMonthYear.css";
 import MonthYearPicker from "../../components/MonthYearPicker";
 import { EARLIEST_ACTUAL_YEAR } from "../../utils/yearOptions";
+import { FREQUENCIES } from "../../utils/periodHelpers";
 const monthOptions = [
   { value: 1, label: "January" },
   { value: 2, label: "February" },
@@ -54,6 +55,8 @@ const toNumberOrEmpty = (value) => {
 export default function CashFlowDateSelectorMonthYear({
   fromDates,
   toDates,
+  period = "month",
+  onPeriodChange,
   onFromDateChange,
   onToDateChange,
   onGenerateReport,
@@ -65,6 +68,7 @@ export default function CashFlowDateSelectorMonthYear({
   const normalizedFromDates = Array.isArray(fromDates) ? fromDates : [];
   const normalizedToDates = Array.isArray(toDates) ? toDates : [];
   const isExportDisabled = isLoading || !canExport;
+  const isYearMode = period === "year";
 
   const currentMonth = new Date().getMonth() + 1;
   const currentYear = new Date().getFullYear();
@@ -132,39 +136,100 @@ export default function CashFlowDateSelectorMonthYear({
       <aside className="balance-panel">
         <div className="balance-date-picker">
           <div className="balance-period-group">
-            <div className="balance-period-title"></div>
             <label
-              htmlFor="cashflow-from-month-1"
+              htmlFor="balance-chart-period"
               className="balance-date-picker__label"
             >
-              From Month / Year
+              Period
             </label>
-            <MonthYearPicker
-              monthId="cashflow-from-month-1"
-              yearId="cashflow-from-year-1"
-              monthValue={fromParts.month || ""}
-              yearValue={fromParts.year || ""}
-              monthOptions={monthOptions}
-              yearOptions={yearOptions}
-              onMonthChange={(value) => updateFromDate(value, undefined)}
-              onYearChange={(value) => updateFromDate(undefined, value)}
-            />
-            <label
-              htmlFor="cashflow-to-month-1"
-              className="balance-date-picker__label"
+            <select
+              id="balance-chart-period"
+              className="balance-date-picker__input"
+              value={period}
+              onChange={(event) => onPeriodChange?.(event.target.value)}
             >
-              To Month / Year
-            </label>
-            <MonthYearPicker
-              monthId="cashflow-to-month-1"
-              yearId="cashflow-to-year-1"
-              monthValue={toParts.month || ""}
-              yearValue={toParts.year || ""}
-              monthOptions={monthOptions}
-              yearOptions={yearOptions}
-              onMonthChange={(value) => updateToDate(value, undefined)}
-              onYearChange={(value) => updateToDate(undefined, value)}
-            />
+              {FREQUENCIES.map((freq) => (
+                <option key={freq.key} value={freq.key}>
+                  {freq.label}
+                </option>
+              ))}
+            </select>
+
+            {isYearMode ? (
+              <>
+                <label
+                  htmlFor="cashflow-from-year-1"
+                  className="balance-date-picker__label"
+                >
+                  From Year
+                </label>
+                <select
+                  id="cashflow-from-year-1"
+                  className="balance-date-picker__input"
+                  value={fromParts.year || ""}
+                  onChange={(event) => updateFromDate(1, event.target.value)}
+                >
+                  {yearOptions.map((year) => (
+                    <option key={`from-year-${year}`} value={year}>
+                      {year}
+                    </option>
+                  ))}
+                </select>
+                <label
+                  htmlFor="cashflow-to-year-1"
+                  className="balance-date-picker__label"
+                >
+                  To Year
+                </label>
+                <select
+                  id="cashflow-to-year-1"
+                  className="balance-date-picker__input"
+                  value={toParts.year || ""}
+                  onChange={(event) => updateToDate(12, event.target.value)}
+                >
+                  {yearOptions.map((year) => (
+                    <option key={`to-year-${year}`} value={year}>
+                      {year}
+                    </option>
+                  ))}
+                </select>
+              </>
+            ) : (
+              <>
+                <label
+                  htmlFor="cashflow-from-month-1"
+                  className="balance-date-picker__label"
+                >
+                  From Month / Year
+                </label>
+                <MonthYearPicker
+                  monthId="cashflow-from-month-1"
+                  yearId="cashflow-from-year-1"
+                  monthValue={fromParts.month || ""}
+                  yearValue={fromParts.year || ""}
+                  monthOptions={monthOptions}
+                  yearOptions={yearOptions}
+                  onMonthChange={(value) => updateFromDate(value, undefined)}
+                  onYearChange={(value) => updateFromDate(undefined, value)}
+                />
+                <label
+                  htmlFor="cashflow-to-month-1"
+                  className="balance-date-picker__label"
+                >
+                  To Month / Year
+                </label>
+                <MonthYearPicker
+                  monthId="cashflow-to-month-1"
+                  yearId="cashflow-to-year-1"
+                  monthValue={toParts.month || ""}
+                  yearValue={toParts.year || ""}
+                  monthOptions={monthOptions}
+                  yearOptions={yearOptions}
+                  onMonthChange={(value) => updateToDate(value, undefined)}
+                  onYearChange={(value) => updateToDate(undefined, value)}
+                />
+              </>
+            )}
           </div>
         </div>
         <button

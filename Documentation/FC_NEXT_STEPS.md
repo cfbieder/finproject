@@ -48,6 +48,8 @@ Each CR is a self-contained markdown file under [CRs/](CRs/). The first line of 
 
 ### 1.2 Completed (chronological, latest first)
 
+- **Net Worth Chart — Period selector (Month / Quarter / Year)** — *Released v3.0.3 (2026-06-06)*. `/balance-chart` gained a Period dropdown alongside the From/To pickers. Bars are now period-end snapshots driven by the shared `periodHelpers` engine (`buildPeriodSeries` wrapping `buildEndDateSeries` + `planColumns`): Month = month-ends, Quarter = quarter-ends, Year = Dec-31. In-progress period snapshotted as-of today; future periods dropped. **Year mode hides the month pickers** (year-only From/To, range widened to whole years). The two-line x-axis reflects the period type (`01`/`26` · `Q2`/`26` · `2026`); tooltip/range-summary carry the full `(MTD)`/`(QTD)`/`(YTD)` label. Files: `pages/BalanceChart.jsx`, `features/Charts/BalanceChartDateSelectorMonthYear.jsx`, `features/Charts/BalanceChartPanel.jsx`. No backend change (reuses `GET /reports/balance` per period end).
+
 - **UI fix — Period report layout** — *Released v3.0.2 (2026-06-05)*. (1) `.balance-grid--single` now uses `grid-template-columns: minmax(0, 1fr)` (was `1fr`); the `0` minimum stops the grid track growing to fit a wide `max-content` table, so the inner `overflow:auto` container shows a horizontal scrollbar instead of widening the whole page. Fixes Cash Flow Periods + Balance Sheet Periods (and other `balance-grid--single` pages). (2) Cash Flow Periods toolbar now renders year-only From/To selects when Period = Year (mirrors Balance Sheet Periods) — no redundant month dropdown; selecting a year clamps From→Jan 1 / To→Dec 31.
 
 <a id="cr016"></a>
