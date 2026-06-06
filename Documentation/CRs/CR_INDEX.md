@@ -6,6 +6,22 @@ Each CR file's first line carries its status and links back to the matching anch
 
 **Version track:** **v4** = the unreleased multi-tenancy line — **CR027** + its sub-CRs **CR027A–E** (their titles carry a `[v4]` tag; built flag-gated/dormant on `main` — see [DEV_WORKFLOW.md](../DEV_WORKFLOW.md)). **Everything else is v3 / current.** The **Track** column marks each row; file names keep the stable `CRNNN` id (version lives in metadata + the title tag, not the path).
 
+## Summary by status
+
+*Manual roll-up — update when a CR's status changes (alongside its row + CR-file header).*
+
+| Status | Count | CRs |
+|--------|------:|-----|
+| COMPLETED | 18 | CR001–CR013, CR016, CR018, CR024, CR025, CR028 |
+| IN-PROGRESS | 4 | CR019, CR022, CR023, CR026 |
+| OPEN | 3 | CR017, CR020, CR021 |
+| PLANNED | 2 | CR027 *(v4, umbrella)*, CR029 |
+| SUPERSEDED | 1 | CR014 |
+| OBSOLETE | 1 | CR015 |
+| **Total** | **29** | |
+
+## All CRs
+
 | # | Status | Track | Title | One-line description |
 |---|--------|-------|-------|----------------------|
 | [CR001](CR001_MIGRATION_MONGO_TO_POSTGRES.md) | COMPLETED | v3 | MongoDB → PostgreSQL Migration | Moved all storage to PostgreSQL 16; V1 routes and `coa.json` removed. |
