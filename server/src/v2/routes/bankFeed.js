@@ -331,4 +331,24 @@ router.patch('/feed-negate-tx/:accountId', async (req, res, next) => {
   }
 });
 
+/**
+ * GET /api/v2/bank-feed/fed-accounts
+ * Account names that are on a direct bank feed (non-ignored bank-feed mapping).
+ * Used by the COA page to badge balance-sheet accounts linked to a feed.
+ */
+router.get('/fed-accounts', async (req, res, next) => {
+  try {
+    const r = await db.query(
+      `SELECT a.id AS account_id, a.name
+       FROM account_source_mappings m
+       JOIN accounts a ON a.id = m.account_id
+       WHERE m.source = 'bank-feed' AND m.ignored = FALSE AND m.account_id IS NOT NULL`
+    );
+    res.json({ data: r.rows });
+  } catch (err) {
+    console.error('[v2/bank-feed] fed-accounts failed:', err.message);
+    next(err);
+  }
+});
+
 module.exports = router;

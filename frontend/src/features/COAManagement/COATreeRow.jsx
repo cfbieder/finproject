@@ -1,4 +1,4 @@
-import { ChevronRight, Plus, Pencil, Trash2, MoveRight } from "lucide-react";
+import { ChevronRight, Plus, Pencil, Trash2, MoveRight, Rss } from "lucide-react";
 
 const capitalize = (s) => (s ? s.charAt(0).toUpperCase() + s.slice(1) : s);
 
@@ -46,6 +46,15 @@ export default function COATreeRow({
             <span className="coa-tree-row__leaf-spacer" />
           )}
           {row.name}
+          {row.fed && (
+            <span
+              className="coa-tree-row__feed-icon"
+              title="Linked to bank feed"
+              aria-label="Linked to bank feed"
+            >
+              <Rss size={13} />
+            </span>
+          )}
         </span>
       </td>
       <td>{capitalize(row.type)}</td>

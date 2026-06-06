@@ -59,7 +59,7 @@ const collectCoaRows = (coaData, path = [], rows = []) => {
   return rows;
 };
 
-const buildCoaRows = (coaData = [], traitsMap = {}) => {
+const buildCoaRows = (coaData = [], traitsMap = {}, fedNames = null) => {
   const rows = collectCoaRows(coaData);
   const seenIds = new Map();
   return rows.map(({ name, path, isCategory }) => {
@@ -80,6 +80,7 @@ const buildCoaRows = (coaData = [], traitsMap = {}) => {
       currency,
       accountNumber: traits.AccountNumber || "",
       isCategory,
+      fed: !isCategory && fedNames instanceof Set && fedNames.has(name),
     };
   });
 };
@@ -120,13 +121,15 @@ export default function COAManagement() {
     }
     setCoaLoadError("");
     try {
-      const [coaSections, traits, currencyPayload] = await Promise.all([
+      const [coaSections, traits, currencyPayload, fedPayload] = await Promise.all([
         Rest.fetchCoaSections(),
         Rest.fetchCoaTraits().catch(() => ({})),
         Rest.fetchCurrencyOptions().catch(() => null),
+        Rest.fetchJson("/api/v2/bank-feed/fed-accounts").catch(() => ({ data: [] })),
       ]);
       setCoaSections(coaSections);
-      setCoaRows(buildCoaRows(coaSections, traits || {}));
+      const fedNames = new Set((fedPayload?.data || []).map((a) => a.name));
+      setCoaRows(buildCoaRows(coaSections, traits || {}, fedNames));
       const currencies = currencyPayload?.currencies;
       if (Array.isArray(currencies)) {
         setCurrencyChoices(currencies);

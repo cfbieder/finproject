@@ -380,6 +380,15 @@
   width: 22px;
 }
 
+/* Bank-feed badge on leaf accounts linked to a live feed */
+.coa-tree-row__feed-icon {
+  display: inline-flex;
+  align-items: center;
+  margin-left: 0.35rem;
+  color: var(--accent-green, #5b8c6e);
+  flex-shrink: 0;
+}
+
 /* ─── Chevron ─── */
 .coa-chevron {
   display: inline-flex;
