@@ -1,4 +1,4 @@
-# CR027 — Multi-Tenancy & Final-Release Readiness
+# CR027 `[v4]` — Multi-Tenancy & Final-Release Readiness
 
 **Status:** PLANNED — **umbrella / program doc.** Direction approved; **not approved for implementation as a single CR.** Per engineering review (2026-06-06) the work is split into independently-shippable sub-CRs **CR027A–E** (see §"Sub-CR breakdown"). Each sub-CR gets its own file when picked up; no code starts on the DB layer until the §"DB-access audit" and §"Migration strategy" gates below are satisfied.
 **Anchor in FC_NEXT_STEPS.md:** [cr027](../FC_NEXT_STEPS.md#cr027)
