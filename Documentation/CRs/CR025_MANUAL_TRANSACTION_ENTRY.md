@@ -1,7 +1,15 @@
 # CR025 — Manual Transaction Entry
 
-**Status:** OPEN (planning)
+**Status:** SHIPPED to prod (v3.0.4, 2026-06-05)
 **Anchor in FC_NEXT_STEPS.md:** [cr025](../FC_NEXT_STEPS.md#cr025)
+
+## As-built (2026-06-05)
+- **Page** `frontend/src/pages/ManualTransactionEntry.jsx` + `.css` at **`/manual-entry`**; **Manual Entry** card on the `/transactions` landing (`routes.jsx`, category Transactions, `PlusCircle` icon).
+- Reuses `AccountPicker` (account_id direct), `CategorySelector` (plTree, name→id via `fetchCategoriesV2`), `useTransactionExchangeRates` + `computeTransactionBaseAmount` (FX → USD, blank-on-no-rate with a warning + Save blocked), `useTransactionCurrencyOptions`. Native `<input type=date>` for the date.
+- **Sticky-after-save** (decision 3): account/date/currency persist; amount/base/category/descriptions/memo/note/labels clear; focus returns to Amount.
+- **Backend gap #1 closed:** `repo.create()` now inserts `accepted` — default **TRUE** for `source='manual'`, FALSE for other sources (preserves importer behavior); explicit `accepted` honoured. No migration. Sends v2 snake_case + `source:'manual', accepted:true` (gap #2: page sends snake_case, no route change).
+- **Tests:** `repositories/__tests__/createTransaction.test.js` (manual→accepted TRUE / other→FALSE / explicit honoured).
+- Unblocks the CR023 manual-bucket accounts (OCME 45, dormant holdings) leaving PocketSmith.
 
 ## Summary
 
