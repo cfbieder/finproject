@@ -191,7 +191,7 @@ async function promote() {
            s.transaction_date::text AS transaction_date,
            s.amount, s.currency, s.base_amount, s.base_currency,
            s.description, s.merchant, s.activity_type,
-           m.account_id AS fin_account_id, m.ignored, m.trade_treatment
+           m.account_id AS fin_account_id, m.ignored, m.trade_treatment, m.feed_negate_tx
     FROM bankfeed_staging s
     LEFT JOIN account_source_mappings m
       ON m.source = '${SOURCE}' AND m.external_name = s.feed_account_external_id
@@ -214,6 +214,14 @@ async function promote() {
     // and so an explicitly-ignored mapped account is also suppressed.
     if (r.ignored === true) { ignoredAccounts.add(r.feed_account_external_id); continue; }
     if (r.fin_account_id == null) { unmappedAccounts.add(r.feed_account_external_id); continue; }
+    // CR028 (migration 030): some upstreams report this account's transactions
+    // with the opposite sign to fin's convention (e.g. Chase cards: purchase +).
+    // Negate amount + base_amount in-place so matching and the insert both use
+    // fin's convention.
+    if (r.feed_negate_tx) {
+      if (r.amount != null) r.amount = -Number(r.amount);
+      if (r.base_amount != null) r.base_amount = -Number(r.base_amount);
+    }
     // CR024 Phase 2: route by SnapTrade activity_type. Suppress net-zero plumbing
     // so it never promotes; income/transfer carry a COA category; review = null
     // category (PKO rows + unknown types → existing review-queue behavior).

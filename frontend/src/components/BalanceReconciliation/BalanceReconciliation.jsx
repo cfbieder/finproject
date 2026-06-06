@@ -47,6 +47,21 @@ export default function BalanceReconciliation() {
     }
   };
 
+  // CR028: mark a feed whose transactions are sign-flipped vs fin (e.g. Chase
+  // cards report purchases positive). Governs FUTURE promotes — set before import.
+  const setNegateTx = async (accountId, negate) => {
+    setSavingMode(accountId);
+    setReconcileMsg(null);
+    try {
+      await Rest.patch(`/bank-feed/feed-negate-tx/${accountId}`, { negate });
+      await loadBalanceRecon();
+    } catch (err) {
+      setReconcileMsg(`tx-sign change failed — ${err.message}`);
+    } finally {
+      setSavingMode(null);
+    }
+  };
+
   const loadBalanceRecon = async () => {
     try {
       const res = await Rest.get("/bank-feed/balance-recon");
@@ -104,12 +119,14 @@ export default function BalanceReconciliation() {
       <h2>Bank reconciliation (CR023)</h2>
       <p className="bfd-subtitle">
         Per fed account: fin's <strong>computed</strong> balance
-        (<code>opening_balance + Σ tx</code>) vs the bank's reported{" "}
-        <strong>balance</strong> (<code>feed_balances</code>), sign-aware
-        (liabilities reconcile against <code>−feed</code>). The live cutover gate
-        now PS is off. <strong>Brokerage</strong> accounts
-        (<code>balance_from_feed</code>) show drift by design — that is the
-        un-booked market move the monthly Unrealized-G/L (MTM) entry recognizes.
+        (<code>opening_balance + Σ tx</code>) vs the bank's <strong>expected</strong>
+        balance — the bank's reported balance converted to fin's sign convention
+        (a liability the bank reports as <code>+owed</code> shows here as
+        <code>−</code>; the raw bank figure is noted when it differs). <strong>Drift =
+        computed − expected</strong>; RECONCILED only when they match. <strong>Brokerage</strong>
+        (mtm) rows show drift by design — the un-booked market move the monthly
+        Unrealized-G/L entry recognizes. The <em>flip tx</em> toggle handles feeds
+        whose transaction signs are reversed (e.g. some US cards).
       </p>
       <div className="bfd-feed-card-header">
         <StatusPill
@@ -125,7 +142,7 @@ export default function BalanceReconciliation() {
             <th>Account</th>
             <th>Type</th>
             <th className="num">Computed</th>
-            <th className="num">Bank (feed)</th>
+            <th className="num">Bank (expected)</th>
             <th className="num">Drift</th>
             <th>Feed date</th>
             <th>Status</th>
@@ -150,9 +167,30 @@ export default function BalanceReconciliation() {
                     <option value="calibrate">bank (calibrate)</option>
                     <option value="mtm">brokerage (mtm)</option>
                   </select>
+                  <label
+                    className="bfd-negate-toggle"
+                    title="Flip feed transaction signs to fin's convention (e.g. Chase cards report purchases positive). Applies to FUTURE promotes — set before importing this account's feed transactions."
+                  >
+                    <input
+                      type="checkbox"
+                      checked={a.feed_negate_tx === true}
+                      disabled={savingMode === a.account_id}
+                      onChange={(e) => setNegateTx(a.account_id, e.target.checked)}
+                    />
+                    flip tx
+                  </label>
                 </td>
                 <td className="num">{fmtNum(a.computed_balance)}</td>
-                <td className="num">{a.feed_balance != null ? fmtNum(a.feed_balance) : "—"}</td>
+                <td className="num">
+                  {a.expected_balance != null ? fmtNum(a.expected_balance) : "—"}
+                  {a.feed_balance != null && a.expected_balance != null &&
+                    Number(a.feed_balance) !== 0 &&
+                    Math.sign(Number(a.feed_balance)) !== Math.sign(Number(a.expected_balance)) && (
+                      <div className="bfd-muted" style={{ fontSize: "0.7rem" }}>
+                        bank reports {fmtNum(a.feed_balance)} (owed)
+                      </div>
+                    )}
+                </td>
                 <td className={`num ${driftCls}`}>{a.drift != null ? fmtNum(a.drift, 2) : "—"}</td>
                 <td className="bfd-muted">{a.feed_date || "—"}</td>
                 <td>

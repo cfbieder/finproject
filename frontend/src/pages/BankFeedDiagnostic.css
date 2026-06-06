@@ -145,3 +145,16 @@
   font-size: 0.85rem;
   color: var(--danger-strong);
 }
+
+/* CR028 — per-account feed tx-sign flip toggle (in the Type cell) */
+.bfd-negate-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+  margin-left: 0.5rem;
+  font-size: 0.72rem;
+  color: var(--muted, #778);
+  cursor: pointer;
+  white-space: nowrap;
+}
+.bfd-negate-toggle input { cursor: pointer; }

@@ -270,4 +270,30 @@ router.patch('/reconcile-mode/:accountId', async (req, res, next) => {
   }
 });
 
+/**
+ * PATCH /api/v2/bank-feed/feed-negate-tx/:accountId  body: { negate }
+ * CR028 (migration 030): set whether this account's feed transactions are
+ * sign-flipped vs fin's convention (e.g. Chase cards report purchases positive).
+ * When TRUE the promote negates amount/base. Governs FUTURE promotes only — set
+ * it before importing the account's feed tx (does not rewrite promoted rows).
+ */
+router.patch('/feed-negate-tx/:accountId', async (req, res, next) => {
+  try {
+    const accountId = Number(req.params.accountId);
+    const negate = req.body && req.body.negate === true;
+    if (!Number.isInteger(accountId)) return res.status(400).json({ error: 'invalid accountId' });
+    const r = await db.query(
+      `UPDATE account_source_mappings SET feed_negate_tx = $2
+       WHERE source = 'bank-feed' AND account_id = $1
+       RETURNING account_id, feed_negate_tx`,
+      [accountId, negate]
+    );
+    if (!r.rows[0]) return res.status(404).json({ error: 'no bank-feed mapping for that account' });
+    res.json({ data: r.rows[0] });
+  } catch (err) {
+    console.error('[v2/bank-feed] set feed-negate-tx failed:', err.message);
+    next(err);
+  }
+});
+
 module.exports = router;

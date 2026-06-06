@@ -314,6 +314,22 @@ dbDescribe('refreshBankFeedV2.promote (DB)', () => {
   beforeEach(cleanup);
   afterAll(async () => { await cleanup(); await db.close(); });
 
+  test('feed_negate_tx: promoted amount + base_amount are negated (CR028)', async () => {
+    await seedMapping(UUID_OK, false);
+    await db.query(`UPDATE account_source_mappings SET feed_negate_tx = TRUE WHERE external_name = $1`, [UUID_OK]);
+    // feed reports a purchase POSITIVE (Chase-card convention) → must land negative
+    await seedStaging('test-bf-c-neg', UUID_OK, { amount: 50, base_amount: 50, currency: 'USD' });
+
+    await orchestrator.promote();
+
+    const row = (await db.query(
+      `SELECT amount, base_amount FROM transactions WHERE bank_feed_external_id = 'test-bf-c-neg'`
+    )).rows[0];
+    expect(row).toBeTruthy();
+    expect(Number(row.amount)).toBeCloseTo(-50, 2);
+    expect(Number(row.base_amount)).toBeCloseTo(-50, 2);
+  });
+
   test('R1: ignored skipped, unmapped pending, mapped promoted', async () => {
     await seedMapping(UUID_OK, false);
     await seedMapping(UUID_IGN, true);
