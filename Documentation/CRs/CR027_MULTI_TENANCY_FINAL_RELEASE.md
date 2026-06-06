@@ -140,6 +140,40 @@ Data Sources
 
 ---
 
+## Step 0 — Dual-track development workflow & v4 runtime (do this first)
+
+CR027 ("v4") is a multi-month effort that must **not** reach production until far ahead, while **v3.x tweaks keep shipping in parallel** and must flow into v4. The naïve approach — a long-lived `v4` branch — is the wrong default here: CR027A rewrites the exact DB-layer files v3 also touches (`db/postgres.js`, the migration system), so a long branch diverges and forward-merges become a permanent tax. **The strategy is to diverge the *runtime*, not the *code*.**
+
+### Code: trunk-based on `main`, flag-gated + backward-compatible
+- v4 lives on `main` behind flags, shipping **dormant** to prod — the same pattern CR026 used (`VITE_NAV_LAYOUT`). Because v3 and v4 are then the **same branch**, v3 tweaks carry into v4 automatically — there is nothing to merge.
+- **CR027A must be a no-op in single-tenant mode:** with no auth/tenant context, `search_path = public` ⇒ byte-for-byte today's behavior. The ALS wrapper, the `db.transaction()`/`getClient()` fix, and the migration runner all behave as today when the flags are off.
+- New flags, **default OFF**, committed off: `FIN_MULTI_TENANT`, `AUTH_ENABLED`. The "v4 ON" values live **only** in the v4 runtime env (below) — never in the prod compose file. `deploy-to-production.sh` keeps deploying `main` with flags off, so prod is unaffected by in-flight v4 code.
+- **Merge discipline:** only land an increment on `main` once it is **dormant-safe + tested**. Keep genuinely-unstable work on a short throwaway branch until dormant-safe, then merge. (Standard repo rules still apply: explicit pathspecs, no `git add -A`, never force-push `main`.)
+
+### Runtime: a third, fully-isolated v4 stack
+Prod and dev (v3) already coexist on this host. v4 adds a **third** stack. The non-negotiable isolation is the **Postgres volume** — CR027A reorganizes the database (creates `shared`, `control_plane`, `tenant_*` schemas), which must never touch `postgres_data` or `postgres_data_dev`.
+
+| | Prod | Dev (v3) | **v4 (new)** |
+|---|---|---|---|
+| Postgres | `5433` / `postgres_data` | `5434` / `postgres_data_dev` | **`5435` / `postgres_data_v4`** |
+| Server | `3005` | `3105` | **`3205`** |
+| Frontend | `5175` / `3006` | — | **`5275` / `3206`** |
+| Flags | OFF | OFF | **`FIN_MULTI_TENANT=1 AUTH_ENABLED=1`** |
+
+**Deliverables of Step 0:**
+1. **`docker-compose.v4.yml`** — mirrors `docker-compose.dev.yml` with the ports/volume/flags above (own `COMPOSE_PROJECT_NAME=finv4`).
+2. **`Scripts/v4-up.sh`** — wrapper to bring the v4 stack up/down.
+3. **`Scripts/sync-db-prod-to-v4.sh`** — analog of `sync-db-prod-to-dev.sh` that seeds the isolated `postgres_data_v4` from a prod snapshot, after which CR027A's reorg runs on it → realistic `tenant_owner` (your real data) + `tenant_demo` for testing.
+4. **git worktree (on-demand, not always needed).** Because the v4 code lives on `main`, you **run the v4 stack straight from the main tree** — `./Scripts/v4-up.sh` builds the image from current source; no separate checkout required. A worktree is only for when you cut a **separate branch** (the short-lived CR027C/E work, or staging an unstable increment a thread doesn't want on `main` yet): `git worktree add -b cr027c ../psproject-cr027c main`. Note git **won't** let two worktrees check out `main` simultaneously, so a worktree always implies its own branch — which is exactly why it's reserved for branch work, not for the day-to-day trunk-based runtime.
+
+### When a short-lived branch *is* warranted
+Two pieces genuinely can't be dormant: **CR027C** (owner cutover — physically relocates prod tables) and **CR027E** (PS-API UI removal). Cut these as **short-lived** branches right before flipping the switch — not a long-lived v4 line. If one lives more than a few days, forward-merge `main → branch`; merge (don't rebase) a shared branch; never force-push.
+
+### Go-live is a flag flip, not a big-bang merge
+Because the code already lives on `main`, releasing v4.0 = **enable the flags in prod config + run the one-time cutover (CR027C)** — not merging a giant divergent branch. This is the core payoff of the trunk-based + dormant approach.
+
+---
+
 ## Sub-CR breakdown (CR027A–E)
 
 Per engineering review, this is a **program**, not one CR. Split into independently-reviewable, independently-shippable sub-CRs. Each gets its own file when started.

@@ -1,0 +1,85 @@
+# v4 / CR027 Docker Compose Configuration
+# Runs ALONGSIDE production (5433/3005/5175) and dev (5434/3105) on its own
+# ports and its OWN Postgres volume (postgres_data_v4). The isolated volume is
+# the whole point: CR027A reorganizes the database into shared/control-plane/
+# tenant_* schemas, which must never touch prod or dev data.
+#
+# Bring up:  ./Scripts/v4-up.sh         (or: docker compose -f docker-compose.v4.yml up -d --build)
+# Seed data: ./Scripts/sync-db-prod-to-v4.sh
+# Frontend:  run Vite against the v4 API — see Scripts/v4-up.sh output.
+
+name: finv4
+
+services:
+  fin-postgres-v4:
+    image: postgres:16-alpine
+    container_name: fin-postgres-v4
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: fin
+      POSTGRES_PASSWORD: "${POSTGRES_PASSWORD:-findev123}"
+      POSTGRES_DB: fin
+    ports:
+      - "5435:5432"  # v4 port (prod 5433, dev 5434)
+    volumes:
+      - postgres_data_v4:/var/lib/postgresql/data
+      # initdb only runs on an EMPTY volume → fine as a single-tenant baseline.
+      # CR027A replaces this with the schema-per-tenant migration runner.
+      - ./server/db/migrations:/docker-entrypoint-initdb.d:ro
+    networks:
+      - fin-network-v4
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U fin -d fin"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  server-v4:
+    build:
+      context: .
+      dockerfile: server/Dockerfile
+    container_name: fin-server-v4
+    restart: unless-stopped
+    ports:
+      - "3205:3005"  # v4 port (prod 3005, dev 3105)
+    environment:
+      NODE_ENV: development
+      PORT: 3005
+      DATABASE_URL: postgres://fin:${POSTGRES_PASSWORD:-findev123}@fin-postgres-v4:5432/fin
+      POSTGRES_PASSWORD: "${POSTGRES_PASSWORD:-findev123}"
+      ACCOUNT_NAMES_PATH: /app/components/data/account_names.json
+      CATEGORY_NAMES_PATH: /app/components/data/category_names.json
+      COA_PATH: /app/components/data/coa.json
+      LLM_GATEWAY_URL: "${LLM_GATEWAY_URL:-http://192.168.1.61:8080}"
+      BANK_FEED_URL: "${BANK_FEED_URL:-http://host.docker.internal:3007}"
+      BANK_FEED_API_KEY: "${BANK_FEED_API_KEY:-}"
+      # === CR027 v4 flags — ON here, OFF (absent) everywhere else. ===
+      # Inert until CR027A/CR027B read them; setting them now is harmless and
+      # documents the intended v4 runtime. With both unset/0 the app behaves
+      # exactly as v3 (search_path = public, no auth gate).
+      FIN_MULTI_TENANT: "1"
+      AUTH_ENABLED: "1"
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    volumes:
+      - ./components/data:/app/components/data
+      - ./components/reports:/app/components/reports
+      - /var/run/docker.sock:/var/run/docker.sock
+    networks:
+      - fin-network-v4
+    depends_on:
+      fin-postgres-v4:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://localhost:3005/api/v2/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+
+networks:
+  fin-network-v4:
+    driver: bridge
+
+volumes:
+  postgres_data_v4:
