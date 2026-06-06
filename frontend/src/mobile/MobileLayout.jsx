@@ -4,7 +4,10 @@ import MobileTabBar, { MOBILE_TABS } from "./MobileTabBar";
 import "./mobile.css";
 
 // Titles for non-tab mobile pages (reached via the home launcher).
-const EXTRA_TITLES = { "/m/balance-trends": "Balance Trends" };
+const EXTRA_TITLES = {
+  "/m/balance-trends": "Balance Trends",
+  "/m/ledger": "Ledger",
+};
 
 function getPageTitle(pathname) {
   if (EXTRA_TITLES[pathname]) return EXTRA_TITLES[pathname];

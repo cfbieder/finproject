@@ -204,6 +204,20 @@
   color: var(--ink-secondary);
 }
 
+/* Full-width native select (e.g. Ledger account picker). 16px avoids iOS zoom. */
+.m-select {
+  width: 100%;
+  padding: 12px 14px;
+  font-size: 16px;
+  font-weight: 600;
+  color: var(--ink);
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--m-radius);
+  appearance: none;
+  -webkit-appearance: none;
+}
+
 /* ── KPI cards (vertical stack on mobile) ── */
 .m-kpis {
   display: flex;

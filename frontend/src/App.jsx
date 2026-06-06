@@ -22,6 +22,7 @@ const MobileBudgetRealization = lazy(() =>
 );
 const MobileBudgetGraph = lazy(() => import("./mobile/pages/MobileBudgetGraph"));
 const MobileBalanceTrends = lazy(() => import("./mobile/pages/MobileBalanceTrends"));
+const MobileLedger = lazy(() => import("./mobile/pages/MobileLedger"));
 
 // Maps desktop URLs to their mobile equivalents (and vice-versa) so that
 // a user landing on /balance on a phone is redirected to /m/balance and
@@ -34,6 +35,7 @@ const DESKTOP_TO_MOBILE = {
   "/budget-realization": "/m/budget-realization",
   "/budget-graph": "/m/budget-graph",
   "/balance-trends": "/m/balance-trends",
+  "/ledger": "/m/ledger",
 };
 
 const MOBILE_TO_DESKTOP = Object.fromEntries(
@@ -71,6 +73,7 @@ function AppShell() {
             />
             <Route path="/m/budget-graph" element={<MobileBudgetGraph />} />
             <Route path="/m/balance-trends" element={<MobileBalanceTrends />} />
+            <Route path="/m/ledger" element={<MobileLedger />} />
           </Routes>
         </Suspense>
       </MobileLayout>
