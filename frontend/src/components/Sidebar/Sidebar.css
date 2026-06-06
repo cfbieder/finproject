@@ -50,7 +50,7 @@
 /* nav list */
 .sidebar__nav { display: flex; flex-direction: column; gap: 3px; flex: 1; overflow-y: auto; overflow-x: hidden; padding-right: 2px; }
 .sidebar__divider { height: 1px; background: var(--border); margin: 10px 8px; }
-.sidebar__group { display: flex; flex-direction: column; }
+.sidebar__group { display: flex; flex-direction: column; position: relative; }
 
 .sidebar__item {
   display: flex;
@@ -129,6 +129,59 @@
 .sidebar--rail .sidebar__railtoggle { justify-content: center; }
 .sidebar--rail .sidebar__nav { overflow: visible; }
 
+/* Rail flyout — sub-page menu shown on hover/focus when the sidebar is a rail
+   (manual collapse or the ≤900px auto-rail), so collapsed groups stay
+   navigable. Touches the rail edge (no gap) so the cursor can reach it. */
+.sidebar__flyout {
+  display: none;
+  flex-direction: column;
+  gap: 2px;
+  position: absolute;
+  left: 100%;
+  top: 0;
+  min-width: 184px;
+  max-height: 80vh;
+  overflow-y: auto;
+  padding: 6px;
+  background: var(--surface-elevated);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  box-shadow: var(--shadow-lg);
+  z-index: 60;
+}
+.sidebar--rail .sidebar__group:hover > .sidebar__flyout,
+.sidebar--rail .sidebar__group:focus-within > .sidebar__flyout {
+  display: flex;
+}
+.sidebar__flyout-title {
+  padding: 4px 10px 6px;
+  font-size: 0.7rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--muted);
+}
+.sidebar__flyout-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 10px;
+  border-radius: var(--radius-sm);
+  font-size: 0.85rem;
+  color: var(--ink-secondary);
+  text-decoration: none;
+  white-space: nowrap;
+}
+.sidebar__flyout-item:hover {
+  background: var(--surface-muted);
+  color: var(--ink);
+}
+.sidebar__flyout-item--active {
+  background: var(--primary-subtle);
+  color: var(--primary-strong);
+  font-weight: 600;
+}
+
 /* force rail on narrow desktop windows (phones use the /m/* shell) */
 @media (max-width: 900px) {
   .sidebar:not(.sidebar--rail) { --sidebar-w: 68px; }
@@ -140,4 +193,6 @@
   .sidebar:not(.sidebar--rail) .sidebar__brand { justify-content: center; padding: 6px 0 18px; }
   .sidebar:not(.sidebar--rail) .sidebar__item { justify-content: center; padding: 11px; }
   .sidebar:not(.sidebar--rail) .sidebar__railtoggle { justify-content: center; }
+  .sidebar:not(.sidebar--rail) .sidebar__group:hover > .sidebar__flyout,
+  .sidebar:not(.sidebar--rail) .sidebar__group:focus-within > .sidebar__flyout { display: flex; }
 }

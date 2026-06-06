@@ -14,7 +14,7 @@
  *  - The group containing the current route auto-expands on load / navigation.
  */
 import { useEffect, useState } from "react";
-import { Link, NavLink, useLocation } from "react-router-dom";
+import { Link, NavLink, useLocation, useNavigate } from "react-router-dom";
 import {
   getSidebarNav,
   getCategoryPath,
@@ -46,6 +46,7 @@ function groupKeyForPath(nav, pathname) {
 
 export default function Sidebar() {
   const { pathname } = useLocation();
+  const navigate = useNavigate();
   const nav = getSidebarNav();
   const activeGroup = groupKeyForPath(nav, pathname);
 
@@ -120,10 +121,15 @@ export default function Sidebar() {
                 type="button"
                 className={`sidebar__item sidebar__item--group${isOpen ? " is-open" : ""}${groupActive ? " sidebar__item--active" : ""}`}
                 onClick={() =>
-                  setOpenGroup((g) => (g === group.key ? null : group.key))
+                  // Collapsed (rail): clicking the icon jumps to the group's
+                  // landing page (the flyout below handles sub-page nav on
+                  // hover/focus). Expanded: toggle the accordion.
+                  collapsed
+                    ? navigate(getCategoryPath(group.category))
+                    : setOpenGroup((g) => (g === group.key ? null : group.key))
                 }
                 title={collapsed ? group.label : undefined}
-                aria-expanded={isOpen}
+                aria-expanded={collapsed ? undefined : isOpen}
               >
                 <Icon size={18} className="sidebar__icon" />
                 {!collapsed && <span className="sidebar__label">{group.label}</span>}
@@ -135,7 +141,7 @@ export default function Sidebar() {
                 )}
               </button>
 
-              {isOpen && (
+              {!collapsed && isOpen && (
                 <div className="sidebar__children">
                   {group.items.map((route) => {
                     const ItemIcon = route.icon;
@@ -154,6 +160,29 @@ export default function Sidebar() {
                   })}
                 </div>
               )}
+
+              {/* Rail flyout — always rendered; CSS shows it only in rail
+                  contexts (manual collapse OR the ≤900px auto-rail) on
+                  hover/focus, so collapsed groups stay navigable. */}
+              <div className="sidebar__flyout" role="menu" aria-label={group.label}>
+                <div className="sidebar__flyout-title">{group.label}</div>
+                {group.items.map((route) => {
+                  const ItemIcon = route.icon;
+                  return (
+                    <NavLink
+                      key={route.path}
+                      to={route.path}
+                      role="menuitem"
+                      className={({ isActive }) =>
+                        `sidebar__flyout-item${isActive ? " sidebar__flyout-item--active" : ""}`
+                      }
+                    >
+                      {ItemIcon && <ItemIcon size={15} className="sidebar__icon" />}
+                      <span>{route.label}</span>
+                    </NavLink>
+                  );
+                })}
+              </div>
             </div>
           );
         })}
