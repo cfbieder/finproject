@@ -214,6 +214,14 @@
   padding-bottom: 0.75rem;
 }
 
+/* Net Cash Flow tint (above) is semi-transparent; keep the frozen first cell
+   opaque so scrolling period values don't show through the sticky column
+   (mirrors the Net Worth fix in BalanceReport.css). */
+.balance-report-table__net-cash-flow td:first-child,
+.balance-report-table__net-cash-flow .balance-report-table__name {
+  background: var(--surface);
+}
+
 .balance-report-table__net-cash-flow .balance-report-table__name {
   padding-left: 0.95rem;
   font-size: 0.95rem;
