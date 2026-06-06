@@ -223,6 +223,9 @@
 }
 
 .m-kpi--hero {
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 2px;
   background: var(--primary-subtle);
   border-color: var(--primary-lighter);
 }
@@ -546,6 +549,22 @@
   color: var(--muted);
   font-family: "SF Mono", "Menlo", monospace;
   font-variant-numeric: tabular-nums;
+}
+
+/* Net-worth delta line (Overview hero): icon + amount, colored by direction */
+.m-kpi--hero .m-kpi__sub {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  margin-top: 4px;
+  font-size: 12px;
+  font-weight: 600;
+}
+.m-kpi__sub--up {
+  color: var(--success);
+}
+.m-kpi__sub--down {
+  color: var(--danger);
 }
 
 /* ── Variance card list (Budget Realization) ── */
