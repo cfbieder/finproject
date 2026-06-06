@@ -204,12 +204,47 @@ router.get('/balance-recon', async (req, res, next) => {
   try {
     const asOf = req.query.asOf || null;
     const result = await bankFeedReconciliation.balanceReconcile({ asOf });
+    // Enrich each row with its institution (Chase, PKO, …) so the UI can offer a
+    // per-feed filter. Institution lives in the bank-feed service, not fin's DB:
+    // account.external_id → account.connection_id → connection.institution_name.
+    // Best-effort — if the service is unreachable, rows keep institution=null and
+    // the filter simply shows them under "Unknown".
+    try {
+      const extIdToInstitution = await buildExternalIdToInstitution();
+      for (const a of result.accounts) {
+        a.institution = extIdToInstitution.get(a.feed_external_id) || null;
+      }
+    } catch (e) {
+      console.warn('[v2/bank-feed] institution enrich failed (non-fatal):', e.message);
+    }
     res.json(result);
   } catch (err) {
     console.error('[v2/bank-feed] balance-recon failed:', err.message);
     next(err);
   }
 });
+
+/**
+ * Build a map of feed account external_id → institution_name by joining the
+ * bank-feed service's /v1/accounts (external_id → connection_id) with
+ * /v1/connections (id → institution_name). Used to label/filter recon rows.
+ */
+async function buildExternalIdToInstitution() {
+  const [accResp, connResp] = await Promise.all([client.accounts(), client.connections()]);
+  const accList = Array.isArray(accResp) ? accResp : (accResp && accResp.accounts) || [];
+  const connList = Array.isArray(connResp) ? connResp : (connResp && connResp.connections) || [];
+  const connToInstitution = new Map();
+  for (const cn of connList) {
+    if (cn && cn.id != null) connToInstitution.set(String(cn.id), cn.institution_name || null);
+  }
+  const map = new Map();
+  for (const a of accList) {
+    if (a && a.external_id != null) {
+      map.set(String(a.external_id), connToInstitution.get(String(a.connection_id)) || null);
+    }
+  }
+  return map;
+}
 
 /**
  * POST /api/v2/bank-feed/reconcile/:accountId  body: { asOf?, dryRun? }

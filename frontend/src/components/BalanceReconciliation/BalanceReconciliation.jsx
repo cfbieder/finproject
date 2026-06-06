@@ -31,6 +31,7 @@ export default function BalanceReconciliation() {
   const [reconcileMsg, setReconcileMsg] = useState(null);
   const [confirm, setConfirm] = useState(null); // { account, title, message, confirmLabel } | null
   const [savingMode, setSavingMode] = useState(null);
+  const [institutionFilter, setInstitutionFilter] = useState("all"); // feed/institution filter
 
   // Set how an account reconciles: 'calibrate' (bank/cash → DRIFT) or 'mtm'
   // (brokerage / mark-to-market holdings → MTM GAP). Harmless on its own.
@@ -114,6 +115,17 @@ export default function BalanceReconciliation() {
 
   if (!balRecon) return null;
 
+  // Distinct institutions (feeds) for the filter dropdown; rows with no
+  // institution (service unreachable / unmapped) bucket under "Unknown".
+  const institutions = Array.from(
+    new Set(balRecon.accounts.map((a) => a.institution || "Unknown"))
+  ).sort((x, y) => x.localeCompare(y));
+  const visibleAccounts =
+    institutionFilter === "all"
+      ? balRecon.accounts
+      : balRecon.accounts.filter((a) => (a.institution || "Unknown") === institutionFilter);
+  const visibleUnreconciled = visibleAccounts.filter((a) => a.reconciled === false).length;
+
   return (
     <section className="bfd-section">
       <h2>Bank reconciliation (CR023)</h2>
@@ -130,9 +142,24 @@ export default function BalanceReconciliation() {
       </p>
       <div className="bfd-feed-card-header">
         <StatusPill
-          label={balRecon.total_unreconciled === 0 ? "all reconciled" : `${balRecon.total_unreconciled} unreconciled`}
-          kind={balRecon.total_unreconciled === 0 ? "ok" : "warn"}
+          label={visibleUnreconciled === 0 ? "all reconciled" : `${visibleUnreconciled} unreconciled`}
+          kind={visibleUnreconciled === 0 ? "ok" : "warn"}
         />
+        <label className="bfd-muted">
+          Feed{" "}
+          <select
+            value={institutionFilter}
+            onChange={(e) => setInstitutionFilter(e.target.value)}
+            title="Filter rows by feed / institution"
+          >
+            <option value="all">All feeds ({balRecon.accounts.length})</option>
+            {institutions.map((inst) => (
+              <option key={inst} value={inst}>
+                {inst}
+              </option>
+            ))}
+          </select>
+        </label>
         <span className="bfd-muted">as of {balRecon.asOf}</span>
         {reconcileMsg && <span className="bfd-muted"> · {reconcileMsg}</span>}
       </div>
@@ -150,7 +177,7 @@ export default function BalanceReconciliation() {
           </tr>
         </thead>
         <tbody>
-          {balRecon.accounts.map((a) => {
+          {visibleAccounts.map((a) => {
             const isMtm = a.reconcile_mode === "mtm";
             const driftCls =
               a.reconciled === true ? "bfd-ok" : isMtm ? "bfd-muted" : "bfd-danger";

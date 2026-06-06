@@ -165,6 +165,7 @@ async function balanceReconcile({ asOf = null, tolerance = 0.01 } = {}) {
     )
     SELECT
       c.account_id, c.name, c.account_type, c.computed_balance,
+      m.feed_uuid AS feed_external_id,
       ROUND(f.feed_balance, 2) AS feed_balance,
       f.feed_date::text AS feed_date,
       f.currency,
