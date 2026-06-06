@@ -32,8 +32,8 @@ On a direct bank feed, reconciling to `feed_balances` (cash/card) or by-design m
 | 31 | Fidelity Bond | mtm | basis-anchored |
 | 6 | Chase Checking | calibrate | US bank (asset); cut over 2026-06-06 (cutoff 2026-06-02) |
 | 7 | Chase Saving | calibrate | US bank (asset); cut over 2026-06-06 (cutoff 2026-05-12) |
-| 60 | Amazon Visa | calibrate | Chase card; `feed_negate_tx=TRUE` (Chase reports purchases positive), `feed_sign` default; cutoff 2026-06-03. Import pending (owner "Import now") |
-| 59 | Marriot Visa | calibrate | Chase card; `feed_negate_tx=TRUE`, `feed_sign` default; cutoff 2026-05-19. Reconciles to −266.25 once the 2026-06-04 payment is imported (drift = that one unpromoted tx; no calibrate needed). Cut over 2026-06-06 after the converter shared-name fix (Marriott/Prime both labelled "CREDIT CARD") |
+| 60 | Amazon Visa | calibrate | Chase card; `feed_negate_tx=TRUE` (Chase reports purchases positive), `feed_sign` default; cutoff 2026-06-03. Imported + **reconciled to the cent** (−1,172.55, drift 0) 2026-06-06 |
+| 59 | Marriot Visa | calibrate | Chase card; `feed_negate_tx=TRUE`, `feed_sign` default; cutoff 2026-05-19. Imported + **reconciled to the cent** (−266.25, drift 0) 2026-06-06. Needed TWO bank-feed converter fixes first: (1) shared-name collision (Marriott/Prime both "CREDIT CARD"), (2) MX/Chase tx carry no currency in raw → inherit account currency (else fin's NOT-NULL silently dropped every Chase tx) |
 | 22 | Santandar | calibrate | mapped+non-ignored — fed since last tracker update (cut over outside this thread); §3 still lists it as manual/CR025 — **verify disposition** |
 
 ## 2. Active PS-residual — needs migration (the real backlog)
