@@ -6,6 +6,15 @@
 2. Read `Documentation/FC_NEXT_STEPS.md` for the development plan — open / in-progress / known issues. Single source of truth for what *should happen next*.
 3. If the task touches an active Change Request, read the matching CR file under `Documentation/CRs/` (see `Documentation/CRs/CR_INDEX.md` for the index).
 
+## Version track — v3 (current) vs v4 / CR027 (dual-path)
+
+This repo is **trunk-based**: the current version (v3) and the in-progress major version (v4 = **CR027**, multi-tenancy) both live on `main`. v4 is **flag-gated** (`FIN_MULTI_TENANT` / `AUTH_ENABLED`, default OFF) and ships **dormant**. Full pattern: `Documentation/DEV_WORKFLOW.md`; setup: CR027 §"Step 0".
+
+- The user signals the track with a prefix like **"v3 tweak"** or **"v4 / CR027x"**. **If a request doesn't say which, ASK before editing** — especially DB-layer files (`server/src/v2/db/`), auth, migrations, or anything flag-related.
+- **v3** changes must not depend on the v4 flags; verify against dev (`:3105`).
+- **v4** changes must be **flag-gated and dormant-safe** (flags OFF ⇒ byte-for-byte v3 behavior, e.g. no tenant context ⇒ `search_path = public`); verify against the isolated v4 stack (`docker-compose.v4.yml`, `:3205`). Only merge to `main` once dormant-safe.
+- Commit scope reflects the track (`feat(cr027a): …` for v4; a normal scope for v3). Prod deploys `main` with flags OFF — never put flag-ON values in the prod compose.
+
 ## After Completing Any Task
 
 Update the following files to reflect the changes made:
