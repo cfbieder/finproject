@@ -23,11 +23,17 @@ const setParam = (params, key, value) => {
 /**
  * Builds fromDate/toDate ISO params from year/month filter values.
  * Used by budget endpoints that expect date ranges instead of year/month.
+ *
+ * Supports a multi-year span: `filters.year` is the from-year and the optional
+ * `filters.toYear` is the to-year. When `toYear` is absent or equals `year`,
+ * behavior is identical to the previous single-year implementation.
  */
 const buildDateRangeParams = (query, filters) => {
   if (!filters.yearEnabled || !filters.year) return;
-  const year = Number.parseInt(filters.year, 10);
-  if (!Number.isFinite(year)) return;
+  const fromYear = Number.parseInt(filters.year, 10);
+  if (!Number.isFinite(fromYear)) return;
+  const parsedToYear = Number.parseInt(filters.toYear, 10);
+  const toYear = Number.isFinite(parsedToYear) ? parsedToYear : fromYear;
 
   let fromMonth = 1;
   let toMonth = 12;
@@ -50,8 +56,9 @@ const buildDateRangeParams = (query, filters) => {
       toMonth = tm;
     }
   }
-  const fromDate = new Date(Date.UTC(year, fromMonth - 1, 1));
-  const toDate = new Date(Date.UTC(year, toMonth, 1));
+  const fromDate = new Date(Date.UTC(fromYear, fromMonth - 1, 1));
+  // Exclusive upper bound: first day of the month after toMonth in toYear
+  const toDate = new Date(Date.UTC(toYear, toMonth, 1));
   query.set("fromDate", fromDate.toISOString());
   query.set("toDate", toDate.toISOString());
 };
@@ -97,6 +104,7 @@ export const ACTUAL_CONFIG = {
     descriptionEnabled: false,
     currencyEnabled: false,
     year: new Date().getFullYear().toString(),
+    toYear: new Date().getFullYear().toString(),
     month: new Date().getMonth(),
     fromMonth: String(new Date().getMonth() + 1).padStart(2, "0"),
     toMonth: String(new Date().getMonth() + 1).padStart(2, "0"),
@@ -117,17 +125,12 @@ export const ACTUAL_CONFIG = {
 
   // Build query params for loading transactions
   buildFilterQuery(query, filters, fetchLimit) {
+    // Date range (may span multiple years) — the /transactions endpoint
+    // prioritizes fromDate/toDate over year/month. Client-side filtering
+    // (locallyFilteredTransactions) re-applies the same range.
     if (filters.yearEnabled && filters.year) {
-      query.set("year", filters.year);
+      buildDateRangeParams(query, filters);
     }
-    if (
-      filters.monthEnabled &&
-      filters.month !== undefined &&
-      filters.month !== null
-    ) {
-      query.set("month", filters.month + 1);
-    }
-    // Month range support: send only year, client-side handles range filtering
     appendCommonFilterParams(query, filters);
     if (filters.descriptionEnabled && filters.description) {
       query.set("description", filters.description);
@@ -154,15 +157,10 @@ export const ACTUAL_CONFIG = {
 
   // Build query params for totals
   buildTotalsQuery(query, filters) {
+    // Range-aware totals — /budget/actual-entries accepts fromDate/toDate
+    // (may span years) and falls back to actualYear only when absent.
     if (filters.yearEnabled && filters.year) {
-      setParam(query, "actualYear", filters.year);
-    }
-    if (
-      filters.monthEnabled &&
-      filters.month !== undefined &&
-      filters.month !== null
-    ) {
-      setParam(query, "month", filters.month + 1);
+      buildDateRangeParams(query, filters);
     }
     if (filters.accountEnabled && filters.account) {
       appendListParam(query, "account", filters.account);
@@ -311,6 +309,7 @@ export const LEDGER_CONFIG = {
     categoryEnabled: false,
     currencyEnabled: false,
     year: "",
+    toYear: "",
     month: "",
     fromMonth: "",
     toMonth: "",
@@ -406,6 +405,7 @@ export const BUDGET_CONFIG = {
     categoryEnabled: false,
     currencyEnabled: false,
     year: new Date().getFullYear().toString(),
+    toYear: new Date().getFullYear().toString(),
     month: "",
     fromMonth: "01",
     toMonth: "12",

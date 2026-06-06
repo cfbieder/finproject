@@ -155,12 +155,23 @@
   opacity: 0.5;
 }
 
-.hf__checkbox {
+.hf__checkbox,
+.hf__radio {
   width: 0.85rem;
   height: 0.85rem;
   accent-color: var(--primary, var(--primary));
   cursor: pointer;
   flex-shrink: 0;
+}
+
+/* Single-select: highlight the chosen row */
+.hf__item--selected {
+  background: var(--primary-subtle);
+}
+
+.hf__item--selected .hf__item-name {
+  font-weight: 600;
+  color: var(--primary);
 }
 
 .hf__item-name {
@@ -169,6 +180,13 @@
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
+}
+
+.hf__item-suffix {
+  margin-left: auto;
+  font-size: 0.65rem;
+  color: var(--muted);
+  flex-shrink: 0;
 }
 
 /* Transfer match status toggle (extra slot) */

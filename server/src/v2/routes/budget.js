@@ -658,13 +658,13 @@ router.get('/actual-entries', async (req, res, next) => {
   try {
     const {
       actualYear, month, fromMonth, toMonth,
+      fromDate, toDate,
       category, categories, account, accounts,
       limit = 1000
     } = req.query;
 
     const db = require('../db');
     const currentYear = new Date().getFullYear();
-    const year = actualYear ? parseInt(actualYear) : currentYear;
 
     // Handle category/categories as array
     const categoryList = categories
@@ -681,20 +681,38 @@ router.get('/actual-entries', async (req, res, next) => {
       FROM transactions t
       LEFT JOIN accounts c ON t.category_id = c.id
       LEFT JOIN accounts a ON t.account_id = a.id
-      WHERE EXTRACT(YEAR FROM t.transaction_date) = $1
+      WHERE 1=1
     `;
-    const params = [year];
-    let paramIndex = 2;
+    const params = [];
+    let paramIndex = 1;
 
-    // Month filter
-    if (month) {
-      sql += ` AND EXTRACT(MONTH FROM t.transaction_date) = $${paramIndex++}`;
-      params.push(parseInt(month));
-    } else if (fromMonth && toMonth) {
-      sql += ` AND EXTRACT(MONTH FROM t.transaction_date) >= $${paramIndex++}`;
-      params.push(parseInt(fromMonth));
-      sql += ` AND EXTRACT(MONTH FROM t.transaction_date) <= $${paramIndex++}`;
-      params.push(parseInt(toMonth));
+    // Date filter — prefer an explicit fromDate/toDate range (may span years);
+    // fall back to single-year actualYear + month/month-range for legacy callers.
+    if (fromDate || toDate) {
+      if (fromDate) {
+        sql += ` AND t.transaction_date >= $${paramIndex++}`;
+        params.push(fromDate);
+      }
+      if (toDate) {
+        // toDate is the exclusive upper bound (first day after the range)
+        sql += ` AND t.transaction_date < $${paramIndex++}`;
+        params.push(toDate);
+      }
+    } else {
+      const year = actualYear ? parseInt(actualYear) : currentYear;
+      sql += ` AND EXTRACT(YEAR FROM t.transaction_date) = $${paramIndex++}`;
+      params.push(year);
+
+      // Month filter
+      if (month) {
+        sql += ` AND EXTRACT(MONTH FROM t.transaction_date) = $${paramIndex++}`;
+        params.push(parseInt(month));
+      } else if (fromMonth && toMonth) {
+        sql += ` AND EXTRACT(MONTH FROM t.transaction_date) >= $${paramIndex++}`;
+        params.push(parseInt(fromMonth));
+        sql += ` AND EXTRACT(MONTH FROM t.transaction_date) <= $${paramIndex++}`;
+        params.push(parseInt(toMonth));
+      }
     }
 
     // Category filter

@@ -461,4 +461,40 @@ export default function PeriodSelector({
   );
 }
 
+// ============================================================================
+// Shared chip-label helper (used by Transactions / Budget filter chips)
+// ============================================================================
+
+const MONTH_ABBR = [
+  "Jan", "Feb", "Mar", "Apr", "May", "Jun",
+  "Jul", "Aug", "Sep", "Oct", "Nov", "Dec",
+];
+
+/**
+ * Builds a compact period label for filter chips from filter state.
+ * Handles a multi-year span (filters.toYear differs from filters.year).
+ */
+export function buildPeriodChipLabel(filters) {
+  const fromY = filters.year;
+  const toY =
+    filters.toYear && String(filters.toYear) !== String(filters.year)
+      ? filters.toYear
+      : null;
+  const fmIdx = Number(filters.fromMonth) - 1;
+  const tmIdx = Number(filters.toMonth) - 1;
+
+  if (toY) {
+    const fromLabel = MONTH_ABBR[fmIdx] ? `${MONTH_ABBR[fmIdx]} ` : "";
+    const toLabel = MONTH_ABBR[tmIdx] ? `${MONTH_ABBR[tmIdx]} ` : "";
+    return `${fromLabel}${fromY}–${toLabel}${toY}`;
+  }
+  if (filters.monthEnabled && Number.isFinite(filters.month)) {
+    return `${MONTH_ABBR[filters.month]} ${fromY}`;
+  }
+  if (filters.fromMonth && filters.toMonth && filters.fromMonth !== filters.toMonth) {
+    return `${MONTH_ABBR[fmIdx]}-${MONTH_ABBR[tmIdx]} ${fromY}`;
+  }
+  return `${fromY}`;
+}
+
 export { PERIOD_PRESETS, DEFAULT_MONTH_OPTIONS };

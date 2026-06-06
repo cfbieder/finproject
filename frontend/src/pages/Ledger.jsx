@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useMemo, useState } from "react";
 import {
   Search,
   Download,
@@ -34,6 +34,7 @@ import TransactionEditModal from "../features/Transaction/TransactionEditModal.j
 import TransactionDeleteModal from "../features/Transaction/TransactionDeleteModal.jsx";
 import CategorySelector from "../components/CategorySelector/CategorySelector.jsx";
 import PeriodSelector from "../components/PeriodSelector/PeriodSelector.jsx";
+import HierarchyFilter from "../components/HierarchyFilter/HierarchyFilter.jsx";
 import Rest from "../js/rest.js";
 import ConfirmModal from "../components/ConfirmModal/ConfirmModal.jsx";
 import { useToast } from "../contexts";
@@ -85,20 +86,18 @@ export default function Ledger() {
   const { showSuccess, showError: showErrorToast } = useToast();
   const { bsTree, accountCurrencyMap, plTree } = useCoa();
 
-  // ─── Dynamic cascading account selection ───
-  // selections[0] = "Assets", selections[1] = "Bank Accounts", selections[2] = "USD Bank Accounts", etc.
-  const [selections, setSelections] = useState([]);
+  // ─── Account selection (single account — running balance needs one) ───
   const [selectedAccount, setSelectedAccount] = useState("");
 
   // ─── Filter panel visibility ───
   const [showFilters, setShowFilters] = useState(true);
 
-  // ─── Period state ───
-  const [usePeriodFilter, setUsePeriodFilter] = useState(false);
+  // ─── Period state — defaults to "This Year" ───
   const [periodValues, setPeriodValues] = useState({
     fromMonth: "01",
     toMonth: "12",
     actualYear: CURRENT_YEAR,
+    toYear: CURRENT_YEAR,
     budgetYear: CURRENT_YEAR,
   });
 
@@ -109,45 +108,32 @@ export default function Ledger() {
   const [selectedCategory, setSelectedCategory] = useState("");
 
   // ─── Filters derived from account + period selection ───
-  const [filters, setFilters] = useState(() => ({ ...LEDGER_CONFIG.defaultFilters }));
+  // Period defaults to the current year (always-on, like Transactions/Budget).
+  const [filters, setFilters] = useState(() => ({
+    ...LEDGER_CONFIG.defaultFilters,
+    yearEnabled: true,
+    year: String(CURRENT_YEAR),
+    toYear: String(CURRENT_YEAR),
+    fromMonth: "01",
+    toMonth: "12",
+  }));
 
-  // ─── Dynamic cascade: compute dropdown levels from bsTree + selections ───
-  // Each level is { label, options: [{ name, isLeaf }], value }
-  const cascadeLevels = useMemo(() => {
+  // ─── Account groups for the HierarchyFilter (Bank Accounts, Fidelity Stock, …) ───
+  const accountGroups = useMemo(() => {
     if (!bsTree?.length) return [];
-    const levels = [];
-    const labels = ["Type", "Group", "Sub-Group", "Account", "Account"];
-
-    // Walk down the tree following selections
-    let currentChildren = bsTree;
-    for (let i = 0; i <= selections.length; i++) {
-      if (!currentChildren?.length) break;
-
-      // Separate groups and leaves at this level
-      const groups = currentChildren.filter((n) => n.children?.length > 0);
-      const leaves = currentChildren.filter((n) => !n.children?.length);
-
-      // Build options: groups first, then leaves
-      const options = [
-        ...groups.map((n) => ({ name: n.name, isLeaf: false })),
-        ...leaves.map((n) => ({ name: n.name, isLeaf: true })),
-      ];
-
-      if (options.length === 0) break;
-
-      const selectedValue = selections[i] || "";
-      const label = labels[Math.min(i, labels.length - 1)];
-      levels.push({ label, options, value: selectedValue });
-
-      // If user picked a value at this level, drill into it for the next level
-      if (!selectedValue) break;
-      const pickedNode = currentChildren.find((n) => n.name === selectedValue);
-      if (!pickedNode || !pickedNode.children?.length) break; // selected a leaf or no children
-      currentChildren = pickedNode.children;
+    const groups = [];
+    for (const topNode of bsTree) {
+      // Assets, Liabilities are top-level; expose their children as groups
+      if (topNode.children?.length) {
+        for (const child of topNode.children) {
+          groups.push({ key: child.name, label: child.name, node: child });
+        }
+      } else {
+        groups.push({ key: topNode.name, label: topNode.name, node: topNode });
+      }
     }
-
-    return levels;
-  }, [bsTree, selections]);
+    return groups;
+  }, [bsTree]);
 
   // ─── Account currency for display ───
   const accountCurrency = useMemo(() => {
@@ -155,32 +141,22 @@ export default function Ledger() {
     return accountCurrencyMap.get(selectedAccount) || "";
   }, [selectedAccount, accountCurrencyMap]);
 
-  // ─── Cascading selection handler ───
-  const handleCascadeChange = useCallback((levelIndex, value) => {
-    // Truncate selections at this level and set the new value
-    const next = selections.slice(0, levelIndex);
-    if (value) next.push(value);
-    setSelections(next);
+  const accountSuffix = useCallback(
+    (name) => accountCurrencyMap.get(name) || "",
+    [accountCurrencyMap]
+  );
 
-    // Check if the selected value is a leaf account
-    // Walk the tree to find the node
-    let node = null;
-    let children = bsTree || [];
-    for (const sel of next) {
-      node = children.find((n) => n.name === sel);
-      if (!node) break;
-      children = node.children || [];
-    }
-
-    const isLeaf = node && (!node.children || node.children.length === 0);
-    if (isLeaf && value) {
-      setSelectedAccount(value);
-      setFilters((prev) => ({ ...prev, accountEnabled: true, account: [value] }));
-    } else {
-      setSelectedAccount("");
-      setFilters((prev) => ({ ...prev, accountEnabled: false, account: [] }));
-    }
-  }, [selections, bsTree]);
+  // ─── Single-account selection handler (from HierarchyFilter) ───
+  const handleAccountSelect = useCallback((leafNames) => {
+    const acct = leafNames[0] || "";
+    setSelectedAccount(acct);
+    setSelectedCategory("");
+    setFilters((prev) => ({
+      ...prev,
+      accountEnabled: !!acct,
+      account: acct ? [acct] : [],
+    }));
+  }, []);
 
   const handlePeriodChange = useCallback((vals) => {
     setPeriodValues(vals);
@@ -188,34 +164,11 @@ export default function Ledger() {
       ...prev,
       yearEnabled: true,
       year: String(vals.actualYear),
+      toYear: String(vals.toYear ?? vals.actualYear),
       fromMonth: vals.fromMonth,
       toMonth: vals.toMonth,
     }));
   }, []);
-
-  const handleTogglePeriod = useCallback(() => {
-    setUsePeriodFilter((prev) => {
-      const next = !prev;
-      if (!next) {
-        setFilters((f) => ({
-          ...f,
-          yearEnabled: false,
-          year: "",
-          fromMonth: "",
-          toMonth: "",
-        }));
-      } else {
-        setFilters((f) => ({
-          ...f,
-          yearEnabled: true,
-          year: String(periodValues.actualYear),
-          fromMonth: periodValues.fromMonth,
-          toMonth: periodValues.toMonth,
-        }));
-      }
-      return next;
-    });
-  }, [periodValues]);
 
   // ─── Data loading (only when account selected) ───
   const hasAccount = !!selectedAccount;
@@ -656,57 +609,42 @@ export default function Ledger() {
       {/* ── Collapsible Filter Panel (1 + 2) ── */}
       {showFilters && (
         <div className="txv2-filters">
-          <div className="ledger-filters__body">
-            {/* Dynamic cascading account selectors */}
-            <div className="ledger-cascade">
-              {cascadeLevels.map((level, idx) => (
-                <div className="ledger-cascade__field" key={idx}>
-                  <span className="txv2-filters__label">{level.label}</span>
-                  <select
-                    className="ledger-cascade__select"
-                    value={level.value}
-                    onChange={(e) => handleCascadeChange(idx, e.target.value)}
-                  >
-                    <option value="">Select...</option>
-                    {level.options.map(({ name, isLeaf }) => {
-                      const ccy = isLeaf ? accountCurrencyMap.get(name) : null;
-                      return (
-                        <option key={name} value={name}>
-                          {name}{ccy ? ` (${ccy})` : ""}
-                        </option>
-                      );
-                    })}
-                  </select>
-                </div>
-              ))}
+          <div className="txv2-filters__body">
+            {/* Period */}
+            <div className="txv2-filters__section">
+              <span className="txv2-filters__label">Period</span>
+              <PeriodSelector
+                fromMonth={periodValues.fromMonth}
+                toMonth={periodValues.toMonth}
+                actualYear={periodValues.actualYear}
+                toYear={periodValues.toYear}
+                budgetYear={periodValues.budgetYear}
+                onChange={handlePeriodChange}
+                hideBudgetYear
+                enableYearRange
+                defaultPreset="this-year"
+              />
             </div>
 
-            {/* Period filter */}
-            <div className="ledger-filters__period">
-              <label className="txv2-filters__label ledger-filters__period-toggle">
-                <input
-                  type="checkbox"
-                  checked={usePeriodFilter}
-                  onChange={handleTogglePeriod}
+            {/* Account — single-select (running balance needs one account) */}
+            <div className="txv2-filters__section">
+              {accountGroups.length > 0 ? (
+                <HierarchyFilter
+                  label="Account"
+                  groups={accountGroups}
+                  singleSelect
+                  selectedLeaf={selectedAccount}
+                  getItemSuffix={accountSuffix}
+                  onSelectionChange={handleAccountSelect}
                 />
-                Period Filter
-              </label>
-              {usePeriodFilter && (
-                <PeriodSelector
-                  fromMonth={periodValues.fromMonth}
-                  toMonth={periodValues.toMonth}
-                  actualYear={periodValues.actualYear}
-                  budgetYear={periodValues.budgetYear}
-                  onChange={handlePeriodChange}
-                  hideBudgetYear
-                  defaultPreset="this-year"
-                />
+              ) : (
+                <span style={{ fontSize: "0.8rem", color: "var(--muted)" }}>Loading...</span>
               )}
             </div>
 
-            {/* Category filter */}
+            {/* Category filter (derived from loaded transactions) */}
             {hasAccount && transactionCategories.length > 0 && (
-              <div className="ledger-filters__category">
+              <div className="txv2-filters__section ledger-filters__category">
                 <span className="txv2-filters__label">Category</span>
                 <select
                   className="ledger-cascade__select"

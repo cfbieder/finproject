@@ -30,7 +30,7 @@ import {
 import TransactionEditModal from "../features/Transaction/TransactionEditModal.jsx";
 import TransactionDeleteModal from "../features/Transaction/TransactionDeleteModal.jsx";
 import HierarchyFilter from "../components/HierarchyFilter/HierarchyFilter.jsx";
-import PeriodSelector from "../components/PeriodSelector/PeriodSelector.jsx";
+import PeriodSelector, { buildPeriodChipLabel } from "../components/PeriodSelector/PeriodSelector.jsx";
 import Rest from "../js/rest.js";
 import { useCoa } from "../hooks/useCoa.js";
 import { useFilterOptions } from "../features/BudgetEntry/hooks/useFilterOptions.js";
@@ -41,10 +41,6 @@ import "./TransactionExplorer.css";
 const config = BUDGET_CONFIG;
 const BATCH_SIZE = 500;
 const CURRENT_YEAR = new Date().getFullYear();
-const MONTH_NAMES = [
-  "Jan", "Feb", "Mar", "Apr", "May", "Jun",
-  "Jul", "Aug", "Sep", "Oct", "Nov", "Dec",
-];
 
 const numFmt = new Intl.NumberFormat(undefined, {
   minimumFractionDigits: 2,
@@ -79,6 +75,7 @@ export default function TransBudget() {
     fromMonth: "01",
     toMonth: "12",
     actualYear: CURRENT_YEAR,
+    toYear: CURRENT_YEAR,
     budgetYear: CURRENT_YEAR,
   });
 
@@ -250,21 +247,7 @@ export default function TransBudget() {
   const activeChips = useMemo(() => {
     const chips = [];
     if (filters.yearEnabled) {
-      if (filters.monthEnabled && Number.isFinite(filters.month)) {
-        chips.push({
-          key: "period",
-          label: `${MONTH_NAMES[filters.month]} ${filters.year}`,
-          removable: false,
-        });
-      } else if (filters.fromMonth && filters.toMonth && filters.fromMonth !== filters.toMonth) {
-        chips.push({
-          key: "period",
-          label: `${MONTH_NAMES[Number(filters.fromMonth) - 1]}-${MONTH_NAMES[Number(filters.toMonth) - 1]} ${filters.year}`,
-          removable: false,
-        });
-      } else {
-        chips.push({ key: "period", label: `${filters.year}`, removable: false });
-      }
+      chips.push({ key: "period", label: buildPeriodChipLabel(filters), removable: false });
     }
     if (filters.accountEnabled && filters.account?.length) {
       const accounts = Array.isArray(filters.account) ? filters.account : [filters.account];
@@ -332,7 +315,9 @@ export default function TransBudget() {
         const next = { ...prev };
         next.yearEnabled = true;
         next.year = String(vals.actualYear);
-        if (vals.fromMonth === vals.toMonth) {
+        next.toYear = String(vals.toYear ?? vals.actualYear);
+        const sameYear = next.year === next.toYear;
+        if (sameYear && vals.fromMonth === vals.toMonth) {
           next.monthEnabled = true;
           next.month = Number(vals.fromMonth) - 1;
           next.fromMonth = vals.fromMonth;
@@ -588,9 +573,11 @@ export default function TransBudget() {
                 fromMonth={periodValues.fromMonth}
                 toMonth={periodValues.toMonth}
                 actualYear={periodValues.actualYear}
+                toYear={periodValues.toYear}
                 budgetYear={periodValues.budgetYear}
                 onChange={handlePeriodChange}
                 hideBudgetYear
+                enableYearRange
                 defaultPreset="this-year"
               />
             </div>
