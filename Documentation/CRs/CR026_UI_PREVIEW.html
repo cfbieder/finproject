@@ -14,7 +14,12 @@
    Non-functional mockup of CR026. Revision 2: review feedback applied —
    stronger type hierarchy, WCAG-tuned muted/semantic tokens, unified
    --layout-padding gutters, and split nav semantics (parent=disclosure,
-   leaf=active). */
+   leaf=active).
+   Revision 3 (CR027 commercial/multi-user): workspace switcher replaces the
+   static brand; account menu with Manage access / Invite / Switch workspace;
+   inline KPI definition tooltips; empty-state-as-onboarding card. This file is
+   the LIVING STYLE REFERENCE for the commercial UI — keep it current as the
+   design refines (see CR027 §"Design / style reference"). */
 :root {
   --font-family: "Outfit", "Segoe UI", "Helvetica Neue", sans-serif;
   --font-mono: 'SF Mono', Monaco, 'Cascadia Code', 'Roboto Mono', Consolas, monospace;
@@ -134,6 +139,11 @@ body {
 .uiprev-delta.is-bad { color: var(--u-bad); background: rgba(176,65,62,0.08); }
 .uiprev-kpi.is-hero .uiprev-delta { color: #fff !important; background: rgba(255,255,255,0.2) !important; }
 .uiprev-delta svg { width: 14px; height: 14px; stroke-width: 2.5; }
+.uiprev-tooltip { position: relative; display: inline-flex; align-items: center; margin-left: 6px; cursor: help; color: inherit; opacity: 0.6; transition: opacity 150ms; }
+.uiprev-tooltip:hover { opacity: 1; }
+.uiprev-tooltip svg { width: 14px; height: 14px; }
+.uiprev-tooltip::after { content: attr(data-tip); position: absolute; bottom: 100%; left: 50%; transform: translateX(-50%) translateY(-4px); background: var(--u-ink); color: var(--u-bg); font-size: .75rem; padding: 6px 10px; border-radius: 6px; white-space: nowrap; opacity: 0; pointer-events: none; transition: all 150ms; z-index: 10; font-weight: 500; font-family: var(--font-family); letter-spacing: normal; text-transform: none; box-shadow: 0 4px 12px rgba(0,0,0,0.1); }
+.uiprev-tooltip:hover::after { opacity: 1; transform: translateX(-50%) translateY(-8px); }
 .uiprev-spark { display: flex; align-items: flex-end; gap: 3px; height: 32px; }
 .uiprev-spark span { width: 5px; border-radius: 2px 2px 0 0; background: var(--u-primary); opacity: .4; }
 .uiprev-kpi.is-hero .uiprev-spark span { background: #fff; opacity: .6; }
@@ -212,6 +222,36 @@ body {
 .uiprev-palette-item span:nth-child(2) { flex: 1; }
 .uiprev-palette-hint { font-size: .75rem; color: var(--u-muted); font-weight: 500; background: var(--u-surface-muted); padding: 2px 6px; border-radius: 4px; border: 1px solid var(--u-border); }
 
+/* Workspace Switcher */
+.uiprev-workspace { display: flex; align-items: center; justify-content: space-between; padding: 8px 10px 20px; cursor: pointer; transition: opacity 150ms; }
+.uiprev-workspace:hover { opacity: 0.8; }
+.uiprev-workspace-info { display: flex; align-items: center; gap: 12px; }
+.uiprev-workspace-mark { width: 34px; height: 34px; flex: none; display: grid; place-items: center; border-radius: 8px; background: var(--u-primary); color: #fff; font-weight: 700; font-size: .95rem; }
+.uiprev-workspace-meta { display: flex; flex-direction: column; line-height: 1.2; }
+.uiprev-workspace-name { font-weight: 600; font-size: 1.05rem; letter-spacing: -0.01em; color: var(--u-ink); }
+.uiprev-workspace-tier { font-size: .7rem; font-weight: 600; color: var(--u-primary); text-transform: uppercase; letter-spacing: 0.05em; }
+.uiprev-workspace-chev { color: var(--u-muted); width: 16px; height: 16px; }
+.is-rail .uiprev-workspace-meta, .is-rail .uiprev-workspace-chev { display: none; }
+
+/* Account / profile menu (multi-user) */
+.uiprev-accountwrap { position: relative; }
+.uiprev-menu { position: absolute; top: calc(100% + 8px); right: 0; min-width: 220px; background: var(--u-surface); border: 1px solid var(--u-border-strong); border-radius: 12px; box-shadow: var(--u-shadow-pop); padding: 6px; z-index: 30; animation: scaleUp 160ms cubic-bezier(0.16, 1, 0.3, 1); }
+.uiprev-menu[hidden] { display: none; }
+.uiprev-menu-head { padding: 10px 12px; display: flex; flex-direction: column; gap: 2px; }
+.uiprev-menu-name { font-size: .9rem; font-weight: 600; color: var(--u-ink); }
+.uiprev-menu-mail { font-size: .78rem; color: var(--u-muted); font-family: var(--font-mono); }
+.uiprev-menu-sep { height: 1px; background: var(--u-border); margin: 6px 4px; }
+.uiprev-menu-item { display: flex; align-items: center; gap: 10px; width: 100%; padding: 9px 12px; border: none; background: transparent; border-radius: 8px; color: var(--u-ink-2); font: inherit; font-size: .875rem; font-weight: 500; cursor: pointer; text-align: left; transition: all 120ms; }
+.uiprev-menu-item:hover { background: var(--u-primary-subtle); color: var(--u-primary); }
+.uiprev-menu-item svg { width: 16px; height: 16px; opacity: .8; }
+
+/* Empty State */
+.uiprev-empty { display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 40px 20px; text-align: center; border: 2px dashed var(--u-border); border-radius: 12px; background: var(--u-surface-muted); }
+.uiprev-empty-icon { width: 48px; height: 48px; display: grid; place-items: center; background: var(--u-primary-subtle); color: var(--u-primary); border-radius: 50%; margin-bottom: 16px; }
+.uiprev-empty-icon svg { width: 24px; height: 24px; }
+.uiprev-empty-title { font-size: 1.05rem; font-weight: 600; margin: 0 0 8px; color: var(--u-ink); }
+.uiprev-empty-desc { font-size: .875rem; color: var(--u-muted); margin: 0 0 20px; max-width: 28ch; line-height: 1.5; }
+
 @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
 @keyframes scaleUp { from { transform: scale(0.97) translateY(-8px); } to { transform: scale(1) translateY(0); } }
 
@@ -235,7 +275,7 @@ body {
   <div class="uiprev-explainer">
     <div>
       <h1 class="uiprev-h1">UI Preview — CR026</h1>
-      <p class="uiprev-sub">Non-functional mockup of the proposed new look (revision 2, with review feedback applied): stronger type hierarchy, WCAG-tuned contrast tokens, aligned layout gutters, and corrected nav semantics — parent groups disclose; the leaf you select stays highlighted. Toggle the controls to explore the sidebar, light / dark theme, and the ⌘K command palette. Nothing here is wired to data.</p>
+      <p class="uiprev-sub">Living style reference for the commercial UI (CR027). Revision 3 adds the multi-user surfaces: a <strong>workspace switcher</strong> (top-left), an <strong>account menu</strong> with Manage access / Invite / Switch workspace (top-right), inline <strong>definition tooltips</strong> on KPI labels, and an <strong>empty-state onboarding</strong> card. Earlier: stronger type hierarchy, WCAG-tuned tokens, aligned gutters, split nav semantics (parent groups disclose; selected leaf stays highlighted). Toggle the controls to explore the sidebar, light / dark theme, and the ⌘K palette. Nothing is wired to data.</p>
     </div>
     <div class="uiprev-controls">
       <button class="btn" id="ctlCollapse"><i data-lucide="panel-left-close"></i><span>Collapse to rail</span></button>
@@ -246,9 +286,12 @@ body {
 
   <div class="uiprev" id="mock" data-theme="light">
     <aside class="uiprev-side">
-      <div class="uiprev-brand">
-        <div class="uiprev-brand-mark">Fin</div>
-        <div class="uiprev-brand-meta"><span class="uiprev-brand-name">Fin</span><span class="uiprev-brand-ver">v2.15.1</span></div>
+      <div class="uiprev-workspace" title="Switch workspace">
+        <div class="uiprev-workspace-info">
+          <div class="uiprev-workspace-mark">CB</div>
+          <div class="uiprev-workspace-meta"><span class="uiprev-workspace-name">Personal Fin</span><span class="uiprev-workspace-tier">Pro Plan</span></div>
+        </div>
+        <i data-lucide="chevrons-up-down" class="uiprev-workspace-chev"></i>
       </div>
       <nav class="uiprev-nav" id="nav">
         <button class="uiprev-navitem is-active" data-single><i data-lucide="layout-dashboard" class="uiprev-navicon"></i><span class="uiprev-navlabel">Overview</span></button>
@@ -325,7 +368,19 @@ body {
           <button class="uiprev-tool" title="Help"><i data-lucide="help-circle"></i></button>
           <button class="uiprev-tool" title="Notifications"><i data-lucide="bell"></i></button>
           <button class="uiprev-tool" id="themeStrip" title="Toggle theme"><i data-lucide="moon"></i></button>
-          <button class="uiprev-tool" title="Account"><i data-lucide="circle-user-round"></i></button>
+          <div class="uiprev-accountwrap">
+            <button class="uiprev-tool" id="accountBtn" title="Account"><i data-lucide="circle-user-round"></i></button>
+            <div class="uiprev-menu" id="accountMenu" hidden>
+              <div class="uiprev-menu-head"><span class="uiprev-menu-name">Casey Bieder</span><span class="uiprev-menu-mail">casey@example.com</span></div>
+              <div class="uiprev-menu-sep"></div>
+              <button class="uiprev-menu-item"><i data-lucide="user-cog"></i>Profile &amp; preferences</button>
+              <button class="uiprev-menu-item"><i data-lucide="users"></i>Manage access</button>
+              <button class="uiprev-menu-item"><i data-lucide="user-plus"></i>Invite a member</button>
+              <button class="uiprev-menu-item"><i data-lucide="arrow-left-right"></i>Switch workspace</button>
+              <div class="uiprev-menu-sep"></div>
+              <button class="uiprev-menu-item"><i data-lucide="log-out"></i>Sign out</button>
+            </div>
+          </div>
         </div>
       </header>
 
@@ -345,17 +400,26 @@ body {
               <div class="uiprev-spark"><span style="height:40%"></span><span style="height:44%"></span><span style="height:43%"></span><span style="height:48%"></span><span style="height:52%"></span><span style="height:55%"></span><span style="height:61%"></span></div></div>
           </div>
           <div class="uiprev-kpi">
-            <div class="uiprev-kpi-label">Total Assets</div><div class="uiprev-kpi-value">$5.41M</div>
+            <div class="uiprev-kpi-label">
+              Savings Rate 
+              <span class="uiprev-tooltip" data-tip="Percentage of net income saved this month"><i data-lucide="info"></i></span>
+            </div><div class="uiprev-kpi-value">38%</div>
             <div class="uiprev-kpi-foot"><span class="uiprev-delta is-good"><i data-lucide="arrow-up"></i>1.8%</span>
               <div class="uiprev-spark"><span style="height:50%"></span><span style="height:52%"></span><span style="height:51%"></span><span style="height:56%"></span><span style="height:58%"></span><span style="height:60%"></span><span style="height:64%"></span></div></div>
           </div>
           <div class="uiprev-kpi">
-            <div class="uiprev-kpi-label">Liabilities</div><div class="uiprev-kpi-value">$0.59M</div>
+            <div class="uiprev-kpi-label">
+              Liabilities
+              <span class="uiprev-tooltip" data-tip="Everything you owe — loans, cards, mortgages"><i data-lucide="info"></i></span>
+            </div><div class="uiprev-kpi-value">$0.59M</div>
             <div class="uiprev-kpi-foot"><span class="uiprev-delta is-good"><i data-lucide="arrow-down"></i>3.1%</span>
               <div class="uiprev-spark"><span style="height:70%"></span><span style="height:66%"></span><span style="height:60%"></span><span style="height:58%"></span><span style="height:55%"></span><span style="height:52%"></span><span style="height:49%"></span></div></div>
           </div>
           <div class="uiprev-kpi">
-            <div class="uiprev-kpi-label">Savings Rate</div><div class="uiprev-kpi-value">38%</div>
+            <div class="uiprev-kpi-label">
+              Net Cash Flow
+              <span class="uiprev-tooltip" data-tip="Income minus expenses over the period"><i data-lucide="info"></i></span>
+            </div><div class="uiprev-kpi-value">$6,240</div>
             <div class="uiprev-kpi-foot"><span class="uiprev-delta is-good"><i data-lucide="arrow-up"></i>4.0%</span>
               <div class="uiprev-spark"><span style="height:22%"></span><span style="height:28%"></span><span style="height:25%"></span><span style="height:31%"></span><span style="height:34%"></span><span style="height:36%"></span><span style="height:38%"></span></div></div>
           </div>
@@ -384,12 +448,11 @@ body {
 
           <div class="uiprev-card uiprev-txcard">
             <div class="uiprev-card-head"><h3>Recent transactions</h3><span class="uiprev-link">View all</span></div>
-            <div class="uiprev-txlist">
-              <div class="uiprev-tx"><div class="uiprev-tx-dot is-good"><i data-lucide="arrow-up"></i></div><div class="uiprev-tx-meta"><span class="uiprev-tx-name">Fidelity — Dividend</span><span class="uiprev-tx-cat">Investment Income · Today</span></div><span class="uiprev-num is-good">+$1,240.00</span></div>
-              <div class="uiprev-tx"><div class="uiprev-tx-dot is-good"><i data-lucide="arrow-up"></i></div><div class="uiprev-tx-meta"><span class="uiprev-tx-name">Bank Pekao — Rent PM4</span><span class="uiprev-tx-cat">Rental Income · Today</span></div><span class="uiprev-num is-good">+$2,310.00</span></div>
-              <div class="uiprev-tx"><div class="uiprev-tx-dot is-bad"><i data-lucide="arrow-down"></i></div><div class="uiprev-tx-meta"><span class="uiprev-tx-name">Amazon</span><span class="uiprev-tx-cat">Household · Yesterday</span></div><span class="uiprev-num is-bad">−$184.22</span></div>
-              <div class="uiprev-tx"><div class="uiprev-tx-dot is-bad"><i data-lucide="arrow-down"></i></div><div class="uiprev-tx-meta"><span class="uiprev-tx-name">Wise — FX Transfer</span><span class="uiprev-tx-cat">Transfer · FX · 2 days ago</span></div><span class="uiprev-num is-bad">−$5,000.00</span></div>
-              <div class="uiprev-tx"><div class="uiprev-tx-dot is-bad"><i data-lucide="arrow-down"></i></div><div class="uiprev-tx-meta"><span class="uiprev-tx-name">Caixa — Mortgage</span><span class="uiprev-tx-cat">Interest · 3 days ago</span></div><span class="uiprev-num is-bad">−$1,002.40</span></div>
+            <div class="uiprev-empty">
+              <div class="uiprev-empty-icon"><i data-lucide="landmark"></i></div>
+              <h4 class="uiprev-empty-title">No transactions yet</h4>
+              <p class="uiprev-empty-desc">Connect a bank account to securely sync your transactions.</p>
+              <button class="btn btn--primary"><i data-lucide="link"></i>Connect Bank</button>
             </div>
           </div>
 
@@ -488,6 +551,12 @@ body {
     e.target.classList.add('is-on');
   });
 
+  // Account / profile menu
+  const accountBtn = document.getElementById('accountBtn');
+  const accountMenu = document.getElementById('accountMenu');
+  accountBtn.addEventListener('click', e => { e.stopPropagation(); accountMenu.toggleAttribute('hidden'); });
+  document.addEventListener('click', e => { if (!accountMenu.contains(e.target) && e.target !== accountBtn) accountMenu.setAttribute('hidden',''); });
+
   const openP = () => { scrim.removeAttribute('hidden'); setTimeout(() => { if (paletteInput) paletteInput.focus(); }, 50); };
   const closeP = () => scrim.setAttribute('hidden','');
   document.getElementById('ctlPalette').onclick = openP;
@@ -495,7 +564,7 @@ body {
   scrim.addEventListener('click', e => { if (e.target === scrim) closeP(); });
   scrim.querySelectorAll('.uiprev-palette-item').forEach(b => b.onclick = closeP);
   document.addEventListener('keydown', e => {
-    if (e.key === 'Escape') closeP();
+    if (e.key === 'Escape') { closeP(); accountMenu.setAttribute('hidden',''); }
     if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'k'){ e.preventDefault(); scrim.hasAttribute('hidden') ? openP() : closeP(); }
   });
 
