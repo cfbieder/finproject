@@ -24,6 +24,7 @@ export default defineConfig(() => {
           "apple-touch-icon-180x180.png",
           "pwa-192x192.png",
           "pwa-512x512.png",
+          "pwa-512x512-maskable.png",
         ],
         manifest: {
           name: "Fin - Personal Finance Manager",
@@ -47,7 +48,7 @@ export default defineConfig(() => {
               type: "image/png",
             },
             {
-              src: "pwa-512x512.png",
+              src: "pwa-512x512-maskable.png",
               sizes: "512x512",
               type: "image/png",
               purpose: "maskable",
