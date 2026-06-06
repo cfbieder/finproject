@@ -5,7 +5,7 @@
 
 Dispositions below are **owner-confirmed (2026-06-05)**. Verify live state before acting (`balance-recon` monitor + the §4 query).
 
-## 1. Cut over — DONE (24 accounts)
+## 1. Cut over — DONE (28 accounts)
 
 On a direct bank feed, reconciling to `feed_balances` (cash/card) or by-design month-end MTM (brokerage). PS-side cutoff active.
 
@@ -34,7 +34,9 @@ On a direct bank feed, reconciling to `feed_balances` (cash/card) or by-design m
 | 7 | Chase Saving | calibrate | US bank (asset); cut over 2026-06-06 (cutoff 2026-05-12) |
 | 60 | Amazon Visa | calibrate | Chase card; `feed_negate_tx=TRUE` (Chase reports purchases positive), `feed_sign` default; cutoff 2026-06-03. Imported + **reconciled to the cent** (−1,172.55, drift 0) 2026-06-06 |
 | 59 | Marriot Visa | calibrate | Chase card; `feed_negate_tx=TRUE`, `feed_sign` default; cutoff 2026-05-19. Imported + **reconciled to the cent** (−266.25, drift 0) 2026-06-06. Needed TWO bank-feed converter fixes first: (1) shared-name collision (Marriott/Prime both "CREDIT CARD"), (2) MX/Chase tx carry no currency in raw → inherit account currency (else fin's NOT-NULL silently dropped every Chase tx) |
-| 22 | Santandar | calibrate | mapped+non-ignored — fed since last tracker update (cut over outside this thread); §3 still lists it as manual/CR025 — **verify disposition** |
+| 22 | Santandar | calibrate | Erste Bank Polska (GoCardless), PLN; balance-only feed (0 tx), bal 5,190.12 PLN; cutoff 2026-04-11; reconciled to the cent 2026-06-06 |
+| 10 | Capital One Savings | calibrate | US (MX shape), USD; cutoff 2026-06-01; bal 10,256.57; reconciled to the cent 2026-06-06. Only 1 feed tx (05-31, pre-cutoff → PS-owned). MX currency relies on the bank-feed currency fix |
+| 16 | Revolut-EUR | calibrate | Revolut (GoCardless), EUR; balance-only feed (0 tx), bal 33.13 EUR; cutoff 2026-05-24; reconciled to the cent 2026-06-06 |
 
 ## 2. Active PS-residual — needs migration (the real backlog)
 
@@ -43,11 +45,11 @@ Non-fed accounts with recent PS transaction activity. These currently depend on 
 | fin id | account | type | cur | balance | last PS | disposition (confirmed) |
 |---|---|---|---|---|---|---|
 | 45 | OCME Sp. z o.o. | asset | PLN | 131,500 | 2026-05-26 | **manual/CR025** (loan receivable; also offset-fed from PKO transfers). No feed, no cutoff. |
-| 10 | Capital One Savings | asset | USD | 10,257 | 2026-05-31 | **add to Fintable → feed** |
-| 16 | Revolut-EUR | asset | EUR | 33 | 2026-05-23 | **try feed; manual/CR025 if not reachable** |
 | 41 | SP - Panorama Mar 6 | asset | EUR | 421,992 | 2026-05-25 | **manual/CR025 periodic valuation** (see §3) |
 
-**Owner-confirmed plan (2026-06-05):** the **8 US accounts** (5 cards + Chase ×2 + Capital One) → **add to Fintable, feed path** (proven by the Luxury card 62). **Fintable DOES support Amex** — the 3 Amex cards (Hilton 63, Bonvoy 61, Delta 64) cut over 2026-06-05 (all `feed_sign=+1`, reconciled to the cent; PS deactivated for them). **Chase ×2 (6/7) + both Chase cards cut over 2026-06-06:** Amazon Visa (60) and Marriot Visa (59) use `feed_negate_tx=TRUE` (Chase reports purchases positive) with `feed_sign` left at the liability default (−1) — **not** `feed_sign=+1` as originally planned here; the negate-tx mechanism (migration 030) superseded the feed_sign approach for Chase. Marriot needed the bank-feed converter shared-name fix first (Marriott/Prime both labelled "CREDIT CARD" on Fintable collided 32 tx onto Prime). **Remaining US:** Capital One (10) only. **Wise ×3 (EUR/USD/PLN) cut over via Fintable 2026-06-05** (assets, no `feed_sign`; PLN reconciled, EUR/USD small recent-activity drift clearing on next Import; PS stopped). **Revolut-EUR** → best-effort feed, manual/CR025 fallback. Each fed account follows the [CR023 §5](CR023_POCKETSMITH_REMOVAL.md) runbook (map → `feed_sign` if US card → `seed-bankfeed-cutoffs.js` → gate on `balance-recon`).
+**Both remaining accounts are manual/CR025 (no feed possible) — the feed cutover is complete.** Capital One 10, Revolut 16, and Santandar 22 all moved to the feed path (§1) on 2026-06-06.
+
+**Owner-confirmed plan (2026-06-05):** the **8 US accounts** (5 cards + Chase ×2 + Capital One) → **add to Fintable, feed path** (proven by the Luxury card 62). **Fintable DOES support Amex** — the 3 Amex cards (Hilton 63, Bonvoy 61, Delta 64) cut over 2026-06-05 (all `feed_sign=+1`, reconciled to the cent; PS deactivated for them). **Chase ×2 (6/7) + both Chase cards cut over 2026-06-06:** Amazon Visa (60) and Marriot Visa (59) use `feed_negate_tx=TRUE` (Chase reports purchases positive) with `feed_sign` left at the liability default (−1) — **not** `feed_sign=+1` as originally planned here; the negate-tx mechanism (migration 030) superseded the feed_sign approach for Chase. Marriot needed the bank-feed converter shared-name fix first (Marriott/Prime both labelled "CREDIT CARD" on Fintable collided 32 tx onto Prime). **Capital One (10) moved to feed 2026-06-06** (MX shape, cutoff 06-01, balance-reconciled). **Wise ×3 (EUR/USD/PLN) cut over via Fintable 2026-06-05** (assets, no `feed_sign`). **Revolut-EUR (16) + Santandar 22 moved 2026-06-06** as balance-only feeds (0 tx stream; reconcile to feed balance, PS stopped) — the best-effort feed path worked, no manual/CR025 fallback needed. Each fed account follows the [CR023 §5](CR023_POCKETSMITH_REMOVAL.md) runbook (map → `feed_sign` if US card → `seed-bankfeed-cutoffs.js` → gate on `balance-recon`).
 
 ## 3. Dormant holdings — periodic valuation (no streaming feed possible)
 
@@ -59,7 +61,7 @@ Carry balances but no transactional activity since 2026-05; illiquid funds / pro
 
 ## 4. Live exit-monitor (run against prod :5433)
 
-**Reusable script:** `server/src/v2/scripts/ps-exit-monitor.js` (read-only; `--days N` window, `--json`). Prints fed count + the still-PS-dependent list + an EXIT-GATE-MET/NOT-MET verdict. Run from host against prod: `DATABASE_URL=<prod> node server/src/v2/scripts/ps-exit-monitor.js`. As of 2026-06-05 (after Luxury + 3 Amex + 3 Wise): **19 fed, 8 PS-dependent**. As of **2026-06-06** (after Chase ×2 + both Chase cards 59/60 + Santandar 22): **24 fed, 4 PS-dependent** (Capital One 10, OCME 45, SP-Panorama 41, Revolut-EUR 16).
+**Reusable script:** `server/src/v2/scripts/ps-exit-monitor.js` (read-only; `--days N` window, `--json`). Prints fed count + the still-PS-dependent list + an EXIT-GATE-MET/NOT-MET verdict. Run from host against prod: `DATABASE_URL=<prod> node server/src/v2/scripts/ps-exit-monitor.js`. As of 2026-06-05 (after Luxury + 3 Amex + 3 Wise): **19 fed, 8 PS-dependent**. As of **2026-06-06** (after Chase ×2 + both Chase cards 59/60 + Santandar 22): **24 fed, 4 PS-dependent**. Later **2026-06-06** (after Capital One 10 + Revolut 16 moved to feeds): **28 fed, 2 PS-dependent** (OCME 45, SP-Panorama 41 — both manual/CR025, no feed possible → feed cutover complete).
 
 The underlying query — "still PS-dependent" = non-fed, non-ignored account with PS rows in the window. When it returns **zero rows**, CR023 §6 criteria #2/#3 hold for the active set.
 
@@ -81,11 +83,11 @@ HAVING COUNT(*) FILTER (WHERE t.transaction_date >= CURRENT_DATE - 45) > 0
 ORDER BY last_ps DESC;
 ```
 
-As of 2026-06-06 this returns **4 accounts** (Capital One 10, OCME 45, SP-Panorama 41, Revolut-EUR 16). The exit gate is met when every row here is either fed (leaves the list) or the owner has switched it to manual (PS rows stop arriving, so it ages out of the 45-day window).
+As of 2026-06-06 (post Capital One/Revolut) this returns **2 accounts** (OCME 45, SP-Panorama 41) — both manual/CR025 dispositions, not feed candidates. They age out of the 45-day window once their last PS rows pass, satisfying criteria #2/#3 for the active set. **All feed-able accounts are cut over.**
 
 ## 5. Exit-criteria status (CR023 §6)
 
-1. Every active account fed+reconciling / manual / frozen — **in progress** (24 fed; §2 backlog down to Capital One 10; depends on CR025 shipping for the manual accounts incl. 45).
+1. Every active account fed+reconciling / manual / frozen — **in progress** (28 fed; feed cutover COMPLETE; §2 backlog down to the 2 manual/CR025 accounts 45 + 41; depends on CR025 shipping for them).
 2. No active account depends on PS for new data — **not yet** (§4 query non-empty).
 3. Source-partitioned PS-rec list empty — **shrinking** (depopulates as §2 accounts migrate).
 
