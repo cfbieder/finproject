@@ -1,0 +1,126 @@
+/* CR025 — Manual Transaction Entry */
+
+.mte-container {
+  max-width: 640px;
+  margin: 0 auto;
+  padding: 0.5rem 0 2rem;
+}
+
+.mte-header__title {
+  margin: 0 0 0.25rem;
+  color: var(--primary, #4a7c59);
+  font-size: 1.6rem;
+}
+
+.mte-header__subtitle {
+  margin: 0 0 1.25rem;
+  color: var(--muted, #667);
+  font-size: 0.9rem;
+  line-height: 1.5;
+}
+
+.mte-form {
+  display: flex;
+  flex-direction: column;
+  gap: 0.9rem;
+  background: var(--surface, #fff);
+  border: 1px solid var(--border, #e3e3e3);
+  border-radius: 10px;
+  padding: 1.25rem;
+}
+
+.mte-row {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 0.9rem;
+}
+
+.mte-field {
+  display: flex;
+  flex-direction: column;
+  gap: 0.3rem;
+}
+
+.mte-label {
+  font-size: 0.8rem;
+  font-weight: 600;
+  color: var(--text, #334);
+}
+
+.mte-hint {
+  font-weight: 400;
+  color: var(--muted, #889);
+  font-size: 0.75rem;
+}
+
+.mte-input {
+  padding: 0.5rem 0.6rem;
+  border: 1px solid var(--border, #ccd);
+  border-radius: 6px;
+  font-size: 0.95rem;
+  background: var(--surface, #fff);
+  color: var(--text, #223);
+}
+
+.mte-input:focus {
+  outline: none;
+  border-color: var(--primary, #4a7c59);
+  box-shadow: 0 0 0 2px rgba(74, 124, 89, 0.15);
+}
+
+.mte-input:disabled {
+  background: var(--surface-muted, #f4f6f8);
+  color: var(--muted, #889);
+}
+
+.mte-input--warn {
+  border-color: #dc2626;
+}
+
+.mte-warn {
+  font-size: 0.8rem;
+  color: #b45309;
+  background: #fff7ed;
+  border: 1px solid #fed7aa;
+  border-radius: 6px;
+  padding: 0.5rem 0.7rem;
+}
+
+.mte-more-toggle {
+  align-self: flex-start;
+  background: none;
+  border: none;
+  color: var(--primary, #4a7c59);
+  font-size: 0.82rem;
+  cursor: pointer;
+  padding: 0.2rem 0;
+}
+
+.mte-more {
+  display: flex;
+  flex-direction: column;
+  gap: 0.9rem;
+  border-left: 2px solid var(--border, #eee);
+  padding-left: 0.85rem;
+}
+
+.mte-error {
+  font-size: 0.85rem;
+  color: #b91c1c;
+  background: #fef2f2;
+  border: 1px solid #fecaca;
+  border-radius: 6px;
+  padding: 0.5rem 0.7rem;
+}
+
+.mte-actions {
+  display: flex;
+  justify-content: flex-end;
+  margin-top: 0.25rem;
+}
+
+@media (max-width: 900px) {
+  .mte-row {
+    grid-template-columns: 1fr;
+  }
+}

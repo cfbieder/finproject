@@ -284,14 +284,19 @@ async function sumByMonth({ startDate, endDate, categoryId } = {}) {
  * Create a new transaction
  */
 async function create(data) {
+  const source = data.source || 'manual';
+  // CR025: manual entries must be accepted (else a feed refresh could sweep them).
+  // Honour an explicit `accepted`; otherwise default TRUE for manual, FALSE for
+  // other sources (preserving the prior column-default behavior for importers).
+  const accepted = data.accepted !== undefined ? !!data.accepted : source === 'manual';
   const sql = `
     INSERT INTO transactions (
       ps_id, transaction_date, description1, description2,
       amount, currency, base_amount, base_currency,
       transaction_type, account_id, closing_balance,
-      category_id, labels, memo, note, bank, source
+      category_id, labels, memo, note, bank, source, accepted
     )
-    VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17)
+    VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18)
     RETURNING *
   `;
 
@@ -312,7 +317,8 @@ async function create(data) {
     data.memo || null,
     data.note || null,
     data.bank || null,
-    data.source || 'manual'
+    source,
+    accepted
   ]);
 
   return result.rows[0];

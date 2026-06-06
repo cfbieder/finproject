@@ -23,6 +23,7 @@ import {
   PieChart,
   LineChart,
   Target,
+  PlusCircle,
   Calculator,
   Eye,
   ArrowLeftRight,
@@ -61,6 +62,7 @@ const TransBudget = lazy(() => import("../pages/TransBudget"));
 const TransferAnalysis = lazy(() => import("../pages/TransferAnalysis"));
 const Ledger = lazy(() => import("../pages/Ledger"));
 const BalanceCalibration = lazy(() => import("../pages/BalanceCalibration"));
+const ManualTransactionEntry = lazy(() => import("../pages/ManualTransactionEntry"));
 const UploadPS = lazy(() => import("../pages/UploadPS"));
 const COAManagement = lazy(() => import("../pages/COAManagement"));
 const BudgetFX = lazy(() => import("../pages/BudgetFX"));
@@ -171,6 +173,14 @@ export const routes = [
     category: "Transactions",
     description: "Calibrate account opening balances for Balance Sheet accuracy",
     icon: Target,
+  },
+  {
+    path: "/manual-entry",
+    component: ManualTransactionEntry,
+    label: "Manual Entry",
+    category: "Transactions",
+    description: "Hand-enter a single actual transaction (stays open for rapid entry)",
+    icon: PlusCircle,
   },
 
   // Budgeting
