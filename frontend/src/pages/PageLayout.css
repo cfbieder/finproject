@@ -2493,6 +2493,22 @@
   background: var(--surface-muted);
 }
 
+/* Keep the frozen ACCOUNT column opaque so scrolling year values never show
+   through it. The striped/hover backgrounds above are semi-transparent and win
+   on specificity over the sticky column's base background, so re-assert an
+   opaque fill here on the first column for every striped/hover state. */
+.balance-report-table tbody tr:nth-child(even) td:first-child,
+.balance-report-table tbody tr:nth-child(even) .balance-report-table__name {
+  background: var(--surface);
+}
+
+.balance-report-table tbody tr:hover td:first-child,
+.balance-report-table tbody tr:hover .balance-report-table__name,
+.balance-report-table tbody tr:nth-child(even):hover td:first-child,
+.balance-report-table tbody tr:nth-child(even):hover .balance-report-table__name {
+  background: var(--surface-muted);
+}
+
 .balance-report-table__value {
   text-align: right;
   font-family: var(--font-mono);

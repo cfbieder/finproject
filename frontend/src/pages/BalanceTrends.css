@@ -279,9 +279,15 @@
   color: var(--danger, #b14a4a);
 }
 
-.balance-trends-table tbody tr:hover .balance-trends-table__td-account,
 .balance-trends-table tbody tr:hover td {
   background: var(--surface-hover, rgba(107, 142, 107, 0.06));
+}
+
+/* The sticky account column must stay OPAQUE on hover (the row-hover tint above
+   is semi-transparent — --surface-hover is undefined, so it resolves to the
+   rgba fallback — which would let scrolling values bleed through). */
+.balance-trends-table tbody tr:hover .balance-trends-table__td-account {
+  background: var(--surface-muted);
 }
 
 .balance-trends-table tfoot td.is-total {
