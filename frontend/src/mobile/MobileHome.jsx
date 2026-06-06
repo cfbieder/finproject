@@ -8,6 +8,7 @@ import {
   BarChart3,
   TrendingUp,
   TrendingDown,
+  LineChart,
   Loader2,
 } from "lucide-react";
 import Rest from "../js/rest.js";
@@ -16,6 +17,7 @@ import { setForceDesktop } from "./useIsMobile";
 
 const CARDS = [
   { to: "/m/balance", label: "Balance Summary", icon: Wallet },
+  { to: "/m/balance-trends", label: "Balance Trends", icon: LineChart },
   { to: "/m/cash-flow", label: "Cash Flow", icon: ArrowLeftRight },
   { to: "/m/refresh-ps", label: "Refresh PS", icon: RefreshCw },
   { to: "/m/budget-realization", label: "Budget Realization", icon: Target },

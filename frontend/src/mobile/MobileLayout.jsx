@@ -3,10 +3,17 @@ import { ChevronLeft } from "lucide-react";
 import MobileTabBar, { MOBILE_TABS } from "./MobileTabBar";
 import "./mobile.css";
 
+// Titles for non-tab mobile pages (reached via the home launcher).
+const EXTRA_TITLES = { "/m/balance-trends": "Balance Trends" };
+
 function getPageTitle(pathname) {
-  const tab = MOBILE_TABS.find((t) => pathname.startsWith(t.to));
-  if (tab) return tab.label;
-  return null;
+  if (EXTRA_TITLES[pathname]) return EXTRA_TITLES[pathname];
+  // Longest-prefix match so e.g. /m/balance resolves to "Balance", not the
+  // shorter "/m" Overview tab (which would otherwise match every /m/* path).
+  const tab = MOBILE_TABS.filter((t) => pathname.startsWith(t.to)).sort(
+    (a, b) => b.to.length - a.to.length
+  )[0];
+  return tab ? tab.label : null;
 }
 
 export default function MobileLayout({ children }) {
