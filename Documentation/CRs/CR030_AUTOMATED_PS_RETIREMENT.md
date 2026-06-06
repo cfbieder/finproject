@@ -1,4 +1,4 @@
-**Status:** SHIPPED (code complete; local commits, awaiting deploy). — [anchor](../FC_NEXT_STEPS.md#cr030)
+**Status:** RELEASED v3.0.11 (2026-06-06). — [anchor](../FC_NEXT_STEPS.md#cr030)
 
 # CR030 — Retire automated PocketSmith (keep one-time CSV upload)
 
