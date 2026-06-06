@@ -251,6 +251,10 @@ Token-level audit of every color pair in both themes (sRGB-linearized luminance 
 
 **Deferred (brand-affecting — needs a design call, logged not fixed):** (1) **white text on filled light buttons** `--on-accent` #fff on `--primary/success/info/warning` = 3.68/3.93/3.75/**2.79** (<4.5) — the highest-traffic AA gap; fix = darker fills or darker text. (2) `--warning`/`--gold` text #C4923A = **2.65** on light surface. (3) colored financial **body** numbers at ~13.6px: success 3.73 / danger 4.43 (<4.5; large/bold uses pass at 3:1). (4) input/control **borders** `--border` 1.25:1 (<3:1, 1.4.11). (5) residual chart-palette CVD overlap (navy/purple 31, dark purple/teal 21) — a full CVD-distinct repalette is the "full AA" scope. Financial red/green still **converge under deuteranopia** — mitigated where negatives use `()`/signs, but charts rely on color alone; §6.3's ▲▼/sign cue should extend to charts.
 
+## 16. P4 mobile expansion — first slices (2026-06-05, v3.0.4–v3.0.5)
+
+Track D (§7) started. Shipped: (1) **Mobile Overview** — the `/m` home is now live data (net-worth hero + Δ vs last month, This-Month cash-flow grid) over `fetchBalanceReportV2` (today + prior month-end) + `fetchCashFlowReportV2` (this-month), launcher kept below. (2) **Tab-bar revisit** — Overview tab added, periodic Refresh dropped (still on the launcher) → the 5 tabs are now highest-frequency (§7.3). (3) **Balance Trends** read page (`/m/balance-trends`) — net worth over 6/12/24 months as a recharts line chart; wired into routing + the desktop↔mobile redirect map + launcher + title map. All device-emulation verified, no console errors, frontend-only. **Deferred next:** read-only mobile **Ledger** (account picker + running balance); mobile microinteractions (§7.4). Mobile stays light-only (no theme toggle, by design).
+
 ---
 
 *Draft prepared 2026-06-04 after a frontend audit + market review. Decisions in §11 are open; nothing here is committed to code.*
