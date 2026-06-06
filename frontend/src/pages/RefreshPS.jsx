@@ -1,6 +1,7 @@
 /*************************************************************
  * RefreshPS.jsx
- * Page for refreshing PocketSmith data using API calls.
+ * Page for refreshing bank-feed data and reviewing/accepting staged transactions.
+ * (The automated PocketSmith API refresh was removed in CR030.)
  *
  *************************************************************/
 
@@ -26,7 +27,6 @@ export default function RefreshPS() {
   const [lastRefreshStatus, setLastRefreshStatus] = useState(null);
   const [psDataCountStatus, setPsDataCountStatus] = useState(null);
   const [refreshStatus, setRefreshStatus] = useState(null);
-  const [isRefreshing, setIsRefreshing] = useState(false);
   const [isRefreshingFeed, setIsRefreshingFeed] = useState(false);
   // CR022 transfer-to-account action (review queue)
   const [accountOptions, setAccountOptions] = useState([]);
@@ -150,15 +150,6 @@ export default function RefreshPS() {
   /**************************
    * Handle the change of refresh date
    **************************/
-  const updateLastRefreshTimestamp = async () => {
-    const { modifiedCount = 0, upsertedCount = 0 } =
-      (await Rest.fetchJson("/api/v2/ingest-ps/appdata/last-refresh", {
-        method: "POST",
-      })) ?? {};
-
-    return modifiedCount + upsertedCount > 0;
-  };
-
   /**************************
    * Handle button clicks
    **************************/
@@ -199,98 +190,6 @@ export default function RefreshPS() {
       });
     } finally {
       setIsRefreshingFeed(false);
-    }
-  };
-
-  const handleRefreshClick = async () => {
-    if (isRefreshing) {
-      return;
-    }
-
-    setRefreshStatus({
-      type: "info",
-      message: "Refreshing PS data from PocketSmith...",
-    });
-    setIsRefreshing(true);
-
-    const parsedDaysHistory = Number(daysHistory);
-    const daysHistoryValue =
-      Number.isFinite(parsedDaysHistory) && parsedDaysHistory > 0
-        ? parsedDaysHistory
-        : 7;
-
-    try {
-      const {
-        importReport = 0,
-        all = 0,
-        updateReport = 0,
-        reviewBreakdown = null,
-      } = await Rest.fetchJson("/api/v2/ingest-ps/refresh-ps", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({ daysHistory: daysHistoryValue }),
-      });
-
-      const inserted = Number(importReport) || 0;
-      const totalReceived = Number(all) || 0;
-      const updated = Number(updateReport) || 0;
-
-      let lastRefreshUpdated = false;
-      try {
-        lastRefreshUpdated = await updateLastRefreshTimestamp();
-      } catch (error) {
-        console.error(
-          "Failed to update lastRefresh timestamp in appdata",
-          error
-        );
-      }
-
-      let reviewLine = "";
-      if (reviewBreakdown && Number(reviewBreakdown.inserted_to_staging) > 0) {
-        const r = Number(reviewBreakdown.reviewable) || 0;
-        const ma = Number(reviewBreakdown.missing_amount) || 0;
-        const ua = Number(reviewBreakdown.unmapped_account) || 0;
-        const aa = Number(reviewBreakdown.already_accepted) || 0;
-        const os = Number(reviewBreakdown.other_skipped) || 0;
-        const dropped = ma + ua + aa + os;
-        if (dropped > 0) {
-          const reasons = [
-            ma > 0 ? `missing amount: ${ma}` : null,
-            ua > 0 ? `unmapped account: ${ua}` : null,
-            aa > 0 ? `already accepted: ${aa}` : null,
-            os > 0 ? `other: ${os}` : null,
-          ].filter(Boolean).join(", ");
-          reviewLine = ` ${r} added to Review (${dropped} dropped — ${reasons}).`;
-        } else {
-          reviewLine = ` ${r} added to Review.`;
-        }
-      }
-
-      setRefreshStatus({
-        type: lastRefreshUpdated ? "success" : "warning",
-        message: `PS refresh complete: ${totalReceived} received, ${inserted} inserted, ${updated} updated, ${
-          totalReceived - inserted - updated
-        } skipped.${reviewLine}${
-          lastRefreshUpdated ? "" : " Last refresh timestamp not saved."
-        }`,
-      });
-      showSuccess(`PS refresh complete: ${inserted} inserted, ${updated} updated`);
-      await fetchLastIngest();
-
-      // Reload the active table view with fresh data
-      if (activeView === "review") await loadReviewTransactions();
-      else if (activeView === "new") await loadNewTransactions();
-      else if (activeView === "modified") await loadModifiedTransactions();
-    } catch (error) {
-      setRefreshStatus({
-        type: "error",
-        message: error?.message ?? "Failed to refresh PS data.",
-      });
-      showErrorToast(error?.message ?? "Failed to refresh PS data");
-    } finally {
-      setIsRefreshing(false);
     }
   };
 
@@ -984,8 +883,8 @@ export default function RefreshPS() {
             <div>
               <h1 className="refresh-ps-toolbar__title">Refresh Feeds</h1>
               <p className="refresh-ps-toolbar__desc">
-                Pull the latest PocketSmith and bank-feed transactions and sync
-                them into your database for review.
+                Pull the latest bank-feed transactions and sync them into your
+                database for review.
               </p>
             </div>
             <div className="refresh-ps-toolbar__right">
@@ -1002,16 +901,8 @@ export default function RefreshPS() {
               <button
                 type="button"
                 className="refresh-ps-btn refresh-ps-btn--action"
-                onClick={handleRefreshClick}
-                disabled={isRefreshing || isRefreshingFeed}
-              >
-                {isRefreshing ? "Refreshing..." : "Refresh PS Data"}
-              </button>
-              <button
-                type="button"
-                className="refresh-ps-btn refresh-ps-btn--action"
                 onClick={handleRefreshFeedClick}
-                disabled={isRefreshing || isRefreshingFeed}
+                disabled={isRefreshingFeed}
               >
                 {isRefreshingFeed ? "Refreshing..." : "Refresh Feed Data"}
               </button>
@@ -1195,14 +1086,6 @@ export default function RefreshPS() {
                     disabled={isSuggesting || acceptingId != null}
                   >
                     {isSuggesting ? "Suggesting..." : "Suggest categories"}
-                  </button>
-                  <button
-                    type="button"
-                    className="refresh-ps-btn refresh-ps-btn--accept-all"
-                    onClick={() => handleAcceptBySource("pocketsmith", "PS")}
-                    disabled={acceptingId != null}
-                  >
-                    {acceptingId === "pocketsmith" ? "Accepting..." : "Accept PS"}
                   </button>
                   <button
                     type="button"

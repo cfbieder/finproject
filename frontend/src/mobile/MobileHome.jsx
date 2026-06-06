@@ -3,7 +3,6 @@ import { Link } from "react-router-dom";
 import {
   Wallet,
   ArrowLeftRight,
-  RefreshCw,
   Target,
   BarChart3,
   TrendingUp,
@@ -21,7 +20,6 @@ const CARDS = [
   { to: "/m/balance-trends", label: "Balance Trends", icon: LineChart },
   { to: "/m/ledger", label: "Ledger", icon: BookOpen },
   { to: "/m/cash-flow", label: "Cash Flow", icon: ArrowLeftRight },
-  { to: "/m/refresh-ps", label: "Refresh PS", icon: RefreshCw },
   { to: "/m/budget-realization", label: "Budget Realization", icon: Target },
   { to: "/m/budget-graph", label: "Budget Graph", icon: BarChart3 },
 ];

@@ -614,26 +614,4 @@ export default class Rest {
     return true;
   }
 
-  // ── Balance Calibration ──────────────────────────────────────────────
-
-  static async mapPsAccounts() {
-    const response = await fetch(Rest.buildUrl("/api/v2/accounts/map-ps-accounts"), {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-    });
-    return Rest.handleResponse(response);
-  }
-
-  static async calibrateAccounts(accountId) {
-    const query = accountId ? `?accountId=${accountId}` : "";
-    const response = await fetch(Rest.buildUrl(`/api/v2/accounts/calibrate${query}`), {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-    });
-    return Rest.handleResponse(response);
-  }
-
-  static async fetchCalibrationStatus() {
-    return Rest.fetchJson("/api/v2/accounts/calibration-status");
-  }
 }

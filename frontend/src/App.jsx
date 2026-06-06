@@ -16,7 +16,6 @@ import MobileHome from "./mobile/MobileHome";
 const CategoryLandingPage = lazy(() => import("./pages/CategoryLandingPage"));
 const MobileBalance = lazy(() => import("./mobile/pages/MobileBalance"));
 const MobileCashFlow = lazy(() => import("./mobile/pages/MobileCashFlow"));
-const MobileRefreshPS = lazy(() => import("./mobile/pages/MobileRefreshPS"));
 const MobileBudgetRealization = lazy(() =>
   import("./mobile/pages/MobileBudgetRealization")
 );
@@ -31,7 +30,6 @@ const DESKTOP_TO_MOBILE = {
   "/": "/m",
   "/balance": "/m/balance",
   "/cash-flow": "/m/cash-flow",
-  "/refresh-ps": "/m/refresh-ps",
   "/budget-realization": "/m/budget-realization",
   "/budget-graph": "/m/budget-graph",
   "/balance-trends": "/m/balance-trends",
@@ -66,7 +64,6 @@ function AppShell() {
             <Route path="/m" element={<MobileHome />} />
             <Route path="/m/balance" element={<MobileBalance />} />
             <Route path="/m/cash-flow" element={<MobileCashFlow />} />
-            <Route path="/m/refresh-ps" element={<MobileRefreshPS />} />
             <Route
               path="/m/budget-realization"
               element={<MobileBudgetRealization />}
