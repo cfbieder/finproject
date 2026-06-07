@@ -9,6 +9,7 @@ import {
   TrendingDown,
   LineChart,
   BookOpen,
+  RefreshCw,
   Loader2,
 } from "lucide-react";
 import Rest from "../js/rest.js";
@@ -22,6 +23,7 @@ const CARDS = [
   { to: "/m/cash-flow", label: "Cash Flow", icon: ArrowLeftRight },
   { to: "/m/budget-realization", label: "Budget Realization", icon: Target },
   { to: "/m/budget-graph", label: "Budget Graph", icon: BarChart3 },
+  { to: "/m/refresh-feeds", label: "Refresh Feeds", icon: RefreshCw },
 ];
 
 const currencyFormatter = new Intl.NumberFormat("en-US", {

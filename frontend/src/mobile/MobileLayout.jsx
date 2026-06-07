@@ -7,6 +7,7 @@ import "./mobile.css";
 const EXTRA_TITLES = {
   "/m/balance-trends": "Balance Trends",
   "/m/ledger": "Ledger",
+  "/m/refresh-feeds": "Refresh Feeds",
 };
 
 function getPageTitle(pathname) {
