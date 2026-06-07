@@ -15,9 +15,12 @@
  * that rail gets the working bottom-tab shell instead. Narrow *mouse* windows
  * (fine pointer) stay on the desktop layout, as before.
  *
- * Honored escape hatch: if localStorage["forceDesktop"] === "true", always
- * returns false so desktop users on a small window can opt back into the
- * full experience.
+ * Escape hatch: if localStorage["forceDesktop"] === "true" the mobile shell is
+ * suppressed — BUT only on a **fine-pointer (mouse)** device. On a touch
+ * (coarse-pointer) phone the desktop sidebar rail is hover-only and unusable,
+ * so the flag is ignored there. This also auto-frees a phone previously trapped
+ * by the (now touch-hidden) "Switch to desktop view" button, with no need to
+ * clear storage by hand.
  */
 
 import { useEffect, useState } from "react";
@@ -27,16 +30,30 @@ export const MOBILE_BREAKPOINT = 640;
 export const TOUCH_BREAKPOINT = 900;
 const FORCE_DESKTOP_KEY = "forceDesktop";
 
+/** True when the device's primary pointer is coarse (touch) — phones/tablets. */
+export function isCoarsePointer() {
+  return (
+    typeof window !== "undefined" &&
+    typeof window.matchMedia === "function" &&
+    window.matchMedia("(pointer: coarse)").matches
+  );
+}
+
 function detect() {
   if (typeof window === "undefined") return false;
+  const hasMM = typeof window.matchMedia === "function";
+  const coarse = hasMM && window.matchMedia("(pointer: coarse)").matches;
   try {
-    if (window.localStorage.getItem(FORCE_DESKTOP_KEY) === "true") return false;
+    // forceDesktop is only honored on a mouse (fine-pointer) device — on a
+    // touch phone the desktop sidebar rail is unusable, so a trapped phone
+    // recovers automatically rather than being held on the desktop layout.
+    if (!coarse && window.localStorage.getItem(FORCE_DESKTOP_KEY) === "true") {
+      return false;
+    }
   } catch {
     // localStorage may be unavailable (private mode) — fall through
   }
-  const hasMM = typeof window.matchMedia === "function";
   const standalone = hasMM && window.matchMedia("(display-mode: standalone)").matches;
-  const coarse = hasMM && window.matchMedia("(pointer: coarse)").matches;
   const narrow = window.innerWidth <= MOBILE_BREAKPOINT;
   const touchRail = coarse && window.innerWidth <= TOUCH_BREAKPOINT;
   return Boolean(standalone || narrow || touchRail);

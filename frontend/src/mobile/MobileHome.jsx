@@ -13,7 +13,7 @@ import {
 } from "lucide-react";
 import Rest from "../js/rest.js";
 import { getPreset } from "./periodPresets.js";
-import { setForceDesktop } from "./useIsMobile";
+import { setForceDesktop, isCoarsePointer } from "./useIsMobile";
 
 const CARDS = [
   { to: "/m/balance", label: "Balance Summary", icon: Wallet },
@@ -193,11 +193,16 @@ export default function MobileHome() {
         ))}
       </div>
 
-      <div className="m-foot">
-        <button type="button" className="m-foot__link" onClick={handleSwitchToDesktop}>
-          Switch to desktop view
-        </button>
-      </div>
+      {/* Desktop view is only offered on mouse (fine-pointer) devices — on a
+          touch phone the desktop sidebar rail is unusable and forceDesktop is
+          ignored, so the toggle would be a confusing no-op. */}
+      {!isCoarsePointer() && (
+        <div className="m-foot">
+          <button type="button" className="m-foot__link" onClick={handleSwitchToDesktop}>
+            Switch to desktop view
+          </button>
+        </div>
+      )}
     </div>
   );
 }
