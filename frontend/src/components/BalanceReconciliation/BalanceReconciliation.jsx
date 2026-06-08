@@ -32,6 +32,7 @@ export default function BalanceReconciliation() {
   const [confirm, setConfirm] = useState(null); // { account, title, message, confirmLabel } | null
   const [savingMode, setSavingMode] = useState(null);
   const [institutionFilter, setInstitutionFilter] = useState("all"); // feed/institution filter
+  const [statusFilter, setStatusFilter] = useState("all"); // reconciliation-status filter
 
   // Set how an account reconciles: 'calibrate' (bank/cash → DRIFT) or 'mtm'
   // (brokerage / mark-to-market holdings → MTM GAP). Harmless on its own.
@@ -120,10 +121,32 @@ export default function BalanceReconciliation() {
   const institutions = Array.from(
     new Set(balRecon.accounts.map((a) => a.institution || "Unknown"))
   ).sort((x, y) => x.localeCompare(y));
-  const visibleAccounts =
+  // Reconciliation status of a row: no-feed (no bank balance) / reconciled /
+  // mtm (brokerage mark-to-market gap) / drift (cash/bank mismatch).
+  const rowStatus = (a) =>
+    a.reconciled == null
+      ? "no-feed"
+      : a.reconciled
+        ? "reconciled"
+        : a.reconcile_mode === "mtm"
+          ? "mtm"
+          : "drift";
+
+  // Apply the feed filter first, then tally status counts for the status
+  // dropdown (so counts reflect the selected feed), then apply the status filter.
+  const byInstitution =
     institutionFilter === "all"
       ? balRecon.accounts
       : balRecon.accounts.filter((a) => (a.institution || "Unknown") === institutionFilter);
+  const statusCounts = byInstitution.reduce((m, a) => {
+    const s = rowStatus(a);
+    m[s] = (m[s] || 0) + 1;
+    return m;
+  }, {});
+  const visibleAccounts =
+    statusFilter === "all"
+      ? byInstitution
+      : byInstitution.filter((a) => rowStatus(a) === statusFilter);
   const visibleUnreconciled = visibleAccounts.filter((a) => a.reconciled === false).length;
 
   return (
@@ -156,6 +179,26 @@ export default function BalanceReconciliation() {
             {institutions.map((inst) => (
               <option key={inst} value={inst}>
                 {inst}
+              </option>
+            ))}
+          </select>
+        </label>
+        <label className="bfd-muted">
+          Status{" "}
+          <select
+            value={statusFilter}
+            onChange={(e) => setStatusFilter(e.target.value)}
+            title="Filter rows by reconciliation status"
+          >
+            <option value="all">All statuses ({byInstitution.length})</option>
+            {[
+              ["reconciled", "Reconciled"],
+              ["drift", "Drift"],
+              ["mtm", "MTM gap"],
+              ["no-feed", "No feed"],
+            ].map(([val, lbl]) => (
+              <option key={val} value={val}>
+                {lbl} ({statusCounts[val] || 0})
               </option>
             ))}
           </select>
