@@ -1065,6 +1065,13 @@
    right column). The pinned cell needs an opaque fill per row state. */
 .trans-budget-table__checkbox-cell {
   white-space: nowrap;
+  vertical-align: middle;
+}
+
+/* Inner flex wrapper for the checkbox + kebab. The flex layout lives here, NOT
+   on the <td> — a display:flex table cell drops out of table row-height
+   stretching and would top-align in tall (wrapped) rows. */
+.trans-budget-table__rowctrl {
   display: flex;
   align-items: center;
   gap: 0.25rem;

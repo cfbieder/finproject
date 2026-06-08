@@ -1145,7 +1145,12 @@ export default function RefreshPS() {
                     <AccountPicker
                       value={transferTargetId}
                       options={accountOptions.filter(
-                        (o) => o.isLeaf && o.id !== transferEntry.account_id
+                        // Balance-sheet leaves only: a net-worth-neutral transfer
+                        // must offset to a real asset/liability, not a P&L account.
+                        (o) =>
+                          o.isLeaf &&
+                          o.section === "balance_sheet" &&
+                          o.id !== transferEntry.account_id
                       )}
                       onChange={setTransferTargetId}
                       placeholder="Search accounts…"

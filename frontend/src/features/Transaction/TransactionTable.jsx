@@ -261,6 +261,7 @@ export default function TransactionTable({
                   >
                     {(showSelection || hasRowActions) && (
                       <td className="trans-budget-table__checkbox-cell">
+                        <div className="trans-budget-table__rowctrl">
                         {showSelection && (
                           <input
                             type="checkbox"
@@ -311,6 +312,7 @@ export default function TransactionTable({
                             ].filter(Boolean)}
                           />
                         )}
+                        </div>
                       </td>
                     )}
                     {columns.map((column) => {
