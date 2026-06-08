@@ -1263,6 +1263,83 @@
   box-shadow: 0 1px 4px rgba(86, 120, 86, 0.15);
 }
 
+/* Per-row kebab (⋮) trigger — collapses the inline row actions into one icon.
+   Lives in the sticky right action cell; the menu itself is portaled to <body>
+   (see .trans-budget-row-menu) so it escapes the table's overflow clip. */
+.trans-budget-table__kebab {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  padding: 0;
+  border: 1px solid transparent;
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: var(--muted);
+  cursor: pointer;
+  transition: all 0.12s ease;
+}
+.trans-budget-table__kebab:hover,
+.trans-budget-table__kebab[aria-expanded="true"] {
+  background: var(--surface-muted);
+  color: var(--ink);
+  border-color: var(--border);
+}
+.trans-budget-table__kebab-spinner {
+  width: 14px;
+  height: 14px;
+  border: 2px solid var(--border);
+  border-top-color: var(--primary);
+  border-radius: 50%;
+  animation: trans-kebab-spin 0.7s linear infinite;
+}
+@keyframes trans-kebab-spin {
+  to { transform: rotate(360deg); }
+}
+
+/* Portal popup menu opened by the kebab. position:fixed coords are set inline
+   from the trigger's getBoundingClientRect(); rendered at <body> so neither the
+   table scroller nor the sticky column clips it. */
+.trans-budget-row-menu {
+  position: fixed;
+  z-index: 1000;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.14);
+  padding: 0.25rem;
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+}
+.trans-budget-row-menu__item {
+  display: block;
+  width: 100%;
+  text-align: left;
+  padding: 0.4rem 0.6rem;
+  border: none;
+  background: transparent;
+  border-radius: var(--radius-sm);
+  font-size: 0.8rem;
+  font-weight: 600;
+  color: var(--ink);
+  cursor: pointer;
+  white-space: nowrap;
+  transition: background 0.12s ease;
+}
+.trans-budget-row-menu__item:hover:not(:disabled) {
+  background: var(--surface-muted);
+}
+.trans-budget-row-menu__item:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+.trans-budget-row-menu__item--category { color: var(--primary); }
+.trans-budget-row-menu__item--split { color: var(--info-strong); }
+.trans-budget-row-menu__item--neutralize { color: var(--warning-strong); }
+.trans-budget-row-menu__item--accept { color: var(--success-strong); }
+
 /* Keep legacy class for backward compat */
 .trans-budget-table__accept-header { width: 80px; text-align: center; }
 .trans-budget-table__accept-cell { text-align: center; padding: 0.25rem 0.4rem; }

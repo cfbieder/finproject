@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { ChevronUp, ChevronDown, ChevronsUpDown } from "lucide-react";
+import RowActionMenu from "./RowActionMenu.jsx";
 import Rest from "../../js/rest";
 import { EARLIEST_ACTUAL_YEAR } from "../../utils/yearOptions";
 
@@ -301,76 +302,46 @@ export default function TransactionTable({
                     })}
                     {hasRowActions && (
                       <td className="trans-budget-table__actions-cell">
-                        {onCategoryClick && (
-                          <button
-                            type="button"
-                            className="trans-budget-table__action-btn trans-budget-table__action-btn--category"
-                            disabled={rowBusy}
-                            onClick={(event) => {
-                              event.stopPropagation();
-                              onCategoryClick(rowId, entry);
-                            }}
-                            aria-label={`Change category for transaction ${rowId}`}
-                          >
-                            Category
-                          </button>
-                        )}
-                        {onSplitClick && (
-                          <button
-                            type="button"
-                            className="trans-budget-table__action-btn trans-budget-table__action-btn--split"
-                            disabled={rowBusy}
-                            onClick={(event) => {
-                              event.stopPropagation();
-                              onSplitClick(rowId, entry);
-                            }}
-                            aria-label={`Split transaction ${rowId}`}
-                          >
-                            Split
-                          </button>
-                        )}
-                        {onNeutralizeClick && (
-                          <button
-                            type="button"
-                            className="trans-budget-table__action-btn trans-budget-table__action-btn--neutralize"
-                            disabled={rowBusy}
-                            onClick={(event) => {
-                              event.stopPropagation();
-                              onNeutralizeClick(rowId, entry);
-                            }}
-                            aria-label={`Neutralize transaction ${rowId}`}
-                          >
-                            {isNeutralizing ? "Neutralizing…" : "Neutralize"}
-                          </button>
-                        )}
-                        {onTransferClick && (
-                          <button
-                            type="button"
-                            className="trans-budget-table__action-btn trans-budget-table__action-btn--neutralize"
-                            disabled={rowBusy}
-                            onClick={(event) => {
-                              event.stopPropagation();
-                              onTransferClick(rowId, entry);
-                            }}
-                            aria-label={`Record transaction ${rowId} as a transfer to another account`}
-                          >
-                            Transfer
-                          </button>
-                        )}
-                        {onAcceptClick && (
-                          <button
-                            type="button"
-                            className="trans-budget-table__action-btn trans-budget-table__action-btn--accept"
-                            disabled={rowBusy}
-                            onClick={(event) => {
-                              event.stopPropagation();
-                              onAcceptClick(rowId, entry);
-                            }}
-                            aria-label={`Accept transaction ${rowId}`}
-                          >
-                            {isAccepting ? "Accepting…" : "Accept"}
-                          </button>
-                        )}
+                        <RowActionMenu
+                          busy={rowBusy}
+                          items={[
+                            onCategoryClick && {
+                              key: "category",
+                              label: "Edit category",
+                              tone: "category",
+                              disabled: rowBusy,
+                              onClick: () => onCategoryClick(rowId, entry),
+                            },
+                            onSplitClick && {
+                              key: "split",
+                              label: "Split",
+                              tone: "split",
+                              disabled: rowBusy,
+                              onClick: () => onSplitClick(rowId, entry),
+                            },
+                            onNeutralizeClick && {
+                              key: "neutralize",
+                              label: isNeutralizing ? "Neutralizing…" : "Neutralize",
+                              tone: "neutralize",
+                              disabled: rowBusy,
+                              onClick: () => onNeutralizeClick(rowId, entry),
+                            },
+                            onTransferClick && {
+                              key: "transfer",
+                              label: "Transfer",
+                              tone: "neutralize",
+                              disabled: rowBusy,
+                              onClick: () => onTransferClick(rowId, entry),
+                            },
+                            onAcceptClick && {
+                              key: "accept",
+                              label: isAccepting ? "Accepting…" : "Accept",
+                              tone: "accept",
+                              disabled: rowBusy,
+                              onClick: () => onAcceptClick(rowId, entry),
+                            },
+                          ].filter(Boolean)}
+                        />
                       </td>
                     )}
                   </tr>
