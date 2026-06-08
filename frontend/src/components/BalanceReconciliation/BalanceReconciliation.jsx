@@ -155,13 +155,34 @@ export default function BalanceReconciliation() {
       <p className="bfd-subtitle">
         Per fed account: fin's <strong>computed</strong> balance
         (<code>opening_balance + Σ tx</code>) vs the bank's <strong>expected</strong>
-        balance — the bank's reported balance converted to fin's sign convention
-        (a liability the bank reports as <code>+owed</code> shows here as
-        <code>−</code>; the raw bank figure is noted when it differs). <strong>Drift =
-        computed − expected</strong>; RECONCILED only when they match. <strong>Brokerage</strong>
-        (mtm) rows show drift by design — the un-booked market move the monthly
-        Unrealized-G/L entry recognizes. The <em>flip tx</em> toggle handles feeds
-        whose transaction signs are reversed (e.g. some US cards).
+        balance. <strong>Drift = computed − expected</strong>; RECONCILED only when
+        they match. <strong>Brokerage</strong> (mtm) rows show drift by design — the
+        un-booked market move the monthly Unrealized-G/L entry recognizes.
+      </p>
+      <p className="bfd-subtitle">
+        Each feed is normalized to fin's convention (a liability is a{" "}
+        <strong>negative</strong> balance; purchases are <strong>negative</strong>)
+        by <strong>two independent</strong> sign settings:
+      </p>
+      <ul className="bfd-subtitle" style={{ marginTop: 0 }}>
+        <li>
+          <strong>Balance sign</strong> (automatic): a liability the bank reports as{" "}
+          <code>+owed</code> is stored as <code>−</code> — the raw figure is shown as
+          “bank reports … (owed)” when it differs.
+        </li>
+        <li>
+          <strong>Transaction sign</strong> — the <em>flip tx</em> toggle: ON only when
+          a feed delivers each <em>purchase</em> as <code>+</code> (and a payment as{" "}
+          <code>−</code>), the reverse of fin.
+        </li>
+      </ul>
+      <p className="bfd-subtitle">
+        A feed can need one flip but not the other — which is why two cards both marked
+        “(owed)” can differ on the checkbox. <strong>Chase</strong> cards (Amazon /
+        Marriot) report the balance <em>and</em> purchases as <code>+</code>, so both
+        flip. <strong>PKO</strong> reports the balance <code>+owed</code> but purchases
+        already as <code>−</code>, so only the balance flips and <em>flip tx</em> stays
+        off.
       </p>
       <div className="bfd-feed-card-header">
         <StatusPill
