@@ -11,7 +11,11 @@ components/data/appdata.json
 
 # database backups
 Backups/
+backups/
 *.dump
+
+# local runtime logs
+logs/
 
 # local dev certs
 certs/

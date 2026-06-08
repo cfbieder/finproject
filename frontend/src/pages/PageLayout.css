@@ -1148,10 +1148,23 @@
   cursor: default;
 }
 
-/* Row action buttons in transaction table */
-.trans-budget-table__actions-header {
+/* Row action buttons in transaction table.
+   The action column is pinned to the RIGHT edge so the per-row Category / Split
+   / Neutralize / Transfer / Accept buttons stay reachable without horizontally
+   scrolling the (often very wide) review table. Mirrors the sticky-left
+   frozen-column pattern used by the balance reports; the pinned cell needs an
+   opaque fill per row state or scrolling cells bleed through it. */
+/* Qualified with `thead th` so this out-specifies the generic
+   `.trans-budget-table thead th` rule (which sets z-index:1) — otherwise the
+   pinned body action cells (z-index:1) paint over the sticky header on
+   vertical scroll. */
+.trans-budget-table thead th.trans-budget-table__actions-header {
   text-align: center;
   white-space: nowrap;
+  position: sticky;
+  right: 0;
+  z-index: 4; /* above scrolling header cells (1) and pinned body cells (1) */
+  box-shadow: inset 1px 0 0 var(--border), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
 }
 
 .trans-budget-table__actions-cell {
@@ -1162,6 +1175,27 @@
   gap: 0.25rem;
   justify-content: center;
   align-items: center;
+  position: sticky;
+  right: 0;
+  z-index: 1; /* float above scrolling body cells, stay under the sticky header */
+  background: var(--surface);
+  box-shadow: inset 1px 0 0 var(--border);
+}
+
+/* Re-assert opaque fills on the pinned action cell for striped / hover /
+   selected rows (those row backgrounds are semi-transparent and would
+   otherwise show the scrolling cells through the frozen column). Ordered so
+   hover wins over the stripe, and a selected row keeps its tint over hover. */
+.trans-budget-table tbody tr:nth-child(even) .trans-budget-table__actions-cell {
+  background: var(--surface);
+}
+
+.trans-budget-table tbody tr:hover .trans-budget-table__actions-cell {
+  background: var(--surface-muted);
+}
+
+.trans-budget-table tbody tr.trans-budget-table__row--selected .trans-budget-table__actions-cell {
+  background: var(--primary-subtle);
 }
 
 .trans-budget-table__action-btn {
