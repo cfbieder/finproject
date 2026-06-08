@@ -239,7 +239,12 @@ export default function BalanceReconciliation() {
                   </select>
                   <label
                     className="bfd-negate-toggle"
-                    title="Flip feed transaction signs to fin's convention (e.g. Chase cards report purchases positive). Applies to FUTURE promotes — set before importing this account's feed transactions."
+                    title={
+                      "Whether this feed delivers transaction signs reversed vs fin " +
+                      "(e.g. Chase cards report a purchase as + and a payment as − — the reverse of fin). " +
+                      "INDEPENDENT of the balance '(owed)' sign. ON flips every transaction on import to fin's " +
+                      "convention; applies to FUTURE promotes — set before importing this account's feed."
+                    }
                   >
                     <input
                       type="checkbox"
@@ -249,6 +254,11 @@ export default function BalanceReconciliation() {
                     />
                     flip tx
                   </label>
+                  <div className="bfd-muted" style={{ fontSize: "0.7rem" }}>
+                    {a.feed_negate_tx === true
+                      ? "feed reverses tx signs"
+                      : "feed tx signs match fin"}
+                  </div>
                 </td>
                 <td className="num">{fmtNum(a.computed_balance)}</td>
                 <td className="num">
