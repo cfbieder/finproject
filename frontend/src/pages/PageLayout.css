@@ -1209,6 +1209,12 @@
   border: 1px solid;
 }
 
+.trans-budget-table__action-btn:disabled {
+  opacity: 0.5;
+  cursor: default;
+  box-shadow: none;
+}
+
 /* Accept */
 .trans-budget-table__action-btn--accept {
   border-color: var(--success-light);

@@ -718,9 +718,12 @@ export default function RefreshPS() {
    * Neutralize transaction (brokerage security trades)
    **************************/
 
-  const [isNeutralizing, setIsNeutralizing] = useState(false);
+  // Holds the id of the row currently being neutralized (null when idle) so the
+  // table can show that row's Neutralize button as busy and lock its actions.
+  const [neutralizingId, setNeutralizingId] = useState(null);
 
   const handleNeutralizeClick = useCallback(async (_rowId, entryArg) => {
+    if (neutralizingId != null) return; // a neutralize is already in flight
     const entry = entryArg || (selectedRows.size === 1 ? [...selectedRows.values()][0] : null);
     if (!entry) return;
     const id = entry?.id ?? entry?._id;
@@ -729,7 +732,7 @@ export default function RefreshPS() {
       return;
     }
 
-    setIsNeutralizing(true);
+    setNeutralizingId(id);
     try {
       const response = await fetch(
         Rest.buildUrl(`${reviewConfig.endpoint}/${id}/neutralize`),
@@ -749,9 +752,9 @@ export default function RefreshPS() {
     } catch (err) {
       showErrorToast(err?.message ?? "Failed to neutralize transaction");
     } finally {
-      setIsNeutralizing(false);
+      setNeutralizingId(null);
     }
-  }, [selectedRows, clearSelection, loadReviewTransactions, showSuccess, showErrorToast]);
+  }, [neutralizingId, selectedRows, clearSelection, loadReviewTransactions, showSuccess, showErrorToast]);
 
   // CR022: suggest categories for uncategorized rows from history, then apply
   // them as pending (not accepted) so they're reviewed before committing.
@@ -1120,6 +1123,8 @@ export default function RefreshPS() {
               onSplitClick={handleSplitClick}
               onNeutralizeClick={handleNeutralizeClick}
               onTransferClick={handleTransferClick}
+              neutralizingId={neutralizingId}
+              acceptingId={acceptingId}
             />
             {transferEntry && (
               <div

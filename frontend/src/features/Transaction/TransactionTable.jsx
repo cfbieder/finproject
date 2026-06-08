@@ -141,6 +141,8 @@ export default function TransactionTable({
   onSplitClick,
   onNeutralizeClick,
   onTransferClick,
+  neutralizingId = null,
+  acceptingId = null,
   groupByKey = null,
 }) {
   const hasRowActions = !!(onAcceptClick || onSplitClick || onNeutralizeClick || onTransferClick);
@@ -244,6 +246,12 @@ export default function TransactionTable({
                     );
                   }
                   const { entry, rowId, isSelected } = item;
+                  const entryId = entry?.id ?? entry?._id;
+                  const isNeutralizing = neutralizingId != null && neutralizingId === entryId;
+                  const isAccepting = acceptingId != null && acceptingId === entryId;
+                  // While an async per-row action runs, lock that row's actions to
+                  // avoid same-row races (e.g. accepting a row mid-neutralize).
+                  const rowBusy = isNeutralizing || isAccepting;
                   return (
                   <tr
                     key={rowId}
@@ -297,6 +305,7 @@ export default function TransactionTable({
                           <button
                             type="button"
                             className="trans-budget-table__action-btn trans-budget-table__action-btn--category"
+                            disabled={rowBusy}
                             onClick={(event) => {
                               event.stopPropagation();
                               onCategoryClick(rowId, entry);
@@ -310,6 +319,7 @@ export default function TransactionTable({
                           <button
                             type="button"
                             className="trans-budget-table__action-btn trans-budget-table__action-btn--split"
+                            disabled={rowBusy}
                             onClick={(event) => {
                               event.stopPropagation();
                               onSplitClick(rowId, entry);
@@ -323,19 +333,21 @@ export default function TransactionTable({
                           <button
                             type="button"
                             className="trans-budget-table__action-btn trans-budget-table__action-btn--neutralize"
+                            disabled={rowBusy}
                             onClick={(event) => {
                               event.stopPropagation();
                               onNeutralizeClick(rowId, entry);
                             }}
                             aria-label={`Neutralize transaction ${rowId}`}
                           >
-                            Neutralize
+                            {isNeutralizing ? "Neutralizing…" : "Neutralize"}
                           </button>
                         )}
                         {onTransferClick && (
                           <button
                             type="button"
                             className="trans-budget-table__action-btn trans-budget-table__action-btn--neutralize"
+                            disabled={rowBusy}
                             onClick={(event) => {
                               event.stopPropagation();
                               onTransferClick(rowId, entry);
@@ -349,13 +361,14 @@ export default function TransactionTable({
                           <button
                             type="button"
                             className="trans-budget-table__action-btn trans-budget-table__action-btn--accept"
+                            disabled={rowBusy}
                             onClick={(event) => {
                               event.stopPropagation();
                               onAcceptClick(rowId, entry);
                             }}
                             aria-label={`Accept transaction ${rowId}`}
                           >
-                            Accept
+                            {isAccepting ? "Accepting…" : "Accept"}
                           </button>
                         )}
                       </td>
