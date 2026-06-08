@@ -550,6 +550,9 @@ export default function RefreshPS() {
   }, [reviewTransactions, patchInBatches, loadReviewTransactions, showSuccess, showErrorToast]);
 
   // CR022: accept only the rows from one source (PS or bank-feed) in the queue.
+  // Retained for when the queue regains a second source; the per-source button
+  // was removed once the bank feed became the sole source (== Accept All).
+  // eslint-disable-next-line no-unused-vars
   const handleAcceptBySource = useCallback(async (source, label) => {
     const ids = reviewTransactions
       .filter((t) => t.Source === source)
@@ -1086,14 +1089,6 @@ export default function RefreshPS() {
                     disabled={isSuggesting || acceptingId != null}
                   >
                     {isSuggesting ? "Suggesting..." : "Suggest categories"}
-                  </button>
-                  <button
-                    type="button"
-                    className="refresh-ps-btn refresh-ps-btn--accept-all"
-                    onClick={() => handleAcceptBySource("bank-feed", "Bank feed")}
-                    disabled={acceptingId != null}
-                  >
-                    {acceptingId === "bank-feed" ? "Accepting..." : "Accept Bank Feed"}
                   </button>
                   <button
                     type="button"
