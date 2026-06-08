@@ -27,7 +27,11 @@ export default function RowActionMenu({ items, busy = false }) {
     if (top + menuH > window.innerHeight - 8) {
       top = Math.max(8, r.top - 4 - menuH); // flip above when near the bottom edge
     }
-    const left = Math.max(8, r.right - MENU_W);
+    // Open down-right, left-aligned to the trigger; shift left only if it would
+    // overflow the right viewport edge.
+    let left = r.left;
+    if (left + MENU_W > window.innerWidth - 8) left = window.innerWidth - 8 - MENU_W;
+    if (left < 8) left = 8;
     setCoords({ top, left });
   }, [items.length]);
 

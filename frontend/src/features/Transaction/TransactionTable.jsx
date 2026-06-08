@@ -158,7 +158,7 @@ export default function TransactionTable({
     : TRANSACTION_COLUMNS;
 
   const totalColumnCount =
-    (showSelection ? 1 : 0) + columns.length + (hasRowActions ? 1 : 0);
+    (showSelection || hasRowActions ? 1 : 0) + columns.length;
   // When grouping is on, interleave a header row before each account's rows.
   const renderRows = groupByKey
     ? buildAccountGroups(sortedTransactions, groupByKey).flatMap((group) => [
@@ -191,24 +191,27 @@ export default function TransactionTable({
             <table className="trans-budget-table">
               <thead>
                 <tr>
-                  {showSelection && (
-                    <th>
-                      <button
-                        type="button"
-                        className="trans-budget-table__sort-button"
-                        onClick={() => onSort?.(SELECTION_COLUMN.key)}
-                      >
-                        <span>{SELECTION_COLUMN.label}</span>
-                        <span className="trans-budget-table__sort-indicator">
-                          {sortConfig.key === SELECTION_COLUMN.key
-                            ? sortConfig.direction === "desc"
-                              ? <ChevronDown size={14} />
-                              : <ChevronUp size={14} />
-                            : <ChevronsUpDown size={14} />}
-                        </span>
-                      </button>
-                    </th>
-                  )}
+                  {(showSelection || hasRowActions) &&
+                    (showSelection ? (
+                      <th>
+                        <button
+                          type="button"
+                          className="trans-budget-table__sort-button"
+                          onClick={() => onSort?.(SELECTION_COLUMN.key)}
+                        >
+                          <span>{SELECTION_COLUMN.label}</span>
+                          <span className="trans-budget-table__sort-indicator">
+                            {sortConfig.key === SELECTION_COLUMN.key
+                              ? sortConfig.direction === "desc"
+                                ? <ChevronDown size={14} />
+                                : <ChevronUp size={14} />
+                              : <ChevronsUpDown size={14} />}
+                          </span>
+                        </button>
+                      </th>
+                    ) : (
+                      <th aria-label="Row actions" />
+                    ))}
                   {columns.map((column) => (
                     <th key={column.key}>
                       <button
@@ -227,9 +230,6 @@ export default function TransactionTable({
                       </button>
                     </th>
                   ))}
-                  {hasRowActions && (
-                    <th className="trans-budget-table__actions-header">Actions</th>
-                  )}
                 </tr>
               </thead>
               <tbody>
@@ -259,14 +259,58 @@ export default function TransactionTable({
                     className={`trans-budget-table__row${showSelection ? "" : " trans-budget-table__row--no-select"}`}
                     onClick={showSelection ? () => onRowToggle?.(rowId, entry) : undefined}
                   >
-                    {showSelection && (
+                    {(showSelection || hasRowActions) && (
                       <td className="trans-budget-table__checkbox-cell">
-                        <input
-                          type="checkbox"
-                          checked={isSelected}
-                          readOnly
-                          aria-label={`Select transaction ${rowId}`}
-                        />
+                        {showSelection && (
+                          <input
+                            type="checkbox"
+                            checked={isSelected}
+                            readOnly
+                            aria-label={`Select transaction ${rowId}`}
+                          />
+                        )}
+                        {hasRowActions && (
+                          <RowActionMenu
+                            busy={rowBusy}
+                            items={[
+                              onCategoryClick && {
+                                key: "category",
+                                label: "Edit category",
+                                tone: "category",
+                                disabled: rowBusy,
+                                onClick: () => onCategoryClick(rowId, entry),
+                              },
+                              onSplitClick && {
+                                key: "split",
+                                label: "Split",
+                                tone: "split",
+                                disabled: rowBusy,
+                                onClick: () => onSplitClick(rowId, entry),
+                              },
+                              onNeutralizeClick && {
+                                key: "neutralize",
+                                label: isNeutralizing ? "Neutralizing…" : "Neutralize",
+                                tone: "neutralize",
+                                disabled: rowBusy,
+                                onClick: () => onNeutralizeClick(rowId, entry),
+                              },
+                              onTransferClick && {
+                                key: "transfer",
+                                label: "Transfer",
+                                tone: "neutralize",
+                                disabled: rowBusy,
+                                onClick: () => onTransferClick(rowId, entry),
+                              },
+                              onAcceptClick && {
+                                key: "accept",
+                                label: isAccepting ? "Accepting…" : "Accept",
+                                tone: "accept",
+                                disabled: rowBusy,
+                                onClick: () => onAcceptClick(rowId, entry),
+                              },
+                            ].filter(Boolean)}
+                          />
+                        )}
                       </td>
                     )}
                     {columns.map((column) => {
@@ -300,50 +344,6 @@ export default function TransactionTable({
                         </td>
                       );
                     })}
-                    {hasRowActions && (
-                      <td className="trans-budget-table__actions-cell">
-                        <RowActionMenu
-                          busy={rowBusy}
-                          items={[
-                            onCategoryClick && {
-                              key: "category",
-                              label: "Edit category",
-                              tone: "category",
-                              disabled: rowBusy,
-                              onClick: () => onCategoryClick(rowId, entry),
-                            },
-                            onSplitClick && {
-                              key: "split",
-                              label: "Split",
-                              tone: "split",
-                              disabled: rowBusy,
-                              onClick: () => onSplitClick(rowId, entry),
-                            },
-                            onNeutralizeClick && {
-                              key: "neutralize",
-                              label: isNeutralizing ? "Neutralizing…" : "Neutralize",
-                              tone: "neutralize",
-                              disabled: rowBusy,
-                              onClick: () => onNeutralizeClick(rowId, entry),
-                            },
-                            onTransferClick && {
-                              key: "transfer",
-                              label: "Transfer",
-                              tone: "neutralize",
-                              disabled: rowBusy,
-                              onClick: () => onTransferClick(rowId, entry),
-                            },
-                            onAcceptClick && {
-                              key: "accept",
-                              label: isAccepting ? "Accepting…" : "Accept",
-                              tone: "accept",
-                              disabled: rowBusy,
-                              onClick: () => onAcceptClick(rowId, entry),
-                            },
-                          ].filter(Boolean)}
-                        />
-                      </td>
-                    )}
                   </tr>
                   );
                 })}
