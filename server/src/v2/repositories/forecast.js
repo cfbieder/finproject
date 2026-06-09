@@ -344,7 +344,7 @@ async function updateModule(id, data) {
     'expense_amount', 'expense_fc_line_id', 'income_fc_line_id', 'expense_growth_method',
     'income_amount', 'base_date', 'base_value', 'tax_rate_override', 'setup_status',
     'market_value', 'base_value_usd', 'market_value_usd',
-    'growth_rate', 'comment', 'is_matched', 'cash_sweep_target'
+    'growth_rate', 'comment', 'is_matched', 'cash_sweep_target', 'cash_sweep_priority'
   ];
 
   for (const field of allowedFields) {

@@ -138,6 +138,65 @@ describe("computeCashSweepIterative", () => {
     expect(bankOut2028.amount + moduleOut2028.amount).toBe(0);
   });
 
+  test("multi-module: drains primary fully before touching a backup (CR017)", () => {
+    const backupModules = [
+      { name: "Bond", account_name: "Bond Account", balanceByYear: { 2028: 300000 } },
+    ];
+    const { entries, sweepLog } = computeCashSweepIterative({
+      years: [2027, 2028],
+      cashSweepLow: 100000, cashSweepHigh: 200000,
+      cashDeltaByYear: { 2027: 100000, 2028: -500000 },
+      startingCash: 200000,
+      sweepModule, moduleBalanceByYear: { 2027: 400000, 2028: 400000 },
+      backupModules,
+    });
+
+    // 2027: 200k + 100k = 300k → sweep 100k into primary
+    expect(sweepLog[0].action).toBe("sweep_in");
+    expect(sweepLog[0].amount).toBe(100000);
+
+    // 2028: 200k - 500k = -300k → need 400k to reach 100k low.
+    // Primary: swept 100k + own 400k = 500k available → covers the full 400k.
+    // Backup must NOT be touched (primary drained first, and it sufficed).
+    const backupTransfer2028 = entries.find(
+      (e) => e.year === 2028 && e.account === "Bond Account" && e.module === "_cash_sweep"
+    );
+    expect(backupTransfer2028).toBeUndefined();
+    expect(sweepLog[1].cashAfter).toBe(100000);
+  });
+
+  test("multi-module: cascades into backup once primary is exhausted (CR017)", () => {
+    const backupModules = [
+      { name: "Bond", account_name: "Bond Account", balanceByYear: { 2027: 300000 } },
+    ];
+    const { entries, sweepLog } = computeCashSweepIterative({
+      years: [2027],
+      cashSweepLow: 100000, cashSweepHigh: 200000,
+      cashDeltaByYear: { 2027: -250000 },
+      startingCash: 150000, // 150k - 250k = -100k → need 200k to reach 100k
+      sweepModule, moduleBalanceByYear: { 2027: 50000 }, // primary own balance only 50k
+      backupModules,
+    });
+
+    // Primary supplies its 50k own balance, backup covers the remaining 150k.
+    const primaryOut = entries.find(
+      (e) => e.year === 2027 && e.account === "Fixed Income Account" && e.module === "_cash_sweep"
+    );
+    const backupOut = entries.find(
+      (e) => e.year === 2027 && e.account === "Bond Account" && e.module === "_cash_sweep"
+    );
+    expect(primaryOut.amount).toBe(-50000);
+    expect(backupOut.amount).toBe(-150000);
+    expect(sweepLog[0].action).toBe("sweep_out");
+    expect(sweepLog[0].cashAfter).toBe(100000);
+    // No residual shortfall — band fully restored from primary + backup
+    const shortfall = entries.find((e) => e.account === "Cash Shortfall");
+    expect(shortfall).toBeUndefined();
+    // Audit log records both modules touched this year
+    expect(sweepLog[0].modules).toContain("Fixed Income");
+    expect(sweepLog[0].modules).toContain("Bond");
+  });
+
   test("prior-years carry-forward adjusts module MV correctly", () => {
     const { entries } = computeCashSweepIterative({
       years: [2027, 2028, 2029],

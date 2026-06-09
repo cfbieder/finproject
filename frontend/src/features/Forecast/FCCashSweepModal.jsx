@@ -89,7 +89,7 @@ export default function FCCashSweepModal({ isOpen, onClose, scenario }) {
                         key={h}
                         style={{
                           position: "sticky", top: 0, background: "#f8fafc", zIndex: 1,
-                          textAlign: h === "Year" || h === "Action" ? "left" : "right",
+                          textAlign: h === "Year" || h === "Action" || h === "Modules" ? "left" : "right",
                           padding: "0.4rem 0.6rem", fontWeight: 600, fontSize: "0.72rem",
                           borderBottom: "2px solid #E8E6DF",
                         }}
@@ -106,9 +106,10 @@ export default function FCCashSweepModal({ isOpen, onClose, scenario }) {
                         const colName = headers[ci];
                         const isYear = colName === "Year";
                         const isAction = colName === "Action";
+                        const isText = isYear || isAction || colName === "Modules";
 
                         const n = Number(cell);
-                        const display = isYear || isAction ? cell : fmt(cell);
+                        const display = isText ? (cell || "—") : fmt(cell);
 
                         let actionColor;
                         if (isAction) {
@@ -122,11 +123,11 @@ export default function FCCashSweepModal({ isOpen, onClose, scenario }) {
                           <td
                             key={ci}
                             style={{
-                              textAlign: isYear || isAction ? "left" : "right",
+                              textAlign: isText ? "left" : "right",
                               padding: "0.3rem 0.6rem",
-                              fontFamily: isYear || isAction ? "inherit" : "var(--font-mono)",
+                              fontFamily: isText ? "inherit" : "var(--font-mono)",
                               fontWeight: isYear || isAction ? 600 : 400,
-                              color: actionColor || (!isYear && !isAction && Number.isFinite(n) && n < 0 ? "var(--danger, #C0504D)" : undefined),
+                              color: actionColor || (!isText && Number.isFinite(n) && n < 0 ? "var(--danger, #C0504D)" : undefined),
                             }}
                           >
                             {display}

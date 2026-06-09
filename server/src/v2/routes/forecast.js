@@ -335,6 +335,7 @@ router.get('/modules', async (req, res, next) => {
       Matched: m.is_matched,
       SetupStatus: m.setup_status || 'new',
       CashSweepTarget: m.cash_sweep_target || false,
+      CashSweepPriority: m.cash_sweep_priority ?? null,
     }));
 
     res.json(transformed);
@@ -582,16 +583,35 @@ router.put('/modules/:id', async (req, res, next) => {
     if (body.Growth !== undefined) updateData.growth_rate = body.Growth;
     if (body.Comment !== undefined) updateData.comment = body.Comment;
     if (body.Matched !== undefined) updateData.is_matched = Boolean(body.Matched);
-    if (body.CashSweepTarget !== undefined) updateData.cash_sweep_target = Boolean(body.CashSweepTarget);
+    // CR017: cash sweep is now a priority-ordered set (cash_sweep_priority); the legacy
+    // cash_sweep_target boolean is kept in sync as "priority == 1" for back-compat.
+    if (body.CashSweepPriority !== undefined) {
+      const raw = body.CashSweepPriority;
+      const pri = (raw === null || raw === '' || !(Number(raw) > 0)) ? null : parseInt(raw, 10);
+      updateData.cash_sweep_priority = pri;
+      updateData.cash_sweep_target = pri === 1;
+    } else if (body.CashSweepTarget !== undefined) {
+      // Bare target toggle (older callers) maps onto the priority model: on → 1, off → null
+      const on = Boolean(body.CashSweepTarget);
+      updateData.cash_sweep_target = on;
+      updateData.cash_sweep_priority = on ? 1 : null;
+    }
 
-    // If setting cash_sweep_target = true, clear it from other modules in the same scenario first
-    if (updateData.cash_sweep_target === true) {
+    // Keep priorities unique within a scenario: clear the same rank from any sibling,
+    // and keep the legacy single-target flag unique to priority 1.
+    if (updateData.cash_sweep_priority != null) {
       const existing = await repo.findModuleById(id);
       if (existing) {
         await db.query(
-          'UPDATE forecast_modules SET cash_sweep_target = FALSE WHERE scenario_id = $1 AND id != $2 AND cash_sweep_target = TRUE',
-          [existing.scenario_id, id]
+          'UPDATE forecast_modules SET cash_sweep_priority = NULL, cash_sweep_target = FALSE, updated_at = NOW() WHERE scenario_id = $1 AND id != $2 AND cash_sweep_priority = $3',
+          [existing.scenario_id, id, updateData.cash_sweep_priority]
         );
+        if (updateData.cash_sweep_priority === 1) {
+          await db.query(
+            'UPDATE forecast_modules SET cash_sweep_target = FALSE WHERE scenario_id = $1 AND id != $2 AND cash_sweep_target = TRUE',
+            [existing.scenario_id, id]
+          );
+        }
       }
     }
 

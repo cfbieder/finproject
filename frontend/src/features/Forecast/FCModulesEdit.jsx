@@ -619,14 +619,22 @@ export default function FCModulesEditModal({
                     <option value="exclude">Exclude</option>
                   </select>
                 </label>
-                <label style={{ display: "flex", alignItems: "center", gap: "0.5rem", minWidth: "10rem", paddingTop: "1.4rem" }}>
+                <label style={{ display: "flex", flexDirection: "column", gap: "0.25rem", minWidth: "8rem" }}>
+                  <span className="fc-modules-modal__label" style={{ whiteSpace: "nowrap" }}>Sweep Priority</span>
                   <input
-                    type="checkbox"
-                    checked={editForm.CashSweepTarget ?? false}
-                    onChange={(e) => onFieldChange("CashSweepTarget", e.target.checked)}
-                    style={{ width: "1rem", height: "1rem", cursor: "pointer" }}
+                    type="number"
+                    min="1"
+                    step="1"
+                    className="fc-modules-modal__input"
+                    value={editForm.CashSweepPriority ?? ""}
+                    onChange={(e) => {
+                      const v = e.target.value;
+                      onFieldChange("CashSweepPriority", v === "" ? null : Math.max(1, parseInt(v, 10) || 1));
+                    }}
+                    placeholder="—"
+                    title="Cash sweep order: 1 = primary (excess parked here, drained first on shortfall); 2, 3, … = backups drained in order. Blank = not in the sweep set."
+                    style={{ width: "8rem" }}
                   />
-                  <span className="fc-modules-modal__label" style={{ margin: 0, whiteSpace: "nowrap" }}>Cash Sweep Target</span>
                 </label>
                 <label style={{ display: "flex", flexDirection: "column", gap: "0.25rem", flex: 1 }}>
                   <span className="fc-modules-modal__label">Notes</span>

@@ -389,7 +389,12 @@ export default function FCModuleManage() {
       AccountNumber: editForm.AccountNumber ?? "",
       Comment: (editForm.Comment ?? "").toString().trim(),
       SetupStatus: editForm.SetupStatus || "new",
-      CashSweepTarget: Boolean(editForm.CashSweepTarget),
+      CashSweepPriority:
+        editForm.CashSweepPriority === null ||
+        editForm.CashSweepPriority === undefined ||
+        editForm.CashSweepPriority === ""
+          ? null
+          : Math.max(1, parseInt(editForm.CashSweepPriority, 10) || 1),
     };
 
     for (const field of numericFields) {

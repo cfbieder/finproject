@@ -363,16 +363,22 @@ async function generateForecast(scenarioName) {
       const effectiveHigh = cashSweepHigh ?? cashSweepLow ?? 0;
       console.log(`[FORECAST-GENERATE] Running cash sweep (band: ${effectiveLow} – ${effectiveHigh})`);
 
-      // Find the designated cash sweep target module
+      // Find the designated cash sweep modules in priority order (CR017).
+      // Priority 1 = primary (deposit target + first drained); 2,3,… = backups.
+      // Falls back to the legacy cash_sweep_target flag for any unmigrated rows.
       const sweepModuleResult = await db.query(`
         SELECT m.*, a.name as account_name
         FROM forecast_modules m
         LEFT JOIN accounts a ON m.account_id = a.id
-        WHERE m.scenario_id = $1 AND m.cash_sweep_target = TRUE
+        WHERE m.scenario_id = $1 AND (m.cash_sweep_priority IS NOT NULL OR m.cash_sweep_target = TRUE)
+        ORDER BY COALESCE(m.cash_sweep_priority, CASE WHEN m.cash_sweep_target THEN 1 ELSE 999 END) ASC, m.id ASC
       `, [scenarioId]);
-      const sweepModule = sweepModuleResult.rows[0] || null;
+      const sweepModules = sweepModuleResult.rows;
+      const sweepModule = sweepModules[0] || null;
+      const backupModuleRows = sweepModules.slice(1);
       if (sweepModule) {
-        console.log(`[FORECAST-GENERATE] Cash sweep target module: ${sweepModule.name}`);
+        console.log(`[FORECAST-GENERATE] Cash sweep primary module: ${sweepModule.name}` +
+          (backupModuleRows.length ? ` (+${backupModuleRows.length} backup${backupModuleRows.length > 1 ? 's' : ''}: ${backupModuleRows.map(m => m.name).join(', ')})` : ''));
       }
 
       // Get actual bank balance from ledger (LastActualYear = PeriodStart - 2)
@@ -455,18 +461,33 @@ async function generateForecast(scenarioName) {
         cashDeltaByYear[baseYear] = correctedBaseYearDelta;
       }
 
-      // Load sweep module's market value by year (for emergency withdrawal limits)
-      const moduleBalanceByYear = {};
-      if (sweepModule) {
+      // Load each sweep module's own market value by year (for withdrawal limits).
+      // Helper: builder-only balance (excludes the _cash_sweep/_sweep_bal transfer tags).
+      const loadModuleBalanceByYear = async (accountName, moduleName) => {
         const mvResult = await db.query(`
           SELECT forecast_year, SUM(amount)::numeric as mv
           FROM forecast_entries
           WHERE scenario_id = $1 AND account = $2 AND module = $3
           GROUP BY forecast_year ORDER BY forecast_year
-        `, [scenarioId, sweepModule.account_name, sweepModule.name]);
-        for (const row of mvResult.rows) {
-          moduleBalanceByYear[row.forecast_year] = parseFloat(row.mv) || 0;
-        }
+        `, [scenarioId, accountName, moduleName]);
+        const out = {};
+        for (const row of mvResult.rows) out[row.forecast_year] = parseFloat(row.mv) || 0;
+        return out;
+      };
+
+      const moduleBalanceByYear = sweepModule
+        ? await loadModuleBalanceByYear(sweepModule.account_name, sweepModule.name)
+        : {};
+
+      // Backup modules (priority 2…N): builder balances are fixed across convergence
+      // iterations (only their _cash_sweep withdrawals change, which the query excludes).
+      const backupModules = [];
+      for (const bm of backupModuleRows) {
+        backupModules.push({
+          name: bm.name,
+          account_name: bm.account_name,
+          balanceByYear: await loadModuleBalanceByYear(bm.account_name, bm.name),
+        });
       }
 
       // Run iterative sweep (pure function — transfers only, no yield)
@@ -478,6 +499,7 @@ async function generateForecast(scenarioName) {
         startingCash,
         sweepModule,
         moduleBalanceByYear,
+        backupModules,
       });
 
       // Insert sweep entries
@@ -504,7 +526,7 @@ async function generateForecast(scenarioName) {
           fs.mkdirSync(auditDir, { recursive: true });
           const scenarioSafe = (scenarioName || '').replace(/[^a-z0-9]/gi, '_');
           const csvPath = path.join(auditDir, `${scenarioSafe}_cash_sweep.csv`);
-          const headers = ['Year', 'Action', 'Amount', 'CashBefore', 'CashAfter', 'NetModuleEffect'];
+          const headers = ['Year', 'Action', 'Amount', 'CashBefore', 'CashAfter', 'NetModuleEffect', 'Modules'];
           const lines = [headers.join(',')];
           for (const row of sweepLog) {
             const netEffect = (row.sweepBalance || 0) - (row.moduleWithdrawal || 0);
@@ -512,6 +534,7 @@ async function generateForecast(scenarioName) {
               row.year, row.action, (row.amount || 0).toFixed(2),
               (row.cashBefore || 0).toFixed(2), (row.cashAfter || 0).toFixed(2),
               netEffect.toFixed(2),
+              row.modules || '',
             ].join(','));
           }
           fs.writeFileSync(csvPath, lines.join('\n'), 'utf8');
@@ -818,6 +841,7 @@ async function generateForecast(scenarioName) {
             startingCash,
             sweepModule,
             moduleBalanceByYear: newModBal,
+            backupModules, // builder balances unchanged across iterations
           });
 
           if (newSweepEntries.length > 0) {
