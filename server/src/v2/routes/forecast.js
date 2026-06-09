@@ -597,18 +597,24 @@ router.put('/modules/:id', async (req, res, next) => {
       updateData.cash_sweep_priority = on ? 1 : null;
     }
 
-    // Keep priorities unique within a scenario: clear the same rank from any sibling,
-    // and keep the legacy single-target flag unique to priority 1.
+    // Keep priorities unique within a scenario: REJECT a rank already held by another
+    // module (no silent eviction) and keep the legacy single-target flag unique to priority 1.
     if (updateData.cash_sweep_priority != null) {
       const existing = await repo.findModuleById(id);
       if (existing) {
-        await db.query(
-          'UPDATE forecast_modules SET cash_sweep_priority = NULL, cash_sweep_target = FALSE, updated_at = NOW() WHERE scenario_id = $1 AND id != $2 AND cash_sweep_priority = $3',
+        const clash = await db.query(
+          'SELECT name FROM forecast_modules WHERE scenario_id = $1 AND id != $2 AND cash_sweep_priority = $3 LIMIT 1',
           [existing.scenario_id, id, updateData.cash_sweep_priority]
         );
+        if (clash.rows.length) {
+          return res.status(409).json({
+            error: `Cash sweep priority ${updateData.cash_sweep_priority} is already used by "${clash.rows[0].name}". Pick a different rank, or clear that module's priority first.`,
+          });
+        }
         if (updateData.cash_sweep_priority === 1) {
+          // Legacy flag stays unique to the primary (no DB-level eviction of a real priority)
           await db.query(
-            'UPDATE forecast_modules SET cash_sweep_target = FALSE WHERE scenario_id = $1 AND id != $2 AND cash_sweep_target = TRUE',
+            'UPDATE forecast_modules SET cash_sweep_target = FALSE WHERE scenario_id = $1 AND id != $2 AND cash_sweep_target = TRUE AND cash_sweep_priority IS DISTINCT FROM 1',
             [existing.scenario_id, id]
           );
         }

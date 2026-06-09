@@ -98,6 +98,29 @@ export default function FCModulesEditModal({
 }) {
   const [generating, setGenerating] = useState(false);
   const isMatched = Boolean(editForm?.Matched);
+
+  // Cash sweep priority options (CR017): only ranks NOT already taken by another module
+  // in this scenario, plus this module's own current rank and "Not in sweep". This makes
+  // duplicate ranks impossible from the UI (the backend also rejects collisions).
+  const currentSweepPriority =
+    editForm?.CashSweepPriority == null || editForm?.CashSweepPriority === ""
+      ? null
+      : Number(editForm.CashSweepPriority);
+  const takenSweepRanks = new Set(
+    (allModules || [])
+      .filter((m) => m.id !== editForm?.id && m.CashSweepPriority != null)
+      .map((m) => Number(m.CashSweepPriority))
+  );
+  const sweepRankOptions = [];
+  const maxSweepRank = takenSweepRanks.size + 1; // always exactly one new slot = the next free number
+  for (let r = 1; r <= maxSweepRank; r++) {
+    if (!takenSweepRanks.has(r) || r === currentSweepPriority) sweepRankOptions.push(r);
+  }
+  if (currentSweepPriority != null && !sweepRankOptions.includes(currentSweepPriority)) {
+    sweepRankOptions.push(currentSweepPriority);
+  }
+  sweepRankOptions.sort((a, b) => a - b);
+
   const nameOptions = getChildCategoriesForAccount(editForm?.Account);
   const hasMultipleChildren = nameOptions.length > 1;
   const effectiveName = isMatched
@@ -621,20 +644,23 @@ export default function FCModulesEditModal({
                 </label>
                 <label style={{ display: "flex", flexDirection: "column", gap: "0.25rem", minWidth: "8rem" }}>
                   <span className="fc-modules-modal__label" style={{ whiteSpace: "nowrap" }}>Sweep Priority</span>
-                  <input
-                    type="number"
-                    min="1"
-                    step="1"
+                  <select
                     className="fc-modules-modal__input"
-                    value={editForm.CashSweepPriority ?? ""}
+                    value={currentSweepPriority ?? ""}
                     onChange={(e) => {
                       const v = e.target.value;
-                      onFieldChange("CashSweepPriority", v === "" ? null : Math.max(1, parseInt(v, 10) || 1));
+                      onFieldChange("CashSweepPriority", v === "" ? null : parseInt(v, 10));
                     }}
-                    placeholder="—"
-                    title="Cash sweep order: 1 = primary (excess parked here, drained first on shortfall); 2, 3, … = backups drained in order. Blank = not in the sweep set."
+                    title="Cash sweep order: 1 = primary (excess parked here, drained first on shortfall); 2, 3, … = backups drained in order. Ranks already used by another module aren't offered — clear that module's priority first to reassign."
                     style={{ width: "8rem" }}
-                  />
+                  >
+                    <option value="">— Not in sweep —</option>
+                    {sweepRankOptions.map((r) => (
+                      <option key={r} value={r}>
+                        {r === 1 ? "1 (primary)" : r}
+                      </option>
+                    ))}
+                  </select>
                 </label>
                 <label style={{ display: "flex", flexDirection: "column", gap: "0.25rem", flex: 1 }}>
                   <span className="fc-modules-modal__label">Notes</span>
