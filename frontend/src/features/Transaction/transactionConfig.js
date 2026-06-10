@@ -359,6 +359,11 @@ export const LEDGER_CONFIG = {
       ClosingBalance: txn.closing_balance
         ? parseFloat(txn.closing_balance)
         : null,
+      // True account running balance (opening_balance + Σ amount over full
+      // history) when the API computed it for a single-account view; null
+      // otherwise (falls back to a client-side cumulative sum).
+      RunningBalance:
+        txn.running_balance != null ? parseFloat(txn.running_balance) : null,
       Labels: txn.labels,
       Memo: txn.memo,
       Note: txn.note,

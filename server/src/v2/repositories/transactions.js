@@ -145,6 +145,68 @@ async function findAllExtended({
 }
 
 /**
+ * Ledger view: transactions for ONE account, each row carrying its true
+ * running balance (opening_balance + Σ amount up to and including that row),
+ * computed over the account's FULL history via a window function.
+ *
+ * Unlike a client-side cumulative sum, this is correct regardless of the
+ * date window or pagination limit — the seed is the real account balance,
+ * not zero — so the newest displayed row ties out to the Balance Calibration
+ * page (CR023: opening_balance + Σ all tx). Only valid for a single account
+ * with at most a date range; any other filter (category/amount/etc.) would
+ * make a per-row running balance meaningless, so the route falls back to
+ * findAllExtended in those cases.
+ */
+async function findLedgerWithRunningBalance({
+  accountName, startDate, endDate, limit = 1000, offset = 0
+} = {}) {
+  const params = [accountName];
+  let paramIndex = 2;
+  const dateConditions = [];
+  if (startDate) {
+    dateConditions.push(`t.transaction_date >= $${paramIndex++}`);
+    params.push(startDate);
+  }
+  if (endDate) {
+    dateConditions.push(`t.transaction_date <= $${paramIndex++}`);
+    params.push(endDate);
+  }
+  const dateClause = dateConditions.length > 0 ? `AND ${dateConditions.join(' AND ')}` : '';
+
+  const sql = `
+    WITH acct AS (
+      SELECT id, opening_balance FROM accounts WHERE name = $1 ORDER BY id LIMIT 1
+    ),
+    hist AS (
+      SELECT t.id,
+             (SELECT opening_balance FROM acct)
+               + SUM(t.amount) OVER (ORDER BY t.transaction_date, t.id) AS running_balance
+      FROM transactions t
+      WHERE t.account_id = (SELECT id FROM acct)
+    )
+    SELECT
+      t.id, t.ps_id, t.transaction_date, t.description1, t.description2,
+      t.amount, t.currency, t.base_amount, t.base_currency,
+      t.transaction_type, t.closing_balance, t.labels, t.memo, t.note, t.bank, t.source,
+      t.transfer_matched,
+      t.account_id, a.name as account_name,
+      t.category_id, c.name as category_name,
+      h.running_balance
+    FROM transactions t
+    JOIN hist h ON h.id = t.id
+    LEFT JOIN accounts a ON t.account_id = a.id
+    LEFT JOIN accounts c ON t.category_id = c.id
+    WHERE t.account_id = (SELECT id FROM acct) ${dateClause}
+    ORDER BY t.transaction_date DESC, t.id DESC
+    LIMIT $${paramIndex++} OFFSET $${paramIndex}
+  `;
+
+  params.push(limit, offset);
+  const result = await db.query(sql, params);
+  return result.rows;
+}
+
+/**
  * Get transaction by ID
  */
 async function findById(id) {
@@ -746,6 +808,7 @@ async function updateTransferMatchedFlags({ matchedIds, unmatchedIds, startDate,
 module.exports = {
   findAll,
   findAllExtended,
+  findLedgerWithRunningBalance,
   findById,
   findByPsId,
   count,

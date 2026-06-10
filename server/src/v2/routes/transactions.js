@@ -74,21 +74,42 @@ router.get('/', async (req, res, next) => {
     const categoryNames = Array.isArray(category) ? category : (category ? [category] : undefined);
     const accountNames = Array.isArray(account) ? account : (account ? [account] : undefined);
 
-    const transactions = await repo.findAllExtended({
-      startDate: effectiveStartDate,
-      endDate: effectiveEndDate,
-      categoryId: categoryId ? parseInt(categoryId) : undefined,
-      accountId: accountId ? parseInt(accountId) : undefined,
-      categoryNames,
-      accountNames,
-      currency,
-      description,
-      minAmount: minAmount ? parseFloat(minAmount) : undefined,
-      maxAmount: maxAmount ? parseFloat(maxAmount) : undefined,
-      transferMatched,
-      limit: parseInt(limit),
-      offset: parseInt(offset)
-    });
+    // Ledger view: a single account with at most a date range gets a true
+    // per-row running balance (opening_balance + Σ amount over full account
+    // history). Any other filter (category/amount/currency/etc.) makes a
+    // per-row balance meaningless, so those fall through to findAllExtended.
+    const isSingleAccountLedger =
+      accountNames && accountNames.length === 1 &&
+      !accountId && !categoryId &&
+      (!categoryNames || categoryNames.length === 0) &&
+      !currency && !description &&
+      (minAmount === undefined || minAmount === null || minAmount === '') &&
+      (maxAmount === undefined || maxAmount === null || maxAmount === '') &&
+      (transferMatched === undefined || transferMatched === null || transferMatched === '');
+
+    const transactions = isSingleAccountLedger
+      ? await repo.findLedgerWithRunningBalance({
+          accountName: accountNames[0],
+          startDate: effectiveStartDate,
+          endDate: effectiveEndDate,
+          limit: parseInt(limit),
+          offset: parseInt(offset)
+        })
+      : await repo.findAllExtended({
+          startDate: effectiveStartDate,
+          endDate: effectiveEndDate,
+          categoryId: categoryId ? parseInt(categoryId) : undefined,
+          accountId: accountId ? parseInt(accountId) : undefined,
+          categoryNames,
+          accountNames,
+          currency,
+          description,
+          minAmount: minAmount ? parseFloat(minAmount) : undefined,
+          maxAmount: maxAmount ? parseFloat(maxAmount) : undefined,
+          transferMatched,
+          limit: parseInt(limit),
+          offset: parseInt(offset)
+        });
 
     res.json({
       data: transactions

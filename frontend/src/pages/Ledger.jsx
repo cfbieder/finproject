@@ -381,8 +381,25 @@ export default function Ledger() {
   }, [currencyOptions]);
 
   // ─── Compute running balance ───
+  // Prefer the API's per-row RunningBalance (opening_balance + Σ amount over
+  // the account's full history) — it ties out to the Balance Calibration page
+  // and is correct under any date filter or pagination. The API only provides
+  // it for a single-account view; otherwise fall back to a client-side
+  // cumulative sum seeded at 0 (a "running total of the displayed rows", not
+  // the true account balance).
   const transactionsWithBalance = useMemo(() => {
     if (sortedTransactions.length === 0) return [];
+
+    const hasServerBalance = sortedTransactions.every(
+      (item) => item.entry?.RunningBalance != null
+    );
+
+    if (hasServerBalance) {
+      return sortedTransactions.map((item) => ({
+        ...item,
+        runningBalance: Number(item.entry.RunningBalance),
+      }));
+    }
 
     const chronological = [...sortedTransactions].sort((a, b) => {
       const dateA = parseEntryDate(a.entry);
