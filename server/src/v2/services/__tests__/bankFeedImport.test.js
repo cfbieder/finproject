@@ -275,6 +275,8 @@ dbDescribe('refreshBankFeedV2.promote (DB)', () => {
   async function cleanup() {
     await db.query(`DELETE FROM bankfeed_staging WHERE source = $1`, [TAG]);
     await db.query(`DELETE FROM transactions WHERE bank_feed_external_id LIKE 'test-bf-c-%'`);
+    // CR032 core-sweep mirrors carry no external_id — clean them by their marker.
+    await db.query(`DELETE FROM transactions WHERE source = 'auto-offset' AND description1 LIKE '%test-bf-c-sweep%'`);
     await db.query(`DELETE FROM transactions WHERE ps_id >= $1 AND ps_id < $2`, [PS_ID_BASE, PS_ID_BASE + 1000]);
     await db.query(`DELETE FROM account_source_mappings WHERE external_name LIKE 'test-uuid-%'`);
   }
@@ -409,6 +411,39 @@ dbDescribe('refreshBankFeedV2.promote (DB)', () => {
     const inserted = await db.query(`SELECT 1 FROM transactions WHERE bank_feed_external_id = 'test-bf-c-new'`);
     expect(inserted.rows).toHaveLength(1);
     expect(sync.mergedWithPsCount[UUID_OK] || 0).toBe(0);
+  });
+
+  test('CR032: a core-cash sweep is auto-accepted and gets a negated auto-offset mirror', async () => {
+    await seedMapping(UUID_OK, false);
+    // SnapTrade tags the sweep as a plain SELL; description is what flags it.
+    await seedStaging('test-bf-c-sweep1', UUID_OK, {
+      amount: 30000, base_amount: 30000, currency: 'USD', activity_type: 'SELL',
+      description: 'REDEMPTION FROM CORE ACCOUNT FIDELITY GOVERNMENT MONEY MARKET (SPAXX) test-bf-c-sweep',
+    });
+
+    const sync = await orchestrator.promote();
+    expect(sync.mirrored).toBeGreaterThanOrEqual(1);
+
+    const xferId = (await db.query(`SELECT id FROM accounts WHERE name='Transfer - Securities Trades' LIMIT 1`)).rows[0].id;
+
+    // The promoted leg: accepted straight away (no review), Transfer category.
+    const leg = (await db.query(
+      `SELECT amount, accepted, category_id, source FROM transactions WHERE bank_feed_external_id = 'test-bf-c-sweep1'`
+    )).rows[0];
+    expect(leg).toBeTruthy();
+    expect(Number(leg.amount)).toBeCloseTo(30000, 2);
+    expect(leg.accepted).toBe(true);
+    expect(leg.category_id).toBe(xferId);
+
+    // The injected counter-leg: negated, auto-offset, accepted, same Transfer category.
+    const mirror = (await db.query(
+      `SELECT amount, accepted, category_id FROM transactions
+       WHERE source='auto-offset' AND description1 LIKE '%test-bf-c-sweep%'`
+    )).rows;
+    expect(mirror).toHaveLength(1);
+    expect(Number(mirror[0].amount)).toBeCloseTo(-30000, 2);
+    expect(mirror[0].accepted).toBe(true);
+    expect(mirror[0].category_id).toBe(xferId);
   });
 
   test('R2: BANK_FEED_DEDUP_ENABLED=false → inserts new row even with a PS twin', async () => {

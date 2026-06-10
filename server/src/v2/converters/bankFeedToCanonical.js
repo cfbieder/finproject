@@ -103,11 +103,23 @@ function normalizeFeedTransaction(tx, opts = {}) {
   };
 }
 
+// CR032: Fidelity core-cash sweeps. A brokerage "core" position (SPAXX, FDIC
+// insured deposit, Fidelity Government Cash Reserves, …) is the cash sweep: idle
+// settlement cash is swept INTO core and redeemed FROM core to fund trades. The
+// feed delivers ONLY the settlement-cash leg ("REDEMPTION FROM CORE ACCOUNT …"
+// +cash / "PURCHASE INTO CORE ACCOUNT …" −cash); the core-position counter-leg is
+// never a separate cash row. Counting the cash leg alone inflates the reconciled
+// balance (drift), so each sweep must self-net via a mirror — see 'transfer-mirror'.
+// SnapTrade tags these as plain BUY/SELL (or null), so they're detectable only by
+// description, which is why this is checked ahead of the activity_type switch.
+const CORE_SWEEP_RE = /\b(?:REDEMPTION FROM|PURCHASE INTO) CORE ACCOUNT\b/i;
+
 // ── CR024 Phase 2: Fidelity activity categorizer ──────────────────────────────
 //
 // Maps a SnapTrade activity_type (+ the account's trade_treatment) to a promote
 // action. Category names (not ids) so promote resolves them per-DB. Returns:
 //   { action: 'income'|'transfer', category: '<COA leaf name>' }  → insert, categorized
+//   { action: 'transfer-mirror', category: '<COA leaf name>' }    → insert + auto-offset mirror (net-zero sweep)
 //   { action: 'suppress' }                                        → never promote (net-zero plumbing)
 //   { action: 'review' }                                          → insert uncategorized (accepted=FALSE)
 //
@@ -115,7 +127,13 @@ function normalizeFeedTransaction(tx, opts = {}) {
 // pre-Phase-2 behavior (promote uncategorized to the review queue). Unknown/new
 // SnapTrade types (e.g. PAYMENT, FEE) fail safe to 'review' — never dropped, never
 // mis-booked.
-function categorizeFidelityActivity(activityType, tradeTreatment) {
+function categorizeFidelityActivity(activityType, tradeTreatment, description) {
+  // CR032: core-cash sweep (by description) → self-netting transfer. Checked first
+  // because SnapTrade reports these as BUY/SELL/null and the activity_type switch
+  // would otherwise mis-book them as a real Option Trade / securities transfer.
+  if (description != null && CORE_SWEEP_RE.test(String(description))) {
+    return { action: 'transfer-mirror', category: 'Transfer - Securities Trades' };
+  }
   if (activityType == null) return { action: 'review' };
   switch (String(activityType).toUpperCase()) {
     case 'INTEREST':         return { action: 'income',   category: 'Interest Income' };
@@ -230,6 +248,7 @@ module.exports = {
   normalizeBatch,
   findPsMatch,
   categorizeFidelityActivity,
+  CORE_SWEEP_RE,
   // exposed for tests / reuse
   MATCH_TOLERANCE_DAYS,
   _toMinorUnits4: toMinorUnits4,

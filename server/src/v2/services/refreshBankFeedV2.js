@@ -225,7 +225,7 @@ async function promote() {
     // CR024 Phase 2: route by SnapTrade activity_type. Suppress net-zero plumbing
     // so it never promotes; income/transfer carry a COA category; review = null
     // category (PKO rows + unknown types → existing review-queue behavior).
-    const cat = categorizeFidelityActivity(r.activity_type, r.trade_treatment);
+    const cat = categorizeFidelityActivity(r.activity_type, r.trade_treatment, r.description);
     if (cat.action === 'suppress') { toSuppress.push(r.id); continue; }
     r._category = cat;
     promotable.push(r);
@@ -246,6 +246,7 @@ async function promote() {
   let inserted = 0;
   let linked = 0;
   let suppressed = 0;
+  let mirrored = 0;          // CR032: auto-offset legs created for core-cash sweeps
   const mergedWithPsCount = {};
   const dedup = dedupEnabled();
 
@@ -260,7 +261,9 @@ async function promote() {
     for (const r of promotable) {
       let matchedTxId = null;
 
-      if (dedup) {
+      // CR032: core-sweep mirrors are synthetic net-zero plumbing — never link
+      // them to a PS row; always insert so the offsetting mirror can be attached.
+      if (dedup && r._category.action !== 'transfer-mirror') {
         const candidates = (await client.query(`
           SELECT id, account_id, amount, currency,
                  transaction_date::text AS transaction_date,
@@ -306,11 +309,15 @@ async function promote() {
         // transfer). 'review' (PKO + unknown types) → NULL category = existing
         // review-queue behavior. All rows still land accepted=FALSE.
         const categoryId = r._category && r._category.category ? catIdByName[r._category.category] : null;
+        // CR032: a core-cash sweep is deterministic net-zero plumbing — accept it
+        // straight away (no review) and pair it with a mirror below. Everything
+        // else still lands in the review queue (accepted=FALSE) as before.
+        const isSweep = r._category.action === 'transfer-mirror';
         const ins = await client.query(`
           INSERT INTO transactions
             (transaction_date, description1, amount, currency, base_amount, base_currency,
              account_id, category_id, source, bank_feed_external_id, accepted)
-          VALUES ($1, $2, $3, $4, $5, $6, $7, $8, '${SOURCE}', $9, FALSE)
+          VALUES ($1, $2, $3, $4, $5, $6, $7, $8, '${SOURCE}', $9, $10)
           ON CONFLICT (bank_feed_external_id) WHERE bank_feed_external_id IS NOT NULL
           DO NOTHING
           RETURNING id
@@ -324,6 +331,7 @@ async function promote() {
           r.fin_account_id,
           categoryId,
           r.external_id,
+          isSweep,
         ]);
         if (ins.rows[0]) {
           await client.query(
@@ -331,6 +339,28 @@ async function promote() {
             [r.id, ins.rows[0].id]
           );
           inserted++;
+
+          // CR032: inject the missing core-position counter-leg so the sweep
+          // self-nets and never drifts the reconciled balance. source='auto-offset'
+          // (no external_id) mirrors the manual-neutralize shape; accepted=TRUE.
+          if (isSweep) {
+            await client.query(`
+              INSERT INTO transactions
+                (transaction_date, description1, amount, currency, base_amount, base_currency,
+                 account_id, category_id, source, accepted)
+              VALUES ($1, $2, $3, $4, $5, $6, $7, $8, 'auto-offset', TRUE)
+            `, [
+              r.transaction_date,
+              r.description || r.merchant || null,
+              -Number(r.amount),
+              r.currency,
+              -Number(baseAmt),
+              'USD',
+              r.fin_account_id,
+              categoryId,
+            ]);
+            mirrored++;
+          }
         }
         // ON CONFLICT DO NOTHING → row already exists for this external_id; leave
         // staging unpromoted so a later reconcile can pick it up. (Shouldn't happen
@@ -347,6 +377,7 @@ async function promote() {
     updated: 0,            // promote never re-touches an already-promoted row
     linked,
     suppressed,            // CR024 Phase 2: net-zero plumbing rows held back
+    mirrored,              // CR032: auto-offset legs created for core-cash sweeps
     skipped: 0,
     protectedCount: 0,
     mergedWithPsCount,

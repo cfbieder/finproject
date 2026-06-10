@@ -87,6 +87,31 @@ dbDescribe('transactions.neutralize (DB)', () => {
     expect(after).toBe(before + 1); // only the addTx(500), nothing from dryRuns
   });
 
+  test('CR032 guard: a real-trade-categorized leg is NOT consumed → mirrors instead', async () => {
+    await freshAccount();
+    const optionTradeId = (await db.query(
+      `SELECT id FROM accounts WHERE name = 'Option Trade' LIMIT 1`
+    )).rows[0].id;
+    // The assigned-puts buy the user deliberately categorized as a real Option Trade…
+    const buyId = await addTx(-30000, '2026-06-08', optionTradeId);
+    // …must NOT be swallowed when neutralizing the equal-and-opposite SPAXX redemption.
+    const redemptionId = await addTx(30000, '2026-06-08', categoryId);
+
+    const out = await repo.neutralize(redemptionId, categoryId);
+    expect(out.paired).toBe(false);                    // guard refused → MIRROR path
+
+    const rows = (await db.query(
+      `SELECT amount, source FROM transactions WHERE account_id=$1 ORDER BY amount`, [acctId]
+    )).rows;
+    expect(rows).toHaveLength(3);                       // buy + redemption + new mirror
+    const mirror = rows.find((r) => r.source === 'auto-offset');
+    expect(Number(mirror.amount)).toBeCloseTo(-30000, 2);
+    // the buy keeps its Option Trade category — not dragged into the transfer bucket
+    const buy = (await db.query(`SELECT category_id FROM transactions WHERE id=$1`, [buyId])).rows[0];
+    expect(buy.category_id).toBe(optionTradeId);
+    expect(redemptionId).toBeDefined();
+  });
+
   test('MIRROR: lone trade → offsetting entry created', async () => {
     await freshAccount();
     const buyId = await addTx(-41750);

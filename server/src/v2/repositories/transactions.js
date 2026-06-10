@@ -479,14 +479,22 @@ async function neutralize(id, categoryId, { dryRun = false } = {}) {
   // 'pair'  → an opposite-amount leg already exists nearby → re-categorize both.
   // 'mirror'→ none found → we'd INSERT a new offsetting entry (the only path that
   //           can create an orphan; the UI warns before doing it).
+  // CR032 guard: only pair with a row that is itself a neutralize candidate —
+  // uncategorized, or already in the same transfer category. A row the user
+  // deliberately categorized as a real trade (e.g. an assigned-puts buy →
+  // "Option Trade") must NOT be consumed as a sweep's offset just because it
+  // happens to be the same magnitude; that mislabels the trade and leaves the
+  // sweep un-mirrored (the exact CR028 mis-pairing). No candidate → MIRROR, which
+  // correctly injects the missing counter-leg.
   const candidate = (await db.query(
     `SELECT * FROM transactions
      WHERE account_id = $1 AND id <> $2
        AND amount = $3
        AND transaction_date BETWEEN $4::date - $5::int AND $4::date + $5::int
+       AND (category_id IS NULL OR category_id = $6)
      ORDER BY ABS(transaction_date - $4::date), id
      LIMIT 1`,
-    [original.account_id, id, negatedAmount, original.transaction_date, NEUTRALIZE_PAIR_DAYS]
+    [original.account_id, id, negatedAmount, original.transaction_date, NEUTRALIZE_PAIR_DAYS, categoryId]
   )).rows[0];
   const action = candidate ? 'pair' : 'mirror';
 

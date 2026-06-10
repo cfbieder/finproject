@@ -58,4 +58,33 @@ describe('categorizeFidelityActivity', () => {
   test('case-insensitive on the activity_type token', () => {
     expect(categorizeFidelityActivity('dividend', 'offset')).toEqual({ action: 'income', category: 'Financial Income - Dividend' });
   });
+
+  // ── CR032: Fidelity core-cash sweeps (detected by description, both directions) ──
+  const SWEEP = { action: 'transfer-mirror', category: 'Transfer - Securities Trades' };
+
+  test('REDEMPTION FROM CORE (SPAXX, SnapTrade SELL) → transfer-mirror', () => {
+    expect(categorizeFidelityActivity('SELL', 'income',
+      'REDEMPTION FROM CORE ACCOUNT FIDELITY GOVERNMENT MONEY MARKET (SPAXX) (Cash)')).toEqual(SWEEP);
+  });
+
+  test('PURCHASE INTO CORE (FDIC, SnapTrade BUY) → transfer-mirror', () => {
+    expect(categorizeFidelityActivity('BUY', 'offset',
+      'PURCHASE INTO CORE ACCOUNT FDIC INSURED DEPOSIT AT JP MORGAN')).toEqual(SWEEP);
+  });
+
+  test('core sweep wins even when activity_type is null/blank (SnapTrade sometimes omits it)', () => {
+    expect(categorizeFidelityActivity(null, 'offset',
+      'PURCHASE INTO CORE ACCOUNT FIDELITY GOVERNMENT CASH RESERVES')).toEqual(SWEEP);
+    expect(categorizeFidelityActivity('', 'income',
+      'REDEMPTION FROM CORE ACCOUNT FDIC INSURED DEPOSIT AT SANTANDER')).toEqual(SWEEP);
+  });
+
+  test('a genuine option SELL is NOT mistaken for a core sweep (regression)', () => {
+    expect(categorizeFidelityActivity('SELL', 'income',
+      'YOU SOLD INTEL CORP COM USD0.001 (INTC) (Margin)')).toEqual({ action: 'income', category: 'Option Trade' });
+  });
+
+  test('description is optional — omitting it preserves pre-CR032 activity_type routing', () => {
+    expect(categorizeFidelityActivity('SELL', 'income')).toEqual({ action: 'income', category: 'Option Trade' });
+  });
 });
