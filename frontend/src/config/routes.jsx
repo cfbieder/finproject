@@ -62,6 +62,7 @@ const TransBudget = lazy(() => import("../pages/TransBudget"));
 const TransferAnalysis = lazy(() => import("../pages/TransferAnalysis"));
 const Ledger = lazy(() => import("../pages/Ledger"));
 const BalanceCalibration = lazy(() => import("../pages/BalanceCalibration"));
+const ManualCalibration = lazy(() => import("../pages/ManualCalibration"));
 const ManualTransactionEntry = lazy(() => import("../pages/ManualTransactionEntry"));
 const UploadPS = lazy(() => import("../pages/UploadPS"));
 const COAManagement = lazy(() => import("../pages/COAManagement"));
@@ -173,6 +174,14 @@ export const routes = [
     category: "Transactions",
     description: "Calibrate account opening balances for Balance Sheet accuracy",
     icon: Target,
+  },
+  {
+    path: "/manual-calibration",
+    component: ManualCalibration,
+    label: "Manual Calibration",
+    category: "Transactions",
+    description: "Calibrate non-fed account balances by entering the current balance by hand",
+    icon: Wallet,
   },
   {
     path: "/manual-entry",

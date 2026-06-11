@@ -23,6 +23,7 @@ const aiReviewRouter = require('./aiReview');
 const quickenImportRouter = require('./quickenImport');
 const bankFeedRouter = require('./bankFeed');
 const ingestBankFeedRouter = require('./ingestBankFeed');
+const manualCalibrationRouter = require('./manualCalibration');
 
 // Mount routes
 router.use('/health', healthRouter);
@@ -40,6 +41,7 @@ router.use('/ai-review', aiReviewRouter);
 router.use('/quicken-import', quickenImportRouter);
 router.use('/bank-feed', bankFeedRouter);
 router.use('/ingest-bank-feed', ingestBankFeedRouter);
+router.use('/manual-calibration', manualCalibrationRouter);
 
 // API root info
 router.get('/', (req, res) => {
@@ -60,7 +62,8 @@ router.get('/', (req, res) => {
       '/api/v2/transfer-match-groups',
       '/api/v2/ai-review',
       '/api/v2/quicken-import',
-      '/api/v2/bank-feed'
+      '/api/v2/bank-feed',
+      '/api/v2/manual-calibration'
     ]
   });
 });
