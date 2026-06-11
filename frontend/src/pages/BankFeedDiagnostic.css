@@ -117,6 +117,31 @@
 .bfd-ok      { color: var(--success-strong); }
 .bfd-danger  { color: var(--danger-strong); }
 
+/* MTM booking-date control — its own row beneath the filters (CR033). */
+.bfd-mtm-date {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin: 4px 0 12px;
+  font-size: 0.85rem;
+}
+.bfd-mtm-date input[type="date"] {
+  font-size: 0.85rem;
+  padding: 2px 6px;
+}
+.bfd-mtm-chip {
+  background: var(--surface-muted, #eef0f6);
+  border: 1px solid var(--border, #d3d6e0);
+  border-radius: 999px;
+  padding: 2px 10px;
+  font-size: 0.78rem;
+  color: inherit;
+  cursor: pointer;
+}
+.bfd-mtm-chip:hover { background: var(--surface-hover, #e2e6f0); }
+.bfd-mtm-hint { font-size: 0.78rem; }
+
 .bfd-desc {
   max-width: 360px;
   overflow: hidden;

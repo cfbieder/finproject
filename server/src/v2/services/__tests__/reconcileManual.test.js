@@ -40,6 +40,7 @@ dbDescribe('reconcileManual (DB)', () => {
       await db.query(`DELETE FROM manual_balances WHERE account_id = $1`, [acctId]);
     }
     await db.query(`DELETE FROM accounts WHERE name = $1`, [ACCT]);
+    await db.query(`DELETE FROM exchange_rates WHERE from_currency = 'XTS' AND source = 'test'`);
     acctId = null;
   }
 
@@ -235,5 +236,28 @@ dbDescribe('reconcileManual (DB)', () => {
       [acctId, MTM_SOURCE])).rows;
     expect(rows).toHaveLength(1);
     expect(rows[0].d).toBe('2026-03-31');
+  });
+
+  test('mtm: non-USD account converts base_amount via the FX table', async () => {
+    await freshAccount({ type: 'asset', currency: 'XTS', opening: 1000, mode: 'mtm' });
+    await db.query(
+      `INSERT INTO transactions (transaction_date, amount, currency, account_id, source, accepted)
+       VALUES ('2026-05-10', 9000, 'XTS', $1, 'manual', TRUE)`, [acctId]); // computed by MONTH_END = 10000
+    await seedManual(10500); // entered as of MONTH_END → mtm = 500 XTS (4.8% < guard)
+    await db.query(
+      `INSERT INTO exchange_rates (from_currency, to_currency, rate, rate_date, source)
+       VALUES ('XTS','USD',2,$1,'test')
+       ON CONFLICT (from_currency,to_currency,rate_date) DO UPDATE SET rate = EXCLUDED.rate`, [MONTH_END]);
+
+    const out = await reconcileManual(acctId, { asOf: MONTH_END, dryRun: false });
+    expect(out.mtm_amount).toBeCloseTo(500, 2);
+    expect(out.base_amount).toBeCloseTo(1000, 2); // 500 XTS * 2 = 1000 USD
+    const row = (await db.query(
+      `SELECT amount, base_amount, currency, base_currency FROM transactions WHERE account_id=$1 AND source=$2`,
+      [acctId, MTM_SOURCE])).rows[0];
+    expect(Number(row.amount)).toBeCloseTo(500, 2);
+    expect(row.currency).toBe('XTS');
+    expect(Number(row.base_amount)).toBeCloseTo(1000, 2);
+    expect(row.base_currency).toBe('USD');
   });
 });

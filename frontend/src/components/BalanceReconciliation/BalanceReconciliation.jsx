@@ -228,10 +228,10 @@ export default function BalanceReconciliation() {
             ))}
           </select>
         </label>
-        <MtmDateControl value={bookDate} onChange={setBookDate} />
         <span className="bfd-muted">as of {balRecon.asOf}</span>
         {reconcileMsg && <span className="bfd-muted"> · {reconcileMsg}</span>}
       </div>
+      <MtmDateControl value={bookDate} onChange={setBookDate} />
       <table className="bfd-accounts">
         <thead>
           <tr>

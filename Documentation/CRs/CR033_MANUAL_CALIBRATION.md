@@ -1,6 +1,6 @@
 # CR033 — Manual Calibration (non-fed account balance reconciliation)
 
-**Status:** RELEASED v3.0.29 (2026-06-11) — migration 032 applied to dev + prod; deployed. Follow-ups v3.0.30 (leaf-only list + MTM booking date).
+**Status:** RELEASED v3.0.29 (2026-06-11) — migration 032 applied to dev + prod; deployed. Follow-ups v3.0.30 (leaf-only list + MTM booking date), v3.0.31 (non-USD MTM via FX + recon header cleanup).
 **Track:** v3
 **Anchor in FC_NEXT_STEPS.md:** [cr033](../FC_NEXT_STEPS.md#cr033)
 
@@ -29,7 +29,7 @@ The non-fed twin of **Balance Calibration** (CR023). Balance Calibration reconci
 - **`repositories/manualReconciliation.js`** — `manualBalanceReconcile({asOf, tolerance})`: BS accounts not owned by a live feed; computed = `opening_balance + Σ tx`; LATERAL latest `manual_balances ≤ asOf`; `expected = entered` (no sign normalization); `drift = computed − entered`; `reconciled` is `null` when no balance entered yet (**pending**). Pending rows sort to the bottom, otherwise by `|drift|` desc.
 - **`services/reconcileManual.js`** — parallel to `reconcileToFeed.js`:
   - `setManualBalance(accountId, {balance, balanceDate?, note?})` — upsert into `manual_balances` (rejects fed / non-BS accounts).
-  - `reconcileManual(accountId, {asOf?, dryRun?, force?})` — `calibrate` sets `opening_balance = entered − Σ tx`; `mtm` posts/refreshes the month-end cat-88 (`source='mtm'`, `description='Unrealized G/L (manual MTM)'`, auto-accepted) adjustment with the same 15%-phantom-gain guard and idempotent delete-then-insert. USD-only for mtm (mirrors the feed engine).
+  - `reconcileManual(accountId, {asOf?, dryRun?, force?})` — `calibrate` sets `opening_balance = entered − Σ tx`; `mtm` posts/refreshes the month-end cat-88 (`source='mtm'`, `description='Unrealized G/L (manual MTM)'`, auto-accepted) adjustment with the same 15%-phantom-gain guard and idempotent delete-then-insert. Non-USD accounts convert the entry's `base_amount`→USD via the shared `services/fx.js` `usdBaseAmount` (exchange_rates table); a missing rate is a hard error (no more USD-only restriction).
 - **`routes/manualCalibration.js`** (mounted at `/api/v2/manual-calibration` in `routes/index.js`):
   - `GET /recon?asOf=` · `PUT /balance/:accountId` · `PATCH /reconcile-mode/:accountId` · `POST /reconcile/:accountId`.
 
@@ -56,3 +56,11 @@ The non-fed twin of **Balance Calibration** (CR023). Balance Calibration reconci
 
 ### MTM booking date (feed + manual)
 Both reconcile engines (`reconcileToFeed.js` **and** `reconcileManual.js`) gained an optional **`bookDate`** (YYYY-MM-DD). For `mtm` mode it is used **verbatim** as the entry's `transaction_date` AND the balance as-of, so the Unrealized-G/L entry can be aligned to a **quarter/year-end** (marks against the balance as of that date). When absent, the legacy snap (`asOf` → its month-end) holds — existing callers (incl. `mtm-reconcile.js`) are byte-identical. **Scoped to MTM only:** calibrate is untouched (it re-anchors `opening_balance = balance(asOf) − Σ all-tx`, so feeding it a past period-end would misstate today's balance). Routes thread `bookDate`; the feed route also ingests balances up to `bookDate` before reconciling. UI: a shared **`MtmDateControl`** (`components/MtmDateControl.jsx`, default last completed month-end + month-end/quarter-end/year-end quick-fills) in both recon table headers; the reconcile POST sends `bookDate` for `mtm` rows only. Tests: `mtm: bookDate books the entry verbatim …` in both `reconcileManual.test.js` and `reconcileToFeed.test.js`.
+
+## Further fixes (Released v3.0.31, 2026-06-11)
+
+### Non-USD MTM (bug — was silently blocked)
+Reconciling MTM on a non-USD account (e.g. CVC Fund IX, EUR) failed with *"MTM for non-USD account N (EUR) not supported"* — both engines hard-coded `base_amount = amount` (1:1 USD) and threw for any other currency. **Fix:** extracted the bank-feed promote's FX helper into shared **`services/fx.js`** (`usdBaseAmount` — `exchange_rates` from_currency→USD, most recent rate ≤ date, nearest fallback); `refreshBankFeedV2` now imports it (single source of truth). Both MTM engines drop the USD guard and set `base_amount = usdBaseAmount(amount, currency, bookDate)`; a **missing rate is a hard error** (`no USD exchange rate for X …`) rather than a wrong balance-sheet figure. Tests: non-USD-converts + no-rate-throws in both reconcile suites (synthetic `XTS` currency). Full suite **225/225**.
+
+### Recon header UI cleanup
+The MTM date control was crammed into the flex `space-between` filter row (presets wrapping awkwardly next to a second "as of" date). Moved it to **its own row beneath the filters** (`.bfd-mtm-date`), presets restyled as pill chips (`.bfd-mtm-chip`), with a one-line hint. Applies to both the feed and manual recon tables.

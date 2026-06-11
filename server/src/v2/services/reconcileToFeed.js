@@ -26,6 +26,7 @@
 
 const db = require('../db');
 const { ingestBalances } = require('./refreshBankFeedV2');
+const { usdBaseAmount } = require('./fx');
 
 const UNREALIZED_GL_CATEGORY_ID = 88; // accounts.id "Unrealized G/L" (expense)
 const MTM_SOURCE = 'mtm';
@@ -119,12 +120,6 @@ async function resolveMonthEnd(conn, asOfDate) {
 }
 
 async function mtm(client, accountId, m, monthEnd, dryRun, force = false) {
-  if (m.currency !== 'USD') {
-    // No non-USD brokerage account exists today; fail loud rather than write a
-    // wrong base_amount (USD balance sheet would mis-aggregate).
-    throw new Error(`MTM for non-USD account ${accountId} (${m.currency}) not supported`);
-  }
-
   const feed = (await client.query(
     `SELECT balance, balance_date::text AS balance_date FROM bankfeed_balances
      WHERE feed_account_external_id = $1 AND balance_date <= $2::date
@@ -162,6 +157,18 @@ async function mtm(client, accountId, m, monthEnd, dryRun, force = false) {
     removed_read_override: false, applied: false,
   };
 
+  // USD base_amount for the (account-currency) MTM amount — needed only when an
+  // entry will actually be posted. Non-USD accounts convert via the FX table; a
+  // missing rate is a hard blocker (can't book a correct balance-sheet figure).
+  let baseAmount = null;
+  if (Math.abs(amount) >= TOLERANCE) {
+    baseAmount = await usdBaseAmount(client, amount, m.currency, monthEnd);
+    if (baseAmount == null) {
+      throw new Error(`no USD exchange rate for ${m.currency} on/before ${monthEnd} — cannot book MTM for account ${accountId} (${m.name})`);
+    }
+    summary.base_amount = baseAmount;
+  }
+
   if (implausible && !force) {
     summary.note = `MTM ${amount} is ${(implausiblePct * 100).toFixed(1)}% of feed — implausible ` +
       `(basis likely unanchored). Anchor the account's basis first, or pass force to override.`;
@@ -179,7 +186,7 @@ async function mtm(client, accountId, m, monthEnd, dryRun, force = false) {
            (transaction_date, description1, amount, currency, base_amount, base_currency,
             account_id, category_id, source, accepted)
          VALUES ($1, $2, $3, $4, $5, 'USD', $6, $7, $8, TRUE)`,
-        [monthEnd, MTM_DESCRIPTION, amount, m.currency, amount, accountId,
+        [monthEnd, MTM_DESCRIPTION, amount, m.currency, baseAmount, accountId,
          UNREALIZED_GL_CATEGORY_ID, MTM_SOURCE]
       );
     } else {

@@ -216,10 +216,10 @@ export default function ManualReconciliation() {
             ))}
           </select>
         </label>
-        <MtmDateControl value={bookDate} onChange={setBookDate} />
         <span className="bfd-muted">as of {recon.asOf}</span>
         {msg && <span className="bfd-muted"> · {msg}</span>}
       </div>
+      <MtmDateControl value={bookDate} onChange={setBookDate} />
       <table className="bfd-accounts">
         <thead>
           <tr>

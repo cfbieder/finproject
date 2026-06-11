@@ -27,6 +27,7 @@ const bankFeedClient = require('./bankFeedClient');
 const { normalizeBatch, findPsMatch, categorizeFidelityActivity } = require('../converters/bankFeedToCanonical');
 const staging = require('../repositories/bankfeedStaging');
 const db = require('../db');
+const { usdBaseAmount } = require('./fx');
 
 const SOURCE = 'bank-feed';
 // Default freshness window for the pre-read upstream sync: skip the Sheet pull
@@ -159,29 +160,7 @@ async function ingest({ sinceDays = 14, since, syncMaxAgeMin } = {}) {
  * Returns a summary that is a superset of the PS syncStagingToTransactions shape
  * so the existing review UI reads its known fields unchanged.
  */
-/**
- * USD base_amount for a bank-feed row. PocketSmith hands fin a precomputed
- * BaseAmount; the bank-feed contract only carries amount+currency, so fin must
- * convert. Uses the exchange_rates table (from_currency → USD), picking the most
- * recent rate on/before the transaction date (falling back to the nearest rate
- * if none precedes it). Returns null only if no rate exists for the currency.
- */
-async function usdBaseAmount(querier, amount, currency, dateText) {
-  const amt = Number(amount);
-  if (!Number.isFinite(amt)) return null;
-  if (currency === 'USD') return Math.round(amt * 100) / 100;
-  const res = await querier.query(
-    `SELECT rate FROM exchange_rates
-       WHERE from_currency = $1 AND to_currency = 'USD'
-       ORDER BY (rate_date <= $2::date) DESC, ABS(rate_date - $2::date) ASC
-       LIMIT 1`,
-    [currency, dateText]
-  );
-  if (!res.rows.length) return null;
-  const rate = Number(res.rows[0].rate);
-  if (!Number.isFinite(rate)) return null;
-  return Math.round(amt * rate * 100) / 100;
-}
+// USD base_amount conversion now lives in ./fx (shared with the reconcile engines).
 
 async function promote() {
   // Load unpromoted, non-pending staging rows with resolved fin account + ignore flag.

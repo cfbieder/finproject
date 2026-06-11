@@ -16,32 +16,25 @@ export const lastQuarterEndISO = (t = new Date()) =>
 // most recent completed year-end (Dec 31 of last year)
 export const lastYearEndISO = (t = new Date()) => toISODate(new Date(t.getFullYear() - 1, 12, 0));
 
+const PRESETS = [
+  ["Month-end", lastMonthEndISO],
+  ["Quarter-end", lastQuarterEndISO],
+  ["Year-end", lastYearEndISO],
+];
+
 export default function MtmDateControl({ value, onChange }) {
-  const presets = [
-    ["month-end", lastMonthEndISO],
-    ["quarter-end", lastQuarterEndISO],
-    ["year-end", lastYearEndISO],
-  ];
   return (
-    <span
-      className="bfd-muted"
-      title="Date the Unrealized-G/L (MTM) entry is booked, and the balance it marks against. Aligns to a quarter/year-end. Calibrate rows ignore this."
-    >
-      Book MTM as of{" "}
-      <input type="date" value={value} onChange={(e) => onChange(e.target.value)} />{" "}
-      {presets.map(([lbl, fn], i) => (
-        <span key={lbl}>
-          {i === 0 ? "(" : " · "}
-          <button
-            type="button"
-            onClick={() => onChange(fn())}
-            style={{ background: "none", border: "none", padding: 0, cursor: "pointer", color: "inherit", textDecoration: "underline" }}
-          >
-            {lbl}
-          </button>
-          {i === presets.length - 1 ? ")" : ""}
-        </span>
+    <div className="bfd-mtm-date">
+      <span className="bfd-muted">Book MTM entry as of</span>
+      <input type="date" value={value} onChange={(e) => onChange(e.target.value)} />
+      {PRESETS.map(([lbl, fn]) => (
+        <button key={lbl} type="button" className="bfd-mtm-chip" onClick={() => onChange(fn())}>
+          {lbl}
+        </button>
       ))}
-    </span>
+      <span className="bfd-muted bfd-mtm-hint">
+        — dates the Unrealized-G/L entry &amp; the balance it marks against (calibrate rows ignore it)
+      </span>
+    </div>
   );
 }

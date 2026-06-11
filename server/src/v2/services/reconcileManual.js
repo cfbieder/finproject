@@ -25,6 +25,7 @@
  */
 
 const db = require('../db');
+const { usdBaseAmount } = require('./fx');
 
 const UNREALIZED_GL_CATEGORY_ID = 88; // accounts.id "Unrealized G/L" (expense)
 const MTM_SOURCE = 'mtm';
@@ -144,11 +145,6 @@ async function latestEntered(client, accountId, cutoff) {
 }
 
 async function mtm(client, accountId, m, monthEnd, dryRun, force = false) {
-  if (m.currency !== 'USD') {
-    // Mirror reconcileToFeed: refuse to write a wrong USD base_amount.
-    throw new Error(`MTM for non-USD account ${accountId} (${m.currency}) not supported`);
-  }
-
   const entry = await latestEntered(client, accountId, monthEnd);
   if (!entry) throw new Error(`no manual balance for account ${accountId} on/before ${monthEnd}`);
 
@@ -175,6 +171,17 @@ async function mtm(client, accountId, m, monthEnd, dryRun, force = false) {
     applied: false,
   };
 
+  // USD base_amount for the (account-currency) MTM amount — only when posting.
+  // Non-USD converts via the FX table; a missing rate is a hard blocker.
+  let baseAmount = null;
+  if (Math.abs(amount) >= TOLERANCE) {
+    baseAmount = await usdBaseAmount(client, amount, m.currency, monthEnd);
+    if (baseAmount == null) {
+      throw new Error(`no USD exchange rate for ${m.currency} on/before ${monthEnd} — cannot book MTM for account ${accountId} (${m.name})`);
+    }
+    summary.base_amount = baseAmount;
+  }
+
   if (implausible && !force) {
     summary.note = `MTM ${amount} is ${(implausiblePct * 100).toFixed(1)}% of the entered balance — ` +
       `implausible (basis likely unanchored). Anchor the account's basis first, or pass force to override.`;
@@ -192,7 +199,7 @@ async function mtm(client, accountId, m, monthEnd, dryRun, force = false) {
            (transaction_date, description1, amount, currency, base_amount, base_currency,
             account_id, category_id, source, accepted)
          VALUES ($1, $2, $3, $4, $5, 'USD', $6, $7, $8, TRUE)`,
-        [monthEnd, MTM_DESCRIPTION, amount, m.currency, amount, accountId,
+        [monthEnd, MTM_DESCRIPTION, amount, m.currency, baseAmount, accountId,
          UNREALIZED_GL_CATEGORY_ID, MTM_SOURCE]
       );
     } else {

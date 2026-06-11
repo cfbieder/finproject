@@ -50,6 +50,7 @@ dbDescribe('reconcileToFeed (DB)', () => {
     await db.query(`DELETE FROM bankfeed_balances WHERE feed_account_external_id = $1`, [UUID]);
     await db.query(`DELETE FROM account_source_mappings WHERE external_name = $1`, [UUID]);
     await db.query(`DELETE FROM accounts WHERE name = $1`, [ACCT]);
+    await db.query(`DELETE FROM exchange_rates WHERE from_currency = 'XTS' AND source = 'test'`);
     acctId = null;
   }
 
@@ -195,10 +196,37 @@ dbDescribe('reconcileToFeed (DB)', () => {
     expect(out.mtm_amount).toBeCloseTo(500, 2);
   });
 
-  test('mtm on a non-USD account throws (no wrong base_amount)', async () => {
-    await freshAccount({ type: 'asset', currency: 'PLN', opening: 0, mode: 'mtm', bff: false });
-    await seedFeed(500, MONTH_END, 'PLN');
-    await expect(reconcileToFeed(acctId, { asOf: MONTH_END, dryRun: true })).rejects.toThrow(/non-USD/i);
+  test('mtm on a non-USD account converts base_amount via the FX table', async () => {
+    await freshAccount({ type: 'asset', currency: 'XTS', opening: 1000, mode: 'mtm', bff: false });
+    await db.query(
+      `INSERT INTO transactions (transaction_date, amount, currency, account_id, source, accepted)
+       VALUES ('2026-05-10', 9000, 'XTS', $1, 'pocketsmith', TRUE)`, [acctId]); // computed 10000
+    await seedFeed(10500, MONTH_END, 'XTS'); // mtm = 500 XTS (4.8% < guard)
+    await db.query(
+      `INSERT INTO exchange_rates (from_currency, to_currency, rate, rate_date, source)
+       VALUES ('XTS','USD',2,$1,'test')
+       ON CONFLICT (from_currency,to_currency,rate_date) DO UPDATE SET rate = EXCLUDED.rate`, [MONTH_END]);
+
+    const out = await reconcileToFeed(acctId, { asOf: MONTH_END, dryRun: false });
+    expect(out.mtm_amount).toBeCloseTo(500, 2);
+    expect(out.base_amount).toBeCloseTo(1000, 2); // 500 XTS * 2 = 1000 USD
+    const row = (await db.query(
+      `SELECT amount, base_amount, currency, base_currency FROM transactions WHERE account_id=$1 AND source=$2`,
+      [acctId, MTM_SOURCE])).rows[0];
+    expect(Number(row.amount)).toBeCloseTo(500, 2);
+    expect(row.currency).toBe('XTS');
+    expect(Number(row.base_amount)).toBeCloseTo(1000, 2);
+    expect(row.base_currency).toBe('USD');
+  });
+
+  test('mtm on a non-USD account with NO FX rate throws a clear error', async () => {
+    await freshAccount({ type: 'asset', currency: 'XTS', opening: 1000, mode: 'mtm', bff: false });
+    await db.query(
+      `INSERT INTO transactions (transaction_date, amount, currency, account_id, source, accepted)
+       VALUES ('2026-05-10', 9000, 'XTS', $1, 'pocketsmith', TRUE)`, [acctId]); // mtm = 500, needs a rate
+    await seedFeed(10500, MONTH_END, 'XTS');
+    await db.query(`DELETE FROM exchange_rates WHERE from_currency='XTS'`); // ensure no rate
+    await expect(reconcileToFeed(acctId, { asOf: MONTH_END, dryRun: false })).rejects.toThrow(/exchange rate/i);
   });
 
   test('mtm: bookDate overrides the month-end snap (books verbatim on the chosen date)', async () => {
