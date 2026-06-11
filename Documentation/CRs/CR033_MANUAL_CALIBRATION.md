@@ -1,6 +1,6 @@
 # CR033 — Manual Calibration (non-fed account balance reconciliation)
 
-**Status:** RELEASED v3.0.29 (2026-06-11) — migration 032 applied to dev + prod; deployed
+**Status:** RELEASED v3.0.29 (2026-06-11) — migration 032 applied to dev + prod; deployed. Follow-ups v3.0.30 (leaf-only list + MTM booking date).
 **Track:** v3
 **Anchor in FC_NEXT_STEPS.md:** [cr033](../FC_NEXT_STEPS.md#cr033)
 
@@ -49,5 +49,10 @@ The non-fed twin of **Balance Calibration** (CR023). Balance Calibration reconci
 ## Released (v3.0.29, 2026-06-11)
 - Migration `032` applied to **prod** (prod-before-code), then `deploy-to-production.sh` rebuilt `fin-server`/`fin-frontend`. The new router (`/api/v2/manual-calibration/*`) and `/manual-calibration` page ship live; live `GET /recon` verified 200 on prod.
 
-## Known issue (post-release)
-- **Parent/container BS accounts appear in the list.** `manualBalanceReconcile` selects *all* `section='balance_sheet'` non-fed accounts, so aggregation nodes ("Assets" #1, "Liabilities" #51, and any parent) show as calibratable rows even though you'd only ever calibrate a leaf. Follow-up: restrict to leaf accounts (no children — the `leafOnly` predicate other pickers use) in the `eligible` CTE. Cosmetic, not data-affecting (calibrating a parent would still just set its own `opening_balance`).
+## Follow-up enhancements (Released v3.0.30, 2026-06-11)
+
+### Leaf-only account list (FIXED)
+`manualBalanceReconcile`'s `eligible` CTE now restricts to **final leaves** — `is_active = TRUE AND NOT EXISTS (child WHERE parent_id = a.id)` — so parent/container aggregation nodes ("Assets" #1, "Liabilities" #51, "Bank Accounts", "Other Bank Accounts", "CVC Investments", "Historical Assets/Liabilities", …) no longer show as calibratable rows. Dev: 68 → 48 accounts (20 containers dropped). Test: `manualBalanceReconcile: excludes parent/container accounts (leaf-only)`.
+
+### MTM booking date (feed + manual)
+Both reconcile engines (`reconcileToFeed.js` **and** `reconcileManual.js`) gained an optional **`bookDate`** (YYYY-MM-DD). For `mtm` mode it is used **verbatim** as the entry's `transaction_date` AND the balance as-of, so the Unrealized-G/L entry can be aligned to a **quarter/year-end** (marks against the balance as of that date). When absent, the legacy snap (`asOf` → its month-end) holds — existing callers (incl. `mtm-reconcile.js`) are byte-identical. **Scoped to MTM only:** calibrate is untouched (it re-anchors `opening_balance = balance(asOf) − Σ all-tx`, so feeding it a past period-end would misstate today's balance). Routes thread `bookDate`; the feed route also ingests balances up to `bookDate` before reconciling. UI: a shared **`MtmDateControl`** (`components/MtmDateControl.jsx`, default last completed month-end + month-end/quarter-end/year-end quick-fills) in both recon table headers; the reconcile POST sends `bookDate` for `mtm` rows only. Tests: `mtm: bookDate books the entry verbatim …` in both `reconcileManual.test.js` and `reconcileToFeed.test.js`.

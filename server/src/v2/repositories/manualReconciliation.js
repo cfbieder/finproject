@@ -35,10 +35,14 @@ async function manualBalanceReconcile({ asOf = null, tolerance = 0.01 } = {}) {
       WHERE source = 'bank-feed' AND ignored IS NOT TRUE AND account_id IS NOT NULL
     ),
     eligible AS (
+      -- final leaves only: a parent/container account (one that has children) is
+      -- an aggregation node, not something you calibrate directly. Active only.
       SELECT a.id AS account_id, a.name, a.account_type, a.currency,
              a.opening_balance, a.manual_reconcile_mode
       FROM accounts a
       WHERE a.section = 'balance_sheet'
+        AND a.is_active = TRUE
+        AND NOT EXISTS (SELECT 1 FROM accounts ch WHERE ch.parent_id = a.id)
         AND a.id NOT IN (SELECT account_id FROM fed)
     ),
     computed AS (

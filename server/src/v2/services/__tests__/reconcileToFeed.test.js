@@ -201,6 +201,23 @@ dbDescribe('reconcileToFeed (DB)', () => {
     await expect(reconcileToFeed(acctId, { asOf: MONTH_END, dryRun: true })).rejects.toThrow(/non-USD/i);
   });
 
+  test('mtm: bookDate overrides the month-end snap (books verbatim on the chosen date)', async () => {
+    await freshAccount({ type: 'asset', currency: 'USD', opening: 1000, mode: 'mtm', bff: false });
+    await db.query(
+      `INSERT INTO transactions (transaction_date, amount, currency, account_id, source, accepted)
+       VALUES ('2026-03-10', 9000, 'USD', $1, 'pocketsmith', TRUE)`, [acctId]); // computed by Q1-end = 10000
+    await seedFeed(10500, '2026-03-31'); // feed snapshot at Q1 end (cached → no network backfill)
+
+    const out = await reconcileToFeed(acctId, { bookDate: '2026-03-31', dryRun: false });
+    expect(out.month_end).toBe('2026-03-31'); // used verbatim, not snapped
+    expect(out.mtm_amount).toBeCloseTo(500, 2);
+    const rows = (await db.query(
+      `SELECT transaction_date::text AS d FROM transactions WHERE account_id=$1 AND source=$2`,
+      [acctId, MTM_SOURCE])).rows;
+    expect(rows).toHaveLength(1);
+    expect(rows[0].d).toBe('2026-03-31');
+  });
+
   test('ignored mapping throws; missing mapping throws', async () => {
     await freshAccount({ type: 'asset', currency: 'USD', opening: 0, mode: 'mtm', bff: true });
     await seedFeed(100);

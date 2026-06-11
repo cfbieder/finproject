@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import Rest from "../../js/rest.js";
 import ConfirmModal from "../ConfirmModal/ConfirmModal.jsx";
+import MtmDateControl, { lastMonthEndISO } from "../MtmDateControl.jsx";
 // Reuse the bank-feed diagnostic styles (bfd-* / num / generate-report-button).
 import "../../pages/BankFeedDiagnostic.css";
 
@@ -33,6 +34,7 @@ export default function BalanceReconciliation() {
   const [savingMode, setSavingMode] = useState(null);
   const [institutionFilter, setInstitutionFilter] = useState("all"); // feed/institution filter
   const [statusFilter, setStatusFilter] = useState("all"); // reconciliation-status filter
+  const [bookDate, setBookDate] = useState(lastMonthEndISO()); // MTM booking date
 
   // Set how an account reconciles: 'calibrate' (bank/cash → DRIFT) or 'mtm'
   // (brokerage / mark-to-market holdings → MTM GAP). Harmless on its own.
@@ -81,7 +83,7 @@ export default function BalanceReconciliation() {
   const askReconcile = (a) => {
     const action =
       a.reconcile_mode === "mtm"
-        ? `post a month-end Unrealized-G/L (MTM) entry for "${a.name}"`
+        ? `post an Unrealized-G/L (MTM) entry for "${a.name}" as of ${bookDate}`
         : `re-anchor opening_balance for "${a.name}" to the bank's reported balance`;
     setConfirm({
       account: a,
@@ -97,7 +99,9 @@ export default function BalanceReconciliation() {
     setReconcilingId(a.account_id);
     setReconcileMsg(null);
     try {
-      const res = await Rest.post(`/bank-feed/reconcile/${a.account_id}`, { dryRun: false });
+      // bookDate only affects MTM (entry date + balance as-of); calibrate ignores it.
+      const body = a.reconcile_mode === "mtm" ? { dryRun: false, bookDate } : { dryRun: false };
+      const res = await Rest.post(`/bank-feed/reconcile/${a.account_id}`, body);
       setReconcileMsg(
         res.mode === "mtm"
           ? `${a.name}: MTM ${fmtNum(res.mtm_amount)} dated ${res.month_end}` +
@@ -224,6 +228,7 @@ export default function BalanceReconciliation() {
             ))}
           </select>
         </label>
+        <MtmDateControl value={bookDate} onChange={setBookDate} />
         <span className="bfd-muted">as of {balRecon.asOf}</span>
         {reconcileMsg && <span className="bfd-muted"> · {reconcileMsg}</span>}
       </div>

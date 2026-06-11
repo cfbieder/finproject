@@ -52,10 +52,13 @@ function expectedFromFeed(m, feedVal) {
  * @param {number} accountId fin account id (must have a non-ignored bank-feed mapping)
  * @param {object} [opts]
  * @param {string|null} [opts.asOf] YYYY-MM-DD; defaults to today.
+ * @param {string|null} [opts.bookDate] YYYY-MM-DD; explicit MTM booking date used
+ *   VERBATIM (entry date + balance as-of), e.g. a quarter/year-end. When absent,
+ *   the legacy behavior holds (snap asOf to its month-end). Ignored for calibrate.
  * @param {boolean} [opts.dryRun] compute only, write nothing.
  * @returns {Promise<object>} action summary
  */
-async function reconcileToFeed(accountId, { asOf = null, dryRun = false, force = false } = {}) {
+async function reconcileToFeed(accountId, { asOf = null, dryRun = false, force = false, bookDate = null } = {}) {
   // Pre-flight (no transaction): load mapping, and for 'mtm' make sure the target
   // month-end balance is cached — the daily cron only caches recent snapshots, so
   // a month-end may be absent locally while the bank-feed service still has it.
@@ -74,7 +77,10 @@ async function reconcileToFeed(accountId, { asOf = null, dryRun = false, force =
   )).rows[0].d;
 
   if (m.reconcile_mode === 'mtm') {
-    const monthEnd = await resolveMonthEnd(db, asOfDate);
+    // Booking target: an explicit bookDate is used verbatim (lets the user align
+    // the entry to a quarter/year-end); otherwise snap asOf to its month-end
+    // (legacy default). Both the entry date and the balance as-of use this.
+    const monthEnd = bookDate ? await normalizeDate(db, bookDate) : await resolveMonthEnd(db, asOfDate);
     const cached = (await db.query(
       `SELECT 1 FROM bankfeed_balances
        WHERE feed_account_external_id = $1 AND balance_date <= $2::date LIMIT 1`,
@@ -93,6 +99,11 @@ async function reconcileToFeed(accountId, { asOf = null, dryRun = false, force =
     return db.transaction((client) => mtm(client, accountId, m, monthEnd, dryRun, force));
   }
   return db.transaction((client) => calibrate(client, accountId, m, asOfDate, dryRun));
+}
+
+/** Validate + normalize a YYYY-MM-DD string to a real date (throws on garbage). */
+async function normalizeDate(conn, s) {
+  return (await conn.query(`SELECT $1::date::text AS d`, [s])).rows[0].d;
 }
 
 /** Month-end of asOf (asOf itself if it already IS a month-end, else previous month-end). */

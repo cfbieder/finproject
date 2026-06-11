@@ -198,4 +198,42 @@ dbDescribe('reconcileManual (DB)', () => {
     await db.query(`DELETE FROM account_source_mappings WHERE external_name=$1`, [FUUID]);
     await db.query(`DELETE FROM accounts WHERE id=$1`, [fedId]);
   });
+
+  test('manualBalanceReconcile: excludes parent/container accounts (leaf-only)', async () => {
+    const PARENT = 'TestManualParentAcct';
+    const CHILD = 'TestManualChildLeaf';
+    await db.query(`DELETE FROM accounts WHERE name IN ($1,$2)`, [CHILD, PARENT]);
+    const p = await db.query(
+      `INSERT INTO accounts (name, account_type, section, currency, opening_balance)
+       VALUES ($1,'asset','balance_sheet','USD',0) RETURNING id`, [PARENT]);
+    const parentId = p.rows[0].id;
+    const c = await db.query(
+      `INSERT INTO accounts (name, account_type, section, currency, opening_balance, parent_id)
+       VALUES ($1,'asset','balance_sheet','USD',0,$2) RETURNING id`, [CHILD, parentId]);
+    const childId = c.rows[0].id;
+
+    const recon = await manualBalanceReconcile({ asOf: MONTH_END });
+    expect(recon.accounts.find((r) => r.account_id === parentId)).toBeFalsy(); // parent excluded
+    expect(recon.accounts.find((r) => r.account_id === childId)).toBeTruthy(); // leaf included
+
+    await db.query(`DELETE FROM accounts WHERE id=$1`, [childId]); // child first (FK)
+    await db.query(`DELETE FROM accounts WHERE id=$1`, [parentId]);
+  });
+
+  test('mtm: bookDate books the entry verbatim on the chosen date (quarter-end)', async () => {
+    await freshAccount({ type: 'asset', currency: 'USD', opening: 1000, mode: 'mtm' });
+    await db.query(
+      `INSERT INTO transactions (transaction_date, amount, currency, account_id, source, accepted)
+       VALUES ('2026-03-10', 500, 'USD', $1, 'manual', TRUE)`, [acctId]); // computed by Q1-end = 1500
+    await seedManual(1700, '2026-03-31'); // entered as of Q1 end → mtm = +200
+
+    const out = await reconcileManual(acctId, { bookDate: '2026-03-31', dryRun: false });
+    expect(out.month_end).toBe('2026-03-31'); // verbatim, NOT snapped to a different month-end
+    expect(out.mtm_amount).toBeCloseTo(200, 2);
+    const rows = (await db.query(
+      `SELECT transaction_date::text AS d FROM transactions WHERE account_id=$1 AND source=$2`,
+      [acctId, MTM_SOURCE])).rows;
+    expect(rows).toHaveLength(1);
+    expect(rows[0].d).toBe('2026-03-31');
+  });
 });

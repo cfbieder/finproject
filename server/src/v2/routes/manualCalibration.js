@@ -87,9 +87,9 @@ router.post('/reconcile/:accountId', async (req, res, next) => {
   try {
     const accountId = Number(req.params.accountId);
     if (!Number.isInteger(accountId)) return res.status(400).json({ error: 'invalid accountId' });
-    const { asOf = null, dryRun = false, force = false } = req.body || {};
+    const { asOf = null, dryRun = false, force = false, bookDate = null } = req.body || {};
     const result = await reconcileManual(accountId, {
-      asOf, dryRun: dryRun === true, force: force === true,
+      asOf, dryRun: dryRun === true, force: force === true, bookDate,
     });
     res.json(result);
   } catch (err) {

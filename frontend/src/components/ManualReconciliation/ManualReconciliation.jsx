@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import Rest from "../../js/rest.js";
 import ConfirmModal from "../ConfirmModal/ConfirmModal.jsx";
+import MtmDateControl, { lastMonthEndISO } from "../MtmDateControl.jsx";
 // Reuse the bank-feed diagnostic styles (bfd-* / num / generate-report-button).
 import "../../pages/BankFeedDiagnostic.css";
 
@@ -36,6 +37,7 @@ export default function ManualReconciliation() {
   const [edits, setEdits] = useState({}); // { [accountId]: "string being typed" }
   const [typeFilter, setTypeFilter] = useState("all"); // asset | liability
   const [statusFilter, setStatusFilter] = useState("all");
+  const [bookDate, setBookDate] = useState(lastMonthEndISO()); // MTM booking date
 
   const load = async () => {
     try {
@@ -102,7 +104,7 @@ export default function ManualReconciliation() {
   const askReconcile = (a) => {
     const action =
       a.reconcile_mode === "mtm"
-        ? `post a month-end Unrealized-G/L (MTM) entry for "${a.name}"`
+        ? `post an Unrealized-G/L (MTM) entry for "${a.name}" as of ${bookDate}`
         : `re-anchor opening_balance for "${a.name}" to the entered balance`;
     setConfirm({
       account: a,
@@ -118,7 +120,9 @@ export default function ManualReconciliation() {
     setReconcilingId(a.account_id);
     setMsg(null);
     try {
-      const res = await Rest.post(`/manual-calibration/reconcile/${a.account_id}`, { dryRun: false });
+      // bookDate only affects MTM (the entry date + balance as-of); calibrate ignores it.
+      const body = a.reconcile_mode === "mtm" ? { dryRun: false, bookDate } : { dryRun: false };
+      const res = await Rest.post(`/manual-calibration/reconcile/${a.account_id}`, body);
       setMsg(
         res.mode === "mtm"
           ? `${a.name}: MTM ${fmtNum(res.mtm_amount)} dated ${res.month_end}` +
@@ -212,6 +216,7 @@ export default function ManualReconciliation() {
             ))}
           </select>
         </label>
+        <MtmDateControl value={bookDate} onChange={setBookDate} />
         <span className="bfd-muted">as of {recon.asOf}</span>
         {msg && <span className="bfd-muted"> · {msg}</span>}
       </div>

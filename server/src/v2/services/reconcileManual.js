@@ -80,11 +80,14 @@ async function setManualBalance(accountId, { balance, balanceDate = null, note =
  * @param {number} accountId balance-sheet account with NO active bank-feed mapping
  * @param {object} [opts]
  * @param {string|null} [opts.asOf] YYYY-MM-DD; defaults to today.
+ * @param {string|null} [opts.bookDate] YYYY-MM-DD; explicit MTM booking date used
+ *   VERBATIM (entry date + entered-balance as-of), e.g. a quarter/year-end. When
+ *   absent, snap asOf to its month-end (legacy default). Ignored for calibrate.
  * @param {boolean} [opts.dryRun] compute only, write nothing.
  * @param {boolean} [opts.force] override the implausible-MTM guard.
  * @returns {Promise<object>} action summary
  */
-async function reconcileManual(accountId, { asOf = null, dryRun = false, force = false } = {}) {
+async function reconcileManual(accountId, { asOf = null, dryRun = false, force = false, bookDate = null } = {}) {
   const m = (await db.query(
     `SELECT a.name, a.account_type, a.currency, a.opening_balance,
             a.manual_reconcile_mode, a.section,
@@ -105,10 +108,17 @@ async function reconcileManual(accountId, { asOf = null, dryRun = false, force =
   )).rows[0].d;
 
   if (m.manual_reconcile_mode === 'mtm') {
-    const monthEnd = await resolveMonthEnd(db, asOfDate);
+    // Explicit bookDate is used verbatim (quarter/year-end alignment); else snap
+    // asOf to its month-end (legacy default). Drives entry date + balance as-of.
+    const monthEnd = bookDate ? await normalizeDate(db, bookDate) : await resolveMonthEnd(db, asOfDate);
     return db.transaction((client) => mtm(client, accountId, m, monthEnd, dryRun, force));
   }
   return db.transaction((client) => calibrate(client, accountId, m, asOfDate, dryRun));
+}
+
+/** Validate + normalize a YYYY-MM-DD string to a real date (throws on garbage). */
+async function normalizeDate(conn, s) {
+  return (await conn.query(`SELECT $1::date::text AS d`, [s])).rows[0].d;
 }
 
 /** Month-end of asOf (asOf itself if it already IS a month-end, else previous month-end). */

@@ -258,17 +258,18 @@ router.post('/reconcile/:accountId', async (req, res, next) => {
     if (!Number.isInteger(accountId)) {
       return res.status(400).json({ error: 'invalid accountId' });
     }
-    const { asOf = null, dryRun = false, force = false } = req.body || {};
+    const { asOf = null, dryRun = false, force = false, bookDate = null } = req.body || {};
     // Sync-before-reconcile: pull fresh upstream data (best-effort) and refresh
     // fin's local balance cache so we reconcile on current, not morning-stale,
     // balances. Both steps are non-fatal — fall back to cached data on failure.
+    // Ingest up to the booking date (an MTM may target a past period-end snapshot).
     const synced = await refreshBankFeed.syncUpstream({ maxAgeMin: RECONCILE_SYNC_MAX_AGE_MIN });
     try {
-      await refreshBankFeed.ingestBalances({ asOf });
+      await refreshBankFeed.ingestBalances({ asOf: bookDate || asOf });
     } catch (e) {
       console.warn('[v2/bank-feed] pre-reconcile balance ingest failed (non-fatal):', e.message);
     }
-    const result = await reconcileToFeed(accountId, { asOf, dryRun: dryRun === true, force: force === true });
+    const result = await reconcileToFeed(accountId, { asOf, dryRun: dryRun === true, force: force === true, bookDate });
     res.json({ ...result, _synced: synced && !synced.error ? (synced.skipped ? 'fresh' : 'synced') : 'cached' });
   } catch (err) {
     console.error('[v2/bank-feed] reconcile failed:', err.message);
