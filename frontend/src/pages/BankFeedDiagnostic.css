@@ -142,6 +142,34 @@
 .bfd-mtm-chip:hover { background: var(--surface-hover, #e2e6f0); }
 .bfd-mtm-hint { font-size: 0.78rem; }
 
+/* Manual-calibration balance cell: amount + as-of date + reset (CR033). */
+.bfd-balance-cell {
+  display: inline-flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 2px;
+}
+.bfd-balance-asof {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 0.72rem;
+}
+.bfd-balance-asof input[type="date"] {
+  font-size: 0.72rem;
+  padding: 1px 4px;
+}
+.bfd-balance-reset {
+  background: none;
+  border: none;
+  padding: 0;
+  font-size: 0.68rem;
+  color: var(--danger-strong, #b42318);
+  text-decoration: underline;
+  cursor: pointer;
+}
+.bfd-balance-reset:disabled { opacity: 0.5; cursor: default; }
+
 .bfd-desc {
   max-width: 360px;
   overflow: hidden;

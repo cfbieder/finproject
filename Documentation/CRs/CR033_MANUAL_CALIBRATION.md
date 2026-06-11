@@ -1,6 +1,6 @@
 # CR033 — Manual Calibration (non-fed account balance reconciliation)
 
-**Status:** RELEASED v3.0.29 (2026-06-11) — migration 032 applied to dev + prod; deployed. Follow-ups v3.0.30 (leaf-only list + MTM booking date), v3.0.31 (non-USD MTM via FX + recon header cleanup).
+**Status:** RELEASED v3.0.29 (2026-06-11) — migration 032 applied to dev + prod; deployed. Follow-ups v3.0.30 (leaf-only list + MTM booking date), v3.0.31 (non-USD MTM via FX + recon header cleanup), v3.0.32 (balance as-of date entry + reset).
 **Track:** v3
 **Anchor in FC_NEXT_STEPS.md:** [cr033](../FC_NEXT_STEPS.md#cr033)
 
@@ -64,3 +64,6 @@ Reconciling MTM on a non-USD account (e.g. CVC Fund IX, EUR) failed with *"MTM f
 
 ### Recon header UI cleanup
 The MTM date control was crammed into the flex `space-between` filter row (presets wrapping awkwardly next to a second "as of" date). Moved it to **its own row beneath the filters** (`.bfd-mtm-date`), presets restyled as pill chips (`.bfd-mtm-chip`), with a one-line hint. Applies to both the feed and manual recon tables.
+
+## Balance as-of date entry + reset (Released v3.0.32, 2026-06-11)
+The manual "Current balance" was always dated *today*, so a **past period-end MTM mark** failed — `reconcileManual` marks against the entry ≤ the booking date, and a today-dated figure is never ≤ a past period-end (the live symptom: CVC Fund IX EUR, balance typed today, "Book MTM as of 2026-03-31" → *no manual balance on/before 2026-03-31*). **Fix (frontend + one route):** the balance cell now pairs the amount with an **as-of date input** (defaults to the page's "Book MTM as of" date) + a **reset** link; the PUT sends `balanceDate` (the route/`setManualBalance` already supported it), and a new **`DELETE /balance/:accountId`** clears an account's entry → pending (for a figure entered with the wrong date). Entries are date-stamped (`UNIQUE(account_id, balance_date)`); the recon + reconcile read the latest ≤ asOf, so dating a balance at a quarter/year-end enables a true period-end mark. Edit commits once when focus leaves the cell (cell-level `onBlur` with a `relatedTarget` containment check), so editing amount→date is a single save. Test: `manualBalanceReconcile: picks the entered balance as of the query date`. The one prod test entry (CVC Fund IX @ today) was cleared during this work. `vite build` green.

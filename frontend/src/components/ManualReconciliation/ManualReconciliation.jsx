@@ -65,37 +65,59 @@ export default function ManualReconciliation() {
     }
   };
 
-  // Persist the typed current balance (on blur / Enter). Skips the call when the
-  // value is unchanged or not a finite number.
+  // edits[accountId] = { balance?: string, date?: string } (in-progress per-row edit)
+  const patchEdit = (id, patch) => setEdits((ed) => ({ ...ed, [id]: { ...ed[id], ...patch } }));
+  const clearEdit = (id) =>
+    setEdits((ed) => {
+      const { [id]: _drop, ...rest } = ed;
+      return rest;
+    });
+
+  // Persist the typed balance + its as-of date (commits once when focus leaves
+  // the cell). Skips when nothing was edited or the value/date is unchanged.
   const saveBalance = async (a) => {
-    const raw = edits[a.account_id];
-    if (raw == null) return; // not edited
-    const trimmed = String(raw).trim();
+    const e = edits[a.account_id];
+    if (!e || (e.balance == null && e.date == null)) return; // nothing edited
+    const rawBal = e.balance != null ? e.balance : a.entered_balance != null ? String(a.entered_balance) : "";
+    const trimmed = String(rawBal).trim();
     if (trimmed === "") return;
     const val = Number(trimmed);
     if (!Number.isFinite(val)) {
       setMsg(`${a.name}: "${trimmed}" is not a number`);
       return;
     }
-    if (a.entered_balance != null && val === Number(a.entered_balance)) {
-      // unchanged — drop the local edit, no write
-      setEdits((e) => {
-        const { [a.account_id]: _, ...rest } = e;
-        return rest;
-      });
+    // as-of date: the edited date, else the existing entry's date, else the
+    // page's "Book MTM as of" date (so period-end work lines up by default).
+    const date = (e.date != null ? e.date : a.entered_date) || bookDate;
+    if (a.entered_balance != null && val === Number(a.entered_balance) && date === a.entered_date) {
+      clearEdit(a.account_id); // unchanged
       return;
     }
     setSavingBalanceId(a.account_id);
     setMsg(null);
     try {
-      await Rest.put(`/manual-calibration/balance/${a.account_id}`, { balance: val });
-      setEdits((e) => {
-        const { [a.account_id]: _, ...rest } = e;
-        return rest;
-      });
+      await Rest.put(`/manual-calibration/balance/${a.account_id}`, { balance: val, balanceDate: date });
+      clearEdit(a.account_id);
       await load();
     } catch (err) {
       setMsg(`${a.name}: save failed — ${err.message}`);
+    } finally {
+      setSavingBalanceId(null);
+    }
+  };
+
+  // Clear an account's entered balance (back to pending) — e.g. one entered with
+  // the wrong date. Clears the local edit first so the cell-blur can't re-save.
+  const resetBalance = async (a) => {
+    clearEdit(a.account_id);
+    setSavingBalanceId(a.account_id);
+    setMsg(null);
+    try {
+      await Rest.del(`/manual-calibration/balance/${a.account_id}`);
+      await load();
+      setMsg(`${a.name}: entered balance cleared`);
+    } catch (err) {
+      setMsg(`${a.name}: clear failed — ${err.message}`);
     } finally {
       setSavingBalanceId(null);
     }
@@ -239,12 +261,10 @@ export default function ManualReconciliation() {
             const status = rowStatus(a);
             const driftCls =
               a.reconciled === true ? "bfd-ok" : isMtm ? "bfd-muted" : "bfd-danger";
-            const editVal =
-              edits[a.account_id] != null
-                ? edits[a.account_id]
-                : a.entered_balance != null
-                  ? String(a.entered_balance)
-                  : "";
+            const edit = edits[a.account_id] || {};
+            const balVal =
+              edit.balance != null ? edit.balance : a.entered_balance != null ? String(a.entered_balance) : "";
+            const dateVal = edit.date != null ? edit.date : a.entered_date || bookDate;
             return (
               <tr key={a.account_id}>
                 <td>{a.name}</td>
@@ -264,23 +284,53 @@ export default function ManualReconciliation() {
                 </td>
                 <td className="num">{fmtNum(a.computed_balance)}</td>
                 <td className="num">
-                  <input
-                    type="number"
-                    step="0.01"
-                    className="num"
-                    style={{ width: "9rem", textAlign: "right" }}
-                    value={editVal}
-                    placeholder="enter…"
-                    disabled={savingBalanceId === a.account_id}
-                    onChange={(e) =>
-                      setEdits((ed) => ({ ...ed, [a.account_id]: e.target.value }))
-                    }
-                    onBlur={() => saveBalance(a)}
-                    onKeyDown={(e) => {
-                      if (e.key === "Enter") e.currentTarget.blur();
+                  <div
+                    className="bfd-balance-cell"
+                    onBlur={(e) => {
+                      // commit once when focus leaves the whole cell (not when
+                      // moving between the balance and date inputs)
+                      if (!e.currentTarget.contains(e.relatedTarget)) saveBalance(a);
                     }}
-                    title="Type the current balance in fin's sign convention (asset +, liability −). Saves on blur / Enter."
-                  />
+                  >
+                    <input
+                      type="number"
+                      step="0.01"
+                      className="num"
+                      style={{ width: "9rem", textAlign: "right" }}
+                      value={balVal}
+                      placeholder="enter…"
+                      disabled={savingBalanceId === a.account_id}
+                      onChange={(ev) => patchEdit(a.account_id, { balance: ev.target.value })}
+                      onKeyDown={(ev) => {
+                        if (ev.key === "Enter") ev.currentTarget.blur();
+                      }}
+                      title="Balance in fin's sign convention (asset +, liability −). Saves on blur / Enter."
+                    />
+                    <div className="bfd-balance-asof">
+                      <span className="bfd-muted">as of</span>
+                      <input
+                        type="date"
+                        value={dateVal}
+                        disabled={savingBalanceId === a.account_id}
+                        onChange={(ev) => patchEdit(a.account_id, { date: ev.target.value })}
+                        onKeyDown={(ev) => {
+                          if (ev.key === "Enter") ev.currentTarget.blur();
+                        }}
+                        title="Date this balance is as of (e.g. a period-end). Defaults to the 'Book MTM as of' date — set it to a past period-end to mark there."
+                      />
+                      {a.entered_balance != null && (
+                        <button
+                          type="button"
+                          className="bfd-balance-reset"
+                          disabled={savingBalanceId === a.account_id}
+                          onClick={() => resetBalance(a)}
+                          title="Clear the entered balance for this account (back to pending)"
+                        >
+                          reset
+                        </button>
+                      )}
+                    </div>
+                  </div>
                 </td>
                 <td className={`num ${driftCls}`}>{a.drift != null ? fmtNum(a.drift, 2) : "—"}</td>
                 <td className="bfd-muted">{a.entered_date || "—"}</td>

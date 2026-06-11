@@ -238,6 +238,22 @@ dbDescribe('reconcileManual (DB)', () => {
     expect(rows[0].d).toBe('2026-03-31');
   });
 
+  test('manualBalanceReconcile: picks the entered balance as of the query date', async () => {
+    await freshAccount({ type: 'asset', currency: 'USD', opening: 0, mode: 'calibrate' });
+    await setManualBalance(acctId, { balance: 100, balanceDate: '2026-03-31' });
+    await setManualBalance(acctId, { balance: 200, balanceDate: '2026-05-31' });
+
+    let r = await manualBalanceReconcile({ asOf: '2026-04-15' });
+    let row = r.accounts.find((x) => x.account_id === acctId);
+    expect(row.entered_balance).toBeCloseTo(100, 2); // only the Q1-end entry is ≤ asOf
+    expect(row.entered_date).toBe('2026-03-31');
+
+    r = await manualBalanceReconcile({ asOf: '2026-06-15' });
+    row = r.accounts.find((x) => x.account_id === acctId);
+    expect(row.entered_balance).toBeCloseTo(200, 2); // newer entry now in range
+    expect(row.entered_date).toBe('2026-05-31');
+  });
+
   test('mtm: non-USD account converts base_amount via the FX table', async () => {
     await freshAccount({ type: 'asset', currency: 'XTS', opening: 1000, mode: 'mtm' });
     await db.query(

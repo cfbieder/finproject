@@ -52,6 +52,23 @@ router.put('/balance/:accountId', async (req, res, next) => {
 });
 
 /**
+ * DELETE /api/v2/manual-calibration/balance/:accountId
+ * Clear the user-entered balance(s) for a non-fed account — resets it to
+ * "pending" (e.g. to remove a figure entered with the wrong date).
+ */
+router.delete('/balance/:accountId', async (req, res, next) => {
+  try {
+    const accountId = Number(req.params.accountId);
+    if (!Number.isInteger(accountId)) return res.status(400).json({ error: 'invalid accountId' });
+    const r = await db.query(`DELETE FROM manual_balances WHERE account_id = $1 RETURNING id`, [accountId]);
+    res.json({ data: { account_id: accountId, deleted: r.rowCount } });
+  } catch (err) {
+    console.error('[v2/manual-calibration] clear balance failed:', err.message);
+    next(err);
+  }
+});
+
+/**
  * PATCH /api/v2/manual-calibration/reconcile-mode/:accountId  body: { mode }
  * Set how a non-fed account reconciles — 'calibrate' (re-anchor opening_balance)
  * or 'mtm' (post an Unrealized-G/L entry). Harmless on its own.
