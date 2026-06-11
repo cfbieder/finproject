@@ -144,31 +144,44 @@
 
 /* Manual-calibration balance cell: amount + as-of date + reset (CR033). */
 .bfd-balance-cell {
-  display: inline-flex;
+  display: flex;
   flex-direction: column;
   align-items: flex-end;
-  gap: 2px;
+  gap: 3px;
+  width: 11.5rem;
+  margin-left: auto;
+}
+.bfd-balance-amt {
+  width: 100%;
+  text-align: right;
 }
 .bfd-balance-asof {
   display: flex;
   align-items: center;
-  gap: 4px;
-  font-size: 0.72rem;
+  justify-content: flex-end;
+  gap: 5px;
+  white-space: nowrap;       /* keep "as of" + date + ✕ on one line */
+  font-size: 0.7rem;
+  color: var(--muted);
 }
+.bfd-balance-asof > span { flex-shrink: 0; }
 .bfd-balance-asof input[type="date"] {
-  font-size: 0.72rem;
+  font-size: 0.7rem;
   padding: 1px 4px;
+  color: inherit;
 }
 .bfd-balance-reset {
   background: none;
   border: none;
-  padding: 0;
-  font-size: 0.68rem;
-  color: var(--danger-strong, #b42318);
-  text-decoration: underline;
+  padding: 0 2px;
+  line-height: 1;
+  font-size: 0.8rem;
+  color: var(--muted);
   cursor: pointer;
+  border-radius: 4px;
 }
-.bfd-balance-reset:disabled { opacity: 0.5; cursor: default; }
+.bfd-balance-reset:hover { color: var(--danger-strong, #b42318); }
+.bfd-balance-reset:disabled { opacity: 0.4; cursor: default; }
 
 .bfd-desc {
   max-width: 360px;

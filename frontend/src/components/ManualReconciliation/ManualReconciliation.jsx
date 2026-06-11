@@ -250,7 +250,6 @@ export default function ManualReconciliation() {
             <th className="num">Computed</th>
             <th className="num">Current balance</th>
             <th className="num">Drift</th>
-            <th>Entered date</th>
             <th>Status</th>
             <th></th>
           </tr>
@@ -295,8 +294,7 @@ export default function ManualReconciliation() {
                     <input
                       type="number"
                       step="0.01"
-                      className="num"
-                      style={{ width: "9rem", textAlign: "right" }}
+                      className="num bfd-balance-amt"
                       value={balVal}
                       placeholder="enter…"
                       disabled={savingBalanceId === a.account_id}
@@ -322,18 +320,18 @@ export default function ManualReconciliation() {
                         <button
                           type="button"
                           className="bfd-balance-reset"
+                          aria-label="Clear entered balance"
                           disabled={savingBalanceId === a.account_id}
                           onClick={() => resetBalance(a)}
                           title="Clear the entered balance for this account (back to pending)"
                         >
-                          reset
+                          ✕
                         </button>
                       )}
                     </div>
                   </div>
                 </td>
                 <td className={`num ${driftCls}`}>{a.drift != null ? fmtNum(a.drift, 2) : "—"}</td>
-                <td className="bfd-muted">{a.entered_date || "—"}</td>
                 <td>
                   {status === "pending" ? (
                     <StatusPill label="pending" kind="warn" />
