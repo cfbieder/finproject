@@ -47,4 +47,7 @@ The non-fed twin of **Balance Calibration** (CR023). Balance Calibration reconci
 - No historical balance series UI — `manual_balances` keeps the rows (one per date) but the page reads only the latest ≤ asOf.
 
 ## Released (v3.0.29, 2026-06-11)
-- Migration `032` applied to **prod** (prod-before-code), then `deploy-to-production.sh` rebuilt `fin-server`/`fin-frontend`. The new router (`/api/v2/manual-calibration/*`) and `/manual-calibration` page ship live.
+- Migration `032` applied to **prod** (prod-before-code), then `deploy-to-production.sh` rebuilt `fin-server`/`fin-frontend`. The new router (`/api/v2/manual-calibration/*`) and `/manual-calibration` page ship live; live `GET /recon` verified 200 on prod.
+
+## Known issue (post-release)
+- **Parent/container BS accounts appear in the list.** `manualBalanceReconcile` selects *all* `section='balance_sheet'` non-fed accounts, so aggregation nodes ("Assets" #1, "Liabilities" #51, and any parent) show as calibratable rows even though you'd only ever calibrate a leaf. Follow-up: restrict to leaf accounts (no children — the `leafOnly` predicate other pickers use) in the `eligible` CTE. Cosmetic, not data-affecting (calibrating a parent would still just set its own `opening_balance`).
