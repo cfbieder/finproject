@@ -1,0 +1,102 @@
+# Minimal CI: backend tests (against a fresh migrations+seed Postgres),
+# frontend lint+build, and a tracked-secret grep gate.
+#
+# The backend job reproduces the local recipe validated on 2026-06-12:
+#   postgres:16-alpine → apply server/db/migrations/*.sql in order →
+#   apply server/db/ci-seed.sql → DATABASE_URL=... jest   (226/226)
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  backend-tests:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: fin
+          POSTGRES_PASSWORD: ci-test-only
+          POSTGRES_DB: fin
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U fin -d fin"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    env:
+      DATABASE_URL: postgres://fin:ci-test-only@localhost:5432/fin
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+          cache-dependency-path: server/package-lock.json
+      - name: Apply migrations + CI seed
+        env:
+          PGPASSWORD: ci-test-only
+        run: |
+          for f in server/db/migrations/*.sql; do
+            echo "applying $f"
+            psql -h localhost -U fin -d fin -q -v ON_ERROR_STOP=1 -f "$f"
+          done
+          psql -h localhost -U fin -d fin -q -v ON_ERROR_STOP=1 -f server/db/ci-seed.sql
+      - name: Install server deps
+        working-directory: server
+        run: npm ci
+      - name: Run backend tests
+        working-directory: server
+        run: npx jest --ci
+
+  frontend-build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+      - name: Install frontend deps
+        working-directory: frontend
+        run: npm ci
+      - name: Lint (advisory)
+        # Pre-existing debt: 160 errors across ~40 files as of 2026-06-12
+        # (see FC_NEXT_STEPS known issues). Non-blocking until cleared, so
+        # CI stays meaningful; flip to blocking once the count hits zero.
+        working-directory: frontend
+        run: npm run lint
+        continue-on-error: true
+      - name: Build
+        working-directory: frontend
+        run: npm run build
+
+  secret-scan:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Block known tokens and tracked env files
+        run: |
+          set -e
+          fail=0
+          # Real leaked key prefixes — banned EVERYWHERE (rotated 2026-06-12,
+          # but they must never reappear in tracked content).
+          if git grep -nIE '4d7decce5643|c785b47906e3|7916e6eba6fa' -- .; then
+            echo '::error::leaked API key material found in tracked files'; fail=1
+          fi
+          # Retired default DB password — banned outside Documentation/
+          # (historical CR text legitimately names the token).
+          if git grep -nI 'findev123' -- . ':!Documentation/'; then
+            echo '::error::findev123 found outside Documentation/'; fail=1
+          fi
+          # Env files must never be tracked (templates *.example are fine).
+          tracked=$(git ls-files | grep -E '(^|/)\.env$|(^|/)\.env-cmdrc$' || true)
+          if [ -n "$tracked" ]; then
+            echo "::error::env files tracked in git: $tracked"; fail=1
+          fi
+          exit $fail

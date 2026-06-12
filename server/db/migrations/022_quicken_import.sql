@@ -318,7 +318,17 @@ DECLARE
 BEGIN
     SELECT id INTO transfers_parent_id FROM accounts WHERE name = 'Transfers' LIMIT 1;
     IF transfers_parent_id IS NULL THEN
-        RAISE EXCEPTION 'Migration aborted: required "Transfers" parent account not found in COA';
+        -- On a data-bearing DB a missing "Transfers" parent means the COA is
+        -- corrupt — abort (original behavior). On a FRESH install (empty
+        -- accounts table: new-volume initdb, CI) there is no COA yet, so
+        -- create the parent and continue; without this branch the 001..N
+        -- migration chain can never complete on an empty database.
+        IF EXISTS (SELECT 1 FROM accounts) THEN
+            RAISE EXCEPTION 'Migration aborted: required "Transfers" parent account not found in COA';
+        END IF;
+        INSERT INTO accounts (name, account_type, section, is_transfer, currency, is_active)
+        VALUES ('Transfers', 'expense', 'profit_loss', FALSE, 'USD', TRUE)
+        RETURNING id INTO transfers_parent_id;
     END IF;
 
     -- Return of Capital: under Transfers (is_transfer=TRUE applies via descendants rule from migration 021),
