@@ -1,6 +1,6 @@
 # CR034 — Security Hardening & CI Baseline
 
-**Status: COMPLETED (on `main` 2026-06-12; server-code changes reach prod at the next deploy). Open follow-ups in §6.** — [Plan link](../FC_NEXT_STEPS.md#cr034)
+**Status: COMPLETED — Released v3.0.34 (2026-06-12), deployed to prod. Open follow-ups in §6.** — [Plan link](../FC_NEXT_STEPS.md#cr034)
 
 ## 1. Why
 
