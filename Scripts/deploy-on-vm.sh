@@ -8,7 +8,7 @@
 #
 set -euo pipefail
 
-REPO_URL="https://github.com/cfbieder/psproject.git"
+REPO_URL="https://github.com/cfbieder/finproject.git"
 PROJECT_DIR="$HOME/Programs/fin"
 
 echo "==> Verifying Docker is available"
