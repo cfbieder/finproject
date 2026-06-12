@@ -6,10 +6,13 @@ services:
     restart: unless-stopped
     environment:
       POSTGRES_USER: fin
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-findev123}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?POSTGRES_PASSWORD must be set — copy .env.example to .env}
       POSTGRES_DB: fin
     ports:
-      - "5433:5432"
+      # localhost + Tailscale only — never the LAN. The app reaches Postgres
+      # over the docker network; these published ports are for host/remote psql.
+      - "127.0.0.1:5433:5432"
+      - "100.94.46.62:5433:5432"
     volumes:
       - postgres_data:/var/lib/postgresql/data
       - ./server/db/migrations:/docker-entrypoint-initdb.d:ro
@@ -34,12 +37,10 @@ services:
     environment:
       NODE_ENV: production
       PORT: 3005
-      DATABASE_URL: postgres://fin:${POSTGRES_PASSWORD:-findev123}@fin-postgres:5432/fin
+      DATABASE_URL: postgres://fin:${POSTGRES_PASSWORD:?POSTGRES_PASSWORD must be set — copy .env.example to .env}@fin-postgres:5432/fin
       ACCOUNT_NAMES_PATH: ../../components/data/account_names.json
       CATEGORY_NAMES_PATH: ../../components/data/category_names.json
       COA_PATH: ../../components/data/coa.json
-      PS_API_KEY: ${PS_API_KEY:-4d7decce564383ec2fd44f7a0ce668d4949e2fac864de880e081dcb4c246740481774c17b60a63a6f1062d22e4cf7b77098253291545bab106d20c0f5d90a3a3}
-      PS_USER_ID: ${PS_USER_ID:-330430}
       LLM_GATEWAY_URL: ${LLM_GATEWAY_URL:-http://192.168.1.61:8080}
       BANK_FEED_URL: ${BANK_FEED_URL:-http://host.docker.internal:3007}
       BANK_FEED_API_KEY: ${BANK_FEED_API_KEY:-}
@@ -87,3 +88,7 @@ networks:
 volumes:
   postgres_data:
     driver: local
+    # Pinned: the prod data volume was created under the legacy compose
+    # project "fin"; pinning the name lets the canonical "psproject" project
+    # (see deploy-to-production.sh) adopt it instead of creating a fresh one.
+    name: fin_postgres_data

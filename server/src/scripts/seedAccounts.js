@@ -4,7 +4,7 @@
  * Seed the PostgreSQL accounts table from coa.json + coa_traits.json.
  *
  * Usage:
- *   DATABASE_URL=postgres://fin:findev123@localhost:5434/fin node server/src/scripts/seedAccounts.js
+ *   DATABASE_URL=postgres://fin:$POSTGRES_PASSWORD@localhost:5434/fin node server/src/scripts/seedAccounts.js
  *
  * This script is idempotent — it uses ON CONFLICT (name) DO UPDATE so it can
  * be re-run safely.

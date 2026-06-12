@@ -24,7 +24,8 @@
 const { Pool } = require('pg');
 
 const CONN_STR =
-  process.env.DATABASE_URL || 'postgres://fin:findev123@localhost:5434/fin';
+  process.env.DATABASE_URL ||
+  (() => { throw new Error('DATABASE_URL must be set — no insecure default'); })();
 
 // True brokerage (mark-to-market) bank-feed accounts. Cash Mgt (30) excluded.
 const MTM_ACCOUNT_IDS = [26, 27, 28, 31];

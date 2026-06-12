@@ -28,7 +28,9 @@ function readFixture(name) {
   return fs.readFileSync(path.join(FIXTURES_DIR, name), 'utf8');
 }
 
-const TEST_DB_URL = 'postgres://fin:findev123@localhost:5434/fin';
+// Connection comes from the environment like every other DB-backed suite —
+// never a hardcoded credential (set SKIP_DB_TESTS=1 to skip without a DB).
+const TEST_DB_URL = process.env.DATABASE_URL;
 const FIXTURES_DIR = path.resolve(__dirname, '../../../../../Samples/quicken/fixtures');
 
 // ═══════════════════════════════════════════════════════════════════════════

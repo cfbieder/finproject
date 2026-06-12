@@ -8,7 +8,27 @@ const app = express();
 app.use(morgan("tiny"));
 app.use(express.json({ limit: '50mb' }));
 app.use(express.urlencoded({ limit: '50mb', extended: true }));
-app.use(cors({ origin: true, credentials: true }));
+// CORS allowlist. The SPA is normally same-origin (nginx proxies /api), so
+// this only matters for the cross-origin dev/Tailscale paths. Requests with
+// no Origin header (curl, same-origin) always pass. Override via CORS_ORIGINS
+// (comma-separated) without a code change.
+const DEFAULT_CORS_ORIGINS = [
+  "http://localhost:5174",
+  "http://127.0.0.1:5174",
+  "http://100.94.46.62:5174",      // Vite dev over Tailscale
+  "http://192.168.1.87:3006",      // prod HTTP
+  "https://192.168.1.87:5175",     // prod HTTPS
+  "https://fin.tail413695.ts.net", // Tailscale serve
+];
+const corsOrigins = process.env.CORS_ORIGINS
+  ? process.env.CORS_ORIGINS.split(",").map((s) => s.trim()).filter(Boolean)
+  : DEFAULT_CORS_ORIGINS;
+app.use(
+  cors({
+    origin: (origin, cb) => cb(null, !origin || corsOrigins.includes(origin)),
+    credentials: true,
+  })
+);
 
 // All routes via V2 (PostgreSQL-backed)
 app.use("/api/v2", v2Routes);

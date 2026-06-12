@@ -37,7 +37,8 @@
 const { Pool } = require('pg');
 
 const CONN_STR =
-  process.env.DATABASE_URL || 'postgres://fin:findev123@localhost:5434/fin';
+  process.env.DATABASE_URL ||
+  (() => { throw new Error('DATABASE_URL must be set — no insecure default'); })();
 const EPS = 0.01;
 const HANDOFF_MARKER = 'Quicken handoff'; // description2 — identifies a hand-off row
 const HANDOFF_DESC = 'Handoff to PocketSmith (retired account)';

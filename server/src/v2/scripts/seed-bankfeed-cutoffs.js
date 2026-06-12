@@ -27,7 +27,8 @@
 const { Pool } = require('pg');
 
 const CONN_STR =
-  process.env.DATABASE_URL || 'postgres://fin:findev123@localhost:5434/fin';
+  process.env.DATABASE_URL ||
+  (() => { throw new Error('DATABASE_URL must be set — no insecure default'); })();
 
 function parseArgs(argv) {
   const args = { apply: false, accounts: null };

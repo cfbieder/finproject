@@ -19,7 +19,8 @@ const readline = require('node:readline');
 const path = require('node:path');
 const { Pool } = require('pg');
 
-const connectionString = process.env.DATABASE_URL || 'postgres://fin:findev123@fin-postgres:5432/fin';
+const connectionString = process.env.DATABASE_URL ||
+  (() => { throw new Error('DATABASE_URL must be set — no insecure default'); })();
 const pool = new Pool({ connectionString });
 
 // Path to CSV inside container

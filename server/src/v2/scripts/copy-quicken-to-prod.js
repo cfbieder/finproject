@@ -38,7 +38,6 @@
 
 const { Pool } = require('pg');
 
-const DEV = 'postgres://fin:findev123@localhost:5434/fin';
 const STAGING_TABLES = [
   'quicken_staging',
   'quicken_securities_staging',
@@ -47,7 +46,7 @@ const STAGING_TABLES = [
 ];
 
 function parseArgs(argv) {
-  const a = { source: process.env.DATABASE_URL || DEV, target: null, apply: false };
+  const a = { source: process.env.DATABASE_URL, target: null, apply: false };
   for (let i = 0; i < argv.length; i++) {
     if (argv[i] === '--source') a.source = argv[++i];
     else if (argv[i] === '--target') a.target = argv[++i];

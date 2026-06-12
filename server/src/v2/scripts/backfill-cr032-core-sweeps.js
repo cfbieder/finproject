@@ -32,7 +32,8 @@
 
 const { Pool } = require('pg');
 
-const CONN_STR = process.env.DATABASE_URL || 'postgres://fin:findev123@localhost:5434/fin';
+const CONN_STR = process.env.DATABASE_URL ||
+  (() => { throw new Error('DATABASE_URL must be set — no insecure default'); })();
 const SWEEP_RE = '(REDEMPTION FROM|PURCHASE INTO) CORE ACCOUNT'; // POSIX (~*) form of CORE_SWEEP_RE
 const PAIR_DAYS = 3;
 const XFER_CAT = 'Transfer - Securities Trades';

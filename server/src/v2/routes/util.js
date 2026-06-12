@@ -430,11 +430,11 @@ router.post('/coa/delete', async (req, res, next) => {
 
 const fs = require('fs');
 const path = require('path');
-const { exec } = require('child_process');
+const { execFile } = require('child_process');
 const { promisify } = require('util');
 const archiver = require('archiver');
 
-const execAsync = promisify(exec);
+const execFileAsync = promisify(execFile);
 
 /**
  * POST /api/v2/util/backup-database
@@ -472,12 +472,20 @@ router.post('/backup-database', async (req, res) => {
 
     console.log(`[PG_BACKUP] Connecting to ${pgHost}:${pgPort}/${pgDatabase}`);
 
-    // Create backup using pg_dump
-    // PGPASSWORD is set as env var to avoid password prompt
-    const pgDumpCmd = `PGPASSWORD='${pgPassword}' pg_dump -h ${pgHost} -p ${pgPort} -U ${pgUser} -d ${pgDatabase} -F p --clean --if-exists -f "${backupFile}"`;
-
+    // Create backup using pg_dump. execFile (no shell) + PGPASSWORD via env:
+    // connection values never pass through a shell, so passwords with quotes
+    // or metacharacters can't break — or inject into — a command line.
     try {
-      const { stdout: dumpOutput } = await execAsync(pgDumpCmd, {
+      const { stdout: dumpOutput } = await execFileAsync('pg_dump', [
+        '-h', pgHost,
+        '-p', pgPort,
+        '-U', pgUser,
+        '-d', pgDatabase,
+        '-F', 'p',
+        '--clean', '--if-exists',
+        '-f', backupFile,
+      ], {
+        env: { ...process.env, PGPASSWORD: decodeURIComponent(pgPassword) },
         maxBuffer: 50 * 1024 * 1024, // 50MB buffer
         timeout: 300000, // 5 minute timeout
       });

@@ -13,7 +13,7 @@
  * (delete-then-insert this month's mtm row), so re-runs are safe.
  *
  * Usage (DATABASE_URL selects the DB — dev :5434 / prod :5433):
- *   DATABASE_URL=postgres://fin:findev123@localhost:5434/fin node mtm-reconcile.js
+ *   DATABASE_URL=postgres://fin:$POSTGRES_PASSWORD@localhost:5434/fin node mtm-reconcile.js
  *   DATABASE_URL=... node mtm-reconcile.js --apply
  *   DATABASE_URL=... node mtm-reconcile.js --month 2026-05 --apply
  */

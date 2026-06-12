@@ -84,7 +84,7 @@ sudo chown -R cfbieder:cfbieder /tmp/pg_prod_feb8
 rm -f /tmp/pg_prod_feb8/postmaster.pid
 docker run -d --name pg-feb8 -p 5555:5432 \
   -v /tmp/pg_prod_feb8:/var/lib/postgresql/data \
-  -e POSTGRES_USER=fin -e POSTGRES_PASSWORD=findev123 -e POSTGRES_DB=fin \
+  -e POSTGRES_USER=fin -e POSTGRES_PASSWORD="$POSTGRES_PASSWORD"  # from .env -e POSTGRES_DB=fin \
   postgres:16-alpine
 
 # Dump the database
@@ -109,7 +109,7 @@ Instead, ingest transactions only:
 
 ```bash
 cd /home/cfbieder/psproject/server
-DATABASE_URL="postgres://fin:findev123@localhost:5433/fin" \
+DATABASE_URL="postgres://fin:$POSTGRES_PASSWORD@localhost:5433/fin" \
 CSV_PATH="/home/cfbieder/psproject/components/data/ps-transactions.csv" \
 NODE_PATH=./node_modules node -e "
 const db = require('./src/v2/db');
@@ -178,11 +178,11 @@ git show "528ade6~1:server/src/migration/migrate-forecast.js" > server/src/migra
 # 4. Install mongoose temporarily and run migrations
 cd server && npm install mongoose --no-save
 MONGO_URI="mongodb://localhost:27018/fin" \
-DATABASE_URL="postgres://fin:findev123@localhost:5433/fin" \
+DATABASE_URL="postgres://fin:$POSTGRES_PASSWORD@localhost:5433/fin" \
 node src/migration/migrate-budget.js
 
 MONGO_URI="mongodb://localhost:27018/fin" \
-DATABASE_URL="postgres://fin:findev123@localhost:5433/fin" \
+DATABASE_URL="postgres://fin:$POSTGRES_PASSWORD@localhost:5433/fin" \
 node src/migration/migrate-forecast.js
 
 # 5. Cleanup

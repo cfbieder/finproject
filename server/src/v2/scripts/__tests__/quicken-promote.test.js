@@ -17,7 +17,9 @@ const { Pool } = require('pg');
 const { runParse } = require('../quicken-import');
 const { runPromote, runRollback, resolveTransferCategoryId, findRoleInvalidMappings } = require('../quicken-promote');
 
-const TEST_DB_URL = 'postgres://fin:findev123@localhost:5434/fin';
+// Connection comes from the environment like every other DB-backed suite —
+// never a hardcoded credential (set SKIP_DB_TESTS=1 to skip without a DB).
+const TEST_DB_URL = process.env.DATABASE_URL;
 const FIXTURES_DIR = path.resolve(__dirname, '../../../../../Samples/quicken/fixtures');
 const SENTINEL_PREFIX = '_qpr_test_';
 
