@@ -57,6 +57,10 @@ Single-user LAN+Tailscale app: the unauthenticated destructive endpoints (`/clea
 
 `.gitignore`-effective untracking of 4 env files · `.env.example` + 2 new `.env-cmdrc.example` · `docker-compose{,.dev,.v4}.yml` · `server/src/app.js` · `server/src/v2/routes/util.js` · 15 scripts under `server/src/{scripts,v2/scripts}/` · 2 test files · `server/db/migrations/022_quicken_import.sql` · `server/db/ci-seed.sql` (new) · `.github/workflows/ci.yml` (new) · `Scripts/deploy-on-vm.sh` · `Documentation/{MIGRATIONS.md,FC_PROJECT_STRUCTURE.md,FC_NEXT_STEPS.md,CRs/CR_INDEX.md,Guides/GUIDE_RESTORE.md,Archive/*_FULL_2026-06-12.md}`.
 
+## 6a. Incident note — the release push briefly re-leaked the rotated password (resolved)
+
+The v3.0.34 release went out with the four env files **still tracked**: commit `e13664f` had staged their removal (`git rm --cached`), but the commit was made with `git commit -m … -- <paths>`, and a **pathspec-limited commit records the worktree state of those paths** — the on-disk files (kept by design of `rm --cached`) were silently re-committed, including `.env` with the *freshly rotated* `POSTGRES_PASSWORD`. The new CI secret-scan **caught it on its very first run** (also catching its own workflow file matching its grep patterns — now self-excluded). Resolution (same day): deletions re-committed **from the index** (`74df69c`, verified `delete mode` entries), pushed, and the password **rotated a second time** on dev+prod; the leaked value was then proven rejected over the published port while the current one authenticates. Net state: every credential in git history is dead. Lesson encoded in CLAUDE.md-adjacent memory: when a commit must include a **staged deletion**, commit from the verified index — `git commit -- <paths>` resurrects deleted-but-present files.
+
 ## 6. Open follow-ups
 
 1. **Rotate `BANK_FEED_API_KEY`** — the old value is in git history. Requires updating the bank-feed service `.env` **and the OCME consumer** (shared key) — coordinate, don't break OCME.
