@@ -65,6 +65,7 @@ Living plan for the Fin project — open Change Requests, known issues, ongoing 
 
 Release-level history; detail in the linked CR file or [§7 Migration History](#7-migration-history).
 
+- **v3.0.35** (2026-06-12) — Mobile Refresh Feeds now lists the imported transactions waiting for review below the summary (read-only `.m-tx` list, first 15 + Show-all, date · account · category per row); PWA icons renamed to `-v2` filenames so installed apps pick up the Jun-6 icon redesign (a changed manifest URL is what triggers Chrome's icon refresh — reinstall still the instant path).
 - **v3.0.34** (2026-06-12) — [CR034](CRs/CR034_SECURITY_HARDENING_CI.md) security hardening + CI baseline shipped to prod (secrets untracked + DB password rotated, CORS allowlist, execFile pg_dump, localhost+Tailscale DB ports, migration-022 fresh-install fix, GitHub Actions CI, docs restructure).
 - **v3.0.33** (2026-06-11) — Manual-calibration balance-cell polish ([CR033](CRs/CR033_MANUAL_CALIBRATION.md)).
 - **v3.0.32** (2026-06-11) — Manual balance as-of date entry + reset ([CR033](CRs/CR033_MANUAL_CALIBRATION.md)).

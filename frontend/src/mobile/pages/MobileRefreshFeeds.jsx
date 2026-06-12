@@ -3,9 +3,11 @@
  *
  * Scope (CR026 mobile, refresh + status only): trigger a bank-feed pull and
  * show what landed (new / linked / staged / ignored), the last refresh/ingest
- * times, and how many transactions are waiting for review. Categorizing and
- * accepting those rows stays on the desktop "Refresh Feeds" page (/refresh-ps) —
- * that workflow is modal-heavy and a poor fit for a small screen.
+ * times, and the imported transactions waiting for review (read-only list —
+ * the refresh endpoint returns counts only, so the list is the review queue,
+ * which every imported row enters as accepted=FALSE). Categorizing and
+ * accepting stays on the desktop "Refresh Feeds" page (/refresh-ps) — that
+ * workflow is modal-heavy and a poor fit for a small screen.
  *
  * Endpoints (verified against pages/RefreshPS.jsx):
  *  - POST /api/v2/ingest-bank-feed/refresh { sinceDays }
@@ -18,6 +20,30 @@ import { Loader2, RefreshCw, AlertTriangle, ClipboardList } from "lucide-react";
 import Rest from "../../js/rest.js";
 
 const DAYS_OPTIONS = [7, 14, 30, 60, 90];
+const PENDING_PREVIEW_COUNT = 15;
+
+// Formatting mirrors MobileLedger (negative in parens, currency code suffix).
+const fmtAmount = (n, ccy) => {
+  const v = Number(n) || 0;
+  const s = new Intl.NumberFormat("en-US", {
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
+  }).format(Math.abs(v));
+  const body = ccy ? `${s} ${ccy}` : s;
+  return v < 0 ? `(${body})` : body;
+};
+
+const fmtDate = (iso) => {
+  try {
+    return new Date(iso + "T00:00:00").toLocaleDateString(undefined, {
+      month: "short",
+      day: "numeric",
+      year: "2-digit",
+    });
+  } catch {
+    return iso;
+  }
+};
 
 /** Latest valid Date across all records for a given field, or null. */
 function latestDate(records, field) {
@@ -38,7 +64,8 @@ export default function MobileRefreshFeeds() {
 
   const [lastRefresh, setLastRefresh] = useState(null);
   const [lastIngest, setLastIngest] = useState(null);
-  const [pendingCount, setPendingCount] = useState(null);
+  const [pendingRows, setPendingRows] = useState(null); // review-queue rows (null = unavailable)
+  const [showAllPending, setShowAllPending] = useState(false);
   const [isLoadingMeta, setIsLoadingMeta] = useState(true);
 
   const loadMeta = useCallback(async () => {
@@ -53,7 +80,7 @@ export default function MobileRefreshFeeds() {
       const records = Array.isArray(appdata) ? appdata : [];
       setLastRefresh(latestDate(records, "lastRefresh"));
       setLastIngest(latestDate(records, "lastIngest"));
-      setPendingCount(Array.isArray(review?.data) ? review.data.length : null);
+      setPendingRows(Array.isArray(review?.data) ? review.data : null);
     } finally {
       setIsLoadingMeta(false);
     }
@@ -192,17 +219,61 @@ export default function MobileRefreshFeeds() {
         </>
       )}
 
-      <h2 className="m-section-h">Review queue</h2>
+      <h2 className="m-section-h">Imported — waiting for review</h2>
       <div className="m-pill" style={{ display: "flex", width: "100%" }}>
         <ClipboardList size={14} />
-        {pendingCount == null
-          ? "Review count unavailable"
-          : pendingCount === 0
+        {pendingRows == null
+          ? "Review queue unavailable"
+          : pendingRows.length === 0
           ? "Nothing waiting for review"
-          : `${pendingCount} transaction${
-              pendingCount === 1 ? "" : "s"
+          : `${pendingRows.length} transaction${
+              pendingRows.length === 1 ? "" : "s"
             } waiting for review`}
       </div>
+
+      {pendingRows && pendingRows.length > 0 && (
+        <>
+          <div className="m-tx-list" style={{ marginTop: 10 }}>
+            {(showAllPending
+              ? pendingRows
+              : pendingRows.slice(0, PENDING_PREVIEW_COUNT)
+            ).map((t) => {
+              const amt = Number(t.amount) || 0;
+              return (
+                <div className="m-tx" key={t.id}>
+                  <span className="m-tx__desc">{t.description1 || "—"}</span>
+                  <span
+                    className={
+                      "m-tx__amt " +
+                      (amt < 0 ? "m-tx__amt--neg" : "m-tx__amt--pos")
+                    }
+                  >
+                    {fmtAmount(amt, t.currency)}
+                  </span>
+                  <span className="m-tx__meta">
+                    {fmtDate(t.transaction_date)}
+                    {t.account_name ? ` · ${t.account_name}` : ""}
+                    {" · "}
+                    {t.category_name || "Uncategorized"}
+                  </span>
+                </div>
+              );
+            })}
+          </div>
+          {pendingRows.length > PENDING_PREVIEW_COUNT && (
+            <button
+              type="button"
+              className="m-btn"
+              style={{ width: "100%", marginTop: 10 }}
+              onClick={() => setShowAllPending((v) => !v)}
+            >
+              {showAllPending
+                ? "Show fewer"
+                : `Show all ${pendingRows.length}`}
+            </button>
+          )}
+        </>
+      )}
       <p
         style={{
           marginTop: 10,

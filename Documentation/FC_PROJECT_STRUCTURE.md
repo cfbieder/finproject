@@ -165,7 +165,7 @@ Vanilla CSS with custom-property tokens in `index.css` (colors, type, spacing, r
 
 ### Mobile / PWA Shell
 
-Separate simplified pages under `frontend/src/mobile/` at `/m/*` (not a responsive restyle). `useIsMobile`: standalone PWA, viewport ≤640, or coarse pointer ≤900 (with fine-pointer-only `forceDesktop` escape). `MobileLayout` + bottom `MobileTabBar` (Overview, Balance, Cash Flow, Budget, Graph). Pages: MobileHome (live overview), MobileBalance, MobileCashFlow, MobileBudgetRealization, MobileBudgetGraph, MobileRefreshFeeds, MobileBalanceTrends, MobileLedger (read-only; running balance still seeds at 0 — Known Issue #5). All consume existing v2 endpoints.
+Separate simplified pages under `frontend/src/mobile/` at `/m/*` (not a responsive restyle). `useIsMobile`: standalone PWA, viewport ≤640, or coarse pointer ≤900 (with fine-pointer-only `forceDesktop` escape). `MobileLayout` + bottom `MobileTabBar` (Overview, Balance, Cash Flow, Budget, Graph). Pages: MobileHome (live overview), MobileBalance, MobileCashFlow, MobileBudgetRealization, MobileBudgetGraph, MobileRefreshFeeds (refresh + summary + read-only list of imported/pending-review transactions, v3.0.35), MobileBalanceTrends, MobileLedger (read-only; running balance still seeds at 0 — Known Issue #5). All consume existing v2 endpoints.
 
 ---
 
