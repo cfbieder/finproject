@@ -85,13 +85,15 @@ jobs:
           set -e
           fail=0
           # Real leaked key prefixes — banned EVERYWHERE (rotated 2026-06-12,
-          # but they must never reappear in tracked content).
-          if git grep -nIE '4d7decce5643|c785b47906e3|7916e6eba6fa' -- .; then
+          # but they must never reappear in tracked content). This workflow
+          # file is excluded: it necessarily names the patterns it bans.
+          SELF=':!.github/workflows/ci.yml'
+          if git grep -nIE '4d7decce5643|c785b47906e3|7916e6eba6fa' -- . "$SELF"; then
             echo '::error::leaked API key material found in tracked files'; fail=1
           fi
           # Retired default DB password — banned outside Documentation/
           # (historical CR text legitimately names the token).
-          if git grep -nI 'findev123' -- . ':!Documentation/'; then
+          if git grep -nI 'findev123' -- . ':!Documentation/' "$SELF"; then
             echo '::error::findev123 found outside Documentation/'; fail=1
           fi
           # Env files must never be tracked (templates *.example are fine).
