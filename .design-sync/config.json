@@ -1,0 +1,35 @@
+{
+  "projectId": "f68e0507-30c1-470b-9722-2326bdfe7af8",
+  "shape": "package",
+  "pkg": "frontend",
+  "globalName": "FinUI",
+  "srcDir": "src",
+  "cssEntry": "src/index.css",
+  "readmeHeader": ".design-sync/conventions.md",
+  "extraFonts": "../.design-sync/fonts/outfit.css",
+  "runtimeFontPrefixes": ["Roboto Mono", "Cascadia Code", "SF Mono", "Monaco"],
+  "overrides": {
+    "ConfirmModal": { "cardMode": "single", "viewport": "520x260", "primaryStory": "DangerDelete" },
+    "HelpPanel": { "cardMode": "single", "viewport": "440x560", "primaryStory": "Open" },
+    "KpiCardRow": { "cardMode": "column" },
+    "CategorySelector": { "cardMode": "column" },
+    "AccountSelector": { "cardMode": "column" },
+    "HierarchyFilter": { "cardMode": "column" }
+  },
+  "componentSrcMap": {
+    "ConfirmModal": "src/components/ConfirmModal/ConfirmModal.jsx",
+    "PeriodSelector": "src/components/PeriodSelector/PeriodSelector.jsx",
+    "AccountPicker": "src/components/AccountPicker/AccountPicker.jsx",
+    "AccountSelector": "src/components/AccountSelector/AccountSelector.jsx",
+    "CategorySelector": "src/components/CategorySelector/CategorySelector.jsx",
+    "HelpPanel": "src/components/HelpPanel/HelpPanel.jsx",
+    "HierarchyFilter": "src/components/HierarchyFilter/HierarchyFilter.jsx",
+    "EmptyState": "src/components/EmptyState.jsx",
+    "Toast": "src/components/Toast.jsx",
+    "LoadingSpinner": "src/components/LoadingSpinner.jsx",
+    "KpiCard": "src/components/KpiCards.jsx",
+    "KpiCardRow": "src/components/KpiCards.jsx",
+    "Footer": "src/components/Footer.jsx",
+    "PeriodCountSelector": "src/components/PeriodCountSelector.jsx"
+  }
+}
