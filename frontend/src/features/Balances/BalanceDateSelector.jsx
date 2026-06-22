@@ -68,11 +68,11 @@ export default function BalanceDateSelector({
           >
             {isLoading ? "Generating..." : "Generate"}
           </button>
-          {showCollapseToggle && !isFullyExpanded && (
-            <button type="button" className="btn btn--sm btn--outline btn--icon" onClick={onExpandOneLayer} disabled={collapseToggleDisabled} title="Expand one level"><ChevronDown size={16} /></button>
+          {showCollapseToggle && (
+            <button type="button" className="btn btn--sm btn--outline btn--icon" onClick={onExpandOneLayer} disabled={collapseToggleDisabled || isFullyExpanded} title="Expand one level"><ChevronDown size={16} /></button>
           )}
-          {showCollapseToggle && !isFullyCollapsed && (
-            <button type="button" className="btn btn--sm btn--outline btn--icon" onClick={onCollapseOneLayer} disabled={collapseToggleDisabled} title="Collapse one level"><ChevronUp size={16} /></button>
+          {showCollapseToggle && (
+            <button type="button" className="btn btn--sm btn--outline btn--icon" onClick={onCollapseOneLayer} disabled={collapseToggleDisabled || isFullyCollapsed} title="Collapse one level"><ChevronUp size={16} /></button>
           )}
           {canExport && onExport && (
             <button
@@ -134,11 +134,11 @@ export default function BalanceDateSelector({
         >
           {isLoading ? "Generating..." : "Generate Report"}
         </button>
-        {showCollapseToggle && !isFullyExpanded && (
-          <button type="button" className="btn btn--sm btn--outline btn--icon" onClick={onExpandOneLayer} disabled={collapseToggleDisabled} title="Expand one level"><ChevronDown size={16} /></button>
+        {showCollapseToggle && (
+          <button type="button" className="btn btn--sm btn--outline btn--icon" onClick={onExpandOneLayer} disabled={collapseToggleDisabled || isFullyExpanded} title="Expand one level"><ChevronDown size={16} /></button>
         )}
-        {showCollapseToggle && !isFullyCollapsed && (
-          <button type="button" className="btn btn--sm btn--outline btn--icon" onClick={onCollapseOneLayer} disabled={collapseToggleDisabled} title="Collapse one level"><ChevronUp size={16} /></button>
+        {showCollapseToggle && (
+          <button type="button" className="btn btn--sm btn--outline btn--icon" onClick={onCollapseOneLayer} disabled={collapseToggleDisabled || isFullyCollapsed} title="Collapse one level"><ChevronUp size={16} /></button>
         )}
       </aside>
     </div>

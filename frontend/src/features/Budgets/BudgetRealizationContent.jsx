@@ -65,12 +65,8 @@ function BudgetRealizationContent({
               />
               <span className="realization-toolbar__toggle-text">Transfers</span>
             </label>
-            {!toggleProps.isFullyExpanded && (
-              <button type="button" className="btn btn--sm btn--outline btn--icon" onClick={toggleProps.onExpandOneLayer} disabled={!toggleProps.hasCollapsiblePaths} title="Expand one level"><ChevronDown size={16} /></button>
-            )}
-            {!toggleProps.isFullyCollapsed && (
-              <button type="button" className="btn btn--sm btn--outline btn--icon" onClick={toggleProps.onCollapseOneLayer} disabled={!toggleProps.hasCollapsiblePaths} title="Collapse one level"><ChevronUp size={16} /></button>
-            )}
+            <button type="button" className="btn btn--sm btn--outline btn--icon" onClick={toggleProps.onExpandOneLayer} disabled={!toggleProps.hasCollapsiblePaths || toggleProps.isFullyExpanded} title="Expand one level"><ChevronDown size={16} /></button>
+            <button type="button" className="btn btn--sm btn--outline btn--icon" onClick={toggleProps.onCollapseOneLayer} disabled={!toggleProps.hasCollapsiblePaths || toggleProps.isFullyCollapsed} title="Collapse one level"><ChevronUp size={16} /></button>
             {canExport && onExport && (
               <button
                 type="button"

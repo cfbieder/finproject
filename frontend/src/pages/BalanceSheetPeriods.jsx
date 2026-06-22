@@ -317,12 +317,8 @@ export default function BalanceSheetPeriods() {
             >
               {isLoading ? "Generating..." : "Generate"}
             </button>
-            {!isFullyExpanded && (
-              <button type="button" className="btn btn--sm btn--outline btn--icon" onClick={handleExpandOneLayer} disabled={isCollapseToggleDisabled} title="Expand one level"><ChevronDown size={16} /></button>
-            )}
-            {!isFullyCollapsed && (
-              <button type="button" className="btn btn--sm btn--outline btn--icon" onClick={handleCollapseOneLayer} disabled={isCollapseToggleDisabled} title="Collapse one level"><ChevronUp size={16} /></button>
-            )}
+            <button type="button" className="btn btn--sm btn--outline btn--icon" onClick={handleExpandOneLayer} disabled={isCollapseToggleDisabled || isFullyExpanded} title="Expand one level"><ChevronDown size={16} /></button>
+            <button type="button" className="btn btn--sm btn--outline btn--icon" onClick={handleCollapseOneLayer} disabled={isCollapseToggleDisabled || isFullyCollapsed} title="Collapse one level"><ChevronUp size={16} /></button>
             <button
               className="report-toolbar__button"
               type="button"

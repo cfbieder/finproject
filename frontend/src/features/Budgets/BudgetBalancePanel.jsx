@@ -185,12 +185,8 @@ export default function BudgetBalancePanel({
             />
             <span className="realization-toolbar__toggle-text">Transfers</span>
           </label>
-          {!isFullyExpanded && (
-            <button type="button" className="btn btn--sm btn--outline btn--icon" onClick={onExpandOneLayer} disabled={!hasCollapsiblePaths} title="Expand one level"><ChevronDown size={16} /></button>
-          )}
-          {!isFullyCollapsed && (
-            <button type="button" className="btn btn--sm btn--outline btn--icon" onClick={onCollapseOneLayer} disabled={!hasCollapsiblePaths} title="Collapse one level"><ChevronUp size={16} /></button>
-          )}
+          <button type="button" className="btn btn--sm btn--outline btn--icon" onClick={onExpandOneLayer} disabled={!hasCollapsiblePaths || isFullyExpanded} title="Expand one level"><ChevronDown size={16} /></button>
+          <button type="button" className="btn btn--sm btn--outline btn--icon" onClick={onCollapseOneLayer} disabled={!hasCollapsiblePaths || isFullyCollapsed} title="Collapse one level"><ChevronUp size={16} /></button>
         </div>
       </section>
     );
@@ -303,12 +299,8 @@ export default function BudgetBalancePanel({
         />
       </div>
       <div className="balance-panel__actions">
-        {!isFullyExpanded && (
-          <button type="button" className="btn btn--sm btn--outline btn--icon" onClick={onExpandOneLayer} disabled={!hasCollapsiblePaths} title="Expand one level"><ChevronDown size={16} /></button>
-        )}
-        {!isFullyCollapsed && (
-          <button type="button" className="btn btn--sm btn--outline btn--icon" onClick={onCollapseOneLayer} disabled={!hasCollapsiblePaths} title="Collapse one level"><ChevronUp size={16} /></button>
-        )}
+        <button type="button" className="btn btn--sm btn--outline btn--icon" onClick={onExpandOneLayer} disabled={!hasCollapsiblePaths || isFullyExpanded} title="Expand one level"><ChevronDown size={16} /></button>
+        <button type="button" className="btn btn--sm btn--outline btn--icon" onClick={onCollapseOneLayer} disabled={!hasCollapsiblePaths || isFullyCollapsed} title="Collapse one level"><ChevronUp size={16} /></button>
       </div>
     </section>
   );

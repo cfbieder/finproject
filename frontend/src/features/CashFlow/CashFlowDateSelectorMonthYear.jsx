@@ -208,12 +208,8 @@ export default function CashFlowDateSelectorMonthYear({
             >
               {isLoading ? "Generating..." : "Generate"}
             </button>
-            {!isFullyExpanded && (
-              <button type="button" className="btn btn--sm btn--outline btn--icon" onClick={onExpandOneLayer} disabled={isCollapseToggleDisabled} title="Expand one level"><ChevronDown size={16} /></button>
-            )}
-            {!isFullyCollapsed && (
-              <button type="button" className="btn btn--sm btn--outline btn--icon" onClick={onCollapseOneLayer} disabled={isCollapseToggleDisabled} title="Collapse one level"><ChevronUp size={16} /></button>
-            )}
+            <button type="button" className="btn btn--sm btn--outline btn--icon" onClick={onExpandOneLayer} disabled={isCollapseToggleDisabled || isFullyExpanded} title="Expand one level"><ChevronDown size={16} /></button>
+            <button type="button" className="btn btn--sm btn--outline btn--icon" onClick={onCollapseOneLayer} disabled={isCollapseToggleDisabled || isFullyCollapsed} title="Collapse one level"><ChevronUp size={16} /></button>
             {typeof onExport === "function" && (
               <button
                 className="report-toolbar__button"
@@ -380,12 +376,8 @@ export default function CashFlowDateSelectorMonthYear({
         >
           {isLoading ? "Generating..." : "Generate Report"}
         </button>
-        {!isFullyExpanded && (
-          <button type="button" className="btn btn--sm btn--outline btn--icon" onClick={onExpandOneLayer} disabled={isCollapseToggleDisabled} title="Expand one level"><ChevronDown size={16} /></button>
-        )}
-        {!isFullyCollapsed && (
-          <button type="button" className="btn btn--sm btn--outline btn--icon" onClick={onCollapseOneLayer} disabled={isCollapseToggleDisabled} title="Collapse one level"><ChevronUp size={16} /></button>
-        )}
+        <button type="button" className="btn btn--sm btn--outline btn--icon" onClick={onExpandOneLayer} disabled={isCollapseToggleDisabled || isFullyExpanded} title="Expand one level"><ChevronDown size={16} /></button>
+        <button type="button" className="btn btn--sm btn--outline btn--icon" onClick={onCollapseOneLayer} disabled={isCollapseToggleDisabled || isFullyCollapsed} title="Collapse one level"><ChevronUp size={16} /></button>
         {typeof onExport === "function" && (
           <button
             className="btn btn--lg btn--primary btn--block"
