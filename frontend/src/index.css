@@ -451,6 +451,27 @@ img {
   }
 }
 
+/* Touchscreen laptops/desktops report a coarse PRIMARY pointer but ALSO expose a
+   fine pointer (touchpad/mouse) — they are driven like a desktop, so the 44px
+   touch tap targets above just bloat checkboxes/buttons/selects everywhere. Undo
+   the min-size bumps whenever any fine pointer is present; genuine touch-only
+   phones/tablets (no fine pointer) keep the WCAG targets. This is the global
+   counterpart to the touch-only logic in mobile/useIsMobile.js, and supersedes
+   the per-table opt-outs above on such devices. Written as a separate query so a
+   browser that doesn't understand `any-pointer` simply keeps the safe 44px
+   default rather than dropping it. */
+@media (pointer: coarse) and (any-pointer: fine) {
+  button,
+  a.navlink,
+  select,
+  input[type="checkbox"],
+  input[type="radio"],
+  .form-input {
+    min-height: 0;
+    min-width: 0;
+  }
+}
+
 /* Prevent pull-to-refresh interfering with scroll in PWA */
 @media (display-mode: standalone) {
   html {
