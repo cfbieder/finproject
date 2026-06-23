@@ -2,10 +2,17 @@
  * useIsMobile — detects when the mobile shell should be shown.
  *
  * Returns true when ANY of:
- *   - The page is running as an installed PWA (display-mode: standalone), OR
  *   - The viewport is <= MOBILE_BREAKPOINT pixels wide, OR
  *   - The device has a coarse (touch) pointer AND the viewport is
- *     <= TOUCH_BREAKPOINT wide.
+ *     <= TOUCH_BREAKPOINT wide, OR
+ *   - The page is running as an installed PWA (display-mode: standalone) AND the
+ *     device has a coarse (touch) pointer.
+ *
+ * Note: a standalone PWA on a *fine-pointer* desktop/laptop is NOT forced to
+ * mobile — it follows the same width rules as a browser tab, so a wide installed
+ * window renders the desktop layout. Standalone only pins mobile on touch devices
+ * (a phone/tablet installed to the home screen), where the desktop sidebar rail
+ * is unusable.
  *
  * The touch clause closes the 641–900px "dead band": above 640px a phone in
  * landscape (or a small touch tablet) used to fall through to the desktop
@@ -56,7 +63,12 @@ function detect() {
   const standalone = hasMM && window.matchMedia("(display-mode: standalone)").matches;
   const narrow = window.innerWidth <= MOBILE_BREAKPOINT;
   const touchRail = coarse && window.innerWidth <= TOUCH_BREAKPOINT;
-  return Boolean(standalone || narrow || touchRail);
+  // An installed PWA (display-mode: standalone) only forces the mobile shell on a
+  // touch device. On a fine-pointer desktop/laptop the installed app should track
+  // the same width rules as a browser tab, so a wide window gets the desktop
+  // layout instead of being pinned to mobile purely because it's installed.
+  const standaloneTouch = standalone && coarse;
+  return Boolean(narrow || touchRail || standaloneTouch);
 }
 
 export default function useIsMobile() {
