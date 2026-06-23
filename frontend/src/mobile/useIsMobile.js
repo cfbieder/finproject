@@ -1,38 +1,38 @@
 /**
  * useIsMobile — detects when the mobile shell should be shown.
  *
- * Returns true when ANY of:
+ * Returns true when EITHER:
  *   - The viewport is <= MOBILE_BREAKPOINT pixels wide, OR
- *   - The device is TOUCH-ONLY AND the viewport is <= TOUCH_BREAKPOINT wide, OR
- *   - The page is running as an installed PWA (display-mode: standalone) AND the
- *     device is TOUCH-ONLY.
+ *   - The device has a coarse (touch) pointer AND the viewport is
+ *     <= TOUCH_BREAKPOINT wide.
  *
- * "Touch-only" means a coarse primary pointer with NO fine pointer available
- * anywhere (no any-pointer:fine) — i.e. a phone/tablet. A touchscreen LAPTOP also
- * reports a coarse primary pointer, but it exposes a fine pointer too (touchpad/
- * mouse), so it is NOT touch-only and gets the desktop layout. Keying off
- * any-pointer:fine (rather than coarse alone) is what separates the two: the
- * hover-based desktop sidebar is only unusable when there is no precise pointer
- * at all.
+ * The mobile shell is driven by viewport WIDTH, not pointer type or display-mode.
+ * We learned the hard way that pointer media queries can't be trusted: a
+ * touchscreen LAPTOP can report a coarse primary pointer with NO fine pointer
+ * anywhere (any-pointer:fine === false), making it indistinguishable from a phone
+ * by pointer alone. An earlier attempt to special-case the installed PWA on
+ * "touch-only" devices therefore pinned such a laptop to the mobile shell. Width
+ * is the only reliable signal that separates a laptop window from a phone, so an
+ * installed PWA (display-mode: standalone) is treated exactly like a browser tab:
+ * a wide window renders desktop, a phone-width window renders the mobile shell.
  *
- * Note: a standalone PWA on a laptop/desktop (any fine pointer present) is NOT
- * forced to mobile — it follows the same width rules as a browser tab, so a wide
- * installed window renders the desktop layout. Standalone only pins mobile on a
- * touch-only device installed to the home screen, where the sidebar is unusable.
+ * Trade-off: a wide touch-only TABLET installed as a PWA now gets the desktop
+ * layout (hover-based sidebar), because it reports the same width + coarse pointer
+ * as a touchscreen laptop and the two cannot be told apart. Acceptable — laptops
+ * are the case that must work.
  *
  * The touch clause closes the 641–900px "dead band": above 640px a phone in
  * landscape (or a small touch tablet) used to fall through to the desktop
  * sidebar, which CSS renders as an icon-only rail whose sub-navigation only
  * opens on hover/focus — unreachable by a finger. TOUCH_BREAKPOINT matches the
- * Sidebar.css auto-rail breakpoint so any touch-only device that would otherwise
- * see that rail gets the working bottom-tab shell instead. Narrow windows on a
- * device with a fine pointer stay on the desktop layout, as before.
+ * Sidebar.css auto-rail breakpoint so a touch device in that band gets the
+ * working bottom-tab shell instead. Narrow *mouse* windows below TOUCH_BREAKPOINT
+ * (fine pointer, so no touchRail) still get the desktop layout.
  *
  * Escape hatch: if localStorage["forceDesktop"] === "true" the mobile shell is
- * suppressed — BUT only when a fine pointer is available. On a touch-only phone
- * the desktop sidebar rail is hover-only and unusable, so the flag is ignored
- * there. This also auto-frees a phone previously trapped by the (now touch-
- * hidden) "Switch to desktop view" button, with no need to clear storage by hand.
+ * suppressed — BUT only when the viewport is wider than MOBILE_BREAKPOINT, so a
+ * phone can't get stuck on the unusable hover sidebar. This also auto-frees a
+ * phone previously trapped by the "Switch to desktop view" button.
  */
 
 import { useEffect, useState } from "react";
@@ -55,34 +55,31 @@ function detect() {
   if (typeof window === "undefined") return false;
   const hasMM = typeof window.matchMedia === "function";
   const coarse = hasMM && window.matchMedia("(pointer: coarse)").matches;
-  // "Touch-only" = coarse primary pointer AND no fine pointer available anywhere.
-  // This separates a phone/tablet (truly touch-only) from a touchscreen LAPTOP,
-  // which reports a coarse primary pointer but ALSO exposes a fine pointer (its
-  // touchpad/mouse) via any-pointer:fine. The hover-based desktop sidebar is only
-  // unusable on touch-only devices; a touchscreen laptop can drive it with the
-  // touchpad, so it should get the desktop layout, not the mobile shell.
-  const anyFine = hasMM && window.matchMedia("(any-pointer: fine)").matches;
-  const touchOnly = coarse && !anyFine;
   try {
-    // forceDesktop is honored unless the device is touch-only — on a phone the
-    // desktop sidebar rail is hover-only and unusable, so a trapped phone
-    // recovers automatically rather than being held on the desktop layout.
-    if (!touchOnly && window.localStorage.getItem(FORCE_DESKTOP_KEY) === "true") {
+    // forceDesktop is honored unless the viewport is phone-narrow — below
+    // MOBILE_BREAKPOINT the desktop sidebar rail is unusable, so a phone can't
+    // get stuck on it; any wider device may opt out.
+    if (
+      window.innerWidth > MOBILE_BREAKPOINT &&
+      window.localStorage.getItem(FORCE_DESKTOP_KEY) === "true"
+    ) {
       return false;
     }
   } catch {
     // localStorage may be unavailable (private mode) — fall through
   }
-  const standalone = hasMM && window.matchMedia("(display-mode: standalone)").matches;
+  // Drive the mobile shell off viewport WIDTH, not pointer type or display-mode.
+  // Pointer/any-pointer can't be trusted: a touchscreen LAPTOP can report pure
+  // coarse with NO fine pointer (any-pointer:fine === false), making it
+  // indistinguishable from a phone by pointer alone — so a wide installed PWA
+  // would wrongly pin to the mobile shell. Width is the only reliable signal that
+  // separates a laptop window from a phone, so an installed PWA follows the same
+  // width rule as a browser tab: a wide window renders desktop, a phone-width
+  // window renders the mobile shell. (Trade-off: a wide touch-only tablet PWA
+  // gets the desktop layout, since it reports the same as a touchscreen laptop.)
   const narrow = window.innerWidth <= MOBILE_BREAKPOINT;
-  const touchRail = touchOnly && window.innerWidth <= TOUCH_BREAKPOINT;
-  // An installed PWA (display-mode: standalone) only forces the mobile shell on a
-  // touch-only device (phone/tablet). A touchscreen laptop (coarse primary but a
-  // fine pointer available) tracks the same width rules as a browser tab, so a
-  // wide installed window renders the desktop layout instead of being pinned to
-  // mobile purely because it's installed.
-  const standaloneTouch = standalone && touchOnly;
-  return Boolean(narrow || touchRail || standaloneTouch);
+  const touchRail = coarse && window.innerWidth <= TOUCH_BREAKPOINT;
+  return Boolean(narrow || touchRail);
 }
 
 export default function useIsMobile() {

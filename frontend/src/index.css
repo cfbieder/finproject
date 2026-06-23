@@ -424,8 +424,14 @@ img {
   }
 }
 
-/* Touch-friendly tap targets (min 44px per WCAG) */
-@media (pointer: coarse) {
+/* Touch-friendly tap targets (min 44px per WCAG).
+   Gated on WIDTH as well as pointer: a touchscreen LAPTOP reports a coarse
+   pointer with no fine pointer anywhere (any-pointer:fine === false), so pointer
+   alone can't tell it from a phone — but it runs in a wide window. Restricting
+   the 44px targets to phone-width viewports (<= TOUCH_BREAKPOINT) keeps real
+   phones/tablets compliant while leaving a wide touch-laptop's controls at
+   normal desktop size. Mirrors the width-based shell logic in useIsMobile.js. */
+@media (pointer: coarse) and (max-width: 900px) {
   button,
   a.navlink,
   select,
@@ -446,27 +452,6 @@ img {
      grid layout. */
   .fc-review-table input[type="checkbox"],
   .trans-budget-table input[type="checkbox"] {
-    min-height: 0;
-    min-width: 0;
-  }
-}
-
-/* Touchscreen laptops/desktops report a coarse PRIMARY pointer but ALSO expose a
-   fine pointer (touchpad/mouse) — they are driven like a desktop, so the 44px
-   touch tap targets above just bloat checkboxes/buttons/selects everywhere. Undo
-   the min-size bumps whenever any fine pointer is present; genuine touch-only
-   phones/tablets (no fine pointer) keep the WCAG targets. This is the global
-   counterpart to the touch-only logic in mobile/useIsMobile.js, and supersedes
-   the per-table opt-outs above on such devices. Written as a separate query so a
-   browser that doesn't understand `any-pointer` simply keeps the safe 44px
-   default rather than dropping it. */
-@media (pointer: coarse) and (any-pointer: fine) {
-  button,
-  a.navlink,
-  select,
-  input[type="checkbox"],
-  input[type="radio"],
-  .form-input {
     min-height: 0;
     min-width: 0;
   }
