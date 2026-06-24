@@ -44,11 +44,17 @@ import "./TransactionExplorer.css";
 import EmptyState from "../components/EmptyState.jsx";
 import "./Ledger.css";
 
-// ─── Editable config for ledger (description + category) ───
+// ─── Editable config for ledger (date + amount/currency + description + category) ───
+// USD Amount (base_amount) is a read-only derived display; it only recomputes when
+// the user edits amount/currency (see useTransactionEdit), so editing category alone
+// on a non-USD row never rewrites its stored base_amount.
 const LEDGER_EDIT_CONFIG = {
   ...LEDGER_CONFIG,
   editFields: [
     { key: "Date", label: "Date", type: "date" },
+    { key: "Amount", label: "Amount", type: "number" },
+    { key: "Currency", label: "Currency", type: "text" },
+    { key: "BaseAmount", label: "USD Amount", type: "number" },
     { key: "Description1", label: "Description", type: "text" },
     { key: "Category", label: "Category", type: "text" },
   ],

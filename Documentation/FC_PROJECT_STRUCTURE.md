@@ -136,7 +136,7 @@ Detail for each page lives in its CR file (linked) — this table is a directory
 | `/trans-actual` | TransActual | Transactions | Transaction explorer: search, HierarchyFilter, KPI cards, edit/split/neutralize/delete ([CR008](CRs/CR008_HIERARCHY_FILTER.md)) |
 | `/trans-budget` | TransBudget | Transactions | Budget-transaction explorer (same pattern) |
 | `/transfer-analysis` | TransferAnalysis | Transactions | Auto + manual transfer matching, match groups, orphan Remove/Neutralize ([CR009](CRs/CR009_TRANSFER_ANALYSIS.md)/[CR028](CRs/CR028_SECURITIES_TRADE_NEUTRALIZATION.md)) |
-| `/ledger` | Ledger | Transactions | Account ledger; **Balance column = true account balance** (server `running_balance`, v3.0.28); duplicates finder; add/bulk-edit ([CR031](CRs/CR031_LEDGER_FILTER_PARITY_YEAR_RANGE.md)) |
+| `/ledger` | Ledger | Transactions | Account ledger; **Balance column = true account balance** (server `running_balance`, v3.0.28); duplicates finder; add/bulk-edit ([CR031](CRs/CR031_LEDGER_FILTER_PARITY_YEAR_RANGE.md)); edit modal supports **Amount/Currency + read-only USD Amount** (v3.0.42, shared with Actuals) |
 | `/balance-calibration` | BalanceCalibration | Transactions | Bank-feed reconciliation `<BalanceReconciliation/>`: computed vs feed, calibrate/MTM, feed+status filters, flip-tx ([CR023](CRs/CR023_POCKETSMITH_REMOVAL.md)) |
 | `/manual-calibration` | ManualCalibration | Transactions | Non-fed twin: computed vs user-typed balance, calibrate/MTM with as-of date ([CR033](CRs/CR033_MANUAL_CALIBRATION.md)) |
 | `/manual-entry` | ManualTransactionEntry | Transactions | Rapid hand entry of actual transactions ([CR025](CRs/CR025_MANUAL_TRANSACTION_ENTRY.md)) |

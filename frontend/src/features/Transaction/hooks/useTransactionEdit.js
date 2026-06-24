@@ -70,11 +70,18 @@ export function useTransactionEdit(
     }));
   }, []);
 
-  // Automatically recalculate base amount when amount or currency changes
+  // Automatically recalculate base amount when the user edits amount or currency.
+  // Guard on "touched" so merely opening the modal (which seeds amount/currency from
+  // the row) does NOT overwrite a non-USD row's stored base_amount at today's rate.
   const amountInputValue = editFormValues.Amount;
   const currencyInputValue = editFormValues.Currency;
+  const amountOrCurrencyTouched =
+    editTouchedFields.Amount || editTouchedFields.Currency;
 
   useEffect(() => {
+    if (!amountOrCurrencyTouched) {
+      return;
+    }
     const derivedBaseAmount = computeBaseAmount(
       amountInputValue,
       currencyInputValue,
@@ -89,7 +96,13 @@ export function useTransactionEdit(
       }
       return { ...previous, BaseAmount: nextBaseValue };
     });
-  }, [amountInputValue, currencyInputValue, exchangeRates, computeBaseAmount]);
+  }, [
+    amountInputValue,
+    currencyInputValue,
+    exchangeRates,
+    computeBaseAmount,
+    amountOrCurrencyTouched,
+  ]);
 
   const buildEditPayload = useCallback(() => {
     const payload = {};
@@ -115,8 +128,13 @@ export function useTransactionEdit(
       payload[field.key] = parsed;
     }
 
+    // Only recompute base_amount when the user actually edited amount/currency AND
+    // a parsed value made it into the payload. Untouched single-row edits still send
+    // amount/currency/base via consensus (unchanged), but never re-derive base — so a
+    // category-only edit on a non-USD row preserves its stored base_amount.
     const shouldRecalculateBaseAmount =
-      payload.Amount !== undefined || payload.Currency !== undefined;
+      (editTouchedFields.Amount || editTouchedFields.Currency) &&
+      (payload.Amount !== undefined || payload.Currency !== undefined);
 
     if (shouldRecalculateBaseAmount) {
       const derivedBaseAmount = computeBaseAmount(

@@ -88,9 +88,16 @@ export const ACTUAL_CONFIG = {
   endpoint: "/api/v2/transactions",
   totalsEndpoint: "/api/v2/budget/actual-entries",
 
-  // Edit field definitions (Amount, Currency, Account are PS-sourced and not editable)
+  // Edit field definitions. Amount/Currency are editable; USD Amount (base_amount)
+  // is a read-only derived display that tracks amount × FX rate. Account stays
+  // non-editable (move via the transfer flow). Base only recomputes when the user
+  // actually edits amount/currency (see useTransactionEdit) — untouched non-USD
+  // rows keep their stored base_amount.
   editFields: [
     { key: "Date", label: "Date", type: "date" },
+    { key: "Amount", label: "Amount", type: "number" },
+    { key: "Currency", label: "Currency", type: "text" },
+    { key: "BaseAmount", label: "USD Amount", type: "number" },
     { key: "Description1", label: "Description", type: "text" },
     { key: "Category", label: "Category", type: "text" },
   ],
