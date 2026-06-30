@@ -152,10 +152,11 @@ async function balanceReconcile({ asOf = null, tolerance = 0.01 } = {}) {
       GROUP BY a.id, a.name, a.account_type, a.opening_balance
     ),
     feed AS (
-      SELECT m.account_id, bb.balance AS feed_balance, bb.balance_date AS feed_date, bb.currency
+      SELECT m.account_id, bb.balance AS feed_balance, bb.balance_date AS feed_date,
+             bb.fetched_at AS feed_fetched_at, bb.currency
       FROM mapped m
       LEFT JOIN LATERAL (
-        SELECT balance, balance_date, currency
+        SELECT balance, balance_date, fetched_at, currency
         FROM bankfeed_balances b
         WHERE b.feed_account_external_id = m.feed_uuid
           AND b.balance_date <= COALESCE($1::date, CURRENT_DATE)
@@ -168,6 +169,7 @@ async function balanceReconcile({ asOf = null, tolerance = 0.01 } = {}) {
       m.feed_uuid AS feed_external_id,
       ROUND(f.feed_balance, 2) AS feed_balance,
       f.feed_date::text AS feed_date,
+      f.feed_fetched_at::text AS feed_fetched_at,
       f.currency,
       m.balance_from_feed, m.promote_from_date::text AS promote_from_date, m.trade_treatment, m.reconcile_mode,
       m.feed_sign, m.feed_negate_tx,

@@ -15,6 +15,18 @@ function fmtNum(n, decimals = 2) {
   });
 }
 
+// "synced N days ago" from the feed's fetched_at (sync time, distinct from the
+// balance_date the figure is for) — flags a stalled feed even if its figure looks current.
+function fmtSyncedAgo(ts) {
+  if (!ts) return null;
+  const then = new Date(ts);
+  if (Number.isNaN(then.getTime())) return null;
+  const days = Math.floor((Date.now() - then.getTime()) / 86400000);
+  if (days <= 0) return "synced today";
+  if (days === 1) return "synced yesterday";
+  return `synced ${days} days ago`;
+}
+
 function StatusPill({ label, kind }) {
   return <span className={`bfd-pill bfd-pill-${kind}`}>{label}</span>;
 }
@@ -104,10 +116,10 @@ export default function BalanceReconciliation() {
       const res = await Rest.post(`/bank-feed/reconcile/${a.account_id}`, body);
       setReconcileMsg(
         res.mode === "mtm"
-          ? `${a.name}: MTM ${fmtNum(res.mtm_amount)} dated ${res.month_end}` +
+          ? `${a.name}: booked MTM entry ${fmtNum(res.mtm_amount)} dated ${res.month_end}` +
               (res.removed_read_override ? " (read-override removed)" : "") +
               (res.note ? ` — ${res.note}` : "")
-          : `${a.name}: opening_balance ${fmtNum(res.old_opening)} → ${fmtNum(res.new_opening)}`
+          : `${a.name}: re-anchored opening balance ${fmtNum(res.old_opening)} → ${fmtNum(res.new_opening)}`
       );
       await loadBalanceRecon();
     } catch (err) {
@@ -298,7 +310,14 @@ export default function BalanceReconciliation() {
                     )}
                 </td>
                 <td className={`num ${driftCls}`}>{a.drift != null ? fmtNum(a.drift, 2) : "—"}</td>
-                <td className="bfd-muted">{a.feed_date || "—"}</td>
+                <td className="bfd-muted">
+                  {a.feed_date || "—"}
+                  {fmtSyncedAgo(a.feed_fetched_at) && (
+                    <div style={{ fontSize: "0.7rem" }} title={a.feed_fetched_at}>
+                      {fmtSyncedAgo(a.feed_fetched_at)}
+                    </div>
+                  )}
+                </td>
                 <td>
                   {a.reconciled == null ? (
                     <StatusPill label="no feed" kind="warn" />
