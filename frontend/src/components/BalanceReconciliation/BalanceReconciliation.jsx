@@ -15,16 +15,19 @@ function fmtNum(n, decimals = 2) {
   });
 }
 
-// "synced N days ago" from the feed's fetched_at (sync time, distinct from the
-// balance_date the figure is for) — flags a stalled feed even if its figure looks current.
+// "synced N days ago" from the feed's real upstream sync time (CR035:
+// source_synced_at = fintable's "⚡ Last Update", distinct from the balance_date the
+// figure is for AND from fin's own poll) — flags a feed the bank stopped refreshing
+// even while fin keeps polling it. Weekend-tolerant colour: brokerages don't sync
+// on non-trading days, so grey ≤2d / amber 3–6d / red ≥7d. null → "synced —".
 function fmtSyncedAgo(ts) {
-  if (!ts) return null;
+  if (!ts) return { text: "synced —", color: null };
   const then = new Date(ts);
-  if (Number.isNaN(then.getTime())) return null;
+  if (Number.isNaN(then.getTime())) return { text: "synced —", color: null };
   const days = Math.floor((Date.now() - then.getTime()) / 86400000);
-  if (days <= 0) return "synced today";
-  if (days === 1) return "synced yesterday";
-  return `synced ${days} days ago`;
+  const text = days <= 0 ? "synced today" : days === 1 ? "synced yesterday" : `synced ${days} days ago`;
+  const color = days >= 7 ? "var(--danger, #c0392b)" : days >= 3 ? "var(--warn, #b9770e)" : null;
+  return { text, color };
 }
 
 function StatusPill({ label, kind }) {
@@ -312,11 +315,17 @@ export default function BalanceReconciliation() {
                 <td className={`num ${driftCls}`}>{a.drift != null ? fmtNum(a.drift, 2) : "—"}</td>
                 <td className="bfd-muted">
                   {a.feed_date || "—"}
-                  {fmtSyncedAgo(a.feed_fetched_at) && (
-                    <div style={{ fontSize: "0.7rem" }} title={a.feed_fetched_at}>
-                      {fmtSyncedAgo(a.feed_fetched_at)}
-                    </div>
-                  )}
+                  {a.feed_date && (() => {
+                    const s = fmtSyncedAgo(a.feed_synced_at);
+                    return (
+                      <div
+                        style={{ fontSize: "0.7rem", color: s.color || undefined, fontWeight: s.color ? 600 : undefined }}
+                        title={a.feed_synced_at || "upstream sync time not reported"}
+                      >
+                        {s.text}
+                      </div>
+                    );
+                  })()}
                 </td>
                 <td>
                   {a.reconciled == null ? (

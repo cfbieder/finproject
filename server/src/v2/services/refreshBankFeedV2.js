@@ -80,14 +80,15 @@ async function ingestBalances({ accountExternalIdById, asOf } = {}) {
     if (!uuid) { unresolved++; continue; }
     await db.query(`
       INSERT INTO bankfeed_balances
-        (feed_account_external_id, balance, currency, balance_date, source, raw)
-      VALUES ($1, $2, $3, $4, $5, $6)
+        (feed_account_external_id, balance, currency, balance_date, source, source_synced_at, raw)
+      VALUES ($1, $2, $3, $4, $5, $6, $7)
       ON CONFLICT (feed_account_external_id, balance_date, source)
       DO UPDATE SET balance = EXCLUDED.balance,
                     currency = EXCLUDED.currency,
+                    source_synced_at = EXCLUDED.source_synced_at,
                     fetched_at = NOW(),
                     raw = EXCLUDED.raw
-    `, [uuid, b.balance, b.currency, b.balance_date, b.source || 'fintable', b.raw || null]);
+    `, [uuid, b.balance, b.currency, b.balance_date, b.source || 'fintable', b.source_synced_at || null, b.raw || null]);
     upserted++;
   }
   return { fetched: list.length, upserted, unresolved };

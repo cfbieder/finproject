@@ -1,6 +1,6 @@
 # CR035 — Feed Sync Freshness (true upstream "synced N days ago")
 
-**Status:** PLANNED (scoped + Phase 0 verified 2026-06-30; not yet built).
+**Status:** RELEASED v3.0.44 (2026-07-01) — service migration 003 + fin migration 033 applied (dev + prod); bank-feed service deployed (commit 250b55b) and re-synced (all 32 accounts carry `source_synced_at`; Barclays/Luxury Card = 2026-06-25, ~5–6d); fin deployed. Built as scoped; all Owner decisions honored.
 **Track:** v3
 **Anchor in FC_NEXT_STEPS.md:** [cr035](../FC_NEXT_STEPS.md#cr035)
 **Realizes:** the *stale-feed alerting* slice of [CR021](CR021_BANK_FEED_SERVICE.md) Phase 5 (Robustness layer), scoped down to the one signal the reconciliation page needs.

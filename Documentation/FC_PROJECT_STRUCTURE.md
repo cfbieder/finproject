@@ -189,7 +189,7 @@ All mounted at `/api/v2` (nginx rewrites legacy `/api/*`). Behavioural detail in
 
 **Ingest bank feed (`/ingest-bank-feed`):** `POST /refresh {sinceDays}` — stage + promote from the bank-feed service ([CR022](CRs/CR022_BANK_FEED_PARALLEL_IMPORT.md)).
 
-**Bank feed (`/bank-feed`):** read-only proxy + `GET /balance-recon` (institution- & feed-sync-time-enriched via `feed_fetched_at`, fail-open) · `POST /reconcile/:accountId` (`asOf/dryRun/force/bookDate`) · `PATCH /reconcile-mode/:accountId` · `PATCH /feed-negate-tx/:accountId` · `GET /fed-accounts` · diagnostic ([CR023](CRs/CR023_POCKETSMITH_REMOVAL.md)/[CR024](CRs/CR024_FIDELITY_FEEDS.md)).
+**Bank feed (`/bank-feed`):** read-only proxy + `GET /balance-recon` (institution-enriched + true upstream sync time `feed_synced_at` from the feed's `source_synced_at`, fail-open) · `POST /reconcile/:accountId` (`asOf/dryRun/force/bookDate`) · `PATCH /reconcile-mode/:accountId` · `PATCH /feed-negate-tx/:accountId` · `GET /fed-accounts` · diagnostic ([CR023](CRs/CR023_POCKETSMITH_REMOVAL.md)/[CR024](CRs/CR024_FIDELITY_FEEDS.md)).
 
 **Manual calibration (`/manual-calibration`):** `GET /recon?asOf=` · `PUT /balance/:accountId` · `DELETE /balance/:accountId` · `PATCH /reconcile-mode/:accountId` · `POST /reconcile/:accountId` ([CR033](CRs/CR033_MANUAL_CALIBRATION.md)).
 

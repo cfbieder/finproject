@@ -49,6 +49,19 @@ describe('refreshBankFeedV2.ingestBalances', () => {
     expect(firstArgs[1][3]).toBe('2026-06-02');
   });
 
+  test('CR035: source_synced_at flows through to the upsert (null when absent)', async () => {
+    bankFeedClient.balances.mockResolvedValue({
+      balances: [
+        { account_id: '1', balance: '1.0000', currency: 'USD', balance_date: '2026-06-30', source: 'fintable', source_synced_at: '2026-06-25T01:29:10+00:00' },
+        { account_id: '2', balance: '2.0000', currency: 'USD', balance_date: '2026-06-30', source: 'fintable' }, // no sync time
+      ],
+    });
+    await orchestrator.ingestBalances({ accountExternalIdById: { '1': 'uuid-1', '2': 'uuid-2' } });
+    expect(db.query.mock.calls[0][0]).toMatch(/source_synced_at/);
+    expect(db.query.mock.calls[0][1][5]).toBe('2026-06-25T01:29:10+00:00'); // param 6 = source_synced_at
+    expect(db.query.mock.calls[1][1][5]).toBeNull();                         // absent → null
+  });
+
   test('accepts a bare-array balances response and defaults source to fintable', async () => {
     bankFeedClient.balances.mockResolvedValue([
       { account_id: '1', balance: '5.0000', currency: 'USD', balance_date: '2026-06-02' }, // no source
