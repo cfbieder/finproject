@@ -15,7 +15,7 @@ Each CR file's first line carries its status and links back to the matching anch
 | COMPLETED | 25 | CR001–CR013, CR016, CR017, CR018, CR024, CR025, CR026, CR028, CR030, CR031, CR032, CR033, CR034 |
 | IN-PROGRESS | 3 | CR019, CR022, CR023 |
 | OPEN | 2 | CR020, CR021 |
-| PLANNED | 2 | CR027 *(v4, umbrella)*, CR029 |
+| PLANNED | 3 | CR027 *(v4, umbrella)*, CR029, CR035 |
 | SUPERSEDED | 1 | CR014 |
 | OBSOLETE | 1 | CR015 |
 | **Total** | **33** | |
@@ -58,3 +58,4 @@ Each CR file's first line carries its status and links back to the matching anch
 | [CR032](CR032_CORE_CASH_SWEEP_NEUTRALIZATION.md) | COMPLETED | v3 | Fidelity Core-Cash Sweep Auto-Neutralization | Promote auto-mirrors core sweeps so they self-net; neutralize mis-pair guard (v3.0.27). |
 | [CR033](CR033_MANUAL_CALIBRATION.md) | COMPLETED | v3 | Manual Calibration (non-fed accounts) | Computed vs user-typed balance with calibrate/MTM per BS leaf (migration 032; v3.0.29–33). |
 | [CR034](CR034_SECURITY_HARDENING_CI.md) | COMPLETED | v3 | Security Hardening & CI Baseline | Secrets untracked + DB password rotated, compose/ports/CORS/pg_dump hardened, fresh-install migration fix, GitHub Actions CI + secret-scan gate, docs restructure (2026-06-12). |
+| [CR035](CR035_FEED_SYNC_FRESHNESS.md) | PLANNED | v3 | Feed Sync Freshness | Promote fintable's per-connection "⚡ Last Update" through the service → fin so recon shows true "synced N days ago" (corrects v3.0.43's fin-poll timestamp); CR021 Phase 5 slice. |

@@ -19,6 +19,9 @@ Living plan for the Fin project — open Change Requests, known issues, ongoing 
 <a id="cr029"></a>
 - **CR029 — [Fintable Sheet Pruning (bank-feed admin action)](CRs/CR029_FINTABLE_SHEET_PRUNING.md)** — *PLANNED (scoped 2026-06-06, implement later).* Guarded prune of old Transactions-tab rows in the bank-feed service's Google Sheet (Postgres is the archive). Phase 0 prereqs (Editor share + manual deletion-tolerance test) in the CR.
 
+<a id="cr035"></a>
+- **CR035 — [Feed Sync Freshness](CRs/CR035_FEED_SYNC_FRESHNESS.md)** — *PLANNED (scoped + Phase 0 verified 2026-06-30).* Cross-repo: promote fintable's per-connection **"⚡ Last Update"** (clean ISO-8601, populated for all 30 accounts, verified) through the bank-feed service (`feed_balances.source_synced_at` + `/v1/balances`) into fin (`bankfeed_balances.source_synced_at` → `/balance-recon` `feed_synced_at`) so Balance Calibration shows **true** "synced N days ago" (Luxury Card = Barclays, 5 days). Corrects v3.0.43's `fetched_at`-based indicator, which tracked fin's daily poll, not the bank. Realizes the stale-alert slice of [CR021](CRs/CR021_BANK_FEED_SERVICE.md) Phase 5. Deploy order: service migration+deploy first, then fin.
+
 <a id="cr023"></a>
 - **CR023 — [PocketSmith Removal & PS→Feeds Cutover](CRs/CR023_POCKETSMITH_REMOVAL.md)** — *Engine live in prod; migration ongoing per-account.* Feed side complete (28 fed / 2 manual). **Open:** the 13 still-PS-dependent accounts (8 US → Fintable feeds; Wise/Revolut best-effort; OCME 45 + dormant holdings → manual/CR025) and the deferred PS-removal tail. Tracker: [CR023_PS_MIGRATION_TRACKER.md](CRs/CR023_PS_MIGRATION_TRACKER.md); exit gate: `ps-exit-monitor.js`.
 

@@ -212,7 +212,7 @@ This is the part PS never gave us. Bank-side instability *will* recur; the goal 
 - **Gap detection**: for each account, store per-day expected counts (rolling 30-day median). On sync, flag days with zero received when median > 0.
 - **Balance reconciliation**: each balance fetch is stored; on retrieval, compare against computed running balance (opening + sum). Flag drift > tolerance.
 - **Dedupe across re-auth**: Plaid stable IDs are usually durable, but observe drift; fall back to (date, amount, currency, account) fuzzy match with 1-day window.
-- **Stale-feed alerting**: `GET /v1/health/feeds` returns per-account `staleness_days`, `last_gap_at`, `consent_expires_in_days`. Main app polls this; renders banner.
+- **Stale-feed alerting**: `GET /v1/health/feeds` returns per-account `staleness_days`, `last_gap_at`, `consent_expires_in_days`. Main app polls this; renders banner. *(The staleness slice is being delivered early + minimally as [CR035](CR035_FEED_SYNC_FRESHNESS.md) — promoting fintable's "⚡ Last Update" onto `/v1/balances` rather than a new health endpoint; the full `/v1/health/feeds` with gap/consent remains here.)*
 - **Re-auth warning**: 7-day and 1-day-before alerts before consent_expires_at.
 
 ### Phase 6 — Admin UI (2-3 days)
