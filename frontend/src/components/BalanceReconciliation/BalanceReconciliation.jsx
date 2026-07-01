@@ -54,6 +54,7 @@ export default function BalanceReconciliation() {
   const [statusFilter, setStatusFilter] = useState("all"); // reconciliation-status filter
   const [bookDate, setBookDate] = useState(lastMonthEndISO()); // MTM booking date
   const [uploadAccount, setUploadAccount] = useState(null); // CR036: manual statement upload target
+  const [showHelp, setShowHelp] = useState(false); // sign-convention explainer, collapsed by default
 
   // Set how an account reconciles: 'calibrate' (bank/cash → DRIFT) or 'mtm'
   // (brokerage / mark-to-market holdings → MTM GAP). Harmless on its own.
@@ -174,39 +175,54 @@ export default function BalanceReconciliation() {
 
   return (
     <section className="bfd-section recon-panel">
-      <h2>Bank reconciliation (CR023)</h2>
-      <p className="bfd-subtitle">
-        Per fed account: fin's <strong>computed</strong> balance
-        (<code>opening_balance + Σ tx</code>) vs the bank's <strong>expected</strong>
-        balance. <strong>Drift = computed − expected</strong>; RECONCILED only when
-        they match. <strong>Brokerage</strong> (mtm) rows show drift by design — the
-        un-booked market move the monthly Unrealized-G/L entry recognizes.
-      </p>
-      <p className="bfd-subtitle">
-        Each feed is normalized to fin's convention (a liability is a{" "}
-        <strong>negative</strong> balance; purchases are <strong>negative</strong>)
-        by <strong>two independent</strong> sign settings:
-      </p>
-      <ul className="bfd-subtitle" style={{ marginTop: 0 }}>
-        <li>
-          <strong>Balance sign</strong> (automatic): a liability the bank reports as{" "}
-          <code>+owed</code> is stored as <code>−</code> — the raw figure is shown as
-          “bank reports … (owed)” when it differs.
-        </li>
-        <li>
-          <strong>Transaction sign</strong> — the <em>flip tx</em> toggle: ON only when
-          a feed delivers each <em>purchase</em> as <code>+</code> (and a payment as{" "}
-          <code>−</code>), the reverse of fin.
-        </li>
-      </ul>
-      <p className="bfd-subtitle">
-        A feed can need one flip but not the other — which is why two cards both marked
-        “(owed)” can differ on the checkbox. <strong>Chase</strong> cards (Amazon /
-        Marriot) report the balance <em>and</em> purchases as <code>+</code>, so both
-        flip. <strong>PKO</strong> reports the balance <code>+owed</code> but purchases
-        already as <code>−</code>, so only the balance flips and <em>flip tx</em> stays
-        off.
-      </p>
+      <div className="recon-title-row">
+        <h2>Bank reconciliation (CR023)</h2>
+        <button
+          type="button"
+          className="recon-help-toggle"
+          aria-expanded={showHelp}
+          onClick={() => setShowHelp((v) => !v)}
+          title="How reconciliation & the sign settings work"
+        >
+          {showHelp ? "Hide help ×" : "? Help"}
+        </button>
+      </div>
+      {showHelp && (
+        <div className="recon-help">
+          <p className="bfd-subtitle">
+            Per fed account: fin's <strong>computed</strong> balance
+            (<code>opening_balance + Σ tx</code>) vs the bank's <strong>expected</strong>
+            balance. <strong>Drift = computed − expected</strong>; RECONCILED only when
+            they match. <strong>Brokerage</strong> (mtm) rows show drift by design — the
+            un-booked market move the monthly Unrealized-G/L entry recognizes.
+          </p>
+          <p className="bfd-subtitle">
+            Each feed is normalized to fin's convention (a liability is a{" "}
+            <strong>negative</strong> balance; purchases are <strong>negative</strong>)
+            by <strong>two independent</strong> sign settings:
+          </p>
+          <ul className="bfd-subtitle" style={{ marginTop: 0 }}>
+            <li>
+              <strong>Balance sign</strong> (automatic): a liability the bank reports as{" "}
+              <code>+owed</code> is stored as <code>−</code> — the raw figure is shown as
+              “bank reports … (owed)” when it differs.
+            </li>
+            <li>
+              <strong>Transaction sign</strong> — the <em>flip tx</em> toggle: ON only when
+              a feed delivers each <em>purchase</em> as <code>+</code> (and a payment as{" "}
+              <code>−</code>), the reverse of fin.
+            </li>
+          </ul>
+          <p className="bfd-subtitle">
+            A feed can need one flip but not the other — which is why two cards both marked
+            “(owed)” can differ on the checkbox. <strong>Chase</strong> cards (Amazon /
+            Marriot) report the balance <em>and</em> purchases as <code>+</code>, so both
+            flip. <strong>PKO</strong> reports the balance <code>+owed</code> but purchases
+            already as <code>−</code>, so only the balance flips and <em>flip tx</em> stays
+            off.
+          </p>
+        </div>
+      )}
       <div className="bfd-feed-card-header">
         <StatusPill
           label={visibleUnreconciled === 0 ? "all reconciled" : `${visibleUnreconciled} unreconciled`}
@@ -248,8 +264,21 @@ export default function BalanceReconciliation() {
           </select>
         </label>
         <span className="bfd-muted">as of {balRecon.asOf}</span>
-        {reconcileMsg && <span className="bfd-muted"> · {reconcileMsg}</span>}
       </div>
+      {reconcileMsg && (
+        <div className="recon-status" role="status">
+          <span>{reconcileMsg}</span>
+          <button
+            type="button"
+            className="recon-status-x"
+            onClick={() => setReconcileMsg(null)}
+            aria-label="Dismiss"
+            title="Dismiss"
+          >
+            ×
+          </button>
+        </div>
+      )}
       <MtmDateControl value={bookDate} onChange={setBookDate} />
       <div className="recon-table-wrap">
       <table className="bfd-accounts">

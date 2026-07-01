@@ -5,6 +5,76 @@
    Upload = secondary) instead of two heavy primary buttons crammed together.
    All colours are tokens (dark-mode safe). */
 
+/* Title row: heading + a "? Help" toggle that collapses the sign-convention
+   explainer (previously a wall of text above the table). */
+.recon-panel .recon-title-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+}
+.recon-panel .recon-help-toggle {
+  flex-shrink: 0;
+  font-size: 0.78rem;
+  font-weight: 500;
+  padding: 4px 12px;
+  border: 1px solid var(--border, #cfd4dd);
+  border-radius: 999px;
+  background: transparent;
+  color: var(--text-muted, #6b7280);
+  cursor: pointer;
+  white-space: nowrap;
+}
+.recon-panel .recon-help-toggle:hover {
+  background: var(--surface-hover, #eef2f7);
+  color: inherit;
+}
+.recon-panel .recon-help {
+  margin: 10px 0 4px;
+  padding: 12px 16px;
+  background: var(--surface-muted, #fafafb);
+  border: 1px solid var(--border-subtle, #eef0f3);
+  border-radius: 8px;
+}
+.recon-panel .recon-help .bfd-subtitle {
+  margin: 0 0 8px;
+  font-size: 0.85rem;
+}
+.recon-panel .recon-help .bfd-subtitle:last-child,
+.recon-panel .recon-help ul:last-child {
+  margin-bottom: 0;
+}
+
+/* Filter row: let it wrap and space out instead of crowding onto one line. */
+.recon-panel .bfd-feed-card-header {
+  flex-wrap: wrap;
+  gap: 10px 20px;
+  margin: 14px 0 12px;
+}
+
+/* Post-reconcile message: its own dismissible line, out of the filter row. */
+.recon-panel .recon-status {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin: 0 0 12px;
+  padding: 8px 14px;
+  background: var(--surface-muted, #f4f6f9);
+  border: 1px solid var(--border, #e0e4ea);
+  border-radius: 6px;
+  font-size: 0.85rem;
+}
+.recon-panel .recon-status-x {
+  margin-left: auto;
+  background: none;
+  border: none;
+  font-size: 1.15rem;
+  line-height: 1;
+  cursor: pointer;
+  color: var(--text-muted, #6b7280);
+}
+.recon-panel .recon-status-x:hover { color: var(--danger-strong, #b42318); }
+
 .recon-panel .recon-table-wrap {
   overflow-x: auto;
   border: 1px solid var(--border, #e5e7eb);
