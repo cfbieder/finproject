@@ -3,8 +3,10 @@ import Rest from "../../js/rest.js";
 import ConfirmModal from "../ConfirmModal/ConfirmModal.jsx";
 import ManualStatementUpload from "../ManualStatementUpload/ManualStatementUpload.jsx";
 import MtmDateControl, { lastMonthEndISO } from "../MtmDateControl.jsx";
-// Reuse the bank-feed diagnostic styles (bfd-* / num / generate-report-button).
+// Reuse the bank-feed diagnostic styles (bfd-* / num / generate-report-button)…
 import "../../pages/BankFeedDiagnostic.css";
+// …then layer this panel's own spacing/hierarchy polish on top (scoped .recon-panel).
+import "./BalanceReconciliation.css";
 
 function fmtNum(n, decimals = 2) {
   if (n == null || n === "") return "—";
@@ -171,7 +173,7 @@ export default function BalanceReconciliation() {
   const visibleUnreconciled = visibleAccounts.filter((a) => a.reconciled === false).length;
 
   return (
-    <section className="bfd-section">
+    <section className="bfd-section recon-panel">
       <h2>Bank reconciliation (CR023)</h2>
       <p className="bfd-subtitle">
         Per fed account: fin's <strong>computed</strong> balance
@@ -249,6 +251,7 @@ export default function BalanceReconciliation() {
         {reconcileMsg && <span className="bfd-muted"> · {reconcileMsg}</span>}
       </div>
       <MtmDateControl value={bookDate} onChange={setBookDate} />
+      <div className="recon-table-wrap">
       <table className="bfd-accounts">
         <thead>
           <tr>
@@ -340,7 +343,7 @@ export default function BalanceReconciliation() {
                     <StatusPill label="drift" kind="danger" />
                   )}
                 </td>
-                <td>
+                <td className="recon-actions">
                   <button
                     className="generate-report-button"
                     disabled={reconcilingId === a.account_id || a.feed_balance == null}
@@ -351,8 +354,7 @@ export default function BalanceReconciliation() {
                   </button>
                   {a.feed_external_id && (
                     <button
-                      className="generate-report-button"
-                      style={{ marginLeft: "0.4rem" }}
+                      className="generate-report-button recon-btn--secondary"
                       onClick={() => setUploadAccount({ external_id: a.feed_external_id, name: a.name })}
                       title="Stale-feed fallback: upload this bank's own statement CSV to import only new rows and reconcile (CR036)"
                     >
@@ -365,6 +367,7 @@ export default function BalanceReconciliation() {
           })}
         </tbody>
       </table>
+      </div>
 
       <ConfirmModal
         state={confirm}

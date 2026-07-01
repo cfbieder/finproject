@@ -1,0 +1,106 @@
+/* Balance Reconciliation — visual polish scoped to `.recon-panel` so the shared
+   bfd-accounts / bfd-tx-table styles (Bank Feed Diagnostic, Manual Calibration)
+   are untouched. Goals: more breathing room, a calmer header, clear zebra rows,
+   and a primary/secondary hierarchy in the actions column (Reconcile = primary,
+   Upload = secondary) instead of two heavy primary buttons crammed together.
+   All colours are tokens (dark-mode safe). */
+
+.recon-panel .recon-table-wrap {
+  overflow-x: auto;
+  border: 1px solid var(--border, #e5e7eb);
+  border-radius: 8px;
+}
+
+.recon-panel .bfd-accounts {
+  font-size: 0.875rem;
+  border-collapse: separate;
+  border-spacing: 0;
+}
+
+/* Calmer, roomier header. */
+.recon-panel .bfd-accounts th {
+  padding: 11px 16px;
+  font-size: 0.72rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  white-space: nowrap;
+  border-bottom: 1px solid var(--border, #e5e7eb);
+}
+
+/* Roomier cells + vertical centering so multi-line cells (Type, Feed date) don't
+   look ragged. */
+.recon-panel .bfd-accounts td {
+  padding: 12px 16px;
+  vertical-align: middle;
+  border-bottom: 1px solid var(--border-subtle, #f0f1f3);
+}
+.recon-panel .bfd-accounts tbody tr:last-child td {
+  border-bottom: none;
+}
+
+/* Zebra + hover for scan-ability. */
+.recon-panel .bfd-accounts tbody tr:nth-child(even) {
+  background: var(--surface-muted, #fafafb);
+}
+.recon-panel .bfd-accounts tbody tr:hover {
+  background: var(--surface-hover, #eef2f7);
+}
+
+.recon-panel .bfd-accounts .num {
+  padding-right: 20px;
+}
+
+/* The Type cell packs a lot (mode select + flip-tx toggle + hint) — give its
+   pieces room to stack cleanly instead of colliding. */
+.recon-panel .bfd-accounts td select {
+  padding: 4px 8px;
+  border-radius: 6px;
+  border: 1px solid var(--border, #d3d6e0);
+  background: var(--surface, #fff);
+  color: inherit;
+}
+.recon-panel .bfd-negate-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  margin-top: 6px;
+  font-size: 0.78rem;
+}
+
+/* Feed-date sub-line ("synced N days ago") — a touch of separation. */
+.recon-panel .bfd-accounts td > div {
+  margin-top: 3px;
+}
+
+/* --- Actions column: primary/secondary hierarchy, compact, right-aligned --- */
+.recon-panel .recon-actions {
+  white-space: nowrap;
+  text-align: right;
+}
+.recon-panel .recon-actions .generate-report-button {
+  padding: 7px 14px;
+  font-size: 0.8rem;
+  box-shadow: none;
+  margin: 0;
+}
+.recon-panel .recon-actions .generate-report-button + .generate-report-button {
+  margin-left: 8px;
+}
+.recon-panel .recon-actions .generate-report-button:not(:disabled):hover {
+  transform: none;
+  box-shadow: 0 2px 8px -3px rgba(0, 0, 0, 0.25);
+}
+
+/* Secondary (outline) style for the occasional "Upload statement" fallback so it
+   doesn't compete with the primary "Reconcile to feed". */
+.recon-panel .recon-actions .generate-report-button.recon-btn--secondary {
+  background: transparent;
+  color: var(--primary, #567856);
+  border-color: var(--border, #cfd4dd);
+  font-weight: 500;
+}
+.recon-panel .recon-actions .generate-report-button.recon-btn--secondary:not(:disabled):hover {
+  background: var(--surface-hover, #eef2f7);
+  border-color: var(--primary, #567856);
+}
