@@ -1,4 +1,4 @@
-**Status:** IN-PROGRESS (P1 shipped) — [Plan](../FC_NEXT_STEPS.md#cr036) — bank-feed service **deployed 2026-07-01** (commit `91c2911`, `/v1/manual/*` live + verified); fin shipped in **v3.0.45**. Live wired path validated read-only (46 parsed → 29 already-in-ledger / 17 new, drift −194.99). **P2** (interactive column-mapper) open.
+**Status:** IN-PROGRESS (P1 shipped) — [Plan](../FC_NEXT_STEPS.md#cr036) — bank-feed service **deployed 2026-07-01** (commit `91c2911`, `/v1/manual/*` live + verified); fin shipped in **v3.0.45**, with Balance Reconciliation UI declutter/polish in **v3.0.46–v3.0.47** (collapsible "? Help", roomier table, primary/secondary action buttons, dismissible post-reconcile status line). Live wired path validated read-only end-to-end in prod (46 parsed → 29 already-in-ledger / 17 new, drift −194.99). **P2** (interactive column-mapper) open.
 
 # CR036 — Manual Statement Upload (Stale-Feed Fallback)
 
