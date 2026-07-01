@@ -34,7 +34,7 @@ function ensureConfigured() {
   }
 }
 
-async function request(path, { method = 'GET', query, timeoutMs = DEFAULT_TIMEOUT_MS } = {}) {
+async function request(path, { method = 'GET', query, body: jsonBody, timeoutMs = DEFAULT_TIMEOUT_MS } = {}) {
   ensureConfigured();
   const url = new URL(path, BASE_URL);
   if (query) {
@@ -47,14 +47,14 @@ async function request(path, { method = 'GET', query, timeoutMs = DEFAULT_TIMEOU
 
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), timeoutMs);
+  const headers = { 'Accept': 'application/json', 'X-API-Key': API_KEY };
+  if (jsonBody !== undefined) headers['Content-Type'] = 'application/json';
   let res;
   try {
     res = await fetch(url, {
       method,
-      headers: {
-        'Accept': 'application/json',
-        'X-API-Key': API_KEY,
-      },
+      headers,
+      body: jsonBody !== undefined ? JSON.stringify(jsonBody) : undefined,
       signal: controller.signal,
     });
   } catch (err) {
@@ -112,6 +112,28 @@ function sync({ maxAgeMin, force = false } = {}) {
   });
 }
 
+// ---- CR036 manual statement upload ----------------------------------------
+// Stateless parse (format layer lives in the service). Returns fin-convention
+// rows + a balance magnitude; fin applies account-level sign flags after.
+function manualParse({ accountExternalId, csv, profileId } = {}) {
+  return request('/v1/manual/parse', {
+    method: 'POST',
+    body: { account_external_id: accountExternalId, csv, profile_id: profileId },
+    timeoutMs: 20000,
+  });
+}
+
+// Trusted bulk-write of already sign-aligned rows + a signed balance.
+function manualCommit({ accountExternalId, rows, balance, source = 'manual' } = {}) {
+  return request('/v1/manual/commit', {
+    method: 'POST',
+    body: { account_external_id: accountExternalId, rows, balance, source },
+    timeoutMs: 20000,
+  });
+}
+
+function manualProfiles() { return request('/v1/manual/profiles'); }
+
 module.exports = {
   health,
   feedsHealth,
@@ -120,6 +142,9 @@ module.exports = {
   balances,
   transactions,
   sync,
+  manualParse,
+  manualCommit,
+  manualProfiles,
   // exposed for diagnostic / config readback
   baseUrl: BASE_URL,
 };

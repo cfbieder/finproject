@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import Rest from "../../js/rest.js";
 import ConfirmModal from "../ConfirmModal/ConfirmModal.jsx";
+import ManualStatementUpload from "../ManualStatementUpload/ManualStatementUpload.jsx";
 import MtmDateControl, { lastMonthEndISO } from "../MtmDateControl.jsx";
 // Reuse the bank-feed diagnostic styles (bfd-* / num / generate-report-button).
 import "../../pages/BankFeedDiagnostic.css";
@@ -50,6 +51,7 @@ export default function BalanceReconciliation() {
   const [institutionFilter, setInstitutionFilter] = useState("all"); // feed/institution filter
   const [statusFilter, setStatusFilter] = useState("all"); // reconciliation-status filter
   const [bookDate, setBookDate] = useState(lastMonthEndISO()); // MTM booking date
+  const [uploadAccount, setUploadAccount] = useState(null); // CR036: manual statement upload target
 
   // Set how an account reconciles: 'calibrate' (bank/cash → DRIFT) or 'mtm'
   // (brokerage / mark-to-market holdings → MTM GAP). Harmless on its own.
@@ -347,6 +349,16 @@ export default function BalanceReconciliation() {
                   >
                     {reconcilingId === a.account_id ? "…" : "Reconcile to feed"}
                   </button>
+                  {a.feed_external_id && (
+                    <button
+                      className="generate-report-button"
+                      style={{ marginLeft: "0.4rem" }}
+                      onClick={() => setUploadAccount({ external_id: a.feed_external_id, name: a.name })}
+                      title="Stale-feed fallback: upload this bank's own statement CSV to import only new rows and reconcile (CR036)"
+                    >
+                      Upload statement
+                    </button>
+                  )}
                 </td>
               </tr>
             );
@@ -360,6 +372,14 @@ export default function BalanceReconciliation() {
         onConfirm={doReconcile}
         onCancel={() => setConfirm(null)}
       />
+
+      {uploadAccount && (
+        <ManualStatementUpload
+          account={uploadAccount}
+          onClose={() => setUploadAccount(null)}
+          onCommitted={loadBalanceRecon}
+        />
+      )}
     </section>
   );
 }

@@ -17,6 +17,7 @@ const accountSourceMappings = require('../repositories/accountSourceMappings');
 const bankFeedReconciliation = require('../repositories/bankFeedReconciliation');
 const { reconcileToFeed } = require('../services/reconcileToFeed');
 const refreshBankFeed = require('../services/refreshBankFeedV2');
+const manualStatementImport = require('../services/manualStatementImport');
 const db = require('../db');
 
 // Reconcile is a deliberate action that wants CURRENT balances — pull fresh
@@ -349,6 +350,50 @@ router.get('/fed-accounts', async (req, res, next) => {
   } catch (err) {
     console.error('[v2/bank-feed] fed-accounts failed:', err.message);
     next(err);
+  }
+});
+
+/**
+ * CR036 — manual statement upload (stale-feed fallback).
+ *
+ * GET  /manual/profiles                  installed statement formats (for the UI)
+ * POST /manual/preview  { accountExternalId, csv, profileId? }
+ *        Parse + dedup-classify + hypothetical drift. NO writes — the gate.
+ * POST /manual/commit   { accountExternalId, csv, profileId? }
+ *        Write to the feed service, promote (import only-new), reconcile.
+ *
+ * Both accept the raw CSV text in the JSON body (no multipart dep); the browser
+ * reads the file client-side and posts its text.
+ */
+router.get('/manual/profiles', proxy(() => client.manualProfiles()));
+
+router.post('/manual/preview', async (req, res) => {
+  try {
+    const { accountExternalId, csv, profileId } = req.body || {};
+    if (!accountExternalId || typeof csv !== 'string' || !csv.trim()) {
+      return res.status(400).json({ error: 'accountExternalId and csv (string) are required' });
+    }
+    const result = await manualStatementImport.preview({ accountExternalId, csv, profileId });
+    res.json(result);
+  } catch (err) {
+    console.error('[v2/bank-feed] manual preview failed:', err.message);
+    const status = err.status && err.status >= 400 && err.status < 600 ? err.status : 502;
+    res.status(status).json({ error: err.message });
+  }
+});
+
+router.post('/manual/commit', async (req, res) => {
+  try {
+    const { accountExternalId, csv, profileId } = req.body || {};
+    if (!accountExternalId || typeof csv !== 'string' || !csv.trim()) {
+      return res.status(400).json({ error: 'accountExternalId and csv (string) are required' });
+    }
+    const result = await manualStatementImport.commit({ accountExternalId, csv, profileId });
+    res.json(result);
+  } catch (err) {
+    console.error('[v2/bank-feed] manual commit failed:', err.message);
+    const status = err.status && err.status >= 400 && err.status < 600 ? err.status : 502;
+    res.status(status).json({ error: err.message });
   }
 });
 

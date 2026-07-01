@@ -167,7 +167,7 @@ async function promote() {
   // Load unpromoted, non-pending staging rows with resolved fin account + ignore flag.
   // ::text on dates keeps findPsMatch on 'YYYY-MM-DD' strings (TZ-safe).
   const rows = (await db.query(`
-    SELECT s.id, s.external_id, s.feed_account_external_id,
+    SELECT s.id, s.external_id, s.feed_account_external_id, s.source AS staging_source,
            s.transaction_date::text AS transaction_date,
            s.amount, s.currency, s.base_amount, s.base_currency,
            s.description, s.merchant, s.activity_type,
@@ -227,6 +227,7 @@ async function promote() {
   let linked = 0;
   let suppressed = 0;
   let mirrored = 0;          // CR032: auto-offset legs created for core-cash sweeps
+  let skippedDup = 0;        // CR036: manual rows already present in the ledger
   const mergedWithPsCount = {};
   const dedup = dedupEnabled();
 
@@ -240,30 +241,72 @@ async function promote() {
 
     for (const r of promotable) {
       let matchedTxId = null;
+      // 'link' → stamp the bank-feed id onto an un-stamped PS row (CR022).
+      // 'skip' → the row already exists in the ledger under another source
+      //          (a live-feed row, a prior manual upload, or hand entry); mark
+      //          the staging row promoted to it WITHOUT inserting or mutating it.
+      let matchAction = null;
 
       // CR032: core-sweep mirrors are synthetic net-zero plumbing — never link
       // them to a PS row; always insert so the offsetting mirror can be attached.
       if (dedup && r._category.action !== 'transfer-mirror') {
-        const candidates = (await client.query(`
-          SELECT id, account_id, amount, currency,
-                 transaction_date::text AS transaction_date,
-                 description1 AS description
-          FROM transactions
-          WHERE source = 'pocketsmith'
-            AND account_id = $1
-            AND currency = $2
-            AND bank_feed_external_id IS NULL
-            AND transaction_date BETWEEN $3::date - 1 AND $3::date + 1
-        `, [r.fin_account_id, r.currency, r.transaction_date])).rows;
+        if (r.staging_source === 'manual') {
+          // CR036: a manual statement upload must import ONLY rows not already
+          // present. Unlike the live-feed path (PS-only dedup), match against the
+          // WHOLE ledger for this account so overlap with rows the feed delivered
+          // before it went stale — or a prior upload — does not duplicate.
+          const candidates = (await client.query(`
+            SELECT id, account_id, amount, currency,
+                   transaction_date::text AS transaction_date,
+                   description1 AS description, source, bank_feed_external_id
+            FROM transactions
+            WHERE account_id = $1
+              AND currency = $2
+              AND transaction_date BETWEEN $3::date - 1 AND $3::date + 1
+          `, [r.fin_account_id, r.currency, r.transaction_date])).rows;
 
-        const match = findPsMatch(
-          { account_id: r.fin_account_id, amount: r.amount, currency: r.currency, transaction_date: r.transaction_date, description: r.description },
-          candidates
-        );
-        if (match) matchedTxId = match.id;
+          const match = findPsMatch(
+            { account_id: r.fin_account_id, amount: r.amount, currency: r.currency, transaction_date: r.transaction_date, description: r.description },
+            candidates
+          );
+          if (match) {
+            matchedTxId = match.id;
+            // Preserve CR022 linking for an un-stamped PS row (lets a later feed
+            // re-delivery dedup against it). Any other match — already-fed row,
+            // prior manual row, hand entry — is a pure duplicate: skip it.
+            matchAction = (match.source === 'pocketsmith' && !match.bank_feed_external_id) ? 'link' : 'skip';
+          }
+        } else {
+          // Live-feed path — unchanged: link only to an un-stamped PS twin.
+          const candidates = (await client.query(`
+            SELECT id, account_id, amount, currency,
+                   transaction_date::text AS transaction_date,
+                   description1 AS description
+            FROM transactions
+            WHERE source = 'pocketsmith'
+              AND account_id = $1
+              AND currency = $2
+              AND bank_feed_external_id IS NULL
+              AND transaction_date BETWEEN $3::date - 1 AND $3::date + 1
+          `, [r.fin_account_id, r.currency, r.transaction_date])).rows;
+
+          const match = findPsMatch(
+            { account_id: r.fin_account_id, amount: r.amount, currency: r.currency, transaction_date: r.transaction_date, description: r.description },
+            candidates
+          );
+          if (match) { matchedTxId = match.id; matchAction = 'link'; }
+        }
       }
 
-      if (matchedTxId) {
+      if (matchAction === 'skip') {
+        // Duplicate of an existing ledger row — account for the staging row
+        // without inserting a second copy or touching the existing row.
+        await client.query(
+          `UPDATE bankfeed_staging SET promoted_transaction_id = $2 WHERE id = $1`,
+          [r.id, matchedTxId]
+        );
+        skippedDup++;
+      } else if (matchAction === 'link') {
         // LINK: stamp the bank-feed external id onto the existing PS row.
         // NOTE: all writes use `client` (the transaction connection), never the
         // pool (staging.markPromoted), or the uncommitted INSERT below isn't
@@ -358,6 +401,7 @@ async function promote() {
     linked,
     suppressed,            // CR024 Phase 2: net-zero plumbing rows held back
     mirrored,              // CR032: auto-offset legs created for core-cash sweeps
+    skippedDup,            // CR036: manual rows deduped against the existing ledger
     skipped: 0,
     protectedCount: 0,
     mergedWithPsCount,
