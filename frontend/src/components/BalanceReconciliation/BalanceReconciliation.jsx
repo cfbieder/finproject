@@ -379,15 +379,15 @@ export default function BalanceReconciliation() {
                     onClick={() => askReconcile(a)}
                     title={isMtm ? "Post a month-end Unrealized-G/L (MTM) entry" : "Re-anchor opening_balance to the bank balance"}
                   >
-                    {reconcilingId === a.account_id ? "…" : "Reconcile to feed"}
+                    {reconcilingId === a.account_id ? "…" : "Reconcile"}
                   </button>
                   {a.feed_external_id && (
                     <button
                       className="generate-report-button recon-btn--secondary"
                       onClick={() => setUploadAccount({ external_id: a.feed_external_id, name: a.name })}
-                      title="Stale-feed fallback: upload this bank's own statement CSV to import only new rows and reconcile (CR036)"
+                      title="Upload statement — stale-feed fallback: upload this bank's own statement CSV to import only new rows and reconcile (CR036)"
                     >
-                      Upload statement
+                      Upload
                     </button>
                   )}
                 </td>
