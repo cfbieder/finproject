@@ -136,15 +136,33 @@ export default function ManualReconciliation() {
     });
   };
 
-  const doReconcile = async () => {
+  const doReconcile = async (force = false) => {
     const a = confirm?.account;
     if (!a) return;
+    setConfirm(null); // close the current dialog before the round-trip
     setReconcilingId(a.account_id);
     setMsg(null);
     try {
       // bookDate only affects MTM (the entry date + balance as-of); calibrate ignores it.
-      const body = a.reconcile_mode === "mtm" ? { dryRun: false, bookDate } : { dryRun: false };
+      const body =
+        a.reconcile_mode === "mtm" ? { dryRun: false, bookDate, force } : { dryRun: false };
       const res = await Rest.post(`/manual-calibration/reconcile/${a.account_id}`, body);
+      // Phantom-gain guard tripped and nothing booked → offer a deliberate override
+      // rather than a dead-end message (the guard usually flags an unanchored basis;
+      // only book anyway when the entered valuation is genuinely correct).
+      if (res.mode === "mtm" && res.implausible && res.applied === false && !force) {
+        setConfirm({
+          account: a,
+          force: true,
+          title: "Override safety guard?",
+          message:
+            `${a.name}: this MTM of ${fmtNum(res.mtm_amount)} is ${(res.implausible_pct * 100).toFixed(1)}% of the entered balance — ` +
+            `over the 15% phantom-gain guard, which usually means the account's basis isn't anchored.\n\n` +
+            `Only override if this valuation is correct and the change is real. Book anyway?`,
+          confirmLabel: "Book anyway (override)",
+        });
+        return;
+      }
       setMsg(
         res.mode === "mtm"
           ? `${a.name}: MTM ${fmtNum(res.mtm_amount)} dated ${res.month_end}` +
@@ -156,7 +174,6 @@ export default function ManualReconciliation() {
       setMsg(`${a.name}: reconcile failed — ${err.message}`);
     } finally {
       setReconcilingId(null);
-      setConfirm(null);
     }
   };
 
@@ -370,7 +387,7 @@ export default function ManualReconciliation() {
       <ConfirmModal
         state={confirm}
         busy={reconcilingId != null}
-        onConfirm={doReconcile}
+        onConfirm={() => doReconcile(confirm?.force || false)}
         onCancel={() => setConfirm(null)}
       />
     </section>
