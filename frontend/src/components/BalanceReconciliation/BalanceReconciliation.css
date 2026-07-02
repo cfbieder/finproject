@@ -149,13 +149,14 @@
   text-align: right;
 }
 .recon-panel .recon-actions .generate-report-button {
-  padding: 7px 14px;
-  font-size: 0.8rem;
+  padding: 5px 10px;
+  font-size: 0.72rem;
   box-shadow: none;
   margin: 0;
+  white-space: nowrap;
 }
 .recon-panel .recon-actions .generate-report-button + .generate-report-button {
-  margin-left: 8px;
+  margin-left: 6px;
 }
 .recon-panel .recon-actions .generate-report-button:not(:disabled):hover {
   transform: none;
