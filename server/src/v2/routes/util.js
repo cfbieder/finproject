@@ -19,8 +19,12 @@ const { dataPaths } = require('../../utils/dataPaths');
  *    autopilot; USD value needs checking against the statement)
  *  - staleFeeds: fed accounts whose upstream connection last synced ≥3 days
  *    ago (CR035 thresholds: amber 3–6d, red ≥7d; worstDays = the oldest)
- *  - drift: fed / manual accounts whose computed balance ≠ target (excludes
- *    manual accounts with no balance entered — nothing to act on yet)
+ *  - drift: fed CALIBRATE-mode / manual accounts whose computed balance ≠
+ *    target (excludes manual accounts with no balance entered). MTM-mode fed
+ *    accounts are deliberately NOT counted here — market drift re-accumulates
+ *    the day after a booking, so raw drift would flag them all month.
+ *  - mtmDue: fed MTM-mode accounts with no source='mtm' entry dated the last
+ *    completed month-end — the actually-actionable MTM signal.
  */
 router.get('/attention-summary', async (req, res, next) => {
   try {
@@ -44,9 +48,31 @@ router.get('/attention-summary', async (req, res, next) => {
       const t = new Date(a.feed_synced_at).getTime();
       return Number.isFinite(t) ? Math.floor((now - t) / 86400000) : null;
     };
-    const staleDays = (fedRecon.accounts || [])
+    const fedAccounts = fedRecon.accounts || [];
+    const staleDays = fedAccounts
       .map(staleDaysOf)
       .filter((d) => d != null && d >= 3);
+
+    // MTM-due: mtm-mode fed accounts missing their last-month-end booking
+    const mtmIds = fedAccounts
+      .filter((a) => a.reconcile_mode === 'mtm')
+      .map((a) => a.account_id);
+    let mtmDue = 0;
+    let monthEnd = null;
+    if (mtmIds.length > 0) {
+      const booked = await db.query(
+        `SELECT (date_trunc('month', CURRENT_DATE) - INTERVAL '1 day')::date::text AS month_end,
+                ARRAY(
+                  SELECT DISTINCT account_id FROM transactions
+                  WHERE source = 'mtm' AND account_id = ANY($1::int[])
+                    AND transaction_date = (date_trunc('month', CURRENT_DATE) - INTERVAL '1 day')::date
+                ) AS booked_ids`,
+        [mtmIds]
+      );
+      monthEnd = booked.rows[0].month_end;
+      const bookedIds = new Set(booked.rows[0].booked_ids.map(Number));
+      mtmDue = mtmIds.filter((id) => !bookedIds.has(Number(id))).length;
+    }
 
     res.json({
       review: { count: reviewRow.rows[0].n },
@@ -56,9 +82,10 @@ router.get('/attention-summary', async (req, res, next) => {
         worstDays: staleDays.length ? Math.max(...staleDays) : null,
       },
       drift: {
-        fed: (fedRecon.accounts || []).filter((a) => a.reconciled === false).length,
+        fed: fedAccounts.filter((a) => a.reconciled === false && a.reconcile_mode !== 'mtm').length,
         manual: (manRecon.accounts || []).filter((a) => a.reconciled === false).length,
       },
+      mtmDue: { count: mtmDue, monthEnd },
     });
   } catch (error) {
     next(error);

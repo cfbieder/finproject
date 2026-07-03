@@ -65,6 +65,15 @@ export default function AttentionStrip() {
       tone: summary.staleFeeds.worstDays >= 7 ? "alert" : "warn",
     });
   }
+  if (summary.mtmDue?.count > 0) {
+    items.push({
+      key: "mtmDue",
+      to: "/balance-calibration",
+      icon: Scale,
+      label: `MTM booking due for ${summary.mtmDue.count} account${summary.mtmDue.count === 1 ? "" : "s"}${summary.mtmDue.monthEnd ? ` (${summary.mtmDue.monthEnd})` : ""}`,
+      tone: "warn",
+    });
+  }
   if (summary.drift?.fed > 0) {
     items.push({
       key: "driftFed",
