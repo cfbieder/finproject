@@ -1293,6 +1293,7 @@ export default function RefreshPS() {
                       }
                       onCategoriesChange={handleCategoryChange}
                       categoryGroupOptions={[]}
+                      autoFocusFilter
                     />
                   ) : (
                     <p className="trans-budget-edit-modal__count">

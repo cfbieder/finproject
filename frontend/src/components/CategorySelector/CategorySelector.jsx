@@ -111,6 +111,7 @@ function groupModifier(value) {
  * @param {boolean}  [props.multiSelect]       – Always-on multi-select with shift-click range
  * @param {string}   [props.id]                – Root element ID
  * @param {string}   [props.className]         – Additional CSS class
+ * @param {boolean}  [props.autoFocusFilter]   – Focus the filter input on mount (use only in modal contexts)
  */
 export default function CategorySelector({
   plTree = [],
@@ -120,6 +121,7 @@ export default function CategorySelector({
   multiSelect = false,
   id = "category-selector",
   className = "",
+  autoFocusFilter = false,
 }) {
   const [filterText, setFilterText] = useState("");
   const lastClickedRef = useRef(null);
@@ -232,6 +234,7 @@ export default function CategorySelector({
           value={filterText}
           onChange={(e) => setFilterText(e.target.value)}
           aria-label="Filter categories"
+          autoFocus={autoFocusFilter}
         />
         {filterText && (
           <button
