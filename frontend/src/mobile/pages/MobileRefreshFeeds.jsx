@@ -6,10 +6,10 @@
  * times, and the imported transactions waiting for review (read-only list —
  * the refresh endpoint returns counts only, so the list is the review queue,
  * which every imported row enters as accepted=FALSE). Categorizing and
- * accepting stays on the desktop "Refresh Feeds" page (/refresh-ps) — that
+ * accepting stays on the desktop "Refresh Feeds" page (/refresh-feeds) — that
  * workflow is modal-heavy and a poor fit for a small screen.
  *
- * Endpoints (verified against pages/RefreshPS.jsx):
+ * Endpoints (verified against pages/RefreshFeeds.jsx):
  *  - POST /api/v2/ingest-bank-feed/refresh { sinceDays }
  *      → { ingest: { staged }, sync: { inserted, linked, ignoredAccounts } }
  *  - GET  /api/v2/util/appdata → records carrying lastIngest / lastRefresh

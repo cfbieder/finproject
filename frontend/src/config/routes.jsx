@@ -56,7 +56,7 @@ const FCReview = lazy(() => import("../pages/FCReview"));
 const FCScenarios = lazy(() => import("../pages/FCScenarios"));
 const FCSettings = lazy(() => import("../pages/FCSettings"));
 const ProgramSettings = lazy(() => import("../pages/ProgramSettings"));
-const RefreshPS = lazy(() => import("../pages/RefreshPS"));
+const RefreshFeeds = lazy(() => import("../pages/RefreshFeeds"));
 const TransActual = lazy(() => import("../pages/TransActual"));
 const TransBudget = lazy(() => import("../pages/TransBudget"));
 const TransferAnalysis = lazy(() => import("../pages/TransferAnalysis"));
@@ -128,11 +128,11 @@ export const routes = [
 
   // Transactions
   {
-    path: "/refresh-ps",
-    component: RefreshPS,
+    path: "/refresh-feeds",
+    component: RefreshFeeds,
     label: "Refresh Feeds",
     category: "Transactions",
-    description: "Refresh and review PocketSmith + bank-feed transactions",
+    description: "Refresh and review bank-feed transactions",
     icon: RefreshCw,
   },
   {
@@ -413,6 +413,9 @@ export const routes = [
     category: "Settings",
     description: "Non-functional mockup of the proposed new look: sidebar nav, dark mode, command palette, mobile view",
     icon: Palette,
+    // Dev artifact from the CR026 design phase — route stays reachable by URL,
+    // but it has no place in the user-facing nav.
+    showInNav: false,
   },
 ];
 
@@ -433,7 +436,11 @@ export function getCategoryPath(categoryName) {
  * Returns routes for a given category name.
  */
 export function getRoutesByCategory(categoryName) {
-  return routes.filter((r) => r.category === categoryName);
+  // Nav-facing: hidden routes (showInNav: false) stay reachable by URL but
+  // never appear in menus, landing pages, or the Home features grid.
+  return routes.filter(
+    (r) => r.category === categoryName && r.showInNav !== false
+  );
 }
 
 /**

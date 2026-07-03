@@ -9,6 +9,7 @@ import {
   LineChart,
   BookOpen,
   RefreshCw,
+  Scale,
   Loader2,
 } from "lucide-react";
 import { useOverview, formatOverviewKpi } from "../hooks/useOverview.js";
@@ -22,6 +23,7 @@ const CARDS = [
   { to: "/m/budget-realization", label: "Budget Realization", icon: Target },
   { to: "/m/budget-graph", label: "Budget Graph", icon: BarChart3 },
   { to: "/m/refresh-feeds", label: "Refresh Feeds", icon: RefreshCw },
+  { to: "/m/reconcile", label: "Reconcile", icon: Scale },
 ];
 
 const formatKpi = formatOverviewKpi;

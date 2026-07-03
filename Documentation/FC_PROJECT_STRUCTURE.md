@@ -114,7 +114,7 @@ Detail for each page lives in its CR file (linked) — this table is a directory
 |------|------|----------|---------|
 | `/` | Home | - | Live dashboard: net-worth/cash-flow KPIs (shared `useOverview` hook, also MobileHome) + "needs attention" strip (`AttentionStrip`) + quick actions ([CR038](CRs/CR038_HOME_DASHBOARD_ATTENTION.md)) |
 | `/upload-ps` | UploadPS | Database | One-time PocketSmith CSV upload (live PS API removed — [CR030](CRs/CR030_AUTOMATED_PS_RETIREMENT.md)) |
-| `/refresh-ps` | RefreshPS | Transactions | **"Refresh Feeds"** — bank-feed review queue: refresh, tabbed review/edit, category suggestions, bulk accept, per-row kebab actions (Edit/Split/Neutralize/Transfer/Accept), group-by-account ([CR022](CRs/CR022_BANK_FEED_PARALLEL_IMPORT.md)/[CR028](CRs/CR028_SECURITIES_TRADE_NEUTRALIZATION.md)) |
+| `/refresh-feeds` | RefreshFeeds | Transactions | **"Refresh Feeds"** — bank-feed review queue: refresh, tabbed review/edit, category suggestions, bulk accept, per-row kebab actions (Edit/Split/Neutralize/Transfer/Accept), group-by-account; renamed from `/refresh-ps` in v3.0.57 (old URL redirects) ([CR022](CRs/CR022_BANK_FEED_PARALLEL_IMPORT.md)/[CR028](CRs/CR028_SECURITIES_TRADE_NEUTRALIZATION.md)) |
 | `/backup-database` | BackupDatabase | Database | Download DB backup (tar.gz of pg_dump) |
 | `/budget-worksheet` | BudgetWorksheetV2 | Budgeting | Two-panel worksheet: balance comparison + entry form; HierarchyFilter; math expressions; FX auto-base |
 | `/budget-realization` | BudgetRealization | Budgeting | Budget vs actual with KPI cards |
@@ -166,7 +166,7 @@ Vanilla CSS with custom-property tokens in `index.css` (colors, type, spacing, r
 
 ### Mobile / PWA Shell
 
-Separate simplified pages under `frontend/src/mobile/` at `/m/*` (not a responsive restyle). `useIsMobile`: standalone PWA, viewport ≤640, or coarse pointer ≤900 (with fine-pointer-only `forceDesktop` escape). `MobileLayout` + bottom `MobileTabBar` (Overview, Balance, Cash Flow, Budget, Graph). Pages: MobileHome (live overview), MobileBalance, MobileCashFlow, MobileBudgetRealization, MobileBudgetGraph, MobileRefreshFeeds (refresh + summary + read-only list of imported/pending-review transactions, v3.0.35), MobileBalanceTrends, MobileLedger (read-only; running balance still seeds at 0 — Known Issue #5). All consume existing v2 endpoints.
+Separate simplified pages under `frontend/src/mobile/` at `/m/*` (not a responsive restyle). `useIsMobile`: standalone PWA, viewport ≤640, or coarse pointer ≤900 (with fine-pointer-only `forceDesktop` escape). `MobileLayout` + bottom `MobileTabBar` (Overview, Balance, Cash Flow, Budget, Graph). Pages: MobileHome (live overview), MobileBalance, MobileCashFlow, MobileBudgetRealization, MobileBudgetGraph, MobileRefreshFeeds (refresh + summary + read-only list of imported/pending-review transactions, v3.0.35), MobileReconcile (`/m/reconcile` — fed drift/stale + manual drift, tap-to-reconcile with two-tap confirm, MTM books last month-end; CR038 P4, v3.0.57), MobileBalanceTrends, MobileLedger (read-only; running balance still seeds at 0 — Known Issue #5). All consume existing v2 endpoints.
 
 ---
 

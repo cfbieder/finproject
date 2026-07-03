@@ -249,7 +249,7 @@ export const ACTUAL_CONFIG = {
   logPrefix: "TransActual",
 };
 
-// ---------- Review Config (RefreshPS new-transaction review) ----------
+// ---------- Review Config (RefreshFeeds new-transaction review) ----------
 
 export const REVIEW_CONFIG = {
   endpoint: "/api/v2/transactions",

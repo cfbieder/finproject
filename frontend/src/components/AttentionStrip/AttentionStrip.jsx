@@ -41,7 +41,7 @@ export default function AttentionStrip() {
   if (summary.review?.count > 0) {
     items.push({
       key: "review",
-      to: "/refresh-ps",
+      to: "/refresh-feeds",
       icon: Inbox,
       label: `${summary.review.count} transaction${summary.review.count === 1 ? "" : "s"} to review`,
       tone: "info",
@@ -50,7 +50,7 @@ export default function AttentionStrip() {
   if (summary.verifyUsd?.count > 0) {
     items.push({
       key: "verifyUsd",
-      to: "/refresh-ps",
+      to: "/refresh-feeds",
       icon: BadgeDollarSign,
       label: `${summary.verifyUsd.count} wire-transfer row${summary.verifyUsd.count === 1 ? "" : "s"} — verify USD amount`,
       tone: "warn",

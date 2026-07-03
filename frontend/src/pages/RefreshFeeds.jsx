@@ -1,7 +1,8 @@
 /*************************************************************
- * RefreshPS.jsx
+ * RefreshFeeds.jsx (formerly RefreshPS.jsx — renamed along with the
+ * /refresh-feeds route once the page became feeds-only; the automated
+ * PocketSmith API refresh was removed in CR030, /refresh-ps redirects here.)
  * Page for refreshing bank-feed data and reviewing/accepting staged transactions.
- * (The automated PocketSmith API refresh was removed in CR030.)
  *
  *************************************************************/
 
@@ -18,11 +19,11 @@ import { AccountPicker, buildHierarchyOptions } from "../components/AccountPicke
 import { useCoa } from "../hooks/useCoa.js";
 import "./PageLayout.css";
 import EmptyState from "../components/EmptyState.jsx";
-import "./RefreshPS.css";
+import "./RefreshFeeds.css";
 
 const reviewConfig = REVIEW_CONFIG;
 
-export default function RefreshPS() {
+export default function RefreshFeeds() {
   const { showSuccess, showError: showErrorToast } = useToast();
   const [lastIngestStatus, setLastIngestStatus] = useState(null);
   const [lastRefreshStatus, setLastRefreshStatus] = useState(null);
@@ -129,13 +130,13 @@ export default function RefreshPS() {
         type: "info",
         message:
           count !== null
-            ? `PS records in database: ${count}`
-            : "PS record count unavailable.",
+            ? `Legacy PocketSmith records: ${count}`
+            : "Legacy PocketSmith record count unavailable.",
       });
     } catch (countError) {
       setPsDataCountStatus({
         type: "error",
-        message: countError?.message ?? "Unable to load PS record count.",
+        message: countError?.message ?? "Unable to load legacy PocketSmith record count.",
       });
     }
   }, []);
