@@ -112,7 +112,7 @@ Detail for each page lives in its CR file (linked) — this table is a directory
 
 | Path | Page | Category | Summary |
 |------|------|----------|---------|
-| `/` | Home | - | Dashboard with quick actions |
+| `/` | Home | - | Live dashboard: net-worth/cash-flow KPIs (shared `useOverview` hook, also MobileHome) + "needs attention" strip (`AttentionStrip`) + quick actions ([CR038](CRs/CR038_HOME_DASHBOARD_ATTENTION.md)) |
 | `/upload-ps` | UploadPS | Database | One-time PocketSmith CSV upload (live PS API removed — [CR030](CRs/CR030_AUTOMATED_PS_RETIREMENT.md)) |
 | `/refresh-ps` | RefreshPS | Transactions | **"Refresh Feeds"** — bank-feed review queue: refresh, tabbed review/edit, category suggestions, bulk accept, per-row kebab actions (Edit/Split/Neutralize/Transfer/Accept), group-by-account ([CR022](CRs/CR022_BANK_FEED_PARALLEL_IMPORT.md)/[CR028](CRs/CR028_SECURITIES_TRADE_NEUTRALIZATION.md)) |
 | `/backup-database` | BackupDatabase | Database | Download DB backup (tar.gz of pg_dump) |
@@ -155,7 +155,7 @@ Detail for each page lives in its CR file (linked) — this table is a directory
 
 ### State, Patterns, Shared Components
 
-- **Context:** `ToastContext`, `ForecastContext`; page-level `useState` otherwise. Shared hooks: `useAPI`, `useCoa` (COA + derived maps — currently refetches per consumer, caching is backlogged), `useFormState`, `useModal`; feature hooks for CRUD+toasts.
+- **Context:** `ToastContext`, `ForecastContext`; page-level `useState` otherwise. Shared hooks: `useAPI`, `useCoa` (COA + derived maps — currently refetches per consumer, caching is backlogged), `useOverview` (Home/MobileHome KPI data, CR038), `useFormState`, `useModal`; feature hooks for CRUD+toasts.
 - **Shared selectors:** `HierarchyFilter` (two-stage group pills + checklist, right-click solo, opt-in `singleSelect`), `CategorySelector`, `AccountSelector`, `PeriodSelector` (presets + opt-in `enableYearRange`), `MonthYearPicker`, `PeriodCountSelector`, `KpiCards`, `ConfirmModal`, `MtmDateControl`.
 - **Patterns:** lazy routes (`React.lazy`+Suspense), feature modules under `features/`, toasts on all CRUD, collapsible filter panels, `.page-shell` page width wrapper.
 - `utils/periodHelpers.js` — shared period-end series engine (Month/Quarter/Year, partial-period `(MTD/QTD/YTD)` handling) used by Balance Trends / BS Periods / Balance Chart / Cash Flow Periods.
@@ -204,7 +204,7 @@ All mounted at `/api/v2` (nginx rewrites legacy `/api/*`). Behavioural detail in
 
 **AI Review (`/ai-review`):** async create (202 + background gateway call to local `ocr-llm`, task `finance_plan_review`) · `GET /:reviewId/status` poll · follow-up message · per-scenario list · get/delete · `POST /apply` ([CR006](CRs/CR006_AI_REVIEW.md)).
 
-**Utility (`/util`):** appdata get/post · exchange-rates/currencies · COA read+add/update/delete · `POST /backup-database` (execFile pg_dump → tar.gz download).
+**Utility (`/util`):** appdata get/post · exchange-rates/currencies · COA read+add/update/delete · `POST /backup-database` (execFile pg_dump → tar.gz download) · `GET /attention-summary` (Home strip counts: unreviewed tx, KI#7 verify-USD rows, stale feeds, fed+manual drift — [CR038](CRs/CR038_HOME_DASHBOARD_ATTENTION.md)).
 
 ### Repositories
 

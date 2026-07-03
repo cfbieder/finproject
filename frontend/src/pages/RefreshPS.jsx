@@ -6,6 +6,7 @@
  *************************************************************/
 
 import { useCallback, useEffect, useState } from "react";
+import { Link } from "react-router-dom";
 import UploadFeedback from "../features/Database/UploadFeedback.jsx";
 import { useToast } from "../contexts";
 import Rest from "../js/rest.js";
@@ -924,6 +925,12 @@ export default function RefreshPS() {
               ingestStatus={null}
             />
           </ul>
+          {refreshStatus?.type === "success" && (
+            <div className="refresh-next-step">
+              Next: review the imported rows below, then{" "}
+              <Link to="/balance-calibration">reconcile balances →</Link>
+            </div>
+          )}
           <div className="refresh-ps-toolbar__tabs">
             <button
               type="button"

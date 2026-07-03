@@ -10,6 +10,62 @@ const db = require('../db');
 const { dataPaths } = require('../../utils/dataPaths');
 
 /**
+ * GET /api/v2/util/attention-summary  (CR038 P2)
+ * The "needs attention" counts for the Home dashboard strip — composition of
+ * signals that already exist, one cheap round trip for the frontend:
+ *  - review: transactions awaiting review (accepted IS NOT TRUE)
+ *  - verifyUsd: KI#7 guard — pending 'ADJUST WIRE TRANSFER' rows in USD
+ *    (mislabeled foreign-dividend conversions that must not be accepted on
+ *    autopilot; USD value needs checking against the statement)
+ *  - staleFeeds: fed accounts whose upstream connection last synced ≥3 days
+ *    ago (CR035 thresholds: amber 3–6d, red ≥7d; worstDays = the oldest)
+ *  - drift: fed / manual accounts whose computed balance ≠ target (excludes
+ *    manual accounts with no balance entered — nothing to act on yet)
+ */
+router.get('/attention-summary', async (req, res, next) => {
+  try {
+    const bankFeedRecon = require('../repositories/bankFeedReconciliation');
+    const manualRecon = require('../repositories/manualReconciliation');
+
+    const [reviewRow, verifyRow, fedRecon, manRecon] = await Promise.all([
+      db.query(`SELECT COUNT(*)::int AS n FROM transactions WHERE accepted IS NOT TRUE`),
+      db.query(`
+        SELECT COUNT(*)::int AS n FROM transactions
+        WHERE accepted IS NOT TRUE AND currency = 'USD'
+          AND description1 ILIKE 'ADJUST WIRE TRANSFER%'
+      `),
+      bankFeedRecon.balanceReconcile({}),
+      manualRecon.manualBalanceReconcile({}),
+    ]);
+
+    const now = Date.now();
+    const staleDaysOf = (a) => {
+      if (!a.feed_synced_at) return null;
+      const t = new Date(a.feed_synced_at).getTime();
+      return Number.isFinite(t) ? Math.floor((now - t) / 86400000) : null;
+    };
+    const staleDays = (fedRecon.accounts || [])
+      .map(staleDaysOf)
+      .filter((d) => d != null && d >= 3);
+
+    res.json({
+      review: { count: reviewRow.rows[0].n },
+      verifyUsd: { count: verifyRow.rows[0].n },
+      staleFeeds: {
+        count: staleDays.length,
+        worstDays: staleDays.length ? Math.max(...staleDays) : null,
+      },
+      drift: {
+        fed: (fedRecon.accounts || []).filter((a) => a.reconciled === false).length,
+        manual: (manRecon.accounts || []).filter((a) => a.reconciled === false).length,
+      },
+    });
+  } catch (error) {
+    next(error);
+  }
+});
+
+/**
  * GET /api/v2/util/currencies
  * Returns list of unique currencies from transactions
  */

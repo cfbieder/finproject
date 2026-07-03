@@ -323,3 +323,15 @@
     padding: 0.5rem 0.85rem;
   }
 }
+
+/* CR038 P3 — next-step prompt after a successful feed refresh */
+.refresh-next-step {
+  margin: 0.25rem 0 0.5rem;
+  font-size: 0.875rem;
+  color: var(--ink-secondary);
+}
+
+.refresh-next-step a {
+  color: var(--primary);
+  font-weight: var(--font-weight-medium);
+}

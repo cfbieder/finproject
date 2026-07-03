@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { Link } from "react-router-dom";
 import Rest from "../../js/rest.js";
 import ConfirmModal from "../ConfirmModal/ConfirmModal.jsx";
 import ManualStatementUpload from "../ManualStatementUpload/ManualStatementUpload.jsx";
@@ -397,6 +398,11 @@ export default function BalanceReconciliation() {
         </tbody>
       </table>
       </div>
+
+      <p className="recon-next-step">
+        Accounts without a feed are reconciled on{" "}
+        <Link to="/manual-calibration">Manual Calibration →</Link>
+      </p>
 
       <ConfirmModal
         state={confirm}

@@ -175,3 +175,15 @@
   background: var(--surface-hover, #eef2f7);
   border-color: var(--primary, #567856);
 }
+
+/* CR038 P3 — pointer to the non-fed twin page */
+.recon-panel .recon-next-step {
+  margin: 0.5rem 0 0;
+  font-size: 0.85rem;
+  color: var(--ink-secondary);
+}
+
+.recon-panel .recon-next-step a {
+  color: var(--primary);
+  font-weight: var(--font-weight-medium);
+}

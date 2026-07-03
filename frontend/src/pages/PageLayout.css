@@ -2033,6 +2033,85 @@
   padding: 2rem 0 1rem;
 }
 
+/* Home live-overview KPIs (CR038 P1 — desktop twin of the mobile m-kpi row) */
+.home-kpis {
+  display: grid;
+  grid-template-columns: 1.6fr repeat(3, 1fr);
+  gap: var(--space-md);
+  margin-bottom: var(--space-lg);
+}
+
+.home-kpi {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: var(--space-md) var(--space-lg);
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-soft);
+}
+
+.home-kpi--hero {
+  background: var(--primary-subtle);
+  border-color: var(--primary-lighter);
+}
+
+.home-kpi__label {
+  font-size: 0.78rem;
+  font-weight: var(--font-weight-semibold);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--ink-secondary);
+}
+
+.home-kpi__value {
+  font-size: 1.6rem;
+  font-weight: var(--font-weight-bold);
+  color: var(--ink);
+  font-variant-numeric: tabular-nums;
+}
+
+.home-kpi--hero .home-kpi__value {
+  font-size: 2rem;
+}
+
+.home-kpi__value--positive {
+  color: var(--success-strong);
+}
+
+.home-kpi__value--negative {
+  color: var(--danger-strong);
+}
+
+.home-kpi__sub {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 0.82rem;
+  font-weight: var(--font-weight-medium);
+}
+
+.home-kpi__sub--up {
+  color: var(--success-strong);
+}
+
+.home-kpi__sub--down {
+  color: var(--danger-strong);
+}
+
+@media (max-width: 1080px) {
+  .home-kpis {
+    grid-template-columns: 1fr 1fr;
+  }
+}
+
+@media (max-width: 640px) {
+  .home-kpis {
+    grid-template-columns: 1fr;
+  }
+}
+
 .home-header__title {
   font-size: 2.75rem;
   font-weight: 700;

@@ -8,7 +8,11 @@ import {
   LineChart,
   Receipt,
   ArrowRight,
+  TrendingUp,
+  TrendingDown,
 } from "lucide-react";
+import { useOverview, formatOverviewKpi } from "../hooks/useOverview.js";
+import AttentionStrip from "../components/AttentionStrip/AttentionStrip.jsx";
 import "./PageLayout.css";
 
 const quickActions = [
@@ -52,6 +56,8 @@ const quickActions = [
 
 export default function Home() {
   const categories = getCategories();
+  const { data: overview, isLoading: overviewLoading } = useOverview();
+  const deltaUp = (overview?.delta ?? 0) >= 0;
 
   return (
     <div className="home-container">
@@ -61,6 +67,62 @@ export default function Home() {
           Manage your finances with clarity and precision
         </p>
       </header>
+
+      {/* Live overview (CR038 P1 — same numbers as the mobile home) */}
+      <section className="home-section" aria-label="Overview">
+        <div className="home-kpis">
+          <div className="home-kpi home-kpi--hero">
+            <span className="home-kpi__label">Net Worth</span>
+            <span
+              className={
+                "home-kpi__value" +
+                ((overview?.netWorth ?? 0) < 0 ? " home-kpi__value--negative" : "")
+              }
+            >
+              {overviewLoading && !overview ? "…" : formatOverviewKpi(overview?.netWorth)}
+            </span>
+            {overview && (
+              <span className={"home-kpi__sub home-kpi__sub--" + (deltaUp ? "up" : "down")}>
+                {deltaUp ? <TrendingUp size={14} /> : <TrendingDown size={14} />}
+                {formatOverviewKpi(Math.abs(overview.delta))} vs last month
+              </span>
+            )}
+          </div>
+          <div className="home-kpi">
+            <span className="home-kpi__label">Net Cash Flow (this month)</span>
+            <span
+              className={
+                "home-kpi__value" +
+                ((overview?.net ?? 0) < 0
+                  ? " home-kpi__value--negative"
+                  : " home-kpi__value--positive")
+              }
+            >
+              {overviewLoading && !overview ? "…" : formatOverviewKpi(overview?.net)}
+            </span>
+          </div>
+          <div className="home-kpi">
+            <span className="home-kpi__label">Income (this month)</span>
+            <span className="home-kpi__value home-kpi__value--positive">
+              {overviewLoading && !overview ? "…" : formatOverviewKpi(overview?.income)}
+            </span>
+          </div>
+          <div className="home-kpi">
+            <span className="home-kpi__label">Expenses (this month)</span>
+            <span
+              className={
+                "home-kpi__value" +
+                ((overview?.expense ?? 0) < 0 ? " home-kpi__value--negative" : "")
+              }
+            >
+              {overviewLoading && !overview ? "…" : formatOverviewKpi(overview?.expense)}
+            </span>
+          </div>
+        </div>
+      </section>
+
+      {/* Needs attention (CR038 P2) */}
+      <AttentionStrip />
 
       <section className="home-section">
         <h2 className="home-section__title">Quick Actions</h2>

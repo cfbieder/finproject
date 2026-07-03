@@ -1,6 +1,6 @@
 # CR038 — Home Dashboard & Weekly-Loop Attention Surface
 
-**Status:** PLANNED (scoped 2026-07-03 from the design review; not started)
+**Status:** P1–P3 RELEASED v3.0.55 (2026-07-03) — frontend build + suites green, attention endpoint live-verified on dev incl. a seeded stale-feed case. **Open: P4** (minimal mobile reconcile page — deferred by owner decision). No DB migration.
 **Track:** v3
 **Anchor in FC_NEXT_STEPS.md:** [cr038](../FC_NEXT_STEPS.md#cr038)
 
@@ -39,8 +39,18 @@ Mobile currently can't finish the weekly loop (Refresh Feeds exists; no calibrat
 - No new persistent state; everything derives from existing tables/endpoints at read time.
 
 ## Open decisions (owner)
-1. Attention strip placement: Home-only (recommended — cheapest, visited daily) vs. also a `TopStrip` badge visible on every page.
-2. P4 mobile reconcile: in-scope or deferred.
+1. Attention strip placement: Home-only (recommended — cheapest, visited daily) vs. also a `TopStrip` badge visible on every page. **Settled 2026-07-03: Home-only** (owner accepted recommendation).
+2. P4 mobile reconcile: in-scope or deferred. **Settled 2026-07-03: deferred** — P4 remains open as a follow-up.
+
+## As-built (2026-07-03)
+
+- **P1 — shared overview + desktop dashboard.** New `frontend/src/hooks/useOverview.js` — the MobileHome fetch/transform (net worth today via `fetchBalanceReportV2`, delta vs prior month-end, this-month income/expense/net via `fetchCashFlowReportV2` with transfers excluded and unrealized G/L off) extracted verbatim, plus the shared accountant-style `formatOverviewKpi`. **`MobileHome.jsx` now consumes the hook** (rendering unchanged — first concrete slice of the mobile-dedup backlog theme); `pages/Home.jsx` gains a 4-card KPI row (hero Net Worth + delta, Net Cash Flow / Income / Expenses this month; `.home-kpi*` in `PageLayout.css`, responsive 4→2→1 columns, theme tokens only). Quick Actions and the All Features grid remain below.
+- **P2 — attention endpoint + strip.** New `GET /api/v2/util/attention-summary` (`routes/util.js`): `review.count` = `transactions WHERE accepted IS NOT TRUE`; `verifyUsd.count` = pending `ADJUST WIRE TRANSFER%` rows in USD (the KI#7 guard — 0 today, fires on next occurrence); `staleFeeds` = fed accounts whose `feed_synced_at` is ≥3 days old (CR035 thresholds; `worstDays` = oldest) via `bankFeedReconciliation.balanceReconcile`; `drift.fed`/`drift.manual` = `reconciled === false` counts from both recon repos (manual **pending** rows excluded — no balance entered means nothing actionable). New `components/AttentionStrip/` renders pills (info/warn/alert tones; red at ≥7d stale) each linking to its clearing page (`/refresh-ps`, `/balance-calibration`, `/manual-calibration`); quiet "All clear" line when every count is zero; renders nothing on fetch failure (informational, never blocking). Mounted on Home only (decision #1).
+- **P3 — next-step prompts.** `RefreshPS.jsx`: after a successful feed refresh, a line under the status feedback — *"Next: review the imported rows below, then reconcile balances →"* (links `/balance-calibration`). `BalanceReconciliation.jsx`: footer pointer *"Accounts without a feed are reconciled on Manual Calibration →"*. Copy-level only, per the CR.
+- **Verified:** frontend lint clean on all new files (the pre-existing `MobileHome` destructure lint error is old debt), Vitest 103 green, `vite build` green; endpoint live on dev (`fin-server-dev` image rebuilt — see the CR037 note: the dev container does not hot-reload): real data returned `review 338 / drift.fed 10`, and the stale-feed path proven by seeding one `source_synced_at` 10 days back → `{count:1, worstDays:10}`, then reverted. Dev's `source_synced_at` is otherwise all-NULL (dev doesn't poll the feed service), so `staleFeeds 0` on dev is a data artifact; prod has real values (CR035).
+- **Caveats/notes:** stale count is per *account*, not per institution — several accounts on one dead connection each count (label says "accounts", so truthful). No backend route test added for the endpoint (it composes two already-tested repos + two COUNT queries) — route-level coverage remains a backlog item.
+
+**Deploy note:** no DB migration, no flags; backend (new endpoint) + frontend rebuild. Deploy backend first or together (the strip fail-opens if the endpoint 404s).
 
 ## Verification
 - Live check on dev: seed a stale feed + unaccepted rows + a drifting account; all three counts render and link correctly; empty state ("all clear") when clean.

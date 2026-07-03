@@ -1,4 +1,3 @@
-import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import {
   Wallet,
@@ -12,8 +11,7 @@ import {
   RefreshCw,
   Loader2,
 } from "lucide-react";
-import Rest from "../js/rest.js";
-import { getPreset } from "./periodPresets.js";
+import { useOverview, formatOverviewKpi } from "../hooks/useOverview.js";
 import { setForceDesktop, isCoarsePointer } from "./useIsMobile";
 
 const CARDS = [
@@ -26,82 +24,10 @@ const CARDS = [
   { to: "/m/refresh-feeds", label: "Refresh Feeds", icon: RefreshCw },
 ];
 
-const currencyFormatter = new Intl.NumberFormat("en-US", {
-  style: "currency",
-  currency: "USD",
-  minimumFractionDigits: 0,
-  maximumFractionDigits: 0,
-});
-
-const formatKpi = (value) => {
-  const n = value ?? 0;
-  return n < 0
-    ? `(${currencyFormatter.format(Math.abs(n))})`
-    : currencyFormatter.format(n);
-};
-
-const pad = (v) => String(v).padStart(2, "0");
-const fmtDate = (d) => `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
-
-const findTopLevel = (nodes, name) => {
-  if (!Array.isArray(nodes)) return null;
-  return nodes.find((n) => (n.name ?? "").toLowerCase() === name.toLowerCase()) || null;
-};
-
-const netWorthOf = (report) => {
-  const assets = findTopLevel(report, "assets")?.totalUSD ?? 0;
-  const liabilities = findTopLevel(report, "liabilities")?.totalUSD ?? 0;
-  return assets + liabilities; // liabilities stored negative
-};
+const formatKpi = formatOverviewKpi;
 
 export default function MobileHome() {
-  const [data, setData] = useState(null); // { netWorth, delta, income, expense, net }
-  const [isLoading, setIsLoading] = useState(true);
-  const [failed, setFailed] = useState(false);
-
-  useEffect(() => {
-    let cancelled = false;
-    const now = new Date();
-    const today = fmtDate(now);
-    const priorMonthEnd = fmtDate(new Date(now.getFullYear(), now.getMonth(), 0));
-    const thisMonth = getPreset("this-month").range();
-
-    setIsLoading(true);
-    setFailed(false);
-    Promise.all([
-      Rest.fetchBalanceReportV2(today),
-      Rest.fetchBalanceReportV2(priorMonthEnd),
-      Rest.fetchCashFlowReportV2({
-        fromDate: thisMonth.fromDate,
-        toDate: thisMonth.toDate,
-        transfers: "exclude",
-        includeUnrealizedGL: false,
-      }),
-    ])
-      .then(([balNow, balPrior, cf]) => {
-        if (cancelled) return;
-        const income = findTopLevel(cf, "income")?.total ?? 0;
-        const expense =
-          (findTopLevel(cf, "expense") || findTopLevel(cf, "expenses"))?.total ?? 0;
-        const netWorth = netWorthOf(balNow);
-        setData({
-          netWorth,
-          delta: netWorth - netWorthOf(balPrior),
-          income,
-          expense,
-          net: income + expense,
-        });
-      })
-      .catch(() => {
-        if (!cancelled) setFailed(true);
-      })
-      .finally(() => {
-        if (!cancelled) setIsLoading(false);
-      });
-    return () => {
-      cancelled = true;
-    };
-  }, []);
+  const { data, isLoading, failed } = useOverview();
 
   const handleSwitchToDesktop = () => {
     setForceDesktop(true);

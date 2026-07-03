@@ -1,0 +1,74 @@
+/* AttentionStrip (CR038 P2) — Home "needs attention" pills. Theme tokens only. */
+
+.attention-strip {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: var(--space-md);
+  padding: var(--space-sm) var(--space-md);
+  margin-bottom: var(--space-xl);
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-soft);
+}
+
+.attention-strip--clear {
+  color: var(--success-strong);
+  font-size: 0.875rem;
+  gap: var(--space-xs);
+}
+
+.attention-strip__title {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 0.8rem;
+  font-weight: var(--font-weight-semibold);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--ink-secondary);
+  white-space: nowrap;
+}
+
+.attention-strip__items {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-xs);
+}
+
+.attention-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 12px;
+  border-radius: var(--radius-full);
+  font-size: 0.82rem;
+  font-weight: var(--font-weight-medium);
+  text-decoration: none;
+  border: 1px solid transparent;
+  transition: var(--transition-fast);
+}
+
+.attention-pill--info {
+  color: var(--info-strong);
+  background: var(--info-subtle);
+  border-color: var(--info-border);
+}
+
+.attention-pill--warn {
+  color: var(--warning-strong);
+  background: var(--warning-subtle);
+  border-color: var(--warning);
+}
+
+.attention-pill--alert {
+  color: var(--danger-strong);
+  background: var(--danger-subtle);
+  border-color: var(--danger);
+}
+
+.attention-pill:hover {
+  filter: brightness(0.97);
+  text-decoration: none;
+}
