@@ -8,7 +8,7 @@ allowed-tools: Bash(git *), Bash(./Scripts/*), Bash(Scripts/*), Bash(cat *), Bas
 - Status: !`git status --short`
 - Current VERSION: !`cat VERSION`
 - Last tag: !`git describe --tags --abbrev=0 2>/dev/null || echo "none"`
-- Commits since last tag: !`git log --oneline $(git describe --tags --abbrev=0 2>/dev/null)..HEAD 2>/dev/null || git log --oneline -20`
+- Recent commits (find the last `release:`/tag entry to see what's new since): !`git log --oneline -30`
 
 ## Task
 Finalize this release end-to-end for **psproject** (Fin). Follow the project conventions in `CLAUDE.md` — there is no README.md / CHANGELOG.md at the repo root; release notes live in `Documentation/`.
@@ -22,14 +22,15 @@ Finalize this release end-to-end for **psproject** (Fin). Follow the project con
    - `./Scripts/bump-version.sh patch` (or `minor` / `major` / explicit `X.Y.Z`).
    This updates `VERSION` and `frontend/.env`. Confirm the new version with `cat VERSION`.
 
-3. **Commit, tag, push** — Stage everything, commit with `chore: release vX.Y.Z`, tag `vX.Y.Z`, push commits and tags to origin:
+3. **Commit, tag, push** — Stage the release files with explicit pathspecs (never `git add -A` / `git add .` — see the git-discipline rules in `CLAUDE.md`), commit with `release: vX.Y.Z (summary)`, tag `vX.Y.Z`, push commits and tags to origin:
    ```
-   git add -A
-   git commit -m "chore: release vX.Y.Z"
+   git add VERSION frontend/.env Documentation/ <other files you changed>
+   git commit -m "release: vX.Y.Z (summary)" -- VERSION frontend/.env Documentation/ <other files>
    git tag vX.Y.Z
    git push origin HEAD
    git push origin vX.Y.Z
    ```
+   Verify with `git show HEAD --name-status` that only your files landed before pushing.
 
 4. **Deploy to prod** — Run `./Scripts/deploy-to-production.sh` from the repo root. This backs up the prod DB, rebuilds + restarts production containers, and verifies health. Watch the output and report success/failure.
 
