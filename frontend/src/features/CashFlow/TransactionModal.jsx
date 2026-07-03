@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import EmptyState from "../../components/EmptyState.jsx";
 import TransactionSummaryModal from "./TransactionSummaryModal.jsx";
+import { formatDateOnly } from "../../utils/dateHelpers.js";
 import "./TransactionModal.css";
 
 const TRANSACTION_COLUMNS = [
@@ -42,13 +43,7 @@ const getTransactionSortValue = (txn, column) => {
   }
 };
 
-const formatDate = (value) => {
-  if (!value) {
-    return "";
-  }
-  const date = new Date(value);
-  return Number.isNaN(date.getTime()) ? "" : date.toISOString().split("T")[0];
-};
+const formatDate = (value) => formatDateOnly(value);
 
 export default function TransactionModal({
   onClose,

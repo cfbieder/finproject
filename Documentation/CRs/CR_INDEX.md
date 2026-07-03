@@ -12,13 +12,13 @@ Each CR file's first line carries its status and links back to the matching anch
 
 | Status | Count | CRs |
 |--------|------:|-----|
-| COMPLETED | 26 | CR001–CR013, CR016, CR017, CR018, CR024, CR025, CR026, CR028, CR030, CR031, CR032, CR033, CR034, CR035 |
+| COMPLETED | 27 | CR001–CR013, CR016, CR017, CR018, CR024, CR025, CR026, CR028, CR030, CR031, CR032, CR033, CR034, CR035, CR037 |
 | IN-PROGRESS | 4 | CR019, CR022, CR023, CR036 |
 | OPEN | 2 | CR020, CR021 |
-| PLANNED | 2 | CR027 *(v4, umbrella)*, CR029 |
+| PLANNED | 4 | CR027 *(v4, umbrella)*, CR029, CR038, CR039 |
 | SUPERSEDED | 1 | CR014 |
 | OBSOLETE | 1 | CR015 |
-| **Total** | **34** | |
+| **Total** | **37** | |
 
 ## All CRs
 
@@ -60,3 +60,6 @@ Each CR file's first line carries its status and links back to the matching anch
 | [CR034](CR034_SECURITY_HARDENING_CI.md) | COMPLETED | v3 | Security Hardening & CI Baseline | Secrets untracked + DB password rotated, compose/ports/CORS/pg_dump hardened, fresh-install migration fix, GitHub Actions CI + secret-scan gate, docs restructure (2026-06-12). |
 | [CR035](CR035_FEED_SYNC_FRESHNESS.md) | COMPLETED | v3 | Feed Sync Freshness | Promote fintable's per-connection "⚡ Last Update" through the service → fin so recon shows true "synced N days ago" (corrects v3.0.43's fin-poll timestamp); CR021 Phase 5 slice (v3.0.44). |
 | [CR036](CR036_MANUAL_STATEMENT_UPLOAD.md) | IN-PROGRESS | v3 | Manual Statement Upload (Stale-Feed Fallback) | Upload a bank's own CSV export as `source='manual'` in the microservice; import only-new rows (any-source dedup + synthetic id) and reconcile to the stated balance; preinstalled Barclays profile (P1 shipped v3.0.45, UI polish v3.0.46–47); interactive mapper = P2. Realizes CR021 Phase 4. |
+| [CR037](CR037_CORRECTNESS_HARDENING.md) | COMPLETED | v3 | Correctness Hardening (money & date) | Silent-wrong-number batch from the 2026-07-03 design review: TZ date-pattern sweep + eslint guard, split penny-leakage residual fix, `parseCurrency` fail-loud, global error boundary, transactional forecast writes, field-whitelist validation on money-writing endpoints (v3.0.54). |
+| [CR038](CR038_HOME_DASHBOARD_ATTENTION.md) | PLANNED | v3 | Home Dashboard & Attention Surface | Desktop Home gets the MobileHome live KPIs (via a shared hook) + a "needs attention" strip (unreviewed tx / stale feeds / drift / KI#7 verify rows) + next-step prompts tying the weekly refresh→review→reconcile loop together. |
+| [CR039](CR039_FORECAST_ASSUMPTIONS_TO_DB.md) | PLANNED | v3 | Forecast Assumptions to Postgres | Retire the `FCAssump.json` dual source (race-prone merge + sync fs I/O in `routes/forecast.js`); migrate to a DB store, byte-identical API, debug-CSV writes behind a flag. **Prerequisite for CR027.** |

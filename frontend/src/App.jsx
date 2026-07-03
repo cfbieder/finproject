@@ -9,6 +9,7 @@ import {
 import { getRouterRoutes, getCategoryRoutes } from "./config/routes";
 import Layout from "./components/Layout";
 import LoadingSpinner from "./components/LoadingSpinner";
+import ErrorBoundary from "./components/ErrorBoundary";
 import useIsMobile from "./mobile/useIsMobile";
 import MobileLayout from "./mobile/MobileLayout";
 import MobileHome from "./mobile/MobileHome";
@@ -61,8 +62,9 @@ function AppShell() {
   if (isMobilePath) {
     return (
       <MobileLayout>
-        <Suspense fallback={<LoadingSpinner size="lg" label="Loading..." />}>
-          <Routes>
+        <ErrorBoundary key={location.pathname}>
+          <Suspense fallback={<LoadingSpinner size="lg" label="Loading..." />}>
+            <Routes>
             <Route path="/m" element={<MobileHome />} />
             <Route path="/m/balance" element={<MobileBalance />} />
             <Route path="/m/cash-flow" element={<MobileCashFlow />} />
@@ -73,9 +75,10 @@ function AppShell() {
             <Route path="/m/budget-graph" element={<MobileBudgetGraph />} />
             <Route path="/m/balance-trends" element={<MobileBalanceTrends />} />
             <Route path="/m/ledger" element={<MobileLedger />} />
-            <Route path="/m/refresh-feeds" element={<MobileRefreshFeeds />} />
+              <Route path="/m/refresh-feeds" element={<MobileRefreshFeeds />} />
           </Routes>
-        </Suspense>
+          </Suspense>
+        </ErrorBoundary>
       </MobileLayout>
     );
   }
@@ -85,7 +88,8 @@ function AppShell() {
 
   return (
     <Layout>
-      <Suspense fallback={<LoadingSpinner size="lg" label="Loading page..." />}>
+      <ErrorBoundary key={location.pathname}>
+        <Suspense fallback={<LoadingSpinner size="lg" label="Loading page..." />}>
         <Routes>
           {routes.map((route) => {
             const Component = route.component;
@@ -111,7 +115,8 @@ function AppShell() {
             />
           ))}
         </Routes>
-      </Suspense>
+        </Suspense>
+      </ErrorBoundary>
     </Layout>
   );
 }

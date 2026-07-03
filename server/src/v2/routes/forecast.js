@@ -230,49 +230,32 @@ router.post('/scenarios/byname/:name/copy', async (req, res, next) => {
       const db = require('../db');
       const asOfDate = `${baseYear}-12-31`;
 
-      // Get year-end balances for all accounts.
+      // Update every module's base value (book) from year-end actuals in ONE
+      // set-based statement — atomic, so a failure can't leave the copy with
+      // half its modules refreshed (CR037 P5; also removes the per-module N+1).
       // base_amount is always in USD (base_currency); local-currency balance
       // is the sum of t.amount filtered to txs in the account's currency.
-      const balances = await db.query(`
-        SELECT a.id as account_id, a.name,
-          SUM(CASE WHEN t.currency = a.currency THEN t.amount ELSE 0 END) as balance_lc,
-          SUM(t.base_amount) as balance_usd
-        FROM transactions t
-        JOIN accounts a ON t.account_id = a.id
-        WHERE t.transaction_date <= $1
-        GROUP BY a.id, a.name
-      `, [asOfDate]);
-
-      const balMap = {};
-      for (const b of balances.rows) {
-        balMap[b.account_id] = {
-          balance_usd: parseFloat(b.balance_usd) || 0,
-          balance_lc: parseFloat(b.balance_lc) || 0,
-        };
-      }
-
-      // Update each module's base value (book) from actuals.
       // market_value is left as carried over from the source — broker-reported
-      // MV cannot be derived from the ledger.
-      const modules = await db.query(
-        'SELECT id, account_id FROM forecast_modules WHERE scenario_id = $1',
-        [newScenario.id]
-      );
-
-      let updated = 0;
-      for (const mod of modules.rows) {
-        const bal = balMap[mod.account_id];
-        if (bal) {
-          await db.query(`
-            UPDATE forecast_modules
-            SET base_value = $1, base_value_usd = $2,
-                base_date = $3, updated_at = NOW()
-            WHERE id = $4
-          `, [bal.balance_lc, bal.balance_usd, `${baseYear}-12-31`, mod.id]);
-          updated++;
-        }
-      }
-      console.log(`[copy] Updated ${updated}/${modules.rows.length} modules with ${baseYear} actuals`);
+      // MV cannot be derived from the ledger. Modules whose account has no
+      // transactions keep their copied values (same as the old per-row skip).
+      const result = await db.query(`
+        UPDATE forecast_modules m
+        SET base_value = COALESCE(b.balance_lc, 0),
+            base_value_usd = COALESCE(b.balance_usd, 0),
+            base_date = $2,
+            updated_at = NOW()
+        FROM (
+          SELECT a.id AS account_id,
+            SUM(CASE WHEN t.currency = a.currency THEN t.amount ELSE 0 END) AS balance_lc,
+            SUM(t.base_amount) AS balance_usd
+          FROM transactions t
+          JOIN accounts a ON t.account_id = a.id
+          WHERE t.transaction_date <= $2
+          GROUP BY a.id
+        ) b
+        WHERE m.scenario_id = $1 AND m.account_id = b.account_id
+      `, [newScenario.id, asOfDate]);
+      console.log(`[copy] Updated ${result.rowCount} modules with ${baseYear} actuals`);
     }
 
     res.status(201).json({ success: true, data: newScenario });
@@ -635,47 +618,53 @@ router.put('/modules/:id', async (req, res, next) => {
       }
     }
 
-    // Handle embedded arrays — replace all if provided
-    if (Array.isArray(body.Invest)) {
-      await db.query('DELETE FROM forecast_module_investments WHERE module_id = $1', [id]);
-      for (const inv of body.Invest) {
-        if (inv.Date || inv.Amount !== undefined) {
-          await repo.addInvestment(id, {
-            investment_date: inv.Date,
-            amount: inv.Amount,
-            flag: inv.Flag || '',
-            note: inv.Note || '',
-            date_end: inv.DateEnd || null,
-          });
+    // Handle embedded arrays — replace all if provided. One transaction for
+    // the whole replace: a failure mid-reinsert must not leave the module's
+    // schedule wiped by the leading DELETEs (CR037 P5).
+    if (Array.isArray(body.Invest) || Array.isArray(body.Dispose) || Array.isArray(body.IncomePct)) {
+      await db.transaction(async (client) => {
+        if (Array.isArray(body.Invest)) {
+          await client.query('DELETE FROM forecast_module_investments WHERE module_id = $1', [id]);
+          for (const inv of body.Invest) {
+            if (inv.Date || inv.Amount !== undefined) {
+              await repo.addInvestment(id, {
+                investment_date: inv.Date,
+                amount: inv.Amount,
+                flag: inv.Flag || '',
+                note: inv.Note || '',
+                date_end: inv.DateEnd || null,
+              }, client);
+            }
+          }
         }
-      }
-    }
 
-    if (Array.isArray(body.Dispose)) {
-      await db.query('DELETE FROM forecast_module_disposals WHERE module_id = $1', [id]);
-      for (const disp of body.Dispose) {
-        if (disp.Date || disp.Amount !== undefined) {
-          await repo.addDisposal(id, {
-            disposal_date: disp.Date,
-            amount: disp.Amount,
-            flag: disp.Flag || '',
-            note: disp.Note || '',
-            date_end: disp.DateEnd || null,
-          });
+        if (Array.isArray(body.Dispose)) {
+          await client.query('DELETE FROM forecast_module_disposals WHERE module_id = $1', [id]);
+          for (const disp of body.Dispose) {
+            if (disp.Date || disp.Amount !== undefined) {
+              await repo.addDisposal(id, {
+                disposal_date: disp.Date,
+                amount: disp.Amount,
+                flag: disp.Flag || '',
+                note: disp.Note || '',
+                date_end: disp.DateEnd || null,
+              }, client);
+            }
+          }
         }
-      }
-    }
 
-    if (Array.isArray(body.IncomePct)) {
-      await db.query('DELETE FROM forecast_module_income_pct WHERE module_id = $1', [id]);
-      for (const pct of body.IncomePct) {
-        if (pct.Date) {
-          await repo.setIncomePct(id, {
-            effective_date: pct.Date,
-            value: pct.Amount ?? pct.Value ?? 0,
-          });
+        if (Array.isArray(body.IncomePct)) {
+          await client.query('DELETE FROM forecast_module_income_pct WHERE module_id = $1', [id]);
+          for (const pct of body.IncomePct) {
+            if (pct.Date) {
+              await repo.setIncomePct(id, {
+                effective_date: pct.Date,
+                value: pct.Amount ?? pct.Value ?? 0,
+              }, client);
+            }
+          }
         }
-      }
+      });
     }
 
     const updated = await repo.findModuleById(id);

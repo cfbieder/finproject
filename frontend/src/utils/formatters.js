@@ -137,30 +137,42 @@ export function formatCompactNumber(value, decimals = 1) {
  * Parses a currency string back to a number.
  * Handles parentheses for negative values and removes currency symbols.
  *
+ * Fails loud: unparseable or partially-numeric input returns NaN — never a
+ * silent 0, which for money entry would save a wrong value without any error
+ * (CR037 P3). Callers must Number.isNaN-check before using the result.
+ *
  * @param {string} currencyString - Currency string to parse
- * @returns {number} Parsed numeric value
+ * @returns {number} Parsed numeric value, or NaN when the input is not a
+ *   well-formed currency string
  *
  * @example
  * parseCurrency('$1,234.56');   // 1234.56
  * parseCurrency('($1,234.56)'); // -1234.56
- * parseCurrency('invalid');     // 0
+ * parseCurrency('invalid');     // NaN
+ * parseCurrency('12abc');       // NaN (no partial parses)
  */
 export function parseCurrency(currencyString) {
   if (typeof currencyString !== 'string') {
-    return 0;
+    return NaN;
   }
 
-  // Remove currency symbols and commas
-  let cleaned = currencyString.replace(/[$,]/g, '');
+  // Remove currency symbols, commas, and surrounding whitespace
+  let cleaned = currencyString.replace(/[$,]/g, '').trim();
 
-  // Handle parentheses for negative values
-  const isNegative = cleaned.includes('(') && cleaned.includes(')');
-  cleaned = cleaned.replace(/[()]/g, '');
+  // Handle parentheses for negative values (accountant style) — only a
+  // single balanced wrapping pair counts.
+  const parenMatch = cleaned.match(/^\((.*)\)$/);
+  const isNegative = parenMatch !== null;
+  if (isNegative) {
+    cleaned = parenMatch[1].trim();
+  }
+
+  // Require the whole remainder to be a plain decimal number — parseFloat's
+  // partial parses ('12abc' → 12) silently accept typos.
+  if (!/^-?\d+(\.\d+)?$/.test(cleaned)) {
+    return NaN;
+  }
 
   const parsed = parseFloat(cleaned);
-  if (isNaN(parsed)) {
-    return 0;
-  }
-
   return isNegative ? -parsed : parsed;
 }

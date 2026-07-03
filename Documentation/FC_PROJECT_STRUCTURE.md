@@ -77,7 +77,8 @@ psproject/                          # ~/Programs/fin symlinks here
 │       ├── App.jsx  main.jsx  config/routes.jsx
 │       ├── components/             # Shared UI (Layout, Sidebar, TopStrip, CommandPalette, HelpPanel,
 │       │                           #  Toast, HierarchyFilter, CategorySelector, AccountSelector,
-│       │                           #  PeriodSelector, KpiCards, ConfirmModal, MtmDateControl, …)
+│       │                           #  PeriodSelector, KpiCards, ConfirmModal, MtmDateControl,
+│       │                           #  ErrorBoundary (route-level, CR037), …)
 │       ├── contexts/  hooks/  utils/  js/   # ToastContext/ForecastContext; useAPI/useCoa/…; rest.js
 │       ├── features/               # Balances, BudgetEntry, Budgets, CashFlow, Charts,
 │       │                           #  COAManagement, Database, Forecast, Transaction
@@ -221,7 +222,7 @@ Multi-year projection engine in `server/src/services/forecast/` (`index.js` orch
 
 ### Tests
 
-226 backend Jest tests (engine, services, repositories, scripts; DB-backed suites self-seed against `DATABASE_URL`) — run `cd server && npm test`. 96 frontend Vitest helper tests — `cd frontend && npm test`. HTTP smoke: `node server/src/scripts/smoke-after-021.js`. **CI** (`.github/workflows/ci.yml`) runs the backend suite against a fresh migrations+[`ci-seed.sql`](../server/db/ci-seed.sql) Postgres, the frontend build (lint advisory until the 160-error debt clears), and a tracked-secret grep gate. Inventory: [Testing/TEST_OVERVIEW.md](Testing/TEST_OVERVIEW.md).
+247 backend Jest tests (engine, services, repositories, scripts, `v2/utils/validate`; DB-backed suites self-seed against `DATABASE_URL`) — run `cd server && npm test`. 103 frontend Vitest helper tests — `cd frontend && npm test`. HTTP smoke: `node server/src/scripts/smoke-after-021.js`. **CI** (`.github/workflows/ci.yml`) runs the backend suite against a fresh migrations+[`ci-seed.sql`](../server/db/ci-seed.sql) Postgres, the frontend build (lint advisory until the 160-error debt clears), and a tracked-secret grep gate. Inventory: [Testing/TEST_OVERVIEW.md](Testing/TEST_OVERVIEW.md).
 
 ### Operational scripts (`server/src/v2/scripts/`)
 

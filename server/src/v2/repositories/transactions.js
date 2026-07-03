@@ -449,11 +449,31 @@ async function split(id, splits) {
   const originalAmount = parseFloat(original.amount);
   const originalBaseAmount = parseFloat(original.base_amount);
 
+  // CR037 P6: the legs must redistribute the original amount, not change the
+  // account total — the UI enforces this to the cent; hold the server to it.
+  const splitSum = splits.reduce((sum, s) => sum + Number(s.amount), 0);
+  if (!Number.isFinite(splitSum) || Math.abs(splitSum - originalAmount) > 0.011) {
+    const err = new Error(
+      `splits must sum to the original amount (${originalAmount.toFixed(2)}); got ${splitSum.toFixed(2)}`
+    );
+    err.status = 400;
+    throw err;
+  }
+
+  // Distribute base_amount proportionally, then push the rounding residual
+  // into the first leg so the legs always sum exactly to the original —
+  // independent per-leg rounding can otherwise leak a cent into recon drift.
+  const baseAmounts = splits.map((s) =>
+    parseFloat((originalBaseAmount * (s.amount / originalAmount)).toFixed(2))
+  );
+  const roundedSum = baseAmounts.reduce((sum, v) => sum + v, 0);
+  const residual = parseFloat((originalBaseAmount - roundedSum).toFixed(2));
+  baseAmounts[0] = parseFloat((baseAmounts[0] + residual).toFixed(2));
+
   return db.transaction(async (client) => {
     // Update original transaction with first split
     const first = splits[0];
-    const firstRatio = first.amount / originalAmount;
-    const firstBaseAmount = parseFloat((originalBaseAmount * firstRatio).toFixed(2));
+    const firstBaseAmount = baseAmounts[0];
     const firstCategoryId = first.category_id !== undefined ? first.category_id : original.category_id;
 
     const updateSql = `
@@ -470,8 +490,7 @@ async function split(id, splits) {
     const created = [];
     for (let i = 1; i < splits.length; i++) {
       const s = splits[i];
-      const ratio = s.amount / originalAmount;
-      const baseAmount = parseFloat((originalBaseAmount * ratio).toFixed(2));
+      const baseAmount = baseAmounts[i];
       const categoryId = s.category_id !== undefined ? s.category_id : original.category_id;
 
       const insertSql = `

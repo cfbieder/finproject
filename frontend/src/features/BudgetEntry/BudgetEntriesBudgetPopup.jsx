@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import Rest from "../../js/rest.js";
+import { formatDateOnly } from "../../utils/dateHelpers.js";
 import "./BudgetEntriesBudgetPopup.css";
 
 // Utility helpers for formatting values
@@ -67,13 +68,8 @@ const buildBudgetEntryDate = (year, month, day) => {
     Date.UTC(normalizedYear, normalizedMonth, 0)
   ).getUTCDate();
   const safeDay = Math.min(normalizedDay, lastDayOfMonth);
-  const constructed = new Date(
-    Date.UTC(normalizedYear, normalizedMonth - 1, safeDay)
-  );
-  if (Number.isNaN(constructed.getTime())) {
-    return "";
-  }
-  return constructed.toISOString().split("T")[0];
+  const pad = (v) => String(v).padStart(2, "0");
+  return `${normalizedYear}-${pad(normalizedMonth)}-${pad(safeDay)}`;
 };
 
 const parseEditorNumericValue = (value) => {
@@ -94,16 +90,7 @@ const parseEditorNumericValue = (value) => {
   return Number.isFinite(parsed) ? parsed : undefined;
 };
 
-const formatPopupDate = (value) => {
-  if (!value) {
-    return "—";
-  }
-  const parsed = new Date(value);
-  if (Number.isNaN(parsed.getTime())) {
-    return "—";
-  }
-  return parsed.toISOString().split("T")[0];
-};
+const formatPopupDate = (value) => formatDateOnly(value) || "—";
 
 const formatAmountWithCurrency = (amount, currency) => {
   const parsed = Number(amount);

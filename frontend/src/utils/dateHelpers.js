@@ -21,6 +21,39 @@ export function formatLocalDate(date) {
 }
 
 /**
+ * Formats any date-like value (YYYY-MM-DD string, timestamp string, or Date)
+ * to a YYYY-MM-DD display string without timezone shifting.
+ *
+ * Date-only strings (and the date part of ISO timestamps) are taken verbatim —
+ * never routed through `new Date()`, which would reinterpret them in UTC and
+ * can render the previous/next day (Known Issue #3). Date objects and
+ * non-ISO strings fall back to local-time formatting via formatLocalDate.
+ *
+ * @param {string|Date|null|undefined} value - Value to format
+ * @returns {string} YYYY-MM-DD, or '' when the value is empty/unparseable
+ *
+ * @example
+ * formatDateOnly('2024-01-15');              // '2024-01-15'
+ * formatDateOnly('2024-01-15T23:30:00Z');    // '2024-01-15'
+ * formatDateOnly(new Date(2024, 0, 15));     // '2024-01-15'
+ * formatDateOnly('garbage');                 // ''
+ */
+export function formatDateOnly(value) {
+  if (value === null || value === undefined || value === "") {
+    return "";
+  }
+  if (value instanceof Date) {
+    return Number.isNaN(value.getTime()) ? "" : formatLocalDate(value);
+  }
+  const match = String(value).match(/^(\d{4}-\d{2}-\d{2})(?:$|[T ])/);
+  if (match) {
+    return match[1];
+  }
+  const parsed = new Date(value);
+  return Number.isNaN(parsed.getTime()) ? "" : formatLocalDate(parsed);
+}
+
+/**
  * Gets today's date as YYYY-MM-DD string.
  *
  * @returns {string} Today's date in YYYY-MM-DD format

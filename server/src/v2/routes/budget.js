@@ -7,6 +7,7 @@ const router = express.Router();
 const repo = require('../repositories').budget;
 const accountsRepo = require('../repositories').accounts;
 const budgetFxRatesRepo = require('../repositories').budgetFxRates;
+const validate = require('../utils/validate');
 
 /**
  * Validate a date string is in YYYY-MM-DD format and represents a real date.
@@ -318,17 +319,43 @@ router.get('/entries/:id', async (req, res, next) => {
 // POST /api/v2/budget/entries
 // Supports both single entry and array of entries (for batch creation)
 // Accepts both v1 (PascalCase) and v2 (snake_case) field names
+// (checked post-transform, so listed in v2 names; *_name resolve to ids)
+const ENTRY_FIELDS = [
+  'version_id', 'entry_date', 'description', 'amount', 'currency',
+  'base_amount', 'base_currency', 'account_id', 'category_id',
+  'labels', 'note', 'budget_year', 'account_name', 'category_name', 'id',
+];
+
+function validateEntryFields(data, label, { requireCore = true } = {}) {
+  validate.assertAllowedFields(data, ENTRY_FIELDS, label);
+  validate.assertDateString(data.entry_date, `${label}.entry_date`, { optional: !requireCore });
+  validate.assertFiniteNumber(data.amount, `${label}.amount`, { optional: !requireCore });
+  validate.assertFiniteNumber(data.base_amount, `${label}.base_amount`, { optional: true });
+  validate.assertInteger(data.version_id, `${label}.version_id`, { optional: true });
+  validate.assertInteger(data.account_id, `${label}.account_id`, { optional: true });
+  validate.assertInteger(data.category_id, `${label}.category_id`, { optional: true });
+  validate.assertInteger(data.budget_year, `${label}.budget_year`, { optional: true });
+}
+
 router.post('/entries', async (req, res, next) => {
   try {
     const isArray = Array.isArray(req.body);
     const entries = isArray ? req.body : [req.body];
 
-    const results = [];
-    for (const rawEntry of entries) {
-      // Transform v1 field names to v2
+    // CR037 P6: validate every entry BEFORE writing any, then insert the
+    // whole batch in one transaction — a mid-batch failure must not leave a
+    // partially-saved "all months" submission.
+    const transformed = entries.map((rawEntry, i) => {
+      const label = isArray ? `entry[${i}]` : 'entry';
+      validate.assertPlainObject(rawEntry, label);
       const data = transformV1ToV2Fields(rawEntry);
+      validateEntryFields(data, label);
+      delete data.id;
+      return data;
+    });
 
-      // Resolve account name to ID if provided
+    for (const data of transformed) {
+      // Resolve account/category names to IDs if provided (reads, pre-tx)
       if (data.account_name) {
         const account = await accountsRepo.findByName(data.account_name);
         if (account) {
@@ -336,8 +363,6 @@ router.post('/entries', async (req, res, next) => {
         }
         delete data.account_name;
       }
-
-      // Resolve category name to ID if provided
       if (data.category_name) {
         const category = await accountsRepo.findByName(data.category_name);
         if (category) {
@@ -345,10 +370,16 @@ router.post('/entries', async (req, res, next) => {
         }
         delete data.category_name;
       }
-
-      const entry = await repo.create(data);
-      results.push(entry);
     }
+
+    const db = require('../db');
+    const results = await db.transaction(async (client) => {
+      const created = [];
+      for (const data of transformed) {
+        created.push(await repo.create(data, client));
+      }
+      return created;
+    });
 
     if (isArray) {
       res.status(201).json({ data: results });
@@ -364,8 +395,15 @@ router.post('/entries', async (req, res, next) => {
 // Accepts both v1 (PascalCase) and v2 (snake_case) field names
 router.patch('/entries/:id', async (req, res, next) => {
   try {
+    const entryId = parseInt(req.params.id);
+    if (!Number.isInteger(entryId)) {
+      return res.status(400).json({ error: 'invalid budget entry id' });
+    }
+    validate.assertPlainObject(req.body, 'entry');
     // Transform v1 field names to v2
     const data = transformV1ToV2Fields(req.body);
+    validateEntryFields(data, 'entry', { requireCore: false });
+    delete data.id;
 
     // Resolve account name to ID if provided
     if (data.account_name) {

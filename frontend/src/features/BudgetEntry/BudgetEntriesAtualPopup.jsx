@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import Rest from "../../js/rest.js";
+import { formatDateOnly } from "../../utils/dateHelpers.js";
 import "./BudgetEntriesAtualPopup.css";
 
 const escapeHtml = (value) => {
@@ -36,16 +37,7 @@ const buildActionButtonMarkup = (isEnabled, entryIndex) => {
 
 const ACTIONS_COLUMN_HEADER = "<th>Actions</th>";
 
-const formatPopupDate = (value) => {
-  if (!value) {
-    return "—";
-  }
-  const parsed = new Date(value);
-  if (Number.isNaN(parsed.getTime())) {
-    return "—";
-  }
-  return parsed.toISOString().split("T")[0];
-};
+const formatPopupDate = (value) => formatDateOnly(value) || "—";
 
 const formatAmountWithCurrency = (amount, currency) => {
   const parsed = Number(amount);

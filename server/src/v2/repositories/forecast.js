@@ -377,35 +377,38 @@ async function deleteModule(id) {
 // Module nested data (investments, disposals, income_pct)
 // ============================================================================
 
-async function addInvestment(moduleId, data) {
+// The optional `client` on the three helpers below lets callers run them
+// inside a db.transaction (pool and client share the .query signature) —
+// the module PUT's delete-then-reinsert must be atomic (CR037 P5).
+async function addInvestment(moduleId, data, client = db) {
   const sql = `
     INSERT INTO forecast_module_investments (module_id, investment_date, amount, flag, note, date_end)
     VALUES ($1, $2, $3, $4, $5, $6)
     RETURNING *
   `;
-  const result = await db.query(sql, [moduleId, data.investment_date, data.amount, data.flag, data.note, data.date_end || null]);
+  const result = await client.query(sql, [moduleId, data.investment_date, data.amount, data.flag, data.note, data.date_end || null]);
   return result.rows[0];
 }
 
-async function addDisposal(moduleId, data) {
+async function addDisposal(moduleId, data, client = db) {
   const sql = `
     INSERT INTO forecast_module_disposals (module_id, disposal_date, amount, flag, note, date_end)
     VALUES ($1, $2, $3, $4, $5, $6)
     RETURNING *
   `;
   const amount = data.amount ?? (data.flag === 'Full' ? 0 : null);
-  const result = await db.query(sql, [moduleId, data.disposal_date, amount, data.flag, data.note, data.date_end || null]);
+  const result = await client.query(sql, [moduleId, data.disposal_date, amount, data.flag, data.note, data.date_end || null]);
   return result.rows[0];
 }
 
-async function setIncomePct(moduleId, data) {
+async function setIncomePct(moduleId, data, client = db) {
   const sql = `
     INSERT INTO forecast_module_income_pct (module_id, effective_date, value)
     VALUES ($1, $2, $3)
     ON CONFLICT (module_id, effective_date) DO UPDATE SET value = EXCLUDED.value
     RETURNING *
   `;
-  const result = await db.query(sql, [moduleId, data.effective_date, data.value]);
+  const result = await client.query(sql, [moduleId, data.effective_date, data.value]);
   return result.rows[0];
 }
 

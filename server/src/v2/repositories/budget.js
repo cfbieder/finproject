@@ -364,9 +364,11 @@ async function compareToActual({ versionId, year }) {
 }
 
 /**
- * Create a new budget entry
+ * Create a new budget entry.
+ * Optional `client` lets the batch POST insert all entries inside one
+ * db.transaction (CR037 P6); the FX lookups are reads and stay on the pool.
  */
-async function create(data) {
+async function create(data, client = db) {
   const currency = data.currency || 'USD';
   let baseAmount = data.base_amount;
 
@@ -415,7 +417,7 @@ async function create(data) {
     RETURNING *
   `;
 
-  const result = await db.query(sql, [
+  const result = await client.query(sql, [
     data.version_id || null,
     data.entry_date,
     data.description || null,
@@ -427,7 +429,7 @@ async function create(data) {
     data.category_id || null,
     data.labels || null,
     data.note || null,
-    data.budget_year || new Date(data.entry_date).getFullYear()
+    data.budget_year || parseInt(String(data.entry_date).substring(0, 4), 10)
   ]);
 
   return result.rows[0];

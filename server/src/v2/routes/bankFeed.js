@@ -19,6 +19,7 @@ const { reconcileToFeed } = require('../services/reconcileToFeed');
 const refreshBankFeed = require('../services/refreshBankFeedV2');
 const manualStatementImport = require('../services/manualStatementImport');
 const db = require('../db');
+const validate = require('../utils/validate');
 
 // Reconcile is a deliberate action that wants CURRENT balances — pull fresh
 // upstream data on a tight freshness window before reconciling.
@@ -260,6 +261,8 @@ router.post('/reconcile/:accountId', async (req, res, next) => {
       return res.status(400).json({ error: 'invalid accountId' });
     }
     const { asOf = null, dryRun = false, force = false, bookDate = null } = req.body || {};
+    validate.assertDateString(asOf, 'asOf', { optional: true });
+    validate.assertDateString(bookDate, 'bookDate', { optional: true });
     // Sync-before-reconcile: pull fresh upstream data (best-effort) and refresh
     // fin's local balance cache so we reconcile on current, not morning-stale,
     // balances. Both steps are non-fatal — fall back to cached data on failure.

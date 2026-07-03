@@ -14,6 +14,7 @@ const router = express.Router();
 const manualReconciliation = require('../repositories/manualReconciliation');
 const { reconcileManual, setManualBalance } = require('../services/reconcileManual');
 const db = require('../db');
+const validate = require('../utils/validate');
 
 /**
  * GET /api/v2/manual-calibration/recon?asOf=YYYY-MM-DD
@@ -43,6 +44,7 @@ router.put('/balance/:accountId', async (req, res, next) => {
     if (balance == null || !Number.isFinite(Number(balance))) {
       return res.status(400).json({ error: 'balance must be a finite number' });
     }
+    validate.assertDateString(balanceDate, 'balanceDate', { optional: true });
     const row = await setManualBalance(accountId, { balance: Number(balance), balanceDate, note });
     res.json({ data: row });
   } catch (err) {
@@ -105,6 +107,8 @@ router.post('/reconcile/:accountId', async (req, res, next) => {
     const accountId = Number(req.params.accountId);
     if (!Number.isInteger(accountId)) return res.status(400).json({ error: 'invalid accountId' });
     const { asOf = null, dryRun = false, force = false, bookDate = null } = req.body || {};
+    validate.assertDateString(asOf, 'asOf', { optional: true });
+    validate.assertDateString(bookDate, 'bookDate', { optional: true });
     const result = await reconcileManual(accountId, {
       asOf, dryRun: dryRun === true, force: force === true, bookDate,
     });

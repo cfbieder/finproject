@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import CategorySelector from "../components/CategorySelector/CategorySelector.jsx";
 import { useCoa } from "../hooks/useCoa.js";
 import Rest from "../js/rest.js";
+import { formatLocalDate } from "../utils/dateHelpers.js";
 import "./PageLayout.css";
 import "./CategoryTrend.css";
 
@@ -65,17 +66,15 @@ const CATEGORY_GROUP_OPTIONS = [
 ];
 
 function formatMonthEnd(year, month) {
-  const d = new Date(Date.UTC(year, month + 1, 0));
-  return d.toISOString().split("T")[0];
+  return formatLocalDate(new Date(year, month + 1, 0));
 }
 
 function monthsAgo(n) {
   const now = new Date();
   const endYear = now.getFullYear();
   const endMonth = now.getMonth();
-  const startDate = new Date(Date.UTC(endYear, endMonth - n + 1, 1));
   return {
-    startDate: startDate.toISOString().split("T")[0],
+    startDate: formatLocalDate(new Date(endYear, endMonth - n + 1, 1)),
     endDate: formatMonthEnd(endYear, endMonth),
   };
 }

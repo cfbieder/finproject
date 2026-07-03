@@ -8,6 +8,7 @@ import {
   formatColumnHeader,
   getTodayIso,
 } from "../utils/periodHelpers.js";
+import { getYearStart, getMonthEnd } from "../utils/dateHelpers.js";
 import "./PageLayout.css";
 
 /**
@@ -245,28 +246,6 @@ const buildChartPoints = (reports, periods, period) => {
     });
   }
   return points;
-};
-
-/**
- * Gets the first day of the current year in ISO format.
- * @returns {string} ISO date string for January 1st of current year
- */
-const getYearStart = () => {
-  const today = new Date();
-  const januaryUtc = new Date(Date.UTC(today.getUTCFullYear(), 0, 1));
-  return januaryUtc.toISOString().split("T")[0];
-};
-
-/**
- * Gets the last day of the current month in ISO format.
- * @returns {string} ISO date string for the last day of current month
- */
-const getMonthEnd = () => {
-  const today = new Date();
-  const lastOfMonthUtc = new Date(
-    Date.UTC(today.getUTCFullYear(), today.getUTCMonth() + 1, 0)
-  );
-  return lastOfMonthUtc.toISOString().split("T")[0];
 };
 
 /**

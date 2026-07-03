@@ -1,6 +1,7 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
 import {
   formatLocalDate,
+  formatDateOnly,
   getToday,
   getYearStart,
   getMonthEnd,
@@ -23,6 +24,34 @@ describe("formatLocalDate", () => {
   it("does not shift the date across UTC boundaries", () => {
     const midnightLocal = new Date(2024, 5, 15, 0, 0, 0);
     expect(formatLocalDate(midnightLocal)).toBe("2024-06-15");
+  });
+});
+
+describe("formatDateOnly", () => {
+  it("returns date-only strings verbatim without Date round-tripping", () => {
+    expect(formatDateOnly("2024-01-15")).toBe("2024-01-15");
+  });
+
+  it("takes the date part of ISO timestamps verbatim", () => {
+    expect(formatDateOnly("2024-01-15T23:30:00Z")).toBe("2024-01-15");
+    expect(formatDateOnly("2024-01-15 23:30:00")).toBe("2024-01-15");
+  });
+
+  it("formats Date objects in local time (no UTC shift)", () => {
+    expect(formatDateOnly(new Date(2024, 5, 15, 0, 0, 0))).toBe("2024-06-15");
+  });
+
+  it("returns empty string for empty or unparseable values", () => {
+    expect(formatDateOnly(null)).toBe("");
+    expect(formatDateOnly(undefined)).toBe("");
+    expect(formatDateOnly("")).toBe("");
+    expect(formatDateOnly("garbage")).toBe("");
+    expect(formatDateOnly(new Date("garbage"))).toBe("");
+  });
+
+  it("does not treat prefixed-but-longer date strings as date-only", () => {
+    // e.g. "2024-01-155" must not match as "2024-01-15"
+    expect(formatDateOnly("2024-01-155")).toBe("");
   });
 });
 

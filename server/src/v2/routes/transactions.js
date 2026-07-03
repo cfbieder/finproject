@@ -3,6 +3,7 @@
  */
 
 const express = require('express');
+const validate = require('../utils/validate');
 const router = express.Router();
 const repo = require('../repositories').transactions;
 const accountsRepo = require('../repositories').accounts;
@@ -302,9 +303,29 @@ router.get('/:id', async (req, res, next) => {
 });
 
 // POST /api/v2/transactions
+// CR037 P6: field-whitelist + type validation — this endpoint writes money
+// and previously passed req.body wholesale to the INSERT.
+const CREATE_FIELDS = [
+  'ps_id', 'transaction_date', 'description1', 'description2',
+  'amount', 'currency', 'base_amount', 'base_currency',
+  'transaction_type', 'account_id', 'closing_balance',
+  'category_id', 'labels', 'memo', 'note', 'bank', 'source', 'accepted',
+];
+
 router.post('/', async (req, res, next) => {
   try {
-    const transaction = await repo.create(req.body);
+    const body = req.body;
+    validate.assertPlainObject(body, 'transaction');
+    validate.assertAllowedFields(body, CREATE_FIELDS, 'transaction');
+    validate.assertDateString(body.transaction_date, 'transaction_date');
+    validate.assertFiniteNumber(body.amount, 'amount');
+    validate.assertFiniteNumber(body.base_amount, 'base_amount', { optional: true });
+    validate.assertFiniteNumber(body.closing_balance, 'closing_balance', { optional: true });
+    validate.assertInteger(body.account_id, 'account_id', { optional: true });
+    validate.assertInteger(body.category_id, 'category_id', { optional: true });
+    validate.assertBoolean(body.accepted, 'accepted', { optional: true });
+
+    const transaction = await repo.create(body);
     res.status(201).json({ data: transaction });
   } catch (error) {
     next(error);
@@ -313,13 +334,36 @@ router.post('/', async (req, res, next) => {
 
 // PATCH /api/v2/transactions/:id
 // Accepts both v1 (PascalCase) and v2 (snake_case) field names
+// (checked post-transform, so listed in v2 names; *_name resolve to ids below)
+const PATCH_FIELDS = [
+  'transaction_date', 'description1', 'description2', 'amount', 'currency',
+  'base_amount', 'base_currency', 'transaction_type', 'account_id',
+  'closing_balance', 'category_id', 'labels', 'memo', 'note', 'bank',
+  'accepted', 'account_name', 'category_name', 'id',
+];
 // When transaction_date changes and currency != base_currency, recalculates
 // base_amount using the implied FX rate from a nearby transaction.
 router.patch('/:id', async (req, res, next) => {
   try {
     const id = parseInt(req.params.id);
+    if (!Number.isInteger(id)) {
+      return res.status(400).json({ error: 'invalid transaction id' });
+    }
+    validate.assertPlainObject(req.body, 'transaction');
     // Transform v1 field names to v2
     const data = transformV1ToV2Fields(req.body);
+
+    // CR037 P6: whitelist + type-check what the update may touch (the repo
+    // already drops unknown columns silently — fail loud instead).
+    validate.assertAllowedFields(data, PATCH_FIELDS, 'transaction');
+    validate.assertDateString(data.transaction_date, 'transaction_date', { optional: true });
+    validate.assertFiniteNumber(data.amount, 'amount', { optional: true });
+    validate.assertFiniteNumber(data.base_amount, 'base_amount', { optional: true });
+    validate.assertFiniteNumber(data.closing_balance, 'closing_balance', { optional: true });
+    validate.assertInteger(data.account_id, 'account_id', { optional: true });
+    validate.assertInteger(data.category_id, 'category_id', { optional: true });
+    validate.assertBoolean(data.accepted, 'accepted', { optional: true });
+    delete data.id; // tolerated in the body, never written
 
     // Resolve account name to ID if provided
     if (data.account_name) {

@@ -147,12 +147,26 @@ describe("parseCurrency", () => {
     expect(parseCurrency("(500)")).toBe(-500);
   });
 
-  it("returns 0 for non-numeric / non-string input", () => {
-    expect(parseCurrency("invalid")).toBe(0);
-    expect(parseCurrency(null)).toBe(0);
-    expect(parseCurrency(undefined)).toBe(0);
-    expect(parseCurrency(1234)).toBe(0);
-    expect(parseCurrency("")).toBe(0);
+  it("returns NaN for non-numeric / non-string input (never a silent 0)", () => {
+    expect(parseCurrency("invalid")).toBeNaN();
+    expect(parseCurrency(null)).toBeNaN();
+    expect(parseCurrency(undefined)).toBeNaN();
+    expect(parseCurrency(1234)).toBeNaN();
+    expect(parseCurrency("")).toBeNaN();
+  });
+
+  it("rejects partial parses and malformed parentheses", () => {
+    expect(parseCurrency("12abc")).toBeNaN();
+    expect(parseCurrency("1.2.3")).toBeNaN();
+    expect(parseCurrency("(123")).toBeNaN();
+    expect(parseCurrency("123)")).toBeNaN();
+    expect(parseCurrency("--5")).toBeNaN();
+  });
+
+  it("still accepts negatives, whitespace, and bare decimals", () => {
+    expect(parseCurrency("-42.5")).toBe(-42.5);
+    expect(parseCurrency("  $99.90  ")).toBe(99.9);
+    expect(parseCurrency("( 500 )")).toBe(-500);
   });
 
   it("is the inverse of formatCurrency for finite values", () => {
