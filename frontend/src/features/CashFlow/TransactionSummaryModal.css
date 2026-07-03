@@ -1,0 +1,131 @@
+.transaction-summary-modal__overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(45, 52, 54, 0.35);
+  display: flex;
+  align-items: flex-start;
+  justify-content: center;
+  z-index: 50; /* above the transaction detail modal (z-index 40) */
+  padding: clamp(4.5rem, 11vw, 12rem) clamp(1rem, 2vw, 2rem) 1rem;
+}
+
+.transaction-summary-modal {
+  background: var(--surface);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-xl);
+  width: min(560px, calc(100% - 2rem));
+  max-height: 75vh;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  box-sizing: border-box;
+}
+
+.transaction-summary-modal__header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 1rem;
+  padding: 1rem 1.25rem;
+  border-bottom: 1px solid var(--border-subtle);
+  background: var(--surface);
+}
+
+.transaction-summary-modal__title {
+  margin: 0;
+  font-size: 1.05rem;
+}
+
+.transaction-summary-modal__subtitle {
+  margin: 0.15rem 0 0;
+  font-size: 0.8rem;
+  color: var(--text-secondary);
+}
+
+.transaction-summary-modal__close-button {
+  border: none;
+  background: var(--bg-secondary);
+  border-radius: var(--radius-md);
+  padding: 0.35rem 0.75rem;
+  cursor: pointer;
+  flex-shrink: 0;
+}
+
+.transaction-summary-modal__toolbar {
+  padding: 0.75rem 1.25rem 0;
+}
+
+.transaction-summary-modal__toggle {
+  display: inline-flex;
+  gap: 0.25rem;
+  background: var(--bg-secondary);
+  border-radius: var(--radius-md);
+  padding: 0.2rem;
+}
+
+.transaction-summary-modal__toggle-button {
+  border: none;
+  background: transparent;
+  border-radius: var(--radius-sm, 6px);
+  padding: 0.35rem 0.85rem;
+  cursor: pointer;
+  font: inherit;
+  color: var(--text-secondary);
+}
+
+.transaction-summary-modal__toggle-button--active {
+  background: var(--surface);
+  color: var(--text-primary);
+  box-shadow: var(--shadow-sm);
+}
+
+.transaction-summary-modal__table-wrapper {
+  padding: 0.75rem 1.25rem 1.25rem;
+  overflow: auto;
+  flex: 1;
+}
+
+.transaction-summary-modal__table {
+  width: 100%;
+}
+
+.transaction-summary-modal__header-cell {
+  position: sticky;
+  top: 0;
+  background: var(--surface);
+  z-index: 15;
+}
+
+.transaction-summary-modal__header-cell--right,
+.transaction-summary-modal__value {
+  text-align: right;
+}
+
+.transaction-summary-modal__header-button {
+  border: none;
+  background: transparent;
+  font: inherit;
+  padding: 0;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+}
+
+.transaction-summary-modal__total-row {
+  font-weight: 600;
+  border-top: 2px solid var(--border-subtle);
+}
+
+@media (max-width: 640px) {
+  .transaction-summary-modal__overlay {
+    padding: 0;
+    align-items: stretch;
+  }
+
+  .transaction-summary-modal {
+    width: 100%;
+    max-height: 100vh;
+    border-radius: 0;
+  }
+}

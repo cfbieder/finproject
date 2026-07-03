@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import EmptyState from "../../components/EmptyState.jsx";
+import TransactionSummaryModal from "./TransactionSummaryModal.jsx";
 import "./TransactionModal.css";
 
 const TRANSACTION_COLUMNS = [
@@ -67,6 +68,8 @@ export default function TransactionModal({
     column: "date",
     direction: "desc",
   });
+
+  const [isSummaryOpen, setIsSummaryOpen] = useState(false);
 
   const startDragging = (event) => {
     if (event.button && event.button !== 0) {
@@ -186,13 +189,24 @@ export default function TransactionModal({
           <h3 className="transaction-modal__title">
             {transactionModal?.title || "Transactions"}
           </h3>
-          <button
-            type="button"
-            onClick={onClose}
-            className="transaction-modal__close-button"
-          >
-            Close
-          </button>
+          <div className="transaction-modal__header-actions">
+            {transactions.length > 0 ? (
+              <button
+                type="button"
+                onClick={() => setIsSummaryOpen(true)}
+                className="transaction-modal__close-button"
+              >
+                Summarize
+              </button>
+            ) : null}
+            <button
+              type="button"
+              onClick={onClose}
+              className="transaction-modal__close-button"
+            >
+              Close
+            </button>
+          </div>
         </div>
         <div className="transaction-modal__table-wrapper">
           {transactionModal?.isLoading ? (
@@ -266,6 +280,14 @@ export default function TransactionModal({
           )}
         </div>
       </div>
+      {isSummaryOpen ? (
+        <TransactionSummaryModal
+          transactions={transactions}
+          title={transactionModal?.title}
+          formatCurrency={formatCurrency}
+          onClose={() => setIsSummaryOpen(false)}
+        />
+      ) : null}
     </div>
   );
 }

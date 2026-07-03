@@ -41,6 +41,12 @@
   font-size: 1.05rem;
 }
 
+.transaction-modal__header-actions {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
 .transaction-modal__close-button {
   border: none;
   background: var(--bg-secondary);
