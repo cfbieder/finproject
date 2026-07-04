@@ -66,7 +66,7 @@ async function buildForecastContext(scenarioName) {
   const { loadScenarioConfig } = require("../../services/forecast/fcbuilder-setup");
   let config;
   try {
-    config = loadScenarioConfig(scenarioName);
+    config = await loadScenarioConfig(scenarioName);
   } catch (e) {
     config = null;
   }

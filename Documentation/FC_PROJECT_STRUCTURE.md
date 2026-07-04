@@ -85,7 +85,7 @@ psproject/                          # ~/Programs/fin symlinks here
 │       ├── mobile/                 # Dedicated /m/* shell (see §5)
 │       └── pages/                  # 25+ page components
 ├── server/                         # Express API
-│   ├── db/migrations/              # 001..032 SQL — registry in Documentation/MIGRATIONS.md
+│   ├── db/migrations/              # 001..034 SQL — registry in Documentation/MIGRATIONS.md
 │   ├── db/ci-seed.sql              # CI baseline COA rows (NOT a migration)
 │   └── src/
 │       ├── server.js  app.js
@@ -245,14 +245,14 @@ One-time/idempotent admin CLIs — all require `DATABASE_URL` (no embedded crede
 | `bankfeed_balances` / `manual_balances` | Feed-reported / user-entered balance snapshots |
 | `budget_versions`, `budget_entries`, `budget_fx_rates` | Budgeting |
 | `transfer_match_groups` (+`_members`) | Manual transfer matching |
-| `forecast_*` (scenarios, modules + income_pct/investments/disposals, income_expense + changes, entries), `fc_lines` (+`_categories`), `fc_ai_reviews`/`fc_ai_messages` | Forecast |
+| `forecast_*` (scenarios, modules + income_pct/investments/disposals, income_expense + changes, entries), `forecast_assumptions` (CR039 document store — inflation/FX/tax/category/scenario periods, formerly `FCAssump.json`; migration 034), `fc_lines` (+`_categories`), `fc_ai_reviews`/`fc_ai_messages` | Forecast |
 | `exchange_rates`, `sync_metadata`, `audit_log`, `app_data` | Config/infra |
 
 Views: `v_balance_sheet`, `v_budget_vs_actual`. Size: ~30 MB, ~36k transactions.
 
 ### Migrations
 
-Registry (one line per migration, 001–032): **[MIGRATIONS.md](MIGRATIONS.md)**. They auto-run only on a fresh (empty-volume) Postgres via `initdb.d`; on existing DBs apply manually with `psql` **before** deploying dependent code. CI proves the chain applies to an empty database. A real runner is CR027A scope.
+Registry (one line per migration, 001–034): **[MIGRATIONS.md](MIGRATIONS.md)**. They auto-run only on a fresh (empty-volume) Postgres via `initdb.d`; on existing DBs apply manually with `psql` **before** deploying dependent code. CI proves the chain applies to an empty database. A real runner is CR027A scope.
 
 ---
 
@@ -336,7 +336,7 @@ Removed 2026-06-12: `PS_API_KEY`/`PS_USER_ID` (dead since CR030), `ANTHROPIC_API
 
 ## 14. Data Files (`components/data/`, mounted into the server container)
 
-`account_names.json` / `category_names.json` (PS name mappings), `appdata.json` (metadata), `FCAssump.json` (forecast assumptions). COA lives in SQL (`accounts` table; `getNestedTree({section})`). Balance sheet = `opening_balance + Σ transactions` with feed read-override for `balance_from_feed` leaves (CR024); FX rates auto-refresh from Frankfurter API when >3 days stale (`server/src/utils/refreshExchangeRates.js`).
+`account_names.json` / `category_names.json` (PS name mappings), `appdata.json` (metadata). `FCAssump.json` is **retired** (CR039, migration 034 — forecast assumptions live in the `forecast_assumptions` table; the file remains on disk one release as a fallback artifact, nothing reads it). COA lives in SQL (`accounts` table; `getNestedTree({section})`). Balance sheet = `opening_balance + Σ transactions` with feed read-override for `balance_from_feed` leaves (CR024); FX rates auto-refresh from Frankfurter API when >3 days stale (`server/src/utils/refreshExchangeRates.js`).
 
 ---
 

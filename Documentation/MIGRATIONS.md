@@ -52,3 +52,5 @@ fresh DB.
 | 030 | `030_feed_negate_tx.sql` | `feed_negate_tx` per-mapping transaction-sign flip (e.g. Chase purchases-positive) | CR028 |
 | 031 | `031_cash_sweep_priority.sql` | `cash_sweep_priority` ordered sweep set (backfills `cash_sweep_target` → priority 1) | CR017 |
 | 032 | `032_manual_calibration.sql` | `manual_balances` table + `accounts.manual_reconcile_mode` (non-fed calibration) | CR033 |
+| 033 | `033_feed_source_synced_at.sql` | `bankfeed_balances.source_synced_at` — true upstream connection sync time | CR035 |
+| 034 | `034_forecast_assumptions.sql` | Drops the never-used 001-era `forecast_assumptions` and recreates it as the CR039 document store (key/JSON value/ord) replacing `FCAssump.json`; **after applying, run `node server/src/v2/scripts/import-fc-assumptions.js`** | CR039 |

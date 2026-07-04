@@ -1,6 +1,6 @@
 # CR039 — Forecast Assumptions to Postgres (retire `FCAssump.json` dual source)
 
-**Status:** PLANNED (scoped 2026-07-03 from the design review; not started). **Prerequisite for CR027** (multi-tenancy) — schedule before v4 schema work begins.
+**Status:** ✅ RELEASED v3.0.58 (2026-07-04) — migration 034 + import applied to dev **and prod**; **byte-identical** API verified on both, forecast-generate checksum parity proven, 247 backend tests green. Clears CR027's assumptions-off-disk prerequisite.
 **Track:** v3
 **Anchor in FC_NEXT_STEPS.md:** [cr039](../FC_NEXT_STEPS.md#cr039)
 
@@ -40,3 +40,16 @@ Next-numbered migration: a `forecast_assumptions` store (either a dedicated tabl
 
 ## Deploy order
 Migration (+ import script) on prod **first**, then code deploy — standard prod-before-code.
+
+## As-built (2026-07-04)
+
+- **Storage:** `forecast_assumptions (key TEXT PK, value JSON, ord INT, updated_at)` — one row per top-level key of the old document ('scenarios', 'category', 'data', 'inflation', 'FX', 'Tax Rate'). Two discoveries shaped this:
+  1. **The table name was already taken** — migration 001 created a per-scenario `forecast_assumptions` (scenario_id/section/key) that no code ever read or wrote (0 rows on dev AND prod, verified). Migration `034_forecast_assumptions.sql` drops it and reuses the name.
+  2. **`json`, not `jsonb`** — jsonb normalizes object key order, which broke the byte-identical guarantee on first compare (nested `{Scenario, Year, Rate}` objects came back reordered). `json` preserves the stored text exactly; we only read whole values, so no jsonb operators are needed.
+- **Repo:** `v2/repositories/forecastAssumptions.js` — `getDoc()` (reassembles the document in `ord` order) + `putDoc(partial)` (transactional upsert; untouched keys keep their rows, new keys append — exactly the old `{...existing, ...body}` file-merge semantics).
+- **Import:** `v2/scripts/import-fc-assumptions.js` — idempotent, file-wins; key order → `ord`. **Do not re-run after the DB-backed API goes live** (it would clobber DB edits with the stale file).
+- **Route cutover:** `GET/PUT /forecast/assumptions` read/write only the DB; the file-read/merge and `writeFileSync` blocks are gone (also removes the sync fs I/O from the request path). Scenario-sync side effects of PUT unchanged.
+- **Engine cutover:** `fcbuilder-setup.js` `loadFCAssump()`/`loadScenarioConfig()` are now async and read the repo; both callers (`services/forecast/index.js` generate, `v2/services/aiReview.js` context builder) await.
+- **P3 scope correction — debug-CSV gating DROPPED:** the plan assumed the engine's mid-compute CSV writes were dead debug output; in fact `GET /forecast/audittrail` **reads those CSVs** to serve the Cash Sweep audit trail in FCReview — gating them off by default would break a live feature. The CSVs stay; moving the audit trail into Postgres is future work (noted, not scoped).
+- **Verified on dev:** `GET /assumptions` **byte-identical** before/after cutover (`cmp` clean); PUT full-doc round-trip stays byte-identical and partial PUT preserves untouched keys; forecast regenerate parity — 1442 entries, Σ 702,952,875.80, identical md5 checksum pre/post; backend suite 247/247. CI safe: no test calls `loadScenarioConfig`, and `ci-seed.sql` needs no assumption rows.
+- **File retirement:** `components/data/FCAssump.json` stays on disk (git-tracked) as a fallback artifact for one release; nothing reads or writes it anymore. Delete + drop from `backup-to-remote.sh`'s set in a future cleanup pass. Also fixed in passing: MIGRATIONS.md was missing the 033 row (CR035).

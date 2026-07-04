@@ -1,13 +1,15 @@
-const fs = require("fs");
-const { PATHS } = require("./constants");
+// CR039: assumptions live in the forecast_assumptions table (formerly the
+// on-disk FCAssump.json — migration 034 + import-fc-assumptions.js).
+const assumpRepo = require("../../v2/repositories/forecastAssumptions");
 
-function loadFCAssump() {
+async function loadFCAssump() {
   try {
-    const fileContents = fs.readFileSync(PATHS.ASSUMP_FILE, "utf8");
-    const FCAssump = JSON.parse(fileContents);
+    const FCAssump = await assumpRepo.getDoc();
 
-    if (!FCAssump) {
-      throw new Error("FCAssump is undefined or null after require");
+    if (!FCAssump || Object.keys(FCAssump).length === 0) {
+      throw new Error(
+        "forecast_assumptions is empty — run import-fc-assumptions.js (migration 034)"
+      );
     }
     if (!Array.isArray(FCAssump.scenarios) || FCAssump.scenarios.length === 0) {
       throw new Error("FCAssump.scenarios must be a non-empty array");
@@ -18,7 +20,7 @@ function loadFCAssump() {
 
     return FCAssump;
   } catch (error) {
-    throw new Error(`Failed to load FCAssump.json: ${error.message}`);
+    throw new Error(`Failed to load forecast assumptions: ${error.message}`);
   }
 }
 
@@ -38,8 +40,8 @@ function buildRates(entries, periodStart, periodEnd) {
   return result;
 }
 
-function loadScenarioConfig(scenarioName) {
-  const FCAssump = loadFCAssump();
+async function loadScenarioConfig(scenarioName) {
+  const FCAssump = await loadFCAssump();
 
   const scenario = scenarioName
     ? FCAssump.scenarios.find((entry) => entry.Name === scenarioName)

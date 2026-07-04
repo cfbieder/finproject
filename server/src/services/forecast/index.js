@@ -263,7 +263,7 @@ async function generateForecast(scenarioName) {
 
   try {
     // Step 1: Load configuration
-    const config = loadScenarioConfig(scenarioName);
+    const config = await loadScenarioConfig(scenarioName);
     const { scenario, categories, inflationRates, fxratesPLN, fxratesEUR, years } = config;
 
     const df_assumptions = new dfd.DataFrame(

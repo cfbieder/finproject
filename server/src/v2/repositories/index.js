@@ -18,6 +18,7 @@ const budgetFxRates = require('./budgetFxRates');
 const transferMatchGroups = require('./transferMatchGroups');
 const fcLines = require('./fcLines');
 const accountSourceMappings = require('./accountSourceMappings');
+const forecastAssumptions = require('./forecastAssumptions');
 
 module.exports = {
   transactions,
@@ -28,5 +29,6 @@ module.exports = {
   budgetFxRates,
   transferMatchGroups,
   fcLines,
-  accountSourceMappings
+  accountSourceMappings,
+  forecastAssumptions
 };

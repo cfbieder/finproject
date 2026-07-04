@@ -22,34 +22,26 @@ async function lookupAccountByName(name) {
 }
 
 // ============================================================================
-// Assumptions (PostgreSQL scenarios + file-based inflation/FX/tax)
+// Assumptions (PostgreSQL — scenarios table + forecast_assumptions document;
+// CR039 retired the FCAssump.json file backing)
 // ============================================================================
+
+const assumpRepo = require('../repositories').forecastAssumptions;
 
 // GET /api/v2/forecast/assumptions
 router.get('/assumptions', async (req, res, next) => {
   try {
-    const fs = require('fs');
-    const { dataPaths } = require('../../utils/dataPaths');
-
     // Get scenarios from PostgreSQL
     const scenarios = await repo.findAllScenarios({ activeOnly: false });
 
-    // Read other assumptions (inflation, FX, tax rates) from file
-    let fileAssumptions = {};
-    try {
-      const fcAssumpPath = dataPaths.fcAssump;
-      if (fs.existsSync(fcAssumpPath)) {
-        const content = fs.readFileSync(fcAssumpPath, 'utf8');
-        fileAssumptions = JSON.parse(content);
-      }
-    } catch (readErr) {
-      console.warn('[forecast/assumptions] Could not read FCAssump.json:', readErr.message);
-    }
+    // Other assumptions (inflation, FX, tax rates, category list) from the
+    // forecast_assumptions document (formerly FCAssump.json)
+    const docAssumptions = await assumpRepo.getDoc();
 
-    // Build a lookup from file scenarios to merge PeriodStart/PeriodEnd into DB scenarios
-    const fileScenarioMap = {};
-    for (const fsc of (fileAssumptions.scenarios || [])) {
-      if (fsc.Name) fileScenarioMap[fsc.Name] = fsc;
+    // Merge PeriodStart/PeriodEnd from the document's scenarios into DB scenarios
+    const docScenarioMap = {};
+    for (const dsc of (docAssumptions.scenarios || [])) {
+      if (dsc.Name) docScenarioMap[dsc.Name] = dsc;
     }
 
     const scenariosFormatted = scenarios.map((s) => ({
@@ -57,12 +49,12 @@ router.get('/assumptions', async (req, res, next) => {
       Description: s.description,
       IsActive: s.is_active,
       id: s.id,
-      ...(fileScenarioMap[s.name]?.PeriodStart != null && { PeriodStart: fileScenarioMap[s.name].PeriodStart }),
-      ...(fileScenarioMap[s.name]?.PeriodEnd != null && { PeriodEnd: fileScenarioMap[s.name].PeriodEnd }),
+      ...(docScenarioMap[s.name]?.PeriodStart != null && { PeriodStart: docScenarioMap[s.name].PeriodStart }),
+      ...(docScenarioMap[s.name]?.PeriodEnd != null && { PeriodEnd: docScenarioMap[s.name].PeriodEnd }),
     }));
 
     res.json({
-      ...fileAssumptions,
+      ...docAssumptions,
       scenarios: scenariosFormatted,
     });
   } catch (error) {
@@ -74,20 +66,7 @@ router.get('/assumptions', async (req, res, next) => {
 // PUT /api/v2/forecast/assumptions
 router.put('/assumptions', async (req, res, next) => {
   try {
-    const fs = require('fs');
-    const { dataPaths } = require('../../utils/dataPaths');
     const body = req.body || {};
-
-    // Read existing file
-    const fcAssumpPath = dataPaths.fcAssump;
-    let existing = {};
-    try {
-      if (fs.existsSync(fcAssumpPath)) {
-        existing = JSON.parse(fs.readFileSync(fcAssumpPath, 'utf8'));
-      }
-    } catch (readErr) {
-      console.warn('[forecast/assumptions PUT] Could not read existing file:', readErr.message);
-    }
 
     // Sync scenarios to PostgreSQL
     if (Array.isArray(body.scenarios)) {
@@ -110,19 +89,10 @@ router.put('/assumptions', async (req, res, next) => {
       }
     }
 
-    // Save to file — keep scenarios with PeriodStart/PeriodEnd (needed by forecast engine)
-    // but sync name/description/active status to PostgreSQL above
-    const merged = { ...existing, ...body };
-
-    // Preserve scenarios in file — they carry PeriodStart/PeriodEnd which the engine needs
-    // If body included scenarios, those are already saved; if not, keep existing
-    if (Array.isArray(body.scenarios)) {
-      merged.scenarios = body.scenarios;
-    } else if (Array.isArray(existing.scenarios)) {
-      merged.scenarios = existing.scenarios;
-    }
-
-    fs.writeFileSync(fcAssumpPath, JSON.stringify(merged, null, 2), 'utf8');
+    // Upsert the document keys (partial merge — untouched keys keep their
+    // rows, same semantics as the old {...existing, ...body} file merge).
+    // The 'scenarios' key keeps PeriodStart/PeriodEnd, which the engine needs.
+    await assumpRepo.putDoc(body);
 
     res.json({ success: true });
   } catch (error) {
