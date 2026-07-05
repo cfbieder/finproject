@@ -122,8 +122,24 @@ async function classifyRows(accountId, parsedRows) {
 
 // ---- preview --------------------------------------------------------------
 
-async function preview({ accountExternalId, csv, profileId } = {}) {
-  const parsed = await client.manualParse({ accountExternalId, csv, profileId });
+// CR036 P2: mapper-built profiles carry no preamble balance regex, so the user
+// may type the statement's stated balance + as-of date; that override wins
+// over (the usually-absent) parsed balance.
+function resolveStatedBalance(parsedBalance, statedBalance) {
+  if (statedBalance && statedBalance.magnitude != null && statedBalance.date &&
+      Number.isFinite(Number(statedBalance.magnitude))) {
+    return {
+      magnitude: Math.abs(Number(statedBalance.magnitude)),
+      balance_date: String(statedBalance.date),
+      currency: statedBalance.currency || (parsedBalance && parsedBalance.currency) || 'USD',
+    };
+  }
+  return parsedBalance;
+}
+
+async function preview({ accountExternalId, csv, profileId, profile, statedBalance } = {}) {
+  const parsed = await client.manualParse({ accountExternalId, csv, profileId, profile });
+  parsed.balance = resolveStatedBalance(parsed.balance, statedBalance);
   const ctx = await loadAccountContext(accountExternalId);
   if (!ctx) {
     const e = new Error(`no bank-feed mapping for account ${accountExternalId} — map it before uploading a statement`);
@@ -169,8 +185,9 @@ async function preview({ accountExternalId, csv, profileId } = {}) {
 
 // ---- commit ---------------------------------------------------------------
 
-async function commit({ accountExternalId, csv, profileId } = {}) {
-  const parsed = await client.manualParse({ accountExternalId, csv, profileId });
+async function commit({ accountExternalId, csv, profileId, profile, statedBalance } = {}) {
+  const parsed = await client.manualParse({ accountExternalId, csv, profileId, profile });
+  parsed.balance = resolveStatedBalance(parsed.balance, statedBalance);
   const ctx = await loadAccountContext(accountExternalId);
   if (!ctx) {
     const e = new Error(`no bank-feed mapping for account ${accountExternalId} — map it before uploading a statement`);

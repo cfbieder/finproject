@@ -115,10 +115,23 @@ function sync({ maxAgeMin, force = false } = {}) {
 // ---- CR036 manual statement upload ----------------------------------------
 // Stateless parse (format layer lives in the service). Returns fin-convention
 // rows + a balance magnitude; fin applies account-level sign flags after.
-function manualParse({ accountExternalId, csv, profileId } = {}) {
+function manualParse({ accountExternalId, csv, profileId, profile } = {}) {
   return request('/v1/manual/parse', {
     method: 'POST',
-    body: { account_external_id: accountExternalId, csv, profile_id: profileId },
+    body: { account_external_id: accountExternalId, csv, profile_id: profileId, profile },
+    timeoutMs: 20000,
+  });
+}
+
+// CR036 P2 — mapper support: header/sample inspection + saving a mapping.
+function manualInspect({ csv } = {}) {
+  return request('/v1/manual/inspect', { method: 'POST', body: { csv }, timeoutMs: 20000 });
+}
+
+function manualSaveProfile({ label, kind, currency, spec } = {}) {
+  return request('/v1/manual/profiles', {
+    method: 'POST',
+    body: { label, kind, currency, spec },
     timeoutMs: 20000,
   });
 }
@@ -145,6 +158,8 @@ module.exports = {
   manualParse,
   manualCommit,
   manualProfiles,
+  manualInspect,
+  manualSaveProfile,
   // exposed for diagnostic / config readback
   baseUrl: BASE_URL,
 };

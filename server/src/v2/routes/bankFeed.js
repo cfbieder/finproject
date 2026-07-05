@@ -370,13 +370,43 @@ router.get('/fed-accounts', async (req, res, next) => {
  */
 router.get('/manual/profiles', proxy(() => client.manualProfiles()));
 
+// CR036 P2 — column-mapper support: inspect a file's headers/samples, and save
+// a mapper-built profile for reuse. Both proxy straight to the feed service.
+router.post('/manual/inspect', async (req, res) => {
+  try {
+    const { csv } = req.body || {};
+    if (typeof csv !== 'string' || !csv.trim()) {
+      return res.status(400).json({ error: 'csv (string) is required' });
+    }
+    res.json(await client.manualInspect({ csv }));
+  } catch (err) {
+    console.error('[v2/bank-feed] manual inspect failed:', err.message);
+    const status = err.status && err.status >= 400 && err.status < 600 ? err.status : 502;
+    res.status(status).json({ error: err.message });
+  }
+});
+
+router.post('/manual/save-profile', async (req, res) => {
+  try {
+    const { label, kind, currency, spec } = req.body || {};
+    if (!label || !spec) {
+      return res.status(400).json({ error: 'label and spec are required' });
+    }
+    res.status(201).json(await client.manualSaveProfile({ label, kind, currency, spec }));
+  } catch (err) {
+    console.error('[v2/bank-feed] manual save-profile failed:', err.message);
+    const status = err.status && err.status >= 400 && err.status < 600 ? err.status : 502;
+    res.status(status).json({ error: err.message });
+  }
+});
+
 router.post('/manual/preview', async (req, res) => {
   try {
-    const { accountExternalId, csv, profileId } = req.body || {};
+    const { accountExternalId, csv, profileId, profile, statedBalance } = req.body || {};
     if (!accountExternalId || typeof csv !== 'string' || !csv.trim()) {
       return res.status(400).json({ error: 'accountExternalId and csv (string) are required' });
     }
-    const result = await manualStatementImport.preview({ accountExternalId, csv, profileId });
+    const result = await manualStatementImport.preview({ accountExternalId, csv, profileId, profile, statedBalance });
     res.json(result);
   } catch (err) {
     console.error('[v2/bank-feed] manual preview failed:', err.message);
@@ -387,11 +417,11 @@ router.post('/manual/preview', async (req, res) => {
 
 router.post('/manual/commit', async (req, res) => {
   try {
-    const { accountExternalId, csv, profileId } = req.body || {};
+    const { accountExternalId, csv, profileId, profile, statedBalance } = req.body || {};
     if (!accountExternalId || typeof csv !== 'string' || !csv.trim()) {
       return res.status(400).json({ error: 'accountExternalId and csv (string) are required' });
     }
-    const result = await manualStatementImport.commit({ accountExternalId, csv, profileId });
+    const result = await manualStatementImport.commit({ accountExternalId, csv, profileId, profile, statedBalance });
     res.json(result);
   } catch (err) {
     console.error('[v2/bank-feed] manual commit failed:', err.message);

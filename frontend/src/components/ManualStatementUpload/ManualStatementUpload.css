@@ -126,3 +126,51 @@
   cursor: pointer;
   color: var(--text, #333);
 }
+
+/* CR036 P2 — interactive column mapper */
+.msu-mapper {
+  margin: 0.5rem 0;
+  padding: 0.75rem;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  background: var(--bg-secondary);
+}
+
+.msu-mapper-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(170px, 1fr));
+  gap: 0.6rem 0.9rem;
+  font-size: 0.82rem;
+  color: var(--ink-secondary);
+}
+
+.msu-mapper-grid select,
+.msu-mapper-grid input {
+  width: 100%;
+  margin-top: 2px;
+  font-size: 0.85rem;
+  padding: 4px 6px;
+}
+
+.msu-sample {
+  margin-top: 0.6rem;
+  max-height: 180px;
+}
+
+.msu-save {
+  display: flex;
+  gap: 0.5rem;
+  margin-top: 0.6rem;
+}
+
+.msu-save input {
+  flex: 1;
+  font-size: 0.85rem;
+  padding: 4px 8px;
+}
+
+.msu-saved {
+  margin-top: 0.4rem;
+  font-size: 0.85rem;
+  color: var(--success-strong, var(--primary));
+}
