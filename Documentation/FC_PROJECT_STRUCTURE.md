@@ -34,7 +34,7 @@
 | IP | `192.168.1.87` (LAN) / `100.94.46.62` (Tailscale) |
 | OS | Ubuntu 24.04 LTS (Noble) |
 | vCPUs / RAM / Disk | 4 / 8 GB / 77 GB (LVM) |
-| User | `cfbieder` (sudo NOPASSWD, SSH key auth) |
+| User | `cfbieder` (sudo with password — NOPASSWD no longer active, verified 2026-07-05; SSH key auth) |
 | Project path | `/home/cfbieder/psproject` (symlink: `~/Programs/fin` → `~/psproject`) |
 
 KVM host: `192.168.1.61` (Cockpit `https://192.168.1.61:9090`, pools `vm-ssd`/`vm-hdd`). Tailscale: `https://fin.tail413695.ts.net` → production frontend; auto-starts on boot.
@@ -296,7 +296,7 @@ ssh cfbieder@192.168.1.87 && cd ~/psproject
 | `check-button-css.sh` | `.btn` guardrail (also `npm run lint:buttons`) |
 | `v4-up.sh`, `sync-db-prod-to-v4.sh` | Isolated v4 stack |
 | `provision-vm.sh`, `deploy-on-vm.sh` | KVM provisioning |
-| `boot-reconcile-docker.sh`, `fin-docker-reconcile.service` | Boot-time `compose up -d` on prod/dev/bank-feed stacks — fixes dockerd reboot race that leaves postgres containers detached from their networks (seen 2026-07-04); unit installs to `/etc/systemd/system/` |
+| `boot-reconcile-docker.sh`, `fin-docker-reconcile.service` | Boot-time `compose up -d` on prod/dev/bank-feed stacks — fixes dockerd reboot race that leaves postgres containers detached from their networks (seen 2026-07-04); unit installed + enabled in `/etc/systemd/system/` 2026-07-05 |
 | `backup-mongo.sh`, `restore-mongo.sh` | **Dead (Mongo era)** — deletion backlogged |
 
 ---
