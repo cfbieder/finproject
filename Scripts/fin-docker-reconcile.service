@@ -1,0 +1,14 @@
+[Unit]
+Description=Reconcile fin docker stacks after boot (recreate lost network endpoints)
+After=docker.service
+Requires=docker.service
+
+[Service]
+Type=oneshot
+User=cfbieder
+ExecStart=/home/cfbieder/psproject/Scripts/boot-reconcile-docker.sh
+# compose up can pull/build-check; give it room
+TimeoutStartSec=300
+
+[Install]
+WantedBy=multi-user.target
