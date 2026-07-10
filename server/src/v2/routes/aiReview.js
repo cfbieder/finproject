@@ -16,15 +16,18 @@ const db = require("../db");
 const aiReview = require("../services/aiReview");
 
 // POST /api/v2/ai-review — Create new review (async; returns immediately, work runs in background)
+// Optional body.compareWith names a second scenario → a compare review (CR040):
+// keyed to `scenario` as the baseline, no apply-actions, compare system prompt.
 router.post("/", async (req, res, next) => {
   try {
-    const { scenario } = req.body;
+    const { scenario, compareWith } = req.body;
     if (!scenario) return res.status(400).json({ error: "Scenario name is required" });
 
-    const { review } = await aiReview.createReview(scenario);
+    const { review } = await aiReview.createReview(scenario, compareWith || null);
     res.status(202).json({ review });
   } catch (error) {
     console.error("[ai-review] Create failed:", error.message);
+    if (/not found|must differ/.test(error.message)) return res.status(400).json({ error: error.message });
     next(error);
   }
 });
@@ -58,16 +61,31 @@ router.get("/:reviewId/status", async (req, res, next) => {
 });
 
 // GET /api/v2/ai-review/scenario/:scenarioName — List reviews for scenario
+// Without ?compareWith: single-scenario reviews only (the Review drawer's list;
+// compare conversations would hijack it). With ?compareWith=<name>: compare
+// reviews for exactly that (baseline, comparison) pair (the Compare page's list).
 router.get("/scenario/:scenarioName", async (req, res, next) => {
   try {
     const scenarioName = decodeURIComponent(req.params.scenarioName).trim();
+    const compareWith = (req.query.compareWith || "").trim();
     const scenarioResult = await db.query("SELECT id FROM forecast_scenarios WHERE name = $1", [scenarioName]);
     if (scenarioResult.rows.length === 0) return res.json({ data: [] });
     const scenarioId = scenarioResult.rows[0].id;
-    const result = await db.query(
-      "SELECT * FROM fc_ai_reviews WHERE scenario_id = $1 ORDER BY created_at DESC",
-      [scenarioId]
-    );
+
+    let result;
+    if (compareWith) {
+      const compareResult = await db.query("SELECT id FROM forecast_scenarios WHERE name = $1", [compareWith]);
+      if (compareResult.rows.length === 0) return res.json({ data: [] });
+      result = await db.query(
+        "SELECT * FROM fc_ai_reviews WHERE scenario_id = $1 AND compare_scenario_id = $2 ORDER BY created_at DESC",
+        [scenarioId, compareResult.rows[0].id]
+      );
+    } else {
+      result = await db.query(
+        "SELECT * FROM fc_ai_reviews WHERE scenario_id = $1 AND compare_scenario_id IS NULL ORDER BY created_at DESC",
+        [scenarioId]
+      );
+    }
     res.json({ data: result.rows });
   } catch (error) {
     next(error);

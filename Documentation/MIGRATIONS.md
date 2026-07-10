@@ -54,3 +54,4 @@ fresh DB.
 | 032 | `032_manual_calibration.sql` | `manual_balances` table + `accounts.manual_reconcile_mode` (non-fed calibration) | CR033 |
 | 033 | `033_feed_source_synced_at.sql` | `bankfeed_balances.source_synced_at` — true upstream connection sync time | CR035 |
 | 034 | `034_forecast_assumptions.sql` | Drops the never-used 001-era `forecast_assumptions` and recreates it as the CR039 document store (key/JSON value/ord) replacing `FCAssump.json`; **after applying, run `node server/src/v2/scripts/import-fc-assumptions.js`** | CR039 |
+| 035 | `035_ai_review_compare.sql` | Adds nullable `fc_ai_reviews.compare_scenario_id` (FK → forecast_scenarios, CASCADE) + index so Compare-page AI conversations persist their scenario pair; NULL = plain single-scenario review | CR040 |

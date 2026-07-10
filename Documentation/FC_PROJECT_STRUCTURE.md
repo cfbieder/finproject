@@ -126,7 +126,7 @@ Detail for each page lives in its CR file (linked) — this table is a directory
 | `/forecast-modules` | FCModuleManage | Forecasting | FC step 3 — BS modules (add-from-actuals, growth/yield/invest/dispose, sweep priority) |
 | `/forecast-setup-exp` | FCExpSetup | Forecasting | FC step 4 — income/expense items from FC Lines |
 | `/forecast-review` | FCReview | Forecasting | FC step 5 — multi-year review: P&L by FC Lines, BS, KPI cards, ΔNet-Assets bridge, graphs with quick-adjust, Cash Sweep summary, AI Review drawer |
-| `/forecast-compare` | FCCompare | Forecasting | FC step 6 — compare two scenarios (baseline A vs B): KPI deltas, P&L/BS delta grids (client-side diff reconciling with Review), recharts A-vs-B lines + diverging delta bars, deterministic "where they differ" commentary ([CR040](CRs/CR040_FORECAST_SCENARIO_COMPARE.md); AI narrative = P3, pending) |
+| `/forecast-compare` | FCCompare | Forecasting | FC step 6 — compare two scenarios (baseline A vs B): KPI deltas, P&L/BS delta grids (client-side diff reconciling with Review), recharts A-vs-B lines + diverging delta bars, deterministic "where they differ" commentary + on-demand local-LLM AI narrative with follow-ups ([CR040](CRs/CR040_FORECAST_SCENARIO_COMPARE.md)) |
 | `/fc-settings` | FCSettings | Forecasting | Birth year, module types, FX assumptions, AI system prompt |
 | `/balance` | BalanceV2 | Reports & Graphs | Balance sheet (KPI cards, 1–3 periods, tree table, export) |
 | `/balance-trends` | BalanceTrends | Reports & Graphs | Period-end balance series × accounts; Month/Quarter/Year interval; USD/Local/Both; export ([CR018](CRs/CR018_BALANCE_TRENDS.md)) |
@@ -203,7 +203,7 @@ All mounted at `/api/v2` (nginx rewrites legacy `/api/*`). Behavioural detail in
 
 **Transfer match groups (`/transfer-match-groups`):** `POST /` · `GET /` · `DELETE /:id`.
 
-**AI Review (`/ai-review`):** async create (202 + background gateway call to local `ocr-llm`, task `finance_plan_review`) · `GET /:reviewId/status` poll · follow-up message · per-scenario list · get/delete · `POST /apply` ([CR006](CRs/CR006_AI_REVIEW.md)).
+**AI Review (`/ai-review`):** async create (202 + background gateway call to local `ocr-llm`, task `finance_plan_review`) · `GET /:reviewId/status` poll · follow-up message · per-scenario list · get/delete · `POST /apply` ([CR006](CRs/CR006_AI_REVIEW.md)). **Compare mode ([CR040](CRs/CR040_FORECAST_SCENARIO_COMPARE.md)):** `POST /` accepts `compareWith` → two-scenario context (both full contexts + precomputed cumulative B − A divergence table), fixed compare system prompt, no action blocks; pair persisted in `fc_ai_reviews.compare_scenario_id` (migration 035) so follow-ups rebuild the pair context; `GET /scenario/:name` excludes compare reviews (drawer) unless `?compareWith=<B>` (Compare page's pair list).
 
 **Utility (`/util`):** appdata get/post · exchange-rates/currencies · COA read+add/update/delete · `POST /backup-database` (execFile pg_dump → tar.gz download) · `GET /attention-summary` (Home strip counts: unreviewed tx, KI#7 verify-USD rows, stale feeds, fed+manual drift — [CR038](CRs/CR038_HOME_DASHBOARD_ATTENTION.md)).
 

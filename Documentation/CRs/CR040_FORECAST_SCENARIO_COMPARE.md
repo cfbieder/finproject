@@ -1,6 +1,6 @@
 # CR040 — Forecast Scenario Compare page
 
-**Status:** IN-PROGRESS — **P1 + P2 built & verified on dev 2026-07-10** (uncommitted→committed same day; not yet released). P3 (AI commentary via local LLM) pending.
+**Status:** ✅ COMPLETE (feature) — **P1 + P2 built & verified on dev 2026-07-10; P3 (AI commentary) built & live-verified against the local gateway same day.** Not yet released/deployed; **migration 035 must go to prod before the code** (MIGRATIONS.md discipline).
 **Track:** v3
 **Anchor in FC_NEXT_STEPS.md:** [cr040](../FC_NEXT_STEPS.md#cr040)
 
@@ -64,4 +64,19 @@ Delta convention: user picks **Baseline (A)** and **Comparison (B)**; every delt
 
 **Verified:** 116 frontend tests green; production build clean; live pipeline e2e on dev against a purpose-made divergent copy ("CR040 Test B" = "2026 Base" + $20K/yr salary): self-compare all-zero, headline "+$1.8M net assets by 2062", movers correctly show the cash-sweep chain (Transfers −$1.8M → Fidelity Fixed Income +$1.8M, Interest Income +$1.6M, Taxes −$591K). The "CR040 Test B" scenario is left on dev for browser testing; delete via Forecast Scenarios when done.
 
-**P3 remaining:** aiReview `compareWith` extension + inline narrative panel with follow-ups (per Decisions 2/5).
+## As built (P3, 2026-07-10)
+
+**Migration 035** — `fc_ai_reviews.compare_scenario_id` (nullable FK → `forecast_scenarios`, ON DELETE CASCADE, indexed). Needed because follow-up messages rebuild the context from the review row, so the pair must persist; NULL = plain single-scenario review, preserving existing behavior. Applied to dev. **Dev-DB drift found & fixed while testing:** dev's `fc_ai_reviews` was missing migration 020's `status`/`error_message` columns (prod had them); re-applied idempotent 020 to dev.
+
+**Backend** (`services/aiReview.js`, `routes/aiReview.js`):
+- `buildCompareContext(A, B)` — precomputed top-15 cumulative B − A divergence table (sweep tags excluded, same filter as the single context) followed by both scenarios' full contexts.
+- `COMPARE_SYSTEM_PROMPT` — Summary / Key Differences / Trajectory / Risks & Trade-offs; explicitly **no** ```action blocks. The `ai_review_prompt` app-data override applies to single-scenario reviews only.
+- `processReview(reviewId)` now derives scenario + compare names from the review row (was passed-in), so follow-ups on compare conversations rebuild the pair context automatically.
+- `createReview(scenario, compareWith)` validates both names, rejects self-compare, titles `Compare: A vs B`.
+- `GET /scenario/:name` excludes compare reviews (keeps them out of the Review drawer's list) unless `?compareWith=<B>`, which lists exactly that pair (Compare page restore-on-revisit).
+
+**Frontend** — `FCCompareAIPanel.jsx` inline on `/forecast-compare` below the deterministic commentary: restores the latest conversation for the pair on load, "Generate AI commentary" → 202 + 4s status polling, assistant text rendered pre-wrap (no action parsing), follow-up input via `POST /:id/message`, Regenerate starts a fresh conversation.
+
+**Verified:** 5 new jest tests in `services/__tests__/aiReviewCompare.test.js` (DB-backed, gateway stubbed via `global.fetch`): divergence table content + sweep exclusion, unknown-scenario/self-compare rejection, compare persistence + worker completion + compare-prompt payload, single-review regression. Full backend suite 252 green. Listing filters verified live on dev (drawer list excludes the compare review; pair list returns it). Live gateway round-trip on dev: see status header.
+
+**Deploy note:** apply migration 035 to prod **before** deploying this code (MIGRATIONS.md discipline).

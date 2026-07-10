@@ -167,6 +167,141 @@
   margin-top: 0.1rem;
 }
 
+/* ---- AI commentary panel ---- */
+.fc-compare-ai {
+  background: var(--surface-elevated);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 0.9rem 1.1rem;
+  margin: 1rem 0;
+}
+
+.fc-compare-ai__head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 0.5rem;
+}
+
+.fc-compare-ai__head h3 {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  margin: 0;
+  font-size: 0.85rem;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--ink-tertiary);
+}
+
+.fc-compare-ai__generate,
+.fc-compare-ai__regen {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  background: var(--surface);
+  color: var(--ink-secondary);
+  cursor: pointer;
+}
+
+.fc-compare-ai__generate {
+  padding: 0.45rem 0.9rem;
+  font-size: 0.82rem;
+  background: var(--primary);
+  border-color: var(--primary);
+  color: var(--on-accent, #fff);
+}
+
+.fc-compare-ai__regen {
+  padding: 0.25rem 0.6rem;
+  font-size: 0.72rem;
+}
+
+.fc-compare-ai__regen:hover {
+  border-color: var(--primary);
+  color: var(--primary);
+}
+
+.fc-compare-ai__empty p {
+  margin: 0 0 0.6rem;
+  font-size: 0.82rem;
+  color: var(--ink-secondary);
+}
+
+.fc-compare-ai__msg {
+  margin: 0.6rem 0;
+}
+
+.fc-compare-ai__msg--user .fc-compare-ai__msg-body {
+  background: var(--primary-subtle, rgba(107, 142, 107, 0.1));
+  border-radius: 8px;
+  padding: 0.4rem 0.7rem;
+  font-size: 0.82rem;
+  color: var(--ink);
+}
+
+.fc-compare-ai__msg-label {
+  display: block;
+  font-size: 0.68rem;
+  font-weight: 600;
+  color: var(--ink-tertiary);
+  margin-bottom: 0.15rem;
+}
+
+.fc-compare-ai__msg--assistant .fc-compare-ai__msg-body {
+  white-space: pre-wrap;
+  font-size: 0.84rem;
+  line-height: 1.5;
+  color: var(--ink);
+}
+
+.fc-compare-ai__pending {
+  font-size: 0.8rem;
+  color: var(--ink-tertiary);
+  font-style: italic;
+  padding: 0.4rem 0;
+}
+
+.fc-compare-ai__error {
+  font-size: 0.8rem;
+  color: var(--danger);
+  padding: 0.3rem 0;
+}
+
+.fc-compare-ai__followup {
+  display: flex;
+  gap: 0.4rem;
+  margin-top: 0.7rem;
+}
+
+.fc-compare-ai__followup input {
+  flex: 1;
+  padding: 0.45rem 0.7rem;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--surface);
+  color: var(--ink);
+  font-size: 0.82rem;
+}
+
+.fc-compare-ai__followup button {
+  display: flex;
+  align-items: center;
+  padding: 0.45rem 0.7rem;
+  border: 1px solid var(--primary);
+  border-radius: 8px;
+  background: var(--primary);
+  color: var(--on-accent, #fff);
+  cursor: pointer;
+}
+
+.fc-compare-ai__followup button:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+
 /* ---- charts ---- */
 .fc-compare-charts {
   display: flex;

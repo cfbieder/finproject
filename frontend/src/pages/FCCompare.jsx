@@ -15,6 +15,7 @@ import FCStepNav from "../features/Forecast/FCStepNav.jsx";
 import FCCompareTable from "../features/Forecast/FCCompareTable.jsx";
 import FCCompareCharts from "../features/Forecast/FCCompareCharts.jsx";
 import FCCompareCommentary from "../features/Forecast/FCCompareCommentary.jsx";
+import FCCompareAIPanel from "../features/Forecast/FCCompareAIPanel.jsx";
 import { useScenarios } from "../features/Forecast/hooks/useScenarios.js";
 import { useForecastData } from "../features/Forecast/hooks/useForecastData.js";
 import { useFCLineStructure } from "../features/Forecast/hooks/useFCLineStructure.js";
@@ -327,6 +328,10 @@ export default function FCCompare() {
 
       {!loading && commentary.length > 0 && (
         <FCCompareCommentary items={commentary} />
+      )}
+
+      {!loading && compare && (
+        <FCCompareAIPanel scenarioA={scenarioA} scenarioB={scenarioB} />
       )}
 
       {!loading && compare && (
