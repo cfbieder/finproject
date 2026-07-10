@@ -53,6 +53,7 @@ const FCExpSetup = lazy(() => import("../pages/FCExpSetup"));
 const FCLineMapping = lazy(() => import("../pages/FCLineMapping"));
 const FCModuleManage = lazy(() => import("../pages/FCModuleManage"));
 const FCReview = lazy(() => import("../pages/FCReview"));
+const FCCompare = lazy(() => import("../pages/FCCompare"));
 const FCScenarios = lazy(() => import("../pages/FCScenarios"));
 const FCSettings = lazy(() => import("../pages/FCSettings"));
 const ProgramSettings = lazy(() => import("../pages/ProgramSettings"));
@@ -278,6 +279,15 @@ export const routes = [
     wrapper: ForecastProvider,
     description: "Review and analyze generated forecasts",
     icon: Eye,
+  },
+  {
+    path: "/forecast-compare",
+    component: FCCompare,
+    label: "Forecast Compare",
+    category: "Forecasting",
+    wrapper: ForecastProvider,
+    description: "Compare two forecast scenarios: deltas, charts, and commentary",
+    icon: ArrowLeftRight,
   },
   {
     path: "/fc-settings",

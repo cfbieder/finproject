@@ -126,6 +126,7 @@ Detail for each page lives in its CR file (linked) — this table is a directory
 | `/forecast-modules` | FCModuleManage | Forecasting | FC step 3 — BS modules (add-from-actuals, growth/yield/invest/dispose, sweep priority) |
 | `/forecast-setup-exp` | FCExpSetup | Forecasting | FC step 4 — income/expense items from FC Lines |
 | `/forecast-review` | FCReview | Forecasting | FC step 5 — multi-year review: P&L by FC Lines, BS, KPI cards, ΔNet-Assets bridge, graphs with quick-adjust, Cash Sweep summary, AI Review drawer |
+| `/forecast-compare` | FCCompare | Forecasting | FC step 6 — compare two scenarios (baseline A vs B): KPI deltas, P&L/BS delta grids (client-side diff reconciling with Review), recharts A-vs-B lines + diverging delta bars, deterministic "where they differ" commentary ([CR040](CRs/CR040_FORECAST_SCENARIO_COMPARE.md); AI narrative = P3, pending) |
 | `/fc-settings` | FCSettings | Forecasting | Birth year, module types, FX assumptions, AI system prompt |
 | `/balance` | BalanceV2 | Reports & Graphs | Balance sheet (KPI cards, 1–3 periods, tree table, export) |
 | `/balance-trends` | BalanceTrends | Reports & Graphs | Period-end balance series × accounts; Month/Quarter/Year interval; USD/Local/Both; export ([CR018](CRs/CR018_BALANCE_TRENDS.md)) |

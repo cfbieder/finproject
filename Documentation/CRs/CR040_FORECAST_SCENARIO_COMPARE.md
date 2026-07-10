@@ -1,6 +1,6 @@
 # CR040 — Forecast Scenario Compare page
 
-**Status:** PLANNED (scoped 2026-07-10 via /question session; decisions locked below)
+**Status:** IN-PROGRESS — **P1 + P2 built & verified on dev 2026-07-10** (uncommitted→committed same day; not yet released). P3 (AI commentary via local LLM) pending.
 **Track:** v3
 **Anchor in FC_NEXT_STEPS.md:** [cr040](../FC_NEXT_STEPS.md#cr040)
 
@@ -50,3 +50,18 @@ Delta convention: user picks **Baseline (A)** and **Comparison (B)**; every delt
 - Unit tests for `fcCompareUtils` (alignment, missing-line/missing-year cases, B − A signs, FC-Line rollup parity with FCReview totals).
 - Manual e2e on dev (`:3105`): compare "2026 with House Purchase" vs its base scenario; deltas must reconcile against the two Review pages' numbers; AI commentary round-trip against the local gateway.
 - Sanity: same scenario vs itself → all-zero deltas, empty deterministic commentary.
+
+## As built (P1 + P2, 2026-07-10)
+
+**Files:** `frontend/src/features/Forecast/utils/fcCompareUtils.js` (+13 unit tests), `FCCompareTable.jsx`, `FCCompareCharts.jsx`, `FCCompareCommentary.jsx`, `pages/FCCompare.jsx/.css`; route `/forecast-compare` in `config/routes.jsx` (Forecasting, after Review); `FCStepNav` gains step 6 "Compare".
+
+**Key implementation decisions beyond the plan:**
+- `buildScenarioMatrix` is a pure transcription of FCReview's pivot (entry aggregation, Expense-net-of-Transfers, Cash Flow/Net rows, Bank Accounts running balance, level-2 Assets/Liabilities totals) so A/B columns reconcile with Review. It runs once per scenario; `compareMatrices` aligns on the year union.
+- **Base-year filter (found via live-data e2e):** `GET /scenarios/years` includes the BaseYear (PeriodStart − 1), whose P&L Review sources from budget, not engine entries — naïvely including it double-counted base-year transfers in the bank running balance ($32K drift on dev data). Compare therefore covers years ≥ PeriodStart only; base-year data enters solely via the bank seed (LAY actual balance + BaseYear budget NCF), fetched per scenario (`useBaseYearBalanceSheet` ×2 + `base-year-values` ×2) so scenarios with different PeriodStarts stay correct.
+- **Validated palettes (dataviz six-checks, light + dark):** A/B categorical — A green `#3E8A3E`/`#45A045`, B blue `#4A72B0`/`#3987E5`; delta diverging — blue `#4A72B0`/`#3987E5` (B higher) ↔ red `#C0504D`/`#E05252` (B lower). The app's muted brand hues failed the chroma-floor/lightness checks and were snapped to the nearest passing steps. Blue consistently means "B / B ahead". Chart hex is picked at runtime via `useTheme` (SVG attrs can't resolve CSS vars); table cells use `--fc-cmp-pos/neg` CSS vars with dark overrides.
+- Deterministic commentary ranks P&L movers by **net** cumulative Δ (same metric as the bar chart) — ranking by absolute churn surfaced "+$0" FX-noise lines.
+- Table: Δ/A/B display modes, hide-unchanged toggle (default on), click-to-expand A/B/Δ sub-rows; reuses `trans-budget-table` styling.
+
+**Verified:** 116 frontend tests green; production build clean; live pipeline e2e on dev against a purpose-made divergent copy ("CR040 Test B" = "2026 Base" + $20K/yr salary): self-compare all-zero, headline "+$1.8M net assets by 2062", movers correctly show the cash-sweep chain (Transfers −$1.8M → Fidelity Fixed Income +$1.8M, Interest Income +$1.6M, Taxes −$591K). The "CR040 Test B" scenario is left on dev for browser testing; delete via Forecast Scenarios when done.
+
+**P3 remaining:** aiReview `compareWith` extension + inline narrative panel with follow-ups (per Decisions 2/5).

@@ -6,6 +6,7 @@ const STEPS = [
   { path: "/forecast-modules", label: "Modules" },
   { path: "/forecast-setup-exp", label: "Expenses" },
   { path: "/forecast-review", label: "Review" },
+  { path: "/forecast-compare", label: "Compare" },
 ];
 
 export default function FCStepNav() {

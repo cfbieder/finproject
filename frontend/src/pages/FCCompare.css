@@ -1,0 +1,267 @@
+/* FCCompare (CR040) — scenario compare page styles.
+   Delta colors are the validated diverging pair (blue = B higher, red = B
+   lower); dark-mode steps re-validated against the dark surface. */
+
+:root {
+  --fc-cmp-pos: #4A72B0;
+  --fc-cmp-neg: #C0504D;
+}
+
+:root[data-theme="dark"] {
+  --fc-cmp-pos: #3987E5;
+  --fc-cmp-neg: #E05252;
+}
+
+/* ---- controls bar ---- */
+.fc-compare-controls {
+  display: flex;
+  align-items: flex-end;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+  padding: 0.75rem 1rem;
+  background: var(--surface-elevated);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  margin-bottom: 1rem;
+}
+
+.fc-compare-picker {
+  display: flex;
+  flex-direction: column;
+  gap: 0.2rem;
+}
+
+.fc-compare-picker label {
+  font-size: 0.7rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--ink-tertiary);
+}
+
+.fc-compare-picker select {
+  min-width: 200px;
+  padding: 0.4rem 0.6rem;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--surface);
+  color: var(--ink);
+  font-size: 0.85rem;
+}
+
+.fc-compare-swap {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0.45rem;
+  margin-bottom: 1px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--surface);
+  color: var(--ink-secondary);
+  cursor: pointer;
+}
+
+.fc-compare-swap:hover {
+  border-color: var(--primary);
+  color: var(--primary);
+}
+
+.fc-compare-mode-toggle,
+.fc-compare-metric-toggle {
+  display: flex;
+  gap: 0.25rem;
+  margin-left: auto;
+}
+
+.fc-compare-mode-toggle button,
+.fc-compare-metric-toggle button {
+  padding: 0.3rem 0.7rem;
+  font-size: 0.75rem;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  background: var(--surface);
+  color: var(--ink-secondary);
+  cursor: pointer;
+}
+
+.fc-compare-mode-toggle button.active,
+.fc-compare-metric-toggle button.active {
+  background: var(--primary);
+  border-color: var(--primary);
+  color: var(--on-accent, #fff);
+}
+
+.fc-compare-hide-toggle {
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+  font-size: 0.78rem;
+  color: var(--ink-secondary);
+  margin-bottom: 0.4rem;
+  cursor: pointer;
+}
+
+.fc-compare-error,
+.fc-compare-hint,
+.fc-compare-loading {
+  padding: 0.6rem 1rem;
+  border-radius: 8px;
+  font-size: 0.85rem;
+  margin-bottom: 0.75rem;
+}
+
+.fc-compare-error {
+  background: var(--danger-subtle, rgba(192, 80, 77, 0.08));
+  color: var(--danger);
+  border: 1px solid var(--danger);
+}
+
+.fc-compare-hint {
+  background: var(--surface-elevated);
+  border: 1px solid var(--border);
+  color: var(--ink-secondary);
+}
+
+.fc-compare-loading {
+  color: var(--ink-tertiary);
+}
+
+/* ---- commentary ---- */
+.fc-compare-commentary {
+  background: var(--surface-elevated);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 0.9rem 1.1rem;
+  margin: 1rem 0;
+}
+
+.fc-compare-commentary h3 {
+  margin: 0 0 0.5rem;
+  font-size: 0.85rem;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--ink-tertiary);
+}
+
+.fc-compare-commentary ul {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.45rem;
+}
+
+.fc-compare-commentary li {
+  display: flex;
+  gap: 0.5rem;
+  font-size: 0.85rem;
+  line-height: 1.45;
+  color: var(--ink);
+}
+
+.fc-compare-commentary__icon {
+  color: var(--primary);
+  flex-shrink: 0;
+  margin-top: 0.1rem;
+}
+
+/* ---- charts ---- */
+.fc-compare-charts {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+  margin: 1rem 0;
+}
+
+.fc-compare-chart-card {
+  background: var(--surface-elevated);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 0.9rem 1.1rem;
+}
+
+.fc-compare-chart-head {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  margin-bottom: 0.6rem;
+}
+
+.fc-compare-chart-head h3 {
+  margin: 0;
+  font-size: 0.85rem;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--ink-tertiary);
+}
+
+.fc-compare-chart-note {
+  margin-top: 0.4rem;
+  font-size: 0.72rem;
+  color: var(--ink-tertiary);
+}
+
+/* ---- table ---- */
+.fc-compare-table-wrapper {
+  max-height: 70vh;
+}
+
+.fc-compare-section-row td {
+  font-size: 0.72rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--ink-tertiary);
+  background: var(--surface-muted, var(--surface-elevated));
+  padding: 0.5rem 0.75rem;
+}
+
+.fc-compare-row {
+  cursor: pointer;
+}
+
+.fc-compare-row--level1 td {
+  font-weight: 700;
+  background: var(--surface-elevated);
+}
+
+.fc-compare-row--level2 td:first-child {
+  padding-left: 1.6rem;
+}
+
+.fc-compare-row--open td {
+  border-bottom: none;
+}
+
+.fc-compare-subrow td {
+  font-size: 0.78rem;
+  color: var(--ink-secondary);
+  background: var(--surface-muted, var(--surface-elevated));
+}
+
+.fc-compare-subrow td:first-child {
+  padding-left: 2.4rem;
+  font-style: italic;
+}
+
+.fc-compare-subrow--delta td {
+  border-bottom: 2px solid var(--border);
+}
+
+.fc-compare-cell--pos {
+  color: var(--fc-cmp-pos);
+  font-weight: 600;
+}
+
+.fc-compare-cell--neg {
+  color: var(--fc-cmp-neg);
+}
+
+.fc-compare-table-note {
+  padding: 0.5rem 0.75rem;
+  font-size: 0.72rem;
+  color: var(--ink-tertiary);
+}
