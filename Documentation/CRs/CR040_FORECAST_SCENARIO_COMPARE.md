@@ -1,6 +1,6 @@
 # CR040 — Forecast Scenario Compare page
 
-**Status:** ✅ COMPLETE (feature) — **P1 + P2 built & verified on dev 2026-07-10; P3 (AI commentary) built & live-verified against the local gateway same day.** Not yet released/deployed; **migration 035 must go to prod before the code** (MIGRATIONS.md discipline).
+**Status:** ✅ RELEASED v3.0.60 (2026-07-10) — P1–P3 built, verified on dev (incl. live local-LLM round-trip + follow-up), migration 035 applied to dev **and prod**, deployed.
 **Track:** v3
 **Anchor in FC_NEXT_STEPS.md:** [cr040](../FC_NEXT_STEPS.md#cr040)
 
