@@ -10,6 +10,9 @@ Living plan for the Fin project — open Change Requests, known issues, ongoing 
 
 ### 1.1 Open / In-Progress
 
+<a id="cr040"></a>
+- **CR040 — [Forecast Scenario Compare](CRs/CR040_FORECAST_SCENARIO_COMPARE.md)** — *PLANNED (scoped 2026-07-10; decisions locked in the CR).* New `/forecast-compare` page: pick baseline A and comparison B, see KPI deltas + full P&L/BS delta tables (client-side diff of two `GET /entries` payloads, B − A), recharts A-vs-B lines + diverging delta bars, and hybrid commentary — instant deterministic top-movers plus on-demand local-LLM narrative with inline follow-ups (aiReview extended with `compareWith`; no migration, read-only feature). P1 tables/diff → P2 charts → P3 AI panel.
+
 <a id="cr037"></a>
 - **CR037 — [Correctness Hardening (money & date)](CRs/CR037_CORRECTNESS_HARDENING.md)** — *✅ RELEASED v3.0.54 (2026-07-03); complete, no open items.* All six silent-wrong-number items from the design review: TZ sweep + eslint ban, split penny-leak residual fix, `parseCurrency` fail-loud, route-level ErrorBoundary, transactional forecast writes, money-endpoint whitelist validation. Detail in the CR and the v3.0.54 entry below.
 
