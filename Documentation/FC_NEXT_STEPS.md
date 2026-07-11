@@ -170,7 +170,7 @@ Small fixes, refactors, and one-off cleanups that don't warrant their own CR fil
 - [ ] **Backend service layer simplification** (per §5): break up `fcbuilder-module.js` (835 lines), `cashFlowFetcher.js` (619 lines); `AppError` class.
 - [ ] **Repo cleanup:** ~~delete tracked Mongo-era debris (`old/`, `psAPI/`, `mongo/`)~~ *(done CR043 Phase 0, 2026-07-11)*; `Scripts/*-mongo.sh` kept (CR019 doc references `restore-mongo.sh` as a `pg_restore` syntax example); resolve `backups/` vs `Backups/` duplication; ~~clarify root `package.json` (only declares axios)~~ *(deleted — root `package.json`+lock removed, CR043 Phase 0)*. Also (2026-07-03): ~~dead V1 pages `pages/Balance.jsx`, `pages/BudgetInput.jsx`~~ *(deleted CR043 Phase 0; no orphan CSS existed)*, merge `js/` into `utils/` (or document the split), adopt-or-drop the `@lib` Vite alias (1 importer vs 56 relative paths).
 - [ ] **Mobile shell dedup** (2026-07-03): all 8 `mobile/pages/*` fetch + transform independently — 0 imports from `features/` — so every fix is done twice (Known Issue #5 is this tax). Extract shared data hooks (`useBalanceReport`, `useCashFlowReport`, …) consumed by both shells; presentation stays forked. CR038 P1's `useOverview` is the first slice.
-- [ ] **Logging: adopt pino or drop it** (2026-07-03): `pino`/`pino-pretty` are declared deps and listed in the docs' tech stack but **never imported** — all 378 log statements are `console.*`. Either wire pino in (feeds the §5.3 structured-logging item) or remove the deps and correct FC_PROJECT_STRUCTURE §3.
+- [x] **Logging: adopt pino or drop it** — *Decided/done CR043 Phase 2.4 (2026-07-11): **dropped.*** `pino`/`pino-pretty` were declared but 0-import; full adoption would be a 388-site `console.*` sweep with no current driver, so the unused deps were removed and FC_PROJECT_STRUCTURE §3 corrected. `console.*` → container stdout stays the pattern (and the migration surface if a structured logger is prioritized later).
 - [x] **`/refresh-ps` rename** — *Done v3.0.57 (2026-07-03):* route `/refresh-feeds` (+ redirect from the old URL), component `RefreshFeeds.jsx`, "Legacy PocketSmith records" label; internal CSS class names kept.
 - [x] **UX polish batch** — *Closed v3.0.57 (2026-07-03):* `/ui-preview` hidden from all nav surfaces (`showInNav:false`, honored by `getRoutesByCategory`). The other two items were **false findings** on inspection: the COA single-delete confirm already renders a fallback "Are you sure…" + cannot-be-undone warning (`FCExpConfirmDeleteModal` defaults), and `.confirm-modal__message` already has `white-space: pre-line` so TransferAnalysis's `\n\n` copy renders as paragraphs.
 - [ ] **Forecast inline-style migration** (2026-07-03): 571 `style={{…}}` occurrences concentrated in Forecast (`pages/FCLineMapping.jsx` 98, `FCReviewTable`/`FCAIReviewDrawer` 57 each; `FCStepNav` fully inline incl. JS hover handlers) bypass the 168-token design system — the likely source of the next dark-mode defect batch. Migrate Forecast to token CSS + add a lint guard.
@@ -275,7 +275,7 @@ Also oversized: `routes/forecast.js` (1,441), `routes/budget.js` (912), `reposit
 
 - Consistent response envelope `{ success, data, meta }` or `{ success, error }`.
 - Pagination on list endpoints; standardize `sortBy`/`sortOrder`/`fromDate`/`toDate`.
-- Structured logging via Pino.
+- Structured logging: ~~via Pino~~ *(pino dropped as unused, CR043 Phase 2.4 — revisit with a lightweight logger over the `console.*` sites if/when observability is prioritized).*
 
 ---
 

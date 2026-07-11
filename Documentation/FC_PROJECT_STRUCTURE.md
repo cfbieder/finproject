@@ -55,7 +55,7 @@ KVM host: `192.168.1.61` (Cockpit `https://192.168.1.61:9090`, pools `vm-ssd`/`v
 
 **Frontend:** React 19, Vite 7 (+ vite-plugin-pwa/workbox — installable PWA, cache-first hashed assets, network-only API), React Router 7, Lucide icons, Recharts, xlsx (SheetJS), env-cmd. Design system: "Mindful Minimalist" (warm cream, forest-green accents, Outfit font, soft shadows, rounded geometry).
 
-**Backend:** Express 5, pg 8, archiver, pino, morgan. Node 20. (Arquero + danfojs-node removed by CR043 — the forecast engine's label-indexed matrices are plain JS, `services/forecast/frame.js`.)
+**Backend:** Express 5, pg 8, archiver, morgan. Node 20. Logging is `console.*` (388 sites) to container stdout; `morgan` for HTTP access logs. (CR043 removed Arquero + danfojs-node — the forecast engine's label-indexed matrices are plain JS, `services/forecast/frame.js` — and the never-imported `pino`/`pino-pretty` deps; adopting a structured logger later would migrate the `console.*` sites.)
 
 ---
 
