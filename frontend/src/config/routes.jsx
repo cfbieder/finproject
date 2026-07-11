@@ -20,13 +20,11 @@ import {
   Receipt,
   DollarSign,
   BookOpen,
-  PieChart,
   Target,
   PlusCircle,
   Calculator,
   Eye,
   ArrowLeftRight,
-  ArrowUpDown,
   Wallet,
   Palette,
 } from "lucide-react";
@@ -41,11 +39,10 @@ const BankFeedDiagnostic = lazy(() => import("../pages/BankFeedDiagnostic"));
 // CR042 U5: the four former balance pages are now tabs inside Balances.
 const Balances = lazy(() => import("../pages/Balances"));
 const BudgetInput = lazy(() => import("../pages/BudgetWorksheetV2"));
-const BudgetRealization = lazy(() => import("../pages/BudgetRealization"));
-const BudgetRealizationGraph = lazy(() => import("../pages/BudgetRealizationGraph"));
-const BudgetVariances = lazy(() => import("../pages/BudgetVariances"));
-const CashFlow = lazy(() => import("../pages/CashFlow"));
-const CashFlowPeriods = lazy(() => import("../pages/CashFlowPeriods"));
+// CR042 U5: the three budget-vs-actual variants are now tabs inside BudgetVsActual.
+const BudgetVsActual = lazy(() => import("../pages/BudgetVsActual"));
+// CR042 U5: the two cash-flow pages are now tabs inside CashFlowTabs.
+const CashFlowTabs = lazy(() => import("../pages/CashFlowTabs"));
 const FCExpSetup = lazy(() => import("../pages/FCExpSetup"));
 const FCLineMapping = lazy(() => import("../pages/FCLineMapping"));
 const FCModuleManage = lazy(() => import("../pages/FCModuleManage"));
@@ -200,28 +197,21 @@ export const routes = [
     icon: FileSpreadsheet,
   },
   {
-    path: "/budget-realization",
-    component: BudgetRealization,
-    label: "Budget Realization",
+    path: "/budget-vs-actual",
+    component: BudgetVsActual,
+    label: "Budget vs Actual",
     category: "Budgeting",
-    description: "Compare budget vs actual performance",
+    description:
+      "Budget vs actual — realization table, variance charts, and line items ranked by largest variance",
     icon: Target,
   },
   {
-    path: "/budget-graph",
-    component: BudgetRealizationGraph,
-    label: "Budget Graph",
+    path: "/budget-vs-actual/:view",
+    component: BudgetVsActual,
+    label: "Budget vs Actual",
     category: "Budgeting",
-    description: "Visual budget analysis and variance charts",
-    icon: BarChart3,
-  },
-  {
-    path: "/budget-variances",
-    component: BudgetVariances,
-    label: "Budget Variances",
-    category: "Budgeting",
-    description: "Line items ranked by largest budget-to-actual variance",
-    icon: ArrowUpDown,
+    showInNav: false,
+    icon: Target,
   },
   {
     path: "/budget-fx",
@@ -236,7 +226,7 @@ export const routes = [
   {
     path: "/forecast-mapping",
     component: FCLineMapping,
-    label: "FC Inc/Exp Mapping",
+    label: "Income & Expense Mapping",
     category: "Forecasting",
     description: "Map budget categories to forecast income and expense lines",
     icon: ArrowLeftRight,
@@ -289,7 +279,7 @@ export const routes = [
   {
     path: "/fc-settings",
     component: FCSettings,
-    label: "FC Settings",
+    label: "Forecast Settings",
     category: "Forecasting",
     description: "Birth year, module types, and FX rate assumptions",
     icon: DollarSign,
@@ -318,21 +308,21 @@ export const routes = [
   },
   {
     path: "/cash-flow",
-    component: CashFlow,
-    label: "Cash Flow Summary",
+    component: CashFlowTabs,
+    label: "Cash Flow",
     category: "Reports & Graphs",
     subcategory: "Reports",
-    description: "Cash flow profit and loss analysis",
+    description: "Cash-flow P&L summary and the per-period (month/quarter/year) breakdown",
     icon: ArrowLeftRight,
   },
   {
-    path: "/cash-flow-periods",
-    component: CashFlowPeriods,
-    label: "Cash Flow Periods",
+    path: "/cash-flow/:view",
+    component: CashFlowTabs,
+    label: "Cash Flow",
     category: "Reports & Graphs",
     subcategory: "Reports",
-    description: "Cash flow breakdown by month, quarter, or year",
-    icon: PieChart,
+    showInNav: false,
+    icon: ArrowLeftRight,
   },
 
   // Reports & Graphs > Graphs

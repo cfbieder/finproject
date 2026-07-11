@@ -35,3 +35,33 @@ describe("Balances consolidation (CR042 U5)", () => {
     expect(navBalances[0].path).toBe("/balances");
   });
 });
+
+describe("Cash Flow 2→1 (CR042 U5)", () => {
+  it("removes /cash-flow-periods and keeps one /cash-flow nav route + hidden tab", () => {
+    expect(paths).not.toContain("/cash-flow-periods");
+    const nav = routes.find((r) => r.path === "/cash-flow");
+    const tab = routes.find((r) => r.path === "/cash-flow/:view");
+    expect(nav?.showInNav).not.toBe(false);
+    expect(tab?.showInNav).toBe(false);
+    expect(nav.component).toBe(tab.component);
+  });
+});
+
+describe("Budget vs Actual 3→1 (CR042 U5)", () => {
+  it("removes the three variant routes", () => {
+    expect(paths).not.toContain("/budget-realization");
+    expect(paths).not.toContain("/budget-graph");
+    expect(paths).not.toContain("/budget-variances");
+  });
+
+  it("exposes one /budget-vs-actual nav route + hidden tab, worksheet/FX untouched", () => {
+    const nav = routes.find((r) => r.path === "/budget-vs-actual");
+    const tab = routes.find((r) => r.path === "/budget-vs-actual/:view");
+    expect(nav?.showInNav).not.toBe(false);
+    expect(tab?.showInNav).toBe(false);
+    expect(nav.component).toBe(tab.component);
+    // The non-vs-actual budget pages stay separate.
+    expect(paths).toContain("/budget-worksheet");
+    expect(paths).toContain("/budget-fx");
+  });
+});

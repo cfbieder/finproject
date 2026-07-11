@@ -137,6 +137,23 @@ function AppShell() {
             path="/balance-chart"
             element={<Navigate to="/balances/chart" replace />}
           />
+          {/* CR042 U5 — cash-flow 2→1 and budget-vs-actual 3→1 */}
+          <Route
+            path="/cash-flow-periods"
+            element={<Navigate to="/cash-flow/periods" replace />}
+          />
+          <Route
+            path="/budget-realization"
+            element={<Navigate to="/budget-vs-actual/table" replace />}
+          />
+          <Route
+            path="/budget-graph"
+            element={<Navigate to="/budget-vs-actual/chart" replace />}
+          />
+          <Route
+            path="/budget-variances"
+            element={<Navigate to="/budget-vs-actual/variances" replace />}
+          />
         </Routes>
         </Suspense>
       </ErrorBoundary>

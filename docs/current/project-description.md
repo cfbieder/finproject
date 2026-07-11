@@ -118,9 +118,7 @@ Detail for each page lives in its CR file (linked) — this table is a directory
 | `/refresh-feeds` | RefreshFeeds | Transactions | **"Refresh Feeds"** — bank-feed review queue: refresh, tabbed review/edit, category suggestions, bulk accept, per-row kebab actions (Edit/Split/Neutralize/Transfer/Accept), group-by-account; renamed from `/refresh-ps` in v3.0.57 (old URL redirects) ([CR022](../cr/cr-022-bank-feed-parallel-import.md)/[CR028](../cr/cr-028-securities-trade-neutralization.md)) |
 | `/backup-database` | BackupDatabase | Database | Download DB backup (tar.gz of pg_dump) |
 | `/budget-worksheet` | BudgetWorksheetV2 | Budgeting | Two-panel worksheet: balance comparison + entry form; HierarchyFilter; math expressions; FX auto-base |
-| `/budget-realization` | BudgetRealization | Budgeting | Budget vs actual with KPI cards |
-| `/budget-graph` | BudgetRealizationGraph | Budgeting | Visual budget analysis |
-| `/budget-variances` | BudgetVariances | Budgeting | Line items ranked by variance |
+| `/budget-vs-actual/:view` | BudgetVsActual | Budgeting | **CR042 U5** — consolidated budget-vs-actual; tabs: `table` (BudgetRealization KPI cards), `chart` (BudgetRealizationGraph), `variances` (BudgetVariances ranked). Old `/budget-realization`, `/budget-graph`, `/budget-variances` redirect here |
 | `/budget-fx` | BudgetFX | Budgeting | Monthly budget FX rates per currency/year (`budget_fx_rates`) |
 | `/forecast-mapping` | FCLineMapping | Forecasting | FC step 1 — define FC Lines, assign budget categories |
 | `/forecast-scenarios` | FCScenarios | Forecasting | FC step 2 — scenarios (copy, sweep band, target cash) |
@@ -130,8 +128,7 @@ Detail for each page lives in its CR file (linked) — this table is a directory
 | `/forecast-compare` | FCCompare | Forecasting | FC step 6 — compare two scenarios (baseline A vs B): KPI deltas, P&L/BS delta grids (client-side diff reconciling with Review), recharts A-vs-B lines + diverging delta bars, deterministic "where they differ" commentary + on-demand local-LLM AI narrative with follow-ups ([CR040](../cr/cr-040-forecast-scenario-compare.md)) |
 | `/fc-settings` | FCSettings | Forecasting | Birth year, module types, FX assumptions, AI system prompt |
 | `/balances/:view` | Balances | Reports & Graphs | **CR042 U5** — consolidated balance report; deep-linkable tabs: `summary` (BalanceV2 sheet), `periods` (BalanceSheetPeriods), `trends` (BalanceTrends), `chart` (BalanceChart net worth). Old `/balance`, `/balance-trends`, `/balance-sheet-periods`, `/balance-chart` 301-redirect here |
-| `/cash-flow` | CashFlow | Reports & Graphs | Cash flow P&L |
-| `/cash-flow-periods` | CashFlowPeriods | Reports & Graphs | Cash flow per period column (Month/Quarter/Year) |
+| `/cash-flow/:view` | CashFlowTabs | Reports & Graphs | **CR042 U5** — consolidated cash flow; tabs: `summary` (CashFlow P&L), `periods` (CashFlowPeriods per-period columns). Old `/cash-flow-periods` redirects here |
 | `/category-trend` | CategoryTrend | Reports & Graphs | Actual vs budget per category, grouped bars |
 | `/trans-actual` | TransActual | Transactions | Transaction explorer: search, HierarchyFilter, KPI cards, edit/split/neutralize/delete ([CR008](../cr/cr-008-hierarchy-filter.md)) |
 | `/trans-budget` | TransBudget | Transactions | Budget-transaction explorer (same pattern) |

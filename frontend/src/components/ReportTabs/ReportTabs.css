@@ -1,10 +1,10 @@
 /**
- * Balances.css (CR042 U5) — tab strip for the consolidated Balances report.
- * Slim underline tabs above the active sub-report; sits inside .page-shell so
- * it inherits the page gutters.
+ * ReportTabs.css (CR042 U5) — tab strip for consolidated reports (Balances,
+ * Cash Flow, Budget vs Actual). Slim underline tabs above the active sub-report;
+ * sits inside .page-shell so it inherits the page gutters.
  */
 
-.balances-tabs {
+.report-tabs {
   display: flex;
   gap: 0.25rem;
   border-bottom: 1px solid var(--border);
@@ -12,7 +12,7 @@
   overflow-x: auto;
 }
 
-.balances-tab {
+.report-tab {
   position: relative;
   padding: 0.6rem 1rem;
   font-size: 0.9rem;
@@ -25,17 +25,17 @@
   transition: color var(--transition-fast), border-color var(--transition-fast);
 }
 
-.balances-tab:hover {
+.report-tab:hover {
   color: var(--ink);
 }
 
-.balances-tab--active {
+.report-tab--active {
   color: var(--primary);
   border-bottom-color: var(--primary);
 }
 
 @media (max-width: 640px) {
-  .balances-tab {
+  .report-tab {
     padding: 0.55rem 0.75rem;
     font-size: 0.85rem;
   }
