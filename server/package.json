@@ -7,6 +7,8 @@
     "start": "node src/server.js",
     "dev": "env-cmd -e development -- nodemon src/server.js",
     "dok": "node src/server.js",
+    "migrate": "node db/migrate.js",
+    "migrate:dry": "node db/migrate.js --dry-run",
     "test": "jest",
     "test:watch": "jest --watch",
     "test:coverage": "jest --coverage"

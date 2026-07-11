@@ -223,7 +223,7 @@ Multi-year projection engine in `server/src/services/forecast/` (`index.js` orch
 
 ### Tests
 
-262 backend Jest tests (engine incl. CR041 ownership gating + CR043 generate transactionality, services incl. aiReview compare, repositories, scripts, `v2/utils/validate`; DB-backed suites self-seed against `DATABASE_URL`) — run `cd server && npm test`. 121 frontend Vitest tests (utils helpers + `fcCompareUtils` diff engine + `FIELD_SECTIONS` grouping) — `cd frontend && npm test`. HTTP smoke: `node server/src/scripts/smoke-after-021.js`. **CI** (`.github/workflows/ci.yml`) runs the backend suite against a fresh migrations+[`ci-seed.sql`](../server/db/ci-seed.sql) Postgres, the frontend build (lint advisory until the 160-error debt clears), and a tracked-secret grep gate. Inventory: [Testing/TEST_OVERVIEW.md](Testing/TEST_OVERVIEW.md).
+273 backend Jest tests (engine incl. CR041 ownership gating + CR043 generate transactionality, the CR043 migration runner, services incl. aiReview compare, repositories, scripts, `v2/utils/validate`; DB-backed suites self-seed against `DATABASE_URL`) — run `cd server && npm test`. 121 frontend Vitest tests (utils helpers + `fcCompareUtils` diff engine + `FIELD_SECTIONS` grouping) — `cd frontend && npm test`. HTTP smoke: `node server/src/scripts/smoke-after-021.js`. **CI** (`.github/workflows/ci.yml`) runs the backend suite against a fresh migrations+[`ci-seed.sql`](../server/db/ci-seed.sql) Postgres, the frontend build (lint advisory until the 160-error debt clears), and a tracked-secret grep gate. Inventory: [Testing/TEST_OVERVIEW.md](Testing/TEST_OVERVIEW.md).
 
 ### Operational scripts (`server/src/v2/scripts/`)
 
@@ -253,7 +253,7 @@ Views: `v_balance_sheet`, `v_budget_vs_actual`. Size: ~30 MB, ~36k transactions.
 
 ### Migrations
 
-Registry (one line per migration, 001–034): **[MIGRATIONS.md](MIGRATIONS.md)**. They auto-run only on a fresh (empty-volume) Postgres via `initdb.d`; on existing DBs apply manually with `psql` **before** deploying dependent code. CI proves the chain applies to an empty database. A real runner is CR027A scope.
+Registry (one line per migration, 001–036): **[MIGRATIONS.md](MIGRATIONS.md)**. A runner exists — `server/db/migrate.js` / `npm run migrate` (CR043 Phase 1.1): `schema_migrations` ledger, apply-the-gap in per-file transactions, checksum-drift warnings, auto-baseline on first run against a populated DB; `deploy-to-production.sh` Step 2b applies pending to prod before rebuild. `initdb.d` still auto-applies `*.sql` on a fresh empty volume (the two coexist). CI proves the chain applies to an empty database via the psql loop.
 
 ---
 

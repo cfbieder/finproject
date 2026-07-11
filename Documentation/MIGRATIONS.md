@@ -6,11 +6,21 @@ keep this list in sync when adding a migration (CI applies the whole chain to
 a fresh database, so a migration that only works on a data-bearing DB will
 fail there).
 
-**How migrations run today:** automatically only via Postgres
-`docker-entrypoint-initdb.d` on a fresh (empty-volume) database; on existing
-dev/prod databases they are applied manually (`psql -f`) **before** deploying
-code that references the new objects. A real migration runner is CR027A
-Phase 0 scope.
+**How migrations run today:** a real runner exists (CR043 Phase 1.1, pulled
+forward from CR027A) — `server/db/migrate.js`, `npm run migrate` (dry-run:
+`npm run migrate:dry`). It records applied files in a `schema_migrations`
+ledger (filename + md5 checksum + baselined flag) and applies only the gap,
+each file in its own transaction; it warns on checksum drift (an applied file
+edited afterward — the class that bit CI in 4931b2a). On its **first** run
+against an already-populated DB it *auto-baselines*: records every current
+migration as applied without executing it (also correct for a fresh volume,
+where initdb.d has already run them). `deploy-to-production.sh` runs it as
+Step 2b (after backup, before rebuild), so prod adopts the ledger on the next
+deploy. Dev adopted it 2026-07-11 (36 baselined). Postgres
+`docker-entrypoint-initdb.d` still auto-applies `*.sql` on a fresh empty
+volume; the runner and initdb.d coexist (the runner baselines whatever initdb
+already ran). Wiring the runner into container **start** is a possible
+follow-up; not done (deploy-time application is the v3-safe payoff).
 
 **CI baseline:** [`server/db/ci-seed.sql`](../server/db/ci-seed.sql) (not a
 migration) seeds the few COA rows engines reference by hardcoded id/name

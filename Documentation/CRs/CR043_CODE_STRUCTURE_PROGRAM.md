@@ -76,7 +76,7 @@ Severity order within tiers; evidence cited as file:line at review time.
 
 | # | Item | Size | Depends |
 |---|---|---|---|
-| 1.1 | Migration runner + `schema_migrations` (N11 — owner decision to pull from CR027A) | M | — |
+| 1.1 | Migration runner + `schema_migrations` (N11) — ✅ **DONE 2026-07-11** (Opus): `server/db/migrate.js` + `npm run migrate`/`migrate:dry`; ledger (filename+checksum+baselined), apply-the-gap in per-file txns, drift warnings, **auto-baseline** on first run against a populated DB; wired into `deploy-to-production.sh` Step 2b; dev adopted (36 baselined); 11 tests (pure plan + scratch-object DB integration); 273 backend green. Coexists with initdb.d; container-start wiring left as a follow-up. CR027A now consumes this instead of building it. | M | — |
 | 1.2 | Supertest route tests for `forecast.js` + `budget.js` against the CI Postgres (already backlogged) | M–L | — |
 | 1.3 | **Transaction + advisory lock around `generateForecast`** (N2) — ✅ **DONE 2026-07-11** (pulled ahead of 1.1/1.2; see N2 for verification) | M | golden master exists |
 | 1.4 | `AppError` + central error middleware + envelope decision (`{data, meta}`); extend `validate.js` to forecast writes (N8/N10). Express 5 forwards async rejections, so the 142 per-route try/catch blocks shrink as touched | M | — |

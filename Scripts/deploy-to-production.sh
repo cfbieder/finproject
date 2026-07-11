@@ -117,6 +117,28 @@ else
     echo ""
 fi
 
+# Step 2b: Apply pending DB migrations to the running prod Postgres BEFORE the
+# new code deploys (CLAUDE.md rule #6 / CR043 N11). The runner ledgers what it
+# applies in schema_migrations; on first run against the already-populated prod
+# DB it auto-baselines (records the existing migrations as applied, runs none),
+# so this is safe to have always run. Uses the container's DATABASE_URL.
+echo "Step 2b: Applying pending database migrations..."
+echo "----------------------------------------"
+if [ -f server/db/migrate.js ]; then
+    DB_URL=$(docker exec fin-server printenv DATABASE_URL 2>/dev/null || true)
+    if [ -z "$DB_URL" ]; then
+        # Server container may be down; derive from prod compose (localhost:5433).
+        DB_URL="postgresql://fin:${POSTGRES_PASSWORD:-}@127.0.0.1:5433/fin"
+    fi
+    if DATABASE_URL="$DB_URL" node server/db/migrate.js; then
+        echo "✓ Migrations up to date"
+    else
+        echo "✗ Migration runner failed — aborting deploy (schema would mismatch the new code)"
+        exit 1
+    fi
+    echo ""
+fi
+
 # Step 3: Rebuild and restart production
 echo "Step 3: Deploying to production..."
 echo "----------------------------------------"
