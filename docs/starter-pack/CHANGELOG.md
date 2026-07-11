@@ -1,5 +1,19 @@
 # Starter Pack — Changelog
 
+## v1.5.1 — 2026-07-11
+
+**CI hardening (testing-and-ci.md) — three gaps found by diffing the skeleton against a
+mature project's live workflow.**
+- **Frontend tests are a blocking CI step**, not just `npm run build` — the build-only
+  frontend job is a standing trap (a real project ran months of Vitest tests locally
+  while CI never executed them; ~5-line fix once noticed).
+- **Retired-secrets guard** in `ci-guards.sh`: literal secret values rotated out of the
+  codebase go on a permanent banned-strings list (`git grep` gate, docs excluded), so a
+  rotated password can never quietly reappear in compose files or scripts.
+- **`ci-seed.sql` convention:** a small non-migration seed applied after the migration
+  chain for reference rows the suite assumes exist (hardcoded ids/names) — migrations
+  stay pure schema, the fresh-DB CI path stays runnable. Skeleton gains the seed step.
+
 ## v1.5.0 — 2026-07-11
 
 **Upstreamed from the Fin project (dual-track, multi-agent, importer-heavy) — six

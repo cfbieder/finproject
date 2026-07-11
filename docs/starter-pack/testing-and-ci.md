@@ -5,7 +5,7 @@
 > covers what must be true *before* the deploy script is allowed to run, and how to enforce
 > it mechanically instead of by convention.
 >
-> **Last reviewed:** 2026-07-06.
+> **Last reviewed:** 2026-07-11.
 
 ## The stance (proportionate to this pack's scope)
 
@@ -73,14 +73,28 @@ jobs:
         run: cd backend && npm ci        # or: pip install -r requirements.txt
       - name: Migrations apply cleanly to an empty DB (or restore-then-delta — see note)
         run: cd backend && npm run migrate:ci
+      - name: Seed CI reference rows            # ci-seed.sql — see the seed note below
+        run: cd backend && npm run seed:ci
       - name: Unit + integration tests
         run: cd backend && npm test
       - name: Convention guards
         run: bash scripts/ci-guards.sh
+      - name: Frontend tests                    # BLOCKING — a build-only frontend job is a trap (see below)
+        run: cd frontend && npm ci && npm test
       - name: Frontend build compiles
-        run: cd frontend && npm ci && npm run build
+        run: cd frontend && npm run build
 ```
 
+> **CI-seed convention:** keep a small `ci-seed.sql` (explicitly *not* a migration) for
+> the handful of reference rows the suite assumes exist — hardcoded ids/names the code
+> looks up (a special account, a fixed category). Apply it *after* the migration chain.
+> Migrations stay pure schema; the fresh-DB path stays actually runnable.
+>
+> **Frontend tests are a blocking step, not just the build.** A frontend job that only
+> compiles is a standing trap: the test suite exists, everyone assumes CI runs it, and it
+> never does — regressions ship green until someone runs it by hand. (Found live in a
+> mature project: months of Vitest tests, zero CI executions, a ~5-line fix.)
+>
 > **Migration-chain note:** if the chain is not replayable from scratch (the Alembic
 > regenerated-snapshot trap — deploy-to-public gotcha #15), the CI migration step should
 > restore a sanitized seed dump and apply the delta, mirroring how prod actually migrates.
@@ -123,7 +137,13 @@ fi
 git ls-files | grep -E '(^|/)\.env(\.|$)' | grep -v '\.env\.example' \
   && fail 'a .env file is tracked in git' || true
 
-# 5. (project-specific) schema-introspection exhaustiveness guard — see infra-bootstrap §11.
+# 5. Retired secrets never reappear: literal values that were rotated OUT stay banned
+#    forever (extend the list at every rotation; exclude the docs that record the incident).
+BANNED='CHANGE_ME_retired_password|CHANGE_ME_old_api_key'
+git grep -nIE "$BANNED" -- . ':!docs/' \
+  && fail 'a retired secret value reappeared in the codebase' || true
+
+# 6. (project-specific) schema-introspection exhaustiveness guard — see infra-bootstrap §11.
 echo "ci-guards: all green"
 ```
 
