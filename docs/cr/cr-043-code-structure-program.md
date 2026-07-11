@@ -102,10 +102,16 @@ Severity order within tiers; evidence cited as file:line at review time.
 
 | # | Item | Size | Depends |
 |---|---|---|---|
-| 3.1 | Adopt **TanStack Query** incrementally, starting with `useCoa` — one decision resolves the useCoa-refetch item, obsoletes the SWR backlog entry, and provides the shared hooks mobile dedup needs | M | 0.1 |
-| 3.2 | Mobile shell dedup via those shared hooks | M | 3.1 |
-| 3.3 | `rest.js`: delete V1 duplicates (S), split per-domain, route the 13 raw-`fetch` call sites through it (N8); pairs with 1.4's envelope | M | 1.4 |
-| 3.4 | Lint burn-down → flip `continue-on-error` off; split giant pages opportunistically when touched (N5); Forecast inline-style migration (with CR042 U1) | M–L | ongoing |
+| 3.1 | Adopt **TanStack Query** incrementally, starting with `useCoa` — ✅ **DONE 2026-07-11 (Opus)** | M | 0.1 |
+| 3.2 | Mobile shell dedup via those shared hooks — ✅ **DONE 2026-07-11 (Opus)** | M | 3.1 |
+| 3.3 | `rest.js`: delete V1 duplicates (S), split per-domain, route the 13 raw-`fetch` call sites through it (N8); pairs with 1.4's envelope — **V1-alias dedup DONE; raw-fetch routing + envelope deferred (see note)** | M | 1.4 |
+| 3.4 | Lint burn-down → flip `continue-on-error` off; split giant pages opportunistically when touched (N5); Forecast inline-style migration (with CR042 U1) — **config-globals fix + Phase-3 files lint-clean done; gate NOT flipped (see note)** | M–L | ongoing |
+
+**Phase 3 notes (2026-07-11, Opus).**
+- **3.1** — added `@tanstack/react-query` v5 + a shared `QueryClient` at the app root (refetchOnWindowFocus off, 1 retry, 5-min staleTime). `useCoa` migrated from per-consumer `useEffect`+`Promise.all` to one `useQuery(['coa'])`, so its **15 consumers share one cached fetch**; fetch/normalize/derive contract preserved. Added `@testing-library/react` + `useCoa.test.jsx` (derived selectors + dedup).
+- **3.2** — new `hooks/useReports.js` (`useBalanceReport`, `useCashFlowReport` as cached queries). `useOverview` rebuilt on them (Home + MobileHome KPIs share cache with the balance/cash-flow pages requesting the same date/range); `MobileBalance` + `MobileCashFlow` drop their bespoke fetch boilerplate onto the shared hooks. `useOverview.test.jsx` pins the KPI derivation. **Follow-on:** desktop multi-period pages (`BalanceV2`, `CashFlow`, `BalanceSheetPeriods`) fetch several dates via `Promise.all` → want `useQueries`, separate money-display-sensitive pass.
+- **3.3** — deleted five byte-identical/dead V1 Rest helpers (`fetchBalanceReport`, `fetchCashFlowReport`, `fetchCurrencyOptions` + the already-dead `fetchBudgetBalances`/`fetchCategoryGroups`), pointed 15 call sites at the V2 survivors. **Deferred:** routing the 14 remaining raw `fetch()` sites (RefreshFeeds POSTs, binary `backup-database`, appdata PUT) through Rest, and the cross-cutting success-envelope unification — per-site/higher-risk, and the hot KPI/report paths already run through Rest (timeout-protected since v3.0.66).
+- **3.4** — `eslint.config.js` grants Node globals to `*.config.js` (−20 false-positive `no-undef`); all Phase-3-touched files are lint-clean. Total 158→137 errors. **Gate not flipped:** the remainder is `no-unused-vars` (~58), `react-hooks/set-state-in-effect` (~35), `react-refresh/only-export-components` (21), `react-hooks/rules-of-hooks` (17 — hooks after early returns in modals; safe-in-practice but real). The hooks buckets carry regression risk and should burn down incrementally with tests, not in a batch — this is the "ongoing" lint work, tracked for a dedicated pass before `continue-on-error` can go.
 
 **Phase 4 — Longer horizon**
 
