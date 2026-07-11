@@ -1,11 +1,59 @@
 const apiBase = import.meta.env.VITE_APP_API ?? "";
 
+// Default ceiling for any single request. Normal reads resolve in well under a
+// second; this only fires when a request would otherwise hang forever (a
+// stale/broken service worker intercepting /api, a dead proxy), converting an
+// infinite spinner into a surfaced error the UI can show and retry. Callers
+// with a legitimately long request pass { timeoutMs } (0 disables the timeout).
+const DEFAULT_TIMEOUT_MS = 30000;
+
 /**
  * A lightweight REST helper that wraps fetch() for JSON endpoints.
  */
 export default class Rest {
   static buildUrl(path) {
     return `${apiBase}${path}`;
+  }
+
+  /**
+   * fetch() with a timeout so a hung request can't spin forever. Honors a
+   * caller-supplied AbortSignal (external cancel) in addition to the timeout,
+   * and rethrows a caller-initiated abort as-is (only the timeout is remapped
+   * to a readable Error).
+   */
+  static async fetchWithTimeout(url, options = {}) {
+    const {
+      timeoutMs = DEFAULT_TIMEOUT_MS,
+      signal: externalSignal,
+      ...rest
+    } = options;
+
+    if (!timeoutMs || timeoutMs <= 0) {
+      return fetch(url, externalSignal ? { ...rest, signal: externalSignal } : rest);
+    }
+
+    const controller = new AbortController();
+    const onExternalAbort = () => controller.abort();
+    if (externalSignal) {
+      if (externalSignal.aborted) controller.abort();
+      else externalSignal.addEventListener("abort", onExternalAbort, { once: true });
+    }
+    const timer = setTimeout(() => controller.abort(), timeoutMs);
+
+    try {
+      return await fetch(url, { ...rest, signal: controller.signal });
+    } catch (err) {
+      // Only remap OUR timeout; a caller-initiated cancel rethrows untouched.
+      if (err.name === "AbortError" && !(externalSignal && externalSignal.aborted)) {
+        throw new Error(
+          `Request timed out after ${Math.round(timeoutMs / 1000)}s — the server or network did not respond.`
+        );
+      }
+      throw err;
+    } finally {
+      clearTimeout(timer);
+      if (externalSignal) externalSignal.removeEventListener("abort", onExternalAbort);
+    }
   }
 
   static async handleResponse(response) {
@@ -43,7 +91,7 @@ export default class Rest {
   }
 
   static async fetchJson(path, options = {}) {
-    const response = await fetch(Rest.buildUrl(path), options);
+    const response = await Rest.fetchWithTimeout(Rest.buildUrl(path), options);
     return Rest.handleResponse(response);
   }
 
@@ -451,7 +499,7 @@ export default class Rest {
    * Update a transaction via v2 API
    */
   static async updateTransactionV2(id, data) {
-    const response = await fetch(Rest.buildUrl(`/api/v2/transactions/${id}`), {
+    const response = await Rest.fetchWithTimeout(Rest.buildUrl(`/api/v2/transactions/${id}`), {
       method: "PATCH",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(data),
@@ -463,7 +511,7 @@ export default class Rest {
    * Delete a transaction via v2 API
    */
   static async deleteTransactionV2(id) {
-    const response = await fetch(Rest.buildUrl(`/api/v2/transactions/${id}`), {
+    const response = await Rest.fetchWithTimeout(Rest.buildUrl(`/api/v2/transactions/${id}`), {
       method: "DELETE",
     });
     if (!response.ok) {
@@ -565,7 +613,7 @@ export default class Rest {
    * Create budget entry via v2 API
    */
   static async createBudgetEntryV2(data) {
-    const response = await fetch(Rest.buildUrl("/api/v2/budget/entries"), {
+    const response = await Rest.fetchWithTimeout(Rest.buildUrl("/api/v2/budget/entries"), {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(data),
@@ -577,7 +625,7 @@ export default class Rest {
    * Update budget entry via v2 API
    */
   static async updateBudgetEntryV2(id, data) {
-    const response = await fetch(Rest.buildUrl(`/api/v2/budget/entries/${id}`), {
+    const response = await Rest.fetchWithTimeout(Rest.buildUrl(`/api/v2/budget/entries/${id}`), {
       method: "PATCH",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(data),
@@ -605,7 +653,7 @@ export default class Rest {
    * Delete budget entry via v2 API
    */
   static async deleteBudgetEntryV2(id) {
-    const response = await fetch(Rest.buildUrl(`/api/v2/budget/entries/${id}`), {
+    const response = await Rest.fetchWithTimeout(Rest.buildUrl(`/api/v2/budget/entries/${id}`), {
       method: "DELETE",
     });
     if (!response.ok) {

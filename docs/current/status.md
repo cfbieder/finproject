@@ -3,7 +3,7 @@
 > The one mandatory read at session start. Keep ≤ ~60 lines; link onward, never restate.
 > CR statuses live in the [CR index](../cr/README.md); the running version lives in `VERSION`.
 
-**Last updated:** 2026-07-11 · **Live version:** v3.0.65 (see `VERSION` / git tags)
+**Last updated:** 2026-07-11 · **Live version:** v3.0.66 (see `VERSION` / git tags)
 
 ## Current phase
 - [CR043 — Code Structure Program](../cr/cr-043-code-structure-program.md): Phases 0, 1 (all), 2.1 extraction, 2.2 (reports.js), 2.3, 2.4 done; remaining util.js hygiene, 2.1's N10 write-validation (both deferred, see CR notes), and Phase 3 — Opus-safe per CR §Model guidance.
@@ -16,6 +16,7 @@
 - Deploy: `./Scripts/deploy-to-production.sh` (DB backup first). Migrations: manual `psql -f`, registry in [migrations.md](migrations.md); runner shipped in CR043 P1.1 (`npm run migrate`).
 
 ## Recently shipped
+- v3.0.66 — fetch timeout (rest.js fetchWithTimeout; hung requests fail-safe instead of spinning forever).
 - v3.0.65 — PWA stale-SW fix (autoUpdate + skipWaiting; Home KPIs no longer stuck on "…") + CI green (generate-transaction seeds the Bank Accounts anchor).
 - v3.0.64 — CR043 Phase 2.1 + 2.2 backend route→service extraction (budget/forecast/reports; no behavior change, byte-identical engine + report output).
 - v3.0.63 — three-lens review + CR043 code-structure hardening (Phases 0/1/2.3/2.4).
