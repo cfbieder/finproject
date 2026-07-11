@@ -26,6 +26,7 @@ dbDescribe('generateForecast transactionality (DB)', () => {
   const NAME = 'CR043TxTestScenario';
   let scenarioId;
   let accountName;
+  let createdBankAnchor = false;
 
   const entriesState = async () => {
     const r = await db.query(
@@ -44,6 +45,19 @@ dbDescribe('generateForecast transactionality (DB)', () => {
   beforeAll(async () => {
     jest.spyOn(console, 'log').mockImplementation(() => {});
     await cleanup();
+
+    // Engine N9 anchor: generateForecast's sweep (exercised via the sweep band
+    // below) throws unless a COA account named 'Bank Accounts' exists. Dev/prod
+    // always have it; CI's ci-seed.sql does not — create a throwaway one when
+    // absent and remove it in afterAll (never touch a pre-existing real one).
+    const existingBank = await db.query("SELECT 1 FROM accounts WHERE name = 'Bank Accounts' LIMIT 1");
+    if (existingBank.rows.length === 0) {
+      await db.query(
+        `INSERT INTO accounts (name, account_type, section, is_transfer, currency, is_active)
+         VALUES ('Bank Accounts', 'asset', 'balance_sheet', FALSE, 'USD', TRUE)`
+      );
+      createdBankAnchor = true;
+    }
 
     // Sweep band set so the sweep path (the failure-injection point) runs.
     scenarioId = (await db.query(
@@ -82,6 +96,9 @@ dbDescribe('generateForecast transactionality (DB)', () => {
 
   afterAll(async () => {
     await cleanup();
+    if (createdBankAnchor) {
+      await db.query("DELETE FROM accounts WHERE name = 'Bank Accounts'");
+    }
     await db.close();
   });
 
