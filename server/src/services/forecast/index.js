@@ -2,10 +2,16 @@
  * Forecast Generation Service - PostgreSQL Version
  *
  * Generates financial forecasts by:
- * 1. Loading scenario configuration and assumptions from FCAssump.json
+ * 1. Loading scenario configuration and assumptions (forecast_assumptions table, CR039)
  * 2. Querying PostgreSQL for forecast modules and income/expense items
  * 3. Processing each module to generate forecast entries
  * 4. Persisting results to forecast_entries table
+ *
+ * All writes (the clear-out, module entries, sweep entries, and the convergence
+ * loop's read-modify-write cycles) run inside ONE transaction holding
+ * pg_advisory_xact_lock on the scenario, so a failed build rolls back to the
+ * previous entries and concurrent builds of the same scenario serialize
+ * instead of interleaving (CR043 N2).
  */
 
 const dfd = require("danfojs-node");
@@ -56,12 +62,15 @@ function createZerosMatrix(rowCount, colCount) {
   return matrix;
 }
 
+// Advisory-lock namespace for generate ("FCSG"); pairs with the scenario id.
+const GENERATE_LOCK_NS = 1178489671;
+
 /**
  * Loads modules from PostgreSQL and transforms to v1 format for processing
  */
-async function loadModulesForScenario(scenarioId, fcLineNameMap) {
+async function loadModulesForScenario(scenarioId, fcLineNameMap, dbc = db) {
   // Get modules with account names
-  const modulesResult = await db.query(`
+  const modulesResult = await dbc.query(`
     SELECT m.*, a.name as account_name, a.account_type
     FROM forecast_modules m
     LEFT JOIN accounts a ON m.account_id = a.id
@@ -73,9 +82,9 @@ async function loadModulesForScenario(scenarioId, fcLineNameMap) {
   // Load nested data for all modules
   for (const mod of modules) {
     const [incomePct, investments, disposals] = await Promise.all([
-      db.query('SELECT * FROM forecast_module_income_pct WHERE module_id = $1 ORDER BY effective_date', [mod.id]),
-      db.query('SELECT * FROM forecast_module_investments WHERE module_id = $1 ORDER BY investment_date', [mod.id]),
-      db.query('SELECT * FROM forecast_module_disposals WHERE module_id = $1 ORDER BY disposal_date', [mod.id]),
+      dbc.query('SELECT * FROM forecast_module_income_pct WHERE module_id = $1 ORDER BY effective_date', [mod.id]),
+      dbc.query('SELECT * FROM forecast_module_investments WHERE module_id = $1 ORDER BY investment_date', [mod.id]),
+      dbc.query('SELECT * FROM forecast_module_disposals WHERE module_id = $1 ORDER BY disposal_date', [mod.id]),
     ]);
 
     // Transform to v1 format expected by processModule
@@ -134,8 +143,8 @@ async function loadModulesForScenario(scenarioId, fcLineNameMap) {
 /**
  * Loads income/expense items from PostgreSQL and transforms to v1 format
  */
-async function loadIncExpModulesForScenario(scenarioId, fcLineNameMap) {
-  const itemsResult = await db.query(`
+async function loadIncExpModulesForScenario(scenarioId, fcLineNameMap, dbc = db) {
+  const itemsResult = await dbc.query(`
     SELECT ie.*, a.name as account_name
     FROM forecast_income_expense ie
     LEFT JOIN accounts a ON ie.account_id = a.id
@@ -147,7 +156,7 @@ async function loadIncExpModulesForScenario(scenarioId, fcLineNameMap) {
   // Load changes for all items
   if (items.length > 0) {
     const itemIds = items.map(item => item.id);
-    const changesResult = await db.query(`
+    const changesResult = await dbc.query(`
       SELECT * FROM forecast_incexp_changes
       WHERE incexp_id = ANY($1)
       ORDER BY change_date
@@ -194,8 +203,8 @@ async function loadIncExpModulesForScenario(scenarioId, fcLineNameMap) {
 /**
  * Extracts unique categories from modules
  */
-async function loadCategoriesForScenario(scenarioId, fcLineNameMap) {
-  const result = await db.query(`
+async function loadCategoriesForScenario(scenarioId, fcLineNameMap, dbc = db) {
+  const result = await dbc.query(`
     SELECT
       array_agg(DISTINCT a.name) FILTER (WHERE a.name IS NOT NULL) as account_names,
       array_agg(DISTINCT m.expense_fc_line_id) FILTER (WHERE m.expense_fc_line_id IS NOT NULL) as expense_fc_line_ids,
@@ -231,8 +240,8 @@ async function loadCategoriesForScenario(scenarioId, fcLineNameMap) {
 /**
  * Extracts unique income/expense categories — uses FC Line names when available
  */
-async function loadIncExpCategoriesForScenario(scenarioId, fcLineNameMap) {
-  const result = await db.query(`
+async function loadIncExpCategoriesForScenario(scenarioId, fcLineNameMap, dbc = db) {
+  const result = await dbc.query(`
     SELECT ie.fc_line_id, a.name as account_name
     FROM forecast_income_expense ie
     LEFT JOIN accounts a ON ie.account_id = a.id
@@ -275,8 +284,15 @@ async function generateForecast(scenarioName) {
       { index: years }
     );
 
+    // Steps 2–8 run in ONE transaction (CR043 N2): any failure rolls the scenario
+    // back to its previous entries, and pg_advisory_xact_lock (acquired right after
+    // the id lookup, auto-released at COMMIT/ROLLBACK) serializes concurrent builds
+    // of the same scenario. Every read/write below must go through `dbc` (the tx
+    // client), never the pool, or it escapes both the rollback and the lock.
+    const stats = await db.transaction(async (dbc) => {
+
     // Step 2: Find scenario in PostgreSQL
-    const scenarioResult = await db.query('SELECT id, cash_sweep_low, cash_sweep_high FROM forecast_scenarios WHERE name = $1', [scenarioName]);
+    const scenarioResult = await dbc.query('SELECT id, cash_sweep_low, cash_sweep_high FROM forecast_scenarios WHERE name = $1', [scenarioName]);
     if (scenarioResult.rows.length === 0) {
       throw new Error(`Scenario "${scenarioName}" not found in database`);
     }
@@ -284,13 +300,15 @@ async function generateForecast(scenarioName) {
     const cashSweepLow = parseFloat(scenarioResult.rows[0].cash_sweep_low) || null;
     const cashSweepHigh = parseFloat(scenarioResult.rows[0].cash_sweep_high) || null;
 
+    await dbc.query('SELECT pg_advisory_xact_lock($1, $2)', [GENERATE_LOCK_NS, scenarioId]);
+
     // Step 3: Clear existing entries
-    const deleteResult = await db.query('DELETE FROM forecast_entries WHERE scenario_id = $1', [scenarioId]);
+    const deleteResult = await dbc.query('DELETE FROM forecast_entries WHERE scenario_id = $1', [scenarioId]);
     const deletedCount = deleteResult.rowCount;
     console.log(`[FORECAST-GENERATE] Deleted ${deletedCount} existing entries`);
 
     // Step 3b: Preload FC Line name map (id → name)
-    const fcLinesResult = await db.query('SELECT id, name FROM fc_lines');
+    const fcLinesResult = await dbc.query('SELECT id, name FROM fc_lines');
     const fcLineNameMap = new Map();
     for (const row of fcLinesResult.rows) {
       fcLineNameMap.set(row.id, row.name);
@@ -300,10 +318,10 @@ async function generateForecast(scenarioName) {
     // Step 4: Load modules and categories in parallel
     const [bsModules, incexpModules, { expenseCategories, incomeCategories, accountNames }, { incexpCategories }] =
       await Promise.all([
-        loadModulesForScenario(scenarioId, fcLineNameMap),
-        loadIncExpModulesForScenario(scenarioId, fcLineNameMap),
-        loadCategoriesForScenario(scenarioId, fcLineNameMap),
-        loadIncExpCategoriesForScenario(scenarioId, fcLineNameMap),
+        loadModulesForScenario(scenarioId, fcLineNameMap, dbc),
+        loadIncExpModulesForScenario(scenarioId, fcLineNameMap, dbc),
+        loadCategoriesForScenario(scenarioId, fcLineNameMap, dbc),
+        loadIncExpCategoriesForScenario(scenarioId, fcLineNameMap, dbc),
       ]);
 
     console.log(`[FORECAST-GENERATE] Loaded ${bsModules.length} FCModule entries for scenario ${scenarioName}`);
@@ -341,7 +359,7 @@ async function generateForecast(scenarioName) {
           { columns: columns, index: scenarioCategories }
         );
         df_module_categories.config.setMaxRow(1000);
-        return processBSModule(module, scenario, df_assumptions, df_module_categories, categories, years, db, scenarioId, fcLineNameMap);
+        return processBSModule(module, scenario, df_assumptions, df_module_categories, categories, years, dbc, scenarioId, fcLineNameMap);
       }),
       ...incexpModules.map((module) => {
         const df_module_categories2 = new dfd.DataFrame(
@@ -349,7 +367,7 @@ async function generateForecast(scenarioName) {
           { columns: columns, index: incexpCategories }
         );
         df_module_categories2.config.setMaxRow(1000);
-        return processIncExpModule(module, scenario, df_assumptions, df_module_categories2, categories, years, db, scenarioId);
+        return processIncExpModule(module, scenario, df_assumptions, df_module_categories2, categories, years, dbc, scenarioId);
       }),
     ]);
 
@@ -366,7 +384,7 @@ async function generateForecast(scenarioName) {
       // Find the designated cash sweep modules in priority order (CR017).
       // Priority 1 = primary (deposit target + first drained); 2,3,… = backups.
       // Falls back to the legacy cash_sweep_target flag for any unmigrated rows.
-      const sweepModuleResult = await db.query(`
+      const sweepModuleResult = await dbc.query(`
         SELECT m.*, a.name as account_name
         FROM forecast_modules m
         LEFT JOIN accounts a ON m.account_id = a.id
@@ -384,7 +402,7 @@ async function generateForecast(scenarioName) {
       // Get actual bank balance from ledger (LastActualYear = PeriodStart - 2)
       const lastActualYear = scenario.PeriodStart - 2;
       const lastActualDate = `${lastActualYear}-12-31`;
-      const bankBalResult = await db.query(`
+      const bankBalResult = await dbc.query(`
         WITH RECURSIVE bank_tree AS (
           SELECT id, currency FROM accounts WHERE name = 'Bank Accounts'
           UNION ALL
@@ -416,7 +434,7 @@ async function generateForecast(scenarioName) {
       console.log(`[FORECAST-GENERATE] Starting cash balance (${lastActualYear}): ${startingCash.toFixed(0)}`);
 
       // Get year-over-year cash deltas from Bank Accounts entries
-      const cashResult = await db.query(`
+      const cashResult = await dbc.query(`
         SELECT forecast_year, SUM(amount) as cash_total
         FROM forecast_entries
         WHERE scenario_id = $1 AND account = 'Bank Accounts'
@@ -433,7 +451,7 @@ async function generateForecast(scenarioName) {
       const baseYear = scenario.PeriodStart - 1;
       if (cashDeltaByYear[baseYear] !== undefined) {
         // Get budget NCF for BaseYear (same query as base-year-values endpoint)
-        const budgetResult = await db.query(`
+        const budgetResult = await dbc.query(`
           SELECT COALESCE(SUM(val.amount), 0)::numeric as budget_ncf FROM (
             SELECT SUM(CASE WHEN a.account_type = 'liability' THEN -m.expense_amount ELSE 0 END) as amount
             FROM forecast_modules m LEFT JOIN accounts a ON m.account_id = a.id LEFT JOIN fc_lines exp_line ON m.expense_fc_line_id = exp_line.id
@@ -449,7 +467,7 @@ async function generateForecast(scenarioName) {
         const budgetNCF = parseFloat(budgetResult.rows[0]?.budget_ncf) || 0;
 
         // Get engine transfers for BaseYear (Transfer - Bank entries)
-        const transferResult = await db.query(`
+        const transferResult = await dbc.query(`
           SELECT COALESCE(SUM(amount), 0)::numeric as transfers
           FROM forecast_entries
           WHERE scenario_id = $1 AND forecast_year = $2 AND account = 'Transfer - Bank'
@@ -464,7 +482,7 @@ async function generateForecast(scenarioName) {
       // Load each sweep module's own market value by year (for withdrawal limits).
       // Helper: builder-only balance (excludes the _cash_sweep/_sweep_bal transfer tags).
       const loadModuleBalanceByYear = async (accountName, moduleName) => {
-        const mvResult = await db.query(`
+        const mvResult = await dbc.query(`
           SELECT forecast_year, SUM(amount)::numeric as mv
           FROM forecast_entries
           WHERE scenario_id = $1 AND account = $2 AND module = $3
@@ -511,7 +529,7 @@ async function generateForecast(scenarioName) {
           values.push(`($${paramIdx++}, $${paramIdx++}, $${paramIdx++}, $${paramIdx++}, $${paramIdx++}, $${paramIdx++})`);
           params.push(scenarioId, entry.year, entry.amount, entry.account, entry.module, entry.comment);
         }
-        await db.query(`
+        await dbc.query(`
           INSERT INTO forecast_entries (scenario_id, forecast_year, amount, account, module, comment)
           VALUES ${values.join(", ")}
         `, params);
@@ -673,7 +691,7 @@ async function generateForecast(scenarioName) {
 
         for (let iteration = 0; iteration < MAX_ITERATIONS; iteration++) {
           // 1. Get current sweep adjustments per year for this module
-          const sweepAdjResult = await db.query(`
+          const sweepAdjResult = await dbc.query(`
             SELECT forecast_year,
                    SUM(amount)::numeric as adj
             FROM forecast_entries
@@ -738,7 +756,7 @@ async function generateForecast(scenarioName) {
 
           // 5. Compute income delta and adjust tax accordingly
           // Load current income entries for this module
-          const curIncResult = await db.query(`
+          const curIncResult = await dbc.query(`
             SELECT forecast_year, amount FROM forecast_entries
             WHERE scenario_id = $1 AND module = $2 AND account = $3
             ORDER BY forecast_year
@@ -783,19 +801,19 @@ async function generateForecast(scenarioName) {
             const bankDelta = incDelta + taxDelta; // income and tax both affect cash
 
             if (Math.abs(incDelta) > 0.01) {
-              await db.query(`
+              await dbc.query(`
                 UPDATE forecast_entries SET amount = amount + $1
                 WHERE scenario_id = $2 AND forecast_year = $3 AND module = $4 AND account = $5
               `, [incDelta, scenarioId, yr, sweepMod.Name, incomeAccount]);
             }
             if (Math.abs(taxDelta) > 0.01) {
-              await db.query(`
+              await dbc.query(`
                 UPDATE forecast_entries SET amount = amount + $1
                 WHERE scenario_id = $2 AND forecast_year = $3 AND module = $4 AND account = 'Taxes'
               `, [taxDelta, scenarioId, yr, sweepMod.Name]);
             }
             if (Math.abs(bankDelta) > 0.01) {
-              await db.query(`
+              await dbc.query(`
                 UPDATE forecast_entries SET amount = amount + $1
                 WHERE scenario_id = $2 AND forecast_year = $3 AND module = $4 AND account = 'Bank Accounts'
               `, [bankDelta, scenarioId, yr, sweepMod.Name]);
@@ -803,12 +821,12 @@ async function generateForecast(scenarioName) {
           }
 
           // 7. Recompute cash deltas and re-run sweep
-          await db.query(`
+          await dbc.query(`
             DELETE FROM forecast_entries
             WHERE scenario_id = $1 AND module IN ('_cash_sweep', '_sweep_bal', '_rebalance')
           `, [scenarioId]);
 
-          const newCashResult = await db.query(`
+          const newCashResult = await dbc.query(`
             SELECT forecast_year, SUM(amount) as cash_total
             FROM forecast_entries
             WHERE scenario_id = $1 AND account = 'Bank Accounts'
@@ -824,7 +842,7 @@ async function generateForecast(scenarioName) {
           }
 
           // Reload module balance (module's own entries only, excluding sweep)
-          const newMvResult = await db.query(`
+          const newMvResult = await dbc.query(`
             SELECT forecast_year, SUM(amount)::numeric as mv
             FROM forecast_entries
             WHERE scenario_id = $1 AND account = $2 AND module = $3
@@ -851,7 +869,7 @@ async function generateForecast(scenarioName) {
               sv.push(`($${si++}, $${si++}, $${si++}, $${si++}, $${si++}, $${si++})`);
               sp.push(scenarioId, e.year, e.amount, e.account, e.module, e.comment);
             }
-            await db.query(`
+            await dbc.query(`
               INSERT INTO forecast_entries (scenario_id, forecast_year, amount, account, module, comment)
               VALUES ${sv.join(', ')}
             `, sp);
@@ -863,18 +881,25 @@ async function generateForecast(scenarioName) {
 
     // Step 8: Calculate statistics
     const totalEntries = results.reduce((sum, r) => sum + (r?.entriesCount || 0), 0) + rebalanceEntries;
+
+    return {
+      deletedCount,
+      modulesProcessed: bsModules.length + incexpModules.length,
+      entriesCreated: totalEntries,
+    };
+
+    }); // end db.transaction — COMMIT here, advisory lock released
+
     const durationMs = Date.now() - startTime;
 
     console.log(`[FORECAST-GENERATE] Forecast generation completed successfully`);
-    console.log(`[FORECAST-GENERATE] Total entries created: ${totalEntries}`);
+    console.log(`[FORECAST-GENERATE] Total entries created: ${stats.entriesCreated}`);
     console.log(`[FORECAST-GENERATE] Duration: ${durationMs}ms`);
 
     return {
       success: true,
       scenario: scenarioName,
-      deletedCount,
-      modulesProcessed: bsModules.length + incexpModules.length,
-      entriesCreated: totalEntries,
+      ...stats,
       durationMs,
     };
   } catch (error) {
