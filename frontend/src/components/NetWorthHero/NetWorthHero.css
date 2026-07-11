@@ -1,0 +1,64 @@
+.nw-hero {
+  padding: var(--space-6);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+}
+
+.nw-hero__head {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+}
+
+.nw-hero__label {
+  font-size: var(--text-xs);
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--ink-tertiary);
+  font-weight: 600;
+}
+
+.nw-hero__value {
+  font-size: var(--text-3xl);
+  font-weight: 700;
+  line-height: var(--leading-tight);
+  color: var(--ink);
+  font-variant-numeric: tabular-nums;
+}
+
+.nw-hero__delta {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  font-size: var(--text-sm);
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+
+.nw-hero__delta.is-up {
+  color: var(--growth-positive);
+}
+
+.nw-hero__delta.is-down {
+  color: var(--growth-negative);
+}
+
+.nw-hero__delta-note {
+  color: var(--ink-tertiary);
+  font-weight: 500;
+}
+
+.nw-hero__chart {
+  width: 100%;
+  min-height: 220px;
+}
+
+.nw-hero__empty {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 220px;
+  color: var(--ink-tertiary);
+  font-size: var(--text-sm);
+}

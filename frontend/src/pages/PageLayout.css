@@ -2044,6 +2044,19 @@
   margin-bottom: var(--space-lg);
 }
 
+/* CR042 U3 — this-month flow KPI row (KpiCard grid under the net-worth hero). */
+.home-kpi-row {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: var(--space-4);
+}
+
+@media (max-width: 720px) {
+  .home-kpi-row {
+    grid-template-columns: 1fr;
+  }
+}
+
 .home-kpi {
   display: flex;
   flex-direction: column;

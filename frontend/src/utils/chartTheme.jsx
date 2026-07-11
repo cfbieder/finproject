@@ -1,3 +1,6 @@
+/* eslint-disable react-refresh/only-export-components --
+   utility module: the useChartTheme hook and its paired ChartTooltip live
+   together on purpose; this file is not a fast-refresh component boundary. */
 import { useMemo } from "react";
 import useTheme from "../hooks/useTheme.js";
 
