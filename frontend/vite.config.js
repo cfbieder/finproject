@@ -18,7 +18,13 @@ export default defineConfig(() => {
     plugins: [
       react(),
       VitePWA({
-        registerType: "prompt",
+        // autoUpdate: the new SW activates and claims clients on the next visit
+        // after a deploy, so users never get stuck on a stale worker. The old
+        // "prompt" mode had no prompt UI wired up + skipWaiting:false, which
+        // left the first-installed SW controlling indefinitely — a stale worker
+        // could intercept /api and hang the app's report fetches (Home KPIs
+        // stuck on "…"). See skipWaiting below.
+        registerType: "autoUpdate",
         includeAssets: [
           "favicon.ico",
           "apple-touch-icon-180x180-v2.png",
@@ -88,8 +94,10 @@ export default defineConfig(() => {
           // Precache the app shell — new builds generate new hashes,
           // so the SW detects changes and prompts an update
           globPatterns: ["**/*.{js,css,html,ico,png,svg,woff2}"],
-          // Skip waiting is handled by the prompt UI (user clicks "Update")
-          skipWaiting: false,
+          // Take over immediately on install (paired with autoUpdate above) so
+          // a freshly deployed SW replaces a stale one without waiting for every
+          // tab to close — the stale-SW-hangs-/api failure mode.
+          skipWaiting: true,
           clientsClaim: true,
         },
         devOptions: {
