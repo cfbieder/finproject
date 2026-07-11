@@ -11,7 +11,7 @@ Living plan for the Fin project — open Change Requests, known issues, ongoing 
 ### 1.1 Open / In-Progress
 
 <a id="cr040"></a>
-- **CR040 — [Forecast Scenario Compare](CRs/CR040_FORECAST_SCENARIO_COMPARE.md)** — *✅ RELEASED v3.0.60 (2026-07-10); migration 035 on dev+prod. Complete — detail in the v3.0.60 entry below.* `/forecast-compare` (FC step 6): delta KPIs/grids reconciling with Review, recharts A-vs-B visuals, deterministic + on-demand local-LLM commentary with follow-ups. **Open:** delete the "CR040 Test B" scenario from dev after browser testing.
+- **CR040 — [Forecast Scenario Compare](CRs/CR040_FORECAST_SCENARIO_COMPARE.md)** — *✅ RELEASED v3.0.60 (2026-07-10) + v3.0.61 fix (2026-07-11); migration 035 on dev+prod. Complete — detail in the v3.0.60/61 entries below.* `/forecast-compare` (FC step 6): delta KPIs/grids reconciling with Review, recharts A-vs-B visuals, deterministic + on-demand local-LLM commentary with follow-ups. **Open:** delete the "CR040 Test B" scenario from dev after browser testing.
 
 <a id="cr037"></a>
 - **CR037 — [Correctness Hardening (money & date)](CRs/CR037_CORRECTNESS_HARDENING.md)** — *✅ RELEASED v3.0.54 (2026-07-03); complete, no open items.* All six silent-wrong-number items from the design review: TZ sweep + eslint ban, split penny-leak residual fix, `parseCurrency` fail-loud, route-level ErrorBoundary, transactional forecast writes, money-endpoint whitelist validation. Detail in the CR and the v3.0.54 entry below.

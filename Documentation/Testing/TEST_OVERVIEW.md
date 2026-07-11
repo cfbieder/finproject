@@ -6,18 +6,29 @@ How testing is organised across the project, what's automated, and where to run 
 
 ### Backend Jest tests — `cd server && npm test`
 
-73 tests across 6 files. Engine tests use mocked data; route tests mock the repository layer (so they don't exercise real SQL).
+**252 tests across 22 files** (counts as of v3.0.61, 2026-07-11). Two flavors: pure/mocked suites, and **DB-backed suites** that self-seed throwaway rows by unique name against `DATABASE_URL` (dev Postgres :5434) and clean up after themselves — never TRUNCATE. Skip the DB-backed ones with `SKIP_DB_TESTS=1`. Run with `npx env-cmd -e development -- npm test` so `DATABASE_URL` is set.
 
-| File | Coverage |
-|------|----------|
-| `server/src/services/forecast/__tests__/fcbuilder-module.test.js` | 19 BS module engine tests (equity / property / fixed-income / liability / FX / tax / Phase 5 work). |
-| `server/src/services/forecast/__tests__/fcbuilder-incexp.test.js` | 6 income/expense engine tests. |
-| `server/src/services/forecast/__tests__/cash-sweep.test.js` | Cash sweep pure-compute tests (CR005). |
-| `server/src/services/forecast/__tests__/e2e-engine.test.js` | 8 end-to-end engine scenarios. |
-| `server/src/v2/routes/__tests__/fc-lines.test.js` | 16 FC Lines route tests with mocked repo. |
-| `server/src/v2/routes/__tests__/calibration.test.js` | 16 balance calibration route tests with mocked repo. |
+| File | Tests | Coverage |
+|------|-------|----------|
+| `services/forecast/__tests__/fcbuilder-module.test.js` | 21 | BS module engine (equity / property / fixed-income / liability / FX / tax). |
+| `services/forecast/__tests__/cash-sweep.test.js` | 10 | Cash sweep pure-compute (CR005/CR017). |
+| `services/forecast/__tests__/e2e-engine.test.js` | 8 | End-to-end engine scenarios. |
+| `services/forecast/__tests__/fcbuilder-incexp.test.js` | 4 | Income/expense engine. |
+| `v2/scripts/__tests__/quicken-import.test.js` | 44 | CR019 Quicken mapping/backfill. |
+| `v2/scripts/__tests__/quicken-promote.test.js` | 16 | CR019 promote guards. |
+| `v2/services/__tests__/bankFeedImport.test.js` | 36 | CR021/22 feed import + converter. |
+| `v2/services/__tests__/cr024Categorizer.test.js` | 15 | Fidelity investment-activity categorizer. |
+| `v2/services/__tests__/reconcileManual.test.js` | 14 | CR033 manual calibration engine (DB). |
+| `v2/services/__tests__/reconcileToFeed.test.js` | 12 | Feed reconcile engine (DB). |
+| `v2/services/__tests__/manualStatementImport.test.js` | 9 | CR036 statement upload preview/commit. |
+| `v2/services/__tests__/aiReviewCompare.test.js` | 5 | CR040 compare context/persistence (DB; gateway stubbed via `global.fetch`). |
+| `v2/services/__tests__/cr024FidelityBalances.test.js` + `cr024IngestBalances.test.js` + `syncUpstream.test.js` | 10 | Balance read-override, ingest, upstream sync. |
+| `v2/routes/__tests__/fc-lines.test.js` | 16 | FC Lines routes (mocked repo). |
+| `v2/routes/__tests__/ingestBankFeed.test.js` | 10 | Feed ingest route. |
+| `v2/repositories/__tests__/` (4 files) | 15 | createTransaction, ledger running balance, neutralize, split residual (CR037). |
+| `v2/utils/__tests__/validate.test.js` | 7 | CR037 field-whitelist validation. |
 
-Naming: Jest convention `*.test.js`. Test files are colocated with the modules under test in `__tests__/` subdirectories.
+Naming: Jest convention `*.test.js`. Test files are colocated with the modules under test in `__tests__/` subdirectories. (This table is a snapshot — `npx jest --listTests` is the live source of truth.)
 
 ### Backend HTTP smoke tests — `node server/src/scripts/smoke-after-021.js`
 
@@ -27,15 +38,16 @@ Naming convention for new smoke scripts: `server/src/scripts/smoke-<topic>.js`. 
 
 ### Frontend Vitest tests — `cd frontend && npm test`
 
-96 tests across 5 files. Pure-function helpers tested in `jsdom`; no network, no real DB. Established under [CR016 — Frontend Test Framework](../CRs/CR016_FRONTEND_TEST_FRAMEWORK.md) (closed 2026-05-20).
+**117 tests across 6 files** (as of v3.0.61). Pure-function helpers tested in `jsdom`; no network, no real DB. Established under [CR016 — Frontend Test Framework](../CRs/CR016_FRONTEND_TEST_FRAMEWORK.md) (closed 2026-05-20).
 
-| File | Coverage |
-|------|----------|
-| `frontend/src/utils/__tests__/dateHelpers.test.js` | 21 tests covering all 10 exports of `dateHelpers.js` (timezone-safe formatting, leap-year month-end, `parseMonthYear` ↔ `buildDateFromMonthYear` round-trip, year/month range generators). |
-| `frontend/src/utils/__tests__/formatters.test.js` | 25 tests covering all 7 exports of `formatters.js` (accountant-style `formatCurrency`, `formatPercentage` vs `formatRate` distinction, `formatFxRate`, thousands separators, compact K/M/B notation, `parseCurrency` round-trip with `formatCurrency`). |
-| `frontend/src/utils/__tests__/treeTraversal.test.js` | 17 tests covering all 4 exports of `treeTraversal.js` (`collectCollapsiblePaths` path joining with `>`, `buildAccountValueMap` with custom valueKey, `collectLeafNames` leaf flattening, `findNodeByPath` multi-segment lookup). |
-| `frontend/src/utils/__tests__/forecastHelpers.test.js` | 20 tests covering all 4 exports of `forecastHelpers.js` — `parseLevelAccounts` (both tree `{name, children}` and legacy `[{Income: [{Salary: [...]}]}]` formats), `aggregateForecastEntries` level1/2/3 rollup with string-coercion, `calculateNetCashFlow`, `formatTableCell` negative-paren + `--negative` modifier. |
-| `frontend/src/utils/__tests__/cashFlowHelpers.test.js` | 13 tests covering all 2 exports of `cashFlowHelpers.js` — `addNetCashFlowCategory` (case-insensitive Income/Expense(s), idempotent re-append, missing-bucket → 0), `buildCashFlowValueMap` (deep path traversal, nullish-node skipping). |
+| File | Tests | Coverage |
+|------|-------|----------|
+| `src/utils/__tests__/formatters.test.js` | 27 | All 7 exports of `formatters.js` (accountant-style `formatCurrency`, `formatPercentage` vs `formatRate`, `formatFxRate`, compact K/M/B, `parseCurrency` fail-loud round-trip). |
+| `src/utils/__tests__/dateHelpers.test.js` | 26 | All exports of `dateHelpers.js` (timezone-safe formatting incl. CR037 `formatDateOnly`, leap-year month-end, `parseMonthYear` round-trip, range generators). |
+| `src/utils/__tests__/forecastHelpers.test.js` | 20 | `parseLevelAccounts` (tree + legacy formats), `aggregateForecastEntries` rollup, `calculateNetCashFlow`, `formatTableCell`. |
+| `src/utils/__tests__/treeTraversal.test.js` | 17 | All 4 exports of `treeTraversal.js` (collapsible paths, value maps, leaf flattening, path lookup). |
+| `src/features/Forecast/utils/__tests__/fcCompareUtils.test.js` | 14 | CR040 compare diff engine — Review-parity pivot (Expense-net-of-Transfers, Cash Flow/Net, bank running balance), base-year filtering, year-union alignment, one-scenario-only accounts → zero-not-null deltas, structural diffs, deterministic commentary (movers, crossovers, self-compare). |
+| `src/utils/__tests__/cashFlowHelpers.test.js` | 13 | `addNetCashFlowCategory` (idempotent, case-insensitive), `buildCashFlowValueMap`. |
 
 Naming: Vitest convention `*.test.{js,jsx}` under `__tests__/`. `npm run test:watch` for watch mode.
 
@@ -54,7 +66,7 @@ A checklist should include:
 | When | Where |
 |------|-------|
 | Pure backend logic (engine, calculations) | `server/src/<module>/__tests__/<module>.test.js` (Jest). |
-| Backend route + DB integration | Add to `smoke-after-021.js` or a new `smoke-<topic>.js` script. Don't try to mock Postgres. |
+| Backend route + DB integration | DB-backed Jest suite that self-seeds throwaway rows by unique name against `DATABASE_URL` and cleans up after itself (pattern: `reconcileManual.test.js`); guard with `SKIP_DB_TESTS`. Don't try to mock Postgres. Smoke scripts (`smoke-<topic>.js`) for ad-hoc live-server checks. |
 | Frontend helper / hook | `frontend/src/<path>/__tests__/<thing>.test.js` (Vitest, jsdom). |
 | Manual UI verification | `Documentation/Testing/TEST_MANUAL_<feature>.md`. |
 
