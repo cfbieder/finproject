@@ -176,6 +176,28 @@ describe("compareMatrices", () => {
     expect(cmp.structural.onlyInA).toContain("Properties");
     expect(cmp.structural.onlyInB).toEqual([]);
   });
+
+  it("treats missing accounts inside a covered year as zero, not unknown", () => {
+    // An asset disposed in one scenario writes no entries there — the delta
+    // must be a real number (−a), not null, or the row hides as "unchanged"
+    // (prod: SP - Properties, −6.4M, invisible on the compare table).
+    const matA = buildA();
+    const entriesB = entriesA.filter((e) => e.Account !== "House");
+    const matB = buildA({ entries: entriesB });
+    const cmp = compareMatrices(matA, matB, { cashRows, balanceRows });
+    const props = cmp.rows.find((r) => r.label === "Properties");
+    expect(props.delta).toEqual([-500, -510]);
+    expect(props.a).toEqual([500, 510]);
+    expect(props.b).toEqual([null, null]); // display still shows "-"
+    // Years outside a scenario's range stay null (not zero)
+    const matB29 = buildA({
+      entries: [...entriesA, { Year: 2029, Account: "Salary", Amount: 120 }],
+      years: [2027, 2028, 2029],
+    });
+    const cmp2 = compareMatrices(matA, matB29, { cashRows, balanceRows });
+    const salary = cmp2.rows.find((r) => r.label === "Salary");
+    expect(salary.delta[2]).toBeNull();
+  });
 });
 
 describe("buildCommentary", () => {

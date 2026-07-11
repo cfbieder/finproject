@@ -313,13 +313,22 @@ export function compareMatrices(matA, matB, { cashRows, balanceRows }) {
   const years = [...new Set([...matA.years, ...matB.years])].sort(
     (x, y) => x - y
   );
+  const aYears = new Set(matA.years);
+  const bYears = new Set(matB.years);
 
   const makeRow = (section, label, level, extra = {}) => {
     const a = years.map((y) => pickAt(matA, section, label, y));
     const b = years.map((y) => pickAt(matB, section, label, y));
-    const delta = years.map((_, i) =>
-      a[i] == null || b[i] == null ? null : b[i] - a[i]
-    );
+    // A missing value inside a scenario's forecast range means the engine
+    // wrote no entries for that account there — semantically ZERO (e.g. an
+    // asset disposed in one scenario only). Null deltas are reserved for
+    // years outside a scenario's range. (Display keeps "-" for the A/B cell;
+    // only the delta coalesces.)
+    const delta = years.map((y, i) => {
+      const av = a[i] != null ? a[i] : aYears.has(y) ? 0 : null;
+      const bv = b[i] != null ? b[i] : bYears.has(y) ? 0 : null;
+      return av == null || bv == null ? null : bv - av;
+    });
     const hasData = a.some((v) => v) || b.some((v) => v);
     return { section, label, level, a, b, delta, hasData, ...extra };
   };
@@ -493,18 +502,32 @@ export function buildCommentary(compare, { a: nameA, b: nameB }) {
     });
   }
 
-  // Top balance-sheet movers by final-year |Δ|
+  // Top balance-sheet movers by peak |Δ| in any year — final-year deltas miss
+  // assets that diverge mid-horizon and equalize by the end (e.g. a property
+  // held in one scenario but disposed early in the other).
+  const peakOf = (row) => {
+    let value = 0;
+    let index = -1;
+    row.delta.forEach((d, i) => {
+      if (d != null && Math.abs(d) > Math.abs(value)) {
+        value = d;
+        index = i;
+      }
+    });
+    return { value, index };
+  };
   const bsMovers = rows
     .filter((r) => r.section === "balance" && r.level === 2 && r.hasData)
-    .map((r) => ({ row: r, last: lastDefined(r.delta) }))
-    .filter((m) => m.last.value != null && Math.abs(m.last.value) > 0)
-    .sort((x, y) => Math.abs(y.last.value) - Math.abs(x.last.value))
+    .map((r) => ({ row: r, peak: peakOf(r) }))
+    .filter((m) => Math.abs(m.peak.value) > 0.5)
+    .sort((x, y) => Math.abs(y.peak.value) - Math.abs(x.peak.value))
     .slice(0, 5);
   if (bsMovers.length) {
-    const parts = bsMovers.map(
-      ({ row, last }) =>
-        `${row.label} (${last.value > 0 ? "+" : ""}${fmtMoney(last.value)} by ${years[last.index]})`
-    );
+    const parts = bsMovers.map(({ row, peak }) => {
+      const { value: last } = lastDefined(row.delta);
+      const closed = last != null && Math.abs(last) < 0.5;
+      return `${row.label} (${peak.value > 0 ? "+" : ""}${fmtMoney(peak.value)} peak in ${years[peak.index]}${closed ? ", converged by the end" : ""})`;
+    });
     items.push({
       kind: "bs-movers",
       text: `Largest balance-sheet differences: ${parts.join("; ")}.`,

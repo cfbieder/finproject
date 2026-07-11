@@ -79,4 +79,8 @@ Delta convention: user picks **Baseline (A)** and **Comparison (B)**; every delt
 
 **Verified:** 5 new jest tests in `services/__tests__/aiReviewCompare.test.js` (DB-backed, gateway stubbed via `global.fetch`): divergence table content + sweep exclusion, unknown-scenario/self-compare rejection, compare persistence + worker completion + compare-prompt payload, single-review regression. Full backend suite 252 green. Listing filters verified live on dev (drawer list excludes the compare review; pair list returns it). Live gateway round-trip on dev: see status header.
 
-**Deploy note:** apply migration 035 to prod **before** deploying this code (MIGRATIONS.md discipline).
+**Deploy note:** apply migration 035 to prod **before** deploying this code (MIGRATIONS.md discipline). *(Done 2026-07-10; deployed v3.0.60.)*
+
+## Post-release fix (v3.0.61, 2026-07-11)
+
+First real prod compare exposed a diff-engine defect: accounts with engine entries in **only one** scenario (e.g. SP - Properties, disposed immediately in the house-purchase scenario but held through 2039 in base) yielded all-null deltas → hidden by the hide-unchanged filter regardless of the toggle, and visible rows didn't reconcile to the Assets total. Fixed: missing values inside a scenario's forecast range coalesce to 0 for the delta (null only outside the range; "-" display kept). BS-movers commentary now ranks by peak-year |Δ| (was final-year, which missed diverge-then-converge assets) and tags "converged by the end". +1 regression test; verified against the prod pair.
