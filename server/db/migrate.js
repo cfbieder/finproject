@@ -25,7 +25,7 @@
  *
  * Assumes migration filenames sort lexicographically into apply order
  * (the NNN_ prefix convention) and that a populated DB matches the current
- * file set at adoption time (true here — see Documentation/MIGRATIONS.md).
+ * file set at adoption time (true here — see docs/current/migrations.md).
  */
 
 'use strict';

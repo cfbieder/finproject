@@ -11,21 +11,23 @@ allowed-tools: Bash(git *), Bash(./Scripts/*), Bash(Scripts/*), Bash(cat *), Bas
 - Recent commits (find the last `release:`/tag entry to see what's new since): !`git log --oneline -30`
 
 ## Task
-Finalize this release end-to-end for **psproject** (Fin). Follow the project conventions in `CLAUDE.md` — there is no README.md / CHANGELOG.md at the repo root; release notes live in `Documentation/`.
+Finalize this release end-to-end for **psproject** (Fin). Follow the project conventions in `CLAUDE.md` — there is no README.md / CHANGELOG.md at the repo root; release notes live in `docs/`.
 
 1. **Update documentation** — Review the commits listed above and update:
-   - `Documentation/FC_PROJECT_STRUCTURE.md` — any changed routes, API endpoints, DB tables, scripts, or architecture.
-   - `Documentation/FC_NEXT_STEPS.md` — mark completed CRs/items as done, add a "Released vX.Y.Z (YYYY-MM-DD)" entry summarising what shipped, and capture any new known issues discovered.
-   - `Documentation/CRs/` — update the status header/body of any CR that was completed or advanced; if the release warrants a new CR (substantive feature, multi-session work, architectural impact), create the next-numbered file and add a row to `CR_INDEX.md`. Trivial fixes stay as bullets in `FC_NEXT_STEPS.md`.
+   - `docs/current/status.md` — refresh the session snapshot (current phase, shipped headlines as links, what's next). Keep ≤ ~60 lines; it links onward, never restates.
+   - `docs/current/project-description.md` — any changed routes, API endpoints, DB tables, scripts, or architecture.
+   - `docs/current/project-roadmap.md` — mark completed CRs/items as done, add a "Released vX.Y.Z (YYYY-MM-DD)" entry summarising what shipped, and capture any new known issues discovered.
+   - `docs/cr/` — update the status header/body of any CR that was completed or advanced; if the release warrants a new CR (substantive feature, multi-session work, architectural impact), create the next-numbered `cr-NNN-<topic>.md` and add a row to `docs/cr/README.md` (the CR index). Trivial fixes stay as bullets in `docs/current/project-roadmap.md`.
+   - `docs/current/migrations.md` / `docs/current/secrets-inventory.md` — if the release added a migration or a secret (names/locations only).
 
 2. **Bump version** — Decide patch/minor/major from the diff (semver). Run:
    - `./Scripts/bump-version.sh patch` (or `minor` / `major` / explicit `X.Y.Z`).
    This updates `VERSION` and `frontend/.env`. Confirm the new version with `cat VERSION`.
 
-3. **Commit, tag, push** — Stage the release files with explicit pathspecs (never `git add -A` / `git add .` — see the git-discipline rules in `CLAUDE.md`), commit with `release: vX.Y.Z (summary)`, tag `vX.Y.Z`, push commits and tags to origin:
+3. **Commit, tag, push** — Stage the release files with explicit pathspecs (never `git add -A` / `git add .` — see `.claude/rules/git-concurrency.md`), commit with `release: vX.Y.Z (summary)`, tag `vX.Y.Z`, push commits and tags to origin:
    ```
-   git add VERSION frontend/.env Documentation/ <other files you changed>
-   git commit -m "release: vX.Y.Z (summary)" -- VERSION frontend/.env Documentation/ <other files>
+   git add VERSION frontend/.env docs/ <other files you changed>
+   git commit -m "release: vX.Y.Z (summary)" -- VERSION frontend/.env docs/ <other files>
    git tag vX.Y.Z
    git push origin HEAD
    git push origin vX.Y.Z

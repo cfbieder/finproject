@@ -2,7 +2,7 @@
    All visuals scoped under .uiprev-page / .uiprev. The mock window defines
    its OWN design tokens (light + a data-theme="dark" override) so it
    demonstrates the proposed dark mode without touching global index.css.
-   This file is kept in sync with Documentation/CRs/CR026_UI_PREVIEW.html. */
+   This file is kept in sync with docs/cr/cr-026-ui-preview.html. */
 
 .uiprev-page {
   display: flex;

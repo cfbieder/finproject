@@ -61,7 +61,7 @@ const ANCHOR_DESC = 'Opening Balance (PS anchor)';
 // is mark-to-market and belongs to the bank-feed (`feed_balances`), not to a
 // transaction-sum opening balance (a lump anchor can't track market value and
 // would re-create the stale row the feed integration deletes — see CR019 §22.2 /
-// FC_NEXT_STEPS Known Issue #4). Cash accounts that happen to be bank-feed-mapped
+// project-roadmap.md Known Issue #4). Cash accounts that happen to be bank-feed-mapped
 // are NOT excluded: their pre-coverage opening balance is real and the feed
 // (recent transactions only) does not provide it. Extend as more brokerages land.
 const BROKERAGE_CONTAINERS = ['Fidelity Stock', 'Fidelity Fixed Income'];
@@ -194,7 +194,7 @@ async function main() {
   if (feedOwnedSkipped.length) {
     console.log(
       'FEED-OWNED brokerage — NOT anchored (balance belongs to the bank-feed; see\n' +
-        '  CR019 §22.2 / FC_NEXT_STEPS Known Issue #4). Any existing ps-anchor row here\n' +
+        '  CR019 §22.2 / project-roadmap.md Known Issue #4). Any existing ps-anchor row here\n' +
         '  is left untouched, to be superseded by the feed integration:'
     );
     for (const r of feedOwnedSkipped) {

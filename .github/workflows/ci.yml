@@ -67,7 +67,7 @@ jobs:
         run: npm ci
       - name: Lint (advisory)
         # Pre-existing debt: 160 errors across ~40 files as of 2026-06-12
-        # (see FC_NEXT_STEPS known issues). Non-blocking until cleared, so
+        # (see docs/current/project-roadmap.md known issues). Non-blocking until cleared, so
         # CI stays meaningful; flip to blocking once the count hits zero.
         working-directory: frontend
         run: npm run lint
@@ -97,10 +97,10 @@ jobs:
           if git grep -nIE '4d7decce5643|c785b47906e3|7916e6eba6fa' -- . "$SELF"; then
             echo '::error::leaked API key material found in tracked files'; fail=1
           fi
-          # Retired default DB password — banned outside Documentation/
+          # Retired default DB password — banned outside docs/
           # (historical CR text legitimately names the token).
-          if git grep -nI 'findev123' -- . ':!Documentation/' "$SELF"; then
-            echo '::error::findev123 found outside Documentation/'; fail=1
+          if git grep -nI 'findev123' -- . ':!docs/' "$SELF"; then
+            echo '::error::findev123 found outside docs/'; fail=1
           fi
           # Env files must never be tracked (templates *.example are fine).
           tracked=$(git ls-files | grep -E '(^|/)\.env$|(^|/)\.env-cmdrc$' || true)
