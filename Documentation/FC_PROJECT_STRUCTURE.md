@@ -223,7 +223,7 @@ Multi-year projection engine in `server/src/services/forecast/` (`index.js` orch
 
 ### Tests
 
-273 backend Jest tests (engine incl. CR041 ownership gating + CR043 generate transactionality, the CR043 migration runner, services incl. aiReview compare, repositories, scripts, `v2/utils/validate`; DB-backed suites self-seed against `DATABASE_URL`) — run `cd server && npm test`. 121 frontend Vitest tests (utils helpers + `fcCompareUtils` diff engine + `FIELD_SECTIONS` grouping) — `cd frontend && npm test`. HTTP smoke: `node server/src/scripts/smoke-after-021.js`. **CI** (`.github/workflows/ci.yml`) runs the backend suite against a fresh migrations+[`ci-seed.sql`](../server/db/ci-seed.sql) Postgres, the frontend build (lint advisory until the 160-error debt clears), and a tracked-secret grep gate. Inventory: [Testing/TEST_OVERVIEW.md](Testing/TEST_OVERVIEW.md).
+298 backend Jest tests (engine incl. CR041 ownership gating + CR043 generate transactionality, the CR043 migration runner, **route-contract tests for `forecast.js` + `budget.js`** (CR043 Phase 1.2), services incl. aiReview compare, repositories, scripts, `v2/utils/validate`; DB-backed suites self-seed against `DATABASE_URL`) — run `cd server && npm test`. 121 frontend Vitest tests (utils helpers + `fcCompareUtils` diff engine + `FIELD_SECTIONS` grouping) — `cd frontend && npm test`. HTTP smoke: `node server/src/scripts/smoke-after-021.js`. **CI** (`.github/workflows/ci.yml`) runs the backend suite against a fresh migrations+[`ci-seed.sql`](../server/db/ci-seed.sql) Postgres, the frontend build (lint advisory until the 160-error debt clears), and a tracked-secret grep gate. Inventory: [Testing/TEST_OVERVIEW.md](Testing/TEST_OVERVIEW.md).
 
 ### Operational scripts (`server/src/v2/scripts/`)
 
