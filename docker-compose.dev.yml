@@ -50,7 +50,6 @@ services:
     volumes:
       - ./components/data:/app/components/data
       - ./components/reports:/app/components/reports
-      - /var/run/docker.sock:/var/run/docker.sock
     networks:
       - fin-network-dev
     depends_on:

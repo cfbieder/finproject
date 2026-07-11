@@ -16,21 +16,19 @@
   "license": "ISC",
   "type": "commonjs",
   "dependencies": {
-    "@tensorflow/tfjs-node": "^4.22.0",
     "archiver": "^7.0.1",
-    "arquero": "^8.0.3",
     "cors": "^2.8.5",
     "danfojs-node": "^1.2.0",
     "dotenv": "^17.2.3",
     "env-cmd": "^11.0.0",
     "express": "^5.1.0",
     "morgan": "^1.10.1",
-    "nodemon": "^3.1.11",
     "pg": "^8.13.1",
     "pino": "^9.6.0",
     "pino-pretty": "^13.0.0"
   },
   "devDependencies": {
-    "jest": "^29.7.0"
+    "jest": "^29.7.0",
+    "nodemon": "^3.1.11"
   }
 }

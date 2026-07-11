@@ -53,8 +53,6 @@ services:
     volumes:
       - ./components/data:/app/components/data
       - ./components/reports:/app/components/reports
-      - ./mongo_backups:/data/mongo_backups
-      - /var/run/docker.sock:/var/run/docker.sock
     networks:
       - fin-network
 

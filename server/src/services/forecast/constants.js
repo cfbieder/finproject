@@ -12,7 +12,8 @@ const CATEGORIES = {
 };
 
 const PATHS = {
-  ASSUMP_FILE: path.join(COMPONENTS_DATA_DIR, "FCAssump.json"),
+  // ASSUMP_FILE removed (CR043 N12): forecast assumptions moved to the
+  // forecast_assumptions table in CR039; FCAssump.json is no longer read.
   AUDIT_TRAIL_DIR: path.join(COMPONENTS_DATA_DIR, "auditTrail"),
 };
 

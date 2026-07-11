@@ -62,13 +62,15 @@ Severity order within tiers; evidence cited as file:line at review time.
 
 **Phase 0 — Safety nets & free wins (immediate; prerequisites for everything else)**
 
-| # | Item | Size |
-|---|---|---|
-| 0.1 | Add `vitest run` to CI (N1) | S |
-| 0.2 | Drop dead deps: `@tensorflow/tfjs-node`, `arquero`, root `axios`/`package.json`; `nodemon`→dev (N3) | S |
-| 0.3 | Remove `docker.sock` + `mongo_backups` mounts (N4) | S |
-| 0.4 | Delete dead code/debris: `pages/Balance.jsx`, `pages/BudgetInput.jsx`+CSS, `ForecastContext`, `useAPI`/`useModal`/`useFormState`, `DataTable.css` (unless U4 lands first), `old/`, `psAPI/`, `mongo/`, `ASSUMP_FILE` (N6/N12/N14) | S |
-| 0.5 | FC_NEXT_STEPS §5.1 refresh to current reality (N7 + table above) | S |
+**✅ Phase 0 DONE 2026-07-11** (Opus) — backend 262/262, frontend 121/121, build green, engine md5 parity held.
+
+| # | Item | Size | Status |
+|---|---|---|---|
+| 0.1 | Add `vitest run` to CI (N1) — new blocking "Unit tests (Vitest)" step in `frontend-build` | S | ✅ |
+| 0.2 | Drop dead deps: `@tensorflow/tfjs-node`, `arquero`, root `axios`+`package.json`+lock; `nodemon`→dev. Server lockfile regenerated (`--package-lock-only`); danfojs keeps its own nested tfjs 3.21.1, so the dataframe path is intact — real prune-tree check is the next container `npm ci` build (N3) | S | ✅ |
+| 0.3 | Remove `docker.sock` + `mongo_backups` mounts from **prod + dev** compose (v4 left alone, out of scope) (N4) | S | ✅ |
+| 0.4 | Deleted: `pages/Balance.jsx`, `pages/BudgetInput.jsx` (no orphan CSS existed), `useAPI`/`useModal`/`useFormState` + `hooks/index.js` barrel (0 importers), `old/`/`psAPI/`/`mongo/` debris, `ASSUMP_FILE` constant (N6/N12/N14). **Deferred `ForecastContext`** — `ForecastProvider` is still mounted as a `wrapper` on 5 forecast routes (`routes.jsx`), so removing it edits the routing tree; better done with the Phase 3.1 TanStack Query reshape. **`DataTable.css` NOT deleted** — the review mislabeled it orphaned; it's a global utility stylesheet imported by `Layout.jsx` (`.data-table-scroll` helpers) and deleting it broke the build. Corrected. | S | ✅ (2 items reclassified) |
+| 0.5 | FC_NEXT_STEPS §5.1 stale-marker added (N7 + table above) | S | ✅ (done in the review commit) |
 
 **Phase 1 — Backend guardrails (before any extraction)**
 
