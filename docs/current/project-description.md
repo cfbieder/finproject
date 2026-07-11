@@ -89,7 +89,7 @@ psproject/                          # ~/Programs/fin symlinks here
 │   ├── db/ci-seed.sql              # CI baseline COA rows (NOT a migration)
 │   └── src/
 │       ├── server.js  app.js
-│       ├── services/               # budget.js (route-facing); forecast/ below
+│       ├── services/               # budget.js, reports.js (route-facing); forecast/ below
 │       ├── services/forecast/      # FC engine (index, cash-sweep, fcbuilder-*) + crud.js (route-facing)
 │       └── v2/                     # PostgreSQL API (all routes)
 │           ├── db/                 # pool (DATE parser → YYYY-MM-DD strings)
@@ -224,7 +224,7 @@ Multi-year projection engine in `server/src/services/forecast/` (`index.js` orch
 
 ### Tests
 
-301 backend Jest tests (engine incl. CR041 ownership gating + CR043 generate transactionality, the CR043 migration runner, **route-contract tests for `forecast.js` + `budget.js`** (CR043 Phase 1.2), services incl. aiReview compare, repositories, scripts, `v2/utils/validate` + `AppError`; DB-backed suites self-seed against `DATABASE_URL`) — run `cd server && npm test`. 121 frontend Vitest tests (utils helpers + `fcCompareUtils` diff engine + `FIELD_SECTIONS` grouping) — `cd frontend && npm test`. HTTP smoke: `node server/src/scripts/smoke-after-021.js`. **CI** (`.github/workflows/ci.yml`) runs the backend suite against a fresh migrations+[`ci-seed.sql`](../../server/db/ci-seed.sql) Postgres, the **frontend Vitest suite (blocking, CR043 Phase 1.1)** + build (lint still advisory until the 160-error debt clears), and a tracked-secret grep gate. Inventory: [test-overview.md](test-overview.md).
+311 backend Jest tests (engine incl. CR041 ownership gating + CR043 generate transactionality, the CR043 migration runner, **route-contract tests for `forecast.js` + `budget.js` + `reports.js`** (CR043 Phase 1.2 / 2.2), services incl. aiReview compare, repositories, scripts, `v2/utils/validate` + `AppError`; DB-backed suites self-seed against `DATABASE_URL`) — run `cd server && npm test`. 121 frontend Vitest tests (utils helpers + `fcCompareUtils` diff engine + `FIELD_SECTIONS` grouping) — `cd frontend && npm test`. HTTP smoke: `node server/src/scripts/smoke-after-021.js`. **CI** (`.github/workflows/ci.yml`) runs the backend suite against a fresh migrations+[`ci-seed.sql`](../../server/db/ci-seed.sql) Postgres, the **frontend Vitest suite (blocking, CR043 Phase 1.1)** + build (lint still advisory until the 160-error debt clears), and a tracked-secret grep gate. Inventory: [test-overview.md](test-overview.md).
 
 ### Operational scripts (`server/src/v2/scripts/`)
 
