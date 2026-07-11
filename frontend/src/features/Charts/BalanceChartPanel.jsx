@@ -1,4 +1,5 @@
 import PropTypes from "prop-types";
+import { useChartTheme } from "../../utils/chartTheme.jsx";
 import "./BalanceChartPanel.css";
 
 const getAxisLabelParts = (point) => {
@@ -43,6 +44,9 @@ const BalanceChartPanel = ({
   formatAxisLabel,
 }) => {
   const layout = chartLayout ?? {};
+  // CR042 U2: gradient stops resolved from the live theme tokens (were frozen
+  // light-mode #6B8E6B / #C0504D that never flipped in dark mode).
+  const chart = useChartTheme();
 
   return (
     <div className="balance-chart-panel">
@@ -75,12 +79,12 @@ const BalanceChartPanel = ({
           >
             <defs>
               <linearGradient id="positive-gradient" x1="0%" y1="0%" x2="0%" y2="100%">
-                <stop offset="0%" stopColor="#6B8E6B" stopOpacity="0.9" />
-                <stop offset="100%" stopColor="#7FA37F" stopOpacity="0.7" />
+                <stop offset="0%" stopColor={chart.positive} stopOpacity="0.9" />
+                <stop offset="100%" stopColor={chart.positive} stopOpacity="0.6" />
               </linearGradient>
               <linearGradient id="negative-gradient" x1="0%" y1="0%" x2="0%" y2="100%">
-                <stop offset="0%" stopColor="#C0504D" stopOpacity="0.9" />
-                <stop offset="100%" stopColor="#D06360" stopOpacity="0.7" />
+                <stop offset="0%" stopColor={chart.negative} stopOpacity="0.9" />
+                <stop offset="100%" stopColor={chart.negative} stopOpacity="0.6" />
               </linearGradient>
             </defs>
             <g className="balance-chart-graph__grid">

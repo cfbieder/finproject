@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import CategorySelector from "../components/CategorySelector/CategorySelector.jsx";
 import { useCoa } from "../hooks/useCoa.js";
+import { useChartTheme } from "../utils/chartTheme.jsx";
 import Rest from "../js/rest.js";
 import { formatLocalDate } from "../utils/dateHelpers.js";
 import "./PageLayout.css";
@@ -119,8 +120,8 @@ const formatMonthLabel = (monthKey) => {
 // HELPERS
 // ============================================================================
 
-const ACTUAL_COLOR = "#6B8E6B";
-const BUDGET_COLOR = "#C4923A";
+// CR042 U2: actual/budget colors are resolved from the theme in-component
+// (see useChartTheme below) so they flip in dark mode — were frozen light hex.
 
 /** Collect all leaf names from a plTree */
 function collectLeafNames(nodes, results = []) {
@@ -153,6 +154,9 @@ function findNode(nodes, name) {
 
 export default function CategoryTrend() {
   const { plTree } = useCoa();
+  const chart = useChartTheme();
+  const ACTUAL_COLOR = chart.seriesAt(1); // emerald token (flips in dark)
+  const BUDGET_COLOR = chart.seriesAt(2); // amber token (flips in dark)
 
   // State
   const [selectedCategories, setSelectedCategories] = useState([]);
