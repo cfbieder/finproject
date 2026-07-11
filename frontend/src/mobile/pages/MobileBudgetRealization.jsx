@@ -84,7 +84,7 @@ export default function MobileBudgetRealization() {
     setError("");
     setShowAll(false);
     Promise.all([
-      Rest.fetchCashFlowReport({
+      Rest.fetchCashFlowReportV2({
         fromDate: period.fromDate,
         toDate: period.toDate,
         transfers: "exclude",

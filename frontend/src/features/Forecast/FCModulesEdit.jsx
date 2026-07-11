@@ -277,7 +277,7 @@ export default function FCModulesEditModal({
     setAccountBalanceLoading(true);
     (async () => {
       try {
-        const report = await Rest.fetchBalanceReport(editForm.BaseDate);
+        const report = await Rest.fetchBalanceReportV2(editForm.BaseDate);
         if (!isActive) return;
         const node = findBalanceNode(report, effectiveName);
         if (node) {

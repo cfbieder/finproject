@@ -210,7 +210,7 @@ export default function CashFlowPeriods() {
     try {
       const rawReports = await Promise.all(
         periods.map(({ fromDate, toDate }) =>
-          Rest.fetchCashFlowReport({
+          Rest.fetchCashFlowReportV2({
             fromDate,
             toDate,
             transfers,

@@ -307,9 +307,9 @@ export default function Balance() {
     const periodColumns = buildPeriodSeries(fromDates[0], toDates[0], period);
     try {
       const [reports, periodReports] = await Promise.all([
-        Promise.all(activeDates.map((date) => Rest.fetchBalanceReport(date))),
+        Promise.all(activeDates.map((date) => Rest.fetchBalanceReportV2(date))),
         Promise.all(
-          periodColumns.map((column) => Rest.fetchBalanceReport(column.asOf))
+          periodColumns.map((column) => Rest.fetchBalanceReportV2(column.asOf))
         ),
       ]);
       setBalanceReports(reports);

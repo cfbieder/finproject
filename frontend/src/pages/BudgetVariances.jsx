@@ -135,7 +135,7 @@ export default function BudgetVariances() {
 
     const fetchActuals = async () => {
       try {
-        const report = await Rest.fetchCashFlowReport({
+        const report = await Rest.fetchCashFlowReportV2({
           fromDate: fromDateParam,
           toDate: toDateParam,
           transfers: "exclude",

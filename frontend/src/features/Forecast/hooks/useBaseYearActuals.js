@@ -31,7 +31,7 @@ export function useBaseYearActuals(periodStart) {
     const loadActualsForYear = async (year) => {
       const fromDate = `${year}-01-01`;
       const toDate = `${year}-12-31`;
-      const report = await Rest.fetchCashFlowReport({
+      const report = await Rest.fetchCashFlowReportV2({
         fromDate,
         toDate,
         transfers: "exclude",

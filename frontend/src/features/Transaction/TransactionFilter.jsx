@@ -185,7 +185,7 @@ export default function TransactionFilter({
 
     const loadCurrencies = async () => {
       try {
-        const payload = await Rest.fetchCurrencyOptions();
+        const payload = await Rest.fetchCurrencyOptionsV2();
         if (!isActive) {
           return;
         }

@@ -31,7 +31,7 @@ export function useBaseYearBalanceSheet(periodStart, balanceAccountMap) {
 
     const loadBalanceForYear = async (year) => {
       const asOfDate = `${year}-12-31`;
-      const report = await Rest.fetchBalanceReport(asOfDate);
+      const report = await Rest.fetchBalanceReportV2(asOfDate);
 
       const level1 = new Map();
       const level2 = new Map();

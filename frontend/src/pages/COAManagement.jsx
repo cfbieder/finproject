@@ -124,7 +124,7 @@ export default function COAManagement() {
       const [coaSections, traits, currencyPayload, fedPayload] = await Promise.all([
         Rest.fetchCoaSections(),
         Rest.fetchCoaTraits().catch(() => ({})),
-        Rest.fetchCurrencyOptions().catch(() => null),
+        Rest.fetchCurrencyOptionsV2().catch(() => null),
         Rest.fetchJson("/api/v2/bank-feed/fed-accounts").catch(() => ({ data: [] })),
       ]);
       setCoaSections(coaSections);

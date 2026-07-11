@@ -128,7 +128,7 @@ export default function BalanceTrends() {
       );
       const planned = planColumns(rawSeries, intervalKey, getTodayIso());
       const reports = await Promise.all(
-        planned.map(({ asOf }) => Rest.fetchBalanceReport(asOf))
+        planned.map(({ asOf }) => Rest.fetchBalanceReportV2(asOf))
       );
       const nextByLabel = {};
       planned.forEach(({ label }, idx) => {

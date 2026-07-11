@@ -470,7 +470,7 @@ export default function BudgetRealizationGraph() {
 
     const fetchActuals = async () => {
       try {
-        const report = await Rest.fetchCashFlowReport({
+        const report = await Rest.fetchCashFlowReportV2({
           fromDate: fromDateParam,
           toDate: toDateParam,
           transfers: transfersMode,

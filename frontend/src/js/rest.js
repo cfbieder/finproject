@@ -127,34 +127,6 @@ export default class Rest {
     return Rest.fetchJson(`/api/v2${path}`, { method: "DELETE" });
   }
 
-  static async fetchBalanceReport(asOfDate) {
-    // Using v2 API (PostgreSQL)
-    const encodedDate = encodeURIComponent(asOfDate ?? "");
-    const report = await Rest.fetchJson(`/api/v2/reports/balance?asOfDate=${encodedDate}`);
-    return report?.["Balance Sheet Accounts"] ?? null;
-  }
-
-  static async fetchCashFlowReport({
-    fromDate,
-    toDate,
-    transfers,
-    includeUnrealizedGL,
-  } = {}) {
-    // Using v2 API (PostgreSQL)
-    const params = new URLSearchParams();
-    if (fromDate) params.set("fromDate", fromDate);
-    if (toDate) params.set("toDate", toDate);
-    if (transfers) params.set("transfers", transfers);
-    if (typeof includeUnrealizedGL === "boolean") {
-      params.set("includeUnrealizedGL", includeUnrealizedGL);
-    }
-
-    const query = params.toString();
-    const path = `/api/v2/reports/cash-flow${query ? `?${query}` : ""}`;
-    const report = await Rest.fetchJson(path);
-    return report?.["Profit & Loss Accounts"] ?? null;
-  }
-
   static async fetchBudgetCashFlowReport({
     fromDate,
     toDate,
@@ -207,16 +179,6 @@ export default class Rest {
     return Rest.fetchJson("/api/v2/ingest-ps/psdata/options");
   }
 
-  static async fetchCategoryGroups() {
-    // Using v2 API (PostgreSQL)
-    return Rest.fetchJson("/api/v2/budget/category-groups");
-  }
-
-  static async fetchCurrencyOptions() {
-    // Using v2 API (PostgreSQL)
-    return Rest.fetchJson("/api/v2/util/currencies");
-  }
-
   static async fetchCoaSections() {
     // Using v2 API
     const [balanceSheet, cashFlow] = await Promise.all([
@@ -233,48 +195,6 @@ export default class Rest {
   static async fetchCoaTraits() {
     // Using v2 API
     return Rest.fetchJson("/api/v2/util/coa-traits");
-  }
-
-  static async fetchBudgetBalances({
-    fromMonth,
-    toMonth,
-    actualYear,
-    budgetYear,
-    categories,
-    accounts,
-  } = {}) {
-    const params = new URLSearchParams();
-    if (fromMonth) params.set("fromMonth", fromMonth);
-    if (toMonth) params.set("toMonth", toMonth);
-    if (actualYear !== undefined && actualYear !== null) {
-      params.set("actualYear", Number(actualYear));
-    }
-    if (budgetYear !== undefined && budgetYear !== null) {
-      params.set("budgetYear", Number(budgetYear));
-    }
-    if (Array.isArray(categories) && categories.length) {
-      for (const category of categories) {
-        if (category) {
-          params.append("category", category);
-        }
-      }
-    } else if (categories) {
-      params.set("category", categories);
-    }
-    if (Array.isArray(accounts) && accounts.length) {
-      for (const account of accounts) {
-        if (account) {
-          params.append("accounts", account);
-        }
-      }
-    } else if (accounts) {
-      params.set("accounts", accounts);
-    }
-
-    const query = params.toString();
-    // Using v2 API (PostgreSQL)
-    const path = `/api/v2/budget/summary${query ? `?${query}` : ""}`;
-    return Rest.fetchJson(path);
   }
 
   static async fetchBudgetActualEntries({
