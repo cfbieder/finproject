@@ -6,10 +6,16 @@
  */
 
 const express = require('express');
+const fs = require('fs');
+const path = require('path');
 const router = express.Router();
 const repo = require('../repositories').forecast;
 const accountsRepo = require('../repositories').accounts;
 const validate = require('../utils/validate');
+const crud = require('../../services/forecast/crud');
+const { generateForecast } = require('../../services/forecast');
+const { PATHS } = require('../../services/forecast/constants');
+const { dataPaths } = require('../../utils/dataPaths');
 
 // Fields PUT /scenarios/:id may set (mirrors updateScenario's own allow-list).
 // The scenario editor sends only { cash_sweep_low, cash_sweep_high }; the rest
@@ -18,17 +24,6 @@ const validate = require('../utils/validate');
 // endpoints get the same treatment during the Phase 2.1 extraction, once each
 // PascalCase form contract is enumerated against the frontend.
 const SCENARIO_UPDATE_FIELDS = ['name', 'description', 'is_active', 'cash_sweep_low', 'cash_sweep_high'];
-
-// ============================================================================
-// Helpers
-// ============================================================================
-
-async function lookupAccountByName(name) {
-  if (!name) return null;
-  const db = require('../db');
-  const result = await db.query('SELECT id FROM accounts WHERE name = $1 LIMIT 1', [name]);
-  return result.rows[0]?.id || null;
-}
 
 // ============================================================================
 // Assumptions (PostgreSQL — scenarios table + forecast_assumptions document;
@@ -216,35 +211,9 @@ router.post('/scenarios/byname/:name/copy', async (req, res, next) => {
     // If refreshFromActuals is set, update module base values from latest actuals
     const baseYear = req.body.baseYear || null;
     if (baseYear) {
-      const db = require('../db');
       const asOfDate = `${baseYear}-12-31`;
-
-      // Update every module's base value (book) from year-end actuals in ONE
-      // set-based statement — atomic, so a failure can't leave the copy with
-      // half its modules refreshed (CR037 P5; also removes the per-module N+1).
-      // base_amount is always in USD (base_currency); local-currency balance
-      // is the sum of t.amount filtered to txs in the account's currency.
-      // market_value is left as carried over from the source — broker-reported
-      // MV cannot be derived from the ledger. Modules whose account has no
-      // transactions keep their copied values (same as the old per-row skip).
-      const result = await db.query(`
-        UPDATE forecast_modules m
-        SET base_value = COALESCE(b.balance_lc, 0),
-            base_value_usd = COALESCE(b.balance_usd, 0),
-            base_date = $2,
-            updated_at = NOW()
-        FROM (
-          SELECT a.id AS account_id,
-            SUM(CASE WHEN t.currency = a.currency THEN t.amount ELSE 0 END) AS balance_lc,
-            SUM(t.base_amount) AS balance_usd
-          FROM transactions t
-          JOIN accounts a ON t.account_id = a.id
-          WHERE t.transaction_date <= $2
-          GROUP BY a.id
-        ) b
-        WHERE m.scenario_id = $1 AND m.account_id = b.account_id
-      `, [newScenario.id, asOfDate]);
-      console.log(`[copy] Updated ${result.rowCount} modules with ${baseYear} actuals`);
+      const rowCount = await crud.refreshModulesFromActuals(newScenario.id, asOfDate);
+      console.log(`[copy] Updated ${rowCount} modules with ${baseYear} actuals`);
     }
 
     res.status(201).json({ success: true, data: newScenario });
@@ -270,15 +239,7 @@ router.get('/modules', async (req, res, next) => {
         modules = await repo.findModulesByScenario(scenarioObj.id);
       }
     } else {
-      const db = require('../db');
-      const result = await db.query(`
-        SELECT m.*, a.name as account_name, s.name as scenario_name
-        FROM forecast_modules m
-        LEFT JOIN accounts a ON m.account_id = a.id
-        LEFT JOIN forecast_scenarios s ON m.scenario_id = s.id
-        ORDER BY s.name, m.module_type, m.name
-      `);
-      modules = result.rows;
+      modules = await crud.listAllModulesRaw();
     }
 
     // Transform to PascalCase for frontend
@@ -447,7 +408,7 @@ router.post('/modules', async (req, res, next) => {
       return res.status(404).json({ error: 'Scenario not found' });
     }
 
-    const accountId = await lookupAccountByName(body.Account);
+    const accountId = await crud.lookupAccountByName(body.Account);
 
     const moduleData = {
       scenario_id: scenario.id,
@@ -529,13 +490,12 @@ router.put('/modules/:id', async (req, res, next) => {
     }
 
     const body = req.body || {};
-    const db = require('../db');
 
     // Build update data from PascalCase fields
     const updateData = {};
 
     if (body.Account !== undefined) {
-      updateData.account_id = await lookupAccountByName(body.Account);
+      updateData.account_id = await crud.lookupAccountByName(body.Account);
     }
     if (body.Name !== undefined) updateData.name = body.Name;
     if (body.Type !== undefined) updateData.module_type = body.Type;
@@ -574,21 +534,15 @@ router.put('/modules/:id', async (req, res, next) => {
     if (updateData.cash_sweep_priority != null) {
       const existing = await repo.findModuleById(id);
       if (existing) {
-        const clash = await db.query(
-          'SELECT name FROM forecast_modules WHERE scenario_id = $1 AND id != $2 AND cash_sweep_priority = $3 LIMIT 1',
-          [existing.scenario_id, id, updateData.cash_sweep_priority]
-        );
-        if (clash.rows.length) {
+        const clash = await crud.findCashSweepPriorityClash(existing.scenario_id, id, updateData.cash_sweep_priority);
+        if (clash) {
           return res.status(409).json({
-            error: `Cash sweep priority ${updateData.cash_sweep_priority} is already used by "${clash.rows[0].name}". Pick a different rank, or clear that module's priority first.`,
+            error: `Cash sweep priority ${updateData.cash_sweep_priority} is already used by "${clash.name}". Pick a different rank, or clear that module's priority first.`,
           });
         }
         if (updateData.cash_sweep_priority === 1) {
           // Legacy flag stays unique to the primary (no DB-level eviction of a real priority)
-          await db.query(
-            'UPDATE forecast_modules SET cash_sweep_target = FALSE WHERE scenario_id = $1 AND id != $2 AND cash_sweep_target = TRUE AND cash_sweep_priority IS DISTINCT FROM 1',
-            [existing.scenario_id, id]
-          );
+          await crud.clearOtherCashSweepTargets(existing.scenario_id, id);
         }
       }
     }
@@ -611,49 +565,7 @@ router.put('/modules/:id', async (req, res, next) => {
     // the whole replace: a failure mid-reinsert must not leave the module's
     // schedule wiped by the leading DELETEs (CR037 P5).
     if (Array.isArray(body.Invest) || Array.isArray(body.Dispose) || Array.isArray(body.IncomePct)) {
-      await db.transaction(async (client) => {
-        if (Array.isArray(body.Invest)) {
-          await client.query('DELETE FROM forecast_module_investments WHERE module_id = $1', [id]);
-          for (const inv of body.Invest) {
-            if (inv.Date || inv.Amount !== undefined) {
-              await repo.addInvestment(id, {
-                investment_date: inv.Date,
-                amount: inv.Amount,
-                flag: inv.Flag || '',
-                note: inv.Note || '',
-                date_end: inv.DateEnd || null,
-              }, client);
-            }
-          }
-        }
-
-        if (Array.isArray(body.Dispose)) {
-          await client.query('DELETE FROM forecast_module_disposals WHERE module_id = $1', [id]);
-          for (const disp of body.Dispose) {
-            if (disp.Date || disp.Amount !== undefined) {
-              await repo.addDisposal(id, {
-                disposal_date: disp.Date,
-                amount: disp.Amount,
-                flag: disp.Flag || '',
-                note: disp.Note || '',
-                date_end: disp.DateEnd || null,
-              }, client);
-            }
-          }
-        }
-
-        if (Array.isArray(body.IncomePct)) {
-          await client.query('DELETE FROM forecast_module_income_pct WHERE module_id = $1', [id]);
-          for (const pct of body.IncomePct) {
-            if (pct.Date) {
-              await repo.setIncomePct(id, {
-                effective_date: pct.Date,
-                value: pct.Amount ?? pct.Value ?? 0,
-              }, client);
-            }
-          }
-        }
-      });
+      await crud.replaceModuleSchedules(id, body);
     }
 
     const updated = await repo.findModuleById(id);
@@ -693,179 +605,18 @@ router.delete('/modules/:id', async (req, res, next) => {
 // Excludes Bank Accounts subtree and accounts already used as modules in the scenario.
 router.post('/modules/add-from-actuals', async (req, res, next) => {
   try {
-    const db = require('../db');
     const { scenario, baseYear } = req.query;
     if (!scenario || !baseYear) {
       return res.status(400).json({ error: 'Missing required query params: scenario, baseYear' });
     }
-
-    const asOfDate = `${baseYear}-12-31`;
 
     const scenarioRow = await repo.findScenarioByName(scenario);
     if (!scenarioRow) {
       return res.status(404).json({ error: `Scenario "${scenario}" not found` });
     }
 
-    // Get account IDs already used as modules in this scenario
-    const existingResult = await db.query(
-      `SELECT account_id FROM forecast_modules WHERE scenario_id = $1 AND account_id IS NOT NULL`,
-      [scenarioRow.id]
-    );
-    const existingAccountIds = new Set(existingResult.rows.map(r => r.account_id));
-
-    // Get full BS account tree, excluding Bank Accounts subtree
-    const treeResult = await db.query(`
-      WITH RECURSIVE tree AS (
-        SELECT id, name, parent_id, currency, account_type, is_active,
-               ARRAY[id] as path, 0 as depth
-        FROM accounts
-        WHERE section = 'balance_sheet' AND parent_id IS NULL
-        UNION ALL
-        SELECT a.id, a.name, a.parent_id, a.currency, a.account_type, a.is_active,
-               t.path || a.id, t.depth + 1
-        FROM accounts a
-        JOIN tree t ON a.parent_id = t.id
-        WHERE a.name != 'Bank Accounts'
-      )
-      SELECT id, name, parent_id, currency, account_type, depth
-      FROM tree
-      WHERE is_active = TRUE AND name != 'Bank Accounts'
-      ORDER BY path
-    `);
-
-    const accounts = treeResult.rows;
-    const accountIds = accounts.map(a => a.id);
-
-    // Get closing balances for all BS accounts as of the base year
-    const balancesResult = await db.query(`
-      SELECT DISTINCT ON (account_id)
-        account_id, closing_balance, currency
-      FROM transactions
-      WHERE transaction_date <= $1
-        AND closing_balance IS NOT NULL
-        AND account_id = ANY($2)
-      ORDER BY account_id, transaction_date DESC, id DESC
-    `, [asOfDate, accountIds]);
-
-    // Get FX rates for conversion
-    const currencies = new Set();
-    for (const row of balancesResult.rows) {
-      if (row.currency && row.currency !== 'USD') currencies.add(row.currency);
-    }
-    for (const acc of accounts) {
-      if (acc.currency && acc.currency !== 'USD') currencies.add(acc.currency);
-    }
-
-    const fxRates = { USD: 1 };
-    if (currencies.size > 0) {
-      const ratesResult = await db.query(`
-        SELECT DISTINCT ON (from_currency)
-          from_currency, rate
-        FROM exchange_rates
-        WHERE from_currency = ANY($1) AND to_currency = 'USD'
-        ORDER BY from_currency, ABS(rate_date - $2::date) ASC
-      `, [Array.from(currencies), asOfDate]);
-      for (const row of ratesResult.rows) {
-        const rate = parseFloat(row.rate);
-        if (rate > 0) fxRates[row.from_currency] = 1 / rate;
-      }
-    }
-
-    // Build leaf balance map
-    const leafBalanceMap = {};
-    for (const row of balancesResult.rows) {
-      leafBalanceMap[row.account_id] = {
-        balance_lc: parseFloat(row.closing_balance) || 0,
-        currency: row.currency || 'USD',
-      };
-    }
-
-    // Build parent → children map for aggregation
-    const childrenMap = {};
-    for (const acc of accounts) {
-      if (acc.parent_id) {
-        if (!childrenMap[acc.parent_id]) childrenMap[acc.parent_id] = [];
-        childrenMap[acc.parent_id].push(acc.id);
-      }
-    }
-
-    // Recursive function to compute aggregated balance (sum of all descendants)
-    const aggregatedCache = {};
-    function getAggregatedBalance(accountId) {
-      if (aggregatedCache[accountId] !== undefined) return aggregatedCache[accountId];
-
-      let totalLc = 0;
-      let totalUsd = 0;
-      const children = childrenMap[accountId] || [];
-
-      if (children.length === 0) {
-        // Leaf node — use its own balance
-        const lb = leafBalanceMap[accountId];
-        if (lb) {
-          totalLc = lb.balance_lc;
-          const fxRate = fxRates[lb.currency] || 1;
-          totalUsd = lb.balance_lc / fxRate;
-        }
-      } else {
-        // Parent node — sum children
-        for (const childId of children) {
-          const childBal = getAggregatedBalance(childId);
-          totalUsd += childBal.balance_usd;
-          // For parent nodes, LC is mixed currencies so we only track USD
-          totalLc += childBal.balance_lc;
-        }
-      }
-
-      aggregatedCache[accountId] = { balance_lc: totalLc, balance_usd: totalUsd };
-      return aggregatedCache[accountId];
-    }
-
-    // Build tree response
-    const accountMap = {};
-    for (const acc of accounts) {
-      const bal = getAggregatedBalance(acc.id);
-      const leafBal = leafBalanceMap[acc.id];
-      const isLeaf = !childrenMap[acc.id] || childrenMap[acc.id].length === 0;
-      const hasBalance = Math.abs(bal.balance_usd) > 0.01;
-
-      accountMap[acc.id] = {
-        account_id: acc.id,
-        account_name: acc.name,
-        parent_id: acc.parent_id,
-        currency: acc.currency,
-        account_type: acc.account_type,
-        depth: acc.depth,
-        is_leaf: isLeaf,
-        balance_lc: isLeaf && leafBal ? leafBal.balance_lc : bal.balance_lc,
-        balance_usd: bal.balance_usd,
-        has_balance: hasBalance,
-        already_added: existingAccountIds.has(acc.id),
-        children: [],
-      };
-    }
-
-    // Nest children under parents
-    const roots = [];
-    for (const acc of accounts) {
-      const node = accountMap[acc.id];
-      if (acc.parent_id && accountMap[acc.parent_id]) {
-        accountMap[acc.parent_id].children.push(node);
-      } else {
-        roots.push(node);
-      }
-    }
-
-    res.json({
-      data: roots,
-      baseYear: Number(baseYear),
-      asOfDate,
-      fxRates,
-      summary: {
-        total_accounts: accounts.length,
-        with_balance: accounts.filter(a => Math.abs(getAggregatedBalance(a.id).balance_usd) > 0.01).length,
-        already_added: existingAccountIds.size,
-      },
-    });
+    const payload = await crud.buildAddFromActualsTree(scenarioRow.id, baseYear);
+    res.json(payload);
   } catch (error) {
     console.error('[forecast/modules/add-from-actuals] Failed:', error);
     next(error);
@@ -876,7 +627,6 @@ router.post('/modules/add-from-actuals', async (req, res, next) => {
 // Accepts array of module updates: [{ id, base_value, base_value_usd, market_value, market_value_usd, base_date }]
 router.patch('/modules/bulk-update', async (req, res, next) => {
   try {
-    const db = require('../db');
     const { updates } = req.body;
     if (!Array.isArray(updates) || updates.length === 0) {
       return res.status(400).json({ error: 'Missing or empty updates array' });
@@ -969,37 +719,13 @@ router.post('/incomeexpense', async (req, res, next) => {
 
     let accountId = null;
     if (body.Account) {
-      accountId = await lookupAccountByName(body.Account);
+      accountId = await crud.lookupAccountByName(body.Account);
     }
 
-    // If created from FC Line and no account specified, resolve from line's categories
-    // Find common parent P&L account for all categories in the line
+    // If created from FC Line and no account specified, resolve from the line
+    // (name-match first, then any account assigned to the line).
     if (!accountId && body.FcLineId) {
-      const db = require('../db');
-      // Try to find an account whose name matches the FC Line name (most common case)
-      const fcLineResult = await db.query('SELECT name FROM fc_lines WHERE id = $1', [body.FcLineId]);
-      if (fcLineResult.rows.length > 0) {
-        const matchingAccount = await db.query(
-          'SELECT id FROM accounts WHERE name = $1 AND section = $2 LIMIT 1',
-          [fcLineResult.rows[0].name, 'profit_loss']
-        );
-        if (matchingAccount.rows.length > 0) {
-          accountId = matchingAccount.rows[0].id;
-        }
-      }
-      // Fallback: pick any account assigned to this FC Line.
-      // After migration 021, fc_line_categories.category_id IS the account id.
-      if (!accountId) {
-        const lineAccount = await db.query(`
-          SELECT flc.category_id AS account_id
-          FROM fc_line_categories flc
-          WHERE flc.fc_line_id = $1
-          LIMIT 1
-        `, [body.FcLineId]);
-        if (lineAccount.rows.length > 0) {
-          accountId = lineAccount.rows[0].account_id;
-        }
-      }
+      accountId = await crud.resolveIncExpAccountFromFcLine(body.FcLineId);
     }
 
     const itemData = {
@@ -1052,7 +778,7 @@ router.put('/incomeexpense/:id', async (req, res, next) => {
 
     let accountId = undefined;
     if (body.Account !== undefined) {
-      accountId = body.Account ? await lookupAccountByName(body.Account) : null;
+      accountId = body.Account ? await crud.lookupAccountByName(body.Account) : null;
     }
 
     const updateData = {};
@@ -1084,17 +810,7 @@ router.put('/incomeexpense/:id', async (req, res, next) => {
 
     // Handle changes — replace all if provided
     if (Array.isArray(body.Changes)) {
-      const db = require('../db');
-      await db.query('DELETE FROM forecast_incexp_changes WHERE incexp_id = $1', [id]);
-      for (const change of body.Changes) {
-        if (change.Date || change.Amount !== undefined) {
-          await repo.addIncExpChange(id, {
-            change_date: change.Date,
-            amount: change.Amount,
-            flag: change.Flag || '',
-          });
-        }
-      }
+      await crud.replaceIncExpChanges(id, body.Changes);
     }
 
     res.json({ data: item });
@@ -1151,52 +867,7 @@ router.get('/base-year-values', async (req, res, next) => {
     const scenario = await repo.findScenarioByName(scenarioName);
     if (!scenario) return res.status(404).json({ error: 'Scenario not found' });
 
-    const db = require('../db');
-
-    // Get income/expense amounts from BS modules (by FC Line name)
-    const bsResult = await db.query(`
-      SELECT
-        COALESCE(exp_line.name, 'Unassigned Expense') as label,
-        'expense' as type,
-        SUM(CASE WHEN m.expense_amount IS NOT NULL AND m.expense_amount != 0
-            THEN -m.expense_amount ELSE 0 END) as amount
-      FROM forecast_modules m
-      LEFT JOIN fc_lines exp_line ON m.expense_fc_line_id = exp_line.id
-      WHERE m.scenario_id = $1 AND COALESCE(m.setup_status, 'new') NOT IN ('new', 'exclude')
-        AND m.expense_fc_line_id IS NOT NULL
-      GROUP BY exp_line.name
-      UNION ALL
-      SELECT
-        COALESCE(inc_line.name, 'Unassigned Income') as label,
-        'income' as type,
-        SUM(COALESCE(m.income_amount, 0)) as amount
-      FROM forecast_modules m
-      LEFT JOIN fc_lines inc_line ON m.income_fc_line_id = inc_line.id
-      WHERE m.scenario_id = $1 AND COALESCE(m.setup_status, 'new') NOT IN ('new', 'exclude')
-        AND m.income_fc_line_id IS NOT NULL
-      GROUP BY inc_line.name
-    `, [scenario.id]);
-
-    // Get base values from IncExp items (by FC Line name or item name)
-    const incexpResult = await db.query(`
-      SELECT
-        COALESCE(fl.name, ie.name) as label,
-        ie.base_value as amount
-      FROM forecast_income_expense ie
-      LEFT JOIN fc_lines fl ON ie.fc_line_id = fl.id
-      WHERE ie.scenario_id = $1 AND COALESCE(ie.setup_status, 'new') NOT IN ('new', 'exclude')
-    `, [scenario.id]);
-
-    const values = {};
-    for (const row of bsResult.rows) {
-      const amt = parseFloat(row.amount) || 0;
-      if (amt !== 0) values[row.label] = (values[row.label] || 0) + amt;
-    }
-    for (const row of incexpResult.rows) {
-      const amt = parseFloat(row.amount) || 0;
-      if (amt !== 0) values[row.label] = (values[row.label] || 0) + amt;
-    }
-
+    const values = await crud.getBaseYearValues(scenario.id);
     res.json({ data: values });
   } catch (error) {
     console.error('[forecast/base-year-values] Failed:', error);
@@ -1211,7 +882,6 @@ router.post('/generate/:scenario', async (req, res, next) => {
       return res.status(400).json({ error: 'Scenario name is required' });
     }
 
-    const { generateForecast } = require('../../services/forecast');
     const result = await generateForecast(scenario);
 
     if (result.success) {
@@ -1246,9 +916,6 @@ router.post('/generate/:scenario', async (req, res, next) => {
 // NOTE: Must be before /:scenario/:module to avoid wildcard match
 router.get('/audittrail/:scenario/cash-sweep', (req, res, next) => {
   try {
-    const fs = require('fs');
-    const path = require('path');
-    const { PATHS } = require('../../services/forecast/constants');
     const scenario = req.params.scenario?.trim();
 
     if (!scenario) {
@@ -1282,9 +949,6 @@ router.get('/audittrail/:scenario/cash-sweep', (req, res, next) => {
 // GET /api/v2/forecast/audittrail/:scenario/:module
 router.get('/audittrail/:scenario/:module', (req, res, next) => {
   try {
-    const fs = require('fs');
-    const path = require('path');
-    const { dataPaths } = require('../../utils/dataPaths');
     const scenario = req.params.scenario?.trim();
     const moduleName = req.params.module?.trim();
 
@@ -1335,9 +999,6 @@ router.get('/audittrail/:scenario/:module', (req, res, next) => {
 // Returns LC, USD, and entries audit trail CSVs for a BS module
 router.get('/audittrail/:scenario/:module/detail', (req, res, next) => {
   try {
-    const fs = require('fs');
-    const path = require('path');
-    const { PATHS } = require('../../services/forecast/constants');
     const scenario = req.params.scenario?.trim();
     const moduleName = req.params.module?.trim();
 
@@ -1379,9 +1040,6 @@ router.get('/audittrail/:scenario/:module/detail', (req, res, next) => {
 // DELETE /api/v2/forecast/audittrail/:scenario
 router.delete('/audittrail/:scenario', (req, res, next) => {
   try {
-    const fs = require('fs');
-    const path = require('path');
-    const { dataPaths } = require('../../utils/dataPaths');
     const scenario = req.params.scenario?.trim();
 
     if (!scenario) {

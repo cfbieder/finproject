@@ -89,7 +89,8 @@ psproject/                          # ~/Programs/fin symlinks here
 │   ├── db/ci-seed.sql              # CI baseline COA rows (NOT a migration)
 │   └── src/
 │       ├── server.js  app.js
-│       ├── services/forecast/      # FC engine (index, cash-sweep, fcbuilder-*)
+│       ├── services/               # budget.js (route-facing); forecast/ below
+│       ├── services/forecast/      # FC engine (index, cash-sweep, fcbuilder-*) + crud.js (route-facing)
 │       └── v2/                     # PostgreSQL API (all routes)
 │           ├── db/                 # pool (DATE parser → YYYY-MM-DD strings)
 │           ├── routes/  repositories/  services/  scripts/
