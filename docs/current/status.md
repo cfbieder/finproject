@@ -3,7 +3,7 @@
 > The one mandatory read at session start. Keep ≤ ~60 lines; link onward, never restate.
 > CR statuses live in the [CR index](../cr/README.md); the running version lives in `VERSION`.
 
-**Last updated:** 2026-07-11 · **Live version:** v3.0.63 (see `VERSION` / git tags)
+**Last updated:** 2026-07-11 · **Live version:** v3.0.64 (see `VERSION` / git tags)
 
 ## Current phase
 - [CR043 — Code Structure Program](../cr/cr-043-code-structure-program.md): Phases 0, 1 (all), 2.1 extraction, 2.2 (reports.js), 2.3, 2.4 done; remaining util.js hygiene, 2.1's N10 write-validation (both deferred, see CR notes), and Phase 3 — Opus-safe per CR §Model guidance.
@@ -16,6 +16,7 @@
 - Deploy: `./Scripts/deploy-to-production.sh` (DB backup first). Migrations: manual `psql -f`, registry in [migrations.md](migrations.md); runner shipped in CR043 P1.1 (`npm run migrate`).
 
 ## Recently shipped
+- v3.0.64 — CR043 Phase 2.1 + 2.2 backend route→service extraction (budget/forecast/reports; no behavior change, byte-identical engine + report output).
 - v3.0.63 — three-lens review + CR043 code-structure hardening (Phases 0/1/2.3/2.4).
 - [CR041](../cr/cr-041-module-ownership-gating.md) — ownership-gated module expenses/income — v3.0.62.
 - [CR040](../cr/cr-040-forecast-scenario-compare.md) — Forecast Scenario Compare — v3.0.60 + v3.0.61 fix.
