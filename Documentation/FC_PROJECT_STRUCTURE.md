@@ -223,7 +223,7 @@ Multi-year projection engine in `server/src/services/forecast/` (`index.js` orch
 
 ### Tests
 
-301 backend Jest tests (engine incl. CR041 ownership gating + CR043 generate transactionality, the CR043 migration runner, **route-contract tests for `forecast.js` + `budget.js`** (CR043 Phase 1.2), services incl. aiReview compare, repositories, scripts, `v2/utils/validate` + `AppError`; DB-backed suites self-seed against `DATABASE_URL`) — run `cd server && npm test`. 121 frontend Vitest tests (utils helpers + `fcCompareUtils` diff engine + `FIELD_SECTIONS` grouping) — `cd frontend && npm test`. HTTP smoke: `node server/src/scripts/smoke-after-021.js`. **CI** (`.github/workflows/ci.yml`) runs the backend suite against a fresh migrations+[`ci-seed.sql`](../server/db/ci-seed.sql) Postgres, the frontend build (lint advisory until the 160-error debt clears), and a tracked-secret grep gate. Inventory: [Testing/TEST_OVERVIEW.md](Testing/TEST_OVERVIEW.md).
+301 backend Jest tests (engine incl. CR041 ownership gating + CR043 generate transactionality, the CR043 migration runner, **route-contract tests for `forecast.js` + `budget.js`** (CR043 Phase 1.2), services incl. aiReview compare, repositories, scripts, `v2/utils/validate` + `AppError`; DB-backed suites self-seed against `DATABASE_URL`) — run `cd server && npm test`. 121 frontend Vitest tests (utils helpers + `fcCompareUtils` diff engine + `FIELD_SECTIONS` grouping) — `cd frontend && npm test`. HTTP smoke: `node server/src/scripts/smoke-after-021.js`. **CI** (`.github/workflows/ci.yml`) runs the backend suite against a fresh migrations+[`ci-seed.sql`](../server/db/ci-seed.sql) Postgres, the **frontend Vitest suite (blocking, CR043 Phase 1.1)** + build (lint still advisory until the 160-error debt clears), and a tracked-secret grep gate. Inventory: [Testing/TEST_OVERVIEW.md](Testing/TEST_OVERVIEW.md).
 
 ### Operational scripts (`server/src/v2/scripts/`)
 
@@ -359,4 +359,4 @@ cd frontend && npm test && npm run build             # frontend tests + build
 
 ---
 
-*Last updated: 2026-06-12*
+*Last updated: 2026-07-11 (v3.0.63 — CR043 code-structure hardening)*
