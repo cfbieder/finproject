@@ -21,7 +21,6 @@ import {
   DollarSign,
   BookOpen,
   PieChart,
-  LineChart,
   Target,
   PlusCircle,
   Calculator,
@@ -39,10 +38,8 @@ import Home from "../pages/Home";
 const BackupDatabase = lazy(() => import("../pages/BackupDatabase"));
 const QuickenImport = lazy(() => import("../pages/QuickenImport"));
 const BankFeedDiagnostic = lazy(() => import("../pages/BankFeedDiagnostic"));
-const Balance = lazy(() => import("../pages/BalanceV2"));
-const BalanceChart = lazy(() => import("../pages/BalanceChart"));
-const BalanceTrends = lazy(() => import("../pages/BalanceTrends"));
-const BalanceSheetPeriods = lazy(() => import("../pages/BalanceSheetPeriods"));
+// CR042 U5: the four former balance pages are now tabs inside Balances.
+const Balances = lazy(() => import("../pages/Balances"));
 const BudgetInput = lazy(() => import("../pages/BudgetWorksheetV2"));
 const BudgetRealization = lazy(() => import("../pages/BudgetRealization"));
 const BudgetRealizationGraph = lazy(() => import("../pages/BudgetRealizationGraph"));
@@ -300,22 +297,24 @@ export const routes = [
 
   // Reports & Graphs > Reports
   {
-    path: "/balance",
-    component: Balance,
-    label: "Balance Summary",
+    path: "/balances",
+    component: Balances,
+    label: "Balances",
     category: "Reports & Graphs",
     subcategory: "Reports",
-    description: "Balance sheet at specific dates with multi-period comparison",
+    description:
+      "Balance sheet, period-end snapshots, account trends, and the net-worth chart",
     icon: Wallet,
   },
   {
-    path: "/balance-trends",
-    component: BalanceTrends,
-    label: "Balance Trends",
+    // Deep-linkable tab view; reachable by URL but not listed separately in nav.
+    path: "/balances/:view",
+    component: Balances,
+    label: "Balances",
     category: "Reports & Graphs",
     subcategory: "Reports",
-    description: "Month-end USD balances of selected accounts over a period",
-    icon: TrendingUp,
+    showInNav: false,
+    icon: Wallet,
   },
   {
     path: "/cash-flow",
@@ -335,26 +334,8 @@ export const routes = [
     description: "Cash flow breakdown by month, quarter, or year",
     icon: PieChart,
   },
-  {
-    path: "/balance-sheet-periods",
-    component: BalanceSheetPeriods,
-    label: "Balance Sheet Periods",
-    category: "Reports & Graphs",
-    subcategory: "Reports",
-    description: "Balance sheet as of each period end (month, quarter, or year)",
-    icon: Wallet,
-  },
 
   // Reports & Graphs > Graphs
-  {
-    path: "/balance-chart",
-    component: BalanceChart,
-    label: "Net Worth Chart",
-    category: "Reports & Graphs",
-    subcategory: "Graphs",
-    description: "Visualize net worth and asset growth over time",
-    icon: LineChart,
-  },
   {
     path: "/category-trend",
     component: CategoryTrend,

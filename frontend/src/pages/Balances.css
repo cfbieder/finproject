@@ -1,0 +1,42 @@
+/**
+ * Balances.css (CR042 U5) — tab strip for the consolidated Balances report.
+ * Slim underline tabs above the active sub-report; sits inside .page-shell so
+ * it inherits the page gutters.
+ */
+
+.balances-tabs {
+  display: flex;
+  gap: 0.25rem;
+  border-bottom: 1px solid var(--border);
+  margin: 0.5rem 0 1.25rem;
+  overflow-x: auto;
+}
+
+.balances-tab {
+  position: relative;
+  padding: 0.6rem 1rem;
+  font-size: 0.9rem;
+  font-weight: 600;
+  color: var(--muted);
+  text-decoration: none;
+  white-space: nowrap;
+  border-bottom: 2px solid transparent;
+  margin-bottom: -1px;
+  transition: color var(--transition-fast), border-color var(--transition-fast);
+}
+
+.balances-tab:hover {
+  color: var(--ink);
+}
+
+.balances-tab--active {
+  color: var(--primary);
+  border-bottom-color: var(--primary);
+}
+
+@media (max-width: 640px) {
+  .balances-tab {
+    padding: 0.55rem 0.75rem;
+    font-size: 0.85rem;
+  }
+}

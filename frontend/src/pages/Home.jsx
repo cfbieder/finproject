@@ -16,11 +16,11 @@ import AttentionStrip from "../components/AttentionStrip/AttentionStrip.jsx";
 import "./PageLayout.css";
 
 const quickActions = [
-  { title: "Balance Summary", description: "View your current financial position", path: "/balance", icon: Wallet },
+  { title: "Balance Summary", description: "View your current financial position", path: "/balances/summary", icon: Wallet },
   { title: "Cash Flow", description: "Track income and expenses", path: "/cash-flow", icon: ArrowLeftRight },
   { title: "Budget Worksheet", description: "Plan and manage budgets", path: "/budget-worksheet", icon: FileSpreadsheet },
   { title: "Forecast Scenarios", description: "Build and analyze forecast scenarios", path: "/forecast-scenarios", icon: Layers },
-  { title: "Net Worth Chart", description: "Visualize wealth over time", path: "/balance-chart", icon: LineChart },
+  { title: "Net Worth Chart", description: "Visualize wealth over time", path: "/balances/chart", icon: LineChart },
   { title: "Transaction History", description: "View and manage transactions", path: "/trans-actual", icon: Receipt },
 ];
 

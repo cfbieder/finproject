@@ -8,8 +8,16 @@ export default function Breadcrumbs() {
   // Don't show breadcrumbs on home page
   if (pathname === "/") return null;
 
-  // Find current route in config
-  const currentRoute = routes.find((r) => r.path === pathname);
+  // Find current route in config. Prefer an exact match; otherwise resolve a
+  // param route (e.g. /balances/:view matches /balances/summary) so tabbed
+  // pages keep a clean breadcrumb instead of "Balances/Summary".
+  const currentRoute =
+    routes.find((r) => r.path === pathname) ||
+    routes.find(
+      (r) =>
+        r.path.includes("/:") &&
+        pathname.startsWith(r.path.slice(0, r.path.indexOf("/:")) + "/")
+    );
 
   // Build breadcrumb chain
   const crumbs = [{ label: "Home", path: "/" }];

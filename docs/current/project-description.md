@@ -129,12 +129,9 @@ Detail for each page lives in its CR file (linked) — this table is a directory
 | `/forecast-review` | FCReview | Forecasting | FC step 5 — multi-year review: P&L by FC Lines, BS, KPI cards, ΔNet-Assets bridge, graphs with quick-adjust, Cash Sweep summary, AI Review drawer |
 | `/forecast-compare` | FCCompare | Forecasting | FC step 6 — compare two scenarios (baseline A vs B): KPI deltas, P&L/BS delta grids (client-side diff reconciling with Review), recharts A-vs-B lines + diverging delta bars, deterministic "where they differ" commentary + on-demand local-LLM AI narrative with follow-ups ([CR040](../cr/cr-040-forecast-scenario-compare.md)) |
 | `/fc-settings` | FCSettings | Forecasting | Birth year, module types, FX assumptions, AI system prompt |
-| `/balance` | BalanceV2 | Reports & Graphs | Balance sheet (KPI cards, 1–3 periods, tree table, export) |
-| `/balance-trends` | BalanceTrends | Reports & Graphs | Period-end balance series × accounts; Month/Quarter/Year interval; USD/Local/Both; export ([CR018](../cr/cr-018-balance-trends.md)) |
+| `/balances/:view` | Balances | Reports & Graphs | **CR042 U5** — consolidated balance report; deep-linkable tabs: `summary` (BalanceV2 sheet), `periods` (BalanceSheetPeriods), `trends` (BalanceTrends), `chart` (BalanceChart net worth). Old `/balance`, `/balance-trends`, `/balance-sheet-periods`, `/balance-chart` 301-redirect here |
 | `/cash-flow` | CashFlow | Reports & Graphs | Cash flow P&L |
 | `/cash-flow-periods` | CashFlowPeriods | Reports & Graphs | Cash flow per period column (Month/Quarter/Year) |
-| `/balance-sheet-periods` | BalanceSheetPeriods | Reports & Graphs | Balance sheet as of each period end |
-| `/balance-chart` | BalanceChart | Reports & Graphs | Assets vs Liabilities bars over time (period selector) |
 | `/category-trend` | CategoryTrend | Reports & Graphs | Actual vs budget per category, grouped bars |
 | `/trans-actual` | TransActual | Transactions | Transaction explorer: search, HierarchyFilter, KPI cards, edit/split/neutralize/delete ([CR008](../cr/cr-008-hierarchy-filter.md)) |
 | `/trans-budget` | TransBudget | Transactions | Budget-transaction explorer (same pattern) |

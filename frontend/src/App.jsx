@@ -123,6 +123,20 @@ function AppShell() {
             path="/refresh-ps"
             element={<Navigate to="/refresh-feeds" replace />}
           />
+          {/* CR042 U5 — the four balance pages merged into /balances tabs */}
+          <Route path="/balance" element={<Navigate to="/balances/summary" replace />} />
+          <Route
+            path="/balance-sheet-periods"
+            element={<Navigate to="/balances/periods" replace />}
+          />
+          <Route
+            path="/balance-trends"
+            element={<Navigate to="/balances/trends" replace />}
+          />
+          <Route
+            path="/balance-chart"
+            element={<Navigate to="/balances/chart" replace />}
+          />
         </Routes>
         </Suspense>
       </ErrorBoundary>

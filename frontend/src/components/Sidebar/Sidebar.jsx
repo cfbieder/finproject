@@ -36,7 +36,9 @@ function groupKeyForPath(nav, pathname) {
     if (group.category) {
       if (getCategoryPath(group.category) === pathname) return group.key;
       const inGroup = getRoutesByCategory(group.category).some(
-        (r) => r.path === pathname
+        // Prefix match so tabbed pages (/balances/summary) keep their parent
+        // (/balances) group active + auto-expanded.
+        (r) => r.path === pathname || pathname.startsWith(r.path + "/")
       );
       if (inGroup) return group.key;
     }
