@@ -30,7 +30,7 @@ fresh DB.
 | 008 | `008_drop_old_fc_columns.sql` | Drops `expense_category`/`income_category`/`expense_pct` (replaced by FC Lines) | FC |
 | 009 | `009_target_cash.sql` | `target_cash` on scenarios (cash auto-balance) | FC |
 | 010 | `010_tax_rate_override.sql` | Per-module `tax_rate_override` | FC |
-| 011 | `011_setup_status.sql` | `setup_status` on modules + income_expense | FC |
+| 011 | `011_setup_status.sql` | `setup_status` on modules (income_expense was altered ad hoc, never in this file — backfilled by 036) | FC |
 | 012 | `012_cash_sweep_target.sql` | Single `cash_sweep_target` flag per scenario | CR005 |
 | 013 | `013_cash_sweep_band.sql` | `cash_sweep_low/high` band replacing `target_cash` | CR005 |
 | 014 | `014_ai_reviews.sql` | `ai_reviews` conversation storage | FC |
@@ -55,3 +55,4 @@ fresh DB.
 | 033 | `033_feed_source_synced_at.sql` | `bankfeed_balances.source_synced_at` — true upstream connection sync time | CR035 |
 | 034 | `034_forecast_assumptions.sql` | Drops the never-used 001-era `forecast_assumptions` and recreates it as the CR039 document store (key/JSON value/ord) replacing `FCAssump.json`; **after applying, run `node server/src/v2/scripts/import-fc-assumptions.js`** | CR039 |
 | 035 | `035_ai_review_compare.sql` | Adds nullable `fc_ai_reviews.compare_scenario_id` (FK → forecast_scenarios, CASCADE) + index so Compare-page AI conversations persist their scenario pair; NULL = plain single-scenario review | CR040 |
+| 036 | `036_incexp_setup_status.sql` | Backfills schema drift: `forecast_income_expense.setup_status` (existed on dev/prod since the 2026-04 AI review work but never in a migration; broke CI's fresh-from-migrations DB once aiReviewCompare tests exercised the query). No-op where the column already exists | — |

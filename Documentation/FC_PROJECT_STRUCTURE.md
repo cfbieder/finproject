@@ -85,7 +85,7 @@ psproject/                          # ~/Programs/fin symlinks here
 │       ├── mobile/                 # Dedicated /m/* shell (see §5)
 │       └── pages/                  # 25+ page components
 ├── server/                         # Express API
-│   ├── db/migrations/              # 001..034 SQL — registry in Documentation/MIGRATIONS.md
+│   ├── db/migrations/              # 001..036 SQL — registry in Documentation/MIGRATIONS.md
 │   ├── db/ci-seed.sql              # CI baseline COA rows (NOT a migration)
 │   └── src/
 │       ├── server.js  app.js
