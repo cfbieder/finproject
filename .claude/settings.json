@@ -1,15 +1,41 @@
 {
   "permissions": {
     "allow": [
-      "Bash(*)",
-      "Write(*)",
-      "Read(*)",
-      "Bash(npm install xlsx)",
-      "Bash(docker exec *)",
-      "Read(//home/cfbieder/**)"
+      "Bash",
+      "Write",
+      "Read",
+      "Edit",
+      "Glob",
+      "Grep",
+      "WebFetch",
+      "WebSearch",
+      "NotebookEdit"
     ],
-    "deny": [
-      "Bash(rm:*)"
+    "ask": [
+      "Bash(rm:*)",
+      "Bash(sudo rm:*)"
+    ]
+  },
+  "hooks": {
+    "PreToolUse": [
+      {
+        "matcher": "Bash",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash \"$CLAUDE_PROJECT_DIR/.claude/hooks/allow-bash-except-rm.sh\""
+          }
+        ]
+      },
+      {
+        "matcher": "WebFetch",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "printf '{\"hookSpecificOutput\":{\"hookEventName\":\"PreToolUse\",\"permissionDecision\":\"allow\",\"permissionDecisionReason\":\"auto-allow all fetches (unattended session)\"}}'"
+          }
+        ]
+      }
     ]
   }
 }
