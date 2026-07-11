@@ -121,15 +121,22 @@ fi
 # new code deploys (CLAUDE.md rule #6 / CR043 N11). The runner ledgers what it
 # applies in schema_migrations; on first run against the already-populated prod
 # DB it auto-baselines (records the existing migrations as applied, runs none),
-# so this is safe to have always run. Uses the container's DATABASE_URL.
+# so this is safe to have always run.
+#
+# The runner runs on the HOST (node + server/node_modules + working-tree
+# migrate.js), so it must use the HOST-reachable DB URL: the prod compose
+# publishes Postgres on 127.0.0.1:5433. (Do NOT reuse the container's own
+# DATABASE_URL — it names the docker-network host `fin-postgres`, which the
+# host can't resolve.) POSTGRES_PASSWORD comes from the untracked .env.
 echo "Step 2b: Applying pending database migrations..."
 echo "----------------------------------------"
 if [ -f server/db/migrate.js ]; then
-    DB_URL=$(docker exec fin-server printenv DATABASE_URL 2>/dev/null || true)
-    if [ -z "$DB_URL" ]; then
-        # Server container may be down; derive from prod compose (localhost:5433).
-        DB_URL="postgresql://fin:${POSTGRES_PASSWORD:-}@127.0.0.1:5433/fin"
+    if [ -f .env ]; then set -a; . ./.env; set +a; fi
+    if [ -z "${POSTGRES_PASSWORD:-}" ]; then
+        echo "✗ POSTGRES_PASSWORD not set (expected in .env) — cannot reach prod DB for migrations; aborting deploy"
+        exit 1
     fi
+    DB_URL="postgresql://fin:${POSTGRES_PASSWORD}@127.0.0.1:5433/fin"
     if DATABASE_URL="$DB_URL" node server/db/migrate.js; then
         echo "✓ Migrations up to date"
     else
