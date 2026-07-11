@@ -3,11 +3,11 @@
 > The one mandatory read at session start. Keep ≤ ~60 lines; link onward, never restate.
 > CR statuses live in the [CR index](../cr/README.md); the running version lives in `VERSION`.
 
-**Last updated:** 2026-07-11 · **Live version:** v3.0.66 (see `VERSION` / git tags)
+**Last updated:** 2026-07-11 · **Live version:** v3.0.70 (see `VERSION` / git tags)
 
 ## Current phase
 - [CR043 — Code Structure Program](../cr/cr-043-code-structure-program.md): Phases 0, 1 (all), 2.1/2.2 extraction, 2.3, 2.4, **Phase 3 (TanStack Query + useCoa, shared report hooks/mobile dedup, V1-alias dedup, eslint fix)** done. Deferred: util.js hygiene, N10 write-validation, 3.3 raw-fetch/envelope, 3.4 full lint burn-down (gate not flipped). Program substantially complete.
-- [CR042 — UI Look & Feel Modernization](../cr/cr-042-ui-look-and-feel.md): decisions settled 2026-07-11, ready to implement (no code yet).
+- [CR042 — UI Look & Feel Modernization](../cr/cr-042-ui-look-and-feel.md): **U1 core (green split/elevation/scales) + U2 (chart theme) + U3 (Home net-worth hero) shipped v3.0.69–70.** Remaining: U1 Forecast inline-style migration, U4 primitives (Modal/DataTable), U5 report consolidation (owner-checkpointed). Paused after U3 for owner testing.
 - Docs migrated to the starter-pack v1.4.0 standard (2026-07-11): `Documentation/` → `docs/`, rules in `.claude/rules/`, this file is the session entry point.
 
 ## Live infrastructure
@@ -16,6 +16,7 @@
 - Deploy: `./Scripts/deploy-to-production.sh` (DB backup first). Migrations: manual `psql -f`, registry in [migrations.md](migrations.md); runner shipped in CR043 P1.1 (`npm run migrate`).
 
 ## Recently shipped
+- v3.0.69–70 — CR042 UI: U1 green split (emerald money/sage brand) + flatter cards + type/spacing scales, U2 chart theme + dark-mode gradient fixes, U3 Home net-worth-hero dashboard.
 - v3.0.67 — CR043 Phase 3 frontend consolidation (TanStack Query, useCoa + shared report hooks, mobile dedup, V1-alias removal, eslint config fix).
 - v3.0.66 — fetch timeout (rest.js fetchWithTimeout; hung requests fail-safe instead of spinning forever).
 - v3.0.65 — PWA stale-SW fix (autoUpdate + skipWaiting; Home KPIs no longer stuck on "…") + CI green (generate-transaction seeds the Bank Accounts anchor).

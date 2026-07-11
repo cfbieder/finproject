@@ -92,11 +92,13 @@ Zero onboarding surfaces exist (grep confirms); the full guided first-run stays 
 
 | Phase | Scope | Depends on |
 |---|---|---|
-| U1 | Token scale + green split + elevation flattening + Forecast inline-style migration with lint gates (T1, T6) | — |
-| U2 | Chart theme (`chartTheme.js` + Recharts convergence of the 3 hand-rolled pages) (T5) | U1 |
-| U3 | Home dashboard v2 — net-worth hero + composed dashboard (T3) | U2 |
-| U4 | `<DataTable>` + `<Modal>` primitives with CI adoption guardrails; RefreshFeeds migrated first, Forecast second (T4) | U1 |
-| U5 | Report consolidation + sidebar re-cut to ≤8 items + user-vocabulary renames (T2) | **owner decision**; easier after U4 |
+| U1 | Token scale + green split + elevation flattening + Forecast inline-style migration with lint gates (T1, T6) — ✅ **core DONE v3.0.69** (tokens/green/elevation); Forecast inline-style migration still pending | — |
+| U2 | Chart theme (`chartTheme.js` + Recharts convergence of the 3 hand-rolled pages) (T5) — ✅ **theme + frozen-gradient fixes DONE v3.0.70**; full Recharts convergence deferred (balance chart consolidated in U5) | U1 |
+| U3 | Home dashboard v2 — net-worth hero + composed dashboard (T3) — ✅ **DONE v3.0.70** | U2 |
+| U4 | `<DataTable>` + `<Modal>` primitives with CI adoption guardrails; RefreshFeeds migrated first, Forecast second (T4) — **pending** | U1 |
+| U5 | Report consolidation + sidebar re-cut to ≤8 items + user-vocabulary renames (T2) — **pending; owner checkpoint after Balances 4→1** | **owner decision**; easier after U4 |
+
+**Progress (2026-07-11, Opus).** U1 core / U2 / U3 shipped as v3.0.69–v3.0.70 (see roadmap). Deployed: emerald green split, flatter cards, type/spacing scales, `chartTheme.jsx` + dark-mode gradient fixes, and the Home net-worth-hero dashboard. Remaining: U1's Forecast inline-style migration, U4 primitives + migrations, U5 report consolidation (owner-checkpointed). Paused after U3 for owner testing of the visible direction.
 
 ## Owner decisions (settled 2026-07-11 via /question)
 
