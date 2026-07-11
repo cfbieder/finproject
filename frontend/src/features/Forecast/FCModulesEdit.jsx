@@ -1,6 +1,7 @@
 import { Fragment, useEffect, useState } from "react";
 import Rest from "../../js/rest";
 import FCModuleAuditModal from "./FCModuleAuditModal.jsx";
+import { FIELD_SECTIONS } from "./fcModulesEditSections.js";
 import "./FCModulesEdit.css";
 
 const normalizeBaseDate = (value) => {
@@ -510,26 +511,6 @@ export default function FCModulesEditModal({
     onFieldChange(field, next);
   };
 
-  const fields = [
-    ["Account", "Account", "select"],
-    ["Name", "Name", "text"],
-    ["Matched", "Matched", "checkbox"],
-    ["Base Date", "BaseDate", "date"],
-    ["Type", "Type", "text"],
-    ["Currency", "Currency", "text"],
-    ["Cost Basis", "BaseValue", "number"],
-    ["Cost Basis (USD)", "BaseValueUSD", "number"],
-    ["Market Value", "MarketValue", "number"],
-    ["Market Value (USD)", "MarketValueUSD", "number"],
-    ["Growth (x Inflation)", "Growth", "number"],
-    ["Expense Line", "ExpenseFcLineId", "fc-line-expense"],
-    ["Expense Amount (Base Yr)", "ExpenseAmount", "number"],
-    ["Expense Growth", "ExpenseGrowthMethod", "growth-method"],
-    ["Income Line", "IncomeFcLineId", "fc-line-income"],
-    ["Income Amount (Base Yr)", "IncomeAmount", "number"],
-    ["Tax Rate Override (%)", "TaxRateOverride", "number"],
-  ];
-
   if (!isOpen || !editForm) {
     return null;
   }
@@ -674,8 +655,11 @@ export default function FCModulesEditModal({
                   />
                 </label>
               </div>
-              <div className="fc-modules-modal__fields-grid">
-                {fields.map(([label, field, type, source]) => {
+              {FIELD_SECTIONS.map(([sectionTitle, sectionFields]) => (
+                <div key={sectionTitle} className="fc-modules-modal__field-group">
+                  <h5 className="fc-modules-modal__group-title">{sectionTitle}</h5>
+                  <div className="fc-modules-modal__fields-grid">
+                    {sectionFields.map(([label, field, type, source]) => {
                   if (field === "Account") {
                     return (
                       <label key={field} className="fc-modules-modal__field">
@@ -1104,8 +1088,10 @@ export default function FCModulesEditModal({
                       />
                     </label>
                   );
-                })}
-              </div>
+                    })}
+                  </div>
+                </div>
+              ))}
             </div>
 
             {/* Transfer Sections */}

@@ -1466,6 +1466,26 @@
   gap: 0.4rem;
 }
 
+/* Field groups (CR041 — General / Valuation / Expenses / Income / Tax) */
+.fc-modules-modal__field-group {
+  margin-bottom: 1.25rem;
+}
+
+.fc-modules-modal__field-group:last-child {
+  margin-bottom: 0;
+}
+
+.fc-modules-modal__group-title {
+  margin: 0 0 0.75rem;
+  padding-bottom: 0.35rem;
+  border-bottom: 1px solid rgba(107, 142, 107, 0.12);
+  font-size: 0.8rem;
+  font-weight: 700;
+  color: var(--ink);
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+}
+
 /* Fields */
 .fc-modules-modal__fields-grid {
   display: grid;

@@ -311,6 +311,13 @@ async function processModule(module, scenario, df_assumptions, df_categories, ca
     realizedGainValues[i] = -disposeValues[i] + (prevMarket === 0 ? 0 : (disposeValues[i] * prevBase) / prevMarket);
   }
 
+  // CR041: ownership start — a module acquired mid-plan (base MV 0, value arriving via a
+  // later Invest transfer) must not generate amount-based expense/income before acquisition.
+  // Computed before Full disposals zero the series, so a same-year buy+dispose still
+  // registers its acquisition year. 0 = owned from module start; -1 = never owned.
+  const baseOwned = (module.MarketValue ?? 0) !== 0;
+  const acquisitionIdx = baseOwned ? 0 : marketValues.findIndex((v) => v !== 0);
+
   // Handle "Full" disposals
   if (Array.isArray(module.Dispose)) {
     for (const entry of module.Dispose) {
@@ -429,6 +436,28 @@ async function processModule(module, scenario, df_assumptions, df_categories, ca
     }
   }
 
+  // CR041: gate amount-based expense/income on ownership — zero before the acquisition
+  // year, 50% in it (mirror of the Full-disposal 50% treatment below). MV-driven streams
+  // (yield-spread income, legacy expense_pct) already scale with market value — pre-purchase
+  // avg MV is 0 and the acquisition year averages to half — so they are left alone.
+  // acquisitionIdx !== 0 implies base MV was 0, so the pct_of_value mode is on its
+  // inflation fallback here and gates like the inflation mode.
+  if (acquisitionIdx !== 0) {
+    const gateExpense = absExpenseAmount > 0;
+    const gateIncome = !hasIncomePct && absIncomeAmount > 0;
+    if (gateExpense || gateIncome) {
+      for (let i = 0; i < yearsCount; i++) {
+        if (acquisitionIdx === -1 || i < acquisitionIdx) {
+          if (gateExpense) expenseValues[i] = 0;
+          if (gateIncome) incomeValues[i] = 0;
+        } else if (i === acquisitionIdx) {
+          if (gateExpense) expenseValues[i] /= 2;
+          if (gateIncome) incomeValues[i] /= 2;
+        }
+      }
+    }
+  }
+
   // Apply Full disposal adjustments: 50% expense/income in disposal year, 0 after
   if (Array.isArray(module.Dispose)) {
     for (const entry of module.Dispose) {
@@ -465,7 +494,8 @@ async function processModule(module, scenario, df_assumptions, df_categories, ca
     const rateFactor = -taxRate / 100;
 
     // Tax on base year income (income_amount) deferred to Period 1
-    if (absIncomeAmount > 0) {
+    // CR041: skipped when the module wasn't owned in the base year — no income existed
+    if (absIncomeAmount > 0 && acquisitionIdx === 0) {
       const period1Idx = periodStart - startyear;
       if (period1Idx >= 0 && period1Idx < yearsCount) {
         taxValues[period1Idx] += rateFactor * absIncomeAmount;

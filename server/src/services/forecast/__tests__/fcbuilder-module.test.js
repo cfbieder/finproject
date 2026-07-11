@@ -489,6 +489,8 @@ describe("Phase 2B-5 — Engine Update", () => {
 
   test("T5.6 Pct of value with zero market value falls back to inflation", async () => {
     // expense_amount = 1000, market_value = 0 → derivedPct = 0 → fallback to inflation
+    // CR041: base-year Invest establishes ownership from the start (a never-owned
+    // module no longer generates expenses at all — see the CR041 block below)
     const { db } = await runModule({
       BaseValue: 0, BaseValueUSD: 0,
       MarketValue: 0, MarketValueUSD: 0,
@@ -496,6 +498,7 @@ describe("Phase 2B-5 — Engine Update", () => {
       expense_amount: 1000,
       expense_growth_method: 'pct_of_value',
       ExpCategory: "Prop Costs",
+      Invest: [{ Date: "2025-06-01", Amount: 100000, Flag: "OneTime" }],
       Dispose: [],
     }, { PeriodStart: 2026, PeriodEnd: 2028, TaxRate: 0 }, { inflation: [3, 3, 3] });
 
@@ -506,5 +509,150 @@ describe("Phase 2B-5 — Engine Update", () => {
     // Base = 1000, Period 1 = 1000 * 1.03 = 1030, Period 2 = 1000 * 1.03^2 = 1060.9
     expect(expByYear[2026]).toBeCloseTo(-1030, 0);
     expect(expByYear[2027]).toBeCloseTo(-1060.9, 0);
+  });
+});
+
+
+// ============================================================
+// CR041 — Ownership-gated expenses/income
+// (module acquired mid-plan: zero before acquisition, 50% in the
+//  acquisition year, mirroring the Full-disposal treatment)
+// ============================================================
+describe("CR041 — Ownership-gated expenses/income", () => {
+
+  // Scenario 2026–2030, BaseDate 2025-12-31 → base year 2025, purchase 2027
+  const purchase = { Date: "2027-06-01", Amount: 150000, Flag: "OneTime" };
+
+  test("C1 Expenses start at acquisition: zero before, 50% in purchase year, full after", async () => {
+    const { db } = await runModule({
+      BaseValue: 0, BaseValueUSD: 0,
+      MarketValue: 0, MarketValueUSD: 0,
+      Growth: 0, ExpensePct: 0,
+      expense_amount: 1000,
+      ExpCategory: "Prop Costs",
+      Invest: [purchase],
+    }, { TaxRate: 0 }, { inflation: [2, 2, 2, 2, 2] });
+
+    const expByYear = {};
+    getEntriesForAccount(db, "Prop Costs").forEach((e) => { expByYear[e.forecast_year] = e.amount; });
+
+    expect(expByYear[2026]).toBeUndefined();                 // pre-purchase: no expense
+    expect(expByYear[2027]).toBeCloseTo(-520.2, 1);          // 50% of 1000 * 1.02^2
+    expect(expByYear[2028]).toBeCloseTo(-1061.2, 1);         // full 1000 * 1.02^3
+    expect(expByYear[2029]).toBeCloseTo(-1082.4, 1);
+  });
+
+  test("C2 income_amount gated + no Period-1 base-income tax; deferred tax starts after acquisition", async () => {
+    const { db } = await runModule({
+      BaseValue: 0, BaseValueUSD: 0,
+      MarketValue: 0, MarketValueUSD: 0,
+      Growth: 0, ExpensePct: 0,
+      income_amount: 1000,
+      IncomeCategory: "Rental Income",
+      Invest: [purchase],
+    }, { TaxRate: 25 }, { inflation: [2, 2, 2, 2, 2] });
+
+    const incByYear = {};
+    getEntriesForAccount(db, "Rental Income").forEach((e) => { incByYear[e.forecast_year] = e.amount; });
+    const taxByYear = {};
+    getEntriesForAccount(db, "Taxes").forEach((e) => { taxByYear[e.forecast_year] = e.amount; });
+
+    expect(incByYear[2026]).toBeUndefined();                 // pre-purchase: no income
+    expect(incByYear[2027]).toBeCloseTo(520.2, 1);           // 50% of 1000 * 1.02^2
+    expect(incByYear[2028]).toBeCloseTo(1061.2, 1);          // full
+    expect(taxByYear[2026]).toBeUndefined();                 // no base-year income → no Period-1 tax
+    expect(taxByYear[2027]).toBeUndefined();
+    expect(taxByYear[2028]).toBeCloseTo(-130.1, 1);          // 25% of 2027 income, deferred a year
+  });
+
+  test("C3 Yield-spread income is NOT gated (avg-MV already halves the purchase year)", async () => {
+    const { db } = await runModule({
+      BaseValue: 0, BaseValueUSD: 0,
+      MarketValue: 0, MarketValueUSD: 0,
+      Growth: 0, ExpensePct: 0,
+      IncomePct: [{ Date: "2025-12-31", Value: 3 }],
+      IncomeCategory: "Rental Income",
+      Invest: [purchase],
+    }, { TaxRate: 0 }, { inflation: [0, 0, 0, 0, 0] });
+
+    const incByYear = {};
+    getEntriesForAccount(db, "Rental Income").forEach((e) => { incByYear[e.forecast_year] = e.amount; });
+
+    expect(incByYear[2026]).toBeUndefined();                 // yield on avg MV 0
+    expect(incByYear[2027]).toBeCloseTo(2250, 0);            // 3% of avg(0, 150000) — natural half, not quartered
+    expect(incByYear[2028]).toBeCloseTo(4500, 0);            // 3% of 150000
+  });
+
+  test("C4 Purchase then Full disposal: costs run acquisition-half → full → disposal-half → zero", async () => {
+    const { db } = await runModule({
+      BaseValue: 0, BaseValueUSD: 0,
+      MarketValue: 0, MarketValueUSD: 0,
+      Growth: 0, ExpensePct: 0,
+      expense_amount: 1000,
+      ExpCategory: "Prop Costs",
+      Invest: [purchase],
+      Dispose: [{ Date: "2029-06-01", Amount: 0, Flag: "Full" }],
+    }, { TaxRate: 0 }, { inflation: [0, 0, 0, 0, 0] });
+
+    const expByYear = {};
+    getEntriesForAccount(db, "Prop Costs").forEach((e) => { expByYear[e.forecast_year] = e.amount; });
+
+    expect(expByYear[2026]).toBeUndefined();
+    expect(expByYear[2027]).toBeCloseTo(-500, 0);            // acquisition half
+    expect(expByYear[2028]).toBeCloseTo(-1000, 0);           // full ownership year
+    expect(expByYear[2029]).toBeCloseTo(-500, 0);            // disposal half
+    expect(expByYear[2030]).toBeUndefined();                 // post-disposal
+  });
+
+  test("C5 Never-owned module (MV 0, no invest) generates no expense/income at all", async () => {
+    const { db } = await runModule({
+      BaseValue: 0, BaseValueUSD: 0,
+      MarketValue: 0, MarketValueUSD: 0,
+      Growth: 0, ExpensePct: 0,
+      expense_amount: 1000,
+      income_amount: 500,
+      ExpCategory: "Prop Costs",
+      IncomeCategory: "Rental Income",
+    }, { TaxRate: 25 });
+
+    expect(getEntriesForAccount(db, "Prop Costs")).toHaveLength(0);
+    expect(getEntriesForAccount(db, "Rental Income")).toHaveLength(0);
+    expect(getEntriesForAccount(db, "Taxes")).toHaveLength(0);
+  });
+
+  test("C6 Base-year invest = owned from start: full expenses, no proration", async () => {
+    const { db } = await runModule({
+      BaseValue: 0, BaseValueUSD: 0,
+      MarketValue: 0, MarketValueUSD: 0,
+      Growth: 0, ExpensePct: 0,
+      expense_amount: 1000,
+      ExpCategory: "Prop Costs",
+      Invest: [{ Date: "2025-06-01", Amount: 150000, Flag: "OneTime" }],
+    }, { TaxRate: 0 }, { inflation: [0, 0, 0, 0, 0] });
+
+    const expByYear = {};
+    getEntriesForAccount(db, "Prop Costs").forEach((e) => { expByYear[e.forecast_year] = e.amount; });
+
+    expect(expByYear[2026]).toBeCloseTo(-1000, 0);           // no gating, no halving
+    expect(expByYear[2027]).toBeCloseTo(-1000, 0);
+  });
+
+  test("C7 Same-year buy + Full dispose compounds both halvings (25%)", async () => {
+    const { db } = await runModule({
+      BaseValue: 0, BaseValueUSD: 0,
+      MarketValue: 0, MarketValueUSD: 0,
+      Growth: 0, ExpensePct: 0,
+      expense_amount: 1000,
+      ExpCategory: "Prop Costs",
+      Invest: [purchase],
+      Dispose: [{ Date: "2027-06-01", Amount: 0, Flag: "Full" }],
+    }, { TaxRate: 0 }, { inflation: [0, 0, 0, 0, 0] });
+
+    const expByYear = {};
+    getEntriesForAccount(db, "Prop Costs").forEach((e) => { expByYear[e.forecast_year] = e.amount; });
+
+    expect(expByYear[2026]).toBeUndefined();
+    expect(expByYear[2027]).toBeCloseTo(-250, 0);            // 50% acquisition × 50% disposal
+    expect(expByYear[2028]).toBeUndefined();
   });
 });
