@@ -38,14 +38,13 @@
 .kpi-card__icon {
   display: flex;
   align-items: center;
-  color: var(--text-muted);
+  color: var(--ink-tertiary);
 }
 
 .kpi-card__title {
-  font-family: var(--font-heading);
   font-size: 0.75rem;
   font-weight: 600;
-  color: var(--text-muted);
+  color: var(--ink-tertiary);
   text-transform: uppercase;
   letter-spacing: 0.04em;
 }
@@ -55,7 +54,7 @@
   font-family: var(--font-mono);
   font-size: 1.35rem;
   font-weight: 700;
-  color: var(--text);
+  color: var(--ink);
   line-height: 1.2;
 }
 
@@ -84,12 +83,12 @@
 }
 
 .kpi-card__change-label {
-  color: var(--text-muted);
+  color: var(--ink-tertiary);
   font-size: 0.7rem;
 }
 
 .kpi-card__subtitle {
-  color: var(--text-muted);
+  color: var(--ink-tertiary);
   font-size: 0.72rem;
 }
 
@@ -103,7 +102,7 @@
 }
 
 .kpi-card__trend-icon--neutral {
-  color: var(--text-muted);
+  color: var(--ink-tertiary);
 }
 
 /* ---- Mini Chart ---- */
