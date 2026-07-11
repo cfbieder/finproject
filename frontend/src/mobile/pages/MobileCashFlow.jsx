@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useMemo, useState } from "react";
 import { AlertTriangle, Loader2 } from "lucide-react";
 import { useCashFlowReport } from "../../hooks/useReports.js";
 import { PERIOD_PRESETS, DEFAULT_PERIOD_KEY, getPreset } from "../periodPresets.js";
@@ -45,6 +45,15 @@ export default function MobileCashFlow() {
   const [showAllExpenses, setShowAllExpenses] = useState(false);
   const [showAllIncome, setShowAllIncome] = useState(false);
 
+  // Collapse the "show all" lists when the period changes — the React
+  // "adjust state during render" pattern (no effect, no cascading render).
+  const [prevPeriodKey, setPrevPeriodKey] = useState(periodKey);
+  if (periodKey !== prevPeriodKey) {
+    setPrevPeriodKey(periodKey);
+    setShowAllExpenses(false);
+    setShowAllIncome(false);
+  }
+
   const period = useMemo(() => getPreset(periodKey).range(), [periodKey]);
 
   const {
@@ -60,12 +69,6 @@ export default function MobileCashFlow() {
   const error = reportError
     ? reportError.message ?? "Failed to load cash flow report"
     : "";
-
-  // Collapse the "show all" lists whenever the period changes.
-  useEffect(() => {
-    setShowAllExpenses(false);
-    setShowAllIncome(false);
-  }, [period.fromDate, period.toDate]);
 
   const kpis = useMemo(() => {
     if (!report) return null;
