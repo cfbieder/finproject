@@ -9,6 +9,15 @@ const express = require('express');
 const router = express.Router();
 const repo = require('../repositories').forecast;
 const accountsRepo = require('../repositories').accounts;
+const validate = require('../utils/validate');
+
+// Fields PUT /scenarios/:id may set (mirrors updateScenario's own allow-list).
+// The scenario editor sends only { cash_sweep_low, cash_sweep_high }; the rest
+// are here because updateScenario accepts them. Unknown keys 400 instead of
+// being silently dropped (CR043 N10). The richer module / income-expense write
+// endpoints get the same treatment during the Phase 2.1 extraction, once each
+// PascalCase form contract is enumerated against the frontend.
+const SCENARIO_UPDATE_FIELDS = ['name', 'description', 'is_active', 'cash_sweep_low', 'cash_sweep_high'];
 
 // ============================================================================
 // Helpers
@@ -164,6 +173,16 @@ router.delete('/scenarios/byname/:name', async (req, res, next) => {
 router.put('/scenarios/:id', async (req, res, next) => {
   try {
     const { id } = req.params;
+    // CR043 N10: fail loud on a typo'd/unknown field instead of silently
+    // dropping it (updateScenario reads only its known keys, so a misspelled
+    // one used to be accepted-and-ignored with a 200).
+    validate.assertPlainObject(req.body, 'scenario');
+    validate.assertAllowedFields(req.body, SCENARIO_UPDATE_FIELDS, 'scenario');
+    validate.assertFiniteNumber(req.body.cash_sweep_low, 'cash_sweep_low', { optional: true });
+    validate.assertFiniteNumber(req.body.cash_sweep_high, 'cash_sweep_high', { optional: true });
+    if (req.body.is_active !== undefined) {
+      validate.assertBoolean(req.body.is_active, 'is_active');
+    }
     const updated = await repo.updateScenario(Number(id), req.body);
     if (!updated) {
       return res.status(404).json({ error: 'Scenario not found' });

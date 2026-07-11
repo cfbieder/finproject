@@ -110,6 +110,24 @@ dbDescribe('forecast router contract (DB)', () => {
       expect(r.status).toBe(404);
     });
 
+    test('PUT /scenarios/:id with an unknown field → 400 (CR043 N10 whitelist)', async () => {
+      const r = await req('PUT', `/scenarios/${scenarioId}`, { cash_sweep_lo: 5000 });
+      expect(r.status).toBe(400);
+      expect(r.body.error).toMatch(/unknown field/i);
+    });
+
+    test('PUT /scenarios/:id with a non-numeric sweep value → 400', async () => {
+      const r = await req('PUT', `/scenarios/${scenarioId}`, { cash_sweep_low: 'abc' });
+      expect(r.status).toBe(400);
+      expect(r.body.error).toMatch(/finite number/i);
+    });
+
+    test('PUT /scenarios/:id with a valid sweep band → 200 { data }', async () => {
+      const r = await req('PUT', `/scenarios/${scenarioId}`, { cash_sweep_low: 5000, cash_sweep_high: 50000 });
+      expect(r.status).toBe(200);
+      expect(Number(r.body.data.cash_sweep_low)).toBe(5000);
+    });
+
     test('GET /modules/<huge id> → 404', async () => {
       const r = await req('GET', '/modules/999999999');
       expect(r.status).toBe(404);

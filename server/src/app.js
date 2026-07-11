@@ -68,11 +68,21 @@ app.use((req, res, next) => {
   next(err);
 });
 
+// Central error handler (CR043 Phase 1.4). Response shape is unchanged
+// ({ error, status }); the addition is that an unexpected 5xx is logged
+// server-side with its stack (previously swallowed into the response only),
+// while expected 4xx (AppError/validation/404) stay quiet. Success-envelope
+// unification ({ data, meta }) is deliberately NOT done here — it's cross-
+// cutting with the frontend and scoped to Phase 3.3 (see CR043 N8).
 // eslint-disable-next-line no-unused-vars
 app.use((err, req, res, next) => {
-  res.status(err.status || 500).json({
+  const status = err.status || 500;
+  if (status >= 500) {
+    console.error(`[error] ${req.method} ${req.originalUrl} → ${status}:`, err.stack || err.message);
+  }
+  res.status(status).json({
     error: err.message,
-    status: err.status || 500,
+    status,
   });
 });
 

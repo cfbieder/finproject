@@ -10,12 +10,14 @@
  * but reject '', booleans, NaN and Infinity.
  */
 
+const AppError = require('./AppError');
+
 const DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
 
+// Kept as a thin wrapper so existing `throw badRequest(...)` call sites are
+// unchanged; now returns an AppError (still `.status = 400`).
 function badRequest(message) {
-  const err = new Error(message);
-  err.status = 400;
-  return err;
+  return AppError.badRequest(message);
 }
 
 /** Body must be a plain object (not an array/null/scalar). */
