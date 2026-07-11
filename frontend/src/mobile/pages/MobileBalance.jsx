@@ -1,6 +1,6 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useMemo, useState } from "react";
 import { ChevronRight, AlertTriangle, Loader2 } from "lucide-react";
-import Rest from "../../js/rest.js";
+import { useBalanceReport } from "../../hooks/useReports.js";
 
 const currencyFormatter = new Intl.NumberFormat("en-US", {
   style: "currency",
@@ -75,31 +75,15 @@ const buildLevel1Groups = (report) => {
 
 export default function MobileBalance() {
   const [asOfDate] = useState(getToday);
-  const [report, setReport] = useState(null);
-  const [error, setError] = useState("");
-  const [isLoading, setIsLoading] = useState(false);
+  const {
+    data: report,
+    isPending: isLoading,
+    error: reportError,
+  } = useBalanceReport(asOfDate);
+  const error = reportError
+    ? reportError.message ?? "Failed to load balance report"
+    : "";
   const [openKeys, setOpenKeys] = useState(() => new Set());
-
-  useEffect(() => {
-    let cancelled = false;
-    setIsLoading(true);
-    setError("");
-    Rest.fetchBalanceReportV2(asOfDate)
-      .then((data) => {
-        if (cancelled) return;
-        setReport(data);
-      })
-      .catch((err) => {
-        if (cancelled) return;
-        setError(err?.message ?? "Failed to load balance report");
-      })
-      .finally(() => {
-        if (!cancelled) setIsLoading(false);
-      });
-    return () => {
-      cancelled = true;
-    };
-  }, [asOfDate]);
 
   const kpis = useMemo(() => {
     if (!report) return null;

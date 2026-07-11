@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { AlertTriangle, Loader2 } from "lucide-react";
-import Rest from "../../js/rest.js";
+import { useCashFlowReport } from "../../hooks/useReports.js";
 import { PERIOD_PRESETS, DEFAULT_PERIOD_KEY, getPreset } from "../periodPresets.js";
 
 const currencyFormatter = new Intl.NumberFormat("en-US", {
@@ -42,40 +42,29 @@ const TOP_INCOME_DEFAULT = 5;
 
 export default function MobileCashFlow() {
   const [periodKey, setPeriodKey] = useState(DEFAULT_PERIOD_KEY);
-  const [report, setReport] = useState(null);
-  const [error, setError] = useState("");
-  const [isLoading, setIsLoading] = useState(false);
   const [showAllExpenses, setShowAllExpenses] = useState(false);
   const [showAllIncome, setShowAllIncome] = useState(false);
 
   const period = useMemo(() => getPreset(periodKey).range(), [periodKey]);
 
+  const {
+    data: report,
+    isPending: isLoading,
+    error: reportError,
+  } = useCashFlowReport({
+    fromDate: period.fromDate,
+    toDate: period.toDate,
+    transfers: "exclude",
+    includeUnrealizedGL: false,
+  });
+  const error = reportError
+    ? reportError.message ?? "Failed to load cash flow report"
+    : "";
+
+  // Collapse the "show all" lists whenever the period changes.
   useEffect(() => {
-    let cancelled = false;
-    setIsLoading(true);
-    setError("");
     setShowAllExpenses(false);
     setShowAllIncome(false);
-    Rest.fetchCashFlowReportV2({
-      fromDate: period.fromDate,
-      toDate: period.toDate,
-      transfers: "exclude",
-      includeUnrealizedGL: false,
-    })
-      .then((data) => {
-        if (cancelled) return;
-        setReport(data);
-      })
-      .catch((err) => {
-        if (cancelled) return;
-        setError(err?.message ?? "Failed to load cash flow report");
-      })
-      .finally(() => {
-        if (!cancelled) setIsLoading(false);
-      });
-    return () => {
-      cancelled = true;
-    };
   }, [period.fromDate, period.toDate]);
 
   const kpis = useMemo(() => {

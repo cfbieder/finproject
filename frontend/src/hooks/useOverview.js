@@ -1,6 +1,6 @@
-import { useEffect, useState } from "react";
-import Rest from "../js/rest.js";
+import { useMemo } from "react";
 import { formatLocalDate, getMonthStart, getMonthEnd } from "../utils/dateHelpers.js";
+import { useBalanceReport, useCashFlowReport } from "./useReports.js";
 
 /**
  * useOverview — the "where do I stand" numbers shared by desktop Home and
@@ -26,55 +26,49 @@ const netWorthOf = (report) => {
 };
 
 export function useOverview() {
-  const [data, setData] = useState(null); // { netWorth, delta, income, expense, net }
-  const [isLoading, setIsLoading] = useState(true);
-  const [failed, setFailed] = useState(false);
-
-  useEffect(() => {
-    let cancelled = false;
+  // Compute the date windows once per mount so the query keys stay stable
+  // across re-renders (same cache entries as the balance / cash-flow pages).
+  const { today, priorMonthEnd, fromDate, toDate } = useMemo(() => {
     const now = new Date();
-    const today = formatLocalDate(now);
-    const priorMonthEnd = formatLocalDate(
-      new Date(now.getFullYear(), now.getMonth(), 0)
-    );
-
-    // initial state is already { loading: true, failed: false } and the
-    // effect runs once on mount, so no synchronous setState needed here
-    Promise.all([
-      Rest.fetchBalanceReportV2(today),
-      Rest.fetchBalanceReportV2(priorMonthEnd),
-      Rest.fetchCashFlowReportV2({
-        fromDate: getMonthStart(),
-        toDate: getMonthEnd(),
-        transfers: "exclude",
-        includeUnrealizedGL: false,
-      }),
-    ])
-      .then(([balNow, balPrior, cf]) => {
-        if (cancelled) return;
-        const income = findTopLevel(cf, "income")?.total ?? 0;
-        const expense =
-          (findTopLevel(cf, "expense") || findTopLevel(cf, "expenses"))?.total ??
-          0;
-        const netWorth = netWorthOf(balNow);
-        setData({
-          netWorth,
-          delta: netWorth - netWorthOf(balPrior),
-          income,
-          expense,
-          net: income + expense,
-        });
-      })
-      .catch(() => {
-        if (!cancelled) setFailed(true);
-      })
-      .finally(() => {
-        if (!cancelled) setIsLoading(false);
-      });
-    return () => {
-      cancelled = true;
+    return {
+      today: formatLocalDate(now),
+      priorMonthEnd: formatLocalDate(
+        new Date(now.getFullYear(), now.getMonth(), 0)
+      ),
+      fromDate: getMonthStart(),
+      toDate: getMonthEnd(),
     };
   }, []);
+
+  // Three shared, cached report queries — deduped against the Balance and
+  // Cash Flow pages that request the same date/range.
+  const balNowQ = useBalanceReport(today);
+  const balPriorQ = useBalanceReport(priorMonthEnd);
+  const cfQ = useCashFlowReport({
+    fromDate,
+    toDate,
+    transfers: "exclude",
+    includeUnrealizedGL: false,
+  });
+
+  const isLoading = balNowQ.isPending || balPriorQ.isPending || cfQ.isPending;
+  const failed = balNowQ.isError || balPriorQ.isError || cfQ.isError;
+
+  const data = useMemo(() => {
+    if (isLoading || failed) return null;
+    const cf = cfQ.data;
+    const income = findTopLevel(cf, "income")?.total ?? 0;
+    const expense =
+      (findTopLevel(cf, "expense") || findTopLevel(cf, "expenses"))?.total ?? 0;
+    const netWorth = netWorthOf(balNowQ.data);
+    return {
+      netWorth,
+      delta: netWorth - netWorthOf(balPriorQ.data),
+      income,
+      expense,
+      net: income + expense,
+    };
+  }, [isLoading, failed, balNowQ.data, balPriorQ.data, cfQ.data]);
 
   return { data, isLoading, failed };
 }
