@@ -62,7 +62,7 @@ export default function FCScenariosSelect({
             {hasPendingChanges && (
               <p
                 className="fc-scenarios-header__pending-warning"
-                style={{ color: "#C0504D", fontWeight: 700, margin: "0.35rem 0 0" }}
+                style={{ color: "var(--danger)", fontWeight: 700, margin: "0.35rem 0 0" }}
               >
                 You have uncommitted changes.
               </p>

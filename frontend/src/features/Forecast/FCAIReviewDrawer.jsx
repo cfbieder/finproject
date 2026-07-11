@@ -91,15 +91,15 @@ function MessageContent({ content, onApply, appliedActions }) {
             <div style={{ fontWeight: 600, marginBottom: "0.25rem" }}>
               {part.isApplied ? "Applied" : "Recommendation"}:
               {" "}{a.field?.replace(/_/g, " ")} → {a.proposed_value}
-              {a.current_value != null && <span style={{ color: "#808E9B" }}> (was {a.current_value})</span>}
+              {a.current_value != null && <span style={{ color: "var(--muted)" }}> (was {a.current_value})</span>}
             </div>
-            {a.reason && <div style={{ color: "#4A5568", fontSize: "0.78rem" }}>{a.reason}</div>}
+            {a.reason && <div style={{ color: "var(--ink-secondary)", fontSize: "0.78rem" }}>{a.reason}</div>}
             {!part.isApplied && (
               <button
                 onClick={() => onApply(a, part.key)}
                 style={{
                   marginTop: "0.4rem", padding: "0.25rem 0.75rem", borderRadius: "0.375rem",
-                  border: "1px solid #7FA37F", background: "#7FA37F", color: "white",
+                  border: "1px solid #7FA37F", background: "var(--primary-light)", color: "white",
                   fontSize: "0.78rem", fontWeight: 600, cursor: "pointer",
                 }}
               >
@@ -329,7 +329,7 @@ export default function FCAIReviewDrawer({ isOpen, onClose, scenarioName, onUnre
         }}>
           <div>
             <h3 style={{ margin: 0, fontSize: "1.1rem", fontWeight: 700 }}>AI Plan Review</h3>
-            <span style={{ fontSize: "0.8rem", color: "#808E9B" }}>Scenario: {scenarioName}</span>
+            <span style={{ fontSize: "0.8rem", color: "var(--muted)" }}>Scenario: {scenarioName}</span>
           </div>
           <div style={{ display: "flex", gap: "0.5rem", alignItems: "center" }}>
             <button
@@ -339,7 +339,7 @@ export default function FCAIReviewDrawer({ isOpen, onClose, scenarioName, onUnre
               style={{
                 padding: "0.35rem 0.75rem", borderRadius: "0.375rem", fontSize: "0.8rem",
                 fontWeight: 600, border: "1px solid #7FA37F",
-                background: hasPendingReview ? "#cbd5cb" : "#7FA37F",
+                background: hasPendingReview ? "#cbd5cb" : "var(--primary-light)",
                 color: "white", cursor: hasPendingReview ? "not-allowed" : "pointer",
               }}
             >
@@ -347,7 +347,7 @@ export default function FCAIReviewDrawer({ isOpen, onClose, scenarioName, onUnre
             </button>
             <button
               onClick={onClose}
-              style={{ background: "none", border: "none", fontSize: "1.5rem", cursor: "pointer", color: "#808E9B" }}
+              style={{ background: "none", border: "none", fontSize: "1.5rem", cursor: "pointer", color: "var(--muted)" }}
             >
               &times;
             </button>
@@ -359,7 +359,7 @@ export default function FCAIReviewDrawer({ isOpen, onClose, scenarioName, onUnre
           {/* Review list */}
           <div style={{
             width: "160px", borderRight: "1px solid #E8E6DF", overflowY: "auto",
-            background: "#f8fafc", flexShrink: 0, fontSize: "0.78rem",
+            background: "var(--surface-muted)", flexShrink: 0, fontSize: "0.78rem",
           }}>
             {reviews.map(r => (
               <div
@@ -378,7 +378,7 @@ export default function FCAIReviewDrawer({ isOpen, onClose, scenarioName, onUnre
                   style={{
                     position: "absolute", top: "0.35rem", right: "0.35rem",
                     background: "none", border: "none", cursor: "pointer",
-                    color: "#A0AEB9", fontSize: "0.85rem", lineHeight: 1,
+                    color: "var(--muted-light)", fontSize: "0.85rem", lineHeight: 1,
                     padding: "0.1rem 0.25rem", borderRadius: "0.25rem",
                   }}
                   onMouseEnter={e => e.currentTarget.style.color = "#C0504D"}
@@ -386,27 +386,27 @@ export default function FCAIReviewDrawer({ isOpen, onClose, scenarioName, onUnre
                 >
                   &times;
                 </button>
-                <div style={{ fontSize: "0.75rem", color: "#808E9B" }}>
+                <div style={{ fontSize: "0.75rem", color: "var(--muted)" }}>
                   {new Date(r.created_at).toLocaleDateString()}
                 </div>
                 <div style={{ marginTop: "0.15rem", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", paddingRight: "1rem" }}>
                   {r.title || "Review"}
                 </div>
                 {r.status === "pending" && (
-                  <div style={{ marginTop: "0.25rem", fontSize: "0.7rem", color: "#7FA37F", fontWeight: 600 }}>
+                  <div style={{ marginTop: "0.25rem", fontSize: "0.7rem", color: "var(--primary-light)", fontWeight: 600 }}>
                     <span className="fc-ai-spin" style={{ display: "inline-block", marginRight: "0.3rem" }}>⟳</span>
                     Generating…
                   </div>
                 )}
                 {r.status === "failed" && (
-                  <div style={{ marginTop: "0.25rem", fontSize: "0.7rem", color: "#C0504D", fontWeight: 600 }}>
+                  <div style={{ marginTop: "0.25rem", fontSize: "0.7rem", color: "var(--danger)", fontWeight: 600 }}>
                     Failed
                   </div>
                 )}
               </div>
             ))}
             {reviews.length === 0 && (
-              <div style={{ padding: "1rem", color: "#A0AEB9", textAlign: "center" }}>
+              <div style={{ padding: "1rem", color: "var(--muted-light)", textAlign: "center" }}>
                 No reviews yet
               </div>
             )}
@@ -424,11 +424,11 @@ export default function FCAIReviewDrawer({ isOpen, onClose, scenarioName, onUnre
                   marginBottom: "1rem",
                   padding: "0.75rem 1rem",
                   borderRadius: "0.75rem",
-                  background: msg.role === "user" ? "#eff6ff" : "#f8fafc",
-                  border: `1px solid ${msg.role === "user" ? "#bfdbfe" : "#E8E6DF"}`,
+                  background: msg.role === "user" ? "#eff6ff" : "var(--surface-muted)",
+                  border: `1px solid ${msg.role === "user" ? "#bfdbfe" : "var(--border)"}`,
                   fontSize: "0.85rem", lineHeight: 1.6,
                 }}>
-                  <div style={{ fontWeight: 700, fontSize: "0.72rem", color: "#808E9B", marginBottom: "0.35rem", textTransform: "uppercase", letterSpacing: "0.05em" }}>
+                  <div style={{ fontWeight: 700, fontSize: "0.72rem", color: "var(--muted)", marginBottom: "0.35rem", textTransform: "uppercase", letterSpacing: "0.05em" }}>
                     {msg.role === "user" ? "You" : "AI Advisor"}
                   </div>
                   <MessageContent
@@ -440,14 +440,14 @@ export default function FCAIReviewDrawer({ isOpen, onClose, scenarioName, onUnre
               ))}
 
               {activeIsPending && (
-                <div style={{ padding: "1rem", color: "#808E9B", fontStyle: "italic", display: "flex", alignItems: "center", gap: "0.5rem" }}>
+                <div style={{ padding: "1rem", color: "var(--muted)", fontStyle: "italic", display: "flex", alignItems: "center", gap: "0.5rem" }}>
                   <span className="fc-ai-spin" style={{ display: "inline-block" }}>⟳</span>
                   <span>Analyzing your plan… (this may take up to a minute on the first call — feel free to close this drawer; you'll get a notification when it's ready)</span>
                 </div>
               )}
 
               {error && (
-                <div style={{ padding: "0.75rem", background: "#fef2f2", border: "1px solid #fecaca", borderRadius: "0.5rem", color: "#C0504D", fontSize: "0.85rem" }}>
+                <div style={{ padding: "0.75rem", background: "var(--danger-subtle)", border: "1px solid #fecaca", borderRadius: "0.5rem", color: "var(--danger)", fontSize: "0.85rem" }}>
                   {error}
                 </div>
               )}
@@ -476,8 +476,8 @@ export default function FCAIReviewDrawer({ isOpen, onClose, scenarioName, onUnre
                   style={{
                     padding: "0.4rem 1rem", borderRadius: "0.375rem", fontSize: "0.85rem",
                     fontWeight: 600, border: "none", cursor: "pointer",
-                    background: input.trim() ? "#7FA37F" : "#E8E6DF",
-                    color: input.trim() ? "white" : "#A0AEB9",
+                    background: input.trim() ? "#7FA37F" : "var(--border)",
+                    color: input.trim() ? "white" : "var(--muted-light)",
                   }}
                 >
                   Send
@@ -503,20 +503,20 @@ export default function FCAIReviewDrawer({ isOpen, onClose, scenarioName, onUnre
             <table style={{ width: "100%", fontSize: "0.85rem", borderCollapse: "collapse" }}>
               <tbody>
                 <tr>
-                  <td style={{ padding: "0.4rem 0", color: "#808E9B" }}>Field</td>
+                  <td style={{ padding: "0.4rem 0", color: "var(--muted)" }}>Field</td>
                   <td style={{ padding: "0.4rem 0", fontWeight: 600 }}>{confirmAction.action.field?.replace(/_/g, " ")}</td>
                 </tr>
                 <tr>
-                  <td style={{ padding: "0.4rem 0", color: "#808E9B" }}>Current</td>
+                  <td style={{ padding: "0.4rem 0", color: "var(--muted)" }}>Current</td>
                   <td style={{ padding: "0.4rem 0" }}>{confirmAction.action.current_value}</td>
                 </tr>
                 <tr>
-                  <td style={{ padding: "0.4rem 0", color: "#808E9B" }}>Proposed</td>
-                  <td style={{ padding: "0.4rem 0", fontWeight: 600, color: "#6B8E6B" }}>{confirmAction.action.proposed_value}</td>
+                  <td style={{ padding: "0.4rem 0", color: "var(--muted)" }}>Proposed</td>
+                  <td style={{ padding: "0.4rem 0", fontWeight: 600, color: "var(--primary)" }}>{confirmAction.action.proposed_value}</td>
                 </tr>
                 {confirmAction.action.reason && (
                   <tr>
-                    <td style={{ padding: "0.4rem 0", color: "#808E9B" }}>Reason</td>
+                    <td style={{ padding: "0.4rem 0", color: "var(--muted)" }}>Reason</td>
                     <td style={{ padding: "0.4rem 0", fontSize: "0.8rem" }}>{confirmAction.action.reason}</td>
                   </tr>
                 )}
@@ -531,7 +531,7 @@ export default function FCAIReviewDrawer({ isOpen, onClose, scenarioName, onUnre
               </button>
               <button
                 onClick={confirmApply}
-                style={{ padding: "0.4rem 1rem", borderRadius: "0.375rem", border: "none", background: "#7FA37F", color: "white", cursor: "pointer", fontSize: "0.85rem", fontWeight: 600 }}
+                style={{ padding: "0.4rem 1rem", borderRadius: "0.375rem", border: "none", background: "var(--primary-light)", color: "white", cursor: "pointer", fontSize: "0.85rem", fontWeight: 600 }}
               >
                 Apply
               </button>
@@ -552,10 +552,10 @@ export default function FCAIReviewDrawer({ isOpen, onClose, scenarioName, onUnre
             width: "min(440px, 90vw)", boxShadow: "0 20px 40px rgba(0,0,0,0.2)",
           }}>
             <h4 style={{ margin: "0 0 0.75rem", fontSize: "1rem" }}>Get notified when ready?</h4>
-            <p style={{ margin: 0, fontSize: "0.85rem", color: "#4A5568", lineHeight: 1.55 }}>
+            <p style={{ margin: 0, fontSize: "0.85rem", color: "var(--ink-secondary)", lineHeight: 1.55 }}>
               AI plan reviews can take up to a minute. With your permission, the browser can show a desktop notification when the review is done — even if you've switched tabs or closed this drawer.
             </p>
-            <p style={{ margin: "0.75rem 0 0", fontSize: "0.78rem", color: "#808E9B", lineHeight: 1.5 }}>
+            <p style={{ margin: "0.75rem 0 0", fontSize: "0.78rem", color: "var(--muted)", lineHeight: 1.5 }}>
               You'll always see an in-app toast when the review completes. This is just for desktop notifications.
             </p>
             <div style={{ display: "flex", justifyContent: "flex-end", gap: "0.5rem", marginTop: "1.25rem" }}>
@@ -567,7 +567,7 @@ export default function FCAIReviewDrawer({ isOpen, onClose, scenarioName, onUnre
               </button>
               <button
                 onClick={handlePrimerAllow}
-                style={{ padding: "0.4rem 1rem", borderRadius: "0.375rem", border: "none", background: "#7FA37F", color: "white", cursor: "pointer", fontSize: "0.85rem", fontWeight: 600 }}
+                style={{ padding: "0.4rem 1rem", borderRadius: "0.375rem", border: "none", background: "var(--primary-light)", color: "white", cursor: "pointer", fontSize: "0.85rem", fontWeight: 600 }}
               >
                 Enable notifications
               </button>

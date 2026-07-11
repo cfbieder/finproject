@@ -1115,7 +1115,7 @@ export default function FCModulesEditModal({
                         {label} {isIncomePct ? "" : "Transfers"}
                       </h5>
                       {isIncomePct && (
-                        <span style={{ fontSize: "0.75em", color: "#888", fontWeight: 400 }}>
+                        <span style={{ fontSize: "0.75em", color: "var(--muted)", fontWeight: 400 }}>
                           Annual yield above/below inflation (%)
                         </span>
                       )}
@@ -1238,7 +1238,7 @@ export default function FCModulesEditModal({
                                 {entry?.Flag === "Periodic" && (
                                   <div className="fc-modules-modal__transfer-field">
                                     <label className="fc-modules-modal__transfer-label">
-                                      End Year <span style={{ fontSize: "0.75em", color: "#888" }}>(optional)</span>
+                                      End Year <span style={{ fontSize: "0.75em", color: "var(--muted)" }}>(optional)</span>
                                     </label>
                                     <select
                                       className="fc-modules-modal__input fc-modules-modal__input--small"

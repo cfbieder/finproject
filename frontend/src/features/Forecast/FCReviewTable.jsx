@@ -192,7 +192,7 @@ function EquityBridgeRows({
                 >
                   {year}
                   {columnLabel && (
-                    <span style={{ display: "block", fontSize: "0.75rem", fontWeight: 500, color: "#718096", marginTop: "0.25rem" }}>
+                    <span style={{ display: "block", fontSize: "0.75rem", fontWeight: 500, color: "var(--muted)", marginTop: "0.25rem" }}>
                       {columnLabel}
                     </span>
                   )}
@@ -328,7 +328,7 @@ function CashFlowSummaryRows({
                         display: "block",
                         fontSize: "0.75rem",
                         fontWeight: 500,
-                        color: "#718096",
+                        color: "var(--muted)",
                         marginTop: "0.25rem",
                       }}
                     >
@@ -708,7 +708,7 @@ export default function FCReviewTable({
                               display: "block",
                               fontSize: "0.75rem",
                               fontWeight: 500,
-                              color: "#718096",
+                              color: "var(--muted)",
                               marginTop: "0.25rem",
                             }}
                           >

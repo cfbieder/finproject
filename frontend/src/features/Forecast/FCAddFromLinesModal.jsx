@@ -148,7 +148,7 @@ export default function FCAddFromLinesModal({
         {/* Header */}
         <div style={{ padding: "1.5rem 2rem", borderBottom: "1px solid #E8E6DF", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
           <h2 style={{ margin: 0, fontSize: "1.25rem", fontWeight: 700 }}>Add from FC Lines</h2>
-          <button onClick={onClose} style={{ background: "none", border: "none", fontSize: "1.5rem", cursor: "pointer", color: "#808E9B" }}>
+          <button onClick={onClose} style={{ background: "none", border: "none", fontSize: "1.5rem", cursor: "pointer", color: "var(--muted)" }}>
             &times;
           </button>
         </div>
@@ -253,7 +253,7 @@ export default function FCAddFromLinesModal({
               disabled={selected.size === 0 || applying}
               style={{
                 padding: "0.5rem 1.25rem", borderRadius: "0.5rem", border: "none",
-                background: selected.size > 0 ? "var(--primary, #567856)" : "#A0AEB9",
+                background: selected.size > 0 ? "var(--primary, #567856)" : "var(--muted-light)",
                 color: "white", cursor: selected.size > 0 ? "pointer" : "not-allowed", fontWeight: 600,
               }}
             >

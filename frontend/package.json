@@ -10,6 +10,7 @@
     "lint": "eslint .",
     "lint:buttons": "bash ../Scripts/check-button-css.sh",
     "lint:modals": "bash ../Scripts/check-modal-adoption.sh",
+    "lint:hex": "bash ../Scripts/check-inline-hex.sh",
     "preview": "vite preview",
     "test": "vitest run",
     "test:watch": "vitest"

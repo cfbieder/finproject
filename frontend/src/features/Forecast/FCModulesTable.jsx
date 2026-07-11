@@ -424,7 +424,7 @@ export default function FCModulesTable({
                                 <span title="Cash Sweep Target" style={{
                                   marginLeft: "0.4rem", fontSize: "0.65rem", fontWeight: 700,
                                   padding: "0.1rem 0.35rem", borderRadius: "0.25rem",
-                                  background: "#ecfdf5", color: "#059669", border: "1px solid #a7f3d0",
+                                  background: "var(--success-subtle)", color: "var(--success)", border: "1px solid #a7f3d0",
                                   verticalAlign: "middle",
                                 }}>SWEEP</span>
                               )}

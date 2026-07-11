@@ -227,7 +227,7 @@ export default function FCAddFromActualsModal({
         >
           {/* Expand/collapse toggle */}
           <span
-            style={{ width: "1rem", textAlign: "center", cursor: hasChildren ? "pointer" : "default", color: "#A0AEB9", userSelect: "none" }}
+            style={{ width: "1rem", textAlign: "center", cursor: hasChildren ? "pointer" : "default", color: "var(--muted-light)", userSelect: "none" }}
             onClick={() => hasChildren && toggleCollapse(node.account_id)}
           >
             {hasChildren ? (isCollapsed ? "+" : "-") : " "}
@@ -245,19 +245,19 @@ export default function FCAddFromActualsModal({
           {/* Account name */}
           <span style={{ flex: 1, fontWeight: hasChildren && !node.is_leaf ? 600 : 400 }}>
             {node.account_name}
-            {isDisabled && <span style={{ color: "#A0AEB9", fontSize: "0.75rem", marginLeft: "0.5rem" }}>(already added)</span>}
-            {!node.is_leaf && isSelected && <span style={{ color: "#7FA37F", fontSize: "0.75rem", marginLeft: "0.5rem" }}>(aggregated)</span>}
+            {isDisabled && <span style={{ color: "var(--muted-light)", fontSize: "0.75rem", marginLeft: "0.5rem" }}>(already added)</span>}
+            {!node.is_leaf && isSelected && <span style={{ color: "var(--primary-light)", fontSize: "0.75rem", marginLeft: "0.5rem" }}>(aggregated)</span>}
           </span>
 
           {/* Currency */}
-          <span style={{ width: "3rem", textAlign: "center", color: "#A0AEB9", fontSize: "0.8rem" }}>
+          <span style={{ width: "3rem", textAlign: "center", color: "var(--muted-light)", fontSize: "0.8rem" }}>
             {node.is_leaf ? node.currency : ""}
           </span>
 
           {/* Balance */}
           <span style={{
             width: "7rem", textAlign: "right", fontFamily: "var(--font-mono)", fontSize: "0.8rem",
-            color: node.balance_usd < -0.01 ? "var(--danger, #C0504D)" : node.balance_usd > 0.01 ? undefined : "#A0AEB9",
+            color: node.balance_usd < -0.01 ? "var(--danger, #C0504D)" : node.balance_usd > 0.01 ? undefined : "var(--muted-light)",
           }}>
             {Math.abs(node.balance_usd) > 0.01 ? (node.balance_usd < 0 ? "-" : "") + fmt(node.balance_usd) : "—"}
           </span>
@@ -293,7 +293,7 @@ export default function FCAddFromActualsModal({
               Select accounts to create as forecast modules. Click a parent row to use aggregated balance.
             </span>
           </div>
-          <button onClick={onClose} style={{ background: "none", border: "none", fontSize: "1.5rem", cursor: "pointer", color: "#808E9B" }}>
+          <button onClick={onClose} style={{ background: "none", border: "none", fontSize: "1.5rem", cursor: "pointer", color: "var(--muted)" }}>
             &times;
           </button>
         </div>
@@ -349,8 +349,8 @@ export default function FCAddFromActualsModal({
               {/* Header row */}
               <div style={{
                 display: "flex", alignItems: "center", gap: "0.5rem",
-                padding: "0.5rem", background: "#f8fafc", fontSize: "0.75rem",
-                fontWeight: 600, textTransform: "uppercase", color: "#808E9B",
+                padding: "0.5rem", background: "var(--surface-muted)", fontSize: "0.75rem",
+                fontWeight: 600, textTransform: "uppercase", color: "var(--muted)",
                 borderBottom: "1px solid #E8E6DF",
               }}>
                 <span style={{ width: "1rem" }} />
@@ -382,7 +382,7 @@ export default function FCAddFromActualsModal({
               disabled={selected.size === 0 || applying}
               style={{
                 padding: "0.5rem 1.25rem", borderRadius: "0.5rem", border: "none",
-                background: selected.size > 0 ? "var(--primary, #567856)" : "#A0AEB9",
+                background: selected.size > 0 ? "var(--primary, #567856)" : "var(--muted-light)",
                 color: "white", cursor: selected.size > 0 ? "pointer" : "not-allowed", fontWeight: 600,
               }}
             >

@@ -33,7 +33,7 @@ function AuditTable({ title, data }) {
                 <th
                   key={h}
                   style={{
-                    position: "sticky", top: 0, background: "#f8fafc", zIndex: 1,
+                    position: "sticky", top: 0, background: "var(--surface-muted)", zIndex: 1,
                     textAlign: h === "index" || h === "Year" || h === "Action" ? "left" : "right",
                     padding: "0.4rem 0.6rem", fontWeight: 600, fontSize: "0.72rem",
                     borderBottom: "2px solid #E8E6DF",
@@ -46,7 +46,7 @@ function AuditTable({ title, data }) {
           </thead>
           <tbody>
             {rows.map((row, ri) => (
-              <tr key={ri} style={{ background: ri % 2 === 0 ? "white" : "#fafbfc" }}>
+              <tr key={ri} style={{ background: ri % 2 === 0 ? "white" : "var(--surface-muted)" }}>
                 {row.map((cell, ci) => {
                   const colName = headers[ci];
                   const isIndex = ci === 0;
@@ -154,7 +154,7 @@ export default function FCModuleAuditModal({ isOpen, onClose, scenario, moduleNa
           </div>
           <button
             onClick={onClose}
-            style={{ background: "none", border: "none", fontSize: "1.5rem", cursor: "pointer", color: "#808E9B" }}
+            style={{ background: "none", border: "none", fontSize: "1.5rem", cursor: "pointer", color: "var(--muted)" }}
           >
             &times;
           </button>
@@ -173,9 +173,9 @@ export default function FCModuleAuditModal({ isOpen, onClose, scenario, moduleNa
                 style={{
                   padding: "0.35rem 1rem", fontSize: "0.8rem", fontWeight: view === tab.key ? 600 : 400,
                   border: "1px solid", borderRadius: "999px",
-                  borderColor: view === tab.key ? "var(--primary, #567856)" : "#d1d5db",
+                  borderColor: view === tab.key ? "var(--primary, #567856)" : "var(--border)",
                   background: view === tab.key ? "var(--primary, #567856)" : "white",
-                  color: view === tab.key ? "white" : "#4b5563",
+                  color: view === tab.key ? "white" : "var(--ink-secondary)",
                   cursor: "pointer", transition: "all 0.15s",
                 }}
               >

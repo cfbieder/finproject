@@ -360,7 +360,7 @@ export default function FCReviewTableGraphModal({
                         style={{
                           fontSize: "16px",
                           fontWeight: "bold",
-                          fill: "#333",
+                          fill: "var(--ink)",
                         }}
                         pointerEvents="none"
                       >

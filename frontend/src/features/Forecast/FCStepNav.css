@@ -1,0 +1,43 @@
+/**
+ * FCStepNav.css (CR042 U1 tail) — the 6-step Forecast pill nav.
+ * Replaces the former fully-inline styling + JS onMouseEnter/onMouseLeave hover
+ * handlers (which bypassed the theme and are invisible to any CSS migration).
+ * Hover now lives in :hover; the current step opts out via a --current override.
+ */
+
+.fc-step-nav {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 0.25rem;
+  padding: 0.4rem 1rem;
+}
+
+.fc-step-nav__step {
+  padding: 0.3rem 0.75rem;
+  font-size: 0.78rem;
+  font-weight: 400;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  background: var(--surface-elevated);
+  color: var(--ink-secondary);
+  cursor: pointer;
+  white-space: nowrap;
+  transition: all 0.15s;
+}
+
+.fc-step-nav__step:hover {
+  background: var(--primary-subtle);
+  border-color: var(--primary);
+  color: var(--primary);
+}
+
+.fc-step-nav__step--current,
+.fc-step-nav__step--current:hover {
+  font-weight: 600;
+  border-color: var(--primary);
+  background: var(--primary);
+  color: var(--on-accent);
+  cursor: default;
+}

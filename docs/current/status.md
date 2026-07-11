@@ -3,11 +3,11 @@
 > The one mandatory read at session start. Keep ≤ ~60 lines; link onward, never restate.
 > CR statuses live in the [CR index](../cr/README.md); the running version lives in `VERSION`.
 
-**Last updated:** 2026-07-11 · **Live version:** v3.0.74 (see `VERSION` / git tags)
+**Last updated:** 2026-07-11 · **Live version:** v3.0.75 (see `VERSION` / git tags)
 
 ## Current phase
 - [CR043 — Code Structure Program](../cr/cr-043-code-structure-program.md): Phases 0, 1 (all), 2.1/2.2 extraction, 2.3, 2.4, **Phase 3 (TanStack Query + useCoa, shared report hooks/mobile dedup, V1-alias dedup, eslint fix)** done. Deferred: util.js hygiene, N10 write-validation, 3.3 raw-fetch/envelope, 3.4 full lint burn-down (gate not flipped). Program substantially complete.
-- [CR042 — UI Look & Feel Modernization](../cr/cr-042-ui-look-and-feel.md): **U1 core + U2 + U3 (v3.0.69–70); U4 primitives + RefreshFeeds (v3.0.71) + 8/10 Forecast modals via `<Modal bare>` (v3.0.74); U5 report consolidation Balances/Cash Flow/Budget (v3.0.72–73).** Deferred (owner input): calibration→Settings move, "Upload PS" fate, Forecast-step sidebar collapse. Remaining code: U1 Forecast inline-style migration, U4's 2 heavyweight Forecast modals (FCModulesEdit, FCExpModal).
+- [CR042 — UI Look & Feel Modernization](../cr/cr-042-ui-look-and-feel.md): **U1 (core + Forecast inline-style migration, v3.0.69/75); U2 + U3 (v3.0.70); U4 primitives + RefreshFeeds (v3.0.71) + 8/10 Forecast modals via `<Modal bare>` (v3.0.74); U5 report consolidation Balances/Cash Flow/Budget (v3.0.72–73).** Three blocking CI adoption guards (buttons, modals, inline-hex). Deferred (owner input): calibration→Settings move, "Upload PS" fate, Forecast-step sidebar collapse. Remaining code: U4's 2 heavyweight Forecast modals (FCModulesEdit, FCExpModal).
 - Docs migrated to the starter-pack v1.4.0 standard (2026-07-11): `Documentation/` → `docs/`, rules in `.claude/rules/`, this file is the session entry point.
 
 ## Live infrastructure
@@ -16,6 +16,7 @@
 - Deploy: `./Scripts/deploy-to-production.sh` (DB backup first). Migrations: manual `psql -f`, registry in [migrations.md](migrations.md); runner shipped in CR043 P1.1 (`npm run migrate`).
 
 ## Recently shipped
+- v3.0.75 — CR042 U1 Forecast inline-style migration: FCStepNav → CSS (kills JS hover handlers); 62 naked-hex Forecast style values → theme tokens (dark-mode fix); new blocking `check-inline-hex.sh` guard.
 - v3.0.74 — CR042 U4 Forecast modals: `<Modal>` gains a `bare` mode (Radix overlay/focus-trap/ESC, caller keeps its own card); 8 of 10 bespoke `fc-*-modal` overlays migrated (a11y gained, visually 1:1); fixed two latent hooks-after-return bugs. FCModulesEdit + FCExpModal deferred.
 - v3.0.73 — CR042 U5 Cash Flow 2→1 + Budget-vs-Actual 3→1: shared `<ReportTabs>` primitive; `/cash-flow/:view` (Summary/By-Period), `/budget-vs-actual/:view` (Realization/Chart/Variances); old URLs redirect; 2 nav renames.
 - v3.0.72 — CR042 U5 Balances 4→1: `/balances` with Summary/Periods/Trends/Net-Worth tabs (deep-linkable, old URLs redirect); sidebar Reports drops 4→1. **Owner checkpoint** before the remaining consolidations.

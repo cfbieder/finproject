@@ -143,10 +143,10 @@ export default function FCModulesUnmatchedModal({
                       <div
                         style={{
                           padding: "0.6rem 1rem",
-                          backgroundColor: "#f8fafc",
+                          backgroundColor: "var(--surface-muted)",
                           borderBottom: "1px solid rgba(15, 23, 42, 0.08)",
                           fontWeight: 600,
-                          color: "#2D3436",
+                          color: "var(--ink)",
                         }}
                       >
                         {type}
@@ -186,7 +186,7 @@ export default function FCModulesUnmatchedModal({
                               {item.category ? (
                                 <span
                                   style={{
-                                    color: "#4A5568",
+                                    color: "var(--ink-secondary)",
                                     fontSize: "0.9rem",
                                   }}
                                 >

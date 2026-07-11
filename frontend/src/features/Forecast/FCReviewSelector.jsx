@@ -75,7 +75,7 @@ export default function FCReviewSelector({
                 className="fc-review-selector__action-btn"
                 disabled={cashSweepDisabled ?? disableGenerate}
                 onClick={onCashSweepClick}
-                style={{ background: "#059669", color: "white", border: "none" }}
+                style={{ background: "var(--success)", color: "white", border: "none" }}
               >
                 <span aria-hidden="true" className="fc-review-selector__action-icon">
                   <ArrowRightLeft size={16} />
@@ -122,7 +122,7 @@ export default function FCReviewSelector({
                     style={{
                       position: "absolute", top: "4px", right: "4px",
                       width: "10px", height: "10px", borderRadius: "50%",
-                      background: "#ef4444",
+                      background: "var(--danger)",
                       boxShadow: "0 0 0 2px white, 0 0 8px rgba(239,68,68,0.6)",
                       animation: "fcAiPulse 1.6s ease-in-out infinite",
                     }}
