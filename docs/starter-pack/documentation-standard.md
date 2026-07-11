@@ -1,12 +1,15 @@
 # Documentation Standards
 
 > A portable convention + memo for project documentation: structure, naming, AI-agent integration, and memory.
-> This copy tracks the **starter pack**, whose upstream source now lives in this repo at
-> [`docs/starter-pack/`](starter-pack/README.md) (v1.5.0; distribution zip alongside it,
-> v1.4.0 zip in `archive/`). Correct the pack first, then sync this copy. Project-specific
-> adaptations here: the repo-boundaries bullet and this header.
+> Copy this file into any repo to bootstrap best-practice docs; adapt only the project-specific bits (the
+> optional extension dir, the nested/sibling-repo example). EspañolApp is the reference implementation this
+> was distilled from.
 >
-> **Last reviewed:** 2026-07-06 (upstream) · adopted in Fin 2026-07-11.
+> **Pack role:** the canonical documentation convention for every new project. [`infra-bootstrap.md`](infra-bootstrap.md)
+> §10 and [`claude-collaboration.md`](claude-collaboration.md) both defer to this file for docs layout and the
+> required-reading block.
+>
+> **Last reviewed:** 2026-07-06.
 
 ## Why
 
@@ -63,13 +66,15 @@ There is **no `other/` / `misc/` directory.** If you can't classify it, it's alm
 
 ## Links
 
-Use **workspace-root-relative** paths in links: `[CR-016](docs/cr/cr-016-frontend-test-framework.md)`. They render in editors/GitHub and survive moving the *referring* file. Never link with absolute filesystem paths. Never restate a fact you could link to.
+Use **workspace-root-relative** paths in links: `[CR-016](docs/cr/cr-016-admin-observability.md)`. They render in editors/GitHub and survive moving the *referring* file. Never link with absolute filesystem paths. Never restate a fact you could link to.
 
 ## Repository boundaries — nested & sibling repos
 
-**Never modify a nested or sibling repository while working in this one.** (For how sibling repos *coordinate* — handoff ledger + pinned contract — see [cross-repo-integration](starter-pack/cross-repo-integration.md).) Only edit a repo when you are actually operating *inside* that system. A directory with its own `.git`, its own `CLAUDE.md`/docs, or its own deploy lifecycle is a separate project: renames, link rewrites, and reorg passes (like migrating to this standard) must skip it entirely. Cross-repo *references* — links that point into the other repo's paths — stay spelled the way that repo names them; do **not** "fix" them to match this standard.
+**Never modify a nested or sibling repository while working in this one.** (For how two
+sibling repos *coordinate* — the handoff ledger + pinned contract — see
+[`cross-repo-integration.md`](cross-repo-integration.md).) Only edit a repo when you are actually operating *inside* that system. A directory with its own `.git`, its own `CLAUDE.md`/docs, or its own deploy lifecycle is a separate project: renames, link rewrites, and reorg passes (like migrating to this standard) must skip it entirely. Cross-repo *references* — links that point into the other repo's paths — stay spelled the way that repo names them; do **not** "fix" them to match this standard.
 
-- **In this repo:** `bank-feed/` (feed microservice) and `ocr-llm/` (LLM gateway) are separate repos with their own git histories and docs. Do **not** touch anything under them unless the task is explicitly inside that system (exception: appending handoff entries to `ocr-llm/HANDOFFS.md` per [ocr-llm-integration](guides/ocr-llm-integration.md)); links into `ocr-llm/Documentation/...` keep that repo's naming and must be left alone.
+- **Example (replace per project):** in the reference implementation, `ocr-llm/` is a separate integrated repo (its own git + `Documentation/`). Do **not** touch anything under `ocr-llm/` unless the task is explicitly inside the ocr-llm system; links to `ocr-llm/Documentation/...` are correct as-is and must be left alone. When adapting this memo to another project, replace this bullet with that project's nested/sibling repos, or delete it if there are none.
 
 ## The `current/` tier
 
@@ -79,7 +84,7 @@ Use **workspace-root-relative** paths in links: `[CR-016](docs/cr/cr-016-fronten
 
 ## The `cr/` tier (design records)
 
-Every non-trivial feature gets a numbered design doc and a row in `cr/README.md`. The index table (`CR | Title | Date | Status`) is the **single source of truth for what shipped when** — `status.md` and `project-description.md` link to it. Shipped CRs stay in `cr/` as historical records (not moved to archive); the README marks them ✓. Large projects may add a summary-by-status roll-up and (dual-track repos) a Track column — this repo's [cr/README.md](cr/README.md) uses both.
+Every non-trivial feature gets a numbered design doc and a row in `cr/README.md`. The index table (`CR | Title | Date | Status`) is the **single source of truth for what shipped when** — `status.md` and `project-description.md` link to it. Shipped CRs stay in `cr/` as historical records (not moved to archive); the README marks them ✓. Large projects may add a summary-by-status roll-up and (dual-track repos) a Track column — see the template's notes.
 
 ## Working with an AI coding agent (Claude Code)
 
