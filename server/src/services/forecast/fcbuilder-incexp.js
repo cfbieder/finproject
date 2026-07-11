@@ -1,7 +1,7 @@
-const dfd = require("danfojs-node");
 const fs = require("fs");
 const path = require("path");
 const { PATHS } = require("./constants");
+const { getIndexValues, buildFcEntriesPayload, insertModuleEntries } = require("./fcbuilder-common");
 
 const auditTrailDir = PATHS.AUDIT_TRAIL_DIR;
 let auditTrailDirEnsured = false;
@@ -13,13 +13,6 @@ const ensureAuditTrailDir = () => {
 };
 
 const sanitizeName = (value, fallback) => (value && String(value)) || fallback;
-
-const getIndexValues = (df) => {
-  if (Array.isArray(df.index)) return df.index;
-  if (Array.isArray(df.index?.values)) return df.index.values;
-  if (Array.isArray(df.index?.index)) return df.index.index;
-  return [];
-};
 
 const writeEntriesAuditTrail = (dfCategories, scenarioName, accountName) => {
   ensureAuditTrailDir();
@@ -47,66 +40,6 @@ const writeEntriesAuditTrail = (dfCategories, scenarioName, accountName) => {
   fs.writeFileSync(filePath, lines.join(""), "utf8");
 };
 
-/**
- * Builds array of entry objects from categories dataframe
- */
-const buildFcEntriesPayload = (dfCategories, scenarioId, moduleName, moduleComment) => {
-  const columns = dfCategories?.columns || [];
-  const rows = dfCategories?.values || [];
-  const indexValues = getIndexValues(dfCategories);
-  const entries = [];
-
-  for (let i = 0; i < rows.length; i++) {
-    const account = indexValues[i];
-    if (!account) continue;
-
-    const row = rows[i];
-    for (let j = 0; j < columns.length; j++) {
-      const amount = row[j];
-      if (amount == null || amount === 0) continue;
-      const year = columns[j];
-      if (year == null) continue;
-
-      entries.push({
-        scenario_id: scenarioId,
-        forecast_year: year,
-        amount: amount,
-        account: account,
-        module: moduleName || "",
-        comment: moduleComment || null,
-      });
-    }
-  }
-  return entries;
-};
-
-/**
- * Inserts entries into PostgreSQL forecast_entries table
- */
-const insertCategoryEntries = async (db, dfCategories, scenarioId, moduleName, moduleComment) => {
-  const entries = buildFcEntriesPayload(dfCategories, scenarioId, moduleName, moduleComment);
-  if (entries.length === 0) return [];
-
-  const values = [];
-  const params = [];
-  let paramIdx = 1;
-
-  for (const entry of entries) {
-    values.push(`($${paramIdx++}, $${paramIdx++}, $${paramIdx++}, $${paramIdx++}, $${paramIdx++}, $${paramIdx++})`);
-    params.push(entry.scenario_id, entry.forecast_year, entry.amount, entry.account, entry.module, entry.comment);
-  }
-
-  const sql = `
-    INSERT INTO forecast_entries (scenario_id, forecast_year, amount, account, module, comment)
-    VALUES ${values.join(", ")}
-    ON CONFLICT (scenario_id, forecast_year, account, module, entry_type)
-    DO UPDATE SET amount = EXCLUDED.amount, comment = EXCLUDED.comment
-  `;
-
-  await db.query(sql, params);
-  return entries;
-};
-
 const writeValuesToCategoryRow = (rowIndex, dfCategories, valuesToWrite, startYear) => {
   if (rowIndex < 0) return false;
   const startColumnIndex = dfCategories.columns.indexOf(startYear);
@@ -125,18 +58,23 @@ const writeValuesToCategoryRow = (rowIndex, dfCategories, valuesToWrite, startYe
 };
 
 /**
- * Process a single income/expense forecast module
+ * Compute a single income/expense item — PURE (no db, no fs): series math,
+ * populates df_categories in place, returns the entries payload. Persistence
+ * and audit-CSV writing are the caller's job (CR043 Phase 2.3).
  *
- * @param {Object} module - Module data with v1-format fields (Account, Name, BaseValue, Growth, Changes)
- * @param {Object} scenario - Scenario config from FCAssump
- * @param {DataFrame} df_assumptions - Assumptions dataframe
- * @param {DataFrame} df_categories - Categories dataframe to populate
- * @param {Array} categories - Category names from FCAssump
+ * NB: entries use module.Account as their `module` label (historical), so two
+ * items on the same account overwrite each other via ON CONFLICT at persist —
+ * live semantics, preserved.
+ *
+ * @param {Object} module - Item data with v1-format fields (Account, Name, BaseValue, Growth, Changes)
+ * @param {Object} scenario - Scenario config from forecast assumptions
+ * @param {LabelFrame} df_assumptions - Assumptions frame
+ * @param {LabelFrame} df_categories - Categories frame to populate
+ * @param {Array} categories - Category names from assumptions
  * @param {Array} years - Years array
- * @param {Object} db - PostgreSQL db module
- * @param {number} scenarioId - PostgreSQL scenario ID
+ * @param {number} scenarioId - PostgreSQL scenario ID (payload field only)
  */
-async function processModule(module, scenario, df_assumptions, df_categories, categories, years, db, scenarioId) {
+function computeModule(module, scenario, df_assumptions, df_categories, categories, years, scenarioId) {
   console.log(`Processing account: ${module.Account}`);
   console.log(`Processing module: ${module.Name}`);
 
@@ -255,17 +193,28 @@ async function processModule(module, scenario, df_assumptions, df_categories, ca
   categoryRowIndex = df_categories.index.indexOf("Bank Accounts");
   writeValuesToCategoryRow(categoryRowIndex, df_categories, cashChangeUSD, startyear);
 
-  // Write audit trail
-  writeEntriesAuditTrail(df_categories, scenario?.Name, module?.Account);
-
-  // Insert entries into PostgreSQL
-  const inserted = await insertCategoryEntries(db, df_categories, scenarioId, module?.Account, module?.Comment);
-
   return {
     moduleName: module?.Name,
     account: module?.Account,
+    entries: buildFcEntriesPayload(df_categories, scenarioId, module?.Account, module?.Comment),
+    audit: { dfCategories: df_categories },
+  };
+}
+
+/**
+ * Compatibility wrapper preserving the historical compute + audit-CSV + insert
+ * flow in one call (tests and any external caller); index.js now stages these
+ * itself via computeModule.
+ */
+async function processModule(module, scenario, df_assumptions, df_categories, categories, years, db, scenarioId) {
+  const computed = computeModule(module, scenario, df_assumptions, df_categories, categories, years, scenarioId);
+  writeEntriesAuditTrail(computed.audit.dfCategories, scenario?.Name, module?.Account);
+  const inserted = await insertModuleEntries(db, computed.entries);
+  return {
+    moduleName: computed.moduleName,
+    account: computed.account,
     entriesCount: inserted.length,
   };
 }
 
-module.exports = { processModule };
+module.exports = { processModule, computeModule, writeEntriesAuditTrail };

@@ -55,7 +55,7 @@ KVM host: `192.168.1.61` (Cockpit `https://192.168.1.61:9090`, pools `vm-ssd`/`v
 
 **Frontend:** React 19, Vite 7 (+ vite-plugin-pwa/workbox — installable PWA, cache-first hashed assets, network-only API), React Router 7, Lucide icons, Recharts, xlsx (SheetJS), env-cmd. Design system: "Mindful Minimalist" (warm cream, forest-green accents, Outfit font, soft shadows, rounded geometry).
 
-**Backend:** Express 5, pg 8, Arquero, danfojs-node, archiver, pino, morgan. Node 20.
+**Backend:** Express 5, pg 8, archiver, pino, morgan. Node 20. (Arquero + danfojs-node removed by CR043 — the forecast engine's label-indexed matrices are plain JS, `services/forecast/frame.js`.)
 
 ---
 
@@ -213,7 +213,7 @@ All mounted at `/api/v2` (nginx rewrites legacy `/api/*`). Behavioural detail in
 
 ### Forecast (FC) Module
 
-Multi-year projection engine in `server/src/services/forecast/` (`index.js` orchestration + convergence, `cash-sweep.js` priority-ordered sweep ([CR017](CRs/CR017_CASH_SWEEP_PHASE_C.md)), `fcbuilder-module.js`, `fcbuilder-incexp.js`, `fcbuilder-setup.js`). 5-step UI workflow (mapping → scenarios → modules → inc/exp → review). FC Lines decouple budget categories from forecast outputs ([CR004](CRs/CR004_FC_LINES_MAPPING.md)). Terminology + period definitions: [FC_MODULE_MAPPING.md](FC_MODULE_MAPPING.md); full engine spec: [CR003](CRs/CR003_FORECAST_MODULE.md); calculation rules (yield spread, disposal halving, tax 1-yr deferral, FX) archived in the full doc.
+Multi-year projection engine in `server/src/services/forecast/` (`index.js` orchestration in load → compute → persist phases + convergence, `cash-sweep.js` priority-ordered sweep ([CR017](CRs/CR017_CASH_SWEEP_PHASE_C.md)), `fcbuilder-module.js` / `fcbuilder-incexp.js` — each a pure `computeModule` + compat `processModule` wrapper, `fcbuilder-common.js` shared payload/insert, `frame.js` LabelFrame, `fcbuilder-setup.js`; CR043 Phase 2.3). 5-step UI workflow (mapping → scenarios → modules → inc/exp → review). FC Lines decouple budget categories from forecast outputs ([CR004](CRs/CR004_FC_LINES_MAPPING.md)). Terminology + period definitions: [FC_MODULE_MAPPING.md](FC_MODULE_MAPPING.md); full engine spec: [CR003](CRs/CR003_FORECAST_MODULE.md); calculation rules (yield spread, disposal halving, tax 1-yr deferral, FX) archived in the full doc.
 
 ### Reconciliation Engines
 

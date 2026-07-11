@@ -14,13 +14,14 @@
  * instead of interleaving (CR043 N2).
  */
 
-const dfd = require("danfojs-node");
 const fs = require("fs");
 const path = require("path");
 const db = require("../../v2/db");
 const { loadScenarioConfig } = require("./fcbuilder-setup");
-const { processModule: processBSModule } = require("./fcbuilder-module");
-const { processModule: processIncExpModule } = require("./fcbuilder-incexp");
+const { LabelFrame } = require("./frame");
+const { computeModule: computeBSModule, writeAuditTrail } = require("./fcbuilder-module");
+const { computeModule: computeIncExpModule, writeEntriesAuditTrail } = require("./fcbuilder-incexp");
+const { insertModuleEntries } = require("./fcbuilder-common");
 const { CATEGORIES, PATHS } = require("./constants");
 const { computeCashSweepIterative } = require("./cash-sweep");
 
@@ -52,14 +53,6 @@ function buildColumns(years) {
     result[i + 1] = years[i];
   }
   return result;
-}
-
-function createZerosMatrix(rowCount, colCount) {
-  const matrix = new Array(rowCount);
-  for (let i = 0; i < rowCount; i++) {
-    matrix[i] = new Array(colCount).fill(0);
-  }
-  return matrix;
 }
 
 // Advisory-lock namespace for generate ("FCSG"); pairs with the scenario id.
@@ -275,7 +268,7 @@ async function generateForecast(scenarioName) {
     const config = await loadScenarioConfig(scenarioName);
     const { scenario, categories, inflationRates, fxratesPLN, fxratesEUR, years } = config;
 
-    const df_assumptions = new dfd.DataFrame(
+    const df_assumptions = LabelFrame.fromColumns(
       {
         [categories[1]]: inflationRates,
         [categories[2]]: fxratesPLN,
@@ -302,12 +295,9 @@ async function generateForecast(scenarioName) {
 
     await dbc.query('SELECT pg_advisory_xact_lock($1, $2)', [GENERATE_LOCK_NS, scenarioId]);
 
-    // Step 3: Clear existing entries
-    const deleteResult = await dbc.query('DELETE FROM forecast_entries WHERE scenario_id = $1', [scenarioId]);
-    const deletedCount = deleteResult.rowCount;
-    console.log(`[FORECAST-GENERATE] Deleted ${deletedCount} existing entries`);
-
-    // Step 3b: Preload FC Line name map (id → name)
+    // Step 3: Preload FC Line name map (id → name)
+    // (The clear-out of existing entries moved to the PERSIST phase, Step 6c —
+    // nothing between here and there reads forecast_entries, and same tx.)
     const fcLinesResult = await dbc.query('SELECT id, name FROM fc_lines');
     const fcLineNameMap = new Map();
     for (const row of fcLinesResult.rows) {
@@ -333,43 +323,67 @@ async function generateForecast(scenarioName) {
     if (!incexpCategories.includes(CATEGORIES.TAXES)) {
       incexpCategories.push(CATEGORIES.TAXES);
     }
-    incexpCategories.push(CATEGORIES.BANK_ACCOUNTS);
+    if (!incexpCategories.includes(CATEGORIES.BANK_ACCOUNTS)) {
+      // Deduped (CR043 2.3): an inc/exp item mapped to the literal 'Bank
+      // Accounts' account used to produce a duplicate row label here and crash
+      // the (danfo) frame with an opaque IndexError mid-generate.
+      incexpCategories.push(CATEGORIES.BANK_ACCOUNTS);
+    }
 
     const columns = buildColumns(years);
 
-    const df_categories = new dfd.DataFrame(
-      createZerosMatrix(scenarioCategories.length, columns.length),
-      { columns: columns, index: scenarioCategories }
-    );
-    df_categories.config.setMaxRow(1000);
-
-    const df_categories2 = new dfd.DataFrame(
-      createZerosMatrix(incexpCategories.length, columns.length),
-      { columns: columns, index: incexpCategories }
-    );
-    df_categories2.config.setMaxRow(1000);
-
-    // Step 6: Process all modules
+    // Step 6a: COMPUTE (pure) — every module's series + entries payload, in
+    // deterministic array order (BS modules then inc/exp items). No I/O: each
+    // computeModule fills a fresh category × year frame and returns the
+    // flattened forecast_entries payload.
     console.log(`[FORECAST-GENERATE] Processing ${bsModules.length + incexpModules.length} modules...`);
 
-    const results = await Promise.all([
-      ...bsModules.map((module) => {
-        const df_module_categories = new dfd.DataFrame(
-          createZerosMatrix(scenarioCategories.length, columns.length),
-          { columns: columns, index: scenarioCategories }
-        );
-        df_module_categories.config.setMaxRow(1000);
-        return processBSModule(module, scenario, df_assumptions, df_module_categories, categories, years, dbc, scenarioId, fcLineNameMap);
-      }),
-      ...incexpModules.map((module) => {
-        const df_module_categories2 = new dfd.DataFrame(
-          createZerosMatrix(incexpCategories.length, columns.length),
-          { columns: columns, index: incexpCategories }
-        );
-        df_module_categories2.config.setMaxRow(1000);
-        return processIncExpModule(module, scenario, df_assumptions, df_module_categories2, categories, years, dbc, scenarioId);
-      }),
-    ]);
+    const computed = [
+      ...bsModules.map((module) => ({
+        kind: 'bs',
+        module,
+        result: computeBSModule(
+          module, scenario, df_assumptions,
+          LabelFrame.zeros(scenarioCategories, columns),
+          categories, years, scenarioId
+        ),
+      })),
+      ...incexpModules.map((module) => ({
+        kind: 'incexp',
+        module,
+        result: computeIncExpModule(
+          module, scenario, df_assumptions,
+          LabelFrame.zeros(incexpCategories, columns),
+          categories, years, scenarioId
+        ),
+      })),
+    ];
+
+    // Step 6b: audit-trail CSVs (fs side effect, kept out of the numbers path)
+    for (const c of computed) {
+      if (c.kind === 'bs') {
+        writeAuditTrail(c.result.audit.dfModuleLC, c.result.audit.dfModuleUSD, c.result.audit.dfCategories, scenario, c.module);
+      } else {
+        writeEntriesAuditTrail(c.result.audit.dfCategories, scenario?.Name, c.module?.Account);
+      }
+    }
+
+    // Step 6c: PERSIST — clear the previous build, then per-module inserts in
+    // the same order and with the same statements as ever (the ON CONFLICT
+    // last-write-wins between same-account inc/exp items is load-bearing).
+    const deleteResult = await dbc.query('DELETE FROM forecast_entries WHERE scenario_id = $1', [scenarioId]);
+    const deletedCount = deleteResult.rowCount;
+    console.log(`[FORECAST-GENERATE] Deleted ${deletedCount} existing entries`);
+
+    const results = [];
+    for (const c of computed) {
+      const inserted = await insertModuleEntries(dbc, c.result.entries);
+      results.push({
+        moduleName: c.result.moduleName,
+        account: c.result.account,
+        entriesCount: inserted.length,
+      });
+    }
 
     // Step 7: Cash Sweep & Auto-Balance (iterative year-by-year)
     let rebalanceEntries = 0;
@@ -397,6 +411,18 @@ async function generateForecast(scenarioName) {
       if (sweepModule) {
         console.log(`[FORECAST-GENERATE] Cash sweep primary module: ${sweepModule.name}` +
           (backupModuleRows.length ? ` (+${backupModuleRows.length} backup${backupModuleRows.length > 1 ? 's' : ''}: ${backupModuleRows.map(m => m.name).join(', ')})` : ''));
+      }
+
+      // N9 guard (CR043): the starting-cash query below walks the COA subtree
+      // named 'Bank Accounts'. If that account is renamed or deleted the query
+      // silently returns no rows and the sweep starts from $0 — wrong numbers,
+      // no error. Fail loud instead.
+      const bankRootCheck = await dbc.query('SELECT 1 FROM accounts WHERE name = $1 LIMIT 1', [CATEGORIES.BANK_ACCOUNTS]);
+      if (bankRootCheck.rows.length === 0) {
+        throw new Error(
+          `Cash sweep requires a COA account named "${CATEGORIES.BANK_ACCOUNTS}" (engine anchor, CR043 N9) — not found. ` +
+          `Restore the account name or clear the scenario's sweep band.`
+        );
       }
 
       // Get actual bank balance from ledger (LastActualYear = PeriodStart - 2)

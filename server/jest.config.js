@@ -50,9 +50,4 @@ module.exports = {
 
   // Restore mocks after each test
   restoreMocks: true,
-
-  // Global setup for danfojs localStorage requirement
-  globals: {
-    localStorage: {},
-  },
 };

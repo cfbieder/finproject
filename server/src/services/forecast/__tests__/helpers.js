@@ -6,7 +6,7 @@
  * without requiring a database connection.
  */
 
-const dfd = require("danfojs-node");
+const { LabelFrame } = require("../frame");
 
 /**
  * Creates a mock scenario config matching FCAssump format
@@ -92,7 +92,7 @@ function createMockAssumptions(scenario, overrides = {}) {
     EUR: overrides.eur || defaultEUR,
   };
 
-  return new dfd.DataFrame(data, { index: years });
+  return LabelFrame.fromColumns(data, { index: years });
 }
 
 /**
@@ -107,10 +107,7 @@ function createMockCategories() {
  */
 function createMockCategoriesDF(categoryNames, years) {
   const columns = [years[0] - 1, ...years];
-  const matrix = categoryNames.map(() => new Array(columns.length).fill(0));
-  const df = new dfd.DataFrame(matrix, { columns, index: categoryNames });
-  df.config.setMaxRow(1000);
-  return df;
+  return LabelFrame.zeros(categoryNames, columns);
 }
 
 /**
