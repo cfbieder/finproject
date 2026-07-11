@@ -10,6 +10,13 @@ Living plan for the Fin project — open Change Requests, known issues, ongoing 
 
 ### 1.1 Open / In-Progress
 
+<a id="cr042"></a>
+- **CR042 — [UI Look & Feel Modernization](CRs/CR042_UI_LOOK_AND_FEEL.md)** — *🟢 OPEN — decisions settled 2026-07-11 (same-day /question session), ready to implement; no code yet.* Verdict: polished shell, ~4 generations of pages underneath. Themes: token gaps, IA consolidation, Home net-worth hero, `<DataTable>`/`<Modal>` primitives **with CI adoption guardrails**, chart-theme convergence, Forecast inline-style migration. **Decisions:** refine Mindful Minimalist (no rebrand); **report consolidation approved** (Balances 4→1, Cash Flow 2→1, Budget 3→1, balances-first with checkpoint — closes the §2 owner-decision item); sage stays brand / money-positive moves to distinct emerald; selective Radix (Dialog/Menu/Select) for the Modal, DataTable hand-rolled.
+<a id="cr043"></a>
+- **CR043 — [Code Structure & Architecture Improvement Program](CRs/CR043_CODE_STRUCTURE_PROGRAM.md)** — *🟢 OPEN — decisions settled 2026-07-11; **Phase 1.3 (N2) DONE same day**: `generateForecast` now transactional + advisory-locked, byte-identical parity on dev, +3 DB-backed tests (262 backend green), engine ~4.5× faster as a side effect. Rest of program not started; per-item model guidance in the CR (§Model guidance).* 14 new findings beyond the documented debt — highest severity: **frontend Vitest suite never runs in CI** (N1, ~5-line fix), **`generateForecast` non-transactional + no concurrency lock** (N2), docker.sock mounted into fin-server (N4), dead `@tensorflow/tfjs-node`/`arquero` deps (N3), no migration ledger (N11). Corrects stale §5.1 entries. Sequenced Phases 0–4: safety nets → backend guardrails → extraction → frontend consolidation. **Decisions:** migration runner pulled forward from CR027A into v3 (approved); TanStack Query approved (useCoa first, then shared report hooks for mobile dedup); Radix reconciled as selective-only.
+<a id="cr044"></a>
+- **CR044 — [Productization & Marketability Assessment](CRs/CR044_PRODUCTIZATION_MARKETABILITY.md)** — *✅ DECIDED 2026-07-11 — owner chose **stay personal**; CR retained as decision record. Excludes auth/multi-tenancy (CR027).* Differentiator validated (only self-hosted ledger+forecast+private-AI combo) but the audience is a niche-of-a-niche; Maybe Finance (54k stars, archived) is the cautionary tale. Release-only moves (rename, fresh-history repo, LICENSE/README, collateral) dropped; **no-regret moves survive in §2 backlog**: pluggable LLM provider, SimpleFIN/CSV-first connectivity, demo-data seed (migration runner already in CR043 P1.1). Reopen only if motivation changes or CR027's invite-only sharing proves insufficient.
+
 <a id="cr041"></a>
 - **CR041 — [Module Ownership-Gated Expenses/Income + Edit-Form Regrouping](CRs/CR041_MODULE_OWNERSHIP_GATING.md)** — *✅ RELEASED v3.0.62 (2026-07-11); no migration. Complete — detail in the v3.0.62 entry below.* Future-purchase assets (MV 0 + future Invest) no longer accrue `expense_amount`/`income_amount` from base year: streams start at first ownership, 50% in the acquisition year (mirror of Full-disposal); yield-spread income untouched (avg-MV-driven). `FCModulesEdit` regrouped into titled General/Valuation/Expenses/Income/Tax sections. +7 Jest (259) / +4 Vitest (121); verified live on dev (half-year −6,622.88 on a 12k/500k test purchase, purchase-year BS reconciles); no migration; no existing dev/prod module changes numbers. Detail in the CR.
 
@@ -167,7 +174,10 @@ Small fixes, refactors, and one-off cleanups that don't warrant their own CR fil
 - [x] **`/refresh-ps` rename** — *Done v3.0.57 (2026-07-03):* route `/refresh-feeds` (+ redirect from the old URL), component `RefreshFeeds.jsx`, "Legacy PocketSmith records" label; internal CSS class names kept.
 - [x] **UX polish batch** — *Closed v3.0.57 (2026-07-03):* `/ui-preview` hidden from all nav surfaces (`showInNav:false`, honored by `getRoutesByCategory`). The other two items were **false findings** on inspection: the COA single-delete confirm already renders a fallback "Are you sure…" + cannot-be-undone warning (`FCExpConfirmDeleteModal` defaults), and `.confirm-modal__message` already has `white-space: pre-line` so TransferAnalysis's `\n\n` copy renders as paragraphs.
 - [ ] **Forecast inline-style migration** (2026-07-03): 571 `style={{…}}` occurrences concentrated in Forecast (`pages/FCLineMapping.jsx` 98, `FCReviewTable`/`FCAIReviewDrawer` 57 each; `FCStepNav` fully inline incl. JS hover handlers) bypass the 168-token design system — the likely source of the next dark-mode defect batch. Migrate Forecast to token CSS + add a lint guard.
-- [ ] **Report-page consolidation** (2026-07-03, **owner decision — promote to CR if approved**): merge the four balance views (`/balance`, `/balance-trends`, `/balance-sheet-periods`, `/balance-chart`) into one report with a view switcher (they already share `periodHelpers.js`); same for the two cash-flow pages and the three budget-vs-actual pages. Cuts nav clutter and CSS surface; needs the owner's read on whether separate pages are actually preferred.
+- [x] **Report-page consolidation** — *Decided 2026-07-11: approved (all three merges) and absorbed into [CR042](CRs/CR042_UI_LOOK_AND_FEEL.md) U5* — Balances 4→1, Cash Flow 2→1, Budget-vs-Actual 3→1, balances-first with an owner checkpoint after the first merge.
+- [ ] **Pluggable LLM provider** (2026-07-11, CR044 no-regret move #2): OpenAI-compatible base-URL + model config for AI Review/Compare (covers Ollama/LM Studio/vLLM/cloud keys); the private ocr-llm gateway becomes one adapter. Removes a personal single point of failure; call surface isolated in the aiReview service.
+- [ ] **SimpleFIN adapter in the bank-feed service** (2026-07-11, CR044 no-regret move #3): add a SimpleFIN ($15/yr) upstream behind the existing `/v1` contract as a fintable de-risk; CSV/manual (CR036) stays the universal fallback.
+- [ ] **Demo/seed dataset generator** (2026-07-11, CR044 no-regret move #5): script producing a small fictional COA + transactions + budget + forecast scenario; reusable later by CR027D's demo tenant.
 - [ ] **Route-level tests for `forecast.js`/`budget.js`** (2026-07-03): only 2 of 16 route files have tests, and the two biggest, logic-heaviest routes (1,441 / 912 lines, SQL in-route) have none — add coverage **before** the §5.1 route→service extraction so the split is safe.
 - [ ] **TypeScript migration** (per §4.4) — gradual: utilities → hooks/components → pages.
 - [ ] **API design pass**: consistent `{ success, data, meta }` envelope, pagination, structured logging via Pino.
@@ -233,7 +243,7 @@ Small fixes, refactors, and one-off cleanups that don't warrant their own CR fil
 
 | Decision | Choice |
 |----------|--------|
-| Component library | Radix UI + custom styling |
+| Component library | ~~Radix UI + custom styling~~ → **Selective Radix only** (decided 2026-07-11, CR042/CR043): Dialog/DropdownMenu/Select under existing tokens for the CR042 U4 `<Modal>`; `<DataTable>` and everything else stays hand-rolled |
 | Charting | Recharts |
 | Mobile support | Responsive breakpoints + dedicated `/m/*` shell |
 | State | Enhanced React Context (upgrade to Zustand if complexity grows) |
@@ -243,6 +253,8 @@ Small fixes, refactors, and one-off cleanups that don't warrant their own CR fil
 ## 5. Backend Improvement Themes (ongoing)
 
 ### 5.1 Service Layer Complexity
+
+> **⚠ Stale as of 2026-07-11 — see [CR043](CRs/CR043_CODE_STRUCTURE_PROGRAM.md) §Verification:** `cashFlowFetcher.js`/`balanceSheetFetcher.js` no longer exist (their SQL moved *into* `routes/reports.js`, 629 lines); `fcbuilder-module.js` is now 578 lines, `fcbuilder-incexp.js` 271; `services/forecast/index.js` (895) is the biggest service file and missing below. Refreshing this table is CR043 Phase 0.5.
 
 | Service | Lines | Notes |
 |---------|-------|-------|
@@ -295,4 +307,4 @@ Chronological log of substantive infrastructure / behavioural changes (one line 
 
 ---
 
-*Last updated: 2026-07-03 (design review → CR037/CR038/CR039 + backlog additions)*
+*Last updated: 2026-07-11 (three-lens review → CR042/CR043 opened + decisions settled, CR044 decided "stay personal"; §5.1 stale-marker; no-regret backlog items added)*

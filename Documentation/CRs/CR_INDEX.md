@@ -12,13 +12,13 @@ Each CR file's first line carries its status and links back to the matching anch
 
 | Status | Count | CRs |
 |--------|------:|-----|
-| COMPLETED | 30 | CR001–CR013, CR016, CR017, CR018, CR024, CR025, CR026, CR028, CR030, CR031, CR032, CR033, CR034, CR035, CR036, CR037, CR038, CR039 |
+| COMPLETED | 33 | CR001–CR013, CR016, CR017, CR018, CR024, CR025, CR026, CR028, CR030, CR031, CR032, CR033, CR034, CR035, CR036, CR037, CR038, CR039, CR040, CR041, CR044 *(decision record)* |
 | IN-PROGRESS | 3 | CR019, CR022, CR023 |
-| OPEN | 2 | CR020, CR021 |
+| OPEN | 4 | CR020, CR021, CR042, CR043 |
 | PLANNED | 2 | CR027 *(v4, umbrella)*, CR029 |
 | SUPERSEDED | 1 | CR014 |
 | OBSOLETE | 1 | CR015 |
-| **Total** | **37** | |
+| **Total** | **44** | |
 
 ## All CRs
 
@@ -65,3 +65,6 @@ Each CR file's first line carries its status and links back to the matching anch
 | [CR039](CR039_FORECAST_ASSUMPTIONS_TO_DB.md) | COMPLETED | v3 | Forecast Assumptions to Postgres | Retired the `FCAssump.json` dual source: `forecast_assumptions` document store (migration 034, `json` for byte-parity), byte-identical API + engine checksum parity verified; CSV-gating dropped (audit trail reads them). Clears CR027's assumptions prerequisite (v3.0.58). |
 | [CR040](CR040_FORECAST_SCENARIO_COMPARE.md) | COMPLETED | v3 | Forecast Scenario Compare | `/forecast-compare`: pick two scenarios, delta KPIs + P&L/BS delta tables (client-side diff reconciling with Review incl. bank running balance), recharts A-vs-B lines + diverging delta bars (validated palettes), deterministic movers commentary + on-demand local-LLM narrative with follow-ups (aiReview `compareWith`, compare prompt, no action blocks; migration 035 `compare_scenario_id`). Released v3.0.60 (2026-07-10); v3.0.61 fix — one-scenario-only accounts (disposed/added assets) now diff as zero-not-null so they render. |
 | [CR041](CR041_MODULE_OWNERSHIP_GATING.md) | COMPLETED | v3 | Module Ownership-Gated Expenses/Income + Edit-Form Regrouping | BS-module expense/income streams start at first ownership (auto-derived from MV/first Invest; 50% in the acquisition year, mirroring Full-disposal) instead of base year — fixes future-purchase assets accruing running costs pre-purchase; `FCModulesEdit` fields regrouped into titled General/Valuation/Expenses/Income/Tax sections. No migration (v3.0.62). |
+| [CR042](CR042_UI_LOOK_AND_FEEL.md) | OPEN | v3 | UI Look & Feel Modernization | 2026-07-11 design review: token gaps (dead tokens, no type scale, green does 4 jobs), IA consolidation (35 pages → ≤8 nav items), Home net-worth hero, DataTable/Modal primitives with adoption guardrails, chart-theme convergence; direction = refine Mindful Minimalist, not rebrand. |
+| [CR043](CR043_CODE_STRUCTURE_PROGRAM.md) | OPEN | v3 | Code Structure & Architecture Improvement Program | 2026-07-11 review: 14 new findings (vitest never in CI; non-transactional forecast rebuild; docker.sock mount; dead TF/arquero deps; migration runner pulled from CR027A) + verified-debt corrections, sequenced into Phases 0–4 (safety nets → guardrails → extraction → frontend consolidation). |
+| [CR044](CR044_PRODUCTIZATION_MARKETABILITY.md) | COMPLETED | v3 | Productization & Marketability Assessment | 2026-07-11 consulting memo + decision gate: market scan validated the forecast+privacy differentiator but the audience is a niche-of-a-niche; **owner decided same day: stay personal** — release-only moves dropped, no-regret moves (pluggable LLM, SimpleFIN, demo seed, migration runner) kept as backlog. Retained as decision record. |
