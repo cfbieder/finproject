@@ -1,5 +1,33 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useMemo } from "react";
+import { useQuery } from "@tanstack/react-query";
 import Rest from "../js/rest.js";
+
+// Stable empty references so derived useMemos don't churn while data is loading.
+const EMPTY_OBJ = {};
+const EMPTY_ARR = [];
+
+/**
+ * Fetch + normalize the chart of accounts (traits + P&L/BS trees) in one shot.
+ * Shared as a single TanStack Query so every useCoa consumer reuses one fetch.
+ */
+async function fetchCoa() {
+  const [traitsData, plData, bsData] = await Promise.all([
+    Rest.fetchAccountTraitsV2(),
+    Rest.fetchAccountTreeV2({ section: "profit_loss" }),
+    Rest.fetchAccountTreeV2({ section: "balance_sheet" }),
+  ]);
+
+  // Extract children of the section root so the tree starts at Income/Expense
+  // (P&L) or Assets/Liabilities (BS).
+  const plRoot = plData.find((n) => n.name === "Profit & Loss Accounts");
+  const bsRoot = bsData.find((n) => n.name === "Balance Sheet Accounts");
+
+  return {
+    traits: traitsData || {},
+    plTree: plRoot?.children ?? plData,
+    bsTree: bsRoot?.children ?? bsData,
+  };
+}
 
 /**
  * Recursive helper: find a node by name in a { name, children } tree.
@@ -36,54 +64,16 @@ const collectLeafNames = (nodes, results = []) => {
  * async API calls to the v2 accounts endpoints.
  */
 export function useCoa() {
-  const [traits, setTraits] = useState({});
-  const [plTree, setPlTree] = useState([]);
-  const [bsTree, setBsTree] = useState([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState("");
+  const { data, isPending, error: queryError } = useQuery({
+    queryKey: ["coa"],
+    queryFn: fetchCoa,
+  });
 
-  useEffect(() => {
-    let isMounted = true;
-
-    const load = async () => {
-      setLoading(true);
-      setError("");
-      try {
-        const [traitsData, plData, bsData] = await Promise.all([
-          Rest.fetchAccountTraitsV2(),
-          Rest.fetchAccountTreeV2({ section: "profit_loss" }),
-          Rest.fetchAccountTreeV2({ section: "balance_sheet" }),
-        ]);
-        if (!isMounted) return;
-
-        setTraits(traitsData || {});
-
-        // Extract children of the section root so the tree starts at
-        // Income/Expense (P&L) or Assets/Liabilities (BS)
-        const plRoot = plData.find(
-          (n) => n.name === "Profit & Loss Accounts"
-        );
-        setPlTree(plRoot?.children ?? plData);
-
-        const bsRoot = bsData.find(
-          (n) => n.name === "Balance Sheet Accounts"
-        );
-        setBsTree(bsRoot?.children ?? bsData);
-      } catch (err) {
-        if (isMounted) {
-          console.error("[useCoa] Failed to load COA data:", err);
-          setError(err.message || "Failed to load COA data");
-        }
-      } finally {
-        if (isMounted) setLoading(false);
-      }
-    };
-
-    load();
-    return () => {
-      isMounted = false;
-    };
-  }, []);
+  const traits = data?.traits ?? EMPTY_OBJ;
+  const plTree = data?.plTree ?? EMPTY_ARR;
+  const bsTree = data?.bsTree ?? EMPTY_ARR;
+  const loading = isPending;
+  const error = queryError ? queryError.message || "Failed to load COA data" : "";
 
   // ---------------------------------------------------------------------------
   // Derived: Set of expense account names (for sign normalization)
