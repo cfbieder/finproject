@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { formatAmount } from "./utils/fcReviewUtils.js";
+import Modal from "../../components/Modal/Modal.jsx";
 import FCReviewAuditTrailModal from "./FCReviewAuditTrailModal.jsx";
 import FCReviewAdjustTransferModal from "./FCReviewAdjustTransferModal.jsx";
 
@@ -23,10 +24,6 @@ export default function FCReviewBreakdownModal({
   scenarioName,
   onTransferComplete,
 }) {
-  if (!breakdownModal?.isOpen) {
-    return null;
-  }
-
   const { title, amount, entryTotal, entries = [] } = breakdownModal || {};
   const hasEntries = entries.length > 0;
   const [auditTrailModal, setAuditTrailModal] = useState(initialAuditState);
@@ -139,11 +136,12 @@ export default function FCReviewBreakdownModal({
 
   return (
     <>
-      <div
-        className="trans-budget-edit-modal-overlay"
-        role="dialog"
-        aria-modal="true"
-        aria-label="Forecast entry breakdown"
+      <Modal
+        open={Boolean(breakdownModal?.isOpen)}
+        onClose={onClose}
+        bare
+        closeOnOutside={false}
+        ariaLabel="Forecast entry breakdown"
       >
         <div
           className="trans-budget-edit-modal"
@@ -331,7 +329,7 @@ export default function FCReviewBreakdownModal({
             </p>
           )}
         </div>
-      </div>
+      </Modal>
       <FCReviewAuditTrailModal
         auditModal={auditTrailModal}
         onClose={handleCloseAuditModal}

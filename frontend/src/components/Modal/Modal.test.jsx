@@ -48,6 +48,19 @@ describe("Modal", () => {
     expect(onClose).toHaveBeenCalled();
   });
 
+  it("bare mode renders the caller's card without the default chrome", () => {
+    render(
+      <Modal open onClose={() => {}} bare ariaLabel="Delete thing">
+        <div className="my-card">Card body</div>
+      </Modal>
+    );
+    // Caller card is present; no default ✕ close button or header chrome.
+    expect(screen.getByText("Card body")).toBeTruthy();
+    expect(screen.queryByRole("button", { name: "Close" })).toBeNull();
+    // Still a proper dialog with an accessible name.
+    expect(screen.getByRole("dialog", { name: "Delete thing" })).toBeTruthy();
+  });
+
   it("suppresses the ✕ and Escape close when not dismissable (busy)", () => {
     const onClose = vi.fn();
     render(

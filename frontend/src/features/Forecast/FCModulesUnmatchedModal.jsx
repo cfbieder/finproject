@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import Rest from "../../js/rest";
 import EmptyState from "../../components/EmptyState.jsx";
+import Modal from "../../components/Modal/Modal.jsx";
 
 /**
  * Modal for viewing and creating modules from unmatched items.
@@ -100,7 +101,14 @@ export default function FCModulesUnmatchedModal({
   }
 
   return (
-    <div className="fc-scenarios-modal-overlay">
+    <Modal
+      open={isOpen}
+      onClose={onClose}
+      bare
+      dismissable={!creating}
+      closeOnOutside={false}
+      ariaLabel="Unmatched Items"
+    >
       <div className="fc-scenarios-modal">
         <h3 className="fc-scenarios-modal__title">Unmatched Items</h3>
         <div
@@ -216,6 +224,6 @@ export default function FCModulesUnmatchedModal({
           )}
         </div>
       </div>
-    </div>
+    </Modal>
   );
 }

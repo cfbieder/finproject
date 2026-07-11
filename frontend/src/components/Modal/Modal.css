@@ -35,6 +35,17 @@
   width: min(720px, calc(100vw - 3rem));
 }
 
+/* Bare mode: position + focus context only; the caller's own card supplies the
+   background, border, padding, and width (used for the migrated fc-*-modals). */
+.modal--bare {
+  position: fixed;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  max-height: calc(100vh - 2rem);
+  z-index: 41;
+}
+
 .modal__header {
   display: flex;
   align-items: flex-start;

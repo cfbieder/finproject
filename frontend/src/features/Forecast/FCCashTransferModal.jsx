@@ -1,6 +1,7 @@
 import { useState, useEffect, useMemo } from "react";
 import { useModules } from "./hooks/useModules.js";
 import Rest from "../../js/rest.js";
+import Modal from "../../components/Modal/Modal.jsx";
 
 export default function FCCashTransferModal({
   isOpen,
@@ -114,11 +115,13 @@ export default function FCCashTransferModal({
   const isFormValid = amount && selectedModule && !isNaN(parseFloat(amount));
 
   return (
-    <div
-      className="trans-budget-edit-modal-overlay"
-      role="dialog"
-      aria-modal="true"
-      aria-label="Cash Transfer"
+    <Modal
+      open={isOpen}
+      onClose={onClose}
+      bare
+      dismissable={!isSaving}
+      closeOnOutside={false}
+      ariaLabel="Cash Transfer"
     >
       <div
         className="trans-budget-edit-modal"
@@ -324,6 +327,6 @@ export default function FCCashTransferModal({
           </div>
         </div>
       </div>
-    </div>
+    </Modal>
   );
 }

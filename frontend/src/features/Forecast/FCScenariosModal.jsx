@@ -29,6 +29,7 @@
  */
 
 import { BarChart3, Trash2, AlertTriangle, Info } from "lucide-react";
+import Modal from "../../components/Modal/Modal.jsx";
 import "./FCScenariosModal.css";
 
 export default function FCScenariosModal({
@@ -76,7 +77,12 @@ export default function FCScenariosModal({
   };
 
   return (
-    <div className="fc-scenarios-modal-overlay" onClick={closeModal}>
+    <Modal
+      open={Boolean(modalState.type)}
+      onClose={closeModal}
+      bare
+      ariaLabel="Scenario settings"
+    >
       <div className="fc-scenarios-modal" onClick={(e) => e.stopPropagation()}>
         {modalState.type === "editInflation" && (
           <>
@@ -455,6 +461,6 @@ export default function FCScenariosModal({
           </>
         )}
       </div>
-    </div>
+    </Modal>
   );
 }

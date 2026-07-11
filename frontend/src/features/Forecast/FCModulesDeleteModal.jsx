@@ -1,3 +1,4 @@
+import Modal from "../../components/Modal/Modal.jsx";
 import "./FCExpDeleteModal.css";
 
 /**
@@ -22,16 +23,15 @@ export default function FCModulesDeleteModal({
   onClose,
   onDelete,
 }) {
-  if (!isOpen) {
-    return null;
-  }
-
   return (
-    <div className="fc-delete-modal-overlay" onClick={onClose}>
-      <div
-        className="fc-delete-modal"
-        onClick={(event) => event.stopPropagation()}
-      >
+    <Modal
+      open={isOpen}
+      onClose={onClose}
+      bare
+      dismissable={!deleteSaving}
+      ariaLabel="Delete Module"
+    >
+      <div className="fc-delete-modal">
         <div className="fc-delete-modal__icon-container">
           <div className="fc-delete-modal__icon">
             <svg
@@ -128,6 +128,6 @@ export default function FCModulesDeleteModal({
           </button>
         </div>
       </div>
-    </div>
+    </Modal>
   );
 }

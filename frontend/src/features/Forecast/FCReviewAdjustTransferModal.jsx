@@ -2,6 +2,7 @@ import { useState, useEffect, useMemo } from "react";
 import { AlertTriangle } from "lucide-react";
 import { formatAmount } from "./utils/fcReviewUtils.js";
 import Rest from "../../js/rest.js";
+import Modal from "../../components/Modal/Modal.jsx";
 import "./FCReviewAdjustTransferModal.css";
 
 export default function FCReviewAdjustTransferModal({
@@ -180,11 +181,13 @@ export default function FCReviewAdjustTransferModal({
   }
 
   return (
-    <div
-      className="trans-budget-edit-modal-overlay"
-      role="dialog"
-      aria-modal="true"
-      aria-label="Modify Transfer"
+    <Modal
+      open={isOpen}
+      onClose={onClose}
+      bare
+      dismissable={!isSaving}
+      closeOnOutside={false}
+      ariaLabel="Modify Transfer"
     >
       <div className="trans-budget-edit-modal fc-review-transfer-modal">
         {/* Header */}
@@ -448,6 +451,6 @@ export default function FCReviewAdjustTransferModal({
           </div>
         )}
       </div>
-    </div>
+    </Modal>
   );
 }

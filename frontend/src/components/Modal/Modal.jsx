@@ -32,10 +32,49 @@ export default function Modal({
   hideTitle = false,
   dismissable = true,
   ariaLabel,
+  bare = false,
+  closeOnOutside = true,
 }) {
   const guard = (event) => {
     if (!dismissable) event.preventDefault();
   };
+  const guardOutside = (event) => {
+    if (!dismissable || !closeOnOutside) event.preventDefault();
+  };
+
+  // `bare` mode: provide only Radix's overlay + focus-trap + ESC + portal, and
+  // let the caller's own card own its look. Used to migrate the many bespoke
+  // Forecast overlays (fc-*-modal) onto the primitive without restyling them —
+  // they gain a11y (focus trap, ESC, correct ARIA) while staying visually 1:1.
+  if (bare) {
+    return (
+      <Dialog.Root
+        open={open}
+        onOpenChange={(next) => {
+          if (!next && dismissable) onClose?.();
+        }}
+      >
+        <Dialog.Portal>
+          <Dialog.Overlay className="modal__overlay" />
+          <Dialog.Content
+            className="modal--bare"
+            aria-label={ariaLabel || title}
+            onEscapeKeyDown={guard}
+            onPointerDownOutside={guardOutside}
+            onInteractOutside={guardOutside}
+          >
+            {/* Radix requires a Title for a11y; the caller's card supplies the
+                visible heading, so this one is screen-reader-only. */}
+            <Dialog.Title className="modal__title modal__title--hidden">
+              {ariaLabel || title || "Dialog"}
+            </Dialog.Title>
+            {children}
+          </Dialog.Content>
+        </Dialog.Portal>
+      </Dialog.Root>
+    );
+  }
+
   return (
     <Dialog.Root
       open={open}
@@ -49,8 +88,8 @@ export default function Modal({
           className={`modal modal--${size}`}
           aria-label={hideTitle ? ariaLabel || title : undefined}
           onEscapeKeyDown={guard}
-          onPointerDownOutside={guard}
-          onInteractOutside={guard}
+          onPointerDownOutside={guardOutside}
+          onInteractOutside={guardOutside}
         >
           <div className="modal__header">
             <Dialog.Title

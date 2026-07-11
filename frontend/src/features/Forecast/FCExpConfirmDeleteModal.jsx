@@ -1,3 +1,4 @@
+import Modal from "../../components/Modal/Modal.jsx";
 import "./FCModulesEdit.css";
 import "./FCExpModal.css";
 import "./FCExpDeleteModal.css";
@@ -33,18 +34,19 @@ export default function FCExpConfirmDeleteModal({
   confirmLabel = "Delete",
   confirmBusyLabel,
 }) {
-  if (!isOpen) return null;
-
   const entryLabel =
     itemLabel || selectedEntry?.Name || selectedEntry?.Account || "this entry";
   const busyLabel = confirmBusyLabel || `${confirmLabel}ing...`;
 
   return (
-    <div className="fc-delete-modal-overlay" onClick={onClose}>
-      <div
-        className="fc-delete-modal"
-        onClick={(event) => event.stopPropagation()}
-      >
+    <Modal
+      open={isOpen}
+      onClose={onClose}
+      bare
+      dismissable={!isSaving}
+      ariaLabel={title}
+    >
+      <div className="fc-delete-modal">
         <div className="fc-delete-modal__icon-container">
           <div className="fc-delete-modal__icon">
             <svg width="48" height="48" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
@@ -109,6 +111,6 @@ export default function FCExpConfirmDeleteModal({
           </button>
         </div>
       </div>
-    </div>
+    </Modal>
   );
 }

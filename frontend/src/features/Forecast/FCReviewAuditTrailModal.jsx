@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useRef } from "react";
 import PropTypes from "prop-types";
+import Modal from "../../components/Modal/Modal.jsx";
 
 /**
  * Formats a numeric value for display.
@@ -54,11 +55,7 @@ const isNumericColumn = (header) => {
 };
 
 export default function FCReviewAuditTrailModal({ auditModal, onClose }) {
-  if (!auditModal?.isOpen) {
-    return null;
-  }
-
-  const { title, headers = [], rows = [], loading, error } = auditModal;
+  const { title, headers = [], rows = [], loading, error } = auditModal || {};
   const topScrollRef = useRef(null);
   const topScrollInnerRef = useRef(null);
   const tableScrollRef = useRef(null);
@@ -112,19 +109,12 @@ export default function FCReviewAuditTrailModal({ auditModal, onClose }) {
   }, [headers, filteredRows]);
 
   return (
-    <div
-      className="trans-budget-edit-modal-overlay"
-      role="dialog"
-      aria-modal="true"
-      aria-label="Audit trail details"
-      style={{
-        backdropFilter: "blur(3px)",
-        backgroundColor: "rgba(0, 0, 0, 0.5)",
-        display: "flex",
-        alignItems: "center",
-        justifyContent: "center",
-        padding: "2rem 0",
-      }}
+    <Modal
+      open={Boolean(auditModal?.isOpen)}
+      onClose={onClose}
+      bare
+      closeOnOutside={false}
+      ariaLabel="Audit trail details"
     >
       <div
         className="trans-budget-edit-modal"
@@ -401,7 +391,7 @@ export default function FCReviewAuditTrailModal({ auditModal, onClose }) {
           }
         }
       `}</style>
-    </div>
+    </Modal>
   );
 }
 
