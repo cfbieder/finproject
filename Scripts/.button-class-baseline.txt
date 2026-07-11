@@ -42,6 +42,9 @@
 .coa-toolbar-btn--delete
 .coa-toolbar-btn--edit
 .coa-toolbar-btn--ghost
+.confirm-modal__btn
+.confirm-modal__btn--danger
+.confirm-modal__btn--primary
 .fc-delete-modal__button
 .fc-delete-modal__button--cancel
 .fc-delete-modal__button--delete
@@ -91,6 +94,7 @@
 .qi-btn-danger
 .qi-btn-primary
 .realization-toolbar__action-button
+.recon-btn--secondary
 .refresh-ps-btn--accept-all
 .refresh-ps-btn--action
 .refresh-ps-btn--bulk-category
@@ -100,14 +104,13 @@
 .report-toolbar__button--primary
 .transaction-modal__close-button
 .transaction-modal__header-button
+.transaction-summary-modal__close-button
+.transaction-summary-modal__header-button
+.transaction-summary-modal__toggle-button
+.transaction-summary-modal__toggle-button--active
 .trans-budget-filter__delete-button
 .trans-budget-filter__delete-button--active
 .trans-budget-table__accept-btn
-.trans-budget-table__action-btn
-.trans-budget-table__action-btn--accept
-.trans-budget-table__action-btn--category
-.trans-budget-table__action-btn--neutralize
-.trans-budget-table__action-btn--split
 .trans-budget-table__sort-button
 .transfer-analysis-link-btn
 .transfer-analysis-link-btn--secondary

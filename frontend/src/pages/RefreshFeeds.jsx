@@ -17,6 +17,8 @@ import TransactionTable from "../features/Transaction/TransactionTable.jsx";
 import CategorySelector from "../components/CategorySelector/CategorySelector.jsx";
 import { AccountPicker, buildHierarchyOptions } from "../components/AccountPicker/AccountPicker.jsx";
 import { useCoa } from "../hooks/useCoa.js";
+import Modal from "../components/Modal/Modal.jsx";
+import DataTable from "../components/DataTable/DataTable.jsx";
 import "./PageLayout.css";
 import EmptyState from "../components/EmptyState.jsx";
 import "./RefreshFeeds.css";
@@ -883,6 +885,49 @@ export default function RefreshFeeds() {
       : "";
   };
 
+  // Columns for the read-only New / Modified tables (shared shape, tolerant of
+  // both PascalCase and snake_case field names coming off the two endpoints).
+  const readonlyTxnColumns = [
+    {
+      key: "date",
+      header: "Date",
+      sortable: true,
+      render: (t) => formatDate(t.Date ?? t.transaction_date ?? t.date),
+      sortValue: (t) => t.Date ?? t.transaction_date ?? t.date ?? "",
+    },
+    {
+      key: "description",
+      header: "Description1",
+      render: (t) => t.Description1 ?? t.description1 ?? t.description ?? "",
+    },
+    {
+      key: "amount",
+      header: "Amount",
+      numeric: true,
+      sortable: true,
+      render: (t) => formatAmount(t.Amount ?? t.amount),
+      sortValue: (t) => Number(t.Amount ?? t.amount),
+    },
+    {
+      key: "currency",
+      header: "Currency",
+      render: (t) => t.Currency ?? t.currency ?? "",
+    },
+    {
+      key: "account",
+      header: "Account",
+      sortable: true,
+      render: (t) => t.Account ?? t.account_name ?? t.account ?? "",
+      sortValue: (t) => t.Account ?? t.account_name ?? t.account ?? "",
+    },
+    {
+      key: "category",
+      header: "Category",
+      render: (t) => t.Category ?? t.category_name ?? t.category ?? "",
+    },
+  ];
+  const txnRowKey = (t, i) => t.ID ?? t.ps_id ?? t._id ?? i;
+
   return (
     <>
       <main className="page-main refresh-ps-layout">
@@ -968,37 +1013,11 @@ export default function RefreshFeeds() {
             ) : newTransactions.length === 0 ? (
               <EmptyState variant="upload" message="No new transactions were found in the latest import." />
             ) : (
-              <div className="refresh-txn-table-wrapper">
-                <table className="balance-report-table">
-                  <thead>
-                    <tr>
-                      <th>Date</th>
-                      <th>Description1</th>
-                      <th>Amount</th>
-                      <th>Currency</th>
-                      <th>Account</th>
-                      <th>Category</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {newTransactions.map((txn, index) => (
-                      <tr key={txn.ID ?? txn.ps_id ?? txn._id ?? index}>
-                        <td>{formatDate(txn.Date ?? txn.transaction_date ?? txn.date)}</td>
-                        <td>
-                          {txn.Description1 ??
-                            txn.description1 ??
-                            txn.description ??
-                            ""}
-                        </td>
-                        <td>{formatAmount(txn.Amount ?? txn.amount)}</td>
-                        <td>{txn.Currency ?? txn.currency ?? ""}</td>
-                        <td>{txn.Account ?? txn.account_name ?? txn.account ?? ""}</td>
-                        <td>{txn.Category ?? txn.category_name ?? txn.category ?? ""}</td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
+              <DataTable
+                columns={readonlyTxnColumns}
+                rows={newTransactions}
+                rowKey={txnRowKey}
+              />
             )}
           </section>
         )}
@@ -1018,37 +1037,11 @@ export default function RefreshFeeds() {
             ) : modifiedTransactions.length === 0 ? (
               <EmptyState variant="upload" message="No modified transactions were found in the latest update." />
             ) : (
-              <div className="refresh-txn-table-wrapper">
-                <table className="balance-report-table">
-                  <thead>
-                    <tr>
-                      <th>Date</th>
-                      <th>Description1</th>
-                      <th>Amount</th>
-                      <th>Currency</th>
-                      <th>Account</th>
-                      <th>Category</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {modifiedTransactions.map((txn, index) => (
-                      <tr key={txn.ID ?? txn.ps_id ?? txn._id ?? index}>
-                        <td>{formatDate(txn.Date ?? txn.transaction_date ?? txn.date)}</td>
-                        <td>
-                          {txn.Description1 ??
-                            txn.description1 ??
-                            txn.description ??
-                            ""}
-                        </td>
-                        <td>{formatAmount(txn.Amount ?? txn.amount)}</td>
-                        <td>{txn.Currency ?? txn.currency ?? ""}</td>
-                        <td>{txn.Account ?? txn.account_name ?? txn.account ?? ""}</td>
-                        <td>{txn.Category ?? txn.category_name ?? txn.category ?? ""}</td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
+              <DataTable
+                columns={readonlyTxnColumns}
+                rows={modifiedTransactions}
+                rowKey={txnRowKey}
+              />
             )}
           </section>
         )}
@@ -1135,39 +1128,16 @@ export default function RefreshFeeds() {
               acceptingId={acceptingId}
             />
             {transferEntry && (
-              <div
-                className="trans-budget-edit-modal-overlay"
-                role="dialog"
-                aria-modal="true"
-                aria-label="Transfer to account"
-              >
-                <div className="trans-budget-edit-modal">
-                  <h3>Transfer to account</h3>
-                  <p className="refresh-ps-toolbar__desc">
-                    Creates an offsetting entry in the chosen account (the negated
-                    amount), making this a net-worth-neutral transfer. Both legs
-                    are accepted.
-                  </p>
-                  <label className="trans-budget-edit-modal__field trans-budget-edit-modal__field--full-row">
-                    <span>Destination account</span>
-                    <AccountPicker
-                      value={transferTargetId}
-                      options={accountOptions.filter(
-                        // Balance-sheet leaves only: a net-worth-neutral transfer
-                        // must offset to a real asset/liability, not a P&L account.
-                        (o) =>
-                          o.isLeaf &&
-                          o.section === "balance_sheet" &&
-                          o.id !== transferEntry.account_id
-                      )}
-                      onChange={setTransferTargetId}
-                      placeholder="Search accounts…"
-                      autoFocus
-                    />
-                  </label>
-                  <div className="trans-budget-edit-modal__actions">
+              <Modal
+                open
+                onClose={handleTransferCancel}
+                title="Transfer to account"
+                description="Creates an offsetting entry in the chosen account (the negated amount), making this a net-worth-neutral transfer. Both legs are accepted."
+                dismissable={!isTransferring}
+                footer={
+                  <>
                     <button
-                      className="generate-report-button"
+                      className="btn btn--outline"
                       type="button"
                       onClick={handleTransferCancel}
                       disabled={isTransferring}
@@ -1175,142 +1145,140 @@ export default function RefreshFeeds() {
                       Cancel
                     </button>
                     <button
-                      className="generate-report-button"
+                      className="btn btn--primary"
                       type="button"
                       onClick={handleTransferConfirm}
                       disabled={isTransferring || !transferTargetId}
                     >
                       {isTransferring ? "Saving…" : "Create transfer"}
                     </button>
-                  </div>
-                </div>
-              </div>
+                  </>
+                }
+              >
+                <label className="trans-budget-edit-modal__field trans-budget-edit-modal__field--full-row">
+                  <span>Destination account</span>
+                  <AccountPicker
+                    value={transferTargetId}
+                    options={accountOptions.filter(
+                      // Balance-sheet leaves only: a net-worth-neutral transfer
+                      // must offset to a real asset/liability, not a P&L account.
+                      (o) =>
+                        o.isLeaf &&
+                        o.section === "balance_sheet" &&
+                        o.id !== transferEntry.account_id
+                    )}
+                    onChange={setTransferTargetId}
+                    placeholder="Search accounts…"
+                    autoFocus
+                  />
+                </label>
+              </Modal>
             )}
             {editingDate && (
-              <div
-                className="trans-budget-edit-modal-overlay"
-                role="dialog"
-                aria-modal="true"
-                aria-label="Edit date"
+              <Modal
+                open
+                onClose={handleDateCancel}
+                title="Edit Date"
+                dismissable={!isSavingDate}
               >
-                <div className="trans-budget-edit-modal">
-                  <h3>Edit Date</h3>
-                  <form
-                    onSubmit={(e) => {
-                      e.preventDefault();
-                      handleDateSave();
-                    }}
-                  >
-                    <label className="trans-budget-edit-modal__field trans-budget-edit-modal__field--full-row">
-                      <span>Date</span>
-                      <input
-                        className="form-input"
-                        type="date"
-                        value={dateValue}
-                        onChange={(e) => setDateValue(e.target.value)}
-                        disabled={isSavingDate}
-                        autoFocus
-                      />
-                    </label>
-                    <div className="trans-budget-edit-modal__actions">
-                      <button
-                        className="generate-report-button"
-                        type="button"
-                        onClick={handleDateCancel}
-                        disabled={isSavingDate}
-                      >
-                        Cancel
-                      </button>
-                      <button
-                        className="generate-report-button"
-                        type="submit"
-                        disabled={isSavingDate || !dateValue}
-                      >
-                        {isSavingDate ? "Saving\u2026" : "Save"}
-                      </button>
-                    </div>
-                  </form>
-                </div>
-              </div>
+                <form
+                  className="modal__body"
+                  onSubmit={(e) => {
+                    e.preventDefault();
+                    handleDateSave();
+                  }}
+                >
+                  <label className="trans-budget-edit-modal__field trans-budget-edit-modal__field--full-row">
+                    <span>Date</span>
+                    <input
+                      className="form-input"
+                      type="date"
+                      value={dateValue}
+                      onChange={(e) => setDateValue(e.target.value)}
+                      disabled={isSavingDate}
+                      autoFocus
+                    />
+                  </label>
+                  <div className="modal__footer">
+                    <button
+                      className="btn btn--outline"
+                      type="button"
+                      onClick={handleDateCancel}
+                      disabled={isSavingDate}
+                    >
+                      Cancel
+                    </button>
+                    <button
+                      className="btn btn--primary"
+                      type="submit"
+                      disabled={isSavingDate || !dateValue}
+                    >
+                      {isSavingDate ? "Saving\u2026" : "Save"}
+                    </button>
+                  </div>
+                </form>
+              </Modal>
             )}
             {editingDescription && (
-              <div
-                className="trans-budget-edit-modal-overlay"
-                role="dialog"
-                aria-modal="true"
-                aria-label="Edit description"
+              <Modal
+                open
+                onClose={handleDescriptionCancel}
+                title="Edit Description"
+                dismissable={!isSavingDescription}
               >
-                <div className="trans-budget-edit-modal">
-                  <h3>Edit Description</h3>
-                  <form
-                    onSubmit={(e) => {
-                      e.preventDefault();
-                      handleDescriptionSave();
-                    }}
-                  >
-                    <label className="trans-budget-edit-modal__field trans-budget-edit-modal__field--full-row">
-                      <span>Description</span>
-                      <input
-                        className="form-input"
-                        type="text"
-                        value={descriptionValue}
-                        onChange={(e) => setDescriptionValue(e.target.value)}
-                        disabled={isSavingDescription}
-                        autoFocus
-                        autoComplete="off"
-                      />
-                    </label>
-                    <div className="trans-budget-edit-modal__actions">
-                      <button
-                        className="generate-report-button"
-                        type="button"
-                        onClick={handleDescriptionCancel}
-                        disabled={isSavingDescription}
-                      >
-                        Cancel
-                      </button>
-                      <button
-                        className="generate-report-button"
-                        type="submit"
-                        disabled={isSavingDescription}
-                      >
-                        {isSavingDescription ? "Saving\u2026" : "Save"}
-                      </button>
-                    </div>
-                  </form>
-                </div>
-              </div>
+                <form
+                  className="modal__body"
+                  onSubmit={(e) => {
+                    e.preventDefault();
+                    handleDescriptionSave();
+                  }}
+                >
+                  <label className="trans-budget-edit-modal__field trans-budget-edit-modal__field--full-row">
+                    <span>Description</span>
+                    <input
+                      className="form-input"
+                      type="text"
+                      value={descriptionValue}
+                      onChange={(e) => setDescriptionValue(e.target.value)}
+                      disabled={isSavingDescription}
+                      autoFocus
+                      autoComplete="off"
+                    />
+                  </label>
+                  <div className="modal__footer">
+                    <button
+                      className="btn btn--outline"
+                      type="button"
+                      onClick={handleDescriptionCancel}
+                      disabled={isSavingDescription}
+                    >
+                      Cancel
+                    </button>
+                    <button
+                      className="btn btn--primary"
+                      type="submit"
+                      disabled={isSavingDescription}
+                    >
+                      {isSavingDescription ? "Saving\u2026" : "Save"}
+                    </button>
+                  </div>
+                </form>
+              </Modal>
             )}
             {editingCategory && (
-              <div
-                className="trans-budget-edit-modal-overlay"
-                role="dialog"
-                aria-modal="true"
-                aria-label="Select category"
-              >
-                <div className="trans-budget-edit-modal">
-                  <h3>{bulkCategoryMode ? `Select Category for ${selectedRows.size} Transaction(s)` : "Select Category"}</h3>
-                  {isSavingCategory && (
-                    <p className="trans-budget-edit-modal__count">Saving…</p>
-                  )}
-                  {plTree?.length > 0 ? (
-                    <CategorySelector
-                      plTree={plTree}
-                      selectedCategories={
-                        categoryValue ? [categoryValue] : []
-                      }
-                      onCategoriesChange={handleCategoryChange}
-                      categoryGroupOptions={[]}
-                      autoFocusFilter
-                    />
-                  ) : (
-                    <p className="trans-budget-edit-modal__count">
-                      Loading categories…
-                    </p>
-                  )}
-                  <div className="trans-budget-edit-modal__actions">
+              <Modal
+                open
+                onClose={handleCategoryCancel}
+                title={
+                  bulkCategoryMode
+                    ? `Select Category for ${selectedRows.size} Transaction(s)`
+                    : "Select Category"
+                }
+                dismissable={!isSavingCategory}
+                footer={
+                  <>
                     <button
-                      className="generate-report-button"
+                      className="btn btn--outline"
                       type="button"
                       onClick={handleCategoryCancel}
                       disabled={isSavingCategory}
@@ -1318,27 +1286,72 @@ export default function RefreshFeeds() {
                       Cancel
                     </button>
                     <button
-                      className="generate-report-button"
+                      className="btn btn--primary"
                       type="button"
                       onClick={handleCategorySave}
                       disabled={isSavingCategory || !categoryValue}
                     >
                       {isSavingCategory ? "Saving…" : "Save"}
                     </button>
-                  </div>
-                </div>
-              </div>
+                  </>
+                }
+              >
+                {isSavingCategory && (
+                  <p className="trans-budget-edit-modal__count">Saving…</p>
+                )}
+                {plTree?.length > 0 ? (
+                  <CategorySelector
+                    plTree={plTree}
+                    selectedCategories={categoryValue ? [categoryValue] : []}
+                    onCategoriesChange={handleCategoryChange}
+                    categoryGroupOptions={[]}
+                    autoFocusFilter
+                  />
+                ) : (
+                  <p className="trans-budget-edit-modal__count">
+                    Loading categories…
+                  </p>
+                )}
+              </Modal>
             )}
             {splitTransaction && (
-              <div
-                className="trans-budget-edit-modal-overlay"
-                role="dialog"
-                aria-modal="true"
-                aria-label="Split transaction"
+              <Modal
+                open
+                onClose={handleSplitCancel}
+                title="Split Transaction"
+                size="wide"
+                dismissable={!isSavingSplit}
+                footer={
+                  <>
+                    <button
+                      className="btn btn--outline"
+                      type="button"
+                      onClick={handleSplitCancel}
+                      disabled={isSavingSplit}
+                    >
+                      Cancel
+                    </button>
+                    <button
+                      className="btn btn--primary"
+                      type="button"
+                      onClick={handleSplitSave}
+                      disabled={
+                        isSavingSplit ||
+                        Math.abs(
+                          Number(splitTransaction.Amount) -
+                            splits.reduce(
+                              (sum, s) => sum + (Number(s.amount) || 0),
+                              0
+                            )
+                        ) > 0.01
+                      }
+                    >
+                      {isSavingSplit ? "Saving…" : "Save Split"}
+                    </button>
+                  </>
+                }
               >
-                <div className="trans-budget-edit-modal split-modal">
-                  <h3>Split Transaction</h3>
-                  <div className="split-modal__summary">
+                <div className="split-modal__summary">
                     <span><strong>Date:</strong> {formatDate(splitTransaction.Date)}</span>
                     <span><strong>Description:</strong> {splitTransaction.Description1 ?? ""}</span>
                     <span><strong>Amount:</strong> {formatAmount(splitTransaction.Amount)} {splitTransaction.Currency}</span>
@@ -1419,35 +1432,7 @@ export default function RefreshFeeds() {
                       </p>
                     );
                   })()}
-                  <div className="trans-budget-edit-modal__actions">
-                    <button
-                      className="generate-report-button"
-                      type="button"
-                      onClick={handleSplitCancel}
-                      disabled={isSavingSplit}
-                    >
-                      Cancel
-                    </button>
-                    <button
-                      className="generate-report-button"
-                      type="button"
-                      onClick={handleSplitSave}
-                      disabled={
-                        isSavingSplit ||
-                        Math.abs(
-                          Number(splitTransaction.Amount) -
-                            splits.reduce(
-                              (sum, s) => sum + (Number(s.amount) || 0),
-                              0
-                            )
-                        ) > 0.01
-                      }
-                    >
-                      {isSavingSplit ? "Saving\u2026" : "Save Split"}
-                    </button>
-                  </div>
-                </div>
-              </div>
+              </Modal>
             )}
           </section>
         )}

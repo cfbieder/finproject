@@ -2,6 +2,9 @@ import { defineConfig } from "vitest/config";
 import path from "path";
 
 export default defineConfig({
+  // Use the React 17+ automatic JSX runtime so component tests can write JSX
+  // without importing React (CR042 U4 — Modal/DataTable render tests).
+  esbuild: { jsx: "automatic" },
   resolve: {
     alias: {
       "@": path.resolve(__dirname, "./src"),

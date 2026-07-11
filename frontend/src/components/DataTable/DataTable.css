@@ -1,0 +1,117 @@
+/**
+ * DataTable.css (CR042 U4) — chrome for the shared <DataTable> primitive.
+ * Codifies the BudgetWorksheetV2 table pattern (see pages/BudgetWorksheetV2.css)
+ * as the one canonical table look, superseding the per-page `.balance-report-table`
+ * / `.trans-budget-table` / `.fc-modules-table` variants as they migrate.
+ */
+
+.data-table-wrap {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  overflow: hidden;
+}
+
+.data-table-scroll {
+  overflow: auto;
+}
+
+.data-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.85rem;
+}
+
+.data-table thead {
+  position: sticky;
+  top: 0;
+  z-index: 2;
+}
+
+.data-table thead th {
+  padding: 0.6rem 0.875rem;
+  text-align: left;
+  font-size: 0.68rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--muted);
+  background: var(--surface-muted);
+  border-bottom: 1.5px solid var(--border);
+  white-space: nowrap;
+  user-select: none;
+}
+
+.data-table__th--right {
+  text-align: right;
+}
+
+.data-table__th--sortable {
+  cursor: pointer;
+  transition: color var(--transition-fast);
+}
+
+.data-table__th--sortable:hover {
+  color: var(--ink);
+}
+
+.data-table__sort-caret {
+  margin-left: 0.35em;
+  font-size: 0.6rem;
+  opacity: 0.7;
+}
+
+.data-table tbody tr {
+  transition: background var(--transition-fast);
+}
+
+.data-table tbody tr:hover {
+  background: var(--surface-muted);
+}
+
+.data-table__row--clickable {
+  cursor: pointer;
+}
+
+.data-table tbody td {
+  padding: 0.6rem 0.875rem;
+  border-bottom: 1px solid var(--border-subtle);
+  color: var(--ink-secondary);
+  vertical-align: middle;
+}
+
+.data-table tbody tr:last-child td {
+  border-bottom: none;
+}
+
+.data-table__td--numeric {
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+  font-family: var(--font-mono);
+  font-weight: 500;
+  white-space: nowrap;
+}
+
+.data-table__empty {
+  padding: 2rem 0.875rem !important;
+  text-align: center;
+  color: var(--muted);
+  font-style: italic;
+}
+
+.data-table-hint {
+  font-size: 0.68rem;
+  color: var(--muted-light);
+  padding: 0.4rem 0.875rem;
+  border-top: 1px solid var(--border-subtle);
+  background: var(--surface-muted);
+  text-align: center;
+}
+
+@media (max-width: 768px) {
+  .data-table th,
+  .data-table td {
+    padding: 0.5rem 0.625rem;
+    white-space: nowrap;
+  }
+}

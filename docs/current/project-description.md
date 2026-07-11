@@ -164,7 +164,7 @@ Detail for each page lives in its CR file (linked) — this table is a directory
 
 ### CSS Design System
 
-Vanilla CSS with custom-property tokens in `index.css` (colors, type, spacing, radius, shadows, transitions) + dark-theme override layer. Canonical `.btn` family in `components/buttons.css`; `npm run lint:buttons` (via `Scripts/check-button-css.sh`) blocks new ad-hoc `*-btn` classes. `.page-shell` owns page max-width/gutters. Breakpoints: 1080/768/640px, desktop-first.
+Vanilla CSS with custom-property tokens in `index.css` (colors, type, spacing, radius, shadows, transitions) + dark-theme override layer. Canonical `.btn` family in `components/buttons.css`; `npm run lint:buttons` (via `Scripts/check-button-css.sh`) blocks new ad-hoc `*-btn` classes. Shared UI primitives (CR042 U4): `components/Modal/Modal.jsx` (Radix Dialog under tokens — the one home of `role="dialog"`; `npm run lint:modals` blocks new bespoke overlays) and `components/DataTable/DataTable.jsx` (sortable sticky-header table, BudgetWorksheetV2 pattern). `.page-shell` owns page max-width/gutters. Breakpoints: 1080/768/640px, desktop-first.
 
 ### Mobile / PWA Shell
 
@@ -295,7 +295,8 @@ ssh cfbieder@192.168.1.87 && cd ~/psproject
 | `bump-version.sh` | patch/minor/major/X.Y.Z (edits `.env` VITE_APP_VERSION in place) |
 | `rebuild-frontend.sh` | Quick frontend rebuild |
 | `backup-to-remote.sh` | DB+config to 192.168.1.252 (cron every 2 days, 30-day retention) + Docker prune |
-| `check-button-css.sh` | `.btn` guardrail (also `npm run lint:buttons`) |
+| `check-button-css.sh` | `.btn` guardrail (also `npm run lint:buttons`) — **blocking in CI** |
+| `check-modal-adoption.sh` | `<Modal>` guardrail: blocks new bespoke `role="dialog"` overlays (also `npm run lint:modals`) — **blocking in CI** |
 | `v4-up.sh`, `sync-db-prod-to-v4.sh` | Isolated v4 stack |
 | `provision-vm.sh`, `deploy-on-vm.sh` | KVM provisioning |
 | `boot-reconcile-docker.sh`, `fin-docker-reconcile.service` | Boot-time `compose up -d` on prod/dev/bank-feed stacks — fixes dockerd reboot race that leaves postgres containers detached from their networks (seen 2026-07-04); unit installed + enabled in `/etc/systemd/system/` 2026-07-05 |
