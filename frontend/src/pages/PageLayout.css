@@ -2,17 +2,20 @@
    UTILITY CLASSES - Reusable patterns
    ============================================================================ */
 
-/* Card/Panel base style */
+/* Card/Panel base style.
+   CR042 U1: flatter default — 1px border for definition + soft shadow (market
+   norm: 12–16px radius + hairline border + minimal shadow). Big shadows are
+   reserved for overlays/modals. */
 .panel {
   background: var(--surface-elevated);
-  border: none;
+  border: 1px solid var(--border);
   border-radius: var(--radius-lg);
-  box-shadow: var(--shadow-lg);
+  box-shadow: var(--shadow-soft);
   transition: all var(--transition-base);
 }
 
 .panel:hover {
-  box-shadow: var(--shadow-xl);
+  box-shadow: var(--shadow-md);
 }
 
 /* Content container with column layout */

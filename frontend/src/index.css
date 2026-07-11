@@ -30,12 +30,15 @@
   --accent-lighter: #93B893;
   --accent-subtle: #E8F0E9;
 
-  /* Financial Semantic Colors - Softer variants */
-  --success: #5B8C5B;
-  --success-strong: #487648;
-  --success-light: #6B9E6B;
-  --success-lighter: #8BBF8B;
-  --success-subtle: #E8F0E9;
+  /* Financial Semantic Colors - Softer variants.
+     CR042 U1 green split: "money up" is a saturated EMERALD, deliberately
+     distinct from the desaturated sage brand (--primary/--accent #6B8E6B) so
+     brand chrome and gains never read as the same green. */
+  --success: #1A9E74;
+  --success-strong: #14805E;
+  --success-light: #3DB88E;
+  --success-lighter: #7FD0B4;
+  --success-subtle: #E3F4EE;
 
   --warning: #C4923A;
   --warning-strong: #8D6927;
@@ -67,7 +70,7 @@
   --on-accent: #ffffff;
 
   /* Financial Data Visualization - Organic palette */
-  --growth-positive: #5B8C5B;
+  --growth-positive: #1A9E74; /* emerald — see green-split note above */
   --growth-negative: #C0504D;
   --neutral: #808E9B;
   --chart-navy: #5B7B9A;
@@ -90,20 +93,51 @@
   --shadow-xl: 0 20px 40px -8px rgba(0, 0, 0, 0.05), 0 10px 16px -6px rgba(0, 0, 0, 0.02);
   --shadow-focus: 0 0 0 3px rgba(107, 142, 107, 0.15);
 
-  /* Border Radius - Soft, rounded geometry */
+  /* Border Radius - Soft, rounded geometry.
+     CR042 U1: --radius-lg flattened 24px→16px (default card norm; big radii
+     read as heavier/older). --radius-xl (28px) stays for hero surfaces. */
   --radius-sm: 10px;
   --radius-md: 12px;
-  --radius-lg: 24px;
+  --radius-lg: 16px;
   --radius-xl: 28px;
   --radius-full: 9999px;
 
-  /* Spacing - Generous whitespace (1.5x) */
+  /* Spacing - Generous whitespace (1.5x). Legacy named steps kept for existing
+     consumers; the 4px numeric scale below is the canonical one going forward. */
   --space-xs: 0.375rem;
   --space-sm: 0.75rem;
   --space-md: 1.5rem;
   --space-lg: 2.25rem;
   --space-xl: 3rem;
   --space-2xl: 4.5rem;
+
+  /* CR042 U1 — canonical 4px spacing scale (fills the sm→md gap; adopt as pages
+     are touched). */
+  --space-1: 0.25rem;   /* 4  */
+  --space-2: 0.5rem;    /* 8  */
+  --space-3: 0.75rem;   /* 12 */
+  --space-4: 1rem;      /* 16 */
+  --space-5: 1.25rem;   /* 20 */
+  --space-6: 1.5rem;    /* 24 */
+  --space-8: 2rem;      /* 32 */
+  --space-10: 2.5rem;   /* 40 */
+  --space-12: 3rem;     /* 48 */
+  --space-16: 4rem;     /* 64 */
+
+  /* CR042 U1 — type scale (was 110 ad-hoc font-size values). --text-base is the
+     14px data default; adopt as pages are touched. */
+  --text-2xs: 0.6875rem; /* 11 */
+  --text-xs: 0.75rem;    /* 12 */
+  --text-sm: 0.8125rem;  /* 13 */
+  --text-base: 0.875rem; /* 14 */
+  --text-md: 1rem;       /* 16 */
+  --text-lg: 1.125rem;   /* 18 */
+  --text-xl: 1.375rem;   /* 22 */
+  --text-2xl: 1.75rem;   /* 28 */
+  --text-3xl: 2.25rem;   /* 36 */
+  --leading-tight: 1.2;
+  --leading-snug: 1.4;
+  --leading-normal: 1.6;
 
   /* Page layout - single source of truth for content width + side gutter.
      Every page centers its content box at --page-max-width via the shared
@@ -184,12 +218,12 @@
   --accent-lighter: #A8CDA8;
   --accent-subtle: #233028;
 
-  /* Semantic */
-  --success: #69B369;
-  --success-strong: #5BA15B;
-  --success-light: #7FB97F;
-  --success-lighter: #8BBF8B;
-  --success-subtle: #1E2922;
+  /* Semantic — CR042 U1 green split: emerald "money up", lifted for dark. */
+  --success: #43C9A0;
+  --success-strong: #35B892;
+  --success-light: #5FD6B2;
+  --success-lighter: #8BE2C9;
+  --success-subtle: #16271F;
 
   --warning: #D9B05A;
   --warning-strong: #C99A40;
@@ -216,7 +250,7 @@
   --on-accent: #15171A;
 
   /* Data viz — lifted for contrast on dark */
-  --growth-positive: #69B369;
+  --growth-positive: #43C9A0; /* emerald — green split */
   --growth-negative: #E07A76;
   --neutral: #828E9B;
   --chart-navy: #7B9BBA;
