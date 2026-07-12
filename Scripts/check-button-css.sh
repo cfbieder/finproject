@@ -18,6 +18,11 @@
 #
 set -euo pipefail
 
+# `comm` requires both inputs collated identically. Without this, a UTF-8 locale
+# folds away `-`/`_` while CI's C locale does not, so the baseline and the live
+# list sort differently and every entry past the first divergence reads as "new".
+export LC_ALL=C
+
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
 BASELINE="$SCRIPT_DIR/.button-class-baseline.txt"

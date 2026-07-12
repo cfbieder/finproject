@@ -18,6 +18,9 @@
 #
 set -euo pipefail
 
+# `comm` requires both inputs collated identically — see check-button-css.sh.
+export LC_ALL=C
+
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
 BASELINE="$SCRIPT_DIR/.modal-adoption-baseline.txt"
