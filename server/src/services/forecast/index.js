@@ -547,8 +547,38 @@ async function generateForecast(scenarioName) {
         });
       }
 
-      // Run iterative sweep (pure function — transfers only, no yield)
-      const { entries: sweepEntries, sweepLog } = computeCashSweepIterative({
+      // CR045 P2: the sweep needs each ranked module's cost basis (to realize a gain
+      // on a forced liquidation) and its effective growth (so the funds it sells stop
+      // compounding). Both were already computed by the builder in Step 6a — read them
+      // off the staged frames rather than re-deriving the builder's math a third time.
+      const sweepSeriesFor = (moduleName) => {
+        const c = computed.find((x) => x.kind === 'bs' && x.module?.Name === moduleName);
+        const usd = c?.result?.audit?.dfModuleUSD;
+        const basisByYear = {};
+        const growthByYear = {};
+        if (usd && Array.isArray(usd.index)) {
+          const basis = usd.columns?.includes('BaseValueUSD') ? usd.column('BaseValueUSD').values : [];
+          const growth = usd.columns?.includes('GrowthPct') ? usd.column('GrowthPct').values : [];
+          usd.index.forEach((yr, i) => {
+            basisByYear[Number(yr)] = Number(basis[i]) || 0;
+            growthByYear[Number(yr)] = Number(growth[i]) || 0;
+          });
+        }
+        return { basisByYear, growthByYear };
+      };
+      const taxRateFor = (mod) => Number(
+        mod?.tax_rate_override != null ? mod.tax_rate_override : (scenario?.TaxRate ?? 0)
+      ) || 0;
+
+      const primarySeries = sweepModule ? sweepSeriesFor(sweepModule.name) : { basisByYear: {}, growthByYear: {} };
+      for (const bm of backupModules) {
+        const s = sweepSeriesFor(bm.name);
+        bm.basisByYear = s.basisByYear;
+        bm.growthByYear = s.growthByYear;
+        bm.taxRate = taxRateFor(backupModuleRows.find((r) => r.name === bm.name));
+      }
+
+      const sweepArgs = {
         years,
         cashSweepLow: effectiveLow,
         cashSweepHigh: effectiveHigh,
@@ -556,8 +586,14 @@ async function generateForecast(scenarioName) {
         startingCash,
         sweepModule,
         moduleBalanceByYear,
+        moduleBasisByYear: primarySeries.basisByYear,
+        moduleGrowthByYear: primarySeries.growthByYear,
+        moduleTaxRate: taxRateFor(sweepModule),
         backupModules,
-      });
+      };
+
+      // Run iterative sweep (pure function — transfers + capital-gains tax, no yield)
+      const { entries: sweepEntries, sweepLog } = computeCashSweepIterative(sweepArgs);
 
       // Insert sweep entries
       if (sweepEntries.length > 0) {
@@ -888,15 +924,16 @@ async function generateForecast(scenarioName) {
           const newModBal = {};
           for (const row of newMvResult.rows) newModBal[row.forecast_year] = parseFloat(row.mv) || 0;
 
+          // Same sweep, re-run against the re-derived cash/balance for this iteration.
+          // The CR045 P2 series (basis, growth, tax rate) are properties of the module,
+          // not of the iteration, so they carry over from sweepArgs — omitting them here
+          // would silently drop the capital-gains tax on every rebuild.
           const { entries: newSweepEntries } = computeCashSweepIterative({
-            years,
+            ...sweepArgs,
             cashSweepLow: cashSweepLow ?? cashSweepHigh ?? 0,
             cashSweepHigh: cashSweepHigh ?? cashSweepLow ?? 0,
             cashDeltaByYear: newCashDelta,
-            startingCash,
-            sweepModule,
             moduleBalanceByYear: newModBal,
-            backupModules, // builder balances unchanged across iterations
           });
 
           if (newSweepEntries.length > 0) {
