@@ -346,6 +346,117 @@ describe("computeCashSweepIterative", () => {
     });
   });
 
+  describe("the sweep may not sell what a scheduled disposal already claims (P2c)", () => {
+    // The bug this exists to stop: prod's Fidelity Stocks was a sweep backup AND sold
+    // $50K/yr from 2049 + $500K in 2052 on its own schedule. The builder caps those
+    // disposals against the PRE-sweep balance, so the same shares were sold twice and
+    // the module ended ~$950K in the hole.
+    //
+    // The rule: never drive a module below zero in ANY future year. The builder's
+    // market value already has the scheduled disposals baked into it, so a module
+    // whose balance falls later is a module with commitments — no reserve bookkeeping
+    // needed. The planned sale wins; the sweep gets what is left.
+    const stocks = { name: "Stocks", account_name: "Stock Account" };
+
+    test("a later scheduled sale caps what the sweep can take today", () => {
+      const { entries, sweepLog } = computeCashSweepIterative({
+        years: [2027, 2028],
+        cashSweepLow: 100000, cashSweepHigh: 200000,
+        cashDeltaByYear: { 2027: -500000, 2028: 0 },
+        startingCash: 100000, // 2027 needs 500k
+        sweepModule: stocks,
+        // 1M today, but a scheduled disposal takes it to 200k next year.
+        moduleBalanceByYear: { 2027: 1000000, 2028: 200000 },
+      });
+
+      // Only 200k can go without pushing 2028 negative — the rest is a real shortfall.
+      const draw = entries.find((e) => e.year === 2027 && e.account === "Stock Account");
+      expect(draw.amount).toBeCloseTo(-200000, 2);
+      expect(sweepLog[0].shortfall).toBeCloseTo(300000, 2);
+
+      // 2028 lands at exactly zero, never below it — the old flat carry let this go
+      // ~$950K negative on prod.
+      const bal2028 = 200000 + entries
+        .filter((e) => e.year === 2028 && e.account === "Stock Account")
+        .reduce((sum, e) => sum + e.amount, 0);
+      expect(bal2028).toBeCloseTo(0, 2);
+    });
+
+    test("a module scheduled to be sold outright cannot be swept beforehand", () => {
+      const { entries, sweepLog } = computeCashSweepIterative({
+        years: [2027, 2028],
+        cashSweepLow: 100000, cashSweepHigh: 200000,
+        cashDeltaByYear: { 2027: -200000, 2028: 0 },
+        startingCash: 100000,
+        sweepModule: stocks,
+        moduleBalanceByYear: { 2027: 1000000, 2028: 0 }, // fully disposed in 2028
+      });
+
+      // A sale of "whatever is there" is a claim on the whole balance.
+      expect(entries.find((e) => e.account === "Stock Account")).toBeUndefined();
+      expect(sweepLog[0].action).toBe("shortfall");
+      expect(sweepLog[0].shortfall).toBeCloseTo(200000, 2);
+    });
+
+    test("a distant commitment does not freeze the module — growth funds it", () => {
+      // The naive rule (reserve the nominal sum of future sales) would lock the whole
+      // module for decades over a far-off sale. Capacity is growth-aware: what is sold
+      // today only has to leave enough that the GROWN balance still covers it.
+      const { entries } = computeCashSweepIterative({
+        years: [2027, 2028, 2029],
+        cashSweepLow: 100000, cashSweepHigh: 200000,
+        cashDeltaByYear: { 2027: -900000, 2028: 0, 2029: 0 },
+        startingCash: 100000, // needs 900k in 2027
+        sweepModule: stocks,
+        // grows 10%/yr, then a big scheduled sale drops it to 600k in 2029
+        moduleBalanceByYear: { 2027: 1000000, 2028: 1100000, 2029: 600000 },
+        moduleGrowthByYear: { 2027: 10, 2028: 10, 2029: 10 },
+      });
+
+      // 2029 is the binding year: 600k/1.331 normalized. Re-inflated to 2027 the sweep
+      // can take ~495,867 now — far more than the 100k a nominal reserve would allow.
+      const draw = entries.find((e) => e.year === 2027 && e.account === "Stock Account");
+      expect(draw.amount).toBeCloseTo(-495867.77, 1);
+
+      // ...and 2029, the tightest year, lands exactly on zero. Never below.
+      const bal2029 = 600000 + entries
+        .filter((e) => e.year === 2029 && e.account === "Stock Account")
+        .reduce((sum, e) => sum + e.amount, 0);
+      expect(bal2029).toBeCloseTo(0, 0);
+    });
+
+    test("the same rule guards a backup module", () => {
+      const { entries } = computeCashSweepIterative({
+        years: [2027, 2028],
+        cashSweepLow: 100000, cashSweepHigh: 200000,
+        cashDeltaByYear: { 2027: -300000, 2028: 0 },
+        startingCash: 100000,
+        sweepModule: { name: "Cash Mgt", account_name: "Cash Mgt Account" },
+        moduleBalanceByYear: { 2027: 0, 2028: 0 }, // primary empty → cascade
+        backupModules: [{
+          name: "Stocks", account_name: "Stock Account",
+          balanceByYear: { 2027: 500000, 2028: 50000 }, // scheduled sale next year
+        }],
+      });
+
+      const draw = entries.find((e) => e.year === 2027 && e.account === "Stock Account" && e.module === "_cash_sweep");
+      expect(draw.amount).toBeCloseTo(-50000, 2); // not the 300k it needs
+    });
+
+    test("a module with no future decline is fully available (unchanged behavior)", () => {
+      const { entries } = computeCashSweepIterative({
+        years: [2027],
+        cashSweepLow: 100000, cashSweepHigh: 200000,
+        cashDeltaByYear: { 2027: -500000 },
+        startingCash: 100000,
+        sweepModule: stocks,
+        moduleBalanceByYear: { 2027: 1000000 },
+      });
+      const draw = entries.find((e) => e.year === 2027 && e.account === "Stock Account");
+      expect(draw.amount).toBeCloseTo(-500000, 2);
+    });
+  });
+
   describe("swept funds stop growing once sold (P2b)", () => {
     test("a withdrawal is carried forward compounded at the module's growth rate", () => {
       // The builder keeps growing the module's full pre-sweep balance, so the sweep's

@@ -50,12 +50,6 @@
 /** Amounts below this are noise, not money. */
 const EPSILON = 0.01;
 
-/** Compound `balance` by one year of the module's effective growth (0 ⇒ identity). */
-function grow(balance, growthPct) {
-  if (!balance || !growthPct) return balance;
-  return balance * (1 + growthPct / 100);
-}
-
 /**
  * @param {Object} params
  * @param {number[]} params.years - Forecast period years
@@ -77,6 +71,7 @@ function computeCashSweepIterative({
   years, cashSweepLow, cashSweepHigh, cashDeltaByYear, startingCash,
   sweepModule, moduleBalanceByYear,
   moduleBasisByYear = {}, moduleGrowthByYear = {}, moduleTaxRate = 0,
+  moduleReservedByYear = {},
   backupModules = [],
 }) {
   const entries = [];
@@ -90,18 +85,44 @@ function computeCashSweepIterative({
    * itself, so they compound at the module's growth rate alongside the builder's
    * own market value; `basisSold` is the cost basis consumed by past sales.
    */
-  const makeSource = (mod, balanceByYear, basisByYear, growthByYear, taxRate) => ({
-    name: mod.name,
-    account: mod.account_name,
-    balanceByYear: balanceByYear || {},
-    basisByYear: basisByYear || {},
-    growthByYear: growthByYear || {},
-    taxRate: Number(taxRate) || 0,
-    swept: 0,        // funds deposited by the sweep (primary only)
-    withdrawn: 0,    // cumulative draw on the module's OWN balance
-    basisSold: 0,
-    carryInByYear: {}, // net balance carried INTO each year (post-growth, pre-transfer)
-  });
+  const makeSource = (mod, balanceByYear, basisByYear, growthByYear, taxRate) => {
+    const balances = balanceByYear || {};
+    const growth = growthByYear || {};
+
+    // G[year]: the module's cumulative growth factor, so a dollar withdrawn at Y is
+    // worth G[t]/G[Y] at t — exactly the growth the builder goes on applying to it.
+    const growthFactorByYear = {};
+    let factor = 1;
+    for (const rawYear of years) {
+      factor *= 1 + (Number(growth[Number(rawYear)]) || 0) / 100;
+      growthFactorByYear[Number(rawYear)] = factor;
+    }
+
+    // floorNorm[Y] = min over t ≥ Y of mv[t]/G[t] — the tightest solvency constraint
+    // any future year imposes on a withdrawal made today. Built by a backward pass.
+    const floorNormByYear = {};
+    let runningMin = Infinity;
+    for (let i = years.length - 1; i >= 0; i--) {
+      const year = Number(years[i]);
+      const normalized = (Number(balances[year]) || 0) / (growthFactorByYear[year] || 1);
+      runningMin = Math.min(runningMin, normalized);
+      floorNormByYear[year] = runningMin;
+    }
+
+    return {
+      name: mod.name,
+      account: mod.account_name,
+      balanceByYear: balances,
+      basisByYear: basisByYear || {},
+      growthFactorByYear,
+      floorNormByYear,
+      taxRate: Number(taxRate) || 0,
+      sweptNorm: 0,    // funds the sweep parked here (primary only), growth-normalized
+      usedNorm: 0,     // the module's OWN balance the sweep has sold, growth-normalized
+      basisSold: 0,
+      carryInByYear: {}, // net balance carried INTO each year (post-growth, pre-transfer)
+    };
+  };
 
   const primary = sweepModule
     ? makeSource(sweepModule, moduleBalanceByYear, moduleBasisByYear, moduleGrowthByYear, moduleTaxRate)
@@ -110,6 +131,48 @@ function computeCashSweepIterative({
     makeSource(bm, bm.balanceByYear, bm.basisByYear, bm.growthByYear, bm.taxRate)
   );
   const sources = primary ? [primary, ...backups] : backups;
+
+  /**
+   * Solvency capacity (CR045 P2c) — the sweep may never drive a module below zero
+   * in ANY future year.
+   *
+   * A module can be both a sweep source and the subject of its own scheduled
+   * disposals: prod's Fidelity Stocks is a sweep backup that *also* sells $50K/yr
+   * from 2049 and $500K in 2052. The builder caps those disposals against the
+   * module's PRE-sweep market value — it cannot see what the sweep already took — so
+   * the same shares were sold twice and the module ended ~$950K in the hole.
+   *
+   * Owner's rule: the scheduled disposals are a deliberate plan and they win; the
+   * sweep is the backstop and only gets what is left. The builder's market value
+   * already has those disposals baked into it, so that rule needs no reserve
+   * bookkeeping at all — it is exactly "never push the balance below zero, ever".
+   *
+   * Growth makes the arithmetic tidy. Normalize every balance by the module's
+   * cumulative growth factor G: a withdrawal X at year Y permanently consumes
+   * X/G[Y] of capacity, because it (and the growth it would have earned) is gone for
+   * good. In normalized terms the module stays solvent iff
+   *
+   *     usedNorm  ≤  min over all t ≥ Y of  mv[t] / G[t]
+   *
+   * so this year's capacity is that running minimum, less what past withdrawals
+   * already consumed, re-inflated to today. Money far in the future is funded by a
+   * balance that has grown to meet it — the naive "reserve the nominal sum of future
+   * sales" rule would freeze the whole module for decades over a distant commitment.
+   *
+   * A 'Full' disposal drives mv to 0, so the running minimum is 0 and the module
+   * simply cannot be swept before that sale — which is correct: a sale of "whatever
+   * is there" is a claim on the entire balance.
+   */
+  const availableFrom = (src, year) => {
+    const capacityNorm = (src.floorNormByYear[year] ?? 0) - src.usedNorm;
+    return Math.max(0, capacityNorm * (src.growthFactorByYear[year] ?? 1));
+  };
+
+  /** The module's own balance the sweep has permanently removed, valued at `year`. */
+  const withdrawnAt = (src, year) => src.usedNorm * (src.growthFactorByYear[year] ?? 1);
+
+  /** Swept-in funds still parked in the module, valued at `year`. */
+  const sweptAt = (src, year) => src.sweptNorm * (src.growthFactorByYear[year] ?? 1);
 
   /** Tax owed next year, per source: { [sourceIndex]: amount (negative) }. */
   let pendingTax = [];
@@ -121,7 +184,7 @@ function computeCashSweepIterative({
    */
   const realize = (src, year, amount) => {
     if (amount <= EPSILON || !src.taxRate) return 0;
-    const mv = Math.max(0, (src.balanceByYear[year] || 0) - src.withdrawn);
+    const mv = Math.max(0, (src.balanceByYear[year] || 0) - withdrawnAt(src, year));
     const basis = Math.max(0, (src.basisByYear[year] || 0) - src.basisSold);
     // No basis recorded (or none left) ⇒ the whole withdrawal is gain.
     const basisRatio = mv > EPSILON ? Math.min(1, basis / mv) : 0;
@@ -135,14 +198,12 @@ function computeCashSweepIterative({
   for (const rawYear of years) {
     const year = Number(rawYear);
 
-    // Step 1: the balances the sweep carries grow with the module (P2b), then the
-    // grown-in balance is recorded: that — not last year's ungrown total — is what
-    // the carry-forward entry for THIS year must be, or the growth lands a year late.
+    // Step 1: value the balances the sweep carries at this year's growth (P2b). Swept
+    // funds appreciate with the module; withdrawn funds keep cancelling the growth the
+    // builder still applies to money that is gone. Recorded BEFORE this year's
+    // transfers — that is what the carry-forward entry for this year must be.
     for (const src of sources) {
-      const g = src.growthByYear[year] || 0;
-      src.swept = grow(src.swept, g);
-      src.withdrawn = grow(src.withdrawn, g);
-      src.carryInByYear[year] = src.swept - src.withdrawn;
+      src.carryInByYear[year] = sweptAt(src, year) - withdrawnAt(src, year);
     }
 
     // Step 2: pay tax deferred from last year's liquidation (P2a).
@@ -177,7 +238,7 @@ function computeCashSweepIterative({
         { year, account: primary.account, amount: sweepAmount, module: '_cash_sweep', comment: `Cash sweep from bank` }
       );
       runningCash -= sweepAmount;
-      primary.swept += sweepAmount;
+      primary.sweptNorm += sweepAmount / (primary.growthFactorByYear[year] ?? 1);
       yearModules.add(primary.name);
       action = 'sweep_in';
 
@@ -187,11 +248,11 @@ function computeCashSweepIterative({
 
       // First: draw from swept balance. This is the sweep's own cash coming back —
       // it was never bought at a cost basis, so it realizes no gain.
-      const fromSwept = Math.min(needed, Math.max(0, primary.swept));
-      // Second: draw from the primary's own balance — that is a sale (taxable).
+      const fromSwept = Math.min(needed, Math.max(0, sweptAt(primary, year)));
+      // Second: draw from the primary's own balance — that is a sale (taxable), and
+      // only of what it can lose without going under in some later year (P2c).
       const stillNeeded = needed - fromSwept;
-      const primaryOwn = Math.max(0, (primary.balanceByYear[year] || 0) - primary.withdrawn);
-      const fromModule = Math.min(stillNeeded, primaryOwn);
+      const fromModule = Math.min(stillNeeded, availableFrom(primary, year));
       const primaryWithdraw = fromSwept + fromModule;
       let remainingShortfall = needed - primaryWithdraw;
       let totalWithdraw = primaryWithdraw;
@@ -204,10 +265,10 @@ function computeCashSweepIterative({
         if (fromModule > EPSILON) {
           const tax = realize(primary, year, fromModule);
           if (tax < -EPSILON) taxDue.push({ srcIndex: 0, amount: tax });
-          primary.withdrawn += fromModule;
+          primary.usedNorm += fromModule / (primary.growthFactorByYear[year] ?? 1);
         }
         runningCash += primaryWithdraw;
-        primary.swept -= fromSwept;
+        primary.sweptNorm -= fromSwept / (primary.growthFactorByYear[year] ?? 1);
         yearModules.add(primary.name);
         action = 'sweep_out';
       }
@@ -215,8 +276,7 @@ function computeCashSweepIterative({
       // Cascade into backup modules in priority order until the band is restored or all are drained
       for (let i = 0; i < backups.length && remainingShortfall > EPSILON; i++) {
         const bm = backups[i];
-        const available = Math.max(0, (bm.balanceByYear[year] || 0) - bm.withdrawn);
-        const draw = Math.min(remainingShortfall, available);
+        const draw = Math.min(remainingShortfall, availableFrom(bm, year));
         if (draw > EPSILON) {
           entries.push(
             { year, account: 'Transfer - Bank', amount: draw, module: '_cash_sweep', comment: `Cash sweep from ${bm.name}` },
@@ -224,7 +284,7 @@ function computeCashSweepIterative({
           );
           const tax = realize(bm, year, draw);
           if (tax < -EPSILON) taxDue.push({ srcIndex: sources.indexOf(bm), amount: tax });
-          bm.withdrawn += draw;
+          bm.usedNorm += draw / (bm.growthFactorByYear[year] ?? 1);
           runningCash += draw;
           remainingShortfall -= draw;
           totalWithdraw += draw;
@@ -285,8 +345,8 @@ function computeCashSweepIterative({
       yieldIncome: 0,
       tax: taxPaid,
       cashBefore: cashBeforeSweep, cashAfter: runningCash,
-      sweepBalance: primary ? primary.swept : 0,
-      moduleWithdrawal: primary ? primary.withdrawn : 0,
+      sweepBalance: primary ? sweptAt(primary, year) : 0,
+      moduleWithdrawal: primary ? withdrawnAt(primary, year) : 0,
       modules: Array.from(yearModules).join(' | '),
     });
   }
