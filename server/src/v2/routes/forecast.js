@@ -15,7 +15,6 @@ const validate = require('../utils/validate');
 const crud = require('../../services/forecast/crud');
 const { generateForecast } = require('../../services/forecast');
 const { PATHS } = require('../../services/forecast/constants');
-const { dataPaths } = require('../../utils/dataPaths');
 
 // Fields PUT /scenarios/:id may set (mirrors updateScenario's own allow-list).
 // The scenario editor sends only { cash_sweep_low, cash_sweep_high }; the rest
@@ -959,14 +958,17 @@ router.get('/audittrail/:scenario/:module', (req, res, next) => {
       return res.status(400).json({ error: 'Module name is required' });
     }
 
-    const normalize = (value = '') =>
-      value.toString().trim().replace(/\s+/g, '_')
-        .replace(/[^a-zA-Z0-9_-]/g, '_').replace(/_+/g, '_').toLowerCase();
+    // Must match the writers exactly (fcbuilder-module/-incexp): non-alphanumerics
+    // → '_', case preserved, repeats NOT collapsed. The old `normalize` here
+    // lowercased and collapsed '_+', so it could never match a real file — and it
+    // read from a `dataPaths.fcAuditTrail`/`.baseDir` that does not exist, so
+    // path.join(undefined) threw "The 'path' argument must be of type string".
+    const sanitize = (v) => (v || '').replace(/[^a-z0-9]/gi, '_');
 
-    const normalizedScenario = normalize(scenario);
-    const normalizedModule = normalize(moduleName);
-    const fileName = `${normalizedScenario}_${normalizedModule}_entries.csv`;
-    const auditDir = dataPaths.fcAuditTrail || path.join(dataPaths.baseDir, 'reports', 'fc_audit_trail');
+    const safeScenario = sanitize(scenario);
+    const safeModule = sanitize(moduleName);
+    const fileName = `${safeScenario}_${safeModule}_entries.csv`;
+    const auditDir = PATHS.AUDIT_TRAIL_DIR;
     const filePath = path.join(auditDir, fileName);
 
     if (!fs.existsSync(filePath)) {
@@ -1046,12 +1048,12 @@ router.delete('/audittrail/:scenario', (req, res, next) => {
       return res.status(400).json({ error: 'Scenario name is required' });
     }
 
-    const normalize = (value = '') =>
-      value.toString().trim().replace(/\s+/g, '_')
-        .replace(/[^a-zA-Z0-9_-]/g, '_').replace(/_+/g, '_').toLowerCase();
+    // Same writer-consistent sanitize as the GET routes (see note above); the old
+    // `normalize` + `dataPaths.baseDir` here had the identical two bugs.
+    const sanitize = (v) => (v || '').replace(/[^a-z0-9]/gi, '_');
 
-    const normalizedScenario = normalize(scenario);
-    const auditDir = dataPaths.fcAuditTrail || path.join(dataPaths.baseDir, 'reports', 'fc_audit_trail');
+    const prefix = (sanitize(scenario) + '_').toLowerCase();
+    const auditDir = PATHS.AUDIT_TRAIL_DIR;
 
     if (!fs.existsSync(auditDir)) {
       return res.json({ success: true, deletedCount: 0 });
@@ -1061,7 +1063,7 @@ router.delete('/audittrail/:scenario', (req, res, next) => {
     let deletedCount = 0;
 
     for (const file of files) {
-      if (file.toLowerCase().startsWith(normalizedScenario + '_')) {
+      if (file.toLowerCase().startsWith(prefix)) {
         fs.unlinkSync(path.join(auditDir, file));
         deletedCount++;
       }
