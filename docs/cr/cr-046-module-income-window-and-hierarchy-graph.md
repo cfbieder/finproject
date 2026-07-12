@@ -25,6 +25,14 @@ income/expense **items** already have) was considered and rejected as more than 
 **NULL = unbounded = today's behavior**, so every existing scenario is byte-identical
 (pinned by test W5).
 
+**Year-only, half-year convention (v3.0.83).** The owner picks a **year**, not a date — the
+first cut shipped a raw `mm/dd/yyyy` picker, which is more precision than the model has. The
+year is stored as **July 1**, so the first and last year each run for half a year and carry
+**50% of the amount** — the same half-year convention the engine already applies to an
+acquisition year (CR041) and to a Full disposal's year. A single-year window is halved once,
+not twice, and a year the window already halved is **not halved again** by CR041's ownership
+gate (that would leave 25% of a year's rent). Tests W8–W10.
+
 **Semantics**
 - The amount stays a **base-year** figure compounded at inflation. Rent starting in 2030 is
   what you typed, grown to 2030 — the same number the stream would have shown that year
@@ -40,8 +48,8 @@ income/expense **items** already have) was considered and rejected as more than 
 silently drops is a scenario that silently computes something else — so the copy regression
 test asserts the window survives a scenario copy, alongside `cash_sweep_priority`.
 
-**UI:** four fields in `FCModulesEdit`'s Expenses and Income sections
-(`fcModulesEditSections.js`), labelled "blank = base yr" / "blank = horizon".
+**UI:** four **year** selects in `FCModulesEdit`'s Expenses and Income sections (new `year`
+field type; blank = unbounded), hinting "50% in this year". No day/month to pick.
 
 ## 2. Clicking a Review row graphs the accounts beneath it
 
@@ -86,17 +94,17 @@ palette, so the Net Assets stacked bar never actually used `BAR_CHART_COLORS` �
 | Item | State |
 |---|---|
 | Migration 037 (4 nullable DATE columns) | ✅ applied dev + prod |
-| Engine window (income + expense, yield + amount) | ✅ +7 tests (W1–W7) |
+| Engine window (income + expense, yield + amount) | ✅ +10 tests (W1–W10, incl. half-year) |
 | Route DTO / create / update / allowlist / **copy** | ✅ copy test extended |
 | `FCModulesEdit` fields | ✅ |
 | Hierarchy breakdown graph | ✅ +9 tests |
-| Deploy | ✅ v3.0.81; Expense-excludes-Transfers fix v3.0.82 |
+| Deploy | ✅ v3.0.81; Expense-excludes-Transfers v3.0.82; year-only picker + half-year v3.0.83 |
 
-Suites: **335 backend / 174 frontend green**.
+Suites: **338 backend / 174 frontend green**.
 
-Verified on dev against live data: UB Income started 2027 at $45,784; with an income start
-of 2035 it starts in 2035 at $55,784 — the same base amount compounded to 2035, and nothing
-before it.
+Verified on dev against live data: UB Income ran from 2027 at $45,784. With an income start
+year of 2035 it starts in 2035 at **$27,892** — exactly half of that year's $55,784 full-year
+run-rate (the July-1 half year), reaching the full $57,178 in 2036, and nothing before 2035.
 
 ## 4. Open
 

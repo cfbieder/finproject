@@ -769,6 +769,41 @@ export default function FCModulesEditModal({
                     );
                   }
 
+                  // CR046: income/expense window — the owner picks a YEAR, never a day.
+                  // Stored as July 1, which is what gives the first and last year their
+                  // 50% (the engine's half-year convention). Blank = unbounded.
+                  if (type === "year") {
+                    const raw = editForm[field] ?? "";
+                    const selectedYear = raw ? String(raw).slice(0, 4) : "";
+                    return (
+                      <label key={field} className="fc-modules-modal__field">
+                        <span className="fc-modules-modal__label">{label}</span>
+                        <div className="fc-modules-edit__base-date">
+                          <select
+                            className="fc-modules-modal__input"
+                            value={selectedYear}
+                            onChange={(event) =>
+                              onFieldChange(
+                                field,
+                                event.target.value ? `${event.target.value}-07-01` : null
+                              )
+                            }
+                          >
+                            <option value="">—</option>
+                            {baseYearOptions.map((year) => (
+                              <option key={year} value={year}>
+                                {year}
+                              </option>
+                            ))}
+                          </select>
+                          <span className="fc-modules-edit__base-date-hint">
+                            {selectedYear ? "50% in this year" : ""}
+                          </span>
+                        </div>
+                      </label>
+                    );
+                  }
+
                   if (field === "Type" || field === "Currency") {
                     const options = traitValueOptions[field] || [];
                     const currentValue = editForm[field] ?? "";

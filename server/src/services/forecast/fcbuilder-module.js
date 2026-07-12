@@ -388,16 +388,35 @@ function computeModule(module, scenario, df_assumptions, df_categories, categori
     if (!Number.isFinite(year)) return null;
     return year - startyear;
   };
+  //
+  // Half-year convention: the window is picked as a YEAR and stored as July 1, so the
+  // first and last year each run for half of it and carry 50% of the amount — the same
+  // convention the engine already uses for the acquisition year (CR041) and for a Full
+  // disposal's year. Start year == end year ⇒ halved once, not twice.
+  //
+  // Returns the indices it halved, so the CR041 ownership gate below does not halve the
+  // same year a second time (that would leave 25% of a year's rent).
   const applyWindow = (series, startDate, endDate) => {
     const from = windowIdx(startDate);
     const to = windowIdx(endDate);
-    if (from == null && to == null) return;
+    if (from == null && to == null) return new Set();
+    const halved = new Set();
     for (let i = 0; i < yearsCount; i++) {
-      if ((from != null && i < from) || (to != null && i > to)) series[i] = 0;
+      if ((from != null && i < from) || (to != null && i > to)) {
+        series[i] = 0;
+      } else if ((from != null && i === from) || (to != null && i === to)) {
+        series[i] /= 2;
+        halved.add(i);
+      }
     }
+    return halved;
   };
-  applyWindow(incomeValues, module.income_start_date, module.income_end_date);
-  applyWindow(expenseValues, module.expense_start_date, module.expense_end_date);
+  const incomeHalvedByWindow = applyWindow(
+    incomeValues, module.income_start_date, module.income_end_date
+  );
+  const expenseHalvedByWindow = applyWindow(
+    expenseValues, module.expense_start_date, module.expense_end_date
+  );
 
   // CR041: gate amount-based expense/income on ownership — zero before the acquisition
   // year, 50% in it (mirror of the Full-disposal 50% treatment below). MV-driven streams
@@ -417,8 +436,9 @@ function computeModule(module, scenario, df_assumptions, df_categories, categori
           if (gateExpense) expenseValues[i] = 0;
           if (gateIncome) incomeValues[i] = 0;
         } else if (i === acquisitionIdx) {
-          if (gateExpense) expenseValues[i] /= 2;
-          if (gateIncome) incomeValues[i] /= 2;
+          // Don't halve a year the CR046 window already halved — that would leave 25%.
+          if (gateExpense && !expenseHalvedByWindow.has(i)) expenseValues[i] /= 2;
+          if (gateIncome && !incomeHalvedByWindow.has(i)) incomeValues[i] /= 2;
         }
       }
     }

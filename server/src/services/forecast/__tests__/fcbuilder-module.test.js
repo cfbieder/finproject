@@ -681,7 +681,7 @@ describe("CR046 — Income/expense start & end window", () => {
   test("W1 income starts in the year the window opens, not the base year", async () => {
     // "I own this flat today and start renting it in 2028."
     const { db } = await runModule(
-      { ...owned, income_start_date: "2028-01-01" },
+      { ...owned, income_start_date: "2028-07-01" },
       { TaxRate: 0 }
     );
     const inc = byYear(db, "Rental Income");
@@ -694,20 +694,22 @@ describe("CR046 — Income/expense start & end window", () => {
   });
 
   test("W2 the amount is still a base-year figure compounded at inflation", async () => {
-    // The window moves WHEN the stream runs, never how much. 2028's rent is what it would
-    // have been in 2028 anyway — the same number an unwindowed module shows that year.
-    const gated = await runModule({ ...owned, income_start_date: "2028-01-01" }, { TaxRate: 0 });
+    // The window moves WHEN the stream runs, never how much. A full year inside the window
+    // is exactly what an unwindowed module shows that year — no re-basing.
+    const gated = await runModule({ ...owned, income_start_date: "2028-07-01" }, { TaxRate: 0 });
     const plain = await runModule({ ...owned }, { TaxRate: 0 });
 
     const g = byYear(gated.db, "Rental Income");
     const p = byYear(plain.db, "Rental Income");
-    expect(g[2028]).toBeCloseTo(p[2028], 6);
+    expect(g[2029]).toBeCloseTo(p[2029], 6); // full year
     expect(g[2030]).toBeCloseTo(p[2030], 6);
+    // ...and the start year itself is a half year (July 1) — see W8.
+    expect(g[2028]).toBeCloseTo(p[2028] / 2, 6);
   });
 
   test("W3 income stops after the window closes", async () => {
     const { db } = await runModule(
-      { ...owned, income_end_date: "2028-12-31" },
+      { ...owned, income_end_date: "2028-07-01" },
       { TaxRate: 0 }
     );
     const inc = byYear(db, "Rental Income");
@@ -720,7 +722,7 @@ describe("CR046 — Income/expense start & end window", () => {
 
   test("W4 the same window bounds the expense stream", async () => {
     const { db } = await runModule(
-      { ...owned, income_amount: 0, expense_amount: 5000, expense_start_date: "2029-01-01" },
+      { ...owned, income_amount: 0, expense_amount: 5000, expense_start_date: "2029-07-01" },
       { TaxRate: 0 }
     );
     const exp = byYear(db, "Prop Costs");
@@ -745,7 +747,7 @@ describe("CR046 — Income/expense start & end window", () => {
     // The base-year income tax is deferred into Period 1. Rent starting in 2028 earns
     // nothing in the base year, so there is nothing to defer.
     const { db } = await runModule(
-      { ...owned, income_start_date: "2028-01-01" },
+      { ...owned, income_start_date: "2028-07-01" },
       { TaxRate: 25 }
     );
     const tax = byYear(db, "Taxes");
@@ -763,7 +765,7 @@ describe("CR046 — Income/expense start & end window", () => {
         ...owned,
         BaseValue: 0, BaseValueUSD: 0, MarketValue: 0, MarketValueUSD: 0,
         Invest: [{ Date: "2029-06-01", Amount: 150000, Flag: "OneTime" }],
-        income_start_date: "2027-01-01",
+        income_start_date: "2027-07-01",
       },
       { TaxRate: 0 }
     );
@@ -773,5 +775,67 @@ describe("CR046 — Income/expense start & end window", () => {
     expect(inc[2028]).toBeUndefined();
     expect(inc[2029]).toBeGreaterThan(0); // acquisition year — halved by CR041
     expect(inc[2030]).toBeGreaterThan(inc[2029]);
+  });
+
+  test("W8 the first and last year are half years (the July-1 convention)", async () => {
+    // The owner picks a YEAR; it is stored as July 1, so the stream runs for half of its
+    // first and last year — the same half-year rule the engine already applies to an
+    // acquisition year and to a Full disposal's year.
+    const windowed = await runModule(
+      { ...owned, income_start_date: "2028-07-01", income_end_date: "2030-07-01" },
+      { TaxRate: 0 }
+    );
+    const plain = await runModule({ ...owned }, { TaxRate: 0 });
+
+    const w = byYear(windowed.db, "Rental Income");
+    const p = byYear(plain.db, "Rental Income");
+
+    expect(w[2028]).toBeCloseTo(p[2028] / 2, 6); // first year — half
+    expect(w[2029]).toBeCloseTo(p[2029], 6);     // full year in between
+    expect(w[2030]).toBeCloseTo(p[2030] / 2, 6); // last year — half
+  });
+
+  test("W9 a single-year window is halved once, not twice", async () => {
+    const windowed = await runModule(
+      { ...owned, income_start_date: "2029-07-01", income_end_date: "2029-07-01" },
+      { TaxRate: 0 }
+    );
+    const plain = await runModule({ ...owned }, { TaxRate: 0 });
+
+    const w = byYear(windowed.db, "Rental Income");
+    const p = byYear(plain.db, "Rental Income");
+
+    expect(w[2028]).toBeUndefined();
+    expect(w[2029]).toBeCloseTo(p[2029] / 2, 6); // half, not a quarter
+    expect(w[2030]).toBeUndefined();
+  });
+
+  test("W10 the acquisition year is not halved twice when the window opens in it", async () => {
+    // CR041 halves the acquisition year; CR046 halves the window's first year. When they
+    // are the same year, halving both would leave 25% of a year's rent.
+    const both = await runModule(
+      {
+        ...owned,
+        BaseValue: 0, BaseValueUSD: 0, MarketValue: 0, MarketValueUSD: 0,
+        Invest: [{ Date: "2029-06-01", Amount: 150000, Flag: "OneTime" }],
+        income_start_date: "2029-07-01", // same year as the purchase
+      },
+      { TaxRate: 0 }
+    );
+    const ownershipOnly = await runModule(
+      {
+        ...owned,
+        BaseValue: 0, BaseValueUSD: 0, MarketValue: 0, MarketValueUSD: 0,
+        Invest: [{ Date: "2029-06-01", Amount: 150000, Flag: "OneTime" }],
+      },
+      { TaxRate: 0 }
+    );
+
+    const b = byYear(both.db, "Rental Income");
+    const o = byYear(ownershipOnly.db, "Rental Income");
+
+    // Already halved once by the window ⇒ CR041 must not halve it again.
+    expect(b[2029]).toBeCloseTo(o[2029], 6);
+    expect(b[2030]).toBeCloseTo(o[2030], 6);
   });
 });
