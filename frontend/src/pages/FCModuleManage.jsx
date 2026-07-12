@@ -18,6 +18,7 @@ import { useCoa } from "../hooks/useCoa.js";
 import "./PageLayout.css";
 import "../features/Forecast/FCModulesEdit.css";
 import "../features/Forecast/FCExpDeleteModal.css";
+import { buildModulePayload } from "../features/Forecast/utils/fcModulePayload.js";
 
 /**
  * FCModuleManage component manages forecast modules for different scenarios.
@@ -361,52 +362,7 @@ export default function FCModuleManage() {
       return false;
     }
 
-    const numericFields = [
-      "Expense",
-      "ExpenseAmount",
-      "IncomeAmount",
-      "Income",
-      "BaseValue",
-      "MarketValue",
-      "BaseValueUSD",
-      "MarketValueUSD",
-      "Growth",
-      "TaxRateOverride",
-    ];
-
-    const payload = {
-      Account: editForm.Account ?? "",
-      Name: editForm.Name ?? "",
-      Type: editForm.Type ?? "",
-      Currency: editForm.Currency ?? "",
-      ExpenseFcLineId: editForm.ExpenseFcLineId || null,
-      IncomeFcLineId: editForm.IncomeFcLineId || null,
-      ExpenseGrowthMethod: editForm.ExpenseGrowthMethod || "inflation",
-      Matched: Boolean(editForm.Matched),
-      BaseDate: editForm.BaseDate
-        ? new Date(editForm.BaseDate).toISOString()
-        : null,
-      AccountNumber: editForm.AccountNumber ?? "",
-      Comment: (editForm.Comment ?? "").toString().trim(),
-      SetupStatus: editForm.SetupStatus || "new",
-      CashSweepPriority:
-        editForm.CashSweepPriority === null ||
-        editForm.CashSweepPriority === undefined ||
-        editForm.CashSweepPriority === ""
-          ? null
-          : Math.max(1, parseInt(editForm.CashSweepPriority, 10) || 1),
-    };
-
-    for (const field of numericFields) {
-      const raw = editForm[field];
-      const parsed =
-        raw === "" || raw === null || raw === undefined ? null : Number(raw);
-      payload[field] = Number.isNaN(parsed) ? null : parsed;
-    }
-
-    payload.Invest = normalizeTransfers(editForm.Invest);
-    payload.Dispose = normalizeTransfers(editForm.Dispose);
-    payload.IncomePct = normalizeTransfers(editForm.IncomePct);
+    const payload = buildModulePayload(editForm, { normalizeTransfers });
 
     setEditSaving(true);
     try {

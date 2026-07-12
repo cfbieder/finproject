@@ -73,4 +73,21 @@ Live on dev against the real United Beverages module (scenario rate 25%):
 | Engine (income vs gains rates split) | ✅ +4 tests |
 | Route DTO / create / update / allowlist / **copy** | ✅ |
 | `FCModulesEdit` field | ✅ |
-| Deploy | ✅ v3.0.84; field labels renamed v3.0.85 |
+| Deploy | ✅ v3.0.84; labels renamed v3.0.85; **save-payload fix v3.0.86** |
+
+## 5. The save silently dropped the field (v3.0.86)
+
+Reported by the owner: set the override, save, come back — the field is empty.
+
+`FCModuleManage.saveModule` builds the PUT body as an explicit **whitelist**. A field the
+editor renders but the builder omits is simply **not sent**: no error, no warning, the value
+is just gone. `IncomeTaxRateOverride` was never added to it — **and neither were CR046's four
+window dates**, so those never persisted from the UI either.
+
+Both CRs were verified end-to-end with `curl` against the API, which **bypassed the one layer
+that was broken**. Green tests and a working API said nothing about whether the Save button
+sent the field.
+
+Fix: the builder is extracted to `features/Forecast/utils/fcModulePayload.js` and its test
+asserts **every field in `FIELD_SECTIONS` reaches the payload** — so the next field added to
+the editor cannot be dropped the same way. +4 tests (178 frontend green).
