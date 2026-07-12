@@ -116,61 +116,40 @@ seed as a *difference* between two builds (item excluded vs included), so it hol
 dev and CI regardless of the ledger's own bank balance. Pre-fix that difference was 0;
 post-fix it is exactly the item's 100,000.
 
-## 4. Phase 2 — the sweep stops being a bare transfer (engine)
+## 4. Phase 2 — Whole-asset liquidation + tax (engine)
 
-**Owner decision (2026-07-12): whole-asset liquidation mode is dropped.** An asset is only
-ever auto-liquidated if it is *tagged*, and the sweep priority already **is** that tag —
-the sweep has only ever touched ranked modules. Unranked assets (a business, a house) are
-never sold on your behalf; an unfundable shortfall is **reported** (Phase 1's W2/W5) and
-the owner schedules a disposal by hand. No migration, no new flag, no lumpy-sale mode.
+Per-module **liquidation mode**, so a ranked module declares how it can be sold:
 
-That leaves two genuine engine defects, both of which bite precisely when you do what the
-decision implies — tag *financial* assets (stocks) as the liquidation source:
+- `divisible` (default — brokerage, fixed income): sell exactly the shortfall. Today's
+  behavior; keeps every existing scenario byte-identical.
+- `whole` (property, business, PE): the sweep sells the **entire** module in the shortfall
+  year; the proceeds above the low band flow back through the sweep (typically parking in
+  the priority-1 module). Models reality — you cannot sell 12% of an apartment.
 
-**P2a — capital-gains tax on forced liquidation.** Draining a module's own balance is a
-sale, but the sweep booked it as a bare transfer: *"no yield or tax calculations."* A
-**scheduled** disposal of Fidelity Stocks computes gain and tax; the **forced** sweep
-liquidation of the same $1.24M did not. Now it realizes a gain against the module's
-proportional cost basis and taxes it on the same path a disposal does — same formula
-(`fcbuilder-module.js:246`), same per-module rate override, same +1y deferral (CR003 G4).
+And **F1**: sweep liquidations compute realized gain and capital-gains tax on the same
+path a scheduled disposal does (including the +1y tax deferral from CR003 G4), rather than
+moving money tax-free.
 
-The deferral is what keeps this a single forward pass: year Y's tax is paid in Y+1, which
-the loop already knows by the time it arrives — no fixed-point iteration. It does chain
-(paying the tax can push cash under the band, forcing another sale, taxed the year after),
-which is exactly why the tax must run *inside* the sweep and not as a post-pass.
-
-**P2b — swept funds must stop growing.** Withdrawals were carried forward **flat** while
-the builder went on compounding the module's full pre-sweep balance: money sold in 2050
-kept appreciating inside the module forever, cancelled only by the original amount. The
-carry-forward is now compounded at the module's own effective growth rate, so it exactly
-cancels the growth the builder applies to funds that are gone. This is the real cause of
-F3 (the −$2,454 artifact) — that was the error finally going visible, not a rounding quirk.
-
-Why it stayed hidden: the priority-1 module is **Fidelity Fixed Income**, `growth_rate = 0`
-— for a deposit account flat *is* correct (CR003 G2: income % is the deposit rate, and the
-convergence loop already recomputes yield on the sweep-adjusted balance). It only breaks
-for a **growing** sweep source. `growth_rate = 0` ⇒ the compounding is the identity, so
-deposit-account primaries are byte-identical and only genuinely-affected modules move.
-
-Affected in prod: Fidelity Stocks (priority 2, `growth_rate = 1.0`, basis $1,019,072 vs MV
-$1,369,072 — a **$350K embedded gain** realized tax-free) and 2026 Downside's primary
-(`growth_rate = 0.5`).
+Requires a migration (`forecast_modules.liquidation_mode`), the copy path must carry it
+(the §1 bug class — a copy test per column is the guard), and engine parity must be
+verified: **flag-off/divisible ⇒ byte-identical entries** on "2026 Base".
 
 ## 5. Owner decisions (2026-07-12)
 
 | Decision | Choice |
 |---|---|
+| Illiquid-asset liquidation | **Rankable, but lumpy** — whole-asset mode (§4), not fractional slices |
 | Sequencing | **Warnings pane first**, engine change after |
 | "House Purchase" sweep ranks | **Mirror Base** — Fidelity Fixed Income = 1, Fidelity Stocks = 2 (applied to prod + regenerated) |
-| Illiquid-asset liquidation | **Only auto-liquidate a *tagged* asset** (= a ranked module). Everything else is flagged in the warnings and the owner decides what to sell — a business cannot be disposed of at will. **Whole-asset mode dropped**, and with it Q1 (excess proceeds) and Q3 (cap). |
 
 ## 6. Open questions
 
+- **Q1** — On a `whole` liquidation, where do the excess proceeds go? Assumed: back through
+  the sweep into the priority-1 module. Confirm before implementing §4.
 - **Q2** — Should W5/W6 also surface on `/forecast-compare`? A scenario that only "wins"
-  because it liquidates tax-free is a misleading comparison. *(Less pressing post-P2a — the
-  tax-free liquidation itself is now fixed.)*
-- **Q4** — The 2060–62 shortfall is now permanent by design: the owner is told, and decides.
-  Worth a "schedule a disposal" affordance from the warning, or is the warning enough?
+  because it liquidates tax-free is a misleading comparison.
+- **Q3** — Cap on `whole` liquidation: if selling a $4.2M business to cover a $400K gap is
+  the only option, do we do it, or warn and let the owner schedule a disposal explicitly?
 
 ## 7. Status
 
@@ -180,11 +159,7 @@ $1,369,072 — a **$350K embedded gain** realized tax-free) and 2026 Downside's 
 | §1 prod remediation (re-rank + regenerate) | ✅ done — shortfall 14y/−$20.1M → 3y/−$3.35M |
 | Phase 1 — warnings pane (W1–W6) | ✅ done — 16 unit + 3 render tests |
 | Phase 1b — BaseYear folded into sweep opening cash | ✅ done — +1 DB regression test; **no byte-parity** |
-| Prod regenerate after 1b + deploy | ✅ done — v3.0.77; Downside −$475K→−$580K, House −$3.35M→−$2.67M |
-| Phase 2a — capital-gains tax on forced liquidation | ✅ done — +6 sweep tests |
-| Phase 2b — swept funds stop compounding | ✅ done — +2 sweep tests; identity at `growth_rate = 0` |
-| Prod regenerate after Phase 2 + deploy | ⚪ pending |
+| Prod regenerate after 1b + deploy | ⚪ pending |
+| Phase 2 — whole-asset liquidation + sweep tax | ⚪ not started (Q1 open) |
 
-Suites at Phase 2: **323 backend / 164 frontend green**; all three CI design guards pass.
-The 10 pre-existing cash-sweep tests pass **unchanged** — P2a/P2b are inert at zero growth
-with no cost basis, which is the old behavior exactly.
+Suites at Phase 1b: **315 backend / 164 frontend green**; all three CI design guards pass.
