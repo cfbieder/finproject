@@ -53,9 +53,17 @@ export function useFCLineStructure() {
           }
         }
 
-        // Taxes (fixed — always present, grouped under Expense)
+        // Taxes (fixed — always present, grouped under Expense).
+        //
+        // The engine writes its computed tax to a hardcoded `Taxes` account, so this row
+        // exists whether or not an FC Line is called that. If the owner names an FC Line
+        // "Taxes" — to put the budget's historical tax on the SAME row as the engine's
+        // projected tax, rather than have "Tax" and "Taxes" sit one above the other — the
+        // expense loop above has already pushed it. Pushing again would duplicate the row.
         map.set("Taxes", { level1: "Expense", level2: "Taxes" });
-        rows.push({ label: "Taxes", level: 2 });
+        if (!rows.some((r) => r.label === "Taxes")) {
+          rows.push({ label: "Taxes", level: 2 });
+        }
 
         // Transfers row (triggers Cash Flow / Net Cash Flow insertion via cashRowsWithNet)
         rows.push({ label: "Transfers", level: 2 });

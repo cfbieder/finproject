@@ -84,11 +84,18 @@ claimable; flat series unchanged). 350 backend green.
 
 ## 4. Data flags for the owner
 
-- **Possible double-count of investment-income tax:** the budget **Tax** item books
-  −$55,103/yr (categories Taxes PL + Taxes US) in every scenario, while the engine
-  separately taxes all module income at ~25%. Real-world PL/US tax payments include tax on
-  investment income — which the engine then taxes again. Fix is data: shrink the budget Tax
-  item to the non-investment share. Owner to size the split.
+- ~~**Possible double-count of investment-income tax**~~ — **withdrawn, this was a false
+  alarm (2026-07-12).** The budget Tax item carries a `-100%` change dated 2027, so it is
+  **zero from 2027 onward**: it covers 2025–2026 only and the engine's computed tax takes
+  over from 2027. The two never overlap. The owner had already handled it; the review
+  flagged it without checking `forecast_incexp_changes`.
+
+- **Tax / Taxes merged onto one row (v3.0.91).** Because they are complementary in time, the
+  budget's historical tax and the engine's projected tax belong on the same line. The FC Line
+  `Tax` is renamed **`Taxes`** (data), so the base-year value and the engine's hardcoded
+  `Taxes` account share a label. `useFCLineStructure` hardcodes a `Taxes` row unconditionally,
+  so it now only pushes it when no FC Line already supplies one — otherwise the row would
+  double. Verified: the renamed item still contributes nothing to the forecast years.
 - "New House" (Base) and "Sarasota House" (House Purchase) still carry the lowercase `asset`
   module type from the pre-v3.0.87 dropdown bug — re-type via the editor.
 
