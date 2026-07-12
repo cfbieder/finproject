@@ -38,6 +38,8 @@ import FCGraphAdjustModal from "../features/Forecast/FCGraphAdjustModal.jsx";
 import FCGraphModuleAdjustModal from "../features/Forecast/FCGraphModuleAdjustModal.jsx";
 import { formatAmount } from "../features/Forecast/utils/fcReviewUtils.js";
 import { KpiCard, KpiCardRow } from "../components/KpiCards.jsx";
+import FCReviewWarnings from "../features/Forecast/FCReviewWarnings.jsx";
+import { computeForecastWarnings } from "../features/Forecast/utils/fcWarnings.js";
 import { TrendingUp, TrendingDown, DollarSign, Landmark } from "lucide-react";
 import Rest from "../js/rest.js";
 import FCStepNav from "../features/Forecast/FCStepNav.jsx";
@@ -188,6 +190,20 @@ export default function FCReview() {
     Rest.fetchJson(`/api/v2/forecast/modules?scenario=${encodeURIComponent(selectedScenario)}`)
       .then((res) => setFcModules(Array.isArray(res) ? res : []))
       .catch(() => setFcModules([]));
+  }, [selectedScenario]);
+
+  // Sweep band for the cash warnings (CR045). useScenarios reads the assumptions
+  // doc, which carries PeriodStart/End but not the bands — those live on the
+  // scenarios table, so fetch them separately.
+  const [cashSweepLow, setCashSweepLow] = useState(null);
+  useEffect(() => {
+    if (!selectedScenario) { setCashSweepLow(null); return; }
+    Rest.fetchJson("/api/v2/forecast/scenarios")
+      .then((res) => {
+        const row = (res?.data || []).find((s) => s.name === selectedScenario);
+        setCashSweepLow(row?.cash_sweep_low != null ? Number(row.cash_sweep_low) : null);
+      })
+      .catch(() => setCashSweepLow(null));
   }, [selectedScenario]);
 
   // Map: balance sheet level 2 label → array of FC Modules under that account
@@ -819,6 +835,21 @@ export default function FCReview() {
       prevYearLabel: sortedYears[prevYear],
     };
   }, [sortedYears, entries, baseActualTotalsByYear, getCellValue, totalAssetsByYear]);
+
+  // =============================================================================
+  // COMPUTED VALUES - Cash health warnings (CR045)
+  // =============================================================================
+
+  const forecastWarnings = useMemo(() => {
+    if (!sortedYears.length || !entries.length) return [];
+    return computeForecastWarnings({
+      years: sortedYears,
+      bankBalanceByYear: balanceDisplayValues.get("Bank Accounts") || [],
+      entries,
+      modules: fcModules,
+      cashSweepLow,
+    });
+  }, [sortedYears, entries, balanceDisplayValues, fcModules, cashSweepLow]);
 
   // =============================================================================
   // ACTIONS - Export Excel
@@ -1536,6 +1567,9 @@ export default function FCReview() {
               chartColor="#C0504D"
             />
           </KpiCardRow>
+        )}
+        {sortedYears.length > 0 && entries.length > 0 && (
+          <FCReviewWarnings warnings={forecastWarnings} />
         )}
         <FCReviewTable
           sortedYears={sortedYears}

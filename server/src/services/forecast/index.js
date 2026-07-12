@@ -472,10 +472,22 @@ async function generateForecast(scenarioName) {
         cashDeltaByYear[row.forecast_year] = parseFloat(row.cash_total) || 0;
       }
 
-      // Fix BaseYear delta: Review uses budget P&L + engine transfers (not engine Bank Accounts)
-      // This ensures sweep's cash matches what the Review displays
+      // Fold the BaseYear into the sweep's opening cash (CR045 Phase 1b).
+      //
+      // The sweep iterates `years` = PeriodStart…PeriodEnd, so the BaseYear
+      // (PeriodStart - 1) is never visited: correcting cashDeltaByYear[baseYear]
+      // — as this block used to do — left the value unread, and the sweep opened
+      // PeriodStart on the LastActualYear ledger balance, ignoring a whole year of
+      // cash flow. It then held the band against that inflated figure, so the bank
+      // line the Review displays sat a full BaseYear NCF *below* the low band in
+      // every swept year. Seeding startingCash instead applies the same corrected
+      // delta on the only path the sweep actually reads, and keeps the BaseYear
+      // free of sweep transfers (which the Review's budget-based BaseYear assumes).
+      //
+      // The delta is budget-based, not engine-based: the Review shows BaseYear as
+      // budget P&L + engine transfers, not the engine's own Bank Accounts entries.
       const baseYear = scenario.PeriodStart - 1;
-      if (cashDeltaByYear[baseYear] !== undefined) {
+      {
         // Get budget NCF for BaseYear (same query as base-year-values endpoint)
         const budgetResult = await dbc.query(`
           SELECT COALESCE(SUM(val.amount), 0)::numeric as budget_ncf FROM (
@@ -501,8 +513,9 @@ async function generateForecast(scenarioName) {
         const baseYearTransfers = parseFloat(transferResult.rows[0]?.transfers) || 0;
 
         const correctedBaseYearDelta = budgetNCF + baseYearTransfers;
-        console.log(`[FORECAST-GENERATE] BaseYear ${baseYear} delta corrected: ${cashDeltaByYear[baseYear].toFixed(0)} → ${correctedBaseYearDelta.toFixed(0)} (budget NCF: ${budgetNCF.toFixed(0)}, transfers: ${baseYearTransfers.toFixed(0)})`);
-        cashDeltaByYear[baseYear] = correctedBaseYearDelta;
+        startingCash += correctedBaseYearDelta;
+        delete cashDeltaByYear[baseYear]; // folded into the seed — never double-count it
+        console.log(`[FORECAST-GENERATE] BaseYear ${baseYear} delta ${correctedBaseYearDelta.toFixed(0)} folded into opening cash → ${startingCash.toFixed(0)} (budget NCF: ${budgetNCF.toFixed(0)}, transfers: ${baseYearTransfers.toFixed(0)})`);
       }
 
       // Load each sweep module's own market value by year (for withdrawal limits).
@@ -861,11 +874,9 @@ async function generateForecast(scenarioName) {
           const newCashDelta = {};
           for (const row of newCashResult.rows) newCashDelta[row.forecast_year] = parseFloat(row.cash_total) || 0;
 
-          // Apply BaseYear correction (same as Step 7)
-          const baseYear = scenario.PeriodStart - 1;
-          if (newCashDelta[baseYear] !== undefined) {
-            newCashDelta[baseYear] = cashDeltaByYear[baseYear]; // Use the corrected value from Step 7
-          }
+          // The BaseYear is not a swept year: its cash flow is already folded into
+          // `startingCash` (Step 7), so drop the key rather than re-deriving it.
+          delete newCashDelta[scenario.PeriodStart - 1];
 
           // Reload module balance (module's own entries only, excluding sweep)
           const newMvResult = await dbc.query(`

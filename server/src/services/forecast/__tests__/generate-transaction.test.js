@@ -150,4 +150,37 @@ dbDescribe('generateForecast transactionality (DB)', () => {
     );
     expect(await entriesState()).toEqual(expected);
   });
+
+  // CR045 Phase 1b. The sweep iterates PeriodStart…PeriodEnd, so the BaseYear
+  // (PeriodStart - 1) is never visited: its cash flow has to reach the sweep
+  // through the opening balance or not at all. It used to be written to
+  // cashDeltaByYear[baseYear], which nothing ever read — so the sweep opened on
+  // the stale ledger balance and held the band against a figure a whole year of
+  // cash flow too high.
+  //
+  // Asserted as a *difference* between two builds rather than an absolute: the
+  // ledger's own bank balance differs between dev and CI, but the BaseYear's
+  // effect on the seed must be exactly the item's value either way.
+  test("BaseYear cash flow lands in the sweep's opening cash", async () => {
+    const seedFromNextBuild = async () => {
+      computeCashSweepIterative.mockClear();
+      const r = await generateForecast(NAME);
+      expect(r.success).toBe(true);
+      return computeCashSweepIterative.mock.calls[0][0].startingCash;
+    };
+
+    await db.query(
+      `UPDATE forecast_income_expense SET setup_status = 'exclude' WHERE name = 'CR043 Tx Item'`
+    );
+    const withoutItem = await seedFromNextBuild();
+
+    await db.query(
+      `UPDATE forecast_income_expense SET setup_status = 'included' WHERE name = 'CR043 Tx Item'`
+    );
+    const withItem = await seedFromNextBuild();
+
+    // The item is +100,000 of BaseYear budget NCF; pre-fix both builds opened on
+    // the identical ledger balance and this difference was 0.
+    expect(withItem - withoutItem).toBeCloseTo(100000, 2);
+  });
 });

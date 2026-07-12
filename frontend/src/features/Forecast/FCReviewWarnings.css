@@ -1,0 +1,146 @@
+/* FCReviewWarnings (CR045 P1) — forecast cash-health panel. Theme tokens only. */
+
+.fc-warnings {
+  margin-bottom: var(--space-xl);
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-soft);
+  overflow: hidden;
+}
+
+.fc-warnings--clear {
+  display: flex;
+  align-items: center;
+  gap: var(--space-xs);
+  padding: var(--space-sm) var(--space-md);
+  color: var(--success-strong);
+  font-size: 0.875rem;
+}
+
+.fc-warnings__header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  width: 100%;
+  padding: var(--space-sm) var(--space-md);
+  background: none;
+  border: none;
+  cursor: pointer;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+}
+
+.fc-warnings__title {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 0.8rem;
+  font-weight: var(--font-weight-semibold);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--ink-secondary);
+}
+
+.fc-warnings__count {
+  padding: 2px 8px;
+  border-radius: var(--radius-full);
+  background: var(--danger-subtle);
+  border: 1px solid var(--danger);
+  color: var(--danger-strong);
+  font-size: 0.7rem;
+  letter-spacing: 0.02em;
+}
+
+.fc-warnings__chevron {
+  color: var(--muted);
+  transition: var(--transition-fast);
+}
+
+.fc-warnings__chevron--collapsed {
+  transform: rotate(-90deg);
+}
+
+.fc-warnings__list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  border-top: 1px solid var(--border);
+}
+
+.fc-warning {
+  display: flex;
+  gap: var(--space-sm);
+  padding: var(--space-sm) var(--space-md);
+  border-left: 3px solid transparent;
+}
+
+.fc-warning + .fc-warning {
+  border-top: 1px solid var(--border);
+}
+
+.fc-warning--error {
+  border-left-color: var(--danger);
+  background: var(--danger-subtle);
+}
+
+.fc-warning--warning {
+  border-left-color: var(--warning);
+  background: var(--warning-subtle);
+}
+
+.fc-warning--error .fc-warning__icon {
+  color: var(--danger-strong);
+}
+
+.fc-warning--warning .fc-warning__icon {
+  color: var(--warning-strong);
+}
+
+.fc-warning__icon {
+  flex-shrink: 0;
+  margin-top: 2px;
+}
+
+.fc-warning__body {
+  min-width: 0;
+}
+
+.fc-warning__headline {
+  display: flex;
+  align-items: baseline;
+  flex-wrap: wrap;
+  gap: var(--space-xs);
+}
+
+.fc-warning__title {
+  font-weight: var(--font-weight-semibold);
+  color: var(--ink);
+}
+
+.fc-warning__years,
+.fc-warning__amount {
+  font-size: 0.8rem;
+  font-variant-numeric: tabular-nums;
+  color: var(--ink-secondary);
+}
+
+.fc-warning__amount {
+  font-weight: var(--font-weight-semibold);
+}
+
+.fc-warning__detail {
+  margin: 2px 0 0;
+  font-size: 0.85rem;
+  line-height: 1.45;
+  color: var(--ink-secondary);
+}
+
+.fc-warning__action {
+  display: inline-block;
+  margin-top: var(--space-xs);
+  font-size: 0.85rem;
+  font-weight: var(--font-weight-medium);
+  color: var(--danger-strong);
+}
