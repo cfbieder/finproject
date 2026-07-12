@@ -804,40 +804,45 @@ export default function FCModulesEditModal({
                     );
                   }
 
-                  if (field === "Type" || field === "Currency") {
+                  // Module TYPE is the forecast module's own vocabulary — Real Estate,
+                  // Stocks, Private Equity, Business — configured in Forecast Settings.
+                  // It used to be rendered from that list only when the module was MATCHED;
+                  // an unmatched module fell through to the generic trait branch below and
+                  // was offered the COA's *account* types (asset / expense / income /
+                  // liability) instead, so a new property could not be typed Real Estate at
+                  // all. (Prod carries a lowercase "asset" module_type from that path.)
+                  // The engine never reads module_type — it is descriptive — so this is a
+                  // pure UI fix, but it is the same list either way now.
+                  if (field === "Type") {
+                    const currentValue = editForm[field] ?? "";
+                    const capitalize = (v) => (v ? v.charAt(0).toUpperCase() + v.slice(1) : "");
+                    const typeValue = capitalize(currentValue);
+                    const typeOpts = (traits?.moduleTypes && traits.moduleTypes.length > 0)
+                      ? traits.moduleTypes
+                      : ["Asset", "Liability", "Stocks", "Deposit", "Fixed Income", "Bond", "Real Estate", "Private Equity", "Business"];
+                    return (
+                      <label key={field} className="fc-modules-modal__field">
+                        <span className="fc-modules-modal__label">{label}</span>
+                        <select
+                          className="fc-modules-modal__input"
+                          value={typeValue}
+                          onChange={(e) => onFieldChange("Type", e.target.value)}
+                        >
+                          {typeOpts.map((opt) => (
+                            <option key={opt} value={opt}>{opt}</option>
+                          ))}
+                          {typeValue && !typeOpts.includes(typeValue) && (
+                            <option value={typeValue}>{typeValue}</option>
+                          )}
+                        </select>
+                      </label>
+                    );
+                  }
+
+                  if (field === "Currency") {
                     const options = traitValueOptions[field] || [];
                     const currentValue = editForm[field] ?? "";
                     if (isMatched) {
-                      if (field === "Type") {
-                        // Type stays editable even when matched
-                        const capitalize = (v) => v ? v.charAt(0).toUpperCase() + v.slice(1) : "";
-                        const typeValue = capitalize(currentValue);
-                        const typeOpts = (traits?.moduleTypes && traits.moduleTypes.length > 0)
-                          ? traits.moduleTypes
-                          : ["Asset", "Liability", "Stocks", "Deposit", "Fixed Income", "Bond", "Real Estate", "Private Equity", "Business"];
-                        return (
-                          <label
-                            key={field}
-                            className="fc-modules-modal__field"
-                          >
-                            <span className="fc-modules-modal__label">
-                              {label}
-                            </span>
-                            <select
-                              className="fc-modules-modal__input"
-                              value={typeValue}
-                              onChange={(e) => onFieldChange("Type", e.target.value)}
-                            >
-                              {typeOpts.map((opt) => (
-                                <option key={opt} value={opt}>{opt}</option>
-                              ))}
-                              {typeValue && !typeOpts.includes(typeValue) && (
-                                <option value={typeValue}>{typeValue}</option>
-                              )}
-                            </select>
-                          </label>
-                        );
-                      }
                       return (
                         <Fragment key={field}>
                           <label
