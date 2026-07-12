@@ -11,6 +11,12 @@
  * A row with nothing beneath it returns [], and the caller falls back to the
  * single-line chart — which is the old behavior, so nothing is lost.
  *
+ * `excludeChildren` exists so a breakdown always reconciles with the row it came from.
+ * The P&L's Expense row is displayed NET of Transfers (FCReview's getCellValue subtracts
+ * them, and Transfers gets its own row), even though `Transfer - Bank` maps to
+ * level1 "Expense" / level2 "Transfers". Stacking Transfers under Expense would total to
+ * a number the row above it does not show.
+ *
  * Pure: every input is already computed by the page.
  */
 
@@ -56,13 +62,16 @@ export function buildBreakdownSeries({
   valuesForLevel2,
   leafValues,
   palette = [],
+  excludeChildren = [],
 }) {
   if (!label || !accountMap || !sortedYears.length) return [];
 
+  const excluded = new Set(excludeChildren);
   let children = [];
 
   if (level === 1) {
     children = level2ChildrenOf(label, accountMap)
+      .filter((childLabel) => !excluded.has(childLabel))
       .map((childLabel) => ({
         label: childLabel,
         values: (valuesForLevel2?.(childLabel) || []).map(toNumber),

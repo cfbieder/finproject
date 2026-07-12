@@ -3,7 +3,7 @@
 > The one mandatory read at session start. Keep ≤ ~60 lines; link onward, never restate.
 > CR statuses live in the [CR index](../cr/README.md); the running version lives in `VERSION`.
 
-**Last updated:** 2026-07-12 · **Live version:** v3.0.81 (see `VERSION` / git tags)
+**Last updated:** 2026-07-12 · **Live version:** v3.0.82 (see `VERSION` / git tags)
 
 ## Current phase
 - [CR046 — Module Income/Expense Window + Hierarchy Breakdown Graph](../cr/cr-046-module-income-window-and-hierarchy-graph.md): **shipped v3.0.81 (migration 037).** (1) Start/end dates on a module's income and expense streams — "I own this flat today and start renting it in 2030" was inexpressible (the amount ran from the base year; only CR041's *acquisition* gate could delay it). The window bounds **when** a stream runs, never how much: the amount stays a base-year figure compounded at inflation. NULL = unbounded ⇒ every existing scenario byte-identical; ownership still wins; un-started rent is no longer taxed in the base year. (2) Double-clicking any Review row now graphs the accounts **beneath** it, stacked (level 1 → its level-2s; level 2 → its leaves), on both the BS and the P&L — previously only "Net Assets" did this.

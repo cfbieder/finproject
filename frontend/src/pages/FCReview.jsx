@@ -268,6 +268,7 @@ export default function FCReview() {
   const [selectedSeries, setSelectedSeries] = useState([]);
   const [graphModalOpen, setGraphModalOpen] = useState(false);
   const [graphMode, setGraphMode] = useState("line"); // "line" or "bar"
+  const [breakdownLabel, setBreakdownLabel] = useState("Net Assets"); // names the stack (CR046)
 
   const tableWrapperRef = useRef(null);
   const tableRef = useRef(null);
@@ -1284,10 +1285,15 @@ export default function FCReview() {
             : balanceDisplayValues.get(label) || [],
         leafValues: leafValuesByAccount,
         palette: BAR_CHART_COLORS,
+        // The Expense row is displayed net of Transfers (getCellValue subtracts them, and
+        // Transfers gets its own row), so its breakdown must drop them too — otherwise the
+        // stack totals to a number the row above it doesn't show.
+        excludeChildren: isCash && series.label === "Expense" ? ["Transfers"] : [],
       });
 
       if (breakdown.length > 0) {
         setSelectedSeries(breakdown);
+        setBreakdownLabel(series.label);
         setGraphMode("bar");
         setGraphModalOpen(true);
         return;
@@ -1320,6 +1326,7 @@ export default function FCReview() {
       color: BAR_CHART_COLORS[idx % BAR_CHART_COLORS.length],
     }));
     setSelectedSeries(barSeries);
+    setBreakdownLabel("Net Assets");
     setGraphMode("bar");
     setGraphModalOpen(true);
   }, [netAssetsAccountBreakdown]);
@@ -1689,6 +1696,7 @@ export default function FCReview() {
         sortedYears={sortedYears}
         birthYear={birthYear}
         chartMode={graphMode}
+        breakdownLabel={breakdownLabel}
         onPointDoubleClick={handleGraphPointDoubleClick}
       />
       <FCGraphAdjustModal

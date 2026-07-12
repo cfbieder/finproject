@@ -111,6 +111,41 @@ describe("buildBreakdownSeries", () => {
     expect(series).toEqual([]);
   });
 
+  it("excludes Transfers from the Expense stack, so it reconciles with the row", () => {
+    // Transfer - Bank maps to level1 "Expense" / level2 "Transfers", but the Expense ROW
+    // is displayed net of transfers (getCellValue subtracts them; Transfers gets its own
+    // row). Stacking them under Expense totalled to a number the row above never showed.
+    const cashMap = new Map([
+      ["Living Expenses", { level1: "Expense", level2: "Living Expenses" }],
+      ["Travel", { level1: "Expense", level2: "Travel" }],
+      ["Transfer - Bank", { level1: "Expense", level2: "Transfers" }],
+    ]);
+    const cashValues = (label) =>
+      ({
+        "Living Expenses": [-174383, -180000],
+        Travel: [-84879, -87000],
+        Transfers: [53801, 60000],
+      }[label] || []);
+
+    const series = buildBreakdownSeries({
+      label: "Expense",
+      level: 1,
+      sortedYears: YEARS,
+      accountMap: cashMap,
+      valuesForLevel2: cashValues,
+      leafValues: new Map(),
+      palette: PALETTE,
+      excludeChildren: ["Transfers"],
+    });
+
+    expect(series.map((s) => s.label)).toEqual(["Living Expenses", "Travel"]);
+    expect(series.map((s) => s.label)).not.toContain("Transfers");
+
+    // The stack now totals to Expense-net-of-transfers, which is what the row says.
+    const total2027 = series.reduce((t, s) => t + s.values[0], 0);
+    expect(total2027).toBe(-174383 - 84879);
+  });
+
   it("treats a missing year as zero, not NaN", () => {
     const series = buildBreakdownSeries({
       label: "US - Properties",

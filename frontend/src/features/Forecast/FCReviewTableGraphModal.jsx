@@ -10,6 +10,7 @@ export default function FCReviewTableGraphModal({
   sortedYears,
   birthYear,
   chartMode = "line",
+  breakdownLabel,
   onPointDoubleClick,
 }) {
   const [mousePosition, setMousePosition] = useState(null);
@@ -18,6 +19,9 @@ export default function FCReviewTableGraphModal({
     return null;
   }
 
+  // CR046: any row can now be expanded into a stack, not just Net Assets, so the title
+  // and the tooltip total have to name the row that was actually clicked.
+  const stackLabel = breakdownLabel || "Net Assets";
   const yearsList = sortedYears || [];
   const seriesList = graphSeries || [];
   const chartWidth = 1600;
@@ -133,7 +137,7 @@ export default function FCReviewTableGraphModal({
               Graph
             </p>
             <h3 className="graph-modal-header__title">
-              {isBar ? "Net Assets breakdown by account" : "Selected series over forecast years"}
+              {isBar ? `${stackLabel} breakdown by account` : "Selected series over forecast years"}
             </h3>
           </div>
           <button
@@ -438,7 +442,7 @@ export default function FCReviewTableGraphModal({
                       </div>
                     ))}
                     <div style={{ borderTop: "1px solid #E8E6DF", marginTop: "6px", paddingTop: "6px", fontWeight: 700, display: "flex", justifyContent: "space-between" }}>
-                      <span>Net Assets</span>
+                      <span>{stackLabel}</span>
                       <span>{formatAmount(total)}</span>
                     </div>
                   </div>
@@ -469,5 +473,6 @@ FCReviewTableGraphModal.propTypes = {
   ),
   birthYear: PropTypes.number,
   chartMode: PropTypes.oneOf(["line", "bar"]),
+  breakdownLabel: PropTypes.string,
   onPointDoubleClick: PropTypes.func,
 };
