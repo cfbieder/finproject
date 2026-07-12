@@ -366,8 +366,21 @@ async function buildAddFromActualsTree(scenarioId, baseYear) {
 /**
  * Base-year P&L values from completed modules (by FC Line name) and
  * income/expense items, keyed by label. Non-zero contributions only.
+ *
+ * CR046 window (fixed v3.0.88): a module's income/expense stream only counts in the base
+ * year if its window is OPEN that year. Rent that starts in 2028 does not exist in 2026, so
+ * summing income_amount blindly put it in the base-year column — and, via the engine's
+ * budget-NCF query, into the cash sweep's opening cash.
+ *
+ * `baseYear` null ⇒ no window filter (the old behavior), so callers that do not know the
+ * scenario's PeriodStart are unchanged.
  */
-async function getBaseYearValues(scenarioId) {
+async function getBaseYearValues(scenarioId, baseYear = null) {
+  // Reused by both halves of the UNION: the stream must have started by the base year and
+  // not yet have ended. NULL bounds are unbounded.
+  const windowFilter = (prefix) => baseYear == null ? '' : `
+      AND (m.${prefix}_start_date IS NULL OR EXTRACT(YEAR FROM m.${prefix}_start_date) <= ${Number(baseYear)})
+      AND (m.${prefix}_end_date   IS NULL OR EXTRACT(YEAR FROM m.${prefix}_end_date)   >= ${Number(baseYear)})`;
   // Get income/expense amounts from BS modules (by FC Line name)
   const bsResult = await db.query(`
     SELECT
@@ -378,7 +391,7 @@ async function getBaseYearValues(scenarioId) {
     FROM forecast_modules m
     LEFT JOIN fc_lines exp_line ON m.expense_fc_line_id = exp_line.id
     WHERE m.scenario_id = $1 AND COALESCE(m.setup_status, 'new') NOT IN ('new', 'exclude')
-      AND m.expense_fc_line_id IS NOT NULL
+      AND m.expense_fc_line_id IS NOT NULL${windowFilter('expense')}
     GROUP BY exp_line.name
     UNION ALL
     SELECT
@@ -388,7 +401,7 @@ async function getBaseYearValues(scenarioId) {
     FROM forecast_modules m
     LEFT JOIN fc_lines inc_line ON m.income_fc_line_id = inc_line.id
     WHERE m.scenario_id = $1 AND COALESCE(m.setup_status, 'new') NOT IN ('new', 'exclude')
-      AND m.income_fc_line_id IS NOT NULL
+      AND m.income_fc_line_id IS NOT NULL${windowFilter('income')}
     GROUP BY inc_line.name
   `, [scenarioId]);
 

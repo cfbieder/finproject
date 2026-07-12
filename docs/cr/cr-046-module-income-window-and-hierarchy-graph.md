@@ -106,6 +106,32 @@ Verified on dev against live data: UB Income ran from 2027 at $45,784. With an i
 year of 2035 it starts in 2035 at **$27,892** — exactly half of that year's $55,784 full-year
 run-rate (the July-1 half year), reaching the full $57,178 in 2036, and nothing before 2035.
 
+## 3b. The window was ignored in the BASE YEAR (v3.0.88)
+
+Reported by the owner: *"Rental Income shows 35,000 in the 2026 BUDGET column, but I have no
+rental income in 2026."* `US - Casarina` carries $35K of income on the Rental Income line
+with an **income start of 2028** — and it was showing up in the base year anyway.
+
+Two queries sum a module's `income_amount` / `expense_amount` for the base year, and **neither
+applied the window**:
+
+- `crud.getBaseYearValues` — the base-year (BUDGET) column on `/forecast-review`.
+- the engine's budget-NCF query in `index.js` — which CR045 P1b folds into the **cash sweep's
+  opening cash**. So the phantom rent was not just displayed, it was *spent*: prod's budget
+  NCF read −$49,682 instead of −$84,682, overstating opening cash by exactly $35,000.
+
+Both now filter on the window (started by the base year, not yet ended). The engine's copy
+must mirror `getBaseYearValues` exactly — the two silently disagreeing is precisely how this
+happened. `baseYear = null` ⇒ no filter, so callers that do not know `PeriodStart` are
+unchanged; the route resolves it from the assumptions doc (`PeriodStart - 1`).
+
++3 DB-backed tests (345 backend green), verified to fail pre-fix with the reported 35,000.
+
+**Known edge, not fixed:** if a window *opens in the base year*, the engine's projection halves
+that first year (July-1 convention) but these base-year sums take the full amount. Pre-existing
+shape — the base-year column has always been a raw budget figure — and it only bites a stream
+that starts exactly in the base year.
+
 ## 4. Open
 
 - The window is a **hard on/off**. If the owner later wants the amount to *step* (rent

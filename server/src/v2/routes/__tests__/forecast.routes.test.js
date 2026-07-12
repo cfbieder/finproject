@@ -13,6 +13,7 @@
 const { makeApp, request } = require('./_httpApp');
 const router = require('../forecast');
 const db = require('../../db');
+const crud = require('../../../services/forecast/crud');
 
 const dbDescribe = process.env.SKIP_DB_TESTS ? describe.skip : describe;
 const app = makeApp('/forecast', router);
@@ -225,6 +226,58 @@ dbDescribe('forecast router contract (DB)', () => {
       expect(copied.rows[0].expense_end_date).toBe('2040-12-31');
 
       await req('DELETE', `/modules/${id}`);
+    });
+  });
+
+  // CR046 window vs the base year. Reported by the owner: "Rental Income shows 35,000 in the
+  // 2026 BUDGET column, but I have no rental income in 2026" — the module's income starts in
+  // 2028. getBaseYearValues summed income_amount blindly, so a stream whose window had not
+  // opened still landed in the base-year P&L, and (via the engine's matching budget-NCF
+  // query) in the cash sweep's opening cash.
+  describe('base-year values respect the CR046 window', () => {
+    let modId;
+
+    afterEach(async () => {
+      if (modId) await db.query('DELETE FROM forecast_modules WHERE id = $1', [modId]);
+      modId = null;
+    });
+
+    const baseYearIncome = async (baseYear) => {
+      const values = await crud.getBaseYearValues(scenarioId, baseYear);
+      return values['CR046 Rent Line'] ?? 0;
+    };
+
+    async function seedModule(incomeStartDate) {
+      const acct = (await db.query(
+        `SELECT id FROM accounts WHERE parent_id IS NOT NULL ORDER BY id LIMIT 1`
+      )).rows[0];
+      const line = (await db.query(
+        `INSERT INTO fc_lines (name, line_type) VALUES ('CR046 Rent Line', 'bs_module_income')
+         ON CONFLICT (name) DO UPDATE SET line_type = EXCLUDED.line_type RETURNING id`
+      )).rows[0];
+      modId = (await db.query(
+        `INSERT INTO forecast_modules
+           (scenario_id, account_id, name, setup_status, income_fc_line_id, income_amount, income_start_date)
+         VALUES ($1, $2, 'CR046 Rent Module', 'complete', $3, 35000, $4) RETURNING id`,
+        [scenarioId, acct.id, line.id, incomeStartDate]
+      )).rows[0].id;
+    }
+
+    test('rent that starts in 2028 is NOT base-year (2026) income', async () => {
+      await seedModule('2028-07-01');
+      expect(await baseYearIncome(2026)).toBe(0);
+      // ...and it IS income once the base year reaches it.
+      expect(Number(await baseYearIncome(2028))).toBeCloseTo(35000, 2);
+    });
+
+    test('an unwindowed stream is base-year income, as before', async () => {
+      await seedModule(null);
+      expect(Number(await baseYearIncome(2026))).toBeCloseTo(35000, 2);
+    });
+
+    test('no base year given ⇒ no window filter (unchanged for other callers)', async () => {
+      await seedModule('2028-07-01');
+      expect(Number(await baseYearIncome(null))).toBeCloseTo(35000, 2);
     });
   });
 });

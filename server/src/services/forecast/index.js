@@ -489,19 +489,27 @@ async function generateForecast(scenarioName) {
       const baseYear = scenario.PeriodStart - 1;
       {
         // Get budget NCF for BaseYear (same query as base-year-values endpoint)
+        // Must mirror crud.getBaseYearValues EXACTLY — this is the same base-year P&L the
+        // Review displays, and the two silently disagreeing is how a $35K rent that does not
+        // start until 2028 ended up in the sweep's opening cash (CR046 window, fixed
+        // v3.0.88): a stream only counts in the base year if its window is open that year.
         const budgetResult = await dbc.query(`
           SELECT COALESCE(SUM(val.amount), 0)::numeric as budget_ncf FROM (
             SELECT SUM(CASE WHEN a.account_type = 'liability' THEN -m.expense_amount ELSE 0 END) as amount
             FROM forecast_modules m LEFT JOIN accounts a ON m.account_id = a.id LEFT JOIN fc_lines exp_line ON m.expense_fc_line_id = exp_line.id
             WHERE m.scenario_id = $1 AND COALESCE(m.setup_status, 'new') NOT IN ('new', 'exclude') AND m.expense_fc_line_id IS NOT NULL
+              AND (m.expense_start_date IS NULL OR EXTRACT(YEAR FROM m.expense_start_date) <= $2)
+              AND (m.expense_end_date   IS NULL OR EXTRACT(YEAR FROM m.expense_end_date)   >= $2)
             UNION ALL
             SELECT SUM(COALESCE(m.income_amount, 0)) FROM forecast_modules m LEFT JOIN fc_lines inc_line ON m.income_fc_line_id = inc_line.id
             WHERE m.scenario_id = $1 AND COALESCE(m.setup_status, 'new') NOT IN ('new', 'exclude') AND m.income_fc_line_id IS NOT NULL
+              AND (m.income_start_date IS NULL OR EXTRACT(YEAR FROM m.income_start_date) <= $2)
+              AND (m.income_end_date   IS NULL OR EXTRACT(YEAR FROM m.income_end_date)   >= $2)
             UNION ALL
             SELECT ie.base_value FROM forecast_income_expense ie LEFT JOIN fc_lines fl ON ie.fc_line_id = fl.id
             WHERE ie.scenario_id = $1 AND COALESCE(ie.setup_status, 'new') NOT IN ('new', 'exclude')
           ) val
-        `, [scenarioId]);
+        `, [scenarioId, baseYear]);
         const budgetNCF = parseFloat(budgetResult.rows[0]?.budget_ncf) || 0;
 
         // Get engine transfers for BaseYear (Transfer - Bank entries)

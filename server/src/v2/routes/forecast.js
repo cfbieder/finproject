@@ -886,7 +886,20 @@ router.get('/base-year-values', async (req, res, next) => {
     const scenario = await repo.findScenarioByName(scenarioName);
     if (!scenario) return res.status(404).json({ error: 'Scenario not found' });
 
-    const values = await crud.getBaseYearValues(scenario.id);
+    // The base year is PeriodStart - 1, and PeriodStart lives in the assumptions doc, not
+    // on the scenarios table. It is needed so a stream whose CR046 window has not opened
+    // yet is left out of the base-year column (rent starting in 2028 is not 2026 income).
+    let baseYear = null;
+    try {
+      const doc = await assumpRepo.getDoc();
+      const entry = (doc?.scenarios || []).find((sc) => sc.Name === scenarioName);
+      const periodStart = Number(entry?.PeriodStart);
+      if (Number.isFinite(periodStart)) baseYear = periodStart - 1;
+    } catch {
+      // Fall back to no window filter rather than failing the whole request.
+    }
+
+    const values = await crud.getBaseYearValues(scenario.id, baseYear);
     res.json({ data: values });
   } catch (error) {
     console.error('[forecast/base-year-values] Failed:', error);
