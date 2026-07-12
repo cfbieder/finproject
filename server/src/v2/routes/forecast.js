@@ -255,6 +255,7 @@ router.get('/modules', async (req, res, next) => {
       IncomeFcLineId: m.income_fc_line_id,
       ExpenseGrowthMethod: m.expense_growth_method || 'inflation',
       TaxRateOverride: m.tax_rate_override != null ? parseFloat(m.tax_rate_override) : null,
+      IncomeTaxRateOverride: m.income_tax_rate_override != null ? parseFloat(m.income_tax_rate_override) : null,
       IncomeAmount: m.income_amount,
       IncomeStartDate: m.income_start_date,
       IncomeEndDate: m.income_end_date,
@@ -359,6 +360,7 @@ router.get('/modules/:id', async (req, res, next) => {
         IncomeFcLineId: m.income_fc_line_id,
         ExpenseGrowthMethod: m.expense_growth_method || 'inflation',
         TaxRateOverride: m.tax_rate_override != null ? parseFloat(m.tax_rate_override) : null,
+        IncomeTaxRateOverride: m.income_tax_rate_override != null ? parseFloat(m.income_tax_rate_override) : null,
         IncomeAmount: m.income_amount,
         IncomeStartDate: m.income_start_date,
         IncomeEndDate: m.income_end_date,
@@ -428,6 +430,7 @@ router.post('/modules', async (req, res, next) => {
       income_fc_line_id: body.IncomeFcLineId || null,
       expense_growth_method: body.ExpenseGrowthMethod || 'inflation',
       income_amount: body.IncomeAmount || 0,
+      income_tax_rate_override: body.IncomeTaxRateOverride ?? null,
       income_start_date: body.IncomeStartDate || null,
       income_end_date: body.IncomeEndDate || null,
       expense_start_date: body.ExpenseStartDate || null,
@@ -516,6 +519,7 @@ router.put('/modules/:id', async (req, res, next) => {
     if (body.IncomeFcLineId !== undefined) updateData.income_fc_line_id = body.IncomeFcLineId;
     if (body.ExpenseGrowthMethod !== undefined) updateData.expense_growth_method = body.ExpenseGrowthMethod;
     if (body.TaxRateOverride !== undefined) updateData.tax_rate_override = body.TaxRateOverride;
+    if (body.IncomeTaxRateOverride !== undefined) updateData.income_tax_rate_override = body.IncomeTaxRateOverride;
     if (body.SetupStatus !== undefined) updateData.setup_status = body.SetupStatus;
     if (body.IncomeAmount !== undefined) updateData.income_amount = body.IncomeAmount;
     if (body.IncomeStartDate !== undefined) updateData.income_start_date = body.IncomeStartDate || null;

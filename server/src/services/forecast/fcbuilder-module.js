@@ -471,14 +471,31 @@ function computeModule(module, scenario, df_assumptions, df_categories, categori
   }
 
   // Calculate tax values (deferred by one year — US tax is paid the year after the gain)
-  // Per-module tax rate override: if set, uses module-specific rate instead of scenario default
+  //
+  // Two rates, because they are two different taxes (CR047):
+  //  - gains  = tax_rate_override ?? scenario rate. A capital gain on disposal.
+  //  - income = income_tax_rate_override ?? tax_rate_override ?? scenario rate.
+  //
+  // The income override exists for income that arrives ALREADY TAXED elsewhere: United
+  // Beverages' dividend is paid net of Polish tax, so the only incremental US tax on it is
+  // ~3% — while a future sale of the business is still a normal capital gain at the full
+  // rate. `tax_rate_override` alone could not express that: it moves both.
+  //
+  // NULL falls back, so every existing module is byte-identical. 0 is a real rate (income
+  // taxed at nothing), not "unset" — hence the `!= null` checks rather than truthiness.
   const taxValues = new Array(yearsCount).fill(0);
-  const taxRate = module.tax_rate_override != null
+  const scenarioRate = Number(scenario?.TaxRate ?? 0);
+  const gainsRate = module.tax_rate_override != null
     ? Number(module.tax_rate_override)
-    : Number(scenario?.TaxRate ?? 0);
-  if (Number.isFinite(taxRate) && taxRate !== 0) {
-    const rateFactor = -taxRate / 100;
+    : scenarioRate;
+  const incomeRate = module.income_tax_rate_override != null
+    ? Number(module.income_tax_rate_override)
+    : gainsRate;
 
+  const gainsFactor = Number.isFinite(gainsRate) ? -gainsRate / 100 : 0;
+  const incomeFactor = Number.isFinite(incomeRate) ? -incomeRate / 100 : 0;
+
+  if (gainsFactor !== 0 || incomeFactor !== 0) {
     // Tax on base year income (income_amount) deferred to Period 1
     // CR041: skipped when the module wasn't owned in the base year — no income existed
     // CR046: and skipped when the income window has not opened by the base year — rent
@@ -488,17 +505,17 @@ function computeModule(module, scenario, df_assumptions, df_categories, categori
       const to = windowIdx(module.income_end_date);
       return (from == null || from <= 0) && (to == null || to >= 0);
     })();
-    if (absIncomeAmount > 0 && acquisitionIdx === 0 && baseYearInWindow) {
+    if (incomeFactor !== 0 && absIncomeAmount > 0 && acquisitionIdx === 0 && baseYearInWindow) {
       const period1Idx = periodStart - startyear;
       if (period1Idx >= 0 && period1Idx < yearsCount) {
-        taxValues[period1Idx] += rateFactor * absIncomeAmount;
+        taxValues[period1Idx] += incomeFactor * absIncomeAmount;
       }
     }
 
     for (let i = 0; i < yearsCount; i++) {
       let currentYearTax = 0;
-      if (realizedGainValues[i] > 0) currentYearTax = rateFactor * realizedGainValues[i];
-      if (incomeValues[i] > 0) currentYearTax += rateFactor * incomeValues[i];
+      if (realizedGainValues[i] > 0) currentYearTax = gainsFactor * realizedGainValues[i];
+      if (incomeValues[i] > 0) currentYearTax += incomeFactor * incomeValues[i];
       // Defer tax to next year; if this is the last year, tax stays in that year
       if (currentYearTax !== 0) {
         const targetIdx = i + 1 < yearsCount ? i + 1 : i;

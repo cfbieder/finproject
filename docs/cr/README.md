@@ -14,11 +14,11 @@ Each CR file's first line carries its status and links back to the matching anch
 |--------|------:|-----|
 | COMPLETED | 33 | CR001–CR013, CR016, CR017, CR018, CR024, CR025, CR026, CR028, CR030, CR031, CR032, CR033, CR034, CR035, CR036, CR037, CR038, CR039, CR040, CR041, CR044 *(decision record)* |
 | IN-PROGRESS | 3 | CR019, CR022, CR023 |
-| OPEN | 6 | CR020, CR021, CR042, CR043, CR045, CR046 |
+| OPEN | 7 | CR020, CR021, CR042, CR043, CR045, CR046, CR047 |
 | PLANNED | 2 | CR027 *(v4, umbrella)*, CR029 |
 | SUPERSEDED | 1 | CR014 |
 | OBSOLETE | 1 | CR015 |
-| **Total** | **46** | |
+| **Total** | **47** | |
 
 ## All CRs
 
@@ -70,3 +70,4 @@ Each CR file's first line carries its status and links back to the matching anch
 | [CR044](cr-044-productization-marketability.md) | COMPLETED | v3 | Productization & Marketability Assessment | 2026-07-11 consulting memo + decision gate: market scan validated the forecast+privacy differentiator but the audience is a niche-of-a-niche; **owner decided same day: stay personal** — release-only moves dropped, no-regret moves (pluggable LLM, SimpleFIN, demo seed, migration runner) kept as backlog. Retained as decision record. |
 | [CR045](cr-045-forecast-cash-warnings-liquidation.md) | OPEN | v3 | Forecast Cash Warnings & Forced Liquidation | Owner saw the bank line dive to −$3.7M: `copyScenario` never copied `cash_sweep_priority`, so every copied scenario ran with no sweep module and left shortfalls unfunded (prod: 14 years / −$20.1M → 3 / −$3.35M once re-ranked). Phase 1 ships a cash-health warnings pane on `/forecast-review` (the engine wrote 14 shortfall entries and the UI showed none); it immediately found Phase 1b — the sweep never applied the BaseYear cash flow, so it held the band ~a year of NCF above the displayed balance. Phase 2 (open): whole-asset liquidation mode + capital-gains tax on forced sweep sales. |
 | [CR046](cr-046-module-income-window-and-hierarchy-graph.md) | OPEN | v3 | Module Income/Expense Window + Hierarchy Breakdown Graph | Start/end dates on a module's income and expense streams (migration 037) — "start charging rent in 2030" was inexpressible; the window bounds *when* a stream runs, not how much, NULL = the old behavior. Plus: double-clicking any Forecast Review row now graphs the accounts beneath it as a stacked bar (BS and P&L), which only "Net Assets" used to do. Shipped v3.0.81. |
+| [CR047](cr-047-module-income-tax-override.md) | OPEN | v3 | Income-Only Tax Rate Override | `tax_rate_override` moved BOTH the capital-gains and the income rate, so "the dividend is already taxed in Poland — only 3% incremental US tax, but a sale is still a normal gain" was inexpressible. Migration 038 adds `income_tax_rate_override` (income only; NULL falls back ⇒ no change; 0 is a real rate). Shipped v3.0.84. |

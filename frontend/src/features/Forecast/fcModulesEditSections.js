@@ -36,7 +36,12 @@ export const FIELD_SECTIONS = [
     ["Income Start Year (blank = base yr)", "IncomeStartDate", "year"],
     ["Income End Year (blank = horizon)", "IncomeEndDate", "year"],
   ]],
+  // CR047: two taxes, two rates. TaxRateOverride covers capital gains on disposal;
+  // IncomeTaxRateOverride covers this module's income only — for income that arrives
+  // already taxed elsewhere (a dividend paid net of Polish tax, where the only
+  // incremental US tax is ~3%). Blank on either = fall back, i.e. no change.
   ["Tax", [
     ["Tax Rate Override (%)", "TaxRateOverride", "number"],
+    ["Income Tax Rate Override (%)", "IncomeTaxRateOverride", "number"],
   ]],
 ];

@@ -839,3 +839,85 @@ describe("CR046 — Income/expense start & end window", () => {
     expect(b[2030]).toBeCloseTo(o[2030], 6);
   });
 });
+
+describe("CR047 — Income-only tax rate override", () => {
+  // United Beverages: the dividend arrives already taxed in Poland, so the only
+  // incremental US tax on the INCOME is ~3%. But a future sale of the business is still a
+  // normal capital gain at the scenario rate. `tax_rate_override` alone could not say
+  // that — it moves both.
+  const ub = {
+    BaseValue: 100000, BaseValueUSD: 100000,
+    MarketValue: 200000, MarketValueUSD: 200000, // 100k embedded gain
+    Growth: 0, ExpensePct: 0,
+    IncomePct: [], Invest: [],
+    IncomeCategory: "UB Income",
+    ExpCategory: "Prop Costs",
+    expense_amount: 0,
+    income_amount: 10000,
+  };
+
+  const taxByYear = (db) => {
+    const out = {};
+    for (const e of getEntriesForAccount(db, "Taxes")) out[e.forecast_year] = e.amount;
+    return out;
+  };
+
+  test("X1 income is taxed at the income rate while gains keep the scenario rate", async () => {
+    const dispose = [{ Date: "2028-06-01", Amount: 200000, Flag: "OneTime" }];
+
+    // Baseline: the same module with NO income at all — so its tax is PURELY the capital
+    // gain on the 2028 disposal. That isolates the number the override must not move.
+    const gainsOnly = await runModule(
+      { ...ub, income_amount: 0, Dispose: dispose },
+      { TaxRate: 25 }
+    );
+    const split = await runModule(
+      { ...ub, Dispose: dispose, income_tax_rate_override: 3 },
+      { TaxRate: 25 }
+    );
+    const plain = await runModule({ ...ub, Dispose: dispose }, { TaxRate: 25 });
+
+    const g = taxByYear(gainsOnly.db);
+    const x = taxByYear(split.db);
+    const p = taxByYear(plain.db);
+
+    // The 3% override must cut the income tax to 3/25 of what the scenario rate charged.
+    expect(x[2027]).toBeCloseTo(p[2027] * (3 / 25), 6);
+    expect(x[2027]).toBeGreaterThan(p[2027]); // both negative — the split pays less
+
+    // ...and the capital-gains tax is untouched: the disposal-year charge, once the
+    // income component is stripped out, is exactly the gains-only module's charge.
+    const incomeTaxIn2029 = x[2029] - g[2029];
+    const plainIncomeTaxIn2029 = p[2029] - g[2029];
+    expect(incomeTaxIn2029).toBeCloseTo(plainIncomeTaxIn2029 * (3 / 25), 6);
+    expect(g[2029]).toBeLessThan(0); // the gain really was taxed — the test is not vacuous
+  });
+
+  test("X2 a 0% income override is a real rate, not 'unset'", async () => {
+    const { db } = await runModule({ ...ub, income_tax_rate_override: 0 }, { TaxRate: 25 });
+    const tax = taxByYear(db);
+    // No disposal, no gain — and income is now untaxed, so there is no tax at all.
+    expect(Object.keys(tax)).toHaveLength(0);
+  });
+
+  test("X3 it falls back to tax_rate_override, then to the scenario rate", async () => {
+    // income override NULL + module override 10 ⇒ income taxed at 10 (today's behavior).
+    const moduleOverride = await runModule({ ...ub, tax_rate_override: 10 }, { TaxRate: 25 });
+    const explicit = await runModule({ ...ub, income_tax_rate_override: 10 }, { TaxRate: 25 });
+    expect(taxByYear(moduleOverride.db)).toEqual(taxByYear(explicit.db));
+
+    // both NULL ⇒ the scenario rate.
+    const scenarioRate = await runModule({ ...ub }, { TaxRate: 25 });
+    const asScenario = await runModule({ ...ub, income_tax_rate_override: 25 }, { TaxRate: 25 });
+    expect(taxByYear(scenarioRate.db)).toEqual(taxByYear(asScenario.db));
+  });
+
+  test("X4 no override ⇒ byte-identical to before (every existing module)", async () => {
+    const before = await runModule({ ...ub, tax_rate_override: 12 }, { TaxRate: 25 });
+    const after = await runModule(
+      { ...ub, tax_rate_override: 12, income_tax_rate_override: null },
+      { TaxRate: 25 }
+    );
+    expect(after.db.insertedEntries).toEqual(before.db.insertedEntries);
+  });
+});

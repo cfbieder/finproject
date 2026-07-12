@@ -176,9 +176,10 @@ async function copyScenario(sourceId, newName) {
           market_value, base_value_usd, market_value_usd,
           growth_rate, comment, is_matched,
           setup_status, cash_sweep_target, tax_rate_override, cash_sweep_priority,
-          income_start_date, income_end_date, expense_start_date, expense_end_date
+          income_start_date, income_end_date, expense_start_date, expense_end_date,
+          income_tax_rate_override
         )
-        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22, $23, $24, $25, $26)
+        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22, $23, $24, $25, $26, $27)
         RETURNING id
       `, [
         newId, mod.account_id, mod.name, mod.module_type, mod.currency,
@@ -188,7 +189,8 @@ async function copyScenario(sourceId, newName) {
         mod.growth_rate, mod.comment, mod.is_matched,
         mod.setup_status || 'new', mod.cash_sweep_target || false, mod.tax_rate_override,
         mod.cash_sweep_priority,
-        mod.income_start_date, mod.income_end_date, mod.expense_start_date, mod.expense_end_date
+        mod.income_start_date, mod.income_end_date, mod.expense_start_date, mod.expense_end_date,
+        mod.income_tax_rate_override
       ]);
 
       const newModuleId = newModule.rows[0].id;
@@ -348,7 +350,8 @@ async function updateModule(id, data) {
     'income_amount', 'base_date', 'base_value', 'tax_rate_override', 'setup_status',
     'market_value', 'base_value_usd', 'market_value_usd',
     'growth_rate', 'comment', 'is_matched', 'cash_sweep_target', 'cash_sweep_priority',
-    'income_start_date', 'income_end_date', 'expense_start_date', 'expense_end_date'
+    'income_start_date', 'income_end_date', 'expense_start_date', 'expense_end_date',
+    'income_tax_rate_override'
   ];
 
   for (const field of allowedFields) {

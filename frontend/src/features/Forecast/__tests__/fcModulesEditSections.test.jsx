@@ -42,7 +42,7 @@ describe("CR041 — FCModulesEdit field sections", () => {
       "ExpenseAmount", "ExpenseEndDate", "ExpenseFcLineId", "ExpenseGrowthMethod",
       "ExpenseStartDate", "Growth",
       "IncomeAmount", "IncomeEndDate", "IncomeFcLineId", "IncomeStartDate",
-      "MarketValue", "MarketValueUSD",
+      "IncomeTaxRateOverride", "MarketValue", "MarketValueUSD",
       "Matched", "Name", "TaxRateOverride", "Type",
     ]);
   });
