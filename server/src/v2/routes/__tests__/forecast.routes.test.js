@@ -176,4 +176,45 @@ dbDescribe('forecast router contract (DB)', () => {
       expect(gone.status).toBe(404);
     });
   });
+
+  describe('scenario copy', () => {
+    const COPY = 'CR043RouteTestScenarioCopy';
+
+    afterEach(async () => {
+      await db.query('DELETE FROM forecast_scenarios WHERE name = $1', [COPY]);
+    });
+
+    test('copy carries cash_sweep_priority onto the copied modules', async () => {
+      const create = await req('POST', '/modules', {
+        Scenario: SCENARIO,
+        Account: accountName,
+        Name: 'CR043 Sweep Primary',
+        Type: 'asset',
+        Currency: 'USD',
+        BaseValue: 1000,
+        MarketValue: 1000,
+      });
+      const id = create.body.data.id;
+      const setPri = await req('PUT', `/modules/${id}`, { CashSweepPriority: 1 });
+      expect(setPri.status).toBe(200);
+
+      const copy = await req('POST', `/scenarios/byname/${encodeURIComponent(SCENARIO)}/copy`, {
+        newScenarioName: COPY,
+      });
+      expect(copy.status).toBe(201);
+
+      // Without the priority in the copy INSERT the module lands unranked, the
+      // scenario has no primary, and the sweep silently stops funding shortfalls.
+      const copied = await db.query(
+        `SELECT m.cash_sweep_priority FROM forecast_modules m
+         JOIN forecast_scenarios s ON s.id = m.scenario_id
+         WHERE s.name = $1 AND m.name = $2`,
+        [COPY, 'CR043 Sweep Primary']
+      );
+      expect(copied.rows).toHaveLength(1);
+      expect(copied.rows[0].cash_sweep_priority).toBe(1);
+
+      await req('DELETE', `/modules/${id}`);
+    });
+  });
 });

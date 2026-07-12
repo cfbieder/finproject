@@ -175,9 +175,9 @@ async function copyScenario(sourceId, newName) {
           income_amount, base_date, base_value,
           market_value, base_value_usd, market_value_usd,
           growth_rate, comment, is_matched,
-          setup_status, cash_sweep_target, tax_rate_override
+          setup_status, cash_sweep_target, tax_rate_override, cash_sweep_priority
         )
-        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21)
+        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22)
         RETURNING id
       `, [
         newId, mod.account_id, mod.name, mod.module_type, mod.currency,
@@ -185,7 +185,8 @@ async function copyScenario(sourceId, newName) {
         mod.income_amount, mod.base_date, mod.base_value,
         mod.market_value, mod.base_value_usd, mod.market_value_usd,
         mod.growth_rate, mod.comment, mod.is_matched,
-        mod.setup_status || 'new', mod.cash_sweep_target || false, mod.tax_rate_override
+        mod.setup_status || 'new', mod.cash_sweep_target || false, mod.tax_rate_override,
+        mod.cash_sweep_priority
       ]);
 
       const newModuleId = newModule.rows[0].id;
