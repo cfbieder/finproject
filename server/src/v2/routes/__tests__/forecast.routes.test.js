@@ -266,8 +266,16 @@ dbDescribe('forecast router contract (DB)', () => {
     test('rent that starts in 2028 is NOT base-year (2026) income', async () => {
       await seedModule('2028-07-01');
       expect(await baseYearIncome(2026)).toBe(0);
-      // ...and it IS income once the base year reaches it.
-      expect(Number(await baseYearIncome(2028))).toBeCloseTo(35000, 2);
+    });
+
+    test('a window that OPENS in the base year books half of it (July-1 convention)', async () => {
+      // The projection halves the year the window opens; the base-year sums must agree, or
+      // the same figure contradicts itself across the BUDGET column, the sweep's opening
+      // cash and the tax. Note this makes 'start = base year' differ from BLANK, which is a
+      // full base year — deliberately: blank means "always on", not "starts in July".
+      await seedModule('2026-07-01');
+      expect(Number(await baseYearIncome(2026))).toBeCloseTo(17500, 2);
+      expect(Number(await baseYearIncome(2027))).toBeCloseTo(35000, 2); // full year after
     });
 
     test('an unwindowed stream is base-year income, as before', async () => {

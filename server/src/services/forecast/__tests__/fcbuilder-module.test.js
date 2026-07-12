@@ -920,4 +920,42 @@ describe("CR047 — Income-only tax rate override", () => {
     );
     expect(after.db.insertedEntries).toEqual(before.db.insertedEntries);
   });
+
+
+});
+
+describe("CR046 W11 — base-year window and the base-year income tax", () => {
+  const owned = {
+    BaseValue: 100000, BaseValueUSD: 100000,
+    MarketValue: 100000, MarketValueUSD: 100000,
+    Growth: 0, ExpensePct: 0,
+    IncomePct: [], Invest: [], Dispose: [],
+    IncomeCategory: "Rental Income",
+    ExpCategory: "Prop Costs",
+    expense_amount: 0,
+    income_amount: 10000,
+  };
+  const byYear = (db, account) => {
+    const out = {};
+    for (const e of getEntriesForAccount(db, account)) out[e.forecast_year] = e.amount;
+    return out;
+  };
+
+  test("W11 a window opening in the base year halves the base-year INCOME TAX too", async () => {
+    // The base-year income tax is deferred into Period 1 and used to be computed from the
+    // raw income_amount — so a stream starting in the base year booked half a year of income
+    // and paid tax on a full one. Wrong under any convention.
+    const halfBaseYear = await runModule(
+      { ...owned, income_start_date: "2025-07-01" }, // 2025 IS the base year here
+      { TaxRate: 25 }
+    );
+    const fullBaseYear = await runModule({ ...owned }, { TaxRate: 25 }); // blank ⇒ full
+
+    const h = byYear(halfBaseYear.db, "Taxes");
+    const f = byYear(fullBaseYear.db, "Taxes");
+
+    // Period 1 (2026) carries the deferred base-year income tax and nothing else here.
+    expect(h[2026]).toBeCloseTo(f[2026] / 2, 6);
+    expect(f[2026]).toBeLessThan(0); // not vacuous — the base year really was taxed
+  });
 });

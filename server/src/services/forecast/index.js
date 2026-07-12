@@ -495,13 +495,20 @@ async function generateForecast(scenarioName) {
         // v3.0.88): a stream only counts in the base year if its window is open that year.
         const budgetResult = await dbc.query(`
           SELECT COALESCE(SUM(val.amount), 0)::numeric as budget_ncf FROM (
-            SELECT SUM(CASE WHEN a.account_type = 'liability' THEN -m.expense_amount ELSE 0 END) as amount
+            SELECT SUM(CASE WHEN a.account_type = 'liability'
+                             THEN -m.expense_amount * (CASE WHEN EXTRACT(YEAR FROM m.expense_start_date) = $2
+                                                              OR EXTRACT(YEAR FROM m.expense_end_date)   = $2
+                                                            THEN 0.5 ELSE 1 END)
+                             ELSE 0 END) as amount
             FROM forecast_modules m LEFT JOIN accounts a ON m.account_id = a.id LEFT JOIN fc_lines exp_line ON m.expense_fc_line_id = exp_line.id
             WHERE m.scenario_id = $1 AND COALESCE(m.setup_status, 'new') NOT IN ('new', 'exclude') AND m.expense_fc_line_id IS NOT NULL
               AND (m.expense_start_date IS NULL OR EXTRACT(YEAR FROM m.expense_start_date) <= $2)
               AND (m.expense_end_date   IS NULL OR EXTRACT(YEAR FROM m.expense_end_date)   >= $2)
             UNION ALL
-            SELECT SUM(COALESCE(m.income_amount, 0)) FROM forecast_modules m LEFT JOIN fc_lines inc_line ON m.income_fc_line_id = inc_line.id
+            SELECT SUM(COALESCE(m.income_amount, 0) * (CASE WHEN EXTRACT(YEAR FROM m.income_start_date) = $2
+                                                                 OR EXTRACT(YEAR FROM m.income_end_date)   = $2
+                                                               THEN 0.5 ELSE 1 END))
+            FROM forecast_modules m LEFT JOIN fc_lines inc_line ON m.income_fc_line_id = inc_line.id
             WHERE m.scenario_id = $1 AND COALESCE(m.setup_status, 'new') NOT IN ('new', 'exclude') AND m.income_fc_line_id IS NOT NULL
               AND (m.income_start_date IS NULL OR EXTRACT(YEAR FROM m.income_start_date) <= $2)
               AND (m.income_end_date   IS NULL OR EXTRACT(YEAR FROM m.income_end_date)   >= $2)

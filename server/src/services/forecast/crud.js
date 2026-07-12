@@ -381,13 +381,22 @@ async function getBaseYearValues(scenarioId, baseYear = null) {
   const windowFilter = (prefix) => baseYear == null ? '' : `
       AND (m.${prefix}_start_date IS NULL OR EXTRACT(YEAR FROM m.${prefix}_start_date) <= ${Number(baseYear)})
       AND (m.${prefix}_end_date   IS NULL OR EXTRACT(YEAR FROM m.${prefix}_end_date)   >= ${Number(baseYear)})`;
+
+  // ...and if the window OPENS or CLOSES in the base year, the stream only runs for half of
+  // it (the July-1 convention the projection already applies). Without this the base year
+  // would book the full amount while every other layer booked half — the same figure
+  // disagreeing with itself across the display, the sweep's opening cash and the tax.
+  const halfYear = (prefix) => baseYear == null ? '1' : `
+      (CASE WHEN EXTRACT(YEAR FROM m.${prefix}_start_date) = ${Number(baseYear)}
+              OR EXTRACT(YEAR FROM m.${prefix}_end_date)   = ${Number(baseYear)}
+            THEN 0.5 ELSE 1 END)`;
   // Get income/expense amounts from BS modules (by FC Line name)
   const bsResult = await db.query(`
     SELECT
       COALESCE(exp_line.name, 'Unassigned Expense') as label,
       'expense' as type,
       SUM(CASE WHEN m.expense_amount IS NOT NULL AND m.expense_amount != 0
-          THEN -m.expense_amount ELSE 0 END) as amount
+          THEN -m.expense_amount * ${halfYear('expense')} ELSE 0 END) as amount
     FROM forecast_modules m
     LEFT JOIN fc_lines exp_line ON m.expense_fc_line_id = exp_line.id
     WHERE m.scenario_id = $1 AND COALESCE(m.setup_status, 'new') NOT IN ('new', 'exclude')
@@ -397,7 +406,7 @@ async function getBaseYearValues(scenarioId, baseYear = null) {
     SELECT
       COALESCE(inc_line.name, 'Unassigned Income') as label,
       'income' as type,
-      SUM(COALESCE(m.income_amount, 0)) as amount
+      SUM(COALESCE(m.income_amount, 0) * ${halfYear('income')}) as amount
     FROM forecast_modules m
     LEFT JOIN fc_lines inc_line ON m.income_fc_line_id = inc_line.id
     WHERE m.scenario_id = $1 AND COALESCE(m.setup_status, 'new') NOT IN ('new', 'exclude')

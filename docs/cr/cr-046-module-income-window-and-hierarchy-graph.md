@@ -127,10 +127,29 @@ unchanged; the route resolves it from the assumptions doc (`PeriodStart - 1`).
 
 +3 DB-backed tests (345 backend green), verified to fail pre-fix with the reported 35,000.
 
-**Known edge, not fixed:** if a window *opens in the base year*, the engine's projection halves
-that first year (July-1 convention) but these base-year sums take the full amount. Pre-existing
-shape — the base-year column has always been a raw budget figure — and it only bites a stream
-that starts exactly in the base year.
+### The base-year edge, closed (v3.0.89)
+
+A stream whose window **opens (or closes) in the base year** had *three* different values:
+
+| layer | booked |
+|---|---|
+| the budget sums (BUDGET column + sweep opening cash) | **full** amount |
+| the engine's projection | **half** (July-1) |
+| the deferred base-year income **tax** | **full** amount |
+
+So it booked half a year of rent, taxed a whole one, and displayed a whole one. The tax was
+wrong under *any* convention — it taxed income the model never booked.
+
+**Owner's rule: halve it everywhere.** Both budget sums now halve when the window's start or
+end year *is* the base year, and the base-year tax is computed from the booked figure rather
+than the raw `income_amount`. All three layers agree.
+
+Note this makes **"start = base year" differ from BLANK** — deliberately. Blank means *always
+on* (a whole base year); explicitly picking the base year means *starts in July* (half). Both
+are what the picker promises; they simply are not the same statement.
+
+Tests: `W11` (base-year tax halves — fails pre-fix at −2,500 vs −1,250) and a base-year-values
+case pinning 17,500 in the opening year, 35,000 after. **347 backend green.**
 
 ## 4. Open
 

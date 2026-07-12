@@ -508,7 +508,16 @@ function computeModule(module, scenario, df_assumptions, df_categories, categori
     if (incomeFactor !== 0 && absIncomeAmount > 0 && acquisitionIdx === 0 && baseYearInWindow) {
       const period1Idx = periodStart - startyear;
       if (period1Idx >= 0 && period1Idx < yearsCount) {
-        taxValues[period1Idx] += incomeFactor * absIncomeAmount;
+        // Tax what the base year actually EARNED, not the raw amount. `incomeValues[0]` is
+        // no help here — the projection loop skips the base year (its index is < PeriodStart)
+        // — so the base-year figure is derived: the full amount, halved when the window
+        // opens or closes in the base year itself (the July-1 half year). Taxing
+        // absIncomeAmount there would tax income the model never booked.
+        const from = windowIdx(module.income_start_date);
+        const to = windowIdx(module.income_end_date);
+        const halvesBaseYear = from === 0 || to === 0;
+        const baseYearIncome = absIncomeAmount * (halvesBaseYear ? 0.5 : 1);
+        taxValues[period1Idx] += incomeFactor * baseYearIncome;
       }
     }
 
