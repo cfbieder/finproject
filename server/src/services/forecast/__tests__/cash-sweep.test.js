@@ -457,6 +457,52 @@ describe("computeCashSweepIterative", () => {
     });
   });
 
+  describe("basis no future scheduled sale will claim (CR048 A2)", () => {
+    // The builder's scheduled disposals compute their gains against a basis that cannot
+    // see what the sweep sold. If the sweep consumes basis a later scheduled sale also
+    // assumes, the same basis offsets two sales and the tax is understated. The sweep may
+    // only claim the basis that survives every future year.
+    const stocks = { name: "Stocks", account_name: "Stock Account" };
+
+    test("a forced sale may only use basis left over after future scheduled sales", () => {
+      const { entries } = computeCashSweepIterative({
+        years: [2027, 2028, 2029],
+        cashSweepLow: 100000, cashSweepHigh: 200000,
+        cashDeltaByYear: { 2027: -100000, 2028: 0, 2029: 0 },
+        startingCash: 100000, // 2027 sells 100k of stock
+        sweepModule: stocks,
+        moduleBalanceByYear: { 2027: 1000000, 2028: 900000, 2029: 800000 },
+        // A scheduled sale consumes basis over time: 600k now, only 100k survives 2029.
+        moduleBasisByYear: { 2027: 600000, 2028: 300000, 2029: 100000 },
+        moduleTaxRate: 25,
+      });
+
+      // Only the 100k of never-again-claimed basis is available: ratio 100k/1000k = 10%,
+      // so gain = 100k − 10k = 90k, tax = 22.5k (deferred to 2028). Using 2027's full
+      // 600k basis would have taxed only 40k of gain — the other 200k of basis would
+      // have been claimed AGAIN by the scheduled sales.
+      const tax = entries.filter((e) => e.year === 2028 && e.account === "Taxes");
+      expect(tax).toHaveLength(1);
+      expect(tax[0].amount).toBeCloseTo(-22500, 2);
+    });
+
+    test("a flat basis series is unchanged (no scheduled sales ⇒ old behavior)", () => {
+      const { entries } = computeCashSweepIterative({
+        years: [2027, 2028],
+        cashSweepLow: 100000, cashSweepHigh: 200000,
+        cashDeltaByYear: { 2027: -100000, 2028: 0 },
+        startingCash: 100000,
+        sweepModule: stocks,
+        moduleBalanceByYear: { 2027: 1000000, 2028: 1000000 },
+        moduleBasisByYear: { 2027: 600000, 2028: 600000 },
+        moduleTaxRate: 25,
+      });
+      // Same as the pre-A2 arithmetic: 60% basis ratio, gain 40k, tax 10k.
+      const tax = entries.filter((e) => e.year === 2028 && e.account === "Taxes");
+      expect(tax[0].amount).toBeCloseTo(-10000, 2);
+    });
+  });
+
   describe("swept funds stop growing once sold (P2b)", () => {
     test("a withdrawal is carried forward compounded at the module's growth rate", () => {
       // The builder keeps growing the module's full pre-sweep balance, so the sweep's

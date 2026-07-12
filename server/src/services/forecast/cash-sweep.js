@@ -109,11 +109,31 @@ function computeCashSweepIterative({
       floorNormByYear[year] = runningMin;
     }
 
+    // The same backward pass for COST BASIS (CR048 A2). The builder's scheduled
+    // disposals compute their gains against a basis that cannot see what the sweep
+    // sold, so basis claimed by the sweep must never be basis a future scheduled sale
+    // will claim again — otherwise the same basis offsets two sales and the tax is
+    // understated. The sweep therefore gets only the basis that survives every future
+    // year: basisFloor[Y] = min over t ≥ Y of basis[t]. Where they overlap, the
+    // scheduled sale keeps its assumed basis (it was computed first, in the builder)
+    // and the sweep's forced sale carries the higher gain — conservative by design.
+    // Basis does not compound, so no growth normalization here.
+    const basisSeries = basisByYear || {};
+    const basisFloorByYear = {};
+    let basisMin = Infinity;
+    for (let i = years.length - 1; i >= 0; i--) {
+      const year = Number(years[i]);
+      const b = Number(basisSeries[year]);
+      basisMin = Math.min(basisMin, Number.isFinite(b) ? b : 0);
+      basisFloorByYear[year] = basisMin;
+    }
+
     return {
       name: mod.name,
       account: mod.account_name,
       balanceByYear: balances,
       basisByYear: basisByYear || {},
+      basisFloorByYear,
       growthFactorByYear,
       floorNormByYear,
       taxRate: Number(taxRate) || 0,
@@ -185,7 +205,8 @@ function computeCashSweepIterative({
   const realize = (src, year, amount) => {
     if (amount <= EPSILON || !src.taxRate) return 0;
     const mv = Math.max(0, (src.balanceByYear[year] || 0) - withdrawnAt(src, year));
-    const basis = Math.max(0, (src.basisByYear[year] || 0) - src.basisSold);
+    // Only basis that no future scheduled sale will claim is available here (CR048 A2).
+    const basis = Math.max(0, (src.basisFloorByYear[year] ?? 0) - src.basisSold);
     // No basis recorded (or none left) ⇒ the whole withdrawal is gain.
     const basisRatio = mv > EPSILON ? Math.min(1, basis / mv) : 0;
     const basisSold = amount * basisRatio;

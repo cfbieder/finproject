@@ -183,4 +183,80 @@ dbDescribe('generateForecast transactionality (DB)', () => {
     // the identical ledger balance and this difference was 0.
     expect(withItem - withoutItem).toBeCloseTo(100000, 2);
   });
+
+  // CR048 A1. Yield income is a % of market value, and the sweep changes market value —
+  // but the income↔sweep convergence only ever re-based the PRIMARY. A backup the sweep
+  // drained kept paying dividends on its full pre-sweep balance: ~2% on money that was
+  // gone, in exactly the years the plan was short.
+  test("a sweep-drained BACKUP's yield income falls with its balance", async () => {
+    const acct = (await db.query(
+      `SELECT id FROM accounts WHERE parent_id IS NOT NULL
+       AND name NOT IN ('Bank Accounts', 'Transfer - Bank', 'Taxes') ORDER BY id LIMIT 1`
+    )).rows[0];
+    const line = (await db.query(
+      `INSERT INTO fc_lines (name, line_type) VALUES ('CR048 Yield Line', 'bs_module_income')
+       ON CONFLICT (name) DO UPDATE SET line_type = EXCLUDED.line_type RETURNING id`
+    )).rows[0];
+
+    // Primary: priority 1, empty — nothing to drain, no yield. Its emptiness forces the
+    // cascade straight into the backup.
+    const primaryId = (await db.query(
+      `INSERT INTO forecast_modules
+         (scenario_id, account_id, name, setup_status, base_date, market_value, market_value_usd,
+          base_value, base_value_usd, growth_rate, cash_sweep_priority)
+       VALUES ($1, $2, 'CR048 Primary', 'complete', '2026-12-31', 0, 0, 0, 0, 0, 1) RETURNING id`,
+      [scenarioId, acct.id]
+    )).rows[0].id;
+
+    // Backup: priority 2, $500k of stock yielding inflation + 5%, flat growth.
+    const backupId = (await db.query(
+      `INSERT INTO forecast_modules
+         (scenario_id, account_id, name, setup_status, base_date, market_value, market_value_usd,
+          base_value, base_value_usd, growth_rate, cash_sweep_priority, income_fc_line_id)
+       VALUES ($1, $2, 'CR048 Backup Stocks', 'complete', '2026-12-31', 500000, 500000,
+               500000, 500000, 0, 2, $3) RETURNING id`,
+      [scenarioId, acct.id, line.id]
+    )).rows[0].id;
+    await db.query(
+      `INSERT INTO forecast_module_income_pct (module_id, effective_date, value)
+       VALUES ($1, '2027-01-01', 5)`,
+      [backupId]
+    );
+
+    // A heavy recurring outflow so the sweep must liquidate the backup in year one.
+    const drainId = (await db.query(
+      `INSERT INTO forecast_income_expense
+         (scenario_id, account_id, name, base_value, base_value_usd, growth_rate, setup_status)
+       VALUES ($1, $2, 'CR048 Drain', -600000, -600000, 0, 'included') RETURNING id`,
+      [scenarioId, acct.id]
+    )).rows[0].id;
+
+    try {
+      const result = await generateForecast(NAME);
+      if (!result.success) console.error('CR048 A1 test — engine error:', result.error);
+      expect(result.success).toBe(true);
+
+      const inc = {};
+      const rows = (await db.query(
+        `SELECT forecast_year, amount FROM forecast_entries
+         WHERE scenario_id = $1 AND module = 'CR048 Backup Stocks' AND account = 'CR048 Yield Line'
+         ORDER BY forecast_year`,
+        [scenarioId]
+      )).rows;
+      for (const r of rows) inc[r.forecast_year] = parseFloat(r.amount);
+
+      // Undrained, the backup would pay (2% inflation + 5%) × 500k = 35k flat every year —
+      // which is exactly what the pre-CR048 engine produced, because the convergence loop
+      // never looked at backups at all. Drained in 2027, its income must collapse.
+      expect(inc[2027]).toBeLessThan(30000); // drain year: avg of full and empty balance
+      expect(Math.abs(inc[2028] || 0)).toBeLessThan(2000); // empty: essentially nothing
+      expect(Math.abs(inc[2029] || 0)).toBeLessThan(2000);
+    } finally {
+      await db.query('DELETE FROM forecast_income_expense WHERE id = $1', [drainId]);
+      await db.query('DELETE FROM forecast_module_income_pct WHERE module_id = $1', [backupId]);
+      await db.query('DELETE FROM forecast_modules WHERE id IN ($1, $2)', [primaryId, backupId]);
+      await db.query("DELETE FROM fc_lines WHERE name = 'CR048 Yield Line'");
+      await generateForecast(NAME); // leave the scenario as the earlier tests expect it
+    }
+  });
 });
