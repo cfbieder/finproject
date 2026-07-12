@@ -40,6 +40,7 @@ import { formatAmount } from "../features/Forecast/utils/fcReviewUtils.js";
 import { KpiCard, KpiCardRow } from "../components/KpiCards.jsx";
 import FCReviewWarnings from "../features/Forecast/FCReviewWarnings.jsx";
 import { computeForecastWarnings } from "../features/Forecast/utils/fcWarnings.js";
+import { buildBreakdownSeries } from "../features/Forecast/utils/fcBreakdown.js";
 import { TrendingUp, TrendingDown, DollarSign, Landmark } from "lucide-react";
 import Rest from "../js/rest.js";
 import FCStepNav from "../features/Forecast/FCStepNav.jsx";
@@ -769,6 +770,22 @@ export default function FCReview() {
    * excluding the level 1 subtotals (Assets, Liabilities).
    * Liability values are negated so the chart shows net contribution.
    */
+  // CR046: raw engine entries keyed by the account they were actually written against,
+  // NOT rolled up to level 2 like entryMaps. That roll-up is what makes entryMaps useless
+  // for expanding a level-2 row into its leaves.
+  const leafValuesByAccount = useMemo(() => {
+    const map = new Map();
+    for (const entry of entries) {
+      const account = entry.Account;
+      if (!account) continue;
+      if (!map.has(account)) map.set(account, new Map());
+      const byYear = map.get(account);
+      const year = Number(entry.Year);
+      byYear.set(year, (byYear.get(year) || 0) + (Number(entry.Amount) || 0));
+    }
+    return map;
+  }, [entries]);
+
   const netAssetsAccountBreakdown = useMemo(() => {
     const accounts = [];
     for (const row of balanceAccounts) {
@@ -1250,6 +1267,32 @@ export default function FCReview() {
   const handleAccountDoubleClick = useCallback(
     (series) => {
       if (!series || !series.id) return;
+
+      // CR046: expand the row into the accounts beneath it and stack them, the way
+      // Net Assets already did. A row with nothing under it falls through to the
+      // single-line chart below — the old behavior.
+      const isCash = series.side === "cash";
+      const accountMap = isCash ? cashAccountMap : balanceAccountMap;
+      const breakdown = buildBreakdownSeries({
+        label: series.label,
+        level: series.level,
+        sortedYears,
+        accountMap,
+        valuesForLevel2: (label) =>
+          isCash
+            ? sortedYears.map((year) => getCellValue({ label, level: 2 }, year, true) ?? 0)
+            : balanceDisplayValues.get(label) || [],
+        leafValues: leafValuesByAccount,
+        palette: BAR_CHART_COLORS,
+      });
+
+      if (breakdown.length > 0) {
+        setSelectedSeries(breakdown);
+        setGraphMode("bar");
+        setGraphModalOpen(true);
+        return;
+      }
+
       const numericValues = sortedYears.map((_, index) => {
         const value = series.values?.[index];
         const num = Number(value);
@@ -1259,7 +1302,14 @@ export default function FCReview() {
       setGraphMode("line");
       setGraphModalOpen(true);
     },
-    [sortedYears]
+    [
+      sortedYears,
+      cashAccountMap,
+      balanceAccountMap,
+      balanceDisplayValues,
+      leafValuesByAccount,
+      getCellValue,
+    ]
   );
 
   const handleNetAssetsDoubleClick = useCallback(() => {
@@ -1471,7 +1521,9 @@ export default function FCReview() {
     () =>
       selectedSeries.map((series, index) => ({
         ...series,
-        color: GRAPH_COLORS[index % GRAPH_COLORS.length],
+        // Keep a series' own color when it has one (stacked breakdowns pick from
+        // BAR_CHART_COLORS); only line series fall back to the 6-color line palette.
+        color: series.color ?? GRAPH_COLORS[index % GRAPH_COLORS.length],
         hasModule: fcExpByLabel.has(series.label) || fcModulesByLabel.has(series.label),
       })),
     [selectedSeries, fcExpByLabel, fcModulesByLabel]

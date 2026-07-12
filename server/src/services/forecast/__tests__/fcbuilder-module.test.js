@@ -656,3 +656,122 @@ describe("CR041 — Ownership-gated expenses/income", () => {
     expect(expByYear[2028]).toBeUndefined();
   });
 });
+
+describe("CR046 — Income/expense start & end window", () => {
+  // Scenario 2026–2030, BaseDate 2025-12-31 → base year 2025.
+  // The asset is owned from the start (MV 100000), so CR041's ownership gate never fires:
+  // the only thing that can delay a stream here is the CR046 window.
+  const owned = {
+    BaseValue: 100000, BaseValueUSD: 100000,
+    MarketValue: 100000, MarketValueUSD: 100000,
+    Growth: 0, ExpensePct: 0,
+    IncomePct: [], Invest: [], Dispose: [],
+    IncomeCategory: "Rental Income",
+    ExpCategory: "Prop Costs",
+    expense_amount: 0,
+    income_amount: 10000,
+  };
+
+  const byYear = (db, account) => {
+    const out = {};
+    for (const e of getEntriesForAccount(db, account)) out[e.forecast_year] = e.amount;
+    return out;
+  };
+
+  test("W1 income starts in the year the window opens, not the base year", async () => {
+    // "I own this flat today and start renting it in 2028."
+    const { db } = await runModule(
+      { ...owned, income_start_date: "2028-01-01" },
+      { TaxRate: 0 }
+    );
+    const inc = byYear(db, "Rental Income");
+
+    expect(inc[2026]).toBeUndefined(); // zero cells are not written as entries
+    expect(inc[2027]).toBeUndefined();
+    expect(inc[2028]).toBeGreaterThan(0);
+    expect(inc[2029]).toBeGreaterThan(0);
+    expect(inc[2030]).toBeGreaterThan(0);
+  });
+
+  test("W2 the amount is still a base-year figure compounded at inflation", async () => {
+    // The window moves WHEN the stream runs, never how much. 2028's rent is what it would
+    // have been in 2028 anyway — the same number an unwindowed module shows that year.
+    const gated = await runModule({ ...owned, income_start_date: "2028-01-01" }, { TaxRate: 0 });
+    const plain = await runModule({ ...owned }, { TaxRate: 0 });
+
+    const g = byYear(gated.db, "Rental Income");
+    const p = byYear(plain.db, "Rental Income");
+    expect(g[2028]).toBeCloseTo(p[2028], 6);
+    expect(g[2030]).toBeCloseTo(p[2030], 6);
+  });
+
+  test("W3 income stops after the window closes", async () => {
+    const { db } = await runModule(
+      { ...owned, income_end_date: "2028-12-31" },
+      { TaxRate: 0 }
+    );
+    const inc = byYear(db, "Rental Income");
+
+    expect(inc[2027]).toBeGreaterThan(0);
+    expect(inc[2028]).toBeGreaterThan(0);
+    expect(inc[2029]).toBeUndefined();
+    expect(inc[2030]).toBeUndefined();
+  });
+
+  test("W4 the same window bounds the expense stream", async () => {
+    const { db } = await runModule(
+      { ...owned, income_amount: 0, expense_amount: 5000, expense_start_date: "2029-01-01" },
+      { TaxRate: 0 }
+    );
+    const exp = byYear(db, "Prop Costs");
+
+    expect(exp[2027]).toBeUndefined();
+    expect(exp[2028]).toBeUndefined();
+    expect(exp[2029]).toBeLessThan(0);
+    expect(exp[2030]).toBeLessThan(0);
+  });
+
+  test("W5 no window ⇒ byte-identical to before (every existing module)", async () => {
+    const before = await runModule({ ...owned, expense_amount: 5000 }, { TaxRate: 25 });
+    const after = await runModule(
+      { ...owned, expense_amount: 5000, income_start_date: null, income_end_date: null,
+        expense_start_date: null, expense_end_date: null },
+      { TaxRate: 25 }
+    );
+    expect(after.db.insertedEntries).toEqual(before.db.insertedEntries);
+  });
+
+  test("W6 rent that has not started is not taxed in the base year", async () => {
+    // The base-year income tax is deferred into Period 1. Rent starting in 2028 earns
+    // nothing in the base year, so there is nothing to defer.
+    const { db } = await runModule(
+      { ...owned, income_start_date: "2028-01-01" },
+      { TaxRate: 25 }
+    );
+    const tax = byYear(db, "Taxes");
+
+    // 2026 (Period 1) would carry the base-year income tax if the window were ignored.
+    expect(tax[2026]).toBeUndefined();
+    // The first taxed year is the one after income actually starts.
+    expect(tax[2029]).toBeLessThan(0);
+  });
+
+  test("W7 ownership still wins — you cannot rent what you do not own yet", async () => {
+    // Bought in 2029, but the window says rent starts 2027. Nothing before the purchase.
+    const { db } = await runModule(
+      {
+        ...owned,
+        BaseValue: 0, BaseValueUSD: 0, MarketValue: 0, MarketValueUSD: 0,
+        Invest: [{ Date: "2029-06-01", Amount: 150000, Flag: "OneTime" }],
+        income_start_date: "2027-01-01",
+      },
+      { TaxRate: 0 }
+    );
+    const inc = byYear(db, "Rental Income");
+
+    expect(inc[2027]).toBeUndefined();
+    expect(inc[2028]).toBeUndefined();
+    expect(inc[2029]).toBeGreaterThan(0); // acquisition year — halved by CR041
+    expect(inc[2030]).toBeGreaterThan(inc[2029]);
+  });
+});

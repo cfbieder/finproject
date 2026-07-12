@@ -256,6 +256,10 @@ router.get('/modules', async (req, res, next) => {
       ExpenseGrowthMethod: m.expense_growth_method || 'inflation',
       TaxRateOverride: m.tax_rate_override != null ? parseFloat(m.tax_rate_override) : null,
       IncomeAmount: m.income_amount,
+      IncomeStartDate: m.income_start_date,
+      IncomeEndDate: m.income_end_date,
+      ExpenseStartDate: m.expense_start_date,
+      ExpenseEndDate: m.expense_end_date,
       BaseDate: m.base_date,
       BaseValue: m.base_value,
       MarketValue: m.market_value,
@@ -356,6 +360,10 @@ router.get('/modules/:id', async (req, res, next) => {
         ExpenseGrowthMethod: m.expense_growth_method || 'inflation',
         TaxRateOverride: m.tax_rate_override != null ? parseFloat(m.tax_rate_override) : null,
         IncomeAmount: m.income_amount,
+        IncomeStartDate: m.income_start_date,
+        IncomeEndDate: m.income_end_date,
+        ExpenseStartDate: m.expense_start_date,
+        ExpenseEndDate: m.expense_end_date,
         BaseDate: m.base_date,
         BaseValue: m.base_value,
         MarketValue: m.market_value,
@@ -420,6 +428,10 @@ router.post('/modules', async (req, res, next) => {
       income_fc_line_id: body.IncomeFcLineId || null,
       expense_growth_method: body.ExpenseGrowthMethod || 'inflation',
       income_amount: body.IncomeAmount || 0,
+      income_start_date: body.IncomeStartDate || null,
+      income_end_date: body.IncomeEndDate || null,
+      expense_start_date: body.ExpenseStartDate || null,
+      expense_end_date: body.ExpenseEndDate || null,
       base_date: body.BaseDate || null,
       base_value: body.BaseValue ?? 0,
       market_value: body.MarketValue ?? 0,
@@ -506,6 +518,10 @@ router.put('/modules/:id', async (req, res, next) => {
     if (body.TaxRateOverride !== undefined) updateData.tax_rate_override = body.TaxRateOverride;
     if (body.SetupStatus !== undefined) updateData.setup_status = body.SetupStatus;
     if (body.IncomeAmount !== undefined) updateData.income_amount = body.IncomeAmount;
+    if (body.IncomeStartDate !== undefined) updateData.income_start_date = body.IncomeStartDate || null;
+    if (body.IncomeEndDate !== undefined) updateData.income_end_date = body.IncomeEndDate || null;
+    if (body.ExpenseStartDate !== undefined) updateData.expense_start_date = body.ExpenseStartDate || null;
+    if (body.ExpenseEndDate !== undefined) updateData.expense_end_date = body.ExpenseEndDate || null;
     if (body.BaseDate !== undefined) updateData.base_date = body.BaseDate;
     if (body.BaseValue !== undefined) updateData.base_value = body.BaseValue;
     if (body.MarketValue !== undefined) updateData.market_value = body.MarketValue;

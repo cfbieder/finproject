@@ -371,12 +371,43 @@ function computeModule(module, scenario, df_assumptions, df_categories, categori
     }
   }
 
+  // CR046: explicit start/end window on each stream. "I own this flat today and start
+  // renting it in 2030" was inexpressible before: an amount-based stream ran for the whole
+  // horizon, and the only thing that could delay it was CR041's ownership gate — which
+  // fires only for an asset ACQUIRED mid-plan. NULL bounds leave the stream unbounded, so
+  // a module with no window set is byte-identical to before.
+  //
+  // The window moves only WHEN the stream runs, never how much: the amount stays a
+  // base-year figure compounded at inflation, so 2030's rent is what you typed grown by
+  // inflation to 2030 — the same number the stream would have shown that year anyway.
+  // Applied to yield-based income too, not just amount-based: "start earning a yield on
+  // this in 2035" is the same request.
+  const windowIdx = (dateValue) => {
+    if (!dateValue) return null;
+    const year = new Date(dateValue).getFullYear();
+    if (!Number.isFinite(year)) return null;
+    return year - startyear;
+  };
+  const applyWindow = (series, startDate, endDate) => {
+    const from = windowIdx(startDate);
+    const to = windowIdx(endDate);
+    if (from == null && to == null) return;
+    for (let i = 0; i < yearsCount; i++) {
+      if ((from != null && i < from) || (to != null && i > to)) series[i] = 0;
+    }
+  };
+  applyWindow(incomeValues, module.income_start_date, module.income_end_date);
+  applyWindow(expenseValues, module.expense_start_date, module.expense_end_date);
+
   // CR041: gate amount-based expense/income on ownership — zero before the acquisition
   // year, 50% in it (mirror of the Full-disposal 50% treatment below). MV-driven streams
   // (yield-spread income, legacy expense_pct) already scale with market value — pre-purchase
   // avg MV is 0 and the acquisition year averages to half — so they are left alone.
   // acquisitionIdx !== 0 implies base MV was 0, so the pct_of_value mode is on its
   // inflation fallback here and gates like the inflation mode.
+  //
+  // Composes with the CR046 window: ownership zeroes come after, so an asset bought in 2035
+  // with rent starting 2030 pays nothing until 2035 — you cannot rent what you do not own.
   if (acquisitionIdx !== 0) {
     const gateExpense = absExpenseAmount > 0;
     const gateIncome = !hasIncomePct && absIncomeAmount > 0;
@@ -430,7 +461,14 @@ function computeModule(module, scenario, df_assumptions, df_categories, categori
 
     // Tax on base year income (income_amount) deferred to Period 1
     // CR041: skipped when the module wasn't owned in the base year — no income existed
-    if (absIncomeAmount > 0 && acquisitionIdx === 0) {
+    // CR046: and skipped when the income window has not opened by the base year — rent
+    // that starts in 2030 earns nothing in the base year, so there is nothing to tax.
+    const baseYearInWindow = (() => {
+      const from = windowIdx(module.income_start_date);
+      const to = windowIdx(module.income_end_date);
+      return (from == null || from <= 0) && (to == null || to >= 0);
+    })();
+    if (absIncomeAmount > 0 && acquisitionIdx === 0 && baseYearInWindow) {
       const period1Idx = periodStart - startyear;
       if (period1Idx >= 0 && period1Idx < yearsCount) {
         taxValues[period1Idx] += rateFactor * absIncomeAmount;

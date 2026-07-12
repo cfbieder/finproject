@@ -863,6 +863,11 @@ export default function FCReviewTable({
                               id: rowId,
                               label: row.isNet ? "Net Cash Flow" : isCashFlow ? "Cash Flow" : row.label,
                               values: rowValues,
+                              // CR046: the graph expands a row into the accounts beneath
+                              // it, so it needs to know where the row sits in the tree.
+                              // Synthetic Net/Cash Flow rows have no level and stay lines.
+                              level: row.isNet || isCashFlow ? undefined : row.level,
+                              side: "cash",
                             })
                           }
                         >
@@ -1106,6 +1111,8 @@ export default function FCReviewTable({
                               id: rowId,
                               label: row.label,
                               values: rowValues,
+                              level: row.level, // CR046 — see the cash-side note above
+                              side: "balance",
                             })
                           }
                         >

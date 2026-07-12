@@ -21,21 +21,28 @@ describe("CR041 — FCModulesEdit field sections", () => {
   test("expense fields are all in the Expenses section", () => {
     expect(fieldsOf("Expenses")).toEqual([
       "ExpenseFcLineId", "ExpenseAmount", "ExpenseGrowthMethod",
+      // CR046 window — bounds when the stream runs, not how much
+      "ExpenseStartDate", "ExpenseEndDate",
     ]);
   });
 
   test("income fields are all in the Income section", () => {
-    expect(fieldsOf("Income")).toEqual(["IncomeFcLineId", "IncomeAmount"]);
+    expect(fieldsOf("Income")).toEqual([
+      "IncomeFcLineId", "IncomeAmount",
+      "IncomeStartDate", "IncomeEndDate", // CR046 window
+    ]);
   });
 
   test("no field appears in more than one section, and none were lost", () => {
     const allFields = FIELD_SECTIONS.flatMap(([, fields]) => fields.map(([, f]) => f));
     expect(new Set(allFields).size).toBe(allFields.length);
-    // The full pre-CR041 flat list, redistributed
+    // The full pre-CR041 flat list, redistributed, plus the CR046 window fields
     expect([...allFields].sort()).toEqual([
       "Account", "BaseDate", "BaseValue", "BaseValueUSD", "Currency",
-      "ExpenseAmount", "ExpenseFcLineId", "ExpenseGrowthMethod", "Growth",
-      "IncomeAmount", "IncomeFcLineId", "MarketValue", "MarketValueUSD",
+      "ExpenseAmount", "ExpenseEndDate", "ExpenseFcLineId", "ExpenseGrowthMethod",
+      "ExpenseStartDate", "Growth",
+      "IncomeAmount", "IncomeEndDate", "IncomeFcLineId", "IncomeStartDate",
+      "MarketValue", "MarketValueUSD",
       "Matched", "Name", "TaxRateOverride", "Type",
     ]);
   });

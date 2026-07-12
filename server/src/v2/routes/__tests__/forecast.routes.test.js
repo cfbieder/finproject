@@ -195,7 +195,13 @@ dbDescribe('forecast router contract (DB)', () => {
         MarketValue: 1000,
       });
       const id = create.body.data.id;
-      const setPri = await req('PUT', `/modules/${id}`, { CashSweepPriority: 1 });
+      const setPri = await req('PUT', `/modules/${id}`, {
+        CashSweepPriority: 1,
+        // CR046 window — copied for the same reason the priority is: a column that a
+        // copy silently drops is a scenario that silently computes something else.
+        IncomeStartDate: '2030-01-01',
+        ExpenseEndDate: '2040-12-31',
+      });
       expect(setPri.status).toBe(200);
 
       const copy = await req('POST', `/scenarios/byname/${encodeURIComponent(SCENARIO)}/copy`, {
@@ -206,13 +212,17 @@ dbDescribe('forecast router contract (DB)', () => {
       // Without the priority in the copy INSERT the module lands unranked, the
       // scenario has no primary, and the sweep silently stops funding shortfalls.
       const copied = await db.query(
-        `SELECT m.cash_sweep_priority FROM forecast_modules m
+        `SELECT m.cash_sweep_priority, m.income_start_date, m.expense_end_date
+         FROM forecast_modules m
          JOIN forecast_scenarios s ON s.id = m.scenario_id
          WHERE s.name = $1 AND m.name = $2`,
         [COPY, 'CR043 Sweep Primary']
       );
       expect(copied.rows).toHaveLength(1);
       expect(copied.rows[0].cash_sweep_priority).toBe(1);
+      // DATE comes back as a plain 'YYYY-MM-DD' string (the project's TZ-safe parser).
+      expect(copied.rows[0].income_start_date).toBe('2030-01-01');
+      expect(copied.rows[0].expense_end_date).toBe('2040-12-31');
 
       await req('DELETE', `/modules/${id}`);
     });
