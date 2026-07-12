@@ -36,12 +36,17 @@ export const FIELD_SECTIONS = [
     ["Income Start Year (blank = base yr)", "IncomeStartDate", "year"],
     ["Income End Year (blank = horizon)", "IncomeEndDate", "year"],
   ]],
-  // CR047: two taxes, two rates. TaxRateOverride covers capital gains on disposal;
-  // IncomeTaxRateOverride covers this module's income only — for income that arrives
-  // already taxed elsewhere (a dividend paid net of Polish tax, where the only
-  // incremental US tax is ~3%). Blank on either = fall back, i.e. no change.
+  // CR047: two taxes, two rates.
+  //  - "Full" (TaxRateOverride, migration 010) overrides EVERYTHING on the module: the gain
+  //    on disposal AND the recurring income. Blank ⇒ the scenario rate.
+  //  - "Recurring Income" (IncomeTaxRateOverride) overrides the recurring income ONLY —
+  //    dividends, rent, yield — and never the gain on a disposal. It wins over Full when
+  //    both are set. For income that arrives already taxed elsewhere: United Beverages'
+  //    dividend is net of Polish tax, so the incremental US tax on it is ~3%, while a sale
+  //    of the business is still an ordinary capital gain at the full rate.
+  // Blank on either = fall back (no change). 0 is a real rate, not "unset".
   ["Tax", [
-    ["Tax Rate Override (%)", "TaxRateOverride", "number"],
-    ["Income Tax Rate Override (%)", "IncomeTaxRateOverride", "number"],
+    ["Full Tax Override (%) — gains + income", "TaxRateOverride", "number"],
+    ["Recurring Income Tax Override (%) — income only", "IncomeTaxRateOverride", "number"],
   ]],
 ];

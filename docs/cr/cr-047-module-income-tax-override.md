@@ -37,8 +37,16 @@ Two rates, because they are two taxes:
 - The **cash-sweep** capital-gains tax (CR045 P2a) is a *gain*, so it keeps
   `tax_rate_override` / the scenario rate. Correct: a forced liquidation is a sale.
 
-**UI:** "Income Tax Rate Override (%)" in `FCModulesEdit`'s Tax section, beside the existing
-override. Blank on either = fall back.
+**UI:** the Tax section of `FCModulesEdit` now names what each rate actually taxes (v3.0.85) —
+"Tax Rate Override" / "Income Tax Rate Override" gave no way to guess that the first covered
+gains *and* income while the second was a narrower override of one part of it:
+
+| label | field | taxes |
+|---|---|---|
+| **Full Tax Override (%) — gains + income** | `TaxRateOverride` | everything on the module |
+| **Recurring Income Tax Override (%) — income only** | `IncomeTaxRateOverride` | recurring income only; wins over Full |
+
+Blank on either = fall back.
 
 **The copy path carries the column** and the copy regression test covers it — the CR045 §1
 bug class (a column a copy silently drops is a scenario that silently computes something
@@ -65,4 +73,4 @@ Live on dev against the real United Beverages module (scenario rate 25%):
 | Engine (income vs gains rates split) | ✅ +4 tests |
 | Route DTO / create / update / allowlist / **copy** | ✅ |
 | `FCModulesEdit` field | ✅ |
-| Deploy | ✅ v3.0.84 |
+| Deploy | ✅ v3.0.84; field labels renamed v3.0.85 |
