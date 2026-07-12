@@ -183,8 +183,69 @@ $1,369,072 — a **$350K embedded gain** realized tax-free) and 2026 Downside's 
 | Prod regenerate after 1b + deploy | ✅ done — v3.0.77; Downside −$475K→−$580K, House −$3.35M→−$2.67M |
 | Phase 2a — capital-gains tax on forced liquidation | ✅ done — +6 sweep tests |
 | Phase 2b — swept funds stop compounding | ✅ done — +2 sweep tests; identity at `growth_rate = 0` |
-| Prod regenerate after Phase 2 + deploy | ⚪ pending |
+| Phase 2c — sweep may never drive a module below zero | ✅ done — +6 sweep tests (§4b) |
+| Prod deploy + regenerate after Phase 2 | ✅ done — **v3.0.80**, previewed on a restored prod copy first |
 
-Suites at Phase 2: **323 backend / 164 frontend green**; all three CI design guards pass.
-The 10 pre-existing cash-sweep tests pass **unchanged** — P2a/P2b are inert at zero growth
-with no cost basis, which is the old behavior exactly.
+Suites at Phase 2: **328 backend / 164 frontend green**; all three CI design guards pass.
+The 10 pre-existing cash-sweep tests pass **unchanged** — P2a/P2b/P2c are inert at zero
+growth, no cost basis and no future decline, which is the old behavior exactly.
+
+## 4b. Phase 2c — the double-drain (found by shipping P2b, and reverting it)
+
+**P2 was deployed as v3.0.78 and reverted the same hour (v3.0.79).** With the growth-aware
+carry-forward live, Fidelity Stocks' balance went to **−$948K** — far worse than the −$2,454
+it was meant to fix. The cause was not P2b:
+
+`Fidelity Stocks` is a sweep **backup** *and* has its own **scheduled disposals** — $75K/yr
+2040–45, **$50K/yr from 2049 with no end date**, and $500K one-time in 2052. The builder caps
+those disposals against the module's **pre-sweep** market value; it cannot see what the sweep
+already sold, so the same shares are sold twice. Under the old flat carry the two errors very
+nearly cancelled, leaving the −$2,454 residue that read as a rounding artifact — **that was
+the tell, and it was misread as cosmetic.** P2b did not create the error; it stopped it
+hiding, and the true size showed: the plan had over-committed that asset by ~$950K.
+
+**Rule (owner, 2026-07-12): the scheduled disposals win.** They are a deliberate plan; the
+sweep is the backstop and gets only what is left. It can run dry earlier, and the shortfall
+that follows is a real one for the owner to resolve — never a silent cancellation of a sale
+they scheduled.
+
+**Implementation — no reserve bookkeeping.** The builder's market value *already* has the
+scheduled disposals in it, so the rule reduces to *"never push the balance below zero in any
+future year."* Normalize by the module's cumulative growth factor `G`: a withdrawal `X` at
+year `Y` permanently consumes `X/G[Y]` of capacity (it, and the growth it would have earned,
+are gone), so the module stays solvent iff
+
+```
+usedNorm  ≤  min over all t ≥ Y of  mv[t] / G[t]
+```
+
+This year's capacity is that running minimum, less what past sales consumed, re-inflated to
+today. It is **growth-aware by construction**: a distant commitment is funded by a balance
+that has grown to meet it. The first attempt — reserve the *nominal* sum of future sales —
+was wrong for exactly that reason: $1.65M of nominal future disposals against a $1.37M
+balance froze the module from 2029 on and cost the early-2030s house-purchase dip ~$1M of
+available cash. A `Full` disposal drives `mv` to 0, so the running minimum is 0 and the
+module cannot be swept beforehand — correct: a sale of "whatever is there" claims the lot.
+
+### Phase 2 effect on prod (measured on a restored prod copy *before* deploying)
+
+| Scenario | v3.0.79 | v3.0.80 | sweep tax |
+|---|---|---|---|
+| 2026 Base | no shortfall | **unchanged** | — |
+| 2026 Downside | 1 yr, −$580K | 1 yr, −$766K | −$68K |
+| 2026 with House Purchase | 3 yrs, −$2.67M | **9 yrs, −$8.14M** | −$45K |
+
+Fidelity Stocks' worst year-end balance: **−$38,580 → exactly $0** — never negative, in any
+year of any scenario. Base is untouched (zero-growth deposit primary, no embedded gain: all
+three fixes correctly inert), which is the parity evidence.
+
+The House Purchase deterioration splits in two: **2031–35 (−$1.06M, new)** — Stocks can no
+longer be drained to the bone, because it must retain enough to fund its own scheduled sales,
+so the house-purchase dip is no longer papered over with shares that were already promised
+elsewhere; and **2058–62 (−$7.08M)** — the known endgame, now larger because the tax is real
+money and sold shares no longer keep compounding.
+
+**Process note worth keeping:** v3.0.78 shipped straight to prod on the strength of a green
+suite and put a −$948K balance on the owner's balance sheet. v3.0.80 was first run against a
+`pg_restore` copy of prod in a scratch DB and diffed scenario-by-scenario. For an engine
+change with no byte-parity, restore-and-diff is the verification — the test suite is not.
