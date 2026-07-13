@@ -849,49 +849,12 @@ export default function FCScenarios() {
         return;
       }
 
-      // Copy scenario configuration
-      const newScenarioConfig = {
-        Name: newScenarioName,
-        PeriodStart: sourceScenarioConfig.PeriodStart,
-        PeriodEnd: sourceScenarioConfig.PeriodEnd,
-      };
-
-      // Copy inflation data
-      const copiedInflation = localInflation
-        .filter((item) => item.Scenario === sourceScenario)
-        .map((item) => ({ ...item, Scenario: newScenarioName }));
-
-      // Copy FX data
-      const copiedFX = localFX
-        .filter((item) => item.Scenario === sourceScenario)
-        .map((item) => ({ ...item, Scenario: newScenarioName }));
-
-      // Copy tax rate
-      const sourceTaxRate = localTaxRates.find(
-        (item) => item.Scenario === sourceScenario
-      );
-      const copiedTaxRate = sourceTaxRate
-        ? { ...sourceTaxRate, Scenario: newScenarioName }
-        : { Scenario: newScenarioName, Rate: 25 };
-
-      // Update scenarios list
-      const updatedScenarios = [...scenarios, newScenarioConfig];
-      const updatedInflation = [...localInflation, ...copiedInflation];
-      const updatedFX = [...localFX, ...copiedFX];
-      const updatedTaxRates = [...localTaxRates, copiedTaxRate];
-
-      // Save to server using v2 API (PostgreSQL)
-      await Rest.fetchJson("/api/v2/forecast/assumptions", {
-        method: "PUT",
-        body: JSON.stringify({
-          ...assumptions,
-          scenarios: updatedScenarios,
-          inflation: updatedInflation,
-          FX: updatedFX,
-          "Tax Rate": updatedTaxRates,
-        }),
-        headers: { "Content-Type": "application/json" },
-      });
+      // The server owns the whole copy now (CR048). It used to own only half: the
+      // scenario row, modules and inc/exp items came from the copy endpoint, while the
+      // per-scenario ASSUMPTIONS (period, inflation, FX, tax rate — keyed by scenario name
+      // in the assumptions document) were assembled and PUT from here. So a copy made
+      // through the API alone produced a scenario with 0% inflation and no period, and the
+      // engine would build it anyway. One copy path, server-side, inside one transaction.
 
       // Copy modules and inc/exp entries via the v2 backend API
       // If refreshBaseYear is set, update module base values from actuals
@@ -903,22 +866,16 @@ export default function FCScenarios() {
         headers: { "Content-Type": "application/json" },
       });
 
-      // Update local state
-      setScenarios(updatedScenarios);
-      setLocalInflation(updatedInflation);
-      setLocalFX(updatedFX);
-      setLocalTaxRates(updatedTaxRates);
-      setAssumptions((prev) =>
-        prev
-          ? {
-              ...prev,
-              scenarios: updatedScenarios,
-              inflation: updatedInflation,
-              FX: updatedFX,
-              "Tax Rate": updatedTaxRates,
-            }
-          : prev
-      );
+      // Re-read what the server actually wrote, rather than mirroring it here — mirroring
+      // is how the two halves drifted apart in the first place.
+      const fresh = await Rest.fetchJson("/api/v2/forecast/assumptions");
+      if (fresh) {
+        setAssumptions(fresh);
+        setScenarios(fresh.scenarios || []);
+        setLocalInflation(fresh.inflation || []);
+        setLocalFX(fresh.FX || []);
+        setLocalTaxRates(fresh["Tax Rate"] || []);
+      }
       setHasPendingChanges(false);
 
       // Select the newly created scenario

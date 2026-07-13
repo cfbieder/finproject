@@ -227,6 +227,75 @@ dbDescribe('forecast router contract (DB)', () => {
 
       await req('DELETE', `/modules/${id}`);
     });
+
+    // CR048. A scenario's period, inflation path, FX paths and tax rate live in the
+    // `forecast_assumptions` document keyed by scenario NAME — not on the scenarios table.
+    // That half of the copy was done client-side by FCScenarios, so an API copy produced a
+    // scenario with 0% inflation and no period, and the engine would build it anyway.
+    test('copy carries the per-scenario assumptions (period, inflation, FX, tax rate)', async () => {
+      const readDoc = async (key) => {
+        const r = await db.query('SELECT value FROM forecast_assumptions WHERE key = $1', [key]);
+        if (r.rows.length === 0) return [];
+        const raw = r.rows[0].value;
+        const list = typeof raw === 'string' ? JSON.parse(raw) : raw;
+        return Array.isArray(list) ? list : [];
+      };
+      const writeDoc = async (key, list) => {
+        await db.query(
+          `INSERT INTO forecast_assumptions (key, value, ord) VALUES ($1, $2, 99)
+           ON CONFLICT (key) DO UPDATE SET value = EXCLUDED.value`,
+          [key, JSON.stringify(list)]
+        );
+      };
+
+      // Snapshot, seed the source scenario's assumptions, and always restore.
+      const before = {};
+      for (const key of ['scenarios', 'inflation', 'Tax Rate']) before[key] = await readDoc(key);
+
+      try {
+        await writeDoc('scenarios', [
+          ...before.scenarios.filter((e) => e?.Name !== SCENARIO && e?.Name !== COPY),
+          { Name: SCENARIO, PeriodStart: 2027, PeriodEnd: 2029, IsActive: true },
+        ]);
+        await writeDoc('inflation', [
+          ...before.inflation.filter((e) => e?.Scenario !== SCENARIO && e?.Scenario !== COPY),
+          { Scenario: SCENARIO, Year: 2027, Rate: 2.5 },
+          { Scenario: SCENARIO, Year: 2028, Rate: 2.5 },
+        ]);
+        await writeDoc('Tax Rate', [
+          ...before['Tax Rate'].filter((e) => e?.Scenario !== SCENARIO && e?.Scenario !== COPY),
+          { Scenario: SCENARIO, Rate: 25 },
+        ]);
+
+        const copy = await req('POST', `/scenarios/byname/${encodeURIComponent(SCENARIO)}/copy`, {
+          newScenarioName: COPY,
+        });
+        expect(copy.status).toBe(201);
+
+        // Pre-fix every one of these was absent: the copy inherited no period and 0% inflation.
+        const scenarios = await readDoc('scenarios');
+        const period = scenarios.find((e) => e?.Name === COPY);
+        expect(period).toBeDefined();
+        expect(period.PeriodStart).toBe(2027);
+        expect(period.PeriodEnd).toBe(2029);
+
+        const inflation = (await readDoc('inflation')).filter((e) => e?.Scenario === COPY);
+        expect(inflation).toHaveLength(2);
+        expect(inflation.every((e) => e.Rate === 2.5)).toBe(true);
+
+        const tax = (await readDoc('Tax Rate')).find((e) => e?.Scenario === COPY);
+        expect(tax?.Rate).toBe(25);
+
+        // Idempotent: copying again must replace the target's entries, not append to them.
+        const again = await req('POST', `/scenarios/byname/${encodeURIComponent(SCENARIO)}/copy`, {
+          newScenarioName: COPY,
+        });
+        expect(again.status).toBe(201);
+        expect((await readDoc('inflation')).filter((e) => e?.Scenario === COPY)).toHaveLength(2);
+      } finally {
+        for (const key of ['scenarios', 'inflation', 'Tax Rate']) await writeDoc(key, before[key]);
+      }
+    });
   });
 
   // CR046 window vs the base year. Reported by the owner: "Rental Income shows 35,000 in the

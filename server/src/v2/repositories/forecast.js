@@ -164,6 +164,52 @@ async function copyScenario(sourceId, newName) {
       newId = newScenario.rows[0].id;
     }
 
+    // Copy the PER-SCENARIO ASSUMPTIONS (CR048): the scenario's period, its inflation path,
+    // its FX paths and its tax rate all live in the `forecast_assumptions` document, keyed by
+    // scenario NAME — not on the scenarios table. Until now this half was done client-side by
+    // FCScenarios, so a copy made through the API produced a scenario with **0% inflation** and
+    // no period: the engine would build it, and it would be quietly wrong. Same split-brain
+    // shape as the CR045 §1 copy bug (a copy that silently drops a field is a scenario that
+    // silently computes something else), so it belongs here, inside the same transaction.
+    //
+    // `value` is `json`, not `jsonb`, on purpose (CR039: jsonb reorders object keys and broke
+    // byte-parity), so the document is round-tripped through JS rather than SQL operators.
+    // Idempotent: any entry already keyed to the target name is replaced, never appended to —
+    // a re-copy onto an existing scenario must not accumulate duplicate rows.
+    const sourceName = source.rows[0].name;
+    const ASSUMPTION_KEYS = ['scenarios', 'inflation', 'FX', 'Tax Rate'];
+    // 'scenarios' entries key the scenario by `Name`; the rest by `Scenario`.
+    const nameFieldFor = (key) => (key === 'scenarios' ? 'Name' : 'Scenario');
+
+    for (const key of ASSUMPTION_KEYS) {
+      const docRow = await client.query(
+        'SELECT value FROM forecast_assumptions WHERE key = $1', [key]
+      );
+      if (docRow.rows.length === 0) continue;
+
+      const raw = docRow.rows[0].value;
+      const list = typeof raw === 'string' ? JSON.parse(raw) : raw;
+      if (!Array.isArray(list)) continue;
+
+      const field = nameFieldFor(key);
+      const copies = list
+        .filter((entry) => entry && entry[field] === sourceName)
+        .map((entry) => {
+          const clone = { ...entry, [field]: newName };
+          delete clone.id; // the source's DB id must not ride along
+          return clone;
+        });
+      if (copies.length === 0) continue;
+
+      const withoutTarget = list.filter((entry) => !entry || entry[field] !== newName);
+      const next = [...withoutTarget, ...copies];
+
+      await client.query(
+        'UPDATE forecast_assumptions SET value = $1, updated_at = NOW() WHERE key = $2',
+        [JSON.stringify(next), key]
+      );
+    }
+
     // Copy modules
     const modules = await client.query('SELECT * FROM forecast_modules WHERE scenario_id = $1', [sourceId]);
 

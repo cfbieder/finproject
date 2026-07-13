@@ -3,7 +3,7 @@
 > The one mandatory read at session start. Keep ≤ ~60 lines; link onward, never restate.
 > CR statuses live in the [CR index](../cr/README.md); the running version lives in `VERSION`.
 
-**Last updated:** 2026-07-13 · **Live version:** v3.0.92 (see `VERSION` / git tags)
+**Last updated:** 2026-07-13 · **Live version:** v3.0.93 (see `VERSION` / git tags)
 
 ## Current phase
 - **Forecast hardening (CR045 → CR048), 2026-07-12/13.** One owner question ("why is only sweep
@@ -43,9 +43,9 @@
   [CR043](../cr/cr-043-code-structure-program.md) code structure, audit-trail 500 fix.
 
 ## Next
-- CR048 open: the equity-growth and FX-stress decisions are with the owner; the API scenario-copy
-  endpoint does not copy per-scenario assumptions (the UI does that half client-side — should move
-  into `copyScenario`).
+- CR048 open: the equity-growth and FX-stress decisions are with the owner. *(The split-brain
+  scenario-copy path is **fixed** in v3.0.93 — the assumptions copy moved server-side into
+  `copyScenario`; an API-only copy now reproduces its source exactly.)*
 - CR042 remainder (2 Forecast modals), CR043 deferred items.
 - Long-running tails: [CR019](../cr/cr-019-quicken-import.md) prod cutover loop,
   [CR023](../cr/cr-023-pocketsmith-removal.md) per-account PS migration (13 left),
