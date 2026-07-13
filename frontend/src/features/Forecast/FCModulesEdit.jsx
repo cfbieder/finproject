@@ -526,7 +526,9 @@ export default function FCModulesEditModal({
               </svg>
             </div>
             <div>
-              <h3 className="fc-modules-modal__title">Edit Module</h3>
+              <h3 className="fc-modules-modal__title">
+                {editForm?.id ? "Edit Module" : "New Module"}
+              </h3>
               <p className="fc-modules-modal__subtitle">
                 Configure forecast module settings and transfers
               </p>
@@ -1388,13 +1390,17 @@ export default function FCModulesEditModal({
 
           {/* Footer Actions */}
           <div className="fc-modules-modal__footer">
-            <button
-              type="button"
-              className="fc-modules-modal__button fc-modules-modal__button--cancel"
-              onClick={() => setShowAuditModal(true)}
-            >
-              View Output
-            </button>
+            {/* A draft (no id) has never been generated, so there is no output to view.
+                Hidden rather than disabled: it would query an empty module name. */}
+            {editForm?.id ? (
+              <button
+                type="button"
+                className="fc-modules-modal__button fc-modules-modal__button--cancel"
+                onClick={() => setShowAuditModal(true)}
+              >
+                View Output
+              </button>
+            ) : null}
             <button
               type="button"
               className="fc-modules-modal__button fc-modules-modal__button--generate"
@@ -1479,7 +1485,7 @@ export default function FCModulesEditModal({
                       strokeLinejoin="round"
                     />
                   </svg>
-                  Save Changes
+                  {editForm?.id ? "Save Changes" : "Create Module"}
                 </>
               )}
             </button>

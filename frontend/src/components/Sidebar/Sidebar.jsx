@@ -156,7 +156,12 @@ export default function Sidebar() {
                         }
                       >
                         {ItemIcon && <ItemIcon size={15} className="sidebar__icon" />}
-                        <span>{route.label}</span>
+                        <span>
+                          {/* Forecast is a numbered workflow; the sidebar shows the same
+                              step numbers as the in-page FCStepNav so the two lists agree. */}
+                          {route.step ? `${route.step}. ` : ""}
+                          {route.label}
+                        </span>
                       </NavLink>
                     );
                   })}
@@ -180,7 +185,10 @@ export default function Sidebar() {
                       }
                     >
                       {ItemIcon && <ItemIcon size={15} className="sidebar__icon" />}
-                      <span>{route.label}</span>
+                      <span>
+                        {route.step ? `${route.step}. ` : ""}
+                        {route.label}
+                      </span>
                     </NavLink>
                   );
                 })}

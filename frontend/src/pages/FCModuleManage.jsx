@@ -184,13 +184,8 @@ export default function FCModuleManage() {
   };
 
   /**
-   * After a create call, watch for the next modules reload and auto-select the
-   * first module that did not exist before the create — then open the editor on it
-   * when the create asked for that (`openEditor`).
-   *
-   * A new module is created blank: no name, no account, no values. Selecting it and
-   * leaving the user to find "Edit" served no one — there is nothing to look at until
-   * it has been filled in, so the editor is where they were always going next.
+   * After a create, watch for the next modules reload and select the module that did not
+   * exist before it — so the row you just saved is the one highlighted.
    */
   useEffect(() => {
     if (!pendingSelectInfo) {
@@ -203,72 +198,64 @@ export default function FCModuleManage() {
     }
 
     const previousIds = new Set(pendingSelectInfo.prevIds || []);
-    const newModules = modules.filter((module) => {
-      const id = getModuleId(module);
-      return id && !previousIds.has(id);
-    });
+    const newIds = modules
+      .map((module) => getModuleId(module))
+      .filter((id) => id && !previousIds.has(id));
 
-    if (newModules.length) {
-      setSelectedModuleId(getModuleId(newModules[0]));
-      if (pendingSelectInfo.openEditor) {
-        openEditModal(newModules[0]);
-      }
+    if (newIds.length) {
+      setSelectedModuleId(newIds[0]);
       setPendingSelectInfo(null);
     }
-    // openEditModal is stable enough for this one-shot post-create effect; adding it to the
-    // deps would re-run the whole select-and-open on every render that recreates it.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [modules, selectedScenario, pendingSelectInfo, setSelectedModuleId]);
+    // getModuleId is a module-level const in useModules.js (the hook only passes it
+    // through), so it is referentially stable and listing it cannot cause a re-run.
+  }, [modules, selectedScenario, pendingSelectInfo, setSelectedModuleId, getModuleId]);
 
-  const handleCreateNewModule = async () => {
+  /**
+   * "New module" opens the editor on an unsaved DRAFT — nothing is written until Save.
+   *
+   * It used to POST immediately and then open the editor on the created row, which meant
+   * Cancel left a blank, nameless module behind: a real row the engine iterates over and
+   * that you then had to hunt down and delete. Creating on Save removes the problem rather
+   * than managing it (the alternative — "delete it again if it still looks untouched" —
+   * gates a destructive action on a pristine-check that rots the first time someone adds a
+   * field to the editor and forgets it).
+   *
+   * The draft is identified by having no `id`; saveModule() POSTs in that case and PUTs
+   * otherwise. The POST body is the same payload the editor already builds, plus Scenario.
+   */
+  const handleCreateNewModule = () => {
     if (!selectedScenario) {
       return;
     }
 
-    const existingIds = modules
-      .map((module) => getModuleId(module))
-      .filter(Boolean);
     const periodStartYear = getScenarioStartYear();
     const baseDate =
       Number.isFinite(periodStartYear) && periodStartYear
-        ? new Date(`${periodStartYear - 1}-12-31T00:00:00.000Z`).toISOString()
-        : null;
-    try {
-      await Rest.fetchJson("/api/v2/forecast/modules", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          Scenario: selectedScenario,
-          Matched: false,
-          Account: "",
-          Name: "",
-          Type: traitDefaults.Type,
-          Currency: traitDefaults.Currency,
-          BaseDate: baseDate,
-          // (BaseYear removed with CR043 N10: there is no such column and POST /modules
-          //  never read it — it was a dead key, silently dropped on every create. The
-          //  engine derives the base year from BaseDate.)
-          BaseValue: 0,
-          MarketValue: 0,
-          BaseValueUSD: 0,
-          MarketValueUSD: 0,
-          Growth: null,
-          Invest: [],
-          Dispose: [],
-          IncomePct: [],
-        }),
-      });
+        ? `${periodStartYear - 1}-12-31`
+        : "";
 
-      setPendingSelectInfo({
-        scenario: selectedScenario,
-        prevIds: existingIds,
-        openEditor: true,
-      });
-      reloadModules();
-    } catch (err) {
-      console.error("Failed to create module:", err);
-      setPendingSelectInfo(null);
-    }
+    setEditError("");
+    setEditForm({
+      id: null, // ⇒ draft: saveModule() will POST
+      Account: "",
+      Name: "",
+      Type: traitDefaults.Type,
+      Currency: traitDefaults.Currency,
+      BaseDate: baseDate,
+      Matched: false,
+      Comment: "",
+      SetupStatus: "new",
+      BaseValue: 0,
+      MarketValue: 0,
+      BaseValueUSD: 0,
+      MarketValueUSD: 0,
+      Growth: null,
+      Invest: formatTransferForm([]),
+      Dispose: formatTransferForm([]),
+      IncomePct: formatTransferForm([]),
+    });
+    setEditRefreshToken((prev) => prev + 1);
+    setShowEditModal(true);
   };
 
   /**
@@ -363,10 +350,14 @@ export default function FCModuleManage() {
    * Returns true on success, false on failure.
    */
   const saveModule = async () => {
-    if (!selectedModule || !editForm) return false;
+    if (!editForm) return false;
 
-    const moduleId = selectedModule.id;
-    if (!moduleId) {
+    // A draft (from "New module") has no id and has never been written — POST it. An
+    // existing module PUTs. Cancelling a draft therefore leaves nothing behind.
+    const isDraft = !editForm.id;
+    const moduleId = isDraft ? null : editForm.id ?? selectedModule?.id;
+
+    if (!isDraft && !moduleId) {
       setEditError("Cannot edit this module because it has no id.");
       return false;
     }
@@ -375,15 +366,30 @@ export default function FCModuleManage() {
 
     setEditSaving(true);
     try {
-      await Rest.fetchJson(`/api/v2/forecast/modules/${moduleId}`, {
-        method: "PUT",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(payload),
-      });
+      if (isDraft) {
+        const existingIds = modules.map((m) => getModuleId(m)).filter(Boolean);
+        await Rest.fetchJson("/api/v2/forecast/modules", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          // Scenario is the one field the editor does not carry (it is page state, not a
+          // form field) and the one POST requires. It IS in the route's write allow-list.
+          body: JSON.stringify({ ...payload, Scenario: selectedScenario }),
+        });
+        // Select the newly created module once the reloaded list arrives.
+        setPendingSelectInfo({ scenario: selectedScenario, prevIds: existingIds });
+      } else {
+        await Rest.fetchJson(`/api/v2/forecast/modules/${moduleId}`, {
+          method: "PUT",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(payload),
+        });
+      }
       reloadModules();
       return true;
     } catch (err) {
-      setEditError(err.message || "Failed to update module");
+      setEditError(
+        err.message || (isDraft ? "Failed to create module" : "Failed to update module")
+      );
       return false;
     } finally {
       setEditSaving(false);

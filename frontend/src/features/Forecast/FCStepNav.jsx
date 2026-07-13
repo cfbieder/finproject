@@ -1,14 +1,21 @@
 import { useNavigate, useLocation } from "react-router-dom";
+import { routes } from "../../config/routes.jsx";
 import "./FCStepNav.css";
 
-const STEPS = [
-  { path: "/forecast-mapping", label: "FC Mapping" },
-  { path: "/forecast-scenarios", label: "Scenarios" },
-  { path: "/forecast-modules", label: "Modules" },
-  { path: "/forecast-setup-exp", label: "Expenses" },
-  { path: "/forecast-review", label: "Review" },
-  { path: "/forecast-compare", label: "Compare" },
-];
+/**
+ * The steps are DERIVED from the route config (`step` / `stepLabel`), not restated here.
+ *
+ * They used to be a hand-kept list in this file, and the sidebar kept its own — so the two
+ * drifted: same six pages, different order, different names ("FC Mapping" here vs "Income &
+ * Expense Mapping" there — the developer vocabulary CR042 T2 opened by objecting to). Two
+ * lists of the same thing that disagree is worse than one long list. One source now; the
+ * sidebar renders `step` + `label`, this renders `step` + `stepLabel`, and they cannot
+ * diverge.
+ */
+const STEPS = routes
+  .filter((route) => route.step)
+  .sort((a, b) => a.step - b.step)
+  .map((route) => ({ path: route.path, label: route.stepLabel || route.label }));
 
 export default function FCStepNav() {
   const navigate = useNavigate();

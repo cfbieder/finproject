@@ -225,6 +225,8 @@ export const routes = [
   // Forecasting (wrapped in ForecastProvider)
   {
     path: "/forecast-mapping",
+    stepLabel: "Mapping", // short form for the in-page stepper (FCStepNav reads it here)
+    step: 1, // Forecast workflow step — mirrors FCStepNav; rendered by the Sidebar only
     component: FCLineMapping,
     label: "Income & Expense Mapping",
     category: "Forecasting",
@@ -233,6 +235,8 @@ export const routes = [
   },
   {
     path: "/forecast-scenarios",
+    stepLabel: "Scenarios", // short form for the in-page stepper (FCStepNav reads it here)
+    step: 2, // Forecast workflow step — mirrors FCStepNav; rendered by the Sidebar only
     component: FCScenarios,
     label: "Forecast Scenarios",
     category: "Forecasting",
@@ -242,6 +246,8 @@ export const routes = [
   },
   {
     path: "/forecast-modules",
+    stepLabel: "Modules", // short form for the in-page stepper (FCStepNav reads it here)
+    step: 3, // Forecast workflow step — mirrors FCStepNav; rendered by the Sidebar only
     component: FCModuleManage,
     label: "Forecast Modules",
     category: "Forecasting",
@@ -251,6 +257,8 @@ export const routes = [
   },
   {
     path: "/forecast-setup-exp",
+    stepLabel: "Expenses", // short form for the in-page stepper (FCStepNav reads it here)
+    step: 4, // Forecast workflow step — mirrors FCStepNav; rendered by the Sidebar only
     component: FCExpSetup,
     label: "Forecast Expenditures",
     category: "Forecasting",
@@ -260,6 +268,8 @@ export const routes = [
   },
   {
     path: "/forecast-review",
+    stepLabel: "Review", // short form for the in-page stepper (FCStepNav reads it here)
+    step: 5, // Forecast workflow step — mirrors FCStepNav; rendered by the Sidebar only
     component: FCReview,
     label: "Forecast Review",
     category: "Forecasting",
@@ -269,6 +279,8 @@ export const routes = [
   },
   {
     path: "/forecast-compare",
+    stepLabel: "Compare", // short form for the in-page stepper (FCStepNav reads it here)
+    step: 6, // Forecast workflow step — mirrors FCStepNav; rendered by the Sidebar only
     component: FCCompare,
     label: "Forecast Compare",
     category: "Forecasting",
@@ -280,7 +292,9 @@ export const routes = [
     path: "/fc-settings",
     component: FCSettings,
     label: "Forecast Settings",
-    category: "Forecasting",
+    // Same rule: assumptions/config live in Settings. The Forecasting group is then
+    // exactly the six steps FCStepNav numbers, in the same order.
+    category: "Settings",
     description: "Birth year, module types, and FX rate assumptions",
     icon: DollarSign,
   },
@@ -365,7 +379,10 @@ export const routes = [
     path: "/bank-feed-diagnostic",
     component: BankFeedDiagnostic,
     label: "Bank Feed Setup",
-    category: "Transactions",
+    // Configuration, not a recurring task — it belongs with Settings, not in the daily
+    // Transactions list. (The two Calibration pages deliberately STAY under Transactions:
+    // they are recurring work, and burying work in a config menu makes the app worse.)
+    category: "Settings",
     description: "Map bank-feed accounts, check sync health & PS reconciliation",
     icon: RefreshCw,
   },
