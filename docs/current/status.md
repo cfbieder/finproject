@@ -3,7 +3,7 @@
 > The one mandatory read at session start. Keep ≤ ~60 lines; link onward, never restate.
 > CR statuses live in the [CR index](../cr/README.md); the running version lives in `VERSION`.
 
-**Last updated:** 2026-07-13 · **Live version:** v3.0.96 (see `VERSION` / git tags)
+**Last updated:** 2026-07-13 · **Live version:** v3.0.97 (see `VERSION` / git tags)
 
 ## Current phase
 - **Forecast hardening (CR045 → CR049), 2026-07-12/13.** Owner questions have now opened a run of
@@ -46,6 +46,21 @@
 - Deploy: `./Scripts/deploy-to-production.sh` (DB backup first). Migrations: manual `psql -f`, registry in [migrations.md](migrations.md); runner shipped in CR043 P1.1 (`npm run migrate`).
 
 ## Recently shipped
+- v3.0.97 — **owner acceptance pass on v3.0.96** (module save / modals / audit trail / reports /
+  dark mode / fonts: **all six PASS**) surfaced five bugs, none of them regressions from the release
+  — they were already there, and walking the UI is what found them. Fixed: **periodic transfers were
+  invisible in Modify Transfer** in every year but their first (the modal matched the year *stored on
+  the row*, while the engine expands a Periodic row across its whole `Date`→`DateEnd` range — so the
+  Review showed a transfer the modal denied existed; rule extracted to `utils/transferYear.js` **next
+  to its tests**, since it must mirror `fcbuilder-module.js`); the same modal re-found rows to edit by
+  `Date+Flag`, which is **not unique**, so an edit could land on the wrong row; the synthetic
+  **`_cash_sweep`** module 404'd when opened from the breakdown (its trail is written by the sweep to
+  a different filename); the **SWEEP badge** keyed off `cash_sweep_target` — true only for the
+  primary — so a ranked **backup**, which *is* liquidated when the primary drains, appeared to be
+  outside the sweep entirely; the Review toolbar's five equally-loud buttons moved onto the shared
+  `.btn` system (one filled primary — Generate is the only one that changes anything — and a quiet
+  utility group), which **removed** bespoke button classes and two more naked hexes. New modules now
+  open the editor on create.
 - v3.0.96 — **first restore drill: PASSED.** A real prod dump restored in 3 s / 0 errors; the server
   booted against it; the balance sheet **and** a regenerated forecast came back **byte-identical to
   prod**. Backups are now verified, not assumed — [runbook](../guides/restore.md) is a transcript, not
