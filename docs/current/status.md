@@ -6,6 +6,15 @@
 **Last updated:** 2026-07-13 · **Live version:** v3.0.100 (see `VERSION` / git tags)
 
 ## Current phase
+- **Owner acceptance + re-test loop (2026-07-13), and it earned its keep.** The owner walked the
+  v3.0.96 release step by step (module save · modals · audit trail · reports · dark mode · fonts —
+  **all six passed, no regressions**), then re-tested each fix one at a time. Clicking through found
+  **eight bugs no test would have caught**, including one the tests actively concealed: **Modify
+  Transfer had never worked** — it fetched the module *list* endpoint, which returns no
+  `Invest`/`Dispose`, so it had never once displayed a transfer, while a green unit test on the
+  (unreachable) year-matching predicate said otherwise. Shipped v3.0.97 → **v3.0.100**; all fixes
+  owner-re-tested and passing. *Takeaway worth keeping: verify a UI fix through the UI or an
+  end-to-end fetch — a unit test on a code path that never receives data is worse than no test.*
 - **Forecast hardening (CR045 → CR049), 2026-07-12/13.** Owner questions have now opened a run of
   **ten silent-wrong-number engine bugs** — all fixed, each verified against a restored copy of
   prod, all shipped and prod regenerated:
@@ -25,13 +34,20 @@
   re-type "New House"/"Sarasota House"; rank a sweep backup in **"2026 Downside"** (see Known
   issue below).
 - [CR042](../cr/cr-042-ui-look-and-feel.md) / [CR043](../cr/cr-043-code-structure-program.md):
-  **CR042 U4 COMPLETE** (v3.0.95 — no bespoke dialog remains under `features/Forecast`); **CR043 N10
-  COMPLETE** (forecast writes reject unknown fields). Four blocking CI guards now: buttons, modals,
-  inline-hex, **dead-tokens**. CR042 remainder is owner-input IA only (calibration→Settings, Upload
-  PS, Forecast-step collapse); CR043's lint gate stays advisory (108 errors, 43 of them hooks
-  restructures that need daylight).
+  **CR042 U1–U5 ALL SHIPPED and owner-accepted**; **CR043 Phases 0–3 shipped**, incl. N10 (forecast
+  writes reject unknown fields) and the first restore drill. Four blocking CI guards: buttons,
+  modals, inline-hex, **dead-tokens** — and they now ratchet *down* (buttons 123→122, hexes
+  170→167). CR042 remainder is **owner-input IA only**: calibration→Settings, Forecast-step
+  collapse. *(Upload PS: **settled 2026-07-13 — KEEP, no change.** It already lives under Data
+  Sources; nothing has been imported through it since 2026-06-04, but it stays as a PocketSmith-CSV
+  escape hatch. Do not delete it or `/api/v2/ingest-ps`.)* CR043's lint gate stays advisory: **64
+  errors** — `no-unused-vars` and `no-undef` are at **zero**; the rest are 36
+  `set-state-in-effect` + 21 `react-refresh` + 7 hooks-rules, each a behavioral restructure that
+  needs a browser, not a text edit.
 
 ## Known issue
+- ⚠️ *Owner is redoing "2026 Downside" themselves (2026-07-13) — **do not fix this**; it is recorded
+  so the numbers below are not mistaken for an engine fault.*
 - **"2026 Downside" has no sweep backup ranked.** `Fidelity Stocks` carries no `cash_sweep_priority`
   there (it does in the other two scenarios), so the engine reports **−$1.25M of shortfall across
   2061–62 while $1.2M of stock sits untouched**. That is CR045 §5 working as designed (unranked =
@@ -46,35 +62,18 @@
 - Deploy: `./Scripts/deploy-to-production.sh` (DB backup first). Migrations: manual `psql -f`, registry in [migrations.md](migrations.md); runner shipped in CR043 P1.1 (`npm run migrate`).
 
 ## Recently shipped
-- v3.0.98–100 — **the owner re-tested v3.0.97's fixes one by one, and the first one was still broken** —
-  which is how we learned the **Modify Transfer modal had never worked**, for any module, any year,
-  since it was written. It fetched the module **list** endpoint, and that endpoint does not return
-  `Invest`/`Dispose` (only `GET /modules/:id` joins the child tables) — so its transfer arrays were
-  always `undefined` and every year reported "no transfers for this year", while the Review sat behind
-  it displaying the very transfer it denied existed. **v3.0.97's periodic year-range fix was real, but
-  it sat downstream of this**: the predicate was never reached with data, and its unit test passed
-  happily throughout. Diagnosed by reading code, shipped without an end-to-end check. The replacement
-  test goes through the actual fetch and fails on the old code. Then: `_cash_sweep`'s **amount** still
-  opened a transfer editor (a synthetic module has no row to edit — "Module not found"); it now offers
-  no edit affordance and points at its audit trail. And closing any modal **scrolled the page away** —
-  Radix restores focus on close, these dialogs open on a *double-click* (which focuses nothing), so the
-  browser scrolled an arbitrary target into view; `onCloseAutoFocus` is now prevented in `<Modal>`, so
-  the fix lands for every dialog in the app.
-- v3.0.97 — **owner acceptance pass on v3.0.96** (module save / modals / audit trail / reports /
-  dark mode / fonts: **all six PASS**) surfaced five bugs, none of them regressions from the release
-  — they were already there, and walking the UI is what found them. Fixed: **periodic transfers were
-  invisible in Modify Transfer** in every year but their first (the modal matched the year *stored on
-  the row*, while the engine expands a Periodic row across its whole `Date`→`DateEnd` range — so the
-  Review showed a transfer the modal denied existed; rule extracted to `utils/transferYear.js` **next
-  to its tests**, since it must mirror `fcbuilder-module.js`); the same modal re-found rows to edit by
-  `Date+Flag`, which is **not unique**, so an edit could land on the wrong row; the synthetic
-  **`_cash_sweep`** module 404'd when opened from the breakdown (its trail is written by the sweep to
-  a different filename); the **SWEEP badge** keyed off `cash_sweep_target` — true only for the
-  primary — so a ranked **backup**, which *is* liquidated when the primary drains, appeared to be
-  outside the sweep entirely; the Review toolbar's five equally-loud buttons moved onto the shared
-  `.btn` system (one filled primary — Generate is the only one that changes anything — and a quiet
-  utility group), which **removed** bespoke button classes and two more naked hexes. New modules now
-  open the editor on create.
+- v3.0.97–100 — **eight bugs, all found by the owner clicking through, none of them regressions.**
+  The headline: **Modify Transfer had never worked** — it fetched the module *list* endpoint, which
+  returns no `Invest`/`Dispose`, so it had never displayed a transfer for any module in any year,
+  while a green unit test on the unreachable year-matching predicate said otherwise. Also: periodic
+  transfers spanned `Date`→`DateEnd` but were matched on the stored year only; the same modal
+  re-found rows by non-unique `Date+Flag` and could edit the wrong one; the synthetic `_cash_sweep`
+  module 404'd from the breakdown *and* offered a transfer editor it could never satisfy; the SWEEP
+  badge keyed off `cash_sweep_target` and so **hid the ranked backups** that the sweep will actually
+  liquidate; the Review toolbar's five equally-loud buttons moved onto the shared `.btn` system; new
+  modules open their editor; and **closing any modal scrolled the page away** from the cell just
+  edited (Radix focus-restore on a double-click opener — fixed once in `<Modal>`, for every dialog).
+  All owner-re-tested. Full detail: [roadmap §1.2](project-roadmap.md).
 - v3.0.96 — **first restore drill: PASSED.** A real prod dump restored in 3 s / 0 errors; the server
   booted against it; the balance sheet **and** a regenerated forecast came back **byte-identical to
   prod**. Backups are now verified, not assumed — [runbook](../guides/restore.md) is a transcript, not
@@ -88,33 +87,33 @@
   `check-dead-tokens.sh`; **Outfit self-hosted** (variable font, 2 files, SW-precached — no CDN, and
   it finally works offline); the hex guard was widened after it turned out to be missing every
   composite (66 → true count **170**, now frozen). Lint 124 → 108.
-- v3.0.94 — [CR049](../cr/cr-049-forecast-base-year-seed-and-final-year-tax.md): the final-year
-  sweep now **sells enough to fund its own tax** (re-entrant drain, fixed point), and the engine's
-  duplicated base-year query is **deleted** in favour of the one `crud.getBaseYearValues` the
-  Review already reads. Engine numbers change; prod regenerated.
-- v3.0.93 — [CR048](../cr/cr-048-model-review-fixes.md): **scenario copy is one path again** — the
-  per-scenario assumptions (period/inflation/FX/tax) moved server-side into `copyScenario`; an
-  API-only copy used to yield a scenario with 0% inflation that the engine would build anyway.
-- v3.0.92 — Forecast **Modules** + **Income/Expense**: full-width tables; details moved to a
-  **modal on double-click** (the details column cost each table ~40% of the page).
-- v3.0.90–91 — [CR048](../cr/cr-048-model-review-fixes.md) engine fixes + Tax/Taxes on one row.
-- v3.0.84–89 — [CR047](../cr/cr-047-module-income-tax-override.md) (migration 038) + four fixes
-  (module save dropped the new fields; Type unsettable when unmatched; window ignored in the base
-  year; base-year half-year edge).
-- v3.0.81–83 — [CR046](../cr/cr-046-module-income-window-and-hierarchy-graph.md) (migration 037) +
-  hierarchy breakdown graph.
-- v3.0.77–80 — [CR045](../cr/cr-045-forecast-cash-warnings-liquidation.md) warnings pane, sweep tax,
-  growth carry-forward, solvency cap.
+- v3.0.90–94 — [CR048](../cr/cr-048-model-review-fixes.md) engine fixes + whole-scenario copy;
+  [CR049](../cr/cr-049-forecast-base-year-seed-and-final-year-tax.md) final-year sweep tax + the
+  deleted duplicate base-year query; full-width Forecast tables. Prod regenerated.
+- v3.0.77–89 — [CR045](../cr/cr-045-forecast-cash-warnings-liquidation.md) (warnings, sweep tax,
+  solvency cap) · [CR046](../cr/cr-046-module-income-window-and-hierarchy-graph.md) (migration 037)
+  · [CR047](../cr/cr-047-module-income-tax-override.md) (migration 038) + four follow-on fixes.
 - v3.0.63–76 — [CR042](../cr/cr-042-ui-look-and-feel.md) UI (U1–U5),
   [CR043](../cr/cr-043-code-structure-program.md) code structure, audit-trail 500 fix.
+*(Detail for every release: [project-roadmap.md §1.2](project-roadmap.md).)*
 
 ## Next
-- CR048 open: the equity-growth and FX-stress decisions are with the owner. *(The split-brain
-  scenario-copy path is **fixed** in v3.0.93 — the assumptions copy moved server-side into
-  `copyScenario`; an API-only copy now reproduces its source exactly.)*
-- Rank a sweep backup in "2026 Downside" (Known issue above) — owner's call.
-- CR042 remainder (2 Forecast modals), CR043 deferred items.
-- Long-running tails: [CR019](../cr/cr-019-quicken-import.md) prod cutover loop,
+**With the owner (do not start these unasked):**
+- **"2026 Downside"** — the owner will redo this scenario themselves (stated 2026-07-13). Leave it,
+  including the unranked-sweep-backup known issue below.
+- CR048: the equity-growth and FX-stress decisions.
+- CR042 IA: calibration→Settings move; collapsing the six Forecast steps in the sidebar.
+- **Open design question:** creating a module now opens its editor — but the module is already
+  created by then, so **Cancel leaves a blank, nameless row behind**. Should Cancel delete it?
+
+**Engineering, unblocked:**
+- CR043's lint gate: 64 errors, all hooks/react-refresh restructures. Needs the app in front of
+  someone; do it incrementally with tests, never as a batch (a scripted pass in v3.0.96 produced
+  *valid JS that passed the build and all 179 tests* but would have thrown on import — only
+  `no-undef` caught it).
+- CR043 tails: N8 `{data,meta}` envelope unification; `util.js` hygiene split; Phase 4 (TypeScript,
+  Playwright).
+- Long-running: [CR019](../cr/cr-019-quicken-import.md) investment-side promote,
   [CR023](../cr/cr-023-pocketsmith-removal.md) per-account PS migration (13 left),
   [CR034](../cr/cr-034-security-hardening-ci.md): rotate `BANK_FEED_API_KEY`.
 - Full plan: [project-roadmap.md](project-roadmap.md).
