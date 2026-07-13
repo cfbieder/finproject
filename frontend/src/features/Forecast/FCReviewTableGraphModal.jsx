@@ -416,7 +416,7 @@ export default function FCReviewTableGraphModal({
                       top: "60px",
                       right: "20px",
                       background: "white",
-                      border: "1px solid #E8E6DF",
+                      border: "1px solid var(--border)",
                       borderRadius: "8px",
                       padding: "12px 16px",
                       boxShadow: "0 4px 12px rgba(0,0,0,0.1)",
@@ -441,7 +441,7 @@ export default function FCReviewTableGraphModal({
                         </span>
                       </div>
                     ))}
-                    <div style={{ borderTop: "1px solid #E8E6DF", marginTop: "6px", paddingTop: "6px", fontWeight: 700, display: "flex", justifyContent: "space-between" }}>
+                    <div style={{ borderTop: "1px solid var(--border)", marginTop: "6px", paddingTop: "6px", fontWeight: 700, display: "flex", justifyContent: "space-between" }}>
                       <span>{stackLabel}</span>
                       <span>{formatAmount(total)}</span>
                     </div>

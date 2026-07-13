@@ -147,7 +147,7 @@ export default function FCAddFromLinesModal({
         }}
       >
         {/* Header */}
-        <div style={{ padding: "1.5rem 2rem", borderBottom: "1px solid #E8E6DF", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+        <div style={{ padding: "1.5rem 2rem", borderBottom: "1px solid var(--border)", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
           <h2 style={{ margin: 0, fontSize: "1.25rem", fontWeight: 700 }}>Add from FC Lines</h2>
           <button onClick={onClose} style={{ background: "none", border: "none", fontSize: "1.5rem", cursor: "pointer", color: "var(--muted)" }}>
             &times;
@@ -237,7 +237,7 @@ export default function FCAddFromLinesModal({
         </div>
 
         {/* Footer */}
-        <div style={{ padding: "1rem 2rem", borderTop: "1px solid #E8E6DF", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+        <div style={{ padding: "1rem 2rem", borderTop: "1px solid var(--border)", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
           <span style={{ fontSize: "0.85rem", color: "var(--ink-secondary)" }}>
             {selected.size} selected
             {selectedTotal !== 0 && ` — Total: ${selectedTotal < 0 ? "-" : ""}${fmt(selectedTotal)}`}
@@ -245,7 +245,7 @@ export default function FCAddFromLinesModal({
           <div style={{ display: "flex", gap: "0.75rem" }}>
             <button
               onClick={onClose}
-              style={{ padding: "0.5rem 1.25rem", borderRadius: "0.5rem", border: "1px solid #D5D2C9", background: "white", cursor: "pointer" }}
+              style={{ padding: "0.5rem 1.25rem", borderRadius: "0.5rem", border: "1px solid var(--border-strong)", background: "white", cursor: "pointer" }}
             >
               Cancel
             </button>

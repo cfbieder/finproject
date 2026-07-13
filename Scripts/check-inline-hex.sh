@@ -24,13 +24,22 @@ ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
 BASELINE="$SCRIPT_DIR/.inline-hex-baseline.txt"
 SRC="$ROOT/frontend/src"
 
-# Per-file count of naked-hex style-object values, as "<count> <relpath>".
-# Matches `<prop>: "#hex"` / `'#hex'`; `var(--x, #hex)` has no `: ` before the
-# hex so it is naturally excluded.
+# Per-file count of NAKED hex literals in JSX, as "<count> <relpath>".
+#
+# Naked = a literal #hex that is NOT the fallback inside var(--token, #hex). A fallback
+# is fine: the token themes, and the hex only applies if the token is missing. Everything
+# else — `color: "#808E9B"`, `border: "1px solid #E8E6DF"`, a hex in a style string —
+# freezes the light palette and cannot respond to dark mode.
+#
+# (Originally this only matched the pure `prop: "#hex"` form, which silently missed every
+# composite like "1px solid #hex". Widened, then re-baselined.)
 current_counts() {
-  grep -rcoE ": *['\"]#[0-9A-Fa-f]{3,6}['\"]" "$SRC" --include=*.jsx 2>/dev/null \
-    | awk -F: '$2 > 0 { sub("'"$SRC"'/", "", $1); print $2, $1 }' \
-    | sort -k2
+  while IFS= read -r f; do
+    n=$(perl -0777 -ne 's/var\(--[A-Za-z0-9-]+,\s*#[0-9A-Fa-f]{3,6}\)/VARFB/g; my @m = /#[0-9A-Fa-f]{3,6}/g; print scalar(@m)' "$f")
+    if [[ "${n:-0}" -gt 0 ]]; then
+      echo "$n ${f#"$SRC"/}"
+    fi
+  done < <(find "$SRC" -name '*.jsx' | sort) | sort -k2
 }
 
 if [[ "${1:-}" == "--update-baseline" ]]; then

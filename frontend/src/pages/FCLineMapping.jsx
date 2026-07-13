@@ -829,7 +829,7 @@ export default function FCLineMapping() {
               <div style={{ display: "flex", gap: "0.75rem" }}>
                 <button
                   onClick={() => setShowSuggestions(false)}
-                  style={{ padding: "0.5rem 1.25rem", borderRadius: "0.5rem", border: "1px solid #D5D2C9", background: "white", cursor: "pointer" }}
+                  style={{ padding: "0.5rem 1.25rem", borderRadius: "0.5rem", border: "1px solid var(--border-strong)", background: "white", cursor: "pointer" }}
                 >
                   Close
                 </button>

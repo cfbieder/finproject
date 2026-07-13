@@ -25,7 +25,7 @@ function AuditTable({ title, data }) {
   return (
     <div style={{ marginBottom: "1.5rem" }}>
       <h4 style={{ margin: "0 0 0.5rem", fontSize: "0.9rem", fontWeight: 700 }}>{title}</h4>
-      <div style={{ overflow: "auto", maxHeight: "40vh", border: "1px solid #E8E6DF", borderRadius: "0.5rem" }}>
+      <div style={{ overflow: "auto", maxHeight: "40vh", border: "1px solid var(--border)", borderRadius: "0.5rem" }}>
         <table className="data-table" style={{ width: "100%", fontSize: "0.78rem", whiteSpace: "nowrap" }}>
           <thead>
             <tr>
@@ -36,7 +36,7 @@ function AuditTable({ title, data }) {
                     position: "sticky", top: 0, background: "var(--surface-muted)", zIndex: 1,
                     textAlign: h === "index" || h === "Year" || h === "Action" ? "left" : "right",
                     padding: "0.4rem 0.6rem", fontWeight: 600, fontSize: "0.72rem",
-                    borderBottom: "2px solid #E8E6DF",
+                    borderBottom: "2px solid var(--border)",
                   }}
                 >
                   {h === "index" ? "Year" : h}
@@ -140,7 +140,7 @@ export default function FCModuleAuditModal({ isOpen, onClose, scenario, moduleNa
       >
         {/* Header */}
         <div style={{
-          padding: "1rem 1.5rem", borderBottom: "1px solid #E8E6DF",
+          padding: "1rem 1.5rem", borderBottom: "1px solid var(--border)",
           display: "flex", justifyContent: "space-between", alignItems: "center",
         }}>
           <div>

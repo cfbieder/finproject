@@ -130,7 +130,7 @@ export default function COAEditModal({
               padding: "0.5rem 0.75rem",
               background: "#f8fafc",
               borderRadius: "8px",
-              border: "1px solid #E8E6DF",
+              border: "1px solid var(--border)",
               cursor: "pointer",
             }}
           >
@@ -184,7 +184,7 @@ export default function COAEditModal({
               padding: "0.75rem",
               background: "#f8fafc",
               borderRadius: "8px",
-              border: "1px solid #E8E6DF",
+              border: "1px solid var(--border)",
             }}
           >
             <span style={{ fontWeight: 700, fontSize: "0.85rem", color: "#2D3436" }}>

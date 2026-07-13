@@ -53,7 +53,7 @@ export default function FCCashSweepModal({ isOpen, onClose, scenario }) {
       >
         {/* Header */}
         <div style={{
-          padding: "1rem 1.5rem", borderBottom: "1px solid #E8E6DF",
+          padding: "1rem 1.5rem", borderBottom: "1px solid var(--border)",
           display: "flex", justifyContent: "space-between", alignItems: "center",
         }}>
           <div>
@@ -81,7 +81,7 @@ export default function FCCashSweepModal({ isOpen, onClose, scenario }) {
             <p style={{ color: "var(--ink-secondary)" }}>No cash sweep data. Generate the forecast with a cash sweep target first.</p>
           )}
           {!loading && rows.length > 0 && (
-            <div style={{ overflow: "auto", maxHeight: "70vh", border: "1px solid #E8E6DF", borderRadius: "0.5rem" }}>
+            <div style={{ overflow: "auto", maxHeight: "70vh", border: "1px solid var(--border)", borderRadius: "0.5rem" }}>
               <table className="data-table" style={{ width: "100%", fontSize: "0.78rem", whiteSpace: "nowrap" }}>
                 <thead>
                   <tr>
@@ -92,7 +92,7 @@ export default function FCCashSweepModal({ isOpen, onClose, scenario }) {
                           position: "sticky", top: 0, background: "var(--surface-muted)", zIndex: 1,
                           textAlign: h === "Year" || h === "Action" || h === "Modules" ? "left" : "right",
                           padding: "0.4rem 0.6rem", fontWeight: 600, fontSize: "0.72rem",
-                          borderBottom: "2px solid #E8E6DF",
+                          borderBottom: "2px solid var(--border)",
                         }}
                       >
                         {h}

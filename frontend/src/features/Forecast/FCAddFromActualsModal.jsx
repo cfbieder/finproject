@@ -286,7 +286,7 @@ export default function FCAddFromActualsModal({
         }}
       >
         {/* Header */}
-        <div style={{ padding: "1.5rem 2rem", borderBottom: "1px solid #E8E6DF", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+        <div style={{ padding: "1.5rem 2rem", borderBottom: "1px solid var(--border)", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
           <div>
             <h2 style={{ margin: 0, fontSize: "1.25rem", fontWeight: 700 }}>Add from Actuals</h2>
             <span style={{ fontSize: "0.8rem", color: "var(--ink-secondary)" }}>
@@ -345,13 +345,13 @@ export default function FCAddFromActualsModal({
           ) : tree.length === 0 ? (
             <p style={{ color: "var(--ink-secondary)" }}>No balance sheet accounts found.</p>
           ) : (
-            <div style={{ border: "1px solid #E8E6DF", borderRadius: "0.5rem", overflow: "hidden" }}>
+            <div style={{ border: "1px solid var(--border)", borderRadius: "0.5rem", overflow: "hidden" }}>
               {/* Header row */}
               <div style={{
                 display: "flex", alignItems: "center", gap: "0.5rem",
                 padding: "0.5rem", background: "var(--surface-muted)", fontSize: "0.75rem",
                 fontWeight: 600, textTransform: "uppercase", color: "var(--muted)",
-                borderBottom: "1px solid #E8E6DF",
+                borderBottom: "1px solid var(--border)",
               }}>
                 <span style={{ width: "1rem" }} />
                 <span style={{ width: "1.2rem" }} />
@@ -365,7 +365,7 @@ export default function FCAddFromActualsModal({
         </div>
 
         {/* Footer */}
-        <div style={{ padding: "1rem 2rem", borderTop: "1px solid #E8E6DF", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+        <div style={{ padding: "1rem 2rem", borderTop: "1px solid var(--border)", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
           <span style={{ fontSize: "0.85rem", color: "var(--ink-secondary)" }}>
             {selected.size} modules to create
             {selectedTotal > 0 && ` — Total: ${fmt(selectedTotal)} USD`}
@@ -373,7 +373,7 @@ export default function FCAddFromActualsModal({
           <div style={{ display: "flex", gap: "0.75rem" }}>
             <button
               onClick={onClose}
-              style={{ padding: "0.5rem 1.25rem", borderRadius: "0.5rem", border: "1px solid #D5D2C9", background: "white", cursor: "pointer" }}
+              style={{ padding: "0.5rem 1.25rem", borderRadius: "0.5rem", border: "1px solid var(--border-strong)", background: "white", cursor: "pointer" }}
             >
               Cancel
             </button>

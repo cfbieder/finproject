@@ -609,7 +609,7 @@ export default function FCModulesEditModal({
                 )}
               </div>
               {/* Status & Notes bar */}
-              <div style={{ display: "flex", gap: "1rem", alignItems: "flex-start", padding: "0.5rem 0 0.75rem", borderBottom: "1px solid #E8E6DF", marginBottom: "0.75rem" }}>
+              <div style={{ display: "flex", gap: "1rem", alignItems: "flex-start", padding: "0.5rem 0 0.75rem", borderBottom: "1px solid var(--border)", marginBottom: "0.75rem" }}>
                 <label style={{ display: "flex", flexDirection: "column", gap: "0.25rem", minWidth: "10rem" }}>
                   <span className="fc-modules-modal__label">Status</span>
                   <select

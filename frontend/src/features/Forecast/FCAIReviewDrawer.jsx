@@ -84,8 +84,8 @@ function MessageContent({ content, onApply, appliedActions }) {
         return (
           <div key={i} style={{
             margin: "0.5rem 0", padding: "0.6rem 0.8rem", borderRadius: "0.5rem",
-            background: part.isApplied ? "#f0fdf4" : "#eff6ff",
-            border: `1px solid ${part.isApplied ? "#86efac" : "#bfdbfe"}`,
+            background: part.isApplied ? "var(--success-subtle)" : "var(--info-subtle)",
+            border: `1px solid ${part.isApplied ? "var(--success-lighter)" : "var(--info-border)"}`,
             fontSize: "0.82rem",
           }}>
             <div style={{ fontWeight: 600, marginBottom: "0.25rem" }}>
@@ -99,7 +99,7 @@ function MessageContent({ content, onApply, appliedActions }) {
                 onClick={() => onApply(a, part.key)}
                 style={{
                   marginTop: "0.4rem", padding: "0.25rem 0.75rem", borderRadius: "0.375rem",
-                  border: "1px solid #7FA37F", background: "var(--primary-light)", color: "white",
+                  border: "1px solid var(--primary-light)", background: "var(--primary-light)", color: "white",
                   fontSize: "0.78rem", fontWeight: 600, cursor: "pointer",
                 }}
               >
@@ -318,13 +318,13 @@ export default function FCAIReviewDrawer({ isOpen, onClose, scenarioName, onUnre
       {/* Drawer */}
       <div style={{
         position: "fixed", top: 0, right: 0, bottom: 0, width: "min(600px, 90vw)",
-        background: "white", boxShadow: "-8px 0 30px rgba(0,0,0,0.15)",
+        background: "var(--surface)", boxShadow: "-8px 0 30px rgba(0,0,0,0.15)",
         display: "flex", flexDirection: "column", zIndex: 10200,
         animation: "slideInRight 0.2s ease-out",
       }}>
         {/* Header */}
         <div style={{
-          padding: "1rem 1.25rem", borderBottom: "1px solid #E8E6DF",
+          padding: "1rem 1.25rem", borderBottom: "1px solid var(--border)",
           display: "flex", justifyContent: "space-between", alignItems: "center",
         }}>
           <div>
@@ -338,7 +338,7 @@ export default function FCAIReviewDrawer({ isOpen, onClose, scenarioName, onUnre
               title={hasPendingReview ? "A review is already in progress" : ""}
               style={{
                 padding: "0.35rem 0.75rem", borderRadius: "0.375rem", fontSize: "0.8rem",
-                fontWeight: 600, border: "1px solid #7FA37F",
+                fontWeight: 600, border: "1px solid var(--primary-light)",
                 background: hasPendingReview ? "#cbd5cb" : "var(--primary-light)",
                 color: "white", cursor: hasPendingReview ? "not-allowed" : "pointer",
               }}
@@ -358,7 +358,7 @@ export default function FCAIReviewDrawer({ isOpen, onClose, scenarioName, onUnre
         <div style={{ flex: 1, display: "flex", overflow: "hidden" }}>
           {/* Review list */}
           <div style={{
-            width: "160px", borderRight: "1px solid #E8E6DF", overflowY: "auto",
+            width: "160px", borderRight: "1px solid var(--border)", overflowY: "auto",
             background: "var(--surface-muted)", flexShrink: 0, fontSize: "0.78rem",
           }}>
             {reviews.map(r => (
@@ -366,8 +366,8 @@ export default function FCAIReviewDrawer({ isOpen, onClose, scenarioName, onUnre
                 key={r.id}
                 onClick={() => loadConversation(r.id)}
                 style={{
-                  padding: "0.6rem 0.75rem", cursor: "pointer", borderBottom: "1px solid #E8E6DF",
-                  background: r.id === activeReviewId ? "#eff6ff" : "transparent",
+                  padding: "0.6rem 0.75rem", cursor: "pointer", borderBottom: "1px solid var(--border)",
+                  background: r.id === activeReviewId ? "var(--info-subtle)" : "transparent",
                   fontWeight: r.id === activeReviewId ? 600 : 400,
                   position: "relative",
                 }}
@@ -424,8 +424,8 @@ export default function FCAIReviewDrawer({ isOpen, onClose, scenarioName, onUnre
                   marginBottom: "1rem",
                   padding: "0.75rem 1rem",
                   borderRadius: "0.75rem",
-                  background: msg.role === "user" ? "#eff6ff" : "var(--surface-muted)",
-                  border: `1px solid ${msg.role === "user" ? "#bfdbfe" : "var(--border)"}`,
+                  background: msg.role === "user" ? "var(--info-subtle)" : "var(--surface-muted)",
+                  border: `1px solid ${msg.role === "user" ? "var(--info-border)" : "var(--border)"}`,
                   fontSize: "0.85rem", lineHeight: 1.6,
                 }}>
                   <div style={{ fontWeight: 700, fontSize: "0.72rem", color: "var(--muted)", marginBottom: "0.35rem", textTransform: "uppercase", letterSpacing: "0.05em" }}>
@@ -458,7 +458,7 @@ export default function FCAIReviewDrawer({ isOpen, onClose, scenarioName, onUnre
             {/* Input */}
             {activeReviewId && (
               <form onSubmit={handleSendMessage} style={{
-                padding: "0.75rem 1rem", borderTop: "1px solid #E8E6DF",
+                padding: "0.75rem 1rem", borderTop: "1px solid var(--border)",
                 display: "flex", gap: "0.5rem",
               }}>
                 <input
@@ -496,7 +496,7 @@ export default function FCAIReviewDrawer({ isOpen, onClose, scenarioName, onUnre
           zIndex: 10300,
         }}>
           <div style={{
-            background: "white", borderRadius: "0.75rem", padding: "1.5rem",
+            background: "var(--surface)", borderRadius: "0.75rem", padding: "1.5rem",
             width: "min(440px, 90vw)", boxShadow: "0 20px 40px rgba(0,0,0,0.2)",
           }}>
             <h4 style={{ margin: "0 0 1rem", fontSize: "1rem" }}>Confirm Change</h4>
@@ -525,7 +525,7 @@ export default function FCAIReviewDrawer({ isOpen, onClose, scenarioName, onUnre
             <div style={{ display: "flex", justifyContent: "flex-end", gap: "0.5rem", marginTop: "1.25rem" }}>
               <button
                 onClick={() => setConfirmAction(null)}
-                style={{ padding: "0.4rem 1rem", borderRadius: "0.375rem", border: "1px solid #d1d5db", background: "white", cursor: "pointer", fontSize: "0.85rem" }}
+                style={{ padding: "0.4rem 1rem", borderRadius: "0.375rem", border: "1px solid var(--border)", background: "var(--surface)", cursor: "pointer", fontSize: "0.85rem" }}
               >
                 Cancel
               </button>
@@ -548,7 +548,7 @@ export default function FCAIReviewDrawer({ isOpen, onClose, scenarioName, onUnre
           zIndex: 10300,
         }}>
           <div style={{
-            background: "white", borderRadius: "0.75rem", padding: "1.5rem",
+            background: "var(--surface)", borderRadius: "0.75rem", padding: "1.5rem",
             width: "min(440px, 90vw)", boxShadow: "0 20px 40px rgba(0,0,0,0.2)",
           }}>
             <h4 style={{ margin: "0 0 0.75rem", fontSize: "1rem" }}>Get notified when ready?</h4>
@@ -561,7 +561,7 @@ export default function FCAIReviewDrawer({ isOpen, onClose, scenarioName, onUnre
             <div style={{ display: "flex", justifyContent: "flex-end", gap: "0.5rem", marginTop: "1.25rem" }}>
               <button
                 onClick={handlePrimerDecline}
-                style={{ padding: "0.4rem 1rem", borderRadius: "0.375rem", border: "1px solid #d1d5db", background: "white", cursor: "pointer", fontSize: "0.85rem" }}
+                style={{ padding: "0.4rem 1rem", borderRadius: "0.375rem", border: "1px solid var(--border)", background: "var(--surface)", cursor: "pointer", fontSize: "0.85rem" }}
               >
                 Not now
               </button>
