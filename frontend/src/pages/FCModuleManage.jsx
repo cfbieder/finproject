@@ -222,11 +222,6 @@ export default function FCModuleManage() {
       Number.isFinite(periodStartYear) && periodStartYear
         ? new Date(`${periodStartYear - 1}-12-31T00:00:00.000Z`).toISOString()
         : null;
-    const baseYear =
-      Number.isFinite(periodStartYear) && periodStartYear
-        ? periodStartYear - 1
-        : null;
-
     try {
       await Rest.fetchJson("/api/v2/forecast/modules", {
         method: "POST",
@@ -239,7 +234,9 @@ export default function FCModuleManage() {
           Type: traitDefaults.Type,
           Currency: traitDefaults.Currency,
           BaseDate: baseDate,
-          BaseYear: baseYear,
+          // (BaseYear removed with CR043 N10: there is no such column and POST /modules
+          //  never read it — it was a dead key, silently dropped on every create. The
+          //  engine derives the base year from BaseDate.)
           BaseValue: 0,
           MarketValue: 0,
           BaseValueUSD: 0,

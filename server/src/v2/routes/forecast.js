@@ -24,6 +24,68 @@ const { PATHS } = require('../../services/forecast/constants');
 // PascalCase form contract is enumerated against the frontend.
 const SCENARIO_UPDATE_FIELDS = ['name', 'description', 'is_active', 'cash_sweep_low', 'cash_sweep_high'];
 
+// CR043 N10 — the module / income-expense write contracts, enumerated at last.
+//
+// Both routes build their update object from an explicit PascalCase whitelist, so a key
+// the caller sends but the route does not read is **silently dropped**: the user types a
+// value, hits Save, gets a 200, and the field is empty when they come back. That is
+// exactly how CR046's window dates and CR047's tax override were lost (v3.0.86) — and
+// how three dead keys (`AccountNumber`, `Expense`, `Income`) went on being posted to a
+// column that does not exist.
+//
+// These lists are a **superset of live traffic** (every key every caller actually sends,
+// verified against the frontend), so nothing that works today can start 400ing. What they
+// do catch is the next typo'd or newly-added-but-unwired field: it now fails loud instead
+// of being accepted and ignored.
+const MODULE_WRITE_FIELDS = [
+  'Scenario', 'Account', 'Name', 'Type', 'Currency', 'Comment', 'Matched', 'SetupStatus',
+  'BaseDate', 'BaseValue', 'MarketValue', 'BaseValueUSD', 'MarketValueUSD', 'Growth',
+  'ExpenseAmount', 'ExpenseFcLineId', 'ExpenseGrowthMethod', 'ExpenseStartDate', 'ExpenseEndDate',
+  'IncomeAmount', 'IncomeFcLineId', 'IncomeStartDate', 'IncomeEndDate',
+  'TaxRateOverride', 'IncomeTaxRateOverride',
+  'CashSweepPriority', 'CashSweepTarget',
+  'Invest', 'Dispose', 'IncomePct',
+];
+
+const INCEXP_WRITE_FIELDS = [
+  'Scenario', 'Account', 'Name', 'Type', 'Currency', 'Comment', 'Matched', 'SetupStatus',
+  'BaseDate', 'BaseValue', 'BaseValueUSD', 'Growth',
+  'FcLineId', 'BudgetSourceYear', 'Changes',
+];
+
+/** Shared shape check for a module write body (POST and PUT send the same contract). */
+function assertModuleBody(body) {
+  validate.assertPlainObject(body, 'module');
+  validate.assertAllowedFields(body, MODULE_WRITE_FIELDS, 'module');
+  for (const f of ['BaseValue', 'MarketValue', 'BaseValueUSD', 'MarketValueUSD', 'Growth',
+    'ExpenseAmount', 'IncomeAmount', 'TaxRateOverride', 'IncomeTaxRateOverride']) {
+    if (body[f] !== undefined && body[f] !== null) {
+      validate.assertFiniteNumber(body[f], f, { optional: true });
+    }
+  }
+  if (body.Matched !== undefined) validate.assertBoolean(body.Matched, 'Matched');
+  for (const f of ['Invest', 'Dispose', 'IncomePct']) {
+    if (body[f] !== undefined && !Array.isArray(body[f])) {
+      throw validate.badRequest(`${f} must be an array`);
+    }
+  }
+}
+
+/** Shared shape check for an income/expense write body. */
+function assertIncExpBody(body) {
+  validate.assertPlainObject(body, 'income-expense item');
+  validate.assertAllowedFields(body, INCEXP_WRITE_FIELDS, 'income-expense item');
+  for (const f of ['BaseValue', 'BaseValueUSD', 'Growth']) {
+    if (body[f] !== undefined && body[f] !== null) {
+      validate.assertFiniteNumber(body[f], f, { optional: true });
+    }
+  }
+  if (body.Matched !== undefined) validate.assertBoolean(body.Matched, 'Matched');
+  if (body.Changes !== undefined && !Array.isArray(body.Changes)) {
+    throw validate.badRequest('Changes must be an array');
+  }
+}
+
 // ============================================================================
 // Assumptions (PostgreSQL — scenarios table + forecast_assumptions document;
 // CR039 retired the FCAssump.json file backing)
@@ -406,6 +468,7 @@ router.get('/modules/:id', async (req, res, next) => {
 router.post('/modules', async (req, res, next) => {
   try {
     const body = req.body || {};
+    assertModuleBody(body);
     const scenarioName = (body.Scenario || '').trim();
 
     if (!scenarioName) {
@@ -504,6 +567,7 @@ router.put('/modules/:id', async (req, res, next) => {
     }
 
     const body = req.body || {};
+    assertModuleBody(body);
 
     // Build update data from PascalCase fields
     const updateData = {};
@@ -725,6 +789,7 @@ router.get('/incomeexpense', async (req, res, next) => {
 router.post('/incomeexpense', async (req, res, next) => {
   try {
     const body = req.body || {};
+    assertIncExpBody(body);
     const scenarioName = (body.Scenario || '').trim();
 
     if (!scenarioName) {
@@ -794,6 +859,7 @@ router.put('/incomeexpense/:id', async (req, res, next) => {
     }
 
     const body = req.body || {};
+    assertIncExpBody(body);
 
     let accountId = undefined;
     if (body.Account !== undefined) {

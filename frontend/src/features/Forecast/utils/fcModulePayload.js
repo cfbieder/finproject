@@ -12,12 +12,17 @@
  * payload, so the next field cannot repeat it.
  */
 
-/** Fields coerced to a number; blank/absent ⇒ null (and 0 stays 0). */
+/**
+ * Fields coerced to a number; blank/absent ⇒ null (and 0 stays 0).
+ *
+ * `Expense` and `Income` used to be here alongside `ExpenseAmount`/`IncomeAmount`.
+ * They were dead: not rendered by FIELD_SECTIONS, not read by the route, no column.
+ * Dropped in the CR043 N10 pass, which makes the API reject unknown fields — sending
+ * a phantom key would now 400 instead of being quietly ignored.
+ */
 const NUMERIC_FIELDS = [
-  "Expense",
   "ExpenseAmount",
   "IncomeAmount",
-  "Income",
   "BaseValue",
   "MarketValue",
   "BaseValueUSD",
@@ -38,7 +43,8 @@ export function buildModulePayload(editForm = {}, { normalizeTransfers } = {}) {
     ExpenseGrowthMethod: editForm.ExpenseGrowthMethod || "inflation",
     Matched: Boolean(editForm.Matched),
     BaseDate: editForm.BaseDate ? new Date(editForm.BaseDate).toISOString() : null,
-    AccountNumber: editForm.AccountNumber ?? "",
+    // (AccountNumber removed with CR043 N10 — there is no such column, and the route
+    //  never read it; the API now rejects unknown fields rather than dropping them.)
     Comment: (editForm.Comment ?? "").toString().trim(),
     SetupStatus: editForm.SetupStatus || "new",
     // CR046 window — the year picker stores YYYY-07-01; blank stays null.
