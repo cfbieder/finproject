@@ -3,7 +3,7 @@
 > The one mandatory read at session start. Keep ≤ ~60 lines; link onward, never restate.
 > CR statuses live in the [CR index](../cr/README.md); the running version lives in `VERSION`.
 
-**Last updated:** 2026-07-13 · **Live version:** v3.0.100 (see `VERSION` / git tags)
+**Last updated:** 2026-07-13 · **Live version:** v3.0.101 (see `VERSION` / git tags)
 
 ## Current phase
 - **Owner acceptance + re-test loop (2026-07-13), and it earned its keep.** The owner walked the
@@ -33,17 +33,22 @@
   **"2026 Base - Market Returns"**: stocks 2.0× vs 1.0×); FX-stress magnitudes for Downside;
   re-type "New House"/"Sarasota House"; rank a sweep backup in **"2026 Downside"** (see Known
   issue below).
-- [CR042](../cr/cr-042-ui-look-and-feel.md) / [CR043](../cr/cr-043-code-structure-program.md):
-  **CR042 U1–U5 ALL SHIPPED and owner-accepted**; **CR043 Phases 0–3 shipped**, incl. N10 (forecast
-  writes reject unknown fields) and the first restore drill. Four blocking CI guards: buttons,
-  modals, inline-hex, **dead-tokens** — and they now ratchet *down* (buttons 123→122, hexes
-  170→167). CR042 remainder is **owner-input IA only**: calibration→Settings, Forecast-step
-  collapse. *(Upload PS: **settled 2026-07-13 — KEEP, no change.** It already lives under Data
-  Sources; nothing has been imported through it since 2026-06-04, but it stays as a PocketSmith-CSV
-  escape hatch. Do not delete it or `/api/v2/ingest-ps`.)* CR043's lint gate stays advisory: **64
-  errors** — `no-unused-vars` and `no-undef` are at **zero**; the rest are 36
-  `set-state-in-effect` + 21 `react-refresh` + 7 hooks-rules, each a behavioral restructure that
-  needs a browser, not a text edit.
+- **[CR042](../cr/cr-042-ui-look-and-feel.md) is ✅ COMPLETE (v3.0.101).** U1–U5 shipped and
+  owner-accepted; the last IA items settled 2026-07-13 — and two of the CR's *own* proposals were
+  rejected on inspection: the **calibration pages stay** under Transactions (they are recurring
+  *work*, not configuration — burying work in a config menu to hit a nav-count target makes the app
+  worse; only **Bank Feed Setup** and **Forecast Settings** moved to Settings), and the Forecast
+  sidebar is **mirrored to the stepper, not collapsed** (collapsing costs a click on every visit to
+  the busiest area of the app; the real defect was two hand-kept lists of the same six pages that
+  disagreed — `FCStepNav` now *derives* from `routes.jsx`, so they cannot diverge again). "Upload
+  PS": **keep**. Creating a module now opens an unsaved **draft** — no more blank rows left behind
+  on Cancel.
+- [CR043](../cr/cr-043-code-structure-program.md): **Phases 0–3 shipped**, incl. N10 and the first
+  restore drill. Four blocking CI guards (buttons, modals, inline-hex, dead-tokens) — and they now
+  ratchet *down* (buttons 123→122, hexes 170→167). The lint gate stays advisory: **64 errors** —
+  `no-unused-vars` and `no-undef` are at **zero**; the rest are 36 `set-state-in-effect` + 21
+  `react-refresh` + 7 hooks-rules, each a behavioral restructure that needs a browser, not a text
+  edit.
 
 ## Known issue
 - ⚠️ *Owner is redoing "2026 Downside" themselves (2026-07-13) — **do not fix this**; it is recorded
