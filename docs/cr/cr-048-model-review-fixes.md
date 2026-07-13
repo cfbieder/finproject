@@ -99,6 +99,14 @@ claimable; flat series unchanged). 350 backend green.
 - "New House" (Base) and "Sarasota House" (House Purchase) still carry the lowercase `asset`
   module type from the pre-v3.0.87 dropdown bug — re-type via the editor.
 
+## 4b. Known issue found while building the B3 experiment
+
+The **API** scenario-copy endpoint (`POST /scenarios/byname/:name/copy`) copies the scenario row,
+its modules and its inc/exp items — but **not the per-scenario assumptions** (inflation, FX, tax
+rate), which live in the `forecast_assumptions` document. The UI does that half **client-side**, so
+UI copies are fine and an API copy silently produces a scenario with 0% inflation. Same split-brain
+shape as the CR045 §1 copy bug; it belongs inside `copyScenario`.
+
 ## 5. Status
 
 | Item | State |
@@ -107,6 +115,6 @@ claimable; flat series unchanged). 350 backend green.
 | A2 basis floor | ✅ +2 sweep tests |
 | A3 income-rate chain in the loop | ✅ (exercised by A1 path) |
 | Restore-and-diff preview vs prod copy | ✅ Base/Downside byte-identical; House honest |
-| Deploy + prod regenerate | ✅ v3.0.90 |
-| B3 growth experiment (scenario copy + compare) | ⚪ next |
+| Deploy + prod regenerate | ✅ v3.0.90 (Tax/Taxes row merge v3.0.91) |
+| B3 growth experiment (scenario copy + compare) | 🟡 **"2026 Base - Market Returns" generated on prod** (stocks 2.0× vs 1.0× inflation ⇒ Fidelity Stocks $5.05M vs $1.20M in 2062, no shortfall in either) — owner to read on `/forecast-compare` and decide |
 | B5 FX-stress Downside | ⚪ awaiting owner magnitudes |

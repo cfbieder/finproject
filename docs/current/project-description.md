@@ -241,14 +241,14 @@ One-time/idempotent admin CLIs — all require `DATABASE_URL` (no embedded crede
 | `bankfeed_balances` / `manual_balances` | Feed-reported / user-entered balance snapshots |
 | `budget_versions`, `budget_entries`, `budget_fx_rates` | Budgeting |
 | `transfer_match_groups` (+`_members`) | Manual transfer matching |
-| `forecast_*` (scenarios, modules + income_pct/investments/disposals, income_expense + changes, entries), `forecast_assumptions` (CR039 document store — inflation/FX/tax/category/scenario periods, formerly `FCAssump.json`; migration 034), `fc_lines` (+`_categories`), `fc_ai_reviews`/`fc_ai_messages` | Forecast |
+| `forecast_*` (scenarios, modules + income_pct/investments/disposals, income_expense + changes, entries), `forecast_assumptions` (CR039 document store — inflation/FX/tax/category/scenario periods, formerly `FCAssump.json`; migration 034), `fc_lines` (+`_categories`), `fc_ai_reviews`/`fc_ai_messages` | Forecast. `forecast_modules` also carries the sweep rank (`cash_sweep_priority`, migration 031), the CR046 stream window (`income_start_date`/`income_end_date`/`expense_start_date`/`expense_end_date`, migration 037 — NULL = unbounded; the year is stored as July 1, so the first/last year book 50%) and the CR047 income-only tax rate (`income_tax_rate_override`, migration 038 — NULL falls back to `tax_rate_override` then the scenario rate; **0 is a real rate**). |
 | `exchange_rates`, `sync_metadata`, `audit_log`, `app_data` | Config/infra |
 
 Views: `v_balance_sheet`, `v_budget_vs_actual`. Size: ~30 MB, ~36k transactions.
 
 ### Migrations
 
-Registry (one line per migration, 001–036): **[MIGRATIONS.md](migrations.md)**. A runner exists — `server/db/migrate.js` / `npm run migrate` (CR043 Phase 1.1): `schema_migrations` ledger, apply-the-gap in per-file transactions, checksum-drift warnings, auto-baseline on first run against a populated DB; `deploy-to-production.sh` Step 2b applies pending to prod before rebuild. `initdb.d` still auto-applies `*.sql` on a fresh empty volume (the two coexist). CI proves the chain applies to an empty database via the psql loop.
+Registry (one line per migration, 001–038): **[MIGRATIONS.md](migrations.md)**. A runner exists — `server/db/migrate.js` / `npm run migrate` (CR043 Phase 1.1): `schema_migrations` ledger, apply-the-gap in per-file transactions, checksum-drift warnings, auto-baseline on first run against a populated DB; `deploy-to-production.sh` Step 2b applies pending to prod before rebuild. `initdb.d` still auto-applies `*.sql` on a fresh empty volume (the two coexist). CI proves the chain applies to an empty database via the psql loop.
 
 ---
 
