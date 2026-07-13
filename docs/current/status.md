@@ -3,7 +3,7 @@
 > The one mandatory read at session start. Keep ≤ ~60 lines; link onward, never restate.
 > CR statuses live in the [CR index](../cr/README.md); the running version lives in `VERSION`.
 
-**Last updated:** 2026-07-13 · **Live version:** v3.0.101 (see `VERSION` / git tags)
+**Last updated:** 2026-07-13 · **Live version:** v3.0.104 (see `VERSION` / git tags)
 
 ## Current phase
 - **Owner acceptance + re-test loop (2026-07-13), and it earned its keep.** The owner walked the
@@ -43,12 +43,14 @@
   disagreed — `FCStepNav` now *derives* from `routes.jsx`, so they cannot diverge again). "Upload
   PS": **keep**. Creating a module now opens an unsaved **draft** — no more blank rows left behind
   on Cancel.
-- [CR043](../cr/cr-043-code-structure-program.md): **Phases 0–3 shipped**, incl. N10 and the first
-  restore drill. Four blocking CI guards (buttons, modals, inline-hex, dead-tokens) — and they now
-  ratchet *down* (buttons 123→122, hexes 170→167). The lint gate stays advisory: **64 errors** —
-  `no-unused-vars` and `no-undef` are at **zero**; the rest are 36 `set-state-in-effect` + 21
-  `react-refresh` + 7 hooks-rules, each a behavioral restructure that needs a browser, not a text
-  edit.
+- **[CR043](../cr/cr-043-code-structure-program.md) is ✅ COMPLETE (v3.0.104)** — Phases 0–3; only
+  long-horizon **Phase 4** (TypeScript, Playwright) remains, blocking nothing. **The lint gate is
+  BLOCKING** (errors 0; the last 7 were real hook/render bugs). **N8** unified the response envelope
+  behind `Rest.unwrap()` with **no flag day**. **util.js** 651→32 lines behind 12 new contract tests
+  — which found `POST /coa/update` had been **silently dropping the account type** for months (the
+  CR046/CR047 class again). **Six** blocking CI guards, and they all ratchet *down*: buttons,
+  modals, inline-hex, dead-tokens, **lint-debt** (56, may only shrink), **api-envelope** (27 bare
+  endpoints left, may only shrink).
 
 ## Known issue
 - ⚠️ *Owner is redoing "2026 Downside" themselves (2026-07-13) — **do not fix this**; it is recorded
@@ -67,6 +69,12 @@
 - Deploy: `./Scripts/deploy-to-production.sh` (DB backup first). Migrations: manual `psql -f`, registry in [migrations.md](migrations.md); runner shipped in CR043 P1.1 (`npm run migrate`).
 
 ## Recently shipped
+- v3.0.102–104 — **CR043 closes.** Lint gate **blocking** (the last 7 errors were real: hooks-after-
+  early-return, refs read during render, an accumulator mutated in a render loop). N8: one response
+  envelope, migrated via `Rest.unwrap()` (which tolerates both shapes) so no consumer and endpoint
+  were ever out of step. `util.js` 651→32 lines — and writing its first-ever tests found **`POST
+  /coa/update` silently dropping the account type**: 200 OK, old type echoed back, nothing changed.
+  Also fixed: **BudgetRealization re-collapsed every row you had expanded** whenever a filter changed.
 - v3.0.97–100 — **eight bugs, all found by the owner clicking through, none of them regressions.**
   The headline: **Modify Transfer had never worked** — it fetched the module *list* endpoint, which
   returns no `Invest`/`Dispose`, so it had never displayed a transfer for any module in any year,
