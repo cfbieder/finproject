@@ -1,211 +1,129 @@
-# Database Restore Procedure — March 1, 2026
+# Database Restore — Runbook
 
-## Background
+> **This procedure was actually executed and verified on 2026-07-13** (see §Drill log).
+> It is not a plan; it is a transcript of a restore that worked, turned into steps.
+>
+> The old file here was a narrative of the one-off March 2026 server migration, not a
+> runnable procedure — archived at
+> [restore-2026-03-01-migration.md](../archive/restore-2026-03-01-migration.md).
 
-After migrating to a new server, the PostgreSQL databases (production and dev) needed to be restored. The original system was migrated from MongoDB to PostgreSQL in early February 2026. Multiple data sources were used to achieve a full restore.
+## What we have
 
-## Data Sources Used
+`./Scripts/deploy-to-production.sh` takes a `pg_dump -Fc` of prod **before every deploy**;
+`./Scripts/backup-to-remote.sh` copies backups off-box (cron, every 2 days, 30-day
+retention). Dumps land in `Backups/fin_backup_<YYYYMMDD>_<HHMMSS>.dump` (~3.7 MB).
 
-### 1. PostgreSQL tar.gz Backups (from old machine)
-- `~/postgres_prod.tar.gz` (~15 MB) — raw PostgreSQL data directory backup
-- `~/postgres_dev.tar.gz` (~20 MB)
-- **Date of backup**: Pre-budget/forecast data entry
-- **Contents**: Transactions (25,853), accounts, categories — but NO budget or forecast data
+A `-Fc` (custom-format) dump is restored with `pg_restore`, **not** `psql`.
 
-### 2. MongoDB BSON Backup (from git history)
-- Commit `61c2e2d` (Dec 29, 2025) contains BSON files at:
-  `mongo_backups/backup_20251229_174528/fin/`
-- Collections: `budgetData` (728 docs), `FCModule` (5), `FCIncExp` (2), `fcEntries` (126), `appdata` (1)
-- **Partial**: Only had data as of Dec 29, 2025
+---
 
-### 3. QCOW2 Disk Image (from old VM — best source)
-- `fin.qcow2` (~20 GB) — full VM disk image from Feb 8, 2026
-- **This was the definitive source** — contained the complete post-migration PostgreSQL database
-- PostgreSQL volumes located at: `/var/lib/docker/volumes/fin_postgres_data/_data`
-- Note: Volume prefix on old machine was `fin_` (not `psproject_`)
+## A. Rehearsal — restore into a throwaway (safe, ~1 min, do this first)
 
-## What Was Restored
-
-From the Feb 8 QCOW2 disk image:
-
-| Table | Records | Notes |
-|---|---|---|
-| accounts | 208 | Full COA with correct hierarchy |
-| categories | 143 | All categories with account mappings |
-| transactions | 25,792 | 25,417 from backup + 436 newer from CSV |
-| budget_entries | 786 | 3 versions across 2025-2026 |
-| budget_versions | 3 | |
-| forecast_scenarios | 4 | Baseline, Base Case, 2025_Base, Testing |
-| forecast_modules | 33 | Balance sheet forecast items |
-| forecast_entries | 2,960 | Generated forecast summaries |
-| forecast_income_expense | 8 | Income/expense forecast items |
-| forecast_incexp_changes | 7 | |
-| forecast_module_investments | 18 | |
-| forecast_module_disposals | 24 | |
-| forecast_module_income_pct | 15 | |
-| exchange_rates | 20,043 | Historical FX rates |
-
-## Step-by-Step Procedure
-
-### Restoring from PostgreSQL tar.gz Backups
-
-Used when raw PostgreSQL data directory backups are available:
+Never rehearse against a live container. This spins an isolated Postgres, restores into
+it, and touches nothing else.
 
 ```bash
-# Stop containers
-docker compose stop fin-postgres server frontend
-docker compose -f docker-compose.dev.yml stop fin-postgres-dev server-dev
+BK=$(ls -t Backups/*.dump | head -1)     # or name one explicitly
 
-# Restore using an alpine container (avoids needing sudo)
-docker run --rm \
-  -v psproject_postgres_data:/data \
-  -v ~/postgres_prod.tar.gz:/backup.tar.gz \
-  alpine sh -c "rm -rf /data/* && tar xzf /backup.tar.gz -C /data/ --strip-components=0 && rm -f /data/postmaster.pid"
-
-# Start containers
-docker start fin-postgres fin-server fin-frontend
-```
-
-### Extracting Data from QCOW2 Disk Image
-
-```bash
-# Mount the QCOW2 image
-sudo modprobe nbd max_part=8
-sudo qemu-nbd --connect=/dev/nbd0 ~/fin.qcow2
-sudo mkdir -p /mnt/qcow2
-sudo partprobe /dev/nbd0
-sudo mount /dev/nbd0p1 /mnt/qcow2
-
-# Copy PostgreSQL data out (note: old machine used 'fin_' prefix)
-sudo cp -r /mnt/qcow2/var/lib/docker/volumes/fin_postgres_data/_data /tmp/pg_prod_feb8
-sudo chown -R cfbieder:cfbieder /tmp/pg_prod_feb8
-
-# Start a temporary PostgreSQL container with the extracted data
-rm -f /tmp/pg_prod_feb8/postmaster.pid
-docker run -d --name pg-feb8 -p 5555:5432 \
-  -v /tmp/pg_prod_feb8:/var/lib/postgresql/data \
-  -e POSTGRES_USER=fin -e POSTGRES_PASSWORD="$POSTGRES_PASSWORD"  # from .env -e POSTGRES_DB=fin \
+docker rm -f fin-restore-drill 2>/dev/null
+docker run -d --name fin-restore-drill \
+  -e POSTGRES_USER=fin -e POSTGRES_PASSWORD=drill -e POSTGRES_DB=fin \
   postgres:16-alpine
 
-# Dump the database
-docker exec pg-feb8 pg_dump -U fin -d fin -Fc > /tmp/feb8_full.dump
+# ⚠️ GOTCHA: postgres restarts DURING initdb. `pg_isready` says "ready" while the server
+# is still coming up, and the restore then dies with:
+#     FATAL: terminating connection due to administrator command
+# Wait for the init process to COMPLETE, not just for the port to answer:
+until docker logs fin-restore-drill 2>&1 | grep -q "PostgreSQL init process complete"; do sleep 1; done
 
-# Restore to production and dev
-docker exec -i fin-postgres pg_restore -U fin -d fin --clean --if-exists < /tmp/feb8_full.dump
-docker exec -i fin-postgres-dev pg_restore -U fin -d fin --clean --if-exists < /tmp/feb8_full.dump
-
-# Cleanup
-docker rm -f pg-feb8
-sudo rm -rf /tmp/pg_prod_feb8
-sudo umount /mnt/qcow2
-sudo qemu-nbd --disconnect /dev/nbd0
+docker cp "$BK" fin-restore-drill:/tmp/b.dump
+docker exec fin-restore-drill pg_restore -U fin -d fin --no-owner --no-privileges /tmp/b.dump
 ```
 
-### Ingesting Newer Transactions (without touching COA)
+Expect **0 errors** and ~3 seconds.
 
-After restoring the Feb 8 backup, 436 newer transactions from the CSV were added. **Do NOT run `rebuild-db.js`** as it re-seeds the COA from a hardcoded tree and will corrupt the account hierarchy.
-
-Instead, ingest transactions only:
+### Verify it — row counts are NOT enough
 
 ```bash
-cd /home/cfbieder/psproject/server
-DATABASE_URL="postgres://fin:$POSTGRES_PASSWORD@localhost:5433/fin" \
-CSV_PATH="/home/cfbieder/psproject/components/data/ps-transactions.csv" \
-NODE_PATH=./node_modules node -e "
-const db = require('./src/v2/db');
-const PsCsvIngestorV2 = require('./src/v2/services/psCsvIngestorV2');
-(async () => {
-  const ingestor = new PsCsvIngestorV2();
-  await ingestor.ingestPsTransactionsFromCsv();
-  await db.query(\`
-    WITH staged AS (
-      SELECT s.ps_id::bigint as ps_id, s.transaction_date, s.description1, s.description2,
-        s.amount, s.currency, s.base_amount, s.base_currency, s.transaction_type,
-        a.id as account_id, c.id as category_id, s.closing_balance,
-        CASE WHEN s.labels IS NOT NULL AND s.labels != ''
-          THEN string_to_array(s.labels, ',') ELSE NULL END as labels,
-        s.memo, s.note, s.bank
-      FROM psdata_staging s
-      LEFT JOIN accounts a ON LOWER(s.account_name) = LOWER(a.name)
-      LEFT JOIN categories c ON LOWER(s.category_name) = LOWER(c.name)
-      WHERE a.id IS NOT NULL AND s.amount IS NOT NULL
-        AND s.transaction_date IS NOT NULL AND s.currency IS NOT NULL
-    )
-    INSERT INTO transactions (ps_id, transaction_date, description1, description2,
-      amount, currency, base_amount, base_currency, transaction_type, account_id,
-      category_id, closing_balance, labels, memo, note, bank)
-    SELECT * FROM staged
-    ON CONFLICT (ps_id) DO UPDATE SET
-      transaction_date=EXCLUDED.transaction_date, description1=EXCLUDED.description1,
-      description2=EXCLUDED.description2, amount=EXCLUDED.amount,
-      currency=EXCLUDED.currency, base_amount=EXCLUDED.base_amount,
-      base_currency=EXCLUDED.base_currency, transaction_type=EXCLUDED.transaction_type,
-      account_id=EXCLUDED.account_id, category_id=EXCLUDED.category_id,
-      closing_balance=EXCLUDED.closing_balance, labels=EXCLUDED.labels,
-      memo=EXCLUDED.memo, note=EXCLUDED.note, bank=EXCLUDED.bank
-  \`);
-  const r = await db.query('SELECT COUNT(*) FROM transactions');
-  console.log('Transactions:', r.rows[0].count);
-  await db.close();
-})();
-"
+docker exec fin-restore-drill psql -U fin -d fin -tAc "
+SELECT 'transactions='||count(*) FROM transactions
+UNION ALL SELECT 'accounts='||count(*) FROM accounts
+UNION ALL SELECT 'forecast_entries='||count(*) FROM forecast_entries
+UNION ALL SELECT 'schema_migrations='||count(*) FROM schema_migrations;"
 ```
 
-For dev, change `DATABASE_URL` to use port `5434`.
+Counts should match prod **as of the backup's timestamp** — prod will legitimately be
+*ahead* (the bank feed keeps ingesting). A small positive delta on `transactions` is
+expected, not a fault; confirm it with
+`SELECT count(*) FROM transactions WHERE created_at > '<backup time>'`.
 
-### Restoring Budget/Forecast from MongoDB BSON (Alternative Method)
-
-If the QCOW2 image is not available, budget and forecast data can be recovered from the MongoDB BSON backup in git history:
+**The real test is that the application works and the numbers agree.** Boot the actual
+server image against the restored DB:
 
 ```bash
-# 1. Extract BSON files from git
-mkdir -p /tmp/mongo_restore/fin
-for f in budgetData.bson budgetData.metadata.json FCModule.bson FCModule.metadata.json \
-         FCIncExp.bson FCIncExp.metadata.json fcEntries.bson fcEntries.metadata.json; do
-  git show "61c2e2d:mongo_backups/backup_20251229_174528/fin/$f" > "/tmp/mongo_restore/fin/$f"
-done
+IP=$(docker inspect fin-restore-drill --format '{{range .NetworkSettings.Networks}}{{.IPAddress}}{{end}}')
+IMG=$(docker inspect fin-server --format '{{.Config.Image}}')
+docker run -d --name fin-restore-drill-api --network bridge -p 3999:3005 \
+  -e DATABASE_URL="postgres://fin:drill@${IP}:5432/fin" -e NODE_ENV=production -e PORT=3005 "$IMG"
 
-# 2. Start temporary MongoDB and restore
-docker run -d --name mongofin-temp -p 27018:27017 mongo:7
-docker cp /tmp/mongo_restore/fin mongofin-temp:/tmp/restore_fin
-docker exec mongofin-temp mongorestore --db fin /tmp/restore_fin
-
-# 3. Extract migration scripts from git
-mkdir -p server/src/migration
-git show "528ade6~1:server/src/migration/migrate-budget.js" > server/src/migration/migrate-budget.js
-git show "528ade6~1:server/src/migration/migrate-forecast.js" > server/src/migration/migrate-forecast.js
-
-# 4. Install mongoose temporarily and run migrations
-cd server && npm install mongoose --no-save
-MONGO_URI="mongodb://localhost:27018/fin" \
-DATABASE_URL="postgres://fin:$POSTGRES_PASSWORD@localhost:5433/fin" \
-node src/migration/migrate-budget.js
-
-MONGO_URI="mongodb://localhost:27018/fin" \
-DATABASE_URL="postgres://fin:$POSTGRES_PASSWORD@localhost:5433/fin" \
-node src/migration/migrate-forecast.js
-
-# 5. Cleanup
-npm uninstall mongoose
-rm -rf src/migration
-docker rm -f mongofin-temp
-rm -rf /tmp/mongo_restore
+curl -s localhost:3999/api/v2/health
+curl -s "localhost:3999/api/v2/reports/balance?asOfDate=$(date +%F)"   # compare to :3005
 ```
 
-**Note**: The BSON backup is from Dec 29, 2025 and has fewer records than the Feb 8 PostgreSQL backup (e.g., 727 budget entries vs 786).
+Gold standard — regenerate a forecast on the restored copy and check it reproduces prod
+byte-for-byte:
 
-## Key Git Commits for Recovery
+```bash
+curl -s -X POST "http://localhost:3999/api/v2/forecast/generate/2026%20Base"
 
-| Commit | Content |
-|---|---|
-| `61c2e2d` | MongoDB BSON backup files (Dec 29, 2025) |
-| `528ade6~1` | Last commit with migration scripts (migrate-budget.js, migrate-forecast.js) |
-| `528ade6` | Commit that removed migration scripts |
+CK() { docker exec "$1" psql -U fin -d fin -tAc "
+  SELECT count(*)||' md5='||md5(string_agg(t,'|' ORDER BY t)) FROM (
+    SELECT account||'~'||coalesce(module,'')||'~'||forecast_year::text||'~'||round(amount::numeric,2)::text AS t
+    FROM forecast_entries fe JOIN forecast_scenarios s ON s.id=fe.scenario_id
+    WHERE s.name='2026 Base') x;"; }
+CK fin-postgres; CK fin-restore-drill     # must be identical
+```
 
-## Important Notes
+### Tear down
 
-- **Do NOT run `rebuild-db.js` after restoring from backup** — it re-seeds the COA from a hardcoded tree that differs from the actual database hierarchy and will corrupt the account structure.
-- The Docker volume prefix on the old machine was `fin_`, on the new machine it is `psproject_`.
-- Always remove `postmaster.pid` from extracted PostgreSQL data directories before starting a container with them.
-- Port mappings: Production PostgreSQL = 5433, Dev PostgreSQL = 5434.
-- The dev server (fin-server-dev) uses port 3105 — if a node process is running on that port outside Docker, it will prevent the container from starting.
+```bash
+docker rm -f fin-restore-drill-api fin-restore-drill
+```
+
+---
+
+## B. Real restore into prod (destructive — read twice)
+
+Only after A passes with the dump you intend to use.
+
+```bash
+# 1. Take a dump of the CURRENT prod first, even if you think it's broken.
+docker exec fin-postgres pg_dump -U fin -Fc fin > Backups/pre-restore-$(date +%Y%m%d_%H%M%S).dump
+
+# 2. Stop the app so nothing writes mid-restore. Leave Postgres up.
+docker compose stop server frontend
+
+# 3. Restore. --clean --if-exists drops the existing objects first; without it you get
+#    duplicate-key errors on top of live data.
+docker cp <chosen>.dump fin-postgres:/tmp/r.dump
+docker exec fin-postgres pg_restore -U fin -d fin --clean --if-exists --no-owner --no-privileges /tmp/r.dump
+
+# 4. Bring the app back and verify BEFORE declaring victory.
+docker compose start server frontend
+curl -s localhost:3005/api/v2/health
+# check the balance sheet + a forecast scenario against what you expect
+```
+
+**Do not** `docker volume rm fin_postgres_data`. The volume is pinned by name in
+`docker-compose.yml`; destroying it is a separate, worse problem than a bad restore.
+
+---
+
+## Drill log
+
+| Date | Backup | Result |
+|---|---|---|
+| **2026-07-13** | `fin_backup_20260713_032215.dump` (3.7 MB) | ✅ **PASS.** Restored in **3 s, 0 errors**. All row counts faithful (`transactions` 37,040 vs prod's 37,050 — the 10 extra are bank-feed rows ingested at 11:52, *after* the backup; explained, not a fault). The real `psproject-server` image booted against it. Balance sheet at 2026-07-01 **byte-identical to prod** (net worth $14,291,347.29, checksum `7e58543608f2`). Forecast engine regenerated "2026 Base" on the restored copy and reproduced prod's stored entries **exactly** (1426 entries, md5 `381ca7190649ee316db7d0d32250785d`). **Found:** the `pg_isready`-during-initdb trap, now documented above — it silently fails the restore. |
+
+**Cadence:** re-run drill A after any schema migration that changes a table's shape, and
+at least twice a year. An untested backup is not a backup.

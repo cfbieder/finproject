@@ -94,5 +94,5 @@ env-secrets, data-import) · procedures: `/close`, `/question` · dual-track v3/
 [claude-code-permissions](../guides/claude-code-permissions.md).
 
 ## Drills & reviews
-Last restore drill: not yet held (backups via deploy script + `Scripts/backup-to-remote.sh`) ·
+Last restore drill: **2026-07-13 — PASSED** ([runbook + log](../guides/restore.md)): a real prod dump restored in 3 s / 0 errors, the server booted against it, and the balance sheet **and** a regenerated forecast came back **byte-identical to prod**. Backups verified, not assumed.
 Secrets inventory: [secrets-inventory.md](secrets-inventory.md) (escrow status open).
