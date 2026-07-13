@@ -1238,7 +1238,6 @@ function MappingPanel({ batchId, detail, onSaveMapping, onClearMapping, onBack, 
         okCount += 1;
       } catch (err) {
         failCount += 1;
-        // eslint-disable-next-line no-console
         console.warn(`Failed to deactivate id=${id}:`, err);
       }
     }

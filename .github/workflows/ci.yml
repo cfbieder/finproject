@@ -65,13 +65,25 @@ jobs:
       - name: Install frontend deps
         working-directory: frontend
         run: npm ci
-      - name: Lint (advisory)
-        # Pre-existing debt: 160 errors across ~40 files as of 2026-06-12
-        # (see docs/current/project-roadmap.md known issues). Non-blocking until cleared, so
-        # CI stays meaningful; flip to blocking once the count hits zero.
+      - name: Lint (BLOCKING — CR043 3.4)
+        # Advisory since 2026-06-12 (160 errors then). Errors are now ZERO, so it blocks.
+        #
+        # Everything that catches a real BUG is an error: no-undef, no-unused-vars,
+        # react-hooks/rules-of-hooks, react-hooks/refs, react-hooks/immutability, and the
+        # toISOString guard. That set earned the gate: a scripted dead-variable pass in
+        # v3.0.96 produced VALID JavaScript that passed the build AND all 179 tests but
+        # would have thrown ReferenceError on import — only no-undef caught it.
+        #
+        # Two rules are warnings instead, because they are debt rather than breakage
+        # (set-state-in-effect, react-refresh/only-export-components — see eslint.config.js).
+        # They are not unbounded: the next step baselines them, and the count may only shrink.
         working-directory: frontend
         run: npm run lint
-        continue-on-error: true
+      - name: Lint-debt ratchet (blocking)
+        # "It's only a warning" is how a count grows back. Fails if either warned-rule count
+        # rises above its baseline.
+        working-directory: frontend
+        run: npm run lint:debt
       - name: Design-primitive adoption guards (blocking)
         # CR042: fail if a NEW one-off button class, bespoke role="dialog" overlay,
         # or naked-hex inline style is introduced instead of the shared .btn /

@@ -38,8 +38,6 @@ export default function FCExpModal({
   accountNameOptions = {},
   periodYears = [],
 }) {
-  if (!isOpen) return null;
-
   // Available names for the selected account (from COA hierarchy)
   const nameOptionsForAccount = accountNameOptions[editForm?.Account] || [];
 
@@ -238,6 +236,15 @@ export default function FCExpModal({
     isOpen,
     onFieldChange,
   ]);
+
+  // Closed ⇒ render nothing. This guard used to sit ABOVE the useEffect, while FCExpSetup
+  // mounts this component unconditionally (`<FCExpModal isOpen={showEditModal} …>`) — so a
+  // closed render ran 0 hooks and an open one ran 1, on the same fiber. That is a real
+  // rules-of-hooks violation; it did not happen to crash, but "does not crash today" is not
+  // a contract. Below the hook, the hook count is now identical on every render, and the
+  // JSX (which reads editForm.BaseValue/BaseValueUSD/Growth non-optionally) is still only
+  // evaluated when there is a form to render.
+  if (!isOpen) return null;
 
   return (
     <Modal

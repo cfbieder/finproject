@@ -12,6 +12,7 @@
     "lint:modals": "bash ../Scripts/check-modal-adoption.sh",
     "lint:hex": "bash ../Scripts/check-inline-hex.sh",
     "lint:tokens": "bash ../Scripts/check-dead-tokens.sh",
+    "lint:debt": "bash ../Scripts/check-lint-debt.sh",
     "preview": "vite preview",
     "test": "vitest run",
     "test:watch": "vitest"

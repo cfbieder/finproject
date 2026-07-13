@@ -468,7 +468,12 @@ export default function FCReviewTable({
   const [topScrollWidth, setTopScrollWidth] = useState(0);
   const zoomScale = zoomLevel || 1;
   const sectionBorder = "2px solid var(--border-strong)";
-  const tableWidth = topScrollWidth || tableRef?.current?.scrollWidth || 0;
+  // Measured by the useLayoutEffect below, which runs BEFORE paint — so this is set by the
+  // time anything is visible. It used to fall back to `tableRef.current.scrollWidth` read
+  // during render: null on the first render, and a layout read during render is unsafe
+  // under concurrent rendering (React can render without committing). The fallback could
+  // therefore only ever supply a stale or missing value; the state is the real source.
+  const tableWidth = topScrollWidth || 0;
 
   useEffect(() => {
     const topScroller = topScrollRef.current;

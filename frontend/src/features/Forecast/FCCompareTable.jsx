@@ -59,7 +59,15 @@ export default function FCCompareTable({
   const isUnchanged = (row) =>
     row.delta.every((d) => d == null || Math.abs(d) < 0.005);
 
-  let currentSection = null;
+  // A row opens a new section when its section differs from the PREVIOUS row's.
+  //
+  // This used to be a `let currentSection` in the component body, reassigned inside the
+  // render map — an accumulator mutated during render, which is exactly what the React
+  // compiler's immutability rule rejects (and what breaks under concurrent rendering).
+  // Derived up front instead: same output, no mutable render state.
+  const opensSection = rows.map(
+    (row, i) => i === 0 || sectionOf(row) !== sectionOf(rows[i - 1])
+  );
 
   return (
     <section className="section-table">
@@ -77,20 +85,18 @@ export default function FCCompareTable({
               </tr>
             </thead>
             <tbody>
-              {rows.map((row) => {
+              {rows.map((row, rowIndex) => {
                 const section = sectionOf(row);
-                const sectionHeader =
-                  section !== currentSection ? (
-                    <tr
-                      key={`section-${section}`}
-                      className="fc-compare-section-row"
-                    >
-                      <td colSpan={years.length + 1}>
-                        {SECTION_TITLES[section]}
-                      </td>
-                    </tr>
-                  ) : null;
-                currentSection = section;
+                const sectionHeader = opensSection[rowIndex] ? (
+                  <tr
+                    key={`section-${section}`}
+                    className="fc-compare-section-row"
+                  >
+                    <td colSpan={years.length + 1}>
+                      {SECTION_TITLES[section]}
+                    </td>
+                  </tr>
+                ) : null;
 
                 if (
                   hideUnchanged &&

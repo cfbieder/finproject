@@ -20,12 +20,12 @@ export default function CategoryLandingPage() {
   const meta = categoryName ? CATEGORY_META[categoryName] : null;
   const CategoryIcon = meta?.icon;
 
-  // Redirect to home if category not found
-  if (!categoryName) {
-    return <Navigate to="/" replace />;
-  }
-
-  // Group by subcategory
+  // Group by subcategory.
+  //
+  // This must run BEFORE the no-category redirect below: it used to sit after the early
+  // return, so on a bad path the component rendered one hook fewer than on a good one —
+  // a real rules-of-hooks violation. Nothing here needs a category: categoryRoutes is []
+  // when there is none, and the loop is a no-op.
   const { ungrouped, subcategories } = useMemo(() => {
     const ungrouped = [];
     const subMap = new Map();
@@ -46,6 +46,12 @@ export default function CategoryLandingPage() {
       subcategories: Array.from(subMap.entries()),
     };
   }, [categoryRoutes]);
+
+  // Redirect to home if the path is not a known category. Below every hook, so the hook
+  // order is identical on every render.
+  if (!categoryName) {
+    return <Navigate to="/" replace />;
+  }
 
   return (
     <div className="category-landing">

@@ -541,7 +541,15 @@ export default function BudgetRealization() {
   const [leafBudgetTotals, setLeafBudgetTotals] = useState(null);
 
   // ========== State: UI ==========
-  const [collapsedPaths, setCollapsedPaths] = useState(new Set());
+  // Tracks what the user has EXPANDED. `collapsedPaths` is DERIVED from it below.
+  //
+  // It used to be the other way round — `collapsedPaths` was state, re-seeded by an effect
+  // (`setCollapsedPaths(new Set(collapsiblePaths))`) every time `collapsiblePaths` changed.
+  // But that memo recomputes whenever the tree OR the filters change, so toggling "include
+  // transfers" — or any data reload — silently slammed every row you had opened shut again.
+  // Storing the deviations instead means the default ("everything collapsed") is derived,
+  // not re-imposed, and your expansions survive a reload.
+  const [expandedPaths, setExpandedPaths] = useState(new Set());
   const [entryDetail, setEntryDetail] = useState(null);
 
   // ========== Computed Values: Date Range ==========
@@ -584,6 +592,15 @@ export default function BudgetRealization() {
     () => collectCollapsiblePaths(filteredCategoryTree),
     [filteredCategoryTree]
   );
+
+  // Collapsed by default: every collapsible path the user has not explicitly opened.
+  const collapsedPaths = useMemo(() => {
+    const next = new Set();
+    for (const pathKey of collapsiblePaths) {
+      if (!expandedPaths.has(pathKey)) next.add(pathKey);
+    }
+    return next;
+  }, [collapsiblePaths, expandedPaths]);
 
   // ========== Computed Values: Net Totals ==========
   const hasActualData = leafActualTotals !== null;
@@ -675,11 +692,6 @@ export default function BudgetRealization() {
   );
 
   // ========== Effects: Initialization ==========
-
-  // Sync collapsed paths when collapsible paths change
-  useEffect(() => {
-    setCollapsedPaths(new Set(collapsiblePaths));
-  }, [collapsiblePaths]);
 
   // ========== Effects: Data Fetching ==========
 
@@ -788,12 +800,12 @@ export default function BudgetRealization() {
    * Toggles collapse state for a category path
    */
   const handleTogglePath = (pathKey) => {
-    setCollapsedPaths((prev) => {
+    setExpandedPaths((prev) => {
       const next = new Set(prev);
       if (next.has(pathKey)) {
-        next.delete(pathKey);
+        next.delete(pathKey); // was expanded ⇒ collapse it
       } else {
-        next.add(pathKey);
+        next.add(pathKey); // was collapsed ⇒ expand it
       }
       return next;
     });
@@ -809,18 +821,16 @@ export default function BudgetRealization() {
    * Expands one layer of collapsed paths (shallowest collapsed depth)
    */
   const handleExpandOneLayer = () => {
-    setCollapsedPaths((prev) => {
-      if (prev.size === 0) return prev;
-      let minDepth = Infinity;
-      for (const pathKey of prev) {
-        const depth = pathKey.split(">").length - 1;
-        if (depth < minDepth) minDepth = depth;
-      }
+    if (collapsedPaths.size === 0) return;
+    let minDepth = Infinity;
+    for (const pathKey of collapsedPaths) {
+      const depth = pathKey.split(">").length - 1;
+      if (depth < minDepth) minDepth = depth;
+    }
+    setExpandedPaths((prev) => {
       const next = new Set(prev);
-      for (const pathKey of prev) {
-        if (pathKey.split(">").length - 1 === minDepth) {
-          next.delete(pathKey);
-        }
+      for (const pathKey of collapsedPaths) {
+        if (pathKey.split(">").length - 1 === minDepth) next.add(pathKey);
       }
       return next;
     });
@@ -830,22 +840,17 @@ export default function BudgetRealization() {
    * Collapses one layer of expanded paths (deepest expanded depth)
    */
   const handleCollapseOneLayer = () => {
-    setCollapsedPaths((prev) => {
-      const expandedPaths = [];
-      for (const pathKey of collapsiblePaths) {
-        if (!prev.has(pathKey)) expandedPaths.push(pathKey);
-      }
-      if (expandedPaths.length === 0) return prev;
-      let maxDepth = -1;
-      for (const pathKey of expandedPaths) {
-        const depth = pathKey.split(">").length - 1;
-        if (depth > maxDepth) maxDepth = depth;
-      }
+    const open = [...collapsiblePaths].filter((pathKey) => expandedPaths.has(pathKey));
+    if (open.length === 0) return;
+    let maxDepth = -1;
+    for (const pathKey of open) {
+      const depth = pathKey.split(">").length - 1;
+      if (depth > maxDepth) maxDepth = depth;
+    }
+    setExpandedPaths((prev) => {
       const next = new Set(prev);
-      for (const pathKey of expandedPaths) {
-        if (pathKey.split(">").length - 1 === maxDepth) {
-          next.add(pathKey);
-        }
+      for (const pathKey of open) {
+        if (pathKey.split(">").length - 1 === maxDepth) next.delete(pathKey);
       }
       return next;
     });
