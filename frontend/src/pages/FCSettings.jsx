@@ -53,7 +53,7 @@ export default function FCSettings() {
               <label style={{ fontSize: "0.85rem", fontWeight: 600, display: "block", marginBottom: "0.25rem" }}>
                 Birth Year
               </label>
-              <span style={{ fontSize: "0.8rem", color: "var(--text-secondary)", display: "block", marginBottom: "0.5rem" }}>
+              <span style={{ fontSize: "0.8rem", color: "var(--ink-secondary)", display: "block", marginBottom: "0.5rem" }}>
                 Displays age alongside forecast years in the Review page
               </span>
               <input
@@ -76,7 +76,7 @@ export default function FCSettings() {
               <label style={{ fontSize: "0.85rem", fontWeight: 600, display: "block", marginBottom: "0.25rem" }}>
                 Module Types
               </label>
-              <span style={{ fontSize: "0.8rem", color: "var(--text-secondary)", display: "block", marginBottom: "0.5rem" }}>
+              <span style={{ fontSize: "0.8rem", color: "var(--ink-secondary)", display: "block", marginBottom: "0.5rem" }}>
                 Available types in the module edit dropdown
               </span>
               <div style={{ display: "flex", flexWrap: "wrap", gap: "0.35rem", marginBottom: "0.5rem" }}>
@@ -152,7 +152,7 @@ export default function FCSettings() {
               <label style={{ fontSize: "0.85rem", fontWeight: 600, display: "block", marginBottom: "0.25rem" }}>
                 AI System Prompt
               </label>
-              <span style={{ fontSize: "0.8rem", color: "var(--text-secondary)", display: "block", marginBottom: "0.5rem" }}>
+              <span style={{ fontSize: "0.8rem", color: "var(--ink-secondary)", display: "block", marginBottom: "0.5rem" }}>
                 Instructions and goals sent to the AI. Customize to reflect your personal circumstances.
               </span>
               <textarea

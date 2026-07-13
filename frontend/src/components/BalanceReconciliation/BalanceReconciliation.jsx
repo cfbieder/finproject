@@ -30,7 +30,7 @@ function fmtSyncedAgo(ts) {
   if (Number.isNaN(then.getTime())) return { text: "synced —", color: null };
   const days = Math.floor((Date.now() - then.getTime()) / 86400000);
   const text = days <= 0 ? "synced today" : days === 1 ? "synced yesterday" : `synced ${days} days ago`;
-  const color = days >= 7 ? "var(--danger, #c0392b)" : days >= 3 ? "var(--warn, #b9770e)" : null;
+  const color = days >= 7 ? "var(--danger, #c0392b)" : days >= 3 ? "var(--warning, #b9770e)" : null;
   return { text, color };
 }
 

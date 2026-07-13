@@ -11,6 +11,7 @@
     "lint:buttons": "bash ../Scripts/check-button-css.sh",
     "lint:modals": "bash ../Scripts/check-modal-adoption.sh",
     "lint:hex": "bash ../Scripts/check-inline-hex.sh",
+    "lint:tokens": "bash ../Scripts/check-dead-tokens.sh",
     "preview": "vite preview",
     "test": "vitest run",
     "test:watch": "vitest"

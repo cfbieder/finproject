@@ -3,7 +3,7 @@
  *
  * Two sections: keyboard shortcuts and a glossary of the app's non-obvious
  * finance terms (the jargon a new/commercial user wouldn't know). Closes on
- * Esc / scrim click. Mounted in the sidebar layout; prod-dormant.
+ * Esc / scrim click. Mounted in the sidebar layout (live in prod since v3.0.0).
  */
 import { useEffect } from "react";
 import { X, Command, Moon, PanelLeftClose, HelpCircle } from "lucide-react";

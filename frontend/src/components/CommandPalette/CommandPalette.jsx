@@ -4,7 +4,7 @@
  * Driven by routes.jsx: every navigable route becomes a "Go to …" command,
  * plus a few quick actions (theme toggle, home). Substring-filtered, full
  * keyboard control (↑/↓ to move, Enter to run, Esc to close). Mounted in the
- * sidebar layout only, so it's prod-dormant until the sidebar is enabled.
+ * sidebar layout, which has been live in prod since v3.0.0 (CR026).
  *
  * Open/close state is owned by Layout; this component renders nothing when
  * `open` is false.

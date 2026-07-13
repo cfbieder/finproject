@@ -39,7 +39,7 @@
 .transaction-summary-modal__subtitle {
   margin: 0.15rem 0 0;
   font-size: 0.8rem;
-  color: var(--text-secondary);
+  color: var(--ink-secondary);
 }
 
 .transaction-summary-modal__close-button {
@@ -70,13 +70,13 @@
   padding: 0.35rem 0.85rem;
   cursor: pointer;
   font: inherit;
-  color: var(--text-secondary);
+  color: var(--ink-secondary);
 }
 
 .transaction-summary-modal__toggle-button--active {
   background: var(--surface);
-  color: var(--text-primary);
-  box-shadow: var(--shadow-sm);
+  color: var(--ink);
+  box-shadow: var(--shadow-soft);
 }
 
 .transaction-summary-modal__table-wrapper {

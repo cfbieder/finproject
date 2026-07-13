@@ -220,7 +220,7 @@ export default function FCAddFromActualsModal({
           style={{
             display: "flex", alignItems: "center", gap: "0.5rem",
             padding: "0.35rem 0.5rem", paddingLeft: `${depth * 1.25 + 0.5}rem`,
-            background: isSelected ? "var(--bg-highlight, #f0f4ff)" : undefined,
+            background: isSelected ? "var(--surface-muted, #f0f4ff)" : undefined,
             opacity: isDisabled ? 0.4 : 1,
             fontSize: "0.85rem", borderBottom: "1px solid #F2F1EC",
           }}
@@ -289,7 +289,7 @@ export default function FCAddFromActualsModal({
         <div style={{ padding: "1.5rem 2rem", borderBottom: "1px solid #E8E6DF", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
           <div>
             <h2 style={{ margin: 0, fontSize: "1.25rem", fontWeight: 700 }}>Add from Actuals</h2>
-            <span style={{ fontSize: "0.8rem", color: "var(--text-secondary)" }}>
+            <span style={{ fontSize: "0.8rem", color: "var(--ink-secondary)" }}>
               Select accounts to create as forecast modules. Click a parent row to use aggregated balance.
             </span>
           </div>
@@ -328,7 +328,7 @@ export default function FCAddFromActualsModal({
             >Clear</button>
           </div>
           {summary && (
-            <span style={{ fontSize: "0.85rem", color: "var(--text-secondary)", marginLeft: "auto" }}>
+            <span style={{ fontSize: "0.85rem", color: "var(--ink-secondary)", marginLeft: "auto" }}>
               {summary.with_balance} accounts with balance
               {summary.already_added > 0 && ` — ${summary.already_added} already added`}
             </span>
@@ -343,7 +343,7 @@ export default function FCAddFromActualsModal({
           {loading ? (
             <p>Loading accounts...</p>
           ) : tree.length === 0 ? (
-            <p style={{ color: "var(--text-secondary)" }}>No balance sheet accounts found.</p>
+            <p style={{ color: "var(--ink-secondary)" }}>No balance sheet accounts found.</p>
           ) : (
             <div style={{ border: "1px solid #E8E6DF", borderRadius: "0.5rem", overflow: "hidden" }}>
               {/* Header row */}
@@ -366,7 +366,7 @@ export default function FCAddFromActualsModal({
 
         {/* Footer */}
         <div style={{ padding: "1rem 2rem", borderTop: "1px solid #E8E6DF", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-          <span style={{ fontSize: "0.85rem", color: "var(--text-secondary)" }}>
+          <span style={{ fontSize: "0.85rem", color: "var(--ink-secondary)" }}>
             {selected.size} modules to create
             {selectedTotal > 0 && ` — Total: ${fmt(selectedTotal)} USD`}
           </span>

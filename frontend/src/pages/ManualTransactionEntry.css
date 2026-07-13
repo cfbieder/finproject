@@ -44,7 +44,7 @@
 .mte-label {
   font-size: 0.8rem;
   font-weight: 600;
-  color: var(--text, #334);
+  color: var(--ink, #334);
 }
 
 .mte-hint {
@@ -59,7 +59,7 @@
   border-radius: 6px;
   font-size: 0.95rem;
   background: var(--surface, #fff);
-  color: var(--text, #223);
+  color: var(--ink, #223);
 }
 
 .mte-input:focus {

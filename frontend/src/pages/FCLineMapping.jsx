@@ -1,3 +1,4 @@
+import LoadingSpinner from "../components/LoadingSpinner.jsx";
 import { useState, useEffect, useCallback } from "react";
 import Rest from "../js/rest.js";
 import FCStepNav from "../features/Forecast/FCStepNav.jsx";
@@ -239,7 +240,7 @@ export default function FCLineMapping() {
       <main className="page-main trans-budget-main">
         <section className="section-filters">
           <div className="section-table__content" style={{ padding: "2rem" }}>
-            <p>Loading...</p>
+            <LoadingSpinner size="sm" />
           </div>
         </section>
       </main>
@@ -254,7 +255,7 @@ export default function FCLineMapping() {
         <div className="section-table__content">
           <div className="fc-modules-filter__content">
             <h2 style={{ margin: "0 0 0.25rem", fontSize: "1.15rem", fontWeight: 700 }}>FC Inc/Exp Mapping</h2>
-            <p style={{ margin: "0 0 0.75rem", fontSize: "0.85rem", color: "var(--text-secondary)" }}>
+            <p style={{ margin: "0 0 0.75rem", fontSize: "0.85rem", color: "var(--ink-secondary)" }}>
               Map budget categories to forecast lines. Each category is assigned to exactly one line.
             </p>
 
@@ -269,7 +270,7 @@ export default function FCLineMapping() {
 
             {/* Coverage bar */}
             <div style={{ display: "flex", alignItems: "center", gap: "1rem", marginBottom: "0.75rem" }}>
-              <span style={{ fontSize: "0.85rem", color: "var(--text-secondary)" }}>
+              <span style={{ fontSize: "0.85rem", color: "var(--ink-secondary)" }}>
                 Coverage: {fmt(assignedBudget)}/{fmt(totalBudget)} budget mapped ({assignedPct}%)
               </span>
               <div style={{ flex: 1, height: "6px", background: "var(--border)", borderRadius: "3px", overflow: "hidden" }}>
@@ -327,7 +328,7 @@ export default function FCLineMapping() {
           </h3>
           <div style={{ flex: 1, overflow: "auto", border: "1px solid var(--border)", borderRadius: "0.5rem", maxHeight: "calc(100vh - 320px)" }}>
             {lines.length === 0 ? (
-              <div style={{ padding: "2rem", textAlign: "center", color: "var(--text-secondary)" }}>
+              <div style={{ padding: "2rem", textAlign: "center", color: "var(--ink-secondary)" }}>
                 No lines yet. Click "Generate Suggestions" or create one manually.
               </div>
             ) : (
@@ -357,7 +358,7 @@ export default function FCLineMapping() {
                       onDrop={(e) => onDropOnLine(e, line.id)}
                       style={{
                         cursor: "pointer",
-                        background: selectedLineId === line.id ? "var(--bg-highlight, var(--primary-subtle))" : undefined,
+                        background: selectedLineId === line.id ? "var(--surface-muted, var(--primary-subtle))" : undefined,
                         borderLeft: `3px solid ${typeColor(line.line_type)}`,
                       }}
                     >
@@ -451,7 +452,7 @@ export default function FCLineMapping() {
                       )}
                       {unassignedLines.length > 0 && (
                         <tbody>
-                          <tr><td colSpan={5} style={{ fontWeight: 700, paddingTop: "0.75rem", fontSize: "0.8rem", color: "var(--text-secondary)", borderBottom: "1px solid var(--border)" }}>Unassigned</td></tr>
+                          <tr><td colSpan={5} style={{ fontWeight: 700, paddingTop: "0.75rem", fontSize: "0.8rem", color: "var(--ink-secondary)", borderBottom: "1px solid var(--border)" }}>Unassigned</td></tr>
                           {unassignedLines.map(renderLineRow)}
                         </tbody>
                       )}
@@ -482,7 +483,7 @@ export default function FCLineMapping() {
               </h4>
               <div style={{ maxHeight: "20vh", overflow: "auto", border: "1px solid var(--border)", borderRadius: "0.5rem", padding: "0.5rem" }}>
                 {(!selectedLine.categories || selectedLine.categories.length === 0) ? (
-                  <div style={{ color: "var(--text-secondary)", fontSize: "0.85rem" }}>
+                  <div style={{ color: "var(--ink-secondary)", fontSize: "0.85rem" }}>
                     No categories assigned. Drag categories here from the unassigned pool.
                   </div>
                 ) : (
@@ -560,7 +561,7 @@ export default function FCLineMapping() {
             background: draggedCatId ? "#fef3c7" : undefined, transition: "background 0.2s",
           }}>
             {filteredUnassigned.length === 0 ? (
-              <div style={{ padding: "1rem", textAlign: "center", color: "var(--text-secondary)", fontSize: "0.85rem" }}>
+              <div style={{ padding: "1rem", textAlign: "center", color: "var(--ink-secondary)", fontSize: "0.85rem" }}>
                 {unassigned.length === 0 ? "All categories assigned!" : "No matches"}
               </div>
             ) : (
@@ -640,7 +641,7 @@ export default function FCLineMapping() {
             <div style={{ padding: "1.25rem 1.5rem", borderBottom: "1px solid var(--border)", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
               <div>
                 <h2 style={{ margin: 0, fontSize: "1.15rem", fontWeight: 700 }}>{detailLine.name}</h2>
-                <span style={{ fontSize: "0.8rem", color: "var(--text-secondary)" }}>
+                <span style={{ fontSize: "0.8rem", color: "var(--ink-secondary)" }}>
                   {detailLine.categories?.length || 0} categories — Budget Year {budgetYear}
                 </span>
               </div>
@@ -766,15 +767,15 @@ export default function FCLineMapping() {
           >
             <div style={{ padding: "1.5rem 2rem", borderBottom: "1px solid var(--border)" }}>
               <h3 style={{ margin: 0, fontSize: "1.1rem", fontWeight: 700 }}>Generate Suggestions</h3>
-              <span style={{ fontSize: "0.8rem", color: "var(--text-secondary)" }}>
+              <span style={{ fontSize: "0.8rem", color: "var(--ink-secondary)" }}>
                 Select P&L categories to create as FC Lines.
               </span>
             </div>
             <div style={{ flex: 1, overflow: "auto", padding: "0.75rem 2rem" }}>
               {sugLoading ? (
-                <p>Loading...</p>
+                <LoadingSpinner size="sm" />
               ) : suggestions.length === 0 ? (
-                <p style={{ color: "var(--text-secondary)", textAlign: "center", padding: "2rem 0" }}>
+                <p style={{ color: "var(--ink-secondary)", textAlign: "center", padding: "2rem 0" }}>
                   All suggestions already created.
                 </p>
               ) : (
@@ -822,7 +823,7 @@ export default function FCLineMapping() {
               )}
             </div>
             <div style={{ padding: "1rem 2rem", borderTop: "1px solid var(--border)", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-              <span style={{ fontSize: "0.8rem", color: "var(--text-secondary)" }}>
+              <span style={{ fontSize: "0.8rem", color: "var(--ink-secondary)" }}>
                 {sugSelected.size} of {suggestions.length} selected
               </span>
               <div style={{ display: "flex", gap: "0.75rem" }}>

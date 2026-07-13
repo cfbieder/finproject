@@ -149,6 +149,10 @@
 
   /* Typography - Financial data readability */
   --font-mono: 'SF Mono', Monaco, 'Cascadia Code', 'Roboto Mono', Consolas, monospace;
+  /* CR042 T1: --font-heading was referenced in 4 places but never defined, so it
+     silently fell back to the inherited font. It resolves to the same family the
+     body uses — but now it is a real token, not a dangling reference. */
+  --font-heading: 'Outfit', 'Segoe UI', 'Helvetica Neue', sans-serif;
   --font-weight-medium: 500;
   --font-weight-semibold: 600;
   --font-weight-bold: 700;
@@ -173,7 +177,7 @@
 
 /* ============================================================
    CR026 P2 — Dark theme (incremental). Overrides the semantic tokens
-   under [data-theme="dark"] so every surface that uses var(--token)
+   under [data-theme="dark"] so every surface that uses a token
    flips automatically (sidebar, top strip, and any token-based page).
    Pages that still hardcode hex are migrated to tokens incrementally;
    until then they may look off in dark. Default stays light — dark is

@@ -50,7 +50,7 @@
 .period-selector__summary {
   font-size: 0.8rem;
   font-weight: 500;
-  color: var(--ink-muted, var(--muted));
+  color: var(--muted, var(--muted));
   padding: 0.4rem 0.5rem;
   background: var(--surface-muted);
   border-radius: var(--radius-md);

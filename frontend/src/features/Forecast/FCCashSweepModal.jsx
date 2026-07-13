@@ -1,3 +1,4 @@
+import LoadingSpinner from "../../components/LoadingSpinner.jsx";
 import { useState, useEffect } from "react";
 import Rest from "../../js/rest.js";
 
@@ -59,7 +60,7 @@ export default function FCCashSweepModal({ isOpen, onClose, scenario }) {
             <h3 style={{ margin: 0, fontSize: "1.1rem", fontWeight: 700 }}>
               Cash Sweep Summary
             </h3>
-            <span style={{ fontSize: "0.8rem", color: "var(--text-secondary)" }}>
+            <span style={{ fontSize: "0.8rem", color: "var(--ink-secondary)" }}>
               Scenario: {scenario}
               {lastMod && <> &middot; Generated: {lastMod}</>}
             </span>
@@ -74,10 +75,10 @@ export default function FCCashSweepModal({ isOpen, onClose, scenario }) {
 
         {/* Body */}
         <div style={{ padding: "1rem 1.5rem", overflow: "auto", flex: 1 }}>
-          {loading && <p style={{ color: "var(--text-secondary)" }}>Loading...</p>}
+          {loading && <LoadingSpinner size="sm" />}
           {error && <p style={{ color: "var(--danger, #C0504D)" }}>{error}</p>}
           {!loading && !error && rows.length === 0 && (
-            <p style={{ color: "var(--text-secondary)" }}>No cash sweep data. Generate the forecast with a cash sweep target first.</p>
+            <p style={{ color: "var(--ink-secondary)" }}>No cash sweep data. Generate the forecast with a cash sweep target first.</p>
           )}
           {!loading && rows.length > 0 && (
             <div style={{ overflow: "auto", maxHeight: "70vh", border: "1px solid #E8E6DF", borderRadius: "0.5rem" }}>

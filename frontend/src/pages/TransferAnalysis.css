@@ -42,7 +42,7 @@
 
 .transfer-analysis-error {
   color: var(--danger, var(--danger));
-  background: var(--danger-bg, var(--danger-subtle));
+  background: var(--danger-subtle, var(--danger-subtle));
   border: 1px solid var(--danger-light);
   border-radius: var(--radius-md);
   padding: 0.75rem 1rem;
@@ -64,7 +64,7 @@
   border: 1px solid var(--border);
   border-radius: var(--radius-lg);
   padding: 1rem 1.25rem;
-  box-shadow: var(--shadow-sm);
+  box-shadow: var(--shadow-soft);
 }
 
 .transfer-analysis-summary-card--warning {
@@ -92,7 +92,7 @@
   border: 1px solid var(--border);
   border-radius: var(--radius-lg);
   overflow: hidden;
-  box-shadow: var(--shadow-sm);
+  box-shadow: var(--shadow-soft);
 }
 
 .transfer-analysis-category-header {
@@ -112,7 +112,7 @@
 }
 
 .transfer-analysis-category-header:hover {
-  background: var(--surface-hover, var(--bg-secondary));
+  background: var(--surface-muted, var(--bg-secondary));
 }
 
 .transfer-analysis-category-toggle {
@@ -189,7 +189,7 @@
 
 .transfer-analysis-table td {
   padding: 0.4rem 0.625rem;
-  border-bottom: 1px solid var(--border-light, var(--bg-secondary));
+  border-bottom: 1px solid var(--border-subtle, var(--bg-secondary));
   color: var(--ink);
   white-space: nowrap;
 }
@@ -301,7 +301,7 @@
 }
 
 .transfer-analysis-manual-group {
-  border: 1px solid var(--border-light, var(--bg-secondary));
+  border: 1px solid var(--border-subtle, var(--bg-secondary));
   border-radius: var(--radius-md, 6px);
   padding: 0.75rem;
 }

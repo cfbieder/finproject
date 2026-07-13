@@ -147,7 +147,7 @@ export default function FCModuleAuditModal({ isOpen, onClose, scenario, moduleNa
             <h3 style={{ margin: 0, fontSize: "1.1rem", fontWeight: 700 }}>
               Module Output — {moduleName}
             </h3>
-            <span style={{ fontSize: "0.8rem", color: "var(--text-secondary)" }}>
+            <span style={{ fontSize: "0.8rem", color: "var(--ink-secondary)" }}>
               Scenario: {scenario}
               {lastModStr && <> · Generated: {lastModStr}</>}
             </span>
@@ -187,7 +187,7 @@ export default function FCModuleAuditModal({ isOpen, onClose, scenario, moduleNa
 
         {/* Body */}
         <div style={{ padding: "1rem 1.5rem", overflow: "auto", flex: 1 }}>
-          {loading && <p style={{ color: "var(--text-secondary)" }}>Loading audit trail...</p>}
+          {loading && <p style={{ color: "var(--ink-secondary)" }}>Loading audit trail...</p>}
           {error && <p style={{ color: "var(--danger, #C0504D)" }}>{error}</p>}
           {data && !loading && view === "lc" && (
             <AuditTable title="Local Currency Values" data={data.lc} />

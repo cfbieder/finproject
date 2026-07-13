@@ -1,3 +1,4 @@
+import LoadingSpinner from "../../components/LoadingSpinner.jsx";
 import { useState, useEffect } from "react";
 import Rest from "../../js/rest.js";
 
@@ -166,7 +167,7 @@ export default function FCAddFromLinesModal({
                 className="form-input"
               />
             </label>
-            <span style={{ marginLeft: "auto", fontSize: "0.85rem", color: "var(--text-secondary)" }}>
+            <span style={{ marginLeft: "auto", fontSize: "0.85rem", color: "var(--ink-secondary)" }}>
               {lines.length} available lines
             </span>
           </div>
@@ -176,9 +177,9 @@ export default function FCAddFromLinesModal({
           )}
 
           {loading ? (
-            <p>Loading...</p>
+            <LoadingSpinner size="sm" />
           ) : lines.length === 0 ? (
-            <p style={{ color: "var(--text-secondary)" }}>
+            <p style={{ color: "var(--ink-secondary)" }}>
               No Forecast Expense/Income lines available. Either all lines are already added to this scenario,
               or no FC Lines are typed as "Forecast Expense" or "Forecast Income" on the mapping page.
             </p>
@@ -205,7 +206,7 @@ export default function FCAddFromLinesModal({
                     <tr
                       key={line.id}
                       style={{
-                        background: selected.has(line.id) ? "var(--bg-highlight, #f0f4ff)" : undefined,
+                        background: selected.has(line.id) ? "var(--surface-muted, #f0f4ff)" : undefined,
                         cursor: "pointer",
                       }}
                       onClick={() => toggleSelect(line.id)}
@@ -218,7 +219,7 @@ export default function FCAddFromLinesModal({
                         />
                       </td>
                       <td>{line.name}</td>
-                      <td style={{ color: "var(--text-secondary)", fontSize: "0.8rem" }}>
+                      <td style={{ color: "var(--ink-secondary)", fontSize: "0.8rem" }}>
                         {line.line_type === "forecast_income" ? "Income" : "Expense"}
                       </td>
                       <td style={{
@@ -237,7 +238,7 @@ export default function FCAddFromLinesModal({
 
         {/* Footer */}
         <div style={{ padding: "1rem 2rem", borderTop: "1px solid #E8E6DF", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-          <span style={{ fontSize: "0.85rem", color: "var(--text-secondary)" }}>
+          <span style={{ fontSize: "0.85rem", color: "var(--ink-secondary)" }}>
             {selected.size} selected
             {selectedTotal !== 0 && ` — Total: ${selectedTotal < 0 ? "-" : ""}${fmt(selectedTotal)}`}
           </span>

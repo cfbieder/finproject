@@ -27,7 +27,7 @@
 .budget-fx-header__subtitle {
   margin: 0;
   font-size: 0.95rem;
-  color: var(--text-muted, var(--muted));
+  color: var(--muted, var(--muted));
 }
 
 /* --- Section card --- */
@@ -53,7 +53,7 @@
 .budget-fx-toolbar__label {
   font-size: 0.9rem;
   font-weight: 600;
-  color: var(--text, #1e293b);
+  color: var(--ink, #1e293b);
 }
 
 .budget-fx-toolbar__select {
@@ -62,7 +62,7 @@
   border: 1px solid rgba(107, 142, 107, 0.2);
   border-radius: var(--radius-md);
   background: var(--surface);
-  color: var(--text);
+  color: var(--ink);
   cursor: pointer;
   transition: border-color 0.15s ease;
 }
@@ -112,7 +112,7 @@
 
 .budget-fx-table__td-month {
   font-weight: 600;
-  color: var(--text, #1e293b);
+  color: var(--ink, #1e293b);
   white-space: nowrap;
 }
 
@@ -177,7 +177,7 @@
 .budget-fx-empty {
   text-align: center;
   padding: 2rem 0;
-  color: var(--text-muted, var(--muted));
+  color: var(--muted, var(--muted));
   font-size: 0.95rem;
 }
 
@@ -220,14 +220,14 @@
 .budget-fx-modal__subtitle {
   margin: 0 0 1.25rem;
   font-size: 0.9rem;
-  color: var(--text-muted, var(--muted));
+  color: var(--muted, var(--muted));
 }
 
 .budget-fx-modal__loading,
 .budget-fx-modal__empty {
   text-align: center;
   padding: 1.5rem 0;
-  color: var(--text-muted, var(--muted));
+  color: var(--muted, var(--muted));
 }
 
 .budget-fx-modal__table {

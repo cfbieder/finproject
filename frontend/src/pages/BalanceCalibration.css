@@ -63,7 +63,7 @@
 .calibration-td {
   padding: 0.5rem 0.75rem;
   border-bottom: 1px solid rgba(107, 142, 107, 0.08);
-  color: var(--text);
+  color: var(--ink);
   white-space: nowrap;
 }
 

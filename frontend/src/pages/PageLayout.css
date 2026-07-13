@@ -1857,7 +1857,7 @@
   margin: 0;
   font-size: 1rem;
   font-weight: 600;
-  color: var(--ink-muted);
+  color: var(--muted);
   text-align: center;
   line-height: 1.6;
 }
@@ -1885,7 +1885,7 @@
   margin: 0;
   font-size: 1.1rem;
   font-weight: 600;
-  color: var(--ink-muted);
+  color: var(--muted);
   text-align: center;
   line-height: 1.6;
 }
@@ -1936,7 +1936,7 @@
 
 .budget-region__description {
   font-size: 0.9rem;
-  color: var(--ink-muted);
+  color: var(--muted);
   margin: 0;
   line-height: 1.5;
 }

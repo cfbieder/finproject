@@ -73,16 +73,18 @@ jobs:
         run: npm run lint
         continue-on-error: true
       - name: Design-primitive adoption guards (blocking)
-        # CR042 U4/U1: fail if a NEW one-off button class, bespoke role="dialog"
-        # overlay, or naked-hex inline style is introduced instead of the shared
-        # .btn / <Modal> primitives / var(--token). Baselines under Scripts/
-        # (.button-class-baseline / .modal-adoption-baseline / .inline-hex-baseline)
-        # snapshot the migrating debt; removals are always fine.
+        # CR042: fail if a NEW one-off button class, bespoke role="dialog" overlay,
+        # or naked-hex inline style is introduced instead of the shared .btn /
+        # <Modal> primitives / a theme token — and if any var(--x) references a
+        # token that is never defined (it silently falls back and ignores the theme;
+        # there were 63 such dangling refs). The first three keep a baseline under
+        # Scripts/ that may only shrink; lint:tokens has none — the bar is zero.
         working-directory: frontend
         run: |
           npm run lint:buttons
           npm run lint:modals
           npm run lint:hex
+          npm run lint:tokens
       - name: Unit tests (Vitest)
         # Blocking: the 121-test frontend suite must stay green (CR043 N1 —
         # previously these ran only by hand, so a PR could break all of them

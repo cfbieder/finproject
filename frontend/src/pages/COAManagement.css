@@ -385,7 +385,7 @@
   display: inline-flex;
   align-items: center;
   margin-left: 0.35rem;
-  color: var(--accent-green, #5b8c6e);
+  color: var(--primary, #5b8c6e);
   flex-shrink: 0;
 }
 

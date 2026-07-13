@@ -31,7 +31,7 @@ export default class ErrorBoundary extends Component {
         variant="void"
         message="Something went wrong rendering this page."
       >
-        <p style={{ color: "var(--color-text-secondary)" }}>
+        <p style={{ color: "var(--ink-secondary)" }}>
           {String(this.state.error?.message || this.state.error)}
         </p>
         <button

@@ -11,9 +11,18 @@
     <meta name="apple-mobile-web-app-status-bar-style" content="default" />
     <meta name="apple-mobile-web-app-title" content="Fin" />
     <meta name="description" content="Personal finance management and forecasting" />
-    <link rel="preconnect" href="https://fonts.googleapis.com" />
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700&display=swap" rel="stylesheet" />
+    <!-- Outfit, self-hosted (CR042). Was the Google Fonts CDN: a third-party request on
+         every load, no font at all when the PWA ran offline, and a FOUT. Outfit v15 is a
+         variable font, so all five weights come from these two files (~47KB). Preloading
+         the latin file kills the swap flash for everything but extended glyphs. -->
+    <link
+      rel="preload"
+      href="/fonts/outfit-QGYvz_MVcBeNP4NJtEtq.woff2"
+      as="font"
+      type="font/woff2"
+      crossorigin
+    />
+    <link rel="stylesheet" href="/fonts/outfit.css" />
     <title>FI</title>
     <script>
       /* CR026 P2 — apply saved theme before paint to avoid a flash.

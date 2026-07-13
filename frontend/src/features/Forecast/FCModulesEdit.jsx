@@ -962,7 +962,7 @@ export default function FCModulesEditModal({
                           ))}
                         </select>
                         {lineId && budgetTotal > 0 && (
-                          <div style={{ fontSize: "0.75rem", color: "var(--text-secondary)", marginTop: "0.2rem", lineHeight: 1.5 }}>
+                          <div style={{ fontSize: "0.75rem", color: "var(--ink-secondary)", marginTop: "0.2rem", lineHeight: 1.5 }}>
                             <span>Budget: <b>{budgetTotal.toLocaleString("en-US", { maximumFractionDigits: 0 })}</b></span>
                             {otherModulesAmount > 0 && (
                               <span> — Other modules: {otherModulesAmount.toLocaleString("en-US", { maximumFractionDigits: 0 })}</span>

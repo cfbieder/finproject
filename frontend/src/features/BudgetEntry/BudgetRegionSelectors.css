@@ -223,7 +223,7 @@
 .selector-summary__label {
   font-size: 0.8rem;
   font-weight: 600;
-  color: var(--ink-muted);
+  color: var(--muted);
 }
 
 .selector-summary__value {
@@ -233,7 +233,7 @@
 }
 
 .selector-summary--muted .selector-summary__value {
-  color: var(--ink-muted);
+  color: var(--muted);
 }
 
 .category-group-option {

@@ -21,12 +21,12 @@
   border: 1px solid var(--border, #cfd4dd);
   border-radius: 999px;
   background: transparent;
-  color: var(--text-muted, #6b7280);
+  color: var(--muted, #6b7280);
   cursor: pointer;
   white-space: nowrap;
 }
 .recon-panel .recon-help-toggle:hover {
-  background: var(--surface-hover, #eef2f7);
+  background: var(--surface-muted, #eef2f7);
   color: inherit;
 }
 .recon-panel .recon-help {
@@ -71,7 +71,7 @@
   font-size: 1.15rem;
   line-height: 1;
   cursor: pointer;
-  color: var(--text-muted, #6b7280);
+  color: var(--muted, #6b7280);
 }
 .recon-panel .recon-status-x:hover { color: var(--danger-strong, #b42318); }
 
@@ -114,7 +114,7 @@
   background: var(--surface-muted, #fafafb);
 }
 .recon-panel .bfd-accounts tbody tr:hover {
-  background: var(--surface-hover, #eef2f7);
+  background: var(--surface-muted, #eef2f7);
 }
 
 .recon-panel .bfd-accounts .num {
@@ -172,7 +172,7 @@
   font-weight: 500;
 }
 .recon-panel .recon-actions .generate-report-button.recon-btn--secondary:not(:disabled):hover {
-  background: var(--surface-hover, #eef2f7);
+  background: var(--surface-muted, #eef2f7);
   border-color: var(--primary, #567856);
 }
 

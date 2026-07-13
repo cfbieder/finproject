@@ -53,7 +53,7 @@
   background: var(--u-bg);
   box-shadow: var(--u-shadow);
   color: var(--u-ink);
-  font-family: var(--font-family, "Outfit", sans-serif);
+  font-family: var(--font-heading, "Outfit", sans-serif);
 }
 .uiprev.is-rail { grid-template-columns: 76px 1fr; }
 
