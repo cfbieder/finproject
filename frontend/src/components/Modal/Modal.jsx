@@ -42,6 +42,13 @@ export default function Modal({
     if (!dismissable || !closeOnOutside) event.preventDefault();
   };
 
+  // On close, Radix returns focus to whatever was focused before the dialog opened. When
+  // the opener is a table cell deep in a long report — or nothing focusable at all, as with
+  // a double-click — the browser scrolls that focus target into view and the page jumps.
+  // Preventing the default keeps the reader where they were; the focus trap on OPEN is the
+  // part that matters for a11y, and it is untouched.
+  const preventCloseScroll = (event) => event.preventDefault();
+
   // `bare` mode: provide only Radix's overlay + focus-trap + ESC + portal, and
   // let the caller's own card own its look. Used to migrate the many bespoke
   // Forecast overlays (fc-*-modal) onto the primitive without restyling them —
@@ -62,6 +69,7 @@ export default function Modal({
             onEscapeKeyDown={guard}
             onPointerDownOutside={guardOutside}
             onInteractOutside={guardOutside}
+            onCloseAutoFocus={preventCloseScroll}
           >
             {/* Radix requires a Title for a11y; the caller's card supplies the
                 visible heading, so this one is screen-reader-only. */}
