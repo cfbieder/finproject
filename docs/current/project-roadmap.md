@@ -97,6 +97,20 @@ Living plan for the Fin project — open Change Requests, known issues, ongoing 
 
 Release-level history; detail in the linked CR file or [§7 Migration History](#7-migration-history).
 
+- **v3.0.98 → v3.0.100** (2026-07-13) — **The owner re-tested v3.0.97's five fixes one at a time. The first was still broken — and that is how we found that Modify Transfer had never worked at all.**
+
+  **The lesson is worth more than the fix.** v3.0.97 changed how the modal *matches* a transfer to a year (Periodic rows span `Date`→`DateEnd`; it was matching only the year stored on the row). That was a genuine latent bug and the change is correct. But the modal fetched `GET /forecast/modules?scenario=…` — the **list** endpoint — and **the list does not return `Invest`/`Dispose`/`IncomePct` at all**; only `GET /modules/:id` joins the three child tables. So `moduleData.Invest` was **always `undefined`**, `pick(undefined)` returned `[]`, and every year of every module reported *"no transfers for this year"*. The modal had **never once displayed a transfer**, for any module, in its entire existence — while the Review sat directly behind it rendering the transfer it was denying.
+
+  The year-matching fix sat **downstream** of a bug that meant no data ever arrived. It was diagnosed by reading code and shipped without an end-to-end check, and **its unit test passed the whole time** — because it tested a predicate that was never reached with real data. A green unit test on an unreached code path is worse than no test: it buys false confidence. The replacement is a component test that goes through the actual fetch (asserts `Rest.get` is called for the full module, and that a periodic row renders in a **middle** year of its range) and **fails on the pre-change code**. Fixed by resolving Name → id from the list, then fetching the full module — the same call the module editor already made.
+
+  **Two more, both surfaced by the same re-test loop:**
+
+  **`_cash_sweep`'s amount still opened a transfer editor.** The breakdown row has two click targets: the module **name** (→ audit trail, fixed in v3.0.97) and the **amount** (→ Modify Transfer). `_cash_sweep` is *synthetic* — the engine invents it to attribute swept cash, it has no `forecast_modules` row — so the editor looked it up by name, found nothing, and rendered "Module not found": an editor offered on something uneditable. Its amount now carries no edit affordance and its tooltip points at the audit trail. Guarded by the `_` prefix, so any future synthetic module inherits the behaviour.
+
+  **Closing any modal scrolled the page away from where you were** — after Save Changes, the Review jumped to the bottom, losing the cell just edited. Radix restores focus on close to whatever was focused before the dialog opened; these dialogs open on a **double-click**, which focuses nothing, so the restore target is arbitrary and the browser scrolls it into view (twice here — breakdown + adjust transfer stack, `data-scroll-locked="2"`). `onCloseAutoFocus` is now prevented in the `<Modal>` primitive, so **every dialog in the app** is fixed at once. The focus trap on *open*, which is where the a11y value is, is untouched.
+
+  All five of v3.0.97's fixes re-tested and passed. Frontend tests 188 → 191.
+
 - **v3.0.97** (2026-07-13) — **Owner acceptance pass on v3.0.96: all six test steps PASS, and walking the UI found five bugs that were already there.**
 
   Worth recording *because* none of the five was a regression from the release under test — the migration to `<Modal>`, the report consolidation, the 63 token remaps and the self-hosted font all came through clean. What a human clicking through found were older, quieter defects that no test was ever going to catch.

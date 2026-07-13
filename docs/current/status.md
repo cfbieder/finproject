@@ -3,7 +3,7 @@
 > The one mandatory read at session start. Keep ≤ ~60 lines; link onward, never restate.
 > CR statuses live in the [CR index](../cr/README.md); the running version lives in `VERSION`.
 
-**Last updated:** 2026-07-13 · **Live version:** v3.0.97 (see `VERSION` / git tags)
+**Last updated:** 2026-07-13 · **Live version:** v3.0.100 (see `VERSION` / git tags)
 
 ## Current phase
 - **Forecast hardening (CR045 → CR049), 2026-07-12/13.** Owner questions have now opened a run of
@@ -46,6 +46,20 @@
 - Deploy: `./Scripts/deploy-to-production.sh` (DB backup first). Migrations: manual `psql -f`, registry in [migrations.md](migrations.md); runner shipped in CR043 P1.1 (`npm run migrate`).
 
 ## Recently shipped
+- v3.0.98–100 — **the owner re-tested v3.0.97's fixes one by one, and the first one was still broken** —
+  which is how we learned the **Modify Transfer modal had never worked**, for any module, any year,
+  since it was written. It fetched the module **list** endpoint, and that endpoint does not return
+  `Invest`/`Dispose` (only `GET /modules/:id` joins the child tables) — so its transfer arrays were
+  always `undefined` and every year reported "no transfers for this year", while the Review sat behind
+  it displaying the very transfer it denied existed. **v3.0.97's periodic year-range fix was real, but
+  it sat downstream of this**: the predicate was never reached with data, and its unit test passed
+  happily throughout. Diagnosed by reading code, shipped without an end-to-end check. The replacement
+  test goes through the actual fetch and fails on the old code. Then: `_cash_sweep`'s **amount** still
+  opened a transfer editor (a synthetic module has no row to edit — "Module not found"); it now offers
+  no edit affordance and points at its audit trail. And closing any modal **scrolled the page away** —
+  Radix restores focus on close, these dialogs open on a *double-click* (which focuses nothing), so the
+  browser scrolled an arbitrary target into view; `onCloseAutoFocus` is now prevented in `<Modal>`, so
+  the fix lands for every dialog in the app.
 - v3.0.97 — **owner acceptance pass on v3.0.96** (module save / modals / audit trail / reports /
   dark mode / fonts: **all six PASS**) surfaced five bugs, none of them regressions from the release
   — they were already there, and walking the UI is what found them. Fixed: **periodic transfers were
