@@ -337,7 +337,12 @@ router.get('/modules', async (req, res, next) => {
       CashSweepPriority: m.cash_sweep_priority ?? null,
     }));
 
-    res.json(transformed);
+    // {data} envelope (CR043 N8). This used to return a BARE array while its sibling
+    // GET /modules/:id returned {data} — so a caller had to know which, and getting it
+    // wrong fails silently (undefined.map never runs; the page just renders empty). That
+    // is precisely how the Modify Transfer modal broke: it read transfers off the list
+    // response, which does not carry them, and showed "no transfers" for two years.
+    res.json({ data: transformed });
   } catch (error) {
     next(error);
   }
@@ -390,7 +395,7 @@ router.get('/modules/unmatched', async (req, res, next) => {
       !account.isBankAccount
     );
 
-    res.json(unmatched);
+    res.json({ data: unmatched });
   } catch (error) {
     console.error('[forecast/modules/unmatched] Failed:', error);
     next(error);

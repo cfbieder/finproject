@@ -84,6 +84,13 @@ jobs:
         # rises above its baseline.
         working-directory: frontend
         run: npm run lint:debt
+      - name: API-envelope ratchet (blocking)
+        # CR043 N8: the v2 API has two success conventions ({data} vs bare). Callers must
+        # know which, and guessing wrong renders an EMPTY page with no error — that is how
+        # the Modify Transfer modal broke (v3.0.98). No NEW bare endpoints; the count may
+        # only shrink.
+        working-directory: frontend
+        run: npm run lint:envelope
       - name: Design-primitive adoption guards (blocking)
         # CR042: fail if a NEW one-off button class, bespoke role="dialog" overlay,
         # or naked-hex inline style is introduced instead of the shared .btn /

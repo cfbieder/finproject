@@ -41,10 +41,12 @@ export default function FCReviewAdjustTransferModal({
         // list, so `moduleData.Invest` was ALWAYS undefined and every year of every
         // module reported "no transfers for this year". The modal had never once shown a
         // transfer. Use the list only to resolve Name → id, then fetch the full module.
-        const list = await Rest.fetchJson(
-          `/api/v2/forecast/modules?scenario=${encodeURIComponent(scenarioName)}`
+        const list = Rest.unwrap(
+          await Rest.fetchJson(
+            `/api/v2/forecast/modules?scenario=${encodeURIComponent(scenarioName)}`
+          )
         );
-        const summary = list.find((m) => m.Name === entry.Module);
+        const summary = (list || []).find((m) => m.Name === entry.Module);
         if (!summary) {
           setError("Module not found");
           return;

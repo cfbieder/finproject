@@ -54,13 +54,22 @@ dbDescribe('forecast router contract (DB)', () => {
       expect(r.body.data.some((s) => s.name === SCENARIO)).toBe(true);
     });
 
-    test('GET /modules?scenario=<seeded> → 200 bare array (NB: not enveloped — N8)', async () => {
+    test('GET /modules?scenario=<seeded> → 200 { data: [...] } (N8: enveloped)', async () => {
       const r = await req('GET', `/modules?scenario=${encodeURIComponent(SCENARIO)}`);
       expect(r.status).toBe(200);
-      // Current contract: this endpoint returns a bare array, unlike GET
-      // /scenarios which returns { data }. Pinned deliberately (envelope
-      // inconsistency is CR043 N8 — this test guards the shape during extraction).
-      expect(Array.isArray(r.body)).toBe(true);
+      // Was a BARE array while its sibling GET /modules/:id returned {data}. A caller had
+      // to know which, and guessing wrong fails SILENTLY — undefined.map never runs, the
+      // page just renders empty. That is how the Modify Transfer modal broke. Unified in
+      // CR043 N8; the frontend reads it through Rest.unwrap(), which tolerates both, so
+      // the migration needed no flag day.
+      expect(Array.isArray(r.body.data)).toBe(true);
+      expect(Array.isArray(r.body)).toBe(false);
+    });
+
+    test('GET /modules/unmatched → 200 { data: [...] } (N8: enveloped)', async () => {
+      const r = await req('GET', `/modules/unmatched?scenario=${encodeURIComponent(SCENARIO)}`);
+      expect(r.status).toBe(200);
+      expect(Array.isArray(r.body.data)).toBe(true);
     });
 
     test('GET /entries?scenario=<seeded> → 200 { entries: [] }', async () => {
@@ -163,7 +172,7 @@ dbDescribe('forecast router contract (DB)', () => {
       expect(id).toBeGreaterThan(0);
 
       const list = await req('GET', `/modules?scenario=${encodeURIComponent(SCENARIO)}`);
-      expect(list.body.some((m) => m.id === id)).toBe(true); // bare array (see N8 note above)
+      expect(list.body.data.some((m) => m.id === id)).toBe(true); // {data} since N8
 
       const one = await req('GET', `/modules/${id}`);
       expect(one.status).toBe(200);

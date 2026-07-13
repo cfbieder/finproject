@@ -188,8 +188,13 @@ export default function FCReview() {
   const [fcModules, setFcModules] = useState([]);
   useEffect(() => {
     if (!selectedScenario) { setFcModules([]); return; }
+    // NOTE the `Array.isArray(res) ? res : []` this replaces: had the endpoint been
+    // enveloped without touching this line, it would have silently set ZERO modules.
     Rest.fetchJson(`/api/v2/forecast/modules?scenario=${encodeURIComponent(selectedScenario)}`)
-      .then((res) => setFcModules(Array.isArray(res) ? res : []))
+      .then((res) => {
+        const rows = Rest.unwrap(res);
+        setFcModules(Array.isArray(rows) ? rows : []);
+      })
       .catch(() => setFcModules([]));
   }, [selectedScenario]);
 
@@ -1451,8 +1456,10 @@ export default function FCReview() {
       reloadForecastData();
 
       // 4. Refresh FC Modules cache
-      const refreshed = await Rest.fetchJson(
-        `/api/v2/forecast/modules?scenario=${encodeURIComponent(selectedScenario)}`
+      const refreshed = Rest.unwrap(
+        await Rest.fetchJson(
+          `/api/v2/forecast/modules?scenario=${encodeURIComponent(selectedScenario)}`
+        )
       );
       setFcModules(Array.isArray(refreshed) ? refreshed : []);
 

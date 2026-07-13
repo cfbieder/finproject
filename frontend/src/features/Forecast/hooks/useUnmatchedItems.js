@@ -34,8 +34,10 @@ export function useUnmatchedItems() {
     setError("");
     try {
       // Using v2 API (PostgreSQL)
-      const data = await Rest.fetchJson(
-        `/api/v2/forecast/modules/unmatched?scenario=${encodeURIComponent(scenario)}`
+      const data = Rest.unwrap(
+        await Rest.fetchJson(
+          `/api/v2/forecast/modules/unmatched?scenario=${encodeURIComponent(scenario)}`
+        )
       );
       const items = normalizeUnmatchedItems(data);
       setUnmatchedItems(items);

@@ -95,6 +95,38 @@ export default class Rest {
     return Rest.handleResponse(response);
   }
 
+  /**
+   * Returns the payload whether the endpoint envelopes it (`{data: …}`) or returns it bare.
+   *
+   * The v2 API grew two conventions: 63 handlers return `{data}`, ~27 return the value
+   * directly (CR043 N8). Callers therefore had to KNOW which — and getting it wrong fails
+   * silently, because `undefined.map` never runs and the page just renders empty. That is
+   * exactly how the Modify Transfer modal broke: `GET /forecast/modules` returns a bare
+   * array while its sibling `GET /forecast/modules/:id` returns `{data}`, so the modal read
+   * transfers off the wrong shape and displayed "no transfers" forever.
+   *
+   * This tolerates both, so the server side can be unified endpoint-by-endpoint with no
+   * flag day: a caller routed through here works before AND after its endpoint is changed.
+   *
+   * `{data}` is only unwrapped when it is the envelope — a plain object that carries `data`
+   * as its ONLY meaningful key. A payload that happens to have its own `data` field
+   * alongside others is returned untouched.
+   */
+  static unwrap(payload) {
+    if (
+      payload &&
+      typeof payload === "object" &&
+      !Array.isArray(payload) &&
+      "data" in payload
+    ) {
+      const keys = Object.keys(payload).filter(
+        (k) => k !== "data" && k !== "success" && k !== "meta"
+      );
+      if (keys.length === 0) return payload.data;
+    }
+    return payload;
+  }
+
   static async post(path, body) {
     return Rest.fetchJson(`/api/v2${path}`, {
       method: "POST",

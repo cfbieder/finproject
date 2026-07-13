@@ -52,12 +52,16 @@ export function useModules(selectedScenario) {
     const loadModules = async () => {
       setLoading(true);
       try {
-        const data = await Rest.fetchJson(
-          `/api/v2/forecast/modules?scenario=${encodeURIComponent(selectedScenario)}`
+        // unwrap(): tolerates the bare array this endpoint returns today AND the {data}
+        // envelope it moves to (CR043 N8) — so the server can migrate with no flag day.
+        const data = Rest.unwrap(
+          await Rest.fetchJson(
+            `/api/v2/forecast/modules?scenario=${encodeURIComponent(selectedScenario)}`
+          )
         );
         if (!isMounted) return;
 
-        const filtered = data || [];
+        const filtered = Array.isArray(data) ? data : [];
         setModules(filtered);
         setError("");
 

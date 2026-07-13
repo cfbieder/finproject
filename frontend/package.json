@@ -15,7 +15,8 @@
     "lint:debt": "bash ../Scripts/check-lint-debt.sh",
     "preview": "vite preview",
     "test": "vitest run",
-    "test:watch": "vitest"
+    "test:watch": "vitest",
+    "lint:envelope": "bash ../Scripts/check-api-envelope.sh"
   },
   "dependencies": {
     "@radix-ui/react-dialog": "^1.1.19",
