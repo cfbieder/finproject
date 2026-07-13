@@ -291,6 +291,7 @@ ssh cfbieder@192.168.1.87 && cd ~/psproject
 | `backup-to-remote.sh` | DB+config to 192.168.1.252 (cron every 2 days, 30-day retention) + Docker prune |
 | `check-button-css.sh` | `.btn` guardrail (also `npm run lint:buttons`) — **blocking in CI** |
 | `check-modal-adoption.sh` | `<Modal>` guardrail: blocks new bespoke `role="dialog"` overlays (also `npm run lint:modals`) — **blocking in CI** |
+| `check-dead-tokens.sh` | Dangling-token guardrail: every `var(--x)` must resolve to a defined token (a dangling one silently falls back and ignores the theme). **No baseline — the bar is zero.** Also `npm run lint:tokens` — **blocking in CI** |
 | `check-inline-hex.sh` | Naked-hex guardrail: per-file baseline of `color: "#hex"` inline styles, count may only shrink (also `npm run lint:hex`) — **blocking in CI** |
 | `v4-up.sh`, `sync-db-prod-to-v4.sh` | Isolated v4 stack |
 | `provision-vm.sh`, `deploy-on-vm.sh` | KVM provisioning |

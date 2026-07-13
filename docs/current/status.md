@@ -3,7 +3,7 @@
 > The one mandatory read at session start. Keep ≤ ~60 lines; link onward, never restate.
 > CR statuses live in the [CR index](../cr/README.md); the running version lives in `VERSION`.
 
-**Last updated:** 2026-07-13 · **Live version:** v3.0.94 (see `VERSION` / git tags)
+**Last updated:** 2026-07-13 · **Live version:** v3.0.95 (see `VERSION` / git tags)
 
 ## Current phase
 - **Forecast hardening (CR045 → CR049), 2026-07-12/13.** Owner questions have now opened a run of
@@ -25,7 +25,11 @@
   re-type "New House"/"Sarasota House"; rank a sweep backup in **"2026 Downside"** (see Known
   issue below).
 - [CR042](../cr/cr-042-ui-look-and-feel.md) / [CR043](../cr/cr-043-code-structure-program.md):
-  substantially complete (CR042 remainder: U4's 2 heavyweight Forecast modals).
+  **CR042 U4 COMPLETE** (v3.0.95 — no bespoke dialog remains under `features/Forecast`); **CR043 N10
+  COMPLETE** (forecast writes reject unknown fields). Four blocking CI guards now: buttons, modals,
+  inline-hex, **dead-tokens**. CR042 remainder is owner-input IA only (calibration→Settings, Upload
+  PS, Forecast-step collapse); CR043's lint gate stays advisory (108 errors, 43 of them hooks
+  restructures that need daylight).
 
 ## Known issue
 - **"2026 Downside" has no sweep backup ranked.** `Fidelity Stocks` carries no `cash_sweep_priority`
@@ -42,6 +46,15 @@
 - Deploy: `./Scripts/deploy-to-production.sh` (DB backup first). Migrations: manual `psql -f`, registry in [migrations.md](migrations.md); runner shipped in CR043 P1.1 (`npm run migrate`).
 
 ## Recently shipped
+- v3.0.95 — **overnight run.** CR043 **N10**: the forecast module / inc-exp write API now rejects
+  unknown fields instead of silently dropping them — enumerating the contracts surfaced **four dead
+  keys** (`AccountNumber`, `Expense`, `Income`, `BaseYear`) posted for months to columns that do not
+  exist, the same silent-drop class that cost CR046 its window dates and CR047 its tax override.
+  CR042: **U4 complete** (last 2 Forecast modals); **63 dangling design tokens** across 30 files
+  fixed (a `var(--text-secondary)` lints clean and silently ignores the theme) + new blocking
+  `check-dead-tokens.sh`; **Outfit self-hosted** (variable font, 2 files, SW-precached — no CDN, and
+  it finally works offline); the hex guard was widened after it turned out to be missing every
+  composite (66 → true count **170**, now frozen). Lint 124 → 108.
 - v3.0.94 — [CR049](../cr/cr-049-forecast-base-year-seed-and-final-year-tax.md): the final-year
   sweep now **sells enough to fund its own tax** (re-entrant drain, fixed point), and the engine's
   duplicated base-year query is **deleted** in favour of the one `crud.getBaseYearValues` the
