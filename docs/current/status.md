@@ -3,7 +3,7 @@
 > The one mandatory read at session start. Keep ≤ ~60 lines; link onward, never restate.
 > CR statuses live in the [CR index](../cr/README.md); the running version lives in `VERSION`.
 
-**Last updated:** 2026-07-13 · **Live version:** v3.0.95 (see `VERSION` / git tags)
+**Last updated:** 2026-07-13 · **Live version:** v3.0.96 (see `VERSION` / git tags)
 
 ## Current phase
 - **Forecast hardening (CR045 → CR049), 2026-07-12/13.** Owner questions have now opened a run of
@@ -46,6 +46,10 @@
 - Deploy: `./Scripts/deploy-to-production.sh` (DB backup first). Migrations: manual `psql -f`, registry in [migrations.md](migrations.md); runner shipped in CR043 P1.1 (`npm run migrate`).
 
 ## Recently shipped
+- v3.0.96 — **first restore drill: PASSED.** A real prod dump restored in 3 s / 0 errors; the server
+  booted against it; the balance sheet **and** a regenerated forecast came back **byte-identical to
+  prod**. Backups are now verified, not assumed — [runbook](../guides/restore.md) is a transcript, not
+  a plan. Plus lint 108 → 64 (44 dead variables deleted; `no-unused-vars` and `no-undef` both at zero).
 - v3.0.95 — **overnight run.** CR043 **N10**: the forecast module / inc-exp write API now rejects
   unknown fields instead of silently dropping them — enumerating the contracts surfaced **four dead
   keys** (`AccountNumber`, `Expense`, `Income`, `BaseYear`) posted for months to columns that do not
