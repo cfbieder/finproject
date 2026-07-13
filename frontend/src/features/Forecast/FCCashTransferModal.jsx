@@ -261,7 +261,7 @@ export default function FCCashTransferModal({
               <option value="">
                 {modulesLoading ? "Loading modules..." : "Select a module"}
               </option>
-              {groupedModules.map(([type, moduleList], groupIndex) => (
+              {groupedModules.map(([type, moduleList]) => (
                 <optgroup key={type} label={type}>
                   {moduleList.map((module) => (
                     <option key={module.Name} value={module.Name}>

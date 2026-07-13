@@ -362,17 +362,6 @@ export default function Balance() {
    * Toggles the collapsed state of an account path in the hierarchy view.
    * @param {string} pathKey - Path identifier in format "parent>child>grandchild"
    */
-  const handleTogglePath = useCallback((pathKey) => {
-    setCollapsedPaths((prev) => {
-      const next = new Set(prev);
-      if (next.has(pathKey)) {
-        next.delete(pathKey);
-      } else {
-        next.add(pathKey);
-      }
-      return next;
-    });
-  }, []);
 
   const collapsiblePaths = useMemo(
     () => collectCollapsiblePaths(balanceReports?.[0]),
@@ -469,7 +458,6 @@ export default function Balance() {
       height -
       verticalPadding -
       ((value - axisMin) / valueRange) * availableHeight;
-    const zeroRatio = (0 - axisMin) / valueRange;
     const zeroY = yCoordinate(0);
     const showZeroLine = 0 >= axisMin && 0 <= maxValue;
 

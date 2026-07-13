@@ -24,7 +24,7 @@ export default function FCAddFromActualsModal({
   const [selected, setSelected] = useState(new Set());
   const [baseYear, setBaseYear] = useState(new Date().getFullYear() - 1);
   const [collapsed, setCollapsed] = useState(new Set());
-  const [fxRates, setFxRates] = useState({});
+  const [, setFxRates] = useState({});
   const [summary, setSummary] = useState(null);
 
   useEffect(() => {
@@ -212,7 +212,6 @@ export default function FCAddFromActualsModal({
     const isSelected = selected.has(node.account_id);
     const isDisabled = node.already_added;
     // Check if a parent of this node is selected (meaning children are covered)
-    const parentCoversThis = !isSelected && !node.is_leaf && node.children?.some(c => !selected.has(c.account_id));
 
     return (
       <div key={node.account_id}>

@@ -113,7 +113,7 @@ export default function MobileHome() {
       {/* Quick links */}
       <h2 className="m-section-h">Go to</h2>
       <div className="m-launcher">
-        {CARDS.map(({ to, label, icon: Icon }) => (
+        {CARDS.map(({ to, label }) => (
           <Link key={to} to={to} className="m-launcher__card">
             <span className="m-launcher__icon">
               <Icon size={24} strokeWidth={2} />

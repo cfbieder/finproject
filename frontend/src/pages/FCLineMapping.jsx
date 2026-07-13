@@ -13,7 +13,6 @@ const LINE_TYPES = [
   { value: "forecast_income", label: "Forecast Income", color: "#7FA37F" },
 ];
 
-const typeLabel = (t) => LINE_TYPES.find((lt) => lt.value === t)?.label || t;
 const typeColor = (t) => LINE_TYPES.find((lt) => lt.value === t)?.color || "#A0AEB9";
 
 const fmt = (v) =>

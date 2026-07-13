@@ -98,12 +98,8 @@ export default function TransBudget() {
   const accountOptions = useTransactionAccountOptions();
   const currencyOptions = useTransactionCurrencyOptions();
   const rates = useTransactionExchangeRates();
-  const { accountCurrencyMap, plTree, bsTree } = useCoa();
+  const { plTree, bsTree } = useCoa();
   const {
-    accountOptions: filterAccountOptions,
-    categoryGroups,
-    selectedAccounts,
-    selectedCategories,
     setSelectedAccounts,
     setSelectedCategories,
   } = useFilterOptions();

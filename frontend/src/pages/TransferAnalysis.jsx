@@ -29,7 +29,7 @@ export default function TransferAnalysis() {
   });
   const [data, setData] = useState(null);
   const [manualGroups, setManualGroups] = useState([]);
-  const [periodInfo, setPeriodInfo] = useState(null);
+  const [, setPeriodInfo] = useState(null);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState(null);
   const [expandedCategories, setExpandedCategories] = useState(new Set());

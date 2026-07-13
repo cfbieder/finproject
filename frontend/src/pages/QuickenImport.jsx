@@ -14,12 +14,11 @@
  * deferred to a later sub-phase per CR §14.
  */
 
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import Rest from "../js/rest.js";
 import { useToast } from "../contexts";
 import {
   AccountPicker,
-  formatAccountLabel,
   buildHierarchyOptions,
 } from "../components/AccountPicker/AccountPicker.jsx";
 import "./PageLayout.css";

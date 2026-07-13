@@ -33,17 +33,6 @@ function shouldShowNotificationPrimer() {
  * Parses action blocks from AI response content.
  * Looks for ```action ... ``` blocks containing JSON.
  */
-function parseActions(content) {
-  const actions = [];
-  const regex = /```action\s*\n([\s\S]*?)\n```/g;
-  let match;
-  while ((match = regex.exec(content)) !== null) {
-    try {
-      actions.push(JSON.parse(match[1].trim()));
-    } catch { /* skip malformed */ }
-  }
-  return actions;
-}
 
 /**
  * Renders markdown-like content with action blocks as Apply buttons

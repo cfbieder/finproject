@@ -30,7 +30,6 @@ const formatAmount = (amount) =>
   }).format(amount);
 
 export default function TransactionFilterActual({
-  config,
   onFiltersChange,
   onDeleteClick,
   onSelectAllToggle,
@@ -41,7 +40,6 @@ export default function TransactionFilterActual({
   canEdit,
   canSplit,
   canNeutralize = false,
-  isAllSelected,
   filteredTotalsByCurrency = [],
   onExport,
   canExport = false,

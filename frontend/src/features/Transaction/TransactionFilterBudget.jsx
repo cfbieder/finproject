@@ -30,14 +30,12 @@ const formatAmount = (amount) =>
   }).format(amount);
 
 export default function TransactionFilterBudget({
-  config,
   onFiltersChange,
   onDeleteClick,
   onSelectAllToggle,
   onEditClick,
   canDelete,
   canEdit,
-  isAllSelected,
   filteredTotalsByCurrency = [],
   onExport,
   canExport = false,

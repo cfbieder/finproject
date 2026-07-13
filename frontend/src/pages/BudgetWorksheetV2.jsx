@@ -344,15 +344,7 @@ export default function BudgetWorksheetV2() {
     []
   );
 
-  const handleAccountsChange = useCallback(
-    (next) => setSelectedAccounts(next),
-    [setSelectedAccounts]
-  );
 
-  const handleCategoriesChange = useCallback(
-    (next) => setSelectedCategories(next),
-    [setSelectedCategories]
-  );
 
   // HierarchyFilter handlers — bridge leaf-name arrays to selected state
   const handleHfCategorySelection = useCallback(

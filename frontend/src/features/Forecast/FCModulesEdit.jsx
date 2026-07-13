@@ -26,28 +26,6 @@ const baseYearOptions = (() => {
   );
 })();
 
-const formatWithCommas = (value) => {
-  const num = Number(value);
-  if (!Number.isFinite(num)) {
-    return "";
-  }
-  return num.toLocaleString(undefined, {
-    minimumFractionDigits: 0,
-    maximumFractionDigits: 0,
-  });
-};
-
-const formatTwoDecimals = (value) => {
-  const num = Number(value);
-  if (!Number.isFinite(num)) {
-    return "";
-  }
-  return num.toLocaleString(undefined, {
-    minimumFractionDigits: 2,
-    maximumFractionDigits: 2,
-  });
-};
-
 const evaluateNumericExpression = (value) => {
   const raw = String(value ?? "").trim();
   if (!raw) return "";
@@ -150,7 +128,7 @@ export default function FCModulesEditModal({
   });
   const [accountBalanceLoading, setAccountBalanceLoading] = useState(false);
   const [assumptions, setAssumptions] = useState(null);
-  const [assumptionsLoading, setAssumptionsLoading] = useState(false);
+  const [, setAssumptionsLoading] = useState(false);
   const [fcLines, setFcLines] = useState([]);
   const [fcBudgetTotals, setFcBudgetTotals] = useState({});
   const formatWithCommas = (value) => {
@@ -921,8 +899,6 @@ export default function FCModulesEditModal({
                   if (type === "fc-line-expense" || type === "fc-line-income") {
                     const isExpense = type === "fc-line-expense";
                     const lineType = isExpense ? "bs_module_expense" : "bs_module_income";
-                    const lineField = isExpense ? "ExpenseFcLineId" : "IncomeFcLineId";
-                    const amountField = isExpense ? "expense_amount" : "income_amount";
                     const availableLines = fcLines.filter((l) => l.line_type === lineType);
                     const currentValue = editForm[field] ?? "";
                     const lineId = currentValue ? Number(currentValue) : null;
@@ -1078,7 +1054,6 @@ export default function FCModulesEditModal({
                       : type === "number"
                       ? "text"
                       : type;
-                  const isLiabilityAccount = editForm?.account_type === "liability";
                   const tooltip =
                     field === "Growth"
                       ? "Multiplier of inflation (e.g. 1 = inflation, 0 = no growth, 2 = 2x inflation)"

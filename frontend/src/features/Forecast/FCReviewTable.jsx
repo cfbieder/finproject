@@ -367,7 +367,6 @@ function SelectSpacer({ style }) {
 
 export default function FCReviewTable({
   sortedYears,
-  baseYear,
   baseYears,
   lastActualYears,
   birthYear,
@@ -375,7 +374,6 @@ export default function FCReviewTable({
   baseActualTotalsByYear,
   categoryToLineMap,
   cashAccountMap,
-  periodStart,
   tableColSpan,
   yearsLoading,
   accountsLoading,
@@ -394,7 +392,6 @@ export default function FCReviewTable({
   balanceAccountMap,
   bankAccountLabels,
   totalAssetsByYear,
-  totalLiabilitiesByYear,
   netAssetsByYear,
   onNetAssetsDoubleClick,
   onCellDoubleClick,

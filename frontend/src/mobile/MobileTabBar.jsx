@@ -15,7 +15,7 @@ export const MOBILE_TABS = [
 export default function MobileTabBar() {
   return (
     <nav className="m-tabbar" aria-label="Mobile navigation">
-      {MOBILE_TABS.map(({ to, label, icon: Icon, end }) => (
+      {MOBILE_TABS.map(({ to, label, end }) => (
         <NavLink
           key={to}
           to={to}

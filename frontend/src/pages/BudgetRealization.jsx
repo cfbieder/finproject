@@ -207,43 +207,6 @@ const computeIncomeExpenseTotal = (nodes, resolver) => {
  * @param {Array} items - Array of category items
  * @returns {Array} Hierarchical tree structure
  */
-const buildCategoryTree = (items) => {
-  if (!Array.isArray(items)) {
-    return [];
-  }
-
-  return items.flatMap((item) => {
-    if (typeof item === "string") {
-      const name = item.trim();
-      return name ? [{ name }] : [];
-    }
-
-    if (item && typeof item === "object") {
-      return Object.entries(item)
-        .map(([key, value]) => {
-          const name = key?.trim();
-          if (!name) {
-            return null;
-          }
-          const node = { name };
-          if (typeof value === "string") {
-            const childName = value?.trim();
-            if (childName) {
-              node.children = [{ name: childName }];
-            }
-          } else if (Array.isArray(value)) {
-            node.children = buildCategoryTree(value);
-          } else if (value && typeof value === "object") {
-            node.children = buildCategoryTree([value]);
-          }
-          return node;
-        })
-        .filter(Boolean);
-    }
-
-    return [];
-  });
-};
 
 /**
  * Collects all paths that have children (can be collapsed)
@@ -562,7 +525,7 @@ const filterCategoryTree = (nodes, { includeUnrealized, includeTransfers }) => {
  */
 export default function BudgetRealization() {
   // ========== COA Data ==========
-  const { plTree, loading: coaLoading } = useCoa();
+  const { plTree } = useCoa();
 
   // ========== State: Report Parameters ==========
   const currentMonthValue = MONTH_OPTIONS[new Date().getMonth()].value;

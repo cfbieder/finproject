@@ -36,28 +36,6 @@ const chartCurrencyFormatter = new Intl.NumberFormat("en-US", {
 const formatCurrencyShort = (value) =>
   chartCurrencyFormatter.format(Number.isFinite(Number(value)) ? Number(value) : 0);
 
-const formatAxisLabel = (value) => {
-  const normalized = Number.isFinite(Number(value)) ? Number(value) : 0;
-  const absValue = Math.abs(normalized);
-  if (absValue >= 1_000_000) {
-    const fractional = normalized / 1_000_000;
-    return `${fractional.toLocaleString("en-US", {
-      maximumFractionDigits: fractional % 1 === 0 ? 0 : 1,
-      minimumFractionDigits: 0,
-    })}M`;
-  }
-  if (absValue >= 1_000) {
-    const fractional = normalized / 1_000;
-    return `${fractional.toLocaleString("en-US", {
-      maximumFractionDigits: fractional % 1 === 0 ? 0 : 1,
-      minimumFractionDigits: 0,
-    })}k`;
-  }
-  return normalized.toLocaleString("en-US", {
-    maximumFractionDigits: 0,
-  });
-};
-
 // ============================================================================
 // UTILITY FUNCTIONS - Data Processing
 // ============================================================================
@@ -164,50 +142,9 @@ const createActualValueResolver = (leafTotals) => {
   return resolve;
 };
 
-const safeNumber = (value) =>
-  Number.isFinite(Number(value)) ? Number(value) : 0;
-
 // ============================================================================
 // UTILITY FUNCTIONS - Category Tree Operations
 // ============================================================================
-
-const buildCategoryTree = (items) => {
-  if (!Array.isArray(items)) {
-    return [];
-  }
-
-  return items.flatMap((item) => {
-    if (typeof item === "string") {
-      const name = item.trim();
-      return name ? [{ name }] : [];
-    }
-
-    if (item && typeof item === "object") {
-      return Object.entries(item)
-        .map(([key, value]) => {
-          const name = key?.trim();
-          if (!name) {
-            return null;
-          }
-          const node = { name };
-          if (typeof value === "string") {
-            const childName = value?.trim();
-            if (childName) {
-              node.children = [{ name: childName }];
-            }
-          } else if (Array.isArray(value)) {
-            node.children = buildCategoryTree(value);
-          } else if (value && typeof value === "object") {
-            node.children = buildCategoryTree([value]);
-          }
-          return node;
-        })
-        .filter(Boolean);
-    }
-
-    return [];
-  });
-};
 
 const filterCategoryTree = (nodes, { includeUnrealized, includeTransfers }) => {
   if (!Array.isArray(nodes) || nodes.length === 0) {
@@ -375,7 +312,7 @@ const buildChartData = (
 
 export default function BudgetRealizationGraph() {
   // ========== COA Data ==========
-  const { plTree, loading: coaLoading } = useCoa();
+  const { plTree } = useCoa();
 
   // ========== State: Report Parameters ==========
   const [reportType, setReportType] = useState("month");

@@ -39,7 +39,6 @@ export default function TransactionFilter({
   onEditClick,
   canDelete,
   canEdit,
-  isAllSelected,
   filteredTotalsByCurrency = [],
 }) {
   const [accountOptions, setAccountOptions] = useState([]);

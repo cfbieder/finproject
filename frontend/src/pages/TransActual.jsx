@@ -116,11 +116,8 @@ export default function TransActual() {
   const accountOptions = useTransactionAccountOptions();
   const currencyOptions = useTransactionCurrencyOptions();
   const rates = useTransactionExchangeRates();
-  const { accountCurrencyMap, plTree, bsTree } = useCoa();
+  const { plTree, bsTree } = useCoa();
   const {
-    accountOptions: filterAccountOptions,
-    selectedAccounts,
-    selectedCategories,
     setSelectedAccounts,
     setSelectedCategories,
   } = useFilterOptions();
@@ -656,7 +653,7 @@ export default function TransActual() {
   // ─── KPI computations ───
   const kpis = useMemo(() => {
     const result = { totalIncome: 0, totalExpenses: 0 };
-    for (const { currency, amount } of filteredTotalsByCurrency) {
+    for (const { amount } of filteredTotalsByCurrency) {
       if (amount > 0) result.totalIncome += amount;
       else result.totalExpenses += amount;
     }
