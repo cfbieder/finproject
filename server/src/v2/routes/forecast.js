@@ -1066,7 +1066,17 @@ router.get('/audittrail/:scenario/:module', (req, res, next) => {
 
     const safeScenario = sanitize(scenario);
     const safeModule = sanitize(moduleName);
-    const fileName = `${safeScenario}_${safeModule}_entries.csv`;
+
+    // `_cash_sweep` is a SYNTHETIC module: the engine attributes swept cash to it, so it
+    // shows up as a clickable module in the Review breakdown — but its trail is written
+    // by the sweep, to `<scenario>_cash_sweep.csv`, not `<scenario>_<module>_entries.csv`.
+    // Clicking it therefore 404'd. Serve the sweep's file here (in this route's row-object
+    // shape, which is what the audit-trail modal renders) rather than leaving the one
+    // module in the breakdown that cannot be opened.
+    const isCashSweep = /^_?cash_sweep$/i.test(safeModule);
+    const fileName = isCashSweep
+      ? `${safeScenario}_cash_sweep.csv`
+      : `${safeScenario}_${safeModule}_entries.csv`;
     const auditDir = PATHS.AUDIT_TRAIL_DIR;
     const filePath = path.join(auditDir, fileName);
 

@@ -61,7 +61,7 @@ export default function FCReviewSelector({
               </div>
               <button
                 type="button"
-                className="fc-review-selector__action-btn fc-review-selector__generate"
+                className="btn btn--primary"
                 onClick={onGenerateForecast}
                 disabled={disableGenerate}
               >
@@ -70,65 +70,64 @@ export default function FCReviewSelector({
                 </span>
                 {generateLoading ? "Generating..." : "Generate"}
               </button>
-              <button
-                type="button"
-                className="fc-review-selector__action-btn"
-                disabled={cashSweepDisabled ?? disableGenerate}
-                onClick={onCashSweepClick}
-                style={{ background: "var(--success)", color: "white", border: "none" }}
-              >
-                <span aria-hidden="true" className="fc-review-selector__action-icon">
-                  <ArrowRightLeft size={16} />
-                </span>
-                Cash Sweep
-              </button>
-              <button
-                type="button"
-                className="fc-review-selector__action-btn fc-review-selector__excel"
-                onClick={onExcelExport}
-                disabled={disableExcel}
-              >
-                <span aria-hidden="true" className="fc-review-selector__action-icon">
-                  <BarChart3 size={16} />
-                </span>
-                Excel Export
-              </button>
-              <button
-                type="button"
-                className="fc-review-selector__action-btn fc-review-selector__graph"
-                disabled={graphDisabled}
-                onClick={onGraphClick}
-              >
-                <span aria-hidden="true" className="fc-review-selector__action-icon">
-                  <TrendingUp size={16} />
-                </span>
-                Graph
-              </button>
-              <button
-                type="button"
-                className="fc-review-selector__action-btn"
-                disabled={aiReviewDisabled ?? disableGenerate}
-                onClick={onAIReviewClick}
-                title={aiReviewHasUnread ? "New AI review ready" : undefined}
-                style={{ background: "linear-gradient(135deg, #7c3aed, #4f46e5)", color: "white", border: "none", position: "relative" }}
-              >
-                <span aria-hidden="true" className="fc-review-selector__action-icon">
-                  <BrainCircuit size={16} />
-                </span>
-                AI Review
-                {aiReviewHasUnread && (
+              {/* Everything past this divider opens a view or exports a file — nothing here
+                  changes the forecast, so nothing here competes with Generate. */}
+              <div className="fc-review-selector__utilities">
+                <button
+                  type="button"
+                  className="btn btn--ghost btn--sm"
+                  disabled={cashSweepDisabled ?? disableGenerate}
+                  onClick={onCashSweepClick}
+                >
+                  <span aria-hidden="true" className="fc-review-selector__action-icon">
+                    <ArrowRightLeft size={16} />
+                  </span>
+                  Cash Sweep
+                </button>
+                <button
+                  type="button"
+                  className="btn btn--ghost btn--sm"
+                  disabled={graphDisabled}
+                  onClick={onGraphClick}
+                >
+                  <span aria-hidden="true" className="fc-review-selector__action-icon">
+                    <TrendingUp size={16} />
+                  </span>
+                  Graph
+                </button>
+                <button
+                  type="button"
+                  className="btn btn--ghost btn--sm"
+                  onClick={onExcelExport}
+                  disabled={disableExcel}
+                >
+                  <span aria-hidden="true" className="fc-review-selector__action-icon">
+                    <BarChart3 size={16} />
+                  </span>
+                  Excel Export
+                </button>
+                <button
+                  type="button"
+                  className="btn btn--ghost btn--sm"
+                  disabled={aiReviewDisabled ?? disableGenerate}
+                  onClick={onAIReviewClick}
+                  title={aiReviewHasUnread ? "New AI review ready" : undefined}
+                >
                   <span
-                    aria-label="new review ready"
-                    style={{
-                      position: "absolute", top: "4px", right: "4px",
-                      width: "10px", height: "10px", borderRadius: "50%",
-                      background: "var(--danger)",
-                      boxShadow: "0 0 0 2px white, 0 0 8px rgba(239,68,68,0.6)",
-                      animation: "fcAiPulse 1.6s ease-in-out infinite",
-                    }}
-                  />
-                )}
-              </button>
+                    aria-hidden="true"
+                    className="fc-review-selector__action-icon fc-review-selector__ai-icon"
+                  >
+                    <BrainCircuit size={16} />
+                  </span>
+                  AI Review
+                  {aiReviewHasUnread && (
+                    <span
+                      aria-label="new review ready"
+                      className="fc-review-selector__ai-dot"
+                    />
+                  )}
+                </button>
+              </div>
             </div>
           </div>
           {generateResult && (

@@ -1,6 +1,7 @@
 import { useState, useEffect, useMemo } from "react";
 import { AlertTriangle } from "lucide-react";
 import { formatAmount } from "./utils/fcReviewUtils.js";
+import { transferAppliesToYear, transferSpanLabel } from "./utils/transferYear.js";
 import Rest from "../../js/rest.js";
 import Modal from "../../components/Modal/Modal.jsx";
 import "./FCReviewAdjustTransferModal.css";
@@ -55,25 +56,29 @@ export default function FCReviewAdjustTransferModal({
     fetchModuleData();
   }, [isOpen, entry?.Module, scenarioName]);
 
-  // Filter transfers for the relevant year
+  // Transfers that produce an entry in the clicked year. The rule (and why it is not just
+  // "the years match") lives in utils/transferYear.js, next to its tests.
+  //
+  // Each hit carries `_idx`, its index in the module's full array. handleSave used to
+  // re-find the row by Date+Flag, which is not unique — two OneTime rows can share both —
+  // so an edit could silently land on the wrong one.
   const transfersForYear = useMemo(() => {
     if (!moduleData || !entry?.Year) {
       return { invest: [], dispose: [] };
     }
 
-    const year = entry.Year;
-    const yearStr = `${year}-12-31`;
+    const pick = (list) =>
+      (list || [])
+        .map((t, _idx) => ({ ...t, _idx }))
+        .filter((t) => transferAppliesToYear(t, entry.Year));
 
-    const invest = (moduleData.Invest || []).filter(
-      (t) => t.Date === yearStr || new Date(t.Date).getFullYear() === year
-    );
-
-    const dispose = (moduleData.Dispose || []).filter(
-      (t) => t.Date === yearStr || new Date(t.Date).getFullYear() === year
-    );
-
-    return { invest, dispose };
+    return { invest: pick(moduleData.Invest), dispose: pick(moduleData.Dispose) };
   }, [moduleData, entry?.Year]);
+
+  const hasPeriodic = [
+    ...transfersForYear.invest,
+    ...transfersForYear.dispose,
+  ].some((t) => t.Flag === "Periodic");
 
   const handleAmountChange = (type, index, value) => {
     const key = `${type}-${index}`;
@@ -112,37 +117,13 @@ export default function FCReviewAdjustTransferModal({
 
         if (isNaN(newAmount)) return;
 
-        if (type === "invest") {
-          // Get the actual transfer from the filtered list
-          const transfer = transfersForYear.invest[filteredIndex];
-          if (!transfer) return;
+        const target = type === "invest" ? updatedInvest : updatedDispose;
+        const transfer = transfersForYear[type]?.[filteredIndex];
+        // `_idx` is the row's position in the module's full array — the identity the old
+        // Date+Flag lookup only approximated.
+        if (!transfer || target[transfer._idx] === undefined) return;
 
-          // Find this transfer in the full Invest array
-          const fullArrayIndex = updatedInvest.findIndex(
-            (t) => t.Date === transfer.Date && t.Flag === transfer.Flag
-          );
-          if (fullArrayIndex !== -1) {
-            updatedInvest[fullArrayIndex] = {
-              ...updatedInvest[fullArrayIndex],
-              Amount: newAmount,
-            };
-          }
-        } else if (type === "dispose") {
-          // Get the actual transfer from the filtered list
-          const transfer = transfersForYear.dispose[filteredIndex];
-          if (!transfer) return;
-
-          // Find this transfer in the full Dispose array
-          const fullArrayIndex = updatedDispose.findIndex(
-            (t) => t.Date === transfer.Date && t.Flag === transfer.Flag
-          );
-          if (fullArrayIndex !== -1) {
-            updatedDispose[fullArrayIndex] = {
-              ...updatedDispose[fullArrayIndex],
-              Amount: newAmount,
-            };
-          }
-        }
+        target[transfer._idx] = { ...target[transfer._idx], Amount: newAmount };
       });
 
       await Rest.fetchJson(`/api/v2/forecast/modules/${moduleData.id}`, {
@@ -271,11 +252,7 @@ export default function FCReviewAdjustTransferModal({
 
                           return (
                             <tr key={`invest-${index}`}>
-                              <td>
-                                {transfer.Date
-                                  ? new Date(transfer.Date).getFullYear()
-                                  : "-"}
-                              </td>
+                              <td>{transferSpanLabel(transfer)}</td>
                               <td>{transfer.Flag || "-"}</td>
                               <td>
                                 {isOneTime ? (
@@ -351,11 +328,7 @@ export default function FCReviewAdjustTransferModal({
 
                           return (
                             <tr key={`dispose-${index}`}>
-                              <td>
-                                {transfer.Date
-                                  ? new Date(transfer.Date).getFullYear()
-                                  : "-"}
-                              </td>
+                              <td>{transferSpanLabel(transfer)}</td>
                               <td>{transfer.Flag || "-"}</td>
                               <td>
                                 {isOneTime ? (
@@ -391,6 +364,14 @@ export default function FCReviewAdjustTransferModal({
                   </div>
                 )}
               </div>
+
+              {hasPeriodic && (
+                <p className="fc-review-transfer-modal__note">
+                  A <strong>Periodic</strong> transfer is one entry repeating across a range
+                  of years, so it cannot be changed for a single year here — editing its
+                  amount would rewrite every year in the range. Edit it in the module editor.
+                </p>
+              )}
             </div>
           )}
         </div>

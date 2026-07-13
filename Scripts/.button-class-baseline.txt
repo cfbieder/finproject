@@ -69,7 +69,6 @@
 .fc-modules-modal__button--cancel
 .fc-modules-modal__button--generate
 .fc-modules-modal__button--save
-.fc-review-selector__action-btn
 .fc-review-transfer-modal__button
 .fc-review-transfer-modal__button--primary
 .fc-review-transfer-modal__button--secondary

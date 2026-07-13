@@ -185,7 +185,12 @@ export default function FCModuleManage() {
 
   /**
    * After a create call, watch for the next modules reload and auto-select the
-   * first module that did not exist before the create.
+   * first module that did not exist before the create — then open the editor on it
+   * when the create asked for that (`openEditor`).
+   *
+   * A new module is created blank: no name, no account, no values. Selecting it and
+   * leaving the user to find "Edit" served no one — there is nothing to look at until
+   * it has been filled in, so the editor is where they were always going next.
    */
   useEffect(() => {
     if (!pendingSelectInfo) {
@@ -198,15 +203,21 @@ export default function FCModuleManage() {
     }
 
     const previousIds = new Set(pendingSelectInfo.prevIds || []);
-    const currentIds = modules
-      .map((module) => getModuleId(module))
-      .filter(Boolean);
-    const newIds = currentIds.filter((id) => !previousIds.has(id));
+    const newModules = modules.filter((module) => {
+      const id = getModuleId(module);
+      return id && !previousIds.has(id);
+    });
 
-    if (newIds.length) {
-      setSelectedModuleId(newIds[0]);
+    if (newModules.length) {
+      setSelectedModuleId(getModuleId(newModules[0]));
+      if (pendingSelectInfo.openEditor) {
+        openEditModal(newModules[0]);
+      }
       setPendingSelectInfo(null);
     }
+    // openEditModal is stable enough for this one-shot post-create effect; adding it to the
+    // deps would re-run the whole select-and-open on every render that recreates it.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [modules, selectedScenario, pendingSelectInfo, setSelectedModuleId]);
 
   const handleCreateNewModule = async () => {
@@ -251,6 +262,7 @@ export default function FCModuleManage() {
       setPendingSelectInfo({
         scenario: selectedScenario,
         prevIds: existingIds,
+        openEditor: true,
       });
       reloadModules();
     } catch (err) {

@@ -425,13 +425,26 @@ export default function FCModulesTable({
                           <td className="fc-modules-table__td fc-modules-table__td--name">
                             <span className="fc-modules-table__name-text">
                               {module?.Name || "-"}
-                              {module?.CashSweepTarget && (
-                                <span title="Cash Sweep Target" style={{
-                                  marginLeft: "0.4rem", fontSize: "0.65rem", fontWeight: 700,
-                                  padding: "0.1rem 0.35rem", borderRadius: "0.25rem",
-                                  background: "var(--success-subtle)", color: "var(--success)", border: "1px solid #a7f3d0",
-                                  verticalAlign: "middle",
-                                }}>SWEEP</span>
+                              {/* The badge used to key off CashSweepTarget, which is true only for
+                                  the PRIMARY (priority 1). A backup — priority 2, 3, … — never
+                                  receives deposits but IS drained when the primary runs dry, so
+                                  showing it no badge claimed an asset was outside the sweep when
+                                  it was in fact liquidation-eligible. Key off the rank instead. */}
+                              {module?.CashSweepPriority != null && (
+                                <span
+                                  title={
+                                    module.CashSweepPriority === 1
+                                      ? "Cash sweep: primary — receives deposits, drained first"
+                                      : `Cash sweep: backup #${module.CashSweepPriority} — drained after the primary`
+                                  }
+                                  className={`fc-modules-table__sweep-badge${
+                                    module.CashSweepPriority === 1
+                                      ? " fc-modules-table__sweep-badge--primary"
+                                      : ""
+                                  }`}
+                                >
+                                  SWEEP {module.CashSweepPriority}
+                                </span>
                               )}
                             </span>
                           </td>

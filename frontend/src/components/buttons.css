@@ -26,6 +26,8 @@
   cursor: pointer;
   transition: all var(--transition-base);
   white-space: nowrap;
+  /* Anchor for badges/dots positioned inside a button (e.g. the AI-review unread dot). */
+  position: relative;
 }
 
 .btn:disabled {

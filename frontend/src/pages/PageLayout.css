@@ -229,61 +229,56 @@
   box-shadow: none;
 }
 
+/* The toolbar had five equally-loud buttons — two different greens, a purple gradient and
+   two outlines — each forced to min-width:150px, so they wrapped into a ragged second row
+   with no hierarchy. Only ONE of them changes anything (Generate); the rest open a view or
+   export. So: one filled primary, a quiet utility group after a divider, and buttons that
+   size to their content. */
 .fc-review-selector__actions {
   display: flex;
   flex-wrap: wrap;
-  align-items: stretch;
+  align-items: center;
   gap: 0.65rem;
   flex: 1;
   justify-content: flex-start;
   min-width: 320px;
 }
 
-.fc-review-selector__action-btn {
-  padding: 0.6rem 1.15rem;
-  border-radius: var(--radius-md);
-  border: 1px solid var(--border);
-  background: var(--surface);
-  color: var(--ink);
-  font-weight: 600;
-  letter-spacing: 0.01em;
-  box-shadow: 0 10px 26px -18px rgba(45, 52, 54, 0.3);
-  cursor: pointer;
-  transition: transform 0.12s ease, box-shadow 0.12s ease, opacity 0.12s ease, background 0.12s ease;
-  display: inline-flex;
+/* Keeps the utility buttons together, so if the row does wrap it breaks at the divider
+   rather than mid-group. */
+.fc-review-selector__utilities {
+  display: flex;
+  flex-wrap: wrap;
   align-items: center;
-  gap: 0.45rem;
-  min-width: 150px;
+  gap: 0.4rem;
+  padding-left: 0.65rem;
+  border-left: 1px solid var(--border);
 }
 
-.fc-review-selector__generate {
-  background: var(--primary);
-  color: var(--on-accent);
-  border-color: var(--primary);
+/* The buttons themselves are the shared system (.btn / .btn--primary / .btn--ghost) —
+   Generate is the only filled one because it is the only one that changes anything. */
+
+/* AI Review keeps its identity through the icon, not a full-bleed gradient slab.
+   --info is the themed purple (it inverts in dark mode); the old inline gradient was two
+   raw hexes that could not. */
+.fc-review-selector__ai-icon {
+  color: var(--info);
 }
 
-.fc-review-selector__generate:not(:disabled):hover {
-  background: var(--primary-hover);
-  border-color: var(--primary-hover);
-}
-
-.fc-review-selector__action-btn:not(:disabled):hover {
-  transform: translateY(-1px);
-  box-shadow: 0 12px 30px -18px rgba(45, 52, 54, 0.12);
-}
-
-.fc-review-selector__action-btn:disabled {
-  opacity: 0.6;
-  cursor: not-allowed;
-  box-shadow: none;
+/* Unread-review indicator. */
+.fc-review-selector__ai-dot {
+  position: absolute;
+  top: 4px;
+  right: 4px;
+  width: 8px;
+  height: 8px;
+  border: 2px solid var(--surface);
+  border-radius: 50%;
+  background: var(--danger);
+  animation: fcAiPulse 1.6s ease-in-out infinite;
 }
 
 .fc-review-selector__action-icon {
-  font-size: 1.05rem;
-  line-height: 1;
-}
-
-.fc-review-selector__excel-icon {
   font-size: 1.05rem;
   line-height: 1;
 }
@@ -3871,11 +3866,15 @@
 
   .fc-review-selector__actions {
     flex-direction: column;
+    align-items: stretch;
   }
 
-  .fc-review-selector__action-btn {
-    min-width: 0;
-    width: 100%;
+  /* On a phone the utilities stop being a trailing group and become their own row. */
+  .fc-review-selector__utilities {
+    padding-left: 0;
+    border-left: none;
+    border-top: 1px solid var(--border);
+    padding-top: 0.65rem;
   }
 
   .budget-tabs__header {

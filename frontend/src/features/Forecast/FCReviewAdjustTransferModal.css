@@ -248,6 +248,19 @@
   font-style: italic;
 }
 
+/* Shown when a periodic transfer lands in this year: it is read-only here, and without
+   an explanation a greyed-out amount just reads as broken. */
+.fc-review-transfer-modal__note {
+  margin: 1rem 0 0;
+  padding: 0.75rem 1rem;
+  border: 1px solid var(--border);
+  border-radius: 0.5rem;
+  background: var(--surface-muted);
+  color: var(--muted);
+  font-size: 0.85rem;
+  line-height: 1.5;
+}
+
 .fc-review-transfer-modal__footer {
   padding: 2rem 2.5rem;
   border-top: 1px solid var(--border);

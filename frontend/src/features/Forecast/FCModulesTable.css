@@ -541,3 +541,22 @@
 .fc-modules-table td:nth-child(5) { width: 12%; }
 .fc-modules-table th:nth-child(6),
 .fc-modules-table td:nth-child(6) { width: 16%; }
+
+/* Sweep rank badge. The primary (1) is filled — it takes deposits and is drained first;
+   backups (2, 3, …) are outlined — never deposited into, but liquidated in rank order. */
+.fc-modules-table__sweep-badge {
+  margin-left: 0.4rem;
+  padding: 0.1rem 0.35rem;
+  border: 1px solid var(--success);
+  border-radius: 0.25rem;
+  background: transparent;
+  color: var(--success);
+  font-size: 0.65rem;
+  font-weight: 700;
+  vertical-align: middle;
+  white-space: nowrap;
+}
+
+.fc-modules-table__sweep-badge--primary {
+  background: var(--success-subtle);
+}
