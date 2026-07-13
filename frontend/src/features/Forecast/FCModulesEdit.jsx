@@ -1,6 +1,7 @@
 import { Fragment, useEffect, useState } from "react";
 import Rest from "../../js/rest";
 import FCModuleAuditModal from "./FCModuleAuditModal.jsx";
+import Modal from "../../components/Modal/Modal.jsx";
 import { FIELD_SECTIONS } from "./fcModulesEditSections.js";
 import "./FCModulesEdit.css";
 
@@ -516,16 +517,16 @@ export default function FCModulesEditModal({
   }
 
   return (
-    <div
-      className="fc-modules-modal-overlay"
-      role="dialog"
-      aria-modal="true"
-      aria-label="Edit forecast module"
-    >
-      <div
-        className="fc-modules-modal"
-        onClick={(event) => event.stopPropagation()}
+    <>
+      <Modal
+        open={isOpen}
+        onClose={onClose}
+        bare
+        dismissable={!editSaving}
+        closeOnOutside={false}
+        ariaLabel="Edit forecast module"
       >
+        <div className="fc-modules-modal">
         {/* Header */}
         <div className="fc-modules-modal__header">
           <div className="fc-modules-modal__header-content">
@@ -1509,13 +1510,14 @@ export default function FCModulesEditModal({
             </button>
           </div>
         </form>
-      </div>
+        </div>
+      </Modal>
       <FCModuleAuditModal
         isOpen={showAuditModal}
         onClose={() => setShowAuditModal(false)}
         scenario={editForm?.Scenario}
         moduleName={editForm?.Name}
       />
-    </div>
+    </>
   );
 }

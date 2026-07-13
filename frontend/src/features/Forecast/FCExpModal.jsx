@@ -2,6 +2,7 @@ import { useEffect } from "react";
 import "./FCModulesEdit.css";
 import "./FCExpModal.css";
 import Rest from "../../js/rest.js";
+import Modal from "../../components/Modal/Modal.jsx";
 /**
  * FCExpModal - Edit modal for forecast income/expense entries
  *
@@ -239,8 +240,15 @@ export default function FCExpModal({
   ]);
 
   return (
-    <div className="fc-exp-modal-overlay">
-      <div className="fc-exp-modal" onClick={(event) => event.stopPropagation()}>
+    <Modal
+      open={isOpen}
+      onClose={onClose}
+      bare
+      dismissable={!editSaving}
+      closeOnOutside={false}
+      ariaLabel="Edit income/expense item"
+    >
+      <div className="fc-exp-modal">
         {/* Header */}
         <div className="fc-exp-modal__header">
           <div className="fc-exp-modal__header-content">
@@ -853,6 +861,6 @@ export default function FCExpModal({
           </button>
         </div>
       </div>
-    </div>
+    </Modal>
   );
 }

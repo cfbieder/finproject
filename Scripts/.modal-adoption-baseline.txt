@@ -5,7 +5,6 @@ components/ManualStatementUpload/ManualStatementUpload.jsx
 features/BudgetEntry/components/BudgetExpenseSignModal.jsx
 features/Budgets/BudgetDetailModal.jsx
 features/Budgets/BudgetGraphModal.jsx
-features/Forecast/FCModulesEdit.jsx
 features/Transaction/TransactionDeleteModal.jsx
 features/Transaction/TransactionEditModal.jsx
 mobile/MobileCategoryPicker.jsx
