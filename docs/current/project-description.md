@@ -178,7 +178,7 @@ All mounted at `/api/v2` (nginx rewrites legacy `/api/*`). Behavioural detail in
 
 **Categories (`/categories`):** P&L leaf accounts post-migration-021 (URL preserved; backed by `accounts`). List/lookup/single + mappings.
 
-**Forecast (`/forecast`):** assumptions get/put · scenarios (list/years/delete-by-name/copy) · modules CRUD + `add-from-actuals` · incomeexpense CRUD + `add-from-lines` · entries · `POST /generate/:scenario` · audittrail.
+**Forecast (`/forecast`):** assumptions get/put · scenarios (list/years/delete-by-name/**copy** — a *whole* copy since CR048/v3.0.93: scenario row + modules + inc/exp items **and** the per-scenario assumptions (period, inflation, FX, tax rate) that live in the `forecast_assumptions` document, all in one transaction; the UI used to do that last half client-side) · modules CRUD + `add-from-actuals` · incomeexpense CRUD + `add-from-lines` · entries · `POST /generate/:scenario` · audittrail.
 
 **Health (`/health`).**
 

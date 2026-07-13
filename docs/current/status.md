@@ -29,6 +29,9 @@
 - Deploy: `./Scripts/deploy-to-production.sh` (DB backup first). Migrations: manual `psql -f`, registry in [migrations.md](migrations.md); runner shipped in CR043 P1.1 (`npm run migrate`).
 
 ## Recently shipped
+- v3.0.93 — [CR048](../cr/cr-048-model-review-fixes.md): **scenario copy is one path again** — the
+  per-scenario assumptions (period/inflation/FX/tax) moved server-side into `copyScenario`; an
+  API-only copy used to yield a scenario with 0% inflation that the engine would build anyway.
 - v3.0.92 — Forecast **Modules** + **Income/Expense**: full-width tables; details moved to a
   **modal on double-click** (the details column cost each table ~40% of the page).
 - v3.0.90–91 — [CR048](../cr/cr-048-model-review-fixes.md) engine fixes + Tax/Taxes on one row.

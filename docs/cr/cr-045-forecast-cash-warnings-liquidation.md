@@ -1,4 +1,4 @@
-**Status:** 🟢 OPEN — [Roadmap](../current/project-roadmap.md)
+**Status:** ✅ COMPLETED — released v3.0.77–80 (2026-07-12). Open questions in §6 are optional follow-ups, not blockers. — [Roadmap](../current/project-roadmap.md)
 
 # CR045 — Forecast Cash Warnings & Forced Liquidation
 

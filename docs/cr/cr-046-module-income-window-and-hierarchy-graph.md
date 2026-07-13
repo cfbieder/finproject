@@ -1,4 +1,4 @@
-**Status:** 🟢 OPEN — [Roadmap](../current/project-roadmap.md)
+**Status:** ✅ COMPLETED — released v3.0.81–83 + fixes v3.0.86/88/89 (2026-07-12), migration 037. §4 (stepping amounts) is a future idea, not a blocker. — [Roadmap](../current/project-roadmap.md)
 
 # CR046 — Module Income/Expense Window + Hierarchy Breakdown Graph
 

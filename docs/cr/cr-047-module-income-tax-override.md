@@ -1,4 +1,4 @@
-**Status:** 🟢 OPEN — [Roadmap](../current/project-roadmap.md)
+**Status:** ✅ COMPLETED — released v3.0.84–86 (2026-07-12), migration 038. — [Roadmap](../current/project-roadmap.md)
 
 # CR047 — Income-Only Tax Rate Override on a Forecast Module
 
