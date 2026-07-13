@@ -36,15 +36,22 @@ export default function FCReviewAdjustTransferModal({
       setLoading(true);
       setError(null);
       try {
-        const response = await Rest.fetchJson(
+        // The LIST endpoint does not return Invest/Dispose/IncomePct — only
+        // GET /modules/:id does (it joins the three child tables). This modal read the
+        // list, so `moduleData.Invest` was ALWAYS undefined and every year of every
+        // module reported "no transfers for this year". The modal had never once shown a
+        // transfer. Use the list only to resolve Name → id, then fetch the full module.
+        const list = await Rest.fetchJson(
           `/api/v2/forecast/modules?scenario=${encodeURIComponent(scenarioName)}`
         );
-        const module = response.find((m) => m.Name === entry.Module);
-        if (!module) {
+        const summary = list.find((m) => m.Name === entry.Module);
+        if (!summary) {
           setError("Module not found");
-        } else {
-          setModuleData(module);
+          return;
         }
+
+        const full = await Rest.get(`/forecast/modules/${summary.id}`);
+        setModuleData({ ...summary, ...(full?.data || {}) });
       } catch (err) {
         console.error("Failed to fetch module data:", err);
         setError("Failed to load module data");
