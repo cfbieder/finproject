@@ -14,7 +14,7 @@ function fireBrowserNotification(scenarioName) {
       body: `Your forecast review for "${scenarioName}" is complete.`,
       tag: "fc-ai-review",
     });
-  } catch (_) { /* noop */ }
+  } catch { /* noop */ }
 }
 
 const NOTIF_PRIMER_DISMISSED_KEY = "fcAiReview.notifPrimerDismissed";
@@ -24,7 +24,7 @@ function shouldShowNotificationPrimer() {
   if (Notification.permission !== "default") return false;
   try {
     return localStorage.getItem(NOTIF_PRIMER_DISMISSED_KEY) !== "true";
-  } catch (_) {
+  } catch {
     return true;
   }
 }
@@ -40,7 +40,7 @@ function parseActions(content) {
   while ((match = regex.exec(content)) !== null) {
     try {
       actions.push(JSON.parse(match[1].trim()));
-    } catch (e) { /* skip malformed */ }
+    } catch { /* skip malformed */ }
   }
   return actions;
 }
@@ -65,7 +65,7 @@ function MessageContent({ content, onApply, appliedActions }) {
       const key = `${action.type}-${action.module_id || action.incexp_id || action.scenario_id}-${action.field}`;
       const isApplied = appliedActions.has(key);
       parts.push({ type: "action", value: action, key, isApplied, idx: actionIdx++ });
-    } catch (e) {
+    } catch {
       parts.push({ type: "text", value: match[0] });
     }
     lastIdx = match.index + match[0].length;
@@ -139,7 +139,7 @@ export default function FCAIReviewDrawer({ isOpen, onClose, scenarioName, onUnre
 
   const handlePrimerAllow = async () => {
     setNotifPrimerOpen(false);
-    try { await Notification.requestPermission(); } catch (_) { /* noop */ }
+    try { await Notification.requestPermission(); } catch { /* noop */ }
     const action = pendingActionRef.current;
     pendingActionRef.current = null;
     if (action) action();
@@ -147,7 +147,7 @@ export default function FCAIReviewDrawer({ isOpen, onClose, scenarioName, onUnre
 
   const handlePrimerDecline = () => {
     setNotifPrimerOpen(false);
-    try { localStorage.setItem(NOTIF_PRIMER_DISMISSED_KEY, "true"); } catch (_) { /* noop */ }
+    try { localStorage.setItem(NOTIF_PRIMER_DISMISSED_KEY, "true"); } catch { /* noop */ }
     const action = pendingActionRef.current;
     pendingActionRef.current = null;
     if (action) action();
@@ -229,7 +229,7 @@ export default function FCAIReviewDrawer({ isOpen, onClose, scenarioName, onUnre
             if (id === activeReviewId) setError(msg);
             showError(`AI plan review failed: ${msg}`);
           }
-        } catch (_) { /* keep polling on transient errors */ }
+        } catch { /* keep polling on transient errors */ }
       }
     };
 

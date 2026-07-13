@@ -29,7 +29,15 @@ export default defineConfig([
       },
     },
     rules: {
-      'no-unused-vars': ['error', { varsIgnorePattern: '^[A-Z_]' }],
+      // `_` as an argument is the universal "intentionally ignored" convention
+      // (`.map((_, i) => …)`); flagging it says nothing useful. Unused CAUGHT
+      // errors are NOT ignored — write `catch { … }` (optional catch binding) if
+      // you genuinely don't need the error, so "I ignored this on purpose" stays
+      // visible in the code rather than being waved through by config.
+      'no-unused-vars': [
+        'error',
+        { varsIgnorePattern: '^[A-Z_]', argsIgnorePattern: '^_' },
+      ],
       // Known Issue #3: toISOString() renders the UTC date, which is off by a
       // day for local dates near midnight. Use formatLocalDate/formatDateOnly
       // from utils/dateHelpers.js instead.

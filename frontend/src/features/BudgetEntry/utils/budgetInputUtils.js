@@ -441,7 +441,7 @@ export const evaluateMathInput = (value) => {
       if (typeof evaluated === "number" && Number.isFinite(evaluated)) {
         return evaluated;
       }
-    } catch (error) {
+    } catch {
       // Ignore invalid expressions and fall back to basic parsing
     }
   }

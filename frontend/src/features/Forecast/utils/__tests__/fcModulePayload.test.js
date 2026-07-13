@@ -1,6 +1,7 @@
 import { describe, it, expect } from "vitest";
 import fs from "node:fs";
 import path from "node:path";
+import { fileURLToPath } from "node:url";
 import { buildModulePayload } from "../fcModulePayload.js";
 import { FIELD_SECTIONS } from "../../fcModulesEditSections.js";
 
@@ -12,7 +13,10 @@ describe("buildModulePayload", () => {
   // two sides cannot drift apart again — which is the whole failure mode of this bug class.
   it("sends only fields the API's write contract accepts", () => {
     const routeSrc = fs.readFileSync(
-      path.resolve(__dirname, "../../../../../../server/src/v2/routes/forecast.js"),
+      path.resolve(
+        path.dirname(fileURLToPath(import.meta.url)),
+        "../../../../../../server/src/v2/routes/forecast.js"
+      ),
       "utf8"
     );
     const block = routeSrc.match(/const MODULE_WRITE_FIELDS = \[([\s\S]*?)\];/);

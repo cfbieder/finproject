@@ -123,7 +123,7 @@ export default function BudgetOptionExchangeRates() {
           currency,
           rate: Number.isFinite(parsedRate) ? parsedRate : null,
         };
-      } catch (error) {
+      } catch {
         return {
           currency,
           error: "Unable to fetch rate",

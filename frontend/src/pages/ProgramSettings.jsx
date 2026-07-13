@@ -43,7 +43,7 @@ export default function ProgramSettings() {
       });
       await Rest.handleResponse(response);
       addToast(`Default budget year set to ${year}`, "success");
-    } catch (err) {
+    } catch {
       addToast("Failed to save default budget year", "error");
     }
   }, [addToast]);

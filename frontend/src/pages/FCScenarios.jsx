@@ -113,7 +113,7 @@ export default function FCScenarios() {
         }
         setLocalSweepLow(lowMap);
         setLocalSweepHigh(highMap);
-      } catch (_) { /* ignore — sweep band is optional */ }
+      } catch { /* ignore — sweep band is optional */ }
 
       // Verify selected scenario still exists after reload
       const scenarioNames = (data?.scenarios || []).map((item) => item.Name);
@@ -165,7 +165,7 @@ export default function FCScenarios() {
               if (s.cash_sweep_high != null) highMap[s.name] = parseFloat(s.cash_sweep_high) || 0;
             }
             if (isMounted) { setLocalSweepLow(lowMap); setLocalSweepHigh(highMap); }
-          } catch (_) { /* optional */ }
+          } catch { /* optional */ }
         }
       } catch (error) {
         if (isMounted) {
@@ -724,7 +724,7 @@ export default function FCScenarios() {
             body: JSON.stringify({ cash_sweep_low: sweepLowVal, cash_sweep_high: sweepHighVal }),
           });
         }
-      } catch (_) { /* sweep band save is best-effort */ }
+      } catch { /* sweep band save is best-effort */ }
 
       // Update local sweep state
       if (isCreatingNew) {

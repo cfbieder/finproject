@@ -48,7 +48,7 @@ export default function FCModulesUnmatchedModal({
         if (!cancelled && data && typeof data === "object") {
           setCoaTraits(data);
         }
-      } catch (err) {
+      } catch {
         if (!cancelled) {
           setCoaTraits({});
         }

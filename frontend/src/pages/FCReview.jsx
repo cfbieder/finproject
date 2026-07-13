@@ -1048,7 +1048,7 @@ export default function FCReview() {
     });
     const url = URL.createObjectURL(blob);
     const safeScenario = String(selectedScenario || "export")
-      .replace(/[^a-z0-9\-\._\s]/gi, "_")
+      .replace(/[^a-z0-9\-._\s]/gi, "_")
       .replace(/\s+/g, "_")
       .replace(/_{2,}/g, "_")
       .replace(/^_+|_+$/g, "")
