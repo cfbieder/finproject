@@ -178,7 +178,9 @@ All mounted at `/api/v2` (nginx rewrites legacy `/api/*`). Behavioural detail in
 
 **Categories (`/categories`):** P&L leaf accounts post-migration-021 (URL preserved; backed by `accounts`). List/lookup/single + mappings.
 
-**Forecast (`/forecast`):** assumptions get/put · scenarios (list/years/delete-by-name/**copy** — a *whole* copy since CR048/v3.0.93: scenario row + modules + inc/exp items **and** the per-scenario assumptions (period, inflation, FX, tax rate) that live in the `forecast_assumptions` document, all in one transaction; the UI used to do that last half client-side) · modules CRUD + `add-from-actuals` · incomeexpense CRUD + `add-from-lines` · entries · `POST /generate/:scenario` · audittrail.
+**Forecast (`/forecast`):** assumptions get/put · scenarios (list/years/delete-by-name/**copy** — a *whole* copy since CR048/v3.0.93: scenario row + modules + inc/exp items **and** the per-scenario assumptions (period, inflation, FX, tax rate) that live in the `forecast_assumptions` document, all in one transaction; the UI used to do that last half client-side) · modules CRUD + `add-from-actuals` · incomeexpense CRUD + `add-from-lines` · entries · `POST /generate/:scenario` · audittrail (`/:scenario/:module` also serves the **synthetic `_cash_sweep`** module, whose trail the sweep writes to `<scenario>_cash_sweep.csv` rather than the per-module `_entries.csv` — it is clickable in the Review breakdown, and 404'd until v3.0.97).
+
+Module and income/expense **writes are field-validated** (CR043 N10, v3.0.95): the body is checked against an explicit allow-list and an unknown key is rejected with `400 unknown field(s): X` rather than silently dropped — the failure mode that shipped CR046's window dates and CR047's tax override as no-ops.
 
 **Health (`/health`).**
 
