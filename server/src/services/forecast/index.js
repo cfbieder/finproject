@@ -24,6 +24,7 @@ const { computeModule: computeIncExpModule, writeEntriesAuditTrail } = require("
 const { insertModuleEntries } = require("./fcbuilder-common");
 const { CATEGORIES, PATHS } = require("./constants");
 const { computeCashSweepIterative } = require("./cash-sweep");
+const crud = require("./crud");
 
 function buildScenarioCategories(accountNames, incomeCategories, expenseCategories) {
   const seen = new Set();
@@ -488,36 +489,17 @@ async function generateForecast(scenarioName) {
       // budget P&L + engine transfers, not the engine's own Bank Accounts entries.
       const baseYear = scenario.PeriodStart - 1;
       {
-        // Get budget NCF for BaseYear (same query as base-year-values endpoint)
-        // Must mirror crud.getBaseYearValues EXACTLY — this is the same base-year P&L the
-        // Review displays, and the two silently disagreeing is how a $35K rent that does not
-        // start until 2028 ended up in the sweep's opening cash (CR046 window, fixed
-        // v3.0.88): a stream only counts in the base year if its window is open that year.
-        const budgetResult = await dbc.query(`
-          SELECT COALESCE(SUM(val.amount), 0)::numeric as budget_ncf FROM (
-            SELECT SUM(CASE WHEN a.account_type = 'liability'
-                             THEN -m.expense_amount * (CASE WHEN EXTRACT(YEAR FROM m.expense_start_date) = $2
-                                                              OR EXTRACT(YEAR FROM m.expense_end_date)   = $2
-                                                            THEN 0.5 ELSE 1 END)
-                             ELSE 0 END) as amount
-            FROM forecast_modules m LEFT JOIN accounts a ON m.account_id = a.id LEFT JOIN fc_lines exp_line ON m.expense_fc_line_id = exp_line.id
-            WHERE m.scenario_id = $1 AND COALESCE(m.setup_status, 'new') NOT IN ('new', 'exclude') AND m.expense_fc_line_id IS NOT NULL
-              AND (m.expense_start_date IS NULL OR EXTRACT(YEAR FROM m.expense_start_date) <= $2)
-              AND (m.expense_end_date   IS NULL OR EXTRACT(YEAR FROM m.expense_end_date)   >= $2)
-            UNION ALL
-            SELECT SUM(COALESCE(m.income_amount, 0) * (CASE WHEN EXTRACT(YEAR FROM m.income_start_date) = $2
-                                                                 OR EXTRACT(YEAR FROM m.income_end_date)   = $2
-                                                               THEN 0.5 ELSE 1 END))
-            FROM forecast_modules m LEFT JOIN fc_lines inc_line ON m.income_fc_line_id = inc_line.id
-            WHERE m.scenario_id = $1 AND COALESCE(m.setup_status, 'new') NOT IN ('new', 'exclude') AND m.income_fc_line_id IS NOT NULL
-              AND (m.income_start_date IS NULL OR EXTRACT(YEAR FROM m.income_start_date) <= $2)
-              AND (m.income_end_date   IS NULL OR EXTRACT(YEAR FROM m.income_end_date)   >= $2)
-            UNION ALL
-            SELECT ie.base_value FROM forecast_income_expense ie LEFT JOIN fc_lines fl ON ie.fc_line_id = fl.id
-            WHERE ie.scenario_id = $1 AND COALESCE(ie.setup_status, 'new') NOT IN ('new', 'exclude')
-          ) val
-        `, [scenarioId, baseYear]);
-        const budgetNCF = parseFloat(budgetResult.rows[0]?.budget_ncf) || 0;
+        // The BaseYear P&L the Review displays, read from the ONE query that produces it
+        // (CR049). The engine used to keep a hand-copied second version here, under a
+        // comment promising it mirrored crud.getBaseYearValues exactly. It did not: its
+        // expense branch was gated on `account_type = 'liability'` with an ELSE 0, so every
+        // non-liability module expense — the real-estate modules' Property Costs, $64.7K in
+        // 2026 — was silently worth nothing in the opening cash, while the engine went on
+        // paying those same costs out of Bank Accounts in all 36 forecast years. The sweep
+        // therefore opened ~$65K richer than the plan, and since it pins cash to the band
+        // every year, the error rode the whole horizon instead of washing out.
+        const baseYearValues = await crud.getBaseYearValues(scenarioId, baseYear, dbc);
+        const budgetNCF = Object.values(baseYearValues).reduce((sum, v) => sum + (Number(v) || 0), 0);
 
         // Get engine transfers for BaseYear (Transfer - Bank entries)
         const transferResult = await dbc.query(`

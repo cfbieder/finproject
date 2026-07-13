@@ -3,25 +3,36 @@
 > The one mandatory read at session start. Keep ≤ ~60 lines; link onward, never restate.
 > CR statuses live in the [CR index](../cr/README.md); the running version lives in `VERSION`.
 
-**Last updated:** 2026-07-13 · **Live version:** v3.0.93 (see `VERSION` / git tags)
+**Last updated:** 2026-07-13 · **Live version:** v3.0.94 (see `VERSION` / git tags)
 
 ## Current phase
-- **Forecast hardening (CR045 → CR048), 2026-07-12/13.** One owner question ("why is only sweep
-  priority 1 on offer?") opened a run of **eight silent-wrong-number engine bugs** — all fixed, each
-  verified against a restored copy of prod, all shipped and prod regenerated:
+- **Forecast hardening (CR045 → CR049), 2026-07-12/13.** Owner questions have now opened a run of
+  **ten silent-wrong-number engine bugs** — all fixed, each verified against a restored copy of
+  prod, all shipped and prod regenerated:
   [CR045](../cr/cr-045-forecast-cash-warnings-liquidation.md) (no sweep module on copied scenarios;
   BaseYear cash flow never reached the sweep; tax-free forced liquidations; a module sold twice) ·
   [CR046](../cr/cr-046-module-income-window-and-hierarchy-graph.md) (income/expense **window**,
   migration 037) · [CR047](../cr/cr-047-module-income-tax-override.md) (**income-only tax rate**,
   migration 038) · [CR048](../cr/cr-048-model-review-fixes.md) (conceptual review: drained sweep
-  backups kept paying dividends on money that was gone; basis offset two sales).
-  "2026 with House Purchase" now reads **3 shortfall years / −$1.05M** — larger than it did on
-  Monday, and for the first time trustworthy.
+  backups kept paying dividends on money that was gone; basis offset two sales) ·
+  [CR049](../cr/cr-049-forecast-base-year-seed-and-final-year-tax.md) (the **final-year** sale never
+  funded its own capital-gains tax — 2062 ended at −$60,521 cash beside $4.3M of sellable stock; and
+  the engine's **hand-copied base-year query** had drifted from `crud.getBaseYearValues`, zeroing
+  every non-liability module expense, so the sweep opened $64,717 rich for the whole horizon).
+  "2026 Base" now closes 2062 **exactly on the $200K low band**, with no shortfall in any year.
 - **Owner's open items:** the equity-growth experiment on `/forecast-compare` ("2026 Base" vs
-  **"2026 Base - Market Returns"**: stocks 2.0× vs 1.0× ⇒ $5.05M vs $1.20M in 2062); FX-stress
-  magnitudes for Downside; re-type "New House"/"Sarasota House".
+  **"2026 Base - Market Returns"**: stocks 2.0× vs 1.0×); FX-stress magnitudes for Downside;
+  re-type "New House"/"Sarasota House"; rank a sweep backup in **"2026 Downside"** (see Known
+  issue below).
 - [CR042](../cr/cr-042-ui-look-and-feel.md) / [CR043](../cr/cr-043-code-structure-program.md):
   substantially complete (CR042 remainder: U4's 2 heavyweight Forecast modals).
+
+## Known issue
+- **"2026 Downside" has no sweep backup ranked.** `Fidelity Stocks` carries no `cash_sweep_priority`
+  there (it does in the other two scenarios), so the engine reports a **−$766K shortfall in 2062
+  while $1.2M of stock sits untouched**. That is CR045 §5 working as designed (unranked = "I cannot
+  sell this"), but for a liquid brokerage account it is almost certainly a data slip. One-row fix,
+  left to the owner because it changes Downside's conclusions.
 
 ## Live infrastructure
 - **Dev and prod are the same host** (`192.168.1.87` / Tailscale `100.94.46.62`). Prod `docker-compose.yml` (project `psproject`, :3005, DB :5433, volume `fin_postgres_data`); dev `docker-compose.dev.yml` (:3105/:5434); v4 `docker-compose.v4.yml` (`finv4`, :3205/:5435, flags ON, isolated volume). Prod frontend: `https://fin.tail413695.ts.net`.
@@ -29,6 +40,10 @@
 - Deploy: `./Scripts/deploy-to-production.sh` (DB backup first). Migrations: manual `psql -f`, registry in [migrations.md](migrations.md); runner shipped in CR043 P1.1 (`npm run migrate`).
 
 ## Recently shipped
+- v3.0.94 — [CR049](../cr/cr-049-forecast-base-year-seed-and-final-year-tax.md): the final-year
+  sweep now **sells enough to fund its own tax** (re-entrant drain, fixed point), and the engine's
+  duplicated base-year query is **deleted** in favour of the one `crud.getBaseYearValues` the
+  Review already reads. Engine numbers change; prod regenerated.
 - v3.0.93 — [CR048](../cr/cr-048-model-review-fixes.md): **scenario copy is one path again** — the
   per-scenario assumptions (period/inflation/FX/tax) moved server-side into `copyScenario`; an
   API-only copy used to yield a scenario with 0% inflation that the engine would build anyway.
@@ -49,6 +64,7 @@
 - CR048 open: the equity-growth and FX-stress decisions are with the owner. *(The split-brain
   scenario-copy path is **fixed** in v3.0.93 — the assumptions copy moved server-side into
   `copyScenario`; an API-only copy now reproduces its source exactly.)*
+- Rank a sweep backup in "2026 Downside" (Known issue above) — owner's call.
 - CR042 remainder (2 Forecast modals), CR043 deferred items.
 - Long-running tails: [CR019](../cr/cr-019-quicken-import.md) prod cutover loop,
   [CR023](../cr/cr-023-pocketsmith-removal.md) per-account PS migration (13 left),

@@ -12,13 +12,13 @@ Each CR file's first line carries its status and links back to the matching anch
 
 | Status | Count | CRs |
 |--------|------:|-----|
-| COMPLETED | 36 | CR001–CR013, CR016, CR017, CR018, CR024, CR025, CR026, CR028, CR030, CR031, CR032, CR033, CR034, CR035, CR036, CR037, CR038, CR039, CR040, CR041, CR044 *(decision record)*, CR045, CR046, CR047 |
+| COMPLETED | 37 | CR001–CR013, CR016, CR017, CR018, CR024, CR025, CR026, CR028, CR030, CR031, CR032, CR033, CR034, CR035, CR036, CR037, CR038, CR039, CR040, CR041, CR044 *(decision record)*, CR045, CR046, CR047, CR049 |
 | IN-PROGRESS | 3 | CR019, CR022, CR023 |
 | OPEN | 5 | CR020, CR021, CR042, CR043, CR048 |
 | PLANNED | 2 | CR027 *(v4, umbrella)*, CR029 |
 | SUPERSEDED | 1 | CR014 |
 | OBSOLETE | 1 | CR015 |
-| **Total** | **48** | |
+| **Total** | **49** | |
 
 ## All CRs
 
@@ -72,3 +72,4 @@ Each CR file's first line carries its status and links back to the matching anch
 | [CR046](cr-046-module-income-window-and-hierarchy-graph.md) | COMPLETED | v3 | Module Income/Expense Window + Hierarchy Breakdown Graph | Start/end dates on a module's income and expense streams (migration 037) — "start charging rent in 2030" was inexpressible; the window bounds *when* a stream runs, not how much, NULL = the old behavior. Plus: double-clicking any Forecast Review row now graphs the accounts beneath it as a stacked bar (BS and P&L), which only "Net Assets" used to do. Shipped v3.0.81. |
 | [CR047](cr-047-module-income-tax-override.md) | COMPLETED | v3 | Income-Only Tax Rate Override | `tax_rate_override` moved BOTH the capital-gains and the income rate, so "the dividend is already taxed in Poland — only 3% incremental US tax, but a sale is still a normal gain" was inexpressible. Migration 038 adds `income_tax_rate_override` (income only; NULL falls back ⇒ no change; 0 is a real rate). Shipped v3.0.84. |
 | [CR048](cr-048-model-review-fixes.md) | OPEN | v3 | Forecast Model Review: Engine Fixes + Ratified Assumptions | Full conceptual review of the model. Fixed: sweep-drained BACKUPS kept paying dividends on money that was gone (convergence loop was primary-only; ~$25K/yr phantom income in the shortfall years), cost basis spent twice between sweep and scheduled sales, CR047's income rate ignored on rebuild. Ratified: 0% cash (deliberate), flat-tax world (Fidelity = brokerage), equity growth to be tested in a scenario copy, FX stress folds into Downside. Shipped v3.0.90. |
+| [CR049](cr-049-forecast-base-year-seed-and-final-year-tax.md) | COMPLETED | v3 | Forecast: Base-Year Seed Duplication + Final-Year Sweep Tax | One owner question ("why isn't the sweep taking from Fidelity Stock?") exposed two silent-wrong-number bugs. The **final-year** liquidation never funded its own capital-gains tax — 2062 pulled $852K from Fidelity Stocks, restored the band, then took a $205K tax bill with nothing sold to cover it, ending at **−$60,521 cash beside $4.3M of sellable stock** (no shortfall entry: the band check had already passed). And the engine kept a **hand-copied base-year query** that had silently drifted from `crud.getBaseYearValues` — an `account_type = 'liability' … ELSE 0` gate zeroed every non-liability module expense, so 2026's $64,717 of Property Costs never left the bank and the sweep's opening cash ran $64,717 rich for the whole horizon. Fixes: re-entrant drain (sell → pay tax → re-check the band, converging in a few passes) and one query, one caller. Shipped v3.0.94; prod regenerated. Known issue left open: "2026 Downside" has no sweep backup ranked. |

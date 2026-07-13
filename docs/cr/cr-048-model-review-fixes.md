@@ -78,6 +78,11 @@ claimable; flat series unchanged). 350 backend green.
   building it means inventing netting rules nobody has chosen. Revisit if a loss-making
   disposal is ever actually planned.
 - **A5 — final-year tax bunching**: 2062 carries its own tax and 2061's deferred tax.
+  **⚠️ Partly superseded by [CR049](cr-049-forecast-base-year-seed-and-final-year-tax.md).** The
+  *bunching* stands (the last year does carry both charges). What was wrong was accepting that the
+  bunched tax could push the final year **under the band**: it left 2062 at −$60,521 cash beside
+  $4.3M of sellable stock, with no `Cash Shortfall` entry, because the tax landed after the band
+  check. The final-year sale now funds its own tax.
 - **Amount-based income on drained modules** (see A1).
 - **UPDATE-only convergence writes**: a year whose income was exactly 0 in the builder gets
   no entry row, so the loop cannot raise it later (pre-existing; affects nothing live).

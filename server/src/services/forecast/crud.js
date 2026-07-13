@@ -374,8 +374,14 @@ async function buildAddFromActualsTree(scenarioId, baseYear) {
  *
  * `baseYear` null ⇒ no window filter (the old behavior), so callers that do not know the
  * scenario's PeriodStart are unchanged.
+ *
+ * `client` lets the generation engine read this inside its own transaction: the sweep's
+ * opening cash IS this base-year NCF, and the engine used to keep a hand-copied second
+ * version of the query below. The copy drifted (it dropped every non-liability module
+ * expense, so 2026 property costs never left the bank) and the two figures disagreed
+ * silently for the whole horizon. One query, one caller-supplied handle — no second copy.
  */
-async function getBaseYearValues(scenarioId, baseYear = null) {
+async function getBaseYearValues(scenarioId, baseYear = null, client = db) {
   // Reused by both halves of the UNION: the stream must have started by the base year and
   // not yet have ended. NULL bounds are unbounded.
   const windowFilter = (prefix) => baseYear == null ? '' : `
@@ -391,7 +397,7 @@ async function getBaseYearValues(scenarioId, baseYear = null) {
               OR EXTRACT(YEAR FROM m.${prefix}_end_date)   = ${Number(baseYear)}
             THEN 0.5 ELSE 1 END)`;
   // Get income/expense amounts from BS modules (by FC Line name)
-  const bsResult = await db.query(`
+  const bsResult = await client.query(`
     SELECT
       COALESCE(exp_line.name, 'Unassigned Expense') as label,
       'expense' as type,
@@ -415,7 +421,7 @@ async function getBaseYearValues(scenarioId, baseYear = null) {
   `, [scenarioId]);
 
   // Get base values from IncExp items (by FC Line name or item name)
-  const incexpResult = await db.query(`
+  const incexpResult = await client.query(`
     SELECT
       COALESCE(fl.name, ie.name) as label,
       ie.base_value as amount

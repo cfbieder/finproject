@@ -51,6 +51,14 @@
 const EPSILON = 0.01;
 
 /**
+ * Backstop on the final year's sell → pay-tax → sell-again fixed point (CR049). Each pass
+ * only funds the tax on the previous pass's tax, so the residual shrinks by the effective
+ * tax rate each round: any rate below 100% converges to EPSILON well inside this. It exists
+ * so a pathological rate cannot spin forever, not because a real one gets close.
+ */
+const MAX_FINAL_YEAR_PASSES = 24;
+
+/**
  * @param {Object} params
  * @param {number[]} params.years - Forecast period years
  * @param {number} params.cashSweepLow - Low band (withdraw when below)
@@ -249,7 +257,79 @@ function computeCashSweepIterative({
     let action = 'none';
     let shortfall = 0;
     const yearModules = new Set(); // source/destination module names touched this year (for audit)
-    const taxDue = []; // realized this year, paid next year
+    let taxDue = []; // realized this year, paid next year (final year: paid here — see below)
+
+    /**
+     * Draw `needed` from the ranked sources in priority order: the primary's swept
+     * balance (its own cash coming back, never bought at a cost basis, so no gain),
+     * then the primary's own balance (a sale), then each backup's own balance — each
+     * capped at what it can lose without going under in some later year (P2c).
+     *
+     * Re-entrant: the final year calls it again once the tax lands (CR049), so it
+     * reports what it could not fund and the tax its sales realized rather than
+     * writing the shortfall entry itself.
+     */
+    const drain = (needed) => {
+      const taxRealized = [];
+      let remaining = needed;
+      let withdrawn = 0;
+
+      if (primary) {
+        const fromSwept = Math.min(remaining, Math.max(0, sweptAt(primary, year)));
+        const fromModule = Math.min(remaining - fromSwept, availableFrom(primary, year));
+        const primaryWithdraw = fromSwept + fromModule;
+
+        if (primaryWithdraw > EPSILON) {
+          entries.push(
+            { year, account: 'Transfer - Bank', amount: primaryWithdraw, module: '_cash_sweep', comment: `Cash sweep from ${primary.name}` },
+            { year, account: primary.account, amount: -primaryWithdraw, module: '_cash_sweep', comment: `Cash sweep to bank` }
+          );
+          if (fromModule > EPSILON) {
+            const tax = realize(primary, year, fromModule);
+            if (tax < -EPSILON) taxRealized.push({ srcIndex: 0, amount: tax });
+            primary.usedNorm += fromModule / (primary.growthFactorByYear[year] ?? 1);
+          }
+          runningCash += primaryWithdraw;
+          primary.sweptNorm -= fromSwept / (primary.growthFactorByYear[year] ?? 1);
+          yearModules.add(primary.name);
+          remaining -= primaryWithdraw;
+          withdrawn += primaryWithdraw;
+        }
+      }
+
+      // Cascade into backup modules in priority order until the band is restored or all are drained
+      for (let i = 0; i < backups.length && remaining > EPSILON; i++) {
+        const bm = backups[i];
+        const draw = Math.min(remaining, availableFrom(bm, year));
+        if (draw > EPSILON) {
+          entries.push(
+            { year, account: 'Transfer - Bank', amount: draw, module: '_cash_sweep', comment: `Cash sweep from ${bm.name}` },
+            { year, account: bm.account, amount: -draw, module: '_cash_sweep', comment: `Cash sweep to bank` }
+          );
+          const tax = realize(bm, year, draw);
+          if (tax < -EPSILON) taxRealized.push({ srcIndex: sources.indexOf(bm), amount: tax });
+          bm.usedNorm += draw / (bm.growthFactorByYear[year] ?? 1);
+          runningCash += draw;
+          remaining -= draw;
+          withdrawn += draw;
+          yearModules.add(bm.name);
+        }
+      }
+
+      return { withdrawn, remaining, taxRealized };
+    };
+
+    /** Pay tax now, out of this year's cash. */
+    const payTax = (due) => {
+      for (const { srcIndex, amount } of due) {
+        entries.push({
+          year, account: 'Taxes', amount, module: '_cash_sweep',
+          comment: `Capital gains tax on ${sources[srcIndex].name} liquidation`,
+        });
+        runningCash += amount; // amount is negative
+        taxPaid += amount;
+      }
+    };
 
     if (runningCash > cashSweepHigh && primary) {
       // EXCESS: sweep into the primary module only (deposit policy = priority-1)
@@ -265,66 +345,13 @@ function computeCashSweepIterative({
 
     } else if (runningCash < cashSweepLow && primary) {
       // SHORTFALL: drain primary (swept balance, then own balance), then cascade into backups
-      const needed = cashSweepLow - runningCash;
-
-      // First: draw from swept balance. This is the sweep's own cash coming back —
-      // it was never bought at a cost basis, so it realizes no gain.
-      const fromSwept = Math.min(needed, Math.max(0, sweptAt(primary, year)));
-      // Second: draw from the primary's own balance — that is a sale (taxable), and
-      // only of what it can lose without going under in some later year (P2c).
-      const stillNeeded = needed - fromSwept;
-      const fromModule = Math.min(stillNeeded, availableFrom(primary, year));
-      const primaryWithdraw = fromSwept + fromModule;
-      let remainingShortfall = needed - primaryWithdraw;
-      let totalWithdraw = primaryWithdraw;
-
-      if (primaryWithdraw > EPSILON) {
-        entries.push(
-          { year, account: 'Transfer - Bank', amount: primaryWithdraw, module: '_cash_sweep', comment: `Cash sweep from ${primary.name}` },
-          { year, account: primary.account, amount: -primaryWithdraw, module: '_cash_sweep', comment: `Cash sweep to bank` }
-        );
-        if (fromModule > EPSILON) {
-          const tax = realize(primary, year, fromModule);
-          if (tax < -EPSILON) taxDue.push({ srcIndex: 0, amount: tax });
-          primary.usedNorm += fromModule / (primary.growthFactorByYear[year] ?? 1);
-        }
-        runningCash += primaryWithdraw;
-        primary.sweptNorm -= fromSwept / (primary.growthFactorByYear[year] ?? 1);
-        yearModules.add(primary.name);
+      const r = drain(cashSweepLow - runningCash);
+      if (r.withdrawn > EPSILON) {
+        sweepAmount = -r.withdrawn;
         action = 'sweep_out';
       }
-
-      // Cascade into backup modules in priority order until the band is restored or all are drained
-      for (let i = 0; i < backups.length && remainingShortfall > EPSILON; i++) {
-        const bm = backups[i];
-        const draw = Math.min(remainingShortfall, availableFrom(bm, year));
-        if (draw > EPSILON) {
-          entries.push(
-            { year, account: 'Transfer - Bank', amount: draw, module: '_cash_sweep', comment: `Cash sweep from ${bm.name}` },
-            { year, account: bm.account, amount: -draw, module: '_cash_sweep', comment: `Cash sweep to bank` }
-          );
-          const tax = realize(bm, year, draw);
-          if (tax < -EPSILON) taxDue.push({ srcIndex: sources.indexOf(bm), amount: tax });
-          bm.usedNorm += draw / (bm.growthFactorByYear[year] ?? 1);
-          runningCash += draw;
-          remainingShortfall -= draw;
-          totalWithdraw += draw;
-          yearModules.add(bm.name);
-          if (action === 'none') action = 'sweep_out';
-        }
-      }
-
-      if (totalWithdraw > EPSILON) {
-        sweepAmount = -totalWithdraw;
-      }
-
-      if (remainingShortfall > EPSILON) {
-        entries.push(
-          { year, account: 'Cash Shortfall', amount: -remainingShortfall, module: '_cash_sweep', comment: 'Cash below target after sweep' }
-        );
-        shortfall = remainingShortfall;
-        if (action === 'none') action = 'shortfall';
-      }
+      shortfall = r.remaining > EPSILON ? r.remaining : 0;
+      taxDue = r.taxRealized;
 
     } else if (runningCash > cashSweepHigh && !primary) {
       sweepAmount = runningCash - cashSweepHigh;
@@ -343,22 +370,47 @@ function computeCashSweepIterative({
       action = 'shortfall';
     }
 
-    // Tax realized this year is paid next year. The final year has no next year,
-    // so — as in the builder — it stays put, landing after this year's band check
-    // (it can push the final year under the band; the Review's warnings pane says so).
-    if (taxDue.length > 0) {
-      if (year === lastYear) {
-        for (const { srcIndex, amount } of taxDue) {
-          entries.push({
-            year, account: 'Taxes', amount, module: '_cash_sweep',
-            comment: `Capital gains tax on ${sources[srcIndex].name} liquidation`,
-          });
-          runningCash += amount;
-          taxPaid += amount;
+    // Tax realized this year is normally paid next year — the +1y deferral is what keeps
+    // this a single forward pass (P2a).
+    //
+    // The FINAL year has no next year to defer into, so the tax lands in the same year as
+    // the sale that realized it. A sale must then fund BOTH the cash need and its own tax,
+    // or the horizon ends below the band with millions still sitting in the module — which
+    // is what prod's 2062 did: the sweep pulled $852K from Fidelity Stocks, restored cash to
+    // the $200K band, and was then handed a $205K tax bill it had not sold anything to cover
+    // (CR049). Pay, re-check the band, draw again. Each pass only has to fund the tax ON the
+    // previous pass's tax, so the residual shrinks by the effective tax rate every round and
+    // this converges in a few passes. It stops early when the band is met, when the ranked
+    // modules run out of capacity (the leftover is a real shortfall, reported as one), or at
+    // MAX_FINAL_YEAR_PASSES — a backstop that cannot be reached by a tax rate below 100%.
+    if (year === lastYear) {
+      let due = taxDue;
+      for (let pass = 0; due.length > 0 && pass < MAX_FINAL_YEAR_PASSES; pass++) {
+        payTax(due);
+        due = [];
+        if (runningCash < cashSweepLow - EPSILON) {
+          const r = drain(cashSweepLow - runningCash);
+          if (r.withdrawn > EPSILON) {
+            sweepAmount -= r.withdrawn;
+            action = 'sweep_out';
+          }
+          shortfall = r.remaining > EPSILON ? r.remaining : 0;
+          due = r.taxRealized;
+        } else {
+          shortfall = 0;
         }
-      } else {
-        pendingTax = taxDue;
       }
+      payTax(due); // nothing left to sell, or the backstop tripped — the bill still comes due
+      if (runningCash < cashSweepLow - EPSILON) shortfall = cashSweepLow - runningCash;
+    } else {
+      pendingTax = taxDue;
+    }
+
+    if (shortfall > EPSILON && primary) {
+      entries.push(
+        { year, account: 'Cash Shortfall', amount: -shortfall, module: '_cash_sweep', comment: 'Cash below target after sweep' }
+      );
+      if (action === 'none') action = 'shortfall';
     }
 
     sweepLog.push({
@@ -393,7 +445,20 @@ function computeCashSweepIterative({
     }
   }
 
-  return { entries, sweepLog };
+  // The final year's fixed point (CR049) draws in several passes, each emitting its own
+  // transfer pair and tax row. They are the same sale and the same tax bill, so fold them
+  // back into one entry per (year, account, module, comment) rather than showing the owner
+  // a dozen shrinking rows that are really one $205K tax. Every other year has at most one
+  // entry per key already — each source's comment names it — so this is a no-op there.
+  const merged = new Map();
+  for (const e of entries) {
+    const key = `${e.year}|${e.account}|${e.module}|${e.comment}`;
+    const seen = merged.get(key);
+    if (seen) seen.amount += e.amount;
+    else merged.set(key, { ...e });
+  }
+
+  return { entries: Array.from(merged.values()), sweepLog };
 }
 
 module.exports = { computeCashSweepIterative };

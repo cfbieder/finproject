@@ -314,7 +314,7 @@ describe("computeCashSweepIterative", () => {
     });
 
     test("paying the tax can itself force another sale — and that sale is taxed too", () => {
-      const { entries } = computeCashSweepIterative({
+      const { entries, sweepLog } = computeCashSweepIterative({
         ...stocksArgs,
         cashDeltaByYear: { 2027: -100000, 2028: 0, 2029: 0 },
         startingCash: 100000,
@@ -324,25 +324,64 @@ describe("computeCashSweepIterative", () => {
       // forces a 10k top-up sale, whose own gain (40%) is taxed 1k in 2029. This chain
       // is why the tax has to run inside the sweep and not as a post-pass.
       //
-      // 2029 carries two charges: the 1k deferred from 2028's sale, and 100 on the
-      // top-up 2029 itself had to make — which stays in 2029 because it is the last year.
-      const tax2029 = entries
-        .filter((e) => e.year === 2029 && e.account === "Taxes")
-        .map((e) => Math.round(e.amount));
-      expect(tax2029).toEqual([-1000, -100]);
+      // 2029 is the LAST year, so its own top-up tax cannot be deferred into 2030 — it
+      // must be funded by selling more, and that sale is taxed again (CR049). The chain
+      // 100 + 10 + 1 + … sums to 100/(1 - 0.1) = 111.11 on top of the 1k deferred from
+      // 2028, and the year still closes ON the band rather than under it.
+      // The passes converge to EPSILON ($0.01), not to the last cent — hence precision 1.
+      const tax2029 = entries.filter((e) => e.year === 2029 && e.account === "Taxes");
+      expect(tax2029).toHaveLength(1); // the passes are one sale and one bill, folded
+      expect(tax2029[0].amount).toBeCloseTo(-1111.11, 1);
+      expect(sweepLog.at(-1).cashAfter).toBeCloseTo(100000, 1);
     });
 
-    test("final-year tax has no next year to land in, so it stays put", () => {
-      const { entries } = computeCashSweepIterative({
+    test("a final-year sale funds its own tax — the horizon does not end under the band", () => {
+      // The prod bug (CR049): 2062 pulled $852K from Fidelity Stocks, restored cash to the
+      // band, and was then handed a $205K tax bill on that very sale with nothing sold to
+      // cover it — so the model ended showing negative cash beside $4.3M of sellable stock.
+      const { entries, sweepLog } = computeCashSweepIterative({
         ...stocksArgs,
         years: [2027],
         cashDeltaByYear: { 2027: -100000 },
         startingCash: 100000,
+        moduleBalanceByYear: { 2027: 1000000 },
+        moduleBasisByYear: { 2027: 600000 },
       });
+
+      // Need 100k. At a 10% effective rate the sale must gross up to 100k/(1 - 0.1)
+      // = 111,111.11, of which 11,111.11 goes to tax and 100k lands in the bank. The
+      // passes converge to EPSILON ($0.01), not to the last cent — hence precision 1.
       const tax = entries.filter((e) => e.account === "Taxes");
       expect(tax).toHaveLength(1);
       expect(tax[0].year).toBe(2027);
-      expect(tax[0].amount).toBeCloseTo(-10000, 2);
+      expect(tax[0].amount).toBeCloseTo(-11111.11, 1);
+
+      const sold = entries.find((e) => e.account === "Stock Account" && e.module === "_cash_sweep");
+      expect(sold.amount).toBeCloseTo(-111111.11, 1);
+
+      expect(sweepLog[0].cashAfter).toBeCloseTo(100000, 1); // ON the band, not under it
+      expect(entries.filter((e) => e.account === "Cash Shortfall")).toHaveLength(0);
+    });
+
+    test("a final-year tax the ranked modules cannot fund is reported as a shortfall", () => {
+      // Capacity, not sequencing, is the binding constraint here: the module holds 50k of
+      // pure gain against a 100k need. It sells everything, the tax still lands, and what
+      // is left unfunded must surface as a shortfall rather than as silent negative cash.
+      const { entries, sweepLog } = computeCashSweepIterative({
+        ...stocksArgs,
+        years: [2027],
+        cashDeltaByYear: { 2027: -100000 },
+        startingCash: 100000,
+        moduleBalanceByYear: { 2027: 50000 },
+        moduleBasisByYear: { 2027: 0 },
+      });
+
+      const shortfall = entries.find((e) => e.account === "Cash Shortfall");
+      expect(shortfall).toBeDefined();
+      // Sold all 50k, taxed 25% of the full gain = 12.5k. Cash = 100k - 100k + 50k - 12.5k
+      // = 37.5k, i.e. 62.5k below the 100k band.
+      expect(shortfall.amount).toBeCloseTo(-62500, 2);
+      expect(sweepLog[0].cashAfter).toBeCloseTo(37500, 2);
     });
   });
 
@@ -488,13 +527,16 @@ describe("computeCashSweepIterative", () => {
 
     test("a flat basis series is unchanged (no scheduled sales ⇒ old behavior)", () => {
       const { entries } = computeCashSweepIterative({
-        years: [2027, 2028],
+        // 2029 is here only so 2028 is not the LAST year: a terminal year has to fund its
+        // own tax by selling again (CR049), which would tangle that rule into what this
+        // test is actually about — the basis the sale is measured against.
+        years: [2027, 2028, 2029],
         cashSweepLow: 100000, cashSweepHigh: 200000,
-        cashDeltaByYear: { 2027: -100000, 2028: 0 },
+        cashDeltaByYear: { 2027: -100000, 2028: 0, 2029: 0 },
         startingCash: 100000,
         sweepModule: stocks,
-        moduleBalanceByYear: { 2027: 1000000, 2028: 1000000 },
-        moduleBasisByYear: { 2027: 600000, 2028: 600000 },
+        moduleBalanceByYear: { 2027: 1000000, 2028: 1000000, 2029: 1000000 },
+        moduleBasisByYear: { 2027: 600000, 2028: 600000, 2029: 600000 },
         moduleTaxRate: 25,
       });
       // Same as the pre-A2 arithmetic: 60% basis ratio, gain 40k, tax 10k.

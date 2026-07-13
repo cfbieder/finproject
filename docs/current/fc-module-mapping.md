@@ -105,7 +105,7 @@ Steps 2–8 run inside **one transaction** holding `pg_advisory_xact_lock(scenar
 
 ### Opening cash
 `startingCash` = LastActualYear **ledger** bank balance (FX-converted) **+ the BaseYear's net cash flow** (budget NCF + BaseYear `Transfer - Bank` entries). The BaseYear is then removed from the cash deltas so it can never be double-counted.
-Budget NCF is **budget-based, not engine-based**, and must mirror `crud.getBaseYearValues` exactly — including the §8 window filter and half-weighting.
+Budget NCF is **budget-based, not engine-based**, and **is** `crud.getBaseYearValues` — the engine calls it (passing its own transaction client), so it is the same figure the Review's BUDGET column shows, window filter and half-weighting included. *It used to be a hand-copied second query "mirroring" that function; the copy drifted and zeroed every non-liability module expense, so 2026's $64,717 of Property Costs never left the bank and the sweep opened rich for the whole horizon — CR049.*
 A missing COA account named **`Bank Accounts`** throws rather than silently starting from $0.
 
 ### Per-year sequence (PeriodStart … PeriodEnd)
@@ -118,7 +118,7 @@ A missing COA account named **`Bank Accounts`** throws rather than silently star
    b. the primary's **own balance** (a real sale ⇒ **taxed**),
    c. cascade into **backups** by priority.
    Anything still unfunded ⇒ a **`Cash Shortfall`** entry.
-6. Tax realized this year defers to Y+1 (in the final year it stays put — see §10).
+6. Tax realized this year defers to Y+1. **In the final year there is no Y+1**, so the tax lands here and the sale must also fund it: pay, re-check the band, sell again — repeating until the band holds or the ranked modules are out of capacity (see §10).
 
 ### Three invariants
 - **Forced sales are taxed.** Draining a module's own balance is a sale: proportional basis consumption, gain realized, taxed on the **gains** chain (`tax_rate_override ?? scenario rate`) — deliberately *not* the income override, because a liquidation is a gain.
@@ -186,7 +186,8 @@ Four nullable DATE columns on `forecast_modules` (migration 037): `income_start_
 ## 10. Tax Timing
 
 - **Deferred one year.** Tax realized in year Y is paid in Y+1 (both the module builder and the sweep).
-- **Final-year bunching.** The last year has no next year, so it carries **its own tax plus the prior year's deferred tax**. In the sweep, that tax lands *after* the final band check and can push the final year under the band — by design (CR048 A5).
+- **Final-year bunching.** The last year has no next year, so it carries **its own tax plus the prior year's deferred tax**. In the sweep that tax lands *after* the band check — so **the final year's sale must fund its own tax**: the drain is re-entrant (sell → pay the tax → re-check the band → sell again), converging in a few passes because each pass only funds the tax *on the previous pass's tax*. The passes are folded into one entry per account. If the ranked modules genuinely cannot fund it, the residue is a **`Cash Shortfall`**, not silent negative cash.
+  *Before CR049 the tax simply sat there unfunded: 2062 pulled $852K from Fidelity Stocks, restored the band, then took a $205K bill on that sale — ending at −$60,521 cash beside $4.3M of sellable stock, with no shortfall entry because the band check had already passed. (This supersedes CR048 A5, which had accepted the under-band final year as by-design.)*
 - **Base-year income tax** defers into **Period 1**, computed from the *booked* (possibly halved, possibly zero) base-year income.
 - **Only positive gains/income are taxed.** No loss netting, no carry-forward, no tax relief on losses (CR048 A4).
 
