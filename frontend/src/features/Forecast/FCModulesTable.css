@@ -12,12 +12,12 @@
   height: 100%;
 }
 
+/* Details moved into a modal (double-click), so the list gets the whole width. It used to
+   be a second column at 0.8fr, which squeezed Name/Account onto two lines and clipped the
+   Base (USD) column. */
 .fc-modules-panels {
   flex: 1;
-  display: grid;
-  grid-template-columns: minmax(0, 1.2fr) minmax(320px, 0.8fr);
-  gap: 1.25rem;
-  align-items: stretch;
+  display: block;
   height: 100%;
   min-height: 0;
 }
@@ -506,3 +506,38 @@
     font-size: 0.9rem;
   }
 }
+
+
+/* ============================================================================
+   DETAILS IN A MODAL — the Modal already supplies the card, title and scroll
+   container, so the panel drops its own chrome (gradient card inside a card).
+   ============================================================================ */
+
+.fc-modules-panel--modal {
+  background: none;
+  border: none;
+  box-shadow: none;
+  padding: 0;
+  height: auto;
+  max-height: none;
+}
+
+/* Column widths for the now full-width list: labels stay on one line, the short
+   token/numeric columns are sized to content so they stop stealing room. */
+.fc-modules-table th,
+.fc-modules-table td {
+  white-space: nowrap;
+}
+
+.fc-modules-table th:nth-child(1),
+.fc-modules-table td:nth-child(1) { width: 26%; }
+.fc-modules-table th:nth-child(2),
+.fc-modules-table td:nth-child(2) { width: 24%; }
+.fc-modules-table th:nth-child(3),
+.fc-modules-table td:nth-child(3) { width: 12%; }
+.fc-modules-table th:nth-child(4),
+.fc-modules-table td:nth-child(4) { width: 10%; }
+.fc-modules-table th:nth-child(5),
+.fc-modules-table td:nth-child(5) { width: 12%; }
+.fc-modules-table th:nth-child(6),
+.fc-modules-table td:nth-child(6) { width: 16%; }

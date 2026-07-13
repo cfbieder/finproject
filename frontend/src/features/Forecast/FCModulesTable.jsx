@@ -2,6 +2,7 @@ import { useMemo, useState } from "react";
 import { AlertTriangle } from "lucide-react";
 import EmptyState from "../../components/EmptyState.jsx";
 import "./FCModulesTable.css";
+import Modal from "../../components/Modal/Modal.jsx";
 
 /**
  * Formats a currency value without decimal places.
@@ -141,11 +142,13 @@ const renderIncomePct = (incomePct) => {
 };
 
 /**
- * FCModulesTable component displays forecast modules in a two-panel layout.
+ * FCModulesTable component displays forecast modules.
  *
  * Features:
- * - Left panel: Scrollable table of all modules with key metrics
- * - Right panel: Detailed view of selected module
+ * - Full-width scrollable table of all modules with key metrics
+ * - Details of the selected module in a modal, on double-click (it used to be a permanent
+ *   right-hand column that cost the table ~40% of the page — Name/Account wrapped onto two
+ *   lines and Base (USD) was clipped)
  * - Row selection highlighting
  * - Loading and error state handling
  * - Formatted display of currency, dates, and transfer data
@@ -172,6 +175,10 @@ export default function FCModulesTable({
   getModuleId,
   onRowDoubleClick,
 }) {
+  // Double-click a row → read it. `onRowDoubleClick` (the page's edit form) is now reached
+  // from this modal's footer instead, so looking at a module no longer drops you straight
+  // into an editable form.
+  const [detailsOpen, setDetailsOpen] = useState(false);
   const [typeFilter, setTypeFilter] = useState("all");
   const [matchedFilter, setMatchedFilter] = useState("all");
   const [statusFilter, setStatusFilter] = useState("all");
@@ -412,9 +419,7 @@ export default function FCModulesTable({
                           onClick={() => onSelectModule(moduleId)}
                           onDoubleClick={() => {
                             onSelectModule(moduleId);
-                            if (onRowDoubleClick) {
-                              onRowDoubleClick(module);
-                            }
+                            setDetailsOpen(true);
                           }}
                         >
                           <td className="fc-modules-table__td fc-modules-table__td--name">
@@ -509,12 +514,41 @@ export default function FCModulesTable({
             </div>
           </div>
 
-          {/* Right Panel - Module Details */}
-          <div className="fc-modules-panel fc-modules-panel--details">
-            <div className="fc-modules-panel__header">
-              <h3 className="fc-modules-panel__title">Module Details</h3>
-            </div>
+        </div>
+      </div>
 
+      {/* Details: a modal on double-click, not a permanent column. Edit is one click away
+          from here, since reading a module is usually what precedes changing it. */}
+      <Modal
+        open={detailsOpen}
+        onClose={() => setDetailsOpen(false)}
+        title={selectedModule?.Name || "Module Details"}
+        description={selectedModule?.Account}
+        size="large"
+        footer={
+          <>
+            <button
+              type="button"
+              className="btn"
+              onClick={() => setDetailsOpen(false)}
+            >
+              Close
+            </button>
+            <button
+              type="button"
+              className="btn btn--success"
+              disabled={!selectedModule}
+              onClick={() => {
+                setDetailsOpen(false);
+                if (onRowDoubleClick) onRowDoubleClick(selectedModule);
+              }}
+            >
+              Edit
+            </button>
+          </>
+        }
+      >
+        <div className="fc-modules-panel fc-modules-panel--details fc-modules-panel--modal">
             {selectedModule ? (
               <div className="fc-modules-details">
                 <div className="fc-modules-details__grid">
@@ -651,13 +685,11 @@ export default function FCModulesTable({
               </div>
             ) : (
               <div className="fc-modules-panel__placeholder">
-                <span className="fc-modules-panel__placeholder-icon">👈</span>
                 <p>Select a module to view details</p>
               </div>
             )}
-          </div>
         </div>
-      </div>
+      </Modal>
     </section>
   );
 }

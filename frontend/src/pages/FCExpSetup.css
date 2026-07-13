@@ -18,16 +18,41 @@
    MAIN LAYOUT
    ============================================================================ */
 
+/* The details panel used to sit in a second column, squeezing the table into ~60% of the
+   width — Account/Name wrapped one character per line. Details now open in a modal on
+   double-click, so the table gets the whole page. */
 .exp-setup-sections {
-  display: grid;
-  grid-template-columns: 1.2fr 0.8fr;
-  gap: 1.5rem;
+  display: block;
   flex: 1;
   min-height: 0;
   padding: 1.5rem;
   padding-bottom: 2rem;
   overflow-y: auto;
 }
+
+/* Column widths: the label columns need room to stay on one line; the numeric and
+   short-token columns are sized to their content so they stop stealing it. */
+.exp-setup-table .trans-budget-table th,
+.exp-setup-table .trans-budget-table td {
+  white-space: nowrap;
+}
+
+.exp-setup-table .trans-budget-table th:nth-child(1),
+.exp-setup-table .trans-budget-table td:nth-child(1) { width: 18%; }
+.exp-setup-table .trans-budget-table th:nth-child(2),
+.exp-setup-table .trans-budget-table td:nth-child(2) { width: 22%; }
+.exp-setup-table .trans-budget-table th:nth-child(3),
+.exp-setup-table .trans-budget-table td:nth-child(3) { width: 9%; }
+.exp-setup-table .trans-budget-table th:nth-child(4),
+.exp-setup-table .trans-budget-table td:nth-child(4) { width: 9%; }
+.exp-setup-table .trans-budget-table th:nth-child(5),
+.exp-setup-table .trans-budget-table td:nth-child(5) { width: 14%; }
+.exp-setup-table .trans-budget-table th:nth-child(6),
+.exp-setup-table .trans-budget-table td:nth-child(6) { width: 9%; }
+.exp-setup-table .trans-budget-table th:nth-child(7),
+.exp-setup-table .trans-budget-table td:nth-child(7) { width: 8%; }
+.exp-setup-table .trans-budget-table th:nth-child(8),
+.exp-setup-table .trans-budget-table td:nth-child(8) { width: 11%; }
 
 /* ============================================================================
    TABLE SECTIONS

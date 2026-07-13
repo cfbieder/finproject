@@ -22,6 +22,7 @@ export default function FCExpTableDetails({
   selectedEntry,
   formatDate,
   formatNumber,
+  embedded = false,
 }) {
   /**
    * Format change amount based on flag type
@@ -57,14 +58,17 @@ export default function FCExpTableDetails({
   const baseValue = formatBaseValue(selectedEntry?.BaseValue);
   const baseValueUsd = formatBaseValue(selectedEntry?.BaseValueUSD);
 
+  // `embedded`: rendered inside the details Modal, which already supplies the card, the
+  // title and the scroll container — so the section chrome would be a card inside a card.
+  const Wrapper = embedded ? "div" : "section";
   return (
-    <section
-      className="exp-setup-table section-table"
-      aria-label="Income and expense details"
+    <Wrapper
+      className={embedded ? "fc-exp-details--embedded" : "exp-setup-table section-table"}
+      aria-label={embedded ? undefined : "Income and expense details"}
     >
-      <div className="section-table__content">
-        <h3>Income/Expense Details</h3>
-        <div className="trans-budget-table-wrapper">
+      <div className={embedded ? "" : "section-table__content"}>
+        {!embedded && <h3>Income/Expense Details</h3>}
+        <div className={embedded ? "" : "trans-budget-table-wrapper"}>
           {!selectedScenario ? (
             <p className="trans-budget-table__message">
               Select a scenario to view income/expense details.
@@ -229,6 +233,6 @@ export default function FCExpTableDetails({
           )}
         </div>
       </div>
-    </section>
+    </Wrapper>
   );
 }

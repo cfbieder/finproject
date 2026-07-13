@@ -5,6 +5,7 @@ import FCExpFilter from "../features/Forecast/FCExpFilter.jsx";
 import FCAddFromLinesModal from "../features/Forecast/FCAddFromLinesModal.jsx";
 import FCExpTable from "../features/Forecast/FCExpTable.jsx";
 import FCExpTableDetails from "../features/Forecast/FCExpTableDetails.jsx";
+import Modal from "../components/Modal/Modal.jsx";
 import { useFCExpAssumptions } from "../features/Forecast/hooks/useFCExpAssumptions.js";
 import { useFCExpAccountHierarchy } from "../features/Forecast/hooks/useFCExpAccountHierarchy.js";
 import { useFCExpEntries } from "../features/Forecast/hooks/useFCExpEntries.js";
@@ -99,7 +100,16 @@ export default function FCExpSetup() {
   );
 
   const [showAddFromLinesModal, setShowAddFromLinesModal] = useState(false);
+  const [showDetailsModal, setShowDetailsModal] = useState(false);
   const [statusFilter, setStatusFilter] = useState("all");
+
+  // Double-click a row → read it. (It used to open the EDIT form, which meant there was
+  // no way to just look at an entry without being one keystroke from changing it.)
+  const openDetailsModal = (entry) => {
+    if (entry) setSelectedEntryId(getEntryId(entry));
+    setShowDetailsModal(true);
+  };
+  const closeDetailsModal = () => setShowDetailsModal(false);
 
   const filteredEntries = statusFilter === "all"
     ? sortedEntries
@@ -147,16 +157,46 @@ export default function FCExpSetup() {
             getEntryId={getEntryId}
             formatDate={formatDate}
             formatNumber={formatTableNumber}
-            onRowDoubleClick={openEditModal}
-          />
-          <FCExpTableDetails
-            selectedScenario={selectedScenario}
-            selectedEntry={selectedEntry}
-            formatDate={formatDate}
-            formatNumber={formatNumber}
+            onRowDoubleClick={openDetailsModal}
           />
         </div>
       </main>
+      {/* Details were a permanent right-hand column that cost the table 40% of its width.
+          Now a modal on double-click. Edit still lives on the toolbar; it is also one click
+          away from here, since reading a row is usually what precedes changing it. */}
+      <Modal
+        open={showDetailsModal}
+        onClose={closeDetailsModal}
+        title={selectedEntry?.Name || "Income/Expense Details"}
+        description={selectedEntry?.Account}
+        size="large"
+        footer={
+          <>
+            <button type="button" className="btn" onClick={closeDetailsModal}>
+              Close
+            </button>
+            <button
+              type="button"
+              className="btn btn--success"
+              onClick={() => {
+                closeDetailsModal();
+                openEditModal(selectedEntry);
+              }}
+              disabled={!selectedEntry}
+            >
+              Edit
+            </button>
+          </>
+        }
+      >
+        <FCExpTableDetails
+          selectedScenario={selectedScenario}
+          selectedEntry={selectedEntry}
+          formatDate={formatDate}
+          formatNumber={formatNumber}
+          embedded
+        />
+      </Modal>
       <FCExpConfirmDeleteModal
         isOpen={showDeleteModal}
         selectedEntry={selectedEntry}
