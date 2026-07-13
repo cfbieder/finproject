@@ -103,7 +103,9 @@ unit tests.
 
 **"2026 Downside" has no sweep backup.** `Fidelity Stocks` carries no `cash_sweep_priority` in
 that scenario (it does in "2026 Base" and "2026 Base - Market Returns"), so the engine reports
-a **−$766,103 shortfall in 2062 while $1,199,353 of stock sits untouched**. That is the CR045
+**−$229,616 (2061) and −$1,018,589 (2062) of shortfall while $1,199,353 of stock sits untouched**
+(pre-CR049 it read as −$766,103 in 2062 alone — this release made it both larger and honest, since
+the model was $65K/yr too rich and its final-year tax was never funded). That is the CR045
 §5 opt-in rule working as designed — an unranked module means "I cannot sell this" — but for a
 liquid brokerage account it is almost certainly a data slip from when the scenario was created.
 A one-row data fix (`cash_sweep_priority = 2`), left to the owner because it changes Downside's

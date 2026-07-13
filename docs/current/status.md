@@ -29,9 +29,11 @@
 
 ## Known issue
 - **"2026 Downside" has no sweep backup ranked.** `Fidelity Stocks` carries no `cash_sweep_priority`
-  there (it does in the other two scenarios), so the engine reports a **−$766K shortfall in 2062
-  while $1.2M of stock sits untouched**. That is CR045 §5 working as designed (unranked = "I cannot
-  sell this"), but for a liquid brokerage account it is almost certainly a data slip. One-row fix,
+  there (it does in the other two scenarios), so the engine reports **−$1.25M of shortfall across
+  2061–62 while $1.2M of stock sits untouched**. That is CR045 §5 working as designed (unranked =
+  "I cannot sell this"), but for a liquid brokerage account it is almost certainly a data slip.
+  *CR049 made this larger and more visible — it was −$766K in 2062 alone, on a model that was
+  $65K/yr too rich and never funded its final-year tax.* One-row fix (`cash_sweep_priority = 2`),
   left to the owner because it changes Downside's conclusions.
 
 ## Live infrastructure
