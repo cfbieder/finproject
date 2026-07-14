@@ -13,6 +13,7 @@
 
 const db = require('../../v2/db');
 const repo = require('../../v2/repositories').forecast;
+const variants = require('../../v2/services/forecastVariants'); // CR050
 
 /**
  * Resolve an account name to its id (null when absent/not found).
@@ -35,6 +36,12 @@ async function lookupAccountByName(name) {
  * values.
  */
 async function refreshModulesFromActuals(scenarioId, asOfDate) {
+  // CR050: this is a set-based UPDATE across every module in the scenario — it bypasses
+  // repo.updateModule entirely, so on a variant it would write rows the next sync silently
+  // erases. Re-basing from ledger actuals is the BASE scenario's job; a variant inherits the
+  // result. Refuse rather than lose the write.
+  await variants.assertNotVariant(scenarioId, 'Refresh from actuals');
+
   const result = await db.query(`
     UPDATE forecast_modules m
     SET base_value = COALESCE(b.balance_lc, 0),
@@ -100,6 +107,12 @@ async function clearOtherCashSweepTargets(scenarioId, excludeModuleId) {
  * touched.
  */
 async function replaceModuleSchedules(id, body) {
+  // CR050: on a variant's inherited module the schedules are an override, not a write — they
+  // replace wholesale (these child tables have no unique constraint to merge on), which is
+  // exactly what this function already does to the base's rows.
+  const intercepted = await variants.interceptSchedules('module', id, body);
+  if (intercepted.intercepted) return;
+
   await db.transaction(async (client) => {
     if (Array.isArray(body.Invest)) {
       await client.query('DELETE FROM forecast_module_investments WHERE module_id = $1', [id]);
@@ -181,6 +194,9 @@ async function resolveIncExpAccountFromFcLine(fcLineId) {
  * the provided ones (mirrors the route's previous non-transactional behavior).
  */
 async function replaceIncExpChanges(id, changes) {
+  const intercepted = await variants.interceptSchedules('incexp', id, changes); // CR050
+  if (intercepted.intercepted) return;
+
   await db.query('DELETE FROM forecast_incexp_changes WHERE incexp_id = $1', [id]);
   for (const change of changes) {
     if (change.Date || change.Amount !== undefined) {

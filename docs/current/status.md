@@ -3,9 +3,27 @@
 > The one mandatory read at session start. Keep ≤ ~60 lines; link onward, never restate.
 > CR statuses live in the [CR index](../cr/README.md); the running version lives in `VERSION`.
 
-**Last updated:** 2026-07-14 · **Live version:** v3.0.105 (see `VERSION` / git tags)
+**Last updated:** 2026-07-14 · **Live version:** v3.0.108 (see `VERSION` / git tags)
 
 ## Current phase
+- **[CR050](../cr/cr-050-forecast-scenario-variants.md) — forecast scenario VARIANTS (v3.0.108, 2026-07-14, migration 039).**
+  A scenario copy is a severed island: you duplicate 30 entities to change one field, nothing
+  records *which* field made it a downside, and the copies then rot. A **variant** now inherits
+  every item from its base unless overridden — overrides are a **JSONB patch keyed to the base
+  row's id** (field-level, because `NULL` is already load-bearing in these columns, so
+  "NULL = inherit" was never available), and a **sync step materializes base ⊕ overrides into real
+  rows**, so the engine, Review, Compare and the audit CSVs read an ordinary scenario and **do not
+  change**. A read-time overlay was rejected: reads are *not* funneled (engine loaders, repo
+  finders and `crud.getBaseYearValues` are three paths), which is exactly the CR049 drift. Sync's
+  column list comes from `information_schema` — the direct fix for the bug class that dropped
+  `cash_sweep_priority` (CR045 §1) and the assumptions (CR048) on the way into a copy.
+  **Proof:** a zero-override variant of "2026 Base" builds **1,426 entries byte-identical to its
+  base**; override one field and it pins while the base's *other* changes still flow through.
+  *The tests earned their keep*: the sweep-priority unique index tripped **transiently** mid-upsert
+  (valid final state, invalid intermediate one) — sync now parks the ranked flags first.
+  **Owner's next step:** read the `adopt-variant` dry-run for "2026 Downside" (22 differences —
+  and **8 modules differ only in `base_value_usd`**, which is not a downside assumption, it is the
+  copy having rotted) before adopting. Nothing is adopted yet; prod is untouched.
 - **Black Card feed incident (2026-07-14) — 31 duplicate transactions in prod, and the feed had
   been misrouting for a week.** Two sheet rows were both named `Black Card (9915)`; bank-feed's
   converter name-joins tx→account **last-wins**, and its id-based guard (added by `cc23929` for

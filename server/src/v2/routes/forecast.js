@@ -13,6 +13,7 @@ const repo = require('../repositories').forecast;
 const accountsRepo = require('../repositories').accounts;
 const validate = require('../utils/validate');
 const crud = require('../../services/forecast/crud');
+const variants = require('../services/forecastVariants'); // CR050
 const { generateForecast } = require('../../services/forecast');
 const { PATHS } = require('../../services/forecast/constants');
 
@@ -216,6 +217,15 @@ router.delete('/scenarios/byname/:name', async (req, res, next) => {
       return res.status(404).json({ error: 'Scenario not found' });
     }
 
+    // CR050: a base with variants is protected by an FK (ON DELETE RESTRICT), which would
+    // otherwise surface as a bare 500. Say what to do about it instead.
+    const children = await variants.variantsOf(scenario.id);
+    if (children.length > 0) {
+      return res.status(409).json({
+        error: `"${scenario.name}" is the base for ${children.map((c) => `"${c.name}"`).join(', ')}. Detach or delete ${children.length > 1 ? 'those variants' : 'that variant'} first.`,
+      });
+    }
+
     await repo.deleteScenario(scenario.id);
     res.json({ success: true });
   } catch (error) {
@@ -285,6 +295,134 @@ router.post('/scenarios/byname/:name/copy', async (req, res, next) => {
 });
 
 // ============================================================================
+// Scenario variants (CR050) — inherit-unless-overridden
+//
+// A variant stores only its overrides; syncVariant() materializes base ⊕ overrides into real
+// rows, so everything downstream keeps reading an ordinary scenario. These are also the forecast
+// API's FIRST real scenario-create route — creating a scenario is otherwise a side-effect of
+// PUT /assumptions.
+// ============================================================================
+
+// POST /api/v2/forecast/scenarios/:id/variant — create a variant of :id
+router.post('/scenarios/:id/variant', async (req, res, next) => {
+  try {
+    const baseId = parseInt(req.params.id, 10);
+    const name = (req.body?.name || '').trim();
+    if (!baseId || isNaN(baseId)) return res.status(400).json({ error: 'Invalid base scenario id' });
+    if (!name) return res.status(400).json({ error: 'Variant name is required' });
+
+    const variant = await variants.createVariant(baseId, { name, description: req.body?.description });
+    res.status(201).json({ data: variant });
+  } catch (error) {
+    if (/already exists|not supported|not found/i.test(error.message)) {
+      return res.status(409).json({ error: error.message });
+    }
+    console.error('[forecast/scenarios/variant POST] Failed:', error);
+    next(error);
+  }
+});
+
+// GET /api/v2/forecast/scenarios/:id/overrides — what makes this variant a variant
+router.get('/scenarios/:id/overrides', async (req, res, next) => {
+  try {
+    const id = parseInt(req.params.id, 10);
+    if (!id || isNaN(id)) return res.status(400).json({ error: 'Invalid scenario id' });
+    res.json({ data: await variants.listOverrides(id) });
+  } catch (error) {
+    console.error('[forecast/scenarios/overrides GET] Failed:', error);
+    next(error);
+  }
+});
+
+// PUT /api/v2/forecast/scenarios/:id/overrides/assumption/:key — period / inflation / FX / tax / band
+router.put('/scenarios/:id/overrides/assumption/:key', async (req, res, next) => {
+  try {
+    const id = parseInt(req.params.id, 10);
+    if (!id || isNaN(id)) return res.status(400).json({ error: 'Invalid scenario id' });
+    if (!variants.ASSUMPTION_KEYS.includes(req.params.key)) {
+      return res.status(400).json({ error: `Unknown assumption key '${req.params.key}'` });
+    }
+    if (!('value' in (req.body || {}))) return res.status(400).json({ error: 'Body must carry { value }' });
+
+    res.json({ data: await variants.setAssumptionOverride(id, req.params.key, req.body.value) });
+  } catch (error) {
+    console.error('[forecast/scenarios/overrides assumption PUT] Failed:', error);
+    next(error);
+  }
+});
+
+// DELETE /api/v2/forecast/scenarios/:id/overrides/:entityType/:baseEntityId — revert to base
+// ?field=growth_rate reverts a single field; without it, the whole entity.
+router.delete('/scenarios/:id/overrides/:entityType/:baseEntityId', async (req, res, next) => {
+  try {
+    const id = parseInt(req.params.id, 10);
+    const baseEntityId = parseInt(req.params.baseEntityId, 10);
+    const { entityType } = req.params;
+    if (!id || isNaN(id) || !baseEntityId || isNaN(baseEntityId)) {
+      return res.status(400).json({ error: 'Invalid id' });
+    }
+    if (!['module', 'incexp'].includes(entityType)) {
+      return res.status(400).json({ error: `Unknown entity type '${entityType}'` });
+    }
+
+    const result = await variants.clearOverride(id, entityType, baseEntityId, req.query.field || null);
+    res.json({ data: result });
+  } catch (error) {
+    console.error('[forecast/scenarios/overrides DELETE] Failed:', error);
+    next(error);
+  }
+});
+
+// POST /api/v2/forecast/scenarios/:id/sync — re-materialize (?dryRun reports staleness)
+router.post('/scenarios/:id/sync', async (req, res, next) => {
+  try {
+    const id = parseInt(req.params.id, 10);
+    if (!id || isNaN(id)) return res.status(400).json({ error: 'Invalid scenario id' });
+
+    if (req.query.dryRun !== undefined) {
+      return res.json({ data: { stale: await variants.needsSync(id) } });
+    }
+    res.json({ data: await variants.syncVariant(id, { force: true }) });
+  } catch (error) {
+    console.error('[forecast/scenarios/sync POST] Failed:', error);
+    next(error);
+  }
+});
+
+// POST /api/v2/forecast/scenarios/:id/adopt-variant — convert an existing COPY into a variant
+// Body: { baseId }. ?dryRun returns the diff without adopting — read it before you commit to it.
+router.post('/scenarios/:id/adopt-variant', async (req, res, next) => {
+  try {
+    const id = parseInt(req.params.id, 10);
+    const baseId = parseInt(req.body?.baseId, 10);
+    if (!id || isNaN(id) || !baseId || isNaN(baseId)) {
+      return res.status(400).json({ error: 'Both the scenario id and body.baseId are required' });
+    }
+
+    const result = await variants.adoptVariant(id, baseId, { dryRun: req.query.dryRun !== undefined });
+    res.json({ data: result });
+  } catch (error) {
+    if (/not supported|already a variant|itself|not found/i.test(error.message)) {
+      return res.status(409).json({ error: error.message });
+    }
+    console.error('[forecast/scenarios/adopt-variant POST] Failed:', error);
+    next(error);
+  }
+});
+
+// POST /api/v2/forecast/scenarios/:id/detach — promote a variant to a standalone scenario
+router.post('/scenarios/:id/detach', async (req, res, next) => {
+  try {
+    const id = parseInt(req.params.id, 10);
+    if (!id || isNaN(id)) return res.status(400).json({ error: 'Invalid scenario id' });
+    res.json({ data: await variants.detachVariant(id) });
+  } catch (error) {
+    console.error('[forecast/scenarios/detach POST] Failed:', error);
+    next(error);
+  }
+});
+
+// ============================================================================
 // Modules
 // ============================================================================
 
@@ -294,9 +432,18 @@ router.get('/modules', async (req, res, next) => {
     const { scenario } = req.query;
     let modules = [];
 
+    let inheritance = null;
+
     if (scenario) {
       const scenarioObj = await repo.findScenarioByName(scenario);
       if (scenarioObj) {
+        // CR050: a variant materializes lazily. Sync on READ (and at build), never as a fan-out
+        // from a base write — a variant whose resolved state is invalid must not be able to fail
+        // an edit to its base.
+        if (scenarioObj.parent_scenario_id) {
+          await variants.syncIfStale(scenarioObj.id);
+          inheritance = await variants.inheritanceMap(scenarioObj.id, 'module');
+        }
         modules = await repo.findModulesByScenario(scenarioObj.id);
       }
     } else {
@@ -335,6 +482,8 @@ router.get('/modules', async (req, res, next) => {
       SetupStatus: m.setup_status || 'new',
       CashSweepTarget: m.cash_sweep_target || false,
       CashSweepPriority: m.cash_sweep_priority ?? null,
+      // CR050 — Inherited · Overridden · Local, and which fields were overridden.
+      Inheritance: variants.rowInheritance(inheritance, m),
     }));
 
     // {data} envelope (CR043 N8). This used to return a BARE array while its sibling
@@ -622,15 +771,30 @@ router.put('/modules/:id', async (req, res, next) => {
     if (updateData.cash_sweep_priority != null) {
       const existing = await repo.findModuleById(id);
       if (existing) {
-        const clash = await crud.findCashSweepPriorityClash(existing.scenario_id, id, updateData.cash_sweep_priority);
-        if (clash) {
-          return res.status(409).json({
-            error: `Cash sweep priority ${updateData.cash_sweep_priority} is already used by "${clash.name}". Pick a different rank, or clear that module's priority first.`,
-          });
-        }
-        if (updateData.cash_sweep_priority === 1) {
-          // Legacy flag stays unique to the primary (no DB-level eviction of a real priority)
-          await crud.clearOtherCashSweepTargets(existing.scenario_id, id);
+        // CR050: on a VARIANT the same "no silent eviction" rule holds for the owner's own
+        // explicit choices — but a merely INHERITED rank yields to them (sync displaces it), and
+        // clearOtherCashSweepTargets would write sibling rows the next sync erases.
+        const inherited = await variants.inheritedRow('module', id);
+        if (inherited) {
+          const clash = await variants.explicitPriorityClash(
+            inherited.scenario_id, inherited.origin_base_id, updateData.cash_sweep_priority
+          );
+          if (clash) {
+            return res.status(409).json({
+              error: `Cash sweep priority ${updateData.cash_sweep_priority} is already overridden onto "${clash.name}" in this variant. Pick a different rank, or revert that module's priority first.`,
+            });
+          }
+        } else {
+          const clash = await crud.findCashSweepPriorityClash(existing.scenario_id, id, updateData.cash_sweep_priority);
+          if (clash) {
+            return res.status(409).json({
+              error: `Cash sweep priority ${updateData.cash_sweep_priority} is already used by "${clash.name}". Pick a different rank, or clear that module's priority first.`,
+            });
+          }
+          if (updateData.cash_sweep_priority === 1) {
+            // Legacy flag stays unique to the primary (no DB-level eviction of a real priority)
+            await crud.clearOtherCashSweepTargets(existing.scenario_id, id);
+          }
         }
       }
     }
@@ -760,10 +924,18 @@ router.get('/incomeexpense', async (req, res, next) => {
       return res.json({ entries: [] });
     }
 
+    // CR050 — a variant materializes lazily, on read and at build.
+    let inheritance = null;
+    if (scenario.parent_scenario_id) {
+      await variants.syncIfStale(scenario.id);
+      inheritance = await variants.inheritanceMap(scenario.id, 'incexp');
+    }
+
     const items = await repo.findIncExpByScenario(scenario.id);
 
     // Transform to PascalCase for frontend
     const transformed = items.map((item) => ({
+      Inheritance: variants.rowInheritance(inheritance, item),
       ...item,
       id: item.id,
       Scenario: scenarioName,

@@ -1,0 +1,39 @@
+/* CR050 — inheritance badges on a variant's rows.
+   Inherited is the quiet default (it is the common case, and it must not shout); overridden is
+   the one the eye should find, because it is the only thing that makes a variant a variant. */
+
+.fc-inheritance-badge {
+  margin-left: 0.4rem;
+  padding: 0.1rem 0.35rem;
+  border: 1px solid transparent;
+  border-radius: 0.25rem;
+  font-size: 0.65rem;
+  font-weight: 700;
+  vertical-align: middle;
+  white-space: nowrap;
+}
+
+.fc-inheritance-badge--inherited {
+  border-color: var(--border);
+  background: transparent;
+  color: var(--muted);
+}
+
+.fc-inheritance-badge--overridden {
+  border-color: var(--warning);
+  background: var(--warning-subtle);
+  color: var(--warning);
+}
+
+.fc-inheritance-badge--local {
+  border-color: var(--info);
+  background: transparent;
+  color: var(--info);
+}
+
+.fc-inheritance-badge--hidden {
+  border-color: var(--border);
+  background: transparent;
+  color: var(--muted);
+  text-decoration: line-through;
+}

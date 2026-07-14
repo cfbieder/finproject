@@ -8,6 +8,7 @@
  */
 
 const db = require('../db');
+const variants = require('../services/forecastVariants'); // CR050 — variant write interception
 
 // ============================================================================
 // Scenarios
@@ -400,14 +401,23 @@ async function updateModule(id, data) {
     'income_tax_rate_override'
   ];
 
+  const patch = {};
   for (const field of allowedFields) {
     if (data[field] !== undefined) {
       fields.push(`${field} = $${paramIndex++}`);
       params.push(data[field]);
+      patch[field] = data[field];
     }
   }
 
   if (fields.length === 0) return null;
+
+  // CR050: on a variant's INHERITED row this is not an update, it is an override. Intercepted
+  // here rather than in the route so that every caller is covered — PUT /modules/:id, PATCH
+  // /modules/bulk-update, and whatever comes next. A write that reached the row directly would
+  // be silently erased by the next sync, which is the one failure mode this feature must not have.
+  const intercepted = await variants.interceptWrite('module', id, patch);
+  if (intercepted.intercepted) return intercepted.row;
 
   fields.push('updated_at = NOW()');
   params.push(id);
@@ -421,6 +431,11 @@ async function updateModule(id, data) {
  * Delete a module
  */
 async function deleteModule(id) {
+  // CR050: deleting an inherited row on a variant is a TOMBSTONE ("hide this in Downside"),
+  // not a row delete — the next sync would otherwise re-materialize it from the base.
+  const intercepted = await variants.interceptDelete('module', id);
+  if (intercepted.intercepted) return intercepted.deleted;
+
   const sql = `DELETE FROM forecast_modules WHERE id = $1 RETURNING id`;
   const result = await db.query(sql, [id]);
   return result.rowCount > 0;
@@ -598,14 +613,20 @@ async function updateIncExp(id, data) {
     'growth_rate', 'comment', 'is_matched', 'setup_status'
   ];
 
+  const patch = {};
   for (const field of allowedFields) {
     if (data[field] !== undefined) {
       fields.push(`${field} = $${paramIndex++}`);
       params.push(data[field]);
+      patch[field] = data[field];
     }
   }
 
   if (fields.length === 0) return null;
+
+  // CR050 — see updateModule: on a variant's inherited row, an edit is an override.
+  const intercepted = await variants.interceptWrite('incexp', id, patch);
+  if (intercepted.intercepted) return intercepted.row;
 
   fields.push('updated_at = NOW()');
   params.push(id);
@@ -619,6 +640,9 @@ async function updateIncExp(id, data) {
  * Delete income/expense item
  */
 async function deleteIncExp(id) {
+  const intercepted = await variants.interceptDelete('incexp', id); // CR050: tombstone, not delete
+  if (intercepted.intercepted) return intercepted.deleted;
+
   const sql = `DELETE FROM forecast_income_expense WHERE id = $1 RETURNING id`;
   const result = await db.query(sql, [id]);
   return result.rowCount > 0;

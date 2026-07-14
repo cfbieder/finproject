@@ -19,6 +19,7 @@
  * @returns {JSX.Element} The forecast entries table
  */
 import EmptyState from "../../components/EmptyState.jsx";
+import FCInheritanceBadge from "./FCInheritanceBadge.jsx";
 
 export default function FCExpTable({
   entriesLoading,
@@ -93,6 +94,8 @@ export default function FCExpTable({
                       </td>
                       <td className="trans-budget-table__value">
                         {entry.Name || "—"}
+                        {/* CR050 — Inherited · Overridden · Local (nothing on a plain scenario) */}
+                        <FCInheritanceBadge inheritance={entry.Inheritance} />
                       </td>
                       <td className="trans-budget-table__value">
                         {entry.Type || "—"}

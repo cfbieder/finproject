@@ -1,0 +1,121 @@
+/* CR050 — lineage + the override set that defines a variant. */
+
+.fc-variant-panel {
+  margin-top: 1rem;
+  padding: 1rem 1.25rem;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg, 0.75rem);
+  background: var(--surface);
+}
+
+.fc-variant-panel__header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  flex-wrap: wrap;
+}
+
+.fc-variant-panel__title {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  margin: 0;
+  font-size: var(--text-md);
+}
+
+.fc-variant-panel__create {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.fc-variant-panel__note,
+.fc-variant-panel__empty {
+  margin: 0.75rem 0 0;
+  color: var(--muted);
+  font-size: var(--text-sm);
+}
+
+.fc-variant-panel__error {
+  margin: 0.75rem 0 0;
+  color: var(--danger);
+  font-size: var(--text-sm);
+}
+
+.fc-variant-panel__list {
+  margin: 0.75rem 0 0;
+  padding: 0;
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.fc-variant-panel__item {
+  padding: 0.6rem 0.75rem;
+  border: 1px solid var(--border);
+  border-radius: 0.5rem;
+  background: var(--surface-muted);
+}
+
+.fc-variant-panel__item-head {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+}
+
+.fc-variant-panel__entity {
+  flex: 1;
+  font-weight: 600;
+}
+
+.fc-variant-panel__tag--hidden {
+  padding: 0.1rem 0.35rem;
+  border: 1px solid var(--border);
+  border-radius: 0.25rem;
+  color: var(--muted);
+  font-size: var(--text-2xs);
+  text-transform: uppercase;
+}
+
+.fc-variant-panel__fields {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+  margin-top: 0.5rem;
+}
+
+.fc-variant-panel__field {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  padding: 0.15rem 0.4rem;
+  border: 1px solid var(--warning);
+  border-radius: 0.25rem;
+  background: var(--warning-subtle);
+  font-size: var(--text-xs);
+}
+
+.fc-variant-panel__value {
+  font-weight: 600;
+}
+
+.fc-variant-panel__revert-field {
+  display: inline-flex;
+  align-items: center;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: var(--muted);
+  cursor: pointer;
+}
+
+.fc-variant-panel__revert-field:hover:not(:disabled) {
+  color: var(--ink);
+}
+
+.fc-variant-panel__revert-field:disabled {
+  cursor: not-allowed;
+  opacity: 0.5;
+}

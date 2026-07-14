@@ -1,6 +1,7 @@
 import { useMemo, useState } from "react";
 import { AlertTriangle } from "lucide-react";
 import EmptyState from "../../components/EmptyState.jsx";
+import FCInheritanceBadge from "./FCInheritanceBadge.jsx";
 import "./FCModulesTable.css";
 import Modal from "../../components/Modal/Modal.jsx";
 
@@ -446,6 +447,9 @@ export default function FCModulesTable({
                                   SWEEP {module.CashSweepPriority}
                                 </span>
                               )}
+                              {/* CR050: on a variant, say where this row came from. Null (and so
+                                  nothing rendered) on a plain scenario. */}
+                              <FCInheritanceBadge inheritance={module?.Inheritance} />
                             </span>
                           </td>
                           <td className="fc-modules-table__td">

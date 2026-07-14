@@ -25,6 +25,7 @@ const { insertModuleEntries } = require("./fcbuilder-common");
 const { CATEGORIES, PATHS } = require("./constants");
 const { computeCashSweepIterative } = require("./cash-sweep");
 const crud = require("./crud");
+const variants = require("../../v2/services/forecastVariants"); // CR050 — variant materialization
 
 function buildScenarioCategories(accountNames, incomeCategories, expenseCategories) {
   const seen = new Set();
@@ -265,6 +266,19 @@ async function generateForecast(scenarioName) {
   console.log(`[FORECAST-GENERATE] Starting forecast generation for scenario: ${scenarioName}`);
 
   try {
+    // Step 0 (CR050): a VARIANT is materialized from base ⊕ overrides before it is built. This is
+    // the safety net — even if every other sync call point were missed, a rebuild is still
+    // correct, and the engine below goes on reading an ordinary, fully-populated scenario.
+    // It runs BEFORE loadScenarioConfig because sync writes the variant's slice of the
+    // assumptions document (period / inflation / FX / tax) that the config reader consumes.
+    const lineage = await db.query(
+      'SELECT id, parent_scenario_id FROM forecast_scenarios WHERE name = $1', [scenarioName]
+    );
+    if (lineage.rows[0] && lineage.rows[0].parent_scenario_id) {
+      const synced = await variants.syncVariant(lineage.rows[0].id, { force: true });
+      console.log(`[FORECAST-GENERATE] Variant synced from base: ${JSON.stringify(synced)}`);
+    }
+
     // Step 1: Load configuration
     const config = await loadScenarioConfig(scenarioName);
     const { scenario, categories, inflationRates, fxratesPLN, fxratesEUR, years } = config;

@@ -26,6 +26,7 @@
 import { useEffect, useState } from "react";
 import FCScenariosSelect from "../features/Forecast/FCScenariosSelect.jsx";
 import FCScenariosTable from "../features/Forecast/FCScenariosTable.jsx";
+import FCVariantPanel from "../features/Forecast/FCVariantPanel.jsx";
 import FCScenariosModal from "../features/Forecast/FCScenariosModal.jsx";
 import FCExpConfirmDeleteModal from "../features/Forecast/FCExpConfirmDeleteModal.jsx";
 import { useToast } from "../contexts";
@@ -933,6 +934,14 @@ export default function FCScenarios() {
           makeDefaultScenario={makeDefaultScenario}
           onCopyScenario={openCopyScenarioModal}
           hasPendingChanges={hasPendingChanges}
+        />
+
+        {/* CR050 — lineage and the override set. On a plain scenario it offers "create a variant";
+            on a variant it IS the scenario's definition ("Base, except these three things"), with
+            a revert per field. */}
+        <FCVariantPanel
+          selectedScenario={isNewScenario ? "" : selectedScenario}
+          onChanged={reloadDefaults}
         />
 
         {/* Data tables for inflation and FX assumptions */}
