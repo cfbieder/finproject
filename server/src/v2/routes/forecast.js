@@ -356,7 +356,7 @@ router.get('/modules/unmatched', async (req, res, next) => {
 
     const tree = await accountsRepo.getNestedTree({ section: 'balance_sheet' });
     if (!tree || tree.length === 0) {
-      return res.json([]);
+      return res.json({ data: [] });
     }
 
     const root = tree.find(n => n.name === 'Balance Sheet Accounts');
