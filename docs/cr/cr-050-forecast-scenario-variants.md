@@ -1,6 +1,6 @@
 # CR050 — Forecast Scenario Variants (inherit-unless-overridden)
 
-**Status:** IN-PROGRESS (shipped v3.0.108, 2026-07-14; awaiting owner acceptance + the adopt decision on "2026 Downside" / "2026 Upside") · **Track:** v3 · **Opened:** 2026-07-14
+**Status:** IN-PROGRESS (shipped v3.0.108, fix v3.0.110, 2026-07-14; awaiting owner acceptance + the adopt decision on "2026 Downside" / "2026 Upside") · **Track:** v3 · **Opened:** 2026-07-14
 **Depends on:** nothing. **Touches:** `forecast_scenarios`, `forecast_modules`,
 `forecast_income_expense`, `forecast_assumptions`, the forecast routes, and the three
 Forecast setup pages. **Does not touch the engine.**
@@ -232,3 +232,31 @@ Four paths bypass `updateModule` and each gets an explicit policy:
 a scenario with no parent behaves exactly as it does today.
 
 "2026 Upside" is converted with `adopt-variant` once the diff is reviewed.
+
+---
+
+## 9. Post-release fixes
+
+**v3.0.110 — one change showed as three (a `DATE` compared as an instant).** The owner changed a
+single field on a variant (Growth 1.0 → 2.0) and the panel reported **three** overrides:
+`base_date` and `income_pct` as well, both **byte-identical to the base**.
+
+The module edit form sends `BaseDate` as `new Date(x).toISOString()` — **UTC** midnight — while
+node-postgres parses a `DATE` column into a JS `Date` at **LOCAL** midnight. Same calendar day,
+different epoch, so the equality check called it a change: every save on a variant wrote a phantom
+`base_date` override, and a phantom `income_pct` one through its `effective_date`.
+
+*An override that means nothing is worse than no override* — it claims the owner pinned a value they
+never touched, and the override set is supposed to **be** the variant's definition. Two changes:
+
+1. These columns are **calendar days** — no time, no zone — so they are compared as days, reading a
+   `Date`'s **local** components (the zone node-postgres built it in).
+2. Sync now **prunes** patch keys that no longer differ from the base. That self-heals the phantoms
+   already written (prod's "2026 Upside" carried two), and it also catches the case where the *base*
+   later changes to match an override — which no write path would otherwise notice.
+
+Panel, per owner feedback: the revert control is an **X** (the circular arrow read as "refresh"), and
+each override renders as a table — **Field | \<base name\> | This variant** — labelled with the name
+from the edit form ("Growth (x Inflation)"), not the column (`growth_rate`).
+
+Tests: a **no-op save writes NO override**, and sync prunes a key equal to base.
