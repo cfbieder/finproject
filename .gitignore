@@ -44,3 +44,9 @@ ds-bundle/
 .design-sync/.cache/
 .design-sync/learnings/
 .design-sync/node_modules
+
+# Playwright (CR043 Phase 4)
+frontend/test-results/
+frontend/playwright-report/
+.e2e-api.log
+.e2e-web.log

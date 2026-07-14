@@ -6,6 +6,9 @@ import fs from "node:fs";
 
 // https://vite.dev/config/
 export default defineConfig(() => {
+  // Where /api is proxied. Defaults to the dev API; the Playwright e2e run points it at a
+  // throwaway API + throwaway Postgres so the suite can never touch dev or prod data.
+  const apiTarget = process.env.API_PROXY_TARGET || "http://localhost:3105";
   const certKeyPath = path.resolve(__dirname, "../certs/localhost-key.pem");
   const certPath = path.resolve(__dirname, "../certs/localhost.pem");
   const certsExist = fs.existsSync(certKeyPath) && fs.existsSync(certPath);
@@ -122,7 +125,9 @@ export default defineConfig(() => {
       port: 5174,
       proxy: {
         "/api": {
-          target: "http://localhost:3105",
+          // Dev still points at the dev API (:3105) by default. The Playwright e2e run
+          // overrides this to its own throwaway API so it never touches dev data.
+          target: apiTarget,
           changeOrigin: true,
         },
       },
@@ -132,6 +137,19 @@ export default defineConfig(() => {
             cert: fs.readFileSync(certPath),
           }
         : false,
+    },
+    // `vite preview` serves the BUILT bundle. The e2e suite runs against this rather than
+    // the dev server, so it tests what actually ships — including the service worker and
+    // the production chunking.
+    preview: {
+      host: "0.0.0.0",
+      port: 4173,
+      proxy: {
+        "/api": {
+          target: apiTarget,
+          changeOrigin: true,
+        },
+      },
     },
   };
 });
