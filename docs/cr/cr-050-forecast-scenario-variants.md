@@ -1,6 +1,6 @@
 # CR050 — Forecast Scenario Variants (inherit-unless-overridden)
 
-**Status:** IN-PROGRESS (shipped v3.0.108, fix v3.0.110, 2026-07-14; awaiting owner acceptance + the adopt decision on "2026 Downside" / "2026 Upside") · **Track:** v3 · **Opened:** 2026-07-14
+**Status:** IN-PROGRESS (shipped v3.0.108, fixes v3.0.110–111, 2026-07-14; awaiting owner acceptance + the adopt decision on "2026 Downside" / "2026 Upside") · **Track:** v3 · **Opened:** 2026-07-14
 **Depends on:** nothing. **Touches:** `forecast_scenarios`, `forecast_modules`,
 `forecast_income_expense`, `forecast_assumptions`, the forecast routes, and the three
 Forecast setup pages. **Does not touch the engine.**
@@ -260,3 +260,22 @@ each override renders as a table — **Field | \<base name\> | This variant** �
 from the edit form ("Growth (x Inflation)"), not the column (`growth_rate`).
 
 Tests: a **no-op save writes NO override**, and sync prunes a key equal to base.
+
+**v3.0.111 — float noise counted as a change, and the panel hid the number that changed.**
+
+1. **"Market Value (USD): 4175595 → 4175595".** The edit form derives `market_value_usd` by
+   dividing a local-currency amount by an FX rate, so it arrives as `4175594.9999999995`. The
+   column is `numeric(15,2)`: **once stored it is 4175595.00** — identical to the base. Comparing
+   the raw float rather than the value *as the column would hold it* turned an unchanged field into
+   an override. Values are now compared **and stored** at the column's own scale, taken from
+   `information_schema` — same principle as the column list itself: never hand-written, so a
+   migration that changes a scale is followed. The prune heals the patches already written.
+2. **"Yield Spread schedule: — → 1 entry"**, when the truth was **-0.5% → 1%**. The panel read the
+   base's values off the modules *list* payload, which carries no schedules — so for the one kind of
+   override where the number **is** the change, it printed a dash and a count.
+   `GET /scenarios/:id/overrides` now returns each base row **with its schedules** (the base row is
+   the server's to know), and the panel renders the values.
+
+*Both defects share a shape worth naming: an override must mean "different from Base". Anything
+that makes a same-value look different — a zone, a float, a missing payload — corrupts the one
+thing the panel exists to state.*
