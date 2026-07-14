@@ -3,7 +3,7 @@
 > The one mandatory read at session start. Keep ≤ ~60 lines; link onward, never restate.
 > CR statuses live in the [CR index](../cr/README.md); the running version lives in `VERSION`.
 
-**Last updated:** 2026-07-14 · **Live version:** v3.0.111 (see `VERSION` / git tags)
+**Last updated:** 2026-07-14 · **Live version:** v3.0.112 (see `VERSION` / git tags)
 
 ## Current phase
 - **[CR050](../cr/cr-050-forecast-scenario-variants.md) — forecast scenario VARIANTS (v3.0.108, 2026-07-14, migration 039).**

@@ -1,6 +1,6 @@
 # CR050 — Forecast Scenario Variants (inherit-unless-overridden)
 
-**Status:** IN-PROGRESS (shipped v3.0.108, fixes v3.0.110–111, 2026-07-14; awaiting owner acceptance + the adopt decision on "2026 Downside" / "2026 Upside") · **Track:** v3 · **Opened:** 2026-07-14
+**Status:** IN-PROGRESS (shipped v3.0.108, fixes v3.0.110–112, 2026-07-14; awaiting owner acceptance + the adopt decision on "2026 Downside" / "2026 Upside") · **Track:** v3 · **Opened:** 2026-07-14
 **Depends on:** nothing. **Touches:** `forecast_scenarios`, `forecast_modules`,
 `forecast_income_expense`, `forecast_assumptions`, the forecast routes, and the three
 Forecast setup pages. **Does not touch the engine.**
@@ -279,3 +279,18 @@ Tests: a **no-op save writes NO override**, and sync prunes a key equal to base.
 *Both defects share a shape worth naming: an override must mean "different from Base". Anything
 that makes a same-value look different — a zone, a float, a missing payload — corrupts the one
 thing the panel exists to state.*
+
+**v3.0.112 — FX / inflation / tax edits on a variant were invisible and erased by sync.** The
+inflation/FX/tax tables write the whole assumptions document directly, and the sweep band writes
+the scenario row directly — both bypass the override system. On a variant the edit never showed in
+the panel and the next `syncAssumptions` rewrote it from base, **silently erasing it** (prod's
+"2026 Downside" had a 2027 FX row one page-view from deletion). Fix: capture the edit as an
+assumption override at write time — `PUT /assumptions` and the sweep-band `PUT /scenarios/:id`
+reconcile each touched variant against its base. `diffAssumptions` no longer reports a phantom Tax
+Rate diff when the base has no tax entry. The overrides endpoint carries the base's assumption
+value so the panel shows *was → now*.
+
+*This is the fourth defect of one family (with the DATE-as-instant, the float-noise, and the
+missing-schedules fixes) — every one in how edits are **captured and reported** as overrides, never
+in the inheritance machinery, which has been correct since the first build. The assumption-editing
+UI in particular was built before variants existed.*
