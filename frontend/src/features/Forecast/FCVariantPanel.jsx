@@ -2,7 +2,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import PropTypes from "prop-types";
 import { GitBranch, Scissors, X } from "lucide-react";
 import Rest from "../../js/rest.js";
-import { fieldLabel, isScheduleField, formatFieldValue, formatSchedule } from "./fcFieldLabels.js";
+import { fieldLabel, isScheduleField, formatFieldValue, formatSchedule, formatAssumptionValue } from "./fcFieldLabels.js";
 import "./FCVariantPanel.css";
 
 /**
@@ -198,17 +198,41 @@ export default function FCVariantPanel({ selectedScenario, onChanged }) {
           ) : (
             <ul className="fc-variant-panel__list">
               {overrides.map((o) => {
-                const fields = Object.keys(o.patch || {});
+                const isAssumption = o.entity_type === "assumption";
+                // Normalize both shapes to the same rows: an assumption override is one row (the
+                // whole FX / inflation / tax value); a module/item override is one row per field.
+                const rows = isAssumption
+                  ? [{
+                      key: o.entity_key,
+                      fieldName: fieldLabel("assumption", o.entity_key),
+                      was: formatAssumptionValue(o.entity_key, o.base?.value),
+                      now: formatAssumptionValue(o.entity_key, o.patch?.value),
+                    }]
+                  : Object.keys(o.patch || {}).map((field) => ({
+                      key: field,
+                      fieldName: fieldLabel(o.entity_type, field),
+                      was: baseValueOf(o, field) === undefined
+                        ? "—"
+                        : isScheduleField(field)
+                          ? formatSchedule(field, baseValueOf(o, field))
+                          : formatFieldValue(baseValueOf(o, field)),
+                      now: isScheduleField(field)
+                        ? formatSchedule(field, o.patch[field])
+                        : formatFieldValue(o.patch[field]),
+                      revertable: true,
+                    }));
                 return (
                   <li key={o.id} className="fc-variant-panel__item">
                     <div className="fc-variant-panel__item-head">
-                      <span className="fc-variant-panel__entity">{label(o)}</span>
+                      <span className="fc-variant-panel__entity">
+                        {isAssumption ? "Scenario assumption" : label(o)}
+                      </span>
                       <span className="fc-variant-panel__count">
                         {o.is_deleted
                           ? "hidden in this variant"
-                          : `${fields.length} ${fields.length === 1 ? "change" : "changes"}`}
+                          : `${rows.length} ${rows.length === 1 ? "change" : "changes"}`}
                       </span>
-                      {o.entity_type !== "assumption" && (
+                      {!isAssumption && (
                         <button
                           type="button"
                           className="btn btn--ghost btn--sm"
@@ -221,7 +245,7 @@ export default function FCVariantPanel({ selectedScenario, onChanged }) {
                       )}
                     </div>
 
-                    {!o.is_deleted && fields.length > 0 && (
+                    {!o.is_deleted && rows.length > 0 && (
                       // Read as a sentence: the field, what the base says, what this variant says.
                       // A bare new value would send the reader off to look the base up.
                       <table className="fc-variant-panel__changes">
@@ -234,41 +258,27 @@ export default function FCVariantPanel({ selectedScenario, onChanged }) {
                           </tr>
                         </thead>
                         <tbody>
-                          {fields.map((field) => {
-                            const was = baseValueOf(o, field);
-                            const now = o.patch[field];
-                            return (
-                              <tr key={field}>
-                                <th scope="row">{fieldLabel(o.entity_type, field)}</th>
-                                <td className="fc-variant-panel__was">
-                                  {was === undefined
-                                    ? "—"
-                                    : isScheduleField(field)
-                                      ? formatSchedule(field, was)
-                                      : formatFieldValue(was)}
-                                </td>
-                                <td className="fc-variant-panel__now">
-                                  {isScheduleField(field)
-                                    ? formatSchedule(field, now)
-                                    : formatFieldValue(now)}
-                                </td>
+                          {rows.map((row) => (
+                              <tr key={row.key}>
+                                <th scope="row">{row.fieldName}</th>
+                                <td className="fc-variant-panel__was">{row.was}</td>
+                                <td className="fc-variant-panel__now">{row.now}</td>
                                 <td className="fc-variant-panel__revert-cell">
-                                  {o.entity_type !== "assumption" && (
+                                  {row.revertable && (
                                     <button
                                       type="button"
                                       className="fc-variant-panel__revert-field"
-                                      onClick={() => revert(o, field)}
+                                      onClick={() => revert(o, row.key)}
                                       disabled={busy}
-                                      aria-label={`Revert ${fieldLabel(o.entity_type, field)} on ${label(o)} to the ${base.name} value`}
-                                      title={`Revert ${fieldLabel(o.entity_type, field)} to ${base.name}`}
+                                      aria-label={`Revert ${row.fieldName} on ${label(o)} to the ${base.name} value`}
+                                      title={`Revert ${row.fieldName} to ${base.name}`}
                                     >
                                       <X size={13} aria-hidden="true" />
                                     </button>
                                   )}
                                 </td>
                               </tr>
-                            );
-                          })}
+                          ))}
                         </tbody>
                       </table>
                     )}

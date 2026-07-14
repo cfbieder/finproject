@@ -15,6 +15,7 @@
 const variants = require('../forecastVariants');
 const repo = require('../../repositories/forecast');
 const crud = require('../../../services/forecast/crud');
+const assumpRepo = require('../../repositories/forecastAssumptions');
 const db = require('../../db');
 
 const dbDescribe = process.env.SKIP_DB_TESTS ? describe.skip : describe;
@@ -479,6 +480,40 @@ dbDescribe('forecastVariants (DB)', () => {
     expect(orphan.rows[0].origin_base_id).toBeNull();
 
     await db.query('DELETE FROM forecast_modules WHERE id = $1', [inVariant.rows[0].id]);
+  });
+
+  test('an FX edit on a variant becomes an override and SURVIVES sync (no silent erase)', async () => {
+    // The regression: the inflation/FX/tax tables write the whole assumptions document directly,
+    // bypassing the override system. On a variant that edit was invisible in the panel AND the next
+    // syncAssumptions rewrote the variant's FX from base — silently erasing it.
+    const doc = await assumpRepo.getDoc();
+    const fx = Array.isArray(doc.FX) ? doc.FX : [];
+
+    // Simulate the Scenarios page writing a variant-only 2027 FX row straight to the doc.
+    fx.push({ Scenario: VARIANT, Year: 2027, Rates: { PLN: 4.5, EUR: 0.9 } });
+    await assumpRepo.putDoc({ ...doc, FX: fx });
+
+    // What the route does after PUT /assumptions.
+    await variants.reconcileAssumptionOverrides(variantId);
+
+    const overrides = await variants.listOverrides(variantId);
+    const fxOverride = overrides.find((o) => o.entity_key === 'FX');
+    expect(fxOverride).toBeTruthy(); // the FX edit was captured as an override
+
+    // The edit must survive a subsequent sync — this is the data-loss guard.
+    await variants.syncVariant(variantId, { force: true });
+    const after = (await assumpRepo.getDoc()).FX.filter((e) => e.Scenario === VARIANT);
+    const has2027 = after.some((e) => Number(e.Year) === 2027 && Number(e.Rates.PLN) === 4.5);
+    expect(has2027).toBe(true); // the 2027 FX row is still there after sync
+
+    // Removing the row from the doc and reconciling drops the variant back to the base's FX.
+    const doc2 = await assumpRepo.getDoc();
+    await assumpRepo.putDoc({
+      ...doc2,
+      FX: doc2.FX.filter((e) => !(e.Scenario === VARIANT && Number(e.Year) === 2027)),
+    });
+    await variants.reconcileAssumptionOverrides(variantId);
+    expect(await variants.listOverrides(variantId)).toHaveLength(0);
   });
 
   test('an income/expense item overrides and reverts like a module', async () => {

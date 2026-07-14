@@ -160,6 +160,19 @@ router.put('/assumptions', async (req, res, next) => {
     // The 'scenarios' key keeps PeriodStart/PeriodEnd, which the engine needs.
     await assumpRepo.putDoc(body);
 
+    // CR050: the inflation/FX/tax tables write the whole document directly, bypassing the override
+    // system. On a VARIANT that edit would otherwise be invisible in the panel AND erased by the
+    // next sync (which rewrites the variant's assumptions from its base). Capture it as an override
+    // now, while intent is unambiguous — the user just saved. Each variant touched by this write
+    // is reconciled against its base.
+    const allScenarios = await repo.findAllScenarios({ activeOnly: false });
+    const editedNames = new Set((body.scenarios || []).map((s) => s && s.Name).filter(Boolean));
+    for (const s of allScenarios) {
+      if (s.parent_scenario_id && (editedNames.size === 0 || editedNames.has(s.name))) {
+        await variants.reconcileAssumptionOverrides(s.id);
+      }
+    }
+
     res.json({ success: true });
   } catch (error) {
     console.error('[forecast/assumptions PUT] Failed:', error);
@@ -253,6 +266,16 @@ router.put('/scenarios/:id', async (req, res, next) => {
     if (!updated) {
       return res.status(404).json({ error: 'Scenario not found' });
     }
+
+    // CR050: the sweep band is written straight to the scenario row here, but on a variant sync
+    // rewrites it from base ⊕ override — so an un-captured band edit is erased. If a band field
+    // changed on a variant, reconcile it into an override now (the row already holds the new value,
+    // so the diff picks it up). See reconcileAssumptionOverrides.
+    if (updated.parent_scenario_id &&
+        (req.body.cash_sweep_low !== undefined || req.body.cash_sweep_high !== undefined)) {
+      await variants.reconcileAssumptionOverrides(updated.id);
+    }
+
     res.json({ data: updated });
   } catch (error) {
     console.error('[forecast/scenarios/:id] PUT failed:', error);

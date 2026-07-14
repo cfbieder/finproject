@@ -110,6 +110,33 @@ export function formatSchedule(field, list) {
 }
 
 /**
+ * Render an assumption override value: the inflation / FX lists as readable per-year rows, the
+ * scalars (period, tax, sweep band) as themselves. Keeps the panel honest about what changed —
+ * "2027: PLN 4.5 / EUR 0.86", not "1 entry".
+ */
+export function formatAssumptionValue(entityKey, value) {
+  if (value === null || value === undefined || value === "") return "—";
+
+  if (entityKey === "FX") {
+    if (!Array.isArray(value) || value.length === 0) return "—";
+    return value
+      .map((r) => {
+        const rates = Object.entries(r.Rates || {})
+          .map(([cur, v]) => `${cur} ${formatFieldValue(v)}`)
+          .join(" / ");
+        return `${r.Year}: ${rates}`;
+      })
+      .join("  ·  ");
+  }
+  if (entityKey === "inflation") {
+    if (!Array.isArray(value) || value.length === 0) return "—";
+    return value.map((r) => `${r.Year}: ${formatFieldValue(r.Rate)}%`).join("  ·  ");
+  }
+  if (entityKey === "Tax Rate") return `${formatFieldValue(value)}%`;
+  return formatFieldValue(value);
+}
+
+/**
  * Render a stored value for display. Dates print as the calendar day they denote — the form sends
  * them as full ISO timestamps, and "2025-12-31T00:00:00.000Z" in a summary panel is noise.
  */

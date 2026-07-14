@@ -147,9 +147,17 @@ async function listOverrides(scenarioId, client = db) {
  */
 async function listOverridesWithBase(variantId, client = db) {
   const overrides = await listOverrides(variantId, client);
+  const variant = await getScenario(client, variantId);
+  const base = variant && variant.parent_scenario_id ? await getScenario(client, variant.parent_scenario_id) : null;
+  const doc = overrides.some((o) => o.entity_type === 'assumption') ? await assumpRepo.getDoc() : null;
 
   for (const o of overrides) {
-    if (o.entity_type === 'assumption') continue;
+    if (o.entity_type === 'assumption') {
+      // The panel shows was → now for assumptions too. The base's value lives in the document
+      // (period / inflation / FX / tax) or on the base row (sweep band) — the server's to know.
+      o.base = base ? { value: baseAssumptionValue(doc, base, o.entity_key) } : null;
+      continue;
+    }
     const table = ENTITY_TABLES[o.entity_type];
     const row = (await client.query(`SELECT * FROM ${table} WHERE id = $1`, [o.base_entity_id])).rows[0];
     if (!row) {
@@ -163,6 +171,29 @@ async function listOverridesWithBase(variantId, client = db) {
     o.base = { name: row.name, values: row, schedules };
   }
   return overrides;
+}
+
+/** The base scenario's value for one assumption key, shaped like the override's `patch.value`. */
+function baseAssumptionValue(doc, base, key) {
+  const asList = (raw) => {
+    const list = typeof raw === 'string' ? JSON.parse(raw) : raw;
+    return Array.isArray(list) ? list : [];
+  };
+  if (key === 'PeriodStart' || key === 'PeriodEnd') {
+    const entry = asList(doc.scenarios).find((e) => e && e.Name === base.name);
+    return entry ? entry[key] : undefined;
+  }
+  if (key === 'inflation' || key === 'FX') {
+    return asList(doc[key])
+      .filter((e) => e && e.Scenario === base.name)
+      .map(({ Scenario, id, ...rest }) => rest); // eslint-disable-line no-unused-vars
+  }
+  if (key === 'Tax Rate') {
+    const entry = asList(doc['Tax Rate']).find((e) => e && e.Scenario === base.name);
+    return entry ? entry.Rate : undefined;
+  }
+  if (key === 'cash_sweep_low' || key === 'cash_sweep_high') return base[key];
+  return undefined;
 }
 
 /**
@@ -257,6 +288,63 @@ async function clearOverride(variantId, entityType, baseEntityId, field = null) 
     }
     return syncVariant(variantId, { client, force: true });
   });
+}
+
+/**
+ * Reconcile a variant's assumptions (period / inflation / FX / tax / sweep band) against its base,
+ * turning any difference into an assumption override and clearing overrides that now match base —
+ * then re-sync so the document becomes canonical again.
+ *
+ * WHY THIS EXISTS. The inflation / FX / tax tables on the Scenarios page have their OWN editing UI
+ * that writes the whole `forecast_assumptions` document directly (and the sweep band writes the
+ * scenario row directly). Both predate variants and bypass the override system. On a variant that
+ * is broken two ways: the edit is not recorded as an override (so the panel never shows it), and
+ * the next `syncAssumptions` rewrites the variant's entries from the base, **silently erasing the
+ * edit**. This closes both by capturing the edit as an override at WRITE time — where intent is
+ * unambiguous, because the user just hit Save — rather than trying to infer it at sync time (a
+ * variant's inherited-but-stale value is indistinguishable from a deliberate one there).
+ *
+ * Called after PUT /assumptions (doc written) and after a variant's sweep-band write (row written),
+ * so it always diffs against freshly persisted state. Idempotent.
+ */
+async function reconcileAssumptionOverrides(variantId, client = db) {
+  const run = async (c) => {
+    const variant = await getScenario(c, variantId);
+    if (!variant || !variant.parent_scenario_id) return { reconciled: false, reason: 'not-a-variant' };
+    const base = await getScenario(c, variant.parent_scenario_id);
+
+    const diff = await diffAssumptions(c, variant, base); // [{ entityKey, value }, …]
+    const wanted = new Map(diff.map((d) => [d.entityKey, d.value]));
+
+    for (const [key, value] of wanted) {
+      await c.query(
+        `INSERT INTO forecast_scenario_overrides (scenario_id, entity_type, entity_key, patch)
+         VALUES ($1, 'assumption', $2, $3::jsonb)
+         ON CONFLICT (scenario_id, entity_key) WHERE entity_key IS NOT NULL
+         DO UPDATE SET patch = $3::jsonb, updated_at = NOW()`,
+        [variantId, key, JSON.stringify({ value })]
+      );
+    }
+    // An assumption override that no longer differs from base is inheritance, not an override.
+    const existing = (await c.query(
+      `SELECT entity_key FROM forecast_scenario_overrides
+        WHERE scenario_id = $1 AND entity_type = 'assumption'`,
+      [variantId]
+    )).rows;
+    for (const row of existing) {
+      if (!wanted.has(row.entity_key)) {
+        await c.query(
+          `DELETE FROM forecast_scenario_overrides
+            WHERE scenario_id = $1 AND entity_type = 'assumption' AND entity_key = $2`,
+          [variantId, row.entity_key]
+        );
+      }
+    }
+
+    await syncVariant(variantId, { client: c, force: true });
+    return { reconciled: true, keys: [...wanted.keys()] };
+  };
+  return client === db ? db.transaction(run) : run(client);
 }
 
 /** An assumption override (period / inflation / FX / tax / sweep band). */
@@ -919,7 +1007,12 @@ async function diffAssumptions(client, scenario, base) {
   const taxList = asList(doc['Tax Rate']);
   const mineTax = taxList.find((e) => e && e.Scenario === scenario.name);
   const baseTax = taxList.find((e) => e && e.Scenario === base.name);
-  if (mineTax && (!baseTax || !valuesEqual(mineTax.Rate, baseTax.Rate))) {
+  const baseRate = baseTax ? baseTax.Rate : undefined;
+  // A tax override must carry a real rate. When base has none, sync writes the variant an echo
+  // entry with Rate=undefined, which is NOT a difference (both inherit "the scenario default") —
+  // reporting it produced a phantom override with an empty patch. `null` means inherit, never an
+  // override value; `0` is a real rate and passes.
+  if (mineTax && mineTax.Rate != null && !valuesEqual(mineTax.Rate, baseRate)) {
     out.push({ entityKey: 'Tax Rate', value: mineTax.Rate });
   }
 
@@ -1016,6 +1109,7 @@ module.exports = {
   tombstone,
   clearOverride,
   setAssumptionOverride,
+  reconcileAssumptionOverrides,
   needsSync,
   syncIfStale,
   syncVariant,
