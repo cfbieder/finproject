@@ -80,12 +80,18 @@ test.describe("write paths — the value must survive a reopen", () => {
 
     await row.getByTitle("Edit").click();
 
-    // NB: the COA editor is one of the 14 bespoke dialogs still NOT on the shared <Modal>
-    // primitive (check-modal-adoption baseline), so there is no role="dialog" to scope to.
-    // Its <label> also wraps the <select> without a for/id pair, so getByLabel() cannot see
-    // it either — hence this structural locator. Both are accessibility defects, not test
-    // quirks: a screen reader has the same trouble. Migrating the dialog fixes both.
-    const typeSelect = page.locator("label", { hasText: "Type" }).locator("select");
+    // The COA editor is now on the shared <Modal> primitive, and its labels are wired to
+    // their controls — so this can scope to the dialog and ask for the field BY NAME.
+    //
+    // It could not before: the editor was an unlabelled `position: fixed` div (assistive tech
+    // was never told a dialog had opened), and its <label> wrapped the <select> with no
+    // for/id pair — so the accessible name became "Type asset liability equity income
+    // expense…", i.e. every option's text. getByLabel() could not find it, and a screen
+    // reader announced that same soup. The test needing a structural locator was the symptom;
+    // the a11y defect was the disease.
+    const dialog = page.getByRole("dialog");
+    await expect(dialog).toBeVisible();
+    const typeSelect = dialog.getByLabel("Type", { exact: true });
     await expect(typeSelect).toHaveValue("expense");
     await typeSelect.selectOption("income");
 

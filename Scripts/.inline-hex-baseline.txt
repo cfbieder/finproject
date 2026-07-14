@@ -1,6 +1,6 @@
 4 features/Budgets/BudgetRealizationContent.jsx
 1 features/COAManagement/COACategoryPicker.jsx
-20 features/COAManagement/COAEditModal.jsx
+14 features/COAManagement/COAEditModal.jsx
 6 features/COAManagement/COAMoveModal.jsx
 1 features/CashFlow/CashFlowDateSelector.jsx
 1 features/CashFlow/CashFlowDateSelectorMonthYear.jsx

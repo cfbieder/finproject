@@ -537,13 +537,24 @@ export default function FCLineMapping() {
                 <span style={{ fontSize: "0.8rem", color: "#7FA37F", fontWeight: 600 }}>
                   {selectedCatIds.size} selected
                 </span>
+                {/* When no FC line is picked, this button used to read "Assign to ..." and sit
+                    greyed out, saying nothing about WHY — the user had selected categories and
+                    was left guessing that a destination was also required. A disabled control
+                    must state its own precondition; an ellipsis is not an explanation. */}
                 <button
                   className="btn btn--primary"
                   onClick={() => selectedLineId && handleAssignSelected(selectedLineId)}
                   disabled={!selectedLineId}
+                  title={
+                    selectedLineId
+                      ? `Assign the ${selectedCatIds.size} selected to "${selectedLine?.name}"`
+                      : "Pick an FC line on the right first — that is where the selection will be assigned"
+                  }
                   style={{ fontSize: "0.75rem", padding: "0.2rem 0.5rem", opacity: selectedLineId ? 1 : 0.5 }}
                 >
-                  Assign to {selectedLine?.name || "..."}
+                  {selectedLineId
+                    ? `Assign to ${selectedLine?.name}`
+                    : "Pick an FC line first"}
                 </button>
                 <button
                   onClick={() => setSelectedCatIds(new Set())}

@@ -1,4 +1,5 @@
 import COACategoryPicker from "./COACategoryPicker.jsx";
+import Modal from "../../components/Modal/Modal.jsx";
 
 const capitalize = (s) => (s ? s.charAt(0).toUpperCase() + s.slice(1) : s);
 
@@ -48,21 +49,17 @@ export default function COAEditModal({
   const savingLabel = isAdd ? "Adding..." : "Saving...";
 
   return (
-    <div
-      style={{
-        position: "fixed",
-        inset: 0,
-        background: "rgba(15, 23, 42, 0.45)",
-        display: "flex",
-        alignItems: "center",
-        justifyContent: "center",
-        zIndex: 3000,
-        padding: "1rem",
-      }}
-    >
+    // <Modal bare>: Radix supplies the portal, the overlay, the focus trap, ESC, and the
+    // dialog ARIA role. The hand-rolled `position: fixed` overlay this replaces had NONE of
+    // them — and it was not even a *bespoke* dialog, it was an unlabelled div, so assistive
+    // tech was never told a dialog had opened at all. (That is why it never showed up in the
+    // modal-adoption baseline: that guard counts overlays that at least declare themselves.)
+    // `bare` keeps this card's own look, so the migration is visually 1:1 — the same pattern
+    // used for the ten Forecast dialogs in CR042 U4.
+    <Modal open={open} onClose={onClose} bare closeOnOutside={false} ariaLabel={title}>
       <div
         style={{
-          background: "#fff",
+          background: "var(--surface)",
           borderRadius: "14px",
           width: isQuickAdd ? "600px" : "520px",
           maxWidth: "95vw",
@@ -105,22 +102,25 @@ export default function COAEditModal({
             ✕
           </button>
         </div>
-        <label
+        <div
           style={{
             display: "flex",
             flexDirection: "column",
             gap: "0.35rem",
           }}
         >
-          <span style={{ fontWeight: 700, color: "#2D3436" }}>{isQuickAddCategory ? "Category" : "Account"}</span>
+          <label htmlFor="coa-edit-name" style={{ fontWeight: 700, color: "var(--ink)" }}>
+            {isQuickAddCategory ? "Category" : "Account"}
+          </label>
           <input
+            id="coa-edit-name"
             className="form-input"
             value={isMultiEdit ? "Multiple accounts selected" : row.name}
             onChange={(event) => onFieldChange("name", event.target.value)}
             disabled={isMultiEdit}
             readOnly={isMultiEdit}
           />
-        </label>
+        </div>
         {mode === "add" && !isQuickAdd && (
           <label
             style={{
@@ -226,15 +226,23 @@ export default function COAEditModal({
             </label>
           </div>
         )}
-        {!isQuickAddCategory && !isCategoryAdd && <label
+        {/* The <label> must sit BESIDE the control, not wrap it. A label that wraps a <select>
+            takes every <option>'s text into its accessible name — so this field announced
+            itself as "Type asset liability equity income expense…" to a screen reader, and
+            getByLabel("Type") could not find it either. htmlFor/id cannot fix that while the
+            control is still inside the label; the wrapper has to become a plain div. */}
+        {!isQuickAddCategory && !isCategoryAdd && <div
           style={{
             display: "flex",
             flexDirection: "column",
             gap: "0.35rem",
           }}
         >
-          <span style={{ fontWeight: 700, color: "#2D3436" }}>Type</span>
+          <label htmlFor="coa-edit-type" style={{ fontWeight: 700, color: "var(--ink)" }}>
+            Type
+          </label>
           <select
+            id="coa-edit-type"
             className="form-input"
             value={
               customTypeEnabled && !typeOptions.includes(row.type)
@@ -282,16 +290,19 @@ export default function COAEditModal({
               }}
             />
           )}
-        </label>}
-        {!isQuickAddCategory && !isCategoryAdd && <label
+        </div>}
+        {!isQuickAddCategory && !isCategoryAdd && <div
           style={{
             display: "flex",
             flexDirection: "column",
             gap: "0.35rem",
           }}
         >
-          <span style={{ fontWeight: 700, color: "#2D3436" }}>Currency</span>
+          <label htmlFor="coa-edit-currency" style={{ fontWeight: 700, color: "var(--ink)" }}>
+            Currency
+          </label>
           <select
+            id="coa-edit-currency"
             className="form-input"
             value={row.currency || ""}
             disabled={isCategoryEdit}
@@ -307,16 +318,22 @@ export default function COAEditModal({
               </option>
             ))}
           </select>
-        </label>}
-        {!isQuickAddCategory && !isCategoryAdd && <label
+        </div>}
+        {!isQuickAddCategory && !isCategoryAdd && <div
           style={{
             display: "flex",
             flexDirection: "column",
             gap: "0.35rem",
           }}
         >
-          <span style={{ fontWeight: 700, color: "#2D3436" }}>Account #</span>
+          <label
+            htmlFor="coa-edit-account-number"
+            style={{ fontWeight: 700, color: "var(--ink)" }}
+          >
+            Account #
+          </label>
           <input
+            id="coa-edit-account-number"
             className="form-input"
             value={row.accountNumber}
             placeholder={
@@ -329,9 +346,9 @@ export default function COAEditModal({
               onFieldChange("accountNumber", event.target.value)
             }
           />
-        </label>}
+        </div>}
         {editError && (
-          <p style={{ margin: 0, color: "#b91c1c", fontWeight: 700 }}>
+          <p style={{ margin: 0, color: "var(--danger)", fontWeight: 700 }}>
             {editError}
           </p>
         )}
@@ -367,6 +384,6 @@ export default function COAEditModal({
           </button>
         </div>
       </div>
-    </div>
+    </Modal>
   );
 }
