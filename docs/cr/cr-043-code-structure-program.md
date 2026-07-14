@@ -1,6 +1,6 @@
 # CR043 — Code Structure & Architecture Improvement Program (2026-07-11 Review)
 
-**Status:** ✅ **COMPLETE** for Phases 0–3 (v3.0.63 → v3.0.104) — **the lint gate is BLOCKING**, the response envelope is unified behind `Rest.unwrap()`, and `util.js` is split behind new tests. What remains is **Phase 4** only (TypeScript utilities-first; Playwright smoke over the money paths) — long-horizon, not blocking anything. Produced by the 2026-07-11 three-lens review. Companion CRs: [CR042](cr-042-ui-look-and-feel.md) (UI — ✅ complete), [CR044](cr-044-productization-marketability.md) (marketability).
+**Status:** ✅ **COMPLETE** (v3.0.63 → v3.0.105) — Phases 0–3 plus **Phase 4's Playwright smoke**. The lint gate is BLOCKING, the response envelope is unified behind `Rest.unwrap()`, `util.js` is split behind new tests, and a 4-spec Playwright suite now runs the money paths against a throwaway stack on every push — **verified to fail** when the pre-N8 consumer is restored. Only the **TypeScript migration** remains open, and it is a standing option rather than a plan. Produced by the 2026-07-11 three-lens review. Companion CRs: [CR042](cr-042-ui-look-and-feel.md) (UI — ✅ complete), [CR044](cr-044-productization-marketability.md) (marketability).
 **Track:** v3 — explicitly **excludes** the v4/CR027 flag work; two items (migration runner, N11; demo seed reuse noted in CR044) deliberately pull v3-safe slices forward from CR027 scope.
 **Anchor in FC_NEXT_STEPS.md:** [cr043](../current/project-roadmap.md#cr043)
 
@@ -124,8 +124,8 @@ Enumerating the contracts did what enumeration usually does: it found **four dea
 
 **Phase 4 — Longer horizon**
 
-- TypeScript migration utilities-first (L) — materially cheaper after 3.1/3.3 shrink the surface.
-- Playwright smoke over the 3–4 money paths (M) — the only e2e gap left once Phases 0–1 land.
+- TypeScript migration utilities-first (L) — materially cheaper after 3.1/3.3 shrink the surface. **Still open** — a standing option, not a plan.
+- Playwright smoke over the 3–4 money paths (M) — ✅ **DONE v3.0.105.** 4 specs, 4.1 s, against a **throwaway** Postgres + API (never dev/prod) serving the **built** bundle. The hard part was the SEED, not the specs: after migrations + ci-seed the DB has 9 accounts and no data, so every page renders empty — *indistinguishable from the bug being hunted*. `server/db/e2e-seed.sql` builds the smallest world where each path yields a number worth asserting on (net worth **108,500.00**), and it deliberately contains the **periodic-transfer** shape that hid the v3.0.98 bug for two years. Four things the app requires that no doc states surfaced while building it — reports SUM `base_amount` not `amount`; budget groups by `category_id`; the engine needs a `scenarios` **array** in the assumptions document; and `forecast_modules.setup_status` defaults to `'new'`, which the engine **skips** (so the forecast "generates successfully" with `modulesProcessed: 0`). Each produced a green-looking page with no data. **Proven to catch what it claims:** removing `Rest.unwrap()` from `useModules` — the pre-N8 consumer — makes the modules spec FAIL. A green suite that cannot fail is worse than none; that is exactly the false confidence the year-matching unit test gave while Modify Transfer displayed nothing.
 - Report-page consolidation is CR042 U5 (owner decision).
 
 **Testing ROI order:** (a) CI vitest step (free); (b) supertest on `forecast.js`/`budget.js` writes; (c) golden-master engine fixture extending `e2e-engine.test.js` (protects 1.3/2.3); (d) Playwright last.

@@ -3,7 +3,7 @@
 > The one mandatory read at session start. Keep ≤ ~60 lines; link onward, never restate.
 > CR statuses live in the [CR index](../cr/README.md); the running version lives in `VERSION`.
 
-**Last updated:** 2026-07-13 · **Live version:** v3.0.104 (see `VERSION` / git tags)
+**Last updated:** 2026-07-13 · **Live version:** v3.0.105 (see `VERSION` / git tags)
 
 ## Current phase
 - **Owner acceptance + re-test loop (2026-07-13), and it earned its keep.** The owner walked the
@@ -69,6 +69,16 @@
 - Deploy: `./Scripts/deploy-to-production.sh` (DB backup first). Migrations: manual `psql -f`, registry in [migrations.md](migrations.md); runner shipped in CR043 P1.1 (`npm run migrate`).
 
 ## Recently shipped
+- v3.0.105 — **CR043 Phase 4: a Playwright suite that clicks the money paths.** Every bug this
+  session was the same shape — not a wrong number, a **missing** one — and every unit test passed
+  straight through, because a unit test on a code path that never receives data passes happily.
+  4 specs, 4.1 s, against a **throwaway** Postgres + API (never dev/prod) serving the **built**
+  bundle; runs in CI on every push. The hard part was the **seed**: after migrations the DB is
+  empty, so every page renders blank — *indistinguishable from the bug being hunted*.
+  [`e2e-seed.sql`](../../server/db/e2e-seed.sql) builds the smallest world where each path yields
+  a real number (net worth **108,500.00**) and deliberately contains the **periodic-transfer**
+  shape that hid the v3.0.98 bug for two years. **Proven to catch it:** restoring the pre-N8
+  consumer makes the suite FAIL — a green suite that cannot fail is worse than none.
 - v3.0.102–104 — **CR043 closes.** Lint gate **blocking** (the last 7 errors were real: hooks-after-
   early-return, refs read during render, an accumulator mutated in a render loop). N8: one response
   envelope, migrated via `Rest.unwrap()` (which tolerates both shapes) so no consumer and endpoint
