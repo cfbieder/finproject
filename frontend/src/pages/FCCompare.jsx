@@ -196,6 +196,49 @@ export default function FCCompare() {
 
   const sameScenario = scenarioA && scenarioA === scenarioB;
 
+  // Rebuild BOTH sides, then reload. Compare diffs two `/entries` payloads, so a scenario that
+  // was never generated — or was edited since it last was — reads as "only in the other one",
+  // which looks like a finding and isn't. Review has a Generate for one scenario; here it has to
+  // be both, or the comparison is between a fresh scenario and a stale one.
+  //
+  // SEQUENTIAL, not parallel: the engine takes pg_advisory_xact_lock(scenario_id) and rebuilds
+  // inside one transaction. Two builds would not corrupt each other, but firing them together
+  // buys nothing and makes a failure harder to attribute. A variant (CR050) re-materializes from
+  // its base at the top of its own build, so ordering A before B is enough — no extra step here.
+  const [generating, setGenerating] = useState(false);
+  const [generateError, setGenerateError] = useState("");
+  const [generateResult, setGenerateResult] = useState("");
+
+  const handleGenerateBoth = async () => {
+    if (!scenarioA || !scenarioB || generating) return;
+
+    setGenerating(true);
+    setGenerateError("");
+    setGenerateResult("");
+
+    // Comparing a scenario with itself is legal (every delta is zero) — don't build it twice.
+    const targets = sameScenario ? [scenarioA] : [scenarioA, scenarioB];
+
+    try {
+      const built = [];
+      for (const name of targets) {
+        const result = await Rest.fetchJson(
+          `/api/v2/forecast/generate/${encodeURIComponent(name)}`,
+          { method: "POST" }
+        );
+        built.push(`${name} (${result?.entriesCreated ?? 0} entries)`);
+      }
+      dataA.reload();
+      dataB.reload();
+      setGenerateResult(`Rebuilt ${built.join(" · ")}`);
+    } catch (err) {
+      // Name the scenario that failed — "generation failed" over two scenarios is half an answer.
+      setGenerateError(err.message || "Failed to generate the forecasts");
+    } finally {
+      setGenerating(false);
+    }
+  };
+
   return (
     <main className="page-main trans-budget-main">
       <FCStepNav />
@@ -266,8 +309,26 @@ export default function FCCompare() {
           />
           Hide unchanged rows
         </label>
+
+        {/* Rebuilds A and B, so the comparison is between two current forecasts. */}
+        <button
+          type="button"
+          className="btn btn--primary fc-compare-generate"
+          onClick={handleGenerateBoth}
+          disabled={generating || loading || !scenarioA || !scenarioB}
+          title={
+            sameScenario
+              ? `Rebuild "${scenarioA}"`
+              : `Rebuild both "${scenarioA}" and "${scenarioB}" from their current modules and assumptions`
+          }
+        >
+          <span aria-hidden="true">⚡</span>
+          {generating ? "Generating both..." : "Generate both"}
+        </button>
       </div>
 
+      {generateError && <div className="fc-compare-error">{generateError}</div>}
+      {generateResult && <div className="fc-compare-hint">{generateResult}</div>}
       {error && <div className="fc-compare-error">{error}</div>}
       {sameScenario && (
         <div className="fc-compare-hint">

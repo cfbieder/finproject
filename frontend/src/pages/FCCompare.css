@@ -400,3 +400,13 @@
   font-size: 0.72rem;
   color: var(--ink-tertiary);
 }
+
+/* Rebuild both sides. Sits at the end of the toolbar, after the read-only view toggles — it is
+   the only control here that changes data, so it is the only one styled as a primary action. */
+.fc-compare-generate {
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+  margin-bottom: 0.25rem;
+  white-space: nowrap;
+}
