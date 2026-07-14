@@ -1,7 +1,8 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import PropTypes from "prop-types";
-import { GitBranch, RotateCcw, Scissors } from "lucide-react";
+import { GitBranch, Scissors, X } from "lucide-react";
 import Rest from "../../js/rest.js";
+import { fieldLabel, isScheduleField, formatFieldValue } from "./fcFieldLabels.js";
 import "./FCVariantPanel.css";
 
 /**
@@ -50,19 +51,24 @@ export default function FCVariantPanel({ selectedScenario, onChanged }) {
         return;
       }
 
+      const baseName = all.find((r) => r.id === me.parent_scenario_id)?.name || "";
       const [ov, mods, items] = await Promise.all([
         Rest.get(`/forecast/scenarios/${me.id}/overrides`),
-        Rest.get(`/forecast/modules?scenario=${encodeURIComponent(all.find((r) => r.id === me.parent_scenario_id)?.name || "")}`),
-        Rest.get(`/forecast/incomeexpense?scenario=${encodeURIComponent(all.find((r) => r.id === me.parent_scenario_id)?.name || "")}`),
+        Rest.get(`/forecast/modules?scenario=${encodeURIComponent(baseName)}`),
+        Rest.get(`/forecast/incomeexpense?scenario=${encodeURIComponent(baseName)}`),
       ]);
 
-      // The overrides key on the BASE row's id, so resolve those ids to names for display.
-      const moduleNames = {};
-      for (const m of mods?.data || []) moduleNames[m.id] = m.Name;
-      const itemNames = {};
-      for (const i of items?.entries || []) itemNames[i.id] = i.Name;
+      // The overrides key on the BASE row's id, so keep the whole base row: the panel shows what a
+      // field WAS as well as what it is now — "Growth 1 → 2" is the sentence the owner wants; a
+      // bare "2" makes them go and look the base up.
+      // These payloads spread the raw row alongside the PascalCase form fields, so the snake_case
+      // columns the patch is keyed by are readable straight off them.
+      const moduleRows = {};
+      for (const m of mods?.data || []) moduleRows[m.id] = m;
+      const itemRows = {};
+      for (const i of items?.entries || []) itemRows[i.id] = i;
 
-      setNames({ modules: moduleNames, incexp: itemNames });
+      setNames({ modules: moduleRows, incexp: itemRows });
       setOverrides(ov?.data || []);
       setError("");
     } catch (e) {
@@ -123,11 +129,30 @@ export default function FCVariantPanel({ selectedScenario, onChanged }) {
 
   if (!scenario) return null;
 
+  const baseRowOf = (o) =>
+    (o.entity_type === "module" ? names.modules : names.incexp)[o.base_entity_id] || null;
+
   const label = (o) =>
     o.entity_type === "assumption"
-      ? o.entity_key
-      : (o.entity_type === "module" ? names.modules : names.incexp)[o.base_entity_id] ||
-        `#${o.base_entity_id}`;
+      ? fieldLabel("assumption", o.entity_key)
+      : baseRowOf(o)?.Name || `#${o.base_entity_id}`;
+
+  /** What the field was in the base, so each row reads "was → now". */
+  const baseValueOf = (o, field) => {
+    if (o.entity_type === "assumption") return undefined;
+    const row = baseRowOf(o);
+    if (!row) return undefined;
+    if (isScheduleField(field)) {
+      const list =
+        field === "income_pct" ? row.IncomePct
+        : field === "investments" ? row.Invest
+        : field === "disposals" ? row.Dispose
+        : field === "changes" ? row.Changes
+        : null;
+      return Array.isArray(list) ? list : undefined;
+    }
+    return row[field];
+  };
 
   return (
     <section className="fc-variant-panel" aria-label="Scenario lineage and overrides">
@@ -200,54 +225,76 @@ export default function FCVariantPanel({ selectedScenario, onChanged }) {
             </p>
           ) : (
             <ul className="fc-variant-panel__list">
-              {overrides.map((o) => (
-                <li key={o.id} className="fc-variant-panel__item">
-                  <div className="fc-variant-panel__item-head">
-                    <span className="fc-variant-panel__entity">{label(o)}</span>
-                    {o.is_deleted ? (
-                      <span className="fc-variant-panel__tag fc-variant-panel__tag--hidden">
-                        hidden in this variant
+              {overrides.map((o) => {
+                const fields = Object.keys(o.patch || {});
+                return (
+                  <li key={o.id} className="fc-variant-panel__item">
+                    <div className="fc-variant-panel__item-head">
+                      <span className="fc-variant-panel__entity">{label(o)}</span>
+                      <span className="fc-variant-panel__count">
+                        {o.is_deleted
+                          ? "hidden in this variant"
+                          : `${fields.length} ${fields.length === 1 ? "change" : "changes"}`}
                       </span>
-                    ) : null}
-                    {o.entity_type !== "assumption" && (
-                      <button
-                        type="button"
-                        className="btn btn--ghost btn--sm"
-                        onClick={() => revert(o)}
-                        disabled={busy}
-                        title={`Revert everything on "${label(o)}" back to ${base.name}`}
-                      >
-                        <RotateCcw size={13} aria-hidden="true" /> Revert all
-                      </button>
-                    )}
-                  </div>
-
-                  {!o.is_deleted && (
-                    <div className="fc-variant-panel__fields">
-                      {Object.entries(o.patch || {}).map(([field, value]) => (
-                        <span key={field} className="fc-variant-panel__field">
-                          <code>{field}</code>
-                          <span className="fc-variant-panel__value">
-                            {Array.isArray(value) ? `${value.length} row(s)` : String(value)}
-                          </span>
-                          {o.entity_type !== "assumption" && (
-                            <button
-                              type="button"
-                              className="fc-variant-panel__revert-field"
-                              onClick={() => revert(o, field)}
-                              disabled={busy}
-                              aria-label={`Revert ${field} on ${label(o)} to the base value`}
-                              title={`Revert only ${field} to ${base.name}`}
-                            >
-                              <RotateCcw size={12} aria-hidden="true" />
-                            </button>
-                          )}
-                        </span>
-                      ))}
+                      {o.entity_type !== "assumption" && (
+                        <button
+                          type="button"
+                          className="btn btn--ghost btn--sm"
+                          onClick={() => revert(o)}
+                          disabled={busy}
+                          title={`Revert everything on "${label(o)}" back to ${base.name}`}
+                        >
+                          <X size={13} aria-hidden="true" /> Revert all
+                        </button>
+                      )}
                     </div>
-                  )}
-                </li>
-              ))}
+
+                    {!o.is_deleted && fields.length > 0 && (
+                      // Read as a sentence: the field, what the base says, what this variant says.
+                      // A bare new value would send the reader off to look the base up.
+                      <table className="fc-variant-panel__changes">
+                        <thead>
+                          <tr>
+                            <th scope="col">Field</th>
+                            <th scope="col">{base.name}</th>
+                            <th scope="col">This variant</th>
+                            <th scope="col" aria-label="Revert" />
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {fields.map((field) => {
+                            const was = baseValueOf(o, field);
+                            const now = o.patch[field];
+                            return (
+                              <tr key={field}>
+                                <th scope="row">{fieldLabel(o.entity_type, field)}</th>
+                                <td className="fc-variant-panel__was">
+                                  {was === undefined ? "—" : formatFieldValue(was)}
+                                </td>
+                                <td className="fc-variant-panel__now">{formatFieldValue(now)}</td>
+                                <td className="fc-variant-panel__revert-cell">
+                                  {o.entity_type !== "assumption" && (
+                                    <button
+                                      type="button"
+                                      className="fc-variant-panel__revert-field"
+                                      onClick={() => revert(o, field)}
+                                      disabled={busy}
+                                      aria-label={`Revert ${fieldLabel(o.entity_type, field)} on ${label(o)} to the ${base.name} value`}
+                                      title={`Revert ${fieldLabel(o.entity_type, field)} to ${base.name}`}
+                                    >
+                                      <X size={13} aria-hidden="true" />
+                                    </button>
+                                  )}
+                                </td>
+                              </tr>
+                            );
+                          })}
+                        </tbody>
+                      </table>
+                    )}
+                  </li>
+                );
+              })}
             </ul>
           )}
         </>

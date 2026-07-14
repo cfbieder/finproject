@@ -298,6 +298,7 @@ async function syncEntity(c, { variantId, baseId, entityType, overrides }) {
   for (const baseRow of baseRows) {
     const ov = patchFor.get(baseRow.id);
     if (ov && ov.is_deleted) continue;
+    if (ov) await pruneOverride(c, ov, baseRow, table); // self-heal: see below
     const patch = ov ? ov.patch : {};
     const row = { ...baseRow };
     for (const [key, value] of Object.entries(patch)) {
@@ -399,6 +400,44 @@ function resolveSweepFlags(resolved) {
     if (patchedTarget != null && r.row.cash_sweep_target === true && r.baseId !== patchedTarget) {
       r.row.cash_sweep_target = false;
     }
+  }
+}
+
+/**
+ * Drop patch keys that no longer differ from the base — mutating `ov.patch` in place so the caller
+ * materializes the pruned version.
+ *
+ * An override must always MEAN something: "this is different from Base". A key that matches the
+ * base is noise in the panel and a lie in the audit trail — it claims the owner pinned a value they
+ * never touched. `mergeEntityOverride` already refuses to store such a key, so this is the repair
+ * arm: it heals patches written before the date-comparison fix (which wrote a phantom `base_date`
+ * and `income_pct` on every save), and it also catches the case where the BASE later changes to
+ * match the override, which no write path would otherwise notice.
+ */
+async function pruneOverride(c, ov, baseRow, table) {
+  const scheduleKeys = SCHEDULE_KEYS[table];
+  const pruned = { ...ov.patch };
+  let changed = false;
+
+  for (const key of Object.keys(pruned)) {
+    const same = scheduleKeys.includes(key)
+      ? await scheduleEqualsBase(c, key, baseRow.id, pruned[key])
+      : key in baseRow && valuesEqual(baseRow[key], pruned[key]);
+    if (same) {
+      delete pruned[key];
+      changed = true;
+    }
+  }
+  if (!changed) return;
+
+  ov.patch = pruned;
+  if (Object.keys(pruned).length === 0) {
+    await c.query('DELETE FROM forecast_scenario_overrides WHERE id = $1', [ov.id]);
+  } else {
+    await c.query(
+      'UPDATE forecast_scenario_overrides SET patch = $1::jsonb WHERE id = $2',
+      [JSON.stringify(pruned), ov.id]
+    );
   }
 }
 
@@ -838,15 +877,40 @@ async function variantsOf(baseId, client = db) {
 
 // ---------------------------------------------------------------------------
 
+const DATEISH = /^\d{4}-\d{2}-\d{2}(T.*)?$/;
+
+/**
+ * The calendar day a value denotes, or null if it isn't a date.
+ *
+ * These columns are `DATE` — a calendar day, with no time and no zone. But the two sides of a
+ * comparison arrive in different shapes: node-postgres parses a DATE into a JS `Date` at **local**
+ * midnight, while the module edit form sends `new Date(value).toISOString()` — **UTC** midnight.
+ * Same day, different epoch, so an epoch comparison called them different and every save wrote a
+ * phantom `base_date` override (and, through `effective_date`, a phantom `income_pct` one). The
+ * owner changed one field and the panel showed three.
+ *
+ * So compare the DAY, not the instant — reading a `Date`'s LOCAL components, because that is the
+ * zone node-postgres built it in.
+ */
+function calendarDay(value) {
+  if (value instanceof Date) {
+    const pad = (n) => String(n).padStart(2, '0');
+    return `${value.getFullYear()}-${pad(value.getMonth() + 1)}-${pad(value.getDate())}`;
+  }
+  if (typeof value === 'string' && DATEISH.test(value)) return value.slice(0, 10);
+  return null;
+}
+
 /** Numeric/date-tolerant equality — pg gives us numerics as strings and dates as Date objects. */
 function valuesEqual(a, b) {
   if (a === b) return true;
   if (a == null || b == null) return a == null && b == null;
-  if (a instanceof Date || b instanceof Date) {
-    const da = a instanceof Date ? a : new Date(a);
-    const dbb = b instanceof Date ? b : new Date(b);
-    return da.getTime() === dbb.getTime();
-  }
+
+  const dayA = calendarDay(a);
+  const dayB = calendarDay(b);
+  if (dayA && dayB) return dayA === dayB;
+  if (dayA || dayB) return false; // a date against a non-date is a real difference
+
   const na = Number(a);
   const nb = Number(b);
   if (!Number.isNaN(na) && !Number.isNaN(nb) && a !== '' && b !== '') return na === nb;

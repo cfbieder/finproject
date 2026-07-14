@@ -225,6 +225,57 @@ dbDescribe('forecastVariants (DB)', () => {
     expect(await variants.listOverrides(variantId)).toHaveLength(0);
   });
 
+  test('a save that changes nothing writes NO override — dates are compared as calendar days', async () => {
+    // The regression this pins: the module edit form sends BaseDate as new Date(x).toISOString()
+    // — UTC midnight — while node-postgres parses the DATE column into a Date at LOCAL midnight.
+    // Same calendar day, different epoch, so equality said "changed" and every save wrote a
+    // phantom base_date override, plus a phantom income_pct one via its effective_date. The owner
+    // changed ONE field (growth 1.0 → 2.0) and the panel showed THREE.
+    const vMod = (await db.query(
+      'SELECT * FROM forecast_modules WHERE scenario_id = $1 AND origin_base_id = $2',
+      [variantId, baseModA]
+    )).rows[0];
+
+    const asFormWouldSend = (d) => new Date(d).toISOString(); // 2025-12-31 → 2025-12-31T00:00:00.000Z
+
+    await repo.updateModule(vMod.id, { base_date: asFormWouldSend(vMod.base_date) });
+    await crud.replaceModuleSchedules(vMod.id, {
+      IncomePct: [{ Date: asFormWouldSend('2027-01-01'), Amount: 1.5 }], // identical to the base's
+    });
+
+    expect(await variants.listOverrides(variantId)).toHaveLength(0);
+
+    // And the real change alongside them still lands — one field, one override.
+    await repo.updateModule(vMod.id, {
+      base_date: asFormWouldSend(vMod.base_date),
+      growth_rate: 2.0,
+    });
+    const overrides = await variants.listOverrides(variantId);
+    expect(overrides).toHaveLength(1);
+    expect(Object.keys(overrides[0].patch)).toEqual(['growth_rate']);
+
+    await variants.clearOverride(variantId, 'module', baseModA);
+  });
+
+  test('sync PRUNES a patch key that no longer differs from the base (self-heal)', async () => {
+    // Repairs patches written before the date fix — and the case where the BASE later changes to
+    // match an override, which no write path would otherwise notice.
+    await db.query(
+      `INSERT INTO forecast_scenario_overrides (scenario_id, entity_type, base_entity_id, patch)
+       VALUES ($1, 'module', $2, $3::jsonb)`,
+      [variantId, baseModA, JSON.stringify({ base_date: '2025-12-31T00:00:00.000Z', growth_rate: 9 })]
+    );
+
+    await variants.syncVariant(variantId, { force: true });
+
+    const overrides = await variants.listOverrides(variantId);
+    expect(overrides).toHaveLength(1);
+    expect(Object.keys(overrides[0].patch)).toEqual(['growth_rate']); // base_date pruned away
+
+    await variants.clearOverride(variantId, 'module', baseModA);
+    expect(await variants.listOverrides(variantId)).toHaveLength(0);
+  });
+
   // -------------------------------------------------------------------------
   // Tombstones, local rows, idempotence
   // -------------------------------------------------------------------------

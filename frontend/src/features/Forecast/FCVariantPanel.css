@@ -79,27 +79,6 @@
   text-transform: uppercase;
 }
 
-.fc-variant-panel__fields {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 0.4rem;
-  margin-top: 0.5rem;
-}
-
-.fc-variant-panel__field {
-  display: inline-flex;
-  align-items: center;
-  gap: 0.35rem;
-  padding: 0.15rem 0.4rem;
-  border: 1px solid var(--warning);
-  border-radius: 0.25rem;
-  background: var(--warning-subtle);
-  font-size: var(--text-xs);
-}
-
-.fc-variant-panel__value {
-  font-weight: 600;
-}
 
 .fc-variant-panel__revert-field {
   display: inline-flex;
@@ -118,4 +97,59 @@
 .fc-variant-panel__revert-field:disabled {
   cursor: not-allowed;
   opacity: 0.5;
+}
+
+/* Each override reads as a sentence: the field, what the base says, what this variant says. */
+.fc-variant-panel__count {
+  color: var(--muted);
+  font-size: var(--text-xs);
+}
+
+.fc-variant-panel__changes {
+  width: 100%;
+  margin-top: 0.5rem;
+  border-collapse: collapse;
+  font-size: var(--text-sm);
+}
+
+.fc-variant-panel__changes th,
+.fc-variant-panel__changes td {
+  padding: 0.3rem 0.6rem 0.3rem 0;
+  text-align: left;
+  vertical-align: middle;
+}
+
+.fc-variant-panel__changes thead th {
+  border-bottom: 1px solid var(--border);
+  color: var(--muted);
+  font-size: var(--text-2xs);
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.fc-variant-panel__changes tbody th {
+  font-weight: 500;
+  color: var(--ink);
+}
+
+.fc-variant-panel__changes tbody tr + tr th,
+.fc-variant-panel__changes tbody tr + tr td {
+  border-top: 1px solid var(--border);
+}
+
+/* The base value is context, not the point — the variant's value is. */
+.fc-variant-panel__was {
+  color: var(--muted);
+  font-variant-numeric: tabular-nums;
+}
+
+.fc-variant-panel__now {
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+
+.fc-variant-panel__revert-cell {
+  width: 1.75rem;
+  text-align: right;
 }
