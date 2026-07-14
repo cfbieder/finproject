@@ -327,7 +327,8 @@ router.get('/scenarios/:id/overrides', async (req, res, next) => {
   try {
     const id = parseInt(req.params.id, 10);
     if (!id || isNaN(id)) return res.status(400).json({ error: 'Invalid scenario id' });
-    res.json({ data: await variants.listOverrides(id) });
+    // Carries each base row's own values (schedules included) so the panel can show was → now.
+    res.json({ data: await variants.listOverridesWithBase(id) });
   } catch (error) {
     console.error('[forecast/scenarios/overrides GET] Failed:', error);
     next(error);

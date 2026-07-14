@@ -88,6 +88,28 @@ export function isScheduleField(field) {
 }
 
 /**
+ * Render a schedule (a whole child list) as the values it actually holds.
+ *
+ * "1 entry → 1 entry" is not a report, it is a shrug — it hides the very number that was edited.
+ * A yield-spread override has to read "2027: -0.5% → 2027: 1%", because that IS the change.
+ */
+export function formatSchedule(field, list) {
+  if (!Array.isArray(list) || list.length === 0) return "—";
+
+  const suffix = field === "income_pct" ? "%" : "";
+  const parts = list.map((row) => {
+    const date = row.effective_date || row.investment_date || row.disposal_date || row.change_date;
+    const value = row.value ?? row.amount;
+    const year = date ? String(date).slice(0, 4) : null;
+    const shown = `${formatFieldValue(value)}${suffix}`;
+    return year ? `${year}: ${shown}` : shown;
+  });
+
+  // Long schedules would swamp the row; show the shape and let the module's own editor carry detail.
+  return parts.length <= 3 ? parts.join(", ") : `${parts.slice(0, 3).join(", ")} +${parts.length - 3} more`;
+}
+
+/**
  * Render a stored value for display. Dates print as the calendar day they denote — the form sends
  * them as full ISO timestamps, and "2025-12-31T00:00:00.000Z" in a summary panel is noise.
  */

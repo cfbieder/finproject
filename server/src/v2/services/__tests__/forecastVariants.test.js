@@ -257,6 +257,29 @@ dbDescribe('forecastVariants (DB)', () => {
     await variants.clearOverride(variantId, 'module', baseModA);
   });
 
+  test('float noise from the form is not a change — values compare at the column\'s own scale', async () => {
+    // The regression: the edit form derives market_value_usd by dividing a local-currency amount by
+    // an FX rate, so it arrives as 4175594.9999999995. The column is numeric(15,2) — once stored it
+    // IS 4175595.00, identical to the base. Comparing the raw float wrote an override that read
+    // "Market Value (USD): 4175595 → 4175595".
+    const vMod = (await db.query(
+      'SELECT * FROM forecast_modules WHERE scenario_id = $1 AND origin_base_id = $2',
+      [variantId, baseModA]
+    )).rows[0];
+    const stored = Number(vMod.market_value_usd); // 600000.00
+
+    await repo.updateModule(vMod.id, { market_value_usd: stored - 0.0000000005 });
+    expect(await variants.listOverrides(variantId)).toHaveLength(0);
+
+    // A change at the column's scale is still a change.
+    await repo.updateModule(vMod.id, { market_value_usd: stored + 0.01 });
+    const overrides = await variants.listOverrides(variantId);
+    expect(overrides).toHaveLength(1);
+    expect(overrides[0].patch.market_value_usd).toBe(stored + 0.01);
+
+    await variants.clearOverride(variantId, 'module', baseModA);
+  });
+
   test('sync PRUNES a patch key that no longer differs from the base (self-heal)', async () => {
     // Repairs patches written before the date fix — and the case where the BASE later changes to
     // match an override, which no write path would otherwise notice.

@@ -2,7 +2,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import PropTypes from "prop-types";
 import { GitBranch, Scissors, X } from "lucide-react";
 import Rest from "../../js/rest.js";
-import { fieldLabel, isScheduleField, formatFieldValue } from "./fcFieldLabels.js";
+import { fieldLabel, isScheduleField, formatFieldValue, formatSchedule } from "./fcFieldLabels.js";
 import "./FCVariantPanel.css";
 
 /**
@@ -19,7 +19,6 @@ import "./FCVariantPanel.css";
 export default function FCVariantPanel({ selectedScenario, onChanged }) {
   const [rows, setRows] = useState([]);
   const [overrides, setOverrides] = useState([]);
-  const [names, setNames] = useState({ modules: {}, incexp: {} });
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   const [newName, setNewName] = useState("");
@@ -51,24 +50,7 @@ export default function FCVariantPanel({ selectedScenario, onChanged }) {
         return;
       }
 
-      const baseName = all.find((r) => r.id === me.parent_scenario_id)?.name || "";
-      const [ov, mods, items] = await Promise.all([
-        Rest.get(`/forecast/scenarios/${me.id}/overrides`),
-        Rest.get(`/forecast/modules?scenario=${encodeURIComponent(baseName)}`),
-        Rest.get(`/forecast/incomeexpense?scenario=${encodeURIComponent(baseName)}`),
-      ]);
-
-      // The overrides key on the BASE row's id, so keep the whole base row: the panel shows what a
-      // field WAS as well as what it is now — "Growth 1 → 2" is the sentence the owner wants; a
-      // bare "2" makes them go and look the base up.
-      // These payloads spread the raw row alongside the PascalCase form fields, so the snake_case
-      // columns the patch is keyed by are readable straight off them.
-      const moduleRows = {};
-      for (const m of mods?.data || []) moduleRows[m.id] = m;
-      const itemRows = {};
-      for (const i of items?.entries || []) itemRows[i.id] = i;
-
-      setNames({ modules: moduleRows, incexp: itemRows });
+      const ov = await Rest.get(`/forecast/scenarios/${me.id}/overrides`);
       setOverrides(ov?.data || []);
       setError("");
     } catch (e) {
@@ -129,29 +111,19 @@ export default function FCVariantPanel({ selectedScenario, onChanged }) {
 
   if (!scenario) return null;
 
-  const baseRowOf = (o) =>
-    (o.entity_type === "module" ? names.modules : names.incexp)[o.base_entity_id] || null;
-
   const label = (o) =>
     o.entity_type === "assumption"
       ? fieldLabel("assumption", o.entity_key)
-      : baseRowOf(o)?.Name || `#${o.base_entity_id}`;
+      : o.base?.name || `#${o.base_entity_id}`;
 
-  /** What the field was in the base, so each row reads "was → now". */
+  /**
+   * What the field was in the base, so each row reads "was → now". Taken from `o.base`, which the
+   * server sends WITH the override — the modules list carries no schedules, so reading the base
+   * off it showed "—" for a yield-spread change and hid the number that was actually edited.
+   */
   const baseValueOf = (o, field) => {
-    if (o.entity_type === "assumption") return undefined;
-    const row = baseRowOf(o);
-    if (!row) return undefined;
-    if (isScheduleField(field)) {
-      const list =
-        field === "income_pct" ? row.IncomePct
-        : field === "investments" ? row.Invest
-        : field === "disposals" ? row.Dispose
-        : field === "changes" ? row.Changes
-        : null;
-      return Array.isArray(list) ? list : undefined;
-    }
-    return row[field];
+    if (o.entity_type === "assumption" || !o.base) return undefined;
+    return isScheduleField(field) ? o.base.schedules?.[field] : o.base.values?.[field];
   };
 
   return (
@@ -269,9 +241,17 @@ export default function FCVariantPanel({ selectedScenario, onChanged }) {
                               <tr key={field}>
                                 <th scope="row">{fieldLabel(o.entity_type, field)}</th>
                                 <td className="fc-variant-panel__was">
-                                  {was === undefined ? "—" : formatFieldValue(was)}
+                                  {was === undefined
+                                    ? "—"
+                                    : isScheduleField(field)
+                                      ? formatSchedule(field, was)
+                                      : formatFieldValue(was)}
                                 </td>
-                                <td className="fc-variant-panel__now">{formatFieldValue(now)}</td>
+                                <td className="fc-variant-panel__now">
+                                  {isScheduleField(field)
+                                    ? formatSchedule(field, now)
+                                    : formatFieldValue(now)}
+                                </td>
                                 <td className="fc-variant-panel__revert-cell">
                                   {o.entity_type !== "assumption" && (
                                     <button

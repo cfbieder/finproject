@@ -50,19 +50,51 @@ const ENTITY_TABLES = {
 const ASSUMPTION_KEYS = ['inflation', 'FX', 'Tax Rate', 'PeriodStart', 'PeriodEnd', 'cash_sweep_low', 'cash_sweep_high'];
 
 const columnCache = new Map();
+const scaleCache = new Map();
 
 /** The syncable columns of a table, from information_schema — so a future migration cannot be dropped. */
 async function syncColumns(client, table) {
   if (columnCache.has(table)) return columnCache.get(table);
+  await loadCatalog(client, table);
+  return columnCache.get(table);
+}
+
+async function loadCatalog(client, table) {
   const res = await client.query(
-    `SELECT column_name FROM information_schema.columns
+    `SELECT column_name, data_type, numeric_scale FROM information_schema.columns
       WHERE table_schema = current_schema() AND table_name = $1
       ORDER BY ordinal_position`,
     [table]
   );
-  const cols = res.rows.map((r) => r.column_name).filter((c) => !EXCLUDED_COLUMNS.has(c));
-  columnCache.set(table, cols);
-  return cols;
+  columnCache.set(
+    table,
+    res.rows.map((r) => r.column_name).filter((c) => !EXCLUDED_COLUMNS.has(c))
+  );
+  const scales = new Map();
+  for (const r of res.rows) {
+    if (r.data_type === 'numeric' && r.numeric_scale != null) scales.set(r.column_name, r.numeric_scale);
+  }
+  scaleCache.set(table, scales);
+}
+
+/**
+ * Round a value to the scale the COLUMN will actually store it at.
+ *
+ * The edit form derives `market_value_usd` by dividing a local-currency amount by an FX rate, so
+ * it arrives as 4175594.9999999995. The column is `numeric(15,2)`: once stored it IS 4175595.00 —
+ * identical to the base. Comparing the raw float instead of the value-as-stored made a save look
+ * like a change and wrote an override that reads "Market Value (USD): 4175595 → 4175595".
+ *
+ * So compare (and store) at the column's own scale. From information_schema, never hand-listed —
+ * a future migration that changes a scale is followed automatically.
+ */
+function quantize(table, column, value) {
+  if (value == null || value === '') return value;
+  const scale = (scaleCache.get(table) || new Map()).get(column);
+  if (scale == null) return value;
+  const n = Number(value);
+  if (Number.isNaN(n)) return value;
+  return Number(n.toFixed(scale));
 }
 
 // ---------------------------------------------------------------------------
@@ -106,6 +138,34 @@ async function listOverrides(scenarioId, client = db) {
 }
 
 /**
+ * The overrides, each carrying the BASE row's own values — including its schedules.
+ *
+ * The panel shows "what it was → what it is now", and it used to read the base's value off the
+ * modules LIST payload. That payload carries no schedules, so a yield-spread override rendered as
+ * "— → 1 entry" when the truthful answer was "-0.5% → 1.0%": the panel was hiding the very number
+ * the owner changed. The base row is the server's to know, so the server sends it.
+ */
+async function listOverridesWithBase(variantId, client = db) {
+  const overrides = await listOverrides(variantId, client);
+
+  for (const o of overrides) {
+    if (o.entity_type === 'assumption') continue;
+    const table = ENTITY_TABLES[o.entity_type];
+    const row = (await client.query(`SELECT * FROM ${table} WHERE id = $1`, [o.base_entity_id])).rows[0];
+    if (!row) {
+      o.base = null; // the base row was deleted; sync leaves the variant's copy behind as local
+      continue;
+    }
+    const schedules = {};
+    for (const key of SCHEDULE_KEYS[table]) {
+      schedules[key] = await baseSchedule(client, key, o.base_entity_id);
+    }
+    o.base = { name: row.name, values: row, schedules };
+  }
+  return overrides;
+}
+
+/**
  * Merge `patch` into the variant's override for a base row (creating it if absent). Keys already
  * present are replaced; keys absent are left inherited. A key whose value equals the base's is
  * DROPPED — reverting a field by re-typing the base value must not leave a phantom override that
@@ -124,15 +184,19 @@ async function mergeEntityOverride(client, variantId, entityType, baseEntityId, 
 
   const merged = { ...(existing ? existing.patch : {}), ...patch };
   const scheduleKeys = SCHEDULE_KEYS[table];
+  await syncColumns(client, table); // ensures the scale catalog is loaded
 
   // Drop keys that no longer differ from the base — an override must always mean "different".
   for (const key of Object.keys(merged)) {
     if (scheduleKeys.includes(key)) {
+      merged[key] = await quantizeSchedule(client, key, merged[key]);
       if (await scheduleEqualsBase(client, key, baseEntityId, merged[key])) delete merged[key];
       continue;
     }
     if (!(key in baseRow)) throw new Error(`Unknown override field '${key}' on ${entityType}`);
-    if (valuesEqual(baseRow[key], merged[key])) delete merged[key];
+    // Store the value as the COLUMN will store it, not as the form's float arithmetic produced it.
+    merged[key] = quantize(table, key, merged[key]);
+    if (valuesEqual(quantize(table, key, baseRow[key]), merged[key])) delete merged[key];
   }
 
   if (Object.keys(merged).length === 0) {
@@ -416,19 +480,23 @@ function resolveSweepFlags(resolved) {
  */
 async function pruneOverride(c, ov, baseRow, table) {
   const scheduleKeys = SCHEDULE_KEYS[table];
-  const pruned = { ...ov.patch };
-  let changed = false;
+  const original = JSON.stringify(ov.patch);
+  const pruned = {};
 
-  for (const key of Object.keys(pruned)) {
-    const same = scheduleKeys.includes(key)
-      ? await scheduleEqualsBase(c, key, baseRow.id, pruned[key])
-      : key in baseRow && valuesEqual(baseRow[key], pruned[key]);
-    if (same) {
-      delete pruned[key];
-      changed = true;
+  for (const [key, value] of Object.entries(ov.patch)) {
+    if (scheduleKeys.includes(key)) {
+      const quantized = await quantizeSchedule(c, key, value);
+      if (!(await scheduleEqualsBase(c, key, baseRow.id, quantized))) pruned[key] = quantized;
+      continue;
+    }
+    // Rewrite the value at the column's scale as well as dropping it if equal — a patch that says
+    // "4175594.9999999995" is float noise from the form, not something the owner typed.
+    const quantized = quantize(table, key, value);
+    if (!(key in baseRow) || !valuesEqual(quantize(table, key, baseRow[key]), quantized)) {
+      pruned[key] = quantized;
     }
   }
-  if (!changed) return;
+  if (JSON.stringify(pruned) === original) return;
 
   ov.patch = pruned;
   if (Object.keys(pruned).length === 0) {
@@ -462,11 +530,25 @@ async function replaceSchedule(c, key, variantRowId, list) {
   }
 }
 
+/** Round a schedule's numeric columns to the scale its child table stores them at (see quantize). */
+async function quantizeSchedule(c, key, list) {
+  const { table, cols } = SCHEDULE_TABLES[key];
+  if (!scaleCache.has(table)) await loadCatalog(c, table);
+  return (list || []).map((item) => {
+    const out = { ...item };
+    for (const col of cols) out[col] = quantize(table, col, item[col]);
+    return out;
+  });
+}
+
 async function scheduleEqualsBase(c, key, baseRowId, list) {
   const baseList = await baseSchedule(c, key, baseRowId);
-  const { cols } = SCHEDULE_TABLES[key];
+  const { table, cols } = SCHEDULE_TABLES[key];
+  if (!scaleCache.has(table)) await loadCatalog(c, table);
   if (baseList.length !== (list || []).length) return false;
-  return baseList.every((b, i) => cols.every((col) => valuesEqual(b[col], list[i][col])));
+  return baseList.every((b, i) =>
+    cols.every((col) => valuesEqual(quantize(table, col, b[col]), quantize(table, col, list[i][col])))
+  );
 }
 
 /**
@@ -919,6 +1001,7 @@ function valuesEqual(a, b) {
 
 module.exports = {
   parentOf,
+  listOverridesWithBase,
   variantOfRow,
   inheritedRow,
   interceptWrite,
