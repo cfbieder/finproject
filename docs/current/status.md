@@ -3,9 +3,24 @@
 > The one mandatory read at session start. Keep ≤ ~60 lines; link onward, never restate.
 > CR statuses live in the [CR index](../cr/README.md); the running version lives in `VERSION`.
 
-**Last updated:** 2026-07-13 · **Live version:** v3.0.105 (see `VERSION` / git tags)
+**Last updated:** 2026-07-14 · **Live version:** v3.0.105 (see `VERSION` / git tags)
 
 ## Current phase
+- **Black Card feed incident (2026-07-14) — 31 duplicate transactions in prod, and the feed had
+  been misrouting for a week.** Two sheet rows were both named `Black Card (9915)`; bank-feed's
+  converter name-joins tx→account **last-wins**, and its id-based guard (added by `cc23929` for
+  exactly this case) read only MX/Chase's `raw.accountId` — **Plaid sends `account_id`**, so the
+  guard was dead code and the *stale* row captured every Black Card transaction. Mapping it in fin
+  then back-filled its whole staged history (new mappings default `promote_from_date = NULL` ⇒
+  "promote everything") on top of a period already covered by a **manual statement upload** —
+  31 duplicates, **$8.4K gross**, but **net only +$267** because a payment offset the spending, so
+  *a balance check would not have caught it*. Fixed: 30 dups deleted (+1 kept — the feed's matcher
+  had collapsed two real $19 credits into one, so the ledger was $19 short), cutoff set, stale sheet
+  row deleted by the owner, dead account purged from bank-feed, and the converter fixed in
+  **bank-feed `c49b459`** (+2 tests; the new test fails against the old source). Ledger now
+  reconciles to the cent (opening −6,206.64 + tx 227.17 = **−5,979.47** = feed). *Takeaway: read the
+  upstream source of truth before trusting any downstream view of it — fin's DB and bank-feed's DB
+  both showed the stale account as live; only the Sheet's `Last Update` column disambiguated.*
 - **Owner acceptance + re-test loop (2026-07-13), and it earned its keep.** The owner walked the
   v3.0.96 release step by step (module save · modals · audit trail · reports · dark mode · fonts —
   **all six passed, no regressions**), then re-tested each fix one at a time. Clicking through found
