@@ -93,6 +93,15 @@ FROM (VALUES
 ) AS v(name, parent, atype)
 WHERE NOT EXISTS (SELECT 1 FROM accounts a WHERE a.name = v.name);
 
+-- A throwaway account that ONLY the account-type write spec touches. The type test must not
+-- use Checking or Brokerage: changing their type moves them between the balance sheet and the
+-- P&L, which would silently break the net-worth assertion in the read specs. A test that
+-- corrupts another test's fixture is worse than no test.
+INSERT INTO accounts (name, parent_id, account_type, section, is_transfer, currency, is_active)
+SELECT 'E2E Type Probe', (SELECT id FROM accounts WHERE name = 'Living Expenses'),
+       'expense', 'profit_loss', FALSE, 'USD', TRUE
+WHERE NOT EXISTS (SELECT 1 FROM accounts WHERE name = 'E2E Type Probe');
+
 -- 'Transfer - Bank' is what the engine books swept cash against.
 INSERT INTO accounts (name, parent_id, account_type, section, is_transfer, currency, is_active)
 SELECT 'Transfer - Bank', (SELECT id FROM accounts WHERE name = 'Transfers'),
@@ -212,6 +221,18 @@ SELECT (SELECT id FROM forecast_modules WHERE name = 'E2E Periodic'),
 WHERE NOT EXISTS (
   SELECT 1 FROM forecast_module_investments
   WHERE module_id = (SELECT id FROM forecast_modules WHERE name = 'E2E Periodic')
+);
+
+-- A OneTime transfer to EDIT. The write specs need one: Modify Transfer only renders an
+-- editable input for OneTime rows (a Periodic row drives many years from one row, so it is
+-- deliberately read-only there). This path had never once run in production before v3.0.98 —
+-- the modal fetched an endpoint that carries no transfers, so it had never displayed one.
+INSERT INTO forecast_module_disposals (module_id, disposal_date, amount, flag)
+SELECT (SELECT id FROM forecast_modules WHERE name = 'E2E Brokerage'),
+       '2028-12-31', 5000, 'OneTime'
+WHERE NOT EXISTS (
+  SELECT 1 FROM forecast_module_disposals
+  WHERE module_id = (SELECT id FROM forecast_modules WHERE name = 'E2E Brokerage')
 );
 
 SELECT setval(pg_get_serial_sequence('accounts', 'id'), (SELECT MAX(id) FROM accounts));
