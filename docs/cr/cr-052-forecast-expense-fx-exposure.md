@@ -1,6 +1,19 @@
 # CR052 — Partial FX Exposure on an Expense Line ("20% of this line is PLN")
 
-**Status:** PLANNED · **Track:** v3 · **Opened:** 2026-07-15
+**Status:** PLANNED — **deferred pending CR-051 real-world validation** (decision 2026-07-15) · **Track:** v3 · **Opened:** 2026-07-15
+
+> **Gate before build (PM sign-off, 2026-07-15).** Not cleared to build. First use CR-051 on the
+> real budget for ~a week, then bring back:
+> 1. **Count** of expense categories that are actually part-foreign, and rough **% of total spend**.
+> 2. Whether **split-into-lines** (unmatch + a separate PLN/EUR line) is genuinely too clunky at
+>    that count, or workable — this is the whole justification for CR-052 over CR-051.
+> 3. Whether the CR-051 **FX effect looks right** in Review when the Downside FX is bent (does a
+>    weaker złoty lower the USD cost the way you expect?).
+> Then settle the two open forks (§4 organic/USD-adjust split; §3 coexist vs unify) and re-request
+> sign-off. If only a handful of categories are foreign, CR-052 may be shelved in favour of
+> split-into-lines. Rationale: CR-051 shipped 2026-07-15 with **zero production usage**; committing
+> to a larger, migration-bearing, engine-changing follow-on before its v1 touches real data risks
+> building the wrong thing twice.
 **Depends on:** [CR051](cr-051-forecast-expense-currency.md) (whole-line currency; this is its
 intended completion). **Touches:** a new child table + **migration 040**, the income/expense
 engine builder (`fcbuilder-incexp.js`), the Expenditures modal (`FCExpModal.jsx`), the incexp
