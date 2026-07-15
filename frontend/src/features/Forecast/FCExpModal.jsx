@@ -277,9 +277,13 @@ export default function FCExpModal({
               </svg>
             </div>
             <div>
-              <h3 className="fc-exp-modal__title">Edit Forecast Entry</h3>
+              <h3 className="fc-exp-modal__title">
+                {editForm?.id ? "Edit Forecast Entry" : "New Forecast Entry"}
+              </h3>
               <p className="fc-exp-modal__subtitle">
-                Update income/expense forecast details
+                {editForm?.id
+                  ? "Update income/expense forecast details"
+                  : "Create a new income/expense forecast entry"}
               </p>
             </div>
           </div>
@@ -862,7 +866,7 @@ export default function FCExpModal({
                     strokeLinejoin="round"
                   />
                 </svg>
-                Save Changes
+                {editForm?.id ? "Save Changes" : "Create Entry"}
               </>
             )}
           </button>

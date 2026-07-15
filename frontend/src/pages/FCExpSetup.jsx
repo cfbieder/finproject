@@ -72,8 +72,7 @@ export default function FCExpSetup() {
     sortedEntries,
     selectedEntry,
     getEntryId,
-    handleAddIncomeExpense,
-  } = useFCExpEntries(selectedScenario, getScenarioStartYear);
+  } = useFCExpEntries(selectedScenario);
 
   const {
     showDeleteModal,
@@ -86,6 +85,7 @@ export default function FCExpSetup() {
     editForm,
     editSaving,
     editError,
+    openAddDraft,
     openEditModal,
     closeEditModal,
     handleEditFieldChange,
@@ -96,7 +96,8 @@ export default function FCExpSetup() {
     setIncomeExpenseEntries,
     getScenarioStartYear,
     accountNameOptions,
-    leafAccountLookup
+    leafAccountLookup,
+    setSelectedEntryId
   );
 
   const [showAddFromLinesModal, setShowAddFromLinesModal] = useState(false);
@@ -135,7 +136,7 @@ export default function FCExpSetup() {
           selectedScenario={selectedScenario}
           periodStart={periodStart}
           periodEnd={periodEnd}
-          onAddClick={handleAddIncomeExpense}
+          onAddClick={openAddDraft}
           onEditClick={openEditModal}
           onDeleteClick={openDeleteModal}
           addDisabled={!selectedScenario || entriesLoading}

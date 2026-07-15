@@ -18,7 +18,8 @@ export function useFCExpCrud(
   setIncomeExpenseEntries,
   getScenarioStartYear,
   accountNameOptions,
-  leafAccountLookup
+  leafAccountLookup,
+  setSelectedEntryId
 ) {
   const { showSuccess, showError: showErrorToast } = useToast();
 
@@ -70,6 +71,37 @@ export function useFCExpCrud(
     } finally {
       setDeleteSaving(false);
     }
+  };
+
+  // Add handler — open the SAME modal as Edit, but as an unsaved DRAFT (id: null). Nothing is
+  // written until Save, so cancelling leaves nothing behind. This mirrors the module editor
+  // (CR042); the old Add immediately POSTed a blank "All" row, which is the very pattern CR042
+  // removed for modules.
+  const openAddDraft = () => {
+    if (!selectedScenario) return;
+    setEditError("");
+    const startYear = getScenarioStartYear();
+    const baseDate =
+      Number.isFinite(startYear) && startYear
+        ? new Date(`${startYear - 1}-12-31T00:00:00.000Z`).toISOString()
+        : "";
+    setEditForm({
+      id: null, // ⇒ draft: handleSaveEdit POSTs instead of PUTs
+      Scenario: selectedScenario,
+      Account: "",
+      Name: "",
+      Type: "Expense",
+      Currency: "USD",
+      BaseDate: baseDate,
+      BaseValue: 0,
+      BaseValueUSD: 0,
+      Growth: 1,
+      Matched: false,
+      Comment: "",
+      SetupStatus: "new",
+      Changes: [],
+    });
+    setShowEditModal(true);
   };
 
   // Edit handlers
@@ -148,7 +180,8 @@ export function useFCExpCrud(
   };
 
   const handleSaveEdit = async () => {
-    if (!selectedEntry?.id || !editForm) return;
+    if (!editForm) return;
+    const isDraft = !editForm.id; // a draft from openAddDraft POSTs; an existing row PUTs
 
     const payload = {
       Scenario: (editForm.Scenario || "").trim(),
@@ -173,10 +206,12 @@ export function useFCExpCrud(
     setEditError("");
     setEditSaving(true);
     try {
-      await Rest.fetchJson(
-        `/api/v2/forecast/incomeexpense/${encodeURIComponent(selectedEntry.id)}`,
+      const created = await Rest.fetchJson(
+        isDraft
+          ? "/api/v2/forecast/incomeexpense"
+          : `/api/v2/forecast/incomeexpense/${encodeURIComponent(editForm.id)}`,
         {
-          method: "PUT",
+          method: isDraft ? "POST" : "PUT",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify(payload),
         }
@@ -185,11 +220,15 @@ export function useFCExpCrud(
         `/api/v2/forecast/incomeexpense?scenario=${encodeURIComponent(selectedScenario)}`
       );
       setIncomeExpenseEntries(refreshed?.entries || []);
+      // Select the row we just created, so the toolbar's Edit/Delete act on it.
+      if (isDraft && setSelectedEntryId && created?.data?.id) {
+        setSelectedEntryId(String(created.data.id));
+      }
       setShowEditModal(false);
-      showSuccess("Forecast entry updated");
+      showSuccess(isDraft ? "Forecast entry added" : "Forecast entry updated");
     } catch (err) {
-      setEditError(err.message || "Failed to update entry");
-      showErrorToast(err.message || "Failed to update forecast entry");
+      setEditError(err.message || (isDraft ? "Failed to add entry" : "Failed to update entry"));
+      showErrorToast(err.message || "Failed to save forecast entry");
     } finally {
       setEditSaving(false);
     }
@@ -247,6 +286,7 @@ export function useFCExpCrud(
     editForm,
     editSaving,
     editError,
+    openAddDraft,
     openEditModal,
     closeEditModal,
     handleEditFieldChange,
