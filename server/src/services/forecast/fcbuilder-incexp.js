@@ -86,20 +86,38 @@ function computeModule(module, scenario, df_assumptions, df_categories, categori
   const periodStart = years[0];
   const inflationLen = inflationSeries.length;
 
-  // Build FX rate array for non-USD currencies
+  // Build FX rate array for non-USD currencies.
+  //
+  // CR051 F1 — fail loud on a missing/zero FX rate. A non-USD line divides by this rate below
+  // (`incexpValues[i] / fxrates[i]`). If there is no `FX - <ccy>` assumption column, the old code
+  // left the rate at 1.0 and silently booked the native amount as USD — ~4× too large for a PLN
+  // line. If the column existed but held a 0 (a currency in use with no rate set for the year),
+  // the division produced Infinity. Neither could fire before CR051, because no income/expense
+  // line was ever non-USD; exposing the currency picker arms it. So a currency actually in use
+  // with no usable rate is now a hard error, not a silent wrong number. (USD lines skip this block
+  // entirely and keep fxrates = 1.)
   const fxrates = new Array(yearsCount).fill(1);
   if (module.Currency && module.Currency !== "USD") {
     const fxColumn =
       module.Currency === "PLN" ? categories[2] :
       module.Currency === "EUR" ? categories[3] : null;
-    if (fxColumn && df_assumptions.columns.includes(fxColumn)) {
-      const fxSeries = df_assumptions.column(fxColumn).values;
-      for (let i = 0, year = startyear; year <= endyear; i++, year++) {
-        const idx = year - periodStart;
-        if (idx >= 0 && idx < fxSeries.length) {
-          fxrates[i] = fxSeries[idx];
-        }
+    if (!fxColumn || !df_assumptions.columns.includes(fxColumn)) {
+      throw new Error(
+        `Income/expense "${module.Name}" is in ${module.Currency}, but scenario has no ` +
+        `"${fxColumn || `FX - ${module.Currency}`}" assumption to convert it to USD.`
+      );
+    }
+    const fxSeries = df_assumptions.column(fxColumn).values;
+    for (let i = 0, year = startyear; year <= endyear; i++, year++) {
+      const idx = year - periodStart;
+      const rate = idx >= 0 && idx < fxSeries.length ? Number(fxSeries[idx]) : NaN;
+      if (!Number.isFinite(rate) || rate <= 0) {
+        throw new Error(
+          `Income/expense "${module.Name}" (${module.Currency}) has no valid FX rate for ${year} ` +
+          `(got ${rate}); set the "${fxColumn}" assumption for this scenario.`
+        );
       }
+      fxrates[i] = rate;
     }
   }
 

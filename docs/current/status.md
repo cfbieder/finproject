@@ -3,9 +3,10 @@
 > The one mandatory read at session start. Keep ≤ ~60 lines; link onward, never restate.
 > CR statuses live in the [CR index](../cr/README.md); the running version lives in `VERSION`.
 
-**Last updated:** 2026-07-14 · **Live version:** v3.1.0 (see `VERSION` / git tags)
+**Last updated:** 2026-07-15 · **Live version:** v3.1.0 (see `VERSION` / git tags)
 
 ## Current phase
+- **[CR051](../cr/cr-051-forecast-expense-currency.md) — foreign-currency expense lines — implemented on dev (:3105), awaiting owner walkthrough (2026-07-15).** An expense line can now be **USD/EUR/PLN**: the native amount is entered, `base_value_usd` is **derived server-side** at the scenario's base-year FX (client value ignored so it can't rot; 400 if the scenario lacks that FX rate), the engine already converts per year, and the table shows the native amount under the USD. Also the **F1 engine guard** — the incexp builder now *fails loud* on a missing/zero FX rate for a currency in use (it would have divided by 1.0 → silent ~4× overstatement, or by 0 → Infinity; latent until a non-USD line existed). Expense-only (foreign income can't express CR047's income-tax override); disabled while Matched. **407 backend / 195 frontend / 7 Playwright** green, lint 0 errors. No migration, no engine behavior change for USD scenarios. **Built overnight; not on prod, not pushed** — walk through together, then decide prod. The only real reason every line read USD before: the CRUD hook hard-pinned `Currency:"USD"` in three places.
 - **[CR050](../cr/cr-050-forecast-scenario-variants.md) — forecast scenario VARIANTS — the v3.1.0 minor milestone (v3.0.108→v3.1.0, 2026-07-14, migration 039).** Five post-ship fixes (v3.0.110–112) were all in how edits are *captured and reported* as overrides — DATE-as-instant, float noise, missing schedules, and the assumption-editing UI bypassing the override system (silent data loss) — never in the inheritance machinery. v3.1.0 also gives **Forecast Expenditures a draft-add modal** like Modules (no more blank "All" rows).
   A scenario copy is a severed island: you duplicate 30 entities to change one field, nothing
   records *which* field made it a downside, and the copies then rot. A **variant** now inherits

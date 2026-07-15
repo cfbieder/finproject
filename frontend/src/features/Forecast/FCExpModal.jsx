@@ -37,9 +37,50 @@ export default function FCExpModal({
   accountOptions = [],
   accountNameOptions = {},
   periodYears = [],
+  baseFxRates = {},
 }) {
   // Available names for the selected account (from COA hierarchy)
   const nameOptionsForAccount = accountNameOptions[editForm?.Account] || [];
+
+  // CR051 — foreign-currency expense support. When a line is non-USD the user types the NATIVE
+  // amount (BaseValue); BaseValueUSD is DERIVED at the scenario's base-year FX for a live preview,
+  // and the server re-derives it authoritatively on save (so a stale client value can't rot it).
+  // USD lines keep the old 1:1 mirror. Foreign currency is expense-only (income lines can't express
+  // the CR047 income-tax override — CR051 §5/F5) and disabled while Matched (matched lines are
+  // USD-anchored to actuals — CR051 §7).
+  const currency = editForm?.Currency || "USD";
+  const isForeign = currency !== "USD";
+  const fxRate = isForeign ? Number(baseFxRates?.[currency]) : 1;
+  const hasFxRate = Number.isFinite(fxRate) && fxRate > 0;
+
+  const deriveUsd = (nativeValue) => {
+    const n = Number(nativeValue);
+    if (!hasFxRate || !Number.isFinite(n)) return nativeValue;
+    return Math.round((n / fxRate) * 100) / 100;
+  };
+
+  const handleCurrencyChange = (nextCurrency) => {
+    onFieldChange("Currency", nextCurrency);
+    if (nextCurrency === "USD") {
+      onFieldChange("BaseValueUSD", editForm?.BaseValue);
+      return;
+    }
+    const r = Number(baseFxRates?.[nextCurrency]);
+    const n = Number(editForm?.BaseValue);
+    if (Number.isFinite(r) && r > 0 && Number.isFinite(n)) {
+      onFieldChange("BaseValueUSD", Math.round((n / r) * 100) / 100);
+    }
+  };
+
+  // Switching a line away from Expense drops it back to USD — foreign currency is expense-only.
+  const handleTypeChange = (nextType) => {
+    if (editForm?.FcLineId) return;
+    onFieldChange("Type", nextType);
+    if (nextType !== "Expense" && (editForm?.Currency || "USD") !== "USD") {
+      onFieldChange("Currency", "USD");
+      onFieldChange("BaseValueUSD", editForm?.BaseValue);
+    }
+  };
 
   // Extract year from base date for display
   const baseYear = (editForm?.BaseDate || "").slice(0, 4);
@@ -356,6 +397,7 @@ export default function FCExpModal({
                 ) : (
                   <select
                     className="fc-exp-modal__input"
+                    aria-label="Account"
                     value={editForm?.Account || ""}
                     onChange={(e) => onFieldChange("Account", e.target.value)}
                   >
@@ -397,6 +439,7 @@ export default function FCExpModal({
                 ) : (
                   <input
                     className="fc-exp-modal__input"
+                    aria-label="Name"
                     type="text"
                     value={editForm?.Name || ""}
                     onChange={(e) => onFieldChange("Name", e.target.value)}
@@ -411,7 +454,7 @@ export default function FCExpModal({
                 <select
                   className="fc-exp-modal__input"
                   value={editForm?.Type || ""}
-                  onChange={(e) => !editForm?.FcLineId && onFieldChange("Type", e.target.value)}
+                  onChange={(e) => handleTypeChange(e.target.value)}
                   disabled={Boolean(editForm?.FcLineId)}
                 >
                   <option value="" disabled>
@@ -421,6 +464,32 @@ export default function FCExpModal({
                   <option value="Expense">Expense</option>
                 </select>
               </div>
+
+              {/* Currency — CR051. Expense-only; disabled while Matched (matched lines are
+                  USD-anchored to actuals). A non-USD line is entered in its native amount and
+                  converted to USD per year by the engine via the scenario's FX assumptions. */}
+              {editForm?.Type === "Expense" && (
+                <div className="fc-exp-modal__field">
+                  <label className="fc-exp-modal__label">Currency</label>
+                  <select
+                    className="fc-exp-modal__input"
+                    aria-label="Currency"
+                    value={currency}
+                    onChange={(e) => handleCurrencyChange(e.target.value)}
+                    disabled={Boolean(editForm?.Matched)}
+                  >
+                    <option value="USD">USD</option>
+                    <option value="EUR">EUR</option>
+                    <option value="PLN">PLN</option>
+                  </select>
+                  {isForeign && !hasFxRate && (
+                    <span className="fc-exp-modal__change-warning">
+                      No “FX - {currency}” assumption is set for this scenario — add it under
+                      Assumptions before saving, or the forecast can’t convert this line.
+                    </span>
+                  )}
+                </div>
+              )}
 
               {/* Status */}
               <div className="fc-exp-modal__field">
@@ -474,7 +543,7 @@ export default function FCExpModal({
               {/* Base Value */}
               <div className="fc-exp-modal__field">
                 <label className="fc-exp-modal__label fc-exp-modal__label--with-tooltip">
-                  Base Value
+                  {isForeign ? `Base Value (${currency})` : "Base Value"}
                   <span
                     className="fc-exp-modal__tooltip-icon"
                     aria-hidden="true"
@@ -482,7 +551,9 @@ export default function FCExpModal({
                     i
                   </span>
                   <div className="fc-exp-modal__tooltip" role="tooltip">
-                    Enter a negative amount for cost.
+                    {isForeign
+                      ? `Enter the amount in ${currency} (negative for cost). It is converted to USD each year at the scenario's FX assumption.`
+                      : "Enter a negative amount for cost."}
                   </div>
                   {editForm?.Matched && (
                     <span className="fc-exp-modal__label-badge">
@@ -508,6 +579,7 @@ export default function FCExpModal({
                         ? "fc-exp-modal__input--negative"
                         : "fc-exp-modal__input--positive"
                     }`}
+                    aria-label="Base Value"
                     type="number"
                     step="0.01"
                     value={
@@ -519,7 +591,12 @@ export default function FCExpModal({
                     onChange={(e) => {
                       const nextValue = e.target.value;
                       onFieldChange("BaseValue", nextValue);
-                      onFieldChange("BaseValueUSD", nextValue);
+                      // USD mirrors 1:1; a foreign line derives USD at the base-year FX (preview
+                      // only — the server re-derives authoritatively on save).
+                      onFieldChange(
+                        "BaseValueUSD",
+                        isForeign ? deriveUsd(nextValue) : nextValue
+                      );
                     }}
                     placeholder="0.00"
                   />
@@ -535,14 +612,20 @@ export default function FCExpModal({
                       Auto-loaded
                     </span>
                   )}
+                  {isForeign && !editForm?.Matched && (
+                    <span className="fc-exp-modal__label-badge">Derived</span>
+                  )}
                 </label>
-                {editForm?.Matched ? (
+                {editForm?.Matched || isForeign ? (
+                  // Matched: auto-loaded. Foreign: derived from the native amount at the base-year
+                  // FX (read-only; the server re-derives it on save so it can never drift).
                   <input
                     className={`fc-exp-modal__input fc-exp-modal__input--readonly fc-exp-modal__input--currency ${
                       baseValueUsdNegative
                         ? "fc-exp-modal__input--negative"
                         : "fc-exp-modal__input--positive"
                     }`}
+                    aria-label="Base Value (USD)"
                     type="text"
                     value={baseValueUsdDisplay}
                     readOnly
@@ -554,6 +637,7 @@ export default function FCExpModal({
                         ? "fc-exp-modal__input--negative"
                         : "fc-exp-modal__input--positive"
                     }`}
+                    aria-label="Base Value (USD)"
                     type="number"
                     step="0.01"
                     value={
@@ -569,6 +653,11 @@ export default function FCExpModal({
                     }}
                     placeholder="0.00"
                   />
+                )}
+                {isForeign && hasFxRate && (
+                  <span className="fc-exp-modal__field-hint">
+                    Derived at base-year FX: 1&nbsp;USD = {fxRate} {currency}
+                  </span>
                 )}
               </div>
 

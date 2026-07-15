@@ -1,13 +1,20 @@
 # CR051 — Foreign-Currency Expense Lines (expose the currency that already exists)
 
-**Status:** PLANNED · **Track:** v3 · **Opened:** 2026-07-15
+**Status:** IN-PROGRESS — **implemented, on dev (:3105), awaiting the owner walkthrough** (2026-07-15) · **Track:** v3 · **Opened:** 2026-07-15
 **Depends on:** nothing (rides on CR050's override machinery where it overlaps, but does not require it).
-**Touches:** the Forecast **Expenditures** page (`FCExpModal`, `FCExpTable`, the exp CRUD hooks),
-the income/expense write path (`repositories/forecast.js`, `crud.js`), and the Review/Compare
-display of income/expense lines. **No migration.** No engine *behavior* change for existing
-scenarios — but **one defensive engine fix is required** (§5.6, finding F1): the incexp FX path
-silently falls through to a rate of 1.0 for any out-of-range year, which today can't fire because
-no incexp line is non-USD. This CR makes it fireable, so the guard lands with it.
+**Touches:** the Forecast **Expenditures** page (`FCExpModal`, `FCExpTable`, `FCExpSetup`, the exp
+CRUD hook), the income/expense write path (`v2/routes/forecast.js`), the base-year FX helper
+(`services/forecast/fcbuilder-setup.js`), and the FX guard (`services/forecast/fcbuilder-incexp.js`).
+**No migration.** No engine *behavior* change for existing (USD) scenarios — but **one defensive
+engine fix landed** (§5.5, finding F1): the incexp FX path had no guard on a missing/zero rate, so a
+non-USD line would divide by 1.0 (silent ~4× overstatement) or by 0 (`Infinity`). That could never
+fire before (no non-USD income/expense line existed); this CR arms it, so the guard ships with it.
+
+> **Implementation note (2026-07-15).** Built and verified on dev overnight. **407 backend tests**
+> (13 new), **195 frontend**, **7/7 Playwright** incl. a new CR051 browser round-trip (add a PLN
+> expense → USD derives at −400/4 = −100 → survives save+reopen), lint gate 0 errors. Backend
+> deployed to dev; frontend build-verified through the e2e harness. Not on prod, not pushed to
+> origin — pending the morning walkthrough. See §5 for what actually shipped vs the original plan.
 
 ---
 
@@ -78,48 +85,49 @@ Two consequences worth stating, because the `base_value_usd`-rot family bit CR05
   it in the write path from the current base-year FX at save time; don't try to keep it live
   against later FX edits (the engine ignores it anyway).
 
-## 5. Work breakdown
+## 5. Work breakdown — as built (2026-07-15)
 
-1. **Currency selector** in `FCExpModal.jsx` — USD / EUR / PLN, default USD. Mirror the
-   Modules picker's placement/labels for consistency. **Scope to expense lines, or gate income
-   (finding F5):** the `currency` column is on `forecast_income_expense`, so exposing the picker
-   also enables foreign *income* lines — but incexp income is taxed at the flat `scenario.TaxRate`
-   ([`fcbuilder-incexp.js:158`](../../server/src/services/forecast/fcbuilder-incexp.js#L158)) and
-   does **not** honor CR047's `income_tax_rate_override` (modules-only), so "foreign income already
-   taxed abroad, only incremental US tax" is inexpressible on an incexp line. Decide before build:
-   show the picker on **expense lines only**, or allow income too and document the flat-tax
-   limitation. Recommendation: expense-only for v1.
-2. **Native-amount entry** — when currency ≠ USD, the amount field is the native figure; on save,
-   derive `base_value_usd` at the pinned `deriveYear` FX (§4). Show the derived USD equivalent
-   read-only beside it so the conversion is visible.
-3. **Write path** — ensure `currency` and `base_value` flow through the exp create/update.
-   **Field whitelist (hard pre-check):** CR043 N10 made the forecast write API *reject* unknown
-   fields. **Before writing any UI**, grep the incexp write validator and confirm `currency` is in
-   the allowed set (add it if not) — otherwise the first save 400s or silently drops it.
-4. **Display** — `FCExpTable` (and the Review/Compare income/expense rows) show the native amount
-   + currency code alongside the USD figure, so a PLN line reads as `PLN 100,000 (≈$25,000)`
-   rather than a bare number.
-5. **FX-series robustness guard (finding F1) — the required engine fix.** The incexp FX loop
-   ([`fcbuilder-incexp.js:96-102`](../../server/src/services/forecast/fcbuilder-incexp.js#L96-L102))
-   only assigns `fxrates[i]` when the year is in range; otherwise it stays **1.0**, so a foreign
-   line in any out-of-range year books at native = USD (a PLN 100,000 expense → $100,000, ~4× too
-   large). The module builder at least backfills pre-period with `firstFxRate`
-   ([`fcbuilder-module.js:119-127`](../../server/src/services/forecast/fcbuilder-module.js#L119-L127))
-   — the incexp builder does not, and **neither** handles the post-period tail. Fix: for any
-   in-period year with no FX value, **fail loud** (a non-USD line whose horizon exceeds its FX
-   series is a misconfiguration, not something to paper over at 1.0); optionally carry the nearest
-   rate for genuinely out-of-period years, consistently with the module builder. This can't fire
-   today (no non-USD incexp line exists) — CR051 arms it, so the guard ships here.
-6. **Tests**
-   - Engine: a PLN expense line converts per-year via `FX - PLN` and inflates in native *before*
-     converting (guards the existing path against regression).
-   - Engine (F1): a non-USD line whose horizon exceeds the FX series **fails loud** (or carries the
-     nearest rate) — it must **never** silently convert at 1.0.
-   - Write path: `base_value_usd` is derived server-side (not trusted from the client), at the
-     pinned `deriveYear`; whitelist accepts `currency`.
-   - CR050: a variant that overrides only `currency` on a line materializes correctly.
-7. **Docs** — project-description (Expenditures page gains a currency field; note the
-   engine already converts), roadmap item closed, this CR → COMPLETED, test-overview counts.
+1. **Currency selector** — ✅ `FCExpModal.jsx` gains a USD/EUR/PLN `<select>`, **expense-only**
+   (finding F5: incexp income is taxed at the flat `scenario.TaxRate`
+   [`fcbuilder-incexp.js`](../../server/src/services/forecast/fcbuilder-incexp.js) and ignores
+   CR047's `income_tax_rate_override`, so "foreign income already taxed abroad" is inexpressible
+   here — the picker is hidden for Income, and switching a line's Type away from Expense resets it
+   to USD). Also **disabled while Matched** (matched lines are USD-anchored to actuals — §7).
+2. **Native-amount entry** — ✅ when currency ≠ USD the Base Value field is the native amount and
+   the USD field is read-only, deriving live from `FCExpSetup`'s base-year FX rate for a preview;
+   the server re-derives authoritatively on save. `useFCExpCrud.js` no longer hard-pins `Currency`
+   to `"USD"` (it did in **three** places — the actual reason every line read back as USD).
+3. **Write path + server-side derivation** — ✅ `POST`/`PUT /incomeexpense` derive
+   `base_value_usd = round(base_value / baseYearFxRate(scenario, ccy), 2)` for a non-USD line
+   (`baseYearFxRate` new in `fcbuilder-setup.js`), **ignoring** the client USD so it can't rot;
+   USD lines are untouched (1:1, client value trusted, matched lines unchanged). A missing/zero FX
+   rate returns **400** at save. `Currency` was already in `INCEXP_WRITE_FIELDS` (CR043 N10), so no
+   whitelist change was needed.
+4. **Display** — ✅ `FCExpTable` shows the native amount + currency code beneath the USD figure for
+   a non-USD line (`PLN 100,000` under the `$25,000`). (Review/Compare already read `base_value_usd`,
+   which is now correct; no change needed there for v1.)
+5. **FX guard (finding F1) — the engine fix that shipped.** ✅ The real failure mode was **not** a
+   short FX series (the engine's `buildRates` always carry-forwards a full-length series) — it was a
+   **missing or zero rate for a currency in use**. The incexp builder divided by it with no guard:
+   `incexpValues[i] / fxrates[i]` → **`Infinity`** on a 0, and a genuinely-absent `FX - <ccy>` column
+   left the rate at **1.0** (silent ~4× overstatement). Fix: for a non-USD line, throw a clear error
+   if the `FX - <ccy>` column is absent, or if any in-period rate is non-finite/≤ 0
+   ([`fcbuilder-incexp.js`](../../server/src/services/forecast/fcbuilder-incexp.js)). Scoped to the
+   incexp builder (the newly-armed path); the module builder's pre-existing `|| 1` mask is left as-is
+   (out of scope, and changing it risks existing non-USD *module* forecasts).
+6. **Tests** — ✅ **13 new** (backend 394 → **407**; frontend 195; e2e 6 → **7**):
+   - Engine (5, `fcbuilder-incexp.test.js`): PLN books at native ÷ FX; inflation applied in native
+     *before* conversion (proved with a per-year-varying FX); F1 zero-rate throws; F1 missing-column
+     throws; a USD line is unaffected.
+   - Helper (5, `fcbuilder-setup.baseYearFxRate.test.js`): USD → 1; base-year rate; carry-forward;
+     zero and missing-currency both throw.
+   - Route (2, `cr051.incexp-currency.routes.test.js`, DB): a non-USD line on a non-convertible
+     scenario is **400**; on a convertible one, `base_value_usd` is derived (not the client's value).
+   - CR050 variant (1): a `currency` override materializes on the variant, base stays USD, reverts.
+   - E2E (1, `cr051-currency.spec.js`): the full browser round-trip (add PLN → USD derives → survives
+     save + reopen).
+7. **Docs** — ✅ this CR, project-description (Expenditures gains a currency field), roadmap, CR
+   index, test-overview.
 
 ## 6. CR050 interaction
 

@@ -536,6 +536,27 @@ dbDescribe('forecastVariants (DB)', () => {
     expect(Number(reverted.base_value)).toBe(90000);
   });
 
+  test('CR051 — currency is an ordinary overridable field (variant PLN, base stays USD, reverts)', async () => {
+    const vItem = (await db.query(
+      'SELECT id FROM forecast_income_expense WHERE scenario_id = $1 AND origin_base_id = $2',
+      [variantId, baseItem]
+    )).rows[0];
+
+    await repo.updateIncExp(vItem.id, { currency: 'PLN' });
+    await variants.syncVariant(variantId, { force: true });
+
+    const after = (await db.query('SELECT currency FROM forecast_income_expense WHERE id = $1', [vItem.id])).rows[0];
+    expect(after.currency).toBe('PLN'); // the override pins the variant
+
+    const base = (await db.query('SELECT currency FROM forecast_income_expense WHERE id = $1', [baseItem])).rows[0];
+    expect(base.currency).toBe('USD'); // the base is untouched
+
+    await variants.clearOverride(variantId, 'incexp', baseItem);
+    await variants.syncVariant(variantId, { force: true });
+    const reverted = (await db.query('SELECT currency FROM forecast_income_expense WHERE id = $1', [vItem.id])).rows[0];
+    expect(reverted.currency).toBe('USD'); // reverts to inherit from base
+  });
+
   // -------------------------------------------------------------------------
   // Lineage rules
   // -------------------------------------------------------------------------

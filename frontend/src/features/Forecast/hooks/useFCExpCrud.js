@@ -119,7 +119,9 @@ export function useFCExpCrud(
       Account: selectedEntry.Account || "",
       Name: selectedEntry.Name || "",
       Type: selectedEntry.Type || "",
-      Currency: "USD",
+      // CR051 — load the row's real currency (was hard-pinned to "USD", which is why every line
+      // read back as USD however it was saved).
+      Currency: selectedEntry.Currency || "USD",
       BaseDate: baseDate,
       BaseValue: selectedEntry.BaseValue ?? 0,
       BaseValueUSD: selectedEntry.BaseValueUSD ?? 0,
@@ -188,7 +190,9 @@ export function useFCExpCrud(
       Account: (editForm.Account || "").trim(),
       Name: (editForm.Name || "").trim(),
       Type: (editForm.Type || "").trim(),
-      Currency: "USD",
+      // CR051 — send the chosen currency (was hard-pinned to "USD"). Income lines have no picker
+      // and stay USD; the server derives base_value_usd for a non-USD line, ignoring the client USD.
+      Currency: editForm.Currency || "USD",
       Matched: Boolean(editForm.Matched),
       BaseDate:
         editForm.BaseDate &&

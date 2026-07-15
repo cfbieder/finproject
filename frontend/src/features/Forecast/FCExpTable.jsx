@@ -105,6 +105,12 @@ export default function FCExpTable({
                       </td>
                       <td className="trans-budget-table__value trans-budget-table__value--numeric">
                         {formatNumber(entry.BaseValueUSD)}
+                        {/* CR051 — a foreign line's real amount is native; show it under the USD. */}
+                        {entry.Currency && entry.Currency !== "USD" && (
+                          <span className="exp-native-amount">
+                            {entry.Currency} {formatNumber(entry.BaseValue)}
+                          </span>
+                        )}
                       </td>
                       <td className="trans-budget-table__value trans-budget-table__value--numeric">
                         {typeof entry.Growth === "number"

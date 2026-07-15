@@ -373,3 +373,12 @@
 .exp-setup-table {
   animation: fadeIn 0.3s ease-out;
 }
+
+/* CR051 — a foreign-currency line's native amount, shown small and muted under its USD figure. */
+.exp-native-amount {
+  display: block;
+  margin-top: 0.15rem;
+  font-size: 0.72rem;
+  font-weight: 600;
+  color: var(--muted);
+}

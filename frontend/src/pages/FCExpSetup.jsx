@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import FCExpConfirmDeleteModal from "../features/Forecast/FCExpConfirmDeleteModal.jsx";
 import FCExpModal from "../features/Forecast/FCExpModal.jsx";
 import FCExpFilter from "../features/Forecast/FCExpFilter.jsx";
@@ -103,6 +103,26 @@ export default function FCExpSetup() {
   const [showAddFromLinesModal, setShowAddFromLinesModal] = useState(false);
   const [showDetailsModal, setShowDetailsModal] = useState(false);
   const [statusFilter, setStatusFilter] = useState("all");
+
+  // CR051 — base-year FX rates (native per USD) for the selected scenario, for the modal's live
+  // USD preview on a foreign-currency line. Carry-forward from the latest FX entry with
+  // Year ≤ base year, mirroring the engine's buildRates; the server re-derives on save.
+  const baseFxRates = useMemo(() => {
+    const startYear = getScenarioStartYear();
+    const fx = (assumptions?.FX || []).filter((e) => e.Scenario === selectedScenario);
+    if (!fx.length || !Number.isFinite(startYear)) return {};
+    const sorted = [...fx].sort((a, b) => a.Year - b.Year);
+    let chosen = sorted[0];
+    for (const e of sorted) {
+      if (e.Year <= startYear) chosen = e;
+      else break;
+    }
+    const rates = chosen?.Rates || {};
+    return {
+      PLN: Number(rates.PLN ?? rates.USDPLN),
+      EUR: Number(rates.EUR ?? rates.USDEUR),
+    };
+  }, [assumptions, selectedScenario, getScenarioStartYear]);
 
   // Double-click a row → read it. (It used to open the EDIT form, which meant there was
   // no way to just look at an entry without being one keystroke from changing it.)
@@ -217,6 +237,7 @@ export default function FCExpSetup() {
         accountOptions={accountOptions}
         accountNameOptions={accountNameOptions}
         periodYears={periodYears}
+        baseFxRates={baseFxRates}
       />
       <FCAddFromLinesModal
         isOpen={showAddFromLinesModal}

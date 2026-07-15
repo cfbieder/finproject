@@ -114,6 +114,34 @@ async function loadScenarioConfig(scenarioName) {
   };
 }
 
+/**
+ * CR051 — the base-year FX rate (native units per USD) the engine would use for `currency` in
+ * `scenarioName`. The income/expense write path uses this to derive `base_value_usd` from the
+ * native `base_value` at save time, so the stored USD figure matches what the engine computes at
+ * build (both read the same assumptions). `deriveYear` is pinned to the first forecast year
+ * (PeriodStart, index 0), never the line's base_date — a historical base_date can fall before the
+ * FX series and would derive at a wrong rate (finding F2).
+ *
+ * Returns 1 for USD. Throws when a non-USD currency has no usable base-year rate — the same
+ * misconfiguration the engine would hit at build (finding F1), surfaced early at save time.
+ */
+async function baseYearFxRate(scenarioName, currency) {
+  if (!currency || currency === "USD") return 1;
+  const { fxratesPLN, fxratesEUR } = await loadScenarioConfig(scenarioName);
+  const series =
+    currency === "PLN" ? fxratesPLN :
+    currency === "EUR" ? fxratesEUR : null;
+  const rate = Array.isArray(series) ? Number(series[0]) : NaN;
+  if (!Number.isFinite(rate) || rate <= 0) {
+    throw new Error(
+      `No valid base-year FX rate for ${currency} in scenario "${scenarioName}"; ` +
+      `set the "FX - ${currency}" assumption before using this currency.`
+    );
+  }
+  return rate;
+}
+
 module.exports = {
   loadScenarioConfig,
+  baseYearFxRate,
 };

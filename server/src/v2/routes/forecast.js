@@ -14,6 +14,7 @@ const accountsRepo = require('../repositories').accounts;
 const validate = require('../utils/validate');
 const crud = require('../../services/forecast/crud');
 const variants = require('../services/forecastVariants'); // CR050
+const { baseYearFxRate } = require('../../services/forecast/fcbuilder-setup'); // CR051
 const { generateForecast } = require('../../services/forecast');
 const { PATHS } = require('../../services/forecast/constants');
 
@@ -1013,15 +1014,30 @@ router.post('/incomeexpense', async (req, res, next) => {
       accountId = await crud.resolveIncExpAccountFromFcLine(body.FcLineId);
     }
 
+    // CR051 — for a non-USD line, base_value_usd is DERIVED server-side from the native base_value
+    // at the base-year FX (never trusted from the client, so it can't rot). USD lines are untouched:
+    // native == USD, and matched lines legitimately carry a client-supplied USD figure.
+    const currency = body.Currency || 'USD';
+    let baseValueUsd = body.BaseValueUSD ?? 0;
+    if (currency !== 'USD') {
+      let rate;
+      try {
+        rate = await baseYearFxRate(scenarioName, currency);
+      } catch (e) {
+        return res.status(400).json({ error: e.message });
+      }
+      baseValueUsd = Math.round((Number(body.BaseValue ?? 0) / rate) * 100) / 100;
+    }
+
     const itemData = {
       scenario_id: scenario.id,
       account_id: accountId,
       name: body.Name || 'All',
       item_type: body.Type || '',
-      currency: body.Currency || 'USD',
+      currency,
       base_date: body.BaseDate || null,
       base_value: body.BaseValue ?? 0,
-      base_value_usd: body.BaseValueUSD ?? 0,
+      base_value_usd: baseValueUsd,
       growth_rate: body.Growth ?? 1,
       comment: body.Comment || '',
       is_matched: Boolean(body.Matched),
@@ -1079,6 +1095,33 @@ router.put('/incomeexpense/:id', async (req, res, next) => {
     if (body.Comment !== undefined) updateData.comment = body.Comment;
     if (body.Matched !== undefined) updateData.is_matched = Boolean(body.Matched);
     if (body.SetupStatus !== undefined) updateData.setup_status = body.SetupStatus;
+
+    // CR051 — re-derive base_value_usd server-side whenever currency or base_value could change.
+    // A PUT may touch only one of the two, so resolve the *effective* pair from the stored row,
+    // then derive at the base-year FX (§4/F2). USD stays 1:1 (client value trusted, unchanged).
+    if (body.Currency !== undefined || body.BaseValue !== undefined) {
+      const current = await repo.findIncExpById(id);
+      if (!current) {
+        return res.status(404).json({ error: 'Income/Expense item not found' });
+      }
+      const effCurrency = body.Currency !== undefined ? body.Currency : current.currency;
+      const effBaseValue = body.BaseValue !== undefined ? body.BaseValue : current.base_value;
+      if (effCurrency && effCurrency !== 'USD') {
+        let scenarioName = (body.Scenario || '').trim();
+        if (!scenarioName) {
+          const sc = await repo.findScenarioById(current.scenario_id);
+          scenarioName = sc ? sc.name : '';
+        }
+        let rate;
+        try {
+          rate = await baseYearFxRate(scenarioName, effCurrency);
+        } catch (e) {
+          return res.status(400).json({ error: e.message });
+        }
+        updateData.base_value_usd = Math.round((Number(effBaseValue) / rate) * 100) / 100;
+        updateData.currency = effCurrency; // persist even if only base_value moved
+      }
+    }
 
     let item;
     if (Object.keys(updateData).length > 0) {
