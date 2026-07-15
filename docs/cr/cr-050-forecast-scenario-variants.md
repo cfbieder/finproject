@@ -1,6 +1,6 @@
 # CR050 — Forecast Scenario Variants (inherit-unless-overridden)
 
-**Status:** IN-PROGRESS (shipped v3.0.108, fixes v3.0.110–112, 2026-07-14; awaiting owner acceptance + the adopt decision on "2026 Downside" / "2026 Upside") · **Track:** v3 · **Opened:** 2026-07-14
+**Status:** IN-PROGRESS (shipped v3.0.108, fixes v3.0.110–112, rolled into the **v3.1.0** minor milestone, 2026-07-14; awaiting owner acceptance + the adopt decision on "2026 Downside" / "2026 Upside") · **Track:** v3 · **Opened:** 2026-07-14
 **Depends on:** nothing. **Touches:** `forecast_scenarios`, `forecast_modules`,
 `forecast_income_expense`, `forecast_assumptions`, the forecast routes, and the three
 Forecast setup pages. **Does not touch the engine.**
