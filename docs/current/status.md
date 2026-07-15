@@ -3,10 +3,10 @@
 > The one mandatory read at session start. Keep ≤ ~60 lines; link onward, never restate.
 > CR statuses live in the [CR index](../cr/README.md); the running version lives in `VERSION`.
 
-**Last updated:** 2026-07-14 · **Live version:** v3.0.112 (see `VERSION` / git tags)
+**Last updated:** 2026-07-14 · **Live version:** v3.1.0 (see `VERSION` / git tags)
 
 ## Current phase
-- **[CR050](../cr/cr-050-forecast-scenario-variants.md) — forecast scenario VARIANTS (v3.0.108, 2026-07-14, migration 039).**
+- **[CR050](../cr/cr-050-forecast-scenario-variants.md) — forecast scenario VARIANTS — the v3.1.0 minor milestone (v3.0.108→v3.1.0, 2026-07-14, migration 039).** Five post-ship fixes (v3.0.110–112) were all in how edits are *captured and reported* as overrides — DATE-as-instant, float noise, missing schedules, and the assumption-editing UI bypassing the override system (silent data loss) — never in the inheritance machinery. v3.1.0 also gives **Forecast Expenditures a draft-add modal** like Modules (no more blank "All" rows).
   A scenario copy is a severed island: you duplicate 30 entities to change one field, nothing
   records *which* field made it a downside, and the copies then rot. A **variant** now inherits
   every item from its base unless overridden — overrides are a **JSONB patch keyed to the base
