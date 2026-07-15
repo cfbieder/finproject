@@ -1,6 +1,6 @@
 # CR051 — Foreign-Currency Expense Lines (expose the currency that already exists)
 
-**Status:** IN-PROGRESS — **implemented, on dev (:3105), awaiting the owner walkthrough** (2026-07-15) · **Track:** v3 · **Opened:** 2026-07-15
+**Status:** COMPLETED — **shipped v3.2.0, live in prod** (2026-07-15) · **Track:** v3 · **Opened:** 2026-07-15
 **Depends on:** nothing (rides on CR050's override machinery where it overlaps, but does not require it).
 **Touches:** the Forecast **Expenditures** page (`FCExpModal`, `FCExpTable`, `FCExpSetup`, the exp
 CRUD hook), the income/expense write path (`v2/routes/forecast.js`), the base-year FX helper
@@ -10,11 +10,11 @@ engine fix landed** (§5.5, finding F1): the incexp FX path had no guard on a mi
 non-USD line would divide by 1.0 (silent ~4× overstatement) or by 0 (`Infinity`). That could never
 fire before (no non-USD income/expense line existed); this CR arms it, so the guard ships with it.
 
-> **Implementation note (2026-07-15).** Built and verified on dev overnight. **407 backend tests**
-> (13 new), **195 frontend**, **7/7 Playwright** incl. a new CR051 browser round-trip (add a PLN
-> expense → USD derives at −400/4 = −100 → survives save+reopen), lint gate 0 errors. Backend
-> deployed to dev; frontend build-verified through the e2e harness. Not on prod, not pushed to
-> origin — pending the morning walkthrough. See §5 for what actually shipped vs the original plan.
+> **Shipped v3.2.0 (2026-07-15).** Built and verified on dev overnight, then released to prod.
+> **407 backend tests** (13 new), **195 frontend**, **7/7 Playwright** incl. a new CR051 browser
+> round-trip (add a PLN expense → USD derives at −400/4 = −100 → survives save+reopen), lint gate
+> 0 errors. No migration, no engine behavior change for USD scenarios. The owner opted to ship
+> directly (the pre-release dev walkthrough was waived). See §5 for what shipped vs the original plan.
 
 ---
 
