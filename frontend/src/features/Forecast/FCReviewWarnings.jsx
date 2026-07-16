@@ -13,7 +13,7 @@ import "./FCReviewWarnings.css";
  * can never be mistaken for a healthy forecast — the failure mode that let a
  * $20M unfunded shortfall sit on this page unremarked (CR045 §1).
  */
-export default function FCReviewWarnings({ warnings = [] }) {
+export default function FCReviewWarnings({ warnings = [], onAutoAdjust }) {
   const [collapsed, setCollapsed] = useState(false);
 
   if (warnings.length === 0) {
@@ -47,6 +47,14 @@ export default function FCReviewWarnings({ warnings = [] }) {
           className={`fc-warnings__chevron${collapsed ? " fc-warnings__chevron--collapsed" : ""}`}
         />
       </button>
+
+      {onAutoAdjust && errorCount > 0 && (
+        <div className="fc-warnings__actions">
+          <button type="button" className="btn btn-sm" onClick={onAutoAdjust}>
+            Auto-adjust spending to fund the plan…
+          </button>
+        </div>
+      )}
 
       {!collapsed && (
         <ul className="fc-warnings__list">

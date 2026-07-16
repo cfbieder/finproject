@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import Rest from "../../../js/rest.js";
 
 /**
@@ -23,41 +23,41 @@ export function useScenarios() {
    * Auto-selects default scenario from localStorage if available,
    * otherwise selects the first scenario.
    */
-  useEffect(() => {
-    const loadScenarios = async () => {
-      setIsLoading(true);
-      try {
-        // Using assumptions endpoint which merges PeriodStart/PeriodEnd from FCAssump.json
-        const response = await Rest.fetchJson("/api/v2/forecast/assumptions");
-        const list = response?.scenarios || [];
-        setScenarios(list);
+  const loadScenarios = useCallback(async () => {
+    setIsLoading(true);
+    try {
+      // Using assumptions endpoint which merges PeriodStart/PeriodEnd from FCAssump.json
+      const response = await Rest.fetchJson("/api/v2/forecast/assumptions");
+      const list = response?.scenarios || [];
+      setScenarios(list);
 
-        setSelectedScenario((current) => {
-          // Keep current selection if already set
-          if (current) {
-            return current;
-          }
+      setSelectedScenario((current) => {
+        // Keep current selection if already set
+        if (current) {
+          return current;
+        }
 
-          // Check localStorage for default scenario
-          const defaultScenario = localStorage.getItem("forecast_default_scenario");
-          if (defaultScenario && list.some((s) => s.Name === defaultScenario)) {
-            return defaultScenario;
-          }
+        // Check localStorage for default scenario
+        const defaultScenario = localStorage.getItem("forecast_default_scenario");
+        if (defaultScenario && list.some((s) => s.Name === defaultScenario)) {
+          return defaultScenario;
+        }
 
-          // Fall back to first scenario
-          return list[0]?.Name || "";
-        });
+        // Fall back to first scenario
+        return list[0]?.Name || "";
+      });
 
-        setLoadError("");
-      } catch (error) {
-        setLoadError(error.message || "Failed to load scenarios");
-      } finally {
-        setIsLoading(false);
-      }
-    };
-
-    loadScenarios();
+      setLoadError("");
+    } catch (error) {
+      setLoadError(error.message || "Failed to load scenarios");
+    } finally {
+      setIsLoading(false);
+    }
   }, []);
+
+  useEffect(() => {
+    loadScenarios();
+  }, [loadScenarios]);
 
   return {
     scenarios,
@@ -65,5 +65,6 @@ export function useScenarios() {
     setSelectedScenario,
     isLoading,
     loadError,
+    reload: loadScenarios, // CR053: refresh after an auto-adjust creates a variant
   };
 }

@@ -260,7 +260,7 @@ async function loadIncExpCategoriesForScenario(scenarioId, fcLineNameMap, dbc = 
 /**
  * Main forecast generation function
  */
-async function generateForecast(scenarioName) {
+async function generateForecast(scenarioName, { writeAudit = true } = {}) {
   const startTime = Date.now();
 
   console.log(`[FORECAST-GENERATE] Starting forecast generation for scenario: ${scenarioName}`);
@@ -374,12 +374,17 @@ async function generateForecast(scenarioName) {
       })),
     ];
 
-    // Step 6b: audit-trail CSVs (fs side effect, kept out of the numbers path)
-    for (const c of computed) {
-      if (c.kind === 'bs') {
-        writeAuditTrail(c.result.audit.dfModuleLC, c.result.audit.dfModuleUSD, c.result.audit.dfCategories, scenario, c.module);
-      } else {
-        writeEntriesAuditTrail(c.result.audit.dfCategories, scenario?.Name, c.module?.Account);
+    // Step 6b: audit-trail CSVs (fs side effect, kept out of the numbers path).
+    // CR053: the auto-adjust solver rebuilds a throwaway scratch scenario ~10× per solve;
+    // writeAudit=false skips this so it neither wastes I/O nor litters the audit trail
+    // (which must reflect only real builds). Numbers path is byte-identical either way.
+    if (writeAudit) {
+      for (const c of computed) {
+        if (c.kind === 'bs') {
+          writeAuditTrail(c.result.audit.dfModuleLC, c.result.audit.dfModuleUSD, c.result.audit.dfCategories, scenario, c.module);
+        } else {
+          writeEntriesAuditTrail(c.result.audit.dfCategories, scenario?.Name, c.module?.Account);
+        }
       }
     }
 
@@ -623,8 +628,8 @@ async function generateForecast(scenarioName) {
         console.log(`[FORECAST-GENERATE] Cash sweep: Created ${rebalanceEntries} entries`);
       }
 
-      // Write audit trail
-      if (sweepLog.length > 0) {
+      // Write audit trail (CR053: skipped for solver scratch builds — see Step 6b)
+      if (writeAudit && sweepLog.length > 0) {
         try {
           const auditDir = PATHS.AUDIT_TRAIL_DIR;
           fs.mkdirSync(auditDir, { recursive: true });

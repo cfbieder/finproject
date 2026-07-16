@@ -16,6 +16,7 @@ const crud = require('../../services/forecast/crud');
 const variants = require('../services/forecastVariants'); // CR050
 const { baseYearFxRate } = require('../../services/forecast/fcbuilder-setup'); // CR051
 const { generateForecast } = require('../../services/forecast');
+const autoAdjust = require('../services/forecastAutoAdjust'); // CR053
 const { PATHS } = require('../../services/forecast/constants');
 
 // Fields PUT /scenarios/:id may set (mirrors updateScenario's own allow-list).
@@ -1245,6 +1246,74 @@ router.post('/generate/:scenario', async (req, res, next) => {
     }
   } catch (error) {
     console.error('[forecast/generate] Failed:', error);
+    next(error);
+  }
+});
+
+// ============================================================================
+// Auto-Adjust (CR053) — solve the least uniform spend cut that funds the plan
+// ============================================================================
+
+// GET /api/v2/forecast/auto-adjust/lines/:scenario — candidate expense lines to cut
+router.get('/auto-adjust/lines/:scenario', async (req, res, next) => {
+  try {
+    const scenario = req.params.scenario?.trim();
+    if (!scenario) return res.status(400).json({ error: 'Scenario name is required' });
+    const lines = await autoAdjust.listExpenseLines(scenario);
+    if (lines === null) return res.status(404).json({ error: 'Scenario not found' });
+    res.json({ scenario, lines });
+  } catch (error) {
+    console.error('[forecast/auto-adjust/lines] Failed:', error);
+    next(error);
+  }
+});
+
+// POST /api/v2/forecast/auto-adjust/solve — start a solve job (async; poll the returned jobId)
+// body: { scenarioName, lines:[{type,id}], minRetain?, tolerance? }
+router.post('/auto-adjust/solve', async (req, res, next) => {
+  try {
+    const { scenarioName, lines, minRetain, tolerance } = req.body || {};
+    if (!scenarioName) return res.status(400).json({ error: 'scenarioName is required' });
+    if (!Array.isArray(lines) || lines.length === 0) {
+      return res.status(400).json({ error: 'at least one expense line is required' });
+    }
+    const jobId = autoAdjust.startSolveJob({ scenarioName, lines, minRetain, tolerance });
+    res.status(202).json({ jobId, status: 'running' });
+  } catch (error) {
+    console.error('[forecast/auto-adjust/solve] Failed:', error);
+    next(error);
+  }
+});
+
+// GET /api/v2/forecast/auto-adjust/solve/:jobId — poll a solve job
+router.get('/auto-adjust/solve/:jobId', (req, res, next) => {
+  try {
+    const job = autoAdjust.getSolveJob(req.params.jobId);
+    if (!job) return res.status(404).json({ error: 'Job not found or expired' });
+    res.json({
+      status: job.status,
+      ...(job.status === 'done' ? { result: job.result } : {}),
+      ...(job.status === 'error' ? { error: job.error } : {}),
+    });
+  } catch (error) {
+    next(error);
+  }
+});
+
+// POST /api/v2/forecast/auto-adjust/apply — persist the cut as a variant override + verify
+// body: { scenarioName, lines:[{type,id}], retain, variantName? }
+router.post('/auto-adjust/apply', async (req, res, next) => {
+  try {
+    const { scenarioName, lines, retain, variantName } = req.body || {};
+    if (!scenarioName) return res.status(400).json({ error: 'scenarioName is required' });
+    if (!Array.isArray(lines) || lines.length === 0) {
+      return res.status(400).json({ error: 'at least one expense line is required' });
+    }
+    if (!(retain > 0 && retain <= 1)) return res.status(400).json({ error: 'retain must be in (0, 1]' });
+    const result = await autoAdjust.applySpendReduction({ scenarioName, lines, retain, variantName });
+    res.json(result);
+  } catch (error) {
+    console.error('[forecast/auto-adjust/apply] Failed:', error);
     next(error);
   }
 });

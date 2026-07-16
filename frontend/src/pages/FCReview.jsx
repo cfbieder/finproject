@@ -39,6 +39,7 @@ import FCGraphModuleAdjustModal from "../features/Forecast/FCGraphModuleAdjustMo
 import { formatAmount } from "../features/Forecast/utils/fcReviewUtils.js";
 import { KpiCard, KpiCardRow } from "../components/KpiCards.jsx";
 import FCReviewWarnings from "../features/Forecast/FCReviewWarnings.jsx";
+import FCAutoAdjustModal from "../features/Forecast/FCAutoAdjustModal.jsx";
 import { computeForecastWarnings } from "../features/Forecast/utils/fcWarnings.js";
 import { buildBreakdownSeries } from "../features/Forecast/utils/fcBreakdown.js";
 import { TrendingUp, TrendingDown, DollarSign, Landmark } from "lucide-react";
@@ -82,6 +83,7 @@ export default function FCReview() {
     setSelectedScenario,
     isLoading: scenariosLoading,
     loadError: scenariosError,
+    reload: reloadScenarios,
   } = useScenarios();
 
   // Get the selected scenario object to access PeriodStart/PeriodEnd
@@ -101,6 +103,21 @@ export default function FCReview() {
     entriesError,
     reload: reloadForecastData,
   } = useForecastData(selectedScenario);
+
+  // CR053: auto-adjust (solve a uniform spend cut that funds the plan)
+  const [autoAdjustOpen, setAutoAdjustOpen] = useState(false);
+  const handleAutoAdjustApplied = useCallback(
+    async (res) => {
+      // A base scenario produces a new variant; refresh the selector and switch to it.
+      if (res?.createdVariant && res?.appliedTo) {
+        await reloadScenarios();
+        setSelectedScenario(res.appliedTo);
+      } else {
+        reloadForecastData();
+      }
+    },
+    [reloadScenarios, setSelectedScenario, reloadForecastData]
+  );
 
   // Load FC Line structure for P&L section (replaces COA-based cash flow accounts)
   const {
@@ -1635,7 +1652,10 @@ export default function FCReview() {
           </KpiCardRow>
         )}
         {sortedYears.length > 0 && entries.length > 0 && (
-          <FCReviewWarnings warnings={forecastWarnings} />
+          <FCReviewWarnings
+            warnings={forecastWarnings}
+            onAutoAdjust={() => setAutoAdjustOpen(true)}
+          />
         )}
         <FCReviewTable
           sortedYears={sortedYears}
@@ -1736,6 +1756,16 @@ export default function FCReview() {
         onClose={handleCloseCashSweep}
         scenario={selectedScenario}
       />
+      {autoAdjustOpen && (
+        <FCAutoAdjustModal
+          key={selectedScenario}
+          open
+          scenarioName={selectedScenario}
+          cashSweepLow={cashSweepLow}
+          onClose={() => setAutoAdjustOpen(false)}
+          onApplied={handleAutoAdjustApplied}
+        />
+      )}
     </>
   );
 }

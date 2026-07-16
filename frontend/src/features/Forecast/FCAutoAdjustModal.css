@@ -1,0 +1,146 @@
+/* FCAutoAdjustModal (CR053) — solve/apply a uniform spend cut to fund the plan. */
+
+.fc-autoadjust {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-md);
+}
+
+.fc-autoadjust__hint,
+.fc-autoadjust__empty {
+  margin: 0;
+  color: var(--ink-secondary);
+  font-size: 0.85rem;
+  line-height: 1.45;
+}
+
+.fc-autoadjust__error {
+  display: flex;
+  align-items: center;
+  gap: var(--space-xs);
+  padding: var(--space-sm) var(--space-md);
+  border-radius: var(--radius-lg);
+  background: var(--danger-subtle);
+  color: var(--danger-strong);
+  font-size: 0.85rem;
+}
+
+.fc-autoadjust__loading {
+  display: flex;
+  align-items: center;
+  gap: var(--space-xs);
+  color: var(--ink-secondary);
+  font-size: 0.85rem;
+  padding: var(--space-md) 0;
+}
+
+.fc-autoadjust__spin {
+  animation: fc-autoadjust-spin 1s linear infinite;
+}
+
+@keyframes fc-autoadjust-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+.fc-autoadjust__lines {
+  display: flex;
+  flex-direction: column;
+  max-height: 260px;
+  overflow-y: auto;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+}
+
+.fc-autoadjust__line {
+  display: grid;
+  grid-template-columns: auto 1fr auto auto;
+  align-items: center;
+  gap: var(--space-sm);
+  padding: var(--space-sm) var(--space-md);
+  cursor: pointer;
+  border-bottom: 1px solid var(--border);
+  font-size: 0.87rem;
+}
+
+.fc-autoadjust__line:last-child {
+  border-bottom: none;
+}
+
+.fc-autoadjust__line:hover {
+  background: var(--surface);
+}
+
+.fc-autoadjust__line-name {
+  color: var(--ink);
+  font-weight: var(--font-weight-medium);
+}
+
+.fc-autoadjust__line-type {
+  color: var(--muted);
+  font-size: 0.72rem;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+}
+
+.fc-autoadjust__line-amt {
+  color: var(--ink-secondary);
+  font-variant-numeric: tabular-nums;
+}
+
+.fc-autoadjust__controls {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-md);
+  flex-wrap: wrap;
+}
+
+.fc-autoadjust__selected {
+  color: var(--ink-secondary);
+  font-size: 0.83rem;
+}
+
+.fc-autoadjust__maxcut {
+  display: flex;
+  align-items: center;
+  gap: var(--space-xs);
+  color: var(--ink-secondary);
+  font-size: 0.83rem;
+}
+
+.fc-autoadjust__maxcut input {
+  width: 4rem;
+  padding: 4px 6px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  font-size: 0.85rem;
+  text-align: right;
+}
+
+.fc-autoadjust__result {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-sm);
+  padding: var(--space-md);
+  border-radius: var(--radius-lg);
+  font-size: 0.87rem;
+  line-height: 1.45;
+}
+
+.fc-autoadjust__result--ok {
+  background: var(--success-subtle);
+  color: var(--success-strong);
+}
+
+.fc-autoadjust__result--bad {
+  background: var(--warning-subtle);
+  color: var(--warning-strong);
+}
+
+.fc-autoadjust__result-sub {
+  margin-top: 4px;
+  color: var(--ink-secondary);
+  font-size: 0.8rem;
+}
