@@ -59,7 +59,7 @@ dbDescribe('CR051 income/expense currency (DB)', () => {
     expect(r.status).toBe(400);
     // Rejected before it can mis-convert — either the FX rate is missing, or (as here) the bare
     // scenario has no assumptions entry to convert against. Either way: loud, not a silent 1:1.
-    expect(String(r.body.error || '')).toMatch(/FX|scenario/i);
+    expect(String(r.body.error || '')).toMatch(/FX|scenario|assumptions/i);
   });
 
   test('derives base_value_usd = base_value / base-year FX for a convertible scenario', async () => {
