@@ -436,7 +436,7 @@ function buildCashFlowNode(node, categoryTotals, transfers, transferCategorySet,
  * Transactions for the given categories within a date range, in v1 shape.
  * Callers pass an already-parsed non-empty category list.
  */
-async function getCashFlowTransactions({ categoryList, fromDate, toDate, limit = 100 }) {
+async function getCashFlowTransactions({ categoryList, accountList = [], fromDate, toDate, limit = 100 }) {
   let sql = `
     SELECT t.*, c.name as category_name, a.name as account_name
     FROM transactions t
@@ -446,6 +446,13 @@ async function getCashFlowTransactions({ categoryList, fromDate, toDate, limit =
   `;
   const params = [categoryList];
   let paramIndex = 2;
+
+  // CR054: honor the report's account filter so the drill-down matches the
+  // filtered totals (without it the modal shows every account in the category).
+  if (Array.isArray(accountList) && accountList.length > 0) {
+    sql += ` AND a.name = ANY($${paramIndex++})`;
+    params.push(accountList);
+  }
 
   if (fromDate) {
     sql += ` AND t.transaction_date >= $${paramIndex++}`;

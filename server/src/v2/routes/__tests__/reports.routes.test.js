@@ -96,6 +96,22 @@ dbDescribe('reports router contract (DB)', () => {
       expect(r.status).toBe(200);
       expect(r.body).toEqual([]);
     });
+
+    // CR054: the drill-down accepts an account filter so it matches the
+    // By-Account report's filtered totals. Every returned row is on a
+    // requested account (data-independent: the set is empty or all-match).
+    test('GET /cash-flow/transactions?category&accounts → 200, rows only on the filtered account', async () => {
+      const r = await req(
+        'GET',
+        '/cash-flow/transactions?fromDate=2026-01-01&toDate=2026-12-31' +
+          '&category=Groceries&accounts=PKO'
+      );
+      expect(r.status).toBe(200);
+      expect(Array.isArray(r.body)).toBe(true);
+      for (const row of r.body) {
+        expect(row.Account).toBe('PKO');
+      }
+    });
   });
 
   describe('category trend', () => {

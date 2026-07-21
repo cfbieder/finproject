@@ -194,9 +194,14 @@ export default function CashFlowByAccount() {
   const [selectedCategories, setSelectedCategories] = useState([]);
   const [selectedAccounts, setSelectedAccounts] = useState([]);
   const [currency, setCurrency] = useState("usd");
-  // Snapshot of the currency mode + distinct currencies actually fetched, so
-  // the rendered figures and symbols stay consistent until the next Generate.
-  const [fetched, setFetched] = useState({ currency: "usd", currencies: [] });
+  // Snapshot of the currency mode, distinct currencies, and account filter
+  // actually fetched, so the rendered figures/symbols and the drill-down stay
+  // consistent with the report until the next Generate.
+  const [fetched, setFetched] = useState({
+    currency: "usd",
+    currencies: [],
+    accounts: [],
+  });
   const activePeriodCount = 1;
 
   const handleFromDateChange = (index, value) => {
@@ -254,7 +259,11 @@ export default function CashFlowByAccount() {
       }
       setReports(processedReports);
       setReportPeriods(periods);
-      setFetched({ currency, currencies: [...currencySet].sort() });
+      setFetched({
+        currency,
+        currencies: [...currencySet].sort(),
+        accounts: selectedAccounts,
+      });
       const collapsiblePaths = collectCollapsiblePaths(processedReports?.[0]);
       setCollapsedPaths(new Set(collapsiblePaths));
     } catch (err) {
@@ -463,6 +472,8 @@ export default function CashFlowByAccount() {
               onTogglePath={handleTogglePath}
               periods={reportPeriods}
               currencyCode={currencyCode}
+              filterAccounts={fetched.accounts}
+              currencyMode={fetched.currency}
             />
           </div>
         </div>

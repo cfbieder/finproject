@@ -97,7 +97,7 @@ router.get('/cash-flow', async (req, res, next) => {
  */
 router.get('/cash-flow/transactions', async (req, res, next) => {
   try {
-    const { category, fromDate, toDate, limit = 100 } = req.query;
+    const { category, accounts, fromDate, toDate, limit = 100 } = req.query;
 
     // Handle category as array
     const categoryList = Array.isArray(category)
@@ -108,8 +108,13 @@ router.get('/cash-flow/transactions', async (req, res, next) => {
       return res.json([]);
     }
 
+    // CR054: optional account filter (repeatable) — mirrors the report filter.
+    const accountList = Array.isArray(accounts)
+      ? accounts
+      : (accounts ? [accounts] : []);
+
     const v1Transactions = await reportsService.getCashFlowTransactions({
-      categoryList, fromDate, toDate, limit
+      categoryList, accountList, fromDate, toDate, limit
     });
 
     res.json(v1Transactions);

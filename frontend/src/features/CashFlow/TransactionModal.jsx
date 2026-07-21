@@ -12,7 +12,42 @@ const TRANSACTION_COLUMNS = [
   { key: "amount", label: "Amount" },
 ];
 
-const getTransactionSortValue = (txn, column) => {
+// Per-currency formatter cache — the drill-down can mix currencies in original
+// mode, so each row formats in its own currency (a null code ⇒ plain decimal).
+const rowFormatterCache = new Map();
+const formatRowAmount = (currencyCode, value) => {
+  const key = currencyCode || "__plain__";
+  let nf = rowFormatterCache.get(key);
+  if (!nf) {
+    nf = currencyCode
+      ? new Intl.NumberFormat("en-US", {
+          style: "currency",
+          currency: currencyCode,
+          minimumFractionDigits: 2,
+          maximumFractionDigits: 2,
+        })
+      : new Intl.NumberFormat("en-US", {
+          minimumFractionDigits: 2,
+          maximumFractionDigits: 2,
+        });
+    rowFormatterCache.set(key, nf);
+  }
+  const amount = value ?? 0;
+  return amount < 0 ? `(${nf.format(Math.abs(amount))})` : nf.format(amount);
+};
+
+// In original-currency mode the report sums native amounts, so the drill-down
+// shows the native Amount; otherwise the USD BaseAmount.
+const rowAmount = (txn, preferNative) => {
+  if (preferNative) {
+    return typeof txn?.Amount === "number" ? txn.Amount : 0;
+  }
+  if (typeof txn?.BaseAmount === "number") return txn.BaseAmount;
+  if (typeof txn?.Amount === "number") return txn.Amount;
+  return 0;
+};
+
+const getTransactionSortValue = (txn, column, preferNative) => {
   if (!txn) {
     return "";
   }
@@ -21,15 +56,8 @@ const getTransactionSortValue = (txn, column) => {
       const value = txn?.Date ? new Date(txn.Date) : null;
       return value && !Number.isNaN(value.getTime()) ? value.getTime() : 0;
     }
-    case "amount": {
-      if (typeof txn?.BaseAmount === "number") {
-        return txn.BaseAmount;
-      }
-      if (typeof txn?.Amount === "number") {
-        return txn.Amount;
-      }
-      return 0;
-    }
+    case "amount":
+      return rowAmount(txn, preferNative);
     case "description":
       return (
         txn?.Description1 || txn?.Description2 || txn?.Memo || txn?.Note || ""
@@ -49,7 +77,9 @@ export default function TransactionModal({
   onClose,
   transactionModal,
   formatCurrency,
+  currencyMode = "usd",
 }) {
+  const preferNative = currencyMode === "original";
   const [modalOffset, setModalOffset] = useState({ x: 0, y: 0 });
   const modalDragCleanup = useRef(() => {});
 
@@ -125,8 +155,8 @@ export default function TransactionModal({
     }
     const direction = modalSort.direction === "asc" ? 1 : -1;
     items.sort((a, b) => {
-      const valueA = getTransactionSortValue(a, modalSort.column);
-      const valueB = getTransactionSortValue(b, modalSort.column);
+      const valueA = getTransactionSortValue(a, modalSort.column, preferNative);
+      const valueB = getTransactionSortValue(b, modalSort.column, preferNative);
       if (valueA === valueB) {
         return 0;
       }
@@ -142,7 +172,7 @@ export default function TransactionModal({
       );
     });
     return items;
-  }, [modalSort.column, modalSort.direction, transactions]);
+  }, [modalSort.column, modalSort.direction, transactions, preferNative]);
 
   const handleModalSortChange = (column) => {
     setModalSort((prev) => {
@@ -243,12 +273,7 @@ export default function TransactionModal({
                     txn?.Memo ||
                     txn?.Note ||
                     "";
-                  const amount =
-                    typeof txn?.BaseAmount === "number"
-                      ? txn.BaseAmount
-                      : typeof txn?.Amount === "number"
-                      ? txn.Amount
-                      : 0;
+                  const amount = rowAmount(txn, preferNative);
                   const rowKey = txn?._id || txn?.ID || index;
                   return (
                     <tr key={rowKey}>
@@ -265,7 +290,9 @@ export default function TransactionModal({
                             : ""
                         }`}
                       >
-                        {formatCurrency(amount)}
+                        {preferNative
+                          ? formatRowAmount(txn?.Currency, amount)
+                          : formatCurrency(amount)}
                       </td>
                     </tr>
                   );
@@ -280,6 +307,7 @@ export default function TransactionModal({
           transactions={transactions}
           title={transactionModal?.title}
           formatCurrency={formatCurrency}
+          currencyMode={currencyMode}
           onClose={() => setIsSummaryOpen(false)}
         />
       ) : null}

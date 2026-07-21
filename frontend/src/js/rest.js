@@ -182,6 +182,7 @@ export default class Rest {
 
   static async fetchCashFlowTransactions({
     categories,
+    accounts,
     fromDate,
     toDate,
     limit,
@@ -195,6 +196,11 @@ export default class Rest {
     for (const category of categoryList) {
       if (category) {
         params.append("category", category);
+      }
+    }
+    if (Array.isArray(accounts)) {
+      for (const account of accounts) {
+        if (account) params.append("accounts", account);
       }
     }
     if (fromDate) params.set("fromDate", fromDate);

@@ -1,6 +1,6 @@
 # CR-054 — Cash Flow "By Account" report (category/account filters + currency toggle)
 
-**Status:** SHIPPED v3.4.0 (2026-07-21) · **Track:** v3 ·
+**Status:** SHIPPED v3.4.0 (2026-07-21); drill-down fix v3.4.1 (2026-07-21) · **Track:** v3 ·
 **Depends on:** CR008 (HierarchyFilter), CR042 U5 (CashFlowTabs consolidation).
 
 ## Problem
@@ -78,10 +78,28 @@ Summary / By Period tabs are untouched):
 - Frontend: build ✓, lint ✓, 195 tests ✓, all four CI guards ✓ (dead-tokens, inline-hex,
   button-css, modal-adoption).
 
+## v3.4.1 — drill-down fix (owner-found, 2026-07-21)
+
+Owner clicked the shipped tab (PKO-only + Original) and double-clicked a cell: the
+transaction modal showed **other accounts'** rows (Fidelity, etc.) with **USD amounts
+mislabeled "PLN"**. Two coupled defects in the drill-down:
+
+1. **No account filter.** `handleValueDoubleClick` → `fetchCashFlowTransactions` passed only
+   the category, so the modal pulled that category across *all* accounts. Fixed: the
+   drill-down now carries the report's account filter — `GET /cash-flow/transactions` +
+   `getCashFlowTransactions` accept a repeatable `accounts` param (`AND a.name = ANY(...)`),
+   and the report snapshots the accounts used at Generate.
+2. **Wrong amount field/currency.** The modal (and its Summarize panel) preferred `BaseAmount`
+   (USD) and formatted it with the report's symbol. Fixed: in Original mode both show the
+   **native `Amount`** — the transaction list formats each row in its **own** `Currency`
+   (correct even for a mixed selection), and the summary totals native amounts using the
+   report's currency-aware formatter. USD mode unchanged.
+
+New route-contract test asserts every drill-down row is on the filtered account. 13
+reports-route tests + 195 frontend tests + all CI guards green.
+
 ## Open / follow-ups
 
-- The page compiles/lints/tests green but was **not clicked in a live browser** before the
-  v3.4.0 deploy — exercise it in prod (`/cash-flow/by-account`).
 - Filters + currency are **Generate-driven** (not reactive), matching the other Cash Flow
   tabs; only `frequency` auto-regenerates.
 - Possible later polish: a per-currency subtotal split in Original mode instead of a warning.

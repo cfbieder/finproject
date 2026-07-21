@@ -7,7 +7,14 @@ const GROUP_MODES = [
   { key: "account", label: "By account" },
 ];
 
-const getAmount = (txn) => {
+// In original-currency mode the report/list total native amounts, so the
+// summary must too; otherwise the USD BaseAmount. (formatCurrency is the
+// report's currency-aware formatter — PLN for a single-currency selection,
+// plain decimal for a mixed one — so it stays consistent with both.)
+const getAmount = (txn, preferNative) => {
+  if (preferNative) {
+    return typeof txn?.Amount === "number" ? txn.Amount : 0;
+  }
   if (typeof txn?.BaseAmount === "number") {
     return txn.BaseAmount;
   }
@@ -35,10 +42,12 @@ export default function TransactionSummaryModal({
   transactions,
   title,
   formatCurrency,
+  currencyMode = "usd",
 }) {
   const [mode, setMode] = useState("month");
   const [sortDirection, setSortDirection] = useState("desc");
 
+  const preferNative = currencyMode === "original";
   const rows = Array.isArray(transactions) ? transactions : [];
 
   const summary = useMemo(() => {
@@ -47,7 +56,7 @@ export default function TransactionSummaryModal({
     for (const txn of rows) {
       const key =
         mode === "month" ? getMonthKey(txn?.Date) : getAccountKey(txn);
-      const amount = getAmount(txn);
+      const amount = getAmount(txn, preferNative);
       grandTotal += amount;
       const existing = buckets.get(key);
       if (existing) {
@@ -70,7 +79,7 @@ export default function TransactionSummaryModal({
     });
 
     return { items, grandTotal, count: rows.length };
-  }, [rows, mode, sortDirection]);
+  }, [rows, mode, sortDirection, preferNative]);
 
   const groupLabel = mode === "month" ? "Month" : "Account";
 

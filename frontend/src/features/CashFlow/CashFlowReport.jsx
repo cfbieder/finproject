@@ -185,6 +185,8 @@ export default function CashFlowReport({
   onTogglePath,
   periods = [],
   currencyCode = "USD",
+  filterAccounts = [],
+  currencyMode = "usd",
 }) {
   const formatValue = useMemo(
     () => makeValueFormatter(currencyCode),
@@ -275,6 +277,7 @@ export default function CashFlowReport({
     try {
       const data = await Rest.fetchCashFlowTransactions({
         categories,
+        accounts: filterAccounts,
         fromDate: period.fromDate,
         toDate: period.toDate,
       });
@@ -455,6 +458,7 @@ export default function CashFlowReport({
           transactionModal={transactionModal}
           onClose={closeTransactionModal}
           formatCurrency={formatValue}
+          currencyMode={currencyMode}
         />
       )}
     </section>
@@ -468,4 +472,6 @@ CashFlowReport.propTypes = {
   onTogglePath: PropTypes.func,
   periods: PropTypes.arrayOf(PropTypes.object),
   currencyCode: PropTypes.string,
+  filterAccounts: PropTypes.arrayOf(PropTypes.string),
+  currencyMode: PropTypes.string,
 };
