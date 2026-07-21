@@ -49,7 +49,7 @@ router.get('/balance', async (req, res, next) => {
  */
 router.get('/cash-flow', async (req, res, next) => {
   try {
-    const { fromDate, toDate, transfers = 'exclude', includeUnrealizedGL } = req.query;
+    const { fromDate, toDate, transfers = 'exclude', includeUnrealizedGL, category, accounts, currency } = req.query;
 
     if (!fromDate || !toDate) {
       return res.status(400).json({
@@ -65,11 +65,20 @@ router.get('/cash-flow', async (req, res, next) => {
 
     const transferMode = transfers === 'include' || transfers === 'only' ? transfers : 'exclude';
 
+    // CR054 "By Account": optional category/account name filters (repeatable
+    // params) and an original-vs-USD currency toggle. Absent ⇒ unchanged output.
+    const categoryList = Array.isArray(category) ? category : (category ? [category] : []);
+    const accountList = Array.isArray(accounts) ? accounts : (accounts ? [accounts] : []);
+    const currencyMode = currency === 'original' ? 'original' : 'usd';
+
     const report = await reportsService.buildCashFlowReport({
       fromDate,
       toDate,
       transfers: transferMode,
-      includeUnrealizedGL: includeUnrealizedGL === 'true'
+      includeUnrealizedGL: includeUnrealizedGL === 'true',
+      categories: categoryList,
+      accounts: accountList,
+      currency: currencyMode
     });
     res.json(report);
   } catch (error) {

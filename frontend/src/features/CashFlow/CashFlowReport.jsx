@@ -1,24 +1,35 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import PropTypes from "prop-types";
 import Rest from "../../js/rest.js";
 import TransactionModal from "./TransactionModal.jsx";
 import "./CashFlowReport.css";
 
-// Utility to format currency values
-const currencyFormatter = new Intl.NumberFormat("en-US", {
-  style: "currency",
-  currency: "USD",
-  minimumFractionDigits: 2,
-  maximumFractionDigits: 2,
-});
-
-// Format currency with parentheses for negative values
-const formatCurrency = (value) => {
-  const amount = value ?? 0;
-  return amount < 0
-    ? `(${currencyFormatter.format(Math.abs(amount))})`
-    : currencyFormatter.format(amount);
+// Build a currency/decimal formatter. A currency code (e.g. "USD", "PLN")
+// formats with that symbol; null formats a plain decimal — used when an
+// original-currency report mixes currencies and no single symbol is correct.
+const makeValueFormatter = (currencyCode) => {
+  const nf = currencyCode
+    ? new Intl.NumberFormat("en-US", {
+        style: "currency",
+        currency: currencyCode,
+        minimumFractionDigits: 2,
+        maximumFractionDigits: 2,
+      })
+    : new Intl.NumberFormat("en-US", {
+        minimumFractionDigits: 2,
+        maximumFractionDigits: 2,
+      });
+  // Parentheses for negative values, matching the ledger convention.
+  return (value) => {
+    const amount = value ?? 0;
+    return amount < 0
+      ? `(${nf.format(Math.abs(amount))})`
+      : nf.format(amount);
+  };
 };
+
+// Default USD formatter (Summary / By Period tabs pass no currencyCode).
+const formatCurrency = makeValueFormatter("USD");
 
 // Recursively collect leaf category names from a cash flow node
 const collectLeafCategories = (node) => {
@@ -61,7 +72,8 @@ const renderCashFlowRows = (
   onToggle = () => {},
   onValueDoubleClick = () => {},
   highlightedPaths = new Set(),
-  onToggleHighlight = () => {}
+  onToggleHighlight = () => {},
+  formatValue = formatCurrency
 ) => {
   if (!Array.isArray(nodes) || nodes.length === 0) {
     return [];
@@ -91,7 +103,8 @@ const renderCashFlowRows = (
             onToggle,
             onValueDoubleClick,
             highlightedPaths,
-            onToggleHighlight
+            onToggleHighlight,
+            formatValue
           )
         : [];
 
@@ -144,7 +157,7 @@ const renderCashFlowRows = (
           }`}
           onDoubleClick={() => onValueDoubleClick(node, pathKey, 0)}
         >
-          {formatCurrency(node.total ?? 0)}
+          {formatValue(node.total ?? 0)}
         </td>
         {comparisonValues.map((value, index) => (
           <td
@@ -154,7 +167,7 @@ const renderCashFlowRows = (
             }`}
             onDoubleClick={() => onValueDoubleClick(node, pathKey, index + 1)}
           >
-            {formatCurrency(value)}
+            {formatValue(value)}
           </td>
         ))}
       </tr>
@@ -171,7 +184,12 @@ export default function CashFlowReport({
   collapsedPaths,
   onTogglePath,
   periods = [],
+  currencyCode = "USD",
 }) {
+  const formatValue = useMemo(
+    () => makeValueFormatter(currencyCode),
+    [currencyCode]
+  );
   const activeReports = Array.isArray(reports)
     ? reports.slice(
         0,
@@ -369,7 +387,8 @@ export default function CashFlowReport({
                     onTogglePath,
                     handleValueDoubleClick,
                     highlightedRows,
-                    toggleRowHighlight
+                    toggleRowHighlight,
+                    formatValue
                   )}
                 </tbody>
                 <tfoot>
@@ -393,7 +412,7 @@ export default function CashFlowReport({
                               : ""
                           }`}
                         >
-                          {formatCurrency(baseValue)}
+                          {formatValue(baseValue)}
                         </td>
                         {comparisonMaps.map((map, index) => {
                           const val = (() => {
@@ -414,7 +433,7 @@ export default function CashFlowReport({
                                   : ""
                               }`}
                             >
-                              {formatCurrency(val)}
+                              {formatValue(val)}
                             </td>
                           );
                         })}
@@ -435,7 +454,7 @@ export default function CashFlowReport({
         <TransactionModal
           transactionModal={transactionModal}
           onClose={closeTransactionModal}
-          formatCurrency={formatCurrency}
+          formatCurrency={formatValue}
         />
       )}
     </section>
@@ -448,4 +467,5 @@ CashFlowReport.propTypes = {
   collapsedPaths: PropTypes.instanceOf(Set),
   onTogglePath: PropTypes.func,
   periods: PropTypes.arrayOf(PropTypes.object),
+  currencyCode: PropTypes.string,
 };

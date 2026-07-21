@@ -128,7 +128,7 @@ Detail for each page lives in its CR file (linked) — this table is a directory
 | `/forecast-compare` | FCCompare | Forecasting | FC step 6 — compare two scenarios (baseline A vs B): KPI deltas, P&L/BS delta grids (client-side diff reconciling with Review), recharts A-vs-B lines + diverging delta bars, deterministic "where they differ" commentary + on-demand local-LLM AI narrative with follow-ups; **"Generate both"** rebuilds A and B so the diff isn't against a stale/never-generated scenario (v3.1.0) ([CR040](../cr/cr-040-forecast-scenario-compare.md)) |
 | `/fc-settings` | FCSettings | Forecasting | Birth year, module types, FX assumptions, AI system prompt |
 | `/balances/:view` | Balances | Reports & Graphs | **CR042 U5** — consolidated balance report; deep-linkable tabs: `summary` (BalanceV2 sheet), `periods` (BalanceSheetPeriods), `trends` (BalanceTrends), `chart` (BalanceChart net worth). Old `/balance`, `/balance-trends`, `/balance-sheet-periods`, `/balance-chart` 301-redirect here |
-| `/cash-flow/:view` | CashFlowTabs | Reports & Graphs | **CR042 U5** — consolidated cash flow; tabs: `summary` (CashFlow P&L), `periods` (CashFlowPeriods per-period columns). Old `/cash-flow-periods` redirects here |
+| `/cash-flow/:view` | CashFlowTabs | Reports & Graphs | **CR042 U5** — consolidated cash flow; tabs: `summary` (CashFlow P&L), `periods` (CashFlowPeriods per-period columns), `by-account` (CashFlowByAccount — By-Period layout + category/account filter chips + USD/original-currency toggle, [CR054](../cr/cr-054-cash-flow-by-account.md)). Old `/cash-flow-periods` redirects here |
 | `/category-trend` | CategoryTrend | Reports & Graphs | Actual vs budget per category, grouped bars |
 | `/trans-actual` | TransActual | Transactions | Transaction explorer: search, HierarchyFilter, KPI cards, edit/split/neutralize/delete ([CR008](../cr/cr-008-hierarchy-filter.md)) |
 | `/trans-budget` | TransBudget | Transactions | Budget-transaction explorer (same pattern) |
@@ -194,7 +194,7 @@ Module and income/expense **writes are field-validated** (CR043 N10, v3.0.95): t
 
 **Quicken import (`/quicken-import`):** `POST /parse` · batches list/detail/mappings/preflight/promote/rollback/delete ([CR019](../cr/cr-019-quicken-import.md)).
 
-**Reports (`/reports`):** `GET /balance` · `/cash-flow` (+`/transactions`) · `/category-trend`.
+**Reports (`/reports`):** `GET /balance` · `/cash-flow` (+`/transactions`; CR054 adds optional `category`/`accounts` name filters + `currency=usd|original`, returning `meta:{currency,currencies[]}` — absent params ⇒ unchanged) · `/category-trend`.
 
 **Transactions (`/transactions`):** `GET /` (rich filters; single-account ledger requests get per-row `running_balance` — v3.0.28) · summaries · `GET /:id` · `POST /` (CR025: `accepted` default TRUE for `source='manual'`) · `PATCH /:id` · `DELETE /:id` · `POST /:id/split` · `POST /:id/neutralize` (pair-or-mirror + dryRun + CR032 guard — see [CR028](../cr/cr-028-securities-trade-neutralization.md)/[CR032](../cr/cr-032-core-cash-sweep-neutralization.md)) · `POST /:id/transfer` · `POST /category-suggestions` · `GET /transfer-analysis`.
 

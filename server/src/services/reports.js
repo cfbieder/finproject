@@ -244,11 +244,20 @@ function getAccountBalanceEntry(accountName, accountBalances) {
 /**
  * Build cash flow (P&L) report using PostgreSQL data
  */
-async function buildCashFlowReport({ fromDate, toDate, transfers = 'exclude', includeUnrealizedGL = false }) {
+async function buildCashFlowReport({
+  fromDate,
+  toDate,
+  transfers = 'exclude',
+  includeUnrealizedGL = false,
+  categories = [],
+  accounts = [],
+  currency = 'usd'
+}) {
+  const currencyMode = currency === 'original' ? 'original' : 'usd';
   const tree = await accountsRepo.getNestedTree({ section: 'profit_loss' });
 
   if (!tree || tree.length === 0) {
-    return { 'Profit & Loss Accounts': [] };
+    return { 'Profit & Loss Accounts': [], meta: { currency: currencyMode, currencies: [] } };
   }
 
   // Unwrap the section root node (e.g. "Profit & Loss Accounts" → its children)
@@ -262,7 +271,10 @@ async function buildCashFlowReport({ fromDate, toDate, transfers = 'exclude', in
     : new Set();
 
   // Fetch category totals from PostgreSQL
-  const categoryTotals = await fetchCategoryTotals(fromDate, toDate, transfers, transferCategorySet);
+  const { totals: categoryTotals, currencies } = await fetchCategoryTotals(
+    fromDate, toDate, transfers, transferCategorySet,
+    { categories, accounts, currency: currencyMode }
+  );
 
   const nodes = [];
   for (const item of structure) {
@@ -272,27 +284,60 @@ async function buildCashFlowReport({ fromDate, toDate, transfers = 'exclude', in
     }
   }
 
-  return { 'Profit & Loss Accounts': nodes };
+  return { 'Profit & Loss Accounts': nodes, meta: { currency: currencyMode, currencies } };
 }
 
 /**
- * Fetch category totals from PostgreSQL transactions
+ * Fetch category totals from PostgreSQL transactions.
+ *
+ * Optional filters (CR054 "By Account" report): restrict to the given category
+ * and/or account names, and choose the amount column — `base_amount` (USD, the
+ * default) or `amount` (original transaction currency). `currencies` returns the
+ * distinct transaction currencies that survived the filters, so callers can warn
+ * when an original-currency total mixes currencies (a total that isn't a real
+ * number). Passing no filters and currency='usd' reproduces the original query
+ * byte-for-byte.
  */
-async function fetchCategoryTotals(fromDate, toDate, transfers, transferCategorySet) {
+async function fetchCategoryTotals(
+  fromDate, toDate, transfers, transferCategorySet,
+  { categories = [], accounts = [], currency = 'usd' } = {}
+) {
+  const amountCol = currency === 'original' ? 't.amount' : 't.base_amount';
+  const params = [fromDate, toDate];
+
+  let categoryFilter = '';
+  if (Array.isArray(categories) && categories.length > 0) {
+    const placeholders = categories.map((_, i) => `$${params.length + i + 1}`).join(', ');
+    categoryFilter = `AND c.name IN (${placeholders})`;
+    params.push(...categories);
+  }
+
+  let accountFilter = '';
+  if (Array.isArray(accounts) && accounts.length > 0) {
+    const placeholders = accounts.map((_, i) => `$${params.length + i + 1}`).join(', ');
+    accountFilter = `AND a.name IN (${placeholders})`;
+    params.push(...accounts);
+  }
+
   const sql = `
     SELECT
       c.name as category_name,
-      SUM(t.base_amount) as total_amount,
-      COUNT(*) as transaction_count
+      SUM(${amountCol}) as total_amount,
+      COUNT(*) as transaction_count,
+      ARRAY_AGG(DISTINCT t.currency) as currencies
     FROM transactions t
     JOIN accounts c ON t.category_id = c.id
+    LEFT JOIN accounts a ON t.account_id = a.id
     WHERE t.transaction_date >= $1
       AND t.transaction_date <= $2
+      ${categoryFilter}
+      ${accountFilter}
     GROUP BY c.name
   `;
 
-  const result = await db.query(sql, [fromDate, toDate]);
+  const result = await db.query(sql, params);
   const totals = {};
+  const currencySet = new Set();
 
   for (const row of result.rows) {
     const categoryName = row.category_name;
@@ -303,9 +348,12 @@ async function fetchCategoryTotals(fromDate, toDate, transfers, transferCategory
     if (transfers === 'only' && !isTransfer) continue;
 
     totals[categoryName] = parseFloat(row.total_amount) || 0;
+    for (const cur of row.currencies || []) {
+      if (cur) currencySet.add(cur);
+    }
   }
 
-  return totals;
+  return { totals, currencies: [...currencySet].sort() };
 }
 
 /**

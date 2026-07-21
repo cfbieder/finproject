@@ -505,6 +505,49 @@ export default class Rest {
   }
 
   /**
+   * Cash flow report filtered by category/account, in USD or original currency
+   * (CR054 "By Account" tab). Returns { report, meta } — meta.currencies lists
+   * the distinct transaction currencies so the caller can warn on a mixed
+   * original-currency total.
+   */
+  static async fetchCashFlowByAccountV2({
+    fromDate,
+    toDate,
+    transfers,
+    includeUnrealizedGL,
+    categories,
+    accounts,
+    currency,
+  } = {}) {
+    const params = new URLSearchParams();
+    if (fromDate) params.set("fromDate", fromDate);
+    if (toDate) params.set("toDate", toDate);
+    if (transfers) params.set("transfers", transfers);
+    if (typeof includeUnrealizedGL === "boolean") {
+      params.set("includeUnrealizedGL", includeUnrealizedGL);
+    }
+    if (currency) params.set("currency", currency);
+    if (Array.isArray(categories)) {
+      for (const category of categories) {
+        if (category) params.append("category", category);
+      }
+    }
+    if (Array.isArray(accounts)) {
+      for (const account of accounts) {
+        if (account) params.append("accounts", account);
+      }
+    }
+
+    const query = params.toString();
+    const path = `/api/v2/reports/cash-flow${query ? `?${query}` : ""}`;
+    const report = await Rest.fetchJson(path);
+    return {
+      report: report?.["Profit & Loss Accounts"] ?? null,
+      meta: report?.meta ?? null,
+    };
+  }
+
+  /**
    * Fetch budget summary (actual vs budget by month) from v2 API
    */
   static async fetchBudgetBalancesV2({

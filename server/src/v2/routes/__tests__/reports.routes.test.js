@@ -68,6 +68,26 @@ dbDescribe('reports router contract (DB)', () => {
       expect(r.status).toBe(200);
       expect(Array.isArray(r.body['Profit & Loss Accounts'])).toBe(true);
     });
+
+    // CR054 "By Account": category/account filters + currency toggle.
+    test('GET /cash-flow with category/accounts/currency filters → 200 with meta', async () => {
+      const r = await req(
+        'GET',
+        '/cash-flow?fromDate=2026-01-01&toDate=2026-06-30' +
+          '&category=Groceries&accounts=Checking&currency=original'
+      );
+      expect(r.status).toBe(200);
+      expect(Array.isArray(r.body['Profit & Loss Accounts'])).toBe(true);
+      expect(r.body.meta).toBeDefined();
+      expect(r.body.meta.currency).toBe('original');
+      expect(Array.isArray(r.body.meta.currencies)).toBe(true);
+    });
+
+    test('GET /cash-flow defaults currency to usd in meta', async () => {
+      const r = await req('GET', '/cash-flow?fromDate=2026-01-01&toDate=2026-06-30');
+      expect(r.status).toBe(200);
+      expect(r.body.meta.currency).toBe('usd');
+    });
   });
 
   describe('cash-flow transactions', () => {

@@ -11,10 +11,12 @@ import ReportTabs from "../components/ReportTabs/ReportTabs.jsx";
 
 const Summary = lazy(() => import("./CashFlow"));
 const Periods = lazy(() => import("./CashFlowPeriods"));
+const ByAccount = lazy(() => import("./CashFlowByAccount"));
 
 const TABS = [
   { key: "summary", label: "Summary", Component: Summary },
   { key: "periods", label: "By Period", Component: Periods },
+  { key: "by-account", label: "By Account", Component: ByAccount },
 ];
 
 export default function CashFlowTabs() {

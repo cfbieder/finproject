@@ -1,0 +1,44 @@
+/* CashFlowByAccount (CR054) — filter panel + currency toggle + warning. */
+
+.cash-flow-by-account__filters {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-lg);
+  align-items: flex-start;
+  padding: var(--space-md);
+  background: var(--surface-muted);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-lg);
+}
+
+.cash-flow-by-account__filter-col {
+  flex: 1 1 260px;
+  min-width: 220px;
+}
+
+.cash-flow-by-account__currency {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-xs);
+  flex: 0 1 auto;
+}
+
+.cash-flow-by-account__segmented {
+  display: inline-flex;
+  gap: var(--space-xs);
+}
+
+.cash-flow-by-account__hint {
+  font-size: 0.75rem;
+  color: var(--muted);
+}
+
+.cash-flow-by-account__warning {
+  margin: 0;
+  padding: var(--space-sm) var(--space-md);
+  color: var(--warning-strong);
+  background: var(--warning-subtle);
+  border: 1px solid var(--warning-light);
+  border-radius: var(--radius-md);
+  font-weight: 600;
+}
