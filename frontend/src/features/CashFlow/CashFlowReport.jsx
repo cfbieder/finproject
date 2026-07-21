@@ -186,6 +186,7 @@ export default function CashFlowReport({
   periods = [],
   currencyCode = "USD",
   filterAccounts = [],
+  filterCategories = [],
   currencyMode = "usd",
 }) {
   const formatValue = useMemo(
@@ -250,7 +251,15 @@ export default function CashFlowReport({
       return;
     }
 
-    const categories = Array.from(new Set(collectLeafCategories(node)));
+    // Leaves under the clicked node come from the full COA tree; intersect them
+    // with the report's category filter so the drill-down matches the filtered
+    // totals (CR054 — an unfiltered drill-down showed categories outside the
+    // chip selection). Empty filter ⇒ no restriction.
+    let categories = Array.from(new Set(collectLeafCategories(node)));
+    if (Array.isArray(filterCategories) && filterCategories.length > 0) {
+      const allowed = new Set(filterCategories);
+      categories = categories.filter((c) => allowed.has(c));
+    }
     if (!categories.length) {
       return;
     }
@@ -473,5 +482,6 @@ CashFlowReport.propTypes = {
   periods: PropTypes.arrayOf(PropTypes.object),
   currencyCode: PropTypes.string,
   filterAccounts: PropTypes.arrayOf(PropTypes.string),
+  filterCategories: PropTypes.arrayOf(PropTypes.string),
   currencyMode: PropTypes.string,
 };

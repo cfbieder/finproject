@@ -1,6 +1,6 @@
 # CR-054 — Cash Flow "By Account" report (category/account filters + currency toggle)
 
-**Status:** SHIPPED v3.4.0 (2026-07-21); drill-down fix v3.4.1 (2026-07-21) · **Track:** v3 ·
+**Status:** SHIPPED v3.4.0 (2026-07-21); drill-down fixes v3.4.1–v3.4.2 (2026-07-21) · **Track:** v3 ·
 **Depends on:** CR008 (HierarchyFilter), CR042 U5 (CashFlowTabs consolidation).
 
 ## Problem
@@ -97,6 +97,18 @@ mislabeled "PLN"**. Two coupled defects in the drill-down:
 
 New route-contract test asserts every drill-down row is on the filtered account. 13
 reports-route tests + 195 frontend tests + all CI guards green.
+
+### v3.4.2 — drill-down category filter (owner-found, 2026-07-21)
+
+Same drill-down, next click: with a **category** filter set, double-clicking a row still
+listed categories *outside* the filter. Cause: the filtered report keeps the **full** P&L
+tree (unselected categories total 0 and are hidden by the frontend), so
+`collectLeafCategories(node)` returned every leaf under the clicked node regardless of the
+chip selection. Fix (frontend-only): the report snapshots the category filter at Generate and
+the drill-down **intersects** the node's leaves with it before querying — empty filter ⇒ no
+restriction, so Summary/By-Period are unaffected. The `/cash-flow/transactions` endpoint
+already restricts to the category list it is given; the bug was passing it the unfiltered
+list.
 
 ## Open / follow-ups
 

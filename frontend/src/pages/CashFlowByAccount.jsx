@@ -201,6 +201,7 @@ export default function CashFlowByAccount() {
     currency: "usd",
     currencies: [],
     accounts: [],
+    categories: [],
   });
   const activePeriodCount = 1;
 
@@ -263,6 +264,7 @@ export default function CashFlowByAccount() {
         currency,
         currencies: [...currencySet].sort(),
         accounts: selectedAccounts,
+        categories: selectedCategories,
       });
       const collapsiblePaths = collectCollapsiblePaths(processedReports?.[0]);
       setCollapsedPaths(new Set(collapsiblePaths));
@@ -473,6 +475,7 @@ export default function CashFlowByAccount() {
               periods={reportPeriods}
               currencyCode={currencyCode}
               filterAccounts={fetched.accounts}
+              filterCategories={fetched.categories}
               currencyMode={fetched.currency}
             />
           </div>
