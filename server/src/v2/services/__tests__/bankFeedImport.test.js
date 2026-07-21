@@ -741,7 +741,15 @@ dbDescribe('bankFeedReconciliation.reconcile (DB)', () => {
   afterAll(async () => { await cleanup(); await db.close(); });
 
   test('classifies matched (linked + twin), ps_only, and bank_feed_only correctly', async () => {
-    const d = '2026-05-20';
+    // Seed relative to today so the rows always land inside reconcile()'s
+    // sinceDays window (CURRENT_DATE - sinceDays); fixed dates rot as time passes.
+    const iso = (daysAgo) => {
+      const dt = new Date();
+      dt.setUTCDate(dt.getUTCDate() - daysAgo);
+      return dt.toISOString().slice(0, 10);
+    };
+    const d = iso(10);
+    const dPlus1 = iso(9); // the ±1-day twin
     // 1) PS row already linked (bank_feed_external_id set) → matched
     await db.query(
       `INSERT INTO transactions (transaction_date, amount, currency, account_id, source, bank_feed_external_id, accepted)
@@ -752,7 +760,7 @@ dbDescribe('bankFeedReconciliation.reconcile (DB)', () => {
        VALUES ($1, -20.00, 'PLN', $2, 'pocketsmith', FALSE)`, [d, acctId]);
     await db.query(
       `INSERT INTO transactions (transaction_date, amount, currency, account_id, source, bank_feed_external_id, accepted)
-       VALUES ($1, -20.00, 'PLN', $2, 'bank-feed', 'recon-twin', FALSE)`, ['2026-05-21', acctId]);
+       VALUES ($1, -20.00, 'PLN', $2, 'bank-feed', 'recon-twin', FALSE)`, [dPlus1, acctId]);
     // 3) PS row with NO bank-feed coverage → ps_only (the regression signal)
     await db.query(
       `INSERT INTO transactions (transaction_date, amount, currency, account_id, source, accepted)
