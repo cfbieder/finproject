@@ -48,6 +48,18 @@ export default function COAEditModal({
   const saveLabel = isAdd ? "Add" : "Save";
   const savingLabel = isAdd ? "Adding..." : "Saving...";
 
+  // Adding a real account under a known parent: the child inherits the parent's
+  // account_type unconditionally on the backend, so lock Type to it. For P&L
+  // (income/expense) the account-level currency is display-only (the P&L report
+  // sums the transaction's currency, not the account's), so lock that too; for
+  // asset/liability the container can legitimately hold mixed currencies, so it
+  // stays editable.
+  const isChildAdd =
+    mode === "add" && !isCategoryAdd && (parentPath?.length || 0) > 0;
+  const parentType = (row.type || "").toLowerCase();
+  const isPnLChild = parentType === "income" || parentType === "expense";
+  const lockCurrency = isChildAdd && isPnLChild;
+
   return (
     // <Modal bare>: Radix supplies the portal, the overlay, the focus trap, ESC, and the
     // dialog ARIA role. The hand-rolled `position: fixed` overlay this replaces had NONE of
@@ -241,6 +253,22 @@ export default function COAEditModal({
           <label htmlFor="coa-edit-type" style={{ fontWeight: 700, color: "var(--ink)" }}>
             Type
           </label>
+          {isChildAdd ? (
+            <>
+              <input
+                id="coa-edit-type"
+                className="form-input"
+                value={capitalize(row.type) || ""}
+                readOnly
+                disabled
+                aria-label="Type"
+              />
+              <span style={{ fontSize: "0.8rem", color: "#4A5568" }}>
+                Inherited from the parent category
+              </span>
+            </>
+          ) : (
+          <>
           <select
             id="coa-edit-type"
             className="form-input"
@@ -290,6 +318,8 @@ export default function COAEditModal({
               }}
             />
           )}
+          </>
+          )}
         </div>}
         {!isQuickAddCategory && !isCategoryAdd && <div
           style={{
@@ -301,6 +331,21 @@ export default function COAEditModal({
           <label htmlFor="coa-edit-currency" style={{ fontWeight: 700, color: "var(--ink)" }}>
             Currency
           </label>
+          {lockCurrency ? (
+            <>
+              <input
+                id="coa-edit-currency"
+                className="form-input"
+                value={row.currency || ""}
+                readOnly
+                disabled
+                aria-label="Currency"
+              />
+              <span style={{ fontSize: "0.8rem", color: "#4A5568" }}>
+                Inherited from the parent category
+              </span>
+            </>
+          ) : (
           <select
             id="coa-edit-currency"
             className="form-input"
@@ -318,6 +363,7 @@ export default function COAEditModal({
               </option>
             ))}
           </select>
+          )}
         </div>}
         {!isQuickAddCategory && !isCategoryAdd && <div
           style={{
@@ -330,7 +376,7 @@ export default function COAEditModal({
             htmlFor="coa-edit-account-number"
             style={{ fontWeight: 700, color: "var(--ink)" }}
           >
-            Account #
+            Account # <span style={{ fontWeight: 400, color: "#4A5568" }}>(optional)</span>
           </label>
           <input
             id="coa-edit-account-number"

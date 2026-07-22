@@ -66,6 +66,17 @@ const buildCoaRows = (coaData = [], traitsMap = {}, fedNames = null) => {
     const traits = isCategory ? {} : traitsMap?.[name] || {};
     const type = isCategory ? "Category" : traits.Type || "Unspecified";
     const currency = isCategory ? "\u2014" : traits.Currency || "Unspecified";
+    // The tree shows a container's Type as "Category" and Currency as "\u2014", but the
+    // real account_type/currency (which the backend inherits verbatim when adding a
+    // child \u2014 see server util/coa.js) live in the traits map for every account,
+    // containers included. Keep them so the Add-child modal can lock Type to the
+    // parent and default the child's currency.
+    const parentTraits = traitsMap?.[name] || {};
+    const accountType = parentTraits.Type || null;
+    const accountCurrency =
+      parentTraits.Currency && parentTraits.Currency !== "N/A"
+        ? parentTraits.Currency
+        : null;
     const baseId = `${path.join("|")}-${name}`;
     const count = seenIds.get(baseId) || 0;
     seenIds.set(baseId, count + 1);
@@ -78,6 +89,8 @@ const buildCoaRows = (coaData = [], traitsMap = {}, fedNames = null) => {
       pathLabel: path.length ? path.join(" \u203A ") : "Root",
       type,
       currency,
+      accountType,
+      accountCurrency,
       accountNumber: traits.AccountNumber || "",
       isCategory,
       fed: !isCategory && fedNames instanceof Set && fedNames.has(name),
@@ -337,16 +350,18 @@ export default function COAManagement() {
     const parentPath = parentRow
       ? [...(parentRow.path || []), parentRow.name].filter(Boolean)
       : [];
-    const defaultType =
-      typeOptions.find(
-        (option) => option !== "all" && option !== "Category"
-      ) || typeOptions.find((option) => option !== "all") || "";
+    // A child always inherits its parent's account_type on add (the backend ignores
+    // any type we send), so seed and lock it; default the currency to the parent's.
+    // When there's no parent yet (toolbar "Add New" → category picker), these fill in
+    // once a parent is chosen (handleQuickAddParentChange).
+    const inheritedType = parentRow?.accountType || "";
+    const inheritedCurrency = parentRow?.accountCurrency || "";
     setEditModal({
       open: true,
       row: {
         name: "",
-        type: defaultType,
-        currency: "",
+        type: inheritedType,
+        currency: inheritedCurrency,
         accountNumber: "",
         isCategory: false,
         path: parentPath,
@@ -400,12 +415,22 @@ export default function COAManagement() {
   const handleQuickAddParentChange = (newPath) => {
     setEditModal((prev) => {
       if (!prev.open) return prev;
+      // Match the chosen parent by its full path (names alone aren't unique) so we
+      // inherit its real account_type/currency, same as the "+" add-child path.
+      const parent = coaRows.find(
+        (r) =>
+          r.isCategory &&
+          [...(r.path || []), r.name].length === newPath.length &&
+          [...(r.path || []), r.name].every((seg, i) => seg === newPath[i])
+      );
       return {
         ...prev,
         parentPath: newPath,
         row: {
           ...prev.row,
           path: newPath,
+          type: parent?.accountType ?? prev.row.type,
+          currency: parent?.accountCurrency ?? prev.row.currency,
         },
       };
     });
