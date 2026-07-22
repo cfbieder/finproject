@@ -141,6 +141,20 @@ const PERIOD_PRESETS = [
     }),
   },
   {
+    // Full-history span. Only meaningful (and only rendered) when the consumer
+    // enables a multi-year range — otherwise "all time" can't be represented.
+    id: "all",
+    label: "All",
+    yearRangeOnly: true,
+    compute: () => ({
+      fromMonth: "01",
+      toMonth: "12",
+      actualYear: EARLIEST_ACTUAL_YEAR,
+      toYear: CURRENT_YEAR,
+      budgetYear: CURRENT_YEAR,
+    }),
+  },
+  {
     id: "custom",
     label: "Custom",
     compute: null,
@@ -151,18 +165,31 @@ const PERIOD_PRESETS = [
 // Helper: build summary text for non-custom presets
 // ============================================================================
 
-function buildSummaryText(fromMonth, toMonth, actualYear, budgetYear, monthOptions) {
+function buildSummaryText(
+  fromMonth,
+  toMonth,
+  actualYear,
+  budgetYear,
+  monthOptions,
+  { toYear, hideBudgetYear = false } = {}
+) {
   const fromLabel =
     monthOptions.find((m) => m.value === fromMonth)?.label ?? fromMonth;
   const toLabel =
     monthOptions.find((m) => m.value === toMonth)?.label ?? toMonth;
 
-  const range =
-    fromMonth === toMonth
-      ? `${fromLabel} ${actualYear}`
-      : `${fromLabel}\u2013${toLabel} ${actualYear}`;
+  const endYear = toYear ?? actualYear;
+  let range;
+  if (endYear !== actualYear) {
+    // Multi-year span (e.g. the "All" preset) \u2014 show both endpoints.
+    range = `${fromLabel} ${actualYear}\u2013${toLabel} ${endYear}`;
+  } else if (fromMonth === toMonth) {
+    range = `${fromLabel} ${actualYear}`;
+  } else {
+    range = `${fromLabel}\u2013${toLabel} ${actualYear}`;
+  }
 
-  if (actualYear !== budgetYear) {
+  if (!hideBudgetYear && actualYear !== budgetYear) {
     return `${range} (budget: ${budgetYear})`;
   }
   return range;
@@ -237,8 +264,31 @@ export default function PeriodSelector({
 
   // ── Summary text (for non-custom presets) ──
   const summaryText = useMemo(
-    () => buildSummaryText(fromMonth, toMonth, actualYear, budgetYear, monthOptions),
-    [fromMonth, toMonth, actualYear, budgetYear, monthOptions]
+    () =>
+      buildSummaryText(fromMonth, toMonth, actualYear, budgetYear, monthOptions, {
+        toYear: enableYearRange ? toYear : undefined,
+        hideBudgetYear,
+      }),
+    [
+      fromMonth,
+      toMonth,
+      actualYear,
+      budgetYear,
+      monthOptions,
+      enableYearRange,
+      toYear,
+      hideBudgetYear,
+    ]
+  );
+
+  // "All" (full-history span) is only representable where a multi-year range
+  // is enabled — hide it everywhere else.
+  const visiblePresets = useMemo(
+    () =>
+      enableYearRange
+        ? PERIOD_PRESETS
+        : PERIOD_PRESETS.filter((p) => !p.yearRangeOnly),
+    [enableYearRange]
   );
 
   // ── Preset selection ──
@@ -249,17 +299,19 @@ export default function PeriodSelector({
       if (!found?.compute) return; // "custom" – no auto-compute
 
       const values = found.compute();
+      // Most presets are single-year (toYear === actualYear); "All" spans a range.
+      const nextToYear = values.toYear ?? values.actualYear;
 
       if (fromMonthProp === undefined) setFromMonthState(values.fromMonth);
       if (toMonthProp === undefined) setToMonthState(values.toMonth);
       if (actualYearProp === undefined) setActualYearState(values.actualYear);
       if (budgetYearProp === undefined) setBudgetYearState(values.budgetYear);
       if (enableYearRange && toYearProp === undefined) {
-        setToYearState(values.actualYear);
+        setToYearState(nextToYear);
       }
 
       const payload = { ...values, preset: presetId };
-      if (enableYearRange) payload.toYear = values.actualYear;
+      if (enableYearRange) payload.toYear = nextToYear;
       onChange?.(payload);
     },
     [
@@ -327,7 +379,7 @@ export default function PeriodSelector({
     >
       {/* Preset buttons */}
       <div className="period-selector__presets">
-        {PERIOD_PRESETS.map((p) => (
+        {visiblePresets.map((p) => (
           <button
             key={p.id}
             type="button"

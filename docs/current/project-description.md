@@ -152,7 +152,7 @@ Detail for each page lives in its CR file (linked) — this table is a directory
 ### State, Patterns, Shared Components
 
 - **Context:** `ToastContext`, `ForecastContext`; page-level `useState` otherwise. Shared hooks: `useAPI`, `useCoa` (COA + derived maps — currently refetches per consumer, caching is backlogged), `useOverview` (Home/MobileHome KPI data, CR038), `useFormState`, `useModal`; feature hooks for CRUD+toasts.
-- **Shared selectors:** `HierarchyFilter` (two-stage group pills + checklist, right-click solo, opt-in `singleSelect`), `CategorySelector`, `AccountSelector`, `PeriodSelector` (presets + opt-in `enableYearRange`), `MonthYearPicker`, `PeriodCountSelector`, `KpiCards`, `ConfirmModal`, `MtmDateControl`.
+- **Shared selectors:** `HierarchyFilter` (two-stage group pills + checklist, right-click solo, opt-in `singleSelect`), `CategorySelector`, `AccountSelector`, `PeriodSelector` (presets incl. an "All" full-history preset shown only under opt-in `enableYearRange`), `MonthYearPicker`, `PeriodCountSelector`, `KpiCards`, `ConfirmModal`, `MtmDateControl`.
 - **Patterns:** lazy routes (`React.lazy`+Suspense), feature modules under `features/`, toasts on all CRUD, collapsible filter panels, `.page-shell` page width wrapper.
 - `utils/periodHelpers.js` — shared period-end series engine (Month/Quarter/Year, partial-period `(MTD/QTD/YTD)` handling) used by Balance Trends / BS Periods / Balance Chart / Cash Flow Periods.
 
