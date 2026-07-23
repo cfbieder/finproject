@@ -295,6 +295,14 @@ export default function COAEditModal({
             {isMultiEdit && mixedFields?.type && (
               <option value="">Multiple values</option>
             )}
+            {/* typeOptions no longer carries "Category"; keep the current value
+                selectable so editing a container (its disabled Type reads "Category")
+                or a legacy "Unspecified" leaf still displays correctly. */}
+            {row.type &&
+              !customTypeEnabled &&
+              !(typeOptions || []).includes(row.type) && (
+                <option value={row.type}>{capitalize(row.type)}</option>
+              )}
             {(typeOptions || [])
               .filter((option) => option !== "all")
               .map((option) => (

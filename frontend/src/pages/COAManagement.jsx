@@ -164,8 +164,13 @@ export default function COAManagement() {
   }, [loadCoaData]);
 
   const typeOptions = useMemo(() => {
+    // Real account types only (asset/liability/income/expense) — a container's true
+    // type is on accountType, not the tree's "Category" pseudo-type. Powers both the
+    // filter dropdown and the edit modal's Type select, so neither offers "Category".
     const set = new Set();
-    coaRows.forEach((row) => set.add(row.type));
+    coaRows.forEach((row) => {
+      if (row.accountType) set.add(row.accountType);
+    });
     return ["all", ...Array.from(set).sort()];
   }, [coaRows]);
 
@@ -199,7 +204,11 @@ export default function COAManagement() {
   const filteredRows = useMemo(() => {
     const search = searchTerm.trim().toLowerCase();
     return coaRows.filter((row) => {
-      if (typeFilter !== "all" && row.type !== typeFilter) return false;
+      // Match on the real account_type so a type filter also surfaces the category
+      // containers of that type (they display "Category" in the tree but carry the
+      // parent type on accountType), giving back the hierarchy instead of orphaned
+      // leaves. Synthetic section wrappers (no accountType) drop out under a filter.
+      if (typeFilter !== "all" && row.accountType !== typeFilter) return false;
       if (currencyFilter !== "all" && row.currency !== currencyFilter)
         return false;
       if (!search) return true;
