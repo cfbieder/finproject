@@ -263,7 +263,7 @@ export default function COAEditModal({
                 disabled
                 aria-label="Type"
               />
-              <span style={{ fontSize: "0.8rem", color: "#4A5568" }}>
+              <span style={{ fontSize: "0.8rem", color: "var(--ink-secondary)" }}>
                 Inherited from the parent category
               </span>
             </>
@@ -349,7 +349,7 @@ export default function COAEditModal({
                 disabled
                 aria-label="Currency"
               />
-              <span style={{ fontSize: "0.8rem", color: "#4A5568" }}>
+              <span style={{ fontSize: "0.8rem", color: "var(--ink-secondary)" }}>
                 Inherited from the parent category
               </span>
             </>
@@ -384,7 +384,7 @@ export default function COAEditModal({
             htmlFor="coa-edit-account-number"
             style={{ fontWeight: 700, color: "var(--ink)" }}
           >
-            Account # <span style={{ fontWeight: 400, color: "#4A5568" }}>(optional)</span>
+            Account # <span style={{ fontWeight: 400, color: "var(--ink-secondary)" }}>(optional)</span>
           </label>
           <input
             id="coa-edit-account-number"
