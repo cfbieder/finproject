@@ -8,6 +8,7 @@
 const express = require('express');
 const router = express.Router();
 const reportsService = require('../../services/reports');
+const investmentReturnsService = require('../../services/investmentReturns');
 
 const { isValidDateString } = reportsService;
 
@@ -163,6 +164,63 @@ router.get('/category-trend', async (req, res, next) => {
     res.json(result);
   } catch (error) {
     console.error('[v2/reports/category-trend] Failed:', error);
+    next(error);
+  }
+});
+
+// ============================================================================
+// Investment Returns Report (CR056 P1)
+// ============================================================================
+
+/**
+ * GET /api/v2/reports/investment-returns
+ *   ?account=<id>&fromDate=&toDate=&interval=month|quarter|year|marks&currency=usd|lc
+ *
+ * `interval=marks` lays the columns out between consecutive `Unrealized G/L`
+ * postings instead of on the calendar — the only honest layout for a holding
+ * valued on its own schedule (United Beverages is marked once a year on 31
+ * March, so every calendar boundary misses a valuation).
+ *
+ * Realized income and price return per interval for one account (a parent rolls
+ * up its descendants), absolute and as a Modified Dietz %. Responds with the
+ * CR043 N8 `{ data, meta }` envelope — `meta` carries the coverage / cadence /
+ * chain-break banners, so a consumer that discards it renders a report with all
+ * its caveats silently removed.
+ */
+router.get('/investment-returns', async (req, res, next) => {
+  try {
+    const { account, fromDate, toDate, interval = 'month', currency = 'usd' } = req.query;
+
+    const accountId = Number(account);
+    if (!Number.isInteger(accountId) || accountId <= 0) {
+      return res.status(400).json({ error: "Missing or invalid 'account' query parameter" });
+    }
+    if (!fromDate || !toDate) {
+      return res.status(400).json({
+        error: "Missing required query parameters 'fromDate' and 'toDate'"
+      });
+    }
+    if (!isValidDateString(fromDate) || !isValidDateString(toDate)) {
+      return res.status(400).json({
+        error: "Invalid date query parameter; expected YYYY-MM-DD"
+      });
+    }
+    if (!['month', 'quarter', 'year', 'marks'].includes(interval)) {
+      return res.status(400).json({
+        error: "Invalid 'interval'; expected month, quarter, year or marks"
+      });
+    }
+    if (!['usd', 'lc'].includes(currency)) {
+      return res.status(400).json({ error: "Invalid 'currency'; expected usd or lc" });
+    }
+
+    const { data, meta } = await investmentReturnsService.buildInvestmentReturns({
+      accountId, fromDate, toDate, interval, currency
+    });
+    res.json({ data, meta });
+  } catch (error) {
+    if (error.status === 400) return res.status(400).json({ error: error.message });
+    console.error('[v2/reports/investment-returns] Failed:', error);
     next(error);
   }
 });

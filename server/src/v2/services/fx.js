@@ -9,16 +9,22 @@
  */
 
 /**
+ * The raw currency → USD rate as of a date: the most recent rate on/before
+ * `dateText`, falling back to the nearest rate if none precedes it (early
+ * history — EUR/PLN/GBP coverage starts 1999-12-30).
+ *
+ * Extracted from `usdBaseAmount` for CR056, which needs the unrounded rate for a
+ * bulk market-value multiply rather than a per-call cents-rounded amount. Both
+ * callers must share this rule or the report's boundary FX would drift from the
+ * `base_amount` the ledger was booked at.
+ *
  * @param {{query: Function}} querier  a db client or the db module
- * @param {number} amount              amount in `currency`
- * @param {string} currency            ISO code (e.g. 'EUR'); 'USD' is a 1:1 no-op
+ * @param {string} currency            ISO code; 'USD' is a 1:1 no-op
  * @param {string} dateText            YYYY-MM-DD — the as-of date for the rate
- * @returns {Promise<number|null>}     USD base amount, or null if no rate exists
+ * @returns {Promise<number|null>}     rate, or null if the currency has no rows
  */
-async function usdBaseAmount(querier, amount, currency, dateText) {
-  const amt = Number(amount);
-  if (!Number.isFinite(amt)) return null;
-  if (currency === 'USD') return Math.round(amt * 100) / 100;
+async function rateAsOf(querier, currency, dateText) {
+  if (currency === 'USD') return 1;
   const res = await querier.query(
     `SELECT rate FROM exchange_rates
        WHERE from_currency = $1 AND to_currency = 'USD'
@@ -28,8 +34,22 @@ async function usdBaseAmount(querier, amount, currency, dateText) {
   );
   if (!res.rows.length) return null;
   const rate = Number(res.rows[0].rate);
-  if (!Number.isFinite(rate)) return null;
+  return Number.isFinite(rate) ? rate : null;
+}
+
+/**
+ * @param {{query: Function}} querier  a db client or the db module
+ * @param {number} amount              amount in `currency`
+ * @param {string} currency            ISO code (e.g. 'EUR'); 'USD' is a 1:1 no-op
+ * @param {string} dateText            YYYY-MM-DD — the as-of date for the rate
+ * @returns {Promise<number|null>}     USD base amount, or null if no rate exists
+ */
+async function usdBaseAmount(querier, amount, currency, dateText) {
+  const amt = Number(amount);
+  if (!Number.isFinite(amt)) return null;
+  const rate = await rateAsOf(querier, currency, dateText);
+  if (rate === null) return null;
   return Math.round(amt * rate * 100) / 100;
 }
 
-module.exports = { usdBaseAmount };
+module.exports = { usdBaseAmount, rateAsOf };

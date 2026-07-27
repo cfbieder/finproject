@@ -27,6 +27,7 @@ import {
   ArrowLeftRight,
   Wallet,
   Palette,
+  LineChart,
 } from "lucide-react";
 
 // Eagerly loaded pages (for fast initial render)
@@ -43,6 +44,7 @@ const BudgetInput = lazy(() => import("../pages/BudgetWorksheetV2"));
 const BudgetVsActual = lazy(() => import("../pages/BudgetVsActual"));
 // CR042 U5: the two cash-flow pages are now tabs inside CashFlowTabs.
 const CashFlowTabs = lazy(() => import("../pages/CashFlowTabs"));
+const InvestmentReturns = lazy(() => import("../pages/InvestmentReturns"));
 const FCExpSetup = lazy(() => import("../pages/FCExpSetup"));
 const FCLineMapping = lazy(() => import("../pages/FCLineMapping"));
 const FCModuleManage = lazy(() => import("../pages/FCModuleManage"));
@@ -337,6 +339,17 @@ export const routes = [
     subcategory: "Reports",
     showInNav: false,
     icon: ArrowLeftRight,
+  },
+
+  {
+    path: "/investment-returns",
+    component: InvestmentReturns,
+    label: "Investment Returns",
+    category: "Reports & Graphs",
+    subcategory: "Reports",
+    description:
+      "Realized income and price return per period for an account, absolute and as a Modified Dietz %",
+    icon: LineChart,
   },
 
   // Reports & Graphs > Graphs

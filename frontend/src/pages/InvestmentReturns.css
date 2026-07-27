@@ -1,0 +1,343 @@
+/* InvestmentReturns (CR056 P1) — period-column report + two aligned charts.
+   The page opts out of `.page-main`'s two-column grid via
+   `balance-grid balance-grid--single` (see PageLayout.css) — the table is the
+   artifact and needs the full width. */
+
+.investment-returns__header {
+  margin-bottom: 1rem;
+}
+
+.investment-returns__title {
+  margin: 0;
+  font-size: 1.5rem;
+  font-weight: 700;
+  color: var(--ink);
+}
+
+.investment-returns__subtitle {
+  margin: 0.25rem 0 0;
+  color: var(--ink-secondary);
+  font-size: 0.875rem;
+}
+
+/* --- Toolbar ------------------------------------------------------------- */
+
+.investment-returns__toolbar {
+  margin-bottom: 1.25rem;
+}
+
+.investment-returns__toolbar-grid {
+  display: grid;
+  grid-template-columns: minmax(320px, 2fr) minmax(0, 3fr);
+  grid-template-areas:
+    "account period"
+    "controls period";
+  gap: 1rem 1.5rem;
+  align-items: start;
+}
+
+.investment-returns__field {
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+  min-width: 0;
+}
+
+.investment-returns__field--account {
+  grid-area: account;
+}
+
+.investment-returns__field--period {
+  grid-area: period;
+}
+
+/* Interval / Currency / Generate share one row under the account picker, so
+   the three small controls read as a group rather than as three orphans. */
+.investment-returns__controls {
+  grid-area: controls;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: 1.25rem;
+}
+
+.investment-returns__field--action {
+  gap: 0.35rem;
+}
+
+.investment-returns__label {
+  font-size: 0.75rem;
+  text-transform: uppercase;
+  letter-spacing: 0.08rem;
+  color: var(--muted);
+  font-weight: 700;
+}
+
+.investment-returns__segmented {
+  display: inline-flex;
+  gap: 0.375rem;
+}
+
+.investment-returns__hint {
+  font-size: 0.75rem;
+  color: var(--muted);
+}
+
+.investment-returns__error {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  flex-wrap: wrap;
+  color: var(--danger);
+  font-size: 0.875rem;
+  margin: 0 0 1rem;
+}
+
+.investment-returns__error-action {
+  flex: 0 0 auto;
+}
+
+/* --- Warnings (read before the numbers) ---------------------------------- */
+
+.investment-returns__warnings {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  margin-bottom: 1rem;
+}
+
+.investment-returns__warning {
+  margin: 0;
+  padding: 0.625rem 0.875rem;
+  border-radius: var(--radius-md);
+  font-size: 0.8125rem;
+  line-height: 1.45;
+  border: 1px solid var(--warning);
+  background: var(--warning-subtle);
+  color: var(--ink);
+}
+
+/* --- "Use the marked period" prompt --------------------------------------- */
+
+.investment-returns__prompt {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+  margin-bottom: 1.25rem;
+  padding: 0.75rem 0.875rem;
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-md);
+  background: var(--surface);
+}
+
+.investment-returns__prompt p {
+  margin: 0;
+  font-size: 0.8125rem;
+  line-height: 1.45;
+  color: var(--ink-secondary);
+  max-width: 72ch;
+}
+
+/* --- Suppression notes (read after the numbers) --------------------------- */
+
+.investment-returns__notes {
+  margin: 0 0 1.25rem;
+  padding: 0.625rem 0.875rem;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  background: var(--surface);
+  font-size: 0.8125rem;
+  color: var(--ink-secondary);
+}
+
+.investment-returns__notes summary {
+  cursor: pointer;
+  color: var(--ink-secondary);
+  font-weight: 600;
+}
+
+.investment-returns__notes p {
+  margin: 0.5rem 0 0;
+  line-height: 1.45;
+}
+
+/* --- Table --------------------------------------------------------------- */
+
+.investment-returns__table-panel {
+  margin-bottom: 1.25rem;
+  padding: 0.75rem 0 0;
+  overflow: hidden;
+}
+
+/* The report shouldn't lift when the pointer crosses it (PageLayout .panel:hover). */
+.investment-returns__table-panel:hover {
+  box-shadow: var(--shadow-soft);
+}
+
+.investment-returns__caption {
+  margin: 0 0.875rem 0.625rem;
+  font-size: 0.8125rem;
+  color: var(--ink-secondary);
+}
+
+/* Bounded height so `position: sticky` on thead has a scrollport to stick in —
+   overflow-x alone makes this the scroll container but never scrolls it. */
+.investment-returns__table-scroll {
+  overflow: auto;
+  max-height: calc(100vh - 18rem);
+}
+
+.investment-returns__table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.8125rem;
+  white-space: nowrap;
+}
+
+.investment-returns__table th,
+.investment-returns__table td {
+  padding: 0.5rem 0.75rem;
+  text-align: right;
+  border-bottom: 1px solid var(--border);
+  color: var(--ink);
+}
+
+/* Every money column is compared down and across — proportional digits break
+   both scans. */
+.investment-returns__table td {
+  font-variant-numeric: tabular-nums;
+}
+
+.investment-returns__table thead th {
+  background: var(--surface-muted);
+  color: var(--ink-secondary);
+  font-weight: 600;
+  position: sticky;
+  top: 0;
+  z-index: 2;
+}
+
+.investment-returns__row-label {
+  text-align: left !important;
+  position: sticky;
+  left: 0;
+  /* --surface-elevated, not --surface: the panel is elevated, and in dark the
+     two differ (#262A2F vs #1C1F22) — the pinned column would stripe. */
+  background: var(--surface-elevated);
+  color: var(--ink-secondary) !important;
+  font-weight: 500;
+  z-index: 1;
+}
+
+.investment-returns__table thead .investment-returns__row-label {
+  background: var(--surface-muted);
+  z-index: 3; /* the corner sits above both sticky axes */
+}
+
+.investment-returns__table tr.is-indent .investment-returns__row-label {
+  padding-left: 1.75rem;
+  color: var(--ink-tertiary) !important;
+}
+
+.investment-returns__table tr.is-strong td,
+.investment-returns__table tr.is-strong .investment-returns__row-label {
+  font-weight: 700;
+  color: var(--ink) !important;
+}
+
+.investment-returns__table tr.is-flag td,
+.investment-returns__table tr.is-flag .investment-returns__row-label {
+  color: var(--danger) !important;
+}
+
+.investment-returns__table tr.is-muted td,
+.investment-returns__table tr.is-muted .investment-returns__row-label {
+  color: var(--ink-tertiary) !important;
+  font-weight: 500;
+}
+
+/* Sign colour only on the rows where sign means gain/loss. Deliberately NOT on
+   Net external flows — a negative there is a withdrawal, not a loss. */
+.investment-returns__table tr.is-signed td.is-negative {
+  color: var(--growth-negative) !important;
+}
+
+.investment-returns__table td.is-suppressed {
+  color: var(--ink-tertiary) !important;
+  letter-spacing: 0.1em;
+}
+
+.investment-returns__total-col {
+  border-left: 1px solid var(--border-strong);
+  font-weight: 700;
+}
+
+.investment-returns__disclosure {
+  appearance: none;
+  border: 0;
+  background: transparent;
+  padding: 0;
+  font: inherit;
+  color: inherit;
+  cursor: pointer;
+  text-align: left;
+}
+
+.investment-returns__disclosure:hover {
+  color: var(--ink) !important;
+}
+
+.investment-returns__count {
+  color: var(--ink-tertiary);
+  font-weight: 500;
+}
+
+.investment-returns__sub {
+  display: block;
+  font-size: 0.6875rem;
+  font-weight: 500;
+  color: var(--ink-tertiary);
+}
+
+/* --- Charts -------------------------------------------------------------- */
+
+.investment-returns__charts {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  margin-bottom: 1.25rem;
+}
+
+.investment-returns__chart-title {
+  margin: 0.5rem 0 0;
+  font-size: 0.75rem;
+  text-transform: uppercase;
+  letter-spacing: 0.08rem;
+  color: var(--muted);
+  font-weight: 700;
+}
+
+@media (max-width: 900px) {
+  .investment-returns__toolbar-grid {
+    grid-template-columns: minmax(0, 1fr);
+    grid-template-areas:
+      "account"
+      "period"
+      "controls";
+  }
+}
+
+.investment-returns__table tr.investment-returns__divider th,
+.investment-returns__table tr.investment-returns__divider td {
+  border-top: 1px solid var(--border-strong);
+  color: var(--ink-tertiary) !important;
+}
+
+/* † — this column's figure is dated to the valuation, not to the calendar period. */
+.investment-returns__dagger {
+  margin-left: 0.2rem;
+  color: var(--warning);
+  font-weight: 700;
+}

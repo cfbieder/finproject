@@ -135,4 +135,98 @@ dbDescribe('reports router contract (DB)', () => {
       expect(r.body.budget).toEqual({});
     });
   });
+
+  // CR056 P1. Data-independent: shapes, validation and the identity — never a
+  // specific balance, so these hold on CI's fresh seeded DB too.
+  describe('investment returns', () => {
+    const anyAccount = async () => {
+      const { rows } = await db.query(
+        `SELECT id FROM accounts WHERE account_type = 'asset' AND is_active ORDER BY id LIMIT 1`
+      );
+      return rows[0] ? rows[0].id : null;
+    };
+
+    test('GET /investment-returns with no account → 400', async () => {
+      const r = await req('GET', '/investment-returns?fromDate=2025-01-01&toDate=2025-12-31');
+      expect(r.status).toBe(400);
+      expect(r.body.error).toMatch(/account/i);
+    });
+
+    test('GET /investment-returns with no dates → 400', async () => {
+      const r = await req('GET', '/investment-returns?account=1');
+      expect(r.status).toBe(400);
+      expect(r.body.error).toMatch(/fromDate/);
+    });
+
+    test('GET /investment-returns with a malformed date → 400', async () => {
+      const r = await req('GET', '/investment-returns?account=1&fromDate=01-01-2025&toDate=2025-12-31');
+      expect(r.status).toBe(400);
+      expect(r.body.error).toMatch(/YYYY-MM-DD/);
+    });
+
+    test('GET /investment-returns with an unknown interval → 400', async () => {
+      const r = await req('GET', '/investment-returns?account=1&fromDate=2025-01-01&toDate=2025-12-31&interval=fortnight');
+      expect(r.status).toBe(400);
+      expect(r.body.error).toMatch(/interval/i);
+    });
+
+    test('GET /investment-returns with an unknown currency → 400', async () => {
+      const r = await req('GET', '/investment-returns?account=1&fromDate=2025-01-01&toDate=2025-12-31&currency=eur');
+      expect(r.status).toBe(400);
+      expect(r.body.error).toMatch(/currency/i);
+    });
+
+    test('GET /investment-returns for an unknown account → 400', async () => {
+      const r = await req('GET', '/investment-returns?account=99999999&fromDate=2025-01-01&toDate=2025-12-31');
+      expect(r.status).toBe(400);
+      expect(r.body.error).toMatch(/Unknown account/);
+    });
+
+    test('rejects an over-wide span instead of silently coarsening it', async () => {
+      const id = await anyAccount();
+      if (!id) return;
+      const r = await req('GET', `/investment-returns?account=${id}&fromDate=2000-01-01&toDate=2026-12-31&interval=month`);
+      expect(r.status).toBe(400);
+      expect(r.body.error).toMatch(/quarterly or annual/);
+    });
+
+    test('valid params → 200 { data, meta } with the documented shape', async () => {
+      const id = await anyAccount();
+      if (!id) return;
+      const r = await req('GET', `/investment-returns?account=${id}&fromDate=2025-01-01&toDate=2025-12-31&interval=quarter`);
+      expect(r.status).toBe(200);
+      expect(r.body.data.intervals.map((i) => i.key)).toEqual(['2025-Q1', '2025-Q2', '2025-Q3', '2025-Q4']);
+      expect(r.body.meta.currency).toBe('usd');
+      for (const key of ['beginningMV', 'netFlows', 'incomeTotal', 'priceReturn',
+        'fxEffect', 'unattributed', 'totalReturn', 'returnPct', 'coverage', 'endingMV']) {
+        expect(r.body.data.rows[key]).toHaveLength(4);
+      }
+      expect(Array.isArray(r.body.meta.markCoverage)).toBe(true);
+      expect(Array.isArray(r.body.meta.chainBrokenBy)).toBe(true);
+    });
+
+    test('the reconciliation identity closes in every interval', async () => {
+      // The assertion rev 1 could not pass: category 206 and NULL-category rows
+      // moved MV while appearing in no row, so the columns did not tie.
+      const id = await anyAccount();
+      if (!id) return;
+      const r = await req('GET', `/investment-returns?account=${id}&fromDate=2025-01-01&toDate=2025-12-31&interval=quarter`);
+      expect(r.status).toBe(200);
+      const { rows } = r.body.data;
+      rows.beginningMV.forEach((bmv, i) => {
+        const parts = rows.incomeTotal[i] + rows.priceReturn[i]
+          + rows.fxEffect[i] + rows.unattributed[i];
+        expect(parts).toBeCloseTo(rows.totalReturn[i], 6);
+        expect(bmv + rows.netFlows[i] + rows.totalReturn[i]).toBeCloseTo(rows.endingMV[i], 6);
+      });
+    });
+
+    test('currency=lc is accepted and reports its mode', async () => {
+      const id = await anyAccount();
+      if (!id) return;
+      const r = await req('GET', `/investment-returns?account=${id}&fromDate=2025-01-01&toDate=2025-06-30&interval=quarter&currency=lc`);
+      expect(r.status).toBe(200);
+      expect(r.body.meta.currency).toBe('lc');
+    });
+  });
 });

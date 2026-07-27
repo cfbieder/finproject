@@ -554,6 +554,34 @@ export default class Rest {
   }
 
   /**
+   * Fetch the CR056 Investment Returns report.
+   *
+   * Deliberately NOT via `Rest.unwrap` — that returns `payload.data` when the
+   * only siblings are `success`/`meta`, which would silently discard the
+   * coverage / cadence / chain-break banners and render a report with all its
+   * caveats stripped off. Follows the CR054 precedent of returning both halves.
+   */
+  static async fetchInvestmentReturnsV2({
+    account,
+    fromDate,
+    toDate,
+    interval = "month",
+    currency = "usd",
+  } = {}) {
+    const params = new URLSearchParams({
+      account: String(account),
+      fromDate,
+      toDate,
+      interval,
+      currency,
+    });
+    const payload = await Rest.fetchJson(
+      `/api/v2/reports/investment-returns?${params.toString()}`
+    );
+    return { data: payload?.data ?? null, meta: payload?.meta ?? null };
+  }
+
+  /**
    * Fetch budget summary (actual vs budget by month) from v2 API
    */
   static async fetchBudgetBalancesV2({
