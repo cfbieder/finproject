@@ -100,9 +100,10 @@ dbDescribe('incomeRestatement (DB)', () => {
   const HOLD = 'TestBASHolding';
   const HOLD_EUR = 'TestBASHoldingEur';
   const INCOME_CAT = 'TestBASIncomeCat';
+  const TRANSFER_CAT = 'TestBASTransferCat';
   const DATE = '2026-03-31';
 
-  let cashId, holdId, holdEurId, incomeCatId, txId;
+  let cashId, holdId, holdEurId, incomeCatId, transferCatId, txId;
 
   async function cleanup() {
     await db.query(
@@ -117,7 +118,7 @@ dbDescribe('incomeRestatement (DB)', () => {
       [[CASH, HOLD, HOLD_EUR]]
     );
     await db.query(`DELETE FROM accounts WHERE name = ANY($1::text[])`,
-      [[CASH, HOLD, HOLD_EUR, INCOME_CAT]]);
+      [[CASH, HOLD, HOLD_EUR, INCOME_CAT, TRANSFER_CAT]]);
   }
 
   async function account(name, { type, section, currency }) {
@@ -129,12 +130,40 @@ dbDescribe('incomeRestatement (DB)', () => {
     return rows[0].id;
   }
 
+  // The cross-currency tests derive the holding-currency figure from USD at
+  // DATE's rate. Dev carries these rows from the frankfurter feed, but a
+  // migrations-only database (what CI builds — `ci-seed.sql` seeds no FX at all)
+  // does not, so the suite used to pass locally and fail in CI with
+  // "No EUR→USD exchange rate available for 2026-03-31". Seed if absent rather
+  // than depend on ambient data; never delete, since on dev these are shared
+  // reference rows. Values match dev's real rates so behaviour there is
+  // unchanged — the assertions read the rate back from the preview and are
+  // themselves rate-agnostic.
+  async function ensureRate(from, to, rate) {
+    await db.query(
+      `INSERT INTO exchange_rates (from_currency, to_currency, rate, rate_date, source)
+       SELECT $1, $2, $3, $4::date, 'test-fixture'
+        WHERE NOT EXISTS (
+          SELECT 1 FROM exchange_rates
+           WHERE from_currency = $1 AND to_currency = $2 AND rate_date = $4::date)`,
+      [from, to, rate, DATE]
+    );
+  }
+
   beforeAll(async () => {
     await cleanup();
+    await ensureRate('EUR', 'USD', 1.149795);
+    await ensureRate('PLN', 'USD', 0.268082);
     cashId = await account(CASH, { type: 'asset', section: 'balance_sheet', currency: 'PLN' });
     holdId = await account(HOLD, { type: 'asset', section: 'balance_sheet', currency: 'PLN' });
     holdEurId = await account(HOLD_EUR, { type: 'asset', section: 'balance_sheet', currency: 'EUR' });
     incomeCatId = await account(INCOME_CAT, { type: 'income', section: 'profit_loss', currency: 'PLN' });
+    // Own transfer category rather than borrowing `Transfer - Historical`, which
+    // is seeded by seedAccounts.js and so does NOT exist on a migrations-only
+    // database: the subquery returned NULL there and the service threw a
+    // different 400 than the test asserts.
+    transferCatId = await account(TRANSFER_CAT, { type: 'expense', section: 'profit_loss', currency: 'PLN' });
+    await db.query(`UPDATE accounts SET is_transfer = TRUE WHERE id = $1`, [transferCatId]);
   });
 
   beforeEach(async () => {
@@ -281,8 +310,8 @@ dbDescribe('incomeRestatement (DB)', () => {
     const { rows } = await db.query(
       `INSERT INTO transactions (transaction_date, amount, currency, base_amount, base_currency,
                                  account_id, category_id, source)
-       VALUES ($1, 10, 'PLN', 2.5, 'USD', $2, (SELECT id FROM accounts WHERE name = 'Transfer - Historical'), 'test')
-       RETURNING id`, [DATE, cashId]);
+       VALUES ($1, 10, 'PLN', 2.5, 'USD', $2, $3, 'test')
+       RETURNING id`, [DATE, cashId, transferCatId]);
     await expect(svc.bookAtSource(Number(rows[0].id), holdId)).rejects.toMatchObject({
       status: 400,
       message: expect.stringMatching(/Only income can be booked at source/i),
