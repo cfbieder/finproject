@@ -654,11 +654,50 @@ async function insertInvestmentCashRows(client, batchId, mappings, cutoffs) {
  * balance — itself wrong, since PS-imported accounts carry opening_balance = 0 —
  * and so neutralized the import and collapsed history to $0 at the handoff.)
  */
-async function recalibrate(client, batchId) {
+async function recalibrate(client, batchId, mode = 'ps-anchored') {
   const { rows: accts } = await client.query(
     `SELECT DISTINCT account_id FROM transactions WHERE import_batch_id = $1`,
     [batchId]
   );
+
+  // CR058 §3.4 — 'preserve-today': opening_balance -= Σ(this batch's rows), so
+  // today's computed balance is byte-identical across the promote.
+  //
+  // This is the pre-§22.1 formula that §22.1 itself declared broken, and it is
+  // reinstated deliberately for ONE case. §22.1's complaint was that preserving
+  // today preserved a WRONG today — true for PS-only cash accounts, whose
+  // balance was never anchored to anything. It does not hold for a feed-owned
+  // account (CR024): its today is already correct, and PS-anchoring drags it
+  // back to a stale PocketSmith closing_balance (−42,552.71 on Fidelity Stocks,
+  // whose PS coverage stopped in May 2026).
+  //
+  // It is only SAFE because CR058's anchors then overwrite the historical curve
+  // — on its own it reproduces exactly the "meaningless ramp" §22.1 describes.
+  // The mode must therefore never be selected for a batch with no anchor plan.
+  if (mode === 'preserve-today') {
+    for (const { account_id } of accts) {
+      const { rows } = await client.query(
+        `SELECT a.opening_balance AS old_ob,
+                COALESCE((SELECT SUM(t.amount) FROM transactions t
+                   WHERE t.account_id = a.id AND t.import_batch_id = $2), 0) AS batch_sum
+           FROM accounts a WHERE a.id = $1`,
+        [account_id, batchId]
+      );
+      const oldOb = parseFloat(rows[0].old_ob);
+      const batchSum = parseFloat(rows[0].batch_sum);
+      const newOb = oldOb - batchSum;
+      const delta = oldOb - newOb; // = batchSum; rollback adds it back
+
+      await client.query(`UPDATE accounts SET opening_balance = $2 WHERE id = $1`,
+        [account_id, newOb]);
+      await client.query(
+        `INSERT INTO quicken_calibration_audit (import_batch_id, account_id, delta_amount)
+           VALUES ($1, $2, $3)`,
+        [batchId, account_id, delta]
+      );
+    }
+    return accts.length;
+  }
 
   for (const { account_id } of accts) {
     const { rows: ar } = await client.query(
@@ -708,8 +747,23 @@ async function recalibrate(client, batchId) {
  *
  * Throws on mismatch (caller's catch triggers work-tx rollback).
  */
-async function verifyBalances(client, batchId = null) {
+async function verifyBalances(client, batchId = null, mode = 'ps-anchored') {
   let mismatches;
+  // CR058 §3.4 — under 'preserve-today' the PS-anchored assertion is exactly
+  // what the mode is designed to violate, so assert preserve-today instead:
+  // EVERY balance-sheet account (touched and untouched) must equal the step-0
+  // snapshot. That is the pre-§22.1 branch below, reused verbatim — it checks a
+  // superset of what this mode requires.
+  //
+  // Honest about its teeth: for a TOUCHED account this cannot fail by
+  // construction (new_ob := old_ob − Σ, and the balance is ob + Σ). Its real
+  // value is the UNTOUCHED half — proof the promote leaked nothing sideways.
+  // The falsifiable check the mode is named for (does the balance actually land
+  // on `bankfeed_balances`?) is CR058 §5 invariant 7, and belongs in the anchor
+  // step where the feed is in scope.
+  if (batchId && mode === 'preserve-today') {
+    batchId = null;
+  }
   if (!batchId) {
     ({ rows: mismatches } = await client.query(`
       WITH post AS (
@@ -785,7 +839,7 @@ async function runPromote({ batchId, pool }) {
   try {
     // Check batch status before locking a connection
     const { rows: batchRows } = await pool.query(
-      `SELECT status FROM quicken_import_batches WHERE id = $1`,
+      `SELECT status, calibration_mode FROM quicken_import_batches WHERE id = $1`,
       [batchId]
     );
     if (batchRows.length === 0) {
@@ -796,6 +850,17 @@ async function runPromote({ batchId, pool }) {
     }
     if (batchRows[0].status === 'rolled_back') {
       // Allowed — re-promote semantics per §6.5.6
+    }
+    // Persisted per batch (migration 042). Older batches predate the column and
+    // read as the DEFAULT, so behaviour for anything already promoted is
+    // unchanged. Unknown values are a hard error rather than a silent fallback
+    // to ps-anchored — a mis-typed mode must not quietly calibrate the wrong way
+    // (the CR046/CR047 silent-drop class).
+    const calibrationMode = batchRows[0].calibration_mode || 'ps-anchored';
+    if (!['ps-anchored', 'preserve-today'].includes(calibrationMode)) {
+      throw new Error(
+        `runPromote: batch ${batchId} has unknown calibration_mode '${calibrationMode}'`
+      );
     }
 
     const client = await pool.connect();
@@ -851,11 +916,13 @@ async function runPromote({ batchId, pool }) {
 
       // Step 8: recalibrate sums ALL of this batch's inserted transactions per
       // account (cash + investment income legs), so it backtracks the brokerage
-      // account's opening_balance correctly.
-      const calibrated = await recalibrate(client, batchId);
+      // account's opening_balance correctly. The mode is persisted on the batch
+      // (migration 042) rather than passed in, so a re-promote after rollback
+      // (§6.5.6) keeps the choice instead of silently reverting to the default.
+      const calibrated = await recalibrate(client, batchId, calibrationMode);
 
-      // Step 9: verify (PS-anchored)
-      await verifyBalances(client, batchId);
+      // Step 9: verify — assertion depends on the mode (see verifyBalances).
+      await verifyBalances(client, batchId, calibrationMode);
 
       // Transfer matching is intentionally NOT run here. Promote is purely
       // additive and must stay cleanly reversible by runRollback (which only

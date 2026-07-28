@@ -150,6 +150,77 @@ dbDescribe('runPromote + runRollback (cash-only, DB-backed)', () => {
     expect(rows[0].n).toBe(7);
   });
 
+  test('calibration_mode: preserve-today and ps-anchored produce DIFFERENT opening_balances', async () => {
+    // CR058 §3.4. A test that passes under both modes is not testing the mode,
+    // so this asserts they DIVERGE, and that only preserve-today leaves today
+    // byte-identical.
+    const origin = testCoaIds[`${SENTINEL_PREFIX}cash_origin`];
+
+    // Give the account a PS anchor that is deliberately NOT equal to its
+    // pre-import computed balance — ps-anchored must move today ONTO it,
+    // preserve-today must ignore it.
+    await pool.query(
+      `INSERT INTO transactions (transaction_date, amount, currency, account_id,
+                                 source, accepted, closing_balance)
+       VALUES ('2021-01-01', 1000, 'PLN', $1, 'pocketsmith', TRUE, 9999)`,
+      [origin]
+    );
+    const todayBefore = async () => Number((await pool.query(
+      `SELECT (a.opening_balance + COALESCE((SELECT SUM(t.amount) FROM transactions t
+                WHERE t.account_id = a.id
+                  AND t.transaction_date >= a.opening_balance_date), 0)) AS bal
+         FROM accounts a WHERE a.id = $1`, [origin])).rows[0].bal);
+
+    const before = await todayBefore();
+
+    // --- ps-anchored (default) ---
+    await runPromote({ batchId, pool });
+    const psOb = Number((await pool.query(
+      `SELECT opening_balance FROM accounts WHERE id = $1`, [origin])).rows[0].opening_balance);
+    const psToday = await todayBefore();
+    await runRollback({ batchId, pool });
+
+    // --- preserve-today ---
+    await pool.query(
+      `UPDATE quicken_import_batches SET calibration_mode = 'preserve-today' WHERE id = $1`,
+      [batchId]);
+    await runPromote({ batchId, pool });
+    const ptOb = Number((await pool.query(
+      `SELECT opening_balance FROM accounts WHERE id = $1`, [origin])).rows[0].opening_balance);
+    const ptToday = await todayBefore();
+
+    // The two modes must not agree, or the mode does nothing.
+    expect(ptOb).not.toBeCloseTo(psOb, 2);
+    // ps-anchored moves today onto the PS closing_balance (9999).
+    expect(psToday).toBeCloseTo(9999, 2);
+    // preserve-today leaves today exactly where it was.
+    expect(ptToday).toBeCloseTo(before, 2);
+
+    await runRollback({ batchId, pool });
+    await pool.query(
+      `UPDATE quicken_import_batches SET calibration_mode = 'ps-anchored' WHERE id = $1`,
+      [batchId]);
+    await pool.query(
+      `DELETE FROM transactions WHERE account_id = $1 AND source = 'pocketsmith'`, [origin]);
+  });
+
+  test('calibration_mode survives rollback → re-promote (CR019 §6.5.6)', async () => {
+    await pool.query(
+      `UPDATE quicken_import_batches SET calibration_mode = 'preserve-today' WHERE id = $1`,
+      [batchId]);
+    await runPromote({ batchId, pool });
+    await runRollback({ batchId, pool });
+    const mode = (await pool.query(
+      `SELECT calibration_mode FROM quicken_import_batches WHERE id = $1`,
+      [batchId])).rows[0].calibration_mode;
+    // Persisted on the batch, not passed per call — a re-promote must not
+    // silently revert to the default and calibrate the other way.
+    expect(mode).toBe('preserve-today');
+    await pool.query(
+      `UPDATE quicken_import_batches SET calibration_mode = 'ps-anchored' WHERE id = $1`,
+      [batchId]);
+  });
+
   test('transfer rows land on origin only (1→1 model — no target-side fanout)', async () => {
     await runPromote({ batchId, pool });
     // Under 1→1: the Opening Balance transfer (1,500,000) produces a single row
