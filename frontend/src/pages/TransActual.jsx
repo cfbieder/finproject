@@ -12,7 +12,6 @@ import {
   Scissors,
   Ban,
   AlertTriangle,
-  Inbox,
   Loader2,
   ChevronDown as ChevronDownIcon,
 } from "lucide-react";
@@ -31,6 +30,7 @@ import {
 } from "../features/Transaction/TransactionTable.jsx";
 import TransactionEditModal from "../features/Transaction/TransactionEditModal.jsx";
 import TransactionDeleteModal from "../features/Transaction/TransactionDeleteModal.jsx";
+import CategorySelector from "../components/CategorySelector/CategorySelector.jsx";
 import HierarchyFilter from "../components/HierarchyFilter/HierarchyFilter.jsx";
 import PeriodSelector, { buildPeriodChipLabel } from "../components/PeriodSelector/PeriodSelector.jsx";
 import Rest from "../js/rest.js";

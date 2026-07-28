@@ -10,7 +10,6 @@ import {
   Pencil,
   Trash2,
   AlertTriangle,
-  Inbox,
   Loader2,
   ChevronDown as ChevronDownIcon,
 } from "lucide-react";

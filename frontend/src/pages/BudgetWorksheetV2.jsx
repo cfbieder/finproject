@@ -3,7 +3,6 @@ import {
   SlidersHorizontal,
   X,
   AlertTriangle,
-  Inbox,
   Loader2,
   RotateCcw,
 } from "lucide-react";

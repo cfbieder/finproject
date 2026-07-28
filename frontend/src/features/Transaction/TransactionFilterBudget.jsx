@@ -15,7 +15,6 @@ import {
 import "../BudgetEntry/BudgetRegionSelectors.css";
 import "./TransactionFilterActual.css";
 
-const CURRENT_MONTH = String(new Date().getMonth() + 1).padStart(2, "0");
 const CURRENT_YEAR = new Date().getFullYear();
 
 const parseAmountValue = (value) => {
