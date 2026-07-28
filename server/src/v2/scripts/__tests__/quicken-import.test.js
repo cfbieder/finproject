@@ -231,7 +231,7 @@ describe('parseQif (investment file)', () => {
     const parsed = parseQif(readFixture('inv_actions.QIF'), 'inv_actions.QIF');
     expect(parsed.firstHeader).toBe('Invst');
     expect(parsed.cashRows).toHaveLength(0);
-    expect(parsed.invstRows).toHaveLength(14);
+    expect(parsed.invstRows).toHaveLength(15);
     expect(parsed.securityRows).toHaveLength(0);
     expect(parsed.priceRows).toHaveLength(0);
   });
@@ -240,7 +240,7 @@ describe('parseQif (investment file)', () => {
     const parsed = parseQif(readFixture('inv_actions.QIF'), 'inv_actions.QIF');
     const actions = parsed.invstRows.map((r) => r.action);
     expect(actions).toEqual([
-      'Buy', 'Div', 'XIn', 'IntInc', 'Sell', 'ReinvDiv', 'Cash', 'MargInt',
+      'Buy', 'Div', 'XIn', 'XOut', 'IntInc', 'Sell', 'ReinvDiv', 'Cash', 'MargInt',
       'RtrnCap', 'CGLong', 'ShtSell', 'CvrShrt', 'StkSplit', 'ShrsIn',
     ]);
 
@@ -251,6 +251,27 @@ describe('parseQif (investment file)', () => {
     expect(buy.fees).toBe(19.95);
     expect(buy.amount).toBe(2179.33);
     expect(buy.transaction_date).toBe('1998-03-23');
+  });
+
+  test('inv_actions.QIF: non-bracketed L on an invst row is kept as the category', () => {
+    // Regression: the invst block parser used to read only the bracketed form of
+    // L and drop a plain category on the floor. On the real Fidelity brokerage
+    // export that discarded the true category of 306 of 328 pre-cutoff cash rows
+    // (Int Inc, Int Exp, Total Salary-U.S.:Tax, …), collapsing them into a single
+    // bucket at promote. A bracketed L must still resolve to a transfer target
+    // and leave the category null, so the action-name fallback still applies.
+    const parsed = parseQif(readFixture('inv_actions.QIF'), 'inv_actions.QIF');
+
+    const cash = parsed.invstRows.find((r) => r.action === 'Cash');
+    expect(cash.quicken_category).toBe('Other Exp');
+    expect(cash.transfer_target_account).toBeNull();
+
+    const margInt = parsed.invstRows.find((r) => r.action === 'MargInt');
+    expect(margInt.quicken_category).toBeNull();
+
+    const xin = parsed.invstRows.find((r) => r.action === 'XIn');
+    expect(xin.quicken_category).toBeNull();
+    expect(xin.transfer_target_account).toBe('Chase (C)');
   });
 
   test('inv_actions.QIF: XIn captures transfer_target_account and $ amount', () => {
@@ -507,15 +528,15 @@ dbDescribe('runParse — investment file routing (DB-backed)', () => {
 
     // 14 invst blocks, of which 4 are cash-only (XIn, IntInc?? no, IntInc has a Y so it's security-side; let me check)
     // Per CASH_ONLY_INVST_ACTIONS = {XIn, XOut, Cash, MargInt}
-    // From the fixture: XIn(1), Cash(1), MargInt(1) = 3 cash-only.
+    // From the fixture: XIn(1), XOut(1), Cash(1), MargInt(1) = 4 cash-only.
     // Security-side: Buy, Div, IntInc, Sell, ReinvDiv, RtrnCap, CGLong, ShtSell, CvrShrt, StkSplit, ShrsIn = 11
-    expect(result.totalStaged).toBe(14);
+    expect(result.totalStaged).toBe(15);
 
     const cashCount = (await pool.query(
       'SELECT COUNT(*)::int AS n FROM quicken_staging WHERE import_batch_id = $1',
       [batchId]
     )).rows[0].n;
-    expect(cashCount).toBe(3);
+    expect(cashCount).toBe(4);
 
     const invstCount = (await pool.query(
       'SELECT COUNT(*)::int AS n FROM quicken_securities_staging WHERE import_batch_id = $1',
@@ -523,13 +544,17 @@ dbDescribe('runParse — investment file routing (DB-backed)', () => {
     )).rows[0].n;
     expect(invstCount).toBe(11);
 
-    // Verify cash-only routing: action names landed in quicken_category
+    // Verify cash-only routing: a row's real (non-bracketed) L category wins,
+    // and the action name is only the fallback when the row carries no L.
+    //   Cash block    → 'LOther Exp'      → 'Other Exp' (real category)
+    //   MargInt block → no L tag          → 'MargInt'   (action fallback)
+    //   XIn block     → 'L[...]' transfer → 'XIn'       (action fallback)
     const cashActions = (await pool.query(
       `SELECT quicken_category FROM quicken_staging WHERE import_batch_id = $1
         ORDER BY id`,
       [batchId]
     )).rows.map((r) => r.quicken_category);
-    expect(cashActions.sort()).toEqual(['Cash', 'MargInt', 'XIn']);
+    expect(cashActions.sort()).toEqual(['MargInt', 'Other Exp', 'XIn', 'XOut']);
 
     // Verify Buy lands with all numeric fields populated
     const buy = (await pool.query(
@@ -541,6 +566,33 @@ dbDescribe('runParse — investment file routing (DB-backed)', () => {
     expect(parseFloat(buy.price)).toBe(43.1875);
     expect(parseFloat(buy.fees)).toBe(19.95);
     expect(parseFloat(buy.gross_amount)).toBe(2179.33);
+  });
+
+  test('inv_actions.QIF: XOut is staged NEGATIVE (direction lives in the action, not the sign)', async () => {
+    // Regression: an investment QIF encodes transfer direction in the action —
+    // both XIn and XOut carry a POSITIVE T. Staging XOut verbatim turned every
+    // withdrawal into a deposit. On the real Fidelity brokerage export that was
+    // 50 pre-cutoff rows worth +642,391.62 booked the wrong way, ~$1.28M of
+    // overstatement, which is what made the reconstructed history implausible.
+    const fp = path.join(FIXTURES_DIR, 'inv_actions.QIF');
+    await runParse({ files: [{ path: fp, currency: 'USD' }], batchId, pool });
+
+    const { rows } = await pool.query(
+      `SELECT amount, transfer_target_account FROM quicken_staging
+        WHERE import_batch_id = $1 AND quicken_category = 'XOut'`,
+      [batchId]
+    );
+    expect(rows).toHaveLength(1);
+    expect(parseFloat(rows[0].amount)).toBe(-117.51);
+    expect(rows[0].transfer_target_account).toBe('VISA');
+
+    // XIn keeps its positive sign — only XOut is flipped.
+    const { rows: xin } = await pool.query(
+      `SELECT amount FROM quicken_staging
+        WHERE import_batch_id = $1 AND quicken_category = 'XIn'`,
+      [batchId]
+    );
+    expect(parseFloat(xin[0].amount)).toBe(4619.95);
   });
 
   test('inv_security_and_prices.QIF routes Security and Prices blocks to their staging tables', async () => {

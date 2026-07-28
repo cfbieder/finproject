@@ -199,6 +199,7 @@ function parseInvstBlock(blockText, sourceFile, sourceLine, currency = 'USD') {
     amount: null,            // total transaction value (T or U)
     transfer_amount: null,   // for X-suffix actions ($ tag)
     transfer_target_account: null,
+    quicken_category: null,  // non-bracketed L on a cash-side invst row
     payee: null,
     memo: null,
     cleared_status: null,
@@ -240,11 +241,17 @@ function parseInvstBlock(blockText, sourceFile, sourceLine, currency = 'USD') {
       case 'M':
         row.memo = row.memo ? `${row.memo} ${val}` : val;
         break;
-      case 'L':
-        // Bracketed [Account] (with optional /Class) → transfer target.
-        // Non-bracketed L in invst context is uncommon — raw_payload only.
-        row.transfer_target_account = splitCategoryValue(val).transferTarget;
+      case 'L': {
+        // Bracketed [Account] (with optional /Class) → transfer target; a plain
+        // value is a real category. Cash-side invst rows (Cash/MargInt) carry
+        // the latter often — 306 of 328 on the Fidelity brokerage export — and
+        // dropping it collapses 20 years of interest income, fees and tax
+        // withholding into one bucket downstream.
+        const parsed = splitCategoryValue(val);
+        row.transfer_target_account = parsed.transferTarget;
+        row.quicken_category = parsed.category;
         break;
+      }
       case '$':
         // Secondary amount on X-suffix transfers (XIn/XOut/BuyX/SellX/etc.).
         row.transfer_amount = parseAmount(val);
@@ -662,8 +669,21 @@ async function stageCashRow(pool, batchId, row, sourceFile, accountName) {
  */
 async function stageInvstAsCash(pool, batchId, row, sourceFile, accountName) {
   // For XIn/XOut, the transfer target lives in row.transfer_target_account.
-  // For Cash/MargInt, there's no transfer target; the action name itself
-  // is what mapping uses (e.g., 'MargInt' → 'Margin Interest' expense leaf).
+  // For Cash/MargInt, there's no transfer target; the row's own category (the
+  // non-bracketed L tag) is what mapping uses, falling back to the action name
+  // when the row carries no L at all (e.g., 'MargInt' → 'Margin Interest').
+  //
+  // SIGN: an investment QIF encodes transfer direction in the ACTION, not the
+  // amount — both XIn and XOut carry a positive T ("NXOut / T117.51 / L[VISA]"
+  // is money LEAVING the account). `quicken_staging.amount` is consumed by
+  // promote as the signed ledger amount, so XOut must be negated here or every
+  // withdrawal lands as a deposit. (Cash rows carry their own sign natively and
+  // are left alone; MargInt is inconsistent in Quicken's own data — all-positive
+  // on the Fidelity export, one row even labelled "INTEREST EARNED" — and totals
+  // $17.46 there, so it is deliberately not special-cased.)
+  const amount = row.action === 'XOut' && row.amount != null
+    ? -Math.abs(row.amount)
+    : row.amount;
   await pool.query(
     `INSERT INTO quicken_staging
        (import_batch_id, source_file, source_line, quicken_account_name,
@@ -676,11 +696,11 @@ async function stageInvstAsCash(pool, batchId, row, sourceFile, accountName) {
       row.source_line,
       accountName,
       row.transaction_date,
-      row.amount,
+      amount,
       row.currency,
       row.payee,
       row.memo,
-      row.action, // store action name in category for mapping resolution
+      row.quicken_category || row.action, // real category, else the action name
       row.transfer_target_account,
       row.cleared_status,
       JSON.stringify(row.raw_payload),
