@@ -395,17 +395,84 @@ no data" if it hadn't printed the error per account.
 
 ## 12. Decisions needed before P1
 
-1. **Date basis for the four Chase/Akoya accounts** (§11f). `auth_date ?? date` preserves continuity
-   with everything already in the ledger and makes the P3 crosswalk match exactly; the API's `date`
-   is the posted date, which is arguably the more correct basis for statement reconciliation but shifts
-   every future row 1–3 days relative to the existing history, moving rows across month boundaries.
-   **Recommendation: `auth_date ?? date`**, storing the posted date in `raw` so the choice is
-   reversible. GoCardless and SnapTrade accounts are unaffected either way.
-2. **The two dead Revolut wallets** (§11d) — unmap in fin as closed, or investigate a re-link.
+1. **Date basis for the four Chase/Akoya accounts** (§11f) — **REOPENED by P1's shadow run, see
+   [§13.2](#132-the-date-decision-does-not-survive-a-bigger-sample).** The 2026-07-28 decision
+   (`auth_date ?? date`) rested on Marriott Chase's 18 rows. Measured across every Akoya row instead:
+   among transactions where the two API dates differ, **65 of our stored dates match the posted `date`
+   and 20 match `auth_date`.** There is no consistent historical basis to be continuous with, so the
+   argument that decided it is void.
+2. ~~**The two dead Revolut wallets** (§11d).~~ **DECIDED 2026-07-28 — re-link Revolut selecting all
+   three wallets.** The connection was re-created on 2026-06-06 and came back with **one** account
+   instead of three, which is why PLN and EUR froze (fin still carries their last balances, 72.14 PLN
+   and 58.13 EUR, matching our stored snapshots to the cent). The owner re-links from the Fintable
+   dashboard — a bank login needs a real browser, and the read-scope token cannot POST anyway. The
+   wallets return with **new** ids, which P3 crosswalks like any other account. *Worth keeping: a
+   GoCardless re-consent silently reduced the fed account set, and nothing in the Sheet path could
+   report it — `GET /accounts` including disabled accounts is what made it visible.*
 
 ---
 
+## 13. Phase 1 — built and verified against a shadow store (2026-07-28)
+
+Built, default OFF (`FINTABLE_SOURCE=sheets`), nothing in prod or fin touched:
+
+| File | |
+|---|---|
+| `src/adapters/fintableApi.js` | cursor paging (cap 500), `Retry-After` on 429, typed `FintableApiError`, `probe()` reporting tier + unhealthy connections |
+| `src/converters/fintableApiToCanonical.js` | API JSON → the identical canonical shapes the Sheet converter emits |
+| `src/services/fintableSync.js` | source switch, incremental high-water mark, full-sweep schedule, insert guard, "held locally with no upstream counterpart" report |
+| `db/migrations/005_sync_state.sql` | the durable cursor (`sync_state`), kept out of `sync_jobs` so a failed run cannot advance it |
+| `src/config.js`, `scheduler.js`, `routes/sync.js` | `FINTABLE_SOURCE` + API settings; scheduler and `/v1/sync/probe` follow the selected upstream |
+
+**145 tests pass (102 pre-existing + 43 new), and the new ones were checked against a sabotaged
+source:** reverting the date basis and moving `raw.parsed` off its path turns 3 red; disabling the
+insert guard turns 1 red. A green test on an unreachable path is this project's most expensive
+recurring lesson.
+
+### 13.1 The shadow run
+
+A **throwaway** Postgres (never dev, never the live feed store), migrated from scratch, loaded from the
+API in one pass: **13 connections, 29 accounts, 2,406 transactions, 0 skipped, 0 unknown-account, 3.9
+seconds** — against 17 `bank_connections` rows (6 orphans) on the Sheet path. A second run went
+**incremental: 5 rows in 1 page instead of 2,406**, inserted 0, and advanced the stored high-water mark.
+
+Diffed per account against the live Sheet-fed store: **26 of 29 accounts identical on both row count
+and `SUM(amount)`**. All three residuals are the accounts P0 predicted, and every extra row is dated
+*before* our earliest local row — the pre-Sheet back-fill the date floor exists to gate, not divergence.
+
+### 13.2 The date decision does not survive a bigger sample
+
+The Prime Visa diff came back full of pairs that agree on amount and description but disagree on date —
+in the **opposite** direction to Marriott Chase. Measured properly, over every Akoya row where the
+API's two dates differ:
+
+| Account | matches `auth_date` | matches posted `date` |
+|---|---:|---:|
+| Prime Visa | 17 | **65** |
+| TOTAL CHECKING | 13 | 11 |
+| Marriott Chase | 2 | 1 |
+
+So our stored history is a **mixture**, and the "continuity" argument behind §12.1 does not hold — it
+was drawn from the smallest of the three samples. The obvious explanation (rows first exported while
+pending keep their auth date) is **not** supported: ingest lag after `auth_date` is a median 2.9 days
+for the posted-basis rows and 3.4 for the auth-basis ones — indistinguishable. I cannot attribute the
+split from the data available.
+
+What follows regardless of which basis is chosen:
+- **The P3 crosswalk cannot key on an exact date.** It must match `(account, amount, description)`
+  with a ±3–5 day tolerance, because our own history is inconsistent. §7's acceptance bar is updated
+  accordingly.
+- **Only the four Akoya accounts are affected, and only for rows arriving after cutover.** Existing
+  ledger rows are crosswalked by id and keep their dates. (A re-sync does rewrite
+  `bankfeed_staging.transaction_date` for already-promoted rows via the existing `DO UPDATE`; the
+  promoted `transactions` row is untouched.)
+
+**Recommendation, reversing my earlier one: use the API's posted `date`.** It is well-defined, it is
+what a card statement reconciles to, it is what the majority of our own recent history already agrees
+with, and `auth_date` is kept in `raw.row` either way.
+
 ## Status
 
-P0 done (§11). Blocked on the two owner decisions in §12, then P1 (adapter + converter behind
-`FINTABLE_SOURCE`). No review pass has run on this CR yet.
+P0 done (§11), P1 built and shadow-verified (§13), default still `FINTABLE_SOURCE=sheets`. Blocked on
+the reopened date decision (§12.1 / §13.2) before the converter's one-line basis is settled and P2
+starts in earnest. No review pass has run on this CR yet.
