@@ -624,9 +624,12 @@ mappings** (§5.5) that must be filled before cutover regardless.
 P0 done (§11), P1 built and shadow-verified (§13), both §12 decisions settled, default still
 `FINTABLE_SOURCE=sheets` — nothing in prod or fin has changed. **146 tests green.**
 
-**The equivalence gate (§14) is written, committed and currently FAILING on the two Revolut wallets —
-that is the gate for P4.** Next: **P2** — keep the shadow store loading in parallel for ~3 days and
-re-run the gate, which is also what proves the incremental path over a real multi-day window. Then **P3**, the crosswalk, whose
+**The equivalence gate (§14) PASSES** with one earned exception (§16). **P2 is running**: an hourly
+cron tick (`scripts/p2-shadow-run.sh`, installed 2026-07-28, `17 * * * *`) syncs the throwaway shadow
+store incrementally and re-runs the gate, appending one line per hour to `tmp/p2-shadow.log`. It never
+touches the live feed store or fin, and aborts loudly rather than logging a green line against a dead
+container. What the days buy that two runs minutes apart cannot: a stalled high-water mark, an upstream
+edit that never moves `updated_at`, or a full sweep that never fires. Then **P3**, the crosswalk, whose
 shape P0/P1 have now fixed: accounts from the `{api_account_id}--{hash}` prefix (exact), transactions
 by `(account, amount, description)` within a few days (§13.2). No review pass has run on this CR yet;
 pass 1 (`cr-technical-reviewer`) belongs before P3 touches two databases.
