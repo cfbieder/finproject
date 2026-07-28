@@ -395,12 +395,11 @@ no data" if it hadn't printed the error per account.
 
 ## 12. Decisions needed before P1
 
-1. **Date basis for the four Chase/Akoya accounts** (§11f) — **REOPENED by P1's shadow run, see
-   [§13.2](#132-the-date-decision-does-not-survive-a-bigger-sample).** The 2026-07-28 decision
-   (`auth_date ?? date`) rested on Marriott Chase's 18 rows. Measured across every Akoya row instead:
-   among transactions where the two API dates differ, **65 of our stored dates match the posted `date`
-   and 20 match `auth_date`.** There is no consistent historical basis to be continuous with, so the
-   argument that decided it is void.
+1. ~~**Date basis for the four Chase/Akoya accounts** (§11f).~~ **DECIDED — the posted `date`**
+   (`date ?? auth_date`), after the first decision was reopened and reversed by P1's shadow run
+   ([§13.2](#132-the-date-decision-did-not-survive-a-bigger-sample)). `auth_date` stays in `raw.row`.
+   *The first call was made on the smallest of three samples and was wrong; the record of that is
+   deliberately left in §13.2.*
 2. ~~**The two dead Revolut wallets** (§11d).~~ **DECIDED 2026-07-28 — re-link Revolut selecting all
    three wallets.** The connection was re-created on 2026-06-06 and came back with **one** account
    instead of three, which is why PLN and EUR froze (fin still carries their last balances, 72.14 PLN
@@ -440,7 +439,7 @@ Diffed per account against the live Sheet-fed store: **26 of 29 accounts identic
 and `SUM(amount)`**. All three residuals are the accounts P0 predicted, and every extra row is dated
 *before* our earliest local row — the pre-Sheet back-fill the date floor exists to gate, not divergence.
 
-### 13.2 The date decision does not survive a bigger sample
+### 13.2 The date decision did not survive a bigger sample
 
 The Prime Visa diff came back full of pairs that agree on amount and description but disagree on date —
 in the **opposite** direction to Marriott Chase. Measured properly, over every Akoya row where the
@@ -467,12 +466,19 @@ What follows regardless of which basis is chosen:
   `bankfeed_staging.transaction_date` for already-promoted rows via the existing `DO UPDATE`; the
   promoted `transactions` row is untouched.)
 
-**Recommendation, reversing my earlier one: use the API's posted `date`.** It is well-defined, it is
-what a card statement reconciles to, it is what the majority of our own recent history already agrees
-with, and `auth_date` is kept in `raw.row` either way.
+**Decided: the API's posted `date`** — well-defined, what a card statement reconciles to, and what the
+majority of our own recent history already agrees with; `auth_date` is kept in `raw.row`. Reloading the
+shadow store on the new basis reproduces **the same 26 of 29 identical accounts**, and Prime Visa's
+residual becomes clean (+2 rows, both from the pre-Sheet window) now that the date noise is gone —
+which is the confirmation the choice was the right one.
 
 ## Status
 
-P0 done (§11), P1 built and shadow-verified (§13), default still `FINTABLE_SOURCE=sheets`. Blocked on
-the reopened date decision (§12.1 / §13.2) before the converter's one-line basis is settled and P2
-starts in earnest. No review pass has run on this CR yet.
+P0 done (§11), P1 built and shadow-verified (§13), both §12 decisions settled, default still
+`FINTABLE_SOURCE=sheets` — nothing in prod or fin has changed. **146 tests green.**
+
+Next: **P2** — keep the shadow store loading in parallel for ~3 days and re-run the §7 diff, which is
+also what proves the incremental path over a real multi-day window. Then **P3**, the crosswalk, whose
+shape P0/P1 have now fixed: accounts from the `{api_account_id}--{hash}` prefix (exact), transactions
+by `(account, amount, description)` within a few days (§13.2). No review pass has run on this CR yet;
+pass 1 (`cr-technical-reviewer`) belongs before P3 touches two databases.
