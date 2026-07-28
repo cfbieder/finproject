@@ -1,4 +1,4 @@
-# CR058 — Quicken-era valuation anchors (brokerage history) — PLANNED (rev 3 — nothing built)
+# CR058 — Quicken-era valuation anchors (brokerage history) — PLANNED (rev 4 — nothing built)
 
 Give the pre-feed history of a **brokerage** account a correct balance curve, by anchoring each
 year-end to Quicken's own Net Worth Report instead of letting it drift on cash flows that never see
@@ -126,14 +126,33 @@ also flags legitimate three-account same-day chains, which net to zero; the 800,
 clusters self-cancel **on account 27** and do not affect its anchors. An apparently unpaired
 `Fidelity Cash Mgt −800,000.00` on 2022-06-14 is logged for the account-30 work, not owned here.)
 
-**Correcting the sign collapses the 2020 anchor from −1,445,246.13 to −209,331.73** — a 6.9×
-reduction — and leaves every other interior anchor byte-identical, because a single year's flow
-changed and nothing else did. Verified in a rolled-back transaction on dev.
+**A second row of the same class** was then found by the same sweep, on **2020-11-04**: prod tx
+**14081**, `+100,000.00` `"ELECTRONIC FUNDS TRANSFER PAID"`, paired against a **Chase Checking
++100,000.00 `Fid Bkg Svc`** row from the Quicken import — both legs positive, and "PAID" is outgoing.
+*(Not the two Feb-2020 `Fid Bkg Svc` rows CR056 identified as genuine deposits — ids 13956 and 13969
+are different rows and are untouched, so CR056's finding stands.)*
 
-The correction is **not** part of CR058's feature work. It is a one-row data fix on prod, shipped as
-its own idempotent, name-guarded script with a `pg_dump` first and its own revert boundary — the same
-treatment the parser fixes (`d4bf7da`) and the §4.2 sentinel fix get. CR058 **depends** on it: the
-anchor table below is derived from the corrected ledger.
+**Correcting both collapses the 2020 anchor from −1,445,246.13 → −209,331.73 → −9,331.73** — 2.4% of a
+383,389.13 account, alongside 2021 at −16,930.58. Every other interior anchor is byte-identical,
+because only one year's flows changed. That two independently-built reconstructions of the account
+then agree on 2020 to within ~9K is far stronger corroboration than either row read alone; neither
+would have been convincing on its own.
+
+**Status: DONE.** Shipped as its own idempotent, name-guarded script
+([`fix-ps-transfer-signs.js`](../../server/src/v2/scripts/fix-ps-transfer-signs.js), `f99a8c6`) —
+dry-run by default, resolves accounts by name per CR019 §22.2, re-plugs `opening_balance` by the same
+1,435,914.40 and **aborts if today's balance moves**. Applied to dev and prod 2026-07-28 with a named
+backup at `Backups/pre-ps-sign-fix/`; prod's current balance verified unchanged at 1,157,037.74, and a
+re-run confirmed as a no-op. Deliberately **not** CR058 feature work — same treatment as the parser
+fixes (`d4bf7da`) and the §4.2 sentinel fix. CR058's anchor table is derived from the corrected
+ledger.
+
+**The other 13 clusters are NOT this defect and were left alone.** The sweep covered every
+`is_transfer` row ≥ 1,000 — 15 same-signed multi-account clusters out of 903. Two more of the same
+shape sit on **Fidelity Cash Mgt** (2021-07-19 / 2021-11-05, out of scope); one on account 27
+(2022-06-14, −800,000) **self-cancels within 2022** so it moves no anchor; and several are legitimate
+— the 2026 Wise pairs are a EUR→USD conversion plus a deposit, which correctly shows two credits.
+Triage of the remainder is separate work.
 
 ---
 
@@ -171,41 +190,48 @@ Anchors are **sequential** — each computed against the balance *after* all pri
 anchor(Y) = target(Y) − [ ledger(Y) + Σ anchor(y) for y < Y ]
 ```
 
-Measured on dev against the **corrected** ledger (§1.3), with each anchor dated to its own report
-column — note the last column is **12-28**, not a year-end. **Σ = −114,392.39.**
+Measured on dev against the **corrected** ledger (§1.3), under `preserve-today` calibration (§3.4),
+with each anchor dated to its own report column — the last is **12-28**, not a year-end.
+**Σ = −156,945.10**, so the handoff reversal is **+156,945.10**.
 
 | Anchor date | Ledger | Target | **Anchor row** |
 |---|---:|---:|---:|
-| 1998-12-31 | 650,570.97 | 29,436.00 | **−621,134.97** |
-| 1999-12-31 | 669,056.02 | 51,950.03 | 4,028.98 |
-| 2000-12-31 | 677,103.23 | 49,151.96 | −10,845.28 |
-| 2001-12-31 | 687,042.63 | 60,249.04 | 1,157.68 |
-| 2002-12-31 | 704,620.76 | 63,126.86 | −14,700.31 |
-| 2003-12-31 | 713,217.74 | 89,013.63 | 17,289.79 |
-| 2004-12-31 | 626,208.87 | 1,027.85 | −976.91 |
-| 2005-12-31 | 626,223.87 | 1,198.68 | 155.83 |
-| 2006-12-31 | 712,635.69 | 103,433.38 | 15,822.88 |
-| 2007-12-31 | 701,124.61 | 209,002.80 | 117,080.50 |
-| 2008-12-31 | 476,701.15 | 191,450.91 | **206,871.57** |
-| 2009-12-31 | 493,826.67 | 258,467.01 | 49,890.58 |
-| 2010-12-31 | 554,321.70 | 434,194.82 | 115,232.78 |
-| 2011-12-31 | 532,964.46 | 281,922.02 | −130,915.56 |
-| 2012-12-31 | 716,023.84 | 466,470.05 | 1,488.65 |
-| 2013-12-31 | 836,919.11 | 586,817.83 | −547.49 |
-| 2014-12-31 | 963,065.58 | 719,821.95 | 6,857.65 |
-| 2015-12-31 | 996,186.08 | 670,808.13 | −82,134.32 |
-| 2016-12-31 | 1,013,141.13 | 733,288.25 | 45,525.07 |
-| 2017-12-31 | 816,184.45 | 575,743.37 | 39,411.80 |
-| 2018-12-31 | 642,099.22 | 349,691.82 | −51,966.32 |
-| 2019-12-31 | 890,575.78 | 642,513.72 | 44,345.34 |
-| 2020-12-31 | 840,782.92 | 383,389.13 | **−209,331.73** |
-| 2021-12-31 | 1,349,066.39 | 874,742.02 | −16,930.58 |
-| **2022-12-28** | 1,275,011.62 | 1,160,619.23 | 359,931.98 |
+| 1998-12-31 | 893,123.68 | 29,436.00 | **−863,687.68** |
+| 1999-12-31 | 911,608.73 | 51,950.03 | 4,028.98 |
+| 2000-12-31 | 919,655.94 | 49,151.96 | −10,845.28 |
+| 2001-12-31 | 929,595.34 | 60,249.04 | 1,157.68 |
+| 2002-12-31 | 947,173.47 | 63,126.86 | −14,700.31 |
+| 2003-12-31 | 955,770.45 | 89,013.63 | 17,289.79 |
+| 2004-12-31 | 868,761.58 | 1,027.85 | −976.91 |
+| 2005-12-31 | 868,776.58 | 1,198.68 | 155.83 |
+| 2006-12-31 | 955,188.40 | 103,433.38 | 15,822.88 |
+| 2007-12-31 | 943,677.32 | 209,002.80 | 117,080.50 |
+| 2008-12-31 | 719,253.86 | 191,450.91 | **206,871.57** |
+| 2009-12-31 | 736,379.38 | 258,467.01 | 49,890.58 |
+| 2010-12-31 | 796,874.41 | 434,194.82 | 115,232.78 |
+| 2011-12-31 | 775,517.17 | 281,922.02 | −130,915.56 |
+| 2012-12-31 | 958,576.55 | 466,470.05 | 1,488.65 |
+| 2013-12-31 | 1,079,471.82 | 586,817.83 | −547.49 |
+| 2014-12-31 | 1,205,618.29 | 719,821.95 | 6,857.65 |
+| 2015-12-31 | 1,238,738.79 | 670,808.13 | −82,134.32 |
+| 2016-12-31 | 1,255,693.84 | 733,288.25 | 45,525.07 |
+| 2017-12-31 | 1,058,737.16 | 575,743.37 | 39,411.80 |
+| 2018-12-31 | 884,651.93 | 349,691.82 | −51,966.32 |
+| 2019-12-31 | 1,133,128.49 | 642,513.72 | 44,345.34 |
+| 2020-12-31 | 883,335.63 | 383,389.13 | **−9,331.73** |
+| 2021-12-31 | 1,391,619.10 | 874,742.02 | −16,930.58 |
+| **2022-12-28** | 1,317,564.33 | 1,160,619.23 | 359,931.98 |
 
-The **1998 row is the opening plug**, not a market movement — it absorbs the difference between the
-account's calibrated `opening_balance` and its true 1998 value. It sits at the series *start*, where a
-plug belongs. The largest interior anchors are now 2008 (+206,871.57) and 2020 (−209,331.73), the same
-order of magnitude as each other.
+The **1998 row is the opening plug**, not market movement — it absorbs the whole-life difference
+between the account's calibrated `opening_balance` and its true 1998 value, and sits at the series
+*start* where a plug belongs. The largest **interior** anchors are 2008 (+206,871.57) and 2011
+(−130,915.56); **2020 is −9,331.73**, down from −1,445,246.13 in rev 2, because the two sign errors
+behind it were corrected at source rather than absorbed (§1.3).
+
+**Rev 4** regenerates this table from the corrected ledger under `preserve-today`. Only two rows
+moved: **2020** (the second sign error) and **1998** (the plug, absorbing both the correction and the
+calibration-mode change). Every other anchor is byte-identical to rev 3 — as it must be, since only
+one year's flows changed.
 
 **Rev 3 fixed two arithmetic defects rev 2 shipped:**
 
@@ -240,8 +266,8 @@ of the 2019 balance, on the exact chart this CR exists to fix.
 - **"8.6× smaller" was true of the reversal row and false of the series.** Rev 2 removed a −987,852.34
   cliff at 2020-01-01 and introduced a −1,445,246.13 anchor at 2020-12-31 — 1.46× *larger*, and
   mid-chart rather than at the edge. That is now resolved at source (§1.3): with the double-count
-  corrected the 2020 anchor is **−209,331.73**, in line with its neighbours, and the reversal is
-  **+114,392.39**, landing on a real regime boundary (Quicken retired; bank-feed took over).
+  corrected the 2020 anchor is **−9,331.73**, smaller than most of its neighbours, and the reversal is
+  **+156,945.10**, landing on a real regime boundary (Quicken retired; bank-feed took over).
 
 This extends anchoring across the 2020–2022 PocketSmith overlap, which reverses the earlier
 "PocketSmith owns 2020+" boundary **for balances only** (PS still owns the transactions; anchors add
@@ -517,7 +543,7 @@ anything; Fidelity Options and Fixed Income (created 2024+, no Quicken history, 
 
 - **The anchors are not a return series.** §3.3, item by item. They make the *balance* right; they do
   not decompose why.
-- **A +114,392.39 join remains at 2023-01-01** — the irreducible disagreement between Quicken's
+- **A +156,945.10 join remains at 2023-01-01** — the irreducible disagreement between Quicken's
   valuation and the feed-anchored ledger. Not eliminated, only moved to a real regime boundary.
 - **Sawtooth between anchors, and it is large.** Annual granularity leaves the intra-year path on
   incomplete flows. Rev 2 cited 2008 (−15,421 mid-year against a real 191,451) as the worst case; that
@@ -578,8 +604,8 @@ Order corrected from rev 1, which listed the deploy before the migration it depe
 
 0. **`pg_dump` prod** — first, so a bad migration has a pre-migration dump to fall back to
    (CR019 §24 step 1). Rev 2 had this at step 3, after the migration and the deploy.
-1. Apply the **§1.3 double-count fix** (its own script, dry-run then `--apply`) and confirm account
-   27's history moves while today's balance does not.
+1. ~~Apply the §1.3 sign fix.~~ **DONE 2026-07-28** (`f99a8c6`), dev + prod, today's balance verified
+   unchanged. The anchor table in §3.1 assumes it.
 2. Apply **migration 042** to prod.
 3. Deploy `d4bf7da` + this CR's code + the §4.2 reconcile fix via `Scripts/deploy-to-production.sh`.
 4. Per account, following [CR019 §24](cr-019-quicken-import.md#24-prod-cutover--live-per-account-loop-actual-2026-06-03--supersedes-23)
@@ -607,6 +633,17 @@ Order corrected from rev 1, which listed the deploy before the migration it depe
 
 ## 11. Update history
 
+- **2026-07-28 (rev 4)** — Regenerated §3.1 from the **corrected** ledger under `preserve-today`.
+  A net-to-zero sweep of every `is_transfer` row ≥ 1,000 (15 same-signed multi-account clusters out of
+  903) found a **second sign error** of the same class on account 27 — tx **14081**, 2020-11-04,
+  `+100,000.00` "ELECTRONIC FUNDS TRANSFER **PAID**", paired against a Chase Checking `+100,000.00`
+  from the Quicken import. With both corrected the **2020 anchor falls to −9,331.73** (from
+  −1,445,246.13 in rev 2 and −209,331.73 in rev 3) and Quicken and PocketSmith agree on 2020 to within
+  2.4%. Both fixes are **applied to dev and prod** (`f99a8c6`, backup at `Backups/pre-ps-sign-fix/`),
+  so §1.3 is now a record rather than a proposal and §9 step 1 is struck. Σ = **−156,945.10**,
+  reversal **+156,945.10**. Only the 1998 and 2020 rows moved; the rest are byte-identical to rev 3.
+  The other 13 clusters are heterogeneous — two on Fidelity Cash Mgt (out of scope), one that
+  self-cancels within 2022, several legitimate — and were left alone.
 - **2026-07-28 (rev 3)** — Re-check of rev 2 by the same reviewer: **5 of 9 blocking findings cleanly
   addressed** (B3/B4/B5/B6/B9), but rev 2 had introduced **two arithmetic defects in its own headline
   numbers** and regressed B8. Fixed here: the **reversal sign** was backwards (Σ is negative, so the
