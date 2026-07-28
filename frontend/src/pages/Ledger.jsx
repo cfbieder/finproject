@@ -46,6 +46,7 @@ import { exportTransactions } from "../utils/excelExporter.js";
 import "./TransactionExplorer.css";
 import EmptyState from "../components/EmptyState.jsx";
 import "./Ledger.css";
+import { parseDisplayDate } from "../utils/dateHelpers.js";
 
 // ─── Editable config for ledger (date + amount/currency + description + category) ───
 // USD Amount (base_amount) is a read-only derived display; it only recomputes when
@@ -73,10 +74,12 @@ const numFmt = new Intl.NumberFormat(undefined, {
   maximumFractionDigits: 2,
 });
 
+// parseDisplayDate, not `new Date(value)`: a date-only string parses as UTC
+// midnight and renders a day early west of UTC (Known Issue #3) — the row for
+// 2021-08-19 read "Aug 18, 2021" while the edit picker correctly said 19.
 const formatDate = (value) => {
-  if (!value) return "-";
-  const d = value instanceof Date ? value : new Date(value);
-  if (!Number.isFinite(d.getTime())) return "-";
+  const d = parseDisplayDate(value);
+  if (!d) return "-";
   return d.toLocaleDateString(undefined, {
     month: "short",
     day: "numeric",

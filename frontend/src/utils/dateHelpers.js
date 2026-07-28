@@ -5,6 +5,38 @@
  */
 
 /**
+ * Parses a value into a Date suitable for DISPLAY, treating a date-only string
+ * as LOCAL midnight rather than UTC midnight.
+ *
+ * `new Date("2021-08-19")` is parsed by the spec as UTC midnight, so rendering it
+ * with `toLocaleDateString()` shows **18 August** anywhere west of UTC. Every
+ * `transaction_date` the API returns is a date-only string, so the transaction
+ * tables were displaying a day early for a US-based reader — the row for
+ * `2021-08-19` read "Aug 18, 2021" while the edit modal's picker (which reads UTC
+ * parts) correctly said 19. Same hazard as Known Issue #3 / the `toISOString`
+ * lint guard, on the parse side rather than the format side.
+ *
+ * Values that already carry a time (`…T12:00:00Z`) or are Date objects are passed
+ * through untouched — they denote a real instant, not a calendar day.
+ *
+ * @param {string|Date} value
+ * @returns {Date|null} null when the value is empty or unparseable
+ *
+ * @example
+ * parseDisplayDate('2021-08-19').getDate();  // 19, in any timezone
+ */
+export function parseDisplayDate(value) {
+  if (value === null || value === undefined || value === "") return null;
+  if (value instanceof Date) return Number.isNaN(value.getTime()) ? null : value;
+  const raw = String(value);
+  // Date-only → pin to local midnight (the idiom already used by the mobile pages).
+  const parsed = /^\d{4}-\d{2}-\d{2}$/.test(raw)
+    ? new Date(`${raw}T00:00:00`)
+    : new Date(raw);
+  return Number.isNaN(parsed.getTime()) ? null : parsed;
+}
+
+/**
  * Formats a Date object to YYYY-MM-DD string in local timezone.
  *
  * @param {Date} date - Date object to format

@@ -40,6 +40,7 @@ import { useFilterOptions } from "../features/BudgetEntry/hooks/useFilterOptions
 import { exportTransactions } from "../utils/excelExporter.js";
 import EmptyState from "../components/EmptyState.jsx";
 import "./TransactionExplorer.css";
+import { parseDisplayDate } from "../utils/dateHelpers.js";
 
 const config = ACTUAL_CONFIG;
 const BATCH_SIZE = 500;
@@ -51,10 +52,11 @@ const numFmt = new Intl.NumberFormat(undefined, {
   maximumFractionDigits: 2,
 });
 
+// parseDisplayDate, not `new Date(value)`: a date-only string parses as UTC
+// midnight and renders a day early west of UTC (Known Issue #3).
 const formatDate = (value) => {
-  if (!value) return "-";
-  const d = value instanceof Date ? value : new Date(value);
-  if (!Number.isFinite(d.getTime())) return "-";
+  const d = parseDisplayDate(value);
+  if (!d) return "-";
   return d.toLocaleDateString(undefined, {
     month: "short",
     day: "numeric",

@@ -3,6 +3,8 @@
  * Pure utility functions used by both actual and budget transaction pages.
  */
 
+import { formatDateOnly } from "../../utils/dateHelpers.js";
+
 export const SELECTION_COLUMN_KEY = "selected";
 export const DEFAULT_SORT = { key: "Date", direction: "desc" };
 
@@ -85,14 +87,10 @@ export const createEditFieldMap = (editFields, initialValue) =>
  * @returns {string} ISO date string or empty string if invalid
  */
 export const formatIsoInputDate = (value) => {
-  if (!value) {
-    return "";
-  }
-  const parsed = value instanceof Date ? value : new Date(value);
-  if (!Number.isFinite(parsed.getTime())) {
-    return "";
-  }
-  return parsed.toISOString().slice(0, 10);
+  // formatDateOnly returns a date-only string verbatim and a Date via LOCAL parts;
+  // the previous `new Date(value).toISOString().slice(0,10)` shifted a locally-built
+  // Date back a day west of UTC (Known Issue #3).
+  return formatDateOnly(value);
 };
 
 /**
@@ -175,8 +173,16 @@ export const parseEditFormValue = (rawValue, fieldType) => {
     return { valid: true, parsed };
   }
   if (fieldType === "date") {
-    const parsed = new Date(normalized);
-    if (!Number.isFinite(parsed.getTime())) {
+    // Must stay a YYYY-MM-DD STRING, not a Date. A Date object survives as far as
+    // JSON.stringify, which serializes it to a full ISO instant
+    // ("2021-08-19T00:00:00.000Z") — and the API's assertDateString requires
+    // /^\d{4}-\d{2}-\d{2}$/, so it 400s with "transaction_date must be a
+    // YYYY-MM-DD date string". Because a single-row edit always includes Date via
+    // consensus, that rejected EVERY single-row edit, whatever field was actually
+    // being changed. Every other field type here returns a primitive; date was the
+    // outlier.
+    const parsed = formatDateOnly(normalized);
+    if (!parsed) {
       return { valid: false, parsed: null };
     }
     return { valid: true, parsed };
