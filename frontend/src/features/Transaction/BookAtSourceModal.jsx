@@ -258,9 +258,12 @@ export default function BookAtSourceModal({ open, transaction: rawTransaction, r
               <p className="bas__note">
                 Converted <strong>{money(preview.conversion.base_amount, "USD")}</strong> &rarr;{" "}
                 <strong>{money(preview.conversion.converted_amount, preview.conversion.to_currency)}</strong>{" "}
-                at {preview.conversion.to_currency}/USD{" "}
-                <strong>{Number(preview.conversion.rate).toFixed(6)}</strong> on{" "}
-                {preview.conversion.rate_date}. The USD amounts are copied exactly; only the{" "}
+                at <strong>
+                  {(1 / Number(preview.conversion.rate)).toLocaleString("en-US", {
+                    minimumFractionDigits: 4, maximumFractionDigits: 4,
+                  })}
+                </strong>{" "}
+                {preview.conversion.to_currency} per USD on {preview.conversion.rate_date}. The USD amounts are copied exactly; only the{" "}
                 {preview.conversion.to_currency} figure is derived, and both legs cancel either way.
               </p>
             )}

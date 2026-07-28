@@ -122,6 +122,13 @@ Living plan for the Fin project — open Change Requests, known issues, ongoing 
 
 Release-level history; detail in the linked CR file or [§7 Migration History](#7-migration-history).
 
+- **v3.6.4** (2026-07-28) — **patch: the Book-at-Source conversion label pointed the rate the wrong way.** The cross-currency
+  preview read *"at PLN/USD 0.239682"*, which parses naturally as **PLN per USD** — and at that reading the arithmetic is
+  nonsense (158,114 × 0.239682 ≈ 37,897, not the 659,682.41 shown). `exchange_rates` stores the inverse: `from_currency=PLN,
+  to_currency=USD` is **USD per PLN**, and the conversion divides by it. The label now reads **"at 4.1722 PLN per USD"**, the
+  direction a reader would actually multiply, so the shown figure can be checked by eye. **Display only** — the same rate, the
+  same conversion, and both legs still cancel exactly in the holding's currency and in USD. Owner-found: they challenged the
+  amounts on a real CVC-MIP booking, and the amounts were right while the label was not.
 - **v3.6.3** (2026-07-28) — **patch: two PocketSmith transfers booked as CREDITS on Fidelity Stocks.** Both were outgoing;
   both had been wrong for six years. **2020-08-26 +617,957.20** — a transfer to Fidelity Cash Mgt booked as a credit on **both**
   accounts with no opposing leg anywhere in the ledger (the counterparty shows the money *arriving*, and Quicken records it
