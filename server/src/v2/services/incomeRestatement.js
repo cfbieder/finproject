@@ -36,6 +36,7 @@
 
 const db = require('../db');
 const AppError = require('../utils/AppError');
+const fx = require('./fx');
 
 const RESTATEMENT_SOURCE = 'restatement';
 const TRANSFER_CATEGORY_NAME = 'Transfer - Distributions';
@@ -155,30 +156,77 @@ async function loadAndValidate(id, holdingAccountId, client = db) {
   if (holding.section !== 'balance_sheet') {
     throw AppError.badRequest(`"${holding.name}" is not a balance-sheet account`);
   }
-  // Invariant 4. Unexercised by the CR057 scope (all PLN→PLN) but it is what makes
-  // the deferred cross-currency sets (CVC: USD rows, EUR funds) safe-to-refuse
-  // rather than silently mishandled.
-  if ((holding.currency || '').trim() !== (source.currency || '').trim()) {
-    throw AppError.badRequest(
-      `Currency mismatch: the transaction is ${source.currency} but "${holding.name}" is ` +
-      `${holding.currency}. A cross-currency leg needs a rate policy this action does not take.`
-    );
+  // Invariant 4 (v3.6.2) — cross-currency is CONVERTED, not refused.
+  //
+  // CR057 refused it, on the grounds that a cross-currency leg "needs a rate policy
+  // this action does not take". That was too cautious. The two legs are
+  // equal-and-opposite on the SAME account and date, so they cancel in the holding's
+  // currency AND in USD — the book value is unchanged whatever rate is used, and no
+  // mark is disturbed. `base_amount` is still an exact copy/negation, so invariant 1
+  // is untouched on the USD side. The rate only decides what the holding-currency
+  // figure reads (CR056's LC mode); it cannot move a balance or break the identity.
+  const holdingCurrency = (holding.currency || '').trim();
+  const sourceCurrency = (source.currency || '').trim();
+  const crossCurrency = holdingCurrency !== sourceCurrency;
+
+  let holdingAmount = parseFloat(source.amount);
+  let conversion = null;
+
+  if (crossCurrency) {
+    if (source.base_amount === null || source.base_amount === undefined) {
+      throw AppError.badRequest(
+        `Cannot convert: the transaction has no USD base amount, which is what the ` +
+        `${holdingCurrency} figure is derived from.`
+      );
+    }
+    const date = isoDate(source.transaction_date);
+    const rate = await fx.rateAsOf(client, holdingCurrency, date);
+    // Fail loud on a missing/zero rate rather than dividing by 1 (a silent identity
+    // conversion) or by 0 — the CR051 F1 guard, same reasoning.
+    if (rate === null || !Number.isFinite(rate) || rate === 0) {
+      throw AppError.badRequest(
+        `No ${holdingCurrency}→USD exchange rate available for ${date}; cannot derive ` +
+        `the ${holdingCurrency} amount for "${holding.name}".`
+      );
+    }
+    const baseAmount = parseFloat(source.base_amount);
+    // Rounded ONCE here and negated verbatim below, so rounding can never leave the
+    // pair failing to cancel.
+    holdingAmount = Math.round((baseAmount / rate) * 100) / 100;
+    conversion = {
+      from_currency: sourceCurrency,
+      to_currency: holdingCurrency,
+      rate,
+      rate_date: date,
+      base_amount: baseAmount.toFixed(2),
+      converted_amount: holdingAmount.toFixed(2),
+    };
   }
 
   const category = await resolveTransferCategory(client);
-  return { source, holding, category };
+  return { source, holding, category, holdingAmount, conversion };
 }
 
-/** The two legs we would write, derived once and used by both preview and write. */
-function buildLegs(source, holding, categoryId) {
-  const amount = parseFloat(source.amount);
+/**
+ * The two legs we would write, derived once and used by both preview and write.
+ *
+ * `holdingAmount` is the figure in the HOLDING's currency — identical to
+ * `source.amount` in the same-currency case, and derived from `base_amount` at the
+ * transaction date's rate when they differ (see loadAndValidate). Defaulting it to
+ * `source.amount` keeps the pure unit tests same-currency by default.
+ */
+function buildLegs(source, holding, categoryId, holdingAmount) {
+  const amount = holdingAmount === undefined || holdingAmount === null
+    ? parseFloat(source.amount)
+    : parseFloat(holdingAmount);
   const baseAmount = source.base_amount === null ? null : parseFloat(source.base_amount);
   const date = isoDate(source.transaction_date);
 
   const common = {
     account_id: holding.id,
     transaction_date: date,
-    currency: source.currency,
+    // The legs live on the HOLDING, so they carry its currency.
+    currency: (holding.currency || source.currency || '').trim(),
     base_currency: source.base_currency || 'USD',
     source: RESTATEMENT_SOURCE,
   };
@@ -246,8 +294,8 @@ const INSERT_LEG = `
  */
 async function bookAtSource(id, holdingAccountId, { dryRun = false } = {}) {
   if (dryRun) {
-    const { source, holding, category } = await loadAndValidate(id, holdingAccountId);
-    const legs = buildLegs(source, holding, category.id);
+    const { source, holding, category, holdingAmount, conversion } = await loadAndValidate(id, holdingAccountId);
+    const legs = buildLegs(source, holding, category.id, holdingAmount);
     assertNetsToZero(legs.income, legs.transfer, 'Preview');
     const book = await holdingBook(holding.id);
     return {
@@ -263,6 +311,7 @@ async function bookAtSource(id, holdingAccountId, { dryRun = false } = {}) {
         category_name: source.category_name,
       },
       holding: { id: holding.id, name: holding.name, currency: holding.currency },
+      conversion,
       create: [legs.income, legs.transfer],
       update: {
         transaction_id: source.id,
@@ -277,8 +326,8 @@ async function bookAtSource(id, holdingAccountId, { dryRun = false } = {}) {
   }
 
   return db.transaction(async (client) => {
-    const { source, holding, category } = await loadAndValidate(id, holdingAccountId, client);
-    const legs = buildLegs(source, holding, category.id);
+    const { source, holding, category, holdingAmount } = await loadAndValidate(id, holdingAccountId, client);
+    const legs = buildLegs(source, holding, category.id, holdingAmount);
     assertNetsToZero(legs.income, legs.transfer, 'Refusing to write');
 
     const toParams = (leg) => [

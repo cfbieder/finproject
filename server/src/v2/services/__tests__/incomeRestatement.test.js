@@ -231,11 +231,50 @@ dbDescribe('incomeRestatement (DB)', () => {
     });
   });
 
-  test('refuses a currency mismatch', async () => {
-    await expect(svc.bookAtSource(txId, holdEurId)).rejects.toMatchObject({
-      status: 400,
-      message: expect.stringMatching(/Currency mismatch/i),
-    });
+  test('CONVERTS a cross-currency booking instead of refusing it', async () => {
+    // v3.6.2. CR057 refused this. The two legs are equal-and-opposite on the SAME
+    // account, so they cancel in the holding's currency AND in USD — the rate only
+    // decides what the holding-currency figure reads, and cannot move a balance.
+    const preview = await svc.bookAtSource(txId, holdEurId, { dryRun: true });
+    expect(preview.conversion).toMatchObject({ from_currency: 'PLN', to_currency: 'EUR' });
+    expect(preview.conversion.rate).toBeGreaterThan(0);
+
+    const [income, transfer] = preview.create;
+    // Legs carry the HOLDING's currency, not the source row's.
+    expect(income.currency).toBe('EUR');
+    expect(transfer.currency).toBe('EUR');
+    // Cancel in EUR...
+    expect(income.amount + transfer.amount).toBe(0);
+    // ...and in USD, where base_amount is still an exact copy/negation (invariant 1).
+    expect(income.base_amount).toBe(191656.32);
+    expect(transfer.base_amount).toBe(-191656.32);
+    // The EUR figure is derived from USD at the date's rate, not from the PLN amount.
+    expect(income.amount).toBeCloseTo(191656.32 / preview.conversion.rate, 2);
+  });
+
+  test('a cross-currency booking leaves the holding book unchanged in BOTH currencies', async () => {
+    const before = await book(holdEurId);
+    await svc.bookAtSource(txId, holdEurId);
+    const after = await book(holdEurId);
+    expect(after.amount).toBe(before.amount);
+    expect(after.base_amount).toBe(before.base_amount);
+  });
+
+  test('refuses a cross-currency booking when no rate exists for the currency', async () => {
+    const { rows } = await db.query(
+      `INSERT INTO accounts (name, account_type, section, currency)
+       VALUES ('TestBASHoldingZzz', 'asset', 'balance_sheet', 'ZZZ') RETURNING id`
+    );
+    try {
+      // Fail loud, never divide by 1 (a silent identity conversion) or by 0 —
+      // the CR051 F1 guard, same reasoning.
+      await expect(svc.bookAtSource(txId, rows[0].id)).rejects.toMatchObject({
+        status: 400,
+        message: expect.stringMatching(/No ZZZ.*exchange rate/i),
+      });
+    } finally {
+      await db.query(`DELETE FROM accounts WHERE name = 'TestBASHoldingZzz'`);
+    }
   });
 
   test('refuses a non-income source row', async () => {

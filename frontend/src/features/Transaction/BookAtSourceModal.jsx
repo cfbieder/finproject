@@ -25,7 +25,34 @@ const money = (v, ccy) => {
   return `${n.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}${ccy ? ` ${ccy}` : ""}`;
 };
 
-export default function BookAtSourceModal({ open, transaction, restatement, onClose, onDone }) {
+/**
+ * The transaction pages hand rows through `transformEntry`, which renames the
+ * display fields to PascalCase (`Date`/`Amount`/`Currency`/`Account`/`Category`)
+ * while keeping `id`/`account_id`/`category_id` snake_case. This modal was written
+ * against the raw API shape, so on the Ledger every display field read `undefined`
+ * and the summary panel rendered blank. It also defeated the picker's then-current
+ * currency filter (`!transaction.currency` short-circuited true), which is how a
+ * USD row could be pointed at a EUR fund — the server refused it, so no bad data,
+ * but the UI should not have offered it. That filter is gone as of v3.6.2 (cross-
+ * currency is converted now), but the blank panel was real. Normalize once here.
+ */
+function normalizeRow(t) {
+  if (!t) return null;
+  return {
+    id: t.id ?? t._id,
+    account_id: t.account_id,
+    category_id: t.category_id,
+    transaction_date: t.transaction_date ?? t.Date,
+    amount: t.amount ?? t.Amount,
+    currency: t.currency ?? t.Currency,
+    account_name: t.account_name ?? t.Account,
+    category_name: t.category_name ?? t.Category,
+    description1: t.description1 ?? t.Description1,
+  };
+}
+
+export default function BookAtSourceModal({ open, transaction: rawTransaction, restatement, onClose, onDone }) {
+  const transaction = useMemo(() => normalizeRow(rawTransaction), [rawTransaction]);
   const [options, setOptions] = useState([]);
   const [holdingId, setHoldingId] = useState("");
   const [preview, setPreview] = useState(null);
@@ -41,13 +68,11 @@ export default function BookAtSourceModal({ open, transaction, restatement, onCl
     (async () => {
       try {
         const rows = await Rest.fetchAccountsV2({ activeOnly: true, leafOnly: true });
-        // Only balance-sheet accounts can earn income, and only same-currency
-        // ones will pass the server's guard — filter here so the picker doesn't
-        // offer choices the endpoint will refuse.
+        // Any balance-sheet account can earn income. Since v3.6.2 a holding in a
+        // different currency is CONVERTED rather than refused, so the currency is
+        // no longer a filter — the preview shows the rate it used.
         const eligible = rows.filter(
-          (a) => a.section === "balance_sheet"
-            && a.id !== transaction?.account_id
-            && (!transaction?.currency || (a.currency || "").trim() === (transaction.currency || "").trim())
+          (a) => a.section === "balance_sheet" && a.id !== transaction?.account_id
         );
         if (!cancelled) setOptions(buildHierarchyOptions(eligible));
       } catch (e) {
@@ -55,7 +80,7 @@ export default function BookAtSourceModal({ open, transaction, restatement, onCl
       }
     })();
     return () => { cancelled = true; };
-  }, [open, isBooked, transaction?.account_id, transaction?.currency]);
+  }, [open, isBooked, transaction?.account_id]);
 
   // Reset when the modal is opened for a different row.
   useEffect(() => {
@@ -188,8 +213,8 @@ export default function BookAtSourceModal({ open, transaction, restatement, onCl
               onChange={runPreview}
             />
             <p className="bas__hint">
-              Only balance-sheet accounts in {transaction?.currency} are listed — a cross-currency
-              leg needs a rate policy this action does not take.
+              Balance-sheet accounts only. A holding in another currency is converted at that
+              day&apos;s rate — the preview shows it, and the transfer still nets to zero.
             </p>
           </div>
         )}
@@ -228,6 +253,17 @@ export default function BookAtSourceModal({ open, transaction, restatement, onCl
               <br />
               <span className="bas__hint">The amount is never touched, so this account&apos;s balance does not move.</span>
             </p>
+
+            {preview.conversion && (
+              <p className="bas__note">
+                Converted <strong>{money(preview.conversion.base_amount, "USD")}</strong> &rarr;{" "}
+                <strong>{money(preview.conversion.converted_amount, preview.conversion.to_currency)}</strong>{" "}
+                at {preview.conversion.to_currency}/USD{" "}
+                <strong>{Number(preview.conversion.rate).toFixed(6)}</strong> on{" "}
+                {preview.conversion.rate_date}. The USD amounts are copied exactly; only the{" "}
+                {preview.conversion.to_currency} figure is derived, and both legs cancel either way.
+              </p>
+            )}
 
             <p className={bookUnchanged ? "bas__ok" : "bas__error"}>
               {preview.holding.name} book value{" "}

@@ -8,8 +8,37 @@ import { getSortValue, DEFAULT_SORT } from "../transactionUtils.js";
  * @returns {Object} Selection and sorting state and handlers
  */
 export function useTransactionSelection(transactions) {
-  const [selectedRows, setSelectedRows] = useState(() => new Map());
+  const [rawSelectedRows, setSelectedRows] = useState(() => new Map());
   const [sortConfig, setSortConfig] = useState(DEFAULT_SORT);
+
+  // Selections are pruned to rows that are STILL VISIBLE.
+  //
+  // The Map used to persist untouched across data reloads, so a row selected
+  // before a filter/period/account change stayed counted while rendering nowhere:
+  // the bar read "2 selected" with one row ticked, `isAllSelected` went true
+  // (size === rows.length) so the header ticked itself, and any action gated on a
+  // single selection silently disappeared. It also meant Edit/Delete could act on
+  // a row the user could no longer see.
+  //
+  // Latent for as long as the hook existed, but v3.6.0 made it routine: the Ledger
+  // category filter became a server-side refetch, so changing it now replaces the
+  // whole list where it used to filter the loaded array in place.
+  //
+  // Derived rather than pruned in an effect — no extra render pass, and no
+  // set-state-in-effect debt.
+  const visibleRowIds = useMemo(
+    () => new Set(transactions.map((entry, index) => entry._id ?? `${entry.Date ?? ""}-${index}`)),
+    [transactions]
+  );
+
+  const selectedRows = useMemo(() => {
+    if (rawSelectedRows.size === 0) return rawSelectedRows;
+    const live = new Map();
+    for (const [rowId, entry] of rawSelectedRows) {
+      if (visibleRowIds.has(rowId)) live.set(rowId, entry);
+    }
+    return live.size === rawSelectedRows.size ? rawSelectedRows : live;
+  }, [rawSelectedRows, visibleRowIds]);
 
   const clearSelection = useCallback(() => {
     setSelectedRows(new Map());
