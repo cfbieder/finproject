@@ -185,6 +185,7 @@
   created by then, so **Cancel leaves a blank, nameless row behind**. Should Cancel delete it?
 
 **Engineering, unblocked:**
+- **[CR059](../cr/cr-059-fintable-api-ingestion.md) — Fintable now has a REST API; bank-feed can stop scraping the Google Sheet.** Drafted 2026-07-28 and **P0 measured the same day**: ids **differ** (0/31 accounts, 0/1,387 transactions), so the crosswalk is confirmed — but it is **exact, not heuristic**, because our Sheet transaction ids are `{api_account_id}--{hash}` and already carry the API's account ids (15/15 verified). The API kills the **display-name join** behind the Black Card incident, plus Excel serials, floats and per-upstream currency digging. P0 also found what reading the docs could not: the documented `pending=true|false` filter **422s** (only `0|1`), `type` is the raw bank product name so the keyword inference stays, and **two mapped Revolut wallets no longer exist upstream** (Bank Pekao's connection is unhealthy too). Blocked on two owner decisions — the Chase date basis (`auth_date` vs posted `date`) and those Revolut wallets.
 - CR043's lint gate: 64 errors, all hooks/react-refresh restructures. Needs the app in front of
   someone; do it incrementally with tests, never as a batch (a scripted pass in v3.0.96 produced
   *valid JS that passed the build and all 179 tests* but would have thrown on import — only
