@@ -34,6 +34,11 @@ const CONN_STR =
 
 const MONEY_EPS = 0.01; // 1¢ tolerance for balance invariants
 
+// A promoted batch may carry rows from the promote itself and, once CR058 has
+// run, its valuation anchors. Both are the batch's own rows and both are
+// removed by §6.5's rollback.
+const ALLOWED_BATCH_SOURCES = ['quicken-import', 'quicken-valuation'];
+
 function parseArgs(argv) {
   const args = { batch: null, expectAccount: null, source: null, all: false };
   for (let i = 0; i < argv.length; i++) {
@@ -99,13 +104,25 @@ async function verify(pool, args) {
       .slice(0, 10)}, source=${s.source}`
   );
 
-  // 2. Single source -----------------------------------------------------------
-  if (s.n_sources !== 1) {
-    fail('single-source', `batch spans ${s.n_sources} sources (expected 1)`);
-  } else if (args.source && s.source !== args.source) {
-    fail('single-source', `source=${s.source}, expected ${args.source}`);
+  // 2. Source allow-list -------------------------------------------------------
+  // A batch legitimately spans TWO sources once CR058 anchors exist:
+  // 'quicken-import' (the promote) and 'quicken-valuation' (the anchors, which
+  // deliberately carry the same import_batch_id so §6.5's rollback removes them
+  // with the batch). A bare "expected 1" would hard-fail on the CR's own
+  // rollout, so the check is an allow-list rather than a count.
+  const srcRows = await pool.query(
+    `select distinct source from transactions where import_batch_id = $1 order by source`,
+    [args.batch]
+  );
+  const sources = srcRows.rows.map((r) => r.source);
+  const unexpected = sources.filter((x) => !ALLOWED_BATCH_SOURCES.includes(x));
+  if (unexpected.length > 0) {
+    fail('source-allow-list',
+      `unexpected source(s): ${unexpected.join(', ')} (allowed: ${ALLOWED_BATCH_SOURCES.join(', ')})`);
+  } else if (args.source && !sources.includes(args.source)) {
+    fail('source-allow-list', `sources=[${sources.join(', ')}], expected to include ${args.source}`);
   } else {
-    pass('single-source', `source=${s.source}`);
+    pass('source-allow-list', `sources=[${sources.join(', ')}]`);
   }
 
   // 3. Account integrity -------------------------------------------------------
@@ -201,11 +218,27 @@ async function verify(pool, args) {
        from post join anchor on anchor.account_id = post.account_id`,
     [args.batch]
   );
+  // The PS-anchored assertion ("today == PocketSmith closing_balance") is
+  // exactly what CR058's `preserve-today` mode is designed to VIOLATE: that
+  // mode exists because PS is stale for feed-owned accounts, so pinning to it
+  // is the bug, not the invariant. Applying it regardless would hard-fail the
+  // CR's own rollout (Fidelity Stocks: computed 1,157,037.74 vs a May-2026 PS
+  // closing_balance of 1,114,485.03). Under preserve-today the meaningful
+  // comparison is against the FEED, so this reports informationally and the
+  // real check is the anchor step's invariant 7.
+  const { rows: modeRows } = await pool.query(
+    `select calibration_mode from quicken_import_batches where id = $1`,
+    [args.batch]
+  );
+  const calibrationMode = (modeRows[0] && modeRows[0].calibration_mode) || 'ps-anchored';
+
   const balProblems = [];
   let anchored = 0;
   let reconOnly = 0;
   for (const r of bal.rows) {
-    if (r.ps_close == null) {
+    if (calibrationMode === 'preserve-today') {
+      reconOnly++;
+    } else if (r.ps_close == null) {
       reconOnly++;
     } else if (Math.abs(Number(r.computed) - Number(r.ps_close)) > MONEY_EPS) {
       balProblems.push(
@@ -220,8 +253,11 @@ async function verify(pool, args) {
   } else {
     pass(
       'balance-invariant',
-      `${anchored} account(s) match PS closing_balance` +
-        (reconOnly ? `, ${reconOnly} reconstruction-only (no PS anchor)` : '')
+      calibrationMode === 'preserve-today'
+        ? `mode=preserve-today — PS anchor not asserted (stale for feed-owned accounts); ` +
+          `${reconOnly} account(s) reported, feed tie-out is the anchor step's invariant 7`
+        : `${anchored} account(s) match PS closing_balance` +
+          (reconOnly ? `, ${reconOnly} reconstruction-only (no PS anchor)` : '')
     );
   }
 
