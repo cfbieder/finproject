@@ -23,6 +23,13 @@ thread may be active at once. To avoid one thread absorbing or wiping another's 
    release between your reads; re-check `git log`/`git status` before committing.
    Before pushing: `git pull --ff-only`, then push. **Never force-push** the shared
    branch. **Do not push without explicit user confirmation** — local commits are fine.
+   **Exception — `/close`:** invoking `/close` IS the confirmation, for every step it
+   covers (docs, version bump, commit, tag, **push**, **deploy to prod**, including the
+   migrations `deploy-to-production.sh` applies at Step 2b). Do not stop midway to
+   re-ask. Everything else in this file still applies: pathspec commits, verify what
+   landed, `pull --ff-only`, never force-push. Stop only for something `/close` does not
+   cover — a force-push, tagging over an existing tag, or a script warning that needs a
+   judgement call.
 5. **Never commit `.env`** — it carries local-only values (real DB password, API keys).
 6. **`main` is the single trunk and the prod deploy source.** Apply DB migrations to
    **prod before** deploying code that references the new objects, or the deploy breaks
