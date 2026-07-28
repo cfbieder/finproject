@@ -645,6 +645,14 @@ period is clipped to today so a "This Year" preset stops rendering six months of
 
 ## Known limitation at ship
 
+> **Superseded 2026-07-27 by [CR057](cr-057-book-income-at-source.md)** — which fixes this in the
+> **ledger**, not the report, and in doing so overturns the reasoning below. The claim that including
+> the dividends "would break the reconciliation identity" holds only for a **one-legged** change: with
+> the transfer leg also posted to the holding, `Δ totalReturn = 0 − (−X) = +X = Δ income` and the
+> buckets close by construction. The "Distributions received elsewhere" row is **not** being built.
+> What survives is the deferred data: the CVC rows (cross-currency) and `Other Investments`
+> (mis-signed rather than mis-placed). Text kept below as the record of what was decided at ship.
+
 **United Beverages' `Realized return %` is 0.00%, and that is not a bug in the report.**
 The holding account has only ever carried 8 `Unrealized G/L` postings and 1 funding
 transfer; its dividends — **5 payments, 5,172,998 PLN, 2023-07-21 → 2026-01-07** — post to
