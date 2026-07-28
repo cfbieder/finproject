@@ -507,9 +507,15 @@ archive.** That is a stronger argument for this CR than anything in §1 — the 
 quietly shedding data, and the two accounts with a stale Sheet balance (OC Medycyny by 7,120.17 PLN,
 Black Card by 136.96) are that loss showing up as a wrong number.
 
-**It fails today, correctly:** the two Revolut wallets (§11d) still appear in the Sheet but no longer
-exist upstream, so the gate refuses to green-light a cutover that would drop two mapped accounts. It
-should pass once the connection is re-linked — and that is the gate for P4, not a judgement call.
+**It failed on first run, correctly** — the two Revolut wallets (§11d) still appeared in the Sheet but
+no longer existed upstream. **After the 2026-07-28 re-link it PASSES**, with one recorded exception
+(below). See §16 for what the re-link did and did not fix.
+
+**The exception list has to be earned.** `scripts/compare-exceptions.json` holds accepted differences,
+each with a reason; every entry is printed on each run, and **an entry that stops matching anything
+fails the run** — an allowlist nobody re-earns is exactly how a gate becomes something people learn to
+ignore. Anything unlisted still fails. Verified by exit code in both directions: the real list exits 0,
+a deliberately bogus one exits 1 (1 unaccounted + 1 stale).
 
 *Field differences, all improvements, none of them blocking:* the API's account `type` classifies four
 credit cards as `credit` where the Sheet-derived heuristic said `other`, and two Fidelity accounts as
@@ -581,6 +587,37 @@ that account's transactions**. Neither belongs behind a button in our admin page
 *Proposed split:* **A, D, H** are small bank-feed additions and fit this CR as **P5**. **B + C** are a
 new CR of their own — they add tables, a backfill and a report surface, and they are the reason the
 API matters beyond plumbing.
+
+## 16. The Revolut re-link — what it fixed, and the decision to proceed without it (2026-07-28)
+
+The owner re-linked Revolut. **All three wallets are served again** (31 API accounts, up from 29) with
+live balances, so the gate's account-level failure cleared. Two things did not resolve:
+
+1. **The connection's sync is stuck failed.** `healthy: false`, last job `state: failed`, stage frozen
+   at *"Queued categorizer pass (0 rules)…"* across six polls over 2½ minutes; both rebuilt wallets
+   report `last_tx: null`. Balances came through, transactions did not. Bank Pekao shows the same
+   `PROCESSING` state, so this looks like a fintable-side queue rather than anything about Revolut.
+   Retrying needs the dashboard or `POST /sync/{id}` — a **write** the read-scope token cannot make.
+2. **The rebuilt wallets came back with `sync_start_date = 2026-06-28`**, so fintable will never
+   re-serve anything before that date for them — including one Sheet row (EUR, 2026-06-08, +25.00).
+
+**Decision: proceed.** Those two wallets have been dead on the Sheet path since the 2026-06-06
+re-consent; cutting over does not degrade them, it replaces a stale 58.13 with a live 98.13. The one
+unserved row is **already promoted into fin's ledger** (`promoted_transaction_id` set), so nothing is
+lost — it is recorded as an accepted exception with that reasoning rather than left as a red gate.
+
+**One real gap, and it is small.** The EUR wallet's last transaction anywhere is **2026-06-08** while
+its live balance is **98.13** against our stored 58.13 — **+40.00 of activity that exists in neither
+source**, because the Sheet stopped and the API's window starts 2026-06-28. If those transactions fall
+after 06-28 a working sync will deliver them; if they fall in the 06-08 → 06-27 gap they will never
+arrive and need a manual entry ([CR025](cr-025-manual-transaction-entry.md)) or a statement upload
+([CR036](cr-036-manual-statement-upload.md)). PLN is 72.14 on both sides — nothing missing there.
+
+**Two conditions carried into P3/P4:** the rebuilt wallets have **ULID-style ids**
+(`acc_01KYN7AH3…`) and no transactions, so they carry no `{account_id}--{hash}` prefix and must
+crosswalk by name+currency — the fallback path, with one PLN and one EUR wallet each so it is
+unambiguous. And **Revolut-PLN and Revolut-USD are two of the five `promote_from_date = NULL`
+mappings** (§5.5) that must be filled before cutover regardless.
 
 ## Status
 
