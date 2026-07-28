@@ -44,6 +44,10 @@ const SEED_OBJECTS = [
   { name: 'Fidelity (historical)',       parent: 'Historical Assets',    section: 'balance_sheet', account_type: 'asset' },
   { name: 'Transfer - Historical',       parent: 'Transfers',            section: 'profit_loss',   account_type: 'expense', is_transfer: true, skip_transfer_analysis: false },
   { name: 'Return of Capital',           parent: 'Transfers',            section: 'profit_loss',   account_type: 'expense', is_transfer: true, skip_transfer_analysis: true },
+  // CR057. Migration 041 is the authority for this row (this script is a manual
+  // admin CLI, not a fresh-DB seed path); kept here for parity. skip_transfer_analysis
+  // stays false because the two legs genuinely pair and should auto-match.
+  { name: 'Transfer - Distributions',    parent: 'Transfers',            section: 'profit_loss',   account_type: 'expense', is_transfer: true, skip_transfer_analysis: false },
   { name: 'Financial Income - Dividend', parent: 'Financial Income',     section: 'profit_loss',   account_type: 'income' },
   { name: 'Interest Income',             parent: 'Financial Income',     section: 'profit_loss',   account_type: 'income' },
   { name: 'Realized Gain (Historical)',  parent: null,                   section: 'profit_loss',   account_type: 'income' },

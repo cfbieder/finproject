@@ -11,6 +11,7 @@ const accountsRepo = require('../repositories').accounts;
 // Look up by name with `accountsRepo.findByName`; results have id/name/section.
 const transferMatchGroupsRepo = require('../repositories').transferMatchGroups;
 const categorySuggest = require('../services/categorySuggest');
+const incomeRestatement = require('../services/incomeRestatement');
 
 /**
  * Transform v1-style field names to v2 format
@@ -115,6 +116,26 @@ router.get('/', async (req, res, next) => {
     res.json({
       data: transactions
     });
+  } catch (error) {
+    next(error);
+  }
+});
+
+// GET /api/v2/transactions/categories?account=<name>&startDate=&endDate=
+// Distinct category names present on an account. The Ledger's category filter
+// derived its options from the LOADED rows (first page = 500), so on a
+// 4,572-row account it could only offer categories from the most recent ~11%
+// and silently hid the rest. Single-segment path, declared before /:id/*.
+router.get('/categories', async (req, res, next) => {
+  try {
+    const { account, startDate, endDate, fromDate, toDate } = req.query;
+    const accountName = Array.isArray(account) ? account[0] : account;
+    const data = await repo.distinctCategoryNames({
+      accountName,
+      startDate: startDate || fromDate,
+      endDate: endDate || toDate,
+    });
+    res.json({ data });
   } catch (error) {
     next(error);
   }
@@ -516,6 +537,67 @@ router.post('/:id/transfer', async (req, res, next) => {
     if (/must differ|not found/i.test(error.message)) {
       return res.status(400).json({ error: error.message });
     }
+    next(error);
+  }
+});
+
+// POST /api/v2/transactions/:id/book-at-source
+// CR057: an income row sitting on the account where the CASH LANDED is restated
+// onto the holding that EARNED it, as a three-leg booking (income at the holding,
+// transfer out of the holding, and this row re-categorized as the transfer in).
+// Balance-neutral on both accounts. Body: { holding_account_id, dryRun? }.
+// dryRun shares the write's code path, so the preview cannot drift from the write.
+router.post('/:id/book-at-source', async (req, res, next) => {
+  try {
+    const id = parseInt(req.params.id);
+    if (!Number.isInteger(id)) {
+      return res.status(400).json({ error: 'invalid transaction id' });
+    }
+    validate.assertPlainObject(req.body, 'book-at-source');
+    validate.assertAllowedFields(req.body, ['holding_account_id', 'dryRun'], 'book-at-source');
+    validate.assertInteger(req.body.holding_account_id, 'holding_account_id');
+    validate.assertBoolean(req.body.dryRun, 'dryRun', { optional: true });
+
+    const data = await incomeRestatement.bookAtSource(
+      id,
+      parseInt(req.body.holding_account_id),
+      { dryRun: req.body.dryRun === true }
+    );
+    res.json({ data });
+  } catch (error) {
+    next(error);
+  }
+});
+
+// POST /api/v2/transactions/:id/book-at-source/undo
+// CR057: reverse a restatement exactly, or refuse. It refuses when a created leg
+// has been edited since it was written — deleting it then would move the holding's
+// book value and silently invalidate every later `Unrealized G/L` mark.
+router.post('/:id/book-at-source/undo', async (req, res, next) => {
+  try {
+    const id = parseInt(req.params.id);
+    if (!Number.isInteger(id)) {
+      return res.status(400).json({ error: 'invalid transaction id' });
+    }
+    const data = await incomeRestatement.undoBookAtSource(id);
+    res.json({ data });
+  } catch (error) {
+    next(error);
+  }
+});
+
+// POST /api/v2/transactions/restatements
+// CR057: which of these transaction ids are already booked at source — so the
+// Ledger can offer Undo instead of Book. Single-segment POST path; there is no
+// single-segment POST /:id route for it to collide with.
+router.post('/restatements', async (req, res, next) => {
+  try {
+    const ids = Array.isArray(req.body.ids)
+      ? req.body.ids.map(Number).filter(Number.isFinite)
+      : [];
+    const data = await incomeRestatement.findBySourceIds(ids);
+    res.json({ data });
+  } catch (error) {
     next(error);
   }
 });

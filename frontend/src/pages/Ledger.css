@@ -105,6 +105,14 @@
   min-width: 180px;
 }
 
+/* Match the SearchableSelect input to the neighbouring filter controls
+   (.ledger-cascade__select) — the component keeps its own generic defaults. */
+.ledger-filters__category .ssel__input {
+  padding: 0.45rem 2.6rem 0.45rem 0.6rem;
+  border-radius: 0.375rem;
+  font-size: 0.8rem;
+}
+
 /* ── Total amount in footer ── */
 .ledger-total-amount {
   font-weight: 600;

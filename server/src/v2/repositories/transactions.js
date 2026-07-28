@@ -157,6 +157,47 @@ async function findAllExtended({
  * make a per-row running balance meaningless, so the route falls back to
  * findAllExtended in those cases.
  */
+/**
+ * Distinct category names present on an account (optionally within a date range).
+ *
+ * The Ledger's category filter used to derive its options from the rows already
+ * LOADED, which is only the first page — 500 rows. On PKO (4,572 rows) that meant
+ * the filter could only ever offer categories from the most recent ~11% of the
+ * account, and silently omitted the rest: `Financial Income - UB Dividend` sits at
+ * position 532 and was unofferable, so the five United Beverages dividends could
+ * not be found at all. Sourcing the options here makes the list complete
+ * regardless of how much has been paged in.
+ */
+async function distinctCategoryNames({ accountName, startDate, endDate } = {}) {
+  const params = [];
+  const conditions = ['t.category_id IS NOT NULL'];
+  let paramIndex = 1;
+
+  if (accountName) {
+    conditions.push(`a.name = $${paramIndex++}`);
+    params.push(accountName);
+  }
+  if (startDate) {
+    conditions.push(`t.transaction_date >= $${paramIndex++}`);
+    params.push(startDate);
+  }
+  if (endDate) {
+    conditions.push(`t.transaction_date <= $${paramIndex++}`);
+    params.push(endDate);
+  }
+
+  const { rows } = await db.query(`
+    SELECT DISTINCT c.name
+      FROM transactions t
+      JOIN accounts c ON c.id = t.category_id
+      LEFT JOIN accounts a ON a.id = t.account_id
+     WHERE ${conditions.join(' AND ')}
+     ORDER BY c.name
+  `, params);
+
+  return rows.map((r) => r.name);
+}
+
 async function findLedgerWithRunningBalance({
   accountName, startDate, endDate, limit = 1000, offset = 0
 } = {}) {
@@ -828,6 +869,7 @@ module.exports = {
   findAll,
   findAllExtended,
   findLedgerWithRunningBalance,
+  distinctCategoryNames,
   findById,
   findByPsId,
   count,

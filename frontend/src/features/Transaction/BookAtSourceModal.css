@@ -1,0 +1,118 @@
+/* CR057 — Book at source modal. Tokens only; light + dark come free. */
+
+.bas {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-md, 0.75rem);
+}
+
+.bas__source {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+  gap: var(--space-sm, 0.5rem) var(--space-lg, 1rem);
+  margin: 0;
+  padding: var(--space-md, 0.75rem);
+  background: var(--surface-muted);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-sm);
+}
+
+.bas__source div { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+
+.bas__source dt {
+  font-size: 0.72rem;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--ink-tertiary);
+}
+
+.bas__source dd { margin: 0; color: var(--ink); font-weight: 600; overflow-wrap: anywhere; }
+
+.bas__num { font-variant-numeric: tabular-nums; }
+
+.bas__desc {
+  margin: 0;
+  color: var(--ink-secondary);
+  font-size: 0.85rem;
+  overflow-wrap: anywhere;
+}
+
+.bas__field { display: flex; flex-direction: column; gap: var(--space-xs, 0.375rem); }
+
+.bas__label { font-weight: 600; color: var(--ink); font-size: 0.9rem; }
+
+.bas__hint { margin: 0; color: var(--ink-tertiary); font-size: 0.78rem; }
+
+.bas__note {
+  margin: 0;
+  padding: var(--space-md, 0.75rem);
+  background: var(--surface-muted);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-sm);
+  color: var(--ink-secondary);
+  font-size: 0.85rem;
+}
+
+.bas__error {
+  margin: 0;
+  padding: var(--space-sm, 0.5rem) var(--space-md, 0.75rem);
+  background: var(--danger-subtle);
+  border: 1px solid var(--danger);
+  border-radius: var(--radius-sm);
+  color: var(--danger-strong);
+  font-size: 0.85rem;
+}
+
+.bas__ok {
+  margin: 0;
+  padding: var(--space-sm, 0.5rem) var(--space-md, 0.75rem);
+  background: var(--success-subtle);
+  border: 1px solid var(--success);
+  border-radius: var(--radius-sm);
+  color: var(--success-strong);
+  font-size: 0.85rem;
+  font-variant-numeric: tabular-nums;
+}
+
+.bas__preview { display: flex; flex-direction: column; gap: var(--space-sm, 0.5rem); }
+
+.bas__h {
+  margin: var(--space-sm, 0.5rem) 0 0;
+  font-size: 0.72rem;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--ink-tertiary);
+}
+
+/* Wide content scrolls inside its own box rather than the dialog body. */
+.bas__table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.85rem;
+  display: block;
+  overflow-x: auto;
+}
+
+.bas__table thead th {
+  text-align: left;
+  padding: var(--space-xs, 0.375rem) var(--space-sm, 0.5rem);
+  border-bottom: 1px solid var(--border);
+  color: var(--ink-tertiary);
+  font-size: 0.72rem;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  white-space: nowrap;
+}
+
+.bas__table td {
+  padding: var(--space-xs, 0.375rem) var(--space-sm, 0.5rem);
+  border-bottom: 1px solid var(--border-subtle);
+  color: var(--ink);
+  white-space: nowrap;
+}
+
+.bas__r { text-align: right; }
+
+.bas__change { margin: 0; color: var(--ink); font-size: 0.85rem; }
+
+.bas__was { color: var(--ink-tertiary); text-decoration: line-through; }

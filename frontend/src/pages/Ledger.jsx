@@ -1,4 +1,4 @@
-import { useCallback, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import {
   Search,
   Download,
@@ -16,6 +16,7 @@ import {
   X,
   Copy,
   Scale,
+  Landmark,
 } from "lucide-react";
 import { LEDGER_CONFIG } from "../features/Transaction/transactionConfig.js";
 import { useTransactions } from "../features/Transaction/hooks/useTransactions.js";
@@ -32,7 +33,9 @@ import {
 } from "../features/Transaction/TransactionTable.jsx";
 import TransactionEditModal from "../features/Transaction/TransactionEditModal.jsx";
 import TransactionDeleteModal from "../features/Transaction/TransactionDeleteModal.jsx";
+import BookAtSourceModal from "../features/Transaction/BookAtSourceModal.jsx";
 import CategorySelector from "../components/CategorySelector/CategorySelector.jsx";
+import SearchableSelect from "../components/SearchableSelect/SearchableSelect.jsx";
 import PeriodSelector from "../components/PeriodSelector/PeriodSelector.jsx";
 import HierarchyFilter from "../components/HierarchyFilter/HierarchyFilter.jsx";
 import Rest from "../js/rest.js";
@@ -161,6 +164,23 @@ export default function Ledger() {
       ...prev,
       accountEnabled: !!acct,
       account: acct ? [acct] : [],
+      // Categories differ per account, so a carried-over selection would filter
+      // the new account down to nothing.
+      categoryEnabled: false,
+      category: [],
+    }));
+  }, []);
+
+  // Category is a SERVER-side filter: it must reach rows outside the loaded page.
+  // Note the endpoint drops the true running balance once any non-account filter
+  // is present (a per-row balance is meaningless on a filtered subset) and falls
+  // back to a client-side cumulative sum — the documented, pre-existing behaviour.
+  const handleCategorySelect = useCallback((name) => {
+    setSelectedCategory(name);
+    setFilters((prev) => ({
+      ...prev,
+      categoryEnabled: !!name,
+      category: name ? [name] : [],
     }));
   }, []);
 
@@ -191,14 +211,35 @@ export default function Ledger() {
     hasAccount ? filters : { ...LEDGER_CONFIG.defaultFilters, accountEnabled: false, account: [] }
   );
 
-  // ─── Unique category list from loaded transactions ───
-  const transactionCategories = useMemo(() => {
-    const cats = new Set();
-    for (const t of transactions) {
-      if (t.Category) cats.add(t.Category);
-    }
-    return [...cats].sort((a, b) => a.localeCompare(b));
-  }, [transactions]);
+  // ─── Category filter options — from the SERVER, not the loaded rows ───
+  // These used to be derived from `transactions`, i.e. the first page only
+  // (500 rows). On PKO (4,572 rows) that meant the filter could offer categories
+  // from just the most recent ~11% of the account and silently omitted the rest —
+  // `Financial Income - UB Dividend` sits at position 532, so the five United
+  // Beverages dividends were unfindable. The options now cover the whole account
+  // for the selected period, and the filter itself is applied server-side (see
+  // handleCategorySelect), so choosing one returns rows outside the loaded page.
+  const [transactionCategories, setTransactionCategories] = useState([]);
+
+  const categoryOptionsQuery = useMemo(
+    () => (hasAccount ? LEDGER_CONFIG.buildCategoryOptionsQuery(filters).toString() : ""),
+    [hasAccount, filters]
+  );
+
+  useEffect(() => {
+    if (!categoryOptionsQuery) { setTransactionCategories([]); return; }
+    let cancelled = false;
+    (async () => {
+      try {
+        const rows = await Rest.fetchJson(`/api/v2/transactions/categories?${categoryOptionsQuery}`);
+        if (!cancelled) setTransactionCategories(rows?.data ?? []);
+      } catch {
+        // Non-fatal: the filter degrades to empty rather than breaking the page.
+        if (!cancelled) setTransactionCategories([]);
+      }
+    })();
+    return () => { cancelled = true; };
+  }, [categoryOptionsQuery]);
 
   // ─── Duplicate detection ───
   const [showDuplicatesOnly, setShowDuplicatesOnly] = useState(false);
@@ -257,9 +298,9 @@ export default function Ledger() {
       );
     }
 
-    if (selectedCategory) {
-      filtered = filtered.filter((entry) => entry?.Category === selectedCategory);
-    }
+    // NOTE: no category filter here — it is applied server-side via `filters`
+    // (handleCategorySelect). Filtering client-side would only ever search the
+    // loaded page, which is the bug this replaced.
 
     if (searchText.trim()) {
       const q = searchText.trim().toLowerCase();
@@ -278,7 +319,7 @@ export default function Ledger() {
     }
 
     return filtered;
-  }, [transactions, searchText, selectedCategory, showDuplicatesOnly, duplicateIds]);
+  }, [transactions, searchText, showDuplicatesOnly, duplicateIds]);
 
   // ─── Sort + Selection ───
   const {
@@ -310,6 +351,74 @@ export default function Ledger() {
 
   const edit = useTransactionEdit(LEDGER_EDIT_CONFIG, selectedRows, rates, computeBase, handleSuccess);
   const del = useTransactionDelete(LEDGER_EDIT_CONFIG, selectedRows, handleSuccess);
+
+  // ─── CR057: book income at the holding that earned it ───
+  // Single-row action: the three-leg booking is per transaction, and the holding
+  // is a per-row decision (two dividends can come from different holdings), so
+  // there is nothing meaningful to do in bulk.
+  const [bookAtSource, setBookAtSource] = useState(null); // the selected row
+  const [restatements, setRestatements] = useState({});   // tx id -> restatement
+
+  const selectedRow = useMemo(() => {
+    if (selectedRows.size !== 1) return null;
+    return [...selectedRows.values()][0] ?? null;
+  }, [selectedRows]);
+
+  // Only income can be booked at source; a missing transfer counter-leg is a
+  // different repair. The server enforces this — this only keeps the button from
+  // appearing on rows it would refuse. `categoryOptions` is a list of NAMES, so
+  // the types come from their own fetch.
+  const [incomeCategoryIds, setIncomeCategoryIds] = useState(null);
+
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        const cats = await Rest.fetchCategoriesV2({ activeOnly: true });
+        if (cancelled) return;
+        setIncomeCategoryIds(new Set(
+          (cats || []).filter((c) => c.account_type === "income").map((c) => c.id)
+        ));
+      } catch { /* leave null — the button then shows and the server decides */ }
+    })();
+    return () => { cancelled = true; };
+  }, []);
+
+  const bookableRow = useMemo(() => {
+    if (!selectedRow?.id) return null;
+    if (incomeCategoryIds && !incomeCategoryIds.has(selectedRow.category_id)) return null;
+    return selectedRow;
+  }, [selectedRow, incomeCategoryIds]);
+
+  const selectedRestatement = selectedRow?.id ? restatements[String(selectedRow.id)] : null;
+
+  useEffect(() => {
+    const ids = (sortedTransactions || []).map((t) => t.id).filter(Boolean);
+    if (ids.length === 0) { setRestatements({}); return; }
+    let cancelled = false;
+    (async () => {
+      try {
+        const res = await fetch(Rest.buildUrl("/api/v2/transactions/restatements"), {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ ids }),
+        });
+        if (!res.ok) return;
+        const body = await res.json();
+        if (cancelled) return;
+        const map = {};
+        for (const r of body.data || []) map[String(r.source_transaction_id)] = r;
+        setRestatements(map);
+      } catch { /* the badge is informational — a failure must not break the page */ }
+    })();
+    return () => { cancelled = true; };
+  }, [sortedTransactions]);
+
+  const handleBookAtSourceDone = useCallback(async (message) => {
+    showSuccess(message);
+    clearSelection();
+    await handleSuccess();
+  }, [showSuccess, clearSelection, handleSuccess]);
 
   // ─── Neutralize (brokerage securities trade → Transfer) ───
   // Smart: pairs an existing offsetting leg into "Transfer - Securities Trades"
@@ -669,16 +778,14 @@ export default function Ledger() {
             {hasAccount && transactionCategories.length > 0 && (
               <div className="txv2-filters__section ledger-filters__category">
                 <span className="txv2-filters__label">Category</span>
-                <select
-                  className="ledger-cascade__select"
+                <SearchableSelect
+                  id="ledger-category-filter"
                   value={selectedCategory}
-                  onChange={(e) => setSelectedCategory(e.target.value)}
-                >
-                  <option value="">All Categories</option>
-                  {transactionCategories.map((cat) => (
-                    <option key={cat} value={cat}>{cat}</option>
-                  ))}
-                </select>
+                  options={transactionCategories}
+                  onChange={handleCategorySelect}
+                  allLabel="All Categories"
+                  placeholder="Type to filter…"
+                />
               </div>
             )}
           </div>
@@ -736,6 +843,21 @@ export default function Ledger() {
             <Scale size={13} />
             {isNeutralizing ? "Neutralizing…" : "Neutralize"}
           </button>
+          {(bookableRow || selectedRestatement) && (
+            <button
+              type="button"
+              className="btn btn--sm btn--outline"
+              onClick={() => setBookAtSource(selectedRow)}
+              title={
+                selectedRestatement
+                  ? "Undo: remove the two legs on the holding and restore this row's original category"
+                  : "Book at source: record this income on the holding that earned it, with a transfer to this account (balance-neutral)"
+              }
+            >
+              <Landmark size={13} />
+              {selectedRestatement ? "Undo book at source" : "Book at source"}
+            </button>
+          )}
           <div style={{ flex: 1 }} />
           <button type="button" className="btn btn--sm btn--outline btn--danger-soft" onClick={del.handleDeleteRequest}>
             <Trash2 size={13} />
@@ -910,6 +1032,15 @@ export default function Ledger() {
         error={del.deleteError}
         onCancel={del.handleDeleteCancel}
         onConfirm={del.handleConfirmDelete}
+      />
+
+      {/* ── CR057 Book at source (preview + confirm, or undo) ── */}
+      <BookAtSourceModal
+        open={!!bookAtSource}
+        transaction={bookAtSource}
+        restatement={bookAtSource?.id ? restatements[String(bookAtSource.id)] : null}
+        onClose={() => setBookAtSource(null)}
+        onDone={handleBookAtSourceDone}
       />
 
       {/* ── Neutralize confirm (warns before creating a new offsetting entry) ── */}

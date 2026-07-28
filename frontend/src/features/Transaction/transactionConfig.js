@@ -343,6 +343,21 @@ export const LEDGER_CONFIG = {
     query.set("limit", fetchLimit);
   },
 
+  // Query for the Ledger's category-filter OPTIONS (GET /transactions/categories).
+  // Same account + date scope as the row query, deliberately reusing the same
+  // builders so the two can never disagree about the period — but with no limit,
+  // because the options must cover the whole account, not the loaded page.
+  buildCategoryOptionsQuery(filters) {
+    const query = new URLSearchParams();
+    if (filters.accountEnabled && filters.account?.length) {
+      query.set("account", Array.isArray(filters.account) ? filters.account[0] : filters.account);
+    }
+    if (filters.yearEnabled && filters.year) {
+      buildDateRangeParams(query, filters);
+    }
+    return query;
+  },
+
   // No totals query needed
   buildTotalsQuery() {},
 
