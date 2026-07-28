@@ -124,6 +124,42 @@ dbDescribe('reconcileToFeed (DB)', () => {
     expect(n.n).toBe(0);
   });
 
+  test('calibrate: does NOT move opening_balance_date, and pre-sentinel rows stay visible', async () => {
+    // Regression: calibrate used to hard-write opening_balance_date='2000-01-01'
+    // while computing sumTx over ALL transactions with no sentinel filter. For
+    // any account holding pre-2000 rows that is self-contradictory — it pins a
+    // balance the app then does not show, because every read filters on the
+    // sentinel. Fidelity Stocks acquires 121 pre-2000 rows (47,918.98) with the
+    // CR019 backfill and more with CR058's 1998-99 anchors, so a Reconcile click
+    // would have silently voided ~667K of history.
+    await freshAccount({ type: 'asset', currency: 'PLN', opening: 0, mode: 'calibrate' });
+    await db.query(
+      `UPDATE accounts SET opening_balance_date = '1990-01-01' WHERE id = $1`, [acctId]);
+    await db.query(
+      `INSERT INTO transactions (transaction_date, amount, currency, account_id, source, accepted)
+       VALUES ('1998-06-30', 100, 'PLN', $1, 'pocketsmith', TRUE),
+              ('2026-05-15', 300, 'PLN', $1, 'pocketsmith', TRUE)`, [acctId]);
+    await seedFeed(800, MONTH_END, 'PLN');
+
+    const out = await reconcileToFeed(acctId, { asOf: MONTH_END, dryRun: false });
+    // sumTx spans both rows (400), so the anchor is 800 − 400 = 400.
+    expect(out.sum_tx).toBeCloseTo(400, 2);
+    expect(out.new_opening).toBeCloseTo(400, 2);
+
+    const a = (await db.query(
+      `SELECT opening_balance, opening_balance_date::text AS d FROM accounts WHERE id=$1`,
+      [acctId])).rows[0];
+    expect(a.d).toBe('1990-01-01'); // untouched — the whole point
+
+    // And the balance the app shows must equal the balance calibrate pinned.
+    const shown = (await db.query(
+      `SELECT (a.opening_balance + COALESCE((SELECT SUM(t.amount) FROM transactions t
+                WHERE t.account_id = a.id
+                  AND t.transaction_date >= a.opening_balance_date), 0)) AS bal
+         FROM accounts a WHERE a.id = $1`, [acctId])).rows[0];
+    expect(Number(shown.bal)).toBeCloseTo(800, 2);
+  });
+
   test('calibrate: liability reconciles against −feed', async () => {
     await freshAccount({ type: 'liability', currency: 'PLN', opening: 0, mode: 'calibrate' });
     await db.query(

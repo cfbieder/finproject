@@ -231,8 +231,17 @@ async function calibrate(client, accountId, m, asOfDate, dryRun) {
   };
 
   if (!dryRun) {
+    // Do NOT touch opening_balance_date. `sumTx` above is computed over ALL
+    // transactions with no sentinel filter, while every read filters
+    // `transaction_date >= opening_balance_date` — so hard-writing '2000-01-01'
+    // made this calibration internally inconsistent for any account holding
+    // pre-2000 rows: the balance it pins is not the balance the app then shows.
+    // Leaving the sentinel alone is strictly more correct than moving it.
+    // (Fidelity Stocks carries 121 pre-2000 rows worth 47,918.98 once the CR019
+    // backfill lands, and CR058's anchors add 1998-99 rows on top; a Reconcile
+    // click would otherwise have silently voided ~667K of history.)
     await client.query(
-      `UPDATE accounts SET opening_balance = $2, opening_balance_date = '2000-01-01' WHERE id = $1`,
+      `UPDATE accounts SET opening_balance = $2 WHERE id = $1`,
       [accountId, newOpening]
     );
     summary.applied = true;

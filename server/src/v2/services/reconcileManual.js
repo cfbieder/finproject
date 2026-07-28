@@ -230,8 +230,12 @@ async function calibrate(client, accountId, m, asOfDate, dryRun) {
   };
 
   if (!dryRun) {
+    // Do NOT touch opening_balance_date — see the matching comment in
+    // reconcileToFeed.calibrate. `sumTx` is unfiltered while every read filters
+    // on the sentinel, so moving it to '2000-01-01' pins a balance the app then
+    // does not show, for any account holding pre-2000 rows.
     await client.query(
-      `UPDATE accounts SET opening_balance = $2, opening_balance_date = '2000-01-01' WHERE id = $1`,
+      `UPDATE accounts SET opening_balance = $2 WHERE id = $1`,
       [accountId, newOpening]
     );
     summary.applied = true;
