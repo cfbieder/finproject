@@ -34,7 +34,15 @@ dbDescribe('runPromote + runRollback (cash-only, DB-backed)', () => {
   beforeAll(async () => {
     pool = new Pool({ connectionString: TEST_DB_URL });
 
-    // Clean any leftover sentinels from prior failed runs
+    // Clean any leftover sentinels from prior failed runs. Transactions FIRST:
+    // a test that dies mid-way can leave rows on a sentinel account, and the
+    // account DELETE then trips transactions_account_id_fkey — which fails the
+    // whole suite in beforeAll, far from the test that actually leaked.
+    await pool.query(
+      `DELETE FROM transactions WHERE account_id IN
+         (SELECT id FROM accounts WHERE name LIKE $1)`,
+      [`${SENTINEL_PREFIX}%`]
+    );
     await pool.query(
       `DELETE FROM accounts WHERE name LIKE $1`,
       [`${SENTINEL_PREFIX}%`]
