@@ -472,13 +472,124 @@ shadow store on the new basis reproduces **the same 26 of 29 identical accounts*
 residual becomes clean (+2 rows, both from the pre-Sheet window) now that the date noise is gone —
 which is the confirmation the choice was the right one.
 
+## 14. The equivalence gate (`scripts/compare-sources.js`, run 2026-07-28)
+
+Nothing goes live on the strength of a spot check, so the comparison is a committed, repeatable script
+with a pass/fail exit code — `npm run compare-sources`. It reads **both upstreams at the same moment**
+and compares each converter's canonical output. Deliberately not the database: that isolates *is the
+API the same data* from *has our ingest run yet*.
+
+**The pass criterion is directional, because the two sources are not symmetric.** Only differences that
+*lose* something fail the run: a transaction or an account the **Sheet** has and the API does not, or a
+disagreeing currency. Rows the API adds are reported, never punished — but they are printed, so a PASS
+can never be mistaken for "the two sources are identical". `pending` rows (the API path asks for
+`pending=0`, fintable's own advice, and fin drops them anyway) and date shifts within the tolerance
+(§13.2) are expected and ignored.
+
+| | |
+|---|---:|
+| rows matched | **2,175** |
+| date-shifted (posted vs authorization, Chase/Akoya only) | 135 |
+| API has, Sheet lacks — *inside the Sheet's own date range* | **9** |
+| API has, Sheet dropped — older than the Sheet's window | 222 |
+| **Sheet has, API lacks** | **0** |
+
+**Zero in the only direction that matters.** There is not one transaction, and not one field, that the
+Sheet carries and the API does not.
+
+**The nine are the finding.** They are not rows the Sheet never saw — **our own database ingested them
+from the Sheet earlier and still holds them**: four `-250.00` rows on PKO Main dated 2026-06-03 (the
+Sheet now shows one row that day, ours shows five) and five OC Medycyny rows in early July (ours has 38
+July rows, the Sheet 33). Across all accounts the Sheet holds **2,176 rows against the API's 2,406**,
+and on the GoCardless accounts it holds roughly half (Infinity CB: 116 vs 230). **The Sheet is a lossy
+rolling view that drops rows it once carried; Postgres is the archive, and the API agrees with the
+archive.** That is a stronger argument for this CR than anything in §1 — the current upstream is
+quietly shedding data, and the two accounts with a stale Sheet balance (OC Medycyny by 7,120.17 PLN,
+Black Card by 136.96) are that loss showing up as a wrong number.
+
+**It fails today, correctly:** the two Revolut wallets (§11d) still appear in the Sheet but no longer
+exist upstream, so the gate refuses to green-light a cutover that would drop two mapped accounts. It
+should pass once the connection is re-linked — and that is the gate for P4, not a judgement call.
+
+*Field differences, all improvements, none of them blocking:* the API's account `type` classifies four
+credit cards as `credit` where the Sheet-derived heuristic said `other`, and two Fidelity accounts as
+`brokerage` (vs `checking`/`other`). Verified safe: fin's reconciliation reads its **own**
+`accounts.account_type`, never the feed's, so `feed_accounts.type` is display-only downstream.
+
+## 15. What else the API makes possible
+
+The docs describe a good deal more than an ingestion feed. Assessed against what fin and bank-feed
+actually need — several are worth doing, two are worth refusing.
+
+**A. Connection health and one-click reconnect — do this first.** `GET /connections` already gives
+`healthy`, `needs_reconnect` and `status_text`; `POST /connections/{id}/link` mints a browser link to
+re-authenticate a bank. Today's evidence for why this matters is not hypothetical: **Bank Pekao has
+been reporting `healthy: false` since 2026-07-24** and nothing in our stack could say so, and a Revolut
+re-consent silently reduced a three-wallet connection to one. The Sheet path cannot express either.
+Surface the flag on the recon page and the admin routing page, with a Reconnect button that mints the
+link for the owner to open. *Needs a **write-scope** token — the only item here that does.*
+Small; belongs in this CR as a P5.
+
+**B. Holdings — the biggest one, and its own CR.** `GET /accounts/{id}/holdings` returns daily
+snapshots with quantity, price, market value and cost basis. fin's securities tables are **0 rows**
+(verified: `securities` 0, `quicken_price_staging` 0), which is why [CR056](cr-056-investment-returns.md)
+had to derive investment returns from ledger postings and [CR058](cr-058-quicken-valuation-anchors.md)
+has to reconstruct brokerage history out of Quicken. Six Fidelity accounts feed this. Caveats to design
+around: `cost_basis` is the **position total, not per share** (a provider quirk fintable passes through
+rather than guessing at), there is **no history pagination** — one call per day per account — and
+snapshots only exist from whenever fintable started recording.
+
+**C. Market prices — pairs with B, public and unauthenticated.** `GET /prices?symbols=` (≤50 tickers)
+and `/prices/{symbol}/history` (adjusted for splits and dividends). fin has **no** market-price source
+at all today. Caveat worth respecting: the default `iex` feed is one exchange, not the consolidated
+tape, and is cacheable for up to an hour — fine for valuing a position, not a quote. Same CR as B.
+
+**D. Sync control.** `GET /sync` exposes the schedule, live progress and per-connection state;
+`POST /sync` asks fintable to pull from the bank — **1/hour at this account's office tier** (not the
+2/day the docs quote for Personal). This is the one thing that would make fin's "Refresh from bank"
+button mean what its label says, instead of "re-read what fintable last exported". Recommend keeping
+the default as a read and adding an explicit *Force upstream refresh* that respects the budget and
+surfaces 429/403 verbatim.
+
+**E. `sync_start_date` per account/connection** (`PATCH`). Could be aligned with fin's
+`promote_from_date` so history we have decided not to promote is never fetched at all. Hygiene, not a
+capability; the ingest-side date floor already covers the risk. Low priority, write scope.
+
+**F. Onboarding a new bank** (`POST /connections/link`). Would let the admin page add a bank without
+visiting fintable's dashboard. For a single-user setup the dashboard already does this well —
+**skip** unless the owner wants one place for everything.
+
+**G. The categorizer — recommend against.** Categories and JSONLogic rules are a complete second
+categorization system, and fin already has a COA plus [CR055](cr-055-category-suggest-backoff.md)'s
+suggest engine. Adopting it creates two sources of truth for the same decision. (Confirms itself in the
+data: **every** sampled transaction came back with `category: null`, matching our own 0 of 2,393
+category hints — the owner does not use it.) The only defensible slice — pushing fin's chosen category
+back so the fintable dashboard isn't blank — is cosmetic and needs write scope. Skip.
+
+**H. Diagnostics — cheap, fold into the existing probe.** `GET /me` (tier, connection headroom,
+renewal) and `GET /integrations` (which spreadsheets fintable still writes to, and whether they are
+healthy) — the latter is how we confirm at P4 that nothing still depends on the Sheet.
+
+**I. FX rates — no new capability.** fintable's `/rates` is ECB data; fin already pulls ECB data
+through **Frankfurter** (`exchange_rates.source = 'frankfurter'`). Same numbers, same publisher. Worth
+knowing only as a fallback if Frankfurter ever goes away.
+
+**Explicitly not wired: `DELETE /connections/{id}`** (purges a bank and its data upstream) and
+**`PATCH /accounts/{id}` with `enabled: false`**, which fintable's own docs warn **permanently deletes
+that account's transactions**. Neither belongs behind a button in our admin page.
+
+*Proposed split:* **A, D, H** are small bank-feed additions and fit this CR as **P5**. **B + C** are a
+new CR of their own — they add tables, a backfill and a report surface, and they are the reason the
+API matters beyond plumbing.
+
 ## Status
 
 P0 done (§11), P1 built and shadow-verified (§13), both §12 decisions settled, default still
 `FINTABLE_SOURCE=sheets` — nothing in prod or fin has changed. **146 tests green.**
 
-Next: **P2** — keep the shadow store loading in parallel for ~3 days and re-run the §7 diff, which is
-also what proves the incremental path over a real multi-day window. Then **P3**, the crosswalk, whose
+**The equivalence gate (§14) is written, committed and currently FAILING on the two Revolut wallets —
+that is the gate for P4.** Next: **P2** — keep the shadow store loading in parallel for ~3 days and
+re-run the gate, which is also what proves the incremental path over a real multi-day window. Then **P3**, the crosswalk, whose
 shape P0/P1 have now fixed: accounts from the `{api_account_id}--{hash}` prefix (exact), transactions
 by `(account, amount, description)` within a few days (§13.2). No review pass has run on this CR yet;
 pass 1 (`cr-technical-reviewer`) belongs before P3 touches two databases.
