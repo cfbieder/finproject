@@ -229,7 +229,7 @@ Multi-year projection engine in `server/src/services/forecast/` (`index.js` orch
 
 ### Operational scripts (`server/src/v2/scripts/`)
 
-One-time/idempotent admin CLIs — all require `DATABASE_URL` (no embedded credentials since CR034): `quicken-import.js` / `quicken-promote.js` / `quicken-verify.js` ([CR019](../cr/cr-019-quicken-import.md)), `ps-anchor.js`, `retire-handoff.js`, `seed-cr019-coa.js`, `copy-quicken-to-prod.js`, `seed-bankfeed-cutoffs.js`, `seed-ps-lower-cutoffs.js`, `seed-cr023-reconcile-modes.js`, `seed-cr024-fidelity-*.js`, `mtm-reconcile.js`, `backfill-cr032-core-sweeps.js`, `ps-exit-monitor.js`. Usage in the owning CR file.
+One-time/idempotent admin CLIs — all require `DATABASE_URL` (no embedded credentials since CR034): `quicken-import.js` / `quicken-promote.js` / `quicken-verify.js` ([CR019](../cr/cr-019-quicken-import.md)), `ps-anchor.js`, `retire-handoff.js`, `seed-cr019-coa.js`, `copy-quicken-to-prod.js`, `seed-bankfeed-cutoffs.js`, `seed-ps-lower-cutoffs.js`, `seed-cr023-reconcile-modes.js`, `seed-cr024-fidelity-*.js`, `mtm-reconcile.js`, `backfill-cr032-core-sweeps.js`, `ps-exit-monitor.js`, `fix-ps-transfer-signs.js` *(v3.6.3 — flips two PocketSmith transfers booked as credits on Fidelity Stocks and re-plugs `opening_balance` by the same amount; dry-run by default, idempotent, aborts unless today's balance is unchanged)*. Usage in the owning CR file.
 
 ---
 
