@@ -1,0 +1,130 @@
+'use strict';
+/**
+ * quicken-anchor.test.js — CR058 valuation anchors.
+ *
+ * Pure tests only: the CSV contract and the sequential anchor maths. The
+ * write/verify path is exercised end-to-end against dev in the CR's rollout
+ * (promote → anchor → --check), where the invariants have a real ledger to
+ * tie out against.
+ */
+
+const path = require('node:path');
+const fs = require('node:fs');
+
+process.env.DATABASE_URL = process.env.DATABASE_URL || 'postgres://unused/unused';
+const { parseTargetsCsv, computeAnchors } = require('../quicken-anchor');
+
+const FIXTURES = path.resolve(__dirname, '../../../../../Samples/quicken/fixtures');
+
+describe('parseTargetsCsv', () => {
+  test('parses the pinned Fidelity Brokerage series', () => {
+    const rows = parseTargetsCsv(
+      fs.readFileSync(path.join(FIXTURES, 'valuation_targets_fid_brokerage.csv'), 'utf8'),
+      'fid'
+    );
+    expect(rows).toHaveLength(26);
+    // The first row is the opening anchor, dated the day BEFORE the account's
+    // first transaction (1998-03-21): the account was worth nothing before it
+    // existed. Anchoring the 1998 year-end value at March would misdate it.
+    expect(rows[0]).toEqual({ as_of_date: '1998-03-20', target: 0 });
+    expect(rows[1]).toEqual({ as_of_date: '1998-12-31', target: 29436.0 });
+    // The last column is 12-28, not a year-end — Quicken's report is "as of
+    // 12/28/2022". Sizing that anchor off the 12-31 ledger misses by 781.32.
+    expect(rows[rows.length - 1]).toEqual({ as_of_date: '2022-12-28', target: 1160619.23 });
+  });
+
+  test('header is matched case-insensitively, with BOM and whitespace tolerated', () => {
+    const rows = parseTargetsCsv('﻿  AS_OF_DATE , Target \n2020-12-31, 1234.50\n');
+    expect(rows).toEqual([{ as_of_date: '2020-12-31', target: 1234.5 }]);
+  });
+
+  test('a thousands separator is rejected, not silently truncated to its first digit', () => {
+    // "1,234.50" splits into extra cells; taking cells[1] would read 1 — a
+    // wrong money value that no later check could catch.
+    expect(() => parseTargetsCsv('as_of_date,target\n2020-12-31,"1,234.50"\n'))
+      .toThrow(/expected 2 columns, got 3/);
+  });
+
+  test('rows are returned in date order regardless of file order', () => {
+    const rows = parseTargetsCsv('as_of_date,target\n2021-12-31,2\n2019-12-31,1\n');
+    expect(rows.map((r) => r.as_of_date)).toEqual(['2019-12-31', '2021-12-31']);
+  });
+
+  // Fail-loud contract (.claude/rules/data-import.md): never a silent 0 on a
+  // money field, never a silent success over an empty series.
+  test('a missing target is a hard error, not a silent zero', () => {
+    expect(() => parseTargetsCsv('as_of_date,target\n2020-12-31,\n'))
+      .toThrow(/missing target for 2020-12-31/);
+  });
+
+  test('a non-numeric target is a hard error', () => {
+    expect(() => parseTargetsCsv('as_of_date,target\n2020-12-31,n\/a\n'))
+      .toThrow(/non-numeric target/);
+  });
+
+  test('a bad date is a hard error', () => {
+    expect(() => parseTargetsCsv('as_of_date,target\n31-12-2020,5\n'))
+      .toThrow(/bad as_of_date/);
+  });
+
+  test('a missing column is a hard error', () => {
+    expect(() => parseTargetsCsv('date,value\n2020-12-31,5\n'))
+      .toThrow(/must contain as_of_date and target/);
+  });
+
+  test('an empty file and a header-only file both throw', () => {
+    expect(() => parseTargetsCsv('')).toThrow(/is empty/);
+    expect(() => parseTargetsCsv('as_of_date,target\n')).toThrow(/no data rows/);
+  });
+
+  test('a duplicate date is a hard error (two anchors on one day cannot both tie)', () => {
+    expect(() => parseTargetsCsv('as_of_date,target\n2020-12-31,1\n2020-12-31,2\n'))
+      .toThrow(/duplicate as_of_date 2020-12-31/);
+  });
+});
+
+describe('computeAnchors', () => {
+  test('each anchor is measured AFTER all prior anchors, so every target ties', () => {
+    const targets = [
+      { as_of_date: '2020-12-31', target: 100 },
+      { as_of_date: '2021-12-31', target: 250 },
+      { as_of_date: '2022-12-31', target: 200 },
+    ];
+    // A ledger that drifts away from the targets in both directions.
+    const ledger = { '2020-12-31': 400, '2021-12-31': 500, '2022-12-31': 300 };
+    const { anchors, sigma } = computeAnchors(targets, ledger);
+
+    // Replay the way the ledger will: balance(D) = ledger(D) + Σ anchors ≤ D.
+    let cum = 0;
+    for (let i = 0; i < targets.length; i++) {
+      cum += anchors[i].anchor;
+      expect(ledger[targets[i].as_of_date] + cum).toBeCloseTo(targets[i].target, 2);
+    }
+    expect(sigma).toBeCloseTo(cum, 2);
+  });
+
+  test('Σ equals target − ledger at the LAST date, so the reversal neutralizes exactly', () => {
+    const targets = [
+      { as_of_date: '2020-12-31', target: 10 },
+      { as_of_date: '2021-12-31', target: 40 },
+    ];
+    const ledger = { '2020-12-31': 100, '2021-12-31': 90 };
+    const { sigma } = computeAnchors(targets, ledger);
+    expect(sigma).toBeCloseTo(40 - 90, 2);
+    // Σ + reversal must be exactly zero or the handoff moves today's balance.
+    expect(sigma + -sigma).toBe(0);
+  });
+
+  test('a ledger already on target needs no anchors', () => {
+    const targets = [{ as_of_date: '2020-12-31', target: 100 }];
+    const { anchors, sigma } = computeAnchors(targets, { '2020-12-31': 100 });
+    expect(anchors[0].anchor).toBe(0);
+    expect(sigma).toBe(0);
+  });
+
+  test('amounts are rounded to 2dp so the written rows cannot accrue a residual', () => {
+    const targets = [{ as_of_date: '2020-12-31', target: 100 }];
+    const { anchors } = computeAnchors(targets, { '2020-12-31': 33.333333 });
+    expect(anchors[0].anchor).toBe(66.67);
+  });
+});
