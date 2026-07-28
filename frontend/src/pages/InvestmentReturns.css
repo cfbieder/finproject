@@ -341,3 +341,40 @@
   color: var(--warning);
   font-weight: 700;
 }
+
+/* Separates the value block (Beginning → Ending MV) from the return block. */
+.investment-returns__table tr.investment-returns__spacer td {
+  height: 0.75rem;
+  padding: 0;
+  border-bottom: 0;
+  background: var(--surface-muted);
+}
+
+/* --- IRR, below the table ------------------------------------------------- */
+
+.investment-returns__irr {
+  display: flex;
+  align-items: baseline;
+  flex-wrap: wrap;
+  gap: 0.5rem 0.75rem;
+  margin: 0;
+  padding: 0.75rem 0.875rem;
+  border-top: 1px solid var(--border-strong);
+  font-size: 0.8125rem;
+}
+
+.investment-returns__irr-label {
+  font-weight: 700;
+  color: var(--ink);
+}
+
+.investment-returns__irr-value {
+  font-variant-numeric: tabular-nums;
+  font-weight: 700;
+  font-size: 1rem;
+  color: var(--ink);
+}
+
+.investment-returns__irr-note {
+  color: var(--ink-tertiary);
+}

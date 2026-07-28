@@ -181,6 +181,50 @@ function averageCapital(bmv, emv) {
   return denominator;
 }
 
+/**
+ * XIRR — the money-weighted annualized return, solved on the ACTUAL dated cash
+ * flows rather than on the per-column aggregates.
+ *
+ * Complements the average-capital percentages rather than replacing them: those
+ * answer "what did the assets do", this answers "what did my money earn", and
+ * they diverge exactly when contributions are large or badly timed.
+ *
+ * Bisection, not Newton — the objective is monotone-ish but Newton diverges on
+ * the sign patterns real ledgers produce, and 200 halvings on [-99.99%, +1000%]
+ * is both fast and incapable of running away.
+ */
+function xirr(flows) {
+  if (flows.length < 2) return null;
+  // Needs money in and money out, or there is nothing to solve for.
+  if (!flows.some((f) => f.amount > 0) || !flows.some((f) => f.amount < 0)) return null;
+
+  const t0 = flows[0].date;
+  const spanDays = dayDiff(t0, flows[flows.length - 1].date);
+  if (spanDays < 30) return null; // annualizing a few weeks is noise amplification
+
+  const npv = (r) =>
+    flows.reduce((a, f) => a + f.amount / (1 + r) ** (dayDiff(t0, f.date) / 365), 0);
+
+  let lo = -0.9999;
+  let hi = 10;
+  let flo = npv(lo);
+  if (!Number.isFinite(flo) || !Number.isFinite(npv(hi))) return null;
+  if (flo * npv(hi) > 0) return null; // no sign change ⇒ no root in range
+
+  for (let i = 0; i < 200; i += 1) {
+    const mid = (lo + hi) / 2;
+    const fm = npv(mid);
+    if (!Number.isFinite(fm)) return null;
+    if (Math.abs(fm) < 1e-9) return mid;
+    if (flo * fm < 0) hi = mid;
+    else {
+      lo = mid;
+      flo = fm;
+    }
+  }
+  return (lo + hi) / 2;
+}
+
 /** A component's return on that average capital; null when it isn't divisible. */
 function returnOn(component, bmv, emv) {
   const denominator = averageCapital(bmv, emv);
@@ -619,6 +663,27 @@ async function buildInvestmentReturns({
 
   const total = buildTotal(rows, intervals);
 
+  // IRR over the whole period, from the real dated flows. Sign convention is the
+  // investor's: money INTO the account is an outflow (negative), so a ledger
+  // contribution of +X becomes −X here. Opening value is the initial investment,
+  // closing value the final proceeds.
+  const firstBoundary = addDays(intervals[0].start, -1);
+  const lastEnd = intervals[intervals.length - 1].end;
+  const irrFlows = [
+    { date: firstBoundary, amount: -mvAt(firstBoundary) },
+    ...transactions
+      .filter((t) => t.bucket === 'flow')
+      .map((t) => ({ date: t.date, amount: -amountOf(t) })),
+    { date: lastEnd, amount: mvAt(lastEnd) },
+  ].sort((a, b) => (a.date < b.date ? -1 : a.date > b.date ? 1 : 0));
+
+  // A period nothing valued has no ending MARKET value — only a cost basis — so
+  // an IRR off it would report ~0% as if the asset had genuinely not moved.
+  // Same rule the percentages already follow.
+  total.irr = rows.coverage.some((c) => c > 0)
+    ? nullableRound(xirr(irrFlows), 6)
+    : null;
+
   return {
     data: {
       account: {
@@ -830,6 +895,7 @@ module.exports = {
   splitIntervals,
   splitByMarks,
   boundaryAligned,
+  xirr,
   averageCapital,
   returnOn,
   markTolerance,

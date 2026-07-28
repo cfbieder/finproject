@@ -508,7 +508,7 @@ function ReturnsTable({ report, meta, shown, unit, fmt, fmtPct }) {
       : [];
 
   const body = [
-    { key: "beginningMV", label: "Beginning market value", values: rows.beginningMV, total: total?.beginningMV },
+    { key: "beginningMV", label: "Beginning market value", values: rows.beginningMV, total: total?.beginningMV, strong: true },
     {
       key: "netFlows",
       label: "Net external flows",
@@ -637,11 +637,27 @@ function ReturnsTable({ report, meta, shown, unit, fmt, fmtPct }) {
               </tr>
             ))}
 
+            {/* Ending MV closes the value block, directly under the components
+                that explain the move from Beginning MV. */}
+            <tr className="is-strong">
+              <th scope="row" className="investment-returns__row-label">
+                Ending market value
+              </th>
+              {rows.endingMV.map((v, i) => (
+                <td key={intervals[i].key}>{fmt(v)}</td>
+              ))}
+              <td className="investment-returns__total-col">{fmt(total?.endingMV)}</td>
+            </tr>
+
+            <tr className="investment-returns__spacer" aria-hidden="true">
+              <td colSpan={intervals.length + 2} />
+            </tr>
+
             <tr className="investment-returns__divider">
               <th
                 scope="row"
                 className="investment-returns__row-label"
-                title="Every return below is the row above divided by the average capital employed — (opening + closing market value) / 2."
+                title="Every return below is divided by this — (opening + closing market value) / 2."
               >
                 Average capital
               </th>
@@ -770,18 +786,29 @@ function ReturnsTable({ report, meta, shown, unit, fmt, fmtPct }) {
               <td className="investment-returns__total-col" />
             </tr>
 
-            <tr className="is-strong">
-              <th scope="row" className="investment-returns__row-label">
-                Ending market value
-              </th>
-              {rows.endingMV.map((v, i) => (
-                <td key={intervals[i].key}>{fmt(v)}</td>
-              ))}
-              <td className="investment-returns__total-col">{fmt(total?.endingMV)}</td>
-            </tr>
           </tbody>
         </table>
       </div>
+
+      {/* IRR sits outside the column grid on purpose: it is a single
+          whole-period figure solved on the actual dated cash flows, not a
+          per-column one, and putting it in a row would invite reading it
+          across. */}
+      <p className="investment-returns__irr">
+        <span className="investment-returns__irr-label">
+          IRR (money-weighted, annualized)
+        </span>
+        <span className="investment-returns__irr-value">
+          {total?.irr === null || total?.irr === undefined
+            ? "—"
+            : fmtPct(total.irr)}
+        </span>
+        <span className="investment-returns__irr-note">
+          {total?.irr === null || total?.irr === undefined
+            ? "needs a valuation in the period, money both in and out, and a span over 30 days"
+            : `solved on every dated flow from ${shown?.fromDate} to ${shown?.toDate}`}
+        </span>
+      </p>
     </section>
   );
 }

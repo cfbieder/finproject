@@ -1,4 +1,4 @@
-# CR056 — Investment Returns report — ✅ COMPLETED (P1 shipped v3.5.0, 2026-07-27)
+# CR056 — Investment Returns report — ✅ COMPLETED (P1 shipped v3.5.0, 2026-07-27; IRR + layout v3.6.5, 2026-07-28)
 
 **Track:** v3 · **Migration:** none · **Roadmap:** [§1.1](../current/project-roadmap.md) ·
 **Depends on:** CR043 N8 (`{data, meta}` envelope + `Rest.unwrap`), CR028 (neutralization —
@@ -643,38 +643,59 @@ and `Realized income` became collapsible with server-side per-category breakdown
 period is clipped to today so a "This Year" preset stops rendering six months of future as
 `0 / 0.00%` — a zero is not a blank.
 
-## Known limitation at ship
+## v3.6.5 — IRR and the value/return split (2026-07-28)
 
-> **Superseded 2026-07-27 by [CR057](cr-057-book-income-at-source.md)** — which fixes this in the
-> **ledger**, not the report, and in doing so overturns the reasoning below. The claim that including
-> the dividends "would break the reconciliation identity" holds only for a **one-legged** change: with
-> the transfer leg also posted to the holding, `Δ totalReturn = 0 − (−X) = +X = Δ income` and the
-> buckets close by construction. The "Distributions received elsewhere" row is **not** being built.
-> What survives is the deferred data: the CVC rows (cross-currency) and `Other Investments`
-> (mis-signed rather than mis-placed). Text kept below as the record of what was decided at ship.
+Owner-requested after living with the page.
 
-**United Beverages' `Realized return %` is 0.00%, and that is not a bug in the report.**
-The holding account has only ever carried 8 `Unrealized G/L` postings and 1 funding
-transfer; its dividends — **5 payments, 5,172,998 PLN, 2023-07-21 → 2026-01-07** — post to
-**PKO**, because that is where the cash actually arrived. Scoping the report to "transactions
-on the selected account" therefore cannot see them, and against ~25M of average capital
-that is not a rounding error.
+**IRR (money-weighted, annualized), one line below the table.** Solved on the **actual dated
+cash flows**, not the per-column aggregates: opening market value as the initial investment,
+every external-flow transaction at its own date on the investor's sign convention (a ledger
+contribution of +X is an outflow, −X), closing market value as proceeds. **Bisection** over
+`[-99.99%, +1000%]`, 200 halvings — Newton diverges on the sign patterns real ledgers
+produce, and bisection cannot run away.
 
-The fix is **not** to add them to the income row: a dividend paid into PKO moved PKO's
-balance, not UB's, so including it would break the reconciliation identity this whole CR is
-built on. The design settled on but not yet built is a **"Distributions received elsewhere"**
-row placed *below* `Ending market value` — outside the identity block, feeding
-`Realized return %` — driven by a category→holding mapping the owner supplies
-(`Financial Income - UB Dividend` → United Beverages, and similarly for CVC, Barkeria,
-Other Investments). Deferred to P2; the owner had not chosen a mapping at ship time.
+It complements the average-capital percentages rather than replacing them: those answer
+*"what did the assets do"*, IRR answers *"what did my money earn"*, and they separate exactly
+when contributions are large or badly timed. Fidelity Stock: 30.28% cumulative vs **19.79%**
+IRR — the gap is annualization over ~19 months, and both are labelled.
+
+**It abstains** — rendering `—` — when there is no sign change to solve across, when the
+span is under 30 days (annualizing a few weeks is noise amplification), or when **nothing
+valued the period**. That last one matters: an IRR off a cost-basis ending value would report
+~0% as though the asset had genuinely not moved. `US - Nokomis` (never valued) correctly
+abstains; the same rule the percentages already follow.
+
+**Layout.** `Ending market value` moved up to sit directly under the components that explain
+the move from `Beginning market value`, both balance rows bold, and a spacer row separating
+the value block from the return block (`Average capital` → the three percentages → mark
+coverage). The table now reads as two statements rather than one undifferentiated list.
+
+## Known limitation at ship — RESOLVED by CR057 (2026-07-28)
+
+**At ship, United Beverages' `Realized return %` was 0.00%** and that was not a bug in the
+report: the holding account carried only 8 `Unrealized G/L` postings and 1 funding transfer,
+while its dividends — 5 payments, 5,172,998 PLN — posted to **PKO**, because that is where
+the cash arrived. Scoping the report to "transactions on the selected account" therefore
+could not see them.
+
+CR056 proposed a **"Distributions received elsewhere"** row placed outside the identity
+block, fed by a category→holding mapping. **[CR057](cr-057-book-income-at-source.md) solved
+it better, at the source:** income is now booked at the holding that earned it and paired
+with a `Transfer - Distributions` leg out. The identity is untouched (income in, distribution
+out, both on the holding), `Realized income` is non-zero on the holding itself, and this
+report needed **no change at all** to pick it up — United Beverages now reports realized
+returns of 3.98% (2025) and 3.34% (2026-YTD) beside its price return.
+
+The lesson worth keeping: the report was scoped correctly and the *ledger* was modelling the
+economics wrongly. Adding a compensating row would have papered over that.
 
 ## Open / follow-ups
 
 All of these are also registered as roadmap bullets under
 [§1.1 `cr056`](../current/project-roadmap.md#cr056), so they survive this CR closing.
 
-- **P2 items** — **"Distributions received elsewhere"** (see Known limitation above, the
-  highest-value one) · `Unattributed` drill-down + deep-link · `returnPctExFx` · split
+- ~~**"Distributions received elsewhere"**~~ — **resolved by CR057**, at the source (above).
+- **P2 items** — `Unattributed` drill-down + deep-link · `returnPctExFx` · split
   `FX effect & rate drift` into revaluation vs `base_amount` booking drift · the
   Sunday-boundary FX reconciliation test.
 - **Growth-of-$1 panel** — must chain Dietz returns, not track the balance; the curves differ.

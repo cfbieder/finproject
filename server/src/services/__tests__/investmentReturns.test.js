@@ -14,6 +14,7 @@ const {
   splitIntervals,
   splitByMarks,
   boundaryAligned,
+  xirr,
   averageCapital,
   returnOn,
   markTolerance,
@@ -122,6 +123,50 @@ describe('averageCapital / returnOn', () => {
     expect(returnOn(75, bmv, emv)).toBeCloseTo(0.05, 10);  // realized
     expect(returnOn(300, bmv, emv)).toBeCloseTo(0.2, 10);  // unrealized
     expect(returnOn(375, bmv, emv)).toBeCloseTo(0.25, 10); // total
+  });
+});
+
+describe('xirr', () => {
+  it('solves a clean one-year 10% case exactly', () => {
+    expect(xirr([
+      { date: '2025-01-01', amount: -100 },
+      { date: '2026-01-01', amount: 110 },
+    ])).toBeCloseTo(0.1, 6);
+  });
+
+  it('weights a mid-period contribution by its actual date', () => {
+    // 100 at t0 + 100 at 6 months → 215 at 1y is ~10%/yr, NOT 7.5%
+    // (which is what dividing by total contributions would give).
+    const r = xirr([
+      { date: '2025-01-01', amount: -100 },
+      { date: '2025-07-01', amount: -100 },
+      { date: '2026-01-01', amount: 215 },
+    ]);
+    expect(r).toBeGreaterThan(0.09);
+    expect(r).toBeLessThan(0.11);
+  });
+
+  it('returns null when there is no sign change to solve across', () => {
+    expect(xirr([
+      { date: '2025-01-01', amount: -100 },
+      { date: '2026-01-01', amount: -50 },
+    ])).toBeNull();
+    expect(xirr([{ date: '2025-01-01', amount: -100 }])).toBeNull();
+  });
+
+  it('refuses to annualize a span under 30 days', () => {
+    expect(xirr([
+      { date: '2025-01-01', amount: -100 },
+      { date: '2025-01-15', amount: 110 },
+    ])).toBeNull();
+  });
+
+  it('handles a loss without running away', () => {
+    const r = xirr([
+      { date: '2025-01-01', amount: -1000 },
+      { date: '2026-01-01', amount: 500 },
+    ]);
+    expect(r).toBeCloseTo(-0.5, 4);
   });
 });
 
