@@ -33,27 +33,42 @@ BEGIN;
 -- endpoint re-asserts these flags at call time (CR057 invariant 5); this
 -- statement is what makes them right in the first place.
 --
--- Name-guarded ⇒ idempotent. Mirrors sibling `Transfer - Bank` (201) exactly.
+-- Name-guarded ⇒ idempotent. Mirrors sibling `Transfer - Bank` exactly.
+--
+-- The parent is resolved BY NAME, not by the literal 200. On dev and prod
+-- "Transfers" happens to be id 200, but on a migrations-only database — which
+-- is what CI builds (`.github/workflows/ci.yml`, "Apply migrations + CI seed")
+-- — it is created by 022_quicken_import.sql with a serial id, so a hard-coded
+-- 200 violates accounts_parent_id_fkey and aborts the whole chain before any
+-- later migration runs. This is the pattern 022 itself uses eleven lines away.
 -- ---------------------------------------------------------------------------
 
-INSERT INTO accounts (name, parent_id, account_type, section, currency,
-                      is_transfer, skip_transfer_analysis, is_active, display_order)
-SELECT 'Transfer - Distributions', 200, 'expense', 'profit_loss', 'USD',
-       TRUE, FALSE, TRUE, 0
- WHERE NOT EXISTS (SELECT 1 FROM accounts WHERE name = 'Transfer - Distributions');
-
--- Fail loud rather than proceed with a mis-flagged category (e.g. a row someone
--- had already hand-created through the generic path before this migration ran).
 DO $$
-DECLARE t BOOLEAN; s TEXT; p INTEGER;
+DECLARE
+    transfers_parent_id INTEGER;
+    t BOOLEAN; s TEXT; p INTEGER;
 BEGIN
-  SELECT is_transfer, section::text, parent_id INTO t, s, p
-    FROM accounts WHERE name = 'Transfer - Distributions';
-  IF t IS NOT TRUE OR s <> 'profit_loss' OR p <> 200 THEN
-    RAISE EXCEPTION
-      'Transfer - Distributions has wrong flags (is_transfer=%, section=%, parent=%) — expected (t, profit_loss, 200)',
-      t, s, p;
-  END IF;
+    SELECT id INTO transfers_parent_id FROM accounts WHERE name = 'Transfers' LIMIT 1;
+    IF transfers_parent_id IS NULL THEN
+        RAISE EXCEPTION
+          'Migration aborted: required "Transfers" parent account not found in COA';
+    END IF;
+
+    INSERT INTO accounts (name, parent_id, account_type, section, currency,
+                          is_transfer, skip_transfer_analysis, is_active, display_order)
+    SELECT 'Transfer - Distributions', transfers_parent_id, 'expense', 'profit_loss', 'USD',
+           TRUE, FALSE, TRUE, 0
+     WHERE NOT EXISTS (SELECT 1 FROM accounts WHERE name = 'Transfer - Distributions');
+
+    -- Fail loud rather than proceed with a mis-flagged category (e.g. a row someone
+    -- had already hand-created through the generic path before this migration ran).
+    SELECT is_transfer, section::text, parent_id INTO t, s, p
+      FROM accounts WHERE name = 'Transfer - Distributions';
+    IF t IS NOT TRUE OR s <> 'profit_loss' OR p <> transfers_parent_id THEN
+        RAISE EXCEPTION
+          'Transfer - Distributions has wrong flags (is_transfer=%, section=%, parent=%) — expected (t, profit_loss, %)',
+          t, s, p, transfers_parent_id;
+    END IF;
 END $$;
 
 -- ---------------------------------------------------------------------------
