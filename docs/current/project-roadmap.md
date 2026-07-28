@@ -122,6 +122,31 @@ Living plan for the Fin project — open Change Requests, known issues, ongoing 
 
 Release-level history; detail in the linked CR file or [§7 Migration History](#7-migration-history).
 
+- **v3.6.2** (2026-07-28) — **patch: cross-currency Book at Source, plus two bugs the owner hit using it.**
+  - *Cross-currency is now **converted**, not refused* ([CR057](../cr/cr-057-book-income-at-source.md) invariant 4). The original
+    refusal — "a cross-currency leg needs a rate policy this action does not take" — was too cautious. The two legs are
+    equal-and-opposite on the **same** account, so they cancel in the holding's currency **and** in USD: the book value is
+    unchanged whatever rate is used, and no `Unrealized G/L` mark is disturbed. `base_amount` stays an exact copy/negation, so
+    invariant 1 is untouched; the rate only decides what the holding-currency figure reads in CR056's LC mode. Derived from the
+    USD base at the transaction date via `fx.rateAsOf`, rounded **once** and negated verbatim so rounding cannot leave the pair
+    failing to cancel, and **failing loud** on a missing/zero rate (CR051 F1 precedent). Verified on dev against the real CVC
+    row: **USD 34,942.07 → EUR 30,471.93** at 1.146697 on 2026-06-22, CVC Fund VIII book unchanged at 566,258.71 EUR /
+    605,722.90 USD, LC-mode `FX effect` **0.00**, and Transfer Analysis **auto-matched** the EUR leg to the USD cash row — it
+    keys on `base_amount`, not `amount`. Unblocks the 6 CVC rows; *which* fund each belongs to remains the owner's call.
+  - *Fix — stale selections survived a data reload.* `selectedRows` was a Map that was never pruned when the transaction list
+    changed, so a row selected before a filter/period/account change stayed **counted** while rendering nowhere: the bar read
+    "2 selected" with one row ticked, `isAllSelected` flipped true (`size === rows.length`) so the header ticked itself, and
+    **CR057's single-row "Book at source" action silently vanished**. Edit/Delete could also have acted on a row the user could
+    no longer see. Latent since the hook was written, but **v3.6.0 made it routine** by turning the Ledger category filter into a
+    server-side refetch. Selections are now derived against the visible rows — a memo, not an effect, so no extra render and no
+    `set-state-in-effect` debt. 5 tests; reverting turns 3 red.
+  - *Fix — the Book-at-source modal read the wrong field names.* The transaction pages rename display fields to PascalCase
+    (`Date`/`Amount`/`Currency`/`Account`/`Category`) while keeping the ids snake_case; the modal was written against the raw API
+    shape, so on the Ledger **every display field rendered blank** and the picker's currency filter short-circuited on
+    `!transaction.currency`, offering accounts in every currency (the server refused them, so no bad data — but the UI should not
+    have offered them). Normalized once at the modal boundary. **Found by the owner, not by the tests** — the backend was verified
+    hard and the rendered modal never was.
+  - **496 backend / 211 frontend / build ✓ / six guards ✓.** No migration.
 - **v3.6.1** (2026-07-28) — **patch: two date bugs in the transaction tables, both owner-found, both silent.**
   - *Single-row Edit was rejected outright.* `parseEditFormValue(v, "date")` returned a **Date object** where every other
     field type returns a primitive. It survived as far as `JSON.stringify`, which serializes to a full ISO instant

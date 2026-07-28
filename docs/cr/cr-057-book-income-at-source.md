@@ -1,4 +1,4 @@
-# CR057 — Book Income at Source (holding-attributed distributions) — ✅ COMPLETED (v3.6.0, 2026-07-28)
+# CR057 — Book Income at Source (holding-attributed distributions) — ✅ COMPLETED (v3.6.0; cross-currency added v3.6.2, 2026-07-28)
 
 Roadmap anchor: [project-roadmap.md#cr057](../current/project-roadmap.md#cr057). **Track: v3** — no
 flags, no tenant context, nothing under `server/src/v2/db/`; verified on dev (`:3105`).
@@ -139,7 +139,7 @@ balance does not display a spurious negative spike on the holding.
 | 1 | `amount`/`base_amount` copied and **negated exactly**, never re-derived from an FX table | Server asserts `leg1.amount + leg2.amount = 0` **and** `leg1.base_amount + leg2.base_amount = 0` before commit; a one-cent divergence would accrue a permanent USD residual visible in CR056's `FX effect` |
 | 2 | The holding's book value does not move | Follows from 1 + same account; re-asserted on undo (see [B4 fix](#linking-and-undo)) |
 | 3 | `transaction_date` identical across all three legs | Copied from `T`; asserted |
-| 4 | Holding currency == source row currency, else **400** | Explicit check (not exercised by the scoped 7) |
+| 4 | ~~Holding currency == source row currency~~ → **cross-currency is CONVERTED** (v3.6.2) | `fx.rateAsOf` at the transaction date; **fails loud** on a missing/zero rate (CR051 F1 precedent). `base_amount` stays an exact copy/negation, so invariant 1 is untouched on the USD side |
 | 5 | The resolved category has `is_transfer = TRUE AND section = 'profit_loss'`, else **400** | Explicit check — see below |
 | 6 | All three writes in **one** DB transaction | Single `db.transaction(...)`; every write goes through the passed client |
 
@@ -294,12 +294,18 @@ that is already booked offers **Undo book at source** instead.
 
 ## Out of scope
 
-- **CVC (6 rows) — and it needs its own design, not just a decision.** The targets are ambiguous
-  (`CVC VII`, `Dividend CVC`, `ADJUST WIRE TRANSFER (Cash)`; "CVC VII" is not one of the three CVC
-  accounts) *and* cross-currency: the six rows are **USD** on Fidelity Bond, while CVC Fund VIII (33)
-  and CVC Fund IX (34) are **EUR**. Invariant 4 rejects those two outright; only CVC Investments (32,
-  USD) is reachable by this tool. A cross-currency leg needs a rate policy this CR deliberately does
-  not take.
+- ~~**CVC (6 rows) — needs its own design.**~~ **Unblocked in v3.6.2.** The refusal was too cautious:
+  the two legs are equal-and-opposite on the *same* account, so they cancel in the holding's currency
+  **and** in USD — the book value is unchanged whatever rate is used, and no mark is disturbed.
+  `base_amount` remains an exact copy/negation; the rate only decides what the holding-currency figure
+  reads in CR056's LC mode, so it can move no balance and break no identity. Derived from the USD base
+  at the transaction date via `fx.rateAsOf` (`exchange_rates` carries daily EUR/GBP/PLN back to 1999),
+  rounded once and negated verbatim so rounding cannot leave the pair failing to cancel. Verified on
+  dev against the real row: **USD 34,942.07 → EUR 30,471.93** at 1.146697 on 2026-06-22, CVC Fund VIII
+  book unchanged at 566,258.71 EUR / 605,722.90 USD, LC-mode `FX effect` **0.00**, and Transfer
+  Analysis **auto-matched** the EUR leg to the USD cash row (it keys on `base_amount`, not `amount`).
+  *Which fund* each payment belongs to is still the owner's call — the descriptions (`CVC VII`,
+  `Dividend CVC`, four × `ADJUST WIRE TRANSFER (Cash)`) do not say.
 - **`Financial Income - Other Investments` (6 rows, $3,466,141.40).** All six already sit on holdings
   (5 Fidelity Stocks, 1 CVC-MIP), two are negative (−1,300,000 PLN on CVC-MIP, −$673.49 on Fidelity
   Stocks) and the set spans currencies, so a PLN/USD total is not a real number
