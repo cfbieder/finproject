@@ -1,4 +1,4 @@
-# CR058 — Quicken-era valuation anchors (brokerage history) — PLANNED (rev 4 — nothing built)
+# CR058 — Quicken-era valuation anchors (brokerage history) — PLANNED (rev 5 — nothing built)
 
 Give the pre-feed history of a **brokerage** account a correct balance curve, by anchoring each
 year-end to Quicken's own Net Worth Report instead of letting it drift on cash flows that never see
@@ -42,11 +42,20 @@ Measured on dev after importing `fid_brokerage.QIF` (1998-03-21 → 2019-12-31) 
 
 | | 1998 | 2008 | 2013 | 2019 |
 |---|---:|---:|---:|---:|
-| Ledger after import | −585,343.43 | −759,213.25 | −398,995.29 | −345,338.62 |
+| Ledger after import | 903,923.68 | 730,053.86 | 1,090,271.82 | 1,143,928.49 |
 | Quicken's own report | 29,436.00 | 191,450.91 | 586,817.83 | 642,513.72 |
+| **Overstated by** | **874,487.68** | **538,602.95** | **503,453.99** | **501,414.77** |
 
-Every pre-2020 year is **negative**, on an account that never was — worse than the pre-import state (a
-flat −302,785.91 plug). The CR019 backfill cannot ship for Fidelity without this.
+The reconstructed history overstates the account by **500K–874K** at every year-end. The CR019
+backfill cannot ship for Fidelity without this.
+
+*Rev 5 corrected this table's direction.* Revs 1–4 said "every pre-2020 year is **negative** … worse
+than the pre-import state (a flat −302,785.91 plug)". Both halves were invalidated by §1.3's own
+fixes, which moved `opening_balance` by 1,446,714.40, and by the switch to `preserve-today`. The
+error was always the same size; only its sign relative to the plug changed. The pre-import state is
+in fact a **flat 1,133,128.49 running back to 1990** against a true 1998 value of ~29,436 — which is
+the real argument for this CR, and is the largest single pre-2020 distortion in the ledger. Every
+other account carrying a pre-2020 plug is under 55K.
 
 Reproduce the ledger column:
 
@@ -194,44 +203,52 @@ Measured on dev against the **corrected** ledger (§1.3), under `preserve-today`
 with each anchor dated to its own report column — the last is **12-28**, not a year-end.
 **Σ = −156,945.10**, so the handoff reversal is **+156,945.10**.
 
-| Anchor date | Ledger | Target | **Anchor row** |
-|---|---:|---:|---:|
-| 1998-12-31 | 893,123.68 | 29,436.00 | **−863,687.68** |
-| 1999-12-31 | 911,608.73 | 51,950.03 | 4,028.98 |
-| 2000-12-31 | 919,655.94 | 49,151.96 | −10,845.28 |
-| 2001-12-31 | 929,595.34 | 60,249.04 | 1,157.68 |
-| 2002-12-31 | 947,173.47 | 63,126.86 | −14,700.31 |
-| 2003-12-31 | 955,770.45 | 89,013.63 | 17,289.79 |
-| 2004-12-31 | 868,761.58 | 1,027.85 | −976.91 |
-| 2005-12-31 | 868,776.58 | 1,198.68 | 155.83 |
-| 2006-12-31 | 955,188.40 | 103,433.38 | 15,822.88 |
-| 2007-12-31 | 943,677.32 | 209,002.80 | 117,080.50 |
-| 2008-12-31 | 719,253.86 | 191,450.91 | **206,871.57** |
-| 2009-12-31 | 736,379.38 | 258,467.01 | 49,890.58 |
-| 2010-12-31 | 796,874.41 | 434,194.82 | 115,232.78 |
-| 2011-12-31 | 775,517.17 | 281,922.02 | −130,915.56 |
-| 2012-12-31 | 958,576.55 | 466,470.05 | 1,488.65 |
-| 2013-12-31 | 1,079,471.82 | 586,817.83 | −547.49 |
-| 2014-12-31 | 1,205,618.29 | 719,821.95 | 6,857.65 |
-| 2015-12-31 | 1,238,738.79 | 670,808.13 | −82,134.32 |
-| 2016-12-31 | 1,255,693.84 | 733,288.25 | 45,525.07 |
-| 2017-12-31 | 1,058,737.16 | 575,743.37 | 39,411.80 |
-| 2018-12-31 | 884,651.93 | 349,691.82 | −51,966.32 |
-| 2019-12-31 | 1,133,128.49 | 642,513.72 | 44,345.34 |
-| 2020-12-31 | 883,335.63 | 383,389.13 | **−9,331.73** |
-| 2021-12-31 | 1,391,619.10 | 874,742.02 | −16,930.58 |
-| **2022-12-28** | 1,317,564.33 | 1,160,619.23 | 359,931.98 |
+The `+ prior anchors` column is kept so `anchor = target − (ledger + Σ prior)` is checkable from the
+table alone.
 
-The **1998 row is the opening plug**, not market movement — it absorbs the whole-life difference
-between the account's calibrated `opening_balance` and its true 1998 value, and sits at the series
-*start* where a plug belongs. The largest **interior** anchors are 2008 (+206,871.57) and 2011
-(−130,915.56); **2020 is −9,331.73**, down from −1,445,246.13 in rev 2, because the two sign errors
-behind it were corrected at source rather than absorbed (§1.3).
+| Anchor date | Ledger | + prior anchors | Target | **Anchor row** |
+|---|---:|---:|---:|---:|
+| 1998-12-31 | 903,923.68 | 0.00 | 29,436.00 | **−874,487.68** |
+| 1999-12-31 | 922,408.73 | −874,487.68 | 51,950.03 | 4,028.98 |
+| 2000-12-31 | 930,455.94 | −870,458.70 | 49,151.96 | −10,845.28 |
+| 2001-12-31 | 940,395.34 | −881,303.98 | 60,249.04 | 1,157.68 |
+| 2002-12-31 | 957,973.47 | −880,146.30 | 63,126.86 | −14,700.31 |
+| 2003-12-31 | 966,570.45 | −894,846.61 | 89,013.63 | 17,289.79 |
+| 2004-12-31 | 879,561.58 | −877,556.82 | 1,027.85 | −976.91 |
+| 2005-12-31 | 879,576.58 | −878,533.73 | 1,198.68 | 155.83 |
+| 2006-12-31 | 965,988.40 | −878,377.90 | 103,433.38 | 15,822.88 |
+| 2007-12-31 | 954,477.32 | −862,555.02 | 209,002.80 | 117,080.50 |
+| 2008-12-31 | 730,053.86 | −745,474.52 | 191,450.91 | **206,871.57** |
+| 2009-12-31 | 747,179.38 | −538,602.95 | 258,467.01 | 49,890.58 |
+| 2010-12-31 | 807,674.41 | −488,712.37 | 434,194.82 | 115,232.78 |
+| 2011-12-31 | 786,317.17 | −373,479.59 | 281,922.02 | −130,915.56 |
+| 2012-12-31 | 969,376.55 | −504,395.15 | 466,470.05 | 1,488.65 |
+| 2013-12-31 | 1,090,271.82 | −502,906.50 | 586,817.83 | −547.49 |
+| 2014-12-31 | 1,216,418.29 | −503,453.99 | 719,821.95 | 6,857.65 |
+| 2015-12-31 | 1,249,538.79 | −496,596.34 | 670,808.13 | −82,134.32 |
+| 2016-12-31 | 1,266,493.84 | −578,730.66 | 733,288.25 | 45,525.07 |
+| 2017-12-31 | 1,069,537.16 | −533,205.59 | 575,743.37 | 39,411.80 |
+| 2018-12-31 | 895,451.93 | −493,793.79 | 349,691.82 | −51,966.32 |
+| 2019-12-31 | 1,143,928.49 | −545,760.11 | 642,513.72 | 44,345.34 |
+| 2020-12-31 | 894,135.63 | −501,414.77 | 383,389.13 | **−9,331.73** |
+| 2021-12-31 | 1,402,419.10 | −510,746.50 | 874,742.02 | −16,930.58 |
+| **2022-12-28** | 1,317,564.33 | −527,677.08 | 1,160,619.23 | **+370,731.98** |
 
-**Rev 4** regenerates this table from the corrected ledger under `preserve-today`. Only two rows
-moved: **2020** (the second sign error) and **1998** (the plug, absorbing both the correction and the
-calibration-mode change). Every other anchor is byte-identical to rev 3 — as it must be, since only
-one year's flows changed.
+The **1998 row is the opening plug** (−874,487.68), not market movement — it absorbs the whole-life
+difference between the account's calibrated `opening_balance` and its true 1998 value, and sits at the
+series *start* where a plug belongs.
+
+**The largest interior anchor is 2022-12-28 (+370,731.98)**, not 2008 (+206,871.57) — 1.8× larger, and
+the second-biggest row in the table after the plug. Rev 4 said 2008; that was wrong, and it matters
+because §7 has to disclose the 2022 anchor and the 2023-01-01 reversal as **one join**, not two.
+**2020 is −9,331.73**, down from −1,445,246.13 in rev 2, because the three sign errors behind it were
+corrected at source rather than absorbed (§1.3).
+
+Revs 4 and 5 regenerated this table from the progressively-corrected ledger. Across both, only the
+**1998** (plug) and **2020**/**2022** rows moved; every other anchor is byte-identical to rev 3,
+as it must be, since only those years' flows changed. **Σ is invariant to the sign fixes** — it is
+pinned by today's balance, which the correction script preserves, so a fix before the last anchor
+moves the plug and one interior row in equal and opposite amounts.
 
 **Rev 3 fixed two arithmetic defects rev 2 shipped:**
 
@@ -259,10 +276,11 @@ of the 2019 balance, on the exact chart this CR exists to fix.
 **Rev 2 ran the series through 2022-12-28** — the report's last column — with the reversal at
 **2023-01-01**. Two corrections in rev 3:
 
-- **The reversal is `−Σ`, and Σ is negative, so the reversal row is POSITIVE: +114,392.39.** Rev 2
-  wrote −115,173.71, carrying the sign from rev 1 where Σ was positive. Implementing from rev 2 would
-  have landed 228,784.78 out. In a CR whose entire content is signed money this was the worst defect
-  in it.
+- **The reversal is `−Σ`, and Σ is negative, so the reversal row is POSITIVE: +156,945.10.** Rev 2
+  wrote it negative, carrying the sign from rev 1 where Σ was positive; implementing from rev 2 would
+  have landed twice Σ out. Rev 3 fixed the sign, but rev 4 then left **two different values** in this
+  section — the same defect class, one revision later. There is now exactly one figure, agreeing with
+  §3.1, §7 and §11: **+156,945.10**.
 - **"8.6× smaller" was true of the reversal row and false of the series.** Rev 2 removed a −987,852.34
   cliff at 2020-01-01 and introduced a −1,445,246.13 anchor at 2020-12-31 — 1.46× *larger*, and
   mid-chart rather than at the edge. That is now resolved at source (§1.3): with the double-count
@@ -274,8 +292,10 @@ This extends anchoring across the 2020–2022 PocketSmith overlap, which reverse
 no transaction history). The evidence for preferring the report there:
 
 - PS's `closing_balance` on this account is **not an independent valuation**. Its first 2020 row is
-  −302,680.91 against an amount of 105.00, so the implied prior is −302,785.91 — exactly the account's
-  `opening_balance` plug. PS was accumulating flows from a zero base, never observing market value.
+  −302,680.91 against an amount of 105.00, so the implied prior is −302,785.91 — which was, at the time
+  this was checked, exactly the account's `opening_balance` plug. (§1.3's corrections have since moved
+  that plug to 1,133,128.49; the point stands — PS was accumulating flows from a base it never
+  observed, so its balances track its own arithmetic rather than the market.)
 - The report reproduced an independent share-and-price walk to the cent in 22 of 24 years (§2).
 
 Everything from 2023-01-01 forward is byte-identical to today, keeping this CR additive and cleanly
@@ -335,7 +355,8 @@ exact rollback.
 **`preserve-today` is the pre-§22.1 formula that CR019 §22.1 declared broken**, and the CR must say so
 rather than quietly reinstate it. §22.1's complaint was that it "neutralized the imported history …
 every backfilled account collapsed to $0 at the PS handoff and ran a meaningless negative ramp before
-it." That is still true — on account 27 it puts 2019-12-31 at exactly −302,785.91. It is safe here
+it." That is still true — on account 27 it puts 2019-12-31 at 1,143,928.49 against a true 642,513.72.
+It is safe here
 **only because the anchors overwrite the historical curve**, which makes CR058 a hard prerequisite for
 the mode. The mode must therefore refuse to run without an anchor plan for the same batch.
 
@@ -351,12 +372,16 @@ on `row.is_transfer` → bucket **`flow`**. So anchors *do* appear in `/investme
 `Valuation - Historical` flow rows.
 
 More consequentially, `fetchMvByBoundary` uses the additive basis, so anchors change **beginning and
-ending MV and average capital** for every affected period. Fidelity Stocks' 2020 beginning MV moves
-from −345,338.62 to +642,513.72; pre-2020 realized-% denominators go from large negatives to real
-numbers. **CR056 shipped 2026-07-27 and the owner has looked at these numbers.**
+ending MV and average capital** for every affected period. Fidelity Stocks' 2020 **beginning MV moves
+DOWN, from 1,143,928.49 to 642,513.72** — a fall of 501,414.77. **CR056 shipped 2026-07-27 and the owner has looked at these numbers.**
 
-This is an improvement — a denominator of −345,338.62 was never meaningful — but it is a change to a
-just-shipped report and is owned here, not discovered later. The falsifiable claim, replacing rev 1's
+*Rev 5 corrected the direction of this paragraph.* Revs 1–4 claimed the 2020 beginning MV moves *up*
+from −345,338.62 and that "pre-2020 realized-% denominators go from large negatives to real numbers".
+Both were artefacts of the rev-1, uncorrected, PS-anchored world. Prod holds **zero** transactions on
+account 27 before 2020-01-01, so its pre-2020 MV is a flat 1,133,128.49, and under the corrected
+ledger every pre-anchor year-end is positive (879,562 – 1,266,494) — no denominator was ever negative.
+The change is a **correction downward**, not a rescue from nonsense. It is still a change to a
+just-shipped report, owned here rather than discovered later. The falsifiable claim, replacing rev 1's
 wrong one: **anchors bucket as `flow`, never as `price`; `priceReturn` for every period is unchanged
 to the cent.** Confirmed algebraically and on dev — anchors shift `emv − bmv` and `netFlows`
 identically, so `totalReturn` is invariant (2019–2022 measured unchanged to the cent).
@@ -364,7 +389,9 @@ identically, so `totalReturn` is invariant (2019–2022 measured unchanged to th
 **The test for it must not run on a zero numerator.** `priceReturn` for account 27 is 0.00 in every
 year 2019–2022 both before and after, because there are no `Unrealized G/L` postings in that window —
 a test over that span passes because the numerator is zero, not because anchors were excluded. It must
-run over a span where `price ≠ 0`; account 27 has two `mtm` rows in 2026 totalling 18,474.41.
+run over a span where `price ≠ 0`. Account 27 carries **18 `Unrealized G/L` rows**, 16 of them
+`pocketsmith`-sourced — **12 in calendar 2025, netting +131,811.45**. Use 2025: a full calendar year
+with twelve marks is a far better span than two rows straddling mid-2026.
 
 Two further impacts, owned here: `returnPctUnrealized` also moves (same numerator, new denominator),
 and `coverageShare` weights by `|BMV|` per account, so the **`Fidelity Stock` parent roll-up (25)**
@@ -476,7 +503,8 @@ balance does not equal the `expected` it calibrated to.
 
 Prod carries **9 balance-sheet accounts** on that sentinel but only **1 pre-2000 row (1,950.61)**
 today, so live exposure is negligible. It becomes **47,918.98** on account 27 the moment the Fidelity
-import lands, and **618,808.41** more once the 1998–99 anchors exist — pass 1 reproduced a
+import lands, and **−870,458.70** more once the 1998–99 anchors exist (they now net negative, so a
+sentinel reset would swing the balance the other way) — pass 1 reproduced a
 **−666,727.39** swing on dev. Reconcile is part of the weekly loop, not a rare admin action.
 
 **Fix, committed separately from this CR's feature work** (its own revert boundary, as the parser
@@ -512,6 +540,14 @@ same amount and the tie-out still closes.
 | 4 | **Targets parse.** Missing/non-numeric target, or a zero-row CSV, is a hard error. | **Yes.** |
 | 5 | **Σ(anchors) + reversal = 0.00 exactly**, asserted before writing. | **Yes** — on a rounding bug. |
 | 6 | **Idempotent.** Re-running deletes this batch's prior `source='quicken-valuation'` rows *before* re-reading the ledger, then recomputes. | Structural, per `retire-handoff.js`. |
+| 7 | **`preserve-today` lands on the feed.** After anchoring, the account's computed balance must be within tolerance of `bankfeed_balances` at the reconcile as-of date. **Hard failure, not a warning** — a mode that leaves the balance off the feed has silently done nothing useful, which is the shape both CR056 and CR057 drew *revise* for. | **Yes.** |
+
+**A read-only `--check` mode** re-runs invariants 1 and 2 against the pinned CSV without writing, and
+reports drift. The *targets* are frozen forever (Quicken is retired; last column 2022-12-28), but each
+anchor is `target − ledger` and **the ledger can still move** — any of the 13 untriaged clusters
+(§1.3), a re-import, or a recategorization silently invalidates the series with nothing to notice,
+because invariant 1 otherwise runs only at write time. The writer is already idempotent and the
+targets are frozen, so the check costs a flag.
 
 **Fault injection that actually fails:** perturb the target **seen by the verifier only**, after the
 anchors are written, and assert the run aborts. Perturbing the writer's input proves nothing — the
@@ -541,18 +577,38 @@ anything; Fidelity Options and Fixed Income (created 2024+, no Quicken history, 
 
 ## 7. Known limitations — stated, not hidden
 
+- **The `Fidelity Stock` parent roll-up (25) becomes half-right.** After this CR it rolls up a
+  corrected account 27 alongside a still-plugged 26 and 30 — a selectively-correct pre-2020 curve,
+  which is harder to read than a uniformly wrong one. This is CR056's coverage lesson (printing a
+  number while suppressing the % it implies) in a new place. **Decision needed before ship:** carry a
+  marker on the roll-up, or accept the mixed curve until 26 and 30 are anchored. `coverageShare`
+  weights by `|BMV|` per account, so the roll-up's suppression/badging behaviour changes either way.
 - **The anchors are not a return series.** §3.3, item by item. They make the *balance* right; they do
   not decompose why.
-- **A +156,945.10 join remains at 2023-01-01** — the irreducible disagreement between Quicken's
-  valuation and the feed-anchored ledger. Not eliminated, only moved to a real regime boundary.
+- **The Quicken→feed join is +527,677.08 across four days, not the +156,945.10 reversal alone.**
+  Measured across the boundary §9 step 4 tells the owner to eyeball:
+
+  | | balance | |
+  |---|---:|---|
+  | 2022-12-27 | 789,887.25 | |
+  | **2022-12-28** | 1,160,619.23 | ← anchor **+370,731.98** |
+  | 2022-12-31 | 1,161,400.55 | (+781.32 of real dividends) |
+  | **2023-01-01** | 1,318,345.65 | ← reversal **+156,945.10** |
+
+  The anchor and the reversal sum to **527,677.08** and the whole four-day move is **528,458.40**.
+  They are **one join in two steps**, and the larger step is the anchor, not the reversal. Revs 1–4
+  disclosed only the reversal. Measured on dev with the full rev-5 anchor set applied. This is the irreducible
+  disagreement between Quicken's valuation and the feed-anchored ledger: not eliminated, only moved to
+  a real regime boundary.
 - **Sawtooth between anchors, and it is large.** Annual granularity leaves the intra-year path on
   incomplete flows. Rev 2 cited 2008 (−15,421 mid-year against a real 191,451) as the worst case; that
   was off by two orders of magnitude. With the corrected series the intra-2020 path still swings
   several hundred thousand between anchors, because a year's transfers all land before the December
   anchor corrects them. Mitigated by a finer CSV — the report regenerates with monthly columns.
-- **The 1998 anchor (−621,134.97) is an opening plug**, not market movement, and it is dated
-  1998-12-31 while the account's first transaction is 1998-03-21 — so Jan–Dec 1998 renders on the
-  uncorrected curve. Date it at the first transaction instead if that matters.
+- **The 1998 anchor (−874,487.68) is an opening plug**, not market movement. It is the largest row in
+  the series, and §10 Q2 settles its dating: it moves to the account's **first transaction date**
+  rather than 1998-12-31, because otherwise Jan–Dec 1998 — the first year of the very chart this CR
+  exists to fix — renders on the uncorrected curve, ~904K against an account worth ~29K.
 - **1998 is walker-sourced**, not report-sourced.
 - **Quicken's share history has gaps** (CEDC). They wash out at year-end boundaries — where the
   anchors sit — but the intra-year record cannot be trusted for anything finer.
@@ -575,7 +631,7 @@ assertion could not fail, and so did rev 1 of this CR.
 - **Handoff neutrality:** anchor → assert today unchanged to the cent → roll back the batch → assert
   `opening_balance` and today both return to pre-promote values. The rehearsal already proved the
   plain promote/rollback cycle is exact (3,334 rows in and out; `opening_balance` −302,785.91 →
-  −614,777.36 → −302,785.91).
+  −614,777.36 → −302,785.91, all pre-sign-fix; dev now sits at 831,937.04).
 - **`preserve-today` vs `ps-anchored`:** the same fixture batch under both modes must produce
   *different* `opening_balance` values, and only `preserve-today` leaves the snapshot intact. A test
   passing under both is not testing the mode. Add the falsifiable check the mode is named for: the
@@ -594,10 +650,10 @@ assertion could not fail, and so did rev 1 of this CR.
 
 ## 9. Rollout
 
-**Hard gate, first:** prod's `fin-server` bakes source at build time and runs the **pre-`d4bf7da`**
-parser. Both investment-QIF fixes — discarded `L` category, reversed `XOut` sign — must be deployed
-**before any Fidelity QIF is uploaded through the prod UI**, or the import silently repeats both bugs.
-Prod has never run an investment-file parse, so nothing is wrong today; this is ordering only.
+**~~Hard gate~~ — CLEARED.** Revs 1–4 warned that prod ran the pre-`d4bf7da` parser and that the two
+investment-QIF fixes had to ship before any Fidelity QIF was uploaded. They shipped with v3.6.0–3.6.4:
+the running prod image contains both the `XOut` negation and `f14a37f`'s reconcile-sentinel fix,
+verified in the container. No ordering constraint remains here.
 
 Order corrected from rev 1, which listed the deploy before the migration it depends on
 ([git-concurrency rule 6](../../.claude/rules/git-concurrency.md)):
@@ -613,9 +669,17 @@ Order corrected from rev 1, which listed the deploy before the migration it depe
    already equals the account's PS start date (verified 2020-01-02 for account 27), so the import
    fills only the era PocketSmith never covered: upload QIF → map → pre-flight (confirm the cutoff and
    set `calibration_mode` — whatever endpoint writes it needs an explicit field whitelist, per
-   CR043 N10) → promote → anchor (dry-run, then `--apply`) → `quicken-verify` → eyeball Balance Trends
-   across the 2023-01-01 join.
-5. Ships as a **minor** — new COA object, new column, new ledger rows, new calibration mode.
+   CR043 N10) → promote → **STOP: reproduce §3.1's Ledger column on prod before anchoring** → anchor
+   (dry-run, then `--apply`) → `quicken-verify` (expect **PASS with 2 warnings**, not rev 1's
+   "8 passed / 1 warning" — §4.1) → eyeball Balance Trends across the 2022-12-28 → 2023-01-01 join.
+
+   The stop-and-check is explicit because **the §3.1 table was computed on dev and prod has never
+   parsed an investment QIF**. Invariant 1 would catch a divergence, but after the anchors are
+   written; catching it before is free.
+5. **Capture a before/after of `/investment-returns`** for account 27 *and* the parent 25 roll-up as a
+   rollout artefact. §3.5 owns the CR056 coupling, but CR056 shipped 2026-07-27 and the owner has
+   looked at those numbers — show what moved rather than letting it be noticed.
+6. Ships as a **minor** — new COA object, new column, new ledger rows, new calibration mode.
 
 ---
 
@@ -623,8 +687,12 @@ Order corrected from rev 1, which listed the deploy before the migration it depe
 
 1. **Does the Net Worth Report separate the three Fidelity accounts?** The current export has a single
    `Fidelity Brokerage` row. IRA and Cash Mgt need their own columns before they can be scoped in.
-2. **Drop the 1998 anchor, or keep it walker-sourced?** Dropping leaves 1998 on raw flows; keeping
-   relies on the one number the report cannot corroborate. Low stakes — 29,436.00.
+2. ~~**Drop the 1998 anchor, or keep it walker-sourced?**~~ **Resolved: keep it, and date it to the
+   account's first transaction (1998-03-21), not 1998-12-31.** It is not low-stakes — rev 4 priced it
+   at the 29,436.00 *target*, but the **anchor row is −874,487.68**, the largest in the series, and
+   dated at year-end it leaves Jan–Dec 1998 rendering ~904K on an account worth ~29K. The target
+   itself stays walker-sourced (the report has no 1998 column); §2's 22-of-24 agreement is the
+   warrant.
 3. ~~`Valuation - Historical` vs reusing `Transfer - Historical` (221)?~~ **Resolved: a distinct
    leaf.** 221 already carries 2,741 rows that CR057 explicitly declined to touch; mixing anchors in
    would make neither set separable, and the anchors need to be reversible as a group.
@@ -633,6 +701,30 @@ Order corrected from rev 1, which listed the deploy before the migration it depe
 
 ## 11. Update history
 
+- **2026-07-28 (rev 5)** — **Pass 2 (cr-signoff-pm): GO**, positioned **first** among the four
+  IN-PROGRESS CRs. Pass 1's re-check confirmed §3.1 reproduces byte-for-byte and every one of its 9
+  blocking findings closed, but found rev 4 had regenerated **only §3.1** after §1.3's corrections
+  moved `opening_balance` by 1,446,714.40 — so six sections still described the pre-fix world. Rev 5
+  is a **numbers-only sweep**, no design change:
+  **§1's conclusion had inverted** (it claimed every pre-2020 year read negative against a −302,785.91
+  plug; the truth is a 500K–874K *overstatement* against a flat **1,133,128.49** plug running back to
+  1990 — which pass 2 identified as the strongest scope argument in the CR, since every other account
+  with a pre-2020 plug is under 55K) · **§3.2 stated the reversal twice with two different values** ·
+  **§7's 1998 anchor was rev 3's figure** · **§3.5's CR056 impact pointed the wrong way** · **§9's hard
+  gate was already cleared** by the v3.6.x releases · the **largest interior anchor is 2022, not
+  2008**, so §7 now discloses the anchor and the reversal as **one join in two steps**
+  (527,677.08 of anchor across four days).
+  A **third** mis-signed PocketSmith row was found and corrected — 2022-07-05 `+5,400.00` (`4238e33`,
+  dev + prod) — moving the 1998 and 2022 anchors and leaving **Σ invariant at −156,945.10**, because Σ
+  is pinned by today's balance. **§10 Q2 resolved:** the 1998 anchor moves to the account's first
+  transaction date, since at year-end it left Jan–Dec 1998 rendering ~904K on an account worth ~29K.
+  Added from pass 2: a read-only **`--check` mode** (the ledger can still move even though the targets
+  are frozen), invariant 7 (**`preserve-today` must land on the feed — hard failure**), a
+  **parent-roll-up disclosure** decision, a **stop-and-check** before anchoring on prod, and a CR056
+  before/after artefact. **Migration 041's CI break was fixed** (`10eb270`) — it was the hard gate on
+  this CR's own migration, and CI had been red on `main` for four consecutive runs.
+  Verified end-to-end on dev with the full anchor set applied: **every anchor date misses by 0.00** and
+  today is unchanged at 1,157,037.74.
 - **2026-07-28 (rev 4)** — Regenerated §3.1 from the **corrected** ledger under `preserve-today`.
   A net-to-zero sweep of every `is_transfer` row ≥ 1,000 (15 same-signed multi-account clusters out of
   903) found a **second sign error** of the same class on account 27 — tx **14081**, 2020-11-04,
