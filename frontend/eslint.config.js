@@ -57,9 +57,19 @@ export default defineConfig([
       // errors are NOT ignored — write `catch { … }` (optional catch binding) if
       // you genuinely don't need the error, so "I ignored this on purpose" stays
       // visible in the code rather than being waved through by config.
+      //
+      // `eslint-plugin-react` is deliberately NOT installed, so `react/jsx-uses-vars`
+      // never runs and an identifier used ONLY inside JSX looks unused. The
+      // capitalized `varsIgnorePattern` is what compensates — every imported
+      // component falls under it. Arguments had no such escape hatch, so a
+      // component destructured out of a parameter was reported as unused even
+      // where JSX plainly uses it: `MOBILE_TABS.map(({ icon: Icon }) => <Icon />)`
+      // in MobileTabBar.jsx was a false-positive ERROR that turned the blocking
+      // lint gate red from v3.4.8 to v3.6.0. Capitalized args now match the same
+      // convention as capitalized vars, for the same reason.
       'no-unused-vars': [
         'error',
-        { varsIgnorePattern: '^[A-Z_]', argsIgnorePattern: '^_' },
+        { varsIgnorePattern: '^[A-Z_]', argsIgnorePattern: '^(_|[A-Z])' },
       ],
       // Known Issue #3: toISOString() renders the UTC date, which is off by a
       // day for local dates near midnight. Use formatLocalDate/formatDateOnly
