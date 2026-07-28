@@ -65,6 +65,23 @@ const CORRECTIONS = [
     descrLike: '%ELECTRONIC FUNDS TRANSFER PAID%',
     why: 'outgoing ACH to Chase Checking booked as a credit on both accounts',
   },
+  {
+    // Third of the same class, found by the same sweep. Quicken records
+    // `XOut -5,400.00` to `Chase (C)` on this date with payee "Fid Bkg Svc",
+    // and Chase Checking carries the matching +5,400.00 from the Quicken
+    // import — so the money left Fidelity Stocks.
+    //
+    // NOTE the description alone does NOT establish direction: "Fid Bkg Svc"
+    // appears 4 times on this account and runs BOTH ways — CR056 confirmed the
+    // two Feb-2020 instances as genuine deposits INTO Fidelity. What decides
+    // this one is the same-date Quicken XOut plus the Chase counterparty, which
+    // is why the match is pinned to date + exact amount, not description.
+    account: 'Fidelity Stocks',
+    date: '2022-07-05',
+    wrongAmount: 5400.00,
+    descrLike: '%Fid Bkg Svc%',
+    why: 'outgoing ACH to Chase Checking booked as a credit on both accounts',
+  },
 ];
 
 const fmt = (n) =>
