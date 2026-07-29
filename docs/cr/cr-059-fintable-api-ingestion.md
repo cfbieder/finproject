@@ -1,4 +1,4 @@
-# CR059 — Fintable API ingestion (retire the Google Sheets adapter) — DRAFT (rev 2 — P0 measured, nothing built)
+# CR059 — Fintable API ingestion (retire the Google Sheets adapter) — DRAFT (rev 3 — P0/P1 built, P2 running, P3/P4 unbuilt)
 
 Replace bank-feed's Google-Sheets-scraping upstream with **Fintable's own REST API (V2)**, which now
 serves the same accounts, balances and transactions as structured JSON — plus a stable per-transaction
@@ -14,7 +14,13 @@ flags, no tenant context; the code lives in the **separate `bank-feed/` repo**, 
 [CR035](cr-035-feed-sync-freshness.md) (`source_synced_at` — this CR makes it *true*) ·
 [CR036](cr-036-manual-statement-upload.md) (manual CSV path — untouched fallback).
 
-**Reviews:** none yet. Pass 1 (`cr-technical-reviewer`) and pass 2 (`cr-signoff-pm`) both still to run.
+**Reviews:** pass 1 (`cr-technical-reviewer`) **revise — 5 blocking**, and it was worth running: three
+claims this CR made are contradicted by its own data. The id inventory omitted
+`transactions.bank_feed_external_id` (1,392 rows), which is fin's **only** ledger-level duplicate guard
+(§4); the P3 match key matches **58.6%**, not ~100%, because API descriptions carry trailing tags far
+wider than documented — and the equivalence gate's own normalizer had the same defect (§13.2); and the
+date-basis table **reversed** under unbiased pairing, with the divergence spanning three providers, not
+Akoya alone (§13.2). Rev 3 restates all three. Pass 2 (`cr-signoff-pm`) to follow.
 
 **Phase 0 is DONE (2026-07-28) — see [§11](#11-phase-0-findings-measured-2026-07-28).** The ids
 **differ**, so the crosswalk is required — but it is **exact, not heuristic**: the Sheet's composite
@@ -116,10 +122,23 @@ The Sheet's ids are load-bearing in **four** places across **two** databases:
 Fintable Sheet ⚡ Account ID (UUID)          →  bank-feed feed_accounts.external_id        (31 rows)
                                             →  fin account_source_mappings.external_name   (31 rows, 26 with a promote cutoff)
                                             →  fin bankfeed_staging.feed_account_external_id
-Fintable Sheet ⚡ Transaction ID (hash)      →  bank-feed feed_transactions.external_id     (2,393 rows)
-                                            →  fin bankfeed_staging (source, external_id) UNIQUE (2,080 rows)
-                                            →  …of which 1,362 carry promoted_transaction_id → the ledger
+Fintable Sheet ⚡ Transaction ID (hash)      →  bank-feed feed_transactions.external_id     (2,477 rows)
+                                            →  fin bankfeed_staging (source, external_id) UNIQUE (2,130 rows)
+                                            →  …of which 1,407 carry promoted_transaction_id → the ledger
+                                            →  fin transactions.bank_feed_external_id      (1,392 rows)   ← FOURTH SITE
 ```
+*(counts as of 2026-07-29; requery before P3 — they move with every feed pull.)*
+
+**The fourth site is the one that bites, and rev 1 of this CR missed it** (pass-1 review B1).
+`refreshBankFeedV2.js` promotes with `ON CONFLICT (bank_feed_external_id) WHERE bank_feed_external_id
+IS NOT NULL DO NOTHING`, and its live-feed dedup candidate query only considers
+`source = 'pocketsmith' AND bank_feed_external_id IS NULL`. So an already-promoted bank-feed row is
+reachable **by no route except an exact `bank_feed_external_id` hit** — that column is fin's *only*
+ledger-level duplicate guard. Rewrite the staging ids and leave the ledger's, and the guard matches
+nothing: every promoted row re-delivers under its API id and inserts a second time. That is the Black
+Card mechanism with no upper bound. **Migration 043 must rewrite `transactions.bank_feed_external_id`
+in the same transaction**, joined through `bankfeed_staging.promoted_transaction_id`, and assert the
+rewritten count equals the crosswalked promoted-staging count or roll back.
 
 What we store today is a **UUID** (`d0bbc717-0e20-4b46-9e50-eb5d323849cc`) for accounts and a composite
 hash (`3062089709092272539--cfd7113556c4611493343e2e7e709fff`) for transactions. The API's ids are
@@ -280,8 +299,8 @@ both ways, compared per account. It can fail, which is why it is worth running:
 | **P0** | **Spike — needs a read-only PAT** (½ day) | `GET /me`, `/connections`, `/accounts`, `/transactions?limit=5&include=raw` per account; dump to JSON fixtures. Answers: (a) do account ids equal our stored UUIDs? (b) do tx ids equal our composite hashes? (c) does `include=raw` carry `balanceAfterTransaction` / `ext_nordigen_acc_id` / SnapTrade `trade_date`+`symbol`? (d) do all **31** accounts appear, including the 6 Fidelity/SnapTrade ones? (e) how far back does history go, and what does `institution_name`/`type` read per account? **P0 decides whether P3 exists.** |
 | **P1** | Adapter + converter + tests | Behind `FINTABLE_SOURCE` (default `sheets`). Unit tests on P0 fixtures. Nothing in prod changes. |
 | **P2** | Shadow run | A scratch bank-feed DB fed by the API in parallel with the live Sheet-fed one; run the §7 diff for ≥3 days. Nothing in fin changes. |
-| **P3** | Crosswalk migration *(only if P0 says ids differ)* | Dry-run report first (match accounts on institution+name+currency+balance, transactions on account+date+amount+description, with a uniqueness guard); then apply to bank-feed and fin **in one window**, after `Scripts/deploy-to-production.sh`-grade backups of both. Rollback = restore. |
-| **P4** | Cutover | Flip `FINTABLE_SOURCE=api`; keep the Sheet path callable for a week; watch `/v1/health/feeds` drift and fin's recon. Then remove the service account + keyfile + `googleapis` dependency, revoke the Sheet share, retire `FINTABLE_SHEETS_ID`, update [`secrets-inventory.md`](../current/secrets-inventory.md). |
+| **P3** | Crosswalk migration — **confirmed needed** | Dry-run first. Accounts: the `{api_account_id}--{hash}` prefix, falling back to name+currency — **not balance**, which §11h shows trails by up to 302.32 on two accounts and would fail on Black Card specifically; abort on any candidate set ≠ 1, and abort on any disagreement between the two signals (they agree on every account today, so make that a precondition rather than a coincidence). Transactions: account + amount + **tag-normalized** description within ±3–5 days, with the tie-break stated and the run **aborting on any contested API id**. Rewrites **four** id sites including `transactions.bank_feed_external_id` (§4). Then apply to bank-feed and fin **in one window**, after `Scripts/deploy-to-production.sh`-grade backups of both. Rollback = restore. |
+| **P4** | Cutover | **Apply bank-feed migration 005 to the live store first** — `sync_state` does not exist there, and the API path reads it on its first statement, so a bare flip fails at the first tick (migration-before-code, this repo's own rule). Set `FINTABLE_API_MIN_DATE` explicitly: it defaults to empty, which means **no floor**, so §5.5 rail 1 is opt-in. Fill the five NULL `promote_from_date` mappings. Then flip `FINTABLE_SOURCE=api`; keep the Sheet path callable for a week; watch `/v1/health/feeds` drift and fin's recon. Then remove the service account + keyfile + `googleapis` dependency, revoke the Sheet share, retire `FINTABLE_SHEETS_ID`, update [`secrets-inventory.md`](../current/secrets-inventory.md). |
 | **P5** | *(separate CR)* Holdings | `GET /accounts/{id}/holdings` → the securities tables that are **0 rows** today. This is what makes [CR056](cr-056-investment-returns.md) a real returns report and gives [CR058](cr-058-quicken-valuation-anchors.md) a forward-looking counterpart. Deliberately not bundled here. |
 
 ## 9. Costs, risks, open questions
@@ -445,24 +464,64 @@ The Prime Visa diff came back full of pairs that agree on amount and description
 in the **opposite** direction to Marriott Chase. Measured properly, over every Akoya row where the
 API's two dates differ:
 
-| Account | matches `auth_date` | matches posted `date` |
-|---|---:|---:|
-| Prime Visa | 17 | **65** |
-| TOTAL CHECKING | 13 | 11 |
-| Marriott Chase | 2 | 1 |
+~~| Prime Visa | 17 | **65** | TOTAL CHECKING | 13 | 11 | Marriott Chase | 2 | 1 |~~
+**That table was wrong, and pass-1 review B4 caught it.** It paired rows on the *exact* description,
+which systematically excluded every row where the API appends a tag (§13.2 above) — a biased
+subsample, and the bias was not evenly distributed. Re-measured pairing on the **tag-stripped**
+description, unambiguous pairs only, over all rows where the API's two dates differ:
 
-So our stored history is a **mixture**, and the "continuity" argument behind §12.1 does not hold — it
-was drawn from the smallest of the three samples. The obvious explanation (rows first exported while
-pending keep their auth date) is **not** supported: ingest lag after `auth_date` is a median 2.9 days
-for the posted-basis rows and 3.4 for the auth-basis ones — indistinguishable. I cannot attribute the
-split from the data available.
+| Account | provider | matches `auth_date` | matches posted `date` |
+|---|---|---:|---:|
+| Prime Visa | Akoya | **108** | 62 |
+| Marriott Chase | Akoya | **12** | 2 |
+| TOTAL CHECKING | Akoya | **9** | 0 |
+| Black Card | Plaid | 0 | **127** |
+| Delta SkyMiles | Plaid | 0 | **76** |
+| OC Medycyny | GoCardless | 0 | **38** |
+| Hilton Aspire | Plaid | 0 | **13** |
+| Marriott Bonvoy | Plaid | 0 | **4** |
+| CaixaBank EUR | GoCardless | 0 | **1** |
+| **total** | | **129** | **323** |
+
+Two corrections follow, and the second matters more than the first:
+
+1. **The Akoya numbers reverse.** Chase history is predominantly `auth_date` (129 of 193), not posted.
+2. **"Chase/Akoya only" is false.** 243 of the 445 differing rows are on **Plaid and GoCardless**
+   accounts — and on every one of them our stored date equals the **posted** date, without exception.
+
+**The decision still stands, for a better reason than the one first given.** Choosing posted
+(`date ?? auth`) leaves all 323 Plaid/GoCardless rows exactly where they have always been and moves
+~129 Akoya rows; choosing `auth ?? date` would do the reverse and move more. Posted is also the only
+option that is provider-consistent rather than a mixture rule. The `pending`-at-export explanation
+remains unsupported — ingest lag is a median 2.9 days for posted-basis rows and 3.4 for auth-basis
+ones, indistinguishable — so the split is still unattributed.
 
 What follows regardless of which basis is chosen:
-- **The P3 crosswalk cannot key on an exact date.** It must match `(account, amount, description)`
-  with a ±3–5 day tolerance, because our own history is inconsistent. §7's acceptance bar is updated
-  accordingly.
-- **Only the four Akoya accounts are affected, and only for rows arriving after cutover.** Existing
-  ledger rows are crosswalked by id and keep their dates. (A re-sync does rewrite
+- **The P3 crosswalk cannot key on an exact date.** It must match on `(account, amount,
+  normalized description)` with a ±3–5 day tolerance, because our own history is inconsistent.
+- **And the normalization is load-bearing — measured, not assumed** (pass-1 review B2/B3). The raw key
+  matches only **1,453 of 2,480 archived rows (58.6%)**. Of the 1,027 misses, **1,026 match on
+  account+amount+date and fail on description alone**, because the API appends a trailing tag whose
+  vocabulary is far wider than §11g's `[SALE]/[PAYMENT]/[ADJUSTMENT]`: `[SELL -3 @ 1.38]`,
+  `[BUY SPAXX 1895.77 @ 1]`, `[LOAN SPLV -310]`, `[DIVIDEND QQQ]`, `[JOURNALED]`. Two more are Plaid
+  rows where the API *replaces* the description with a cleaned merchant (`COMCAST / XFINITY` →
+  `Comcast`). **The gate's own normalizer had the same defect** — `/\[[A-Z ]+\]/` silently kept every
+  tag containing a digit or symbol; fixed to strip any trailing `\[[^\]]*\]`, which is most of the
+  investment accounts.
+- **Loosening it makes the match non-injective, which is the real design problem.** With a
+  prefix-tolerant rule 2,474/2,480 match — but as **2,686 pairs**: 116 live rows have several
+  candidates and 166 API ids are contested. **190** unmatched rows have `amount = 0.0000`, and on
+  `Options` the same-day `EXPIRED PUT …` clusters are distinguished by *nothing but the description* —
+  the exact field being loosened. So P3 must state (a) the tie-break (the gate's greedy
+  nearest-date-then-description consume is a reasonable candidate), (b) the disposition of rows that
+  never match — at least **63** cannot, since Black Card holds 242 live against the API's 180 — and
+  (c) that the dry-run **aborts on any contested API id**, rather than discovering it as a unique-key
+  violation halfway through a two-database migration.
+- **Nine accounts across three providers are affected — not four Akoya ones** — and only for rows
+  arriving after cutover. Existing ledger rows are crosswalked by id and keep their dates. Recorded
+  consequence: **135 already-ingested rows** get their `bankfeed_staging.transaction_date` rewritten
+  while the promoted ledger row keeps the old date; **5 of them cross a month boundary** (max gap 3
+  days). (A re-sync does rewrite
   `bankfeed_staging.transaction_date` for already-promoted rows via the existing `DO UPDATE`; the
   promoted `transactions` row is untouched.)
 
@@ -612,6 +671,16 @@ source**, because the Sheet stopped and the API's window starts 2026-06-28. If t
 after 06-28 a working sync will deliver them; if they fall in the 06-08 → 06-27 gap they will never
 arrive and need a manual entry ([CR025](cr-025-manual-transaction-entry.md)) or a statement upload
 ([CR036](cr-036-manual-statement-upload.md)). PLN is 72.14 on both sides — nothing missing there.
+
+**Open design item raised by pass 1 (S1): connection identity churns wholesale at cutover.** The
+converter sets `institution_id` to fintable's `conn_nordigen_…`, a different namespace from the Sheet
+path's PSD2 ids (`PKO_BPKOPLPW`), and `ensureConnections` matches on `(source, institution_id)` — so
+cutover would create **13 new `bank_connections` rows**, reparent all 31 accounts and orphan the
+existing 17, the opposite of §5.2's promise to clean the orphans up. Names churn too (`Fidelity` →
+`Fidelity (Connection-1)`), which renames the recon page's institution chip for six accounts and breaks
+§5.2's "`institution_name` must not churn". And since fintable connection ids change on re-consent
+(§16), this reintroduces the 17-rows-for-11-institutions problem by a new mechanism. **The identity
+rule has to be decided deliberately before P3**, and `bank_connections` added to §4's inventory.
 
 **Two conditions carried into P3/P4:** the rebuilt wallets have **ULID-style ids**
 (`acc_01KYN7AH3…`) and no transactions, so they carry no `{account_id}--{hash}` prefix and must
