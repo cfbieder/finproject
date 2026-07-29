@@ -805,8 +805,10 @@ function ReturnsTable({ report, meta, shown, unit, fmt, fmtPct }) {
         </span>
         <span className="investment-returns__irr-note">
           {total?.irr === null || total?.irr === undefined
-            ? "needs a valuation in the period, money both in and out, and a span over 30 days"
-            : `solved on every dated flow from ${shown?.fromDate} to ${shown?.toDate}`}
+            ? "needs either a valuation in the period or a closed-out position, plus money both in and out over a span of 30+ days"
+            : total?.irrBasis === "closed"
+              ? `position closed at zero — solved on every dated flow from ${shown?.fromDate} to ${shown?.toDate}, no valuation needed`
+              : `solved on every dated flow from ${shown?.fromDate} to ${shown?.toDate}`}
         </span>
       </p>
     </section>

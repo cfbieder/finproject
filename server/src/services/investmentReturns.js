@@ -677,12 +677,27 @@ async function buildInvestmentReturns({
     { date: lastEnd, amount: mvAt(lastEnd) },
   ].sort((a, b) => (a.date < b.date ? -1 : a.date > b.date ? 1 : 0));
 
-  // A period nothing valued has no ending MARKET value — only a cost basis — so
-  // an IRR off it would report ~0% as if the asset had genuinely not moved.
-  // Same rule the percentages already follow.
-  total.irr = rows.coverage.some((c) => c > 0)
-    ? nullableRound(xirr(irrFlows), 6)
-    : null;
+  // IRR needs an ending value it can trust. Two ways to have one:
+  //
+  //   (a) something valued the period — the usual case; or
+  //   (b) the position CLOSED. A fully exited holding ends at zero, and zero is
+  //       exact, not a cost-basis guess — every dollar in and out is known, so
+  //       IRR is the only correct return measure for it.
+  //
+  // (b) matters: CVC - MIP has no marks at all and ends at 0.00 after returning
+  // ~3.78M PLN on 347K in. Requiring a valuation blanked the one number that
+  // describes it, for a reason — "the ending value is really cost basis" — that
+  // cannot apply when the ending value is zero.
+  const closedOut = Math.abs(mvAt(lastEnd)) < 1;
+  total.irr =
+    rows.coverage.some((c) => c > 0) || closedOut
+      ? nullableRound(xirr(irrFlows), 6)
+      : null;
+  total.irrBasis = rows.coverage.some((c) => c > 0)
+    ? 'valued'
+    : closedOut
+      ? 'closed'
+      : null;
 
   return {
     data: {

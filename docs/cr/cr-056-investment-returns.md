@@ -660,10 +660,25 @@ when contributions are large or badly timed. Fidelity Stock: 30.28% cumulative v
 IRR — the gap is annualization over ~19 months, and both are labelled.
 
 **It abstains** — rendering `—` — when there is no sign change to solve across, when the
-span is under 30 days (annualizing a few weeks is noise amplification), or when **nothing
-valued the period**. That last one matters: an IRR off a cost-basis ending value would report
-~0% as though the asset had genuinely not moved. `US - Nokomis` (never valued) correctly
-abstains; the same rule the percentages already follow.
+span is under 30 days (annualizing a few weeks is noise amplification), or when the ending
+value cannot be trusted. That last test needed a correction (owner-found, 2026-07-29).
+
+*First cut:* abstain whenever **nothing valued the period**, reasoning that an IRR off a
+cost-basis ending value would report ~0% as though the asset had genuinely not moved.
+
+*The case it got wrong:* `CVC - MIP` has **no marks at all** and ends at **0.00** — a fully
+exited fund that took 347K PLN in 2017 and returned ~3.78M through 2024. The rule blanked the
+one number that describes it, for a reason that cannot apply when the ending value is zero: a
+closed position's ending value is **exact, not a guess**. Every dollar in and out is known,
+and IRR is the only correct return measure for a holding that was never marked and no longer
+exists.
+
+*Rule now:* IRR needs an ending value it can trust, which means **either** a valuation in the
+period **or** a closed-out position (`|Ending MV| < 1`). `total.irrBasis` reports which
+(`valued` / `closed`) and the page says "position closed at zero — no valuation needed".
+Verified on prod: CVC - MIP **63.93%** (closed), United Beverages **74.98%** (valued), while
+`Fidelity Stock` and `US - Nokomis` still correctly abstain over a window that neither valued
+nor closed them.
 
 **Layout.** `Ending market value` moved up to sit directly under the components that explain
 the move from `Beginning market value`, both balance rows bold, and a spacer row separating

@@ -161,6 +161,28 @@ describe('xirr', () => {
     ])).toBeNull();
   });
 
+  it('solves a closed-out fund with no valuations at all', () => {
+    // CVC - MIP's shape: money in once, distributions back over years, ends at
+    // zero. No mark ever existed and none is needed — the ending value is exact.
+    const r = xirr([
+      { date: '2017-06-14', amount: -347231 },
+      { date: '2020-06-30', amount: 1093146 },
+      { date: '2023-06-30', amount: 2530114 },
+      { date: '2024-05-31', amount: 156384 },
+    ]);
+    // ~67%: IRR weights the year-3 distribution heavily — it alone returns 3.1x
+    // the money in. Verified by the solved NPV being ~0 at that rate.
+    expect(r).toBeCloseTo(0.6703, 3);
+    const npv = [
+      [-347231, '2017-06-14'], [1093146, '2020-06-30'],
+      [2530114, '2023-06-30'], [156384, '2024-05-31'],
+    ].reduce((a, [amt, d]) => {
+      const yrs = (Date.parse(d) - Date.parse('2017-06-14')) / 86400000 / 365;
+      return a + amt / (1 + r) ** yrs;
+    }, 0);
+    expect(Math.abs(npv)).toBeLessThan(0.01);
+  });
+
   it('handles a loss without running away', () => {
     const r = xirr([
       { date: '2025-01-01', amount: -1000 },
