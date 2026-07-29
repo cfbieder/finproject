@@ -1,9 +1,14 @@
 /**
  * fix-ps-transfer-signs.js — correct PocketSmith transfer rows booked with the
- * wrong sign on Fidelity Stocks.
+ * wrong sign on the Fidelity accounts.
  *
- * PocketSmith booked two outgoing transfers as CREDITS. Each was found by a
- * different independent method and each is corroborated by a counterparty:
+ * Two waves. The first three (2026-07-28) were found one at a time by a
+ * same-signed-cluster sweep. The second six (2026-07-29) came from a much
+ * stronger method — see the block comment above their entries — and extend the
+ * script to `Fidelity Cash Mgt` as well as `Fidelity Stocks`.
+ *
+ * PocketSmith booked outgoing transfers as CREDITS. Each is corroborated by an
+ * independent record, never by its description alone:
  *
  *   2020-08-26  +617,957.20  "Transferred From Vs X27-2309 …"
  *       A 617,957.20 transfer to Fidelity Cash Mgt, booked as a credit on BOTH
@@ -82,7 +87,97 @@ const CORRECTIONS = [
     descrLike: '%Fid Bkg Svc%',
     why: 'outgoing ACH to Chase Checking booked as a credit on both accounts',
   },
+
+  // ─────────────────────────────────────────────────────────────────────────
+  // Second wave (2026-07-29). Found by a stronger method than the first three:
+  // the Fidelity Brokerage QIF's 2020–2022 rows sit in `quicken_staging`
+  // CUTOFF-DROPPED and unpromoted, so they are an INDEPENDENT record of exactly
+  // the era PocketSmith owns — they never entered the ledger and cannot be
+  // circular evidence. Comparing net-per-(date, magnitude) between the two
+  // systems isolates the disagreements; the ACH trace numbers then prove the
+  // two records describe one event.
+  //
+  // Sweep to reproduce: see the roadmap's `#ps-transfer-sign-defects` entry.
+  // ─────────────────────────────────────────────────────────────────────────
+  {
+    // Quicken: `XOut -25,000.00 -> [Chase (C)]`, memo "PPD ID: 1035141375".
+    // PocketSmith carries the SAME PPD ID as a +25,000.00 credit, and Chase
+    // Checking's own ledger shows the +25,000.00 arriving — so under the
+    // current data the money reaches Chase from nowhere.
+    //
+    // Date + amount alone are ambiguous here: tx 14222 is ALSO +25,000.00 on
+    // 2021-04-09 (the genuine XIn from Fidelity Cash Mgt, which Quicken and
+    // PocketSmith agree on). The description fragment is what separates them,
+    // and the >1-match guard below is what makes that safe.
+    account: 'Fidelity Stocks',
+    date: '2021-04-09',
+    wrongAmount: 25000.00,
+    descrLike: '%Fid Bkg Svc%',
+    why: 'outgoing ACH to Chase Checking (PPD 1035141375) booked as a credit; Quicken has XOut',
+  },
+  {
+    // Chase's Quicken row names its counterparty explicitly —
+    // `+20,000.00, L=[Fidelity Cash Mgt]`, memo "PPD ID: 0368504603" — so the
+    // money moved Cash Mgt → Chase. PocketSmith carries the same PPD ID as a
+    // credit on Cash Mgt.
+    account: 'Fidelity Cash Mgt',
+    date: '2021-07-19',
+    wrongAmount: 20000.00,
+    descrLike: '%Fid Bkg Svc%',
+    why: 'outgoing ACH to Chase Checking (PPD 0368504603) booked as a credit on both accounts',
+  },
+  {
+    // Same shape, same proof: Chase Quicken `+15,000.00, L=[Fidelity Cash Mgt]`,
+    // memo "PPD ID: 1035141375".
+    account: 'Fidelity Cash Mgt',
+    date: '2021-11-05',
+    wrongAmount: 15000.00,
+    descrLike: '%Fid Bkg Svc%',
+    why: 'outgoing ACH to Chase Checking (PPD 1035141375) booked as a credit on both accounts',
+  },
+  {
+    // Quicken: `XOut -3,699.99 -> [Fidelity EUR]`, memo "YOU EXCHANGED".
+    // Fidelity EUR is not a ledger account, so there is no counterparty row to
+    // corroborate with — the Quicken record is the whole of the evidence here,
+    // which is weaker than the PPD-matched rows above but still a direct,
+    // independent record of the same transaction.
+    account: 'Fidelity Stocks',
+    date: '2022-06-29',
+    wrongAmount: 3699.99,
+    descrLike: '%You Exchanged%',
+    why: 'outgoing FX conversion to Fidelity EUR booked as a credit; Quicken has XOut',
+  },
+  {
+    // This pair and the next are BOTH backwards, and they cancel: the ledger
+    // nets to zero before and after, so no balance on any date moves. They are
+    // corrected anyway because each row individually contradicts its own
+    // description — "TRANSFERRED FROM" carrying a debit — and a later monthly
+    // (rather than annual) anchor re-run would expose the intra-month swing.
+    //
+    // Quicken: +800,000.00 in from Fidelity Cash Mgt on 06-14, then
+    // -800,000.00 out to Fidelity EUR on 06-15. PocketSmith has both flipped.
+    account: 'Fidelity Stocks',
+    date: '2022-06-14',
+    wrongAmount: -800000.00,
+    descrLike: '%TRANSFERRED FROM VS X94-929946-1%',
+    why: 'incoming transfer from Fidelity Cash Mgt booked as a debit; Quicken has it positive',
+  },
+  {
+    account: 'Fidelity Stocks',
+    date: '2022-06-15',
+    wrongAmount: 800000.00,
+    descrLike: '%Transfer From Cash Management%',
+    why: 'outgoing transfer to Fidelity EUR booked as a credit; Quicken has XOut',
+  },
 ];
+
+// NOT corrected, deliberately: 2022-11-02 on Fidelity Stocks, where the two
+// systems differ by ~187,689 across two magnitudes. Quicken has +300,000.00 in
+// from Cash Mgt and TWO -112,310.56 legs out to Fidelity EUR; PocketSmith has
+// +300,000.00, a -300,000.00 "YOU EXCHANGED", and ONE -112,310.56. That is a
+// difference in how each system modelled a USD→EUR conversion, not a sign
+// error, and picking a winner needs the Fidelity statement. Flipping a sign
+// here would move real money to make a heuristic happy.
 
 const fmt = (n) =>
   Number(n).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
@@ -118,7 +213,17 @@ async function main() {
   const pool = new Pool({ connectionString: CONN_STR });
   const client = await pool.connect();
 
-  const SPOT_DATES = ['2020-01-31', '2020-08-25', '2020-08-27', '2020-11-05', '2020-12-31'];
+  // Year-ends bracketing every correction, so the printed before/after shows
+  // exactly which anchored periods move.
+  //
+  // Note 2020 DOES move (+57,399.98 on account 27) even though no 2020 row is
+  // touched: `opening_balance` re-plugs upward to hold today, which lifts every
+  // date BEFORE the first correction. That is the physically correct reading —
+  // if 2021 money wrongly arrived, it must have been present earlier and left,
+  // rather than never existing. A uniform lift of the pre-2021 ledger is
+  // absorbed entirely by the FIRST valuation anchor and cancels out of every
+  // interior one, so CR058's 2020 anchor is unaffected.
+  const SPOT_DATES = ['2020-12-31', '2021-12-31', '2022-06-13', '2022-06-30', '2022-12-31'];
 
   try {
     await client.query('BEGIN');

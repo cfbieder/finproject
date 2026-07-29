@@ -237,6 +237,13 @@ table alone.
 | 2021-12-31 | 1,402,419.10 | −510,746.50 | 874,742.02 | −16,930.58 |
 | **2022-12-28** | 1,317,564.33 | −527,677.08 | 1,160,619.23 | **+370,731.98** |
 
+> **Superseded in three rows by the 2026-07-29 sign-fix wave** ([§9.2](#92-second-sign-fix-wave--2026-07-29)).
+> The table below is the as-designed record and is left intact. What changed after five further
+> PocketSmith sign defects were corrected at source: **1998-03-20 → −931,889.73**, **2021 → +33,069.42**,
+> **2022-12-28 → +378,131.96**. Σ, the reversal, and **every other row including 2020's −9,331.73 are
+> unchanged** — a uniform lift of the pre-2021 ledger is absorbed entirely by the first anchor and
+> cancels out of each interior one.
+
 The **1998 row is the opening plug** (−874,487.68), not market movement — it absorbs the whole-life
 difference between the account's calibrated `opening_balance` and its true 1998 value, and sits at the
 series *start* where a plug belongs.
@@ -698,6 +705,56 @@ and `quicken-anchor.js` present in the running container.
 and the parent 25 roll-up. §3.5 owns the coupling — the anchors are `is_transfer` rows, so CR056
 buckets them as `flow`, and the pre-2021 series moves. Now visible on prod and not yet shown to the
 owner.
+
+### 9.2 Second sign-fix wave — 2026-07-29
+
+Triaging the roadmap's outstanding sign clusters, hours after this CR shipped, found **five more
+PocketSmith sign defects** on the Fidelity accounts. Applied to dev and prod (`fix-ps-transfer-signs.js`,
+now covering nine rows across two accounts), then account 27 re-anchored.
+
+**The method that found them is the reusable part.** The Fidelity QIF's 2020–2022 rows sit in
+`quicken_staging` **cutoff-dropped and unpromoted** — they never entered the ledger, so they are an
+*independent* record of exactly the era PocketSmith owns and cannot be circular evidence. Comparing
+`sum(amount)` per `(date, magnitude)` bucket between the two systems isolates every disagreement in
+one query; the ACH **PPD trace numbers** then prove that two rows describe one event. That is far
+stronger than the same-signed-cluster heuristic, which produced 42 candidates of which most were
+artifacts of its own ±3-day chaining.
+
+| tx | Account | Date | Was | Now | Evidence |
+|---|---|---|---:|---:|---|
+| 14221 | Fidelity Stocks | 2021-04-09 | +25,000.00 | −25,000.00 | Quicken `XOut → Chase (C)`, **PPD 1035141375**; Chase's ledger shows the +25,000 arriving |
+| 11572 | Fidelity Cash Mgt | 2021-07-19 | +20,000.00 | −20,000.00 | Chase Quicken row targets `[Fidelity Cash Mgt]`, **PPD 0368504603** |
+| 11643 | Fidelity Cash Mgt | 2021-11-05 | +15,000.00 | −15,000.00 | Chase Quicken row targets `[Fidelity Cash Mgt]`, **PPD 1035141375** |
+| 14725 | Fidelity Stocks | 2022-06-29 | +3,699.99 | −3,699.99 | Quicken `XOut → Fidelity EUR` |
+| 14699 / 14705 | Fidelity Stocks | 2022-06-14/15 | −800k / +800k | +800k / −800k | both backwards vs Quicken; **nets to zero either way** |
+
+**Anchor impact — smaller than it looks.** Only **three** anchors moved: 1998-03-20 → −931,889.73,
+2021 → +33,069.42, 2022-12-28 → +378,131.96. **Σ and the reversal are unchanged at −156,945.10 /
++156,945.10**, and so is every interior anchor — including 2020's −9,331.73, the number §1.3 rests on.
+The reason is structural: `opening_balance` re-plugs to hold today, lifting the whole pre-2021 ledger
+by a constant, and a constant lift cancels between `ledger(D)` and `Σ prior anchors` in
+`anchor(D) = target(D) − ledger(D) − Σ prior`. Only the first anchor and the periods where the lift
+*changes* can move. An initial estimate that Σ would fall to −99,545.12 was wrong for exactly this
+reason.
+
+**`--check` caught the drift unprompted**, before any re-anchor — 25 of 26 dates, uniformly
++57,399.98 pre-2021. That is the failure mode §4.1 predicted (targets frozen, ledger still mutable)
+arriving within a day of the feature that guards it.
+
+**Honest note on corroboration.** The 2020 fix converged the two reconstructions (anchor −1.4M →
+−9K), which was strong evidence. This wave does **not** converge — 2021 moves from −16,930.58 to
++33,069.42, slightly further from zero. On an 874,742 account that is noise, and the PPD-matched
+evidence stands on its own, but it is weaker corroboration than §1.3's and is recorded as such.
+
+**Left alone: 2022-11-02**, where the systems differ by ~187,689 across two magnitudes — Quicken has
++300,000 in from Cash Mgt and two −112,310.56 legs out to Fidelity EUR; PocketSmith has +300,000, a
+−300,000 "YOU EXCHANGED", and one −112,310.56. That is a modelling difference over a USD→EUR
+conversion, not a sign error, and resolving it needs the Fidelity statement. It is now the **only**
+remaining disagreement between the two records for 2020–2022.
+
+Verified after: all 26 targets tie, `quicken-verify` 7 pass / 2 warnings / 0 failures, today unchanged
+at 1,157,037.74 on both stacks, 523 backend tests green. Backup
+`Backups/fin_backup_pre_signfix2_20260729_015229.dump`.
 
 ### 9.1 The original plan
 
