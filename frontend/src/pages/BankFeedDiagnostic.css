@@ -183,6 +183,31 @@
 .bfd-balance-reset:hover { color: var(--danger-strong, #b42318); }
 .bfd-balance-reset:disabled { opacity: 0.4; cursor: default; }
 
+/* Opening-balance cell: the plug, with its reset tucked under the figure.
+   A second full-size action button in the row's action cell wrapped onto its
+   own line and collided with the row below — and the reset belongs beside the
+   number it zeroes, not in the generic action slot. Mirrors .bfd-balance-reset. */
+.bfd-opening-cell {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 2px;
+}
+.bfd-opening-reset {
+  background: none;
+  border: none;
+  padding: 0;
+  line-height: 1;
+  font-size: 0.7rem;
+  font-weight: 600;
+  color: var(--muted);
+  cursor: pointer;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+.bfd-opening-reset:hover { color: var(--danger-strong); }
+.bfd-opening-reset:disabled { opacity: 0.4; cursor: default; }
+
 .bfd-desc {
   max-width: 360px;
   overflow: hidden;

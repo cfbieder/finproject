@@ -1,6 +1,6 @@
 # CR033 — Manual Calibration (non-fed account balance reconciliation)
 
-**Status:** RELEASED v3.0.29 (2026-06-11) — migration 032 applied to dev + prod; deployed. Follow-ups v3.0.30 (leaf-only list + MTM booking date), v3.0.31 (non-USD MTM via FX + recon header cleanup), v3.0.32 (balance as-of date entry + reset), **v3.6.8 (2026-07-29: "Reset opening" — zero the `opening_balance` plug, + a Ledger toolbar link)**.
+**Status:** RELEASED v3.0.29 (2026-06-11) — migration 032 applied to dev + prod; deployed. Follow-ups v3.0.30 (leaf-only list + MTM booking date), v3.0.31 (non-USD MTM via FX + recon header cleanup), v3.0.32 (balance as-of date entry + reset), **v3.6.8 (2026-07-29: "Reset opening" — zero the `opening_balance` plug, + a Ledger toolbar link), v3.6.9 (the reset moved into a new `Opening` column)**.
 **Track:** v3
 **Anchor in FC_NEXT_STEPS.md:** [cr033](../current/project-roadmap.md#cr033)
 
@@ -110,3 +110,14 @@ account row.
 28,106.29. Both pages driven in a real browser (confirm text, button gating, navigation) with zero
 console errors. **523 backend / 212 frontend / build ✓ / six guards ✓.** Four new tests, and the
 Quicken guard's test was confirmed to go **red** when the guard is removed. No migration.
+
+### Layout correction (v3.6.9, 2026-07-29)
+Shipping the reset as a second full-size button in the row's action cell was wrong: the two
+`generate-report-button`s wrapped onto separate lines and **overlapped the row below**, and a rare
+action was given the same weight as the row's primary one. Replaced with an **`Opening` column**
+(the plug itself, right-aligned, placed between `Type` and `Computed` so the row reads
+*opening → computed*) and a small underlined **Reset** beneath the figure — the same idiom the
+Current-balance cell already uses for its `✕` clear. The column is the real improvement: it
+**surfaces the number**, so which accounts carry a plug is visible at a glance rather than inferred
+from which rows sprouted a button. Tokens only (`--muted`, `--danger-strong`, both dark-overridden),
+so no new hex and no new button class; verified in both themes.

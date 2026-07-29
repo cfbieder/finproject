@@ -296,7 +296,8 @@ export default function ManualReconciliation() {
         is <code>−</code>). There is no feed, so no balance-sign or flip-tx toggle.
       </p>
       <p className="bfd-subtitle" style={{ marginTop: 0 }}>
-        <strong>Reset opening</strong> zeroes an account&apos;s{" "}
+The <strong>Opening</strong> column is the plug the computed balance starts from.{" "}
+        <strong>Reset</strong> under it zeroes an account&apos;s{" "}
         <code>opening_balance</code> so its ledger starts at its first real
         transaction. It shifts <em>every</em> balance on that account — today&apos;s
         included — so the account will show a gap of the old amount until you
@@ -350,6 +351,7 @@ export default function ManualReconciliation() {
           <tr>
             <th>Account</th>
             <th>Type</th>
+            <th className="num">Opening</th>
             <th className="num">Computed</th>
             <th className="num">Current balance</th>
             <th className="num">Drift</th>
@@ -383,6 +385,22 @@ export default function ManualReconciliation() {
                   </select>
                   <div className="bfd-muted" style={{ fontSize: "0.7rem" }}>
                     {a.account_type} · {a.currency}
+                  </div>
+                </td>
+                <td className="num">
+                  <div className="bfd-opening-cell">
+                    <span>{fmtNum(a.opening_balance)}</span>
+                    {hasOpening && (
+                      <button
+                        type="button"
+                        className="bfd-opening-reset"
+                        disabled={resettingId === a.account_id}
+                        onClick={() => askResetOpening(a)}
+                        title={`Zero this opening balance so the ledger starts at the account's first transaction — shifts every balance, today's included`}
+                      >
+                        {resettingId === a.account_id ? "…" : "Reset"}
+                      </button>
+                    )}
                   </div>
                 </td>
                 <td className="num">{fmtNum(a.computed_balance)}</td>
@@ -462,17 +480,6 @@ export default function ManualReconciliation() {
                   >
                     {reconcilingId === a.account_id ? "…" : "Reconcile"}
                   </button>
-                  {hasOpening && (
-                    <button
-                      className="generate-report-button"
-                      style={{ marginLeft: "6px" }}
-                      disabled={resettingId === a.account_id}
-                      onClick={() => askResetOpening(a)}
-                      title={`Zero the opening balance (${fmtNum(a.opening_balance)}) so the ledger starts at this account's first transaction — shifts every balance, today's included`}
-                    >
-                      {resettingId === a.account_id ? "…" : "Reset opening"}
-                    </button>
-                  )}
                 </td>
               </tr>
             );
