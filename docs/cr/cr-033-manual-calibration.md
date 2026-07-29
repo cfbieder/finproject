@@ -1,6 +1,6 @@
 # CR033 — Manual Calibration (non-fed account balance reconciliation)
 
-**Status:** RELEASED v3.0.29 (2026-06-11) — migration 032 applied to dev + prod; deployed. Follow-ups v3.0.30 (leaf-only list + MTM booking date), v3.0.31 (non-USD MTM via FX + recon header cleanup), v3.0.32 (balance as-of date entry + reset).
+**Status:** RELEASED v3.0.29 (2026-06-11) — migration 032 applied to dev + prod; deployed. Follow-ups v3.0.30 (leaf-only list + MTM booking date), v3.0.31 (non-USD MTM via FX + recon header cleanup), v3.0.32 (balance as-of date entry + reset), **v3.6.8 (2026-07-29: "Reset opening" — zero the `opening_balance` plug, + a Ledger toolbar link)**.
 **Track:** v3
 **Anchor in FC_NEXT_STEPS.md:** [cr033](../current/project-roadmap.md#cr033)
 
@@ -67,3 +67,46 @@ The MTM date control was crammed into the flex `space-between` filter row (prese
 
 ## Balance as-of date entry + reset (Released v3.0.32, 2026-06-11)
 The manual "Current balance" was always dated *today*, so a **past period-end MTM mark** failed — `reconcileManual` marks against the entry ≤ the booking date, and a today-dated figure is never ≤ a past period-end (the live symptom: CVC Fund IX EUR, balance typed today, "Book MTM as of 2026-03-31" → *no manual balance on/before 2026-03-31*). **Fix (frontend + one route):** the balance cell now pairs the amount with an **as-of date input** (defaults to the page's "Book MTM as of" date) + a **reset** link; the PUT sends `balanceDate` (the route/`setManualBalance` already supported it), and a new **`DELETE /balance/:accountId`** clears an account's entry → pending (for a figure entered with the wrong date). Entries are date-stamped (`UNIQUE(account_id, balance_date)`); the recon + reconcile read the latest ≤ asOf, so dating a balance at a quarter/year-end enables a true period-end mark. Edit commits once when focus leaves the cell (cell-level `onBlur` with a `relatedTarget` containment check), so editing amount→date is a single save. Test: `manualBalanceReconcile: picks the entered balance as of the query date`. The one prod test entry (CVC Fund IX @ today) was cleared during this work. `vite build` green.
+
+## Reset opening balance (Released v3.6.8, 2026-07-29)
+Owner-requested, from the Ledger. `opening_balance` is a **plug** and every ledger row reads
+`opening_balance + Σ tx`, so an account whose real history starts at its first transaction carries a
+pre-history balance that inflates **every** date. The live case: **CVC Fund VIII** (EUR) held
+**28,106.29** dated `2000-01-01`, more than two years before the fund's first capital call — the
+2022-04-03 `Capital Call` of 97,342.11 rendered a running balance of **125,448.40**.
+
+**Backend.** New `resetOpeningBalance(accountId, {dryRun, force})` in `services/reconcileManual.js`
+and `POST /manual-calibration/reset-opening/:accountId`. It sets `opening_balance = 0` and does
+**nothing else** — deliberately. Compensating automatically would mean inventing a transaction and
+picking its date and category; clearing the resulting gap is the existing **Reconcile** action's job,
+which posts a *dated, visible* Unrealized-G/L row instead of pushing the amount back into a hidden
+account field. Same guards as the rest of the module (balance-sheet only, fed accounts rejected →
+Balance Calibration), plus `opening_balance_date` is left alone for the same reason `calibrate()`
+leaves it alone. The response is **`{data}`-enveloped** (the CR043 N8 target shape, read through
+`Rest.unwrap()`); its pre-N8 neighbours in this router are still bare.
+
+**The two traps, both found by building it rather than by reading it:**
+1. **Calibrate mode would undo the reset on the very next click.** `calibrate` re-anchors
+   `opening_balance = entered − Σ tx`, which restores the *exact* plug. CVC Fund VIII is in
+   `calibrate` mode, so the naive sequence *Reset → Reconcile* is a no-op. The confirm dialog now
+   says so and points at the brokerage (mtm) switch.
+2. **On Quicken-promoted accounts `opening_balance` is not a plug.** It is a computed anchor
+   (CR019 §22 calibration, [CR058](cr-058-quicken-valuation-anchors.md) valuation anchors), so
+   zeroing it moves every anchored valuation date. Those are blocked behind a `force` override,
+   surfaced as a second confirm the same way the 15%-phantom-gain guard is. **Currently dormant** —
+   all four accounts carrying `quicken%` rows (Chase Checking, Fidelity Stocks, PKO, Santandar) are
+   fed, so they never reach this page; it is defensive for the CR023 per-account migration.
+
+**Frontend.** A per-row **Reset opening** button, rendered only where `|opening_balance| ≥ 0.01`
+(the recon payload now carries `opening_balance` for exactly this). The confirm spells out the whole
+consequence in figures — *"computed goes 594,365.00 → 566,258.71"* — because the reset moves
+**today's** balance and net worth, not just the old rows. The **Ledger** toolbar gained an
+**Opening balance** button (single-account view only) that navigates here: the defect is *visible*
+on the Ledger and fixable only on this page, and linking out avoids a second write path to the
+account row.
+
+**Proof.** Applied against a dev copy of prod: CVC Fund VIII's first row went **125,448.40 →
+97,342.11** and its closing balance **594,365.00 → 566,258.71**, then dev was restored to
+28,106.29. Both pages driven in a real browser (confirm text, button gating, navigation) with zero
+console errors. **523 backend / 212 frontend / build ✓ / six guards ✓.** Four new tests, and the
+Quicken guard's test was confirmed to go **red** when the guard is removed. No migration.

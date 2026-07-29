@@ -30,6 +30,7 @@ function StatusPill({ label, kind }) {
 export default function ManualReconciliation() {
   const [recon, setRecon] = useState(null);
   const [reconcilingId, setReconcilingId] = useState(null);
+  const [resettingId, setResettingId] = useState(null);
   const [msg, setMsg] = useState(null);
   const [confirm, setConfirm] = useState(null);
   const [savingMode, setSavingMode] = useState(null);
@@ -130,10 +131,86 @@ export default function ManualReconciliation() {
         : `re-anchor opening_balance for "${a.name}" to the entered balance`;
     setConfirm({
       account: a,
+      action: "reconcile",
       title: "Reconcile",
       message: `Reconcile will ${action}.\n\nContinue?`,
       confirmLabel: "Reconcile",
     });
+  };
+
+  // "Reset opening" — zero the pre-history plug so the ledger starts at the
+  // account's first real transaction. Spell out the shift, because it moves
+  // TODAY's balance (and net worth) by the same amount, not just the old rows.
+  const askResetOpening = (a) => {
+    const open = Number(a.opening_balance);
+    const after = a.computed_balance != null ? a.computed_balance - open : null;
+    // In calibrate mode Reconcile re-anchors opening_balance = entered − Σtx,
+    // i.e. it puts the exact plug back. Say so here rather than let the reset
+    // be silently undone by the very next click.
+    const modeWarning =
+      a.reconcile_mode === "mtm"
+        ? ""
+        : `\n\nNote: this account is in bank (calibrate) mode, where Reconcile ` +
+          `RE-ANCHORS the opening balance — clicking it after this would restore ` +
+          `${fmtNum(open)}. Switch the row to brokerage (mtm) first if you want ` +
+          `the gap booked as a dated entry.`;
+    setConfirm({
+      account: a,
+      action: "reset-opening",
+      title: "Reset opening balance",
+      message:
+        `Set opening_balance for "${a.name}" from ${fmtNum(open)} to 0.\n\n` +
+        `Every balance on this account drops by ${fmtNum(open)} — today's included` +
+        (after != null ? `: computed goes ${fmtNum(a.computed_balance)} → ${fmtNum(after)}.` : ".") +
+        `\n\nThe entered balance is not touched, so the account will show a gap ` +
+        `of ${fmtNum(open)} until you Reconcile it — which books the amount as a ` +
+        `dated entry instead of a hidden plug.` +
+        modeWarning +
+        `\n\nContinue?`,
+      confirmLabel: "Reset opening",
+    });
+  };
+
+  const doResetOpening = async (force = false) => {
+    const a = confirm?.account;
+    if (!a) return;
+    setConfirm(null);
+    setResettingId(a.account_id);
+    setMsg(null);
+    try {
+      // Enveloped endpoint ({data}) — unlike its bare pre-N8 neighbours.
+      const res = Rest.unwrap(
+        await Rest.post(`/manual-calibration/reset-opening/${a.account_id}`, {
+          dryRun: false,
+          force,
+        })
+      );
+      // Quicken-calibrated accounts are blocked server-side: there the opening
+      // balance is a computed anchor, not a plug. Offer a deliberate override
+      // rather than a dead end, the same way the MTM guard does.
+      if (res.blocked && !force) {
+        setConfirm({
+          account: a,
+          action: "reset-opening",
+          force: true,
+          title: "Override safety guard?",
+          message: `${res.note}\n\nReset anyway?`,
+          confirmLabel: "Reset anyway (override)",
+        });
+        return;
+      }
+      setMsg(
+        res.applied
+          ? `${a.name}: opening_balance ${fmtNum(res.old_opening)} → 0 ` +
+              `(computed ${fmtNum(res.computed_before)} → ${fmtNum(res.computed_after)})`
+          : `${a.name}: ${res.note || "nothing to reset"}`
+      );
+      await load();
+    } catch (err) {
+      setMsg(`${a.name}: reset failed — ${err.message}`);
+    } finally {
+      setResettingId(null);
+    }
   };
 
   const doReconcile = async (force = false) => {
@@ -218,6 +295,13 @@ export default function ManualReconciliation() {
         signed figure the Computed column shows (an asset is <code>+</code>, a liability
         is <code>−</code>). There is no feed, so no balance-sign or flip-tx toggle.
       </p>
+      <p className="bfd-subtitle" style={{ marginTop: 0 }}>
+        <strong>Reset opening</strong> zeroes an account&apos;s{" "}
+        <code>opening_balance</code> so its ledger starts at its first real
+        transaction. It shifts <em>every</em> balance on that account — today&apos;s
+        included — so the account will show a gap of the old amount until you
+        Reconcile it, which books that amount as a dated entry instead of a hidden plug.
+      </p>
       <div className="bfd-feed-card-header">
         <StatusPill
           label={visibleUnreconciled === 0 ? "all reconciled" : `${visibleUnreconciled} unreconciled`}
@@ -276,6 +360,7 @@ export default function ManualReconciliation() {
         <tbody>
           {visible.map((a) => {
             const isMtm = a.reconcile_mode === "mtm";
+            const hasOpening = a.opening_balance != null && Math.abs(a.opening_balance) >= 0.01;
             const status = rowStatus(a);
             const driftCls =
               a.reconciled === true ? "bfd-ok" : isMtm ? "bfd-muted" : "bfd-danger";
@@ -377,6 +462,17 @@ export default function ManualReconciliation() {
                   >
                     {reconcilingId === a.account_id ? "…" : "Reconcile"}
                   </button>
+                  {hasOpening && (
+                    <button
+                      className="generate-report-button"
+                      style={{ marginLeft: "6px" }}
+                      disabled={resettingId === a.account_id}
+                      onClick={() => askResetOpening(a)}
+                      title={`Zero the opening balance (${fmtNum(a.opening_balance)}) so the ledger starts at this account's first transaction — shifts every balance, today's included`}
+                    >
+                      {resettingId === a.account_id ? "…" : "Reset opening"}
+                    </button>
+                  )}
                 </td>
               </tr>
             );
@@ -386,8 +482,12 @@ export default function ManualReconciliation() {
 
       <ConfirmModal
         state={confirm}
-        busy={reconcilingId != null}
-        onConfirm={() => doReconcile(confirm?.force || false)}
+        busy={reconcilingId != null || resettingId != null}
+        onConfirm={() =>
+          confirm?.action === "reset-opening"
+            ? doResetOpening(confirm?.force || false)
+            : doReconcile(confirm?.force || false)
+        }
         onCancel={() => setConfirm(null)}
       />
     </section>

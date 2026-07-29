@@ -212,6 +212,88 @@ async function mtm(client, accountId, m, monthEnd, dryRun, force = false) {
   return summary;
 }
 
+/**
+ * Zero an account's opening_balance ("Reset opening").
+ *
+ * `opening_balance` is a plug: every ledger balance is `opening_balance + Σ tx`,
+ * so an account whose real history starts at its first transaction should carry
+ * 0 there. Resetting shifts the WHOLE balance column — today's included — down by
+ * the old value. That is both the point (a pre-history plug stops inflating every
+ * date) and the risk (net worth moves, and the account then shows drift / an MTM
+ * gap against its entered balance).
+ *
+ * Deliberately does NOT compensate. Clearing the resulting gap is the existing
+ * Reconcile action's job, which posts a dated, visible Unrealized-G/L row rather
+ * than hiding the amount back in an account field.
+ *
+ * Blocked (unless forced) on Quicken-promoted accounts: there opening_balance is
+ * a computed anchor (CR019 §22 calibration, CR058 valuation anchors), not a plug,
+ * and zeroing it moves every anchored valuation date.
+ *
+ * @param {number} accountId balance-sheet account with NO active bank-feed mapping
+ * @param {object} [opts]
+ * @param {boolean} [opts.dryRun] compute only, write nothing.
+ * @param {boolean} [opts.force] override the Quicken-calibrated guard.
+ * @returns {Promise<object>} action summary
+ */
+async function resetOpeningBalance(accountId, { dryRun = false, force = false } = {}) {
+  const m = (await db.query(
+    `SELECT a.name, a.currency, a.section, a.opening_balance,
+            EXISTS (
+              SELECT 1 FROM account_source_mappings asm
+              WHERE asm.source = 'bank-feed' AND asm.account_id = a.id
+                AND asm.ignored IS NOT TRUE
+            ) AS is_fed,
+            EXISTS (
+              SELECT 1 FROM transactions t
+              WHERE t.account_id = a.id AND t.source LIKE 'quicken%'
+            ) AS quicken_calibrated
+     FROM accounts a WHERE a.id = $1`,
+    [accountId]
+  )).rows[0];
+  if (!m) throw new Error(`account ${accountId} not found`);
+  if (m.section !== 'balance_sheet') throw new Error(`account ${accountId} is not a balance-sheet account`);
+  if (m.is_fed) throw new Error(`account ${accountId} is on a bank feed — use Balance Calibration`);
+
+  const sumTx = Number((await db.query(
+    `SELECT COALESCE(SUM(amount), 0) AS s FROM transactions WHERE account_id = $1`,
+    [accountId]
+  )).rows[0].s);
+  const oldOpening = Number(m.opening_balance);
+
+  const summary = {
+    account_id: accountId, name: m.name, currency: m.currency,
+    old_opening: oldOpening, new_opening: 0, sum_tx: Math.round(sumTx * 100) / 100,
+    computed_before: Math.round((oldOpening + sumTx) * 100) / 100,
+    computed_after: Math.round(sumTx * 100) / 100,
+    shift: Math.round(-oldOpening * 100) / 100,
+    quicken_calibrated: m.quicken_calibrated === true,
+    blocked: false, applied: false,
+  };
+
+  if (Math.abs(oldOpening) < TOLERANCE) {
+    summary.note = 'opening_balance is already 0 — nothing to reset';
+    return summary;
+  }
+  if (summary.quicken_calibrated && !force) {
+    summary.blocked = true;
+    summary.note =
+      `"${m.name}" carries Quicken-promoted rows, so its opening_balance is a computed ` +
+      `anchor rather than a plug — zeroing it moves every anchored valuation date. ` +
+      `Pass force to override.`;
+    return summary;
+  }
+
+  if (!dryRun) {
+    // opening_balance_date is left alone for the same reason calibrate() leaves
+    // it alone (see the comment there) — moving it to the sentinel would pin a
+    // balance the app then does not show for pre-2000 rows.
+    await db.query(`UPDATE accounts SET opening_balance = 0 WHERE id = $1`, [accountId]);
+    summary.applied = true;
+  }
+  return summary;
+}
+
 async function calibrate(client, accountId, m, asOfDate, dryRun) {
   const entry = await latestEntered(client, accountId, asOfDate);
   if (!entry) throw new Error(`no manual balance for account ${accountId} on/before ${asOfDate}`);
@@ -243,4 +325,7 @@ async function calibrate(client, accountId, m, asOfDate, dryRun) {
   return summary;
 }
 
-module.exports = { reconcileManual, setManualBalance, UNREALIZED_GL_CATEGORY_ID, MTM_SOURCE };
+module.exports = {
+  reconcileManual, setManualBalance, resetOpeningBalance,
+  UNREALIZED_GL_CATEGORY_ID, MTM_SOURCE,
+};

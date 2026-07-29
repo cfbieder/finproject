@@ -69,6 +69,9 @@ async function manualBalanceReconcile({ asOf = null, tolerance = 0.01 } = {}) {
     SELECT
       e.account_id, e.name, e.account_type, e.currency,
       e.manual_reconcile_mode AS reconcile_mode,
+      -- the plug half of computed_balance, so the UI can offer "Reset opening"
+      -- only where there is something to reset.
+      ROUND(e.opening_balance, 2) AS opening_balance,
       c.computed_balance,
       ROUND(en.entered_balance, 2) AS entered_balance,
       en.entered_date::text AS entered_date,
@@ -89,6 +92,7 @@ async function manualBalanceReconcile({ asOf = null, tolerance = 0.01 } = {}) {
   const accounts = rows
     .map((r) => ({
       ...r,
+      opening_balance: r.opening_balance != null ? Number(r.opening_balance) : null,
       computed_balance: r.computed_balance != null ? Number(r.computed_balance) : null,
       entered_balance: r.entered_balance != null ? Number(r.entered_balance) : null,
       expected_balance: r.expected_balance != null ? Number(r.expected_balance) : null,

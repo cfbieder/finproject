@@ -8,7 +8,8 @@
  */
 
 const {
-  reconcileManual, setManualBalance, UNREALIZED_GL_CATEGORY_ID, MTM_SOURCE,
+  reconcileManual, setManualBalance, resetOpeningBalance,
+  UNREALIZED_GL_CATEGORY_ID, MTM_SOURCE,
 } = require('../reconcileManual');
 const { manualBalanceReconcile } = require('../../repositories/manualReconciliation');
 const db = require('../../db');
@@ -38,6 +39,7 @@ dbDescribe('reconcileManual (DB)', () => {
     if (acctId) {
       await db.query(`DELETE FROM transactions WHERE account_id = $1`, [acctId]);
       await db.query(`DELETE FROM manual_balances WHERE account_id = $1`, [acctId]);
+      await db.query(`DELETE FROM account_source_mappings WHERE account_id = $1`, [acctId]);
     }
     await db.query(`DELETE FROM accounts WHERE name = $1`, [ACCT]);
     await db.query(`DELETE FROM exchange_rates WHERE from_currency = 'XTS' AND source = 'test'`);
@@ -83,6 +85,81 @@ dbDescribe('reconcileManual (DB)', () => {
     const out = await reconcileManual(acctId, { asOf: MONTH_END, dryRun: false });
     expect(out.expected).toBeCloseTo(-600, 2); // entered as-is, no sign normalization
     expect(out.new_opening).toBeCloseTo(-500, 2); // -600 - (-100)
+  });
+
+  test('resetOpeningBalance: zeroes the plug and shifts every balance by the old value', async () => {
+    // Mirrors the real CVC Fund VIII shape: a plug dated before the first
+    // transaction, so the first row's running balance overstates by the plug.
+    await freshAccount({ type: 'asset', currency: 'EUR', opening: 28106.29, mode: 'mtm' });
+    await db.query(
+      `INSERT INTO transactions (transaction_date, amount, currency, account_id, source, accepted)
+       VALUES ('2026-04-03', 97342.11, 'EUR', $1, 'manual', TRUE)`, [acctId]);
+
+    const dry = await resetOpeningBalance(acctId, { dryRun: true });
+    expect(dry.applied).toBe(false);
+    expect(dry.old_opening).toBeCloseTo(28106.29, 2);
+    expect(dry.computed_before).toBeCloseTo(125448.40, 2);
+    expect(dry.computed_after).toBeCloseTo(97342.11, 2); // the number the ledger should show
+    expect(dry.shift).toBeCloseTo(-28106.29, 2);
+    // dryRun really wrote nothing
+    let a = (await db.query(`SELECT opening_balance FROM accounts WHERE id=$1`, [acctId])).rows[0];
+    expect(Number(a.opening_balance)).toBeCloseTo(28106.29, 2);
+
+    const out = await resetOpeningBalance(acctId, { dryRun: false });
+    expect(out.applied).toBe(true);
+    expect(out.new_opening).toBe(0);
+    a = (await db.query(`SELECT opening_balance FROM accounts WHERE id=$1`, [acctId])).rows[0];
+    expect(Number(a.opening_balance)).toBeCloseTo(0, 2);
+
+    // The gap is left for Reconcile to book — reset posts no transaction itself.
+    const n = (await db.query(
+      `SELECT COUNT(*)::int AS n FROM transactions WHERE account_id=$1`, [acctId])).rows[0];
+    expect(n.n).toBe(1);
+  });
+
+  test('resetOpeningBalance: no-ops when already 0, and never touches opening_balance_date', async () => {
+    await freshAccount({ type: 'asset', currency: 'USD', opening: 0, mode: 'calibrate' });
+    const before = (await db.query(
+      `SELECT opening_balance_date::text AS d FROM accounts WHERE id=$1`, [acctId])).rows[0].d;
+
+    const out = await resetOpeningBalance(acctId, { dryRun: false });
+    expect(out.applied).toBe(false);
+    expect(out.note).toMatch(/already 0/);
+
+    const after = (await db.query(
+      `SELECT opening_balance_date::text AS d FROM accounts WHERE id=$1`, [acctId])).rows[0].d;
+    expect(after).toBe(before);
+  });
+
+  test('resetOpeningBalance: blocks a Quicken-calibrated account until forced', async () => {
+    // There opening_balance is a computed anchor (CR019 §22 / CR058), not a plug.
+    await freshAccount({ type: 'asset', currency: 'USD', opening: 874489.75, mode: 'mtm' });
+    await db.query(
+      `INSERT INTO transactions (transaction_date, amount, currency, account_id, source, accepted)
+       VALUES ('2026-05-10', 100, 'USD', $1, 'quicken-import', TRUE)`, [acctId]);
+
+    const blocked = await resetOpeningBalance(acctId, { dryRun: false });
+    expect(blocked.blocked).toBe(true);
+    expect(blocked.quicken_calibrated).toBe(true);
+    expect(blocked.applied).toBe(false);
+    let a = (await db.query(`SELECT opening_balance FROM accounts WHERE id=$1`, [acctId])).rows[0];
+    expect(Number(a.opening_balance)).toBeCloseTo(874489.75, 2); // untouched
+
+    const forced = await resetOpeningBalance(acctId, { dryRun: false, force: true });
+    expect(forced.applied).toBe(true);
+    a = (await db.query(`SELECT opening_balance FROM accounts WHERE id=$1`, [acctId])).rows[0];
+    expect(Number(a.opening_balance)).toBeCloseTo(0, 2);
+  });
+
+  test('resetOpeningBalance: refuses a fed account (Balance Calibration owns those)', async () => {
+    await freshAccount({ type: 'asset', currency: 'USD', opening: 500, mode: 'calibrate' });
+    await db.query(
+      `INSERT INTO account_source_mappings (source, external_name, account_id)
+       VALUES ('bank-feed', $1, $2)`, [`test-reset-${acctId}`, acctId]);
+    await expect(resetOpeningBalance(acctId, { dryRun: false })).rejects.toThrow(/bank feed/);
+    const a = (await db.query(`SELECT opening_balance FROM accounts WHERE id=$1`, [acctId])).rows[0];
+    expect(Number(a.opening_balance)).toBeCloseTo(500, 2);
+    await db.query(`DELETE FROM account_source_mappings WHERE account_id = $1`, [acctId]);
   });
 
   test("mtm: posts entered−computed as a cat-88 'mtm' entry dated month-end", async () => {

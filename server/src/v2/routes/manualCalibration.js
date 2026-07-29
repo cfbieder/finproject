@@ -12,7 +12,7 @@ const express = require('express');
 const router = express.Router();
 
 const manualReconciliation = require('../repositories/manualReconciliation');
-const { reconcileManual, setManualBalance } = require('../services/reconcileManual');
+const { reconcileManual, setManualBalance, resetOpeningBalance } = require('../services/reconcileManual');
 const db = require('../db');
 const validate = require('../utils/validate');
 
@@ -115,6 +115,30 @@ router.post('/reconcile/:accountId', async (req, res, next) => {
     res.json(result);
   } catch (err) {
     console.error('[v2/manual-calibration] reconcile failed:', err.message);
+    res.status(400).json({ error: err.message });
+  }
+});
+
+/**
+ * POST /api/v2/manual-calibration/reset-opening/:accountId  body: { dryRun?, force? }
+ * Zero the account's opening_balance so its ledger starts at its first real
+ * transaction. Shifts every balance on the account (today's included) down by the
+ * old value — the resulting gap is cleared with the normal Reconcile action, which
+ * posts a dated row instead of hiding the amount in an account field.
+ */
+router.post('/reset-opening/:accountId', async (req, res, next) => {
+  try {
+    const accountId = Number(req.params.accountId);
+    if (!Number.isInteger(accountId)) return res.status(400).json({ error: 'invalid accountId' });
+    const { dryRun = false, force = false } = req.body || {};
+    const result = await resetOpeningBalance(accountId, {
+      dryRun: dryRun === true, force: force === true,
+    });
+    // Enveloped ({data}) — the CR043 N8 target shape; the caller reads it via
+    // Rest.unwrap(). The neighbouring bare handlers are pre-N8 and unconverted.
+    res.json({ data: result });
+  } catch (err) {
+    console.error('[v2/manual-calibration] reset-opening failed:', err.message);
     res.status(400).json({ error: err.message });
   }
 });

@@ -17,7 +17,9 @@ import {
   Copy,
   Scale,
   Landmark,
+  Wallet,
 } from "lucide-react";
+import { useNavigate } from "react-router-dom";
 import { LEDGER_CONFIG } from "../features/Transaction/transactionConfig.js";
 import { useTransactions } from "../features/Transaction/hooks/useTransactions.js";
 import { useTransactionSelection } from "../features/Transaction/hooks/useTransactionSelection.js";
@@ -112,6 +114,8 @@ export default function Ledger() {
     toYear: CURRENT_YEAR,
     budgetYear: CURRENT_YEAR,
   });
+
+  const navigate = useNavigate();
 
   // ─── Search ───
   const [searchText, setSearchText] = useState("");
@@ -739,6 +743,21 @@ export default function Ledger() {
           <Download size={14} />
           Export
         </button>
+
+        {/* Every balance in this table is `opening_balance + Σ tx`, so a wrong
+            opening balance is visible HERE and fixable only over there. Links
+            out rather than adding a second write path to the account row. */}
+        {hasAccount && (
+          <button
+            type="button"
+            className="btn btn--sm btn--outline"
+            onClick={() => navigate("/manual-calibration")}
+            title="Every balance in this column starts from the account's opening balance — adjust or reset it on Manual Calibration (bank-fed accounts calibrate on Balance Calibration instead)"
+          >
+            <Wallet size={14} />
+            Opening balance
+          </button>
+        )}
       </div>
 
       {/* ── Collapsible Filter Panel (1 + 2) ── */}
