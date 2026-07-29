@@ -1,4 +1,4 @@
-# CR060 — Feed connection health (read-only) — PLANNED (nothing built)
+# CR060 — Feed connection health (read-only) — IN-PROGRESS (bank-feed side built, not deployed)
 
 Surface what fintable already tells us about the *health* of each bank connection, so a dead feed is
 visible the day it dies instead of the week someone notices the numbers stopped moving.
@@ -34,6 +34,45 @@ PSD2 consents expire roughly every 90 days, so this is a recurring event, not an
 Minting reconnect links (`POST /connections/{id}/link`), forcing an upstream sync (`POST /sync`), and
 anything else needing a **write-scope token**. Those are a separate decision — see CR059 §10 on why a
 write-capable credential in an unattended service is not free.
+
+## Built 2026-07-29 (bank-feed `cc6a9bb`, not yet deployed)
+
+`src/services/upstreamHealth.js` + an additive `upstream` block on
+`/v1/health/feeds`, rendered on bank-feed's own `/admin/routing` page. 18 new tests, 164 green,
+contract doc bumped. **Not deployed** — activating it needs a `docker compose up -d --build` on the
+bank-feed stack, which is a separate, explicit step.
+
+Two properties, both tested rather than asserted:
+- **independent of `FINTABLE_SOURCE`** — it works while ingest is still the Sheet;
+- **it never throws.** This is the endpoint monitoring polls, so an upstream outage degrades to
+  `upstream:{ok:false,reason}` inside the payload rather than 500-ing the thing that is supposed to
+  report breakage.
+
+**Running it against the live API found what it was built to find, immediately:**
+
+| connection | state | |
+|---|---|---|
+| Revolut | `needs_reconnect` | still, after the 2026-07-28 re-link — `PROCESSING` |
+| Bank Pekao | `needs_reconnect` | `ERROR`, last synced 1d ago |
+| **Capital One** | `stale` | **beyond the 26h threshold, and nobody knew** |
+| Wise ×2 | ok, with a notice | *"Your bank is temporarily unavailable (provider outage)"* while `healthy: true` |
+
+Those two Wise rows are why `provider_notices` is reported **separately** from `needs_attention`: the
+provider is saying something real, but it is not actionable and fintable retries — folding it into the
+alarm would train the owner to ignore the alarm. Equally, the admin page states explicitly when
+everything is fine, because blank space is an ambiguous signal rather than a reassuring one.
+
+*Design note:* accounts-without-upstream matching is on **name+currency**, not id — the Sheet-era ids
+and the API ids are different namespaces until [CR059](cr-059-fintable-api-ingestion.md) P3a, and this
+had to work *before* that migration. A name collision under-reports (we think an account is fine) and
+never over-reports, which is the right direction for a signal that triggers manual work.
+
+## Still to do
+
+- **Deploy** (rebuild the bank-feed stack).
+- **fin side:** surface it on the reconcile page's per-feed row — the place a stale feed actually hurts.
+- Decide whether `needs_reconnect` should reach the owner rather than waiting to be looked at (a push
+  notification path already exists from CR006).
 
 ## Depends on
 
