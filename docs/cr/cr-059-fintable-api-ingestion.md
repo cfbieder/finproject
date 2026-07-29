@@ -442,7 +442,7 @@ Built, default OFF (`FINTABLE_SOURCE=sheets`), nothing in prod or fin touched:
 | `db/migrations/005_sync_state.sql` | the durable cursor (`sync_state`), kept out of `sync_jobs` so a failed run cannot advance it |
 | `src/config.js`, `scheduler.js`, `routes/sync.js` | `FINTABLE_SOURCE` + API settings; scheduler and `/v1/sync/probe` follow the selected upstream |
 
-**145 tests pass (102 pre-existing + 43 new), and the new ones were checked against a sabotaged
+**146 tests pass (102 pre-existing + 44 new), and the new ones were checked against a sabotaged
 source:** reverting the date basis and moving `raw.parsed` off its path turns 3 red; disabling the
 insert guard turns 1 red. A green test on an unreachable path is this project's most expensive
 recurring lesson.
@@ -562,9 +562,18 @@ Sheet now shows one row that day, ours shows five) and five OC Medycyny rows in 
 July rows, the Sheet 33). Across all accounts the Sheet holds **2,176 rows against the API's 2,406**,
 and on the GoCardless accounts it holds roughly half (Infinity CB: 116 vs 230). **The Sheet is a lossy
 rolling view that drops rows it once carried; Postgres is the archive, and the API agrees with the
-archive.** That is a stronger argument for this CR than anything in §1 — the current upstream is
-quietly shedding data, and the two accounts with a stale Sheet balance (OC Medycyny by 7,120.17 PLN,
-Black Card by 136.96) are that loss showing up as a wrong number.
+archive.** That is a strong argument for this CR — the current upstream is quietly shedding data.
+
+**But not the argument rev 2 made here, which pass-2 review M3 knocked down.** This section claimed the
+loss "shows up as a wrong number" on two accounts. It does not: `OCME Sp. z o.o.` (fin account 45) has
+**no bank-feed mapping** — it is on the manual path — so fin never reads that balance and the
+7,120.17 PLN is invisible to the owner. That left Black Card's 136.96, which **§11h attributes to
+snapshot staleness rather than a data fault** — this CR was giving two incompatible explanations for
+its own headline number. The value case rests on the arguments that survive, and they are the strong
+ones: the display-name join stops existing (the Black Card mechanism — 31 duplicates, net +$267,
+invisible to a balance check), silent upstream failures become visible (Pekao unhealthy since
+2026-07-24; a June re-consent dropped two mapped wallets and went unnoticed for seven weeks), a whole
+credential system leaves the path, and `source_synced_at` becomes true.
 
 **It failed on first run, correctly** — the two Revolut wallets (§11d) still appeared in the Sheet but
 no longer existed upstream. **After the 2026-07-28 re-link it PASSES**, with one recorded exception
@@ -700,5 +709,12 @@ touches the live feed store or fin, and aborts loudly rather than logging a gree
 container. What the days buy that two runs minutes apart cannot: a stalled high-water mark, an upstream
 edit that never moves `updated_at`, or a full sweep that never fires. Then **P3**, the crosswalk, whose
 shape P0/P1 have now fixed: accounts from the `{api_account_id}--{hash}` prefix (exact), transactions
-by `(account, amount, description)` within a few days (§13.2). No review pass has run on this CR yet;
-pass 1 (`cr-technical-reviewer`) belongs before P3 touches two databases.
+by `(account, amount, tag-normalized description)` within a few days (§13.2).
+
+**Both review passes have run, and both returned `revise`.** Pass 1 (technical) — 5 blocking, all
+restated in rev 3. Pass 2 (PM sign-off) — **revise**, 5 must-resolve: establish that the transaction
+crosswalk is needed at all and split P3 into accounts/transactions (M1), the bank-feed database has
+**no backup script**, so half the migration's stated rollback is unimplementable (M2), §14's value
+headline does not hold (M3, fixed above), the index/roadmap/footer disagree with reality (M4, fixed),
+and **cut P5 from this CR** (M5). Its build-order call: **P3a + P4 first** among the in-progress CRs,
+ahead of CR019's investment-side promote and CR023's tail.
