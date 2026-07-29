@@ -1,4 +1,4 @@
-# CR059 — Fintable API ingestion (retire the Google Sheets adapter) — DRAFT (rev 3 — P0/P1 built, P2 running, P3/P4 unbuilt)
+# CR059 — Fintable API ingestion (retire the Google Sheets adapter) — IN-PROGRESS (rev 4 — P0/P1 built, P2 running, P3a/P4 to build)
 
 Replace bank-feed's Google-Sheets-scraping upstream with **Fintable's own REST API (V2)**, which now
 serves the same accounts, balances and transactions as structured JSON — plus a stable per-transaction
@@ -299,7 +299,8 @@ both ways, compared per account. It can fail, which is why it is worth running:
 | **P0** | **Spike — needs a read-only PAT** (½ day) | `GET /me`, `/connections`, `/accounts`, `/transactions?limit=5&include=raw` per account; dump to JSON fixtures. Answers: (a) do account ids equal our stored UUIDs? (b) do tx ids equal our composite hashes? (c) does `include=raw` carry `balanceAfterTransaction` / `ext_nordigen_acc_id` / SnapTrade `trade_date`+`symbol`? (d) do all **31** accounts appear, including the 6 Fidelity/SnapTrade ones? (e) how far back does history go, and what does `institution_name`/`type` read per account? **P0 decides whether P3 exists.** |
 | **P1** | Adapter + converter + tests | Behind `FINTABLE_SOURCE` (default `sheets`). Unit tests on P0 fixtures. Nothing in prod changes. |
 | **P2** | Shadow run | A scratch bank-feed DB fed by the API in parallel with the live Sheet-fed one; run the §7 diff for ≥3 days. Nothing in fin changes. |
-| **P3** | Crosswalk migration — **confirmed needed** | Dry-run first. Accounts: the `{api_account_id}--{hash}` prefix, falling back to name+currency — **not balance**, which §11h shows trails by up to 302.32 on two accounts and would fail on Black Card specifically; abort on any candidate set ≠ 1, and abort on any disagreement between the two signals (they agree on every account today, so make that a precondition rather than a coincidence). Transactions: account + amount + **tag-normalized** description within ±3–5 days, with the tie-break stated and the run **aborting on any contested API id**. Rewrites **four** id sites including `transactions.bank_feed_external_id` (§4). Then apply to bank-feed and fin **in one window**, after `Scripts/deploy-to-production.sh`-grade backups of both. Rollback = restore. |
+| **P3a** | Account crosswalk — **31 rows, the only crosswalk being built** | Dry-run first. Accounts: the `{api_account_id}--{hash}` prefix, falling back to name+currency — **not balance**, which §11h shows trails by up to 302.32 on two accounts and would fail on Black Card specifically; abort on any candidate set ≠ 1, and abort on any disagreement between the two signals (they agree on every account today, so make that a precondition rather than a coincidence). Rewrites `feed_accounts.external_id`, `account_source_mappings.external_name` and `bankfeed_staging.feed_account_external_id`. Applied to bank-feed and fin **in one window**, after backups of both — fin via `Scripts/deploy-to-production.sh`, bank-feed via its **new** `scripts/backup-db.sh` (§17 M2). Rollback = restore, now rehearsed. |
+| **P3b** | Transaction crosswalk — **CUT** (§17 M1) | The cutover-date floor removes the need: rows before the floor are never fetched, so they cannot be re-staged under an API id and cannot collide. What was a 2,480-row, four-site, 58.6%-match rewrite over 1,392 promoted ledger rows becomes a boundary window of a few dozen rows in the last week, hand-checkable. |
 | **P4** | Cutover | **Apply bank-feed migration 005 to the live store first** — `sync_state` does not exist there, and the API path reads it on its first statement, so a bare flip fails at the first tick (migration-before-code, this repo's own rule). Set `FINTABLE_API_MIN_DATE` explicitly: it defaults to empty, which means **no floor**, so §5.5 rail 1 is opt-in. Fill the five NULL `promote_from_date` mappings. Then flip `FINTABLE_SOURCE=api`; keep the Sheet path callable for a week; watch `/v1/health/feeds` drift and fin's recon. Then remove the service account + keyfile + `googleapis` dependency, revoke the Sheet share, retire `FINTABLE_SHEETS_ID`, update [`secrets-inventory.md`](../current/secrets-inventory.md). |
 | **P5** | *(separate CR)* Holdings | `GET /accounts/{id}/holdings` → the securities tables that are **0 rows** today. This is what makes [CR056](cr-056-investment-returns.md) a real returns report and gives [CR058](cr-058-quicken-valuation-anchors.md) a forward-looking counterpart. Deliberately not bundled here. |
 
@@ -697,6 +698,59 @@ crosswalk by name+currency — the fallback path, with one PLN and one EUR walle
 unambiguous. And **Revolut-PLN and Revolut-USD are two of the five `promote_from_date = NULL`
 mappings** (§5.5) that must be filled before cutover regardless.
 
+## 17. Pass-2 sign-off (`cr-signoff-pm`) — **revise**, and one finding removed the riskiest phase
+
+**M1 — the transaction crosswalk was never necessary, and this CR did not notice.** It carried *both*
+a date floor (§5.5) *and* a full-history crosswalk (§8), without ever asking what the second buys once
+the first exists. The answer: almost nothing — because the floor was specified as "the earliest date we
+already hold", which is exactly the setting that *forces* the crosswalk. **Owner decision 2026-07-29:
+set the floor at cutover − ~7 days and cut P3b.** Rows before the floor are never fetched, never
+staged under an API id, and cannot collide; the boundary window is a few dozen recent rows. The
+riskiest data migration this project has attempted is deleted rather than mitigated.
+
+*What that forfeits, stated rather than left as a side effect (pass-2 R6):* upstream **corrections** to
+pre-floor rows will never reach us, and the **222 rows of pre-Sheet history** the API holds (§14) stay
+unfetched. Both are small; both are revisitable later with cutoffs set. **P3a — the 31 account
+mappings — is unavoidable and unchanged**: `account_source_mappings.external_name` holds Sheet UUIDs,
+and orphaning them takes every fed account's `feed_sign`, `feed_negate_tx` and `promote_from_date` with
+it.
+
+**M2 — the bank-feed database had no backup at all. Fixed and rehearsed.** "Rollback = restore" was
+unimplementable for half the migration: `deploy-to-production.sh` and `backup-to-remote.sh` both dump
+only `fin-postgres`, and `bank-feed/scripts/` had no backup script. Added `scripts/backup-db.sh`
+(gzip-integrity + table-count checked, because a dump that cannot be read back is not a backup), and
+**rehearsed the restore into a throwaway container: exit 0, zero errors, all four counts identical to
+live** — 31 accounts, 2,480 transactions, 17 connections, 1,499 jobs.
+
+**M3, M4 — applied in rev 3/4** (the value headline that rested on an unmapped account; the index,
+roadmap and footer that disagreed with reality).
+
+**M5 — P5 is cut from this CR.** Two reasons from the CR's own text: the reconnect link needs a
+**write-capable token**, which §10 rejected for MCP on exactly that ground, and surfacing connection
+health on fin's pages changes the `/v1` surface against non-goal #1. **But the read-only half moves
+forward now, outside this CR** (pass-2 R3): `GET /connections` already returns `healthy` /
+`needs_reconnect` / `status_text` with the read-scope token in hand and works regardless of
+`FINTABLE_SOURCE`. Pekao has been unreported for five days. Tracked as [CR060](cr-060-feed-connection-health.md);
+holdings + prices as [CR061](cr-061-holdings-and-prices.md).
+
+**R1 — the never-fired full sweep is now exercised**, by forcing a tick rather than waiting for
+2026-08-04: **2,422 rows in 5 pages, 0 inserted / 2,422 updated** — idempotent — with the upstream
+report correctly naming both unhealthy connections. A code path that has never received data is this
+project's most expensive recurring lesson; it has now received data.
+
+**R2 — the insert guard is re-sized on measurement, 500 → 300.** 2,406 rows over ~89 days is ~27/day,
+so a cutover floor's first read is ~190 rows and a daily delta is a few dozen; 300 is ~11 days of
+traffic. The old 500 sat within 15% of a 438-row batch already seen in the wild — those were updates,
+which do not count toward the guard, but the margin was too thin to defend.
+
+**R5 — still open, and worth doing properly.** Three of the five `promote_from_date = NULL` mappings
+are unmapped rows where a cutoff is meaningless; only Revolut-PLN and Revolut-USD are real. The durable
+fix is not filling five rows but changing the **default** — mapping an account later still means
+"promote everything", which is the Black Card mechanism intact. Roadmap item.
+
+**Build order from pass 2:** **P3a + P4 first** among the in-progress CRs, ahead of CR019's
+investment-side promote and CR023's tail — both want a quiet feed surface and neither is moving.
+
 ## Status
 
 P0 done (§11), P1 built and shadow-verified (§13), both §12 decisions settled, default still
@@ -711,10 +765,7 @@ edit that never moves `updated_at`, or a full sweep that never fires. Then **P3*
 shape P0/P1 have now fixed: accounts from the `{api_account_id}--{hash}` prefix (exact), transactions
 by `(account, amount, tag-normalized description)` within a few days (§13.2).
 
-**Both review passes have run, and both returned `revise`.** Pass 1 (technical) — 5 blocking, all
-restated in rev 3. Pass 2 (PM sign-off) — **revise**, 5 must-resolve: establish that the transaction
-crosswalk is needed at all and split P3 into accounts/transactions (M1), the bank-feed database has
-**no backup script**, so half the migration's stated rollback is unimplementable (M2), §14's value
-headline does not hold (M3, fixed above), the index/roadmap/footer disagree with reality (M4, fixed),
-and **cut P5 from this CR** (M5). Its build-order call: **P3a + P4 first** among the in-progress CRs,
-ahead of CR019's investment-side promote and CR023's tail.
+**Both review passes returned `revise`; everything they raised is now applied or tracked — see §17.**
+The headline: pass 2 established that the **transaction crosswalk was never necessary**, and it is cut.
+What remains to build is **P3a** (31 account mappings, exact key) and **P4** (cutover). Migration 043
+in fin is correspondingly smaller — three id sites on 31 rows, not four sites on 2,480.
