@@ -49,6 +49,7 @@ import "./TransactionExplorer.css";
 import EmptyState from "../components/EmptyState.jsx";
 import "./Ledger.css";
 import { parseDisplayDate } from "../utils/dateHelpers.js";
+import { evaluateAmountFormula, isFormula } from "../utils/amountFormula.js";
 
 // ─── Editable config for ledger (date + amount/currency + description + category) ───
 // USD Amount (base_amount) is a read-only derived display; it only recomputes when
@@ -597,15 +598,27 @@ export default function Ledger() {
     setAddForm((prev) => ({ ...prev, [field]: value }));
   }, []);
 
+  // Live result of a typed calculation. Only shown once the field holds more
+  // than a plain number, so ordinary amounts get no extra chrome — but when it
+  // IS arithmetic the figure is confirmed before it is committed. A money value
+  // should never be a surprise, and the rounding shown here is the rounding stored.
+  const addAmountPreview = useMemo(
+    () => (isFormula(addForm.amount) ? evaluateAmountFormula(addForm.amount) : null),
+    [addForm.amount]
+  );
+
   const handleAddSubmit = useCallback(async (e) => {
     e.preventDefault();
     if (!selectedAccount) return;
 
-    const amount = parseFloat(addForm.amount);
-    if (!Number.isFinite(amount)) {
-      setAddError("Please enter a valid amount.");
+    // The amount may be typed as arithmetic ("11,000-9,600"); a plain number is
+    // just the trivial case of the same parse. Evaluated, never eval'd.
+    const parsedAmount = evaluateAmountFormula(addForm.amount);
+    if (!parsedAmount.ok) {
+      setAddError(parsedAmount.error);
       return;
     }
+    const amount = parsedAmount.value;
     if (!addForm.transaction_date) {
       setAddError("Please enter a date.");
       return;
@@ -1135,9 +1148,23 @@ export default function Ledger() {
                     value={addForm.amount}
                     onChange={(e) => handleAddFieldChange("amount", e.target.value)}
                     disabled={isAdding}
-                    placeholder="0.00 (negative for debits)"
+                    placeholder="0.00 (negative for debits) — or a sum: 11,000-9,600"
                     required
                   />
+                  {addAmountPreview && (
+                    <p
+                      className={`ledger-amount-preview${
+                        addAmountPreview.ok ? "" : " ledger-amount-preview--error"
+                      }`}
+                    >
+                      {addAmountPreview.ok
+                        ? `= ${addAmountPreview.value.toLocaleString(undefined, {
+                            minimumFractionDigits: 2,
+                            maximumFractionDigits: 2,
+                          })}${addForm.currency ? ` ${addForm.currency}` : ""}`
+                        : addAmountPreview.error}
+                    </p>
+                  )}
                 </div>
 
                 <div className="txv2-field">

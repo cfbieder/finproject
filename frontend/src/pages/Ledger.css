@@ -196,3 +196,17 @@
     gap: 0.25rem;
   }
 }
+
+/* Live result of a calculation typed into the Add-Transaction amount field
+   (see utils/amountFormula.js). Shown only when the field holds arithmetic, so
+   an ordinary amount gets no extra chrome. Tabular figures so the preview lines
+   up with the money it is previewing. */
+.ledger-amount-preview {
+  margin: 0.35rem 0 0;
+  font-size: 0.8rem;
+  font-variant-numeric: tabular-nums;
+  color: var(--muted);
+}
+.ledger-amount-preview--error {
+  color: var(--danger);
+}
