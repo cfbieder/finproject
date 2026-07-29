@@ -756,6 +756,49 @@ Verified after: all 26 targets tie, `quicken-verify` 7 pass / 2 warnings / 0 fai
 at 1,157,037.74 on both stacks, 523 backend tests green. Backup
 `Backups/fin_backup_pre_signfix2_20260729_015229.dump`.
 
+#### 9.2.1 The fix shipped half-applied — `base_amount`
+
+Reported by a parallel thread and confirmed on both stacks: `fix-ps-transfer-signs.js` ran
+`UPDATE transactions SET amount = …` and **never touched `base_amount`**. Every row it had ever
+corrected — all nine, both waves — kept the **old sign in `base_amount`**: 1,504,114.38 of divergence
+on Fidelity Stocks, 70,000.00 on Fidelity Cash Mgt.
+
+**It hid for exactly the reason the original defects did — the checks that existed read the column
+that was right.** Everything this CR verifies against (`opening_balance` re-plug, the anchor tie-out,
+`quicken-verify`, Balance Trends) reads `amount`. `base_amount` is the **USD** read path:
+`refreshFromActuals` seeding forecast `base_value_usd` (account 27 maps to four forecast modules and
+is a cash-sweep source, so a scenario copy would have seeded it ~1.5M rich — the CR045 §1 / CR049
+shape), Cash Flow USD mode, budget summaries, and category totals. All nine rows sit on `is_transfer`
+categories, so transfer category totals were affected too.
+
+`/investment-returns` is what exposed it, and the reason is worth keeping: on an **all-USD** selection
+its FX plug must be **exactly zero by construction**. It was reporting **−1,435,914** for 2020. A
+quantity that is provably zero makes a far better detector than one that merely looks plausible.
+
+Fixed the same day:
+
+- The UPDATE now sets `base_amount = -base_amount`. **Negated, not copied from `amount`** — negating
+  preserves whatever FX rate the row was booked at, so it stays correct for a non-USD row; copying
+  `amount` would silently rewrite the rate to 1.0. For these USD rows the two are identical, which is
+  precisely why the omission was invisible.
+- A **repair pass** heals rows an earlier version half-corrected (matching on the *corrected* amount
+  plus a diverging `base_amount`), so the script is self-healing and still idempotent.
+- `currency='USD' ⇒ base_amount = amount` is asserted **inside the write transaction**, so a run that
+  would leave a half-corrected row rolls back rather than commits, and again in
+  `usdBaseAmountInvariant.test.js`. The test injects a deliberately-broken row and asserts on **that
+  row's id** — never on a count or on "it resolves", which would pass or fail with ambient data.
+
+Zero violations on dev and prod afterwards; **527 backend tests / 40 suites green**; the anchors
+re-checked clean (they read `amount`, so they were never wrong). Backup
+`Backups/fin_backup_pre_baseamt_20260729_162752.dump`.
+
+*Also checked and benign:* 54 non-USD rows where `base_amount = amount` — 49 are zero-amount, and the
+remaining 5 are WISE - EUR rows totalling €0.40 where the conversion rounds to the same figure.
+
+**The lesson generalises past this CR:** a defect survives exactly as long as every check reads the
+column it did not corrupt. Writing a value in two places obliges you to assert the relationship
+between them.
+
 ### 9.1 The original plan
 
 **~~Hard gate~~ — CLEARED.** Revs 1–4 warned that prod ran the pre-`d4bf7da` parser and that the two

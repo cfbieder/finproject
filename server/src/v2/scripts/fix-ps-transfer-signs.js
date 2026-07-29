@@ -182,6 +182,48 @@ const CORRECTIONS = [
 const fmt = (n) =>
   Number(n).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 
+/**
+ * Invariant: a USD row's `base_amount` IS its `amount` — the base currency is
+ * USD, so the conversion is the identity. It is provable rather than merely
+ * expected, which makes it worth asserting rather than reviewing.
+ *
+ * It was unguarded until 2026-07-29, and that is precisely how a half-applied
+ * UPDATE reached prod: this script corrected `amount` and left `base_amount`
+ * carrying the old sign on all nine rows it had ever touched. Nothing caught
+ * it, because the Balance Sheet and Balance Trends read `amount` and were
+ * therefore right, while every USD read path — forecast `refreshFromActuals`
+ * seeding `base_value_usd`, Cash Flow USD mode, budget summaries, category
+ * totals — read the money backwards. `/investment-returns` finally exposed it:
+ * on an all-USD selection its FX plug must be exactly zero by construction,
+ * and it was reporting -1,435,914 for 2020.
+ *
+ * Zero-amount rows are excluded: 0 = 0 holds trivially and says nothing.
+ */
+async function assertUsdInvariant(client) {
+  const { rows } = await client.query(
+    `SELECT t.id, t.transaction_date, a.name, t.amount, t.base_amount
+       FROM transactions t JOIN accounts a ON a.id = t.account_id
+      WHERE t.currency = 'USD' AND t.amount <> 0
+        AND t.base_amount IS DISTINCT FROM t.amount
+      ORDER BY a.name, t.transaction_date`
+  );
+  if (rows.length > 0) {
+    const detail = rows
+      .slice(0, 12)
+      .map((r) => `#${r.id} ${r.name} ${r.transaction_date.toISOString().slice(0, 10)} amount=${fmt(r.amount)} base=${fmt(r.base_amount)}`)
+      .join('\n    ');
+    const err = new Error(
+      `USD invariant violated on ${rows.length} row(s) — base_amount must equal amount when currency='USD':\n    ${detail}` +
+        (rows.length > 12 ? `\n    … and ${rows.length - 12} more` : '')
+    );
+    // The full id list, so callers can reason about WHICH rows without parsing
+    // a message that deliberately truncates its display.
+    err.violatingIds = rows.map((r) => Number(r.id));
+    throw err;
+  }
+  console.log(`  ✓ USD invariant holds: no row has base_amount <> amount`);
+}
+
 async function computedBalance(client, accountId) {
   const { rows } = await client.query(
     `SELECT (a.opening_balance + COALESCE((SELECT SUM(t.amount) FROM transactions t
@@ -243,7 +285,7 @@ async function main() {
       const accountId = acct[0].id;
 
       const { rows } = await client.query(
-        `SELECT id, amount, description1 FROM transactions
+        `SELECT id, amount, base_amount, currency, description1 FROM transactions
           WHERE account_id = $1 AND transaction_date = $2
             AND amount = $3 AND description1 ILIKE $4 AND source = 'pocketsmith'`,
         [accountId, c.date, c.wrongAmount, c.descrLike]
@@ -251,10 +293,28 @@ async function main() {
       if (rows.length > 1) {
         throw new Error(`ambiguous match for ${c.account} ${c.date} ${c.wrongAmount}: ${rows.length} rows`);
       }
-      planned.push({ ...c, accountId, row: rows[0] || null });
+
+      // A row already sign-corrected by an earlier run of this script, back when
+      // it updated `amount` alone. `base_amount` still carries the OLD sign, so
+      // the row is HALF-fixed: the balance-sheet path (`amount`) reads right
+      // while every USD path (`base_amount`) reads the money backwards. See the
+      // repair pass below.
+      const { rows: half } = await client.query(
+        `SELECT id, amount, base_amount, currency, description1 FROM transactions
+          WHERE account_id = $1 AND transaction_date = $2
+            AND amount = $3 AND description1 ILIKE $4 AND source = 'pocketsmith'
+            AND base_amount IS DISTINCT FROM amount`,
+        [accountId, c.date, -c.wrongAmount, c.descrLike]
+      );
+      if (half.length > 1) {
+        throw new Error(`ambiguous half-fixed match for ${c.account} ${c.date}: ${half.length} rows`);
+      }
+
+      planned.push({ ...c, accountId, row: rows[0] || null, halfFixed: half[0] || null });
     }
 
     const toFix = planned.filter((p) => p.row);
+    const toRepair = planned.filter((p) => !p.row && p.halfFixed);
     const accountIds = [...new Set(planned.map((p) => p.accountId))];
 
     console.log(`fix-ps-transfer-signs — ${apply ? 'APPLY' : 'DRY RUN'}\n`);
@@ -262,13 +322,19 @@ async function main() {
       if (p.row) {
         console.log(`  FIX  ${p.account} ${p.date}  ${fmt(p.row.amount)} → ${fmt(-p.wrongAmount)}`);
         console.log(`       ${p.why}`);
+      } else if (p.halfFixed) {
+        console.log(
+          `  REPAIR ${p.account} ${p.date}  amount ${fmt(p.halfFixed.amount)} is correct, ` +
+            `but base_amount is ${fmt(p.halfFixed.base_amount)} → ${fmt(-Number(p.halfFixed.base_amount))}`
+        );
       } else {
         console.log(`  skip ${p.account} ${p.date}  ${fmt(p.wrongAmount)} — already corrected or absent`);
       }
     }
 
-    if (toFix.length === 0) {
+    if (toFix.length === 0 && toRepair.length === 0) {
       console.log('\nNothing to do — already idempotent-clean.');
+      await assertUsdInvariant(client);
       await client.query('ROLLBACK');
       return;
     }
@@ -282,13 +348,29 @@ async function main() {
 
     // Flip signs, and re-plug opening_balance by the same total so TODAY's
     // computed balance is unchanged (it is already correct — the feed owns it).
+    //
+    // `base_amount` is NEGATED, not recomputed and not copied from `amount`.
+    // Negating preserves whatever FX rate the row was booked at, so this stays
+    // correct for a non-USD row; copying `amount` would silently rewrite the
+    // rate to 1.0. For the USD rows here the two are the same number, which is
+    // exactly why the original omission was invisible.
     let totalDelta = 0;
     for (const p of toFix) {
-      await client.query(`UPDATE transactions SET amount = $2 WHERE id = $1`, [
-        p.row.id,
-        -p.wrongAmount,
-      ]);
+      await client.query(
+        `UPDATE transactions SET amount = $2, base_amount = -base_amount WHERE id = $1`,
+        [p.row.id, -p.wrongAmount]
+      );
       totalDelta += -p.wrongAmount - Number(p.row.amount); // negative
+    }
+
+    // Repair pass: rows an earlier version of this script sign-corrected on
+    // `amount` alone. `amount` is already right, so ONLY `base_amount` moves —
+    // no ledger delta, no opening_balance re-plug, no balance-sheet change.
+    for (const p of toRepair) {
+      await client.query(
+        `UPDATE transactions SET base_amount = -base_amount WHERE id = $1`,
+        [p.halfFixed.id]
+      );
     }
     for (const id of accountIds) {
       const delta = toFix
@@ -308,6 +390,10 @@ async function main() {
         mismatches.push(`acct=${id} before=${fmt(before[id])} after=${fmt(after)}`);
       }
     }
+    // Re-assert the USD invariant INSIDE the transaction, so a run that would
+    // leave a half-corrected row rolls back instead of committing one.
+    await assertUsdInvariant(client);
+
     if (mismatches.length > 0) {
       throw new Error(`today's balance moved on ${mismatches.length} account(s): ${mismatches.join('; ')}`);
     }
@@ -346,4 +432,9 @@ async function main() {
   }
 }
 
-main();
+// Exported so the invariant can be asserted by the test suite as well as by
+// this script — the point of a provable invariant is that it is checked
+// somewhere that fails loudly, not only in the tool that could break it.
+module.exports = { assertUsdInvariant, CORRECTIONS };
+
+if (require.main === module) main();
