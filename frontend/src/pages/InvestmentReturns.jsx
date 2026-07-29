@@ -488,6 +488,13 @@ function ReturnsTable({ report, meta, shown, unit, fmt, fmtPct }) {
   const toggle = (group) =>
     setExpanded((prev) => ({ ...prev, [group]: !prev[group] }));
   const showFx = rows.fxEffect.some((v) => Math.abs(Number(v) || 0) >= 0.005);
+  // The plug can only be FX if there IS a foreign currency in the selection.
+  // On an all-USD selection a non-zero plug is a ledger defect — most often
+  // `amount` and `base_amount` disagreeing on a USD row, which is impossible by
+  // definition and means something wrote one column without the other. Calling
+  // that "FX" sends the reader hunting for a currency movement that never
+  // happened.
+  const plugCanBeFx = (meta?.currencies ?? []).some((c) => c !== "USD");
   const showUnattributed = rows.unattributed.some(
     (v) => Math.abs(Number(v) || 0) >= 0.005
   );
@@ -538,7 +545,16 @@ function ReturnsTable({ report, meta, shown, unit, fmt, fmtPct }) {
       signed: true,
     },
     ...(showFx
-      ? [{ key: "fxEffect", label: "FX effect & rate drift", values: rows.fxEffect, total: total?.fxEffect, signed: true }]
+      ? [{
+          key: "fxEffect",
+          label: plugCanBeFx
+            ? "FX effect & rate drift"
+            : "Unreconciled — USD amounts disagree",
+          values: rows.fxEffect,
+          total: total?.fxEffect,
+          signed: plugCanBeFx,
+          flag: !plugCanBeFx,
+        }]
       : []),
     ...(showUnattributed
       ? [{ key: "unattributed", label: "Unattributed", values: rows.unattributed, total: total?.unattributed, flag: true }]
