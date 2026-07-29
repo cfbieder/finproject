@@ -588,9 +588,24 @@ async function insertInvestmentCashRows(client, batchId, mappings, cutoffs) {
       continue;
     }
 
-    // Income is a cash inflow → positive on the asset account regardless of how
-    // the QIF signed gross_amount.
-    const gross = row.gross_amount == null ? 0 : Math.abs(parseFloat(row.gross_amount));
+    // Income is normally a cash inflow, but Quicken books a REVERSAL as a
+    // negative income row — a dividend credited then backed out, or a
+    // "CORP INT ADJUSTMENT" clawing back interest. The sign must be preserved.
+    //
+    // This read `Math.abs(...)` until 2026-07-29, with a comment asserting
+    // income is positive "regardless of how the QIF signed gross_amount". That
+    // is right for the 6,003 ordinary rows in the Fidelity batch and wrong for
+    // the 3 negatives, of which 2 are income: a -39.73 Div reversal (2015-12-29)
+    // and a -125.69 IntInc adjustment (2008-11-24). Both promoted as CREDITS,
+    // overstating income by 330.84 and turning each reversal into what
+    // `quicken-verify` then reported as a benign "duplicate" — a booking and
+    // its own reversal, collapsed to the same sign.
+    //
+    // Balances did not diverge, because CR058's anchors tie each year-end to
+    // Quicken's report and silently absorbed it; only /investment-returns saw
+    // the error. A trade's sign is NOT at stake here — every trade action is in
+    // NEUTRAL_INVST_ACTIONS and returns above.
+    const gross = row.gross_amount == null ? 0 : parseFloat(row.gross_amount);
     if (!gross) {
       investmentZeroSkipped += 1;
       continue;

@@ -799,6 +799,54 @@ remaining 5 are WISE - EUR rows totalling €0.40 where the conversion rounds to
 column it did not corrupt. Writing a value in two places obliges you to assert the relationship
 between them.
 
+#### 9.2.2 `Math.abs()` turned every reversal into a second credit
+
+Found by pulling on this CR's own **`within-import-dupes` warning** instead of accepting it. The
+warning read *"7 group(s), 8 extra row(s) — verify these are genuine repeated entries"*, and two of
+those groups were not duplicates at all. Reading the source QIF for 2015-12-29:
+
+```
++39.73  DIVIDEND RECEIVED
+-39.73  DIVIDEND RECEIVED      ← the reversal
++39.73  SHORT-TERM CAP GAIN
+```
+
+Quicken credited a dividend, backed it out, and re-booked it as a capital gain. Net **+39.73**. The
+ledger held **three** rows of +39.73, because
+[`insertInvestmentCashRows`](../../server/src/v2/scripts/quicken-promote.js) ran
+
+```js
+// Income is a cash inflow → positive on the asset account regardless of how
+// the QIF signed gross_amount.
+const gross = row.gross_amount == null ? 0 : Math.abs(parseFloat(row.gross_amount));
+```
+
+The comment is right for the 6,003 ordinary rows in the batch and wrong for the 3 negatives. Two are
+income — a `Div` reversal and a `-125.69 IntInc` whose memo says **"CORP INT ADJUSTMENT"** in so many
+words — and both promoted as credits, overstating income by **330.84**. The third is a `Sell`, which
+is in `NEUTRAL_INVST_ACTIONS` and never reaches this line, so no trade sign was ever at stake.
+
+**Why nothing caught it, and why that is the same story as §9.2.1.** The anchors tie each year-end to
+Quicken's report, so an intra-year overstatement is silently absorbed and every year-end still ties to
+the cent. `quicken-verify` did emit a signal — it just classified a booking-and-its-reversal as a
+"duplicate", which reads as benign. Only `/investment-returns` income was actually wrong.
+
+Fixed by preserving the sign, plus a regression test that asserts the **pair nets to zero** — asserting
+only that a row exists, or only its magnitude, passes perfectly well against `Math.abs()`. Falsified
+against the old code before being trusted: `Expected: -39.73, Received: 39.73`, off by exactly the
+79.46 the defect produces.
+
+The data was repaired by **rollback → re-promote → re-anchor** rather than by patching two rows: the
+three +39.73 ledger rows are indistinguishable without tracing memos back to staging, and re-deriving
+from staging through corrected code is the operation this CR already provides. Applied to dev and
+prod. Income 281,008.44 → **280,677.60** on both, today unchanged at 1,157,037.74, all 26 targets
+still tie, and `within-import-dupes` fell from **7 groups / 8 rows to 6 / 6** — the two reversal pairs
+resolving into what they always were. 528 backend tests green. Backup
+`Backups/fin_backup_pre_reversalfix_20260729_233402.dump`.
+
+*Worth keeping: a warning that says "verify these are genuine" is an instruction, not a disposition.
+Two of seven were not.*
+
 ### 9.1 The original plan
 
 **~~Hard gate~~ — CLEARED.** Revs 1–4 warned that prod ran the pre-`d4bf7da` parser and that the two

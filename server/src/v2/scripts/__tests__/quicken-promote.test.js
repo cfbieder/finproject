@@ -498,6 +498,60 @@ dbDescribe('runPromote + runRollback (cash-only, DB-backed)', () => {
     );
   });
 
+  test('a NEGATIVE income row keeps its sign — a reversal is not a second credit', async () => {
+    // Quicken books a reversal as negative income: a dividend credited then
+    // backed out, or a "CORP INT ADJUSTMENT" clawing interest back. Promote
+    // used to run gross_amount through Math.abs(), so both legs of a
+    // booking-plus-reversal landed as CREDITS — the pair then looked like a
+    // duplicate rather than a net zero, and income was overstated by twice the
+    // reversal. Real instances on Fidelity Stocks: -39.73 Div (2015-12-29) and
+    // -125.69 IntInc (2008-11-24), 330.84 overstated between them.
+    //
+    // The booking and its reversal must NET TO ZERO. Asserting the pair sums to
+    // zero is what makes this fail against the old code: asserting only that a
+    // row exists, or only its magnitude, passed perfectly well with Math.abs().
+    await pool.query(
+      `INSERT INTO quicken_securities_staging
+         (import_batch_id, source_file, quicken_account_name, transaction_date,
+          quicken_action, quicken_security_name, gross_amount, memo)
+       VALUES
+         ($1, 'synthetic.QIF', 'cash_isolated', '2018-05-01', 'Div', 'ACME', 39.73, 'DIVIDEND RECEIVED'),
+         ($1, 'synthetic.QIF', 'cash_isolated', '2018-05-01', 'Div', 'ACME', -39.73, 'DIVIDEND RECEIVED'),
+         ($1, 'synthetic.QIF', 'cash_isolated', '2018-06-01', 'IntInc', 'ACME', -125.69, 'CORP INT ADJUSTMENT')`,
+      [batchId]
+    );
+
+    const result = await runPromote({ batchId, pool });
+    expect(result.investmentIncomeInserted).toBe(3);
+
+    const { rows } = await pool.query(
+      `SELECT amount, base_amount FROM transactions
+        WHERE import_batch_id = $1 AND description2 = 'Quicken Div'
+        ORDER BY amount`,
+      [batchId]
+    );
+    expect(rows).toHaveLength(2);
+    expect(Number(rows[0].amount)).toBeCloseTo(-39.73, 2);
+    expect(Number(rows[1].amount)).toBeCloseTo(39.73, 2);
+    // The pair nets to zero — the whole point of a reversal.
+    expect(Number(rows[0].amount) + Number(rows[1].amount)).toBeCloseTo(0, 2);
+    // base_amount must carry the sign too (USD ⇒ identical), the omission that
+    // shipped half-applied in fix-ps-transfer-signs.
+    expect(Number(rows[0].base_amount)).toBeCloseTo(-39.73, 2);
+
+    const int = (await pool.query(
+      `SELECT amount FROM transactions
+        WHERE import_batch_id = $1 AND description2 = 'Quicken IntInc'`,
+      [batchId]
+    )).rows[0];
+    expect(Number(int.amount)).toBeCloseTo(-125.69, 2);
+
+    await pool.query(
+      `DELETE FROM quicken_securities_staging WHERE import_batch_id = $1`,
+      [batchId]
+    );
+  });
+
   // ────────────────────────────────────────────────────────────────────────
   // Rollback tests
   // ────────────────────────────────────────────────────────────────────────
