@@ -1,4 +1,4 @@
-# CR058 — Quicken-era valuation anchors (brokerage history) — PLANNED (rev 5 — nothing built)
+# CR058 — Quicken-era valuation anchors (brokerage history) — SHIPPED (rev 5 built; dev + prod 2026-07-29)
 
 Give the pre-feed history of a **brokerage** account a correct balance curve, by anchoring each
 year-end to Quicken's own Net Worth Report instead of letting it drift on cash flows that never see
@@ -26,6 +26,9 @@ Migration **042** — 041 is CR057's.
 **Owner decisions:** anchors run **through 2022-12-28** · scope is **Fidelity Stocks (27) only** ·
 the sentinel gets a **root fix plus a guard** · targets live in a **pinned CSV** · the 2020 anchor is
 resolved by **correcting a PocketSmith double-count** (§1.3), not by absorbing it.
+
+**Built:** `114f690` (migration 042) · `3fd09bc` + `a1c280e` (preserve-today) · `52445f8` (anchor
+writer + pinned CSV) · `247b307` (quicken-verify). See [§9 Rollout](#9-rollout--as-executed).
 
 ---
 
@@ -648,7 +651,55 @@ assertion could not fail, and so did rev 1 of this CR.
 
 ---
 
-## 9. Rollout
+## 9. Rollout — as executed
+
+**Done. Dev 2026-07-28, prod 2026-07-29.** Both ledgers carry the identical series; §3.1's table
+reproduced on prod to the cent.
+
+Step 4 was executed with one deliberate substitution: prod was loaded by
+**`copy-quicken-to-prod.js`** rather than a fresh QIF upload, per CR019 §23 G2. The parse and the 152
+name mappings were already done on dev, and re-uploading would have meant re-mapping by hand with no
+gain — the script copies staging + mappings, translating account ids by name, and resets the batch to
+`mapped` so promote runs natively on the target. `calibration_mode='preserve-today'` copied verbatim
+with the batch, which is exactly why §4 put it on the batch row rather than in a CLI flag.
+
+Checked before applying: dev's 654 Fidelity staging ids (14682–15335) sit entirely above prod's
+max (11939), so the script's `ON CONFLICT (id) DO NOTHING` could not silently skip a row. **A copy
+into a target whose staging ids overlap would partially no-op without saying so** — check the ranges
+before trusting the inserted counts.
+
+| | dev | prod |
+|---|---:|---:|
+| Balance today (unchanged both sides) | 1,157,037.74 | 1,157,037.74 |
+| `opening_balance` after promote | 874,489.75 | 874,489.75 |
+| `quicken-import` rows | 3,334 | 3,334 |
+| Anchor rows | 27 | 27 |
+| Σ anchors / reversal | −156,945.10 / +156,945.10 | identical |
+| `quicken-verify` | 7 pass / 2 warn / 0 fail | 7 pass / 2 warn / 0 fail |
+
+Promote counts on prod: 328 standalone, 191 transfer rows, 2,815 investment income, 2,378 neutral
+skipped, 135 + 812 dropped by cutoff, 1 account recalibrated. Both `quicken-verify` warnings are
+expected by design — `time-overlap` is the anchors deliberately reaching into the PocketSmith-owned
+era (2020-01-02 → 2023-01-01), and `within-import-dupes` is the same 7 groups / 8 rows reviewed on dev.
+
+The step-4 stop-and-check paid for itself as insurance rather than as a catch: prod's ledger column
+matched dev's at every one of the 26 dates before a single anchor was written, so the divergence it
+guarded against did not occur. Post-write `--check` re-read the committed rows: all 26 still tie, 0.00
+drift.
+
+Backup taken first: `Backups/fin_backup_pre_cr058_20260729_011206.dump`.
+
+Steps 2 and 3 turned out to be already done — migration 042 and the CR058 scripts rode to prod on the
+other session's **v3.6.6** deploy, so this rollout was data-only. Verified in place before starting:
+`Valuation - Historical` present as id 229 with `is_transfer` and `skip_transfer_analysis` both true,
+and `quicken-anchor.js` present in the running container.
+
+**Still open from this section:** step 5's `/investment-returns` before/after capture for account 27
+and the parent 25 roll-up. §3.5 owns the coupling — the anchors are `is_transfer` rows, so CR056
+buckets them as `flow`, and the pre-2021 series moves. Now visible on prod and not yet shown to the
+owner.
+
+### 9.1 The original plan
 
 **~~Hard gate~~ — CLEARED.** Revs 1–4 warned that prod ran the pre-`d4bf7da` parser and that the two
 investment-QIF fixes had to ship before any Fidelity QIF was uploaded. They shipped with v3.6.0–3.6.4:
@@ -700,6 +751,19 @@ Order corrected from rev 1, which listed the deploy before the migration it depe
 ---
 
 ## 11. Update history
+
+- **2026-07-29 (built + shipped)** — Rev 5 implemented and rolled out to dev and prod; see
+  [§9](#9-rollout--as-executed). Four commits: `114f690` migration 042, `3fd09bc`+`a1c280e`
+  preserve-today, `52445f8` the anchor writer, `247b307` quicken-verify. Prod reproduced dev's series
+  to the cent — same `opening_balance`, same 27 anchors, same verify result. Three things the build
+  found that neither review pass had: **`--check` cleared the anchors before reading them**, so it
+  reported drift across all 26 dates of a healthy series (write paths must clear for idempotency, the
+  read path must not); **an unquoted thousands separator in the CSV would have parsed as `1`** — a
+  silently wrong money value no downstream check could catch, now a hard error on cell count; and the
+  first preserve-today commit went in on a **misread of a single-suite result while the combined run
+  was red**, root-caused to the test harness leaking a sentinel row (fixed in `a1c280e`, which now
+  deletes sentinel transactions before sentinel accounts). Owner confirmed the Balance Trends curve on
+  dev before prod. Ships in the next minor.
 
 - **2026-07-28 (rev 5)** — **Pass 2 (cr-signoff-pm): GO**, positioned **first** among the four
   IN-PROGRESS CRs. Pass 1's re-check confirmed §3.1 reproduces byte-for-byte and every one of its 9
