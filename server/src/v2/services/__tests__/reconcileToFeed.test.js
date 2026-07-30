@@ -45,6 +45,85 @@ dbDescribe('reconcileToFeed (DB)', () => {
     );
   }
 
+  // ── Stale-feed guard ─────────────────────────────────────────────────────
+  // A month-end mark is only as good as the feed being CURRENT on that date.
+  // Twice in 2026 it was not, and each time the mark silently pinned the
+  // account to a stale number. Both incidents are reproduced below; each fails
+  // against the pre-guard code, which wrote the mark regardless.
+
+  test('REFUSES to mark when the feed has no balance dated month-end (the Bond 2026-05-31 case)', async () => {
+    await freshAccount({ type: 'asset', currency: 'USD', opening: 1000, mode: 'mtm', bff: true });
+    // computed = 1650 vs feed 1700 → MTM 50, only 2.9% of feed, so the
+    // IMPLAUSIBILITY guard cannot be what blocks this. Isolating the stale
+    // guard matters: an earlier draft used a 41% mark and passed even with the
+    // stale check disabled — it was testing the wrong guard entirely.
+    await db.query(
+      `INSERT INTO transactions (transaction_date, amount, currency, account_id, source, accepted)
+       VALUES ('2026-05-10', 650, 'USD', $1, 'pocketsmith', TRUE)`, [acctId]);
+    // The month-end row has not arrived yet — Bond's was fetched four days late.
+    // The engine would otherwise fall back to this earlier date's balance and
+    // pin month-end to it, leaving a constant offset that the NEXT month's mark
+    // inherits as its base.
+    await seedFeed(1700, '2026-05-27');
+
+    const out = await reconcileToFeed(acctId, { asOf: MONTH_END, dryRun: false });
+    expect(out.stale_feed).toBe(true);
+    expect(out.stale_reason).toMatch(/no balance dated 2026-05-31/);
+    expect(out.applied).toBe(false);
+
+    const rows = (await db.query(
+      `SELECT COUNT(*)::int AS n FROM transactions WHERE account_id = $1 AND source = $2`,
+      [acctId, MTM_SOURCE]
+    )).rows[0];
+    expect(rows.n).toBe(0);
+  });
+
+  test('REFUSES to mark when the feed sat flat for three days (the Stocks/IRA 2026-06-30 case)', async () => {
+    await freshAccount({ type: 'asset', currency: 'USD', opening: 1000, mode: 'mtm', bff: true });
+    await db.query(
+      `INSERT INTO transactions (transaction_date, amount, currency, account_id, source, accepted)
+       VALUES ('2026-05-10', 650, 'USD', $1, 'pocketsmith', TRUE)`, [acctId]);
+    // All four Fidelity feeds went flat 06-28 -> 06-30 when one connection
+    // stalled. A security-holding account does not sit still for three days,
+    // so an identical balance across three observations is a stalled feed.
+    await seedFeed(1700, '2026-05-29');
+    await seedFeed(1700, '2026-05-30');
+    await seedFeed(1700, MONTH_END);
+
+    const out = await reconcileToFeed(acctId, { asOf: MONTH_END, dryRun: false });
+    expect(out.stale_feed).toBe(true);
+    expect(out.stale_reason).toMatch(/unchanged across/);
+    expect(out.applied).toBe(false);
+  });
+
+  test('a MOVING feed is not stale — three different balances mark normally', async () => {
+    // Guards the guard: if this failed, the check would be blocking every
+    // month-end and the two tests above would prove nothing.
+    await freshAccount({ type: 'asset', currency: 'USD', opening: 1000, mode: 'mtm', bff: true });
+    await db.query(
+      `INSERT INTO transactions (transaction_date, amount, currency, account_id, source, accepted)
+       VALUES ('2026-05-10', 500, 'USD', $1, 'pocketsmith', TRUE)`, [acctId]);
+    await seedFeed(1650, '2026-05-29');
+    await seedFeed(1680, '2026-05-30');
+    await seedFeed(1700, MONTH_END);
+
+    const out = await reconcileToFeed(acctId, { asOf: MONTH_END, dryRun: false });
+    expect(out.stale_feed).toBe(false);
+    expect(out.mtm_amount).toBeCloseTo(200, 2);
+  });
+
+  test('force overrides the stale guard — deliberate, not accidental', async () => {
+    await freshAccount({ type: 'asset', currency: 'USD', opening: 1000, mode: 'mtm', bff: true });
+    await db.query(
+      `INSERT INTO transactions (transaction_date, amount, currency, account_id, source, accepted)
+       VALUES ('2026-05-10', 650, 'USD', $1, 'pocketsmith', TRUE)`, [acctId]);
+    await seedFeed(1700, '2026-05-27');
+
+    const out = await reconcileToFeed(acctId, { asOf: MONTH_END, dryRun: false, force: true });
+    expect(out.stale_feed).toBe(true);   // still REPORTED
+    expect(out.applied).toBe(true);      // but not blocked
+  });
+
   async function cleanup() {
     if (acctId) await db.query(`DELETE FROM transactions WHERE account_id = $1`, [acctId]);
     await db.query(`DELETE FROM bankfeed_balances WHERE feed_account_external_id = $1`, [UUID]);

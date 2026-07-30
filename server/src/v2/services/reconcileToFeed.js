@@ -122,13 +122,54 @@ async function resolveMonthEnd(conn, asOfDate) {
 }
 
 async function mtm(client, accountId, m, monthEnd, dryRun, force = false) {
-  const feed = (await client.query(
-    `SELECT balance, balance_date::text AS balance_date FROM bankfeed_balances
-     WHERE feed_account_external_id = $1 AND balance_date <= $2::date
-     ORDER BY balance_date DESC LIMIT 1`,
+  // The three most recent feed observations on/before month-end. One row is
+  // enough to compute a mark; three are needed to tell a MOVING feed from a
+  // STALLED one, which is the difference between a real month-end value and a
+  // carried-forward one.
+  const feedRows = (await client.query(
+    `SELECT balance, balance_date::text AS balance_date, fetched_at
+       FROM bankfeed_balances
+      WHERE feed_account_external_id = $1 AND balance_date <= $2::date
+      ORDER BY balance_date DESC LIMIT 3`,
     [m.external_name, monthEnd]
-  )).rows[0];
+  )).rows;
+  const feed = feedRows[0];
   if (!feed) throw new Error(`no feed balance for account ${accountId} on/before ${monthEnd}`);
+
+  // ── Stale-feed guard ──────────────────────────────────────────────────────
+  // A month-end mark pins the account to whatever the feed says on that date,
+  // so it is only as good as the feed being CURRENT on that date. Twice in
+  // 2026 it was not, and both times the mark silently locked in a stale number
+  // that no later check could see:
+  //
+  //   Bond, 2026-05-31 — the 05-31 row was not fetched until 06-04, so the mark
+  //     fell back to an earlier date's balance and left the ledger a CONSTANT
+  //     9,815.27 below the feed, which June's mark then inherited as its base.
+  //
+  //   Stocks + IRA, 2026-06-30 — all four Fidelity feeds went flat 06-28→06-30
+  //     (one connection stalling) and the 06-30 row was not fetched until 07-03.
+  //     The true 30-June closes arrived on the row dated 07-02: Stocks
+  //     -28,417.32 and IRA -3,243.65 understated at month end.
+  //
+  // Two distinct signals, because neither catches both cases:
+  //   (a) no row dated month-end at all — the feed has not reported that day,
+  //       so marking it is asserting a value nobody supplied;
+  //   (b) the month-end balance is identical across three consecutive
+  //       observations — a security-holding account does not sit still for
+  //       three days, so this is a stalled connection, not a quiet account.
+  //       (Only `mtm` accounts reach here, and all of them hold securities;
+  //       genuinely static cash accounts use `calibrate`.)
+  const feedIsForMonthEnd = feed.balance_date === monthEnd;
+  const flatRun =
+    feedRows.length === 3 &&
+    Number(feedRows[0].balance) === Number(feedRows[1].balance) &&
+    Number(feedRows[1].balance) === Number(feedRows[2].balance);
+  const stale = !feedIsForMonthEnd || flatRun;
+  const staleReason = !feedIsForMonthEnd
+    ? `feed has no balance dated ${monthEnd} — latest is ${feed.balance_date}`
+    : flatRun
+      ? `feed balance unchanged across ${feedRows.map((r) => r.balance_date).reverse().join(', ')} — connection likely stalled`
+      : null;
 
   // computed AS-OF month-end, EXCLUDING any mtm row already dated that month-end
   // (so a re-run recomputes against the same base → idempotent).
@@ -157,6 +198,7 @@ async function mtm(client, accountId, m, monthEnd, dryRun, force = false) {
     feed_date: feed.balance_date, feed_balance: feedVal, computed_excl_mtm: computed,
     mtm_amount: amount, category_id: UNREALIZED_GL_CATEGORY_ID,
     implausible, implausible_pct: Math.round(implausiblePct * 1000) / 1000,
+    stale_feed: stale, stale_reason: staleReason,
     removed_read_override: false, applied: false,
   };
 
@@ -170,6 +212,16 @@ async function mtm(client, accountId, m, monthEnd, dryRun, force = false) {
       throw new Error(`no USD exchange rate for ${m.currency} on/before ${monthEnd} — cannot book MTM for account ${accountId} (${m.name})`);
     }
     summary.base_amount = baseAmount;
+  }
+
+  // Checked BEFORE the implausibility guard: a stale feed makes the computed
+  // amount meaningless, so reporting it as "implausible" would name the symptom
+  // and hide the cause.
+  if (stale && !force) {
+    summary.note = `stale feed — ${staleReason}. Marking ${monthEnd} against it would pin the ` +
+      `account to a value the custodian never reported. Wait for the feed to settle (it has run ` +
+      `~2 days behind month-end), or pass force to override.`;
+    if (!dryRun) return summary; // refuse to write; surface the reason
   }
 
   if (implausible && !force) {
