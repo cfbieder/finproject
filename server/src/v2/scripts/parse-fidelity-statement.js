@@ -232,15 +232,24 @@ function parseStatement(pdfPath) {
   const { periodStart, periodEnd } = parsePeriod(text, label);
   const parsed = parseCombined(text, label) || parseSingle(text, label);
 
-  // A December file is NOT a December statement — Fidelity issues a YEAR-END
-  // report covering Jan 1 → Dec 31. Its values and income are ANNUAL, so a
-  // consumer that treats them as one month's would be wrong by a factor of
-  // twelve on income and would misdate the valuation by eleven months.
-  const isYearEnd = /YEAR-END INVESTMENT REPORT/i.test(text);
+  // Whether the figures are ANNUAL or MONTHLY is decided by the PERIOD, never
+  // by the document's own label. Both are unreliable in the other direction:
+  //   - "2025 YEAR-END INVESTMENT REPORT" really does span Jan 1 → Dec 31.
+  //   - "YEAR-END INVESTMENT REPORT" on the 2018 December statement spans
+  //     Dec 1 → Dec 31 — the year-end wording is a cover-page summary, not the
+  //     reporting period.
+  //   - Fidelity issued MONTHLY December statements in 2024 and ANNUAL ones in
+  //     2025, both named `*_12.pdf`, so the filename decides nothing either.
+  // Deriving from the parsed dates is true by construction: an annual figure is
+  // one whose period is a whole year. Getting this backwards would misdate a
+  // valuation by eleven months and overstate a period's income twelvefold.
+  const isAnnual = /-01-01$/.test(periodStart) && /-12-31$/.test(periodEnd);
 
   return {
     file: label,
-    statementType: isYearEnd ? 'year-end' : 'monthly',
+    statementType: isAnnual ? 'annual' : 'monthly',
+    // What the document CALLS itself, kept separate from what it covers.
+    labelledYearEnd: /YEAR-END INVESTMENT REPORT/i.test(text),
     periodStart,
     periodEnd,
     layout: parsed.layout,
@@ -274,7 +283,7 @@ function main() {
     console.log(JSON.stringify(results, null, 2));
   } else {
     for (const r of results) {
-      const yr = r.statementType === 'year-end' ? '  ** YEAR-END: values and income are ANNUAL **' : '';
+      const yr = r.statementType === 'annual' ? '  ** ANNUAL period: values and income cover the whole year **' : '';
       console.log(`\n${r.file}  [${r.layout}/${r.statementType}]  ${r.periodStart} → ${r.periodEnd}${yr}`);
       console.log('  account       beginning        ending  name');
       for (const a of r.accounts) {

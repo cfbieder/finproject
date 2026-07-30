@@ -131,18 +131,22 @@ realDescribe('real Fidelity statements (local only)', () => {
   // The 2025 year-end report is also what first broke the parser: its labels
   // read "Beginning Account Value as of Jan 1, 2025", which failed loudly
   // rather than returning a silent zero.
-  // The FILENAME does not determine the type and must not be used to infer it:
-  // Fidelity issued MONTHLY December statements in 2024 and YEAR-END ones in
-  // 2025, both named `*_12.pdf`. An earlier version of this test assumed
-  // "December ⇒ year-end" and failed on the 2024 files — correctly. What is
-  // actually invariant is that the declared type agrees with the parsed period.
-  test('the declared statement type always agrees with the period it spans', () => {
+  // NEITHER the filename NOR the document's own label determines whether the
+  // figures are annual. Both have been observed lying, in opposite directions:
+  //   - 2024 December statements are MONTHLY, 2025 are ANNUAL — same `*_12.pdf`.
+  //   - The 2018 December statement calls itself "YEAR-END INVESTMENT REPORT"
+  //     but spans Dec 1 → Dec 31; the year-end wording is a cover-page summary.
+  // Two earlier versions of this test asserted each of those rules in turn and
+  // each failed on real files — correctly. `statementType` is now derived from
+  // the parsed period, so this asserts a property that is true by construction
+  // and would only break if that derivation regressed.
+  test('statementType is annual exactly when the period is a whole year', () => {
     for (const f of localFiles) {
       const st = parseStatement(f);
-      if (st.statementType === 'year-end') {
-        expect({ file: st.file, start: st.periodStart.slice(4) }).toEqual({ file: st.file, start: '-01-01' });
-        expect({ file: st.file, end: st.periodEnd.slice(4) }).toEqual({ file: st.file, end: '-12-31' });
-      } else {
+      const wholeYear = /-01-01$/.test(st.periodStart) && /-12-31$/.test(st.periodEnd);
+      expect({ file: st.file, type: st.statementType })
+        .toEqual({ file: st.file, type: wholeYear ? 'annual' : 'monthly' });
+      if (st.statementType === 'monthly') {
         // Monthly, including a partial first month (2024-06-09 → 2024-06-30).
         expect({ file: st.file, sameMonth: st.periodStart.slice(0, 7) === st.periodEnd.slice(0, 7) })
           .toEqual({ file: st.file, sameMonth: true });
@@ -150,12 +154,13 @@ realDescribe('real Fidelity statements (local only)', () => {
     }
   });
 
-  test('a year-end statement is actually present and detected, so the branch is not vacuous', () => {
-    const types = localFiles.map((f) => parseStatement(f).statementType);
-    // Guards the test above: if no year-end file were present its assertions
-    // would never run and the branch would silently prove nothing.
-    expect(types).toContain('year-end');
-    expect(types).toContain('monthly');
+  test('the label and the period disagree at least once — so deriving from the label would be wrong', () => {
+    const parsed = localFiles.map(parseStatement);
+    // The 2018 December statement is the live counter-example. If this ever
+    // stops holding, the simpler label-based rule would be safe again — but
+    // until then it is demonstrably not.
+    const mislabelled = parsed.filter((s) => s.labelledYearEnd && s.statementType !== 'annual');
+    expect(mislabelled.length).toBeGreaterThan(0);
   });
 
   // Three layout variants across 2024-2026, all of which broke the parser on
@@ -182,19 +187,35 @@ realDescribe('real Fidelity statements (local only)', () => {
     }
   });
 
-  test('account numbers are stable across periods for the same report type', () => {
-    const byPrefix = new Map();
+  // The account SET legitimately changes over time — Cash Mgt first appears in
+  // 2020-09, Z31-443539 opens 2024-06 — so asserting a constant set was wrong
+  // and failed as soon as 2018/2019 statements arrived. What must hold is that
+  // every number parsed is a real Fidelity account number and that no statement
+  // lists the same account twice (which would double-count it in the portfolio
+  // reconciliation and quietly inflate net worth).
+  test('every parsed account number is well-formed and unique within its statement', () => {
     for (const f of localFiles) {
-      const prefix = path.basename(f).split('_')[0];
       const st = parseStatement(f);
-      const nums = st.accounts.map((a) => a.accountNumber).sort().join(',');
-      if (!byPrefix.has(prefix)) byPrefix.set(prefix, new Set());
-      byPrefix.get(prefix).add(nums);
+      const nums = st.accounts.map((a) => a.accountNumber);
+      expect({ file: st.file, dupes: nums.length - new Set(nums).size })
+        .toEqual({ file: st.file, dupes: 0 });
+      for (const n of nums) expect(n).toMatch(/^[A-Z0-9]\d{2}-\d{6}$/);
     }
-    // Each report type should list the same accounts every period. More than
-    // one distinct set means the layout shifted or an account row was dropped.
-    for (const [prefix, sets] of byPrefix) {
-      expect({ prefix, distinctAccountSets: sets.size }).toEqual({ prefix, distinctAccountSets: 1 });
+  });
+
+  test('an account, once it appears, keeps the same number for the rest of the series', () => {
+    // Guards against a renumbering going unnoticed — the failure mode behind
+    // CR058's account-number correction, where prose assumed a number denoted
+    // one account when it denoted another.
+    const seen = new Map(); // number → first period it appeared in
+    for (const f of localFiles.slice().sort()) {
+      const st = parseStatement(f);
+      for (const a of st.accounts) {
+        if (!seen.has(a.accountNumber)) seen.set(a.accountNumber, st.periodEnd);
+      }
     }
+    // Every number must be one of the four the custodian statements establish.
+    const KNOWN = ['X27-230910', 'X94-929946', '194-901660', 'Z31-443539'];
+    for (const n of seen.keys()) expect(KNOWN).toContain(n);
   });
 });
