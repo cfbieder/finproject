@@ -22,7 +22,21 @@ describe('parseTargetsCsv', () => {
       fs.readFileSync(path.join(FIXTURES, 'valuation_targets_fid_brokerage.csv'), 'utf8'),
       'fid'
     );
-    expect(rows).toHaveLength(26);
+    // 44 rows from three sources, in this order:
+    //   19  Quicken annual, 1998-03-20 → 2015-12-31 — no custodian statement
+    //       exists for that era, and the 2016-2021 agreement (below) is what
+    //       licenses trusting Quicken there.
+    //   24  Fidelity statement QUARTERLY, 2016-03-31 → 2021-12-31 — the
+    //       custodian is authoritative, and quarterly cuts the maximum drift
+    //       window between anchors from 12 months to 3.
+    //    1  Fidelity statement ANNUAL, 2022-12-31 — deliberately NOT quarterly.
+    //       The 2022 quarterly anchors came out at +187,681 / -467,227 /
+    //       +514,765, which is not market movement: fin's ledger sits 467K
+    //       above the custodian at 2022-09-30. Pinning each quarter would let
+    //       the anchors ABSORB that, which is exactly what §1.3 established not
+    //       to do — a defect that a plug swallows can never be found again.
+    //       Logged as a data defect instead; see the roadmap.
+    expect(rows).toHaveLength(44);
     // The first row is the opening anchor, dated the day BEFORE the account's
     // first transaction (1998-03-21): the account was worth nothing before it
     // existed. Anchoring the 1998 year-end value at March would misdate it.
