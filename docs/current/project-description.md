@@ -242,7 +242,7 @@ One-time/idempotent admin CLIs — all require `DATABASE_URL` (no embedded crede
 | Table | Purpose |
 |-------|---------|
 | `accounts` | Unified COA (BS + P&L) with `parent_id` hierarchy; calibration columns (`opening_balance`, `opening_balance_date`, `manual_reconcile_mode`); P&L leaves carry `is_transfer`/`ps_category_id` (migration 021) |
-| `account_source_mappings` | External↔internal name map per source (pocketsmith/quicken/bank-feed) + per-mapping feed policy: `ignored`, `promote_from_date`, `balance_from_feed`, `trade_treatment`, `reconcile_mode`, `feed_sign`, `feed_negate_tx` |
+| `account_source_mappings` | External↔internal name map per source (pocketsmith/quicken/bank-feed) + per-mapping feed policy: `ignored`, `promote_from_date`, `balance_from_feed`, `trade_treatment`, `reconcile_mode`, `feed_sign`, `feed_negate_tx`. **`promote_from_date` NULL means "promote every staged row whatever its date"** — the Black Card mechanism — so since v3.6.11 mapping a bank-feed account **pins** it to the earliest row already staged (migration 043); it is still **read-only in the UI**, which is why a deliberate cutoff choice at mapping time is an open roadmap item. |
 | `transactions` | Ledger (`accepted`, `transfer_matched`, `bank_feed_external_id`, `import_batch_id`, `source`) |
 | `pending_transactions`, `psdata_staging`, `bankfeed_staging`, `quicken_*` (12 tables) | Staging per source |
 | `bankfeed_balances` / `manual_balances` | Feed-reported / user-entered balance snapshots |
