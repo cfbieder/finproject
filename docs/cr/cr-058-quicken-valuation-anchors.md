@@ -701,10 +701,36 @@ other session's **v3.6.6** deploy, so this rollout was data-only. Verified in pl
 `Valuation - Historical` present as id 229 with `is_transfer` and `skip_transfer_analysis` both true,
 and `quicken-anchor.js` present in the running container.
 
-**Still open from this section:** step 5's `/investment-returns` before/after capture for account 27
-and the parent 25 roll-up. §3.5 owns the coupling — the anchors are `is_transfer` rows, so CR056
-buckets them as `flow`, and the pre-2021 series moves. Now visible on prod and not yet shown to the
-owner.
+**Step 5 — `/investment-returns` before/after. DONE 2026-07-30**, and the result is more interesting
+than "the numbers moved". Captured by calling `buildInvestmentReturns` from the working tree against
+each database state rather than through a container, so the figures reflect current code; "before" was
+reconstructed by rolling the batch back on dev, capturing, and restoring.
+
+| Fidelity Stocks (27), annual | before | after |
+|---|---|---|
+| 1998–2019 market value | **flat 1,201,328 every year** | the real curve, 29,436 → 642,514 |
+| 1998–2019 income | 0.00 in every year | real dividends/interest, ~440K total |
+| Periods with a return % | 2025, 2026 only | **2025, 2026 only — unchanged** |
+| `fxEffect` | 0 | **0** (all-USD invariant holds) |
+| `unattributed` | — | **0 in every period** |
+
+**The headline is the row that did *not* change.** For every year from 1998 to 2024 the report shows
+`priceReturn = 0` and a return of **`—`**. The anchors are `is_transfer` rows, so CR056 buckets them
+as **`flow`**, and a flow moves market value without generating return. So CR058 gives the account
+22 years of *balance* history and deliberately **no** return series — and CR056, correctly, prints
+`—` rather than inventing one, because no `Unrealized G/L` posting falls in those periods and its
+coverage rule abstains.
+
+That is exactly the outcome §3.3 argued for. Routing anchors to `Unrealized G/L` would have produced a
+confident 25-year return series built on liquidation timing, money-market sweep churn and gaps in
+Quicken's own share history. The report saying "I don't know" for 1998–2024 is the honest answer, and
+it is worth the owner knowing that the new history is a **value** series, not a **performance** one.
+
+*Not claimed:* the rolled-back "before" also showed wildly inflated income (2.57M in 2023). That state
+is **not** a faithful reconstruction of pre-CR058 prod — a batch rollback leaves the nine PocketSmith
+sign corrections in place, since they are not batch rows — so those figures are an artefact of a state
+that never existed and are deliberately not reported as a before/after delta. What is verified is the
+**current** state: `unattributed = 0` and sane income in every period.
 
 ### 9.2 Second sign-fix wave — 2026-07-29
 
