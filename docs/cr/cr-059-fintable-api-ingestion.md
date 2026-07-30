@@ -28,7 +28,7 @@ transaction id is `{api_account_id}--{hash}`, so our own stored data already con
 ids. Verified 15/15 where our ids are composite; the other 14 accounts resolve on name+currency with
 balances agreeing.
 
-Migration **043** in fin (`042` is CR058's) — confirmed needed.
+Migration **044** in fin for P3a's account crosswalk (`043` was taken by the promote-cutoff pinning fix, 2026-07-30).
 
 ---
 
@@ -136,7 +136,7 @@ IS NOT NULL DO NOTHING`, and its live-feed dedup candidate query only considers
 reachable **by no route except an exact `bank_feed_external_id` hit** — that column is fin's *only*
 ledger-level duplicate guard. Rewrite the staging ids and leave the ledger's, and the guard matches
 nothing: every promoted row re-delivers under its API id and inserts a second time. That is the Black
-Card mechanism with no upper bound. **Migration 043 must rewrite `transactions.bank_feed_external_id`
+Card mechanism with no upper bound. **Migration 044 must rewrite `transactions.bank_feed_external_id`
 in the same transaction**, joined through `bankfeed_staging.promoted_transaction_id`, and assert the
 rewritten count equals the crosswalked promoted-staging count or roll back.
 
@@ -274,7 +274,7 @@ Ideally nothing, and that is the point of having a contract:
   time instead of a spreadsheet's export time.
 - `merchant` starts arriving populated (it is `null` today). fin stores it; nothing branches on it.
 - `category_hint` will carry Fintable's category names, as it does now.
-- **If §4's crosswalk is needed**, fin gets migration **043** rewriting `bankfeed_staging.external_id`,
+- **If §4's crosswalk is needed**, fin gets migration **044** rewriting `bankfeed_staging.external_id`,
   `bankfeed_staging.feed_account_external_id` and `account_source_mappings.external_name` — the only
   fin-side change in this CR, and the one that needs a prod backup and a window.
 
@@ -743,10 +743,19 @@ so a cutover floor's first read is ~190 rows and a daily delta is a few dozen; 3
 traffic. The old 500 sat within 15% of a 438-row batch already seen in the wild — those were updates,
 which do not count toward the guard, but the margin was too thin to defend.
 
-**R5 — still open, and worth doing properly.** Three of the five `promote_from_date = NULL` mappings
-are unmapped rows where a cutoff is meaningless; only Revolut-PLN and Revolut-USD are real. The durable
-fix is not filling five rows but changing the **default** — mapping an account later still means
-"promote everything", which is the Black Card mechanism intact. Roadmap item.
+**R5 — done 2026-07-30, though not the way pass 2 sketched it (migration 043).** Three of the five
+`promote_from_date = NULL` mappings are ignore-only rows where a cutoff is meaningless and setting one
+now would bake in a stale date; they stay NULL. The two live ones are pinned to the earliest row already
+staged for them (Revolut-USD → 2026-07-26, Revolut-PLN → today), so **today's behavior is unchanged**
+while a row arriving *later* dated before that point is blocked. `setBankFeedMapping` now applies the
+same pin whenever an account is mapped.
+*Pass 2 proposed defaulting to `CURRENT_DATE` or requiring a cutoff at mapping time. Rejected on
+inspection: `promote_from_date` is **read-only everywhere in the frontend** — it appears in help text
+and the diagnostic page, with no write path in the API — so an account mapped today would promote
+nothing and the owner would have no way to fix it. **Stated plainly: this does not close the Black Card
+class.** Those 31 duplicates were already staged at the moment of mapping, so a pin derived from staged
+rows would have included them. Closing it needs a deliberate cutoff *choice* at mapping time, which
+needs that UI write path — [roadmap §4](../current/project-roadmap.md).*
 
 **Build order from pass 2:** **P3a + P4 first** among the in-progress CRs, ahead of CR019's
 investment-side promote and CR023's tail — both want a quiet feed surface and neither is moving.
@@ -767,5 +776,5 @@ by `(account, amount, tag-normalized description)` within a few days (§13.2).
 
 **Both review passes returned `revise`; everything they raised is now applied or tracked — see §17.**
 The headline: pass 2 established that the **transaction crosswalk was never necessary**, and it is cut.
-What remains to build is **P3a** (31 account mappings, exact key) and **P4** (cutover). Migration 043
+What remains to build is **P3a** (31 account mappings, exact key) and **P4** (cutover). Migration 044
 in fin is correspondingly smaller — three id sites on 31 rows, not four sites on 2,480.
