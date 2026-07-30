@@ -1,4 +1,6 @@
 'use strict';
+
+const { sumWithinBalanceWindow, BALANCE_WINDOW_FLOOR_SQL } = require('./openingBalanceWindow');
 /**
  * reconcileToFeed.js — CR023 source-aware reconciliation engine.
  *
@@ -134,6 +136,7 @@ async function mtm(client, accountId, m, monthEnd, dryRun, force = false) {
     `SELECT $2::numeric + COALESCE(SUM(amount), 0) AS computed
      FROM transactions
      WHERE account_id = $1 AND transaction_date <= $3::date
+       ${BALANCE_WINDOW_FLOOR_SQL}
        AND NOT (source = $4 AND transaction_date = $3::date)`,
     [accountId, m.opening_balance, monthEnd, MTM_SOURCE]
   )).rows[0];
@@ -218,10 +221,10 @@ async function calibrate(client, accountId, m, asOfDate, dryRun) {
 
   const feedVal = Number(feed.balance);
   const expected = expectedFromFeed(m, feedVal);
-  const sumTx = Number((await client.query(
-    `SELECT COALESCE(SUM(amount), 0) AS s FROM transactions WHERE account_id = $1`,
-    [accountId]
-  )).rows[0].s);
+  // Bounded to the window the balance is READ through — see
+  // openingBalanceWindow.js. An unbounded sum here pins a number the app
+  // cannot display for any account holding pre-sentinel rows.
+  const sumTx = await sumWithinBalanceWindow(client, accountId);
   const newOpening = Math.round((expected - sumTx) * 100) / 100;
 
   const summary = {

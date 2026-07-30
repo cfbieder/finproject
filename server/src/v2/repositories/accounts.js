@@ -269,7 +269,13 @@ async function create(data) {
     data.is_active !== false,
     data.ps_account_name || data.name,
     data.opening_balance || 0,
-    data.opening_balance_date || '2000-01-01',
+    // 1990-01-01, matching the column DEFAULT migration 022 set and the 68
+    // accounts it migrated. This read '2000-01-01' until 2026-07-30, which
+    // meant every account created after that migration RE-INTRODUCED the
+    // sentinel the migration existed to remove — nine on prod by then. The
+    // sentinel is a floor on every balance read, so an account carrying it
+    // silently hides any transaction dated before 2000.
+    data.opening_balance_date || '1990-01-01',
     data.ps_transaction_account_id || null,
     data.is_transfer === true,
     data.ps_category_id || null

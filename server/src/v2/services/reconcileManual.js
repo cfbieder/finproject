@@ -1,4 +1,6 @@
 'use strict';
+
+const { sumWithinBalanceWindow, BALANCE_WINDOW_FLOOR_SQL } = require('./openingBalanceWindow');
 /**
  * reconcileManual.js — CR033 manual (non-fed) reconciliation engine.
  *
@@ -152,6 +154,7 @@ async function mtm(client, accountId, m, monthEnd, dryRun, force = false) {
     `SELECT $2::numeric + COALESCE(SUM(amount), 0) AS computed
      FROM transactions
      WHERE account_id = $1 AND transaction_date <= $3::date
+       ${BALANCE_WINDOW_FLOOR_SQL}
        AND NOT (source = $4 AND transaction_date = $3::date)`,
     [accountId, m.opening_balance, monthEnd, MTM_SOURCE]
   )).rows[0];
@@ -255,10 +258,7 @@ async function resetOpeningBalance(accountId, { dryRun = false, force = false } 
   if (m.section !== 'balance_sheet') throw new Error(`account ${accountId} is not a balance-sheet account`);
   if (m.is_fed) throw new Error(`account ${accountId} is on a bank feed — use Balance Calibration`);
 
-  const sumTx = Number((await db.query(
-    `SELECT COALESCE(SUM(amount), 0) AS s FROM transactions WHERE account_id = $1`,
-    [accountId]
-  )).rows[0].s);
+  const sumTx = await sumWithinBalanceWindow(db, accountId);
   const oldOpening = Number(m.opening_balance);
 
   const summary = {
@@ -299,10 +299,7 @@ async function calibrate(client, accountId, m, asOfDate, dryRun) {
   if (!entry) throw new Error(`no manual balance for account ${accountId} on/before ${asOfDate}`);
 
   const expected = Number(entry.balance); // fin convention — no sign normalization
-  const sumTx = Number((await client.query(
-    `SELECT COALESCE(SUM(amount), 0) AS s FROM transactions WHERE account_id = $1`,
-    [accountId]
-  )).rows[0].s);
+  const sumTx = await sumWithinBalanceWindow(client, accountId);
   const newOpening = Math.round((expected - sumTx) * 100) / 100;
 
   const summary = {
