@@ -194,6 +194,42 @@ Triage of the remainder is separate work.
 
 ## 2. Source of truth — Quicken's Net Worth Report, and why it is trustworthy
 
+> ### 2026-07-30 — the report was checked against the custodian, and it holds (except 2022)
+>
+> Fidelity's own statements, parsed by [`parse-fidelity-statement.js`](../../server/src/v2/scripts/parse-fidelity-statement.js),
+> give an **independent** valuation of the same account (`X27-230910`) at the same year-ends. Nothing
+> connects the two records. They agree:
+>
+> | year-end | Quicken (this CR's target) | Fidelity statement | diff | |
+> |---|---:|---:|---:|---|
+> | 2016 | 733,288.25 | 733,460.95 | −172.70 | −0.024% |
+> | 2017 | 575,743.37 | 575,709.73 | +33.64 | **0.006%** |
+> | 2018 | 349,691.82 | 349,997.13 | −305.31 | −0.087% |
+> | 2019 | 642,513.72 | 642,495.03 | +18.69 | **0.003%** |
+> | 2020 | 383,389.13 | 383,424.52 | −35.39 | −0.009% |
+> | 2021 | 874,742.02 | 875,068.01 | −325.99 | −0.037% |
+> | **2022** | 1,160,619.23 | **997,171.99** | **+163,447.24** | **+16.4%** |
+>
+> **Six of seven within 0.09%**, four under 0.04%, on balances of 350K–875K. §2's original warrant was
+> an *internal* share-and-price walk over Quicken's own price blocks — this is external corroboration
+> of a kind the CR could not produce for itself, and it is far stronger.
+>
+> **2022 is a single outlier with a mechanical cause.** The QIF's last transaction is **2022-11-25** —
+> Quicken stopped being maintained, so a report "as of 12/28/2022" priced stale holdings. The custodian
+> trajectory makes the old figure impossible anyway: 1,133,114.89 at 09-30 → 997,171.99 at 12-31 cannot
+> pass through 1,160,619 on 12/28 without a 27K rise then a 163K fall in three days. §2 always said the
+> walk reconciled in only **22 of 24** years; 2022 is one of the two, and rev 3 trusted the report there
+> regardless.
+>
+> **Change applied:** the pinned CSV's last row is now `2022-12-31,997171.99`, replacing
+> `2022-12-28,1160619.23`. Re-anchored on dev and prod — the 2022 anchor falls from **+378,131.96 to
+> +213,903.40** (the largest interior anchor, down 43%), Σ and the handoff reversal move to
+> **∓321,173.66**, today is unchanged at 1,157,037.74 and all 26 targets still tie. Tables further down
+> that quote the old figures are the as-designed record; this note supersedes them.
+>
+> *The growing reversal is not a regression — it is the 2023-onward era, which the custodian shows is
+> still uncorrected, no longer being masked by a too-high 2022 target. Closing it is the CR061 backfill.*
+
 `Samples/Downloads/fid_quickenMV.xlsx` — *"Net Worth Report — As of 12/28/2022 … (Includes unrealized
 gains)"*, one row per account, one column per year-end 12/31/1999 → 12/28/2022.
 

@@ -28,9 +28,22 @@ describe('parseTargetsCsv', () => {
     // existed. Anchoring the 1998 year-end value at March would misdate it.
     expect(rows[0]).toEqual({ as_of_date: '1998-03-20', target: 0 });
     expect(rows[1]).toEqual({ as_of_date: '1998-12-31', target: 29436.0 });
-    // The last column is 12-28, not a year-end — Quicken's report is "as of
-    // 12/28/2022". Sizing that anchor off the 12-31 ledger misses by 781.32.
-    expect(rows[rows.length - 1]).toEqual({ as_of_date: '2022-12-28', target: 1160619.23 });
+    // The last row was 2022-12-28 / 1,160,619.23, taken from Quicken's report
+    // ("as of 12/28/2022"). Fidelity's own statement puts the account at
+    // 997,171.99 on 2022-12-31 — a 163,447.24 gap, 16.4%.
+    //
+    // The custodian wins, and the reason is mechanical rather than a judgement
+    // call: the QIF's last transaction is 2022-11-25, so Quicken stopped being
+    // maintained and its 12/28 figure prices stale holdings. The custodian
+    // trajectory makes the old number impossible on its face — 1,133,114.89 at
+    // 09-30 falling to 997,171.99 at 12-31 cannot pass through 1,160,619 on
+    // 12/28 without a 27K rise and a 163K fall inside three days.
+    //
+    // Every OTHER overlapping year-end validates Quicken to within 0.09%
+    // (2016 −0.024%, 2017 +0.006%, 2018 −0.087%, 2019 +0.003%, 2020 −0.009%,
+    // 2021 −0.037%), so this is one bad year in a source that is otherwise
+    // independently confirmed — not grounds to distrust the series.
+    expect(rows[rows.length - 1]).toEqual({ as_of_date: '2022-12-31', target: 997171.99 });
   });
 
   test('header is matched case-insensitively, with BOM and whitespace tolerated', () => {
