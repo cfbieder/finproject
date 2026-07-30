@@ -972,6 +972,45 @@ ledger by ~32K over the account's life. In the event the first anchor after the 
 **−6,057.39**: about 6K of drift on a 60K account. Worth stating that those three years are
 **approximate** rather than pretending the series is uniform.
 
+### 9.4 Valuation-only sets — Cash Mgt and Bond, 2026-07-30
+
+CR058 anchors took their owning batch for free from the Quicken import. Accounts with **no** Quicken
+history had nothing to inherit, and that alone was what blocked them — not the data, which existed all
+along in Fidelity's statements. `--valuation-set <label>` resolves or creates a batch row carrying
+only anchors; `--clear` removes a set and **asserts today's balance does not move**, since a complete
+set sums to zero by construction. No new table, no second removal path.
+
+| account | targets | Σ | outcome |
+|---|---|---:|---|
+| Fidelity Cash Mgt (30) | 22 quarterly, 2020-09-30 → 2025-12-31 | +5,783.65 | all tie; **6 anchors are 0.00** |
+| Fidelity Bond (31) | 8 (opening + 7 quarterly, 2024-06 → 2025-12) | +2,437.70 | all tie |
+
+**Cash Mgt was not what it looked like.** Its gaps read as varying and structureless; they were a
+**constant 14,436.32** across five periods — the account's own `opening_balance` plug. fin's cumulative
+flows to 2020-09-30 equal the custodian **exactly** (1,278,965.19), and the owner's Quicken export
+independently confirmed to **1.12**. The transaction data was never wrong. The account has
+`reconcile_mode = 'calibrate'` and **zero MTM rows ever** — correct while it held cash, wrong once it
+held CDs (86% "Other" today). That six of its 22 anchors came out at **0.00**, exactly where the flows
+already matched, is the cross-check showing through: the anchors corrected what drifted and left alone
+what did not.
+
+**Bond can only ever cover 2024-06 onward.** `X27-230910` has 42 custodian points back to 2016, but
+fin's Bond account starts 2024-06-07 — its earlier history lives in **account 27** (the splice,
+§1.3's correction note). And unlike the other three, Bond has **no independent witness**: Quicken ends
+2022-11 and fin's Bond era starts 2024-06, so there is zero overlap. The custodian is the only source,
+and anchoring makes the account match **by construction**. That is worth stating rather than letting a
+reader assume Bond carries the same evidential weight as Σ = −0.32 on the IRA.
+
+**The `opening_balance` plug stays — a correction to what §9.4 first claimed.** The plan recorded here
+was: anchor, then reset Cash Mgt's −14,436.32 plug as a *consequence* of history being right. That is
+wrong. A plug is a **single constant**, so it can be correct at exactly one point in time: it is wrong
+for 2020 (which the anchors now fix) and **right for 2026** — fin sits 298 from the custodian at
+2026-06-30 *with* it. The handoff reversal deliberately preserves today, so the plug remains
+load-bearing for the post-handoff era; zeroing it would move today by +14,436.32 and break the one date
+it currently gets right. The real end-state is **continuous month-end marking**, now trustworthy given
+the stale-feed guard — once 2026 is marked monthly the ledger tracks the feed throughout and the plug
+can go to zero without moving anything. Going forward, not retrospective.
+
 ### 9.1 The original plan
 
 **~~Hard gate~~ — CLEARED.** Revs 1–4 warned that prod ran the pre-`d4bf7da` parser and that the two
