@@ -105,8 +105,12 @@ const ACCT_RE = /[A-Z0-9]\d{2}-\d{6}/;
 function parseCombined(text, label) {
   const start = text.indexOf('Accounts Included in This Report');
   if (start === -1) return null;
-  const end = text.indexOf('Ending Portfolio Value', start);
-  if (end === -1) throw new Error(`${label}: found the account table but no "Ending Portfolio Value" terminator`);
+  // 2025+ says "Ending Portfolio Value"; 2024 says "Ending NET Portfolio Value".
+  const term = text.slice(start).match(/Ending (?:Net )?Portfolio Value/);
+  if (!term) {
+    throw new Error(`${label}: found the account table but no "Ending [Net] Portfolio Value" terminator`);
+  }
+  const end = start + term.index;
   const table = text.slice(start, end);
 
   const accounts = [];
@@ -121,7 +125,10 @@ function parseCombined(text, label) {
     // number, both of which otherwise ride along on the FIRST account.
     const before = table.slice(0, m.index);
     const name = (before.match(/(?:\d+\s+)?([A-Z][A-Za-z®\s\-,.']{4,})$/) || [, ''])[1]
-      .replace(/.*Beginning Value\s+Ending Value\s*/i, '')
+      // The year-end layout prints a superscript marker between the column
+      // headings ("Beginning Value z Ending Value"), so allow anything short
+      // between them rather than requiring them adjacent.
+      .replace(/.*Beginning Value\s*\S{0,3}\s*Ending Value\s*/i, '')
       .replace(/^(?:GENERAL INVESTMENTS|PERSONAL RETIREMENT)\s+/i, '')
       .replace(/\s+/g, ' ')
       .trim();
@@ -138,7 +145,7 @@ function parseCombined(text, label) {
 
   const tot = text
     .slice(end)
-    .match(/Ending Portfolio Value\s+\$?([\d,]+\.\d{2})\s+\$?([\d,]+\.\d{2})/);
+    .match(/Ending (?:Net )?Portfolio Value\s+\$?([\d,]+\.\d{2})\s+\$?([\d,]+\.\d{2})/);
   const portfolio = tot
     ? {
         beginningValue: money(tot[1], `${label} portfolio beginning`),
@@ -164,9 +171,23 @@ function parseSingle(text, label) {
   const acct = text.match(new RegExp(`Account Number:\\s*(${ACCT_RE.source})`));
   if (!acct) throw new Error(`${label}: neither an account table nor an "Account Number:" header`);
 
-  const beg = text.match(/Beginning Account Value\s+\$?([\d,]+\.\d{2})/);
-  const end = text.match(/Ending Account Value\s*\*{0,2}\s*\$?([\d,]+\.\d{2})/);
-  if (!beg || !end) throw new Error(`${label}: Account Summary begin/end values not found`);
+  // Monthly:  "Beginning Account Value $1,174,359.89"
+  // Year-end: "Beginning Account Value as of Jan 1, 2025 $894,000.48"
+  // The optional "as of <date>" is what made the 2025 year-end report fail on
+  // first run — correctly, as a hard error rather than a silent zero.
+  const AS_OF = String.raw`(?:\s+as of\s+[A-Za-z]+\s+\d{1,2},\s*\d{4})?`;
+  // An account's FIRST statement prints "Beginning Account Value - -": the
+  // account did not exist, so there is no opening value. That must read as
+  // NULL, never 0 — a zero would assert the account was open and empty, which
+  // would make any return or delta computed from it quietly wrong. Z31-443539's
+  // June 2024 statement is exactly this case: opened 2024-06-09.
+  const begDash = new RegExp(String.raw`Beginning Account Value${AS_OF}\s+-\s`).test(text);
+  const beg = text.match(new RegExp(String.raw`Beginning Account Value${AS_OF}\s+\$?([\d,]+\.\d{2})`));
+  const end = text.match(
+    new RegExp(String.raw`Ending Account Value${AS_OF}\s*\*{0,2}\s*\$?([\d,]+\.\d{2})`)
+  );
+  if (!end) throw new Error(`${label}: Account Summary ending value not found`);
+  if (!beg && !begDash) throw new Error(`${label}: Account Summary beginning value not found`);
 
   const nameM = text.match(/Account Number:/) ? text.slice(0, text.indexOf('Account Number:')) : '';
   const name = (nameM.match(/([A-Z][A-Z®\s]{6,})\s+CHRISTOPHER/) || [, 'FIDELITY ACCOUNT'])[1].trim();
@@ -177,8 +198,10 @@ function parseSingle(text, label) {
       {
         accountNumber: acct[1],
         name,
-        beginningValue: money(beg[1], `${label} beginning`),
+        // null ⇒ the account did not exist at the period start (first statement).
+        beginningValue: beg ? money(beg[1], `${label} beginning`) : null,
         endingValue: money(end[1], `${label} ending`),
+        opensThisPeriod: !beg,
       },
     ],
     portfolio: null,
@@ -208,8 +231,16 @@ function parseStatement(pdfPath) {
   const text = extractText(pdfPath);
   const { periodStart, periodEnd } = parsePeriod(text, label);
   const parsed = parseCombined(text, label) || parseSingle(text, label);
+
+  // A December file is NOT a December statement — Fidelity issues a YEAR-END
+  // report covering Jan 1 → Dec 31. Its values and income are ANNUAL, so a
+  // consumer that treats them as one month's would be wrong by a factor of
+  // twelve on income and would misdate the valuation by eleven months.
+  const isYearEnd = /YEAR-END INVESTMENT REPORT/i.test(text);
+
   return {
     file: label,
+    statementType: isYearEnd ? 'year-end' : 'monthly',
     periodStart,
     periodEnd,
     layout: parsed.layout,
@@ -243,11 +274,13 @@ function main() {
     console.log(JSON.stringify(results, null, 2));
   } else {
     for (const r of results) {
-      console.log(`\n${r.file}  [${r.layout}]  ${r.periodStart} → ${r.periodEnd}`);
+      const yr = r.statementType === 'year-end' ? '  ** YEAR-END: values and income are ANNUAL **' : '';
+      console.log(`\n${r.file}  [${r.layout}/${r.statementType}]  ${r.periodStart} → ${r.periodEnd}${yr}`);
       console.log('  account       beginning        ending  name');
       for (const a of r.accounts) {
         console.log(
-          `  ${a.accountNumber.padEnd(12)} ${a.beginningValue.toFixed(2).padStart(13)} ` +
+          `  ${a.accountNumber.padEnd(12)} ` +
+            `${(a.beginningValue == null ? '— opened' : a.beginningValue.toFixed(2)).padStart(13)} ` +
             `${a.endingValue.toFixed(2).padStart(13)}  ${a.name}`
         );
       }

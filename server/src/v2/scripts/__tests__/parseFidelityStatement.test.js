@@ -94,11 +94,19 @@ realDescribe('real Fidelity statements (local only)', () => {
 
     for (const a of st.accounts) {
       expect(a.accountNumber).toMatch(/^[A-Z0-9]\d{2}-\d{6}$/);
-      expect(Number.isFinite(a.beginningValue)).toBe(true);
+      // beginningValue is null ONLY on an account's first statement, where
+      // Fidelity prints "-" because the account did not exist. It must never be
+      // 0: a zero asserts the account was open and empty, which would make any
+      // return or delta computed from it quietly wrong.
+      if (a.beginningValue === null) {
+        expect(a.opensThisPeriod).toBe(true);
+      } else {
+        expect(Number.isFinite(a.beginningValue)).toBe(true);
+        expect(a.beginningValue).toBeGreaterThanOrEqual(0);
+      }
       expect(Number.isFinite(a.endingValue)).toBe(true);
       // A custodian account value is never negative; a sign error here would be
       // invisible in a total that happens to look plausible.
-      expect(a.beginningValue).toBeGreaterThanOrEqual(0);
       expect(a.endingValue).toBeGreaterThanOrEqual(0);
       expect(a.name.length).toBeGreaterThan(3);
       // The table header must not bleed into the first account's name.
@@ -113,6 +121,64 @@ realDescribe('real Fidelity statements (local only)', () => {
     for (const st of combined) {
       const sum = st.accounts.reduce((s, a) => s + a.endingValue, 0);
       expect(sum).toBeCloseTo(st.portfolio.endingValue, 2);
+    }
+  });
+
+  // A December file is NOT a December statement. Fidelity issues a YEAR-END
+  // report spanning Jan 1 → Dec 31, with ANNUAL values and income. Treating one
+  // as a month would misdate the valuation by eleven months and overstate the
+  // period's income roughly twelvefold — and it would look entirely plausible.
+  // The 2025 year-end report is also what first broke the parser: its labels
+  // read "Beginning Account Value as of Jan 1, 2025", which failed loudly
+  // rather than returning a silent zero.
+  // The FILENAME does not determine the type and must not be used to infer it:
+  // Fidelity issued MONTHLY December statements in 2024 and YEAR-END ones in
+  // 2025, both named `*_12.pdf`. An earlier version of this test assumed
+  // "December ⇒ year-end" and failed on the 2024 files — correctly. What is
+  // actually invariant is that the declared type agrees with the parsed period.
+  test('the declared statement type always agrees with the period it spans', () => {
+    for (const f of localFiles) {
+      const st = parseStatement(f);
+      if (st.statementType === 'year-end') {
+        expect({ file: st.file, start: st.periodStart.slice(4) }).toEqual({ file: st.file, start: '-01-01' });
+        expect({ file: st.file, end: st.periodEnd.slice(4) }).toEqual({ file: st.file, end: '-12-31' });
+      } else {
+        // Monthly, including a partial first month (2024-06-09 → 2024-06-30).
+        expect({ file: st.file, sameMonth: st.periodStart.slice(0, 7) === st.periodEnd.slice(0, 7) })
+          .toEqual({ file: st.file, sameMonth: true });
+      }
+    }
+  });
+
+  test('a year-end statement is actually present and detected, so the branch is not vacuous', () => {
+    const types = localFiles.map((f) => parseStatement(f).statementType);
+    // Guards the test above: if no year-end file were present its assertions
+    // would never run and the branch would silently prove nothing.
+    expect(types).toContain('year-end');
+    expect(types).toContain('monthly');
+  });
+
+  // Three layout variants across 2024-2026, all of which broke the parser on
+  // first contact and all of which failed LOUDLY rather than returning a
+  // plausible wrong number:
+  //   2024 combined  — "Ending NET Portfolio Value" (2025+ drops "Net")
+  //   2024 single    — first statement: "Beginning Account Value - -"
+  //   2025 year-end  — "Beginning Account Value as of Jan 1, 2025"
+  test('every locally present statement parses — no layout variant left behind', () => {
+    for (const f of localFiles) {
+      expect(() => parseStatement(f)).not.toThrow();
+    }
+  });
+
+  test('an account opening mid-period reports null, never a zero beginning value', () => {
+    const opening = localFiles
+      .map(parseStatement)
+      .flatMap((s) => s.accounts)
+      .filter((a) => a.opensThisPeriod);
+    if (opening.length === 0) return;
+    for (const a of opening) {
+      expect(a.beginningValue).toBeNull();
+      expect(a.beginningValue).not.toBe(0);
     }
   });
 
