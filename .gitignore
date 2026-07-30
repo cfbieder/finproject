@@ -38,6 +38,14 @@ Samples/Downloads/
 Samples/Fintable/
 Samples/Moneysheets/
 
+# Custodian statements (Fidelity INVESTMENT REPORT PDFs). Carry full name, home
+# address, account numbers and complete per-security holdings — strictly more
+# sensitive than the QIF exports above. `parse-fidelity-statement.js` reads them
+# from here; nothing is committed, and there are deliberately NO pinned fixtures
+# for the parser because a scrubbed one would still be a real statement layout
+# wrapped around real balances.
+Samples/Fidelity/
+
 .claude/settings.local.json
 .ds-sync/
 ds-bundle/
