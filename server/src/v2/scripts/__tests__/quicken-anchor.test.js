@@ -12,7 +12,10 @@ const path = require('node:path');
 const fs = require('node:fs');
 
 process.env.DATABASE_URL = process.env.DATABASE_URL || 'postgres://unused/unused';
-const { parseTargetsCsv, computeAnchors } = require('../quicken-anchor');
+const {
+  parseTargetsCsv, computeAnchors, parseArgs,
+  resolveOrCreateValuationBatch, VALUATION_BATCH_STATUS,
+} = require('../quicken-anchor');
 
 const FIXTURES = path.resolve(__dirname, '../../../../../Samples/quicken/fixtures');
 
@@ -159,5 +162,119 @@ describe('computeAnchors', () => {
     const targets = [{ as_of_date: '2020-12-31', target: 100 }];
     const { anchors } = computeAnchors(targets, { '2020-12-31': 33.333333 });
     expect(anchors[0].anchor).toBe(66.67);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Valuation-only sets — anchoring an account with NO Quicken import behind it.
+//
+// CR058's original design took the anchors' owning batch for free from the
+// import. Fidelity Cash Mgt, Bond and Options have no Quicken history, so they
+// had nothing to inherit and could not be anchored at all. A batch row carrying
+// only anchors closes that, and the argument contract is where a caller could
+// otherwise write a set to the wrong owner without noticing.
+// ---------------------------------------------------------------------------
+describe('parseArgs — anchor ownership', () => {
+  const base = ['--account', 'X', '--targets', 't.csv', '--handoff', '2026-01-01'];
+
+  test('a set must have exactly one owner — neither is an error', () => {
+    expect(() => parseArgs(base)).toThrow(/one of --batch .* or --valuation-set/);
+  });
+
+  test('…and both is an error, because a row can carry only one import_batch_id', () => {
+    expect(() => parseArgs([...base, '--batch', 'u', '--valuation-set', 'v']))
+      .toThrow(/mutually exclusive/);
+  });
+
+  test('either owner alone is accepted', () => {
+    expect(parseArgs([...base, '--batch', 'u']).batch).toBe('u');
+    expect(parseArgs([...base, '--valuation-set', 'v']).valuationSet).toBe('v');
+  });
+
+  test('--clear needs no targets and no handoff — it only removes', () => {
+    const a = parseArgs(['--account', 'X', '--valuation-set', 'v', '--clear']);
+    expect(a.clear).toBe(true);
+    expect(a.targets).toBeNull();
+  });
+
+  test('--clear and --check are mutually exclusive: one writes, one must not', () => {
+    expect(() => parseArgs(['--account', 'X', '--valuation-set', 'v', '--clear', '--check']))
+      .toThrow(/mutually exclusive/);
+  });
+
+  test('--apply and --check remain mutually exclusive', () => {
+    expect(() => parseArgs([...base, '--batch', 'u', '--apply', '--check']))
+      .toThrow(/mutually exclusive/);
+  });
+});
+
+const { Pool } = require('pg');
+const dbDescribe = process.env.SKIP_DB_TESTS ? describe.skip : describe;
+
+dbDescribe('resolveOrCreateValuationBatch (DB-backed)', () => {
+  let pool;
+  const LABEL = '_anchor_test_valset_';
+
+  beforeAll(() => { pool = new Pool({ connectionString: process.env.DATABASE_URL }); });
+  afterAll(async () => { if (pool) await pool.end(); });
+
+  test('creates once, then resolves the SAME batch by label', async () => {
+    const client = await pool.connect();
+    try {
+      await client.query('BEGIN');
+      const first = await resolveOrCreateValuationBatch(client, LABEL);
+      expect(first.created).toBe(true);
+      expect(first.id).toMatch(/^[0-9a-f-]{36}$/);
+
+      const second = await resolveOrCreateValuationBatch(client, LABEL);
+      // Idempotent by label — a re-run must UPDATE a set in place, never
+      // accumulate orphaned ones that no --clear would ever find.
+      expect({ id: second.id, created: second.created }).toEqual({ id: first.id, created: false });
+
+      const { rows } = await client.query(
+        `SELECT status FROM quicken_import_batches WHERE id = $1`, [first.id]
+      );
+      expect(rows[0].status).toBe(VALUATION_BATCH_STATUS);
+    } finally {
+      await client.query('ROLLBACK');
+      client.release();
+    }
+  });
+
+  test('REFUSES to attach a valuation set to a real Quicken import batch', async () => {
+    // The dangerous confusion: a label that happens to match an imported batch
+    // would otherwise write anchors onto it, entangling them with an import
+    // whose rollback would then take them — silently, and only on rollback.
+    const client = await pool.connect();
+    try {
+      await client.query('BEGIN');
+      await client.query(
+        `INSERT INTO quicken_import_batches (id, label, status)
+         VALUES (gen_random_uuid(), $1, 'promoted')`, [LABEL]
+      );
+      await expect(resolveOrCreateValuationBatch(client, LABEL))
+        .rejects.toThrow(/is a Quicken IMPORT batch, not a valuation set/);
+    } finally {
+      await client.query('ROLLBACK');
+      client.release();
+    }
+  });
+
+  test('an ambiguous label is a hard error, not a silent pick', async () => {
+    const client = await pool.connect();
+    try {
+      await client.query('BEGIN');
+      for (let i = 0; i < 2; i++) {
+        await client.query(
+          `INSERT INTO quicken_import_batches (id, label, status)
+           VALUES (gen_random_uuid(), $1, $2)`, [LABEL, VALUATION_BATCH_STATUS]
+        );
+      }
+      await expect(resolveOrCreateValuationBatch(client, LABEL))
+        .rejects.toThrow(/ambiguous --valuation-set/);
+    } finally {
+      await client.query('ROLLBACK');
+      client.release();
+    }
   });
 });

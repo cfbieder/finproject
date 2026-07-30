@@ -16,10 +16,25 @@
  * history; feeding CR056's unrealized numerator would manufacture a confident,
  * wrong return series. See CR058 §3.3.
  *
+ * Two kinds of anchor set, distinguished by who owns the rows:
+ *
+ *   --batch <uuid>           anchors ride on an existing Quicken IMPORT batch,
+ *                            so CR019 §6.5's rollback removes them with it.
+ *                            This is CR058's original case (Fidelity Stocks, IRA).
+ *
+ *   --valuation-set <label>  anchors for an account with NO Quicken history —
+ *                            Fidelity Cash Mgt, Bond, Options. Resolves or
+ *                            creates a batch row carrying only these anchors, so
+ *                            the set stays addressable and removable. There is
+ *                            no import to promote or roll back; `--clear` is the
+ *                            removal path.
+ *
  * Usage:
- *   node quicken-anchor.js --batch <uuid> --account <name> --targets <csv> \
+ *   node quicken-anchor.js (--batch <uuid> | --valuation-set <label>) \
+ *                          --account <name> --targets <csv> \
  *                          --handoff <YYYY-MM-DD> [--apply]
- *   node quicken-anchor.js --batch <uuid> --account <name> --targets <csv> --check
+ *   node quicken-anchor.js ... --targets <csv> --check     # read-only tie-out
+ *   node quicken-anchor.js ... --clear [--apply]           # remove the set
  *
  * --check is READ-ONLY: it re-runs the tie-out against the pinned CSV and
  * reports drift without writing. The targets are frozen (Quicken is retired),
@@ -52,23 +67,40 @@ const fmt = (n) =>
 const round2 = (n) => Math.round(n * 100) / 100;
 
 function parseArgs(argv) {
-  const a = { batch: null, account: null, targets: null, handoff: null, apply: false, check: false };
+  const a = {
+    batch: null, valuationSet: null, account: null, targets: null,
+    handoff: null, apply: false, check: false, clear: false,
+  };
   for (let i = 0; i < argv.length; i++) {
     switch (argv[i]) {
       case '--batch': a.batch = argv[++i]; break;
+      case '--valuation-set': a.valuationSet = argv[++i]; break;
       case '--account': a.account = argv[++i]; break;
       case '--targets': a.targets = argv[++i]; break;
       case '--handoff': a.handoff = argv[++i]; break;
       case '--apply': a.apply = true; break;
       case '--check': a.check = true; break;
+      case '--clear': a.clear = true; break;
       default: throw new Error(`unknown argument: ${argv[i]}`);
     }
   }
-  if (!a.batch) throw new Error('--batch <uuid> is required');
+  // Exactly one owner for the anchors: an existing Quicken import batch, or a
+  // valuation-only set. Both is ambiguous — the rows can carry only one
+  // import_batch_id, and silently preferring one would put them somewhere the
+  // caller did not name.
+  if (!a.batch && !a.valuationSet) {
+    throw new Error('one of --batch <uuid> or --valuation-set <label> is required');
+  }
+  if (a.batch && a.valuationSet) {
+    throw new Error('--batch and --valuation-set are mutually exclusive');
+  }
   if (!a.account) throw new Error('--account <name> is required');
-  if (!a.targets) throw new Error('--targets <csv> is required');
-  if (!a.check && !a.handoff) throw new Error('--handoff <YYYY-MM-DD> is required (omit only with --check)');
+  if (!a.clear && !a.targets) throw new Error('--targets <csv> is required');
+  if (!a.check && !a.clear && !a.handoff) {
+    throw new Error('--handoff <YYYY-MM-DD> is required (omit only with --check or --clear)');
+  }
   if (a.apply && a.check) throw new Error('--apply and --check are mutually exclusive');
+  if (a.clear && a.check) throw new Error('--clear and --check are mutually exclusive');
   return a;
 }
 
@@ -151,6 +183,57 @@ async function todayBalance(client, accountId) {
   return Number(rows[0].bal);
 }
 
+const VALUATION_BATCH_STATUS = 'valuation';
+
+/**
+ * Resolve — or create — the batch a VALUATION-ONLY anchor set belongs to.
+ *
+ * Anchors carry an `import_batch_id`, which is what makes a set addressable:
+ * the idempotent delete at the top of every run keys on it, and so does
+ * `--clear`. For CR058's Quicken accounts that id came free from the import.
+ * Accounts with no Quicken history — Fidelity Cash Mgt, Bond, Options — have
+ * nothing to inherit, which is what blocked them.
+ *
+ * A batch row with zero staging rows costs nothing and reuses the whole
+ * existing mechanism unchanged: no new table, no second removal path, no change
+ * to how anchors are written. Its status is `valuation`, distinct from the
+ * import lifecycle (parsing/parsed/mapped/promoted/rolled_back/failed) so it can
+ * never be mistaken for something promotable — `runPromote` and `runRollback`
+ * both gate on those statuses and will refuse it, which is the intent: there is
+ * no import here to promote or roll back. Removal is `--clear`.
+ *
+ * Idempotent by label, so re-running an anchor set updates in place rather than
+ * accumulating orphaned sets.
+ */
+async function resolveOrCreateValuationBatch(client, label) {
+  const { rows: found } = await client.query(
+    `SELECT id, status FROM quicken_import_batches WHERE label = $1`, [label]
+  );
+  if (found.length > 1) {
+    throw new Error(`ambiguous --valuation-set "${label}": ${found.length} batches share that label`);
+  }
+  if (found.length === 1) {
+    if (found[0].status !== VALUATION_BATCH_STATUS) {
+      throw new Error(
+        `--valuation-set "${label}" resolves to a batch with status '${found[0].status}' — ` +
+        `that is a Quicken IMPORT batch, not a valuation set. Use --batch ${found[0].id} if you meant it.`
+      );
+    }
+    return { id: found[0].id, created: false };
+  }
+  // Created unconditionally, including on a dry run: every path here runs
+  // inside the caller's transaction, which is rolled back unless --apply. So a
+  // dry run exercises the real code and leaves nothing behind — strictly better
+  // than a special no-create branch that would then be the one path never
+  // tested against a real insert.
+  const { rows } = await client.query(
+    `INSERT INTO quicken_import_batches (id, label, status)
+     VALUES (gen_random_uuid(), $1, $2) RETURNING id`,
+    [label, VALUATION_BATCH_STATUS]
+  );
+  return { id: rows[0].id, created: true };
+}
+
 async function resolve(client, accountName, batchId) {
   const { rows: acct } = await client.query(
     `SELECT id, opening_balance_date::text AS sentinel FROM accounts
@@ -189,7 +272,9 @@ function computeAnchors(targets, ledgerAt) {
 
 async function main() {
   const args = parseArgs(process.argv.slice(2));
-  const targets = parseTargetsCsv(fs.readFileSync(args.targets, 'utf8'), args.targets);
+  const targets = args.clear
+    ? []
+    : parseTargetsCsv(fs.readFileSync(args.targets, 'utf8'), args.targets);
 
   const pool = new Pool({ connectionString: CONN_STR });
   const client = await pool.connect();
@@ -197,7 +282,20 @@ async function main() {
 
   try {
     await client.query('BEGIN');
-    const { accountId, sentinel, categoryId } = await resolve(client, args.account, args.batch);
+
+    // A valuation set owns its anchors through a batch row created for the
+    // purpose. Resolved inside the transaction, so a dry-run that creates one
+    // rolls it back with everything else.
+    let batchId = args.batch;
+    let batchCreated = false;
+    if (args.valuationSet) {
+      const vb = await resolveOrCreateValuationBatch(client, args.valuationSet);
+      batchId = vb.id;
+      batchCreated = vb.created;
+    }
+    args.batch = batchId; // downstream reads args.batch
+
+    const { accountId, sentinel, categoryId } = await resolve(client, args.account, batchId);
 
     // Guard (CR058 §4.2): an anchor dated before the account's sentinel is
     // silently excluded from every balance query — it would write rows nothing
@@ -216,6 +314,12 @@ async function main() {
     // rows under test and report the full anchor value as drift on every date.
     // The write paths clear first (idempotency) so a re-run recomputes from a
     // clean base — the `retire-handoff.js` pattern.
+    // Captured BEFORE the delete. A complete anchor set sums to zero by
+    // construction (Σ anchors + reversal = 0), so removing one must leave
+    // today's balance untouched — asserted in the --clear path below. If it
+    // moves, the set was incomplete and something else is wrong.
+    const todayBeforeClear = await todayBalance(client, accountId);
+
     const cleared = args.check
       ? { rowCount: 0 }
       : await client.query(
@@ -234,6 +338,31 @@ async function main() {
     console.log(`targets : ${targets.length} from ${args.targets}`);
     if (cleared.rowCount > 0) console.log(`cleared : ${cleared.rowCount} prior anchor row(s)`);
     console.log('');
+
+    if (args.clear) {
+      // The removal path for a valuation set — the counterpart of CR019 §6.5's
+      // rollback, which cannot serve here because there is no import to roll
+      // back. The delete already happened above (it is the same idempotent
+      // clear every write run performs); this simply stops before rewriting.
+      console.log(`removed : ${cleared.rowCount} anchor row(s) for "${args.valuationSet || args.batch}"`);
+      const after = await todayBalance(client, accountId);
+      const moved = round2(after - todayBeforeClear);
+      console.log(`today   : ${fmt(after)} (was ${fmt(todayBeforeClear)}, moved ${fmt(moved)})`);
+      if (Math.abs(moved) > MONEY_EPS) {
+        throw new Error(
+          `removing the anchor set moved today's balance by ${fmt(moved)} — a complete set sums to ` +
+          `zero, so this one is missing its reversal or has rows outside the batch. Refusing to commit.`
+        );
+      }
+      if (args.apply) {
+        await client.query('COMMIT');
+        console.log('\nCOMMITTED.');
+      } else {
+        await client.query('ROLLBACK');
+        console.log('\nDRY RUN — rolled back. Re-run with --apply to remove.');
+      }
+      return;
+    }
 
     if (args.check) {
       // With the anchors in place the balance should already EQUAL the target,
@@ -349,4 +478,12 @@ async function main() {
 
 if (require.main === module) main();
 
-module.exports = { parseTargetsCsv, computeAnchors };
+module.exports = {
+  parseTargetsCsv,
+  computeAnchors,
+  // exported for tests: the argument contract and the valuation-set resolver
+  // are where a caller can silently write anchors to the wrong owner.
+  parseArgs,
+  resolveOrCreateValuationBatch,
+  VALUATION_BATCH_STATUS,
+};
