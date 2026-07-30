@@ -22,21 +22,27 @@ describe('parseTargetsCsv', () => {
       fs.readFileSync(path.join(FIXTURES, 'valuation_targets_fid_brokerage.csv'), 'utf8'),
       'fid'
     );
-    // 44 rows from three sources, in this order:
+    // 47 rows from two sources:
     //   19  Quicken annual, 1998-03-20 → 2015-12-31 — no custodian statement
     //       exists for that era, and the 2016-2021 agreement (below) is what
     //       licenses trusting Quicken there.
-    //   24  Fidelity statement QUARTERLY, 2016-03-31 → 2021-12-31 — the
+    //   28  Fidelity statement QUARTERLY, 2016-03-31 → 2022-12-31 — the
     //       custodian is authoritative, and quarterly cuts the maximum drift
     //       window between anchors from 12 months to 3.
-    //    1  Fidelity statement ANNUAL, 2022-12-31 — deliberately NOT quarterly.
-    //       The 2022 quarterly anchors came out at +187,681 / -467,227 /
-    //       +514,765, which is not market movement: fin's ledger sits 467K
-    //       above the custodian at 2022-09-30. Pinning each quarter would let
-    //       the anchors ABSORB that, which is exactly what §1.3 established not
-    //       to do — a defect that a plug swallows can never be found again.
-    //       Logged as a data defect instead; see the roadmap.
-    expect(rows).toHaveLength(44);
+    //
+    // 2022 was briefly held back to a single annual anchor, on the theory that
+    // its large quarterly anchors (+187,681 / -467,227 / +514,765, against
+    // 2016-2021 values mostly under 30K) were absorbing a data defect. That
+    // was WRONG, and the reconciliation is worth recording because the mistake
+    // is easy to repeat: fin's Jan-Sep 2022 flows net +559,234.08 against the
+    // custodian's +258,046.88, and the difference is 301,187.20 — exactly the
+    // 2022-09-30 gap, to the cent. The cause is the custodian's
+    // -1,166,021.87 "change in investment value", which its own footnote says
+    // includes journaled securities as well as price movement. A cash-flow
+    // ledger has NO market component between anchors, so on an account taking
+    // 1.46M of additions while losing 1.17M of value, mid-year points are
+    // expected to be wildly off. Large 2022 anchors are the anchors WORKING.
+    expect(rows).toHaveLength(47);
     // The first row is the opening anchor, dated the day BEFORE the account's
     // first transaction (1998-03-21): the account was worth nothing before it
     // existed. Anchoring the 1998 year-end value at March would misdate it.

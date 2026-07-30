@@ -933,6 +933,45 @@ resolving into what they always were. 528 backend tests green. Backup
 *Worth keeping: a warning that says "verify these are genuine" is an instruction, not a disposition.
 Two of seven were not.*
 
+### 9.3 Second account — Fidelity IRA, 2026-07-30
+
+The IRA was deferred at §6 for one reason: Quicken's Net Worth Report has no IRA column, so there
+were no valuation targets. **Fidelity's combined statement carries one**, which removed the blocker
+without needing Quicken regenerated — and made this the first account anchored *entirely* on custodian
+data.
+
+| | |
+|---|---|
+| Source | `fidelity_ira.QIF` — 1,312 rows staged, **0 skipped** |
+| Promoted | **822 rows**, 2013-03-06 → 2019-12-31 (cutoff = PocketSmith start 2020-01-03) |
+| Mode | `preserve-today` — the account is feed-owned |
+| Anchors | **41**: opening 0.00 at 2013-03-05 + **40 quarterly custodian values** 2016-03-31 → 2025-12-31 |
+| Handoff | 2026-01-01 |
+| **Σ anchors** | **−0.32** |
+| Verify | **8 pass / 1 expected warning / 0 failures** — and no duplicate warning |
+
+**Σ = −0.32 is the result worth reading twice.** A ten-year reconstruction built from Quicken
+transactions lands **within thirty-two cents** of Fidelity's own valuation at 2025-12-31, so the whole
+anchor series neutralises to essentially nothing at the handoff. Stocks' equivalent is −321,173.66.
+Neither side could have been fitted to the other — the ledger comes from Quicken, the target from the
+custodian, and they share no inputs. This is the strongest evidence the CR has produced that the
+promote arithmetic is right, and it is evidence the import could not manufacture for itself.
+
+**It also repaired an 18-month freeze.** fin's IRA ledger sat at exactly **219,278.29** from 2022-09-30
+through 2024-03-31 while the account really moved 131,369.73 → 193,453.35. The statements exposed it;
+the anchors lift the curve back onto reality.
+
+**Two names needed mapping**: `fidelity_ira` → Fidelity IRA (26), and `IRA` → `Transfer - Historical`,
+the latter being the counterparty of the account's opening **ACAT rollover** (40,279.90 across two 2013
+rows) from a custodian fin does not track.
+
+**The 2013–2015 gap cost less than feared.** No statement exists before 2016, so those years stay
+flow-only. The action mix suggested this would hurt — **1,024 of 1,312 rows are `ReinvDiv`**, and a
+reinvested dividend posts as income while its matching `Buy` is skipped as neutral, inflating the
+ledger by ~32K over the account's life. In the event the first anchor after the opening is just
+**−6,057.39**: about 6K of drift on a 60K account. Worth stating that those three years are
+**approximate** rather than pretending the series is uniform.
+
 ### 9.1 The original plan
 
 **~~Hard gate~~ — CLEARED.** Revs 1–4 warned that prod ran the pre-`d4bf7da` parser and that the two
