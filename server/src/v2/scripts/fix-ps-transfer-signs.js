@@ -98,6 +98,22 @@ const CORRECTIONS = [
   // two records describe one event.
   //
   // Sweep to reproduce: see the roadmap's `#ps-transfer-sign-defects` entry.
+  //
+  // VERIFIED ACCOUNT-NUMBER MAP (custodian statements, 2026-07-30 — each
+  // confirmed by an exact-to-the-cent balance match against fin at a statement
+  // period boundary, not by reading description text):
+  //
+  //   Z31-443539  → Fidelity Stocks    (27)
+  //   X27-230910  → Fidelity Bond      (31)   ← NOT Stocks; earlier prose said so
+  //   X94-929946  → Fidelity Cash Mgt  (30)
+  //   194-901660  → Fidelity IRA       (26)
+  //
+  // An account number inside a transfer description is the COUNTERPARTY's text
+  // and is not a reliable identifier of the row's own account — the `descrLike`
+  // patterns below use it only as a string discriminator between same-day,
+  // same-amount rows, never to infer direction. Direction always comes from
+  // Quicken's own XOut/XIn plus the counterparty ledger. See CR058 §1.3's
+  // account-number correction note.
   // ─────────────────────────────────────────────────────────────────────────
   {
     // Quicken: `XOut -25,000.00 -> [Chase (C)]`, memo "PPD ID: 1035141375".

@@ -110,6 +110,30 @@ Measured on dev. Accounts 26 and 30 show the same class of drift but are **out o
 
 ### 1.3 The 2020 anchor was a PocketSmith double-count — *rev 3*
 
+> **Account-number correction — 2026-07-30.** This section identifies counterparties by reading the
+> Fidelity account numbers out of PocketSmith's description text. Custodian statements
+> ([CR061](cr-061-holdings-and-prices.md), parser `parse-fidelity-statement.js`) since established
+> today's mapping by exact-to-the-cent balance matches: **`Z31-443539` = Fidelity Stocks (27)**,
+> **`X27-230910` = Fidelity *Bond* (31)**, `X94-929946` = Cash Mgt (30), `194-901660` = IRA (26). So a
+> description saying "`X27-230910`" does **not** denote account 27, and prose below that reads it that
+> way is wrong.
+>
+> **The corrections themselves are unaffected**, because none of them rested on the numbers. Each was
+> established by Quicken's own `XOut` for the same event plus the counterparty ledger showing the money
+> arrive — two independent records, agreeing. The numbers were narrative colour.
+>
+> What is *not* yet resolved is what `X27-230910` denoted in **2020**. Fidelity Bond is a real, separate
+> account — on 2024-06-09 account 27 sent it 421,630.00 and it transferred securities to `Z31-443539`
+> the next day, so the two coexist — but fin did not track it until **2024-06-07**. Either the numbers
+> were re-registered at some point, or `X27-230910` existed untracked all along and PocketSmith
+> attributed its 2020 debit to account 27. Both readings leave household net worth and the anchors
+> unchanged, and both leave the sign corrections correct; only the attribution of one leg is in
+> question. Logged for the statement backfill, which can settle it from the custodian's side.
+>
+> *The transferable lesson: an account number inside a transfer description is the **counterparty's**
+> text, not an identifier of the row's own account, and it is not stable enough to reason from. Use a
+> balance match against an authoritative statement.*
+
 Rev 2 extended the series through 2022 and produced a **2020 anchor of −1,445,246.13** — larger than
 the cliff it was meant to remove, and sitting mid-chart. The re-check was right to reject it, and
 right that it was "papering over a data defect". But the defect is not the mis-categorised
