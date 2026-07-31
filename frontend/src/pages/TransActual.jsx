@@ -16,7 +16,11 @@ import {
   ChevronDown as ChevronDownIcon,
 } from "lucide-react";
 import { ACTUAL_CONFIG } from "../features/Transaction/transactionConfig.js";
-import { parseEntryDate, normalizeStringOptions } from "../features/Transaction/transactionUtils.js";
+import {
+  getDateRangeBounds,
+  isEntryInDateRange,
+  normalizeStringOptions,
+} from "../features/Transaction/transactionUtils.js";
 import { useTransactions } from "../features/Transaction/hooks/useTransactions.js";
 import { useTransactionSelection } from "../features/Transaction/hooks/useTransactionSelection.js";
 import { useTransactionEdit } from "../features/Transaction/hooks/useTransactionEdit.js";
@@ -176,26 +180,15 @@ export default function TransActual() {
     const categoryList = Array.isArray(filters.category) ? filters.category : filters.category ? [filters.category] : [];
     const currencyList = Array.isArray(filters.currency) ? filters.currency : filters.currency ? [filters.currency] : [];
 
-    // Precompute the date-range bounds (may span multiple years)
-    const fromYear = Number(filters.year);
-    const toYear = Number.isFinite(Number(filters.toYear)) ? Number(filters.toYear) : fromYear;
-    const fromMonthNum = Number(filters.fromMonth) || 1;
-    const toMonthNum = Number(filters.toMonth) || 12;
-    const rangeStart = Number.isFinite(fromYear)
-      ? Date.UTC(fromYear, fromMonthNum - 1, 1)
-      : null;
-    // Exclusive upper bound: first day of the month after toMonth in toYear
-    const rangeEnd = Number.isFinite(toYear)
-      ? Date.UTC(toYear, toMonthNum, 1)
-      : null;
+    // Half-open date-only bounds (may span multiple years). Strings, not
+    // instants: parsing "2025-12-01" with new Date() gives UTC midnight, and
+    // bucketing that by local calendar parts dropped every row dated the 1st of
+    // the from-month west of UTC — while the KPI tile (server-side totals) still
+    // counted it. See getDateRangeBounds.
+    const bounds = getDateRangeBounds(filters);
 
     return transactions.filter((entry) => {
-      if (filters.yearEnabled && rangeStart !== null && rangeEnd !== null) {
-        const date = parseEntryDate(entry);
-        if (!date) return false;
-        const t = Date.UTC(date.getFullYear(), date.getMonth(), date.getDate());
-        if (t < rangeStart || t >= rangeEnd) return false;
-      }
+      if (filters.yearEnabled && !isEntryInDateRange(entry, bounds)) return false;
       if (filters.accountEnabled && accountList.length) {
         if (!accountList.includes(entry?.Account)) return false;
       }

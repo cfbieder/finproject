@@ -5,6 +5,8 @@
 
 import { formatDateOnly } from "../../utils/dateHelpers.js";
 
+const pad2 = (value) => String(value).padStart(2, "0");
+
 export const SELECTION_COLUMN_KEY = "selected";
 export const DEFAULT_SORT = { key: "Date", direction: "desc" };
 
@@ -30,6 +32,60 @@ export const parseEntryDate = (entry) => {
   }
   const parsed = rawDate instanceof Date ? rawDate : new Date(rawDate);
   return Number.isFinite(parsed.getTime()) ? parsed : null;
+};
+
+/**
+ * Half-open date bounds `[start, end)` for the period filter, as date-only
+ * YYYY-MM-DD STRINGS — deliberately not instants.
+ *
+ * The client-side period filter used to parse each row with `parseEntryDate`
+ * (`new Date("2025-12-01")` — UTC midnight per spec) and then bucket it by LOCAL
+ * calendar parts, which shifts every row back a day west of UTC. A 1-Dec-2025
+ * transaction bucketed as 2025-11-30 and fell OUT of a December filter, while a
+ * 1-Jan-2026 one fell IN — with the KPI tile (server-side totals) still counting
+ * the missing row, so the page showed a (55,000.00) total above an empty table.
+ * Same hazard as Known Issue #3; v3.6.1 fixed the render side and left this one.
+ *
+ * ISO date-only strings compare lexicographically, so string bounds make the
+ * comparison timezone-free by construction rather than by correcting a parse.
+ *
+ * @param {Object} filters - Filter state (year, toYear, fromMonth, toMonth)
+ * @returns {{start: string|null, end: string|null}} null bounds ⇒ no date filter
+ */
+export const getDateRangeBounds = (filters) => {
+  const fromYear = Number(filters?.year);
+  if (!Number.isFinite(fromYear) || fromYear <= 0) {
+    return { start: null, end: null };
+  }
+  const parsedToYear = Number(filters?.toYear);
+  const toYear =
+    Number.isFinite(parsedToYear) && parsedToYear > 0 ? parsedToYear : fromYear;
+  const fromMonth = Number(filters?.fromMonth) || 1;
+  const toMonth = Number(filters?.toMonth) || 12;
+
+  return {
+    start: `${fromYear}-${pad2(fromMonth)}-01`,
+    // Exclusive upper bound: first day of the month after toMonth in toYear
+    end:
+      toMonth >= 12
+        ? `${toYear + 1}-01-01`
+        : `${toYear}-${pad2(toMonth + 1)}-01`,
+  };
+};
+
+/**
+ * True when an entry's date falls inside half-open bounds from getDateRangeBounds.
+ * An entry with no usable date is excluded, as it was before.
+ *
+ * @param {Object} entry - The transaction entry
+ * @param {{start: string|null, end: string|null}} bounds
+ * @returns {boolean}
+ */
+export const isEntryInDateRange = (entry, bounds) => {
+  if (!bounds?.start || !bounds?.end) return true;
+  const date = formatDateOnly(entry?.Date ?? entry?.date);
+  if (!date) return false;
+  return date >= bounds.start && date < bounds.end;
 };
 
 /**
