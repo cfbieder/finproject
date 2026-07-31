@@ -287,3 +287,75 @@ realDescribe('value-change blocks (real statements)', () => {
     expect(bad.length).toBeGreaterThan(0);
   });
 });
+
+// ---------------------------------------------------------------------------
+// Holdings totals — market value vs cost basis, the honest unrealized source.
+// ---------------------------------------------------------------------------
+realDescribe('holdings totals (real statements)', () => {
+  const parsed = localFiles.map(parseStatement);
+  const all = parsed.flatMap((s) => s.accounts.map((a) => ({ file: s.file, end: s.periodEnd, a })));
+
+  test('every account gets a holdings line — none silently unmatched', () => {
+    const missing = all.filter(({ a }) => !a.holdings).map(({ file, a }) => `${file}:${a.accountNumber}`);
+    expect(missing).toEqual([]);
+  });
+
+  test('holdings market value ties to the account ending value', () => {
+    // Residuals across the whole corpus are 0.00, 35.05 (one holding carried in
+    // X27-230910's account value but absent from its position table) and 10.18.
+    // A residual near the account's own size would mean the wrong line was
+    // paired to the wrong account.
+    for (const { file, a } of all) {
+      expect({ file, ok: Math.abs(a.holdings.residual) <= 50 }).toEqual({ file, ok: true });
+    }
+  });
+
+  test('a cash-only account reports ZERO unrealized, not a fabricated gain', () => {
+    // `Total Holdings $1,278,965.19 $0.00` has only two figures — market value
+    // and EAI. Reading the $0.00 positionally as a cost basis would invent a
+    // 1.28M unrealized gain on an FDIC sweep.
+    const cash = all.filter(({ a }) => a.holdings.cashOnly);
+    expect(cash.length).toBeGreaterThan(0);
+    for (const { file, a } of cash) {
+      expect({ file, u: a.holdings.unrealized, c: a.holdings.costBasis }).toEqual({ file, u: 0, c: 0 });
+    }
+  });
+
+  test('cost basis + unrealized is NOT asserted to equal market value', () => {
+    // Deliberately not an invariant: money-market and core-cash positions carry
+    // market value with no cost basis, so the identity is false by design. This
+    // records that as intent rather than an oversight — at least one account
+    // must actually break it, or the comment is describing nothing.
+    const breaks = all.filter(
+      ({ a }) => !a.holdings.cashOnly &&
+        Math.abs(a.holdings.costBasis + a.holdings.unrealized - a.holdings.marketValue) > 1
+    );
+    expect(breaks.length).toBeGreaterThan(0);
+  });
+
+  test('portfolio unrealized moves with the market, not with transfers', () => {
+    // The end-to-end check on the whole approach. Summed across accounts,
+    // internal transfers cancel, so the year-over-year change should track real
+    // market years. `Change in Investment Value` fails this badly — it reported
+    // -1,609,830 for 2022 and +2,772,524 for 2023 on the same portfolio.
+    const byEnd = new Map();
+    for (const s of parsed) {
+      if (s.statementType !== 'monthly') continue;
+      byEnd.set(s.periodEnd, s.accounts.reduce((t, a) => t + a.holdings.unrealized, 0));
+    }
+    const keys = [...byEnd.keys()].sort();
+    const yr = {};
+    keys.forEach((k, i) => {
+      if (i === 0) return;
+      yr[k.slice(0, 4)] = (yr[k.slice(0, 4)] || 0) + byEnd.get(k) - byEnd.get(keys[i - 1]);
+    });
+    // Down years and up years, by sign only — no hardcoded balances.
+    expect(yr['2018']).toBeLessThan(0);
+    expect(yr['2022']).toBeLessThan(0);
+    expect(yr['2019']).toBeGreaterThan(0);
+    expect(yr['2021']).toBeGreaterThan(0);
+    expect(yr['2023']).toBeGreaterThan(0);
+    // And plausibly scaled: a portfolio of this size does not move billions.
+    for (const v of Object.values(yr)) expect(Math.abs(v)).toBeLessThan(1_000_000);
+  });
+});

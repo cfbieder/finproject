@@ -1371,3 +1371,73 @@ and differencing it across quarters gives real unrealized G/L — immune to this
 a transfer moves market value and cost basis together. That needs the holdings tables parsed, which
 would also populate the `securities` table [CR020](cr-020-stock-investment-module.md) and
 [CR061](cr-061-holdings-and-prices.md) have been blocked on at 0 rows.
+
+### 12.9 Unrealized G/L from cost basis — the route that survives
+
+**2026-07-31.** §12.8 killed `Change in Investment Value` as a return measure. The statements carry a
+second, independent source that does not share the defect: the **`Total Holdings`** line closing each
+account's position table.
+
+```
+Total Holdings   <ending market value>   <total cost basis>   <unrealized G/L>   <EAI>
+```
+
+Market value minus cost basis is immune to the transfer contamination, and the reason is structural:
+a transfer moves BOTH together, so a position's embedded gain travels with it instead of being
+manufactured. `parse-fidelity-statement.js` now extracts this per account for all **117
+account-statements, none unmatched**.
+
+**Two traps, both of which would have produced a confident wrong number:**
+
+- **The column set varies with what the account holds, and the second figure means different things
+  in each shape.** Four figures = market value, cost basis, unrealized, EAI. **Two figures = market
+  value, EAI** — a cash-only account. Fidelity Cash Mgt reads `Total Holdings $1,278,965.19 $0.00`
+  for every period 2020-09 → 2023-09, when it held nothing but the FDIC sweep. Reading that `$0.00`
+  positionally as a cost basis invents a **1.28M unrealized gain**. The count decides, never the
+  position; `cashOnly` is flagged explicitly rather than left as an ambiguous null, because "cash
+  account, genuinely zero" and "failed to parse" must not look alike.
+- **`cost + unrealized = market value` is NOT asserted**, deliberately. Money-market and core-cash
+  positions carry market value with no cost basis (`FS_2026_06` is short by 9,483.47 — exactly its
+  SPAXX position), so the identity is false by design. A test asserts that at least one account
+  *breaks* it, so the exemption describes something real rather than covering an oversight.
+
+Attachment is by ending market value. Across all 117 the residual is **0.00 (82×), 35.05 (34×) and
+10.18 (1×)** — the 35.05 being a single holding carried in `X27-230910`'s account value but absent
+from its position table for a decade. Wide enough to absorb; far too tight to pair the wrong account.
+
+#### The cross-validation
+
+The two methods should AGREE where an account has no transfers and DIVERGE where it has many. They do:
+
+| year | IRA §12.8 | IRA §12.9 | diff | X27 §12.8 | X27 §12.9 | ratio |
+|---|---:|---:|---:|---:|---:|---:|
+| 2017 | 13,069 | 13,062 | **8** | 213,863 | 22,267 | 9.6× |
+| 2021 | 27,229 | 27,229 | **0** | −21,790 | 53,182 | −0.4× |
+| 2022 | −20,242 | −20,252 | **10** | −1,594,887 | −182,661 | 8.7× |
+| 2023 | 26,289 | 26,266 | **23** | 2,655,107 | 180,283 | 14.7× |
+
+The IRA takes almost no transfers and the two agree to single digits — including 2021 exactly.
+`X27-230910` takes many, and they diverge by up to 31×. That is the transfer contamination isolated,
+and it is what licenses trusting §12.9 over §12.8.
+
+#### The portfolio series
+
+Summed across accounts, internal transfers cancel. Year-over-year change in portfolio unrealized,
+41 period-ends, 2016-03-31 → 2026-06-30:
+
+| 2016 | 2017 | 2018 | 2019 | 2020 | 2021 | 2022 | 2023 | 2024 | 2025 | 2026 H1 |
+|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|
+| 20,359 | 35,329 | **−45,852** | 80,230 | 46,583 | 80,411 | **−202,913** | 211,314 | 66,940 | 122,197 | 158,067 |
+
+Every sign matches the actual market year — down in 2018 and 2022, up in 2019, 2021 and 2023.
+§12.8's figures for the same portfolio were **−1,609,830** (2022) and **+2,772,524** (2023).
+
+A test asserts the signs and a plausibility bound rather than hardcoding balances, and the cash-only
+handling was **falsified** — fabricating the gain fails two tests, and the alternative positional
+reading cannot even load. **74 tests** in the parser suite.
+
+**Not yet done, and deliberately not claimed:** nothing is written to the ledger. Δunrealized is the
+*unrealized* component only — total return also needs realized gains and income, both separately
+disclosed on the statement. And account-level (as opposed to portfolio-level) series still carry a
+transfer artifact at the 2024 account split, where ~196K of embedded gain moved from `X27-230910` to
+`Z31-443539`. Booking any of this is a separate decision.

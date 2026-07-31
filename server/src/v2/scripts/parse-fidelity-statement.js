@@ -373,6 +373,83 @@ function attachValueChange(parsed, blocks) {
   return parsed;
 }
 
+/**
+ * Holdings totals — the `Total Holdings` line closing each account's position
+ * table:
+ *
+ *   Total Holdings  <ending market value>  <total cost basis>  <unrealized G/L>  <EAI>
+ *
+ * This is the honest source for unrealized gain/loss, and the reason matters.
+ * §12.8 established that `Change in Investment Value` cannot measure return: it
+ * absorbs "Other Activity In or Out", so a 2.5M transfer out of X27-230910 in
+ * 2023 reappeared inside it as +2.68M of phantom "return". Market value minus
+ * cost basis has no such defect — a transfer moves BOTH together, so the
+ * embedded gain travels with the position instead of being manufactured.
+ *
+ * NOT asserted: cost + unrealized = market value. Money-market and core-cash
+ * positions carry market value with no cost basis (FS_2026_06 is short by
+ * 9,483.47, exactly its SPAXX position), so that identity is false by design.
+ *
+ * Attached to accounts by matching ending market value. Across all 117
+ * account-statements the residual is 0.00 (82×), 35.05 (34×, a single holding
+ * on X27-230910 carried in the account value but absent from its position
+ * table for a decade) and 10.18 (1×) — so the tolerance below is wide enough to
+ * absorb that and far too tight to pair the wrong account.
+ */
+const HOLDINGS_RESIDUAL_TOLERANCE = 50;
+
+function parseHoldingsTotals(text, label) {
+  // The column set VARIES with what the account holds, and the second figure
+  // means different things in each shape — so the count decides, never the
+  // position alone:
+  //   4 figures  market value, cost basis, unrealized G/L, EAI   (holds securities)
+  //   2 figures  market value, EAI                               (cash only)
+  // Fidelity Cash Mgt reads `Total Holdings $1,278,965.19 $0.00` for every
+  // period 2020-09 → 2023-09, when it held nothing but the FDIC sweep. Reading
+  // that $0.00 as a cost basis would invent a 1.28M unrealized gain.
+  const re = new RegExp(
+    String.raw`Total Holdings\s+` + VC_NUM + String.raw`\s+` + VC_NUM +
+      String.raw`(?:\s+` + VC_NUM + String.raw`)?(?:\s+` + VC_NUM + String.raw`)?`,
+    'g'
+  );
+  const out = [];
+  let m;
+  while ((m = re.exec(text)) !== null) {
+    const figures = [m[1], m[2], m[3], m[4]].filter((x) => x !== undefined);
+    const marketValue = vcMoney(figures[0], `${label} holdings market value`);
+    if (figures.length >= 3) {
+      out.push({
+        marketValue,
+        costBasis: vcMoney(figures[1], `${label} holdings cost basis`),
+        unrealized: vcMoney(figures[2], `${label} holdings unrealized`),
+        cashOnly: false,
+      });
+    } else {
+      // Cash only: there is no cost basis, so unrealized is genuinely ZERO —
+      // materially different from "we could not parse it", which is why this is
+      // flagged rather than left null for the caller to guess at.
+      out.push({ marketValue, costBasis: 0, unrealized: 0, cashOnly: true });
+    }
+  }
+  return out;
+}
+
+function attachHoldings(parsed, totals, label) {
+  for (const acct of parsed.accounts) {
+    const best = totals
+      .map((t) => ({ t, d: Math.abs(t.marketValue - acct.endingValue) }))
+      .sort((a, b) => a.d - b.d)[0];
+    if (!best || best.d > HOLDINGS_RESIDUAL_TOLERANCE) {
+      acct.holdings = null;
+      continue;
+    }
+    acct.holdings = { ...best.t, residual: round2cents(acct.endingValue - best.t.marketValue) };
+  }
+  return parsed;
+}
+
+const round2cents = (n) => Math.round(n * 100) / 100;
+
 /** Income Summary — this-period figures. Absent on some layouts; null then. */
 function parseIncome(text) {
   const i = text.indexOf('Income Summary');
@@ -395,9 +472,13 @@ function parseStatement(pdfPath) {
   const label = path.basename(pdfPath);
   const text = extractText(pdfPath);
   const { periodStart, periodEnd } = parsePeriod(text, label);
-  const parsed = attachValueChange(
-    parseCombined(text, label) || parseSingle(text, label),
-    parseValueChange(text, label)
+  const parsed = attachHoldings(
+    attachValueChange(
+      parseCombined(text, label) || parseSingle(text, label),
+      parseValueChange(text, label)
+    ),
+    parseHoldingsTotals(text, label),
+    label
   );
 
   // Whether the figures are ANNUAL or MONTHLY is decided by the PERIOD, never
