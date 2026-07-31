@@ -1,8 +1,8 @@
-# CR062 — Forecast Loan Module, and the Equity report it makes possible — COMPLETED (P0 + P1 live on prod v3.8.0; P2 built)
+# CR062 — Forecast Loan Module, and the Equity report it makes possible — COMPLETED (all three phases live on prod: P0 + P1 as v3.8.0, P2 as v3.9.0)
 
 Give the forecast a Loan module — principal, year taken, rate, end year and a per-year
 amortization schedule — and then let a loan be secured against any asset so the plan can show
-**equity**, not just gross value. Rev 5: both review passes landed; **P0 + P1 shipped to prod as v3.8.0**, and **P2 is built** — the owner asked for all three phases together, releasing pass 2's gate.
+**equity**, not just gross value. Rev 5: both review passes landed; **P0 + P1 shipped to prod as v3.8.0 and P2 as v3.9.0** (migrations 047 and 048 applied) — the owner asked for all three phases together, releasing pass 2's gate. The two pre-existing defects this CR turned up in passing were then fixed in **v3.9.1** (§11).
 [Roadmap](../current/project-roadmap.md#cr062)
 
 **Opened:** 2026-07-31 · **Track:** v3 · **Migration:** 047 (P1) · 048 (P2)
@@ -549,21 +549,22 @@ Falsify first, then fix — every assertion must be shown failing against curren
 
 | Item | Phase | State |
 |---|---|---|
-| **`isLiability` sign fix — standalone patch release** (`7965b89`) | **P0** | ✅ dev |
-| Migration 047 | P1 | ✅ dev (prod pending) |
+| **`isLiability` sign fix — standalone patch release** (`7965b89`) | **P0** | ✅ prod (v3.8.0) |
+| Migration 047 | P1 | ✅ dev + **prod** (deploy Step 2b, 2026-07-31) |
 | `fcbuilder-loan.js` (pure derivation) | P1 | ✅ 13 tests |
 | `computeModule` interest branch + window neutralisation | P1 | ✅ both guards falsified |
-| Retype-to-Loan clear: dry-run counts + variant override path | P1 | ✅ API done; **UI confirm still to wire** |
+| Retype-to-Loan clear: dry-run counts + variant override path | P1 | ✅ API + **UI confirm wired** (names what will go; Cancel verified in a browser to leave the module untouched) |
 | `getBaseYearValues` loan branch | P1 | ✅ V6 |
 | Repo columns / create / update / **`copyScenario`** / `replaceModuleSchedules` / `refreshModulesFromActuals` | P1 | ✅ V15 |
 | Route DTO / allowlist / validation / loan guards | P1 | ✅ |
 | `forecastVariants` schedule wiring | P1 | ✅ V19/V20 |
 | `FCModulesEdit` Loan section + straight-line fill | P1 | ✅ verified in a browser |
 | `fcModulePayload` + coverage test · `fcWarnings` loan rules | P1 | ✅ V16 |
-| Migration 048 + FK remap in copy/variant paths | P2 | ✅ dev |
+| Migration 048 + FK remap in copy/variant paths | P2 | ✅ dev + **prod** (deploy Step 2b) |
 | `GET /forecast/equity` + `/forecast-equity` page + chart | P2 | ✅ verified in a browser |
 | V1–V21 | | ✅ (V17 trivially, as predicted) |
-| Deploy | | ✅ **v3.8.0 (P0+P1) live on prod 2026-07-31**, migration 047 applied via Step 2b; P2 pending |
+| Deploy | | ✅ **all three phases live on prod 2026-07-31** — v3.8.0 (P0+P1, migration 047) then v3.9.0 (P2, migration 048), both applied via Step 2b |
+| **Two pre-existing defects found in passing** — `createModule` dropping nine columns; migration 041's checksum drift | — | ✅ fixed in **v3.9.1** (`ea07988`); see below |
 
 **Deploy path** *(pass 2 R3)*: `Scripts/deploy-to-production.sh` **Step 2b applies pending
 migrations before the code**, which is what satisfies schema-before-code for 047 and 048 — no
@@ -578,3 +579,43 @@ half-built, closes a live incident class — Bank Pekao unhealthy since 2026-07-
 **CR062 P1** during CR059's P2 parallel-run window, while CR059 is paced by its observation
 period. **P2 after CR059's P4 cutover** — a forecast page and a feed cutover should not ride
 the same prod deploy off a shared trunk. CR061 stays behind all of it.
+
+### 11.1 The two pre-existing defects this CR found — fixed in v3.9.1 (`ea07988`)
+
+Neither was caused by CR062; both were found while shipping it, and both were deliberately
+deferred out of the CR's own releases so the loan work shipped on its own merits.
+
+**(1) `POST /forecast/modules` silently dropped nine columns.** `repo.createModule` carried its
+**own** hand-written INSERT list, separate from `updateModule`'s allow-list, and the two had
+drifted. **Five** of the nine were fields the route had already mapped into `moduleData` and
+believed it was saving — CR046's four window dates and CR047's `income_tax_rate_override`; the
+other four (`tax_rate_override`, `setup_status`, both `cash_sweep_*`) were simply unreachable.
+POST returned **201** and the values were gone: no error, nothing to notice.
+
+The generalisable part is not the five fields. This is the **v3.0.86 defect one layer down** —
+same CR046/CR047 fields, same shape of whitelist, `fcModulePayload` then and the repository
+now — so **the two-lists-per-path pattern is the bug**. Both paths now read one exported
+`MODULE_COLUMN_DEFAULTS` map, which carries the defaults too, because *"what column"* and
+*"what does absent mean"* are the same question (`??` where NULL is load-bearing, `||` where 0
+and NULL agree). Falsified first: the window date came back `null`. The second test is the one
+that outlives the fix — it reads `information_schema` and asserts every writable column is
+reachable through the repository, so **the next migration that adds a column trips a test**
+instead of a scenario quietly computing something else. Verified against prod itself with a
+throwaway module (id 433): `income_start_date`, `expense_end_date` and
+`income_tax_rate_override` all persisted, then deleted.
+
+**(2) Migration 041's checksum drift is resolved, not silenced.** The in-place edit
+(CR057's `10eb270`) was **unavoidable** — 041 aborts the chain on a hard-coded `parent_id = 200`
+that CI's serial-id database cannot satisfy, so no later migration can repair it — but the
+runner could only ever *warn*, so every deploy would report it forever. A warning nobody can
+clear is a warning everybody learns to scroll past.
+
+Equivalence was **proved before it was accepted**, rather than trusting the commit message:
+`Transfer - Distributions` is id 228, parent `Transfers`, `is_transfer = TRUE` on **both**
+databases, and re-running the current file inside a transaction produces **no INSERT, no UPDATE
+and no error** on either. `server/db/migrate.js` gains `--accept-drift=<file>[,<file>]`, which
+re-records the checksum for **named files only** — never a blanket sweep — and a dry run never
+accepts. Applied to dev and prod; both ledgers now report **zero drift and zero pending**, and
+dev's also picked up 046/047/048, which had been applied by hand and never recorded. The rule
+is written down in `.claude/rules/migrations.md`: prove equivalence against the real database,
+then accept per file.
