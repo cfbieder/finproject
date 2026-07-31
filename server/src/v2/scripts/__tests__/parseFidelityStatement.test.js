@@ -219,3 +219,71 @@ realDescribe('real Fidelity statements (local only)', () => {
     for (const n of seen.keys()) expect(KNOWN).toContain(n);
   });
 });
+
+// ---------------------------------------------------------------------------
+// Value-change blocks — Fidelity's own decomposition of the period's move.
+// ---------------------------------------------------------------------------
+realDescribe('value-change blocks (real statements)', () => {
+  const parsed = localFiles.map(parseStatement);
+  const withBlock = parsed.flatMap((s) =>
+    s.accounts.filter((a) => a.valueChange).map((a) => ({ file: s.file, a }))
+  );
+
+  test('the parts equal the whole on every block', () => {
+    // The load-bearing assertion. `Transaction Costs, Fees & Charges` is a
+    // SUB-line of Subtractions, and `Transfers Between Fidelity Accounts` is a
+    // top-level sibling — get either wrong and this fails, which is exactly how
+    // both were discovered.
+    expect(withBlock.length).toBeGreaterThan(100);
+    for (const { file, a } of withBlock) {
+      const v = a.valueChange;
+      const derived = (v.beginning || 0) + v.additions + v.subtractions + v.transfers + v.changeInValue;
+      expect({ file, derived: Math.round(derived * 100) / 100 })
+        .toEqual({ file, derived: Math.round(v.ending * 100) / 100 });
+    }
+  });
+
+  test('a block is attached to the account whose values it matches', () => {
+    for (const { file, a } of withBlock) {
+      expect({ file, b: a.valueChange.beginning, e: a.valueChange.ending })
+        .toEqual({ file, b: a.beginningValue, e: a.endingValue });
+    }
+  });
+
+  test('the pre-2021 "Beginning NET Account Value" wording is handled', () => {
+    // 2016-2020 statements insert "Net"; without allowing it every pre-2021
+    // account silently found no block at all — a wrong-by-omission, not a crash.
+    const old = parsed.filter((s) => s.periodEnd < '2021-01-01');
+    expect(old.length).toBeGreaterThan(0);
+    for (const s of old) {
+      for (const a of s.accounts) expect({ f: s.file, has: !!a.valueChange }).toEqual({ f: s.file, has: true });
+    }
+  });
+
+  test('YTD is captured alongside the period, and they genuinely differ', () => {
+    // These are MONTHLY statements filed quarterly, so summing the period
+    // column samples four months a year. YTD differencing is what recovers the
+    // months in between; if YTD silently mirrored the period column that whole
+    // approach would be worthless.
+    const differing = withBlock.filter(
+      ({ a }) => Math.abs(a.valueChange.ytd.changeInValue - a.valueChange.changeInValue) > 0.01
+    );
+    expect(differing.length).toBeGreaterThan(50);
+  });
+
+  test('CHANGE IN INVESTMENT VALUE IS NOT A RETURN — it absorbs transfers', () => {
+    // Encodes the finding that killed the "book it as a total-return line"
+    // plan. Fidelity's own footnote says the figure includes "transactions from
+    // Other Activity In or Out", and 2023 shows what that costs: X27-230910
+    // reports +2,680,973.57 YTD change in investment value at 2023-06-30 while
+    // the account itself moved only ~+107K, because it is offsetting a
+    // -2,500,000.00 Exchanges Out. Any future attempt to treat this field as
+    // performance must fail here first.
+    const bad = withBlock.filter(({ a }) => {
+      const v = a.valueChange;
+      const move = Math.abs(v.ending - (v.beginning || 0));
+      return Math.abs(v.ytd.changeInValue) > 5 * Math.max(move, 1) && Math.abs(v.ytd.changeInValue) > 100000;
+    });
+    expect(bad.length).toBeGreaterThan(0);
+  });
+});

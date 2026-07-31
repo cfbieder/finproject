@@ -1326,3 +1326,48 @@ dates and would have absorbed it. Closed.
   flat run was merely the visible extreme. That would mean the guard should *prefer a later row*
   rather than merely refuse a stale one. July's mark is the test: mark off the row carrying the
   settled 07-31 close, not the row dated 07-31.
+
+### 12.8 Statement decomposition — extracted, and why it does NOT give a return series
+
+**2026-07-31.** The statements carry Fidelity's own decomposition of each period:
+
+```
+Beginning + Additions + Subtractions + Transfers Between Fidelity Accounts
+          + Change in Investment Value  =  Ending
+```
+
+`parse-fidelity-statement.js` now extracts it for every account, both the
+**This Period** and **Year-to-Date** columns, with the reconciliation above asserted per block.
+**51 statements, 0 failures, 4 blocks unparsed** (all in the two *2025 annual* reports, a distinct
+year-end layout). Three layout traps, each found by the invariant rather than by inspection:
+
+- **`Transaction Costs, Fees & Charges` is a SUB-line of Subtractions**, not an addend. Adding it
+  double-counted — caught on the first run, 7 cents out on `FS_2026_06`.
+- **`Transfers Between Fidelity Accounts` IS a top-level addend**, sibling to Additions/Subtractions.
+  Proven arithmetically on `FA_2024_06`, where Subtractions equals its own sub-lines exactly, leaving
+  the transfer outside. It appears only in the six 2024 statements (the account split) and, on an
+  account's first statement, replaces Additions entirely.
+- **2016–2020 say "Beginning NET Account Value".** Without the optional `Net`, every pre-2021 account
+  silently found no block — wrong by omission, not by crash.
+
+**The extraction succeeded and the intended use failed.** `Change in Investment Value` cannot serve
+as a return series, at account OR portfolio level, because Fidelity's own footnote says it includes
+*"transactions from Other Activity In or Out"*. 2023 is the demonstration: `X27-230910` reports
+**+2,680,973.57** YTD at 2023-06-30 on an account that moved **+107K**, because it is offsetting a
+−2,500,000.00 `Exchanges Out`. Portfolio level is no better — 2023 YTD **+2,708,956.43** against
+Additions of +2,718,500 and Subtractions of −2,706,413, the same ~2.7M inside both. Every block
+reconciles exactly; the figure is simply not performance.
+
+This also resolves a loose end: CR058 §9 cited the custodian's 2022 figure as **−1,166,021.87**. The
+parser reproduces it exactly — as the **YTD to September**, not the annual (which is −1,594,887.43).
+The §9 reasoning stands; the label was imprecise.
+
+A test now asserts the contamination directly (*"CHANGE IN INVESTMENT VALUE IS NOT A RETURN"*), so any
+later attempt to treat the field as performance fails first. **69 tests** in the parser suite.
+
+**What remains viable:** the statements also carry a per-holding `Total Cost Basis` and
+`Unrealized Gain/Loss` column at each period end. Summing those gives the true unrealized *level*,
+and differencing it across quarters gives real unrealized G/L — immune to this contamination, because
+a transfer moves market value and cost basis together. That needs the holdings tables parsed, which
+would also populate the `securities` table [CR020](cr-020-stock-investment-module.md) and
+[CR061](cr-061-holdings-and-prices.md) have been blocked on at 0 rows.

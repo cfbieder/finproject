@@ -208,6 +208,171 @@ function parseSingle(text, label) {
   };
 }
 
+/**
+ * Value-change blocks — Fidelity's OWN decomposition of the period's move:
+ *
+ *   Beginning + Additions + Subtractions + Transaction Costs
+ *             + Change in Investment Value  =  Ending
+ *
+ * This matters because it is INDEPENDENTLY COMPUTED by the custodian, unlike a
+ * CR058 anchor (`target − ledger`), which is a residual that absorbs every
+ * fin-side error. It is the only route to a historical return series that is
+ * not circular.
+ *
+ * It is NOT unrealized gain/loss, and must never be labelled as such. The
+ * statement's own footnote on the asterisk:
+ *
+ *   "Reflects appreciation or depreciation of your holdings due to price
+ *    changes, transactions from Other Activity In or Out and Multi-currency
+ *    transactions, plus any distribution and income earned during the
+ *    statement period."
+ *
+ * So it bundles price movement with journaled securities ("Other Activity In
+ * or Out"), FX, and income. That impurity is exactly why CR058 §9 could not
+ * treat the 2022 figure (−1,166,021.87) as market movement. Per-holding
+ * `Unrealized Gain/Loss` columns exist elsewhere in these statements and are
+ * the honest source for true unrealized — a much larger parsing job.
+ *
+ * Each block appears once per account plus one for the portfolio. The SINGLE
+ * layout prints its block TWICE — once without the Exchanges In/Out sub-lines
+ * and once with — carrying identical totals, so blocks are de-duplicated on
+ * (beginning, ending).
+ */
+const VC_NUM = String.raw`(-?\$?[\d,]+\.\d{2}|-)`;
+
+/** A block figure: "-" means the line is nil, NOT missing. */
+function vcMoney(s, ctx) {
+  return s === '-' ? 0 : money(s, ctx);
+}
+
+function parseValueChange(text, label) {
+  const re = new RegExp(
+    // 2016-2020 statements say "Beginning NET Account Value" / "Net Portfolio";
+    // 2021+ drops the "Net". Same variance the ending-portfolio regex already
+    // carries. Without this, every pre-2021 account silently found no block.
+    String.raw`Beginning (?:Net )?(Portfolio|Account) Value(?:\s+as of\s+[A-Za-z]+\s+\d{1,2},\s*\d{4})?\s+` +
+      VC_NUM + String.raw`\s+` + VC_NUM +
+      String.raw`([\s\S]{0,700}?)` +
+      // The ending line carries a variable footnote marker: "**", a bare letter
+      // ("F"), or nothing. Requiring TWO figures after it is what excludes
+      // "Ending Account Value Incl. AI $805,144.16", which prints only one.
+      String.raw`Ending (?:Net )?\1 Value\s*(?:\*{1,2}|[A-Z])?\s*` + VC_NUM + String.raw`\s+` + VC_NUM,
+    'g'
+  );
+
+  const out = [];
+  const seen = new Set();
+  let m;
+  while ((m = re.exec(text)) !== null) {
+    const [, scope, begRaw, , body, endRaw] = m;
+    // Every block line carries TWO columns: "This Period" and "Year-to-Date".
+    // The YTD column is what makes a real series possible. These are MONTHLY
+    // statements that happen to be filed quarterly, so the period column samples
+    // four months a year and summing it is NOT the year's return. Differencing
+    // YTD across consecutive statements (Q2 = YTD_Jun − YTD_Mar) recovers the
+    // full period between them, including the months with no statement.
+    const grabBoth = (labelRe, optional) => {
+      const g = body.match(new RegExp(String.raw`\b${labelRe}\s*\*?\s+` + VC_NUM + String.raw`\s+` + VC_NUM));
+      if (!g) {
+        if (optional) return { period: 0, ytd: 0 };
+        throw new Error(`${label}: value-change block missing "${labelRe}"`);
+      }
+      return {
+        period: vcMoney(g[1], `${label} ${labelRe} period`),
+        ytd: vcMoney(g[2], `${label} ${labelRe} ytd`),
+      };
+    };
+    const grab = (labelRe, optional) => {
+      const g = body.match(new RegExp(String.raw`\b${labelRe}\s*\*?\s+` + VC_NUM + String.raw`\s+` + VC_NUM));
+      // A section Fidelity omits entirely (no activity of that kind) reads as
+      // zero. That is safe ONLY because the reconciliation below re-derives the
+      // ending value — a line that was present but unmatched fails there rather
+      // than silently defaulting.
+      if (!g) {
+        if (optional) return 0;
+        throw new Error(`${label}: value-change block missing "${labelRe}"`);
+      }
+      return vcMoney(g[1], `${label} ${labelRe}`);
+    };
+
+    // "Beginning Account Value - -" is an account's FIRST statement: it did not
+    // exist, so there is no opening value. null, never 0 (same rule as §parseSingle).
+    const beginning = begRaw === '-' ? null : vcMoney(begRaw, `${label} block beginning`);
+    const ending = vcMoney(endRaw, `${label} block ending`);
+    const key = `${scope}|${beginning}|${ending}`;
+    if (seen.has(key)) continue;
+    seen.add(key);
+
+    const additions = grab('Additions', true);
+    const subtractions = grab('Subtractions', true);
+    // MEMO ONLY — never an addend. "Transaction Costs, Fees & Charges" is a
+    // SUB-LINE of Subtractions, alongside Withdrawals / Exchanges Out / Cards,
+    // and adding it again double-counts. Caught on first run by the invariant
+    // below (FS_2026_06: Subtractions −0.07, of which costs −0.07, so the
+    // derived ending came out 7 cents short).
+    const costs = grab('Transaction Costs, Fees & Charges', true);
+    // A TOP-LEVEL line, sibling to Additions/Subtractions — not a sub-line of
+    // either. Proven arithmetically on FA_2024_06, where Subtractions
+    // (−163,080.06) equals its own sub-lines exactly (Withdrawals −10,000.00,
+    // Exchanges Out −153,011.74, Margin Interest −68.32), leaving the transfer
+    // outside it. Appears only in the six 2024 statements, when Z31-443539 was
+    // split out of X27-230910 — and on an account's FIRST statement it replaces
+    // Additions entirely, which is how FS_2024_06 failed the invariant.
+    const transfers = grab('Transfers Between Fidelity Accounts', true);
+    const changeInValue = grab('Change in Investment Value');
+
+    // Reconciliation invariant (data-import rule): the parts must equal the
+    // whole. Subtractions are printed already-negative.
+    const derived = (beginning || 0) + additions + subtractions + transfers + changeInValue;
+    if (Math.abs(derived - ending) > 0.01) {
+      throw new Error(
+        `${label}: value-change block does not reconcile — ` +
+          `${(beginning || 0).toFixed(2)} + ${additions.toFixed(2)} + ${subtractions.toFixed(2)} + ` +
+          `${transfers.toFixed(2)} + ${changeInValue.toFixed(2)} = ${derived.toFixed(2)}, ` +
+          `but ending is ${ending.toFixed(2)}`
+      );
+    }
+
+    out.push({
+      scope: scope.toLowerCase(), beginning, additions, subtractions, transfers, costs, changeInValue, ending,
+      // Year-to-Date column, for differencing across consecutive statements.
+      ytd: {
+        additions: grabBoth('Additions', true).ytd,
+        subtractions: grabBoth('Subtractions', true).ytd,
+        transfers: grabBoth('Transfers Between Fidelity Accounts', true).ytd,
+        changeInValue: grabBoth('Change in Investment Value').ytd,
+      },
+    });
+  }
+  return out;
+}
+
+/**
+ * Attach each block to the account it belongs to, matched on (beginning,
+ * ending) rather than document order — order is a layout accident, the values
+ * are the identity, and a mismatch surfaces as an unattached block instead of
+ * silently pairing the wrong account with the wrong return.
+ */
+function attachValueChange(parsed, blocks) {
+  const eq = (a, b) => (a === null || b === null ? a === b : Math.abs(a - b) <= 0.01);
+  for (const acct of parsed.accounts) {
+    acct.valueChange =
+      blocks.find(
+        (b) => b.scope === 'account' && eq(b.beginning, acct.beginningValue) && eq(b.ending, acct.endingValue)
+      ) || null;
+  }
+  if (parsed.portfolio) {
+    parsed.portfolio.valueChange =
+      blocks.find(
+        (b) =>
+          b.scope === 'portfolio' &&
+          eq(b.beginning, parsed.portfolio.beginningValue) &&
+          eq(b.ending, parsed.portfolio.endingValue)
+      ) || null;
+  }
+  return parsed;
+}
+
 /** Income Summary — this-period figures. Absent on some layouts; null then. */
 function parseIncome(text) {
   const i = text.indexOf('Income Summary');
@@ -230,7 +395,10 @@ function parseStatement(pdfPath) {
   const label = path.basename(pdfPath);
   const text = extractText(pdfPath);
   const { periodStart, periodEnd } = parsePeriod(text, label);
-  const parsed = parseCombined(text, label) || parseSingle(text, label);
+  const parsed = attachValueChange(
+    parseCombined(text, label) || parseSingle(text, label),
+    parseValueChange(text, label)
+  );
 
   // Whether the figures are ANNUAL or MONTHLY is decided by the PERIOD, never
   // by the document's own label. Both are unreliable in the other direction:
@@ -285,12 +453,16 @@ function main() {
     for (const r of results) {
       const yr = r.statementType === 'annual' ? '  ** ANNUAL period: values and income cover the whole year **' : '';
       console.log(`\n${r.file}  [${r.layout}/${r.statementType}]  ${r.periodStart} → ${r.periodEnd}${yr}`);
-      console.log('  account       beginning        ending  name');
+      console.log('  account       beginning        ending      adds      subs   chg-in-value  name');
       for (const a of r.accounts) {
+        const v = a.valueChange;
         console.log(
           `  ${a.accountNumber.padEnd(12)} ` +
             `${(a.beginningValue == null ? '— opened' : a.beginningValue.toFixed(2)).padStart(13)} ` +
-            `${a.endingValue.toFixed(2).padStart(13)}  ${a.name}`
+            `${a.endingValue.toFixed(2).padStart(13)}  ` +
+            `${(v ? v.additions.toFixed(2) : '—').padStart(9)} ` +
+            `${(v ? v.subtractions.toFixed(2) : '—').padStart(9)} ` +
+            `${(v ? v.changeInValue.toFixed(2) : 'NO BLOCK').padStart(13)}  ${a.name}`
         );
       }
       if (r.portfolio) {
