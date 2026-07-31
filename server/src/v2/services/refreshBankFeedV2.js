@@ -121,14 +121,62 @@ async function syncUpstream({ maxAgeMin = SYNC_MAX_AGE_MIN, force = false } = {}
   }
 }
 
+// Page size for the transaction pull, and a runaway backstop. PAGE_LIMIT is the
+// service's own default and its max is 5000; MAX_PAGES × PAGE_LIMIT = 20,000 rows,
+// an order of magnitude past any real window (an 8-week span is ~1,500).
+const PAGE_LIMIT = 500;
+const MAX_PAGES = 40;
+
+/**
+ * Fetch every transaction since `since`, following pages to the end.
+ *
+ * This used to be a single `limit: 500` call that ignored the `offset` the client
+ * already accepted and said nothing when the result came back *equal to* the limit
+ * — the one signal that rows had been dropped. On a two-month window the feed held
+ * 1,551 rows and fin took 500, reporting a contented `fetched: 500`. That is how a
+ * duplicate stayed invisible: the row that would have exposed it was never fetched.
+ *
+ * Offset paging is safe against this endpoint specifically: it orders by
+ * `transaction_date DESC, id DESC`, which is total (id is unique), and new rows
+ * land at the FRONT — so a concurrent sync mid-pagination shifts later pages and
+ * can make us re-read a row, never skip one. A re-read is harmless: staging is
+ * idempotent on (source, external_id) and the normalizer collapses duplicates.
+ *
+ * Running past MAX_PAGES is not a truncation, it is an anomaly (a runaway window
+ * or a service ignoring `offset` and returning the same full page forever), so it
+ * throws rather than importing a silently partial view.
+ */
+async function fetchAllTransactions(since) {
+  const rows = [];
+  let pages = 0;
+
+  for (;;) {
+    const resp = await bankFeedClient.transactions({
+      since, limit: PAGE_LIMIT, offset: pages * PAGE_LIMIT,
+    });
+    const batch = (resp && resp.transactions) || [];
+    rows.push(...batch);
+    pages += 1;
+
+    if (batch.length < PAGE_LIMIT) break;
+    if (pages >= MAX_PAGES) {
+      throw new Error(
+        `bank-feed ingest: pages still full after ${pages} × ${PAGE_LIMIT} rows ` +
+        `(since ${since}) — refusing to stage a window that may be truncated`
+      );
+    }
+  }
+
+  return { rows, pages };
+}
+
 async function ingest({ sinceDays = 14, since, syncMaxAgeMin } = {}) {
   const sinceDate = since || isoDaysAgo(sinceDays);
   // Pull fresh upstream data first (best-effort) so this stage isn't on stale data.
   await syncUpstream({ maxAgeMin: syncMaxAgeMin });
   const accountExternalIdById = await buildAccountIdToUuid();
 
-  const resp = await bankFeedClient.transactions({ since: sinceDate, limit: 500 });
-  const txs = (resp && resp.transactions) || [];
+  const { rows: txs, pages } = await fetchAllTransactions(sinceDate);
 
   const normalized = normalizeBatch(txs, { accountExternalIdById });
   const insertResult = await staging.insertMany(normalized.rows);
@@ -144,6 +192,7 @@ async function ingest({ sinceDays = 14, since, syncMaxAgeMin } = {}) {
   return {
     since: sinceDate,
     fetched: txs.length,
+    pages,
     staged: normalized.rows.length,
     filteredPending: normalized.filteredPending,
     skipped: normalized.skipped,
