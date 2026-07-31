@@ -1147,7 +1147,13 @@ Order corrected from rev 1, which listed the deploy before the migration it depe
 
 ---
 
-## 12. Restating the 2026 month-end marks — the anchors were right, the marks were not
+## 12. The custodian-statement era — marks, plugs, balances and attribution
+
+*Started as "restate the 2026 month-end marks"; grew into four related defects that all had the same
+shape — **a single constant standing in for something that varies over time**. §12.6 is Cash Mgt's
+`opening_balance` plug, §12.10 is Stocks' handoff reversal, and both are the disease §12.1's stale
+mark showed in miniature. §12.11 is what was left once the balances were right: the corrections were
+being reported as capital flows.*
 
 **2026-07-31.** The anchors end at the `2026-01-01` handoff, after which the bank feed owns the
 balance via CR023's monthly `mtm()`. Four months later the owner asked why current balances did not
@@ -1251,10 +1257,19 @@ always false and **silently never fired**. Fixed by selecting it as `to_char(...
   both. 2026-07-31 is a Friday, where calendar+2 is Sunday 08-02 and business+2 is Tuesday 08-04 —
   July's mark will settle it. Feed history only reaches back to 2026-05-31, so March could not be
   used as a second observation.
-- **Dev diverges from prod on Bond by 9,815.27 at 2026-03-31** (dev 1,005,406.21, prod 995,590.94),
-  though the two agree today. The restatement was applied to **prod only**; writing dev's own
-  computed correction (−7,955.70 at March, against prod's +1,859.57) would have papered over dev's
-  staleness. Dev should be re-synced from prod.
+- ~~**Dev diverges from prod on Bond by 9,815.27 at 2026-03-31.**~~ **Resolved 2026-07-31** — dev
+  re-synced from prod (`sync-db-prod-to-dev.sh`); all four accounts now match prod exactly, and every
+  change since has been applied to both stacks.
+- **Fidelity Options (28) has no custodian statement.** The statements cover four accounts
+  (`194-901660`, `X27-230910`, `X94-929946`, `Z31-443539`); Options has none, so it can be marked but
+  never anchored. Its June mark looks ~**679.51** overstated against the 07-02 row and it sits
+  **+9,672.51** above its feed today. **Deliberately not restated** — its 06-30 row was *not* flat,
+  unlike the other four, so whether the +2 rule even applies to it is genuinely open. Needs a
+  statement from the owner.
+- **Stocks' three 2025 quarter-ends** remain off by −5.78 / +119.43 / **+551.92** — the only dates
+  among 113 checked where an account does not tie. Worth a decision, not urgent.
+- **1998–2015 has no statement coverage**, so those anchors stay flow-classified (§12.11). Only a
+  pre-2016 external source could change that, and none exists.
 
 ### 12.6 Cash Mgt — the plug question, resolved
 
