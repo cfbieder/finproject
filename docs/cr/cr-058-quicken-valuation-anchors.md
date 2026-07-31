@@ -1441,3 +1441,54 @@ reading cannot even load. **74 tests** in the parser suite.
 disclosed on the statement. And account-level (as opposed to portfolio-level) series still carry a
 transfer artifact at the 2024 account split, where ~196K of embedded gain moved from `X27-230910` to
 `Z31-443539`. Booking any of this is a separate decision.
+
+### 12.10 Fidelity Stocks 2023–2024 — the handoff reversal was a plug too
+
+**2026-07-31.** The owner asked why Stocks shows no unrealized G/L for older periods. Chasing it
+found a **balance defect nobody knew about**: fin read up to **257,911.22** above the custodian
+across 2023.
+
+The gap is not accumulated — it appears in a single day:
+
+| | fin |
+|---|---:|
+| 2022-12-31 | **997,171.99** — exactly the statement |
+| 2023-01-01 | **1,318,345.65** |
+
+That `+321,173.66` step is §3's **handoff reversal**: the anchors correct 1998–2022, then one row
+undoes their cumulative effect so *today* is preserved. It assumes the post-handoff ledger is right.
+For Stocks it was not — the raw PocketSmith-era ledger sat 321,174 above the custodian on day one.
+
+**The owner's correction to the diagnosis is the important part.** The gap does not "erode"; the
+custodian's balance **rises to meet fin**, through real gains fin never books. Cumulative unrealized
+2023–2024 is **+330,764** against a reversal of 321,174, which is why the gap runs
+257,911 → 776 and lands near zero exactly where the two cancel.
+
+**And that killed a plan recorded here an hour earlier.** §12.9 suggested booking the unrealized
+series would fix the balance and the attribution together. It would not — booking gains *adds*
+value and fin is already too high:
+
+```
+fin 2023-03-31              1,384,555   (+257,911 vs statement)
++ book Q1-2023 unrealized     +62,801
+=                           1,447,356   (+320,712 — WORSE)
+```
+
+The level correction (**−257,911**) and the unrealized figure (**+62,801**) are unrelated in
+magnitude *and sign*. Two jobs, not one.
+
+**Job 1 is done (this section).** A `fid-stocks-2023-2024` valuation set anchors the eight quarter-ends
+2023-03-31 → 2024-12-31 to the statements, with the reversal at **2025-01-01** rather than at the end,
+because from 2024-12-31 the ledger is already right (776, then −5.78 / +119.43 / +551.92 / +0.53 /
+0.00 through 2026-06-30). Σ anchors **−776.00**, reversal **+776.00**, **today unchanged at
+1,185,455.06** — so the 2026 marks restated in §12 and today's feed-owned balance are both preserved.
+All 8 dates tie to the cent; the original 47-target set still `--check`s clean (48 anchor rows);
+Bond and IRA unmoved. Applied dev + **prod**.
+
+Job 2 — attributing each period's change between market movement and flows — is still open.
+
+**The structural lesson, sharper than §7's:** the handoff reversal is a *single constant*, so it is
+right at exactly one date and wrong everywhere else — the identical disease as Cash Mgt's
+14,436.32 plug (§12.6), one level up. Worse, here it happened to **cancel** by 2025 against two years
+of unbooked gains, so it never failed loudly. Any future anchor set whose handoff lands on a ledger
+that is not independently verified at that date carries the same trap.
