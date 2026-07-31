@@ -393,48 +393,74 @@ async function findModuleById(id) {
 /**
  * Create a new module
  */
-async function createModule(data) {
-  const sql = `
-    INSERT INTO forecast_modules (
-      scenario_id, account_id, name, module_type, currency,
-      expense_amount, expense_fc_line_id, income_fc_line_id, expense_growth_method,
-      income_amount, base_date, base_value,
-      market_value, base_value_usd, market_value_usd,
-      growth_rate, comment, is_matched,
-      loan_principal, loan_start_date, loan_end_date, loan_interest_rate,
-      secured_asset_module_id
-    )
-    VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22, $23)
-    RETURNING *
-  `;
+/**
+ * Every column on forecast_modules a caller may write, in one place.
+ *
+ * It used to be TWO places — createModule carried its own hand-written INSERT
+ * list and updateModule its own allow-list — and they drifted, exactly as the
+ * shapes they were guarding against did. The create list was missing CR046's
+ * four window dates and CR047's income tax override, all five of which the route
+ * had already mapped into `moduleData`: POST returned 201 and threw them away.
+ * Silent, and identical to the v3.0.86 defect one layer up in fcModulePayload.
+ *
+ * Defaults live here too, because "what column" and "what does absent mean" are
+ * the same question. `??` where NULL is load-bearing (a 0% rate is a real rate,
+ * not "unset"); `||` where 0 and NULL mean the same thing.
+ *
+ * A test asserts this list covers every non-managed column in the live catalogue,
+ * so the next migration that adds one cannot silently go unwired.
+ */
+const MODULE_COLUMN_DEFAULTS = {
+  account_id: (d) => d.account_id || null,
+  name: (d) => d.name,
+  module_type: (d) => d.module_type || null,
+  currency: (d) => d.currency || 'USD',
+  expense_amount: (d) => d.expense_amount || 0,
+  expense_fc_line_id: (d) => d.expense_fc_line_id || null,
+  income_fc_line_id: (d) => d.income_fc_line_id || null,
+  expense_growth_method: (d) => d.expense_growth_method || 'inflation',
+  income_amount: (d) => d.income_amount || 0,
+  base_date: (d) => d.base_date || null,
+  base_value: (d) => d.base_value || 0,
+  market_value: (d) => d.market_value || 0,
+  base_value_usd: (d) => d.base_value_usd || 0,
+  market_value_usd: (d) => d.market_value_usd || 0,
+  growth_rate: (d) => d.growth_rate || 0,
+  comment: (d) => d.comment || null,
+  is_matched: (d) => d.is_matched || false,
+  setup_status: (d) => d.setup_status || 'new',
+  tax_rate_override: (d) => d.tax_rate_override ?? null,
+  income_tax_rate_override: (d) => d.income_tax_rate_override ?? null,
+  cash_sweep_target: (d) => d.cash_sweep_target || false,
+  cash_sweep_priority: (d) => d.cash_sweep_priority ?? null,
+  // CR046 window — these are the five the old INSERT dropped.
+  income_start_date: (d) => d.income_start_date || null,
+  income_end_date: (d) => d.income_end_date || null,
+  expense_start_date: (d) => d.expense_start_date || null,
+  expense_end_date: (d) => d.expense_end_date || null,
+  // CR062 — NULL is "not a loan", so `?? null`: `|| null` would turn a legitimate
+  // 0% rate into one.
+  loan_principal: (d) => d.loan_principal ?? null,
+  loan_start_date: (d) => d.loan_start_date ?? null,
+  loan_end_date: (d) => d.loan_end_date ?? null,
+  loan_interest_rate: (d) => d.loan_interest_rate ?? null,
+  secured_asset_module_id: (d) => d.secured_asset_module_id ?? null,
+};
 
-  const result = await db.query(sql, [
-    data.scenario_id,
-    data.account_id || null,
-    data.name,
-    data.module_type || null,
-    data.currency || 'USD',
-    data.expense_amount || 0,
-    data.expense_fc_line_id || null,
-    data.income_fc_line_id || null,
-    data.expense_growth_method || 'inflation',
-    data.income_amount || 0,
-    data.base_date || null,
-    data.base_value || 0,
-    data.market_value || 0,
-    data.base_value_usd || 0,
-    data.market_value_usd || 0,
-    data.growth_rate || 0,
-    data.comment || null,
-    data.is_matched || false,
-    // CR062 — NULL is "not a loan"; `|| null` would turn a legitimate 0% rate
-    // into one, so these use ?? throughout.
-    data.loan_principal ?? null,
-    data.loan_start_date ?? null,
-    data.loan_end_date ?? null,
-    data.loan_interest_rate ?? null,
-    data.secured_asset_module_id ?? null
-  ]);
+const MODULE_WRITABLE_COLUMNS = Object.keys(MODULE_COLUMN_DEFAULTS);
+
+/**
+ * Create a new module
+ */
+async function createModule(data) {
+  const cols = ['scenario_id', ...MODULE_WRITABLE_COLUMNS];
+  const values = [data.scenario_id, ...MODULE_WRITABLE_COLUMNS.map((c) => MODULE_COLUMN_DEFAULTS[c](data))];
+  const placeholders = cols.map((_, i) => `$${i + 1}`).join(', ');
+
+  const result = await db.query(
+    `INSERT INTO forecast_modules (${cols.join(', ')}) VALUES (${placeholders}) RETURNING *`,
+    values
+  );
 
   return result.rows[0];
 }
@@ -447,18 +473,8 @@ async function updateModule(id, data) {
   const params = [];
   let paramIndex = 1;
 
-  const allowedFields = [
-    'account_id', 'name', 'module_type', 'currency',
-    'expense_amount', 'expense_fc_line_id', 'income_fc_line_id', 'expense_growth_method',
-    'income_amount', 'base_date', 'base_value', 'tax_rate_override', 'setup_status',
-    'market_value', 'base_value_usd', 'market_value_usd',
-    'growth_rate', 'comment', 'is_matched', 'cash_sweep_target', 'cash_sweep_priority',
-    'income_start_date', 'income_end_date', 'expense_start_date', 'expense_end_date',
-    'income_tax_rate_override',
-    // CR062 loan assumptions (P1) + the secured-asset link (P2)
-    'loan_principal', 'loan_start_date', 'loan_end_date', 'loan_interest_rate',
-    'secured_asset_module_id'
-  ];
+  // One list, shared with createModule — see MODULE_COLUMN_DEFAULTS.
+  const allowedFields = MODULE_WRITABLE_COLUMNS;
 
   const patch = {};
   for (const field of allowedFields) {
@@ -810,6 +826,7 @@ module.exports = {
   findModulesByScenario,
   findModuleById,
   createModule,
+  MODULE_WRITABLE_COLUMNS,
   updateModule,
   deleteModule,
   addInvestment,

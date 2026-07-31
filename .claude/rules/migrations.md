@@ -19,6 +19,14 @@ paths:
   in an `IF NOT EXISTS` migration, or CI's fresh-from-migrations DB diverges and unrelated
   tests fail later. CI applies the whole chain to an empty DB (+ `server/db/ci-seed.sql`),
   so a migration that only works on a data-bearing DB fails there.
+- **Editing an applied migration is forbidden** — but when it is unavoidable (041: it
+  aborts the chain, so nothing later can repair it), the ledger's checksum then disagrees
+  with the file **forever**, and `deploy-to-production.sh` reports drift on every run.
+  Resolve it deliberately: prove the applied state matches what the current file would
+  produce (re-run the file against the real DB inside a transaction and confirm it changes
+  nothing), then
+  `node server/db/migrate.js --accept-drift=<file>` — per file, never a blanket accept.
+  A warning nobody can clear is a warning everybody learns to scroll past.
 - Changing an existing live structure = **expand → migrate → contract** across separate
   deploys; the destructive step is last.
 - After adding a migration: add its row to `docs/current/migrations.md` (the registry,

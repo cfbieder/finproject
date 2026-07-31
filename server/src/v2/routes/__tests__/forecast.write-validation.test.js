@@ -114,6 +114,53 @@ dbDescribe('forecast write validation (N10, DB)', () => {
       expect(Number(row.rows[0].income_tax_rate_override)).toBe(3);
     });
 
+    // The create path had its OWN hand-written column list, separate from the
+    // update path's allow-list, and it silently discarded five fields the route
+    // had already mapped into moduleData: CR046's four window dates and CR047's
+    // income tax override. No error, 201 Created, values gone — the exact failure
+    // v3.0.86 fixed one layer up (fcModulePayload) and which simply moved one
+    // layer down. Both paths now share one list, so they cannot diverge again.
+    test('POST persists every field the route maps — not just the ones the INSERT listed', async () => {
+      const r = await req('POST', '/modules', {
+        ...frontendModulePayload(),
+        Name: 'N10 Create Column Coverage',
+        IncomeStartDate: '2030-07-01',
+        IncomeEndDate: '2040-07-01',
+        ExpenseStartDate: '2031-07-01',
+        ExpenseEndDate: '2041-07-01',
+        IncomeTaxRateOverride: 3,
+      });
+      expect([200, 201]).toContain(r.status);
+      const id = r.body?.data?.id ?? r.body?.id;
+
+      const row = (await db.query(
+        `SELECT income_start_date, income_end_date, expense_start_date, expense_end_date,
+                income_tax_rate_override
+           FROM forecast_modules WHERE id = $1`, [id]
+      )).rows[0];
+
+      expect(String(row.income_start_date)).toContain('2030');
+      expect(String(row.income_end_date)).toContain('2040');
+      expect(String(row.expense_start_date)).toContain('2031');
+      expect(String(row.expense_end_date)).toContain('2041');
+      expect(Number(row.income_tax_rate_override)).toBe(3);
+    });
+
+    // The guard that outlives this fix: a migration that adds a column and forgets
+    // the repository is the CR045 §1 / CR048 class, and it fails SILENTLY. Reading
+    // the live catalogue means the next such column trips a test instead of a
+    // scenario quietly computing something else.
+    test('every writable column on forecast_modules is reachable through the repository', async () => {
+      const MANAGED = new Set(['id', 'scenario_id', 'created_at', 'updated_at', 'origin_base_id']);
+      const cols = (await db.query(
+        `SELECT column_name FROM information_schema.columns WHERE table_name = 'forecast_modules'`
+      )).rows.map((r) => r.column_name).filter((c) => !MANAGED.has(c));
+
+      const { MODULE_WRITABLE_COLUMNS } = require('../../repositories/forecast');
+      const unreachable = cols.filter((c) => !MODULE_WRITABLE_COLUMNS.includes(c));
+      expect(unreachable).toEqual([]);
+    });
+
     test('rejects a non-numeric value for a numeric field', async () => {
       const r = await req('PUT', `/modules/${moduleId}`, { Growth: 'fast' });
       expect(r.status).toBe(400);

@@ -152,6 +152,49 @@ dbDescribe('runMigrations (DB integration, scratch objects only)', () => {
     }
   });
 
+  test('drift can be accepted PER FILE, and only for the file named', async () => {
+    // A warning nobody can clear is a warning everybody learns to scroll past —
+    // but a blanket "accept all" would throw away the signal entirely. So the
+    // acceptance takes filenames, re-records only those, and leaves the rest
+    // shouting. (Legitimate only when the applied state has been shown equivalent
+    // to what the edited file would produce; editing an applied migration is
+    // otherwise forbidden — see .claude/rules/migrations.md.)
+    await run();
+    fs.writeFileSync(path.join(tmpDir, '002_two.sql'), `CREATE TABLE ${T2} (id int, note text);`);
+    fs.writeFileSync(path.join(tmpDir, '001_one.sql'), `CREATE TABLE ${T1} (id int, extra text);`);
+    try {
+      const before = await run();
+      expect(before.drift.sort()).toEqual(['001_one.sql', '002_two.sql']);
+
+      const accepted = await run({ acceptDrift: ['002_two.sql'] });
+      expect(accepted.acceptedDrift).toEqual(['002_two.sql']);
+      expect(accepted.drift).toEqual(['001_one.sql']);   // the unnamed one still warns
+
+      // ...and it STAYS accepted: the ledger was rewritten, not just filtered.
+      const after = await run();
+      expect(after.drift).toEqual(['001_one.sql']);
+
+      // The file itself is never re-executed — accepting drift records, it does
+      // not migrate. (`note` would exist if it had re-run.)
+      expect(after.applied).toEqual([]);
+    } finally {
+      fs.writeFileSync(path.join(tmpDir, '002_two.sql'), `CREATE TABLE ${T2} (id int);`);
+      fs.writeFileSync(path.join(tmpDir, '001_one.sql'), `CREATE TABLE ${T1} (id int);`);
+    }
+  });
+
+  test('a dry run never accepts drift', async () => {
+    await run();
+    fs.writeFileSync(path.join(tmpDir, '002_two.sql'), `CREATE TABLE ${T2} (id int, note text);`);
+    try {
+      await run({ dryRun: true, acceptDrift: ['002_two.sql'] });
+      const still = await run();
+      expect(still.drift).toContain('002_two.sql');
+    } finally {
+      fs.writeFileSync(path.join(tmpDir, '002_two.sql'), `CREATE TABLE ${T2} (id int);`);
+    }
+  });
+
   test('dry-run writes nothing (no ledger table created)', async () => {
     const r = await run({ dryRun: true });
     expect(r.applied).toEqual([]);

@@ -105,6 +105,8 @@ async function ensureLedger(client, table = LEDGER_TABLE) {
  * @param {string} [opts.table]   ledger table (override for tests)
  * @param {boolean} [opts.dryRun]
  * @param {boolean} [opts.baseline]
+ * @param {string[]} [opts.acceptDrift] filenames whose ledger checksum should be
+ *        re-recorded from the file (see the drift block below — never a blanket accept)
  * @param {string}  [opts.sentinel]
  * @param {(m:string)=>void} [opts.log]
  * @returns {Promise<{mode:string, applied:string[], baselined:string[], drift:string[], skipped:number}>}
@@ -116,6 +118,7 @@ async function runMigrations(opts = {}) {
     table = LEDGER_TABLE,
     dryRun = false,
     baseline = false,
+    acceptDrift = [],
     sentinel = SENTINEL_TABLE,
     log = () => {},
   } = opts;
@@ -146,9 +149,29 @@ async function runMigrations(opts = {}) {
         if (rec && rec !== cur) drift.push(f);
       }
     }
+    // Accepting drift is a DELIBERATE, PER-FILE act, never a blanket sweep: the
+    // whole value of this signal is that it means something, and a warning nobody
+    // can clear is a warning everybody learns to scroll past.
+    //
+    // It is only ever correct when the applied state has been shown equivalent to
+    // what the current file would produce — re-run it against the real database
+    // inside a transaction and confirm it changes nothing. Editing a migration in
+    // place is otherwise forbidden (`.claude/rules/migrations.md`); 041 was the
+    // exception, because it ABORTS the chain and so cannot be repaired forward.
+    const accepted = [];
     for (const f of drift) {
-      log(`⚠ drift: ${f} was edited after it was applied (ledger checksum ≠ file)`);
+      if (!acceptDrift.includes(f)) {
+        log(`⚠ drift: ${f} was edited after it was applied (ledger checksum ≠ file)`);
+        continue;
+      }
+      const cur = checksum(fs.readFileSync(path.join(dir, f), 'utf8'));
+      if (!dryRun) {
+        await client.query(`UPDATE ${table} SET checksum = $1 WHERE filename = $2`, [cur, f]);
+      }
+      accepted.push(f);
+      log(`✓ drift accepted: ${f} — ledger checksum re-recorded from the file`);
     }
+    const remainingDrift = drift.filter((f) => !acceptDrift.includes(f));
 
     const plan = planMigrations(allFiles, appliedSet, hadLedger, schemaPopulated, baseline);
 
@@ -160,7 +183,7 @@ async function runMigrations(opts = {}) {
         log(`[dry-run] would APPLY ${plan.pending.length} pending file(s):`);
         plan.pending.forEach((f) => log(`  apply     ${f}`));
       }
-      return { mode: plan.mode, applied: [], baselined: [], drift, skipped: appliedSet.size };
+      return { mode: plan.mode, applied: [], baselined: [], drift: remainingDrift, acceptedDrift: accepted, skipped: appliedSet.size };
     }
 
     await ensureLedger(client, table);
@@ -176,12 +199,12 @@ async function runMigrations(opts = {}) {
         );
         log(`  baselined ${f}`);
       }
-      return { mode: 'baseline', applied: [], baselined: plan.baseline, drift, skipped: appliedSet.size };
+      return { mode: 'baseline', applied: [], baselined: plan.baseline, drift: remainingDrift, acceptedDrift: accepted, skipped: appliedSet.size };
     }
 
     if (plan.pending.length === 0) {
       log(`No pending migrations. ${appliedSet.size} already applied.`);
-      return { mode: 'apply', applied: [], baselined: [], drift, skipped: appliedSet.size };
+      return { mode: 'apply', applied: [], baselined: [], drift: remainingDrift, acceptedDrift: accepted, skipped: appliedSet.size };
     }
 
     const applied = [];
@@ -207,7 +230,7 @@ async function runMigrations(opts = {}) {
       log(`✓ applied   ${f}`);
     }
     log(`Applied ${applied.length} migration(s); ${appliedSet.size} were already present.`);
-    return { mode: 'apply', applied, baselined: [], drift, skipped: appliedSet.size };
+    return { mode: 'apply', applied, baselined: [], drift: remainingDrift, acceptedDrift: accepted, skipped: appliedSet.size };
   } finally {
     client.release();
   }
@@ -217,6 +240,12 @@ async function main() {
   const args = process.argv.slice(2);
   const dryRun = args.includes('--dry-run');
   const baseline = args.includes('--baseline');
+  // --accept-drift=<file>[,<file>] — see the drift block in runMigrations for when
+  // this is legitimate. Deliberately takes filenames, never a bare flag.
+  const acceptDrift = args
+    .filter((a) => a.startsWith('--accept-drift='))
+    .flatMap((a) => a.slice('--accept-drift='.length).split(',').map((x) => x.trim()))
+    .filter(Boolean);
 
   if (!process.env.DATABASE_URL) {
     console.error('DATABASE_URL is not set');
@@ -225,7 +254,7 @@ async function main() {
 
   const pool = new Pool({ connectionString: process.env.DATABASE_URL });
   try {
-    const result = await runMigrations({ pool, dryRun, baseline, log: (m) => console.log(m) });
+    const result = await runMigrations({ pool, dryRun, baseline, acceptDrift, log: (m) => console.log(m) });
     if (result.drift.length) {
       console.log(`\nNote: ${result.drift.length} applied migration(s) show checksum drift (see above).`);
     }
