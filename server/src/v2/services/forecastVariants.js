@@ -31,7 +31,7 @@ const EXCLUDED_COLUMNS = new Set(['id', 'scenario_id', 'created_at', 'updated_at
 
 /** Patch keys that address a whole child schedule rather than a column. */
 const SCHEDULE_KEYS = {
-  forecast_modules: ['investments', 'disposals', 'income_pct'],
+  forecast_modules: ['investments', 'disposals', 'income_pct', 'amortization'],
   forecast_income_expense: ['changes'],
 };
 
@@ -39,6 +39,11 @@ const SCHEDULE_TABLES = {
   investments: { table: 'forecast_module_investments', fk: 'module_id', cols: ['investment_date', 'amount', 'flag', 'note', 'date_end'] },
   disposals: { table: 'forecast_module_disposals', fk: 'module_id', cols: ['disposal_date', 'amount', 'flag', 'note', 'date_end'] },
   income_pct: { table: 'forecast_module_income_pct', fk: 'module_id', cols: ['effective_date', 'value'] },
+  // CR062 — a loan's principal schedule. The loan COLUMNS ride along free (sync
+  // reads information_schema, CR050's deliberate fix for the dropped-column class);
+  // a child TABLE does not, so it has to be named here or an inherited loan would
+  // materialize with no repayments at all — a flat balance that looks deliberate.
+  amortization: { table: 'forecast_module_amortization', fk: 'module_id', cols: ['effective_date', 'pct'] },
   changes: { table: 'forecast_incexp_changes', fk: 'incexp_id', cols: ['change_date', 'amount', 'flag', 'note'] },
 };
 
@@ -790,6 +795,11 @@ async function interceptSchedules(entityType, rowId, body) {
       patch.income_pct = body.IncomePct
         .filter((p) => p.Date)
         .map((p) => ({ effective_date: p.Date, value: p.Amount ?? p.Value ?? 0 }));
+    }
+    if (Array.isArray(body.Amortization)) {
+      patch.amortization = body.Amortization
+        .filter((a) => a.Date)
+        .map((a) => ({ effective_date: a.Date, pct: a.Pct ?? a.Value ?? a.Amount ?? 0 }));
     }
   } else if (Array.isArray(body)) {
     patch.changes = body

@@ -314,7 +314,32 @@ function computeModule(module, scenario, df_assumptions, df_categories, categori
   const hasExpenseFcLineField = module.expense_fc_line_id !== undefined;
   const skipExpense = hasExpenseFcLineField && !module.expense_fc_line_id && absExpenseAmount === 0;
 
-  if (!skipExpense && absExpenseAmount > 0 && growthMethod === 'pct_of_value') {
+  // CR062 — a LOAN's expense is its interest, and interest is a function of the
+  // balance, not of an amount typed in the base year. `LoanRate` non-null is what
+  // makes a module a loan (never `module_type`, which is a user-editable free-text
+  // list the engine has never read).
+  //
+  // Charged on the AVERAGE outstanding balance, which is not a rounding
+  // convenience — it IS the July-1 convention the rest of the engine uses. The
+  // draw year averages (0 + −P)/2 and so carries exactly half a year's interest;
+  // a repayment year averages to mid-year. CR041's acquisition gate and CR046's
+  // window both do the same thing by hand elsewhere; here it falls out.
+  //
+  // Reads `marketValues` AFTER the balance path is final rather than re-deriving
+  // it from the schedule, so interest can never drift from principal — the drift
+  // CR049 removed from the base-year query.
+  const loanRate = module.LoanRate != null ? Number(module.LoanRate) : null;
+  const isLoan = loanRate != null && Number.isFinite(loanRate);
+
+  if (isLoan) {
+    for (let i = 0, year = startyear; year <= endyear; i++, year++) {
+      const idx = year - periodStart;
+      if (idx < 0 || idx >= inflationLen) continue;   // the guard every sibling loop carries
+      const prevMV = i === 0 ? (module.MarketValue ?? 0) : marketValues[i - 1];
+      const avgOutstanding = Math.abs((marketValues[i] + prevMV) / 2);
+      expenseValues[i] = -(loanRate / 100) * avgOutstanding;
+    }
+  } else if (!skipExpense && absExpenseAmount > 0 && growthMethod === 'pct_of_value') {
     // Pct of value: derive % from base expense / base MV, apply to avg MV each period
     const marketValueBase = module.MarketValue || 0;
     const derivedPct = marketValueBase !== 0 ? absExpenseAmount / marketValueBase : 0;
@@ -436,9 +461,18 @@ function computeModule(module, scenario, df_assumptions, df_categories, categori
   const incomeHalvedByWindow = applyWindow(
     incomeValues, module.income_start_date, module.income_end_date
   );
-  const expenseHalvedByWindow = applyWindow(
-    expenseValues, module.expense_start_date, module.expense_end_date
-  );
+  // CR062 — a loan's expense window is its own start and end dates, expressed in
+  // the balance path; a CR046 window on top of that can only corrupt it. Saving a
+  // loan module nulls these four columns, but the engine defends itself too: a row
+  // retyped Asset → Loan by any path other than the form (SQL, an older client, a
+  // variant sync from a base that still carries them) would otherwise have its
+  // interest halved and truncated. Measured on the real builder, an
+  // expense_start_date 2030 / end 2032 turns 25,625 … 32,002 into
+  // 0 0 0 13,797.66 28,285.21 14,496.17 0 0 0 0 — a plausible-looking series that
+  // is simply wrong.
+  const expenseHalvedByWindow = isLoan
+    ? new Set()
+    : applyWindow(expenseValues, module.expense_start_date, module.expense_end_date);
 
   // CR041: gate amount-based expense/income on ownership — zero before the acquisition
   // year, 50% in it (mirror of the Full-disposal 50% treatment below). MV-driven streams
@@ -450,7 +484,14 @@ function computeModule(module, scenario, df_assumptions, df_categories, categori
   // Composes with the CR046 window: ownership zeroes come after, so an asset bought in 2035
   // with rent starting 2030 pays nothing until 2035 — you cannot rent what you do not own.
   if (acquisitionIdx !== 0) {
-    const gateExpense = absExpenseAmount > 0;
+    // CR062 — never gate a loan's interest. It is MV-driven like the streams this
+    // gate deliberately leaves alone: pre-draw the balance is 0 so interest is
+    // already 0, and the draw year already averages to half. Halving it a second
+    // time here would leave 25% of the first year's interest — the exact
+    // double-halving the CR046 note below warns about, arrived at from the other
+    // direction. (Reachable whenever a retyped module still carries a non-zero
+    // expense_amount, which is what `gateExpense` keys on.)
+    const gateExpense = !isLoan && absExpenseAmount > 0;
     const gateIncome = !hasIncomePct && absIncomeAmount > 0;
     if (gateExpense || gateIncome) {
       for (let i = 0; i < yearsCount; i++) {

@@ -12,6 +12,8 @@
  * payload, so the next field cannot repeat it.
  */
 
+import { isLoanModule } from "../fcModulesEditSections.js";
+
 /**
  * Fields coerced to a number; blank/absent ⇒ null (and 0 stays 0).
  *
@@ -30,6 +32,9 @@ const NUMERIC_FIELDS = [
   "Growth",
   "TaxRateOverride",
   "IncomeTaxRateOverride",
+  // CR062 — blank stays null, and null is what "not a loan" means to the engine.
+  "LoanPrincipal",
+  "LoanInterestRate",
 ];
 
 export function buildModulePayload(editForm = {}, { normalizeTransfers } = {}) {
@@ -52,6 +57,9 @@ export function buildModulePayload(editForm = {}, { normalizeTransfers } = {}) {
     IncomeEndDate: editForm.IncomeEndDate || null,
     ExpenseStartDate: editForm.ExpenseStartDate || null,
     ExpenseEndDate: editForm.ExpenseEndDate || null,
+    // CR062 loan assumptions — year pickers, stored YYYY-07-01 like CR046's window.
+    LoanStartDate: editForm.LoanStartDate || null,
+    LoanEndDate: editForm.LoanEndDate || null,
     CashSweepPriority:
       editForm.CashSweepPriority === null ||
       editForm.CashSweepPriority === undefined ||
@@ -67,9 +75,22 @@ export function buildModulePayload(editForm = {}, { normalizeTransfers } = {}) {
   }
 
   if (normalizeTransfers) {
-    payload.Invest = normalizeTransfers(editForm.Invest);
-    payload.Dispose = normalizeTransfers(editForm.Dispose);
-    payload.IncomePct = normalizeTransfers(editForm.IncomePct);
+    // CR062 — a loan's principal schedule is derived, and the route REJECTS a
+    // non-empty Invest/Dispose/IncomePct on one. Sending empty arrays is not a
+    // no-op: it is how a module retyped Asset → Loan clears the rows it arrived
+    // with, which is the only way those rows can ever be removed.
+    const loan = isLoanModule(editForm);
+    payload.Invest = loan ? [] : normalizeTransfers(editForm.Invest);
+    payload.Dispose = loan ? [] : normalizeTransfers(editForm.Dispose);
+    payload.IncomePct = loan ? [] : normalizeTransfers(editForm.IncomePct);
+    if (loan) {
+      payload.Amortization = (Array.isArray(editForm.Amortization) ? editForm.Amortization : [])
+        .filter((row) => row && row.Date)
+        .map((row) => ({
+          Date: row.Date,
+          Pct: row.Pct === "" || row.Pct == null ? 0 : Number(row.Pct),
+        }));
+    }
   }
 
   return payload;

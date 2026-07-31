@@ -50,3 +50,51 @@ export const FIELD_SECTIONS = [
     ["Recurring Income Tax Override (%) — income only", "IncomeTaxRateOverride", "number"],
   ]],
 ];
+
+// CR062 — a LOAN is configured from five assumptions, not from the valuation and
+// expense fields an asset uses. Its interest is derived from the rate and the
+// running balance, so an Expense Amount would be meaningless next to it, and its
+// income fields have nothing to describe.
+//
+// The engine keys on `loan_interest_rate`, never on this Type. Type only decides
+// which fields are shown — see `isLoanModule` below for why that split matters.
+export const LOAN_FIELD_SECTIONS = [
+  ["General", [
+    ["Account", "Account", "select"],
+    ["Name", "Name", "text"],
+    ["Matched", "Matched", "checkbox"],
+    ["Base Date", "BaseDate", "date"],
+    ["Type", "Type", "text"],
+    ["Currency", "Currency", "text"],
+  ]],
+  ["Loan", [
+    ["Original Loan Amount", "LoanPrincipal", "number"],
+    ["Year Taken (July 1)", "LoanStartDate", "year"],
+    ["Interest Rate (%)", "LoanInterestRate", "number"],
+    ["End Year — repays the remainder", "LoanEndDate", "year"],
+    ["Interest Line", "ExpenseFcLineId", "fc-line-expense"],
+    ["Outstanding Today (negative)", "MarketValue", "number"],
+    ["Outstanding Today (USD)", "MarketValueUSD", "number"],
+  ]],
+  ["Tax", [
+    ["Full Tax Override (%) — gains + income", "TaxRateOverride", "number"],
+    ["Recurring Income Tax Override (%) — income only", "IncomeTaxRateOverride", "number"],
+  ]],
+];
+
+/**
+ * CR062 — does this form describe a loan?
+ *
+ * Matched case-insensitively AND with a fallback to the rate itself, because
+ * `Type` is free text backed by a list the owner edits in Forecast Settings (prod
+ * already carries a lowercase "asset"). If the type were the only signal, renaming
+ * or mistyping it would hide the Loan section while the engine — which keys on
+ * `loan_interest_rate` alone — went on charging interest, leaving live assumptions
+ * that could not be edited or even seen.
+ */
+export const isLoanModule = (form) =>
+  String(form?.Type || "").trim().toLowerCase() === "loan" ||
+  form?.LoanInterestRate != null;
+
+export const fieldSectionsFor = (form) =>
+  (isLoanModule(form) ? LOAN_FIELD_SECTIONS : FIELD_SECTIONS);

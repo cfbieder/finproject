@@ -42,10 +42,20 @@ async function refreshModulesFromActuals(scenarioId, asOfDate) {
   // result. Refuse rather than lose the write.
   await variants.assertNotVariant(scenarioId, 'Refresh from actuals');
 
+  // CR062 — a LOAN opts IN to the market-value refresh, and it is the one module
+  // type that should. The exclusion above exists because broker-reported MV cannot
+  // be derived from a cash ledger; a loan's outstanding balance is the exact
+  // opposite — the mortgage account's ledger balance IS what is owed. Leaving it
+  // out would re-base `base_value` around a stale outstanding, which is the number
+  // every projected year starts from.
   const result = await db.query(`
     UPDATE forecast_modules m
     SET base_value = COALESCE(b.balance_lc, 0),
         base_value_usd = COALESCE(b.balance_usd, 0),
+        market_value = CASE WHEN m.loan_interest_rate IS NOT NULL
+                            THEN COALESCE(b.balance_lc, 0) ELSE m.market_value END,
+        market_value_usd = CASE WHEN m.loan_interest_rate IS NOT NULL
+                                THEN COALESCE(b.balance_usd, 0) ELSE m.market_value_usd END,
         base_date = $2,
         updated_at = NOW()
     FROM (
@@ -155,7 +165,69 @@ async function replaceModuleSchedules(id, body) {
         }
       }
     }
+
+    // CR062 — the loan's principal schedule. Same replace-wholesale shape as the
+    // three above: the table has no key to merge on, and a partial write would
+    // leave a schedule that sums to something nobody chose.
+    if (Array.isArray(body.Amortization)) {
+      await client.query('DELETE FROM forecast_module_amortization WHERE module_id = $1', [id]);
+      for (const row of body.Amortization) {
+        if (row.Date) {
+          await repo.setAmortization(id, {
+            effective_date: row.Date,
+            pct: row.Pct ?? row.Value ?? row.Amount ?? 0,
+          }, client);
+        }
+      }
+    }
   });
+}
+
+/**
+ * CR062 — what a retype-to-Loan will destroy, WITHOUT destroying it. Backs the
+ * confirm the UI shows on the first save that turns a module into a loan; the
+ * same shape the write path reports afterwards, so the two cannot disagree.
+ */
+async function previewLoanRetype(id) {
+  const { rows } = await db.query(`
+    SELECT
+      (SELECT COUNT(*)::int FROM forecast_module_investments WHERE module_id = $1) AS invest,
+      (SELECT COUNT(*)::int FROM forecast_module_disposals   WHERE module_id = $1) AS dispose,
+      (SELECT COUNT(*)::int FROM forecast_module_income_pct  WHERE module_id = $1) AS income_pct,
+      (SELECT COUNT(*)::int FROM forecast_modules
+        WHERE id = $1 AND (expense_start_date IS NOT NULL OR expense_end_date IS NOT NULL
+                        OR income_start_date  IS NOT NULL OR income_end_date  IS NOT NULL)) AS windows
+  `, [id]);
+  const r = rows[0] || { invest: 0, dispose: 0, income_pct: 0, windows: 0 };
+  return { ...r, total: r.invest + r.dispose + r.income_pct + r.windows };
+}
+
+/**
+ * CR062 — clear what a loan module cannot carry. Destructive, so `previewLoanRetype`
+ * exists to show it first and the result is echoed back to the caller.
+ *
+ * ON A VARIANT this is an OVERRIDE, not a delete. A raw delete of inherited child
+ * rows is silently reversed by the next force-sync from base — which runs at Step 0
+ * of every generate — handing the module back exactly the rows the route then 400s
+ * on. `interceptSchedules` with empty arrays is how CR050 expresses "this variant
+ * has none of these", and it survives the sync.
+ */
+async function clearForLoanRetype(id) {
+  const before = await previewLoanRetype(id);
+  if (before.total === 0) return before;
+
+  // Empty-array patches: on an inherited row this records the override; on a
+  // variant-local or base row it falls through to the ordinary delete-and-reinsert.
+  await replaceModuleSchedules(id, { Invest: [], Dispose: [], IncomePct: [] });
+
+  // The window columns are plain columns, so the CR050 write interception in
+  // repo.updateModule already routes them to an override where one is needed.
+  await repo.updateModule(id, {
+    expense_start_date: null, expense_end_date: null,
+    income_start_date: null, income_end_date: null,
+  });
+
+  return before;
 }
 
 /**
@@ -412,6 +484,26 @@ async function getBaseYearValues(scenarioId, baseYear = null, client = db) {
       (CASE WHEN EXTRACT(YEAR FROM m.${prefix}_start_date) = ${Number(baseYear)}
               OR EXTRACT(YEAR FROM m.${prefix}_end_date)   = ${Number(baseYear)}
             THEN 0.5 ELSE 1 END)`;
+  // CR062 — a LOAN's base-year expense is interest on the balance it already
+  // carries, and it is DERIVED, so `expense_amount` says nothing about it. Without
+  // a branch here an existing mortgage reads as zero interest in the base year
+  // while every forecast year charges it — and because this figure is also the
+  // cash sweep's opening cash (index.js folds the base-year NCF into it), the
+  // sweep would open one year of interest rich and stay that way for the whole
+  // horizon. That is CR049 §1 exactly, in the very function CR049 created so the
+  // base year would have ONE source. Hence a third UNION branch rather than a
+  // second derivation in JS.
+  //
+  // Rate on the base-year outstanding, halved when the loan is drawn IN the base
+  // year — the same July-1 convention the projection applies, expressed the same
+  // way as `halfYear` does for a window that opens mid-year.
+  //
+  // Currency: this matches the sibling branches, which sum module amounts in their
+  // own currency without converting. Pre-existing and out of scope here; a loan
+  // is no more wrong than the PLN property expense next to it.
+  const loanHalfYear = baseYear == null ? '1' : `
+      (CASE WHEN EXTRACT(YEAR FROM m.loan_start_date) = ${Number(baseYear)} THEN 0.5 ELSE 1 END)`;
+
   // Get income/expense amounts from BS modules (by FC Line name)
   const bsResult = await client.query(`
     SELECT
@@ -423,6 +515,18 @@ async function getBaseYearValues(scenarioId, baseYear = null, client = db) {
     LEFT JOIN fc_lines exp_line ON m.expense_fc_line_id = exp_line.id
     WHERE m.scenario_id = $1 AND COALESCE(m.setup_status, 'new') NOT IN ('new', 'exclude')
       AND m.expense_fc_line_id IS NOT NULL${windowFilter('expense')}
+      AND m.loan_interest_rate IS NULL
+    GROUP BY exp_line.name
+    UNION ALL
+    SELECT
+      COALESCE(exp_line.name, 'Unassigned Expense') as label,
+      'expense' as type,
+      SUM(-(m.loan_interest_rate / 100.0) * ABS(COALESCE(m.market_value, 0)) * ${loanHalfYear}) as amount
+    FROM forecast_modules m
+    LEFT JOIN fc_lines exp_line ON m.expense_fc_line_id = exp_line.id
+    WHERE m.scenario_id = $1 AND COALESCE(m.setup_status, 'new') NOT IN ('new', 'exclude')
+      AND m.expense_fc_line_id IS NOT NULL
+      AND m.loan_interest_rate IS NOT NULL
     GROUP BY exp_line.name
     UNION ALL
     SELECT
@@ -466,6 +570,8 @@ module.exports = {
   findCashSweepPriorityClash,
   clearOtherCashSweepTargets,
   replaceModuleSchedules,
+  previewLoanRetype,
+  clearForLoanRetype,
   resolveIncExpAccountFromFcLine,
   replaceIncExpChanges,
   buildAddFromActualsTree,

@@ -3,7 +3,7 @@ import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { buildModulePayload } from "../fcModulePayload.js";
-import { FIELD_SECTIONS } from "../../fcModulesEditSections.js";
+import { FIELD_SECTIONS, LOAN_FIELD_SECTIONS } from "../../fcModulesEditSections.js";
 
 describe("buildModulePayload", () => {
   // The OTHER direction (CR043 N10). The first test below proves no editor field is
@@ -41,6 +41,53 @@ describe("buildModulePayload", () => {
 
     const dropped = rendered.filter((field) => !(field in payload));
     expect(dropped).toEqual([]);
+  });
+
+  // CR062 V16 — the Loan section is a SECOND set of rendered fields, and the guard
+  // above only knows about the first. A loan field dropped here fails exactly the way
+  // CR046's and CR047's did: typed, saved, silently gone.
+  it("carries every field the LOAN editor renders", () => {
+    const rendered = LOAN_FIELD_SECTIONS.flatMap(([, fields]) => fields.map(([, field]) => field));
+    const payload = buildModulePayload({ Type: "Loan", LoanInterestRate: 5 });
+    expect(rendered.filter((field) => !(field in payload))).toEqual([]);
+  });
+
+  it("sends a loan's derived schedules as EMPTY, never as stale rows", () => {
+    // The route rejects a non-empty Invest/Dispose/IncomePct on a loan, and empty
+    // arrays are how a retyped module clears the rows it arrived with. Sending the
+    // old rows would 400 the save; omitting the keys would leave them in the DB.
+    const payload = buildModulePayload(
+      {
+        Type: "Loan",
+        LoanInterestRate: 5,
+        Invest: [{ Date: "2030-07-01", Amount: 100 }],
+        Dispose: [{ Date: "2031-07-01", Amount: 50, Flag: "Full" }],
+        IncomePct: [{ Date: "2030-07-01", Value: 2 }],
+        Amortization: [{ Date: "2028-07-01", Pct: "11.1111" }, { Date: "", Pct: 5 }],
+      },
+      { normalizeTransfers: (rows) => rows || [] }
+    );
+
+    expect(payload.Invest).toEqual([]);
+    expect(payload.Dispose).toEqual([]);
+    expect(payload.IncomePct).toEqual([]);
+    // Rows without a year are dropped; percentages are coerced to numbers.
+    expect(payload.Amortization).toEqual([{ Date: "2028-07-01", Pct: 11.1111 }]);
+  });
+
+  it("leaves a NON-loan module's schedules exactly as they were", () => {
+    const payload = buildModulePayload(
+      { Invest: [{ Date: "2030-07-01", Amount: 100 }] },
+      { normalizeTransfers: (rows) => rows || [] }
+    );
+    expect(payload.Invest).toEqual([{ Date: "2030-07-01", Amount: 100 }]);
+    expect(payload.Amortization).toBeUndefined();
+  });
+
+  it("sends a 0% loan rate as 0 — that is a real rate, not 'not a loan'", () => {
+    expect(buildModulePayload({ LoanInterestRate: 0 }).LoanInterestRate).toBe(0);
+    expect(buildModulePayload({ LoanInterestRate: "4.25" }).LoanInterestRate).toBe(4.25);
+    expect(buildModulePayload({}).LoanInterestRate).toBeNull();
   });
 
   it("keeps a blank window date as null, and a picked year as its stored date", () => {

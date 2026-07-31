@@ -22,6 +22,7 @@ const { LabelFrame } = require("./frame");
 const { computeModule: computeBSModule, writeAuditTrail } = require("./fcbuilder-module");
 const { computeModule: computeIncExpModule, writeEntriesAuditTrail } = require("./fcbuilder-incexp");
 const { insertModuleEntries } = require("./fcbuilder-common");
+const { deriveLoanSchedule } = require("./fcbuilder-loan");
 const { CATEGORIES, PATHS } = require("./constants");
 const { computeCashSweepIterative } = require("./cash-sweep");
 const crud = require("./crud");
@@ -63,7 +64,7 @@ const GENERATE_LOCK_NS = 1178489671;
 /**
  * Loads modules from PostgreSQL and transforms to v1 format for processing
  */
-async function loadModulesForScenario(scenarioId, fcLineNameMap, dbc = db) {
+async function loadModulesForScenario(scenarioId, fcLineNameMap, dbc = db, scenario = null) {
   // Get modules with account names
   const modulesResult = await dbc.query(`
     SELECT m.*, a.name as account_name, a.account_type
@@ -73,13 +74,15 @@ async function loadModulesForScenario(scenarioId, fcLineNameMap, dbc = db) {
   `, [scenarioId]);
 
   const modules = modulesResult.rows;
+  const loanWarnings = [];
 
   // Load nested data for all modules
   for (const mod of modules) {
-    const [incomePct, investments, disposals] = await Promise.all([
+    const [incomePct, investments, disposals, amortization] = await Promise.all([
       dbc.query('SELECT * FROM forecast_module_income_pct WHERE module_id = $1 ORDER BY effective_date', [mod.id]),
       dbc.query('SELECT * FROM forecast_module_investments WHERE module_id = $1 ORDER BY investment_date', [mod.id]),
       dbc.query('SELECT * FROM forecast_module_disposals WHERE module_id = $1 ORDER BY disposal_date', [mod.id]),
+      dbc.query('SELECT * FROM forecast_module_amortization WHERE module_id = $1 ORDER BY effective_date', [mod.id]),
     ]);
 
     // Transform to v1 format expected by processModule
@@ -130,9 +133,46 @@ async function loadModulesForScenario(scenarioId, fcLineNameMap, dbc = db) {
       Flag: r.flag || '',
       DateEnd: r.date_end || null,
     }));
+
+    // CR062 — a LOAN's principal schedule is DERIVED here, never stored. The five
+    // assumptions determine it completely, so re-deriving on every build is what
+    // keeps a rate change from leaving thirty stale rows that still look
+    // authoritative (the CR049/CR050 rot pattern).
+    //
+    // `loan_interest_rate` is the switch, NOT `module_type`: that column is a
+    // user-editable free-text list in Forecast Settings which the engine has never
+    // read, and prod already carries a lowercase 'asset' in it. A scenario must not
+    // stop charging interest because someone tidied a settings list.
+    //
+    // REPLACE, never merge: the derived array is the single source of the loan's
+    // principal movements. Stored forecast_module_investments rows on a loan module
+    // are ignored here and rejected by the route, so the two cannot disagree.
+    mod.LoanRate = mod.loan_interest_rate != null ? parseFloat(mod.loan_interest_rate) : null;
+    if (mod.LoanRate != null && scenario) {
+      const { invest, warnings } = deriveLoanSchedule({
+        principal: parseFloat(mod.loan_principal) || 0,
+        drawYear: mod.loan_start_date,
+        endYear: mod.loan_end_date,
+        amortPct: amortization.rows.map(r => ({
+          year: new Date(r.effective_date).getFullYear(),
+          pct: parseFloat(r.pct) || 0,
+        })),
+        baseOutstanding: mod.MarketValue,
+        // PeriodStart − 1, never the module's own base_date year. The categories
+        // frame starts there and discards anything written earlier, so a draw
+        // keyed off base_date would vanish on write for a module whose base_date
+        // disagrees with the scenario's — and dev carries both 2025-12-31 and
+        // 2026-12-31 in the same scenario.
+        baseYear: scenario.PeriodStart - 1,
+        horizonEnd: scenario.PeriodEnd,
+      });
+      mod.Invest = invest;
+      mod.Dispose = [];
+      for (const w of warnings) loanWarnings.push({ ...w, module: mod.name });
+    }
   }
 
-  return modules;
+  return Object.assign(modules, { loanWarnings });
 }
 
 /**
@@ -323,7 +363,7 @@ async function generateForecast(scenarioName, { writeAudit = true } = {}) {
     // Step 4: Load modules and categories in parallel
     const [bsModules, incexpModules, { expenseCategories, incomeCategories, accountNames }, { incexpCategories }] =
       await Promise.all([
-        loadModulesForScenario(scenarioId, fcLineNameMap, dbc),
+        loadModulesForScenario(scenarioId, fcLineNameMap, dbc, scenario),
         loadIncExpModulesForScenario(scenarioId, fcLineNameMap, dbc),
         loadCategoriesForScenario(scenarioId, fcLineNameMap, dbc),
         loadIncExpCategoriesForScenario(scenarioId, fcLineNameMap, dbc),
@@ -331,6 +371,15 @@ async function generateForecast(scenarioName, { writeAudit = true } = {}) {
 
     console.log(`[FORECAST-GENERATE] Loaded ${bsModules.length} FCModule entries for scenario ${scenarioName}`);
     console.log(`[FORECAST-GENERATE] Loaded ${incexpModules.length} FCIncExp entries for scenario ${scenarioName}`);
+
+    // CR062 — a loan whose schedule is incoherent still builds; it just builds
+    // something the owner should see. Surfaced in the generate result (and the
+    // log) rather than thrown, because a balloon or a capped repayment is a
+    // modelling fact, not an error.
+    const loanWarnings = bsModules.loanWarnings || [];
+    for (const w of loanWarnings) {
+      console.warn(`[FORECAST-GENERATE] Loan "${w.module}": ${w.message}`);
+    }
 
     // Step 5: Build category structures
     const scenarioCategories = buildScenarioCategories(accountNames, incomeCategories, expenseCategories);
@@ -1016,6 +1065,7 @@ async function generateForecast(scenarioName, { writeAudit = true } = {}) {
       deletedCount,
       modulesProcessed: bsModules.length + incexpModules.length,
       entriesCreated: totalEntries,
+      loanWarnings,
     };
 
     }); // end db.transaction — COMMIT here, advisory lock released

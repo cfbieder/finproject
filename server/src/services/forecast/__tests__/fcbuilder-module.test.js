@@ -262,6 +262,160 @@ describe("G8 — Absolute Expense Amounts", () => {
 
 
 // ============================================================
+// CR062 P1 — the loan module, through the REAL builder
+//
+// V4  the draw year carries exactly HALF a year's interest (the July-1 convention)
+// V5  the whole Bank Accounts row of the CR's worked example
+// V13 a non-USD loan converts at the module's FX path
+// V9  a stale CR046 window / Full disposal can no longer mangle the interest
+// ============================================================
+describe("CR062 P1 — loan interest through the builder", () => {
+
+  const { deriveLoanSchedule, straightLineSchedule } = require("../fcbuilder-loan");
+
+  /** The §5.5 worked example: 400,000 drawn 2027, 5%, ending 2036. */
+  const workedLoan = (overrides = {}) => {
+    const { invest } = deriveLoanSchedule({
+      principal: 400000, drawYear: 2027, endYear: 2036,
+      baseOutstanding: 0, baseYear: 2026, horizonEnd: 2036,
+      amortPct: straightLineSchedule(2027, 2036),
+    });
+    return {
+      BaseValue: 0, BaseValueUSD: 0, MarketValue: 0, MarketValueUSD: 0,
+      Growth: 0, ExpensePct: 0, expense_amount: 0,
+      AccountType: "liability",
+      LoanRate: 5,
+      ExpCategory: "Interest Expense",
+      Invest: invest,
+      Dispose: [],
+      ...overrides,
+    };
+  };
+
+  const byYear = (db, account) => {
+    const out = {};
+    getEntriesForAccount(db, account).forEach((e) => { out[e.forecast_year] = e.amount; });
+    return out;
+  };
+
+  test("V4 the draw year carries exactly half a year's interest", async () => {
+    const { db } = await runModule(
+      workedLoan(),
+      { PeriodStart: 2027, PeriodEnd: 2036, TaxRate: 0 },
+      { inflation: new Array(10).fill(0) }
+    );
+
+    const interest = byYear(db, "Interest Expense");
+
+    // 5% x 400,000 = 20,000 for a full year. The draw is July 1, so 2027 pays
+    // 10,000 — and it is NOT special-cased anywhere: avg(0, −400,000) is half the
+    // balance. Replace the average with a spot balance and this doubles.
+    expect(interest[2027]).toBeCloseTo(-10000, 2);
+
+    // 2028 is a full year on a balance that fell mid-year:
+    // 5% x avg(400,000, 355,555.60) = 5% x 377,777.80 = 18,888.89
+    expect(interest[2028]).toBeCloseTo(-18888.89, 2);
+    expect(interest[2029]).toBeCloseTo(-16666.67, 2);
+
+    // Final year: the balance reaches zero, so avg(44,444.80, 0) = 22,222.40
+    expect(interest[2036]).toBeCloseTo(-1111.12, 2);
+  });
+
+  test("V5 the whole Bank Accounts row of the worked example", async () => {
+    // The failure class here is silently-wrong CASH, so the assertion is the cash
+    // row end to end — not one interest figure. Draw year is net POSITIVE: the
+    // loan releases 400,000 and costs half a year of interest.
+    const { db } = await runModule(
+      workedLoan(),
+      { PeriodStart: 2027, PeriodEnd: 2036, TaxRate: 0 },
+      { inflation: new Array(10).fill(0) }
+    );
+
+    const cash = byYear(db, "Bank Accounts");
+    expect(cash[2027]).toBeCloseTo(390000, 2);        // +400,000 draw − 10,000 interest
+    expect(cash[2028]).toBeCloseTo(-63333.29, 2);     // −44,444.40 principal − 18,888.89 interest
+    expect(cash[2029]).toBeCloseTo(-61111.07, 2);
+    expect(cash[2036]).toBeCloseTo(-45555.92, 2);     // −44,444.80 remainder − 1,111.12 interest
+
+    // Over the loan's life the bank gives back the principal and keeps the interest.
+    const totalCash = Object.values(cash).reduce((a, b) => a + b, 0);
+    const totalInterest = Object.values(byYear(db, "Interest Expense")).reduce((a, b) => a + b, 0);
+    expect(totalCash).toBeCloseTo(totalInterest, 2);
+
+    // And the liability itself closes at zero — no entry is written for 0.
+    const balance = byYear(db, "Test Account");
+    expect(balance[2027]).toBeCloseTo(-400000, 2);
+    expect(balance[2035]).toBeCloseTo(-44444.8, 2);
+    expect(balance[2036]).toBeUndefined();
+  });
+
+  test("V13 a PLN loan converts to USD on the module's FX path", async () => {
+    const { db } = await runModule(
+      workedLoan({ Currency: "PLN" }),
+      { PeriodStart: 2027, PeriodEnd: 2036, TaxRate: 0 },
+      { inflation: new Array(10).fill(0), pln: new Array(10).fill(4) }
+    );
+
+    // Interest is computed on the LC balance and divided by the FX rate, so the
+    // USD figures are the V4 numbers over 4. This is the class CR051's F1 guard
+    // exists for — a missing rate would silently divide by 1.
+    const interest = byYear(db, "Interest Expense");
+    expect(interest[2027]).toBeCloseTo(-2500, 2);
+    expect(interest[2028]).toBeCloseTo(-4722.22, 2);
+  });
+
+  test("V9 a stale CR046 expense window can no longer mangle the interest", async () => {
+    // A module retyped Asset → Loan keeps its window dates unless the save clears
+    // them, and applyWindow runs AFTER the interest branch. Without the guard this
+    // zeroes 2027–2029 and halves 2030.
+    const { db } = await runModule(
+      workedLoan({ expense_start_date: "2030-07-01", expense_end_date: "2032-07-01" }),
+      { PeriodStart: 2027, PeriodEnd: 2036, TaxRate: 0 },
+      { inflation: new Array(10).fill(0) }
+    );
+
+    const interest = byYear(db, "Interest Expense");
+    expect(interest[2027]).toBeCloseTo(-10000, 2);     // not 0
+    expect(interest[2030]).toBeCloseTo(-14444.45, 2);  // not halved
+    expect(interest[2033]).toBeCloseTo(-7777.79, 2);   // not 0
+  });
+
+  test("V9.2 a leftover expense_amount cannot re-gate a loan's interest", async () => {
+    // CR041's ownership gate keys on absExpenseAmount > 0. A loan drawn mid-plan
+    // has acquisitionIdx > 0, so a stale amount would halve the draw year's
+    // interest a SECOND time — leaving 25% of it.
+    const { db } = await runModule(
+      workedLoan({ expense_amount: 12345 }),
+      { PeriodStart: 2027, PeriodEnd: 2036, TaxRate: 0 },
+      { inflation: new Array(10).fill(0) }
+    );
+    expect(byYear(db, "Interest Expense")[2027]).toBeCloseTo(-10000, 2);   // not −5,000
+  });
+
+  test("V9.3 an existing mortgage charges a full year from the base year on", async () => {
+    const { invest } = deriveLoanSchedule({
+      principal: 400000, drawYear: 2015, endYear: 2030,
+      baseOutstanding: -250000, baseYear: 2026, horizonEnd: 2036,
+      amortPct: [{ year: 2027, pct: 10 }, { year: 2028, pct: 10 }],
+    });
+    const { db } = await runModule(
+      workedLoan({
+        BaseValue: -250000, BaseValueUSD: -250000,
+        MarketValue: -250000, MarketValueUSD: -250000,
+        Invest: invest,
+      }),
+      { PeriodStart: 2027, PeriodEnd: 2036, TaxRate: 0 },
+      { inflation: new Array(10).fill(0) }
+    );
+
+    // 2027 repays 40,000, so interest is 5% x avg(250,000, 210,000) = 11,500 —
+    // a full year, because the loan was already outstanding at the base date.
+    expect(byYear(db, "Interest Expense")[2027]).toBeCloseTo(-11500, 2);
+  });
+});
+
+
+// ============================================================
 // CR062 P0 — an expense is CASH OUT on a liability too
 //
 // `expenseValues[i] = isLiability ? val : -val` did not correct a sign, it

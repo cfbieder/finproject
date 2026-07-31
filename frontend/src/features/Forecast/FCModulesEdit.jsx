@@ -2,7 +2,7 @@ import { Fragment, useEffect, useState } from "react";
 import Rest from "../../js/rest";
 import FCModuleAuditModal from "./FCModuleAuditModal.jsx";
 import Modal from "../../components/Modal/Modal.jsx";
-import { FIELD_SECTIONS } from "./fcModulesEditSections.js";
+import { fieldSectionsFor, isLoanModule } from "./fcModulesEditSections.js";
 import "./FCModulesEdit.css";
 
 const normalizeBaseDate = (value) => {
@@ -447,11 +447,41 @@ export default function FCModulesEditModal({
   const transferFlagOptionsI = ["OneTime", "Periodic"];
   const transferFlagOptionsD = ["Full", "OneTime", "Periodic"];
   const incomePctLabel = "Yield Spread";
-  const transferSections = [
-    ["Invest", "Invest"],
-    ["Dispose", "Dispose"],
-    [incomePctLabel, "IncomePct"],
-  ];
+  // CR062 — on a loan the principal schedule is DERIVED from the five assumptions,
+  // so Invest/Dispose/Yield have nothing to say and the route rejects any non-empty
+  // one. Showing an editor whose contents would be refused on save is worse than
+  // showing none. Amortization years run drawYear+1 … endYear−1: the end year is
+  // the remainder by construction and must not also carry a percentage.
+  const isLoan = isLoanModule(editForm);
+  const loanDrawYear = Number(getYearFromDate(editForm?.LoanStartDate)) || null;
+  const loanEndYear = Number(getYearFromDate(editForm?.LoanEndDate)) || null;
+  const amortYearOptions =
+    loanDrawYear && loanEndYear && loanEndYear > loanDrawYear
+      ? Array.from({ length: loanEndYear - loanDrawYear - 1 }, (_, i) => loanDrawYear + 1 + i)
+      : [];
+  const transferSections = isLoan
+    ? [["Amortization", "Amortization"]]
+    : [
+        ["Invest", "Invest"],
+        ["Dispose", "Dispose"],
+        [incomePctLabel, "IncomePct"],
+      ];
+
+  /**
+   * CR062 — the one click that makes a loan simple: fill drawYear+1 … endYear−1
+   * with 100/term %. The end year is deliberately left out; it repays whatever is
+   * left, which is what makes the loan close at exactly zero instead of 40 cents
+   * short (100/9 stored at 4dp sums to 99.9999%).
+   */
+  const fillStraightLine = () => {
+    if (!amortYearOptions.length) return;
+    const term = loanEndYear - loanDrawYear;
+    const pct = Number((100 / term).toFixed(4));
+    onFieldChange(
+      "Amortization",
+      amortYearOptions.map((year) => ({ Date: `${year}-07-01`, Pct: pct }))
+    );
+  };
 
   const updateTransferEntry = (field, index, key, value) => {
     const current = Array.isArray(editForm?.[field]) ? editForm[field] : [];
@@ -471,7 +501,13 @@ export default function FCModulesEditModal({
       transferYearStart;
 
     // IncomePct uses Value instead of Amount and doesn't have Flag
-    if (field === "IncomePct") {
+    if (field === "Amortization") {
+      // CR062 — default to the first unused schedule year rather than PeriodStart,
+      // which is usually outside the loan's own window.
+      const used = new Set(current.map((e) => String(e?.Date || "").slice(0, 4)));
+      const nextYear = amortYearOptions.find((y) => !used.has(String(y))) ?? amortYearOptions[0] ?? defaultYear;
+      onFieldChange(field, [...current, { Date: `${nextYear}-07-01`, Pct: "" }]);
+    } else if (field === "IncomePct") {
       onFieldChange(field, [
         ...current,
         { Date: `${defaultYear}-07-01`, Amount: "", Value: "" },
@@ -636,7 +672,7 @@ export default function FCModulesEditModal({
                   />
                 </label>
               </div>
-              {FIELD_SECTIONS.map(([sectionTitle, sectionFields]) => (
+              {fieldSectionsFor(editForm).map(([sectionTitle, sectionFields]) => (
                 <div key={sectionTitle} className="fc-modules-modal__field-group">
                   <h5 className="fc-modules-modal__group-title">{sectionTitle}</h5>
                   <div className="fc-modules-modal__fields-grid">
@@ -778,7 +814,19 @@ export default function FCModulesEditModal({
                             ))}
                           </select>
                           <span className="fc-modules-edit__base-date-hint">
-                            {selectedYear ? "50% in this year" : ""}
+                            {/* CR062 — "50%" is CR046's income/expense-window hint and
+                                is only true there. On a loan the draw year does carry
+                                half a year of interest (the average-balance formula
+                                gives it), but the END year repays the whole remaining
+                                balance — showing "50%" against it reads as a half
+                                repayment, which is exactly wrong. */}
+                            {!selectedYear
+                              ? ""
+                              : field === "LoanStartDate"
+                              ? "½ year of interest"
+                              : field === "LoanEndDate"
+                              ? "repays the balance"
+                              : "50% in this year"}
                           </span>
                         </div>
                       </label>
@@ -800,7 +848,7 @@ export default function FCModulesEditModal({
                     const typeValue = capitalize(currentValue);
                     const typeOpts = (traits?.moduleTypes && traits.moduleTypes.length > 0)
                       ? traits.moduleTypes
-                      : ["Asset", "Liability", "Stocks", "Deposit", "Fixed Income", "Bond", "Real Estate", "Private Equity", "Business"];
+                      : ["Asset", "Liability", "Loan", "Stocks", "Deposit", "Fixed Income", "Bond", "Real Estate", "Private Equity", "Business"];
                     return (
                       <label key={field} className="fc-modules-modal__field">
                         <span className="fc-modules-modal__label">{label}</span>
@@ -1123,6 +1171,8 @@ export default function FCModulesEditModal({
                     ? transferFlagOptionsI
                     : transferFlagOptionsD;
                 const isIncomePct = field === "IncomePct";
+                const isAmortization = field === "Amortization";
+                const isPctRow = isIncomePct || isAmortization;
                 return (
                   <div
                     key={field}
@@ -1130,12 +1180,32 @@ export default function FCModulesEditModal({
                   >
                     <div className="fc-modules-modal__transfer-header">
                       <h5 className="fc-modules-modal__transfer-title">
-                        {label} {isIncomePct ? "" : "Transfers"}
+                        {label} {isPctRow ? "" : "Transfers"}
                       </h5>
                       {isIncomePct && (
                         <span style={{ fontSize: "0.75em", color: "var(--muted)", fontWeight: 400 }}>
                           Annual yield above/below inflation (%)
                         </span>
+                      )}
+                      {isAmortization && (
+                        <span style={{ fontSize: "0.75em", color: "var(--muted)", fontWeight: 400 }}>
+                          % of the original amount repaid each year — {loanEndYear || "the end year"} repays the remainder
+                        </span>
+                      )}
+                      {isAmortization && (
+                        <button
+                          type="button"
+                          className="fc-modules-modal__add-transfer-button"
+                          onClick={fillStraightLine}
+                          disabled={!amortYearOptions.length}
+                          title={
+                            amortYearOptions.length
+                              ? `Fill ${amortYearOptions[0]}\u2013${amortYearOptions[amortYearOptions.length - 1]} with ${(100 / (loanEndYear - loanDrawYear)).toFixed(4)}% each`
+                              : "Set the year taken and the end year first"
+                          }
+                        >
+                          Straight line
+                        </button>
                       )}
                       <button
                         type="button"
@@ -1157,7 +1227,7 @@ export default function FCModulesEditModal({
                             strokeLinejoin="round"
                           />
                         </svg>
-                        Add {label} {isIncomePct ? "Entry" : ""}
+                        Add {label} {isPctRow ? "Entry" : ""}
                       </button>
                     </div>
                     {transfers.length === 0 ? (
@@ -1179,19 +1249,22 @@ export default function FCModulesEditModal({
                         </svg>
                         <p>No {label.toLowerCase()} entries</p>
                         <span>
-                          Click "Add {label} {isIncomePct ? "Entry" : ""}" to
+                          Click "Add {label} {isPctRow ? "Entry" : ""}" to
                           create a{" "}
-                          {isIncomePct ? "percentage entry" : "transfer"}
+                          {isPctRow ? "percentage entry" : "transfer"}
                         </span>
                       </div>
                     ) : (
                       <div className="fc-modules-modal__transfer-list">
                         {transfers.map((entry, index) => {
-                          // For IncomePct, use Value; for others use Amount
-                          const fieldValue = isIncomePct
+                          // IncomePct uses Value, Amortization uses Pct (CR062),
+                          // everything else uses Amount.
+                          const fieldValue = isAmortization
+                            ? entry?.Pct ?? ""
+                            : isIncomePct
                             ? entry?.Value ?? entry?.Amount ?? ""
                             : entry?.Amount ?? "";
-                          const fieldKey = isIncomePct ? "Value" : "Amount";
+                          const fieldKey = isAmortization ? "Pct" : isIncomePct ? "Value" : "Amount";
 
                           return (
                             <div
@@ -1202,7 +1275,7 @@ export default function FCModulesEditModal({
                                 {index + 1}
                               </div>
                               <div className="fc-modules-modal__transfer-fields">
-                                {!isIncomePct && (
+                                {!isPctRow && (
                                   <div className="fc-modules-modal__transfer-field">
                                     <label className="fc-modules-modal__transfer-label">
                                       Type
@@ -1246,7 +1319,7 @@ export default function FCModulesEditModal({
                                     }
                                   >
                                     <option value="">Select year</option>
-                                    {(isIncomePct ? incomePctYearOptions : transferYearOptions).map((year) => (
+                                    {(isAmortization ? amortYearOptions : isIncomePct ? incomePctYearOptions : transferYearOptions).map((year) => (
                                       <option key={year} value={year}>
                                         {year}
                                       </option>
@@ -1290,7 +1363,7 @@ export default function FCModulesEditModal({
                                         : undefined
                                     }
                                   >
-                                    {isIncomePct ? "Percentage" : entry?.Flag === "Periodic" ? "Amount / Year" : "Amount"}
+                                    {isPctRow ? "Percentage" : entry?.Flag === "Periodic" ? "Amount / Year" : "Amount"}
                                   </label>
                                   <input
                                     type="text"
@@ -1326,8 +1399,8 @@ export default function FCModulesEditModal({
                                         );
                                       }
                                     }}
-                                    placeholder={isIncomePct ? "0" : "0"}
-                                    step={isIncomePct ? "0.01" : "1"}
+                                    placeholder="0"
+                                    step={isPctRow ? "0.01" : "1"}
                                   />
                                 </div>
                               </div>

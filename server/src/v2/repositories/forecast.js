@@ -224,9 +224,10 @@ async function copyScenario(sourceId, newName) {
           growth_rate, comment, is_matched,
           setup_status, cash_sweep_target, tax_rate_override, cash_sweep_priority,
           income_start_date, income_end_date, expense_start_date, expense_end_date,
-          income_tax_rate_override
+          income_tax_rate_override,
+          loan_principal, loan_start_date, loan_end_date, loan_interest_rate
         )
-        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22, $23, $24, $25, $26, $27)
+        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22, $23, $24, $25, $26, $27, $28, $29, $30, $31)
         RETURNING id
       `, [
         newId, mod.account_id, mod.name, mod.module_type, mod.currency,
@@ -237,7 +238,12 @@ async function copyScenario(sourceId, newName) {
         mod.setup_status || 'new', mod.cash_sweep_target || false, mod.tax_rate_override,
         mod.cash_sweep_priority,
         mod.income_start_date, mod.income_end_date, mod.expense_start_date, mod.expense_end_date,
-        mod.income_tax_rate_override
+        mod.income_tax_rate_override,
+        // CR062 — this list is hand-maintained, which is exactly how CR045 §1 lost
+        // cash_sweep_priority and CR048 lost the assumptions: a column a copy drops
+        // is a scenario that silently computes something else. Covered by a test
+        // that asserts on the COPY, not the source.
+        mod.loan_principal, mod.loan_start_date, mod.loan_end_date, mod.loan_interest_rate
       ]);
 
       const newModuleId = newModule.rows[0].id;
@@ -258,6 +264,12 @@ async function copyScenario(sourceId, newName) {
       await client.query(`
         INSERT INTO forecast_module_disposals (module_id, disposal_date, amount, flag, note, date_end)
         SELECT $1, disposal_date, amount, flag, note, date_end FROM forecast_module_disposals WHERE module_id = $2
+      `, [newModuleId, mod.id]);
+
+      // Copy the CR062 amortization schedule
+      await client.query(`
+        INSERT INTO forecast_module_amortization (module_id, effective_date, pct)
+        SELECT $1, effective_date, pct FROM forecast_module_amortization WHERE module_id = $2
       `, [newModuleId, mod.id]);
     }
 
@@ -303,8 +315,19 @@ async function copyScenario(sourceId, newName) {
  * Get all modules for a scenario
  */
 async function findModulesByScenario(scenarioId) {
+  // CR062 — the amortization schedule rides along on the LIST, not just the detail
+  // fetch. `fcWarnings` is a pure client-side derivation over what FCReview already
+  // loads, and the clamp warning cannot be derived without the schedule. Serving it
+  // only on GET /modules/:id is the shape that broke Modify Transfer for two years:
+  // a page reads the list, the list lacks the child rows, and the feature silently
+  // shows nothing. The four loan_* columns come free via `m.*`.
   const sql = `
-    SELECT m.*, a.name as account_name, a.account_type
+    SELECT m.*, a.name as account_name, a.account_type,
+      COALESCE((
+        SELECT json_agg(json_build_object('effective_date', am.effective_date, 'pct', am.pct)
+                        ORDER BY am.effective_date)
+        FROM forecast_module_amortization am WHERE am.module_id = m.id
+      ), '[]'::json) AS amortization
     FROM forecast_modules m
     LEFT JOIN accounts a ON m.account_id = a.id
     WHERE m.scenario_id = $1
@@ -330,15 +353,17 @@ async function findModuleById(id) {
   const module = moduleResult.rows[0];
 
   // Get nested arrays
-  const [incomePct, investments, disposals] = await Promise.all([
+  const [incomePct, investments, disposals, amortization] = await Promise.all([
     db.query('SELECT * FROM forecast_module_income_pct WHERE module_id = $1 ORDER BY effective_date', [id]),
     db.query('SELECT * FROM forecast_module_investments WHERE module_id = $1 ORDER BY investment_date', [id]),
-    db.query('SELECT * FROM forecast_module_disposals WHERE module_id = $1 ORDER BY disposal_date', [id])
+    db.query('SELECT * FROM forecast_module_disposals WHERE module_id = $1 ORDER BY disposal_date', [id]),
+    db.query('SELECT * FROM forecast_module_amortization WHERE module_id = $1 ORDER BY effective_date', [id])
   ]);
 
   module.income_pct = incomePct.rows;
   module.investments = investments.rows;
   module.disposals = disposals.rows;
+  module.amortization = amortization.rows;
 
   return module;
 }
@@ -353,9 +378,10 @@ async function createModule(data) {
       expense_amount, expense_fc_line_id, income_fc_line_id, expense_growth_method,
       income_amount, base_date, base_value,
       market_value, base_value_usd, market_value_usd,
-      growth_rate, comment, is_matched
+      growth_rate, comment, is_matched,
+      loan_principal, loan_start_date, loan_end_date, loan_interest_rate
     )
-    VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18)
+    VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22)
     RETURNING *
   `;
 
@@ -377,7 +403,13 @@ async function createModule(data) {
     data.market_value_usd || 0,
     data.growth_rate || 0,
     data.comment || null,
-    data.is_matched || false
+    data.is_matched || false,
+    // CR062 — NULL is "not a loan"; `|| null` would turn a legitimate 0% rate
+    // into one, so these use ?? throughout.
+    data.loan_principal ?? null,
+    data.loan_start_date ?? null,
+    data.loan_end_date ?? null,
+    data.loan_interest_rate ?? null
   ]);
 
   return result.rows[0];
@@ -398,7 +430,9 @@ async function updateModule(id, data) {
     'market_value', 'base_value_usd', 'market_value_usd',
     'growth_rate', 'comment', 'is_matched', 'cash_sweep_target', 'cash_sweep_priority',
     'income_start_date', 'income_end_date', 'expense_start_date', 'expense_end_date',
-    'income_tax_rate_override'
+    'income_tax_rate_override',
+    // CR062 loan assumptions
+    'loan_principal', 'loan_start_date', 'loan_end_date', 'loan_interest_rate'
   ];
 
   const patch = {};
@@ -477,6 +511,18 @@ async function setIncomePct(moduleId, data, client = db) {
     RETURNING *
   `;
   const result = await client.query(sql, [moduleId, data.effective_date, data.value]);
+  return result.rows[0];
+}
+
+/** CR062: one year of a loan's principal schedule, as a % of loan_principal. */
+async function setAmortization(moduleId, data, client = db) {
+  const sql = `
+    INSERT INTO forecast_module_amortization (module_id, effective_date, pct)
+    VALUES ($1, $2, $3)
+    ON CONFLICT (module_id, effective_date) DO UPDATE SET pct = EXCLUDED.pct
+    RETURNING *
+  `;
+  const result = await client.query(sql, [moduleId, data.effective_date, data.pct]);
   return result.rows[0];
 }
 
@@ -744,6 +790,7 @@ module.exports = {
   addInvestment,
   addDisposal,
   setIncomePct,
+  setAmortization,
   // Income/Expense
   findIncExpByScenario,
   findIncExpById,

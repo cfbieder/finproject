@@ -1,8 +1,8 @@
-# CR062 — Forecast Loan Module, and the Equity report it makes possible — PLANNED (nothing built)
+# CR062 — Forecast Loan Module, and the Equity report it makes possible — IN-PROGRESS (P0 + P1 built on dev; P2 not started)
 
 Give the forecast a Loan module — principal, year taken, rate, end year and a per-year
 amortization schedule — and then let a loan be secured against any asset so the plan can show
-**equity**, not just gross value. Rev 3: both review passes landed.
+**equity**, not just gross value. Rev 4: both review passes landed; **P0 and P1 are built and verified on dev**, P2 is gated on the owner (§ Phases).
 [Roadmap](../current/project-roadmap.md#cr062)
 
 **Opened:** 2026-07-31 · **Track:** v3 · **Migration:** 047 (P1) · 048 (P2)
@@ -191,9 +191,22 @@ Pass 1 proved why (B2): the frame's first column *is* `PeriodStart − 1`, and
 | 2026 | 2026-12-31 | −400,000 from **2027** | +400,000 |
 
 Row 3 is the same draw year landing a year later purely because that module carries a
-different `base_date` — and dev has **both** values live in every scenario. So:
-`drawYear < PeriodStart − 1` is **rejected with a 400**, and the derivation asserts an
-invariant that it never emits an entry outside `[PeriodStart−1, PeriodEnd]`.
+different `base_date` — and dev has **both** values live in every scenario.
+
+*Rev 3 correction, found while building:* an earlier draft of this section said
+`drawYear < PeriodStart − 1` is **rejected with a 400**. That is wrong, and it contradicts §4
+of this same CR — an existing mortgage taken in **2015** is the case the two-role data model
+exists for. The defect pass 1 actually found is a draw **landing at index 0 and vanishing**,
+so the guard belongs on **emission**, not on the input:
+
+- The derivation **never emits outside `[baseYear+1, horizonEnd]`**, asserted as an invariant
+  rather than left to the caller. A draw at or before the base year is not written at all.
+- `drawYear ≤ baseYear` is a **past** loan: no draw entry, the projection starts from
+  `market_value`. Whatever cash it released arrived before the plan began.
+- The two coherent-input checks are **warnings**, because both describe a real if unusual
+  state rather than an impossibility: a past loan with **zero** outstanding (drawn and already
+  repaid — it contributes nothing), and a **future** loan that also carries an outstanding
+  balance today (double-counted — an outstanding balance *and* a draw still to come).
 
 1. **Draw.** `drawYear > baseYear` ⇒ `Invest[drawYear] = −principal` (a negative Invest pushes
    the balance down and releases cash). `drawYear ≤ baseYear` ⇒ no draw entry; the projection
@@ -536,21 +549,21 @@ Falsify first, then fix — every assertion must be shown failing against curren
 
 | Item | Phase | State |
 |---|---|---|
-| **`isLiability` sign fix + G6 retarget — standalone patch release** | **P0** | ⬜ |
-| Migration 047 | P1 | ⬜ |
-| `fcbuilder-loan.js` (pure derivation) | P1 | ⬜ |
-| `computeModule` interest branch + window neutralisation | P1 | ⬜ |
-| Retype-to-Loan clear: dry-run counts, confirm, variant override path | P1 | ⬜ |
-| `getBaseYearValues` loan branch | P1 | ⬜ |
-| Repo columns / create / update / **`copyScenario`** / `replaceModuleSchedules` / `refreshModulesFromActuals` | P1 | ⬜ |
-| Route DTO / allowlist / validation / four loan guards | P1 | ⬜ |
-| `forecastVariants` schedule wiring | P1 | ⬜ |
-| `FCModulesEdit` Loan section + straight-line fill | P1 | ⬜ |
-| `fcModulePayload` + coverage test · `fcWarnings` loan rules | P1 | ⬜ |
+| **`isLiability` sign fix — standalone patch release** (`7965b89`) | **P0** | ✅ dev |
+| Migration 047 | P1 | ✅ dev (prod pending) |
+| `fcbuilder-loan.js` (pure derivation) | P1 | ✅ 13 tests |
+| `computeModule` interest branch + window neutralisation | P1 | ✅ both guards falsified |
+| Retype-to-Loan clear: dry-run counts + variant override path | P1 | ✅ API done; **UI confirm still to wire** |
+| `getBaseYearValues` loan branch | P1 | ✅ V6 |
+| Repo columns / create / update / **`copyScenario`** / `replaceModuleSchedules` / `refreshModulesFromActuals` | P1 | ✅ V15 |
+| Route DTO / allowlist / validation / loan guards | P1 | ✅ |
+| `forecastVariants` schedule wiring | P1 | ✅ V19/V20 |
+| `FCModulesEdit` Loan section + straight-line fill | P1 | ✅ verified in a browser |
+| `fcModulePayload` + coverage test · `fcWarnings` loan rules | P1 | ✅ V16 |
 | Migration 048 + FK remap in copy/variant paths | P2 | ⬜ |
 | `GET /forecast/equity` + `/forecast-equity` page + chart | P2 | ⬜ |
-| V1–V21 | | ⬜ |
-| Deploy | | ⬜ |
+| V1–V21 | | ✅ (V17 trivially, as predicted) |
+| Deploy | | ⬜ **prod pending** — migration 047 first |
 
 **Deploy path** *(pass 2 R3)*: `Scripts/deploy-to-production.sh` **Step 2b applies pending
 migrations before the code**, which is what satisfies schema-before-code for 047 and 048 — no

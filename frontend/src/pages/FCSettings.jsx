@@ -4,7 +4,7 @@ import Rest from "../js/rest.js";
 import "./PageLayout.css";
 import "./FXOptions.css";
 
-const DEFAULT_MODULE_TYPES = ["Asset", "Liability", "Deposit", "Fixed Income", "Bond", "Real Estate", "Private Equity", "Business"];
+const DEFAULT_MODULE_TYPES = ["Asset", "Liability", "Loan", "Deposit", "Fixed Income", "Bond", "Real Estate", "Private Equity", "Business"];
 
 const DEFAULT_AI_PROMPT = `You are an experienced financial advisor reviewing a long-term retirement financial plan. The user's goal is to have sufficient funds so that they and their spouse can maintain a similar standard of living until they pass away, with minimal savings remaining at end of life.
 

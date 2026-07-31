@@ -206,7 +206,91 @@ export function computeForecastWarnings({
     });
   }
 
+  warnings.push(...computeLoanWarnings(modules));
+
   return warnings;
+}
+
+/**
+ * CR062 — loan configuration warnings, derived here rather than transported from
+ * the engine. `deriveLoanSchedule` produces the same findings during a build (and
+ * logs them), but there is no channel from the engine to this component; the
+ * modules payload already carries `Loan*` and `Amortization`, so the rules that
+ * depend only on configuration are re-derived from that.
+ *
+ * Deliberately NOT re-implemented here: the repayment-CAP warning, which needs the
+ * realised balance path. It is over-scheduling that causes it, and over-scheduling
+ * is visible from the percentages alone — so the owner still gets told, one step
+ * earlier in the causal chain.
+ */
+export function computeLoanWarnings(modules = []) {
+  const out = [];
+  const yearOf = (d) => (d ? Number(String(d).slice(0, 4)) : null);
+
+  for (const mod of modules) {
+    if (mod?.LoanInterestRate == null) continue;
+
+    const draw = yearOf(mod.LoanStartDate);
+    const end = yearOf(mod.LoanEndDate);
+    const principal = Number(mod.LoanPrincipal) || 0;
+    const schedule = Array.isArray(mod.Amortization) ? mod.Amortization : [];
+    const total = schedule.reduce((sum, r) => sum + (Number(r?.Pct) || 0), 0);
+
+    if (!principal || !draw || !end) {
+      out.push({
+        id: `loan-incomplete-${mod.Name}`,
+        severity: "error",
+        title: `Loan "${mod.Name}" is not fully configured`,
+        detail:
+          "A loan needs an original amount, a year taken and an end year before it can be " +
+          "projected. Until all three are set it contributes interest but no principal.",
+        years: [],
+        amount: null,
+      });
+      continue;
+    }
+
+    if (total > 100.0001) {
+      out.push({
+        id: `loan-over-scheduled-${mod.Name}`,
+        severity: "warning",
+        title: `Loan "${mod.Name}" repays more than it borrowed`,
+        detail:
+          `The amortization schedule totals ${total.toFixed(2)}% of the original amount. ` +
+          "Repayments are capped at the balance owed, so the later years in the schedule do nothing.",
+        years: [],
+        amount: null,
+      });
+    }
+
+    // A balloon is a property of the SCHEDULE. The end year always repays the
+    // remainder, so "nothing scheduled" means the whole principal falls due at once.
+    if (schedule.length === 0) {
+      out.push({
+        id: `loan-bullet-${mod.Name}`,
+        severity: "warning",
+        title: `Loan "${mod.Name}" repays everything in ${end}`,
+        detail:
+          "No principal is scheduled before the end year, so the whole balance falls due at once. " +
+          'Use "Straight line" on the Amortization schedule to spread it.',
+        years: [end],
+        amount: -principal,
+      });
+    } else if (total < 100 && principal * (1 - total / 100) > 2 * (principal * (total / 100) / schedule.length)) {
+      out.push({
+        id: `loan-balloon-${mod.Name}`,
+        severity: "warning",
+        title: `Loan "${mod.Name}" ends with a balloon payment`,
+        detail:
+          `${end} repays the remaining ${formatMoney(-principal * (1 - total / 100))}, more than twice a ` +
+          "typical scheduled year. Make sure the plan can fund it.",
+        years: [end],
+        amount: -principal * (1 - total / 100),
+      });
+    }
+  }
+
+  return out;
 }
 
 /** Compact money for warning copy: -3350000 → "($3.4M)". */

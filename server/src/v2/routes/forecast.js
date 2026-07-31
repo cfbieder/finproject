@@ -48,6 +48,8 @@ const MODULE_WRITE_FIELDS = [
   'TaxRateOverride', 'IncomeTaxRateOverride',
   'CashSweepPriority', 'CashSweepTarget',
   'Invest', 'Dispose', 'IncomePct',
+  // CR062 — loan assumptions + the principal schedule
+  'LoanPrincipal', 'LoanStartDate', 'LoanEndDate', 'LoanInterestRate', 'Amortization',
 ];
 
 const INCEXP_WRITE_FIELDS = [
@@ -56,20 +58,84 @@ const INCEXP_WRITE_FIELDS = [
   'FcLineId', 'BudgetSourceYear', 'Changes',
 ];
 
+/**
+ * CR062 — is this write describing a LOAN? Keyed on the rate, never on `Type`:
+ * module types are a user-editable free-text list in Forecast Settings and the
+ * engine has never read that column, so a renamed type must not change what the
+ * data means. `!= null` because 0% is a real rate.
+ */
+const isLoanBody = (body) => body?.LoanInterestRate != null;
+
+/**
+ * CR062 — a loan MUST post its interest somewhere. `cashChange` sums the expense
+ * series unconditionally, but the expense only LANDS on a row if the category name
+ * resolves in the categories frame. Probed on the real builder: a blank or unknown
+ * expense category gives Bank Accounts −25,625 a year with the expense row all
+ * zeros — cash leaves the plan every year and appears on no P&L line anywhere, in
+ * Review or Compare, with nothing downstream able to detect it.
+ *
+ * Takes the EFFECTIVE value (body if present, else the stored row) so a partial
+ * update stays legal.
+ */
+function assertLoanHasInterestLine(effectiveFcLineId) {
+  if (effectiveFcLineId === undefined || effectiveFcLineId === null || effectiveFcLineId === '') {
+    throw validate.badRequest('A loan needs an Interest Line — without one its interest would leave the bank balance without appearing on any P&L line.');
+  }
+}
+
 /** Shared shape check for a module write body (POST and PUT send the same contract). */
 function assertModuleBody(body) {
   validate.assertPlainObject(body, 'module');
   validate.assertAllowedFields(body, MODULE_WRITE_FIELDS, 'module');
   for (const f of ['BaseValue', 'MarketValue', 'BaseValueUSD', 'MarketValueUSD', 'Growth',
-    'ExpenseAmount', 'IncomeAmount', 'TaxRateOverride', 'IncomeTaxRateOverride']) {
+    'ExpenseAmount', 'IncomeAmount', 'TaxRateOverride', 'IncomeTaxRateOverride',
+    'LoanPrincipal', 'LoanInterestRate']) {
     if (body[f] !== undefined && body[f] !== null) {
       validate.assertFiniteNumber(body[f], f, { optional: true });
     }
   }
   if (body.Matched !== undefined) validate.assertBoolean(body.Matched, 'Matched');
-  for (const f of ['Invest', 'Dispose', 'IncomePct']) {
+  for (const f of ['Invest', 'Dispose', 'IncomePct', 'Amortization']) {
     if (body[f] !== undefined && !Array.isArray(body[f])) {
       throw validate.badRequest(`${f} must be an array`);
+    }
+  }
+
+  if (!isLoanBody(body)) return;
+
+  // ── The loan guards ───────────────────────────────────────────────────────
+  //
+  // The Interest-Line requirement is NOT here: it depends on the module's
+  // persisted state, and a PUT that touches only the rate must not be refused
+  // because the body happens not to repeat a line the row already has. It lives
+  // in `assertLoanHasInterestLine`, called with the MERGED value.
+  //
+  // 1. A loan cannot be a cash-sweep source. cash-sweep.js reads
+  //    moduleBalanceByYear as an ABSOLUTE market value, so a −400,000 loan would
+  //    present as 400,000 of sellable assets in CR045's liquidation cascade.
+  const ranked = body.CashSweepPriority != null && body.CashSweepPriority !== '' && Number(body.CashSweepPriority) > 0;
+  if (ranked || body.CashSweepTarget === true) {
+    throw validate.badRequest('A loan cannot be a cash-sweep source — the sweep reads balances as absolute values and would treat the debt as sellable assets.');
+  }
+
+  // 2. The derivation owns the principal movements, so stored schedules are
+  //    refused. An EMPTY array is accepted deliberately: it is how a module
+  //    retyped Asset → Loan clears the rows it arrived with (see the retype
+  //    clear-out below), and rejecting it would make those rows unclearable.
+  for (const f of ['Invest', 'Dispose', 'IncomePct']) {
+    if (Array.isArray(body[f]) && body[f].length > 0) {
+      throw validate.badRequest(`A loan's ${f} schedule is derived from its own assumptions — remove the ${f} rows.`);
+    }
+  }
+
+  // 3. The amortization schedule is percentages, and a negative one is a silent
+  //    re-draw (the balance would grow with nothing to flag it). The DB CHECK
+  //    backs this up; failing here gives the owner a sentence instead of a
+  //    constraint violation.
+  for (const row of body.Amortization || []) {
+    if (row?.Pct !== undefined && row.Pct !== null) {
+      validate.assertFiniteNumber(row.Pct, 'Amortization.Pct', { optional: true });
+      if (Number(row.Pct) < 0) throw validate.badRequest('An amortization percentage cannot be negative — that would draw the loan down again.');
     }
   }
 }
@@ -508,6 +574,16 @@ router.get('/modules', async (req, res, next) => {
       SetupStatus: m.setup_status || 'new',
       CashSweepTarget: m.cash_sweep_target || false,
       CashSweepPriority: m.cash_sweep_priority ?? null,
+      // CR062 — the loan assumptions and their schedule, so `fcWarnings` can derive
+      // the loan rules client-side from what FCReview already loads.
+      LoanPrincipal: m.loan_principal != null ? parseFloat(m.loan_principal) : null,
+      LoanStartDate: m.loan_start_date,
+      LoanEndDate: m.loan_end_date,
+      LoanInterestRate: m.loan_interest_rate != null ? parseFloat(m.loan_interest_rate) : null,
+      Amortization: (m.amortization || []).map((r) => ({
+        Date: r.effective_date,
+        Pct: parseFloat(r.pct) || 0,
+      })),
       // CR050 — Inherited · Overridden · Local, and which fields were overridden.
       Inheritance: variants.rowInheritance(inheritance, m),
     }));
@@ -635,10 +711,37 @@ router.get('/modules/:id', async (req, res, next) => {
           Flag: r.flag || '',
           DateEnd: r.date_end || null,
         })),
+        // CR062
+        LoanPrincipal: m.loan_principal != null ? parseFloat(m.loan_principal) : null,
+        LoanStartDate: m.loan_start_date,
+        LoanEndDate: m.loan_end_date,
+        LoanInterestRate: m.loan_interest_rate != null ? parseFloat(m.loan_interest_rate) : null,
+        Amortization: (m.amortization || []).map(r => ({
+          Date: r.effective_date,
+          Pct: parseFloat(r.pct) || 0,
+        })),
       },
     });
   } catch (error) {
     console.error('[forecast/modules/:id] Failed:', error);
+    next(error);
+  }
+});
+
+// GET /api/v2/forecast/modules/:id/loan-retype-preview
+// CR062 — what turning this module into a loan would DESTROY, without destroying
+// it. The UI confirms with these counts on the first save that flips a module to
+// Loan; a module already saved as a loan has nothing left to clear, so it never
+// re-prompts. Shares its implementation with the write path, so the number shown
+// and the number cleared cannot drift apart.
+router.get('/modules/:id/loan-retype-preview', async (req, res, next) => {
+  try {
+    const id = parseInt(req.params.id);
+    if (!id || isNaN(id)) return res.status(400).json({ error: 'Invalid ID' });
+    const module = await repo.findModuleById(id);
+    if (!module) return res.status(404).json({ error: 'Module not found' });
+    res.json({ data: await crud.previewLoanRetype(id) });
+  } catch (error) {
     next(error);
   }
 });
@@ -683,12 +786,32 @@ router.post('/modules', async (req, res, next) => {
       market_value: body.MarketValue ?? 0,
       base_value_usd: body.BaseValueUSD ?? 0,
       market_value_usd: body.MarketValueUSD ?? 0,
-      growth_rate: body.Growth ?? 0,
+      growth_rate: isLoanBody(body) ? 0 : (body.Growth ?? 0),
       comment: body.Comment || null,
       is_matched: Boolean(body.Matched),
+      // CR062 — ?? not ||, so a 0% rate stays a rate rather than becoming "not a loan".
+      loan_principal: body.LoanPrincipal ?? null,
+      loan_start_date: body.LoanStartDate || null,
+      loan_end_date: body.LoanEndDate || null,
+      loan_interest_rate: body.LoanInterestRate ?? null,
     };
 
+    if (isLoanBody(body)) assertLoanHasInterestLine(body.ExpenseFcLineId);
+
     const module = await repo.createModule(moduleData);
+
+    // CR062 — the loan's principal schedule (the other three arrays below are
+    // rejected non-empty on a loan, so only one of these ever has rows).
+    if (Array.isArray(body.Amortization)) {
+      for (const row of body.Amortization) {
+        if (row.Date) {
+          await repo.setAmortization(module.id, {
+            effective_date: row.Date,
+            pct: row.Pct ?? row.Value ?? row.Amount ?? 0,
+          });
+        }
+      }
+    }
 
     // Handle embedded arrays
     if (Array.isArray(body.Invest)) {
@@ -775,7 +898,16 @@ router.put('/modules/:id', async (req, res, next) => {
     if (body.MarketValue !== undefined) updateData.market_value = body.MarketValue;
     if (body.BaseValueUSD !== undefined) updateData.base_value_usd = body.BaseValueUSD;
     if (body.MarketValueUSD !== undefined) updateData.market_value_usd = body.MarketValueUSD;
-    if (body.Growth !== undefined) updateData.growth_rate = body.Growth;
+    // CR062 — Growth is COERCED to 0 on a loan, never rejected. buildModulePayload
+    // always emits Growth from editForm, so a module retyped Asset (Growth 1.0) →
+    // Loan would 400 on every save with no visible field to fix. Growth on a
+    // liability capitalizes interest into the balance, double-counting the
+    // interest line.
+    if (body.Growth !== undefined) updateData.growth_rate = isLoanBody(body) ? 0 : body.Growth;
+    if (body.LoanPrincipal !== undefined) updateData.loan_principal = body.LoanPrincipal ?? null;
+    if (body.LoanStartDate !== undefined) updateData.loan_start_date = body.LoanStartDate || null;
+    if (body.LoanEndDate !== undefined) updateData.loan_end_date = body.LoanEndDate || null;
+    if (body.LoanInterestRate !== undefined) updateData.loan_interest_rate = body.LoanInterestRate ?? null;
     if (body.Comment !== undefined) updateData.comment = body.Comment;
     if (body.Matched !== undefined) updateData.is_matched = Boolean(body.Matched);
     // CR017: cash sweep is now a priority-ordered set (cash_sweep_priority); the legacy
@@ -839,15 +971,49 @@ router.put('/modules/:id', async (req, res, next) => {
       }
     }
 
+    // CR062 — snapshot what the retype will destroy BEFORE anything is written.
+    // The editor sends empty Invest/Dispose/IncomePct arrays on a loan (that is how
+    // stale rows get cleared at all), so those rows are already gone by the time the
+    // clear-out below runs — and the echoed count would read 1 where the preview the
+    // owner confirmed said 4. Same number, taken at the same moment.
+    const clearedSnapshot = isLoanBody(body) ? await crud.previewLoanRetype(id) : null;
+
     // Handle embedded arrays — replace all if provided. One transaction for
     // the whole replace: a failure mid-reinsert must not leave the module's
     // schedule wiped by the leading DELETEs (CR037 P5).
-    if (Array.isArray(body.Invest) || Array.isArray(body.Dispose) || Array.isArray(body.IncomePct)) {
+    if (Array.isArray(body.Invest) || Array.isArray(body.Dispose) ||
+        Array.isArray(body.IncomePct) || Array.isArray(body.Amortization)) {
       await crud.replaceModuleSchedules(id, body);
     }
 
+    // CR062 — becoming a loan CLEARS what a loan cannot carry: the CR046 expense
+    // window (applyWindow runs after the interest branch and would halve and
+    // truncate it — measured, an expense window of 2030–2032 turns a flat
+    // 25,625…32,002 into 0 0 0 13,797.66 28,285.21 14,496.17 0 0 0 0) and any
+    // Invest/Dispose/IncomePct rows the module arrived with, since the derivation
+    // owns those. A leftover Flag:'Full' disposal would zero the balance outright.
+    //
+    // This is the only data-destroying operation in the feature, so it is
+    // reported before it happens: `GET /modules/:id/loan-retype-preview` returns
+    // the counts, the UI confirms with them, and the response echoes what was
+    // cleared. Nothing is destroyed without the caller having been able to see it
+    // first (the CR028 dry-run / CR033 confirm precedent).
+    let cleared = null;
+    if (isLoanBody(body)) {
+      await crud.clearForLoanRetype(id);
+      cleared = clearedSnapshot;
+    }
+
+    // CR062 — checked against the MERGED state, after the write, because a PUT can
+    // remove the line (`ExpenseFcLineId: null`) on a module that is already a loan,
+    // and a PUT that never mentions the line must keep the one it has.
+    const merged = await repo.findModuleById(id);
+    if (merged?.loan_interest_rate != null) {
+      assertLoanHasInterestLine(merged.expense_fc_line_id);
+    }
+
     const updated = await repo.findModuleById(id);
-    res.json({ data: updated });
+    res.json({ data: updated, ...(cleared ? { cleared } : {}) });
   } catch (error) {
     console.error('[forecast/modules PUT] Failed:', error);
     next(error);
@@ -1092,7 +1258,16 @@ router.put('/incomeexpense/:id', async (req, res, next) => {
     if (body.BaseDate !== undefined) updateData.base_date = body.BaseDate;
     if (body.BaseValue !== undefined) updateData.base_value = body.BaseValue;
     if (body.BaseValueUSD !== undefined) updateData.base_value_usd = body.BaseValueUSD;
-    if (body.Growth !== undefined) updateData.growth_rate = body.Growth;
+    // CR062 — Growth is COERCED to 0 on a loan, never rejected. buildModulePayload
+    // always emits Growth from editForm, so a module retyped Asset (Growth 1.0) →
+    // Loan would 400 on every save with no visible field to fix. Growth on a
+    // liability capitalizes interest into the balance, double-counting the
+    // interest line.
+    if (body.Growth !== undefined) updateData.growth_rate = isLoanBody(body) ? 0 : body.Growth;
+    if (body.LoanPrincipal !== undefined) updateData.loan_principal = body.LoanPrincipal ?? null;
+    if (body.LoanStartDate !== undefined) updateData.loan_start_date = body.LoanStartDate || null;
+    if (body.LoanEndDate !== undefined) updateData.loan_end_date = body.LoanEndDate || null;
+    if (body.LoanInterestRate !== undefined) updateData.loan_interest_rate = body.LoanInterestRate ?? null;
     if (body.Comment !== undefined) updateData.comment = body.Comment;
     if (body.Matched !== undefined) updateData.is_matched = Boolean(body.Matched);
     if (body.SetupStatus !== undefined) updateData.setup_status = body.SetupStatus;
