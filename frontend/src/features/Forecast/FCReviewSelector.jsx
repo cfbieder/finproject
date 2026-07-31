@@ -1,4 +1,5 @@
 import { BarChart3, TrendingUp, BrainCircuit, ArrowRightLeft } from "lucide-react";
+import { scenarioOptions, scenarioOptionTitle } from "./utils/scenarioOptions.js";
 
 export default function FCReviewSelector({
   scenarios,
@@ -51,9 +52,9 @@ export default function FCReviewSelector({
                   <option value="" disabled>
                     {isLoading ? "Loading..." : "Select scenario"}
                   </option>
-                  {scenarios.map((scenario) => (
-                    <option key={scenario.Name} value={scenario.Name}>
-                      {scenario.Name}
+                  {scenarioOptions(scenarios).map((option) => (
+                    <option key={option.name} value={option.name} title={scenarioOptionTitle(option)}>
+                      {option.label}
                     </option>
                   ))}
                 </select>

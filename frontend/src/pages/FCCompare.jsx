@@ -17,6 +17,7 @@ import FCCompareCharts from "../features/Forecast/FCCompareCharts.jsx";
 import FCCompareCommentary from "../features/Forecast/FCCompareCommentary.jsx";
 import FCCompareAIPanel from "../features/Forecast/FCCompareAIPanel.jsx";
 import { useScenarios } from "../features/Forecast/hooks/useScenarios.js";
+import { scenarioOptions, scenarioOptionTitle } from "../features/Forecast/utils/scenarioOptions.js";
 import { useForecastData } from "../features/Forecast/hooks/useForecastData.js";
 import { useFCLineStructure } from "../features/Forecast/hooks/useFCLineStructure.js";
 import { useBalanceSheetAccounts } from "../features/Forecast/hooks/useBalanceSheetAccounts.js";
@@ -252,9 +253,9 @@ export default function FCCompare() {
             onChange={(e) => setScenarioA(e.target.value)}
             disabled={scenariosLoading}
           >
-            {scenarios.map((s) => (
-              <option key={s.Name} value={s.Name}>
-                {s.Name}
+            {scenarioOptions(scenarios).map((option) => (
+              <option key={option.name} value={option.name} title={scenarioOptionTitle(option)}>
+                {option.label}
               </option>
             ))}
           </select>
@@ -275,9 +276,9 @@ export default function FCCompare() {
             onChange={(e) => setScenarioB(e.target.value)}
             disabled={scenariosLoading}
           >
-            {scenarios.map((s) => (
-              <option key={s.Name} value={s.Name}>
-                {s.Name}
+            {scenarioOptions(scenarios).map((option) => (
+              <option key={option.name} value={option.name} title={scenarioOptionTitle(option)}>
+                {option.label}
               </option>
             ))}
           </select>

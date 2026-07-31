@@ -8,6 +8,14 @@
   background: var(--surface);
 }
 
+/* A scenario that sits in a lineage reads differently from one that stands alone — tinted, with the
+   accent edge the rest of the app uses for "this belongs to something else". */
+.fc-variant-panel--lineage {
+  border-color: var(--info-border);
+  border-left: 3px solid var(--info);
+  background: var(--info-subtle);
+}
+
 .fc-variant-panel__header {
   display: flex;
   align-items: center;
@@ -152,4 +160,49 @@
 .fc-variant-panel__revert-cell {
   width: 1.75rem;
   text-align: right;
+}
+
+/* The variants a base scenario feeds — reference material, so it collapses. */
+.fc-variant-panel__disclosure {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  margin-top: 0.6rem;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: var(--info-strong, var(--info));
+  font-size: var(--text-sm);
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.fc-variant-panel__disclosure:hover {
+  text-decoration: underline;
+}
+
+.fc-variant-panel__children-table {
+  margin-top: 0.5rem;
+  padding: 0.6rem 0.75rem;
+  border: 1px solid var(--border);
+  border-radius: 0.5rem;
+  background: var(--surface);
+}
+
+.fc-variant-panel__children-table tbody th {
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.fc-variant-panel__child-link {
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: var(--info-strong, var(--info));
+  font: inherit;
+  cursor: pointer;
+}
+
+.fc-variant-panel__child-link:hover {
+  text-decoration: underline;
 }

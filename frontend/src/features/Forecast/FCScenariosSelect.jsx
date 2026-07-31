@@ -1,4 +1,5 @@
 import { AlertTriangle } from "lucide-react";
+import { scenarioOptions, scenarioOptionTitle } from "./utils/scenarioOptions.js";
 
 /**
  * FCScenariosSelect Component
@@ -103,9 +104,9 @@ export default function FCScenariosSelect({
                 <option value="" disabled>
                   {isLoading ? "Loading..." : "Select scenario"}
                 </option>
-                {(scenarios || []).map((scenario) => (
-                  <option key={scenario.Name} value={scenario.Name}>
-                    {scenario.Name}
+                {scenarioOptions(scenarios).map((option) => (
+                  <option key={option.name} value={option.name} title={scenarioOptionTitle(option)}>
+                    {option.label}
                   </option>
                 ))}
                 <option value="__new_scenario__">+ New Scenario</option>

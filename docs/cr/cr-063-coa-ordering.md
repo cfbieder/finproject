@@ -305,3 +305,28 @@ put back through the API. A UI-driving script that mutates shared state needs it
 the same time as its action.
 
 **Prod:** shipped as **v3.10.0**. Migration 049 applied by `deploy-to-production.sh` Step 2b, ahead of the rebuild — mandatory here, because the code reads a column whose *meaning* the migration changes. (P0 was already on prod ahead of the tag: it rode the v3.9.2 working-tree build.)
+
+## 10. Post-release — "move up/down does not work" (v3.11.0)
+
+It did work. Prod's stored order matched the reported screenshot, and clicking the arrow on the prod
+bundle sent `{"parentId":1,…}`, returned 200, and moved the row. **What was missing was any way to
+tell**, and behind that were two real defects:
+
+1. **No feedback.** Every other mutation on this page toasts; reorder was silent. The arrows also
+   belong to whichever row the pointer is *over*, so "which account did I just move?" is a genuine
+   question — the toast now names it (*"US - Investments" moved up*).
+2. **A stale-click window that silently undid the move.** The busy guard was released when the POST
+   resolved (~40 ms) while `coaRows` does not refresh until the reload lands (~260 ms), so for
+   ~200 ms a second click computed its plan from the **old** rows. That posts a sibling set which is
+   still *valid*, so the server accepts it with a 200 and quietly reverts the first move. Measured:
+   two clicks 60 ms apart sent 2 POSTs; the guard now spans the whole cycle and the same test sends 1.
+
+*Worth recording, because it cost time:* the scroll pane appeared to jump 300 → 1988 on every
+reorder, which would have explained the whole report. It was **Playwright auto-scrolling before its
+own click** — with raw mouse events the scroll is preserved. A test artifact presented as a defect is
+worse than no test, because the fix it implies is a real change to shipping code.
+
+*Still inherent, not fixed:* the arrows act on the hovered row, and after a swap the rows move under
+a stationary pointer — so a second click in the same spot acts on a **different** account
+(reproduced: a 2-element payload for another parent's children, 200). That is the nature of a
+move-in-place list; the toast is what makes it visible.

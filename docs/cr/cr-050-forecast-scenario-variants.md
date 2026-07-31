@@ -294,3 +294,33 @@ value so the panel shows *was → now*.
 missing-schedules fixes) — every one in how edits are **captured and reported** as overrides, never
 in the inheritance machinery, which has been correct since the first build. The assumption-editing
 UI in particular was built before variants existed.*
+
+## 10. Lineage in the pickers (2026-07-31)
+
+§5 specified that "the scenario list shows lineage (`↳ variant of 2026 Base`)". It never shipped:
+**every** picker in the app rendered one flat alphabetical list, so outside this panel a variant was
+indistinguishable from a base — and with "2026 Base", "2026 Downside", "2026 SRQ House Purchase" and
+"2026 Upside" all sorting together, the flat list reads as four peer scenarios.
+
+- **The blocker was the payload, not the markup.** Every dropdown reads `GET /assumptions`, which
+  formatted scenarios as `{Name, Description, IsActive, id}` — no lineage. It now carries
+  `ParentId` (additive; consumers that ignore it see what they always saw), and all seven pickers
+  render through one `scenarioOptions()` helper: a variant is indented under **its own** base and
+  marked `↳`, with a `title` of *Variant of "…"*. The option **value** stays the bare name, which is
+  what every caller already stores, sends to the API and keeps in localStorage.
+- **Grouping, not just labelling.** Bases keep the API's alphabetical order; variants move to sit
+  under their base. A variant whose base is absent from the list renders top-level rather than being
+  dropped — an option that is not in the list is unselectable.
+- **The panel now answers "what differs" for the base, too.** On a base scenario it listed the
+  children by name and stopped. It now offers a collapsed table — variant, field count, and the
+  overridden items in words ("Sarasota House — Status") — fetched lazily on expand, one request per
+  variant, so a page load costs nothing. The base's own dead end is closed: the variant name is a
+  button that selects it.
+- **A scenario inside a lineage is tinted** (`--info-subtle` + an accent edge) and a free-standing
+  one is not, so "these assumptions are not self-contained" is legible before a word is read.
+
+*The tests are worth more than their size:* the real data cannot falsify the grouping — "2026 Base"
+sorts before all three of its variants, so a flat list and a grouped one are identical there. The
+ordering assertions therefore use a base that does **not** sort first, and were falsified against a
+flat implementation (4 of 6 red). The route test asserts the parent **id value**, not that the key
+exists — `ParentId: null` on every row would satisfy a presence check and tell the dropdown nothing.

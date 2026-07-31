@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import PropTypes from "prop-types";
-import { GitBranch, Scissors, X } from "lucide-react";
+import { ChevronDown, ChevronRight, GitBranch, Scissors, X } from "lucide-react";
 import Rest from "../../js/rest.js";
 import { fieldLabel, isScheduleField, formatFieldValue, formatSchedule, formatAssumptionValue } from "./fcFieldLabels.js";
 import "./FCVariantPanel.css";
@@ -16,13 +16,18 @@ import "./FCVariantPanel.css";
  * Self-contained on purpose: it fetches its own lineage and overrides rather than threading state
  * through FCScenarios (998 lines, and its scenario state is already split across three shapes).
  */
-export default function FCVariantPanel({ selectedScenario, onChanged }) {
+export default function FCVariantPanel({ selectedScenario, onChanged, onSelectScenario }) {
   const [rows, setRows] = useState([]);
   const [overrides, setOverrides] = useState([]);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   const [newName, setNewName] = useState("");
   const [creating, setCreating] = useState(false);
+  // The children's override sets, keyed by scenario id. Fetched lazily on expand — one request per
+  // variant, which is not worth paying on every page load for a table that starts collapsed.
+  const [childOverrides, setChildOverrides] = useState({});
+  const [childrenOpen, setChildrenOpen] = useState(false);
+  const [childrenLoading, setChildrenLoading] = useState(false);
 
   const scenario = useMemo(
     () => rows.find((r) => r.name === selectedScenario) || null,
@@ -61,6 +66,36 @@ export default function FCVariantPanel({ selectedScenario, onChanged }) {
   useEffect(() => {
     load();
   }, [load]);
+
+  // A summary carried over from the previously selected base would be read as this one's.
+  useEffect(() => {
+    setChildrenOpen(false);
+    setChildOverrides({});
+  }, [selectedScenario]);
+
+  const loadChildOverrides = useCallback(async (list) => {
+    if (list.length === 0) return;
+    setChildrenLoading(true);
+    try {
+      const pairs = await Promise.all(
+        list.map(async (child) => {
+          const res = await Rest.get(`/forecast/scenarios/${child.id}/overrides`);
+          return [child.id, res?.data || []];
+        })
+      );
+      setChildOverrides(Object.fromEntries(pairs));
+      setError("");
+    } catch (e) {
+      setError(e.message || "Failed to load what the variants change");
+    } finally {
+      setChildrenLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    if (!childrenOpen) return;
+    loadChildOverrides(children);
+  }, [childrenOpen, children, loadChildOverrides]);
 
   const createVariant = async () => {
     const name = newName.trim();
@@ -126,8 +161,37 @@ export default function FCVariantPanel({ selectedScenario, onChanged }) {
     return isScheduleField(field) ? o.base.schedules?.[field] : o.base.values?.[field];
   };
 
+  /**
+   * A variant's overrides compressed to the phrases that answer "what makes it different" —
+   * "Sarasota House — Cost Basis, Growth (x Inflation)". A bare count says something changed but not
+   * what, and what is the only reason to open the table.
+   */
+  const changeSummary = (list) =>
+    (list || []).map((o) => {
+      if (o.entity_type === "assumption") return fieldLabel("assumption", o.entity_key);
+      const name = o.base?.name || `#${o.base_entity_id}`;
+      if (o.is_deleted) return `${name} (hidden)`;
+      const fields = Object.keys(o.patch || {}).map((f) => fieldLabel(o.entity_type, f));
+      return fields.length ? `${name} — ${fields.join(", ")}` : name;
+    });
+
+  /** Fields changed, counted the same way the variant's own list counts them. */
+  const changeCount = (list) =>
+    (list || []).reduce(
+      (n, o) =>
+        n + (o.entity_type === "assumption" || o.is_deleted ? 1 : Object.keys(o.patch || {}).length),
+      0
+    );
+
+  // A scenario standing on its own stays visually plain; one that sits in a lineage is tinted, so
+  // "this is not a free-standing set of assumptions" is legible before a word is read.
+  const hasLineage = !!base || children.length > 0;
+
   return (
-    <section className="fc-variant-panel" aria-label="Scenario lineage and overrides">
+    <section
+      className={`fc-variant-panel${hasLineage ? " fc-variant-panel--lineage" : ""}`}
+      aria-label="Scenario lineage and overrides"
+    >
       <header className="fc-variant-panel__header">
         <h3 className="fc-variant-panel__title">
           <GitBranch size={16} aria-hidden="true" />
@@ -176,10 +240,82 @@ export default function FCVariantPanel({ selectedScenario, onChanged }) {
       {error && <p className="fc-variant-panel__error">{error}</p>}
 
       {!base && children.length > 0 && (
-        <p className="fc-variant-panel__note">
-          This scenario is the base for {children.map((c) => `"${c.name}"`).join(", ")}. Anything
-          you change here flows into {children.length > 1 ? "them" : "it"}, except where overridden.
-        </p>
+        <div className="fc-variant-panel__children">
+          <p className="fc-variant-panel__note">
+            This scenario is the base for {children.length}{" "}
+            {children.length > 1 ? "variants" : "variant"}. Anything you change here flows into{" "}
+            {children.length > 1 ? "them" : "it"}, except where overridden.
+          </p>
+
+          {/* Collapsed by default: on the base scenario this is reference, not the reason you came. */}
+          <button
+            type="button"
+            className="fc-variant-panel__disclosure"
+            onClick={() => setChildrenOpen((open) => !open)}
+            aria-expanded={childrenOpen}
+          >
+            {childrenOpen ? <ChevronDown size={14} aria-hidden="true" /> : <ChevronRight size={14} aria-hidden="true" />}
+            {childrenOpen ? "Hide" : "Show"} what each variant changes
+          </button>
+
+          {childrenOpen && (
+            <table className="fc-variant-panel__changes fc-variant-panel__children-table">
+              <thead>
+                <tr>
+                  <th scope="col">Variant</th>
+                  <th scope="col">Changes</th>
+                  <th scope="col">What differs from {scenario.name}</th>
+                </tr>
+              </thead>
+              <tbody>
+                {children.map((child) => {
+                  const list = childOverrides[child.id];
+                  const parts = changeSummary(list);
+                  return (
+                    <tr key={child.id}>
+                      <th scope="row">
+                        {onSelectScenario ? (
+                          <button
+                            type="button"
+                            className="fc-variant-panel__child-link"
+                            onClick={() => onSelectScenario(child.name)}
+                            title={`Switch to "${child.name}"`}
+                          >
+                            {child.name}
+                          </button>
+                        ) : (
+                          child.name
+                        )}
+                      </th>
+                      <td className="fc-variant-panel__was">
+                        {list ? changeCount(list) : "—"}
+                      </td>
+                      <td>
+                        {!list ? (
+                          <span className="fc-variant-panel__was">
+                            {childrenLoading ? "Loading…" : "—"}
+                          </span>
+                        ) : parts.length === 0 ? (
+                          <span className="fc-variant-panel__was">
+                            Nothing overridden — an exact twin of {scenario.name}
+                          </span>
+                        ) : (
+                          <>
+                            {parts.slice(0, 3).join("  ·  ")}
+                            {/* "more ITEMS", because the Changes column counts FIELDS — a
+                                bare "+1 more" beside a 7 reads as though four were hidden. */}
+                            {parts.length > 3 &&
+                              ` · +${parts.length - 3} more ${parts.length - 3 === 1 ? "item" : "items"}`}
+                          </>
+                        )}
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          )}
+        </div>
       )}
 
       {base && (
@@ -296,4 +432,5 @@ export default function FCVariantPanel({ selectedScenario, onChanged }) {
 FCVariantPanel.propTypes = {
   selectedScenario: PropTypes.string,
   onChanged: PropTypes.func,
+  onSelectScenario: PropTypes.func,
 };

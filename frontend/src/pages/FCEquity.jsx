@@ -12,6 +12,7 @@ import {
 } from "recharts";
 import Rest from "../js/rest.js";
 import { useScenarios } from "../features/Forecast/hooks/useScenarios.js";
+import { scenarioOptions, scenarioOptionTitle } from "../features/Forecast/utils/scenarioOptions.js";
 import "./PageLayout.css";
 import "./FCEquity.css";
 
@@ -114,14 +115,11 @@ export default function FCEquity() {
             value={selectedScenario}
             onChange={(e) => setSelectedScenario(e.target.value)}
           >
-            {scenarios.map((s) => {
-              const name = s.Name || s.name || s;
-              return (
-                <option key={name} value={name}>
-                  {name}
-                </option>
-              );
-            })}
+            {scenarioOptions(scenarios).map((option) => (
+              <option key={option.name} value={option.name} title={scenarioOptionTitle(option)}>
+                {option.label}
+              </option>
+            ))}
           </select>
         </label>
       </section>

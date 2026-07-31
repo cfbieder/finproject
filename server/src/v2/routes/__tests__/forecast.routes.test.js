@@ -89,6 +89,30 @@ dbDescribe('forecast router contract (DB)', () => {
       expect(r.status).toBe(200);
       expect(r.body.entries).toEqual([]);
     });
+
+    // Every scenario dropdown in the app reads /assumptions, so lineage has to reach it or a
+    // variant is indistinguishable from a base everywhere outside the Scenarios page.
+    test('GET /assumptions carries ParentId, linking a variant to its base', async () => {
+      const VARIANT = `${SCENARIO}Variant`;
+      await db.query('DELETE FROM forecast_scenarios WHERE name = $1', [VARIANT]);
+      await db.query(
+        'INSERT INTO forecast_scenarios (name, parent_scenario_id) VALUES ($1, $2)',
+        [VARIANT, scenarioId]
+      );
+      try {
+        const r = await req('GET', '/assumptions');
+        expect(r.status).toBe(200);
+        const found = (r.body.scenarios || []).find((s) => s.Name === VARIANT);
+        const parent = (r.body.scenarios || []).find((s) => s.Name === SCENARIO);
+        expect(found).toBeDefined();
+        // Asserting the id VALUE, not merely that the key exists: a `ParentId: null` on every row
+        // would satisfy a presence check and still tell the dropdown nothing.
+        expect(found.ParentId).toBe(scenarioId);
+        expect(parent.ParentId).toBeNull();
+      } finally {
+        await db.query('DELETE FROM forecast_scenarios WHERE name = $1', [VARIANT]);
+      }
+    });
   });
 
   describe('validation & not-found', () => {

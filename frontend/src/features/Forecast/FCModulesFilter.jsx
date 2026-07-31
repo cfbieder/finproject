@@ -1,4 +1,5 @@
 import { AlertTriangle } from "lucide-react";
+import { scenarioOptions, scenarioOptionTitle } from "./utils/scenarioOptions.js";
 import "./FCModulesFilter.css";
 
 /**
@@ -88,9 +89,9 @@ export default function FCModulesFilter({
                   <option value="" disabled>
                     Select scenario
                   </option>
-                  {scenarios.map((scenario) => (
-                    <option key={scenario.Name} value={scenario.Name}>
-                      {scenario.Name}
+                  {scenarioOptions(scenarios).map((option) => (
+                    <option key={option.name} value={option.name} title={scenarioOptionTitle(option)}>
+                      {option.label}
                     </option>
                   ))}
                 </select>

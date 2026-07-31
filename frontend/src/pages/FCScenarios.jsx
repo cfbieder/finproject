@@ -942,6 +942,7 @@ export default function FCScenarios() {
         <FCVariantPanel
           selectedScenario={isNewScenario ? "" : selectedScenario}
           onChanged={reloadDefaults}
+          onSelectScenario={setSelectedScenario}
         />
 
         {/* Data tables for inflation and FX assumptions */}

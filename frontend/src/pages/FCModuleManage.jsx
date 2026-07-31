@@ -12,6 +12,7 @@ import {
   formatTransferForm,
   normalizeTransfers,
 } from "../features/Forecast/utils/fcModuleManageUtils.js";
+import { scenarioOptions } from "../features/Forecast/utils/scenarioOptions.js";
 import Rest from "../js/rest.js";
 import FCStepNav from "../features/Forecast/FCStepNav.jsx";
 import { useCoa } from "../hooks/useCoa.js";
@@ -139,13 +140,13 @@ export default function FCModuleManage() {
     const font = `${selectStyles.fontWeight} ${selectStyles.fontSize} ${selectStyles.fontFamily}`;
     context.font = font;
 
-    const scenarioNames = (assumptions?.scenarios || []).map(
-      (scenario) => scenario.Name
-    );
-    scenarioNames.push("Select scenario");
+    // Measure the LABELS, not the names — a variant renders indented under its base, so sizing on
+    // the bare name would clip the widest option by exactly the marker.
+    const optionLabels = scenarioOptions(assumptions?.scenarios).map((option) => option.label);
+    optionLabels.push("Select scenario");
 
-    const widest = scenarioNames.reduce(
-      (max, name) => Math.max(max, context.measureText(name).width),
+    const widest = optionLabels.reduce(
+      (max, label) => Math.max(max, context.measureText(label).width),
       0
     );
 

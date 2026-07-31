@@ -212,6 +212,10 @@ router.get('/assumptions', async (req, res, next) => {
       Description: s.description,
       IsActive: s.is_active,
       id: s.id,
+      // CR050 lineage. Every scenario dropdown in the app reads THIS endpoint, so a variant could
+      // not be told from a base anywhere but the Scenarios page (which fetches /scenarios directly).
+      // Additive: consumers that ignore it see the payload they always saw.
+      ParentId: s.parent_scenario_id ?? null,
       ...(docScenarioMap[s.name]?.PeriodStart != null && { PeriodStart: docScenarioMap[s.name].PeriodStart }),
       ...(docScenarioMap[s.name]?.PeriodEnd != null && { PeriodEnd: docScenarioMap[s.name].PeriodEnd }),
     }));
