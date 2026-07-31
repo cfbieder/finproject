@@ -466,12 +466,38 @@ async function update(id, data) {
 }
 
 /**
- * Delete a transaction
+ * Delete a transaction.
+ *
+ * A bank-feed-promoted row is pointed at by `bankfeed_staging.promoted_transaction_id`,
+ * an FK with NO ACTION — so the bare DELETE raised a constraint violation and no fed
+ * transaction could be deleted from the UI at all. Releasing the pointer is not enough:
+ * `promote()` re-promotes any staging row where `promoted_transaction_id IS NULL AND
+ * suppressed = FALSE`, so the row would come straight back on the next refresh.
+ * Deleting a fed transaction means "I do not want this row" — record that as
+ * `suppressed = TRUE`, in the same transaction as the delete.
  */
 async function remove(id) {
-  const sql = `DELETE FROM transactions WHERE id = $1 RETURNING id`;
-  const result = await db.query(sql, [id]);
-  return result.rowCount > 0;
+  const client = await db.getClient();
+  try {
+    await client.query('BEGIN');
+    await client.query(
+      `UPDATE bankfeed_staging
+       SET promoted_transaction_id = NULL, suppressed = TRUE
+       WHERE promoted_transaction_id = $1`,
+      [id]
+    );
+    const result = await client.query(
+      `DELETE FROM transactions WHERE id = $1 RETURNING id`,
+      [id]
+    );
+    await client.query('COMMIT');
+    return result.rowCount > 0;
+  } catch (err) {
+    await client.query('ROLLBACK');
+    throw err;
+  } finally {
+    client.release();
+  }
 }
 
 /**
