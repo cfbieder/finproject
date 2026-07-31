@@ -292,11 +292,31 @@ export const routes = [
     icon: ArrowLeftRight,
   },
   {
+    // CR062 P2 — sits in Forecasting, deliberately WITHOUT a `step`. It is a report
+    // over a generated forecast, not a seventh setup step, and the CR042 invariant
+    // ("the Forecasting group is exactly the six steps FCStepNav numbers, in the
+    // same order") is about the NUMBERED list: the Sidebar prefixes `N. ` only when
+    // `step` is set, so an unnumbered entry after step 6 leaves the stepper and the
+    // sidebar still agreeing 1–6. Give this a `step` and they diverge — that is the
+    // thing to keep out, not the entry itself. Owner moved it here from
+    // Reports & Graphs (2026-07-31): it needs a scenario and answers a forecast
+    // question, so Reports was where people did not look for it.
+    // No `wrapper: ForecastProvider` — the page's `useScenarios` is self-contained.
+    path: "/forecast-equity",
+    component: FCEquity,
+    label: "Forecast Equity",
+    category: "Forecasting",
+    description:
+      "Each forecast asset gross and net of the loans secured against it — the equity build, and income after debt service",
+    icon: LineChart,
+  },
+  {
     path: "/fc-settings",
     component: FCSettings,
     label: "Forecast Settings",
     // Same rule: assumptions/config live in Settings. The Forecasting group is then
-    // exactly the six steps FCStepNav numbers, in the same order.
+    // the six steps FCStepNav numbers, in the same order, plus the unnumbered
+    // Equity report above.
     category: "Settings",
     description: "Birth year, module types, and FX rate assumptions",
     icon: DollarSign,
@@ -342,20 +362,6 @@ export const routes = [
     icon: ArrowLeftRight,
   },
 
-  {
-    // CR062 P2 — a REPORT over a generated forecast, not a seventh setup step:
-    // the Forecasting group is deliberately "exactly the six steps FCStepNav
-    // numbers, in the same order" (CR042), and adding to it would break the one
-    // invariant that keeps the stepper and the sidebar from diverging again.
-    path: "/forecast-equity",
-    component: FCEquity,
-    label: "Forecast Equity",
-    category: "Reports & Graphs",
-    subcategory: "Reports",
-    description:
-      "Each forecast asset gross and net of the loans secured against it — the equity build, and income after debt service",
-    icon: LineChart,
-  },
   {
     path: "/investment-returns",
     component: InvestmentReturns,

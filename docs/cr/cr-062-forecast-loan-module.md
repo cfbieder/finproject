@@ -444,6 +444,14 @@ loan, no self-reference.
 New page `/forecast-equity` + `GET /api/v2/forecast/equity?scenario=…`, in the Forecast
 sidebar (the step nav derives from `routes.jsx`, CR042 — no second hand-kept list).
 
+*It shipped under **Reports & Graphs** instead, then moved back here on 2026-07-31 when the
+owner went looking for it in Forecast and found it under Reports.* The reasoning for Reports
+was that CR042 fixes the Forecasting group as "exactly the six steps FCStepNav numbers, in the
+same order" — but that invariant is about the **numbered** list, and the Sidebar prefixes
+`N. ` only when a route carries `step`. An unnumbered entry after step 6 leaves the stepper
+and the sidebar still agreeing on 1–6. **What must stay out is a `step` on this route**, not
+the route itself.
+
 It needs **no engine work**: `forecast_entries` already carries `(forecast_year, account,
 module, amount)`, and `UNIQUE(scenario_id, name)` on `forecast_modules` makes the module name
 a safe join key within a scenario.
