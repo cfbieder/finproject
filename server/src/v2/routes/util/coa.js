@@ -193,6 +193,69 @@ router.post('/coa/update', async (req, res, next) => {
 });
 
 /**
+ * POST /api/v2/util/coa/reorder
+ *
+ * CR063 — set the order of one parent's children. Body:
+ *   { parentId: <int|null>, orderedIds: [<int>, …] }
+ *   { parentName: <string>, orderedIds: [<int>, …] }
+ *
+ * The WHOLE sibling list, not a { id, direction } nudge: idempotent, one
+ * transaction, and it can reject a client whose tree is stale (a nudge cannot
+ * even detect that). `parentId: null` reorders the roots.
+ *
+ * `parentName` exists because the COA page cannot always supply an id for the
+ * PARENT: `/coa/BalanceSheet` strips the section root and `fetchCoaSections`
+ * re-adds it client-side as a bare label, so the top-level rows (Assets,
+ * Liabilities, Income, Expense) know their parent only by name. Names are UNIQUE
+ * on this table, so the two forms address the same row. The CHILDREN are always
+ * ids — an ordered list of names would be re-resolved row by row for no benefit.
+ */
+router.post('/coa/reorder', async (req, res, next) => {
+  try {
+    const { parentId, parentName, orderedIds } = req.body || {};
+
+    const hasId = parentId !== null && parentId !== undefined;
+    if (hasId && !Number.isInteger(Number(parentId))) {
+      return res.status(400).json({ error: 'parentId must be an integer or null' });
+    }
+    if (!Array.isArray(orderedIds)) {
+      return res.status(400).json({ error: 'orderedIds must be an array of account ids' });
+    }
+
+    let parent = hasId ? Number(parentId) : null;
+    if (hasId) {
+      const parentRow = await accountsRepo.findById(parent);
+      if (!parentRow) {
+        return res.status(404).json({ error: 'Parent account not found' });
+      }
+    } else if (typeof parentName === 'string' && parentName.trim()) {
+      const parentRow = await accountsRepo.findByName(parentName.trim());
+      if (!parentRow) {
+        return res.status(404).json({ error: 'Parent account not found' });
+      }
+      parent = parentRow.id;
+    }
+
+    const result = await accountsRepo.reorderChildren(parent, orderedIds);
+    if (!result.ok) {
+      // 409, not 400: the request is well-formed, it is the caller's view of the
+      // tree that has gone stale. The client's fix is to reload, not to re-encode.
+      return res.status(409).json({
+        error: result.reason,
+        missing: result.missing,
+        unknown: result.unknown,
+        expectedCount: result.expectedCount,
+      });
+    }
+
+    res.json({ success: true, reordered: result.count, parentId: parent });
+  } catch (error) {
+    console.error('[v2/util/coa/reorder] Failed:', error);
+    next(error);
+  }
+});
+
+/**
  * POST /api/v2/util/coa/delete
  * Soft-delete an account from the COA via PostgreSQL
  */

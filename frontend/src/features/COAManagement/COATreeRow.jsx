@@ -1,4 +1,13 @@
-import { ChevronRight, Plus, Pencil, Trash2, MoveRight, Rss } from "lucide-react";
+import {
+  ChevronRight,
+  Plus,
+  Pencil,
+  Trash2,
+  MoveRight,
+  Rss,
+  ArrowUp,
+  ArrowDown,
+} from "lucide-react";
 
 const capitalize = (s) => (s ? s.charAt(0).toUpperCase() + s.slice(1) : s);
 
@@ -12,7 +21,14 @@ export default function COATreeRow({
   onEdit,
   onDelete,
   onMove,
+  onReorder,
+  canReorder,
 }) {
+  // CR063: reordering is among SIBLINGS, so both arrows are disabled whenever a
+  // search or filter is active — the row above in a filtered view is not the row
+  // this would swap with.
+  const canUp = typeof canReorder === "function" && canReorder(row, -1);
+  const canDown = typeof canReorder === "function" && canReorder(row, 1);
   const depthPad = row.depth * 20 + 12;
 
   return (
@@ -62,6 +78,32 @@ export default function COATreeRow({
       <td>{row.accountNumber || "\u2014"}</td>
       <td className="coa-tree-row__actions-cell">
         <div className="coa-row-actions">
+          <button
+            type="button"
+            className="coa-row-action-btn coa-row-action-btn--reorder"
+            onClick={(e) => {
+              e.stopPropagation();
+              onReorder(row, -1);
+            }}
+            disabled={!canUp}
+            title="Move up"
+            aria-label={`Move ${row.name} up`}
+          >
+            <ArrowUp size={15} />
+          </button>
+          <button
+            type="button"
+            className="coa-row-action-btn coa-row-action-btn--reorder"
+            onClick={(e) => {
+              e.stopPropagation();
+              onReorder(row, 1);
+            }}
+            disabled={!canDown}
+            title="Move down"
+            aria-label={`Move ${row.name} down`}
+          >
+            <ArrowDown size={15} />
+          </button>
           {row.isCategory && (
             <button
               type="button"

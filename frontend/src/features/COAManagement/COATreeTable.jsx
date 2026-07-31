@@ -14,76 +14,11 @@ export default function COATreeTable({
   onEditRow,
   onDeleteRow,
   onMoveRow,
-  analyzeStatus,
-  onQuickAddAccount,
-  onQuickAddCategory,
+  onReorderRow,
+  canReorder,
 }) {
-  const missingAccounts = Array.isArray(analyzeStatus?.missingAccounts)
-    ? analyzeStatus.missingAccounts
-    : [];
-  const missingCategories = Array.isArray(analyzeStatus?.missingCategories)
-    ? analyzeStatus.missingCategories
-    : [];
-
   return (
     <section className="coa-tree-section">
-      {/* Analysis results */}
-      {analyzeStatus?.message && (
-        <div className="coa-analysis-banner">
-          <p
-            className={`coa-analysis-banner__msg coa-analysis-banner__msg--${analyzeStatus.type ?? "info"}`}
-          >
-            {analyzeStatus.message}
-          </p>
-          {Array.isArray(analyzeStatus?.details) &&
-            analyzeStatus.details.length > 0 && (
-              <ul className="coa-analysis-banner__details">
-                {analyzeStatus.details.map((d) => (
-                  <li key={d}>{d}</li>
-                ))}
-              </ul>
-            )}
-          {missingAccounts.length > 0 && (
-            <div className="coa-quickadd-group">
-              <p className="coa-quickadd-group__label coa-quickadd-group__label--account">
-                Quick-add missing accounts:
-              </p>
-              <div className="coa-quickadd-group__buttons">
-                {missingAccounts.map((name) => (
-                  <button
-                    key={name}
-                    type="button"
-                    className="coa-quickadd-btn coa-quickadd-btn--account"
-                    onClick={() => onQuickAddAccount(name)}
-                  >
-                    + {name}
-                  </button>
-                ))}
-              </div>
-            </div>
-          )}
-          {missingCategories.length > 0 && (
-            <div className="coa-quickadd-group">
-              <p className="coa-quickadd-group__label coa-quickadd-group__label--category">
-                Quick-add missing categories:
-              </p>
-              <div className="coa-quickadd-group__buttons">
-                {missingCategories.map((name) => (
-                  <button
-                    key={name}
-                    type="button"
-                    className="coa-quickadd-btn coa-quickadd-btn--category"
-                    onClick={() => onQuickAddCategory(name)}
-                  >
-                    + {name}
-                  </button>
-                ))}
-              </div>
-            </div>
-          )}
-        </div>
-      )}
-
       {/* Table header info */}
       <div className="coa-tree-section__header">
         <span className="coa-tree-section__count">
@@ -100,7 +35,7 @@ export default function COATreeTable({
               <th>Type</th>
               <th>Currency</th>
               <th>Account #</th>
-              <th style={{ width: "120px" }}></th>
+              <th style={{ width: "185px" }}></th>
             </tr>
           </thead>
           <tbody>
@@ -141,6 +76,8 @@ export default function COATreeTable({
                     onEdit={onEditRow}
                     onDelete={onDeleteRow}
                     onMove={onMoveRow}
+                    onReorder={onReorderRow}
+                    canReorder={canReorder}
                   />
                 );
               })

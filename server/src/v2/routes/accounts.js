@@ -63,7 +63,19 @@ router.get('/balances', async (req, res, next) => {
 // GET /api/v2/accounts/categories - P&L leaves treated as categories
 router.get('/categories', async (req, res, next) => {
   try {
+    // CR063 P3: ordered by COA position, not by name. `account_sort` mirrors the
+    // repository's SORT_PATH_CTE — this handler is the one place that still
+    // holds its own SQL.
     const sql = `
+      WITH RECURSIVE account_sort AS (
+        SELECT id, ARRAY[display_order, id] AS sort_path
+          FROM accounts
+         WHERE parent_id IS NULL
+        UNION ALL
+        SELECT a.id, s.sort_path || ARRAY[a.display_order, a.id]
+          FROM accounts a
+          JOIN account_sort s ON a.parent_id = s.id
+      )
       SELECT
         a.id as account_id,
         a.name as account_name,
@@ -73,10 +85,11 @@ router.get('/categories', async (req, res, next) => {
         a.name as category_name,
         a.is_transfer
       FROM accounts a
+      JOIN account_sort s ON s.id = a.id
       WHERE a.is_active = TRUE
         AND a.section = 'profit_loss'
         AND NOT EXISTS (SELECT 1 FROM accounts c WHERE c.parent_id = a.id AND c.is_active = TRUE)
-      ORDER BY a.name
+      ORDER BY s.sort_path
     `;
     const db = require('../db');
     const result = await db.query(sql);

@@ -29,17 +29,11 @@ export default function COAEditModal({
     return null;
   }
   const isCategoryEdit = row.isCategory || row.type === "Category";
-  const isAdd = mode === "add" || mode === "quickadd" || mode === "quickadd-category";
-  const isQuickAdd = mode === "quickadd" || mode === "quickadd-category";
-  const isQuickAddCategory = mode === "quickadd-category";
+  const isAdd = mode === "add";
   const isCategoryAdd = isAdd && row.isCategory;
-  const showCategoryPicker = isQuickAdd || (mode === "add" && !parentPath?.length);
+  const showCategoryPicker = isAdd && !parentPath?.length;
   const title = isMultiEdit
     ? "Edit Accounts"
-    : isQuickAddCategory
-    ? "Add Missing Category"
-    : mode === "quickadd"
-    ? "Add Missing Account"
     : isCategoryAdd
     ? "Add Category"
     : isAdd
@@ -55,7 +49,7 @@ export default function COAEditModal({
   // asset/liability the container can legitimately hold mixed currencies, so it
   // stays editable.
   const isChildAdd =
-    mode === "add" && !isCategoryAdd && (parentPath?.length || 0) > 0;
+    isAdd && !isCategoryAdd && (parentPath?.length || 0) > 0;
   const parentType = (row.type || "").toLowerCase();
   const isPnLChild = parentType === "income" || parentType === "expense";
   const lockCurrency = isChildAdd && isPnLChild;
@@ -73,7 +67,7 @@ export default function COAEditModal({
         style={{
           background: "var(--surface)",
           borderRadius: "14px",
-          width: isQuickAdd ? "600px" : "520px",
+          width: "520px",
           maxWidth: "95vw",
           maxHeight: "90vh",
           overflowY: "auto",
@@ -122,7 +116,7 @@ export default function COAEditModal({
           }}
         >
           <label htmlFor="coa-edit-name" style={{ fontWeight: 700, color: "var(--ink)" }}>
-            {isQuickAddCategory ? "Category" : "Account"}
+            Account
           </label>
           <input
             id="coa-edit-name"
@@ -133,7 +127,7 @@ export default function COAEditModal({
             readOnly={isMultiEdit}
           />
         </div>
-        {mode === "add" && !isQuickAdd && (
+        {isAdd && (
           <label
             style={{
               display: "flex",
@@ -157,7 +151,7 @@ export default function COAEditModal({
             </span>
           </label>
         )}
-        {(isQuickAdd || showCategoryPicker) && (
+        {showCategoryPicker && (
           <div
             style={{
               display: "flex",
@@ -166,7 +160,7 @@ export default function COAEditModal({
             }}
           >
             <span style={{ fontWeight: 700, color: "#2D3436" }}>
-              {isCategoryAdd || isQuickAddCategory ? "Place under parent category" : "Place under category"}
+              {isCategoryAdd ? "Place under parent category" : "Place under category"}
             </span>
             <COACategoryPicker
               coaSections={coaSections}
@@ -243,7 +237,7 @@ export default function COAEditModal({
             itself as "Type asset liability equity income expense…" to a screen reader, and
             getByLabel("Type") could not find it either. htmlFor/id cannot fix that while the
             control is still inside the label; the wrapper has to become a plain div. */}
-        {!isQuickAddCategory && !isCategoryAdd && <div
+        {!isCategoryAdd && <div
           style={{
             display: "flex",
             flexDirection: "column",
@@ -329,7 +323,7 @@ export default function COAEditModal({
           </>
           )}
         </div>}
-        {!isQuickAddCategory && !isCategoryAdd && <div
+        {!isCategoryAdd && <div
           style={{
             display: "flex",
             flexDirection: "column",
@@ -373,7 +367,7 @@ export default function COAEditModal({
           </select>
           )}
         </div>}
-        {!isQuickAddCategory && !isCategoryAdd && <div
+        {!isCategoryAdd && <div
           style={{
             display: "flex",
             flexDirection: "column",

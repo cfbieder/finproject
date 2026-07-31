@@ -4,6 +4,7 @@ import COAManagementToolbar from "../features/COAManagement/COAManagementToolbar
 import COAEditModal from "../features/COAManagement/COAEditModal.jsx";
 import COAMoveModal from "../features/COAManagement/COAMoveModal.jsx";
 import COATreeTable from "../features/COAManagement/COATreeTable.jsx";
+import { reorderPlan } from "../features/COAManagement/coaReorder.js";
 import FCExpConfirmDeleteModal from "../features/Forecast/FCExpConfirmDeleteModal.jsx";
 import { useToast } from "../contexts";
 import Rest from "../js/rest.js";
@@ -27,7 +28,15 @@ const collectCoaRows = (coaData, path = [], rows = []) => {
     if ("name" in coaData && "children" in coaData) {
       const hasChildren =
         Array.isArray(coaData.children) && coaData.children.length > 0;
-      rows.push({ name: coaData.name, path, isCategory: hasChildren });
+      // CR063: `accountId` is the real accounts.id (the tree now carries it), used
+      // for reordering. It is deliberately NOT the row key — that stays the
+      // synthetic path|name id, which selection and the modals already depend on.
+      rows.push({
+        accountId: coaData.id ?? null,
+        name: coaData.name,
+        path,
+        isCategory: hasChildren,
+      });
       if (hasChildren) {
         const childPath = [...path, coaData.name];
         coaData.children.forEach((child) =>
@@ -47,14 +56,16 @@ const collectCoaRows = (coaData, path = [], rows = []) => {
 
     // Top-level section wrapper: { "Balance Sheet Accounts": [...] }
     Object.entries(coaData).forEach(([key, value]) => {
-      rows.push({ name: key, path, isCategory: true });
+      // Synthesized client-side by fetchCoaSections — the API strips the section
+      // root — so it has no id. Reorder therefore addresses this parent by NAME.
+      rows.push({ accountId: null, name: key, path, isCategory: true });
       collectCoaRows(value, [...path, key], rows);
     });
     return rows;
   }
 
   if (typeof coaData === "string") {
-    rows.push({ name: coaData, path, isCategory: false });
+    rows.push({ accountId: null, name: coaData, path, isCategory: false });
   }
 
   return rows;
@@ -63,7 +74,7 @@ const collectCoaRows = (coaData, path = [], rows = []) => {
 const buildCoaRows = (coaData = [], traitsMap = {}, fedNames = null) => {
   const rows = collectCoaRows(coaData);
   const seenIds = new Map();
-  return rows.map(({ name, path, isCategory }) => {
+  return rows.map(({ accountId, name, path, isCategory }) => {
     const traits = isCategory ? {} : traitsMap?.[name] || {};
     const type = isCategory ? "Category" : traits.Type || "Unspecified";
     const currency = isCategory ? "\u2014" : traits.Currency || "Unspecified";
@@ -84,6 +95,7 @@ const buildCoaRows = (coaData = [], traitsMap = {}, fedNames = null) => {
     const id = count > 0 ? `${baseId}#${count}` : baseId;
     return {
       id,
+      accountId,
       name,
       path,
       depth: path.length,
@@ -105,8 +117,6 @@ export default function COAManagement() {
   const [typeFilter, setTypeFilter] = useState("all");
   const [currencyFilter, setCurrencyFilter] = useState("all");
   const [searchTerm, setSearchTerm] = useState("");
-  const [analyzeStatus, setAnalyzeStatus] = useState(null);
-  const [isAnalyzing, setIsAnalyzing] = useState(false);
   const [coaRows, setCoaRows] = useState(() => buildCoaRows());
   const [coaSections, setCoaSections] = useState([]);
   const [editModal, setEditModal] = useState({
@@ -248,6 +258,37 @@ export default function COAManagement() {
     return row?.id || `${row?.pathLabel || ""}-${row?.name || ""}`;
   }, []);
 
+  // ---------------------------------------------------------------------------
+  // CR063 — reorder a row among its siblings.
+  //
+  // Reordering is suppressed whenever a search or filter is active: in a filtered
+  // view the row rendered above is not the sibling the row would swap with, so an
+  // arrow would move the account somewhere other than where it appears to go.
+  // ---------------------------------------------------------------------------
+  const isFiltered =
+    searchTerm.trim().length > 0 || typeFilter !== "all" || currencyFilter !== "all";
+
+  // Same function decides whether the arrow is enabled and what it does, so the
+  // button cannot offer a move the handler would then decline.
+  const canReorder = useCallback(
+    (row, delta) => !isFiltered && reorderPlan(coaRows, row, delta) !== null,
+    [coaRows, isFiltered]
+  );
+
+  const handleReorder = useCallback(
+    async (row, delta) => {
+      const plan = reorderPlan(coaRows, row, delta);
+      if (!plan || isFiltered) return;
+      try {
+        await Rest.reorderCoaChildren(plan.parent, plan.orderedIds);
+        reloadCoaAfterMutation();
+      } catch (error) {
+        showErrorToast(error?.message || "Failed to reorder accounts");
+      }
+    },
+    [coaRows, isFiltered, reloadCoaAfterMutation, showErrorToast]
+  );
+
   const selectedRows = useMemo(() => {
     const keySet = new Set(selectedRowKeys);
     return coaRows.filter((row) => keySet.has(getRowKey(row)));
@@ -271,6 +312,66 @@ export default function COAManagement() {
       return next;
     });
   }, []);
+
+  // ---------------------------------------------------------------------------
+  // Expand / collapse controls — same four-button pattern as the reports
+  // (BudgetBalancePanel, CashFlow): all / one-layer, in both directions. The
+  // state here is the INVERSE of the reports' (`collapsedPaths`, not
+  // `expandedPaths`), so "expand all" is the empty set and "collapse all" has to
+  // enumerate every category path.
+  // ---------------------------------------------------------------------------
+  const collapsiblePaths = useMemo(() => {
+    const keys = new Set();
+    for (const row of filteredRows) {
+      if (row.isCategory) keys.add([...row.path, row.name].join("|"));
+    }
+    return keys;
+  }, [filteredRows]);
+
+  const depthOf = (pathKey) => pathKey.split("|").length - 1;
+
+  const isFullyExpanded =
+    collapsiblePaths.size > 0 && collapsedPaths.size === 0;
+  const isFullyCollapsed =
+    collapsiblePaths.size > 0 && collapsedPaths.size === collapsiblePaths.size;
+
+  const handleExpandAll = useCallback(() => setCollapsedPaths(new Set()), []);
+
+  const handleCollapseAll = useCallback(
+    () => setCollapsedPaths(new Set(collapsiblePaths)),
+    [collapsiblePaths]
+  );
+
+  const handleExpandOneLayer = useCallback(() => {
+    setCollapsedPaths((prev) => {
+      if (prev.size === 0) return prev;
+      let minDepth = Infinity;
+      for (const pathKey of prev) {
+        minDepth = Math.min(minDepth, depthOf(pathKey));
+      }
+      const next = new Set(prev);
+      for (const pathKey of prev) {
+        if (depthOf(pathKey) === minDepth) next.delete(pathKey);
+      }
+      return next;
+    });
+  }, []);
+
+  const handleCollapseOneLayer = useCallback(() => {
+    setCollapsedPaths((prev) => {
+      const open = [...collapsiblePaths].filter((pathKey) => !prev.has(pathKey));
+      if (open.length === 0) return prev;
+      let maxDepth = -1;
+      for (const pathKey of open) {
+        maxDepth = Math.max(maxDepth, depthOf(pathKey));
+      }
+      const next = new Set(prev);
+      for (const pathKey of open) {
+        if (depthOf(pathKey) === maxDepth) next.add(pathKey);
+      }
+      return next;
+    });
+  }, [collapsiblePaths]);
 
   const toggleRowSelection = (row, options = {}) => {
     const key = getRowKey(row);
@@ -394,44 +495,8 @@ export default function COAManagement() {
     setEditError("");
   };
 
-  const openQuickAddModal = (accountName) => {
-    setEditModal({
-      open: true,
-      row: {
-        name: accountName,
-        type: "",
-        currency: "",
-        accountNumber: "",
-        isCategory: false,
-        path: [],
-      },
-      mode: "quickadd",
-      parentPath: [],
-    });
-    setCustomTypeEnabled(false);
-    setCustomTypeValue("");
-    setEditError("");
-  };
-
-  const openQuickAddCategoryModal = (categoryName) => {
-    setEditModal({
-      open: true,
-      row: {
-        name: categoryName,
-        type: "",
-        currency: "",
-        accountNumber: "",
-        isCategory: true,
-        path: [],
-      },
-      mode: "quickadd-category",
-      parentPath: [],
-    });
-    setCustomTypeEnabled(false);
-    setCustomTypeValue("");
-    setEditError("");
-  };
-
+  // Used by the toolbar "Add" path, where no parent is chosen up front and the
+  // modal shows the category picker instead.
   const handleQuickAddParentChange = (newPath) => {
     setEditModal((prev) => {
       if (!prev.open) return prev;
@@ -551,10 +616,9 @@ export default function COAManagement() {
 
   const handleSaveEdit = async () => {
     if (!editModal.open || !editModal.row) return;
-    if (editModal.mode === "add" || editModal.mode === "quickadd" || editModal.mode === "quickadd-category") {
+    if (editModal.mode === "add") {
       const trimmedName = String(editModal.row.name || "").trim();
-      const isQuickAddCategory = editModal.mode === "quickadd-category";
-      const isCategoryAdd = isQuickAddCategory || editModal.row.isCategory;
+      const isCategoryAdd = editModal.row.isCategory;
       if (!trimmedName) {
         setEditError(isCategoryAdd ? "Category name is required." : "Account name is required.");
         return;
@@ -582,19 +646,7 @@ export default function COAManagement() {
         });
         reloadCoaAfterMutation();
         closeEditModal();
-        if (editModal.mode === "quickadd" || isQuickAddCategory) {
-          try {
-            await Rest.fetchJson("/api/v2/ingest-ps/sync-to-transactions", {
-              method: "POST",
-            });
-          } catch (syncError) {
-            console.warn("Staging sync after quick-add failed:", syncError);
-          }
-          handleAnalyzeClick();
-          showSuccess(isQuickAddCategory ? "Category added and transactions synced" : "Account added and transactions synced");
-        } else {
-          showSuccess(isCategoryAdd ? "Category added successfully" : "Account added successfully");
-        }
+        showSuccess(isCategoryAdd ? "Category added successfully" : "Account added successfully");
       } catch (error) {
         setEditError(error?.message || "Failed to add account.");
         showErrorToast(error?.message || "Failed to add account");
@@ -749,117 +801,6 @@ export default function COAManagement() {
     }
   };
 
-  const handleAnalyzeClick = async () => {
-    if (isAnalyzing) {
-      return;
-    }
-
-    setAnalyzeStatus({
-      type: "info",
-      message: "Running PS analysis...",
-    });
-    setIsAnalyzing(true);
-
-    try {
-      const result = await Rest.fetchJson("/api/v2/ingest-ps/analyze-ps");
-      const {
-        misAcct = {},
-        missCOAact = {},
-        misCat = {},
-        missCOACat = {},
-      } = result ?? {};
-
-      const missingAccounts = Array.isArray(misAcct.missingAccounts)
-        ? misAcct.missingAccounts.filter(
-            (item) => typeof item === "string" && item
-          )
-        : [];
-      const unknownAccounts = Array.isArray(missCOAact.unknownAccounts)
-        ? missCOAact.unknownAccounts.filter(
-            (item) => typeof item === "string" && item
-          )
-        : [];
-      const missingCategories = Array.isArray(misCat.missingCategories)
-        ? misCat.missingCategories.filter(
-            (item) => typeof item === "string" && item
-          )
-        : [];
-      const unknownCategories = Array.isArray(missCOACat.unknownCategories)
-        ? missCOACat.unknownCategories.filter(
-            (item) => typeof item === "string" && item
-          )
-        : [];
-
-      const missingAccountCount =
-        Number.isFinite(misAcct.missingCount) && misAcct.missingCount >= 0
-          ? misAcct.missingCount
-          : missingAccounts.length;
-      const unknownAccountCount =
-        Number.isFinite(missCOAact.unknownCount) && missCOAact.unknownCount >= 0
-          ? missCOAact.unknownCount
-          : unknownAccounts.length;
-      const missingCategoryCount =
-        Number.isFinite(misCat.missingCount) && misCat.missingCount >= 0
-          ? misCat.missingCount
-          : missingCategories.length;
-      const unknownCategoryCount =
-        Number.isFinite(missCOACat.unknownCount) && missCOACat.unknownCount >= 0
-          ? missCOACat.unknownCount
-          : unknownCategories.length;
-
-      const details = [];
-      if (missingAccounts.length) {
-        details.push(
-          `Missing from COA (accounts): ${missingAccounts.join(", ")}`
-        );
-      }
-      if (unknownAccounts.length) {
-        details.push(
-          `Unrecognized COA accounts: ${unknownAccounts.join(", ")}`
-        );
-      }
-      if (missingCategories.length) {
-        details.push(
-          `Missing from COA (categories): ${missingCategories.join(", ")}`
-        );
-      }
-      if (unknownCategories.length) {
-        details.push(
-          `Unrecognized COA categories: ${unknownCategories.join(", ")}`
-        );
-      }
-      if (
-        unknownAccounts.length === 0 &&
-        missCOAact.status &&
-        missCOAact.status !== "ok"
-      ) {
-        details.push(`COA account status: ${missCOAact.status}`);
-      }
-      if (
-        unknownCategories.length === 0 &&
-        missCOACat.status &&
-        missCOACat.status !== "ok"
-      ) {
-        details.push(`COA category status: ${missCOACat.status}`);
-      }
-
-      setAnalyzeStatus({
-        type: "success",
-        message: `Analysis complete: ${missingAccountCount} missing accounts, ${unknownAccountCount} unknown accounts; ${missingCategoryCount} missing categories, ${unknownCategoryCount} unknown categories.`,
-        details,
-        missingAccounts,
-        missingCategories,
-      });
-    } catch (error) {
-      setAnalyzeStatus({
-        type: "error",
-        message: error?.message ?? "Failed to analyze PS data.",
-      });
-    } finally {
-      setIsAnalyzing(false);
-    }
-  };
-
   return (
     <>
       <main className="page-main">
@@ -882,8 +823,13 @@ export default function COAManagement() {
             onCurrencyChange={setCurrencyFilter}
             currencyOptions={currencyOptions}
             onAddNew={() => openAddModal(null)}
-            onAnalyzeClick={handleAnalyzeClick}
-            isAnalyzing={isAnalyzing}
+            onExpandAll={handleExpandAll}
+            onCollapseAll={handleCollapseAll}
+            onExpandOneLayer={handleExpandOneLayer}
+            onCollapseOneLayer={handleCollapseOneLayer}
+            hasCollapsiblePaths={collapsiblePaths.size > 0}
+            isFullyExpanded={isFullyExpanded}
+            isFullyCollapsed={isFullyCollapsed}
             selectedCount={selectedRows.length}
             onEditSelected={() =>
               selectedRows.length
@@ -913,9 +859,8 @@ export default function COAManagement() {
             onEditRow={(row) => openEditModal(row)}
             onDeleteRow={handleInlineDelete}
             onMoveRow={openMoveModal}
-            analyzeStatus={analyzeStatus}
-            onQuickAddAccount={openQuickAddModal}
-            onQuickAddCategory={openQuickAddCategoryModal}
+            onReorderRow={handleReorder}
+            canReorder={canReorder}
           />
         </div>
       </main>

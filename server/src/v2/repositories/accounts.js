@@ -11,6 +11,33 @@
 const db = require('../db');
 
 /**
+ * CR063 — the depth-first position of every account in the COA tree, as a
+ * comparable array: `[parent rank, parent id, …, own rank, own id]`.
+ *
+ * Migration 049 made `display_order` a rank WITHIN THE PARENT, which is the only
+ * form a reorder UI can maintain. That leaves FLAT lists (`findAll`,
+ * `getBalances`, `findPLeaves`, `/accounts/categories`) with nothing global to
+ * sort on — a bare `ORDER BY display_order` would interleave every parent's
+ * rank-1 child, then every rank-2, which is not an order anybody asked for.
+ * Joining this CTE gives them the same order the tree renders in.
+ *
+ * Inactive rows are included: a flat list that asks for them (activeOnly=false)
+ * still needs a position, and excluding them here would drop those rows on the
+ * join instead of merely sorting them oddly.
+ */
+const SORT_PATH_CTE = `
+  WITH RECURSIVE account_sort AS (
+    SELECT id, ARRAY[display_order, id] AS sort_path
+      FROM accounts
+     WHERE parent_id IS NULL
+    UNION ALL
+    SELECT a.id, s.sort_path || ARRAY[a.display_order, a.id]
+      FROM accounts a
+      JOIN account_sort s ON a.parent_id = s.id
+  )
+`;
+
+/**
  * Get all accounts
  */
 async function findAll({ section, accountType, activeOnly = true, leafOnly = false } = {}) {
@@ -36,13 +63,15 @@ async function findAll({ section, accountType, activeOnly = true, leafOnly = fal
   const whereClause = conditions.length > 0 ? `WHERE ${conditions.join(' AND ')}` : '';
 
   const sql = `
+    ${SORT_PATH_CTE}
     SELECT
       a.*,
       p.name as parent_name
     FROM accounts a
     LEFT JOIN accounts p ON a.parent_id = p.id
+    JOIN account_sort s ON s.id = a.id
     ${whereClause}
-    ORDER BY a.display_order, a.name
+    ORDER BY s.sort_path
   `;
 
   const result = await db.query(sql, params);
@@ -101,12 +130,20 @@ async function getTree({ section, rootOnly = false } = {}) {
     ? `WHERE ${conditions.join(' AND ')}`
     : '';
 
+  // CR063: sibling order comes from `display_order` (a rank within the parent,
+  // established by migration 049), NOT from the id path. Until then this sorted
+  // `ORDER BY path` where path is ARRAY[id] — i.e. INSERTION order — which is
+  // what every tree, report and dropdown in the app inherited, because they all
+  // funnel through here. `id` stays in the sort key as the tiebreak so a
+  // duplicate rank degrades to the old behaviour rather than to a random order.
+  // Same form as the tree in routes/ingestPs.js.
   const sql = `
     WITH RECURSIVE account_tree AS (
       -- Base case: root accounts (no parent)
       SELECT
         id, name, parent_id, account_type, section, currency,
-        display_order, 0 as depth, ARRAY[id] as path, name::text as full_path
+        display_order, 0 as depth, ARRAY[id] as path,
+        ARRAY[display_order, id] as sort_path, name::text as full_path
       FROM accounts
       WHERE parent_id IS NULL AND is_active = TRUE
 
@@ -115,14 +152,15 @@ async function getTree({ section, rootOnly = false } = {}) {
       -- Recursive case: children
       SELECT
         a.id, a.name, a.parent_id, a.account_type, a.section, a.currency,
-        a.display_order, t.depth + 1, t.path || a.id, t.full_path || ' > ' || a.name
+        a.display_order, t.depth + 1, t.path || a.id,
+        t.sort_path || ARRAY[a.display_order, a.id], t.full_path || ' > ' || a.name
       FROM accounts a
       JOIN account_tree t ON a.parent_id = t.id
       WHERE a.is_active = TRUE
     )
     SELECT * FROM account_tree
     ${whereClause}
-    ORDER BY path
+    ORDER BY sort_path
   `;
 
   const result = await db.query(sql, params);
@@ -185,15 +223,17 @@ async function getBalances({ asOfDate, section } = {}) {
   }
 
   const sql = `
+    ${SORT_PATH_CTE}
     SELECT
       a.id, a.name, a.account_type, a.section, a.currency, a.parent_id,
       COALESCE(SUM(t.base_amount), 0) as balance
     FROM accounts a
+    JOIN account_sort s ON s.id = a.id
     LEFT JOIN transactions t ON t.category_id = a.id
       ${asOfDate ? `AND t.transaction_date <= $1` : ''}
     WHERE ${conditions.join(' AND ')}
-    GROUP BY a.id, a.name, a.account_type, a.section, a.currency, a.parent_id
-    ORDER BY a.display_order, a.name
+    GROUP BY a.id, a.name, a.account_type, a.section, a.currency, a.parent_id, s.sort_path
+    ORDER BY s.sort_path
   `;
 
   const result = await db.query(sql, params);
@@ -210,15 +250,20 @@ async function findPLeaves({ activeOnly = true, includeTransfers = false } = {})
   if (!includeTransfers) conditions.push('a.is_transfer = FALSE');
   conditions.push('NOT EXISTS (SELECT 1 FROM accounts c WHERE c.parent_id = a.id AND c.is_active = TRUE)');
 
+  // CR063 P3: was ORDER BY a.name. A P&L leaf list is a dropdown — it should read
+  // in the order the owner arranged the COA, not alphabetically, which scatters
+  // the leaves of one category across the list.
   const sql = `
+    ${SORT_PATH_CTE}
     SELECT
       a.id, a.name, a.parent_id, a.is_transfer, a.is_active,
       a.ps_category_id, a.account_type,
       p.name as parent_name
     FROM accounts a
     LEFT JOIN accounts p ON a.parent_id = p.id
+    JOIN account_sort s ON s.id = a.id
     WHERE ${conditions.join(' AND ')}
-    ORDER BY a.name
+    ORDER BY s.sort_path
   `;
 
   const result = await db.query(sql);
@@ -247,6 +292,13 @@ async function computeIsTransfer(accountId) {
  * Create a new account
  */
 async function create(data) {
+  // CR063: a new account APPENDS to the end of its parent's group. This read
+  // `data.display_order || 0` until 2026-07-31, which put every account created
+  // since the seed at rank 0 — 22 of them on dev, all tied. Once display_order
+  // is authoritative (migration 049), a 0 would file each new account at the TOP
+  // of its group, which is what made "the category I just added is buried
+  // somewhere odd" the standing complaint and drove the alphabetical sort in
+  // useCoa. An explicit display_order in `data` still wins (the reorder path).
   const sql = `
     INSERT INTO accounts (
       name, parent_id, account_type, section, currency,
@@ -254,7 +306,15 @@ async function create(data) {
       opening_balance, opening_balance_date, ps_transaction_account_id,
       is_transfer, ps_category_id
     )
-    VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14)
+    VALUES (
+      $1, $2, $3, $4, $5, $6,
+      COALESCE($7, (
+        SELECT COALESCE(MAX(display_order), 0) + 1
+          FROM accounts
+         WHERE parent_id IS NOT DISTINCT FROM $2::INTEGER
+      )),
+      $8, $9, $10, $11, $12, $13, $14
+    )
     RETURNING *
   `;
 
@@ -265,7 +325,9 @@ async function create(data) {
     data.section,
     data.currency || 'USD',
     data.account_number || null,
-    data.display_order || 0,
+    // NULL (not 0) means "append" — see the COALESCE in the INSERT above. `?? null`
+    // rather than `|| null` so an explicit 0 is still an explicit 0.
+    data.display_order ?? null,
     data.is_active !== false,
     data.ps_account_name || data.name,
     data.opening_balance || 0,
@@ -321,6 +383,76 @@ async function update(id, data) {
 }
 
 /**
+ * CR063 — rewrite the sibling order under one parent.
+ *
+ * Takes the WHOLE ordered list of that parent's active children, not a single
+ * "move this one up" step. The whole-list form is idempotent, writes in one
+ * transaction, and cannot interleave with a concurrent reorder into a
+ * half-applied state — and it lets the caller be REJECTED when its view of the
+ * children is stale, which a per-row nudge cannot detect at all.
+ *
+ * Returns { ok: true } on success, or { ok: false, reason, … } when the supplied
+ * ids are not exactly this parent's active children — deliberately not an
+ * exception, so the route can turn it into a 400 with something useful in it.
+ *
+ * `parentId` may be null for the root level.
+ */
+async function reorderChildren(parentId, orderedIds) {
+  const ids = Array.isArray(orderedIds) ? orderedIds.map(Number) : [];
+  if (!ids.length || ids.some((id) => !Number.isInteger(id))) {
+    return { ok: false, reason: 'orderedIds must be a non-empty array of account ids' };
+  }
+  if (new Set(ids).size !== ids.length) {
+    return { ok: false, reason: 'orderedIds contains duplicates' };
+  }
+
+  const actual = await db.query(
+    `SELECT id FROM accounts
+      WHERE parent_id IS NOT DISTINCT FROM $1 AND is_active = TRUE
+      ORDER BY display_order, id`,
+    [parentId ?? null]
+  );
+  const actualIds = actual.rows.map((r) => r.id);
+
+  // The set must match exactly. A client holding a stale tree — one that has not
+  // seen an account added, deleted or moved elsewhere since it loaded — would
+  // otherwise write an order that silently drops or resurrects a row.
+  const supplied = new Set(ids);
+  const missing = actualIds.filter((id) => !supplied.has(id));
+  const unknown = ids.filter((id) => !actualIds.includes(id));
+  if (missing.length || unknown.length) {
+    return {
+      ok: false,
+      reason: 'orderedIds must be exactly this parent\'s active children',
+      missing,
+      unknown,
+      expectedCount: actualIds.length,
+    };
+  }
+
+  await db.transaction(async (client) => {
+    // Two passes through a negative staging range. A direct 1..n write collides
+    // with the rows it has not rewritten yet the moment any unique constraint or
+    // index is added on (parent_id, display_order) — the transient-violation trap
+    // CR050's sweep-priority sync hit for real.
+    for (let i = 0; i < ids.length; i += 1) {
+      await client.query('UPDATE accounts SET display_order = $1 WHERE id = $2', [
+        -(i + 1),
+        ids[i],
+      ]);
+    }
+    for (let i = 0; i < ids.length; i += 1) {
+      await client.query('UPDATE accounts SET display_order = $1 WHERE id = $2', [
+        i + 1,
+        ids[i],
+      ]);
+    }
+  });
+
+  return { ok: true, count: ids.length };
+}
+
+/**
  * Soft delete an account (set is_active = false)
  */
 async function remove(id) {
@@ -342,7 +474,15 @@ async function getNestedTree({ section } = {}) {
   const roots = [];
 
   for (const row of rows) {
-    const node = { name: row.name, children: [] };
+    // CR063: `id` and `display_order` ride along so the COA page can reorder by
+    // id instead of by the synthetic `path|name` key it builds today. Additive —
+    // every consumer keys off `name`/`children` and ignores the rest.
+    const node = {
+      id: row.id,
+      display_order: row.display_order,
+      name: row.name,
+      children: [],
+    };
     nodeMap.set(row.id, node);
 
     if (row.parent_id && nodeMap.has(row.parent_id)) {
@@ -394,5 +534,6 @@ module.exports = {
   computeIsTransfer,
   create,
   update,
+  reorderChildren,
   remove
 };

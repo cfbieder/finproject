@@ -100,8 +100,15 @@ export function useCoa() {
 
   // ---------------------------------------------------------------------------
   // Derived: BS level-2 account names (children of Assets/Liabilities),
-  //          excluding "Bank Accounts". Sorted alphabetically — COA tree order
-  //          buries a newly added category wherever it happens to sit.
+  //          excluding "Bank Accounts" — in COA ORDER.
+  //
+  // CR063: this sorted alphabetically from 2026-07-31, because tree order was
+  // INSERTION order (`getTree` selected `display_order` and then sorted by the id
+  // path), so a newly added category landed wherever it happened to fall —
+  // `US - Investments` came ninth, between `Historical Assets` and
+  // `US - Mortgages`, and read as missing. Alphabetical was the right answer only
+  // while nobody could choose the order. Now `create()` appends to the end of the
+  // group and the COA page's arrows move it from there, so the owner's order wins.
   // ---------------------------------------------------------------------------
   const bsLevel2Options = useMemo(() => {
     const results = [];
@@ -114,7 +121,7 @@ export function useCoa() {
         }
       }
     }
-    return results.sort((a, b) => a.localeCompare(b));
+    return results;
   }, [bsTree]);
 
   // ---------------------------------------------------------------------------
@@ -160,7 +167,8 @@ export function useCoa() {
       results.push("Tax Reserve");
     }
 
-    return [...new Set(results)].sort();
+    // CR063: de-duplicated but NOT re-sorted — the leaves arrive in COA order.
+    return [...new Set(results)];
   }, [plTree]);
 
   // ---------------------------------------------------------------------------
@@ -173,7 +181,8 @@ export function useCoa() {
     const finInc = findNode(incomeNode.children, "Financial Income");
     if (!finInc?.children) return [];
 
-    return [...new Set(collectLeafNames(finInc.children))].sort();
+    // CR063: COA order, not alphabetical.
+    return [...new Set(collectLeafNames(finInc.children))];
   }, [plTree]);
 
   // ---------------------------------------------------------------------------

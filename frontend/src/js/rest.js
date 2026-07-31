@@ -230,6 +230,21 @@ export default class Rest {
     ];
   }
 
+  /**
+   * CR063 — set the order of one parent's children. Sends the WHOLE ordered list
+   * of sibling ids, so the server can reject a stale client (409) instead of
+   * writing a partial order. `parent` is `{ parentId }` or `{ parentName }` — the
+   * top-level rows know their parent only by name, because the API strips the
+   * section root and fetchCoaSections re-adds it as a bare label.
+   */
+  static async reorderCoaChildren(parent, orderedIds) {
+    return Rest.fetchJson("/api/v2/util/coa/reorder", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ ...parent, orderedIds }),
+    });
+  }
+
   static async fetchCoaTraits() {
     // Using v2 API
     return Rest.fetchJson("/api/v2/util/coa-traits");

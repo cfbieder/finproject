@@ -1,4 +1,14 @@
-import { Search, Plus, Pencil, Trash2, ScanSearch, X } from "lucide-react";
+import {
+  Search,
+  Plus,
+  Pencil,
+  Trash2,
+  X,
+  ChevronDown,
+  ChevronUp,
+  ChevronsDown,
+  ChevronsUp,
+} from "lucide-react";
 
 const capitalize = (s) => (s ? s.charAt(0).toUpperCase() + s.slice(1) : s);
 
@@ -12,8 +22,13 @@ export default function COAManagementToolbar({
   onCurrencyChange,
   currencyOptions,
   onAddNew,
-  onAnalyzeClick,
-  isAnalyzing,
+  onExpandAll,
+  onCollapseAll,
+  onExpandOneLayer,
+  onCollapseOneLayer,
+  hasCollapsiblePaths,
+  isFullyExpanded,
+  isFullyCollapsed,
   selectedCount,
   onEditSelected,
   onDeleteSelected,
@@ -59,6 +74,49 @@ export default function COAManagementToolbar({
       </div>
 
       <div className="coa-toolbar__actions">
+        <div className="coa-toolbar__tree-controls">
+          <button
+            type="button"
+            className="btn btn--sm btn--outline btn--icon"
+            onClick={onExpandAll}
+            disabled={!hasCollapsiblePaths || isFullyExpanded}
+            title="Expand all"
+            aria-label="Expand all"
+          >
+            <ChevronsDown size={16} />
+          </button>
+          <button
+            type="button"
+            className="btn btn--sm btn--outline btn--icon"
+            onClick={onExpandOneLayer}
+            disabled={!hasCollapsiblePaths || isFullyExpanded}
+            title="Expand one level"
+            aria-label="Expand one level"
+          >
+            <ChevronDown size={16} />
+          </button>
+          <button
+            type="button"
+            className="btn btn--sm btn--outline btn--icon"
+            onClick={onCollapseOneLayer}
+            disabled={!hasCollapsiblePaths || isFullyCollapsed}
+            title="Collapse one level"
+            aria-label="Collapse one level"
+          >
+            <ChevronUp size={16} />
+          </button>
+          <button
+            type="button"
+            className="btn btn--sm btn--outline btn--icon"
+            onClick={onCollapseAll}
+            disabled={!hasCollapsiblePaths || isFullyCollapsed}
+            title="Collapse all"
+            aria-label="Collapse all"
+          >
+            <ChevronsUp size={16} />
+          </button>
+        </div>
+        <div className="coa-toolbar__divider" />
         {selectedCount > 0 && (
           <>
             <span className="coa-toolbar__selection-badge">
@@ -102,15 +160,6 @@ export default function COAManagementToolbar({
         >
           <Plus size={16} />
           <span>Add</span>
-        </button>
-        <button
-          type="button"
-          className="coa-toolbar-btn coa-toolbar-btn--analyze"
-          onClick={onAnalyzeClick}
-          disabled={isAnalyzing}
-        >
-          <ScanSearch size={16} />
-          <span>{isAnalyzing ? "Analyzing..." : "Analyze PS Data"}</span>
         </button>
       </div>
     </div>

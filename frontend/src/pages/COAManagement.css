@@ -100,6 +100,13 @@
   margin: 0 0.25rem;
 }
 
+/* Expand/collapse cluster — buttons sit flush as one control group */
+.coa-toolbar__tree-controls {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+}
+
 /* Toolbar buttons */
 .coa-toolbar-btn {
   display: inline-flex;
@@ -175,17 +182,6 @@
   box-shadow: 0 1px 3px rgba(220, 38, 38, 0.12);
 }
 
-.coa-toolbar-btn--analyze {
-  border-color: rgba(16, 185, 129, 0.3);
-  color: var(--success-strong);
-}
-
-.coa-toolbar-btn--analyze:hover:not(:disabled) {
-  border-color: var(--success-lighter);
-  background: rgba(16, 185, 129, 0.06);
-  box-shadow: 0 1px 3px rgba(16, 185, 129, 0.12);
-}
-
 /* ─── Tree Section ─── */
 .coa-tree-section {
   background: var(--surface);
@@ -207,90 +203,6 @@
   font-size: 0.8rem;
   color: var(--muted);
   font-weight: 600;
-}
-
-/* Analysis banner */
-.coa-analysis-banner {
-  margin-bottom: 1rem;
-  padding: 0.75rem 1rem;
-  background: var(--surface-muted);
-  border: 1px solid var(--border);
-  border-radius: var(--radius-md);
-}
-
-.coa-analysis-banner__msg {
-  margin: 0;
-  font-size: 0.875rem;
-  font-weight: 600;
-}
-
-.coa-analysis-banner__msg--info { color: var(--primary); }
-.coa-analysis-banner__msg--success { color: var(--success-strong); }
-.coa-analysis-banner__msg--error { color: var(--danger-strong); }
-
-.coa-analysis-banner__details {
-  margin: 0.5rem 0 0;
-  padding-left: 1.25rem;
-  font-size: 0.825rem;
-  color: var(--ink-secondary);
-}
-
-.coa-analysis-banner__details li {
-  margin-bottom: 0.2rem;
-}
-
-/* Quick-add groups */
-.coa-quickadd-group {
-  margin-top: 0.75rem;
-  padding: 0.6rem 0.75rem;
-  background: rgba(22, 163, 74, 0.04);
-  border: 1px solid rgba(22, 163, 74, 0.12);
-  border-radius: var(--radius-md);
-}
-
-.coa-quickadd-group__label {
-  font-weight: 700;
-  margin: 0 0 0.4rem;
-  font-size: 0.825rem;
-}
-
-.coa-quickadd-group__label--account { color: var(--success-strong); }
-.coa-quickadd-group__label--category { color: var(--primary-strong); }
-
-.coa-quickadd-group__buttons {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 0.4rem;
-}
-
-.coa-quickadd-btn {
-  display: inline-flex;
-  align-items: center;
-  gap: 0.25rem;
-  padding: 0.35rem 0.6rem;
-  border-radius: 0.375rem;
-  border: 1px solid rgba(22, 163, 74, 0.25);
-  background: var(--surface);
-  color: var(--success-strong);
-  font-weight: 600;
-  font-size: 0.8rem;
-  cursor: pointer;
-  transition: all 0.12s ease;
-}
-
-.coa-quickadd-btn:hover {
-  background: rgba(22, 163, 74, 0.08);
-  border-color: var(--success);
-}
-
-.coa-quickadd-btn--category {
-  border-color: rgba(107, 142, 107, 0.25);
-  color: var(--primary-strong);
-}
-
-.coa-quickadd-btn--category:hover {
-  background: rgba(107, 142, 107, 0.06);
-  border-color: var(--primary-light);
 }
 
 /* ─── Tree Table ─── */
@@ -420,7 +332,8 @@
 
 /* ─── Inline Row Actions ─── */
 .coa-tree-row__actions-cell {
-  width: 120px;
+  /* CR063 added the two reorder arrows: up to six 28px buttons plus gaps. */
+  width: 185px;
   text-align: right;
 }
 
@@ -451,22 +364,29 @@
   transition: color 0.12s ease, background 0.12s ease;
 }
 
-.coa-row-action-btn:hover {
+.coa-row-action-btn:hover:not(:disabled) {
   color: var(--primary);
   background: rgba(107, 142, 107, 0.08);
 }
 
-.coa-row-action-btn--add:hover {
+/* A disabled arrow keeps its slot so the action cluster does not reflow between
+   rows — the first and last sibling of every group would otherwise shift. */
+.coa-row-action-btn:disabled {
+  opacity: 0.28;
+  cursor: default;
+}
+
+.coa-row-action-btn--add:hover:not(:disabled) {
   color: var(--success);
   background: rgba(22, 163, 74, 0.08);
 }
 
-.coa-row-action-btn--move:hover {
+.coa-row-action-btn--move:hover:not(:disabled) {
   color: var(--info);
   background: rgba(124, 58, 237, 0.08);
 }
 
-.coa-row-action-btn--delete:hover {
+.coa-row-action-btn--delete:hover:not(:disabled) {
   color: var(--danger);
   background: rgba(220, 38, 38, 0.08);
 }

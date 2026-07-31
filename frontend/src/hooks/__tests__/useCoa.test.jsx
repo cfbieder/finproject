@@ -19,7 +19,10 @@ const PL = [
         children: [
           {
             name: "Financial Income",
-            children: [{ name: "Dividends" }, { name: "Interest" }],
+            // Deliberately NOT alphabetical: this fixture is what tells COA
+            // order apart from a .sort(). Before CR063 these came back
+            // ["Dividends", "Interest"] whatever the tree said.
+            children: [{ name: "Interest" }, { name: "Dividends" }],
           },
         ],
       },
@@ -43,6 +46,7 @@ const BS = [
         children: [
           { name: "Bank Accounts", children: [] },
           { name: "Real Estate", children: [{ name: "House" }] },
+          { name: "Apartments", children: [{ name: "Flat" }] },
         ],
       },
     ],
@@ -83,14 +87,17 @@ describe("useCoa (TanStack Query)", () => {
     expect(result.current.bsTree.map((n) => n.name)).toEqual(["Assets"]);
 
     // derived selectors
+    // CR063: COA order, not alphabetical — the tree lists Interest first.
     expect(result.current.incomeCategoryOptions).toEqual([
-      "Dividends",
       "Interest",
+      "Dividends",
     ]);
     expect(result.current.expenseCategoryOptions).toEqual(
       expect.arrayContaining(["Bank Fees", "Repairs", "Tax Reserve"])
     );
-    expect(result.current.bsLevel2Options).toEqual(["Real Estate"]); // excludes Bank Accounts
+    // Excludes Bank Accounts, and keeps COA order: alphabetically "Apartments"
+    // would come first, which is what this asserted until CR063.
+    expect(result.current.bsLevel2Options).toEqual(["Real Estate", "Apartments"]);
     expect(result.current.getChildCategoriesForAccount("Real Estate")).toEqual([
       "House",
     ]);
