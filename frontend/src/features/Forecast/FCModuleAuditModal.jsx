@@ -1,5 +1,6 @@
 import { useState, useEffect } from "react";
 import Rest from "../../js/rest.js";
+import Modal from "../../components/Modal/Modal.jsx";
 
 const fmt = (v) => {
   const n = Number(v);
@@ -116,22 +117,22 @@ export default function FCModuleAuditModal({ isOpen, onClose, scenario, moduleNa
       .finally(() => setLoading(false));
   }, [isOpen, scenario, moduleName]);
 
-  if (!isOpen) return null;
-
   const lastMod = data?.lc?.lastModified || data?.usd?.lastModified;
   const lastModStr = lastMod ? new Date(lastMod).toLocaleString() : null;
 
+  // This modal is opened from INSIDE the module editor, which is a Radix dialog and stays
+  // open behind it. A modal Radix layer sets `pointer-events: none` on <body> and re-enables
+  // it only on the topmost layer it owns — so the hand-rolled overlay this used to be
+  // rendered on top, looked fine, and swallowed every click including its own ✕. Going
+  // through the shared primitive makes it a real (nested) layer, which is what unfreezes it.
   return (
-    <div
-      onClick={onClose}
-      style={{
-        position: "fixed", inset: 0, background: "rgba(15,23,42,0.6)",
-        backdropFilter: "blur(6px)", display: "flex", alignItems: "center",
-        justifyContent: "center", padding: "1rem", zIndex: 1100,
-      }}
+    <Modal
+      open={isOpen}
+      onClose={onClose}
+      bare
+      ariaLabel="Module output details"
     >
       <div
-        onClick={(e) => e.stopPropagation()}
         style={{
           width: "min(95vw, 1400px)", maxHeight: "90vh", background: "white",
           borderRadius: "1rem", boxShadow: "0 20px 60px -12px rgba(37,99,235,0.25)",
@@ -154,6 +155,7 @@ export default function FCModuleAuditModal({ isOpen, onClose, scenario, moduleNa
           </div>
           <button
             onClick={onClose}
+            aria-label="Close module output"
             style={{ background: "none", border: "none", fontSize: "1.5rem", cursor: "pointer", color: "var(--muted)" }}
           >
             &times;
@@ -197,6 +199,6 @@ export default function FCModuleAuditModal({ isOpen, onClose, scenario, moduleNa
           )}
         </div>
       </div>
-    </div>
+    </Modal>
   );
 }
