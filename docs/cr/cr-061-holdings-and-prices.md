@@ -1,4 +1,13 @@
-# CR061 — Investment holdings and market prices — PLANNED (nothing built)
+# CR061 — Investment holdings and market prices — PLANNED (statement reader built; fintable side not started)
+
+**Built so far (2026-07-31):** `parse-fidelity-statement.js` reads holdings totals — market value,
+total cost basis and **unrealized gain/loss** per account — straight out of the custodian's statement
+PDFs, for all **117 account-statements** across 2016–2026. That is not the fintable holdings ingest
+this CR is about, but it is the first real unrealized-G/L series fin has ever had, and it establishes
+the two facts the ingest will need: the custodian's `Change in Investment Value` **cannot** measure
+return (it absorbs transfers), while market value minus cost basis can. Full reasoning and the
+cross-validation in [CR058 §12.8–12.9](cr-058-quicken-valuation-anchors.md). Nothing is written to
+the ledger and `securities` is still 0 rows.
 
 Fill fin's empty securities tables from fintable's holdings snapshots, and give the app a market-price
 source it has never had.
