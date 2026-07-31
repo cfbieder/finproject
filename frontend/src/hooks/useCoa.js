@@ -100,7 +100,8 @@ export function useCoa() {
 
   // ---------------------------------------------------------------------------
   // Derived: BS level-2 account names (children of Assets/Liabilities),
-  //          excluding "Bank Accounts"
+  //          excluding "Bank Accounts". Sorted alphabetically — COA tree order
+  //          buries a newly added category wherever it happens to sit.
   // ---------------------------------------------------------------------------
   const bsLevel2Options = useMemo(() => {
     const results = [];
@@ -113,7 +114,7 @@ export function useCoa() {
         }
       }
     }
-    return results;
+    return results.sort((a, b) => a.localeCompare(b));
   }, [bsTree]);
 
   // ---------------------------------------------------------------------------

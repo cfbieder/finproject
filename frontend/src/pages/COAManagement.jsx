@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
+import { useQueryClient } from "@tanstack/react-query";
 import COAManagementToolbar from "../features/COAManagement/COAManagementToolbar.jsx";
 import COAEditModal from "../features/COAManagement/COAEditModal.jsx";
 import COAMoveModal from "../features/COAManagement/COAMoveModal.jsx";
@@ -100,6 +101,7 @@ const buildCoaRows = (coaData = [], traitsMap = {}, fedNames = null) => {
 
 export default function COAManagement() {
   const { showSuccess, showError: showErrorToast } = useToast();
+  const queryClient = useQueryClient();
   const [typeFilter, setTypeFilter] = useState("all");
   const [currencyFilter, setCurrencyFilter] = useState("all");
   const [searchTerm, setSearchTerm] = useState("");
@@ -162,6 +164,15 @@ export default function COAManagement() {
   useEffect(() => {
     loadCoaData(true);
   }, [loadCoaData]);
+
+  // This page holds its own COA copy, but the rest of the app reads the shared
+  // useCoa() query (forecast module Account list, category selectors, …). Without
+  // this, a newly added/renamed/moved account stays invisible there until that
+  // cache goes stale on its own.
+  const reloadCoaAfterMutation = useCallback(() => {
+    loadCoaData(false).catch(() => {});
+    queryClient.invalidateQueries({ queryKey: ["coa"] });
+  }, [loadCoaData, queryClient]);
 
   const typeOptions = useMemo(() => {
     // Real account types only (asset/liability/income/expense) — a container's true
@@ -508,7 +519,7 @@ export default function COAManagement() {
         }),
       });
       closeMoveModal();
-      loadCoaData(false).catch(() => {});
+      reloadCoaAfterMutation();
       setSelectedRowKeys([]);
       showSuccess(`"${row.name}" moved successfully`);
     } catch (error) {
@@ -569,7 +580,7 @@ export default function COAManagement() {
             isCategory: isCategoryAdd,
           }),
         });
-        loadCoaData(false).catch(() => {});
+        reloadCoaAfterMutation();
         closeEditModal();
         if (editModal.mode === "quickadd" || isQuickAddCategory) {
           try {
@@ -692,7 +703,7 @@ export default function COAManagement() {
         );
         return Array.from(new Set(prev.map((key) => map.get(key) || key)));
       });
-      loadCoaData(false).catch(() => {});
+      reloadCoaAfterMutation();
       closeEditModal();
       setSelectedRowKeys([]);
       showSuccess("Account updated successfully");
@@ -727,7 +738,7 @@ export default function COAManagement() {
         )
       );
       setDeleteModalOpen(false);
-      loadCoaData(false).catch(() => {});
+      reloadCoaAfterMutation();
       setSelectedRowKeys([]);
       showSuccess("Accounts deleted successfully");
     } catch (error) {
