@@ -282,6 +282,28 @@ function computeModule(module, scenario, df_assumptions, df_categories, categori
   // - 'inflation' (default): absolute expense_amount compounded at inflation
   // - 'pct_of_value': derive % from expense_amount/market_value_base, apply to avg MV each year
   // - Legacy fallback: if no expense_amount but expense_pct exists, use old pct logic
+  //
+  // CR062 P0 — an expense is CASH OUT on both sides of the balance sheet. The two
+  // amount-based branches used to read `isLiability ? val : -val`, which did not
+  // correct a sign, it INVERTED one: prod stores liabilities as NEGATIVE market
+  // value, so `pct_of_value` already arrives positive by double negation
+  // (derivedPct < 0 × avgMV < 0) and the inflation branch is positive
+  // unconditionally. A mortgage's interest therefore CREDITED the bank line every
+  // year. Negating unconditionally is right for all four cases:
+  //
+  //   asset, pct_of_value             derivedPct>0 × avgMV>0 ⇒ −val < 0   (unchanged)
+  //   liability (negative MV)         derivedPct<0 × avgMV<0 ⇒ −val < 0   (fixed)
+  //   liability (positive MV)         −val < 0                            (fixed)
+  //   either, inflation / zero-MV     −compounded < 0                     (fixed)
+  //
+  // The LEGACY pct branch below is deliberately left alone: there the double
+  // negative is intentional and already lands correctly for both sides, because
+  // `effectiveExpPct` keeps expPct positive for a liability so the negative
+  // market value supplies the sign. (It is also dead in production — migration
+  // 008 dropped `expense_pct` and the loader hard-codes ExpensePct to 0.)
+  //
+  // Dormant on arrival: all 15 modules on a liability account in prod carry
+  // expense_amount = 0.00, so this moves no existing number. CR062 §5.6.
   const expenseValues = new Array(yearsCount).fill(0);
   const absExpenseAmount = parseFloat(module.expense_amount) || 0;
   const growthMethod = module.expense_growth_method || 'inflation';
@@ -304,7 +326,7 @@ function computeModule(module, scenario, df_assumptions, df_categories, categori
       if (derivedPct !== 0) {
         const avgMV = (marketValues[i] + (marketValues[i - 1] ?? 0)) / 2;
         const val = derivedPct * avgMV;
-        expenseValues[i] = isLiability ? val : -val;
+        expenseValues[i] = -val;
       } else {
         // Zero MV fallback: grow base at inflation
         const periodNum = year - periodStart + 1;
@@ -312,7 +334,7 @@ function computeModule(module, scenario, df_assumptions, df_categories, categori
         for (let j = 0; j < periodNum; j++) {
           if (j >= 0 && j < inflationLen) compounded *= (1 + inflationSeries[j] / 100);
         }
-        expenseValues[i] = isLiability ? compounded : -compounded;
+        expenseValues[i] = -compounded;
       }
     }
   } else if (!skipExpense && absExpenseAmount > 0) {
@@ -326,7 +348,7 @@ function computeModule(module, scenario, df_assumptions, df_categories, categori
       for (let j = 0; j < periodNum; j++) {
         if (j >= 0 && j < inflationLen) compounded *= (1 + inflationSeries[j] / 100);
       }
-      expenseValues[i] = isLiability ? compounded : -compounded;
+      expenseValues[i] = -compounded;
     }
   } else if (!skipExpense) {
     // Legacy fallback: expense_pct as percentage of average market value

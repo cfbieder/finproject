@@ -262,6 +262,111 @@ describe("G8 — Absolute Expense Amounts", () => {
 
 
 // ============================================================
+// CR062 P0 — an expense is CASH OUT on a liability too
+//
+// `expenseValues[i] = isLiability ? val : -val` did not correct a sign, it
+// INVERTED one. Prod stores liabilities as NEGATIVE market value, so
+// `pct_of_value` already yields a positive `val` by double negation and the
+// inflation path yields a positive `compounded` unconditionally — the ternary
+// then handed both back positive, i.e. an expense that CREDITS the bank line.
+//
+// Falsified against the unfixed builder first: both tests read +25,000 / +25,625
+// where they now read negative. Dormant in prod (all 15 modules on a liability
+// account carry expense_amount = 0.00), which is why nothing had ever seen it —
+// and why a Loan module, whose whole point is an interest charge, is the first
+// thing that would have hit it.
+// ============================================================
+describe("CR062 P0 — liability expense sign", () => {
+
+  const LIABILITY = {
+    BaseValue: -500000, BaseValueUSD: -500000,
+    MarketValue: -500000, MarketValueUSD: -500000,
+    Growth: 0, ExpensePct: 0,
+    AccountType: "liability",
+    ExpCategory: "Interest Expense",
+    Dispose: [],
+  };
+
+  test("P0.1 pct_of_value on a negative balance charges, not credits", async () => {
+    const { db } = await runModule(
+      { ...LIABILITY, expense_amount: 25000, expense_growth_method: "pct_of_value" },
+      { PeriodStart: 2026, PeriodEnd: 2028, TaxRate: 0 },
+      { inflation: [0, 0, 0] }
+    );
+
+    const byYear = {};
+    getEntriesForAccount(db, "Interest Expense").forEach((e) => { byYear[e.forecast_year] = e.amount; });
+
+    // 25,000 / 500,000 = 5% of a 500,000 average balance, as CASH OUT.
+    expect(byYear[2026]).toBeCloseTo(-25000, 2);
+    expect(byYear[2027]).toBeCloseTo(-25000, 2);
+
+    // The expense must also LEAVE the bank line, not arrive on it. This is the
+    // assertion the defect actually broke: the expense row alone could be read
+    // as a display convention, cash cannot.
+    const cash = {};
+    getEntriesForAccount(db, "Bank Accounts").forEach((e) => { cash[e.forecast_year] = e.amount; });
+    expect(cash[2026]).toBeCloseTo(-25000, 2);
+  });
+
+  test("P0.2 inflation mode on a negative balance charges, not credits", async () => {
+    const { db } = await runModule(
+      { ...LIABILITY, expense_amount: 25000, expense_growth_method: "inflation" },
+      { PeriodStart: 2026, PeriodEnd: 2028, TaxRate: 0 },
+      { inflation: [2.5, 2.5, 2.5] }
+    );
+
+    const byYear = {};
+    getEntriesForAccount(db, "Interest Expense").forEach((e) => { byYear[e.forecast_year] = e.amount; });
+
+    expect(byYear[2026]).toBeCloseTo(-25625, 2);        // 25,000 × 1.025
+    expect(byYear[2027]).toBeCloseTo(-26265.625, 2);    // 25,000 × 1.025²
+  });
+
+  test("P0.3 the asset side is untouched", async () => {
+    const { db } = await runModule({
+      BaseValue: 500000, BaseValueUSD: 500000,
+      MarketValue: 500000, MarketValueUSD: 500000,
+      Growth: 0, ExpensePct: 0,
+      AccountType: "asset",
+      expense_amount: 25000, expense_growth_method: "inflation",
+      ExpCategory: "Property Costs",
+      Dispose: [],
+    }, { PeriodStart: 2026, PeriodEnd: 2028, TaxRate: 0 }, { inflation: [2.5, 2.5, 2.5] });
+
+    const byYear = {};
+    getEntriesForAccount(db, "Property Costs").forEach((e) => { byYear[e.forecast_year] = e.amount; });
+    expect(byYear[2026]).toBeCloseTo(-25625, 2);
+  });
+
+  test("P0.4 the zero-MV fallback charges too", async () => {
+    // derivedPct is 0 when the base MV is 0, so pct_of_value drops to its
+    // inflation fallback (line 315) — a third branch carrying the same ternary.
+    //
+    // Reaching it needs a liability ACQUIRED mid-plan: with base MV 0 and no
+    // later value, CR041's ownership gate zeroes the expense outright (never
+    // owned ⇒ nothing to charge) and the branch's sign is never observable. The
+    // drawdown is what makes this a test of the sign rather than of the gate.
+    const { db } = await runModule({
+      BaseValue: 0, BaseValueUSD: 0,
+      MarketValue: 0, MarketValueUSD: 0,
+      Growth: 0, ExpensePct: 0,
+      AccountType: "liability",
+      expense_amount: 1000, expense_growth_method: "pct_of_value",
+      ExpCategory: "Interest Expense",
+      Invest: [{ Date: "2026-07-01", Amount: -100000, Flag: "" }],
+      Dispose: [],
+    }, { PeriodStart: 2026, PeriodEnd: 2028, TaxRate: 0 }, { inflation: [0, 0, 0] });
+
+    const byYear = {};
+    getEntriesForAccount(db, "Interest Expense").forEach((e) => { byYear[e.forecast_year] = e.amount; });
+    expect(byYear[2026]).toBeCloseTo(-500, 2);    // acquisition year — half (CR041)
+    expect(byYear[2027]).toBeCloseTo(-1000, 2);   // fully owned
+  });
+});
+
+
+// ============================================================
 // G6 — Liability Interest Model
 // ============================================================
 describe("G6 — Liability Interest Model", () => {
