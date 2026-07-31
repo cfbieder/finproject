@@ -247,9 +247,36 @@ async function promote() {
       //          the staging row promoted to it WITHOUT inserting or mutating it.
       let matchAction = null;
 
+      // A fintable transaction id is `{provider_account_id}--{event_hash}`. The
+      // PREFIX is not stable: it changes when a connection is re-consented, and
+      // when an account is re-attributed upstream. The SUFFIX identifies the
+      // event and survives both — the same Revolut top-up is on file under three
+      // prefixes and one suffix. So a staged row whose suffix already sits on a
+      // ledger transaction for this account is that event arriving under a new
+      // id, never a second event.
+      //
+      // This is exact, so it runs ahead of — and independently of — the fuzzy
+      // BANK_FEED_DEDUP_ENABLED matching below: turning that off means "do not
+      // guess", not "import the same event twice". Compared with `right()` rather
+      // than LIKE so the hash needs no wildcard escaping; no `--` in the id (a
+      // non-fintable source) means no check.
+      const sepAt = String(r.external_id || '').indexOf('--');
+      if (sepAt > 0) {
+        const eventHash = String(r.external_id).slice(sepAt + 2);
+        const prior = (await client.query(`
+          SELECT id FROM transactions
+          WHERE account_id = $1
+            AND bank_feed_external_id IS NOT NULL
+            AND bank_feed_external_id <> $2
+            AND right(bank_feed_external_id, length($3) + 2) = '--' || $3
+          LIMIT 1
+        `, [r.fin_account_id, r.external_id, eventHash])).rows[0];
+        if (prior) { matchedTxId = prior.id; matchAction = 'skip'; }
+      }
+
       // CR032: core-sweep mirrors are synthetic net-zero plumbing — never link
       // them to a PS row; always insert so the offsetting mirror can be attached.
-      if (dedup && r._category.action !== 'transfer-mirror') {
+      if (!matchAction && dedup && r._category.action !== 'transfer-mirror') {
         if (r.staging_source === 'manual') {
           // CR036: a manual statement upload must import ONLY rows not already
           // present. Unlike the live-feed path (PS-only dedup), match against the

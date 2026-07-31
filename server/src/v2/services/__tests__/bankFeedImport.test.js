@@ -467,6 +467,90 @@ dbDescribe('refreshBankFeedV2.promote (DB)', () => {
     const psRow = await db.query(`SELECT bank_feed_external_id FROM transactions WHERE ps_id = $1`, [PS_ID_BASE + 2]);
     expect(psRow.rows[0].bank_feed_external_id).toBeNull(); // PS row untouched
   });
+
+  // ── Event-hash dedup: `{provider_account_id}--{event_hash}` ───────────────
+  //
+  // The prefix changes on re-consent and on upstream re-attribution; the suffix
+  // is the event. Live case: one Revolut top-up on file under three prefixes
+  // (4044604745776048193, 797029766055587468, acc_01KYS5BECVFH89QPSRQSFN4M99)
+  // and one suffix. Without this, re-attributing an account upstream hands fin
+  // the same events under new ids and it promotes every one of them again.
+  //
+  // Note what makes these tests sharp: the prior row is a BANK-FEED row, and the
+  // fuzzy path only ever matches un-stamped PocketSmith rows — so nothing else
+  // in promote() can catch this. The assertions are on the hash rule alone.
+  const HASH = '634f1912bdebf3689ab049eaf14cd79f';
+
+  async function seedFedRow(externalId) {
+    return (await db.query(
+      `INSERT INTO transactions (transaction_date, description1, amount, currency, account_id, source, bank_feed_external_id, accepted)
+       VALUES ('2026-03-15', 'Top-Up by *5778', -77.77, 'PLN', $1, 'bank-feed', $2, FALSE) RETURNING id`,
+      [ACCT, externalId]
+    )).rows[0].id;
+  }
+
+  test('same event under a NEW account-id prefix is not promoted twice', async () => {
+    await seedMapping(UUID_OK, false);
+    const priorId = await seedFedRow(`test-bf-c-4044604745776048193--${HASH}`);
+    await seedStaging(`test-bf-c-acc_01KYS5BECVFH89QPSRQSFN4M99--${HASH}`, UUID_OK);
+
+    await orchestrator.promote();
+
+    const inserted = await db.query(
+      `SELECT id FROM transactions WHERE bank_feed_external_id = $1`,
+      [`test-bf-c-acc_01KYS5BECVFH89QPSRQSFN4M99--${HASH}`]
+    );
+    expect(inserted.rows).toHaveLength(0);
+
+    // The staging row is accounted for against the row already in the ledger —
+    // not left unpromoted (it would retry forever) and not suppressed (it is a
+    // real event, just one fin already holds).
+    const st = (await db.query(
+      `SELECT promoted_transaction_id FROM bankfeed_staging WHERE source = $1 AND external_id = $2`,
+      [TAG, `test-bf-c-acc_01KYS5BECVFH89QPSRQSFN4M99--${HASH}`]
+    )).rows[0];
+    expect(Number(st.promoted_transaction_id)).toBe(Number(priorId));
+
+    // and the existing row is untouched
+    const prior = (await db.query(`SELECT bank_feed_external_id FROM transactions WHERE id = $1`, [priorId])).rows[0];
+    expect(prior.bank_feed_external_id).toBe(`test-bf-c-4044604745776048193--${HASH}`);
+  });
+
+  test('a DIFFERENT event hash on the same account still promotes', async () => {
+    await seedMapping(UUID_OK, false);
+    await seedFedRow(`test-bf-c-4044604745776048193--${HASH}`);
+    await seedStaging('test-bf-c-acc_01KYS--4365c16005dc86d61a00716639324667', UUID_OK);
+
+    await orchestrator.promote();
+
+    const inserted = await db.query(
+      `SELECT id FROM transactions WHERE bank_feed_external_id = 'test-bf-c-acc_01KYS--4365c16005dc86d61a00716639324667'`
+    );
+    expect(inserted.rows).toHaveLength(1);
+  });
+
+  test('the hash rule holds with BANK_FEED_DEDUP_ENABLED=false', async () => {
+    // Turning the fuzzy matcher off means "do not guess", not "import the same
+    // event twice" — an exact id match is not a guess.
+    await seedMapping(UUID_OK, false);
+    await seedFedRow(`test-bf-c-4044604745776048193--${HASH}`);
+    await seedStaging(`test-bf-c-newprefix--${HASH}`, UUID_OK);
+
+    const prev = process.env.BANK_FEED_DEDUP_ENABLED;
+    process.env.BANK_FEED_DEDUP_ENABLED = 'false';
+    try {
+      await orchestrator.promote();
+    } finally {
+      if (prev === undefined) delete process.env.BANK_FEED_DEDUP_ENABLED;
+      else process.env.BANK_FEED_DEDUP_ENABLED = prev;
+    }
+
+    const inserted = await db.query(
+      `SELECT id FROM transactions WHERE bank_feed_external_id = $1`,
+      [`test-bf-c-newprefix--${HASH}`]
+    );
+    expect(inserted.rows).toHaveLength(0);
+  });
 });
 
 // ════════════════════════════════════════════════════════════════════════════
