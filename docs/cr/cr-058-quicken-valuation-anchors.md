@@ -1244,9 +1244,7 @@ always false and **silently never fired**. Fixed by selecting it as `to_char(...
 
 ### 12.5 Left open
 
-- **Cash Mgt is deliberately untouched.** It is `calibrate` mode with no MTM row to restate, and its
-  −298.00 at June is noise against a +4,863.51 swing at March. It needs the constant-14,436.32 plug
-  question resolved (§7), not a point fix.
+- ~~**Cash Mgt is deliberately untouched.**~~ **Resolved 2026-07-31 — see §12.6.**
 - **July's mark waits for the settled close** — around 08-02 to 08-04 on the +2 rule. The guard will
   refuse until a month-end-dated row exists, which is the safe failure.
 - **Whether +2 is calendar or business days is unresolved.** 2026-06-30 was a Tuesday, so 07-02 is
@@ -1257,3 +1255,74 @@ always false and **silently never fired**. Fixed by selecting it as `to_char(...
   though the two agree today. The restatement was applied to **prod only**; writing dev's own
   computed correction (−7,955.70 at March, against prod's +1,859.57) would have papered over dev's
   staleness. Dev should be re-synced from prod.
+
+### 12.6 Cash Mgt — the plug question, resolved
+
+**2026-07-31.** §7 left Cash Mgt's constant **−14,436.32** `opening_balance` plug open, and §12.5
+deferred its 2026 gaps. Both are now closed, and the diagnosis was confirmed by reading
+`reconcileToFeed.calibrate()` rather than inferred:
+
+```
+opening_balance = expected − Σtx
+```
+
+The entire gap between fin and the custodian is absorbed into **one constant at the account's
+opening**. That makes *today* right and every other date wrong by exactly the movement it swallowed —
+the same plug disease this CR cured for the Quicken era, still live in the feed era.
+
+Cash Mgt was the **only** Fidelity account still on `calibrate` for its feed mapping, and the only one
+with **zero MTM rows ever written**. Stocks, IRA, Bond and Options all already carried `mtm`.
+
+**`mtm` is right here on evidence, not by analogy.** The account holds **brokered CDs**, whose market
+value genuinely moves; its cash flows match the custodian exactly; and its gap **flips sign** between
+quarters — **+4,863.51** at 2026-03-31, **−5,161.51** across Q2. An accumulating bookkeeping error
+does not change direction. Unbooked price movement does.
+
+Fixed in two ordered steps, dev + prod:
+
+1. **Restated the 2026 quarter-ends** from the statements — 2026-03-31 → **589,320.11**, 2026-06-30 →
+   **804,030.47**, both landing to the cent, today moving −298.00. Two MTM rows where there had never
+   been any.
+2. **Migration 046** switches the feed mapping `calibrate` → `mtm`, with a `DO` block that raises
+   unless exactly one mtm mapping results (a rename or re-keyed feed id fails loud rather than
+   no-opping). Idempotent, re-run verified at `UPDATE 0`.
+
+**The plug is deliberately NOT reset, and the order is the reason.** Reducing `opening_balance` by
+14,436.32 while the history was still unbooked would move today's balance by that amount and break a
+figure that is currently correct — the error caught earlier in this thread. With the movement now in
+dated rows, the plug stops absorbing anything and only affects dates before Cash Mgt's first anchor
+(2020-09-30).
+
+All 22 of its anchors still `--check` clean afterwards.
+
+### 12.7 Journaled securities — closed, not carried
+
+§9's 2022 reconciliation raised journaled securities as an open risk: value can leave an account as
+securities with no matching transfer, so fin's account is overstated and the counterparty
+understated. **The data does not support it.** Every journaled row in fin is an internally-paired
+`JNL VS A/C TYPES (Margin)/(Cash)` reclassification — value moving between margin and cash *within*
+the same account:
+
+| Account | rows | net |
+|---|---:|---:|
+| IRA | 6 | 0.00 |
+| Stocks | 44 | 0.00 |
+| Options | 142 | 0.00 |
+| Bond | 29 | +66.25 |
+
+Nothing leaves untracked, and even if it had, the anchors pin all four to the custodian at 47/41/22/8
+dates and would have absorbed it. Closed.
+
+**Two things the investigation surfaced instead**, both recorded rather than fixed here:
+
+- **Fidelity Options (28) is its own custodian account** with its own feed id
+  (`3bd9f941…`), so it does *not* double-count against Stocks — worth knowing, since fin splits it out
+  as a sibling under `Fidelity Stock` (25). But its June mark used the 06-30 row (89,892.71) where the
+  07-02 row reads 89,213.20, so it is overstated ~**679.51**, and it sits **+9,672.51** above its feed
+  today. No statement was uploaded for it, so it cannot be anchored — only marked.
+- **The +2 lag looks SYSTEMATIC, not a stale-connection artifact.** Options' 06-30 row was *not* flat,
+  so §12.1's guard would never have flagged it — yet it is off by exactly the two-day shift. If the
+  row dated D always carries the D−2 close, then **every** month-end mark is slightly wrong and the
+  flat run was merely the visible extreme. That would mean the guard should *prefer a later row*
+  rather than merely refuse a stale one. July's mark is the test: mark off the row carrying the
+  settled 07-31 close, not the row dated 07-31.
