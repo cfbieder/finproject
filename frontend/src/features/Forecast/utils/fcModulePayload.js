@@ -60,6 +60,11 @@ export function buildModulePayload(editForm = {}, { normalizeTransfers } = {}) {
     // CR062 loan assumptions — year pickers, stored YYYY-07-01 like CR046's window.
     LoanStartDate: editForm.LoanStartDate || null,
     LoanEndDate: editForm.LoanEndDate || null,
+    // CR062 P2 — blank means unsecured, so "" must become null rather than 0.
+    SecuredAssetModuleId:
+      editForm.SecuredAssetModuleId === "" || editForm.SecuredAssetModuleId == null
+        ? null
+        : Number(editForm.SecuredAssetModuleId),
     CashSweepPriority:
       editForm.CashSweepPriority === null ||
       editForm.CashSweepPriority === undefined ||

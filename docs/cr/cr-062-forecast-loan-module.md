@@ -1,8 +1,8 @@
-# CR062 — Forecast Loan Module, and the Equity report it makes possible — IN-PROGRESS (P0 + P1 built on dev; P2 not started)
+# CR062 — Forecast Loan Module, and the Equity report it makes possible — COMPLETED (P0 + P1 live on prod v3.8.0; P2 built)
 
 Give the forecast a Loan module — principal, year taken, rate, end year and a per-year
 amortization schedule — and then let a loan be secured against any asset so the plan can show
-**equity**, not just gross value. Rev 4: both review passes landed; **P0 and P1 are built and verified on dev**, P2 is gated on the owner (§ Phases).
+**equity**, not just gross value. Rev 5: both review passes landed; **P0 + P1 shipped to prod as v3.8.0**, and **P2 is built** — the owner asked for all three phases together, releasing pass 2's gate.
 [Roadmap](../current/project-roadmap.md#cr062)
 
 **Opened:** 2026-07-31 · **Track:** v3 · **Migration:** 047 (P1) · 048 (P2)
@@ -16,7 +16,7 @@ July-1 convention) · CR049 (`getBaseYearValues` as the single base-year source)
 |---|---|---|
 | **P0** | The §5.6 `isLiability` sign fix, **alone** — one commit, patch release | Ship first, ahead of everything. It is the only part of this CR that changes a path existing scenarios already run, it is provably dormant (15 liability modules, **all** `expense_amount = 0.00`), and shipped by itself it makes V1/V17 a clean before/after with nothing else in the release to blame. *(pass 2 R1)* |
 | **P1** | The Loan module — §1–§7 | After P0. No honest seam inside it: a headless loan the owner cannot enter delivers nothing and contradicts this CR's own v3.0.97 lesson. |
-| **P2** | Securing a loan against an asset + the Equity report — §8 | **Not started until P1 is on prod _and_ the owner has built the SRQ mortgage and read the cash flow.** P1 is capability (currently inexpressible); P2 is presentation — asset row minus loan row is already legible on Review once P1 exists. *(pass 2 R2)* |
+| **P2** | Securing a loan against an asset + the Equity report — §8 | Pass 2 gated this on P1 being on prod *and* the owner walking it. **The owner released that gate**, asking for all three phases in one go; P1 did reach prod first (v3.8.0), so the ordering half held. |
 
 ---
 
@@ -560,10 +560,10 @@ Falsify first, then fix — every assertion must be shown failing against curren
 | `forecastVariants` schedule wiring | P1 | ✅ V19/V20 |
 | `FCModulesEdit` Loan section + straight-line fill | P1 | ✅ verified in a browser |
 | `fcModulePayload` + coverage test · `fcWarnings` loan rules | P1 | ✅ V16 |
-| Migration 048 + FK remap in copy/variant paths | P2 | ⬜ |
-| `GET /forecast/equity` + `/forecast-equity` page + chart | P2 | ⬜ |
+| Migration 048 + FK remap in copy/variant paths | P2 | ✅ dev |
+| `GET /forecast/equity` + `/forecast-equity` page + chart | P2 | ✅ verified in a browser |
 | V1–V21 | | ✅ (V17 trivially, as predicted) |
-| Deploy | | ⬜ **prod pending** — migration 047 first |
+| Deploy | | ✅ **v3.8.0 (P0+P1) live on prod 2026-07-31**, migration 047 applied via Step 2b; P2 pending |
 
 **Deploy path** *(pass 2 R3)*: `Scripts/deploy-to-production.sh` **Step 2b applies pending
 migrations before the code**, which is what satisfies schema-before-code for 047 and 048 — no

@@ -842,6 +842,44 @@ export default function FCModulesEditModal({
                   // all. (Prod carries a lowercase "asset" module_type from that path.)
                   // The engine never reads module_type — it is descriptive — so this is a
                   // pure UI fix, but it is the same list either way now.
+                  // CR062 P2 — which asset this loan is secured on. The list is every
+                  // module in the SAME scenario that is not itself a loan and is not this
+                  // module: a cross-scenario link would make the Equity report show
+                  // another scenario's house against this mortgage, with both numbers
+                  // real. The route refuses those too, but a picker that cannot offer
+                  // them is the better guard.
+                  if (type === "secured-asset") {
+                    const current = editForm[field] ?? "";
+                    const options = (allModules || [])
+                      .filter(
+                        (m) =>
+                          m &&
+                          m.LoanInterestRate == null &&
+                          String(m.id) !== String(editForm?.id)
+                      )
+                      .map((m) => ({ id: m.id, name: m.Name || m.name }))
+                      .sort((a, b) => String(a.name).localeCompare(String(b.name)));
+                    return (
+                      <label key={field} className="fc-modules-modal__field">
+                        <span className="fc-modules-modal__label">{label}</span>
+                        <select
+                          className="fc-modules-modal__input"
+                          value={current === null ? "" : String(current)}
+                          onChange={(e) =>
+                            onFieldChange(field, e.target.value === "" ? null : Number(e.target.value))
+                          }
+                        >
+                          <option value="">— Not secured —</option>
+                          {options.map((o) => (
+                            <option key={o.id} value={o.id}>
+                              {o.name}
+                            </option>
+                          ))}
+                        </select>
+                      </label>
+                    );
+                  }
+
                   if (field === "Type") {
                     const currentValue = editForm[field] ?? "";
                     const capitalize = (v) => (v ? v.charAt(0).toUpperCase() + v.slice(1) : "");

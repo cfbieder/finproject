@@ -45,6 +45,7 @@ const BudgetVsActual = lazy(() => import("../pages/BudgetVsActual"));
 // CR042 U5: the two cash-flow pages are now tabs inside CashFlowTabs.
 const CashFlowTabs = lazy(() => import("../pages/CashFlowTabs"));
 const InvestmentReturns = lazy(() => import("../pages/InvestmentReturns"));
+const FCEquity = lazy(() => import("../pages/FCEquity"));
 const FCExpSetup = lazy(() => import("../pages/FCExpSetup"));
 const FCLineMapping = lazy(() => import("../pages/FCLineMapping"));
 const FCModuleManage = lazy(() => import("../pages/FCModuleManage"));
@@ -341,6 +342,20 @@ export const routes = [
     icon: ArrowLeftRight,
   },
 
+  {
+    // CR062 P2 — a REPORT over a generated forecast, not a seventh setup step:
+    // the Forecasting group is deliberately "exactly the six steps FCStepNav
+    // numbers, in the same order" (CR042), and adding to it would break the one
+    // invariant that keeps the stepper and the sidebar from diverging again.
+    path: "/forecast-equity",
+    component: FCEquity,
+    label: "Forecast Equity",
+    category: "Reports & Graphs",
+    subcategory: "Reports",
+    description:
+      "Each forecast asset gross and net of the loans secured against it — the equity build, and income after debt service",
+    icon: LineChart,
+  },
   {
     path: "/investment-returns",
     component: InvestmentReturns,

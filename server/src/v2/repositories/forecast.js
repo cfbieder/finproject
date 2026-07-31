@@ -214,6 +214,13 @@ async function copyScenario(sourceId, newName) {
     // Copy modules
     const modules = await client.query('SELECT * FROM forecast_modules WHERE scenario_id = $1', [sourceId]);
 
+    // CR062 P2 — modules are inserted one at a time, so a link to another module
+    // cannot be resolved until every row exists. Carrying the SOURCE id through
+    // would leave the copy's Equity report reading the SOURCE scenario's asset,
+    // with both numbers real and neither obviously wrong. Collected here, repointed
+    // in a second pass below.
+    const idMap = new Map();
+
     for (const mod of modules.rows) {
       const newModule = await client.query(`
         INSERT INTO forecast_modules (
@@ -247,6 +254,7 @@ async function copyScenario(sourceId, newName) {
       ]);
 
       const newModuleId = newModule.rows[0].id;
+      idMap.set(mod.id, newModuleId);
 
       // Copy income_pct
       await client.query(`
@@ -271,6 +279,20 @@ async function copyScenario(sourceId, newName) {
         INSERT INTO forecast_module_amortization (module_id, effective_date, pct)
         SELECT $1, effective_date, pct FROM forecast_module_amortization WHERE module_id = $2
       `, [newModuleId, mod.id]);
+    }
+
+    // CR062 P2 — second pass: repoint every secured-asset link at the COPY's own
+    // asset. A link whose target was not copied (impossible today, since the whole
+    // scenario is copied) is left NULL rather than dangling.
+    for (const mod of modules.rows) {
+      if (!mod.secured_asset_module_id) continue;
+      const newLoanId = idMap.get(mod.id);
+      const newAssetId = idMap.get(mod.secured_asset_module_id) || null;
+      if (!newLoanId) continue;
+      await client.query(
+        'UPDATE forecast_modules SET secured_asset_module_id = $1 WHERE id = $2',
+        [newAssetId, newLoanId]
+      );
     }
 
     // Copy income/expense items
@@ -379,9 +401,10 @@ async function createModule(data) {
       income_amount, base_date, base_value,
       market_value, base_value_usd, market_value_usd,
       growth_rate, comment, is_matched,
-      loan_principal, loan_start_date, loan_end_date, loan_interest_rate
+      loan_principal, loan_start_date, loan_end_date, loan_interest_rate,
+      secured_asset_module_id
     )
-    VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22)
+    VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22, $23)
     RETURNING *
   `;
 
@@ -409,7 +432,8 @@ async function createModule(data) {
     data.loan_principal ?? null,
     data.loan_start_date ?? null,
     data.loan_end_date ?? null,
-    data.loan_interest_rate ?? null
+    data.loan_interest_rate ?? null,
+    data.secured_asset_module_id ?? null
   ]);
 
   return result.rows[0];
@@ -431,8 +455,9 @@ async function updateModule(id, data) {
     'growth_rate', 'comment', 'is_matched', 'cash_sweep_target', 'cash_sweep_priority',
     'income_start_date', 'income_end_date', 'expense_start_date', 'expense_end_date',
     'income_tax_rate_override',
-    // CR062 loan assumptions
-    'loan_principal', 'loan_start_date', 'loan_end_date', 'loan_interest_rate'
+    // CR062 loan assumptions (P1) + the secured-asset link (P2)
+    'loan_principal', 'loan_start_date', 'loan_end_date', 'loan_interest_rate',
+    'secured_asset_module_id'
   ];
 
   const patch = {};

@@ -13,6 +13,7 @@ const repo = require('../repositories').forecast;
 const accountsRepo = require('../repositories').accounts;
 const validate = require('../utils/validate');
 const crud = require('../../services/forecast/crud');
+const equity = require('../../services/forecast/equity'); // CR062 P2
 const variants = require('../services/forecastVariants'); // CR050
 const { baseYearFxRate } = require('../../services/forecast/fcbuilder-setup'); // CR051
 const { generateForecast } = require('../../services/forecast');
@@ -50,6 +51,7 @@ const MODULE_WRITE_FIELDS = [
   'Invest', 'Dispose', 'IncomePct',
   // CR062 — loan assumptions + the principal schedule
   'LoanPrincipal', 'LoanStartDate', 'LoanEndDate', 'LoanInterestRate', 'Amortization',
+  'SecuredAssetModuleId',
 ];
 
 const INCEXP_WRITE_FIELDS = [
@@ -80,6 +82,33 @@ const isLoanBody = (body) => body?.LoanInterestRate != null;
 function assertLoanHasInterestLine(effectiveFcLineId) {
   if (effectiveFcLineId === undefined || effectiveFcLineId === null || effectiveFcLineId === '') {
     throw validate.badRequest('A loan needs an Interest Line — without one its interest would leave the bank balance without appearing on any P&L line.');
+  }
+}
+
+/**
+ * CR062 P2 — a secured-asset link must point at a real, sane target. Checked
+ * against the DB rather than the body because every failure mode is relational:
+ *
+ *  - ANOTHER SCENARIO's module. The Equity report would then show that scenario's
+ *    house against this scenario's mortgage — two real numbers, nothing wrong to
+ *    look at, and no balance check able to see it. Migration 048's DO block
+ *    asserts the same invariant so a regression fails at deploy, not in a report.
+ *  - ITSELF, which would make equity meaningless.
+ *  - Another LOAN. "Secured against a mortgage" is not a thing; it would also
+ *    subtract debt from debt.
+ */
+async function assertSecuredAssetLink(assetModuleId, loanScenarioId, loanModuleId) {
+  if (assetModuleId == null) return;
+  if (loanModuleId != null && Number(assetModuleId) === Number(loanModuleId)) {
+    throw validate.badRequest('A loan cannot be secured against itself.');
+  }
+  const asset = await repo.findModuleById(assetModuleId);
+  if (!asset) throw validate.badRequest('The asset this loan is secured against no longer exists.');
+  if (loanScenarioId != null && Number(asset.scenario_id) !== Number(loanScenarioId)) {
+    throw validate.badRequest('A loan can only be secured against an asset in the SAME scenario — otherwise the equity report would read another scenario\'s asset.');
+  }
+  if (asset.loan_interest_rate != null) {
+    throw validate.badRequest('A loan cannot be secured against another loan.');
   }
 }
 
@@ -580,6 +609,7 @@ router.get('/modules', async (req, res, next) => {
       LoanStartDate: m.loan_start_date,
       LoanEndDate: m.loan_end_date,
       LoanInterestRate: m.loan_interest_rate != null ? parseFloat(m.loan_interest_rate) : null,
+      SecuredAssetModuleId: m.secured_asset_module_id ?? null,
       Amortization: (m.amortization || []).map((r) => ({
         Date: r.effective_date,
         Pct: parseFloat(r.pct) || 0,
@@ -716,6 +746,7 @@ router.get('/modules/:id', async (req, res, next) => {
         LoanStartDate: m.loan_start_date,
         LoanEndDate: m.loan_end_date,
         LoanInterestRate: m.loan_interest_rate != null ? parseFloat(m.loan_interest_rate) : null,
+        SecuredAssetModuleId: m.secured_asset_module_id ?? null,
         Amortization: (m.amortization || []).map(r => ({
           Date: r.effective_date,
           Pct: parseFloat(r.pct) || 0,
@@ -724,6 +755,22 @@ router.get('/modules/:id', async (req, res, next) => {
     });
   } catch (error) {
     console.error('[forecast/modules/:id] Failed:', error);
+    next(error);
+  }
+});
+
+// GET /api/v2/forecast/equity?scenario=NAME
+// CR062 P2 — asset value gross, less the debt secured against it, equals equity;
+// plus what the asset earns net of what the debt costs. Read-only, and derived
+// entirely from entries the engine already wrote.
+router.get('/equity', async (req, res, next) => {
+  try {
+    const scenarioName = (req.query.scenario || '').trim();
+    if (!scenarioName) return res.status(400).json({ error: 'scenario is required' });
+    const scenario = await repo.findScenarioByName(scenarioName);
+    if (!scenario) return res.status(404).json({ error: 'Scenario not found' });
+    res.json({ data: await equity.getEquityReport(scenario.id) });
+  } catch (error) {
     next(error);
   }
 });
@@ -794,9 +841,11 @@ router.post('/modules', async (req, res, next) => {
       loan_start_date: body.LoanStartDate || null,
       loan_end_date: body.LoanEndDate || null,
       loan_interest_rate: body.LoanInterestRate ?? null,
+      secured_asset_module_id: body.SecuredAssetModuleId ?? null,
     };
 
     if (isLoanBody(body)) assertLoanHasInterestLine(body.ExpenseFcLineId);
+    await assertSecuredAssetLink(body.SecuredAssetModuleId ?? null, scenario.id, null);
 
     const module = await repo.createModule(moduleData);
 
@@ -872,6 +921,31 @@ router.put('/modules/:id', async (req, res, next) => {
     const body = req.body || {};
     assertModuleBody(body);
 
+    // CR062 — the relational guards run BEFORE the write, against the state the
+    // write WOULD produce.
+    //
+    // An earlier revision checked them afterwards, on the row as saved. It
+    // returned the right 400 and left the bad value in the database — a loan
+    // secured against itself, or stripped of the interest line the guard exists
+    // to require. The caller sees a rejection and the row is corrupted anyway,
+    // which is strictly worse than no guard at all. Two of this CR's own tests
+    // caught it.
+    const before = await repo.findModuleById(id);
+    if (!before) return res.status(404).json({ error: 'Module not found' });
+
+    const willBeLoan = body.LoanInterestRate !== undefined
+      ? body.LoanInterestRate != null
+      : before.loan_interest_rate != null;
+    if (willBeLoan) {
+      const effectiveLine = body.ExpenseFcLineId !== undefined
+        ? body.ExpenseFcLineId
+        : before.expense_fc_line_id;
+      assertLoanHasInterestLine(effectiveLine);
+    }
+    if (body.SecuredAssetModuleId !== undefined) {
+      await assertSecuredAssetLink(body.SecuredAssetModuleId || null, before.scenario_id, id);
+    }
+
     // Build update data from PascalCase fields
     const updateData = {};
 
@@ -908,6 +982,9 @@ router.put('/modules/:id', async (req, res, next) => {
     if (body.LoanStartDate !== undefined) updateData.loan_start_date = body.LoanStartDate || null;
     if (body.LoanEndDate !== undefined) updateData.loan_end_date = body.LoanEndDate || null;
     if (body.LoanInterestRate !== undefined) updateData.loan_interest_rate = body.LoanInterestRate ?? null;
+    if (body.SecuredAssetModuleId !== undefined) {
+      updateData.secured_asset_module_id = body.SecuredAssetModuleId || null;
+    }
     if (body.Comment !== undefined) updateData.comment = body.Comment;
     if (body.Matched !== undefined) updateData.is_matched = Boolean(body.Matched);
     // CR017: cash sweep is now a priority-ordered set (cash_sweep_priority); the legacy
@@ -1002,14 +1079,6 @@ router.put('/modules/:id', async (req, res, next) => {
     if (isLoanBody(body)) {
       await crud.clearForLoanRetype(id);
       cleared = clearedSnapshot;
-    }
-
-    // CR062 — checked against the MERGED state, after the write, because a PUT can
-    // remove the line (`ExpenseFcLineId: null`) on a module that is already a loan,
-    // and a PUT that never mentions the line must keep the one it has.
-    const merged = await repo.findModuleById(id);
-    if (merged?.loan_interest_rate != null) {
-      assertLoanHasInterestLine(merged.expense_fc_line_id);
     }
 
     const updated = await repo.findModuleById(id);
@@ -1268,6 +1337,9 @@ router.put('/incomeexpense/:id', async (req, res, next) => {
     if (body.LoanStartDate !== undefined) updateData.loan_start_date = body.LoanStartDate || null;
     if (body.LoanEndDate !== undefined) updateData.loan_end_date = body.LoanEndDate || null;
     if (body.LoanInterestRate !== undefined) updateData.loan_interest_rate = body.LoanInterestRate ?? null;
+    if (body.SecuredAssetModuleId !== undefined) {
+      updateData.secured_asset_module_id = body.SecuredAssetModuleId || null;
+    }
     if (body.Comment !== undefined) updateData.comment = body.Comment;
     if (body.Matched !== undefined) updateData.is_matched = Boolean(body.Matched);
     if (body.SetupStatus !== undefined) updateData.setup_status = body.SetupStatus;

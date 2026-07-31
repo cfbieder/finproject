@@ -75,6 +75,11 @@ export const LOAN_FIELD_SECTIONS = [
     ["Interest Line", "ExpenseFcLineId", "fc-line-expense"],
     ["Outstanding Today (negative)", "MarketValue", "number"],
     ["Outstanding Today (USD)", "MarketValueUSD", "number"],
+    // CR062 P2 — which asset this debt is secured on. ANY module qualifies, not
+    // just Real Estate: a margin loan against a brokerage account and a
+    // shareholder loan against a business are the same shape. Blank = unsecured,
+    // which simply means the loan does not appear on the Equity report.
+    ["Secured Against", "SecuredAssetModuleId", "secured-asset"],
   ]],
   ["Tax", [
     ["Full Tax Override (%) — gains + income", "TaxRateOverride", "number"],

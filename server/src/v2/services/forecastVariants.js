@@ -494,6 +494,7 @@ async function syncEntity(c, { variantId, baseId, entityType, overrides }) {
   }
 
   // 4. Upsert on origin_base_id — ids stay stable across syncs.
+  const variantIdByBaseId = new Map();
   for (const { baseId: baseRowId, row, patch } of resolved) {
     const values = cols.map((col) => row[col]);
     const existingId = byBaseId.get(baseRowId);
@@ -515,10 +516,36 @@ async function syncEntity(c, { variantId, baseId, entityType, overrides }) {
       );
       variantRowId = res.rows[0].id;
     }
+    variantIdByBaseId.set(baseRowId, variantRowId);
 
     for (const key of scheduleKeys) {
       const list = key in patch ? patch[key] : await baseSchedule(c, key, baseRowId);
       await replaceSchedule(c, key, variantRowId, list);
+    }
+  }
+
+  // 5. CR062 P2 — translate cross-ROW references into the variant's own rows.
+  //
+  // `secured_asset_module_id` points at another module, and step 4 copies every
+  // column verbatim — so without this the variant's loan would be secured against
+  // the BASE scenario's house. Both figures would be real and the Equity report
+  // would look right, which is precisely why nothing downstream could catch it.
+  // Runs after the whole upsert, because the target row may not have existed yet
+  // when the referring row was written.
+  //
+  // A variant-LOCAL asset cannot be the target of an inherited loan (the base row
+  // knows nothing about it), so an unresolvable link becomes NULL — unsecured and
+  // visibly so — rather than dangling into another scenario.
+  if (table === 'forecast_modules') {
+    for (const { baseId: baseRowId, row } of resolved) {
+      if (!('secured_asset_module_id' in row)) break;
+      const variantRowId = variantIdByBaseId.get(baseRowId);
+      if (!variantRowId) continue;
+      const translated = row.secured_asset_module_id
+        ? variantIdByBaseId.get(row.secured_asset_module_id) || null
+        : null;
+      await c.query('UPDATE forecast_modules SET secured_asset_module_id = $1 WHERE id = $2',
+        [translated, variantRowId]);
     }
   }
 

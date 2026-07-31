@@ -285,6 +285,141 @@ dbDescribe('CR062 — forecast loan module (DB)', () => {
     expect(row.sched).toBe(1);   // the wholesale replace above left one row
   });
 
+  // ── P2: the secured-asset link and the Equity report ─────────────────────
+  describe('P2 — secured asset', () => {
+    let assetId;
+    let loanId;
+    let scenarioId;
+
+    beforeAll(async () => {
+      scenarioId = (await db.query('SELECT id FROM forecast_scenarios WHERE name = $1', [BASE])).rows[0].id;
+      const asset = await req('POST', '/modules', {
+        Scenario: BASE, Account: accountName, Name: 'CR062 House', Type: 'Real Estate',
+        Currency: 'USD', BaseDate: '2025-12-31', MarketValue: 1000000, MarketValueUSD: 1000000,
+      });
+      assetId = asset.body?.data?.id ?? asset.body?.id;
+      const l = await req('POST', '/modules', loanPayload({ Name: 'CR062 Secured Loan' }));
+      loanId = l.body?.data?.id ?? l.body?.id;
+    });
+
+    test('a loan can be secured against any non-loan module in its scenario', async () => {
+      const r = await req('PUT', `/modules/${loanId}`, { SecuredAssetModuleId: assetId });
+      expect(r.status).toBe(200);
+      const row = await db.query('SELECT secured_asset_module_id FROM forecast_modules WHERE id = $1', [loanId]);
+      expect(row.rows[0].secured_asset_module_id).toBe(assetId);
+    });
+
+    test('a loan cannot be secured against a module in ANOTHER scenario', async () => {
+      // The failure this refuses is invisible: the Equity report would show the
+      // OTHER scenario's house against this mortgage, both figures real.
+      const other = await db.query(
+        'SELECT id FROM forecast_modules WHERE scenario_id <> $1 AND loan_interest_rate IS NULL LIMIT 1',
+        [scenarioId]
+      );
+      if (!other.rows.length) return;
+      const r = await req('PUT', `/modules/${loanId}`, { SecuredAssetModuleId: other.rows[0].id });
+      expect(r.status).toBe(400);
+      expect(String(r.body.error)).toMatch(/same scenario/i);
+    });
+
+    test('a loan cannot be secured against itself, or against another loan', async () => {
+      expect((await req('PUT', `/modules/${loanId}`, { SecuredAssetModuleId: loanId })).status).toBe(400);
+
+      const other = await req('POST', '/modules', loanPayload({ Name: 'CR062 Other Loan' }));
+      const otherLoanId = other.body?.data?.id ?? other.body?.id;
+      const r = await req('PUT', `/modules/${loanId}`, { SecuredAssetModuleId: otherLoanId });
+      expect(r.status).toBe(400);
+      expect(String(r.body.error)).toMatch(/another loan/i);
+      await db.query('DELETE FROM forecast_modules WHERE id = $1', [otherLoanId]);
+    });
+
+    test('a scenario COPY repoints the link at the COPY own asset', async () => {
+      // THE P2 test. copyScenario inserts modules one at a time, so a naive copy
+      // carries the SOURCE module id — and the copy's report would then read the
+      // SOURCE scenario's house, with both numbers real and neither obviously
+      // wrong. Asserting the id is non-null is not enough; it must be the id of a
+      // module IN THE COPY.
+      const repo2 = require('../../repositories').forecast;
+      await repo2.copyScenario(scenarioId, COPY);
+
+      const linked = await db.query(`
+        SELECT loan.id AS loan_id, loan.secured_asset_module_id AS asset_id,
+               asset.scenario_id AS asset_scenario, loan.scenario_id AS loan_scenario,
+               asset.name AS asset_name
+          FROM forecast_modules loan
+          JOIN forecast_scenarios s ON s.id = loan.scenario_id
+          LEFT JOIN forecast_modules asset ON asset.id = loan.secured_asset_module_id
+         WHERE s.name = $1 AND loan.name = 'CR062 Secured Loan'
+      `, [COPY]);
+
+      expect(linked.rows).toHaveLength(1);
+      const row = linked.rows[0];
+      expect(row.asset_id).not.toBeNull();
+      expect(row.asset_id).not.toBe(assetId);                 // NOT the source's asset
+      expect(row.asset_scenario).toBe(row.loan_scenario);     // same scenario as the loan
+      expect(row.asset_name).toBe('CR062 House');
+    });
+
+    test('the equity report pairs the asset with its loan and nets the debt', async () => {
+      const equitySvc = require('../../../services/forecast/equity');
+      await db.query("UPDATE forecast_modules SET setup_status = 'complete' WHERE id = ANY($1)", [[assetId, loanId]]);
+
+      // Seed entries directly rather than generating: this scenario has no
+      // assumptions document, and the arithmetic is what is under test. Exact,
+      // hand-checkable figures — an identity like `equity == value + debt` would
+      // pass just as happily on two empty arrays.
+      const lineName = (await db.query('SELECT name FROM fc_lines WHERE id = $1', [fcLineId])).rows[0].name;
+      await db.query('DELETE FROM forecast_entries WHERE scenario_id = $1', [scenarioId]);
+      const rows = [
+        [2030, accountName, 'CR062 House', 1000000],       // asset value
+        [2030, accountName, 'CR062 Secured Loan', -400000], // debt, stored NEGATIVE
+        [2030, lineName,    'CR062 Secured Loan', -24000],  // interest
+        [2030, 'Transfer - Bank', 'CR062 Secured Loan', -40000], // principal repaid
+        [2031, accountName, 'CR062 House', 1050000],
+        [2031, accountName, 'CR062 Secured Loan', -360000],
+      ];
+      for (const [y, acct, mod, amt] of rows) {
+        await db.query(
+          'INSERT INTO forecast_entries (scenario_id, forecast_year, account, module, amount) VALUES ($1,$2,$3,$4,$5)',
+          [scenarioId, y, acct, mod, amt]
+        );
+      }
+
+      const report = await equitySvc.getEquityReport(scenarioId);
+      const found = report.assets.find((a) => a.assetName === 'CR062 House');
+      expect(found).toBeTruthy();
+      expect(found.loans.map((l) => l.name)).toContain('CR062 Secured Loan');
+
+      const i = report.years.indexOf(2030);
+      const j = report.years.indexOf(2031);
+      expect(found.rows.assetValue[i]).toBeCloseTo(1000000, 2);
+      expect(found.rows.debt[i]).toBeCloseTo(-400000, 2);
+      // Equity is value PLUS debt, because a liability is stored NEGATIVE — the
+      // sum is the subtraction. (Writing `value - Math.abs(debt)` instead would
+      // be indistinguishable here and these numbers would not catch it; it only
+      // diverges if a liability is ever stored positive. Stated rather than
+      // pretended: the assertion below pins the FIGURE, not the formula.)
+      expect(found.rows.equity[i]).toBeCloseTo(600000, 2);
+      expect(found.rows.equity[j]).toBeCloseTo(690000, 2);
+
+      // Interest is a P&L cost; principal is a TRANSFER. The two bottom lines
+      // must differ by exactly the principal, or the report has conflated them.
+      expect(found.rows.loanInterest[i]).toBeCloseTo(-24000, 2);
+      expect(found.rows.netIncome[i]).toBeCloseTo(-24000, 2);
+      expect(found.rows.principal[i]).toBeCloseTo(-40000, 2);
+      expect(found.rows.netCash[i]).toBeCloseTo(-64000, 2);
+      expect(found.rows.netCash[i] - found.rows.netIncome[i]).toBeCloseTo(found.rows.principal[i], 2);
+
+      await db.query('DELETE FROM forecast_entries WHERE scenario_id = $1', [scenarioId]);
+    });
+
+    test('an asset with no debt is not listed at all', async () => {
+      const equitySvc = require('../../../services/forecast/equity');
+      const report = await equitySvc.getEquityReport(scenarioId);
+      expect(report.assets.every((a) => a.assetName !== 'CR062 Mortgage')).toBe(true);
+    });
+  });
+
   // ── the CR050 variant paths — the driving scenario is a variant ──────────
   describe('variants', () => {
     let variantId;
