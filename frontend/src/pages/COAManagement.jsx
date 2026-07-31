@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import COAManagementToolbar from "../features/COAManagement/COAManagementToolbar.jsx";
 import COAEditModal from "../features/COAManagement/COAEditModal.jsx";
@@ -179,9 +179,13 @@ export default function COAManagement() {
   // useCoa() query (forecast module Account list, category selectors, …). Without
   // this, a newly added/renamed/moved account stays invisible there until that
   // cache goes stale on its own.
+  // Returns the reload promise so a caller that must not act on stale rows can
+  // await it (the reorder guard does). Callers that don't care ignore it, exactly
+  // as before.
   const reloadCoaAfterMutation = useCallback(() => {
-    loadCoaData(false).catch(() => {});
+    const done = loadCoaData(false).catch(() => {});
     queryClient.invalidateQueries({ queryKey: ["coa"] });
+    return done;
   }, [loadCoaData, queryClient]);
 
   const typeOptions = useMemo(() => {
@@ -268,6 +272,10 @@ export default function COAManagement() {
   const isFiltered =
     searchTerm.trim().length > 0 || typeFilter !== "all" || currencyFilter !== "all";
 
+  // A ref, not state: this must be readable synchronously inside the click handler.
+  // Held in state it would still be the pre-render value when a second click fires.
+  const reorderBusyRef = useRef(false);
+
   // Same function decides whether the arrow is enabled and what it does, so the
   // button cannot offer a move the handler would then decline.
   const canReorder = useCallback(
@@ -279,14 +287,35 @@ export default function COAManagement() {
     async (row, delta) => {
       const plan = reorderPlan(coaRows, row, delta);
       if (!plan || isFiltered) return;
+
+      // A reorder already in flight means `coaRows` is about to be replaced. A
+      // second click computed against the OLD rows posts a stale order that is
+      // still a *valid* sibling set — so the server accepts it (200) and it can
+      // quietly undo the first move. Dropping the click is the honest behaviour;
+      // the whole cycle is ~260ms, so it is never felt in normal use.
+      //
+      // The flag must be held until the RELOAD lands, not just until the POST
+      // returns: the POST resolves in ~40ms while `coaRows` refreshes at ~260ms,
+      // and that 200ms gap is precisely the window in which a click reads stale
+      // rows. Clearing on the POST left the guard measurably not guarding.
+      if (reorderBusyRef.current) return;
+      reorderBusyRef.current = true;
+
       try {
         await Rest.reorderCoaChildren(plan.parent, plan.orderedIds);
-        reloadCoaAfterMutation();
+        await reloadCoaAfterMutation();
+        // Every other mutation on this page toasts; this one did not, which made a
+        // move that worked indistinguishable from a click that missed — and the
+        // arrows sit on whichever row the pointer is over, so "which account did I
+        // just move?" is a real question. Name it.
+        showSuccess(`"${row.name}" moved ${delta < 0 ? "up" : "down"}`);
       } catch (error) {
         showErrorToast(error?.message || "Failed to reorder accounts");
+      } finally {
+        reorderBusyRef.current = false;
       }
     },
-    [coaRows, isFiltered, reloadCoaAfterMutation, showErrorToast]
+    [coaRows, isFiltered, reloadCoaAfterMutation, showSuccess, showErrorToast]
   );
 
   const selectedRows = useMemo(() => {
