@@ -141,7 +141,7 @@ Detail for each page lives in its CR file (linked) — this table is a directory
 | `/manual-entry` | ManualTransactionEntry | Transactions | Rapid hand entry of actual transactions ([CR025](../cr/cr-025-manual-transaction-entry.md)) |
 | `/quicken-import` | QuickenImport | Database | Quicken QIF import admin: parse/map/preflight/promote/rollback ([CR019](../cr/cr-019-quicken-import.md)) |
 | `/fx-options` | FXOptions | Forecasting | Forecast FX assumptions |
-| `/coa-management` | COAManagement | Settings | COA CRUD tree editor, move/re-parent, feed badge ([CR010](../cr/cr-010-coa-management.md)) |
+| `/coa-management` | COAManagement | Settings | COA CRUD tree editor, move/re-parent, feed badge ([CR010](../cr/cr-010-coa-management.md)); **↑/↓ reorder among siblings, expand/collapse all + one-layer** ([CR063](../cr/cr-063-coa-ordering.md)). Arrows are disabled at a group's ends **and whenever a search or filter is active** — in a filtered view the row above is not the sibling it would swap with. *Analyze PS Data* removed in the same release (PS is no longer a data source; the `/ingest-ps/analyze-ps` endpoint stays for Upload PS) |
 | `/program-settings` | ProgramSettings | Settings | App preferences (default budget year) |
 
 ### Navigation & Layout
@@ -174,7 +174,7 @@ Separate simplified pages under `frontend/src/mobile/` at `/m/*` (not a responsi
 
 All mounted at `/api/v2` (nginx rewrites legacy `/api/*`). Behavioural detail in the linked CRs.
 
-**Accounts (`/accounts`):** `GET /` (filters incl. `leafOnly`) · `/tree` · `/traits` · `/balances` · `/categories` · `/:id`(+children/descendants) · `POST /` · `PATCH /:id` · `DELETE /:id` (soft) · `GET /lookup?name=` · `GET|PUT|DELETE /:id/mappings`.
+**Accounts (`/accounts`):** `GET /` (filters incl. `leafOnly`) · `/tree` · `/traits` · `/balances` · `/categories` · `/:id`(+children/descendants) · `POST /` · `PATCH /:id` · `DELETE /:id` (soft) · `GET /lookup?name=` · `GET|PUT|DELETE /:id/mappings`. **All of these read in COA order since [CR063](../cr/cr-063-coa-ordering.md) (v3.10.0):** the tree sorts siblings on `accounts.display_order` (a rank *within the parent*, migration 049) and the flat lists — `GET /`, `/balances`, `/categories`, plus `findPLeaves` — join a shared `SORT_PATH_CTE` for the tree's depth-first rank. Before that, `getTree` selected `display_order` and then sorted `ORDER BY path` where `path` is `ARRAY[id]`, so every tree, report and dropdown in the app rendered in **insertion** order; and the flat lists sorted on the *global* sequence the column used to hold, which a per-parent rank breaks rather than leaves alone.
 
 **Budget (`/budget`):** versions CRUD+copy · entries CRUD (single/batch) · summaries (by-category/by-month/compare) · `fx-rates` (get/upsert/rate-map/preview/recalculate) · v1-compat `GET /`, `/actual-entries` (date-range aware, CR031), `/cash-flow`.
 
@@ -204,7 +204,7 @@ Module and income/expense **writes are field-validated** (CR043 N10, v3.0.95): t
 
 **AI Review (`/ai-review`):** async create (202 + background gateway call to local `ocr-llm`, task `finance_plan_review`) · `GET /:reviewId/status` poll · follow-up message · per-scenario list · get/delete · `POST /apply` ([CR006](../cr/cr-006-ai-review.md)). **Compare mode ([CR040](../cr/cr-040-forecast-scenario-compare.md)):** `POST /` accepts `compareWith` → two-scenario context (both full contexts + precomputed cumulative B − A divergence table), fixed compare system prompt, no action blocks; pair persisted in `fc_ai_reviews.compare_scenario_id` (migration 035) so follow-ups rebuild the pair context; `GET /scenario/:name` excludes compare reviews (drawer) unless `?compareWith=<B>` (Compare page's pair list).
 
-**Utility (`/util`):** appdata get/post · exchange-rates/currencies · COA read+add/update/delete · `POST /backup-database` (execFile pg_dump → tar.gz download) · `GET /attention-summary` (Home strip counts: unreviewed tx, KI#7 verify-USD rows, stale feeds, fed+manual drift — [CR038](../cr/cr-038-home-dashboard-attention.md)).
+**Utility (`/util`):** appdata get/post · exchange-rates/currencies · COA read+add/update/delete · **`POST /coa/reorder`** ([CR063](../cr/cr-063-coa-ordering.md)) — takes the **whole** ordered sibling list (`{parentId|parentName, orderedIds}`), not a per-row nudge: idempotent, one transaction, and **409** when the ids are not exactly that parent's active children, which is the only way to catch a client whose tree went stale. `parentName` exists because `/coa/BalanceSheet` strips the section root and the client re-adds it as a bare label, so top-level rows know their parent only by name (names are `UNIQUE`) · `POST /backup-database` (execFile pg_dump → tar.gz download) · `GET /attention-summary` (Home strip counts: unreviewed tx, KI#7 verify-USD rows, stale feeds, fed+manual drift — [CR038](../cr/cr-038-home-dashboard-attention.md)).
 
 ### Repositories
 
@@ -244,7 +244,7 @@ One-time/idempotent admin CLIs — all require `DATABASE_URL` (no embedded crede
 
 | Table | Purpose |
 |-------|---------|
-| `accounts` | Unified COA (BS + P&L) with `parent_id` hierarchy; calibration columns (`opening_balance`, `opening_balance_date`, `manual_reconcile_mode`); P&L leaves carry `is_transfer`/`ps_category_id` (migration 021) |
+| `accounts` | Unified COA (BS + P&L) with `parent_id` hierarchy; calibration columns (`opening_balance`, `opening_balance_date`, `manual_reconcile_mode`); P&L leaves carry `is_transfer`/`ps_category_id` (migration 021). **`display_order` is a rank WITHIN THE PARENT** (1-based, gap-free) since migration 049 / [CR063](../cr/cr-063-coa-ordering.md) — it was a global 0–207 sequence that `getTree` ignored. `create()` appends at `MAX(sibling)+1` (it hard-coded **0**, tying 22 rows); the COA page's ↑/↓ arrows rewrite a whole sibling list through `POST /util/coa/reorder`. |
 | `account_source_mappings` | External↔internal name map per source (pocketsmith/quicken/bank-feed) + per-mapping feed policy: `ignored`, `promote_from_date`, `balance_from_feed`, `trade_treatment`, `reconcile_mode`, `feed_sign`, `feed_negate_tx`. **`promote_from_date` NULL means "promote every staged row whatever its date"** — the Black Card mechanism — so since v3.6.11 mapping a bank-feed account **pins** it to the earliest row already staged (migration 043); it is still **read-only in the UI**, which is why a deliberate cutoff choice at mapping time is an open roadmap item. |
 | `transactions` | Ledger (`accepted`, `transfer_matched`, `bank_feed_external_id`, `import_batch_id`, `source`) |
 | `pending_transactions`, `psdata_staging`, `bankfeed_staging`, `quicken_*` (12 tables) | Staging per source |
@@ -258,7 +258,7 @@ Views: `v_balance_sheet`, `v_budget_vs_actual`. Size: ~30 MB, ~36k transactions.
 
 ### Migrations
 
-Registry (one line per migration, 001–048): **[MIGRATIONS.md](migrations.md)**. A runner exists — `server/db/migrate.js` / `npm run migrate` (CR043 Phase 1.1): `schema_migrations` ledger, apply-the-gap in per-file transactions, checksum-drift warnings, auto-baseline on first run against a populated DB; **`--accept-drift=<file>[,<file>]` (v3.9.1)** re-records the checksum for a *named* file only — never a blanket sweep, and a dry run never accepts — for the case where editing an applied migration was unavoidable (041 aborts the chain, so nothing later can repair it). Prove equivalence against the real DB first (re-run the file in a transaction and confirm it changes nothing); rule in `.claude/rules/migrations.md`; `deploy-to-production.sh` Step 2b applies pending to prod before rebuild. `initdb.d` still auto-applies `*.sql` on a fresh empty volume (the two coexist). CI proves the chain applies to an empty database via the psql loop.
+Registry (one line per migration, 001–049): **[MIGRATIONS.md](migrations.md)**. A runner exists — `server/db/migrate.js` / `npm run migrate` (CR043 Phase 1.1): `schema_migrations` ledger, apply-the-gap in per-file transactions, checksum-drift warnings, auto-baseline on first run against a populated DB; **`--accept-drift=<file>[,<file>]` (v3.9.1)** re-records the checksum for a *named* file only — never a blanket sweep, and a dry run never accepts — for the case where editing an applied migration was unavoidable (041 aborts the chain, so nothing later can repair it). Prove equivalence against the real DB first (re-run the file in a transaction and confirm it changes nothing); rule in `.claude/rules/migrations.md`; `deploy-to-production.sh` Step 2b applies pending to prod before rebuild. `initdb.d` still auto-applies `*.sql` on a fresh empty volume (the two coexist). CI proves the chain applies to an empty database via the psql loop.
 
 ---
 

@@ -1,4 +1,4 @@
-# CR063 — Chart of Accounts: user-controlled order, and honouring it everywhere — BUILT (P0–P3 on dev, migration 049 applied; prod pending)
+# CR063 — Chart of Accounts: user-controlled order, and honouring it everywhere — ✅ COMPLETED (all four phases, v3.10.0, migration 049 dev + prod)
 
 Make the Chart of Accounts order **something the owner sets**, and then make every tree, report
 and dropdown in the app read that order instead of the three different orders they read today.
@@ -6,7 +6,7 @@ Plus two small page fixes the same request carried: retire the **Analyze PS Data
 no longer a data source) and give the tree the same expand/collapse controls the reports have.
 [Roadmap](../current/project-roadmap.md#cr063)
 
-**Opened:** 2026-07-31 · **Track:** v3 · **Migration:** 049 (P1, applied to dev 2026-07-31; **prod pending**)
+**Opened:** 2026-07-31 · **Shipped:** 2026-07-31 (v3.10.0) · **Track:** v3 · **Migration:** 049 (dev + prod)
 **Depends on:** CR010 (the COA Management page) · CR013 (`categories` collapsed into `accounts`,
 so a category and an account are the same row and order the same way)
 
@@ -304,4 +304,4 @@ script had no restore step. Caught by re-reading the table rather than trusting 
 put back through the API. A UI-driving script that mutates shared state needs its undo written at
 the same time as its action.
 
-**Not done:** prod. Migration 049 and the code are dev-only.
+**Prod:** shipped as **v3.10.0**. Migration 049 applied by `deploy-to-production.sh` Step 2b, ahead of the rebuild — mandatory here, because the code reads a column whose *meaning* the migration changes. (P0 was already on prod ahead of the tag: it rode the v3.9.2 working-tree build.)
