@@ -19,6 +19,7 @@ import "./PageLayout.css";
 import "../features/Forecast/FCModulesEdit.css";
 import "../features/Forecast/FCExpDeleteModal.css";
 import { buildModulePayload } from "../features/Forecast/utils/fcModulePayload.js";
+import { isLoanModule } from "../features/Forecast/fcModulesEditSections.js";
 
 /**
  * FCModuleManage component manages forecast modules for different scenarios.
@@ -102,6 +103,9 @@ export default function FCModuleManage() {
 
   // Delete modal state
   const [showDeleteModal, setShowDeleteModal] = useState(false);
+  // CR062 — the retype-to-Loan confirm. `resolve` is the paused save: the promise the
+  // save is awaiting, settled by whichever button the owner presses.
+  const [retypePrompt, setRetypePrompt] = useState(null);
   const [deleteSaving, setDeleteSaving] = useState(false);
   const [deleteError, setDeleteError] = useState("");
 
@@ -364,6 +368,32 @@ export default function FCModuleManage() {
 
     const payload = buildModulePayload(editForm, { normalizeTransfers });
 
+    // CR062 — turning a module into a Loan DESTROYS what a loan cannot carry: its
+    // CR046 income/expense window and any Invest/Dispose/Yield rows (the derivation
+    // owns the principal schedule, and a leftover Flag:'Full' disposal would zero the
+    // balance outright). That is the only data-destroying operation in the feature and
+    // it is triggered by changing a dropdown, so it asks first — with the actual counts,
+    // from the same helper the write path uses, so the number shown is the number that
+    // goes. A module already saved as a loan has nothing left to clear and never
+    // re-prompts.
+    if (!isDraft && isLoanModule(editForm) && selectedModule?.LoanInterestRate == null) {
+      let counts = null;
+      try {
+        counts = Rest.unwrap(
+          await Rest.fetchJson(`/api/v2/forecast/modules/${moduleId}/loan-retype-preview`)
+        );
+      } catch {
+        // A preview that cannot load must not silently become a silent delete.
+        setEditError("Could not check what turning this into a loan would clear. Nothing was saved.");
+        return false;
+      }
+      if (counts && counts.total > 0) {
+        const proceed = await new Promise((resolve) => setRetypePrompt({ counts, resolve }));
+        setRetypePrompt(null);
+        if (!proceed) return false;
+      }
+    }
+
     setEditSaving(true);
     try {
       if (isDraft) {
@@ -579,6 +609,42 @@ export default function FCModuleManage() {
             selectedModule?.Name || selectedModule?.Account || "this module"
           }
           context={selectedScenario ? `Scenario: ${selectedScenario}` : ""}
+        />
+        {/*
+          CR062 — the retype-to-Loan confirm. Nested INSIDE the open edit modal, which is
+          only safe because this goes through the shared `Modal` primitive: a hand-rolled
+          overlay opened from within a Radix dialog is drawn on top but takes no clicks at
+          all, including its own close (v3.7.3). Reuses the delete-confirm component rather
+          than growing a fourth bespoke one.
+        */}
+        <FCExpConfirmDeleteModal
+          isOpen={Boolean(retypePrompt)}
+          selectedEntry={selectedModule}
+          error=""
+          isSaving={false}
+          onClose={() => retypePrompt?.resolve(false)}
+          onConfirm={() => retypePrompt?.resolve(true)}
+          title="Turn this into a Loan?"
+          itemLabel={selectedModule?.Name || "this module"}
+          context={
+            retypePrompt
+              ? [
+                  retypePrompt.counts.invest && `${retypePrompt.counts.invest} Invest`,
+                  retypePrompt.counts.dispose && `${retypePrompt.counts.dispose} Dispose`,
+                  retypePrompt.counts.income_pct && `${retypePrompt.counts.income_pct} Yield Spread`,
+                  retypePrompt.counts.windows && "its income/expense window",
+                ]
+                  .filter(Boolean)
+                  .join(" · ")
+              : ""
+          }
+          description={
+            "A loan derives its own principal schedule from the amount, rate and years, so " +
+            "the entries below cannot travel with it and will be removed."
+          }
+          warning="This cannot be undone — the rows are deleted, not hidden."
+          confirmLabel="Convert to Loan"
+          confirmBusyLabel="Converting..."
         />
         <FCModulesUnmatchedModal
           isOpen={showUnmatchedModal}
