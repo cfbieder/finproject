@@ -1144,3 +1144,116 @@ Order corrected from rev 1, which listed the deploy before the migration it depe
   +642,391.62 booked backwards, ~$1.28M of overstatement — confirmed by `opening_balance` moving
   exactly 2× the error once fixed). `quicken-verify` on the corrected promote: **8 passed, 1 benign
   warning, 0 failures**; rollback exact.
+
+---
+
+## 12. Restating the 2026 month-end marks — the anchors were right, the marks were not
+
+**2026-07-31.** The anchors end at the `2026-01-01` handoff, after which the bank feed owns the
+balance via CR023's monthly `mtm()`. Four months later the owner asked why current balances did not
+match Fidelity, and the answer was not in the anchored history at all.
+
+### 12.1 The feed's `balance_date` is not the value date
+
+`mtm()` marks an account to the feed balance dated month-end. For 2026-06-30 that balance was
+**stale** — flat across 06-28/29/30 — and the settled close arrived on the row dated **07-02**. That
+row matches the custodian's own June statement on all four accounts:
+
+| Account | feed 06-28/29/30 (flat) | feed **07-02** | statement 06-30 |
+|---|---:|---:|---:|
+| Stocks | 1,155,916.26 | 1,184,333.57 | 1,184,333.58 |
+| IRA | 289,378.55 | **292,622.20** | **292,622.20** |
+| Bond | 1,224,135.46 | **1,221,053.96** | **1,221,053.96** |
+| Cash Mgt | 804,066.52 | **804,030.47** | **804,030.47** |
+
+Three exact, one a penny out. Four independent accounts do not coincide like that: **the row dated
+month-end + 2 days carries the settled month-end close.**
+
+**A stale mark cannot be re-marked.** The feed row for that date *is* the stale value, so re-running
+`mtm()` reproduces it. And the feed gives no way to find the right row from inside itself — the
+obvious heuristic, "first row that breaks the flat run", picks 07-01 (1,174,893.65), which is not the
+close. Only the statement identifies 07-02. So **the custodian statement is the authority for a
+historical month-end; the feed is the authority for today.**
+
+CR061's stale-feed guard (`5cb77cc`) prevents the *next* one. It does not repair the one already
+written — hence `restate-mtm.js`.
+
+### 12.2 Why restate the mark, and not anchor it
+
+Two rejected alternatives, both instructive.
+
+**An anchor at 06-30 plus a next-day reversal** would leave today untouched — attractive, and it was
+recommended first. It is wrong. It corrects June's *balance* but leaves the June MTM row alone, so
+June's unrealized stays understated; and because the pair cancels before 07-31, **the July mark still
+absorbs the same +28,417.32 it should not**. Both months stay distorted. The owner caught this.
+
+**Pushing the difference into a past period** — the owner's question, current periods mattering more
+than history — does not work either, for two reasons. The past is not wrong: 47 custodian dates tie to
+the cent (§9). And mechanically, a past adjustment shifts every later balance *uniformly*, so the June
+delta is unchanged and June's unrealized figure stays exactly as wrong. It moves a level, not a change.
+
+The whole error lives in one 2026 row. Restating it in place fixes June's balance, June's unrealized,
+and July's unrealized together, and touches no anchored history.
+
+The correction lands in **`Unrealized G/L` (88)**, deliberately *not* §3.3's `Valuation - Historical`.
+The anchors avoid the unrealized bucket because they mix flows, liquidation timing and gaps in
+Quicken's share history. A stale mark has no such ambiguity — it understates exactly one thing,
+market movement.
+
+### 12.3 The March check, which split the accounts
+
+Before restating, fin's 2026-03-31 balances were compared against the March statement — a read-only
+test of whether the pre-June marks were sound at all:
+
+| Account | statement 03-31 | fin 03-31 | diff |
+|---|---:|---:|---:|
+| IRA | 266,853.52 | 266,853.08 | **+0.44** |
+| Stocks | 1,001,555.43 | 1,001,555.96 | **−0.53** |
+| Bond | 997,450.51 | 995,590.94 | +1,859.57 |
+| Cash Mgt | 589,320.11 | 584,456.60 | +4,863.51 |
+
+**Stocks and IRA tie to under a dollar** — June is an isolated failure for them. **Bond and Cash Mgt
+do not**, and they are exactly the two accounts with no Quicken history, whose anchors stop at
+2025-12-31 with nothing correcting them afterwards. Their drift flips sign between March and June
+(Bond +1,859.57 → −3,081.50; Cash Mgt +4,863.51 → −298.00), which is what unbooked bond and CD price
+movement looks like, not an accumulating accounting error.
+
+So Bond was pinned at **both** 2026 quarter-ends. Restating June alone would have pinned the level
+correctly while dumping Q1's drift into June's unrealized figure. Targets are processed in date order
+with the balance re-read after each write, because restating March changes June.
+
+### 12.4 As applied — prod, 2026-07-31
+
+| Account | date | balance | target | was mtm | now mtm |
+|---|---|---:|---:|---:|---:|
+| Stocks | 2026-06-30 | 1,155,916.26 | 1,184,333.58 | −41,219.86 | **−12,802.54** |
+| IRA | 2026-06-30 | 289,378.55 | 292,622.20 | −4,145.11 | **−901.46** |
+| Bond | 2026-03-31 | 995,590.94 | 997,450.51 | 0.00 | **+1,859.57** |
+| Bond | 2026-06-30 | 1,225,995.03 | 1,221,053.96 | +328.69 | **−4,612.38** |
+
+All four land on the custodian to the cent. All four anchor sets re-`--check` clean afterwards — 47,
+41, 8 and 22 dates, zero drift — so the restatement touched only 2026.
+
+Today's balance **moves**, by design, until the July mark re-pins it. That is the cost of the correct
+fix and it self-clears.
+
+**`restate-mtm.js` found a defect in its own guard during rollout:** `opening_balance_date` came back
+as a JS `Date`, and `'2026-06-30' < Date` coerces the string to `NaN`, so the pre-sentinel check was
+always false and **silently never fired**. Fixed by selecting it as `to_char(...)` text, and falsified
+— a 1985 target now throws where it previously passed.
+
+### 12.5 Left open
+
+- **Cash Mgt is deliberately untouched.** It is `calibrate` mode with no MTM row to restate, and its
+  −298.00 at June is noise against a +4,863.51 swing at March. It needs the constant-14,436.32 plug
+  question resolved (§7), not a point fix.
+- **July's mark waits for the settled close** — around 08-02 to 08-04 on the +2 rule. The guard will
+  refuse until a month-end-dated row exists, which is the safe failure.
+- **Whether +2 is calendar or business days is unresolved.** 2026-06-30 was a Tuesday, so 07-02 is
+  both. 2026-07-31 is a Friday, where calendar+2 is Sunday 08-02 and business+2 is Tuesday 08-04 —
+  July's mark will settle it. Feed history only reaches back to 2026-05-31, so March could not be
+  used as a second observation.
+- **Dev diverges from prod on Bond by 9,815.27 at 2026-03-31** (dev 1,005,406.21, prod 995,590.94),
+  though the two agree today. The restatement was applied to **prod only**; writing dev's own
+  computed correction (−7,955.70 at March, against prod's +1,859.57) would have papered over dev's
+  staleness. Dev should be re-synced from prod.
