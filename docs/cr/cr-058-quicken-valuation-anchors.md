@@ -1492,3 +1492,56 @@ right at exactly one date and wrong everywhere else — the identical disease as
 14,436.32 plug (§12.6), one level up. Worse, here it happened to **cancel** by 2025 against two years
 of unbooked gains, so it never failed loudly. Any future anchor set whose handoff lands on a ledger
 that is not independently verified at that date carries the same trap.
+
+### 12.11 Attribution — the anchors were being reported as capital contributions
+
+**2026-07-31.** The owner opened Investment Returns for Fidelity Stocks and found
+**Unrealized G/L = 0 for 2020–2024**. Two causes, and the second is the serious one.
+
+**(1)** No `Unrealized G/L` postings exist before **2025-01-31** on either account — the ones visible
+from 2025 are PocketSmith's own entries plus §12's two marks. The row was honestly zero.
+
+**(2)** The anchors holding the historical balance post to `Valuation - Historical`, which carries
+`is_transfer = TRUE`, and CR056's `bucketOf` sends anything with that flag to **`flow`**. So they were
+not merely absent from the return — they were reported as **capital the owner put in or took out**:
+**+163,865.07** inside 2023's net external flows and **+156,532.59** inside 2024's. That also
+corrupts `avgCapital`, and therefore every percentage built on it.
+
+The fix is a **balance-neutral pair** per period, written by `attribute-unrealized.js`:
+
+```
++U  →  Unrealized G/L         (88,  is_transfer FALSE → 'price')
+−U  →  Valuation - Historical (229, is_transfer TRUE  → 'flow')
+```
+
+`U` is a **difference of levels** — the CSV carries the custodian's unrealized *level* at each
+statement date and `U(D) = level(D) − level(prev)`. The first row is a baseline that writes nothing:
+Stocks' 2016-03-31 level is **−34,952.66**, and treating a level as a period's return would book an
+embedded loss that never happened in that quarter.
+
+**Applied dev + prod:** 35 paired periods per account, 2016-06-30 → 2024-12-31.
+**Stocks 291,910.35** and **IRA 119,034.85** moved from `flow` to `price`, with **every balance
+unchanged at all 36 dates and today** — the invariant the script asserts and refuses to commit
+without. A run-time guard refuses any date on or after the account's first existing `Unrealized G/L`
+posting, since double-counting there would leave balances correct and nothing downstream would notice;
+**falsified** by extending the CSV past 2025-01-31, which fails loudly. Idempotent (a re-run clears 70
+rows and rewrites the same 70).
+
+What the report shows for Fidelity Stocks afterwards — ending market values byte-identical:
+
+| | 2020 | 2021 | 2022 | 2023 | 2024 |
+|---|---:|---:|---:|---:|---:|
+| Unrealized G/L *before* | 0 | 0 | 0 | 0 | 0 |
+| Unrealized G/L *after* | 35,269 | 53,182 | **−182,661** | 180,283 | 150,481 |
+| Net external flows *before* | −275,628 | 469,380 | 116,805 | 127,150 | −303,215 |
+| Net external flows *after* | −310,897 | 416,197 | 299,466 | **−53,132** | **−453,696** |
+| Total return *before* | 16,558 | 22,264 | 5,299 | 38,029 | 34,864 |
+| Total return *after* | 51,827 | 75,446 | **−177,362** | **218,312** | **185,345** |
+
+Return percentages exist for those years for the first time — 2022 **−18.95%**, 2023 **+20.22%**,
+2024 **+18.03%** — where the report previously showed "—".
+
+**Not claimed:** this is the *unrealized* component only. Realized gains stay inside `incomeTotal`,
+and 1998–2015 has no statement coverage, so those anchors remain flow-classified. `Valuation -
+Historical` still legitimately carries the unexplained remainder — the part the custodian's cost
+basis does not account for — which is the honest place for it.
