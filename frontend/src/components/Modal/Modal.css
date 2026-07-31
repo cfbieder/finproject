@@ -5,11 +5,18 @@
  * adds a header row with a ✕ close affordance the old overlays lacked.
  */
 
+/* Above the app chrome. The primitive shipped at 40/41, which is BELOW every nav surface
+   in the app — `.navbar` is 9999 and `.sidebar` is 50 — so a dialog rendered *under* the
+   navigation it was opened from, and under the sticky page headers (1000) too. It went
+   unnoticed while modals were 520–720px wide and centred: they never reached that far.
+   The 1400px-wide Forecast module-output panel does, and the sidebar clipped its title.
+   Deliberately left ABOVE this: toasts and the PWA update prompt (99999) — a dialog must
+   not hide the notification telling you what just happened. */
 .modal__overlay {
   position: fixed;
   inset: 0;
   background: rgba(45, 52, 54, 0.18);
-  z-index: 40;
+  z-index: 10400;
 }
 
 .modal {
@@ -28,7 +35,7 @@
   display: flex;
   flex-direction: column;
   gap: 1rem;
-  z-index: 41;
+  z-index: 10401;
 }
 
 .modal--wide {
@@ -43,7 +50,7 @@
   left: 50%;
   transform: translate(-50%, -50%);
   max-height: calc(100vh - 2rem);
-  z-index: 41;
+  z-index: 10401;
 }
 
 .modal__header {
