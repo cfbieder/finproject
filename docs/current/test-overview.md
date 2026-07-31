@@ -68,6 +68,7 @@ A checklist should include:
 | Pure backend logic (engine, calculations) | `server/src/<module>/__tests__/<module>.test.js` (Jest). |
 | Backend route + DB integration | DB-backed Jest suite that self-seeds throwaway rows by unique name against `DATABASE_URL` and cleans up after itself (pattern: `reconcileManual.test.js`); guard with `SKIP_DB_TESTS`. Don't try to mock Postgres. Smoke scripts (`smoke-<topic>.js`) for ad-hoc live-server checks. |
 | Frontend helper / hook | `frontend/src/<path>/__tests__/<thing>.test.js` (Vitest, jsdom). |
+| Anything that depends on the browser actually delivering the event — overlays, z-order, focus, hit-testing | `frontend/e2e/<topic>.spec.js` (Playwright, `./Scripts/e2e.sh` — throwaway Postgres + API + built bundle, never dev or prod). **jsdom cannot see this class**: it has no hit-testing, and Testing Library fires events on the node directly, so a `pointer-events: none` overlay passes every unit test while the real page is frozen (v3.7.3). Let Playwright's actionability check *be* the assertion, and falsify it against the unfixed code before keeping it. |
 | Manual UI verification | `docs/current/TEST_MANUAL_<feature>.md`. |
 
 ## Running everything before a release
@@ -75,6 +76,7 @@ A checklist should include:
 ```bash
 cd server && npm test                          # Jest unit/route tests
 cd frontend && npm test                        # Vitest helper tests
+./Scripts/e2e.sh                               # Playwright, throwaway stack (add a spec name to filter)
 node server/src/scripts/smoke-after-021.js     # HTTP smoke against live server
 ```
 
