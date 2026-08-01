@@ -49,6 +49,14 @@
 --
 -- Idempotent: the WHERE clause only matches while the row is still mapped.
 
+-- ORDER-INDEPENDENT vs MIGRATION 044, deliberately. 044 (CR059 P3a) rewrites this
+-- mapping's external_name from the Sheet UUID to the API id. Keyed on the UUID
+-- alone, this migration would match NOTHING if 044 ran first — and its guard would
+-- still pass, because zero rows match a name that no longer exists. The mapping
+-- would quietly stay live, which is the entire thing being prevented here. So both
+-- ids are named, and the guard below checks both. (Applied to dev before 044
+-- existed; prod may take them in either order.)
+
 BEGIN;
 
 UPDATE account_source_mappings
@@ -56,7 +64,8 @@ UPDATE account_source_mappings
        ignored            = TRUE,
        promote_from_date  = NULL
  WHERE source = 'bank-feed'
-   AND external_name = '4de06156-3a5c-4a12-8701-e28a5ff18d2f'
+   AND external_name IN ('4de06156-3a5c-4a12-8701-e28a5ff18d2f',  -- Sheet UUID (pre-044)
+                         '4044604745776048193')                    -- fintable API id (post-044)
    AND account_id IS NOT NULL;
 
 -- Guard. Two things must hold afterwards, and neither is re-derived arithmetic:
@@ -65,12 +74,23 @@ UPDATE account_source_mappings
 --      bank-feed row carries a cutoff) must still hold, so a mistake here fails
 --      the migration rather than silently re-opening a back-fill window.
 DO $$
-DECLARE still_mapped INT; uncut INT;
+DECLARE still_mapped INT; found INT; uncut INT;
 BEGIN
+  -- "Nothing matched" is not success. If neither id is present the mapping has
+  -- been renamed by something this migration does not know about, and staying
+  -- silent would be indistinguishable from having done the job.
+  SELECT COUNT(*) INTO found
+    FROM account_source_mappings
+   WHERE source = 'bank-feed'
+     AND external_name IN ('4de06156-3a5c-4a12-8701-e28a5ff18d2f', '4044604745776048193');
+  IF found <> 1 THEN
+    RAISE EXCEPTION 'migration 050: expected exactly 1 legacy Revolut wallet mapping, found %', found;
+  END IF;
+
   SELECT COUNT(*) INTO still_mapped
     FROM account_source_mappings
    WHERE source = 'bank-feed'
-     AND external_name = '4de06156-3a5c-4a12-8701-e28a5ff18d2f'
+     AND external_name IN ('4de06156-3a5c-4a12-8701-e28a5ff18d2f', '4044604745776048193')
      AND (account_id IS NOT NULL OR ignored IS NOT TRUE);
   IF still_mapped > 0 THEN
     RAISE EXCEPTION 'migration 050: the legacy Revolut wallet mapping is still live';

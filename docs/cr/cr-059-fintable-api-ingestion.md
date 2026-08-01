@@ -819,6 +819,67 @@ currency-mismatch class in general. A promote-path guard that refuses a staged r
 not match the target account stays a roadmap item — it is the general form of this fix, and of the
 `type` mismatches in §14.
 
+## 19. The cutover overlap — a hole pass 2 left open, and the fix (2026-08-01)
+
+**§17 M1 cut P3b on the reasoning that "rows before the floor are never fetched, never staged under an
+API id, and cannot collide". That is true, and it is not the whole question.** It says nothing about
+rows *inside* the floor, and the floor cannot be zero-width. Two measurements settle it:
+
+**Arrival lag** (shadow store, Revolut's wallet rebuild excluded — its 68-day row is the re-serve of
+§18, not normal behaviour):
+
+| ingested | rows | lag |
+|---|---|---|
+| 2026-07-30 | 24 | 1–2 days |
+| 2026-07-31 | 18 | 0–2 days |
+| 2026-08-01 | 29 | 1–2 days |
+
+Rows normally arrive **1–2 days after their transaction date**, so a floor at the cutover date would
+systematically drop the boundary days. **An overlap is mandatory.**
+
+**Exposure inside the overlap** (measured against prod, `bankfeed_staging` rows already promoted):
+
+| overlap | 0d | 1d | 2d | 3d | 4d | 5d | 6d | 7d |
+|---|---|---|---|---|---|---|---|---|
+| already-promoted rows at risk | 0 | 8 | 28 | 40 | 74 | 108 | 128 | **133** |
+
+At the specified cutover − 7 days, **133 already-promoted rows re-arrive under new API transaction ids**
+and all three guards miss them: staging's `(source, external_id)` is new, the ledger's `ON CONFLICT
+(bank_feed_external_id)` is new, and `promote_from_date` is older than the window. **Four times the
+Black Card incident, and net-of-payments invisible in exactly the same way.**
+
+**The fix — `src/services/boundaryCarryover.js` (owner decision 2026-08-01).** For rows inside the
+overlap only, match each incoming API row to the row bank-feed already holds and **keep our existing
+`external_id`** instead of adopting the API's. fin then sees ids it already has, staging's unique key
+fires, and nothing re-stages or re-promotes. **No ledger writes at all** — the correction happens one
+layer before anything irreversible. Rejected alternatives: blocking promotion via `promote_from_date`
+(turns duplicates into permanently unpromoted staging rows and silently blocks genuinely new backdated
+rows), and rewriting the ledger ids (the bounded form of the P3b pass 2 cut — writes to the ledger to
+solve what the layer below can solve without it).
+
+**The only interesting design decision is which way it fails.** A wrong carry-over makes a genuinely new
+row inherit an id we hold, the unique key fires, and the row is **silently dropped**. A missed carry-over
+produces a **visible duplicate** on the reconcile page. A silent drop is strictly worse, so every
+ambiguous case resolves toward *not* carrying over: exactly one unclaimed candidate carries over; zero,
+two, or two candidates sharing the exact date do not. **12 tests, and the two ambiguity tests were
+falsified against a naive nearest-date implementation first** — it passes the happy path and fails both.
+Window is `FINTABLE_API_CARRYOVER_DAYS`, default **5** (2.5× the observed maximum lag). Guarded by a
+`sync_state` key so it runs exactly once: a second run would match against ids that have already moved.
+
+**P3a is built and rehearsed against real prod data.** `scripts/crosswalk-plan.js` produces the plan,
+`scripts/emit-crosswalk-sql.js` generates fin **044** and bank-feed **006** from it — the 31 pairs are
+never retyped. Rehearsed on a throwaway copy of prod's `account_source_mappings` + `bankfeed_staging`
+and of the live bank-feed store: **31 mappings and 2,222 staging rows rewritten, 0 leftover Sheet ids,
+0 orphaned staging rows, 0 orphaned transactions, all counts preserved, idempotent on re-run.** The
+"mapping not covered by the plan" precondition was **falsified** — an injected unknown mapping aborts
+the migration and rolls it back with nothing written.
+
+*One trap found by rehearsing rather than reasoning:* **050 and 044 had an ordering dependency.** 050
+keyed on the Sheet UUID that 044 rewrites, so 044-then-050 would have matched nothing — and 050's guard
+would have *passed*, because zero rows match a name that no longer exists, leaving the Revolut-USD
+mapping live. 050 now names both ids and **raises unless exactly one matches**, so "nothing matched" can
+no longer read as success. Both orders verified to converge on an identical final state.
+
 ## Status
 
 P0 done (§11), P1 built and shadow-verified (§13), both §12 decisions settled, default still
