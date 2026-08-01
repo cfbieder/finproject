@@ -52,16 +52,27 @@ BEGIN
      WHERE source = 'bank-feed'
        AND external_name = 'e5a23070-13bb-49af-8f2d-e552e159b570';
 
+    -- No mapping row at all = a data-free database (CI applies the whole chain
+    -- to an empty Postgres, and the seed runs only afterwards). There is
+    -- nothing to leave calibrating, so there is nothing to guard. Amended
+    -- 2026-08-01: the original unconditional check aborted the chain in CI, and
+    -- an aborted migration cannot be repaired by a later one — see
+    -- .claude/rules/migrations.md on editing an applied migration.
+    IF n_mtm + n_calibrate = 0 THEN
+        RAISE NOTICE '046 SKIP: no bank-feed mapping for the Cash Mgt feed id — data-free database';
+
     -- Fail loud rather than leave the account silently still calibrating. A
     -- renamed account or a re-keyed feed id would otherwise make this a no-op
-    -- that reports success.
-    IF n_mtm <> 1 THEN
+    -- that reports success. Both still fail here: the mapping is keyed by
+    -- external_name, so it survives a rename and reports as calibrate.
+    ELSIF n_mtm <> 1 THEN
         RAISE EXCEPTION
           '046: expected exactly 1 mtm feed mapping for Fidelity Cash Mgt, found % (calibrate: %) — '
           'account renamed or feed id re-keyed?', n_mtm, n_calibrate;
-    END IF;
 
-    RAISE NOTICE '046 OK: Fidelity Cash Mgt feed mapping now marks to market';
+    ELSE
+        RAISE NOTICE '046 OK: Fidelity Cash Mgt feed mapping now marks to market';
+    END IF;
 END $$;
 
 COMMIT;
