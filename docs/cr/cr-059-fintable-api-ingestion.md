@@ -46,7 +46,10 @@ hourly poll and converts it
    captured the whole feed — **31 duplicate transactions in prod, $8.4K gross, net only +$267**, so a
    balance check could not see it. The id-based guard added for exactly this case (`cc23929`) read
    `raw.accountId` while Plaid sends `account_id`, so it was **dead code** until `c49b459`.
-   *In the API there is no name join at all: every transaction carries `account_id`.*
+   *In the API there is no name join at all: every transaction carries `account_id`.* **That removes
+   the mechanism, not the hazard** — fintable can still attribute a row to the wrong account, and
+   §18 measures a live case where it does. Read this line as "our converter stops guessing", not as
+   "attribution is now correct".
 2. **Everything arrives pre-mangled by the spreadsheet.** Dates are Excel serials (1899-12-30 epoch,
    with the 1900 leap-year bug); amounts are JS floats; the transaction's **currency is not in the row**
    and has to be dug out of a JSON string in the `⚡ Raw Data` column — with a different path per
@@ -760,12 +763,68 @@ needs that UI write path — [roadmap §4](../current/project-roadmap.md).*
 **Build order from pass 2:** **P3a + P4 first** among the in-progress CRs, ahead of CR019's
 investment-side promote and CR023's tail — both want a quiet feed surface and neither is moving.
 
+## 18. fintable double-serves four Revolut rows — the API inherits the mis-attribution class (2026-08-01)
+
+**This section corrects a claim this CR was relying on.** bank-feed commit `6d108ec` fixed the *Sheet*
+converter to read GoCardless's `ext_nordigen_acc_id` instead of trusting fintable's display-name label,
+and concluded: *"The CR059 API converter joins on `tx.account_id` directly and never had the defect, so
+the cutover retires this class rather than inheriting it."* **The second half is wrong, and it was
+asserted rather than measured.** The API path does inherit the class — by a different mechanism.
+
+**What was measured** (shadow store on :55432, 2026-08-01). fintable's API serves four Revolut EUR
+transactions **twice**:
+
+| | current EUR wallet `acc_01KYS5BECVFH89QPSRQSFN4M99` | legacy wallet `4044604745776048193`, labelled **"(USD)"** |
+|---|---|---|
+| transactions | 4 — all currency `EUR` | 4 — all currency `EUR` |
+| transaction ids | `tx_01KYS5PV…` | `tx_01KYFYT7…` |
+| latest balance | **98.13 EUR** | **1.46 USD** |
+| span | 2026-05-23 .. 2026-07-26 | 2026-05-23 .. 2026-07-26 |
+
+Same dates, same amounts, same descriptions — but **different transaction ids**, so these are two
+genuine upstream records, not our converter mis-filing one row. The `KYS5` ULID prefix matches the
+rebuilt wallet, so the rebuild **re-served history that already existed under the old wallet with fresh
+ids**. The legacy record is the pre-rebuild EUR wallet that fintable labels "(USD)": every transaction
+it has ever carried is denominated in EUR, while its balance reads 1.46 USD — fintable's own balance
+contradicts its own attribution.
+
+**Why the gate read this as data loss, and why that reading was wrong.** The gate pairs each Sheet
+account to exactly one API account. The Sheet carries one copy of each row (on the EUR wallet); the API
+carries two. So the API's second copy landed in `api_only` while the Sheet's copy landed in `losses`,
+printing as loss in one direction and surplus in the other. **Nothing is missing from either side.** The
+three exceptions in `compare-exceptions.json` now record this reason; the reason previously recorded
+there — that fintable set `sync_start_date` on the rebuilt wallet and "will never re-serve this row" —
+was wrong and has been replaced.
+
+**fin is clean today, and ties exactly.** Revolut-EUR computes **98.13**, Revolut-PLN **72.14**,
+Revolut-USD **1.46** — each matching fintable's live balance, with every row promoted exactly once.
+The earlier damage from this class (two rows promoted onto Revolut-USD as duplicates of Revolut-EUR)
+is already cleaned up, and the live store now carries 0 transactions on that wallet post-`6d108ec`.
+
+**What it costs at cutover, and the control.** The known duplicates are all dated ≤ 2026-07-26, so the
+cutover date floor (`FINTABLE_API_MIN_DATE`) keeps them out of staging entirely. The floor does **not**
+cover a *new* row fintable files onto the legacy wallet after cutover: mapping 531 was live with
+`promote_from_date = 2026-07-26`, so such a row would promote onto Revolut-USD — a EUR amount booked
+into a USD account, invisible to a balance check for the same reason the Black Card incident was.
+
+**Owner decision 2026-08-01: make that mapping ignore-only** (migration **050**), chosen over leaving it
+mapped behind the date floor (accepts the forward risk) and over adding a currency guard to the promote
+path (closes the class generally, but is new code plus tests and would delay cutover). It costs nothing
+real: Revolut-USD holds **1.46 USD across 4 transactions, the most recent dated 2025-01-19**. It keeps
+its balance and history and simply stops receiving feed rows from a wallet whose only feed rows have
+ever been mis-attributed EUR.
+
+**Not claimed:** this does not stop fintable double-serving, and it does not close the
+currency-mismatch class in general. A promote-path guard that refuses a staged row whose currency does
+not match the target account stays a roadmap item — it is the general form of this fix, and of the
+`type` mismatches in §14.
+
 ## Status
 
 P0 done (§11), P1 built and shadow-verified (§13), both §12 decisions settled, default still
 `FINTABLE_SOURCE=sheets` — nothing in prod or fin has changed. **146 tests green.**
 
-**The equivalence gate (§14) PASSES** with one earned exception (§16). **P2 is running**: an hourly
+**The equivalence gate (§14) PASSES** with three earned exceptions (§16, §18). **P2 is running**: an hourly
 cron tick (`scripts/p2-shadow-run.sh`, installed 2026-07-28, `17 * * * *`) syncs the throwaway shadow
 store incrementally and re-runs the gate, appending one line per hour to `tmp/p2-shadow.log`. It never
 touches the live feed store or fin, and aborts loudly rather than logging a green line against a dead
@@ -778,3 +837,9 @@ by `(account, amount, tag-normalized description)` within a few days (§13.2).
 The headline: pass 2 established that the **transaction crosswalk was never necessary**, and it is cut.
 What remains to build is **P3a** (31 account mappings, exact key) and **P4** (cutover). Migration 044
 in fin is correspondingly smaller — three id sites on 31 rows, not four sites on 2,480.
+
+**P2 read at 3½ days (2026-08-01): 95 ticks, 95/95 syncs succeeded**, incremental behaving (a typical
+tick fetches 1–5 rows; the 04:17 full sweep pulled 482 and inserted 22). The gate's only standing
+finding was §18's Revolut double-serving, now understood and accepted with a recorded reason rather
+than papered over — **P2's bar is met**. Migration **050** (§18) is a **P4 prerequisite**: applied to
+dev 2026-08-01, to prod at cutover.
