@@ -27,8 +27,13 @@ maybe('setBankFeedMapping — promote cutoff pinning', () => {
   let accountId;
 
   beforeAll(async () => {
+    // Seed the account instead of borrowing the first asset/liability row: a
+    // fresh CI database holds only the income/expense COA rows the migrations
+    // and ci-seed.sql create, so the borrowed form found nothing there.
     const r = await db.query(
-      `SELECT id FROM accounts WHERE account_type IN ('asset','liability') ORDER BY id LIMIT 1`,
+      `INSERT INTO accounts (name, account_type, section, is_transfer, currency, is_active)
+       VALUES ($1, 'asset', 'balance_sheet', FALSE, 'USD', TRUE) RETURNING id`,
+      [TAG],
     );
     accountId = r.rows[0].id;
   });
@@ -36,6 +41,7 @@ maybe('setBankFeedMapping — promote cutoff pinning', () => {
   afterAll(async () => {
     await db.query(`DELETE FROM bankfeed_staging WHERE feed_account_external_id LIKE $1`, [`${TAG}%`]);
     await db.query(`DELETE FROM account_source_mappings WHERE external_name LIKE $1`, [`${TAG}%`]);
+    await db.query(`DELETE FROM accounts WHERE name = $1`, [TAG]);
     if (db.pool && db.pool.end) await db.pool.end();
   });
 

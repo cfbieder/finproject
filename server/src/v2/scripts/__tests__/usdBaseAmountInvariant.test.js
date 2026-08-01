@@ -48,8 +48,16 @@ dbDescribe('USD invariant: base_amount = amount', () => {
 
   /** Insert one row inside an open transaction, return its id. */
   async function inject(client, amount, baseAmount, currency, tag) {
+    // Own the account rather than borrowing whichever one the database happens
+    // to hold: a fresh CI database is built from the migration chain plus
+    // ci-seed.sql and contains no balance-sheet account at all, so the borrowed
+    // form threw here instead of testing anything. That is the same ambient-data
+    // trap this file's header warns about, one query lower down. The caller's
+    // transaction is always rolled back, so the account never persists.
     const { rows: acct } = await client.query(
-      `SELECT id FROM accounts WHERE section = 'balance_sheet' LIMIT 1`
+      `INSERT INTO accounts (name, account_type, section, is_transfer, currency, is_active)
+       VALUES ($1, 'asset', 'balance_sheet', FALSE, 'USD', TRUE) RETURNING id`,
+      [`_usd_invariant_fixture_${tag}`]
     );
     const { rows } = await client.query(
       `INSERT INTO transactions (transaction_date, amount, base_amount, currency, account_id, description1, source)

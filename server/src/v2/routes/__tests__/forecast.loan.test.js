@@ -27,6 +27,7 @@ dbDescribe('CR062 — forecast loan module (DB)', () => {
   const BASE = 'CR062LoanBaseScenario';
   const VARIANT = 'CR062LoanVariantScenario';
   const COPY = 'CR062LoanCopyScenario';
+  const LINE = 'CR062 Loan Interest Line';
   let accountName;
   let fcLineId;
 
@@ -34,6 +35,9 @@ dbDescribe('CR062 — forecast loan module (DB)', () => {
     // Variants first: parent_scenario_id is RESTRICT (CR050).
     await db.query('DELETE FROM forecast_scenarios WHERE name = ANY($1)', [[VARIANT, COPY]]);
     await db.query('DELETE FROM forecast_scenarios WHERE name = $1', [BASE]);
+    // After the scenarios: expense_fc_line_id is ON DELETE SET NULL, so the
+    // order only matters for reading the modules back, not for the delete.
+    await db.query('DELETE FROM fc_lines WHERE name = $1', [LINE]);
   }
 
   const loanPayload = (over = {}) => ({
@@ -80,7 +84,13 @@ dbDescribe('CR062 — forecast loan module (DB)', () => {
        WHERE parent_id IS NOT NULL AND name NOT IN ('Bank Accounts','Transfer - Bank','Taxes')
        ORDER BY id LIMIT 1`
     )).rows[0].name;
-    fcLineId = (await db.query('SELECT id FROM fc_lines ORDER BY id LIMIT 1')).rows[0].id;
+    // Seed the Interest Line rather than borrowing the first one on file — the
+    // header promises this suite is self-seeding, and a fresh CI database has no
+    // fc_lines at all, which made every test in the file die in beforeAll.
+    fcLineId = (await db.query(
+      `INSERT INTO fc_lines (name, line_type) VALUES ($1, 'bs_module_expense') RETURNING id`,
+      [LINE],
+    )).rows[0].id;
   });
 
   afterAll(async () => {

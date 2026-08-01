@@ -112,6 +112,10 @@ dbDescribe('runPromote + runRollback (cash-only, DB-backed)', () => {
     await pool.query(`DELETE FROM transactions WHERE import_batch_id = $1`, [batchId]);
     await pool.query(`DELETE FROM quicken_calibration_audit WHERE import_batch_id = $1`, [batchId]);
     await pool.query(`DELETE FROM quicken_staging WHERE import_batch_id = $1`, [batchId]);
+    // The securities tests clear their own staged rows at the end of the test
+    // body, which a FAILING test never reaches — the batch delete below then
+    // trips the FK and reports itself as the error, burying the real one.
+    await pool.query(`DELETE FROM quicken_securities_staging WHERE import_batch_id = $1`, [batchId]);
     await pool.query(`DELETE FROM quicken_import_batches WHERE id = $1`, [batchId]);
     await pool.query(
       `DELETE FROM account_source_mappings WHERE source = 'quicken' AND external_name = ANY($1::text[])`,

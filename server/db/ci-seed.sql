@@ -21,10 +21,12 @@ SELECT 'Transfer - Securities Trades',
 WHERE NOT EXISTS (SELECT 1 FROM accounts WHERE name = 'Transfer - Securities Trades');
 
 -- Income leaves the quicken investment promote (resolveIncomeLeaf) and the
--- CR032 neutralize guard look up by name.
+-- CR032 neutralize guard look up by name. INVST_INCOME_LEAF in quicken-promote.js
+-- is the full list; the rest of it ('Realized Gain (Historical)',
+-- 'Return of Capital') already arrives with the migration chain.
 INSERT INTO accounts (name, account_type, section, is_transfer, currency, is_active)
 SELECT v.name, 'income', 'profit_loss', FALSE, 'USD', TRUE
-FROM (VALUES ('Financial Income - Dividend'), ('Option Trade')) AS v(name)
+FROM (VALUES ('Financial Income - Dividend'), ('Option Trade'), ('Interest Income')) AS v(name)
 WHERE NOT EXISTS (SELECT 1 FROM accounts a WHERE a.name = v.name);
 
 -- Keep the id sequence ahead of any explicit-id inserts above.
