@@ -197,24 +197,32 @@ So the annual close is not missing. What it does not do is:
 | **In-place is unavailable** | It refuses on a variant (correct — re-basing is the base's job) and is only wired to *copy*, so rolling the year means minting a new scenario every time, and the four variants must then be re-created or re-synced. |
 | **Nothing reports staleness** | Neither the 19-month-old anchor nor the two-base-years-in-one-scenario state is surfaced anywhere. |
 
-### 3.2 The decision this phase needs from the owner — **not yet built**
+### 3.2 Decision (owner, 2026-08-02): **keep copying, close the gaps** — not yet built
 
-The design in the first draft (a "Close the year" action that rolls a scenario **in place**) is
-one of two coherent answers, and choosing between them is a question about how the owner wants to
-work, not something the code can settle:
+The first draft proposed rolling a scenario **in place**. The owner chose the other answer, and
+it is the right one for this model: minting a copy each year keeps *what I thought in 2026* as a
+readable record, which an in-place roll destroys. The cost is scenario sprawl — accepted, and §2
+has just removed the mechanism by which sprawl silently rots the assumptions documents.
 
-- **Roll in place** — one long-lived `Base` scenario whose anchor moves each year. Fewer
-  scenarios, lineage stays intact, variants re-sync automatically. Last year's plan is *gone*
-  unless it was copied first.
-- **Keep copying** — a new `2027 Base` each year, as now, but with the gaps above closed:
-  `PeriodStart` rolled with the anchor, market value offered per module, a preview, and the
-  variants re-created against the new base. Keeps every year's plan as a historical record, at
-  the cost of scenario sprawl (and the assumptions-document orphans §2 just cleaned up).
+So the copy stays the annual close. P2 closes what it misses:
 
-Either way the same three pieces are needed and are what P2 will build: a **preview** (per module:
-current anchor, current cost basis / market value, the ledger value at the new date, the delta,
-and an explicit reason when a module cannot be rolled), **`PeriodStart` moving with the anchor**,
-and a **market-value opt-in per row** so the brokerage accounts stop needing 18 hand clicks.
+1. **`PeriodStart` moves with the anchor.** The single defect behind "every scenario is anchored
+   a year behind its own base year". The copy already takes `asOfDate`; the scenario's assumptions
+   entry must move to `year + 1` in the same transaction.
+2. **A preview before the copy commits** — one row per module: current anchor, current cost basis
+   and market value, the ledger value at the new date, the delta, and an **explicit reason** when
+   a module cannot be rolled (no account, no balance at that date). Today
+   `refreshModulesFromActuals` returns a row count and a module it could not touch is silently
+   left on its old anchor.
+3. **Market value, opt-in per row.** Leaving MV alone is right for property and wrong for the four
+   Fidelity accounts, where the ledger balance *is* market value (CR024's read-override, CR058's
+   anchors) — which is why `PY → Market Value` exists per module. The preview offers the tick;
+   the default stays cost-basis-only, so today's behavior is what you get by pressing enter.
+4. **The variants come across.** A copy of a base is a plain scenario, so the four variants of
+   `2026 Base` do not follow it. Either re-create them against the new base or say plainly that
+   they were not carried — the current silence is the worst of the three.
+
+Not in P2: rolling in place, and archiving. Both were considered and set aside above.
 
 ### 3.3 Staleness, surfaced (independent of the choice above)
 
