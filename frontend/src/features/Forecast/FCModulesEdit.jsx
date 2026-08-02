@@ -8,7 +8,13 @@ import {
   initialOpenSections,
   labelForType,
 } from "./fcModulesEditSections.js";
-import { resolveFxRate, localToUsd, allocateBudget } from "./utils/fcModuleFx.js";
+import {
+  resolveFxRate,
+  localToUsd,
+  allocateBudget,
+  resolveInflationRate,
+  firstForecastYearAmount,
+} from "./utils/fcModuleFx.js";
 import "./FCModulesEdit.css";
 
 const normalizeBaseDate = (value) => {
@@ -725,7 +731,8 @@ export default function FCModulesEditModal({
                     className="fc-modules-modal__fields-grid"
                     hidden={!openSections.has(sectionTitle)}
                   >
-                    {sectionFields.map(([label, field, type, source]) => {
+                    {sectionFields.map(([rawLabel, field, type, source]) => {
+                      let label = rawLabel;
                   if (field === "Account") {
                     return (
                       <label key={field} className="fc-modules-modal__field">
@@ -1220,6 +1227,53 @@ export default function FCModulesEditModal({
                     );
                   }
 
+                  // CR064 P8 — "(Base Yr)" made the owner do the arithmetic: the field
+                  // holds a base-year figure, the engine grows it, and in August 2026 the
+                  // number you actually have in mind is 2027's. Name the year, and show
+                  // the year that follows — without moving the anchor, which the cash
+                  // sweep's opening cash and the deferred base-year tax both read.
+                  const isAmountField = field === "IncomeAmount" || field === "ExpenseAmount";
+                  const period1 = Number(baseYear) + 1;
+                  if (isAmountField && Number.isFinite(Number(baseYear))) {
+                    label = label.replace("(Base Yr)", `(${baseYear})`);
+                  }
+                  // The figure the engine will actually project for the first forecast
+                  // year. Suppressed where the amount does not drive the stream: a
+                  // yield-mode module ignores it (§6.1), and a pct-of-value expense is
+                  // driven by the asset rather than by this number.
+                  let nextYearHint = null;
+                  if (isAmountField && Number.isFinite(period1)) {
+                    const amountDrives =
+                      field === "IncomeAmount" ? !incomeIsYieldDriven
+                        : (editForm?.ExpenseGrowthMethod || "inflation") === "inflation";
+                    const growthMult = field === "IncomeAmount" ? editForm?.IncomeGrowth : 1;
+                    const projected = amountDrives
+                      ? firstForecastYearAmount({
+                          baseAmount: parseNumber(editForm?.[field]),
+                          inflationPct: resolveInflationRate({
+                            inflationRows: assumptions?.inflation,
+                            scenario: editForm?.Scenario,
+                            year: period1,
+                          }),
+                          growthMultiplier: growthMult,
+                        })
+                      : null;
+                    if (projected !== null) {
+                      const ccy = editForm?.Currency || "USD";
+                      const rate = resolveFxRate({
+                        fxRows: assumptions?.FX,
+                        scenario: editForm?.Scenario,
+                        currency: ccy,
+                        year: baseYear,
+                      });
+                      const asUsd = rate ? projected / rate : null;
+                      nextYearHint = `→ ${period1}: ${projected.toLocaleString("en-US", { maximumFractionDigits: 0 })} ${ccy}${
+                        ccy !== "USD" && asUsd !== null
+                          ? ` · ${asUsd.toLocaleString("en-US", { maximumFractionDigits: 0 })} USD`
+                          : ""
+                      }`;
+                    }
+                  }
                   const isLockedField = source === "traits";
                   const isDerivedUsd =
                     field === "BaseValueUSD" || field === "MarketValueUSD";
@@ -1318,6 +1372,9 @@ export default function FCModulesEditModal({
                             : handleNumericBlur
                         }
                       />
+                      {nextYearHint && (
+                        <span className="fc-modules-modal__next-year">{nextYearHint}</span>
+                      )}
                     </label>
                   );
                     })}

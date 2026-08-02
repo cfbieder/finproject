@@ -2,7 +2,10 @@ import { describe, it, expect } from "vitest";
 import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
-import { fxRateOnRow, resolveFxRate, localToUsd, allocateBudget } from "../fcModuleFx.js";
+import {
+  fxRateOnRow, resolveFxRate, localToUsd, allocateBudget,
+  resolveInflationRate, firstForecastYearAmount,
+} from "../fcModuleFx.js";
 
 // The live document's shape, copied from prod's `forecast_assumptions` FX row.
 const LIVE_FX = [
@@ -225,5 +228,60 @@ describe("allocateBudget", () => {
     const pos = allocateBudget({ budgetUSD: 1000, moduleCurrency: "USD", thisAmount: 400, rateFor });
     const neg = allocateBudget({ budgetUSD: 1000, moduleCurrency: "USD", thisAmount: -400, rateFor });
     expect(neg.remaining).toBe(pos.remaining);
+  });
+});
+
+describe("resolveInflationRate", () => {
+  // Prod's shape: one row per scenario, carried forward for the whole horizon.
+  const ROWS = [
+    { Rate: 2.5, Year: 2026, Scenario: "2026 Base" },
+    { Rate: 2.5, Year: 2026, Scenario: "2026 Downside" },
+    { Rate: 4, Year: 2030, Scenario: "2026 Downside" },
+  ];
+
+  it("carries the base-year rate forward, like the engine's buildRates", () => {
+    expect(resolveInflationRate({ inflationRows: ROWS, scenario: "2026 Base", year: 2027 })).toBe(2.5);
+    expect(resolveInflationRate({ inflationRows: ROWS, scenario: "2026 Base", year: 2062 })).toBe(2.5);
+  });
+
+  it("takes the latest entry at or before the year", () => {
+    expect(resolveInflationRate({ inflationRows: ROWS, scenario: "2026 Downside", year: 2029 })).toBe(2.5);
+    expect(resolveInflationRate({ inflationRows: ROWS, scenario: "2026 Downside", year: 2031 })).toBe(4);
+  });
+
+  it("falls back to the earliest rate for a year before every row", () => {
+    expect(resolveInflationRate({ inflationRows: ROWS, scenario: "2026 Base", year: 2020 })).toBe(2.5);
+  });
+
+  it("returns null — never 0% — when the scenario has no inflation path", () => {
+    // A rename used to strand exactly this (CR064 §2); reading it as 0% is the bug.
+    expect(resolveInflationRate({ inflationRows: ROWS, scenario: "Renamed", year: 2027 })).toBeNull();
+    expect(resolveInflationRate({ inflationRows: [], scenario: "x", year: 2027 })).toBeNull();
+  });
+});
+
+describe("firstForecastYearAmount", () => {
+  it("grows a base-year amount by inflation", () => {
+    expect(firstForecastYearAmount({ baseAmount: 500000, inflationPct: 2.5 })).toBeCloseTo(512500, 6);
+  });
+
+  it("applies the income growth multiplier", () => {
+    expect(firstForecastYearAmount({ baseAmount: 500000, inflationPct: 2.5, growthMultiplier: 0.5 }))
+      .toBeCloseTo(506250, 6);
+    expect(firstForecastYearAmount({ baseAmount: 500000, inflationPct: 2.5, growthMultiplier: 0 }))
+      .toBeCloseTo(500000, 6);
+  });
+
+  it("treats a blank multiplier as 1", () => {
+    for (const m of [null, undefined, ""]) {
+      expect(firstForecastYearAmount({ baseAmount: 100, inflationPct: 10, growthMultiplier: m })).toBeCloseTo(110, 9);
+    }
+  });
+
+  it("returns null when there is nothing to derive from", () => {
+    expect(firstForecastYearAmount({ baseAmount: 0, inflationPct: 2.5 })).toBeNull();
+    expect(firstForecastYearAmount({ baseAmount: null, inflationPct: 2.5 })).toBeNull();
+    // No inflation path is not 0% growth — it is "cannot say".
+    expect(firstForecastYearAmount({ baseAmount: 500000, inflationPct: null })).toBeNull();
   });
 });

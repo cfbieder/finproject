@@ -23,8 +23,9 @@ CR062 (the Loan form this CR declines to generalise)
 | **P3** | §4, §5 — the module form: collapse-when-empty, per-type labels, the blank-row question. | Independent of P0–P2; ships whenever. |
 | **P6** | §6 — income a business can express: its own growth rate, permanent step changes, and the live mode stated in the form. Migration 055. | Independent of P0–P3. Ships dormant: 7,916 entries byte-identical on a copy of prod. |
 | **P7** | §7 — the FC-line budget hint compared a USD budget with a local-currency amount. | Ships with P6: P6 is what makes the mis-scaled amount reachable. |
-| **P4** | §8 — plan vs actual for the live year. | **Designed here, not built.** Needs P2 (a stale anchor makes every variance meaningless). |
-| **P5** | §9 — sensitivity runs on the CR053 harness. | **Designed here, not built.** Lowest priority; nothing is wrong without it. |
+| **P8** | §8 — the base year summed mixed currencies, and it seeds the cash sweep. | Changes existing numbers; its own release. |
+| **P4** | §9 — plan vs actual for the live year. | **Designed here, not built.** Needs P2 (a stale anchor makes every variance meaningless). |
+| **P5** | §10 — sensitivity runs on the CR053 harness. | **Designed here, not built.** Lowest priority; nothing is wrong without it. |
 
 ---
 
@@ -473,7 +474,91 @@ amount mode at all. Barkeria (55,000 PLN against a 270,000 PLN / 96,799 USD line
 properties are **ambiguous** rather than provably wrong — they may be deliberate partial
 allocations, and this CR does not guess.
 
-## 8. P4 — plan vs actual (designed, not built)
+## 8. P8 — the base year was summed in mixed currencies, and it seeds the sweep
+
+### 8.1 What the owner saw
+
+*"I do not know where 500,000 USD of UB Income is coming from."* Two separate answers:
+
+1. **The 500,000 is your own edit.** At 21:32 on 2026-08-02 United Beverages in `2026 Base`
+   was moved to amount mode — yield row deleted, `income_amount = 500,000`, growth 1.0 — and
+   `2026 Buy Business` inherited it by variant sync an hour later. The other three variants
+   still hold 192,266 and their yield row.
+2. **It is not 500,000 USD. It is 500,000 PLN, printed in a USD column.**
+
+### 8.2 The column that says BUDGET and never reads the budget
+
+The base-year column is fed by `GET /forecast/base-year-values` → `crud.getBaseYearValues`,
+which sums module amounts **per FC line**. `FCReview` never queries `budget_entries` at all,
+so the header `(BUDGET)` was wrong independently of any currency.
+
+Worse, the sum took each module's `income_amount` / `expense_amount` **in that module's own
+currency**. `2026 Base`, as measured:
+
+| line | shown | actual USD |
+|---|--:|--:|
+| UB Income (PLN) | 500,000 | 128,205 |
+| Other Investment Income (PLN — Barkeria) | 55,000 | 14,103 |
+| Dividend Income (EUR — CVC) | 2,000 | 2,326 |
+| Property Costs (PLN + EUR, four properties) | −30,000 of mixed units | −16,955 |
+
+The proof was one column to the right: 2027 showed **131,410** for the same stream —
+`500,000 × 1.025 ÷ 3.9`. One line, two adjacent columns, 3.9× apart.
+
+### 8.3 Why it was never only cosmetic
+
+`index.js` folds this base-year net cash flow into the **cash sweep's opening cash**. So the
+sweep opened on a number inflated by the FX rate and stayed there for the whole horizon —
+the CR049 §1 failure mode, in the very function CR049 created so the base year would have one
+source. The old comment in `getBaseYearValues` acknowledged the currency handling and called
+it *"pre-existing and out of scope here"*. This is that scope.
+
+**Measured on a copy of prod, base-year net cash flow:**
+
+| scenario | before | after | change |
+|---|--:|--:|--:|
+| 2026 Base | **+144,395** | **−254,728** | −399,123 |
+| 2026 Buy Business | +144,395 | −254,728 | −399,123 |
+| 2026 Downside | −140,117 | −317,768 | −177,651 |
+| 2026 Upside | −163,339 | −333,634 | −170,295 |
+
+`2026 Base` flips from a positive base year to a negative one. Regenerated with and without
+the fix: **no new shortfalls**, but the sweep sells **+1.26M more** across the horizon
+(transfers 14.24M → 15.50M) — the cost of opening on the real number.
+
+### 8.4 Fix
+
+Each branch of `getBaseYearValues` now groups by `m.currency` and converts through CR051's
+`baseYearFxRate` — the same rate the engine divides by when it projects the same stream, so
+the base-year column and Period 1 agree instead of differing by FX. A currency with no rate
+**throws**, inheriting CR051's F1 behaviour deliberately: falling back to the unconverted
+amount is the defect. The income/expense branch now reads `base_value_usd` rather than
+`base_value` (all 60 live rows are USD, so a no-op today and correct the moment one is not).
+
+### 8.5 And the entry itself
+
+The field holds a **base-year** figure that the engine grows, so the number typed is never
+the number projected. In August 2026, planning 2027, that indirection *is* the complaint —
+500,000 was meant for 2027.
+
+The anchor is **not** moved: the sweep's opening cash and the deferred base-year income tax
+both read a base-year figure, per module (CR047 gives each module its own income tax rate),
+and `budget_entries` are per category, so there is nothing else to read. What changes is the
+presentation:
+
+- **"Income Amount (Base Yr)" → "Income Amount (2026)"** — the year, not a term of art.
+- **The derived first forecast year is shown beneath it**: `→ 2027: 512,500 PLN · 131,410 USD`,
+  suppressed where the amount does not drive the stream (yield mode, or a pct-of-value expense).
+- **The Review column is relabelled `(Base Yr)`**, in the table and in the print/export path.
+
+### 8.6 Still open — the data
+
+Whether UB's 500,000 was meant as PLN or USD is unanswered, so **nothing in the data was
+changed**. For a 2027 intent the base-year field wants `500,000 ÷ 1.025 = 487,805`; if USD was
+also meant, `1,902,439` PLN. For scale: the 2026 budget is 690,000 PLN (192,266 USD) and 2025
+actual was 280,643 USD.
+
+## 9. P4 — plan vs actual (designed, not built)
 
 `FCReviewTable` already overlays a `(Budget)` and an `(Actual)` column for the base and
 last-actual years, so the plumbing for "actuals next to the plan" exists. What does not exist is
@@ -487,7 +572,7 @@ shows up first as an implausible variance.
 Gated on P2 because a variance computed against a 19-month-old anchor measures the anchor, not the
 plan.
 
-## 9. P5 — sensitivity runs (designed, not built)
+## 10. P5 — sensitivity runs (designed, not built)
 
 CR048 ratified "test equity growth in a scenario copy" and "FX stress folds into Downside" — i.e.
 hand-copy a scenario per question. CR053 already built the expensive machinery: a standalone
@@ -499,7 +584,7 @@ Reuse, not new machinery — but nothing is *wrong* without it, which is why it 
 
 ---
 
-## 10. Out of scope
+## 11. Out of scope
 
 - **Monte Carlo / stochastic returns.** Converts a model the owner can explain line by line into
   one nobody can. CR044 settled that this stays a personal tool.
@@ -508,7 +593,7 @@ Reuse, not new machinery — but nothing is *wrong* without it, which is why it 
   the key that rots; restructuring four documents that the engine, the copy path, the variant sync
   and three UI pages all read is a separate CR and buys nothing this one needs.
 
-## 11. Status
+## 12. Status
 
 - **P0** — pending.
 - **P1** — pending (migration 052).
@@ -516,4 +601,5 @@ Reuse, not new machinery — but nothing is *wrong* without it, which is why it 
 - **P3** — pending.
 - **P6** — built (migration 055), dormant, **live as v3.11.8**.
 - **P7** — built, no migration.
+- **P8** — built, no migration. **Changes existing numbers** — prod regenerated on deploy.
 - **P4 / P5** — designed here, not scheduled.

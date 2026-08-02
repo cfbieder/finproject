@@ -175,7 +175,7 @@ function EquityBridgeRows({
               const isBaseYear = baseYears?.has(Number(year));
               const isLastActualYear = lastActualYears?.has(Number(year));
               const isPreForecast = isBaseYear || isLastActualYear;
-              const columnLabel = isBaseYear ? "(Budget)" : isLastActualYear ? "(Actual)" : null;
+              const columnLabel = isBaseYear ? "(Base Yr)" : isLastActualYear ? "(Actual)" : null;
               return (
                 <td
                   key={`bridge-yr-${year}`}
@@ -306,7 +306,7 @@ function CashFlowSummaryRows({
               const isBaseYear = baseYears?.has(Number(year));
               const isLastActualYear = lastActualYears?.has(Number(year));
               const isPreForecast = isBaseYear || isLastActualYear;
-              const columnLabel = isBaseYear ? "(Budget)" : isLastActualYear ? "(Actual)" : null;
+              const columnLabel = isBaseYear ? "(Base Yr)" : isLastActualYear ? "(Actual)" : null;
               return (
                 <td
                   key={`cfs-yr-${year}`}
@@ -687,7 +687,7 @@ export default function FCReviewTable({
                     const isBaseYear = baseYears?.has(Number(year));
                     const isLastActualYear = lastActualYears?.has(Number(year));
                     const isPreForecast = isBaseYear || isLastActualYear;
-                    const columnLabel = isBaseYear ? "(Budget)" : isLastActualYear ? "(Actual)" : null;
+                    const columnLabel = isBaseYear ? "(Base Yr)" : isLastActualYear ? "(Actual)" : null;
                     return (
                       <th
                         key={year}

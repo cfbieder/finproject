@@ -149,3 +149,60 @@ export function allocateBudget({ budgetUSD, moduleCurrency, others = [], thisAmo
     canConvert: moduleFx !== null && moduleFx !== undefined,
   };
 }
+
+/**
+ * CR064 P8 — the scenario's inflation rate (%) for `year`.
+ *
+ * Same shape as `resolveFxRate`, and the same carry-forward rule the engine's
+ * `buildRates` uses: take the latest entry at or before the year, and if there is none,
+ * the earliest the scenario defines. Returns null when the scenario has no inflation
+ * path at all — which is a real state (a rename used to strand one; see CR064 §2) and
+ * must not be silently read as 0%.
+ */
+export function resolveInflationRate({ inflationRows, scenario, year }) {
+  const relevant = (Array.isArray(inflationRows) ? inflationRows : [])
+    .filter((row) => row?.Scenario === scenario)
+    .sort((a, b) => Number(a?.Year) - Number(b?.Year));
+  if (!relevant.length) return null;
+
+  let rate = null;
+  for (const row of relevant) {
+    if (Number(row?.Year) <= Number(year)) {
+      const n = Number(row?.Rate);
+      if (Number.isFinite(n)) rate = n;
+    }
+  }
+  if (rate === null) {
+    const n = Number(relevant[0]?.Rate);
+    return Number.isFinite(n) ? n : null;
+  }
+  return rate;
+}
+
+/**
+ * CR064 P8 — what a base-year amount becomes in the FIRST FORECAST YEAR.
+ *
+ * The field holds a BASE-YEAR figure and the engine grows it, so the number typed is
+ * never the number projected. In August 2026, planning 2027, that indirection is the
+ * whole of the owner's complaint — they typed 500,000 meaning next year. Showing the
+ * derived figure beside the input removes the mental step without moving the anchor,
+ * which the cash sweep's opening cash and the deferred base-year tax both depend on.
+ *
+ * @returns {number|null} the first forecast year's amount, or null if it cannot be derived
+ */
+export function firstForecastYearAmount({ baseAmount, inflationPct, growthMultiplier = 1 }) {
+  // `Number(null)` is 0, so these have to be rejected BEFORE the coercion: a scenario
+  // with no inflation path would otherwise read as 0% growth — "cannot say" silently
+  // becoming "does not grow", which is the CR064 §2 failure in miniature.
+  if (baseAmount === null || baseAmount === undefined || baseAmount === "") return null;
+  if (inflationPct === null || inflationPct === undefined || inflationPct === "") return null;
+  const amount = Number(baseAmount);
+  const infl = Number(inflationPct);
+  if (!Number.isFinite(amount) || amount === 0) return null;
+  if (!Number.isFinite(infl)) return null;
+  const mult = growthMultiplier === null || growthMultiplier === undefined || growthMultiplier === ""
+    ? 1
+    : Number(growthMultiplier);
+  if (!Number.isFinite(mult)) return null;
+  return amount * (1 + (infl * mult) / 100);
+}

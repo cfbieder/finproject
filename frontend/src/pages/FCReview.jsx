@@ -924,7 +924,7 @@ export default function FCReview() {
           ? "background:linear-gradient(180deg,#FAF9F5 0%,#F0EFE9 100%);font-weight:700;border-left:1px solid #D5D2C9;border-right:1px solid #D5D2C9;"
           : "";
         const columnLabel = isBase
-          ? '<div style="font-size:11px;color:#808E9B;">(Budget)</div>'
+          ? '<div style="font-size:11px;color:#808E9B;">(Base Yr)</div>'
           : isLastActual
           ? '<div style="font-size:11px;color:#808E9B;">(Actual)</div>'
           : "";

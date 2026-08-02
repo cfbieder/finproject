@@ -2095,3 +2095,19 @@ input.fc-modules-modal__input:read-only {
   margin-top: 0.25rem;
   color: var(--warning-strong, #b8860b);
 }
+
+/*
+ * CR064 P8 — the first forecast year, beside the base-year amount that produces it.
+ * The field holds a base-year figure and the engine grows it, so the number typed is
+ * never the number projected; in August, planning next year, that indirection is the
+ * whole complaint. Shown rather than re-anchored, because the cash sweep's opening cash
+ * and the deferred base-year tax both read the base-year figure.
+ */
+.fc-modules-modal__next-year {
+  display: block;
+  margin-top: 0.2rem;
+  font-size: 0.75rem;
+  line-height: 1.5;
+  color: var(--ink-secondary);
+  font-variant-numeric: tabular-nums;
+}

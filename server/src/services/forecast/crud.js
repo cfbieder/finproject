@@ -14,6 +14,7 @@
 const db = require('../../v2/db');
 const repo = require('../../v2/repositories').forecast;
 const variants = require('../../v2/services/forecastVariants'); // CR050
+const { baseYearFxRate } = require('./fcbuilder-setup'); // CR064 P8 — base-year FX
 
 /**
  * Resolve an account name to its id (null when absent/not found).
@@ -527,6 +528,7 @@ async function getBaseYearValues(scenarioId, baseYear = null, client = db) {
     SELECT
       COALESCE(exp_line.name, 'Unassigned Expense') as label,
       'expense' as type,
+      COALESCE(m.currency, 'USD') as currency,
       SUM(CASE WHEN m.expense_amount IS NOT NULL AND m.expense_amount != 0
           THEN -m.expense_amount * ${halfYear('expense')} ELSE 0 END) as amount
     FROM forecast_modules m
@@ -534,44 +536,82 @@ async function getBaseYearValues(scenarioId, baseYear = null, client = db) {
     WHERE m.scenario_id = $1 AND COALESCE(m.setup_status, 'new') NOT IN ('new', 'exclude')
       AND m.expense_fc_line_id IS NOT NULL${windowFilter('expense')}
       AND m.loan_interest_rate IS NULL
-    GROUP BY exp_line.name
+    GROUP BY exp_line.name, m.currency
     UNION ALL
     SELECT
       COALESCE(exp_line.name, 'Unassigned Expense') as label,
       'expense' as type,
+      COALESCE(m.currency, 'USD') as currency,
       SUM(-(m.loan_interest_rate / 100.0) * ABS(COALESCE(m.market_value, 0)) * ${loanHalfYear}) as amount
     FROM forecast_modules m
     LEFT JOIN fc_lines exp_line ON m.expense_fc_line_id = exp_line.id
     WHERE m.scenario_id = $1 AND COALESCE(m.setup_status, 'new') NOT IN ('new', 'exclude')
       AND m.expense_fc_line_id IS NOT NULL
       AND m.loan_interest_rate IS NOT NULL
-    GROUP BY exp_line.name
+    GROUP BY exp_line.name, m.currency
     UNION ALL
     SELECT
       COALESCE(inc_line.name, 'Unassigned Income') as label,
       'income' as type,
+      COALESCE(m.currency, 'USD') as currency,
       SUM(COALESCE(m.income_amount, 0) * ${halfYear('income')}) as amount
     FROM forecast_modules m
     LEFT JOIN fc_lines inc_line ON m.income_fc_line_id = inc_line.id
     WHERE m.scenario_id = $1 AND COALESCE(m.setup_status, 'new') NOT IN ('new', 'exclude')
       AND m.income_fc_line_id IS NOT NULL${windowFilter('income')}
-    GROUP BY inc_line.name
+    GROUP BY inc_line.name, m.currency
   `, [scenarioId]);
 
   // Get base values from IncExp items (by FC Line name or item name)
   const incexpResult = await client.query(`
     SELECT
       COALESCE(fl.name, ie.name) as label,
-      ie.base_value as amount
+      -- CR064 P8 — base_value is the LOCAL amount; base_value_usd is the USD twin the
+      -- CR051 write path derives at the scenario's base-year rate. This column is
+      -- summed into a USD figure, so it must be the USD one. (All 60 live rows are USD,
+      -- so this is a no-op today and correct the moment one is not.)
+      COALESCE(ie.base_value_usd, ie.base_value) as amount
     FROM forecast_income_expense ie
     LEFT JOIN fc_lines fl ON ie.fc_line_id = fl.id
     WHERE ie.scenario_id = $1 AND COALESCE(ie.setup_status, 'new') NOT IN ('new', 'exclude')
   `, [scenarioId]);
 
+  // CR064 P8 — convert each module's amount from ITS OWN currency before summing.
+  //
+  // These branches used to sum `expense_amount` / `income_amount` raw, in whatever
+  // currency each module happens to use, into a figure every consumer reads as USD.
+  // Measured on prod 2026-08-02: `2026 Base` reported 500,000 of UB income (PLN) and
+  // 55,000 of Barkeria income (PLN) as though they were dollars — about **+400,000 USD**
+  // of base-year income that does not exist, against ~13,000 of PLN property expense
+  // overstated the same way.
+  //
+  // It was never only a display defect. `index.js` folds this base-year net cash flow
+  // into the **cash sweep's opening cash**, so the sweep opened that much richer and
+  // stayed there for the whole horizon — the CR049 §1 failure mode, in the very function
+  // CR049 created so the base year would have one source. The old comment here called
+  // the currency handling "pre-existing and out of scope"; this is that scope.
+  //
+  // The rate is the scenario's own base-year rate (CR051's `baseYearFxRate`), which is
+  // what the engine divides by when it projects the same stream — so the base-year column
+  // and Period 1 now agree instead of differing by the FX rate. A missing or zero rate
+  // for a currency in use THROWS there and therefore here: a base year that silently
+  // reverts to unconverted amounts is the defect being fixed.
+  const scenarioRow = await client.query('SELECT name FROM forecast_scenarios WHERE id = $1', [scenarioId]);
+  const scenarioName = scenarioRow.rows[0]?.name || null;
+  const rateCache = new Map();
+  const rateFor = async (currency) => {
+    const ccy = (currency || 'USD').trim() || 'USD';
+    if (ccy === 'USD') return 1;
+    if (!rateCache.has(ccy)) rateCache.set(ccy, await baseYearFxRate(scenarioName, ccy));
+    return rateCache.get(ccy);
+  };
+
   const values = {};
   for (const row of bsResult.rows) {
     const amt = parseFloat(row.amount) || 0;
-    if (amt !== 0) values[row.label] = (values[row.label] || 0) + amt;
+    if (amt === 0) continue;
+    const usd = amt / (await rateFor(row.currency));
+    values[row.label] = (values[row.label] || 0) + usd;
   }
   for (const row of incexpResult.rows) {
     const amt = parseFloat(row.amount) || 0;
