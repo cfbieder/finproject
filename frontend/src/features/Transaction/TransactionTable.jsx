@@ -343,6 +343,23 @@ export default function TransactionTable({
                           onClick={handleCellClick}
                         >
                           {column.render(entry[column.key])}
+                          {/* CR065: a securities-trade leg whose counter-leg does
+                              not exist. Shown where the decision is made, next to
+                              the description, rather than only on the reconcile
+                              page a day later. */}
+                          {column.key === "Description1" && entry.needsOffset && (
+                            <span
+                              className="trans-badge trans-badge--warn"
+                              title={
+                                "No offsetting entry. Both legs of a securities trade live in this " +
+                                "account and must cancel — accepting this alone leaves the balance " +
+                                "short by the full amount, and on a brokerage account that reads as " +
+                                "a market move, not a mistake. Use Neutralize."
+                              }
+                            >
+                              no offset
+                            </span>
+                          )}
                         </td>
                       );
                     })}

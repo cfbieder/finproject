@@ -9,6 +9,29 @@ const db = require('../db');
 /**
  * Get all transactions with optional filtering
  */
+// CR065: "this row is a self-netting transfer leg with no counter-leg."
+//
+// Both legs of a neutralized securities trade live in the same account and must
+// cancel; `paired_with_id` records which two. A row in that category with no
+// partner is therefore a 1:1 error in the account balance waiting to happen —
+// or, if it is still unaccepted, one waiting to be avoided.
+//
+// ONE definition, used by every list query and by the review queue, so the badge
+// the owner sees and the warning that fires can never disagree about what counts.
+// Requires the category join to be aliased `c` (true in all four call sites).
+//
+// Bounded by the migration-053 watermark for the same reason the reconcile check
+// is: below it, pairing was never recorded and this category also carries genuine
+// cross-account transfers, so ~1,800 legacy rows would light up and the badge
+// would mean nothing. A missing watermark key yields NULL → FALSE: quiet, not
+// loud-and-wrong.
+const NEEDS_OFFSET_SQL = `
+  COALESCE(
+    t.paired_with_id IS NULL
+    AND c.name = 'Transfer - Securities Trades'
+    AND t.id > (SELECT (value #>> '{}')::bigint FROM app_data WHERE key = 'cr065_pairing_since_tx_id')
+  , FALSE) AS needs_offset`;
+
 async function findAll({ startDate, endDate, categoryId, accountId, limit = 1000, offset = 0 } = {}) {
   const conditions = [];
   const params = [];
@@ -40,7 +63,9 @@ async function findAll({ startDate, endDate, categoryId, accountId, limit = 1000
       t.transaction_type, t.closing_balance, t.labels, t.memo, t.note, t.bank, t.source,
       t.transfer_matched,
       t.account_id, a.name as account_name,
-      t.category_id, c.name as category_name
+      t.category_id, c.name as category_name,
+      t.accepted, t.paired_with_id,
+      ${NEEDS_OFFSET_SQL}
     FROM transactions t
     LEFT JOIN accounts a ON t.account_id = a.id
     LEFT JOIN accounts c ON t.category_id = c.id
@@ -130,7 +155,9 @@ async function findAllExtended({
       t.transaction_type, t.closing_balance, t.labels, t.memo, t.note, t.bank, t.source,
       t.transfer_matched,
       t.account_id, a.name as account_name,
-      t.category_id, c.name as category_name
+      t.category_id, c.name as category_name,
+      t.accepted, t.paired_with_id,
+      ${NEEDS_OFFSET_SQL}
     FROM transactions t
     LEFT JOIN accounts a ON t.account_id = a.id
     LEFT JOIN accounts c ON t.category_id = c.id
@@ -232,6 +259,8 @@ async function findLedgerWithRunningBalance({
       t.transfer_matched,
       t.account_id, a.name as account_name,
       t.category_id, c.name as category_name,
+      t.accepted, t.paired_with_id,
+      ${NEEDS_OFFSET_SQL},
       h.running_balance
     FROM transactions t
     JOIN hist h ON h.id = t.id
@@ -971,6 +1000,7 @@ async function updateTransferMatchedFlags({ matchedIds, unmatchedIds, startDate,
 }
 
 module.exports = {
+  NEEDS_OFFSET_SQL,
   findAll,
   findAllExtended,
   findLedgerWithRunningBalance,

@@ -217,6 +217,33 @@ dbDescribe('transactions.neutralize (DB)', () => {
     expect(plan.action).toBe('already-paired');
   });
 
+  // CR065: the flag behind the review-queue badge and the accept warning. It is
+  // the same SQL the reconcile page uses, so a drift between "what the badge says"
+  // and "what the check counts" is impossible by construction.
+  test('needs_offset: true for an unpaired transfer leg, false once neutralized', async () => {
+    await freshAccount();
+    const legId = await addTx(-8800, '2026-07-30', categoryId);
+
+    const before = (await repo.findAllExtended({ accountId: acctId }))
+      .find((r) => String(r.id) === String(legId));
+    expect(before.needs_offset).toBe(true);
+
+    await repo.neutralize(legId, categoryId);
+
+    const rows = await repo.findAllExtended({ accountId: acctId });
+    // Both the leg and its freshly-created counter-leg are now answered for.
+    expect(rows).toHaveLength(2);
+    expect(rows.every((r) => r.needs_offset === false)).toBe(true);
+  });
+
+  test('needs_offset: an ordinary category is never flagged', async () => {
+    await freshAccount();
+    const id = await addTx(-500, '2026-07-30', null);   // uncategorized
+    const row = (await repo.findAllExtended({ accountId: acctId }))
+      .find((r) => String(r.id) === String(id));
+    expect(row.needs_offset).toBe(false);
+  });
+
   test('transferToAccount records its cross-account pair', async () => {
     await freshAccount();
     const target = (await db.query(

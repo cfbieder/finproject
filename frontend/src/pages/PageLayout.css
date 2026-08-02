@@ -4291,3 +4291,26 @@
   position: relative;
   z-index: 1;
 }
+
+/* ── CR065: "no offset" badge on a securities-trade leg with no counter-leg ──
+   Sits inline in the review queue's Description cell, where the accept decision
+   is actually made. Tokens only (the hex ratchet), and both themes inherit
+   because --warning / --warning-subtle are redefined under the dark root. */
+.trans-badge {
+  display: inline-block;
+  margin-left: 0.4rem;
+  padding: 0.05rem 0.35rem;
+  border-radius: 0.25rem;
+  font-size: 0.65rem;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
+  white-space: nowrap;
+  vertical-align: middle;
+}
+
+.trans-badge--warn {
+  color: var(--warning-strong);
+  background: var(--warning-subtle);
+  border: 1px solid var(--warning-light);
+}

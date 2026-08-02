@@ -18,6 +18,7 @@ import CategorySelector from "../components/CategorySelector/CategorySelector.js
 import { AccountPicker, buildHierarchyOptions } from "../components/AccountPicker/AccountPicker.jsx";
 import { useCoa } from "../hooks/useCoa.js";
 import Modal from "../components/Modal/Modal.jsx";
+import ConfirmModal from "../components/ConfirmModal/ConfirmModal.jsx";
 import DataTable from "../components/DataTable/DataTable.jsx";
 import "./PageLayout.css";
 import EmptyState from "../components/EmptyState.jsx";
@@ -499,12 +500,53 @@ export default function RefreshFeeds() {
    * Accept transactions
    **************************/
 
+  // ── CR065: accepting is not neutralizing ──────────────────────────────────
+  //
+  // A securities-trade leg is half of a pair; accepting it only says "I have
+  // looked at this". Accepted without its counter-leg, the account balance is
+  // light by the full amount, and on an `mtm` account that reads as a market
+  // move rather than an error — which is how $150,000 hid inside Fidelity Cash
+  // Mgt's drift for five days.
+  //
+  // Every accept path funnels through here, so a leg cannot slip in via the
+  // single-row button, Accept All, or Accept Selected. It WARNS rather than
+  // blocks: this category also carries genuine cross-account transfers, whose
+  // counter-leg legitimately sits in another account.
+  const [acceptWarning, setAcceptWarning] = useState(null); // { message, resolve }
+
+  const confirmUnpairedAccept = useCallback((ids) => {
+    const wanted = new Set(ids);
+    const loose = reviewTransactions.filter((t) => wanted.has(t.id) && t.needsOffset);
+    if (loose.length === 0) return Promise.resolve(true);
+
+    const total = loose.reduce((sum, t) => sum + (Number(t.Amount) || 0), 0);
+    const detail = loose.slice(0, 4)
+      .map((t) => `  • ${t.Account} · ${t.Description1 ?? ""}`.slice(0, 76) + ` ${Number(t.Amount).toLocaleString()}`)
+      .join("\n");
+    return new Promise((resolve) => {
+      setAcceptWarning({
+        resolve,
+        message:
+          `${loose.length} of these ${loose.length === 1 ? "is a securities-trade leg" : "are securities-trade legs"} with NO offsetting entry:\n\n` +
+          detail + (loose.length > 4 ? `\n  … and ${loose.length - 4} more` : "") +
+          `\n\nAccepting leaves the balance ${total.toLocaleString(undefined, { maximumFractionDigits: 2 })} out — it will show up as drift, ` +
+          `and on a brokerage account it will look like a market move rather than a mistake.\n\n` +
+          `Use Neutralize instead unless the offsetting leg is genuinely in another account.\n\nAccept anyway?`,
+      });
+    });
+  }, [reviewTransactions]);
+
+  const resolveAcceptWarning = useCallback((proceed) => {
+    setAcceptWarning((w) => { w?.resolve?.(proceed); return null; });
+  }, []);
+
   const handleAcceptClick = useCallback(async (rowId, entry) => {
     const id = entry?.id ?? entry?._id;
     if (!id || typeof id !== "number") {
       showErrorToast("Cannot accept: transaction not yet synced to database");
       return;
     }
+    if (!(await confirmUnpairedAccept([id]))) return;
     setAcceptingId(id);
     try {
       const response = await fetch(
@@ -526,7 +568,7 @@ export default function RefreshFeeds() {
     } finally {
       setAcceptingId(null);
     }
-  }, [loadReviewTransactions, showSuccess, showErrorToast]);
+  }, [loadReviewTransactions, showSuccess, showErrorToast, confirmUnpairedAccept]);
 
   const handleAcceptAll = useCallback(async () => {
     const unacceptedIds = reviewTransactions
@@ -536,6 +578,7 @@ export default function RefreshFeeds() {
       showErrorToast("No transactions to accept");
       return;
     }
+    if (!(await confirmUnpairedAccept(unacceptedIds))) return;
     setAcceptingId("all");
     try {
       const results = await patchInBatches(unacceptedIds, { accepted: true });
@@ -551,7 +594,7 @@ export default function RefreshFeeds() {
     } finally {
       setAcceptingId(null);
     }
-  }, [reviewTransactions, patchInBatches, loadReviewTransactions, showSuccess, showErrorToast]);
+  }, [reviewTransactions, patchInBatches, loadReviewTransactions, showSuccess, showErrorToast, confirmUnpairedAccept]);
 
   // CR022: accept only the rows from one source (PS or bank-feed) in the queue.
   // Retained for when the queue regains a second source; the per-source button
@@ -566,6 +609,7 @@ export default function RefreshFeeds() {
       showErrorToast(`No ${label} transactions to accept`);
       return;
     }
+    if (!(await confirmUnpairedAccept(ids))) return;
     setAcceptingId(source);
     try {
       const results = await patchInBatches(ids, { accepted: true });
@@ -581,7 +625,7 @@ export default function RefreshFeeds() {
     } finally {
       setAcceptingId(null);
     }
-  }, [reviewTransactions, patchInBatches, loadReviewTransactions, showSuccess, showErrorToast]);
+  }, [reviewTransactions, patchInBatches, loadReviewTransactions, showSuccess, showErrorToast, confirmUnpairedAccept]);
 
   const handleAcceptSelected = useCallback(async () => {
     const selectedIds = [...selectedRows.values()]
@@ -591,6 +635,7 @@ export default function RefreshFeeds() {
       showErrorToast("No valid transactions selected");
       return;
     }
+    if (!(await confirmUnpairedAccept(selectedIds))) return;
     setAcceptingId("selected");
     try {
       const results = await patchInBatches(selectedIds, { accepted: true });
@@ -607,7 +652,7 @@ export default function RefreshFeeds() {
     } finally {
       setAcceptingId(null);
     }
-  }, [selectedRows, patchInBatches, loadReviewTransactions, clearSelection, showSuccess, showErrorToast]);
+  }, [selectedRows, patchInBatches, loadReviewTransactions, clearSelection, showSuccess, showErrorToast, confirmUnpairedAccept]);
 
   /**************************
    * Split transaction
@@ -1437,6 +1482,18 @@ export default function RefreshFeeds() {
           </section>
         )}
       </main>
+
+      {/* ── CR065: accepting a securities-trade leg with no counter-leg ── */}
+      <ConfirmModal
+        state={acceptWarning ? {
+          title: "This leg has no offsetting entry",
+          message: acceptWarning.message,
+          confirmLabel: "Accept anyway",
+          danger: true,
+        } : null}
+        onConfirm={() => resolveAcceptWarning(true)}
+        onCancel={() => resolveAcceptWarning(false)}
+      />
     </>
   );
 }

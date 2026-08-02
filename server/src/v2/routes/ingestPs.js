@@ -9,6 +9,9 @@ const express = require('express');
 const router = express.Router();
 const fs = require('node:fs/promises');
 const psdata = require('../repositories/psdata');
+// CR065: the one definition of "needs a counter-leg", shared with every list query
+// so the review-queue badge and the reconcile check cannot disagree.
+const transactionsRepo = require('../repositories/transactions');
 const { dataPaths, tempFiles, ensureComponentsDataDir } = require('../../utils/dataPaths');
 
 ensureComponentsDataDir();
@@ -566,7 +569,9 @@ router.post('/review-new-transactions', async (req, res) => {
         t.memo,
         t.note,
         t.bank,
-        t.source
+        t.source,
+        t.paired_with_id,
+        ${transactionsRepo.NEEDS_OFFSET_SQL}
       FROM transactions t
       LEFT JOIN accounts a ON t.account_id = a.id
       LEFT JOIN accounts c ON t.category_id = c.id

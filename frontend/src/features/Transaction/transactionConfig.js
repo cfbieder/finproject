@@ -289,6 +289,12 @@ export const REVIEW_CONFIG = {
       Note: txn.note,
       Bank: txn.bank,
       Source: txn.source,
+      // CR065: a securities-trade leg whose counter-leg does not exist yet.
+      // Accepting it as-is leaves the account balance one leg light — which is
+      // exactly how $150,000 went missing from Fidelity Cash Mgt — so the row is
+      // badged and Accept asks first. Server-computed (bounded to the migration
+      // 053 watermark); absent field ⇒ false.
+      needsOffset: txn.needs_offset === true,
     };
   },
 
