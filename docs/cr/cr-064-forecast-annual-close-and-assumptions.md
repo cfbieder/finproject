@@ -601,5 +601,5 @@ Reuse, not new machinery — but nothing is *wrong* without it, which is why it 
 - **P3** — pending.
 - **P6** — built (migration 055), dormant, **live as v3.11.8**.
 - **P7** — built, no migration.
-- **P8** — built, no migration. **Changes existing numbers** — prod regenerated on deploy.
+- **P8** — built, no migration, **live as v3.11.10**. The base-year column is corrected on read; the stored forecast entries still carry the old opening cash. **Regenerate deferred** until §8.6's UB question is answered, so the plan is rebuilt once on a confirmed number.
 - **P4 / P5** — designed here, not scheduled.
