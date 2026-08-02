@@ -1,4 +1,4 @@
-# CR065 — A neutralize counter-leg is claimable exactly once — ✅ BUILT · migration 053 + prod data fix APPLIED (code deploy pending)
+# CR065 — A neutralize counter-leg is claimable exactly once — ✅ COMPLETE (v3.11.4, migration 053 dev + prod)
 
 `neutralize()` decided "does this row already have a counter-leg?" by re-running a **value
 match** over the ledger. Value-matching is not identity: two rows of the same value are
@@ -10,8 +10,7 @@ mirror and Fidelity Cash Mgt ran **$150,000 light**.
 [CR032](cr-032-core-cash-sweep-neutralization.md)
 
 **Opened:** 2026-08-02 · **Track:** v3 · **Migration:** 053 (**dev + prod applied 2026-08-02**)
-**Prod data corrected 2026-08-02** (§6); **code deploy still pending** — prod runs the old
-`neutralize()` until it ships.
+**Shipped:** 2026-08-02 (v3.11.4) · **Prod data corrected** the same day — §6.
 **Found by:** the owner, asking why Fidelity Cash Mgt showed −107,830.71 of drift when it
 "cannot just be MTM". It could not — see §2.
 
@@ -202,15 +201,12 @@ And that remainder decomposes exactly: 41,364.79 (the unpromoted 2026-07-31 feed
 
 ## 7. Still open
 
-1. **The code is not deployed.** Until it is, prod's `neutralize()` can still double-claim —
-   the unique index would not stop it, because the old code never writes `paired_with_id` at
-   all. Deploy before neutralizing anything by hand.
-2. **The 2026-07-31 feed backlog** (nine staged rows, net −41,364.79) is unpromoted, and
+1. **The 2026-07-31 feed backlog** (nine staged rows, net −41,364.79) is unpromoted, and
    Fidelity Options carries **191** unpromoted staging rows back to 2026-05-04 (Stocks 46).
    Those net to ~0 so they are not distorting balances the same way, but they want a look.
-3. **The $78.35 residue** on Fidelity Cash Mgt beyond the $150,000, and the smaller ones on
+2. **The $78.35 residue** on Fidelity Cash Mgt beyond the $150,000, and the smaller ones on
    IRA / Bond / Stocks / Options, are pre-existing and unexplained. The §4.5 check cannot see
    them (pre-watermark) — they need a one-off pass.
-4. **Transfer Analysis already has both cleanup halves** ("remove orphaned neutralize-mirror",
+3. **Transfer Analysis already has both cleanup halves** ("remove orphaned neutralize-mirror",
    "neutralize a genuine unmatched leg"), so the *converse* symptom was known and tooled. The
    direction this CR fixes had no detection at all until §4.5.

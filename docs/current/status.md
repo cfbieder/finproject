@@ -4,7 +4,7 @@
 > CR statuses live in the [CR index](../cr/README.md); the running version lives in `VERSION`.
 > Older headlines: [status log](../archive/status-log_2026-08-01.md).
 
-**Last updated:** 2026-08-02 · **Live version:** v3.11.3 (see `VERSION` / git tags)
+**Last updated:** 2026-08-02 · **Live version:** v3.11.4 (see `VERSION` / git tags)
 
 ## Current phase
 **[CR064](../cr/cr-064-forecast-annual-close-and-assumptions.md) is the live thread** — P0/P1/P3 shipped in
@@ -16,10 +16,10 @@ brokerage-history data work. Detail lives in the CR file linked from each line.
   once.** Owner-found: Fidelity Cash Mgt showed −107,830.71 of drift and it "cannot just be MTM". It
   could not — **$108,635 was bookkeeping, $804.50 was market**. `neutralize()` tested "already has a
   counter-leg?" by *value*, which is not identity, so two genuine $150,000 CD purchases claimed the
-  same mirror. Migration **053** makes the **database** refuse a double-claim. **053 and the prod data
-  fix are applied** (2026-08-02): drift **−107,830.71 → +42,169.29**, which is exactly the unpromoted
-  07/31 feed rows (41,364.79) + the real MTM (804.50). ⚠️ **Code deploy still pending** — until it
-  ships prod runs the old `neutralize()`, so do not neutralize by hand. Then promote 07/31, then MTM.
+  same mirror. Migration **053** makes the **database** refuse a double-claim. **Live in v3.11.4**
+  (053 + the prod data fix applied 2026-08-02): drift **−107,830.71 → +42,169.29**, which is exactly
+  the unpromoted 07/31 feed rows (41,364.79) + the real MTM (804.50), and the new per-account
+  unpaired-leg check reads **0** everywhere. *Next:* promote the 07/31 backlog, then book the MTM.
 - **CI is green again** — migration **050**'s `found <> 1` guard was unconditional and aborted the
   chain on a data-free database, so `main` had been red since `2d49ff3`. **Third instance of this
   class** (046 was the first, and the fix note for it says exactly this), and again nothing
@@ -40,7 +40,7 @@ brokerage-history data work. Detail lives in the CR file linked from each line.
 - **[CR060](../cr/cr-060-feed-connection-health.md) — a broken feed announces itself.** Bank-feed side deployed; **fin's recon page still to do**.
 - **A secured-asset link set inside a VARIANT was erased by the save that set it** ([CR062 §11.2](../cr/cr-062-forecast-loan-module.md), fixed in v3.11.3, prod rows repaired). Owner-found: "2026 Buy Business" read *"No asset carries debt"* with both loans secured. Two id spaces reach variant sync's link resolution — an inherited link is a **base** module id, an overridden one is a **variant** id (the picker offers the variant's own modules) — and it mapped base→variant unconditionally, so `|| null` unsecured the loan inside `interceptWrite`'s own transaction: the PUT that saved the link returned 200 with it already gone. Now resolved by which scenario the target sits in. Nothing was lost — the override patches are the record — and on prod the links **self-healed on the first read after the deploy**: the very operation that used to erase them now restores them.
 - **[CR050](../cr/cr-050-forecast-scenario-variants.md) — variants** are live and adopted; §10 (v3.11.0) made a variant read as one in all seven pickers. Owner has not yet run `adopt-variant` on "2026 Downside".
-- **Recent releases:** v3.11.3 ([CR064](../cr/cr-064-forecast-annual-close-and-assumptions.md) P0/P1/P3 + the variant link above, migration 052) · v3.11.2 (the red CI) · v3.11.1 (the period filter) · v3.11.0 ([CR050 §10](../cr/cr-050-forecast-scenario-variants.md)) · v3.10.0 ([CR063](../cr/cr-063-coa-ordering.md), migration 049) · v3.8.0–v3.9.2 ([CR062](../cr/cr-062-forecast-loan-module.md) loans + equity, migrations 047/048).
+- **Recent releases:** v3.11.4 ([CR065](../cr/cr-065-neutralize-pair-identity.md), migration 053) · v3.11.3 ([CR064](../cr/cr-064-forecast-annual-close-and-assumptions.md) P0/P1/P3 + the variant link above, migration 052) · v3.11.2 (the red CI) · v3.11.1 (the period filter) · v3.11.0 ([CR050 §10](../cr/cr-050-forecast-scenario-variants.md)) · v3.10.0 ([CR063](../cr/cr-063-coa-ordering.md), migration 049) · v3.8.0–v3.9.2 ([CR062](../cr/cr-062-forecast-loan-module.md) loans + equity, migrations 047/048).
 
 ## Known issue
 - ⚠️ **"2026 Downside" has no sweep backup ranked** — *owner is redoing this scenario themselves (2026-07-13); **do not fix it**.* `Fidelity Stocks` carries no `cash_sweep_priority` there, so the engine reports **−$1.25M of shortfall across 2061–62 while $1.2M of stock sits untouched**. That is [CR045](../cr/cr-045-forecast-cash-warnings-liquidation.md) §5 working as designed (unranked = "I cannot sell this"), but for a liquid brokerage account it is almost certainly a data slip. One-row fix, left to the owner because it changes Downside's conclusions.
