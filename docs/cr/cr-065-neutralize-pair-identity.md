@@ -371,3 +371,31 @@ belongs to. The guard stops the silent mistakes in the meantime.
 Bond (7,670.78), Options (1,498.51) and IRA (1,347.11) still await their own marks — the
 same `bookDate` 2026-07-31 + `balanceDate` 2026-08-02 pairing applies, and the guard will now
 refuse them if that observation turns out not to contain 07/31 either.
+
+### 11.1 The guard needed a way out (v3.11.7)
+
+Shipping guard (c) left the UI with a refusal and no remedy — the page only ever sent
+`bookDate`, so Bond, Options and IRA became unbookable from the browser. The owner hit it
+within the hour: *"I did the MTM adjustment as of 7/31 but it did not book."* It was working
+exactly as designed and that is not the same as being usable.
+
+- The refusal now **lists the candidate observations with their balances** —
+  `Later observations: 2026-08-01 = 1,219,893.81 · 2026-08-02 = 1,219,402.92` — so the choice
+  is made on evidence rather than a shrug.
+- `MtmDateControl` gains an optional **"mark against balance dated"** input, plumbed through
+  as `balanceDate`. Blank = unchanged behaviour, so nothing else moves.
+
+**Still no auto-pick, and this is the reason:** "synced after day D" does **not** imply
+"contains day D". Fidelity Cash Mgt's 08-01 observation was synced after 07-31 ended and
+still lacked that day's −41,564.86 wire. Any auto-rule would have chosen it and been wrong.
+The evidence goes to the human until the lag is actually proven (Known Issue #14).
+
+**Which observation is right, and how we know.** Cash Mgt is the account that can be checked
+against a document: its 08-02 observation (1,087,138.91) matches the custodian's 07/31 close
+exactly, and 08-01 does not. All these accounts ride one connection synced at the same times,
+so 08-02 is the observation carrying 07-31 for all of them — which is also what the Stocks
+weekend argument independently implies.
+
+**Fidelity Bond booked** −7,670.78 at 2026-07-31 against the 08-02 observation → **drift
+0.00**. Three of five Fidelity accounts now reconcile exactly; Options (1,498.51) and IRA
+(1,347.11) remain, same treatment.
