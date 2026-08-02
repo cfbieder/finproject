@@ -399,3 +399,61 @@ weekend argument independently implies.
 **Fidelity Bond booked** −7,670.78 at 2026-07-31 against the 08-02 observation → **drift
 0.00**. Three of five Fidelity accounts now reconcile exactly; Options (1,498.51) and IRA
 (1,347.11) remain, same treatment.
+
+## 12. Chase Checking: a plug for history that arrived later
+
+Not a CR065 defect — found while sweeping the reconcile page to zero, with the owner's
+`Chase7265_Activity_20260802.csv` as the check.
+
+**The activity is perfect.** 142 rows in the bank export, 142 in fin, identical sums, nothing
+unmatched in either direction over 2026-01-02 → 2026-07-31. So none of the −1,950.61 drift
+was in the transactions; all of it was in the balance carried *into* the window:
+
+| | |
+|---|---|
+| bank balance before the earliest CSV row | 25,166.36 |
+| fin balance at 2026-01-01 | 23,215.75 |
+| difference | **1,950.61** |
+
+**A plug that outlived its history.** On **2026-05-21** the account was calibrated: fin's
+Chase history then began 2022-12-01, and `opening_balance` was set to **−1,995.64** to stand
+in for everything earlier. On **2026-06-05** the Quicken import back-filled **6,058
+transactions** covering 1999-12-31 → 2022-11-25 — including its own `Opening Balance` row of
+**+1,950.61** — and nothing reset the plug. The account then carried its pre-2022 history
+twice: once as a plug, once as the real rows. The delta is exactly the Quicken opening row.
+
+Same class as CR058's "2023 handoff plug", which was found and corrected for Fidelity and
+never done for Chase.
+
+**Re-anchored** to **−45.03** (`old_opening −1,995.64 → new_opening −45.03`) — a figure
+derived by hand before the dry-run was run, and matched by it. **Every fed account now
+reconciles: `total_unreconciled: 0`.**
+
+Stated rather than smoothed over: **1,950.61 of that is explained** (the stale plug) and
+**45.03 is not** — a residue somewhere in the 6,058 imported rows that the re-anchor absorbs.
+Conceptually the plug should be **0**, since the Quicken row is the 1999 opening. The export
+only reaches back to January, so chasing 0.07% would need older statements.
+
+### 12.1 Why Fidelity is NOT exposed to the same thing
+
+Four other accounts were calibrated *before* Quicken back-filled them, so the question was
+whether their plugs are stale too — and for the two `mtm` ones it matters more, because a
+stale plug there would be absorbed into an MTM entry and read as *unrealized gain*.
+
+The ordering settles it:
+
+| account | calibrated | quicken imported | **anchors written** |
+|---|---|---|---|
+| Chase Checking | 2026-05-21 | 2026-06-05 | **never** |
+| Fidelity IRA | 2026-06-03 | 2026-07-30 | 2026-07-30 |
+| Fidelity Stocks | 2026-06-03 | 2026-07-29 | 2026-07-31 |
+
+CR058's valuation anchors are **deltas that force fin to the custodian's statement** at each
+quarter-end, and for both Fidelity accounts they were computed **after** the import — so any
+plug error upstream of the last anchor (2025-12-31 IRA, 2025-01-01 Stocks) is absorbed by
+construction. Chase had no anchors at all, which is precisely why its plug survived. Chase
+Saving and Santandar reconcile at 0.00 on their own.
+
+**The reusable check** is the ordering itself: an account whose `last_calibrated_at` predates
+the `created_at` of its earliest back-filled history, and which has no later anchor, is
+carrying a plug for history it now also holds as rows.
