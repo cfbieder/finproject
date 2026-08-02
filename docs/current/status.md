@@ -16,8 +16,10 @@ brokerage-history data work. Detail lives in the CR file linked from each line.
   once.** Owner-found: Fidelity Cash Mgt showed −107,830.71 of drift and it "cannot just be MTM". It
   could not — **$108,635 was bookkeeping, $804.50 was market**. `neutralize()` tested "already has a
   counter-leg?" by *value*, which is not identity, so two genuine $150,000 CD purchases claimed the
-  same mirror. Migration **053** makes the **database** refuse a double-claim. Built on dev; gates
-  green. ⚠️ **Prod: apply 053 → neutralize tx 2709773 → only then book MTM** — MTM first bakes it in.
+  same mirror. Migration **053** makes the **database** refuse a double-claim. **053 and the prod data
+  fix are applied** (2026-08-02): drift **−107,830.71 → +42,169.29**, which is exactly the unpromoted
+  07/31 feed rows (41,364.79) + the real MTM (804.50). ⚠️ **Code deploy still pending** — until it
+  ships prod runs the old `neutralize()`, so do not neutralize by hand. Then promote 07/31, then MTM.
 - **CI is green again** — migration **050**'s `found <> 1` guard was unconditional and aborted the
   chain on a data-free database, so `main` had been red since `2d49ff3`. **Third instance of this
   class** (046 was the first, and the fix note for it says exactly this), and again nothing

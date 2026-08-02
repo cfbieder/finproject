@@ -1,4 +1,4 @@
-# CR065 — A neutralize counter-leg is claimable exactly once — ✅ BUILT (dev, migration 053)
+# CR065 — A neutralize counter-leg is claimable exactly once — ✅ BUILT · migration 053 + prod data fix APPLIED (code deploy pending)
 
 `neutralize()` decided "does this row already have a counter-leg?" by re-running a **value
 match** over the ledger. Value-matching is not identity: two rows of the same value are
@@ -9,7 +9,9 @@ mirror and Fidelity Cash Mgt ran **$150,000 light**.
 [Roadmap](../current/project-roadmap.md) · [CR028](cr-028-securities-trade-neutralization.md) ·
 [CR032](cr-032-core-cash-sweep-neutralization.md)
 
-**Opened:** 2026-08-02 · **Track:** v3 · **Migration:** 053 (dev applied; **prod pending**)
+**Opened:** 2026-08-02 · **Track:** v3 · **Migration:** 053 (**dev + prod applied 2026-08-02**)
+**Prod data corrected 2026-08-02** (§6); **code deploy still pending** — prod runs the old
+`neutralize()` until it ships.
 **Found by:** the owner, asking why Fidelity Cash Mgt showed −107,830.71 of drift when it
 "cannot just be MTM". It could not — see §2.
 
@@ -169,12 +171,40 @@ and checks everything.
 - **Gates:** 740 backend · 298 frontend · lint 0 errors · all six ratchets OK.
 - Migration re-applied to dev to prove idempotency (`UPDATE 0` on the second run).
 
-## 6. Still open
+## 6. Prod, 2026-08-02
 
-1. **The prod data correction is not done.** Transaction **2709773** (Texas Exchange) still
-   has no counter-leg. After 053 is applied to prod, neutralizing it once creates the
-   +150,000 mirror. Order matters: migration first, then the neutralize, then the MTM entry —
-   booking MTM first would bake $108k of error into the ledger.
+Backup taken first (`Backups/fin_backup_20260802_123125_pre-cr065.dump`, 4.3 MB).
+
+**Migration** applied with `node server/db/migrate.js` rather than by hand, so the
+`schema_migrations` ledger records it and `deploy-to-production.sh` will not re-run it.
+Dry-run showed exactly one pending file. The backfill linked **328 rows (164 pairs)**, left
+18 mirrors NULL, and — the check that mattered — linked mirror 2709785 to **2709774**
+(United Bankers) while correctly leaving **2709773** (Texas Exchange) unclaimed.
+
+**The data fix went in as SQL, not through the API.** Prod still runs the *old* `neutralize()`,
+whose candidate query does not test `paired_with_id`: calling it on 2709773 would have found
+2709785 a second time and re-paired, reproducing the defect and creating nothing. So the
+mirror path was replicated in one transaction — insert the negated `auto-offset` leg with
+`paired_with_id` set, stamp the original — guarded by `paired_with_id IS NULL` so a re-run is
+a no-op. **This is the ordering correction to §7.1 as first written: the data fix must follow the code deploy,
+or bypass the API entirely.**
+
+| | |
+|---|---|
+| computed before | 979,308.20 |
+| computed after (new leg **2709789**, +150,000) | 1,129,308.20 |
+| bank reported | 1,087,138.91 |
+| **drift, was −107,830.71, now** | **+42,169.29** |
+
+And that remainder decomposes exactly: 41,364.79 (the unpromoted 2026-07-31 feed rows) +
+804.50 (the genuine MTM) = 42,169.29. Both pairs are symmetric and a table-wide check returns
+**zero** one-sided links.
+
+## 7. Still open
+
+1. **The code is not deployed.** Until it is, prod's `neutralize()` can still double-claim —
+   the unique index would not stop it, because the old code never writes `paired_with_id` at
+   all. Deploy before neutralizing anything by hand.
 2. **The 2026-07-31 feed backlog** (nine staged rows, net −41,364.79) is unpromoted, and
    Fidelity Options carries **191** unpromoted staging rows back to 2026-05-04 (Stocks 46).
    Those net to ~0 so they are not distorting balances the same way, but they want a look.
