@@ -478,3 +478,54 @@ Saving and Santandar reconcile at 0.00 on their own.
 **The reusable check** is the ordering itself: an account whose `last_calibrated_at` predates
 the `created_at` of its earliest back-filled history, and which has no later anchor, is
 carrying a plug for history it now also holds as rows.
+
+## 13. The three cleanups
+
+### 13.1 A securities trade on a credit card
+
+`Amazon Visa` row **11030** (2025-06-25, +376.69, *"AUTOMATIC PAYMENT - THANK YOU"*) was
+categorised **Transfer - Securities Trades**. A credit card cannot have one. Its counter-leg
+was already sitting correctly in Chase Checking (row 9912, −376.69, *Transfer - Credit Card
+Payments*), and 56 of the card's other 67 automatic payments use that same category — so this
+was one mis-clicked row. Recategorised. The neutralize category is now confined to the five
+brokerage accounts where it belongs.
+
+### 13.2 The "$45.03 residue" — there isn't one
+
+See the correction in §12. `opening_balance` is a **calibration anchor, not a historical
+fact**; the framing that it "ought to be 0" applies only to accounts with no PocketSmith
+coverage. Nothing to chase.
+
+### 13.3 The 1,861 legacy unlinked legs — mostly fine, and two that were not
+
+Characterising them before touching anything turned out to matter:
+
+| | |
+|---|---|
+| unlinked legs (all pre-CR065) | 1,861 |
+| …with an opposite-amount partner in the **same account**, ±3 days | **1,756 (94%)** |
+| …with no partner **anywhere** | 88 |
+
+So the overwhelming majority are genuine self-netting pairs whose link was simply never
+recorded, because the column did not exist when they were made. **Recommendation: leave
+them.** Every one of these accounts now ties to the custodian at 0.00, so linking 1,756
+historical rows buys tidiness and no correctness. The forward-looking check is bounded to the
+watermark precisely so it does not drown in them.
+
+The 88 with no partner anywhere were worth reading, and two of them were not trades at all:
+
+| row | date | amount | description | was | is |
+|---|---|---|---|---|---|
+| 11448 | 2020-10-14 | −23,536.00 | `DIRECT DEBIT IRS USATAXPYMT` | Transfer - Securities Trades | **Taxes US** |
+| 11541 | 2021-05-17 | −126,500.00 | `DIRECT DEBIT IRS USATAXPYMT` | Transfer - Securities Trades | **Taxes US** |
+
+Every other IRS `USATAXPYMT` on that account — 2023, 2024 ×2, 2025, 2026 — is *Taxes US*.
+These two were misfiled, so **$150,036 of tax expense was sitting in a transfer bucket**,
+which is excluded from P&L. **2021 reported zero US tax expense** and now reports −126,500;
+2020 goes −7,000 → −30,536. Balances are untouched (a category never moves one) — this is
+purely a reporting correction, and a material one for those two years.
+
+The remaining 86 are pre-CR032 core sweeps, reinvestments and sales whose mirrors were never
+created, plus one near-pair the exact-amount matcher misses by $11.61 (a 2023-11-14 core
+redemption of 249,988.39 funding a 250,000.00 CD purchase the next day). None affects a
+reconciled balance; they are historical shape, not money.
