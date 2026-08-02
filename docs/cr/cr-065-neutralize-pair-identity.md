@@ -1,4 +1,4 @@
-# CR065 — A neutralize counter-leg is claimable exactly once — ✅ COMPLETE (v3.11.4, migration 053 dev + prod)
+# CR065 — A neutralize counter-leg is claimable exactly once — ✅ COMPLETE (v3.11.4–v3.11.7, migrations 053 + 054, dev + prod)
 
 `neutralize()` decided "does this row already have a counter-leg?" by re-running a **value
 match** over the ledger. Value-matching is not identity: two rows of the same value are
@@ -9,7 +9,10 @@ mirror and Fidelity Cash Mgt ran **$150,000 light**.
 [Roadmap](../current/project-roadmap.md) · [CR028](cr-028-securities-trade-neutralization.md) ·
 [CR032](cr-032-core-cash-sweep-neutralization.md)
 
-**Opened:** 2026-08-02 · **Track:** v3 · **Migration:** 053 (**dev + prod applied 2026-08-02**)
+**Opened:** 2026-08-02 · **Track:** v3 · **Migrations:** 053 + 054 (**dev + prod, 2026-08-02**)
+**Shipped across four releases the same day:** v3.11.4 (the identity + guards) · v3.11.5 (the
+review-queue badge and accept guard, §9) · v3.11.6 (the MTM stale-balance guard, §11) ·
+v3.11.7 (the way past it, §11.1). §12–§14 are adjacent findings and cleanup.
 **Shipped:** 2026-08-02 (v3.11.4) · **Prod data corrected** the same day — §6.
 **Found by:** the owner, asking why Fidelity Cash Mgt showed −107,830.71 of drift when it
 "cannot just be MTM". It could not — see §2.
