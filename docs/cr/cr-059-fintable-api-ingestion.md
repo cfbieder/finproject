@@ -880,6 +880,57 @@ would have *passed*, because zero rows match a name that no longer exists, leavi
 mapping live. 050 now names both ids and **raises unless exactly one matches**, so "nothing matched" can
 no longer read as success. Both orders verified to converge on an identical final state.
 
+## 20. 044 reached prod early and was incomplete — what broke, and the two lessons (2026-08-02)
+
+**What the owner saw:** every account on the reconcile page reading **"no feed"**.
+
+**Two independent failures, and both are worth keeping.**
+
+**(1) The migration reached prod before it was ready.** 044 was applied at **2026-08-01 18:53:04** — 72
+seconds *before* it was committed. It had been written into `server/db/migrations/` and described as
+"not applied anywhere", but that directory is exactly what `deploy-to-production.sh` scans, and another
+thread deployed in the gap. **An unfinished migration parked in the migrations directory of a shared
+working tree is not inert.** The existing git-concurrency rules cover commits and pushes; they do not
+cover *untracked files a deploy will pick up*. Anything not meant to run yet belongs outside that
+directory until the moment it is meant to run.
+
+**(2) 044 was incomplete, and this CR's own inventory is why.** fin keys feed accounts in **three**
+columns; 044 rewrites two:
+
+| column | 044 | |
+|---|---|---|
+| `account_source_mappings.external_name` | rewritten | |
+| `bankfeed_staging.feed_account_external_id` | rewritten | |
+| `bankfeed_balances.feed_account_external_id` | **missed** | ← the reconcile page's join |
+
+**§4's identifier inventory listed four sites and does not name this one.** Pass-1 review caught a
+missing fourth site (`transactions.bank_feed_external_id`) and the inventory was corrected; the same
+inventory was then trusted as complete, and it was not. The generalisable lesson: the inventory should
+have been *derived* — one `information_schema` query returns all three columns in a second — rather than
+reasoned about and reviewed. It is now derived.
+
+**The failure mode was a stall, not corruption, and that distinction is the whole reason this was
+cheap.** Sheet rows kept arriving under Sheet ids, matched no mapping, and therefore did not promote.
+Measured across the whole ~14-hour window: **255 staged rows unmapped, 90 unpromoted, 0 rows promoted,
+0 ledger rows created.** Nothing needed repairing — which is a direct consequence of fin promoting only
+behind an explicit action rather than on a schedule.
+
+**The fix (migration 051, applied prod 2026-08-02).** Reverses both UPDATEs from the *same pairs* as the
+forward migration, so the directions cannot drift. Its post-conditions assert what actually matters —
+no orphaned staging row, and **every live mapping resolves to a feed balance again** — not a count of
+rows changed. It deliberately does not undo **050**. Rehearsed on a throwaway copy of prod first
+(no-feed mappings **27 → 0**, unmapped staging **255 → 0**, idempotent), with the three tables dumped and
+gzip-verified beforehand. All six reported accounts resolve to same-day balances afterwards.
+
+**Consequences for P3a/P4, which are now the plan of record:**
+- The forward crosswalk needs a **new number** and must cover **all three** columns. 044 stays as an
+  applied-then-reversed artifact rather than being edited under its recorded checksum.
+- `bankfeed_balances` joins on the mapping's `external_name`, so it must be rewritten **in the same
+  transaction** — the reconcile page is the fastest detector of this whole class, and it should never
+  be the thing that discovers it.
+- **Nothing goes into `server/db/migrations/` until the window it will run in.** Generate to the
+  scratchpad, rehearse, then place-and-run.
+
 ## Status
 
 P0 done (§11), P1 built and shadow-verified (§13), both §12 decisions settled, default still
