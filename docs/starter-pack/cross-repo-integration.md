@@ -52,6 +52,27 @@ A three-step preflight, spelled out in the consumer's integration guide:
 3. `curl` the provider's **live** contract/spec endpoint — the running service, not the
    checkout, is the truth for what's deployed.
 
+### 4. A fix on one side does not flow to the other
+
+The two repos have forked. When a defect lives in the *seam* — a mislabelled currency, a sign
+convention, an id the provider sends under a different key than the consumer reads — it very
+often has to be fixed **twice, differently**, and fixing the side you happen to be sitting in
+looks complete from there. Two habits keep that honest:
+
+- **Diagnose the seam by naming the side, not the symptom.** "Which repo owns this field, and
+  which one reinterprets it?" A consumer-side workaround for a provider-side bug is a
+  legitimate choice — but it is a *choice*, and it belongs in the ledger, or the provider
+  eventually fixes the root cause and the workaround silently double-corrects.
+- **The ledger entry says which side shipped, and what the other side must still do.** An
+  entry that only records "fixed" is what a future session reads six months later when the
+  same class of bug reappears on the other side.
+
+A related trap worth stating once: a provider that **joins on a display name** (rather than a
+stable id) will silently reroute an entire integration the day two records share a name — and
+an id-based guard that reads the wrong key (`accountId` vs `account_id`) is not a guard at
+all. When adopting a contract, check that the join key is stable **and** that the guard reads
+the field the provider actually sends.
+
 ## Adopting
 
 - Provider repo: create `HANDOFFS.md` (empty ledger + the format above at the top);

@@ -28,9 +28,13 @@ placeholders substituted, decisions resolved and recorded, and CR-001 ready to b
    `current/project-description.md`, `current/project-roadmap.md`,
    `current/secrets-inventory.md`, `cr/README.md`, `cr/cr-000-template.md`, plus empty
    `guides/` and `archive/`. Copy the pack docs the project will need into `docs/guides/`
-   (at minimum `documentation-standard.md`; playbooks as relevant per the brief's §8.3).
+   (at minimum `documentation-standard.md` and `security-baseline.md` — the seeded
+   `secrets-inventory.md` links to `security-baseline.md`, so it dangles if uncopied;
+   further playbooks as relevant per the brief's §8.3).
 3. **Substitute placeholders** across the copied files (seed-time `<<TOKENS>>` only —
-   leave `<runtime>` fill-ins alone). Record which pack version seeded the project in
+   leave `<runtime>` fill-ins alone). `<<PACK_VERSION>>` is among the substituted tokens —
+   it is stamped into the seeded `CLAUDE.md` header comment as well as recorded in
+   `docs/current/status.md`. Record which pack version seeded the project in
    `docs/current/status.md` and the roadmap's Completed section.
 4. `git init` if needed; first commit: the seeded skeleton + the brief (explicit paths).
 

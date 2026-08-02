@@ -3,6 +3,14 @@ name: deploy-to-public
 description: Expose a Tailscale-private app to the public internet safely (Cloudflare Tunnel, no open inbound ports). Use when asked to make an app public, reachable from a browser/the internet, set up Cloudflare Tunnel or Access, add a public domain/hostname, or open self-service signup. Covers both the closed allow-list branch and the open self-service branch.
 ---
 
+> ⚠️ **Branch A (Cloudflare Access) — a gated app FAKES a green probe.** Access `302`s every
+> unauthenticated request (incl. `/health`); a default probe follows it, gets a **200 from the login
+> page**, and reports **UP with every container dead**. Probe through the gate with an Access **service
+> token** (`follow_redirects: false`, 2xx-only) and assert **`probe_http_redirects == 0`**.
+> And the deploy is **not done when it's reachable** — not done until it is **probed** (with an alert
+> rule that matches the probe's job) and its data is **backed up and restore-tested**, alerting on
+> **missing** as well as stale. → `public-edge-baseline.md`
+
 # Take a private app public (condensed)
 
 Canonical playbook: `deploy-to-public.md` (find in repo or the starter pack) — **read it
@@ -69,5 +77,5 @@ Access-redirect failure signature (#25), so a mid-session expiry self-heals.
 
 Soak old + new paths in parallel 1–2 weeks; keep the out-of-band admin path (SSH over
 Tailscale) forever; every retirement must be one reversible command; purge CF cache and
-verify with `?cb=1` from a cold browser/machine. Consult the playbook's **24-item gotchas
-catalog** before debugging anything that looks weird — it is probably in there.
+verify with `?cb=1` from a cold browser/machine. Consult the playbook's **gotchas
+catalog** (Part 4) before debugging anything that looks weird — it is probably in there.

@@ -16,7 +16,7 @@ cannot ship a regression you already knew how to catch.** Three tiers, in priori
    running stack: app boots, `/health` 200s, login works, one real data path round-trips
    (create → read back). These run **inside the deploy script** after `up -d` and gate the
    success banner — infra-bootstrap §2 step 9 is the hook point. If you write nothing else,
-   write these.
+   write these. (script skeleton: `script-library.md` §12).
 2. **Unit/integration tests on the logic that loses money or data.** Auth flows, permission
    scoping, anything that mutates records across tables (merges, cascade deletes,
    anonymization), migration up-paths, and money/date arithmetic. Don't chase coverage % —
@@ -31,6 +31,18 @@ cannot ship a regression you already knew how to catch.** Three tiers, in priori
 part of the feature* — require tier-2 tests in the same CR for anything matching the list
 above. An agent that can run the test suite catches its own regressions; one that can't is
 guessing.
+
+### A DB-backed test may not read ambient data
+
+A suite that opens with `SELECT id FROM <table> … LIMIT 1` passes locally forever and dies in
+`beforeAll` on CI's fresh-from-migrations database, where that row does not exist. **Every
+DB-backed test creates the rows it needs and cleans them up.** The only rows it may assume are
+the ones in `ci-seed.sql` (the seed convention below) — and when it needs a new fixed row, it
+goes there, never into a migration. Four suites borrowing dev-only rows cost 29 tests and,
+because the failure read as an environment problem, two days before anyone opened the log.
+
+The general form: **if a test's fixture came from somewhere you didn't write, the test is
+asserting on your dev box, not on your code.**
 
 ## Deploy gates (wire these into the pipeline / deploy script)
 
@@ -116,9 +128,13 @@ and should be *both* written down *and* guarded:
 set -euo pipefail
 fail() { echo "CI-GUARD FAIL: $*" >&2; exit 1; }
 
-# 1. No weak-default secrets in the prod compose (infra-bootstrap §8):
-grep -E '\$\{[A-Z_]*(PASSWORD|SECRET|TOKEN|KEY)[A-Z_]*:-' docker-compose.prod.yml \
-  && fail 'prod compose uses ${VAR:-default} for a secret — use ${VAR:?msg}' || true
+# 1. No weak-default secrets in any non-dev compose file (infra-bootstrap §8):
+for f in docker-compose*.yml; do
+  [ "$f" = docker-compose.dev.yml ] && continue
+  [ -e "$f" ] || continue
+  grep -E '\$\{[A-Z_]*(PASSWORD|SECRET|TOKEN|KEY)[A-Z_]*:-' "$f" \
+    && fail "$f uses \${VAR:-default} for a secret — use \${VAR:?msg}" || true
+done
 
 # 2. Compose project names pinned + distinct (traps #12):
 grep -q '^name:' docker-compose.prod.yml || fail 'docker-compose.prod.yml missing top-level name:'
@@ -129,7 +145,7 @@ grep -q '^name:' docker-compose.dev.yml  || fail 'docker-compose.dev.yml missing
 # 3. Applied migrations are append-only (infra-bootstrap §5): any commit that MODIFIES an
 #    existing migration file (rather than adding one) fails.
 if git rev-parse origin/main >/dev/null 2>&1; then
-  git diff --diff-filter=M --name-only origin/main...HEAD -- 'backend/migrations/*' \
+  git diff --diff-filter=M --name-only origin/main...HEAD -- '*migrations/*' '*alembic/*' \
     | grep -q . && fail 'an existing migration file was modified — migrations are append-only' || true
 fi
 
@@ -144,11 +160,72 @@ git grep -nIE "$BANNED" -- . ':!docs/' \
   && fail 'a retired secret value reappeared in the codebase' || true
 
 # 6. (project-specific) schema-introspection exhaustiveness guard — see infra-bootstrap §11.
+
+# 7. Backup dumps never reach git: Backups/ is ignored and no dump is tracked
+#    (a committed pg_dump is PII in git history forever — security-baseline §1).
+git check-ignore -q 'Backups/x.dump' \
+  || fail 'Backups/ is not gitignored — add it (see templates/.gitignore)'
+git ls-files | grep -E '(^|/)Backups/|\.dump$' \
+  && fail 'a backup dump is tracked in git' || true
 echo "ci-guards: all green"
 ```
 
 Extend per project; every new "learned the hard way" that a machine can check belongs here,
 not only in prose.
+
+### Write down what a guard *cannot* see
+
+Every guard has a shape it matches and a blind spot next to it, and the blind spot is where
+the next instance of the bug lands. When you add one, record the class it does **not** cover —
+in the guard's own comment and in the known-issue entry.
+
+The canonical example: a lint rule banning `.toISOString()` covers the **format** side of a
+date bug. `new Date("2025-12-01")` is UTC midnight by spec, shifts a day west of UTC, matches
+no rule, and shipped the same defect twice more on the **parse** side. "We have a rule for
+that" is only true for the half the rule can match.
+
+Corollary for finding these: the defect surfaced only where a **client-side filter and a
+server-side aggregate** covered the same range and disagreed. Wherever two implementations
+compute the same number, make one test assert they agree — that disagreement is often the only
+observable symptom.
+
+### Ratchets — for the debt you can't pay off today
+
+A guard is binary: zero violations, or the build is red. That is unusable against debt you have
+*already* accumulated (400 lint warnings, 30 un-migrated components), and "fix it all first" is
+how a guard never gets adopted. A **ratchet** is the version that ships today: record the
+current count as a committed baseline, fail only when the count **rises**, and lower the
+baseline whenever it drops.
+
+```bash
+# check-<thing>.sh — a ratchet: the count may shrink, never grow.
+BASELINE=$(cat .ratchets/<thing>.count)
+CURRENT=$(<the count command>)
+[ "$CURRENT" -le "$BASELINE" ] || fail "<thing> rose from $BASELINE to $CURRENT"
+[ "$CURRENT" -lt "$BASELINE" ] && echo "ratchet: lower the baseline to $CURRENT"
+```
+
+Two rules learned by getting them wrong:
+
+- **A ratchet must cover every rule in its class, or it manufactures false confidence.** If it
+  baselines two lint rules and a third in the same category is left out, that third one grows
+  silently — and everyone believes the category is held.
+- **A ratchet that aborts must fail loudly as a ratchet.** Under `set -e -o pipefail`, a
+  ratchet whose count command dies exits non-zero with no output and reads as a debt failure,
+  sending the next person to fix the wrong thing.
+
+### A red gate must reach a human
+
+The deploy gate above (#2) stops a *deploy* on red. It does not tell anyone the branch went
+red — and a CI result is only visible to whoever opens the Actions tab. Left at that, a branch
+can stay red for days while work continues on top of it: measured cost of exactly this, once —
+**30 pushes, three releases and a production deploy shipped over a failing gate.**
+
+So a project isn't done wiring CI until a red `main` **announces itself**: branch protection,
+or a failure notification on a channel someone actually reads (the named-delivery-channel rule
+in `observability-baseline.md` tier 3 — an alert with no tested route to a human is
+decoration). Test the pipe once, end to end, by pushing a deliberate failure. **A gate nobody
+is told about is a log file.**
 
 ## Pre-commit (lightweight, optional but cheap)
 

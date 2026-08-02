@@ -33,6 +33,12 @@ convert *invisible* into *red*.
   logs fill disks).
 - **A version surface:** `/health` (or footer) exposes the running version from
   `version.json` — "what is actually deployed" is the first question in every incident.
+- **Frontend errors reach the server.** A SPA's client-side crashes are invisible to every
+  layer on this page — the backend logs stay clean while users stare at a blank route.
+  Minimum: `window.onerror` + `unhandledrejection` handlers POSTing to a rate-limited
+  backend log endpoint (message, stack head, route, version — no PII), logged structured
+  like any other event. A Sentry-class tool is a fine upgrade once a project earns it; the
+  floor is that a client-side error produces *any* server-side line at all.
 
 ## Tier 1 — host + stack metrics (once per host)
 
@@ -46,7 +52,8 @@ On every VM/host that runs a stack (private or public):
 - **`cAdvisor`** (`:9101`) for per-container CPU/mem/restart counts — restart loops are the
   most common silent failure on `restart: unless-stopped` stacks.
 - Scraped by the central Prometheus (`mon1` in the homelab); a new host is **not done** until
-  its targets show `up` in the console.
+  its targets show `up` in the console. *(No central fleet? See "No fleet?" below — the tier
+  still applies, only the scraper moves.)*
 
 ## Tier 2 — the outside-in probe (for anything with users)
 
@@ -56,7 +63,28 @@ misroutes, the wrong-compose-file-dropped-off-the-edge-network 502. One probe ca
 entire class. For public apps this is part of the deploy-to-public fleet step; for private
 apps, a probe from `mon1` (or even a cron + `curl -f` + a notification) is the budget version.
 
+> ### ⚠️ A probe behind an auth gate LIES TO YOU
+>
+> If the hostname sits behind **Cloudflare Access** (or any SSO proxy / WAF interstitial), the edge
+> `302`s **every** unauthenticated request — *including* `/api/health`. A default probe follows that
+> redirect, gets a **200 from the login page**, and reports the app **UP** — and that login page stays
+> up **even if every container you own is dead**. This is worse than no probe: it manufactures
+> confidence. (Measured on a real app: `probe_success=1`, `probe_http_redirects=1`, 35 KB of login HTML.)
+>
+> Probe **through** the gate with a service token, `follow_redirects: false`, 2xx-only — and assert
+> **`probe_http_redirects == 0`**. That, not `probe_success`, is the honest signal: a 200 reached *via a
+> redirect* is the login page, not your app. Full recipe → [`public-edge-baseline.md`](public-edge-baseline.md) §1.
+>
+> The general rule this is an instance of: **always ask what exactly returned that 200.**
+
 ## Tier 3 — alerts (few, and every one actionable)
+
+**An alert rule without a named route to a human is decoration.** Decide and write down the
+delivery channel (email, ntfy/Telegram push, whatever you actually look at) *when the rule
+is created*, and test the pipe end-to-end — rule → notification arriving on your device —
+before trusting it (the quarterly cadence below re-tests it). A rule that fires into an
+unconfigured receiver is the monitoring version of the unprobed hostname: green because
+nothing is watching the watcher.
 
 Baseline set — resist adding more until each new alert has a defined response:
 
@@ -84,6 +112,27 @@ timer on another box. The **single job registry** (one table: job · layer · sc
 where it lives · how its success is observed) is an observability artifact, not just
 documentation — the last column is the point. A job whose success is observed nowhere gets
 a log line + a staleness alert (the backup-stale pattern) or it will fail silently.
+
+## No fleet? The standalone floor
+
+The tiers above assume a central monitoring host (`mon1`/`pbs1` in the homelab). A project
+seeded **outside** that fleet still owes its users the same floor — pick one of two shapes,
+don't skip the layer:
+
+- **Self-contained stack (fuller):** one small compose on the box — Prometheus +
+  Alertmanager + blackbox-exporter + the tier-1 exporters — scraping itself. Accept the
+  known blind spot honestly: **a box watching itself cannot report its own death.** Pair it
+  with one *external* check for exactly that case (a free uptime service pinging the public
+  hostname, or a dead-man's-switch heartbeat — below).
+- **Budget tier (fewer moving parts):** an **Uptime Kuma** instance on a *different* box (or
+  a hosted uptime service) probing the public/tailnet hostname — that's tier 2 — plus
+  **healthchecks.io-style dead-man's-switch pings** from every cron job: the job curls a
+  per-job URL on success, and the *service* alerts when the ping **stops arriving**. This is
+  the "alert on missing, not just stale" rule (backups above all) implemented without any
+  fleet — silence becomes a page instead of safety.
+- Either way the gated-probe rule (tier 2) and the roster rule (tier 3) still apply
+  verbatim, and the delivery channel still gets named and tested. What this section changes
+  is only *where the watcher runs* — never whether one exists.
 
 ## Cadence
 

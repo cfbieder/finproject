@@ -22,6 +22,7 @@ their names and the dormant-OFF guarantee.>
 - [ ] New scheduled job → job registry (+ how success is observed)
 - [ ] New secret → secrets inventory + `.env.example` + fail-loud in compose
 - [ ] New service/DB/host → monitoring rosters (observability baseline)
+- [ ] New/changed public hostname → exposure inventory + explicit gate decision + probe through the gate ([public-edge-baseline](../../../public-edge-baseline.md))
 - [ ] Tests: tier-2 for money/data/auth logic in this CR; guards extended if a new
       mechanically-checkable convention emerged
 - [ ] Docs: status / project-description / roadmap touched as needed

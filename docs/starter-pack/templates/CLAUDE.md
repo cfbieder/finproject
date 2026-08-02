@@ -1,6 +1,6 @@
 # <<APP>> — project instructions
 
-<!-- Starter from the pack (v1.1.0). Keep this file LEAN — well under 150 lines. It loads
+<!-- Starter from the pack (v<<PACK_VERSION>> — /kickoff stamps the seeding pack version). Keep this file LEAN — well under 150 lines. It loads
      on every turn. Collaboration rules + required-reading load automatically from
      .claude/rules/; migration/compose/env rules load when relevant files are touched;
      deploy & DB procedures are skills. Project STATE lives in docs/, not here. -->

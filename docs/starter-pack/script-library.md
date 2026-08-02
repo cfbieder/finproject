@@ -40,6 +40,9 @@ All scripts live in `scripts/` and follow these:
 > throughout — these are the pack's **seed-time substitution targets in script files**
 > (equivalent to `<<APP>>` in the prose docs; see README → "Placeholder convention"). On a
 > single host, remember the distinct-project-name rule (infra-bootstrap trap #12).
+> The **Node major version is a seed-time substitution target too**: the scripts and
+> Dockerfiles below pin Node 20 (`setup_20.x`, `node:20-alpine`, `engines >=20`). Pick one
+> major per project and substitute it consistently everywhere it appears.
 
 ---
 
@@ -347,8 +350,15 @@ than reproduced in full; build it to:
 1. Check SSH connectivity to the remote host.
 2. Detect the running DB container (prod, fall back to dev).
 3. Dump with `pg_dump -Fc`; copy env files + data dirs.
-4. Tar + `scp` across; clean remote backups older than the retention window.
-5. Verify the transfer with a remote file count. Support `--dry-run`; log to stdout + a file.
+4. **Encrypt before it leaves the box if the data is personal** (`age -r <recipient>` or
+   `gpg -e` on the tarball) — a plaintext PII dump on a remote host is a second copy with
+   weaker locks, and the encryption key is **escrowed the day it's created**
+   (security-baseline §1; an unescrowed key makes the backups unrecoverable, same as a lost
+   PBS paperkey).
+5. Tar + `scp` across; clean remote backups older than the retention window.
+6. Verify the transfer with a remote file count. Support `--dry-run`; log to stdout + a file.
+   The quarterly restore drill (§11) must decrypt as its first step — an encrypted backup
+   whose key was never exercised is a hypothesis twice over.
 
 ```bash
 # Config block at the top of the script:
@@ -643,7 +653,7 @@ uploads/<user_id>/2026/01/file1.pdf
 
 **Engine pin** (catches version mismatches early):
 ```json
-{ "engines": { "node": ">=18.0.0", "npm": ">=9.0.0" } }
+{ "engines": { "node": ">=20.0.0", "npm": ">=9.0.0" } }
 ```
 
 **Port-conflict rescue** when a dev server orphans a process:
@@ -696,6 +706,54 @@ DR plan doesn't work, at the cheapest possible moment.
 
 ---
 
+## 12. smoke-test.sh — the tier-1 gate (spec + skeleton)
+
+This is the tier-1 smoke check from [`testing-and-ci.md`](testing-and-ci.md): a handful of
+end-to-end assertions against a *running* stack. The deploy script runs it after `up -d` and
+only prints the success banner if it passes, and `/close` runs it before declaring a deploy
+healthy. A red smoke is a rollback signal, not an invitation to debug in prod.
+
+```bash
+#!/usr/bin/env bash
+# smoke-test.sh — tier-1 end-to-end checks against a RUNNING stack.
+# Usage: ./scripts/smoke-test.sh [BASE_URL]   (default: the prod URL)
+set -euo pipefail
+BASE_URL="${1:-https://your-domain.example.com}"
+fail() { echo "SMOKE FAIL: $*" >&2; exit 1; }
+
+# 1. Health — must touch the DB, not just return 200 (observability-baseline tier 0)
+curl -fsS "$BASE_URL/health" | grep -q '"status":"ok"' || fail "/health not ok"
+
+# 2. Version — the deployed version matches the repo's version.json
+DEPLOYED=$(curl -fsS "$BASE_URL/health" | grep -oE '"version":"[^"]*"' || true)
+EXPECTED=$(grep -oE '"version"[^,]*' version.json | cut -d'"' -f4)
+echo "$DEPLOYED" | grep -qF "$EXPECTED" || fail "deployed version != version.json ($DEPLOYED vs $EXPECTED)"
+
+# 3. Auth is enforced — a protected route WITHOUT a token must 401/403
+CODE=$(curl -s -o /dev/null -w '%{http_code}' "$BASE_URL/api/<protected-route>")
+[[ "$CODE" == 401 || "$CODE" == 403 ]] || fail "protected route returned $CODE without a token"
+
+# 4. One real data round-trip — login as the smoke user, create, read back, clean up
+TOKEN=$(curl -fsS -X POST "$BASE_URL/api/auth/login" \
+  -H 'Content-Type: application/json' \
+  -d "{\"email\":\"$SMOKE_USER\",\"password\":\"$SMOKE_PASSWORD\"}" \
+  | grep -oE '"token":"[^"]*"' | cut -d'"' -f4)
+[ -n "$TOKEN" ] && [ "$TOKEN" != "null" ] || fail "login failed"
+# create → read back → delete a <smoke entity>; assert the read returns what was written
+# (keep it ONE cheap entity — the point is the path works, not coverage)
+
+echo "smoke: all green ($BASE_URL)"
+```
+
+- The smoke user is a dedicated least-privilege account (`SMOKE_USER` / `SMOKE_PASSWORD`
+  from the ops `.env`, never a real user, never admin), and its test entity is namespaced
+  (e.g. `smoke-`) so cleanup is safe.
+- If the app is behind Cloudflare Access, the smoke call needs the service-token headers and
+  must **not** follow redirects — a 200 reached via redirect is the login page
+  ([`public-edge-baseline.md`](public-edge-baseline.md) §1).
+
+---
+
 ## Quick reference — script commands
 
 | Command | Purpose |
@@ -708,3 +766,4 @@ DR plan doesn't work, at the cheapest possible moment.
 | `./scripts/backup-db.sh [--keep N]` | Local DB backup (+ retention) |
 | `./scripts/backup-to-remote.sh [--dry-run]` | Off-host backup via SSH |
 | `./scripts/sync-db-prod-to-dev.sh [--with-uploads]` | Copy prod DB into dev |
+| `./scripts/smoke-test.sh` | Tier-1 smoke checks against the live stack |

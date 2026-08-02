@@ -13,7 +13,11 @@
 
 It has a **shared foundation** (a Cloudflare Tunnel front door that works for any app) and then **two branches** for the *"who gets in"* layer — pick one:
 
-- **Branch A — CLOSED (fixed allow-list).** A known set of users (staff, a team) log in via **Cloudflare Access** (Google SSO / email OTP) at Cloudflare's edge. No signup flow; onboarding = add an email to a policy. *Best for internal tools / admin apps.* — worked reference: **OCME** (`klinika.ocme.pl`, CR086).
+- **Branch A — CLOSED (fixed allow-list).** A known set of users (staff, a team) log in via **Cloudflare Access** (Google SSO / email OTP) at Cloudflare's edge. No signup flow; onboarding = add an email to a policy. *Best for internal tools / admin apps.* — worked reference: **OCME** (`klinika.ocme-it.org`, CR086).
+  ⚠️ **If you gate with Access, read [`public-edge-baseline.md`](public-edge-baseline.md) §1 before you
+  monitor it** — a gated app **fakes a green probe** (the probe follows Access's 302 and health-checks
+  the *login page*, which stays up with every container dead). Probing a Branch-A app correctly needs an
+  Access **service token**, not a plain HTTP check.
 - **Branch B — OPEN (public self-service).** Anyone can sign up; you gate with **in-app invite codes → email verification + bot protection**, and (recommended) migrate prod onto a dedicated VM before opening the gate. *Best for a public product/SaaS.* — worked reference: **EspañolApp** (`spanish.espanol-app.com`).
 
 Both branches share Parts 0–1 and the cutover/rollback discipline in Part 3. They differ only in Part 2. Every app-specific value is shown as a concrete example **and** a `<placeholder>` you substitute.
@@ -56,7 +60,7 @@ Your app runs on a box reachable only over **Tailscale** (a private mesh VPN) �
 | Needs a dedicated VM | Optional | Recommended before opening the gate |
 | Cloudflare cost | Zero Trust Free (**card on file required**) | None required (skip Access) |
 | Onboard a user | Add email to Access policy (~30 s) | They self-register |
-| Reference instance | OCME `klinika.ocme.pl` | EspañolApp `spanish.espanol-app.com` |
+| Reference instance | OCME `klinika.ocme-it.org` | EspañolApp `spanish.espanol-app.com` |
 | Go to | **Part 2A** | **Part 2B** |
 
 **Why Branch B is staged (its own sub-strategy):** going straight to "full public on a hardened VM with email" is a lot of build before one tester logs in. So Branch B ships *"an invited person can use the app over the internet"* first (Phase 1), does the risky host-migration while traffic is still just invited testers (Phase 2), and only then opens the gate (Phase 3). Each phase is independently shippable and reversible.
@@ -74,7 +78,7 @@ Your app runs on a box reachable only over **Tailscale** (a private mesh VPN) �
 
 ## 1.1 — Acquire a domain and put it on Cloudflare
 - Register via **Cloudflare Registrar** (born on CF nameservers → instantly active, no NS switch), e.g. `example.com`.
-- Pick the app hostname — a subdomain like `app.example.com` (or `klinika.ocme.pl`), leaving the apex free for a landing page.
+- Pick the app hostname — a subdomain like `app.example.com` (or `klinika.ocme-it.org`), leaving the apex free for a landing page.
 - Free plan is sufficient for everything here.
 
 ## 1.2 — Put a reverse proxy in front of the app
@@ -381,7 +385,7 @@ Tagged **[A]** closed/Access · **[B]** open/self-service · **[both]**.
 
 | Item | Value |
 |---|---|
-| App / hostname | OCME staff app · `https://klinika.ocme.pl` (CR086) |
+| App / hostname | OCME staff app · `https://klinika.ocme-it.org` (CR086) |
 | Zone / account | `ocme.pl` / `Itsystems.ocme@gmail.com` |
 | Zero Trust team | `empty-disk-d6a2.cloudflareaccess.com` |
 | Tunnel | `ocme-prod` → `127.0.0.1:80` (nginx, host network); connector `ocme-cloudflared-prod` |

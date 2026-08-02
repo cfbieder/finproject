@@ -37,12 +37,14 @@ docs/
     cr-001-<topic>-<subdoc>.md # sub-docs share the parent number
   guides/                     # operational runbooks + stable how-tos
     <topic>.md
+  reviews/                    # OPTIONAL — dated review output, still active input
+    <topic>_YYYY-MM-DD.md     #   (security / UX / CR / structural reviews; agent output)
   archive/                    # superseded / historical / completed threads
     <topic>_YYYY-MM-DD.md
   rag/                        # OPTIONAL project-specific extension dir
 ```
 
-Root is `docs/` (lowercase, the near-universal convention). Add project-specific top-level dirs under `docs/` sparingly (e.g. `rag/`); the four core dirs above should exist in every project.
+Root is `docs/` (lowercase, the near-universal convention). Add project-specific top-level dirs under `docs/` sparingly (e.g. `reviews/`, `rag/`); the four core dirs above should exist in every project.
 
 **What goes where:**
 
@@ -51,9 +53,10 @@ Root is `docs/` (lowercase, the near-universal convention). Add project-specific
 | "What is true / built right now" | `current/` |
 | A design for a non-trivial feature/change | `cr/cr-NNN-topic.md` + a row in `cr/README.md` |
 | A repeatable operational procedure (deploy, setup, recovery) | `guides/` |
-| Something superseded, finished, or point-in-time (dated reviews, old correspondence) | `archive/` |
+| A dated review of the *current* code/docs (security, UX, CR, structural — incl. review-agent output) | `reviews/` |
+| Something superseded, finished, or point-in-time (old correspondence, closed threads) | `archive/` |
 
-There is **no `other/` / `misc/` directory.** If you can't classify it, it's almost always a guide (repeatable) or archive (point-in-time).
+There is **no `other/` / `misc/` directory.** If you can't classify it, it's almost always a guide (repeatable), a review (dated, point-in-time but active), or archive (superseded). A `reviews/` doc graduates to `archive/` once it's fully actioned and no longer a live reference.
 
 ## File & directory naming
 

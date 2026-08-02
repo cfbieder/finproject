@@ -75,6 +75,12 @@ the *next* app is "add a Caddy site block + a tunnel hostname," nothing more.
    c. **Access gate** — Zero Trust → Access → add an application/policy for
       `<<APP>>.<your-domain>` (email allowlist) while it's invite-only.
 
+      ⚠️ **Gating the app changes how you must probe it.** Access `302`s *every* unauthenticated
+      request (incl. `/health`), so a default blackbox probe follows the redirect, gets a **200 from
+      the Cloudflare login page**, and reports the app **UP while it is dead**. Probe it with an Access
+      **service token** + `follow_redirects: false` and assert **`probe_http_redirects == 0`** —
+      see [`public-edge-baseline.md`](public-edge-baseline.md) §1. Do this in step 5, not "later".
+
 4. **Browse** `https://<<APP>>.<your-domain>` → the branded login. Sign in with
    the seeded admin (`admin@<<APP>>.local` / the seed password) and create real
    accounts in Settings → Users.
@@ -88,9 +94,29 @@ git pull && ./scripts/deploy-to-<<HOST>>.sh
 It backs the DB up first, rebuilds the images (baking in the current
 `version.json`), and re-applies migrations. Ingress stays as wired in step 3.
 
+## 5. The deploy is NOT done until it's watched and backed up
+
+The runbook used to end at "it resolves". That is exactly how an app went live on a shared edge and
+sat there for hours **unprobed and with no database backup**, with every step passing. Reachable is
+not done:
+
+- [ ] **Probe it from outside** (through the gate if gated — step 3c). An unprobed public hostname
+      **dies silently**.
+- [ ] **Check the probe's alert rule actually matches its job.** Gated apps often need their own probe
+      job; if your alert's job matcher doesn't include it, the probe goes red **and pages nobody**.
+- [ ] **Back up its DB, and restore it once.** A new app means a new database. On a cloud box there is
+      **no VM-image safety net** — the logical dump is the *only* copy.
+- [ ] ⚠️ **Make its *absence* noticeable.** A "backup is stale" alert fires on a metric that has gone
+      old — a backup that **never ran has no metric**, so it fires **nothing**. **Silence is not
+      safety.** Alert on *missing*, not just *stale*.
+- [ ] **Register it in the exposure inventory** — the live list of what is public and how it is gated.
+
 ## Verify
 
 - `docker exec <<APP>>-api curl -sf localhost:3000/health` → `{"status":"ok"}`.
+- **From the monitoring host:** `probe_success == 1` **and `probe_http_redirects == 0`** (a 200 reached
+  via a redirect is the Access login page, not your app).
+- The app's first backup **exists on the backup target** — don't trust the script's exit code, list it.
 - Live version: the footer shows `v<X.Y.Z>`; or
   `docker exec <<APP>>-api node -e 'console.log(process.env.APP_VERSION)'`.
 - `/api` smoke from the internet: a protected route returns **401** without a
@@ -105,6 +131,11 @@ It backs the DB up first, rebuilds the images (baking in the current
   `docker exec -i <<APP>>-db pg_restore -U <<APP>> -d <<APP>>_prod --clean < Backups/<<APP>>_<ts>.dump`.
 - Take it offline fast: remove the Caddy site block (or the tunnel hostname) and
   force-recreate Caddy — the app stack keeps running privately.
+- **Retiring the hostname for good?** Delete the **tunnel route first, then the DNS record** (the
+  provider often removes the CNAME with the route). And **before deleting any *tunnel*, check what DNS
+  actually points at** — a tunnel's route list is *not* evidence it serves those hostnames; an orphaned
+  tunnel can still list a route for a **live** hostname that DNS long ago re-pointed elsewhere.
+  → [`public-edge-baseline.md`](public-edge-baseline.md) §3
 
 ## Notes
 

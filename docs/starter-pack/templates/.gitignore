@@ -1,0 +1,31 @@
+# Pack seed .gitignore — projects start from this and extend it. Getting this
+# right from the first commit is what the pack's discipline leans on.
+
+# Secrets / env family — never commit real secrets
+.env
+.env.*
+!.env.example
+cloudflared/.env.cloudflared
+.env.vnext          # flag-ON values live ONLY here — dual-track / infra-bootstrap §1.5
+
+# Backups — a committed pg_dump is PII in git history forever; ci-guards.sh #7 enforces this
+Backups/
+*.dump
+
+# Version copies — the ROOT version.json is the tracked source of truth; the copy
+# update_version.sh puts into the build context is generated — never track it
+frontend/version.json
+
+# Build / deps
+node_modules/
+dist/
+build/
+
+# Runtime state
+logs/
+*.log
+uploads/            # user data lives on volumes / bind mounts, not in git
+
+# OS / editor noise
+.DS_Store
+*.swp

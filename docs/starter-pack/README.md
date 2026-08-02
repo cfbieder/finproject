@@ -1,6 +1,6 @@
 # Project Starter Pack
 
-> **Pack version:** 1.5.1 · **Last reviewed:** 2026-07-11 · see [`CHANGELOG.md`](CHANGELOG.md)
+> **Pack version:** 1.6.4 · **Last reviewed:** 2026-08-02 · see [`CHANGELOG.md`](CHANGELOG.md)
 
 A consolidated set of standards, playbooks, rules, and script sources to drop into any new
 project (especially Claude Code projects). Each file is self-contained enough to copy on its
@@ -13,6 +13,9 @@ Compose, PostgreSQL, a SPA + API, Tailscale as the private plane, Cloudflare as 
 edge. It deliberately **excludes** Kubernetes/orchestrators, multi-region, large-team
 process (code review boards, RFC processes), and compliance frameworks beyond baseline
 GDPR hygiene. If a project outgrows this scope, treat the pack as the floor, not the ceiling.
+Note: the pack embeds live homelab identifiers (the fileshare runbook, the worked-reference
+appendices) — the pack itself is private; never publish it, and never copy the live-value
+appendices into a client-visible repo.
 
 ## Layout
 
@@ -26,15 +29,21 @@ starter-pack/
   script-library.md             # concrete script/Dockerfile sources
   testing-and-ci.md             # test strategy + CI gates + graduating rules into CI
   security-baseline.md          # secrets lifecycle, rotation, dependency/patching policy
-  observability-baseline.md     # logging/metrics/alerting baseline for any app
+  auth-baseline.md              # application-auth floor: passwords, tokens, lockout, 2FA posture
+  observability-baseline.md     # logging/metrics/alerting baseline for any app (incl. no-fleet floor)
+  public-edge-baseline.md       # Cloudflare Tunnel/Access edge: the gated-app fake-green probe, exposure inventory, safe teardown
   data-ingestion-baseline.md    # import/replace + derived-data safety (validate, fail-loud, reconcile)
+  rag-library-baseline.md       # embedding + vector-store safety (one embedder, one writer, stable-id upsert)
+  multi-tenancy-baseline.md     # choosing pool (tenant_id + RLS) vs schema-per-tenant, and the invariants of each
   dual-track-development.md     # ship-current + build-vNext on one trunk (flags, isolated stack)
   cross-repo-integration.md     # sibling-repo coordination: HANDOFFS.md ledger + pinned contract
   claude-code-permissions.md    # permission-prompt diagnosis + safe near-zero-prompt config
   deploy-to-public.md           # two-branch public-deploy master playbook
   deploy-to-shared-edge.md      # "one more app on a shared edge" runbook
+  incident-runbook.md           # the 2 a.m. path — triage order + rollback-vs-investigate
   guides/fileshare-access.md    # homelab Samba runbook (live, environment-specific)
   templates/CLAUDE.md           # starter project CLAUDE.md (facts + pointers only)
+  templates/.gitignore          # seed gitignore (env family, Backups/, version copies)
   templates/project-brief.md    # the brief skeleton — the WHAT/WHY companion to this pack
   templates/docs/               # docs/ seed set: status, description, roadmap,
                                 #   secrets-inventory, CR index, CR template
@@ -42,9 +51,11 @@ starter-pack/
     rules/                      #   always-on + path-scoped rules (auto-loaded)
       collaboration.md          #     the collaboration rules, operational copy (unscoped)
       migrations.md             #     append-only / exec-inside-container (scoped)
+      tenant-scoping.md         #     pool: tenant_id + RLS + scoped uniqueness / schema: search_path on checkout
       compose-safety.md         #     explicit -f, pinned names, fail-loud secrets (scoped)
       env-secrets.md            #     edit-in-place, never paste secrets (scoped)
       data-import.md            #     validate-before-destroy, fail-loud parse, reconcile (scoped)
+      rag-ingest.md             #     one embedder, one writer, stable-id upsert (scoped)
       git-concurrency.md        #     multi-thread shared-tree git discipline (unscoped)
     skills/                     #   procedures — load only when triggered
       deploy-single-host/       #     the infra-bootstrap deploy flow
@@ -54,19 +65,33 @@ starter-pack/
       question/                 #     /question — resolve open decisions one at a time
       close/                    #     /close — doc-sync → commit → push → (gated) deploy
       kickoff/                  #     /kickoff — brief → seeded repo → decisions → CR-001
+    agents/                     #   on-demand reviewers — invoke to review work
+      README.md                 #     the agents user guide
+      security-reviewer.md      #     data isolation, auth, injection, secrets
+      migration-reviewer.md     #     DB migration correctness + fresh-DB safety
+      code-quality-reviewer.md  #     collaboration rules + resource hygiene + tests
+      ui-design-reviewer.md     #     design-system + a11y, and product/UX
+      cr-technical-reviewer.md  #     CR pass 1 — technical soundness
+      cr-signoff-pm.md          #     CR pass 2 — PM scope/priority sign-off
+      docs-currency-reviewer.md #     docs-vs-code drift + one-source-of-truth
+      reference-lift-scout.md   #     lift proven logic from a declared reference repo
   archive/                      # superseded originals, kept for history
 ```
 
 Skills are both auto-triggered by intent and directly invocable as slash commands
 (`/deploy-to-public`, `/db-ops`, `/question`, `/close`). `/question` and `/close` are
 *workflow* skills — they orchestrate the pack's protocols rather than a single procedure.
+**Agents** ([`.claude/agents/`](.claude/agents/)) are on-demand, read-only **reviewers** that
+apply the pack's standards to a diff, a CR, or the docs — invoke one when you want a review
+pass; see its [README](.claude/agents/README.md).
 
-**Rules vs. skills vs. docs — the split:** conventions that apply to *all* work live in
-`.claude/rules/` (and stay tiny); *procedures* (deploys, DB ops) live in `.claude/skills/`,
-which cost ~2 lines of context until actually triggered; the **full reasoning and detail**
-lives in the root `.md` playbooks, which the skills point to. The docs are canonical; the
-`.claude/` layer is the operational distillation. When you change a practice, change the
-doc first, then sync the rule/skill.
+**Rules vs. skills vs. agents vs. docs — the split:** conventions that apply to *all* work
+live in `.claude/rules/` (and stay tiny); *procedures* (deploys, DB ops) live in
+`.claude/skills/`, which cost ~2 lines of context until actually triggered; *review passes*
+live in `.claude/agents/`, read-only reviewers you invoke on demand; the **full reasoning and
+detail** lives in the root `.md` playbooks, which the skills and agents point to. The docs are
+canonical; the `.claude/` layer is the operational distillation. When you change a practice,
+change the doc first, then sync the rule/skill/agent.
 
 ## When to reach for what
 
@@ -81,13 +106,18 @@ doc first, then sync the rule/skill.
 | [`script-library.md`](script-library.md) | You want **concrete script/Dockerfile sources** while implementing infra-bootstrap. |
 | [`testing-and-ci.md`](testing-and-ci.md) | Deciding what must pass before a deploy is allowed, and wiring CI. |
 | [`security-baseline.md`](security-baseline.md) | Secrets storage/rotation, dependency & image update policy, the security floor. |
-| [`observability-baseline.md`](observability-baseline.md) | Giving a new app (even a private one) logs, metrics, and alerts from day one. |
+| [`auth-baseline.md`](auth-baseline.md) | Any app with real user accounts — password hashing, token/refresh shape, lockout & enumeration hygiene, 2FA posture (the flows themselves live in deploy-to-public 2B). |
+| [`observability-baseline.md`](observability-baseline.md) | Giving a new app (even a private one) logs, metrics, and alerts from day one — including the standalone floor when there's no central monitoring fleet. |
 | [`data-ingestion-baseline.md`](data-ingestion-baseline.md) | Building any import/replace or reconstruct-from-source feature (CSV/API imports, transaction rebuilds) — validate before destroy, fail loud on bad input, reconcile. |
+| [`rag-library-baseline.md`](rag-library-baseline.md) | Standing up an **embedding + vector store** (ChromaDB/pgvector) an LLM queries, or adding a corpus to one — one embedder/one vector space, one canonical writer, stable-id idempotent upsert, structured-vs-semantic split. |
+| [`multi-tenancy-baseline.md`](multi-tenancy-baseline.md) | Serving **many tenants from one database** — §0 picks the model (**pool**: `tenant_id` + RLS, vs **schema-per-tenant**: `search_path`), then the invariants of each: per-request tenant context, subdomain-routes-but-JWT-enforces, a host-bound platform-admin surface, the RLS gotchas (leakproof indexes, owner-bypass, leaked GUCs) — or, for §10, `SET search_path` on every checkout, request-aware raw-client paths, unscoped-script refusal, and resumable migration fan-out. |
+| [`public-edge-baseline.md`](public-edge-baseline.md) | The **public edge** (Cloudflare Tunnel + Access): why a gated app **fakes a green probe**, the exposure inventory, checking DNS before deleting a tunnel, and why *reachable* is not *done*. |
 | [`dual-track-development.md`](dual-track-development.md) | Building a **large vNext in parallel** with a shipping current version — flags on one trunk, isolated stack, no merge tax. |
 | [`cross-repo-integration.md`](cross-repo-integration.md) | The app consumes (or provides) a **sibling repo's API** — handoff ledger, pinned contract, live-spec preflight. |
 | [`claude-code-permissions.md`](claude-code-permissions.md) | Agent sessions **prompt for permission constantly** — diagnosis checks + the near-zero-prompt baseline config. |
 | [`deploy-to-public.md`](deploy-to-public.md) | Taking a Tailscale-private app **public** — closed (Access) or open (self-service). |
 | [`deploy-to-shared-edge.md`](deploy-to-shared-edge.md) | Adding one more app to a box that already runs a shared `/opt/edge`. |
+| [`incident-runbook.md`](incident-runbook.md) | **Prod is down or wrong right now** — the triage order, the rollback-vs-investigate decision, and the close-the-loop steps. |
 | [`guides/fileshare-access.md`](guides/fileshare-access.md) | Connecting to the homelab Samba fileshare over Tailscale. |
 
 ## Seeding a new project (step 0 → done)
@@ -151,14 +181,18 @@ the placeholder values before substituting.
 
 ```
 .claude/rules/ + templates/CLAUDE.md    always-on layer (tiny, loads every session)
+.claude/agents/                         reviewers (invoke on demand)
 .claude/skills/                         procedures (load on trigger) ──┐
                                                                        │ distilled from
 claude-collaboration.md ─┐                                             │
 documentation-standard.md ┼─ "how we work + how docs are organized"    │
 testing-and-ci.md         │                                            │
 security-baseline.md      ┼─ cross-cutting baselines                   │
+auth-baseline.md          │                                            │
 observability-baseline.md │                                            │
 data-ingestion-baseline.md│                                            │
+rag-library-baseline.md   │                                            │
+multi-tenancy-baseline.md │                                            │
 dual-track-development.md │                                            │
 cross-repo-integration.md │                                            │
 claude-code-permissions.md┘                                            │
@@ -166,6 +200,7 @@ infra-bootstrap.md ──── architecture + reasoning  ◀──────�
    └─ script-library.md  concrete sources
 deploy-to-public.md ─── private → public
    └─ deploy-to-shared-edge.md  the shared-edge special case
+incident-runbook.md ─── when prod breaks: triage + the rollback decision
 guides/fileshare-access.md   standalone ops runbook
 archive/                     superseded originals
 ```
@@ -184,4 +219,4 @@ Consolidated from nine loose memos. The non-obvious moves:
 - The Samba guide + the separate Windows CIFS/SSH-key snippet were merged into one
   `guides/fileshare-access.md`.
 
-See [`CHANGELOG.md`](CHANGELOG.md) for v1.1.0 (the best-practices review implementation).
+See [`CHANGELOG.md`](CHANGELOG.md) for the full version history.

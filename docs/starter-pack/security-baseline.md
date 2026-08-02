@@ -24,6 +24,15 @@
   screenshot. Verify presence with a count (`grep -c '^KEY=…'`), not by echoing the value.
 - **Never in:** git history, compose files, script bodies, `CLAUDE.md`, agent memory, or
   CI logs (mask in CI where the platform supports it).
+- **Backups are secrets too.** `Backups/` is gitignored and no dump is ever tracked — a
+  committed `pg_dump` is the whole database (PII included) in git history forever
+  (`ci-guards.sh` #7 enforces it; the seed is `templates/.gitignore`). And any **off-host
+  dump that contains personal data is encrypted at rest** (`age`/`gpg` before the copy
+  leaves the box): a plaintext dump on a remote host is a second copy of your PII with
+  weaker locks. The encryption key is escrowed the day it's created — same rule as the PBS
+  paperkey above; an unescrowed key turns your DR copy into ransomware you ran on yourself.
+  (PBS-backed legs are already client-encrypted; this rule is for the plain
+  `backup-to-remote.sh`-style leg — [`script-library.md`](script-library.md) §6.)
 
 ## 2. Rotation — proactive cadence, not only incident response
 
@@ -96,11 +105,35 @@ Restated here as the audit list; mechanics are in deploy-to-public Part 2:
 - [ ] Non-root container users; user data on volumes with correct ownership (not `0777`).
 - [ ] Per-user data isolation enforced server-side; admin-gated mutations; auth rate-limited
       on the **real** client IP.
-- [ ] Backups: three tiers + **restore drills** ([`script-library.md`](script-library.md) §11).
+- [ ] Backups: three tiers + **restore drills** ([`script-library.md`](script-library.md) §11);
+      `Backups/` gitignored, off-host PII dumps **encrypted at rest** with the key escrowed (§1).
 - [ ] Prod→dev data sync runs the **PII scrub** (script-library §7) — no raw personal data
       on dev boxes.
 
-## 6. When something leaks anyway
+## 6. Know your public surface (it is not in your repo)
+
+Your public edge is the one layer you **cannot audit from your boxes**. A remotely-managed tunnel
+(`cloudflared tunnel run <token>`, no local config) keeps the hostname → origin map **in the provider's
+dashboard**: anyone with dashboard access can publish a new public hostname with **zero commits, zero
+config management, zero notification**. There is no PR to review and no diff to catch. So:
+
+- **Read the public surface from the provider's API, on a schedule** — and diff it against what you
+  believe. A hand-maintained list of "our public hostnames" is fiction; treat it as such.
+- **Every public hostname gets an explicit gate decision.** No Access app = **open to the internet**.
+  That is correct for a public product and a **finding** for an admin panel, a demo, or a staging door.
+  Beware the gate that only *looks* like one: an Access app whose policy is `bypass` or includes
+  *everyone* reads as protected on the dashboard and protects nothing.
+- **Audit for dangling routes and orphan tunnels.** A route whose DNS resolves nowhere is not harmless
+  if it is also **ungated** — re-point that zone and it comes up **open, in front of production**. And
+  note: a DNS record in a **non-`active` zone** (nameservers delegated away) resolves nowhere, so
+  "a record exists" is the wrong test.
+- **A "staging" hostname wired to prod containers is prod** — a second, unadvertised, usually ungated
+  and unprobed door into production. Names lie; routes don't.
+
+An audit that finds nothing costs an hour. One that finds something usually finds a *live, unwatched,
+production* something. → [`public-edge-baseline.md`](public-edge-baseline.md)
+
+## 7. When something leaks anyway
 
 1. Rotate the affected secret **first** (inventory table = the map), then investigate.
 2. Assume anything that shared the same `.env` or screen is also exposed — rotate the file's

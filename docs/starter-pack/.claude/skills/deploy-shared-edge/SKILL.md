@@ -27,9 +27,20 @@ on a shared box is always wrong.
       with `up -d --force-recreate caddy` (**never** trust `caddy reload` on a bind mount).
    b. Tunnel Public Hostname: `<<APP>>.<domain>` → `http://caddy:80` (the SHARED Caddy
       host-routes onward).
-   c. Cloudflare Access policy (email allowlist) while invite-only.
+   c. Cloudflare Access policy (email allowlist) while invite-only. ⚠️ Gating changes how you
+      probe: Access 302s *everything*, so a default probe follows the redirect and health-checks
+      Cloudflare's **login page** — green while the app is dead. Probe with an Access **service
+      token**, `follow_redirects: false`, and assert **`probe_http_redirects == 0`**.
 4. Verify: in-container `/health` ok; protected route 401s from the internet; **the
    neighbour apps still resolve** (the shared edge was touched only by the added block).
+5. **NOT DONE UNTIL WATCHED + BACKED UP** — the step whose absence let an app sit public, unprobed
+   and unbacked-up, for hours with every check passing:
+   - an outside-in **probe** (through the gate if gated), wired to an alert rule that **matches its
+     job** — a probe in an unmatched job goes red and pages nobody;
+   - a **DB backup** (new app = new database; on a cloud box the dump is the *only* copy), **restored
+     once**, and alerting on **missing**, not just stale — a backup that never ran has **no metric**,
+     so a staleness alert fires **nothing**. Silence is not safety.
+   - the hostname registered in the **exposure inventory**.
 
 ## Rules that keep co-tenants safe
 
