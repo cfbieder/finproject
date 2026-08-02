@@ -2,7 +2,13 @@ import { Fragment, useEffect, useState } from "react";
 import Rest from "../../js/rest";
 import FCModuleAuditModal from "./FCModuleAuditModal.jsx";
 import Modal from "../../components/Modal/Modal.jsx";
-import { fieldSectionsFor, isLoanModule } from "./fcModulesEditSections.js";
+import {
+  fieldSectionsFor,
+  isLoanModule,
+  initialOpenSections,
+  labelForType,
+} from "./fcModulesEditSections.js";
+import { resolveFxRate, localToUsd } from "./utils/fcModuleFx.js";
 import "./FCModulesEdit.css";
 
 const normalizeBaseDate = (value) => {
@@ -78,6 +84,26 @@ export default function FCModulesEditModal({
 }) {
   const [generating, setGenerating] = useState(false);
   const isMatched = Boolean(editForm?.Matched);
+
+  // CR064 P3 — which field sections are expanded. Seeded ONCE per module opened, not
+  // derived on every render: recomputing from the live form would collapse a section
+  // the moment its last field was cleared, out from under the cursor. `moduleKey`
+  // reseeds when a different module is opened in the same mounted modal.
+  const moduleKey = editForm?.id ?? "new";
+  const [openSections, setOpenSections] = useState(() => new Set());
+  useEffect(() => {
+    if (!isOpen || !editForm) return;
+    setOpenSections(initialOpenSections(editForm, fieldSectionsFor(editForm)));
+    // Seeding is deliberately keyed to the module, not to the form's contents.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isOpen, moduleKey]);
+  const toggleSection = (title) =>
+    setOpenSections((prev) => {
+      const next = new Set(prev);
+      if (next.has(title)) next.delete(title);
+      else next.add(title);
+      return next;
+    });
 
   // Cash sweep priority options (CR017): only ranks NOT already taken by another module
   // in this scenario, plus this module's own current rank and "Not in sweep". This makes
@@ -324,33 +350,6 @@ export default function FCModulesEditModal({
     return Number.isFinite(num) ? num : null;
   };
 
-  const resolveFxRate = (year) => {
-    const currency = editForm?.Currency;
-    if (!currency || currency === "USD") return 1;
-    const fxRows = assumptions?.FX || [];
-    const scenario = editForm?.Scenario;
-    const relevant = fxRows
-      .filter((row) => row?.Scenario === scenario)
-      .sort((a, b) => Number(a?.Year) - Number(b?.Year));
-    let rate = null;
-    for (const row of relevant) {
-      if (Number(row?.Year) <= Number(year)) {
-        if (currency === "PLN" && row?.Rates?.USDPLN) {
-          rate = row.Rates.USDPLN;
-        } else if (currency === "EUR" && row?.Rates?.USDEUR) {
-          rate = row.Rates.USDEUR;
-        }
-      }
-    }
-    if (rate === null && relevant.length) {
-      const latest = relevant[relevant.length - 1];
-      if (currency === "PLN" && latest?.Rates?.USDPLN)
-        rate = latest.Rates.USDPLN;
-      if (currency === "EUR" && latest?.Rates?.USDEUR)
-        rate = latest.Rates.USDEUR;
-    }
-    return Number.isFinite(Number(rate)) ? Number(rate) : 1;
-  };
 
   const baseValueNumber = parseNumber(editForm?.BaseValue);
   const marketValueNumber = parseNumber(editForm?.MarketValue);
@@ -371,19 +370,19 @@ export default function FCModulesEditModal({
     Number(accountBalance.value) !== 0
       ? Number(accountBalance.valueUSD) / Number(accountBalance.value)
       : null;
-  const fxRate = !isMatched ? resolveFxRate(baseYear) : 1;
-  const computedBaseValueUSD =
-    baseValueNumber === null
-      ? ""
-      : isMatched && accountValueRatio !== null
-      ? baseValueNumber * accountValueRatio
-      : baseValueNumber * fxRate;
-  const computedMarketValueUSD =
-    marketValueNumber === null
-      ? ""
-      : isMatched && accountValueRatio !== null
-      ? marketValueNumber * accountValueRatio
-      : marketValueNumber * fxRate;
+  // CR064 P0 — see utils/fcModuleFx.js. A matched module uses its own balance-sheet
+  // ratio; anything else uses the scenario's FX assumption, and a module with neither
+  // keeps whatever USD figure is stored instead of being handed one at a rate of 1.
+  const fxRate = resolveFxRate({
+    fxRows: assumptions?.FX,
+    scenario: editForm?.Scenario,
+    currency: editForm?.Currency,
+    year: baseYear,
+  });
+  const toUsd = (localNumber) =>
+    localToUsd({ localNumber, isMatched, accountValueRatio, fxRate });
+  const computedBaseValueUSD = toUsd(baseValueNumber);
+  const computedMarketValueUSD = toUsd(marketValueNumber);
   const accountValueAvailable = Number.isFinite(Number(accountBalance.value));
 
   const copyAccountValueTo = (field) => {
@@ -402,13 +401,17 @@ export default function FCModulesEditModal({
     const marketUsdNext = normalizeNumeric(computedMarketValueUSD);
     const baseUsdCurrent = normalizeNumeric(editForm.BaseValueUSD);
     const marketUsdCurrent = normalizeNumeric(editForm.MarketValueUSD);
-    if (baseUsdNext !== baseUsdCurrent) {
+    // CR064 P0 — `undefined` means the conversion is unavailable (a foreign-currency
+    // module in a scenario with no FX rate for it). Leave the stored figure alone:
+    // overwriting it is how a hand-typed correct value used to be replaced by the
+    // local amount at an implied rate of 1.
+    if (computedBaseValueUSD !== undefined && baseUsdNext !== baseUsdCurrent) {
       onFieldChange(
         "BaseValueUSD",
         computedBaseValueUSD === "" ? "" : computedBaseValueUSD
       );
     }
-    if (marketUsdNext !== marketUsdCurrent) {
+    if (computedMarketValueUSD !== undefined && marketUsdNext !== marketUsdCurrent) {
       onFieldChange(
         "MarketValueUSD",
         computedMarketValueUSD === "" ? "" : computedMarketValueUSD
@@ -459,12 +462,16 @@ export default function FCModulesEditModal({
     loanDrawYear && loanEndYear && loanEndYear > loanDrawYear
       ? Array.from({ length: loanEndYear - loanDrawYear - 1 }, (_, i) => loanDrawYear + 1 + i)
       : [];
+  // CR064 §4.2 — the label is per type, the FIELDS never are. A private-equity fund
+  // does not "invest" and "dispose", it draws capital calls and pays distributions;
+  // a fixed-income holding's yield spread is a coupon spread. An unknown or renamed
+  // type simply keeps the generic word — a lookup miss costs a noun, never a value.
   const transferSections = isLoan
     ? [["Amortization", "Amortization"]]
     : [
-        ["Invest", "Invest"],
-        ["Dispose", "Dispose"],
-        [incomePctLabel, "IncomePct"],
+        [labelForType(editForm?.Type, "Invest", "Invest"), "Invest"],
+        [labelForType(editForm?.Type, "Dispose", "Dispose"), "Dispose"],
+        [labelForType(editForm?.Type, "IncomePct", incomePctLabel), "IncomePct"],
       ];
 
   /**
@@ -674,8 +681,24 @@ export default function FCModulesEditModal({
               </div>
               {fieldSectionsFor(editForm).map(([sectionTitle, sectionFields]) => (
                 <div key={sectionTitle} className="fc-modules-modal__field-group">
-                  <h5 className="fc-modules-modal__group-title">{sectionTitle}</h5>
-                  <div className="fc-modules-modal__fields-grid">
+                  {/* CR064 P3 — an empty section collapses to a single "+ Add" line.
+                      Always a button, never a hidden field: the value is still on the
+                      form and still saved, so this can never hide a live number. */}
+                  {openSections.has(sectionTitle) ? (
+                    <h5 className="fc-modules-modal__group-title">{sectionTitle}</h5>
+                  ) : (
+                    <button
+                      type="button"
+                      className="fc-modules-modal__group-toggle"
+                      onClick={() => toggleSection(sectionTitle)}
+                    >
+                      + Add {sectionTitle.toLowerCase()}
+                    </button>
+                  )}
+                  <div
+                    className="fc-modules-modal__fields-grid"
+                    hidden={!openSections.has(sectionTitle)}
+                  >
                     {sectionFields.map(([label, field, type, source]) => {
                   if (field === "Account") {
                     return (
@@ -1110,9 +1133,14 @@ export default function FCModulesEditModal({
                   let inputValue = isLockedField
                     ? accountTraits[field] ?? ""
                     : editForm[field] ?? "";
-                  if (field === "BaseValueUSD") {
+                  // CR064 P0 — `undefined` = no FX rate to convert with, so show the
+                  // stored figure rather than blanking a controlled input.
+                  if (field === "BaseValueUSD" && computedBaseValueUSD !== undefined) {
                     inputValue = computedBaseValueUSD;
-                  } else if (field === "MarketValueUSD") {
+                  } else if (
+                    field === "MarketValueUSD" &&
+                    computedMarketValueUSD !== undefined
+                  ) {
                     inputValue = computedMarketValueUSD;
                   }
                   if (!isMatched && isValueField) {

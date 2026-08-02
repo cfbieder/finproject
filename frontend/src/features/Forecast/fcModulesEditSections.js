@@ -103,3 +103,70 @@ export const isLoanModule = (form) =>
 
 export const fieldSectionsFor = (form) =>
   (isLoanModule(form) ? LOAN_FIELD_SECTIONS : FIELD_SECTIONS);
+
+// ---------------------------------------------------------------------------
+// CR064 P3 — collapse a section that has nothing in it.
+//
+// The owner's complaint that started this ("Loan got its own form — shouldn't the
+// other types?") is real: Real Estate never uses Income (0 of 40 modules), Business
+// never uses Expenses (0 of 18), Liability and Asset use neither, and Tax is unused
+// on all 103 modules in the database. But per-TYPE field sets are the wrong fix —
+// `module_type` is a free-text list the owner edits (prod carries both `Asset` and
+// `asset`), and a hidden field is not a cleared one: fcModulePayload sends every
+// field on every save, so hiding a section would leave a stale expense charging the
+// P&L invisibly. That is why CR062's Loan carve-out needed a preview endpoint and a
+// confirmed delete, per type.
+//
+// Emptiness needs neither. A section that is empty is collapsed and reopens on one
+// click; a section with anything in it is open. It cannot hide a live value BY
+// CONSTRUCTION, it needs no confirm dialog, and it works for the tenth type the
+// owner invents next. See CR064 §4.1 / §5.
+// ---------------------------------------------------------------------------
+
+/** Sections that stay open even when empty — the ones every module is defined by. */
+export const ALWAYS_OPEN_SECTIONS = new Set(["General", "Valuation", "Loan"]);
+
+/** Fields whose default value is not "empty" in the raw sense. */
+const FIELD_DEFAULTS = { ExpenseGrowthMethod: "inflation" };
+
+/** Is this one field unset? Zero counts as unset: a 0 expense charges nothing. */
+export const fieldIsEmpty = (form, field) => {
+  const value = form?.[field];
+  if (value === null || value === undefined || value === "") return true;
+  if (value === FIELD_DEFAULTS[field]) return true;
+  if (Array.isArray(value)) return value.length === 0;
+  const num = Number(value);
+  return Number.isFinite(num) && num === 0;
+};
+
+/** Does this section hold anything at all? */
+export const sectionHasContent = (form, fields) =>
+  (fields || []).some(([, field]) => !fieldIsEmpty(form, field));
+
+/**
+ * Sections open on first render: the always-open ones, plus any that carry a value.
+ * Recomputed only when the modal opens — collapsing a section the moment its last
+ * field is cleared would yank it out from under the cursor.
+ */
+export const initialOpenSections = (form, sections) => {
+  const open = new Set();
+  for (const [title, fields] of sections || []) {
+    if (ALWAYS_OPEN_SECTIONS.has(title) || sectionHasContent(form, fields)) open.add(title);
+  }
+  return open;
+};
+
+// ---------------------------------------------------------------------------
+// CR064 §4.2 — per-type LABELS. Cosmetic only, and deliberately not per-type
+// fields: a lookup miss (an unknown or renamed type) costs a generic word, never a
+// value. `Invest`/`Dispose` are what a private-equity fund does least like — all ten
+// PE modules use both, and both are really capital calls and distributions.
+// ---------------------------------------------------------------------------
+const TYPE_LABELS = {
+  "private equity": { Invest: "Capital Call", Dispose: "Distribution" },
+  "fixed income": { IncomePct: "Coupon Spread" },
+};
+
+/** The label for `field` on a module of `type`, or `fallback` when there is no override. */
+export const labelForType = (type, field, fallback) =>
+  TYPE_LABELS[String(type || "").trim().toLowerCase()]?.[field] ?? fallback;

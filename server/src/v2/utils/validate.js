@@ -71,6 +71,17 @@ function assertDateString(value, name, { optional = false } = {}) {
   }
 }
 
+/** A non-blank string. Whitespace-only is blank — a scenario named "  " has no name. */
+function assertNonEmptyString(value, name, { optional = false } = {}) {
+  if (value === undefined || value === null) {
+    if (optional) return;
+    throw badRequest(`${name} is required`);
+  }
+  if (typeof value !== 'string' || value.trim() === '') {
+    throw badRequest(`${name} must be a non-empty string`);
+  }
+}
+
 function assertBoolean(value, name, { optional = false } = {}) {
   if (value === undefined || value === null) {
     if (optional) return;
@@ -89,4 +100,5 @@ module.exports = {
   assertInteger,
   assertDateString,
   assertBoolean,
+  assertNonEmptyString,
 };

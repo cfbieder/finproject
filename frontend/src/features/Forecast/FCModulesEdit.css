@@ -1486,6 +1486,35 @@
   letter-spacing: 0.08em;
 }
 
+/*
+ * CR064 P3 — the collapsed form of a section title. A section with nothing in it
+ * renders as this single line instead of a grid of empty inputs; clicking it opens
+ * the section. Deliberately quieter than an open title (no uppercase, no rule) so a
+ * form with three collapsed sections reads as three offers, not three headings.
+ */
+.fc-modules-modal__group-toggle {
+  display: block;
+  width: 100%;
+  margin: 0 0 0.75rem;
+  padding: 0.35rem 0;
+  border: none;
+  border-bottom: 1px dashed rgba(107, 142, 107, 0.25);
+  background: none;
+  font-family: inherit;
+  font-size: 0.8rem;
+  font-weight: 600;
+  color: var(--ink-secondary);
+  text-align: left;
+  letter-spacing: 0.02em;
+  cursor: pointer;
+}
+
+.fc-modules-modal__group-toggle:hover,
+.fc-modules-modal__group-toggle:focus-visible {
+  color: var(--ink);
+  border-bottom-color: var(--accent, rgba(107, 142, 107, 0.6));
+}
+
 /* Fields */
 .fc-modules-modal__fields-grid {
   display: grid;

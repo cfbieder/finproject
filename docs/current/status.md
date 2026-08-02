@@ -4,11 +4,29 @@
 > CR statuses live in the [CR index](../cr/README.md); the running version lives in `VERSION`.
 > Older headlines: [status log](../archive/status-log_2026-08-01.md).
 
-**Last updated:** 2026-08-01 · **Live version:** v3.11.2 (see `VERSION` / git tags)
+**Last updated:** 2026-08-02 · **Live version:** v3.11.2 (see `VERSION` / git tags)
 
 ## Current phase
-No CR is mid-build. The recent run is owner-found defects, their follow-ups, and a long
-thread of brokerage-history data work. Detail lives in the CR file linked from each line.
+**[CR064](../cr/cr-064-forecast-annual-close-and-assumptions.md) is mid-build** (P0/P1/P3 done,
+uncommitted, undeployed). Otherwise: owner-found defects, their follow-ups, and a long thread of
+brokerage-history data work. Detail lives in the CR file linked from each line.
+
+- ⛔ **CI is red on `main` and has been since `2d49ff3`** — migration **050**'s `found <> 1` guard
+  aborts on a data-free database, and CI applies the whole chain to an empty Postgres before it
+  seeds. **Third instance of this class** (046 was the first, and the fix note for it says exactly
+  this), and again nothing announced it — [Known Issue #12](project-roadmap.md#3-known-issues).
+  Amended under the migrations rule's "unavoidable" clause; the chain now builds all 52 files.
+  **Leaves ledger checksum drift on dev and prod to accept deliberately** (`--accept-drift=050…`).
+- **[CR064](../cr/cr-064-forecast-annual-close-and-assumptions.md) — one question, three defects.**
+  *Should the other module types get a custom form like Loan's?* **No** — §5. But: the module
+  editor computed foreign-currency USD at **FX = 1** and in the wrong direction (**P0**, an
+  unmatched €390K property posts $390K); renaming a scenario stranded its assumptions, which two
+  saves later reads as **0% inflation for 36 years, silently** (**P1**, migration **052**, five
+  dead names in prod); and the two blank prod modules are **Generate**'s doing, not Cancel's —
+  CR042 fixed Cancel a day before they were written (**P3**). Gates green (731 backend / 298
+  frontend / six ratchets / lint 0). **P2 — the annual close — needs an owner decision** before it
+  is built: every module is anchored **2025-12-31** while every scenario runs `PeriodStart 2027`,
+  so each carries two base years at once. Roll **in place**, or keep **minting a copy** each year?
 
 - **The Fidelity accounts now reconcile to the custodian, not to themselves** ([CR058 §12](../cr/cr-058-quicken-valuation-anchors.md), dev + prod). All four anchored to Fidelity's own statements; the stale-feed MTM marks restated; the 2023 handoff plug found and corrected; and the anchors, which are `is_transfer` rows, no longer report as capital contributions — so return percentages exist for 2020–2024 for the first time. *Open:* whether to book any of the statement-derived unrealized series ([§12.8–12.9](../cr/cr-058-quicken-valuation-anchors.md)), Fidelity Options (markable, never anchorable), and whether the feed's +2-day lag is calendar or business days.
 - **[CR059](../cr/cr-059-fintable-api-ingestion.md) — fintable's REST API replaces the Google-Sheet scrape.** P0–P2 built and gate-verified; **nothing live** (`FINTABLE_SOURCE=sheets`). Remaining: P3a (31 account mappings, migration **044**) then P4 cutover. Retires the display-name join behind the Black Card incident. **§18 / migration 050** (v3.11.2, dev only) closes a cutover-only risk first: fintable serves four Revolut EUR transactions twice, the second copy under a wallet it labels "(USD)". ⚠️ **050 is pending on prod and the deploy runner applies every pending file** — the next `deploy-to-production.sh` will apply it whether or not P4 has happened.
@@ -41,7 +59,11 @@ Canonical dates/versions: **[CR index](../cr/README.md)**. Per-release detail:
 - "2026 Downside" — the owner is redoing it; also CR048's equity-growth and FX-stress decisions.
 - [CR058 §12.8–12.9](../cr/cr-058-quicken-valuation-anchors.md) — whether to book any of the statement-derived unrealized series.
 - [CR059](../cr/cr-059-fintable-api-ingestion.md) — the Chase date basis (`auth_date` vs posted) and the two Revolut wallets that no longer exist upstream.
-- **Open design question:** creating a module opens its editor, but the module already exists by then — so **Cancel leaves a blank, nameless row behind**. Should Cancel delete it?
+- ~~Open design question: should Cancel delete the blank row it leaves behind?~~ **Answered — the
+  premise was stale** ([CR064 §4.3](../cr/cr-064-forecast-annual-close-and-assumptions.md)). CR042
+  made New Module a client-side draft (`11fc3b5`, 2026-07-13); both blank prod rows were written
+  on 2026-07-14, by **Generate**, which saves the draft before it builds. The API now refuses a
+  module with neither an account nor a name, and **Cancel needs no change**.
 
 **Engineering, unblocked:**
 - CR059 P3a (31 mappings, migration 044) → P4 cutover; CR060's fin-side recon page.

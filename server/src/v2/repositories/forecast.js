@@ -76,9 +76,11 @@ async function updateScenario(id, data) {
   const params = [];
   let paramIndex = 1;
 
+  // CR064 P1 — a rename must also carry the scenario's assumptions across, so it goes
+  // through renameScenario and nowhere else. Refusing it here rather than accepting it
+  // makes any future caller fail loudly instead of stranding an inflation path.
   if (data.name !== undefined) {
-    fields.push(`name = $${paramIndex++}`);
-    params.push(data.name);
+    throw new Error('updateScenario: use renameScenario() to change a scenario name (CR064 §2.4)');
   }
   if (data.description !== undefined) {
     fields.push(`description = $${paramIndex++}`);
@@ -110,6 +112,79 @@ async function updateScenario(id, data) {
 
   const result = await db.query(sql, params);
   return result.rows[0] || null;
+}
+
+/**
+ * CR064 P1 — rename a scenario AND every assumptions entry keyed to its old name,
+ * in one transaction.
+ *
+ * A scenario's period, inflation path, FX paths and tax rate live in the
+ * `forecast_assumptions` document keyed by the scenario's NAME (CR039). Renaming the
+ * row alone leaves them behind, and the resulting failure is not the loud one it looks
+ * like: the next generate throws (`loadScenarioConfig` cannot find the scenario), the
+ * owner saves Forecast Settings to clear it, that write refreshes only `scenarios` from
+ * the DB names — and generate then SUCCEEDS with an empty inflation list, which
+ * `buildRates` seeds as `entries[0]?.Rate ?? 0`. **0% inflation for the whole horizon,
+ * silently.** Prod carries five orphaned names from renames that already happened
+ * (pruned by migration 052).
+ *
+ * The rename is the only path that can desynchronise the two, which is why fixing the
+ * path was preferred to re-keying the documents by id — see CR064 §2.3 for the two
+ * places an id would have had to be rewritten, one of them silent.
+ *
+ * @returns the updated scenario row, or null when `id` does not exist.
+ */
+async function renameScenario(id, newName) {
+  const name = String(newName ?? '').trim();
+  if (!name) throw new Error('renameScenario: a name is required');
+
+  return db.transaction(async (client) => {
+    const current = await client.query(
+      'SELECT * FROM forecast_scenarios WHERE id = $1', [id]
+    );
+    if (current.rows.length === 0) return null;
+    const oldName = current.rows[0].name;
+    if (oldName === name) return current.rows[0];
+
+    const clash = await client.query(
+      'SELECT id FROM forecast_scenarios WHERE name = $1 AND id <> $2', [name, id]
+    );
+    if (clash.rows.length > 0) {
+      throw new Error(`renameScenario: "${name}" is already taken by scenario ${clash.rows[0].id}`);
+    }
+
+    const updated = await client.query(
+      `UPDATE forecast_scenarios SET name = $1, updated_at = NOW() WHERE id = $2 RETURNING *`,
+      [name, id]
+    );
+
+    // `value` is `json`, not `jsonb`, on purpose (CR039: jsonb reorders object keys and
+    // broke byte-parity), so the documents are round-tripped through JS — which also
+    // keeps each entry's key order exactly as stored.
+    const NAME_FIELD = { scenarios: 'Name', inflation: 'Scenario', FX: 'Scenario', 'Tax Rate': 'Scenario' };
+    for (const [key, field] of Object.entries(NAME_FIELD)) {
+      const row = await client.query(
+        'SELECT value FROM forecast_assumptions WHERE key = $1', [key]
+      );
+      if (row.rows.length === 0) continue;
+      const raw = row.rows[0].value;
+      const list = typeof raw === 'string' ? JSON.parse(raw) : raw;
+      if (!Array.isArray(list)) continue;
+      let touched = false;
+      const next = list.map((entry) => {
+        if (!entry || entry[field] !== oldName) return entry;
+        touched = true;
+        return { ...entry, [field]: name };
+      });
+      if (!touched) continue;
+      await client.query(
+        'UPDATE forecast_assumptions SET value = $1, updated_at = NOW() WHERE key = $2',
+        [JSON.stringify(next), key]
+      );
+    }
+
+    return updated.rows[0];
+  });
 }
 
 /**
@@ -820,6 +895,7 @@ module.exports = {
   findScenarioByName,
   createScenario,
   updateScenario,
+  renameScenario,
   deleteScenario,
   copyScenario,
   // Modules

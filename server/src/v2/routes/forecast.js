@@ -130,6 +130,24 @@ function assertModuleBody(body) {
     }
   }
 
+  // CR064 P3 — a module must be identifiable by SOMETHING. Prod carries two rows with
+  // no name and no account: they were written by pressing **Generate** on a brand-new
+  // module form, which saves the draft first, and nothing here refused them. They then
+  // sit in the Modules table as blank rows nobody can identify, and `AccountType`
+  // resolves to '' so they silently take the asset branch in the engine.
+  //
+  // The rule is deliberately "one or the other", not "both": an account with no name
+  // and a name with no account are each meaningful. Only the empty pair is refused —
+  // and no module in prod has ever had a name without an account, so nothing real is
+  // caught by this. Migration 052 deletes the two that exist. (CR064 §4.3)
+  if (body.Account !== undefined || body.Name !== undefined) {
+    const hasAccount = String(body.Account ?? '').trim() !== '';
+    const hasName = String(body.Name ?? '').trim() !== '';
+    if (!hasAccount && !hasName) {
+      throw validate.badRequest('module: needs an Account or a Name — a blank module cannot be identified');
+    }
+  }
+
   if (!isLoanBody(body)) return;
 
   // ── The loan guards ───────────────────────────────────────────────────────
@@ -363,7 +381,23 @@ router.put('/scenarios/:id', async (req, res, next) => {
     if (req.body.is_active !== undefined) {
       validate.assertBoolean(req.body.is_active, 'is_active');
     }
-    const updated = await repo.updateScenario(Number(id), req.body);
+    // CR064 P1 — a rename has to carry the scenario's assumptions (period, inflation
+    // path, FX paths, tax rate) with it: they live in the forecast_assumptions
+    // document keyed by NAME, and a row renamed without them runs at 0% inflation
+    // two saves later. `renameScenario` does both in one transaction; the remaining
+    // fields go through the ordinary update.
+    const { name, ...rest } = req.body;
+    let updated = null;
+    if (name !== undefined) {
+      validate.assertNonEmptyString(name, 'name');
+      updated = await repo.renameScenario(Number(id), name);
+      if (!updated) {
+        return res.status(404).json({ error: 'Scenario not found' });
+      }
+    }
+    if (Object.keys(rest).length > 0) {
+      updated = (await repo.updateScenario(Number(id), rest)) || updated;
+    }
     if (!updated) {
       return res.status(404).json({ error: 'Scenario not found' });
     }

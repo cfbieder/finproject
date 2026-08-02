@@ -367,6 +367,16 @@ export default function FCModuleManage() {
       return false;
     }
 
+    // CR064 P3 — refuse to write a module with neither an account nor a name.
+    // Cancelling a draft has left nothing behind since CR042, but **Generate** saves
+    // the draft before it builds, so pressing it on an empty New Module form wrote a
+    // blank row — twice, in prod, on 2026-07-14. The API refuses this too; catching it
+    // here is what turns a 400 into a sentence the owner can act on.
+    if (!String(editForm.Account ?? "").trim() && !String(editForm.Name ?? "").trim()) {
+      setEditError("Pick an account (or type a name) before saving this module.");
+      return false;
+    }
+
     const payload = buildModulePayload(editForm, { normalizeTransfers });
 
     // CR062 — turning a module into a Loan DESTROYS what a loan cannot carry: its
