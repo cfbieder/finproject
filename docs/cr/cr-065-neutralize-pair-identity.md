@@ -294,3 +294,34 @@ those rows are not accepted yet, so they are not errors yet. That is the divisio
 
 Twelve DB-backed tests now, two of them pinning the flag itself: true for an unpaired leg,
 false once neutralized, and never set on an ordinary category.
+
+## 10. Closing out — and one more defect the close-out found
+
+**The three Fidelity IRA reinvestment legs** flagged by §9 were neutralized. Worth recording
+why the dry-run mattered: each `REINVESTMENT −X` sits beside a `DIVIDEND RECEIVED +X` of the
+**identical amount on the same date**, which is precisely the shape the pair-matcher looks
+for. Pairing them would have consumed real dividend income as a counter-leg and left the
+fund purchase unmirrored. All three previewed as **`mirror`** — the CR032 category guard
+(§3.1) refusing them, because a dividend carries `Financial Income - Dividend`, not the
+transfer category. Three mirrors created; the dividends untouched.
+
+**Booking the MTM surfaced a new defect.** `reconcileToFeed` proposed **+$40,150.79** for a
+2026-07-31 month-end mark on Fidelity Cash Mgt — a 3.6% one-month unrealized gain on a **CD
+ladder held at par**, which is not a thing. The cause: it takes the newest
+`bankfeed_balances` row dated `<= bookDate`, and this feed's row dated 07-31 was **synced at
+01:48 on 07-31**, before that day's −41,564.86 wire. The row that actually reflects the 07/31
+close is dated **08-02**.
+
+The existing stale-feed guard cannot see it. It fires on *no row dated month-end* or *three
+identical balances* — both of which test the **date label**. This row has the right label and
+the wrong contents. `source_synced_at` is the signal that would catch it: a balance synced
+before the end of the day it is dated cannot contain that day. Filed as
+[Known Issue #14](../current/project-roadmap.md#3-known-issues).
+
+Booked at `bookDate` **2026-08-02** instead, against the balance that does reflect the 07/31
+close: **−804.50**, entry `2709888`, category *Unrealized G/L*. If the owner wants the mark
+in July's P&L rather than August's it should be re-dated — the amount is right either way.
+
+**Fidelity Cash Mgt now reconciles at drift 0.00**, from −107,830.71. The remaining Fidelity
+drifts (Stocks 20,247.88 · Bond 7,670.78 · Options 1,498.51 · IRA 1,347.11) are un-booked
+market moves awaiting their own marks, and every account reports **0 unpaired legs**.

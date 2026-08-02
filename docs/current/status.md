@@ -23,7 +23,7 @@ brokerage-history data work. Detail lives in the CR file linked from each line.
   recurred an hour after the deploy** because `refreshBankFeedV2`'s sweep mirror and
   `transferToAccount` also make pairs and did not record them, so their counter-legs read as
   unclaimed (+$20,000 on Fidelity Bond). Fixed, migration **054**, and *the check caught it the same
-  hour*. **§9 (v3.11.5)** adds the owner-asked guard: the review queue badges a securities leg with **no offset** and all four accept paths ask before letting one through — already flagging 3 of 71 rows. *Next:* book the MTM (804.50 on Cash Mgt).
+  hour*. **§9 (v3.11.5)** adds the owner-asked guard: the review queue badges a securities leg with **no offset** and all four accept paths ask before letting one through — already flagging 3 of 71 rows. **§10: Cash Mgt now reconciles at drift 0.00** (−107,830.71 → 0) — three IRA reinvestment legs neutralized and the MTM booked (−804.50). Booking it found [Known Issue #14](project-roadmap.md#3-known-issues): the stale-feed guard checks a balance's *date label*, not whether it contains that day, and proposed **+$40,150.79** on a CD ladder held at par.
 - **CI is green again** — migration **050**'s `found <> 1` guard was unconditional and aborted the
   chain on a data-free database, so `main` had been red since `2d49ff3`. **Third instance of this
   class** (046 was the first, and the fix note for it says exactly this), and again nothing
@@ -48,7 +48,7 @@ brokerage-history data work. Detail lives in the CR file linked from each line.
 
 ## Known issue
 - ⚠️ **"2026 Downside" has no sweep backup ranked** — *owner is redoing this scenario themselves (2026-07-13); **do not fix it**.* `Fidelity Stocks` carries no `cash_sweep_priority` there, so the engine reports **−$1.25M of shortfall across 2061–62 while $1.2M of stock sits untouched**. That is [CR045](../cr/cr-045-forecast-cash-warnings-liquidation.md) §5 working as designed (unranked = "I cannot sell this"), but for a liquid brokerage account it is almost certainly a data slip. One-row fix, left to the owner because it changes Downside's conclusions.
-- Everything else: [roadmap §3](project-roadmap.md#3-known-issues) — 13 entries, including the timezone rule (#3), the pre-CR065 securities-transfer residue (#13), the 13 untriaged same-signed transfer clusters (#8), the ESLint JSX blind spot (#10), and the unannounced red `main` (#12).
+- Everything else: [roadmap §3](project-roadmap.md#3-known-issues) — 14 entries, including the timezone rule (#3), the MTM stale-feed guard (#14), the pre-CR065 securities-transfer residue (#13), the 13 untriaged same-signed transfer clusters (#8), the ESLint JSX blind spot (#10), and the unannounced red `main` (#12).
 
 ## Live infrastructure
 - **Dev and prod are the same host** (`192.168.1.87` / Tailscale `100.94.46.62`). Prod `docker-compose.yml` (project `psproject`, :3005, DB :5433, volume `fin_postgres_data`); dev `docker-compose.dev.yml` (:3105/:5434); v4 `docker-compose.v4.yml` (`finv4`, :3205/:5435, flags ON, isolated volume). Prod frontend: `https://fin.tail413695.ts.net`.
