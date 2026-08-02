@@ -8,7 +8,7 @@ import {
   initialOpenSections,
   labelForType,
 } from "./fcModulesEditSections.js";
-import { resolveFxRate, localToUsd } from "./utils/fcModuleFx.js";
+import { resolveFxRate, localToUsd, allocateBudget } from "./utils/fcModuleFx.js";
 import "./FCModulesEdit.css";
 
 const normalizeBaseDate = (value) => {
@@ -1039,22 +1039,71 @@ export default function FCModulesEditModal({
                     const availableLines = fcLines.filter((l) => l.line_type === lineType);
                     const currentValue = editForm[field] ?? "";
                     const lineId = currentValue ? Number(currentValue) : null;
-                    const budgetTotal = lineId ? Math.abs(fcBudgetTotals[lineId] || 0) : 0;
+                    // CR064 P7 — this whole block used to add up THREE DIFFERENT CURRENCIES
+                    // and call the answer "Remaining".
+                    //
+                    //   `fcBudgetTotals` is SUM(budget_entries.base_amount) — always USD.
+                    //   `expense_amount` / `income_amount` are in the MODULE's currency
+                    //   (the engine divides them by the FX series to get USD).
+                    //
+                    // So on a PLN module the hint compared a USD budget against a PLN
+                    // input, and reconciled to zero when the two numbers matched as
+                    // digits. That is exactly what happened to United Beverages: its
+                    // dividend budget is 690,000 PLN = 192,266 USD, and the module holds
+                    // **192,266** — the USD figure typed into a PLN field, with the hint
+                    // reporting "Remaining: -0" as though it balanced. Inert only while
+                    // the module is in yield mode (CR064 §6.1); in amount mode it would
+                    // book about a quarter of the intended dividend.
+                    //
+                    // Everything is now added up in USD — the one unit all the inputs can
+                    // be converted to — and then presented in the module's own currency,
+                    // labelled, so the number on screen is in the same unit as the field
+                    // being typed into.
+                    const budgetUSD = lineId ? Math.abs(fcBudgetTotals[lineId] || 0) : 0;
+                    const moduleCcy = editForm?.Currency || "USD";
+                    /** Native units per USD for `ccy` in this scenario; null = cannot convert. */
+                    const unitsPerUsd = (ccy) =>
+                      resolveFxRate({
+                        fxRows: assumptions?.FX,
+                        scenario: editForm?.Scenario,
+                        currency: ccy,
+                        year: baseYear,
+                      });
 
-                    // Compute allocation: how much of this line's budget is used by OTHER modules
                     const currentModuleId = editForm?.id;
-                    const otherModulesAmount = lineId
-                      ? allModules
-                          .filter((m) => {
-                            const mLineId = isExpense
-                              ? (m.ExpenseFcLineId || m.expense_fc_line_id)
-                              : (m.IncomeFcLineId || m.income_fc_line_id);
-                            return Number(mLineId) === lineId && m.id !== currentModuleId;
-                          })
-                          .reduce((sum, m) => sum + Math.abs(parseFloat(isExpense ? (m.ExpenseAmount ?? m.expense_amount ?? 0) : (m.IncomeAmount ?? m.income_amount ?? 0))), 0)
-                      : 0;
-                    const thisModuleAmount = Math.abs(parseFloat(isExpense ? (editForm.ExpenseAmount ?? 0) : (editForm.IncomeAmount ?? 0)));
-                    const remaining = budgetTotal - otherModulesAmount - thisModuleAmount;
+                    const otherRows = lineId
+                      ? allModules.filter((m) => {
+                          const mLineId = isExpense
+                            ? (m.ExpenseFcLineId || m.expense_fc_line_id)
+                            : (m.IncomeFcLineId || m.income_fc_line_id);
+                          return Number(mLineId) === lineId && m.id !== currentModuleId;
+                        })
+                      : [];
+                    // A module whose currency has no rate is EXCLUDED and counted, never
+                    // added in as though it were USD — that is the bug, one level down.
+                    const alloc = allocateBudget({
+                      budgetUSD,
+                      moduleCurrency: moduleCcy,
+                      thisAmount: parseFloat(isExpense ? (editForm.ExpenseAmount ?? 0) : (editForm.IncomeAmount ?? 0)) || 0,
+                      others: otherRows.map((m) => ({
+                        amount: parseFloat(
+                          isExpense
+                            ? (m.ExpenseAmount ?? m.expense_amount ?? 0)
+                            : (m.IncomeAmount ?? m.income_amount ?? 0)
+                        ) || 0,
+                        currency: m.Currency || m.currency || "USD",
+                      })),
+                      rateFor: unitsPerUsd,
+                    });
+                    const fmt = (n) => n === null || n === undefined
+                      ? "—"
+                      : n.toLocaleString("en-US", { maximumFractionDigits: 0 });
+                    const budgetShown = alloc.budget;
+                    const otherShown = alloc.others;
+                    const remainingShown = alloc.remaining;
+                    const unconvertible = alloc.unconvertible;
+                    const otherModulesUSD = alloc.others === null ? 0 : alloc.others;
+                    const isForeign = moduleCcy !== "USD";
 
                     return (
                       <label key={field} className="fc-modules-modal__field">
@@ -1070,19 +1119,44 @@ export default function FCModulesEditModal({
                           {availableLines.map((line) => (
                             <option key={line.id} value={line.id}>
                               {line.name}
-                              {fcBudgetTotals[line.id] ? ` (${Math.abs(fcBudgetTotals[line.id]).toLocaleString("en-US", { maximumFractionDigits: 0 })})` : ""}
+                              {fcBudgetTotals[line.id] ? ` (${Math.abs(fcBudgetTotals[line.id]).toLocaleString("en-US", { maximumFractionDigits: 0 })} USD)` : ""}
                             </option>
                           ))}
                         </select>
-                        {lineId && budgetTotal > 0 && (
-                          <div style={{ fontSize: "0.75rem", color: "var(--ink-secondary)", marginTop: "0.2rem", lineHeight: 1.5 }}>
-                            <span>Budget: <b>{budgetTotal.toLocaleString("en-US", { maximumFractionDigits: 0 })}</b></span>
-                            {otherModulesAmount > 0 && (
-                              <span> — Other modules: {otherModulesAmount.toLocaleString("en-US", { maximumFractionDigits: 0 })}</span>
+                        {lineId && budgetUSD > 0 && (
+                          <div className="fc-modules-modal__budget-hint">
+                            <span>
+                              Budget: <b>{fmt(budgetShown)} {moduleCcy}</b>
+                              {isForeign && alloc.canConvert && (
+                                <span className="fc-modules-modal__budget-usd">
+                                  {" "}({fmt(budgetUSD)} USD @ {unitsPerUsd(moduleCcy)})
+                                </span>
+                              )}
+                            </span>
+                            {otherModulesUSD > 0 && (
+                              <span> — Other modules: {fmt(otherShown)} {moduleCcy}</span>
                             )}
-                            <span> — Remaining: <b style={{ color: remaining < 0 ? "var(--danger, #C0504D)" : remaining === 0 ? "var(--success, #5B8C5B)" : undefined }}>
-                              {remaining.toLocaleString("en-US", { maximumFractionDigits: 0 })}
+                            <span> — Remaining: <b style={{
+                              color: remainingShown === null ? undefined
+                                : remainingShown < 0 ? "var(--danger, #C0504D)"
+                                : Math.round(remainingShown) === 0 ? "var(--success, #5B8C5B)"
+                                : undefined,
+                            }}>
+                              {fmt(remainingShown)} {moduleCcy}
                             </b></span>
+                            {!alloc.canConvert && isForeign && (
+                              <div className="fc-modules-modal__budget-warn">
+                                No {moduleCcy} rate in this scenario, so the budget cannot be
+                                shown in {moduleCcy}. The amount you type is in <b>{moduleCcy}</b>;
+                                the budget above is <b>{fmt(budgetUSD)} USD</b>.
+                              </div>
+                            )}
+                            {unconvertible > 0 && (
+                              <div className="fc-modules-modal__budget-warn">
+                                {unconvertible} other module{unconvertible > 1 ? "s" : ""} on this
+                                line could not be converted and {unconvertible > 1 ? "are" : "is"} excluded.
+                              </div>
+                            )}
                           </div>
                         )}
                       </label>

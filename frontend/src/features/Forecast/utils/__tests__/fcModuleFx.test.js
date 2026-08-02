@@ -2,7 +2,7 @@ import { describe, it, expect } from "vitest";
 import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
-import { fxRateOnRow, resolveFxRate, localToUsd } from "../fcModuleFx.js";
+import { fxRateOnRow, resolveFxRate, localToUsd, allocateBudget } from "../fcModuleFx.js";
 
 // The live document's shape, copied from prod's `forecast_assumptions` FX row.
 const LIVE_FX = [
@@ -138,5 +138,92 @@ describe("the three FX readers agree on the key spelling", () => {
     const src = repoFile("frontend/src/pages/FCExpSetup.jsx");
     expect(src).toMatch(/PLN\s*\?\?\s*rates\.USDPLN/);
     expect(src).toMatch(/EUR\s*\?\?\s*rates\.USDEUR/);
+  });
+});
+
+describe("allocateBudget", () => {
+  // Prod's live rates, and the module that proves the bug.
+  const rateFor = (ccy) => ({ USD: 1, PLN: 3.9, EUR: 0.86 }[ccy] ?? null);
+
+  it("shows a USD budget in the module's own currency", () => {
+    // United Beverages: the UB Dividend budget is 690,000 PLN = 192,266 USD, and the
+    // hint used to print the USD figure beside a field the engine reads as PLN. The
+    // owner matched the digits and the hint said "Remaining: -0".
+    const a = allocateBudget({
+      budgetUSD: 192266, moduleCurrency: "PLN", others: [], thisAmount: 0, rateFor,
+    });
+    expect(a.budget).toBeCloseTo(749837.4, 1);   // ≈ the 690,000 PLN budget at 3.9
+    expect(a.budgetUSD).toBe(192266);
+    expect(a.canConvert).toBe(true);
+  });
+
+  it("does NOT reconcile when a USD figure is typed into a PLN field", () => {
+    const a = allocateBudget({
+      budgetUSD: 192266, moduleCurrency: "PLN", others: [], thisAmount: 192266, rateFor,
+    });
+    // The old hint made this exactly 0. It is really about three quarters unallocated.
+    expect(Math.round(a.remaining)).toBe(557571);
+    expect(a.remaining).toBeGreaterThan(0);
+  });
+
+  it("reconciles to zero when the PLN amount really does match the budget", () => {
+    const a = allocateBudget({
+      budgetUSD: 192266, moduleCurrency: "PLN", others: [], thisAmount: 749837.4, rateFor,
+    });
+    expect(Math.round(a.remaining)).toBe(0);
+  });
+
+  it("is unchanged for a USD module — the common case must not move", () => {
+    const a = allocateBudget({
+      budgetUSD: 100000, moduleCurrency: "USD",
+      others: [{ amount: 30000, currency: "USD" }], thisAmount: 20000, rateFor,
+    });
+    expect(a.budget).toBe(100000);
+    expect(a.others).toBe(30000);
+    expect(a.remaining).toBe(50000);
+  });
+
+  it("converts each other module from ITS OWN currency, not the current one", () => {
+    // The four properties share one expense line: 20,000 PLN + 2,500 + 5,000 + 2,500 EUR.
+    // Adding those digits together (the old behaviour) gives a meaningless 30,000.
+    const a = allocateBudget({
+      budgetUSD: 64704, moduleCurrency: "EUR",
+      others: [
+        { amount: 20000, currency: "PLN" },   // ≈ 5,128 USD
+        { amount: 5000, currency: "EUR" },    // ≈ 5,814 USD
+        { amount: 2500, currency: "EUR" },    // ≈ 2,907 USD
+      ],
+      thisAmount: 2500, rateFor,
+    });
+    expect(a.others / 0.86).toBeCloseTo(5128.2 + 5813.95 + 2906.98, 1);
+    expect(Math.round(a.remaining / 0.86)).toBe(Math.round(64704 - 13849.13 - 2906.98));
+  });
+
+  it("EXCLUDES a row it cannot convert and says how many", () => {
+    // Adding it in as though it were USD is the same bug one level down.
+    const a = allocateBudget({
+      budgetUSD: 100000, moduleCurrency: "USD",
+      others: [{ amount: 50000, currency: "GBP" }, { amount: 10000, currency: "USD" }],
+      thisAmount: 0, rateFor,
+    });
+    expect(a.unconvertible).toBe(1);
+    expect(a.others).toBe(10000);
+    expect(a.remaining).toBe(90000);
+  });
+
+  it("reports canConvert=false rather than inventing a rate", () => {
+    const a = allocateBudget({
+      budgetUSD: 100000, moduleCurrency: "GBP", others: [], thisAmount: 5000, rateFor,
+    });
+    expect(a.canConvert).toBe(false);
+    expect(a.budget).toBeNull();
+    expect(a.remaining).toBeNull();
+    expect(a.budgetUSD).toBe(100000);
+  });
+
+  it("treats the amount's sign as immaterial — expenses are stored negative", () => {
+    const pos = allocateBudget({ budgetUSD: 1000, moduleCurrency: "USD", thisAmount: 400, rateFor });
+    const neg = allocateBudget({ budgetUSD: 1000, moduleCurrency: "USD", thisAmount: -400, rateFor });
+    expect(neg.remaining).toBe(pos.remaining);
   });
 });

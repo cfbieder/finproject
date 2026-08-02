@@ -22,8 +22,9 @@ CR062 (the Loan form this CR declines to generalise)
 | **P2** | §3 — the annual close: roll the base year forward across a scenario and its variants. | After P1. |
 | **P3** | §4, §5 — the module form: collapse-when-empty, per-type labels, the blank-row question. | Independent of P0–P2; ships whenever. |
 | **P6** | §6 — income a business can express: its own growth rate, permanent step changes, and the live mode stated in the form. Migration 055. | Independent of P0–P3. Ships dormant: 7,916 entries byte-identical on a copy of prod. |
-| **P4** | §7 — plan vs actual for the live year. | **Designed here, not built.** Needs P2 (a stale anchor makes every variance meaningless). |
-| **P5** | §8 — sensitivity runs on the CR053 harness. | **Designed here, not built.** Lowest priority; nothing is wrong without it. |
+| **P7** | §7 — the FC-line budget hint compared a USD budget with a local-currency amount. | Ships with P6: P6 is what makes the mis-scaled amount reachable. |
+| **P4** | §8 — plan vs actual for the live year. | **Designed here, not built.** Needs P2 (a stale anchor makes every variance meaningless). |
+| **P5** | §9 — sensitivity runs on the CR053 harness. | **Designed here, not built.** Lowest priority; nothing is wrong without it. |
 
 ---
 
@@ -417,7 +418,62 @@ guarantee.
   from P6 **on purpose**: fixing it changes existing numbers, and mixing that into a change whose
   whole claim is "byte-identical" would destroy the proof. It gets its own phase.
 
-## 7. P4 — plan vs actual (designed, not built)
+## 7. P7 — the FC-line budget hint added up three currencies
+
+### 7.1 What the owner saw
+
+*"192,266 showing to be allocated is USD, but when I enter the same amount it is entered as PLN."*
+Exactly right, and it has already cost a number.
+
+- `fcBudgetTotals` is `SUM(budget_entries.base_amount)` — **always USD**.
+- `income_amount` / `expense_amount` are in the **module's** currency (the engine divides them by
+  the FX series to reach USD).
+
+So on a PLN module the hint compared a USD budget against a PLN input and reconciled to zero when
+the two matched **as digits**. `otherModulesAmount` was worse: it summed the raw amounts of every
+module on the line regardless of currency — the four properties sharing one expense line add
+`20,000 PLN + 2,500 + 5,000 + 2,500 EUR` to "30,000" of nothing.
+
+### 7.2 The number it cost
+
+United Beverages' dividend budget is **690,000 PLN = 192,266 USD**. The module holds
+`income_amount = 192,266` — the USD figure typed into a PLN field, with the hint reporting
+**"Remaining: −0"** as though it balanced.
+
+Inert only because UB is in yield mode (§6.1), which discards the amount. **P6 made amount mode
+usable**, so switching UB across would have booked ~53,600 USD instead of the intended ~192,266 —
+a quarter of the largest income line in the plan, arrived at by trusting the form.
+
+### 7.3 Fix
+
+`allocateBudget` in [utils/fcModuleFx.js](../../frontend/src/features/Forecast/utils/fcModuleFx.js)
+sums in **USD** — the one unit every input converts to — and presents in the **module's** currency,
+labelled, so the figure on screen shares a unit with the field being typed into:
+
+```
+Budget: 749,837 PLN (192,266 USD @ 3.9) — Remaining: 749,837 PLN
+```
+
+The conversion uses the **scenario's** FX assumption, not the ledger's historical rate, and the
+rate is shown. That is deliberate: the module's amount will be converted at the scenario rate when
+the engine runs, so "Remaining: 0" now means *this module will book exactly the budgeted USD*.
+Showing the ledger's 690,000 PLN would look more familiar and reconcile to the wrong number.
+
+A row whose currency has no rate is **excluded and counted**, never added in as though it were
+USD — that is the same defect one level down. A USD module is unaffected: every rate is 1.
+
+8 tests, including the two that matter — that typing 192,266 into a PLN module against a
+192,266 USD budget **no longer reconciles**, and that it does when the PLN amount is right.
+
+### 7.4 Not fixed here: the data
+
+UB's stored `income_amount` is still the USD figure. It is inert today and correcting it is a
+number-changing decision for the owner, alongside the §6.5 question of whether UB belongs in
+amount mode at all. Barkeria (55,000 PLN against a 270,000 PLN / 96,799 USD line) and the four
+properties are **ambiguous** rather than provably wrong — they may be deliberate partial
+allocations, and this CR does not guess.
+
+## 8. P4 — plan vs actual (designed, not built)
 
 `FCReviewTable` already overlays a `(Budget)` and an `(Actual)` column for the base and
 last-actual years, so the plumbing for "actuals next to the plan" exists. What does not exist is
@@ -431,7 +487,7 @@ shows up first as an implausible variance.
 Gated on P2 because a variance computed against a 19-month-old anchor measures the anchor, not the
 plan.
 
-## 8. P5 — sensitivity runs (designed, not built)
+## 9. P5 — sensitivity runs (designed, not built)
 
 CR048 ratified "test equity growth in a scenario copy" and "FX stress folds into Downside" — i.e.
 hand-copy a scenario per question. CR053 already built the expensive machinery: a standalone
@@ -443,7 +499,7 @@ Reuse, not new machinery — but nothing is *wrong* without it, which is why it 
 
 ---
 
-## 9. Out of scope
+## 10. Out of scope
 
 - **Monte Carlo / stochastic returns.** Converts a model the owner can explain line by line into
   one nobody can. CR044 settled that this stays a personal tool.
@@ -452,11 +508,12 @@ Reuse, not new machinery — but nothing is *wrong* without it, which is why it 
   the key that rots; restructuring four documents that the engine, the copy path, the variant sync
   and three UI pages all read is a separate CR and buys nothing this one needs.
 
-## 10. Status
+## 11. Status
 
 - **P0** — pending.
 - **P1** — pending (migration 052).
 - **P2** — pending.
 - **P3** — pending.
-- **P6** — built (migration 055), dormant, gate-verified. Not deployed.
+- **P6** — built (migration 055), dormant, **live as v3.11.8**.
+- **P7** — built, no migration.
 - **P4 / P5** — designed here, not scheduled.

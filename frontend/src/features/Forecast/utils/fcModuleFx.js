@@ -96,3 +96,56 @@ export function localToUsd({ localNumber, isMatched, accountValueRatio, fxRate }
   if (fxRate === null || fxRate === undefined) return undefined;
   return localNumber / fxRate;
 }
+
+/**
+ * CR064 P7 — how much of an FC line's budget is left, in the module's own currency.
+ *
+ * The hint this replaces added up three different currencies and called the answer
+ * "Remaining". `fcBudgetTotals` is `SUM(budget_entries.base_amount)` — always USD —
+ * while `expense_amount` / `income_amount` are in each MODULE's currency (the engine
+ * divides them by the FX series to reach USD). On a PLN module it therefore compared a
+ * USD budget against a PLN input and reconciled to zero when the two matched as digits.
+ *
+ * That is not hypothetical: United Beverages' dividend budget is 690,000 PLN =
+ * 192,266 USD, and the module holds **192,266** — the USD figure typed into a PLN
+ * field, with the hint reporting "Remaining: -0" as though it balanced.
+ *
+ * Everything is summed in USD, the one unit every input can be converted to, and
+ * returned in the module's currency. A row whose currency has no rate is EXCLUDED and
+ * counted, never added in as though it were USD — that is the same bug one level down.
+ *
+ * @param {Object} params
+ * @param {number} params.budgetUSD       the line's budget, USD
+ * @param {string} params.moduleCurrency  the currency of the amount being edited
+ * @param {Array<{amount:number, currency:string}>} params.others  the other modules on the line
+ * @param {number} params.thisAmount      this module's amount, in `moduleCurrency`
+ * @param {(ccy:string)=>number|null} params.rateFor  native units per USD, or null
+ * @returns {{budget:number|null, others:number|null, remaining:number|null,
+ *            budgetUSD:number, unconvertible:number, canConvert:boolean}}
+ *          Amounts are in `moduleCurrency`; null when it cannot be converted.
+ */
+export function allocateBudget({ budgetUSD, moduleCurrency, others = [], thisAmount = 0, rateFor }) {
+  const moduleFx = rateFor(moduleCurrency);
+  let unconvertible = 0;
+
+  const othersUSD = others.reduce((sum, row) => {
+    const raw = Math.abs(Number(row?.amount) || 0);
+    if (raw === 0) return sum;
+    const rate = rateFor(row?.currency || "USD");
+    if (!rate) { unconvertible += 1; return sum; }
+    return sum + raw / rate;
+  }, 0);
+
+  const thisUSD = moduleFx ? Math.abs(Number(thisAmount) || 0) / moduleFx : 0;
+  const remainingUSD = budgetUSD - othersUSD - thisUSD;
+  const show = (usd) => (moduleFx === null || moduleFx === undefined ? null : usd * moduleFx);
+
+  return {
+    budget: show(budgetUSD),
+    others: show(othersUSD),
+    remaining: show(remainingUSD),
+    budgetUSD,
+    unconvertible,
+    canConvert: moduleFx !== null && moduleFx !== undefined,
+  };
+}

@@ -4,7 +4,7 @@
 > CR statuses live in the [CR index](../cr/README.md); the running version lives in `VERSION`.
 > Older headlines: [status log](../archive/status-log_2026-08-01.md).
 
-**Last updated:** 2026-08-02 · **Live version:** v3.11.8 (see `VERSION` / git tags)
+**Last updated:** 2026-08-02 · **Live version:** v3.11.9 (see `VERSION` / git tags)
 
 ## Current phase
 **[CR064](../cr/cr-064-forecast-annual-close-and-assumptions.md) is the live thread** — P0/P1/P3 shipped in
@@ -54,7 +54,7 @@ brokerage-history data work. Detail lives in the CR file linked from each line.
 - **[CR060](../cr/cr-060-feed-connection-health.md) — a broken feed announces itself.** Bank-feed side deployed; **fin's recon page still to do**.
 - **A secured-asset link set inside a VARIANT was erased by the save that set it** ([CR062 §11.2](../cr/cr-062-forecast-loan-module.md), fixed in v3.11.3, prod rows repaired). Owner-found: "2026 Buy Business" read *"No asset carries debt"* with both loans secured. Two id spaces reach variant sync's link resolution — an inherited link is a **base** module id, an overridden one is a **variant** id (the picker offers the variant's own modules) — and it mapped base→variant unconditionally, so `|| null` unsecured the loan inside `interceptWrite`'s own transaction: the PUT that saved the link returned 200 with it already gone. Now resolved by which scenario the target sits in. Nothing was lost — the override patches are the record — and on prod the links **self-healed on the first read after the deploy**: the very operation that used to erase them now restores them.
 - **[CR050](../cr/cr-050-forecast-scenario-variants.md) — variants** are live and adopted; §10 (v3.11.0) made a variant read as one in all seven pickers. Owner has not yet run `adopt-variant` on "2026 Downside".
-- **Recent releases:** v3.11.8 ([CR064](../cr/cr-064-forecast-annual-close-and-assumptions.md) P6, migration 055) · v3.11.7 · v3.11.6 · v3.11.5 · v3.11.4 ([CR065](../cr/cr-065-neutralize-pair-identity.md), migrations 053/054) · v3.11.3 ([CR064](../cr/cr-064-forecast-annual-close-and-assumptions.md) P0/P1/P3 + the variant link above, migration 052) · v3.11.2 (the red CI) · v3.11.1 (the period filter) · v3.11.0 ([CR050 §10](../cr/cr-050-forecast-scenario-variants.md)) · v3.10.0 ([CR063](../cr/cr-063-coa-ordering.md), migration 049) · v3.8.0–v3.9.2 ([CR062](../cr/cr-062-forecast-loan-module.md) loans + equity, migrations 047/048).
+- **Recent releases:** v3.11.9 (CR064 P7 — the budget hint's currencies) · v3.11.8 ([CR064](../cr/cr-064-forecast-annual-close-and-assumptions.md) P6, migration 055) · v3.11.7 · v3.11.6 · v3.11.5 · v3.11.4 ([CR065](../cr/cr-065-neutralize-pair-identity.md), migrations 053/054) · v3.11.3 ([CR064](../cr/cr-064-forecast-annual-close-and-assumptions.md) P0/P1/P3 + the variant link above, migration 052) · v3.11.2 (the red CI) · v3.11.1 (the period filter) · v3.11.0 ([CR050 §10](../cr/cr-050-forecast-scenario-variants.md)) · v3.10.0 ([CR063](../cr/cr-063-coa-ordering.md), migration 049) · v3.8.0–v3.9.2 ([CR062](../cr/cr-062-forecast-loan-module.md) loans + equity, migrations 047/048).
 
 ## Known issue
 - ⚠️ **"2026 Downside" has no sweep backup ranked** — *owner is redoing this scenario themselves (2026-07-13); **do not fix it**.* `Fidelity Stocks` carries no `cash_sweep_priority` there, so the engine reports **−$1.25M of shortfall across 2061–62 while $1.2M of stock sits untouched**. That is [CR045](../cr/cr-045-forecast-cash-warnings-liquidation.md) §5 working as designed (unranked = "I cannot sell this"), but for a liquid brokerage account it is almost certainly a data slip. One-row fix, left to the owner because it changes Downside's conclusions.
@@ -64,7 +64,7 @@ brokerage-history data work. Detail lives in the CR file linked from each line.
 - **Dev and prod are the same host** (`192.168.1.87` / Tailscale `100.94.46.62`). Prod `docker-compose.yml` (project `psproject`, :3005, DB :5433, volume `fin_postgres_data`); dev `docker-compose.dev.yml` (:3105/:5434); v4 `docker-compose.v4.yml` (`finv4`, :3205/:5435, flags ON, isolated volume). Prod frontend: `https://fin.tail413695.ts.net`.
 - `bank-feed/` microservice (:3007, separate repo) feeds 28 accounts; ocr-llm LLM gateway at `100.66.213.40:8080` (AI Review).
 - Deploy: `./Scripts/deploy-to-production.sh` (DB backup first). Migrations: manual `psql -f`, registry in [migrations.md](migrations.md); runner shipped in CR043 P1.1 (`npm run migrate`).
-- **Gates:** 761 backend / 303 frontend / 8 e2e tests; lint **blocking** (0 errors), plus six ratchets that may only shrink (lint-debt, api-envelope, buttons, modals, hex, tokens).
+- **Gates:** 761 backend / 311 frontend / 8 e2e tests; lint **blocking** (0 errors), plus six ratchets that may only shrink (lint-debt, api-envelope, buttons, modals, hex, tokens).
 
 ## Recently shipped
 Canonical dates/versions: **[CR index](../cr/README.md)**. Per-release detail:

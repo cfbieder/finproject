@@ -2073,3 +2073,25 @@ input.fc-modules-modal__input:read-only {
   line-height: 1.5;
   color: var(--ink-secondary);
 }
+
+/*
+ * CR064 P7 — the FC-line budget hint. It used to add a USD budget to
+ * module amounts held in their own currencies; it now works in USD and presents
+ * in the module's currency, so the figure on screen shares a unit with the field
+ * being typed into.
+ */
+.fc-modules-modal__budget-hint {
+  margin-top: 0.2rem;
+  font-size: 0.75rem;
+  line-height: 1.5;
+  color: var(--ink-secondary);
+}
+
+.fc-modules-modal__budget-usd {
+  color: var(--muted);
+}
+
+.fc-modules-modal__budget-warn {
+  margin-top: 0.25rem;
+  color: var(--warning-strong, #b8860b);
+}
