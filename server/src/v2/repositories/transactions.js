@@ -616,93 +616,163 @@ async function split(id, splits) {
  */
 const NEUTRALIZE_PAIR_DAYS = 3;
 
+// CR065: how many times to re-look for a candidate when another transaction wins
+// the race and claims the one we picked. Two concurrent neutralizes can compete
+// for the same counter-leg; each lost race removes exactly one candidate from the
+// pool, so a small bound is enough and cannot spin.
+const NEUTRALIZE_CLAIM_ATTEMPTS = 3;
+
+// The candidate predicate — ONE definition, used by both the preview and the
+// apply, so the two can never drift apart and promise something the write does
+// not deliver.
+//
+// CR032 guard: only pair with a row that is itself a neutralize candidate —
+// uncategorized, or already in the same transfer category. A row the user
+// deliberately categorized as a real trade (e.g. an assigned-puts buy →
+// "Option Trade") must NOT be consumed as a sweep's offset just because it
+// happens to be the same magnitude; that mislabels the trade and leaves the
+// sweep un-mirrored (the exact CR028 mis-pairing).
+//
+// CR065 adds the two clauses that make "already spoken for" expressible at all:
+//
+//   paired_with_id IS NULL — the row has not already been claimed as someone
+//     else's counter-leg. Before 053 this was unrepresentable, so the SAME leg
+//     could be claimed by any number of originals: two identical -150,000 CD
+//     purchases on 2026-07-30 both paired against one +150,000 mirror and the
+//     account ran $150k light. Note this is NOT `accepted = FALSE` — accepting a
+//     row in the review queue means "I have looked at this", not "this is spent",
+//     and conflating them would refuse legitimate pairs and mirror instead,
+//     which double-counts in the other direction.
+//
+//   source <> 'auto-offset' — a synthetic mirror is never a pair candidate. It
+//     was created to answer exactly one leg; an unclaimed one is an orphan to be
+//     removed (Transfer Analysis), not a leg to pair with. This also covers
+//     pre-053 mirrors, which carry no link to reconstruct.
+const NEUTRALIZE_CANDIDATE_SQL = `
+  SELECT * FROM transactions
+   WHERE account_id = $1 AND id <> $2
+     AND amount = $3
+     AND transaction_date BETWEEN $4::date - $5::int AND $4::date + $5::int
+     AND (category_id IS NULL OR category_id = $6)
+     AND paired_with_id IS NULL
+     AND source <> 'auto-offset'
+   ORDER BY ABS(transaction_date - $4::date), id
+   LIMIT 1`;
+
+/**
+ * Neutralize a transaction so it doesn't distort P&L / the balance.
+ *
+ * 'pair'          → an unclaimed opposite leg exists nearby → categorize both and
+ *                   link them. No new row (the feed already delivered both legs;
+ *                   a mirror here would double-count).
+ * 'mirror'        → none found → INSERT the offsetting entry and link it.
+ * 'already-paired'→ this row is already half of a pair → no-op. Re-clicking, or a
+ *                   double-submit, must never produce a second counter-leg.
+ *
+ * Every path leaves the pair recorded symmetrically in `paired_with_id`, which a
+ * partial unique index (migration 053) holds to one claimant per row.
+ */
 async function neutralize(id, categoryId, { dryRun = false } = {}) {
   const original = await findById(id);
   if (!original) throw new Error('Transaction not found');
 
   const negatedAmount = parseFloat((-parseFloat(original.amount)).toFixed(2));
   const negatedBaseAmount = parseFloat((-parseFloat(original.base_amount)).toFixed(2));
-
-  // Find the offsetting leg FIRST (read-only) so we can preview the action.
-  // 'pair'  → an opposite-amount leg already exists nearby → re-categorize both.
-  // 'mirror'→ none found → we'd INSERT a new offsetting entry (the only path that
-  //           can create an orphan; the UI warns before doing it).
-  // CR032 guard: only pair with a row that is itself a neutralize candidate —
-  // uncategorized, or already in the same transfer category. A row the user
-  // deliberately categorized as a real trade (e.g. an assigned-puts buy →
-  // "Option Trade") must NOT be consumed as a sweep's offset just because it
-  // happens to be the same magnitude; that mislabels the trade and leaves the
-  // sweep un-mirrored (the exact CR028 mis-pairing). No candidate → MIRROR, which
-  // correctly injects the missing counter-leg.
-  const candidate = (await db.query(
-    `SELECT * FROM transactions
-     WHERE account_id = $1 AND id <> $2
-       AND amount = $3
-       AND transaction_date BETWEEN $4::date - $5::int AND $4::date + $5::int
-       AND (category_id IS NULL OR category_id = $6)
-     ORDER BY ABS(transaction_date - $4::date), id
-     LIMIT 1`,
-    [original.account_id, id, negatedAmount, original.transaction_date, NEUTRALIZE_PAIR_DAYS, categoryId]
-  )).rows[0];
-  const action = candidate ? 'pair' : 'mirror';
+  const candidateParams = [
+    original.account_id, id, negatedAmount,
+    original.transaction_date, NEUTRALIZE_PAIR_DAYS, categoryId,
+  ];
 
   if (dryRun) {
+    if (original.paired_with_id != null) {
+      return { action: 'already-paired', dryRun: true, paired: true, offset_id: original.paired_with_id, offset_description: null };
+    }
+    const preview = (await db.query(NEUTRALIZE_CANDIDATE_SQL, candidateParams)).rows[0];
     return {
-      action, dryRun: true, paired: !!candidate,
-      offset_id: candidate ? candidate.id : null,
-      offset_description: candidate ? candidate.description1 : null,
+      action: preview ? 'pair' : 'mirror', dryRun: true, paired: !!preview,
+      offset_id: preview ? preview.id : null,
+      offset_description: preview ? preview.description1 : null,
     };
   }
 
   return db.transaction(async (client) => {
-    // Update original: set category and mark accepted
-    const updateSql = `
-      UPDATE transactions
-      SET category_id = $1, accepted = TRUE, updated_at = NOW()
-      WHERE id = $2
-      RETURNING *
-    `;
-    const updatedResult = await client.query(updateSql, [categoryId, id]);
-
-    if (candidate) {
-      const pairedResult = await client.query(
-        `UPDATE transactions SET category_id = $1, accepted = TRUE, updated_at = NOW()
-         WHERE id = $2 RETURNING *`,
-        [categoryId, candidate.id]
-      );
-      return { original: updatedResult.rows[0], offset: pairedResult.rows[0], paired: true, action: 'pair' };
+    // Lock the original before deciding anything. Two concurrent neutralizes of
+    // the SAME row would otherwise both see "unpaired" and both insert a mirror.
+    const locked = (await client.query(
+      `SELECT id, paired_with_id FROM transactions WHERE id = $1 FOR UPDATE`, [id]
+    )).rows[0];
+    if (!locked) throw new Error('Transaction not found');
+    if (locked.paired_with_id != null) {
+      const [self, partner] = await Promise.all([
+        client.query(`SELECT * FROM transactions WHERE id = $1`, [id]),
+        client.query(`SELECT * FROM transactions WHERE id = $1`, [locked.paired_with_id]),
+      ]);
+      return {
+        original: self.rows[0], offset: partner.rows[0] || null,
+        paired: true, action: 'already-paired',
+      };
     }
 
-    // Create offsetting transaction
-    const insertSql = `
-      INSERT INTO transactions (
-        ps_id, transaction_date, description1, description2,
-        amount, currency, base_amount, base_currency,
-        transaction_type, account_id, closing_balance,
-        category_id, labels, memo, note, bank, source, accepted
-      )
-      VALUES (NULL, $1, $2, $3, $4, $5, $6, $7, $8, $9, NULL, $10, $11, $12, $13, $14, $15, TRUE)
-      RETURNING *
-    `;
-    const offsetResult = await client.query(insertSql, [
-      original.transaction_date,
-      original.description1,
-      original.description2,
-      negatedAmount,
-      original.currency,
-      negatedBaseAmount,
-      original.base_currency,
-      original.transaction_type,
-      original.account_id,
-      categoryId,
-      original.labels,
-      original.memo,
-      original.note,
-      original.bank,
-      'auto-offset'
-    ]);
+    // Claim a counter-leg by compare-and-swap rather than by locking it: the
+    // UPDATE only takes a row that is STILL unclaimed, so a racing neutralize
+    // that got there first loses the swap instead of silently sharing the leg.
+    // A lost race means the pool shrank by one — look again rather than falling
+    // straight to a mirror, which would double-count against the leg we lost.
+    let offset = null;
+    for (let attempt = 0; attempt < NEUTRALIZE_CLAIM_ATTEMPTS && !offset; attempt++) {
+      const candidate = (await client.query(NEUTRALIZE_CANDIDATE_SQL, candidateParams)).rows[0];
+      if (!candidate) break;
+      const claimed = await client.query(
+        `UPDATE transactions
+            SET category_id = $1, accepted = TRUE, paired_with_id = $2, updated_at = NOW()
+          WHERE id = $3 AND paired_with_id IS NULL
+          RETURNING *`,
+        [categoryId, id, candidate.id]
+      );
+      offset = claimed.rows[0] || null;
+    }
 
-    return { original: updatedResult.rows[0], offset: offsetResult.rows[0], paired: false, action: 'mirror' };
+    if (!offset) {
+      // No unclaimed counter-leg → inject the missing one. This is the only path
+      // that can create an orphan, which is why the UI warns before it runs.
+      offset = (await client.query(`
+        INSERT INTO transactions (
+          ps_id, transaction_date, description1, description2,
+          amount, currency, base_amount, base_currency,
+          transaction_type, account_id, closing_balance,
+          category_id, labels, memo, note, bank, source, accepted, paired_with_id
+        )
+        VALUES (NULL, $1, $2, $3, $4, $5, $6, $7, $8, $9, NULL, $10, $11, $12, $13, $14, 'auto-offset', TRUE, $15)
+        RETURNING *
+      `, [
+        original.transaction_date,
+        original.description1,
+        original.description2,
+        negatedAmount,
+        original.currency,
+        negatedBaseAmount,
+        original.base_currency,
+        original.transaction_type,
+        original.account_id,
+        categoryId,
+        original.labels,
+        original.memo,
+        original.note,
+        original.bank,
+        id,
+      ])).rows[0];
+    }
+
+    const updated = await client.query(
+      `UPDATE transactions
+          SET category_id = $1, accepted = TRUE, paired_with_id = $2, updated_at = NOW()
+        WHERE id = $3
+        RETURNING *`,
+      [categoryId, offset.id, id]
+    );
+
+    const paired = offset.source !== 'auto-offset';
+    return { original: updated.rows[0], offset, paired, action: paired ? 'pair' : 'mirror' };
   });
 }
 

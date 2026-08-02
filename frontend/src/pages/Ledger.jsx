@@ -455,12 +455,21 @@ export default function Ledger() {
     try {
       const plans = await Promise.all(ids.map((id) => postNeutralize(id, true)));
       const mirrors = plans.filter((p) => p?.action === "mirror").length;
-      const pairs = plans.length - mirrors;
+      const done = plans.filter((p) => p?.action === "already-paired").length;
+      const pairs = plans.length - mirrors - done;
+      // CR065: the previews are independent reads of the same pre-write state, so
+      // with several selected rows they can all say "pair" against ONE leg. Say so
+      // — the apply resolves it correctly, but the count below may still move.
+      const contested = pairs > 1 ? " (some may resolve to new entries once applied)" : "";
       const message = mirrors > 0
         ? `⚠ ${mirrors} of ${plans.length} selected have NO matching offsetting leg nearby — neutralizing will CREATE ${mirrors} new offsetting entr${mirrors === 1 ? "y" : "ies"} (only do this for a genuine single-leg trade; otherwise it can double-count).` +
-          (pairs > 0 ? ` The other ${pairs} will pair with an existing leg.` : "") + `\n\nContinue?`
-        : `Pair ${pairs} transaction${pairs === 1 ? "" : "s"} with their existing offsetting leg (both become "Transfer - Securities Trades"). No new entries.\n\nContinue?`;
-      setNeutralizeConfirm({ ids, message, danger: mirrors > 0, confirmLabel: "Neutralize" });
+          (pairs > 0 ? ` The other ${pairs} will pair with an existing leg${contested}.` : "") +
+          (done > 0 ? ` ${done} ${done === 1 ? "is" : "are"} already neutralized and will be left alone.` : "") + `\n\nContinue?`
+        : pairs === 0
+          ? `${done} transaction${done === 1 ? " is" : "s are"} already neutralized — nothing to do.\n\nContinue?`
+          : `Pair ${pairs} transaction${pairs === 1 ? "" : "s"} with their existing offsetting leg (both become "Transfer - Securities Trades"). No new entries${contested}.` +
+            (done > 0 ? ` ${done} already neutralized and will be left alone.` : "") + `\n\nContinue?`;
+      setNeutralizeConfirm({ ids, message, danger: mirrors > 0, confirmLabel: "Neutralize", predictedMirrors: mirrors });
     } catch (err) {
       showErrorToast(err?.message ?? "Failed to preview neutralize");
     } finally {
@@ -469,16 +478,34 @@ export default function Ledger() {
   }, [selectedRows, postNeutralize, showErrorToast]);
 
   // Step 2: apply (on confirm).
+  //
+  // CR065: SEQUENTIALLY, never Promise.all. Each neutralize can consume a
+  // counter-leg, so what the next one should do depends on what the last one
+  // did — running them concurrently means every request decides against the
+  // same pre-write state. That is how two identical $150,000 CD purchases came
+  // to share one offsetting entry.
+  //
+  // And report what actually happened rather than what the dialog predicted:
+  // the preview reads state that the first write may invalidate, so a plan of
+  // "2 new entries" can legitimately come back as 1 created + 1 paired. Saying
+  // so is the difference between a visible surprise and a silent $150k.
   const doNeutralize = useCallback(async () => {
     const ids = neutralizeConfirm?.ids || [];
+    const predictedMirrors = neutralizeConfirm?.predictedMirrors ?? null;
     setIsNeutralizing(true);
     try {
-      const results = await Promise.all(ids.map((id) => postNeutralize(id, false)));
+      const results = [];
+      for (const id of ids) results.push(await postNeutralize(id, false));
       const paired = results.filter((r) => r?.paired).length;
+      const created = results.filter((r) => r?.action === "mirror").length;
+      const noop = results.filter((r) => r?.action === "already-paired").length;
+      const drifted = predictedMirrors != null && predictedMirrors !== created;
       showSuccess(
-        ids.length === 1
+        (ids.length === 1
           ? (paired ? "Neutralized (paired with offsetting leg)" : "Neutralized (offset entry created)")
-          : `Neutralized ${ids.length} transactions (${paired} paired)`
+          : `Neutralized ${ids.length} transactions — ${created} offset entr${created === 1 ? "y" : "ies"} created, ${paired} paired`) +
+        (noop > 0 ? ` · ${noop} already neutralized, left alone` : "") +
+        (drifted ? ` · note: ${predictedMirrors} new entr${predictedMirrors === 1 ? "y was" : "ies were"} predicted` : "")
       );
       setNeutralizeConfirm(null);
       clearSelection();

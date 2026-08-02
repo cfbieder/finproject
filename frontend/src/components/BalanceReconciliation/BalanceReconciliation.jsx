@@ -347,7 +347,25 @@ export default function BalanceReconciliation() {
                       </div>
                     )}
                 </td>
-                <td className={`num ${driftCls}`}>{a.drift != null ? fmtNum(a.drift, 2) : "—"}</td>
+                <td className={`num ${driftCls}`}>
+                  {a.drift != null ? fmtNum(a.drift, 2) : "—"}
+                  {a.transfer_balanced === false && (
+                    <div
+                      className="bfd-danger"
+                      style={{ fontSize: "0.7rem" }}
+                      title={
+                        "Neutralized securities trades come in pairs that cancel. This account has " +
+                        `${a.transfer_unpaired_legs} accepted leg(s) with no counter-leg, worth ` +
+                        `${fmtNum(a.transfer_imbalance, 2)} — that much of the drift is a bookkeeping ` +
+                        "error, not a market move, so reconciling it away would bake it in. " +
+                        "Find them in Transfer Analysis."
+                      }
+                    >
+                      {a.transfer_unpaired_legs} unpaired leg
+                      {a.transfer_unpaired_legs === 1 ? "" : "s"} {fmtNum(a.transfer_imbalance, 2)}
+                    </div>
+                  )}
+                </td>
                 <td className="bfd-muted">
                   {a.feed_date || "—"}
                   {a.feed_date && (() => {

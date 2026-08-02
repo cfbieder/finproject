@@ -151,6 +151,34 @@ async function balanceReconcile({ asOf = null, tolerance = 0.01 } = {}) {
       WHERE a.id IN (SELECT account_id FROM mapped)
       GROUP BY a.id, a.name, a.account_type, a.opening_balance
     ),
+    -- CR065: the unpaired-leg check. A neutralized securities trade is two rows
+    -- that cancel; paired_with_id records which two. An ACCEPTED row in the
+    -- neutralize category with no partner is therefore a leg whose counter-leg
+    -- went missing — a 1:1 error in the account balance, and one otherwise
+    -- indistinguishable from an un-booked market move. It is what would have
+    -- caught the 2026-07-30 double-claim the day it happened, instead of five
+    -- days later via a $107,830.71 drift.
+    --
+    -- Bounded to id > watermark (migration 053) because pairing was only
+    -- RECORDED from that migration forward: pre-CR065 pair-path neutralizes left
+    -- no trace, and this category has also carried genuine CROSS-account
+    -- transfers, whose counter-leg legitimately sits in another account. Without
+    -- the bound this reports ~1,800 legacy legs across five accounts and becomes
+    -- a permanent red number nobody reads. A missing watermark key (never
+    -- migrated) yields NULL and matches nothing, which fails quiet rather than
+    -- loud-and-wrong; a fresh DB stores 0 and checks everything.
+    sec_transfer AS (
+      SELECT t.account_id,
+             COUNT(*) AS unpaired_legs,
+             ROUND(SUM(t.amount), 2) AS imbalance
+      FROM transactions t
+      JOIN accounts cat ON cat.id = t.category_id AND cat.name = 'Transfer - Securities Trades'
+      WHERE t.account_id IN (SELECT account_id FROM mapped)
+        AND t.accepted = TRUE
+        AND t.paired_with_id IS NULL
+        AND t.id > (SELECT (value #>> '{}')::bigint FROM app_data WHERE key = 'cr065_pairing_since_tx_id')
+      GROUP BY t.account_id
+    ),
     feed AS (
       -- CR035: feed_synced_at = the upstream connection's real last-sync time
       -- (source_synced_at, from fintable's "⚡ Last Update"), NOT fetched_at (fin's
@@ -182,10 +210,13 @@ async function balanceReconcile({ asOf = null, tolerance = 0.01 } = {}) {
       CASE WHEN f.feed_balance IS NULL THEN NULL
            ELSE ROUND(c.computed_balance
                 - f.feed_balance * COALESCE(m.feed_sign, CASE WHEN c.account_type = 'liability' THEN -1 ELSE 1 END), 2)
-      END AS drift
+      END AS drift,
+      COALESCE(st.imbalance, 0) AS transfer_imbalance,
+      COALESCE(st.unpaired_legs, 0) AS transfer_unpaired_legs
     FROM computed c
     JOIN mapped m ON m.account_id = c.account_id
     LEFT JOIN feed f ON f.account_id = c.account_id
+    LEFT JOIN sec_transfer st ON st.account_id = c.account_id
   `;
   const { rows } = await db.query(sql, [asOf]);
   const asOfRow = await db.query(`SELECT COALESCE($1::date, CURRENT_DATE)::text AS as_of`, [asOf]);
@@ -200,6 +231,14 @@ async function balanceReconcile({ asOf = null, tolerance = 0.01 } = {}) {
       balance_from_feed: r.balance_from_feed === true,
       // reconciled is undefined when there is no feed balance to compare against
       reconciled: r.drift == null ? null : Math.abs(Number(r.drift)) < tolerance,
+      // CR065: unlike `drift`, this needs no feed balance and admits no benign
+      // reading — a securities-transfer leg without its counter-leg is always an
+      // error, so it is reported on its own terms rather than folded into drift.
+      // Keyed off the LEG COUNT, not the amount: two unpaired legs that happen to
+      // cancel are still two errors, and a zero sum must not read as healthy.
+      transfer_imbalance: Number(r.transfer_imbalance || 0),
+      transfer_unpaired_legs: Number(r.transfer_unpaired_legs || 0),
+      transfer_balanced: Number(r.transfer_unpaired_legs || 0) === 0,
     }))
     .sort((a, b) => Math.abs(b.drift || 0) - Math.abs(a.drift || 0));
 
@@ -208,6 +247,7 @@ async function balanceReconcile({ asOf = null, tolerance = 0.01 } = {}) {
     tolerance,
     accounts,
     total_unreconciled: accounts.filter((a) => a.reconciled === false).length,
+    total_transfer_imbalanced: accounts.filter((a) => a.transfer_balanced === false).length,
   };
 }
 

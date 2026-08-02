@@ -12,6 +12,12 @@
 P4/P5 designed. Otherwise: owner-found defects, their follow-ups, and a long thread of
 brokerage-history data work. Detail lives in the CR file linked from each line.
 
+- **[CR065](../cr/cr-065-neutralize-pair-identity.md) — a neutralize counter-leg is claimable exactly
+  once.** Owner-found: Fidelity Cash Mgt showed −107,830.71 of drift and it "cannot just be MTM". It
+  could not — **$108,635 was bookkeeping, $804.50 was market**. `neutralize()` tested "already has a
+  counter-leg?" by *value*, which is not identity, so two genuine $150,000 CD purchases claimed the
+  same mirror. Migration **053** makes the **database** refuse a double-claim. Built on dev; gates
+  green. ⚠️ **Prod: apply 053 → neutralize tx 2709773 → only then book MTM** — MTM first bakes it in.
 - **CI is green again** — migration **050**'s `found <> 1` guard was unconditional and aborted the
   chain on a data-free database, so `main` had been red since `2d49ff3`. **Third instance of this
   class** (046 was the first, and the fix note for it says exactly this), and again nothing
@@ -36,13 +42,13 @@ brokerage-history data work. Detail lives in the CR file linked from each line.
 
 ## Known issue
 - ⚠️ **"2026 Downside" has no sweep backup ranked** — *owner is redoing this scenario themselves (2026-07-13); **do not fix it**.* `Fidelity Stocks` carries no `cash_sweep_priority` there, so the engine reports **−$1.25M of shortfall across 2061–62 while $1.2M of stock sits untouched**. That is [CR045](../cr/cr-045-forecast-cash-warnings-liquidation.md) §5 working as designed (unranked = "I cannot sell this"), but for a liquid brokerage account it is almost certainly a data slip. One-row fix, left to the owner because it changes Downside's conclusions.
-- Everything else: [roadmap §3](project-roadmap.md#3-known-issues) — 12 entries, including the timezone rule (#3), the 13 untriaged same-signed transfer clusters (#8), the ESLint JSX blind spot (#10), and the unannounced red `main` (#12).
+- Everything else: [roadmap §3](project-roadmap.md#3-known-issues) — 13 entries, including the timezone rule (#3), the pre-CR065 securities-transfer residue (#13), the 13 untriaged same-signed transfer clusters (#8), the ESLint JSX blind spot (#10), and the unannounced red `main` (#12).
 
 ## Live infrastructure
 - **Dev and prod are the same host** (`192.168.1.87` / Tailscale `100.94.46.62`). Prod `docker-compose.yml` (project `psproject`, :3005, DB :5433, volume `fin_postgres_data`); dev `docker-compose.dev.yml` (:3105/:5434); v4 `docker-compose.v4.yml` (`finv4`, :3205/:5435, flags ON, isolated volume). Prod frontend: `https://fin.tail413695.ts.net`.
 - `bank-feed/` microservice (:3007, separate repo) feeds 28 accounts; ocr-llm LLM gateway at `100.66.213.40:8080` (AI Review).
 - Deploy: `./Scripts/deploy-to-production.sh` (DB backup first). Migrations: manual `psql -f`, registry in [migrations.md](migrations.md); runner shipped in CR043 P1.1 (`npm run migrate`).
-- **Gates:** 735 backend / 298 frontend / 8 e2e tests; lint **blocking** (0 errors), plus six ratchets that may only shrink (lint-debt, api-envelope, buttons, modals, hex, tokens).
+- **Gates:** 740 backend / 298 frontend / 8 e2e tests; lint **blocking** (0 errors), plus six ratchets that may only shrink (lint-debt, api-envelope, buttons, modals, hex, tokens).
 
 ## Recently shipped
 Canonical dates/versions: **[CR index](../cr/README.md)**. Per-release detail:

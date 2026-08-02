@@ -128,4 +128,107 @@ dbDescribe('transactions.neutralize (DB)', () => {
     expect(rows[1].source).toBe('auto-offset');
     expect(rows.every((r) => r.category_id === categoryId)).toBe(true);
   });
+
+  // ── CR065: a counter-leg is claimable exactly once ────────────────────────
+  //
+  // The prod defect these pin down: fintable delivered two genuine $150,000 CD
+  // purchases into Fidelity Cash Mgt on 2026-07-30. Neutralizing the first
+  // inserted a +150,000 mirror; neutralizing the second FOUND that mirror —
+  // same account, negated amount, same date, same category — and paired with it
+  // instead of inserting its own. Both legs claimed one counter-leg and the
+  // account ran $150,000 light.
+
+  /** Every transfer-categorized row in the account must sum to zero. */
+  async function transferImbalance() {
+    return Number((await db.query(
+      `SELECT COALESCE(SUM(amount), 0)::float AS net FROM transactions
+        WHERE account_id = $1 AND category_id = $2`, [acctId, categoryId]
+    )).rows[0].net);
+  }
+
+  test('two IDENTICAL same-day trades each get their own counter-leg', async () => {
+    await freshAccount();
+    const cdA = await addTx(-150000, '2026-07-30');
+    const cdB = await addTx(-150000, '2026-07-30');
+
+    const outA = await repo.neutralize(cdA, categoryId);
+    const outB = await repo.neutralize(cdB, categoryId);
+
+    expect(outA.action).toBe('mirror');
+    expect(outB.action).toBe('mirror');                  // NOT 'pair' — the bug
+    expect(outB.offset.id).not.toBe(outA.offset.id);     // not the same leg twice
+
+    const mirrors = (await db.query(
+      `SELECT id FROM transactions WHERE account_id=$1 AND source='auto-offset'`, [acctId]
+    )).rows;
+    expect(mirrors).toHaveLength(2);
+    expect(await transferImbalance()).toBeCloseTo(0, 2); // the invariant holds
+  });
+
+  test('a REAL counter-leg is claimed once; the second trade mirrors instead', async () => {
+    await freshAccount();
+    const cdA = await addTx(-150000, '2026-07-30');
+    const cdB = await addTx(-150000, '2026-07-30');
+    const redemption = await addTx(150000, '2026-07-30');  // one genuine funding leg
+
+    const outA = await repo.neutralize(cdA, categoryId);
+    const outB = await repo.neutralize(cdB, categoryId);
+
+    expect(outA.action).toBe('pair');
+    expect(outA.offset.id).toBe(redemption);
+    expect(outB.action).toBe('mirror');                    // must not re-claim it
+    expect(outB.offset.id).not.toBe(redemption);
+    expect(await transferImbalance()).toBeCloseTo(0, 2);
+  });
+
+  test('pair links are symmetric, and a mirror is never a pair candidate', async () => {
+    await freshAccount();
+    const buyId = await addTx(-9000);
+    const out = await repo.neutralize(buyId, categoryId);
+
+    const link = (await db.query(
+      `SELECT id, paired_with_id FROM transactions WHERE account_id=$1 ORDER BY id`, [acctId]
+    )).rows;
+    expect(link).toHaveLength(2);
+    expect(link[0].paired_with_id).toBe(link[1].id);
+    expect(link[1].paired_with_id).toBe(link[0].id);
+
+    // A third leg of the same magnitude must not consume the spent mirror.
+    const later = await addTx(-9000);
+    const out2 = await repo.neutralize(later, categoryId);
+    expect(out2.action).toBe('mirror');
+    expect(out2.offset.id).not.toBe(out.offset.id);
+  });
+
+  test('re-neutralizing an already-paired row is a no-op, not a second offset', async () => {
+    await freshAccount();
+    const buyId = await addTx(-2500);
+    await repo.neutralize(buyId, categoryId);
+
+    const before = (await db.query(`SELECT COUNT(*)::int n FROM transactions WHERE account_id=$1`, [acctId])).rows[0].n;
+    const again = await repo.neutralize(buyId, categoryId);
+    const after = (await db.query(`SELECT COUNT(*)::int n FROM transactions WHERE account_id=$1`, [acctId])).rows[0].n;
+
+    expect(again.action).toBe('already-paired');
+    expect(after).toBe(before);
+    expect(await transferImbalance()).toBeCloseTo(0, 2);
+
+    const plan = await repo.neutralize(buyId, categoryId, { dryRun: true });
+    expect(plan.action).toBe('already-paired');
+  });
+
+  test('the database refuses a double-claim even if the query guard is bypassed', async () => {
+    await freshAccount();
+    const a = await addTx(-700);
+    const b = await addTx(-700);
+    const leg = await addTx(700);
+
+    await db.query(`UPDATE transactions SET paired_with_id = $1 WHERE id = $2`, [leg, a]);
+    // The partial unique index (migration 053) is the backstop under the WHERE
+    // clause: two rows may not name the same counter-leg, whatever the code
+    // above them believes. Correctness stops depending on a predicate.
+    await expect(
+      db.query(`UPDATE transactions SET paired_with_id = $1 WHERE id = $2`, [leg, b])
+    ).rejects.toThrow(/uq_transactions_paired_with|duplicate key/i);
+  });
 });
