@@ -78,11 +78,13 @@ async function loadModulesForScenario(scenarioId, fcLineNameMap, dbc = db, scena
 
   // Load nested data for all modules
   for (const mod of modules) {
-    const [incomePct, investments, disposals, amortization] = await Promise.all([
+    const [incomePct, investments, disposals, amortization, incomeSteps] = await Promise.all([
       dbc.query('SELECT * FROM forecast_module_income_pct WHERE module_id = $1 ORDER BY effective_date', [mod.id]),
       dbc.query('SELECT * FROM forecast_module_investments WHERE module_id = $1 ORDER BY investment_date', [mod.id]),
       dbc.query('SELECT * FROM forecast_module_disposals WHERE module_id = $1 ORDER BY disposal_date', [mod.id]),
       dbc.query('SELECT * FROM forecast_module_amortization WHERE module_id = $1 ORDER BY effective_date', [mod.id]),
+      // CR064 P6 — permanent step changes to amount-based income.
+      dbc.query('SELECT * FROM forecast_module_income_steps WHERE module_id = $1 ORDER BY effective_date', [mod.id]),
     ]);
 
     // Transform to v1 format expected by processModule
@@ -118,6 +120,15 @@ async function loadModulesForScenario(scenarioId, fcLineNameMap, dbc = db, scena
     mod.IncomePct = incomePct.rows.map(r => ({
       Date: r.effective_date,
       Value: parseFloat(r.value) || 0,
+    }));
+
+    // CR064 P6 — the income growth multiplier and the step schedule. Both belong to
+    // AMOUNT-based income; a module in yield mode ignores them, exactly as it already
+    // ignores income_amount itself.
+    mod.IncomeGrowth = mod.income_growth_rate != null ? parseFloat(mod.income_growth_rate) : null;
+    mod.IncomeSteps = incomeSteps.rows.map(r => ({
+      Date: r.effective_date,
+      Amount: parseFloat(r.amount) || 0,
     }));
 
     mod.Invest = investments.rows.map(r => ({

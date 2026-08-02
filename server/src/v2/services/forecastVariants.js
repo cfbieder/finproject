@@ -31,7 +31,7 @@ const EXCLUDED_COLUMNS = new Set(['id', 'scenario_id', 'created_at', 'updated_at
 
 /** Patch keys that address a whole child schedule rather than a column. */
 const SCHEDULE_KEYS = {
-  forecast_modules: ['investments', 'disposals', 'income_pct', 'amortization'],
+  forecast_modules: ['investments', 'disposals', 'income_pct', 'amortization', 'income_steps'],
   forecast_income_expense: ['changes'],
 };
 
@@ -44,6 +44,11 @@ const SCHEDULE_TABLES = {
   // a child TABLE does not, so it has to be named here or an inherited loan would
   // materialize with no repayments at all — a flat balance that looks deliberate.
   amortization: { table: 'forecast_module_amortization', fk: 'module_id', cols: ['effective_date', 'pct'] },
+  // CR064 P6 — permanent step changes to amount-based income. Named here for the same
+  // reason as amortization: the income_growth_rate COLUMN rides along free (sync reads
+  // information_schema), a child TABLE does not — and a variant that inherited a business
+  // without its steps would quietly project a different income for 36 years.
+  income_steps: { table: 'forecast_module_income_steps', fk: 'module_id', cols: ['effective_date', 'amount'] },
   changes: { table: 'forecast_incexp_changes', fk: 'incexp_id', cols: ['change_date', 'amount', 'flag', 'note'] },
 };
 
@@ -846,6 +851,11 @@ async function interceptSchedules(entityType, rowId, body) {
       patch.amortization = body.Amortization
         .filter((a) => a.Date)
         .map((a) => ({ effective_date: a.Date, pct: a.Pct ?? a.Value ?? a.Amount ?? 0 }));
+    }
+    if (Array.isArray(body.IncomeSteps)) {
+      patch.income_steps = body.IncomeSteps
+        .filter((st) => st.Date)
+        .map((st) => ({ effective_date: st.Date, amount: st.Amount ?? 0 }));
     }
   } else if (Array.isArray(body)) {
     patch.changes = body

@@ -221,6 +221,7 @@ async function copyScenario(sourceId, newName) {
       const oldModules = await client.query('SELECT id FROM forecast_modules WHERE scenario_id = $1', [newId]);
       for (const m of oldModules.rows) {
         await client.query('DELETE FROM forecast_module_income_pct WHERE module_id = $1', [m.id]);
+        await client.query('DELETE FROM forecast_module_income_steps WHERE module_id = $1', [m.id]);
         await client.query('DELETE FROM forecast_module_investments WHERE module_id = $1', [m.id]);
         await client.query('DELETE FROM forecast_module_disposals WHERE module_id = $1', [m.id]);
       }
@@ -306,10 +307,10 @@ async function copyScenario(sourceId, newName) {
           growth_rate, comment, is_matched,
           setup_status, cash_sweep_target, tax_rate_override, cash_sweep_priority,
           income_start_date, income_end_date, expense_start_date, expense_end_date,
-          income_tax_rate_override,
+          income_tax_rate_override, income_growth_rate,
           loan_principal, loan_start_date, loan_end_date, loan_interest_rate
         )
-        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22, $23, $24, $25, $26, $27, $28, $29, $30, $31)
+        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22, $23, $24, $25, $26, $27, $28, $29, $30, $31, $32)
         RETURNING id
       `, [
         newId, mod.account_id, mod.name, mod.module_type, mod.currency,
@@ -320,7 +321,7 @@ async function copyScenario(sourceId, newName) {
         mod.setup_status || 'new', mod.cash_sweep_target || false, mod.tax_rate_override,
         mod.cash_sweep_priority,
         mod.income_start_date, mod.income_end_date, mod.expense_start_date, mod.expense_end_date,
-        mod.income_tax_rate_override,
+        mod.income_tax_rate_override, mod.income_growth_rate,
         // CR062 — this list is hand-maintained, which is exactly how CR045 §1 lost
         // cash_sweep_priority and CR048 lost the assumptions: a column a copy drops
         // is a scenario that silently computes something else. Covered by a test
@@ -335,6 +336,12 @@ async function copyScenario(sourceId, newName) {
       await client.query(`
         INSERT INTO forecast_module_income_pct (module_id, effective_date, value)
         SELECT $1, effective_date, value FROM forecast_module_income_pct WHERE module_id = $2
+      `, [newModuleId, mod.id]);
+
+      // Copy the CR064 income steps
+      await client.query(`
+        INSERT INTO forecast_module_income_steps (module_id, effective_date, amount)
+        SELECT $1, effective_date, amount FROM forecast_module_income_steps WHERE module_id = $2
       `, [newModuleId, mod.id]);
 
       // Copy investments
@@ -450,13 +457,15 @@ async function findModuleById(id) {
   const module = moduleResult.rows[0];
 
   // Get nested arrays
-  const [incomePct, investments, disposals, amortization] = await Promise.all([
+  const [incomePct, investments, disposals, amortization, incomeSteps] = await Promise.all([
     db.query('SELECT * FROM forecast_module_income_pct WHERE module_id = $1 ORDER BY effective_date', [id]),
     db.query('SELECT * FROM forecast_module_investments WHERE module_id = $1 ORDER BY investment_date', [id]),
     db.query('SELECT * FROM forecast_module_disposals WHERE module_id = $1 ORDER BY disposal_date', [id]),
-    db.query('SELECT * FROM forecast_module_amortization WHERE module_id = $1 ORDER BY effective_date', [id])
+    db.query('SELECT * FROM forecast_module_amortization WHERE module_id = $1 ORDER BY effective_date', [id]),
+    db.query('SELECT * FROM forecast_module_income_steps WHERE module_id = $1 ORDER BY effective_date', [id])
   ]);
 
+  module.income_steps = incomeSteps.rows;
   module.income_pct = incomePct.rows;
   module.investments = investments.rows;
   module.disposals = disposals.rows;
@@ -506,6 +515,9 @@ const MODULE_COLUMN_DEFAULTS = {
   setup_status: (d) => d.setup_status || 'new',
   tax_rate_override: (d) => d.tax_rate_override ?? null,
   income_tax_rate_override: (d) => d.income_tax_rate_override ?? null,
+  // CR064 P6 — multiplier of inflation for amount-based income. NULL = 1 = grow at
+  // inflation, the pre-CR064 behaviour, which is what keeps migration 055 dormant.
+  income_growth_rate: (d) => d.income_growth_rate ?? null,
   cash_sweep_target: (d) => d.cash_sweep_target || false,
   cash_sweep_priority: (d) => d.cash_sweep_priority ?? null,
   // CR046 window — these are the five the old INSERT dropped.
@@ -627,6 +639,21 @@ async function setIncomePct(moduleId, data, client = db) {
     RETURNING *
   `;
   const result = await client.query(sql, [moduleId, data.effective_date, data.value]);
+  return result.rows[0];
+}
+
+/**
+ * CR064 P6: one permanent step change to amount-based income ("2027: +10,000").
+ * `amount` is signed — a business losing a contract is the same field, negative.
+ */
+async function setIncomeStep(moduleId, data, client = db) {
+  const sql = `
+    INSERT INTO forecast_module_income_steps (module_id, effective_date, amount)
+    VALUES ($1, $2, $3)
+    ON CONFLICT (module_id, effective_date) DO UPDATE SET amount = EXCLUDED.amount
+    RETURNING *
+  `;
+  const result = await client.query(sql, [moduleId, data.effective_date, data.amount]);
   return result.rows[0];
 }
 
@@ -908,6 +935,7 @@ module.exports = {
   addInvestment,
   addDisposal,
   setIncomePct,
+  setIncomeStep,
   setAmortization,
   // Income/Expense
   findIncExpByScenario,

@@ -2057,3 +2057,19 @@ input.fc-modules-modal__input:read-only {
   color: var(--ink);
   line-height: 1.4;
 }
+
+/*
+ * CR064 P6 — which income mode is actually driving this module. The engine's two
+ * modes are mutually exclusive and the yield wins on a single row, discarding the
+ * typed amount; the form used to show both with nothing to say which one won.
+ */
+.fc-modules-modal__mode-note {
+  margin: -0.35rem 0 0.75rem;
+  padding: 0.5rem 0.65rem;
+  border-left: 3px solid var(--warning-strong, #b8860b);
+  background: var(--warning-subtle, rgba(184, 134, 11, 0.08));
+  border-radius: 0 4px 4px 0;
+  font-size: 0.78rem;
+  line-height: 1.5;
+  color: var(--ink-secondary);
+}

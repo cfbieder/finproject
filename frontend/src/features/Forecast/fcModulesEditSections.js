@@ -33,6 +33,11 @@ export const FIELD_SECTIONS = [
   ["Income", [
     ["Income Line", "IncomeFcLineId", "fc-line-income"],
     ["Income Amount (Base Yr)", "IncomeAmount", "number"],
+    // CR064 P6 — a multiplier of inflation, read exactly like the module's `Growth`
+    // above: 1 (or blank) = inflation, 0 = flat in nominal terms, 2 = twice inflation.
+    // Before this, amount-based income grew at inflation and nothing else, so a
+    // business could not say its profit grows faster or slower than prices.
+    ["Income Growth (x Inflation)", "IncomeGrowth", "number"],
     ["Income Start Year (blank = base yr)", "IncomeStartDate", "year"],
     ["Income End Year (blank = horizon)", "IncomeEndDate", "year"],
   ]],

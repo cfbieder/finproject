@@ -117,3 +117,58 @@ describe("buildModulePayload", () => {
     expect(buildModulePayload({ CashSweepPriority: 0 }).CashSweepPriority).toBe(1);
   });
 });
+
+/**
+ * CR064 P6 — income steps on the way out of the browser.
+ *
+ * `IncomeGrowth` is a plain field and is already covered by the FIELD_SECTIONS sweep
+ * above (that test is the reason CR046's window and CR047's tax override cannot be
+ * dropped again). The step SCHEDULE is not a FIELD_SECTIONS entry, so it needs its own.
+ */
+describe("CR064 — IncomeSteps", () => {
+  const normalizeTransfers = (rows) => rows || [];
+
+  it("normalizes rows and coerces a blank amount to 0", () => {
+    const payload = buildModulePayload(
+      { IncomeSteps: [
+        { Date: "2027-07-01", Amount: "10000" },
+        { Date: "2031-07-01", Amount: "" },
+        { Date: "2033-07-01", Amount: -25000 },
+      ] },
+      { normalizeTransfers }
+    );
+    expect(payload.IncomeSteps).toEqual([
+      { Date: "2027-07-01", Amount: 10000 },
+      { Date: "2031-07-01", Amount: 0 },
+      { Date: "2033-07-01", Amount: -25000 },
+    ]);
+  });
+
+  it("drops a row with no year — it would have no effect and the table rejects it", () => {
+    const payload = buildModulePayload(
+      { IncomeSteps: [{ Amount: 500 }, { Date: "2029-07-01", Amount: 500 }] },
+      { normalizeTransfers }
+    );
+    expect(payload.IncomeSteps).toHaveLength(1);
+  });
+
+  it("sends an EMPTY array on a loan — the only way a retyped module clears them", () => {
+    const payload = buildModulePayload(
+      { Type: "Loan", LoanInterestRate: 6, IncomeSteps: [{ Date: "2027-07-01", Amount: 10000 }] },
+      { normalizeTransfers }
+    );
+    expect(payload.IncomeSteps).toEqual([]);
+  });
+
+  it("is absent when the caller does not normalize transfers", () => {
+    expect(buildModulePayload({ IncomeSteps: [{ Date: "2027-07-01", Amount: 1 }] }).IncomeSteps)
+      .toBeUndefined();
+  });
+
+  it("blank income growth stays null — null is 'grow at inflation' to the engine", () => {
+    expect(buildModulePayload({ IncomeGrowth: "" }).IncomeGrowth).toBeNull();
+    // 0 is a real multiplier (flat in nominal terms), not "unset".
+    expect(buildModulePayload({ IncomeGrowth: 0 }).IncomeGrowth).toBe(0);
+    expect(buildModulePayload({ IncomeGrowth: "0.5" }).IncomeGrowth).toBe(0.5);
+  });
+});

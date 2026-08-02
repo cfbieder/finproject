@@ -166,6 +166,21 @@ async function replaceModuleSchedules(id, body) {
       }
     }
 
+    // CR064 P6 — permanent step changes to amount-based income ("2027: +10,000").
+    // Same replace-wholesale shape as the three above, for the same reason: the table
+    // has no key to merge on.
+    if (Array.isArray(body.IncomeSteps)) {
+      await client.query('DELETE FROM forecast_module_income_steps WHERE module_id = $1', [id]);
+      for (const step of body.IncomeSteps) {
+        if (step.Date) {
+          await repo.setIncomeStep(id, {
+            effective_date: step.Date,
+            amount: step.Amount ?? 0,
+          }, client);
+        }
+      }
+    }
+
     // CR062 — the loan's principal schedule. Same replace-wholesale shape as the
     // three above: the table has no key to merge on, and a partial write would
     // leave a schedule that sums to something nobody chose.
@@ -194,12 +209,15 @@ async function previewLoanRetype(id) {
       (SELECT COUNT(*)::int FROM forecast_module_investments WHERE module_id = $1) AS invest,
       (SELECT COUNT(*)::int FROM forecast_module_disposals   WHERE module_id = $1) AS dispose,
       (SELECT COUNT(*)::int FROM forecast_module_income_pct  WHERE module_id = $1) AS income_pct,
+      -- CR064 P6 — a loan has no income, so its income steps cannot survive the retype
+      -- either. Counted here so the confirm names them before they go.
+      (SELECT COUNT(*)::int FROM forecast_module_income_steps WHERE module_id = $1) AS income_steps,
       (SELECT COUNT(*)::int FROM forecast_modules
         WHERE id = $1 AND (expense_start_date IS NOT NULL OR expense_end_date IS NOT NULL
                         OR income_start_date  IS NOT NULL OR income_end_date  IS NOT NULL)) AS windows
   `, [id]);
-  const r = rows[0] || { invest: 0, dispose: 0, income_pct: 0, windows: 0 };
-  return { ...r, total: r.invest + r.dispose + r.income_pct + r.windows };
+  const r = rows[0] || { invest: 0, dispose: 0, income_pct: 0, income_steps: 0, windows: 0 };
+  return { ...r, total: r.invest + r.dispose + r.income_pct + r.income_steps + r.windows };
 }
 
 /**
@@ -218,7 +236,7 @@ async function clearForLoanRetype(id) {
 
   // Empty-array patches: on an inherited row this records the override; on a
   // variant-local or base row it falls through to the ordinary delete-and-reinsert.
-  await replaceModuleSchedules(id, { Invest: [], Dispose: [], IncomePct: [] });
+  await replaceModuleSchedules(id, { Invest: [], Dispose: [], IncomePct: [], IncomeSteps: [] });
 
   // The window columns are plain columns, so the CR050 write interception in
   // repo.updateModule already routes them to an override where one is needed.

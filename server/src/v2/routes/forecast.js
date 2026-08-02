@@ -46,6 +46,8 @@ const MODULE_WRITE_FIELDS = [
   'BaseDate', 'BaseValue', 'MarketValue', 'BaseValueUSD', 'MarketValueUSD', 'Growth',
   'ExpenseAmount', 'ExpenseFcLineId', 'ExpenseGrowthMethod', 'ExpenseStartDate', 'ExpenseEndDate',
   'IncomeAmount', 'IncomeFcLineId', 'IncomeStartDate', 'IncomeEndDate',
+  // CR064 P6 — amount-based income: its own growth rate, and permanent step changes.
+  'IncomeGrowth', 'IncomeSteps',
   'TaxRateOverride', 'IncomeTaxRateOverride',
   'CashSweepPriority', 'CashSweepTarget',
   'Invest', 'Dispose', 'IncomePct',
@@ -118,13 +120,13 @@ function assertModuleBody(body) {
   validate.assertAllowedFields(body, MODULE_WRITE_FIELDS, 'module');
   for (const f of ['BaseValue', 'MarketValue', 'BaseValueUSD', 'MarketValueUSD', 'Growth',
     'ExpenseAmount', 'IncomeAmount', 'TaxRateOverride', 'IncomeTaxRateOverride',
-    'LoanPrincipal', 'LoanInterestRate']) {
+    'IncomeGrowth', 'LoanPrincipal', 'LoanInterestRate']) {
     if (body[f] !== undefined && body[f] !== null) {
       validate.assertFiniteNumber(body[f], f, { optional: true });
     }
   }
   if (body.Matched !== undefined) validate.assertBoolean(body.Matched, 'Matched');
-  for (const f of ['Invest', 'Dispose', 'IncomePct', 'Amortization']) {
+  for (const f of ['Invest', 'Dispose', 'IncomePct', 'Amortization', 'IncomeSteps']) {
     if (body[f] !== undefined && !Array.isArray(body[f])) {
       throw validate.badRequest(`${f} must be an array`);
     }
@@ -173,6 +175,13 @@ function assertModuleBody(body) {
     if (Array.isArray(body[f]) && body[f].length > 0) {
       throw validate.badRequest(`A loan's ${f} schedule is derived from its own assumptions — remove the ${f} rows.`);
     }
+  }
+
+  // CR064 P6 — a loan has no income at all, so an income step on one describes
+  // nothing. Empty stays accepted, for the same reason as the three above: it is how
+  // a module retyped Asset → Loan clears the rows it arrived with.
+  if (Array.isArray(body.IncomeSteps) && body.IncomeSteps.length > 0) {
+    throw validate.badRequest('A loan has no income, so it cannot carry income steps — remove them.');
   }
 
   // 3. The amortization schedule is percentages, and a negative one is a silent
@@ -767,6 +776,11 @@ router.get('/modules/:id', async (req, res, next) => {
           Date: r.effective_date,
           Value: parseFloat(r.value) || 0,
         })),
+        IncomeGrowth: m.income_growth_rate,
+        IncomeSteps: (m.income_steps || []).map(r => ({
+          Date: r.effective_date,
+          Amount: parseFloat(r.amount) || 0,
+        })),
         Invest: (m.investments || []).map(r => ({
           Date: r.investment_date,
           Amount: parseFloat(r.amount) || 0,
@@ -862,6 +876,10 @@ router.post('/modules', async (req, res, next) => {
       expense_growth_method: body.ExpenseGrowthMethod || 'inflation',
       income_amount: body.IncomeAmount || 0,
       income_tax_rate_override: body.IncomeTaxRateOverride ?? null,
+      // CR064 P6 — NULL means "1", i.e. grow at inflation, which is the pre-CR064
+      // behaviour. Storing 1 explicitly would mean the same thing; NULL keeps the
+      // dormancy claim checkable in SQL.
+      income_growth_rate: body.IncomeGrowth ?? null,
       income_start_date: body.IncomeStartDate || null,
       income_end_date: body.IncomeEndDate || null,
       expense_start_date: body.ExpenseStartDate || null,
@@ -940,6 +958,18 @@ router.post('/modules', async (req, res, next) => {
       }
     }
 
+    // CR064 P6 — permanent income step changes.
+    if (Array.isArray(body.IncomeSteps)) {
+      for (const step of body.IncomeSteps) {
+        if (step.Date) {
+          await repo.setIncomeStep(module.id, {
+            effective_date: step.Date,
+            amount: step.Amount ?? 0,
+          });
+        }
+      }
+    }
+
     res.status(201).json({ data: module });
   } catch (error) {
     console.error('[forecast/modules POST] Failed:', error);
@@ -999,6 +1029,7 @@ router.put('/modules/:id', async (req, res, next) => {
     if (body.ExpenseGrowthMethod !== undefined) updateData.expense_growth_method = body.ExpenseGrowthMethod;
     if (body.TaxRateOverride !== undefined) updateData.tax_rate_override = body.TaxRateOverride;
     if (body.IncomeTaxRateOverride !== undefined) updateData.income_tax_rate_override = body.IncomeTaxRateOverride;
+    if (body.IncomeGrowth !== undefined) updateData.income_growth_rate = body.IncomeGrowth;
     if (body.SetupStatus !== undefined) updateData.setup_status = body.SetupStatus;
     if (body.IncomeAmount !== undefined) updateData.income_amount = body.IncomeAmount;
     if (body.IncomeStartDate !== undefined) updateData.income_start_date = body.IncomeStartDate || null;
@@ -1097,7 +1128,8 @@ router.put('/modules/:id', async (req, res, next) => {
     // the whole replace: a failure mid-reinsert must not leave the module's
     // schedule wiped by the leading DELETEs (CR037 P5).
     if (Array.isArray(body.Invest) || Array.isArray(body.Dispose) ||
-        Array.isArray(body.IncomePct) || Array.isArray(body.Amortization)) {
+        Array.isArray(body.IncomePct) || Array.isArray(body.Amortization) ||
+        Array.isArray(body.IncomeSteps)) {
       await crud.replaceModuleSchedules(id, body);
     }
 

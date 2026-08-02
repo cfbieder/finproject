@@ -386,13 +386,62 @@ function computeModule(module, scenario, df_assumptions, df_categories, categori
   }
 
   // Calculate income values
-  // - income_amount (Base Yr): base year income amount — grown at inflation for Period 1+
-  // - IncomePct (yield %): percentage of avg market value — overrides income_amount from Period 2+
-  // Period 1 = income_amount × (1 + inflation), Period 2+ = yield if set, else keep compounding
+  // - income_amount (Base Yr): base year income amount — grown for Period 1+
+  // - IncomePct (yield %): percentage of avg market value — REPLACES income_amount entirely
+  // The two are mutually exclusive and the yield wins on a single row (`hasIncomePct`).
   const incomeValues = new Array(yearsCount).fill(0);
   const absIncomeAmount = parseFloat(module.income_amount) || 0;
   // Has yield spread schedule = user created IncomePct entries (even if all 0% → inflation-only yield)
   const hasIncomePct = Array.isArray(module.IncomePct) && module.IncomePct.length > 0;
+
+  /**
+   * CR064 P6 — amount-based income grows at `income_growth_rate × inflation`, not at
+   * inflation flat.
+   *
+   * The multiplier mirrors the module's existing `growth_rate` for VALUE, and reads the
+   * same way: 1 = inflation, 0 = flat in nominal terms, 0.5 = half of inflation, 2 =
+   * twice. NULL ⇒ 1, which is exactly the old behaviour — that is what makes this
+   * dormant for every module in every existing scenario.
+   *
+   * A business is the reason it exists: its profit is not a percentage of its own
+   * valuation, so the yield spread (CR003's deposit interest rate) cannot express it,
+   * and inflation-flat was the only other option.
+   */
+  const incomeGrowthMult = module.IncomeGrowth == null || module.IncomeGrowth === ''
+    ? 1
+    : (parseFloat(module.IncomeGrowth) || 0);
+
+  /**
+   * CR064 P6 — permanent step changes to the income level: "2027: +10,000".
+   *
+   * Owner's decision (2026-08-02): the amount is typed in the money of the year it
+   * happens and KEEPS ITS REAL VALUE afterwards, so it compounds from its OWN year
+   * rather than eroding across a 36-year horizon. With the default multiplier of 1 that
+   * is exactly inflation; with a different multiplier the step tracks the stream it is
+   * part of, because splitting one income line across two growth rates is not something
+   * the audit trail could explain.
+   *
+   * A step applies in FULL in its year. It is a change to the annual run-rate, not an
+   * event with a date, so it deliberately does not take the July-1 half-year convention
+   * that CR046's window and CR062's draw year use.
+   */
+  const incomeSteps = (Array.isArray(module.IncomeSteps) ? module.IncomeSteps : [])
+    .map((s) => ({
+      year: Number(String(s?.date ?? s?.Date ?? '').slice(0, 4)),
+      amount: parseFloat(s?.amount ?? s?.Amount) || 0,
+    }))
+    .filter((s) => Number.isFinite(s.year) && s.year > 0 && s.amount !== 0)
+    .sort((a, b) => a.year - b.year);
+
+  /** Compound `amount` from `fromYear` to `toYear` at the income stream's growth rate. */
+  const growIncome = (amount, fromYear, toYear) => {
+    let out = amount;
+    for (let y = fromYear; y < toYear; y++) {
+      const j = y - periodStart + 1;
+      if (j >= 0 && j < inflationLen) out *= (1 + (inflationSeries[j] * incomeGrowthMult) / 100);
+    }
+    return out;
+  };
 
   for (let i = 0, year = startyear; year <= endyear; i++, year++) {
     const idx = year - periodStart;
@@ -404,15 +453,27 @@ function computeModule(module, scenario, df_assumptions, df_categories, categori
 
     if (hasIncomePct) {
       // Module has yield spread schedule → effective yield = inflation + spread (0% spread = inflation-only yield)
+      // The steps and the growth multiplier belong to the AMOUNT, which this mode
+      // discards, so they are not applied here either.
       incomeValues[i] = yieldIncome;
-    } else if (absIncomeAmount > 0) {
-      // No yield schedule at all → grow income_amount at inflation from base year
+    } else if (absIncomeAmount > 0 || incomeSteps.length > 0) {
+      // Grow income_amount from the base year (PeriodStart − 1) to this one...
+      // The `> 0` test is the pre-CR064 one and stays exactly as it was: a module with
+      // no amount but with steps is driven by the steps alone, and one with a negative
+      // amount books nothing, as before.
       const periodNum = year - periodStart + 1;
-      let compounded = absIncomeAmount;
-      for (let j = 0; j < periodNum; j++) {
-        if (j >= 0 && j < inflationLen) {
-          compounded *= (1 + inflationSeries[j] / 100);
+      let compounded = 0;
+      if (absIncomeAmount > 0) {
+        compounded = absIncomeAmount;
+        for (let j = 0; j < periodNum; j++) {
+          if (j >= 0 && j < inflationLen) {
+            compounded *= (1 + (inflationSeries[j] * incomeGrowthMult) / 100);
+          }
         }
+      }
+      // ...then add every step that has taken effect, each grown from its own year.
+      for (const step of incomeSteps) {
+        if (step.year <= year) compounded += growIncome(step.amount, step.year, year);
       }
       incomeValues[i] = compounded;
     }
@@ -492,7 +553,11 @@ function computeModule(module, scenario, df_assumptions, df_categories, categori
     // direction. (Reachable whenever a retyped module still carries a non-zero
     // expense_amount, which is what `gateExpense` keys on.)
     const gateExpense = !isLoan && absExpenseAmount > 0;
-    const gateIncome = !hasIncomePct && absIncomeAmount > 0;
+    // CR064 P6 — steps can drive an amount-mode stream on their own (a business with no
+    // income today that starts earning in 2029 is a step, not an amount), so the gate has
+    // to key on the same condition the projection loop does. Keying it on the amount
+    // alone would leave a step-only stream paying out before the asset was owned.
+    const gateIncome = !hasIncomePct && (absIncomeAmount > 0 || incomeSteps.length > 0);
     if (gateExpense || gateIncome) {
       for (let i = 0; i < yearsCount; i++) {
         if (acquisitionIdx === -1 || i < acquisitionIdx) {

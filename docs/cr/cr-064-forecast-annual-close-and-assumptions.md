@@ -7,7 +7,7 @@ rows in prod, and the fact that **every module in every scenario is still anchor
 2025-12-31** with no supported way to move them forward.
 [Roadmap](../current/project-roadmap.md#cr064)
 
-**Opened:** 2026-08-02 · **Track:** v3 · **Migration:** 052 (P1)
+**Opened:** 2026-08-02 · **Track:** v3 · **Migration:** 052 (P1) · 055 (P6)
 **Depends on:** CR039 (assumptions moved into `forecast_assumptions`) · CR041 (ownership gate,
 field sections) · CR048 (per-scenario assumptions on copy) · CR050 (variants, override sync) ·
 CR051 (base-year FX, the zero-rate guard) · CR053 (the auto-adjust scratch harness) ·
@@ -21,8 +21,9 @@ CR062 (the Loan form this CR declines to generalise)
 | **P1** | §2 — atomic rename, orphan pruning, the invariant made explicit. Migration 052. | After P0. P2 has to write `PeriodStart`, and writing into a document whose entries can be orphaned is how CR048 lost a whole assumptions slice. Fix the key before building on it. |
 | **P2** | §3 — the annual close: roll the base year forward across a scenario and its variants. | After P1. |
 | **P3** | §4, §5 — the module form: collapse-when-empty, per-type labels, the blank-row question. | Independent of P0–P2; ships whenever. |
-| **P4** | §6 — plan vs actual for the live year. | **Designed here, not built.** Needs P2 (a stale anchor makes every variance meaningless). |
-| **P5** | §7 — sensitivity runs on the CR053 harness. | **Designed here, not built.** Lowest priority; nothing is wrong without it. |
+| **P6** | §6 — income a business can express: its own growth rate, permanent step changes, and the live mode stated in the form. Migration 055. | Independent of P0–P3. Ships dormant: 7,916 entries byte-identical on a copy of prod. |
+| **P4** | §7 — plan vs actual for the live year. | **Designed here, not built.** Needs P2 (a stale anchor makes every variance meaningless). |
+| **P5** | §8 — sensitivity runs on the CR053 harness. | **Designed here, not built.** Lowest priority; nothing is wrong without it. |
 
 ---
 
@@ -340,7 +341,83 @@ The noise is real. §4.1 removes it without keying on type.
 
 ---
 
-## 6. P4 — plan vs actual (designed, not built)
+## 6. P6 — income a business can express
+
+### 6.1 What was measured
+
+Owner question: *"this business assumes 300k of income in year one, but there is no way to
+change how it grows relative to inflation — only the yield adjustment, which is not relevant to
+a business."* Correct, and the cause is worse than a missing field: **the typed amount is not
+being used at all.**
+
+Recurring income has two modes, mutually exclusive:
+
+| mode | trigger | income |
+|---|---|---|
+| **amount** | no `IncomePct` rows | `income_amount`, compounded at **exactly** inflation |
+| **yield** | **any** `IncomePct` row | `avg(market value) × (inflation + spread)` — `income_amount` discarded |
+
+`hasIncomePct` wins on a single row ([fcbuilder-module.js](../../server/src/services/forecast/fcbuilder-module.js)),
+and nothing in the form said which mode was live. **All six income-bearing modules in prod are in
+yield mode, so all six have a dead Income Amount.** United Beverages, verified against the
+generated entries: 192,266 PLN typed, and the engine books **77,163 USD for 2027** =
+`avg(3,846,154 / 3,870,192) × (2.5% − 0.5%)`, matching to the dollar.
+
+CR003 built `IncomePct` as a **deposit interest rate** — right for Fidelity Fixed Income, wrong
+for a business, whose profit is not a percentage of its own valuation. Nothing documented that it
+silently overrides the amount.
+
+### 6.2 What P6 adds (migration 055)
+
+- **`income_growth_rate`** — a multiplier of inflation, read exactly like the module's existing
+  `Growth (× Inflation)` for value: 1 (or blank) = inflation, 0 = flat in nominal terms, 0.5 =
+  half of inflation, 2 = twice, negative = a business in decline. NULL ⇒ 1 ⇒ the old behaviour.
+- **`forecast_module_income_steps`** — permanent level changes: *"2029: +10,000"*, *"2033:
+  −25,000"*. **Owner's decision (2026-08-02): the amount is typed in the money of the year it
+  happens and keeps its real value afterwards**, compounding from its own year at the stream's
+  growth rate rather than eroding across a 36-year horizon. A step applies in **full** in its
+  year — it is a change to the annual run-rate, not an event with a date, so it deliberately does
+  **not** take the July-1 half-year convention CR046's window and CR062's draw year use.
+- **The live mode is stated in the form.** When a yield row exists, the Income section says so and
+  says that the amount, growth and steps below are not used. This is the correction that matters
+  most: it is what makes the dead 192,266 visible.
+- **Steps are stored, the series is derived** on every generate — materialising 36 rows of
+  computed income would rot the moment the growth rate changed (CR049/CR050, and why CR062 derives
+  a loan's amortization).
+
+### 6.3 Hiding Yield Spread on a business — by data, not by type
+
+The owner asked for the yield input to be hidden on a business. It is, but **not** by gating on
+`module_type` (§5's argument still holds, and hiding a control while the row behind it still
+drives the number is the dangerous version — United Beverages and Barkeria are in exactly that
+state today). Instead §4.1's collapse-when-empty rule is extended to the **schedule** sections:
+a schedule with no rows renders as one `+ Add …` line. Yield Spread therefore is not offered on a
+business that has none, and **is** offered the moment one exists — which a type gate could never
+guarantee.
+
+### 6.4 Verified
+
+- **Dormant on real data.** A copy of prod, all pending migrations applied, then `2026 Base`
+  regenerated with the pre-change engine and with this one: **7,916 entries across all five
+  scenarios, byte-identical.**
+- **The feature, end-to-end on a real business module.** Barkeria moved off yield mode with
+  `income_growth_rate = 0.5` and a `2029: +10,000` step regenerates to
+  **55,687.52 → 56,383.59 → 67,088.39 → 67,927.00 PLN** — i.e. 55,000 growing at half of
+  inflation, the full 10,000 in 2029, and 10,125 in 2030, matching the approved worked example to
+  the cent.
+- 16 new engine tests, 5 payload tests; 761 backend / 303 frontend green.
+
+### 6.5 Left deliberately undone
+
+- **Moving the six live modules off yield mode changes their numbers** (United Beverages ~301k →
+  whatever amount is set) and is a per-business decision for the owner, not a migration.
+- **The base-year income tax still reads `income_amount` in yield mode.** UB's 2027 tax line is
+  30% × 192,266 PLN = 14,790 USD while every later year taxes the yield (23,149) — the first
+  projected year is taxed on a number the income series never books. A real defect, excluded
+  from P6 **on purpose**: fixing it changes existing numbers, and mixing that into a change whose
+  whole claim is "byte-identical" would destroy the proof. It gets its own phase.
+
+## 7. P4 — plan vs actual (designed, not built)
 
 `FCReviewTable` already overlays a `(Budget)` and an `(Actual)` column for the base and
 last-actual years, so the plumbing for "actuals next to the plan" exists. What does not exist is
@@ -354,7 +431,7 @@ shows up first as an implausible variance.
 Gated on P2 because a variance computed against a 19-month-old anchor measures the anchor, not the
 plan.
 
-## 7. P5 — sensitivity runs (designed, not built)
+## 8. P5 — sensitivity runs (designed, not built)
 
 CR048 ratified "test equity growth in a scenario copy" and "FX stress folds into Downside" — i.e.
 hand-copy a scenario per question. CR053 already built the expensive machinery: a standalone
@@ -366,7 +443,7 @@ Reuse, not new machinery — but nothing is *wrong* without it, which is why it 
 
 ---
 
-## 8. Out of scope
+## 9. Out of scope
 
 - **Monte Carlo / stochastic returns.** Converts a model the owner can explain line by line into
   one nobody can. CR044 settled that this stays a personal tool.
@@ -375,10 +452,11 @@ Reuse, not new machinery — but nothing is *wrong* without it, which is why it 
   the key that rots; restructuring four documents that the engine, the copy path, the variant sync
   and three UI pages all read is a separate CR and buys nothing this one needs.
 
-## 9. Status
+## 10. Status
 
 - **P0** — pending.
 - **P1** — pending (migration 052).
 - **P2** — pending.
 - **P3** — pending.
+- **P6** — built (migration 055), dormant, gate-verified. Not deployed.
 - **P4 / P5** — designed here, not scheduled.

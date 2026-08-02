@@ -456,6 +456,13 @@ export default function FCModulesEditModal({
   // showing none. Amortization years run drawYear+1 … endYear−1: the end year is
   // the remainder by construction and must not also carry a percentage.
   const isLoan = isLoanModule(editForm);
+  // CR064 P6 — the engine's two income modes are mutually exclusive and the yield wins
+  // on a SINGLE row (`hasIncomePct` in fcbuilder-module.js), discarding Income Amount
+  // entirely. All six income-bearing modules in prod are in yield mode, so all six have
+  // a dead Income Amount — United Beverages shows 192,266 typed while the engine books
+  // 2% of a 15M valuation. Nothing in the form said so.
+  const incomeIsYieldDriven =
+    Array.isArray(editForm?.IncomePct) && editForm.IncomePct.length > 0;
   const loanDrawYear = Number(getYearFromDate(editForm?.LoanStartDate)) || null;
   const loanEndYear = Number(getYearFromDate(editForm?.LoanEndDate)) || null;
   const amortYearOptions =
@@ -472,6 +479,8 @@ export default function FCModulesEditModal({
         [labelForType(editForm?.Type, "Invest", "Invest"), "Invest"],
         [labelForType(editForm?.Type, "Dispose", "Dispose"), "Dispose"],
         [labelForType(editForm?.Type, "IncomePct", incomePctLabel), "IncomePct"],
+        // CR064 P6 — permanent step changes to amount-based income ("2027: +10,000").
+        ["Income Steps", "IncomeSteps"],
       ];
 
   /**
@@ -514,6 +523,13 @@ export default function FCModulesEditModal({
       const used = new Set(current.map((e) => String(e?.Date || "").slice(0, 4)));
       const nextYear = amortYearOptions.find((y) => !used.has(String(y))) ?? amortYearOptions[0] ?? defaultYear;
       onFieldChange(field, [...current, { Date: `${nextYear}-07-01`, Pct: "" }]);
+    } else if (field === "IncomeSteps") {
+      // First unused projected year, so two steps do not collide on the table's
+      // (module_id, effective_date) key.
+      const used = new Set(current.map((e) => String(e?.Date || "").slice(0, 4)));
+      const nextYear = incomePctYearOptions.find((y) => !used.has(String(y)))
+        ?? incomePctYearOptions[0] ?? defaultYear;
+      onFieldChange(field, [...current, { Date: `${nextYear}-07-01`, Amount: "" }]);
     } else if (field === "IncomePct") {
       onFieldChange(field, [
         ...current,
@@ -685,7 +701,17 @@ export default function FCModulesEditModal({
                       Always a button, never a hidden field: the value is still on the
                       form and still saved, so this can never hide a live number. */}
                   {openSections.has(sectionTitle) ? (
-                    <h5 className="fc-modules-modal__group-title">{sectionTitle}</h5>
+                    <>
+                      <h5 className="fc-modules-modal__group-title">{sectionTitle}</h5>
+                      {sectionTitle === "Income" && incomeIsYieldDriven && (
+                        <p className="fc-modules-modal__mode-note">
+                          This module is on <b>Yield Spread</b>: its income is a percentage
+                          of market value, and the amount, growth and steps below are
+                          <b> not used</b>. Remove the Yield Spread rows to drive income
+                          from the amount instead.
+                        </p>
+                      )}
+                    </>
                   ) : (
                     <button
                       type="button"
@@ -1239,6 +1265,30 @@ export default function FCModulesEditModal({
                 const isIncomePct = field === "IncomePct";
                 const isAmortization = field === "Amortization";
                 const isPctRow = isIncomePct || isAmortization;
+                // CR064 P6 — a step is a signed AMOUNT (so not a pct row) but has no
+                // Flag: "Periodic" and "OneTime" describe transfers, and a step is a
+                // permanent change to the income level rather than an event.
+                const isIncomeSteps = field === "IncomeSteps";
+                const isNoFlagRow = isPctRow || isIncomeSteps;
+                // CR064 P6 — the same collapse-when-empty rule as the field sections
+                // (§4.1). A schedule with no rows is one "+ Add" line, so Yield Spread
+                // simply is not offered on a business that has none — and IS offered the
+                // moment one exists, which a type gate could never guarantee.
+                const scheduleKey = `schedule:${field}`;
+                if (transfers.length === 0 && !openSections.has(scheduleKey)) {
+                  return (
+                    <div key={field} className="fc-modules-modal__transfer-section">
+                      <button
+                        type="button"
+                        className="fc-modules-modal__group-toggle"
+                        onClick={() => toggleSection(scheduleKey)}
+                      >
+                        + Add {label.toLowerCase()}
+                      </button>
+                    </div>
+                  );
+                }
+
                 return (
                   <div
                     key={field}
@@ -1246,7 +1296,7 @@ export default function FCModulesEditModal({
                   >
                     <div className="fc-modules-modal__transfer-header">
                       <h5 className="fc-modules-modal__transfer-title">
-                        {label} {isPctRow ? "" : "Transfers"}
+                        {label} {isNoFlagRow ? "" : "Transfers"}
                       </h5>
                       {isIncomePct && (
                         <span style={{ fontSize: "0.75em", color: "var(--muted)", fontWeight: 400 }}>
@@ -1293,7 +1343,7 @@ export default function FCModulesEditModal({
                             strokeLinejoin="round"
                           />
                         </svg>
-                        Add {label} {isPctRow ? "Entry" : ""}
+                        Add {label} {isNoFlagRow ? "Entry" : ""}
                       </button>
                     </div>
                     {transfers.length === 0 ? (
@@ -1315,9 +1365,9 @@ export default function FCModulesEditModal({
                         </svg>
                         <p>No {label.toLowerCase()} entries</p>
                         <span>
-                          Click "Add {label} {isPctRow ? "Entry" : ""}" to
+                          Click "Add {label} {isNoFlagRow ? "Entry" : ""}" to
                           create a{" "}
-                          {isPctRow ? "percentage entry" : "transfer"}
+                          {isIncomeSteps ? "step change" : isPctRow ? "percentage entry" : "transfer"}
                         </span>
                       </div>
                     ) : (
@@ -1341,7 +1391,7 @@ export default function FCModulesEditModal({
                                 {index + 1}
                               </div>
                               <div className="fc-modules-modal__transfer-fields">
-                                {!isPctRow && (
+                                {!isNoFlagRow && (
                                   <div className="fc-modules-modal__transfer-field">
                                     <label className="fc-modules-modal__transfer-label">
                                       Type
@@ -1385,7 +1435,7 @@ export default function FCModulesEditModal({
                                     }
                                   >
                                     <option value="">Select year</option>
-                                    {(isAmortization ? amortYearOptions : isIncomePct ? incomePctYearOptions : transferYearOptions).map((year) => (
+                                    {(isAmortization ? amortYearOptions : (isIncomePct || isIncomeSteps) ? incomePctYearOptions : transferYearOptions).map((year) => (
                                       <option key={year} value={year}>
                                         {year}
                                       </option>

@@ -35,6 +35,9 @@ const NUMERIC_FIELDS = [
   // CR062 — blank stays null, and null is what "not a loan" means to the engine.
   "LoanPrincipal",
   "LoanInterestRate",
+  // CR064 P6 — blank stays null, and null is what "grow at inflation" means to the
+  // engine. 0 is a real multiplier (flat in nominal terms), not "unset".
+  "IncomeGrowth",
 ];
 
 export function buildModulePayload(editForm = {}, { normalizeTransfers } = {}) {
@@ -88,6 +91,16 @@ export function buildModulePayload(editForm = {}, { normalizeTransfers } = {}) {
     payload.Invest = loan ? [] : normalizeTransfers(editForm.Invest);
     payload.Dispose = loan ? [] : normalizeTransfers(editForm.Dispose);
     payload.IncomePct = loan ? [] : normalizeTransfers(editForm.IncomePct);
+    // CR064 P6 — a loan has no income, so it cannot carry steps; the empty array is
+    // how a module retyped Asset → Loan clears the ones it arrived with.
+    payload.IncomeSteps = loan
+      ? []
+      : (Array.isArray(editForm.IncomeSteps) ? editForm.IncomeSteps : [])
+          .filter((row) => row && row.Date)
+          .map((row) => ({
+            Date: row.Date,
+            Amount: row.Amount === "" || row.Amount == null ? 0 : Number(row.Amount),
+          }));
     if (loan) {
       payload.Amortization = (Array.isArray(editForm.Amortization) ? editForm.Amortization : [])
         .filter((row) => row && row.Date)

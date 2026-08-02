@@ -34,6 +34,10 @@ describe("CR041 — FCModulesEdit field sections", () => {
   test("income fields are all in the Income section", () => {
     expect(fieldsOf("Income")).toEqual([
       "IncomeFcLineId", "IncomeAmount",
+      // CR064 P6 — a multiplier of inflation for the amount above. Before it, income
+      // grew at exactly inflation and nothing could say otherwise, so a business could
+      // only be modelled through the Yield Spread — which discards the amount entirely.
+      "IncomeGrowth",
       "IncomeStartDate", "IncomeEndDate", // CR046 window
     ]);
   });
@@ -46,7 +50,7 @@ describe("CR041 — FCModulesEdit field sections", () => {
       "Account", "BaseDate", "BaseValue", "BaseValueUSD", "Currency",
       "ExpenseAmount", "ExpenseEndDate", "ExpenseFcLineId", "ExpenseGrowthMethod",
       "ExpenseStartDate", "Growth",
-      "IncomeAmount", "IncomeEndDate", "IncomeFcLineId", "IncomeStartDate",
+      "IncomeAmount", "IncomeEndDate", "IncomeFcLineId", "IncomeGrowth", "IncomeStartDate",
       "IncomeTaxRateOverride", "MarketValue", "MarketValueUSD",
       "Matched", "Name", "TaxRateOverride", "Type",
     ]);
