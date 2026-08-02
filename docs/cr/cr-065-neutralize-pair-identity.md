@@ -255,3 +255,42 @@ genuine MTM predicted in §2.
 it. The unique index cannot help here — it constrains rows that name a partner, and these
 paths named nobody. Any new code that creates an offsetting leg must set `paired_with_id`,
 and the §4.5 check is what will say so if it does not.
+
+## 9. Defence in depth: the badge and the accept guard (v3.11.5)
+
+Asked for by the owner as *"if we just accept a securities trade, pop a warning — are you
+sure no offset needed?"*
+
+**Stated plainly first: neither of these would have caught §1 or §8.** The CD row in §1 was
+accepted *by the neutralize call itself* — there was no bare Accept to warn on. The Bond row
+in §8 was a legitimate neutralize acting on data that an unrecorded pair had made wrong.
+What prevents those is §4.1–4.3 and §8; what caught §8 was §4.5. This closes a **third**
+hole — accept-without-neutralize — and moves the signal from a once-a-day reconcile page to
+where the decision is actually made.
+
+**`NEEDS_OFFSET_SQL`** — one definition of "self-netting transfer leg with no counter-leg",
+exported from the transactions repository and used by all three list queries **and** the
+review-queue endpoint. The badge the owner sees and the number the reconcile page counts are
+therefore the same predicate; they cannot drift apart. Bounded by the 053 watermark for the
+reason in §4.5, and a missing watermark key yields FALSE — quiet, not loud-and-wrong.
+
+**The badge.** A flagged row wears `no offset` beside its description in the review queue.
+
+**The guard.** All four accept paths — single row, Accept All, by-source, Accept Selected —
+funnel through one gate, so a leg cannot slip in by a route nobody thought about. It names
+the rows, totals the exposure, and says what accepting will look like: *drift, and on a
+brokerage account, a market move rather than a mistake.*
+
+It **warns rather than blocks**, deliberately. A DB trigger refusing `accepted = TRUE` on an
+unpaired leg would be the strongest form and is the wrong one: this category also carries
+genuine cross-account securities transfers whose counter-leg legitimately sits in another
+account (Known Issue #13), and a hard constraint would refuse them.
+
+**Live on prod immediately.** 3 of the 71 rows in the review queue flagged — three
+REINVESTMENT legs on Fidelity IRA (−24.93, −152.55, −113.43) that would have taken the
+account $290.91 light on accept. Note the reconcile check reads **0** at the same moment:
+those rows are not accepted yet, so they are not errors yet. That is the division of labour
+— the badge catches a leg *before* it becomes an error, §4.5 catches one after.
+
+Twelve DB-backed tests now, two of them pinning the flag itself: true for an unpaired leg,
+false once neutralized, and never set on an ordinary category.
