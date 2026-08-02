@@ -344,6 +344,63 @@ dbDescribe('reconcileToFeed (DB)', () => {
     await expect(reconcileToFeed(acctId, { asOf: MONTH_END, dryRun: false })).rejects.toThrow(/exchange rate/i);
   });
 
+  // ── CR065 §11: a balance may only mark a day it could actually contain ──────
+  //
+  // The feed labels a balance with the date it was SYNCED, and it syncs in the
+  // small hours — so the row dated D was taken before D traded. Marking against
+  // it is marking to a day that had not happened yet. On prod this booked
+  // Fidelity Stocks -44,600.45 for 2026-07-31 against a balance synced 01:48 that
+  // morning, leaving the account 24,352.57 below the custodian.
+  async function seedFeedSynced(balance, date, syncedAt) {
+    await db.query(
+      `INSERT INTO bankfeed_balances (feed_account_external_id, balance, currency, balance_date, source, source_synced_at)
+       VALUES ($1, $2, 'USD', $3, 'fintable', $4)
+       ON CONFLICT (feed_account_external_id, balance_date, source)
+       DO UPDATE SET balance = EXCLUDED.balance, source_synced_at = EXCLUDED.source_synced_at`,
+      [UUID, balance, date, syncedAt]
+    );
+  }
+
+  test('guard: a balance synced BEFORE the booking day ended is refused, not booked', async () => {
+    await freshAccount({ type: 'asset', currency: 'USD', opening: 1000, mode: 'mtm', bff: false });
+    await db.query(
+      `INSERT INTO transactions (transaction_date, amount, currency, account_id, source, accepted)
+       VALUES ('2026-03-10', 9000, 'USD', $1, 'pocketsmith', TRUE)`, [acctId]);
+    // Labelled for month-end, but taken at 01:48 THAT MORNING — it cannot contain
+    // the day it is named after. Both existing guards see a row dated 03-31 and
+    // three moving balances, and pass it.
+    await seedFeedSynced(10500, '2026-03-31', '2026-03-31T01:48:00Z');
+
+    const out = await reconcileToFeed(acctId, { bookDate: '2026-03-31', dryRun: false });
+    expect(out.stale_feed).toBe(true);
+    expect(out.stale_reason).toMatch(/synced on 2026-03-31.*cannot contain/s);
+    expect(out.applied).toBeFalsy();
+    const rows = (await db.query(
+      `SELECT 1 FROM transactions WHERE account_id=$1 AND source=$2`, [acctId, MTM_SOURCE])).rows;
+    expect(rows).toHaveLength(0);                       // nothing written
+  });
+
+  test('balanceDate: mark against a LATER observation while dating the entry at month-end', async () => {
+    await freshAccount({ type: 'asset', currency: 'USD', opening: 1000, mode: 'mtm', bff: false });
+    await db.query(
+      `INSERT INTO transactions (transaction_date, amount, currency, account_id, source, accepted)
+       VALUES ('2026-03-10', 9000, 'USD', $1, 'pocketsmith', TRUE)`, [acctId]);
+    await seedFeedSynced(10500, '2026-03-31', '2026-03-31T01:48:00Z'); // pre-dates the day
+    await seedFeedSynced(10800, '2026-04-02', '2026-04-02T00:05:00Z'); // the one that contains it
+
+    const out = await reconcileToFeed(acctId, {
+      bookDate: '2026-03-31', balanceDate: '2026-04-02', dryRun: false,
+    });
+    expect(out.stale_feed).toBe(false);
+    expect(out.feed_balance).toBeCloseTo(10800, 2);     // marked against the later observation
+    expect(out.mtm_amount).toBeCloseTo(800, 2);
+    const rows = (await db.query(
+      `SELECT transaction_date::text AS d FROM transactions WHERE account_id=$1 AND source=$2`,
+      [acctId, MTM_SOURCE])).rows;
+    expect(rows).toHaveLength(1);
+    expect(rows[0].d).toBe('2026-03-31');               // …but dated at month-end
+  });
+
   test('mtm: bookDate overrides the month-end snap (books verbatim on the chosen date)', async () => {
     await freshAccount({ type: 'asset', currency: 'USD', opening: 1000, mode: 'mtm', bff: false });
     await db.query(

@@ -58,10 +58,17 @@ function expectedFromFeed(m, feedVal) {
  * @param {string|null} [opts.bookDate] YYYY-MM-DD; explicit MTM booking date used
  *   VERBATIM (entry date + balance as-of), e.g. a quarter/year-end. When absent,
  *   the legacy behavior holds (snap asOf to its month-end). Ignored for calibrate.
+ * @param {string|null} [opts.balanceDate] YYYY-MM-DD; which OBSERVATION to mark
+ *   against, when it is not the one the booking date would pick. The feed labels
+ *   a balance with the date it was SYNCED, and it syncs in the small hours — so
+ *   the row dated D reflects an earlier close, and D's own close lands on a later
+ *   row. Lets the caller say "book at month-end, using the observation that
+ *   actually contains it" without this code guessing a lag rule it cannot yet
+ *   prove (calendar vs business days — roadmap Known Issue #14).
  * @param {boolean} [opts.dryRun] compute only, write nothing.
  * @returns {Promise<object>} action summary
  */
-async function reconcileToFeed(accountId, { asOf = null, dryRun = false, force = false, bookDate = null } = {}) {
+async function reconcileToFeed(accountId, { asOf = null, dryRun = false, force = false, bookDate = null, balanceDate = null } = {}) {
   // Pre-flight (no transaction): load mapping, and for 'mtm' make sure the target
   // month-end balance is cached — the daily cron only caches recent snapshots, so
   // a month-end may be absent locally while the bank-feed service still has it.
@@ -99,7 +106,8 @@ async function reconcileToFeed(accountId, { asOf = null, dryRun = false, force =
         console.warn(`[reconcileToFeed] month-end balance backfill failed (${monthEnd}): ${e.message}`);
       }
     }
-    return db.transaction((client) => mtm(client, accountId, m, monthEnd, dryRun, force));
+    const markAgainst = balanceDate ? await normalizeDate(db, balanceDate) : null;
+    return db.transaction((client) => mtm(client, accountId, m, monthEnd, dryRun, force, markAgainst));
   }
   return db.transaction((client) => calibrate(client, accountId, m, asOfDate, dryRun));
 }
@@ -121,17 +129,25 @@ async function resolveMonthEnd(conn, asOfDate) {
   )).rows[0].d;
 }
 
-async function mtm(client, accountId, m, monthEnd, dryRun, force = false) {
-  // The three most recent feed observations on/before month-end. One row is
-  // enough to compute a mark; three are needed to tell a MOVING feed from a
-  // STALLED one, which is the difference between a real month-end value and a
+async function mtm(client, accountId, m, monthEnd, dryRun, force = false, markAgainst = null) {
+  // The three most recent feed observations on/before the observation date. One
+  // row is enough to compute a mark; three are needed to tell a MOVING feed from
+  // a STALLED one, which is the difference between a real month-end value and a
   // carried-forward one.
+  //
+  // `markAgainst` (CR065 §11) decouples WHICH OBSERVATION we mark against from
+  // WHICH DATE the entry carries. They are not the same question: the feed labels
+  // a balance with the date it was synced, and it syncs in the small hours, so
+  // the row dated D was taken before D traded.
+  const observationDate = markAgainst || monthEnd;
   const feedRows = (await client.query(
-    `SELECT balance, balance_date::text AS balance_date, fetched_at
+    `SELECT balance, balance_date::text AS balance_date, fetched_at,
+            source_synced_at,
+            (source_synced_at AT TIME ZONE 'UTC')::date::text AS synced_on
        FROM bankfeed_balances
       WHERE feed_account_external_id = $1 AND balance_date <= $2::date
       ORDER BY balance_date DESC LIMIT 3`,
-    [m.external_name, monthEnd]
+    [m.external_name, observationDate]
   )).rows;
   const feed = feedRows[0];
   if (!feed) throw new Error(`no feed balance for account ${accountId} on/before ${monthEnd}`);
@@ -159,17 +175,44 @@ async function mtm(client, accountId, m, monthEnd, dryRun, force = false) {
   //       three days, so this is a stalled connection, not a quiet account.
   //       (Only `mtm` accounts reach here, and all of them hold securities;
   //       genuinely static cash accounts use `calibrate`.)
-  const feedIsForMonthEnd = feed.balance_date === monthEnd;
+  // ── (c) CR065 §11: the row has the right DATE and the wrong CONTENTS ───────
+  //
+  // The two guards above test the date LABEL. Neither can see a row that is
+  // labelled for the booking day but was taken BEFORE that day happened — and
+  // that is the common case here, because the feed syncs in the small hours:
+  //
+  //   Fidelity Stocks, marking 2026-07-31 (a Friday). The row dated 07-31 was
+  //     synced at 01:48 ON 07-31, so it predates Friday's trading. Marking
+  //     against it booked -44,600.45 and left the account 24,352.57 BELOW the
+  //     custodian. Friday's actual close sits on the row dated 08-02 — provable
+  //     because 08-01 and 08-02 are a weekend, so Friday's close and "today"
+  //     must be the same number, and they are not.
+  //
+  //   Fidelity Cash Mgt, same day: the 07-31 row predates that day's -41,564.86
+  //     wire, and proposed +40,150.79 — a 3.6% one-month unrealized gain on a CD
+  //     ladder held at PAR, under the implausibility threshold and so unflagged.
+  //
+  // So: an observation may only mark a day it could actually contain. Deliberately
+  // NOT a lag rule — how far behind the feed runs, and whether in calendar or
+  // business days, is still unproven (Known Issue #14). This refuses what is
+  // provably wrong and leaves `balanceDate` to state what is right.
+  const syncedBeforeDayEnded = feed.synced_on != null && feed.synced_on <= monthEnd;
+
+  const feedIsForMonthEnd = feed.balance_date === observationDate;
   const flatRun =
     feedRows.length === 3 &&
     Number(feedRows[0].balance) === Number(feedRows[1].balance) &&
     Number(feedRows[1].balance) === Number(feedRows[2].balance);
-  const stale = !feedIsForMonthEnd || flatRun;
+  const stale = !feedIsForMonthEnd || flatRun || syncedBeforeDayEnded;
   const staleReason = !feedIsForMonthEnd
-    ? `feed has no balance dated ${monthEnd} — latest is ${feed.balance_date}`
+    ? `feed has no balance dated ${observationDate} — latest is ${feed.balance_date}`
     : flatRun
       ? `feed balance unchanged across ${feedRows.map((r) => r.balance_date).reverse().join(', ')} — connection likely stalled`
-      : null;
+      : syncedBeforeDayEnded
+        ? `the balance dated ${feed.balance_date} was synced on ${feed.synced_on}, so it was taken ` +
+          `BEFORE ${monthEnd} ended and cannot contain that day's activity. Mark against a later ` +
+          `observation instead (balanceDate), or pass force to override.`
+        : null;
 
   // computed AS-OF month-end, EXCLUDING any mtm row already dated that month-end
   // (so a re-run recomputes against the same base → idempotent).
@@ -195,7 +238,8 @@ async function mtm(client, accountId, m, monthEnd, dryRun, force = false) {
 
   const summary = {
     account_id: accountId, name: m.name, mode: 'mtm', month_end: monthEnd,
-    feed_date: feed.balance_date, feed_balance: feedVal, computed_excl_mtm: computed,
+    feed_date: feed.balance_date, feed_synced_on: feed.synced_on,
+    feed_balance: feedVal, computed_excl_mtm: computed,
     mtm_amount: amount, category_id: UNREALIZED_GL_CATEGORY_ID,
     implausible, implausible_pct: Math.round(implausiblePct * 1000) / 1000,
     stale_feed: stale, stale_reason: staleReason,
