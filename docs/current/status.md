@@ -29,6 +29,16 @@ brokerage-history data work. Detail lives in the CR file linked from each line.
   class** (046 was the first, and the fix note for it says exactly this), and again nothing
   announced it — [Known Issue #12](project-roadmap.md#3-known-issues), now three incidents old.
   Amended under the migrations rule's "unavoidable" clause; the chain builds all 52 files.
+- ⚠️ **CR064 P6 reached prod as work-in-progress, via another thread's deploy** (2026-08-02
+  20:21). `deploy-to-production.sh` builds from the shared working tree and applies every pending
+  file in `server/db/migrations/`, so migration **055** and the P6 **engine** code went out while
+  still uncommitted — the same hazard migration 051's row records for 044. **Harm: none, and it
+  was checked rather than assumed.** The change is dormant by construction (`income_growth_rate`
+  NULL everywhere, `forecast_module_income_steps` empty) and was proved byte-identical on a copy
+  of prod (7,916 entries, all five scenarios); the served **frontend bundle carries no P6 UI**, so
+  nothing can set either control. The code is now committed (`92f944d`), which is what makes the
+  running build reproducible from git again. *The lesson is the one already on the books: an
+  unfinished file parked in the migrations directory is not inert.*
 - **[CR064](../cr/cr-064-forecast-annual-close-and-assumptions.md) — one question, three defects**
   (P0/P1/P3 live). *Should the other module types get a custom form like Loan's?* **No** — §5. But:
   the module editor computed foreign-currency USD at **FX = 1** and in the wrong direction (**P0**,
