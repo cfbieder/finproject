@@ -811,14 +811,18 @@ async function transferToAccount(id, targetAccountId) {
     );
     if (updated.rows.length === 0) throw new Error('Transaction not found');
 
+    // CR065: this is a pair too — the counter-leg simply lives in another
+    // account. Recording it keeps a legitimate CROSS-account transfer from
+    // reading as an unpaired leg on the reconcile page, which is the largest
+    // source of false positives that check could have had.
     const offset = await client.query(`
       INSERT INTO transactions (
         ps_id, transaction_date, description1, description2,
         amount, currency, base_amount, base_currency,
         transaction_type, account_id, closing_balance,
-        category_id, labels, memo, note, bank, source, accepted
+        category_id, labels, memo, note, bank, source, accepted, paired_with_id
       )
-      VALUES (NULL, $1, $2, $3, $4, $5, $6, $7, $8, $9, NULL, $10, $11, $12, $13, $14, 'auto-offset', TRUE)
+      VALUES (NULL, $1, $2, $3, $4, $5, $6, $7, $8, $9, NULL, $10, $11, $12, $13, $14, 'auto-offset', TRUE, $15)
       RETURNING *
     `, [
       original.transaction_date,
@@ -835,9 +839,14 @@ async function transferToAccount(id, targetAccountId) {
       original.memo,
       original.note,
       original.bank,
+      id,
     ]);
+    const linked = await client.query(
+      `UPDATE transactions SET paired_with_id = $1 WHERE id = $2 RETURNING *`,
+      [offset.rows[0].id, id]
+    );
 
-    return { original: updated.rows[0], offset: offset.rows[0] };
+    return { original: linked.rows[0], offset: offset.rows[0] };
   });
 }
 

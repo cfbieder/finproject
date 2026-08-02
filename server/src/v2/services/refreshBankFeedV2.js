@@ -442,12 +442,20 @@ async function promote() {
           // CR032: inject the missing core-position counter-leg so the sweep
           // self-nets and never drifts the reconciled balance. source='auto-offset'
           // (no external_id) mirrors the manual-neutralize shape; accepted=TRUE.
+          //
+          // CR065: RECORD the pair, symmetrically, exactly as neutralize() does.
+          // This is a pair like any other — the fact that promote makes it rather
+          // than a click does not make it exempt. Left unrecorded, every sweep
+          // would report as two unpaired legs on the reconcile page and the check
+          // added for the double-claim would drown in its own false positives
+          // within a day.
           if (isSweep) {
-            await client.query(`
+            const mirror = await client.query(`
               INSERT INTO transactions
                 (transaction_date, description1, amount, currency, base_amount, base_currency,
-                 account_id, category_id, source, accepted)
-              VALUES ($1, $2, $3, $4, $5, $6, $7, $8, 'auto-offset', TRUE)
+                 account_id, category_id, source, accepted, paired_with_id)
+              VALUES ($1, $2, $3, $4, $5, $6, $7, $8, 'auto-offset', TRUE, $9)
+              RETURNING id
             `, [
               r.transaction_date,
               r.description || r.merchant || null,
@@ -457,7 +465,12 @@ async function promote() {
               'USD',
               r.fin_account_id,
               categoryId,
+              ins.rows[0].id,
             ]);
+            await client.query(
+              `UPDATE transactions SET paired_with_id = $1 WHERE id = $2`,
+              [mirror.rows[0].id, ins.rows[0].id]
+            );
             mirrored++;
           }
         }

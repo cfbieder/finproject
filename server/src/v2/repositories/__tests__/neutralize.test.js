@@ -217,6 +217,27 @@ dbDescribe('transactions.neutralize (DB)', () => {
     expect(plan.action).toBe('already-paired');
   });
 
+  test('transferToAccount records its cross-account pair', async () => {
+    await freshAccount();
+    const target = (await db.query(
+      `INSERT INTO accounts (name, account_type, section, currency, opening_balance)
+       VALUES ($1,'asset','balance_sheet','USD',0) RETURNING id`, [`${ACCT}Target`]
+    )).rows[0].id;
+    try {
+      const txId = await addTx(-1200, '2026-07-30', categoryId);
+      const out = await repo.transferToAccount(txId, target);
+
+      // Both sides linked, or a legitimate cross-account transfer reads as an
+      // unpaired leg on the reconcile page forever.
+      expect(out.offset.paired_with_id).toBe(txId);
+      expect(out.original.paired_with_id).toBe(out.offset.id);
+      expect(out.offset.account_id).toBe(target);
+    } finally {
+      await db.query(`DELETE FROM transactions WHERE account_id = $1`, [target]);
+      await db.query(`DELETE FROM accounts WHERE id = $1`, [target]);
+    }
+  });
+
   test('the database refuses a double-claim even if the query guard is bypassed', async () => {
     await freshAccount();
     const a = await addTx(-700);
