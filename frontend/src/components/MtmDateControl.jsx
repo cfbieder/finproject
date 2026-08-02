@@ -1,9 +1,16 @@
 // Shared MTM booking-date control + period-end helpers, used by both the feed
 // (BalanceReconciliation) and manual (ManualReconciliation) recon tables.
 //
-// The Unrealized-G/L (MTM) entry is dated on this date and marked against the
-// balance as of this date — so it can be aligned to a quarter or year end.
-// Calibrate rows ignore it. Sent to the reconcile endpoint as `bookDate`.
+// The Unrealized-G/L (MTM) entry is dated on this date. Calibrate rows ignore
+// it. Sent to the reconcile endpoint as `bookDate`.
+//
+// CR065 §11: the entry date and the OBSERVATION it marks against are two
+// different questions. The feed labels a balance with the date it synced, and it
+// syncs in the small hours, so the row dated D was taken before D traded —
+// marking a Friday month-end against "Friday" pinned Fidelity Stocks 24,352.57
+// below the custodian. `balanceDate` names the observation to mark against;
+// leave it blank for the usual case, and the server refuses (with the candidate
+// balances listed) rather than marking against one that cannot contain the day.
 
 // --- local-date-safe helpers (no UTC shift) ---
 const pad2 = (n) => String(n).padStart(2, "0");
@@ -22,7 +29,7 @@ const PRESETS = [
   ["Year-end", lastYearEndISO],
 ];
 
-export default function MtmDateControl({ value, onChange }) {
+export default function MtmDateControl({ value, onChange, balanceDate = "", onBalanceDateChange }) {
   return (
     <div className="bfd-mtm-date">
       <span className="bfd-muted">Book MTM entry as of</span>
@@ -32,8 +39,30 @@ export default function MtmDateControl({ value, onChange }) {
           {lbl}
         </button>
       ))}
+      {onBalanceDateChange && (
+        <>
+          <span className="bfd-muted">· mark against balance dated</span>
+          <input
+            type="date"
+            value={balanceDate}
+            onChange={(e) => onBalanceDateChange(e.target.value)}
+            title={
+              "Optional. Which feed OBSERVATION to mark against, when it is not the one the " +
+              "booking date would pick. The feed labels a balance with the date it synced, in " +
+              "the small hours — so the row dated D was taken before D traded. Leave blank " +
+              "unless the reconcile refuses and names the alternatives."
+            }
+          />
+          {balanceDate && (
+            <button type="button" className="bfd-mtm-chip" onClick={() => onBalanceDateChange("")}>
+              clear
+            </button>
+          )}
+        </>
+      )}
       <span className="bfd-muted bfd-mtm-hint">
-        — dates the Unrealized-G/L entry &amp; the balance it marks against (calibrate rows ignore it)
+        — dates the Unrealized-G/L entry; the balance it marks against is the same date unless
+        you override it (calibrate rows ignore both)
       </span>
     </div>
   );

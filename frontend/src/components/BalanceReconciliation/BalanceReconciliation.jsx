@@ -54,6 +54,9 @@ export default function BalanceReconciliation() {
   const [institutionFilter, setInstitutionFilter] = useState("all"); // feed/institution filter
   const [statusFilter, setStatusFilter] = useState("all"); // reconciliation-status filter
   const [bookDate, setBookDate] = useState(lastMonthEndISO()); // MTM booking date
+  // CR065 §11: optional — which OBSERVATION to mark against, when the booking
+  // date would pick one taken before that day ended. Blank = same as bookDate.
+  const [markBalanceDate, setMarkBalanceDate] = useState("");
   const [uploadAccount, setUploadAccount] = useState(null); // CR036: manual statement upload target
   const [showHelp, setShowHelp] = useState(false); // sign-convention explainer, collapsed by default
 
@@ -121,7 +124,9 @@ export default function BalanceReconciliation() {
     setReconcileMsg(null);
     try {
       // bookDate only affects MTM (entry date + balance as-of); calibrate ignores it.
-      const body = a.reconcile_mode === "mtm" ? { dryRun: false, bookDate } : { dryRun: false };
+      const body = a.reconcile_mode === "mtm"
+        ? { dryRun: false, bookDate, ...(markBalanceDate ? { balanceDate: markBalanceDate } : {}) }
+        : { dryRun: false };
       const res = await Rest.post(`/bank-feed/reconcile/${a.account_id}`, body);
       setReconcileMsg(
         res.mode === "mtm"
@@ -280,7 +285,12 @@ export default function BalanceReconciliation() {
           </button>
         </div>
       )}
-      <MtmDateControl value={bookDate} onChange={setBookDate} />
+      <MtmDateControl
+        value={bookDate}
+        onChange={setBookDate}
+        balanceDate={markBalanceDate}
+        onBalanceDateChange={setMarkBalanceDate}
+      />
       <div className="recon-table-wrap">
       <table className="bfd-accounts">
         <thead>

@@ -198,6 +198,23 @@ async function mtm(client, accountId, m, monthEnd, dryRun, force = false, markAg
   // provably wrong and leaves `balanceDate` to state what is right.
   const syncedBeforeDayEnded = feed.synced_on != null && feed.synced_on <= monthEnd;
 
+  // When refusing, hand back the observations that COULD contain the day, with
+  // their balances — so the caller can pick one on the evidence rather than
+  // guessing a lag. This is how the 2026-07-31 case was actually settled: 07-31
+  // was a Friday, so its close had to equal the weekend's, and only one
+  // candidate matched.
+  let laterObservations = [];
+  if (syncedBeforeDayEnded) {
+    laterObservations = (await client.query(
+      `SELECT balance_date::text AS balance_date, balance,
+              (source_synced_at AT TIME ZONE 'UTC')::date::text AS synced_on
+         FROM bankfeed_balances
+        WHERE feed_account_external_id = $1 AND balance_date > $2::date
+        ORDER BY balance_date ASC LIMIT 4`,
+      [m.external_name, monthEnd]
+    )).rows.map((r) => ({ ...r, balance: Number(r.balance) }));
+  }
+
   const feedIsForMonthEnd = feed.balance_date === observationDate;
   const flatRun =
     feedRows.length === 3 &&
@@ -211,7 +228,12 @@ async function mtm(client, accountId, m, monthEnd, dryRun, force = false, markAg
       : syncedBeforeDayEnded
         ? `the balance dated ${feed.balance_date} was synced on ${feed.synced_on}, so it was taken ` +
           `BEFORE ${monthEnd} ended and cannot contain that day's activity. Mark against a later ` +
-          `observation instead (balanceDate), or pass force to override.`
+          `observation instead (balanceDate), or pass force to override.` +
+          (laterObservations.length
+            ? ` Later observations: ${laterObservations
+                .map((o) => `${o.balance_date} = ${o.balance.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`)
+                .join(' · ')}.`
+            : '')
         : null;
 
   // computed AS-OF month-end, EXCLUDING any mtm row already dated that month-end
@@ -242,7 +264,7 @@ async function mtm(client, accountId, m, monthEnd, dryRun, force = false, markAg
     feed_balance: feedVal, computed_excl_mtm: computed,
     mtm_amount: amount, category_id: UNREALIZED_GL_CATEGORY_ID,
     implausible, implausible_pct: Math.round(implausiblePct * 1000) / 1000,
-    stale_feed: stale, stale_reason: staleReason,
+    stale_feed: stale, stale_reason: staleReason, later_observations: laterObservations,
     removed_read_override: false, applied: false,
   };
 
