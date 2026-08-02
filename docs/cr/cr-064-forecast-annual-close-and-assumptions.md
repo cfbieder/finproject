@@ -551,12 +551,18 @@ presentation:
   suppressed where the amount does not drive the stream (yield mode, or a pct-of-value expense).
 - **The Review column is relabelled `(Base Yr)`**, in the table and in the print/export path.
 
-### 8.6 Still open — the data
+### 8.6 Settled (owner, 2026-08-02): the 500,000 is **PLN**
 
-Whether UB's 500,000 was meant as PLN or USD is unanswered, so **nothing in the data was
-changed**. For a 2027 intent the base-year field wants `500,000 ÷ 1.025 = 487,805`; if USD was
-also meant, `1,902,439` PLN. For scale: the 2026 budget is 690,000 PLN (192,266 USD) and 2025
-actual was 280,643 USD.
+Which is exactly how it is stored, so **no data correction was needed** — the module holds
+500,000 PLN and the engine reads it as PLN. That was the last thing holding the regenerate,
+so prod was rebuilt on the corrected opening cash (v3.11.11).
+
+One residue, deliberately left to the owner: the owner also said the 500,000 was meant for
+**2027**, and the field is the **2026** anchor. It therefore projects `500,000 × 1.025 =
+512,500 PLN` in 2027 rather than 500,000. For exactly 500,000 in 2027 the field wants
+**487,805** — a 12,500 PLN difference, and a one-field edit whose effect is now visible in
+the form itself (`→ 2027: …`), which is the point of §8.5. Changing a financial assumption
+that was not asked to be changed is not this CR's business.
 
 ## 9. P4 — plan vs actual (designed, not built)
 
