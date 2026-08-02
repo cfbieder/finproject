@@ -429,10 +429,31 @@ never done for Chase.
 derived by hand before the dry-run was run, and matched by it. **Every fed account now
 reconciles: `total_unreconciled: 0`.**
 
-Stated rather than smoothed over: **1,950.61 of that is explained** (the stale plug) and
-**45.03 is not** — a residue somewhere in the 6,058 imported rows that the re-anchor absorbs.
-Conceptually the plug should be **0**, since the Quicken row is the 1999 opening. The export
-only reaches back to January, so chasing 0.07% would need older statements.
+**Correcting the first reading of this** (kept, because the wrong version is instructive):
+the −45.03 was initially reported as "1,950.61 explained + 45.03 unexplained residue", on the
+assumption that `opening_balance` ought to be **0** because the Quicken row is the 1999
+opening. It ought not. `opening_balance` is a **calibration anchor, not a historical fact** —
+and 0 is the rule only for accounts with *no* PocketSmith coverage
+([quicken-promote.js Step 8](../../server/src/v2/scripts/quicken-promote.js)):
+
+> *pin each touched account's `opening_balance` so today's computed balance equals
+> PocketSmith's authoritative closing_balance … Accounts with no PS coverage (closed/legacy)
+> anchor to pure reconstruction (`opening_balance = 0`).*
+
+Chase **has** PS coverage, so it was anchored to PocketSmith — and the batch confirms it
+(`calibration_mode = 'ps-anchored'`, promoted 2026-06-05, 6,058 rows). PS coverage for Chase
+ends **2026-06-01**; the feed takes over **2026-06-03**. So the account was pinned to a source
+that had stopped being the truth, and drifted from the bank by 1,950.61.
+
+That is a **named, already-documented failure mode**, in the same file, a few lines further
+on: *"PS-anchoring drags it back to a stale PocketSmith closing_balance (−42,552.71 on Fidelity
+Stocks, whose PS coverage stopped in May 2026)."* Chase is the same defect, two orders of
+magnitude smaller, on an account nobody thought to re-check.
+
+So there is **no residue to chase**: −45.03 is simply the anchor value that ties a feed-owned
+account to bank truth, which is what re-anchoring is for. The equality between the drift and
+the Quicken opening row (1,950.61) is a coincidence of this account's history, not a
+mechanism.
 
 ### 12.1 Why Fidelity is NOT exposed to the same thing
 
