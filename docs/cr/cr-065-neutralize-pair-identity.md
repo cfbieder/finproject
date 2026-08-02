@@ -371,9 +371,10 @@ belongs to. The guard stops the silent mistakes in the meantime.
 | Fidelity Stocks | −44,600.45 dated 07-31 → drift −24,352.57 | **−20,247.88** dated 07-31 → **drift 0.00** |
 | Fidelity Cash Mgt | −804.50 stranded on 08-02 | **−804.50** dated 07-31 → **drift 0.00** |
 
-Bond (7,670.78), Options (1,498.51) and IRA (1,347.11) still await their own marks — the
-same `bookDate` 2026-07-31 + `balanceDate` 2026-08-02 pairing applies, and the guard will now
-refuse them if that observation turns out not to contain 07/31 either.
+Bond (7,670.78), Options (1,498.51) and IRA (1,347.11) followed on the same
+`bookDate` 2026-07-31 + `balanceDate` 2026-08-02 pairing — Bond in §11.1, and Options and IRA
+by the owner from the UI once §11.1 gave the page a way past the guard. **All five Fidelity
+accounts, and Chase Checking, finished at drift 0.00** (table in §14.3).
 
 ### 11.1 The guard needed a way out (v3.11.7)
 
@@ -400,8 +401,9 @@ so 08-02 is the observation carrying 07-31 for all of them — which is also wha
 weekend argument independently implies.
 
 **Fidelity Bond booked** −7,670.78 at 2026-07-31 against the 08-02 observation → **drift
-0.00**. Three of five Fidelity accounts now reconcile exactly; Options (1,498.51) and IRA
-(1,347.11) remain, same treatment.
+0.00**. Options (1,498.51) and IRA (1,347.11) then went through **from the UI, by the owner**
+— which is what the new control was for, and the check that it worked. **`total_unreconciled:
+0`.**
 
 ## 12. Chase Checking: a plug for history that arrived later
 
@@ -574,3 +576,22 @@ conversation. Written as a transcript of the 2026-07-31 close that worked, with 
 real, and leading on the ordering that matters: **bookkeeping first, market value last** —
 because an MTM absorbs any outstanding error and permanently relabels it as an unrealized
 gain, which is exactly how $150,000 hid inside a "−107,830.71 MTM gap" for five days.
+
+
+### 14.3 Where it all finished
+
+| account | drift before | drift after | how |
+|---|---|---|---|
+| Fidelity Cash Mgt | −107,830.71 | **0.00** | missing counter-leg (§6) + feed backlog + MTM −804.50 |
+| Fidelity Stocks | +20,247.88 | **0.00** | MTM −20,247.88, re-marked against the right observation (§11) |
+| Fidelity Bond | +27,670.78 | **0.00** | $20,000 double-count repaired (§8) + MTM −7,670.78 |
+| Fidelity Options | +1,498.51 | **0.00** | MTM −1,498.51, booked from the UI |
+| Fidelity IRA | +1,347.11 | **0.00** | 3 reinvestment legs neutralized (§10) + MTM −1,347.11 |
+| Chase Checking | −1,950.61 | **0.00** | re-anchored off a stale PocketSmith anchor (§12) |
+
+`total_unreconciled: 0` · `total_transfer_imbalanced: 0`.
+
+**Three real money errors were found on the way**, none of which the drift column could tell
+apart from market movement on its own: **$150,000** (§1), **$20,000** (§8), **$1,950.61**
+(§12). Plus **$150,036** of tax expense recovered from a transfer bucket (§13.3), which
+affected no balance at all and so was invisible to every reconciliation check there is.
