@@ -627,3 +627,46 @@ accepts. Applied to dev and prod; both ledgers now report **zero drift and zero 
 dev's also picked up 046/047/048, which had been applied by hand and never recorded. The rule
 is written down in `.claude/rules/migrations.md`: prove equivalence against the real database,
 then accept per file.
+
+---
+
+### 11.2 §8.2's trap sprang anyway — the override patch holds a VARIANT id, not a base one (2026-08-02)
+
+Found by the owner: "2026 Buy Business" (a CR050 variant) showed **"No asset carries debt"**
+while both of its loans were secured — the mortgage against Sarasota House, the business loan
+against New Business. The links were not missing from the *scenario*; they were missing from the
+*rows*. The override patches still held them:
+
+```
+base 456 Business Loan → {"setup_status":"in_progress","secured_asset_module_id":455}
+base 460 House Morgage → {"loan_interest_rate":6,"secured_asset_module_id":454}
+```
+
+455 and 454 are that variant's **own** New Business and Sarasota House. §8.2 named this trap and
+then got its premise backwards: *"the override patch stores a base-scenario module id that must be
+translated on sync."* It does not. **Two id spaces reach the sync's resolution step**, and nothing
+in the value distinguishes them —
+
+- an **inherited** link comes off the base row ⇒ a **base** module id;
+- an **overridden** one comes out of the patch, and the picker offers the *variant's* modules ⇒ a
+  **variant** module id.
+
+Step 5 of `syncEntity` mapped base→variant unconditionally, so a variant id missed the map and
+`|| null` unsecured the loan — **in the same request that saved it**, because `interceptWrite`
+merges the override and force-syncs in one transaction. The PUT returned 200 with the nulled row.
+
+Module ids are globally unique, so the two cases are told apart by asking **which scenario the
+target actually sits in**, never by where the value came from: already ours ⇒ keep; a base row ⇒
+translate; anything else (a target tombstoned in this variant, a stale id) ⇒ NULL. Keeping "already
+ours" is also the only way a **variant-LOCAL** asset can secure a loan — which §8.2 had ruled out
+as unrepresentable, and which the fix makes work.
+
+**Why nothing caught it.** V-series aside, step 5 shipped with **no test at all**, and §8.2's
+verification query — *no `secured_asset_module_id` crosses a scenario boundary* — is satisfied by
+NULL. It could only ever catch a link pointing at the wrong scenario, never one silently erased.
+The four new tests in `forecastVariants.test.js` cover both id spaces, the variant-local target,
+and the tombstoned target, and all four were **shown failing** against the old resolution first.
+
+No data was lost: the override patches are the record, so a sync under the fixed code restores
+both links. **The repair therefore requires the deploy** — a SQL patch would be re-erased by the
+next `syncIfStale`, which runs on every read of a stale variant's module list.

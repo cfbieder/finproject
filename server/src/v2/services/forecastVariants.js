@@ -524,7 +524,7 @@ async function syncEntity(c, { variantId, baseId, entityType, overrides }) {
     }
   }
 
-  // 5. CR062 P2 — translate cross-ROW references into the variant's own rows.
+  // 5. CR062 P2 — resolve cross-ROW references into the variant's own rows.
   //
   // `secured_asset_module_id` points at another module, and step 4 copies every
   // column verbatim — so without this the variant's loan would be secured against
@@ -533,19 +533,38 @@ async function syncEntity(c, { variantId, baseId, entityType, overrides }) {
   // Runs after the whole upsert, because the target row may not have existed yet
   // when the referring row was written.
   //
-  // A variant-LOCAL asset cannot be the target of an inherited loan (the base row
-  // knows nothing about it), so an unresolvable link becomes NULL — unsecured and
-  // visibly so — rather than dangling into another scenario.
-  if (table === 'forecast_modules') {
+  // TWO ID SPACES REACH THIS POINT, and that is the whole difficulty:
+  //   • an INHERITED value comes off the base row, so it is a BASE module id;
+  //   • an OVERRIDDEN value comes out of the patch, and the owner picked it from
+  //     the VARIANT's own module list, so it is already a variant id.
+  // The original code assumed the first case always held and mapped base→variant
+  // unconditionally; a variant id missed the map and `|| null` quietly unsecured
+  // the loan — in the same request that saved it. That is how "2026 Buy Business"
+  // lost both of its links while its override patches still held them.
+  //
+  // Module ids are globally unique, so the two cases can be told apart by asking
+  // WHICH SCENARIO the target actually sits in — no need to know where the value
+  // came from. Already ours ⇒ keep (this is also the only way a variant-LOCAL
+  // asset can secure a loan). A base row ⇒ translate. Anything else — a target
+  // tombstoned in this variant, or a stale id — ⇒ NULL, unsecured and visibly so,
+  // rather than dangling into another scenario.
+  if (table === 'forecast_modules' && cols.includes('secured_asset_module_id')) {
+    const ownIds = new Set((await c.query(
+      'SELECT id FROM forecast_modules WHERE scenario_id = $1', [variantId]
+    )).rows.map((r) => r.id));
+
     for (const { baseId: baseRowId, row } of resolved) {
-      if (!('secured_asset_module_id' in row)) break;
       const variantRowId = variantIdByBaseId.get(baseRowId);
       if (!variantRowId) continue;
-      const translated = row.secured_asset_module_id
-        ? variantIdByBaseId.get(row.secured_asset_module_id) || null
-        : null;
+      // Normalized because the two id spaces arrive by different routes: the base
+      // row gives an integer, a patch gives whatever JSON round-tripped. A string
+      // "455" would miss both maps and null the link — the very failure above.
+      const target = Number(row.secured_asset_module_id) || null;
+      const resolvedTarget = !target
+        ? null
+        : ownIds.has(target) ? target : (variantIdByBaseId.get(target) || null);
       await c.query('UPDATE forecast_modules SET secured_asset_module_id = $1 WHERE id = $2',
-        [translated, variantRowId]);
+        [resolvedTarget, variantRowId]);
     }
   }
 

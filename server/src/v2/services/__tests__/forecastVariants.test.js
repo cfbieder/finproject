@@ -558,6 +558,128 @@ dbDescribe('forecastVariants (DB)', () => {
   });
 
   // -------------------------------------------------------------------------
+  // CR062 P2 — secured-asset links, which are the one field carrying a ROW ID
+  // -------------------------------------------------------------------------
+  //
+  // Two id spaces reach the sync's resolution step and they are indistinguishable
+  // by value alone: an INHERITED link is a base module id, an OVERRIDDEN one is a
+  // variant module id (the picker offers the variant's own modules). Mapping
+  // base→variant unconditionally — which is what shipped — turned every link the
+  // owner set inside a variant into NULL, in the same request that saved it. Prod
+  // lost both of "2026 Buy Business"'s links that way while its override patches
+  // still held them, and the Equity report read "No asset carries debt".
+  describe('secured-asset links', () => {
+    let baseAsset;
+    let baseLoan;
+
+    const insertAsset = async (scenarioId, name) => (await db.query(
+      `INSERT INTO forecast_modules (scenario_id, name, module_type, currency, base_date,
+         base_value, market_value, base_value_usd, market_value_usd, growth_rate, setup_status)
+       VALUES ($1, $2, 'asset', 'USD', '2025-12-31', 100, 100, 100, 100, 0, 'ready')
+       RETURNING id`,
+      [scenarioId, name]
+    )).rows[0].id;
+
+    const variantRowOf = async (baseRowId) => (await db.query(
+      'SELECT * FROM forecast_modules WHERE scenario_id = $1 AND origin_base_id = $2',
+      [variantId, baseRowId]
+    )).rows[0];
+
+    beforeAll(async () => {
+      baseAsset = await insertAsset(baseId, 'Fixture Secured House');
+      baseLoan = (await db.query(
+        `INSERT INTO forecast_modules (scenario_id, name, module_type, currency, base_date,
+           base_value, market_value, base_value_usd, market_value_usd, growth_rate, setup_status,
+           loan_interest_rate, loan_principal, secured_asset_module_id)
+         VALUES ($1, 'Fixture Mortgage', 'Loan', 'USD', '2025-12-31', -80, -80, -80, -80, 0,
+                 'ready', 6.0, 80, $2)
+         RETURNING id`,
+        [baseId, baseAsset]
+      )).rows[0].id;
+
+      await variants.syncVariant(variantId, { force: true });
+    });
+
+    afterAll(async () => {
+      await db.query('DELETE FROM forecast_modules WHERE id IN ($1, $2)', [baseLoan, baseAsset]);
+      await variants.syncVariant(variantId, { force: true });
+      await db.query(
+        `DELETE FROM forecast_modules WHERE scenario_id = $1 AND name IN
+           ('Fixture Secured House', 'Fixture Mortgage', 'Fixture Variant-Only Asset')`,
+        [variantId]
+      );
+    });
+
+    test('an INHERITED link is re-pointed at the variant\'s own asset, never the base\'s', async () => {
+      const vAsset = await variantRowOf(baseAsset);
+      const vLoan = await variantRowOf(baseLoan);
+
+      expect(vLoan.secured_asset_module_id).toBe(vAsset.id);
+      expect(vLoan.secured_asset_module_id).not.toBe(baseAsset); // the original point of step 5
+    });
+
+    test('a link picked INSIDE the variant survives the save that sets it, and every sync after', async () => {
+      // THE REGRESSION. The picker offers variant modules, so the patch carries a variant id;
+      // the sync read it as a base id, missed, and `|| null` unsecured the loan silently.
+      const vLoan = await variantRowOf(baseLoan);
+      const vOther = await variantRowOf(baseModA); // a different asset, inherited like the first
+
+      await repo.updateModule(vLoan.id, { secured_asset_module_id: vOther.id });
+
+      const saved = (await db.query(
+        'SELECT secured_asset_module_id FROM forecast_modules WHERE id = $1', [vLoan.id]
+      )).rows[0];
+      expect(saved.secured_asset_module_id).toBe(vOther.id); // was NULL before the fix
+
+      await variants.syncVariant(variantId, { force: true });
+      const after = (await db.query(
+        'SELECT secured_asset_module_id FROM forecast_modules WHERE id = $1', [vLoan.id]
+      )).rows[0];
+      expect(after.secured_asset_module_id).toBe(vOther.id);
+
+      // The override records it, and the base loan keeps its own asset.
+      const ov = (await variants.listOverrides(variantId)).find((o) => o.base_entity_id === baseLoan);
+      expect(ov.patch.secured_asset_module_id).toBe(vOther.id);
+      const base = (await db.query(
+        'SELECT secured_asset_module_id FROM forecast_modules WHERE id = $1', [baseLoan]
+      )).rows[0];
+      expect(base.secured_asset_module_id).toBe(baseAsset);
+
+      await variants.clearOverride(variantId, 'module', baseLoan);
+    });
+
+    test('a variant-LOCAL asset can secure the loan — there is no base id to translate', async () => {
+      const localAsset = await insertAsset(variantId, 'Fixture Variant-Only Asset');
+      const vLoan = await variantRowOf(baseLoan);
+
+      await repo.updateModule(vLoan.id, { secured_asset_module_id: localAsset });
+      await variants.syncVariant(variantId, { force: true });
+
+      const after = (await db.query(
+        'SELECT secured_asset_module_id FROM forecast_modules WHERE id = $1', [vLoan.id]
+      )).rows[0];
+      expect(after.secured_asset_module_id).toBe(localAsset);
+
+      await variants.clearOverride(variantId, 'module', baseLoan);
+      await db.query('DELETE FROM forecast_modules WHERE id = $1', [localAsset]);
+    });
+
+    test('a target hidden in the variant unsecures the loan rather than dangling into the base', async () => {
+      const vAsset = await variantRowOf(baseAsset);
+      await repo.deleteModule(vAsset.id); // tombstone — the base keeps the asset
+      await variants.syncVariant(variantId, { force: true });
+
+      const vLoan = await variantRowOf(baseLoan);
+      expect(vLoan.secured_asset_module_id).toBeNull(); // NOT baseAsset, which still exists
+
+      await variants.clearOverride(variantId, 'module', baseAsset); // un-hide
+      await variants.syncVariant(variantId, { force: true });
+      const restored = await variantRowOf(baseLoan);
+      expect(restored.secured_asset_module_id).toBe((await variantRowOf(baseAsset)).id);
+    });
+  });
+
+  // -------------------------------------------------------------------------
   // Lineage rules
   // -------------------------------------------------------------------------
 
