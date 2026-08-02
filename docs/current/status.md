@@ -19,7 +19,11 @@ brokerage-history data work. Detail lives in the CR file linked from each line.
   same mirror. Migration **053** makes the **database** refuse a double-claim. **Live in v3.11.4**
   (053 + the prod data fix applied 2026-08-02): drift **−107,830.71 → +42,169.29**, which is exactly
   the unpromoted 07/31 feed rows (41,364.79) + the real MTM (804.50), and the new per-account
-  unpaired-leg check reads **0** everywhere. *Next:* promote the 07/31 backlog, then book the MTM.
+  unpaired-leg check reads **0** everywhere; the 07/31 backlog is promoted. **§8 — the same defect
+  recurred an hour after the deploy** because `refreshBankFeedV2`'s sweep mirror and
+  `transferToAccount` also make pairs and did not record them, so their counter-legs read as
+  unclaimed (+$20,000 on Fidelity Bond). Fixed, migration **054**, and *the check caught it the same
+  hour*. *Next:* book the MTM (804.50 on Cash Mgt).
 - **CI is green again** — migration **050**'s `found <> 1` guard was unconditional and aborted the
   chain on a data-free database, so `main` had been red since `2d49ff3`. **Third instance of this
   class** (046 was the first, and the fix note for it says exactly this), and again nothing

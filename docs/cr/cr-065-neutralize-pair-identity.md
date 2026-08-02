@@ -210,3 +210,48 @@ And that remainder decomposes exactly: 41,364.79 (the unpromoted 2026-07-31 feed
 3. **Transfer Analysis already has both cleanup halves** ("remove orphaned neutralize-mirror",
    "neutralize a genuine unmatched leg"), so the *converse* symptom was known and tooled. The
    direction this CR fixes had no detection at all until §4.5.
+
+## 8. The same defect, one level down (2026-08-02, one hour after the deploy)
+
+053 gave a pair an identity and taught `neutralize()` to record it. **`neutralize()` is
+not the only thing that makes a pair**, and the two that were missed both wrote their
+counter-leg with `paired_with_id` NULL:
+
+- `refreshBankFeedV2` — the CR032 core-sweep mirror, on every promote.
+- `transferToAccount` — the CR022 cross-account offset.
+
+An unrecorded pair *looks unclaimed*, which is exactly the state the new guard reads. So
+the fix reopened the hole it had closed, one level down. It took under an hour to prove on
+production:
+
+1. The v3.11.4 boot-reconcile promoted the 2026-07-31 backlog, including a Fidelity Bond
+   sweep — `2709863` (−20,000, PURCHASE INTO CORE) plus mirror `2709864` (+20,000) — with
+   the pair unrecorded.
+2. A neutralize of the bond redemption `2709858` (+20,000) found `2709863` apparently free
+   and claimed it, exactly as the CD purchases had claimed one mirror in §1.
+3. `2709864` was left an orphan and Fidelity Bond ran **+$20,000**, drift 27,670.78.
+
+**The check added in §4.5 caught it the same hour** — `unpaired_legs=1, amount=20000` on
+Fidelity Bond. That is the one part of this CR that behaved exactly as designed, and it is
+the argument for detection over care.
+
+It also exposed the check reporting **its own false positives**: 6 unpaired legs on Fidelity
+Cash Mgt immediately after the deploy, being the three sweep pairs, and gaining two more per
+sweep per day until the number meant nothing.
+
+**Fixed:** both paths now record the pair symmetrically, as `neutralize()` does; migration
+**054** links what was already written; a test pins the cross-account link. Linking
+`transferToAccount` also removes the largest false-positive class the check could have had —
+a legitimate cross-account transfer whose counter-leg is in another account.
+
+**Repair.** `2709858 ↔ 2709863` was broken, `2709863 ↔ 2709864` restored as the true sweep
+pair, and the redemption neutralized properly — the dry-run returned **`mirror`**, not
+`pair`, the fixed code declining to take a claimed leg, and created `2709884` (−20,000).
+Fidelity Bond drift 27,670.78 → **7,670.78**. Prod now reports **0 unpaired legs on every
+account** and **0** one-sided links table-wide; Fidelity Cash Mgt sits at **804.50**, the
+genuine MTM predicted in §2.
+
+**The lesson worth keeping:** a uniqueness invariant only holds if *every* writer maintains
+it. The unique index cannot help here — it constrains rows that name a partner, and these
+paths named nobody. Any new code that creates an offsetting leg must set `paired_with_id`,
+and the §4.5 check is what will say so if it does not.
