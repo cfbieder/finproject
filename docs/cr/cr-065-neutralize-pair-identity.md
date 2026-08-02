@@ -325,3 +325,49 @@ in July's P&L rather than August's it should be re-dated — the amount is right
 **Fidelity Cash Mgt now reconciles at drift 0.00**, from −107,830.71. The remaining Fidelity
 drifts (Stocks 20,247.88 · Bond 7,670.78 · Options 1,498.51 · IRA 1,347.11) are un-booked
 market moves awaiting their own marks, and every account reports **0 unpaired legs**.
+
+## 11. An MTM may only mark a day the balance could actually contain (v3.11.6)
+
+Owner-found, an hour after §10 filed the theory: *"I clicked the MTM adjustment for Fidelity
+Stocks but it still shows a big difference — the balance from Friday 7/31 should be the same
+today?"*
+
+**That calendar argument is the proof.** 2026-07-31 was a Friday; 08-01 and 08-02 are the
+weekend. With markets shut, Friday's close and "today" must be the same number. They were
+not:
+
+| balance_date | balance | source_synced_at |
+|---|---|---|
+| 2026-08-02 (Sun) | 1,165,523.25 | 00:05 on 08-02 |
+| 2026-08-01 (Sat) | 1,157,779.86 | 00:53 on 08-01 |
+| **2026-07-31 (Fri)** | **1,141,170.68** | **01:48 on 07-31** |
+
+The feed labels a balance with the date it **synced**, and it syncs in the small hours — so
+the row dated 07-31 was taken before Friday traded. Marking against it booked **−44,600.45**
+and left Stocks **24,352.57 below** the custodian. Cash Mgt, the same day, was proposed
+**+40,150.79** — a 3.6% one-month unrealized gain on a **CD ladder held at par**, under the
+implausibility threshold and therefore unflagged (§10).
+
+**Why neither existing guard could see it.** Both test the date **label** — "no row dated
+month-end" and "three identical balances". This row has the right label and the wrong
+contents. Guard **(c)** tests `source_synced_at` instead: *a balance synced before the end of
+the day it is named after cannot contain that day.* It refuses rather than books. A NULL
+`source_synced_at` means "cannot tell" and stays lenient, so nothing pre-existing changed —
+all 17 prior reconcile tests passed untouched.
+
+**Deliberately not a lag rule.** How far behind the feed runs, and whether in calendar or
+business days, is still unproven ([Known Issue #14](../current/project-roadmap.md#3-known-issues));
+encoding a guess would silently mis-mark every future month-end. So a new **`balanceDate`**
+states *which observation* to mark against while the entry keeps the month-end date it
+belongs to. The guard stops the silent mistakes in the meantime.
+
+**Both accounts re-marked at July month-end**, each replacing its wrong entry:
+
+| | was | now |
+|---|---|---|
+| Fidelity Stocks | −44,600.45 dated 07-31 → drift −24,352.57 | **−20,247.88** dated 07-31 → **drift 0.00** |
+| Fidelity Cash Mgt | −804.50 stranded on 08-02 | **−804.50** dated 07-31 → **drift 0.00** |
+
+Bond (7,670.78), Options (1,498.51) and IRA (1,347.11) still await their own marks — the
+same `bookDate` 2026-07-31 + `balanceDate` 2026-08-02 pairing applies, and the guard will now
+refuse them if that observation turns out not to contain 07/31 either.
