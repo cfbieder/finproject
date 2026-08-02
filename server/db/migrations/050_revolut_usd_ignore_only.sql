@@ -74,15 +74,32 @@ UPDATE account_source_mappings
 --      bank-feed row carries a cutoff) must still hold, so a mistake here fails
 --      the migration rather than silently re-opening a back-fill window.
 DO $$
-DECLARE still_mapped INT; found INT; uncut INT;
+DECLARE still_mapped INT; found INT; uncut INT; any_feed INT;
 BEGIN
-  -- "Nothing matched" is not success. If neither id is present the mapping has
-  -- been renamed by something this migration does not know about, and staying
-  -- silent would be indistinguishable from having done the job.
+  -- AMENDED 2026-08-02 (CR064 P1). The check below was unconditional, and it
+  -- aborted the whole chain on a data-free database — CI applies every migration
+  -- to an empty Postgres and runs the seed only afterwards, so `found` is 0 there
+  -- and nothing later in the chain can repair an aborted migration. This is the
+  -- same defect migration 046 carried, and the same fix: a database with NO
+  -- bank-feed mappings at all has nothing to guard, so it skips. It is not the
+  -- "nothing matched" case the guard exists for — that is a database which HAS
+  -- feed mappings but not this one, which still fails loud below.
+  SELECT COUNT(*) INTO any_feed
+    FROM account_source_mappings WHERE source = 'bank-feed';
+
   SELECT COUNT(*) INTO found
     FROM account_source_mappings
    WHERE source = 'bank-feed'
      AND external_name IN ('4de06156-3a5c-4a12-8701-e28a5ff18d2f', '4044604745776048193');
+
+  IF any_feed = 0 THEN
+    RAISE NOTICE '050 SKIP: no bank-feed mappings at all — data-free database';
+    RETURN;
+  END IF;
+
+  -- "Nothing matched" is not success. If neither id is present the mapping has
+  -- been renamed by something this migration does not know about, and staying
+  -- silent would be indistinguishable from having done the job.
   IF found <> 1 THEN
     RAISE EXCEPTION 'migration 050: expected exactly 1 legacy Revolut wallet mapping, found %', found;
   END IF;
