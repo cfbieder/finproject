@@ -87,7 +87,7 @@ Canonical dates/versions: **[CR index](../cr/README.md)**. Per-release detail:
 ## Conventions
 Docs layout & rules: [documentation standard](../documentation-standard.md) · working rules
 load from `.claude/rules/` (collaboration, git-concurrency, migrations, compose-safety,
-env-secrets, data-import) · procedures: `/close`, `/question` · dual-track v3/v4:
+env-secrets, data-import) · procedures: `/close`, `/question`, [month-end reconcile](../guides/month-end-reconcile.md) · dual-track v3/v4:
 [dev-workflow](../guides/dev-workflow.md) · permissions setup:
 [claude-code-permissions](../guides/claude-code-permissions.md).
 

@@ -285,6 +285,9 @@ ssh cfbieder@192.168.1.87 && cd ~/psproject
 - Frontend env per `frontend/.env-cmdrc` (local, untracked — template `.env-cmdrc.example`): `npm run tail` (Tailscale API, recommended) / `npm run dev` / `npm run docker`.
 - Deploy: `./Scripts/deploy-to-production.sh` (backs up DB, rebuilds, health-checks). Apply any new migration to prod **first**.
 - Dual-track v3/v4: see [DEV_WORKFLOW.md](../guides/dev-workflow.md) and CR027 §Step 0.
+- Month-end close (promote → neutralize → wait for the feed → MTM → re-anchor cash):
+  [month-end-reconcile.md](../guides/month-end-reconcile.md). Bookkeeping first, market
+  value last — an MTM absorbs any outstanding error and relabels it an unrealized gain.
 - **CI:** every push/PR to `main` runs `.github/workflows/ci.yml` (backend tests on fresh DB, frontend build + Vitest + the six ratchets, Playwright e2e, secret scan). **A red run notifies nobody** — [Known Issue #12](project-roadmap.md#3-known-issues).
 
 ---

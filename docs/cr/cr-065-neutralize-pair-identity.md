@@ -529,3 +529,45 @@ The remaining 86 are pre-CR032 core sweeps, reinvestments and sales whose mirror
 created, plus one near-pair the exact-amount matcher misses by $11.61 (a 2023-11-14 core
 redemption of 249,988.39 funding a 250,000.00 CD purchase the next day). None affects a
 reconciled balance; they are historical shape, not money.
+
+## 14. Sweeping the 86, and the month-end runbook
+
+### 14.1 The sweep
+
+Read all 86 unpaired legs (the §13.3 set, after the two IRS corrections). **No second
+IRS-class error** — nothing else had escaped from P&L into a transfer bucket. What it did
+find:
+
+**Three Wise/Currency-Cloud deposits on Fidelity Cash Mgt filed as securities trades**
+(11526 +125,000.00, 11725 +90,000.00, 11739 +10.00 — **+215,010.00**). Money arriving from
+outside is not a trade; 15 of the account's other 19 `DIRECT DEPOSIT` rows use
+**Transfer - Bank**. Recategorised. Both categories are `is_transfer`, so unlike the IRS rows
+this changes **no P&L** — it is classification hygiene, and it stops them polluting the
+securities self-netting invariant.
+
+Only one of the three surfaced in the §13.3 orphan list ($10); the other two had an
+opposite-amount row within ±3 days and so never looked orphaned. **The lesson: "unpaired" was
+the wrong net to fish with.** Querying by *description shape against category convention*
+found all three at once, and is the better tool for this class.
+
+**Sign-shape oddities, left alone:** the 2021-07-21 merger booked as two POSITIVE legs
+(`MERGER MER FROM` +12,000 and `MERGER MER PAYOUT` +18,000 — one should almost certainly be
+negative), a 2022-07-08 `Buy` of **+**2,000, and the 2022-06-17 `YOU EXCHANGED` cluster
+(+16,000 / −32,000 amid three same-signed "Transferred To" rows). These are securities
+activity with wrong signs, they overlap
+[Known Issue #8](../current/project-roadmap.md#3-known-issues) (13 same-signed transfer
+clusters awaiting triage), and CR058's quarter-end anchors correct the account's shape past
+them. Not touched: fixing a sign without the 2021/2022 statements would be guessing.
+
+**Everything else** — 80-odd rows — is genuine: pre-CR032 core sweeps, reinvestments, option
+opens/closes, spinoffs and CD redemptions whose mirrors were never made. Historical shape,
+not money.
+
+### 14.2 The runbook
+
+The month-end procedure now lives in
+**[docs/guides/month-end-reconcile.md](../guides/month-end-reconcile.md)** rather than in a
+conversation. Written as a transcript of the 2026-07-31 close that worked, with every number
+real, and leading on the ordering that matters: **bookkeeping first, market value last** —
+because an MTM absorbs any outstanding error and permanently relabels it as an unrealized
+gain, which is exactly how $150,000 hid inside a "−107,830.71 MTM gap" for five days.
