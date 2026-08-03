@@ -1,4 +1,4 @@
-# CR067 — Forecast Multi-Compare: one base against several of its variants, as trajectory lines — 🟡 IN-PROGRESS (P1 + P2 built and verified on dev; P3 deferred)
+# CR067 — Forecast Multi-Compare: one base against several of its variants, as trajectory lines — ✅ RELEASED v3.12.0 (2026-08-03) — P1 + P2 live on prod; P3 deferred (§5.3)
 
 One base scenario and any of its variants overlaid on a single trajectory chart — the base bold, each
 variant in its own hue. The chart [CR040](cr-040-forecast-scenario-compare.md) already draws, freed
@@ -366,3 +366,30 @@ for Net Assets, and so on down.
 non-increasing, production build clean.
 
 **Not built:** P3 (§5.3), for the reason recorded there.
+
+## 11. Released — v3.12.0 (2026-08-03), and how it got to prod early
+
+**P1 and P2 were already running on prod before this release was cut.** At 02:11 another thread ran
+`deploy-to-production.sh` for **v3.11.16**; that script builds the frontend from the **shared working
+tree**, and at that moment P1 was committed while P2's files were still uncommitted. The prod bundle
+therefore carried `FCMultiCompare-6K-k84tI.js` and the `/forecast-multi-compare` route while the
+`v3.11.16` tag contained only P1 — **prod matched no tag**.
+
+**Harm: none, and it was checked rather than assumed.** Against real prod data the page renders all
+four variants — five lines, base at `strokeWidth 3` in slot 0, the expected light hues, correct
+legend, **zero page errors**. That incidentally discharged the one gate §8 had deferred: the
+four-variant case exists only on prod (dev's `Base_Buy Business` is a second root).
+
+v3.12.0 is therefore a **release without a deploy-shaped change** — it makes the running build
+reproducible from a tag, which is the same remedy the [CR064 P6](cr-064-forecast-annual-close-and-assumptions.md)
+incident record prescribes for v3.11.8. Tagging P1 separately, as §8 required, was no longer possible:
+it is already an ancestor of the v3.11.16 release commit.
+
+**Fourth instance of the class**, and it is now its own entry —
+[Known Issue #17](../current/project-roadmap.md#3-known-issues) — rather than a paragraph inside each
+release note, with two fix candidates: build the image from `git archive HEAD`, or refuse to deploy a
+dirty tree behind an explicit `--allow-dirty`.
+
+*One doc row is deliberately not updated here:* the CR index row for CR067 still reads
+*"(P1+P2 on dev)"*, because `docs/cr/README.md` currently carries another thread's uncommitted CR068
+row and a pathspec commit would sweep it in. It corrects itself on their next commit.
