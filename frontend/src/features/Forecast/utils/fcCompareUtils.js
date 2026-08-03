@@ -267,8 +267,21 @@ export function buildScenarioMatrix({
 
   const totalAssets = sumLevel2("Assets");
   const totalLiabilities = sumLevel2("Liabilities");
+  // CR064 P12 — a liability's balance is stored NEGATIVE, so net assets is the SUM:
+  // the debt subtracts itself. Subtracting it ADDED the debt instead.
+  //
+  // The rest of the codebase already reads it this way and says so —
+  // `useOverview.js` ("assets + liabilities; // liabilities stored negative", the Home
+  // net-worth hero) and `equity.js` (CR062's Equity report, "the debt subtracts
+  // itself"). Forecast Review and Compare were the two that did not.
+  //
+  // Latent until CR062: every liability module in every scenario sat at
+  // `setup_status = 'new'`, which the engine skips, so forecast liabilities were
+  // always exactly 0 — and at zero, A − L and A + L are the same number. The first
+  // loan to reach a forecast (`2026 Buy Business`) made it visible, overstating that
+  // scenario's net assets by 2 × 500,000.
   const netAssets = forecastYears.map(
-    (_, i) => (totalAssets[i] || 0) - (totalLiabilities[i] || 0)
+    (_, i) => (totalAssets[i] || 0) + (totalLiabilities[i] || 0)
   );
 
   // Labels that actually carry engine entries (structural-diff detection).

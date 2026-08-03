@@ -27,8 +27,9 @@ CR062 (the Loan form this CR declines to generalise)
 | **P9** | §9 — the amount's anchor year, labelled from the wrong place. | A defect in P8's own labelling; ships immediately. |
 | **P10** | §9.2 — the base year comes from the budget, the module holds the first forecast year. | **Designed, not built.** Needs a migration and a regenerate. |
 | **P11** | §10 — reset an overridden module in a variant back to its base. | Frontend + one field on an existing payload; the endpoint has shipped since CR050. |
-| **P4** | §11 — plan vs actual for the live year. | **Designed here, not built.** Needs P2 (a stale anchor makes every variance meaningless). |
-| **P5** | §12 — sensitivity runs on the CR053 harness. | **Designed here, not built.** Lowest priority; nothing is wrong without it. |
+| **P12** | §11 — Net Assets added the debt instead of subtracting it. | Display arithmetic; no migration, no regenerate. |
+| **P4** | §12 — plan vs actual for the live year. | **Designed here, not built.** Needs P2 (a stale anchor makes every variance meaningless). |
+| **P5** | §13 — sensitivity runs on the CR053 harness. | **Designed here, not built.** Lowest priority; nothing is wrong without it. |
 
 ---
 
@@ -653,7 +654,75 @@ Scope note: modules only. `incexp` overrides use the same endpoint and would wor
 way, but the Expenses page is not this CR's subject and an untested second call site is not
 worth shipping blind.
 
-## 11. P4 — plan vs actual (designed, not built)
+## 11. P12 — Net Assets added the debt instead of subtracting it
+
+Owner, on Compare (Base vs Buy Business, 2027): *"Assets are 599K higher and Liabilities are
+500K higher, which makes sense. But Net Assets is 1,099K higher, which makes no sense — it
+should only be 99K."* The arithmetic was right and the model was wrong.
+
+### 11.1 The convention, and who follows it
+
+A liability's balance is stored **negative** — `US - Loans` is `−500,000` in
+`forecast_entries`. Two places already read it that way and say so:
+
+| | |
+|---|---|
+| `useOverview.js` (Home net worth, actuals) | `return assets + liabilities; // liabilities stored negative` |
+| `equity.js` (CR062's Equity report) | *"A liability's balance is stored NEGATIVE, so equity is the SUM: the debt subtracts itself."* |
+
+Forecast **Review** and **Compare** both computed `Assets − Liabilities`. With a negative
+liability that **adds** the debt. The error is always `2 × |liabilities|`:
+
+```
+shown    599,045 − (−500,000) = 1,099,045
+correct  599,045 + (−500,000) =    99,045
+```
+
+It is not only the comparison: `2026 Buy Business`'s own Review reported net assets
+1,000,000 too high.
+
+### 11.2 Why it stayed hidden until now
+
+Every liability module in every scenario sat at `setup_status = 'new'` (the `Business Loan` is
+`exclude` in Base, `new` in Downside and SRQ), and the engine skips
+`NOT IN ('new','exclude')`. **Forecast liabilities were always exactly 0** — and at zero,
+`A − L` and `A + L` are the same number.
+
+The `Business Loan` in `2026 Buy Business` is `complete`. It is the **first liability ever to
+reach a forecast**. CR062 made loans expressible; this is the first scenario to use one, which
+is what made a long-standing defect visible.
+
+*(Related, and the owner's call: `PLN Credit Cards` and `USD Credit Cards` — −24,543 and
+−27,295 — are `new` in all five scenarios, so ~52K of real debt is absent from every forecast.)*
+
+### 11.3 The third site, which would have broken quietly
+
+`FCReviewTable`'s **Change in Net Assets bridge** re-signed liabilities itself:
+
+```js
+const sign = mapping?.level1 === "Liabilities" ? -1 : 1;   // removed
+```
+
+Against an already-negative balance that made **taking on debt read as a gain** — and it
+reconciled, because `netAssetsByYear` was making the identical mistake one level up. Fixing
+only the two totals would have left the bridge disagreeing with its own headline, with the
+`Other` residual silently absorbing twice the loan. All three are the sum now.
+
+### 11.4 The guard is the fixture, not the formula
+
+`fcCompareUtils.test.js` pinned the defect: its mortgage was **+200**, so `910 − 200 = 710`
+passed while every real scenario carrying debt was overstated. The fixture now stores it
+**negative** (−200/−190) and expects the same 710 — opposite input sign, opposite operator,
+identical answer. Plus an explicit test that **more debt lowers net assets**.
+
+Both were **falsified against the unfixed code**: reverting the operator fails exactly those
+two tests.
+
+No migration, no data change, no regenerate — this is display arithmetic computed on read.
+The Net Assets line moves in any scenario carrying a liability, which today is
+`2026 Buy Business` alone.
+
+## 12. P4 — plan vs actual (designed, not built)
 
 `FCReviewTable` already overlays a `(Budget)` and an `(Actual)` column for the base and
 last-actual years, so the plumbing for "actuals next to the plan" exists. What does not exist is
@@ -667,7 +736,7 @@ shows up first as an implausible variance.
 Gated on P2 because a variance computed against a 19-month-old anchor measures the anchor, not the
 plan.
 
-## 12. P5 — sensitivity runs (designed, not built)
+## 13. P5 — sensitivity runs (designed, not built)
 
 CR048 ratified "test equity growth in a scenario copy" and "FX stress folds into Downside" — i.e.
 hand-copy a scenario per question. CR053 already built the expensive machinery: a standalone
@@ -679,7 +748,7 @@ Reuse, not new machinery — but nothing is *wrong* without it, which is why it 
 
 ---
 
-## 13. Out of scope
+## 14. Out of scope
 
 - **Monte Carlo / stochastic returns.** Converts a model the owner can explain line by line into
   one nobody can. CR044 settled that this stays a personal tool.
@@ -688,7 +757,7 @@ Reuse, not new machinery — but nothing is *wrong* without it, which is why it 
   the key that rots; restructuring four documents that the engine, the copy path, the variant sync
   and three UI pages all read is a separate CR and buys nothing this one needs.
 
-## 14. Status
+## 15. Status
 
 - **P0** — pending.
 - **P1** — pending (migration 052).
@@ -699,4 +768,5 @@ Reuse, not new machinery — but nothing is *wrong* without it, which is why it 
 - **P8** — built, no migration, **live as v3.11.10**. The base-year column is corrected on read; the stored forecast entries still carry the old opening cash. **Regenerate deferred** until §8.6's UB question is answered, so the plan is rebuilt once on a confirmed number.
 - **P9** — built, no migration.
 - **P11** — built, no migration.
+- **P12** — built, no migration. Net Assets moves in any scenario carrying a liability.
 - **P10 / P4 / P5** — designed here, not scheduled.

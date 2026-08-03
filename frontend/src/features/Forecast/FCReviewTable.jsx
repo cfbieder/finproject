@@ -6,7 +6,8 @@ import FCReviewTableControls from "./FCReviewTableControls.jsx";
 /**
  * Change in Net Assets bridge.
  *
- * Decomposes the year-over-year change in Net Assets (Assets − Liabilities) into
+ * Decomposes the year-over-year change in Net Assets (Assets + Liabilities, the latter
+ * stored negative) into
  * its two drivers, which reconcile exactly:
  *
  *   ΔNet Assets = Operating Cash Flow + Σ Unrealized G/L (per balance-sheet line)
@@ -14,8 +15,9 @@ import FCReviewTableControls from "./FCReviewTableControls.jsx";
  * - **Operating Cash Flow** = Income + Expense (incl. tax). Transfers are excluded
  *   because they are internal moves between the bank and tracked BS lines — their
  *   bank leg would otherwise double-count against the line leg neutralised below.
- * - **Unrealized G/L** per line = Δ(signed balance) + line transfers, where signed
- *   balance is +balance for assets / −balance for liabilities, and "line transfers"
+ * - **Unrealized G/L** per line = Δ(balance) + line transfers. The balance is already
+ *   signed — liabilities are stored NEGATIVE — so nothing is re-signed here (CR064 P12
+ *   removed a `-1` for liabilities that made new debt read as a gain). "Line transfers"
  *   is that line's value from the Transfers section above (bank-impact sign:
  *   negative = cash invested into the line). This strips invested/withdrawn cash out
  *   of the balance change, leaving pure non-cash appreciation (incl. FX revaluation
@@ -76,8 +78,10 @@ function EquityBridgeRows({
       if (row.level !== 2) continue;
       const label = row.label;
       if (bankAccountLabels?.has(label)) continue;
-      const mapping = balanceAccountMap?.get(label);
-      const sign = mapping?.level1 === "Liabilities" ? -1 : 1;
+      // CR064 P12 — the balance is ALREADY signed: liabilities are stored negative, so
+      // taking on debt is a negative Δ and reduces net assets on its own. Re-signing
+      // liabilities here made a new loan read as a GAIN, which reconciled only because
+      // `netAssetsByYear` was making the same mistake one level up. Both are the sum now.
       const balances = balanceDisplayValues?.get(label);
       if (!balances) continue;
       const lineTransfers = transfersByLine.get(label) || zeros();
@@ -85,7 +89,7 @@ function EquityBridgeRows({
         if (yi === 0) return null;
         const cur = Number(balances[yi]) || 0;
         const prev = Number(balances[yi - 1]) || 0;
-        return sign * (cur - prev) + (lineTransfers[yi] || 0);
+        return (cur - prev) + (lineTransfers[yi] || 0);
       });
       if (values.some((v) => v != null && Math.abs(v) > 0.5)) {
         lineRows.push({ label, values });

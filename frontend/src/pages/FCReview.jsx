@@ -780,11 +780,16 @@ export default function FCReview() {
   }, [balanceAccounts, balanceAccountMap, balanceDisplayValues, sortedYears]);
 
   /**
-   * Net Assets = Total Assets - Total Liabilities
+   * Net Assets = Total Assets + Total Liabilities.
+   *
+   * CR064 P12 — the SUM, not the difference: a liability's balance is stored NEGATIVE
+   * (`US - Loans` is −500,000 in `forecast_entries`), so the debt subtracts itself.
+   * Subtracting it added the debt to net assets instead. `useOverview.js` and CR062's
+   * `equity.js` already read the convention this way; Review and Compare did not.
    */
   const netAssetsByYear = useMemo(() => {
     return sortedYears.map((_, index) => {
-      return (totalAssetsByYear[index] || 0) - (totalLiabilitiesByYear[index] || 0);
+      return (totalAssetsByYear[index] || 0) + (totalLiabilitiesByYear[index] || 0);
     });
   }, [sortedYears, totalAssetsByYear, totalLiabilitiesByYear]);
 

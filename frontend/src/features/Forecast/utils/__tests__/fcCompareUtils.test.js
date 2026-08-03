@@ -47,12 +47,15 @@ const entriesA = [
   { Year: 2027, Account: "Rent", Amount: -40 },
   { Year: 2027, Account: "Transfer - Bank", Amount: -10 },
   { Year: 2027, Account: "House", Amount: 500 },
-  { Year: 2027, Account: "Mortgage", Amount: 200 },
+  // Liabilities are stored NEGATIVE (CR064 P12) — `US - Loans` is -500,000 in prod.
+  // The old fixture had this POSITIVE, which is why `A - L` passed a test while
+  // overstating every real scenario that carried debt.
+  { Year: 2027, Account: "Mortgage", Amount: -200 },
   // 2028 (amounts as strings, as pg numeric returns)
   { Year: "2028", Account: "Salary", Amount: "110" },
   { Year: "2028", Account: "Rent", Amount: "-45" },
   { Year: "2028", Account: "House", Amount: "510" },
-  { Year: "2028", Account: "Mortgage", Amount: "190" },
+  { Year: "2028", Account: "Mortgage", Amount: "-190" },
 ];
 
 const buildA = (overrides = {}) =>
@@ -97,10 +100,34 @@ describe("buildScenarioMatrix", () => {
   });
 
   it("totals assets/liabilities from level-2 display values", () => {
-    // Assets = Bank(410) + Properties(500); Liabilities = Mortgage(200)
+    // Assets = Bank(410) + Properties(500); Liabilities = Mortgage(-200), stored negative.
     expect(mat.totalAssets).toEqual([910, 985]);
-    expect(mat.totalLiabilities).toEqual([200, 190]);
+    expect(mat.totalLiabilities).toEqual([-200, -190]);
+    // Net Assets is the SUM: 910 + (-200) = 710. Subtracting a negative liability
+    // would give 1,110 — debt making you richer, which is the CR064 P12 defect.
     expect(mat.netAssets).toEqual([710, 795]);
+  });
+
+  it("CR064 P12 — taking on debt REDUCES net assets", () => {
+    // The defect in one assertion. A liability's balance is stored negative, so a
+    // bigger loan is a more-negative number; net assets must fall. Subtracting the
+    // liability instead made new debt read as a gain — which is how `2026 Buy
+    // Business` reported net assets 1,000,000 too high off a 500,000 loan, and why
+    // its Compare delta read 1,099,045 where the owner correctly expected 99,045.
+    const withMoreDebt = buildA({
+      entries: [
+        { Year: 2027, Account: "House", Amount: 500 },
+        { Year: 2027, Account: "Mortgage", Amount: -400 }, // twice the debt
+      ],
+    });
+    const withLessDebt = buildA({
+      entries: [
+        { Year: 2027, Account: "House", Amount: 500 },
+        { Year: 2027, Account: "Mortgage", Amount: -200 },
+      ],
+    });
+    expect(withMoreDebt.netAssets[0]).toBeLessThan(withLessDebt.netAssets[0]);
+    expect(withLessDebt.netAssets[0] - withMoreDebt.netAssets[0]).toBe(200);
   });
 
   it("coerces string Years/Amounts from the API", () => {
