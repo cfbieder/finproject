@@ -216,6 +216,23 @@ if ! grep -q "VITE_APP_VERSION=$VERSION" .env 2>/dev/null; then
     fi
 fi
 
+# Stamp the commit into both images (Known Issue #17). The guard above means GIT_DIRTY is
+# "false" on a normal deploy; with --allow-dirty it records "true", which is the honest label
+# for an image that corresponds to no commit.
+if git rev-parse --git-dir >/dev/null 2>&1; then
+    GIT_SHA="$(git rev-parse HEAD)"
+    if [ -n "$(git status --porcelain -- "${BUILD_PATHS[@]}" 2>/dev/null || true)" ]; then
+        GIT_DIRTY=true
+    else
+        GIT_DIRTY=false
+    fi
+else
+    GIT_SHA=unknown
+    GIT_DIRTY=unknown
+fi
+export GIT_SHA GIT_DIRTY
+echo "Stamping images with commit: ${GIT_SHA:0:12} (dirty: $GIT_DIRTY)"
+
 docker compose build --no-cache
 
 echo ""
@@ -270,6 +287,25 @@ else
     echo "✗ Frontend is not accessible"
     ALL_HEALTHY=false
 fi
+
+# Read the provenance back OUT of the running containers (Known Issue #17). Reading it from
+# the image rather than trusting the variable we just exported is the point: it proves what is
+# actually running, which is the question the 2026-08-03 incident could not answer.
+echo ""
+for c in fin-server fin-frontend; do
+    LBL_SHA="$(docker inspect "$c" --format '{{index .Config.Labels "org.opencontainers.image.revision"}}' 2>/dev/null || echo "")"
+    LBL_DIRTY="$(docker inspect "$c" --format '{{index .Config.Labels "com.fin.build.dirty"}}' 2>/dev/null || echo "")"
+    if [ -z "$LBL_SHA" ] || [ "$LBL_SHA" = "unknown" ]; then
+        echo "⚠ $c carries no build commit (pre-provenance image, or built outside this script)"
+    elif [ "$LBL_SHA" != "$GIT_SHA" ]; then
+        echo "✗ $c is running ${LBL_SHA:0:12}, not the ${GIT_SHA:0:12} just built"
+        ALL_HEALTHY=false
+    elif [ "$LBL_DIRTY" = "true" ]; then
+        echo "⚠ $c built from a DIRTY tree at ${LBL_SHA:0:12} — it matches no commit"
+    else
+        echo "✓ $c is running ${LBL_SHA:0:12}"
+    fi
+done
 
 echo ""
 

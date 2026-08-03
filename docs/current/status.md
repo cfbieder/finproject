@@ -39,9 +39,12 @@ brokerage-history data work. Detail lives in the CR file linked from each line.
   `PeriodStart`, so a positional plot silently shifts scenarios against each other; it would pass
   every check today (all five share a `PeriodStart`) and break the moment
   [CR064 P2](../cr/cr-064-forecast-annual-close-and-assumptions.md) ships. Palette validated against
-  Fin's own surfaces, not the reference ones. *Also found:* **CR064 P2's yearly copy drops lineage**
-  — `copyScenario` inserts without `parent_scenario_id`, which is why dev's `Base_Buy Business` is a
-  second root, and unless the copy carries it, next January's `2027 Base` arrives with zero variants.
+  Fin's own surfaces, not the reference ones. *Also found, and **corrected 2026-08-03 after checking the code**:* the yearly
+  copy does not lose *its own* lineage — `copyScenario` creating a **root is right**, a new year's
+  base is a base, and `trg_fc_reject_nested_variant` would refuse it as a variant. What does not
+  happen is that the **variants come across** ([CR064 P2](../cr/cr-064-forecast-annual-close-and-assumptions.md)
+  item 4, already scoped), so next January's `2027 Base` starts with zero variants and this page
+  draws one line until they are re-created against it.
 - **[CR066](../cr/cr-066-fc-line-mapping-completeness.md) — what the forecast is not looking at.**
   The 2025 `Expense` stack totals **487,897** against a header row of **566,586**: the header reads the
   ledger's COA total, every child is an FC line, and a leaf mapped to no line is counted by one and

@@ -217,12 +217,18 @@ the right ceiling; its values need re-validating with a dark variant.
 
 - **No cross-base overlay.** One base and its own variants (Decision 2). Two unrelated roots on one
   chart is a different question and makes the bold line ambiguous. **This non-goal has a shelf life,
-  and it is roughly one year.** `copyScenario` inserts **without** `parent_scenario_id`
-  (`repositories/forecast.js:236-241`) — which is exactly why dev's `Base_Buy Business` is a second
-  root rather than a variant — and [CR064 P2](cr-064-forecast-annual-close-and-assumptions.md) decided
-  on 2026-08-02 to **keep minting a copy each year**. Unless that yearly copy carries lineage, next
-  January's `2027 Base` arrives as a root with zero variants and this page shows the owner one line.
-  The fix belongs in CR064 P2 (carry `parent_scenario_id` on the copy), not here; noted in both.
+  and it is roughly one year** — *though not for the reason first written here.* **Correction
+  (2026-08-03, after reading the code):** the original claim was that `copyScenario` wrongly drops
+  `parent_scenario_id`. It does omit it, but that is **correct behaviour** — a new year's base is a
+  base, not a variant of last year's, and `trg_fc_reject_nested_variant` refuses a variant-of-a-variant
+  *and* refuses turning a scenario that already has variants into one, so carrying the parent onto the
+  yearly copy would either be rejected outright or permanently bar `2027 Base` from having variants of
+  its own. Two paths exist and both are right: `copyScenario` (root) and `createVariant`
+  (`forecastVariants.js:961`, sets the parent). Dev's `Base_Buy Business` is a root because it was made
+  by **copy** rather than by the variant path — not a defect. **The real gap is the one
+  [CR064 P2](cr-064-forecast-annual-close-and-assumptions.md) item 4 already names:** the *variants* do
+  not follow the yearly copy, so next January's `2027 Base` starts with zero variants and this page
+  draws a single line until they are re-created against it. Nothing to fix here or in `copyScenario`.
 - **No tables, KPI cards, commentary or AI panel** — that is `/forecast-compare`, whose *behaviour* is
   unchanged by this CR (its chart component moves; what it renders must not, per §8).
 - **No generate/rebuild action** on the page (§5.2).

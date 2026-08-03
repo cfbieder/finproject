@@ -39,6 +39,21 @@ COPY --from=builder /app/dist /usr/share/nginx/html
 # Copy nginx configuration from frontend directory
 COPY frontend/nginx.conf /etc/nginx/conf.d/default.conf
 
+# Provenance — Known Issue #17. This image is built from the working tree, so "what commit
+# is prod running?" was previously answerable only by archaeology (grepping the bundle for a
+# route, comparing container timestamps against git log). That is exactly what the 2026-08-03
+# incident cost. Stamp it instead:
+#   docker inspect fin-frontend --format '{{index .Config.Labels "org.opencontainers.image.revision"}}'
+# `dirty=true` means the tree carried uncommitted build-path changes at build time, i.e. this
+# image corresponds to NO commit — deploy-to-production.sh refuses that unless --allow-dirty.
+#
+# Deliberately the LAST layers before EXPOSE: these values change on every commit, and placed
+# any earlier they would invalidate the npm ci / npm run build cache on every local build.
+ARG GIT_SHA=unknown
+ARG GIT_DIRTY=unknown
+LABEL org.opencontainers.image.revision="$GIT_SHA" \
+      com.fin.build.dirty="$GIT_DIRTY"
+
 # Expose ports 80 and 443
 EXPOSE 80 443
 

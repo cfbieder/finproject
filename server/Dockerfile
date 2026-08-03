@@ -37,6 +37,14 @@ RUN mkdir -p /app/components/data /app/components/reports
 # Set working directory to server
 WORKDIR /app/server
 
+# Provenance — Known Issue #17; see the note in frontend/Dockerfile. Read back with:
+#   docker inspect fin-server --format '{{index .Config.Labels "org.opencontainers.image.revision"}}'
+# Last layers before EXPOSE so a per-commit value cannot invalidate the npm install cache.
+ARG GIT_SHA=unknown
+ARG GIT_DIRTY=unknown
+LABEL org.opencontainers.image.revision="$GIT_SHA" \
+      com.fin.build.dirty="$GIT_DIRTY"
+
 # Expose port
 EXPOSE 3005
 

@@ -227,14 +227,17 @@ So the copy stays the annual close. P2 closes what it misses:
    the default stays cost-basis-only, so today's behavior is what you get by pressing enter.
 4. **The variants come across.** A copy of a base is a plain scenario, so the four variants of
    `2026 Base` do not follow it. Either re-create them against the new base or say plainly that
-   they were not carried — the current silence is the worst of the three. **The mechanism is one
-   omitted column:** `copyScenario` inserts without `parent_scenario_id`
-   (`repositories/forecast.js:236-241`), which is why dev's `Base_Buy Business` is a second root
-   rather than a variant of `2026 Base` as its prod twin is. A copy that carries no lineage is
-   invisible on every surface CR050 built to show lineage — and on
-   [CR067](cr-067-forecast-multi-compare.md), whose whole selection model is "a base and its
-   variants", next January's `2027 Base` would arrive as a root with zero variants and draw a
-   single line.
+   they were not carried — the current silence is the worst of the three. **It is NOT fixed by having the copy carry
+   `parent_scenario_id`** — that was proposed here on 2026-08-03 and is wrong: a new year's base is a
+   base, and `trg_fc_reject_nested_variant` refuses a variant-of-a-variant *and* refuses turning a
+   scenario that already has variants into one, so the copy would either be rejected or be permanently
+   barred from having variants of its own. `copyScenario` creating a **root** is correct; the work is
+   re-creating (or re-pointing) the variants against the new base, which is a real decision — a variant
+   is an override patch over its base, so "the same variant against next year's base" means re-applying
+   those overrides, not moving a row. Dev's `Base_Buy Business` is a root simply because it was made by
+   copy rather than by `createVariant`. **Why it matters beyond tidiness:**
+   [CR067](cr-067-forecast-multi-compare.md)'s whole selection model is "a base and its variants", so
+   until this is settled next January's `2027 Base` draws a single line there.
 
 Not in P2: rolling in place, and archiving. Both were considered and set aside above.
 

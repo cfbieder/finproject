@@ -29,6 +29,11 @@ services:
     build:
       context: .
       dockerfile: server/Dockerfile
+      # Build provenance (Known Issue #17) — deploy-to-production.sh exports these; a bare
+      # `docker compose build` still works and stamps "unknown".
+      args:
+        GIT_SHA: ${GIT_SHA:-unknown}
+        GIT_DIRTY: ${GIT_DIRTY:-unknown}
     container_name: fin-server
     restart: unless-stopped
     depends_on:
@@ -66,6 +71,9 @@ services:
         VITE_APP_MODE: prod
         VITE_APP_API: ""
         VITE_NAV_LAYOUT: sidebar
+        # Build provenance (Known Issue #17) — see server above.
+        GIT_SHA: ${GIT_SHA:-unknown}
+        GIT_DIRTY: ${GIT_DIRTY:-unknown}
     container_name: fin-frontend
     restart: unless-stopped
     depends_on:
