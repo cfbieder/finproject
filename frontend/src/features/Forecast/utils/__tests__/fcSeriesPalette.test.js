@@ -9,7 +9,13 @@
  * deliberate re-validation against the dataviz six-checks in BOTH themes, not a tidy-up.
  */
 import { describe, it, expect } from "vitest";
-import { chartChrome, compareABColors, tooltipStyle } from "../fcSeriesPalette.js";
+import {
+  chartChrome,
+  compareABColors,
+  seriesColors,
+  tooltipStyle,
+  MAX_SERIES,
+} from "../fcSeriesPalette.js";
 
 describe("fcSeriesPalette", () => {
   it("keeps CR040's A/B pairs exactly, in both themes", () => {
@@ -37,6 +43,31 @@ describe("fcSeriesPalette", () => {
     // first render must not get an undefined color — that renders a line with no stroke.
     expect(chartChrome(undefined)).toEqual(chartChrome("light"));
     expect(compareABColors("")).toEqual(compareABColors("light"));
+  });
+
+  it("carries the CR067 categorical set — same length, distinct hues, both themes", () => {
+    for (const theme of ["light", "dark"]) {
+      const hues = seriesColors(theme);
+      expect(hues).toHaveLength(MAX_SERIES);
+      expect(new Set(hues).size).toBe(MAX_SERIES); // two scenarios must never share a colour
+      for (const hex of hues) expect(hex).toMatch(/^#[0-9a-f]{6}$/i);
+    }
+  });
+
+  it("re-steps the dark column rather than reusing the light one", () => {
+    // Six of the seven move for the dark surface. Green (#008300) is deliberately the same in
+    // both — it validated on either surface — so this asserts "mostly different", not "all".
+    const light = seriesColors("light");
+    const dark = seriesColors("dark");
+    const moved = light.filter((hex, i) => hex !== dark[i]).length;
+    expect(moved).toBe(MAX_SERIES - 1);
+  });
+
+  it("keeps the base's slot first, so slot 0 is stable across themes", () => {
+    // The page assigns slot 0 to the base and 1..6 to variants by their own position; a
+    // reordering here would silently repaint every chart.
+    expect(seriesColors("light")[0]).toBe("#2a78d6");
+    expect(seriesColors("dark")[0]).toBe("#3987e5");
   });
 
   it("tokenizes the tooltip rather than freezing hex into it", () => {

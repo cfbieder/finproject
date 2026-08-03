@@ -25,6 +25,7 @@ import {
   Calculator,
   Eye,
   ArrowLeftRight,
+  GitCompare,
   Wallet,
   Palette,
   LineChart,
@@ -51,6 +52,7 @@ const FCLineMapping = lazy(() => import("../pages/FCLineMapping"));
 const FCModuleManage = lazy(() => import("../pages/FCModuleManage"));
 const FCReview = lazy(() => import("../pages/FCReview"));
 const FCCompare = lazy(() => import("../pages/FCCompare"));
+const FCMultiCompare = lazy(() => import("../pages/FCMultiCompare"));
 const FCScenarios = lazy(() => import("../pages/FCScenarios"));
 const FCSettings = lazy(() => import("../pages/FCSettings"));
 const ProgramSettings = lazy(() => import("../pages/ProgramSettings"));
@@ -290,6 +292,20 @@ export const routes = [
     wrapper: ForecastProvider,
     description: "Compare two forecast scenarios: deltas, charts, and commentary",
     icon: ArrowLeftRight,
+  },
+  {
+    // CR067 — the same treatment as Equity below, for the same reason: a report OVER a
+    // generated forecast, not a seventh setup step, so deliberately no `step`. Compare
+    // answers "how do these two differ?" in detail; this answers "how does the fan of
+    // variants sit against the base?" and only that. No `wrapper: ForecastProvider` —
+    // the page's own `useScenarios` is self-contained, as on Equity.
+    path: "/forecast-multi-compare",
+    component: FCMultiCompare,
+    label: "Forecast Multi-Compare",
+    category: "Forecasting",
+    description:
+      "One base scenario and any of its variants on a single trajectory chart — the fan, where Compare gives you one pair at a time",
+    icon: GitCompare,
   },
   {
     // CR062 P2 — sits in Forecasting, deliberately WITHOUT a `step`. It is a report

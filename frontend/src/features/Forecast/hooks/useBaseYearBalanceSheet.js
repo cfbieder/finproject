@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import Rest from "../../../js/rest.js";
+import { aggregateBalanceReport } from "../utils/fcBalanceAggregate.js";
 
 /**
  * Custom hook for loading LastActualYear (PeriodStart - 2) balance sheet actuals.
@@ -29,80 +30,12 @@ export function useBaseYearBalanceSheet(periodStart, balanceAccountMap) {
 
     let isMounted = true;
 
+    // The roll-up itself lives in `utils/fcBalanceAggregate.js` (CR067 P2) so Multi-Compare,
+    // which loads N scenarios through useQueries and cannot call this hook per scenario,
+    // reads the report exactly the same way this does.
     const loadBalanceForYear = async (year) => {
-      const asOfDate = `${year}-12-31`;
-      const report = await Rest.fetchBalanceReportV2(asOfDate);
-
-      const level1 = new Map();
-      const level2 = new Map();
-      const level3Map = new Map();
-      let assetTotal = 0;
-      let liabilityTotal = 0;
-
-      /**
-       * Recursively aggregates balance sheet values.
-       *
-       * @param {Array} nodes - Balance sheet nodes to process
-       * @param {Array} path - Current path in tree (for mapping)
-       */
-      const aggregateValues = (nodes, path = []) => {
-        if (!Array.isArray(nodes)) return;
-
-        for (const node of nodes) {
-          if (!node || typeof node !== "object") continue;
-
-          const name = node.name;
-          const children = Array.isArray(node.children) ? node.children : [];
-          const hasChildren = children.length > 0;
-          const newPath = [...path, name].filter(Boolean);
-
-          // Recurse into children first
-          if (hasChildren) {
-            aggregateValues(children, newPath);
-            continue;
-          }
-
-          // Process leaf nodes
-          const total = Number(node.totalUSD ?? 0);
-          const mapping = balanceAccountMap.get(name);
-          const l1 = mapping?.level1 || newPath[0];
-          const l2 = mapping?.level2 || newPath[1];
-
-          // Aggregate at all three levels
-          if (name) {
-            level3Map.set(name, (level3Map.get(name) ?? 0) + total);
-          }
-          if (l1) {
-            level1.set(l1, (level1.get(l1) ?? 0) + total);
-            if (l1 === "Assets") {
-              assetTotal += total;
-            } else if (l1 === "Liabilities") {
-              liabilityTotal += total;
-            }
-          }
-          if (l2) {
-            level2.set(l2, (level2.get(l2) ?? 0) + total);
-          }
-        }
-      };
-
-      const nodes = Array.isArray(report)
-        ? report
-        : Array.isArray(report?.["Balance Sheet Accounts"])
-        ? report["Balance Sheet Accounts"]
-        : [];
-
-      aggregateValues(nodes, []);
-
-      // Set final asset and liability totals
-      if (assetTotal) {
-        level1.set("Assets", assetTotal);
-      }
-      if (liabilityTotal) {
-        level1.set("Liabilities", liabilityTotal);
-      }
-
-      return { level1, level2, level3: level3Map };
+      const report = await Rest.fetchBalanceReportV2(`${year}-12-31`);
+      return aggregateBalanceReport(report, balanceAccountMap);
     };
 
     const loadBalance = async () => {
