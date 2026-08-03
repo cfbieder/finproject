@@ -8,7 +8,7 @@
 # 3. Rebuilds and restarts production containers
 # 4. Verifies deployment health
 #
-# Usage: ./deploy-to-production.sh [--skip-git] [--no-backup]
+# Usage: ./deploy-to-production.sh [--with-git] [--no-backup] [--allow-dirty]
 #
 set -euo pipefail
 
@@ -21,6 +21,7 @@ export COMPOSE_PROJECT_NAME="psproject"
 
 SKIP_GIT=true  # Skip git by default - handle manually
 NO_BACKUP=false
+ALLOW_DIRTY=false
 BACKUP_DIR="$PROJECT_DIR/Backups"
 mkdir -p "$BACKUP_DIR"
 BACKUP_FILE="$BACKUP_DIR/fin_backup_$(date +%Y%m%d_%H%M%S).dump"
@@ -36,13 +37,18 @@ for arg in "$@"; do
             NO_BACKUP=true
             shift
             ;;
+        --allow-dirty)
+            ALLOW_DIRTY=true
+            shift
+            ;;
         --help|-h)
-            echo "Usage: $0 [--with-git] [--no-backup]"
+            echo "Usage: $0 [--with-git] [--no-backup] [--allow-dirty]"
             echo ""
             echo "Options:"
-            echo "  --with-git    Enable git commit and push (skipped by default)"
-            echo "  --no-backup   Skip database backup (not recommended)"
-            echo "  --help        Show this help message"
+            echo "  --with-git     Enable git commit and push (skipped by default)"
+            echo "  --no-backup    Skip database backup (not recommended)"
+            echo "  --allow-dirty  Deploy build-affecting changes that are not committed"
+            echo "  --help         Show this help message"
             echo ""
             echo "Default behavior: Skips git, backs up database, deploys to production"
             exit 0
@@ -60,6 +66,47 @@ if ! docker ps --format '{{.Names}}' | grep -q '^fin-postgres$'; then
     echo "ERROR: Production is not running"
     echo "Please start production first: docker compose up -d"
     exit 1
+fi
+
+# Step 0: Refuse to build from a dirty working tree (Known Issue #17).
+#
+# This script builds the frontend image and applies migrations from WHATEVER IS ON DISK —
+# not from a tag, a commit, or even the index. More than one agent thread works this single
+# tree, so without this check another thread's unfinished work rides your deploy and the
+# resulting prod build corresponds to no commit. That has happened four times: migration 044
+# (untracked and incomplete), migration 055 + the CR064 P6 engine, and CR067 P1+P2 riding
+# the v3.11.16 deploy. Harm was nil every time BECAUSE SOMEONE CHECKED AFTERWARDS, which is
+# not a control.
+#
+# Scoped to paths that actually reach the image or the database, deliberately: docs churn
+# constantly across threads, and a guard that fires on every doc edit is one people learn to
+# bypass with --allow-dirty reflexively, which is worse than no guard at all.
+# `git status --porcelain -- <paths>` reports untracked files in those paths too, which is
+# the migration-044 case.
+BUILD_PATHS=(server frontend docker-compose.yml)
+
+if git rev-parse --git-dir >/dev/null 2>&1; then
+    DIRTY="$(git status --porcelain -- "${BUILD_PATHS[@]}" 2>/dev/null || true)"
+    if [ -n "$DIRTY" ]; then
+        if [ "$ALLOW_DIRTY" = true ]; then
+            echo "⚠ Deploying a DIRTY working tree (--allow-dirty). Prod will match no commit:"
+            echo "$DIRTY" | sed 's/^/    /'
+            echo ""
+        else
+            echo "ERROR: uncommitted changes in build-affecting paths — refusing to deploy."
+            echo "----------------------------------------"
+            echo "$DIRTY" | sed 's/^/    /'
+            echo ""
+            echo "This script builds from the working tree, so these WOULD ship — including"
+            echo "another thread's unfinished work — and prod would then match no commit."
+            echo ""
+            echo "Commit them (explicit pathspecs — see .claude/rules/git-concurrency.md),"
+            echo "or re-run with --allow-dirty if shipping them uncommitted is deliberate."
+            exit 1
+        fi
+    fi
+    echo "Deploying $(git rev-parse --short HEAD)$(git describe --tags --exact-match HEAD 2>/dev/null | sed 's/^/ (/;s/$/)/')"
+    echo ""
 fi
 
 # Step 1: Backup production database

@@ -111,10 +111,33 @@ VITE_APP_VERSION=$NEW_VERSION
 EOF
 echo "✓ Updated $FRONTEND_ENV (Vite auto-restarts)"
 
-# Update package.json files if they exist
+# Update package.json files if they exist.
+#
+# This used to match on the OLD version literal — `s/"version": "$CURRENT_VERSION"/…/` —
+# which only fires when a package.json already agrees with the VERSION file. Neither of
+# these ever did (`frontend` sat at Vite's default 0.0.0, `server` at 1.0.0), so the sed
+# no-opped on every release for the life of the script while the line below printed a ✓
+# regardless. A green tick for work that did not happen is worse than no tick: it is what
+# made the drift invisible.
+#
+# Now: replace the FIRST "version" key (the top-level one — dependency entries are
+# `"pkg": "^1.2.3"`, never `"version":`), then report what actually changed by comparing
+# the file before and after.
 for pkg in package.json frontend/package.json server/package.json; do
-    if [ -f "$pkg" ]; then
-        sed -i "s/\"version\": \"$CURRENT_VERSION\"/\"version\": \"$NEW_VERSION\"/g" "$pkg"
+    [ -f "$pkg" ] || continue
+
+    BEFORE=$(grep -m1 '"version":' "$pkg" || true)
+    if [ -z "$BEFORE" ]; then
+        echo "· $pkg has no \"version\" key — skipped"
+        continue
+    fi
+
+    sed -i '0,/"version": *"[^"]*"/s//"version": "'"$NEW_VERSION"'"/' "$pkg"
+
+    AFTER=$(grep -m1 '"version":' "$pkg" || true)
+    if [ "$BEFORE" = "$AFTER" ]; then
+        echo "· $pkg already at $NEW_VERSION"
+    else
         echo "✓ Updated $pkg"
     fi
 done
