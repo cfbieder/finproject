@@ -24,8 +24,10 @@ CR062 (the Loan form this CR declines to generalise)
 | **P6** | §6 — income a business can express: its own growth rate, permanent step changes, and the live mode stated in the form. Migration 055. | Independent of P0–P3. Ships dormant: 7,916 entries byte-identical on a copy of prod. |
 | **P7** | §7 — the FC-line budget hint compared a USD budget with a local-currency amount. | Ships with P6: P6 is what makes the mis-scaled amount reachable. |
 | **P8** | §8 — the base year summed mixed currencies, and it seeds the cash sweep. | Changes existing numbers; its own release. |
-| **P4** | §9 — plan vs actual for the live year. | **Designed here, not built.** Needs P2 (a stale anchor makes every variance meaningless). |
-| **P5** | §10 — sensitivity runs on the CR053 harness. | **Designed here, not built.** Lowest priority; nothing is wrong without it. |
+| **P9** | §9 — the amount's anchor year, labelled from the wrong place. | A defect in P8's own labelling; ships immediately. |
+| **P10** | §9.2 — the base year comes from the budget, the module holds the first forecast year. | **Designed, not built.** Needs a migration and a regenerate. |
+| **P4** | §10 — plan vs actual for the live year. | **Designed here, not built.** Needs P2 (a stale anchor makes every variance meaningless). |
+| **P5** | §11 — sensitivity runs on the CR053 harness. | **Designed here, not built.** Lowest priority; nothing is wrong without it. |
 
 ---
 
@@ -564,7 +566,63 @@ One residue, deliberately left to the owner: the owner also said the 500,000 was
 the form itself (`→ 2027: …`), which is the point of §8.5. Changing a financial assumption
 that was not asked to be changed is not this CR's business.
 
-## 9. P4 — plan vs actual (designed, not built)
+## 9. P9 — the amount's anchor year, labelled from the wrong place
+
+P8 §8.5 replaced "(Base Yr)" with the actual year and added the derived first forecast year.
+Both were taken from the module's own `BaseDate`. **That is not what the engine uses.**
+
+`fcbuilder-module.js` grows the amount with `periodNum = year − periodStart + 1`, so one
+inflation step lands it on `PeriodStart`: the figure is anchored to **`PeriodStart − 1`**, the
+*scenario's* base year, and `base_date` never enters the income calculation at all.
+
+Prod has 18 of 21 modules at `base_date = 2025-12-31` against `PeriodStart = 2027`, so the
+label was wrong for all but three. **CVC Fund VIII** showed it exactly:
+
+| | shown | actual |
+|---|---|---|
+| field label | `Income Amount (2025)` | the figure is a **2026** amount |
+| derived hint | `→ 2026: 26,445 EUR` | the module output books 26,445 in **2027** |
+
+Both now read from `PeriodStart`, and the module output agrees with the form.
+
+### 9.1 What the owner was really asking
+
+*"What is this box supposed to represent? We have actual 2025, we have budget 2026."* The
+answer the code gives is uncomfortable, and it is the honest one: **a module carries two
+different anchors at once.**
+
+- its **value** series starts at the module's `base_date` (2025) and takes no growth until
+  `PeriodStart`, which is why CVC's 2025 and 2026 rows are identical and the growth column is
+  blank for both;
+- its **income and expense amounts** are anchored to `PeriodStart − 1` (2026);
+- and the amount never appears in the module's own output for the base year at all (years
+  before `PeriodStart` are skipped), while `getBaseYearValues` puts that same number into the
+  Review's base-year column.
+
+So one figure is treated as a 2026 amount by the engine, displayed under a 2025 label, absent
+from the module's own table, and present in Review's base-year column. Every one of those is
+defensible alone; together they are not explainable, which is precisely the complaint.
+
+### 9.2 The simplification, and a correction to §8.5
+
+§8.5 argued against moving the anchor to the first forecast year, on the grounds that the
+sweep's opening cash and the **per-module** deferred base-year tax both need a base-year
+figure per module. Measured since: **0 of 110 modules carry a tax override of either kind.**
+The per-module half of that argument is therefore theoretical, and the case for the owner's
+original instinct — *the budget is the budget, and this box is next year* — is much stronger
+than §8.5 allowed. Recorded as **P10**, not built:
+
+- the base year's P&L comes from `budget_entries`, which already exist and are already
+  maintained — one source, and the Review column finally matches the header it used to have;
+- the module amount becomes the **first forecast year**, entered directly;
+- the sweep's opening cash comes from the same budget-derived base year;
+- base-year tax at the scenario rate, since no module overrides it.
+
+Costs, stated plainly: every stored amount needs migrating (× the base-year growth factor) or
+it silently shifts a year; the FC-line allocation hint changes meaning; and prod needs a
+regenerate. It is a proper phase with a migration, not a relabel.
+
+## 10. P4 — plan vs actual (designed, not built)
 
 `FCReviewTable` already overlays a `(Budget)` and an `(Actual)` column for the base and
 last-actual years, so the plumbing for "actuals next to the plan" exists. What does not exist is
@@ -578,7 +636,7 @@ shows up first as an implausible variance.
 Gated on P2 because a variance computed against a 19-month-old anchor measures the anchor, not the
 plan.
 
-## 10. P5 — sensitivity runs (designed, not built)
+## 11. P5 — sensitivity runs (designed, not built)
 
 CR048 ratified "test equity growth in a scenario copy" and "FX stress folds into Downside" — i.e.
 hand-copy a scenario per question. CR053 already built the expensive machinery: a standalone
@@ -590,7 +648,7 @@ Reuse, not new machinery — but nothing is *wrong* without it, which is why it 
 
 ---
 
-## 11. Out of scope
+## 12. Out of scope
 
 - **Monte Carlo / stochastic returns.** Converts a model the owner can explain line by line into
   one nobody can. CR044 settled that this stays a personal tool.
@@ -599,7 +657,7 @@ Reuse, not new machinery — but nothing is *wrong* without it, which is why it 
   the key that rots; restructuring four documents that the engine, the copy path, the variant sync
   and three UI pages all read is a separate CR and buys nothing this one needs.
 
-## 12. Status
+## 13. Status
 
 - **P0** — pending.
 - **P1** — pending (migration 052).
@@ -608,4 +666,5 @@ Reuse, not new machinery — but nothing is *wrong* without it, which is why it 
 - **P6** — built (migration 055), dormant, **live as v3.11.8**.
 - **P7** — built, no migration.
 - **P8** — built, no migration, **live as v3.11.10**. The base-year column is corrected on read; the stored forecast entries still carry the old opening cash. **Regenerate deferred** until §8.6's UB question is answered, so the plan is rebuilt once on a confirmed number.
-- **P4 / P5** — designed here, not scheduled.
+- **P9** — built, no migration.
+- **P10 / P4 / P5** — designed here, not scheduled.

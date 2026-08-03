@@ -1233,9 +1233,20 @@ export default function FCModulesEditModal({
                   // the year that follows — without moving the anchor, which the cash
                   // sweep's opening cash and the deferred base-year tax both read.
                   const isAmountField = field === "IncomeAmount" || field === "ExpenseAmount";
-                  const period1 = Number(baseYear) + 1;
-                  if (isAmountField && Number.isFinite(Number(baseYear))) {
-                    label = label.replace("(Base Yr)", `(${baseYear})`);
+                  // CR064 P9 — the amount is anchored to the SCENARIO's base year
+                  // (`PeriodStart − 1`), NOT to the module's own `BaseDate`. The engine
+                  // grows it with `periodNum = year − periodStart + 1`, so one inflation
+                  // step lands it on PeriodStart and `base_date` never enters the
+                  // calculation. Labelling it from `BaseDate` was wrong for 18 of the 21
+                  // modules in prod — CVC Fund VIII read "(2025)" for a figure the engine
+                  // treats as 2026, and the derived hint said "→ 2026" for income the
+                  // module output books in 2027.
+                  const anchorYear = Number(scenarioPeriodStart) > 1900
+                    ? Number(scenarioPeriodStart) - 1
+                    : Number(baseYear);
+                  const period1 = anchorYear + 1;
+                  if (isAmountField && Number.isFinite(anchorYear)) {
+                    label = label.replace("(Base Yr)", `(${anchorYear})`);
                   }
                   // The figure the engine will actually project for the first forecast
                   // year. Suppressed where the amount does not drive the stream: a
