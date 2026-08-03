@@ -176,7 +176,7 @@ describe("MobileTransactions", () => {
   it("applies selected categories as leaf names and resets paging", () => {
     render(<MobileTransactions />);
 
-    fireEvent.click(screen.getByText("All categories"));
+    fireEvent.click(screen.getByText("Categories"));
     fireEvent.click(screen.getByText("Groceries", { selector: ".m-picker__item" }));
     fireEvent.click(screen.getByText("Apply (1)"));
 
@@ -189,7 +189,7 @@ describe("MobileTransactions", () => {
   it("groups accounts by their balance-sheet parent, not by Assets/Liabilities", () => {
     render(<MobileTransactions />);
 
-    fireEvent.click(screen.getByText("All accounts"));
+    fireEvent.click(screen.getByText("Accounts"));
 
     // firstChild, not textContent: in multi mode the header also holds the
     // per-section All/None button, so textContent reads "Current AssetsAll".
@@ -204,7 +204,7 @@ describe("MobileTransactions", () => {
   it("clears a filter from its chip", () => {
     render(<MobileTransactions />);
 
-    fireEvent.click(screen.getByText("All accounts"));
+    fireEvent.click(screen.getByText("Accounts"));
     fireEvent.click(screen.getByText("Caixa EUR", { selector: ".m-picker__item" }));
     fireEvent.click(screen.getByText("Apply (1)"));
     expect(latestFilters().accountEnabled).toBe(true);

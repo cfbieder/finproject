@@ -1079,6 +1079,13 @@
   border-color: var(--primary);
 }
 
+/* type="search" keeps the "Search" key on the iOS keyboard, but WebKit also
+   draws its own clear button — next to ours that is two crosses. */
+.m-searchbar__input::-webkit-search-cancel-button {
+  -webkit-appearance: none;
+  appearance: none;
+}
+
 .m-searchbar__clear {
   position: absolute;
   right: 4px;
@@ -1216,6 +1223,9 @@
 
 .m-period-custom__field {
   flex: 1 1 0;
+  /* Flex items default to min-width:auto, and a native month input has a wide
+     intrinsic width — without this the To field runs off the viewport. */
+  min-width: 0;
   display: flex;
   flex-direction: column;
   gap: 6px;

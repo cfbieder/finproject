@@ -192,10 +192,13 @@ export default function MobileTransactions() {
   const selectedAccounts = filters.accountEnabled ? filters.account : [];
   const selectedCategories = filters.categoryEnabled ? filters.category : [];
 
-  const chipLabel = (list, plural) => {
-    if (list.length === 0) return `All ${plural}`;
+  // Unfiltered reads as the bare noun ("Accounts"), not "All accounts": the
+  // period chip plus these two have to fit 390px before the row starts
+  // scrolling. Counts stay lower-case, as they read as a phrase: "3 accounts".
+  const chipLabel = (list, noun) => {
+    if (list.length === 0) return noun;
     if (list.length === 1) return list[0];
-    return `${list.length} ${plural}`;
+    return `${list.length} ${noun.toLowerCase()}`;
   };
 
   return (
@@ -237,7 +240,7 @@ export default function MobileTransactions() {
         />
         <FilterChip
           icon={Wallet}
-          label={chipLabel(selectedAccounts, "accounts")}
+          label={chipLabel(selectedAccounts, "Accounts")}
           active={selectedAccounts.length > 0}
           onOpen={() => setSheet("accounts")}
           onClear={
@@ -249,7 +252,7 @@ export default function MobileTransactions() {
         />
         <FilterChip
           icon={Tag}
-          label={chipLabel(selectedCategories, "categories")}
+          label={chipLabel(selectedCategories, "Categories")}
           active={selectedCategories.length > 0}
           onOpen={() => setSheet("categories")}
           onClear={
