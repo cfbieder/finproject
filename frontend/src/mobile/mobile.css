@@ -1111,20 +1111,29 @@
 .m-fchip {
   flex: 0 0 auto;
   display: inline-flex;
+  align-items: stretch;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  min-height: 36px;
+  max-width: 62vw;
+  overflow: hidden;
+}
+
+.m-fchip__open {
+  display: inline-flex;
   align-items: center;
   gap: 6px;
+  min-width: 0;
   padding: 8px 14px;
   font-family: inherit;
   font-size: 13px;
   font-weight: 600;
   color: var(--ink-secondary);
-  background: var(--surface);
-  border: 1px solid var(--border);
-  border-radius: 999px;
+  background: transparent;
+  border: none;
   cursor: pointer;
-  min-height: 36px;
   white-space: nowrap;
-  max-width: 60vw;
 }
 
 .m-fchip__label {
@@ -1134,21 +1143,87 @@
 }
 
 .m-fchip--active {
-  color: var(--primary-strong);
   background: var(--primary-subtle);
   border-color: var(--primary-lighter);
+}
+
+.m-fchip--active .m-fchip__open {
+  color: var(--primary-strong);
 }
 
 .m-fchip__clear {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  margin: -4px -8px -4px 0;
-  padding: 4px 6px;
-  color: inherit;
+  padding: 0 12px 0 2px;
+  color: var(--primary-strong);
   background: transparent;
   border: none;
   cursor: pointer;
+}
+
+/* ── Period sheet (CR068) ── */
+.m-period-body {
+  flex: 1 1 auto;
+  overflow-y: auto;
+  padding: var(--m-pad);
+}
+
+.m-stepper {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  margin-bottom: 16px;
+  padding: 6px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--m-radius);
+}
+
+.m-stepper__arrow {
+  flex: 0 0 auto;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: var(--m-tap);
+  height: var(--m-tap);
+  color: var(--primary-strong);
+  background: transparent;
+  border: none;
+  border-radius: 50%;
+  cursor: pointer;
+}
+
+.m-stepper__arrow:active {
+  background: var(--primary-subtle);
+}
+
+.m-stepper__label {
+  flex: 1 1 auto;
+  text-align: center;
+  font-family: "Space Grotesk", system-ui, sans-serif;
+  font-size: 16px;
+  font-weight: 600;
+  color: var(--ink);
+}
+
+.m-period-custom {
+  display: flex;
+  gap: 10px;
+  margin-top: 18px;
+}
+
+.m-period-custom__field {
+  flex: 1 1 0;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  font-size: 12px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--muted);
 }
 
 /* ── Totals strip (CR068 P2) ── */

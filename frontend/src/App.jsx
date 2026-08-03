@@ -24,6 +24,7 @@ const MobileBudgetRealization = lazy(() =>
 const MobileBudgetGraph = lazy(() => import("./mobile/pages/MobileBudgetGraph"));
 const MobileBalanceTrends = lazy(() => import("./mobile/pages/MobileBalanceTrends"));
 const MobileLedger = lazy(() => import("./mobile/pages/MobileLedger"));
+const MobileTransactions = lazy(() => import("./mobile/pages/MobileTransactions"));
 const MobileRefreshFeeds = lazy(() => import("./mobile/pages/MobileRefreshFeeds"));
 const MobileReconcile = lazy(() => import("./mobile/pages/MobileReconcile"));
 
@@ -38,6 +39,9 @@ const DESKTOP_TO_MOBILE = {
   "/budget-graph": "/m/budget-graph",
   "/balance-trends": "/m/balance-trends",
   "/ledger": "/m/ledger",
+  // Without this key the redirect fell through to "/m", so a phone opening the
+  // Actuals page was silently dropped on the home screen (CR068).
+  "/trans-actual": "/m/transactions",
   "/refresh-feeds": "/m/refresh-feeds",
   "/balance-calibration": "/m/reconcile",
 };
@@ -78,6 +82,7 @@ function AppShell() {
             <Route path="/m/budget-graph" element={<MobileBudgetGraph />} />
             <Route path="/m/balance-trends" element={<MobileBalanceTrends />} />
             <Route path="/m/ledger" element={<MobileLedger />} />
+            <Route path="/m/transactions" element={<MobileTransactions />} />
               <Route path="/m/refresh-feeds" element={<MobileRefreshFeeds />} />
               <Route path="/m/reconcile" element={<MobileReconcile />} />
           </Routes>

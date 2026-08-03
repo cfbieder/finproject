@@ -31,12 +31,15 @@ describe("MobileHome", () => {
     expect(screen.getByText("$108,500")).toBeTruthy();
 
     // Every card is present and links where it says it does.
-    expect(container.querySelectorAll(".m-launcher__card")).toHaveLength(8);
+    expect(container.querySelectorAll(".m-launcher__card")).toHaveLength(9);
     expect(screen.getByText("Reconcile").closest("a").getAttribute("href")).toBe(
       "/m/reconcile"
     );
+    expect(
+      screen.getByText("Transactions").closest("a").getAttribute("href")
+    ).toBe("/m/transactions");
 
     // The icons themselves must render — an undefined component throws before this.
-    expect(container.querySelectorAll(".m-launcher__icon svg")).toHaveLength(8);
+    expect(container.querySelectorAll(".m-launcher__icon svg")).toHaveLength(9);
   });
 });

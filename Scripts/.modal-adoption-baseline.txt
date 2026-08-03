@@ -7,7 +7,7 @@ features/Budgets/BudgetDetailModal.jsx
 features/Budgets/BudgetGraphModal.jsx
 features/Transaction/TransactionDeleteModal.jsx
 features/Transaction/TransactionEditModal.jsx
-mobile/MobileCategoryPicker.jsx
+mobile/MobileSheet.jsx
 pages/Ledger.jsx
 pages/QuickenImport.jsx
 pages/TransActual.jsx

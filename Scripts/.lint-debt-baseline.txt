@@ -1,2 +1,2 @@
-34 react-hooks/set-state-in-effect
+33 react-hooks/set-state-in-effect
 21 react-refresh/only-export-components

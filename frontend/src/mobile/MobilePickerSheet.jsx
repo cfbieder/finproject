@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import { Check, X } from "lucide-react";
+import { Check } from "lucide-react";
+import MobileSheet from "./MobileSheet.jsx";
 
 /**
  * Full-screen searchable picker for a phone.
@@ -48,25 +49,7 @@ export default function MobilePickerSheet({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open]);
 
-  // Lock body scroll while the sheet is open
-  useEffect(() => {
-    if (!open) return;
-    const prev = document.body.style.overflow;
-    document.body.style.overflow = "hidden";
-    return () => {
-      document.body.style.overflow = prev;
-    };
-  }, [open]);
-
-  // Close on Escape (helpful for desktop testing)
-  useEffect(() => {
-    if (!open) return;
-    const onKey = (e) => {
-      if (e.key === "Escape") onClose?.();
-    };
-    window.addEventListener("keydown", onKey);
-    return () => window.removeEventListener("keydown", onKey);
-  }, [open, onClose]);
+  // Scroll lock and Escape live in MobileSheet.
 
   const filtered = useMemo(() => {
     const q = search.trim().toLowerCase();
@@ -138,18 +121,32 @@ export default function MobilePickerSheet({
   };
 
   return (
-    <div className="m-picker" role="dialog" aria-modal="true" aria-label={title}>
-      <div className="m-picker__head">
-        <button
-          type="button"
-          className="m-picker__close"
-          onClick={onClose}
-          aria-label="Close"
-        >
-          <X size={22} />
-        </button>
-        <span className="m-picker__title">{title}</span>
-      </div>
+    <MobileSheet
+      open={open}
+      title={title}
+      onClose={onClose}
+      footer={
+        multi ? (
+          <>
+            <button
+              type="button"
+              className="m-btn"
+              onClick={() => setChecked(new Set())}
+              disabled={checked.size === 0}
+            >
+              Clear
+            </button>
+            <button
+              type="button"
+              className="m-btn m-btn--primary"
+              onClick={() => onApply?.([...checked])}
+            >
+              {checked.size > 0 ? `Apply (${checked.size})` : "Apply"}
+            </button>
+          </>
+        ) : null
+      }
+    >
       <div className="m-picker__search-wrap">
         <input
           ref={inputRef}
@@ -193,26 +190,6 @@ export default function MobilePickerSheet({
           </div>
         ))}
       </div>
-
-      {multi && (
-        <div className="m-sheet__footer">
-          <button
-            type="button"
-            className="m-btn"
-            onClick={() => setChecked(new Set())}
-            disabled={checked.size === 0}
-          >
-            Clear
-          </button>
-          <button
-            type="button"
-            className="m-btn m-btn--primary"
-            onClick={() => onApply?.([...checked])}
-          >
-            {checked.size > 0 ? `Apply (${checked.size})` : "Apply"}
-          </button>
-        </div>
-      )}
-    </div>
+    </MobileSheet>
   );
 }

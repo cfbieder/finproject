@@ -9,6 +9,7 @@ import {
   LineChart,
   BookOpen,
   RefreshCw,
+  Receipt,
   Scale,
   Loader2,
 } from "lucide-react";
@@ -16,6 +17,7 @@ import { useOverview, formatOverviewKpi } from "../hooks/useOverview.js";
 import { setForceDesktop, isCoarsePointer } from "./useIsMobile";
 
 const CARDS = [
+  { to: "/m/transactions", label: "Transactions", icon: Receipt },
   { to: "/m/balance", label: "Balance Summary", icon: Wallet },
   { to: "/m/balance-trends", label: "Balance Trends", icon: LineChart },
   { to: "/m/ledger", label: "Ledger", icon: BookOpen },
