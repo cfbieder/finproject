@@ -1,4 +1,4 @@
-# CR067 — Forecast Multi-Compare: one base against several of its variants, as trajectory lines — 📘 PLANNED (scoped, not built)
+# CR067 — Forecast Multi-Compare: one base against several of its variants, as trajectory lines — 🟡 IN-PROGRESS (P1 + P2 built and verified on dev; P3 deferred)
 
 One base scenario and any of its variants overlaid on a single trajectory chart — the base bold, each
 variant in its own hue. The chart [CR040](cr-040-forecast-scenario-compare.md) already draws, freed
@@ -16,9 +16,9 @@ feature that motivated it.
 
 | | scope | gate |
 |---|---|---|
-| **P1** | Extract `FCTrajectoryChart` from `FCCompareCharts`; `/forecast-compare` renders it with **behaviour unchanged** — §5.1 | Render test written **before** the extraction and passing after (§8). Its own release tag. **One atomic commit** (§8). |
-| **P2** | The Multi-Compare page, the loader, the palette — §5.2 | Parity against Compare's `A` series on all five metrics; the different-`PeriodStart` unit test. |
-| **P3** | The last-generated badge + its endpoint — §5.3 | **Deferred, and may not be worth building** — the prod evidence is against it (§5.3). |
+| **P1** ✅ | Extract `FCTrajectoryChart` from `FCCompareCharts`; `/forecast-compare` renders it with **behaviour unchanged** — §5.1 | **Built** (`bf07214`). Render test written before the extraction, passing 6/6 against the shipped component and unchanged after. One atomic commit. |
+| **P2** ✅ | The Multi-Compare page, the loader, the palette — §5.2 | **Built** (`1f6d79a`), verified on dev against real data. Parity holds on all five metrics, both at the data layer and as identical y-domains in the browser. |
+| **P3** | The last-generated badge + its endpoint — §5.3 | **Deferred, and may not be worth building** — the prod evidence is against it (§5.3). Its one load-bearing case shipped inside P2 without an endpoint. |
 
 ## 1. Problem
 
@@ -281,3 +281,88 @@ import but not a silently different render.
   `check-button-css.sh` fails on any new `*-btn`/`*-button` class definition, so reuse
   `FCCompareCharts.css`'s element selectors under `.fc-compare-metric-toggle` rather than inventing
   `.fc-multi-*-btn`.
+
+---
+
+## 9. As built — P1 (`bf07214`, 2026-08-03)
+
+**Files:** `features/Forecast/FCTrajectoryChart.jsx` (new) · `FCCompareCharts.jsx` (rewired) ·
+`utils/fcSeriesPalette.js`, `utils/fcTrajectoryMetrics.js` (new) ·
+`__tests__/fcTrajectoryChart.parity.test.jsx`, `utils/__tests__/fcSeriesPalette.test.js` (new).
+
+**The gate was built before the change, and that mattered.** The plan said "Compare's existing
+tests must pass unmodified"; there were none on either Compare component. The parity test was
+therefore written against the **shipped** `FCCompareCharts`, passed 6/6 there, and passes unchanged
+after the extraction — five metric toggles, two lines in the A/B colours at weight 2, both legend
+names, the light→dark palette swap, and the delta bar chart still below. It renders through
+recharts with `ResponsiveContainer` mocked to a fixed size, because jsdom reports 0×0 and the chart
+would otherwise render nothing at all and assert nothing.
+
+**Two deliberate changes to Compare, both proved invisible by that test:**
+
+- **Synthetic `dataKey`s.** `s0…sN` with the display name on `<Line name={…}>`. recharts resolves a
+  string `dataKey` as a **nested path**, so a scenario named `SP - Prop.2` resolves to `undefined`
+  — a missing line with no error — and one named `year` clobbers the x axis. Two lines got away
+  with it; seven would not.
+- **The palette moved to a `.js` module, values verbatim.** Structural, not tidying:
+  `check-inline-hex.sh` scans `*.jsx` only, so this is what lets P2 add a seven-hue × two-theme set
+  without re-baselining, and it makes the values unit-testable — which is now where they are pinned
+  (the render test asserts *wiring* against the module, the module test asserts the *values*).
+
+`METRICS` sits in its own `.js` module rather than beside the component: a second export from a
+`.jsx` file trips `react-refresh/only-export-components`, which is a ratchet.
+
+## 10. As built — P2 (`1f6d79a`, 2026-08-03)
+
+**Files:** `pages/FCMultiCompare.jsx` + `.css` (new) · `hooks/useScenarioSeries.js` (new) ·
+`utils/fcMultiCompareUtils.js`, `utils/fcBalanceAggregate.js` (new) · `utils/fcSeriesPalette.js`
+(+ the categorical set) · `config/routes.jsx` · two new test files.
+
+**The alignment trap was real and is tested as such.** `alignSeries` keys by year over the union of
+every selected scenario's years; the test that guards it runs A over 2027–2029 against B over
+2028–2030 and asserts B's first value lands on **2028**, not on 2027. On today's data that test is
+the only thing that can fail — every scenario shares a `PeriodStart`, so a positional implementation
+would pass the browser check, the parity check and the eye.
+
+**The `netCashFlow` double-definition was worth naming.** `fcMultiCompareParity.test.js` asserts,
+for all five metrics, that `metricValues(matrix, k)` is identical to `compareMatrices(...).totals[k].a`
+— the expression Compare's chart actually reads — and separately that the charted row **is**
+`cash.get("Net Cash Flow")` and **is not** `matrix.netCashFlow`.
+
+**Loading** is `useQueries` per Decision 9. The balance report is a separate query keyed
+`["balanceReport", "<PeriodStart−2>-12-31"]`, which is both the dedupe (five scenarios sharing a
+`PeriodStart` make one request) and a cache share with `useReports`/`useOverview`, which ask for the
+same report under the same key. Its roll-up moved out of `useBaseYearBalanceSheet` into
+`utils/fcBalanceAggregate.js` — verbatim — so the two readers cannot drift.
+
+**The palette was validated, not chosen.** `scripts/validate_palette.js` against **Fin's own**
+surfaces (`#FFFFFF` light, `#1C1F22` dark), not the reference ones:
+
+| | worst adjacent CVD ΔE | worst adjacent normal-vision ΔE | contrast |
+|---|---|---|---|
+| light | 9.1 (protan) | 19.6 | **WARN** — aqua/yellow/magenta below 3:1 |
+| dark | 8.4 (protan) | 19.3 | all ≥ 3:1 |
+
+Both clear the ≥8 CVD target and the ≥15 normal-vision floor. The light WARN triggers the relief
+rule, discharged in the UI: every variant is listed with its **swatch and its name**, so identity
+never rests on a hue read against the surface. Colour follows the entity — a variant's slot is its
+position in the base's own variant list, so clearing one checkbox does not repaint the others
+(tested). A seventh variant is **refused** rather than recycling a hue onto a second scenario.
+
+**Selection state is derived, not effect-written.** Restoring from `localStorage` through a
+`useEffect` + `setState` added two `react-hooks/set-state-in-effect` violations, which is a ratchet
+that may only shrink. It now initialises from storage and *derives* what is still valid, which is
+also how a renamed or deleted scenario costs a checkbox rather than the page.
+
+**Verified on dev (`:3105`) against real data,** not a fixture: `2026 Base` + its three dev variants
+(dev's `Base_Buy Business` is a **second root** — `parent_scenario_id` NULL — so it correctly does
+*not* appear under `2026 Base`; prod's four-variant case follows after deploy). Four lines, base at
+weight 3 in slot 0, correct hues in light and dark, legend names right, selection surviving a
+reload. **The parity gate in the browser:** with only `2026 Base` plotted, Multi-Compare and Compare
+produce **identical y-axis domains on all five metrics** — `$0 | $3.5M | $7.0M | $10.5M | $14.0M`
+for Net Assets, and so on down.
+
+**Gates:** 364 frontend tests (333 → 364, +31 across P1 and P2), lint 0 errors, all six ratchets
+non-increasing, production build clean.
+
+**Not built:** P3 (§5.3), for the reason recorded there.

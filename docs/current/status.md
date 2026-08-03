@@ -15,6 +15,21 @@ P0/P1/P3/P6/P7/P8/P9/P11/P12/P13 shipped; **P2 decided 2026-08-02 (keep minting 
 P4/P5/P10 designed. Otherwise: owner-found defects, their follow-ups, and a long thread of
 brokerage-history data work. Detail lives in the CR file linked from each line.
 
+- **[CR067](../cr/cr-067-forecast-multi-compare.md) — the fan of variants, on one chart.**
+  Owner-requested. `/forecast-multi-compare`: a base scenario and up to six of its variants as
+  trajectory lines, base bold, same five metrics as Compare, *nothing else* — no delta grid, no
+  commentary. **P1 + P2 built and verified on dev; not released, not deployed.** Cheap because
+  `buildScenarioMatrix` was already pure and single-scenario; the pairwise layer is simply not
+  called. Two things carried the risk. **P1 modified CR040's shipped Compare page** to extract the
+  shared chart — and its gate had to be *built first*, because neither Compare component had a
+  single test: the parity render test was written against the shipped component, passed there, and
+  passes unchanged after. **The alignment is by year, not by index** — each matrix trims to its own
+  `PeriodStart`, so a positional plot silently shifts scenarios against each other; it would pass
+  every check today (all five share a `PeriodStart`) and break the moment
+  [CR064 P2](../cr/cr-064-forecast-annual-close-and-assumptions.md) ships. Palette validated against
+  Fin's own surfaces, not the reference ones. *Also found:* **CR064 P2's yearly copy drops lineage**
+  — `copyScenario` inserts without `parent_scenario_id`, which is why dev's `Base_Buy Business` is a
+  second root, and unless the copy carries it, next January's `2027 Base` arrives with zero variants.
 - **[CR066](../cr/cr-066-fc-line-mapping-completeness.md) — what the forecast is not looking at.**
   The 2025 `Expense` stack totals **487,897** against a header row of **566,586**: the header reads the
   ledger's COA total, every child is an FC line, and a leaf mapped to no line is counted by one and
@@ -116,6 +131,9 @@ Canonical dates/versions: **[CR index](../cr/README.md)**. Per-release detail:
 
 ## Next
 **Next up (owner-requested, 2026-08-03):**
+- [CR067](../cr/cr-067-forecast-multi-compare.md) — **built on dev, awaiting the owner's look and a
+  release decision.** Nothing is deployed. When it ships, P1 (the Compare chart extraction) wants its
+  own tag ahead of P2, so a regression on `/forecast-compare` reverts without taking the new page.
 - [CR066](../cr/cr-066-fc-line-mapping-completeness.md) **P0** — decide an FC line for each of the twelve
   unmapped categories, or record it as deliberately excluded. Check `Rental - Spain` against a
   generated scenario's SP income **first** — mapping it may double-count. Then P1, so the next
