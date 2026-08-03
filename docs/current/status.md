@@ -15,6 +15,27 @@ P0/P1/P3/P6/P7/P8/P9/P11/P12/P13 shipped; **P2 decided 2026-08-02 (keep minting 
 P4/P5/P10 designed. Otherwise: owner-found defects, their follow-ups, and a long thread of
 brokerage-history data work. Detail lives in the CR file linked from each line.
 
+- **[CR068](../cr/cr-068-mobile-actuals-search.md) — the Actuals search a phone did not have, and a
+  totals tile that was adding currencies together.** Owner-requested. **P1 + P2 built and verified
+  on dev; not released, not deployed.** There was no mobile Actuals page *at all*: `/trans-actual`
+  had no entry in `DESKTOP_TO_MOBILE`, so a phone opening it was silently dropped on `/m` home.
+  `/m/transactions` is a search box over three chips — period · accounts · categories — each opening
+  a full-screen sheet. **No backend work was needed for the page itself:** the endpoint already took
+  the filters, and holding an `ACTUAL_CONFIG`-shaped filter object reuses `useTransactions` verbatim
+  so the two Actuals pages cannot drift on what a period means. The search box hits the **server**,
+  debounced — the desktop box filters only the *loaded* rows, which at a phone page size would report
+  "no results" for transactions that exist. **The screenshot that started it was showing a wrong
+  number:** `PLN (453.64)` + `EUR (116.23)` = the `EXPENSES (BASE)` tile's `(569.87)`, a mixed-currency
+  sum labelled "base" against a true 254.27 — [CR064 P8](../cr/cr-064-forecast-annual-close-and-assumptions.md)'s
+  class on a different page, invisible unless two currencies are in range. On real July dev data it is
+  **(68,064.39) against a true (46,321.61)** — 21,742.78 overstated in one month. `BaseAmount` was in
+  the response all along, unread. Fixed once and shared, so the new page cannot compute "base" a second
+  way. **Two more defects fell out of the same function:** `/budget/actual-entries` was *sent*
+  `description`/`valueFrom`/`valueTo`/`currency` and read **none** of them (type a search term, the rows
+  narrow and the money does not), and its `LIMIT` truncated **silently**. Also: `Description1` read a
+  column that does not exist, so the Budget-vs-Actual popup showed an em-dash for **every** row.
+  *The ratchets earned their keep* — rather than take the bespoke-dialog baseline 14 → 15, `MobileSheet`
+  became the shell's one dialog and both sheets render through it.
 - ⚠️ **CR067 reached prod inside another thread's v3.11.16 deploy — the FOURTH instance of this
   class** (2026-08-03 02:11). `deploy-to-production.sh` builds the frontend from the shared working
   tree: P1 was committed and **P2's files were still uncommitted** when that deploy ran, so the
@@ -136,7 +157,7 @@ brokerage-history data work. Detail lives in the CR file linked from each line.
 - **Dev and prod are the same host** (`192.168.1.87` / Tailscale `100.94.46.62`). Prod `docker-compose.yml` (project `psproject`, :3005, DB :5433, volume `fin_postgres_data`); dev `docker-compose.dev.yml` (:3105/:5434); v4 `docker-compose.v4.yml` (`finv4`, :3205/:5435, flags ON, isolated volume). Prod frontend: `https://fin.tail413695.ts.net`.
 - `bank-feed/` microservice (:3007, separate repo) feeds 28 accounts; ocr-llm LLM gateway at `100.66.213.40:8080` (AI Review).
 - Deploy: `./Scripts/deploy-to-production.sh` (DB backup first). Migrations: manual `psql -f`, registry in [migrations.md](migrations.md); runner shipped in CR043 P1.1 (`npm run migrate`).
-- **Gates:** 779 backend / 333 frontend / 8 e2e tests; lint **blocking** (0 errors), plus six ratchets that may only shrink (lint-debt, api-envelope, buttons, modals, hex, tokens).
+- **Gates:** 788 backend / 396 frontend / 8 e2e tests; lint **blocking** (0 errors), plus six ratchets that may only shrink (lint-debt, api-envelope, buttons, modals, hex, tokens).
 
 ## Recently shipped
 Canonical dates/versions: **[CR index](../cr/README.md)**. Per-release detail:
@@ -146,9 +167,10 @@ Canonical dates/versions: **[CR index](../cr/README.md)**. Per-release detail:
 
 ## Next
 **Next up (owner-requested, 2026-08-03):**
-- [CR067](../cr/cr-067-forecast-multi-compare.md) — **built on dev, awaiting the owner's look and a
-  release decision.** Nothing is deployed. When it ships, P1 (the Compare chart extraction) wants its
-  own tag ahead of P2, so a regression on `/forecast-compare` reverts without taking the new page.
+- [CR068](../cr/cr-068-mobile-actuals-search.md) — **built on dev, awaiting the owner's look on an
+  actual phone and a release decision.** Nothing is deployed. Note this release is **not**
+  frontend-only: it changes `server/src/services/budget.js` and the shipped `/trans-actual` tiles, so
+  the totals fix lands for desktop at the same time. P3 (row actions) is deferred by decision.
 - [CR066](../cr/cr-066-fc-line-mapping-completeness.md) **P0** — decide an FC line for each of the twelve
   unmapped categories, or record it as deliberately excluded. Check `Rental - Spain` against a
   generated scenario's SP income **first** — mapping it may double-count. Then P1, so the next
