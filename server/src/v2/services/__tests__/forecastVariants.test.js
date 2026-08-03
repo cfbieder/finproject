@@ -718,3 +718,40 @@ dbDescribe('forecastVariants (DB)', () => {
     expect(Number(after.income_amount)).not.toBe(77777);
   });
 });
+
+/**
+ * CR064 P11 — the badge payload must carry the id the revert is addressed by.
+ *
+ * Reverting an override is `DELETE /scenarios/:id/overrides/module/:baseEntityId`, keyed to
+ * the BASE row. The Modules page could show that a row was overridden but had no way to undo
+ * it, because `Inheritance` reported only the status and the field names.
+ */
+describe('CR064 — rowInheritance carries the base id', () => {
+  const { rowInheritance } = require('../forecastVariants');
+
+  const map = new Map([[87, { status: 'overridden', fields: ['income_amount', 'growth_rate'] }]]);
+
+  test('an overridden row reports the base id the revert needs', () => {
+    expect(rowInheritance(map, { id: 435, origin_base_id: 87 })).toEqual({
+      status: 'overridden',
+      fields: ['income_amount', 'growth_rate'],
+      baseId: 87,
+    });
+  });
+
+  test('an inherited row carries it too — nothing to revert, but the id is real', () => {
+    expect(rowInheritance(map, { id: 436, origin_base_id: 88 })).toEqual({
+      status: 'inherited', fields: [], baseId: 88,
+    });
+  });
+
+  test('a variant-LOCAL row has no base to reset to', () => {
+    expect(rowInheritance(map, { id: 437, origin_base_id: null })).toEqual({
+      status: 'local', fields: [], baseId: null,
+    });
+  });
+
+  test('a plain scenario still reports nothing at all', () => {
+    expect(rowInheritance(null, { id: 1, origin_base_id: null })).toBeNull();
+  });
+});

@@ -26,8 +26,9 @@ CR062 (the Loan form this CR declines to generalise)
 | **P8** | §8 — the base year summed mixed currencies, and it seeds the cash sweep. | Changes existing numbers; its own release. |
 | **P9** | §9 — the amount's anchor year, labelled from the wrong place. | A defect in P8's own labelling; ships immediately. |
 | **P10** | §9.2 — the base year comes from the budget, the module holds the first forecast year. | **Designed, not built.** Needs a migration and a regenerate. |
-| **P4** | §10 — plan vs actual for the live year. | **Designed here, not built.** Needs P2 (a stale anchor makes every variance meaningless). |
-| **P5** | §11 — sensitivity runs on the CR053 harness. | **Designed here, not built.** Lowest priority; nothing is wrong without it. |
+| **P11** | §10 — reset an overridden module in a variant back to its base. | Frontend + one field on an existing payload; the endpoint has shipped since CR050. |
+| **P4** | §11 — plan vs actual for the live year. | **Designed here, not built.** Needs P2 (a stale anchor makes every variance meaningless). |
+| **P5** | §12 — sensitivity runs on the CR053 harness. | **Designed here, not built.** Lowest priority; nothing is wrong without it. |
 
 ---
 
@@ -622,7 +623,37 @@ Costs, stated plainly: every stored amount needs migrating (× the base-year gro
 it silently shifts a year; the FC-line allocation hint changes meaning; and prod needs a
 regenerate. It is a proper phase with a migration, not a relabel.
 
-## 10. P4 — plan vs actual (designed, not built)
+## 10. P11 — reset an overridden module back to its base
+
+A variant inherits every module unless the row is overridden, and the Modules page has said so
+since CR050 (`INHERITED` · `OVERRIDDEN n` · `LOCAL`). What it could not do is **undo** one: the
+only revert in the UI was the per-field control on the Scenarios page, so a module pinned by
+accident here had to be un-pinned somewhere else — if you knew that panel existed.
+
+The endpoint was never missing. `DELETE /scenarios/:id/overrides/:entityType/:baseEntityId`
+has shipped since CR050, and with no `?field` it clears **every** field of the override and
+re-syncs the variant **in one transaction** (`clearOverride` → `syncVariant(force)`), so the
+row comes back holding exactly what the base holds. Two things were missing:
+
+1. **The id.** A revert is addressed by the **base** row's id, not the variant's, and
+   `rowInheritance` returned only `{ status, fields }`. It now carries `baseId`, so the page
+   that renders the badge can also act on it.
+2. **A way to press it.** A **Reset to Base** action in the Modules toolbar, which appears
+   *only* when the selection is a variant row that actually carries an override — on a base
+   scenario, on an inherited row, and on a variant-local row there is nothing to revert to, so
+   it is not rendered rather than rendered disabled.
+
+It confirms first, because it is destructive in one direction: the variant's own values for
+that module are discarded. The confirm **names the fields that will go**, taken from the same
+`Inheritance` payload the badge renders, so the number shown is the number that goes — the
+CR062 retype-confirm pattern, reusing the same shared component rather than growing a fifth
+bespoke dialog. It also says that a **regenerate** is needed before the forecast reflects it.
+
+Scope note: modules only. `incexp` overrides use the same endpoint and would work the same
+way, but the Expenses page is not this CR's subject and an untested second call site is not
+worth shipping blind.
+
+## 11. P4 — plan vs actual (designed, not built)
 
 `FCReviewTable` already overlays a `(Budget)` and an `(Actual)` column for the base and
 last-actual years, so the plumbing for "actuals next to the plan" exists. What does not exist is
@@ -636,7 +667,7 @@ shows up first as an implausible variance.
 Gated on P2 because a variance computed against a 19-month-old anchor measures the anchor, not the
 plan.
 
-## 11. P5 — sensitivity runs (designed, not built)
+## 12. P5 — sensitivity runs (designed, not built)
 
 CR048 ratified "test equity growth in a scenario copy" and "FX stress folds into Downside" — i.e.
 hand-copy a scenario per question. CR053 already built the expensive machinery: a standalone
@@ -648,7 +679,7 @@ Reuse, not new machinery — but nothing is *wrong* without it, which is why it 
 
 ---
 
-## 12. Out of scope
+## 13. Out of scope
 
 - **Monte Carlo / stochastic returns.** Converts a model the owner can explain line by line into
   one nobody can. CR044 settled that this stays a personal tool.
@@ -657,7 +688,7 @@ Reuse, not new machinery — but nothing is *wrong* without it, which is why it 
   the key that rots; restructuring four documents that the engine, the copy path, the variant sync
   and three UI pages all read is a separate CR and buys nothing this one needs.
 
-## 13. Status
+## 14. Status
 
 - **P0** — pending.
 - **P1** — pending (migration 052).
@@ -667,4 +698,5 @@ Reuse, not new machinery — but nothing is *wrong* without it, which is why it 
 - **P7** — built, no migration.
 - **P8** — built, no migration, **live as v3.11.10**. The base-year column is corrected on read; the stored forecast entries still carry the old opening cash. **Regenerate deferred** until §8.6's UB question is answered, so the plan is rebuilt once on a confirmed number.
 - **P9** — built, no migration.
+- **P11** — built, no migration.
 - **P10 / P4 / P5** — designed here, not scheduled.

@@ -926,11 +926,21 @@ async function inheritanceMap(variantId, entityType, client = db) {
   return map;
 }
 
-/** Inherited · Overridden · Local for one materialized row. Null on a non-variant scenario. */
+/**
+ * Inherited · Overridden · Local for one materialized row. Null on a non-variant scenario.
+ *
+ * CR064 P11 — `baseId` rides along because reverting is addressed by the BASE row's id, not
+ * the variant's: `DELETE /scenarios/:id/overrides/module/:baseEntityId`. Without it the
+ * Modules page can show that a row is overridden but cannot offer to undo it, which is the
+ * state the owner found it in.
+ */
 function rowInheritance(map, row) {
   if (!map) return null;
-  if (row.origin_base_id == null) return { status: 'local', fields: [] };
-  return map.get(row.origin_base_id) || { status: 'inherited', fields: [] };
+  if (row.origin_base_id == null) return { status: 'local', fields: [], baseId: null };
+  const found = map.get(row.origin_base_id);
+  return found
+    ? { ...found, baseId: row.origin_base_id }
+    : { status: 'inherited', fields: [], baseId: row.origin_base_id };
 }
 
 // ---------------------------------------------------------------------------

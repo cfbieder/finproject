@@ -444,6 +444,49 @@ export default function FCModuleManage() {
   };
 
   /**
+   * CR064 P11 — revert an OVERRIDDEN row in a variant back to its base.
+   *
+   * A variant inherits every module unless the row is overridden, and until now the only
+   * way to undo an override was the per-field revert on the Scenarios page — so a module
+   * pinned by accident on this page had to be un-pinned somewhere else, if you knew the
+   * panel existed. The endpoint has been there since CR050; nothing surfaced it here.
+   *
+   * Addressed by the BASE row's id (`Inheritance.baseId`), never the variant's, and the
+   * server clears every field of the override and re-syncs the variant in one transaction —
+   * so the row comes back holding exactly what the base holds.
+   */
+  const [resetPrompt, setResetPrompt] = useState(null);
+  const [resetSaving, setResetSaving] = useState(false);
+  const [resetError, setResetError] = useState("");
+
+  const resetInfo = (() => {
+    const inh = selectedModule?.Inheritance;
+    if (!inh || inh.status !== "overridden" || !inh.baseId) return null;
+    const scenarioId = assumptions?.scenarios?.find(
+      (sc) => sc.Name === selectedScenario
+    )?.id;
+    return scenarioId ? { scenarioId, baseId: inh.baseId, fields: inh.fields || [] } : null;
+  })();
+
+  const handleResetToBase = async () => {
+    if (!resetInfo) return;
+    setResetSaving(true);
+    setResetError("");
+    try {
+      await Rest.fetchJson(
+        `/api/v2/forecast/scenarios/${resetInfo.scenarioId}/overrides/module/${resetInfo.baseId}`,
+        { method: "DELETE" }
+      );
+      setResetPrompt(null);
+      reloadModules();
+    } catch (err) {
+      setResetError(err.message || "Failed to reset this module to the base scenario.");
+    } finally {
+      setResetSaving(false);
+    }
+  };
+
+  /**
    * Opens the delete confirmation modal for the selected module.
    */
   const openDeleteModal = () => {
@@ -574,6 +617,8 @@ export default function FCModuleManage() {
           onDeleteClick={openDeleteModal}
           onUnmatchedClick={openUnmatchedModal}
           onSeedClick={() => setShowAddFromActualsModal(true)}
+          onResetToBaseClick={() => { setResetError(""); setResetPrompt(resetInfo); }}
+          resetDisabled={!resetInfo}
           scenarioSelectRef={scenarioSelectRef}
           selectedScenario={selectedScenario}
           selectedScenarioDetails={selectedScenarioDetails}
@@ -620,6 +665,33 @@ export default function FCModuleManage() {
             selectedModule?.Name || selectedModule?.Account || "this module"
           }
           context={selectedScenario ? `Scenario: ${selectedScenario}` : ""}
+        />
+        {/*
+          CR064 P11 — the reset-to-base confirm. Destructive in one direction only: the
+          variant's own values for this module are discarded and the base's flow back in.
+          It names the fields that will go, from the same Inheritance payload the badge
+          renders, so the number shown is the number that goes.
+        */}
+        <FCExpConfirmDeleteModal
+          isOpen={Boolean(resetPrompt)}
+          selectedEntry={selectedModule}
+          error={resetError}
+          isSaving={resetSaving}
+          onClose={() => { setResetPrompt(null); setResetError(""); }}
+          onConfirm={handleResetToBase}
+          title="Reset to the base scenario?"
+          itemLabel={selectedModule?.Name || selectedModule?.Account || "this module"}
+          confirmLabel="Reset to Base"
+          confirmBusyLabel="Resetting..."
+          context={
+            resetPrompt
+              ? `This variant's own values are discarded and ${
+                  resetPrompt.fields.length
+                    ? `the base's ${resetPrompt.fields.join(", ")}`
+                    : "the base's values"
+                } flow back in. Regenerate afterwards to see it in the forecast.`
+              : ""
+          }
         />
         {/*
           CR062 — the retype-to-Loan confirm. Nested INSIDE the open edit modal, which is

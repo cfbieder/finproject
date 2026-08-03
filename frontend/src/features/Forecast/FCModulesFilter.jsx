@@ -25,6 +25,8 @@ import "./FCModulesFilter.css";
  * @param {Function} props.onEditClick - Callback when Edit button is clicked
  * @param {Function} props.onDeleteClick - Callback when Delete button is clicked
  * @param {Function} props.onUnmatchedClick - Callback when Unmatched button is clicked
+ * @param {Function} props.onResetToBaseClick - CR064 P11: revert an overridden variant row
+ * @param {boolean} props.resetDisabled - True unless the selection is an OVERRIDDEN variant row
  * @param {boolean} props.unmatchedDisabled - Whether the unmatched button should be disabled
  * @param {boolean} props.newDisabled - Whether the New button should be disabled
  * @returns {JSX.Element} The filter and action controls section
@@ -42,6 +44,8 @@ export default function FCModulesFilter({
   onEditClick,
   onDeleteClick,
   onUnmatchedClick,
+  onResetToBaseClick,
+  resetDisabled = true,
   onSeedClick,
   unmatchedDisabled,
   seedDisabled,
@@ -121,6 +125,19 @@ export default function FCModulesFilter({
                       onClick: onDeleteClick,
                       danger: true,
                     },
+                    // CR064 P11 — only shown on a variant, and only when the selected
+                    // row actually carries an override. On a base scenario, on an
+                    // inherited row and on a variant-LOCAL row there is nothing to
+                    // revert TO, so the button is not rendered at all rather than
+                    // rendered disabled: a control that can never apply here is noise.
+                    ...(onResetToBaseClick && !resetDisabled
+                      ? [{
+                          label: "Reset to Base",
+                          icon: "↺",
+                          disabled: false,
+                          onClick: onResetToBaseClick,
+                        }]
+                      : []),
                     {
                       label: "Unmatched",
                       icon: "⚡",
