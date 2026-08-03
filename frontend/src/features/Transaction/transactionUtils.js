@@ -126,6 +126,55 @@ export const periodToFilterFields = (vals) => {
 };
 
 /**
+ * Totals for a set of actual-entry rows, split per currency AND in base.
+ *
+ * Shared by the desktop Actuals page and the mobile one (CR068) so "base"
+ * cannot mean two things. The split matters:
+ *
+ *   - `byCurrency` sums the LOCAL amount, one figure per currency. Correct —
+ *     each is a quantity of one currency.
+ *   - `income`/`expense`/`net` sum BASE amounts. Adding the per-currency
+ *     figures together instead produced "(453.64) PLN + (116.23) EUR =
+ *     (569.87) base", which is not a quantity of anything.
+ *
+ * Sign decides the bucket, matching the tiles: base amount > 0 is income.
+ *
+ * @param {Array} entries - rows from the totals endpoint
+ * @param {Object} config - transaction config supplying the accessors
+ * @returns {{byCurrency: Array<{currency: string, amount: number}>,
+ *            income: number, expense: number, net: number}}
+ */
+export const summarizeActualTotals = (entries, config) => {
+  const byCurrency = new Map();
+  let income = 0;
+  let expense = 0;
+
+  for (const entry of Array.isArray(entries) ? entries : []) {
+    const amount = config.getTotalsAmount(entry);
+    if (Number.isFinite(amount)) {
+      const currency = config.getTotalsCurrency(entry);
+      byCurrency.set(currency, (byCurrency.get(currency) || 0) + amount);
+    }
+
+    const base = config.getTotalsBaseAmount?.(entry);
+    if (Number.isFinite(base)) {
+      if (base > 0) income += base;
+      else expense += base;
+    }
+  }
+
+  return {
+    byCurrency: Array.from(byCurrency.entries()).map(([currency, amount]) => ({
+      currency,
+      amount,
+    })),
+    income,
+    expense,
+    net: income + expense,
+  };
+};
+
+/**
  * Extracts a sortable value from a transaction entry for a given field key.
  * @param {Object} entry - The transaction entry
  * @param {string} key - The field key to extract

@@ -21,6 +21,7 @@ import {
   isEntryInDateRange,
   normalizeStringOptions,
   periodToFilterFields,
+  summarizeActualTotals,
 } from "../features/Transaction/transactionUtils.js";
 import { useTransactions } from "../features/Transaction/hooks/useTransactions.js";
 import { useTransactionSelection } from "../features/Transaction/hooks/useTransactionSelection.js";
@@ -88,7 +89,13 @@ const formatSplitAmount = (value) => {
 export default function TransActual() {
   const { showSuccess, showError: showErrorToast } = useToast();
   const [filters, setFilters] = useState(() => ({ ...config.defaultFilters }));
-  const [filteredTotalsByCurrency, setFilteredTotalsByCurrency] = useState([]);
+  const [totals, setTotals] = useState({
+    byCurrency: [],
+    income: 0,
+    expense: 0,
+    net: 0,
+    truncated: false,
+  });
   const [showFilters, setShowFilters] = useState(false);
   const [searchText, setSearchText] = useState("");
 
@@ -244,21 +251,18 @@ export default function TransActual() {
         const path = `${config.totalsEndpoint}${query.toString() ? `?${query.toString()}` : ""}`;
         const payload = await Rest.fetchJson(path, { signal: controller.signal });
         const entries = config.parseTotalsEntries(payload);
-        const totals = new Map();
-        entries.forEach((entry) => {
-          const currency = config.getTotalsCurrency(entry);
-          const amount = config.getTotalsAmount(entry);
-          if (!Number.isFinite(amount)) return;
-          totals.set(currency, (totals.get(currency) || 0) + amount);
-        });
         if (isActive) {
-          setFilteredTotalsByCurrency(
-            Array.from(totals.entries()).map(([currency, amount]) => ({ currency, amount }))
-          );
+          setTotals({
+            ...summarizeActualTotals(entries, config),
+            // The endpoint hit its LIMIT, so these sums are a floor (CR068 P2).
+            truncated: payload?.truncated === true,
+          });
         }
       } catch (err) {
         if (err?.name === "AbortError") return;
-        if (isActive) setFilteredTotalsByCurrency([]);
+        if (isActive) {
+          setTotals({ byCurrency: [], income: 0, expense: 0, net: 0, truncated: false });
+        }
       }
     };
     loadTotals();
@@ -630,19 +634,19 @@ export default function TransActual() {
   }, [currencyOptions]);
 
   // ─── KPI computations ───
-  const kpis = useMemo(() => {
-    const result = { totalIncome: 0, totalExpenses: 0 };
-    for (const { amount } of filteredTotalsByCurrency) {
-      if (amount > 0) result.totalIncome += amount;
-      else result.totalExpenses += amount;
-    }
-    return {
-      ...result,
-      net: result.totalIncome + result.totalExpenses,
+  const kpis = useMemo(
+    () => ({
+      // Base-denominated, from BaseAmount — NOT the per-currency figures added
+      // together, which is what "(base)" used to show (CR068 P2).
+      totalIncome: totals.income,
+      totalExpenses: totals.expense,
+      net: totals.net,
       count: searchFilteredTransactions.length,
-      byCurrency: filteredTotalsByCurrency,
-    };
-  }, [filteredTotalsByCurrency, searchFilteredTransactions]);
+      byCurrency: totals.byCurrency,
+      truncated: totals.truncated,
+    }),
+    [totals, searchFilteredTransactions]
+  );
 
   // ────────────────────────────────────────────────────────────────
   // RENDER
@@ -690,6 +694,16 @@ export default function TransActual() {
           </>
         )}
       </div>
+
+      {/* A truncated total is a floor, not the figure — say so rather than
+          rendering a short number as if it were complete (CR068 P2). */}
+      {kpis.truncated && (
+        <p className="txv2-totals-warning">
+          <AlertTriangle size={13} />
+          Totals cover the first 2,000 transactions in range — narrow the period
+          or filters for a complete figure.
+        </p>
+      )}
 
       {/* ── Toolbar: Search + Filter Toggle + Export ── */}
       <div className="txv2-toolbar">

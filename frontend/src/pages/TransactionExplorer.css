@@ -44,6 +44,16 @@
   flex-wrap: wrap;
 }
 
+/* Totals hit the endpoint's row cap, so they are a floor (CR068 P2). */
+.txv2-totals-warning {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  margin: 0.5rem 0 0;
+  font-size: 0.78rem;
+  color: var(--warning-strong);
+}
+
 .txv2-kpi {
   display: flex;
   flex-direction: column;

@@ -241,6 +241,16 @@ export const ACTUAL_CONFIG = {
   getTotalsAmount(entry) {
     return Number(entry?.Amount);
   },
+  // CR068 P2. The per-currency tiles sum Amount, which is right — they are
+  // per-currency. The income/expense split used to sum those SAME local figures
+  // across currencies and label the result "(base)": with 453.64 PLN and 116.23
+  // EUR in range it showed 569.87, which is not a quantity of anything. The
+  // endpoint has always returned BaseAmount alongside; it was simply not read.
+  // Same defect class as CR064 P8 — a mixed-currency sum — and invisible in a
+  // single-currency period, which is why it survived.
+  getTotalsBaseAmount(entry) {
+    return Number(entry?.BaseAmount);
+  },
 
   // Messages
   editSuccessMessage: "Transactions updated successfully",
