@@ -1,19 +1,20 @@
 /**
  * FCCompareCharts (CR040) — visual A-vs-B comparison.
  *
- * Chart 1: overlaid lines of a selected headline metric for both scenarios.
- * Chart 2: diverging horizontal bars of cumulative P&L delta by FC Line.
+ * Chart 1: the shared `FCTrajectoryChart` with two series — A (baseline) green,
+ *          B (comparison) blue. Extracted in CR067 P1 so the Multi-Compare page renders the
+ *          same chart instead of a second copy of it; what this page DISPLAYS is unchanged,
+ *          which `__tests__/fcTrajectoryChart.parity.test.jsx` exists to prove.
+ * Chart 2: diverging horizontal bars of cumulative P&L delta by FC Line — blue = B higher,
+ *          red = B lower — which stays here, being pairwise by definition.
  *
- * Colors are validated pairs (dataviz six-checks, light + dark):
- *   A (baseline) green / B (comparison) blue; delta bars blue = B higher,
- *   red = B lower. Hex is picked at runtime by theme because SVG attributes
- *   can't resolve CSS variables.
+ * Colors are validated pairs (dataviz six-checks, light + dark) and now live in
+ * `utils/fcSeriesPalette.js`. Hex is picked at runtime by theme because SVG attributes
+ * can't resolve CSS variables.
  */
 import { useMemo, useState } from "react";
 import {
   ResponsiveContainer,
-  LineChart,
-  Line,
   BarChart,
   Bar,
   Cell,
@@ -21,61 +22,27 @@ import {
   YAxis,
   CartesianGrid,
   Tooltip,
-  Legend,
   ReferenceLine,
 } from "recharts";
 import useTheme from "../../hooks/useTheme.js";
 import { formatKpiValue } from "../../components/KpiCards.jsx";
-
-const PALETTE = {
-  light: {
-    a: "#3E8A3E",
-    b: "#4A72B0",
-    pos: "#4A72B0",
-    neg: "#C0504D",
-    grid: "#E8E6DF",
-    ink: "#4A5568",
-  },
-  dark: {
-    a: "#45A045",
-    b: "#3987E5",
-    pos: "#3987E5",
-    neg: "#E05252",
-    grid: "#33383E",
-    ink: "#AEB4BB",
-  },
-};
-
-const METRICS = [
-  { key: "netAssets", label: "Net Assets" },
-  { key: "totalAssets", label: "Total Assets" },
-  { key: "netCashFlow", label: "Net Cash Flow" },
-  { key: "income", label: "Income" },
-  { key: "expense", label: "Expenses" },
-];
-
-const tooltipStyle = {
-  background: "var(--surface-elevated)",
-  border: "1px solid var(--border)",
-  borderRadius: 8,
-  color: "var(--ink)",
-  fontSize: "0.78rem",
-};
+import FCTrajectoryChart from "./FCTrajectoryChart.jsx";
+import { chartChrome, compareABColors, tooltipStyle } from "./utils/fcSeriesPalette.js";
 
 export default function FCCompareCharts({ compare, nameA, nameB }) {
   const { theme } = useTheme();
-  const colors = PALETTE[theme === "dark" ? "dark" : "light"];
+  const chrome = chartChrome(theme);
+  const colors = compareABColors(theme);
   const [metric, setMetric] = useState("netAssets");
 
-  const lineData = useMemo(() => {
+  const series = useMemo(() => {
     if (!compare) return [];
     const row = compare.totals[metric];
-    return compare.years.map((year, i) => ({
-      year,
-      [nameA]: row.a[i],
-      [nameB]: row.b[i],
-    }));
-  }, [compare, metric, nameA, nameB]);
+    return [
+      { name: nameA, values: row.a, color: colors.a },
+      { name: nameB, values: row.b, color: colors.b },
+    ];
+  }, [compare, metric, nameA, nameB, colors]);
 
   const barData = useMemo(() => {
     if (!compare) return [];
@@ -96,66 +63,13 @@ export default function FCCompareCharts({ compare, nameA, nameB }) {
 
   return (
     <div className="fc-compare-charts">
-      <div className="fc-compare-chart-card">
-        <div className="fc-compare-chart-head">
-          <h3>Trajectory — A vs B</h3>
-          <div className="fc-compare-metric-toggle" role="tablist">
-            {METRICS.map((m) => (
-              <button
-                key={m.key}
-                role="tab"
-                aria-selected={metric === m.key}
-                className={metric === m.key ? "active" : ""}
-                onClick={() => setMetric(m.key)}
-              >
-                {m.label}
-              </button>
-            ))}
-          </div>
-        </div>
-        <ResponsiveContainer width="100%" height={280}>
-          <LineChart data={lineData} margin={{ top: 8, right: 16, bottom: 4, left: 8 }}>
-            <CartesianGrid stroke={colors.grid} strokeDasharray="2 4" vertical={false} />
-            <XAxis
-              dataKey="year"
-              tick={{ fill: colors.ink, fontSize: 11 }}
-              tickLine={false}
-              axisLine={{ stroke: colors.grid }}
-            />
-            <YAxis
-              tickFormatter={(v) => formatKpiValue(v)}
-              tick={{ fill: colors.ink, fontSize: 11 }}
-              tickLine={false}
-              axisLine={false}
-              width={64}
-            />
-            <Tooltip
-              contentStyle={tooltipStyle}
-              formatter={(v) => formatKpiValue(v)}
-              labelFormatter={(y) => `Year ${y}`}
-            />
-            <Legend wrapperStyle={{ fontSize: "0.78rem" }} />
-            <Line
-              type="monotone"
-              dataKey={nameA}
-              stroke={colors.a}
-              strokeWidth={2}
-              dot={false}
-              activeDot={{ r: 4 }}
-              connectNulls={false}
-            />
-            <Line
-              type="monotone"
-              dataKey={nameB}
-              stroke={colors.b}
-              strokeWidth={2}
-              dot={false}
-              activeDot={{ r: 4 }}
-              connectNulls={false}
-            />
-          </LineChart>
-        </ResponsiveContainer>
-      </div>
+      <FCTrajectoryChart
+        title="Trajectory — A vs B"
+        years={compare.years}
+        series={series}
+        metric={metric}
+        onMetricChange={setMetric}
+      />
 
       {barData.length > 0 && (
         <div className="fc-compare-chart-card">
@@ -168,19 +82,19 @@ export default function FCCompareCharts({ compare, nameA, nameB }) {
               layout="vertical"
               margin={{ top: 4, right: 24, bottom: 4, left: 8 }}
             >
-              <CartesianGrid stroke={colors.grid} strokeDasharray="2 4" horizontal={false} />
+              <CartesianGrid stroke={chrome.grid} strokeDasharray="2 4" horizontal={false} />
               <XAxis
                 type="number"
                 tickFormatter={(v) => formatKpiValue(v)}
-                tick={{ fill: colors.ink, fontSize: 11 }}
+                tick={{ fill: chrome.ink, fontSize: 11 }}
                 tickLine={false}
-                axisLine={{ stroke: colors.grid }}
+                axisLine={{ stroke: chrome.grid }}
               />
               <YAxis
                 type="category"
                 dataKey="label"
                 width={150}
-                tick={{ fill: colors.ink, fontSize: 11 }}
+                tick={{ fill: chrome.ink, fontSize: 11 }}
                 tickLine={false}
                 axisLine={false}
               />
@@ -188,7 +102,7 @@ export default function FCCompareCharts({ compare, nameA, nameB }) {
                 contentStyle={tooltipStyle}
                 formatter={(v) => [formatKpiValue(v), "Cumulative Δ"]}
               />
-              <ReferenceLine x={0} stroke={colors.ink} strokeWidth={1} />
+              <ReferenceLine x={0} stroke={chrome.ink} strokeWidth={1} />
               <Bar dataKey="value" radius={[0, 4, 4, 0]} maxBarSize={18}>
                 {barData.map((d) => (
                   <Cell
