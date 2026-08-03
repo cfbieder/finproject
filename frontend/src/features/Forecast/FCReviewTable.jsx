@@ -1,5 +1,6 @@
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { formatAmount } from "./utils/fcReviewUtils.js";
+import { resolveCashValue as resolveCashValueFor } from "./utils/fcCashValue.js";
 import FCReviewTableControls from "./FCReviewTableControls.jsx";
 
 /**
@@ -406,57 +407,20 @@ export default function FCReviewTable({
   onZoomIn,
   onZoomOut,
 }) {
-  // Resolves the display value for a cash P&L row, including base/actual year overlays
-  const resolveCashValue = (row, year) => {
-    let value = getCellValue(row, year, true);
-    const isBaseYear = baseYears?.has(Number(year));
-    const isLastActualYear = lastActualYears?.has(Number(year));
-
-    // LastActualYear P&L from actuals
-    if (isLastActualYear && value == null && baseActualTotalsByYear?.size > 0) {
-      const yearData = baseActualTotalsByYear.get(Number(year));
-      if (yearData) {
-        if (row.isNet || row.isCashFlow) {
-          value = yearData.net ?? null;
-        } else if (row.level === 1) {
-          value = yearData.level1.get(row.label) ?? null;
-        } else if (row.level === 2 && yearData.leafTotals && categoryToLineMap?.size > 0) {
-          let total = 0; let found = false;
-          for (const [catName, amt] of yearData.leafTotals.entries()) {
-            if (categoryToLineMap.get(catName) === row.label) { total += amt; found = true; }
-          }
-          if (found) value = total;
-        } else if (row.level === 2) {
-          value = yearData.level2.get(row.label) ?? null;
-        }
-      }
-    }
-
-    // BaseYear P&L from budget
-    const isBaseForBudget = isBaseYear && value == null && baseYearBudget && Object.keys(baseYearBudget).length > 0;
-    if (isBaseForBudget) {
-      if (row.isCashFlow) {
-        let total = 0;
-        for (const amt of Object.values(baseYearBudget)) total += amt;
-        if (total !== 0) value = total;
-      } else if (row.isNet) {
-        let plTotal = 0;
-        for (const amt of Object.values(baseYearBudget)) plTotal += amt;
-        const transfers = getCellValue({ label: "Transfers", level: 2 }, year, true) || 0;
-        const netTotal = plTotal + transfers;
-        if (netTotal !== 0) value = netTotal;
-      } else if (row.level === 2 && baseYearBudget[row.label] != null) {
-        value = baseYearBudget[row.label];
-      } else if (row.level === 1 && cashAccountMap?.size > 0) {
-        let total = 0; let found = false;
-        for (const [ln, mp] of cashAccountMap.entries()) {
-          if (mp.level1 === row.label && baseYearBudget[ln] != null) { total += baseYearBudget[ln]; found = true; }
-        }
-        if (found) value = total;
-      }
-    }
-    return value;
-  };
+  // Resolves the display value for a cash P&L row, including base/actual year overlays.
+  // The overlay itself lives in fcCashValue so the graph's stacked breakdown resolves a
+  // cell the same way this table does — it used to read getCellValue directly, which
+  // returns null for both pre-forecast years, and drew them as empty columns.
+  const resolveCashValue = (row, year) =>
+    resolveCashValueFor(row, year, {
+      getCellValue,
+      baseYears,
+      lastActualYears,
+      baseActualTotalsByYear,
+      categoryToLineMap,
+      baseYearBudget,
+      cashAccountMap,
+    });
 
   // Resolves the display value for a balance sheet row
   const resolveBalanceValue = (row, year, yearIndex) => {

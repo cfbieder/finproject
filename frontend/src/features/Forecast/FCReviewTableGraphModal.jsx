@@ -9,6 +9,7 @@ export default function FCReviewTableGraphModal({
   graphSeries,
   sortedYears,
   birthYear,
+  yearBasis,
   chartMode = "line",
   breakdownLabel,
   onPointDoubleClick,
@@ -23,6 +24,18 @@ export default function FCReviewTableGraphModal({
   // and the tooltip total have to name the row that was actually clicked.
   const stackLabel = breakdownLabel || "Net Assets";
   const yearsList = sortedYears || [];
+
+  // The two pre-forecast columns come from the ledger (actuals) and from budget_entries,
+  // not from the engine. They are named on the axis and drawn lighter so the chart cannot
+  // be read as one continuous series across three different bases.
+  const basisOf = (year) => yearBasis?.[year] ?? yearBasis?.[String(year)] ?? null;
+  const hasBasisYears = yearsList.some((year) => basisOf(year));
+  const yearLabel = (year) => {
+    const age = birthYear ? ` (${Number(year) - birthYear})` : "";
+    const basis = basisOf(year);
+    return `${year}${age}${basis ? ` · ${basis}` : ""}`;
+  };
+
   const seriesList = graphSeries || [];
   const chartWidth = 1600;
   const chartHeight = 700;
@@ -166,6 +179,13 @@ export default function FCReviewTableGraphModal({
                 </span>
               ))}
             </div>
+            {hasBasisYears && (
+              <p className="graph-modal-basis-note">
+                Lighter columns are not forecast output: <strong>Actual</strong> is the
+                ledger, <strong>Budget</strong> is the budget entries. Comparable in size,
+                but not the same basis as the years after them.
+              </p>
+            )}
             <div className="graph-modal-chart-container">
               <svg
                 width="100%"
@@ -209,7 +229,7 @@ export default function FCReviewTableGraphModal({
                           className="graph-x-axis-label"
                           transform={`rotate(-45, ${x}, ${labelY})`}
                         >
-                          {year}{birthYear ? ` (${Number(year) - birthYear})` : ""}
+                          {yearLabel(year)}
                         </text>
                       </g>
                     );
@@ -248,10 +268,11 @@ export default function FCReviewTableGraphModal({
                   />
                   {isBar ? (
                     /* ===== STACKED BAR CHART ===== */
-                    yearsList.map((_, yi) => {
+                    yearsList.map((barYear, yi) => {
                       const barWidth = xStep * 0.7;
                       const barX = scaleX(yi) - barWidth / 2;
                       const zeroY = scaleY(0);
+                      const barOpacity = basisOf(barYear) ? 0.5 : 0.85;
                       let posOffset = 0;
                       let negOffset = 0;
                       return (
@@ -280,7 +301,7 @@ export default function FCReviewTableGraphModal({
                                 width={barWidth}
                                 height={Math.max(h, 0)}
                                 fill={series.color}
-                                opacity={0.85}
+                                opacity={barOpacity}
                               />
                             );
                           })}
@@ -368,7 +389,7 @@ export default function FCReviewTableGraphModal({
                         }}
                         pointerEvents="none"
                       >
-                        {yearsList[mousePosition.yearIndex]}{birthYear ? ` (${Number(yearsList[mousePosition.yearIndex]) - birthYear})` : ""}
+                        {yearLabel(yearsList[mousePosition.yearIndex])}
                       </text>
                       {seriesList.map((series, sIdx) => (
                         <text
@@ -428,7 +449,7 @@ export default function FCReviewTableGraphModal({
                     }}
                   >
                     <div style={{ fontWeight: 700, marginBottom: "6px", fontSize: "14px" }}>
-                      {yearsList[yi]}{birthYear ? ` (${Number(yearsList[yi]) - birthYear})` : ""}
+                      {yearLabel(yearsList[yi])}
                     </div>
                     {nonZeroSeries.map((series) => (
                       <div key={series.id} style={{ display: "flex", justifyContent: "space-between", gap: "16px", lineHeight: "1.6" }}>
@@ -472,6 +493,8 @@ FCReviewTableGraphModal.propTypes = {
     PropTypes.oneOfType([PropTypes.string, PropTypes.number])
   ),
   birthYear: PropTypes.number,
+  // year → "Actual" | "Budget" for the pre-forecast columns
+  yearBasis: PropTypes.objectOf(PropTypes.string),
   chartMode: PropTypes.oneOf(["line", "bar"]),
   breakdownLabel: PropTypes.string,
   onPointDoubleClick: PropTypes.func,

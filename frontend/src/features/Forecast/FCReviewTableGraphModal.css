@@ -147,6 +147,14 @@
   box-shadow: var(--shadow-soft);
 }
 
+.graph-modal-basis-note {
+  margin: 0 0 0.5rem;
+  padding: 0 0.25rem;
+  font-size: 0.8rem;
+  line-height: 1.4;
+  color: var(--muted);
+}
+
 /* Chart container */
 .graph-modal-chart-container {
   flex: 1;

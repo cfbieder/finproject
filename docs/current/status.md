@@ -4,13 +4,36 @@
 > CR statuses live in the [CR index](../cr/README.md); the running version lives in `VERSION`.
 > Older headlines: [status log](../archive/status-log_2026-08-01.md).
 
-**Last updated:** 2026-08-02 · **Live version:** v3.11.10 (see `VERSION` / git tags)
+**Last updated:** 2026-08-03 · **Live version:** v3.11.14 (see `VERSION` / git tags)
 
 ## Current phase
-**[CR064](../cr/cr-064-forecast-annual-close-and-assumptions.md) is the live thread** — P0/P1/P3 shipped in
-**v3.11.3** (deployed 2026-08-02, migration **052** applied dev + prod); **P2 decided 2026-08-02 (keep minting a copy each year), designed but not built**;
-P4/P5 designed. Otherwise: owner-found defects, their follow-ups, and a long thread of
+**[CR066](../cr/cr-066-fc-line-mapping-completeness.md) is next up, at the owner's request** — twelve COA
+categories with real activity map to no FC line, so **−78,689 of expense and +31,474 of income sit
+outside the forecast** and no screen says so. P0 is a decision per row, not code.
+**[CR064](../cr/cr-064-forecast-annual-close-and-assumptions.md) remains the live engineering thread** —
+P0/P1/P3/P6/P7/P8/P9/P11 shipped; **P2 decided 2026-08-02 (keep minting a copy each year), designed but not built**;
+P4/P5/P10 designed. Otherwise: owner-found defects, their follow-ups, and a long thread of
 brokerage-history data work. Detail lives in the CR file linked from each line.
+
+- **[CR066](../cr/cr-066-fc-line-mapping-completeness.md) — what the forecast is not looking at.**
+  The 2025 `Expense` stack totals **487,897** against a header row of **566,586**: the header reads the
+  ledger's COA total, every child is an FC line, and a leaf mapped to no line is counted by one and
+  neither the other nor the chart. **Neither number is wrong and nothing regressed** — they had always
+  disagreed; nothing had put them side by side until v3.11.14 did. `Property One-Off` (−47,187) and a
+  five-row `Patrick - *` cluster (−36,500) are the bulk; `Tax Adjustment` is a **+8,078 credit inside
+  Expense**; `Rental - Spain` (+31,306) is probably *already* modelled via the SP modules, so mapping it
+  would **double-count** — and that ambiguity is the real defect: "unmapped" means both *modelled
+  elsewhere* and *not modelled at all*, indistinguishably.
+- **The forecast graphs now start at the actuals year (v3.11.14).** Owner-found from a screenshot. Two
+  paths fed the graph modal: the line chart resolved the pre-forecast columns through the table's own
+  overlay, the stacked breakdown read `getCellValue` — null for both years by design — so its bars were
+  zero and the all-zero filter dropped them. The overlay moved to `utils/fcCashValue.js` so both
+  resolve a cell the same way. **The balance half is guarded deliberately:** the ledger holds every
+  leaf while the engine writes many balance rows at level 2 and never at their leaves, so a naive
+  overlay would turn rows that sensibly fall back to a line chart into stacks filled in 2025 and empty
+  after (Bank Accounts: 24 segments, one column). It runs *after* the engine-data filter — 3 rows gain
+  a real 2025 column. Columns read `· Actual` / `· Budget` and draw lighter: three bases in one chart
+  otherwise look like one trend.
 
 - **[CR065](../cr/cr-065-neutralize-pair-identity.md) — a neutralize counter-leg is claimable exactly
   once.** Owner-found: Fidelity Cash Mgt showed −107,830.71 of drift and it "cannot just be MTM". It
@@ -56,7 +79,7 @@ brokerage-history data work. Detail lives in the CR file linked from each line.
 - **[CR050](../cr/cr-050-forecast-scenario-variants.md) — variants** are live and adopted; §10 (v3.11.0) made a variant read as one in all seven pickers. Owner has not yet run `adopt-variant` on "2026 Downside".
 - **A module carries TWO base-year anchors, and that is now the open design question** ([CR064 §9.1](../cr/cr-064-forecast-annual-close-and-assumptions.md)). Its **value** series starts at the module's own `base_date` (2025-12-31 on 18 of 21) and takes no growth until `PeriodStart`; its **income/expense amounts** anchor to `PeriodStart − 1` (2026). v3.11.12 fixed the label that read the wrong one of the two, but not the split itself. **P10** — base-year P&L from `budget_entries`, module amount = the first forecast year — is designed and unbuilt; the objection that killed it earlier (per-module base-year tax) is weak: **0 of 110 modules carry a tax override**.
 - **The forecast was rebuilt on the corrected opening cash (v3.11.11).** [CR064 P8](../cr/cr-064-forecast-annual-close-and-assumptions.md) fixed a base year summed in mixed currencies — `2026 Base` went **+144,395 → −254,728** — and that figure is the cash sweep's opening cash. The regenerate was held until the owner confirmed United Beverages' 500,000 is **PLN** (2026-08-02), which is how it was already stored, so no data was corrected. All five scenarios regenerated. *Residue left to the owner:* the 500,000 was meant for **2027** but sits in the **2026** field, so it projects 512,500 PLN next year; 487,805 would give exactly 500,000. The form now shows that derived figure, which is the point of the change.
-- **Recent releases:** v3.11.10 (CR064 P8 — the base year's currencies, and the sweep's opening cash) · v3.11.9 (CR064 P7 — the budget hint's currencies) · v3.11.8 ([CR064](../cr/cr-064-forecast-annual-close-and-assumptions.md) P6, migration 055) · v3.11.7 · v3.11.6 · v3.11.5 · v3.11.4 ([CR065](../cr/cr-065-neutralize-pair-identity.md), migrations 053/054) · v3.11.3 ([CR064](../cr/cr-064-forecast-annual-close-and-assumptions.md) P0/P1/P3 + the variant link above, migration 052) · v3.11.2 (the red CI) · v3.11.1 (the period filter) · v3.11.0 ([CR050 §10](../cr/cr-050-forecast-scenario-variants.md)) · v3.10.0 ([CR063](../cr/cr-063-coa-ordering.md), migration 049) · v3.8.0–v3.9.2 ([CR062](../cr/cr-062-forecast-loan-module.md) loans + equity, migrations 047/048).
+- **Recent releases:** v3.11.14 (the forecast graphs' actual + budget columns) · v3.11.13 (CR064 P11) · v3.11.12 (CR064 P9) · v3.11.11 (the forecast rebuilt on the corrected opening cash) · v3.11.10 (CR064 P8 — the base year's currencies, and the sweep's opening cash) · v3.11.9 (CR064 P7 — the budget hint's currencies) · v3.11.8 ([CR064](../cr/cr-064-forecast-annual-close-and-assumptions.md) P6, migration 055) · v3.11.7 · v3.11.6 · v3.11.5 · v3.11.4 ([CR065](../cr/cr-065-neutralize-pair-identity.md), migrations 053/054) · v3.11.3 ([CR064](../cr/cr-064-forecast-annual-close-and-assumptions.md) P0/P1/P3 + the variant link above, migration 052) · v3.11.2 (the red CI) · v3.11.1 (the period filter) · v3.11.0 ([CR050 §10](../cr/cr-050-forecast-scenario-variants.md)) · v3.10.0 ([CR063](../cr/cr-063-coa-ordering.md), migration 049) · v3.8.0–v3.9.2 ([CR062](../cr/cr-062-forecast-loan-module.md) loans + equity, migrations 047/048).
 
 ## Known issue
 - ⚠️ **"2026 Downside" has no sweep backup ranked** — *owner is redoing this scenario themselves (2026-07-13); **do not fix it**.* `Fidelity Stocks` carries no `cash_sweep_priority` there, so the engine reports **−$1.25M of shortfall across 2061–62 while $1.2M of stock sits untouched**. That is [CR045](../cr/cr-045-forecast-cash-warnings-liquidation.md) §5 working as designed (unranked = "I cannot sell this"), but for a liquid brokerage account it is almost certainly a data slip. One-row fix, left to the owner because it changes Downside's conclusions.
@@ -66,7 +89,7 @@ brokerage-history data work. Detail lives in the CR file linked from each line.
 - **Dev and prod are the same host** (`192.168.1.87` / Tailscale `100.94.46.62`). Prod `docker-compose.yml` (project `psproject`, :3005, DB :5433, volume `fin_postgres_data`); dev `docker-compose.dev.yml` (:3105/:5434); v4 `docker-compose.v4.yml` (`finv4`, :3205/:5435, flags ON, isolated volume). Prod frontend: `https://fin.tail413695.ts.net`.
 - `bank-feed/` microservice (:3007, separate repo) feeds 28 accounts; ocr-llm LLM gateway at `100.66.213.40:8080` (AI Review).
 - Deploy: `./Scripts/deploy-to-production.sh` (DB backup first). Migrations: manual `psql -f`, registry in [migrations.md](migrations.md); runner shipped in CR043 P1.1 (`npm run migrate`).
-- **Gates:** 774 backend / 319 frontend / 8 e2e tests; lint **blocking** (0 errors), plus six ratchets that may only shrink (lint-debt, api-envelope, buttons, modals, hex, tokens).
+- **Gates:** 774 backend / 332 frontend / 8 e2e tests; lint **blocking** (0 errors), plus six ratchets that may only shrink (lint-debt, api-envelope, buttons, modals, hex, tokens).
 
 ## Recently shipped
 Canonical dates/versions: **[CR index](../cr/README.md)**. Per-release detail:
@@ -75,6 +98,12 @@ Canonical dates/versions: **[CR index](../cr/README.md)**. Per-release detail:
 - **v3.6–v3.7** — Investment Returns + IRR (CR056) · Book Income at Source (CR057, migration 041) · reset-opening (CR033) · the Revolut misattribution across both repos · the bank-feed ingest paging cap · the `Math.abs` reversal and `base_amount` sign defects · the JSX lint blind spot.
 
 ## Next
+**Next up (owner-requested, 2026-08-03):**
+- [CR066](../cr/cr-066-fc-line-mapping-completeness.md) **P0** — decide an FC line for each of the twelve
+  unmapped categories, or record it as deliberately excluded. Check `Rental - Spain` against a
+  generated scenario's SP income **first** — mapping it may double-count. Then P1, so the next
+  unmapped category announces itself instead of waiting to be found by a chart.
+
 **With the owner (do not start these unasked):**
 - "2026 Downside" — the owner is redoing it; also CR048's equity-growth and FX-stress decisions.
 - [CR058 §12.8–12.9](../cr/cr-058-quicken-valuation-anchors.md) — whether to book any of the statement-derived unrealized series.

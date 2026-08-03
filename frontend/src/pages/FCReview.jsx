@@ -42,6 +42,7 @@ import FCReviewWarnings from "../features/Forecast/FCReviewWarnings.jsx";
 import FCAutoAdjustModal from "../features/Forecast/FCAutoAdjustModal.jsx";
 import { computeForecastWarnings } from "../features/Forecast/utils/fcWarnings.js";
 import { buildBreakdownSeries } from "../features/Forecast/utils/fcBreakdown.js";
+import { resolveCashValue } from "../features/Forecast/utils/fcCashValue.js";
 import { TrendingUp, TrendingDown, DollarSign, Landmark } from "lucide-react";
 import Rest from "../js/rest.js";
 import FCStepNav from "../features/Forecast/FCStepNav.jsx";
@@ -809,6 +810,49 @@ export default function FCReview() {
     return map;
   }, [entries]);
 
+  // The overlay that puts the ledger's actuals year and the budget year onto a P&L row.
+  // The table has always done this; the graph's breakdown now shares it, so a stacked
+  // Income/Expense chart carries the same two leading columns the table prints.
+  const cashValueCtx = useMemo(
+    () => ({
+      getCellValue,
+      baseYears,
+      lastActualYears,
+      baseActualTotalsByYear,
+      categoryToLineMap,
+      baseYearBudget: baseYearValues,
+      cashAccountMap,
+    }),
+    [
+      getCellValue,
+      baseYears,
+      lastActualYears,
+      baseActualTotalsByYear,
+      categoryToLineMap,
+      baseYearValues,
+      cashAccountMap,
+    ]
+  );
+
+  // Ledger leaf balances for the actuals year, keyed the way buildBreakdownSeries wants
+  // them. Only leaves the engine already models will actually use these (see fcBreakdown).
+  const baseLeafValuesByYear = useMemo(() => {
+    const byYear = new Map();
+    for (const [year, data] of baseBalanceTotalsByYear.entries()) {
+      if (data?.level3) byYear.set(Number(year), data.level3);
+    }
+    return byYear;
+  }, [baseBalanceTotalsByYear]);
+
+  // Names the basis of the two pre-forecast columns, so a chart cannot read as one
+  // continuous series across three different sources.
+  const yearBasis = useMemo(() => {
+    const basis = {};
+    for (const year of lastActualYears) basis[year] = "Actual";
+    for (const year of baseYears) basis[year] = "Budget";
+    return basis;
+  }, [baseYears, lastActualYears]);
+
   const netAssetsAccountBreakdown = useMemo(() => {
     const accounts = [];
     for (const row of balanceAccounts) {
@@ -1303,9 +1347,14 @@ export default function FCReview() {
         accountMap,
         valuesForLevel2: (label) =>
           isCash
-            ? sortedYears.map((year) => getCellValue({ label, level: 2 }, year, true) ?? 0)
+            ? sortedYears.map(
+                (year) => resolveCashValue({ label, level: 2 }, year, cashValueCtx) ?? 0
+              )
             : balanceDisplayValues.get(label) || [],
         leafValues: leafValuesByAccount,
+        // Balance side only: the P&L's actuals and budget have no module attribution, so
+        // there is nothing honest to put under a level-2 P&L row's leaves.
+        baseLeafValues: isCash ? undefined : baseLeafValuesByYear,
         palette: BAR_CHART_COLORS,
         // The Expense row is displayed net of Transfers (getCellValue subtracts them, and
         // Transfers gets its own row), so its breakdown must drop them too — otherwise the
@@ -1336,7 +1385,8 @@ export default function FCReview() {
       balanceAccountMap,
       balanceDisplayValues,
       leafValuesByAccount,
-      getCellValue,
+      baseLeafValuesByYear,
+      cashValueCtx,
     ]
   );
 
@@ -1722,6 +1772,7 @@ export default function FCReview() {
         graphSeries={graphSeries}
         sortedYears={sortedYears}
         birthYear={birthYear}
+        yearBasis={yearBasis}
         chartMode={graphMode}
         breakdownLabel={breakdownLabel}
         onPointDoubleClick={handleGraphPointDoubleClick}

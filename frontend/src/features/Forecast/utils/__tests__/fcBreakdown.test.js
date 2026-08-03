@@ -146,6 +146,100 @@ describe("buildBreakdownSeries", () => {
     expect(total2027).toBe(-174383 - 84879);
   });
 
+  describe("baseLeafValues — the pre-forecast columns of a leaf breakdown", () => {
+    const YEARS_WITH_BASE = [2025, 2026, 2027];
+    // 2025 is the ledger's actuals year: it has EVERY leaf, including ones the engine
+    // never writes (the engine posts Fidelity Stock at level 2, not to its leaves).
+    const LEDGER_2025 = new Map([
+      ["US - Casarina", 900000],
+      ["US - Nokomis", 400000],
+    ]);
+
+    it("fills the actuals column for leaves the engine already models", () => {
+      const series = buildBreakdownSeries({
+        label: "US - Properties",
+        level: 2,
+        sortedYears: YEARS_WITH_BASE,
+        accountMap: ACCOUNT_MAP,
+        valuesForLevel2,
+        leafValues: new Map([
+          ["US - Casarina", new Map([[2026, 950000], [2027, 1000000]])],
+          ["US - Nokomis", new Map([[2026, 420000], [2027, 430000]])],
+        ]),
+        baseLeafValues: new Map([[2025, LEDGER_2025]]),
+        palette: PALETTE,
+      });
+      expect(series.map((s) => s.values)).toEqual([
+        [900000, 950000, 1000000],
+        [400000, 420000, 430000],
+      ]);
+    });
+
+    it("does NOT resurrect a row the engine writes at level 2 — it stays a line chart", () => {
+      // Fidelity Stock's leaves have no engine entries at all. The ledger has all three of
+      // them, so overlaying first would produce a stack filled in 2025 and empty for every
+      // forecast year after it. The engine-data filter has to run first.
+      const series = buildBreakdownSeries({
+        label: "Fidelity Stock",
+        level: 2,
+        sortedYears: YEARS_WITH_BASE,
+        accountMap: new Map([
+          ...ACCOUNT_MAP,
+          ["Fidelity IRA", { level1: "Assets", level2: "Fidelity Stock" }],
+          ["Fidelity Stocks", { level1: "Assets", level2: "Fidelity Stock" }],
+        ]),
+        valuesForLevel2,
+        leafValues: new Map(),
+        baseLeafValues: new Map([
+          [2025, new Map([["Fidelity IRA", 500000], ["Fidelity Stocks", 800000]])],
+        ]),
+        palette: PALETTE,
+      });
+      expect(series).toEqual([]);
+    });
+
+    it("keeps a single-engine-leaf row a line chart, even with ledger data for the rest", () => {
+      // US - Nokomis reaches the engine only as a module, never as an account.
+      const series = buildBreakdownSeries({
+        label: "US - Properties",
+        level: 2,
+        sortedYears: YEARS_WITH_BASE,
+        accountMap: ACCOUNT_MAP,
+        valuesForLevel2,
+        leafValues: new Map([["US - Casarina", new Map([[2027, 1000000]])]]),
+        baseLeafValues: new Map([[2025, LEDGER_2025]]),
+        palette: PALETTE,
+      });
+      expect(series).toEqual([]);
+    });
+
+    it("never overwrites a year the engine modelled, including a real zero", () => {
+      const series = buildBreakdownSeries({
+        label: "US - Properties",
+        level: 2,
+        sortedYears: YEARS_WITH_BASE,
+        accountMap: ACCOUNT_MAP,
+        valuesForLevel2,
+        leafValues: new Map([
+          // Casarina is sold in 2027 — the engine says zero, and it must stay zero.
+          ["US - Casarina", new Map([[2026, 950000], [2027, 0]])],
+          ["US - Nokomis", new Map([[2026, 420000], [2027, 430000]])],
+        ]),
+        baseLeafValues: new Map([
+          [2025, LEDGER_2025],
+          [2027, new Map([["US - Casarina", 999999]])], // would be wrong to apply
+        ]),
+        palette: PALETTE,
+      });
+      expect(series[0].values).toEqual([900000, 950000, 0]);
+    });
+
+    it("is a no-op when no base data is supplied", () => {
+      const series = build("US - Properties", 2);
+      expect(series[0].values).toEqual([180, 190]);
+    });
+  });
+
   it("treats a missing year as zero, not NaN", () => {
     const series = buildBreakdownSeries({
       label: "US - Properties",
