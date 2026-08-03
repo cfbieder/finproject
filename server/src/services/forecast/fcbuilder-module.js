@@ -110,6 +110,45 @@ function computeModule(module, scenario, df_assumptions, df_categories, categori
   const periodStart = years[0];
   const inflationLen = inflationSeries.length;
 
+  // CR064 P13 — a module labelled USD whose local and USD value columns DISAGREE is
+  // lying about one of them, and nothing downstream can tell which.
+  //
+  // The asymmetry is what makes this worth failing on. A wrong non-USD label is
+  // self-announcing: the FX branch below fires, the value is divided by ~3.9, and the
+  // balance sheet shows a number off by a factor the owner spots immediately. A wrong
+  // USD label is SILENT — the branch never runs, `fxrates` keeps its `fill(1)`, and
+  // `marketValues[i] / 1` posts the LOCAL amount to a USD balance sheet forever. The
+  // `MarketValueUSD` override two hundred lines down repairs index 0 only, which is the
+  // base-date year and usually not even an output column, so every visible year is wrong
+  // and the one right year is invisible.
+  //
+  // Found in production: `PLN Credit Cards` carried market_value −24,542.66 (PLN, and
+  // within 413 of the account's own ledger at its base date) against market_value_usd
+  // −6,832.01, with currency 'USD' inherited from the parent rollup account. Every
+  // forecast year of `2026 Base` and `2026 Downside` posted −24,542.66 USD where −6,293
+  // was right — 18,250 of liability that does not exist, invisible for as long as nobody
+  // divided one column by the other.
+  //
+  // Throwing, not repairing: the implied rate (24,542.66 / 6,832.01 = 3.5923) is a
+  // plausible-looking PLN rate, so auto-healing would work here and silently invent an
+  // FX series the next time the two columns disagree for some other reason. The engine
+  // already fails loud on a zero FX rate (CR051 F1); this is the same rule one level up.
+  // Measured before shipping: exactly the five defective rows on prod and five on dev
+  // trip this, and no other module of the 110 does.
+  if ((module.Currency || "USD") === "USD") {
+    const mvGap = Math.abs((module.MarketValue ?? 0) - (module.MarketValueUSD ?? 0));
+    const bvGap = Math.abs((module.BaseValue ?? 0) - (module.BaseValueUSD ?? 0));
+    if (mvGap > 0.01 || bvGap > 0.01) {
+      throw new Error(
+        `Module "${module.Name}" is marked USD but its local and USD values disagree ` +
+        `(market ${module.MarketValue} vs ${module.MarketValueUSD}, ` +
+        `base ${module.BaseValue} vs ${module.BaseValueUSD}). ` +
+        `Set the module's currency to the one the values are actually in, or make the ` +
+        `two columns match — the engine cannot convert a currency it is told is USD.`
+      );
+    }
+  }
+
   if (module.Currency && module.Currency !== "USD") {
     const fxColumn =
       module.Currency === "PLN" ? categories[2] :

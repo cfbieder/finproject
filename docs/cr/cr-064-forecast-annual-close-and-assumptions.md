@@ -729,6 +729,160 @@ No migration, no data change, no regenerate — this is display arithmetic compu
 The Net Assets line moves in any scenario carrying a liability, which today is
 `2026 Buy Business` alone.
 
+## 11a. P13 — a module labelled USD over PLN values, and the credit-card question that found it
+
+### 11a.1 What was asked
+
+Whether the two credit-card modules — flagged in P12's close-out as `setup_status = 'new'` and
+therefore excluded from every forecast — should be modelled as a **ratio of expenses**, holding a
+stable float and reducing it from some point in life.
+
+The answer to the question as asked is **no**, and the reason is worth stating before the defect,
+because it is what stopped this becoming a much larger build.
+
+### 11a.2 These are not debt
+
+Measured on prod: **4,772 card transactions since January 2025, two of them interest charges.**
+The cards are paid in full. The balance is therefore **float** — the statement lag between
+spending and paying — not borrowing.
+
+| | true USD | annual spend | float |
+|---|---|---|---|
+| USD cards | 24,459 | 152,397 | 1.9 months |
+| PLN cards | 4,120 | 75,486 | 0.7 months |
+| **combined** | **28,579** | **227,883** | **1.5 months** |
+
+(Two of the four PLN cards, `PKO Visa Gold CB`/`KB`, are reconciled to zero with no activity since
+September 2025, which is why the PLN float is small.)
+
+**Float cannot change net worth, at any point, under any treatment.** If it grows by 2,000 you
+kept 2,000 of cash longer: liability up 2,000, cash up 2,000, net zero. If you pay it down, cash
+out and liability down, net zero again. A ratio-of-expenses schedule is, by construction, a model
+of something that nets to nothing — so it buys a more accurate *gross* balance sheet and nothing
+else. The whole value of touching these modules is **recognising the level**.
+
+Two further facts settled the design without new code:
+
+- **`growth_rate` on a liability is a trap.** Growth produces `unrealizedGainValues`, which feed
+  `marketValues` but are **not** in `cashChange` (`income + expense + tax + transfer`). Setting
+  `growth_rate = 1` — the intuitive way to make float track inflating expenses — walks the balance
+  to −126,092 by 2062 while cash never moves, **inventing 74,255 of wealth destruction**. All ten
+  modules sit at 0, so nothing is currently wrong; it is simply the first thing anyone would reach
+  for.
+- **The correct lever already exists.** `transferValues = -dispose - invest` flows into
+  `cashChange`, so a **negative `Invest` is more float and cash in, a positive one is a paydown and
+  cash out**, with `Periodic` spreading it over a range. `Dispose` is *not* usable for a partial
+  paydown — the `availableMarket <= 0` cap zeroes it for a negative-value module — but the **`Full`**
+  disposal branch runs after that cap and does work, which is how `PLN Credit Cards` already
+  carries a 2038-07-01 payoff.
+
+A true "% of aggregate household expenses" is also not expressible today: `computeModule` is pure
+and per-module and cannot see other modules' totals. The proxy costs nothing and lands within
+rounding, because the expense lines already grow at *inflation × a per-line multiplier*
+(`Living Expenses` 1.0, `Travel` 0.8, `Purchases` 0.5).
+
+### 11a.3 The defect the measurement turned up
+
+Five `PLN Credit Cards` modules — one per scenario, the same base row copied by CR050's variant
+materialization — carried:
+
+```
+currency          'USD'
+market_value      -24542.66      base_value      -24542.66
+market_value_usd   -6832.01      base_value_usd   -6832.01
+implied rate       3.5923
+```
+
+The local column is **PLN**, and that is proved rather than inferred. Account 65's own ledger
+(`opening_balance + SUM(amount)` over its four PKO children, every one of them PLN) stood at
+**−24,129.55 PLN on 2025-12-31**, the modules' `base_date` — within 413 PLN of the stored figure,
+where a USD reading would be off by 3.6×. And `exchange_rates` gives PLN→USD **0.278373** that
+day = **3.5922**, matching the implied rate to four figures.
+
+The label came from **account 65 itself** — a parent rollup over four PKO cards, holding no
+transactions of its own, mislabelled `USD` in the `accounts` table. The module inherited it.
+
+**Why it was invisible.** `fcbuilder-module.js` consults the FX assumptions only when
+`Currency !== "USD"`. With the wrong label the branch never ran, `fxrates` kept its `fill(1)`, and
+`marketValues[i] / 1` posted the PLN amount straight onto a USD balance sheet. The
+`MarketValueUSD` override repairs **index 0 only** — the `base_date` year, 2025, which is not even
+an output column when `PeriodStart` is 2027 — so the one correct year was never displayed and all
+36 wrong ones were.
+
+This is the asymmetry that makes the class worth a guard. A wrong **non-USD** label announces
+itself: the branch fires, the value is divided by ~3.9, and the balance sheet is off by a factor
+the owner spots. A wrong **USD** label is silent forever.
+
+**What it cost.** `2026 Base` and `2026 Downside` — the two scenarios where the module was
+`complete` — posted **−24,542.66 USD in every forecast year** against a correct −6,293. Verified
+in `forecast_entries` before the repair: 2026…2030 all −24,542.66. **18,250 USD of liability that
+does not exist**, in Net Assets, in the Compare deltas, and in the cash sweep's view of the
+balance sheet.
+
+It also means the figure quoted in P12's close-out — "~52K of real debt missing" — was **wrong**,
+because it was built on the mislabelled number. The true missing position was 28.6K.
+
+### 11a.4 Fix
+
+**Migration 056** relabels the five rows `PLN` and touches no value. The rows are **named, not
+derived**: 3.5923 is a plausible PLN rate, so a generic "infer the currency from
+`market_value / market_value_usd`" would work on these five and silently invent a currency the
+next time two columns disagree for another reason.
+
+**The engine guard** (`computeModule`, before the FX branch) throws when a module claims USD while
+its local and USD columns disagree by more than a cent — rather than healing it, for exactly the
+reason above. The engine already fails loud on a zero FX rate (CR051 F1); this is the same rule
+one level up. Measured before shipping: **exactly the five defective rows on prod and five on dev
+trip it, and none of the other 110 modules does.**
+
+### 11a.5 The test reproduces the defect, not just the fix
+
+`fcbuilder-module.currency.test.js` mirrors the production shape exactly — `base_date` 2025-12-31
+against `PeriodStart` 2027, so the base year falls *outside* the output columns, which is what hid
+it. Falsified by disabling the guard and running the fixture: it posts
+
+```
+[[2026,-24542.66],[2027,-24542.66],[2028,-24542.66],[2029,-24542.66],[2030,-24542.66]]
+```
+
+— byte-identical to the real `forecast_entries` rows. With the guard on it throws; correctly
+labelled `PLN` it posts −6,292.99. Five tests, including a one-cent tolerance so `numeric(15,2)`
+drift cannot break generation.
+
+### 11a.6 Applied
+
+Migration to dev and prod. Then, on prod: both base modules refreshed to their `base_date` ledger
+(`USD Credit Cards` −27,294.62 → **−27,186.62**; `PLN Credit Cards` −24,542.66 → **−24,129.55 PLN**
+= −6,717.02 USD at that day's 0.278373), `USD Credit Cards` set `complete`, the four variants
+synced from base, and all five scenarios regenerated.
+
+Edits went to the **base** rows only. `syncVariant` materializes base ⊕ overrides and UPSERTs on
+`origin_base_id`, so a direct write to a variant row is reverted by the next sync — none of these
+ten modules carries an override, which is why the base edit propagates cleanly to all five.
+
+Result — all five scenarios now carry an identical, correct card position:
+
+| | before | after |
+|---|---|---|
+| PLN cards, `Base`/`Downside` | −24,543 | **−6,187** |
+| PLN cards, other three | absent (`new`) | **−6,187** |
+| USD cards, all five | absent (`new`) | **−27,187** |
+
+The 2038 payoff already on `PLN Credit Cards` verified as correct on both sides: the liability
+disappears and `Transfer - Bank` / `Bank Accounts` each take −6,187 the same year.
+
+### 11a.7 Not done
+
+The **root** label — `accounts.id 65` is still `USD` — so the next module linked to that rollup
+inherits the same wrong currency. The engine guard now catches it at generate time instead of
+letting it through silently, which is the difference that mattered, but the account itself wants
+correcting once every consumer of `account_currency` has been checked.
+
+Tier 3, the deliberate paydown, is **not** built: it needs a start year and a pace from the owner.
+Its real economic content is not on the liability side — paying down interest-free float costs the
+**yield on the cash used**, permanently, plus capital-gains tax if the sweep sells to fund it
+(~2,600/yr at 5% on 52K). `PLN Credit Cards` already models one crude version of it in 2038.
+
 ## 12. P4 — plan vs actual (designed, not built)
 
 `FCReviewTable` already overlays a `(Budget)` and an `(Actual)` column for the base and

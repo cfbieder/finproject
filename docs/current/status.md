@@ -11,7 +11,7 @@
 categories with real activity map to no FC line, so **−78,689 of expense and +31,474 of income sit
 outside the forecast** and no screen says so. P0 is a decision per row, not code.
 **[CR064](../cr/cr-064-forecast-annual-close-and-assumptions.md) remains the live engineering thread** —
-P0/P1/P3/P6/P7/P8/P9/P11 shipped; **P2 decided 2026-08-02 (keep minting a copy each year), designed but not built**;
+P0/P1/P3/P6/P7/P8/P9/P11/P12/P13 shipped; **P2 decided 2026-08-02 (keep minting a copy each year), designed but not built**;
 P4/P5/P10 designed. Otherwise: owner-found defects, their follow-ups, and a long thread of
 brokerage-history data work. Detail lives in the CR file linked from each line.
 
@@ -35,6 +35,23 @@ brokerage-history data work. Detail lives in the CR file linked from each line.
   a real 2025 column. Columns read `· Actual` / `· Budget` and draw lighter: three bases in one chart
   otherwise look like one trend.
 
+- **A forecast module labelled USD over PLN values — 18,250 of liability that does not exist**
+  ([CR064 P13](../cr/cr-064-forecast-annual-close-and-assumptions.md#11a-p13--a-module-labelled-usd-over-pln-values-and-the-credit-card-question-that-found-it),
+  migration **056**). Found while answering a *modelling* question — should the credit cards be
+  forecast as a ratio of expenses? Five `PLN Credit Cards` modules carried `currency='USD'` over
+  PLN values, inherited from account 65, a **parent rollup mislabelled in `accounts`**. The engine
+  reads the FX assumptions only when `Currency !== 'USD'`, so the branch never ran, `fxrates` kept
+  its `fill(1)`, and the PLN amount posted straight onto a USD balance sheet; the `MarketValueUSD`
+  override repairs **index 0 only** — a year that is not even an output column — so the one correct
+  year was invisible and all 36 wrong ones were not. **A wrong non-USD label announces itself; a
+  wrong USD label is silent forever**, which is why the engine now **throws** on the contradiction
+  rather than healing it (exactly the five bad rows trip it; none of the other 110 does). Repaired
+  on dev + prod, both balances refreshed to their `base_date` ledger, `USD Credit Cards` enabled,
+  variants synced from base and all five scenarios regenerated — every scenario now carries an
+  identical, correct card position. **The answer to the question was no:** 4,772 card transactions
+  since Jan 2025, **two** of them interest — the balance is *float*, and float cannot change net
+  worth under any treatment. It also corrects the "~52K of missing debt" figure in P12's close-out,
+  which was built on the mislabelled number; the true position was **28.6K**.
 - **[CR065](../cr/cr-065-neutralize-pair-identity.md) — a neutralize counter-leg is claimable exactly
   once.** Owner-found: Fidelity Cash Mgt showed −107,830.71 of drift and it "cannot just be MTM". It
   could not — **$108,635 was bookkeeping, $804.50 was market**. `neutralize()` tested "already has a
@@ -89,7 +106,7 @@ brokerage-history data work. Detail lives in the CR file linked from each line.
 - **Dev and prod are the same host** (`192.168.1.87` / Tailscale `100.94.46.62`). Prod `docker-compose.yml` (project `psproject`, :3005, DB :5433, volume `fin_postgres_data`); dev `docker-compose.dev.yml` (:3105/:5434); v4 `docker-compose.v4.yml` (`finv4`, :3205/:5435, flags ON, isolated volume). Prod frontend: `https://fin.tail413695.ts.net`.
 - `bank-feed/` microservice (:3007, separate repo) feeds 28 accounts; ocr-llm LLM gateway at `100.66.213.40:8080` (AI Review).
 - Deploy: `./Scripts/deploy-to-production.sh` (DB backup first). Migrations: manual `psql -f`, registry in [migrations.md](migrations.md); runner shipped in CR043 P1.1 (`npm run migrate`).
-- **Gates:** 774 backend / 333 frontend / 8 e2e tests; lint **blocking** (0 errors), plus six ratchets that may only shrink (lint-debt, api-envelope, buttons, modals, hex, tokens).
+- **Gates:** 779 backend / 333 frontend / 8 e2e tests; lint **blocking** (0 errors), plus six ratchets that may only shrink (lint-debt, api-envelope, buttons, modals, hex, tokens).
 
 ## Recently shipped
 Canonical dates/versions: **[CR index](../cr/README.md)**. Per-release detail:
