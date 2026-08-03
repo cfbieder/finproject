@@ -383,12 +383,16 @@ router.get('/', async (req, res, next) => {
 
 /**
  * GET /api/v2/budget/actual-entries (v1 compatibility)
- * Fetches actual transaction entries for budget comparison
+ * Fetches actual transaction entries for budget comparison.
+ *
+ * `truncated` (CR068 P2) is additive — existing consumers read `entries` and
+ * are unaffected. It says the LIMIT was hit, so any total summed from these
+ * rows is a floor, not the figure.
  */
 router.get('/actual-entries', async (req, res, next) => {
   try {
-    const entries = await budgetService.getActualEntries(req.query);
-    res.json({ entries });
+    const { entries, truncated } = await budgetService.getActualEntries(req.query);
+    res.json({ entries, truncated });
   } catch (error) {
     console.error('[v2/budget/actual-entries] Failed:', error);
     next(error);

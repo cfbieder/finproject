@@ -443,12 +443,29 @@ async function listBudgetEntriesV1(query) {
 
 /**
  * Actual transaction entries for budget comparison (v1-compatible shape).
+ *
+ * CR068 P2 — three defects fixed together, because they only show up combined:
+ *
+ * 1. `description`, `valueFrom`/`valueTo` and `currency` were SENT by the
+ *    Actuals page (transactionConfig.buildTotalsQuery) and never read here, so
+ *    the totals tile counted rows the table below it had filtered out. Typing a
+ *    search term narrowed the list and left the money unchanged.
+ * 2. The LIMIT truncated silently. Callers sum the rows they get back, so a
+ *    period with more transactions than the limit reported a total that was
+ *    simply short, with nothing on screen saying so. We now fetch limit+1 and
+ *    return `truncated` so a caller can say "at least".
+ *
+ * (The third — summing local amounts across currencies and labelling the result
+ * "base" — is the caller's, and is fixed in transactionConfig.js.)
+ *
+ * @returns {Promise<{entries: Array, truncated: boolean}>}
  */
 async function getActualEntries(query) {
   const {
     actualYear, month, fromMonth, toMonth,
     fromDate, toDate,
     category, categories, account, accounts,
+    description, valueFrom, valueTo, currency,
     limit = 1000
   } = query;
 
@@ -519,20 +536,62 @@ async function getActualEntries(query) {
     paramIndex += accountList.length;
   }
 
+  // Description filter — same predicate the transactions repository uses, so
+  // the totals and the row list agree on what a search term matches.
+  if (description) {
+    sql += ` AND (t.description1 ILIKE $${paramIndex} OR t.description2 ILIKE $${paramIndex})`;
+    params.push(`%${description}%`);
+    paramIndex += 1;
+  }
+
+  // Amount bounds. Compared against the LOCAL amount, matching the row list's
+  // minAmount/maxAmount (transactions repository) — not base_amount.
+  const parsedFrom = valueFrom === undefined || valueFrom === null || valueFrom === ''
+    ? null
+    : parseFloat(valueFrom);
+  if (parsedFrom !== null && Number.isFinite(parsedFrom)) {
+    sql += ` AND t.amount >= $${paramIndex++}`;
+    params.push(parsedFrom);
+  }
+  const parsedTo = valueTo === undefined || valueTo === null || valueTo === ''
+    ? null
+    : parseFloat(valueTo);
+  if (parsedTo !== null && Number.isFinite(parsedTo)) {
+    sql += ` AND t.amount <= $${paramIndex++}`;
+    params.push(parsedTo);
+  }
+
+  if (currency) {
+    const currencyList = Array.isArray(currency) ? currency : [currency];
+    const placeholders = currencyList.map((_, i) => `$${paramIndex + i}`).join(', ');
+    sql += ` AND t.currency IN (${placeholders})`;
+    params.push(...currencyList);
+    paramIndex += currencyList.length;
+  }
+
   sql += ` ORDER BY t.transaction_date DESC`;
 
-  if (limit) {
-    sql += ` LIMIT $${paramIndex}`;
-    params.push(parseInt(limit));
+  // Fetch one MORE than asked for: if it comes back, the result is truncated and
+  // any total computed from it is short. Same trick as useTransactions.
+  const parsedLimit = limit ? parseInt(limit) : null;
+  if (parsedLimit) {
+    sql += ` LIMIT $${paramIndex++}`;
+    params.push(parsedLimit + 1);
   }
 
   const result = await db.query(sql, params);
+  const truncated = parsedLimit ? result.rows.length > parsedLimit : false;
+  const rows = truncated ? result.rows.slice(0, parsedLimit) : result.rows;
 
   // Transform to v1 format
-  return result.rows.map(row => ({
+  const entries = rows.map(row => ({
     _id: row.id,
     Date: row.transaction_date,
-    Description1: row.description,
+    // `transactions` has description1/description2 and no `description` column,
+    // so this read undefined for every row and the Budget-vs-Actual popup showed
+    // "—" as every description. Found while adding the description FILTER below.
+    Description1: row.description1,
+    Description2: row.description2,
     Amount: parseFloat(row.amount),
     Currency: row.currency,
     BaseAmount: parseFloat(row.base_amount),
@@ -541,6 +600,8 @@ async function getActualEntries(query) {
     Category: row.category_name,
     Note: row.note,
   }));
+
+  return { entries, truncated };
 }
 
 /**
