@@ -1006,3 +1006,216 @@
   color: var(--muted);
   font-size: 14px;
 }
+
+/* ── Multi-select additions to the picker sheet (CR068) ── */
+.m-picker__group-h {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.m-picker__group-all {
+  font-family: inherit;
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  color: var(--primary-strong);
+  background: transparent;
+  border: none;
+  padding: 2px 4px;
+  cursor: pointer;
+  min-height: auto;
+}
+
+.m-picker__item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.m-picker__check {
+  flex: 0 0 auto;
+  display: inline-flex;
+  color: var(--primary-strong);
+}
+
+/* Sheet action row. Sits above the home indicator, not under it. */
+.m-sheet__footer {
+  flex: 0 0 auto;
+  display: flex;
+  gap: 10px;
+  padding: 12px var(--m-pad);
+  border-top: 1px solid var(--border);
+  background: var(--surface);
+}
+
+.m-sheet__footer .m-btn {
+  flex: 1 1 0;
+  justify-content: center;
+}
+
+/* ── Actuals search: filter chip row (CR068) ── */
+.m-searchbar {
+  position: relative;
+  margin-bottom: 10px;
+}
+
+.m-searchbar__input {
+  width: 100%;
+  padding: 12px 38px 12px 14px;
+  font-family: inherit;
+  font-size: 15px;
+  color: var(--ink);
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--m-radius);
+  min-height: var(--m-tap);
+}
+
+.m-searchbar__input:focus {
+  outline: none;
+  border-color: var(--primary);
+}
+
+.m-searchbar__clear {
+  position: absolute;
+  right: 4px;
+  top: 50%;
+  transform: translateY(-50%);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 36px;
+  height: 36px;
+  color: var(--muted);
+  background: transparent;
+  border: none;
+  cursor: pointer;
+}
+
+.m-filterbar {
+  display: flex;
+  gap: 8px;
+  overflow-x: auto;
+  scrollbar-width: none;
+  padding-bottom: 2px;
+  margin-bottom: 12px;
+}
+
+.m-filterbar::-webkit-scrollbar {
+  display: none;
+}
+
+.m-fchip {
+  flex: 0 0 auto;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 14px;
+  font-family: inherit;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--ink-secondary);
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  cursor: pointer;
+  min-height: 36px;
+  white-space: nowrap;
+  max-width: 60vw;
+}
+
+.m-fchip__label {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.m-fchip--active {
+  color: var(--primary-strong);
+  background: var(--primary-subtle);
+  border-color: var(--primary-lighter);
+}
+
+.m-fchip__clear {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  margin: -4px -8px -4px 0;
+  padding: 4px 6px;
+  color: inherit;
+  background: transparent;
+  border: none;
+  cursor: pointer;
+}
+
+/* ── Totals strip (CR068 P2) ── */
+.m-totals {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 4px 10px;
+  padding: 10px 14px;
+  margin-bottom: 12px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--m-radius);
+  font-size: 13px;
+}
+
+.m-totals__count {
+  font-weight: 600;
+  color: var(--ink);
+}
+
+.m-totals__item {
+  font-family: "SF Mono", "Menlo", monospace;
+  font-variant-numeric: tabular-nums;
+  color: var(--ink-secondary);
+}
+
+.m-totals__item--neg {
+  color: var(--danger);
+}
+
+.m-totals__item--base {
+  font-weight: 700;
+  color: var(--ink);
+}
+
+.m-totals__warn {
+  flex: 1 0 100%;
+  font-size: 12px;
+  color: var(--warning-strong);
+}
+
+/* ── Expanded transaction row (CR068) ── */
+.m-tx--tappable {
+  cursor: pointer;
+  text-align: left;
+  width: 100%;
+  font: inherit;
+}
+
+.m-tx__detail {
+  grid-column: 1 / -1;
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: 4px 12px;
+  margin-top: 8px;
+  padding-top: 8px;
+  border-top: 1px solid var(--border-subtle);
+  font-size: 12px;
+}
+
+.m-tx__detail dt {
+  color: var(--muted);
+}
+
+.m-tx__detail dd {
+  margin: 0;
+  color: var(--ink-secondary);
+  overflow-wrap: anywhere;
+}
