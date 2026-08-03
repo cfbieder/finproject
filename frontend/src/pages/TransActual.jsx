@@ -20,6 +20,7 @@ import {
   getDateRangeBounds,
   isEntryInDateRange,
   normalizeStringOptions,
+  periodToFilterFields,
 } from "../features/Transaction/transactionUtils.js";
 import { useTransactions } from "../features/Transaction/hooks/useTransactions.js";
 import { useTransactionSelection } from "../features/Transaction/hooks/useTransactionSelection.js";
@@ -520,26 +521,9 @@ export default function TransActual() {
   const handlePeriodChange = useCallback(
     (vals) => {
       setPeriodValues(vals);
-      setFilters((prev) => {
-        const next = { ...prev };
-        next.yearEnabled = true;
-        next.year = String(vals.actualYear);
-        next.toYear = String(vals.toYear ?? vals.actualYear);
-        // Single-month only when both endpoints are the same month AND year
-        const sameYear = next.year === next.toYear;
-        if (sameYear && vals.fromMonth === vals.toMonth) {
-          next.monthEnabled = true;
-          next.month = Number(vals.fromMonth) - 1;
-          next.fromMonth = vals.fromMonth;
-          next.toMonth = vals.toMonth;
-        } else {
-          next.monthEnabled = false;
-          next.month = undefined;
-          next.fromMonth = vals.fromMonth;
-          next.toMonth = vals.toMonth;
-        }
-        return next;
-      });
+      // Shared with the mobile Actuals page (CR068) so the two cannot disagree
+      // about which rows a period contains. Gated by periodToFilterFields.test.js.
+      setFilters((prev) => ({ ...prev, ...periodToFilterFields(vals) }));
       setTransactionLimit(BATCH_SIZE);
     },
     [setTransactionLimit]

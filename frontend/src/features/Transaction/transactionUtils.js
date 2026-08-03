@@ -89,6 +89,43 @@ export const isEntryInDateRange = (entry, bounds) => {
 };
 
 /**
+ * Maps a PeriodSelector-shaped period into the period FIELDS of an
+ * ACTUAL_CONFIG-shaped filter object.
+ *
+ * Extracted verbatim from TransActual's inline `handlePeriodChange` so the
+ * desktop page and the mobile one (CR068) cannot drift on what a period means.
+ * The two build the same query — `ACTUAL_CONFIG.buildFilterQuery` reads these
+ * fields — so a difference here is a difference in which rows each page shows
+ * for the same month, which is exactly the class of defect the
+ * `getDateRangeBounds` note above records.
+ *
+ * The single-month rule is deliberately narrow: `monthEnabled` only when the
+ * endpoints share a month AND a year. Aug-2025 → Aug-2026 is a 13-month range,
+ * not "August" — collapsing it would silently drop 12 months of rows.
+ *
+ * @param {Object} vals - { fromMonth, toMonth, actualYear, toYear }
+ *   fromMonth/toMonth are 1-based, zero-padded strings ("01".."12").
+ * @returns {Object} { yearEnabled, year, toYear, monthEnabled, month, fromMonth, toMonth }
+ *   `month` is the 0-based month index the filter uses, or undefined for a range.
+ */
+export const periodToFilterFields = (vals) => {
+  const year = String(vals?.actualYear);
+  const toYear = String(vals?.toYear ?? vals?.actualYear);
+  const sameYear = year === toYear;
+  const isSingleMonth = sameYear && vals?.fromMonth === vals?.toMonth;
+
+  return {
+    yearEnabled: true,
+    year,
+    toYear,
+    monthEnabled: isSingleMonth,
+    month: isSingleMonth ? Number(vals.fromMonth) - 1 : undefined,
+    fromMonth: vals?.fromMonth,
+    toMonth: vals?.toMonth,
+  };
+};
+
+/**
  * Extracts a sortable value from a transaction entry for a given field key.
  * @param {Object} entry - The transaction entry
  * @param {string} key - The field key to extract
