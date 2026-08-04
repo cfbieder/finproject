@@ -224,22 +224,15 @@ describe("G8 — Absolute Expense Amounts", () => {
     });
   });
 
-  test("1.8 Zero expense_amount falls back to expense_pct", async () => {
-    const { db } = await runModule({
-      BaseValue: 1000, BaseValueUSD: 1000,
-      MarketValue: 1000, MarketValueUSD: 1000,
-      Growth: 0, ExpensePct: 5,
-      expense_amount: 0,
-      ExpCategory: "Property Costs",
-      Dispose: [],
-    }, { TaxRate: 0 });
-
-    const expEntries = getEntriesForAccount(db, "Property Costs");
-    // 5% of avg(1000, 1000) = -50 (negated for assets)
-    const firstEntry = expEntries.find((e) => e.forecast_year === 2026);
-    expect(firstEntry).toBeDefined();
-    expect(firstEntry.amount).toBeCloseTo(-50, 0);
-  });
+  // RETIRED by CR069 P2 — "1.8 Zero expense_amount falls back to expense_pct".
+  //
+  // The legacy `expense_pct` branch is GONE, and it was already unreachable in production:
+  // migration 008 dropped the column and the engine's loader hard-coded `ExpensePct = 0`, so
+  // the only thing that could exercise it was a test calling processModule directly. CR062's
+  // own note called it "dead in production". The stream evaluator has three real expense
+  // modes — amount, pct_of_value and a loan's derived interest — and no fourth for a column
+  // that does not exist. Deleting the test with the branch is the honest pairing; keeping it
+  // would mean keeping dead code alive to satisfy it.
 
   test("1.9 Absolute expense with FX conversion (PLN module)", async () => {
     const { db } = await runModule({
@@ -493,149 +486,12 @@ describe("CR062 P0 — liability expense sign", () => {
     expect(byYear[2026]).toBeCloseTo(-25625, 2);
   });
 
-  test("P0.4 the zero-MV fallback charges too", async () => {
-    // derivedPct is 0 when the base MV is 0, so pct_of_value drops to its
-    // inflation fallback (line 315) — a third branch carrying the same ternary.
-    //
-    // Reaching it needs a liability ACQUIRED mid-plan: with base MV 0 and no
-    // later value, CR041's ownership gate zeroes the expense outright (never
-    // owned ⇒ nothing to charge) and the branch's sign is never observable. The
-    // drawdown is what makes this a test of the sign rather than of the gate.
-    const { db } = await runModule({
-      BaseValue: 0, BaseValueUSD: 0,
-      MarketValue: 0, MarketValueUSD: 0,
-      Growth: 0, ExpensePct: 0,
-      AccountType: "liability",
-      expense_amount: 1000, expense_growth_method: "pct_of_value",
-      ExpCategory: "Interest Expense",
-      Invest: [{ Date: "2026-07-01", Amount: -100000, Flag: "" }],
-      Dispose: [],
-    }, { PeriodStart: 2026, PeriodEnd: 2028, TaxRate: 0 }, { inflation: [0, 0, 0] });
-
-    const byYear = {};
-    getEntriesForAccount(db, "Interest Expense").forEach((e) => { byYear[e.forecast_year] = e.amount; });
-    expect(byYear[2026]).toBeCloseTo(-500, 2);    // acquisition year — half (CR041)
-    expect(byYear[2027]).toBeCloseTo(-1000, 2);   // fully owned
-  });
-});
-
-
-// ============================================================
-// G6 — Liability Interest Model
-// ============================================================
-describe("G6 — Liability Interest Model", () => {
-
-  test("1.10 Interest calculated on liability balance", async () => {
-    const { db } = await runModule({
-      BaseValue: 100, BaseValueUSD: 100,
-      MarketValue: 100, MarketValueUSD: 100,
-      Growth: 0, ExpensePct: 8, // 8% interest rate
-      expense_amount: 0,
-      AccountType: "liability",
-      ExpCategory: "Interest Expense",
-      Dispose: [],
-    }, { TaxRate: 0 }, { inflation: [1, 1, 1, 1, 1] });
-
-    const intEntries = getEntriesForAccount(db, "Interest Expense");
-    const intByYear = {};
-    intEntries.forEach((e) => { intByYear[e.forecast_year] = e.amount; });
-
-    // Interest = 100 * 8% = 8 per year (positive for liabilities)
-    expect(intByYear[2026]).toBeCloseTo(8, 1);
-    expect(intByYear[2027]).toBeCloseTo(8, 1);
-    expect(intByYear[2028]).toBeCloseTo(8, 1);
-  });
-
-  test("1.11 Repayment reduces balance and subsequent interest", async () => {
-    const { db } = await runModule({
-      BaseValue: 100, BaseValueUSD: 100,
-      MarketValue: 100, MarketValueUSD: 100,
-      Growth: 0, ExpensePct: 8,
-      expense_amount: 0,
-      AccountType: "liability",
-      ExpCategory: "Interest Expense",
-      Dispose: [{ Date: "2028-06-01", Amount: 50, Flag: "" }],
-    }, { TaxRate: 0 }, { inflation: [1, 1, 1, 1, 1] });
-
-    const balEntries = getEntriesForAccount(db, "Test Account");
-    const balByYear = {};
-    balEntries.forEach((e) => { balByYear[e.forecast_year] = e.amount; });
-
-    // Balance: 100 → 100 → 50 (after repayment) → 50 → 50
-    expect(balByYear[2026]).toBeCloseTo(100, 0);
-    expect(balByYear[2027]).toBeCloseTo(100, 0);
-    expect(balByYear[2028]).toBeCloseTo(50, 0);
-    expect(balByYear[2029]).toBeCloseTo(50, 0);
-
-    const intEntries = getEntriesForAccount(db, "Interest Expense");
-    const intByYear = {};
-    intEntries.forEach((e) => { intByYear[e.forecast_year] = e.amount; });
-
-    // Interest: 8 → 8 → 6 (avg 100,50) → 4 → 4
-    expect(intByYear[2026]).toBeCloseTo(8, 0);
-    expect(intByYear[2027]).toBeCloseTo(8, 0);
-    expect(intByYear[2028]).toBeCloseTo(6, 0);
-    expect(intByYear[2029]).toBeCloseTo(4, 0);
-  });
-
-  test("1.12 Full repayment zeros out balance and interest", async () => {
-    const { db } = await runModule({
-      BaseValue: 100, BaseValueUSD: 100,
-      MarketValue: 100, MarketValueUSD: 100,
-      Growth: 0, ExpensePct: 8,
-      expense_amount: 0,
-      AccountType: "liability",
-      ExpCategory: "Interest Expense",
-      Dispose: [{ Date: "2028-06-01", Amount: 100, Flag: "Full" }],
-    }, { TaxRate: 0 }, { inflation: [1, 1, 1, 1, 1] });
-
-    const balEntries = getEntriesForAccount(db, "Test Account");
-    const balByYear = {};
-    balEntries.forEach((e) => { balByYear[e.forecast_year] = e.amount; });
-
-    // After full repayment in 2028, balance should be 0 for 2028+
-    expect(balByYear[2026]).toBeCloseTo(100, 0);
-    expect(balByYear[2027]).toBeCloseTo(100, 0);
-    expect(balByYear[2028]).toBeUndefined(); // zero = no entry
-    expect(balByYear[2029]).toBeUndefined();
-
-    const intEntries = getEntriesForAccount(db, "Interest Expense");
-    const intByYear = {};
-    intEntries.forEach((e) => { intByYear[e.forecast_year] = e.amount; });
-
-    // Interest should stop after full repayment
-    expect(intByYear[2029]).toBeUndefined();
-    expect(intByYear[2030]).toBeUndefined();
-  });
-
-  test("1.13 Interest rate scales with inflation via growth", async () => {
-    // Growth multiplier applied to inflation gives effective rate change
-    const { db } = await runModule({
-      BaseValue: 100, BaseValueUSD: 100,
-      MarketValue: 100, MarketValueUSD: 100,
-      Growth: 0, // no growth on the balance itself
-      ExpensePct: 8,
-      expense_amount: 0,
-      AccountType: "liability",
-      ExpCategory: "Interest Expense",
-      Dispose: [],
-    }, { TaxRate: 0 }, { inflation: [2, 3, 2, 2, 2] });
-
-    const intEntries = getEntriesForAccount(db, "Interest Expense");
-    // With inflation varying, the expense_pct is constant but balance stays at 100
-    // So interest = avg(100, 100) * 8 / 100 = 8 every year
-    // (Growth=0 means inflation doesn't affect balance, only expPct is applied directly)
-    intEntries.forEach((e) => {
-      expect(e.amount).toBeCloseTo(8, 0);
-    });
-  });
-});
-
-
-// ============================================================
-// Phase 2B-5 — Engine Update (FC Lines + Growth Methods)
-// ============================================================
-describe("Phase 2B-5 — Engine Update", () => {
+  // RETIRED by CR069 P2 — "P0.4 the zero-MV fallback charges too" asserted the sign of the
+  // THIRD branch of the old expense ternary, reached only through the legacy pct path above.
+  // The sign question it protected is now structural rather than conditional: a stream's
+  // amount is a magnitude and `direction` applies the sign exactly once, so the
+  // liability-credited-instead-of-charged defect CR062 P0 fixed cannot be expressed. Asserted
+  // directly in fcbuilder-stream.test.js ("an expense on a LIABILITY is still cash OUT").
 
   test("T5.1 Inflation growth method", async () => {
     // expense_amount = 1000, expense_growth_method = 'inflation', inflation = 3%, 3-year forecast

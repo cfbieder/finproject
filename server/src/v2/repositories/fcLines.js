@@ -142,17 +142,23 @@ async function update(id, data) {
 
 /**
  * Delete an FC Line.
- * Checks for forecast_income_expense references first (RESTRICT).
- * forecast_modules references are safe (SET NULL via FK).
- * fc_line_categories cascade-delete automatically.
+ * CR069 P2 — checks forecast_streams (RESTRICT), where it used to check
+ * forecast_income_expense. The scope GREW: `forecast_streams.fc_line_id` is ON DELETE
+ * RESTRICT for BOTH directions and both kinds of module, whereas the module's old
+ * `expense_fc_line_id`/`income_fc_line_id` were ON DELETE SET NULL — and silently nulling a
+ * module's line is exactly how it ends up charging cash to no P&L row at all (roadmap:
+ * `Sarasota House`, −1,203,432 against no line). So a line in use is now refused rather than
+ * quietly detached, and the caller gets the list of what is using it.
+ * fc_line_categories still cascade-delete automatically.
  */
 async function remove(id) {
-  // Check for forecast_income_expense references
   const refCheck = await db.query(`
-    SELECT fie.id, fie.name, fs.name as scenario_name
-    FROM forecast_income_expense fie
-    JOIN forecast_scenarios fs ON fie.scenario_id = fs.id
-    WHERE fie.fc_line_id = $1
+    SELECT DISTINCT m.id, m.name, fs.name as scenario_name
+    FROM forecast_streams st
+    JOIN forecast_modules m ON m.id = st.module_id
+    JOIN forecast_scenarios fs ON m.scenario_id = fs.id
+    WHERE st.fc_line_id = $1
+    ORDER BY 3, 2
   `, [id]);
 
   if (refCheck.rows.length > 0) {

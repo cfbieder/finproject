@@ -14,7 +14,6 @@
  */
 
 const { processModule } = require("../fcbuilder-module");
-const { processModule: processIncExpModule } = require("../fcbuilder-incexp");
 const {
   createMockScenario,
   createMockModule,
@@ -78,7 +77,7 @@ async function runIncExp(moduleOverrides = {}, scenarioOverrides = {}, assumptio
   const catDF = createMockCategoriesDF(catNames, years);
   const db = createMockDb();
 
-  const result = await processIncExpModule(mod, scenario, assumptions, catDF, categories, years, db, 1);
+  const result = await processModule(mod, scenario, assumptions, catDF, categories, years, db, 1);
   return { db, result, years, scenario };
 }
 
@@ -191,35 +190,10 @@ describe("E2E — Complex Multi-Module Scenario", () => {
     expect(tax2028.amount).toBeCloseTo(-17500, -1);
   });
 
-  test("Liability module: interest + repayment", async () => {
-    const { db } = await runBSModule({
-      BaseValue: 200000, BaseValueUSD: 200000,
-      MarketValue: 200000, MarketValueUSD: 200000,
-      Growth: 0,
-      ExpensePct: 5, // 5% interest rate
-      expense_amount: 0,
-      AccountType: "liability",
-      IncomeCategory: "Income",
-      ExpCategory: "Interest Expense",
-      IncomePct: [],
-      Dispose: [{ Date: "2029-06-01", Amount: 50000, Flag: "" }],
-    }, { TaxRate: 0 }, { inflation: [1, 1, 1, 1] });
-
-    // Interest: 5% of avg balance
-    // 2027: 5% × avg(200K, 200K) = 10K (positive for liabilities)
-    const intEntries = getEntriesForAccount(db, "Interest Expense");
-    const int2027 = intEntries.find(e => e.forecast_year === 2027);
-    expect(int2027.amount).toBeCloseTo(10000, -1);
-
-    // After repayment of 50K in 2029, balance should drop
-    const balEntries = getEntriesForAccount(db, "Test Account");
-    const bal2029 = balEntries.find(e => e.forecast_year === 2029);
-    expect(bal2029.amount).toBeCloseTo(150000, -2);
-
-    // Interest after repayment should be lower
-    const int2030 = intEntries.find(e => e.forecast_year === 2030);
-    expect(int2030.amount).toBeCloseTo(7500, -1); // 5% of 150K
-  });
+  // RETIRED by CR069 P2 — this exercised the legacy `expense_pct` liability-interest model,
+  // which the loader hard-coded to 0 in production and which CR062 superseded with a real
+  // loan (`loan_interest_rate` → a `derived` stream on the average outstanding balance).
+  // Covered by fcbuilder-loan.test.js and the derived-mode cases in fcbuilder-stream.test.js.
 
   test("IncExp module: expense grows at inflation", async () => {
     const { db } = await runIncExp({

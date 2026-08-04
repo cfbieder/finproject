@@ -24,11 +24,17 @@ const db = require('../../../v2/db');
 const { baseYearFxRate } = require('../fcbuilder-setup');
 const { getBaseYearValues } = require('../crud');
 
-/** Route the three queries getBaseYearValues runs, in order. */
-function mockQueries({ modules = [], incexp = [], scenarioName = '2026 Base' }) {
+/**
+ * Route the two queries getBaseYearValues runs.
+ *
+ * CR069 P2 — it reads `forecast_streams` now, where it used to UNION three branches across
+ * forecast_modules and forecast_income_expense. The row SHAPE it consumes is unchanged
+ * ({label, type, currency, amount}), which is why every conversion assertion below still
+ * applies verbatim: the currency handling is the thing under test, and it did not move.
+ */
+function mockQueries({ modules = [], scenarioName = '2026 Base' }) {
   db.query.mockImplementation((sql) => {
-    if (/FROM forecast_modules/.test(sql)) return Promise.resolve({ rows: modules });
-    if (/FROM forecast_income_expense/.test(sql)) return Promise.resolve({ rows: incexp });
+    if (/FROM forecast_streams/.test(sql)) return Promise.resolve({ rows: modules });
     if (/FROM forecast_scenarios/.test(sql)) return Promise.resolve({ rows: [{ name: scenarioName }] });
     return Promise.resolve({ rows: [] });
   });
@@ -97,10 +103,18 @@ test('the rate is resolved once per currency, not once per row', async () => {
   expect(baseYearFxRate).toHaveBeenCalledTimes(2);
 });
 
-test('income/expense items contribute their USD twin, not the local amount', async () => {
-  mockQueries({ incexp: [{ label: 'Living Expenses', amount: '-127372' }] });
+test('a converted Expenditure item converts like any other stream', async () => {
+  // Was: "income/expense items contribute their USD twin, not the local amount" — a separate
+  // UNION branch that bypassed conversion because inc/exp rows carried a pre-derived USD
+  // column. There is no separate branch now, so a PLN item converts exactly as a PLN module
+  // does, which is a strictly better answer to the CR064 P8 question this file exists for.
+  mockQueries({ modules: [{ label: 'Living Expenses', type: 'expense', currency: 'USD', amount: '-127372' }] });
   const values = await getBaseYearValues(47, 2026);
   expect(values['Living Expenses']).toBe(-127372);
+
+  mockQueries({ modules: [{ label: 'PL Costs', type: 'expense', currency: 'PLN', amount: '-39000' }] });
+  const pln = await getBaseYearValues(47, 2026);
+  expect(pln['PL Costs']).toBeCloseTo(-39000 / 3.9, 2);
 });
 
 test('zero rows are dropped, so a line with nothing in it does not appear', async () => {

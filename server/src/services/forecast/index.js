@@ -19,8 +19,9 @@ const path = require("path");
 const db = require("../../v2/db");
 const { loadScenarioConfig } = require("./fcbuilder-setup");
 const { LabelFrame } = require("./frame");
-const { computeModule: computeBSModule, writeAuditTrail } = require("./fcbuilder-module");
-const { computeModule: computeIncExpModule, writeEntriesAuditTrail } = require("./fcbuilder-incexp");
+// CR069 P2 — ONE builder. `fcbuilder-incexp.js` is deleted: an income/expense item is a
+// module with `has_valuation = FALSE` and a single stream, and goes through the same path.
+const { computeModule, writeAuditTrail } = require("./fcbuilder-module");
 const { insertModuleEntries } = require("./fcbuilder-common");
 const { deriveLoanSchedule } = require("./fcbuilder-loan");
 const { CATEGORIES, PATHS } = require("./constants");
@@ -78,14 +79,48 @@ async function loadModulesForScenario(scenarioId, fcLineNameMap, dbc = db, scena
 
   // Load nested data for all modules
   for (const mod of modules) {
-    const [incomePct, investments, disposals, amortization, incomeSteps] = await Promise.all([
-      dbc.query('SELECT * FROM forecast_module_income_pct WHERE module_id = $1 ORDER BY effective_date', [mod.id]),
+    const [investments, disposals, amortization, streams] = await Promise.all([
       dbc.query('SELECT * FROM forecast_module_investments WHERE module_id = $1 ORDER BY investment_date', [mod.id]),
       dbc.query('SELECT * FROM forecast_module_disposals WHERE module_id = $1 ORDER BY disposal_date', [mod.id]),
       dbc.query('SELECT * FROM forecast_module_amortization WHERE module_id = $1 ORDER BY effective_date', [mod.id]),
-      // CR064 P6 — permanent step changes to amount-based income.
-      dbc.query('SELECT * FROM forecast_module_income_steps WHERE module_id = $1 ORDER BY effective_date', [mod.id]),
+      // CR069 — the module's P&L streams, each with its own change schedule.
+      dbc.query('SELECT * FROM forecast_streams WHERE module_id = $1 ORDER BY direction, id', [mod.id]),
     ]);
+
+    const streamIds = streams.rows.map((s) => s.id);
+    const changesByStream = new Map();
+    if (streamIds.length) {
+      const changeRows = await dbc.query(
+        'SELECT * FROM forecast_stream_changes WHERE stream_id = ANY($1) ORDER BY change_date',
+        [streamIds]
+      );
+      for (const row of changeRows.rows) {
+        if (!changesByStream.has(row.stream_id)) changesByStream.set(row.stream_id, []);
+        changesByStream.get(row.stream_id).push(row);
+      }
+    }
+
+    mod.HasValuation = mod.has_valuation !== false;
+
+    // Where a stream POSTS. The fallback is not cosmetic and is not shared:
+    //
+    //   valuation  the FC line, or nowhere. `fcbuilder-module` resolved
+    //              `fcLineNameMap.get(id) || ''` and `indexOf('')` is -1, so an expense with
+    //              no line silently posts to no P&L row while its cash still moves. That is
+    //              a live defect (roadmap: `Sarasota House`, −1,203,432 against no line) and
+    //              it is PRESERVED here rather than fixed, because this CR's gate is "no
+    //              number moves". Fixing it changes a scenario's Expenses metric.
+    //   flow       the FC line, else the COA ACCOUNT name, else the module name — the
+    //              `fc_line || account_name || name` chain fcbuilder-incexp used. Three live
+    //              items (`Retirement Home`, `Car Purchase Chris`, `Social Security`) carry
+    //              no line and post to their account's name; dropping the fallback would
+    //              silently move them off their row.
+    mod.Streams = streams.rows.map((s) => ({
+      ...s,
+      lineName: (s.fc_line_id && fcLineNameMap ? fcLineNameMap.get(s.fc_line_id) : null)
+        || (mod.HasValuation ? '' : (mod.account_name || mod.name)),
+      changes: changesByStream.get(s.id) || [],
+    }));
 
     // Transform to v1 format expected by processModule
     mod.Name = mod.name;
@@ -97,39 +132,10 @@ async function loadModulesForScenario(scenarioId, fcLineNameMap, dbc = db, scena
     mod.MarketValueUSD = parseFloat(mod.market_value_usd) || 0;
     mod.Currency = (mod.currency || 'USD').trim();
     mod.Growth = parseFloat(mod.growth_rate) || 0;
-    mod.ExpensePct = 0; // Legacy field — replaced by expense_growth_method
-    mod.expense_fc_line_id = mod.expense_fc_line_id || null;
-    mod.income_fc_line_id = mod.income_fc_line_id || null;
-    mod.expense_growth_method = mod.expense_growth_method || 'inflation';
-
-    // Resolve FC Line names for entry labels
-    mod.ExpCategory = '';
-    mod.IncomeCategory = '';
-    if (mod.expense_fc_line_id && fcLineNameMap) {
-      mod.ExpCategory = fcLineNameMap.get(mod.expense_fc_line_id) || '';
-    }
-    if (mod.income_fc_line_id && fcLineNameMap) {
-      mod.IncomeCategory = fcLineNameMap.get(mod.income_fc_line_id) || '';
-    }
 
     mod.Comment = mod.comment;
     mod.Matched = mod.is_matched;
     mod.AccountType = mod.account_type || '';
-
-    // Transform nested arrays to v1 format
-    mod.IncomePct = incomePct.rows.map(r => ({
-      Date: r.effective_date,
-      Value: parseFloat(r.value) || 0,
-    }));
-
-    // CR064 P6 — the income growth multiplier and the step schedule. Both belong to
-    // AMOUNT-based income; a module in yield mode ignores them, exactly as it already
-    // ignores income_amount itself.
-    mod.IncomeGrowth = mod.income_growth_rate != null ? parseFloat(mod.income_growth_rate) : null;
-    mod.IncomeSteps = incomeSteps.rows.map(r => ({
-      Date: r.effective_date,
-      Amount: parseFloat(r.amount) || 0,
-    }));
 
     mod.Invest = investments.rows.map(r => ({
       Date: r.investment_date,
@@ -187,130 +193,50 @@ async function loadModulesForScenario(scenarioId, fcLineNameMap, dbc = db, scena
 }
 
 /**
- * Loads income/expense items from PostgreSQL and transforms to v1 format
- */
-async function loadIncExpModulesForScenario(scenarioId, fcLineNameMap, dbc = db) {
-  const itemsResult = await dbc.query(`
-    SELECT ie.*, a.name as account_name
-    FROM forecast_income_expense ie
-    LEFT JOIN accounts a ON ie.account_id = a.id
-    WHERE ie.scenario_id = $1 AND COALESCE(ie.setup_status, 'new') NOT IN ('new', 'exclude')
-  `, [scenarioId]);
-
-  const items = itemsResult.rows;
-
-  // Load changes for all items
-  if (items.length > 0) {
-    const itemIds = items.map(item => item.id);
-    const changesResult = await dbc.query(`
-      SELECT * FROM forecast_incexp_changes
-      WHERE incexp_id = ANY($1)
-      ORDER BY change_date
-    `, [itemIds]);
-
-    const changesByItem = {};
-    for (const change of changesResult.rows) {
-      if (!changesByItem[change.incexp_id]) {
-        changesByItem[change.incexp_id] = [];
-      }
-      changesByItem[change.incexp_id].push({
-        Date: change.change_date,
-        Amount: parseFloat(change.amount) || 0,
-        Flag: change.flag || '',
-      });
-    }
-
-    for (const item of items) {
-      item.Changes = changesByItem[item.id] || [];
-    }
-  }
-
-  // Transform to v1 format
-  for (const item of items) {
-    item.Name = item.name;
-    // Resolve FC Line name for account label (instead of COA account name)
-    if (item.fc_line_id && fcLineNameMap) {
-      item.Account = fcLineNameMap.get(item.fc_line_id) || item.account_name || item.name;
-    } else {
-      item.Account = item.account_name || item.name;
-    }
-    item.BaseValue = parseFloat(item.base_value) || 0;
-    item.BaseValueUSD = parseFloat(item.base_value_usd) || 0;
-    item.Currency = (item.currency || 'USD').trim();
-    item.Growth = parseFloat(item.growth_rate) || 0;
-    item.Comment = item.comment;
-    item.Matched = item.is_matched;
-    if (!item.Changes) item.Changes = [];
-  }
-
-  return items;
-}
-
-/**
- * Extracts unique categories from modules
+ * The unified category axis (CR069 P2).
+ *
+ * ONE frame now, where there were two: `scenarioCategories` for balance-sheet modules and
+ * `incexpCategories` for items. Every module — valuation or flow — computes against the same
+ * row set, which is what lets a converted Expenditure item go through the same builder.
+ *
+ * Rows: Bank Accounts · Transfer - Bank · every module account · every line any stream posts
+ * to · Taxes. A stream with no line resolves through the same fallback the loader applied.
  */
 async function loadCategoriesForScenario(scenarioId, fcLineNameMap, dbc = db) {
   const result = await dbc.query(`
     SELECT
-      array_agg(DISTINCT a.name) FILTER (WHERE a.name IS NOT NULL) as account_names,
-      array_agg(DISTINCT m.expense_fc_line_id) FILTER (WHERE m.expense_fc_line_id IS NOT NULL) as expense_fc_line_ids,
-      array_agg(DISTINCT m.income_fc_line_id) FILTER (WHERE m.income_fc_line_id IS NOT NULL) as income_fc_line_ids
+      array_agg(DISTINCT a.name) FILTER (WHERE a.name IS NOT NULL) as account_names
     FROM forecast_modules m
     LEFT JOIN accounts a ON m.account_id = a.id
     WHERE m.scenario_id = $1 AND COALESCE(m.setup_status, 'new') NOT IN ('new', 'exclude')
   `, [scenarioId]);
 
-  const row = result.rows[0] || {};
+  const lineRows = await dbc.query(`
+    SELECT s.fc_line_id, s.direction, m.has_valuation, a.name AS account_name, m.name AS module_name
+    FROM forecast_streams s
+    JOIN forecast_modules m ON m.id = s.module_id
+    LEFT JOIN accounts a ON m.account_id = a.id
+    WHERE m.scenario_id = $1 AND COALESCE(m.setup_status, 'new') NOT IN ('new', 'exclude')
+  `, [scenarioId]);
+
   const expenseCategories = [];
   const incomeCategories = [];
-
-  // Build category lists from FC Line names
-  if (fcLineNameMap) {
-    for (const id of (row.expense_fc_line_ids || [])) {
-      const name = fcLineNameMap.get(id);
-      if (name && !expenseCategories.includes(name)) expenseCategories.push(name);
-    }
-    for (const id of (row.income_fc_line_ids || [])) {
-      const name = fcLineNameMap.get(id);
-      if (name && !incomeCategories.includes(name)) incomeCategories.push(name);
-    }
+  for (const row of lineRows.rows) {
+    const name = (row.fc_line_id && fcLineNameMap ? fcLineNameMap.get(row.fc_line_id) : null)
+      || (row.has_valuation !== false ? '' : (row.account_name || row.module_name));
+    if (!name) continue;
+    const bucket = row.direction === 'income' ? incomeCategories : expenseCategories;
+    if (!bucket.includes(name)) bucket.push(name);
   }
 
   return {
     expenseCategories,
     incomeCategories,
-    accountNames: row.account_names || [],
+    accountNames: result.rows[0]?.account_names || [],
   };
 }
 
-/**
- * Extracts unique income/expense categories — uses FC Line names when available
- */
-async function loadIncExpCategoriesForScenario(scenarioId, fcLineNameMap, dbc = db) {
-  const result = await dbc.query(`
-    SELECT ie.fc_line_id, a.name as account_name
-    FROM forecast_income_expense ie
-    LEFT JOIN accounts a ON ie.account_id = a.id
-    WHERE ie.scenario_id = $1 AND COALESCE(ie.setup_status, 'new') NOT IN ('new', 'exclude')
-  `, [scenarioId]);
 
-  const categories = new Set();
-  for (const row of result.rows) {
-    if (row.fc_line_id && fcLineNameMap) {
-      const name = fcLineNameMap.get(row.fc_line_id);
-      if (name) { categories.add(name); continue; }
-    }
-    if (row.account_name) categories.add(row.account_name);
-  }
-
-  return {
-    incexpCategories: Array.from(categories),
-  };
-}
-
-/**
- * Main forecast generation function
- */
 async function generateForecast(scenarioName, { writeAudit = true } = {}) {
   const startTime = Date.now();
 
@@ -372,16 +298,15 @@ async function generateForecast(scenarioName, { writeAudit = true } = {}) {
     console.log(`[FORECAST-GENERATE] Loaded ${fcLineNameMap.size} FC Line names`);
 
     // Step 4: Load modules and categories in parallel
-    const [bsModules, incexpModules, { expenseCategories, incomeCategories, accountNames }, { incexpCategories }] =
+    const [bsModules, { expenseCategories, incomeCategories, accountNames }] =
       await Promise.all([
         loadModulesForScenario(scenarioId, fcLineNameMap, dbc, scenario),
-        loadIncExpModulesForScenario(scenarioId, fcLineNameMap, dbc),
         loadCategoriesForScenario(scenarioId, fcLineNameMap, dbc),
-        loadIncExpCategoriesForScenario(scenarioId, fcLineNameMap, dbc),
       ]);
 
-    console.log(`[FORECAST-GENERATE] Loaded ${bsModules.length} FCModule entries for scenario ${scenarioName}`);
-    console.log(`[FORECAST-GENERATE] Loaded ${incexpModules.length} FCIncExp entries for scenario ${scenarioName}`);
+    const flowCount = bsModules.filter((m) => m.HasValuation === false).length;
+    console.log(`[FORECAST-GENERATE] Loaded ${bsModules.length} modules for scenario ${scenarioName}` +
+      ` (${bsModules.length - flowCount} with a valuation, ${flowCount} flow)`);
 
     // CR062 — a loan whose schedule is incoherent still builds; it just builds
     // something the owner should see. Surfaced in the generate result (and the
@@ -392,18 +317,10 @@ async function generateForecast(scenarioName, { writeAudit = true } = {}) {
       console.warn(`[FORECAST-GENERATE] Loan "${w.module}": ${w.message}`);
     }
 
-    // Step 5: Build category structures
+    // Step 5: Build the ONE category axis every module computes against (CR069 P2).
+    // `buildScenarioCategories` already dedupes and already pushes Bank Accounts,
+    // Transfer - Bank and Taxes, which is what the retired inc/exp axis had to add by hand.
     const scenarioCategories = buildScenarioCategories(accountNames, incomeCategories, expenseCategories);
-
-    if (!incexpCategories.includes(CATEGORIES.TAXES)) {
-      incexpCategories.push(CATEGORIES.TAXES);
-    }
-    if (!incexpCategories.includes(CATEGORIES.BANK_ACCOUNTS)) {
-      // Deduped (CR043 2.3): an inc/exp item mapped to the literal 'Bank
-      // Accounts' account used to produce a duplicate row label here and crash
-      // the (danfo) frame with an opaque IndexError mid-generate.
-      incexpCategories.push(CATEGORIES.BANK_ACCOUNTS);
-    }
 
     const columns = buildColumns(years);
 
@@ -411,28 +328,16 @@ async function generateForecast(scenarioName, { writeAudit = true } = {}) {
     // deterministic array order (BS modules then inc/exp items). No I/O: each
     // computeModule fills a fresh category × year frame and returns the
     // flattened forecast_entries payload.
-    console.log(`[FORECAST-GENERATE] Processing ${bsModules.length + incexpModules.length} modules...`);
+    console.log(`[FORECAST-GENERATE] Processing ${bsModules.length} modules...`);
 
-    const computed = [
-      ...bsModules.map((module) => ({
-        kind: 'bs',
-        module,
-        result: computeBSModule(
-          module, scenario, df_assumptions,
-          LabelFrame.zeros(scenarioCategories, columns),
-          categories, years, scenarioId
-        ),
-      })),
-      ...incexpModules.map((module) => ({
-        kind: 'incexp',
-        module,
-        result: computeIncExpModule(
-          module, scenario, df_assumptions,
-          LabelFrame.zeros(incexpCategories, columns),
-          categories, years, scenarioId
-        ),
-      })),
-    ];
+    const computed = bsModules.map((module) => ({
+      module,
+      result: computeModule(
+        module, scenario, df_assumptions,
+        LabelFrame.zeros(scenarioCategories, columns),
+        categories, years, scenarioId
+      ),
+    }));
 
     // Step 6b: audit-trail CSVs (fs side effect, kept out of the numbers path).
     // CR053: the auto-adjust solver rebuilds a throwaway scratch scenario ~10× per solve;
@@ -440,12 +345,7 @@ async function generateForecast(scenarioName, { writeAudit = true } = {}) {
     // (which must reflect only real builds). Numbers path is byte-identical either way.
     if (writeAudit) {
       for (const c of computed) {
-        if (c.kind === 'bs') {
-          writeAuditTrail(c.result.audit.dfModuleLC, c.result.audit.dfModuleUSD, c.result.audit.dfCategories, scenario, c.module);
-        } else {
-          // CR069 P0 — by item NAME, matching the `module` label its entries carry.
-          writeEntriesAuditTrail(c.result.audit.dfCategories, scenario?.Name, c.module?.Name);
-        }
+        writeAuditTrail(c.result.audit.dfModuleLC, c.result.audit.dfModuleUSD, c.result.audit.dfCategories, scenario, c.module);
       }
     }
 
@@ -629,7 +529,7 @@ async function generateForecast(scenarioName, { writeAudit = true } = {}) {
       // compounding). Both were already computed by the builder in Step 6a — read them
       // off the staged frames rather than re-deriving the builder's math a third time.
       const sweepSeriesFor = (moduleName) => {
-        const c = computed.find((x) => x.kind === 'bs' && x.module?.Name === moduleName);
+        const c = computed.find((x) => x.module?.Name === moduleName);
         const usd = c?.result?.audit?.dfModuleUSD;
         const basisByYear = {};
         const growthByYear = {};
@@ -747,7 +647,11 @@ async function generateForecast(scenarioName, { writeAudit = true } = {}) {
 
         for (const row of rankedRows) {
           const mod = bsModules.find((m) => m.id === row.id || m.Name === row.name);
-          if (!mod || !Array.isArray(mod.IncomePct) || mod.IncomePct.length === 0) continue;
+          // CR069 P2 — the yield context is the module's ONE yield stream (migration 057
+          // enforces at most one per module with a partial unique index, precisely because
+          // this loop assumes it). Was `mod.IncomePct`, the schedule rows themselves.
+          const yieldStream = !mod ? null : (mod.Streams || []).find((s) => s.mode === 'yield');
+          if (!yieldStream) continue;
 
           const modStartYear = new Date(mod.BaseDate).getFullYear();
           const modEndYear = scenario.PeriodEnd;
@@ -755,9 +659,9 @@ async function generateForecast(scenarioName, { writeAudit = true } = {}) {
           const growthPct = mod.Growth ?? 0;
 
           // Yield schedule → per-year spread values (step function)
-          const sortedIncomePct = [...mod.IncomePct]
-            .filter((e) => e && e.Date && e.Value != null)
-            .map((e) => ({ year: new Date(e.Date).getFullYear(), value: e.Value }))
+          const sortedIncomePct = (yieldStream.changes || [])
+            .filter((e) => e && e.flag === 'Spread %' && e.change_date && e.amount != null)
+            .map((e) => ({ year: new Date(e.change_date).getFullYear(), value: parseFloat(e.amount) || 0 }))
             .sort((a, b) => a.year - b.year);
           const incomePctValues = new Array(modYearsCount).fill(0);
           {
@@ -861,7 +765,7 @@ async function generateForecast(scenarioName, { writeAudit = true } = {}) {
           yieldContexts.push({
             mod,
             account: row.account_name,
-            incomeAccount: mod.IncomeCategory || 'Income',
+            incomeAccount: yieldStream.lineName || 'Income',
             modStartYear, modEndYear, modYearsCount,
             incomePctValues, mvLC, modFx, rateFactor, winFrom, winTo,
             prevIncomeUSD: null,
@@ -1075,7 +979,7 @@ async function generateForecast(scenarioName, { writeAudit = true } = {}) {
 
     return {
       deletedCount,
-      modulesProcessed: bsModules.length + incexpModules.length,
+      modulesProcessed: bsModules.length,
       entriesCreated: totalEntries,
       loanWarnings,
     };

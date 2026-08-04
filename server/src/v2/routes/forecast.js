@@ -44,23 +44,27 @@ const SCENARIO_UPDATE_FIELDS = ['name', 'description', 'is_active', 'cash_sweep_
 const MODULE_WRITE_FIELDS = [
   'Scenario', 'Account', 'Name', 'Type', 'Currency', 'Comment', 'Matched', 'SetupStatus',
   'BaseDate', 'BaseValue', 'MarketValue', 'BaseValueUSD', 'MarketValueUSD', 'Growth',
+  'TaxRateOverride',
+  'CashSweepPriority', 'CashSweepTarget',
+  'Invest', 'Dispose',
+  // CR069 P2 — the module's P&L streams, each with its own change schedule, plus the flag
+  // that says whether the module has a balance sheet at all.
+  'Streams', 'HasValuation',
+  // ...and the LEGACY per-direction fields, still accepted and translated into streams by
+  // `crud.replaceModuleStreams`. This is the expand half of expand → migrate → contract, and
+  // it is not optional: the Modules editor still sends these on every save, and P3 is what
+  // replaces that form with stream cards. Refusing them here would 400 every module save for
+  // the whole gap between the two deploys. They are dropped from the contract in P3, with the
+  // columns.
   'ExpenseAmount', 'ExpenseFcLineId', 'ExpenseGrowthMethod', 'ExpenseStartDate', 'ExpenseEndDate',
   'IncomeAmount', 'IncomeFcLineId', 'IncomeStartDate', 'IncomeEndDate',
-  // CR064 P6 — amount-based income: its own growth rate, and permanent step changes.
-  'IncomeGrowth', 'IncomeSteps',
-  'TaxRateOverride', 'IncomeTaxRateOverride',
-  'CashSweepPriority', 'CashSweepTarget',
-  'Invest', 'Dispose', 'IncomePct',
+  'IncomeGrowth', 'IncomeSteps', 'IncomePct', 'IncomeTaxRateOverride',
   // CR062 — loan assumptions + the principal schedule
   'LoanPrincipal', 'LoanStartDate', 'LoanEndDate', 'LoanInterestRate', 'Amortization',
   'SecuredAssetModuleId',
 ];
 
-const INCEXP_WRITE_FIELDS = [
-  'Scenario', 'Account', 'Name', 'Type', 'Currency', 'Comment', 'Matched', 'SetupStatus',
-  'BaseDate', 'BaseValue', 'BaseValueUSD', 'Growth',
-  'FcLineId', 'BudgetSourceYear', 'Changes',
-];
+
 
 /**
  * CR062 — is this write describing a LOAN? Keyed on the rate, never on `Type`:
@@ -193,21 +197,6 @@ function assertModuleBody(body) {
       validate.assertFiniteNumber(row.Pct, 'Amortization.Pct', { optional: true });
       if (Number(row.Pct) < 0) throw validate.badRequest('An amortization percentage cannot be negative — that would draw the loan down again.');
     }
-  }
-}
-
-/** Shared shape check for an income/expense write body. */
-function assertIncExpBody(body) {
-  validate.assertPlainObject(body, 'income-expense item');
-  validate.assertAllowedFields(body, INCEXP_WRITE_FIELDS, 'income-expense item');
-  for (const f of ['BaseValue', 'BaseValueUSD', 'Growth']) {
-    if (body[f] !== undefined && body[f] !== null) {
-      validate.assertFiniteNumber(body[f], f, { optional: true });
-    }
-  }
-  if (body.Matched !== undefined) validate.assertBoolean(body.Matched, 'Matched');
-  if (body.Changes !== undefined && !Array.isArray(body.Changes)) {
-    throw validate.badRequest('Changes must be an array');
   }
 }
 
@@ -970,6 +959,9 @@ router.post('/modules', async (req, res, next) => {
       }
     }
 
+    // CR069 P2 — streams, from either shape (see the PUT handler).
+    await crud.replaceModuleStreams(module.id, body);
+
     res.status(201).json({ data: module });
   } catch (error) {
     console.error('[forecast/modules POST] Failed:', error);
@@ -1133,6 +1125,11 @@ router.put('/modules/:id', async (req, res, next) => {
       await crud.replaceModuleSchedules(id, body);
     }
 
+    // CR069 P2 — the module's P&L streams. Handles the new `Streams` array AND the legacy
+    // per-direction fields the Modules editor still sends until P3 replaces that form, so a
+    // save keeps working across the two deploys.
+    await crud.replaceModuleStreams(id, body);
+
     // CR062 — becoming a loan CLEARS what a loan cannot carry: the CR046 expense
     // window (applyWindow runs after the interest branch and would halve and
     // truncate it — measured, an expense window of 2030–2032 turns a flat
@@ -1243,255 +1240,29 @@ router.patch('/modules/bulk-update', async (req, res, next) => {
 // ============================================================================
 
 // GET /api/v2/forecast/incomeexpense
-router.get('/incomeexpense', async (req, res, next) => {
-  try {
-    const scenarioName = req.query.scenario?.trim();
-    if (!scenarioName) {
-      return res.json({ entries: [] });
-    }
-
-    const scenario = await repo.findScenarioByName(scenarioName);
-    if (!scenario) {
-      return res.json({ entries: [] });
-    }
-
-    // CR050 — a variant materializes lazily, on read and at build.
-    let inheritance = null;
-    if (scenario.parent_scenario_id) {
-      await variants.syncIfStale(scenario.id);
-      inheritance = await variants.inheritanceMap(scenario.id, 'incexp');
-    }
-
-    const items = await repo.findIncExpByScenario(scenario.id);
-
-    // Transform to PascalCase for frontend
-    const transformed = items.map((item) => ({
-      Inheritance: variants.rowInheritance(inheritance, item),
-      ...item,
-      id: item.id,
-      Scenario: scenarioName,
-      Name: item.name,
-      Account: item.account_name,
-      Type: item.item_type ? item.item_type.charAt(0).toUpperCase() + item.item_type.slice(1) : '',
-      Currency: item.currency,
-      BaseDate: item.base_date,
-      BaseValue: item.base_value,
-      BaseValueUSD: item.base_value_usd,
-      Growth: item.growth_rate,
-      Comment: item.comment,
-      Matched: item.is_matched,
-      FcLineId: item.fc_line_id || null,
-      FcLineName: item.fc_line_name || null,
-      SetupStatus: item.setup_status || 'new',
-      Changes: item.changes || [],
-    }));
-
-    res.json({ entries: transformed });
-  } catch (error) {
-    console.error('[forecast/incomeexpense] Failed:', error);
-    next(error);
-  }
-});
-
-// POST /api/v2/forecast/incomeexpense
-router.post('/incomeexpense', async (req, res, next) => {
-  try {
-    const body = req.body || {};
-    assertIncExpBody(body);
-    const scenarioName = (body.Scenario || '').trim();
-
-    if (!scenarioName) {
-      return res.status(400).json({ error: 'Scenario is required' });
-    }
-
-    const scenario = await repo.findScenarioByName(scenarioName);
-    if (!scenario) {
-      return res.status(404).json({ error: 'Scenario not found' });
-    }
-
-    let accountId = null;
-    if (body.Account) {
-      accountId = await crud.lookupAccountByName(body.Account);
-    }
-
-    // If created from FC Line and no account specified, resolve from the line
-    // (name-match first, then any account assigned to the line).
-    if (!accountId && body.FcLineId) {
-      accountId = await crud.resolveIncExpAccountFromFcLine(body.FcLineId);
-    }
-
-    // CR051 — for a non-USD line, base_value_usd is DERIVED server-side from the native base_value
-    // at the base-year FX (never trusted from the client, so it can't rot). USD lines are untouched:
-    // native == USD, and matched lines legitimately carry a client-supplied USD figure.
-    const currency = body.Currency || 'USD';
-    let baseValueUsd = body.BaseValueUSD ?? 0;
-    if (currency !== 'USD') {
-      let rate;
-      try {
-        rate = await baseYearFxRate(scenarioName, currency);
-      } catch (e) {
-        return res.status(400).json({ error: e.message });
-      }
-      baseValueUsd = Math.round((Number(body.BaseValue ?? 0) / rate) * 100) / 100;
-    }
-
-    const itemData = {
-      scenario_id: scenario.id,
-      account_id: accountId,
-      name: body.Name || 'All',
-      item_type: body.Type || '',
-      currency,
-      base_date: body.BaseDate || null,
-      base_value: body.BaseValue ?? 0,
-      base_value_usd: baseValueUsd,
-      growth_rate: body.Growth ?? 1,
-      comment: body.Comment || '',
-      is_matched: Boolean(body.Matched),
-      fc_line_id: body.FcLineId || null,
-      budget_source_year: body.BudgetSourceYear || null,
-    };
-
-    const item = await repo.createIncExp(itemData);
-
-    // Add changes if provided
-    if (Array.isArray(body.Changes) && body.Changes.length > 0) {
-      for (const change of body.Changes) {
-        if (change.Date || change.Amount !== undefined) {
-          await repo.addIncExpChange(item.id, {
-            change_date: change.Date,
-            amount: change.Amount,
-            flag: change.Flag || '',
-          });
-        }
-      }
-    }
-
-    res.status(201).json({ data: item });
-  } catch (error) {
-    console.error('[forecast/incomeexpense POST] Failed:', error);
-    next(error);
-  }
-});
-
-// PUT /api/v2/forecast/incomeexpense/:id
-router.put('/incomeexpense/:id', async (req, res, next) => {
-  try {
-    const id = parseInt(req.params.id);
-    if (!id || isNaN(id)) {
-      return res.status(400).json({ error: 'Invalid ID' });
-    }
-
-    const body = req.body || {};
-    assertIncExpBody(body);
-
-    let accountId = undefined;
-    if (body.Account !== undefined) {
-      accountId = body.Account ? await crud.lookupAccountByName(body.Account) : null;
-    }
-
-    const updateData = {};
-    if (accountId !== undefined) updateData.account_id = accountId;
-    if (body.Name !== undefined) updateData.name = body.Name;
-    if (body.Type !== undefined) updateData.item_type = body.Type;
-    if (body.Currency !== undefined) updateData.currency = body.Currency;
-    if (body.BaseDate !== undefined) updateData.base_date = body.BaseDate;
-    if (body.BaseValue !== undefined) updateData.base_value = body.BaseValue;
-    if (body.BaseValueUSD !== undefined) updateData.base_value_usd = body.BaseValueUSD;
-    // CR062 — Growth is COERCED to 0 on a loan, never rejected. buildModulePayload
-    // always emits Growth from editForm, so a module retyped Asset (Growth 1.0) →
-    // Loan would 400 on every save with no visible field to fix. Growth on a
-    // liability capitalizes interest into the balance, double-counting the
-    // interest line.
-    if (body.Growth !== undefined) updateData.growth_rate = isLoanBody(body) ? 0 : body.Growth;
-    if (body.LoanPrincipal !== undefined) updateData.loan_principal = body.LoanPrincipal ?? null;
-    if (body.LoanStartDate !== undefined) updateData.loan_start_date = body.LoanStartDate || null;
-    if (body.LoanEndDate !== undefined) updateData.loan_end_date = body.LoanEndDate || null;
-    if (body.LoanInterestRate !== undefined) updateData.loan_interest_rate = body.LoanInterestRate ?? null;
-    if (body.SecuredAssetModuleId !== undefined) {
-      updateData.secured_asset_module_id = body.SecuredAssetModuleId || null;
-    }
-    if (body.Comment !== undefined) updateData.comment = body.Comment;
-    if (body.Matched !== undefined) updateData.is_matched = Boolean(body.Matched);
-    if (body.SetupStatus !== undefined) updateData.setup_status = body.SetupStatus;
-
-    // CR051 — re-derive base_value_usd server-side whenever currency or base_value could change.
-    // A PUT may touch only one of the two, so resolve the *effective* pair from the stored row,
-    // then derive at the base-year FX (§4/F2). USD stays 1:1 (client value trusted, unchanged).
-    if (body.Currency !== undefined || body.BaseValue !== undefined) {
-      const current = await repo.findIncExpById(id);
-      if (!current) {
-        return res.status(404).json({ error: 'Income/Expense item not found' });
-      }
-      const effCurrency = body.Currency !== undefined ? body.Currency : current.currency;
-      const effBaseValue = body.BaseValue !== undefined ? body.BaseValue : current.base_value;
-      if (effCurrency && effCurrency !== 'USD') {
-        let scenarioName = (body.Scenario || '').trim();
-        if (!scenarioName) {
-          const sc = await repo.findScenarioById(current.scenario_id);
-          scenarioName = sc ? sc.name : '';
-        }
-        let rate;
-        try {
-          rate = await baseYearFxRate(scenarioName, effCurrency);
-        } catch (e) {
-          return res.status(400).json({ error: e.message });
-        }
-        updateData.base_value_usd = Math.round((Number(effBaseValue) / rate) * 100) / 100;
-        updateData.currency = effCurrency; // persist even if only base_value moved
-      }
-    }
-
-    let item;
-    if (Object.keys(updateData).length > 0) {
-      item = await repo.updateIncExp(id, updateData);
-      if (!item) {
-        return res.status(404).json({ error: 'Income/Expense item not found' });
-      }
-    } else {
-      // No main fields to update — verify the item exists
-      item = await repo.findIncExpById(id);
-      if (!item) {
-        return res.status(404).json({ error: 'Income/Expense item not found' });
-      }
-    }
-
-    // Handle changes — replace all if provided
-    if (Array.isArray(body.Changes)) {
-      await crud.replaceIncExpChanges(id, body.Changes);
-    }
-
-    res.json({ data: item });
-  } catch (error) {
-    console.error('[forecast/incomeexpense PUT] Failed:', error);
-    next(error);
-  }
-});
-
-// DELETE /api/v2/forecast/incomeexpense/:id
-router.delete('/incomeexpense/:id', async (req, res, next) => {
-  try {
-    const id = parseInt(req.params.id);
-    if (!id || isNaN(id)) {
-      return res.status(400).json({ error: 'Invalid ID' });
-    }
-
-    const deleted = await repo.deleteIncExp(id);
-    if (!deleted) {
-      return res.status(404).json({ error: 'Income/Expense item not found' });
-    }
-
-    res.json({ success: true });
-  } catch (error) {
-    console.error('[forecast/incomeexpense DELETE] Failed:', error);
-    next(error);
-  }
-});
-
 // ============================================================================
-// Forecast Entries & Generation
+// Income/expense items — RETIRED by CR069 P2.
+//
+// An Expenditure item is now a module with `has_valuation = FALSE` and one stream, managed
+// through /modules like everything else. These four routes are answered with 410 Gone rather
+// than deleted outright, and that is deliberate: the engine stopped READING
+// `forecast_income_expense` in this same deploy, so a write that still succeeded here would
+// be accepted, stored, and silently ignored — the staleness class this CR spent a phase
+// designing out of the backfill, arriving instead through the write path. Fail loud for the
+// one deploy in which a stale client can still call them; the routes and the table both go in
+// P3. (Added at PM sign-off, which caught the P2→P3 window.)
 // ============================================================================
+const INCEXP_GONE = {
+  error: 'Income/expense items are now modules. Use /api/v2/forecast/modules — an item is a '
+       + 'module with has_valuation=false and a single stream (CR069 P2).',
+};
+for (const [method, path] of [
+  ['get', '/incomeexpense'], ['post', '/incomeexpense'],
+  ['put', '/incomeexpense/:id'], ['delete', '/incomeexpense/:id'],
+]) {
+  router[method](path, (_req, res) => res.status(410).json(INCEXP_GONE));
+}
 
-// GET /api/v2/forecast/entries
 router.get('/entries', async (req, res, next) => {
   try {
     const scenarioName = req.query.scenario?.trim();

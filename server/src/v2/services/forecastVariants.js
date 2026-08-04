@@ -31,30 +31,40 @@ const EXCLUDED_COLUMNS = new Set(['id', 'scenario_id', 'created_at', 'updated_at
 
 /** Patch keys that address a whole child schedule rather than a column. */
 const SCHEDULE_KEYS = {
-  forecast_modules: ['investments', 'disposals', 'income_pct', 'amortization', 'income_steps'],
-  forecast_income_expense: ['changes'],
+  // CR069 P2 — `streams` replaces `income_pct` and `income_steps` (both absorbed into a
+  // stream's own change schedule), and `forecast_income_expense` is gone entirely: an
+  // Expenditure item is a module with has_valuation = FALSE and one stream.
+  forecast_modules: ['investments', 'disposals', 'amortization', 'streams'],
 };
 
 const SCHEDULE_TABLES = {
   investments: { table: 'forecast_module_investments', fk: 'module_id', cols: ['investment_date', 'amount', 'flag', 'note', 'date_end'] },
   disposals: { table: 'forecast_module_disposals', fk: 'module_id', cols: ['disposal_date', 'amount', 'flag', 'note', 'date_end'] },
-  income_pct: { table: 'forecast_module_income_pct', fk: 'module_id', cols: ['effective_date', 'value'] },
+
   // CR062 — a loan's principal schedule. The loan COLUMNS ride along free (sync
   // reads information_schema, CR050's deliberate fix for the dropped-column class);
   // a child TABLE does not, so it has to be named here or an inherited loan would
   // materialize with no repayments at all — a flat balance that looks deliberate.
   amortization: { table: 'forecast_module_amortization', fk: 'module_id', cols: ['effective_date', 'pct'] },
-  // CR064 P6 — permanent step changes to amount-based income. Named here for the same
-  // reason as amortization: the income_growth_rate COLUMN rides along free (sync reads
-  // information_schema), a child TABLE does not — and a variant that inherited a business
-  // without its steps would quietly project a different income for 36 years.
-  income_steps: { table: 'forecast_module_income_steps', fk: 'module_id', cols: ['effective_date', 'amount'] },
-  changes: { table: 'forecast_incexp_changes', fk: 'incexp_id', cols: ['change_date', 'amount', 'flag', 'note'] },
+  // CR069 P2 — the one TWO-LEVEL schedule: a module has streams, and each stream has its own
+  // change rows. Every other entry here hangs one level off the parent's id, which is all
+  // `replaceSchedule` could express; `nested` is what makes this one work. Without it, the
+  // ON DELETE CASCADE on forecast_stream_changes means replacing a variant's streams silently
+  // discards every change row — a variant would inherit a business's income level and none of
+  // its steps, and project a different number for 36 years with nothing to show for it.
+  streams: {
+    table: 'forecast_streams',
+    fk: 'module_id',
+    cols: ['direction', 'fc_line_id', 'mode', 'amount', 'amount_usd', 'growth_mult',
+           'start_date', 'end_date', 'tax_rate_override'],
+    nested: { key: 'changes', table: 'forecast_stream_changes', fk: 'stream_id',
+              cols: ['change_date', 'amount', 'flag'] },
+  },
 };
 
+// CR069 P2 — one entity type where there were two. `incexp` retires with the table.
 const ENTITY_TABLES = {
   module: 'forecast_modules',
-  incexp: 'forecast_income_expense',
 };
 
 const ASSUMPTION_KEYS = ['inflation', 'FX', 'Tax Rate', 'PeriodStart', 'PeriodEnd', 'cash_sweep_low', 'cash_sweep_high'];
@@ -122,7 +132,7 @@ async function parentOf(scenarioId, client = db) {
   return res.rows[0] ? res.rows[0].parent_scenario_id : null;
 }
 
-/** The variant that owns a module / incexp row — used by the write-interception path. */
+/** The variant that owns a module row — used by the write-interception path. */
 async function variantOfRow(entityType, rowId, client = db) {
   const table = ENTITY_TABLES[entityType];
   const res = await client.query(
@@ -382,7 +392,6 @@ async function needsSync(variantId, client = db) {
     `SELECT v.synced_at,
             GREATEST(
               COALESCE((SELECT MAX(updated_at) FROM forecast_modules        WHERE scenario_id = v.parent_scenario_id), 'epoch'::timestamptz),
-              COALESCE((SELECT MAX(updated_at) FROM forecast_income_expense WHERE scenario_id = v.parent_scenario_id), 'epoch'::timestamptz),
               COALESCE((SELECT MAX(updated_at) FROM forecast_scenario_overrides WHERE scenario_id = v.id), 'epoch'::timestamptz),
               COALESCE((SELECT MAX(updated_at) FROM forecast_assumptions), 'epoch'::timestamptz),
               COALESCE(b.updated_at, 'epoch'::timestamptz)
@@ -418,11 +427,11 @@ async function syncVariant(variantId, { client = null, force = false } = {}) {
 
     const baseId = variant.parent_scenario_id;
     const overrides = await listOverrides(variantId, c);
-    const stats = { modules: 0, incexp: 0, deleted: 0, local: 0 };
+    const stats = { modules: 0, deleted: 0, local: 0 };
 
-    for (const entityType of ['module', 'incexp']) {
+    for (const entityType of ['module']) {
       const s = await syncEntity(c, { variantId, baseId, entityType, overrides });
-      stats[entityType === 'module' ? 'modules' : 'incexp'] = s.written;
+      stats.modules = s.written;
       stats.deleted += s.deleted;
       stats.local += s.local;
     }
@@ -654,33 +663,89 @@ async function pruneOverride(c, ov, baseRow, table) {
 }
 
 async function baseSchedule(c, key, baseRowId) {
-  const { table, fk, cols } = SCHEDULE_TABLES[key];
+  const { table, fk, cols, nested } = SCHEDULE_TABLES[key];
   const res = await c.query(
-    `SELECT ${cols.join(', ')} FROM ${table} WHERE ${fk} = $1 ORDER BY id`,
+    `SELECT id, ${cols.join(', ')} FROM ${table} WHERE ${fk} = $1 ORDER BY id`,
     [baseRowId]
   );
-  return res.rows;
+  const rows = res.rows;
+  if (!nested) return rows.map(({ id, ...rest }) => rest);   // eslint-disable-line no-unused-vars
+
+  // Two-level: pull each row's children and hang them off it, so the patch carries the whole
+  // subtree and `replaceSchedule` can rebuild it. Read in one query, not one per row.
+  const ids = rows.map((r) => r.id);
+  const byParent = new Map();
+  if (ids.length) {
+    const kids = await c.query(
+      `SELECT ${nested.fk}, ${nested.cols.join(', ')} FROM ${nested.table}
+        WHERE ${nested.fk} = ANY($1) ORDER BY id`,
+      [ids]
+    );
+    for (const kid of kids.rows) {
+      const parent = kid[nested.fk];
+      if (!byParent.has(parent)) byParent.set(parent, []);
+      const { [nested.fk]: _drop, ...rest } = kid;   // eslint-disable-line no-unused-vars
+      byParent.get(parent).push(rest);
+    }
+  }
+  return rows.map(({ id, ...rest }) => ({ ...rest, [nested.key]: byParent.get(id) || [] }));
+}
+
+/**
+ * CR069 P2 — a module's streams in PATCH shape, with an optional mutation applied.
+ *
+ * Exported because auto-adjust needs the identical shape: a `streams` override replaces the
+ * set wholesale, so anything writing one must send every stream and every change row. Sharing
+ * this is what stops a second, subtly different copy of the shape existing — the drift that
+ * `baseSchedule` and `replaceSchedule` are two halves of.
+ */
+async function buildStreamsPatch(c, moduleId, mutate = null) {
+  const list = await baseSchedule(c, 'streams', moduleId);
+  return mutate ? list.map((row) => mutate({ ...row })) : list;
 }
 
 async function replaceSchedule(c, key, variantRowId, list) {
-  const { table, fk, cols } = SCHEDULE_TABLES[key];
+  const { table, fk, cols, nested } = SCHEDULE_TABLES[key];
+  // The DELETE cascades to the nested table, which is exactly why the children have to be
+  // re-inserted from the patch below rather than assumed to survive.
   await c.query(`DELETE FROM ${table} WHERE ${fk} = $1`, [variantRowId]);
   for (const item of list || []) {
     const placeholders = cols.map((_, i) => `$${i + 2}`).join(', ');
-    await c.query(
-      `INSERT INTO ${table} (${fk}, ${cols.join(', ')}) VALUES ($1, ${placeholders})`,
+    const res = await c.query(
+      `INSERT INTO ${table} (${fk}, ${cols.join(', ')}) VALUES ($1, ${placeholders}) RETURNING id`,
       [variantRowId, ...cols.map((col) => item[col] ?? null)]
     );
+    if (!nested) continue;
+    const newId = res.rows[0].id;
+    for (const kid of item[nested.key] || []) {
+      const kidPlaceholders = nested.cols.map((_, i) => `$${i + 2}`).join(', ');
+      await c.query(
+        `INSERT INTO ${nested.table} (${nested.fk}, ${nested.cols.join(', ')})
+         VALUES ($1, ${kidPlaceholders})`,
+        [newId, ...nested.cols.map((col) => kid[col] ?? null)]
+      );
+    }
   }
 }
 
 /** Round a schedule's numeric columns to the scale its child table stores them at (see quantize). */
 async function quantizeSchedule(c, key, list) {
-  const { table, cols } = SCHEDULE_TABLES[key];
+  const { table, cols, nested } = SCHEDULE_TABLES[key];
   if (!scaleCache.has(table)) await loadCatalog(c, table);
+  if (nested && !scaleCache.has(nested.table)) await loadCatalog(c, nested.table);
   return (list || []).map((item) => {
     const out = { ...item };
     for (const col of cols) out[col] = quantize(table, col, item[col]);
+    // Nested rows carry their own scales — a change amount is NUMERIC(15,4) where a stream
+    // amount is (15,2). Quantizing them at the parent's scale would make an equal schedule
+    // compare unequal and write an override that says "1.375 → 1.38".
+    if (nested) {
+      out[nested.key] = (item[nested.key] || []).map((kid) => {
+        const k = { ...kid };
+        for (const col of nested.cols) k[col] = quantize(nested.table, col, kid[col]);
+        return k;
+      });
+    }
     return out;
   });
 }
@@ -842,25 +907,30 @@ async function interceptSchedules(entityType, rowId, body) {
         .filter((d) => d.Date || d.Amount !== undefined)
         .map((d) => ({ disposal_date: d.Date, amount: d.Amount, flag: d.Flag || '', note: d.Note || '', date_end: d.DateEnd || null }));
     }
-    if (Array.isArray(body.IncomePct)) {
-      patch.income_pct = body.IncomePct
-        .filter((p) => p.Date)
-        .map((p) => ({ effective_date: p.Date, value: p.Amount ?? p.Value ?? 0 }));
-    }
     if (Array.isArray(body.Amortization)) {
       patch.amortization = body.Amortization
         .filter((a) => a.Date)
         .map((a) => ({ effective_date: a.Date, pct: a.Pct ?? a.Value ?? a.Amount ?? 0 }));
     }
-    if (Array.isArray(body.IncomeSteps)) {
-      patch.income_steps = body.IncomeSteps
-        .filter((st) => st.Date)
-        .map((st) => ({ effective_date: st.Date, amount: st.Amount ?? 0 }));
+    // CR069 P2 — the streams patch is TWO levels: each stream carries its own change rows,
+    // and `replaceSchedule` rebuilds both. `IncomePct` and `IncomeSteps` no longer appear as
+    // patch keys of their own; they are Spread % and Fixed $ rows inside a stream.
+    if (Array.isArray(body.Streams)) {
+      patch.streams = body.Streams.map((st) => ({
+        direction: st.Direction,
+        fc_line_id: st.FcLineId ?? null,
+        mode: st.Mode || 'amount',
+        amount: st.Amount ?? 0,
+        amount_usd: st.AmountUSD ?? null,
+        growth_mult: st.GrowthMult ?? null,
+        start_date: st.StartDate ?? null,
+        end_date: st.EndDate ?? null,
+        tax_rate_override: st.TaxRateOverride ?? null,
+        changes: (Array.isArray(st.Changes) ? st.Changes : [])
+          .filter((ch) => ch.Date || ch.Amount !== undefined)
+          .map((ch) => ({ change_date: ch.Date, amount: ch.Amount, flag: ch.Flag || 'Fixed $' })),
+      }));
     }
-  } else if (Array.isArray(body)) {
-    patch.changes = body
-      .filter((ch) => ch.Date || ch.Amount !== undefined)
-      .map((ch) => ({ change_date: ch.Date, amount: ch.Amount, flag: ch.Flag || '', note: ch.Note || null }));
   }
 
   if (Object.keys(patch).length === 0) return { intercepted: true };
@@ -987,7 +1057,7 @@ async function adoptVariant(scenarioId, baseId, { dryRun = false } = {}) {
     if (hasChildren.rows.length > 0) throw new Error(`'${scenario.name}' is itself a base for other variants`);
 
     const diff = [];
-    for (const entityType of ['module', 'incexp']) {
+    for (const entityType of ['module']) {
       const table = ENTITY_TABLES[entityType];
       const cols = await syncColumns(client, table);
       const baseRows = (await client.query(`SELECT * FROM ${table} WHERE scenario_id = $1`, [baseId])).rows;
@@ -1108,7 +1178,6 @@ async function detachVariant(scenarioId) {
     await syncVariant(scenarioId, { client, force: true }); // freeze the resolved state first
     await client.query('DELETE FROM forecast_scenario_overrides WHERE scenario_id = $1', [scenarioId]);
     await client.query('UPDATE forecast_modules SET origin_base_id = NULL WHERE scenario_id = $1', [scenarioId]);
-    await client.query('UPDATE forecast_income_expense SET origin_base_id = NULL WHERE scenario_id = $1', [scenarioId]);
     await client.query(
       'UPDATE forecast_scenarios SET parent_scenario_id = NULL, synced_at = NULL WHERE id = $1',
       [scenarioId]
@@ -1169,6 +1238,7 @@ function valuesEqual(a, b) {
 }
 
 module.exports = {
+  buildStreamsPatch,
   parentOf,
   listOverridesWithBase,
   variantOfRow,

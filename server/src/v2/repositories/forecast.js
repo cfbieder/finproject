@@ -297,52 +297,32 @@ async function copyScenario(sourceId, newName) {
     // in a second pass below.
     const idMap = new Map();
 
+    // CR069 P2 — the column list is DERIVED, not hand-kept.
+    //
+    // The list this replaces carried its own warning: "hand-maintained, which is exactly how
+    // CR045 §1 lost cash_sweep_priority and CR048 lost the assumptions". It had already lost
+    // `has_valuation` (migration 057) before anyone noticed, and P2 adds streams — so this is
+    // the moment it drifts again. Reading information_schema is what CR050's variant sync
+    // does for the same reason and the same class of bug; identity and bookkeeping are the
+    // only exclusions.
+    const copyCols = (await client.query(
+      `SELECT column_name FROM information_schema.columns
+        WHERE table_schema = current_schema() AND table_name = 'forecast_modules'
+          AND column_name NOT IN ('id','scenario_id','created_at','updated_at',
+                                  'origin_base_id','secured_asset_module_id')
+        ORDER BY ordinal_position`
+    )).rows.map((r) => r.column_name);
+
     for (const mod of modules.rows) {
-      const newModule = await client.query(`
-        INSERT INTO forecast_modules (
-          scenario_id, account_id, name, module_type, currency,
-          expense_amount, expense_fc_line_id, income_fc_line_id, expense_growth_method,
-          income_amount, base_date, base_value,
-          market_value, base_value_usd, market_value_usd,
-          growth_rate, comment, is_matched,
-          setup_status, cash_sweep_target, tax_rate_override, cash_sweep_priority,
-          income_start_date, income_end_date, expense_start_date, expense_end_date,
-          income_tax_rate_override, income_growth_rate,
-          loan_principal, loan_start_date, loan_end_date, loan_interest_rate
-        )
-        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22, $23, $24, $25, $26, $27, $28, $29, $30, $31, $32)
-        RETURNING id
-      `, [
-        newId, mod.account_id, mod.name, mod.module_type, mod.currency,
-        mod.expense_amount, mod.expense_fc_line_id, mod.income_fc_line_id, mod.expense_growth_method || 'inflation',
-        mod.income_amount, mod.base_date, mod.base_value,
-        mod.market_value, mod.base_value_usd, mod.market_value_usd,
-        mod.growth_rate, mod.comment, mod.is_matched,
-        mod.setup_status || 'new', mod.cash_sweep_target || false, mod.tax_rate_override,
-        mod.cash_sweep_priority,
-        mod.income_start_date, mod.income_end_date, mod.expense_start_date, mod.expense_end_date,
-        mod.income_tax_rate_override, mod.income_growth_rate,
-        // CR062 — this list is hand-maintained, which is exactly how CR045 §1 lost
-        // cash_sweep_priority and CR048 lost the assumptions: a column a copy drops
-        // is a scenario that silently computes something else. Covered by a test
-        // that asserts on the COPY, not the source.
-        mod.loan_principal, mod.loan_start_date, mod.loan_end_date, mod.loan_interest_rate
-      ]);
+      const placeholders = copyCols.map((_, i) => `$${i + 2}`).join(', ');
+      const newModule = await client.query(
+        `INSERT INTO forecast_modules (scenario_id, ${copyCols.join(', ')})
+         VALUES ($1, ${placeholders}) RETURNING id`,
+        [newId, ...copyCols.map((c) => mod[c] ?? null)]
+      );
 
       const newModuleId = newModule.rows[0].id;
       idMap.set(mod.id, newModuleId);
-
-      // Copy income_pct
-      await client.query(`
-        INSERT INTO forecast_module_income_pct (module_id, effective_date, value)
-        SELECT $1, effective_date, value FROM forecast_module_income_pct WHERE module_id = $2
-      `, [newModuleId, mod.id]);
-
-      // Copy the CR064 income steps
-      await client.query(`
-        INSERT INTO forecast_module_income_steps (module_id, effective_date, amount)
-        SELECT $1, effective_date, amount FROM forecast_module_income_steps WHERE module_id = $2
-      `, [newModuleId, mod.id]);
 
       // Copy investments
       await client.query(`
@@ -361,6 +341,27 @@ async function copyScenario(sourceId, newName) {
         INSERT INTO forecast_module_amortization (module_id, effective_date, pct)
         SELECT $1, effective_date, pct FROM forecast_module_amortization WHERE module_id = $2
       `, [newModuleId, mod.id]);
+
+      // CR069 — streams, and each stream's own change rows. TWO levels, so the child ids have
+      // to be remapped as they are created; a `SELECT ... INSERT` cannot express it. A copy
+      // that took the streams and dropped their changes would look complete and project a
+      // different number for every year the schedule touches.
+      const srcStreams = await client.query(
+        'SELECT * FROM forecast_streams WHERE module_id = $1 ORDER BY id', [mod.id]
+      );
+      for (const st of srcStreams.rows) {
+        const newStream = await client.query(`
+          INSERT INTO forecast_streams (
+            module_id, direction, fc_line_id, mode, amount, amount_usd,
+            growth_mult, start_date, end_date, tax_rate_override
+          ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10) RETURNING id
+        `, [newModuleId, st.direction, st.fc_line_id, st.mode, st.amount, st.amount_usd,
+            st.growth_mult, st.start_date, st.end_date, st.tax_rate_override]);
+        await client.query(`
+          INSERT INTO forecast_stream_changes (stream_id, change_date, amount, flag)
+          SELECT $1, change_date, amount, flag FROM forecast_stream_changes WHERE stream_id = $2
+        `, [newStream.rows[0].id, st.id]);
+      }
     }
 
     // CR062 P2 — second pass: repoint every secured-asset link at the COPY's own
@@ -375,34 +376,6 @@ async function copyScenario(sourceId, newName) {
         'UPDATE forecast_modules SET secured_asset_module_id = $1 WHERE id = $2',
         [newAssetId, newLoanId]
       );
-    }
-
-    // Copy income/expense items
-    const incexp = await client.query('SELECT * FROM forecast_income_expense WHERE scenario_id = $1', [sourceId]);
-
-    for (const item of incexp.rows) {
-      const newItem = await client.query(`
-        INSERT INTO forecast_income_expense (
-          scenario_id, account_id, name, item_type, currency,
-          base_date, base_value, base_value_usd, growth_rate, comment, is_matched,
-          setup_status, fc_line_id, budget_source_year
-        )
-        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14)
-        RETURNING id
-      `, [
-        newId, item.account_id, item.name, item.item_type, item.currency,
-        item.base_date, item.base_value, item.base_value_usd,
-        item.growth_rate, item.comment, item.is_matched,
-        item.setup_status || 'new', item.fc_line_id, item.budget_source_year
-      ]);
-
-      const newItemId = newItem.rows[0].id;
-
-      // Copy changes
-      await client.query(`
-        INSERT INTO forecast_incexp_changes (incexp_id, change_date, amount, flag, note)
-        SELECT $1, change_date, amount, flag, note FROM forecast_incexp_changes WHERE incexp_id = $2
-      `, [newItemId, item.id]);
     }
 
     // Return the target scenario
@@ -531,6 +504,10 @@ const MODULE_COLUMN_DEFAULTS = {
   loan_start_date: (d) => d.loan_start_date ?? null,
   loan_end_date: (d) => d.loan_end_date ?? null,
   loan_interest_rate: (d) => d.loan_interest_rate ?? null,
+  // CR069 P2 — FALSE = a pure P&L container (a converted Expenditure item): no valuation, and
+  // the CR041 ownership gate does not apply to its streams. Defaults TRUE, which is what every
+  // module written before this CR is.
+  has_valuation: (d) => d.has_valuation ?? true,
   secured_asset_module_id: (d) => d.secured_asset_module_id ?? null,
 };
 

@@ -8,7 +8,7 @@
  */
 
 const svc = require('../forecastAutoAdjust');
-const { round2, fundedTolerance, patchFor } = svc._internals;
+const { round2, fundedTolerance, scaleStreamAmounts } = svc._internals;
 
 describe('CR053 auto-adjust — pure helpers', () => {
   test('round2 rounds to cents', () => {
@@ -24,15 +24,30 @@ describe('CR053 auto-adjust — pure helpers', () => {
     expect(fundedTolerance(null)).toBe(1000);
   });
 
-  test('patchFor(module) scales expense_amount, keeps positive sign', () => {
-    expect(patchFor('module', { expense_amount: 20000 }, 0.98)).toEqual({ expense_amount: 19600 });
+  // CR069 P2 — one knob where there were two. A stream amount is a MAGNITUDE (migration 057
+  // CHECKs it >= 0), so a retain in (0,1] scales it without ever touching a sign; the old
+  // per-type helper existed only because a module stored an expense positive and an item
+  // stored it negative.
+  test('scaleStreamAmounts scales native and USD together', () => {
+    expect(scaleStreamAmounts({ amount: 20000, amount_usd: 20000 }, 0.98))
+      .toMatchObject({ amount: 19600, amount_usd: 19600 });
+    // 170130.6 × 0.98 = 166727.988, rounded to the cent the column stores.
+    expect(scaleStreamAmounts({ amount: 170130.6, amount_usd: 170130.6 }, 0.98))
+      .toMatchObject({ amount: 166727.99, amount_usd: 166727.99 });
   });
 
-  test('patchFor(incexp) scales native + USD together, keeps negative sign', () => {
-    expect(patchFor('incexp', { base_value: -170130.6, base_value_usd: -170130.6 }, 0.98)).toEqual({
-      base_value: -166727.99,
-      base_value_usd: -166727.99,
-    });
+  test('a null USD twin stays null rather than becoming 0', () => {
+    expect(scaleStreamAmounts({ amount: 1000, amount_usd: null }, 0.5))
+      .toMatchObject({ amount: 500, amount_usd: null });
+  });
+
+  test('every other field on the stream rides through untouched', () => {
+    const row = { direction: 'expense', mode: 'amount', amount: 100, amount_usd: 100,
+                  fc_line_id: 7, growth_mult: 0.5, changes: [{ flag: 'Fixed $' }] };
+    const out = scaleStreamAmounts(row, 0.5);
+    expect(out.fc_line_id).toBe(7);
+    expect(out.growth_mult).toBe(0.5);
+    expect(out.changes).toEqual([{ flag: 'Fixed $' }]);
   });
 });
 

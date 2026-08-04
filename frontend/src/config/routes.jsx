@@ -47,7 +47,6 @@ const BudgetVsActual = lazy(() => import("../pages/BudgetVsActual"));
 const CashFlowTabs = lazy(() => import("../pages/CashFlowTabs"));
 const InvestmentReturns = lazy(() => import("../pages/InvestmentReturns"));
 const FCEquity = lazy(() => import("../pages/FCEquity"));
-const FCExpSetup = lazy(() => import("../pages/FCExpSetup"));
 const FCLineMapping = lazy(() => import("../pages/FCLineMapping"));
 const FCModuleManage = lazy(() => import("../pages/FCModuleManage"));
 const FCReview = lazy(() => import("../pages/FCReview"));
@@ -260,21 +259,18 @@ export const routes = [
     description: "Configure balance sheet forecast modules",
     icon: BookOpen,
   },
-  {
-    path: "/forecast-setup-exp",
-    stepLabel: "Expenses", // short form for the in-page stepper (FCStepNav reads it here)
-    step: 4, // Forecast workflow step — mirrors FCStepNav; rendered by the Sidebar only
-    component: FCExpSetup,
-    label: "Forecast Expenditures",
-    category: "Forecasting",
-    wrapper: ForecastProvider,
-    description: "Set up income and expense forecast items",
-    icon: DollarSign,
-  },
+  // CR069 P2 — the Expenditures step is GONE: an income/expense item is a module with no
+  // valuation and one stream, managed on /forecast-modules like everything else. The route is
+  // removed here rather than in P3 because its API answers 410 from this same deploy — the
+  // engine stopped reading `forecast_income_expense`, so a save on that page would be accepted
+  // and silently ignored. Six steps become FIVE: Mapping → Scenarios → Modules → Review →
+  // Compare, and the steps below were renumbered to match. The stepper and the sidebar both
+  // derive from this list, so they cannot disagree about it (FCStepNav.jsx:5-13).
+  // The page component and its ~2,770 lines retire in P3.
   {
     path: "/forecast-review",
     stepLabel: "Review", // short form for the in-page stepper (FCStepNav reads it here)
-    step: 5, // Forecast workflow step — mirrors FCStepNav; rendered by the Sidebar only
+    step: 4, // Forecast workflow step — mirrors FCStepNav; rendered by the Sidebar only
     component: FCReview,
     label: "Forecast Review",
     category: "Forecasting",
@@ -285,7 +281,7 @@ export const routes = [
   {
     path: "/forecast-compare",
     stepLabel: "Compare", // short form for the in-page stepper (FCStepNav reads it here)
-    step: 6, // Forecast workflow step — mirrors FCStepNav; rendered by the Sidebar only
+    step: 5, // Forecast workflow step — mirrors FCStepNav; rendered by the Sidebar only
     component: FCCompare,
     label: "Forecast Compare",
     category: "Forecasting",

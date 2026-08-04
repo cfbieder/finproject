@@ -3,6 +3,7 @@ const path = require("path");
 const { PATHS } = require("./constants");
 const { LabelFrame } = require("./frame");
 const { getIndexValues, buildFcEntriesPayload, insertModuleEntries } = require("./fcbuilder-common");
+const { computeStreamSeries, applyStreamWindow, yearIndex } = require("./fcbuilder-stream");
 
 const auditTrailDir = PATHS.AUDIT_TRAIL_DIR;
 let auditTrailDirEnsured = false;
@@ -43,12 +44,38 @@ const writeValuesToCategoryRow = (rowIndex, dfCategories, valuesToWrite, startYe
   return true;
 };
 
+/** Add a series onto a frame row rather than overwriting it — two streams may share a line. */
+const addValuesToCategoryRow = (rowIndex, dfCategories, valuesToWrite, startYear) => {
+  if (rowIndex < 0) return false;
+  const existing = dfCategories.values[rowIndex].slice();
+  const merged = new Array(valuesToWrite.length);
+  let startColumnIndex = dfCategories.columns.indexOf(startYear);
+  let valueOffset = 0;
+  if (startColumnIndex === -1) {
+    const firstCol = dfCategories.columns[0];
+    if (startYear < firstCol) {
+      valueOffset = firstCol - startYear;
+      startColumnIndex = 0;
+    } else {
+      return false;
+    }
+  }
+  for (let i = 0; i < valuesToWrite.length; i++) merged[i] = valuesToWrite[i];
+  for (let i = valueOffset; i < merged.length; i++) {
+    const columnIndex = startColumnIndex + (i - valueOffset);
+    if (columnIndex >= dfCategories.columns.length) break;
+    merged[i] += existing[columnIndex];
+  }
+  return writeValuesToCategoryRow(rowIndex, dfCategories, merged, startYear);
+};
+
 const writeAuditTrail = (dfModuleLC, dfModuleUSD, dfCategories, scenario, module) => {
   ensureAuditTrailDir();
   const scenarioName = sanitizeName(scenario?.Name, "scenario").replace(/[^a-z0-9]/gi, "_");
   const moduleName = sanitizeName(module?.Name, "module").replace(/[^a-z0-9]/gi, "_");
 
   const writeCsvWithHeaders = (df, suffix) => {
+    if (!df) return;
     const filePath = path.join(auditTrailDir, `${scenarioName}_${moduleName}_${suffix}.csv`);
     const columns = df.columns || [];
     const rows = df.values || [];
@@ -74,24 +101,36 @@ const writeAuditTrail = (dfModuleLC, dfModuleUSD, dfCategories, scenario, module
 };
 
 /**
- * Compute a single balance-sheet module — PURE (no db, no fs): all series
- * math, populates df_categories in place, and returns the entries payload plus
- * the audit frames. Persistence and audit-CSV writing are the caller's job
- * (CR043 Phase 2.3 load → compute → persist split).
+ * Compute ONE module — PURE (no db, no fs). CR069 P2: this is now the only builder.
  *
- * @param {Object} module - Module data from PostgreSQL (v1-format fields)
- * @param {Object} scenario - Scenario config from forecast assumptions
- * @param {LabelFrame} df_assumptions - Assumptions frame
- * @param {LabelFrame} df_categories - Categories frame to populate
- * @param {Array} categories - Category names from assumptions
- * @param {Array} years - Years array
- * @param {number} scenarioId - PostgreSQL scenario ID (payload field only)
+ * A module is identity + OPTIONAL valuation + zero-or-more P&L streams. `has_valuation`
+ * decides whether the balance path runs at all:
+ *
+ *   TRUE   a balance-sheet module, exactly as before — market value, growth, invest/dispose,
+ *          realized/unrealized gains, transfers, the CR041 ownership gate.
+ *   FALSE  a pure flow container: every converted Expenditure item. No valuation, no
+ *          transfers, and the ownership gate does not apply — a stream with nothing behind it
+ *          cannot be "not yet owned". That distinction is the whole reason
+ *          `forecast_income_expense` had to be a separate table: CR041's gate reads a market
+ *          value of 0 across the horizon as "never owned" and zeroes every amount stream.
+ *
+ * Everything a stream does now lives in fcbuilder-stream.js and is proved equivalent to the
+ * three implementations it replaces by `__tests__/fcbuilder-stream.test.js`.
  */
 function computeModule(module, scenario, df_assumptions, df_categories, categories, years, scenarioId) {
   console.log(`Processing module: ${module.Name}`);
   console.log(`Processing account: ${module.Account}`);
 
-  const startyear = new Date(module.BaseDate).getFullYear();
+  const hasValuation = module.HasValuation !== false;
+
+  // A flow module anchors at PeriodStart — which is precisely what fcbuilder-incexp did
+  // (`const startyear = scenario.PeriodStart`), and why `forecast_income_expense.base_date`
+  // was a column its own engine never read. A valuation module keeps its own base date,
+  // because its VALUE series starts there. CR069 Decision 6 states the split as a rule:
+  // valuation anchors at base_date, every stream anchors at the base year.
+  const startyear = hasValuation
+    ? new Date(module.BaseDate).getFullYear()
+    : scenario.PeriodStart;
   const endyear = scenario.PeriodEnd;
   const yearsCount = endyear - startyear + 1;
   const yearsArr = new Array(yearsCount);
@@ -100,8 +139,8 @@ function computeModule(module, scenario, df_assumptions, df_categories, categori
     yearsArr[i] = year;
   }
 
-  const baseValues = new Array(yearsCount).fill(module.BaseValue ?? 0);
-  const marketValues = new Array(yearsCount).fill(module.MarketValue ?? 0);
+  const baseValues = new Array(yearsCount).fill(hasValuation ? (module.BaseValue ?? 0) : 0);
+  const marketValues = new Array(yearsCount).fill(hasValuation ? (module.MarketValue ?? 0) : 0);
   const fxrates = new Array(yearsCount).fill(1);
   const investValues = new Array(yearsCount).fill(0);
   const disposeValues = new Array(yearsCount).fill(0);
@@ -117,24 +156,13 @@ function computeModule(module, scenario, df_assumptions, df_categories, categori
   // self-announcing: the FX branch below fires, the value is divided by ~3.9, and the
   // balance sheet shows a number off by a factor the owner spots immediately. A wrong
   // USD label is SILENT — the branch never runs, `fxrates` keeps its `fill(1)`, and
-  // `marketValues[i] / 1` posts the LOCAL amount to a USD balance sheet forever. The
-  // `MarketValueUSD` override two hundred lines down repairs index 0 only, which is the
-  // base-date year and usually not even an output column, so every visible year is wrong
-  // and the one right year is invisible.
+  // `marketValues[i] / 1` posts the LOCAL amount to a USD balance sheet forever.
   //
-  // Found in production: `PLN Credit Cards` carried market_value −24,542.66 (PLN, and
-  // within 413 of the account's own ledger at its base date) against market_value_usd
-  // −6,832.01, with currency 'USD' inherited from the parent rollup account. Every
-  // forecast year of `2026 Base` and `2026 Downside` posted −24,542.66 USD where −6,293
-  // was right — 18,250 of liability that does not exist, invisible for as long as nobody
-  // divided one column by the other.
-  //
-  // Throwing, not repairing: the implied rate (24,542.66 / 6,832.01 = 3.5923) is a
-  // plausible-looking PLN rate, so auto-healing would work here and silently invent an
-  // FX series the next time the two columns disagree for some other reason. The engine
-  // already fails loud on a zero FX rate (CR051 F1); this is the same rule one level up.
-  // Measured before shipping: exactly the five defective rows on prod and five on dev
-  // trip this, and no other module of the 110 does.
+  // Found in production: `PLN Credit Cards` carried market_value −24,542.66 (PLN) against
+  // market_value_usd −6,832.01, with currency 'USD' inherited from the parent rollup
+  // account — 18,250 of liability that does not exist, invisible for as long as nobody
+  // divided one column by the other. Trivially satisfied by a flow module, whose value
+  // columns are all zero.
   if ((module.Currency || "USD") === "USD") {
     const mvGap = Math.abs((module.MarketValue ?? 0) - (module.MarketValueUSD ?? 0));
     const bvGap = Math.abs((module.BaseValue ?? 0) - (module.BaseValueUSD ?? 0));
@@ -149,11 +177,42 @@ function computeModule(module, scenario, df_assumptions, df_categories, categori
     }
   }
 
+  // FX. The two halves behave differently and BOTH behaviours are preserved deliberately:
+  //
+  //   flow      FAILS LOUD on a missing or unusable rate. This is CR051 F1 — before it, a
+  //             PLN expense line with no `FX - PLN` assumption silently booked the native
+  //             amount as USD, ~4× too large, and a zero rate produced Infinity.
+  //   valuation leaves the rate at 1 when the assumption column is absent, and carries the
+  //             first rate backwards for pre-period years.
+  //
+  // Collapsing them onto the stricter rule would be an improvement and a BEHAVIOUR CHANGE,
+  // which this CR's gate forbids; it is a candidate for a follow-up, not for a refactor whose
+  // contract is "no number moves".
   if (module.Currency && module.Currency !== "USD") {
     const fxColumn =
       module.Currency === "PLN" ? categories[2] :
       module.Currency === "EUR" ? categories[3] : null;
-    if (fxColumn && df_assumptions.columns.includes(fxColumn)) {
+
+    if (!hasValuation) {
+      if (!fxColumn || !df_assumptions.columns.includes(fxColumn)) {
+        throw new Error(
+          `Income/expense "${module.Name}" is in ${module.Currency}, but scenario has no ` +
+          `"${fxColumn || `FX - ${module.Currency}`}" assumption to convert it to USD.`
+        );
+      }
+      const fxSeries = df_assumptions.column(fxColumn).values;
+      for (let i = 0, year = startyear; year <= endyear; i++, year++) {
+        const idx = year - periodStart;
+        const rate = idx >= 0 && idx < fxSeries.length ? Number(fxSeries[idx]) : NaN;
+        if (!Number.isFinite(rate) || rate <= 0) {
+          throw new Error(
+            `Income/expense "${module.Name}" (${module.Currency}) has no valid FX rate for ${year} ` +
+            `(got ${rate}); set the "${fxColumn}" assumption for this scenario.`
+          );
+        }
+        fxrates[i] = rate;
+      }
+    } else if (fxColumn && df_assumptions.columns.includes(fxColumn)) {
       const fxSeries = df_assumptions.column(fxColumn).values;
       const firstFxRate = fxSeries[0] || 1;
       for (let i = 0, year = startyear; year <= endyear; i++, year++) {
@@ -168,132 +227,106 @@ function computeModule(module, scenario, df_assumptions, df_categories, categori
     }
   }
 
-  const growthPct = module.Growth ?? 0;
-  const expPct = module.ExpensePct ?? 0;
-  const isLiability = module.AccountType === 'liability';
-  const incomePctValues = new Array(yearsCount).fill(0);
-  const growthValues = new Array(yearsCount);
-  const expPctValues = new Array(yearsCount);
-  // For assets, negate expPct so expenses reduce value.
-  // For liabilities, keep expPct as-is so users can enter positive values.
-  const effectiveExpPct = isLiability ? expPct : -expPct;
+  const growthPct = hasValuation ? (module.Growth ?? 0) : 0;
+  const growthValues = new Array(yearsCount).fill(0);
   for (let i = 0, year = startyear; year <= endyear; i++, year++) {
     const idx = year - periodStart;
     growthValues[i] = idx >= 0 && idx < inflationLen ? growthPct * inflationSeries[idx] : 0;
-    expPctValues[i] = idx >= 0 && idx < inflationLen ? effectiveExpPct : 0;
   }
 
-  // Process IncomePct array
-  if (Array.isArray(module.IncomePct) && module.IncomePct.length > 0) {
-    const sortedIncomePct = [...module.IncomePct]
-      .filter((entry) => entry && entry.Date && entry.Value != null)
-      .map((entry) => ({
-        year: new Date(entry.Date).getFullYear(),
-        value: entry.Value,
-      }))
-      .sort((a, b) => a.year - b.year);
-
-    let currentValue = 0;
-    let nextEntryIndex = 0;
-
-    for (let i = 0, year = startyear; year <= endyear; i++, year++) {
-      while (nextEntryIndex < sortedIncomePct.length && sortedIncomePct[nextEntryIndex].year <= year) {
-        currentValue = sortedIncomePct[nextEntryIndex].value;
-        nextEntryIndex++;
-      }
-      incomePctValues[i] = currentValue;
-    }
-  }
-
-  // Process investment transactions
-  // Periodic entries expand across years from Date (start) to DateEnd (optional end).
-  // If no DateEnd, periodic continues until plan ends.
-  if (Array.isArray(module.Invest)) {
-    for (const entry of module.Invest) {
-      if (!entry || !entry.Date || entry.Amount == null) continue;
-      const startIdx = new Date(entry.Date).getFullYear() - startyear;
-      if (entry.Flag === "Periodic") {
-        const endYear = entry.DateEnd ? new Date(entry.DateEnd).getFullYear() : endyear;
-        const endIdx = Math.min(endYear - startyear, yearsCount - 1);
-        for (let j = Math.max(0, startIdx); j <= endIdx; j++) {
-          investValues[j] += entry.Amount;
-        }
-      } else {
-        if (startIdx >= 0 && startIdx < yearsCount) investValues[startIdx] = entry.Amount;
-      }
-    }
-  }
-
-  // Process disposal transactions
-  // Periodic entries expand across years from Date (start) to DateEnd (optional end).
-  // If no DateEnd, periodic continues until account depleted or plan ends.
-  if (Array.isArray(module.Dispose)) {
-    for (const entry of module.Dispose) {
-      if (!entry || !entry.Date || entry.Amount == null) continue;
-      const startIdx = new Date(entry.Date).getFullYear() - startyear;
-      if (entry.Flag === "Periodic") {
-        const endYear = entry.DateEnd ? new Date(entry.DateEnd).getFullYear() : endyear;
-        const endIdx = Math.min(endYear - startyear, yearsCount - 1);
-        for (let j = Math.max(0, startIdx); j <= endIdx; j++) {
-          disposeValues[j] += -entry.Amount;
-        }
-      } else if (entry.Flag !== "Full") {
-        if (startIdx >= 0 && startIdx < yearsCount) disposeValues[startIdx] = -entry.Amount;
-      }
-    }
-  }
-
-  // Calculate yearly realized and unrealized gains/losses
   const unrealizedGainValues = new Array(yearsCount).fill(0);
   const realizedGainValues = new Array(yearsCount).fill(0);
 
-  // Apply base year (idx 0) invest/dispose to starting values
-  if (investValues[0] !== 0 || disposeValues[0] !== 0) {
-    const origMarket = marketValues[0];
-    const origBase = baseValues[0];
-    // Cap dispose so market value cannot go negative
-    const availableMarket = origMarket + investValues[0];
-    if (disposeValues[0] < -availableMarket && availableMarket > 0) {
-      disposeValues[0] = -availableMarket;
-    } else if (availableMarket <= 0) {
-      disposeValues[0] = 0;
-    }
-    const safeDisposeAdj = origMarket === 0 ? 0 : (disposeValues[0] * origBase) / origMarket;
-    baseValues[0] = origBase + investValues[0] + safeDisposeAdj;
-    marketValues[0] = origMarket + investValues[0] + disposeValues[0];
-    realizedGainValues[0] = -disposeValues[0] + (origMarket === 0 ? 0 : (disposeValues[0] * origBase) / origMarket);
-  }
-
-  for (let i = 1; i < yearsCount; i++) {
-    unrealizedGainValues[i] = marketValues[i - 1] * (growthValues[i] / 100);
-
-    const prevMarket = marketValues[i - 1];
-    const prevBase = baseValues[i - 1];
-
-    // Cap dispose so market value cannot go negative
-    const availableMarket = prevMarket + unrealizedGainValues[i] + investValues[i];
-    if (disposeValues[i] < -availableMarket && availableMarket > 0) {
-      disposeValues[i] = -availableMarket;
-    } else if (availableMarket <= 0) {
-      disposeValues[i] = 0;
+  // ── THE BALANCE PATH — valuation modules only ──────────────────────────────────────
+  if (hasValuation) {
+    // Investment transactions. Periodic entries expand from Date to DateEnd (or the horizon).
+    if (Array.isArray(module.Invest)) {
+      for (const entry of module.Invest) {
+        if (!entry || !entry.Date || entry.Amount == null) continue;
+        const startIdx = new Date(entry.Date).getFullYear() - startyear;
+        if (entry.Flag === "Periodic") {
+          const endYear = entry.DateEnd ? new Date(entry.DateEnd).getFullYear() : endyear;
+          const endIdx = Math.min(endYear - startyear, yearsCount - 1);
+          for (let j = Math.max(0, startIdx); j <= endIdx; j++) {
+            investValues[j] += entry.Amount;
+          }
+        } else {
+          if (startIdx >= 0 && startIdx < yearsCount) investValues[startIdx] = entry.Amount;
+        }
+      }
     }
 
-    const safeDisposeAdjustment = prevMarket === 0 ? 0 : (disposeValues[i] * prevBase) / prevMarket;
+    // Disposals, same expansion rules.
+    if (Array.isArray(module.Dispose)) {
+      for (const entry of module.Dispose) {
+        if (!entry || !entry.Date || entry.Amount == null) continue;
+        const startIdx = new Date(entry.Date).getFullYear() - startyear;
+        if (entry.Flag === "Periodic") {
+          const endYear = entry.DateEnd ? new Date(entry.DateEnd).getFullYear() : endyear;
+          const endIdx = Math.min(endYear - startyear, yearsCount - 1);
+          for (let j = Math.max(0, startIdx); j <= endIdx; j++) {
+            disposeValues[j] += -entry.Amount;
+          }
+        } else if (entry.Flag !== "Full") {
+          if (startIdx >= 0 && startIdx < yearsCount) disposeValues[startIdx] = -entry.Amount;
+        }
+      }
+    }
 
-    baseValues[i] = prevBase + investValues[i] + safeDisposeAdjustment;
-    marketValues[i] = prevMarket + unrealizedGainValues[i] + investValues[i] + disposeValues[i];
-    realizedGainValues[i] = -disposeValues[i] + (prevMarket === 0 ? 0 : (disposeValues[i] * prevBase) / prevMarket);
+    // Apply base year (idx 0) invest/dispose to starting values
+    if (investValues[0] !== 0 || disposeValues[0] !== 0) {
+      const origMarket = marketValues[0];
+      const origBase = baseValues[0];
+      // Cap dispose so market value cannot go negative
+      const availableMarket = origMarket + investValues[0];
+      if (disposeValues[0] < -availableMarket && availableMarket > 0) {
+        disposeValues[0] = -availableMarket;
+      } else if (availableMarket <= 0) {
+        disposeValues[0] = 0;
+      }
+      const safeDisposeAdj = origMarket === 0 ? 0 : (disposeValues[0] * origBase) / origMarket;
+      baseValues[0] = origBase + investValues[0] + safeDisposeAdj;
+      marketValues[0] = origMarket + investValues[0] + disposeValues[0];
+      realizedGainValues[0] = -disposeValues[0] + (origMarket === 0 ? 0 : (disposeValues[0] * origBase) / origMarket);
+    }
+
+    for (let i = 1; i < yearsCount; i++) {
+      unrealizedGainValues[i] = marketValues[i - 1] * (growthValues[i] / 100);
+
+      const prevMarket = marketValues[i - 1];
+      const prevBase = baseValues[i - 1];
+
+      // Cap dispose so market value cannot go negative
+      const availableMarket = prevMarket + unrealizedGainValues[i] + investValues[i];
+      if (disposeValues[i] < -availableMarket && availableMarket > 0) {
+        disposeValues[i] = -availableMarket;
+      } else if (availableMarket <= 0) {
+        disposeValues[i] = 0;
+      }
+
+      const safeDisposeAdjustment = prevMarket === 0 ? 0 : (disposeValues[i] * prevBase) / prevMarket;
+
+      baseValues[i] = prevBase + investValues[i] + safeDisposeAdjustment;
+      marketValues[i] = prevMarket + unrealizedGainValues[i] + investValues[i] + disposeValues[i];
+      realizedGainValues[i] = -disposeValues[i] + (prevMarket === 0 ? 0 : (disposeValues[i] * prevBase) / prevMarket);
+    }
   }
 
   // CR041: ownership start — a module acquired mid-plan (base MV 0, value arriving via a
   // later Invest transfer) must not generate amount-based expense/income before acquisition.
   // Computed before Full disposals zero the series, so a same-year buy+dispose still
   // registers its acquisition year. 0 = owned from module start; -1 = never owned.
+  //
+  // CR069: a FLOW module is pinned to 0 (always "owned"). It has no acquisition to gate on,
+  // and `findIndex` over an all-zero market value would return -1 — "never owned" — which
+  // would zero every stream on it. Pinned by SKIPPING the gate, never by faking an
+  // acquisition index, because index 0 is also the condition the base-year income tax below
+  // keys on and a flow module must not acquire that tax.
   const baseOwned = (module.MarketValue ?? 0) !== 0;
-  const acquisitionIdx = baseOwned ? 0 : marketValues.findIndex((v) => v !== 0);
+  const acquisitionIdx = hasValuation ? (baseOwned ? 0 : marketValues.findIndex((v) => v !== 0)) : 0;
 
-  // Handle "Full" disposals
-  if (Array.isArray(module.Dispose)) {
+  // Handle "Full" disposals (valuation only — a flow module has nothing to dispose of)
+  if (hasValuation && Array.isArray(module.Dispose)) {
     for (const entry of module.Dispose) {
       if (entry.Flag != "Full") continue;
       const idx = new Date(entry.Date).getFullYear() - startyear;
@@ -309,444 +342,172 @@ function computeModule(module, scenario, df_assumptions, df_categories, categori
           baseValues[j] = 0;
           marketValues[j] = 0;
           unrealizedGainValues[j] = 0;
-          incomePctValues[j] = 0;
-          expPctValues[j] = 0;
           growthValues[j] = 0;
         }
       }
     }
   }
 
-  // Calculate expense values using expense_growth_method
-  // - 'inflation' (default): absolute expense_amount compounded at inflation
-  // - 'pct_of_value': derive % from expense_amount/market_value_base, apply to avg MV each year
-  // - Legacy fallback: if no expense_amount but expense_pct exists, use old pct logic
+  // ── THE STREAMS ────────────────────────────────────────────────────────────────────
   //
-  // CR062 P0 — an expense is CASH OUT on both sides of the balance sheet. The two
-  // amount-based branches used to read `isLiability ? val : -val`, which did not
-  // correct a sign, it INVERTED one: prod stores liabilities as NEGATIVE market
-  // value, so `pct_of_value` already arrives positive by double negation
-  // (derivedPct < 0 × avgMV < 0) and the inflation branch is positive
-  // unconditionally. A mortgage's interest therefore CREDITED the bank line every
-  // year. Negating unconditionally is right for all four cases:
-  //
-  //   asset, pct_of_value             derivedPct>0 × avgMV>0 ⇒ −val < 0   (unchanged)
-  //   liability (negative MV)         derivedPct<0 × avgMV<0 ⇒ −val < 0   (fixed)
-  //   liability (positive MV)         −val < 0                            (fixed)
-  //   either, inflation / zero-MV     −compounded < 0                     (fixed)
-  //
-  // The LEGACY pct branch below is deliberately left alone: there the double
-  // negative is intentional and already lands correctly for both sides, because
-  // `effectiveExpPct` keeps expPct positive for a liability so the negative
-  // market value supplies the sign. (It is also dead in production — migration
-  // 008 dropped `expense_pct` and the loader hard-codes ExpensePct to 0.)
-  //
-  // Dormant on arrival: all 15 modules on a liability account in prod carry
-  // expense_amount = 0.00, so this moves no existing number. CR062 §5.6.
-  const expenseValues = new Array(yearsCount).fill(0);
-  const absExpenseAmount = parseFloat(module.expense_amount) || 0;
-  const growthMethod = module.expense_growth_method || 'inflation';
-
-  // Determine if expenses should be generated
-  // If fc_line_id system is in use (expense_fc_line_id field exists on module),
-  // skip expenses when expense_fc_line_id is NULL — "None" means no expense line
-  const hasExpenseFcLineField = module.expense_fc_line_id !== undefined;
-  const skipExpense = hasExpenseFcLineField && !module.expense_fc_line_id && absExpenseAmount === 0;
-
-  // CR062 — a LOAN's expense is its interest, and interest is a function of the
-  // balance, not of an amount typed in the base year. `LoanRate` non-null is what
-  // makes a module a loan (never `module_type`, which is a user-editable free-text
-  // list the engine has never read).
-  //
-  // Charged on the AVERAGE outstanding balance, which is not a rounding
-  // convenience — it IS the July-1 convention the rest of the engine uses. The
-  // draw year averages (0 + −P)/2 and so carries exactly half a year's interest;
-  // a repayment year averages to mid-year. CR041's acquisition gate and CR046's
-  // window both do the same thing by hand elsewhere; here it falls out.
-  //
-  // Reads `marketValues` AFTER the balance path is final rather than re-deriving
-  // it from the schedule, so interest can never drift from principal — the drift
-  // CR049 removed from the base-year query.
+  // One evaluator, one loop. What used to be ~180 lines of two near-parallel blocks (plus a
+  // third file for inc/exp items) is a call per stream, because a stream is now a row rather
+  // than a naming convention over column pairs.
   const loanRate = module.LoanRate != null ? Number(module.LoanRate) : null;
   const isLoan = loanRate != null && Number.isFinite(loanRate);
+  const streams = Array.isArray(module.Streams) ? module.Streams : [];
 
-  if (isLoan) {
-    for (let i = 0, year = startyear; year <= endyear; i++, year++) {
-      const idx = year - periodStart;
-      if (idx < 0 || idx >= inflationLen) continue;   // the guard every sibling loop carries
-      const prevMV = i === 0 ? (module.MarketValue ?? 0) : marketValues[i - 1];
-      const avgOutstanding = Math.abs((marketValues[i] + prevMV) / 2);
-      expenseValues[i] = -(loanRate / 100) * avgOutstanding;
-    }
-  } else if (!skipExpense && absExpenseAmount > 0 && growthMethod === 'pct_of_value') {
-    // Pct of value: derive % from base expense / base MV, apply to avg MV each period
-    const marketValueBase = module.MarketValue || 0;
-    const derivedPct = marketValueBase !== 0 ? absExpenseAmount / marketValueBase : 0;
-
-    for (let i = 0, year = startyear; year <= endyear; i++, year++) {
-      const idx = year - periodStart;
-      if (idx < 0 || idx >= inflationLen) continue;
-
-      if (derivedPct !== 0) {
-        const avgMV = (marketValues[i] + (marketValues[i - 1] ?? 0)) / 2;
-        const val = derivedPct * avgMV;
-        expenseValues[i] = -val;
-      } else {
-        // Zero MV fallback: grow base at inflation
-        const periodNum = year - periodStart + 1;
-        let compounded = absExpenseAmount;
-        for (let j = 0; j < periodNum; j++) {
-          if (j >= 0 && j < inflationLen) compounded *= (1 + inflationSeries[j] / 100);
-        }
-        expenseValues[i] = -compounded;
-      }
-    }
-  } else if (!skipExpense && absExpenseAmount > 0) {
-    // Inflation mode: grow base year amount at inflation for each period
-    for (let i = 0, year = startyear; year <= endyear; i++, year++) {
-      const idx = year - periodStart;
-      if (idx < 0 || idx >= inflationLen) continue;
-      const periodNum = year - periodStart + 1;
-
-      let compounded = absExpenseAmount;
-      for (let j = 0; j < periodNum; j++) {
-        if (j >= 0 && j < inflationLen) compounded *= (1 + inflationSeries[j] / 100);
-      }
-      expenseValues[i] = -compounded;
-    }
-  } else if (!skipExpense) {
-    // Legacy fallback: expense_pct as percentage of average market value
-    for (let i = 0, year = startyear; year <= endyear; i++, year++) {
-      const idx = year - periodStart;
-      expenseValues[i] = idx >= 0 && idx < inflationLen
-        ? (((marketValues[i] + (marketValues[i - 1] ?? 0)) / 2) * expPctValues[i]) / 100
-        : 0;
-    }
-  }
-
-  // Calculate income values
-  // - income_amount (Base Yr): base year income amount — grown for Period 1+
-  // - IncomePct (yield %): percentage of avg market value — REPLACES income_amount entirely
-  // The two are mutually exclusive and the yield wins on a single row (`hasIncomePct`).
-  const incomeValues = new Array(yearsCount).fill(0);
-  const absIncomeAmount = parseFloat(module.income_amount) || 0;
-  // Has yield spread schedule = user created IncomePct entries (even if all 0% → inflation-only yield)
-  const hasIncomePct = Array.isArray(module.IncomePct) && module.IncomePct.length > 0;
-
-  /**
-   * CR064 P6 — amount-based income grows at `income_growth_rate × inflation`, not at
-   * inflation flat.
-   *
-   * The multiplier mirrors the module's existing `growth_rate` for VALUE, and reads the
-   * same way: 1 = inflation, 0 = flat in nominal terms, 0.5 = half of inflation, 2 =
-   * twice. NULL ⇒ 1, which is exactly the old behaviour — that is what makes this
-   * dormant for every module in every existing scenario.
-   *
-   * A business is the reason it exists: its profit is not a percentage of its own
-   * valuation, so the yield spread (CR003's deposit interest rate) cannot express it,
-   * and inflation-flat was the only other option.
-   */
-  const incomeGrowthMult = module.IncomeGrowth == null || module.IncomeGrowth === ''
-    ? 1
-    : (parseFloat(module.IncomeGrowth) || 0);
-
-  /**
-   * CR064 P6 — permanent step changes to the income level: "2027: +10,000".
-   *
-   * Owner's decision (2026-08-02): the amount is typed in the money of the year it
-   * happens and KEEPS ITS REAL VALUE afterwards, so it compounds from its OWN year
-   * rather than eroding across a 36-year horizon. With the default multiplier of 1 that
-   * is exactly inflation; with a different multiplier the step tracks the stream it is
-   * part of, because splitting one income line across two growth rates is not something
-   * the audit trail could explain.
-   *
-   * A step applies in FULL in its year. It is a change to the annual run-rate, not an
-   * event with a date, so it deliberately does not take the July-1 half-year convention
-   * that CR046's window and CR062's draw year use.
-   */
-  const incomeSteps = (Array.isArray(module.IncomeSteps) ? module.IncomeSteps : [])
-    .map((s) => ({
-      year: Number(String(s?.date ?? s?.Date ?? '').slice(0, 4)),
-      amount: parseFloat(s?.amount ?? s?.Amount) || 0,
-    }))
-    .filter((s) => Number.isFinite(s.year) && s.year > 0 && s.amount !== 0)
-    .sort((a, b) => a.year - b.year);
-
-  /** Compound `amount` from `fromYear` to `toYear` at the income stream's growth rate. */
-  const growIncome = (amount, fromYear, toYear) => {
-    let out = amount;
-    for (let y = fromYear; y < toYear; y++) {
-      const j = y - periodStart + 1;
-      if (j >= 0 && j < inflationLen) out *= (1 + (inflationSeries[j] * incomeGrowthMult) / 100);
-    }
-    return out;
+  const streamCtx = {
+    startyear, endyear, yearsCount, periodStart, inflationSeries, inflationLen,
+    marketValues, baseMarketValue: module.MarketValue ?? 0, loanRate,
   };
 
-  for (let i = 0, year = startyear; year <= endyear; i++, year++) {
-    const idx = year - periodStart;
-    if (idx < 0 || idx >= inflationLen) continue;
+  /** Per-stream computed series, in LC and signed, ready to post to its own line. */
+  const computed = [];
 
-    // Yield Spread: additive over inflation → effective yield = inflation% + spread%
-    const effectiveYield = (idx >= 0 && idx < inflationLen ? inflationSeries[idx] : 0) + incomePctValues[i];
-    const yieldIncome = (((marketValues[i] + (marketValues[i - 1] ?? 0)) / 2) * effectiveYield) / 100;
+  for (const stream of streams) {
+    const series = computeStreamSeries(stream, streamCtx);
+    const isDerived = (stream.mode || 'amount') === 'derived';
+    const isAmountMode = (stream.mode || 'amount') === 'amount';
 
-    if (hasIncomePct) {
-      // Module has yield spread schedule → effective yield = inflation + spread (0% spread = inflation-only yield)
-      // The steps and the growth multiplier belong to the AMOUNT, which this mode
-      // discards, so they are not applied here either.
-      incomeValues[i] = yieldIncome;
-    } else if (absIncomeAmount > 0 || incomeSteps.length > 0) {
-      // Grow income_amount from the base year (PeriodStart − 1) to this one...
-      // The `> 0` test is the pre-CR064 one and stays exactly as it was: a module with
-      // no amount but with steps is driven by the steps alone, and one with a negative
-      // amount books nothing, as before.
-      const periodNum = year - periodStart + 1;
-      let compounded = 0;
-      if (absIncomeAmount > 0) {
-        compounded = absIncomeAmount;
-        for (let j = 0; j < periodNum; j++) {
-          if (j >= 0 && j < inflationLen) {
-            compounded *= (1 + (inflationSeries[j] * incomeGrowthMult) / 100);
-          }
-        }
-      }
-      // ...then add every step that has taken effect, each grown from its own year.
-      for (const step of incomeSteps) {
-        if (step.year <= year) compounded += growIncome(step.amount, step.year, year);
-      }
-      incomeValues[i] = compounded;
-    }
-  }
+    // CR046 window. CR062: a loan's window is its own start/end dates expressed through the
+    // balance path, so a window on top can only corrupt it — measured on the real builder, an
+    // expense window on a loan turns 25,625…32,002 into a plausible-looking series that is
+    // simply wrong. The backfill nulls those columns on a derived stream; this defends the
+    // engine against a row that acquires them by any other path.
+    const halvedByWindow = isDerived
+      ? new Set()
+      : applyStreamWindow(series, stream, startyear, yearsCount);
 
-  // CR046: explicit start/end window on each stream. "I own this flat today and start
-  // renting it in 2030" was inexpressible before: an amount-based stream ran for the whole
-  // horizon, and the only thing that could delay it was CR041's ownership gate — which
-  // fires only for an asset ACQUIRED mid-plan. NULL bounds leave the stream unbounded, so
-  // a module with no window set is byte-identical to before.
-  //
-  // The window moves only WHEN the stream runs, never how much: the amount stays a
-  // base-year figure compounded at inflation, so 2030's rent is what you typed grown by
-  // inflation to 2030 — the same number the stream would have shown that year anyway.
-  // Applied to yield-based income too, not just amount-based: "start earning a yield on
-  // this in 2035" is the same request.
-  const windowIdx = (dateValue) => {
-    if (!dateValue) return null;
-    const year = new Date(dateValue).getFullYear();
-    if (!Number.isFinite(year)) return null;
-    return year - startyear;
-  };
-  //
-  // Half-year convention: the window is picked as a YEAR and stored as July 1, so the
-  // first and last year each run for half of it and carry 50% of the amount — the same
-  // convention the engine already uses for the acquisition year (CR041) and for a Full
-  // disposal's year. Start year == end year ⇒ halved once, not twice.
-  //
-  // Returns the indices it halved, so the CR041 ownership gate below does not halve the
-  // same year a second time (that would leave 25% of a year's rent).
-  const applyWindow = (series, startDate, endDate) => {
-    const from = windowIdx(startDate);
-    const to = windowIdx(endDate);
-    if (from == null && to == null) return new Set();
-    const halved = new Set();
-    for (let i = 0; i < yearsCount; i++) {
-      if ((from != null && i < from) || (to != null && i > to)) {
-        series[i] = 0;
-      } else if ((from != null && i === from) || (to != null && i === to)) {
-        series[i] /= 2;
-        halved.add(i);
-      }
-    }
-    return halved;
-  };
-  const incomeHalvedByWindow = applyWindow(
-    incomeValues, module.income_start_date, module.income_end_date
-  );
-  // CR062 — a loan's expense window is its own start and end dates, expressed in
-  // the balance path; a CR046 window on top of that can only corrupt it. Saving a
-  // loan module nulls these four columns, but the engine defends itself too: a row
-  // retyped Asset → Loan by any path other than the form (SQL, an older client, a
-  // variant sync from a base that still carries them) would otherwise have its
-  // interest halved and truncated. Measured on the real builder, an
-  // expense_start_date 2030 / end 2032 turns 25,625 … 32,002 into
-  // 0 0 0 13,797.66 28,285.21 14,496.17 0 0 0 0 — a plausible-looking series that
-  // is simply wrong.
-  const expenseHalvedByWindow = isLoan
-    ? new Set()
-    : applyWindow(expenseValues, module.expense_start_date, module.expense_end_date);
-
-  // CR041: gate amount-based expense/income on ownership — zero before the acquisition
-  // year, 50% in it (mirror of the Full-disposal 50% treatment below). MV-driven streams
-  // (yield-spread income, legacy expense_pct) already scale with market value — pre-purchase
-  // avg MV is 0 and the acquisition year averages to half — so they are left alone.
-  // acquisitionIdx !== 0 implies base MV was 0, so the pct_of_value mode is on its
-  // inflation fallback here and gates like the inflation mode.
-  //
-  // Composes with the CR046 window: ownership zeroes come after, so an asset bought in 2035
-  // with rent starting 2030 pays nothing until 2035 — you cannot rent what you do not own.
-  if (acquisitionIdx !== 0) {
-    // CR062 — never gate a loan's interest. It is MV-driven like the streams this
-    // gate deliberately leaves alone: pre-draw the balance is 0 so interest is
-    // already 0, and the draw year already averages to half. Halving it a second
-    // time here would leave 25% of the first year's interest — the exact
-    // double-halving the CR046 note below warns about, arrived at from the other
-    // direction. (Reachable whenever a retyped module still carries a non-zero
-    // expense_amount, which is what `gateExpense` keys on.)
-    const gateExpense = !isLoan && absExpenseAmount > 0;
-    // CR064 P6 — steps can drive an amount-mode stream on their own (a business with no
-    // income today that starts earning in 2029 is a step, not an amount), so the gate has
-    // to key on the same condition the projection loop does. Keying it on the amount
-    // alone would leave a step-only stream paying out before the asset was owned.
-    const gateIncome = !hasIncomePct && (absIncomeAmount > 0 || incomeSteps.length > 0);
-    if (gateExpense || gateIncome) {
+    // CR041 ownership gate — amount-driven streams on a VALUATION module only.
+    //
+    // MV-driven streams (yield, pct_of_value, a loan's interest) already scale with market
+    // value: pre-purchase the average MV is 0 and the acquisition year averages to half, so
+    // gating them would halve a year twice. A flow module is never gated at all.
+    if (hasValuation && acquisitionIdx !== 0 && isAmountMode) {
       for (let i = 0; i < yearsCount; i++) {
         if (acquisitionIdx === -1 || i < acquisitionIdx) {
-          if (gateExpense) expenseValues[i] = 0;
-          if (gateIncome) incomeValues[i] = 0;
-        } else if (i === acquisitionIdx) {
+          series[i] = 0;
+        } else if (i === acquisitionIdx && !halvedByWindow.has(i)) {
           // Don't halve a year the CR046 window already halved — that would leave 25%.
-          if (gateExpense && !expenseHalvedByWindow.has(i)) expenseValues[i] /= 2;
-          if (gateIncome && !incomeHalvedByWindow.has(i)) incomeValues[i] /= 2;
+          series[i] /= 2;
         }
       }
     }
-  }
 
-  // Apply Full disposal adjustments: 50% expense/income in disposal year, 0 after
-  if (Array.isArray(module.Dispose)) {
-    for (const entry of module.Dispose) {
-      if (entry.Flag !== "Full") continue;
-      const dispIdx = new Date(entry.Date).getFullYear() - startyear;
-      if (dispIdx >= 0 && dispIdx < yearsCount) {
-        if (dispIdx === 0) {
-          // Base year disposal: base year stays as budget, zero all forecast years
-          for (let j = 1; j < yearsCount; j++) {
-            expenseValues[j] = 0;
-            incomeValues[j] = 0;
-          }
-        } else {
-          // Disposal year: 50% of calculated expense/income (asset only owned part of year)
-          expenseValues[dispIdx] = expenseValues[dispIdx] / 2;
-          incomeValues[dispIdx] = incomeValues[dispIdx] / 2;
-          // Zero out all years after disposal
-          for (let j = dispIdx + 1; j < yearsCount; j++) {
-            expenseValues[j] = 0;
-            incomeValues[j] = 0;
+    // A Full disposal takes the streams with it: half in the sale year, nothing after.
+    if (hasValuation && Array.isArray(module.Dispose)) {
+      for (const entry of module.Dispose) {
+        if (entry.Flag !== "Full") continue;
+        const dispIdx = new Date(entry.Date).getFullYear() - startyear;
+        if (dispIdx >= 0 && dispIdx < yearsCount) {
+          if (dispIdx === 0) {
+            // Base year disposal: base year stays as budget, zero all forecast years
+            for (let j = 1; j < yearsCount; j++) series[j] = 0;
+          } else {
+            series[dispIdx] = series[dispIdx] / 2;
+            for (let j = dispIdx + 1; j < yearsCount; j++) series[j] = 0;
           }
         }
       }
     }
+
+    computed.push({ stream, series });
   }
 
-  // Calculate tax values (deferred by one year — US tax is paid the year after the gain)
+  // ── TAX ────────────────────────────────────────────────────────────────────────────
   //
   // Two rates, because they are two different taxes (CR047):
   //  - gains  = tax_rate_override ?? scenario rate. A capital gain on disposal.
-  //  - income = income_tax_rate_override ?? tax_rate_override ?? scenario rate.
+  //  - income = stream.tax_rate_override ?? tax_rate_override ?? scenario rate.
   //
   // The income override exists for income that arrives ALREADY TAXED elsewhere: United
   // Beverages' dividend is paid net of Polish tax, so the only incremental US tax on it is
   // ~3% — while a future sale of the business is still a normal capital gain at the full
-  // rate. `tax_rate_override` alone could not express that: it moves both.
-  //
-  // NULL falls back, so every existing module is byte-identical. 0 is a real rate (income
-  // taxed at nothing), not "unset" — hence the `!= null` checks rather than truthiness.
+  // rate. NULL falls back, so every existing module is byte-identical. 0 is a real rate
+  // (income taxed at nothing), not "unset" — hence the `!= null` checks.
   const taxValues = new Array(yearsCount).fill(0);
   const scenarioRate = Number(scenario?.TaxRate ?? 0);
-  const gainsRate = module.tax_rate_override != null
-    ? Number(module.tax_rate_override)
-    : scenarioRate;
-  const incomeRate = module.income_tax_rate_override != null
-    ? Number(module.income_tax_rate_override)
-    : gainsRate;
-
+  const gainsRate = module.tax_rate_override != null ? Number(module.tax_rate_override) : scenarioRate;
   const gainsFactor = Number.isFinite(gainsRate) ? -gainsRate / 100 : 0;
-  const incomeFactor = Number.isFinite(incomeRate) ? -incomeRate / 100 : 0;
 
-  if (gainsFactor !== 0 || incomeFactor !== 0) {
-    // Tax on base year income (income_amount) deferred to Period 1
-    // CR041: skipped when the module wasn't owned in the base year — no income existed
-    // CR046: and skipped when the income window has not opened by the base year — rent
-    // that starts in 2030 earns nothing in the base year, so there is nothing to tax.
-    const baseYearInWindow = (() => {
-      const from = windowIdx(module.income_start_date);
-      const to = windowIdx(module.income_end_date);
-      return (from == null || from <= 0) && (to == null || to >= 0);
-    })();
-    if (incomeFactor !== 0 && absIncomeAmount > 0 && acquisitionIdx === 0 && baseYearInWindow) {
+  const streamIncomeFactor = (stream) => {
+    const rate = stream.tax_rate_override != null
+      ? Number(stream.tax_rate_override)
+      : gainsRate;
+    return Number.isFinite(rate) ? -rate / 100 : 0;
+  };
+
+  // Tax on the BASE YEAR's typed income, deferred to Period 1.
+  //
+  // This is the one place the two old builders genuinely diverged, and it is keyed on
+  // `has_valuation` for exactly that reason: fcbuilder-module booked it whenever
+  // `absIncomeAmount > 0 && acquisitionIdx === 0`, with NO yield-mode guard — so it fires on
+  // an amount-mode module AND on the dead typed amounts of the three yield-mode ones
+  // (CVC Fund VIII, Fidelity Stocks, Fidelity Fixed Income). fcbuilder-incexp had no such
+  // block at all, taxing forecast years only. A converted flow item with positive income
+  // (`Total Salary`, 3,786) must therefore NOT acquire it, or the gate fails.
+  //
+  // It is also why the backfill keeps a yield stream's typed amount instead of dropping it:
+  // the amount is dead to the projection and live to this block.
+  if (hasValuation && acquisitionIdx === 0) {
+    for (const { stream } of computed) {
+      if (stream.direction !== 'income') continue;
+      const amount = Math.abs(parseFloat(stream.amount) || 0);
+      if (!(amount > 0)) continue;
+      const incomeFactor = streamIncomeFactor(stream);
+      if (incomeFactor === 0) continue;
+
+      // CR046: skipped when the income window has not opened by the base year — rent that
+      // starts in 2030 earns nothing in the base year, so there is nothing to tax.
+      const from = yearIndex(stream.start_date, startyear);
+      const to = yearIndex(stream.end_date, startyear);
+      const baseYearInWindow = (from == null || from <= 0) && (to == null || to >= 0);
+      if (!baseYearInWindow) continue;
+
       const period1Idx = periodStart - startyear;
       if (period1Idx >= 0 && period1Idx < yearsCount) {
-        // Tax what the base year actually EARNED, not the raw amount. `incomeValues[0]` is
-        // no help here — the projection loop skips the base year (its index is < PeriodStart)
-        // — so the base-year figure is derived: the full amount, halved when the window
-        // opens or closes in the base year itself (the July-1 half year). Taxing
-        // absIncomeAmount there would tax income the model never booked.
-        const from = windowIdx(module.income_start_date);
-        const to = windowIdx(module.income_end_date);
+        // Tax what the base year actually EARNED: the full amount, halved when the window
+        // opens or closes in the base year itself (the July-1 half year).
         const halvesBaseYear = from === 0 || to === 0;
-        const baseYearIncome = absIncomeAmount * (halvesBaseYear ? 0.5 : 1);
-        taxValues[period1Idx] += incomeFactor * baseYearIncome;
-      }
-    }
-
-    for (let i = 0; i < yearsCount; i++) {
-      let currentYearTax = 0;
-      if (realizedGainValues[i] > 0) currentYearTax = gainsFactor * realizedGainValues[i];
-      if (incomeValues[i] > 0) currentYearTax += incomeFactor * incomeValues[i];
-      // Defer tax to next year; if this is the last year, tax stays in that year
-      if (currentYearTax !== 0) {
-        const targetIdx = i + 1 < yearsCount ? i + 1 : i;
-        taxValues[targetIdx] += currentYearTax;
+        taxValues[period1Idx] += incomeFactor * amount * (halvesBaseYear ? 0.5 : 1);
       }
     }
   }
+
+  // Tax deferred by one year — US tax is paid the year after the income or the gain.
+  for (let i = 0; i < yearsCount; i++) {
+    let currentYearTax = 0;
+    if (gainsFactor !== 0 && realizedGainValues[i] > 0) {
+      currentYearTax += gainsFactor * realizedGainValues[i];
+    }
+    for (const { stream, series } of computed) {
+      if (stream.direction !== 'income') continue;
+      if (series[i] > 0) currentYearTax += streamIncomeFactor(stream) * series[i];
+    }
+    if (currentYearTax !== 0) {
+      const targetIdx = i + 1 < yearsCount ? i + 1 : i;
+      taxValues[targetIdx] += currentYearTax;
+    }
+  }
+
+  // ── FRAME ──────────────────────────────────────────────────────────────────────────
 
   // Convert LC to USD
-  const baseValuesUSD = new Array(yearsCount).fill(module.BaseValue ?? 0);
-  const marketValuesUSD = new Array(yearsCount).fill(module.MarketValue ?? 0);
-  const investValuesUSD = new Array(yearsCount).fill(0);
-  const disposeValuesUSD = new Array(yearsCount).fill(0);
-  const unrealizedGainValuesUSD = new Array(yearsCount).fill(0);
-  const realizedGainValuesUSD = new Array(yearsCount).fill(0);
-  const incomeValuesUSD = new Array(yearsCount).fill(0);
-  const expenseValuesUSD = new Array(yearsCount).fill(0);
-  const taxValuesUSD = new Array(yearsCount).fill(0);
+  const toUSD = (series) => series.map((v, i) => v / (fxrates[i] || 1));
+  const baseValuesUSD = baseValues.map((v, i) => v / (fxrates[i] || 1));
+  const marketValuesUSD = marketValues.map((v, i) => v / (fxrates[i] || 1));
+  const investValuesUSD = toUSD(investValues);
+  const disposeValuesUSD = toUSD(disposeValues);
+  const unrealizedGainValuesUSD = toUSD(unrealizedGainValues);
+  const realizedGainValuesUSD = toUSD(realizedGainValues);
+  const taxValuesUSD = toUSD(taxValues);
 
-  for (let i = 0; i < yearsCount; i++) {
-    const fx = fxrates[i] || 1; // Guard against zero FX rate
-    baseValuesUSD[i] = baseValues[i] / fx;
-    marketValuesUSD[i] = marketValues[i] / fx;
-    investValuesUSD[i] = investValues[i] / fx;
-    disposeValuesUSD[i] = disposeValues[i] / fx;
-    unrealizedGainValuesUSD[i] = unrealizedGainValues[i] / fx;
-    realizedGainValuesUSD[i] = realizedGainValues[i] / fx;
-    incomeValuesUSD[i] = incomeValues[i] / fx;
-    expenseValuesUSD[i] = expenseValues[i] / fx;
-    taxValuesUSD[i] = taxValues[i] / fx;
+  if (hasValuation) {
+    baseValuesUSD[0] = module.BaseValueUSD ?? 0;
+    marketValuesUSD[0] = module.MarketValueUSD ?? 0;
+    fxrates[0] = baseValuesUSD[0] !== 0 ? baseValues[0] / baseValuesUSD[0] : 1;
   }
-
-  baseValuesUSD[0] = module.BaseValueUSD ?? 0;
-  marketValuesUSD[0] = module.MarketValueUSD ?? 0;
-  fxrates[0] = baseValuesUSD[0] !== 0 ? baseValues[0] / baseValuesUSD[0] : 1;
-
-  // Create dataframes for audit trail
-  const incomeLabel = module.IncomeCategory || 'Income';
-  const expenseLabel = module.ExpCategory || 'Expense';
-  // Avoid duplicate column keys if both resolve to the same name
-  const safeExpenseLabel = expenseLabel === incomeLabel ? expenseLabel + '_Exp' : expenseLabel;
-
-  const df_module_LC = LabelFrame.fromColumns({
-    FX: fxrates, GrowthPct: growthValues, IncomePct: incomePctValues, ExpensePct: expPctValues,
-    BaseValue: baseValues, MarketValue: marketValues, UnrealizedGain: unrealizedGainValues,
-    RealizedGain: realizedGainValues, Invest: investValues, Dispose: disposeValues,
-    [incomeLabel]: incomeValues, [safeExpenseLabel]: expenseValues, Tax: taxValues,
-  }, { index: yearsArr });
-
-  const df_module_USD = LabelFrame.fromColumns({
-    FX: fxrates, GrowthPct: growthValues, IncomePct: incomePctValues, ExpensePct: expPctValues,
-    BaseValueUSD: baseValuesUSD, marketValuesUSD: marketValuesUSD, UnrealizedGain: unrealizedGainValuesUSD,
-    RealizedGain: realizedGainValuesUSD, Invest: investValuesUSD, Dispose: disposeValuesUSD,
-    [incomeLabel]: incomeValuesUSD, [safeExpenseLabel]: expenseValuesUSD, Tax: taxValuesUSD,
-  }, { index: yearsArr });
 
   // Clear and populate df_categories
   const dfCategoryValues = df_categories.values;
@@ -754,29 +515,95 @@ function computeModule(module, scenario, df_assumptions, df_categories, categori
     dfCategoryValues[i].fill(0);
   }
 
-  let categoryRowIndex = df_categories.index.indexOf(module.Account);
-  writeValuesToCategoryRow(categoryRowIndex, df_categories, marketValuesUSD, startyear);
-
-  categoryRowIndex = df_categories.index.indexOf("Transfer - Bank");
   const transferValues = disposeValuesUSD.map((dispose, idx) => -dispose - investValuesUSD[idx]);
-  writeValuesToCategoryRow(categoryRowIndex, df_categories, transferValues, startyear);
 
-  categoryRowIndex = df_categories.index.indexOf(module.IncomeCategory);
-  writeValuesToCategoryRow(categoryRowIndex, df_categories, incomeValuesUSD, startyear);
-
-  categoryRowIndex = df_categories.index.indexOf(module.ExpCategory);
-  writeValuesToCategoryRow(categoryRowIndex, df_categories, expenseValuesUSD, startyear);
-
-  categoryRowIndex = df_categories.index.indexOf("Taxes");
-  writeValuesToCategoryRow(categoryRowIndex, df_categories, taxValuesUSD, startyear);
-
-  const cashChange = new Array(yearsCount);
-  for (let i = 0; i < yearsCount; i++) {
-    cashChange[i] = incomeValuesUSD[i] + expenseValuesUSD[i] + taxValuesUSD[i] + transferValues[i];
+  if (hasValuation) {
+    writeValuesToCategoryRow(
+      df_categories.index.indexOf(module.Account), df_categories, marketValuesUSD, startyear
+    );
+    writeValuesToCategoryRow(
+      df_categories.index.indexOf("Transfer - Bank"), df_categories, transferValues, startyear
+    );
   }
 
-  categoryRowIndex = df_categories.index.indexOf("Bank Accounts");
-  writeValuesToCategoryRow(categoryRowIndex, df_categories, cashChange, startyear);
+  // Each stream posts to its OWN line — and ADDS rather than overwrites, because two streams
+  // may legitimately share one (CR069 Decision 3: one category frame per module, so exactly
+  // one entries row per module/account/year is ever written; the convergence loop's
+  // `UPDATE … SET amount = amount + $1` would otherwise apply one delta to two rows).
+  const streamsUSD = [];
+  for (const { stream, series } of computed) {
+    const usd = toUSD(series);
+    streamsUSD.push({ stream, usd });
+    const line = stream.lineName;
+    if (!line) continue;   // no line = posts nowhere; see roadmap known issue (Sarasota)
+    addValuesToCategoryRow(df_categories.index.indexOf(line), df_categories, usd, startyear);
+  }
+
+  // A flow item mapped to the Taxes line folds INTO the tax row rather than beside it — the
+  // `module.Account === "Taxes"` special case fcbuilder-incexp carried. Keyed on the posting
+  // line, which is what that comparison actually resolved to.
+  const taxRowValues = taxValuesUSD.slice();
+  if (!hasValuation) {
+    for (const { stream, usd } of streamsUSD) {
+      if (stream.lineName !== "Taxes") continue;
+      for (let i = 0; i < taxRowValues.length; i++) taxRowValues[i] += usd[i];
+    }
+  }
+  writeValuesToCategoryRow(df_categories.index.indexOf("Taxes"), df_categories, taxRowValues, startyear);
+
+  // Cash: every stream, plus tax, plus the balance path's transfers.
+  //
+  // SUMMED IN THE OLD ORDER — income, then expense, then tax, then transfers — and that is
+  // not fussiness. Floating-point addition is not associative, so reordering these terms
+  // changes the last bits of the result. The engine then feeds that cash figure into the
+  // sweep, whose band decides whether a year drains or deposits, and the income↔sweep
+  // convergence loop iterates on the outcome with a $100 tolerance. A sub-cent difference at
+  // the bottom is amplified by that feedback into hundreds of dollars: reordering this one
+  // expression moved `2026 Downside` — the scenario that sits nearest the band — by up to
+  // $25K on Fidelity Fixed Income, while the other four scenarios stayed byte-identical.
+  //
+  // The stream loop is ordered explicitly rather than relying on the loader's `ORDER BY
+  // direction, id`, which sorts 'expense' before 'income' and would silently reintroduce it.
+  const cashChange = new Array(yearsCount).fill(0);
+  for (let i = 0; i < yearsCount; i++) {
+    let sum = 0;
+    for (const { stream, usd } of streamsUSD) if (stream.direction === 'income') sum += usd[i];
+    for (const { stream, usd } of streamsUSD) if (stream.direction !== 'income') sum += usd[i];
+    sum += taxValuesUSD[i];
+    if (hasValuation) sum += transferValues[i];
+    cashChange[i] = sum;
+  }
+  writeValuesToCategoryRow(df_categories.index.indexOf("Bank Accounts"), df_categories, cashChange, startyear);
+
+  // ── AUDIT FRAMES ───────────────────────────────────────────────────────────────────
+  const auditCols = {
+    FX: fxrates, GrowthPct: growthValues,
+    BaseValue: baseValues, MarketValue: marketValues,
+    UnrealizedGain: unrealizedGainValues, RealizedGain: realizedGainValues,
+    Invest: investValues, Dispose: disposeValues,
+  };
+  const auditColsUSD = {
+    FX: fxrates, GrowthPct: growthValues,
+    BaseValueUSD: baseValuesUSD, marketValuesUSD: marketValuesUSD,
+    UnrealizedGain: unrealizedGainValuesUSD, RealizedGain: realizedGainValuesUSD,
+    Invest: investValuesUSD, Dispose: disposeValuesUSD,
+  };
+  // One column per stream, labelled by its line — so the audit trail names what it posts to.
+  // De-duplicated, since two streams may share a line and a frame cannot carry a repeated key.
+  const usedLabels = new Set();
+  for (const { stream, usd } of streamsUSD) {
+    let label = stream.lineName || (stream.direction === 'income' ? 'Income' : 'Expense');
+    while (usedLabels.has(label)) label += '_';
+    usedLabels.add(label);
+    const lc = computed.find((c) => c.stream === stream).series;
+    auditCols[label] = lc;
+    auditColsUSD[label] = usd;
+  }
+  auditCols.Tax = taxValues;
+  auditColsUSD.Tax = taxValuesUSD;
+
+  const df_module_LC = LabelFrame.fromColumns(auditCols, { index: yearsArr });
+  const df_module_USD = LabelFrame.fromColumns(auditColsUSD, { index: yearsArr });
 
   return {
     moduleName: module?.Name,

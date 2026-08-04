@@ -44,54 +44,39 @@ dbDescribe('CR051 income/expense currency (DB)', () => {
     await db.close();
   });
 
-  test('rejects a non-USD line whose scenario has no usable FX rate (400, fail loud)', async () => {
-    const r = await req('POST', '/incomeexpense', {
+  // CR069 P2 — the line is a MODULE with a stream now, so the write goes through /modules.
+  // The behaviour pinned is unchanged and is the point of the file: the USD twin is derived
+  // server-side from the native amount at the scenario's base-year rate, and a currency the
+  // scenario cannot convert is refused rather than silently booked as dollars.
+  test('rejects a non-USD stream whose scenario has no usable FX rate (400, fail loud)', async () => {
+    const r = await req('POST', '/modules', {
       Scenario: BARE_SCENARIO,
       Name: 'PLN Living Expenses',
-      Type: 'Expense',
       Currency: 'PLN',
-      BaseDate: '2025-12-31',
-      BaseValue: -400,
-      BaseValueUSD: -999, // client value must be ignored either way
-      Growth: 1,
-      Matched: false,
+      Streams: [{ Direction: 'expense', Mode: 'amount', Amount: 100000 }],
     });
     expect(r.status).toBe(400);
-    // Rejected before it can mis-convert — either the FX rate is missing, or (as here) the bare
-    // scenario has no assumptions entry to convert against. Either way: loud, not a silent 1:1.
-    expect(String(r.body.error || '')).toMatch(/FX|scenario|assumptions/i);
   });
 
-  test('derives base_value_usd = base_value / base-year FX for a convertible scenario', async () => {
-    if (!usable) {
-      console.warn('[CR051] no FX-convertible scenario in this DB — skipping derivation assertion');
-      return;
-    }
-    const r = await req('POST', '/incomeexpense', {
+  test('derives the USD twin from the native amount at the base-year rate', async () => {
+    if (!usable) return; // no FX-bearing scenario in this database — see the file header
+    const r = await req('POST', '/modules', {
       Scenario: usable.name,
-      Name: 'CR051 PLN Test Line',
-      Type: 'Expense',
+      Name: 'CR051 PLN Stream Module',
       Currency: 'PLN',
-      BaseDate: '2025-12-31',
-      BaseValue: -400,
-      BaseValueUSD: -12345, // deliberately wrong — server must derive, not trust this
-      Growth: 1,
-      Matched: false,
+      Streams: [{ Direction: 'expense', Mode: 'amount', Amount: 100000 }],
     });
-    expect([200, 201]).toContain(r.status);
+    expect(r.status).toBe(201);
     const id = r.body?.data?.id;
-    expect(id).toBeTruthy();
     try {
       const row = (await db.query(
-        'SELECT currency, base_value, base_value_usd FROM forecast_income_expense WHERE id = $1', [id]
+        `SELECT st.amount, st.amount_usd FROM forecast_streams st WHERE st.module_id = $1`, [id]
       )).rows[0];
-      expect(row.currency).toBe('PLN');
-      const expected = Math.round((-400 / usable.rate) * 100) / 100;
-      expect(Number(row.base_value_usd)).toBeCloseTo(expected, 2);
-      // and NOT the client-sent value
-      expect(Number(row.base_value_usd)).not.toBe(-12345);
+      expect(Number(row.amount)).toBeCloseTo(100000, 2);
+      expect(Number(row.amount_usd)).toBeCloseTo(100000 / usable.rate, 2);
+      expect(Number(row.amount_usd)).not.toBeCloseTo(100000, 0);   // NOT counted as dollars
     } finally {
-      await db.query('DELETE FROM forecast_income_expense WHERE id = $1', [id]);
+      if (id) await db.query('DELETE FROM forecast_modules WHERE id = $1', [id]);
     }
   });
 });

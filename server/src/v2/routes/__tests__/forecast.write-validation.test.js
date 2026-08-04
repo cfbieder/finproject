@@ -167,38 +167,51 @@ dbDescribe('forecast write validation (N10, DB)', () => {
     });
   });
 
-  describe('income/expense items', () => {
-    let itemId;
+  describe('streams (CR069 P2 — what income/expense items became)', () => {
+    let modId;
 
-    test('accepts the payload FCAddFromLinesModal sends', async () => {
-      const r = await req('POST', '/incomeexpense', {
+    test('accepts a module carrying a stream, the shape FCAddFromLinesModal now sends', async () => {
+      const r = await req('POST', '/modules', {
         Scenario: SCENARIO,
-        Name: 'N10 Item',
-        Type: 'expense',
-        Currency: 'USD',
-        BaseDate: '2026-01-01',
-        BaseValue: 10,
-        BaseValueUSD: 10,
-        Growth: 1,
-        Matched: true,
-        FcLineId: null,
-        BudgetSourceYear: 2026,
+        Name: 'N10 Stream Module',
         Comment: 'N10',
+        Streams: [{ Direction: 'expense', Mode: 'amount', Amount: 1234, GrowthMult: 1 }],
       });
       expect([200, 201]).toContain(r.status);
-      itemId = r.body?.data?.id ?? r.body?.id;
-      expect(itemId).toBeTruthy();
+      modId = r.body?.data?.id ?? r.body?.id;
+      expect(modId).toBeTruthy();
+
+      const st = (await db.query(
+        'SELECT direction, mode, amount FROM forecast_streams WHERE module_id = $1', [modId]
+      )).rows;
+      expect(st).toHaveLength(1);
+      expect(st[0].direction).toBe('expense');
+      expect(Number(st[0].amount)).toBe(1234);
     });
 
-    test('rejects an unknown field', async () => {
-      const r = await req('PUT', `/incomeexpense/${itemId}`, { Bogus: 1 });
+    test('rejects an unknown field, so a typo fails loud instead of being dropped', async () => {
+      const r = await req('POST', '/modules', {
+        Scenario: SCENARIO, Name: 'N10 Bogus', Streamz: [],
+      });
       expect(r.status).toBe(400);
-      expect(String(r.body.error)).toMatch(/Bogus/);
     });
 
-    test('still accepts a Changes-only PUT (what FCReview sends)', async () => {
-      const r = await req('PUT', `/incomeexpense/${itemId}`, { Changes: [] });
-      expect(r.status).toBe(200);
+    test('the legacy per-direction fields still write a stream (the P2→P3 bridge)', async () => {
+      // The Modules editor keeps sending these until P3 replaces the form with stream cards;
+      // refusing them here would 400 every module save across the two deploys.
+      const r = await req('PUT', `/modules/${modId}`, {
+        ExpenseAmount: 4321, ExpenseGrowthMethod: 'inflation',
+      });
+      expect([200, 201]).toContain(r.status);
+      const st = (await db.query(
+        `SELECT amount FROM forecast_streams WHERE module_id = $1 AND direction = 'expense'`, [modId]
+      )).rows[0];
+      expect(Number(st.amount)).toBe(4321);
+    });
+
+    afterAll(async () => {
+      if (modId) await db.query('DELETE FROM forecast_modules WHERE id = $1', [modId]);
     });
   });
+
 });

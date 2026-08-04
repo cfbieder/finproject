@@ -15,6 +15,7 @@ const db = require('../../v2/db');
 const repo = require('../../v2/repositories').forecast;
 const variants = require('../../v2/services/forecastVariants'); // CR050
 const { baseYearFxRate } = require('./fcbuilder-setup'); // CR064 P8 — base-year FX
+const validate = require('../../v2/utils/validate'); // CR069 P2 — 400s from the write path
 
 /**
  * Resolve an account name to its id (null when absent/not found).
@@ -489,113 +490,87 @@ async function buildAddFromActualsTree(scenarioId, baseYear) {
  * silently for the whole horizon. One query, one caller-supplied handle — no second copy.
  */
 async function getBaseYearValues(scenarioId, baseYear = null, client = db) {
-  // Reused by both halves of the UNION: the stream must have started by the base year and
-  // not yet have ended. NULL bounds are unbounded.
-  const windowFilter = (prefix) => baseYear == null ? '' : `
-      AND (m.${prefix}_start_date IS NULL OR EXTRACT(YEAR FROM m.${prefix}_start_date) <= ${Number(baseYear)})
-      AND (m.${prefix}_end_date   IS NULL OR EXTRACT(YEAR FROM m.${prefix}_end_date)   >= ${Number(baseYear)})`;
+  // CR069 P2 — ONE query over `forecast_streams`, where there were three UNION branches over
+  // two tables. A module's income/expense column pairs and every `forecast_income_expense`
+  // row are all streams now, so the base year has one source in the same sense CR049 created
+  // this function to give it: not "one function", but one QUERY the function runs.
+  //
+  // The three behaviours the old branches encoded all survive, and each is load-bearing:
+  //
+  //   window     CR046 (fixed v3.0.88) — a stream counts in the base year only if its window
+  //              is open that year, and only for HALF of it when the window opens or closes
+  //              in that year (the July-1 convention the projection applies). Rent starting
+  //              2028 does not exist in 2026; summing it blindly put it in the base-year
+  //              column AND, through this function, into the cash sweep's opening cash.
+  //   loan       CR062 — a loan's base-year expense is interest on the balance it already
+  //              carries, DERIVED, so its stream `amount` says nothing about it. Without the
+  //              branch an existing mortgage reads as zero interest in the base year while
+  //              every forecast year charges it, and the sweep opens a year of interest rich
+  //              for the whole horizon. That is CR049 §1 in the function CR049 created.
+  //   flow       a converted Expenditure item posts to its FC line, or — when it has none —
+  //              to its COA account's name, then its own name. The engine's loader applies
+  //              the identical fallback; the two must agree or the base-year column and the
+  //              modelled years label the same money differently.
+  const windowFilter = baseYear == null ? '' : `
+      AND (s.start_date IS NULL OR EXTRACT(YEAR FROM s.start_date) <= ${Number(baseYear)})
+      AND (s.end_date   IS NULL OR EXTRACT(YEAR FROM s.end_date)   >= ${Number(baseYear)})`;
 
-  // ...and if the window OPENS or CLOSES in the base year, the stream only runs for half of
-  // it (the July-1 convention the projection already applies). Without this the base year
-  // would book the full amount while every other layer booked half — the same figure
-  // disagreeing with itself across the display, the sweep's opening cash and the tax.
-  const halfYear = (prefix) => baseYear == null ? '1' : `
-      (CASE WHEN EXTRACT(YEAR FROM m.${prefix}_start_date) = ${Number(baseYear)}
-              OR EXTRACT(YEAR FROM m.${prefix}_end_date)   = ${Number(baseYear)}
+  const halfYear = baseYear == null ? '1' : `
+      (CASE WHEN EXTRACT(YEAR FROM s.start_date) = ${Number(baseYear)}
+              OR EXTRACT(YEAR FROM s.end_date)   = ${Number(baseYear)}
             THEN 0.5 ELSE 1 END)`;
-  // CR062 — a LOAN's base-year expense is interest on the balance it already
-  // carries, and it is DERIVED, so `expense_amount` says nothing about it. Without
-  // a branch here an existing mortgage reads as zero interest in the base year
-  // while every forecast year charges it — and because this figure is also the
-  // cash sweep's opening cash (index.js folds the base-year NCF into it), the
-  // sweep would open one year of interest rich and stay that way for the whole
-  // horizon. That is CR049 §1 exactly, in the very function CR049 created so the
-  // base year would have ONE source. Hence a third UNION branch rather than a
-  // second derivation in JS.
-  //
-  // Rate on the base-year outstanding, halved when the loan is drawn IN the base
-  // year — the same July-1 convention the projection applies, expressed the same
-  // way as `halfYear` does for a window that opens mid-year.
-  //
-  // Currency: this matches the sibling branches, which sum module amounts in their
-  // own currency without converting. Pre-existing and out of scope here; a loan
-  // is no more wrong than the PLN property expense next to it.
+
   const loanHalfYear = baseYear == null ? '1' : `
       (CASE WHEN EXTRACT(YEAR FROM m.loan_start_date) = ${Number(baseYear)} THEN 0.5 ELSE 1 END)`;
 
-  // Get income/expense amounts from BS modules (by FC Line name)
-  const bsResult = await client.query(`
+  const streamResult = await client.query(`
     SELECT
-      COALESCE(exp_line.name, 'Unassigned Expense') as label,
-      'expense' as type,
+      COALESCE(
+        line.name,
+        CASE WHEN m.has_valuation THEN NULL ELSE COALESCE(a.name, m.name) END,
+        CASE WHEN s.direction = 'income' THEN 'Unassigned Income' ELSE 'Unassigned Expense' END
+      ) as label,
+      s.direction as type,
       COALESCE(m.currency, 'USD') as currency,
-      SUM(CASE WHEN m.expense_amount IS NOT NULL AND m.expense_amount != 0
-          THEN -m.expense_amount * ${halfYear('expense')} ELSE 0 END) as amount
-    FROM forecast_modules m
-    LEFT JOIN fc_lines exp_line ON m.expense_fc_line_id = exp_line.id
-    WHERE m.scenario_id = $1 AND COALESCE(m.setup_status, 'new') NOT IN ('new', 'exclude')
-      AND m.expense_fc_line_id IS NOT NULL${windowFilter('expense')}
-      AND m.loan_interest_rate IS NULL
-    GROUP BY exp_line.name, m.currency
-    UNION ALL
-    SELECT
-      COALESCE(exp_line.name, 'Unassigned Expense') as label,
-      'expense' as type,
-      COALESCE(m.currency, 'USD') as currency,
-      SUM(-(m.loan_interest_rate / 100.0) * ABS(COALESCE(m.market_value, 0)) * ${loanHalfYear}) as amount
-    FROM forecast_modules m
-    LEFT JOIN fc_lines exp_line ON m.expense_fc_line_id = exp_line.id
-    WHERE m.scenario_id = $1 AND COALESCE(m.setup_status, 'new') NOT IN ('new', 'exclude')
-      AND m.expense_fc_line_id IS NOT NULL
-      AND m.loan_interest_rate IS NOT NULL
-    GROUP BY exp_line.name, m.currency
-    UNION ALL
-    SELECT
-      COALESCE(inc_line.name, 'Unassigned Income') as label,
-      'income' as type,
-      COALESCE(m.currency, 'USD') as currency,
-      SUM(COALESCE(m.income_amount, 0) * ${halfYear('income')}) as amount
-    FROM forecast_modules m
-    LEFT JOIN fc_lines inc_line ON m.income_fc_line_id = inc_line.id
-    WHERE m.scenario_id = $1 AND COALESCE(m.setup_status, 'new') NOT IN ('new', 'exclude')
-      AND m.income_fc_line_id IS NOT NULL${windowFilter('income')}
-    GROUP BY inc_line.name, m.currency
+      SUM(
+        CASE
+          -- A loan's interest: the rate on the balance it already carries, halved in the
+          -- year it is drawn. The stream amount is 0 on a derived stream by construction.
+          WHEN s.mode = 'derived' AND m.loan_interest_rate IS NOT NULL
+            THEN -(m.loan_interest_rate / 100.0) * ABS(COALESCE(m.market_value, 0)) * ${loanHalfYear}
+          WHEN s.direction = 'income'
+            THEN COALESCE(s.amount, 0) * ${halfYear}
+          ELSE -COALESCE(s.amount, 0) * ${halfYear}
+        END
+      ) as amount
+    FROM forecast_streams s
+    JOIN forecast_modules m ON m.id = s.module_id
+    LEFT JOIN fc_lines line ON line.id = s.fc_line_id
+    LEFT JOIN accounts a ON a.id = m.account_id
+    WHERE m.scenario_id = $1
+      AND COALESCE(m.setup_status, 'new') NOT IN ('new', 'exclude')
+      -- A derived (loan) stream has no window of its own — its dates ARE the loan's.
+      AND (s.mode = 'derived' OR TRUE${windowFilter})
+    GROUP BY 1, 2, m.currency
   `, [scenarioId]);
 
-  // Get base values from IncExp items (by FC Line name or item name)
-  const incexpResult = await client.query(`
-    SELECT
-      COALESCE(fl.name, ie.name) as label,
-      -- CR064 P8 — base_value is the LOCAL amount; base_value_usd is the USD twin the
-      -- CR051 write path derives at the scenario's base-year rate. This column is
-      -- summed into a USD figure, so it must be the USD one. (All 60 live rows are USD,
-      -- so this is a no-op today and correct the moment one is not.)
-      COALESCE(ie.base_value_usd, ie.base_value) as amount
-    FROM forecast_income_expense ie
-    LEFT JOIN fc_lines fl ON ie.fc_line_id = fl.id
-    WHERE ie.scenario_id = $1 AND COALESCE(ie.setup_status, 'new') NOT IN ('new', 'exclude')
-  `, [scenarioId]);
-
-  // CR064 P8 — convert each module's amount from ITS OWN currency before summing.
+  // CR064 P8 — convert each stream's amount from ITS OWN currency before summing.
   //
-  // These branches used to sum `expense_amount` / `income_amount` raw, in whatever
-  // currency each module happens to use, into a figure every consumer reads as USD.
-  // Measured on prod 2026-08-02: `2026 Base` reported 500,000 of UB income (PLN) and
-  // 55,000 of Barkeria income (PLN) as though they were dollars — about **+400,000 USD**
-  // of base-year income that does not exist, against ~13,000 of PLN property expense
-  // overstated the same way.
+  // These branches used to sum `expense_amount` / `income_amount` raw, in whatever currency
+  // each module happens to use, into a figure every consumer reads as USD. Measured on prod
+  // 2026-08-02: `2026 Base` reported 500,000 of UB income (PLN) and 55,000 of Barkeria income
+  // (PLN) as though they were dollars — about **+400,000 USD** of base-year income that does
+  // not exist, against ~13,000 of PLN property expense overstated the same way.
   //
-  // It was never only a display defect. `index.js` folds this base-year net cash flow
-  // into the **cash sweep's opening cash**, so the sweep opened that much richer and
-  // stayed there for the whole horizon — the CR049 §1 failure mode, in the very function
-  // CR049 created so the base year would have one source. The old comment here called
-  // the currency handling "pre-existing and out of scope"; this is that scope.
+  // It was never only a display defect. `index.js` folds this base-year net cash flow into
+  // the cash sweep's OPENING CASH, so the sweep opened that much richer and stayed there for
+  // the whole horizon — the CR049 §1 failure mode, in the very function CR049 created so the
+  // base year would have one source.
   //
-  // The rate is the scenario's own base-year rate (CR051's `baseYearFxRate`), which is
-  // what the engine divides by when it projects the same stream — so the base-year column
-  // and Period 1 now agree instead of differing by the FX rate. A missing or zero rate
-  // for a currency in use THROWS there and therefore here: a base year that silently
-  // reverts to unconverted amounts is the defect being fixed.
+  // The rate is the scenario's own base-year rate (CR051's `baseYearFxRate`), which is what
+  // the engine divides by when it projects the same stream — so the base-year column and
+  // Period 1 agree instead of differing by the FX rate. A missing or zero rate for a currency
+  // in use THROWS there and therefore here.
   const scenarioRow = await client.query('SELECT name FROM forecast_scenarios WHERE id = $1', [scenarioId]);
   const scenarioName = scenarioRow.rows[0]?.name || null;
   const rateCache = new Map();
@@ -607,20 +582,15 @@ async function getBaseYearValues(scenarioId, baseYear = null, client = db) {
   };
 
   const values = {};
-  for (const row of bsResult.rows) {
+  for (const row of streamResult.rows) {
     const amt = parseFloat(row.amount) || 0;
     if (amt === 0) continue;
     const usd = amt / (await rateFor(row.currency));
     values[row.label] = (values[row.label] || 0) + usd;
   }
-  for (const row of incexpResult.rows) {
-    const amt = parseFloat(row.amount) || 0;
-    if (amt !== 0) values[row.label] = (values[row.label] || 0) + amt;
-  }
 
   return values;
 }
-
 module.exports = {
   lookupAccountByName,
   refreshModulesFromActuals,
@@ -628,6 +598,7 @@ module.exports = {
   findCashSweepPriorityClash,
   clearOtherCashSweepTargets,
   replaceModuleSchedules,
+  replaceModuleStreams,
   previewLoanRetype,
   clearForLoanRetype,
   resolveIncExpAccountFromFcLine,
@@ -635,3 +606,140 @@ module.exports = {
   buildAddFromActualsTree,
   getBaseYearValues,
 };
+
+/**
+ * CR069 P2 — write a module's streams, from either shape.
+ *
+ * Accepts the NEW `Streams` array and the LEGACY per-direction fields, because the Modules
+ * editor still sends the legacy ones until P3 replaces that form with stream cards. Both
+ * converge on the same rows, so there is one writer and not two conventions.
+ *
+ * Replace-wholesale per direction, which is what every other schedule on a module already
+ * does and what a `streams` variant patch means. Only the directions the body actually
+ * mentions are touched: a PUT that changes only the loan rate must not delete the income
+ * stream it never named.
+ */
+async function replaceModuleStreams(id, body, client) {
+  const c = client || db;
+  const toNum = (v) => (v === '' || v == null ? null : Number(v));
+
+  /** Legacy body → one stream per direction, or null when the body says nothing about it. */
+  const fromLegacy = (direction) => {
+    const p = direction === 'income' ? 'Income' : 'Expense';
+    const keys = [`${p}Amount`, `${p}FcLineId`, `${p}StartDate`, `${p}EndDate`,
+      ...(direction === 'income' ? ['IncomeGrowth', 'IncomeSteps', 'IncomePct', 'IncomeTaxRateOverride'] : ['ExpenseGrowthMethod'])];
+    if (!keys.some((k) => body[k] !== undefined)) return null;
+
+    const changes = [];
+    for (const st of (Array.isArray(body.IncomeSteps) && direction === 'income' ? body.IncomeSteps : [])) {
+      if (st?.Date) changes.push({ Date: st.Date, Amount: st.Amount ?? 0, Flag: 'Fixed $' });
+    }
+    for (const pc of (Array.isArray(body.IncomePct) && direction === 'income' ? body.IncomePct : [])) {
+      if (pc?.Date) changes.push({ Date: pc.Date, Amount: pc.Amount ?? pc.Value ?? 0, Flag: 'Spread %' });
+    }
+    // A yield schedule REPLACES the amount (CR003's deposit rate), which is why the presence
+    // of any Spread % row is what selects the mode — the same `hasIncomePct` precedence the
+    // engine used, now structural.
+    const hasSpread = changes.some((ch) => ch.Flag === 'Spread %');
+    const isLoan = body.LoanInterestRate != null;
+    return {
+      Direction: direction,
+      FcLineId: toNum(body[`${p}FcLineId`]),
+      Mode: isLoan && direction === 'expense' ? 'derived'
+        : hasSpread ? 'yield'
+          : (direction === 'expense' && body.ExpenseGrowthMethod === 'pct_of_value') ? 'pct_of_value'
+            : 'amount',
+      Amount: Math.abs(Number(body[`${p}Amount`]) || 0),
+      GrowthMult: direction === 'income' ? toNum(body.IncomeGrowth) : null,
+      StartDate: body[`${p}StartDate`] || null,
+      EndDate: body[`${p}EndDate`] || null,
+      TaxRateOverride: direction === 'income' ? toNum(body.IncomeTaxRateOverride) : null,
+      Changes: changes,
+    };
+  };
+
+  const explicit = Array.isArray(body.Streams) ? body.Streams : null;
+  const wanted = explicit
+    ? explicit
+    : ['income', 'expense'].map(fromLegacy).filter(Boolean);
+  if (!explicit && wanted.length === 0) return;
+
+  // CR051 — a non-USD stream's USD twin is DERIVED here, never trusted from the client, and a
+  // currency the scenario cannot convert is REFUSED (F1). Before CR051 a PLN line silently
+  // booked its native amount as dollars — ~4x too large — and a zero rate produced Infinity.
+  // The engine fails loud on the same condition at build time; this stops the row being
+  // written at all, which is where the owner can still see why.
+  //
+  // Resolved LAZILY — only when a non-USD amount is actually about to be stored. Doing it up
+  // front made an empty EUR draft (no streams at all) 400 on a rate it never needed, which is
+  // a scenario-setup complaint raised against a save that stores nothing.
+  const needsRate = wanted.some((w) => Math.abs(Number(w.Amount ?? w.amount) || 0) > 0);
+  let fxRate = 1;
+  if (needsRate) {
+    const mod = (await c.query(
+      `SELECT m.currency, s.name AS scenario_name
+         FROM forecast_modules m JOIN forecast_scenarios s ON s.id = m.scenario_id
+        WHERE m.id = $1`, [id]
+    )).rows[0];
+    const currency = (mod?.currency || 'USD').trim() || 'USD';
+    if (currency !== 'USD') {
+      // A 400, not a 500: an unconvertible currency is the caller telling us something the
+      // scenario cannot express, and the owner needs the sentence rather than a stack trace.
+      try {
+        fxRate = await baseYearFxRate(mod.scenario_name, currency);
+      } catch (err) {
+        throw validate.badRequest(
+          `Cannot store a ${currency} amount on "${mod.scenario_name}": ${err.message}`
+        );
+      }
+      if (!Number.isFinite(fxRate) || fxRate <= 0) {
+        throw validate.badRequest(
+          `No usable base-year FX rate for ${currency} on "${mod.scenario_name}" — set the FX assumption first.`
+        );
+      }
+    }
+  }
+
+  const directions = explicit
+    ? ['income', 'expense']
+    : [...new Set(wanted.map((w) => w.Direction))];
+
+  for (const direction of directions) {
+    await c.query(
+      'DELETE FROM forecast_streams WHERE module_id = $1 AND direction = $2', [id, direction]
+    );
+    for (const st of wanted.filter((w) => (w.Direction || w.direction) === direction)) {
+      // A stream with neither a line nor an amount describes nothing — skip it rather than
+      // storing a row the engine will read as zero forever.
+      const amount = Math.abs(Number(st.Amount ?? st.amount) || 0);
+      const fcLineId = toNum(st.FcLineId ?? st.fc_line_id);
+      const changes = Array.isArray(st.Changes ?? st.changes) ? (st.Changes ?? st.changes) : [];
+      if (!fcLineId && amount === 0 && changes.length === 0) continue;
+
+      const ins = await c.query(`
+        INSERT INTO forecast_streams (
+          module_id, direction, fc_line_id, mode, amount, amount_usd,
+          growth_mult, start_date, end_date, tax_rate_override
+        ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10) RETURNING id
+      `, [
+        id, direction, fcLineId, st.Mode ?? st.mode ?? 'amount', amount,
+        // Derived, not accepted: native / base-year rate (1 for USD, so this is a no-op there).
+        Math.abs(amount / fxRate),
+        toNum(st.GrowthMult ?? st.growth_mult),
+        st.StartDate ?? st.start_date ?? null,
+        st.EndDate ?? st.end_date ?? null,
+        toNum(st.TaxRateOverride ?? st.tax_rate_override),
+      ]);
+      for (const ch of changes) {
+        const date = ch.Date ?? ch.change_date;
+        if (!date) continue;
+        await c.query(
+          `INSERT INTO forecast_stream_changes (stream_id, change_date, amount, flag)
+           VALUES ($1,$2,$3,$4)
+           ON CONFLICT (stream_id, change_date, flag) DO UPDATE SET amount = EXCLUDED.amount`,
+          [ins.rows[0].id, date, Number(ch.Amount ?? ch.amount) || 0, ch.Flag ?? ch.flag ?? 'Fixed $']
+        );
+      }
+    }
+  }
+}

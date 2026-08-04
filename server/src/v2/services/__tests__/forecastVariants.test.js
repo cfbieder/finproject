@@ -98,25 +98,38 @@ dbDescribe('forecastVariants (DB)', () => {
        VALUES ($1, '2040-07-01', 100000, 'Partial', 'fixture')`,
       [baseModA]
     );
-    await db.query(
-      `INSERT INTO forecast_module_income_pct (module_id, effective_date, value)
-       VALUES ($1, '2027-01-01', 1.5)`,
+    // CR069 P2 — a yield schedule is Spread % rows on a yield stream; `streams` is the one
+    // TWO-LEVEL schedule the sync copier has to carry (stream + its own change rows).
+    const baseStreamA = (await db.query(
+      `INSERT INTO forecast_streams (module_id, direction, mode, amount)
+       VALUES ($1, 'income', 'yield', 0) RETURNING id`,
       [baseModA]
+    )).rows[0].id;
+    await db.query(
+      `INSERT INTO forecast_stream_changes (stream_id, change_date, amount, flag)
+       VALUES ($1, '2027-01-01', 1.5, 'Spread %')`,
+      [baseStreamA]
     );
 
+    // CR069 P2 — an Expenditure item is a module with no valuation and one stream.
     const item = await db.query(
-      `INSERT INTO forecast_income_expense
-         (scenario_id, name, item_type, currency, base_date, base_value, base_value_usd,
-          growth_rate, setup_status)
-       VALUES ($1, 'Fixture Living Costs', 'expense', 'USD', '2025-12-31', 90000, 90000, 0, 'ready')
+      `INSERT INTO forecast_modules
+         (scenario_id, name, currency, base_date, has_valuation, base_value, base_value_usd,
+          market_value, market_value_usd, growth_rate, setup_status)
+       VALUES ($1, 'Fixture Living Costs', 'USD', '2025-12-31', FALSE, 0, 0, 0, 0, 0, 'ready')
        RETURNING id`,
       [baseId]
     );
     baseItem = item.rows[0].id;
-    await db.query(
-      `INSERT INTO forecast_incexp_changes (incexp_id, change_date, amount, flag)
-       VALUES ($1, '2035-07-01', -10000, 'Step')`,
+    const itemStream = (await db.query(
+      `INSERT INTO forecast_streams (module_id, direction, mode, amount, amount_usd)
+       VALUES ($1, 'expense', 'amount', 90000, 90000) RETURNING id`,
       [baseItem]
+    )).rows[0].id;
+    await db.query(
+      `INSERT INTO forecast_stream_changes (stream_id, change_date, amount, flag)
+       VALUES ($1, '2035-07-01', -10000, 'Fixed $')`,
+      [itemStream]
     );
 
     const variant = await variants.createVariant(baseId, { name: VARIANT });
@@ -133,7 +146,7 @@ dbDescribe('forecastVariants (DB)', () => {
   // -------------------------------------------------------------------------
 
   test('a variant with zero overrides is an exact twin of its base, column for column', async () => {
-    for (const table of ['forecast_modules', 'forecast_income_expense']) {
+    for (const table of ['forecast_modules']) {
       const cols = await syncableColumns(table);
       const baseRows = await rowsOf(table, baseId);
       const variantRows = await rowsOf(table, variantId);
@@ -177,9 +190,14 @@ dbDescribe('forecastVariants (DB)', () => {
     expect(Number(disposals.rows[0].amount)).toBe(100000);
 
     const pct = await db.query(
-      'SELECT * FROM forecast_module_income_pct WHERE module_id = $1', [vModA.id]
+      `SELECT c.* FROM forecast_stream_changes c
+         JOIN forecast_streams st ON st.id = c.stream_id
+        WHERE st.module_id = $1 AND c.flag = 'Spread %'`, [vModA.id]
     );
+    // The nested half is the point: a variant that inherited the stream but not its change
+    // rows would project a different number for every year the schedule touches.
     expect(pct.rows).toHaveLength(1);
+    expect(Number(pct.rows[0].amount)).toBe(1.5);
   });
 
   // -------------------------------------------------------------------------
@@ -516,44 +534,50 @@ dbDescribe('forecastVariants (DB)', () => {
     expect(await variants.listOverrides(variantId)).toHaveLength(0);
   });
 
-  test('an income/expense item overrides and reverts like a module', async () => {
+  test('a converted Expenditure item overrides and reverts like any other module', async () => {
+    // CR069 P2 — was an `incexp` entity override on `base_value`. The item is a module now and
+    // its money lives on a stream, so the override is a `streams` SCHEDULE patch that replaces
+    // the set wholesale (Decision 9's accepted coarsening).
     const vItem = (await db.query(
-      'SELECT id FROM forecast_income_expense WHERE scenario_id = $1 AND origin_base_id = $2',
+      'SELECT id FROM forecast_modules WHERE scenario_id = $1 AND origin_base_id = $2',
       [variantId, baseItem]
     )).rows[0];
 
-    await repo.updateIncExp(vItem.id, { base_value: 120000 });
+    const amountOf = async (moduleId) => Number((await db.query(
+      'SELECT amount FROM forecast_streams WHERE module_id = $1', [moduleId]
+    )).rows[0].amount);
+
+    await variants.mergeEntityOverride(db, variantId, 'module', baseItem, {
+      streams: await variants.buildStreamsPatch(db, baseItem, (r) => ({ ...r, amount: 120000 })),
+    });
     await variants.syncVariant(variantId, { force: true });
 
-    const after = (await db.query('SELECT base_value FROM forecast_income_expense WHERE id = $1', [vItem.id])).rows[0];
-    expect(Number(after.base_value)).toBe(120000);
+    expect(await amountOf(vItem.id)).toBe(120000);
+    expect(await amountOf(baseItem)).toBe(90000);   // the base is untouched
 
-    const base = (await db.query('SELECT base_value FROM forecast_income_expense WHERE id = $1', [baseItem])).rows[0];
-    expect(Number(base.base_value)).toBe(90000);
-
-    await variants.clearOverride(variantId, 'incexp', baseItem);
-    const reverted = (await db.query('SELECT base_value FROM forecast_income_expense WHERE id = $1', [vItem.id])).rows[0];
-    expect(Number(reverted.base_value)).toBe(90000);
+    await variants.clearOverride(variantId, 'module', baseItem);
+    await variants.syncVariant(variantId, { force: true });
+    expect(await amountOf(vItem.id)).toBe(90000);   // reverts to inherit
   });
 
   test('CR051 — currency is an ordinary overridable field (variant PLN, base stays USD, reverts)', async () => {
     const vItem = (await db.query(
-      'SELECT id FROM forecast_income_expense WHERE scenario_id = $1 AND origin_base_id = $2',
+      'SELECT id FROM forecast_modules WHERE scenario_id = $1 AND origin_base_id = $2',
       [variantId, baseItem]
     )).rows[0];
 
-    await repo.updateIncExp(vItem.id, { currency: 'PLN' });
+    await repo.updateModule(vItem.id, { currency: 'PLN' });
     await variants.syncVariant(variantId, { force: true });
 
-    const after = (await db.query('SELECT currency FROM forecast_income_expense WHERE id = $1', [vItem.id])).rows[0];
+    const after = (await db.query('SELECT currency FROM forecast_modules WHERE id = $1', [vItem.id])).rows[0];
     expect(after.currency).toBe('PLN'); // the override pins the variant
 
-    const base = (await db.query('SELECT currency FROM forecast_income_expense WHERE id = $1', [baseItem])).rows[0];
+    const base = (await db.query('SELECT currency FROM forecast_modules WHERE id = $1', [baseItem])).rows[0];
     expect(base.currency).toBe('USD'); // the base is untouched
 
-    await variants.clearOverride(variantId, 'incexp', baseItem);
+    await variants.clearOverride(variantId, 'module', baseItem);
     await variants.syncVariant(variantId, { force: true });
-    const reverted = (await db.query('SELECT currency FROM forecast_income_expense WHERE id = $1', [vItem.id])).rows[0];
+    const reverted = (await db.query('SELECT currency FROM forecast_modules WHERE id = $1', [vItem.id])).rows[0];
     expect(reverted.currency).toBe('USD'); // reverts to inherit from base
   });
 

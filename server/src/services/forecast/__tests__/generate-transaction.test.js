@@ -38,7 +38,7 @@ dbDescribe('generateForecast transactionality (DB)', () => {
   };
 
   async function cleanup() {
-    await db.query('DELETE FROM forecast_income_expense WHERE name = $1', ['CR043 Tx Item']);
+    await db.query('DELETE FROM forecast_modules WHERE name = $1', ['CR043 Tx Item']);
     await db.query('DELETE FROM forecast_scenarios WHERE name = $1', [NAME]);
   }
 
@@ -76,11 +76,18 @@ dbDescribe('generateForecast transactionality (DB)', () => {
     )).rows[0];
     accountName = acct.name;
 
-    await db.query(
-      `INSERT INTO forecast_income_expense
-         (scenario_id, account_id, name, base_value, base_value_usd, growth_rate, setup_status)
-       VALUES ($1, $2, 'CR043 Tx Item', 100000, 100000, 0, 'included')`,
+    // CR069 P2 — an income/expense item is a module with no valuation and one stream.
+    const itemId = (await db.query(
+      `INSERT INTO forecast_modules
+         (scenario_id, account_id, name, has_valuation, base_value, base_value_usd,
+          market_value, market_value_usd, growth_rate, setup_status)
+       VALUES ($1, $2, 'CR043 Tx Item', FALSE, 0, 0, 0, 0, 0, 'included') RETURNING id`,
       [scenarioId, acct.id]
+    )).rows[0].id;
+    await db.query(
+      `INSERT INTO forecast_streams (module_id, direction, mode, amount, amount_usd, growth_mult)
+       VALUES ($1, 'income', 'amount', 100000, 100000, 0)`,
+      [itemId]
     );
 
     loadScenarioConfig.mockResolvedValue({
@@ -170,12 +177,12 @@ dbDescribe('generateForecast transactionality (DB)', () => {
     };
 
     await db.query(
-      `UPDATE forecast_income_expense SET setup_status = 'exclude' WHERE name = 'CR043 Tx Item'`
+      `UPDATE forecast_modules SET setup_status = 'exclude' WHERE name = 'CR043 Tx Item'`
     );
     const withoutItem = await seedFromNextBuild();
 
     await db.query(
-      `UPDATE forecast_income_expense SET setup_status = 'included' WHERE name = 'CR043 Tx Item'`
+      `UPDATE forecast_modules SET setup_status = 'included' WHERE name = 'CR043 Tx Item'`
     );
     const withItem = await seedFromNextBuild();
 
@@ -217,19 +224,32 @@ dbDescribe('generateForecast transactionality (DB)', () => {
                500000, 500000, 0, 2, $3) RETURNING id`,
       [scenarioId, acct.id, line.id]
     )).rows[0].id;
-    await db.query(
-      `INSERT INTO forecast_module_income_pct (module_id, effective_date, value)
-       VALUES ($1, '2027-01-01', 5)`,
+    // CR069 P2 — a yield schedule is Spread % rows on a yield-mode income stream.
+    const backupStream = (await db.query(
+      `INSERT INTO forecast_streams (module_id, direction, mode, amount, fc_line_id)
+       SELECT $1, 'income', 'yield', 0, income_fc_line_id FROM forecast_modules WHERE id = $1
+       RETURNING id`,
       [backupId]
+    )).rows[0].id;
+    await db.query(
+      `INSERT INTO forecast_stream_changes (stream_id, change_date, amount, flag)
+       VALUES ($1, '2027-01-01', 5, 'Spread %')`,
+      [backupStream]
     );
 
     // A heavy recurring outflow so the sweep must liquidate the backup in year one.
     const drainId = (await db.query(
-      `INSERT INTO forecast_income_expense
-         (scenario_id, account_id, name, base_value, base_value_usd, growth_rate, setup_status)
-       VALUES ($1, $2, 'CR048 Drain', -600000, -600000, 0, 'included') RETURNING id`,
+      `INSERT INTO forecast_modules
+         (scenario_id, account_id, name, has_valuation, base_value, base_value_usd,
+          market_value, market_value_usd, growth_rate, setup_status)
+       VALUES ($1, $2, 'CR048 Drain', FALSE, 0, 0, 0, 0, 0, 'included') RETURNING id`,
       [scenarioId, acct.id]
     )).rows[0].id;
+    await db.query(
+      `INSERT INTO forecast_streams (module_id, direction, mode, amount, amount_usd, growth_mult)
+       VALUES ($1, 'expense', 'amount', 600000, 600000, 0)`,
+      [drainId]
+    );
 
     try {
       const result = await generateForecast(NAME);
@@ -252,7 +272,7 @@ dbDescribe('generateForecast transactionality (DB)', () => {
       expect(Math.abs(inc[2028] || 0)).toBeLessThan(2000); // empty: essentially nothing
       expect(Math.abs(inc[2029] || 0)).toBeLessThan(2000);
     } finally {
-      await db.query('DELETE FROM forecast_income_expense WHERE id = $1', [drainId]);
+      await db.query('DELETE FROM forecast_modules WHERE id = $1', [drainId]);
       await db.query('DELETE FROM forecast_module_income_pct WHERE module_id = $1', [backupId]);
       await db.query('DELETE FROM forecast_modules WHERE id IN ($1, $2)', [primaryId, backupId]);
       await db.query("DELETE FROM fc_lines WHERE name = 'CR048 Yield Line'");

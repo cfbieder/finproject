@@ -29,7 +29,10 @@ const { generateForecast } = require('../../services/forecast');
 const SCRATCH_PREFIX = '__autoadjust_';
 const RETAIN_EPS = 0.005;      // stop when the retain interval is this narrow (~0.5% of a line)
 const DEFAULT_MAX_EVALS = 12;  // hard cap on engine builds per solve
-const ENTITY_TABLES = { module: 'forecast_modules', incexp: 'forecast_income_expense' };
+// CR069 P2 — one entity type. A candidate line is an EXPENSE STREAM, whether it hangs off a
+// balance-sheet module or a converted Expenditure item; both were always the same knob wearing
+// two column names. The line `id` is the STREAM id.
+const ENTITY_TABLES = { module: 'forecast_modules' };
 
 function round2(x) {
   return Math.round(x * 100) / 100;
@@ -57,38 +60,31 @@ async function listExpenseLines(scenarioName, client = db) {
   if (!s) return null;
   if (s.parent_scenario_id) await variants.syncVariant(s.id, { force: true });
 
-  const mods = await client.query(
-    `SELECT id, name, expense_amount, currency
-       FROM forecast_modules
-      WHERE scenario_id = $1 AND expense_amount IS NOT NULL AND expense_amount <> 0
-      ORDER BY name`,
-    [s.id]
-  );
-  const items = await client.query(
-    `SELECT id, name, base_value, base_value_usd, currency
-       FROM forecast_income_expense
-      WHERE scenario_id = $1 AND item_type = 'Expense' AND base_value IS NOT NULL AND base_value <> 0
-      ORDER BY name`,
+  // Every scalable expense: an amount-driven expense stream with something in it. `derived`
+  // is excluded — a loan's interest is a function of its balance, so scaling an amount that is
+  // structurally 0 would silently do nothing while reporting a cut.
+  const streams = await client.query(
+    `SELECT st.id, m.name, st.amount, st.amount_usd, m.currency, NOT m.has_valuation AS flow
+       FROM forecast_streams st
+       JOIN forecast_modules m ON m.id = st.module_id
+      WHERE m.scenario_id = $1
+        AND st.direction = 'expense'
+        AND st.mode <> 'derived'
+        AND st.amount IS NOT NULL AND st.amount <> 0
+      ORDER BY m.name`,
     [s.id]
   );
 
-  return [
-    ...mods.rows.map((r) => ({
-      type: 'module',
-      id: r.id,
-      name: r.name,
-      amount: Number(r.expense_amount),
-      currency: r.currency || 'USD',
-    })),
-    ...items.rows.map((r) => ({
-      type: 'incexp',
-      id: r.id,
-      name: r.name,
-      amount: Number(r.base_value),
-      amountUsd: Number(r.base_value_usd),
-      currency: r.currency || 'USD',
-    })),
-  ];
+  return streams.rows.map((r) => ({
+    type: 'stream',
+    id: r.id,
+    name: r.name,
+    // Signed the way the UI has always shown a cost, so the modal's numbers do not flip.
+    amount: -(Number(r.amount) || 0),
+    amountUsd: -(Number(r.amount_usd ?? r.amount) || 0),
+    currency: r.currency,
+    flow: r.flow,
+  }));
 }
 
 // Resolve the requested {type,id} lines against the target, returning name + baseline amount.
@@ -96,30 +92,23 @@ async function listExpenseLines(scenarioName, client = db) {
 async function resolveLines(scenarioId, lines, client = db) {
   const resolved = [];
   for (const line of lines) {
-    if (line.type === 'module') {
-      const r = await client.query(
-        'SELECT name, expense_amount FROM forecast_modules WHERE id = $1 AND scenario_id = $2',
-        [line.id, scenarioId]
-      );
-      if (!r.rows[0]) throw new Error(`module line ${line.id} not found on scenario ${scenarioId}`);
-      resolved.push({ type: 'module', name: r.rows[0].name, expenseAmount: Number(r.rows[0].expense_amount) || 0 });
-    } else if (line.type === 'incexp') {
-      const r = await client.query(
-        `SELECT name, item_type, base_value, base_value_usd
-           FROM forecast_income_expense WHERE id = $1 AND scenario_id = $2`,
-        [line.id, scenarioId]
-      );
-      if (!r.rows[0]) throw new Error(`incexp line ${line.id} not found on scenario ${scenarioId}`);
-      if (r.rows[0].item_type !== 'Expense') throw new Error(`line "${r.rows[0].name}" is not an Expense`);
-      resolved.push({
-        type: 'incexp',
-        name: r.rows[0].name,
-        baseValue: Number(r.rows[0].base_value) || 0,
-        baseValueUsd: Number(r.rows[0].base_value_usd) || 0,
-      });
-    } else {
-      throw new Error(`unknown line type: ${line.type}`);
-    }
+    // CR069 P2 — one shape. The line id is a STREAM id; the module it hangs off is what the
+    // owner sees named in the picker, and what the scratch copy is matched on.
+    const r = await client.query(
+      `SELECT st.id, st.amount, st.amount_usd, st.direction, st.fc_line_id, m.name AS module_name
+         FROM forecast_streams st JOIN forecast_modules m ON m.id = st.module_id
+        WHERE st.id = $1 AND m.scenario_id = $2`,
+      [line.id, scenarioId]
+    );
+    if (!r.rows[0]) throw new Error(`stream line ${line.id} not found on scenario ${scenarioId}`);
+    if (r.rows[0].direction !== 'expense') throw new Error(`line "${r.rows[0].module_name}" is not an expense`);
+    resolved.push({
+      type: 'stream',
+      name: r.rows[0].module_name,
+      fcLineId: r.rows[0].fc_line_id,
+      amount: Number(r.rows[0].amount) || 0,
+      amountUsd: Number(r.rows[0].amount_usd) || 0,
+    });
   }
   return resolved;
 }
@@ -128,26 +117,22 @@ async function resolveLines(scenarioId, lines, client = db) {
 async function readScratchBaseline(scratchId, resolved, client = db) {
   const baseline = [];
   for (const line of resolved) {
-    if (line.type === 'module') {
-      const r = await client.query(
-        'SELECT id, expense_amount FROM forecast_modules WHERE scenario_id = $1 AND name = $2',
-        [scratchId, line.name]
-      );
-      if (!r.rows[0]) throw new Error(`scratch missing module "${line.name}"`);
-      baseline.push({ type: 'module', id: r.rows[0].id, expenseAmount: Number(r.rows[0].expense_amount) || 0 });
-    } else {
-      const r = await client.query(
-        'SELECT id, base_value, base_value_usd FROM forecast_income_expense WHERE scenario_id = $1 AND name = $2',
-        [scratchId, line.name]
-      );
-      if (!r.rows[0]) throw new Error(`scratch missing incexp "${line.name}"`);
-      baseline.push({
-        type: 'incexp',
-        id: r.rows[0].id,
-        baseValue: Number(r.rows[0].base_value) || 0,
-        baseValueUsd: Number(r.rows[0].base_value_usd) || 0,
-      });
-    }
+    // Matched by (module name, direction, line) because the scratch scenario is a fresh COPY
+    // with new ids. Name is unique per scenario by constraint; the fc line disambiguates a
+    // module carrying two expense streams.
+    const r = await client.query(
+      `SELECT st.id, st.amount, st.amount_usd
+         FROM forecast_streams st JOIN forecast_modules m ON m.id = st.module_id
+        WHERE m.scenario_id = $1 AND m.name = $2 AND st.direction = 'expense'
+          AND st.fc_line_id IS NOT DISTINCT FROM $3`,
+      [scratchId, line.name, line.fcLineId]
+    );
+    if (!r.rows[0]) throw new Error(`scratch missing expense stream for "${line.name}"`);
+    baseline.push({
+      type: 'stream', id: r.rows[0].id,
+      amount: Number(r.rows[0].amount) || 0,
+      amountUsd: Number(r.rows[0].amount_usd) || 0,
+    });
   }
   return baseline;
 }
@@ -156,18 +141,12 @@ async function readScratchBaseline(scratchId, resolved, client = db) {
 // (each year is that base grown by inflation/growth), so "same % across all years" falls out.
 async function applyRetain(scratchId, baseline, retain, client = db) {
   for (const b of baseline) {
-    if (b.type === 'module') {
-      await client.query(
-        'UPDATE forecast_modules SET expense_amount = $1 WHERE id = $2',
-        [round2(b.expenseAmount * retain), b.id]
-      );
-    } else {
-      // Scale native and USD together — both are linear in the native amount (CR051).
-      await client.query(
-        'UPDATE forecast_income_expense SET base_value = $1, base_value_usd = $2 WHERE id = $3',
-        [round2(b.baseValue * retain), round2(b.baseValueUsd * retain), b.id]
-      );
-    }
+    // Scale native and USD together — both are linear in the native amount (CR051). Amounts
+    // are magnitudes (migration 057 CHECKs it), so a retain in (0,1] can never change a sign.
+    await client.query(
+      'UPDATE forecast_streams SET amount = $1, amount_usd = $2 WHERE id = $3',
+      [round2(b.amount * retain), round2(b.amountUsd * retain), b.id]
+    );
   }
 }
 
@@ -310,31 +289,53 @@ async function solveSpendReduction({ scenarioName, lines, minRetain = 0, toleran
 // the real scenario and re-reading the engine's shortfall (the scratch build is not trusted).
 // A base target is never mutated: a base gets a variant "<name> — reduced spend" instead.
 // ---------------------------------------------------------------------------
-function patchFor(type, current, retain) {
-  if (type === 'module') {
-    return { expense_amount: round2((Number(current.expense_amount) || 0) * retain) };
-  }
-  // incexp: scale native and USD together (both linear in the native amount, CR051).
+// CR069 P2 — a stream amount lives in a SCHEDULE, so the override is a `streams` patch that
+// replaces the module's whole stream set (Decision 9's accepted coarsening). The shape comes
+// from `variants.buildStreamsPatch`, which is the same function variant sync reads base
+// schedules with — so the patch and the thing it is compared against cannot drift apart.
+/** Scale one stream row's amounts by `retain`. Pure, and the unit under test for the cut. */
+function scaleStreamAmounts(row, retain) {
   return {
-    base_value: round2((Number(current.base_value) || 0) * retain),
-    base_value_usd: round2((Number(current.base_value_usd) || 0) * retain),
+    ...row,
+    amount: round2((Number(row.amount) || 0) * retain),
+    amount_usd: row.amount_usd == null ? null : round2((Number(row.amount_usd) || 0) * retain),
   };
 }
 
-// Resolve each requested line to its materialized row on the variant, with the fields needed to
-// scale it. For a variant target the id IS the variant row; for a base target the base id maps to
-// the variant row via origin_base_id (the row sync materialized from that base row).
+async function streamsPatchWithRetain(client, moduleId, fcLineId, retain) {
+  let hit = false;
+  const patched = await variants.buildStreamsPatch(client, moduleId, (row) => {
+    const match = row.direction === 'expense'
+      && ((row.fc_line_id ?? null) === (fcLineId ?? null));
+    if (!match) return row;
+    hit = true;
+    return scaleStreamAmounts(row, retain);
+  });
+  if (!hit) throw new Error(`no expense stream on module ${moduleId} for line ${fcLineId}`);
+  return patched;
+}
+
+// Resolve each requested line to its materialized stream on the variant. For a variant target
+// the module id IS the variant's; for a base target the base module maps to the variant row via
+// origin_base_id (the row sync materialized from that base row).
 async function resolveVariantRows(client, variantId, isVariantTarget, lines) {
   const out = [];
   for (const line of lines) {
-    const table = ENTITY_TABLES[line.type];
-    if (!table) throw new Error(`unknown line type: ${line.type}`);
-    const where = isVariantTarget
-      ? 'id = $1 AND scenario_id = $2'
-      : 'origin_base_id = $1 AND scenario_id = $2';
-    const r = await client.query(`SELECT * FROM ${table} WHERE ${where}`, [line.id, variantId]);
-    if (!r.rows[0]) throw new Error(`line ${line.type}:${line.id} not found on variant ${variantId}`);
-    out.push({ type: line.type, row: r.rows[0] });
+    const r = await client.query(
+      `SELECT st.id AS stream_id, st.amount, st.fc_line_id, st.direction,
+              m.id AS module_id, m.name, m.origin_base_id
+         FROM forecast_streams st JOIN forecast_modules m ON m.id = st.module_id
+        WHERE m.scenario_id = $1
+          AND st.direction = 'expense'
+          AND (m.name, st.fc_line_id) IN (
+            SELECT m2.name, st2.fc_line_id FROM forecast_streams st2
+              JOIN forecast_modules m2 ON m2.id = st2.module_id
+             WHERE st2.id = $2
+          )`,
+      [variantId, line.id]
+    );
+    if (!r.rows[0]) throw new Error(`line stream:${line.id} not found on variant ${variantId}`);
+    out.push({ type: 'stream', row: r.rows[0] });
   }
   return out;
 }
@@ -381,18 +382,24 @@ async function applySpendReduction({ scenarioName, lines, retain, variantName })
   const appliedLines = [];
   await db.transaction(async (client) => {
     const resolved = await resolveVariantRows(client, variantId, isVariantTarget, lines);
-    for (const { type, row } of resolved) {
-      const patch = patchFor(type, row, retain);
+    for (const { row } of resolved) {
       if (row.origin_base_id != null) {
-        await variants.mergeEntityOverride(client, variantId, type, row.origin_base_id, patch);
+        // An inherited module: the cut becomes an override on the BASE module's id.
+        const patch = {
+          streams: await streamsPatchWithRetain(client, row.origin_base_id, row.fc_line_id, retain),
+        };
+        await variants.mergeEntityOverride(client, variantId, 'module', row.origin_base_id, patch);
       } else {
-        const sets = Object.keys(patch).map((k, i) => `${k} = $${i + 1}`).join(', ');
-        await client.query(`UPDATE ${ENTITY_TABLES[type]} SET ${sets} WHERE id = $${Object.keys(patch).length + 1}`, [
-          ...Object.values(patch),
-          row.id,
-        ]);
+        // Variant-LOCAL: no base row to key an override on, so write the stream directly.
+        await client.query(
+          `UPDATE forecast_streams
+              SET amount = ROUND(amount * $1, 2),
+                  amount_usd = CASE WHEN amount_usd IS NULL THEN NULL ELSE ROUND(amount_usd * $1, 2) END
+            WHERE id = $2`,
+          [retain, row.stream_id]
+        );
       }
-      appliedLines.push({ type, id: row.id, name: row.name, ...patch });
+      appliedLines.push({ type: 'stream', id: row.stream_id, name: row.name, retain });
     }
     await variants.syncVariant(variantId, { client, force: true });
   });
@@ -456,5 +463,5 @@ module.exports = {
   getSolveJob,
   SCRATCH_PREFIX,
   // Pure helpers exposed for unit tests.
-  _internals: { round2, fundedTolerance, patchFor },
+  _internals: { round2, fundedTolerance, scaleStreamAmounts },
 };

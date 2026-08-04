@@ -141,28 +141,23 @@ async function buildForecastContext(scenarioName) {
     : { rows: [] };
 
   // 5. Base year values
+  // CR069 P2 — one query over streams. Was three UNION branches across two tables, one of
+  // which (`a.account_type = 'liability'`) silently returned 0 for every non-liability
+  // module expense — the same hand-copied divergence CR049 removed from the engine's own
+  // base-year query. The stream carries the amount and the direction carries the sign.
   const baseYearResult = await db.query(`
-    SELECT exp_line.name as fc_line, 'expense' as type,
-      SUM(CASE WHEN a.account_type = 'liability' THEN -m.expense_amount ELSE 0 END) as amount
-    FROM forecast_modules m
-    LEFT JOIN accounts a ON m.account_id = a.id
-    LEFT JOIN fc_lines exp_line ON m.expense_fc_line_id = exp_line.id
+    SELECT
+      COALESCE(line.name,
+               CASE WHEN m.has_valuation THEN NULL ELSE COALESCE(acct.name, m.name) END) as fc_line,
+      st.direction as type,
+      SUM(CASE WHEN st.direction = 'income' THEN COALESCE(st.amount, 0)
+                                            ELSE -COALESCE(st.amount, 0) END) as amount
+    FROM forecast_streams st
+    JOIN forecast_modules m ON m.id = st.module_id
+    LEFT JOIN fc_lines line ON line.id = st.fc_line_id
+    LEFT JOIN accounts acct ON acct.id = m.account_id
     WHERE m.scenario_id = $1 AND COALESCE(m.setup_status, 'new') NOT IN ('new', 'exclude')
-      AND m.expense_fc_line_id IS NOT NULL
-    GROUP BY exp_line.name
-    UNION ALL
-    SELECT inc_line.name, 'income',
-      SUM(COALESCE(m.income_amount, 0))
-    FROM forecast_modules m
-    LEFT JOIN fc_lines inc_line ON m.income_fc_line_id = inc_line.id
-    WHERE m.scenario_id = $1 AND COALESCE(m.setup_status, 'new') NOT IN ('new', 'exclude')
-      AND m.income_fc_line_id IS NOT NULL
-    GROUP BY inc_line.name
-    UNION ALL
-    SELECT fl.name, CASE WHEN ie.base_value >= 0 THEN 'income' ELSE 'expense' END as type, ie.base_value
-    FROM forecast_income_expense ie
-    LEFT JOIN fc_lines fl ON ie.fc_line_id = fl.id
-    WHERE ie.scenario_id = $1 AND COALESCE(ie.setup_status, 'new') NOT IN ('new', 'exclude')
+    GROUP BY 1, 2
   `, [scenario.id]);
 
   // 6. App data (birth year etc)

@@ -84,14 +84,16 @@ dbDescribe('forecast router contract (DB)', () => {
       expect(r.body.years).toEqual([]);
     });
 
-    test('GET /incomeexpense with no scenario → 200 { entries: [] }', async () => {
+    // CR069 P2 — /incomeexpense is 410 Gone: an item is a module with one stream. It answers
+    // rather than 404s for the one deploy in which a stale client can still call it, because
+    // the engine stopped READING that table in the same deploy — a write that still succeeded
+    // would be stored and silently ignored.
+    test('GET /incomeexpense → 410 Gone, pointing at /modules', async () => {
       const r = await req('GET', '/incomeexpense');
-      expect(r.status).toBe(200);
-      expect(r.body.entries).toEqual([]);
+      expect(r.status).toBe(410);
+      expect(r.body.error).toMatch(/modules/i);
     });
 
-    // Every scenario dropdown in the app reads /assumptions, so lineage has to reach it or a
-    // variant is indistinguishable from a base everywhere outside the Scenarios page.
     test('GET /assumptions carries ParentId, linking a variant to its base', async () => {
       const VARIANT = `${SCENARIO}Variant`;
       await db.query('DELETE FROM forecast_scenarios WHERE name = $1', [VARIANT]);
@@ -357,12 +359,18 @@ dbDescribe('forecast router contract (DB)', () => {
         `INSERT INTO fc_lines (name, line_type) VALUES ('CR046 Rent Line', 'bs_module_income')
          ON CONFLICT (name) DO UPDATE SET line_type = EXCLUDED.line_type RETURNING id`
       )).rows[0];
+      // CR069 P2 — the window and the amount live on the STREAM now. The behaviour under
+      // test is unchanged and so are the expected numbers; only where the fields hang moved.
       modId = (await db.query(
-        `INSERT INTO forecast_modules
-           (scenario_id, account_id, name, setup_status, income_fc_line_id, income_amount, income_start_date)
-         VALUES ($1, $2, 'CR046 Rent Module', 'complete', $3, 35000, $4) RETURNING id`,
-        [scenarioId, acct.id, line.id, incomeStartDate]
+        `INSERT INTO forecast_modules (scenario_id, account_id, name, setup_status)
+         VALUES ($1, $2, 'CR046 Rent Module', 'complete') RETURNING id`,
+        [scenarioId, acct.id]
       )).rows[0].id;
+      await db.query(
+        `INSERT INTO forecast_streams (module_id, direction, mode, fc_line_id, amount, start_date)
+         VALUES ($1, 'income', 'amount', $2, 35000, $3)`,
+        [modId, line.id, incomeStartDate]
+      );
     }
 
     test('rent that starts in 2028 is NOT base-year (2026) income', async () => {
