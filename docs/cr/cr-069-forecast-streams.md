@@ -1,4 +1,4 @@
-# CR069 — Forecast streams: one Modules section for everything Expenditures and Modules do today — 🟡 IN-PROGRESS (P0 built 2026-08-04, gate-verified, undeployed; P1–P3 designed)
+# CR069 — Forecast streams: one Modules section for everything Expenditures and Modules do today — 🟡 IN-PROGRESS (P0 live in v3.13.1; P1 applied dev + prod as migration 057; P2–P3 designed)
 
 The Forecast setup collapses from two entity types to one. A **module** becomes *identity +
 optional valuation + zero-or-more P&L **streams***; a stream is a first-class row (direction,
@@ -29,7 +29,7 @@ half-finished in the shared tree (Known Issue #17's class, four incidents old).
 | | scope | gate |
 |---|---|---|
 | **P0** ✅ | The attribution fix, alone: inc/exp entries labeled by item **name**, not account; audit CSV filename follows; the false ON CONFLICT comment corrected — §3 | **Built and gate-verified 2026-08-04 (§12), undeployed.** Sums gate PASSED: 4,030 (scenario, account, year) rows, **zero differing**, all five scenarios on a prod copy. Exactly 15 module labels gained (3 items × 5 scenarios), 0 lost. 791 backend tests. |
-| **P1** | Schema **only**: `forecast_streams` (+ changes), `has_valuation` — empty, nothing writes or reads them — §5 | migration-reviewer pass; **byte-identical builds** (trivially — the tables are empty). |
+| **P1** ✅ | Schema **only**: `forecast_streams` (+ changes), `has_valuation` — empty, nothing writes or reads them — §5 | **Built and applied dev + prod 2026-08-04 (§13), migration 057.** migration-reviewer pass (4 findings fixed before it touched a database). **Byte-identical builds proved empirically** on a prod copy regenerated before *and* after: 4,030 sum rows, 158 labels, identical. |
 | **P2** | **Backfill migration + engine cutover, one deploy** (§6 + §7): convert all 60 inc/exp items to flow modules, rewrite the 3 incexp overrides + 48 origin links, one stream evaluator, `fcbuilder-incexp.js` deleted; loaders, `getBaseYearValues`, `copyScenario`, auto-adjust, AI review, variant sync read streams. **The old write paths die here too** — the four `/incomeexpense` routes 410 and the Expenditures step disappears from the nav (§7.6); only the bulk deletion waits for P3 | Backfill counts assert exactly (§6.4). **The sums gate (§9): per-(account, year) sums identical to the cent, all five scenarios, on a prod copy.** Full backend suite; the semantics tests in §9.2. A write to `/incomeexpense` fails loud, not silently stale. |
 | **P3** | UI cutover + drop: stream cards in the Modules editor, Expenditures step retired (6 steps → 5), `FCExp*` deleted, four tables dropped — §8 | Frontend suite; all six ratchets non-increasing; the five-step nav consistent in stepper + sidebar; grep proves no reader of the dropped tables remains. |
 
@@ -591,3 +591,92 @@ are untouched.
 regenerated — the sums are identical either way, so nothing is wrong in the meantime; the three
 items simply stay invisible until a rebuild. Regenerating all five is proven safe by the gate but
 rewrites prod rows, so it is an owner call at release time, not a side effect of the deploy.
+
+---
+
+## 13. As built — P1 (`f8ddebe`, migration 057, dev + prod 2026-08-04)
+
+**Files:** `server/db/migrations/057_forecast_streams_schema.sql` (new) ·
+`docs/current/migrations.md` (registry row).
+
+Two empty tables and one boolean. The interesting part is what review caught before any of
+it touched a database — **four findings, three of which would have been silent.**
+
+**The CR's own `UNIQUE (module_id, direction, fc_line_id)` constrains nothing when
+`fc_line_id` is NULL.** NULLs are distinct in a Postgres unique index, so Decision 3's rule
+("two streams always means two lines") would have been enforced for lined streams and not at
+all for line-less ones — and 15 inc/exp items plus the five line-less `Sarasota House`
+modules are exactly the population that would have exercised it. *This is the identical trap
+P0 had just finished paying for on `forecast_entries`, written into the fix for it.* Now two
+partial indexes, both probed with real inserts rather than reasoned about.
+
+**A third index took Decision 3's second rule off the route and into the database** — at most
+one `yield` stream per module, which the convergence loop assumes. The CR assigned it to the
+route; `copyScenario`, `syncVariant` and the auto-adjust apply all write modules *without*
+passing through the route, so a route-only invariant was never on every path.
+
+**The magnitude CHECK covers `amount_usd`, not just `amount`.** The two source populations
+use opposite sign conventions — `forecast_income_expense` stores an expense **negative** (33
+of 48 rows), `forecast_modules.expense_amount` stores it **positive** (30 of 30) — so §6.2's
+prescribed straight copy of `base_value_usd` would have put a negative twin beside a positive
+magnitude on every one of those 33 rows, with nothing raising. A one-sided magnitude rule is
+worse than none: it makes the constrained half look verified.
+
+**The `pg_constraint` post-condition is schema-qualified**, like its three siblings.
+`conname` is unique per table, not per database, so the unqualified form reads 4 and raises
+the moment the chain reaches a second schema — and CR027 is schema-per-tenant, on `main`. It
+would have aborted inside this file's own `BEGIN…COMMIT`, blocking every later migration.
+Same shape as 046/050/052: an assertion whose hidden premise is "there is exactly one
+environment", with schema count standing in for row count. Verified by applying the file into
+a second schema, which now passes and previously did not.
+
+**And the most valuable catch is a comment, not a constraint.** This file's own backfill
+instruction — frozen into an append-only migration, which is where P2's author will read it —
+said *"negate expense-direction rows"*. That is right for the **money** flags and wrong for
+**`Percent %`**, whose sign is a direction of *change*, not of money. `Children` carries
+**−100% in 2032**: the kids leave and the expense goes to zero. Negated, it reads +100% and
+the expense **doubles**. That is **58 of 113 change rows**, and *neither guard would have
+caught it* — §6.4 asserts "|amount| preserved AND amount × direction-sign preserved", which a
+negated `Percent %` row satisfies on both counts, and the sum gate compares two runs that
+would both carry the transform. The rule is now keyed on the **flag**: money flags negate,
+rate flags carry through untouched, and P2 asserts the second half directly.
+
+**Inertness was proved, not argued.** A fresh copy of prod regenerated all five scenarios
+*before* the migration and again *after* it:
+
+```
+sum rows:      4030 -> 4030
+module labels:  158 ->  158
+PASS — byte-identical (sums AND labels)
+```
+
+Plus: the full **57-file chain on an empty Postgres** + `ci-seed.sql`, the `DO` block passing
+and emitting its NOTICE; **idempotent** across two re-runs; `ADD COLUMN … NOT NULL DEFAULT
+TRUE` confirmed a PG11+ **fast default** (`atthasmissing`), so no rewrite of the 110 rows;
+and every constraint probed with live inserts — negative `amount_usd` rejected, expense-side
+tax rejected, second line-less stream rejected, second yield stream rejected, duplicate
+`(stream, date, flag)` rejected, same date with a different flag accepted, `Spread %`
+preserved losslessly at 4dp (the column is `NUMERIC(15,4)` so it can absorb
+`forecast_module_income_pct.value` without coarsening).
+
+**Three obligations recorded in the migration itself for P2** (§7.4 and §7.5 gain nothing the
+file does not now say): `forecast_stream_changes` is the schema's first **grandchild** and
+CR050 variant sync cannot express one — `replaceSchedule` deletes by a single fk one level
+down, and `forecast_streams` has neither `scenario_id` nor `origin_base_id`, so `syncEntity`
+is unavailable too; this is the largest unbudgeted item in P2, and §6.3 currently reads like a
+flat rename. `copyScenario`'s hand-maintained column list omits `has_valuation`, and
+`DEFAULT TRUE` **masks** the omission — so the day P2 writes FALSE, every copied flow module
+silently returns as a balance-sheet module and CR041's gate zeroes its streams; P2 adds the
+column **and** drops the default. And `fc_line_id` is `ON DELETE RESTRICT` where the module's
+line columns are `SET NULL` — deliberate (SET NULL is *how* a module becomes line-less) but a
+real behaviour change the fc-line delete path must report as a sentence, not a 23503.
+
+**Found while sizing the schema, not fixed here:** `Sarasota House` in
+`2026 SRQ House Purchase` charges **−1,203,432 to Bank Accounts across 21 years and appears
+on no expense P&L line at all** — `expense_amount` 45,000 with `expense_fc_line_id` NULL, so
+`skipExpense` is false, the cost reaches `cashChange`, and `indexOf('')` drops it from every
+P&L row. This is exactly the hazard CR062 identified for loans and guarded with
+`assertLoanHasInterestLine`; nothing guards it for an asset. It is **why `fc_line_id` had to
+stay nullable** in this migration — NOT NULL would have refused the backfill of live data —
+and it is a P2 decision: either those rows get a line, or the amount is refused. Also now a
+roadmap known issue, since it misstates the Expenses metric on a live scenario today.
