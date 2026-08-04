@@ -14,12 +14,18 @@ const ensureAuditTrailDir = () => {
 
 const sanitizeName = (value, fallback) => (value && String(value)) || fallback;
 
-const writeEntriesAuditTrail = (dfCategories, scenarioName, accountName) => {
+/**
+ * CR069 P0 — the trail is keyed by the ITEM's name, matching the `module` label its
+ * entries now carry. Both used to be the item's ACCOUNT, which is why the two agreed
+ * and why the Review breakdown's click-through resolved; they still agree, and now
+ * two items on one account get a trail each instead of overwriting one file.
+ */
+const writeEntriesAuditTrail = (dfCategories, scenarioName, moduleName) => {
   ensureAuditTrailDir();
 
   const safeScenario = sanitizeName(scenarioName, "scenario").replace(/[^a-z0-9]/gi, "_");
-  const safeAccount = sanitizeName(accountName, "account").replace(/[^a-z0-9]/gi, "_");
-  const filePath = path.join(auditTrailDir, `${safeScenario}_${safeAccount}_entries.csv`);
+  const safeModule = sanitizeName(moduleName, "module").replace(/[^a-z0-9]/gi, "_");
+  const filePath = path.join(auditTrailDir, `${safeScenario}_${safeModule}_entries.csv`);
 
   const columns = dfCategories.columns || [];
   const rows = dfCategories.values || [];
@@ -62,9 +68,25 @@ const writeValuesToCategoryRow = (rowIndex, dfCategories, valuesToWrite, startYe
  * populates df_categories in place, returns the entries payload. Persistence
  * and audit-CSV writing are the caller's job (CR043 Phase 2.3).
  *
- * NB: entries use module.Account as their `module` label (historical), so two
- * items on the same account overwrite each other via ON CONFLICT at persist —
- * live semantics, preserved.
+ * CR069 P0 — entries are labelled with the item's NAME, as the BS builder has always
+ * done. They used to carry `module.Account` (the FC-line/account name), and the note
+ * here claimed two items on one account therefore "overwrite each other via ON CONFLICT
+ * at persist — live semantics, preserved". Both halves were false:
+ *
+ *  - The ON CONFLICT never fired. Its key is
+ *    `(scenario_id, forecast_year, account, module, entry_type)` and neither builder
+ *    writes `entry_type`; NULLs are distinct in a Postgres unique index, so the rows
+ *    were always INSERTed side by side, never merged. The sums were right — which is
+ *    why nothing ever looked wrong — but nothing was overwriting anything.
+ *  - The attribution was lost. On prod's `2026 Base`, three of twelve items emitted no
+ *    entry under their own name: `Retirement Home` filed under `Living Expenses`,
+ *    `Car Purchase Chris` under `One-Off Items`, `Social Security` under `Total Salary`.
+ *    Retirement Home's −200,000 in 2052 was visible only as Living Expenses carrying two
+ *    rows that year. Every breakdown, per-module query and audit click-through was blind
+ *    to them.
+ *
+ * Labelling by name changes no total (the gate is per-(account, year) sums identical to
+ * the cent); it changes only which module each row is attributed to.
  *
  * @param {Object} module - Item data with v1-format fields (Account, Name, BaseValue, Growth, Changes)
  * @param {Object} scenario - Scenario config from forecast assumptions
@@ -214,7 +236,7 @@ function computeModule(module, scenario, df_assumptions, df_categories, categori
   return {
     moduleName: module?.Name,
     account: module?.Account,
-    entries: buildFcEntriesPayload(df_categories, scenarioId, module?.Account, module?.Comment),
+    entries: buildFcEntriesPayload(df_categories, scenarioId, module?.Name, module?.Comment),
     audit: { dfCategories: df_categories },
   };
 }
@@ -226,7 +248,7 @@ function computeModule(module, scenario, df_assumptions, df_categories, categori
  */
 async function processModule(module, scenario, df_assumptions, df_categories, categories, years, db, scenarioId) {
   const computed = computeModule(module, scenario, df_assumptions, df_categories, categories, years, scenarioId);
-  writeEntriesAuditTrail(computed.audit.dfCategories, scenario?.Name, module?.Account);
+  writeEntriesAuditTrail(computed.audit.dfCategories, scenario?.Name, module?.Name);
   const inserted = await insertModuleEntries(db, computed.entries);
   return {
     moduleName: computed.moduleName,

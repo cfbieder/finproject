@@ -12,10 +12,17 @@ owner-directed unification of Forecast Expenditures into Modules.** A module bec
 optional valuation + N first-class streams*; one stream evaluator replaces three divergent ones;
 the Expenditures step, ~2,770 lines of `FCExp*` and four tables retire. Four phases, each
 shippable; gate everywhere: per-(account, year) `forecast_entries` sums identical to the cent on
-a prod copy. **P0 (the attribution fix — three prod items invisible under their own names, plus a
-false ON CONFLICT comment) can ship this week, alone.** Sequencing per PM sign-off: **CR064
-P2/P4/P5/P10 code waits behind CR069 P2** (`copyScenario` is in CR069's scope); two owner
-sign-offs due at kickoff (CR §2 Decision 9 coarsening; §6.1 dead typed amounts).
+a prod copy. **P0 is BUILT and gate-verified (2026-08-04), undeployed** — inc/exp entries now
+carry the item's name, not its FC line, so `Retirement Home`, `Car Purchase Chris` and
+`Social Security` stop hiding inside `Living Expenses` / `One-Off Items` / `Total Salary`. The
+gate ran on a real prod copy: **4,030 (scenario, account, year) sum rows, zero differing**, exactly
+15 module labels gained and 0 lost, 791 backend tests. The "last-write-wins ON CONFLICT" comment
+was false in both halves and now says so (the clause has never fired — `entry_type` is NULL and
+NULLs are distinct in a unique index). **Prod's stored entries keep the old labels until the five
+scenarios are regenerated** — sums identical either way, so it is an owner call at release, not a
+deploy side effect. Sequencing per PM sign-off: **CR064 P2/P4/P5/P10 code waits behind CR069 P2**
+(`copyScenario` is in CR069's scope); two owner sign-offs due at kickoff (CR §2 Decision 9
+coarsening; §6.1 dead typed amounts).
 **[CR066](../cr/cr-066-fc-line-mapping-completeness.md) is next up, at the owner's request** — twelve COA
 categories with real activity map to no FC line, so **−78,689 of expense and +31,474 of income sit
 outside the forecast** and no screen says so. P0 is a decision per row, not code.
@@ -168,8 +175,9 @@ Canonical dates/versions: **[CR index](../cr/README.md)**. Per-release detail:
 
 ## Next
 **Next up:**
-- [CR069](../cr/cr-069-forecast-streams.md) **P0** — inc/exp entries labeled by item name
-  (small, standalone, its own release), then P1–P3 per the CR's phase plan.
+- [CR069](../cr/cr-069-forecast-streams.md) — **P0 built, awaiting release + a prod regenerate**
+  (the regenerate is what makes the three items visible; proven sum-neutral). Then P1 (schema,
+  inert) → P2 (backfill + cutover, one deploy) → P3 (UI, drop).
 
 **Next up (owner-requested, 2026-08-03):**
 - [CR068](../cr/cr-068-mobile-actuals-search.md) — **shipped in v3.13.0 and live.** Worth the owner's

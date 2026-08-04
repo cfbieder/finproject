@@ -1,4 +1,4 @@
-# CR069 — Forecast streams: one Modules section for everything Expenditures and Modules do today — OPEN
+# CR069 — Forecast streams: one Modules section for everything Expenditures and Modules do today — 🟡 IN-PROGRESS (P0 built 2026-08-04, gate-verified, undeployed; P1–P3 designed)
 
 The Forecast setup collapses from two entity types to one. A **module** becomes *identity +
 optional valuation + zero-or-more P&L **streams***; a stream is a first-class row (direction,
@@ -28,7 +28,7 @@ half-finished in the shared tree (Known Issue #17's class, four incidents old).
 
 | | scope | gate |
 |---|---|---|
-| **P0** | The attribution fix, alone: inc/exp entries labeled by item **name**, not account; audit CSV filename follows; the false ON CONFLICT comment corrected — §3 | Per-(account, year) sums over `forecast_entries` identical to the cent, all five scenarios, prod copy. Three items become visible under their own names. |
+| **P0** ✅ | The attribution fix, alone: inc/exp entries labeled by item **name**, not account; audit CSV filename follows; the false ON CONFLICT comment corrected — §3 | **Built and gate-verified 2026-08-04 (§12), undeployed.** Sums gate PASSED: 4,030 (scenario, account, year) rows, **zero differing**, all five scenarios on a prod copy. Exactly 15 module labels gained (3 items × 5 scenarios), 0 lost. 791 backend tests. |
 | **P1** | Schema **only**: `forecast_streams` (+ changes), `has_valuation` — empty, nothing writes or reads them — §5 | migration-reviewer pass; **byte-identical builds** (trivially — the tables are empty). |
 | **P2** | **Backfill migration + engine cutover, one deploy** (§6 + §7): convert all 60 inc/exp items to flow modules, rewrite the 3 incexp overrides + 48 origin links, one stream evaluator, `fcbuilder-incexp.js` deleted; loaders, `getBaseYearValues`, `copyScenario`, auto-adjust, AI review, variant sync read streams. **The old write paths die here too** — the four `/incomeexpense` routes 410 and the Expenditures step disappears from the nav (§7.6); only the bulk deletion waits for P3 | Backfill counts assert exactly (§6.4). **The sums gate (§9): per-(account, year) sums identical to the cent, all five scenarios, on a prod copy.** Full backend suite; the semantics tests in §9.2. A write to `/incomeexpense` fails loud, not silently stale. |
 | **P3** | UI cutover + drop: stream cards in the Modules editor, Expenditures step retired (6 steps → 5), `FCExp*` deleted, four tables dropped — §8 | Frontend suite; all six ratchets non-increasing; the five-step nav consistent in stepper + sidebar; grep proves no reader of the dropped tables remains. |
@@ -531,3 +531,63 @@ dropped with it.
 6. **In-migration count assertions must hold on a data-free database** (Known Issue #12, three
    incidents): every §6.4 assertion is *converted = source*, which passes vacuously at 0 = 0 — no
    unconditional `found <> 1` guards.
+
+---
+
+## 12. As built — P0 (2026-08-04)
+
+**Files:** `services/forecast/fcbuilder-incexp.js` (entry label + audit filename + the two
+comments) · `services/forecast/fcbuilder-common.js` (the false ON CONFLICT comment) ·
+`services/forecast/index.js` (the audit-trail call site) ·
+`services/forecast/__tests__/fcbuilder-incexp.attribution.test.js` (new, 3 tests).
+
+Four lines of behaviour, and the rest is the record of what was wrong.
+
+**The gate ran on a real prod copy, not a fixture.** `pg_dump` of prod restored into a scratch
+database (`cr069_gate`) on the dev Postgres — dev's own database untouched — then all five
+scenarios regenerated **before** the change and **after** it, comparing per-(scenario, account,
+year) sums:
+
+```
+before rows: 4030   after rows: 4030
+PASS — zero differing rows
+```
+
+Entry counts per scenario were identical too (1647 / 1637 / 1649 / 1731 / 1721). Module labels
+went 143 → 158: **exactly the 15 expected** — `Retirement Home`, `Car Purchase Chris` and
+`Social Security` × five scenarios — and **zero lost**. The nine other items already had a name
+equal to their FC line, so they were never ambiguous; that is why only three were hidden.
+
+**`writeAudit: false` for the gate run,** because the local `components/data/auditTrail/` files
+are root-owned (written by the prod container through its bind mount) and `EACCES`'d the harness.
+`index.js:438-440` guarantees the numbers path is byte-identical either way, and the filename
+change is covered by a unit test instead — which is the better home for it.
+
+**One item was checked rather than assumed.** `Tax` (fc line `Taxes`) emits **no entries at all**,
+before or after — briefly alarming, since a relabelled row that disappears is exactly what this
+change must not do. It carries a **`Percent %` change of −100 in 2027**, so
+`base[0] = −55,103.11 × (1 + −100/100) = 0` and every later year compounds from zero;
+`buildFcEntriesPayload` skips zero cells. That is the owner deliberately switching the line off,
+it predates this CR, and it is identical on both sides of the gate.
+
+**The claim in the old comments was false in both halves, and now says so.** The ON CONFLICT
+target ends in `entry_type`; neither builder writes it; NULLs are distinct in a Postgres unique
+index — so the DO UPDATE branch has **never once been taken** and the rows were always inserted
+side by side. Nothing was overwriting anything; the totals were right and only the attribution was
+lost. The clause is kept (it is correct for a future writer that does set `entry_type`), but the
+comment no longer credits it with work it never did.
+
+**A wrong assertion in the new test was mine, not the engine's.** The first draft asserted the
+base year equals the typed base value; it is `−1000 → −1020`, because the base year already
+carries one year of growth (`base[0] = BaseValue × (1 + inflation × growth / 100)`). The test now
+asserts the invariant this CR is about — the two items keep their *own* magnitudes, in the ratio
+of their base values — rather than a number that belongs to a different convention.
+
+**Gates:** sums gate PASSED (above) · **791 backend tests** (788 → 791), run against a
+CI-shaped database (all 56 migrations + `ci-seed.sql`) · no frontend change, so the six ratchets
+are untouched.
+
+**Not deployed.** Stored `forecast_entries` on prod keep the old labels until each scenario is
+regenerated — the sums are identical either way, so nothing is wrong in the meantime; the three
+items simply stay invisible until a rebuild. Regenerating all five is proven safe by the gate but
+rewrites prod rows, so it is an owner call at release time, not a side effect of the deploy.

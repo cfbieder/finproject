@@ -47,9 +47,19 @@ const buildFcEntriesPayload = (dfCategories, scenarioId, moduleName, moduleComme
 };
 
 /**
- * Bulk-inserts one module's prebuilt entries. Same statement as always —
- * ON CONFLICT DO UPDATE preserves the live last-write-wins semantics when two
- * inc/exp items share an account (their entries share the same module label).
+ * Bulk-inserts one module's prebuilt entries.
+ *
+ * CR069 P0 — this used to claim the ON CONFLICT preserved "last-write-wins semantics
+ * when two inc/exp items share an account". It never did, and could not: the conflict
+ * target is `(scenario_id, forecast_year, account, module, entry_type)`, no writer in
+ * the engine sets `entry_type`, and **NULLs are distinct in a Postgres unique index** —
+ * so two rows differing only in a NULL `entry_type` do not conflict and the DO UPDATE
+ * branch has never once been taken. Rows from separate modules are simply inserted side
+ * by side and summed by every reader, which is why the totals were always right.
+ *
+ * The clause is kept: it is correct for any future writer that does set `entry_type`,
+ * and removing it would be a change to a statement nothing has ever exercised. What is
+ * gone is the belief that it was doing something.
  */
 const insertModuleEntries = async (db, entries) => {
   if (entries.length === 0) return [];

@@ -443,7 +443,8 @@ async function generateForecast(scenarioName, { writeAudit = true } = {}) {
         if (c.kind === 'bs') {
           writeAuditTrail(c.result.audit.dfModuleLC, c.result.audit.dfModuleUSD, c.result.audit.dfCategories, scenario, c.module);
         } else {
-          writeEntriesAuditTrail(c.result.audit.dfCategories, scenario?.Name, c.module?.Account);
+          // CR069 P0 — by item NAME, matching the `module` label its entries carry.
+          writeEntriesAuditTrail(c.result.audit.dfCategories, scenario?.Name, c.module?.Name);
         }
       }
     }
