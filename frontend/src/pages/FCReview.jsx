@@ -167,11 +167,37 @@ export default function FCReview() {
   // STATE - FC Exp Entries (for graph point adjustments)
   // =============================================================================
 
+  // CR069 P2 — the point-adjust affordance reads FLOW MODULES (what income/expense items
+  // became), not the retired `/incomeexpense` endpoint, which now answers 410. Left pointing
+  // at the old route this silently swallowed the error and the adjust affordance vanished
+  // from every FC-line series with nothing to say why.
   const [fcExpEntries, setFcExpEntries] = useState([]);
   useEffect(() => {
     if (!selectedScenario) { setFcExpEntries([]); return; }
-    Rest.fetchJson(`/api/v2/forecast/incomeexpense?scenario=${encodeURIComponent(selectedScenario)}`)
-      .then((res) => setFcExpEntries(res?.entries || []))
+    Rest.fetchJson(`/api/v2/forecast/modules?scenario=${encodeURIComponent(selectedScenario)}`)
+      .then((res) => {
+        const mods = res?.data || res || [];
+        setFcExpEntries(
+          mods
+            .filter((m) => m.HasValuation === false)
+            .map((m) => {
+              const stream = (m.Streams || [])[0] || {};
+              return {
+                id: m.id,
+                streamId: stream.id ?? null,
+                Name: m.Name ?? m.name,
+                // The line it POSTS to — the loader's own fallback for a flow module with no
+                // FC line is its account name, and the series labels follow that.
+                FcLineName: stream.fc_line_name || m.Account || m.account_name || m.Name,
+                Direction: stream.direction || 'expense',
+                Changes: (stream.changes || []).map((c) => ({
+                  Date: c.change_date, Amount: Number(c.amount) || 0, Flag: c.flag,
+                })),
+                Stream: stream,
+              };
+            })
+        );
+      })
       .catch(() => setFcExpEntries([]));
   }, [selectedScenario]);
 
@@ -1470,13 +1496,29 @@ export default function FCReview() {
         existingChanges.push(change);
       }
 
-      // 3. Save via PUT
+      // 3. Save via PUT — CR069 P2: the change rows belong to the module's STREAM, and a
+      // `Streams` write replaces the set wholesale, so the whole stream is sent back with its
+      // schedule swapped. The route handles the variant case (an inherited module becomes an
+      // override rather than a direct write).
+      const src = entry?.Stream || {};
       await Rest.fetchJson(
-        `/api/v2/forecast/incomeexpense/${encodeURIComponent(entryId)}`,
+        `/api/v2/forecast/modules/${encodeURIComponent(entryId)}`,
         {
           method: "PUT",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ Changes: existingChanges }),
+          body: JSON.stringify({
+            Streams: [{
+              Direction: src.direction || entry?.Direction || "expense",
+              Mode: src.mode || "amount",
+              FcLineId: src.fc_line_id ?? null,
+              Amount: Number(src.amount) || 0,
+              GrowthMult: src.growth_mult ?? null,
+              StartDate: src.start_date ?? null,
+              EndDate: src.end_date ?? null,
+              TaxRateOverride: src.tax_rate_override ?? null,
+              Changes: existingChanges,
+            }],
+          }),
         }
       );
 
@@ -1489,11 +1531,29 @@ export default function FCReview() {
       // 5. Reload data
       reloadForecastData();
 
-      // 6. Refresh FC Exp entries cache
+      // 6. Refresh the flow-module cache (CR069 P2 — same source as the effect above).
       const refreshed = await Rest.fetchJson(
-        `/api/v2/forecast/incomeexpense?scenario=${encodeURIComponent(selectedScenario)}`
+        `/api/v2/forecast/modules?scenario=${encodeURIComponent(selectedScenario)}`
       );
-      setFcExpEntries(refreshed?.entries || []);
+      const refreshedMods = refreshed?.data || refreshed || [];
+      setFcExpEntries(
+        refreshedMods
+          .filter((m) => m.HasValuation === false)
+          .map((m) => {
+            const stream = (m.Streams || [])[0] || {};
+            return {
+              id: m.id,
+              streamId: stream.id ?? null,
+              Name: m.Name ?? m.name,
+              FcLineName: stream.fc_line_name || m.Account || m.account_name || m.Name,
+              Direction: stream.direction || 'expense',
+              Changes: (stream.changes || []).map((c) => ({
+                Date: c.change_date, Amount: Number(c.amount) || 0, Flag: c.flag,
+              })),
+              Stream: stream,
+            };
+          })
+      );
 
       // 7. Close adjust modal (graph stays open — it will re-render with new data)
       setGraphAdjustModal((prev) => ({ ...prev, isOpen: false }));

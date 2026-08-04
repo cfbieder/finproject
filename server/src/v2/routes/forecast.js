@@ -609,6 +609,8 @@ router.get('/modules', async (req, res, next) => {
 
     // Transform to PascalCase for frontend
     const transformed = modules.map((m) => ({
+      Streams: m.streams || [],
+      HasValuation: m.has_valuation !== false,
       ...m,
       id: m.id,
       Scenario: m.scenario_name || scenario,
@@ -998,10 +1000,7 @@ router.put('/modules/:id', async (req, res, next) => {
     if (body.Name !== undefined) updateData.name = body.Name;
     if (body.Type !== undefined) updateData.module_type = body.Type;
     if (body.Currency !== undefined) updateData.currency = body.Currency;
-    if (body.ExpenseFcLineId !== undefined) updateData.expense_fc_line_id = body.ExpenseFcLineId;
-    if (body.IncomeFcLineId !== undefined) updateData.income_fc_line_id = body.IncomeFcLineId;
     if (body.TaxRateOverride !== undefined) updateData.tax_rate_override = body.TaxRateOverride;
-    if (body.IncomeGrowth !== undefined) updateData.income_growth_rate = body.IncomeGrowth;
     if (body.SetupStatus !== undefined) updateData.setup_status = body.SetupStatus;
     // CR069 P2 — `has_valuation` is a real, writable property: FALSE makes the module a pure
     // P&L container (what an Expenditure item became). Without this mapping there was no API

@@ -86,9 +86,12 @@ function expandChanges(stream, ctx) {
     .sort((a, b) => a.idx - b.idx);
 
   for (const row of rows) {
-    // Out of range is DROPPED, matching fcbuilder-incexp's bounds check. CR064 P6's steps
-    // counted a pre-horizon row instead; the two disagreed and no live row exercised either,
-    // so one behaviour is chosen here and pinned by test rather than left ambiguous.
+    // Out of range is DROPPED for the three AMOUNT-mode flags, matching fcbuilder-incexp's
+    // bounds check. CR064 P6's steps counted a pre-horizon row instead; the two disagreed and
+    // no live row exercised either, so one behaviour is chosen here and pinned by test.
+    // `Spread %` is deliberately NOT filtered here — it is read below from the unfiltered
+    // list, because a yield spread dated before the axis must still carry forward ONTO it,
+    // which is what `forecast_module_income_pct` did (it had no bounds check at all).
     if (row.idx == null || row.idx < 0 || row.idx >= yearsCount) continue;
     if (row.flag === 'Percent %') pct[row.idx] = row.amount;
     else if (row.flag === 'Fixed $') fixed[row.idx] += row.amount;
@@ -109,7 +112,7 @@ function expandChanges(stream, ctx) {
     }
   }
 
-  return { pct, fixed, oneOff, spread, hasSpread: spreadRows.length > 0 };
+  return { pct, fixed, oneOff, spread };
 }
 
 /**
@@ -124,7 +127,7 @@ function computeStreamSeries(stream, ctx) {
   const out = new Array(yearsCount).fill(0);
   const mode = stream.mode || 'amount';
   const magnitude = Math.abs(parseFloat(stream.amount) || 0);
-  const { pct, fixed, oneOff, spread, hasSpread } = expandChanges(stream, ctx);
+  const { pct, fixed, oneOff, spread } = expandChanges(stream, ctx);
 
   if (mode === 'amount') {
     // The recursion. Note the FIRST year already carries one period of growth — true of both
@@ -158,10 +161,9 @@ function computeStreamSeries(stream, ctx) {
       }
     }
   } else if (mode === 'yield') {
-    // Effective yield = inflation + spread, on the AVERAGE market value across the year.
-    // `hasSpread` is not required: a yield stream with no rows is inflation-only, which is
-    // what an empty forecast_module_income_pct schedule did.
-    void hasSpread;
+    // Effective yield = inflation + spread, on the AVERAGE market value across the year. A
+    // yield stream with no spread rows is inflation-only, which is what an empty
+    // forecast_module_income_pct schedule did.
     const mv = ctx.marketValues || [];
     for (let i = 0, year = startyear; year <= endyear; i++, year++) {
       const idx = year - periodStart;
@@ -211,9 +213,10 @@ function computeStreamSeries(stream, ctx) {
     }
   }
 
-  // `-1 * 0` is -0 in JavaScript, which survives JSON and reaches the database as "-0".
-  // It compares equal to 0 everywhere that matters, so nothing would break — but a column
-  // of -0.00 in an audit CSV is the kind of thing that costs someone an hour.
+  // `-1 * 0` is -0 in JavaScript. It compares equal to 0 everywhere and serialises as "0"
+  // (both JSON.stringify and toString), so it would never reach the database as "-0" — the
+  // reason to normalise it is the AUDIT CSV, which formats the raw number and would print a
+  // column of -0 that costs someone an hour working out what it means.
   const sign = stream.direction === 'expense' ? -1 : 1;
   for (let i = 0; i < yearsCount; i++) {
     const v = sign * out[i];

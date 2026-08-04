@@ -32,7 +32,6 @@ const DEFAULT_MAX_EVALS = 12;  // hard cap on engine builds per solve
 // CR069 P2 — one entity type. A candidate line is an EXPENSE STREAM, whether it hangs off a
 // balance-sheet module or a converted Expenditure item; both were always the same knob wearing
 // two column names. The line `id` is the STREAM id.
-const ENTITY_TABLES = { module: 'forecast_modules' };
 
 function round2(x) {
   return Math.round(x * 100) / 100;
@@ -315,23 +314,29 @@ async function streamsPatchWithRetain(client, moduleId, fcLineId, retain) {
   return patched;
 }
 
-// Resolve each requested line to its materialized stream on the variant. For a variant target
-// the module id IS the variant's; for a base target the base module maps to the variant row via
-// origin_base_id (the row sync materialized from that base row).
-async function resolveVariantRows(client, variantId, isVariantTarget, lines) {
+// Resolve each requested line to its materialized stream on the variant, matched by (module
+// name, fc line) — which works for a variant target and a base target alike, so the old
+// `isVariantTarget` branch is gone rather than left as a parameter nothing reads.
+async function resolveVariantRows(client, variantId, lines) {
   const out = [];
   for (const line of lines) {
+    // `IS NOT DISTINCT FROM`, never a row-constructor IN: `('a', NULL) IN (('a', NULL))`
+    // evaluates to NULL, not TRUE, so ANY line-less expense stream failed to resolve — which
+    // includes the one the caller just picked out of the list. `Sarasota House` (amount
+    // 45,000, no FC line) is exactly that shape and is offered by `listExpenseLines`, so
+    // applying a cut to it threw "not found on variant". The sibling `readScratchBaseline`
+    // already had this right.
     const r = await client.query(
       `SELECT st.id AS stream_id, st.amount, st.fc_line_id, st.direction,
               m.id AS module_id, m.name, m.origin_base_id
          FROM forecast_streams st JOIN forecast_modules m ON m.id = st.module_id
         WHERE m.scenario_id = $1
           AND st.direction = 'expense'
-          AND (m.name, st.fc_line_id) IN (
-            SELECT m2.name, st2.fc_line_id FROM forecast_streams st2
-              JOIN forecast_modules m2 ON m2.id = st2.module_id
-             WHERE st2.id = $2
-          )`,
+          AND m.name = (SELECT m2.name FROM forecast_streams st2
+                          JOIN forecast_modules m2 ON m2.id = st2.module_id
+                         WHERE st2.id = $2)
+          AND st.fc_line_id IS NOT DISTINCT FROM
+              (SELECT st2.fc_line_id FROM forecast_streams st2 WHERE st2.id = $2)`,
       [variantId, line.id]
     );
     if (!r.rows[0]) throw new Error(`line stream:${line.id} not found on variant ${variantId}`);
@@ -381,7 +386,7 @@ async function applySpendReduction({ scenarioName, lines, retain, variantName })
   // written directly, since the override table is keyed by base-row id.
   const appliedLines = [];
   await db.transaction(async (client) => {
-    const resolved = await resolveVariantRows(client, variantId, isVariantTarget, lines);
+    const resolved = await resolveVariantRows(client, variantId, lines);
     for (const { row } of resolved) {
       if (row.origin_base_id != null) {
         // An inherited module: the cut becomes an override on the BASE module's id.

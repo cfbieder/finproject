@@ -325,7 +325,7 @@ async function generateForecast(scenarioName, { writeAudit = true } = {}) {
     const columns = buildColumns(years);
 
     // Step 6a: COMPUTE (pure) — every module's series + entries payload, in
-    // deterministic array order (BS modules then inc/exp items). No I/O: each
+    // deterministic array order — ONE module list since CR069 P2. No I/O: each
     // computeModule fills a fresh category × year frame and returns the
     // flattened forecast_entries payload.
     console.log(`[FORECAST-GENERATE] Processing ${bsModules.length} modules...`);
@@ -350,8 +350,10 @@ async function generateForecast(scenarioName, { writeAudit = true } = {}) {
     }
 
     // Step 6c: PERSIST — clear the previous build, then per-module inserts in
-    // the same order and with the same statements as ever (the ON CONFLICT
-    // last-write-wins between same-account inc/exp items is load-bearing).
+    // the same order and with the same statements as ever. (The ON CONFLICT clause is NOT
+    // load-bearing, whatever this comment used to claim: `entry_type` is never written and
+    // NULLs are distinct in a Postgres unique index, so it has never fired — CR069 P0. The
+    // inc/exp items it referred to are modules now.)
     const deleteResult = await dbc.query('DELETE FROM forecast_entries WHERE scenario_id = $1', [scenarioId]);
     const deletedCount = deleteResult.rowCount;
     console.log(`[FORECAST-GENERATE] Deleted ${deletedCount} existing entries`);
@@ -749,18 +751,24 @@ async function generateForecast(scenarioName, { writeAudit = true } = {}) {
           modFx[0] = (mod.BaseValueUSD ?? 0) !== 0 ? (mod.BaseValue ?? 0) / (mod.BaseValueUSD ?? 1) : 1;
 
           // CR048 A3: income is taxed at the income chain, exactly as the builder does
-          const taxRate = mod.income_tax_rate_override != null
-            ? Number(mod.income_tax_rate_override)
+          // CR069 P2 — the income tax override and the CR046 window are STREAM properties, and
+          // the write path stopped maintaining the module columns. Reading the columns here
+          // was harmless only while the PUT dual-wrote both; now they diverge on the first
+          // save, and this loop UPDATEs the builder's rows — so a window set on a
+          // sweep-ranked yield module would be applied by the builder and silently written
+          // back by convergence. `yieldStream` is already in hand.
+          const taxRate = yieldStream.tax_rate_override != null
+            ? Number(yieldStream.tax_rate_override)
             : (mod.tax_rate_override != null
               ? Number(mod.tax_rate_override)
               : Number(scenario?.TaxRate ?? 0));
           const rateFactor = Number.isFinite(taxRate) && taxRate !== 0 ? -taxRate / 100 : 0;
 
           // CR046 income window, as year indices from the module's start
-          const winFrom = mod.income_start_date
-            ? new Date(mod.income_start_date).getFullYear() - modStartYear : null;
-          const winTo = mod.income_end_date
-            ? new Date(mod.income_end_date).getFullYear() - modStartYear : null;
+          const winFrom = yieldStream.start_date
+            ? new Date(yieldStream.start_date).getFullYear() - modStartYear : null;
+          const winTo = yieldStream.end_date
+            ? new Date(yieldStream.end_date).getFullYear() - modStartYear : null;
 
           yieldContexts.push({
             mod,

@@ -557,8 +557,15 @@ async function getBaseYearValues(scenarioId, baseYear = null, client = db) {
     LEFT JOIN accounts a ON a.id = m.account_id
     WHERE m.scenario_id = $1
       AND COALESCE(m.setup_status, 'new') NOT IN ('new', 'exclude')
+      -- A stream must POST somewhere to count in the base year. All three retired UNION
+      -- branches carried a NOT NULL check on the fc line, and dropping it let a valuation
+      -- module with an amount and no line contribute an 'Unassigned Expense' row — which
+      -- the engine folds into the cash sweep's OPENING CASH, so the error would ride the
+      -- whole horizon (the CR049 section 1 mode this function exists to prevent). A FLOW
+      -- module is exempt: it falls back to its account name and genuinely does post there.
+      AND (s.fc_line_id IS NOT NULL OR NOT m.has_valuation)
       -- A derived (loan) stream has no window of its own — its dates ARE the loan's.
-      AND (s.mode = 'derived' OR TRUE${windowFilter})
+      AND (s.mode = 'derived' OR (TRUE${windowFilter}))
     GROUP BY 1, 2, m.currency
   `, [scenarioId]);
 

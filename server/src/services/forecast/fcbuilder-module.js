@@ -379,12 +379,21 @@ function computeModule(module, scenario, df_assumptions, df_categories, categori
       ? new Set()
       : applyStreamWindow(series, stream, startyear, yearsCount);
 
-    // CR041 ownership gate — amount-driven streams on a VALUATION module only.
+    // CR041 ownership gate — AMOUNT-DRIVEN streams on a VALUATION module only.
     //
-    // MV-driven streams (yield, pct_of_value, a loan's interest) already scale with market
-    // value: pre-purchase the average MV is 0 and the acquisition year averages to half, so
-    // gating them would halve a year twice. A flow module is never gated at all.
-    if (hasValuation && acquisitionIdx !== 0 && isAmountMode) {
+    // Genuinely MV-driven streams (yield, a loan's interest, and pct_of_value WITH a base
+    // market value) already scale with market value: pre-purchase the average MV is 0 and the
+    // acquisition year averages to half, so gating them would halve a year twice.
+    //
+    // `pct_of_value` is the subtle one, and the old builder said so in a comment this rewrite
+    // dropped: `acquisitionIdx !== 0` implies the base MV WAS 0, which puts the stream on the
+    // inflation-compounding fallback — not MV-driven at all — so it must gate exactly like an
+    // amount stream. Without this a mid-plan acquisition charges its full cost in the years
+    // before it owned anything. No live row (0 pct_of_value streams), which is why only the
+    // reading caught it.
+    const gateable = isAmountMode
+      || ((stream.mode === 'pct_of_value') && !(module.MarketValue ?? 0));
+    if (hasValuation && acquisitionIdx !== 0 && gateable) {
       for (let i = 0; i < yearsCount; i++) {
         if (acquisitionIdx === -1 || i < acquisitionIdx) {
           series[i] = 0;
@@ -503,6 +512,13 @@ function computeModule(module, scenario, df_assumptions, df_categories, categori
   const realizedGainValuesUSD = toUSD(realizedGainValues);
   const taxValuesUSD = toUSD(taxValues);
 
+  // Every stream is converted BEFORE the base-year FX override below, because that override
+  // REPLACES `fxrates[0]` with the module's own stored implied rate. The old builder converted
+  // income/expense/tax first for exactly this reason; doing it after would convert index 0 at a
+  // different rate than the engine has always used. Invisible while every module's `base_date`
+  // precedes `PeriodStart` (index 0 is then dropped on write), and wrong the day one does not.
+  const streamsUSD = computed.map(({ stream, series }) => ({ stream, usd: toUSD(series) }));
+
   if (hasValuation) {
     baseValuesUSD[0] = module.BaseValueUSD ?? 0;
     marketValuesUSD[0] = module.MarketValueUSD ?? 0;
@@ -530,10 +546,7 @@ function computeModule(module, scenario, df_assumptions, df_categories, categori
   // may legitimately share one (CR069 Decision 3: one category frame per module, so exactly
   // one entries row per module/account/year is ever written; the convergence loop's
   // `UPDATE … SET amount = amount + $1` would otherwise apply one delta to two rows).
-  const streamsUSD = [];
-  for (const { stream, series } of computed) {
-    const usd = toUSD(series);
-    streamsUSD.push({ stream, usd });
+  for (const { stream, usd } of streamsUSD) {
     const line = stream.lineName;
     if (!line) continue;   // no line = posts nowhere; see roadmap known issue (Sarasota)
     addValuesToCategoryRow(df_categories.index.indexOf(line), df_categories, usd, startyear);
@@ -553,17 +566,16 @@ function computeModule(module, scenario, df_assumptions, df_categories, categori
 
   // Cash: every stream, plus tax, plus the balance path's transfers.
   //
-  // SUMMED IN THE OLD ORDER — income, then expense, then tax, then transfers — and that is
-  // not fussiness. Floating-point addition is not associative, so reordering these terms
-  // changes the last bits of the result. The engine then feeds that cash figure into the
-  // sweep, whose band decides whether a year drains or deposits, and the income↔sweep
-  // convergence loop iterates on the outcome with a $100 tolerance. A sub-cent difference at
-  // the bottom is amplified by that feedback into hundreds of dollars: reordering this one
-  // expression moved `2026 Downside` — the scenario that sits nearest the band — by up to
-  // $25K on Fidelity Fixed Income, while the other four scenarios stayed byte-identical.
+  // Summed income-first, then expense, then tax, then transfers — the order the old builder
+  // used — so a future module with several streams is deterministic rather than dependent on
+  // the loader's `ORDER BY direction, id`.
   //
-  // The stream loop is ordered explicitly rather than relying on the loader's `ORDER BY
-  // direction, id`, which sorts 'expense' before 'income' and would silently reintroduce it.
+  // An earlier version of this comment claimed the ORDER changed the result via floating-point
+  // error, citing a $25K move on `2026 Downside`. That was wrong and is corrected here rather
+  // than quietly deleted: IEEE-754 addition is COMMUTATIVE (only associativity fails), and
+  // every live module carries exactly one stream, so the loop runs once. The $25K move came
+  // from the base-year override defect fixed separately, not from this expression. Determinism
+  // is a good enough reason on its own; a false one in a load-bearing comment is not.
   const cashChange = new Array(yearsCount).fill(0);
   for (let i = 0; i < yearsCount; i++) {
     let sum = 0;

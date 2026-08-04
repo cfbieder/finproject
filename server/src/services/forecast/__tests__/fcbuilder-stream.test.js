@@ -164,6 +164,48 @@ describe('amount mode — equivalence with fcbuilder-incexp', () => {
   });
 });
 
+describe('the axis seed — a module whose base_date precedes PeriodStart', () => {
+  // THE REGRESSION THIS FILE MISSED. Every other test here sets startyear === periodStart,
+  // which is an inc/exp item's axis. A valuation module's axis starts at its OWN base_date —
+  // 2025 against a PeriodStart of 2027 on 18 of 21 prod modules — so indices 0 and 1 are
+  // before the horizon. Seeding the recursion at index 0 compounds from a zero the projection
+  // just wrote, and `Property Costs`, `Barkeria Income` and `UB Income` vanished entirely.
+  // Only the end-to-end sums gate caught it; these pin it here where it is cheap.
+  const offsetCtx = (offset) => ({
+    ...ctx(),
+    startyear: PERIOD_START - offset,
+    yearsCount: PERIOD_END - (PERIOD_START - offset) + 1,
+  });
+
+  test.each([1, 2, 3])('a %i-year offset still compounds from the amount, not from zero', (offset) => {
+    const got = computeStreamSeries(
+      stream({ direction: 'expense', amount: 45000, growth_mult: null }), offsetCtx(offset)
+    );
+    // Pre-horizon years carry nothing...
+    for (let i = 0; i < offset; i++) expect(got[i]).toBe(0);
+    // ...and the first modelled year is the amount with ONE period of growth, exactly as it
+    // is when the axis starts at PeriodStart.
+    expect(got[offset]).toBeCloseTo(-45000 * (1 + INFLATION[0] / 100), 6);
+    // The whole series matches the offset-free case, shifted.
+    const flat = computeStreamSeries(
+      stream({ direction: 'expense', amount: 45000, growth_mult: null }), ctx()
+    );
+    for (let i = 0; i < INFLATION.length; i++) {
+      expect(got[i + offset]).toBeCloseTo(flat[i], 6);
+    }
+  });
+
+  test('a Fixed $ still lands on its own YEAR, not its own index', () => {
+    const got = computeStreamSeries(stream({
+      direction: 'income', amount: 0, growth_mult: 0,
+      changes: [{ change_date: '2028-12-31', amount: 10000, flag: 'Fixed $' }],
+    }), offsetCtx(2));
+    // 2028 is index 4 on an axis starting at 2024.
+    expect(got[3]).toBeCloseTo(0, 10);
+    expect(got[4]).toBeCloseTo(10000, 6);
+  });
+});
+
 describe('amount mode — equivalence with a module expense', () => {
   test("reproduces the module's compound-from-scratch loop term for term", () => {
     // OLD: compounded = amount; for (j = 0; j < periodNum; j++) compounded *= (1 + infl[j]/100)

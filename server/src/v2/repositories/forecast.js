@@ -400,7 +400,26 @@ async function findModulesByScenario(scenarioId) {
   // shows nothing. The four loan_* columns come free via `m.*`.
   const sql = `
     SELECT m.*, a.name as account_name, a.account_type,
+      -- CR069 P2 — the module's streams with their change rows, so list consumers (the Review
+      -- page's graph point-adjust among them) can read a stream without an N+1.
       COALESCE((
+        SELECT json_agg(json_build_object(
+                 'id', st.id, 'direction', st.direction, 'fc_line_id', st.fc_line_id,
+                 'fc_line_name', l.name, 'mode', st.mode, 'amount', st.amount,
+                 'amount_usd', st.amount_usd, 'growth_mult', st.growth_mult,
+                 'start_date', st.start_date, 'end_date', st.end_date,
+                 'tax_rate_override', st.tax_rate_override,
+                 'changes', COALESCE((
+                   SELECT json_agg(json_build_object(
+                            'change_date', c.change_date, 'amount', c.amount, 'flag', c.flag
+                          ) ORDER BY c.change_date)
+                     FROM forecast_stream_changes c WHERE c.stream_id = st.id
+                 ), '[]'::json)
+               ) ORDER BY st.direction, st.id)
+          FROM forecast_streams st
+          LEFT JOIN fc_lines l ON l.id = st.fc_line_id
+         WHERE st.module_id = m.id
+      ), '[]'::json) AS streams,   COALESCE((
         SELECT json_agg(json_build_object('effective_date', am.effective_date, 'pct', am.pct)
                         ORDER BY am.effective_date)
         FROM forecast_module_amortization am WHERE am.module_id = m.id
