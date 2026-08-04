@@ -7,6 +7,15 @@
 **Last updated:** 2026-08-04 · **Live version:** v3.13.0 (see `VERSION` / git tags)
 
 ## Current phase
+**[CR069](../cr/cr-069-forecast-streams.md) drafted and two-pass reviewed (GO, 2026-08-04) — the
+owner-directed unification of Forecast Expenditures into Modules.** A module becomes *identity +
+optional valuation + N first-class streams*; one stream evaluator replaces three divergent ones;
+the Expenditures step, ~2,770 lines of `FCExp*` and four tables retire. Four phases, each
+shippable; gate everywhere: per-(account, year) `forecast_entries` sums identical to the cent on
+a prod copy. **P0 (the attribution fix — three prod items invisible under their own names, plus a
+false ON CONFLICT comment) can ship this week, alone.** Sequencing per PM sign-off: **CR064
+P2/P4/P5/P10 code waits behind CR069 P2** (`copyScenario` is in CR069's scope); two owner
+sign-offs due at kickoff (CR §2 Decision 9 coarsening; §6.1 dead typed amounts).
 **[CR066](../cr/cr-066-fc-line-mapping-completeness.md) is next up, at the owner's request** — twelve COA
 categories with real activity map to no FC line, so **−78,689 of expense and +31,474 of income sit
 outside the forecast** and no screen says so. P0 is a decision per row, not code.
@@ -158,6 +167,10 @@ Canonical dates/versions: **[CR index](../cr/README.md)**. Per-release detail:
 - **v3.6–v3.7** — Investment Returns + IRR (CR056) · Book Income at Source (CR057, migration 041) · reset-opening (CR033) · the Revolut misattribution across both repos · the bank-feed ingest paging cap · the `Math.abs` reversal and `base_amount` sign defects · the JSX lint blind spot.
 
 ## Next
+**Next up:**
+- [CR069](../cr/cr-069-forecast-streams.md) **P0** — inc/exp entries labeled by item name
+  (small, standalone, its own release), then P1–P3 per the CR's phase plan.
+
 **Next up (owner-requested, 2026-08-03):**
 - [CR068](../cr/cr-068-mobile-actuals-search.md) — **shipped in v3.13.0 and live.** Worth the owner's
   eye on a real phone: it was verified at 390 px in a headless browser, and `<input type="month">`
