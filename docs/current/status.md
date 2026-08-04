@@ -7,26 +7,18 @@
 **Last updated:** 2026-08-04 · **Live version:** v3.13.1 (see `VERSION` / git tags)
 
 ## Current phase
-**[CR069](../cr/cr-069-forecast-streams.md) drafted and two-pass reviewed (GO, 2026-08-04) — the
-owner-directed unification of Forecast Expenditures into Modules.** A module becomes *identity +
-optional valuation + N first-class streams*; one stream evaluator replaces three divergent ones;
-the Expenditures step, ~2,770 lines of `FCExp*` and four tables retire. Four phases, each
-shippable; gate everywhere: per-(account, year) `forecast_entries` sums identical to the cent on
-a prod copy. **P0 shipped in v3.13.1 and is live** — inc/exp entries now carry the item's name,
-not its FC line, so `Retirement Home`, `Car Purchase Chris` and `Social Security` stop hiding
-inside `Living Expenses` / `One-Off Items` / `Total Salary`. The gate ran on a real prod copy:
-**4,030 (scenario, account, year) sum rows, zero differing**, exactly 15 module labels gained and
-0 lost, 791 backend tests. The "last-write-wins ON CONFLICT" comment was false in both halves and
-now says so (the clause has never fired — `entry_type` is never written and NULLs are distinct in
-a unique index, so the rows were always additive and only *attribution* was lost). **P1 is applied
-on dev + prod as migration 057** — the two stream tables and `has_valuation`, inert and proved so
-(a prod copy regenerated before and after is byte-identical). Review caught that the CR's own
-`UNIQUE (module_id, direction, fc_line_id)` constrains nothing when the line is NULL — P0's trap,
-written into its own fix — and that the frozen backfill note would have **inverted 58 of 113
-change rows** by negating `Percent %`, a rate rather than an amount. **P2 (backfill + cutover, one
-deploy) is next.** Sequencing per PM sign-off: **CR064 P2/P4/P5/P10 code waits behind CR069 P2**
-(`copyScenario` is in CR069's scope); two owner sign-offs due at kickoff (CR §2 Decision 9
-coarsening; §6.1 dead typed amounts).
+**[CR069](../cr/cr-069-forecast-streams.md) — the owner-directed unification of Forecast
+Expenditures into Modules.** A module becomes *identity + optional valuation + N first-class
+streams*; one evaluator replaces three; the Expenditures step, ~2,770 lines of `FCExp*` and four
+tables retire. Gate on every phase: per-(scenario, account, year) `forecast_entries` sums
+**identical to the cent** on a prod copy.
+**P0 live (v3.13.1)** — three items stopped hiding under other names. **P1 = migration 057**
+(schema, inert), dev + prod. **P2 = migrations 058/059 + the engine cutover: BUILT, applied on
+DEV, reviewed three ways, PENDING ON PROD** — 4,030/0 on a prod copy, 3,798/0 on dev; 803 backend
+· 396 frontend · 7 e2e · six ratchets. The gate, dev and the reviews caught **eleven** defects that
+would otherwise have shipped, two reproducing on today's data. **Prod needs the owner's go**;
+detail and the two ops conditions are in [CR069 §14](../cr/cr-069-forecast-streams.md). P3 (UI +
+table drop) designed.
 **[CR066](../cr/cr-066-fc-line-mapping-completeness.md) is next up, at the owner's request** — twelve COA
 categories with real activity map to no FC line, so **−78,689 of expense and +31,474 of income sit
 outside the forecast** and no screen says so. P0 is a decision per row, not code.
@@ -179,10 +171,12 @@ Canonical dates/versions: **[CR index](../cr/README.md)**. Per-release detail:
 
 ## Next
 **Next up:**
-- [CR069](../cr/cr-069-forecast-streams.md) **P2** — the backfill *and* the engine cutover, in one
-  deploy (they cannot be split: nothing dual-writes, so an early backfill goes stale). Gate: the
-  per-(account, year) sums identical to the cent, all five scenarios, on a prod copy.
-  Then P3 (UI, drop).
+- [CR069](../cr/cr-069-forecast-streams.md) **P2 → PROD.** Built, dev-applied, reviewed three ways.
+  Two ops conditions from the migration review: `node server/db/migrate.js --dry-run` must say
+  **APPLY** 057/058/059, not BASELINE (verified 2026-08-04; prod's ledger lacks 057 because it was
+  applied with `psql -f`), and the Step 2b→3 build window runs the OLD engine against backfilled
+  data — so deploy idle, then force-sync the four variants, regenerate all five, and re-run the
+  sums gate. Then P3 (stream-card UI, delete `FCExp*`, drop four tables).
 
 **Next up (owner-requested, 2026-08-03):**
 - [CR068](../cr/cr-068-mobile-actuals-search.md) — **shipped in v3.13.0 and live.** Worth the owner's

@@ -1,4 +1,4 @@
-# CR069 — Forecast streams: one Modules section for everything Expenditures and Modules do today — 🟡 IN-PROGRESS (P0 live in v3.13.1; P1 applied dev + prod as migration 057; P2–P3 designed)
+# CR069 — Forecast streams: one Modules section for everything Expenditures and Modules do today — 🟡 IN-PROGRESS (P0 live in v3.13.1; P1 = migration 057, dev + prod; **P2 built, dev-applied and three-pass reviewed, PROD PENDING**; P3 designed)
 
 The Forecast setup collapses from two entity types to one. A **module** becomes *identity +
 optional valuation + zero-or-more P&L **streams***; a stream is a first-class row (direction,
@@ -30,7 +30,7 @@ half-finished in the shared tree (Known Issue #17's class, four incidents old).
 |---|---|---|
 | **P0** ✅ | The attribution fix, alone: inc/exp entries labeled by item **name**, not account; audit CSV filename follows; the false ON CONFLICT comment corrected — §3 | **Built and gate-verified 2026-08-04 (§12), undeployed.** Sums gate PASSED: 4,030 (scenario, account, year) rows, **zero differing**, all five scenarios on a prod copy. Exactly 15 module labels gained (3 items × 5 scenarios), 0 lost. 791 backend tests. |
 | **P1** ✅ | Schema **only**: `forecast_streams` (+ changes), `has_valuation` — empty, nothing writes or reads them — §5 | **Built and applied dev + prod 2026-08-04 (§13), migration 057.** migration-reviewer pass (4 findings fixed before it touched a database). **Byte-identical builds proved empirically** on a prod copy regenerated before *and* after: 4,030 sum rows, 158 labels, identical. |
-| **P2** | **Backfill migration + engine cutover, one deploy** (§6 + §7): convert all 60 inc/exp items to flow modules, rewrite the 3 incexp overrides + 48 origin links, one stream evaluator, `fcbuilder-incexp.js` deleted; loaders, `getBaseYearValues`, `copyScenario`, auto-adjust, AI review, variant sync read streams. **The old write paths die here too** — the four `/incomeexpense` routes 410 and the Expenditures step disappears from the nav (§7.6); only the bulk deletion waits for P3 | Backfill counts assert exactly (§6.4). **The sums gate (§9): per-(account, year) sums identical to the cent, all five scenarios, on a prod copy.** Full backend suite; the semantics tests in §9.2. A write to `/incomeexpense` fails loud, not silently stale. |
+| **P2** ✅ | **Backfill migration + engine cutover, one deploy** (§6 + §7): convert all 60 inc/exp items to flow modules, rewrite the 3 incexp overrides + 48 origin links, one stream evaluator, `fcbuilder-incexp.js` deleted; loaders, `getBaseYearValues`, `copyScenario`, auto-adjust, AI review, variant sync read streams. **The old write paths die here too** — the four `/incomeexpense` routes 410 and the Expenditures step disappears from the nav (§7.6); only the bulk deletion waits for P3 | Backfill counts assert exactly (§6.4). **The sums gate (§9): per-(account, year) sums identical to the cent, all five scenarios, on a prod copy.** Full backend suite; the semantics tests in §9.2. A write to `/incomeexpense` fails loud, not silently stale. |
 | **P3** | UI cutover + drop: stream cards in the Modules editor, Expenditures step retired (6 steps → 5), `FCExp*` deleted, four tables dropped — §8 | Frontend suite; all six ratchets non-increasing; the five-step nav consistent in stepper + sidebar; grep proves no reader of the dropped tables remains. |
 
 **Sequencing with the other forecast threads** *(set at PM sign-off)*: **CR064 P2/P4/P5/P10
@@ -680,3 +680,102 @@ P&L row. This is exactly the hazard CR062 identified for loans and guarded with
 stay nullable** in this migration — NOT NULL would have refused the backfill of live data —
 and it is a P2 decision: either those rows get a line, or the amount is refused. Also now a
 roadmap known issue, since it misstates the Expenses metric on a live scenario today.
+
+---
+
+## 14. As built — P2 (`d5d8eb7`, `5a91e9d`, `1b1d3b8` + the review pass; migrations 058/059)
+
+**Live on dev; NOT on prod.** The engine reads streams, `fcbuilder-incexp.js` is deleted, 60
+Expenditure items are modules with `has_valuation = FALSE` and one stream.
+
+**The gate, every time it was run:** per-(scenario, account, forecast_year) summed
+`forecast_entries`, all five scenarios, regenerated before and after — **4,030 rows / 0
+differing** on a prod copy, **3,798 rows / 0 differing** on dev. 803 backend · 396 frontend ·
+7 e2e · six ratchets · clean build · 59-file chain from empty.
+
+### What the gate caught that nothing else would have
+
+- **The recursion seeded at index 0**, but a valuation module's axis starts at its `base_date`
+  — two years before `PeriodStart` — so it compounded from a zero the projection had just
+  written and `Property Costs`, `Barkeria Income` and `UB Income` vanished **entirely**.
+- **Three Downside overrides were re-pointed but not translated** (`base_value` means nothing
+  on a module whose money is on a stream), and **one Upside override named `income_amount`** —
+  a column the engine stops reading — which would have applied cleanly to nothing for 36 years.
+- **`getBaseYearValues` still read the retired table**, which `syncVariant` had just
+  re-materialised from base *without* those overrides.
+
+### What dev caught that the prod copy could not
+
+Prod carries no `income_pct` override; dev does. Applying 058 there moved **504 rows**. Two
+code defects behind it, and they are the durable half: `syncEntity` **silently dropped** any
+patch key that was neither a schedule key nor a column, and `scheduleEqualsBase` compared only
+the *parent* columns of the two-level schedule — so a stream override differing only in its
+change rows read as equal to base and was pruned. It destroyed the same override twice before
+the cause was found. Both now fail loud / recurse, both regression-tested. Migration **059**
+translates the keys 058 missed.
+
+### What three review passes caught before production
+
+*Security* — `replaceModuleStreams` had **no CR050 variant interception**, so a module edited
+inside a variant read back correctly and vanished on the next sync (deferred, non-deterministic
+data loss); `HasValuation` was accepted and applied nowhere, so **no API path could create a
+flow module**; the retired columns were still written, letting the first variant save re-break
+058's own post-condition; and AI Review's apply path wrote a dead column and a dead table while
+reporting success — on the one path an LLM recommends and the owner applies with a click.
+
+*Code quality* — two defects that **reproduce on today's data**: auto-adjust resolved a line
+with a row-constructor `IN`, and `('a', NULL) IN (('a', NULL))` is NULL, so any line-less
+expense stream (`Sarasota House`) could never be cut; and **`FCReview` called `/incomeexpense`
+from the bundle shipping in this same deploy**, with the 410 swallowed by a `.catch`, so the
+graph point-adjust affordance would have silently disappeared. Four latent regressions besides
+— the convergence loop reading module columns the write path had stopped maintaining, stream
+USD conversion moved after the `fxrates[0]` override, the CR041 gate losing `pct_of_value`, and
+`getBaseYearValues` no longer requiring a posting line (which feeds the sweep's opening cash).
+
+*Migrations* — verified the sign rule against all 115 rows by independent re-derivation, and
+proved the post-conditions bite by running three deliberately-wrong mutations (each aborts).
+Confirmed the override translations survive the real `syncVariant`. Found that **prod's
+`schema_migrations` ledger stops at 056** because 057 was applied with `psql -f`: harmless here
+(`--dry-run` reports `would APPLY` 057/058/059, and re-applying 057 is idempotent), but the
+other branch is not — a missing ledger would make the runner **baseline** 058/059 as applied
+*without running them*, and the cutover code would meet an empty `forecast_streams`.
+
+**Two comments of mine were false and are corrected in place**, not deleted: the float-ordering
+rationale (IEEE-754 addition is *commutative*; only associativity fails, and every module has
+one stream — the $25K Downside move came from the override defect), and the `-0` rationale
+(`JSON.stringify(-0)` is `"0"`; the normalisation is for the audit CSV).
+
+### Deliberate, and worth knowing
+
+- **The base-year column labels three line-less flow items by their ACCOUNT, not their own
+  name** (`Retirement Home` → `Living Expenses`, and likewise Car Purchase Chris and Social
+  Security). Totals are unchanged — the sums gate is clean and `startingCash` is unaffected —
+  but the Review's base-year column loses three rows and grows three others. The new label
+  matches where the money actually posts (`forecast_entries.account`), which is what the
+  loader's own fallback resolves to, so the two now agree where they used to differ.
+- **The Expenditures step left the nav in P2, not P3**, because `/incomeexpense` answers 410
+  from this same deploy — leaving the page reachable would mean saves that succeed and are
+  ignored.
+- **The legacy per-direction fields are still accepted and translated** (expand → migrate →
+  contract). The read path projects streams back onto them so the existing editor round-trips.
+  Both halves retire in P3.
+
+### Carried into P3
+
+1. `ALTER TABLE forecast_modules ALTER COLUMN has_valuation DROP DEFAULT` — 057's own stated
+   obligation, deliberately deferred: nine insert sites (the e2e seed and two test files
+   included) omit the column today, and the *specific* hazard 057 named (a copy silently
+   defaulting it) is already closed because `copyScenario`'s column list is derived from
+   `information_schema`. It is defence-in-depth against a future hand-written insert, and P3
+   is already touching this table.
+2. Re-point `frontend/e2e/cr051-currency.spec.js` at `/forecast-modules` and **un-skip it** —
+   the browser half of CR051 cannot be expressed until the Modules form has stream cards.
+3. `projectStreamsToLegacyFields` is lossy for two streams in one direction (it keeps the
+   last), so the multi-stream capability the schema allows is unusable until the form renders
+   cards. The write path can create a state the read path flattens.
+4. Two latent migration behaviours, neither reachable on prod's data: 059 replaces a stream's
+   whole `changes` array from whichever schedule key the patch names (dropping the other flag's
+   inherited rows), and 058 step 4b discards untranslated `incexp` patch keys (prod's three
+   carry only `base_value*`).
+5. `aiReview.js`'s per-module dump still prints the retired columns, so the LLM will be told
+   every module has 0 expense and 0 income once anything is saved through the new path.
