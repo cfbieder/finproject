@@ -4,7 +4,7 @@
 > CR statuses live in the [CR index](../cr/README.md); the running version lives in `VERSION`.
 > Older headlines: [status log](../archive/status-log_2026-08-01.md).
 
-**Last updated:** 2026-08-03 · **Live version:** v3.12.0 (see `VERSION` / git tags)
+**Last updated:** 2026-08-04 · **Live version:** v3.13.0 (see `VERSION` / git tags)
 
 ## Current phase
 **[CR066](../cr/cr-066-fc-line-mapping-completeness.md) is next up, at the owner's request** — twelve COA
@@ -16,26 +16,18 @@ P4/P5/P10 designed. Otherwise: owner-found defects, their follow-ups, and a long
 brokerage-history data work. Detail lives in the CR file linked from each line.
 
 - **[CR068](../cr/cr-068-mobile-actuals-search.md) — the Actuals search a phone did not have, and a
-  totals tile that was adding currencies together.** Owner-requested. **P1 + P2 built and verified
-  on dev; not released, not deployed.** There was no mobile Actuals page *at all*: `/trans-actual`
-  had no entry in `DESKTOP_TO_MOBILE`, so a phone opening it was silently dropped on `/m` home.
-  `/m/transactions` is a search box over three chips — period · accounts · categories — each opening
-  a full-screen sheet. **No backend work was needed for the page itself:** the endpoint already took
-  the filters, and holding an `ACTUAL_CONFIG`-shaped filter object reuses `useTransactions` verbatim
-  so the two Actuals pages cannot drift on what a period means. The search box hits the **server**,
-  debounced — the desktop box filters only the *loaded* rows, which at a phone page size would report
-  "no results" for transactions that exist. **The screenshot that started it was showing a wrong
-  number:** `PLN (453.64)` + `EUR (116.23)` = the `EXPENSES (BASE)` tile's `(569.87)`, a mixed-currency
-  sum labelled "base" against a true 254.27 — [CR064 P8](../cr/cr-064-forecast-annual-close-and-assumptions.md)'s
-  class on a different page, invisible unless two currencies are in range. On real July dev data it is
-  **(68,064.39) against a true (46,321.61)** — 21,742.78 overstated in one month. `BaseAmount` was in
-  the response all along, unread. Fixed once and shared, so the new page cannot compute "base" a second
-  way. **Two more defects fell out of the same function:** `/budget/actual-entries` was *sent*
-  `description`/`valueFrom`/`valueTo`/`currency` and read **none** of them (type a search term, the rows
-  narrow and the money does not), and its `LIMIT` truncated **silently**. Also: `Description1` read a
-  column that does not exist, so the Budget-vs-Actual popup showed an em-dash for **every** row.
-  *The ratchets earned their keep* — rather than take the bespoke-dialog baseline 14 → 15, `MobileSheet`
-  became the shell's one dialog and both sheets render through it.
+  totals tile that was adding currencies together (v3.13.0).** Owner-requested; P3 deferred. There was
+  no mobile Actuals page *at all* — `/trans-actual` had no `DESKTOP_TO_MOBILE` entry, so a phone
+  opening it was dropped on `/m` home. `/m/transactions` is a search box over three chips; it holds an
+  `ACTUAL_CONFIG`-shaped filter object, so `useTransactions` and the period mapping are **shared** with
+  the desktop page and the two cannot drift on what a month means. **The screenshot that prompted it
+  was showing a wrong number:** `PLN (453.64) + EUR (116.23)` *was* the `EXPENSES (BASE)` tile —
+  a mixed-currency sum labelled base ([CR064 P8](../cr/cr-064-forecast-annual-close-and-assumptions.md)'s
+  class, invisible with one currency in range). On real July data: **(68,064.39) shown vs (46,321.61)
+  true.** `BaseAmount` was in the response all along, unread. **Three more defects in the same
+  endpoint**, all fixed: four filter params sent and never read, a silent `LIMIT` truncation, and
+  `Description1` mapped to a column that does not exist (so Budget-vs-Actual showed an em-dash for
+  every row).
 - ⚠️ **CR067 reached prod inside another thread's v3.11.16 deploy — the FOURTH instance of this
   class** (2026-08-03 02:11). `deploy-to-production.sh` builds the frontend from the shared working
   tree: P1 was committed and **P2's files were still uncommitted** when that deploy ran, so the
@@ -147,7 +139,7 @@ brokerage-history data work. Detail lives in the CR file linked from each line.
 - **[CR050](../cr/cr-050-forecast-scenario-variants.md) — variants** are live and adopted; §10 (v3.11.0) made a variant read as one in all seven pickers. Owner has not yet run `adopt-variant` on "2026 Downside".
 - **A module carries TWO base-year anchors, and that is now the open design question** ([CR064 §9.1](../cr/cr-064-forecast-annual-close-and-assumptions.md)). Its **value** series starts at the module's own `base_date` (2025-12-31 on 18 of 21) and takes no growth until `PeriodStart`; its **income/expense amounts** anchor to `PeriodStart − 1` (2026). v3.11.12 fixed the label that read the wrong one of the two, but not the split itself. **P10** — base-year P&L from `budget_entries`, module amount = the first forecast year — is designed and unbuilt; the objection that killed it earlier (per-module base-year tax) is weak: **0 of 110 modules carry a tax override**.
 - **The forecast was rebuilt on the corrected opening cash (v3.11.11).** [CR064 P8](../cr/cr-064-forecast-annual-close-and-assumptions.md) fixed a base year summed in mixed currencies — `2026 Base` went **+144,395 → −254,728** — and that figure is the cash sweep's opening cash. The regenerate was held until the owner confirmed United Beverages' 500,000 is **PLN** (2026-08-02), which is how it was already stored, so no data was corrected. All five scenarios regenerated. *Residue left to the owner:* the 500,000 was meant for **2027** but sits in the **2026** field, so it projects 512,500 PLN next year; 487,805 would give exactly 500,000. The form now shows that derived figure, which is the point of the change.
-- **Recent releases:** v3.12.0 ([CR067](../cr/cr-067-forecast-multi-compare.md) — Forecast Multi-Compare) · v3.11.16 (CR064 P13 — a module labelled USD over PLN values, migration 056) · v3.11.15 (CR064 P12 — Net Assets added the debt) · v3.11.14 (the forecast graphs' actual + budget columns) · v3.11.13 (CR064 P11) · v3.11.12 (CR064 P9) · v3.11.11 (the forecast rebuilt on the corrected opening cash) · v3.11.10 (CR064 P8 — the base year's currencies, and the sweep's opening cash) · v3.11.9 (CR064 P7 — the budget hint's currencies) · v3.11.8 ([CR064](../cr/cr-064-forecast-annual-close-and-assumptions.md) P6, migration 055) · v3.11.7 · v3.11.6 · v3.11.5 · v3.11.4 ([CR065](../cr/cr-065-neutralize-pair-identity.md), migrations 053/054) · v3.11.3 ([CR064](../cr/cr-064-forecast-annual-close-and-assumptions.md) P0/P1/P3 + the variant link above, migration 052) · v3.11.2 (the red CI) · v3.11.1 (the period filter) · v3.11.0 ([CR050 §10](../cr/cr-050-forecast-scenario-variants.md)) · v3.10.0 ([CR063](../cr/cr-063-coa-ordering.md), migration 049) · v3.8.0–v3.9.2 ([CR062](../cr/cr-062-forecast-loan-module.md) loans + equity, migrations 047/048).
+- **Recent releases:** v3.13.0 ([CR068](../cr/cr-068-mobile-actuals-search.md) — the mobile Actuals search + the base-totals fix; no migration) · v3.12.0 ([CR067](../cr/cr-067-forecast-multi-compare.md) — Forecast Multi-Compare) · v3.11.16 (CR064 P13 — a module labelled USD over PLN values, migration 056) · v3.11.15 (CR064 P12 — Net Assets added the debt) · v3.11.14 (the forecast graphs' actual + budget columns) · v3.11.13 (CR064 P11) · v3.11.12 (CR064 P9) · v3.11.11 (the forecast rebuilt on the corrected opening cash) · v3.11.10 (CR064 P8 — the base year's currencies, and the sweep's opening cash) · v3.11.9 (CR064 P7 — the budget hint's currencies) · v3.11.8 ([CR064](../cr/cr-064-forecast-annual-close-and-assumptions.md) P6, migration 055) · v3.11.7 · v3.11.6 · v3.11.5 · v3.11.4 ([CR065](../cr/cr-065-neutralize-pair-identity.md), migrations 053/054) · v3.11.3 ([CR064](../cr/cr-064-forecast-annual-close-and-assumptions.md) P0/P1/P3 + the variant link above, migration 052) · v3.11.2 (the red CI) · v3.11.1 (the period filter) · v3.11.0 ([CR050 §10](../cr/cr-050-forecast-scenario-variants.md)) · v3.10.0 ([CR063](../cr/cr-063-coa-ordering.md), migration 049) · v3.8.0–v3.9.2 ([CR062](../cr/cr-062-forecast-loan-module.md) loans + equity, migrations 047/048).
 
 ## Known issue
 - ⚠️ **"2026 Downside" has no sweep backup ranked** — *owner is redoing this scenario themselves (2026-07-13); **do not fix it**.* `Fidelity Stocks` carries no `cash_sweep_priority` there, so the engine reports **−$1.25M of shortfall across 2061–62 while $1.2M of stock sits untouched**. That is [CR045](../cr/cr-045-forecast-cash-warnings-liquidation.md) §5 working as designed (unranked = "I cannot sell this"), but for a liquid brokerage account it is almost certainly a data slip. One-row fix, left to the owner because it changes Downside's conclusions.
@@ -167,10 +159,11 @@ Canonical dates/versions: **[CR index](../cr/README.md)**. Per-release detail:
 
 ## Next
 **Next up (owner-requested, 2026-08-03):**
-- [CR068](../cr/cr-068-mobile-actuals-search.md) — **built on dev, awaiting the owner's look on an
-  actual phone and a release decision.** Nothing is deployed. Note this release is **not**
-  frontend-only: it changes `server/src/services/budget.js` and the shipped `/trans-actual` tiles, so
-  the totals fix lands for desktop at the same time. P3 (row actions) is deferred by decision.
+- [CR068](../cr/cr-068-mobile-actuals-search.md) — **shipped in v3.13.0 and live.** Worth the owner's
+  eye on a real phone: it was verified at 390 px in a headless browser, and `<input type="month">`
+  plus the safe-area padding behave differently on actual iOS — which is the class the last three
+  fixes in that CR came from. P3 (row actions) is deferred by decision, with recategorize the one
+  most likely worth building.
 - [CR066](../cr/cr-066-fc-line-mapping-completeness.md) **P0** — decide an FC line for each of the twelve
   unmapped categories, or record it as deliberately excluded. Check `Rental - Spain` against a
   generated scenario's SP income **first** — mapping it may double-count. Then P1, so the next

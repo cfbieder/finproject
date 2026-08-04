@@ -1,4 +1,4 @@
-# CR068 — Mobile Actuals Search: period, account and category filters that work with a thumb — 🟡 IN-PROGRESS (P1 + P2 built and verified on dev; not released, not deployed)
+# CR068 — Mobile Actuals Search: period, account and category filters that work with a thumb — ✅ COMPLETED (P1 + P2 shipped in v3.13.0, 2026-08-04; P3 deferred by decision)
 
 A `/m/transactions` page that answers *"what did I spend on X, in account Y, in month Z?"* on a phone.
 Same three filters as `/trans-actual` (period · accounts · categories) plus a description search, driven
@@ -236,7 +236,7 @@ transfer-match view · charts on this page · offline caching · **any migration
 4. Any total shown is either correct across currencies or visibly qualified — never §3's number.
 5. No desktop behaviour changes except the deliberate fixes in §6, each with a test.
 
-## 12. As built (2026-08-03) — verified on dev, not released
+## 12. As built — shipped in v3.13.0 (2026-08-04)
 
 Seven commits, `8b92531`→`7ba4bdd`. **Gates:** 396 frontend (+32) + 788 backend (+9) tests, 0 lint
 errors, all six ratchets clean, production build OK. Verified in a 390 px phone
