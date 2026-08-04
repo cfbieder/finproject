@@ -11,11 +11,28 @@ import { test, expect } from "@playwright/test";
  *
  * Seed (server/db/e2e-seed.sql): "E2E Scenario" has a base-year PLN rate of 4, so a −400 PLN
  * expense must book at −100 USD (−400 / 4), not −400.
+ *
+ * ── SKIPPED BY CR069 P2, and re-enabled by P3 ────────────────────────────────────────────
+ *
+ * It drives `/forecast-setup-exp`, which P2 removed: an Expenditure item is a module with
+ * `has_valuation = false` and one stream, and its API answers 410. The route is gone in the
+ * same deploy that stopped the engine reading that table, so leaving the page reachable would
+ * have meant saves that succeed and are ignored.
+ *
+ * The SERVER half of what this protects is covered and was migrated, not dropped:
+ * `server/src/v2/routes/__tests__/cr051.incexp-currency.routes.test.js` now posts a PLN stream
+ * to `/modules` and asserts both halves — the USD twin is derived from the native amount at the
+ * scenario's base-year rate, and a currency the scenario cannot convert is REFUSED with 400.
+ *
+ * The BROWSER half — that the currency picker sends its value and survives a reopen — cannot
+ * be expressed until P3 gives the Modules form the equivalent controls (stream cards). P3 must
+ * re-point this spec at `/forecast-modules` and un-skip it. Recorded in CR069 §8 so it is an
+ * obligation rather than a skipped test nobody revisits.
  */
 
 const SCENARIO = "E2E Scenario";
 
-test.describe("CR051 — foreign-currency expense", () => {
+test.describe.skip("CR051 — foreign-currency expense (re-enable in CR069 P3)", () => {
   test("a PLN expense derives USD (native ÷ FX) and the currency survives a reopen", async ({
     page,
   }) => {

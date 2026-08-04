@@ -734,22 +734,19 @@ router.get('/modules/:id', async (req, res, next) => {
     res.json({
       data: {
         ...m,
+        // CR069 P2 — the income_/expense_ fields are PROJECTED FROM STREAMS, not read from the
+        // module's own columns, which nothing writes any more. Without this the Modules editor
+        // saved a window or a tax override, got a 200, and read back empty on reopen — the
+        // CR043 N10 defect class, caught by the e2e "value must survive a reopen" spec. Both
+        // this projection and those columns retire in P3, when the form renders stream cards.
+        ...crud.projectStreamsToLegacyFields(await crud.loadModuleStreams(m.id)),
+        Streams: await crud.loadModuleStreams(m.id),
         id: m.id,
         Name: m.name,
         Account: m.account_name,
         Type: m.module_type,
         Currency: m.currency,
-        ExpenseAmount: m.expense_amount,
-        ExpenseFcLineId: m.expense_fc_line_id,
-        IncomeFcLineId: m.income_fc_line_id,
-        ExpenseGrowthMethod: m.expense_growth_method || 'inflation',
         TaxRateOverride: m.tax_rate_override != null ? parseFloat(m.tax_rate_override) : null,
-        IncomeTaxRateOverride: m.income_tax_rate_override != null ? parseFloat(m.income_tax_rate_override) : null,
-        IncomeAmount: m.income_amount,
-        IncomeStartDate: m.income_start_date,
-        IncomeEndDate: m.income_end_date,
-        ExpenseStartDate: m.expense_start_date,
-        ExpenseEndDate: m.expense_end_date,
         BaseDate: m.base_date,
         BaseValue: m.base_value,
         MarketValue: m.market_value,
@@ -761,15 +758,6 @@ router.get('/modules/:id', async (req, res, next) => {
         IsMatched: m.is_matched,
         Matched: m.is_matched,
         SetupStatus: m.setup_status || 'new',
-        IncomePct: (m.income_pct || []).map(r => ({
-          Date: r.effective_date,
-          Value: parseFloat(r.value) || 0,
-        })),
-        IncomeGrowth: m.income_growth_rate,
-        IncomeSteps: (m.income_steps || []).map(r => ({
-          Date: r.effective_date,
-          Amount: parseFloat(r.amount) || 0,
-        })),
         Invest: (m.investments || []).map(r => ({
           Date: r.investment_date,
           Amount: parseFloat(r.amount) || 0,
@@ -859,20 +847,10 @@ router.post('/modules', async (req, res, next) => {
       name: body.Name || '',
       module_type: body.Type || null,
       currency: body.Currency || 'USD',
-      expense_amount: body.ExpenseAmount || 0,
-      expense_fc_line_id: body.ExpenseFcLineId || null,
-      income_fc_line_id: body.IncomeFcLineId || null,
-      expense_growth_method: body.ExpenseGrowthMethod || 'inflation',
-      income_amount: body.IncomeAmount || 0,
-      income_tax_rate_override: body.IncomeTaxRateOverride ?? null,
-      // CR064 P6 — NULL means "1", i.e. grow at inflation, which is the pre-CR064
-      // behaviour. Storing 1 explicitly would mean the same thing; NULL keeps the
-      // dormancy claim checkable in SQL.
-      income_growth_rate: body.IncomeGrowth ?? null,
-      income_start_date: body.IncomeStartDate || null,
-      income_end_date: body.IncomeEndDate || null,
-      expense_start_date: body.ExpenseStartDate || null,
-      expense_end_date: body.ExpenseEndDate || null,
+      // CR069 P2 — the retired income_/expense_ COLUMNS are not written on create either.
+      // The per-direction fields in the body are routed to `crud.replaceModuleStreams` below;
+      // writing both would give a variant save an override on a column nothing reads.
+      has_valuation: body.HasValuation === undefined ? true : Boolean(body.HasValuation),
       base_date: body.BaseDate || null,
       base_value: body.BaseValue ?? 0,
       market_value: body.MarketValue ?? 0,
@@ -997,9 +975,14 @@ router.put('/modules/:id', async (req, res, next) => {
       ? body.LoanInterestRate != null
       : before.loan_interest_rate != null;
     if (willBeLoan) {
+      // CR069 P2 — the loan's interest line lives on its DERIVED expense stream now, not on
+      // `expense_fc_line_id` (which this route stopped writing). Same rule, new address: the
+      // effective value is the body's if it says anything, else the stream as stored.
+      const storedLine = (await crud.loadModuleStreams(id))
+        .find((st) => st.direction === 'expense')?.fc_line_id ?? null;
       const effectiveLine = body.ExpenseFcLineId !== undefined
         ? body.ExpenseFcLineId
-        : before.expense_fc_line_id;
+        : storedLine;
       assertLoanHasInterestLine(effectiveLine);
     }
     if (body.SecuredAssetModuleId !== undefined) {
@@ -1015,19 +998,23 @@ router.put('/modules/:id', async (req, res, next) => {
     if (body.Name !== undefined) updateData.name = body.Name;
     if (body.Type !== undefined) updateData.module_type = body.Type;
     if (body.Currency !== undefined) updateData.currency = body.Currency;
-    if (body.ExpenseAmount !== undefined) updateData.expense_amount = body.ExpenseAmount;
     if (body.ExpenseFcLineId !== undefined) updateData.expense_fc_line_id = body.ExpenseFcLineId;
     if (body.IncomeFcLineId !== undefined) updateData.income_fc_line_id = body.IncomeFcLineId;
-    if (body.ExpenseGrowthMethod !== undefined) updateData.expense_growth_method = body.ExpenseGrowthMethod;
     if (body.TaxRateOverride !== undefined) updateData.tax_rate_override = body.TaxRateOverride;
-    if (body.IncomeTaxRateOverride !== undefined) updateData.income_tax_rate_override = body.IncomeTaxRateOverride;
     if (body.IncomeGrowth !== undefined) updateData.income_growth_rate = body.IncomeGrowth;
     if (body.SetupStatus !== undefined) updateData.setup_status = body.SetupStatus;
-    if (body.IncomeAmount !== undefined) updateData.income_amount = body.IncomeAmount;
-    if (body.IncomeStartDate !== undefined) updateData.income_start_date = body.IncomeStartDate || null;
-    if (body.IncomeEndDate !== undefined) updateData.income_end_date = body.IncomeEndDate || null;
-    if (body.ExpenseStartDate !== undefined) updateData.expense_start_date = body.ExpenseStartDate || null;
-    if (body.ExpenseEndDate !== undefined) updateData.expense_end_date = body.ExpenseEndDate || null;
+    // CR069 P2 — `has_valuation` is a real, writable property: FALSE makes the module a pure
+    // P&L container (what an Expenditure item became). Without this mapping there was no API
+    // path that could create one — a new expense item saved with has_valuation TRUE, zero
+    // values, and CR041's ownership gate then zeroed its stream: accepted, stored, and
+    // silently absent from the forecast.
+    if (body.HasValuation !== undefined) updateData.has_valuation = Boolean(body.HasValuation);
+    // The retired income_/expense_ COLUMNS are deliberately NOT written here any more. They
+    // are still ACCEPTED (the editor sends them until P3) but they are routed only to
+    // `crud.replaceModuleStreams`. Writing them too would let a variant save turn one into an
+    // override on a column the engine no longer reads — migration 058's post-condition
+    // re-broken by the running app, which is this CR's own §6 argument arriving through the
+    // write path.
     if (body.BaseDate !== undefined) updateData.base_date = body.BaseDate;
     if (body.BaseValue !== undefined) updateData.base_value = body.BaseValue;
     if (body.MarketValue !== undefined) updateData.market_value = body.MarketValue;

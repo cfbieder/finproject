@@ -248,7 +248,7 @@ dbDescribe('forecast router contract (DB)', () => {
       // Without the priority in the copy INSERT the module lands unranked, the
       // scenario has no primary, and the sweep silently stops funding shortfalls.
       const copied = await db.query(
-        `SELECT m.cash_sweep_priority, m.income_start_date, m.expense_end_date
+        `SELECT m.id, m.cash_sweep_priority
          FROM forecast_modules m
          JOIN forecast_scenarios s ON s.id = m.scenario_id
          WHERE s.name = $1 AND m.name = $2`,
@@ -256,9 +256,20 @@ dbDescribe('forecast router contract (DB)', () => {
       );
       expect(copied.rows).toHaveLength(1);
       expect(copied.rows[0].cash_sweep_priority).toBe(1);
+
+      // CR069 P2 — the windows ride on the module's STREAMS, so the copy has to carry those
+      // too. Same guard, one level deeper: a copy that drops a stream is the CR045 §1 class
+      // (the copied scenario silently computes something else), which is exactly why
+      // copyScenario's column list is now derived rather than hand-kept.
+      const streams = await db.query(
+        `SELECT direction, start_date, end_date FROM forecast_streams WHERE module_id = $1`,
+        [copied.rows[0].id]
+      );
+      const inc = streams.rows.find((x) => x.direction === 'income');
+      const exp = streams.rows.find((x) => x.direction === 'expense');
       // DATE comes back as a plain 'YYYY-MM-DD' string (the project's TZ-safe parser).
-      expect(copied.rows[0].income_start_date).toBe('2030-01-01');
-      expect(copied.rows[0].expense_end_date).toBe('2040-12-31');
+      expect(inc.start_date).toBe('2030-01-01');
+      expect(exp.end_date).toBe('2040-12-31');
 
       await req('DELETE', `/modules/${id}`);
     });

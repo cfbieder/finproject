@@ -106,12 +106,17 @@ dbDescribe('forecast write validation (N10, DB)', () => {
     });
 
     test('still round-trips a real field (the guard did not cost us the write)', async () => {
+      // CR069 P2 — the value LANDS ON THE STREAM now, not on the module column. The route
+      // still ACCEPTS the legacy field (the editor sends it until P3) but deliberately no
+      // longer writes the retired column: doing both would let a variant save turn it into an
+      // override on a column the engine has stopped reading.
       const r = await req('PUT', `/modules/${moduleId}`, { IncomeTaxRateOverride: 3 });
       expect(r.status).toBe(200);
       const row = await db.query(
-        'SELECT income_tax_rate_override FROM forecast_modules WHERE id = $1', [moduleId]
+        `SELECT tax_rate_override FROM forecast_streams
+          WHERE module_id = $1 AND direction = 'income'`, [moduleId]
       );
-      expect(Number(row.rows[0].income_tax_rate_override)).toBe(3);
+      expect(Number(row.rows[0].tax_rate_override)).toBe(3);
     });
 
     // The create path had its OWN hand-written column list, separate from the
@@ -133,17 +138,21 @@ dbDescribe('forecast write validation (N10, DB)', () => {
       expect([200, 201]).toContain(r.status);
       const id = r.body?.data?.id ?? r.body?.id;
 
-      const row = (await db.query(
-        `SELECT income_start_date, income_end_date, expense_start_date, expense_end_date,
-                income_tax_rate_override
-           FROM forecast_modules WHERE id = $1`, [id]
-      )).rows[0];
+      // CR069 P2 — the windows and the income tax override are STREAM properties now. The
+      // failure this test was written for is unchanged in kind: a field the route maps must
+      // actually persist, and "201 Created, values gone" is the thing to catch.
+      const rows = (await db.query(
+        `SELECT direction, start_date, end_date, tax_rate_override
+           FROM forecast_streams WHERE module_id = $1`, [id]
+      )).rows;
+      const income = rows.find((x) => x.direction === 'income');
+      const expense = rows.find((x) => x.direction === 'expense');
 
-      expect(String(row.income_start_date)).toContain('2030');
-      expect(String(row.income_end_date)).toContain('2040');
-      expect(String(row.expense_start_date)).toContain('2031');
-      expect(String(row.expense_end_date)).toContain('2041');
-      expect(Number(row.income_tax_rate_override)).toBe(3);
+      expect(String(income.start_date)).toContain('2030');
+      expect(String(income.end_date)).toContain('2040');
+      expect(String(expense.start_date)).toContain('2031');
+      expect(String(expense.end_date)).toContain('2041');
+      expect(Number(income.tax_rate_override)).toBe(3);
     });
 
     // The guard that outlives this fix: a migration that adds a column and forgets

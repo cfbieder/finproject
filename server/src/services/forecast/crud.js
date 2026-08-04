@@ -206,17 +206,23 @@ async function replaceModuleSchedules(id, body) {
  * same shape the write path reports afterwards, so the two cannot disagree.
  */
 async function previewLoanRetype(id) {
+  // CR069 P2 — the yield schedule, the income steps and both windows moved onto STREAMS. The
+  // counts must follow, or the confirm dialog under-reports what the retype destroys: it said
+  // "1 yield row" from a table nothing writes any more while the real rows sat on the stream.
   const { rows } = await db.query(`
     SELECT
       (SELECT COUNT(*)::int FROM forecast_module_investments WHERE module_id = $1) AS invest,
       (SELECT COUNT(*)::int FROM forecast_module_disposals   WHERE module_id = $1) AS dispose,
-      (SELECT COUNT(*)::int FROM forecast_module_income_pct  WHERE module_id = $1) AS income_pct,
+      (SELECT COUNT(*)::int FROM forecast_stream_changes c
+         JOIN forecast_streams st ON st.id = c.stream_id
+        WHERE st.module_id = $1 AND c.flag = 'Spread %') AS income_pct,
       -- CR064 P6 — a loan has no income, so its income steps cannot survive the retype
       -- either. Counted here so the confirm names them before they go.
-      (SELECT COUNT(*)::int FROM forecast_module_income_steps WHERE module_id = $1) AS income_steps,
-      (SELECT COUNT(*)::int FROM forecast_modules
-        WHERE id = $1 AND (expense_start_date IS NOT NULL OR expense_end_date IS NOT NULL
-                        OR income_start_date  IS NOT NULL OR income_end_date  IS NOT NULL)) AS windows
+      (SELECT COUNT(*)::int FROM forecast_stream_changes c
+         JOIN forecast_streams st ON st.id = c.stream_id
+        WHERE st.module_id = $1 AND st.direction = 'income' AND c.flag = 'Fixed $') AS income_steps,
+      (SELECT COUNT(*)::int FROM forecast_streams
+        WHERE module_id = $1 AND (start_date IS NOT NULL OR end_date IS NOT NULL)) AS windows
   `, [id]);
   const r = rows[0] || { invest: 0, dispose: 0, income_pct: 0, income_steps: 0, windows: 0 };
   return { ...r, total: r.invest + r.dispose + r.income_pct + r.income_steps + r.windows };
@@ -238,13 +244,15 @@ async function clearForLoanRetype(id) {
 
   // Empty-array patches: on an inherited row this records the override; on a
   // variant-local or base row it falls through to the ordinary delete-and-reinsert.
-  await replaceModuleSchedules(id, { Invest: [], Dispose: [], IncomePct: [], IncomeSteps: [] });
+  await replaceModuleSchedules(id, { Invest: [], Dispose: [] });
 
-  // The window columns are plain columns, so the CR050 write interception in
-  // repo.updateModule already routes them to an override where one is needed.
-  await repo.updateModule(id, {
-    expense_start_date: null, expense_end_date: null,
-    income_start_date: null, income_end_date: null,
+  // CR069 P2 — the yield schedule, the steps and both windows are STREAM properties now, so
+  // clearing them is a stream write, which carries its own variant interception. What a loan
+  // keeps is exactly one derived expense stream holding its interest line.
+  const line = (await loadModuleStreams(id))
+    .find((st) => st.direction === 'expense')?.fc_line_id ?? null;
+  await replaceModuleStreams(id, {
+    Streams: [{ Direction: 'expense', Mode: 'derived', FcLineId: line, Amount: 0, Changes: [] }],
   });
 
   return before;
@@ -599,6 +607,8 @@ module.exports = {
   clearOtherCashSweepTargets,
   replaceModuleSchedules,
   replaceModuleStreams,
+  projectStreamsToLegacyFields,
+  loadModuleStreams,
   previewLoanRetype,
   clearForLoanRetype,
   resolveIncExpAccountFromFcLine,
@@ -619,6 +629,78 @@ module.exports = {
  * mentions are touched: a PUT that changes only the loan rate must not delete the income
  * stream it never named.
  */
+
+/**
+ * CR051 — the base-year rate a non-USD stream's USD twin is derived at.
+ *
+ * Derived, never trusted from the client, and a currency the scenario cannot convert is
+ * REFUSED: before CR051 a PLN line silently booked its native amount as dollars (~4x too
+ * large) and a zero rate produced Infinity. The engine fails loud on the same condition at
+ * build time; this stops the row being written at all, where the owner can still see why.
+ *
+ * Resolved LAZILY — only when a non-USD amount is actually about to be stored. Doing it up
+ * front made an empty EUR draft (no streams at all) 400 on a rate it never needed, which is a
+ * scenario-setup complaint raised against a save that stores nothing.
+ */
+async function resolveFxRate(c, moduleId, wanted) {
+  const needsRate = (wanted || []).some((w) => Math.abs(Number(w.Amount ?? w.amount) || 0) > 0);
+  if (!needsRate) return 1;
+
+  const mod = (await c.query(
+    `SELECT m.currency, s.name AS scenario_name
+       FROM forecast_modules m JOIN forecast_scenarios s ON s.id = m.scenario_id
+      WHERE m.id = $1`, [moduleId]
+  )).rows[0];
+  const currency = (mod?.currency || 'USD').trim() || 'USD';
+  if (currency === 'USD') return 1;
+
+  // A 400, not a 500: an unconvertible currency is the caller telling us something the
+  // scenario cannot express, and the owner needs the sentence rather than a stack trace.
+  let rate;
+  try {
+    rate = await baseYearFxRate(mod.scenario_name, currency);
+  } catch (err) {
+    throw validate.badRequest(
+      `Cannot store a ${currency} amount on "${mod.scenario_name}": ${err.message}`
+    );
+  }
+  if (!Number.isFinite(rate) || rate <= 0) {
+    throw validate.badRequest(
+      `No usable base-year FX rate for ${currency} on "${mod.scenario_name}" — set the FX assumption first.`
+    );
+  }
+  return rate;
+}
+
+/** Which directions a write touches — the ones its rows are replaced for. */
+function directionsTouched(wanted, explicit) {
+  return explicit ? ['income', 'expense'] : [...new Set(wanted.map((w) => w.Direction))];
+}
+
+/** One desired stream in variant-patch shape (matches `forecastVariants.baseSchedule`). */
+function toPatchStream(st, fxRate) {
+  const num = (v) => (v === '' || v == null ? null : Number(v));
+  const amount = Math.abs(Number(st.Amount ?? st.amount) || 0);
+  return {
+    direction: st.Direction ?? st.direction,
+    fc_line_id: num(st.FcLineId ?? st.fc_line_id),
+    mode: st.Mode ?? st.mode ?? 'amount',
+    amount,
+    amount_usd: Math.abs(amount / (fxRate || 1)),
+    growth_mult: num(st.GrowthMult ?? st.growth_mult),
+    start_date: (st.StartDate ?? st.start_date) || null,
+    end_date: (st.EndDate ?? st.end_date) || null,
+    tax_rate_override: num(st.TaxRateOverride ?? st.tax_rate_override),
+    changes: (Array.isArray(st.Changes ?? st.changes) ? (st.Changes ?? st.changes) : [])
+      .filter((ch) => (ch.Date ?? ch.change_date))
+      .map((ch) => ({
+        change_date: ch.Date ?? ch.change_date,
+        amount: Number(ch.Amount ?? ch.amount) || 0,
+        flag: ch.Flag ?? ch.flag ?? 'Fixed $',
+      })),
+  };
+}
+
 async function replaceModuleStreams(id, body, client) {
   const c = client || db;
   const toNum = (v) => (v === '' || v == null ? null : Number(v));
@@ -664,41 +746,47 @@ async function replaceModuleStreams(id, body, client) {
     : ['income', 'expense'].map(fromLegacy).filter(Boolean);
   if (!explicit && wanted.length === 0) return;
 
-  // CR051 — a non-USD stream's USD twin is DERIVED here, never trusted from the client, and a
-  // currency the scenario cannot convert is REFUSED (F1). Before CR051 a PLN line silently
-  // booked its native amount as dollars — ~4x too large — and a zero rate produced Infinity.
-  // The engine fails loud on the same condition at build time; this stops the row being
-  // written at all, which is where the owner can still see why.
+  // CR050 — on a VARIANT's inherited module this is an override, not a write.
   //
-  // Resolved LAZILY — only when a non-USD amount is actually about to be stored. Doing it up
-  // front made an empty EUR draft (no streams at all) 400 on a rate it never needed, which is
-  // a scenario-setup complaint raised against a save that stores nothing.
-  const needsRate = wanted.some((w) => Math.abs(Number(w.Amount ?? w.amount) || 0) > 0);
-  let fxRate = 1;
-  if (needsRate) {
-    const mod = (await c.query(
-      `SELECT m.currency, s.name AS scenario_name
-         FROM forecast_modules m JOIN forecast_scenarios s ON s.id = m.scenario_id
-        WHERE m.id = $1`, [id]
-    )).rows[0];
-    const currency = (mod?.currency || 'USD').trim() || 'USD';
-    if (currency !== 'USD') {
-      // A 400, not a 500: an unconvertible currency is the caller telling us something the
-      // scenario cannot express, and the owner needs the sentence rather than a stack trace.
-      try {
-        fxRate = await baseYearFxRate(mod.scenario_name, currency);
-      } catch (err) {
-        throw validate.badRequest(
-          `Cannot store a ${currency} amount on "${mod.scenario_name}": ${err.message}`
-        );
-      }
-      if (!Number.isFinite(fxRate) || fxRate <= 0) {
-        throw validate.badRequest(
-          `No usable base-year FX rate for ${currency} on "${mod.scenario_name}" — set the FX assumption first.`
-        );
-      }
+  // Every sibling write path is intercepted (`repo.updateModule`, `replaceModuleSchedules`);
+  // this one was not, and streams are a `SCHEDULE_TABLES` entry, so `syncEntity` rewrites
+  // them from base-or-patch on every sync. A direct write would read back correctly and then
+  // VANISH the next time the base was touched — deferred, non-deterministic data loss, which
+  // forecastVariants' own header calls the worst failure mode the feature can have. Found by
+  // the pre-deploy security review, not by a test.
+  //
+  // A `streams` patch replaces the set WHOLESALE, so it has to carry every stream — including
+  // the directions this body never mentioned, which are read back from the row as it stands.
+  const inherited = await variants.inheritedRow('module', id);
+  if (inherited) {
+    const keep = (await c.query(
+      `SELECT * FROM forecast_streams WHERE module_id = $1
+        AND direction <> ALL($2::text[]) ORDER BY id`,
+      [id, directionsTouched(wanted, explicit)]
+    )).rows;
+    const keepPatch = [];
+    for (const st of keep) {
+      const chg = (await c.query(
+        'SELECT change_date, amount, flag FROM forecast_stream_changes WHERE stream_id = $1 ORDER BY id',
+        [st.id]
+      )).rows;
+      keepPatch.push({
+        direction: st.direction, fc_line_id: st.fc_line_id, mode: st.mode,
+        amount: st.amount, amount_usd: st.amount_usd, growth_mult: st.growth_mult,
+        start_date: st.start_date, end_date: st.end_date,
+        tax_rate_override: st.tax_rate_override, changes: chg,
+      });
     }
+    const fx = await resolveFxRate(c, id, wanted);
+    const patch = { streams: [...keepPatch, ...wanted.map((w) => toPatchStream(w, fx))] };
+    await db.transaction(async (client) => {
+      await variants.mergeEntityOverride(client, inherited.scenario_id, 'module', inherited.origin_base_id, patch);
+      await variants.syncVariant(inherited.scenario_id, { client, force: true });
+    });
+    return;
   }
+
+  const fxRate = await resolveFxRate(c, id, wanted);
 
   const directions = explicit
     ? ['income', 'expense']
@@ -709,12 +797,21 @@ async function replaceModuleStreams(id, body, client) {
       'DELETE FROM forecast_streams WHERE module_id = $1 AND direction = $2', [id, direction]
     );
     for (const st of wanted.filter((w) => (w.Direction || w.direction) === direction)) {
-      // A stream with neither a line nor an amount describes nothing — skip it rather than
-      // storing a row the engine will read as zero forever.
       const amount = Math.abs(Number(st.Amount ?? st.amount) || 0);
       const fcLineId = toNum(st.FcLineId ?? st.fc_line_id);
       const changes = Array.isArray(st.Changes ?? st.changes) ? (st.Changes ?? st.changes) : [];
-      if (!fcLineId && amount === 0 && changes.length === 0) continue;
+      const window = (st.StartDate ?? st.start_date) || (st.EndDate ?? st.end_date);
+      const tax = toNum(st.TaxRateOverride ?? st.tax_rate_override);
+      const growth = toNum(st.GrowthMult ?? st.growth_mult);
+
+      // A stream that carries NOTHING AT ALL is skipped rather than stored as a row the engine
+      // will read as zero forever. But "nothing" means nothing — the first version of this
+      // tested only the line and the amount, and so DISCARDED a stream carrying just a window
+      // or just a tax override. The owner typed a value, got a 200, and found it empty on
+      // reopen: the CR043 N10 defect class, caught by the e2e "value must survive a reopen"
+      // spec setting an income start year on a module with no income line.
+      if (!fcLineId && amount === 0 && changes.length === 0
+          && !window && tax == null && growth == null) continue;
 
       const ins = await c.query(`
         INSERT INTO forecast_streams (
@@ -742,4 +839,71 @@ async function replaceModuleStreams(id, body, client) {
       }
     }
   }
+}
+
+/**
+ * CR069 P2 — project a module's streams BACK onto the legacy PascalCase fields.
+ *
+ * The other half of the expand→migrate→contract bridge. `replaceModuleStreams` translates the
+ * Modules editor's per-direction fields INTO streams on write; without this the READ still
+ * came from the module's own income_ and expense_ columns, which nothing writes any more — so a
+ * saved income window or tax override returned 200 and read back EMPTY on reopen.
+ *
+ * That is precisely the CR043 N10 defect class ("the value must survive a reopen"), and the
+ * e2e suite caught it before this reached production. The columns are dropped in P3 along with
+ * this function, once the form renders stream cards directly.
+ */
+function projectStreamsToLegacyFields(streams) {
+  const out = {
+    ExpenseAmount: 0, ExpenseFcLineId: null, ExpenseGrowthMethod: 'inflation',
+    ExpenseStartDate: null, ExpenseEndDate: null,
+    IncomeAmount: 0, IncomeFcLineId: null, IncomeGrowth: null,
+    IncomeStartDate: null, IncomeEndDate: null, IncomeTaxRateOverride: null,
+    IncomePct: [], IncomeSteps: [],
+  };
+  for (const s of streams || []) {
+    const amount = Number(s.amount) || 0;
+    if (s.direction === 'expense') {
+      // A loan's interest is DERIVED and its amount is structurally 0 — surfacing it as an
+      // Expense Amount would invite the owner to edit a number the engine never reads.
+      if (s.mode !== 'derived') out.ExpenseAmount = amount;
+      out.ExpenseFcLineId = s.fc_line_id ?? null;
+      out.ExpenseGrowthMethod = s.mode === 'pct_of_value' ? 'pct_of_value' : 'inflation';
+      out.ExpenseStartDate = s.start_date ?? null;
+      out.ExpenseEndDate = s.end_date ?? null;
+    } else if (s.direction === 'income') {
+      out.IncomeAmount = amount;
+      out.IncomeFcLineId = s.fc_line_id ?? null;
+      out.IncomeGrowth = s.growth_mult != null ? parseFloat(s.growth_mult) : null;
+      out.IncomeStartDate = s.start_date ?? null;
+      out.IncomeEndDate = s.end_date ?? null;
+      out.IncomeTaxRateOverride = s.tax_rate_override != null ? parseFloat(s.tax_rate_override) : null;
+      for (const c of s.changes || []) {
+        if (c.flag === 'Spread %') {
+          out.IncomePct.push({ Date: c.change_date, Value: parseFloat(c.amount) || 0 });
+        } else if (c.flag === 'Fixed $') {
+          out.IncomeSteps.push({ Date: c.change_date, Amount: parseFloat(c.amount) || 0 });
+        }
+      }
+    }
+  }
+  return out;
+}
+
+/** A module's streams with their change rows, ordered — for the read path. */
+async function loadModuleStreams(moduleId, client = db) {
+  const streams = (await client.query(
+    'SELECT * FROM forecast_streams WHERE module_id = $1 ORDER BY direction, id', [moduleId]
+  )).rows;
+  if (!streams.length) return [];
+  const changes = (await client.query(
+    'SELECT * FROM forecast_stream_changes WHERE stream_id = ANY($1) ORDER BY change_date',
+    [streams.map((s) => s.id)]
+  )).rows;
+  const byStream = new Map();
+  for (const c of changes) {
+    if (!byStream.has(c.stream_id)) byStream.set(c.stream_id, []);
+    byStream.get(c.stream_id).push(c);
+  }
+  return streams.map((s) => ({ ...s, changes: byStream.get(s.id) || [] }));
 }

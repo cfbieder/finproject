@@ -44,8 +44,7 @@ When you recommend specific numeric changes to the plan, include machine-readabl
 \`\`\`
 
 Supported action types and fields:
-- update_module: growth_rate, income_amount, expense_amount, tax_rate_override
-- update_incexp: base_value, growth_rate
+- update_module: growth_rate, tax_rate_override
 - update_scenario: cash_sweep_low, cash_sweep_high
 
 Always include current_value and proposed_value so the user can see the before/after.`;
@@ -102,8 +101,11 @@ async function buildForecastContext(scenarioName) {
     mod.disposals = disposals.rows;
   }
 
-  // 3. Income/Expense items
-  const incexp = await forecastRepo.findIncExpByScenario(scenario.id);
+  // 3. Income/Expense items — CR069 P2: they ARE modules now (has_valuation = false, one
+  // stream), so they already arrive in the module list above. Reading the retired table too
+  // sent every item to the LLM gateway TWICE, which is wasted context and an invitation for
+  // the model to reconcile two copies of the same figure.
+  const incexp = [];
 
   // 4. Forecast entries (generated output) — aggregated per (year, account, module-tag)
   // We need both the raw flows AND a separate breakdown for BS year-end MV vs cash sweep
@@ -602,8 +604,14 @@ async function getReviewStatus(reviewId) {
 async function applyAction(action) {
   const { type, module_id, field, proposed_value } = action;
 
-  const allowedModuleFields = ["growth_rate", "income_amount", "expense_amount", "tax_rate_override"];
-  const allowedIncExpFields = ["base_value", "growth_rate"];
+  // CR069 P2 — `income_amount` and `expense_amount` are RETIRED columns: the money moved to
+  // `forecast_streams` and the engine no longer reads them. Leaving them applicable would
+  // give the owner a one-click "apply" that writes a dead column and reports success — the
+  // accepted-stored-silently-ignored class the four 410 routes exist to prevent, on the one
+  // path that is RECOMMENDED BY AN LLM. `update_incexp` goes for the same reason: its table
+  // stopped being read in this deploy. Editing a stream through AI Review needs the stream
+  // shape and a variant-safe write; it is P3 scope, and refusing is the honest interim.
+  const allowedModuleFields = ["growth_rate", "tax_rate_override"];
   const allowedScenarioFields = ["cash_sweep_low", "cash_sweep_high"];
 
   if (type === "update_module") {
@@ -614,10 +622,11 @@ async function applyAction(action) {
   }
 
   if (type === "update_incexp") {
-    if (!allowedIncExpFields.includes(field)) throw new Error(`Field "${field}" not allowed for auto-apply`);
-    const updated = await forecastRepo.updateIncExp(action.incexp_id, { [field]: proposed_value });
-    if (!updated) throw new Error("Income/expense item not found");
-    return { success: true, entity: "incexp", id: action.incexp_id, field, value: proposed_value };
+    // CR069 P2 — refused rather than silently applied to a table nothing reads.
+    throw new Error(
+      'Income/expense items are now modules with streams (CR069 P2) — this recommendation ' +
+      'cannot be auto-applied. Edit the module on the Forecast Modules page.'
+    );
   }
 
   if (type === "update_scenario") {
