@@ -560,6 +560,48 @@ dbDescribe('forecastVariants (DB)', () => {
     expect(await amountOf(vItem.id)).toBe(90000);   // reverts to inherit
   });
 
+  test('a stream override differing ONLY in its change rows survives the prune', async () => {
+    // CR069 P2 — the nested half of the two-level schedule. `pruneOverride` deletes any
+    // override key that equals base, and `scheduleEqualsBase` originally compared only the
+    // PARENT columns — so an override that changed a stream's schedule and nothing else read
+    // as identical to base and was pruned on the next sync. Dev's `2026 Upside` lost United
+    // Beverages' yield spread exactly this way, with no error: the forecast simply used the
+    // base's number. Every column here matches base deliberately; only the changes differ.
+    const vItem = (await db.query(
+      'SELECT id FROM forecast_modules WHERE scenario_id = $1 AND origin_base_id = $2',
+      [variantId, baseItem]
+    )).rows[0];
+
+    await variants.mergeEntityOverride(db, variantId, 'module', baseItem, {
+      streams: await variants.buildStreamsPatch(db, baseItem, (r) => ({
+        ...r,
+        changes: [{ change_date: '2035-07-01', amount: -99999, flag: 'Fixed $' }],
+      })),
+    });
+
+    // It must still be there after a sync, and the variant must carry the overridden row.
+    await variants.syncVariant(variantId, { force: true });
+    const overrides = await variants.listOverrides(variantId);
+    expect(overrides.some((o) => Number(o.base_entity_id) === Number(baseItem))).toBe(true);
+
+    const chg = (await db.query(
+      `SELECT c.amount FROM forecast_stream_changes c
+         JOIN forecast_streams st ON st.id = c.stream_id
+        WHERE st.module_id = $1`, [vItem.id]
+    )).rows;
+    expect(chg).toHaveLength(1);
+    expect(Number(chg[0].amount)).toBe(-99999);
+
+    await variants.clearOverride(variantId, 'module', baseItem);
+    await variants.syncVariant(variantId, { force: true });
+    const reverted = (await db.query(
+      `SELECT c.amount FROM forecast_stream_changes c
+         JOIN forecast_streams st ON st.id = c.stream_id
+        WHERE st.module_id = $1`, [vItem.id]
+    )).rows;
+    expect(Number(reverted[0].amount)).toBe(-10000);   // back to the base's schedule
+  });
+
   test('CR051 — currency is an ordinary overridable field (variant PLN, base stays USD, reverts)', async () => {
     const vItem = (await db.query(
       'SELECT id FROM forecast_modules WHERE scenario_id = $1 AND origin_base_id = $2',

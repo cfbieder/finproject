@@ -474,7 +474,22 @@ async function syncEntity(c, { variantId, baseId, entityType, overrides }) {
     const row = { ...baseRow };
     for (const [key, value] of Object.entries(patch)) {
       if (scheduleKeys.includes(key)) continue; // handled below
-      if (cols.includes(key)) row[key] = value;
+      // CR069 P2 — an unknown patch key FAILS LOUD. It used to be dropped by the bare
+      // `if (cols.includes(key))`, which meant an override naming a field that had moved
+      // applied cleanly to nothing: the UI still listed it, the owner still believed it, and
+      // the numbers quietly came from the base. That is exactly what happened when this CR
+      // retired `income_pct` as a schedule key — dev's `2026 Upside` lost United Beverages'
+      // yield override and 504 rows moved, with no error anywhere (migration 059).
+      // A patch is a promise about a field; a field that no longer exists must break the
+      // sync, not the forecast.
+      if (!cols.includes(key)) {
+        throw new Error(
+          `Override on ${entityType} ${baseRow.id} names '${key}', which is neither a column ` +
+          `of ${table} nor one of its schedules (${scheduleKeys.join(', ')}). A migration that ` +
+          `moves a field must translate the overrides that name it.`
+        );
+      }
+      row[key] = value;
     }
     resolved.push({ baseId: baseRow.id, row, patch, explicit: new Set(Object.keys(patch)) });
   }
@@ -752,11 +767,29 @@ async function quantizeSchedule(c, key, list) {
 
 async function scheduleEqualsBase(c, key, baseRowId, list) {
   const baseList = await baseSchedule(c, key, baseRowId);
-  const { table, cols } = SCHEDULE_TABLES[key];
+  const { table, cols, nested } = SCHEDULE_TABLES[key];
   if (!scaleCache.has(table)) await loadCatalog(c, table);
+  if (nested && !scaleCache.has(nested.table)) await loadCatalog(c, nested.table);
   if (baseList.length !== (list || []).length) return false;
+
+  // CR069 P2 — the NESTED rows are part of the comparison, and leaving them out is not a
+  // near-miss: `pruneOverride` deletes any override key that equals base, so a stream
+  // override differing ONLY in its change schedule read as identical and was pruned on the
+  // next sync. Dev's `2026 Upside` lost United Beverages' yield spread that way — twice —
+  // while every parent column matched. Nothing errored; the numbers just came from the base.
+  const kidsEqual = (b, v) => {
+    if (!nested) return true;
+    const bk = b[nested.key] || [];
+    const vk = v[nested.key] || [];
+    if (bk.length !== vk.length) return false;
+    return bk.every((bx, j) => nested.cols.every((col) =>
+      valuesEqual(quantize(nested.table, col, bx[col]), quantize(nested.table, col, vk[j][col]))
+    ));
+  };
+
   return baseList.every((b, i) =>
     cols.every((col) => valuesEqual(quantize(table, col, b[col]), quantize(table, col, list[i][col])))
+    && kidsEqual(b, list[i])
   );
 }
 
