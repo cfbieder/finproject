@@ -1,10 +1,18 @@
+/**
+ * A confirm-before-delete dialog for the Forecast setup pages.
+ *
+ * CR069 P3 — renamed from `FCExpConfirmDeleteModal` when the Expenditures page was
+ * deleted. It was never Expenditures-specific: FCModuleManage has used it for all three of
+ * its delete confirms since long before this CR, so deleting it with the page it was named
+ * after would have taken the Modules page with it. The old name simply recorded where it
+ * happened to be written first.
+ */
 import Modal from "../../components/Modal/Modal.jsx";
 import "./FCModulesEdit.css";
-import "./FCExpModal.css";
-import "./FCExpDeleteModal.css";
+import "./FCConfirmDeleteModal.css";
 
 /**
- * FCExpConfirmDeleteModal - Confirmation dialog for deleting income/expense entries
+ * FCConfirmDeleteModal - Confirmation dialog for deleting income/expense entries
  *
  * Displays a modal dialog asking the user to confirm deletion of a forecast entry.
  * Shows the entry name/account being deleted and handles the deletion process.
@@ -19,7 +27,7 @@ import "./FCExpDeleteModal.css";
  * @param {Function} props.onConfirm - Callback to confirm deletion
  * @returns {JSX.Element|null} The delete confirmation modal or null if not open
  */
-export default function FCExpConfirmDeleteModal({
+export default function FCConfirmDeleteModal({
   isOpen,
   selectedEntry,
   error,

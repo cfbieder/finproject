@@ -9,7 +9,8 @@
  * unmatched posted $390,000 to the balance sheet, and `fcbuilder-module.js` derived
  * the module's own FX from the ratio it stored, so the implied rate was 1.0 too.
  *
- * The engine (`fcbuilder-setup.js`) and FCExpSetup both already read `PLN ?? USDPLN`.
+ * The engine (`fcbuilder-setup.js`) already reads `PLN ?? USDPLN`. (The third reader CR064
+ * P0 found, FCExpSetup, was deleted by CR069 P3 along with the page.)
  * This module is the third reader, and now agrees with them.
  */
 

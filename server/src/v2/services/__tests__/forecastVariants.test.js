@@ -71,12 +71,11 @@ dbDescribe('forecastVariants (DB)', () => {
 
     const modA = await db.query(
       `INSERT INTO forecast_modules
-         (scenario_id, name, module_type, currency, base_date, base_value, market_value,
-          base_value_usd, market_value_usd, growth_rate, income_amount, expense_amount,
-          setup_status, cash_sweep_priority, cash_sweep_target, tax_rate_override,
-          income_tax_rate_override, income_start_date)
-       VALUES ($1, 'Fixture Stocks', 'asset', 'USD', '2025-12-31', 500000, 600000, 500000, 600000,
-               4.0, 12000, 500, 'ready', 1, TRUE, 22.5, 3.0, '2030-07-01')
+         (has_valuation, scenario_id, name, module_type, currency, base_date, base_value, market_value,
+          base_value_usd, market_value_usd, growth_rate,
+          setup_status, cash_sweep_priority, cash_sweep_target, tax_rate_override)
+       VALUES (TRUE, $1, 'Fixture Stocks', 'asset', 'USD', '2025-12-31', 500000, 600000, 500000, 600000,
+               4.0, 'ready', 1, TRUE, 22.5)
        RETURNING id`,
       [baseId]
     );
@@ -84,9 +83,9 @@ dbDescribe('forecastVariants (DB)', () => {
 
     const modB = await db.query(
       `INSERT INTO forecast_modules
-         (scenario_id, name, module_type, currency, base_date, base_value, market_value,
+         (has_valuation, scenario_id, name, module_type, currency, base_date, base_value, market_value,
           base_value_usd, market_value_usd, growth_rate, setup_status, cash_sweep_priority)
-       VALUES ($1, 'Fixture House', 'asset', 'PLN', '2025-12-31', 300000, 300000, 75000, 75000,
+       VALUES (TRUE, $1, 'Fixture House', 'asset', 'PLN', '2025-12-31', 300000, 300000, 75000, 75000,
                2.0, 'ready', 2)
        RETURNING id`,
       [baseId]
@@ -172,8 +171,11 @@ dbDescribe('forecastVariants (DB)', () => {
     // pass vacuously — which is exactly how CR045 §1 and CR048 shipped.
     const cols = await syncableColumns('forecast_modules');
     expect(cols).toEqual(expect.arrayContaining([
-      'cash_sweep_priority', 'cash_sweep_target', 'income_tax_rate_override',
-      'tax_rate_override', 'income_start_date', 'setup_status',
+      // CR069 P3 — the income_/expense_ columns are gone; what this canary guards is that
+      // syncableColumns still SEES the ones that remain, which is the property CR045 §1 and
+      // CR048 both broke by hand-listing instead.
+      'cash_sweep_priority', 'cash_sweep_target', 'has_valuation',
+      'tax_rate_override', 'setup_status',
     ]));
   });
 
@@ -217,13 +219,16 @@ dbDescribe('forecastVariants (DB)', () => {
     const baseAfter = (await db.query('SELECT * FROM forecast_modules WHERE id = $1', [baseModA])).rows[0];
     expect(Number(baseAfter.growth_rate)).toBe(4);
 
-    // Now change a DIFFERENT field in the base.
-    await repo.updateModule(baseModA, { income_amount: 15000 });
+    // Now change a DIFFERENT field in the base — the whole point is that an override on one
+    // field must not freeze the row.
+    // `comment` deliberately: every numeric column on this fixture is asserted by another
+    // test in this file, and a base edit here would leak into it. Test isolation is the point.
+    await repo.updateModule(baseModA, { comment: 'CR069 base edit' });
     await variants.syncVariant(variantId, { force: true });
 
     const after = (await db.query('SELECT * FROM forecast_modules WHERE id = $1', [vMod.id])).rows[0];
-    expect(Number(after.growth_rate)).toBe(1);      // pinned by the override
-    expect(Number(after.income_amount)).toBe(15000); // inherited from the base
+    expect(Number(after.growth_rate)).toBe(1);              // pinned by the override
+    expect(after.comment).toBe('CR069 base edit');          // still inherited from the base
   });
 
   test('reverting a field restores the base value; re-typing the base value drops the override', async () => {
@@ -351,9 +356,9 @@ dbDescribe('forecastVariants (DB)', () => {
 
   test('a variant-local row survives sync, and the base never sees it', async () => {
     const local = await db.query(
-      `INSERT INTO forecast_modules (scenario_id, name, module_type, currency, base_date,
+      `INSERT INTO forecast_modules (has_valuation, scenario_id, name, module_type, currency, base_date,
          base_value, market_value, base_value_usd, market_value_usd, growth_rate, setup_status)
-       VALUES ($1, 'Fixture Downside-Only', 'asset', 'USD', '2025-12-31', 1, 1, 1, 1, 0, 'ready')
+       VALUES (TRUE, $1, 'Fixture Downside-Only', 'asset', 'USD', '2025-12-31', 1, 1, 1, 1, 0, 'ready')
        RETURNING id`,
       [variantId]
     );
@@ -473,9 +478,9 @@ dbDescribe('forecastVariants (DB)', () => {
 
   test('a new module in the base flows into the variant', async () => {
     const added = await db.query(
-      `INSERT INTO forecast_modules (scenario_id, name, module_type, currency, base_date,
+      `INSERT INTO forecast_modules (has_valuation, scenario_id, name, module_type, currency, base_date,
          base_value, market_value, base_value_usd, market_value_usd, growth_rate, setup_status)
-       VALUES ($1, 'Fixture Late Arrival', 'asset', 'USD', '2025-12-31', 10, 10, 10, 10, 1, 'ready')
+       VALUES (TRUE, $1, 'Fixture Late Arrival', 'asset', 'USD', '2025-12-31', 10, 10, 10, 10, 1, 'ready')
        RETURNING id`,
       [baseId]
     );
@@ -639,9 +644,9 @@ dbDescribe('forecastVariants (DB)', () => {
     let baseLoan;
 
     const insertAsset = async (scenarioId, name) => (await db.query(
-      `INSERT INTO forecast_modules (scenario_id, name, module_type, currency, base_date,
+      `INSERT INTO forecast_modules (has_valuation, scenario_id, name, module_type, currency, base_date,
          base_value, market_value, base_value_usd, market_value_usd, growth_rate, setup_status)
-       VALUES ($1, $2, 'asset', 'USD', '2025-12-31', 100, 100, 100, 100, 0, 'ready')
+       VALUES (TRUE, $1, $2, 'asset', 'USD', '2025-12-31', 100, 100, 100, 100, 0, 'ready')
        RETURNING id`,
       [scenarioId, name]
     )).rows[0].id;
@@ -654,10 +659,10 @@ dbDescribe('forecastVariants (DB)', () => {
     beforeAll(async () => {
       baseAsset = await insertAsset(baseId, 'Fixture Secured House');
       baseLoan = (await db.query(
-        `INSERT INTO forecast_modules (scenario_id, name, module_type, currency, base_date,
+        `INSERT INTO forecast_modules (has_valuation, scenario_id, name, module_type, currency, base_date,
            base_value, market_value, base_value_usd, market_value_usd, growth_rate, setup_status,
            loan_interest_rate, loan_principal, secured_asset_module_id)
-         VALUES ($1, 'Fixture Mortgage', 'Loan', 'USD', '2025-12-31', -80, -80, -80, -80, 0,
+         VALUES (TRUE, $1, 'Fixture Mortgage', 'Loan', 'USD', '2025-12-31', -80, -80, -80, -80, 0,
                  'ready', 6.0, 80, $2)
          RETURNING id`,
         [baseId, baseAsset]
@@ -779,9 +784,9 @@ dbDescribe('forecastVariants (DB)', () => {
     expect(frozen.origin_base_id).toBeNull();
 
     // A base change no longer reaches it.
-    await repo.updateModule(baseModA, { income_amount: 77777 });
-    const after = (await db.query('SELECT income_amount FROM forecast_modules WHERE id = $1', [vMod.id])).rows[0];
-    expect(Number(after.income_amount)).not.toBe(77777);
+    await repo.updateModule(baseModA, { growth_rate: 7 });
+    const after = (await db.query('SELECT growth_rate FROM forecast_modules WHERE id = $1', [vMod.id])).rows[0];
+    expect(Number(after.growth_rate)).not.toBe(7);
   });
 });
 

@@ -195,11 +195,11 @@ WHERE NOT EXISTS (SELECT 1 FROM forecast_assumptions f WHERE f.key = v.k);
 INSERT INTO forecast_modules
   (scenario_id, account_id, name, module_type, currency, base_date, base_value, base_value_usd,
    market_value, market_value_usd, growth_rate, is_matched, setup_status,
-   cash_sweep_target, cash_sweep_priority)
+   cash_sweep_target, cash_sweep_priority, has_valuation)
 SELECT (SELECT id FROM forecast_scenarios WHERE name = 'E2E Scenario'),
        (SELECT id FROM accounts WHERE name = 'Brokerage'),
        'E2E Brokerage', 'Equity', 'USD', '2025-12-31', 100000, 100000, 100000, 100000, 5,
-       TRUE, 'complete', TRUE, 1
+       TRUE, 'complete', TRUE, 1, TRUE
 WHERE NOT EXISTS (SELECT 1 FROM forecast_modules WHERE name = 'E2E Brokerage');
 
 -- THE BUG SHAPE (v3.0.98). A module carrying a **Periodic** invest transfer that spans
@@ -208,11 +208,11 @@ WHERE NOT EXISTS (SELECT 1 FROM forecast_modules WHERE name = 'E2E Brokerage');
 -- clicks a MIDDLE year of this range fails on the pre-fix code.
 INSERT INTO forecast_modules
   (scenario_id, account_id, name, module_type, currency, base_date, base_value, base_value_usd,
-   market_value, market_value_usd, growth_rate, is_matched, setup_status)
+   market_value, market_value_usd, growth_rate, is_matched, setup_status, has_valuation)
 SELECT (SELECT id FROM forecast_scenarios WHERE name = 'E2E Scenario'),
        (SELECT id FROM accounts WHERE name = 'Checking'),
        'E2E Periodic', 'Equity', 'USD', '2025-12-31', 10000, 10000, 10000, 10000, 0, TRUE,
-       'complete'
+       'complete', TRUE
 WHERE NOT EXISTS (SELECT 1 FROM forecast_modules WHERE name = 'E2E Periodic');
 
 INSERT INTO forecast_module_investments (module_id, investment_date, amount, flag, date_end)

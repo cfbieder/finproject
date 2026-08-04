@@ -69,7 +69,7 @@ dbDescribe('CR064 — a module needs an account or a name (DB)', () => {
     MarketValueUSD: 0,
     Invest: [],
     Dispose: [],
-    IncomePct: [],
+    Streams: [],
   });
 
   test('refuses the empty draft that Generate used to write', async () => {

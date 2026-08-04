@@ -23,24 +23,13 @@ export const FIELD_SECTIONS = [
   // the same half-year convention the engine already uses for an acquisition year and a
   // Full disposal. Ownership still wins: an asset bought in 2035 pays nothing before then,
   // whatever the start year says.
-  ["Expenses", [
-    ["Expense Line", "ExpenseFcLineId", "fc-line-expense"],
-    ["Expense Amount (Base Yr)", "ExpenseAmount", "number"],
-    ["Expense Growth", "ExpenseGrowthMethod", "growth-method"],
-    ["Expense Start Year (blank = base yr)", "ExpenseStartDate", "year"],
-    ["Expense End Year (blank = horizon)", "ExpenseEndDate", "year"],
-  ]],
-  ["Income", [
-    ["Income Line", "IncomeFcLineId", "fc-line-income"],
-    ["Income Amount (Base Yr)", "IncomeAmount", "number"],
-    // CR064 P6 — a multiplier of inflation, read exactly like the module's `Growth`
-    // above: 1 (or blank) = inflation, 0 = flat in nominal terms, 2 = twice inflation.
-    // Before this, amount-based income grew at inflation and nothing else, so a
-    // business could not say its profit grows faster or slower than prices.
-    ["Income Growth (x Inflation)", "IncomeGrowth", "number"],
-    ["Income Start Year (blank = base yr)", "IncomeStartDate", "year"],
-    ["Income End Year (blank = horizon)", "IncomeEndDate", "year"],
-  ]],
+  // CR069 P3 — the "Expenses" and "Income" SECTIONS are gone. They rendered COLUMNS that
+  // existed on every module whether or not it had that flow, and `fcModulePayload` sent all of
+  // them on every save — so hiding one never cleared it, which is the whole reason CR064 §5
+  // refused to gate this form on module type. A stream is a ROW: `FCModulesStreams` renders
+  // one card per stream and removing the card removes the row, so there is nothing left to go
+  // stale. The CR046 window, the CR047 income tax override and the CR064 P6 growth multiplier
+  // all moved onto the card with the stream that owns them.
   // CR047: two taxes, two rates.
   //  - "Full" (TaxRateOverride, migration 010) overrides EVERYTHING on the module: the gain
   //    on disposal AND the recurring income. Blank ⇒ the scenario rate.
@@ -51,8 +40,11 @@ export const FIELD_SECTIONS = [
   //    of the business is still an ordinary capital gain at the full rate.
   // Blank on either = fall back (no change). 0 is a real rate, not "unset".
   ["Tax", [
-    ["Full Tax Override (%) — gains + income", "TaxRateOverride", "number"],
-    ["Recurring Income Tax Override (%) — income only", "IncomeTaxRateOverride", "number"],
+    // CR069 P3 — only the GAINS rate lives on the module now: a capital gain belongs to the
+    // valuation. The recurring-income override belongs to the income stream and is edited on
+    // its card, which is also what makes it possible to have two income streams taxed
+    // differently — something a single module column could never express.
+    ["Capital Gains Tax Override (%)", "TaxRateOverride", "number"],
   ]],
 ];
 
@@ -77,7 +69,6 @@ export const LOAN_FIELD_SECTIONS = [
     ["Year Taken (July 1)", "LoanStartDate", "year"],
     ["Interest Rate (%)", "LoanInterestRate", "number"],
     ["End Year — repays the remainder", "LoanEndDate", "year"],
-    ["Interest Line", "ExpenseFcLineId", "fc-line-expense"],
     ["Outstanding Today (negative)", "MarketValue", "number"],
     ["Outstanding Today (USD)", "MarketValueUSD", "number"],
     // CR062 P2 — which asset this debt is secured on. ANY module qualifies, not
@@ -87,8 +78,7 @@ export const LOAN_FIELD_SECTIONS = [
     ["Secured Against", "SecuredAssetModuleId", "secured-asset"],
   ]],
   ["Tax", [
-    ["Full Tax Override (%) — gains + income", "TaxRateOverride", "number"],
-    ["Recurring Income Tax Override (%) — income only", "IncomeTaxRateOverride", "number"],
+    ["Capital Gains Tax Override (%)", "TaxRateOverride", "number"],
   ]],
 ];
 

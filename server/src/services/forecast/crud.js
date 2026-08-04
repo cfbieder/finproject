@@ -156,36 +156,9 @@ async function replaceModuleSchedules(id, body) {
       }
     }
 
-    if (Array.isArray(body.IncomePct)) {
-      await client.query('DELETE FROM forecast_module_income_pct WHERE module_id = $1', [id]);
-      for (const pct of body.IncomePct) {
-        if (pct.Date) {
-          await repo.setIncomePct(id, {
-            effective_date: pct.Date,
-            value: pct.Amount ?? pct.Value ?? 0,
-          }, client);
-        }
-      }
-    }
-
-    // CR064 P6 — permanent step changes to amount-based income ("2027: +10,000").
-    // Same replace-wholesale shape as the three above, for the same reason: the table
-    // has no key to merge on.
-    if (Array.isArray(body.IncomeSteps)) {
-      await client.query('DELETE FROM forecast_module_income_steps WHERE module_id = $1', [id]);
-      for (const step of body.IncomeSteps) {
-        if (step.Date) {
-          await repo.setIncomeStep(id, {
-            effective_date: step.Date,
-            amount: step.Amount ?? 0,
-          }, client);
-        }
-      }
-    }
-
-    // CR062 — the loan's principal schedule. Same replace-wholesale shape as the
-    // three above: the table has no key to merge on, and a partial write would
-    // leave a schedule that sums to something nobody chose.
+    // CR062 — a loan's principal schedule, as a % of the original amount per year. Same
+    // replace-wholesale shape as the two above, for the same reason: the table has no key to
+    // merge on, so a partial write would leave a schedule that is neither the old nor the new.
     if (Array.isArray(body.Amortization)) {
       await client.query('DELETE FROM forecast_module_amortization WHERE module_id = $1', [id]);
       for (const row of body.Amortization) {
@@ -197,6 +170,10 @@ async function replaceModuleSchedules(id, body) {
         }
       }
     }
+
+    // CR069 P3 — IncomePct and IncomeSteps are NOT here: they are `Spread %` and `Fixed $`
+    // rows on a stream, written by `replaceModuleStreams`. What remains is the balance path's
+    // own schedules, which belong to the valuation and never moved.
   });
 }
 
@@ -258,56 +235,7 @@ async function clearForLoanRetype(id) {
   return before;
 }
 
-/**
- * Resolve an income/expense item's account from its FC Line when no explicit
- * account was given: prefer an account whose name matches the line name, else
- * fall back to any account assigned to the line. Returns an account id or null.
- */
-async function resolveIncExpAccountFromFcLine(fcLineId) {
-  // Try to find an account whose name matches the FC Line name (most common case)
-  const fcLineResult = await db.query('SELECT name FROM fc_lines WHERE id = $1', [fcLineId]);
-  if (fcLineResult.rows.length > 0) {
-    const matchingAccount = await db.query(
-      'SELECT id FROM accounts WHERE name = $1 AND section = $2 LIMIT 1',
-      [fcLineResult.rows[0].name, 'profit_loss']
-    );
-    if (matchingAccount.rows.length > 0) {
-      return matchingAccount.rows[0].id;
-    }
-  }
-  // Fallback: pick any account assigned to this FC Line.
-  // After migration 021, fc_line_categories.category_id IS the account id.
-  const lineAccount = await db.query(`
-    SELECT flc.category_id AS account_id
-    FROM fc_line_categories flc
-    WHERE flc.fc_line_id = $1
-    LIMIT 1
-  `, [fcLineId]);
-  if (lineAccount.rows.length > 0) {
-    return lineAccount.rows[0].account_id;
-  }
-  return null;
-}
 
-/**
- * Replace an income/expense item's changes: delete existing rows then re-add
- * the provided ones (mirrors the route's previous non-transactional behavior).
- */
-async function replaceIncExpChanges(id, changes) {
-  const intercepted = await variants.interceptSchedules('incexp', id, changes); // CR050
-  if (intercepted.intercepted) return;
-
-  await db.query('DELETE FROM forecast_incexp_changes WHERE incexp_id = $1', [id]);
-  for (const change of changes) {
-    if (change.Date || change.Amount !== undefined) {
-      await repo.addIncExpChange(id, {
-        change_date: change.Date,
-        amount: change.Amount,
-        flag: change.Flag || '',
-      });
-    }
-  }
-}
 
 /**
  * Build the balance-sheet account tree with year-end aggregated balances for
@@ -614,12 +542,9 @@ module.exports = {
   clearOtherCashSweepTargets,
   replaceModuleSchedules,
   replaceModuleStreams,
-  projectStreamsToLegacyFields,
   loadModuleStreams,
   previewLoanRetype,
   clearForLoanRetype,
-  resolveIncExpAccountFromFcLine,
-  replaceIncExpChanges,
   buildAddFromActualsTree,
   getBaseYearValues,
 };
@@ -680,8 +605,10 @@ async function resolveFxRate(c, moduleId, wanted) {
 }
 
 /** Which directions a write touches — the ones its rows are replaced for. */
-function directionsTouched(wanted, explicit) {
-  return explicit ? ['income', 'expense'] : [...new Set(wanted.map((w) => w.Direction))];
+function directionsTouched() {
+  // A `Streams` write is the WHOLE set, so both directions are replaced. There is no partial
+  // form any more — the cards render every stream the module has.
+  return ['income', 'expense'];
 }
 
 /** One desired stream in variant-patch shape (matches `forecastVariants.baseSchedule`). */
@@ -712,46 +639,10 @@ async function replaceModuleStreams(id, body, client) {
   const c = client || db;
   const toNum = (v) => (v === '' || v == null ? null : Number(v));
 
-  /** Legacy body → one stream per direction, or null when the body says nothing about it. */
-  const fromLegacy = (direction) => {
-    const p = direction === 'income' ? 'Income' : 'Expense';
-    const keys = [`${p}Amount`, `${p}FcLineId`, `${p}StartDate`, `${p}EndDate`,
-      ...(direction === 'income' ? ['IncomeGrowth', 'IncomeSteps', 'IncomePct', 'IncomeTaxRateOverride'] : ['ExpenseGrowthMethod'])];
-    if (!keys.some((k) => body[k] !== undefined)) return null;
-
-    const changes = [];
-    for (const st of (Array.isArray(body.IncomeSteps) && direction === 'income' ? body.IncomeSteps : [])) {
-      if (st?.Date) changes.push({ Date: st.Date, Amount: st.Amount ?? 0, Flag: 'Fixed $' });
-    }
-    for (const pc of (Array.isArray(body.IncomePct) && direction === 'income' ? body.IncomePct : [])) {
-      if (pc?.Date) changes.push({ Date: pc.Date, Amount: pc.Amount ?? pc.Value ?? 0, Flag: 'Spread %' });
-    }
-    // A yield schedule REPLACES the amount (CR003's deposit rate), which is why the presence
-    // of any Spread % row is what selects the mode — the same `hasIncomePct` precedence the
-    // engine used, now structural.
-    const hasSpread = changes.some((ch) => ch.Flag === 'Spread %');
-    const isLoan = body.LoanInterestRate != null;
-    return {
-      Direction: direction,
-      FcLineId: toNum(body[`${p}FcLineId`]),
-      Mode: isLoan && direction === 'expense' ? 'derived'
-        : hasSpread ? 'yield'
-          : (direction === 'expense' && body.ExpenseGrowthMethod === 'pct_of_value') ? 'pct_of_value'
-            : 'amount',
-      Amount: Math.abs(Number(body[`${p}Amount`]) || 0),
-      GrowthMult: direction === 'income' ? toNum(body.IncomeGrowth) : null,
-      StartDate: body[`${p}StartDate`] || null,
-      EndDate: body[`${p}EndDate`] || null,
-      TaxRateOverride: direction === 'income' ? toNum(body.IncomeTaxRateOverride) : null,
-      Changes: changes,
-    };
-  };
-
-  const explicit = Array.isArray(body.Streams) ? body.Streams : null;
-  const wanted = explicit
-    ? explicit
-    : ['income', 'expense'].map(fromLegacy).filter(Boolean);
-  if (!explicit && wanted.length === 0) return;
+  // CR069 P3 — one shape. The legacy per-direction translation retired with the columns; the
+  // editor sends `Streams` and nothing else does. A body that mentions no streams touches none.
+  if (!Array.isArray(body.Streams)) return;
+  const wanted = body.Streams;
 
   // CR050 — on a VARIANT's inherited module this is an override, not a write.
   //
@@ -769,7 +660,7 @@ async function replaceModuleStreams(id, body, client) {
     const keep = (await c.query(
       `SELECT * FROM forecast_streams WHERE module_id = $1
         AND direction <> ALL($2::text[]) ORDER BY id`,
-      [id, directionsTouched(wanted, explicit)]
+      [id, directionsTouched()]
     )).rows;
     const keepPatch = [];
     for (const st of keep) {
@@ -795,9 +686,7 @@ async function replaceModuleStreams(id, body, client) {
 
   const fxRate = await resolveFxRate(c, id, wanted);
 
-  const directions = explicit
-    ? ['income', 'expense']
-    : [...new Set(wanted.map((w) => w.Direction))];
+  const directions = directionsTouched();
 
   for (const direction of directions) {
     await c.query(
@@ -846,55 +735,6 @@ async function replaceModuleStreams(id, body, client) {
       }
     }
   }
-}
-
-/**
- * CR069 P2 — project a module's streams BACK onto the legacy PascalCase fields.
- *
- * The other half of the expand→migrate→contract bridge. `replaceModuleStreams` translates the
- * Modules editor's per-direction fields INTO streams on write; without this the READ still
- * came from the module's own income_ and expense_ columns, which nothing writes any more — so a
- * saved income window or tax override returned 200 and read back EMPTY on reopen.
- *
- * That is precisely the CR043 N10 defect class ("the value must survive a reopen"), and the
- * e2e suite caught it before this reached production. The columns are dropped in P3 along with
- * this function, once the form renders stream cards directly.
- */
-function projectStreamsToLegacyFields(streams) {
-  const out = {
-    ExpenseAmount: 0, ExpenseFcLineId: null, ExpenseGrowthMethod: 'inflation',
-    ExpenseStartDate: null, ExpenseEndDate: null,
-    IncomeAmount: 0, IncomeFcLineId: null, IncomeGrowth: null,
-    IncomeStartDate: null, IncomeEndDate: null, IncomeTaxRateOverride: null,
-    IncomePct: [], IncomeSteps: [],
-  };
-  for (const s of streams || []) {
-    const amount = Number(s.amount) || 0;
-    if (s.direction === 'expense') {
-      // A loan's interest is DERIVED and its amount is structurally 0 — surfacing it as an
-      // Expense Amount would invite the owner to edit a number the engine never reads.
-      if (s.mode !== 'derived') out.ExpenseAmount = amount;
-      out.ExpenseFcLineId = s.fc_line_id ?? null;
-      out.ExpenseGrowthMethod = s.mode === 'pct_of_value' ? 'pct_of_value' : 'inflation';
-      out.ExpenseStartDate = s.start_date ?? null;
-      out.ExpenseEndDate = s.end_date ?? null;
-    } else if (s.direction === 'income') {
-      out.IncomeAmount = amount;
-      out.IncomeFcLineId = s.fc_line_id ?? null;
-      out.IncomeGrowth = s.growth_mult != null ? parseFloat(s.growth_mult) : null;
-      out.IncomeStartDate = s.start_date ?? null;
-      out.IncomeEndDate = s.end_date ?? null;
-      out.IncomeTaxRateOverride = s.tax_rate_override != null ? parseFloat(s.tax_rate_override) : null;
-      for (const c of s.changes || []) {
-        if (c.flag === 'Spread %') {
-          out.IncomePct.push({ Date: c.change_date, Value: parseFloat(c.amount) || 0 });
-        } else if (c.flag === 'Fixed $') {
-          out.IncomeSteps.push({ Date: c.change_date, Amount: parseFloat(c.amount) || 0 });
-        }
-      }
-    }
-  }
-  return out;
 }
 
 /** A module's streams with their change rows, ordered — for the read path. */

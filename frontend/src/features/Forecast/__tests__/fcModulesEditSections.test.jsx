@@ -13,46 +13,38 @@ import {
   isLoanModule,
 } from "../fcModulesEditSections.js";
 
-const sectionByTitle = Object.fromEntries(FIELD_SECTIONS);
-const fieldsOf = (title) => (sectionByTitle[title] || []).map(([, field]) => field);
 
 describe("CR041 — FCModulesEdit field sections", () => {
-  test("sections are General / Valuation / Expenses / Income / Tax, in order", () => {
-    expect(FIELD_SECTIONS.map(([title]) => title)).toEqual([
-      "General", "Valuation", "Expenses", "Income", "Tax",
-    ]);
+  // CR069 P3 — the Expenses and Income SECTIONS are gone; a module's flows are stream CARDS
+  // (`FCModulesStreams`), one row each. These three tests asserted which column lived in which
+  // section, and the columns they named no longer exist. What replaced them is the assertion
+  // below: the form carries identity + valuation + the gains rate, and NOTHING per-direction —
+  // because a per-direction field on this form is exactly the "hidden is not cleared" hazard
+  // CR064 §5 refused to accept.
+  test("sections are General / Valuation / Tax, in order", () => {
+    expect(FIELD_SECTIONS.map(([title]) => title)).toEqual(["General", "Valuation", "Tax"]);
   });
 
-  test("expense fields are all in the Expenses section", () => {
-    expect(fieldsOf("Expenses")).toEqual([
-      "ExpenseFcLineId", "ExpenseAmount", "ExpenseGrowthMethod",
-      // CR046 window — bounds when the stream runs, not how much
-      "ExpenseStartDate", "ExpenseEndDate",
-    ]);
-  });
-
-  test("income fields are all in the Income section", () => {
-    expect(fieldsOf("Income")).toEqual([
-      "IncomeFcLineId", "IncomeAmount",
-      // CR064 P6 — a multiplier of inflation for the amount above. Before it, income
-      // grew at exactly inflation and nothing could say otherwise, so a business could
-      // only be modelled through the Yield Spread — which discards the amount entirely.
-      "IncomeGrowth",
-      "IncomeStartDate", "IncomeEndDate", // CR046 window
-    ]);
+  test("no per-direction field survives on the form — those are stream properties now", () => {
+    const all = FIELD_SECTIONS.flatMap(([, fields]) => fields.map(([, f]) => f));
+    for (const gone of [
+      "ExpenseAmount", "ExpenseFcLineId", "ExpenseGrowthMethod", "ExpenseStartDate",
+      "ExpenseEndDate", "IncomeAmount", "IncomeFcLineId", "IncomeGrowth", "IncomeStartDate",
+      "IncomeEndDate", "IncomeTaxRateOverride", "IncomePct", "IncomeSteps",
+    ]) {
+      expect(all).not.toContain(gone);
+    }
+    // ...and the gains rate STAYS, because a capital gain belongs to the valuation.
+    expect(all).toContain("TaxRateOverride");
   });
 
   test("no field appears in more than one section, and none were lost", () => {
     const allFields = FIELD_SECTIONS.flatMap(([, fields]) => fields.map(([, f]) => f));
     expect(new Set(allFields).size).toBe(allFields.length);
-    // The full pre-CR041 flat list, redistributed, plus the CR046 window fields
+    // CR069 P3 — what a module IS, once its flows are rows: identity, valuation, gains rate.
     expect([...allFields].sort()).toEqual([
-      "Account", "BaseDate", "BaseValue", "BaseValueUSD", "Currency",
-      "ExpenseAmount", "ExpenseEndDate", "ExpenseFcLineId", "ExpenseGrowthMethod",
-      "ExpenseStartDate", "Growth",
-      "IncomeAmount", "IncomeEndDate", "IncomeFcLineId", "IncomeGrowth", "IncomeStartDate",
-      "IncomeTaxRateOverride", "MarketValue", "MarketValueUSD",
-      "Matched", "Name", "TaxRateOverride", "Type",
+      "Account", "BaseDate", "BaseValue", "BaseValueUSD", "Currency", "Growth",
+      "MarketValue", "MarketValueUSD", "Matched", "Name", "TaxRateOverride", "Type",
     ]);
   });
 });
@@ -94,7 +86,10 @@ describe("CR062 — the Loan section", () => {
     // The five assumptions, plus where the interest posts and what is owed today.
     for (const field of [
       "LoanPrincipal", "LoanStartDate", "LoanInterestRate", "LoanEndDate",
-      "ExpenseFcLineId", "MarketValue", "MarketValueUSD",
+      // CR069 P3 — the Interest Line moved off this form onto the loan's DERIVED expense
+      // stream, which the stream card renders read-only. It is still required (the route
+      // refuses a loan without one) — just not a column here any more.
+      "MarketValue", "MarketValueUSD",
     ]) {
       expect(loanFields).toContain(field);
     }

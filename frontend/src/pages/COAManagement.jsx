@@ -5,7 +5,7 @@ import COAEditModal from "../features/COAManagement/COAEditModal.jsx";
 import COAMoveModal from "../features/COAManagement/COAMoveModal.jsx";
 import COATreeTable from "../features/COAManagement/COATreeTable.jsx";
 import { reorderPlan } from "../features/COAManagement/coaReorder.js";
-import FCExpConfirmDeleteModal from "../features/Forecast/FCExpConfirmDeleteModal.jsx";
+import FCConfirmDeleteModal from "../features/Forecast/FCConfirmDeleteModal.jsx";
 import { useToast } from "../contexts";
 import Rest from "../js/rest.js";
 import "../features/BudgetEntry/BudgetOptionExchangeRates.css";
@@ -915,7 +915,7 @@ export default function COAManagement() {
         parentPath={editModal.parentPath || []}
         onParentPathChange={handleQuickAddParentChange}
       />
-      <FCExpConfirmDeleteModal
+      <FCConfirmDeleteModal
         isOpen={deleteModalOpen}
         selectedEntry={deletableRows[0] || null}
         error={deleteError}

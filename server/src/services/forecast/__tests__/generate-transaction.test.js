@@ -209,27 +209,27 @@ dbDescribe('generateForecast transactionality (DB)', () => {
     // cascade straight into the backup.
     const primaryId = (await db.query(
       `INSERT INTO forecast_modules
-         (scenario_id, account_id, name, setup_status, base_date, market_value, market_value_usd,
+         (has_valuation, scenario_id, account_id, name, setup_status, base_date, market_value, market_value_usd,
           base_value, base_value_usd, growth_rate, cash_sweep_priority)
-       VALUES ($1, $2, 'CR048 Primary', 'complete', '2026-12-31', 0, 0, 0, 0, 0, 1) RETURNING id`,
+       VALUES (TRUE, $1, $2, 'CR048 Primary', 'complete', '2026-12-31', 0, 0, 0, 0, 0, 1) RETURNING id`,
       [scenarioId, acct.id]
     )).rows[0].id;
 
     // Backup: priority 2, $500k of stock yielding inflation + 5%, flat growth.
     const backupId = (await db.query(
       `INSERT INTO forecast_modules
-         (scenario_id, account_id, name, setup_status, base_date, market_value, market_value_usd,
-          base_value, base_value_usd, growth_rate, cash_sweep_priority, income_fc_line_id)
-       VALUES ($1, $2, 'CR048 Backup Stocks', 'complete', '2026-12-31', 500000, 500000,
-               500000, 500000, 0, 2, $3) RETURNING id`,
-      [scenarioId, acct.id, line.id]
+         (has_valuation, scenario_id, account_id, name, setup_status, base_date, market_value, market_value_usd,
+          base_value, base_value_usd, growth_rate, cash_sweep_priority)
+       VALUES (TRUE, $1, $2, 'CR048 Backup Stocks', 'complete', '2026-12-31', 500000, 500000,
+               500000, 500000, 0, 2) RETURNING id`,
+      [scenarioId, acct.id]
     )).rows[0].id;
     // CR069 P2 — a yield schedule is Spread % rows on a yield-mode income stream.
     const backupStream = (await db.query(
       `INSERT INTO forecast_streams (module_id, direction, mode, amount, fc_line_id)
-       SELECT $1, 'income', 'yield', 0, income_fc_line_id FROM forecast_modules WHERE id = $1
+       VALUES ($1, 'income', 'yield', 0, $2)
        RETURNING id`,
-      [backupId]
+      [backupId, line.id]
     )).rows[0].id;
     await db.query(
       `INSERT INTO forecast_stream_changes (stream_id, change_date, amount, flag)
@@ -273,7 +273,6 @@ dbDescribe('generateForecast transactionality (DB)', () => {
       expect(Math.abs(inc[2029] || 0)).toBeLessThan(2000);
     } finally {
       await db.query('DELETE FROM forecast_modules WHERE id = $1', [drainId]);
-      await db.query('DELETE FROM forecast_module_income_pct WHERE module_id = $1', [backupId]);
       await db.query('DELETE FROM forecast_modules WHERE id IN ($1, $2)', [primaryId, backupId]);
       await db.query("DELETE FROM fc_lines WHERE name = 'CR048 Yield Line'");
       await generateForecast(NAME); // leave the scenario as the earlier tests expect it

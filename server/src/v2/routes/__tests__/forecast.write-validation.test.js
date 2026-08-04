@@ -55,30 +55,21 @@ dbDescribe('forecast write validation (N10, DB)', () => {
     Name: 'N10 Module',
     Type: 'Stocks',
     Currency: 'USD',
-    ExpenseFcLineId: null,
-    IncomeFcLineId: null,
-    ExpenseGrowthMethod: 'inflation',
     Matched: true,
     BaseDate: '2025-12-31',
     Comment: '',
     SetupStatus: 'new',
-    IncomeStartDate: null,
-    IncomeEndDate: null,
-    ExpenseStartDate: null,
-    ExpenseEndDate: null,
     CashSweepPriority: null,
-    ExpenseAmount: 0,
-    IncomeAmount: 0,
     BaseValue: 100,
     MarketValue: 150,
     BaseValueUSD: 100,
     MarketValueUSD: 150,
     Growth: 0,
     TaxRateOverride: null,
-    IncomeTaxRateOverride: 0, // 0 is a real rate, not "unset" (CR047)
+    // CR069 P3 — the editor sends streams, not per-direction columns.
+    Streams: [],
     Invest: [],
     Dispose: [],
-    IncomePct: [],
   });
 
   describe('modules', () => {
@@ -110,7 +101,10 @@ dbDescribe('forecast write validation (N10, DB)', () => {
       // still ACCEPTS the legacy field (the editor sends it until P3) but deliberately no
       // longer writes the retired column: doing both would let a variant save turn it into an
       // override on a column the engine has stopped reading.
-      const r = await req('PUT', `/modules/${moduleId}`, { IncomeTaxRateOverride: 3 });
+      // CR069 P3 — through the stream, which is the only shape the contract now accepts.
+      const r = await req('PUT', `/modules/${moduleId}`, {
+        Streams: [{ Direction: 'income', Mode: 'amount', Amount: 0, TaxRateOverride: 3, Changes: [] }],
+      });
       expect(r.status).toBe(200);
       const row = await db.query(
         `SELECT tax_rate_override FROM forecast_streams
@@ -129,11 +123,12 @@ dbDescribe('forecast write validation (N10, DB)', () => {
       const r = await req('POST', '/modules', {
         ...frontendModulePayload(),
         Name: 'N10 Create Column Coverage',
-        IncomeStartDate: '2030-07-01',
-        IncomeEndDate: '2040-07-01',
-        ExpenseStartDate: '2031-07-01',
-        ExpenseEndDate: '2041-07-01',
-        IncomeTaxRateOverride: 3,
+        Streams: [
+          { Direction: 'income', Mode: 'amount', Amount: 0, StartDate: '2030-07-01',
+            EndDate: '2040-07-01', TaxRateOverride: 3, Changes: [] },
+          { Direction: 'expense', Mode: 'amount', Amount: 0, StartDate: '2031-07-01',
+            EndDate: '2041-07-01', Changes: [] },
+        ],
       });
       expect([200, 201]).toContain(r.status);
       const id = r.body?.data?.id ?? r.body?.id;
@@ -205,18 +200,10 @@ dbDescribe('forecast write validation (N10, DB)', () => {
       expect(r.status).toBe(400);
     });
 
-    test('the legacy per-direction fields still write a stream (the P2→P3 bridge)', async () => {
-      // The Modules editor keeps sending these until P3 replaces the form with stream cards;
-      // refusing them here would 400 every module save across the two deploys.
-      const r = await req('PUT', `/modules/${modId}`, {
-        ExpenseAmount: 4321, ExpenseGrowthMethod: 'inflation',
-      });
-      expect([200, 201]).toContain(r.status);
-      const st = (await db.query(
-        `SELECT amount FROM forecast_streams WHERE module_id = $1 AND direction = 'expense'`, [modId]
-      )).rows[0];
-      expect(Number(st.amount)).toBe(4321);
-    });
+    // RETIRED by CR069 P3 — "the legacy per-direction fields still write a stream".
+    // That bridge existed only while the editor still sent columns; it now sends `Streams`,
+    // and the contract REFUSES the old names rather than translating them (an allow-list that
+    // quietly accepts a shape nothing produces is how dead keys survive — CR043 N10).
 
     afterAll(async () => {
       if (modId) await db.query('DELETE FROM forecast_modules WHERE id = $1', [modId]);

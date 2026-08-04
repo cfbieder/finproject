@@ -23,21 +23,17 @@ import { isLoanModule } from "../fcModulesEditSections.js";
  * a phantom key would now 400 instead of being quietly ignored.
  */
 const NUMERIC_FIELDS = [
-  "ExpenseAmount",
-  "IncomeAmount",
   "BaseValue",
   "MarketValue",
   "BaseValueUSD",
   "MarketValueUSD",
   "Growth",
   "TaxRateOverride",
-  "IncomeTaxRateOverride",
   // CR062 — blank stays null, and null is what "not a loan" means to the engine.
   "LoanPrincipal",
   "LoanInterestRate",
   // CR064 P6 — blank stays null, and null is what "grow at inflation" means to the
   // engine. 0 is a real multiplier (flat in nominal terms), not "unset".
-  "IncomeGrowth",
 ];
 
 export function buildModulePayload(editForm = {}, { normalizeTransfers } = {}) {
@@ -46,20 +42,12 @@ export function buildModulePayload(editForm = {}, { normalizeTransfers } = {}) {
     Name: editForm.Name ?? "",
     Type: editForm.Type ?? "",
     Currency: editForm.Currency ?? "",
-    ExpenseFcLineId: editForm.ExpenseFcLineId || null,
-    IncomeFcLineId: editForm.IncomeFcLineId || null,
-    ExpenseGrowthMethod: editForm.ExpenseGrowthMethod || "inflation",
     Matched: Boolean(editForm.Matched),
     BaseDate: editForm.BaseDate ? new Date(editForm.BaseDate).toISOString() : null,
     // (AccountNumber removed with CR043 N10 — there is no such column, and the route
     //  never read it; the API now rejects unknown fields rather than dropping them.)
     Comment: (editForm.Comment ?? "").toString().trim(),
     SetupStatus: editForm.SetupStatus || "new",
-    // CR046 window — the year picker stores YYYY-07-01; blank stays null.
-    IncomeStartDate: editForm.IncomeStartDate || null,
-    IncomeEndDate: editForm.IncomeEndDate || null,
-    ExpenseStartDate: editForm.ExpenseStartDate || null,
-    ExpenseEndDate: editForm.ExpenseEndDate || null,
     // CR062 loan assumptions — year pickers, stored YYYY-07-01 like CR046's window.
     LoanStartDate: editForm.LoanStartDate || null,
     LoanEndDate: editForm.LoanEndDate || null,
@@ -82,6 +70,32 @@ export function buildModulePayload(editForm = {}, { normalizeTransfers } = {}) {
     payload[field] = Number.isNaN(parsed) ? null : parsed;
   }
 
+  // CR069 P3 — the module's streams, sent as ROWS. Replaces the whole Expense*/Income*
+  // family plus IncomePct and IncomeSteps: a stream carries its own line, mode, amount,
+  // growth, window, tax and change schedule, and a direction the module has no stream for is
+  // simply ABSENT from the array rather than present-and-zero. That is what makes "remove
+  // the card" mean "delete the row" instead of "leave a stale value nothing renders".
+  payload.Streams = (Array.isArray(editForm.Streams) ? editForm.Streams : []).map((st) => ({
+    Direction: st.direction,
+    Mode: st.mode || "amount",
+    FcLineId: st.fc_line_id ?? null,
+    Amount: st.amount === "" || st.amount == null ? 0 : Math.abs(Number(st.amount)),
+    GrowthMult: st.growth_mult === "" || st.growth_mult == null ? null : Number(st.growth_mult),
+    StartDate: st.start_date || null,
+    EndDate: st.end_date || null,
+    TaxRateOverride:
+      st.tax_rate_override === "" || st.tax_rate_override == null
+        ? null
+        : Number(st.tax_rate_override),
+    Changes: (Array.isArray(st.changes) ? st.changes : [])
+      .filter((c) => c && c.change_date)
+      .map((c) => ({
+        Date: c.change_date,
+        Amount: c.amount === "" || c.amount == null ? 0 : Number(c.amount),
+        Flag: c.flag,
+      })),
+  }));
+
   if (normalizeTransfers) {
     // CR062 — a loan's principal schedule is derived, and the route REJECTS a
     // non-empty Invest/Dispose/IncomePct on one. Sending empty arrays is not a
@@ -90,17 +104,7 @@ export function buildModulePayload(editForm = {}, { normalizeTransfers } = {}) {
     const loan = isLoanModule(editForm);
     payload.Invest = loan ? [] : normalizeTransfers(editForm.Invest);
     payload.Dispose = loan ? [] : normalizeTransfers(editForm.Dispose);
-    payload.IncomePct = loan ? [] : normalizeTransfers(editForm.IncomePct);
-    // CR064 P6 — a loan has no income, so it cannot carry steps; the empty array is
-    // how a module retyped Asset → Loan clears the ones it arrived with.
-    payload.IncomeSteps = loan
-      ? []
-      : (Array.isArray(editForm.IncomeSteps) ? editForm.IncomeSteps : [])
-          .filter((row) => row && row.Date)
-          .map((row) => ({
-            Date: row.Date,
-            Amount: row.Amount === "" || row.Amount == null ? 0 : Number(row.Amount),
-          }));
+
     if (loan) {
       payload.Amortization = (Array.isArray(editForm.Amortization) ? editForm.Amortization : [])
         .filter((row) => row && row.Date)

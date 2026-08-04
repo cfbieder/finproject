@@ -28,7 +28,7 @@ import FCScenariosSelect from "../features/Forecast/FCScenariosSelect.jsx";
 import FCScenariosTable from "../features/Forecast/FCScenariosTable.jsx";
 import FCVariantPanel from "../features/Forecast/FCVariantPanel.jsx";
 import FCScenariosModal from "../features/Forecast/FCScenariosModal.jsx";
-import FCExpConfirmDeleteModal from "../features/Forecast/FCExpConfirmDeleteModal.jsx";
+import FCConfirmDeleteModal from "../features/Forecast/FCConfirmDeleteModal.jsx";
 import { useToast } from "../contexts";
 import Rest from "../js/rest.js";
 import FCStepNav from "../features/Forecast/FCStepNav.jsx";
@@ -974,7 +974,7 @@ export default function FCScenarios() {
             copyScenario={copyScenario}
           />
         )}
-        <FCExpConfirmDeleteModal
+        <FCConfirmDeleteModal
           isOpen={commitOpen}
           selectedEntry={{ Name: commitScenarioName }}
           error=""
@@ -991,7 +991,7 @@ export default function FCScenarios() {
             commitScenarioName ? `Scenario: ${commitScenarioName}` : undefined
           }
         />
-        <FCExpConfirmDeleteModal
+        <FCConfirmDeleteModal
           isOpen={scenarioDeleteOpen}
           selectedEntry={{ Name: scenarioDeleteName }}
           error=""

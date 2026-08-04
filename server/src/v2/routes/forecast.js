@@ -50,15 +50,12 @@ const MODULE_WRITE_FIELDS = [
   // CR069 P2 — the module's P&L streams, each with its own change schedule, plus the flag
   // that says whether the module has a balance sheet at all.
   'Streams', 'HasValuation',
-  // ...and the LEGACY per-direction fields, still accepted and translated into streams by
-  // `crud.replaceModuleStreams`. This is the expand half of expand → migrate → contract, and
-  // it is not optional: the Modules editor still sends these on every save, and P3 is what
-  // replaces that form with stream cards. Refusing them here would 400 every module save for
-  // the whole gap between the two deploys. They are dropped from the contract in P3, with the
-  // columns.
-  'ExpenseAmount', 'ExpenseFcLineId', 'ExpenseGrowthMethod', 'ExpenseStartDate', 'ExpenseEndDate',
-  'IncomeAmount', 'IncomeFcLineId', 'IncomeStartDate', 'IncomeEndDate',
-  'IncomeGrowth', 'IncomeSteps', 'IncomePct', 'IncomeTaxRateOverride',
+  // CR069 P3 — the LEGACY per-direction fields are GONE from the contract. They were the
+  // expand half of expand → migrate → contract while the editor still sent them; it now sends
+  // `Streams`, so accepting them would be accepting a shape nothing produces and translating
+  // it into rows nothing asked for. An old client sending them gets a 400 naming the field,
+  // which is the point of this allow-list (CR043 N10) — silently dropping them is what it
+  // exists to prevent.
   // CR062 — loan assumptions + the principal schedule
   'LoanPrincipal', 'LoanStartDate', 'LoanEndDate', 'LoanInterestRate', 'Amortization',
   'SecuredAssetModuleId',
@@ -736,12 +733,9 @@ router.get('/modules/:id', async (req, res, next) => {
     res.json({
       data: {
         ...m,
-        // CR069 P2 — the income_/expense_ fields are PROJECTED FROM STREAMS, not read from the
-        // module's own columns, which nothing writes any more. Without this the Modules editor
-        // saved a window or a tax override, got a 200, and read back empty on reopen — the
-        // CR043 N10 defect class, caught by the e2e "value must survive a reopen" spec. Both
-        // this projection and those columns retire in P3, when the form renders stream cards.
-        ...crud.projectStreamsToLegacyFields(await crud.loadModuleStreams(m.id)),
+        // CR069 P3 — streams, in their own shape. The legacy projection retired with the
+        // columns it projected onto: the form renders stream cards now, so there is one shape
+        // on the wire instead of a row-model translated into a column-model and back.
         Streams: await crud.loadModuleStreams(m.id),
         id: m.id,
         Name: m.name,
@@ -869,7 +863,11 @@ router.post('/modules', async (req, res, next) => {
       secured_asset_module_id: body.SecuredAssetModuleId ?? null,
     };
 
-    if (isLoanBody(body)) assertLoanHasInterestLine(body.ExpenseFcLineId);
+    if (isLoanBody(body)) {
+      assertLoanHasInterestLine(
+        (body.Streams || []).find((st) => (st.Direction ?? st.direction) === 'expense')?.FcLineId ?? null
+      );
+    }
     await assertSecuredAssetLink(body.SecuredAssetModuleId ?? null, scenario.id, null);
 
     const module = await repo.createModule(moduleData);
@@ -977,15 +975,15 @@ router.put('/modules/:id', async (req, res, next) => {
       ? body.LoanInterestRate != null
       : before.loan_interest_rate != null;
     if (willBeLoan) {
-      // CR069 P2 — the loan's interest line lives on its DERIVED expense stream now, not on
-      // `expense_fc_line_id` (which this route stopped writing). Same rule, new address: the
-      // effective value is the body's if it says anything, else the stream as stored.
+      // CR069 P3 — a loan's interest line is the FC line on its expense stream. The effective
+      // value is the body's if it sends streams at all, else the stream as stored, so a PUT
+      // that touches only the rate is still legal.
+      const bodyLine = Array.isArray(body.Streams)
+        ? (body.Streams.find((st) => (st.Direction ?? st.direction) === 'expense')?.FcLineId ?? null)
+        : undefined;
       const storedLine = (await crud.loadModuleStreams(id))
         .find((st) => st.direction === 'expense')?.fc_line_id ?? null;
-      const effectiveLine = body.ExpenseFcLineId !== undefined
-        ? body.ExpenseFcLineId
-        : storedLine;
-      assertLoanHasInterestLine(effectiveLine);
+      assertLoanHasInterestLine(bodyLine !== undefined ? bodyLine : storedLine);
     }
     if (body.SecuredAssetModuleId !== undefined) {
       await assertSecuredAssetLink(body.SecuredAssetModuleId || null, before.scenario_id, id);
@@ -1227,16 +1225,14 @@ router.patch('/modules/bulk-update', async (req, res, next) => {
 
 // GET /api/v2/forecast/incomeexpense
 // ============================================================================
-// Income/expense items — RETIRED by CR069 P2.
+// Income/expense items — RETIRED by CR069 P2, tables dropped in P3.
 //
 // An Expenditure item is now a module with `has_valuation = FALSE` and one stream, managed
 // through /modules like everything else. These four routes are answered with 410 Gone rather
-// than deleted outright, and that is deliberate: the engine stopped READING
-// `forecast_income_expense` in this same deploy, so a write that still succeeded here would
-// be accepted, stored, and silently ignored — the staleness class this CR spent a phase
-// designing out of the backfill, arriving instead through the write path. Fail loud for the
-// one deploy in which a stale client can still call them; the routes and the table both go in
-// P3. (Added at PM sign-off, which caught the P2→P3 window.)
+// than deleted outright, and that is still deliberate in P3: a browser holding an old bundle
+// can outlive several deploys, and a 410 that NAMES the replacement is a better answer than
+// the 404 a deleted route would give — the client learns the resource is gone rather than
+// mistyped. The tables they wrote to are dropped by migration 060.
 // ============================================================================
 const INCEXP_GONE = {
   error: 'Income/expense items are now modules. Use /api/v2/forecast/modules — an item is a '

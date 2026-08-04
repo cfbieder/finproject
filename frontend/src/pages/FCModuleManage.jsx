@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import FCModulesFilter from "../features/Forecast/FCModulesFilter.jsx";
 import FCModulesEditModal from "../features/Forecast/FCModulesEdit.jsx";
 import FCModulesTable from "../features/Forecast/FCModulesTable.jsx";
-import FCExpConfirmDeleteModal from "../features/Forecast/FCExpConfirmDeleteModal.jsx";
+import FCConfirmDeleteModal from "../features/Forecast/FCConfirmDeleteModal.jsx";
 import FCModulesUnmatchedModal from "../features/Forecast/FCModulesUnmatchedModal.jsx";
 import FCAddFromActualsModal from "../features/Forecast/FCAddFromActualsModal.jsx";
 import { useAssumptions } from "../features/Forecast/hooks/useAssumptions.js";
@@ -18,7 +18,7 @@ import FCStepNav from "../features/Forecast/FCStepNav.jsx";
 import { useCoa } from "../hooks/useCoa.js";
 import "./PageLayout.css";
 import "../features/Forecast/FCModulesEdit.css";
-import "../features/Forecast/FCExpDeleteModal.css";
+import "../features/Forecast/FCConfirmDeleteModal.css";
 import { buildModulePayload } from "../features/Forecast/utils/fcModulePayload.js";
 import { isLoanModule } from "../features/Forecast/fcModulesEditSections.js";
 
@@ -257,7 +257,9 @@ export default function FCModuleManage() {
       Growth: null,
       Invest: formatTransferForm([]),
       Dispose: formatTransferForm([]),
-      IncomePct: formatTransferForm([]),
+      // A new module starts with NO streams — not with two empty ones. That is the whole
+      // point of rows over columns: nothing to leave behind if it never gets an expense.
+      Streams: [],
     });
     setEditRefreshToken((prev) => prev + 1);
     setShowEditModal(true);
@@ -307,7 +309,12 @@ export default function FCModuleManage() {
       Comment: normalizedModule.Comment || "",
       Invest: formatTransferForm(normalizedModule.Invest),
       Dispose: formatTransferForm(normalizedModule.Dispose),
-      IncomePct: formatTransferForm(normalizedModule.IncomePct),
+      // CR069 P3 — streams come back from the API in their own shape (snake_case rows with a
+      // nested `changes` array) and are edited in that shape by the stream cards, so there is
+      // no PascalCase round-trip to drift. `fcModulePayload` maps them once, on the way out.
+      Streams: Array.isArray(normalizedModule.Streams)
+        ? normalizedModule.Streams.map((st) => ({ ...st, changes: st.changes || [] }))
+        : [],
     });
     setEditRefreshToken((prev) => prev + 1);
     setShowEditModal(true);
@@ -653,7 +660,7 @@ export default function FCModuleManage() {
           scenarioName={selectedScenario}
           onSave={saveModule}
         />
-        <FCExpConfirmDeleteModal
+        <FCConfirmDeleteModal
           isOpen={showDeleteModal}
           selectedEntry={selectedModule}
           error={deleteError}
@@ -672,7 +679,7 @@ export default function FCModuleManage() {
           It names the fields that will go, from the same Inheritance payload the badge
           renders, so the number shown is the number that goes.
         */}
-        <FCExpConfirmDeleteModal
+        <FCConfirmDeleteModal
           isOpen={Boolean(resetPrompt)}
           selectedEntry={selectedModule}
           error={resetError}
@@ -700,7 +707,7 @@ export default function FCModuleManage() {
           all, including its own close (v3.7.3). Reuses the delete-confirm component rather
           than growing a fourth bespoke one.
         */}
-        <FCExpConfirmDeleteModal
+        <FCConfirmDeleteModal
           isOpen={Boolean(retypePrompt)}
           selectedEntry={selectedModule}
           error=""

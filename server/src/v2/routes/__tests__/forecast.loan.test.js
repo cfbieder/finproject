@@ -46,15 +46,13 @@ dbDescribe('CR062 — forecast loan module (DB)', () => {
     Name: 'CR062 Mortgage',
     Type: 'Loan',
     Currency: 'USD',
-    ExpenseFcLineId: fcLineId,
-    IncomeFcLineId: null,
-    ExpenseGrowthMethod: 'inflation',
+    // CR069 P3 — a loan's interest line is the FC line on its DERIVED expense stream. The
+    // per-direction columns are gone from the contract; this is the shape the editor sends.
+    Streams: [{ Direction: 'expense', Mode: 'derived', FcLineId: fcLineId, Amount: 0, Changes: [] }],
     Matched: false,
     BaseDate: '2025-12-31',
     Comment: '',
     SetupStatus: 'complete',
-    ExpenseAmount: 0,
-    IncomeAmount: 0,
     BaseValue: 0,
     MarketValue: 0,
     BaseValueUSD: 0,
@@ -66,7 +64,6 @@ dbDescribe('CR062 — forecast loan module (DB)', () => {
     LoanInterestRate: 5,
     Invest: [],
     Dispose: [],
-    IncomePct: [],
     Amortization: [
       { Date: '2028-07-01', Pct: 11.1111 },
       { Date: '2029-07-01', Pct: 11.1111 },
@@ -103,7 +100,7 @@ dbDescribe('CR062 — forecast loan module (DB)', () => {
     test('V8 a loan with no Interest Line is refused', async () => {
       // Without one the interest still leaves Bank Accounts but lands on no P&L
       // row at all — cash vanishes from the plan with nothing to show for it.
-      const r = await req('POST', '/modules', loanPayload({ ExpenseFcLineId: null, Name: 'CR062 NoLine' }));
+      const r = await req('POST', '/modules', loanPayload({ Streams: [{ Direction: 'expense', Mode: 'derived', FcLineId: null, Amount: 0, Changes: [] }], Name: 'CR062 NoLine' }));
       expect(r.status).toBe(400);
       expect(String(r.body.error)).toMatch(/Interest Line/i);
     });
@@ -222,20 +219,21 @@ dbDescribe('CR062 — forecast loan module (DB)', () => {
       // and all three schedules.
       const created = await req('POST', '/modules', {
         Scenario: BASE, Account: accountName, Name: 'CR062 Retype', Type: 'Real Estate',
-        Currency: 'USD', ExpenseFcLineId: fcLineId, BaseDate: '2025-12-31',
-        MarketValue: 500000, MarketValueUSD: 500000, ExpenseAmount: 1000,
+        Currency: 'USD', BaseDate: '2025-12-31',
+        MarketValue: 500000, MarketValueUSD: 500000,
         Invest: [{ Date: '2030-07-01', Amount: 100, Flag: 'OneTime' }],
         Dispose: [{ Date: '2031-07-01', Amount: 50, Flag: 'Full' }],
-        IncomePct: [{ Date: '2030-07-01', Value: 2 }],
+        // CR069 P3 — the expense amount, the yield schedule and the window are all STREAM
+        // properties now, so what a retype must destroy arrives as one stream, not four fields.
+        Streams: [
+          { Direction: 'expense', Mode: 'amount', FcLineId: fcLineId, Amount: 1000,
+            StartDate: '2030-07-01', EndDate: '2032-07-01', Changes: [] },
+          { Direction: 'income', Mode: 'yield', FcLineId: null, Amount: 0,
+            Changes: [{ Date: '2030-07-01', Amount: 2, Flag: 'Spread %' }] },
+        ],
       });
       const id = created.body?.data?.id ?? created.body?.id;
 
-      // The window goes on via PUT, not POST: `repo.createModule`'s INSERT column
-      // list never included CR046's four window columns, so POST silently drops
-      // them. Pre-existing and unrelated to loans — noted rather than fixed here.
-      await req('PUT', `/modules/${id}`, {
-        ExpenseStartDate: '2030-07-01', ExpenseEndDate: '2032-07-01',
-      });
 
       // The preview must SEE it before anything is destroyed.
       const preview = await req('GET', `/modules/${id}/loan-retype-preview`);
@@ -252,8 +250,8 @@ dbDescribe('CR062 — forecast loan module (DB)', () => {
       const saved = await req('PUT', `/modules/${id}`, {
         LoanPrincipal: 100000, LoanStartDate: '2027-07-01',
         LoanEndDate: '2035-07-01', LoanInterestRate: 4,
-        ExpenseFcLineId: fcLineId,
-        Invest: [], Dispose: [], IncomePct: [],
+        Streams: [{ Direction: 'expense', Mode: 'derived', FcLineId: fcLineId, Amount: 0, Changes: [] }],
+        Invest: [], Dispose: [],
       });
       expect(saved.status).toBe(200);
       expect(saved.body.cleared).toMatchObject({ total: 4 });
@@ -262,8 +260,10 @@ dbDescribe('CR062 — forecast loan module (DB)', () => {
         SELECT
           (SELECT COUNT(*)::int FROM forecast_module_investments WHERE module_id = $1) AS invest,
           (SELECT COUNT(*)::int FROM forecast_module_disposals   WHERE module_id = $1) AS dispose,
-          (SELECT COUNT(*)::int FROM forecast_module_income_pct  WHERE module_id = $1) AS income_pct,
-          (SELECT expense_start_date FROM forecast_modules WHERE id = $1) AS win
+          (SELECT COUNT(*)::int FROM forecast_stream_changes c
+             JOIN forecast_streams st ON st.id = c.stream_id
+            WHERE st.module_id = $1 AND c.flag = 'Spread %') AS income_pct,
+          (SELECT start_date FROM forecast_streams WHERE module_id = $1 LIMIT 1) AS win
       `, [id]);
       expect(after.rows[0]).toMatchObject({ invest: 0, dispose: 0, income_pct: 0, win: null });
 

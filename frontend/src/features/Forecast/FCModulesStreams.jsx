@@ -1,0 +1,305 @@
+import { useMemo } from "react";
+import "./FCModulesStreams.css";
+
+/**
+ * CR069 P3 — a module's P&L streams, as CARDS.
+ *
+ * This replaces the flat "Expenses" and "Income" field sections, and the difference is
+ * structural rather than cosmetic. Those sections rendered COLUMNS: `ExpenseAmount`,
+ * `IncomeFcLineId`, `IncomeGrowth`… all of which existed on every module whether or not it
+ * had an expense, and all of which `fcModulePayload` sent on every save. Hiding one did not
+ * clear it — which is exactly why CR064 §5 refused to gate the form on module type, and why a
+ * stale `expense_amount` could go on charging the P&L invisibly (the CR062 P0 defect class).
+ *
+ * A stream is a ROW. A module with no expense has no expense card, because it has no expense
+ * stream; removing the card removes the row. There is nothing left behind to go stale, so the
+ * thing CR064 §5 could not safely do per-type is now free.
+ *
+ * The four modes and the four change flags are the engine's, not this component's — see
+ * `server/src/services/forecast/fcbuilder-stream.js`. What this file owes them is honest
+ * labels and refusing to offer a control the mode does not read.
+ */
+
+const MODES = [
+  { value: "amount", label: "Amount", hint: "A base-year amount, grown each year." },
+  { value: "yield", label: "Yield spread", hint: "A % of average market value, over inflation." },
+  { value: "pct_of_value", label: "% of value", hint: "A rate derived from the base-year amount over market value." },
+];
+
+/** Which change flags a mode actually reads. Offering the others would be a lie. */
+const FLAGS_FOR_MODE = {
+  amount: [
+    { value: "Fixed $", label: "Fixed $ — permanent level change" },
+    { value: "One-Off $", label: "One-Off $ — this year only" },
+    { value: "Percent %", label: "Percent % — override this year's growth" },
+  ],
+  yield: [{ value: "Spread %", label: "Spread % — yield over inflation, carries forward" }],
+  pct_of_value: [],
+  derived: [],
+};
+
+const emptyStream = (direction) => ({
+  direction,
+  mode: "amount",
+  fc_line_id: null,
+  amount: 0,
+  growth_mult: null,
+  start_date: null,
+  end_date: null,
+  tax_rate_override: null,
+  changes: [],
+});
+
+const yearOf = (value) => (value ? String(value).slice(0, 4) : "");
+const toJulyFirst = (year) => (year ? `${year}-07-01` : null);
+
+export default function FCModulesStreams({
+  streams = [],
+  onChange,
+  fcLines = [],
+  periodYears = [],
+  currency,
+}) {
+  const linesByDirection = useMemo(() => ({
+    income: fcLines.filter((l) => (l.line_type || "").includes("income")),
+    expense: fcLines.filter((l) => !(l.line_type || "").includes("income")),
+  }), [fcLines]);
+
+  const update = (index, patch) =>
+    onChange(streams.map((s, i) => (i === index ? { ...s, ...patch } : s)));
+
+  const remove = (index) => onChange(streams.filter((_, i) => i !== index));
+
+  const add = (direction) => onChange([...streams, emptyStream(direction)]);
+
+  const updateChange = (streamIdx, changeIdx, patch) =>
+    update(streamIdx, {
+      changes: streams[streamIdx].changes.map((c, i) =>
+        (i === changeIdx ? { ...c, ...patch } : c)),
+    });
+
+  const addChange = (streamIdx) => {
+    const mode = streams[streamIdx].mode || "amount";
+    const flags = FLAGS_FOR_MODE[mode] || [];
+    if (!flags.length) return;
+    update(streamIdx, {
+      changes: [...streams[streamIdx].changes, {
+        change_date: toJulyFirst(periodYears[0]), amount: 0, flag: flags[0].value,
+      }],
+    });
+  };
+
+  const removeChange = (streamIdx, changeIdx) =>
+    update(streamIdx, { changes: streams[streamIdx].changes.filter((_, i) => i !== changeIdx) });
+
+  const renderCard = (stream, index) => {
+    const mode = stream.mode || "amount";
+    const isDerived = mode === "derived";
+    const flags = FLAGS_FOR_MODE[mode] || [];
+    const lines = linesByDirection[stream.direction] || [];
+
+    return (
+      <div key={index} className="fc-stream-card" data-direction={stream.direction}>
+        <div className="fc-stream-card__head">
+          <span className="fc-stream-card__badge">
+            {stream.direction === "income" ? "Income" : "Expense"}
+          </span>
+          {isDerived ? (
+            // CR062 — a loan's interest is a function of its balance. The engine derives the
+            // amount on every build, so there is no amount to type here; offering an input
+            // would invite the owner to edit a number nothing reads.
+            <span className="fc-stream-card__derived">
+              Interest — derived from the loan balance each year
+            </span>
+          ) : null}
+          <button
+            type="button"
+            className="fc-stream-card__remove"
+            onClick={() => remove(index)}
+            aria-label={`Remove this ${stream.direction} stream`}
+          >
+            Remove
+          </button>
+        </div>
+
+        <div className="fc-stream-card__grid">
+          <label className="fc-stream-card__field">
+            <span>{stream.direction === "income" ? "Income line" : "Expense line"}</span>
+            <select
+              value={stream.fc_line_id ?? ""}
+              onChange={(e) => update(index, {
+                fc_line_id: e.target.value === "" ? null : Number(e.target.value),
+              })}
+            >
+              <option value="">— none —</option>
+              {lines.map((l) => (
+                <option key={l.id} value={l.id}>{l.name}</option>
+              ))}
+            </select>
+          </label>
+
+          {!isDerived && (
+            <label className="fc-stream-card__field">
+              <span>Mode</span>
+              <select
+                value={mode}
+                onChange={(e) => {
+                  const next = e.target.value;
+                  // A mode change strands change rows the new mode cannot read, so they go
+                  // with it — the CR062 retype discipline, in miniature. Dropping them
+                  // silently would leave rows the engine never reads but the form still shows.
+                  const keep = (FLAGS_FOR_MODE[next] || []).map((f) => f.value);
+                  update(index, {
+                    mode: next,
+                    changes: stream.changes.filter((c) => keep.includes(c.flag)),
+                  });
+                }}
+              >
+                {MODES.map((m) => (
+                  <option key={m.value} value={m.value}>{m.label}</option>
+                ))}
+              </select>
+              <small>{MODES.find((m) => m.value === mode)?.hint}</small>
+            </label>
+          )}
+
+          {!isDerived && mode !== "yield" && (
+            <label className="fc-stream-card__field">
+              <span>Amount (base year{currency && currency !== "USD" ? `, ${currency}` : ""})</span>
+              <input
+                type="number"
+                step="0.01"
+                value={stream.amount ?? 0}
+                onChange={(e) => update(index, { amount: e.target.value })}
+              />
+              <small>Entered positive — the direction carries the sign.</small>
+            </label>
+          )}
+
+          {!isDerived && mode === "amount" && (
+            <label className="fc-stream-card__field">
+              <span>Growth (× inflation)</span>
+              <input
+                type="number"
+                step="0.01"
+                value={stream.growth_mult ?? ""}
+                placeholder="1"
+                onChange={(e) => update(index, {
+                  growth_mult: e.target.value === "" ? null : e.target.value,
+                })}
+              />
+              <small>Blank = 1 = inflation. 0 = flat in today&apos;s money.</small>
+            </label>
+          )}
+
+          {!isDerived && (
+            <>
+              <label className="fc-stream-card__field">
+                <span>Start year</span>
+                <select
+                  value={yearOf(stream.start_date)}
+                  onChange={(e) => update(index, { start_date: toJulyFirst(e.target.value) })}
+                >
+                  <option value="">— from the base year —</option>
+                  {periodYears.map((y) => <option key={y} value={y}>{y}</option>)}
+                </select>
+              </label>
+              <label className="fc-stream-card__field">
+                <span>End year</span>
+                <select
+                  value={yearOf(stream.end_date)}
+                  onChange={(e) => update(index, { end_date: toJulyFirst(e.target.value) })}
+                >
+                  <option value="">— to the horizon —</option>
+                  {periodYears.map((y) => <option key={y} value={y}>{y}</option>)}
+                </select>
+              </label>
+            </>
+          )}
+
+          {stream.direction === "income" && !isDerived && (
+            <label className="fc-stream-card__field">
+              <span>Income tax override (%)</span>
+              <input
+                type="number"
+                step="0.001"
+                value={stream.tax_rate_override ?? ""}
+                placeholder="scenario rate"
+                onChange={(e) => update(index, {
+                  tax_rate_override: e.target.value === "" ? null : e.target.value,
+                })}
+              />
+              <small>For income already taxed elsewhere. 0 is a real rate.</small>
+            </label>
+          )}
+        </div>
+
+        {flags.length > 0 && (
+          <div className="fc-stream-card__changes">
+            <div className="fc-stream-card__changes-head">
+              <span>Changes over time</span>
+              <button type="button" onClick={() => addChange(index)}>+ Add change</button>
+            </div>
+            {stream.changes.length === 0 ? (
+              <p className="fc-stream-card__empty">None — this stream just grows.</p>
+            ) : (
+              stream.changes.map((c, ci) => (
+                <div key={ci} className="fc-stream-card__change">
+                  <select
+                    value={yearOf(c.change_date)}
+                    onChange={(e) => updateChange(index, ci, {
+                      change_date: `${e.target.value}-12-31`,
+                    })}
+                    aria-label="Year"
+                  >
+                    {periodYears.map((y) => <option key={y} value={y}>{y}</option>)}
+                  </select>
+                  <select
+                    value={c.flag}
+                    onChange={(e) => updateChange(index, ci, { flag: e.target.value })}
+                    aria-label="Kind"
+                  >
+                    {flags.map((f) => (
+                      <option key={f.value} value={f.value}>{f.label}</option>
+                    ))}
+                  </select>
+                  <input
+                    type="number"
+                    step="0.01"
+                    value={c.amount ?? 0}
+                    onChange={(e) => updateChange(index, ci, { amount: e.target.value })}
+                    aria-label="Amount"
+                  />
+                  <button type="button" onClick={() => removeChange(index, ci)} aria-label="Remove change">
+                    ×
+                  </button>
+                </div>
+              ))
+            )}
+            {/* The sign rule, said where it is typed rather than only in the migration. */}
+            <p className="fc-stream-card__hint">
+              A change is <b>more of this stream</b> when positive: on an expense,
+              <b> −25,000</b> means the cost falls by 25,000. A <b>Percent %</b> is a rate —
+              <b> −100</b> ends the stream.
+            </p>
+          </div>
+        )}
+      </div>
+    );
+  };
+
+  return (
+    <div className="fc-stream-cards">
+      {streams.length === 0 && (
+        <p className="fc-stream-cards__empty">
+          This module has no income or expense. Add a stream to give it one.
+        </p>
+      )}
+      {streams.map(renderCard)}
+      <div className="fc-stream-cards__add">
+        <button type="button" onClick={() => add("income")}>+ Add income</button>
+        <button type="button" onClick={() => add("expense")}>+ Add expense</button>
+      </div>
+    </div>
+  );
+}

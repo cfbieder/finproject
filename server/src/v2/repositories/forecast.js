@@ -4,7 +4,7 @@
  * Database operations for forecast tables:
  * - forecast_scenarios
  * - forecast_modules (with investments, disposals, income_pct)
- * - forecast_income_expense (with changes)
+ * - forecast_streams (with their change rows)
  */
 
 const db = require('../db');
@@ -22,7 +22,7 @@ async function findAllScenarios({ activeOnly = true } = {}) {
   const sql = `
     SELECT s.*,
       (SELECT COUNT(*)::int FROM forecast_modules WHERE scenario_id = s.id) as module_count,
-      (SELECT COUNT(*)::int FROM forecast_income_expense WHERE scenario_id = s.id) as incexp_count
+      0::int as incexp_count  -- CR069 P3: items are modules; kept so the shape does not change
     FROM forecast_scenarios s
     ${whereClause}
     ORDER BY name
@@ -220,17 +220,11 @@ async function copyScenario(sourceId, newName) {
       // Clear existing data so we can copy fresh
       const oldModules = await client.query('SELECT id FROM forecast_modules WHERE scenario_id = $1', [newId]);
       for (const m of oldModules.rows) {
-        await client.query('DELETE FROM forecast_module_income_pct WHERE module_id = $1', [m.id]);
-        await client.query('DELETE FROM forecast_module_income_steps WHERE module_id = $1', [m.id]);
         await client.query('DELETE FROM forecast_module_investments WHERE module_id = $1', [m.id]);
         await client.query('DELETE FROM forecast_module_disposals WHERE module_id = $1', [m.id]);
       }
       await client.query('DELETE FROM forecast_modules WHERE scenario_id = $1', [newId]);
-      const oldIncexp = await client.query('SELECT id FROM forecast_income_expense WHERE scenario_id = $1', [newId]);
-      for (const ie of oldIncexp.rows) {
-        await client.query('DELETE FROM forecast_incexp_changes WHERE incexp_id = $1', [ie.id]);
-      }
-      await client.query('DELETE FROM forecast_income_expense WHERE scenario_id = $1', [newId]);
+      // CR069 P3 — no incexp rows to clear: an item is a module, cleared with the modules above.
       await client.query('DELETE FROM forecast_entries WHERE scenario_id = $1', [newId]);
     } else {
       const newScenario = await client.query(`
@@ -449,16 +443,14 @@ async function findModuleById(id) {
   const module = moduleResult.rows[0];
 
   // Get nested arrays
-  const [incomePct, investments, disposals, amortization, incomeSteps] = await Promise.all([
-    db.query('SELECT * FROM forecast_module_income_pct WHERE module_id = $1 ORDER BY effective_date', [id]),
+  const [investments, disposals, amortization] = await Promise.all([
     db.query('SELECT * FROM forecast_module_investments WHERE module_id = $1 ORDER BY investment_date', [id]),
     db.query('SELECT * FROM forecast_module_disposals WHERE module_id = $1 ORDER BY disposal_date', [id]),
-    db.query('SELECT * FROM forecast_module_amortization WHERE module_id = $1 ORDER BY effective_date', [id]),
-    db.query('SELECT * FROM forecast_module_income_steps WHERE module_id = $1 ORDER BY effective_date', [id])
+    db.query('SELECT * FROM forecast_module_amortization WHERE module_id = $1 ORDER BY effective_date', [id])
   ]);
 
-  module.income_steps = incomeSteps.rows;
-  module.income_pct = incomePct.rows;
+  // CR069 P3 — the yield schedule and the income steps are stream change rows now; the route
+  // loads them with the streams themselves.
   module.investments = investments.rows;
   module.disposals = disposals.rows;
   module.amortization = amortization.rows;
@@ -466,9 +458,6 @@ async function findModuleById(id) {
   return module;
 }
 
-/**
- * Create a new module
- */
 /**
  * Every column on forecast_modules a caller may write, in one place.
  *
@@ -487,15 +476,13 @@ async function findModuleById(id) {
  * so the next migration that adds one cannot silently go unwired.
  */
 const MODULE_COLUMN_DEFAULTS = {
+  // CR069 P3 — the eleven income_/expense_ columns are GONE (migration 060). A module's flows
+  // are rows in `forecast_streams`, written by `crud.replaceModuleStreams`. Leaving them here
+  // would put a dropped column in every INSERT.
   account_id: (d) => d.account_id || null,
   name: (d) => d.name,
   module_type: (d) => d.module_type || null,
   currency: (d) => d.currency || 'USD',
-  expense_amount: (d) => d.expense_amount || 0,
-  expense_fc_line_id: (d) => d.expense_fc_line_id || null,
-  income_fc_line_id: (d) => d.income_fc_line_id || null,
-  expense_growth_method: (d) => d.expense_growth_method || 'inflation',
-  income_amount: (d) => d.income_amount || 0,
   base_date: (d) => d.base_date || null,
   base_value: (d) => d.base_value || 0,
   market_value: (d) => d.market_value || 0,
@@ -506,17 +493,11 @@ const MODULE_COLUMN_DEFAULTS = {
   is_matched: (d) => d.is_matched || false,
   setup_status: (d) => d.setup_status || 'new',
   tax_rate_override: (d) => d.tax_rate_override ?? null,
-  income_tax_rate_override: (d) => d.income_tax_rate_override ?? null,
   // CR064 P6 — multiplier of inflation for amount-based income. NULL = 1 = grow at
   // inflation, the pre-CR064 behaviour, which is what keeps migration 055 dormant.
-  income_growth_rate: (d) => d.income_growth_rate ?? null,
   cash_sweep_target: (d) => d.cash_sweep_target || false,
   cash_sweep_priority: (d) => d.cash_sweep_priority ?? null,
   // CR046 window — these are the five the old INSERT dropped.
-  income_start_date: (d) => d.income_start_date || null,
-  income_end_date: (d) => d.income_end_date || null,
-  expense_start_date: (d) => d.expense_start_date || null,
-  expense_end_date: (d) => d.expense_end_date || null,
   // CR062 — NULL is "not a loan", so `?? null`: `|| null` would turn a legitimate
   // 0% rate into one.
   loan_principal: (d) => d.loan_principal ?? null,
@@ -627,31 +608,7 @@ async function addDisposal(moduleId, data, client = db) {
   return result.rows[0];
 }
 
-async function setIncomePct(moduleId, data, client = db) {
-  const sql = `
-    INSERT INTO forecast_module_income_pct (module_id, effective_date, value)
-    VALUES ($1, $2, $3)
-    ON CONFLICT (module_id, effective_date) DO UPDATE SET value = EXCLUDED.value
-    RETURNING *
-  `;
-  const result = await client.query(sql, [moduleId, data.effective_date, data.value]);
-  return result.rows[0];
-}
 
-/**
- * CR064 P6: one permanent step change to amount-based income ("2027: +10,000").
- * `amount` is signed — a business losing a contract is the same field, negative.
- */
-async function setIncomeStep(moduleId, data, client = db) {
-  const sql = `
-    INSERT INTO forecast_module_income_steps (module_id, effective_date, amount)
-    VALUES ($1, $2, $3)
-    ON CONFLICT (module_id, effective_date) DO UPDATE SET amount = EXCLUDED.amount
-    RETURNING *
-  `;
-  const result = await client.query(sql, [moduleId, data.effective_date, data.amount]);
-  return result.rows[0];
-}
 
 /** CR062: one year of a loan's principal schedule, as a % of loan_principal. */
 async function setAmortization(moduleId, data, client = db) {
@@ -670,174 +627,6 @@ async function setAmortization(moduleId, data, client = db) {
 // ============================================================================
 
 /**
- * Get all income/expense items for a scenario (with changes)
- */
-async function findIncExpByScenario(scenarioId) {
-  const sql = `
-    SELECT ie.*, a.name as account_name, fl.name as fc_line_name
-    FROM forecast_income_expense ie
-    LEFT JOIN accounts a ON ie.account_id = a.id
-    LEFT JOIN fc_lines fl ON ie.fc_line_id = fl.id
-    WHERE ie.scenario_id = $1
-    ORDER BY ie.item_type, ie.name
-  `;
-  const result = await db.query(sql, [scenarioId]);
-  const items = result.rows;
-
-  // Fetch changes for all items in one query
-  if (items.length > 0) {
-    const itemIds = items.map(item => item.id);
-    const changesResult = await db.query(`
-      SELECT * FROM forecast_incexp_changes
-      WHERE incexp_id = ANY($1)
-      ORDER BY change_date
-    `, [itemIds]);
-
-    // Group changes by incexp_id
-    const changesByItem = {};
-    for (const change of changesResult.rows) {
-      if (!changesByItem[change.incexp_id]) {
-        changesByItem[change.incexp_id] = [];
-      }
-      changesByItem[change.incexp_id].push({
-        Date: change.change_date,
-        Amount: change.amount,
-        Flag: change.flag || '',
-      });
-    }
-
-    // Attach changes to items
-    for (const item of items) {
-      item.changes = changesByItem[item.id] || [];
-    }
-  }
-
-  return items;
-}
-
-/**
- * Get income/expense item by ID with changes
- */
-async function findIncExpById(id) {
-  const itemResult = await db.query(`
-    SELECT ie.*, a.name as account_name
-    FROM forecast_income_expense ie
-    LEFT JOIN accounts a ON ie.account_id = a.id
-    WHERE ie.id = $1
-  `, [id]);
-
-  if (itemResult.rows.length === 0) return null;
-
-  const item = itemResult.rows[0];
-  const changes = await db.query(
-    'SELECT * FROM forecast_incexp_changes WHERE incexp_id = $1 ORDER BY change_date',
-    [id]
-  );
-  item.changes = changes.rows;
-
-  return item;
-}
-
-/**
- * Create income/expense item
- */
-async function createIncExp(data) {
-  const sql = `
-    INSERT INTO forecast_income_expense (
-      scenario_id, account_id, name, item_type, currency,
-      base_date, base_value, base_value_usd, growth_rate, comment, is_matched,
-      fc_line_id, budget_source_year
-    )
-    VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)
-    RETURNING *
-  `;
-
-  const result = await db.query(sql, [
-    data.scenario_id,
-    data.account_id || null,
-    data.name,
-    data.item_type,
-    data.currency || 'USD',
-    data.base_date || null,
-    data.base_value || 0,
-    data.base_value_usd || 0,
-    data.growth_rate || 0,
-    data.comment || null,
-    data.is_matched || false,
-    data.fc_line_id || null,
-    data.budget_source_year || null
-  ]);
-
-  return result.rows[0];
-}
-
-/**
- * Add change to income/expense item
- */
-async function addIncExpChange(incexpId, data) {
-  const sql = `
-    INSERT INTO forecast_incexp_changes (incexp_id, change_date, amount, flag, note)
-    VALUES ($1, $2, $3, $4, $5)
-    RETURNING *
-  `;
-  const result = await db.query(sql, [incexpId, data.change_date, data.amount, data.flag, data.note]);
-  return result.rows[0];
-}
-
-/**
- * Update income/expense item
- */
-async function updateIncExp(id, data) {
-  const fields = [];
-  const params = [];
-  let paramIndex = 1;
-
-  const allowedFields = [
-    'account_id', 'name', 'item_type', 'currency',
-    'base_date', 'base_value', 'base_value_usd',
-    'growth_rate', 'comment', 'is_matched', 'setup_status'
-  ];
-
-  const patch = {};
-  for (const field of allowedFields) {
-    if (data[field] !== undefined) {
-      fields.push(`${field} = $${paramIndex++}`);
-      params.push(data[field]);
-      patch[field] = data[field];
-    }
-  }
-
-  if (fields.length === 0) return null;
-
-  // CR050 — see updateModule: on a variant's inherited row, an edit is an override.
-  const intercepted = await variants.interceptWrite('incexp', id, patch);
-  if (intercepted.intercepted) return intercepted.row;
-
-  fields.push('updated_at = NOW()');
-  params.push(id);
-
-  const sql = `UPDATE forecast_income_expense SET ${fields.join(', ')} WHERE id = $${paramIndex} RETURNING *`;
-  const result = await db.query(sql, params);
-  return result.rows[0] || null;
-}
-
-/**
- * Delete income/expense item
- */
-async function deleteIncExp(id) {
-  const intercepted = await variants.interceptDelete('incexp', id); // CR050: tombstone, not delete
-  if (intercepted.intercepted) return intercepted.deleted;
-
-  const sql = `DELETE FROM forecast_income_expense WHERE id = $1 RETURNING id`;
-  const result = await db.query(sql, [id]);
-  return result.rowCount > 0;
-}
-
-// ============================================================================
-// Forecast Entries
-// ============================================================================
-
-/**
  * Get distinct years for a scenario
  */
 async function findYearsByScenario(scenarioId) {
@@ -850,6 +639,17 @@ async function findYearsByScenario(scenarioId) {
   const result = await db.query(sql, [scenarioId]);
   return result.rows.map(row => row.forecast_year);
 }
+
+
+// ============================================================================
+// Income/expense items — RETIRED by CR069 P3, with their tables.
+//
+// An Expenditure item is a module with `has_valuation = FALSE` and one stream, so every
+// function that lived here (findIncExpByScenario, findIncExpById, createIncExp, updateIncExp,
+// deleteIncExp, addIncExpChange) has a module equivalent one call away. They are deleted
+// rather than left as unreachable exports: migration 060 drops the tables they name, so
+// keeping them would mean shipping code that throws on its first line.
+// ============================================================================
 
 /**
  * Get entries for a scenario
@@ -930,16 +730,8 @@ module.exports = {
   deleteModule,
   addInvestment,
   addDisposal,
-  setIncomePct,
-  setIncomeStep,
   setAmortization,
   // Income/Expense
-  findIncExpByScenario,
-  findIncExpById,
-  createIncExp,
-  updateIncExp,
-  deleteIncExp,
-  addIncExpChange,
   // Entries
   findYearsByScenario,
   findEntriesByScenario,

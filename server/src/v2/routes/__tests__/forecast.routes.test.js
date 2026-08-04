@@ -235,8 +235,11 @@ dbDescribe('forecast router contract (DB)', () => {
         CashSweepPriority: 1,
         // CR046 window — copied for the same reason the priority is: a column that a
         // copy silently drops is a scenario that silently computes something else.
-        IncomeStartDate: '2030-01-01',
-        ExpenseEndDate: '2040-12-31',
+        // CR069 P3 — the windows are stream properties; the copy must carry the streams.
+        Streams: [
+          { Direction: 'income', Mode: 'amount', Amount: 0, StartDate: '2030-01-01', Changes: [] },
+          { Direction: 'expense', Mode: 'amount', Amount: 0, EndDate: '2040-12-31', Changes: [] },
+        ],
       });
       expect(setPri.status).toBe(200);
 
@@ -373,8 +376,8 @@ dbDescribe('forecast router contract (DB)', () => {
       // CR069 P2 — the window and the amount live on the STREAM now. The behaviour under
       // test is unchanged and so are the expected numbers; only where the fields hang moved.
       modId = (await db.query(
-        `INSERT INTO forecast_modules (scenario_id, account_id, name, setup_status)
-         VALUES ($1, $2, 'CR046 Rent Module', 'complete') RETURNING id`,
+        `INSERT INTO forecast_modules (has_valuation, scenario_id, account_id, name, setup_status)
+         VALUES (TRUE, $1, $2, 'CR046 Rent Module', 'complete') RETURNING id`,
         [scenarioId, acct.id]
       )).rows[0].id;
       await db.query(

@@ -62,7 +62,7 @@ describe("buildModulePayload", () => {
         LoanInterestRate: 5,
         Invest: [{ Date: "2030-07-01", Amount: 100 }],
         Dispose: [{ Date: "2031-07-01", Amount: 50, Flag: "Full" }],
-        IncomePct: [{ Date: "2030-07-01", Value: 2 }],
+        Streams: [{ direction: "expense", mode: "derived", fc_line_id: 7, changes: [] }],
         Amortization: [{ Date: "2028-07-01", Pct: "11.1111" }, { Date: "", Pct: 5 }],
       },
       { normalizeTransfers: (rows) => rows || [] }
@@ -70,7 +70,11 @@ describe("buildModulePayload", () => {
 
     expect(payload.Invest).toEqual([]);
     expect(payload.Dispose).toEqual([]);
-    expect(payload.IncomePct).toEqual([]);
+    // CR069 P3 — a loan's streams still go, because its DERIVED interest stream is the only
+    // place its interest line lives. What must be empty is Invest/Dispose: the derivation owns
+    // the principal movements.
+    expect(payload.Streams).toHaveLength(1);
+    expect(payload.Streams[0].Mode).toBe("derived");
     // Rows without a year are dropped; percentages are coerced to numbers.
     expect(payload.Amortization).toEqual([{ Date: "2028-07-01", Pct: 11.1111 }]);
   });
@@ -92,23 +96,30 @@ describe("buildModulePayload", () => {
 
   it("keeps a blank window date as null, and a picked year as its stored date", () => {
     const blank = buildModulePayload({});
-    expect(blank.IncomeStartDate).toBeNull();
-    expect(blank.ExpenseEndDate).toBeNull();
-
-    const set = buildModulePayload({
-      IncomeStartDate: "2030-07-01",
-      ExpenseEndDate: "2040-07-01",
-    });
-    expect(set.IncomeStartDate).toBe("2030-07-01");
-    expect(set.ExpenseEndDate).toBe("2040-07-01");
+    expect(blank.Streams).toEqual([]);
+    const set = buildModulePayload(
+      {
+        Streams: [{
+          direction: "income", mode: "amount", fc_line_id: 3, amount: 1000,
+          start_date: "2030-07-01", end_date: null, changes: [],
+        }],
+      },
+      { normalizeTransfers: (x) => x || [] }
+    );
+    expect(set.Streams[0].StartDate).toBe("2030-07-01");
+    expect(set.Streams[0].EndDate).toBeNull();
   });
 
   it("sends a 0% income tax override as 0, not as null", () => {
     // 0 is a real rate (income taxed at nothing), not 'unset' — the engine relies on that.
-    expect(buildModulePayload({ IncomeTaxRateOverride: 0 }).IncomeTaxRateOverride).toBe(0);
-    expect(buildModulePayload({ IncomeTaxRateOverride: "3" }).IncomeTaxRateOverride).toBe(3);
-    expect(buildModulePayload({ IncomeTaxRateOverride: "" }).IncomeTaxRateOverride).toBeNull();
-    expect(buildModulePayload({}).IncomeTaxRateOverride).toBeNull();
+    // CR069 P3 — the recurring-income override belongs to the income STREAM (which is what
+    // makes two income streams taxed differently expressible). 0 is still a real rate.
+    const p0 = buildModulePayload({ Streams: [{ direction: "income", tax_rate_override: 0, changes: [] }] });
+    expect(p0.Streams[0].TaxRateOverride).toBe(0);
+    const p3 = buildModulePayload({ Streams: [{ direction: "income", tax_rate_override: "3", changes: [] }] });
+    expect(p3.Streams[0].TaxRateOverride).toBe(3);
+    const pn = buildModulePayload({ Streams: [{ direction: "income", tax_rate_override: "", changes: [] }] });
+    expect(pn.Streams[0].TaxRateOverride).toBeNull();
   });
 
   it("normalizes a cleared sweep priority to null and a set one to at least 1", () => {
@@ -125,50 +136,61 @@ describe("buildModulePayload", () => {
  * above (that test is the reason CR046's window and CR047's tax override cannot be
  * dropped again). The step SCHEDULE is not a FIELD_SECTIONS entry, so it needs its own.
  */
-describe("CR064 — IncomeSteps", () => {
+describe("CR069 P3 — stream changes (what IncomeSteps became)", () => {
   const normalizeTransfers = (rows) => rows || [];
 
-  it("normalizes rows and coerces a blank amount to 0", () => {
+  it("normalizes change rows and coerces a blank amount to 0", () => {
+    // CR064 P6's income steps are `Fixed $` rows on a stream now — same semantics, same
+    // normalization obligations, one shape instead of two.
     const payload = buildModulePayload(
-      { IncomeSteps: [
-        { Date: "2027-07-01", Amount: "10000" },
-        { Date: "2031-07-01", Amount: "" },
-        { Date: "2033-07-01", Amount: -25000 },
-      ] },
+      {
+        Streams: [{
+          direction: "income", mode: "amount", amount: 1000, changes: [
+            { change_date: "2027-07-01", amount: "10000", flag: "Fixed $" },
+            { change_date: "2031-07-01", amount: "", flag: "Fixed $" },
+            { change_date: "2033-07-01", amount: -25000, flag: "Fixed $" },
+          ],
+        }],
+      },
       { normalizeTransfers }
     );
-    expect(payload.IncomeSteps).toEqual([
-      { Date: "2027-07-01", Amount: 10000 },
-      { Date: "2031-07-01", Amount: 0 },
-      { Date: "2033-07-01", Amount: -25000 },
+    expect(payload.Streams[0].Changes).toEqual([
+      { Date: "2027-07-01", Amount: 10000, Flag: "Fixed $" },
+      { Date: "2031-07-01", Amount: 0, Flag: "Fixed $" },
+      { Date: "2033-07-01", Amount: -25000, Flag: "Fixed $" },
     ]);
   });
 
-  it("drops a row with no year — it would have no effect and the table rejects it", () => {
+  it("drops a change with no date — it would have no effect and the table rejects it", () => {
     const payload = buildModulePayload(
-      { IncomeSteps: [{ Amount: 500 }, { Date: "2029-07-01", Amount: 500 }] },
+      {
+        Streams: [{
+          direction: "income", changes: [
+            { amount: 500, flag: "Fixed $" },
+            { change_date: "2029-07-01", amount: 500, flag: "Fixed $" },
+          ],
+        }],
+      },
       { normalizeTransfers }
     );
-    expect(payload.IncomeSteps).toHaveLength(1);
+    expect(payload.Streams[0].Changes).toHaveLength(1);
   });
 
-  it("sends an EMPTY array on a loan — the only way a retyped module clears them", () => {
+  it("sends the amount as a MAGNITUDE — direction carries the sign", () => {
+    // The column is CHECKed >= 0 (migration 057). A negative typed into the card is the
+    // owner meaning "this much", not "negative this much".
     const payload = buildModulePayload(
-      { Type: "Loan", LoanInterestRate: 6, IncomeSteps: [{ Date: "2027-07-01", Amount: 10000 }] },
+      { Streams: [{ direction: "expense", amount: -4200, changes: [] }] },
       { normalizeTransfers }
     );
-    expect(payload.IncomeSteps).toEqual([]);
+    expect(payload.Streams[0].Amount).toBe(4200);
   });
 
-  it("is absent when the caller does not normalize transfers", () => {
-    expect(buildModulePayload({ IncomeSteps: [{ Date: "2027-07-01", Amount: 1 }] }).IncomeSteps)
-      .toBeUndefined();
-  });
-
-  it("blank income growth stays null — null is 'grow at inflation' to the engine", () => {
-    expect(buildModulePayload({ IncomeGrowth: "" }).IncomeGrowth).toBeNull();
-    // 0 is a real multiplier (flat in nominal terms), not "unset".
-    expect(buildModulePayload({ IncomeGrowth: 0 }).IncomeGrowth).toBe(0);
-    expect(buildModulePayload({ IncomeGrowth: "0.5" }).IncomeGrowth).toBe(0.5);
+  it("keeps a blank growth multiplier NULL — blank means inflation, not zero", () => {
+    const payload = buildModulePayload(
+      { Streams: [{ direction: "income", growth_mult: "", changes: [] }] },
+      { normalizeTransfers }
+    );
+    expect(payload.Streams[0].GrowthMult).toBeNull();
   });
 });

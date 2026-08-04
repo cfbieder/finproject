@@ -137,11 +137,13 @@ describe("the three FX readers agree on the key spelling", () => {
     expect(src).toMatch(/Rates\.EUR\s*\?\?\s*entry\.Rates\.USDEUR/);
   });
 
-  it("the expenses page reads PLN ?? USDPLN", () => {
-    const src = repoFile("frontend/src/pages/FCExpSetup.jsx");
-    expect(src).toMatch(/PLN\s*\?\?\s*rates\.USDPLN/);
-    expect(src).toMatch(/EUR\s*\?\?\s*rates\.USDEUR/);
-  });
+  // RETIRED by CR069 P3 — "the expenses page reads PLN ?? USDPLN".
+  //
+  // CR064 P0 found THREE readers of the FX assumptions and one using the wrong spelling; this
+  // test pinned the third. `FCExpSetup.jsx` is deleted (an Expenditure item is a module now),
+  // so there are two readers left and both are covered: the engine by the test above, and
+  // `resolveFxRate` by every case in this file. Deleting the page deletes its obligation —
+  // keeping an assertion against a file that cannot exist would just fail for the wrong reason.
 });
 
 describe("allocateBudget", () => {

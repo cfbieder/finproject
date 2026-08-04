@@ -48,11 +48,14 @@ test.describe("write paths — the value must survive a reopen", () => {
     // 0 is the value that matters. "0%" and "unset" are DIFFERENT — 0 means "taxed at
     // nothing", and the engine relies on the distinction. A round-trip that collapses 0 to
     // null is precisely the silent corruption this test exists to catch.
-    const taxOverride = dialog.getByLabel(/Full Tax Override/i);
+    // CR069 P3 — the gains rate is the only tax left ON the module (it belongs to the
+    // valuation); the income window moved onto its stream's card, which is where it is set.
+    const taxOverride = dialog.getByLabel(/Capital Gains Tax Override/i);
     await taxOverride.fill("0");
 
-    const incomeStart = dialog.getByLabel(/INCOME START YEAR/i);
-    await incomeStart.selectOption("2028");
+    await dialog.locator(".fc-stream-cards__add").getByRole("button", { name: "+ Add income" }).click();
+    const card = dialog.locator(".fc-stream-card[data-direction='income']");
+    await card.getByLabel("Start year").selectOption("2028");
 
     await dialog.getByRole("button", { name: /Save Changes/i }).click();
     await expect(dialog).toBeHidden();
@@ -62,8 +65,10 @@ test.describe("write paths — the value must survive a reopen", () => {
     await openModuleEditor(page, "E2E Brokerage");
     const reopened = page.locator("[role=dialog]");
 
-    await expect(reopened.getByLabel(/Full Tax Override/i)).toHaveValue("0");
-    await expect(reopened.getByLabel(/INCOME START YEAR/i)).toHaveValue("2028");
+    await expect(reopened.getByLabel(/Capital Gains Tax Override/i)).toHaveValue("0");
+    const reopenedCard = reopened.locator(".fc-stream-card[data-direction='income']");
+    await expect(reopenedCard).toBeVisible();
+    await expect(reopenedCard.getByLabel("Start year")).toHaveValue("2028");
   });
 
   test("a Chart of Accounts type change survives a save (the v3.0.104 silent drop)", async ({

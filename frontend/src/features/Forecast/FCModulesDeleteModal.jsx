@@ -1,5 +1,5 @@
 import Modal from "../../components/Modal/Modal.jsx";
-import "./FCExpDeleteModal.css";
+import "./FCConfirmDeleteModal.css";
 
 /**
  * Delete confirmation modal for forecast modules.

@@ -2,6 +2,8 @@ import { Fragment, useEffect, useState } from "react";
 import Rest from "../../js/rest";
 import FCModuleAuditModal from "./FCModuleAuditModal.jsx";
 import Modal from "../../components/Modal/Modal.jsx";
+import FCModulesStreams from "./FCModulesStreams.jsx";
+import "./FCModulesStreams.css";
 import {
   fieldSectionsFor,
   isLoanModule,
@@ -1392,6 +1394,21 @@ export default function FCModulesEditModal({
                   </div>
                 </div>
               ))}
+
+              {/* CR069 P3 — the module's P&L streams, one card each. A card IS a row: adding
+                  one inserts a stream, removing one deletes it. That is what lets this form
+                  show only what a module actually has, which CR064 §5 could not do safely
+                  while these were columns sent on every save. */}
+              <div className="fc-modules-modal__field-group">
+                <h5 className="fc-modules-modal__group-title">Income &amp; Expenses</h5>
+                <FCModulesStreams
+                  streams={editForm.Streams || []}
+                  onChange={(next) => onFieldChange("Streams", next)}
+                  fcLines={fcLines}
+                  periodYears={baseYearOptions}
+                  currency={editForm.Currency}
+                />
+              </div>
             </div>
 
             {/* Transfer Sections */}

@@ -39,7 +39,8 @@ describe("fieldIsEmpty", () => {
   });
 
   test("a field left at its own default is empty", () => {
-    // 'inflation' is what the form starts with; it must not hold Expenses open.
+    // FIELD_DEFAULTS is keyed by field name and is deliberately not tied to any one section,
+    // so the rule keeps working as fields come and go (CR069 P3 removed the per-direction ones).
     expect(fieldIsEmpty({ ExpenseGrowthMethod: "inflation" }, "ExpenseGrowthMethod")).toBe(true);
     expect(fieldIsEmpty({ ExpenseGrowthMethod: "pct_of_value" }, "ExpenseGrowthMethod")).toBe(false);
   });
@@ -55,65 +56,47 @@ describe("initialOpenSections", () => {
     expect([...open({})].sort()).toEqual(["General", "Valuation"]);
   });
 
-  test("a section holding ANY value is open — this is what makes hiding safe", () => {
-    // The failure mode a type-gated form would have: a stale expense on a module whose
-    // type says it has none. Here the value itself keeps the section open.
-    expect(open({ ExpenseAmount: 45000 }).has("Expenses")).toBe(true);
-    expect(open({ IncomeFcLineId: 12 }).has("Income")).toBe(true);
-    expect(open({ TaxRateOverride: 3 }).has("Tax")).toBe(true);
-    // 0 is not a value: a 0% override and no override are the same to the engine here.
-    expect(open({ ExpenseAmount: 0 }).has("Expenses")).toBe(false);
-  });
-
+  // CR069 P3 — the three tests that lived here asserted that an Expenses or Income section
+  // holding a value stays OPEN, which was the property that made collapse-when-empty safe
+  // while those were columns. They are gone with the sections: a module's flows are stream
+  // CARDS now, and a card is a row — a module with no expense has no card because it has no
+  // stream, so there is no hidden-value hazard left for the rule to guard against. The rule
+  // itself still applies to what remains, and the two properties below still pin it.
   test("the rule never reads module_type — the whole point of §5", () => {
-    const realEstate = { Type: "Real Estate", ExpenseAmount: 30000 };
-    const business = { Type: "Business", ExpenseAmount: 30000 };
-    const nonsense = { Type: "asdf", ExpenseAmount: 30000 };
-    const noType = { ExpenseAmount: 30000 };
-    for (const form of [realEstate, business, nonsense, noType]) {
-      expect(open(form).has("Expenses")).toBe(true);
-    }
+    // Two forms identical but for the type must open identically. `module_type` is free text
+    // the owner edits (prod carries both "Asset" and "asset"), so keying anything on it is how
+    // a renamed type silently changes a form.
+    const a = open({ Type: "Real Estate", MarketValue: 400000 });
+    const b = open({ Type: "not a real type at all", MarketValue: 400000 });
+    expect([...a].sort()).toEqual([...b].sort());
   });
 
-  test("prod's shapes collapse to what each type actually uses", () => {
-    // Real Estate: expenses, never income (0 of 40 modules carry one).
-    const realEstate = { Type: "Real Estate", BaseValue: 919581, ExpenseAmount: 30000 };
-    expect([...open(realEstate)].sort()).toEqual(["Expenses", "General", "Valuation"]);
-
-    // Business: income, never expenses (0 of 18).
-    const business = { Type: "Business", BaseValue: 15000000, IncomeAmount: 500000 };
-    expect([...open(business)].sort()).toEqual(["General", "Income", "Valuation"]);
-
-    // Liability / Asset: the two valuation fields and nothing else.
-    const liability = { Type: "Liability", MarketValue: -24542.66 };
-    expect([...open(liability)].sort()).toEqual(["General", "Valuation"]);
+  test("the always-open set is the sections a module is DEFINED by", () => {
+    // CR069 P3 — General and Valuation, and Loan on the loan form. Not Expenses or Income:
+    // those are cards now, and a card that does not exist cannot be collapsed or hidden.
+    expect([...ALWAYS_OPEN_SECTIONS].sort()).toEqual(["General", "Loan", "Valuation"]);
+    expect(LOAN_FIELD_SECTIONS.map(([t]) => t)).toContain("Loan");
   });
 
-  test("a Loan's own sections all stay open", () => {
-    const loan = { Type: "Loan", LoanInterestRate: 7 };
-    const sections = initialOpenSections(loan, LOAN_FIELD_SECTIONS);
-    expect(sections.has("General")).toBe(true);
-    expect(sections.has("Loan")).toBe(true);
-  });
-
-  test("every always-open title is a real section title", () => {
-    const known = new Set([
-      ...FIELD_SECTIONS.map(([t]) => t),
-      ...LOAN_FIELD_SECTIONS.map(([t]) => t),
-    ]);
-    for (const title of ALWAYS_OPEN_SECTIONS) expect(known.has(title)).toBe(true);
+  test("a section carrying a real value is open; an empty one collapses", () => {
+    expect([...open({ TaxRateOverride: 15 })].sort())
+      .toEqual(["General", "Tax", "Valuation"]);
+    expect([...open({})].sort()).toEqual(["General", "Valuation"]);
   });
 });
 
 describe("sectionHasContent", () => {
   test("reads only the fields of the section it was handed", () => {
-    const form = { IncomeAmount: 500 };
-    expect(sectionHasContent(form, sectionByTitle.Income)).toBe(true);
-    expect(sectionHasContent(form, sectionByTitle.Expenses)).toBe(false);
+    // CR069 P3 — was Income vs Expenses; those sections are stream cards now. The property is
+    // the same and is what keeps the rule composable: a section is judged by ITS OWN fields,
+    // so adding or removing a section cannot change how another one collapses.
+    const form = { TaxRateOverride: 15 };
+    expect(sectionHasContent(form, sectionByTitle.Tax)).toBe(true);
+    expect(sectionHasContent(form, sectionByTitle.Valuation)).toBe(false);
   });
 
   test("an unknown or empty section list is not content", () => {
-    expect(sectionHasContent({ IncomeAmount: 500 }, [])).toBe(false);
+    expect(sectionHasContent({ TaxRateOverride: 15 }, [])).toBe(false);
     expect(sectionHasContent({}, undefined)).toBe(false);
   });
 });

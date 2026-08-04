@@ -91,21 +91,14 @@ async function buildForecastContext(scenarioName) {
   // 2. Modules with nested data
   const modules = await forecastRepo.findModulesByScenario(scenario.id);
   for (const mod of modules) {
-    const [incomePct, investments, disposals] = await Promise.all([
-      db.query("SELECT * FROM forecast_module_income_pct WHERE module_id = $1 ORDER BY effective_date", [mod.id]),
+    const [investments, disposals] = await Promise.all([
       db.query("SELECT * FROM forecast_module_investments WHERE module_id = $1 ORDER BY investment_date", [mod.id]),
       db.query("SELECT * FROM forecast_module_disposals WHERE module_id = $1 ORDER BY disposal_date", [mod.id]),
     ]);
-    mod.income_pct = incomePct.rows;
     mod.investments = investments.rows;
     mod.disposals = disposals.rows;
   }
 
-  // 3. Income/Expense items — CR069 P2: they ARE modules now (has_valuation = false, one
-  // stream), so they already arrive in the module list above. Reading the retired table too
-  // sent every item to the LLM gateway TWICE, which is wasted context and an invitation for
-  // the model to reconcile two copies of the same figure.
-  const incexp = [];
 
   // 4. Forecast entries (generated output) — aggregated per (year, account, module-tag)
   // We need both the raw flows AND a separate breakdown for BS year-end MV vs cash sweep
@@ -189,11 +182,26 @@ async function buildForecastContext(scenarioName) {
     lines.push(`  Account: ${mod.account_name || 'N/A'}, Type: ${mod.module_type || 'N/A'}, Currency: ${mod.currency}`);
     lines.push(`  Base Date: ${mod.base_date}, Cost Basis: ${fmt(mod.base_value)}, Market Value: ${fmt(mod.market_value)}`);
     lines.push(`  Cost Basis (USD): ${fmt(mod.base_value_usd)}, Market Value (USD): ${fmt(mod.market_value_usd)}`);
-    lines.push(`  Growth Rate: ${mod.growth_rate}% (×inflation), Expense Amount: ${fmt(mod.expense_amount)}, Income Amount: ${fmt(mod.income_amount)}`);
-    lines.push(`  Expense Growth: ${mod.expense_growth_method || 'inflation'}, Tax Override: ${mod.tax_rate_override ?? 'default'}`);
+    lines.push(`  Growth Rate: ${mod.growth_rate}% (×inflation), Gains Tax Override: ${mod.tax_rate_override ?? 'default'}`);
     lines.push(`  Status: ${mod.setup_status}, Cash Sweep Target: ${mod.cash_sweep_target ? 'YES' : 'no'}`);
-    if (mod.income_pct?.length) {
-      lines.push(`  Yield Schedule: ${mod.income_pct.map(p => `${new Date(p.effective_date).getFullYear()}: ${p.value}%`).join(", ")}`);
+    // CR069 P3 — a module's income and expense are STREAMS. Printing the retired columns
+    // would have told the model every module earns and spends nothing the moment anything was
+    // saved through the new path, which is worse than omitting them.
+    for (const st of mod.streams || []) {
+      const bits = [
+        `${st.direction} → ${st.fc_line_name || '(no line)'}`,
+        `mode ${st.mode}`,
+        st.mode === 'derived' ? 'amount derived from the loan balance' : `amount ${fmt(st.amount)}`,
+      ];
+      if (st.growth_mult != null) bits.push(`growth ×${st.growth_mult} inflation`);
+      if (st.start_date || st.end_date) {
+        bits.push(`window ${st.start_date ? new Date(st.start_date).getFullYear() : 'start'}–${st.end_date ? new Date(st.end_date).getFullYear() : 'end'}`);
+      }
+      if (st.tax_rate_override != null) bits.push(`income tax ${st.tax_rate_override}%`);
+      lines.push(`  Stream: ${bits.join(', ')}`);
+      for (const c of st.changes || []) {
+        lines.push(`    ${new Date(c.change_date).getFullYear()}: ${c.flag} ${fmt(c.amount)}`);
+      }
     }
     if (mod.disposals?.length) {
       lines.push(`  Disposals: ${mod.disposals.map(d => `${d.disposal_date} ${d.flag || ''} ${fmt(d.amount)}`).join(", ")}`);
@@ -206,9 +214,6 @@ async function buildForecastContext(scenarioName) {
 
   // Income/Expense items
   lines.push("## Income & Expense Forecast Items");
-  for (const ie of incexp) {
-    lines.push(`  ${ie.name} (ID: ${ie.id}): Base Value ${fmt(ie.base_value)}, Growth ${ie.growth_rate}%, Currency: ${ie.currency}, Status: ${ie.setup_status}`);
-  }
   lines.push("");
 
   // FX Assumptions
@@ -310,7 +315,7 @@ async function buildForecastContext(scenarioName) {
   }
   lines.push("");
 
-  return { context: lines.join("\n"), scenario, modules, incexp };
+  return { context: lines.join("\n"), scenario, modules };
 }
 
 /**

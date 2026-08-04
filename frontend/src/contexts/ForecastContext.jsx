@@ -44,7 +44,7 @@ export function useForecast() {
  * <ForecastProvider>
  *   <FCScenarios />
  *   <FCModuleManage />
- *   <FCExpSetup />
+ *   <FCModuleManage />
  * </ForecastProvider>
  */
 export function ForecastProvider({ children }) {
