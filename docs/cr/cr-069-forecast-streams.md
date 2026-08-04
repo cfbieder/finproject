@@ -1,4 +1,4 @@
-# CR069 — Forecast streams: one Modules section for everything Expenditures and Modules do today — 🟡 IN-PROGRESS (P0 live in v3.13.1; P1 = migration 057, dev + prod; **P2 built, dev-applied and three-pass reviewed, PROD PENDING**; P3 designed)
+# CR069 — Forecast streams: one Modules section for everything Expenditures and Modules do today — 🟡 IN-PROGRESS (P0 live in v3.13.1; P1 = migration 057, dev + prod; **P2 LIVE on prod (v3.14.0)**; P3 designed)
 
 The Forecast setup collapses from two entity types to one. A **module** becomes *identity +
 optional valuation + zero-or-more P&L **streams***; a stream is a first-class row (direction,
@@ -779,3 +779,39 @@ one stream — the $25K Downside move came from the override defect), and the `-
    carry only `base_value*`).
 5. `aiReview.js`'s per-module dump still prints the retired columns, so the LLM will be told
    every module has 0 expense and 0 income once anything is saved through the new path.
+
+## 15. Released — v3.14.0 (2026-08-04), live on prod
+
+Deployed in the reviewed order: backup → migrations → build → variant sync → regenerate → gate.
+
+| step | result |
+|---|---|
+| `migrate.js` | **057, 058, 059 all APPLIED and recorded** — the ledger now runs to 059, closing the `psql -f` gap the migration review found |
+| Backfill | 145 streams · 145 change rows · **60 flow modules** · 0 stale `incexp` overrides · **0 overrides naming any retired key** |
+| Deploy | both images stamped `2b9e650`, matching the `v3.14.0` tag |
+| Variant sync | all four variants, 34 modules each, 0 deleted, 0 local |
+| Regenerate | all five scenarios, 1647 / 1637 / 1649 / 1731 / 1721 entries |
+| **Sums gate** | **4,030 rows before, 4,030 after, IDENTICAL to the cent** |
+
+**The two conditions the migration review attached were both honoured.** The dry-run reported
+`would APPLY` (not `BASELINE`) beforehand, and the Step 2b→3 window was closed afterwards by
+force-syncing every variant before regenerating — without which a sync in that window would have
+materialised four overrides from base.
+
+**The four variant overrides survived the whole cutover**, which is the thing most likely to have
+broken silently:
+
+| scenario | module | variant | base |
+|---|---|---:|---:|
+| 2026 Downside | Living Expenses | 115,908.91 | 127,372.43 |
+| 2026 Downside | Purchases | 42,057.60 | 46,217.14 |
+| 2026 Downside | Travel | 76,839.03 | 84,438.50 |
+| 2026 Upside | United Beverages | 750,000.00 | 500,000.00 |
+
+`Retirement Home`, `Car Purchase Chris` and `Social Security` remain visible under their own
+names (P0's fix, carried through the conversion).
+
+**Prod matches its tag.** This is the first Forecast-engine release in this project's recent
+history to reach production from a tagged commit rather than out of a working tree — the four
+prior incidents are what Known Issue #17 records, and the dirty-tree guard added in v3.13.0 is
+what made it automatic here.

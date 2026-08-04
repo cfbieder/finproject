@@ -13,12 +13,12 @@ streams*; one evaluator replaces three; the Expenditures step, ~2,770 lines of `
 tables retire. Gate on every phase: per-(scenario, account, year) `forecast_entries` sums
 **identical to the cent** on a prod copy.
 **P0 live (v3.13.1)** — three items stopped hiding under other names. **P1 = migration 057**
-(schema, inert), dev + prod. **P2 = migrations 058/059 + the engine cutover: BUILT, applied on
-DEV, reviewed three ways, PENDING ON PROD** — 4,030/0 on a prod copy, 3,798/0 on dev; 803 backend
-· 396 frontend · 7 e2e · six ratchets. The gate, dev and the reviews caught **eleven** defects that
-would otherwise have shipped, two reproducing on today's data. **Prod needs the owner's go**;
-detail and the two ops conditions are in [CR069 §14](../cr/cr-069-forecast-streams.md). P3 (UI +
-table drop) designed.
+(schema, inert), dev + prod. **P2 = migrations 058/059 + the engine cutover: LIVE ON PROD
+(v3.14.0)** — the production gate passed **4,030 rows before, 4,030 after, identical to the cent**,
+with all four variant overrides intact; 803 backend · 396 frontend · 7 e2e · six ratchets. The
+gate, dev and three reviews caught **eleven** defects that would otherwise have shipped, two
+reproducing on live data ([§14](../cr/cr-069-forecast-streams.md)). **P3 next:** stream-card UI,
+delete `FCExp*`, drop four tables, un-skip the CR051 browser spec.
 **[CR066](../cr/cr-066-fc-line-mapping-completeness.md) is next up, at the owner's request** — twelve COA
 categories with real activity map to no FC line, so **−78,689 of expense and +31,474 of income sit
 outside the forecast** and no screen says so. P0 is a decision per row, not code.
@@ -171,12 +171,10 @@ Canonical dates/versions: **[CR index](../cr/README.md)**. Per-release detail:
 
 ## Next
 **Next up:**
-- [CR069](../cr/cr-069-forecast-streams.md) **P2 → PROD.** Built, dev-applied, reviewed three ways.
-  Two ops conditions from the migration review: `node server/db/migrate.js --dry-run` must say
-  **APPLY** 057/058/059, not BASELINE (verified 2026-08-04; prod's ledger lacks 057 because it was
-  applied with `psql -f`), and the Step 2b→3 build window runs the OLD engine against backfilled
-  data — so deploy idle, then force-sync the four variants, regenerate all five, and re-run the
-  sums gate. Then P3 (stream-card UI, delete `FCExp*`, drop four tables).
+- [CR069](../cr/cr-069-forecast-streams.md) **P3** — the last phase: stream cards in the Modules
+  editor, delete `FCExp*` (~2,770 lines), drop the four retired tables and the eleven retired
+  columns, `has_valuation DROP DEFAULT`, and re-point + un-skip `cr051-currency.spec.js`. The
+  carried-forward list is [CR069 §14](../cr/cr-069-forecast-streams.md).
 
 **Next up (owner-requested, 2026-08-03):**
 - [CR068](../cr/cr-068-mobile-actuals-search.md) — **shipped in v3.13.0 and live.** Worth the owner's
