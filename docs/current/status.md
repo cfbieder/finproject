@@ -4,21 +4,23 @@
 > CR statuses live in the [CR index](../cr/README.md); the running version lives in `VERSION`.
 > Older headlines: [status log](../archive/status-log_2026-08-01.md).
 
-**Last updated:** 2026-08-04 · **Live version:** v3.14.0 (see `VERSION` / git tags)
+**Last updated:** 2026-08-04 · **Live version:** v3.14.1 (see `VERSION` / git tags)
 
 ## Current phase
-**[CR069](../cr/cr-069-forecast-streams.md) — the owner-directed unification of Forecast
-Expenditures into Modules.** A module becomes *identity + optional valuation + N first-class
-streams*; one evaluator replaces three; the Expenditures step, ~2,770 lines of `FCExp*` and four
-tables retire. Gate on every phase: per-(scenario, account, year) `forecast_entries` sums
-**identical to the cent** on a prod copy.
-**P0 live (v3.13.1)** — three items stopped hiding under other names. **P1 = migration 057**
-(schema, inert), dev + prod. **P2 = migrations 058/059 + the engine cutover: LIVE ON PROD
-(v3.14.0)** — the production gate passed **4,030 rows before, 4,030 after, identical to the cent**,
-with all four variant overrides intact; 803 backend · 396 frontend · 7 e2e · six ratchets. The
-gate, dev and three reviews caught **eleven** defects that would otherwise have shipped, two
-reproducing on live data ([§14](../cr/cr-069-forecast-streams.md)). **P3 next:** stream-card UI,
-delete `FCExp*`, drop four tables, un-skip the CR051 browser spec.
+**[CR069](../cr/cr-069-forecast-streams.md) is COMPLETE and live — Forecast Expenditures and
+Modules are one thing.** A module is *identity + optional valuation + N first-class streams*;
+one evaluator replaced three; the Expenditures step, ~2,770 lines of `FCExp*` and four tables
+are gone, and the Modules editor renders **stream cards** (a card is a row — remove it and the
+row goes, so nothing can be hidden-but-live). Shipped across four phases, each gated on
+per-(scenario, account, year) `forecast_entries` sums being **identical to the cent**:
+**P0** v3.13.1 · **P1+P2** v3.14.0 (migrations 057–059) · **P3** v3.14.1 (migration 060).
+The gate, dev's own data and three review passes caught **eleven** defects that would otherwise
+have shipped — two of them reproducing on live data — and two false comments the author had
+written. Detail: [CR069 §12–16](../cr/cr-069-forecast-streams.md).
+*Also fixed on the way:* the e2e suite had been testing a **July-14 orphaned server** for three
+weeks; the root cause was a subshell pid, and `Scripts/e2e.sh` now refuses to start on a bound
+port, execs, and sweeps both ports on exit.
+
 **[CR066](../cr/cr-066-fc-line-mapping-completeness.md) is next up, at the owner's request** — twelve COA
 categories with real activity map to no FC line, so **−78,689 of expense and +31,474 of income sit
 outside the forecast** and no screen says so. P0 is a decision per row, not code.
@@ -151,7 +153,7 @@ brokerage-history data work. Detail lives in the CR file linked from each line.
 - **[CR050](../cr/cr-050-forecast-scenario-variants.md) — variants** are live and adopted; §10 (v3.11.0) made a variant read as one in all seven pickers. Owner has not yet run `adopt-variant` on "2026 Downside".
 - **A module carries TWO base-year anchors, and that is now the open design question** ([CR064 §9.1](../cr/cr-064-forecast-annual-close-and-assumptions.md)). Its **value** series starts at the module's own `base_date` (2025-12-31 on 18 of 21) and takes no growth until `PeriodStart`; its **income/expense amounts** anchor to `PeriodStart − 1` (2026). v3.11.12 fixed the label that read the wrong one of the two, but not the split itself. **P10** — base-year P&L from `budget_entries`, module amount = the first forecast year — is designed and unbuilt; the objection that killed it earlier (per-module base-year tax) is weak: **0 of 110 modules carry a tax override**.
 - **The forecast was rebuilt on the corrected opening cash (v3.11.11).** [CR064 P8](../cr/cr-064-forecast-annual-close-and-assumptions.md) fixed a base year summed in mixed currencies — `2026 Base` went **+144,395 → −254,728** — and that figure is the cash sweep's opening cash. The regenerate was held until the owner confirmed United Beverages' 500,000 is **PLN** (2026-08-02), which is how it was already stored, so no data was corrected. All five scenarios regenerated. *Residue left to the owner:* the 500,000 was meant for **2027** but sits in the **2026** field, so it projects 512,500 PLN next year; 487,805 would give exactly 500,000. The form now shows that derived figure, which is the point of the change.
-- **Recent releases:** v3.14.0 ([CR069](../cr/cr-069-forecast-streams.md) P2 — Expenditures and Modules become one; migrations 057/058/059) · v3.13.1 ([CR069](../cr/cr-069-forecast-streams.md) P0 — an inc/exp item's entries carry its own name; no migration) · v3.13.0 ([CR068](../cr/cr-068-mobile-actuals-search.md) — the mobile Actuals search + the base-totals fix; no migration) · v3.12.0 ([CR067](../cr/cr-067-forecast-multi-compare.md) — Forecast Multi-Compare) · v3.11.16 (CR064 P13 — a module labelled USD over PLN values, migration 056) · v3.11.15 (CR064 P12 — Net Assets added the debt) · v3.11.14 (the forecast graphs' actual + budget columns) · v3.11.13 (CR064 P11) · v3.11.12 (CR064 P9) · v3.11.11 (the forecast rebuilt on the corrected opening cash) · v3.11.10 (CR064 P8 — the base year's currencies, and the sweep's opening cash) · v3.11.9 (CR064 P7 — the budget hint's currencies) · v3.11.8 ([CR064](../cr/cr-064-forecast-annual-close-and-assumptions.md) P6, migration 055) · v3.11.7 · v3.11.6 · v3.11.5 · v3.11.4 ([CR065](../cr/cr-065-neutralize-pair-identity.md), migrations 053/054) · v3.11.3 ([CR064](../cr/cr-064-forecast-annual-close-and-assumptions.md) P0/P1/P3 + the variant link above, migration 052) · v3.11.2 (the red CI) · v3.11.1 (the period filter) · v3.11.0 ([CR050 §10](../cr/cr-050-forecast-scenario-variants.md)) · v3.10.0 ([CR063](../cr/cr-063-coa-ordering.md), migration 049) · v3.8.0–v3.9.2 ([CR062](../cr/cr-062-forecast-loan-module.md) loans + equity, migrations 047/048).
+- **Recent releases:** v3.14.1 ([CR069](../cr/cr-069-forecast-streams.md) P3 — stream cards; four tables dropped; migration 060) · v3.14.0 ([CR069](../cr/cr-069-forecast-streams.md) P2 — Expenditures and Modules become one; migrations 057/058/059) · v3.13.1 ([CR069](../cr/cr-069-forecast-streams.md) P0 — an inc/exp item's entries carry its own name; no migration) · v3.13.0 ([CR068](../cr/cr-068-mobile-actuals-search.md) — the mobile Actuals search + the base-totals fix; no migration) · v3.12.0 ([CR067](../cr/cr-067-forecast-multi-compare.md) — Forecast Multi-Compare) · v3.11.16 (CR064 P13 — a module labelled USD over PLN values, migration 056) · v3.11.15 (CR064 P12 — Net Assets added the debt) · v3.11.14 (the forecast graphs' actual + budget columns) · v3.11.13 (CR064 P11) · v3.11.12 (CR064 P9) · v3.11.11 (the forecast rebuilt on the corrected opening cash) · v3.11.10 (CR064 P8 — the base year's currencies, and the sweep's opening cash) · v3.11.9 (CR064 P7 — the budget hint's currencies) · v3.11.8 ([CR064](../cr/cr-064-forecast-annual-close-and-assumptions.md) P6, migration 055) · v3.11.7 · v3.11.6 · v3.11.5 · v3.11.4 ([CR065](../cr/cr-065-neutralize-pair-identity.md), migrations 053/054) · v3.11.3 ([CR064](../cr/cr-064-forecast-annual-close-and-assumptions.md) P0/P1/P3 + the variant link above, migration 052) · v3.11.2 (the red CI) · v3.11.1 (the period filter) · v3.11.0 ([CR050 §10](../cr/cr-050-forecast-scenario-variants.md)) · v3.10.0 ([CR063](../cr/cr-063-coa-ordering.md), migration 049) · v3.8.0–v3.9.2 ([CR062](../cr/cr-062-forecast-loan-module.md) loans + equity, migrations 047/048).
 
 ## Known issue
 - ⚠️ **"2026 Downside" has no sweep backup ranked** — *owner is redoing this scenario themselves (2026-07-13); **do not fix it**.* `Fidelity Stocks` carries no `cash_sweep_priority` there, so the engine reports **−$1.25M of shortfall across 2061–62 while $1.2M of stock sits untouched**. That is [CR045](../cr/cr-045-forecast-cash-warnings-liquidation.md) §5 working as designed (unranked = "I cannot sell this"), but for a liquid brokerage account it is almost certainly a data slip. One-row fix, left to the owner because it changes Downside's conclusions.
@@ -171,10 +173,12 @@ Canonical dates/versions: **[CR index](../cr/README.md)**. Per-release detail:
 
 ## Next
 **Next up:**
-- [CR069](../cr/cr-069-forecast-streams.md) **P3** — the last phase: stream cards in the Modules
-  editor, delete `FCExp*` (~2,770 lines), drop the four retired tables and the eleven retired
-  columns, `has_valuation DROP DEFAULT`, and re-point + un-skip `cr051-currency.spec.js`. The
-  carried-forward list is [CR069 §14](../cr/cr-069-forecast-streams.md).
+- [CR066](../cr/cr-066-fc-line-mapping-completeness.md) **P0** — back to where it was before
+  CR069 took over: decide an FC line for each of the twelve unmapped categories, or record it
+  as deliberately excluded. Zero code from me; check `Rental - Spain` against a generated
+  scenario's SP income **first**, since mapping it may double-count.
+- **CR064 P2/P4/P5/P10 are UNBLOCKED** — they were sequenced behind CR069 P2 because
+  `copyScenario` was in its scope. The annual close is not needed before the 2026→2027 boundary.
 
 **Next up (owner-requested, 2026-08-03):**
 - [CR068](../cr/cr-068-mobile-actuals-search.md) — **shipped in v3.13.0 and live.** Worth the owner's

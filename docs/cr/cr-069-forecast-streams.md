@@ -1,4 +1,4 @@
-# CR069 — Forecast streams: one Modules section for everything Expenditures and Modules do today — 🟡 IN-PROGRESS (P0 live in v3.13.1; P1 = migration 057, dev + prod; **P2 LIVE on prod (v3.14.0)**; P3 designed)
+# CR069 — Forecast streams: one Modules section for everything Expenditures and Modules do today — ✅ COMPLETE — P0 v3.13.1 · P1+P2 v3.14.0 · P3 v3.14.1 (migrations 057–060)
 
 The Forecast setup collapses from two entity types to one. A **module** becomes *identity +
 optional valuation + zero-or-more P&L **streams***; a stream is a first-class row (direction,
@@ -31,7 +31,7 @@ half-finished in the shared tree (Known Issue #17's class, four incidents old).
 | **P0** ✅ | The attribution fix, alone: inc/exp entries labeled by item **name**, not account; audit CSV filename follows; the false ON CONFLICT comment corrected — §3 | **Built and gate-verified 2026-08-04 (§12), undeployed.** Sums gate PASSED: 4,030 (scenario, account, year) rows, **zero differing**, all five scenarios on a prod copy. Exactly 15 module labels gained (3 items × 5 scenarios), 0 lost. 791 backend tests. |
 | **P1** ✅ | Schema **only**: `forecast_streams` (+ changes), `has_valuation` — empty, nothing writes or reads them — §5 | **Built and applied dev + prod 2026-08-04 (§13), migration 057.** migration-reviewer pass (4 findings fixed before it touched a database). **Byte-identical builds proved empirically** on a prod copy regenerated before *and* after: 4,030 sum rows, 158 labels, identical. |
 | **P2** ✅ | **Backfill migration + engine cutover, one deploy** (§6 + §7): convert all 60 inc/exp items to flow modules, rewrite the 3 incexp overrides + 48 origin links, one stream evaluator, `fcbuilder-incexp.js` deleted; loaders, `getBaseYearValues`, `copyScenario`, auto-adjust, AI review, variant sync read streams. **The old write paths die here too** — the four `/incomeexpense` routes 410 and the Expenditures step disappears from the nav (§7.6); only the bulk deletion waits for P3 | Backfill counts assert exactly (§6.4). **The sums gate (§9): per-(account, year) sums identical to the cent, all five scenarios, on a prod copy.** Full backend suite; the semantics tests in §9.2. A write to `/incomeexpense` fails loud, not silently stale. |
-| **P3** | UI cutover + drop: stream cards in the Modules editor, Expenditures step retired (6 steps → 5), `FCExp*` deleted, four tables dropped — §8 | Frontend suite; all six ratchets non-increasing; the five-step nav consistent in stepper + sidebar; grep proves no reader of the dropped tables remains. |
+| **P3** ✅ | UI cutover + drop: stream cards in the Modules editor, Expenditures step retired (6 steps → 5), `FCExp*` deleted, four tables dropped — §8 | Frontend suite; all six ratchets non-increasing; the five-step nav consistent in stepper + sidebar; grep proves no reader of the dropped tables remains. |
 
 **Sequencing with the other forecast threads** *(set at PM sign-off)*: **CR064 P2/P4/P5/P10
 build behind CR069 P2.** `copyScenario` is in this CR's scope (§7.4), so annual-close work built
@@ -815,3 +815,73 @@ names (P0's fix, carried through the conversion).
 history to reach production from a tagged commit rather than out of a working tree — the four
 prior incidents are what Known Issue #17 records, and the dirty-tree guard added in v3.13.0 is
 what made it automatic here.
+
+---
+
+## 16. As built — P3 (`e65fb5c`, migration 060)
+
+The contract step, and the one the owner actually sees. **Net −3,875 lines.**
+
+**Stream cards.** `FCModulesStreams` renders one card per stream — direction, line, mode,
+amount, growth, window, tax and its change schedule — with add and remove. The Expenses and
+Income *sections* are gone from `fcModulesEditSections`, and that is the whole point: those
+sections rendered COLUMNS that existed on every module whether or not it had that flow, and
+`fcModulePayload` sent every one of them on every save. Hiding a section never cleared its
+value, which is precisely why [CR064 §5](cr-064-forecast-annual-close-and-assumptions.md)
+refused to gate this form on module type and why CR062's Loan carve-out needed a preview
+endpoint and a confirmed delete. **A card is a row.** A module with no expense has no card
+because it has no stream; removing the card removes the row. There is nothing left behind to
+go stale, so the thing §5 could not safely do per-type is now free — and the Loan form's
+special-casing shrinks to what a loan genuinely is.
+
+The card refuses to offer a control the mode does not read: no amount on a `derived` (loan)
+stream, `Spread %` only in yield mode, the money flags only in amount mode. Changing mode
+drops the change rows the new mode cannot read — the CR062 retype discipline in miniature,
+because leaving them would be rows the engine never reads and the form still shows.
+
+**Migration 060** drops four tables, eleven columns, the long-dead `expense_pct`, and
+`has_valuation`'s DEFAULT (057's obligation (b), deferred in P2 with its reasoning and
+discharged here). Its pre-condition is the file's real content: it **refuses** to drop
+anything if items exist without flow modules, and its post-condition asserts the stream
+tables survive — the two outcomes a contract step must never produce are "destroyed the source
+of data that has no replacement" and "left no model at all".
+
+**Gate:** per-(scenario, account, year) sums identical to the cent on a prod copy **with the
+tables dropped** — 4,030 rows, 0 differing. 802 backend · 389 frontend · 7 e2e · lint 0 errors
+· six ratchets at baseline · 60-file chain from empty.
+
+### What P3 got wrong, and what caught it
+
+**`FCExpConfirmDeleteModal` was never Expenditures-specific.** `COAManagement`, `FCScenarios`
+and `FCModuleManage` all use it. Deleting it by name would have taken three pages down.
+`npm run lint` passed (ESLint does not resolve imports) and `npm test` passed (those pages have
+no unit test) — **only the production build caught it**, which is the argument for the build
+being a gate rather than a formality. Renamed `FCConfirmDeleteModal`, with a header saying why
+the old name was a lie.
+
+### The e2e suite: the root cause, not the symptom
+
+P2's review found the suite had been testing a **July-14 server** for three weeks. P3 found
+*why*, and it is a one-word bug: the server starts in a `( … ) &` **subshell**, so `$!` holds
+the subshell's pid — `cleanup` killed the wrapper and node was reparented to init, still
+holding the port. `npx vite preview` has the same shape one level down, which is how the
+frontend port collected its own orphan.
+
+`Scripts/e2e.sh` now **refuses to start** if either port is already bound (naming the process
+and the remedy), `exec`s so the tracked pid is the real one, and **sweeps both ports on exit** —
+safe precisely because the guard proved they were free at the start, so anything on them is
+ours. Verified end to end: it caught two live orphans during this work, and the ports now
+release cleanly every run. Both ports, because a stale *bundle* is exactly as misleading as a
+stale server.
+
+### Still open, deliberately
+
+- **`cr051-currency.spec.js` is re-pointed at the Modules page and still SKIPPED**, for a
+  reason no selector fixes: the form's Currency is a `<select>` derived from account traits and
+  the e2e seed's only forecast account is USD. The server half is fully covered by
+  `cr051.incexp-currency.routes.test.js` (derivation *and* the fail-loud 400); the
+  survives-a-reopen property is covered by `write-paths.spec.js` against a stream card.
+  Restoring it needs a PLN-bearing account and an FX assumption in `e2e-seed.sql`.
+- **Multi-stream editing is now genuinely available** (the schema always allowed it; the read
+  path no longer flattens it, because the projection is gone). Nothing in production uses it
+  yet — every module carries exactly one stream per direction.
