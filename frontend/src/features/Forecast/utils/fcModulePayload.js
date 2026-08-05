@@ -36,6 +36,8 @@ const NUMERIC_FIELDS = [
   // engine. 0 is a real multiplier (flat in nominal terms), not "unset".
 ];
 
+import { streamIsUntouched } from "../fcModulesEditSections.js";
+
 export function buildModulePayload(editForm = {}, { normalizeTransfers } = {}) {
   const payload = {
     Account: editForm.Account ?? "",
@@ -86,7 +88,13 @@ export function buildModulePayload(editForm = {}, { normalizeTransfers } = {}) {
   // growth, window, tax and change schedule, and a direction the module has no stream for is
   // simply ABSENT from the array rather than present-and-zero. That is what makes "remove
   // the card" mean "delete the row" instead of "leave a stale value nothing renders".
-  payload.Streams = (Array.isArray(editForm.Streams) ? editForm.Streams : []).map((st) => ({
+  // CR070 P5 — an UNTOUCHED seeded card is dropped, not saved. A type template seeds a card so
+  // the form asks the right question; if the owner never answers it, persisting a zero-amount row
+  // with no line would recreate exactly the present-and-zero state CR069 P3 spent a migration
+  // eliminating. A card the owner touched at all (a line, an amount, a change) is kept.
+  payload.Streams = (Array.isArray(editForm.Streams) ? editForm.Streams : [])
+    .filter((st) => !(st?.__seeded && streamIsUntouched(st)))
+    .map((st) => ({
     Direction: st.direction,
     Mode: st.mode || "amount",
     FcLineId: st.fc_line_id ?? null,

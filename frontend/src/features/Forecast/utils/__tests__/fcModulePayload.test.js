@@ -220,4 +220,37 @@ describe("CR069 P3 — stream changes (what IncomeSteps became)", () => {
       buildModulePayload({ HasValuation: true }, { normalizeTransfers }).HasValuation
     ).toBe(true);
   });
+
+  // ---------------------------------------------------------------------------
+  // CR070 P5 — a type template seeds a card so the form ASKS the right question. If the owner
+  // never answers it, saving a zero-amount row with no line would recreate the present-and-zero
+  // state CR069 P3 spent a migration eliminating.
+  // ---------------------------------------------------------------------------
+  it("drops a seeded card the owner never touched", () => {
+    const payload = buildModulePayload(
+      { Streams: [{ direction: "expense", mode: "amount", fc_line_id: null, amount: 0, changes: [], __seeded: true }] },
+      { normalizeTransfers }
+    );
+    expect(payload.Streams).toEqual([]);
+  });
+
+  it("keeps a seeded card the moment it is touched — a line, an amount, or a change", () => {
+    const seeded = (extra) => buildModulePayload(
+      { Streams: [{ direction: "expense", mode: "amount", fc_line_id: null, amount: 0, changes: [], __seeded: true, ...extra }] },
+      { normalizeTransfers }
+    ).Streams.length;
+    expect(seeded({ fc_line_id: 12 })).toBe(1);
+    expect(seeded({ amount: 500 })).toBe(1);
+    expect(seeded({ changes: [{ flag: "Percent %", amount: -5, change_date: "2030-07-01" }] })).toBe(1);
+  });
+
+  it("never drops a card the owner added by hand, even while empty", () => {
+    // No `__seeded` marker: the owner clicked "+ Add expense" and meant it. Dropping that would
+    // be the form deciding it knows better than the click.
+    const payload = buildModulePayload(
+      { Streams: [{ direction: "expense", mode: "amount", fc_line_id: null, amount: 0, changes: [] }] },
+      { normalizeTransfers }
+    );
+    expect(payload.Streams).toHaveLength(1);
+  });
 });

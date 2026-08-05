@@ -341,3 +341,50 @@ export const residueFor = (form) => {
   }
   return out;
 };
+
+/**
+ * CR070 P5 — what picking a TYPE seeds on a NEW module.
+ *
+ * This is where type-led customization earns the most and risks the least: at creation there is
+ * nothing to destroy. A template only ever supplies DEFAULTS — it never hides a field and never
+ * clears one, so a wrong type costs a starting point, not a value.
+ *
+ * It also closes two measured gaps:
+ *   - Nothing could create a flow module at all (`HasValuation` was unreachable until v3.14.2),
+ *     so every "Expense" made from this form was a balance-sheet module whose streams CR041's
+ *     gate then zeroed.
+ *   - 0 of 40 Real Estate modules on prod carry an income stream, while the actuals show
+ *     `Rental - Spain` +31,306 unmapped. Nothing structural was missing — the stream card always
+ *     supported it — but the form never ASKED, so nobody ever answered.
+ *
+ * A seeded card the owner never fills must be DROPPED on save, not persisted as a live zero-amount
+ * row: that is the present-and-zero state CR069 P3 spent a migration eliminating.
+ */
+const TYPE_TEMPLATES = {
+  expense: { HasValuation: false, streams: [{ direction: "expense", mode: "amount" }] },
+  income:  { HasValuation: false, streams: [{ direction: "income",  mode: "amount" }] },
+  "real estate": {
+    HasValuation: true,
+    // Carry cost is ad valorem (property tax, insurance) — `pct_of_value` is what that IS, and
+    // 0 of 145 prod streams use the mode today because nothing ever offered it.
+    streams: [{ direction: "expense", mode: "pct_of_value" }, { direction: "income", mode: "amount" }],
+  },
+  // Operating costs live inside the valuation and the dividend; an expense card here invites a
+  // household double count. 0 of 20 Business modules carry one.
+  business: { HasValuation: true, streams: [{ direction: "income", mode: "amount" }] },
+  stocks: { HasValuation: true, streams: [{ direction: "income", mode: "yield" }] },
+  "fixed income": { HasValuation: true, streams: [{ direction: "income", mode: "yield" }] },
+  "private equity": { HasValuation: true, streams: [] },
+  liability: { HasValuation: true, streams: [] },
+  loan: { HasValuation: true, streams: [{ direction: "expense", mode: "derived" }] },
+};
+
+/** The template for a type, or a safe generic one for a type nobody has taught us about. */
+export const templateForType = (type) =>
+  TYPE_TEMPLATES[String(type || "").trim().toLowerCase()] || { HasValuation: true, streams: [] };
+
+/** Is this seeded stream card still untouched, so it should be dropped rather than saved? */
+export const streamIsUntouched = (st) =>
+  st?.fc_line_id == null &&
+  !Number(st?.amount ?? 0) &&
+  !(st?.changes?.length);

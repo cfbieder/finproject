@@ -20,7 +20,7 @@ import "./PageLayout.css";
 import "../features/Forecast/FCModulesEdit.css";
 import "../features/Forecast/FCConfirmDeleteModal.css";
 import { buildModulePayload } from "../features/Forecast/utils/fcModulePayload.js";
-import { isLoanModule } from "../features/Forecast/fcModulesEditSections.js";
+import { isLoanModule, templateForType } from "../features/Forecast/fcModulesEditSections.js";
 
 /**
  * FCModuleManage component manages forecast modules for different scenarios.
@@ -62,6 +62,27 @@ export default function FCModuleManage() {
     }).catch(() => {});
   }, []);
 
+  // Custom hooks for data loading
+  const {
+    assumptions,
+    selectedScenario,
+    setSelectedScenario,
+    isLoading,
+    error,
+  } = useAssumptions();
+
+  const {
+    modules,
+    selectedModuleId,
+    setSelectedModuleId,
+    selectedModule,
+    loading: modulesLoading,
+    error: modulesError,
+    reload: reloadModules,
+    getModuleId,
+  } = useModules(selectedScenario);
+
+
   // CR070 P0 (D3) — one source for the type vocabulary.
   //
   // `appdata.moduleTypes` does not exist on prod, so the hardcoded fallback in FCModulesEdit was
@@ -86,26 +107,6 @@ export default function FCModuleManage() {
   }, [modules, moduleTypes]);
 
   const traitsWithModuleTypes = { ...traits, moduleTypes: derivedModuleTypes };
-
-  // Custom hooks for data loading
-  const {
-    assumptions,
-    selectedScenario,
-    setSelectedScenario,
-    isLoading,
-    error,
-  } = useAssumptions();
-
-  const {
-    modules,
-    selectedModuleId,
-    setSelectedModuleId,
-    selectedModule,
-    loading: modulesLoading,
-    error: modulesError,
-    reload: reloadModules,
-    getModuleId,
-  } = useModules(selectedScenario);
 
   const {
     unmatchedItems,
@@ -273,11 +274,10 @@ export default function FCModuleManage() {
       Matched: false,
       Comment: "",
       SetupStatus: "new",
-      // Explicit, not inherited from the payload builder's default: a new module from this
-      // button is a balance-sheet module. CR070 P5 will let the TYPE seed this (picking
-      // Expense or Income would seed `false` plus one stream card), which is the first thing
-      // that will need it to be a real value rather than an absence.
-      HasValuation: true,
+      // CR070 P5 — the TYPE seeds this now. Picking Expense or Income gives a module with no
+      // balance sheet and one stream card of the right direction, which is the only way this
+      // form can create a flow module at all.
+      HasValuation: templateForType(traitDefaults.Type).HasValuation,
       BaseValue: 0,
       MarketValue: 0,
       BaseValueUSD: 0,
@@ -285,9 +285,12 @@ export default function FCModuleManage() {
       Growth: null,
       Invest: formatTransferForm([]),
       Dispose: formatTransferForm([]),
-      // A new module starts with NO streams — not with two empty ones. That is the whole
-      // point of rows over columns: nothing to leave behind if it never gets an expense.
-      Streams: [],
+      // CR070 P5 — seeded from the type, so the form ASKS the question that fits. Untouched
+      // cards are dropped on save (`streamIsUntouched`), so this cannot leave behind the
+      // present-and-zero rows CR069 P3 spent a migration removing.
+      Streams: templateForType(traitDefaults.Type).streams.map((st) => ({
+        ...st, fc_line_id: null, amount: 0, changes: [], __seeded: true,
+      })),
     });
     setEditRefreshToken((prev) => prev + 1);
     setShowEditModal(true);
