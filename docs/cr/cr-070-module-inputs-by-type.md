@@ -1,4 +1,4 @@
-# CR070 — inputs that fit the module: capability-gated forms, type-led templates — 🟡 PLANNED
+# CR070 — inputs that fit the module: capability-gated forms, type-led templates — 🟢 BUILT, AWAITING QA
 
 Every module type asks the same questions today. An Expense module — 50 of prod's 170 — presents
 Cost Basis, Cost Basis (USD), Market Value, Market Value (USD), Growth (× inflation), a Capital
@@ -566,3 +566,51 @@ years). Both are about numbers, not inputs.
 
 ⓘ **Cut:** "is P6 worth a migration" (P6 is cut) and "where does the sweep rule live" (decided in §6
 — it was never the owner's question).
+
+---
+
+## 15. As built (2026-08-05, `3120b10`…`001a4e3`) — on dev, awaiting QA
+
+**Not on prod.** Prod stays on v3.14.2; dev serves `001a4e3` for QA
+([script](../current/qa-cr070-cr071.md)). No migration. 21 files, +1,210 / −368.
+
+**Gates:** 809 backend · 414 frontend · 8 e2e · lint 0 errors · six ratchets at baseline · clean
+build · **per-(scenario, account, year) `forecast_entries` sums identical to the cent on a prod
+copy, 4,030 rows.** Nothing in either CR moves a number.
+
+| phase | what shipped |
+|---|---|
+| **P1** | Double-click opens the editor; the read-only drawer **deleted** (174 lines) with the five helpers that died with it; rows keyboard-reachable (Enter, focus ring); the status `<select>` now stops `dblclick` as well as `click`. |
+| **P0** | D7 — POST persists the four fields it used to accept and discard. D5 — AI Review refuses `growth_rate`/`tax_rate_override` on a module with no valuation, keyed on `has_valuation`. D4 — `bulk-update` deleted. D3 — the type vocabulary is derived from the scenario's own modules. Plus: `GET /modules/:id` now projects the two sweep fields, and the false sweep comment is corrected in place. |
+| **P4** | `assertSweepEligible` on the route **and** a derivation arm in `resolveSweepFlags`. Derived, not thrown, because `syncIfStale` runs at the top of every variant build. |
+| **P2+P3** | `capabilitiesFor` / `residueFor` / `fieldSectionsFor`, the residue panel, and the sweep control gated on the `sweep` capability. |
+| **P5** | `templateForType` seeds a new module from its type; `streamIsUntouched` drops a seeded card the owner never answered. |
+
+### What the build itself taught
+
+**A page-crashing regression that only e2e caught.** The derived type vocabulary read `modules`
+fifteen lines before `useModules` declared it — a temporal dead zone, so `/forecast-modules` threw
+on load. **The unit suite was fully green while the page was dead**, and four e2e specs went red.
+That is the argument for the browser gate in one sentence.
+
+**Two projections kept by hand had drifted the same way twice in two days.** `HasValuation`
+(v3.14.2) and now `CashSweepPriority`/`CashSweepTarget`: present in the LIST, absent from the
+DETAIL the editor loads from. Both times the symptom was a form guessing at state it should have
+been told. Deriving the two projections from one source is the obvious follow-up and is **not**
+done here.
+
+**The residue panel ships empty**, on every prod module. That is the intended state — the QA script
+says how to make it appear on purpose, because a safety net nobody has watched work is not yet
+trusted.
+
+### Deliberately not done
+
+- **Payload symmetry for Clear beyond the null write.** Clear sends an explicit `null`/`[]`, which
+  the route applies; there is no preview dialog. The panel *is* the preview — it names the field
+  and the value before anything is written, and Cancel still reverts.
+- **The `has_valuation` flip confirm.** The capability map reads the flag but no UI toggles it yet,
+  so there is nothing to confirm. It arrives with whatever first offers the toggle, and §4's
+  refusal conditions (Invest/Dispose rows, a sweep rank, being another module's secured asset, and
+  a missing Base Date) stand as written.
+- **P6** — the disposal selling cost and the PE commitment. Cut to the roadmap; they need a
+  migration.

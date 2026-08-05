@@ -1,4 +1,4 @@
-# CR071 — where the forecast's numbers disagree with the owner's intent — 🟡 PLANNED
+# CR071 — where the forecast's numbers disagree with the owner's intent — 🟢 BUILT, AWAITING QA
 
 Eight places where Fin's forecast produces a number the owner did not intend and nothing says so.
 None is a code defect: every one is a *valid* configuration the engine models faithfully. They are
@@ -114,3 +114,31 @@ deferral, discharged.
 
 3. **`House Morgage`** — answered separately: it carries 6% and a derived interest line, and the
    owner chose to leave `setup_status='new'`, so it is **parked, not broken** (R8).
+
+---
+
+## 5. As built (2026-08-05, `3120b10`) — on dev, awaiting QA
+
+`computeModuleIntegrityWarnings` in `fcWarnings.js`, called from `computeForecastWarnings`, with
+12 tests. Every rule is keyed on DATA, never on `module_type`. **Detections only — the gate proves
+it: 4,030 sum rows identical to the cent on a prod copy.** No migration.
+
+**Measured against real prod modules: 13 warnings across 34 modules** — 5 foreign-currency income
+without a tax override, 4 streams with no P&L line, 4 configured-but-excluded. **The four orphaned
+lines match CR069 §13's four exactly**, which is the calibration signal worth having.
+
+The list query gained three disposal **scalars** (`dispose_count`, `dispose_full_count`,
+`dispose_first_year`) rather than the schedules: three rules need to know whether a module disposes
+and when, and shipping every row to every consumer to answer a yes/no question is the wrong trade.
+
+**R3's test asserts `computeLoanWarnings` finds nothing** on the shape R3 catches — so the gap this
+CR exists to close is pinned by a test rather than described in prose.
+
+**Silent on today's data, by design:** R3 (fixed when the owner set 6%), R5, R7 and the CVC rule.
+They are written for the next instance, not this one.
+
+### Not built
+
+- **R4** — the disposal selling cost. Needs a field and a migration; deferred with CR070's P6.
+- **The form halves of R1 and R6** — prompting the tax override and requiring an fc_line at stream
+  creation. CR070 P5 territory; the warnings report both meanwhile.
