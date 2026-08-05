@@ -17,11 +17,13 @@ evaluator replaced three; the Expenditures step, ~2,770 lines of `FCExp*` and fo
 gone. Every phase gated on per-(scenario, account, year) `forecast_entries` sums **identical to
 the cent**. Detail: [CR069 §12–16](../cr/cr-069-forecast-streams.md).
 
-**[CR070](../cr/cr-070-module-inputs-by-type.md) (module inputs per type) and
-[CR071](../cr/cr-071-forecast-numbers-vs-intent.md) (seven places the numbers disagree with
-intent, ranked **above** CR070) are drafted and two-pass reviewed; neither is built.** Owner
-decision on record: customize all nine types, once CR070's residue detector is generalized to
-flag any unrendered field holding a value ([§14 Q0](../cr/cr-070-module-inputs-by-type.md)).
+**[CR070](../cr/cr-070-module-inputs-by-type.md) and
+[CR071](../cr/cr-071-forecast-numbers-vs-intent.md) are BUILT and awaiting QA on dev**
+(2026-08-05, `001a4e3`) — **not on prod, which stays on v3.14.2.** QA script and what to look at:
+**[qa-cr070-cr071.md](qa-cr070-cr071.md)**. All of CR070 P0–P5 and CR071's rules; no migration.
+Gate: per-(scenario, account, year) sums **identical to the cent on a prod copy**, 4,030 rows.
+Two owner questions remain deliberately unanswered because both move forecast numbers — CVC Fund
+VIII net-vs-gross, and the yield-mode base-year tax.
 
 **[CR064](../cr/cr-064-forecast-annual-close-and-assumptions.md) remains the live engineering
 thread** — P2/P4/P5/P10 are **unblocked** now CR069 P2 has shipped, and the annual close is not
