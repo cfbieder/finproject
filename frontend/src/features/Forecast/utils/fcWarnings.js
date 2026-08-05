@@ -207,8 +207,194 @@ export function computeForecastWarnings({
   }
 
   warnings.push(...computeLoanWarnings(modules));
+  warnings.push(...computeModuleIntegrityWarnings(modules, { periodStart: years[0] }));
 
   return warnings;
+}
+
+/**
+ * CR071 — where the forecast's numbers disagree with the owner's intent.
+ *
+ * Every rule here reports a *valid* configuration that the engine models faithfully and that the
+ * owner probably did not mean. None of them corrects anything: Fin must not silently change a
+ * figure the owner may have chosen (CR058's calibration modes and CR051's fail-loud 400 are the
+ * precedents). A warning cannot hide a value, which is why this file is the right home and the
+ * form is not.
+ *
+ * The rules are keyed on DATA, never on `module_type` — the same discipline `computeLoanWarnings`
+ * uses, and for the same reason: the type is a free-text list the owner edits.
+ *
+ * `periodStart` is the first FORECAST year (`years[0]`). A date before it is not in the plan.
+ */
+export function computeModuleIntegrityWarnings(modules = [], { periodStart = null } = {}) {
+  const out = [];
+  const num = (v) => (v == null || v === "" ? null : Number(v));
+
+  for (const mod of modules) {
+    if (!mod) continue;
+    const name = mod.Name || "(unnamed)";
+    const streams = Array.isArray(mod.Streams) ? mod.Streams : [];
+    const hasValuation = mod.HasValuation !== false;
+
+    // ---- R3: the type says loan, the data says not-loan -------------------
+    // The sharpest rule in the CR, because the guard that would otherwise catch it is switched
+    // off by the very condition that causes it: `computeLoanWarnings` returns early on
+    // `LoanInterestRate == null`, which is exactly the state being reported here. Prod carried
+    // `House Morgage` in this state in all five scenarios — 500,000 of principal, 19 amortization
+    // rows, secured, and no interest rate, so the engine booked no debt at all.
+    const looksLoan =
+      String(mod.Type || "").trim().toLowerCase() === "loan" ||
+      num(mod.LoanPrincipal) ||
+      (Array.isArray(mod.Amortization) && mod.Amortization.length > 0) ||
+      mod.SecuredAssetModuleId != null;
+    if (looksLoan && mod.LoanInterestRate == null) {
+      out.push({
+        id: `type-data-loan-${name}`,
+        severity: "error",
+        title: `"${name}" is set up as a loan but has no interest rate`,
+        detail:
+          "The engine decides what a loan is from the interest rate, not the type — so with no " +
+          "rate this module books no debt, no interest and no principal repayment. Everything " +
+          "else about it (amount, years, schedule, security) is being ignored.",
+        years: [],
+        amount: num(mod.LoanPrincipal) ? -Math.abs(num(mod.LoanPrincipal)) : null,
+      });
+    }
+
+    // ---- R8: configured, and excluded from the forecast --------------------
+    // `setup_status` in ('new','exclude') removes a module from generation at four query sites,
+    // and nothing on the modules table distinguishes "configured and excluded" from "configured
+    // and live". Only fires when the module carries something worth generating, so a genuinely
+    // blank draft stays quiet.
+    const status = String(mod.SetupStatus || "new").toLowerCase();
+    const carriesSomething =
+      streams.length > 0 ||
+      num(mod.MarketValue) ||
+      num(mod.LoanPrincipal) ||
+      (mod.DisposeCount ?? 0) > 0;
+    if ((status === "new" || status === "exclude") && carriesSomething) {
+      out.push({
+        id: `configured-but-excluded-${name}`,
+        severity: "info",
+        title: `"${name}" is configured but excluded from the forecast`,
+        detail:
+          `Its status is "${status}", so nothing it holds reaches the projection. That may be ` +
+          "deliberate — a module parked until a decision is made — but nothing else on the page " +
+          "says so.",
+        years: [],
+        amount: null,
+        dismissible: true,
+      });
+    }
+
+    // ---- R6: a flow with no P&L line --------------------------------------
+    // Cash moves and no line records it. CR069 §13 found four of these on prod; `Sarasota House`
+    // alone is -45,000/yr for 21 years sitting outside every P&L breakdown.
+    for (const st of streams) {
+      if (st?.fc_line_id == null) {
+        out.push({
+          id: `stream-no-line-${name}-${st?.direction || "?"}-${st?.id ?? "new"}`,
+          severity: "warning",
+          title: `"${name}" has ${st?.direction === "income" ? "income" : "an expense"} with no P&L line`,
+          detail:
+            "The cash moves, but nothing books it to a line — so it is invisible to every P&L " +
+            "breakdown and to the FC-line reports, while still changing the bank balance.",
+          years: [],
+          amount: num(st?.amount) ? -Math.abs(num(st.amount)) : null,
+        });
+      }
+    }
+
+    // ---- R1: income already taxed at source, taxed again -------------------
+    // Only for a stream in a currency the module does not report in — that is the shape where
+    // tax was almost certainly withheld abroad. United Beverages' dividend is net of Polish tax
+    // (the project's own note says so) and is taxed again at the scenario rate here.
+    const foreignCurrency = mod.Currency && String(mod.Currency).toUpperCase() !== "USD";
+    for (const st of streams) {
+      if (st?.direction !== "income") continue;
+      if (!foreignCurrency) continue;
+      if (st?.tax_rate_override != null) continue;
+      out.push({
+        id: `foreign-income-no-tax-override-${name}-${st?.id ?? "new"}`,
+        severity: "warning",
+        title: `"${name}" income is taxed at the full rate, in ${mod.Currency}`,
+        detail:
+          "Income earned abroad is often already taxed at source, and this stream carries no tax " +
+          "override — so the scenario's full rate is applied on top. If it arrives net, set the " +
+          "incremental rate on the stream instead.",
+        years: [],
+        amount: null,
+      });
+    }
+
+    // ---- R5: a disposal that realizes no gain ------------------------------
+    // The gain is dispose x (1 - basis/market), so it is zero exactly while basis equals market.
+    // Nothing enforces that equality — it is an observation about today's data, which is what
+    // makes it worth reporting rather than assuming.
+    const basis = num(mod.BaseValue);
+    const market = num(mod.MarketValue);
+    if (
+      hasValuation &&
+      (mod.DisposeFullCount ?? 0) > 0 &&
+      basis != null && market != null && market !== 0 &&
+      Math.abs(basis - market) < 0.005 &&
+      market > 0   // a liability's basis equals its balance by construction; that is not a finding
+    ) {
+      out.push({
+        id: `disposal-no-gain-${name}`,
+        severity: "warning",
+        title: `"${name}" is sold without realizing any gain`,
+        detail:
+          `Cost basis and market value are both ${formatMoney(market)}, so the sale realizes ` +
+          "no gain and pays no tax. If the basis is a placeholder rather than the real purchase " +
+          "price, the plan is understating the tax on this sale.",
+        years: [],
+        amount: null,
+      });
+    }
+
+    // ---- R7: a disposal dated before the forecast starts -------------------
+    if (
+      periodStart != null &&
+      (mod.DisposeCount ?? 0) > 0 &&
+      mod.DisposeFirstYear != null &&
+      Number(mod.DisposeFirstYear) < Number(periodStart)
+    ) {
+      out.push({
+        id: `disposal-before-start-${name}`,
+        severity: "warning",
+        title: `"${name}" disposes in ${mod.DisposeFirstYear}, before the forecast starts`,
+        detail:
+          `The projection begins in ${periodStart}, so a disposal dated ${mod.DisposeFirstYear} ` +
+          "never happens — the balance it was meant to clear stays on the books for the whole plan.",
+        years: [],
+        amount: null,
+      });
+    }
+
+    // ---- CVC: distributing twice, and the form cannot say which is meant ----
+    // A yield pays out of the holding while a Dispose schedule returns capital from it. Both at
+    // once is coherent ONLY if the growth rate is net of the distributions; if it is gross, one
+    // of the two is counted twice. This reports the ambiguity — it does NOT guess which, because
+    // the answer changes forecast numbers and is the owner's to give.
+    const hasYield = streams.some((st) => (st?.mode || "") === "yield");
+    if (hasValuation && hasYield && (mod.DisposeCount ?? 0) > 0) {
+      out.push({
+        id: `yield-and-dispose-${name}`,
+        severity: "info",
+        title: `"${name}" both pays a yield and returns capital on a schedule`,
+        detail:
+          "It distributes twice: a yield out of the holding, and scheduled disposals of it. That " +
+          "is right only if the growth rate is already net of those distributions — otherwise one " +
+          "of the two is being counted twice.",
+        years: [],
+        amount: null,
+        dismissible: true,
+      });
+    }
+  }
+
+  return out;
 }
 
 /**

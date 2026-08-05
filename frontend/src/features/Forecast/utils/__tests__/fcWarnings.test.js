@@ -1,6 +1,8 @@
 import { describe, it, expect } from "vitest";
 import {
   computeForecastWarnings,
+  computeLoanWarnings,
+  computeModuleIntegrityWarnings,
   formatMoney,
   formatYearList,
 } from "../fcWarnings.js";
@@ -188,5 +190,140 @@ describe("formatYearList", () => {
     expect(formatYearList([2027, 2026])).toBe("2026, 2027");
     expect(formatYearList([2029, 2030, 2031, 2032, 2033])).toBe("2029–2033 (5 years)");
     expect(formatYearList([])).toBe("");
+  });
+});
+
+// ---------------------------------------------------------------------------
+// CR071 — where the forecast's numbers disagree with the owner's intent.
+//
+// Every case below is taken from a real prod configuration, because the point of these rules is
+// that each is a VALID setup the engine models faithfully and the owner probably did not mean.
+// A rule that only fires on invented data is a rule that has not met its subject.
+//
+// These are detections, never corrections: nothing here may change a number.
+// ---------------------------------------------------------------------------
+describe("CR071 — module integrity warnings", () => {
+  const mod = (o = {}) => ({
+    Name: "M",
+    Type: "Real Estate",
+    Currency: "USD",
+    SetupStatus: "complete",
+    HasValuation: true,
+    Streams: [],
+    Amortization: [],
+    DisposeCount: 0,
+    DisposeFullCount: 0,
+    DisposeFirstYear: null,
+    ...o,
+  });
+  const ids = (modules, periodStart = 2027) =>
+    computeModuleIntegrityWarnings(modules, { periodStart }).map((w) => w.id);
+
+  it("R3 — flags a loan whose interest rate is missing, which is the case the loan warnings CANNOT see", () => {
+    // `House Morgage` on prod, in all five scenarios: typed Loan, 500,000 principal, 19
+    // amortization rows, secured — and no rate, so the engine booked no debt at all.
+    // computeLoanWarnings returns early on exactly this condition, which is why R3 exists.
+    const houseMorgage = mod({
+      Name: "House Morgage",
+      Type: "Loan",
+      LoanPrincipal: 500000,
+      LoanInterestRate: null,
+      Amortization: [{ Pct: 5 }],
+      SecuredAssetModuleId: 170,
+    });
+    expect(computeLoanWarnings([houseMorgage])).toHaveLength(0); // the gap this rule closes
+    expect(ids([houseMorgage])).toContain("type-data-loan-House Morgage");
+  });
+
+  it("R3 — does not fire once the rate is set", () => {
+    expect(ids([mod({ Name: "L", Type: "Loan", LoanPrincipal: 500000, LoanInterestRate: 6 })]))
+      .not.toContain("type-data-loan-L");
+  });
+
+  it("R3 — fires on the DATA even when the type was renamed away from 'Loan'", () => {
+    // The whole reason these rules are data-keyed: `module_type` is a free-text list the owner
+    // edits, so a rename must not silence a finding.
+    expect(ids([mod({ Name: "X", Type: "Something Else", LoanPrincipal: 250000 })]))
+      .toContain("type-data-loan-X");
+  });
+
+  it("R8 — reports a configured module that is excluded, and marks it dismissible", () => {
+    const parked = mod({ Name: "House Morgage", SetupStatus: "new", MarketValue: 0, LoanPrincipal: 500000 });
+    const w = computeModuleIntegrityWarnings([parked], { periodStart: 2027 })
+      .find((x) => x.id === "configured-but-excluded-House Morgage");
+    expect(w).toBeTruthy();
+    // Dismissible because being parked is a CHOICE — the owner deliberately left this one out.
+    // A warning that cannot tell a parked module from a broken one is the R3 mistake in reverse.
+    expect(w.dismissible).toBe(true);
+  });
+
+  it("R8 — stays quiet for an empty draft, which is what 'new' normally means", () => {
+    expect(ids([mod({ Name: "Draft", SetupStatus: "new" })]))
+      .not.toContain("configured-but-excluded-Draft");
+  });
+
+  it("R6 — flags a stream with no P&L line", () => {
+    // `Sarasota House` on prod: -45,000/yr for 21 years, moving cash with nothing booking it.
+    const orphan = mod({
+      Name: "Sarasota House",
+      Streams: [{ id: 7, direction: "expense", fc_line_id: null, amount: 45000 }],
+    });
+    expect(ids([orphan])).toContain("stream-no-line-Sarasota House-expense-7");
+  });
+
+  it("R1 — flags foreign-currency income with no tax override, and not USD income", () => {
+    const ub = mod({
+      Name: "United Beverages", Currency: "PLN",
+      Streams: [{ id: 1, direction: "income", fc_line_id: 3, tax_rate_override: null }],
+    });
+    expect(ids([ub])).toContain("foreign-income-no-tax-override-United Beverages-1");
+
+    const usd = mod({ Name: "Salary", Currency: "USD",
+      Streams: [{ id: 2, direction: "income", fc_line_id: 3, tax_rate_override: null }] });
+    expect(ids([usd])).not.toContain("foreign-income-no-tax-override-Salary-2");
+
+    const covered = mod({ Name: "UB2", Currency: "PLN",
+      Streams: [{ id: 3, direction: "income", fc_line_id: 3, tax_rate_override: 3 }] });
+    expect(ids([covered])).not.toContain("foreign-income-no-tax-override-UB2-3");
+  });
+
+  it("R5 — flags a sale that realizes no gain, but NOT a liability whose basis equals its balance", () => {
+    // Five of eight prod properties carry basis === market, so their Full disposals are tax-free.
+    const house = mod({ Name: "PL - Niemena", BaseValue: 4287465, MarketValue: 4287465,
+      DisposeCount: 1, DisposeFullCount: 1 });
+    expect(ids([house])).toContain("disposal-no-gain-PL - Niemena");
+
+    // A debt's basis equals its balance BY CONSTRUCTION — reporting that would be noise, and it
+    // is why the rule requires a positive market value.
+    const card = mod({ Name: "PLN Credit Cards", BaseValue: -24129.55, MarketValue: -24129.55,
+      DisposeCount: 1, DisposeFullCount: 1 });
+    expect(ids([card])).not.toContain("disposal-no-gain-PLN Credit Cards");
+  });
+
+  it("R7 — flags a disposal dated before the forecast starts", () => {
+    // `Tax Liabilities` on prod disposes 2026-07-01, which is the base year, not a forecast year.
+    const tl = mod({ Name: "Tax Liabilities", DisposeCount: 1, DisposeFirstYear: 2026 });
+    expect(ids([tl], 2027)).toContain("disposal-before-start-Tax Liabilities");
+    expect(ids([mod({ Name: "Later", DisposeCount: 1, DisposeFirstYear: 2030 })], 2027))
+      .not.toContain("disposal-before-start-Later");
+  });
+
+  it("reports the CVC ambiguity without resolving it", () => {
+    // CVC Fund VIII pays a 4% yield AND returns capital on a schedule AND appreciates at 3.75%.
+    // Whether that double-counts depends on something only the owner knows, so the rule says so
+    // and stops — it must not pick an answer, because the answer moves forecast numbers.
+    const cvc = mod({ Name: "CVC Fund VIII",
+      Streams: [{ id: 9, direction: "income", mode: "yield", fc_line_id: 4 }],
+      DisposeCount: 3 });
+    const w = computeModuleIntegrityWarnings([cvc], { periodStart: 2027 })
+      .find((x) => x.id === "yield-and-dispose-CVC Fund VIII");
+    expect(w).toBeTruthy();
+    expect(w.dismissible).toBe(true);
+    expect(w.detail).toMatch(/only if the growth rate is already net/i);
+  });
+
+  it("a healthy module produces no integrity warnings at all", () => {
+    expect(ids([mod({ Name: "Fine", MarketValue: 100000, BaseValue: 50000,
+      Streams: [{ id: 1, direction: "income", mode: "amount", fc_line_id: 2 }] })])).toEqual([]);
   });
 });

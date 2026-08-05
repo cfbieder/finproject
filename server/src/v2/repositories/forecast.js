@@ -417,7 +417,19 @@ async function findModulesByScenario(scenarioId) {
         SELECT json_agg(json_build_object('effective_date', am.effective_date, 'pct', am.pct)
                         ORDER BY am.effective_date)
         FROM forecast_module_amortization am WHERE am.module_id = m.id
-      ), '[]'::json) AS amortization
+      ), '[]'::json) AS amortization,
+      -- CR071 — disposal SUMMARY, not the schedule. Three of this CR's rules need to know
+      -- whether a module disposes and when (a basis that equals market value only matters if
+      -- something is sold; a disposal dated before PeriodStart does nothing), and the list
+      -- deliberately does not carry Invest/Dispose — those are on GET /modules/:id, and
+      -- shipping every row to every consumer to answer a yes/no question is the wrong trade.
+      -- Scalars instead: two counts and the earliest year.
+      (SELECT count(*) FROM forecast_module_disposals d WHERE d.module_id = m.id)
+        AS dispose_count,
+      (SELECT count(*) FROM forecast_module_disposals d
+        WHERE d.module_id = m.id AND d.flag = 'Full') AS dispose_full_count,
+      (SELECT min(EXTRACT(YEAR FROM d.disposal_date))::int FROM forecast_module_disposals d
+        WHERE d.module_id = m.id) AS dispose_first_year
     FROM forecast_modules m
     LEFT JOIN accounts a ON m.account_id = a.id
     WHERE m.scenario_id = $1

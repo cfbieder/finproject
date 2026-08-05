@@ -3,7 +3,6 @@ import { AlertTriangle } from "lucide-react";
 import EmptyState from "../../components/EmptyState.jsx";
 import FCInheritanceBadge from "./FCInheritanceBadge.jsx";
 import "./FCModulesTable.css";
-import Modal from "../../components/Modal/Modal.jsx";
 
 /**
  * Formats a currency value without decimal places.
@@ -24,123 +23,9 @@ const formatCurrencyNoDecimals = (value) => {
   return numberValue < 0 ? `-$${formatted}` : `$${formatted}`;
 };
 
-/**
- * Formats a currency value with two decimal places.
- *
- * @param {number|string|null|undefined} value - The value to format
- * @returns {string} Formatted currency string or "-" if invalid
- */
-const formatCurrency = (value) => {
-  if (value === undefined || value === null || Number.isNaN(Number(value))) {
-    return "-";
-  }
-  return Number(value).toLocaleString(undefined, {
-    minimumFractionDigits: 2,
-    maximumFractionDigits: 2,
-  });
-};
 
-/**
- * Formats a date value to locale date string.
- *
- * @param {Date|string|null|undefined} value - The date value to format
- * @returns {string} Formatted date string or "-" if invalid
- */
-const formatDate = (value) => {
-  if (!value) {
-    return "-";
-  }
-  const date = new Date(value);
-  if (Number.isNaN(date.getTime())) {
-    return "-";
-  }
-  return date.toLocaleDateString();
-};
 
-/**
- * Renders transfer entries (Invest/Dispose) as a formatted grid.
- * Displays Date, Amount, and Flag columns with proper formatting.
- *
- * @param {Array<Object>|null|undefined} transfers - Array of transfer objects
- * @returns {JSX.Element|string} Formatted transfer grid or "-" if no transfers
- */
-const renderTransfers = (transfers) => {
-  if (!Array.isArray(transfers) || !transfers.length) {
-    return "-";
-  }
-  return (
-    <div className="fc-modules-details__transfers">
-      <div className="fc-modules-details__transfers-header">
-        <span>Date</span>
-        <span>Amount</span>
-        <span>Flag</span>
-      </div>
-      {transfers.map((transfer, index) => {
-        if (!transfer || typeof transfer !== "object") {
-          return null;
-        }
-        const date = transfer.Date ? formatDate(transfer.Date) : "-";
-        const amount = formatCurrency(transfer.Amount);
-        const flag = transfer.Flag;
-        return (
-          <div key={index} className="fc-modules-details__transfer-row">
-            <span>{date}</span>
-            <span>{amount}</span>
-            <span className="fc-modules-details__transfer-flag">
-              {flag && flag !== "" ? flag : "-"}
-            </span>
-          </div>
-        );
-      })}
-    </div>
-  );
-};
 
-/**
- * Renders IncomePct entries with date and percentage columns.
- *
- * @param {Array<Object>|null|undefined} incomePct - Array of income percentage objects
- * @returns {JSX.Element|string} Formatted list or "-" if no entries
- */
-const renderIncomePct = (incomePct) => {
-  if (!Array.isArray(incomePct) || !incomePct.length) {
-    return "-";
-  }
-
-  return (
-    <div className="fc-modules-details__transfers">
-      <div className="fc-modules-details__transfers-header">
-        <span>Date</span>
-        <span>Yield Spread</span>
-        <span />
-      </div>
-      {incomePct.map((entry, index) => {
-        if (!entry || typeof entry !== "object") {
-          return null;
-        }
-        const date = entry.Date ? formatDate(entry.Date) : "-";
-        const rawValue =
-          entry.Value === null || entry.Value === undefined
-            ? entry.Amount
-            : entry.Value;
-        const value =
-          rawValue === null ||
-          rawValue === undefined ||
-          Number.isNaN(Number(rawValue))
-            ? "-"
-            : `${Number(rawValue)}%`;
-
-        return (
-          <div key={index} className="fc-modules-details__transfer-row">
-            <span>{date}</span>
-            <span>{value}</span>
-            <span />
-          </div>
-        );
-      })}
-    </div>
-  );
-};
 
 /**
  * FCModulesTable component displays forecast modules.
@@ -170,7 +55,6 @@ export default function FCModulesTable({
   modules,
   modulesError,
   modulesLoading,
-  selectedModule,
   selectedModuleId,
   onSelectModule,
   getModuleId,
@@ -179,7 +63,6 @@ export default function FCModulesTable({
   // Double-click a row → read it. `onRowDoubleClick` (the page's edit form) is now reached
   // from this modal's footer instead, so looking at a module no longer drops you straight
   // into an editable form.
-  const [detailsOpen, setDetailsOpen] = useState(false);
   const [typeFilter, setTypeFilter] = useState("all");
   const [matchedFilter, setMatchedFilter] = useState("all");
   const [statusFilter, setStatusFilter] = useState("all");
@@ -418,9 +301,26 @@ export default function FCModulesTable({
                             isSelected ? "fc-modules-table__row--selected" : ""
                           }`}
                           onClick={() => onSelectModule(moduleId)}
+                          // CR070 P1 — straight to the editor. This REVERSES the decision
+                          // recorded here before ("looking at a module no longer drops you into
+                          // an editable form"), and what changed is that the read view stopped
+                          // being able to describe a module: six of its rows could never render a
+                          // value after CR069 turned flows into stream rows, and it showed no
+                          // streams at all. Cancel on the editor is already non-destructive, and
+                          // "View Output" there is the read that actually matters.
+                          // Select first, then open: the editor loads by id.
                           onDoubleClick={() => {
                             onSelectModule(moduleId);
-                            setDetailsOpen(true);
+                            onRowDoubleClick?.(module);
+                          }}
+                          // The row was mouse-only — no tabIndex, no key handler, no focus ring.
+                          tabIndex={0}
+                          onKeyDown={(e) => {
+                            if (e.key !== "Enter" && e.key !== " ") return;
+                            if (e.target !== e.currentTarget) return;  // let controls keep their keys
+                            e.preventDefault();
+                            onSelectModule(moduleId);
+                            if (e.key === "Enter") onRowDoubleClick?.(module);
                           }}
                         >
                           <td className="fc-modules-table__td fc-modules-table__td--name">
@@ -497,6 +397,11 @@ export default function FCModulesTable({
                                     }
                                   }}
                                   onClick={(e) => e.stopPropagation()}
+                                  // CR070 P1 — dblclick was NOT stopped here, only click.
+                                  // Harmless while double-click opened a read-only drawer;
+                                  // now it would yank the owner into the edit form from
+                                  // inside an open dropdown.
+                                  onDoubleClick={(e) => e.stopPropagation()}
                                   style={{
                                     appearance: "none", WebkitAppearance: "none",
                                     padding: "0.15rem 0.5rem", borderRadius: "1rem",
@@ -533,180 +438,6 @@ export default function FCModulesTable({
 
         </div>
       </div>
-
-      {/* Details: a modal on double-click, not a permanent column. Edit is one click away
-          from here, since reading a module is usually what precedes changing it. */}
-      <Modal
-        open={detailsOpen}
-        onClose={() => setDetailsOpen(false)}
-        title={selectedModule?.Name || "Module Details"}
-        description={selectedModule?.Account}
-        size="large"
-        footer={
-          <>
-            <button
-              type="button"
-              className="btn"
-              onClick={() => setDetailsOpen(false)}
-            >
-              Close
-            </button>
-            <button
-              type="button"
-              className="btn btn--success"
-              disabled={!selectedModule}
-              onClick={() => {
-                setDetailsOpen(false);
-                if (onRowDoubleClick) onRowDoubleClick(selectedModule);
-              }}
-            >
-              Edit
-            </button>
-          </>
-        }
-      >
-        <div className="fc-modules-panel fc-modules-panel--details fc-modules-panel--modal">
-            {selectedModule ? (
-              <div className="fc-modules-details">
-                <div className="fc-modules-details__grid">
-                  {[
-                    {
-                      label: "Scenario",
-                      value: selectedModule.Scenario,
-                      span: false,
-                    },
-                    {
-                      label: "Account",
-                      value: selectedModule.Account,
-                      span: false,
-                    },
-                    { label: "Name", value: selectedModule.Name, span: false },
-                    { label: "Type", value: selectedModule.Type, span: false },
-                    {
-                      label: "Currency",
-                      value: selectedModule.Currency,
-                      span: false,
-                    },
-                    {
-                      label: "Matched",
-                      value: (
-                        <span
-                          className={`fc-modules-details__matched-badge ${
-                            selectedModule.Matched
-                              ? "fc-modules-details__matched-badge--yes"
-                              : "fc-modules-details__matched-badge--no"
-                          }`}
-                        >
-                          {selectedModule.Matched ? "Yes" : "No"}
-                        </span>
-                      ),
-                      span: false,
-                    },
-                    {
-                      label: "Exp Category",
-                      value: selectedModule.ExpCategory,
-                      span: false,
-                    },
-                    {
-                      label: "Yield Spread",
-                      value: Array.isArray(selectedModule.IncomePct)
-                        ? selectedModule.IncomePct.length > 0
-                          ? `${selectedModule.IncomePct.length} entries`
-                          : "No entries"
-                        : selectedModule.IncomePct === null ||
-                          selectedModule.IncomePct === undefined
-                        ? null
-                        : `${selectedModule.IncomePct}%`,
-                      span: false,
-                    },
-                    {
-                      label: "Base Date",
-                      value: formatDate(selectedModule.BaseDate),
-                      span: false,
-                    },
-                    {
-                      label: "Cost Basis",
-                      value:
-                        selectedModule.BaseValue === null ||
-                        selectedModule.BaseValue === undefined
-                          ? null
-                          : formatCurrency(selectedModule.BaseValue),
-                      span: false,
-                    },
-                    {
-                      label: "Market Value",
-                      value:
-                        selectedModule.MarketValue === null ||
-                        selectedModule.MarketValue === undefined
-                          ? null
-                          : formatCurrency(selectedModule.MarketValue),
-                      span: false,
-                    },
-                    {
-                      label: "Cost Basis (USD)",
-                      value: formatCurrency(
-                        selectedModule.BaseValueUSD ?? selectedModule.BaseValue
-                      ),
-                      span: false,
-                    },
-                    {
-                      label: "Market Value (USD)",
-                      value: formatCurrency(selectedModule.MarketValueUSD),
-                      span: false,
-                    },
-                    {
-                      label: "Growth (x Inflation)",
-                      value:
-                        selectedModule.Growth === null ||
-                        selectedModule.Growth === undefined
-                          ? null
-                          : `${selectedModule.Growth}%`,
-                      span: false,
-                    },
-                    {
-                      label: "Comment",
-                      value: selectedModule.Comment,
-                      span: true,
-                    },
-                    {
-                      label: "Yield Spread Entries",
-                      value: renderIncomePct(selectedModule.IncomePct),
-                      span: true,
-                    },
-                    {
-                      label: "Invest",
-                      value: renderTransfers(selectedModule.Invest),
-                      span: true,
-                    },
-                    {
-                      label: "Dispose",
-                      value: renderTransfers(selectedModule.Dispose),
-                      span: true,
-                    },
-                  ].map(({ label, value, span }) => (
-                    <div
-                      key={label}
-                      className={`fc-modules-details__field ${
-                        span ? "fc-modules-details__field--full" : ""
-                      }`}
-                    >
-                      <span className="fc-modules-details__label">{label}</span>
-                      <span className="fc-modules-details__value">
-                        {value === null || value === undefined || value === ""
-                          ? "-"
-                          : value}
-                      </span>
-                    </div>
-                  ))}
-                </div>
-              </div>
-            ) : (
-              <div className="fc-modules-panel__placeholder">
-                <p>Select a module to view details</p>
-              </div>
-            )}
-        </div>
-      </Modal>
     </section>
   );
 }

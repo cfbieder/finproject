@@ -662,7 +662,6 @@ export default function FCModuleManage() {
           modulesLoading={modulesLoading}
           onSelectModule={setSelectedModuleId}
           onRowDoubleClick={openEditModal}
-          selectedModule={selectedModule}
           selectedModuleId={selectedModuleId}
         />
         <FCModulesEditModal

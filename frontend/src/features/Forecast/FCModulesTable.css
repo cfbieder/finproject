@@ -244,6 +244,15 @@
   transition: background var(--transition-fast);
 }
 
+/* CR070 P1 — the row became keyboard-reachable (tabIndex + Enter opens the editor), so it needs
+   a visible focus ring. `:focus-visible` only, so a mouse click does not draw one. Tokens, not a
+   hex: this file carries raw rgba() elsewhere and CSS is outside the inline-hex ratchet's glob,
+   so dark mode is on the author here, not on CI. */
+.fc-modules-table__row:focus-visible {
+  outline: 2px solid var(--primary);
+  outline-offset: -2px;
+}
+
 .fc-modules-table__row:nth-child(even) {
   background: rgba(248, 250, 254, 0.35);
 }

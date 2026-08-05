@@ -636,6 +636,11 @@ router.get('/modules', async (req, res, next) => {
       IsMatched: m.is_matched,
       Matched: m.is_matched,
       SetupStatus: m.setup_status || 'new',
+      // CR071 — disposal summary (counts + earliest year), not the schedule. See the repository
+      // query for why the list carries scalars here and not the rows.
+      DisposeCount: Number(m.dispose_count) || 0,
+      DisposeFullCount: Number(m.dispose_full_count) || 0,
+      DisposeFirstYear: m.dispose_first_year ?? null,
       CashSweepTarget: m.cash_sweep_target || false,
       CashSweepPriority: m.cash_sweep_priority ?? null,
       // CR062 — the loan assumptions and their schedule, so `fcWarnings` can derive
