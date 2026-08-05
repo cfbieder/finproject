@@ -11,6 +11,8 @@ import {
   LOAN_FIELD_SECTIONS,
   fieldSectionsFor,
   isLoanModule,
+  directionForSchedule,
+  labelForType,
 } from "../fcModulesEditSections.js";
 
 
@@ -123,5 +125,35 @@ describe("CR062 — the Loan section", () => {
   test("no loan field appears twice", () => {
     const all = LOAN_FIELD_SECTIONS.flatMap(([, f]) => f.map(([, field]) => field));
     expect(new Set(all).size).toBe(all.length);
+  });
+});
+
+
+describe("CR070 P6 — a schedule card's left edge", () => {
+  // The edge is the one part of the stream-card idiom that carries meaning rather than polish,
+  // so it is asserted against what the ENGINE does, not against what the word suggests.
+  test("Invest is cash OUT, Dispose is cash IN", () => {
+    // fcbuilder-module.js:534 — `transferValues = -dispose - invest`.
+    expect(directionForSchedule("Invest")).toBe("expense");
+    expect(directionForSchedule("Dispose")).toBe("income");
+  });
+
+  test("an Amortization row is a repayment, so cash OUT", () => {
+    // fcbuilder-loan.js:18 — a schedule row takes the balance down and the cash with it.
+    expect(directionForSchedule("Amortization")).toBe("expense");
+  });
+
+  test("direction is keyed on the field, so a per-type RELABEL cannot flip it", () => {
+    // A private-equity module renames these; a capital call is still cash out.
+    expect(labelForType("private equity", "Invest", "Invest")).toBe("Capital Call");
+    expect(labelForType("private equity", "Dispose", "Dispose")).toBe("Distribution");
+    expect(directionForSchedule("Invest")).toBe("expense");
+    expect(directionForSchedule("Dispose")).toBe("income");
+  });
+
+  test("an unknown schedule gets NO accent rather than a guessed one", () => {
+    // Renders without the data-direction attribute, falling through to the plain border.
+    expect(directionForSchedule("IncomePct")).toBeUndefined();
+    expect(directionForSchedule("")).toBeUndefined();
   });
 });

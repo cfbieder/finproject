@@ -182,6 +182,35 @@ const TYPE_LABELS = {
 export const labelForType = (type, field, fallback) =>
   TYPE_LABELS[String(type || "").trim().toLowerCase()]?.[field] ?? fallback;
 
+// ---------------------------------------------------------------------------
+// CR070 P6 — which way a schedule moves cash, so the card can carry the SAME left
+// edge a stream card does. This is the one part of the stream-card idiom the
+// restyle had not adopted, and it is the part that carries meaning rather than
+// polish, so it should not have been the part left out.
+//
+// Read off the engine, not off the word:
+//   Invest       fcbuilder-module.js:534 — `transferValues = -dispose - invest`, so
+//                an Invest row is cash OUT.
+//   Dispose      the same line, and disposals are stored negative (`-entry.Amount`,
+//                :268) — cash IN.
+//   Amortization fcbuilder-loan.js:18 — a schedule row is a repayment: cash OUT.
+//
+// Keyed on the FIELD, never on the label: `labelForType` renames these per type
+// ("Capital Call", "Distribution"), and a capital call is still cash out.
+// Direction is never carried by colour alone — the section title says the word.
+// ---------------------------------------------------------------------------
+const SCHEDULE_DIRECTION = {
+  Invest: "expense",
+  Dispose: "income",
+  Amortization: "expense",
+};
+
+/**
+ * The stream direction a schedule field behaves like, or `undefined` for an
+ * unknown field — which renders with no accent rather than a guessed one.
+ */
+export const directionForSchedule = (field) => SCHEDULE_DIRECTION[field];
+
 
 // ===========================================================================
 // CR070 P2/P3 — capabilities, and the residue detector that makes hiding safe.

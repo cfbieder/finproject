@@ -11,6 +11,7 @@ import {
   isLoanModule,
   initialOpenSections,
   labelForType,
+  directionForSchedule,
 } from "./fcModulesEditSections.js";
 import {
   resolveFxRate,
@@ -1624,6 +1625,7 @@ export default function FCModulesEditModal({
                             <div
                               key={`${field}-${index}`}
                               className="fc-modules-modal__transfer-card"
+                              data-direction={directionForSchedule(field)}
                             >
                               <div className="fc-modules-modal__transfer-fields">
                                 {!isNoFlagRow && (

@@ -1697,6 +1697,22 @@ input.fc-modules-modal__input:read-only {
   content: none;
 }
 
+/* The last piece of the stream-card idiom, and the only one that MEANS something rather than
+   matching: a left edge for the way the money moves. Values copied from
+   .fc-stream-card[data-direction] so the two cannot drift. `directionForSchedule` reads it off the
+   engine — Invest and Amortization are cash out, Dispose is cash in — and an unrecognised schedule
+   emits no attribute, so it falls through to the plain border above rather than guessing.
+
+   As on a stream card, colour never carries this alone: the section title above says the word
+   (and says "Capital Call" / "Distribution" on a PE module, which are the same two directions). */
+.fc-modules-modal__transfer-card[data-direction="income"] {
+  border-left: 3px solid var(--success);
+}
+
+.fc-modules-modal__transfer-card[data-direction="expense"] {
+  border-left: 3px solid var(--danger);
+}
+
 .fc-modules-modal__transfer-fields {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(190px, 1fr));
