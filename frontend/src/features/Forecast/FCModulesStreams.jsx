@@ -62,7 +62,7 @@ export default function FCModulesStreams({
   lineReference = {},
   lineReferenceLoading = false,
   sharedByLine = {},
-  baseYear = null,
+  periodStart = null,
   startYear = null,
 }) {
   const linesByDirection = useMemo(() => ({
@@ -217,14 +217,16 @@ export default function FCModulesStreams({
                       expense into 17,358 in 2027 — the option is for a stream that genuinely
                       begins mid-plan, not for restating where the plan starts. */}
                   <option value="">
-                    {startYear ? `— from ${startYear}, this module's first year —` : "— from the module's first year —"}
+                    {startYear
+                      ? `— from ${startYear}, the first forecast year —`
+                      : "— from the first forecast year —"}
                   </option>
                   {periodYears.map((y) => <option key={y} value={y}>{y}</option>)}
                 </select>
                 <small>
                   {startYear
                     ? `Blank runs from ${startYear}. Choosing a year starts it then — and that first year counts by half.`
-                    : "Choosing a year starts the stream then — and that first year counts by half."}
+                    : "Blank runs from the first forecast year. Choosing a year starts it then — and that first year counts by half."}
                 </small>
               </label>
               <label className="fc-stream-card__field">
@@ -261,16 +263,18 @@ export default function FCModulesStreams({
             the module's base year: last COMPLETE actual, this year's budget, this year to date.
             Shown only when there is something to show — a line with no history renders nothing
             rather than a row of dashes. */}
-        {stream.fc_line_id != null && (() => {
+        {stream.fc_line_id != null && periodStart && (() => {
           const ref = lineReference?.[Number(stream.fc_line_id)] || {};
           const shared = sharedByLine?.[Number(stream.fc_line_id)] || 0;
           const lineName =
             (linesByDirection[stream.direction === "income" ? "income" : "expense"] || [])
               .find((l) => Number(l.id) === Number(stream.fc_line_id))?.name || "";
           const rows = [
-            ["priorActual", `Actual ${baseYear - 1}`, `${ref.priorActualCount ?? 0} txns · complete`],
-            ["thisBudget", `Budget ${baseYear}`, ""],
-            ["thisActual", `Actual ${baseYear}`, `${ref.thisActualCount ?? 0} txns · year to date`],
+            // Labelled from PeriodStart, the same anchor the fetch used — if these two ever
+            // disagree the figures are right and the headings lie, which is the worse failure.
+            ["priorActual", `Actual ${periodStart - 2}`, `${ref.priorActualCount ?? 0} txns · complete`],
+            ["thisBudget", `Budget ${periodStart - 1}`, ""],
+            ["thisActual", `Actual ${periodStart - 1}`, `${ref.thisActualCount ?? 0} txns · year to date`],
           ].filter(([k]) => ref[k] != null);
           if (lineReferenceLoading) {
             return <p className="fc-stream-card__reference-empty">Loading actuals…</p>;

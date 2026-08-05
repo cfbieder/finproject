@@ -12,6 +12,7 @@ import {
   initialOpenSections,
   labelForType,
   directionForSchedule,
+  resolvePeriodStart,
 } from "./fcModulesEditSections.js";
 import {
   resolveFxRate,
@@ -145,7 +146,17 @@ export default function FCModulesEditModal({
 
   const nameOptions = getChildCategoriesForAccount(editForm?.Account);
   const hasMultipleChildren = nameOptions.length > 1;
+  const [assumptions, setAssumptions] = useState(null);
   const [fcLines, setFcLines] = useState([]);
+
+  // CR072 §10 — PeriodStart, resolved or NULL. Never guessed.
+  //
+  // `periodStartNum` below falls back to the CURRENT YEAR when the scenario name does not match
+  // (FCModulesEdit.jsx, the CR064 P1 failure class — prod carried five dead scenario names for
+  // exactly this reason). That fallback is fine for a year-picker's range; it is NOT fine for a
+  // LABEL or for choosing which year's actuals to fetch, because it produces a confidently wrong
+  // year. Both consumers below use this one, which stays null and renders "unknown" instead.
+  const resolvedPeriodStart = resolvePeriodStart(assumptions, editForm?.Scenario);
 
   // The reference figures beside each stream's Amount, keyed by FC LINE.
   //
@@ -155,10 +166,14 @@ export default function FCModulesEditModal({
   // module that had one. The id is the column both projections carry and the one the engine
   // branches on; the label is resolved from `fcLines` for display only.
   //
-  // Three years, anchored on the module's BASE year (the year its Amount is expressed in):
-  //   base − 1  actual  — the last complete year, the honest like-for-like
-  //   base      budget  — what was planned
-  //   base      actual  — year to date, and labelled as partial so it is not read as a full year
+  // CR072 §5 — three years anchored on the FORECAST's start, not the module's base year.
+  //   PeriodStart − 2  actual  — the last COMPLETE actual year
+  //   PeriodStart − 1  budget  — the current year's plan
+  //   PeriodStart − 1  actual  — year to date, labelled partial so it is not read as a full year
+  //
+  // v3.16.0 anchored on `base_date`, which gave `Barkeria` (base 2025) *actual 2024 / budget 2025*
+  // — a year stale — while a base-2026 module got the right pair by luck. The forecast's own start
+  // is the anchor because it is what the first typed amount has to be right for.
   //
   // `sharedBy` is the count of modules whose streams point at the same line. It is displayed
   // whenever it exceeds one because THE LINE TOTAL IS NOT THIS MODULE'S: `Property Costs` carries
@@ -169,13 +184,17 @@ export default function FCModulesEditModal({
   // getFullYear() does not. Hoisted here because the reference fetch below needs it.
   const baseYear = getBaseYear(editForm?.BaseDate, new Date().getFullYear());
 
-  // The module's OWN first year, and it differs by kind: a flow module anchors at PeriodStart,
-  // a valuation module at its base date (fcbuilder-module.js:131). The stream card labels its
-  // blank "Start year" option with this, because "the base year" was wrong on every flow module.
-  const streamStartYear = useMemo(
-    () => (capabilities.has("valuation") ? baseYear : (baseYearOptions?.[0] ?? baseYear)),
-    [capabilities, baseYear]
-  );
+  // CR072 §6 — the first year a stream PRODUCES anything, which is PeriodStart on EVERY module.
+  //
+  // v3.16.0 labelled this with the module's axis start and was wrong twice over: on a valuation
+  // module it named `base_date` (2025 on 90 of 110) and on a flow module it named
+  // `baseYearOptions[0]` — currentYear − 3, so the card read "from 2023". Neither year produces
+  // anything: `computeStreamSeries` skips every year with `idx = year − periodStart < 0`
+  // (fcbuilder-stream.js), on both kinds. The axis start was never the answer.
+  //
+  // Null when PeriodStart does not resolve, so the label degrades to a generic string rather than
+  // naming a year it guessed.
+  const streamStartYear = resolvedPeriodStart;
 
   const sharedByLine = useMemo(() => {
     const counts = {};
@@ -197,7 +216,9 @@ export default function FCModulesEditModal({
 
   useEffect(() => {
     let isActive = true;
-    if (!isOpen || !baseYear) {
+    // No PeriodStart ⇒ fetch NOTHING. The fallback-to-current-year would quietly fetch
+    // 2024/2025 and label them so — the old wrong pair, wearing a confident label.
+    if (!isOpen || !resolvedPeriodStart) {
       setLineReference({});
       setLineReferenceLoading(false);
       return undefined;
@@ -207,9 +228,9 @@ export default function FCModulesEditModal({
       try {
         // Settled, not awaited in series: a missing budget year must not cost the actuals.
         const [priorActual, thisActual, thisBudget] = await Promise.all([
-          Rest.fetchFcLineActualTotals(baseYear - 1).catch(() => []),
-          Rest.fetchFcLineActualTotals(baseYear).catch(() => []),
-          Rest.fetchFcLineBudgetTotals(baseYear).catch(() => []),
+          Rest.fetchFcLineActualTotals(resolvedPeriodStart - 2).catch(() => []),
+          Rest.fetchFcLineActualTotals(resolvedPeriodStart - 1).catch(() => []),
+          Rest.fetchFcLineBudgetTotals(resolvedPeriodStart - 1).catch(() => []),
         ]);
         if (!isActive) return;
         const byLine = {};
@@ -238,7 +259,7 @@ export default function FCModulesEditModal({
       }
     })();
     return () => { isActive = false; };
-  }, [isOpen, baseYear]);
+  }, [isOpen, resolvedPeriodStart]);
 
   const effectiveName = isMatched
     ? hasMultipleChildren
@@ -269,7 +290,6 @@ export default function FCModulesEditModal({
     currency: "",
   });
   const [accountBalanceLoading, setAccountBalanceLoading] = useState(false);
-  const [assumptions, setAssumptions] = useState(null);
   const [, setAssumptionsLoading] = useState(false);
   const [fcBudgetTotals, setFcBudgetTotals] = useState({});
   const formatWithCommas = (value) => {
@@ -1575,7 +1595,7 @@ export default function FCModulesEditModal({
                   lineReference={lineReference}
                   lineReferenceLoading={lineReferenceLoading}
                   sharedByLine={sharedByLine}
-                  baseYear={baseYear}
+                  periodStart={resolvedPeriodStart}
                   periodYears={baseYearOptions}
                   startYear={streamStartYear}
                   currency={editForm.Currency}

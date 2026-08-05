@@ -14,6 +14,7 @@ import {
   directionForSchedule,
   labelForType,
   groupTypeOptions,
+  resolvePeriodStart,
 } from "../fcModulesEditSections.js";
 
 
@@ -225,5 +226,36 @@ describe("the type filter's grouping", () => {
   test("no input at all is not an error", () => {
     expect(groupTypeOptions(undefined, undefined)).toEqual([]);
     expect(groupTypeOptions([], {})).toEqual([]);
+  });
+});
+
+
+describe("CR072 \u00a76/\u00a710 \u2014 PeriodStart resolves or returns null, never a guess", () => {
+  const A = { scenarios: [{ Name: "2026 Base", PeriodStart: 2027, PeriodEnd: 2062 }] };
+
+  test("resolves from the matching scenario", () => {
+    expect(resolvePeriodStart(A, "2026 Base")).toBe(2027);
+  });
+
+  // THE ONE THAT MATTERS. The component's own periodStartNum falls back to the CURRENT YEAR on a
+  // name miss, which is fine for a picker range and wrong for a label or a fetch year: it renders
+  // "from 2026, the first forecast year" on a forecast starting 2027, and fetches 2024/2025
+  // actuals. Prod has paid for this class once already (CR064 P1, five dead scenario names).
+  test("a scenario-name MISS returns null rather than the current year", () => {
+    expect(resolvePeriodStart(A, "2026 Downside")).toBeNull();
+    expect(resolvePeriodStart(A, "")).toBeNull();
+    expect(resolvePeriodStart(A, undefined)).toBeNull();
+  });
+
+  test("no assumptions at all is null, not a crash", () => {
+    expect(resolvePeriodStart(null, "2026 Base")).toBeNull();
+    expect(resolvePeriodStart({}, "2026 Base")).toBeNull();
+    expect(resolvePeriodStart({ scenarios: [] }, "2026 Base")).toBeNull();
+  });
+
+  test("a top-level PeriodStart is the fallback, and junk is rejected", () => {
+    expect(resolvePeriodStart({ PeriodStart: 2027 }, "anything")).toBe(2027);
+    expect(resolvePeriodStart({ PeriodStart: "not a year" }, "x")).toBeNull();
+    expect(resolvePeriodStart({ PeriodStart: 12 }, "x")).toBeNull();
   });
 });

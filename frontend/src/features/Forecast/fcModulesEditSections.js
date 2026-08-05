@@ -497,3 +497,21 @@ export const streamIsUntouched = (st) =>
   st?.fc_line_id == null &&
   !Number(st?.amount ?? 0) &&
   !(st?.changes?.length);
+
+
+// ---------------------------------------------------------------------------
+// CR072 §10 — PeriodStart, resolved or NULL. Extracted so the trap is testable.
+//
+// The component's own `periodStartNum` falls back to the CURRENT YEAR when the scenario name does
+// not match. That is fine for sizing a year-picker's range and WRONG for anything that names a
+// year to the owner: it produces a label like "from 2026, the first forecast year" on a forecast
+// that starts in 2027, and it picks the wrong years to fetch actuals for. Prod has already paid
+// for this class once — CR064 P1, five dead scenario names.
+//
+// So this returns null rather than a guess, and its callers render "unknown" and fetch nothing.
+// ---------------------------------------------------------------------------
+export const resolvePeriodStart = (assumptions, scenarioName) => {
+  const fromScenario = (assumptions?.scenarios || []).find((sc) => sc?.Name === scenarioName);
+  const value = Number(fromScenario?.PeriodStart ?? assumptions?.PeriodStart);
+  return Number.isFinite(value) && value > 1900 ? value : null;
+};
