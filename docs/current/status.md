@@ -4,32 +4,35 @@
 > CR statuses live in the [CR index](../cr/README.md); the running version lives in `VERSION`.
 > Older headlines: [status log](../archive/status-log_2026-08-01.md).
 >
-> **Cut from 216 lines to this shape 2026-08-05** (owner decision): the overrun was restatement
-> the [CR index](../cr/README.md) and [roadmap §1.2](project-roadmap.md#12-completed-chronological-latest-first)
-> already own, and it was where that day's docs audit found most of its stale facts.
+> **The budget is load-bearing** (owner decision 2026-08-05, cut from 216 lines): the overrun was
+> restatement the CR index and [roadmap §1.2](project-roadmap.md#12-completed-chronological-latest-first)
+> already own, and it was where that day's audit found most of its stale facts.
 
-**Last updated:** 2026-08-05 · **Live version:** v3.14.2 (see `VERSION` / git tags)
+**Last updated:** 2026-08-05 · **Live version:** v3.15.0 (see `VERSION` / git tags)
 
 ## Current phase
-**[CR069](../cr/cr-069-forecast-streams.md) is COMPLETE and live (v3.13.1 → v3.14.1, migrations
-057–060).** A module is *identity + optional valuation + N first-class **streams***; one
-evaluator replaced three; the Expenditures step, ~2,770 lines of `FCExp*` and four tables are
-gone. Every phase gated on per-(scenario, account, year) `forecast_entries` sums **identical to
-the cent**. Detail: [CR069 §12–16](../cr/cr-069-forecast-streams.md).
+**The model, since [CR069](../cr/cr-069-forecast-streams.md) (v3.13.1 → v3.14.1, migrations
+057–060):** a module is *identity + optional valuation + N first-class **streams***.
 
 **[CR070](../cr/cr-070-module-inputs-by-type.md) and
-[CR071](../cr/cr-071-forecast-numbers-vs-intent.md) are BUILT and awaiting QA on dev**
-(2026-08-05, `001a4e3`) — **not on prod, which stays on v3.14.2.** QA script and what to look at:
-**[qa-cr070-cr071.md](qa-cr070-cr071.md)**. All of CR070 P0–P5 and CR071's rules; no migration.
-Gate: per-(scenario, account, year) sums **identical to the cent on a prod copy**, 4,030 rows.
-Two owner questions remain deliberately unanswered because both move forecast numbers — CVC Fund
-VIII net-vs-gross, and the yield-mode base-year tax.
+[CR071](../cr/cr-071-forecast-numbers-vs-intent.md) SHIPPED in v3.15.0** (2026-08-05, no
+migration). A module's form is **capability-gated** on data the engine branches on, type seeds it,
+and a **residue detector** reports any hidden field still holding a value — which is what let
+[CR064 §5](../cr/cr-064-forecast-annual-close-and-assumptions.md)'s "a hidden field is not a
+cleared one" finally be answered. Double-click opens the editor. CR071 adds 8 detection rules
+(13 warnings across 34 real modules). Gate: sums **identical to the cent on a prod copy**, 4,030
+rows — neither CR moves a number.
+
+⚠️ **The two CR071 §4 data edits did NOT ship and are still outstanding** — remove CVC Fund VIII's
+phantom `yield` stream, clear the two Fidelity yield-mode typed amounts. **Both MOVE NUMBERS**, so
+they need a prod copy + line-by-line delta first, then prod, then a regenerate. **For those the
+sums gate INVERTS: an unchanged number is the bug.** Detail:
+[roadmap §1.1](project-roadmap.md#cr070).
 
 **[CR064](../cr/cr-064-forecast-annual-close-and-assumptions.md) remains the live engineering
 thread** — P2/P4/P5/P10 are **unblocked** now CR069 P2 has shipped, and the annual close is not
 needed before the 2026→2027 boundary. **[CR066](../cr/cr-066-fc-line-mapping-completeness.md) P0
-is next at the owner's request**, with its central question now answered: `Rental - Spain`
-(+31,306) is **genuinely unmapped**, not modelled through the SP modules.
+is next at the owner's request** (`Rental - Spain` +31,306 is genuinely unmapped).
 
 ## Known issues
 [roadmap §3](project-roadmap.md#3-known-issues) is canonical. **#15 (migrations reaching prod
@@ -44,11 +47,10 @@ ESLint JSX blind spot (#10), and dirty-tree deploys (#17).
   flags ON, isolated volume). Prod frontend: `https://fin.tail413695.ts.net`.
 - `bank-feed/` microservice (:3007, separate repo) feeds 28 accounts; ocr-llm LLM gateway at
   `100.66.213.40:8080` (AI Review).
-- Deploy: `./Scripts/deploy-to-production.sh` (DB backup first). Migrations: **dev first,
-  through `migrate.js`** — a `psql -f` apply writes no ledger row and is invisible to the guard.
-  The deploy applies pending files to prod at Step 2b, and **Step 2b(i) refuses any file absent
-  from BOTH ledgers**. Registry: [migrations.md](migrations.md). *A deploy's Step 1 backup
-  predates its Step 2b migration, so restoring from one lands a migration short.*
+- Deploy: `./Scripts/deploy-to-production.sh` (DB backup first). Migrations: **dev first, through
+  `migrate.js`** — a `psql -f` apply writes no ledger row and is invisible to the guard; Step 2b(i)
+  refuses any file absent from BOTH ledgers. Registry: [migrations.md](migrations.md). *A deploy's
+  Step 1 backup predates its Step 2b migration, so restoring from one lands a migration short.*
 - The prod container runs as **root** and writes root-owned audit CSVs under
   `components/data/auditTrail/`, so a host-run forecast generation fails with EACCES. Generate
   through the container, or under a separate project root.
@@ -69,8 +71,6 @@ ESLint JSX blind spot (#10), and dirty-tree deploys (#17).
   [CR059](../cr/cr-059-fintable-api-ingestion.md)'s Chase date basis. **`House Morgage` carries
   6% and a derived interest line but is deliberately left `setup_status='new'`** (owner decision
   2026-08-05) — parked, not broken.
-- **Owner action outstanding:** rotate the Anthropic API key — v3.14.2 removed it from the
-  appdata document and stopped the endpoint serving it.
 - Full plan: [project-roadmap.md](project-roadmap.md).
 
 ## Conventions

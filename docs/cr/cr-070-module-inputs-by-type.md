@@ -1,4 +1,4 @@
-# CR070 — inputs that fit the module: capability-gated forms, type-led templates — 🟢 BUILT, AWAITING QA
+# CR070 — inputs that fit the module: capability-gated forms, type-led templates — ✅ COMPLETE (v3.15.0)
 
 Every module type asks the same questions today. An Expense module — 50 of prod's 170 — presents
 Cost Basis, Cost Basis (USD), Market Value, Market Value (USD), Growth (× inflation), a Capital
@@ -569,14 +569,13 @@ years). Both are about numbers, not inputs.
 
 ---
 
-## 15. As built (2026-08-05, `3120b10`…`001a4e3`) — on dev, awaiting QA
+## 15. As built (2026-08-05, `3120b10`…`bb0c60c`) — SHIPPED in v3.15.0
 
-**Not on prod.** Prod stays on v3.14.2; dev serves `001a4e3` for QA
-([script](../current/qa-cr070-cr071.md)). No migration. 21 files, +1,210 / −368.
+No migration. QA script retained at [qa-cr070-cr071.md](../current/qa-cr070-cr071.md).
 
-**Gates:** 809 backend · 414 frontend · 8 e2e · lint 0 errors · six ratchets at baseline · clean
-build · **per-(scenario, account, year) `forecast_entries` sums identical to the cent on a prod
-copy, 4,030 rows.** Nothing in either CR moves a number.
+**Gates at release:** 811 backend · 421 frontend · 8 e2e · lint 0 errors · six ratchets at
+baseline · clean build · **per-(scenario, account, year) `forecast_entries` sums identical to the
+cent on a prod copy, 4,030 rows.** Nothing in either CR moves a number.
 
 | phase | what shipped |
 |---|---|
@@ -585,6 +584,31 @@ copy, 4,030 rows.** Nothing in either CR moves a number.
 | **P4** | `assertSweepEligible` on the route **and** a derivation arm in `resolveSweepFlags`. Derived, not thrown, because `syncIfStale` runs at the top of every variant build. |
 | **P2+P3** | `capabilitiesFor` / `residueFor` / `fieldSectionsFor`, the residue panel, and the sweep control gated on the `sweep` capability. |
 | **P5** | `templateForType` seeds a new module from its type; `streamIsUntouched` drops a seeded card the owner never answered. |
+| **P6** ⓘ | *Added during QA, not the cut P6 (which was the disposal selling cost and stays cut).* A flow module's **`Account`** named one of the four accounts its line covers — `Car Expenses` showed `Car - Insurance`. Gated on the `valuation` capability, and the read it was standing in for replaced: **`PY Actual` was looking the module up in the BALANCE-SHEET report**, so on a `profit_loss` account it was permanently blank, not merely wrong. New **`GET /fc-lines/actual-totals`**, built as the exact sibling of the existing budget query, backs `Actual <year> — <line>` instead. |
+
+### What QA found after the build
+
+Six findings, and **five of them were dead or lying CR069 leftovers** rather than anything this CR
+introduced — which is its own argument for having looked:
+
+- **Two retired schedules were still on the form.** `Yield Spread` and `Yield Spread Entries` were
+  rendered, accepted input, and were **not in `MODULE_WRITE_FIELDS`** — typed, saved, silently
+  dropped, on every module type since v3.14.1. Exactly the CR046/CR047 class the write allow-list
+  exists to prevent, surviving in the UI after the contract moved on.
+- **The schedule sections were a second visual language** on the same form: filled CTA buttons,
+  numbered circular badges, an SVG empty state, an icon-only delete, ALL-CAPS labels, and inputs a
+  measurable step chunkier than the stream cards (0.9rem/0.7rem against 0.875rem/0.35rem). Restyled
+  onto the existing classes — a new button class would have tripped `check-button-css` — with the
+  metrics **copied** from `.fc-stream-card`, not approximated.
+- **The left edge was the piece worth arguing about.** It is the one part of the stream-card idiom
+  that carries meaning rather than polish, so `directionForSchedule` reads it off the engine:
+  Invest and Amortization are cash **out** (`fcbuilder-module.js:534`, `fcbuilder-loan.js:18`),
+  Dispose is cash **in**. Keyed on the FIELD, never the label, because `labelForType` renames these
+  per type and a "Capital Call" is still cash out.
+
+The owner's first pass also caught that a fix of mine was **cosmetic when the problem was
+structural** — the sections had been re-skinned but still had two different shapes (a full-width
+toggle when empty, a compact pill when not). One structure, whether or not the schedule has rows.
 
 ### What the build itself taught
 

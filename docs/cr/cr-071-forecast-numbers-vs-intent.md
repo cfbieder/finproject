@@ -1,4 +1,4 @@
-# CR071 — where the forecast's numbers disagree with the owner's intent — 🟢 BUILT, AWAITING QA
+# CR071 — where the forecast's numbers disagree with the owner's intent — ✅ COMPLETE (v3.15.0, detections only)
 
 Eight places where Fin's forecast produces a number the owner did not intend and nothing says so.
 None is a code defect: every one is a *valid* configuration the engine models faithfully. They are
@@ -117,7 +117,13 @@ deferral, discharged.
 
 ---
 
-## 5. As built (2026-08-05, `3120b10`) — on dev, awaiting QA
+## 5. As built (2026-08-05, `3120b10`) — SHIPPED in v3.15.0
+
+> ⚠️ **The two §4 data edits did NOT ship with the code.** They move numbers, so they need their own
+> change event: applied to a prod copy first with a line-by-line delta report, then to prod, then a
+> regenerate. **For those two the gate INVERTS — an unchanged sum would be the bug.** Still
+> outstanding after v3.15.0; tracked on the [roadmap](../current/project-roadmap.md).
+
 
 `computeModuleIntegrityWarnings` in `fcWarnings.js`, called from `computeForecastWarnings`, with
 12 tests. Every rule is keyed on DATA, never on `module_type`. **Detections only — the gate proves

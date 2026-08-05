@@ -6,7 +6,7 @@ How testing is organised across the project, what's automated, and where to run 
 
 ### Backend Jest tests — `cd server && npm test`
 
-**802 tests across 56 suites** (measured 2026-08-05, v3.14.1). **This file is the single home for live test counts** — `status.md`, `project-description.md` and `project-roadmap.md` §3 link here rather than restating, because four independent restatements is what let all four drift apart (each was right on the day it was written and none was updated since). Two flavors: pure/mocked suites, and **DB-backed suites** that self-seed throwaway rows by unique name against `DATABASE_URL` (dev Postgres :5434) and clean up after themselves — never TRUNCATE. Skip the DB-backed ones with `SKIP_DB_TESTS=1`. Run with `npx env-cmd -e development -- npm test` so `DATABASE_URL` is set.
+**811 tests across 56 suites** (measured 2026-08-05, v3.15.0). **This file is the single home for live test counts** — `status.md`, `project-description.md` and `project-roadmap.md` §3 link here rather than restating, because four independent restatements is what let all four drift apart (each was right on the day it was written and none was updated since). Two flavors: pure/mocked suites, and **DB-backed suites** that self-seed throwaway rows by unique name against `DATABASE_URL` (dev Postgres :5434) and clean up after themselves — never TRUNCATE. Skip the DB-backed ones with `SKIP_DB_TESTS=1`. Run with `npx env-cmd -e development -- npm test` so `DATABASE_URL` is set.
 
 | File | Tests | Coverage |
 |------|-------|----------|
@@ -38,7 +38,7 @@ Naming convention for new smoke scripts: `server/src/scripts/smoke-<topic>.js`. 
 
 ### Frontend Vitest tests — `cd frontend && npm test`
 
-**389 tests across 39 files** (measured 2026-08-05, v3.14.1). Pure-function helpers plus component render tests (Modal/DataTable) in `jsdom`; no network, no real DB. Established under [CR016 — Frontend Test Framework](../cr/cr-016-frontend-test-framework.md) (closed 2026-05-20).
+**421 tests across 39 files** (measured 2026-08-05, v3.15.0). Pure-function helpers plus component render tests (Modal/DataTable) in `jsdom`; no network, no real DB. Established under [CR016 — Frontend Test Framework](../cr/cr-016-frontend-test-framework.md) (closed 2026-05-20).
 
 | File | Tests | Coverage |
 |------|-------|----------|
