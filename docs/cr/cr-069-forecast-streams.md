@@ -876,12 +876,20 @@ stale server.
 
 ### Still open, deliberately
 
-- **`cr051-currency.spec.js` is re-pointed at the Modules page and still SKIPPED**, for a
-  reason no selector fixes: the form's Currency is a `<select>` derived from account traits and
-  the e2e seed's only forecast account is USD. The server half is fully covered by
-  `cr051.incexp-currency.routes.test.js` (derivation *and* the fail-loud 400); the
-  survives-a-reopen property is covered by `write-paths.spec.js` against a stream card.
-  Restoring it needs a PLN-bearing account and an FX assumption in `e2e-seed.sql`.
+- ~~**`cr051-currency.spec.js` is re-pointed at the Modules page and still SKIPPED**~~ —
+  **CLOSED 2026-08-05 (`29b3a75`), post-release.** The diagnosis was half right: the Currency
+  `<select>` is derived from account traits, but from the distinct currencies of **every active
+  account** (`getTraitsMap` → `traitValueOptions`), not the matched account's — so one PLN
+  account anywhere in the seed is enough, and the FX assumption the note asked for was already
+  there (`{"PLN":4}`). `E2E PLN Wallet` is zero-balance and transaction-free so it cannot move
+  `money-paths.spec.js`'s literal 108,500. **8 e2e pass, 0 skipped.** Two things only the run
+  could teach, now comments in the spec: a bare `/Amount/` also matches the Mode `<select>`
+  (an accessible name concatenates its option text), and the amount returns as `400.00` through
+  a `numeric(_,2)` column. The spec also now asserts what its own NAME always claimed and it
+  never checked — the USD twin derived from what the *picker* sent (400 PLN ÷ 4 = 100 USD),
+  because CR051's real failure was a currency that reached the server and was booked as dollars
+  anyway. Falsified rather than assumed: flipped to expect 400, and the run failed with
+  `Received: 100`.
 - **Multi-stream editing is now genuinely available** (the schema always allowed it; the read
   path no longer flattens it, because the projection is gone). Nothing in production uses it
   yet — every module carries exactly one stream per direction.
