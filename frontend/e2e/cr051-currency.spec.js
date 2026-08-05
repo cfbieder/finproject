@@ -12,34 +12,29 @@ import { test, expect } from "@playwright/test";
  * Seed (server/db/e2e-seed.sql): "E2E Scenario" has a base-year PLN rate of 4, so a −400 PLN
  * expense must book at −100 USD (−400 / 4), not −400.
  *
- * ── RE-POINTED BY CR069 P3, AND STILL SKIPPED — for a reason worth reading ───────────────
+ * ── RE-POINTED BY CR069 P3; UN-SKIPPED 2026-08-05 ────────────────────────────────────────
  *
  * It used to drive `/forecast-setup-exp`, which no longer exists: an Expenditure item is a
- * module with `has_valuation = false` and one stream. The body below is rewritten for the
- * Modules page and its stream card, and everything up to the currency picker works.
+ * module with `has_valuation = false` and one stream, so the body below drives the Modules
+ * page and its stream card instead.
  *
- * It cannot pass yet, and not for a reason a selector fixes: the Modules form's Currency is a
- * SELECT whose options are derived from the account's traits, and the e2e seed's only
- * forecast account (`Brokerage`) is USD. Making this real needs a PLN-bearing account and an
- * FX assumption in `server/db/e2e-seed.sql` — a seed change with its own blast radius, not a
- * tail-end edit to a spec.
+ * It stayed skipped after that because the Modules form's Currency is a SELECT whose options
+ * are the distinct currencies of every ACTIVE account (`getTraitsMap` → `traitValueOptions`) —
+ * so with a USD-only seed the picker could not offer PLN and the spec had nothing to click.
+ * The seed now carries `E2E PLN Wallet`, zero-balance and transaction-free precisely so it
+ * cannot move `money-paths.spec.js`'s literal 108,500 net worth.
  *
- * WHAT COVERS THE BEHAVIOUR MEANWHILE, so this is a gap and not a hole:
- *   - the SERVER half, fully: `server/src/v2/routes/__tests__/cr051.incexp-currency.routes.test.js`
- *     posts a PLN stream to /modules and asserts BOTH halves — the USD twin is derived from
- *     the native amount at the scenario's base-year rate, and a currency the scenario cannot
- *     convert is REFUSED with a 400 rather than silently booked as dollars.
- *   - the "survives a reopen" property of the stream card itself: `write-paths.spec.js` sets
- *     an income window on a card, saves, reopens, and asserts it came back — the CR043 N10
- *     shape this file also guards.
- *
- * Recorded as a P3 tail item rather than deleted: the picker-specific round-trip is genuinely
- * untested until the seed grows a foreign-currency account.
+ * What this covers that nothing else does: `cr051.incexp-currency.routes.test.js` proves the
+ * SERVER derives the USD twin and refuses an unconvertible currency with a 400, and
+ * `write-paths.spec.js` proves a stream card's value survives a reopen — but only a browser
+ * proves the picker's own value reaches the save. That is the exact half that broke three
+ * times, when the currency was hard-pinned to "USD" in three places and every server-side
+ * test still passed.
  */
 
 const SCENARIO = "E2E Scenario";
 
-test.describe.skip("CR051 — foreign-currency expense (needs a PLN account in the e2e seed)", () => {
+test.describe("CR051 — foreign-currency expense", () => {
   test("a PLN expense derives USD (native ÷ FX) and the currency survives a reopen", async ({
     page,
   }) => {
@@ -60,7 +55,9 @@ test.describe.skip("CR051 — foreign-currency expense (needs a PLN account in t
     await dialog.locator(".fc-stream-cards__add").getByRole("button", { name: "+ Add expense" }).click();
     const card = dialog.locator(".fc-stream-card[data-direction='expense']");
     await expect(card).toBeVisible();
-    await card.getByLabel(/Amount/).fill("400");
+    // Anchored on "Amount (base year" — a bare /Amount/ also matches the Mode SELECT, whose
+    // accessible name concatenates its own option text ("Mode Amount Yield spread % of value").
+    await card.getByLabel(/Amount \(base year/).fill("400");
 
     await dialog.getByRole("button", { name: /Create|Save/ }).first().click();
     await expect(dialog).toBeHidden();
@@ -76,8 +73,25 @@ test.describe.skip("CR051 — foreign-currency expense (needs a PLN account in t
     await expect(reopened.getByLabel("Currency")).toHaveValue("PLN");
 
     // ...and the amount came back on its card, as a magnitude — the direction carries the sign.
+    // "400.00", not "400": it round-trips through a numeric(_,2) column.
     const reopenedCard = reopened.locator(".fc-stream-card[data-direction='expense']");
     await expect(reopenedCard).toBeVisible();
-    await expect(reopenedCard.getByLabel(/Amount/)).toHaveValue("400");
+    await expect(reopenedCard.getByLabel(/Amount \(base year/)).toHaveValue("400.00");
+
+    // The currency string surviving is necessary but NOT sufficient — CR051's actual failure was
+    // a currency that reached the server and was booked as dollars anyway. So assert the twin the
+    // server derived from what the PICKER sent: 400 PLN / 4 = 100 USD. Without this the test
+    // proves a string made a round trip, not that it meant anything. (The route test proves the
+    // same arithmetic from a hand-built request; only this path starts at the select element.)
+    const api = await page.request.get(
+      `/api/v2/forecast/modules?scenario=${encodeURIComponent(SCENARIO)}`,
+    );
+    expect(api.ok()).toBeTruthy();
+    const body = await api.json();
+    const saved = (body.data ?? body).find((m) => m.Name === "E2E PLN Expense");
+    expect(saved, "the saved module should come back from the API").toBeTruthy();
+    const stream = saved.Streams.find((st) => st.direction === "expense");
+    expect(Number(stream.amount)).toBeCloseTo(400, 2);
+    expect(Number(stream.amount_usd)).toBeCloseTo(100, 2);
   });
 });

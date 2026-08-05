@@ -102,6 +102,30 @@ SELECT 'E2E Type Probe', (SELECT id FROM accounts WHERE name = 'Living Expenses'
        'expense', 'profit_loss', FALSE, 'USD', TRUE
 WHERE NOT EXISTS (SELECT 1 FROM accounts WHERE name = 'E2E Type Probe');
 
+-- A foreign-currency account, and the ONLY reason it exists (CR051 / CR069 P3 tail item).
+--
+-- The Modules form's Currency is a SELECT whose options are the distinct `currency` values
+-- across every ACTIVE account (`getTraitsMap` → `traitValueOptions`), not the traits of the
+-- account a module is matched to. So the picker can only ever offer USD until some account
+-- carries something else, and `cr051-currency.spec.js` — the one test of the round-trip that
+-- lost a currency on save three times — could not run at all.
+--
+-- Deliberately ZERO-BALANCE and transaction-free: `money-paths.spec.js` asserts the seeded
+-- net worth as a literal 108,500, and a fixture that quietly moves another test's number is
+-- the failure mode the 'E2E Type Probe' comment above already names. A zero balance
+-- contributes zero however it is converted, so the assertion holds without depending on the
+-- FX path being right — which is the thing under test elsewhere and must not become load-
+-- bearing here.
+--
+-- PLN specifically, because the scenario's own FX assumption (§4 below, `{"PLN":4}`) is what
+-- the server validates a module's currency against: a currency the scenario cannot convert is
+-- refused with a 400, so a seed account in some other currency would offer the picker an
+-- option the save then rejects.
+INSERT INTO accounts (name, parent_id, account_type, section, is_transfer, currency, is_active)
+SELECT 'E2E PLN Wallet', (SELECT id FROM accounts WHERE name = 'Bank Accounts'),
+       'asset', 'balance_sheet', FALSE, 'PLN', TRUE
+WHERE NOT EXISTS (SELECT 1 FROM accounts WHERE name = 'E2E PLN Wallet');
+
 -- 'Transfer - Bank' is what the engine books swept cash against.
 INSERT INTO accounts (name, parent_id, account_type, section, is_transfer, currency, is_active)
 SELECT 'Transfer - Bank', (SELECT id FROM accounts WHERE name = 'Transfers'),
