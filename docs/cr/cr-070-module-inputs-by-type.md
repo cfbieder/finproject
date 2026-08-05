@@ -606,6 +606,12 @@ introduced — which is its own argument for having looked:
   Dispose is cash **in**. Keyed on the FIELD, never the label, because `labelForType` renames these
   per type and a "Capital Call" is still cash out.
 
+**Follow-on, v3.15.1:** the module **type filter** now groups by what the module is — Assets /
+Debt / Flows, the same `has_valuation` split this CR gates the form on — with a count per option.
+It reuses this CR's rule for type-keyed lookups exactly: cosmetic only, and an unrecognised type
+falls into a trailing "Other" group rather than vanishing, because a filter that drops an option
+hides modules.
+
 The owner's first pass also caught that a fix of mine was **cosmetic when the problem was
 structural** — the sections had been re-skinned but still had two different shapes (a full-width
 toggle when empty, a compact pill when not). One structure, whether or not the schedule has rows.

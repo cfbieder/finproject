@@ -8,7 +8,7 @@
 > restatement the CR index and [roadmap §1.2](project-roadmap.md#12-completed-chronological-latest-first)
 > already own, and it was where that day's audit found most of its stale facts.
 
-**Last updated:** 2026-08-05 · **Live version:** v3.15.0 (see `VERSION` / git tags)
+**Last updated:** 2026-08-05 · **Live version:** v3.15.1 (see `VERSION` / git tags)
 
 ## Current phase
 **The model, since [CR069](../cr/cr-069-forecast-streams.md) (v3.13.1 → v3.14.1, migrations
@@ -21,7 +21,8 @@ and a **residue detector** reports any hidden field still holding a value — wh
 [CR064 §5](../cr/cr-064-forecast-annual-close-and-assumptions.md)'s "a hidden field is not a
 cleared one" finally be answered. Double-click opens the editor. CR071 adds 8 detection rules
 (13 warnings across 34 real modules). Gate: sums **identical to the cent on a prod copy**, 4,030
-rows — neither CR moves a number.
+rows — neither CR moves a number. **v3.15.1** then grouped the module type filter by
+what the module IS (Assets / Debt / Flows, the `has_valuation` split) with per-option counts.
 
 ⚠️ **The two CR071 §4 data edits did NOT ship and are still outstanding** — remove CVC Fund VIII's
 phantom `yield` stream, clear the two Fidelity yield-mode typed amounts. **Both MOVE NUMBERS**, so
