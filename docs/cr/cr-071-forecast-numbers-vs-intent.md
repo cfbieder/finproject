@@ -148,3 +148,79 @@ They are written for the next instance, not this one.
 - **R4** — the disposal selling cost. Needs a field and a migration; deferred with CR070's P6.
 - **The form halves of R1 and R6** — prompting the tax override and requiring an fc_line at stream
   creation. CR070 P5 territory; the warnings report both meanwhile.
+
+---
+
+## 6. The §4 data edits — MEASURED on a prod copy 2026-08-05, NOT YET APPLIED
+
+Dry run on a `pg_dump` of prod restored to a scratch database, with the edits made through
+**`PUT /modules/:id`** (the app's own write path — validation, `replaceModuleStreams`, CR050 variant
+interception) rather than by SQL. Prod was not touched.
+
+**Only the three BASE modules are edited** — 80 `CVC Fund VIII`, 93 `Fidelity Stocks`,
+94 `Fidelity Fixed Income`. Verified first that **no variant carries an override on any of them**,
+so `syncIfStale` propagates the change to all four variants on the next build. Three writes, not
+fifteen.
+
+### The UI cannot make half of this edit
+
+The stream card gates the Amount input on `mode !== "yield"`
+([FCModulesStreams.jsx:166](../../frontend/src/features/Forecast/FCModulesStreams.jsx#L166)), so on
+a yield card the field is not rendered — but the stream object still carries the value and
+`buildModulePayload` sends it straight back
+([fcModulePayload.js:101](../../frontend/src/features/Forecast/utils/fcModulePayload.js#L101)).
+**Opening `Fidelity Fixed Income` and re-saving preserves the 46,000.** There is no click that
+clears it. That is §2 Q1's "invisible and live" arriving as a practical obstacle, and it is why
+these edits are scripted rather than hand-made.
+
+### Method — two controls that mattered
+
+1. **A baseline regenerate BEFORE any edit.** Prod's stored entries are not a valid baseline (see
+   below), so the delta is measured regenerated-vs-regenerated. This isolates the edit.
+2. **An idempotency control.** A fresh prod copy regenerated **twice with no edit** produced
+   byte-identical sums — so a difference is attributable to the edit and not to engine noise.
+   Worth having: without it, every number here would have been unfalsifiable.
+
+⚠️ **A measurement error worth recording, because it was nearly reported.** The first delta came out
+at **−60.7 million**, which is not a real number: it summed `Fidelity Fixed Income` — a **balance** —
+across thirty years, counting the same missing ~200K thirty times. **Flows may be summed across
+years; stocks must be read at the horizon.** Same class as the discarded "net worth delta" earlier in
+the same session.
+
+### What the edits do — confirmed exactly as §4 predicted
+
+| §4 prediction | measured |
+|---|---|
+| 2027 tax down ≈25,800 per scenario (Q2) | **+25,800.00 in all five scenarios, to the cent** |
+| CVC income down ≈22,650/yr 2027–2033 (Q1) | −27,898 in 2027 tapering to −5,232 in 2033 |
+| NAV, the disposals and the 2033 exit unmoved | **0.00 delta every year through the exit** |
+
+The CVC check is the one that mattered: the yield goes, and the thing it was double-counting — the
+2030/31/32 `OneTime` disposals and the 2033 `Full` exit — is untouched.
+
+### ⓘ But the CASCADE is ~20× what §4 described, and §4 did not mention it
+
+Removing income means less cash swept into the sweep targets, compounding for thirty years.
+Across all five scenarios: **P&L −2,866,707; net worth at 2062 −1,992,856** (≈ −400K to −640K per
+scenario). `2026 SRQ House Purchase` shows no net-worth change because **that scenario is already
+insolvent from 2035** — a −6.2M cash shortfall in the baseline, −8.7M after.
+
+This is almost certainly **correct rather than a defect** — the plan was compounding money that does
+not exist, so the wealth was never there — but §4 quoted ≈158K + ≈33.5K, two orders of magnitude
+smaller, and the owner decided on those figures. **Re-confirmation on the real numbers is the open
+item**, not the mechanics, which work.
+
+### ⓘ A SEPARATE change will land with ANY regenerate
+
+Prod's `forecast_entries` were generated **2026-08-04 23:09**; the four variants were **synced
+2026-08-05 02:01** and nothing has regenerated since. Prod is therefore holding an un-materialised
+change, and it is **[Known Issue #2](../current/project-roadmap.md#3-known-issues) resolving itself**:
+
+`syncIfStale` runs at the top of every variant build, so a regenerate re-syncs
+`2026 SRQ House Purchase` from Base — replacing its `Sarasota House` stream (prod's copy has
+`fc_line_id` NULL, one of R6's orphans) with Base's, which carries **line 18, Property Costs**. The
+scenario's override marks the module `in_progress` where Base says `exclude`, so it builds. Result:
+**−1,203,432 across 2028–2048**, exactly the figure R6 and Known Issue #2 both quote.
+
+**Nothing to do with these edits.** It fires the moment anyone presses Generate, for any reason.
+Bundling the two would make them indistinguishable, so they should land separately.

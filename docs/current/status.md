@@ -3,10 +3,8 @@
 > The one mandatory read at session start. Keep ≤ ~60 lines; link onward, never restate.
 > CR statuses live in the [CR index](../cr/README.md); the running version lives in `VERSION`.
 > Older headlines: [status log](../archive/status-log_2026-08-01.md).
->
-> **The budget is load-bearing** (owner decision 2026-08-05, cut from 216 lines): the overrun was
-> restatement the CR index and [roadmap §1.2](project-roadmap.md#12-completed-chronological-latest-first)
-> already own, and it was where that day's audit found most of its stale facts.
+> **The budget is load-bearing** (cut from 216 lines 2026-08-05): overrun = restatement the CR
+> index and roadmap already own, and it is where stale facts collect.
 
 **Last updated:** 2026-08-05 · **Live version:** v3.15.1 (see `VERSION` / git tags)
 
@@ -14,21 +12,19 @@
 **The model, since [CR069](../cr/cr-069-forecast-streams.md) (v3.13.1 → v3.14.1, migrations
 057–060):** a module is *identity + optional valuation + N first-class **streams***.
 
-**[CR070](../cr/cr-070-module-inputs-by-type.md) and
-[CR071](../cr/cr-071-forecast-numbers-vs-intent.md) SHIPPED in v3.15.0** (2026-08-05, no
-migration). A module's form is **capability-gated** on data the engine branches on, type seeds it,
-and a **residue detector** reports any hidden field still holding a value — which is what let
-[CR064 §5](../cr/cr-064-forecast-annual-close-and-assumptions.md)'s "a hidden field is not a
-cleared one" finally be answered. Double-click opens the editor. CR071 adds 8 detection rules
-(13 warnings across 34 real modules). Gate: sums **identical to the cent on a prod copy**, 4,030
-rows — neither CR moves a number. **v3.15.1** then grouped the module type filter by
-what the module IS (Assets / Debt / Flows, the `has_valuation` split) with per-option counts.
+**[CR070](../cr/cr-070-module-inputs-by-type.md) + [CR071](../cr/cr-071-forecast-numbers-vs-intent.md)
+SHIPPED in v3.15.0**, the type filter grouped in **v3.15.1** — both 2026-08-05, no migration.
+Capability-gated forms, a residue detector, 8 detection rules. Gate: sums identical to the cent,
+4,030 rows.
 
-⚠️ **The two CR071 §4 data edits did NOT ship and are still outstanding** — remove CVC Fund VIII's
-phantom `yield` stream, clear the two Fidelity yield-mode typed amounts. **Both MOVE NUMBERS**, so
-they need a prod copy + line-by-line delta first, then prod, then a regenerate. **For those the
-sums gate INVERTS: an unchanged number is the bug.** Detail:
-[roadmap §1.1](project-roadmap.md#cr070).
+⚠️ **Two number-moving changes are pending, and they must not land together** —
+[CR071 §6](../cr/cr-071-forecast-numbers-vs-intent.md) has the measurements and both controls:
+1. **The two CR071 §4 data edits** — dry run done, mechanics work, §4's direct predictions hold to
+   the cent. **Owner re-confirmation is the blocker:** the cascade is ~20× §4's estimate
+   (net worth at 2062 −1,992,856 across five scenarios).
+2. **A regenerate — for ANY reason — moves −1,203,432 onto Property Costs** in
+   `2026 SRQ House Purchase`. Prod's entries are three hours older than the last variant sync.
+   That is [Known Issue #2](project-roadmap.md#3-known-issues) resolving itself, not the edits.
 
 **[CR064](../cr/cr-064-forecast-annual-close-and-assumptions.md) remains the live engineering
 thread** — P2/P4/P5/P10 are **unblocked** now CR069 P2 has shipped, and the annual close is not
