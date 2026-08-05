@@ -211,6 +211,66 @@ const SCHEDULE_DIRECTION = {
  */
 export const directionForSchedule = (field) => SCHEDULE_DIRECTION[field];
 
+// ---------------------------------------------------------------------------
+// The type FILTER's grouping. Nine types in one alphabetical list put `Expense`
+// between `Business` and `Fixed Income`, which buries the only distinction that
+// matters: whether the module owns something, owes something, or is just a flow.
+//
+// The split is the one `has_valuation` already makes — the same flag that decides
+// which fields the edit form shows — and on all 170 prod rows the type string and
+// the flag agree, so this grouping is backed by the data rather than only by the
+// words.
+//
+// COSMETIC ONLY, exactly like TYPE_LABELS above, and for the same reason: types are
+// free text derived from the scenario's own modules, so this map WILL miss one day.
+// A miss costs a heading, never an option — anything unrecognised falls into a
+// trailing "Other" group and stays selectable. Losing a filter option would hide
+// modules, which is the one thing a filter must never do.
+// ---------------------------------------------------------------------------
+const TYPE_GROUPS = [
+  ["Assets", ["real estate", "business", "private equity", "stocks", "fixed income", "asset"]],
+  ["Debt", ["liability", "loan", "mortgage"]],
+  ["Flows", ["expense", "income"]],
+];
+
+/**
+ * Group type-filter options for display.
+ *
+ * @param {string[]} types      the types present, in any order
+ * @param {object}   countByType  `{ [type]: number }` — how many rows selecting it yields
+ * @returns {Array<[string, Array<{type: string, count: number}>]>} `[groupLabel, rows][]`,
+ *          empty groups omitted, unrecognised types last under "Other".
+ */
+export const groupTypeOptions = (types, countByType) => {
+  const remaining = new Map();
+  for (const type of types || []) remaining.set(type, countByType?.[type] ?? 0);
+
+  // Biggest first inside a group, so the types actually in use lead; name breaks ties
+  // so the order is stable when two counts match.
+  const byCountThenName = (a, b) => b.count - a.count || a.type.localeCompare(b.type);
+  const take = (rows) => rows.sort(byCountThenName);
+
+  const grouped = [];
+  for (const [label, members] of TYPE_GROUPS) {
+    const rows = [];
+    for (const type of [...remaining.keys()]) {
+      if (members.includes(String(type).trim().toLowerCase())) {
+        rows.push({ type, count: remaining.get(type) });
+        remaining.delete(type);
+      }
+    }
+    if (rows.length) grouped.push([label, take(rows)]);
+  }
+
+  if (remaining.size) {
+    grouped.push([
+      "Other",
+      take([...remaining.entries()].map(([type, count]) => ({ type, count }))),
+    ]);
+  }
+  return grouped;
+};
+
 
 // ===========================================================================
 // CR070 P2/P3 — capabilities, and the residue detector that makes hiding safe.

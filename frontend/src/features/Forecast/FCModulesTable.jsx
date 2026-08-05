@@ -2,6 +2,7 @@ import { useMemo, useState } from "react";
 import { AlertTriangle } from "lucide-react";
 import EmptyState from "../../components/EmptyState.jsx";
 import FCInheritanceBadge from "./FCInheritanceBadge.jsx";
+import { groupTypeOptions } from "./fcModulesEditSections.js";
 import "./FCModulesTable.css";
 
 /**
@@ -79,6 +80,39 @@ export default function FCModulesTable({
     });
     return Array.from(options).sort((a, b) => a.localeCompare(b));
   }, [modules]);
+
+  // The count beside each type answers "how many rows do I get if I pick this?", so it is
+  // taken over the list with every OTHER filter applied and the type filter left out.
+  // Counting the raw list instead would overstate the moment an account or status filter is
+  // on — a number that is only right when nothing else is set is worse than no number.
+  const typeCounts = useMemo(() => {
+    const counts = {};
+    (modules || []).forEach((module) => {
+      const type = module?.Type;
+      if (!type) return;
+      const matchedMatches =
+        matchedFilter === "all" ||
+        (matchedFilter === "matched" ? module?.Matched : !module?.Matched);
+      const accountMatches =
+        accountFilter === "all" || (module?.Account ?? "") === accountFilter;
+      const statusMatches =
+        statusFilter === "all" || (module?.SetupStatus ?? "new") === statusFilter;
+      if (matchedMatches && accountMatches && statusMatches) {
+        counts[type] = (counts[type] ?? 0) + 1;
+      }
+    });
+    return counts;
+  }, [modules, matchedFilter, accountFilter, statusFilter]);
+
+  const groupedTypeOptions = useMemo(
+    () => groupTypeOptions(typeOptions, typeCounts),
+    [typeOptions, typeCounts]
+  );
+
+  const totalTypeCount = useMemo(
+    () => Object.values(typeCounts).reduce((sum, n) => sum + n, 0),
+    [typeCounts]
+  );
 
   const accountOptions = useMemo(() => {
     const options = new Set();
@@ -165,11 +199,15 @@ export default function FCModulesTable({
                 onChange={(event) => setTypeFilter(event.target.value)}
                 aria-label="Filter by type"
               >
-                <option value="all">All types</option>
-                {typeOptions.map((type) => (
-                  <option key={type} value={type}>
-                    {type}
-                  </option>
+                <option value="all">All types ({totalTypeCount})</option>
+                {groupedTypeOptions.map(([groupLabel, rows]) => (
+                  <optgroup key={groupLabel} label={groupLabel}>
+                    {rows.map(({ type, count }) => (
+                      <option key={type} value={type}>
+                        {type} ({count})
+                      </option>
+                    ))}
+                  </optgroup>
                 ))}
               </select>
 

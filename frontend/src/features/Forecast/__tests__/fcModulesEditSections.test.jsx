@@ -13,6 +13,7 @@ import {
   isLoanModule,
   directionForSchedule,
   labelForType,
+  groupTypeOptions,
 } from "../fcModulesEditSections.js";
 
 
@@ -155,5 +156,74 @@ describe("CR070 P6 — a schedule card's left edge", () => {
     // Renders without the data-direction attribute, falling through to the plain border.
     expect(directionForSchedule("IncomePct")).toBeUndefined();
     expect(directionForSchedule("")).toBeUndefined();
+  });
+});
+
+
+describe("the type filter's grouping", () => {
+  // Prod's nine types and their real per-scenario counts.
+  const TYPES = ["Business", "Expense", "Fixed Income", "Income", "Liability",
+                 "Loan", "Private Equity", "Real Estate", "Stocks"];
+  const COUNTS = { Business: 4, Expense: 10, "Fixed Income": 1, Income: 2, Liability: 3,
+                   Loan: 2, "Private Equity": 2, "Real Estate": 8, Stocks: 2 };
+
+  test("groups by what the module is, biggest first inside each group", () => {
+    expect(groupTypeOptions(TYPES, COUNTS)).toEqual([
+      ["Assets", [
+        { type: "Real Estate", count: 8 },
+        { type: "Business", count: 4 },
+        { type: "Private Equity", count: 2 },
+        { type: "Stocks", count: 2 },
+        { type: "Fixed Income", count: 1 },
+      ]],
+      ["Debt", [
+        { type: "Liability", count: 3 },
+        { type: "Loan", count: 2 },
+      ]],
+      ["Flows", [
+        { type: "Expense", count: 10 },
+        { type: "Income", count: 2 },
+      ]],
+    ]);
+  });
+
+  // THE ONE THAT MATTERS. Types are free text derived from the scenario's own modules, so
+  // this map will miss one day. A filter that silently drops an option HIDES MODULES.
+  test("an unrecognised type is never lost — it lands under Other", () => {
+    const grouped = groupTypeOptions(["Real Estate", "Crypto", "Farmland"],
+                                     { "Real Estate": 8, Crypto: 3, Farmland: 1 });
+    expect(grouped).toEqual([
+      ["Assets", [{ type: "Real Estate", count: 8 }]],
+      ["Other", [{ type: "Crypto", count: 3 }, { type: "Farmland", count: 1 }]],
+    ]);
+    // Stated as an invariant, not just as the example above.
+    const seen = grouped.flatMap(([, rows]) => rows.map((r) => r.type));
+    expect(seen.sort()).toEqual(["Crypto", "Farmland", "Real Estate"]);
+  });
+
+  test("every input type survives grouping, whatever the map says", () => {
+    const odd = ["Real Estate", "loan", "  STOCKS  ", "Zzz", "Expense"];
+    const seen = groupTypeOptions(odd, {}).flatMap(([, r]) => r.map((x) => x.type));
+    expect(seen.sort()).toEqual([...odd].sort());
+  });
+
+  test("case and stray whitespace still find their group", () => {
+    // The vocabulary is owner-editable free text; "loan" and "Loan" are the same thing.
+    const grouped = groupTypeOptions(["  LOAN ", "expense"], {});
+    expect(grouped.map(([label]) => label)).toEqual(["Debt", "Flows"]);
+  });
+
+  test("an empty group is omitted rather than rendered empty", () => {
+    expect(groupTypeOptions(["Expense"], { Expense: 10 }))
+      .toEqual([["Flows", [{ type: "Expense", count: 10 }]]]);
+  });
+
+  test("a type with no count shows zero rather than undefined", () => {
+    expect(groupTypeOptions(["Stocks"], {})).toEqual([["Assets", [{ type: "Stocks", count: 0 }]]]);
+  });
+
+  test("no input at all is not an error", () => {
+    expect(groupTypeOptions(undefined, undefined)).toEqual([]);
+    expect(groupTypeOptions([], {})).toEqual([]);
   });
 });
