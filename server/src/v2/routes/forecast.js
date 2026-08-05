@@ -754,6 +754,10 @@ router.get('/modules/:id', async (req, res, next) => {
         IsMatched: m.is_matched,
         Matched: m.is_matched,
         SetupStatus: m.setup_status || 'new',
+        // CR070 P0 — the LIST endpoint projected this and the DETAIL one did not, so the edit
+        // form (which loads from here) could not know whether a module has a balance sheet, and
+        // `buildModulePayload` had to guess. The two projections must agree.
+        HasValuation: m.has_valuation !== false,
         Invest: (m.investments || []).map(r => ({
           Date: r.investment_date,
           Amount: parseFloat(r.amount) || 0,

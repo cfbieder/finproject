@@ -250,6 +250,11 @@ export default function FCModuleManage() {
       Matched: false,
       Comment: "",
       SetupStatus: "new",
+      // Explicit, not inherited from the payload builder's default: a new module from this
+      // button is a balance-sheet module. CR070 P5 will let the TYPE seed this (picking
+      // Expense or Income would seed `false` plus one stream card), which is the first thing
+      // that will need it to be a real value rather than an absence.
+      HasValuation: true,
       BaseValue: 0,
       MarketValue: 0,
       BaseValueUSD: 0,
@@ -465,6 +470,7 @@ export default function FCModuleManage() {
   const [resetPrompt, setResetPrompt] = useState(null);
   const [resetSaving, setResetSaving] = useState(false);
   const [resetError, setResetError] = useState("");
+  const [createUnmatchedError, setCreateUnmatchedError] = useState("");
 
   const resetInfo = (() => {
     const inh = selectedModule?.Inheritance;
@@ -548,6 +554,7 @@ export default function FCModuleManage() {
   const closeUnmatchedModal = () => {
     setShowUnmatchedModal(false);
     setSelectedUnmatchedItem(null);
+    setCreateUnmatchedError("");
     clearUnmatched();
   };
 
@@ -558,6 +565,7 @@ export default function FCModuleManage() {
     const existingIds = modules
       .map((module) => getModuleId(module))
       .filter(Boolean);
+    setCreateUnmatchedError("");
     setCreatingFromUnmatched(true);
     try {
       const selectedItem =
@@ -591,7 +599,14 @@ export default function FCModuleManage() {
           Currency: moduleCurrency,
           BaseDate: baseDate,
           Matched: true,
-          IncomePct: [],
+          // CR069 P3 removed IncomePct from MODULE_WRITE_FIELDS — yield is a stream MODE now,
+          // not a schedule on the module. Sending it made this POST 400 with
+          // "unknown field(s): IncomePct", which is what broke this button in v3.14.1.
+          // A module created here is a balance-sheet module: unmatched ITEMS become flow
+          // modules through their own path, and the route defaults HasValuation to true, but
+          // saying so explicitly is what stops the next default flip from silently retyping
+          // every module this button makes.
+          HasValuation: true,
           Invest: [],
           Dispose: [],
         }),
@@ -603,7 +618,13 @@ export default function FCModuleManage() {
       reloadModules();
       closeUnmatchedModal();
     } catch (err) {
+      // The defect this replaces was not the bad field — it was THIS: a 400 swallowed into the
+      // console, so the button appeared to do nothing and reported nothing. A failed write must
+      // say so.
       console.error("Failed to create module from unmatched:", err);
+      setCreateUnmatchedError(
+        err?.message || "Could not create a module from this item. Nothing was saved."
+      );
       setPendingSelectInfo(null);
     } finally {
       setCreatingFromUnmatched(false);
@@ -742,7 +763,7 @@ export default function FCModuleManage() {
           selectedItem={selectedUnmatchedItem}
           loading={unmatchedLoading}
           creating={creatingFromUnmatched}
-          error={unmatchedError}
+          error={createUnmatchedError || unmatchedError}
           onClose={closeUnmatchedModal}
           onSelectItem={setSelectedUnmatchedItem}
           onCreate={handleCreateFromUnmatched}

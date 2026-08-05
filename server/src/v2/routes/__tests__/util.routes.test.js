@@ -173,4 +173,48 @@ d('routes/util.js', () => {
       expect(r.status).toBe(404);
     });
   });
+
+  // ---------------------------------------------------------------------------
+  // GET /appdata must not serve credentials.
+  //
+  // Found 2026-08-05: the endpoint returned the whole appdata document to any caller — v3 has
+  // no auth — including a live `anthropic_api_key`, reachable over the Tailscale origin, that
+  // nothing in server/ or frontend/src read (AI Review goes through the ocr-llm gateway). The
+  // value is deleted and rotated; this pins the filter, because deleting one secret does not
+  // stop the next one being pasted into the same document.
+  //
+  // Seeds its own row rather than asserting on ambient appdata (Known Issue #12).
+  // ---------------------------------------------------------------------------
+  describe('GET /appdata — credential redaction', () => {
+    const SECRET_KEY = `${TAG}_api_key`;
+    const PLAIN_KEY = `${TAG}_defaultBudgetYear`;
+
+    beforeAll(async () => {
+      await db.query(
+        `INSERT INTO app_data (key, value) VALUES ($1, $2), ($3, $4)
+         ON CONFLICT (key) DO UPDATE SET value = EXCLUDED.value`,
+        [SECRET_KEY, JSON.stringify('sk-not-a-real-key'), PLAIN_KEY, JSON.stringify(2026)]
+      );
+    });
+
+    afterAll(async () => {
+      await db.query('DELETE FROM app_data WHERE key = ANY($1)', [[SECRET_KEY, PLAIN_KEY]]);
+    });
+
+    test('a key that looks like a credential is omitted entirely, not masked', async () => {
+      const r = await req('GET', '/appdata');
+      expect(r.status).toBe(200);
+      const doc = Array.isArray(r.body) ? r.body[0] : r.body;
+      // Omitted, not masked: a masked value still leaks the length.
+      expect(Object.keys(doc)).not.toContain(SECRET_KEY);
+      // And the secret must not survive anywhere in the serialized response.
+      expect(JSON.stringify(r.body)).not.toContain('sk-not-a-real-key');
+    });
+
+    test('ordinary appdata keys are unaffected', async () => {
+      const r = await req('GET', '/appdata');
+      const doc = Array.isArray(r.body) ? r.body[0] : r.body;
+      expect(doc[PLAIN_KEY]).toBe(2026);
+    });
+  });
 });

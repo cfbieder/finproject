@@ -193,4 +193,31 @@ describe("CR069 P3 — stream changes (what IncomeSteps became)", () => {
     );
     expect(payload.Streams[0].GrowthMult).toBeNull();
   });
+
+  // ---------------------------------------------------------------------------
+  // CR070 P0 (D2) — HasValuation must reach the payload, and ABSENT must mean TRUE.
+  //
+  // CR069 P2 added the column and P3 shipped the stream cards without ever sending the flag,
+  // so no UI path could create a flow module: everything made from the form became a
+  // balance-sheet module whatever its type said.
+  //
+  // The direction is the risk, not the omission. `editForm.HasValuation` is undefined on the
+  // create path, so a plain Boolean() would flip EVERY new valuation module to a flow module —
+  // the engine zeroes its base value, market value and growth, and CR041's gate zeroes its
+  // streams, so a new property books nothing forever with no error. These two tests pin the
+  // default in both directions.
+  // ---------------------------------------------------------------------------
+  it("sends HasValuation TRUE when the form does not carry it (the create path)", () => {
+    const payload = buildModulePayload({ Name: "New Property" }, { normalizeTransfers });
+    expect(payload.HasValuation).toBe(true);
+  });
+
+  it("sends FALSE only when the form explicitly says so", () => {
+    expect(
+      buildModulePayload({ HasValuation: false }, { normalizeTransfers }).HasValuation
+    ).toBe(false);
+    expect(
+      buildModulePayload({ HasValuation: true }, { normalizeTransfers }).HasValuation
+    ).toBe(true);
+  });
 });

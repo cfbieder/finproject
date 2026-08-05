@@ -43,6 +43,17 @@ export function buildModulePayload(editForm = {}, { normalizeTransfers } = {}) {
     Type: editForm.Type ?? "",
     Currency: editForm.Currency ?? "",
     Matched: Boolean(editForm.Matched),
+    // CR069 P2 added `has_valuation`; P3 shipped the stream cards and left this unreachable, so
+    // no UI path could create a flow module — every module made here became a balance-sheet one
+    // whatever the type said.
+    //
+    // ABSENT MUST MEAN TRUE, and the direction is the whole risk. `editForm.HasValuation` is
+    // undefined on the create path (the draft seeds it, but GET /modules/:id did not project it
+    // until this change), so a `Boolean(...)` here would create every new Real Estate, Business
+    // and Stocks module as a FLOW module — the engine zeroes its base value, market value and
+    // growth, and CR041's gate zeroes its streams. A new property would book nothing, forever,
+    // with no error. This mirrors the route's own default (forecast.js: `=== undefined ? true`).
+    HasValuation: editForm.HasValuation === undefined ? true : Boolean(editForm.HasValuation),
     BaseDate: editForm.BaseDate ? new Date(editForm.BaseDate).toISOString() : null,
     // (AccountNumber removed with CR043 N10 — there is no such column, and the route
     //  never read it; the API now rejects unknown fields rather than dropping them.)
