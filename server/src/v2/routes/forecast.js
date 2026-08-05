@@ -160,12 +160,22 @@ function assertModuleBody(body) {
   // because the body happens not to repeat a line the row already has. It lives
   // in `assertLoanHasInterestLine`, called with the MERGED value.
   //
-  // 1. A loan cannot be a cash-sweep source. cash-sweep.js reads
-  //    moduleBalanceByYear as an ABSOLUTE market value, so a −400,000 loan would
-  //    present as 400,000 of sellable assets in CR045's liquidation cascade.
+  // 1. A loan cannot be a cash-sweep source.
+  //
+  //    CR070 P0 — THIS COMMENT WAS WRONG and is corrected rather than deleted, because it was
+  //    quoted as evidence in a later design and nearly shipped a rule built on it. It claimed
+  //    cash-sweep.js reads the balance as an ABSOLUTE, so a −400,000 loan would present as
+  //    400,000 of sellable assets. There is no `Math.abs` on any balance in that file, and
+  //    `availableFrom` clamps with `Math.max(0, …)` — a negative balance yields zero capacity,
+  //    so a ranked liability drains nothing.
+  //
+  //    The refusal is still right, on the real failure modes: at priority 1 the module is the
+  //    DEPOSIT target, and excess cash is written into it unconditionally with no balance series
+  //    to bound it; and a ranked, zero-capacity source inverts what "ranked" means in CR045 §5 —
+  //    the engine reports a shortfall while listing a source that can never contribute.
   const ranked = body.CashSweepPriority != null && body.CashSweepPriority !== '' && Number(body.CashSweepPriority) > 0;
   if (ranked || body.CashSweepTarget === true) {
-    throw validate.badRequest('A loan cannot be a cash-sweep source — the sweep reads balances as absolute values and would treat the debt as sellable assets.');
+    throw validate.badRequest('A loan cannot be a cash-sweep source — it holds a debt, so it can absorb deposits it cannot repay and can never fund a shortfall.');
   }
 
   // 2. The derivation owns the principal movements, so stored schedules are
@@ -759,10 +769,14 @@ router.get('/modules/:id', async (req, res, next) => {
         IsMatched: m.is_matched,
         Matched: m.is_matched,
         SetupStatus: m.setup_status || 'new',
-        // CR070 P0 — the LIST endpoint projected this and the DETAIL one did not, so the edit
-        // form (which loads from here) could not know whether a module has a balance sheet, and
-        // `buildModulePayload` had to guess. The two projections must agree.
+        // CR070 P0 — the LIST endpoint projected these and the DETAIL one did not, so the edit
+        // form (which loads from here) could not know whether a module has a balance sheet or
+        // where it sits in the sweep, and `buildModulePayload` had to guess. Found twice in two
+        // days, which is the argument for the two projections being derived rather than kept by
+        // hand. The two must agree.
         HasValuation: m.has_valuation !== false,
+        CashSweepTarget: m.cash_sweep_target || false,
+        CashSweepPriority: m.cash_sweep_priority ?? null,
         Invest: (m.investments || []).map(r => ({
           Date: r.investment_date,
           Amount: parseFloat(r.amount) || 0,
@@ -856,6 +870,16 @@ router.post('/modules', async (req, res, next) => {
       // The per-direction fields in the body are routed to `crud.replaceModuleStreams` below;
       // writing both would give a variant save an override on a column nothing reads.
       has_valuation: body.HasValuation === undefined ? true : Boolean(body.HasValuation),
+      // CR070 P0 (D7) — these four were in MODULE_WRITE_FIELDS and absent from this object, so a
+      // create ACCEPTED them, validated them, and threw them away with no 400. That is the exact
+      // CR046/CR047 silently-dropped-field class, on the route whose allow-list exists to prevent
+      // it. `setup_status` in particular meant a module created as 'complete' came back 'new' —
+      // configured, and excluded from every forecast, with nothing saying so.
+      setup_status: body.SetupStatus || 'new',
+      tax_rate_override: body.TaxRateOverride ?? null,
+      cash_sweep_target: body.CashSweepTarget === true,
+      cash_sweep_priority: body.CashSweepPriority === '' || body.CashSweepPriority == null
+        ? null : Number(body.CashSweepPriority),
       base_date: body.BaseDate || null,
       base_value: body.BaseValue ?? 0,
       market_value: body.MarketValue ?? 0,
@@ -1196,37 +1220,16 @@ router.post('/modules/add-from-actuals', async (req, res, next) => {
   }
 });
 
-// PATCH /api/v2/forecast/modules/bulk-update
-// Accepts array of module updates: [{ id, base_value, base_value_usd, market_value, market_value_usd, base_date }]
-router.patch('/modules/bulk-update', async (req, res, next) => {
-  try {
-    const { updates } = req.body;
-    if (!Array.isArray(updates) || updates.length === 0) {
-      return res.status(400).json({ error: 'Missing or empty updates array' });
-    }
-
-    const results = [];
-    for (const update of updates) {
-      if (!update.id) continue;
-      const fields = {};
-      if (update.base_value !== undefined) fields.base_value = update.base_value;
-      if (update.base_value_usd !== undefined) fields.base_value_usd = update.base_value_usd;
-      if (update.market_value !== undefined) fields.market_value = update.market_value;
-      if (update.market_value_usd !== undefined) fields.market_value_usd = update.market_value_usd;
-      if (update.base_date !== undefined) fields.base_date = update.base_date;
-
-      if (Object.keys(fields).length > 0) {
-        const updated = await repo.updateModule(update.id, fields);
-        results.push({ id: update.id, success: !!updated });
-      }
-    }
-
-    res.json({ data: results, updated: results.filter(r => r.success).length });
-  } catch (error) {
-    console.error('[forecast/modules/bulk-update] Failed:', error);
-    next(error);
-  }
-});
+// CR070 P0 — `PATCH /modules/bulk-update` DELETED.
+//
+// It wrote base_value, base_value_usd, market_value, market_value_usd and base_date with no
+// `assertAllowedFields`, no numeric validation, and **no caller anywhere in `frontend/src`** —
+// an unauthenticated, unvalidated write path into exactly the columns the engine reads for a
+// valuation. Dead API surface is not inert: it is a way for a value to arrive in a field that
+// nothing on screen would then explain (the CR062 `isLoanModule` hazard, generalised).
+//
+// If a bulk valuation update is ever wanted, it goes through `assertModuleBody` like every
+// other write.
 
 // ============================================================================
 // Income/Expense Items

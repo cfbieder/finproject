@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import FCModulesFilter from "../features/Forecast/FCModulesFilter.jsx";
 import FCModulesEditModal from "../features/Forecast/FCModulesEdit.jsx";
 import FCModulesTable from "../features/Forecast/FCModulesTable.jsx";
@@ -62,7 +62,30 @@ export default function FCModuleManage() {
     }).catch(() => {});
   }, []);
 
-  const traitsWithModuleTypes = { ...traits, moduleTypes };
+  // CR070 P0 (D3) — one source for the type vocabulary.
+  //
+  // `appdata.moduleTypes` does not exist on prod, so the hardcoded fallback in FCModulesEdit was
+  // ALWAYS what the owner saw: it offered three types nobody uses (Asset, Deposit, Bond) and
+  // could not offer `Expense` or `Income`, which is what 60 of prod's 170 modules are. Nothing
+  // could be retyped TO the two commonest types.
+  //
+  // Derived from the scenario's own modules first — that cannot go stale, and it names exactly
+  // the types in use — unioned with the appdata list if one is ever configured, and with the two
+  // flow types so a brand-new scenario can still create one. Sorted so the order is stable.
+  const derivedModuleTypes = useMemo(() => {
+    const seen = new Set(["Expense", "Income"]);
+    for (const m of modules || []) {
+      const t = String(m?.Type || "").trim();
+      if (t) seen.add(t.charAt(0).toUpperCase() + t.slice(1));
+    }
+    for (const t of moduleTypes || []) {
+      const s2 = String(t || "").trim();
+      if (s2) seen.add(s2);
+    }
+    return [...seen].sort((a, b) => a.localeCompare(b));
+  }, [modules, moduleTypes]);
+
+  const traitsWithModuleTypes = { ...traits, moduleTypes: derivedModuleTypes };
 
   // Custom hooks for data loading
   const {

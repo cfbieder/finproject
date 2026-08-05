@@ -82,6 +82,31 @@ dbDescribe('forecast write validation (N10, DB)', () => {
       expect(moduleId).toBeTruthy();
     });
 
+    // CR070 P0 (D7) — POST accepted four fields and threw them away.
+    //
+    // `MODULE_WRITE_FIELDS` admitted SetupStatus, TaxRateOverride, CashSweepTarget and
+    // CashSweepPriority; the POST's own `moduleData` object contained none of them, so a create
+    // validated them and dropped them with no 400 — the CR046/CR047 class, on the route whose
+    // allow-list exists to prevent exactly that. The consequence that bites: a module created as
+    // 'complete' came back 'new', which excludes it from every forecast with nothing saying so.
+    test('a create PERSISTS the four fields it used to accept and discard', async () => {
+      const r = await req('POST', '/modules', {
+        ...frontendModulePayload(),
+        Name: 'CR070 D7 Module',
+        SetupStatus: 'complete',
+        TaxRateOverride: 21,
+        CashSweepPriority: 4,
+      });
+      expect([200, 201]).toContain(r.status);
+      const id = r.body?.data?.id ?? r.body?.id;
+      const got = await req('GET', `/modules/${id}`);
+      const m = got.body?.data ?? got.body;
+      expect(m.SetupStatus).toBe('complete');
+      expect(Number(m.TaxRateOverride)).toBe(21);
+      expect(Number(m.CashSweepPriority)).toBe(4);
+      await req('DELETE', `/modules/${id}`);
+    });
+
     test('rejects an unknown field instead of silently dropping it', async () => {
       const r = await req('PUT', `/modules/${moduleId}`, {
         Name: 'N10 Module',

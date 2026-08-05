@@ -621,6 +621,28 @@ async function applyAction(action) {
 
   if (type === "update_module") {
     if (!allowedModuleFields.includes(field)) throw new Error(`Field "${field}" not allowed for auto-apply`);
+
+    // CR070 P0 (D5) — refuse to write a field the module's own FORM would not show.
+    //
+    // Both allowed fields belong to the valuation: `growth_rate` is compounded only when
+    // `has_valuation` is true (the engine reads `hasValuation ? Growth : 0`), and
+    // `tax_rate_override` is the rate on a realized capital gain. On a flow module neither is
+    // read — so applying one here would store a number that changes nothing, in a field the
+    // editor does not render for that module, arrived at by one click on an LLM's suggestion.
+    // That is the exact hazard CR062's `isLoanModule` comment describes, on the one path where
+    // the value is not typed by the owner at all.
+    //
+    // Keyed on `has_valuation`, an ENGINE branch — not on `module_type`, which is free text.
+    const target = await forecastRepo.findModuleById(module_id);
+    if (!target) throw new Error("Module not found");
+    if (target.has_valuation === false) {
+      throw new Error(
+        `"${field}" belongs to a module's valuation, and "${target.name}" has none — it is a ` +
+        `flow module, so the engine would never read the value. Refusing rather than storing a ` +
+        `number that changes nothing and cannot be seen.`
+      );
+    }
+
     const updated = await forecastRepo.updateModule(module_id, { [field]: proposed_value });
     if (!updated) throw new Error("Module not found");
     return { success: true, entity: "module", id: module_id, field, value: proposed_value };

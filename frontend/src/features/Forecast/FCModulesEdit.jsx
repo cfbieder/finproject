@@ -942,9 +942,14 @@ export default function FCModulesEditModal({
                     const currentValue = editForm[field] ?? "";
                     const capitalize = (v) => (v ? v.charAt(0).toUpperCase() + v.slice(1) : "");
                     const typeValue = capitalize(currentValue);
+                    // CR070 P0 (D3) — the list is derived in FCModuleManage from the scenario's
+                    // own modules (plus Expense/Income, plus any configured appdata list). The
+                    // hardcoded array that used to live here could not offer `Expense` or
+                    // `Income` — the types on 60 of prod's 170 modules — so nothing could be
+                    // retyped to either, while it offered three types with zero modules.
                     const typeOpts = (traits?.moduleTypes && traits.moduleTypes.length > 0)
                       ? traits.moduleTypes
-                      : ["Asset", "Liability", "Loan", "Stocks", "Deposit", "Fixed Income", "Bond", "Real Estate", "Private Equity", "Business"];
+                      : ["Expense", "Income"];
                     return (
                       <label key={field} className="fc-modules-modal__field">
                         <span className="fc-modules-modal__label">{label}</span>
