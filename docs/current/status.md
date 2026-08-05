@@ -4,7 +4,7 @@
 > CR statuses live in the [CR index](../cr/README.md); the running version lives in `VERSION`.
 > Older headlines: [status log](../archive/status-log_2026-08-01.md).
 
-**Last updated:** 2026-08-04 · **Live version:** v3.14.1 (see `VERSION` / git tags)
+**Last updated:** 2026-08-05 · **Live version:** v3.14.1 (see `VERSION` / git tags)
 
 ## Current phase
 **[CR069](../cr/cr-069-forecast-streams.md) is COMPLETE and live — Forecast Expenditures and
@@ -159,13 +159,13 @@ brokerage-history data work. Detail lives in the CR file linked from each line.
 - ⚠️ **"2026 Downside" has no sweep backup ranked** — *owner is redoing this scenario themselves (2026-07-13); **do not fix it**.* `Fidelity Stocks` carries no `cash_sweep_priority` there, so the engine reports **−$1.25M of shortfall across 2061–62 while $1.2M of stock sits untouched**. That is [CR045](../cr/cr-045-forecast-cash-warnings-liquidation.md) §5 working as designed (unranked = "I cannot sell this"), but for a liquid brokerage account it is almost certainly a data slip. One-row fix, left to the owner because it changes Downside's conclusions.
 - **Also 2026-08-05, unreleased (no user-facing change):** `cr051-currency.spec.js` un-skipped — the e2e seed grew a zero-balance PLN account, so **8 e2e run, 0 skipped**; and **dev's database was refreshed from prod**, after which dev regenerates 4,030 sum rows identical to prod's. See [roadmap §1.2](project-roadmap.md#12-completed-chronological-latest-first) for what the refresh discarded and where it was captured.
 - **Fixed 2026-08-05:** #15 (migrations reaching prod before dev) — the deploy now refuses a migration absent from **both** ledgers; a stopped dev stack warns rather than blocking. Structural fix: the deploy is what applies them, so discipline alone could not hold it (three more instances inside CR069 alone).
-- Everything else: [roadmap §3](project-roadmap.md#3-known-issues) — 15 entries, including the timezone rule (#3), the feed's settle lag (#14), the legacy unlinked transfer legs (#13), the 13 untriaged same-signed transfer clusters (#8), the ESLint JSX blind spot (#10), and the unannounced red `main` (#12).
+- Everything else: [roadmap §3](project-roadmap.md#3-known-issues) — including the timezone rule (#3), the feed's settle lag (#14), the legacy unlinked transfer legs (#13), the 13 untriaged same-signed transfer clusters (#8), the ESLint JSX blind spot (#10), and the unannounced red `main` (#12).
 
 ## Live infrastructure
 - **Dev and prod are the same host** (`192.168.1.87` / Tailscale `100.94.46.62`). Prod `docker-compose.yml` (project `psproject`, :3005, DB :5433, volume `fin_postgres_data`); dev `docker-compose.dev.yml` (:3105/:5434); v4 `docker-compose.v4.yml` (`finv4`, :3205/:5435, flags ON, isolated volume). Prod frontend: `https://fin.tail413695.ts.net`.
 - `bank-feed/` microservice (:3007, separate repo) feeds 28 accounts; ocr-llm LLM gateway at `100.66.213.40:8080` (AI Review).
-- Deploy: `./Scripts/deploy-to-production.sh` (DB backup first). Migrations: manual `psql -f`, registry in [migrations.md](migrations.md); runner shipped in CR043 P1.1 (`npm run migrate`).
-- **Gates:** 788 backend / 396 frontend / 8 e2e tests; lint **blocking** (0 errors), plus six ratchets that may only shrink (lint-debt, api-envelope, buttons, modals, hex, tokens).
+- Deploy: `./Scripts/deploy-to-production.sh` (DB backup first). Migrations: **dev first, through `migrate.js`** (`npm run migrate` against the dev URL) — a `psql -f` apply writes no ledger row and is therefore invisible to the guard below. The deploy then applies pending files to prod at Step 2b, and **Step 2b(i) refuses any file absent from BOTH ledgers** (2026-08-05). Registry: [migrations.md](migrations.md).
+- **Gates:** 802 backend / 389 frontend / 8 e2e tests (counts live in [test-overview.md](test-overview.md) — restated here they drift, and did); lint **blocking** (0 errors), plus six ratchets that may only shrink (lint-debt, api-envelope, buttons, modals, hex, tokens).
 
 ## Recently shipped
 Canonical dates/versions: **[CR index](../cr/README.md)**. Per-release detail:

@@ -11,9 +11,13 @@ paths:
 - **Numbering:** next after the last on disk (zero-padded); never reuse; commit promptly
   to claim the number — another thread may be minting one too.
 - **How migrations run here:** automatically only via `docker-entrypoint-initdb.d` on a
-  fresh (empty-volume) database. On existing dev/prod DBs they are applied **manually**
-  (`psql -f`) — dev first, then **prod before deploying** code that references the new
-  objects. A real migration runner is CR027A Phase 0 scope.
+  fresh (empty-volume) database. On an existing dev DB, apply **through the runner** —
+  `DATABASE_URL=…5434 node server/db/migrate.js` — **never `psql -f`**, which applies the SQL
+  but writes no `schema_migrations` row, so the file looks unapplied forever (migration 057 did
+  exactly this). Prod is then applied by `deploy-to-production.sh` at Step 2b, ahead of the code
+  that references the new objects. **Step 2b(i) refuses to deploy a file absent from BOTH
+  ledgers** (2026-08-05, Known Issue #15) — it reads the ledgers, so a hand-applied dev file is
+  invisible to it. `--allow-unverified-migrations` overrides deliberately.
 - **Backfill rule (migration-036 incident):** any schema object that reached dev/prod
   outside a migration (ad-hoc `ALTER`, AI-session change) must be captured **immediately**
   in an `IF NOT EXISTS` migration, or CI's fresh-from-migrations DB diverges and unrelated

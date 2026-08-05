@@ -6,7 +6,7 @@ How testing is organised across the project, what's automated, and where to run 
 
 ### Backend Jest tests — `cd server && npm test`
 
-**407 tests across 33 suites** (counts as of CR051, 2026-07-15; was 394/31 at v3.1.0). Two flavors: pure/mocked suites, and **DB-backed suites** that self-seed throwaway rows by unique name against `DATABASE_URL` (dev Postgres :5434) and clean up after themselves — never TRUNCATE. Skip the DB-backed ones with `SKIP_DB_TESTS=1`. Run with `npx env-cmd -e development -- npm test` so `DATABASE_URL` is set.
+**802 tests across 56 suites** (measured 2026-08-05, v3.14.1). **This file is the single home for live test counts** — `status.md`, `project-description.md` and `project-roadmap.md` §3 link here rather than restating, because four independent restatements is what let all four drift apart (each was right on the day it was written and none was updated since). Two flavors: pure/mocked suites, and **DB-backed suites** that self-seed throwaway rows by unique name against `DATABASE_URL` (dev Postgres :5434) and clean up after themselves — never TRUNCATE. Skip the DB-backed ones with `SKIP_DB_TESTS=1`. Run with `npx env-cmd -e development -- npm test` so `DATABASE_URL` is set.
 
 | File | Tests | Coverage |
 |------|-------|----------|
@@ -38,7 +38,7 @@ Naming convention for new smoke scripts: `server/src/scripts/smoke-<topic>.js`. 
 
 ### Frontend Vitest tests — `cd frontend && npm test`
 
-**195 tests across 21 files** (as of v3.1.0). Pure-function helpers plus component render tests (Modal/DataTable) in `jsdom`; no network, no real DB. Established under [CR016 — Frontend Test Framework](../cr/cr-016-frontend-test-framework.md) (closed 2026-05-20).
+**389 tests across 39 files** (measured 2026-08-05, v3.14.1). Pure-function helpers plus component render tests (Modal/DataTable) in `jsdom`; no network, no real DB. Established under [CR016 — Frontend Test Framework](../cr/cr-016-frontend-test-framework.md) (closed 2026-05-20).
 
 | File | Tests | Coverage |
 |------|-------|----------|
@@ -50,6 +50,24 @@ Naming convention for new smoke scripts: `server/src/scripts/smoke-<topic>.js`. 
 | `src/utils/__tests__/cashFlowHelpers.test.js` | 13 | `addNetCashFlowCategory` (idempotent, case-insensitive), `buildCashFlowValueMap`. |
 
 Naming: Vitest convention `*.test.{js,jsx}` under `__tests__/`. `npm run test:watch` for watch mode.
+
+### Playwright e2e — `./Scripts/e2e.sh`
+
+**8 tests across 4 spec files, 0 skipped** (since 2026-08-05). The script stands up a throwaway
+Postgres, applies the whole migration chain, seeds
+[`server/db/e2e-seed.sql`](../../server/db/e2e-seed.sql), starts the API, builds and serves the real
+bundle, then runs the specs — so it tests the built frontend against a real database, not mocks.
+
+| spec | tests | what it guards |
+|---|--:|---|
+| `money-paths.spec.js` | 4 | the balance sheet renders the seeded net worth (a literal 108,500); the modules list is not empty (the N8 envelope regression); generate → review renders; budget-vs-actual renders |
+| `write-paths.spec.js` | 2 | **the value must survive a reopen** — a module's tax override of 0 and income window (CR043 N10), and a COA type change (the v3.0.104 silent drop) |
+| `cr051-currency.spec.js` | 1 | a PLN expense keeps its currency through save + reopen **and** the server derives the USD twin (400 PLN ÷ 4 = 100). Skipped from the day it was written until 2026-08-05 — the Currency `<select>` offers the distinct currencies of every active account, so a USD-only seed could not show PLN. The seed now carries `E2E PLN Wallet`, zero-balance and transaction-free so it cannot move `money-paths`' 108,500 |
+| `nested-modal.spec.js` | 1 | the module output panel opened from the editor can be closed (nested-dialog pointer-events, v3.7.3) |
+
+`e2e.sh` **refuses a bound port**, `exec`s the API and frontend so `$!` is the real pid, and sweeps
+both ports on exit. Before that fix the suite silently tested a server orphaned on :3998 since
+2026-07-14 — three weeks of green runs against stale code.
 
 ## Manual QA
 
