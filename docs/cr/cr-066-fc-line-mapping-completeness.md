@@ -93,7 +93,22 @@ category as well would **double-count it**.
 
 That is exactly why P1 matters more than P0. "Unmapped" currently means two indistinguishable
 things — *modelled elsewhere, correctly* and *not modelled at all* — and no screen tells them
-apart. Verify against a generated scenario's `SP - *` income before touching this row.
+apart.
+
+**✅ VERIFIED 2026-08-05 — and the answer is the opposite of the assumption above.** The three
+`SP - *` modules carry **one expense stream each and zero income streams**, and across the whole
+database **Real Estate holds 0 income streams in any scenario** (against 30 expense streams). So
+Spanish rent is **not** arriving by another route: `Rental - Spain` **+31,306 is genuinely
+unmodelled**, and mapping the category cannot double-count it.
+
+This became answerable only after [CR069](cr-069-forecast-streams.md) made a module's flows into
+queryable stream rows; before that the same question needed a generated scenario read back. Found
+while scoping [CR070](cr-070-module-inputs-by-type.md), whose Tier-B work seeds a rent card on Real
+Estate creation for exactly this reason — the form never asks for rent, so nobody ever answered.
+
+**P0 may therefore treat this row as unmapped-and-real.** The general point still stands and P1 is
+still the fix: nothing on screen distinguished the two readings, and it took a cross-CR query to
+settle one row.
 
 ## 3. P1 — the app should say so
 

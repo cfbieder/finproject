@@ -1,4 +1,4 @@
-# CR070 — inputs that fit the module: capability-gated forms, type-led templates — 🟠 REVISED AFTER PASS 1
+# CR070 — inputs that fit the module: capability-gated forms, type-led templates — 🟡 PLANNED
 
 Every module type asks the same questions today. An Expense module — 50 of prod's 170 — presents
 Cost Basis, Cost Basis (USD), Market Value, Market Value (USD), Growth (× inflation), a Capital
@@ -12,7 +12,7 @@ Gains Tax Override, a Base Date, Invest, Dispose and a Cash Sweep Priority. The 
 Plus one interaction change: double-clicking a module should open the edit form directly, not the
 read-only drawer that stands between.
 
-[Roadmap](../current/project-roadmap.md#cr070) · **Opened:** 2026-08-05 · **Track:** v3 ·
+[Roadmap](../current/project-roadmap.md#cr070)  <!-- anchor added to the roadmap in the same commit --> · **Opened:** 2026-08-05 · **Track:** v3 ·
 **Migrations:** none for P0–P4; see §11 · **Depends on:**
 [CR069](cr-069-forecast-streams.md) (streams as rows — this CR finishes what P3 started),
 [CR064 §4.1/§5](cr-064-forecast-annual-close-and-assumptions.md) (the decision this CR reopens),
@@ -20,11 +20,22 @@ read-only drawer that stands between.
 [CR041](cr-041-module-ownership-gating.md), [CR045](cr-045-cash-sweep-cascade.md),
 [CR050](cr-050-forecast-scenario-variants.md).
 
-**Review status:** pass 1 (technical) returned **REVISE** with ten blocking findings. All ten are
-addressed below and are marked ⓘ where the correction changed a claim this CR previously made.
-Three of those corrections were to statements that were **wrong**, not merely incomplete — §6's
-sweep mechanism, §4's "the panel ships empty", and §3's loan predicate. Each is corrected in place
-with the evidence, because a design doc that quietly deletes its errors teaches nothing.
+**Review status:** **pass 1 (technical) → REVISE**, ten blocking findings, all addressed and marked ⓘ
+where a claim changed. Three were claims that were **wrong** — §6's sweep mechanism, §4's "the panel
+ships empty", §3's loan predicate — corrected in place with evidence, because a design doc that
+quietly deletes its errors teaches nothing.
+
+**Pass 2 (PM sign-off) → REVISE**, on scope rather than engineering: *"this is a live-prod hotfix, a
+forms CR, and a wrong-numbers CR bundled behind one design debate."* Acted on:
+
+- **D1 + D2 leave this CR** — they are CR069 P3 regressions in a release less than a day old and are
+  recommended as a **v3.14.2 hotfix**, not queued behind a design debate (§8).
+- **§9's modelling risks and two of the open questions leave this CR** → **[CR071](cr-071-forecast-numbers-vs-intent.md)**.
+  Different payoff (wrong numbers vs. wrong form), different urgency, different owner questions.
+- **P6 is cut** to the roadmap. **§14 Q3 and Q4 are cut** — Q4 was never the owner's question; it is
+  decided here (§6).
+- **A question the owner must actually answer is added as Q0**, because pass 2 was right that this CR
+  buried its central trade in an out-of-scope bullet.
 
 ---
 
@@ -58,6 +69,14 @@ currently collapses an empty section and *cannot* hide a live value, whereas a t
 
 **This CR's answer is not to hide those fields. It is to make a value in them impossible to hold
 silently** (§4).
+
+ⓘ **And the trade must be stated here, not buried in §13.** "Fully customized" is delivered for
+**four types of nine — 85 modules of 170**. Expense, Income, Liability and Loan get genuinely
+different field sets. Real Estate, Business, Stocks, Fixed Income and Private Equity keep a
+**byte-identical form to each other**; what they get is seeded stream cards, per-type labels and
+warnings. §3 gives the engineering reason. **§14 Q0 asks the owner to accept it** — because an
+owner who opens a Real Estate module and finds the same nine fields as a Stocks module will say
+this was not done, and on the words they will be right.
 
 ---
 
@@ -159,6 +178,16 @@ refreshFromActuals)` is how **CR064 P2's annual close mints each January's base*
 January, 60 flow modules acquire exactly the three fields §5 hides, in one transaction, into a
 scenario nobody has opened.
 
+ⓘ **Pass 2 correctly deflated the urgency of this, and the correction matters.** That residue is
+**inert to the engine**: `fcbuilder-module.js:142-143, 230` reads `hasValuation ? (module.X ?? 0)
+  : 0` for base value, market value and growth, so a flow module's stored values are never read.
+It is a **latent** hazard, not a wrong number — and it detonates only if `has_valuation` is later
+flipped ON, which is a capability **this CR introduces**. So the detector is still required, and
+it is required *by P3*, not by the calendar. ⓘ **The one-line `has_valuation` filter on
+`refreshModulesFromActuals` moves to CR064 P2**, which owns that `UPDATE` and has the deadline —
+two threads editing one statement on a shared trunk is the collision this project has paid for
+four times (Known Issue #17).
+
 **The revised mechanism, in two parts:**
 
 1. **Primary — a data-keyed residue rule in `fcWarnings.js`.** A module carrying a value in a field
@@ -183,6 +212,11 @@ an override, except where the base already holds the same value, in which case `
 deletes the key and the result is a visible no-op — so Clear in a variant must report *"already
 clear on the base"* rather than appearing to do nothing. **Clear-all does not cascade across
 scenarios.**
+
+ⓘ **Clear needs a preview and an undo (pass 2 blocker 7).** It writes into engine-read columns and
+there is a **Clear all**. Before writing, it shows exactly which fields and values will be cleared
+on which scenario; after writing, Cancel still reverts, and once saved the audit trail records the
+prior values. CR062 required preview-and-confirm for a smaller destructive act.
 
 **`capabilitiesFor` reads the LOADED row, not `editForm` (S4)** — recomputed on save. Reading the
 live form makes Cost Basis and Growth vanish from a new Liability the instant a minus sign is
@@ -279,8 +313,8 @@ the failure mode this project's own rule about verifying before recommending exi
 
 **The rule:** a module may be ranked iff `has_valuation = true` **and** `market_value > 0`.
 
-**Where it lives — this is an open question for the owner (§14 Q4), because pass 1 showed both
-naive placements fail.** Route-level validation is bypassed by every writer §9 R2 names
+ⓘ **Where it lives — DECIDED HERE, not asked of the owner.** Pass 2 was right that arbitrating a
+route validator against a DB CHECK is not the owner's job. Pass 1 showed both naive placements fail: Route-level validation is bypassed by every writer §9 R2 names
 (`syncVariant` writes raw SQL, `copyScenario` derives its columns from `information_schema`,
 `refreshModulesFromActuals` is one `UPDATE`, AI Review calls the repository directly). A DB CHECK
 constraint needs a migration — contradicting §11 — and would **throw mid-build** during variant
@@ -289,7 +323,7 @@ sync runs unconditionally at the top of a variant's build. That is exactly the o
 `resolveSweepFlags` was written to avoid for the unique index: *"Derive it, rather than letting the
 index throw mid-build."*
 
-**Recommendation: route validator + a derivation arm in `resolveSweepFlags`** that resolves
+**Decision: route validator + a derivation arm in `resolveSweepFlags`** that resolves
 `cash_sweep_priority = null` when the resolved row fails the eligibility test — the same shape as
 the displacement rule it already implements, covering sync and the annual close, with no migration.
 
@@ -339,51 +373,62 @@ able to describe a module.
 | **D6** | ⓘ **Moved to §14 Q1** — it is a deferred decision, not a defect, and listing it here contradicted this table's own heading. | — |
 | **D7** | ⓘ **New (§1).** `POST /modules` accepts `CashSweepPriority`, `CashSweepTarget`, `TaxRateOverride` and `SetupStatus` and **silently drops all four** — no 400, no write. The CR046/CR047 class, on the route whose allow-list exists to prevent it. | Medium |
 
-**D1, D2, D3 and D7 are prerequisites, not extras.**
+ⓘ **D1 and D2 LEAVE this CR (pass 2 blocker 1).** They are CR069 P3 regressions in a release less
+than a day old — a button that silently does nothing, and no UI path that can create the two
+commonest module types. They are recommended as a **v3.14.2 hotfix, shipped on its own**, not
+queued behind this design debate. CR069 is COMPLETED so they cannot go back into it; they ship
+under its tail and are recorded in its as-built.
+
+**D3, D4, D5 and D7 remain here as P0** — route hygiene, not urgent, but D5 in particular must
+land before anything is hidden.
 
 ---
 
-## 9. Modelling risks this surface permits
+## 9. Modelling risks — MOVED TO [CR071](cr-071-forecast-numbers-vs-intent.md)
 
-- **R1 — income already taxed at source.** A foreign-currency income stream with no tax override is
-  taxed at the scenario rate inside the model, while the project's own note records that United
-  Beverages' dividend is *net of Polish tax*. Unset on all 145 streams. Needs no new field — only a
-  form that refuses to leave it blank.
-- **R2 — writers that bypass the form.** AI Review, `bulk-update`, `refreshModulesFromActuals`, the
-  loan retype path, `copyScenario` and variant sync. `copyScenario` derives its column list from
-  `information_schema`, so it faithfully replicates any stale value — **including into CR064 P2's
-  annual close** (§4).
-- **R3 — type/data disagreement** (`House Morgage`). The remedy is a warning keyed on the
-  disagreement itself; the general form (*type says X, data says not-X*) is what makes Tier B
-  tolerable.
-- **R4 — disposals book gross proceeds.** No selling-cost input on any of prod's 21 disposals.
-- **R5 — basis equals market value on 5 of 8 Real Estate modules**, so Full disposals realize zero
-  gain and zero tax. (Same invariant §5 now checks on liabilities, from the other direction.)
-- **R6 — orphaned flows.** `fc_line_id` NULL on `Sarasota House` (−45,000/yr × 21 years) and three
-  others: cash moves, no P&L line. CR069 §13 found this; still open.
-- **R7 — `Tax Liabilities` carries a Full disposal dated in the base year**, which is not a forecast
-  year, so the payoff never happens and nothing says so.
+ⓘ **Pass 2 blocker 2.** R1–R7 and the two questions about the owner's own numbers are about the
+**data being wrong**, not the input surface being wrong. Different payoff, different urgency,
+different owner questions — and sharing `fcWarnings.js` is not a scope argument. They are now
+[CR071](cr-071-forecast-numbers-vs-intent.md), which pass 2 ranks **above this CR** for owner value:
+`House Morgage`'s invisible 500,000 of debt, CVC Fund VIII's ≈158K double-count, and
+`Sarasota House`'s −45,000 × 21 years off the P&L all decay with time, and none of them is a form.
 
-`fcWarnings.js` is the home for R1, R3, R5, R6, R7 **and the §4 residue rule**.
+What stays here is only what the *form* must do: the §4 residue rule (which is this CR's own
+mechanism), and the `base_value = market_value` invariant check §5 requires on liabilities.
 
----
+**One writer-hazard stays too, because it constrains this design:** `copyScenario` derives its
+column list from `information_schema`, so it replicates faithfully whatever the form leaves behind —
+including into the annual close (§4).
 
 ## 10. Phasing
 
-ⓘ **Reordered after pass 1**, which found P3's own justification ("guards must land before or with
-the client gating") contradicted by the table putting it after P2.
+ⓘ **Reordered twice.** Pass 1 found P3's own justification contradicted its position. Pass 2 found
+P1 sitting behind a phase it does not depend on: the double-click is frontend-only, zero data risk,
+explicitly requested, and the fastest owner-visible win in the document. It goes first.
+
+**Shipped separately, first: the v3.14.2 hotfix — D1 + D2.** Not a phase of this CR.
 
 | phase | contents | why here |
 |---|---|---|
-| **P0** | D1, D2, D3, D7; delete `bulk-update` (D4); constrain AI Review's writable fields (D5); correct the false comment at `forecast.js:167`. | Live defects and two-line writer fixes. D5 in particular must precede any hiding, or one LLM click writes an invisible value. Independently shippable — depends on none of the contested design. |
-| **P1** | Double-click → edit; delete the drawer; row keyboard access; `stopPropagation` on the status cell. | Owner-requested, no data risk. |
-| **P2** | The `fcWarnings` residue rule + the `has_valuation` filter on `refreshModulesFromActuals`. | The detector must exist **before** anything is hidden. |
-| **P3** | The capability map + the form residue panel + payload symmetry + the `has_valuation` flip confirm. | Where the owner sees valuation and sweep leave their Expense modules. |
-| **P4** | Sweep eligibility (§6) — route validator + `resolveSweepFlags` derivation, pending §14 Q4. | |
-| **P5** | Tier-B creation defaults and labels; `fcWarnings` R1/R3/R5/R6/R7. | Where per-type customization earns most and risks least. |
-| **P6** *(owner call)* | R4 selling cost; PE commitment; the §14 Q1 decision. | Genuinely new inputs; needs a migration. |
+| **P1** | Double-click → edit; delete the stale drawer; row keyboard access; `stopPropagation` on the status cell. | Owner-requested, frontend-only, depends on nothing. |
+| **P0** | D3, D7; delete `bulk-update` (D4); constrain AI Review's writable fields (D5); correct the false comment at `forecast.js:167`. | Route hygiene. D5 must precede any hiding, or one LLM click writes an invisible value. |
+| **P2** | The `fcWarnings` residue rule + the liability `base_value = market_value` invariant. | The detector must exist **before** anything is hidden. |
+| **P3** | The capability map + the form residue panel (with preview/undo) + payload symmetry + the `has_valuation` flip confirm. | Where the owner sees valuation and sweep leave their Expense modules — **the request**. |
+| **P5** | Tier-B creation defaults and labels per type. | Cheap, low risk, and the only thing the five Tier-B types get. |
+| **P4** | Sweep eligibility (§6) — route validator + `resolveSweepFlags` derivation. | Hazard-closing; fires on nothing in today's data. |
 
----
+ⓘ **P6 is CUT** to [the roadmap](../current/project-roadmap.md#cr070) — the disposal selling cost and
+the PE commitment are two new fields and a migration with no user story, and asking "are they worth
+it?" as an open question invites a yes. Deferred and tracked, not silently dropped.
+
+**Deploy plan:** each phase is separately shippable, no migration in any of them, so each is
+`./Scripts/bump-version.sh patch` + `./Scripts/deploy-to-production.sh`. **Gate 0 (§12) runs on every
+phase that touches the write path** — P2, P3, P4.
+
+**Sequencing against what else is open (pass 2):** CR070 sits **behind** CR064 P2 and CR071. CR064 P2
+has a calendar deadline (the 2026→2027 boundary) and owns the `refreshModulesFromActuals` filter;
+CR071 carries the wrong numbers. Neither blocks this CR and this CR blocks neither — but the residue
+being inert (§4) means nothing here is urgent, and the numbers are.
 
 ## 11. Migrations
 
@@ -459,21 +504,34 @@ residue panel must not become a new one.
 
 ## 14. Open questions for the owner
 
-1. **Should a yield-mode stream's typed amount keep generating base-year deferred tax?** It is
-   invisible in the UI (the card hides Amount in yield mode) and live in the engine. Prod carries
-   three: CVC Fund VIII 25,800, Fidelity Fixed Income 46,000, Fidelity Stocks 40,000 — roughly
-   $33.5K of Period-1 tax per scenario. **This is pre-existing and was preserved deliberately**:
-   the old builder taxed them and CR069's equivalence gate required matching it, which
-   [fcbuilder-module.js:450-461](../../server/src/services/forecast/fcbuilder-module.js#L450-L461)
-   states in writing. CR069 §6.1 deferred whether it is *right*. Changing it moves forecast numbers.
-2. **CVC Fund VIII** carries 3.75% NAV growth **and** a 4.0% yield **and** 300K of scheduled
-   distributions. One of them double-counts ≈158K over seven years depending on which was meant.
-   The form gives no way to say which — that ambiguity is the defect, not either input.
-3. **P6** — are the selling cost and the PE commitment worth a migration?
-4. **Where does the sweep eligibility rule live?** (a) route validator only — cheap, no migration,
-   but every writer in §9 R2 bypasses it; (b) route validator **+ a derivation arm in
-   `resolveSweepFlags`** — covers sync and the annual close, still no migration; (c) DB CHECK + (b)
-   — strongest, needs a migration and a backfill, and risks throwing mid-build.
-   **Recommendation: (b)** — the only option matching this CR's stated rationale without reopening
-   §11, and it reuses the pattern CR050 already chose over a throwing constraint for the identical
-   problem.
+**Q0 — the one that decides whether this CR is what you asked for.** Five of the nine types keep a
+form identical to each other. Do you accept that?
+
+| type | modules | today | after CR070 |
+|---|--:|---|---|
+| Expense | 50 | 10 fields + valuation + sweep + tax | identity + stream cards **only** |
+| Income | 10 | same | identity + stream cards **only** |
+| Liability | 15 | full form | Market Value, no growth, no cap-gains, no sweep (Cost Basis stays — §5) |
+| Loan | 10 | loan carve-out | loan carve-out, minus the unused cap-gains override |
+| Real Estate | 40 | full form | **unchanged fields** + seeded carry/rent cards + labels |
+| Business | 20 | full form | **unchanged fields** + seeded income card + tax-override prompt |
+| Stocks | 10 | full form | **unchanged fields** + seeded yield card |
+| Fixed Income | 5 | full form | **unchanged fields** + seeded yield card |
+| Private Equity | 10 | full form | **unchanged fields** + labels (+ commitment, if P6 is revived) |
+
+The engineering reason is §3: the engine treats those five identically, so there is no data signal to
+gate on, and gating on the free-text type instead would let a rename hide a live value — the failure
+CR064 §5 refused this work over. **If a visibly different form per type matters more than that
+guarantee, say so and the CR needs rethinking, not patching.**
+
+**Q1 — is `House Morgage` supposed to carry an interest rate?** Typed Loan, 500,000 principal, 19
+amortization rows, secured against the house, **rate NULL in all five scenarios** — so the engine
+books no debt and no interest for it. One answer fixes 500,000 of debt the model cannot see. *(Also
+tracked in [CR071](cr-071-forecast-numbers-vs-intent.md), which owns the warning.)*
+
+ⓘ **Moved to [CR071](cr-071-forecast-numbers-vs-intent.md):** the yield-mode base-year tax decision
+(~$33.5K per scenario, deferred by CR069 §6.1) and the CVC Fund VIII double-count (≈158K over seven
+years). Both are about numbers, not inputs.
+
+ⓘ **Cut:** "is P6 worth a migration" (P6 is cut) and "where does the sweep rule live" (decided in §6
+— it was never the owner's question).
