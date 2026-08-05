@@ -501,7 +501,6 @@ export default function FCModulesEditModal({
     (_, index) => transferYearStart + index
   );
   // Income % available from Period 1 (PeriodStart) onward
-  const incomePctYearOptions = transferYearOptions.filter(y => y >= periodStartNum);
   const transferFlagOptionsI = ["OneTime", "Periodic"];
   const transferFlagOptionsD = ["Full", "OneTime", "Periodic"];
   // CR062 — on a loan the principal schedule is DERIVED from the five assumptions,
@@ -586,18 +585,9 @@ export default function FCModulesEditModal({
       const used = new Set(current.map((e) => String(e?.Date || "").slice(0, 4)));
       const nextYear = amortYearOptions.find((y) => !used.has(String(y))) ?? amortYearOptions[0] ?? defaultYear;
       onFieldChange(field, [...current, { Date: `${nextYear}-07-01`, Pct: "" }]);
-    } else if (field === "IncomeSteps") {
-      // First unused projected year, so two steps do not collide on the table's
-      // (module_id, effective_date) key.
-      const used = new Set(current.map((e) => String(e?.Date || "").slice(0, 4)));
-      const nextYear = incomePctYearOptions.find((y) => !used.has(String(y)))
-        ?? incomePctYearOptions[0] ?? defaultYear;
-      onFieldChange(field, [...current, { Date: `${nextYear}-07-01`, Amount: "" }]);
-    } else if (field === "IncomePct") {
-      onFieldChange(field, [
-        ...current,
-        { Date: `${defaultYear}-07-01`, Amount: "", Value: "" },
-      ]);
+      // CR070 P6 — the `IncomeSteps` and `IncomePct` branches that stood here are gone with the
+      // sections that reached them. Both were retired by CR069 P3 (a step is a `Fixed $` change
+      // on a stream, a yield is a stream MODE), so neither field could be saved anyway.
     } else {
       onFieldChange(field, [
         ...current,
@@ -1558,32 +1548,26 @@ export default function FCModulesEditModal({
                   field === "Invest"
                     ? transferFlagOptionsI
                     : transferFlagOptionsD;
-                const isIncomePct = field === "IncomePct";
+                // CR070 P6 — `IncomePct` and `IncomeSteps` cannot reach this loop any more (both
+                // retired by CR069 P3 and removed from `transferSections`), so the flags that
+                // branched on them were dead. Only Amortization is a percentage row.
                 const isAmortization = field === "Amortization";
-                const isPctRow = isIncomePct || isAmortization;
-                // CR064 P6 — a step is a signed AMOUNT (so not a pct row) but has no
-                // Flag: "Periodic" and "OneTime" describe transfers, and a step is a
-                // permanent change to the income level rather than an event.
-                const isIncomeSteps = field === "IncomeSteps";
-                const isNoFlagRow = isPctRow || isIncomeSteps;
+                const isPctRow = isAmortization;
+                const isNoFlagRow = isPctRow;
                 // CR064 P6 — the same collapse-when-empty rule as the field sections
                 // (§4.1). A schedule with no rows is one "+ Add" line, so Yield Spread
                 // simply is not offered on a business that has none — and IS offered the
                 // moment one exists, which a type gate could never guarantee.
-                const scheduleKey = `schedule:${field}`;
-                if (transfers.length === 0 && !openSections.has(scheduleKey)) {
-                  return (
-                    <div key={field} className="fc-modules-modal__transfer-section">
-                      <button
-                        type="button"
-                        className="fc-modules-modal__group-toggle"
-                        onClick={() => toggleSection(scheduleKey)}
-                      >
-                        + Add {label.toLowerCase()}
-                      </button>
-                    </div>
-                  );
-                }
+                // CR070 P6 — ONE structure, whether or not the schedule has rows: a titled header
+                // with a single "+ Add" affordance, then the rows or one muted line. The stream
+                // cards work exactly this way, and matching the styling while keeping two
+                // different shapes — a full-width toggle when empty, a compact pill when not —
+                // is why the sections still did not look like each other.
+                //
+                // The collapse-when-empty rule it replaces (CR064 §4.1) was there so an
+                // irrelevant schedule was not offered. Relevance is now decided a level up, by
+                // the `schedules` capability, so an empty section here is one the module CAN use
+                // and simply has not used yet.
 
                 return (
                   <div
@@ -1592,13 +1576,8 @@ export default function FCModulesEditModal({
                   >
                     <div className="fc-modules-modal__transfer-header">
                       <h5 className="fc-modules-modal__transfer-title">
-                        {label} {isNoFlagRow ? "" : "Transfers"}
+                        {label}
                       </h5>
-                      {isIncomePct && (
-                        <span style={{ fontSize: "0.75em", color: "var(--muted)", fontWeight: 400 }}>
-                          Annual yield above/below inflation (%)
-                        </span>
-                      )}
                       {isAmortization && (
                         <span style={{ fontSize: "0.75em", color: "var(--muted)", fontWeight: 400 }}>
                           % of the original amount repaid each year — {loanEndYear || "the end year"} repays the remainder
@@ -1624,22 +1603,9 @@ export default function FCModulesEditModal({
                         className="fc-modules-modal__add-transfer-button"
                         onClick={() => addTransferEntry(field)}
                       >
-                        <svg
-                          width="16"
-                          height="16"
-                          viewBox="0 0 24 24"
-                          fill="none"
-                          xmlns="http://www.w3.org/2000/svg"
-                        >
-                          <path
-                            d="M12 5V19M5 12H19"
-                            stroke="currentColor"
-                            strokeWidth="2"
-                            strokeLinecap="round"
-                            strokeLinejoin="round"
-                          />
-                        </svg>
-                        Add {label} {isNoFlagRow ? "Entry" : ""}
+                        {/* CR070 P6 — plain text, like "+ Add income" on the stream cards. The
+                            icon was the loudest difference between the two sections. */}
+                        + Add {label.toLowerCase()}
                       </button>
                     </div>
                     {transfers.length === 0 ? (
@@ -1651,12 +1617,8 @@ export default function FCModulesEditModal({
                         {transfers.map((entry, index) => {
                           // IncomePct uses Value, Amortization uses Pct (CR062),
                           // everything else uses Amount.
-                          const fieldValue = isAmortization
-                            ? entry?.Pct ?? ""
-                            : isIncomePct
-                            ? entry?.Value ?? entry?.Amount ?? ""
-                            : entry?.Amount ?? "";
-                          const fieldKey = isAmortization ? "Pct" : isIncomePct ? "Value" : "Amount";
+                          const fieldValue = isAmortization ? entry?.Pct ?? "" : entry?.Amount ?? "";
+                          const fieldKey = isAmortization ? "Pct" : "Amount";
 
                           return (
                             <div
@@ -1708,7 +1670,7 @@ export default function FCModulesEditModal({
                                     }
                                   >
                                     <option value="">Select year</option>
-                                    {(isAmortization ? amortYearOptions : (isIncomePct || isIncomeSteps) ? incomePctYearOptions : transferYearOptions).map((year) => (
+                                    {(isAmortization ? amortYearOptions : transferYearOptions).map((year) => (
                                       <option key={year} value={year}>
                                         {year}
                                       </option>
@@ -1746,11 +1708,6 @@ export default function FCModulesEditModal({
                                 <div className="fc-modules-modal__transfer-field">
                                   <label
                                     className="fc-modules-modal__transfer-label"
-                                    title={
-                                      isIncomePct
-                                        ? "Annual yield above/below inflation (%)"
-                                        : undefined
-                                    }
                                   >
                                     {isPctRow ? "Percentage" : entry?.Flag === "Periodic" ? "Amount / Year" : "Amount"}
                                   </label>
@@ -1760,9 +1717,7 @@ export default function FCModulesEditModal({
                                     className="fc-modules-modal__input fc-modules-modal__input--small"
                                     value={fieldValue}
                                     title={
-                                      isIncomePct
-                                        ? "Annual yield above/below inflation (%)"
-                                        : entry?.Flag === "Periodic"
+                                      entry?.Flag === "Periodic"
                                         ? "Amount disposed each year"
                                         : undefined
                                     }
