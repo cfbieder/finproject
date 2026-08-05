@@ -629,6 +629,23 @@ DETAIL the editor loads from. Both times the symptom was a form guessing at stat
 been told. Deriving the two projections from one source is the obvious follow-up and is **not**
 done here.
 
+ⓘ **It bit a THIRD time within hours, in this CR's own P6 field** (fixed 2026-08-05). The Actual
+comparison read `fc_line_name` off the stream — a denormalised label the **LIST** join supplies and
+the **DETAIL** query does not — so it resolved `undefined` and reported *"Actual (no line set)"* on
+every flow module, including `Children`, which plainly carries `fc_line_id` 13. Found by the owner
+on the first screen they opened.
+
+The fix is not to add the label to the second projection. It is to **key on `fc_line_id`** — the
+column both projections do carry, and the one the engine branches on — and resolve the label from
+the already-loaded `fcLines` for display only. The row lookup matches on the id too, since matching
+two display strings is how a rename silently becomes "no transactions". A projection can now drop
+the denormalised name without breaking the field.
+
+**The same TDZ trap as the type vocabulary reappeared in the fix and was caught before commit:**
+`fcLines` was declared eighty lines *below* the `useMemo` that now reads it. Moved above its
+consumer. Twice in one CR is the argument for reading declaration order whenever a derived value
+gains a new dependency.
+
 **The residue panel ships empty**, on every prod module. That is the intended state — the QA script
 says how to make it appear on purpose, because a safety net nobody has watched work is not yet
 trusted.

@@ -145,16 +145,36 @@ export default function FCModulesEditModal({
 
   const nameOptions = getChildCategoriesForAccount(editForm?.Account);
   const hasMultipleChildren = nameOptions.length > 1;
+  const [fcLines, setFcLines] = useState([]);
+
   // The line comes from the module's own stream — the same row the engine reads.
-  const primaryLineName = useMemo(() => {
+  //
+  // Keyed on `fc_line_id`, NOT on `fc_line_name`. The two module projections disagree: the LIST
+  // query joins `fc_lines` and returns both, the DETAIL query the editor loads returns only the
+  // id. Reading the name therefore found `undefined` on every module and the field reported
+  // "no line set" while the line was plainly set — `Children` carries fc_line_id 13.
+  //
+  // This is the THIRD time these two projections have drifted in three days (`HasValuation`
+  // v3.14.2, the sweep fields v3.15.0), which is why this reads the id — the column both
+  // projections do carry, and the one the engine actually branches on — and resolves the label
+  // from `fcLines` for display only. A projection can now drop the denormalised name without
+  // breaking the comparison, and a renamed line still matches.
+  const primaryLine = useMemo(() => {
     const streams = Array.isArray(editForm?.Streams) ? editForm.Streams : [];
-    return streams.find((st) => st?.fc_line_name)?.fc_line_name || "";
-  }, [editForm]);
+    const stream = streams.find((st) => st?.fc_line_id != null);
+    if (!stream) return null;
+    const name =
+      stream.fc_line_name ||
+      (fcLines || []).find((l) => Number(l.id) === Number(stream.fc_line_id))?.name ||
+      "";
+    return { id: Number(stream.fc_line_id), name };
+  }, [editForm, fcLines]);
+  const primaryLineName = primaryLine?.name || "";
 
   useEffect(() => {
     let isActive = true;
     const baseYear = editForm?.BaseDate ? new Date(editForm.BaseDate).getFullYear() : null;
-    if (!isOpen || capabilities.has("valuation") || !primaryLineName || !baseYear) {
+    if (!isOpen || capabilities.has("valuation") || !primaryLine || !baseYear) {
       setLineActual({ total: null, count: null, line: "" });
       setLineActualLoading(false);
       return undefined;
@@ -164,19 +184,21 @@ export default function FCModulesEditModal({
       try {
         const rows = await Rest.fetchFcLineActualTotals(baseYear);
         if (!isActive) return;
-        const hit = (rows || []).find((r) => r.fc_line_name === primaryLineName);
+        // Matched on the ID for the same reason it is derived from one: the name is a display
+        // string, and matching two of them is how a rename silently returns "no transactions".
+        const hit = (rows || []).find((r) => Number(r.fc_line_id) === primaryLine.id);
         setLineActual(hit
-          ? { total: Number(hit.actual_total), count: Number(hit.transaction_count), line: primaryLineName }
-          : { total: null, count: null, line: primaryLineName });
+          ? { total: Number(hit.actual_total), count: Number(hit.transaction_count), line: primaryLine.name }
+          : { total: null, count: null, line: primaryLine.name });
       } catch (error) {
         console.error("Failed to fetch FC line actuals:", error);
-        if (isActive) setLineActual({ total: null, count: null, line: primaryLineName });
+        if (isActive) setLineActual({ total: null, count: null, line: primaryLine.name });
       } finally {
         if (isActive) setLineActualLoading(false);
       }
     })();
     return () => { isActive = false; };
-  }, [isOpen, capabilities, primaryLineName, editForm?.BaseDate]);
+  }, [isOpen, capabilities, primaryLine, editForm?.BaseDate]);
 
   const effectiveName = isMatched
     ? hasMultipleChildren
@@ -211,7 +233,6 @@ export default function FCModulesEditModal({
   const [accountBalanceLoading, setAccountBalanceLoading] = useState(false);
   const [assumptions, setAssumptions] = useState(null);
   const [, setAssumptionsLoading] = useState(false);
-  const [fcLines, setFcLines] = useState([]);
   const [fcBudgetTotals, setFcBudgetTotals] = useState({});
   const formatWithCommas = (value) => {
     const num = Number(value);
