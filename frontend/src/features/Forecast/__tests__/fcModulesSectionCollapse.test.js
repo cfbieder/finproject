@@ -114,7 +114,10 @@ describe("labelForType", () => {
 
   test("matching is case- and space-insensitive, like isLoanModule's", () => {
     expect(labelForType("  private equity  ", "Invest", "Invest")).toBe("Capital Call");
-    expect(labelForType("FIXED INCOME", "IncomePct", "Yield Spread")).toBe("Coupon Spread");
+    // CR070 P6 — was `FIXED INCOME` / `IncomePct` → "Coupon Spread". That entry named a field
+    // CR069 P3 retired, so it had been dead since that release and is now removed. The property
+    // under test is the case/space folding, which `Dispose` exercises just as well.
+    expect(labelForType("PRIVATE EQUITY", "Dispose", "Dispose")).toBe("Distribution");
   });
 
   test("an unknown, renamed, empty or missing type falls back to the generic word", () => {
@@ -204,5 +207,36 @@ describe("CR070 — the residue detector", () => {
       const covered = RESIDUE_EXEMPT.has(field) || FIELD_LABELS[field];
       expect(covered, `${field} needs a label or an exemption`).toBeTruthy();
     }
+  });
+});
+
+// ---------------------------------------------------------------------------
+// CR070 P6 — the schedules a module is offered.
+//
+// Two separate defects, found by the owner opening an Expense module and seeing four schedule
+// sections that had no business being there:
+//
+//   1. `Yield Spread` and `Income Steps` were DEAD UI on every module type. CR069 P3 retired both
+//      (a yield is a stream MODE; a step is a `Fixed $` change), so neither is in
+//      MODULE_WRITE_FIELDS and buildModulePayload does not send them — anything typed there was
+//      silently dropped on save. Typed, saved, gone, no error.
+//   2. Invest/Dispose rendered on flow modules, which have no balance to move: the engine skips
+//      its disposal loop entirely when `hasValuation` is false.
+// ---------------------------------------------------------------------------
+describe("CR070 P6 — schedules follow the capability", () => {
+  test("a flow module is offered no Invest/Dispose", () => {
+    expect(capabilitiesFor({ HasValuation: false }).has("schedules")).toBe(false);
+  });
+
+  test("a valuation module still is", () => {
+    expect(capabilitiesFor({ HasValuation: true }).has("schedules")).toBe(true);
+  });
+
+  test("no label lookup survives for the retired IncomePct field", () => {
+    // The `fixed income` entry named IncomePct and had been dead since CR069 P3. A label for a
+    // control that does not exist is how a retired field looks alive to the next reader.
+    expect(labelForType("Fixed Income", "IncomePct", "Yield Spread")).toBe("Yield Spread");
+    // The labels that ARE still real keep working.
+    expect(labelForType("Private Equity", "Invest", "Invest")).toBe("Capital Call");
   });
 });

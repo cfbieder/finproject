@@ -173,7 +173,9 @@ export const initialOpenSections = (form, sections) => {
 // ---------------------------------------------------------------------------
 const TYPE_LABELS = {
   "private equity": { Invest: "Capital Call", Dispose: "Distribution" },
-  "fixed income": { IncomePct: "Coupon Spread" },
+  // CR070 P6 — the `fixed income` entry named `IncomePct`, a field CR069 P3 retired: a coupon is a
+  // `yield` stream now, and its spread lives on the card. The lookup had been dead since that
+  // release. Removed rather than left as a label for a control that no longer exists.
 };
 
 /** The label for `field` on a module of `type`, or `fallback` when there is no override. */

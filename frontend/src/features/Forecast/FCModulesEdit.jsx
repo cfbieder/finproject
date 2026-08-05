@@ -504,7 +504,6 @@ export default function FCModulesEditModal({
   const incomePctYearOptions = transferYearOptions.filter(y => y >= periodStartNum);
   const transferFlagOptionsI = ["OneTime", "Periodic"];
   const transferFlagOptionsD = ["Full", "OneTime", "Periodic"];
-  const incomePctLabel = "Yield Spread";
   // CR062 — on a loan the principal schedule is DERIVED from the five assumptions,
   // so Invest/Dispose/Yield have nothing to say and the route rejects any non-empty
   // one. Showing an editor whose contents would be refused on save is worse than
@@ -528,15 +527,24 @@ export default function FCModulesEditModal({
   // does not "invest" and "dispose", it draws capital calls and pays distributions;
   // a fixed-income holding's yield spread is a coupon spread. An unknown or renamed
   // type simply keeps the generic word — a lookup miss costs a noun, never a value.
+  // CR070 P6 — `Yield Spread` and `Income Steps` are GONE, and they were not merely redundant:
+  // CR069 P3 retired both (a yield is a stream MODE; a step is a `Fixed $` change on a stream's
+  // schedule), so neither is in `MODULE_WRITE_FIELDS` and `buildModulePayload` does not send them.
+  // Anything typed into those sections was **silently dropped on save** — typed, saved, gone, no
+  // error — on every module type. That is the CR046/CR047 class the write allow-list exists to
+  // prevent, surviving in the UI after the contract had moved on.
+  //
+  // Invest/Dispose are gated on the `schedules` capability: they move a BALANCE, so a module with
+  // no balance sheet has nothing to invest in or dispose of, and the engine skips its disposal
+  // loop entirely on `hasValuation === false`.
   const transferSections = isLoan
     ? [["Amortization", "Amortization"]]
-    : [
-        [labelForType(editForm?.Type, "Invest", "Invest"), "Invest"],
-        [labelForType(editForm?.Type, "Dispose", "Dispose"), "Dispose"],
-        [labelForType(editForm?.Type, "IncomePct", incomePctLabel), "IncomePct"],
-        // CR064 P6 — permanent step changes to amount-based income ("2027: +10,000").
-        ["Income Steps", "IncomeSteps"],
-      ];
+    : capabilities.has("schedules")
+      ? [
+          [labelForType(editForm?.Type, "Invest", "Invest"), "Invest"],
+          [labelForType(editForm?.Type, "Dispose", "Dispose"), "Dispose"],
+        ]
+      : [];
 
   /**
    * CR062 — the one click that makes a loan simple: fill drawYear+1 … endYear−1
