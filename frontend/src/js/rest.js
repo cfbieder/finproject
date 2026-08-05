@@ -503,6 +503,18 @@ export default class Rest {
   }
 
   /**
+   * CR070 P6 — actual spend per FC line for a year.
+   *
+   * A FLOW module's prior-year comparison. It cannot use `fetchBalanceReportV2`: every account
+   * feeding an expense line is `profit_loss`, so a balance-sheet lookup returns nothing — and the
+   * module's `account_id` names one of the several accounts that feed its line anyway.
+   */
+  static async fetchFcLineActualTotals(year) {
+    const res = await Rest.fetchJson(`/api/v2/fc-lines/actual-totals?year=${encodeURIComponent(year)}`);
+    return Rest.unwrap(res) ?? [];
+  }
+
+  /**
    * Fetch cash flow report from v2 API (PostgreSQL)
    */
   static async fetchCashFlowReportV2({

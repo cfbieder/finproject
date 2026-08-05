@@ -144,6 +144,39 @@ export default function FCModulesEditModal({
 
   const nameOptions = getChildCategoriesForAccount(editForm?.Account);
   const hasMultipleChildren = nameOptions.length > 1;
+  // The line comes from the module's own stream — the same row the engine reads.
+  const primaryLineName = useMemo(() => {
+    const streams = Array.isArray(editForm?.Streams) ? editForm.Streams : [];
+    return streams.find((st) => st?.fc_line_name)?.fc_line_name || "";
+  }, [editForm]);
+
+  useEffect(() => {
+    let isActive = true;
+    const baseYear = editForm?.BaseDate ? new Date(editForm.BaseDate).getFullYear() : null;
+    if (!isOpen || capabilities.has("valuation") || !primaryLineName || !baseYear) {
+      setLineActual({ total: null, count: null, line: "" });
+      setLineActualLoading(false);
+      return undefined;
+    }
+    setLineActualLoading(true);
+    (async () => {
+      try {
+        const rows = await Rest.fetchFcLineActualTotals(baseYear);
+        if (!isActive) return;
+        const hit = (rows || []).find((r) => r.fc_line_name === primaryLineName);
+        setLineActual(hit
+          ? { total: Number(hit.actual_total), count: Number(hit.transaction_count), line: primaryLineName }
+          : { total: null, count: null, line: primaryLineName });
+      } catch (error) {
+        console.error("Failed to fetch FC line actuals:", error);
+        if (isActive) setLineActual({ total: null, count: null, line: primaryLineName });
+      } finally {
+        if (isActive) setLineActualLoading(false);
+      }
+    })();
+    return () => { isActive = false; };
+  }, [isOpen, capabilities, primaryLineName, editForm?.BaseDate]);
+
   const effectiveName = isMatched
     ? hasMultipleChildren
       ? editForm?.Account || ""
@@ -162,6 +195,13 @@ export default function FCModulesEditModal({
   const traitType = accountTraits?.Type ?? "";
   const traitCurrency = accountTraits?.Currency ?? "";
   const [showAuditModal, setShowAuditModal] = useState(false);
+  // CR070 P6 — a FLOW module's prior-year figure follows its stream's FC LINE, not an account.
+  // The old lookup went to the balance-sheet report by `account_id`; every account feeding an
+  // expense line is profit_loss, so it could never return anything, and the account named one of
+  // the several that feed the line (`Car Expenses` → `Car - Insurance`, of four).
+  const [lineActual, setLineActual] = useState({ total: null, count: null, line: "" });
+  const [lineActualLoading, setLineActualLoading] = useState(false);
+
   const [accountBalance, setAccountBalance] = useState({
     value: null,
     valueUSD: null,
@@ -1039,38 +1079,72 @@ export default function FCModulesEditModal({
                               disabled
                             />
                           </label>
-                          <label className="fc-modules-modal__field">
-                            <span>PY Actual ({editForm?.BaseDate ? new Date(editForm.BaseDate).getFullYear() : ""})</span>
-                            <input
-                              type="text"
-                              className="fc-modules-modal__input"
-                              value={
-                                accountBalanceLoading
-                                  ? "Loading..."
-                                  : formatAccountValue(
-                                      accountBalance.value,
-                                      accountBalance.currency
-                                    )
-                              }
-                              readOnly
-                            />
-                          </label>
-                          <label className="fc-modules-modal__field">
-                            <span>PY Actual (USD)</span>
-                            <input
-                              type="text"
-                              className="fc-modules-modal__input"
-                              value={
-                                accountBalanceLoading
-                                  ? "Loading..."
-                                  : formatAccountValue(
-                                      accountBalance.valueUSD,
-                                      "USD"
-                                    )
-                              }
-                              readOnly
-                            />
-                          </label>
+                          {/* CR070 P6 — a VALUATION module compares against its account's
+                              balance; a FLOW module has no balance and no single account, so
+                              its comparison follows the FC LINE its stream posts to. */}
+                          {capabilities.has("valuation") ? (
+                            <>
+                            <label className="fc-modules-modal__field">
+                              <span>PY Actual ({editForm?.BaseDate ? new Date(editForm.BaseDate).getFullYear() : ""})</span>
+                              <input
+                                type="text"
+                                className="fc-modules-modal__input"
+                                value={
+                                  accountBalanceLoading
+                                    ? "Loading..."
+                                    : formatAccountValue(
+                                        accountBalance.value,
+                                        accountBalance.currency
+                                      )
+                                }
+                                readOnly
+                              />
+                            </label>
+                            <label className="fc-modules-modal__field">
+                              <span>PY Actual (USD)</span>
+                              <input
+                                type="text"
+                                className="fc-modules-modal__input"
+                                value={
+                                  accountBalanceLoading
+                                    ? "Loading..."
+                                    : formatAccountValue(
+                                        accountBalance.valueUSD,
+                                        "USD"
+                                      )
+                                }
+                                readOnly
+                              />
+                            </label>
+                            </>
+                          ) : (
+                            <label className="fc-modules-modal__field">
+                              <span>
+                                {primaryLineName
+                                  ? `Actual ${editForm?.BaseDate ? new Date(editForm.BaseDate).getFullYear() : ""} — ${primaryLineName}`
+                                  : "Actual (no line set)"}
+                              </span>
+                              <input
+                                type="text"
+                                className="fc-modules-modal__input"
+                                readOnly
+                                value={
+                                  lineActualLoading
+                                    ? "Loading..."
+                                    : lineActual.total == null
+                                      ? "—"
+                                      : `${Math.abs(lineActual.total).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })} USD`
+                                }
+                              />
+                              <small style={{ color: "var(--muted)", fontSize: "0.7rem" }}>
+                                {lineActual.count != null && lineActual.total != null
+                                  ? `${lineActual.count} transaction(s) across every account on this line`
+                                  : primaryLineName
+                                    ? "No transactions booked to this line in the base year."
+                                    : "Set an expense or income line on the card below to compare."}
+                              </small>
+                            </label>
+                          )}
                         </Fragment>
                       );
                     }

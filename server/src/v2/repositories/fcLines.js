@@ -239,6 +239,56 @@ async function findUnassignedCategories(budgetYear) {
 /**
  * Get budget totals per FC Line for a given budget year
  */
+/**
+ * CR070 P6 — ACTUAL spend per FC line for a year.
+ *
+ * The sibling of `getBudgetTotals`, over `transactions` instead of `budget_entries`, resolving
+ * leaves through the identical recursive CTE so the two are directly comparable — a budget and an
+ * actual that disagreed about which accounts feed a line would be worse than no comparison.
+ *
+ * Why it exists: a flow module's prior-year figure used to be looked up in the BALANCE-SHEET
+ * report by the module's single `account_id`. Every account feeding an expense line is
+ * `profit_loss`, so that lookup could never return anything — and the account named only one of
+ * them anyway (`Car Expenses` points at `Car - Insurance` while the line is fed by four accounts).
+ * The line is what the engine actually reads, so the line is what the comparison follows.
+ *
+ * `base_amount` for the same reason `getBudgetTotals` uses it: the figure must be in one currency
+ * or a multi-currency line silently sums pounds and zloty (the CR064 P8 class).
+ */
+async function getActualTotals(year) {
+  const result = await db.query(`
+    WITH RECURSIVE cat_tree AS (
+      SELECT flc.fc_line_id, c.id
+      FROM fc_line_categories flc
+      JOIN accounts c ON flc.category_id = c.id
+      UNION ALL
+      SELECT ct.fc_line_id, ch.id
+      FROM cat_tree ct
+      JOIN accounts ch ON ch.parent_id = ct.id
+    ),
+    distinct_leaves AS (
+      SELECT DISTINCT fc_line_id, id
+      FROM cat_tree ct
+      WHERE NOT EXISTS (SELECT 1 FROM accounts ch WHERE ch.parent_id = ct.id)
+    )
+    SELECT
+      l.id as fc_line_id,
+      l.name as fc_line_name,
+      l.line_type,
+      COALESCE(SUM(t.base_amount), 0) as actual_total,
+      count(t.id) as transaction_count
+    FROM fc_lines l
+    LEFT JOIN distinct_leaves dl ON dl.fc_line_id = l.id
+    LEFT JOIN transactions t
+      ON t.category_id = dl.id
+     AND t.transaction_date >= make_date($1, 1, 1)
+     AND t.transaction_date <= make_date($1, 12, 31)
+    GROUP BY l.id, l.name, l.line_type
+    ORDER BY l.display_order, l.name
+  `, [year]);
+  return result.rows;
+}
+
 async function getBudgetTotals(budgetYear) {
   const result = await db.query(`
     WITH RECURSIVE cat_tree AS (
@@ -325,6 +375,7 @@ module.exports = {
   unassignCategory,
   findUnassignedCategories,
   getBudgetTotals,
+  getActualTotals,
   getSuggestions,
   createBatch,
 };

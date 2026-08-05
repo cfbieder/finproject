@@ -217,6 +217,23 @@ router.get('/review-structure', async (req, res, next) => {
 
 // GET /api/v2/fc-lines/budget-totals
 // Budget totals per FC Line for a given year
+// CR070 P6 — GET /api/v2/fc-lines/actual-totals?year=YYYY
+// Actual spend per FC line, the comparison a FLOW module needs. Its old prior-year lookup went to
+// the balance-sheet report by the module's single account_id, and every account feeding an expense
+// line is profit_loss — so it could never return anything, and the account named one of four.
+router.get('/actual-totals', async (req, res, next) => {
+  try {
+    const year = Number(req.query.year);
+    if (!Number.isInteger(year) || year < 1900 || year > 2200) {
+      return res.status(400).json({ error: 'year query param is required (a four-digit year)' });
+    }
+    res.json({ data: await repo.getActualTotals(year), year });
+  } catch (error) {
+    console.error('[fc-lines] GET /actual-totals failed:', error);
+    next(error);
+  }
+});
+
 router.get('/budget-totals', async (req, res, next) => {
   try {
     const { budgetYear } = req.query;

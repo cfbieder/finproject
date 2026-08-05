@@ -20,6 +20,7 @@ const mockRepo = {
   unassignCategory: jest.fn(),
   findUnassignedCategories: jest.fn(),
   getBudgetTotals: jest.fn(),
+  getActualTotals: jest.fn(),
   getSuggestions: jest.fn(),
   createBatch: jest.fn(),
 };
@@ -275,4 +276,44 @@ describe('FC Lines API', () => {
     expect(res.status).toBe(400);
     expect(res.body.error).toMatch(/budgetYear/);
   });
+
+  // -------------------------------------------------------------------------
+  // CR070 P6 — actual spend per FC line.
+  //
+  // A flow module's prior-year comparison used to be a BALANCE-SHEET lookup by the module's single
+  // `account_id`. Every account feeding an expense line is `profit_loss`, so it could never return
+  // anything — and the account named one of the several that feed the line (`Car Expenses` points
+  // at `Car - Insurance`, of four). The line is what the engine reads, so the line is what the
+  // comparison follows.
+  //
+  // THIS SUITE MOCKS THE REPOSITORY, so these test the ROUTE's contract — validation, the value
+  // passed down, and the envelope — and cannot say anything about the SQL. The query is the
+  // budget sibling with `transactions` in place of `budget_entries` and the identical recursive
+  // leaf resolution, so the two stay comparable; it was checked against real data
+  // (`Car Expenses` 2026: −20,365.47 across 37 transactions, against a 31,694.02 budget).
+  // -------------------------------------------------------------------------
+  describe('GET /actual-totals', () => {
+    test('rejects a missing or nonsense year rather than guessing one', async () => {
+      expect((await request(app, 'GET', '/actual-totals', null)).status).toBe(400);
+      expect((await request(app, 'GET', '/actual-totals?year=nope', null)).status).toBe(400);
+      expect((await request(app, 'GET', '/actual-totals?year=12', null)).status).toBe(400);
+      expect(mockRepo.getActualTotals).not.toHaveBeenCalled();
+    });
+
+    test('passes the year down as a NUMBER and returns rows untouched', async () => {
+      const row = {
+        fc_line_id: 28, fc_line_name: 'Car Expenses', line_type: 'forecast_expense',
+        actual_total: '-20365.47', transaction_count: '37',
+      };
+      mockRepo.getActualTotals.mockResolvedValue([row]);
+      const res = await request(app, 'GET', '/actual-totals?year=2026', null);
+      expect(res.status).toBe(200);
+      // A string year would silently compare wrong in the SQL date bounds.
+      expect(mockRepo.getActualTotals).toHaveBeenCalledWith(2026);
+      expect(res.body.year).toBe(2026);
+      // Untouched: the form matches on `fc_line_name`, and any reshaping here would break it.
+      expect(res.body.data).toEqual([row]);
+    });
+  });
+
 });

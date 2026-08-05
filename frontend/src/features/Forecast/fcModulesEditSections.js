@@ -265,6 +265,12 @@ export const typeHiddenFields = (form) =>
  * `Streams` is not here: a stream is a ROW and removing its card removes it (CR069 P3).
  */
 export const FIELD_CAPABILITY = {
+  // CR070 P6 — `Account` belongs to the VALUATION, because that is the only place it means
+  // anything: a balance-sheet module IS an account. On a flow module it is a leftover that names
+  // ONE of the accounts feeding the module's line — `Car Expenses` points at `Car - Insurance`
+  // while the line is fed by four — and the engine never reads it (no `account_id` anywhere in
+  // fcbuilder-module.js). What defines where a flow module's money goes is its stream's FC LINE.
+  Account: "valuation",
   BaseValue: "valuation",
   BaseValueUSD: "valuation",
   MarketValue: "valuation",
@@ -324,7 +330,19 @@ export const fieldIsRendered = (form, field) => {
  * surfacing 60 findings for a field that cannot affect a number is how a warning channel gets
  * ignored. Recorded here so the rule is known to have exactly one hole, and why.
  */
-export const RESIDUE_EXEMPT = new Set(["BaseDate"]);
+export const RESIDUE_EXEMPT = new Set([
+  // Set on all 60 prod flow modules and provably unread there (CR069 Decision 6 pins every stream
+  // to `PeriodStart − 1`). 60 findings that cannot move a number is how a channel gets ignored.
+  "BaseDate",
+  // CR070 P6 — `account_id` is populated on every flow module, so reporting it would put a warning
+  // on all 60 at once. It is exempt because it is genuinely still LIVE, just not MEANINGFUL on this
+  // form: it supplies Type and Currency defaults at creation and marks the account as taken in the
+  // add-from-actuals picker. The residue rule is about a value the form hides and something still
+  // READS as this module's own; this one is a pointer used elsewhere, not a hidden assumption.
+  // (`refreshModulesFromActuals` also joins on it to write base_value/base_date onto flow modules,
+  //  which is the annual-close hazard recorded in §4 — tracked there, not papered over here.)
+  "Account",
+]);
 
 export const residueFor = (form) => {
   const out = [];
