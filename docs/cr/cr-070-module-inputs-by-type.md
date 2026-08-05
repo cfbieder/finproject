@@ -157,6 +157,35 @@ those five types identically.
   default and a noun, never a value.
 - **Tier C — nothing may hide a field for a Tier-B type.**
 
+### ⓘ OWNER DECISION 2026-08-05 — Tier B hides too, once the detector can see it
+
+Asked to accept "four types of nine" (§14 Q0), the owner chose to **customize all nine**. That is
+buildable, and the reason is that this CR's own §4 changes the premise CR064 §5 was decided under:
+
+> §5 refused per-type forms because *a hidden field is not a cleared one*. A **data-keyed residue
+> detector** answers that for **any** hiding rule — including one keyed on the free-text type.
+> A renamed type would hide fields, and the detector would report them as still-set. The risk
+> stops being **silent**, which is the only property that made it unacceptable.
+
+**What changes, precisely:**
+
+1. **P2's detector must be generalized.** As first drafted it flags a field the *engine* does not
+   read for this module (capability-based). Tier-B hiding needs the broader rule: **any field the
+   FORM does not render for this module, holding a value** — which is literally what CR064 §5
+   demanded. Engine-unread is then a subset.
+2. **Tier B hides only what a type DEMONSTRABLY never uses**, measured on real data, never
+   assumed. The evidence exists: Stocks uses `Invest`/`Dispose` on **0 of 10**; Business has an
+   expense stream on **0 of 20** (CR064 §5 measured 0 of 18 independently); Real Estate has an
+   income stream on **0 of 40**. A field with any live use anywhere is not hidden.
+3. **Tier C is withdrawn.** Tier B may hide, subject to (1) and (2).
+4. **Order is now load-bearing:** P2 (generalized detector) **must** ship before P3, and P3 before
+   any Tier-B hiding. Hiding without the detector is the CR064 §5 failure, exactly.
+
+**What does NOT change:** the *gate* still keys on `type ∪ data` and the type may only ever
+**widen** what is shown (§3's `House Morgage` case is unaffected). Nothing is cleared without an
+explicit Clear. The five Tier-B types get no *data* signal — they never will — so their hiding is
+justified by **measured non-use plus a detector**, not by a claim the engine can distinguish them.
+
 ---
 
 ## 4. Residue: a data-keyed detector first, a form panel second
@@ -371,6 +400,8 @@ able to describe a module.
 | **D4** | `PATCH /modules/bulk-update` writes five valuation columns with no `assertAllowedFields`, no numeric validation, and **zero frontend callers**. Delete it. | Medium |
 | **D5** | AI Review's apply path writes `growth_rate` and `tax_rate_override` to any module by id — one LLM click can place a value into a field the form would not show. | Medium |
 | **D6** | ⓘ **Moved to §14 Q1** — it is a deferred decision, not a defect, and listing it here contradicted this table's own heading. | — |
+| **D8** | ⓘ **New 2026-08-05, found while setting a loan's rate.** `clearForLoanRetype` **returns early when there is nothing to clear** (`if (before.total === 0) return before;`), so giving a module a `loan_interest_rate` does **not** normalize its stream to `derived` — the normalization lives *after* that guard. `House Morgage` therefore sat typed Loan, with a rate once set, and an `expense`/**`amount`** stream that the loan's derived interest could never post to. The form and the engine disagreeing about what a module *is* — this CR's own subject, inside the one carve-out that already exists. Fix: normalize the stream whenever a module becomes a loan, whether or not anything needed clearing. | Medium |
+| **D9** | ⓘ **New 2026-08-05.** A module carrying complete, valid loan assumptions can be **silently absent from every forecast** because `setup_status = 'new'` excludes it (`COALESCE(m.setup_status,'new') NOT IN ('new','exclude')`, four query sites). Nothing on the modules table distinguishes "configured and excluded" from "configured and live" — the SWEEP badge has an equivalent, a status column does not. Measured: activating `House Morgage` adds **−500,000 of debt from the 2028 draw and −315,000 of interest** (−437,500 in Buy Business) to a plan that currently finances the purchase with cash. **Belongs to [CR071](cr-071-forecast-numbers-vs-intent.md)** as a warning (*"configured but excluded from the forecast"*), not to CR070 — it is a wrong number, not a wrong form. | Medium |
 | **D7** | ⓘ **New (§1).** `POST /modules` accepts `CashSweepPriority`, `CashSweepTarget`, `TaxRateOverride` and `SetupStatus` and **silently drops all four** — no 400, no write. The CR046/CR047 class, on the route whose allow-list exists to prevent it. | Medium |
 
 ⓘ **D1 and D2 LEAVE this CR (pass 2 blocker 1).** They are CR069 P3 regressions in a release less
