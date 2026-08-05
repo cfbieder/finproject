@@ -1643,29 +1643,9 @@ export default function FCModulesEditModal({
                       </button>
                     </div>
                     {transfers.length === 0 ? (
-                      <div className="fc-modules-modal__transfer-empty">
-                        <svg
-                          width="48"
-                          height="48"
-                          viewBox="0 0 24 24"
-                          fill="none"
-                          xmlns="http://www.w3.org/2000/svg"
-                        >
-                          <path
-                            d="M9 5H7C5.89543 5 5 5.89543 5 7V19C5 20.1046 5.89543 21 7 21H17C18.1046 21 19 20.1046 19 19V7C19 5.89543 18.1046 5 17 5H15M9 5C9 6.10457 9.89543 7 11 7H13C14.1046 7 15 6.10457 15 5M9 5C9 3.89543 9.89543 3 11 3H13C14.1046 3 15 3.89543 15 5"
-                            stroke="currentColor"
-                            strokeWidth="2"
-                            strokeLinecap="round"
-                            strokeLinejoin="round"
-                          />
-                        </svg>
-                        <p>No {label.toLowerCase()} entries</p>
-                        <span>
-                          Click "Add {label} {isNoFlagRow ? "Entry" : ""}" to
-                          create a{" "}
-                          {isIncomeSteps ? "step change" : isPctRow ? "percentage entry" : "transfer"}
-                        </span>
-                      </div>
+                      <p className="fc-modules-modal__transfer-empty">
+                        No {label.toLowerCase()} entries yet.
+                      </p>
                     ) : (
                       <div className="fc-modules-modal__transfer-list">
                         {transfers.map((entry, index) => {
@@ -1683,9 +1663,6 @@ export default function FCModulesEditModal({
                               key={`${field}-${index}`}
                               className="fc-modules-modal__transfer-card"
                             >
-                              <div className="fc-modules-modal__transfer-number">
-                                {index + 1}
-                              </div>
                               <div className="fc-modules-modal__transfer-fields">
                                 {!isNoFlagRow && (
                                   <div className="fc-modules-modal__transfer-field">
@@ -1819,26 +1796,10 @@ export default function FCModulesEditModal({
                               <button
                                 type="button"
                                 className="fc-modules-modal__transfer-remove"
-                                onClick={() =>
-                                  removeTransferEntry(field, index)
-                                }
-                                title="Remove this transfer"
+                                onClick={() => removeTransferEntry(field, index)}
+                                aria-label={`Remove this ${label.toLowerCase()} entry`}
                               >
-                                <svg
-                                  width="16"
-                                  height="16"
-                                  viewBox="0 0 24 24"
-                                  fill="none"
-                                  xmlns="http://www.w3.org/2000/svg"
-                                >
-                                  <path
-                                    d="M19 7L18.1327 19.1425C18.0579 20.1891 17.187 21 16.1378 21H7.86224C6.81296 21 5.94208 20.1891 5.86732 19.1425L5 7M10 11V17M14 11V17M15 7V4C15 3.44772 14.5523 3 14 3H10C9.44772 3 9 3.44772 9 4V7M4 7H20"
-                                    stroke="currentColor"
-                                    strokeWidth="2"
-                                    strokeLinecap="round"
-                                    strokeLinejoin="round"
-                                  />
-                                </svg>
+                                Remove
                               </button>
                             </div>
                           );
