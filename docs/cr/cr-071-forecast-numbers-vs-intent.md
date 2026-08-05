@@ -67,15 +67,50 @@ field, and what the engine consequently does — never "this is wrong".
 
 ---
 
-## 4. Open questions for the owner
+## 4. Owner decisions — ANSWERED 2026-08-05
 
-1. **CVC Fund VIII** — is the 3.75% NAV growth *net* of distributions, or gross? One of the yield and
-   the distribution schedule is double-counting ≈158K over seven years, and which one depends
-   entirely on this answer.
-2. **Should a yield-mode stream's typed amount keep generating base-year deferred tax?** ≈$33.5K per
-   scenario. It is invisible in the UI and live in the engine, preserved deliberately by CR069 so the
-   equivalence gate would pass. Changing it moves forecast numbers.
-3. ~~**`House Morgage`** — is it supposed to carry an interest rate?~~ **ANSWERED 2026-08-05: yes,
-   6%.** Set across all five scenarios together with the `derived` interest line the loan model
-   needs. The owner then chose to leave `setup_status='new'`, so it is **parked, not broken** —
-   R8 above carries the measured cost of activating it whenever that decision is revisited.
+Both moved forecast numbers, which is why they were questions and not fixes. **Both are held and
+applied WITH the CR070/CR071 production release** (owner's choice), so there is one change event
+rather than a data edit landing mid-QA and being mistaken for a code effect.
+
+### Q1 — CVC Fund VIII: the YIELD is the error. Remove it. ✅
+
+The fund draws three ways at once: NAV compounding at 1.5 × inflation (≈3.75%/yr), a `Spread %`
+yield of 1.5 paying out from 2027, and `OneTime` disposals of 100,000 in each of 2030, 2031 and
+2032 before the 2033 Full exit. About **158K over seven years** is counted twice.
+
+**The yield goes; growth and the disposals stay.** A PE fund distributes lumpy realizations, not a
+recurring yield — and the disposal schedule already models exactly that, *correctly*: a `Dispose`
+row reduces NAV and consumes proportional basis at the gains rate. A `yield` stream does neither;
+it pays cash out of thin air and leaves the NAV compounding as though nothing had been
+distributed. So the 2030–32 rows **are** the distributions, and the yield was a second, phantom
+one.
+
+*Consequence for §2:* CVC's typed amount of 25,800 goes with the stream, so Q2 below applies only
+to the two Fidelity holdings.
+
+### Q2 — the typed amount on a yield stream is vestigial. Clear it. ✅
+
+`Fidelity Fixed Income` (46,000) and `Fidelity Stocks` (40,000) carry an amount their own card
+hides in yield mode and the projection ignores — but the base-year deferred-tax block reads it,
+charging **≈25,800 of Period-1 tax per scenario** on income the plan never books as income.
+
+**Cleared.** A yield stream's income is NAV × rate; a separate typed figure is a leftover from
+when these were amount-mode streams. **This was pre-existing and deliberately preserved** —
+`fcbuilder-module.js:450-461` records that the old builder taxed these and CR069's equivalence
+gate therefore required matching it, with §6.1 deferring whether it was *right*. This is that
+deferral, discharged.
+
+### How both land
+
+1. Applied on a **throwaway copy of prod first**, all five scenarios regenerated, and the delta
+   reported line-by-line — these are the first changes in this CR that are *expected* to move the
+   sums, so the gate inverts: an unchanged number would be the bug.
+2. Then applied to prod inside the release, after the code deploy, with a backup first.
+3. Expected direction: 2027 tax **down** ≈25,800 per scenario from Q2; CVC income **down** ≈22,650
+   in each year from 2027 to 2033 from Q1, with no change to NAV, the disposals, or the exit.
+
+### Still open
+
+3. **`House Morgage`** — answered separately: it carries 6% and a derived interest line, and the
+   owner chose to leave `setup_status='new'`, so it is **parked, not broken** (R8).
