@@ -6,16 +6,22 @@
 > **The budget is load-bearing** (cut from 216 lines 2026-08-05): overrun = restatement the CR
 > index and roadmap already own, and it is where stale facts collect.
 
-**Last updated:** 2026-08-05 · **Live version:** v3.15.1 (see `VERSION` / git tags)
+**Last updated:** 2026-08-05 · **Live version:** v3.16.0 (see `VERSION` / git tags)
 
 ## Current phase
 **The model, since [CR069](../cr/cr-069-forecast-streams.md) (v3.13.1 → v3.14.1, migrations
 057–060):** a module is *identity + optional valuation + N first-class **streams***.
 
 **[CR070](../cr/cr-070-module-inputs-by-type.md) + [CR071](../cr/cr-071-forecast-numbers-vs-intent.md)
-SHIPPED in v3.15.0**, the type filter grouped in **v3.15.1** — both 2026-08-05, no migration.
-Capability-gated forms, a residue detector, 8 detection rules. Gate: sums identical to the cent,
-4,030 rows.
+SHIPPED in v3.15.0**, the type filter grouped in **v3.15.1**, and in **v3.16.0** each stream card
+gained the FC line's real history (actual base−1 · budget base · actual base YTD) — all 2026-08-05,
+no migration. Capability-gated forms, a residue detector, 8 detection rules. Gate: sums identical
+to the cent, 4,030 rows.
+
+**A projection to fix, now that it has cost three bugs in three days:** the module LIST and DETAIL
+queries are kept by hand and have drifted three times — `HasValuation` (v3.14.2), the sweep fields
+(v3.15.0), `fc_line_name` (v3.16.0). Each surfaced as a form guessing at state it should have been
+told. Derive both from one source.
 
 ⚠️ **Two number-moving changes are pending, and they must not land together** —
 [CR071 §6](../cr/cr-071-forecast-numbers-vs-intent.md) has the measurements and both controls:
@@ -38,12 +44,10 @@ Worth knowing at session start: the timezone rule (#3), the unannounced red `mai
 ESLint JSX blind spot (#10), and dirty-tree deploys (#17).
 
 ## Live infrastructure
-- **Dev and prod are the same host** (`192.168.1.87` / Tailscale `100.94.46.62`). Prod
-  `docker-compose.yml` (project `psproject`, :3005, DB :5433, volume `fin_postgres_data`); dev
-  `docker-compose.dev.yml` (:3105/:5434); v4 `docker-compose.v4.yml` (`finv4`, :3205/:5435,
-  flags ON, isolated volume). Prod frontend: `https://fin.tail413695.ts.net`.
-- `bank-feed/` microservice (:3007, separate repo) feeds 28 accounts; ocr-llm LLM gateway at
-  `100.66.213.40:8080` (AI Review).
+- **Dev and prod are the same host** (`192.168.1.87` / Tailscale `100.94.46.62`) — prod
+  `psproject` :3005/:5433 (volume `fin_postgres_data`), dev :3105/:5434, v4 `finv4` :3205/:5435
+  flags ON. Prod: `https://fin.tail413695.ts.net`. `bank-feed/` :3007 feeds 28 accounts; ocr-llm
+  gateway `100.66.213.40:8080`. Both are separate repos.
 - Deploy: `./Scripts/deploy-to-production.sh` (DB backup first). Migrations: **dev first, through
   `migrate.js`** — a `psql -f` apply writes no ledger row and is invisible to the guard; Step 2b(i)
   refuses any file absent from BOTH ledgers. Registry: [migrations.md](migrations.md). *A deploy's
@@ -71,12 +75,11 @@ ESLint JSX blind spot (#10), and dirty-tree deploys (#17).
 - Full plan: [project-roadmap.md](project-roadmap.md).
 
 ## Conventions
-Docs layout & rules: [documentation standard](../documentation-standard.md) · working rules load
-from `.claude/rules/` (collaboration, git-concurrency, migrations, compose-safety, env-secrets,
-data-import) · procedures: `/close`, `/question`,
-[month-end reconcile](../guides/month-end-reconcile.md) · dual-track v3/v4:
-[dev-workflow](../guides/dev-workflow.md) · permissions:
-[claude-code-permissions](../guides/claude-code-permissions.md).
+[Documentation standard](../documentation-standard.md) · working rules auto-load from
+`.claude/rules/` · `/close`, `/question` ·
+[month-end reconcile](../guides/month-end-reconcile.md) ·
+[dev-workflow](../guides/dev-workflow.md) (dual-track v3/v4) ·
+[permissions](../guides/claude-code-permissions.md).
 
 ## Drills & reviews
 Last restore drill: **2026-07-13 — PASSED** ([runbook + log](../guides/restore.md)) — a real prod

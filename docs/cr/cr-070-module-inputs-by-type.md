@@ -644,7 +644,38 @@ the denormalised name without breaking the field.
 **The same TDZ trap as the type vocabulary reappeared in the fix and was caught before commit:**
 `fcLines` was declared eighty lines *below* the `useMemo` that now reads it. Moved above its
 consumer. Twice in one CR is the argument for reading declaration order whenever a derived value
-gains a new dependency.
+gains a new dependency. **It then happened a third time** in v3.16.0's follow-up — a second
+`baseYear` declared below the one the new fetch needed — caught by the parser rather than by
+review, which is the honest version of how that class gets found.
+
+### v3.16.0 — the field grew into a three-year reference, on the stream card
+
+Owner-requested: *"how can we see what actual costs was for the prior actual year and budget amount
+for current year"*. Both endpoints already existed — `/fc-lines/actual-totals` (this CR's P6) and
+`/fc-lines/budget-totals` — and nothing on the form had asked the budget one for a line.
+
+Actual (base−1, the last **complete** year) · budget (base) · actual (base, **YTD**, labelled so it
+is not read as a full year. **On the stream card, not the header**, because the FC line is a
+property of the *stream*: P6's module-level field was the same figure a scroll from the Amount it
+checks, and a module with two expense streams on different lines made one header figure ambiguous.
+It is removed rather than kept alongside.
+
+**The caveat is the feature.** The totals belong to the LINE. `Property Costs` carries **six**
+modules, so 76,656 against one card's 34,717 is not a comparison — every line shared by more than
+one module now says how many share it. That is the *identical* error the old `Account` field made
+(§P6 above), and repeating it one screen over would have been the worse mistake for having just
+fixed it. A zero budget is omitted rather than rendered, because 2025 keeps none and a displayed
+`0` reads as a deliberate plan of zero.
+
+**A request declined, on measurement.** The owner asked that a stream's Start year default to the
+period start. It does not, for two reasons: a flow module **already** anchors at `PeriodStart`
+([fcbuilder-module.js:131](../../server/src/services/forecast/fcbuilder-module.js#L131)), so blank
+already means that year there; and a start date is stored as July 1, so `applyStreamWindow` does
+`series[i] /= 2` on the first year — defaulting the control would have turned a 34,717 expense into
+**17,358** in its first year, silently, on every new stream. What was actually wrong is the label:
+*"from the base year"* is inaccurate on a flow module and unspecific on a valuation one. It now
+names the module's own first year and states the half-year rule, so choosing a year is a real
+choice rather than a restatement of where the plan starts.
 
 **The residue panel ships empty**, on every prod module. That is the intended state — the QA script
 says how to make it appear on purpose, because a safety net nobody has watched work is not yet
