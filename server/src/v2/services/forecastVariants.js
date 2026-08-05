@@ -632,6 +632,25 @@ function resolveSweepFlags(resolved) {
     if (patchedTarget != null && r.row.cash_sweep_target === true && r.baseId !== patchedTarget) {
       r.row.cash_sweep_target = false;
     }
+
+    // CR070 P4 — a RESOLVED row that cannot be a sweep source loses its rank here, derived, the
+    // same way a displaced rank is dropped above.
+    //
+    // The route refuses an ineligible rank on the way in, but that guard is bypassed by every
+    // non-form writer — sync writes raw SQL, `copyScenario` derives its columns from
+    // `information_schema`, `refreshModulesFromActuals` is one set-based UPDATE. A variant can
+    // therefore override `has_valuation` or `market_value` and produce a rank that is invalid
+    // only AFTER the merge. Deriving is deliberate and is this file's existing choice: a
+    // constraint would throw mid-build, and `syncIfStale` runs at the top of every variant's
+    // build, so the variant would become ungeneratable with no UI able to repair it.
+    const resolvedMv = r.row.market_value == null ? null : Number(r.row.market_value);
+    if (
+      r.row.cash_sweep_priority != null &&
+      (r.row.has_valuation === false || (resolvedMv != null && resolvedMv < 0))
+    ) {
+      r.row.cash_sweep_priority = null;
+      r.row.cash_sweep_target = false;
+    }
   }
 }
 
@@ -1272,6 +1291,7 @@ function valuesEqual(a, b) {
 
 module.exports = {
   buildStreamsPatch,
+  resolveSweepFlags,   // CR070 P4 — exported so the derivation arm is testable in isolation
   parentOf,
   listOverridesWithBase,
   variantOfRow,

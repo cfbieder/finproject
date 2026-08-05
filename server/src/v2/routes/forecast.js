@@ -82,6 +82,42 @@ const isLoanBody = (body) => body?.LoanInterestRate != null;
  * Takes the EFFECTIVE value (body if present, else the stored row) so a partial
  * update stays legal.
  */
+/**
+ * CR070 P4 — who may be a cash-sweep source.
+ *
+ * Stated by what the sweep DOES, not by module type. At priority 1 the module is the DEPOSIT
+ * target and excess cash is written into it unconditionally; on a shortfall, ranked modules are
+ * drained against a balance series read from their own market-value entries. So a module may be
+ * ranked iff it HAS a balance and that balance is an asset:
+ *
+ *   - `has_valuation = false`  ⇒ no balance series at all. It drains nothing and absorbs
+ *     UNLIMITED deposits into a P&L account.
+ *   - `market_value < 0`       ⇒ a debt. `availableFrom` clamps at zero, so it can never fund a
+ *     shortfall, while still being listed as a source — which inverts what "ranked" means in
+ *     CR045 §5: the engine reports a shortfall beside a source that cannot contribute.
+ *
+ * Keyed on ENGINE-visible columns, never on `module_type` — the type is a free-text list the
+ * owner edits, and the loan guard above already keys on the rate for the same reason.
+ *
+ * Neither condition fires on today's data (ranks are held only by Stocks and Fixed Income), so
+ * this closes a hazard rather than changing behaviour.
+ */
+function assertSweepEligible(row, name = 'This module') {
+  if (row?.has_valuation === false) {
+    throw validate.badRequest(
+      `${name} has no balance sheet, so it cannot be a cash-sweep source — it would absorb ` +
+      `unlimited deposits into a P&L account and could never fund a shortfall.`
+    );
+  }
+  const mv = row?.market_value == null ? null : Number(row.market_value);
+  if (mv != null && mv < 0) {
+    throw validate.badRequest(
+      `${name} carries a debt, so it cannot be a cash-sweep source — it can absorb deposits it ` +
+      `cannot repay, and the sweep can never draw from a negative balance.`
+    );
+  }
+}
+
 function assertLoanHasInterestLine(effectiveFcLineId) {
   if (effectiveFcLineId === undefined || effectiveFcLineId === null || effectiveFcLineId === '') {
     throw validate.badRequest('A loan needs an Interest Line — without one its interest would leave the bank balance without appearing on any P&L line.');
@@ -1070,6 +1106,15 @@ router.put('/modules/:id', async (req, res, next) => {
     if (body.CashSweepPriority !== undefined) {
       const raw = body.CashSweepPriority;
       const pri = (raw === null || raw === '' || !(Number(raw) > 0)) ? null : parseInt(raw, 10);
+      // Judged on the state the row will HAVE after this write, not the one it has now: a save
+      // that ranks a module and flips it to a flow module in the same body must be refused.
+      if (pri != null) {
+        assertSweepEligible(
+          { has_valuation: updateData.has_valuation ?? before?.has_valuation,
+            market_value: updateData.market_value ?? before?.market_value },
+          before?.name ? `"${before.name}"` : 'This module'
+        );
+      }
       updateData.cash_sweep_priority = pri;
       updateData.cash_sweep_target = pri === 1;
     } else if (body.CashSweepTarget !== undefined) {

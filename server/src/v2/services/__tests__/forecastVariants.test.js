@@ -826,3 +826,48 @@ describe('CR064 — rowInheritance carries the base id', () => {
     expect(rowInheritance(null, { id: 1, origin_base_id: null })).toBeNull();
   });
 });
+
+// ---------------------------------------------------------------------------
+// CR070 P4 — a resolved row that cannot be a sweep source loses its rank.
+//
+// The route refuses an ineligible rank on the way in, but every non-form writer bypasses that:
+// sync writes raw SQL, copyScenario derives its columns from information_schema,
+// refreshModulesFromActuals is one set-based UPDATE. A variant can therefore override
+// has_valuation or market_value and produce a rank that is invalid only AFTER the merge.
+//
+// DERIVED, not thrown: syncIfStale runs at the top of every variant's build, so a constraint
+// would make the variant ungeneratable with no UI able to repair it. That is the same choice
+// this file already made for displaced ranks.
+// ---------------------------------------------------------------------------
+describe('CR070 P4 — sweep eligibility is derived, never thrown', () => {
+  const { resolveSweepFlags } = require('../forecastVariants');
+  const row = (o) => ({ baseId: o.baseId ?? 1, explicit: new Set(o.explicit || []), row: { ...o.row } });
+
+  test('a flow module loses a rank it inherited', () => {
+    const resolved = [row({ row: { has_valuation: false, market_value: 0, cash_sweep_priority: 1, cash_sweep_target: true } })];
+    resolveSweepFlags(resolved);
+    expect(resolved[0].row.cash_sweep_priority).toBeNull();
+    expect(resolved[0].row.cash_sweep_target).toBe(false);
+  });
+
+  test('a debt loses a rank it inherited', () => {
+    const resolved = [row({ row: { has_valuation: true, market_value: -24129.55, cash_sweep_priority: 2 } })];
+    resolveSweepFlags(resolved);
+    expect(resolved[0].row.cash_sweep_priority).toBeNull();
+  });
+
+  test('a real asset keeps its rank — this must not change today\'s behaviour', () => {
+    // Prod ranks exactly two modules per scenario, both liquid investments. If this test ever
+    // fails, the guard has started firing on live data and the sweep has silently stopped.
+    const resolved = [row({ row: { has_valuation: true, market_value: 1_000_000, cash_sweep_priority: 1, cash_sweep_target: true } })];
+    resolveSweepFlags(resolved);
+    expect(resolved[0].row.cash_sweep_priority).toBe(1);
+    expect(resolved[0].row.cash_sweep_target).toBe(true);
+  });
+
+  test('an unranked ineligible module is left completely alone', () => {
+    const resolved = [row({ row: { has_valuation: false, market_value: 0, cash_sweep_priority: null } })];
+    resolveSweepFlags(resolved);
+    expect(resolved[0].row.cash_sweep_priority).toBeNull();
+  });
+});
