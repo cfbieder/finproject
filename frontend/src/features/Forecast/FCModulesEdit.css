@@ -2111,3 +2111,29 @@ input.fc-modules-modal__input:read-only {
   color: var(--ink-secondary);
   font-variant-numeric: tabular-nums;
 }
+
+/* CR070 P2/P3 — the residue panel. Tokens only: this file carries raw rgba() elsewhere and CSS is
+   outside check-inline-hex's *.jsx glob, so dark mode is on the author here, not on CI. */
+.fc-residue {
+  border: 1px solid var(--warning-strong, var(--border));
+  border-radius: var(--radius-md);
+  background: var(--warning-subtle, var(--surface-muted));
+  padding: 0.75rem;
+}
+.fc-residue__title { margin: 0 0 0.25rem; font-size: 0.9rem; color: var(--ink); }
+.fc-residue__lede,
+.fc-residue__foot { margin: 0.25rem 0; font-size: 0.78rem; color: var(--muted); }
+.fc-residue__list { list-style: none; margin: 0.5rem 0 0; padding: 0; }
+.fc-residue__row {
+  display: grid;
+  grid-template-columns: 1fr auto auto;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.25rem 0;
+  border-top: 1px solid var(--border);
+}
+.fc-residue__label { font-size: 0.85rem; color: var(--ink); }
+.fc-residue__value { font-size: 0.85rem; color: var(--muted); font-variant-numeric: tabular-nums; }
+@media (max-width: 640px) {
+  .fc-residue__row { grid-template-columns: 1fr auto; }
+}

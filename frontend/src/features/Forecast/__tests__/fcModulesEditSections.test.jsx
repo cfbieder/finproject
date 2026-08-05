@@ -76,8 +76,20 @@ describe("CR062 — the Loan section", () => {
   });
 
   test("a loan gets the Loan sections, everything else the standard ones", () => {
-    expect(fieldSectionsFor({ Type: "Loan" })).toBe(LOAN_FIELD_SECTIONS);
-    expect(fieldSectionsFor({ Type: "Real Estate" })).toBe(FIELD_SECTIONS);
+    // CR070 P3 — compared by VALUE, not identity. `fieldSectionsFor` now filters each section by
+    // the module's capabilities, so it builds a fresh array rather than returning the constant.
+    // The identity was incidental to what this test is actually about: which SET a loan gets.
+    // (A valuation module keeps every field, so the filtered result still equals the constant.)
+    expect(fieldSectionsFor({ Type: "Loan", HasValuation: true }))
+      .toStrictEqual(LOAN_FIELD_SECTIONS);
+    expect(fieldSectionsFor({ Type: "Real Estate", HasValuation: true }))
+      .toStrictEqual(FIELD_SECTIONS);
+  });
+
+  test("CR070 P3 — a flow module's form drops what it cannot use", () => {
+    const titles = fieldSectionsFor({ Type: "Expense", HasValuation: false }).map(([t]) => t);
+    // Valuation and Tax are gone entirely; General survives because identity is unconditional.
+    expect(titles).toEqual(["General"]);
   });
 
   test("the Loan form drops the fields a loan cannot use, and adds the five assumptions", () => {

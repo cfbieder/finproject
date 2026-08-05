@@ -1,4 +1,4 @@
-import { Fragment, useEffect, useState } from "react";
+import { Fragment, useEffect, useMemo, useState } from "react";
 import Rest from "../../js/rest";
 import FCModuleAuditModal from "./FCModuleAuditModal.jsx";
 import Modal from "../../components/Modal/Modal.jsx";
@@ -6,6 +6,8 @@ import FCModulesStreams from "./FCModulesStreams.jsx";
 import "./FCModulesStreams.css";
 import {
   fieldSectionsFor,
+  capabilitiesFor,
+  residueFor,
   isLoanModule,
   initialOpenSections,
   labelForType,
@@ -98,6 +100,11 @@ export default function FCModulesEditModal({
   // the moment its last field was cleared, out from under the cursor. `moduleKey`
   // reseeds when a different module is opened in the same mounted modal.
   const moduleKey = editForm?.id ?? "new";
+  // CR070 P3 — derived, never an effect that calls setEditForm: an effect-driven capability sync
+  // would bump `react-hooks/set-state-in-effect`, and that ratchet may only shrink.
+  const capabilities = useMemo(() => capabilitiesFor(editForm), [editForm]);
+  const residue = useMemo(() => residueFor(editForm), [editForm]);
+
   const [openSections, setOpenSections] = useState(() => new Set());
   useEffect(() => {
     if (!isOpen || !editForm) return;
@@ -671,6 +678,12 @@ export default function FCModulesEditModal({
                     <option value="exclude">Exclude</option>
                   </select>
                 </label>
+                {/* CR070 P3 — the sweep control belongs to the `sweep` capability, which needs a
+                    balance to deposit into and draw from. Hidden here and REFUSED server-side
+                    (assertSweepEligible + resolveSweepFlags): a hidden control is not a guard,
+                    because every non-form writer bypasses it. A rank already held on an
+                    ineligible module is reported by the residue panel below. */}
+                {capabilities.has("sweep") && (
                 <label style={{ display: "flex", flexDirection: "column", gap: "0.25rem", minWidth: "8rem" }}>
                   <span className="fc-modules-modal__label" style={{ whiteSpace: "nowrap" }}>Sweep Priority</span>
                   <select
@@ -691,6 +704,7 @@ export default function FCModulesEditModal({
                     ))}
                   </select>
                 </label>
+                )}
                 <label style={{ display: "flex", flexDirection: "column", gap: "0.25rem", flex: 1 }}>
                   <span className="fc-modules-modal__label">Notes</span>
                   <textarea
@@ -703,6 +717,42 @@ export default function FCModulesEditModal({
                   />
                 </label>
               </div>
+              {/* CR070 P2/P3 — RESIDUE. The mechanism that makes hiding safe at all.
+                  CR064 §5 refused per-type forms because "a hidden field is not a cleared one",
+                  and it was right: PUT is `!== undefined`-gated, so a form that stops sending a
+                  field PRESERVES it. Nothing here is hidden-and-live — anything this module no
+                  longer renders, still holding a value, is shown with the value and a way to
+                  clear it. Empty on every prod module today, which is how it should ship. */}
+              {residue.length > 0 && (
+                <div className="fc-modules-modal__field-group fc-residue">
+                  <h5 className="fc-residue__title">Still set — not used by this module</h5>
+                  <p className="fc-residue__lede">
+                    These are stored but nothing on this form reads them, so the forecast ignores
+                    them. Clear them, or change the module so they apply again.
+                  </p>
+                  <ul className="fc-residue__list">
+                    {residue.map((r) => (
+                      <li key={r.field} className="fc-residue__row">
+                        <span className="fc-residue__label">{r.label}</span>
+                        <span className="fc-residue__value">
+                          {Array.isArray(r.value) ? `${r.value.length} row(s)` : String(r.value)}
+                        </span>
+                        <button
+                          type="button"
+                          className="fc-modules-modal__button"
+                          aria-label={`Clear ${r.label}`}
+                          onClick={() => onFieldChange(r.field, Array.isArray(r.value) ? [] : null)}
+                        >
+                          Clear
+                        </button>
+                      </li>
+                    ))}
+                  </ul>
+                  <p className="fc-residue__foot">
+                    Clearing takes effect when you save, and only in this scenario. Cancel undoes it.
+                  </p>
+                </div>
+              )}
               {fieldSectionsFor(editForm).map(([sectionTitle, sectionFields]) => (
                 <div key={sectionTitle} className="fc-modules-modal__field-group">
                   {/* CR064 P3 — an empty section collapses to a single "+ Add" line.

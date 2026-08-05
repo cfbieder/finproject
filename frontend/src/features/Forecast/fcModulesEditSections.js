@@ -96,8 +96,22 @@ export const isLoanModule = (form) =>
   String(form?.Type || "").trim().toLowerCase() === "loan" ||
   form?.LoanInterestRate != null;
 
-export const fieldSectionsFor = (form) =>
-  (isLoanModule(form) ? LOAN_FIELD_SECTIONS : FIELD_SECTIONS);
+/**
+ * The sections a form renders, filtered by capability (CR070 P3).
+ *
+ * A section whose every field belongs to a capability the module does not have is dropped
+ * entirely; a section that keeps some fields is narrowed. Nothing dropped here can hold a value
+ * silently — `residueFor` reports it, which is the whole basis on which hiding is allowed.
+ */
+export const fieldSectionsFor = (form) => {
+  const base = isLoanModule(form) ? LOAN_FIELD_SECTIONS : FIELD_SECTIONS;
+  const out = [];
+  for (const [title, fields] of base) {
+    const kept = fields.filter(([, field]) => fieldIsRendered(form, field));
+    if (kept.length) out.push([title, kept]);
+  }
+  return out;
+};
 
 // ---------------------------------------------------------------------------
 // CR064 P3 — collapse a section that has nothing in it.
@@ -165,3 +179,165 @@ const TYPE_LABELS = {
 /** The label for `field` on a module of `type`, or `fallback` when there is no override. */
 export const labelForType = (type, field, fallback) =>
   TYPE_LABELS[String(type || "").trim().toLowerCase()]?.[field] ?? fallback;
+
+
+// ===========================================================================
+// CR070 P2/P3 — capabilities, and the residue detector that makes hiding safe.
+//
+// THE RULE: a field may disappear only if a VALUE in it cannot.
+//
+// CR064 §5 refused per-type forms because "a hidden field is not a cleared one" — and it was
+// right, for a form with no way to report what it was hiding. `PUT /modules/:id` is
+// `!== undefined`-gated, so a form that simply stops sending a field PRESERVES it; `POST` uses
+// `?? 0`, so on create the same omission zeroes it. Hiding, by itself, is therefore not
+// cosmetic-but-harmless — it is strictly worse than collapse-when-empty, which cannot conceal a
+// live value.
+//
+// What changes the answer is the DETECTOR below. Any field the form does not render for a module,
+// holding a value, is reported — so a hidden field can never hold a live value silently. That is
+// literally what §5 demanded, and it is why hiding becomes safe here and was not before.
+//
+// CAPABILITIES ARE KEYED ON DATA THE ENGINE BRANCHES ON, never on the free-text `module_type`:
+//   - `has_valuation`      → the engine reads `hasValuation ? X : 0` for base value, market value
+//                            and growth, and skips the CR041 ownership gate entirely.
+//   - `loan_interest_rate` → the engine's loan branch is `loanRate != null`.
+// A renamed or mistyped type therefore cannot hide a live assumption. Type may only WIDEN what is
+// shown (see `isLoanModule`, a union of type and data) and supply defaults and labels.
+// ===========================================================================
+
+/** Every capability a module form can have, and the data predicate that grants it. */
+export const CAPABILITIES = {
+  /** Identity is unconditional — a module always has a name, an account and a type. */
+  identity: () => true,
+  /** A balance sheet: cost basis, market value, growth, and the schedules that move them. */
+  valuation: (form) => form?.HasValuation !== false,
+  /** Invest / Dispose move a balance, so they need one. */
+  schedules: (form) => form?.HasValuation !== false,
+  /** Capital gains are realized on a valuation; a flow has no gain. */
+  gainsTax: (form) => form?.HasValuation !== false,
+  /** The sweep needs a balance to deposit into and draw from (CR070 §6, enforced server-side). */
+  sweep: (form) => form?.HasValuation !== false,
+  /** The loan carve-out — a UNION of type and data, so a renamed loan keeps the form that can fix it. */
+  loan: (form) => isLoanModule(form),
+  /** Streams are rows; every module can have them. */
+  streams: () => true,
+};
+
+/**
+ * TYPE-LED hiding — the owner's 2026-08-05 decision to customize all nine types.
+ *
+ * Everything above keys on data. These five types have NO engine-visible signal — the engine
+ * treats a house, a business, a brokerage account, a bond and a PE fund identically — so hiding
+ * for them is justified by two things together, never by the type alone:
+ *
+ *   1. MEASURED non-use on real data, not an assumption about what the type "means"; and
+ *   2. the residue detector, which reports anything hidden that still holds a value.
+ *
+ * A wrong or renamed type therefore costs a hidden control and nothing else, and the value it
+ * would have shown is surfaced by the detector instead of vanishing.
+ *
+ * Counts are from prod 2026-08-05, 170 modules across 5 scenarios. Only fields with ZERO live use
+ * appear here; anything used even once anywhere is not eligible.
+ */
+export const TYPE_HIDES = {
+  // Contributions and withdrawals happen through the sweep, which realizes gains against
+  // proportional basis. 0 of 10 Stocks modules use either schedule.
+  stocks: ["Invest", "Dispose"],
+  // 0 of 5. A par instrument is bought and held; the coupon is a yield stream.
+  "fixed income": ["Invest"],
+};
+
+/** The capability set for a form, as a Set of names. */
+export const capabilitiesFor = (form) => {
+  const out = new Set();
+  for (const [name, predicate] of Object.entries(CAPABILITIES)) {
+    if (predicate(form)) out.add(name);
+  }
+  return out;
+};
+
+/** Fields this module's TYPE hides, lower-cased and trimmed like every other type lookup. */
+export const typeHiddenFields = (form) =>
+  new Set(TYPE_HIDES[String(form?.Type || "").trim().toLowerCase()] || []);
+
+/**
+ * Which capability owns each field. A field with no entry is unconditional (identity).
+ * `Streams` is not here: a stream is a ROW and removing its card removes it (CR069 P3).
+ */
+export const FIELD_CAPABILITY = {
+  BaseValue: "valuation",
+  BaseValueUSD: "valuation",
+  MarketValue: "valuation",
+  MarketValueUSD: "valuation",
+  Growth: "valuation",
+  TaxRateOverride: "gainsTax",
+  CashSweepPriority: "sweep",
+  CashSweepTarget: "sweep",
+  Invest: "schedules",
+  Dispose: "schedules",
+  LoanPrincipal: "loan",
+  LoanStartDate: "loan",
+  LoanEndDate: "loan",
+  LoanInterestRate: "loan",
+  SecuredAssetModuleId: "loan",
+  Amortization: "loan",
+};
+
+/** Human labels for the residue panel — the field name alone is not an explanation. */
+export const FIELD_LABELS = {
+  BaseValue: "Cost Basis",
+  BaseValueUSD: "Cost Basis (USD)",
+  MarketValue: "Market Value",
+  MarketValueUSD: "Market Value (USD)",
+  Growth: "Growth (× inflation)",
+  TaxRateOverride: "Capital Gains Tax Override",
+  CashSweepPriority: "Cash Sweep Priority",
+  CashSweepTarget: "Cash Sweep Target",
+  Invest: "Invest schedule",
+  Dispose: "Dispose schedule",
+  LoanPrincipal: "Original Loan Amount",
+  LoanStartDate: "Year Taken",
+  LoanEndDate: "End Year",
+  LoanInterestRate: "Interest Rate",
+  SecuredAssetModuleId: "Secured Against",
+  Amortization: "Amortization schedule",
+};
+
+/** Is this field rendered for this module at all? */
+export const fieldIsRendered = (form, field) => {
+  if (typeHiddenFields(form).has(field)) return false;
+  const cap = FIELD_CAPABILITY[field];
+  if (!cap) return true;                       // unconditional
+  return capabilitiesFor(form).has(cap);
+};
+
+/**
+ * THE DETECTOR (CR070 P2). Every field the form does NOT render for this module, holding a value.
+ *
+ * Generalized deliberately beyond "the engine does not read it": engine-unread is a SUBSET of
+ * form-unrendered, and it is the broader set that CR064 §5's objection is actually about. A field
+ * hidden by a type rule is read by the engine and still invisible — that is precisely the case
+ * this must catch.
+ *
+ * `BaseDate` is a documented exemption: it is set on all 60 prod flow modules, CR069 Decision 6
+ * pins every stream to `PeriodStart − 1` so the engine provably does not read it there, and
+ * surfacing 60 findings for a field that cannot affect a number is how a warning channel gets
+ * ignored. Recorded here so the rule is known to have exactly one hole, and why.
+ */
+export const RESIDUE_EXEMPT = new Set(["BaseDate"]);
+
+export const residueFor = (form) => {
+  const out = [];
+  for (const field of Object.keys(FIELD_CAPABILITY)) {
+    if (RESIDUE_EXEMPT.has(field)) continue;
+    if (fieldIsRendered(form, field)) continue;
+    if (fieldIsEmpty(form, field)) continue;
+    out.push({
+      field,
+      label: FIELD_LABELS[field] || field,
+      value: form?.[field],
+      capability: FIELD_CAPABILITY[field],
+    });
+  }
+  return out;
+};

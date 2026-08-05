@@ -19,6 +19,11 @@ import {
   initialOpenSections,
   labelForType,
   ALWAYS_OPEN_SECTIONS,
+  capabilitiesFor,
+  residueFor,
+  FIELD_CAPABILITY,
+  FIELD_LABELS,
+  RESIDUE_EXEMPT,
 } from "../fcModulesEditSections.js";
 
 const sectionByTitle = Object.fromEntries(FIELD_SECTIONS);
@@ -124,5 +129,80 @@ describe("labelForType", () => {
   test("a type with overrides still falls back for fields it does not override", () => {
     expect(labelForType("Private Equity", "IncomePct", "Yield Spread")).toBe("Yield Spread");
     expect(labelForType("Fixed Income", "Invest", "Invest")).toBe("Invest");
+  });
+});
+
+// ---------------------------------------------------------------------------
+// CR070 P2/P3 — capabilities, and the detector that makes hiding safe.
+//
+// The property under test is the one CR064 §5 demanded and this CR finally supplies:
+// A FIELD MAY DISAPPEAR ONLY IF A VALUE IN IT CANNOT.
+// ---------------------------------------------------------------------------
+describe("CR070 — capabilities are keyed on data, never on the type", () => {
+  test("a flow module loses valuation, gains tax, sweep and schedules", () => {
+    const caps = capabilitiesFor({ HasValuation: false, Type: "Expense" });
+    expect([...caps].sort()).toEqual(["identity", "streams"]);
+  });
+
+  test("a valuation module keeps them, whatever its type is called", () => {
+    // Same data, wildly different type strings — the capability set must not move, because a
+    // renamed type is exactly how CR064 §5 said a live value would get hidden.
+    const a = capabilitiesFor({ HasValuation: true, Type: "Real Estate" });
+    const b = capabilitiesFor({ HasValuation: true, Type: "not a real type at all" });
+    expect([...a].sort()).toEqual([...b].sort());
+    expect(a.has("valuation")).toBe(true);
+    expect(a.has("sweep")).toBe(true);
+  });
+
+  test("the loan capability is a UNION of type and data", () => {
+    // House Morgage's shape: typed Loan, no rate. It must still get the loan form, because that
+    // form holds the only input that can fix it.
+    expect(capabilitiesFor({ Type: "Loan", LoanInterestRate: null }).has("loan")).toBe(true);
+    // And a renamed loan keeps it on the data alone.
+    expect(capabilitiesFor({ Type: "Mortgage", LoanInterestRate: 6 }).has("loan")).toBe(true);
+    expect(capabilitiesFor({ Type: "Real Estate" }).has("loan")).toBe(false);
+  });
+});
+
+describe("CR070 — the residue detector", () => {
+  test("reports a value in a field the form does not render", () => {
+    // The §5 case, exactly: a module flipped to a flow module while still holding a market value.
+    const residue = residueFor({ HasValuation: false, MarketValue: 400000, Growth: 2 });
+    const fields = residue.map((r) => r.field).sort();
+    expect(fields).toContain("MarketValue");
+    expect(fields).toContain("Growth");
+    expect(residue.find((r) => r.field === "MarketValue").value).toBe(400000);
+  });
+
+  test("says nothing about a field that is rendered, or one that is empty", () => {
+    expect(residueFor({ HasValuation: true, MarketValue: 400000 })).toEqual([]);
+    expect(residueFor({ HasValuation: false, MarketValue: 0 })).toEqual([]);
+    expect(residueFor({ HasValuation: false })).toEqual([]);
+  });
+
+  test("catches a field hidden by TYPE — which the engine still reads", () => {
+    // This is why the detector had to be generalized past "the engine does not read it".
+    // Stocks hides Invest/Dispose on measured non-use (0 of 10 on prod), but the engine reads
+    // them on any valuation module — so a value there would be live AND invisible.
+    const residue = residueFor({
+      HasValuation: true, Type: "Stocks",
+      Invest: [{ Date: "2030-07-01", Amount: 5000 }],
+    });
+    expect(residue.map((r) => r.field)).toEqual(["Invest"]);
+  });
+
+  test("BaseDate is exempt, and the exemption is deliberate", () => {
+    // Set on all 60 prod flow modules, and provably unread there (CR069 Decision 6 pins every
+    // stream to PeriodStart − 1). Reporting it would be 60 findings that cannot affect a number.
+    expect(residueFor({ HasValuation: false, BaseDate: "2026-12-31" })).toEqual([]);
+  });
+
+  test("every capability-owned field is covered by the detector or exempt", () => {
+    // The guard against the real failure mode: someone adds a field to FIELD_CAPABILITY and
+    // forgets it can now be hidden. Anything gated must be detectable.
+    for (const field of Object.keys(FIELD_CAPABILITY)) {
+      const covered = RESIDUE_EXEMPT.has(field) || FIELD_LABELS[field];
+      expect(covered, `${field} needs a label or an exemption`).toBeTruthy();
+    }
   });
 });
