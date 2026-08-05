@@ -1719,6 +1719,24 @@ input.fc-modules-modal__input:read-only {
   letter-spacing: normal;
 }
 
+/* The inputs are the last thing that did not match, and by a measurable amount: the transfer rows
+   use `__input--small` (0.9rem, 0.7rem/0.85rem padding) while a stream card's field is 0.875rem
+   with 0.35rem/0.5rem — visibly chunkier side by side. Scoped to the transfer card so the
+   `--small` modifier keeps its own size everywhere else it is used on this form. Values copied
+   from .fc-stream-card__field, not approximated: two sets of numbers that merely look close is how
+   they drift apart again. */
+.fc-modules-modal__transfer-card .fc-modules-modal__input,
+.fc-modules-modal__transfer-card .fc-modules-modal__input--small {
+  padding: 0.35rem 0.5rem;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  background: var(--surface);
+  color: var(--ink);
+  font-size: 0.875rem;
+  height: auto;
+  line-height: 1.4;
+}
+
 /* Matches .fc-stream-card__remove — a quiet text button, not an icon in a box. */
 .fc-modules-modal__transfer-remove {
   background: transparent;
