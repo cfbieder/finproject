@@ -59,6 +59,11 @@ export default function FCModulesStreams({
   fcLines = [],
   periodYears = [],
   currency,
+  lineReference = {},
+  lineReferenceLoading = false,
+  sharedByLine = {},
+  baseYear = null,
+  startYear = null,
 }) {
   const linesByDirection = useMemo(() => ({
     income: fcLines.filter((l) => (l.line_type || "").includes("income")),
@@ -200,9 +205,27 @@ export default function FCModulesStreams({
                   value={yearOf(stream.start_date)}
                   onChange={(e) => update(index, { start_date: toJulyFirst(e.target.value) })}
                 >
-                  <option value="">— from the base year —</option>
+                  {/* Blank does NOT mean "no start" — it means the stream runs from the module's
+                      own first year, which the label now names. A flow module anchors at
+                      PeriodStart, a valuation module at its base date (fcbuilder-module.js:131),
+                      so the year differs by module type and saying "the base year" was wrong on
+                      half of them.
+
+                      Deliberately still the DEFAULT, against the request to default it to the
+                      period start: a start date is stored as July 1 and `applyStreamWindow`
+                      HALVES its first year. Picking 2027 here would silently turn a 34,717
+                      expense into 17,358 in 2027 — the option is for a stream that genuinely
+                      begins mid-plan, not for restating where the plan starts. */}
+                  <option value="">
+                    {startYear ? `— from ${startYear}, this module's first year —` : "— from the module's first year —"}
+                  </option>
                   {periodYears.map((y) => <option key={y} value={y}>{y}</option>)}
                 </select>
+                <small>
+                  {startYear
+                    ? `Blank runs from ${startYear}. Choosing a year starts it then — and that first year counts by half.`
+                    : "Choosing a year starts the stream then — and that first year counts by half."}
+                </small>
               </label>
               <label className="fc-stream-card__field">
                 <span>End year</span>
@@ -233,6 +256,52 @@ export default function FCModulesStreams({
             </label>
           )}
         </div>
+
+        {/* What this line actually cost, beside the number that plans it. Three years anchored on
+            the module's base year: last COMPLETE actual, this year's budget, this year to date.
+            Shown only when there is something to show — a line with no history renders nothing
+            rather than a row of dashes. */}
+        {stream.fc_line_id != null && (() => {
+          const ref = lineReference?.[Number(stream.fc_line_id)] || {};
+          const shared = sharedByLine?.[Number(stream.fc_line_id)] || 0;
+          const lineName =
+            (linesByDirection[stream.direction === "income" ? "income" : "expense"] || [])
+              .find((l) => Number(l.id) === Number(stream.fc_line_id))?.name || "";
+          const rows = [
+            ["priorActual", `Actual ${baseYear - 1}`, `${ref.priorActualCount ?? 0} txns · complete`],
+            ["thisBudget", `Budget ${baseYear}`, ""],
+            ["thisActual", `Actual ${baseYear}`, `${ref.thisActualCount ?? 0} txns · year to date`],
+          ].filter(([k]) => ref[k] != null);
+          if (lineReferenceLoading) {
+            return <p className="fc-stream-card__reference-empty">Loading actuals…</p>;
+          }
+          if (!rows.length) return null;
+          return (
+            <div className="fc-stream-card__reference">
+              <div className="fc-stream-card__reference-head">
+                {lineName || "This line"}
+                {/* The total is the LINE's, not this module's. Saying so is the whole point:
+                    six modules feed Property Costs, so the figure is not a like-for-like. */}
+                {shared > 1 && (
+                  <span className="fc-stream-card__reference-warn">
+                    {" "}— whole line, {shared} modules share it
+                  </span>
+                )}
+              </div>
+              {rows.map(([key, label, note]) => (
+                <div key={key} className="fc-stream-card__reference-row">
+                  <span>{label}</span>
+                  <strong>
+                    {ref[key].toLocaleString(undefined, {
+                      minimumFractionDigits: 0, maximumFractionDigits: 0,
+                    })}
+                  </strong>
+                  <small>{note}</small>
+                </div>
+              ))}
+            </div>
+          );
+        })()}
 
         {flags.length > 0 && (
           <div className="fc-stream-card__changes">

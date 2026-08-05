@@ -160,3 +160,59 @@
     grid-template-columns: 1fr 1fr;
   }
 }
+
+/* The line's actual/budget history, sitting under the fields it exists to check.
+   Tokens only — this file's own header note explains why (dark mode, not the ratchet). */
+
+.fc-stream-card__reference {
+  margin-top: 0.6rem;
+  padding-top: 0.6rem;
+  border-top: 1px dashed var(--border);
+  font-size: 0.8125rem;
+}
+
+.fc-stream-card__reference-head {
+  color: var(--muted);
+  font-size: 0.75rem;
+  margin-bottom: 0.35rem;
+}
+
+/* The caveat is the reason this block is safe to show at all: the figures belong to the LINE,
+   and six modules feed Property Costs. It has to read as a qualification, not as decoration. */
+.fc-stream-card__reference-warn {
+  color: var(--warning-strong, #b8860b);
+  font-weight: 500;
+}
+
+.fc-stream-card__reference-row {
+  display: grid;
+  grid-template-columns: 8.5rem 7rem 1fr;
+  align-items: baseline;
+  gap: 0.5rem;
+  padding: 0.1rem 0;
+  color: var(--ink);
+}
+
+/* Figures right-aligned so 76,656 and 8,120 compare at a glance rather than by reading. */
+.fc-stream-card__reference-row strong {
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+  font-weight: 600;
+}
+
+.fc-stream-card__reference-row small,
+.fc-stream-card__reference-empty {
+  color: var(--muted);
+  font-size: 0.75rem;
+}
+
+.fc-stream-card__reference-empty {
+  margin: 0.6rem 0 0;
+}
+
+@media (max-width: 640px) {
+  .fc-stream-card__reference-row {
+    grid-template-columns: 1fr auto;
+  }
+  .fc-stream-card__reference-row small { grid-column: 1 / -1; }
+}

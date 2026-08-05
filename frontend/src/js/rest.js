@@ -515,6 +515,15 @@ export default class Rest {
   }
 
   /**
+   * Budgeted total per FC line for a year — the sibling of the above, over `budget_entries`.
+   * The route already existed; nothing on the Modules form had asked it for a line before.
+   */
+  static async fetchFcLineBudgetTotals(year) {
+    const res = await Rest.fetchJson(`/api/v2/fc-lines/budget-totals?budgetYear=${encodeURIComponent(year)}`);
+    return Rest.unwrap(res) ?? [];
+  }
+
+  /**
    * Fetch cash flow report from v2 API (PostgreSQL)
    */
   static async fetchCashFlowReportV2({

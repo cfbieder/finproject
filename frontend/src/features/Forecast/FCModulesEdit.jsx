@@ -147,58 +147,98 @@ export default function FCModulesEditModal({
   const hasMultipleChildren = nameOptions.length > 1;
   const [fcLines, setFcLines] = useState([]);
 
-  // The line comes from the module's own stream — the same row the engine reads.
+  // The reference figures beside each stream's Amount, keyed by FC LINE.
   //
-  // Keyed on `fc_line_id`, NOT on `fc_line_name`. The two module projections disagree: the LIST
+  // Keyed on `fc_line_id`, never on `fc_line_name`. The two module projections disagree: the LIST
   // query joins `fc_lines` and returns both, the DETAIL query the editor loads returns only the
-  // id. Reading the name therefore found `undefined` on every module and the field reported
-  // "no line set" while the line was plainly set — `Children` carries fc_line_id 13.
+  // id — which is how the previous single-figure version came to report "no line set" on every
+  // module that had one. The id is the column both projections carry and the one the engine
+  // branches on; the label is resolved from `fcLines` for display only.
   //
-  // This is the THIRD time these two projections have drifted in three days (`HasValuation`
-  // v3.14.2, the sweep fields v3.15.0), which is why this reads the id — the column both
-  // projections do carry, and the one the engine actually branches on — and resolves the label
-  // from `fcLines` for display only. A projection can now drop the denormalised name without
-  // breaking the comparison, and a renamed line still matches.
-  const primaryLine = useMemo(() => {
-    const streams = Array.isArray(editForm?.Streams) ? editForm.Streams : [];
-    const stream = streams.find((st) => st?.fc_line_id != null);
-    if (!stream) return null;
-    const name =
-      stream.fc_line_name ||
-      (fcLines || []).find((l) => Number(l.id) === Number(stream.fc_line_id))?.name ||
-      "";
-    return { id: Number(stream.fc_line_id), name };
-  }, [editForm, fcLines]);
-  const primaryLineName = primaryLine?.name || "";
+  // Three years, anchored on the module's BASE year (the year its Amount is expressed in):
+  //   base − 1  actual  — the last complete year, the honest like-for-like
+  //   base      budget  — what was planned
+  //   base      actual  — year to date, and labelled as partial so it is not read as a full year
+  //
+  // `sharedBy` is the count of modules whose streams point at the same line. It is displayed
+  // whenever it exceeds one because THE LINE TOTAL IS NOT THIS MODULE'S: `Property Costs` carries
+  // six modules, so 76,656 against this card's 34,717 is not a comparison. That is exactly the
+  // mistake the old `Account` field made, and it is not worth repeating one screen over.
+  // Reuses the file's own `getBaseYear` (module-level, so no TDZ) rather than re-deriving it:
+  // that helper already falls back to the current year when BaseDate is unset, which a bare
+  // getFullYear() does not. Hoisted here because the reference fetch below needs it.
+  const baseYear = getBaseYear(editForm?.BaseDate, new Date().getFullYear());
+
+  // The module's OWN first year, and it differs by kind: a flow module anchors at PeriodStart,
+  // a valuation module at its base date (fcbuilder-module.js:131). The stream card labels its
+  // blank "Start year" option with this, because "the base year" was wrong on every flow module.
+  const streamStartYear = useMemo(
+    () => (capabilities.has("valuation") ? baseYear : (baseYearOptions?.[0] ?? baseYear)),
+    [capabilities, baseYear]
+  );
+
+  const sharedByLine = useMemo(() => {
+    const counts = {};
+    for (const mod of allModules || []) {
+      const seen = new Set();
+      for (const st of (Array.isArray(mod?.Streams) ? mod.Streams : [])) {
+        if (st?.fc_line_id == null) continue;
+        const id = Number(st.fc_line_id);
+        if (seen.has(id)) continue;      // one module counts once per line, not once per stream
+        seen.add(id);
+        counts[id] = (counts[id] ?? 0) + 1;
+      }
+    }
+    return counts;
+  }, [allModules]);
+
+  const [lineReference, setLineReference] = useState({});
+  const [lineReferenceLoading, setLineReferenceLoading] = useState(false);
 
   useEffect(() => {
     let isActive = true;
-    const baseYear = editForm?.BaseDate ? new Date(editForm.BaseDate).getFullYear() : null;
-    if (!isOpen || capabilities.has("valuation") || !primaryLine || !baseYear) {
-      setLineActual({ total: null, count: null, line: "" });
-      setLineActualLoading(false);
+    if (!isOpen || !baseYear) {
+      setLineReference({});
+      setLineReferenceLoading(false);
       return undefined;
     }
-    setLineActualLoading(true);
+    setLineReferenceLoading(true);
     (async () => {
       try {
-        const rows = await Rest.fetchFcLineActualTotals(baseYear);
+        // Settled, not awaited in series: a missing budget year must not cost the actuals.
+        const [priorActual, thisActual, thisBudget] = await Promise.all([
+          Rest.fetchFcLineActualTotals(baseYear - 1).catch(() => []),
+          Rest.fetchFcLineActualTotals(baseYear).catch(() => []),
+          Rest.fetchFcLineBudgetTotals(baseYear).catch(() => []),
+        ]);
         if (!isActive) return;
-        // Matched on the ID for the same reason it is derived from one: the name is a display
-        // string, and matching two of them is how a rename silently returns "no transactions".
-        const hit = (rows || []).find((r) => Number(r.fc_line_id) === primaryLine.id);
-        setLineActual(hit
-          ? { total: Number(hit.actual_total), count: Number(hit.transaction_count), line: primaryLine.name }
-          : { total: null, count: null, line: primaryLine.name });
+        const byLine = {};
+        const put = (rows, key, valueField, countField) => {
+          for (const r of rows || []) {
+            const id = Number(r.fc_line_id);
+            if (!Number.isFinite(id)) continue;
+            const value = Number(r[valueField]);
+            // A zero budget means "none kept", not "budgeted nothing" — 2025 has no budget rows at
+            // all. Showing 0 would read as a deliberate plan of zero, so it is omitted instead.
+            if (!Number.isFinite(value) || value === 0) continue;
+            byLine[id] = byLine[id] || {};
+            byLine[id][key] = Math.abs(value);
+            if (countField) byLine[id][`${key}Count`] = Number(r[countField]) || 0;
+          }
+        };
+        put(priorActual, "priorActual", "actual_total", "transaction_count");
+        put(thisActual, "thisActual", "actual_total", "transaction_count");
+        put(thisBudget, "thisBudget", "budget_total");
+        setLineReference(byLine);
       } catch (error) {
-        console.error("Failed to fetch FC line actuals:", error);
-        if (isActive) setLineActual({ total: null, count: null, line: primaryLine.name });
+        console.error("Failed to fetch FC line reference figures:", error);
+        if (isActive) setLineReference({});
       } finally {
-        if (isActive) setLineActualLoading(false);
+        if (isActive) setLineReferenceLoading(false);
       }
     })();
     return () => { isActive = false; };
-  }, [isOpen, capabilities, primaryLine, editForm?.BaseDate]);
+  }, [isOpen, baseYear]);
 
   const effectiveName = isMatched
     ? hasMultipleChildren
@@ -222,8 +262,6 @@ export default function FCModulesEditModal({
   // The old lookup went to the balance-sheet report by `account_id`; every account feeding an
   // expense line is profit_loss, so it could never return anything, and the account named one of
   // the several that feed the line (`Car Expenses` → `Car - Insurance`, of four).
-  const [lineActual, setLineActual] = useState({ total: null, count: null, line: "" });
-  const [lineActualLoading, setLineActualLoading] = useState(false);
 
   const [accountBalance, setAccountBalance] = useState({
     value: null,
@@ -430,7 +468,6 @@ export default function FCModulesEditModal({
 
   const baseValueNumber = parseNumber(editForm?.BaseValue);
   const marketValueNumber = parseNumber(editForm?.MarketValue);
-  const baseYear = getBaseYear(editForm?.BaseDate, new Date().getFullYear());
   const getYearFromDate = (value) => {
     if (!value) return "";
     const date = new Date(value);
@@ -1138,32 +1175,13 @@ export default function FCModulesEditModal({
                             </label>
                             </>
                           ) : (
-                            <label className="fc-modules-modal__field">
-                              <span>
-                                {primaryLineName
-                                  ? `Actual ${editForm?.BaseDate ? new Date(editForm.BaseDate).getFullYear() : ""} — ${primaryLineName}`
-                                  : "Actual (no line set)"}
-                              </span>
-                              <input
-                                type="text"
-                                className="fc-modules-modal__input"
-                                readOnly
-                                value={
-                                  lineActualLoading
-                                    ? "Loading..."
-                                    : lineActual.total == null
-                                      ? "—"
-                                      : `${Math.abs(lineActual.total).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })} USD`
-                                }
-                              />
-                              <small style={{ color: "var(--muted)", fontSize: "0.7rem" }}>
-                                {lineActual.count != null && lineActual.total != null
-                                  ? `${lineActual.count} transaction(s) across every account on this line`
-                                  : primaryLineName
-                                    ? "No transactions booked to this line in the base year."
-                                    : "Set an expense or income line on the card below to compare."}
-                              </small>
-                            </label>
+                            /* The actual/budget comparison moved to the STREAM CARD (owner
+                               decision): the FC line is a property of the stream, so the figures
+                               belong beside the line that defines them and the Amount they check
+                               — not in a header section a scroll away. A module with two expense
+                               streams on different lines made a single header figure ambiguous
+                               anyway. Nothing renders here now. */
+                            null
                           )}
                         </Fragment>
                       );
@@ -1554,7 +1572,12 @@ export default function FCModulesEditModal({
                   streams={editForm.Streams || []}
                   onChange={(next) => onFieldChange("Streams", next)}
                   fcLines={fcLines}
+                  lineReference={lineReference}
+                  lineReferenceLoading={lineReferenceLoading}
+                  sharedByLine={sharedByLine}
+                  baseYear={baseYear}
                   periodYears={baseYearOptions}
+                  startYear={streamStartYear}
                   currency={editForm.Currency}
                 />
               </div>
