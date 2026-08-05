@@ -258,7 +258,7 @@ Views: `v_balance_sheet`, `v_budget_vs_actual`. Size: ~30 MB, ~36k transactions.
 
 ### Migrations
 
-Registry (one line per migration, 001–049): **[MIGRATIONS.md](migrations.md)**. A runner exists — `server/db/migrate.js` / `npm run migrate` (CR043 Phase 1.1): `schema_migrations` ledger, apply-the-gap in per-file transactions, checksum-drift warnings, auto-baseline on first run against a populated DB; **`--accept-drift=<file>[,<file>]` (v3.9.1)** re-records the checksum for a *named* file only — never a blanket sweep, and a dry run never accepts — for the case where editing an applied migration was unavoidable (041 aborts the chain, so nothing later can repair it). Prove equivalence against the real DB first (re-run the file in a transaction and confirm it changes nothing); rule in `.claude/rules/migrations.md`; `deploy-to-production.sh` Step 2b applies pending to prod before rebuild. `initdb.d` still auto-applies `*.sql` on a fresh empty volume (the two coexist). CI proves the chain applies to an empty database via the psql loop.
+Registry (one line per migration, 001–049): **[MIGRATIONS.md](migrations.md)**. A runner exists — `server/db/migrate.js` / `npm run migrate` (CR043 Phase 1.1): `schema_migrations` ledger, apply-the-gap in per-file transactions, checksum-drift warnings, auto-baseline on first run against a populated DB; **`--accept-drift=<file>[,<file>]` (v3.9.1)** re-records the checksum for a *named* file only — never a blanket sweep, and a dry run never accepts — for the case where editing an applied migration was unavoidable (041 aborts the chain, so nothing later can repair it). Prove equivalence against the real DB first (re-run the file in a transaction and confirm it changes nothing); rule in `.claude/rules/migrations.md`; `deploy-to-production.sh` Step 2b applies pending to prod before rebuild, and **Step 2b(i) refuses the deploy when a pending file is absent from BOTH ledgers** — prod would otherwise be the first database it ever met (Known Issue #15, fixed 2026-08-05). A stopped dev stack warns and continues; `--allow-unverified-migrations` overrides deliberately. It reads the ledgers, so a file applied to dev with `psql -f` is invisible to it — apply through the runner. `initdb.d` still auto-applies `*.sql` on a fresh empty volume (the two coexist). CI proves the chain applies to an empty database via the psql loop.
 
 ---
 
@@ -283,7 +283,7 @@ ssh cfbieder@192.168.1.87 && cd ~/psproject
 
 - Frontend: instant HMR. Backend: nodemon restart. DB shell: `docker exec -it fin-postgres-dev psql -U fin -d fin`.
 - Frontend env per `frontend/.env-cmdrc` (local, untracked — template `.env-cmdrc.example`): `npm run tail` (Tailscale API, recommended) / `npm run dev` / `npm run docker`.
-- Deploy: `./Scripts/deploy-to-production.sh` (backs up DB, rebuilds, health-checks). Apply any new migration to prod **first**.
+- Deploy: `./Scripts/deploy-to-production.sh` (backs up DB, rebuilds, health-checks). A new migration goes to **dev first, through `migrate.js`** (the deploy refuses one that has never run there, and a `psql -f` apply leaves no ledger row to see); the deploy then applies it to prod at Step 2b, **before** the rebuild — schema ahead of the code that reads it.
 - Dual-track v3/v4: see [DEV_WORKFLOW.md](../guides/dev-workflow.md) and CR027 §Step 0.
 - Month-end close (promote → neutralize → wait for the feed → MTM → re-anchor cash):
   [month-end-reconcile.md](../guides/month-end-reconcile.md). Bookkeeping first, market
@@ -297,7 +297,7 @@ ssh cfbieder@192.168.1.87 && cd ~/psproject
 | Script | Purpose |
 |--------|---------|
 | `dev-start.sh` | tmux dev environment |
-| `deploy-to-production.sh` | Backup → rebuild → health-check deploy (`[--with-git] [--no-backup]`) |
+| `deploy-to-production.sh` | Backup → rebuild → health-check deploy (`[--with-git] [--no-backup] [--allow-dirty] [--allow-unverified-migrations]`); refuses a dirty build tree, and a migration that has never run on dev |
 | `sync-db-prod-to-dev.sh` | Copy prod DB to dev |
 | `bump-version.sh` | patch/minor/major/X.Y.Z (edits `.env` VITE_APP_VERSION in place) |
 | `rebuild-frontend.sh` | Quick frontend rebuild |
