@@ -1074,3 +1074,60 @@ describe("CR046 W11 — base-year window and the base-year income tax", () => {
     expect(f[2026]).toBeLessThan(0); // not vacuous — the base year really was taxed
   });
 });
+
+/**
+ * CR072 §8 — the budget year grows too.
+ *
+ * A valuation module's axis starts at its `base_date`, which on 90 of prod's 110 modules is two
+ * years before PeriodStart (2025-12-31 against a 2027 start). Growth used to be gated on
+ * `idx = year − periodStart >= 0`, so every year in that gap got ZERO growth: the asset sat flat
+ * through the budget year and then grew once. There is no budget for a balance-sheet item to fill
+ * that gap with, so the only honest value for it is a projected one.
+ *
+ * Nothing in the 811-test suite covered this, which is why it survived. These pin it.
+ */
+describe("CR072 §8 — years between base_date and PeriodStart", () => {
+  const GAP = { PeriodStart: 2028, PeriodEnd: 2032, TaxRate: 25 };
+
+  test("the budget year grows instead of sitting flat", async () => {
+    // base_date 2026-12-31, PeriodStart 2028 — 2027 is the gap year.
+    const { db } = await runModule(
+      { BaseDate: "2026-12-31", MarketValue: 1000, BaseValue: 1000,
+        MarketValueUSD: 1000, BaseValueUSD: 1000, Growth: 1, Matched: true },
+      GAP
+    );
+    const rows = getEntriesForAccount(db, "Test Account");
+    const byYear = Object.fromEntries(rows.map((r) => [r.forecast_year, Number(r.amount)]));
+
+    // Entries begin at PeriodStart − 1, so 2027 is both the first emitted year and the GAP year.
+    // It used to sit at exactly the base value; it now carries one period of growth.
+    // (That the base year itself does not grow is pinned by the next test, where base = PS − 1
+    // and is therefore emitted.)
+    expect(byYear[2027]).toBeGreaterThan(1000);
+    // ...and the horizon compounds on from the grown figure, not from the base value.
+    expect(byYear[2028]).toBeGreaterThan(byYear[2027]);
+  });
+
+  test("a module based at PeriodStart − 1 is unaffected — there is no gap to fill", async () => {
+    const { db } = await runModule(
+      { BaseDate: "2027-12-31", MarketValue: 1000, BaseValue: 1000,
+        MarketValueUSD: 1000, BaseValueUSD: 1000, Growth: 1, Matched: true },
+      GAP
+    );
+    const rows = getEntriesForAccount(db, "Test Account");
+    const byYear = Object.fromEntries(rows.map((r) => [r.forecast_year, Number(r.amount)]));
+    expect(byYear[2027]).toBeCloseTo(1000, 2);   // base year, observed
+  });
+
+  test("zero growth stays zero — the fix must not invent a rate", async () => {
+    const { db } = await runModule(
+      { BaseDate: "2026-12-31", MarketValue: 1000, BaseValue: 1000,
+        MarketValueUSD: 1000, BaseValueUSD: 1000, Growth: 0, Matched: true },
+      GAP
+    );
+    const rows = getEntriesForAccount(db, "Test Account");
+    const byYear = Object.fromEntries(rows.map((r) => [r.forecast_year, Number(r.amount)]));
+    expect(byYear[2027]).toBeCloseTo(1000, 2);
+    expect(byYear[2028]).toBeCloseTo(1000, 2);
+  });
+});

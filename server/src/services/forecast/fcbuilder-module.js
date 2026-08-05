@@ -227,11 +227,34 @@ function computeModule(module, scenario, df_assumptions, df_categories, categori
     }
   }
 
+  // CR072 §8 — THE BUDGET YEAR GROWS TOO.
+  //
+  // This read `idx >= 0 ? … : 0`, so every year between a module's base_date and PeriodStart got
+  // ZERO growth. On prod that is a whole dead year: 90 of 110 valuation modules are based at
+  // 2025-12-31 against a PeriodStart of 2027, so `Barkeria` sat at 3,918,992 in both 2025 and 2026
+  // and 2027 came out at exactly 3,918,992 × 1.02 — the asset grew ONCE across a two-year gap.
+  //
+  // There is no budget for a balance-sheet item to fill that gap with, which is the owner's point:
+  // the only honest way to value 2026 is to project it, the same way the forecast years are
+  // projected. And the strongest evidence this was an off-by-one rather than a policy is that the
+  // inflation assumption is already declared for `Year: 2026` (2.5%) while the engine first
+  // applied it in 2027.
+  //
+  // The BASE year itself still never grows — it is the observed value, and index 0 is the anchor
+  // the whole series compounds from. Years before PeriodStart use `inflationSeries[0]`: the series
+  // begins at PeriodStart and carries no historical rate, so the first forecast rate is the
+  // nearest honest one rather than an invented one.
+  //
+  // ⚠️ THIS MOVES FORECAST NUMBERS, deliberately — every matched valuation module gains one
+  // compounding year, carried through all 36. Gated by a measured prod-copy delta, not by the
+  // usual "must not move" rule (CR072 §9).
   const growthPct = hasValuation ? (module.Growth ?? 0) : 0;
   const growthValues = new Array(yearsCount).fill(0);
   for (let i = 0, year = startyear; year <= endyear; i++, year++) {
+    if (i === 0) { growthValues[i] = 0; continue; }   // the base year is observed, not projected
     const idx = year - periodStart;
-    growthValues[i] = idx >= 0 && idx < inflationLen ? growthPct * inflationSeries[idx] : 0;
+    const rateIdx = idx < 0 ? 0 : idx;                // pre-horizon years borrow the first rate
+    growthValues[i] = rateIdx < inflationLen ? growthPct * inflationSeries[rateIdx] : 0;
   }
 
   const unrealizedGainValues = new Array(yearsCount).fill(0);
