@@ -9,6 +9,7 @@
 # 4. Verifies deployment health
 #
 # Usage: ./deploy-to-production.sh [--with-git] [--no-backup] [--allow-dirty]
+#                                  [--allow-unverified-migrations]
 #
 set -euo pipefail
 
@@ -22,6 +23,7 @@ export COMPOSE_PROJECT_NAME="psproject"
 SKIP_GIT=true  # Skip git by default - handle manually
 NO_BACKUP=false
 ALLOW_DIRTY=false
+ALLOW_UNVERIFIED_MIGRATIONS=false
 BACKUP_DIR="$PROJECT_DIR/Backups"
 mkdir -p "$BACKUP_DIR"
 BACKUP_FILE="$BACKUP_DIR/fin_backup_$(date +%Y%m%d_%H%M%S).dump"
@@ -41,13 +43,19 @@ for arg in "$@"; do
             ALLOW_DIRTY=true
             shift
             ;;
+        --allow-unverified-migrations)
+            ALLOW_UNVERIFIED_MIGRATIONS=true
+            shift
+            ;;
         --help|-h)
-            echo "Usage: $0 [--with-git] [--no-backup] [--allow-dirty]"
+            echo "Usage: $0 [--with-git] [--no-backup] [--allow-dirty] [--allow-unverified-migrations]"
             echo ""
             echo "Options:"
             echo "  --with-git     Enable git commit and push (skipped by default)"
             echo "  --no-backup    Skip database backup (not recommended)"
             echo "  --allow-dirty  Deploy build-affecting changes that are not committed"
+            echo "  --allow-unverified-migrations"
+            echo "                 Apply a migration to prod that has never run on dev"
             echo "  --help         Show this help message"
             echo ""
             echo "Default behavior: Skips git, backs up database, deploys to production"
@@ -177,6 +185,75 @@ fi
 # host can't resolve.) POSTGRES_PASSWORD comes from the untracked .env.
 echo "Step 2b: Applying pending database migrations..."
 echo "----------------------------------------"
+
+# Step 2b(i): refuse to apply to prod a migration that has never run on dev.
+#
+# CLAUDE.md's rule is "dev first, then prod before deploying the code". But THIS SCRIPT
+# applies the migrations, so any file riding a release reaches prod first BY CONSTRUCTION
+# unless someone remembered to run it against dev by hand. Discipline has now failed at
+# that three times in one CR: 057 applied with `psql -f` (which does not write the ledger),
+# 058/059 applied to dev by hand (leaving dev's ledger stale, so the runner later re-ran
+# 058 and was refused by a unique index), and 060 reaching prod first today. That is
+# Known Issue #15, and it is structural rather than an oversight.
+#
+# What dev-first actually buys is not ceremony: CR069 P2's `income_pct` override moved 504
+# rows on dev and NOTHING on the prod copy, because prod carried no such override. Dev is
+# the only place some data shapes exist. A migration that has not met dev has not met them.
+#
+# Deliberately NOT a hard failure when dev is simply down — a stopped dev stack must not
+# block a production deploy, and a guard that fires for an unrelated reason is one people
+# learn to bypass. It fails hard only when dev is REACHABLE and demonstrably missing the
+# file, which is the case that carries the risk.
+if [ -f server/db/migrate.js ] && [ -d server/db/migrations ]; then
+    if docker ps --format '{{.Names}}' | grep -q '^fin-postgres-dev$'; then
+        # Pending on prod = files on disk absent from prod's ledger. If prod has no ledger
+        # at all the runner baselines (records, runs nothing), so there is nothing to guard.
+        if docker exec fin-postgres psql -U fin -d fin -tAc \
+             "SELECT to_regclass('schema_migrations')" 2>/dev/null | grep -q .; then
+            PROD_APPLIED="$(docker exec fin-postgres psql -U fin -d fin -tAc \
+                "SELECT filename FROM schema_migrations" 2>/dev/null || true)"
+            DEV_APPLIED="$(docker exec fin-postgres-dev psql -U fin -d fin -tAc \
+                "SELECT filename FROM schema_migrations" 2>/dev/null || true)"
+            UNVERIFIED=""
+            for f in server/db/migrations/*.sql; do
+                b="$(basename "$f")"
+                grep -qxF "$b" <<<"$PROD_APPLIED" && continue   # already on prod
+                grep -qxF "$b" <<<"$DEV_APPLIED"  && continue   # dev has run it
+                UNVERIFIED="${UNVERIFIED}${b}"$'\n'
+            done
+            if [ -n "$UNVERIFIED" ]; then
+                if [ "$ALLOW_UNVERIFIED_MIGRATIONS" = true ]; then
+                    echo "⚠ Applying migration(s) to prod that have NOT run on dev (--allow-unverified-migrations):"
+                    printf '%s' "$UNVERIFIED" | sed 's/^/    /'
+                    echo ""
+                else
+                    echo "ERROR: pending migration(s) have never been applied to dev — refusing to deploy."
+                    echo "----------------------------------------"
+                    printf '%s' "$UNVERIFIED" | sed 's/^/    /'
+                    echo ""
+                    echo "Prod would be the FIRST database these ever ran against. Dev holds data"
+                    echo "shapes prod does not (CR069 P2: an override that moved 504 rows on dev and"
+                    echo "zero on a prod copy), so a file that has not met dev has not been tested."
+                    echo ""
+                    echo "Apply to dev first, through the runner so the ledger records it:"
+                    echo "    DATABASE_URL=\"postgresql://fin:\$POSTGRES_PASSWORD@127.0.0.1:5434/fin\" \\"
+                    echo "        node server/db/migrate.js"
+                    echo ""
+                    echo "Then re-run this deploy. Use --allow-unverified-migrations only when going"
+                    echo "to prod first is deliberate (and say why in the migration's registry row)."
+                    exit 1
+                fi
+            else
+                echo "✓ Every pending migration has already run on dev"
+            fi
+        fi
+    else
+        echo "⚠ dev Postgres (fin-postgres-dev) is not running — cannot confirm pending"
+        echo "  migrations have been tested on dev. Continuing; verify by hand if this deploy"
+        echo "  carries one."
+    fi
+fi
+
 if [ -f server/db/migrate.js ]; then
     if [ -f .env ]; then set -a; . ./.env; set +a; fi
     if [ -z "${POSTGRES_PASSWORD:-}" ]; then
