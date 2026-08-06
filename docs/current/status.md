@@ -40,10 +40,17 @@ prod and each matching its prediction:
 3. **[Known Issue #2](project-roadmap.md#3-known-issues) materialised in the same regenerate** —
    `Property Costs −1,203,432.12` in `2026 SRQ House Purchase`, the figure predicted to the cent.
 
-🧪 **On dev, awaiting QA — [CR072 P7](../cr/cr-072-valuation-module-inputs.md#14-p7--the-drill-down-as-a-modal-2026-08-06-after-v3170):
-the drill-down is now a real modal**, reusing the Actuals page's own parts. The isolated test
-passed while it crashed in a browser, because its mock returned zero rows — **a UI test that
-renders no data proves nothing about rendering data.**
+✅ **QA'd on dev, NOT yet released —
+[CR072 P7](../cr/cr-072-valuation-module-inputs.md#14-p7--the-drill-down-as-a-modal-2026-08-06-after-v3170):
+the drill-down is a real modal**, filterable by category through the shared `HierarchyFilter`
+(type-to-narrow, right-click solo, All pill), opening on the line's own accounts. It reuses the
+Actuals page's own parts rather than growing a second transaction list. The isolated test passed
+while it crashed in a browser, because its mock returned zero rows — **a UI test that renders no
+data proves nothing about rendering data.** Prod stays on v3.17.0 until this is released.
+
+⚠️ **Still open on the balance-sheet form:** the two `[→ Market Value]` / `[→ Cost Basis]` **copy
+buttons were never built** ([CR072 §12](../cr/cr-072-valuation-module-inputs.md#12-open)) — and both
+the CR and a code comment asserted they existed. Found 2026-08-06 by reading the render tree.
 
 **[CR064](../cr/cr-064-forecast-annual-close-and-assumptions.md) remains the live engineering
 thread** — P2/P4/P5/P10 are **unblocked** now CR069 P2 has shipped, and the annual close is not

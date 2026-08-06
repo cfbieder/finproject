@@ -80,9 +80,12 @@ anywhere in Fin**, which was checked rather than assumed:
 - `security_lots` — the lot table CR019 landed the schema for — is **empty (0 rows)**.
 - `quicken_securities_staging` holds **7,304 rows and 0 non-null `quicken_cost_basis`**.
 
-So Reference shows the one observed number, in LC and USD, and both copy buttons target it — which
-is what the two buttons already do today. The form stops implying there are two figures when there
-is one. **Owner decision 2026-08-05.**
+So Reference shows the one observed number, in LC and USD, and both copy buttons would target it.
+The form stops implying there are two figures when there is one. **Owner decision 2026-08-05.**
+
+> **Correction (2026-08-06):** this section previously read *"which is what the two buttons already
+> do today"*. They do not — **the copy buttons were never built** (§12). The claim was wrong when
+> written and a matching comment in `fcModulesEditSections.js` repeated it.
 
 A derived "cost basis = sum of historical purchases" was rejected: it is net cash in, not a tax
 basis, and partial disposals, returns of capital and transfers all break it. It would look
@@ -276,7 +279,16 @@ nothing.** Saying nothing beats guessing a year — CR071's own thesis, applied 
 
 ## 12. Open
 
-
+- **⚠️ The two copy buttons are NOT built** — `[→ Market Value]` and `[→ Cost Basis]` on the
+  Reference block, which §2 specifies and which the owner's point 4 asked for by name (*"can be
+  assigned as such using the buttons in image 2"*). Nothing in `FCModulesEdit.jsx` writes
+  `MarketValue` or `BaseValue` from a control; neither section renders a button. Found 2026-08-06
+  while auditing what remained open — **§3 and a comment in `fcModulesEditSections.js` both
+  asserted they already existed**, which is the same failure class as v3.16.0's dead reference:
+  a claim about the UI that nobody drove a browser to check. Both corrected. The work itself is
+  small — set `BaseValue`/`MarketValue` from `accountBalance.value` and let the existing USD
+  derivation follow — but it is a WRITE into a figure the engine reads, so it needs the same
+  before/after gate as any other.
 - **Point 4's parenthetical** — *"(only applies to assets and liabilities which have no budget)"* is
   read as describing *why* balance-sheet modules need a manually assigned value (they have no budget
   to derive one from), not as a filter selecting a subset. If a narrower set was meant, §2 changes.

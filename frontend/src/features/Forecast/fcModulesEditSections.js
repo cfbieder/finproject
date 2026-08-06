@@ -7,7 +7,10 @@
 //
 //   Reference value      observed at the base date — read-only, and the base date lives here
 //                        because it is the date the reference is observed AT
-//   Assigned value       what the forecast uses — the two copy buttons write into it
+//   Assigned value       what the forecast uses — typed in LC, USD derived read-only.
+//                        NOTE: CR072 §2 also specifies two [→ Market Value] / [→ Cost Basis]
+//                        buttons copying the reference into these, and they are NOT built —
+//                        see CR072 §12. This comment used to claim they were.
 //   Forecast assumptions growth and the gains rate — the only part an UNMATCHED module needs
 export const FIELD_SECTIONS = [
   ["General", [
