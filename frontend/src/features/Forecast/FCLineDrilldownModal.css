@@ -103,26 +103,17 @@
   text-decoration: underline;
 }
 
+/* The category filter and the description search, stacked: HierarchyFilter is itself a
+   pills-then-search-then-checklist block, so it owns a full row rather than sharing one. */
 .fc-drill__controls {
   display: flex;
-  align-items: center;
-  gap: 1rem;
+  flex-direction: column;
+  gap: 0.6rem;
   padding: 0.75rem 1.5rem;
   border-bottom: 1px solid var(--border);
-  flex-wrap: wrap;
 }
 
-.fc-drill__controls .form-input { flex: 1; min-width: 16rem; }
-
-.fc-drill__toggle {
-  display: flex;
-  align-items: center;
-  gap: 0.4rem;
-  font-size: 0.8rem;
-  color: var(--muted);
-  white-space: nowrap;
-  cursor: pointer;
-}
+.fc-drill__controls .form-input { width: 100%; }
 
 .fc-drill__table {
   flex: 1;

@@ -5,6 +5,8 @@ import TransactionTable from "../Transaction/TransactionTable.jsx";
 import { useTransactions } from "../Transaction/hooks/useTransactions.js";
 import { useTransactionSelection } from "../Transaction/hooks/useTransactionSelection.js";
 import { ACTUAL_CONFIG, BUDGET_CONFIG } from "../Transaction/transactionConfig.js";
+import HierarchyFilter from "../../components/HierarchyFilter/HierarchyFilter.jsx";
+import { useCoa } from "../../hooks/useCoa.js";
 import "./FCLineDrilldownModal.css";
 
 /**
@@ -24,6 +26,9 @@ import "./FCLineDrilldownModal.css";
  * not every transaction in the year. Widening from there is one click, and the chip count says
  * how many leaves the line has — `Property Costs` is 35.
  */
+/** The synthetic group holding the line's own leaf accounts, beside the real COA groups. */
+const LINE_GROUP = "__fc_line__";
+
 export default function FCLineDrilldownModal({
   isOpen,
   onClose,
@@ -35,7 +40,9 @@ export default function FCLineDrilldownModal({
   const [leafNames, setLeafNames] = useState([]);
   const [leavesLoading, setLeavesLoading] = useState(false);
   const [search, setSearch] = useState("");
-  const [showAll, setShowAll] = useState(false);
+  // null means "not yet narrowed by hand" — the drill is still showing the line's own accounts.
+  // Distinct from [], which the All pill emits and which means no category restriction at all.
+  const [pickedCategories, setPickedCategories] = useState(null);
 
   // The line's leaf accounts, taken from the breakdown route — the same recursive CTE the total
   // itself uses, so the modal cannot disagree with the figure that opened it about which accounts
@@ -45,7 +52,7 @@ export default function FCLineDrilldownModal({
     if (!isOpen || !fcLineId || !year) return undefined;
     setLeavesLoading(true);
     setSearch("");
-    setShowAll(false);
+    setPickedCategories(null);
     (async () => {
       try {
         const rows = kind === "budget"
@@ -61,6 +68,20 @@ export default function FCLineDrilldownModal({
     })();
     return () => { active = false; };
   }, [isOpen, fcLineId, year, kind]);
+
+  // The line's own accounts as a group, sitting beside the ordinary COA groups. Selecting the
+  // line group re-checks all of its leaves, so the way back to the opening view is one click.
+  const { plTree } = useCoa();
+  const groups = useMemo(() => {
+    const lineGroup = {
+      key: LINE_GROUP,
+      label: lineName || "This line",
+      node: { name: lineName || "This line", children: leafNames.map((name) => ({ name })) },
+    };
+    return [lineGroup, ...(plTree || []).map((node) => ({ key: node.name, label: node.name, node }))];
+  }, [plTree, leafNames, lineName]);
+
+  const selectedCategories = pickedCategories ?? leafNames;
 
   // The budget row must read BUDGET entries, not transactions — the two totals come from
   // different tables, and pointing both drills at `/transactions` would have shown actuals
@@ -80,11 +101,11 @@ export default function FCLineDrilldownModal({
     toYear: String(year),
     fromMonth: "01",
     toMonth: "12",
-    categoryEnabled: !showAll && leafNames.length > 0,
-    category: showAll ? [] : leafNames,
+    categoryEnabled: selectedCategories.length > 0,
+    category: selectedCategories,
     descriptionEnabled: canSearch && search.trim().length > 0,
     description: canSearch ? search.trim() : "",
-  }), [config, year, leafNames, search, showAll, canSearch]);
+  }), [config, year, selectedCategories, search, canSearch]);
 
   const idle = useMemo(
     () => ({ ...config.defaultFilters, yearEnabled: false }),
@@ -134,9 +155,13 @@ export default function FCLineDrilldownModal({
             <h3 className="fc-drill__title">{lineName || "Line"} — {year}</h3>
             <p className="fc-drill__sub">
               {kind === "budget" ? "Budget entries" : "Actual transactions"}
+              {/* Says what is actually being counted, which stops being "this line" the moment
+                  the reader narrows or widens the filter below. */}
               {leavesLoading ? " · loading accounts…"
-                : showAll ? " · every category"
-                : ` · ${leafNames.length} account${leafNames.length === 1 ? "" : "s"} on this line`}
+                : selectedCategories.length === 0 ? " · every category"
+                : pickedCategories == null
+                  ? ` · ${leafNames.length} account${leafNames.length === 1 ? "" : "s"} on this line`
+                  : ` · ${selectedCategories.length} categor${selectedCategories.length === 1 ? "y" : "ies"} selected`}
             </p>
           </div>
           <button type="button" className="fc-drill__close" onClick={onClose} aria-label="Close">
@@ -171,27 +196,29 @@ export default function FCLineDrilldownModal({
         )}
 
         <div className="fc-drill__controls">
+          {/* The same category filter the Actuals page uses, opened on the line's own accounts:
+              type to narrow, tick to include, right-click to select only one, and the All pill to
+              drop the restriction entirely. A second, bespoke picker here would be one more thing
+              to disagree with that page about what a category covers. */}
+          <HierarchyFilter
+            label="Categories"
+            groups={groups}
+            initialGroupKey={LINE_GROUP}
+            onSelectionChange={setPickedCategories}
+          />
           {/* Offered only where the config reads it — BUDGET_CONFIG has no description filter,
-              and a search box that silently does nothing is worse than no search box. */}
+              and a search box that silently does nothing is worse than no search box. Named for
+              what the server actually matches: `description1 ILIKE … OR description2 ILIKE …`,
+              and nothing else. */}
           {canSearch && (
             <input
               type="search"
               className="form-input"
-              placeholder="Search descriptions, accounts, categories…"
+              placeholder="Search descriptions…"
               value={search}
               onChange={(e) => setSearch(e.target.value)}
             />
           )}
-          {/* The escape hatch out of the pre-filled drill. Named for what it does rather than
-              labelled "filters", because there is exactly one thing to widen here. */}
-          <label className="fc-drill__toggle">
-            <input
-              type="checkbox"
-              checked={showAll}
-              onChange={(e) => setShowAll(e.target.checked)}
-            />
-            Show every category, not just this line
-          </label>
         </div>
 
         <div className="fc-drill__table">

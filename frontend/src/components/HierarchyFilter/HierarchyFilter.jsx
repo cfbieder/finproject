@@ -30,7 +30,10 @@ const collectLeaves = (nodes, out = []) => {
  *   singleSelect — radio-style single pick (default false)
  *   selectedLeaf — controlled single selection (only used when singleSelect)
  *   getItemSuffix(name) — optional fn returning a suffix string per item (e.g. currency)
- *   activeGroupKey / onActiveGroupChange — controlled group state (optional)
+ *   onGroupChange(key)  — notified when the active group changes
+ *   initialGroupKey — open on this group instead of "All". For a filter that arrives
+ *                     ALREADY narrowed (the FC-line drill-down opens on the line's own
+ *                     accounts), starting on "All" would contradict the rows on screen.
  */
 export default function HierarchyFilter({
   groups,
@@ -41,6 +44,7 @@ export default function HierarchyFilter({
   singleSelect = false,
   selectedLeaf = null,
   getItemSuffix,
+  initialGroupKey = null,
 }) {
   const findGroupOfLeaf = (leaf) => {
     if (!leaf) return null;
@@ -59,7 +63,7 @@ export default function HierarchyFilter({
     if (singleSelect) {
       return findGroupOfLeaf(selectedLeaf) ?? groups[0]?.key ?? "__all__";
     }
-    return "__all__";
+    return initialGroupKey ?? "__all__";
   });
   // Per-group deselected items (items explicitly unchecked within the group)
   const [deselected, setDeselected] = useState({});

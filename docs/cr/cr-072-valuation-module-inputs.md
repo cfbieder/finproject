@@ -348,6 +348,32 @@ proves nothing about rendering data.**
 - **A silent 500-row cap.** The per-currency totals are summed over LOADED rows, so past the batch
   size they were a partial sum presented as the whole. The cap is now stated, with "Load more".
 
+### The category filter (owner-requested, same pass)
+
+The first cut offered one search box and a *"show every category"* checkbox — the owner's verdict
+was that it *"really should allow us to select one or more categories to be useful"*, in the idiom
+the rest of the app already uses. So the drill now mounts the shared **`HierarchyFilter`**, the same
+component driving the Actuals page's category and account filters: pills per group, type-to-narrow,
+tick to include, **right-click to select only one**, and the built-in **All** pill to drop the
+restriction (which is what the checkbox used to do).
+
+The line's own accounts are a synthetic group beside the real COA ones, and the filter **opens on
+it**, so the control agrees with the figure that opened the modal instead of starting at
+"everything". Getting back is one click on that pill. This needed one additive prop —
+`initialGroupKey` — because `HierarchyFilter` always started on "All"; the four existing callers are
+untouched by the default.
+
+Narrowing re-queries the **server**. Filtering the loaded page would be the CR068 P1 defect, and
+here it would additionally leave the per-currency totals covering rows no longer on screen.
+
+Two things the owner's question exposed on the way:
+
+- **The search placeholder was lying.** It read *"Search descriptions, accounts, categories…"*; the
+  server matches `description1 ILIKE … OR description2 ILIKE …` and nothing else. Now
+  *"Search descriptions…"*.
+- **The subtitle claimed "N accounts on this line" whichever categories were selected.** It now
+  reports what is actually being counted.
+
 ### Verified in a real browser on dev, not only in jsdom
 
 Every figure reconciles card → modal, on `House Morgage` / `Financial Expenses`:
@@ -360,4 +386,11 @@ Every figure reconciles card → modal, on `House Morgage` / `Financial Expenses
 
 with PLN/USD/EUR reported beside the base, never merged into it. The ✕ takes the click (the
 nested-dialog `pointer-events` trap that `e2e/nested-modal.spec.js` pins) and the editor survives
-underneath. Gates: 814 backend · 444 frontend · 8/8 e2e · lint 0 · six ratchets · clean build.
+underneath.
+
+The filter driven the same way: opens on `Bank Fees` + `Interest Expense` both ticked (93 rows,
+the card's figure) → typing *"Interest"* narrows the checklist to one → unticking `Bank Fees`
+re-queries to 4 rows → right-click solos → **All** widens to every category → the line pill
+restores the opening 93.
+
+Gates: 814 backend · 447 frontend · 8/8 e2e · lint 0 · six ratchets · clean build.

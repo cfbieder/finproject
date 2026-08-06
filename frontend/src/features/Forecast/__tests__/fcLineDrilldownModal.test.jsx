@@ -1,5 +1,6 @@
 import { describe, test, expect, vi, beforeEach, afterEach } from "vitest";
-import { render, screen, cleanup, waitFor } from "@testing-library/react";
+import { render, screen, cleanup, waitFor, fireEvent } from "@testing-library/react";
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import FCLineDrilldownModal from "../FCLineDrilldownModal.jsx";
 
 /**
@@ -52,6 +53,20 @@ vi.mock("../../../js/rest.js", () => ({
     ]),
     fetchJson: (...args) => fetchJson(...args),
     fetchCategoriesV2: vi.fn().mockResolvedValue([]),
+    // The category filter is the shared HierarchyFilter over the COA tree, so the modal now
+    // pulls `useCoa`. Two leaves under Expense, one of which is also on the line — enough for
+    // the line group and a real group to coexist.
+    fetchAccountTraitsV2: vi.fn().mockResolvedValue({}),
+    fetchAccountTreeV2: vi.fn().mockImplementation(({ section }) =>
+      Promise.resolve(section === "profit_loss"
+        ? [{ name: "Profit & Loss Accounts", children: [
+            { name: "Expense", children: [
+              { name: "House Maintenance - PL" },
+              { name: "Groceries" },
+            ] },
+          ] }]
+        : [{ name: "Balance Sheet Accounts", children: [] }])
+    ),
     rows: () => [],
   },
 }));
@@ -66,6 +81,7 @@ beforeEach(() => {
 
 const open = (props = {}) =>
   render(
+    <QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}>
     <FCLineDrilldownModal
       isOpen
       onClose={() => {}}
@@ -75,6 +91,7 @@ const open = (props = {}) =>
       kind="actual"
       {...props}
     />
+    </QueryClientProvider>
   );
 
 describe("CR072 QA — the FC line drill-down", () => {
@@ -90,11 +107,11 @@ describe("CR072 QA — the FC line drill-down", () => {
   test("the local currency is reported beside the base, never merged into it", async () => {
     fetchJson.mockResolvedValue({ data: [TXN] });
     open();
-    const row = await screen.findByText("Roof repair");
+    await screen.findByText("Roof repair");
     // Scoped to the totals strip: "PLN" also appears in the row's own Currency cell, and the
     // claim here is about the SUMMARY — a line routinely spans several currencies, so only the
     // base column may be summed. One tile per currency plus the base, not a single "total".
-    const totals = row.closest(".fc-drill").querySelector(".fc-drill__totals");
+    const totals = screen.getByText("USD (base)").closest(".fc-drill__totals");
     expect(totals.textContent).toContain("PLN");
     expect(totals.textContent).toContain("USD (base)");
     expect(totals.textContent).toContain("1,201");   // the PLN tile, summed in PLN
@@ -114,6 +131,67 @@ describe("CR072 QA — the FC line drill-down", () => {
       expect(url).toContain("fromDate=2025-01-01");
       expect(url).toContain("toDate=2026-01-01");
     });
+  });
+
+  test("the category filter opens on the line's own accounts, and unticking one narrows the QUERY", async () => {
+    fetchJson.mockResolvedValue({ data: [TXN] });
+    open();
+    await screen.findByText("Roof repair");
+
+    // The line's leaves are the checklist, all ticked — the filter agrees with the figure that
+    // opened the modal rather than starting at "everything".
+    await waitFor(() => {
+      expect(document.querySelectorAll(".hf__checkbox:checked").length).toBe(2);
+    });
+
+    const item = [...document.querySelectorAll(".hf__item")]
+      .find((el) => el.textContent.includes("House Insurance"));
+    fireEvent.click(item.querySelector("input"));
+
+    // Narrowing must reach the SERVER, not just hide loaded rows — filtering the loaded page is
+    // the CR068 P1 defect, and here it would also leave the totals covering rows no longer shown.
+    await waitFor(() => {
+      const url = fetchJson.mock.calls.at(-1)[0];
+      expect(url).toContain("category=House+Maintenance+-+PL");
+      expect(url).not.toContain("House+Insurance");
+    });
+  });
+
+  test("right-click selects only that category", async () => {
+    fetchJson.mockResolvedValue({ data: [TXN] });
+    open();
+    await screen.findByText("Roof repair");
+    await waitFor(() => {
+      expect(document.querySelectorAll(".hf__checkbox:checked").length).toBe(2);
+    });
+
+    const item = [...document.querySelectorAll(".hf__item")]
+      .find((el) => el.textContent.includes("House Insurance"));
+    fireEvent.contextMenu(item);
+
+    await waitFor(() => {
+      expect(fetchJson.mock.calls.at(-1)[0]).toContain("category=House+Insurance");
+    });
+    const url = fetchJson.mock.calls.at(-1)[0];
+    expect(url).not.toContain("House+Maintenance");
+    expect(document.querySelectorAll(".hf__checkbox:checked").length).toBe(1);
+  });
+
+  test("the All pill drops the category restriction entirely", async () => {
+    fetchJson.mockResolvedValue({ data: [TXN] });
+    open();
+    await screen.findByText("Roof repair");
+    await waitFor(() => {
+      expect(fetchJson.mock.calls.at(-1)[0]).toContain("category=");
+    });
+
+    fireEvent.click([...document.querySelectorAll(".hf__pill")]
+      .find((el) => el.textContent.trim() === "All"));
+
+    await waitFor(() => {
+      expect(fetchJson.mock.calls.at(-1)[0]).not.toContain("category=");
+    });
+    expect(screen.getByText(/every category/)).toBeTruthy();
   });
 
   test("a budget drill reads budget entries and drops the search it cannot honour", async () => {
