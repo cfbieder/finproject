@@ -289,6 +289,52 @@ async function getActualTotals(year) {
   return result.rows;
 }
 
+/**
+ * CR072 QA — the same total, BROKEN DOWN by the P&L account that produced it.
+ *
+ * A line's actual is frequently the sum of several chart-of-accounts leaves: `Property Costs`
+ * is fed by six modules and more categories than that, so a single figure answers "how much"
+ * and not "made of what". The owner asked to drill into it, and the honest way is to run the
+ * identical recursive CTE and simply stop grouping — the parts then provably sum to the whole,
+ * which a separately-written query could not promise.
+ *
+ * `base_amount` for the same reason the parent uses it: one currency, or the sum is nonsense.
+ */
+async function getActualBreakdown(year, fcLineId) {
+  const result = await db.query(`
+    WITH RECURSIVE cat_tree AS (
+      SELECT flc.fc_line_id, c.id
+      FROM fc_line_categories flc
+      JOIN accounts c ON flc.category_id = c.id
+      WHERE flc.fc_line_id = $2
+      UNION ALL
+      SELECT ct.fc_line_id, ch.id
+      FROM cat_tree ct
+      JOIN accounts ch ON ch.parent_id = ct.id
+    ),
+    distinct_leaves AS (
+      SELECT DISTINCT fc_line_id, id
+      FROM cat_tree ct
+      WHERE NOT EXISTS (SELECT 1 FROM accounts ch WHERE ch.parent_id = ct.id)
+    )
+    SELECT
+      a.id   as account_id,
+      a.name as account_name,
+      COALESCE(SUM(t.base_amount), 0) as actual_total,
+      count(t.id) as transaction_count
+    FROM distinct_leaves dl
+    JOIN accounts a ON a.id = dl.id
+    LEFT JOIN transactions t
+      ON t.category_id = dl.id
+     AND t.transaction_date >= make_date($1, 1, 1)
+     AND t.transaction_date <= make_date($1, 12, 31)
+    GROUP BY a.id, a.name
+    HAVING count(t.id) > 0
+    ORDER BY SUM(t.base_amount) ASC NULLS LAST
+  `, [year, fcLineId]);
+  return result.rows;
+}
+
 async function getBudgetTotals(budgetYear) {
   const result = await db.query(`
     WITH RECURSIVE cat_tree AS (
@@ -375,6 +421,7 @@ module.exports = {
   unassignCategory,
   findUnassignedCategories,
   getBudgetTotals,
+  getActualBreakdown,
   getActualTotals,
   getSuggestions,
   createBatch,

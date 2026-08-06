@@ -1031,7 +1031,11 @@ export default function FCModulesEditModal({
                       new Date().getFullYear()
                     );
                     return (
-                      <label key={field} className="fc-modules-modal__field">
+                      /* CR072 QA — the observed balance belongs WITH the date it is observed
+                         at, so both PY Actual figures render here under Reference value rather
+                         than beside Currency two sections up. */
+                      <Fragment key={field}>
+                        <label className="fc-modules-modal__field">
                         <span className="fc-modules-modal__label">{label}</span>
                         <div className="fc-modules-edit__base-date">
                           <select
@@ -1065,7 +1069,55 @@ export default function FCModulesEditModal({
                             Dec 31
                           </span>
                         </div>
-                      </label>
+                        </label>
+                          {/* CR070 P6 — a VALUATION module compares against its account's
+                              balance; a FLOW module has no balance and no single account, so
+                              its comparison follows the FC LINE its stream posts to. */}
+                          {capabilities.has("valuation") ? (
+                            <>
+                            <label className="fc-modules-modal__field">
+                              <span>PY Actual ({editForm?.BaseDate ? new Date(editForm.BaseDate).getFullYear() : ""})</span>
+                              <input
+                                type="text"
+                                className="fc-modules-modal__input"
+                                value={
+                                  accountBalanceLoading
+                                    ? "Loading..."
+                                    : formatAccountValue(
+                                        accountBalance.value,
+                                        accountBalance.currency
+                                      )
+                                }
+                                readOnly
+                              />
+                            </label>
+                            <label className="fc-modules-modal__field">
+                              <span>PY Actual (USD)</span>
+                              <input
+                                type="text"
+                                className="fc-modules-modal__input"
+                                value={
+                                  accountBalanceLoading
+                                    ? "Loading..."
+                                    : formatAccountValue(
+                                        accountBalance.valueUSD,
+                                        "USD"
+                                      )
+                                }
+                                readOnly
+                              />
+                            </label>
+                            </>
+                          ) : (
+                            /* The actual/budget comparison moved to the STREAM CARD (owner
+                               decision): the FC line is a property of the stream, so the figures
+                               belong beside the line that defines them and the Amount they check
+                               — not in a header section a scroll away. A module with two expense
+                               streams on different lines made a single header figure ambiguous
+                               anyway. Nothing renders here now. */
+                            null
+                        )}
+                      </Fragment>
                     );
                   }
 
@@ -1214,53 +1266,6 @@ export default function FCModulesEditModal({
                               disabled
                             />
                           </label>
-                          {/* CR070 P6 — a VALUATION module compares against its account's
-                              balance; a FLOW module has no balance and no single account, so
-                              its comparison follows the FC LINE its stream posts to. */}
-                          {capabilities.has("valuation") ? (
-                            <>
-                            <label className="fc-modules-modal__field">
-                              <span>PY Actual ({editForm?.BaseDate ? new Date(editForm.BaseDate).getFullYear() : ""})</span>
-                              <input
-                                type="text"
-                                className="fc-modules-modal__input"
-                                value={
-                                  accountBalanceLoading
-                                    ? "Loading..."
-                                    : formatAccountValue(
-                                        accountBalance.value,
-                                        accountBalance.currency
-                                      )
-                                }
-                                readOnly
-                              />
-                            </label>
-                            <label className="fc-modules-modal__field">
-                              <span>PY Actual (USD)</span>
-                              <input
-                                type="text"
-                                className="fc-modules-modal__input"
-                                value={
-                                  accountBalanceLoading
-                                    ? "Loading..."
-                                    : formatAccountValue(
-                                        accountBalance.valueUSD,
-                                        "USD"
-                                      )
-                                }
-                                readOnly
-                              />
-                            </label>
-                            </>
-                          ) : (
-                            /* The actual/budget comparison moved to the STREAM CARD (owner
-                               decision): the FC line is a property of the stream, so the figures
-                               belong beside the line that defines them and the Amount they check
-                               — not in a header section a scroll away. A module with two expense
-                               streams on different lines made a single header figure ambiguous
-                               anyway. Nothing renders here now. */
-                            null
-                          )}
                         </Fragment>
                       );
                     }

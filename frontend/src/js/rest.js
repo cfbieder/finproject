@@ -127,6 +127,25 @@ export default class Rest {
     return payload;
   }
 
+  /**
+   * Unwrap to an ARRAY, or an empty one. Never anything else.
+   *
+   * `unwrap` deliberately returns the whole payload when `data` sits alongside other keys, so a
+   * caller that wants the siblings can have them. Both FC-line totals routes echo their argument
+   * — `{data, year}` and `{data, budgetYear}` — so `unwrap` handed back the OBJECT and every
+   * `for (const r of rows)` threw `is not iterable`. The v3.16.0 reference block was dead from the
+   * day it shipped for exactly this reason, and it looked fine in every check that stopped at the
+   * endpoint instead of the render.
+   *
+   * A list helper must therefore return a list or nothing — never a shape the caller has to guess.
+   */
+  static rows(payload) {
+    const unwrapped = Rest.unwrap(payload);
+    if (Array.isArray(unwrapped)) return unwrapped;
+    if (Array.isArray(unwrapped?.data)) return unwrapped.data;
+    return [];
+  }
+
   static async post(path, body) {
     return Rest.fetchJson(`/api/v2${path}`, {
       method: "POST",
@@ -511,16 +530,28 @@ export default class Rest {
    */
   static async fetchFcLineActualTotals(year) {
     const res = await Rest.fetchJson(`/api/v2/fc-lines/actual-totals?year=${encodeURIComponent(year)}`);
-    return Rest.unwrap(res) ?? [];
+    return Rest.rows(res);
   }
 
   /**
    * Budgeted total per FC line for a year — the sibling of the above, over `budget_entries`.
    * The route already existed; nothing on the Modules form had asked it for a line before.
    */
+  /**
+   * CR072 QA — which P&L accounts make up one line's actual. `Property Costs` is 35 of them,
+   * and the parts sum to the whole because the route reuses the total's own CTE and just stops
+   * grouping.
+   */
+  static async fetchFcLineActualBreakdown(year, fcLineId) {
+    const res = await Rest.fetchJson(
+      `/api/v2/fc-lines/actual-breakdown?year=${encodeURIComponent(year)}&fcLineId=${encodeURIComponent(fcLineId)}`
+    );
+    return Rest.rows(res);
+  }
+
   static async fetchFcLineBudgetTotals(year) {
     const res = await Rest.fetchJson(`/api/v2/fc-lines/budget-totals?budgetYear=${encodeURIComponent(year)}`);
-    return Rest.unwrap(res) ?? [];
+    return Rest.rows(res);
   }
 
   /**

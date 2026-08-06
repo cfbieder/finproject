@@ -39,3 +39,26 @@ describe("Rest.unwrap", () => {
     expect(Rest.unwrap(undefined)).toBeUndefined();
   });
 });
+
+describe("Rest.rows — a list helper returns a list, or nothing", () => {
+  // THE REGRESSION. Both FC-line totals routes echo their argument alongside `data`
+  // (`{data, year}`, `{data, budgetYear}`), so `unwrap` correctly declines to strip the
+  // envelope and hands back the OBJECT. Every `for (const r of rows)` then threw
+  // "is not iterable", and the v3.16.0 stream-card reference block was dead from the day it
+  // shipped — invisible to a check that stops at the endpoint instead of the render.
+  it("an envelope with a sibling key still yields the array", () => {
+    expect(Rest.rows({ data: [1, 2], year: 2025 })).toEqual([1, 2]);
+    expect(Rest.rows({ data: [3], budgetYear: 2026 })).toEqual([3]);
+  });
+
+  it("a plain envelope and a bare array both work", () => {
+    expect(Rest.rows({ data: [1] })).toEqual([1]);
+    expect(Rest.rows([1, 2])).toEqual([1, 2]);
+  });
+
+  it("anything that is not a list becomes an empty list, never a guess", () => {
+    for (const junk of [null, undefined, {}, { data: null }, { data: "x" }, 42, "s"]) {
+      expect(Rest.rows(junk)).toEqual([]);
+    }
+  });
+});

@@ -216,3 +216,32 @@
   }
   .fc-stream-card__reference-row small { grid-column: 1 / -1; }
 }
+
+/* CR072 QA — the drill-down. A line is often many chart-of-accounts leaves (Property Costs is 35),
+   so the total answers "how much" and not "made of what". */
+.fc-stream-card__reference-row--drillable { cursor: zoom-in; }
+.fc-stream-card__reference-row--drillable:hover { background: var(--surface-muted); }
+
+.fc-stream-card__breakdown {
+  margin: 0.2rem 0 0.4rem 0.75rem;
+  padding-left: 0.6rem;
+  border-left: 2px solid var(--border);
+  max-height: 14rem;
+  overflow-y: auto;
+}
+
+.fc-stream-card__breakdown-row {
+  display: grid;
+  grid-template-columns: 1fr 7rem 4.5rem;
+  gap: 0.5rem;
+  padding: 0.1rem 0;
+  font-size: 0.75rem;
+  color: var(--muted);
+}
+
+.fc-stream-card__breakdown-row strong {
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+  font-weight: 500;
+  color: var(--ink);
+}

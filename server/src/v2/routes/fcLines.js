@@ -234,6 +234,26 @@ router.get('/actual-totals', async (req, res, next) => {
   }
 });
 
+// CR072 QA — which P&L accounts make up one line's actual for a year. The drill-down behind the
+// stream card's reference figure: a line is often several chart-of-accounts leaves, and a single
+// number cannot say which.
+router.get('/actual-breakdown', async (req, res, next) => {
+  try {
+    const year = Number(req.query.year);
+    const fcLineId = Number(req.query.fcLineId);
+    if (!Number.isInteger(year) || year < 1900 || year > 2200) {
+      return res.status(400).json({ error: 'year must be a 4-digit year' });
+    }
+    if (!Number.isInteger(fcLineId) || fcLineId <= 0) {
+      return res.status(400).json({ error: 'fcLineId must be a positive integer' });
+    }
+    res.json({ data: await repo.getActualBreakdown(year, fcLineId), year, fcLineId });
+  } catch (error) {
+    console.error('[fc-lines] GET /actual-breakdown failed:', error);
+    next(error);
+  }
+});
+
 router.get('/budget-totals', async (req, res, next) => {
   try {
     const { budgetYear } = req.query;

@@ -1,4 +1,5 @@
-import { useMemo } from "react";
+import { useMemo, useState } from "react";
+import Rest from "../../js/rest.js";
 import "./FCModulesStreams.css";
 
 /**
@@ -65,6 +66,25 @@ export default function FCModulesStreams({
   periodStart = null,
   startYear = null,
 }) {
+  // CR072 QA — the drill-down behind a reference figure. Keyed by `${year}|${lineId}` so two
+  // cards on different lines can be open at once, and so re-opening one is instant.
+  const [breakdown, setBreakdown] = useState({});
+  const toggleBreakdown = async (year, lineId) => {
+    const key = `${year}|${lineId}`;
+    setBreakdown((prev) => {
+      const next = { ...prev };
+      if (next[key]) delete next[key]; else next[key] = { loading: true, rows: [] };
+      return next;
+    });
+    if (breakdown[key]) return;                       // it was open; closing needs no fetch
+    try {
+      const rows = await Rest.fetchFcLineActualBreakdown(year, lineId);
+      setBreakdown((prev) => (prev[key] ? { ...prev, [key]: { loading: false, rows } } : prev));
+    } catch {
+      setBreakdown((prev) => (prev[key] ? { ...prev, [key]: { loading: false, rows: [] } } : prev));
+    }
+  };
+
   const linesByDirection = useMemo(() => ({
     income: fcLines.filter((l) => (l.line_type || "").includes("income")),
     expense: fcLines.filter((l) => !(l.line_type || "").includes("income")),
@@ -217,9 +237,7 @@ export default function FCModulesStreams({
                       expense into 17,358 in 2027 — the option is for a stream that genuinely
                       begins mid-plan, not for restating where the plan starts. */}
                   <option value="">
-                    {startYear
-                      ? `— from ${startYear}, the first forecast year —`
-                      : "— from the first forecast year —"}
+                    {startYear ? `— from ${startYear} —` : "— from the start —"}
                   </option>
                   {periodYears.map((y) => <option key={y} value={y}>{y}</option>)}
                 </select>
@@ -272,9 +290,9 @@ export default function FCModulesStreams({
           const rows = [
             // Labelled from PeriodStart, the same anchor the fetch used — if these two ever
             // disagree the figures are right and the headings lie, which is the worse failure.
-            ["priorActual", `Actual ${periodStart - 2}`, `${ref.priorActualCount ?? 0} txns · complete`],
-            ["thisBudget", `Budget ${periodStart - 1}`, ""],
-            ["thisActual", `Actual ${periodStart - 1}`, `${ref.thisActualCount ?? 0} txns · year to date`],
+            ["priorActual", `Actual ${periodStart - 2}`, `${ref.priorActualCount ?? 0} txns · complete`, periodStart - 2],
+            ["thisBudget", `Budget ${periodStart - 1}`, "", null],
+            ["thisActual", `Actual ${periodStart - 1}`, `${ref.thisActualCount ?? 0} txns · year to date`, periodStart - 1],
           ].filter(([k]) => ref[k] != null);
           if (lineReferenceLoading) {
             return <p className="fc-stream-card__reference-empty">Loading actuals…</p>;
@@ -292,17 +310,52 @@ export default function FCModulesStreams({
                   </span>
                 )}
               </div>
-              {rows.map(([key, label, note]) => (
-                <div key={key} className="fc-stream-card__reference-row">
-                  <span>{label}</span>
-                  <strong>
-                    {ref[key].toLocaleString(undefined, {
-                      minimumFractionDigits: 0, maximumFractionDigits: 0,
-                    })}
-                  </strong>
-                  <small>{note}</small>
-                </div>
-              ))}
+              {rows.map(([key, label, note, drillYear]) => {
+                const bKey = drillYear != null ? `${drillYear}|${stream.fc_line_id}` : null;
+                const open = bKey ? breakdown[bKey] : null;
+                return (
+                  <div key={key}>
+                    <div
+                      className={`fc-stream-card__reference-row${drillYear != null ? " fc-stream-card__reference-row--drillable" : ""}`}
+                      /* Double-click, not single: these rows sit inside a form, and a stray click
+                         while tabbing through it should not fire a query. */
+                      onDoubleClick={drillYear != null
+                        ? () => toggleBreakdown(drillYear, stream.fc_line_id)
+                        : undefined}
+                      title={drillYear != null
+                        ? "Double-click to see which accounts make this up"
+                        : undefined}
+                    >
+                      <span>{label}</span>
+                      <strong>
+                        {ref[key].toLocaleString(undefined, {
+                          minimumFractionDigits: 0, maximumFractionDigits: 0,
+                        })}
+                      </strong>
+                      <small>{note}{drillYear != null ? " · double-click" : ""}</small>
+                    </div>
+                    {open && (
+                      <div className="fc-stream-card__breakdown">
+                        {open.loading ? (
+                          <div className="fc-stream-card__breakdown-row"><span>Loading…</span></div>
+                        ) : open.rows.length === 0 ? (
+                          <div className="fc-stream-card__breakdown-row"><span>No accounts booked.</span></div>
+                        ) : open.rows.map((r) => (
+                          <div key={r.account_id} className="fc-stream-card__breakdown-row">
+                            <span>{r.account_name}</span>
+                            <strong>
+                              {Math.abs(Number(r.actual_total)).toLocaleString(undefined, {
+                                minimumFractionDigits: 0, maximumFractionDigits: 0,
+                              })}
+                            </strong>
+                            <small>{r.transaction_count} txns</small>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                );
+              })}
             </div>
           );
         })()}
