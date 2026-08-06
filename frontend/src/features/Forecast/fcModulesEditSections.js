@@ -1,21 +1,39 @@
 // CR041: FCModulesEdit fields grouped into titled sections so expense and
 // income configuration no longer interleave on the same grid rows.
 // Tuples are [label, field, type] as consumed by the modal's field renderer.
+// CR072 §2 — the owner's structure: everything except Type and Currency moves under Valuation,
+// and Valuation itself splits into what the books SAY, what the forecast will USE, and the
+// assumptions that project it forward.
+//
+//   Reference value      observed at the base date — read-only, and the base date lives here
+//                        because it is the date the reference is observed AT
+//   Assigned value       what the forecast uses — the two copy buttons write into it
+//   Forecast assumptions growth and the gains rate — the only part an UNMATCHED module needs
 export const FIELD_SECTIONS = [
   ["General", [
     ["Account", "Account", "select"],
     ["Name", "Name", "text"],
     ["Matched", "Matched", "checkbox"],
-    ["Base Date", "BaseDate", "date"],
     ["Type", "Type", "text"],
     ["Currency", "Currency", "text"],
   ]],
-  ["Valuation", [
+  ["Reference value", [
+    ["Base Date", "BaseDate", "date"],
+  ]],
+  ["Assigned value", [
     ["Cost Basis", "BaseValue", "number"],
     ["Cost Basis (USD)", "BaseValueUSD", "number"],
     ["Market Value", "MarketValue", "number"],
     ["Market Value (USD)", "MarketValueUSD", "number"],
+  ]],
+  ["Forecast assumptions", [
     ["Growth (x Inflation)", "Growth", "number"],
+    // CR069 P3 — only the GAINS rate lives on the module: a capital gain belongs to the
+    // valuation. The recurring-income override belongs to the income stream and is edited on its
+    // card, which is what makes two income streams taxable at different rates.
+    // CR072 §2 — it sits WITH growth because both are assumptions about the future, and both are
+    // the half an unmatched module still needs.
+    ["Capital Gains Tax Override (%)", "TaxRateOverride", "number"],
   ]],
   // CR046: the Start/End YEARS bound WHEN a stream runs, never how much — the amount
   // stays a base-year figure compounded at inflation. Blank = unbounded (the old
@@ -39,13 +57,6 @@ export const FIELD_SECTIONS = [
   //    dividend is net of Polish tax, so the incremental US tax on it is ~3%, while a sale
   //    of the business is still an ordinary capital gain at the full rate.
   // Blank on either = fall back (no change). 0 is a real rate, not "unset".
-  ["Tax", [
-    // CR069 P3 — only the GAINS rate lives on the module now: a capital gain belongs to the
-    // valuation. The recurring-income override belongs to the income stream and is edited on
-    // its card, which is also what makes it possible to have two income streams taxed
-    // differently — something a single module column could never express.
-    ["Capital Gains Tax Override (%)", "TaxRateOverride", "number"],
-  ]],
 ];
 
 // CR062 — a LOAN is configured from five assumptions, not from the valuation and
@@ -133,7 +144,34 @@ export const fieldSectionsFor = (form) => {
 // ---------------------------------------------------------------------------
 
 /** Sections that stay open even when empty — the ones every module is defined by. */
-export const ALWAYS_OPEN_SECTIONS = new Set(["General", "Valuation", "Loan"]);
+export const ALWAYS_OPEN_SECTIONS = new Set([
+  "General", "Valuation", "Loan", "Assigned value", "Forecast assumptions",
+]);
+
+// ---------------------------------------------------------------------------
+// CR072 §7 — `is_matched` decides COLLAPSE, never capability.
+//
+// The owner's rule: an unmatched balance-sheet module has no reference and no assigned value
+// (measured: all 20 on prod are zero on both, and all 20 carry a base date that has not closed) —
+// its value arrives later through Invest, and the only part of the top section that still matters
+// is growth and the gains rate.
+//
+// It is COLLAPSE and not HIDE, and pass 1 is why. `is_matched` is NOT an engine branch — nothing
+// in `fcbuilder-*` reads it, and `market_value` is booked off `has_valuation` alone. So it fails
+// CR070's rule that "a field may disappear only if a VALUE in it cannot": the residue panel would
+// assert "the forecast ignores them" (false) and offer a Clear button that zeroes a live figure.
+//
+// A collapsed section cannot conceal anything — the value is one click away, no detector is
+// needed, and the mechanism is CR064 §4.1's, already shipped and understood.
+// ---------------------------------------------------------------------------
+const COLLAPSE_WHEN_UNMATCHED = new Set(["Reference value", "Assigned value"]);
+
+/** Should `title` start collapsed for this form? */
+export const sectionStartsCollapsed = (form, title) => {
+  if (!COLLAPSE_WHEN_UNMATCHED.has(title)) return false;
+  if (form?.HasValuation === false) return false;      // flow modules never render these anyway
+  return form?.Matched === false || form?.Matched == null;
+};
 
 /** Fields whose default value is not "empty" in the raw sense. */
 const FIELD_DEFAULTS = { ExpenseGrowthMethod: "inflation" };
@@ -160,6 +198,9 @@ export const sectionHasContent = (form, fields) =>
 export const initialOpenSections = (form, sections) => {
   const open = new Set();
   for (const [title, fields] of sections || []) {
+    // CR072 §7 — the unmatched collapse wins over ALWAYS_OPEN: on a module with nothing in it yet,
+    // "always open" would defeat the whole point of the rule.
+    if (sectionStartsCollapsed(form, title)) continue;
     if (ALWAYS_OPEN_SECTIONS.has(title) || sectionHasContent(form, fields)) open.add(title);
   }
   return open;
@@ -302,6 +343,17 @@ export const CAPABILITIES = {
   identity: () => true,
   /** A balance sheet: cost basis, market value, growth, and the schedules that move them. */
   valuation: (form) => form?.HasValuation !== false,
+  // CR072 §7 — `valuation` split in two, because the owner's rule needs one half without the
+  // other: an UNMATCHED balance-sheet module has no reference value and no assigned value (all
+  // 20 on prod are zero, all 20 carry a base date that has not closed), but it still has a growth
+  // rate and a gains rate, and its value arrives later through Invest.
+  //
+  // BOTH predicates stay `has_valuation`-only, so CR070's shipped behaviour on flow modules is
+  // byte-for-byte unchanged. `is_matched` decides COLLAPSE, never capability — see below.
+  /** The four figures and the date they are observed at. */
+  valuationValue: (form) => form?.HasValuation !== false,
+  /** Growth and the gains rate — relevant even before the asset exists. */
+  valuationAssumptions: (form) => form?.HasValuation !== false,
   /** Invest / Dispose move a balance, so they need one. */
   schedules: (form) => form?.HasValuation !== false,
   /** Capital gains are realized on a valuation; a flow has no gain. */
@@ -362,11 +414,15 @@ export const FIELD_CAPABILITY = {
   // while the line is fed by four — and the engine never reads it (no `account_id` anywhere in
   // fcbuilder-module.js). What defines where a flow module's money goes is its stream's FC LINE.
   Account: "valuation",
-  BaseValue: "valuation",
-  BaseValueUSD: "valuation",
-  MarketValue: "valuation",
-  MarketValueUSD: "valuation",
-  Growth: "valuation",
+  BaseDate: "valuationValue",
+  BaseValue: "valuationValue",
+  BaseValueUSD: "valuationValue",
+  MarketValue: "valuationValue",
+  MarketValueUSD: "valuationValue",
+  // CR072 §7 — Growth is an ASSUMPTION, not a value. It is the one thing an unmatched module
+  // still needs, and grouping it with the four figures is what made the owner's rule
+  // un-implementable against this map.
+  Growth: "valuationAssumptions",
   TaxRateOverride: "gainsTax",
   CashSweepPriority: "sweep",
   CashSweepTarget: "sweep",
@@ -382,6 +438,7 @@ export const FIELD_CAPABILITY = {
 
 /** Human labels for the residue panel — the field name alone is not an explanation. */
 export const FIELD_LABELS = {
+  BaseDate: "Base Date",
   BaseValue: "Cost Basis",
   BaseValueUSD: "Cost Basis (USD)",
   MarketValue: "Market Value",
@@ -422,9 +479,6 @@ export const fieldIsRendered = (form, field) => {
  * ignored. Recorded here so the rule is known to have exactly one hole, and why.
  */
 export const RESIDUE_EXEMPT = new Set([
-  // Set on all 60 prod flow modules and provably unread there (CR069 Decision 6 pins every stream
-  // to `PeriodStart − 1`). 60 findings that cannot move a number is how a channel gets ignored.
-  "BaseDate",
   // CR070 P6 — `account_id` is populated on every flow module, so reporting it would put a warning
   // on all 60 at once. It is exempt because it is genuinely still LIVE, just not MEANINGFUL on this
   // form: it supplies Type and Currency defaults at creation and marks the account as taken in the
@@ -439,6 +493,11 @@ export const residueFor = (form) => {
   const out = [];
   for (const field of Object.keys(FIELD_CAPABILITY)) {
     if (RESIDUE_EXEMPT.has(field)) continue;
+    // CR072 §7 (pass 1 B1) — `BaseDate` used to be blanket-exempt, justified because it is set on
+    // all 60 flow modules and provably unread THERE (CR069 Decision 6 pins every stream to
+    // PeriodStart − 1). That justification does not extend to a VALUATION module, whose entire
+    // axis anchors on base_date (fcbuilder-module.js:131). Exempt on flows, reported on valuations.
+    if (field === "BaseDate" && form?.HasValuation === false) continue;
     if (fieldIsRendered(form, field)) continue;
     if (fieldIsEmpty(form, field)) continue;
     out.push({

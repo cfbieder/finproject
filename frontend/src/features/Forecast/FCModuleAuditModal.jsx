@@ -18,7 +18,7 @@ const fmtPct = (v) => {
 
 const pctColumns = new Set(["GrowthPct", "IncomePct", "ExpensePct"]);
 
-function AuditTable({ title, data }) {
+function AuditTable({ title, data, preHorizon = {}, periodStart = null, isLocal = false }) {
   if (!data) return null;
   const { headers, rows } = data;
   if (!headers || headers.length === 0) return null;
@@ -51,12 +51,26 @@ function AuditTable({ title, data }) {
                 {row.map((cell, ci) => {
                   const colName = headers[ci];
                   const isIndex = ci === 0;
+                  // CR072 §8 P6 — a P&L column in a pre-horizon year is history or plan, not a
+                  // dash. `actual_total`/`budget_total` are USD (both queries sum `base_amount`),
+                  // so the LOCAL table converts with that row's own FX — the very rate the engine
+                  // used for the year — rather than printing a USD figure under a PLN heading.
+                  const rowYear = Number(row[0]);
+                  const preKey = `${rowYear}|${String(colName).trim().toLowerCase()}`;
+                  let preValue = preHorizon[preKey];
+                  if (preValue != null && isLocal) {
+                    const fxIdx = headers.indexOf("FX");
+                    const fx = fxIdx >= 0 ? Number(row[fxIdx]) : NaN;
+                    preValue = Number.isFinite(fx) && fx > 0 ? preValue * fx : null;
+                  }
+                  const isPre = preValue != null;
                   const isAction = colName === "Action";
                   const isPct = pctColumns.has(colName);
                   const isFx = colName === "FX";
                   const n = Number(cell);
                   const display = isIndex ? cell
                     : isAction ? cell
+                    : isPre ? fmt(preValue)
                     : isPct ? fmtPct(cell)
                     : isFx && Number.isFinite(n) ? n.toFixed(4)
                     : fmt(cell);
@@ -79,7 +93,12 @@ function AuditTable({ title, data }) {
                         fontFamily: isIndex || isAction ? "inherit" : "var(--font-mono)",
                         fontWeight: isIndex || isAction ? 600 : 400,
                         color: actionColor || (!isIndex && !isAction && Number.isFinite(n) && n < 0 ? "var(--danger, #C0504D)" : undefined),
+                        // A pre-horizon figure is NOT a forecast, and must not read as one.
+                        ...(isPre ? { fontStyle: "italic", opacity: 0.75 } : null),
                       }}
+                      title={isPre
+                        ? (rowYear === periodStart - 1 ? "Budget — not forecast" : "Actual — not forecast")
+                        : undefined}
                     >
                       {display}
                     </td>
@@ -90,11 +109,24 @@ function AuditTable({ title, data }) {
           </tbody>
         </table>
       </div>
+      {periodStart && Object.keys(preHorizon).length > 0 && (
+        <p style={{ margin: "0.4rem 0 0", fontSize: "0.7rem", color: "var(--muted)" }}>
+          <em>Italic</em> = not forecast. {periodStart - 2} is actual, {periodStart - 1} is budget;
+          the forecast begins in {periodStart}.
+          {isLocal ? " Converted from base currency at that year's FX." : ""}
+        </p>
+      )}
     </div>
   );
 }
 
-export default function FCModuleAuditModal({ isOpen, onClose, scenario, moduleName }) {
+export default function FCModuleAuditModal({
+  isOpen, onClose, scenario, moduleName,
+  // CR072 §8 P6 — the module's P&L lines and the forecast's start, so the two pre-horizon
+  // years can show HISTORY instead of a dash. Both optional: without them the table renders
+  // exactly as before rather than guessing which column is a line or which year is which.
+  lineNames = [], periodStart = null,
+}) {
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
@@ -116,6 +148,45 @@ export default function FCModuleAuditModal({ isOpen, onClose, scenario, moduleNa
       .catch((err) => setError(err.message || "Failed to load audit trail"))
       .finally(() => setLoading(false));
   }, [isOpen, scenario, moduleName]);
+
+  // CR072 §8 P6 — the audit trail runs from the module's base_date, so on a valuation module its
+  // first two rows are BEFORE the forecast starts and every P&L column in them reads "—". Those
+  // years are not unknown, they are history and plan: PeriodStart−2 has actuals, PeriodStart−1 has
+  // a budget. Filling them is what lets the owner sanity-check the first forecast amount against
+  // what the line has actually been doing.
+  //
+  // Fetched, never derived from the forecast: these must remain visibly NOT-forecast, which is why
+  // they are rendered in a distinct style and called out in a legend under the table.
+  const [preHorizon, setPreHorizon] = useState({});
+  // Extracted so the dep is statically checkable, and so a new array identity from the parent
+  // does not refire the fetch on every render.
+  const lineKey = lineNames.join("|");
+  useEffect(() => {
+    let isActive = true;
+    if (!isOpen || !periodStart || !lineKey) return undefined;
+    (async () => {
+      const [actual, budget] = await Promise.all([
+        Rest.fetchFcLineActualTotals(periodStart - 2).catch(() => []),
+        Rest.fetchFcLineBudgetTotals(periodStart - 1).catch(() => []),
+      ]);
+      if (!isActive) return;
+      const wanted = new Set(lineKey.split("|").map((n) => n.trim().toLowerCase()));
+      const out = {};
+      const put = (rows, year, field) => {
+        for (const r of rows || []) {
+          const name = String(r.fc_line_name || "").trim().toLowerCase();
+          if (!wanted.has(name)) continue;
+          const v = Number(r[field]);
+          if (!Number.isFinite(v) || v === 0) continue;   // 0 budget = none kept, not a plan of zero
+          out[`${year}|${name}`] = v;
+        }
+      };
+      put(actual, periodStart - 2, "actual_total");
+      put(budget, periodStart - 1, "budget_total");
+      setPreHorizon(out);
+    })();
+    return () => { isActive = false; };
+  }, [isOpen, periodStart, lineKey]);
 
   const lastMod = data?.lc?.lastModified || data?.usd?.lastModified;
   const lastModStr = lastMod ? new Date(lastMod).toLocaleString() : null;
@@ -192,10 +263,10 @@ export default function FCModuleAuditModal({ isOpen, onClose, scenario, moduleNa
           {loading && <p style={{ color: "var(--ink-secondary)" }}>Loading audit trail...</p>}
           {error && <p style={{ color: "var(--danger, #C0504D)" }}>{error}</p>}
           {data && !loading && view === "lc" && (
-            <AuditTable title="Local Currency Values" data={data.lc} />
+            <AuditTable title="Local Currency Values" data={data.lc} preHorizon={preHorizon} periodStart={periodStart} isLocal />
           )}
           {data && !loading && view === "usd" && (
-            <AuditTable title="USD Values" data={data.usd} />
+            <AuditTable title="USD Values" data={data.usd} preHorizon={preHorizon} periodStart={periodStart} />
           )}
         </div>
       </div>

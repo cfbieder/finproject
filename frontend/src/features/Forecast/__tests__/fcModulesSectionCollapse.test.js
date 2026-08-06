@@ -58,7 +58,10 @@ describe("fieldIsEmpty", () => {
 
 describe("initialOpenSections", () => {
   test("General and Valuation stay open on an empty form", () => {
-    expect([...open({})].sort()).toEqual(["General", "Valuation"]);
+    // CR072 §2 — "Valuation" split into Reference value / Assigned value / Forecast assumptions.
+    // On a form with no `Matched` flag the two value blocks start COLLAPSED (§7), so what stays
+    // open is identity plus the assumptions — the half an unmatched module still needs.
+    expect([...open({})].sort()).toEqual(["Forecast assumptions", "General"]);
   });
 
   // CR069 P3 — the three tests that lived here asserted that an Expenses or Income section
@@ -79,14 +82,18 @@ describe("initialOpenSections", () => {
   test("the always-open set is the sections a module is DEFINED by", () => {
     // CR069 P3 — General and Valuation, and Loan on the loan form. Not Expenses or Income:
     // those are cards now, and a card that does not exist cannot be collapsed or hidden.
-    expect([...ALWAYS_OPEN_SECTIONS].sort()).toEqual(["General", "Loan", "Valuation"]);
+    expect([...ALWAYS_OPEN_SECTIONS].sort())
+      .toEqual(["Assigned value", "Forecast assumptions", "General", "Loan", "Valuation"]);
     expect(LOAN_FIELD_SECTIONS.map(([t]) => t)).toContain("Loan");
   });
 
   test("a section carrying a real value is open; an empty one collapses", () => {
     expect([...open({ TaxRateOverride: 15 })].sort())
-      .toEqual(["General", "Tax", "Valuation"]);
-    expect([...open({})].sort()).toEqual(["General", "Valuation"]);
+      .toEqual(["Forecast assumptions", "General"]);
+    // CR072 §2 — "Valuation" split into Reference value / Assigned value / Forecast assumptions.
+    // On a form with no `Matched` flag the two value blocks start COLLAPSED (§7), so what stays
+    // open is identity plus the assumptions — the half an unmatched module still needs.
+    expect([...open({})].sort()).toEqual(["Forecast assumptions", "General"]);
   });
 });
 
@@ -95,9 +102,11 @@ describe("sectionHasContent", () => {
     // CR069 P3 — was Income vs Expenses; those sections are stream cards now. The property is
     // the same and is what keeps the rule composable: a section is judged by ITS OWN fields,
     // so adding or removing a section cannot change how another one collapses.
+    // CR072 §2 — retitled: the gains rate now lives in "Forecast assumptions" and the four
+    // figures in "Assigned value". The PROPERTY under test is unchanged.
     const form = { TaxRateOverride: 15 };
-    expect(sectionHasContent(form, sectionByTitle.Tax)).toBe(true);
-    expect(sectionHasContent(form, sectionByTitle.Valuation)).toBe(false);
+    expect(sectionHasContent(form, sectionByTitle["Forecast assumptions"])).toBe(true);
+    expect(sectionHasContent(form, sectionByTitle["Assigned value"])).toBe(false);
   });
 
   test("an unknown or empty section list is not content", () => {

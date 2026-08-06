@@ -13,6 +13,7 @@ import {
   labelForType,
   directionForSchedule,
   resolvePeriodStart,
+  sectionStartsCollapsed,
 } from "./fcModulesEditSections.js";
 import {
   resolveFxRate,
@@ -210,6 +211,38 @@ export default function FCModulesEditModal({
     }
     return counts;
   }, [allModules]);
+
+  // CR072 §8 P6 — the module's own P&L line NAMES, for the Module Output table's pre-horizon rows.
+  // Resolved from `fc_line_id` against `fcLines`, not read off `fc_line_name`: the DETAIL
+  // projection the editor loads does not carry that label, which is exactly the drift that made
+  // v3.16.0 report "no line set" on every module that had one.
+  // CR072 §7 — is the Assigned block collapsed right now? Drives the USD-derivation suspension
+  // below. Read from live state, not from the seed, so expanding it resumes the derivation.
+  const assignedValueCollapsed =
+    sectionStartsCollapsed(editForm, "Assigned value") && !openSections.has("Assigned value");
+
+  // CR072 §4 — the base date may not be later than the last CLOSED year-end. Today is in 2026, so
+  // 2025-12-31 is the latest observable one. A stored out-of-range year stays selectable and is
+  // labelled, because a select whose value matches no option renders blank — and a blank control
+  // over a real stored date is how the axis gets rewritten by accident.
+  const lastClosedYear = new Date().getFullYear() - 1;
+  const baseDateYearOptions = useMemo(() => {
+    const stored = getBaseYear(editForm?.BaseDate, null);
+    const years = baseYearOptions.filter((y) => y <= lastClosedYear);
+    if (stored && !years.includes(Number(stored))) years.push(Number(stored));
+    return years.sort((a, b) => a - b);
+  }, [editForm?.BaseDate, lastClosedYear]);
+
+  const moduleLineNames = useMemo(() => {
+    const names = new Set();
+    for (const st of (Array.isArray(editForm?.Streams) ? editForm.Streams : [])) {
+      if (st?.fc_line_id == null) continue;
+      const name = st.fc_line_name
+        || (fcLines || []).find((l) => Number(l.id) === Number(st.fc_line_id))?.name;
+      if (name) names.add(name);
+    }
+    return [...names];
+  }, [editForm, fcLines]);
 
   const [lineReference, setLineReference] = useState({});
   const [lineReferenceLoading, setLineReferenceLoading] = useState(false);
@@ -526,6 +559,19 @@ export default function FCModulesEditModal({
 
   useEffect(() => {
     if (!isOpen || !editForm) return;
+    // CR072 §7 (pass 1 B3) — DO NOT re-derive while the Assigned block is collapsed.
+    //
+    // `is_matched` already switches which rate `localToUsd` uses (the balance-sheet implied ratio
+    // when matched, the FX assumption otherwise), and this effect writes the result back into the
+    // form on open, with NO user action. On an unmatched module the Assigned fields are collapsed,
+    // so that write would land on controls nobody can see — and `buildModulePayload` sends every
+    // field on every save, so simply opening and saving would silently persist a different USD
+    // figure. The regenerate-and-diff gate cannot catch that: it only fires when a human opens and
+    // saves one module.
+    //
+    // Suspending it is safe because the block is COLLAPSED, not hidden — expanding it is a
+    // deliberate act, and the derivation resumes with the owner looking at the number.
+    if (assignedValueCollapsed) return;
     const normalizeNumeric = (value) => {
       if (value === "" || value === null || value === undefined) return "";
       const num = Number(String(value).replace(/,/g, ""));
@@ -558,6 +604,7 @@ export default function FCModulesEditModal({
     editForm?.MarketValueUSD,
     isOpen,
     onFieldChange,
+    assignedValueCollapsed,
   ]);
   const scenarioDetails =
     assumptions?.scenarios?.find((s) => s?.Name === editForm?.Scenario) || null;
@@ -997,9 +1044,20 @@ export default function FCModulesEditModal({
                               )
                             }
                           >
-                            {baseYearOptions.map((year) => (
+                            {/* CR072 §4 — never later than the last COMPLETED year-end. The
+                                reason is the Reference value, not tidiness: a balance report for
+                                a 31 Dec that has not happened returns the balances that exist
+                                TODAY and labels them with a future year — a figure that is wrong
+                                and looks precise. All 90 matched prod modules already comply, so
+                                this is forward-looking only.
+
+                                An out-of-range STORED value is still offered, marked, so the
+                                control never renders blank over a real date and silently rewrites
+                                the module's axis on the next interaction. */}
+                            {baseDateYearOptions.map((year) => (
                               <option key={year} value={year}>
                                 {year}
+                                {year > lastClosedYear ? " — not closed yet" : ""}
                               </option>
                             ))}
                           </select>
@@ -1965,6 +2023,8 @@ export default function FCModulesEditModal({
         onClose={() => setShowAuditModal(false)}
         scenario={editForm?.Scenario}
         moduleName={editForm?.Name}
+        periodStart={resolvedPeriodStart}
+        lineNames={moduleLineNames}
       />
     </>
   );

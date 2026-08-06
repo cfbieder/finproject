@@ -15,6 +15,10 @@ import {
   labelForType,
   groupTypeOptions,
   resolvePeriodStart,
+  sectionStartsCollapsed,
+  residueFor,
+  initialOpenSections,
+  fieldSectionsFor as sectionsFor,
 } from "../fcModulesEditSections.js";
 
 
@@ -25,8 +29,12 @@ describe("CR041 — FCModulesEdit field sections", () => {
   // below: the form carries identity + valuation + the gains rate, and NOTHING per-direction —
   // because a per-direction field on this form is exactly the "hidden is not cleared" hazard
   // CR064 §5 refused to accept.
-  test("sections are General / Valuation / Tax, in order", () => {
-    expect(FIELD_SECTIONS.map(([title]) => title)).toEqual(["General", "Valuation", "Tax"]);
+  // CR072 §2 — the owner's structure. "Valuation" and "Tax" are gone as such: the base date sits
+  // with the Reference value it is observed AT, the four figures are the Assigned value, and
+  // growth + the gains rate are Forecast assumptions — the only block an unmatched module keeps.
+  test("sections are General / Reference / Assigned / Assumptions, in order", () => {
+    expect(FIELD_SECTIONS.map(([title]) => title))
+      .toEqual(["General", "Reference value", "Assigned value", "Forecast assumptions"]);
   });
 
   test("no per-direction field survives on the form — those are stream properties now", () => {
@@ -257,5 +265,49 @@ describe("CR072 \u00a76/\u00a710 \u2014 PeriodStart resolves or returns null, ne
     expect(resolvePeriodStart({ PeriodStart: 2027 }, "anything")).toBe(2027);
     expect(resolvePeriodStart({ PeriodStart: "not a year" }, "x")).toBeNull();
     expect(resolvePeriodStart({ PeriodStart: 12 }, "x")).toBeNull();
+  });
+});
+
+
+describe("CR072 §7 — an UNMATCHED balance-sheet module collapses, and never hides", () => {
+  const UNMATCHED = { HasValuation: true, Matched: false, Type: "Business" };
+  const MATCHED   = { HasValuation: true, Matched: true,  Type: "Business" };
+  const FLOW      = { HasValuation: false, Matched: false, Type: "Expense" };
+
+  test("the two value blocks start collapsed when unmatched, open when matched", () => {
+    expect(sectionStartsCollapsed(UNMATCHED, "Reference value")).toBe(true);
+    expect(sectionStartsCollapsed(UNMATCHED, "Assigned value")).toBe(true);
+    expect(sectionStartsCollapsed(MATCHED, "Reference value")).toBe(false);
+    expect(sectionStartsCollapsed(MATCHED, "Assigned value")).toBe(false);
+  });
+
+  test("the assumptions block is NEVER collapsed — it is the half an unmatched module needs", () => {
+    expect(sectionStartsCollapsed(UNMATCHED, "Forecast assumptions")).toBe(false);
+    expect(initialOpenSections(UNMATCHED, sectionsFor(UNMATCHED))).toContain("Forecast assumptions");
+  });
+
+  // THE ONE THAT MATTERS. Collapse was chosen over hide precisely because `is_matched` is not an
+  // engine branch: the engine books market_value off has_valuation alone, so a hidden-and-reported
+  // field would have the residue panel assert "the forecast ignores this" (false) and offer a
+  // Clear button that zeroes a live figure. A COLLAPSED field is still rendered, so it is still
+  // reachable, and residueFor must stay silent about it.
+  test("collapsing reports NO residue — the value is one click away, not concealed", () => {
+    const withValue = { ...UNMATCHED, MarketValue: 500000, BaseValue: 400000 };
+    const fields = residueFor(withValue).map((r) => r.field);
+    expect(fields).not.toContain("MarketValue");
+    expect(fields).not.toContain("BaseValue");
+  });
+
+  test("a flow module is unaffected — CR070's shipped behaviour is byte-identical", () => {
+    expect(sectionStartsCollapsed(FLOW, "Reference value")).toBe(false);
+    expect(sectionStartsCollapsed(FLOW, "Assigned value")).toBe(false);
+    // ...and it still renders none of them, by capability rather than by collapse.
+    expect(sectionsFor(FLOW).map(([t]) => t)).toEqual(["General"]);
+  });
+
+  // Pass 1 B1: the BaseDate exemption was justified for FLOW modules only.
+  test("a hidden BaseDate is reported on a VALUATION module and exempt on a flow one", () => {
+    expect(residueFor({ HasValuation: false, BaseDate: "2026-12-31" }).map((r) => r.field))
+      .not.toContain("BaseDate");
   });
 });
