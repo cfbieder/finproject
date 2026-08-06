@@ -125,6 +125,39 @@ function assertLoanHasInterestLine(effectiveFcLineId) {
 }
 
 /**
+ * The same hazard as `assertLoanHasInterestLine`, on ANY stream — roadmap Known Issue #2.
+ *
+ * `Sarasota House` carried an expense of 45,000 with no FC line. The engine's stream loop does
+ * `if (!line) continue` before posting to the P&L (`fcbuilder-module.js`), but the CASH path
+ * further down takes every stream regardless — so the money left Bank Accounts and appeared on no
+ * expense row. Measured on prod: **−1,203,432 across 21 years**, with Net Cash Flow and the
+ * Expenses metric disagreeing by exactly that and no screen able to say why.
+ *
+ * CR062 closed this shape for loans and nothing guarded it anywhere else. Keyed on the amount
+ * being non-zero, which is what makes a stream produce a flow at all: a 0-amount stream posts
+ * nothing whichever mode it is in, so leaving its line unset is harmless and stays legal — 15
+ * such rows exist on prod today and none of them are touched by this.
+ *
+ * Verified before shipping: **0 rows on prod are in the refused state**, so this closes a hazard
+ * rather than blocking an existing edit.
+ */
+function assertStreamsHaveLines(streams) {
+  if (!Array.isArray(streams)) return;
+  for (const st of streams) {
+    const line = st.FcLineId ?? st.fc_line_id ?? null;
+    if (line !== null && line !== undefined && line !== '') continue;
+    const amount = Number(st.Amount ?? st.amount ?? 0);
+    if (!Number.isFinite(amount) || amount === 0) continue;
+    const direction = st.Direction ?? st.direction ?? 'flow';
+    throw validate.badRequest(
+      `This ${direction} has an amount but no P&L line. Without one the money would still leave ` +
+      `the bank balance while appearing on no expense or income row — Net Cash Flow and the ` +
+      `P&L would disagree by exactly that amount, with nothing on screen to say why.`
+    );
+  }
+}
+
+/**
  * CR062 P2 — a secured-asset link must point at a real, sane target. Checked
  * against the DB rather than the body because every failure mode is relational:
  *
@@ -626,6 +659,65 @@ router.post('/scenarios/:id/detach', async (req, res, next) => {
 // Modules
 // ============================================================================
 
+/**
+ * The PascalCase fields GET /modules and GET /modules/:id BOTH project, in one place.
+ *
+ * They used to be two hand-kept lists of ~35 keys each, and they drifted three times in three
+ * days — every time the same way round, with the DETAIL projection missing something the LIST
+ * had, and every time surfacing as the module editor guessing at state it should have been told:
+ *
+ *   v3.14.2  `HasValuation`   — the form could not tell whether a module has a balance sheet
+ *   v3.15.0  the sweep fields — `buildModulePayload` had to guess the sweep rank
+ *   v3.16.0  `fc_line_name`   — the Actual field read "no line set" on every module that had one
+ *                               (that half is fixed in `loadModuleStreams`, which now joins)
+ *
+ * Adding a column here reaches both endpoints at once, which is the point. `moduleProjectionAgrees`
+ * in the route tests asserts the two responses still agree key-for-key on everything below.
+ *
+ * What is deliberately NOT here, because the two genuinely differ:
+ *   - `Type` — the LIST capitalises it for display, the DETAIL sends it raw for the editor's
+ *     select. Normalising that silently is a behaviour change, not a de-duplication.
+ *   - LIST-only: `Scenario`, the retired per-direction expense/income columns, the CR071 disposal
+ *     SCALARS, and `Inheritance`.
+ *   - DETAIL-only: the `Invest`/`Dispose` ROWS and the `Growth` alias.
+ */
+function moduleCommonFields(m) {
+  return {
+    id: m.id,
+    Name: m.name,
+    Account: m.account_name,
+    Currency: m.currency,
+    TaxRateOverride: m.tax_rate_override != null ? parseFloat(m.tax_rate_override) : null,
+    BaseDate: m.base_date,
+    BaseValue: m.base_value,
+    MarketValue: m.market_value,
+    BaseValueUSD: m.base_value_usd,
+    MarketValueUSD: m.market_value_usd,
+    GrowthRate: m.growth_rate,
+    Comment: m.comment,
+    IsMatched: m.is_matched,
+    Matched: m.is_matched,
+    SetupStatus: m.setup_status || 'new',
+    HasValuation: m.has_valuation !== false,
+    CashSweepTarget: m.cash_sweep_target || false,
+    CashSweepPriority: m.cash_sweep_priority ?? null,
+    // CR062 — the loan assumptions and their schedule, so `fcWarnings` can derive the loan rules
+    // client-side from what FCReview already loads.
+    LoanPrincipal: m.loan_principal != null ? parseFloat(m.loan_principal) : null,
+    LoanStartDate: m.loan_start_date,
+    LoanEndDate: m.loan_end_date,
+    LoanInterestRate: m.loan_interest_rate != null ? parseFloat(m.loan_interest_rate) : null,
+    SecuredAssetModuleId: m.secured_asset_module_id ?? null,
+    Amortization: (m.amortization || []).map((r) => ({
+      Date: r.effective_date,
+      Pct: parseFloat(r.pct) || 0,
+    })),
+  };
+}
+
+/** The keys both module endpoints must agree on — exported so a test can assert they do. */
+const MODULE_COMMON_KEYS = Object.keys(moduleCommonFields({}));
+
 // GET /api/v2/forecast/modules
 router.get('/modules', async (req, res, next) => {
   try {
@@ -655,51 +747,28 @@ router.get('/modules', async (req, res, next) => {
       Streams: m.streams || [],
       HasValuation: m.has_valuation !== false,
       ...m,
-      id: m.id,
+      ...moduleCommonFields(m),
       Scenario: m.scenario_name || scenario,
-      Name: m.name,
-      Account: m.account_name,
+      // Capitalised for DISPLAY. The DETAIL endpoint sends it raw because the editor's select
+      // matches on the stored value — which is why `Type` is not in the shared projection.
       Type: m.module_type ? m.module_type.charAt(0).toUpperCase() + m.module_type.slice(1) : '',
-      Currency: m.currency,
+      // The retired per-direction columns, still projected for callers that have not moved to
+      // streams. CR069 P3 replaced the FORM; these stay until nothing reads them.
       ExpenseAmount: m.expense_amount,
       ExpenseFcLineId: m.expense_fc_line_id,
       IncomeFcLineId: m.income_fc_line_id,
       ExpenseGrowthMethod: m.expense_growth_method || 'inflation',
-      TaxRateOverride: m.tax_rate_override != null ? parseFloat(m.tax_rate_override) : null,
       IncomeTaxRateOverride: m.income_tax_rate_override != null ? parseFloat(m.income_tax_rate_override) : null,
       IncomeAmount: m.income_amount,
       IncomeStartDate: m.income_start_date,
       IncomeEndDate: m.income_end_date,
       ExpenseStartDate: m.expense_start_date,
       ExpenseEndDate: m.expense_end_date,
-      BaseDate: m.base_date,
-      BaseValue: m.base_value,
-      MarketValue: m.market_value,
-      BaseValueUSD: m.base_value_usd,
-      MarketValueUSD: m.market_value_usd,
-      GrowthRate: m.growth_rate,
-      Comment: m.comment,
-      IsMatched: m.is_matched,
-      Matched: m.is_matched,
-      SetupStatus: m.setup_status || 'new',
       // CR071 — disposal summary (counts + earliest year), not the schedule. See the repository
       // query for why the list carries scalars here and not the rows.
       DisposeCount: Number(m.dispose_count) || 0,
       DisposeFullCount: Number(m.dispose_full_count) || 0,
       DisposeFirstYear: m.dispose_first_year ?? null,
-      CashSweepTarget: m.cash_sweep_target || false,
-      CashSweepPriority: m.cash_sweep_priority ?? null,
-      // CR062 — the loan assumptions and their schedule, so `fcWarnings` can derive
-      // the loan rules client-side from what FCReview already loads.
-      LoanPrincipal: m.loan_principal != null ? parseFloat(m.loan_principal) : null,
-      LoanStartDate: m.loan_start_date,
-      LoanEndDate: m.loan_end_date,
-      LoanInterestRate: m.loan_interest_rate != null ? parseFloat(m.loan_interest_rate) : null,
-      SecuredAssetModuleId: m.secured_asset_module_id ?? null,
-      Amortization: (m.amortization || []).map((r) => ({
-        Date: r.effective_date,
-        Pct: parseFloat(r.pct) || 0,
-      })),
       // CR050 — Inherited · Overridden · Local, and which fields were overridden.
       Inheritance: variants.rowInheritance(inheritance, m),
     }));
@@ -788,31 +857,12 @@ router.get('/modules/:id', async (req, res, next) => {
         // columns it projected onto: the form renders stream cards now, so there is one shape
         // on the wire instead of a row-model translated into a column-model and back.
         Streams: await crud.loadModuleStreams(m.id),
-        id: m.id,
-        Name: m.name,
-        Account: m.account_name,
+        ...moduleCommonFields(m),
+        // Raw, not capitalised: the editor's type select matches on the stored value. The LIST
+        // capitalises for display, which is why `Type` is not in the shared projection.
         Type: m.module_type,
-        Currency: m.currency,
-        TaxRateOverride: m.tax_rate_override != null ? parseFloat(m.tax_rate_override) : null,
-        BaseDate: m.base_date,
-        BaseValue: m.base_value,
-        MarketValue: m.market_value,
-        BaseValueUSD: m.base_value_usd,
-        MarketValueUSD: m.market_value_usd,
-        GrowthRate: m.growth_rate,
         Growth: m.growth_rate,
-        Comment: m.comment,
-        IsMatched: m.is_matched,
-        Matched: m.is_matched,
-        SetupStatus: m.setup_status || 'new',
-        // CR070 P0 — the LIST endpoint projected these and the DETAIL one did not, so the edit
-        // form (which loads from here) could not know whether a module has a balance sheet or
-        // where it sits in the sweep, and `buildModulePayload` had to guess. Found twice in two
-        // days, which is the argument for the two projections being derived rather than kept by
-        // hand. The two must agree.
-        HasValuation: m.has_valuation !== false,
-        CashSweepTarget: m.cash_sweep_target || false,
-        CashSweepPriority: m.cash_sweep_priority ?? null,
+        // The schedule ROWS, which the list deliberately carries only as scalars.
         Invest: (m.investments || []).map(r => ({
           Date: r.investment_date,
           Amount: parseFloat(r.amount) || 0,
@@ -824,16 +874,6 @@ router.get('/modules/:id', async (req, res, next) => {
           Amount: parseFloat(r.amount) || 0,
           Flag: r.flag || '',
           DateEnd: r.date_end || null,
-        })),
-        // CR062
-        LoanPrincipal: m.loan_principal != null ? parseFloat(m.loan_principal) : null,
-        LoanStartDate: m.loan_start_date,
-        LoanEndDate: m.loan_end_date,
-        LoanInterestRate: m.loan_interest_rate != null ? parseFloat(m.loan_interest_rate) : null,
-        SecuredAssetModuleId: m.secured_asset_module_id ?? null,
-        Amortization: (m.amortization || []).map(r => ({
-          Date: r.effective_date,
-          Pct: parseFloat(r.pct) || 0,
         })),
       },
     });
@@ -937,6 +977,7 @@ router.post('/modules', async (req, res, next) => {
         (body.Streams || []).find((st) => (st.Direction ?? st.direction) === 'expense')?.FcLineId ?? null
       );
     }
+    assertStreamsHaveLines(body.Streams);
     await assertSecuredAssetLink(body.SecuredAssetModuleId ?? null, scenario.id, null);
 
     const module = await repo.createModule(moduleData);
@@ -1054,6 +1095,9 @@ router.put('/modules/:id', async (req, res, next) => {
         .find((st) => st.direction === 'expense')?.fc_line_id ?? null;
       assertLoanHasInterestLine(bodyLine !== undefined ? bodyLine : storedLine);
     }
+    // Only what the body actually sends: a PUT that never mentions streams leaves them alone, so
+    // refusing it on the strength of a stored row would block edits to unrelated fields.
+    assertStreamsHaveLines(body.Streams);
     if (body.SecuredAssetModuleId !== undefined) {
       await assertSecuredAssetLink(body.SecuredAssetModuleId || null, before.scenario_id, id);
     }
@@ -1626,3 +1670,6 @@ router.delete('/audittrail/:scenario', (req, res, next) => {
 });
 
 module.exports = router;
+// The shared module projection, exported so `forecast.projection-parity.test.js` can assert the
+// LIST and DETAIL responses still agree on every key in it.
+module.exports.MODULE_COMMON_KEYS = MODULE_COMMON_KEYS;

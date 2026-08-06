@@ -132,6 +132,18 @@ SELECT 'Transfer - Bank', (SELECT id FROM accounts WHERE name = 'Transfers'),
        'expense', 'profit_loss', TRUE, 'USD', TRUE
 WHERE NOT EXISTS (SELECT 1 FROM accounts WHERE name = 'Transfer - Bank');
 
+-- An FC line for the stream cards to post to. Roadmap Known Issue #2 — a stream with an amount
+-- and no line is now REFUSED, because the engine skips its P&L row while the cash path still
+-- takes it (`Sarasota House` moved −1,203,432 out of the bank onto nothing). Without a line to
+-- pick, `cr051-currency.spec.js` could not save at all.
+--
+-- Deliberately mapped to NO categories: `fc_line_categories` is what makes a line pull actuals,
+-- so an unmapped line cannot move `money-paths.spec.js`'s literal 108,500 net worth — the same
+-- care 'E2E PLN Wallet' above is seeded with.
+INSERT INTO fc_lines (name, line_type)
+SELECT 'E2E Expense Line', 'forecast_expense'
+WHERE NOT EXISTS (SELECT 1 FROM fc_lines WHERE name = 'E2E Expense Line');
+
 -- ---------------------------------------------------------------------------
 -- 2. Transactions — the balance sheet must produce a NUMBER, not an empty tree.
 --    Net worth = 10,000 + 100,000 − 1,500 = 108,500.00

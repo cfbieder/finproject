@@ -739,8 +739,16 @@ async function replaceModuleStreams(id, body, client) {
 
 /** A module's streams with their change rows, ordered — for the read path. */
 async function loadModuleStreams(moduleId, client = db) {
+  // `fc_line_name` is joined here and not only in the LIST's aggregate. The two projections of a
+  // stream drifted on exactly this in v3.16.0: the module editor loads from GET /modules/:id,
+  // which came through this function, so the Actual field reported "no line set" on every module
+  // that had one. A form that cannot see a field it is editing will guess, and it did.
   const streams = (await client.query(
-    'SELECT * FROM forecast_streams WHERE module_id = $1 ORDER BY direction, id', [moduleId]
+    `SELECT s.*, l.name AS fc_line_name
+       FROM forecast_streams s
+       LEFT JOIN fc_lines l ON l.id = s.fc_line_id
+      WHERE s.module_id = $1
+      ORDER BY s.direction, s.id`, [moduleId]
   )).rows;
   if (!streams.length) return [];
   const changes = (await client.query(

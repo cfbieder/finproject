@@ -29,7 +29,10 @@ dbDescribe('forecast write validation (N10, DB)', () => {
   let accountName;
 
   async function cleanup() {
+    // Scenario first: deleting the line while a stream still points at it violates
+    // `forecast_streams_fc_line_id_fkey`, and the cascade from the scenario is what clears them.
     await db.query('DELETE FROM forecast_scenarios WHERE name = $1', [SCENARIO]);
+    await db.query(`DELETE FROM fc_lines WHERE name = 'N10 Stream Line'`);
   }
 
   beforeAll(async () => {
@@ -198,13 +201,25 @@ dbDescribe('forecast write validation (N10, DB)', () => {
 
   describe('streams (CR069 P2 — what income/expense items became)', () => {
     let modId;
+    let streamLineId;
+
+    beforeAll(async () => {
+      streamLineId = (await db.query(
+        `INSERT INTO fc_lines (name, line_type) VALUES ('N10 Stream Line', 'forecast_expense')
+         ON CONFLICT (name) DO UPDATE SET line_type = EXCLUDED.line_type RETURNING id`
+      )).rows[0].id;
+    });
+
 
     test('accepts a module carrying a stream, the shape FCAddFromLinesModal now sends', async () => {
       const r = await req('POST', '/modules', {
         Scenario: SCENARIO,
         Name: 'N10 Stream Module',
         Comment: 'N10',
-        Streams: [{ Direction: 'expense', Mode: 'amount', Amount: 1234, GrowthMult: 1 }],
+        // FcLineId is REQUIRED alongside an amount (roadmap Known Issue #2): a stream with money
+        // and no line leaves the bank balance while posting to no P&L row. The fixture omitted it
+        // because nothing checked; `FCAddFromLinesModal` always sends one.
+        Streams: [{ Direction: 'expense', Mode: 'amount', Amount: 1234, GrowthMult: 1, FcLineId: streamLineId }],
       });
       expect([200, 201]).toContain(r.status);
       modId = r.body?.data?.id ?? r.body?.id;

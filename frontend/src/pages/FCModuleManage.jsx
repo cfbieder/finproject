@@ -415,6 +415,23 @@ export default function FCModuleManage() {
       return false;
     }
 
+    // Roadmap Known Issue #2 — an amount with no P&L line. The API refuses this too (the guard
+    // is the backstop, and the only thing that can catch a write from anywhere else); catching
+    // it here is what turns a 400 into a sentence naming the card to go and fix. The engine's
+    // stream loop skips the P&L row when there is no line but the CASH path takes every stream,
+    // so `Sarasota House` moved −1,203,432 out of Bank Accounts onto nothing at all.
+    const orphanStream = (editForm.Streams || []).find(
+      (st) => Number(st?.amount ?? 0) !== 0 && (st?.fc_line_id == null || st.fc_line_id === "")
+    );
+    if (orphanStream) {
+      setEditError(
+        `The ${orphanStream.direction === "income" ? "income" : "expense"} card has an amount ` +
+        `but no P&L line. Pick a line, or set the amount to 0 — without one the money leaves ` +
+        `the bank balance and appears on no income or expense row.`
+      );
+      return false;
+    }
+
     const payload = buildModulePayload(editForm, { normalizeTransfers });
 
     // CR062 — turning a module into a Loan DESTROYS what a loan cannot carry: its

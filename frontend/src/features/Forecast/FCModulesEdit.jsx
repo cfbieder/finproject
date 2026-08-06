@@ -1111,6 +1111,32 @@ export default function FCModulesEditModal({
                                 readOnly
                               />
                             </label>
+                            {/* CR072 §2 — the two copy buttons belong HERE, on the figure they
+                                copy, not in the footer beside Save and Cancel where they used to
+                                sit. Both write the ONE observed balance (§3: there is no separate
+                                cost-basis figure anywhere in Fin), in LC — the USD derivation
+                                then follows on its own. Disabled, not hidden, when there is no
+                                balance to copy, so the control never silently does nothing. */}
+                            <div className="fc-modules-edit__ref-actions">
+                              <button
+                                type="button"
+                                className="fc-modules-edit__ref-apply"
+                                onClick={() => copyAccountValueTo("MarketValue")}
+                                disabled={editSaving || !accountValueAvailable}
+                                title="Copy the observed balance into Assigned Market Value"
+                              >
+                                → Market Value
+                              </button>
+                              <button
+                                type="button"
+                                className="fc-modules-edit__ref-apply"
+                                onClick={() => copyAccountValueTo("BaseValue")}
+                                disabled={editSaving || !accountValueAvailable}
+                                title="Copy the observed balance into Assigned Cost Basis"
+                              >
+                                → Cost Basis
+                              </button>
+                            </div>
                             </>
                           ) : (
                             /* The actual/budget comparison moved to the STREAM CARD (owner
@@ -1969,22 +1995,6 @@ export default function FCModulesEditModal({
               disabled={editSaving}
             >
               Cancel
-            </button>
-            <button
-              type="button"
-              className="fc-modules-modal__button fc-modules-modal__button--cancel"
-              onClick={() => copyAccountValueTo("MarketValue")}
-              disabled={editSaving || !accountValueAvailable}
-            >
-              PY → Market Value
-            </button>
-            <button
-              type="button"
-              className="fc-modules-modal__button fc-modules-modal__button--cancel"
-              onClick={() => copyAccountValueTo("BaseValue")}
-              disabled={editSaving || !accountValueAvailable}
-            >
-              PY → Cost Basis
             </button>
             <button
               type="submit"

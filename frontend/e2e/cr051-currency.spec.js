@@ -58,6 +58,10 @@ test.describe("CR051 — foreign-currency expense", () => {
     // Anchored on "Amount (base year" — a bare /Amount/ also matches the Mode SELECT, whose
     // accessible name concatenates its own option text ("Mode Amount Yield spread % of value").
     await card.getByLabel(/Amount \(base year/).fill("400");
+    // Roadmap Known Issue #2 — an amount with no P&L line is refused, by the form and by the API.
+    // The seed carries `E2E Expense Line` (unmapped, so it cannot move any report's totals)
+    // precisely so this spec has one to pick.
+    await card.getByLabel("Expense line").selectOption({ label: "E2E Expense Line" });
 
     await dialog.getByRole("button", { name: /Create|Save/ }).first().click();
     await expect(dialog).toBeHidden();

@@ -6,51 +6,41 @@
 > **The budget is load-bearing** (cut from 216 lines 2026-08-05): overrun = restatement the CR
 > index and roadmap already own, and it is where stale facts collect.
 
-**Last updated:** 2026-08-06 · **Live version:** v3.17.0 (see `VERSION` / git tags)
+**Last updated:** 2026-08-06 · **Live version:** v3.17.1 (see `VERSION` / git tags)
 
 ## Current phase
 **The model, since [CR069](../cr/cr-069-forecast-streams.md) (v3.13.1 → v3.14.1, migrations
 057–060):** a module is *identity + optional valuation + N first-class **streams***.
 
 **[CR070](../cr/cr-070-module-inputs-by-type.md) + [CR071](../cr/cr-071-forecast-numbers-vs-intent.md)
-SHIPPED in v3.15.0**, the type filter grouped in **v3.15.1**, and in **v3.16.0** each stream card
-gained the FC line's real history (actual base−1 · budget base · actual base YTD) — all 2026-08-05,
-no migration. Capability-gated forms, a residue detector, 8 detection rules. Gate: sums identical
-to the cent, 4,030 rows.
+shipped in v3.15.0**; the type filter grouped in **v3.15.1**; **v3.16.0** gave each stream card the
+FC line's real history. Capability-gated forms, a residue detector, 8 detection rules.
 
-**[CR072](../cr/cr-072-valuation-module-inputs.md) SHIPPED in v3.17.0** — the balance-sheet form
-(Reference / Assigned / Assumptions, collapsed not hidden on an unmatched module) and **the budget
-year the engine skipped**. ⚠️ **That last one MOVES NUMBERS with owner sign-off: +1,284,241 net
-worth at 2062 across five scenarios.** Growth had been gated on `year >= PeriodStart`, so an asset
-grew once across the two-year gap between its base date and the forecast.
+**[CR072](../cr/cr-072-valuation-module-inputs.md) — v3.17.0, and the balance-sheet form is now
+CLOSED.** Reference / Assigned / Assumptions, collapsed not hidden on an unmatched module; base
+dates capped at the last closed year-end; the two `[→ Market Value]` / `[→ Cost Basis]` buttons on
+the Reference block. The owner answered its last three readings on 2026-08-06
+([§12](../cr/cr-072-valuation-module-inputs.md#12-open)) — the point-4 parenthetical is explanatory
+not a filter, USD stays read-only derived, cost basis is an **input** because no cost-basis data
+exists anywhere.
 
-**A projection to fix, now that it has cost three bugs in three days:** the module LIST and DETAIL
-queries are kept by hand and have drifted three times — `HasValuation` (v3.14.2), the sweep fields
-(v3.15.0), `fc_line_name` (v3.16.0). Each surfaced as a form guessing at state it should have been
-told. Derive both from one source.
+✅ **Three number-moving changes landed on prod 2026-08-06**, each measured before and after and
+each matching its prediction: **P5**, the budget year now grows (Barkeria 2026 → **1,024,967**);
+**[CR071 §4](../cr/cr-071-forecast-numbers-vs-intent.md#7-the-4-data-edits--applied-to-prod-2026-08-06)**,
+CVC's phantom yield and two Fidelity amounts cleared (**Base 2062 −31.3%**, CVC's NAV unmoved);
+and **Known Issue #2** materialising at `Property Costs −1,203,432.12`, predicted to the cent.
 
-✅ **Both pending number-moving changes LANDED on 2026-08-06**, each measured before and after on
-prod and each matching its prediction:
-1. **[CR072](../cr/cr-072-valuation-module-inputs.md) P5** — the budget year now grows.
-   Barkeria 2026 1,004,870 → **1,024,967**, exactly the dry-run figure.
-2. **[CR071 §4](../cr/cr-071-forecast-numbers-vs-intent.md#7-the-4-data-edits--applied-to-prod-2026-08-06)**
-   — CVC's phantom yield removed and the two Fidelity typed amounts cleared. **Base's 2062 net
-   worth −31.3%**, CVC's NAV and 2033 exit unmoved. A correction: the plan had been compounding
-   income that does not exist.
-3. **[Known Issue #2](project-roadmap.md#3-known-issues) materialised in the same regenerate** —
-   `Property Costs −1,203,432.12` in `2026 SRQ House Purchase`, the figure predicted to the cent.
+🆕 **v3.17.1 — [CR073](../cr/cr-073-two-recurrence-guards.md) + [CR072 P7](../cr/cr-072-valuation-module-inputs.md#14-p7--the-drill-down-as-a-modal-2026-08-06-after-v3170).**
+No migration, **no numbers move**. P7: the reference drill-down is a real modal reusing the Actuals
+page's own machinery, category-filtered through the shared `HierarchyFilter`. CR073 closes the two
+items both CR072 reviewers asked to be numbered — **Known Issue #2's guard now exists** (an amount
+with no FC line is refused; 0 prod rows were in that state), and **the LIST/DETAIL projections are
+one source**, pinned by a parity test, verified key-for-key against prod's old code.
 
-✅ **QA'd on dev, NOT yet released —
-[CR072 P7](../cr/cr-072-valuation-module-inputs.md#14-p7--the-drill-down-as-a-modal-2026-08-06-after-v3170):
-the drill-down is a real modal**, filterable by category through the shared `HierarchyFilter`
-(type-to-narrow, right-click solo, All pill), opening on the line's own accounts. It reuses the
-Actuals page's own parts rather than growing a second transaction list. The isolated test passed
-while it crashed in a browser, because its mock returned zero rows — **a UI test that renders no
-data proves nothing about rendering data.** Prod stays on v3.17.0 until this is released.
-
-⚠️ **Still open on the balance-sheet form:** the two `[→ Market Value]` / `[→ Cost Basis]` **copy
-buttons were never built** ([CR072 §12](../cr/cr-072-valuation-module-inputs.md#12-open)) — and both
-the CR and a code comment asserted they existed. Found 2026-08-06 by reading the render tree.
+**Two lessons worth keeping:** a UI test whose mock returns **zero rows** proves nothing about
+rendering rows — it passed while the modal crashed the page. And **proof of absence needs a search
+that provably covered the file**: a `head -20`-truncated grep had me record two working buttons as
+never built.
 
 **[CR064](../cr/cr-064-forecast-annual-close-and-assumptions.md) remains the live engineering
 thread** — P2/P4/P5/P10 are **unblocked** now CR069 P2 has shipped, and the annual close is not
@@ -60,6 +50,9 @@ is next at the owner's request** (`Rental - Spain` +31,306 is genuinely unmapped
 ## Known issues
 [roadmap §3](project-roadmap.md#3-known-issues) is canonical. **#15 (migrations reaching prod
 before dev) was fixed 2026-08-05** — the deploy refuses a migration absent from both ledgers.
+**#2 (an amount with no FC line) was CLOSED 2026-08-06** by CR073's guard. **New #18:** a fresh DB
+enforces `fc_lines.line_type`'s CHECK while dev and prod have no such constraint (007 was
+auto-baselined on both) — so a test can pass on dev and fail only in CI, which is how it was found.
 Worth knowing at session start: the timezone rule (#3), the unannounced red `main` (#12), the
 ESLint JSX blind spot (#10), and dirty-tree deploys (#17).
 

@@ -83,9 +83,14 @@ anywhere in Fin**, which was checked rather than assumed:
 So Reference shows the one observed number, in LC and USD, and both copy buttons would target it.
 The form stops implying there are two figures when there is one. **Owner decision 2026-08-05.**
 
-> **Correction (2026-08-06):** this section previously read *"which is what the two buttons already
-> do today"*. They do not — **the copy buttons were never built** (§12). The claim was wrong when
-> written and a matching comment in `fcModulesEditSections.js` repeated it.
+> **Correction, twice over (2026-08-06).** This section's original *"which is what the two buttons
+> already do today"* was **right**. A first audit concluded the buttons were never built and said so
+> here; that was **wrong** — they existed as `PY → Market Value` / `PY → Cost Basis`, wired to
+> `copyAccountValueTo`, sitting in the FOOTER beside Save and Cancel. The audit's grep was
+> truncated by `head -20` and a browser probe that printed nothing was read as agreement rather
+> than as an inconclusive check. **Proof of absence needs a search that provably covered the whole
+> file, and a probe that prints something when it finds nothing.** The real gap was placement, now
+> fixed: the buttons sit on the Reference block, under the figure they copy.
 
 A derived "cost basis = sum of historical purchases" was rejected: it is net cash in, not a tax
 basis, and partial disposals, returns of capital and transfers all break it. It would look
@@ -279,22 +284,20 @@ nothing.** Saying nothing beats guessing a year — CR071's own thesis, applied 
 
 ## 12. Open
 
-- **⚠️ The two copy buttons are NOT built** — `[→ Market Value]` and `[→ Cost Basis]` on the
-  Reference block, which §2 specifies and which the owner's point 4 asked for by name (*"can be
-  assigned as such using the buttons in image 2"*). Nothing in `FCModulesEdit.jsx` writes
-  `MarketValue` or `BaseValue` from a control; neither section renders a button. Found 2026-08-06
-  while auditing what remained open — **§3 and a comment in `fcModulesEditSections.js` both
-  asserted they already existed**, which is the same failure class as v3.16.0's dead reference:
-  a claim about the UI that nobody drove a browser to check. Both corrected. The work itself is
-  small — set `BaseValue`/`MarketValue` from `accountBalance.value` and let the existing USD
-  derivation follow — but it is a WRITE into a figure the engine reads, so it needs the same
-  before/after gate as any other.
-- **Point 4's parenthetical** — *"(only applies to assets and liabilities which have no budget)"* is
-  read as describing *why* balance-sheet modules need a manually assigned value (they have no budget
-  to derive one from), not as a filter selecting a subset. If a narrower set was meant, §2 changes.
-- **USD on the Assigned block** — the spec says inputs in LC. USD is kept as a read-only derived
-  figure beside each, as today.
-- **Income/expense modules** — deliberately out of scope; the owner has said they follow.
+**All three questions answered by the owner 2026-08-06. Nothing on the balance-sheet form is open.**
+
+- ✅ **Point 4's parenthetical** — *"(only applies to assets and liabilities which have no budget)"*.
+  Owner: *"yes explaining only"*. It states **why** balance-sheet modules need a manually assigned
+  value (no budget to derive one from); it is **not** a filter selecting a subset. The section is
+  offered to every valuation module, which is what was built. **No change.**
+- ✅ **USD on the Assigned block** — owner: *"correct"*. Inputs in LC, USD derived read-only beside
+  each. **No change.**
+- ✅ **Cost basis has no data** (§3) — owner: *"no cost basis, we fill this in on the forecast module
+  input form"*. So Cost Basis is an **input** on Assigned value, seeded by the `→ Cost Basis` button
+  from the observed balance, and Reference never pretends to source one. This is what §3 already
+  concluded; the owner's answer confirms the shape rather than changing it.
+- **Income/expense modules** — deliberately out of scope; the owner's stated successor, and the
+  QA that follows this work.
 
 
 ---

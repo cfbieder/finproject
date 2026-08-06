@@ -23,11 +23,20 @@ const req = (m, p, b) => request(app, m, `/forecast${p}`, b);
 dbDescribe('CR051 income/expense currency (DB)', () => {
   const BARE_SCENARIO = 'CR051BareNoFxScenario';
   let usable = null; // { name, rate } for a scenario baseYearFxRate resolves for PLN
+  // Roadmap Known Issue #2 — an amount with no FC line is now refused outright. Without a line
+  // here the FX test below would 400 for the WRONG reason and pass while testing nothing.
+  const LINE = 'CR051 Currency Line';
+  let lineId;
 
   beforeAll(async () => {
     jest.spyOn(console, 'error').mockImplementation(() => {});
     await db.query('DELETE FROM forecast_scenarios WHERE name = $1', [BARE_SCENARIO]);
     await db.query('INSERT INTO forecast_scenarios (name) VALUES ($1)', [BARE_SCENARIO]);
+
+    await db.query('DELETE FROM fc_lines WHERE name = $1', [LINE]);
+    lineId = (await db.query(
+      `INSERT INTO fc_lines (name, line_type) VALUES ($1, 'bs_module_expense') RETURNING id`, [LINE]
+    )).rows[0].id;
 
     // Find any existing scenario the engine can convert PLN for (has PeriodStart + a non-zero rate).
     const rows = (await db.query('SELECT name FROM forecast_scenarios ORDER BY id')).rows;
@@ -41,6 +50,7 @@ dbDescribe('CR051 income/expense currency (DB)', () => {
 
   afterAll(async () => {
     await db.query('DELETE FROM forecast_scenarios WHERE name = $1', [BARE_SCENARIO]);
+    await db.query('DELETE FROM fc_lines WHERE name = $1', [LINE]);
     await db.close();
   });
 
@@ -53,9 +63,11 @@ dbDescribe('CR051 income/expense currency (DB)', () => {
       Scenario: BARE_SCENARIO,
       Name: 'PLN Living Expenses',
       Currency: 'PLN',
-      Streams: [{ Direction: 'expense', Mode: 'amount', Amount: 100000 }],
+      Streams: [{ Direction: 'expense', Mode: 'amount', Amount: 100000, FcLineId: lineId }],
     });
     expect(r.status).toBe(400);
+    // Named, so the missing-line guard cannot make this pass for a different reason.
+    expect(String(r.body.error)).toMatch(/FX|convert/i);
   });
 
   test('derives the USD twin from the native amount at the base-year rate', async () => {
@@ -64,7 +76,7 @@ dbDescribe('CR051 income/expense currency (DB)', () => {
       Scenario: usable.name,
       Name: 'CR051 PLN Stream Module',
       Currency: 'PLN',
-      Streams: [{ Direction: 'expense', Mode: 'amount', Amount: 100000 }],
+      Streams: [{ Direction: 'expense', Mode: 'amount', Amount: 100000, FcLineId: lineId }],
     });
     expect(r.status).toBe(201);
     const id = r.body?.data?.id;

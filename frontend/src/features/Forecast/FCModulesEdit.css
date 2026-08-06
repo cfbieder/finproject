@@ -1078,6 +1078,37 @@
   color: var(--muted);
 }
 
+/* CR072 §2 — the copy buttons sit on the Reference block, under the figure they copy, spanning
+   the field grid so they read as an action on the block rather than as a third field. */
+.fc-modules-edit__ref-actions {
+  grid-column: 1 / -1;
+  display: flex;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+}
+
+.fc-modules-edit__ref-apply {
+  padding: 0.3rem 0.7rem;
+  font-size: 0.78rem;
+  font-weight: 600;
+  color: var(--primary);
+  background: var(--surface-muted);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+}
+
+.fc-modules-edit__ref-apply:hover:not(:disabled) {
+  background: var(--surface-elevated);
+  border-color: var(--primary);
+}
+
+.fc-modules-edit__ref-apply:disabled {
+  color: var(--muted);
+  cursor: not-allowed;
+  opacity: 0.6;
+}
+
 .fc-modules-edit__expense-field {
   grid-column: 1 / -1;
 }
