@@ -499,3 +499,56 @@ export function formatYearList(years = []) {
   if (sorted.length <= 4) return sorted.join(", ");
   return `${sorted[0]}–${sorted[sorted.length - 1]} (${sorted.length} years)`;
 }
+
+/**
+ * CR074 — the identity a DISMISSAL is recorded against.
+ *
+ * A warning's `id` alone is not enough. `sweep-source-exhausted` is the same id whether the
+ * drain lands in 2061 or in 2041, so a dismissal keyed on the id would let one click in a
+ * comfortable year permanently silence the rule — including the moment it becomes urgent.
+ * That is precisely the failure CR045 built this panel to prevent (§1: a silent panel must
+ * never be mistakable for a healthy forecast).
+ *
+ * So the fingerprint hashes what the warning ASSERTS — its severity, the years it names, the
+ * amount it carries, and its detail sentence, which is where the rules put their figures
+ * ("Cost basis and market value are both $3.9M"). A dismissal suppresses a warning only while
+ * the fingerprint still matches; change the plan and the warning comes back on its own.
+ *
+ * Deliberately NOT a cryptographic hash — this is a change-detector, not a security boundary.
+ * FNV-1a over the canonical string, hex, stable across browsers and runs. Collisions would
+ * un-dismiss or mis-suppress a single warning, not corrupt anything.
+ */
+export function warningFingerprint(warning) {
+  const canonical = JSON.stringify([
+    warning?.id ?? "",
+    warning?.severity ?? "",
+    [...(warning?.years || [])].sort((a, b) => a - b),
+    warning?.amount == null ? null : Number(warning.amount),
+    warning?.detail ?? "",
+  ]);
+  let hash = 0x811c9dc5;
+  for (let i = 0; i < canonical.length; i++) {
+    hash ^= canonical.charCodeAt(i);
+    hash = Math.imul(hash, 0x01000193) >>> 0;
+  }
+  return hash.toString(16).padStart(8, "0");
+}
+
+/**
+ * Split the warnings into what to SHOW and what the owner has already accepted.
+ *
+ * `dismissals` is `{ [warningId]: fingerprint }` as stored. A row whose fingerprint has moved
+ * on is returned as VISIBLE and flagged `staleDismissal`, so the panel can say the warning came
+ * back rather than appearing to have never been dismissed.
+ */
+export function partitionDismissed(warnings = [], dismissals = {}) {
+  const visible = [];
+  const dismissed = [];
+  for (const w of warnings) {
+    const stored = dismissals[w.id];
+    if (stored === undefined) { visible.push(w); continue; }
+    if (stored === warningFingerprint(w)) dismissed.push(w);
+    else visible.push({ ...w, staleDismissal: true });
+  }
+  return { visible, dismissed };
+}

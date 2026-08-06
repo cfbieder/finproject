@@ -542,6 +542,34 @@ export default class Rest {
    * and the parts sum to the whole because the route reuses the total's own CTE and just stops
    * grouping.
    */
+  // CR074 — which cash-health warnings the owner has accepted, per scenario. Returned as
+  // `{ [warningId]: fingerprint }`; the panel suppresses a warning only while its fingerprint
+  // still matches, so a changed warning comes back on its own.
+  static async fetchWarningDismissals(scenario) {
+    const res = await Rest.fetchJson(
+      `/api/v2/forecast/warnings/dismissals?scenario=${encodeURIComponent(scenario)}`
+    );
+    return Rest.unwrap(res) || {};
+  }
+
+  /** One item or twenty — "Dismiss all" is one request, not N racing writes. */
+  static async dismissWarnings(scenario, items) {
+    return Rest.fetchJson('/api/v2/forecast/warnings/dismissals', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ scenario, items }),
+    });
+  }
+
+  /** With no warningId, restores every dismissal in the scenario. */
+  static async restoreWarnings(scenario, warningId = null) {
+    const qs = new URLSearchParams({ scenario });
+    if (warningId) qs.set('warningId', warningId);
+    return Rest.fetchJson(`/api/v2/forecast/warnings/dismissals?${qs.toString()}`, {
+      method: 'DELETE',
+    });
+  }
+
   static async fetchFcLineActualBreakdown(year, fcLineId) {
     const res = await Rest.fetchJson(
       `/api/v2/fc-lines/actual-breakdown?year=${encodeURIComponent(year)}&fcLineId=${encodeURIComponent(fcLineId)}`

@@ -1770,6 +1770,7 @@ export default function FCReview() {
           <FCReviewWarnings
             warnings={forecastWarnings}
             onAutoAdjust={() => setAutoAdjustOpen(true)}
+            scenario={selectedScenario}
           />
         )}
         <FCReviewTable

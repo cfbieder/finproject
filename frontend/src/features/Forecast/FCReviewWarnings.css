@@ -149,3 +149,94 @@
 .fc-warnings__actions {
   padding: var(--space-sm) var(--space-md) 0;
 }
+
+/* ── CR074 — dismissing a warning ──────────────────────────────────────────────
+   The dismiss control sits at the END of the row so the eye reads the warning
+   before the way to make it go away. `fc-warning__body` already takes the slack. */
+.fc-warning__dismiss {
+  flex-shrink: 0;
+  align-self: flex-start;
+  margin-top: 1px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 1.5rem;
+  height: 1.5rem;
+  padding: 0;
+  border: 1px solid transparent;
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: var(--muted);
+  cursor: pointer;
+}
+
+.fc-warning__dismiss:hover:not(:disabled) {
+  background: var(--surface);
+  border-color: var(--border);
+  color: var(--ink);
+}
+
+.fc-warning__dismiss:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+/* A dismissed row, shown only on request. Muted and de-saturated so it reads as
+   context rather than as a live problem — but still legible, because "what did I
+   accept?" is the question this view exists to answer. */
+.fc-warning--dismissed {
+  opacity: 0.6;
+  background: var(--surface-muted);
+  border-left-color: var(--border);
+}
+
+.fc-warning--dismissed .fc-warning__title {
+  text-decoration: line-through;
+  text-decoration-thickness: 1px;
+}
+
+/* The count in the header. Deliberately NOT styled as a success: nothing has been
+   fixed, so it must not read like progress. */
+.fc-warnings__dismissed-count {
+  margin-left: var(--space-sm);
+  padding: 0.1rem 0.4rem;
+  border-radius: var(--radius-sm);
+  background: var(--surface-muted);
+  border: 1px solid var(--border);
+  color: var(--muted);
+  font-size: 0.72rem;
+  font-weight: 600;
+  text-transform: none;
+  letter-spacing: 0;
+}
+
+.fc-warnings__all-dismissed {
+  margin: 0;
+  padding: var(--space-sm) var(--space-md);
+  font-size: 0.82rem;
+  color: var(--muted);
+  border-top: 1px solid var(--border);
+}
+
+.fc-warnings__error {
+  margin: 0;
+  padding: var(--space-xs) var(--space-md);
+  font-size: 0.8rem;
+  color: var(--danger-strong);
+  background: var(--danger-subtle);
+}
+
+/* Why a dismissal came back. */
+.fc-warning__stale {
+  margin: 0.2rem 0 0;
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: var(--warning-strong);
+}
+
+.fc-warnings__dismiss-all,
+.fc-warnings__toggle-dismissed {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+}

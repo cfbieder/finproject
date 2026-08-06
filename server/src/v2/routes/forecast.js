@@ -656,6 +656,88 @@ router.post('/scenarios/:id/detach', async (req, res, next) => {
 });
 
 // ============================================================================
+// Cash-health warning dismissals (CR074)
+// ============================================================================
+
+/**
+ * The warnings themselves are derived CLIENT-side (`fcWarnings.js`) from what the Review page
+ * already loads, so there is nothing to compute here — only which of them the owner has looked
+ * at and accepted, per scenario.
+ *
+ * `fingerprint` is required on a dismissal and is checked by the CLIENT on render: a dismissal
+ * suppresses a warning only while the fingerprint still matches, so accepting "Sweep source
+ * fully drained 2061" does not silence the same rule when the plan makes it 2041. The server
+ * stores it rather than interpreting it — the substance being hashed is the warning copy, which
+ * only the client has.
+ */
+async function scenarioIdFromQuery(req, res) {
+  const name = (req.query.scenario || req.body?.scenario || '').trim();
+  if (!name) {
+    res.status(400).json({ error: 'A scenario is required' });
+    return null;
+  }
+  const scenario = await repo.findScenarioByName(name);
+  if (!scenario) {
+    res.status(404).json({ error: `Scenario "${name}" not found` });
+    return null;
+  }
+  return scenario.id;
+}
+
+// GET /api/v2/forecast/warnings/dismissals?scenario=NAME
+router.get('/warnings/dismissals', async (req, res, next) => {
+  try {
+    const scenarioId = await scenarioIdFromQuery(req, res);
+    if (scenarioId == null) return undefined;
+    return res.json({ data: await repo.findWarningDismissals(scenarioId) });
+  } catch (error) {
+    console.error('[forecast/warnings/dismissals GET] Failed:', error);
+    return next(error);
+  }
+});
+
+// POST /api/v2/forecast/warnings/dismissals
+// Body: { scenario, items: [{ warningId, fingerprint }] } — one item or twenty, same route, so
+// "Dismiss all" is one request rather than N racing writes against the same unique index.
+router.post('/warnings/dismissals', async (req, res, next) => {
+  try {
+    const scenarioId = await scenarioIdFromQuery(req, res);
+    if (scenarioId == null) return undefined;
+
+    const items = Array.isArray(req.body?.items) ? req.body.items : [];
+    if (!items.length) {
+      return res.status(400).json({ error: 'items must be a non-empty array' });
+    }
+    // Both fields are required: a dismissal with no fingerprint could never expire, which is
+    // the one behaviour this feature must not have.
+    const bad = items.find((it) => !it?.warningId || !it?.fingerprint);
+    if (bad) {
+      return res.status(400).json({ error: 'Every item needs a warningId and a fingerprint' });
+    }
+    const count = await repo.dismissWarnings(scenarioId, items);
+    return res.json({ data: { dismissed: count } });
+  } catch (error) {
+    console.error('[forecast/warnings/dismissals POST] Failed:', error);
+    return next(error);
+  }
+});
+
+// DELETE /api/v2/forecast/warnings/dismissals?scenario=NAME[&warningId=ID]
+// Without warningId this restores EVERY dismissal in the scenario — the undo for "Dismiss all".
+router.delete('/warnings/dismissals', async (req, res, next) => {
+  try {
+    const scenarioId = await scenarioIdFromQuery(req, res);
+    if (scenarioId == null) return undefined;
+    const warningId = (req.query.warningId || '').trim() || null;
+    const count = await repo.restoreWarnings(scenarioId, warningId);
+    return res.json({ data: { restored: count } });
+  } catch (error) {
+    console.error('[forecast/warnings/dismissals DELETE] Failed:', error);
+    return next(error);
+  }
+});
+
+// ============================================================================
 // Modules
 // ============================================================================
 

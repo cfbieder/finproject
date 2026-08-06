@@ -6,7 +6,7 @@
 > **The budget is load-bearing** (cut from 216 lines 2026-08-05): overrun = restatement the CR
 > index and roadmap already own, and it is where stale facts collect.
 
-**Last updated:** 2026-08-06 · **Live version:** v3.17.1 (see `VERSION` / git tags)
+**Last updated:** 2026-08-06 · **Live version:** v3.18.0 (see `VERSION` / git tags)
 
 ## Current phase
 **The model, since [CR069](../cr/cr-069-forecast-streams.md) (v3.13.1 → v3.14.1, migrations
@@ -41,6 +41,14 @@ one source**, pinned by a parity test, verified key-for-key against prod's old c
 rendering rows — it passed while the modal crashed the page. And **proof of absence needs a search
 that provably covered the file**: a `head -20`-truncated grep had me record two working buttons as
 never built.
+
+🆕 **v3.18.0 — [CR074](../cr/cr-074-dismissible-cash-health-warnings.md): the Cash Health panel's
+warnings can be dismissed** (per row, or all at once), per scenario, migration **061**. No numbers
+move. The design is set by what it must NOT do, since [CR045](../cr/cr-045-forecast-cash-warnings-liquidation.md)
+§1 built this panel after a $20M shortfall sat here unremarked: the header keeps the **full** count
+and says how many are dismissed · **all-dismissed is not all-clear**, it says so in its own words ·
+and **a dismissal expires when the warning's figures change**, so accepting "drained by 2061" cannot
+silence the same rule at 2041.
 
 **[CR064](../cr/cr-064-forecast-annual-close-and-assumptions.md) remains the live engineering
 thread** — P2/P4/P5/P10 are **unblocked** now CR069 P2 has shipped, and the annual close is not

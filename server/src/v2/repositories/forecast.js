@@ -723,6 +723,56 @@ async function findMatchedModuleNames(scenarioId) {
   return names;
 }
 
+
+// ============================================================================
+// Warning dismissals (CR074)
+// ============================================================================
+
+/** `{ [warning_id]: fingerprint }` — the shape the panel filters with. */
+async function findWarningDismissals(scenarioId) {
+  const result = await db.query(
+    'SELECT warning_id, fingerprint FROM forecast_warning_dismissals WHERE scenario_id = $1',
+    [scenarioId]
+  );
+  return Object.fromEntries(result.rows.map((r) => [r.warning_id, r.fingerprint]));
+}
+
+/**
+ * Upsert one or many. Re-dismissing an id REPLACES its fingerprint, which is what makes
+ * "dismiss again after the numbers moved" mean "I have accepted this new version too" rather
+ * than silently keeping the stale one.
+ */
+async function dismissWarnings(scenarioId, items = []) {
+  if (!items.length) return 0;
+  const values = [];
+  const params = [scenarioId];
+  for (const it of items) {
+    params.push(String(it.warningId), String(it.fingerprint));
+    values.push(`($1, $${params.length - 1}, $${params.length})`);
+  }
+  const result = await db.query(
+    `INSERT INTO forecast_warning_dismissals (scenario_id, warning_id, fingerprint)
+     VALUES ${values.join(', ')}
+     ON CONFLICT (scenario_id, warning_id)
+     DO UPDATE SET fingerprint = EXCLUDED.fingerprint, dismissed_at = NOW()`,
+    params
+  );
+  return result.rowCount;
+}
+
+/** Restore one warning, or — with no id — every dismissal in the scenario. */
+async function restoreWarnings(scenarioId, warningId = null) {
+  const result = warningId
+    ? await db.query(
+        'DELETE FROM forecast_warning_dismissals WHERE scenario_id = $1 AND warning_id = $2',
+        [scenarioId, warningId]
+      )
+    : await db.query(
+        'DELETE FROM forecast_warning_dismissals WHERE scenario_id = $1', [scenarioId]
+      );
+  return result.rowCount;
+}
+
 module.exports = {
   // Scenarios
   findAllScenarios,
@@ -748,5 +798,9 @@ module.exports = {
   findYearsByScenario,
   findEntriesByScenario,
   findAllEntries,
-  findMatchedModuleNames
+  findMatchedModuleNames,
+  // Warning dismissals (CR074)
+  findWarningDismissals,
+  dismissWarnings,
+  restoreWarnings,
 };
