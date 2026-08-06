@@ -1,6 +1,7 @@
 import { Fragment, useEffect, useMemo, useState } from "react";
 import Rest from "../../js/rest";
 import FCModuleAuditModal from "./FCModuleAuditModal.jsx";
+import FCLineDrilldownModal from "./FCLineDrilldownModal.jsx";
 import Modal from "../../components/Modal/Modal.jsx";
 import FCModulesStreams from "./FCModulesStreams.jsx";
 import "./FCModulesStreams.css";
@@ -312,6 +313,9 @@ export default function FCModulesEditModal({
   const traitType = accountTraits?.Type ?? "";
   const traitCurrency = accountTraits?.Currency ?? "";
   const [showAuditModal, setShowAuditModal] = useState(false);
+  // CR072 QA — which line/year the reader drilled into. Held HERE, not in the stream card, because
+  // the modal it opens must be a sibling of this editor's dialog rather than a descendant of it.
+  const [drilldown, setDrilldown] = useState(null);
   // CR070 P6 — a FLOW module's prior-year figure follows its stream's FC LINE, not an account.
   // The old lookup went to the balance-sheet report by `account_id`; every account feeding an
   // expense line is profit_loss, so it could never return anything, and the account named one of
@@ -1662,6 +1666,7 @@ export default function FCModulesEditModal({
                   periodYears={baseYearOptions}
                   startYear={streamStartYear}
                   currency={editForm.Currency}
+                  onDrill={setDrilldown}
                 />
               </div>
             </div>
@@ -2031,6 +2036,18 @@ export default function FCModulesEditModal({
         periodStart={resolvedPeriodStart}
         lineNames={moduleLineNames}
       />
+      {/* Sibling of the editor dialog, like the audit modal above it. Rendered only while a drill
+          is live so the transaction query never runs behind a closed dialog. */}
+      {drilldown && (
+        <FCLineDrilldownModal
+          isOpen
+          onClose={() => setDrilldown(null)}
+          year={drilldown.year}
+          fcLineId={drilldown.fcLineId}
+          lineName={drilldown.lineName}
+          kind={drilldown.kind}
+        />
+      )}
     </>
   );
 }

@@ -304,14 +304,60 @@ worth at 2062 across five scenarios, measured old-code vs new-code on a fresh pr
 - **The TDZ trap appeared three times in this one CR** (`fcLines`, a duplicate `baseYear`, and the
   type vocabulary before it) — twice caught by reading declaration order, once by the parser.
 
-### Not built
+---
 
-- **The drill-down as a MODAL.** The owner asked for a popup filterable like the Actuals page, and
-  the right shape is settled: reuse `useTransactions`, `ACTUAL_CONFIG` and `TransactionTable` —
-  the three pieces `/trans-actual` is built from — with the categories pre-filled from the line's
-  own leaves. A component was written and **renders correctly in isolation** (a passing render
-  test mounts it), but wiring it to the row's double-click did not open it: no error, no fetch
-  failure, and deferring past the triggering event plus disabling outside-dismissal did not help.
-  The leading suspicion is the JSX edit that removed the inline panel leaving the modal nested in
-  a branch that never renders — so the rewire should start from a clean edit of the render tree,
-  not from that patch. **The working inline breakdown was restored rather than left broken.**
+## 14. P7 — the drill-down as a modal (2026-08-06, after v3.17.0)
+
+The owner's ask: *"rather than make this show below, make it a proper popup modal, that we can then
+filter similar to the actuals page"*. Built as `FCLineDrilldownModal`, and the design decision that
+matters is that it **reuses** `useTransactions`, `ACTUAL_CONFIG`/`BUDGET_CONFIG`,
+`useTransactionSelection` and `TransactionTable` — the pieces `/trans-actual` itself is built from —
+rather than re-implementing a transaction list that would drift from the page it imitates.
+
+The categories are pre-filled from the line's own leaves, taken from the SAME breakdown route the
+total uses, so the modal cannot disagree with the figure that opened it about which accounts count.
+One checkbox widens to every category.
+
+**State lives in `FCModulesEdit`, not in the stream card.** The editor is itself a Radix dialog, so
+the drill modal is rendered as a **sibling after `</Modal>`**, exactly where `FCModuleAuditModal`
+already sits. That is the whole fix for §13's "would not open".
+
+### Why the first attempt failed, and why nothing caught it
+
+Not the render tree. `TransactionTable` does not take transactions — it takes
+`{ entry, rowId, isSelected }` wrappers, which `useTransactionSelection` produces. Passing raw rows
+made every cell read `entry[column.key]` off `undefined`; the throw propagated to the error boundary
+and unmounted **both** dialogs, which is why the modal "never appeared" rather than appearing broken.
+
+The isolated render test passed throughout, because its mock returned **zero** rows — the table
+rendered its empty-state message and never reached a cell. The test now returns rows, and asserts on
+a cell. Reintroducing the bug fails 3 of its 4 cases.
+
+That is the same lesson as v3.16.0's dead reference, one layer in: **a UI test that renders no data
+proves nothing about rendering data.**
+
+### Two defects found while wiring it, before it ever shipped
+
+- **`monthEnabled: false` is not enough to mean "the whole year".** It falls through to
+  `fromMonth`/`toMonth`, and the Actuals defaults carry the CURRENT month — the modal would have
+  shown one month's transactions under a full-year figure. Both bounds are now set explicitly.
+- **The budget row would have queried actual transactions.** The two totals come from different
+  tables; `kind === "budget"` now uses `BUDGET_CONFIG` (`/budget/entries`), and the search box is
+  hidden there because that config has no description filter — verified on dev that `budget_year`
+  and the date range select identically (0 of 817 rows disagree, one version per year).
+- **A silent 500-row cap.** The per-currency totals are summed over LOADED rows, so past the batch
+  size they were a partial sum presented as the whole. The cap is now stated, with "Load more".
+
+### Verified in a real browser on dev, not only in jsdom
+
+Every figure reconciles card → modal, on `House Morgage` / `Financial Expenses`:
+
+| card row | card figure | modal USD (base) | rows |
+|---|--:|--:|--:|
+| Actual 2025 | 4,421 · 93 txns | 4,421 | 93 |
+| Budget 2026 | 3,448 | 3,448 | 22 |
+| Actual 2026 | 3,966 · 53 txns | 3,966 | 53 |
+
+with PLN/USD/EUR reported beside the base, never merged into it. The ✕ takes the click (the
+nested-dialog `pointer-events` trap that `e2e/nested-modal.spec.js` pins) and the editor survives
+underneath. Gates: 814 backend · 444 frontend · 8/8 e2e · lint 0 · six ratchets · clean build.

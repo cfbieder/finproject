@@ -1,5 +1,4 @@
-import { useMemo, useState } from "react";
-import Rest from "../../js/rest.js";
+import { useMemo } from "react";
 import "./FCModulesStreams.css";
 
 /**
@@ -65,28 +64,8 @@ export default function FCModulesStreams({
   sharedByLine = {},
   periodStart = null,
   startYear = null,
+  onDrill,
 }) {
-  // CR072 QA — the drill-down behind a reference figure. Keyed by `${year}|${lineId}` so two
-  // cards on different lines can be open at once, and so re-opening one is instant.
-  const [breakdown, setBreakdown] = useState({});
-  const toggleBreakdown = async (year, lineId, kind) => {
-    const key = `${kind}|${year}|${lineId}`;
-    setBreakdown((prev) => {
-      const next = { ...prev };
-      if (next[key]) delete next[key]; else next[key] = { loading: true, rows: [] };
-      return next;
-    });
-    if (breakdown[key]) return;                       // it was open; closing needs no fetch
-    try {
-      const rows = kind === "budget"
-        ? await Rest.fetchFcLineBudgetBreakdown(year, lineId)
-        : await Rest.fetchFcLineActualBreakdown(year, lineId);
-      setBreakdown((prev) => (prev[key] ? { ...prev, [key]: { loading: false, rows } } : prev));
-    } catch {
-      setBreakdown((prev) => (prev[key] ? { ...prev, [key]: { loading: false, rows: [] } } : prev));
-    }
-  };
-
   const linesByDirection = useMemo(() => ({
     income: fcLines.filter((l) => (l.line_type || "").includes("income")),
     expense: fcLines.filter((l) => !(l.line_type || "").includes("income")),
@@ -313,58 +292,36 @@ export default function FCModulesStreams({
                 )}
               </div>
               {rows.map(([key, label, note, drillYear, kind]) => {
-                const bKey = drillYear != null ? `${kind}|${drillYear}|${stream.fc_line_id}` : null;
-                const open = bKey ? breakdown[bKey] : null;
+                // The drill opens a dialog, and this card sits three levels inside the module
+                // editor's own dialog. So the row does not own the modal — it asks the PARENT
+                // to open one, which renders it as a sibling of that editor. Nesting it here
+                // was the earlier attempt, and it never appeared.
+                const canDrill = drillYear != null && typeof onDrill === "function";
                 return (
-                  <div key={key}>
-                    <div
-                      className={`fc-stream-card__reference-row${drillYear != null ? " fc-stream-card__reference-row--drillable" : ""}`}
-                      /* Double-click, not single: these rows sit inside a form, and a stray click
-                         while tabbing through it should not fire a query. */
-                      onDoubleClick={drillYear != null
-                        ? () => toggleBreakdown(drillYear, stream.fc_line_id, kind)
-                        : undefined}
-                      title={drillYear != null
-                        ? "Double-click to see which accounts make this up"
-                        : undefined}
-                    >
-                      <span>{label}</span>
-                      <strong>
-                        {ref[key].toLocaleString(undefined, {
-                          minimumFractionDigits: 0, maximumFractionDigits: 0,
-                        })}
-                      </strong>
-                      <small>{note}{drillYear != null ? " · double-click" : ""}</small>
-                    </div>
-                    {open && (
-                      <div className="fc-stream-card__breakdown">
-                        {open.loading ? (
-                          <div className="fc-stream-card__breakdown-row"><span>Loading…</span></div>
-                        ) : open.rows.length === 0 ? (
-                          <div className="fc-stream-card__breakdown-row"><span>No accounts booked.</span></div>
-                        ) : open.rows.map((r) => (
-                          <div
-                            key={`${r.account_id}-${r.currency}`}
-                            className="fc-stream-card__breakdown-row"
-                          >
-                            <span>{r.account_name}</span>
-                            {/* Local BESIDE the USD, never instead of it: this line draws on
-                                three currencies, so only the USD column may be summed. */}
-                            <em>
-                              {Math.abs(Number(r.local_total)).toLocaleString(undefined, {
-                                minimumFractionDigits: 0, maximumFractionDigits: 0,
-                              })} {r.currency}
-                            </em>
-                            <strong>
-                              {Math.abs(Number(r.actual_total ?? r.budget_total)).toLocaleString(undefined, {
-                                minimumFractionDigits: 0, maximumFractionDigits: 0,
-                              })} USD
-                            </strong>
-                            <small>{r.transaction_count} txns</small>
-                          </div>
-                        ))}
-                      </div>
-                    )}
+                  <div
+                    key={key}
+                    className={`fc-stream-card__reference-row${canDrill ? " fc-stream-card__reference-row--drillable" : ""}`}
+                    /* Double-click, not single: these rows sit inside a form, and a stray click
+                       while tabbing through it should not fire a query. */
+                    onDoubleClick={canDrill
+                      ? () => onDrill({
+                        year: drillYear,
+                        fcLineId: Number(stream.fc_line_id),
+                        kind,
+                        lineName: lineName || "This line",
+                      })
+                      : undefined}
+                    title={canDrill
+                      ? "Double-click to see the transactions behind this figure"
+                      : undefined}
+                  >
+                    <span>{label}</span>
+                    <strong>
+                      {ref[key].toLocaleString(undefined, {
+                        minimumFractionDigits: 0, maximumFractionDigits: 0,
+                      })}
+                    </strong>
+                    <small>{note}{canDrill ? " · double-click" : ""}</small>
                   </div>
                 );
               })}
