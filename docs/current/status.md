@@ -6,7 +6,7 @@
 > **The budget is load-bearing** (cut from 216 lines 2026-08-05): overrun = restatement the CR
 > index and roadmap already own, and it is where stale facts collect.
 
-**Last updated:** 2026-08-05 · **Live version:** v3.16.0 (see `VERSION` / git tags)
+**Last updated:** 2026-08-06 · **Live version:** v3.17.0 (see `VERSION` / git tags)
 
 ## Current phase
 **The model, since [CR069](../cr/cr-069-forecast-streams.md) (v3.13.1 → v3.14.1, migrations
@@ -17,6 +17,12 @@ SHIPPED in v3.15.0**, the type filter grouped in **v3.15.1**, and in **v3.16.0**
 gained the FC line's real history (actual base−1 · budget base · actual base YTD) — all 2026-08-05,
 no migration. Capability-gated forms, a residue detector, 8 detection rules. Gate: sums identical
 to the cent, 4,030 rows.
+
+**[CR072](../cr/cr-072-valuation-module-inputs.md) SHIPPED in v3.17.0** — the balance-sheet form
+(Reference / Assigned / Assumptions, collapsed not hidden on an unmatched module) and **the budget
+year the engine skipped**. ⚠️ **That last one MOVES NUMBERS with owner sign-off: +1,284,241 net
+worth at 2062 across five scenarios.** Growth had been gated on `year >= PeriodStart`, so an asset
+grew once across the two-year gap between its base date and the forecast.
 
 **A projection to fix, now that it has cost three bugs in three days:** the module LIST and DETAIL
 queries are kept by hand and have drifted three times — `HasValuation` (v3.14.2), the sweep fields

@@ -1,4 +1,4 @@
-# CR072 — the balance-sheet module: form, and the budget year the engine skips — 🟡 IN PROGRESS
+# CR072 — the balance-sheet module: form, and the budget year the engine skips — ✅ COMPLETE (v3.17.0)
 
 Owner-requested restructure of the module editor for **asset and liability (valuation) modules**.
 CR070 decided *which* fields a module may show; this decides **how the ones it keeps are arranged,
@@ -283,3 +283,35 @@ nothing.** Saying nothing beats guessing a year — CR071's own thesis, applied 
 - **USD on the Assigned block** — the spec says inputs in LC. USD is kept as a read-only derived
   figure beside each, as today.
 - **Income/expense modules** — deliberately out of scope; the owner has said they follow.
+
+
+---
+
+## 13. As built (2026-08-06) — SHIPPED in v3.17.0
+
+All of P0–P6. No migration. **P5 moves forecast numbers with the owner's sign-off** (+1,284,241 net
+worth at 2062 across five scenarios, measured old-code vs new-code on a fresh prod copy).
+
+**What the build taught, beyond the phases:**
+
+- **A feature of mine had been dead since the release that added it.** v3.16.0's stream-card
+  reference never rendered: both totals routes return `{data, year}`, `Rest.unwrap` only strips a
+  lone-`data` envelope by design, so the loop threw *"is not iterable"* into a silent catch. I had
+  verified the endpoint and the data and never the render. Found by driving a real browser, fixed
+  with `Rest.rows`, and pinned by a test whose first case is the exact envelope.
+- **811 backend tests passed while P5's bug existed.** Nothing covered growth before PeriodStart.
+  A gate is only as good as the case someone thought to write.
+- **The TDZ trap appeared three times in this one CR** (`fcLines`, a duplicate `baseYear`, and the
+  type vocabulary before it) — twice caught by reading declaration order, once by the parser.
+
+### Not built
+
+- **The drill-down as a MODAL.** The owner asked for a popup filterable like the Actuals page, and
+  the right shape is settled: reuse `useTransactions`, `ACTUAL_CONFIG` and `TransactionTable` —
+  the three pieces `/trans-actual` is built from — with the categories pre-filled from the line's
+  own leaves. A component was written and **renders correctly in isolation** (a passing render
+  test mounts it), but wiring it to the row's double-click did not open it: no error, no fetch
+  failure, and deferring past the triggering event plus disabling outside-dismissal did not help.
+  The leading suspicion is the JSX edit that removed the inline panel leaving the modal nested in
+  a branch that never renders — so the rewire should start from a clean edit of the render tree,
+  not from that patch. **The working inline breakdown was restored rather than left broken.**
