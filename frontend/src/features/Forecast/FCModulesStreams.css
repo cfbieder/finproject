@@ -232,10 +232,17 @@
 
 .fc-stream-card__breakdown-row {
   display: grid;
-  grid-template-columns: 1fr 7rem 4.5rem;
+  grid-template-columns: 1fr 8rem 8rem 4.5rem;
   gap: 0.5rem;
   padding: 0.1rem 0;
   font-size: 0.75rem;
+  color: var(--muted);
+}
+
+.fc-stream-card__breakdown-row em {
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+  font-style: normal;
   color: var(--muted);
 }
 

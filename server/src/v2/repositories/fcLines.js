@@ -298,7 +298,10 @@ async function getActualTotals(year) {
  * identical recursive CTE and simply stop grouping — the parts then provably sum to the whole,
  * which a separately-written query could not promise.
  *
- * `base_amount` for the same reason the parent uses it: one currency, or the sum is nonsense.
+ * Grouped by (account, CURRENCY), not by account alone. `Property Costs` draws on EUR, PLN and
+ * USD, and one account carries four currencies — so a single "local" figure per account would be
+ * the CR064 P8 bug in miniature (pounds added to zloty). USD is the only total that may be summed
+ * across the line; the local amounts are shown per currency, beside it, never instead of it.
  */
 async function getActualBreakdown(year, fcLineId) {
   const result = await db.query(`
@@ -320,18 +323,63 @@ async function getActualBreakdown(year, fcLineId) {
     SELECT
       a.id   as account_id,
       a.name as account_name,
+      t.currency as currency,
+      COALESCE(SUM(t.amount), 0)      as local_total,
       COALESCE(SUM(t.base_amount), 0) as actual_total,
       count(t.id) as transaction_count
     FROM distinct_leaves dl
     JOIN accounts a ON a.id = dl.id
-    LEFT JOIN transactions t
+    JOIN transactions t
       ON t.category_id = dl.id
      AND t.transaction_date >= make_date($1, 1, 1)
      AND t.transaction_date <= make_date($1, 12, 31)
-    GROUP BY a.id, a.name
-    HAVING count(t.id) > 0
+    GROUP BY a.id, a.name, t.currency
     ORDER BY SUM(t.base_amount) ASC NULLS LAST
   `, [year, fcLineId]);
+  return result.rows;
+}
+
+/**
+ * CR072 QA — the budget total, broken down by the account that budgeted it.
+ *
+ * The exact sibling of `getActualBreakdown`, over `budget_entries` rather than `transactions`,
+ * resolving leaves through the identical recursive CTE. The pairing matters: an actual and a
+ * budget that disagreed about which accounts feed a line would make the two drill-downs
+ * un-comparable, which is the whole reason anyone opens them side by side.
+ *
+ * No `HAVING count > 0` here — its sibling uses that to drop accounts with no transactions, but a
+ * budget row EXISTS or it does not, so the join already does that work.
+ */
+async function getBudgetBreakdown(budgetYear, fcLineId) {
+  const result = await db.query(`
+    WITH RECURSIVE cat_tree AS (
+      SELECT flc.fc_line_id, c.id
+      FROM fc_line_categories flc
+      JOIN accounts c ON flc.category_id = c.id
+      WHERE flc.fc_line_id = $2
+      UNION ALL
+      SELECT ct.fc_line_id, ch.id
+      FROM cat_tree ct
+      JOIN accounts ch ON ch.parent_id = ct.id
+    ),
+    distinct_leaves AS (
+      SELECT DISTINCT fc_line_id, id
+      FROM cat_tree ct
+      WHERE NOT EXISTS (SELECT 1 FROM accounts ch WHERE ch.parent_id = ct.id)
+    )
+    SELECT
+      a.id   as account_id,
+      a.name as account_name,
+      be.currency as currency,
+      COALESCE(SUM(be.amount), 0)      as local_total,
+      COALESCE(SUM(be.base_amount), 0) as budget_total,
+      count(be.id) as transaction_count
+    FROM distinct_leaves dl
+    JOIN accounts a ON a.id = dl.id
+    JOIN budget_entries be ON be.category_id = dl.id AND be.budget_year = $1
+    GROUP BY a.id, a.name, be.currency
+    ORDER BY SUM(be.base_amount) ASC NULLS LAST
+  `, [budgetYear, fcLineId]);
   return result.rows;
 }
 
@@ -422,6 +470,7 @@ module.exports = {
   findUnassignedCategories,
   getBudgetTotals,
   getActualBreakdown,
+  getBudgetBreakdown,
   getActualTotals,
   getSuggestions,
   createBatch,

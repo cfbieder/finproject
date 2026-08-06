@@ -69,8 +69,8 @@ export default function FCModulesStreams({
   // CR072 QA — the drill-down behind a reference figure. Keyed by `${year}|${lineId}` so two
   // cards on different lines can be open at once, and so re-opening one is instant.
   const [breakdown, setBreakdown] = useState({});
-  const toggleBreakdown = async (year, lineId) => {
-    const key = `${year}|${lineId}`;
+  const toggleBreakdown = async (year, lineId, kind) => {
+    const key = `${kind}|${year}|${lineId}`;
     setBreakdown((prev) => {
       const next = { ...prev };
       if (next[key]) delete next[key]; else next[key] = { loading: true, rows: [] };
@@ -78,7 +78,9 @@ export default function FCModulesStreams({
     });
     if (breakdown[key]) return;                       // it was open; closing needs no fetch
     try {
-      const rows = await Rest.fetchFcLineActualBreakdown(year, lineId);
+      const rows = kind === "budget"
+        ? await Rest.fetchFcLineBudgetBreakdown(year, lineId)
+        : await Rest.fetchFcLineActualBreakdown(year, lineId);
       setBreakdown((prev) => (prev[key] ? { ...prev, [key]: { loading: false, rows } } : prev));
     } catch {
       setBreakdown((prev) => (prev[key] ? { ...prev, [key]: { loading: false, rows: [] } } : prev));
@@ -290,9 +292,9 @@ export default function FCModulesStreams({
           const rows = [
             // Labelled from PeriodStart, the same anchor the fetch used — if these two ever
             // disagree the figures are right and the headings lie, which is the worse failure.
-            ["priorActual", `Actual ${periodStart - 2}`, `${ref.priorActualCount ?? 0} txns · complete`, periodStart - 2],
-            ["thisBudget", `Budget ${periodStart - 1}`, "", null],
-            ["thisActual", `Actual ${periodStart - 1}`, `${ref.thisActualCount ?? 0} txns · year to date`, periodStart - 1],
+            ["priorActual", `Actual ${periodStart - 2}`, `${ref.priorActualCount ?? 0} txns · complete`, periodStart - 2, "actual"],
+            ["thisBudget", `Budget ${periodStart - 1}`, "", periodStart - 1, "budget"],
+            ["thisActual", `Actual ${periodStart - 1}`, `${ref.thisActualCount ?? 0} txns · year to date`, periodStart - 1, "actual"],
           ].filter(([k]) => ref[k] != null);
           if (lineReferenceLoading) {
             return <p className="fc-stream-card__reference-empty">Loading actuals…</p>;
@@ -310,8 +312,8 @@ export default function FCModulesStreams({
                   </span>
                 )}
               </div>
-              {rows.map(([key, label, note, drillYear]) => {
-                const bKey = drillYear != null ? `${drillYear}|${stream.fc_line_id}` : null;
+              {rows.map(([key, label, note, drillYear, kind]) => {
+                const bKey = drillYear != null ? `${kind}|${drillYear}|${stream.fc_line_id}` : null;
                 const open = bKey ? breakdown[bKey] : null;
                 return (
                   <div key={key}>
@@ -320,7 +322,7 @@ export default function FCModulesStreams({
                       /* Double-click, not single: these rows sit inside a form, and a stray click
                          while tabbing through it should not fire a query. */
                       onDoubleClick={drillYear != null
-                        ? () => toggleBreakdown(drillYear, stream.fc_line_id)
+                        ? () => toggleBreakdown(drillYear, stream.fc_line_id, kind)
                         : undefined}
                       title={drillYear != null
                         ? "Double-click to see which accounts make this up"
@@ -341,12 +343,22 @@ export default function FCModulesStreams({
                         ) : open.rows.length === 0 ? (
                           <div className="fc-stream-card__breakdown-row"><span>No accounts booked.</span></div>
                         ) : open.rows.map((r) => (
-                          <div key={r.account_id} className="fc-stream-card__breakdown-row">
+                          <div
+                            key={`${r.account_id}-${r.currency}`}
+                            className="fc-stream-card__breakdown-row"
+                          >
                             <span>{r.account_name}</span>
-                            <strong>
-                              {Math.abs(Number(r.actual_total)).toLocaleString(undefined, {
+                            {/* Local BESIDE the USD, never instead of it: this line draws on
+                                three currencies, so only the USD column may be summed. */}
+                            <em>
+                              {Math.abs(Number(r.local_total)).toLocaleString(undefined, {
                                 minimumFractionDigits: 0, maximumFractionDigits: 0,
-                              })}
+                              })} {r.currency}
+                            </em>
+                            <strong>
+                              {Math.abs(Number(r.actual_total ?? r.budget_total)).toLocaleString(undefined, {
+                                minimumFractionDigits: 0, maximumFractionDigits: 0,
+                              })} USD
                             </strong>
                             <small>{r.transaction_count} txns</small>
                           </div>

@@ -254,6 +254,24 @@ router.get('/actual-breakdown', async (req, res, next) => {
   }
 });
 
+// CR072 QA — the budget sibling of /actual-breakdown, so both rows on the stream card drill.
+router.get('/budget-breakdown', async (req, res, next) => {
+  try {
+    const budgetYear = Number(req.query.budgetYear);
+    const fcLineId = Number(req.query.fcLineId);
+    if (!Number.isInteger(budgetYear) || budgetYear < 1900 || budgetYear > 2200) {
+      return res.status(400).json({ error: 'budgetYear must be a 4-digit year' });
+    }
+    if (!Number.isInteger(fcLineId) || fcLineId <= 0) {
+      return res.status(400).json({ error: 'fcLineId must be a positive integer' });
+    }
+    res.json({ data: await repo.getBudgetBreakdown(budgetYear, fcLineId), budgetYear, fcLineId });
+  } catch (error) {
+    console.error('[fc-lines] GET /budget-breakdown failed:', error);
+    next(error);
+  }
+});
+
 router.get('/budget-totals', async (req, res, next) => {
   try {
     const { budgetYear } = req.query;

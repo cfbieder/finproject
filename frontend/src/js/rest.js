@@ -549,6 +549,14 @@ export default class Rest {
     return Rest.rows(res);
   }
 
+  /** The budget sibling of the above, so both reference rows drill. */
+  static async fetchFcLineBudgetBreakdown(year, fcLineId) {
+    const res = await Rest.fetchJson(
+      `/api/v2/fc-lines/budget-breakdown?budgetYear=${encodeURIComponent(year)}&fcLineId=${encodeURIComponent(fcLineId)}`
+    );
+    return Rest.rows(res);
+  }
+
   static async fetchFcLineBudgetTotals(year) {
     const res = await Rest.fetchJson(`/api/v2/fc-lines/budget-totals?budgetYear=${encodeURIComponent(year)}`);
     return Rest.rows(res);
