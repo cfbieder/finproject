@@ -1,4 +1,4 @@
-# CR071 — where the forecast's numbers disagree with the owner's intent — ✅ COMPLETE (v3.15.0, detections only)
+# CR071 — where the forecast's numbers disagree with the owner's intent — ✅ COMPLETE (detections v3.15.0; the §4 data edits APPLIED TO PROD 2026-08-06)
 
 Eight places where Fin's forecast produces a number the owner did not intend and nothing says so.
 None is a code defect: every one is a *valid* configuration the engine models faithfully. They are
@@ -119,6 +119,9 @@ deferral, discharged.
 
 ## 5. As built (2026-08-05, `3120b10`) — SHIPPED in v3.15.0
 
+> ✅ **The two §4 data edits were APPLIED TO PROD on 2026-08-06**, after owner sign-off on the
+> measured effect. Result below in §7. The text that follows described the position before that.
+>
 > ⚠️ **The two §4 data edits did NOT ship with the code.** They move numbers, so they need their own
 > change event: applied to a prod copy first with a line-by-line delta report, then to prod, then a
 > regenerate. **For those two the gate INVERTS — an unchanged sum would be the bug.** Still
@@ -224,3 +227,41 @@ scenario's override marks the module `in_progress` where Base says `exclude`, so
 
 **Nothing to do with these edits.** It fires the moment anyone presses Generate, for any reason.
 Bundling the two would make them indistinguishable, so they should land separately.
+
+
+---
+
+## 7. The §4 data edits — APPLIED TO PROD 2026-08-06
+
+Applied through `PUT /modules/:id` (the app's own write path, never SQL) to the three BASE modules
+only — 80, 93, 94 — with prod backed up first. No variant overrides any of them, so the sync
+carried it to all four variants. All five scenarios regenerated.
+
+**The correctness checks that mattered, all passed:**
+
+| check | result |
+|---|---|
+| CVC's NAV and 2033 exit unmoved | **762,071 → 762,071** (2027), 734,781 (2030), 0 at the exit |
+| CVC's growth and 4 disposals intact | 1.5000, 4 rows |
+| The Fidelity spread rows kept | both, amounts cleared to 0 |
+| 2027 tax falls | **−34,800** in Base |
+
+**Effect on 2062 net worth**, measured on prod before and after:
+
+| scenario | before | after | |
+|---|--:|--:|--:|
+| Base | 2,089,637 | 1,434,849 | **−31.3%** |
+| Upside | 5,456,386 | 4,933,766 | −9.6% |
+| Buy Business | 7,366,552 | 6,845,456 | −7.1% |
+| Downside | −311,638 | −706,118 | deeper |
+| SRQ House Purchase | −744,428 | −744,428 | already insolvent from 2035 |
+
+Across all five: P&L **−3,106,980**, net worth at 2062 **−2,092,985**.
+
+**This is a correction, not damage.** The plan had been compounding income that does not exist —
+CVC's yield was a second, phantom distribution beside the disposal schedule that already models its
+realizations, and the Fidelity typed amounts were taxed while never being booked as income. The
+smaller number is the true one.
+
+*Measured against a baseline that already included v3.17.0's P5, which is why Base moves −31.3%
+here against the −34% measured on the pre-P5 copy: the two changes push in opposite directions.*

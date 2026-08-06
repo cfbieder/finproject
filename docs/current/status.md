@@ -29,14 +29,16 @@ queries are kept by hand and have drifted three times — `HasValuation` (v3.14.
 (v3.15.0), `fc_line_name` (v3.16.0). Each surfaced as a form guessing at state it should have been
 told. Derive both from one source.
 
-⚠️ **Two number-moving changes are pending, and they must not land together** —
-[CR071 §6](../cr/cr-071-forecast-numbers-vs-intent.md) has the measurements and both controls:
-1. **The two CR071 §4 data edits** — dry run done, mechanics work, §4's direct predictions hold to
-   the cent. **Owner re-confirmation is the blocker:** the cascade is ~20× §4's estimate
-   (net worth at 2062 −1,992,856 across five scenarios).
-2. **A regenerate — for ANY reason — moves −1,203,432 onto Property Costs** in
-   `2026 SRQ House Purchase`. Prod's entries are three hours older than the last variant sync.
-   That is [Known Issue #2](project-roadmap.md#3-known-issues) resolving itself, not the edits.
+✅ **Both pending number-moving changes LANDED on 2026-08-06**, each measured before and after on
+prod and each matching its prediction:
+1. **[CR072](../cr/cr-072-valuation-module-inputs.md) P5** — the budget year now grows.
+   Barkeria 2026 1,004,870 → **1,024,967**, exactly the dry-run figure.
+2. **[CR071 §4](../cr/cr-071-forecast-numbers-vs-intent.md#7-the-4-data-edits--applied-to-prod-2026-08-06)**
+   — CVC's phantom yield removed and the two Fidelity typed amounts cleared. **Base's 2062 net
+   worth −31.3%**, CVC's NAV and 2033 exit unmoved. A correction: the plan had been compounding
+   income that does not exist.
+3. **[Known Issue #2](project-roadmap.md#3-known-issues) materialised in the same regenerate** —
+   `Property Costs −1,203,432.12` in `2026 SRQ House Purchase`, the figure predicted to the cent.
 
 **[CR064](../cr/cr-064-forecast-annual-close-and-assumptions.md) remains the live engineering
 thread** — P2/P4/P5/P10 are **unblocked** now CR069 P2 has shipped, and the annual close is not
