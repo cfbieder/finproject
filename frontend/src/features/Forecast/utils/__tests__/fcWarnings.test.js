@@ -1,4 +1,5 @@
 import { describe, it, expect } from "vitest";
+import * as wf from "../fcWarnings.js";
 import {
   computeForecastWarnings,
   computeLoanWarnings,
@@ -287,10 +288,9 @@ describe("CR071 — module integrity warnings", () => {
     expect(ids([covered])).not.toContain("foreign-income-no-tax-override-UB2-3");
   });
 
-  it("R5 — flags a sale that realizes no gain, but NOT a liability whose basis equals its balance", () => {
-    // Five of eight prod properties carry basis === market, so their Full disposals are tax-free.
+  it("R5 — reports basis === market, but NOT a liability whose basis equals its balance", () => {
     const house = mod({ Name: "PL - Niemena", BaseValue: 4287465, MarketValue: 4287465,
-      DisposeCount: 1, DisposeFullCount: 1 });
+      GrowthRate: 1, DisposeCount: 1, DisposeFullCount: 1 });
     expect(ids([house])).toContain("disposal-no-gain-PL - Niemena");
 
     // A debt's basis equals its balance BY CONSTRUCTION — reporting that would be noise, and it
@@ -298,6 +298,41 @@ describe("CR071 — module integrity warnings", () => {
     const card = mod({ Name: "PLN Credit Cards", BaseValue: -24129.55, MarketValue: -24129.55,
       DisposeCount: 1, DisposeFullCount: 1 });
     expect(ids([card])).not.toContain("disposal-no-gain-PLN Credit Cards");
+  });
+
+  it("R5 — says what the engine will ACTUALLY do, which depends on growth", () => {
+    // The rule used to claim the sale "realizes no gain and pays no tax" whenever basis equalled
+    // market. That reads the equality at the BASE DATE; the engine reads it at the DISPOSAL YEAR.
+    // The basis is flat while the market value compounds, so by the disposal the two have
+    // separated and the Full branch books `market(disposal) − basis`. Owner-found on Barkeria:
+    // 1,339,163 − 1,004,870 = 334,293 realized in 2040, on a module called gain-free.
+    // Measured on prod: the old wording was wrong on 30 of the 35 modules it fired on.
+    const only = (m) => computeModuleIntegrityWarnings([m], 2027)
+      .find((w) => w.id === `disposal-no-gain-${m.Name}`);
+
+    // GROWS — a gain IS realized, so the copy must not promise otherwise (25 prod modules).
+    const grows = only(mod({ Name: "Barkeria", BaseValue: 3918992, MarketValue: 3918992,
+      GrowthRate: 0.8, DisposeCount: 1, DisposeFullCount: 1 }));
+    expect(grows).toBeTruthy();
+    expect(grows.title).toMatch(/growth since the base date/i);
+    expect(grows.detail).not.toMatch(/realizes no gain|pays no tax/i);
+
+    // SHRINKS — a capital LOSS, which is a different finding again (5 prod modules).
+    const shrinks = only(mod({ Name: "OCME", BaseValue: 56500, MarketValue: 56500,
+      GrowthRate: -20, DisposeCount: 1, DisposeFullCount: 1 }));
+    expect(shrinks.title).toMatch(/sold at a loss/i);
+    expect(shrinks.detail).toMatch(/capital LOSS/);
+    expect(shrinks.detail).not.toMatch(/realizes no gain|pays no tax/i);
+
+    // FLAT — the only case where the original claim was ever true (5 prod modules).
+    const flat = only(mod({ Name: "SP - Panorama Mar 6", BaseValue: 250000, MarketValue: 250000,
+      GrowthRate: 0, DisposeCount: 1, DisposeFullCount: 1 }));
+    expect(flat.title).toMatch(/without realizing any gain/i);
+    expect(flat.detail).toMatch(/realizes no gain and pays no tax/);
+
+    // The three say different things, so a dismissal of one cannot silence another.
+    const { warningFingerprint } = wf;
+    expect(new Set([grows, shrinks, flat].map(warningFingerprint)).size).toBe(3);
   });
 
   it("R7 — flags a disposal dated before the forecast starts", () => {

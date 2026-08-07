@@ -223,7 +223,7 @@ export default function FCReviewWarnings({ warnings = [], onAutoAdjust, scenario
                         owner re-reasons from scratch about something they already judged. */}
                     {w.staleDismissal && (
                       <p className="fc-warning__stale">
-                        You dismissed this before — it is back because its figures changed.
+                        You dismissed this before — it is back because what it says has changed.
                       </p>
                     )}
                     {w.id === "no-sweep-module" && (

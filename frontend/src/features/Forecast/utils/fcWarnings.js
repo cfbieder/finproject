@@ -327,12 +327,26 @@ export function computeModuleIntegrityWarnings(modules = [], { periodStart = nul
       });
     }
 
-    // ---- R5: a disposal that realizes no gain ------------------------------
-    // The gain is dispose x (1 - basis/market), so it is zero exactly while basis equals market.
-    // Nothing enforces that equality — it is an observation about today's data, which is what
-    // makes it worth reporting rather than assuming.
+    // ---- R5: cost basis equals market value AT THE BASE DATE ---------------
+    //
+    // This rule used to claim the sale "realizes no gain and pays no tax", on the reasoning that
+    // the gain is `dispose × (1 − basis/market)` and so vanishes while the two are equal. That
+    // reasoning read the equality at the BASE DATE and the engine reads it at the DISPOSAL YEAR.
+    //
+    // The basis is flat — nothing but an Invest moves it — while the market value compounds at
+    // the module's growth every year. So by the time a disposal lands the two have separated, and
+    // the engine's Full-disposal branch books `market(disposal) − basis` (fcbuilder-module.js).
+    // Barkeria: 1,339,163 − 1,004,870 = **334,293** realized in 2040, on a module this rule was
+    // calling gain-free. Measured on prod, the old wording was wrong on **30 of the 35 modules it
+    // fired on** — 25 that grow, and 5 that SHRINK and therefore realize a loss.
+    //
+    // The equality is still worth reporting: a basis identical to market value on the base date is
+    // usually a placeholder typed from today's value rather than the real purchase price, and then
+    // the gain since PURCHASE is understated however the module grows. So the finding stays and
+    // only the claim changes — to one that matches what the engine will actually do.
     const basis = num(mod.BaseValue);
     const market = num(mod.MarketValue);
+    const growth = num(mod.GrowthRate);
     if (
       hasValuation &&
       (mod.DisposeFullCount ?? 0) > 0 &&
@@ -340,14 +354,29 @@ export function computeModuleIntegrityWarnings(modules = [], { periodStart = nul
       Math.abs(basis - market) < 0.005 &&
       market > 0   // a liability's basis equals its balance by construction; that is not a finding
     ) {
+      const flat = growth == null || growth === 0;
+      const shrinking = growth != null && growth < 0;
       out.push({
         id: `disposal-no-gain-${name}`,
         severity: "warning",
-        title: `"${name}" is sold without realizing any gain`,
-        detail:
-          `Cost basis and market value are both ${formatMoney(market)}, so the sale realizes ` +
-          "no gain and pays no tax. If the basis is a placeholder rather than the real purchase " +
-          "price, the plan is understating the tax on this sale.",
+        title: flat
+          ? `"${name}" is sold without realizing any gain`
+          : shrinking
+            ? `"${name}" is sold at a loss against its cost basis`
+            : `"${name}" is taxed only on growth since the base date`,
+        detail: flat
+          ? `Cost basis and market value are both ${formatMoney(market)} and the module does not ` +
+            "grow, so the sale realizes no gain and pays no tax. If the basis is a placeholder " +
+            "rather than the real purchase price, the plan is understating the tax on this sale."
+          : shrinking
+            ? `Cost basis and market value are both ${formatMoney(market)} at the base date, but ` +
+              "the module shrinks from there — so the disposal books a capital LOSS against the " +
+              "basis, which may offset gains elsewhere. If the basis is a placeholder rather than " +
+              "the real purchase price, that loss is wrong."
+            : `Cost basis and market value are both ${formatMoney(market)} at the base date, so ` +
+              "the sale is taxed on the growth since then and on nothing before it. That is right " +
+              "only if the asset was acquired at today's value; if the basis is a placeholder " +
+              "rather than the real purchase price, the plan is understating the gain.",
         years: [],
         amount: null,
       });

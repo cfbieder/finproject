@@ -6,7 +6,7 @@
 > **The budget is load-bearing** (cut from 216 lines 2026-08-05): overrun = restatement the CR
 > index and roadmap already own, and it is where stale facts collect.
 
-**Last updated:** 2026-08-06 · **Live version:** v3.18.0 (see `VERSION` / git tags)
+**Last updated:** 2026-08-07 · **Live version:** v3.18.1 (see `VERSION` / git tags)
 
 ## Current phase
 **The model, since [CR069](../cr/cr-069-forecast-streams.md) (v3.13.1 → v3.14.1, migrations
@@ -49,6 +49,16 @@ move. The design is set by what it must NOT do, since [CR045](../cr/cr-045-forec
 and says how many are dismissed · **all-dismissed is not all-clear**, it says so in its own words ·
 and **a dismissal expires when the warning's figures change**, so accepting "drained by 2061" cannot
 silence the same rule at 2041.
+
+⚠️ **v3.18.1 — a warning was LYING, owner-found
+([CR071 §8](../cr/cr-071-forecast-numbers-vs-intent.md#8-r5-was-wrong--owner-found-2026-08-06-fixed-in-v3181)).**
+R5 said Barkeria was *"sold without realizing any gain"* while its own Module Output showed
+**334,294 realized in 2040**. The rule compared basis to market at the **base date**; the engine
+compares them at the **disposal year**, and the basis is flat while the market value compounds.
+**Wrong on 30 of the 35 modules it fired on.** Now branches on growth. *A rule that asserts what
+the engine does must be derived from the engine's formula, not from a restatement of it — 8 rules,
+a full suite and a browser QA all passed, because each checked the warning FIRED and none checked
+that what it said was TRUE.*
 
 **[CR064](../cr/cr-064-forecast-annual-close-and-assumptions.md) remains the live engineering
 thread** — P2/P4/P5/P10 are **unblocked** now CR069 P2 has shipped, and the annual close is not

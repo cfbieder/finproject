@@ -265,3 +265,76 @@ smaller number is the true one.
 
 *Measured against a baseline that already included v3.17.0's P5, which is why Base moves −31.3%
 here against the −34% measured on the pre-P5 copy: the two changes push in opposite directions.*
+
+---
+
+## 8. R5 was WRONG — owner-found 2026-08-06, fixed in v3.18.1
+
+The owner opened `Barkeria Sp. z o.o.`'s Module Output beside its warning and asked the obvious
+question: *"why this warning, when it does have capital gain?"*
+
+The warning said:
+
+> **"Barkeria Sp. z o.o." is sold without realizing any gain** — Cost basis and market value are
+> both $3.9M, so the sale realizes no gain and pays no tax.
+
+The Module Output for the same module said, in 2040: **REALIZEDGAIN 334,294**.
+
+### The mistake
+
+R5's own comment carried it: *"The gain is dispose × (1 − basis/market), so it is zero exactly
+while basis equals market."* True — but it read the equality at the **base date**, and the engine
+reads it at the **disposal year**.
+
+The cost basis is flat; nothing but an Invest moves it. The market value compounds at the module's
+growth every year. So by the time a disposal lands, the two have separated, and
+`fcbuilder-module.js`'s Full-disposal branch books:
+
+```
+realizedGain = market(disposal) − basis
+```
+
+For Barkeria: **1,339,163 − 1,004,870 = 334,293**, which is the screenshot to the dollar.
+
+### How wrong, measured
+
+Every module the rule fires on, on prod:
+
+| what the module does | modules | the old wording |
+|---|--:|---|
+| **grows** — a gain IS realized | **25** | wrong |
+| **shrinks** — a capital LOSS is realized | **5** | wrong, differently |
+| flat — no gain | 5 | the only case it was ever right |
+
+**30 of 35.** And it was wrong in a direction that matters: it told the owner a taxable sale was
+tax-free, which is the CR071 failure class — *a number that looks authoritative while being wrong*
+— committed by the very feature built to catch it.
+
+### The fix
+
+The finding stays; only the claim changes. Basis identical to market value on the base date is
+still worth reporting — it is usually a placeholder typed from today's value rather than the real
+purchase price, and then the gain since **purchase** is understated however the module grows. So
+R5 now branches on growth and says what the engine will actually do:
+
+| growth | title | claim |
+|---|---|---|
+| `0` | *is sold without realizing any gain* | the original wording, now true by construction |
+| `> 0` | *is taxed only on growth since the base date* | taxed on the growth and nothing before it — right only if it was acquired at today's value |
+| `< 0` | *is sold at a loss against its cost basis* | books a capital LOSS that may offset gains elsewhere |
+
+Verified in a browser against the real panel: all seven basis-equals-market modules now carry the
+wording that matches their growth, and **zero rows still claim "realizes no gain and pays no tax"
+on a module that grows**. Falsified before keeping: restoring the unconditional claim fails the
+new test.
+
+### What it cost, and the lesson
+
+Nothing in the plan's numbers — R5 is a reporting rule and the engine was right all along. What it
+cost was trust in the panel, which is the whole asset.
+
+**A rule that asserts what the engine does must be derived from the engine's own formula, not from
+a restatement of it.** The comment was a paraphrase, the paraphrase dropped which year the ratio is
+read at, and nothing downstream could catch it: 8 detection rules, a full test suite and a browser
+QA all passed, because every one of them checked that the warning FIRED, and none checked that what
+it said was true.
