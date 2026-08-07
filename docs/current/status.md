@@ -12,53 +12,33 @@
 **The model, since [CR069](../cr/cr-069-forecast-streams.md) (v3.13.1 → v3.14.1, migrations
 057–060):** a module is *identity + optional valuation + N first-class **streams***.
 
-**[CR070](../cr/cr-070-module-inputs-by-type.md) + [CR071](../cr/cr-071-forecast-numbers-vs-intent.md)
-shipped in v3.15.0**; the type filter grouped in **v3.15.1**; **v3.16.0** gave each stream card the
-FC line's real history. Capability-gated forms, a residue detector, 8 detection rules.
-
-**[CR072](../cr/cr-072-valuation-module-inputs.md) — v3.17.0, and the balance-sheet form is now
-CLOSED.** Reference / Assigned / Assumptions, collapsed not hidden on an unmatched module; base
-dates capped at the last closed year-end; the two `[→ Market Value]` / `[→ Cost Basis]` buttons on
-the Reference block. The owner answered its last three readings on 2026-08-06
-([§12](../cr/cr-072-valuation-module-inputs.md#12-open)) — the point-4 parenthetical is explanatory
-not a filter, USD stays read-only derived, cost basis is an **input** because no cost-basis data
-exists anywhere.
+**Shipped since 2026-08-05**, all on the module/forecast surface — details in the
+[CR index](../cr/README.md) and the [roadmap](project-roadmap.md), not restated here:
+[CR070](../cr/cr-070-module-inputs-by-type.md)+[CR071](../cr/cr-071-forecast-numbers-vs-intent.md)
+(v3.15.0) · [CR072](../cr/cr-072-valuation-module-inputs.md) (v3.17.0) — **the balance-sheet form
+is CLOSED**, the owner answered its last three readings ·
+[CR073](../cr/cr-073-two-recurrence-guards.md) (v3.17.1) · [CR074](../cr/cr-074-dismissible-cash-health-warnings.md)
+(v3.18.0, migration 061) — Cash Health warnings are **dismissible**, per scenario, and a dismissal
+**expires when the warning's figures change**.
 
 ✅ **Three number-moving changes landed on prod 2026-08-06**, each measured before and after and
-each matching its prediction: **P5**, the budget year now grows (Barkeria 2026 → **1,024,967**);
-**[CR071 §4](../cr/cr-071-forecast-numbers-vs-intent.md#7-the-4-data-edits--applied-to-prod-2026-08-06)**,
+each matching its prediction: CR072 **P5**, the budget year now grows (Barkeria 2026 →
+**1,024,967**); **[CR071 §7](../cr/cr-071-forecast-numbers-vs-intent.md#7-the-4-data-edits--applied-to-prod-2026-08-06)**,
 CVC's phantom yield and two Fidelity amounts cleared (**Base 2062 −31.3%**, CVC's NAV unmoved);
 and **Known Issue #2** materialising at `Property Costs −1,203,432.12`, predicted to the cent.
 
-🆕 **v3.17.1 — [CR073](../cr/cr-073-two-recurrence-guards.md) + [CR072 P7](../cr/cr-072-valuation-module-inputs.md#14-p7--the-drill-down-as-a-modal-2026-08-06-after-v3170).**
-No migration, **no numbers move**. P7: the reference drill-down is a real modal reusing the Actuals
-page's own machinery, category-filtered through the shared `HierarchyFilter`. CR073 closes the two
-items both CR072 reviewers asked to be numbered — **Known Issue #2's guard now exists** (an amount
-with no FC line is refused; 0 prod rows were in that state), and **the LIST/DETAIL projections are
-one source**, pinned by a parity test, verified key-for-key against prod's old code.
-
-**Two lessons worth keeping:** a UI test whose mock returns **zero rows** proves nothing about
-rendering rows — it passed while the modal crashed the page. And **proof of absence needs a search
-that provably covered the file**: a `head -20`-truncated grep had me record two working buttons as
-never built.
-
-🆕 **v3.18.0 — [CR074](../cr/cr-074-dismissible-cash-health-warnings.md): the Cash Health panel's
-warnings can be dismissed** (per row, or all at once), per scenario, migration **061**. No numbers
-move. The design is set by what it must NOT do, since [CR045](../cr/cr-045-forecast-cash-warnings-liquidation.md)
-§1 built this panel after a $20M shortfall sat here unremarked: the header keeps the **full** count
-and says how many are dismissed · **all-dismissed is not all-clear**, it says so in its own words ·
-and **a dismissal expires when the warning's figures change**, so accepting "drained by 2061" cannot
-silence the same rule at 2041.
-
-⚠️ **v3.18.1 — a warning was LYING, owner-found
-([CR071 §8](../cr/cr-071-forecast-numbers-vs-intent.md#8-r5-was-wrong--owner-found-2026-08-06-fixed-in-v3181)).**
-R5 said Barkeria was *"sold without realizing any gain"* while its own Module Output showed
-**334,294 realized in 2040**. The rule compared basis to market at the **base date**; the engine
-compares them at the **disposal year**, and the basis is flat while the market value compounds.
-**Wrong on 30 of the 35 modules it fired on.** Now branches on growth. *A rule that asserts what
-the engine does must be derived from the engine's formula, not from a restatement of it — 8 rules,
-a full suite and a browser QA all passed, because each checked the warning FIRED and none checked
-that what it said was TRUE.*
+### Three lessons this week, each paid for
+- ⚠️ **A warning LIED, and looked authoritative doing it** (owner-found,
+  [CR071 §8](../cr/cr-071-forecast-numbers-vs-intent.md#8-r5-was-wrong--owner-found-2026-08-06-fixed-in-v3181),
+  v3.18.1). R5 called Barkeria gain-free while its own output showed **334,294 realized**; it read
+  basis-vs-market at the base date, the engine reads it at the disposal year. **Wrong on 30 of 35
+  modules.** *A rule that asserts what the engine does must be derived from the engine's formula,
+  not a restatement of it — and every gate passed because each checked the warning FIRED, none
+  that what it SAID was true.* **The other 7 rules have not been audited for this.**
+- **A UI test whose mock returns zero rows proves nothing about rendering rows** — it passed while
+  the drill-down modal crashed the page and took both dialogs down.
+- **Proof of absence needs a search that provably covered the file** — a `head -20`-truncated grep
+  had me record two working buttons as never built.
 
 **[CR064](../cr/cr-064-forecast-annual-close-and-assumptions.md) remains the live engineering
 thread** — P2/P4/P5/P10 are **unblocked** now CR069 P2 has shipped, and the annual close is not
@@ -68,9 +48,10 @@ is next at the owner's request** (`Rental - Spain` +31,306 is genuinely unmapped
 ## Known issues
 [roadmap §3](project-roadmap.md#3-known-issues) is canonical. **#15 (migrations reaching prod
 before dev) was fixed 2026-08-05** — the deploy refuses a migration absent from both ledgers.
-**#2 (an amount with no FC line) was CLOSED 2026-08-06** by CR073's guard. **New #18:** a fresh DB
-enforces `fc_lines.line_type`'s CHECK while dev and prod have no such constraint (007 was
-auto-baselined on both) — so a test can pass on dev and fail only in CI, which is how it was found.
+**#2 (an amount with no FC line) was CLOSED 2026-08-06** by CR073's guard. **#18 (2026-08-06, open):**
+a fresh DB enforces `fc_lines.line_type`'s CHECK while dev and prod have no such constraint (007 was
+auto-baselined on both) — a test can pass on dev and fail only in CI, which is how it was found;
+0 violating rows live, so a forward migration would close it cheaply.
 Worth knowing at session start: the timezone rule (#3), the unannounced red `main` (#12), the
 ESLint JSX blind spot (#10), and dirty-tree deploys (#17).
 
@@ -91,6 +72,10 @@ ESLint JSX blind spot (#10), and dirty-tree deploys (#17).
   (lint-debt, api-envelope, buttons, modals, hex, tokens).
 
 ## Next
+- **Owner QA of the P&L (income/expense) module inputs** — the owner's own stated successor now
+  that the balance-sheet form is closed.
+- **Audit the other 7 warning rules** against `fcbuilder-*` directly, for the class CR071 §8 found:
+  a claim about the engine derived from a paraphrase rather than the formula.
 - **[CR066](../cr/cr-066-fc-line-mapping-completeness.md) P0** — decide an FC line for each of
   the twelve unmapped categories, or record it as deliberately excluded. A decision per row.
 - **CR064 P2/P4/P5/P10** — unblocked; P2 owns the `has_valuation` filter on
