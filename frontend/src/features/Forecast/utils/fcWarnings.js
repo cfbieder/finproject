@@ -32,6 +32,16 @@ export function computeForecastWarnings({
   entries = [],
   modules = [],
   cashSweepLow = null,
+  // CR075 — the scenario's real PeriodStart. `years[0]` is NOT it: FCReview unshifts
+  // PeriodStart−1 AND PeriodStart−2 onto the display years, so years[0] is PeriodStart−2.
+  // R7 was comparing disposal dates against that and silently under-reported — 20 disposals
+  // dated in the budget year, across all five prod scenarios, which the engine never executes.
+  // Falls back to the old value when a caller does not supply it, so nothing gets worse.
+  periodStart = null,
+  // CR075 — `{ [fcLineName]: amount }` for the BUDGET year, the same map the Review's year −1
+  // column renders. Needed so a module implying base-year money with no budget behind it can be
+  // reported rather than reading as a real zero.
+  baseYearValues = null,
 } = {}) {
   const warnings = [];
   if (!years.length) return warnings;
@@ -207,7 +217,10 @@ export function computeForecastWarnings({
   }
 
   warnings.push(...computeLoanWarnings(modules));
-  warnings.push(...computeModuleIntegrityWarnings(modules, { periodStart: years[0] }));
+  warnings.push(...computeModuleIntegrityWarnings(modules, {
+    periodStart: periodStart ?? years[0],
+    baseYearValues,
+  }));
 
   return warnings;
 }
@@ -224,9 +237,11 @@ export function computeForecastWarnings({
  * The rules are keyed on DATA, never on `module_type` — the same discipline `computeLoanWarnings`
  * uses, and for the same reason: the type is a free-text list the owner edits.
  *
- * `periodStart` is the first FORECAST year (`years[0]`). A date before it is not in the plan.
+ * `periodStart` is the first FORECAST year — the scenario's own PeriodStart, NOT `years[0]`,
+ * which is PeriodStart−2 once the actual and budget columns are unshifted on. A date before it is
+ * not in the plan.
  */
-export function computeModuleIntegrityWarnings(modules = [], { periodStart = null } = {}) {
+export function computeModuleIntegrityWarnings(modules = [], { periodStart = null, baseYearValues = null } = {}) {
   const out = [];
   const num = (v) => (v == null || v === "" ? null : Number(v));
 
@@ -380,6 +395,60 @@ export function computeModuleIntegrityWarnings(modules = [], { periodStart = nul
         years: [],
         amount: null,
       });
+    }
+
+    // ---- R9: base-year money the BUDGET does not carry (CR075) --------------
+    //
+    // Year −1 is the budget now, and the budget is the only source: a module's typed amounts no
+    // longer contribute to it (they understated the base year by 152,802 on prod, and that
+    // figure is the cash sweep's opening cash). The owner chose budget-only with no derived
+    // fallback, on 2026-08-07, because a derived figure sitting beside a budgeted one
+    // double-counts the moment a line is partly budgeted and cannot be told apart on screen.
+    //
+    // The cost of that choice is that an unbudgeted cost reads as a real zero. This rule is what
+    // pays it: if a module says it earns or spends on a line in the base year and the budget
+    // carries nothing there, say so. A gap the owner can see is a budgeting decision; a gap they
+    // cannot is the CR049 §1 failure mode again.
+    //
+    // Skipped entirely when `baseYearValues` was not supplied — absent is not the same as empty,
+    // and warning on every module because a fetch failed is worse than not warning.
+    if (baseYearValues && typeof baseYearValues === "object") {
+      const budgeted = (line) => Math.abs(Number(baseYearValues[line] ?? 0)) > 0.005;
+      const unbudgeted = [];
+      for (const st of streams) {
+        const line = st?.fc_line_name;
+        if (!line) continue;                       // no line at all is R6's finding, not this one
+        // A stream produces base-year money when it carries an amount, or when its rate has
+        // something to work on — a yield on a real balance is exactly the case that used to
+        // vanish, so it must not be skipped here for carrying `amount = 0`.
+        const drives = Math.abs(num(st.amount) ?? 0) > 0
+          || (st.mode === "yield" && Math.abs(num(mod.MarketValue) ?? 0) > 0);
+        if (drives && !budgeted(line)) unbudgeted.push(line);
+      }
+      // A loan's interest is derived, never typed, so it has no amount to test — its balance and
+      // rate are what say it will charge. This is the case the old code special-cased.
+      if (num(mod.LoanInterestRate) && Math.abs(num(mod.MarketValue) ?? 0) > 0) {
+        for (const st of streams) {
+          if (st?.mode === "derived" && st?.fc_line_name && !budgeted(st.fc_line_name)) {
+            unbudgeted.push(st.fc_line_name);
+          }
+        }
+      }
+      const lines = [...new Set(unbudgeted)];
+      if (lines.length > 0) {
+        out.push({
+          id: `unbudgeted-base-year-${name}`,
+          severity: "warning",
+          title: `"${name}" earns or spends in the budget year, but the budget has nothing on ${lines.length === 1 ? "its line" : "those lines"}`,
+          detail:
+            `Nothing is budgeted for ${lines.map((l) => `"${l}"`).join(", ")}${periodStart ? ` in ${periodStart - 1}` : ""}. ` +
+            "The budget year is taken from the budget alone, so this module contributes nothing " +
+            "to it — and that figure is also the cash sweep's opening cash. Budget the line, or " +
+            "accept that the plan starts without it.",
+          years: [],
+          amount: null,
+        });
+      }
     }
 
     // ---- R7: a disposal dated before the forecast starts -------------------

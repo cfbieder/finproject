@@ -169,6 +169,9 @@ dbDescribe('generateForecast transactionality (DB)', () => {
   // ledger's own bank balance differs between dev and CI, but the BaseYear's
   // effect on the seed must be exactly the item's value either way.
   test("BaseYear cash flow lands in the sweep's opening cash", async () => {
+    // The behaviour is unchanged and still the point; only the LEVER moved. CR075 made year -1
+    // the BUDGET, so the base-year figure is driven by budget entries rather than by a module's
+    // setup_status, which the budget knows nothing about.
     const seedFromNextBuild = async () => {
       computeCashSweepIterative.mockClear();
       const r = await generateForecast(NAME);
@@ -176,19 +179,42 @@ dbDescribe('generateForecast transactionality (DB)', () => {
       return computeCashSweepIterative.mock.calls[0][0].startingCash;
     };
 
-    await db.query(
-      `UPDATE forecast_modules SET setup_status = 'exclude' WHERE name = 'CR043 Tx Item'`
-    );
-    const withoutItem = await seedFromNextBuild();
+    const line = (await db.query(
+      `INSERT INTO fc_lines (name, line_type) VALUES ('CR043 Tx Line', 'bs_module_income')
+       ON CONFLICT (name) DO UPDATE SET line_type = EXCLUDED.line_type RETURNING id`
+    )).rows[0].id;
+    const cat = (await db.query(
+      `SELECT id FROM accounts WHERE section = 'profit_loss' AND parent_id IS NOT NULL
+         AND NOT EXISTS (SELECT 1 FROM accounts c WHERE c.parent_id = accounts.id)
+       ORDER BY id LIMIT 1`
+    )).rows[0].id;
+    await db.query('INSERT INTO fc_line_categories (fc_line_id, category_id) VALUES ($1, $2)',
+      [line, cat]);
 
-    await db.query(
-      `UPDATE forecast_modules SET setup_status = 'included' WHERE name = 'CR043 Tx Item'`
-    );
-    const withItem = await seedFromNextBuild();
+    const baseYear = (await loadScenarioConfig(NAME)).scenario.PeriodStart - 1;
 
-    // The item is +100,000 of BaseYear budget NCF; pre-fix both builds opened on
-    // the identical ledger balance and this difference was 0.
-    expect(withItem - withoutItem).toBeCloseTo(100000, 2);
+    try {
+      const withoutItem = await seedFromNextBuild();
+
+      await db.query(
+        `INSERT INTO budget_entries (entry_date, description, amount, currency, base_amount,
+                                     category_id, budget_year)
+         VALUES (make_date($1, 6, 1), 'CR043 base year', 100000, 'USD', 100000, $2, $1)`,
+        [baseYear, cat]
+      );
+      const withItem = await seedFromNextBuild();
+
+      // Asserted as a DIFFERENCE between two builds, not an absolute: the ledger's own bank
+      // balance differs between dev and CI, but the base year's effect on the seed must be
+      // exactly the budgeted amount either way. Pre-CR045 both builds opened on the identical
+      // ledger balance and this difference was 0 — the sweep held its band against a figure a
+      // whole year of cash flow too high.
+      expect(withItem - withoutItem).toBeCloseTo(100000, 2);
+    } finally {
+      await db.query(`DELETE FROM budget_entries WHERE description = 'CR043 base year'`);
+      await db.query('DELETE FROM fc_line_categories WHERE fc_line_id = $1', [line]);
+      await db.query('DELETE FROM fc_lines WHERE id = $1', [line]);
+    }
   });
 
   // CR048 A1. Yield income is a % of market value, and the sweep changes market value —
@@ -238,6 +264,14 @@ dbDescribe('generateForecast transactionality (DB)', () => {
     );
 
     // A heavy recurring outflow so the sweep must liquidate the backup in year one.
+    //
+    // Raised from 600,000 by CR075: the base year is the BUDGET now, so this scenario opens on
+    // the real 2026 budget rather than on its own modules, and 600,000/yr no longer emptied the
+    // backup by 2028 (its 2028 income came out at 8,288 instead of ~0). The INVARIANT under test
+    // is unchanged and the thresholds below are untouched — the fixture just has to be decisively
+    // short for "drained" to mean drained. Deliberately not softened into "income falls a bit":
+    // the bug this catches produced a FLAT 35,000 every year, and a threshold that tolerates
+    // 8,288 would also tolerate a partial regression.
     const drainId = (await db.query(
       `INSERT INTO forecast_modules
          (scenario_id, account_id, name, has_valuation, base_value, base_value_usd,
@@ -247,7 +281,7 @@ dbDescribe('generateForecast transactionality (DB)', () => {
     )).rows[0].id;
     await db.query(
       `INSERT INTO forecast_streams (module_id, direction, mode, amount, amount_usd, growth_mult)
-       VALUES ($1, 'expense', 'amount', 600000, 600000, 0)`,
+       VALUES ($1, 'expense', 'amount', 2000000, 2000000, 0)`,
       [drainId]
     );
 

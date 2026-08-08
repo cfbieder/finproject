@@ -178,35 +178,50 @@ dbDescribe('CR062 — forecast loan module (DB)', () => {
       expect(Number(rows.rows[0].pct)).toBe(25);
     });
 
-    test('V6 base-year interest reaches getBaseYearValues — and so the sweep', async () => {
-      // The CR049 class: this figure is BOTH the Review's base-year column and the
-      // cash sweep's opening cash. A derived interest charge that never lands here
-      // leaves the sweep one year of interest rich for the whole horizon.
+    test('V6 an UNBUDGETED loan contributes nothing to the base year — deliberately (CR075)', async () => {
+      // This test used to assert the opposite: that `getBaseYearValues` DERIVED the base-year
+      // interest as rate x outstanding (250,000 at 5% => -12,500, halved to -6,250 when drawn
+      // mid-year). That derivation is gone.
+      //
+      // CR075 made year -1 the BUDGET, on the owner's own definition ("forecast year -1 =
+      // BUDGET"), because deriving it from module inputs understated the base year by 152,802
+      // on prod — every yield stream contributed zero — and that figure is the cash sweep's
+      // opening cash. The budget is now the single source, and a loan's interest counts when
+      // it is BUDGETED, exactly like every other cost.
+      //
+      // Owner decision 2026-08-07, asked explicitly: budget only, no fallback. A derived
+      // figure sitting beside a budgeted one double-counts the moment a line is partly
+      // budgeted, and cannot be told apart on screen. The gap is not hidden instead — the
+      // `unbudgeted-base-year` warning reports a module that implies base-year money the
+      // budget does not carry, which is what this test's scenario now triggers.
       const scenarioId = (await db.query('SELECT id FROM forecast_scenarios WHERE name = $1', [BASE])).rows[0].id;
-
-      // POST /modules deliberately ignores SetupStatus — CR042 makes a new module
-      // an unsaved DRAFT ('new'), and getBaseYearValues excludes new/exclude. Promote
-      // it here so this test is about the loan branch and not about draft status.
       await db.query("UPDATE forecast_modules SET setup_status = 'complete' WHERE id = $1", [moduleId]);
 
-      // Not yet drawn (MV 0) ⇒ nothing to charge.
-      // getBaseYearValues returns { [fcLineLabel]: amount }, and BASE holds only
-      // this loan — so the line's value IS the loan's base-year interest.
       const lineName = (await db.query('SELECT name FROM fc_lines WHERE id = $1', [fcLineId])).rows[0].name;
-      const interestOf = (values) => Number(values?.values?.[lineName] ?? values?.[lineName] ?? 0);
+      const interestOf = (values) => Number(values?.[lineName] ?? 0);
 
-      const before = await crud.getBaseYearValues(scenarioId, 2026);
-      expect(interestOf(before)).toBeCloseTo(0, 6);
-
-      // An EXISTING mortgage: 250,000 outstanding at 5% ⇒ 12,500 of base-year interest.
+      // A real, drawn mortgage — the case that used to derive -12,500.
       await db.query('UPDATE forecast_modules SET market_value = -250000 WHERE id = $1', [moduleId]);
-      const after = await crud.getBaseYearValues(scenarioId, 2026);
-      expect(interestOf(after)).toBeCloseTo(-12500, 2);
+      expect(interestOf(await crud.getBaseYearValues(scenarioId, 2026))).toBe(0);
 
-      // Drawn IN the base year ⇒ half a year, the same July-1 convention.
-      await db.query("UPDATE forecast_modules SET loan_start_date = '2026-07-01' WHERE id = $1", [moduleId]);
-      const halved = await crud.getBaseYearValues(scenarioId, 2026);
-      expect(interestOf(halved)).toBeCloseTo(-6250, 2);
+      // Budget it, and it counts — at the budgeted figure, not a derived one.
+      const catId = (await db.query(
+        `SELECT id FROM accounts WHERE section = 'profit_loss' AND parent_id IS NOT NULL
+           AND NOT EXISTS (SELECT 1 FROM accounts c WHERE c.parent_id = accounts.id)
+         ORDER BY id LIMIT 1`
+      )).rows[0].id;
+      await db.query('INSERT INTO fc_line_categories (fc_line_id, category_id) VALUES ($1, $2)',
+        [fcLineId, catId]);
+      await db.query(
+        `INSERT INTO budget_entries (entry_date, description, amount, currency, base_amount,
+                                     category_id, budget_year)
+         VALUES ('2026-06-01', 'CR062 loan interest', -11000, 'USD', -11000, $1, 2026)`, [catId]);
+      try {
+        expect(interestOf(await crud.getBaseYearValues(scenarioId, 2026))).toBeCloseTo(-11000, 2);
+      } finally {
+        await db.query(`DELETE FROM budget_entries WHERE description = 'CR062 loan interest'`);
+        await db.query('DELETE FROM fc_line_categories WHERE fc_line_id = $1', [fcLineId]);
+      }
 
       await db.query(
         "UPDATE forecast_modules SET market_value = 0, loan_start_date = '2027-07-01' WHERE id = $1",

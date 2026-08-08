@@ -963,8 +963,14 @@ export default function FCReview() {
       entries,
       modules: fcModules,
       cashSweepLow,
+      // The scenario's real first forecast year. Not derivable from `years` here: sortedYears
+      // carries PeriodStart−2 and −1 at the front for the actual and budget columns.
+      periodStart: Number(periodStart) || null,
+      // CR075 — the BUDGET year's figures, so a module implying base-year money the budget does
+      // not carry is reported rather than reading as a real zero.
+      baseYearValues,
     });
-  }, [sortedYears, entries, balanceDisplayValues, fcModules, cashSweepLow]);
+  }, [sortedYears, entries, balanceDisplayValues, fcModules, cashSweepLow, baseYearValues, periodStart]);
 
   // =============================================================================
   // ACTIONS - Export Excel

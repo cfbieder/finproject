@@ -352,64 +352,99 @@ dbDescribe('forecast router contract (DB)', () => {
   // 2028. getBaseYearValues summed income_amount blindly, so a stream whose window had not
   // opened still landed in the base-year P&L, and (via the engine's matching budget-NCF
   // query) in the cash sweep's opening cash.
-  describe('base-year values respect the CR046 window', () => {
-    let modId;
+  describe('the base year IS the budget (CR075)', () => {
+    // REPLACES a block that seeded a MODULE and asserted the base-year figure honoured its
+    // CR046 stream window. That window logic is gone: year −1 is the budget, and a budget
+    // entry is DATED, so a stream that starts mid-year is already only in the months it has.
+    //
+    // One of the old tests would still PASS against this code — "rent starting 2028 is not
+    // 2026 income" returns 0 — but vacuously, because no budget row exists rather than
+    // because a window was honoured. That is the CR071 §8 lesson in miniature: a test that
+    // checks a number without checking WHY is not evidence. So the module below exists
+    // precisely to prove it is ignored.
+    const LINE = 'CR075 Budget Line';
+    let lineId, catId, modId;
 
-    afterEach(async () => {
-      if (modId) await db.query('DELETE FROM forecast_modules WHERE id = $1', [modId]);
-      modId = null;
+    beforeAll(async () => {
+      lineId = (await db.query(
+        `INSERT INTO fc_lines (name, line_type) VALUES ($1, 'bs_module_income')
+         ON CONFLICT (name) DO UPDATE SET line_type = EXCLUDED.line_type RETURNING id`, [LINE]
+      )).rows[0].id;
+      catId = (await db.query(
+        `SELECT id FROM accounts WHERE section = 'profit_loss' AND parent_id IS NOT NULL
+           AND NOT EXISTS (SELECT 1 FROM accounts c WHERE c.parent_id = accounts.id)
+         ORDER BY id LIMIT 1`
+      )).rows[0].id;
+      await db.query(
+        `INSERT INTO fc_line_categories (fc_line_id, category_id) VALUES ($1, $2)`, [lineId, catId]
+      );
     });
 
-    const baseYearIncome = async (baseYear) => {
-      const values = await crud.getBaseYearValues(scenarioId, baseYear);
-      return values['CR046 Rent Line'] ?? 0;
-    };
+    afterAll(async () => {
+      if (modId) await db.query('DELETE FROM forecast_modules WHERE id = $1', [modId]);
+      await db.query(`DELETE FROM budget_entries WHERE description LIKE 'CR075%'`);
+      await db.query('DELETE FROM fc_line_categories WHERE fc_line_id = $1', [lineId]);
+      await db.query('DELETE FROM fc_lines WHERE id = $1', [lineId]);
+    });
 
-    async function seedModule(incomeStartDate) {
+    afterEach(async () => {
+      await db.query(`DELETE FROM budget_entries WHERE description LIKE 'CR075%'`);
+    });
+
+    const budget = (year, months, perMonth) => db.query(
+      `INSERT INTO budget_entries (entry_date, description, amount, currency, base_amount,
+                                   category_id, budget_year)
+       SELECT make_date($1, m, 1), 'CR075 row', $3, 'USD', $3, $4, $1
+       FROM generate_series(1, $2) AS m`,
+      [year, months, perMonth, catId]
+    );
+
+    const baseYearFor = async (y) =>
+      Number((await crud.getBaseYearValues(scenarioId, y))[LINE] ?? 0);
+
+    test('the figure is the budget total for that line and year', async () => {
+      await budget(2026, 12, 1000);
+      expect(await baseYearFor(2026)).toBeCloseTo(12000, 2);
+    });
+
+    test('a budget that runs only part of the year carries only those months', async () => {
+      // What replaces the July-1 half-year convention. The old code halved the year a stream's
+      // window opened; a budget does not need the rule because it is already dated — six
+      // monthly rows are six months of money, whatever any module says.
+      await budget(2026, 6, 1000);
+      expect(await baseYearFor(2026)).toBeCloseTo(6000, 2);
+    });
+
+    test('another YEAR\'s budget is not this year\'s', async () => {
+      await budget(2027, 12, 1000);
+      expect(await baseYearFor(2026)).toBe(0);
+      expect(await baseYearFor(2027)).toBeCloseTo(12000, 2);
+    });
+
+    test('a MODULE with a stream on the same line changes nothing', async () => {
+      // The whole point of the change: year −1 stops being derived from module inputs. This
+      // module carries an amount and a window that the old code would have read; the budget
+      // is 12,000 and stays 12,000.
+      await budget(2026, 12, 1000);
       const acct = (await db.query(
         `SELECT id FROM accounts WHERE parent_id IS NOT NULL ORDER BY id LIMIT 1`
       )).rows[0];
-      const line = (await db.query(
-        `INSERT INTO fc_lines (name, line_type) VALUES ('CR046 Rent Line', 'bs_module_income')
-         ON CONFLICT (name) DO UPDATE SET line_type = EXCLUDED.line_type RETURNING id`
-      )).rows[0];
-      // CR069 P2 — the window and the amount live on the STREAM now. The behaviour under
-      // test is unchanged and so are the expected numbers; only where the fields hang moved.
       modId = (await db.query(
         `INSERT INTO forecast_modules (has_valuation, scenario_id, account_id, name, setup_status)
-         VALUES (TRUE, $1, $2, 'CR046 Rent Module', 'complete') RETURNING id`,
+         VALUES (TRUE, $1, $2, 'CR075 Ignored Module', 'complete') RETURNING id`,
         [scenarioId, acct.id]
       )).rows[0].id;
       await db.query(
         `INSERT INTO forecast_streams (module_id, direction, mode, fc_line_id, amount, start_date)
-         VALUES ($1, 'income', 'amount', $2, 35000, $3)`,
-        [modId, line.id, incomeStartDate]
+         VALUES ($1, 'income', 'amount', $2, 999999, '2026-07-01')`,
+        [modId, lineId]
       );
-    }
-
-    test('rent that starts in 2028 is NOT base-year (2026) income', async () => {
-      await seedModule('2028-07-01');
-      expect(await baseYearIncome(2026)).toBe(0);
+      expect(await baseYearFor(2026)).toBeCloseTo(12000, 2);
     });
 
-    test('a window that OPENS in the base year books half of it (July-1 convention)', async () => {
-      // The projection halves the year the window opens; the base-year sums must agree, or
-      // the same figure contradicts itself across the BUDGET column, the sweep's opening
-      // cash and the tax. Note this makes 'start = base year' differ from BLANK, which is a
-      // full base year — deliberately: blank means "always on", not "starts in July".
-      await seedModule('2026-07-01');
-      expect(Number(await baseYearIncome(2026))).toBeCloseTo(17500, 2);
-      expect(Number(await baseYearIncome(2027))).toBeCloseTo(35000, 2); // full year after
-    });
-
-    test('an unwindowed stream is base-year income, as before', async () => {
-      await seedModule(null);
-      expect(Number(await baseYearIncome(2026))).toBeCloseTo(35000, 2);
-    });
-
-    test('no base year given ⇒ no window filter (unchanged for other callers)', async () => {
-      await seedModule('2028-07-01');
-      expect(Number(await baseYearIncome(null))).toBeCloseTo(35000, 2);
+    test('no base year given ⇒ nothing at all, rather than a guess', async () => {
+      await budget(2026, 12, 1000);
+      expect(await baseYearFor(null)).toBe(0);
     });
   });
 });

@@ -335,6 +335,82 @@ describe("CR071 — module integrity warnings", () => {
     expect(new Set([grows, shrinks, flat].map(warningFingerprint)).size).toBe(3);
   });
 
+  it("computeForecastWarnings passes the REAL PeriodStart down, not years[0]", () => {
+    // Found 2026-08-07 by a new rule printing a visibly wrong year. FCReview unshifts
+    // PeriodStart−1 AND PeriodStart−2 onto `sortedYears` for the actual and budget columns, so
+    // `years[0]` is PeriodStart−2 — and R7 was comparing disposal dates against that. On prod
+    // it silently missed **20 disposals dated 2026-07-01** across all five scenarios: Full
+    // disposals in the budget year that the engine never executes, so the balances they were
+    // meant to clear stay on the books for the whole plan with nothing saying so.
+    //
+    // The same class as CR071 §8: a rule fed a value that is not what its name says.
+    const disposer = { Name: "Tax Liabilities", Type: "liability", Currency: "USD",
+      SetupStatus: "complete", HasValuation: true, Streams: [], Amortization: [],
+      DisposeCount: 1, DisposeFullCount: 0, DisposeFirstYear: 2026 };
+    const args = {
+      years: [2025, 2026, 2027, 2028],          // as the Review builds them
+      bankBalanceByYear: [1, 1, 1, 1],
+      entries: [{ Year: 2027, Account: "Bank Accounts", Amount: 1 }],
+      modules: [disposer],
+      cashSweepLow: null,
+    };
+    // Without it, years[0] = 2025 and a 2026 disposal looks like it is inside the plan.
+    expect(computeForecastWarnings(args).map((w) => w.id))
+      .not.toContain("disposal-before-start-Tax Liabilities");
+    // With the real PeriodStart it is caught.
+    expect(computeForecastWarnings({ ...args, periodStart: 2027 }).map((w) => w.id))
+      .toContain("disposal-before-start-Tax Liabilities");
+  });
+
+  it("R9 — a module earning in the budget year with nothing budgeted on its line", () => {
+    // CR075: year −1 is the BUDGET and nothing else contributes to it, so an unbudgeted cost
+    // reads as a real zero. This rule is what makes that gap visible — it is the price of the
+    // owner's budget-only decision, paid deliberately.
+    const yielder = mod({ Name: "Fidelity Fixed Income", MarketValue: 1241052,
+      Streams: [{ id: 9, direction: "income", mode: "yield", amount: 0, fc_line_name: "Interest Income" }] });
+
+    // Budget carries the line ⇒ silent.
+    expect(computeModuleIntegrityWarnings([yielder], { periodStart: 2027, baseYearValues: { "Interest Income": 46000 } })
+      .map((w) => w.id)).not.toContain("unbudgeted-base-year-Fidelity Fixed Income");
+
+    // Budget carries nothing ⇒ reported. A yield stream's amount is 0 by construction, so a
+    // rule keyed on the amount alone would miss exactly the case that caused CR075.
+    const warned = computeModuleIntegrityWarnings([yielder], { periodStart: 2027, baseYearValues: { Travel: -91805 } });
+    const w = warned.find((x) => x.id === "unbudgeted-base-year-Fidelity Fixed Income");
+    expect(w).toBeTruthy();
+    expect(w.detail).toMatch(/"Interest Income"/);
+    expect(w.detail).toMatch(/2026/);
+  });
+
+  it("R9 — an unbudgeted LOAN's interest is reported, since nothing derives it any more", () => {
+    // The case the old code special-cased with a rate × balance derivation. CR075 deleted that
+    // (owner: budget only, no fallback), so this warning is the whole of its replacement.
+    const loan = mod({ Name: "House Morgage", LoanInterestRate: 6, MarketValue: -500000,
+      Streams: [{ id: 3, direction: "expense", mode: "derived", amount: 0, fc_line_name: "Financial Expenses" }] });
+    expect(computeModuleIntegrityWarnings([loan], { periodStart: 2027, baseYearValues: {} })
+      .map((w) => w.id)).toContain("unbudgeted-base-year-House Morgage");
+    expect(computeModuleIntegrityWarnings([loan], { periodStart: 2027, baseYearValues: { "Financial Expenses": -3448 } })
+      .map((w) => w.id)).not.toContain("unbudgeted-base-year-House Morgage");
+  });
+
+  it("R9 — stays SILENT when the budget map was not supplied at all", () => {
+    // Absent is not empty. Warning on every module because a fetch failed would be worse than
+    // not warning, and would train the owner to ignore the panel.
+    const yielder = mod({ Name: "M", MarketValue: 100000,
+      Streams: [{ id: 1, direction: "income", mode: "yield", amount: 0, fc_line_name: "Interest Income" }] });
+    expect(computeModuleIntegrityWarnings([yielder], { periodStart: 2027 })
+      .map((w) => w.id)).not.toContain("unbudgeted-base-year-M");
+  });
+
+  it("R9 — a stream with NO line is R6's finding, not this one", () => {
+    // Otherwise the same module is reported twice for one problem.
+    const orphan = mod({ Name: "Car Purchase Chris",
+      Streams: [{ id: 4, direction: "expense", mode: "amount", amount: 5000, fc_line_id: null, fc_line_name: null }] });
+    const ids = computeModuleIntegrityWarnings([orphan], { periodStart: 2027, baseYearValues: {} }).map((w) => w.id);
+    expect(ids).not.toContain("unbudgeted-base-year-Car Purchase Chris");
+    expect(ids.some((i) => i.startsWith("stream-no-line-"))).toBe(true);
+  });
+
   it("R7 — flags a disposal dated before the forecast starts", () => {
     // `Tax Liabilities` on prod disposes 2026-07-01, which is the base year, not a forecast year.
     const tl = mod({ Name: "Tax Liabilities", DisposeCount: 1, DisposeFirstYear: 2026 });

@@ -6,7 +6,7 @@
 > **The budget is load-bearing** (cut from 216 lines 2026-08-05): overrun = restatement the CR
 > index and roadmap already own, and it is where stale facts collect.
 
-**Last updated:** 2026-08-07 · **Live version:** v3.18.1 (see `VERSION` / git tags)
+**Last updated:** 2026-08-08 · **Live version:** v3.19.0 (see `VERSION` / git tags)
 
 ## Current phase
 **The model, since [CR069](../cr/cr-069-forecast-streams.md) (v3.13.1 → v3.14.1, migrations
@@ -16,29 +16,40 @@
 [CR index](../cr/README.md) and the [roadmap](project-roadmap.md), not restated here:
 [CR070](../cr/cr-070-module-inputs-by-type.md)+[CR071](../cr/cr-071-forecast-numbers-vs-intent.md)
 (v3.15.0) · [CR072](../cr/cr-072-valuation-module-inputs.md) (v3.17.0) — **the balance-sheet form
-is CLOSED**, the owner answered its last three readings ·
-[CR073](../cr/cr-073-two-recurrence-guards.md) (v3.17.1) · [CR074](../cr/cr-074-dismissible-cash-health-warnings.md)
-(v3.18.0, migration 061) — Cash Health warnings are **dismissible**, per scenario, and a dismissal
-**expires when the warning's figures change**.
+is CLOSED** · [CR073](../cr/cr-073-two-recurrence-guards.md) (v3.17.1) ·
+[CR074](../cr/cr-074-dismissible-cash-health-warnings.md) (v3.18.0, migration 061) — Cash Health
+warnings are **dismissible**, and a dismissal **expires when the warning's figures change**.
 
-✅ **Three number-moving changes landed on prod 2026-08-06**, each measured before and after and
-each matching its prediction: CR072 **P5**, the budget year now grows (Barkeria 2026 →
-**1,024,967**); **[CR071 §7](../cr/cr-071-forecast-numbers-vs-intent.md#7-the-4-data-edits--applied-to-prod-2026-08-06)**,
-CVC's phantom yield and two Fidelity amounts cleared (**Base 2062 −31.3%**, CVC's NAV unmoved);
-and **Known Issue #2** materialising at `Property Costs −1,203,432.12`, predicted to the cent.
+⚠️ **[CR075](../cr/cr-075-base-year-is-the-budget.md) — v3.19.0, and it MOVES NUMBERS** (owner
+sign-off). **Year −2 is ACTUAL, year −1 is the BUDGET, the forecast starts at year 0** — but year
+−1 was being derived from the modules' typed stream amounts, and a **yield** stream's amount is 0
+by construction, so three income lines read zero. The base year was **152,802 short**, and that
+figure is the cash sweep's **opening cash**. Now read from `budget_entries`. Base 2062 net worth
+**+397,705**; SRQ's shortfall −3.20M → −1.84M. One budget ⇒ all scenarios share one base year.
 
-### Three lessons this week, each paid for
-- ⚠️ **A warning LIED, and looked authoritative doing it** (owner-found,
-  [CR071 §8](../cr/cr-071-forecast-numbers-vs-intent.md#8-r5-was-wrong--owner-found-2026-08-06-fixed-in-v3181),
-  v3.18.1). R5 called Barkeria gain-free while its own output showed **334,294 realized**; it read
-  basis-vs-market at the base date, the engine reads it at the disposal year. **Wrong on 30 of 35
-  modules.** *A rule that asserts what the engine does must be derived from the engine's formula,
-  not a restatement of it — and every gate passed because each checked the warning FIRED, none
-  that what it SAID was true.* **The other 7 rules have not been audited for this.**
-- **A UI test whose mock returns zero rows proves nothing about rendering rows** — it passed while
-  the drill-down modal crashed the page and took both dialogs down.
-- **Proof of absence needs a search that provably covered the file** — a `head -20`-truncated grep
-  had me record two working buttons as never built.
+⚠️ **Four number-moving changes have landed in four days** (CR072 P5, CR071 §7's data edits,
+Known Issue #2 materialising, and now CR075). Each was measured before and after on a prod copy
+against an engine first proven idempotent, and each matched its prediction. That gate is the only
+reason any of them is trustworthy — do not ship a fifth without it.
+
+### The recurring failure, now found FOUR times
+A rule or a figure that asserts something about the engine, derived from a **restatement** rather
+than from the engine's own formula or the real input:
+
+| | what it claimed | what was true |
+|---|---|---|
+| [CR071 §8](../cr/cr-071-forecast-numbers-vs-intent.md#8-r5-was-wrong--owner-found-2026-08-06-fixed-in-v3181) | R5: "sold without realizing any gain" | 334,294 realized — wrong on **30 of 35** modules |
+| [CR075 §5](../cr/cr-075-base-year-is-the-budget.md) | R7 compared against PeriodStart | it got PeriodStart−2 — **20 disposals** missed |
+| CR075 §1 | the base year was the budget | it was the modules' typed amounts |
+| CR073 | LIST and DETAIL agreed | they drifted three times in three days |
+
+**2 of the 8 detection rules have been found wrong this way. The other six are UNAUDITED**, and
+every gate passed each time because they checked a warning FIRED, never that what it SAID was true.
+
+**Two more, cheaper:** a UI test whose mock returns **zero rows** proves nothing about rendering
+rows (it passed while the modal crashed the page); and **proof of absence needs a search that
+provably covered the file** — a `head -20`-truncated grep had me record two working buttons as
+never built.
 
 **[CR064](../cr/cr-064-forecast-annual-close-and-assumptions.md) remains the live engineering
 thread** — P2/P4/P5/P10 are **unblocked** now CR069 P2 has shipped, and the annual close is not
@@ -74,8 +85,8 @@ ESLint JSX blind spot (#10), and dirty-tree deploys (#17).
 ## Next
 - **Owner QA of the P&L (income/expense) module inputs** — the owner's own stated successor now
   that the balance-sheet form is closed.
-- **Audit the other 7 warning rules** against `fcbuilder-*` directly, for the class CR071 §8 found:
-  a claim about the engine derived from a paraphrase rather than the formula.
+- **Audit the remaining 6 warning rules** against `fcbuilder-*` directly — 2 of 8 have been found
+  wrong, both asserting something about the engine derived from a paraphrase rather than the formula.
 - **[CR066](../cr/cr-066-fc-line-mapping-completeness.md) P0** — decide an FC line for each of
   the twelve unmapped categories, or record it as deliberately excluded. A decision per row.
 - **CR064 P2/P4/P5/P10** — unblocked; P2 owns the `has_valuation` filter on

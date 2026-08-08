@@ -426,112 +426,77 @@ async function buildAddFromActualsTree(scenarioId, baseYear) {
  * silently for the whole horizon. One query, one caller-supplied handle — no second copy.
  */
 async function getBaseYearValues(scenarioId, baseYear = null, client = db) {
-  // CR069 P2 — ONE query over `forecast_streams`, where there were three UNION branches over
-  // two tables. A module's income/expense column pairs and every `forecast_income_expense`
-  // row are all streams now, so the base year has one source in the same sense CR049 created
-  // this function to give it: not "one function", but one QUERY the function runs.
+  // CR075 — the base year IS THE BUDGET. Owner, 2026-08-07: *"forecast year −2 = ACTUAL,
+  // forecast year −1 = BUDGET, forecast year 0 = start forecast."*
   //
-  // The three behaviours the old branches encoded all survive, and each is load-bearing:
+  // This function used to derive the base year from the modules' STREAMS — summing each
+  // stream's typed `amount` — and it was never the budget. Two ways it diverged, both live
+  // on prod and both found by the owner reading the Review's 2026 column:
   //
-  //   window     CR046 (fixed v3.0.88) — a stream counts in the base year only if its window
-  //              is open that year, and only for HALF of it when the window opens or closes
-  //              in that year (the July-1 convention the projection applies). Rent starting
-  //              2028 does not exist in 2026; summing it blindly put it in the base-year
-  //              column AND, through this function, into the cash sweep's opening cash.
-  //   loan       CR062 — a loan's base-year expense is interest on the balance it already
-  //              carries, DERIVED, so its stream `amount` says nothing about it. Without the
-  //              branch an existing mortgage reads as zero interest in the base year while
-  //              every forecast year charges it, and the sweep opens a year of interest rich
-  //              for the whole horizon. That is CR049 §1 in the function CR049 created.
-  //   flow       a converted Expenditure item posts to its FC line, or — when it has none —
-  //              to its COA account's name, then its own name. The engine's loader applies
-  //              the identical fallback; the two must agree or the base-year column and the
-  //              modelled years label the same money differently.
-  const windowFilter = baseYear == null ? '' : `
-      AND (s.start_date IS NULL OR EXTRACT(YEAR FROM s.start_date) <= ${Number(baseYear)})
-      AND (s.end_date   IS NULL OR EXTRACT(YEAR FROM s.end_date)   >= ${Number(baseYear)})`;
+  //   YIELD streams contributed ZERO. A yield stream's amount is 0 by construction (the card
+  //   hides the box; the yield is a rate), so `CVC Dividend`, `Dividend Income` and
+  //   `Interest Income` — 129,000 of budgeted investment income across 3.3M of market value —
+  //   read as nothing. The function already had a branch for exactly this shape on LOAN
+  //   streams, whose comment says "the stream amount is 0 on a derived stream by
+  //   construction". The identical reasoning was never applied to `yield`.
+  //
+  //   AMOUNT streams disagreed with the budget anyway, because a typed base-year amount is
+  //   not a budget: `UB Income` carried 128,205 against a budget of 192,266.
+  //
+  // Income was understated by 193,071 and the net by 161,302 — and `index.js` folds this into
+  // the cash sweep's OPENING CASH, which the sweep then pins to its band every year, so the
+  // error rode all 36 forecast years instead of washing out. That is the CR049 §1 failure
+  // mode for the third time in this one function (after the ~65K liability-gated expense
+  // branch and the ~400K unconverted-FX one, both recorded above in git history).
+  //
+  // Reading the budget deletes the machinery those two bugs lived in, which is most of the
+  // argument for it. Gone with it:
+  //   - the CR046 window filter and half-year convention — a budget entry is DATED, so a
+  //     stream that starts mid-year is already only in the months it exists;
+  //   - the CR062 loan-interest derivation — budgeted interest is a budgeted row;
+  //   - the CR064 P8 per-currency conversion — `base_amount` is already USD, so there is no
+  //     rate to get wrong and no `baseYearFxRate` to throw.
+  //
+  // What it does NOT cover, deliberately: budget entries with no category (72 rows, −86,796
+  // on prod — card repayments, which have no P&L line by definition). They were not in the
+  // stream-derived figure either, and this is the Review's P&L column.
+  //
+  // `baseYear` null means the caller could not resolve PeriodStart. There is no budget year
+  // to read then, so return nothing rather than guessing — the old code's "no window filter"
+  // fallback silently produced a full-horizon figure labelled as one year.
+  if (baseYear == null) return {};
 
-  const halfYear = baseYear == null ? '1' : `
-      (CASE WHEN EXTRACT(YEAR FROM s.start_date) = ${Number(baseYear)}
-              OR EXTRACT(YEAR FROM s.end_date)   = ${Number(baseYear)}
-            THEN 0.5 ELSE 1 END)`;
-
-  const loanHalfYear = baseYear == null ? '1' : `
-      (CASE WHEN EXTRACT(YEAR FROM m.loan_start_date) = ${Number(baseYear)} THEN 0.5 ELSE 1 END)`;
-
-  const streamResult = await client.query(`
-    SELECT
-      COALESCE(
-        line.name,
-        CASE WHEN m.has_valuation THEN NULL ELSE COALESCE(a.name, m.name) END,
-        CASE WHEN s.direction = 'income' THEN 'Unassigned Income' ELSE 'Unassigned Expense' END
-      ) as label,
-      s.direction as type,
-      COALESCE(m.currency, 'USD') as currency,
-      SUM(
-        CASE
-          -- A loan's interest: the rate on the balance it already carries, halved in the
-          -- year it is drawn. The stream amount is 0 on a derived stream by construction.
-          WHEN s.mode = 'derived' AND m.loan_interest_rate IS NOT NULL
-            THEN -(m.loan_interest_rate / 100.0) * ABS(COALESCE(m.market_value, 0)) * ${loanHalfYear}
-          WHEN s.direction = 'income'
-            THEN COALESCE(s.amount, 0) * ${halfYear}
-          ELSE -COALESCE(s.amount, 0) * ${halfYear}
-        END
-      ) as amount
-    FROM forecast_streams s
-    JOIN forecast_modules m ON m.id = s.module_id
-    LEFT JOIN fc_lines line ON line.id = s.fc_line_id
-    LEFT JOIN accounts a ON a.id = m.account_id
-    WHERE m.scenario_id = $1
-      AND COALESCE(m.setup_status, 'new') NOT IN ('new', 'exclude')
-      -- A stream must POST somewhere to count in the base year. All three retired UNION
-      -- branches carried a NOT NULL check on the fc line, and dropping it let a valuation
-      -- module with an amount and no line contribute an 'Unassigned Expense' row — which
-      -- the engine folds into the cash sweep's OPENING CASH, so the error would ride the
-      -- whole horizon (the CR049 section 1 mode this function exists to prevent). A FLOW
-      -- module is exempt: it falls back to its account name and genuinely does post there.
-      AND (s.fc_line_id IS NOT NULL OR NOT m.has_valuation)
-      -- A derived (loan) stream has no window of its own — its dates ARE the loan's.
-      AND (s.mode = 'derived' OR (TRUE${windowFilter}))
-    GROUP BY 1, 2, m.currency
-  `, [scenarioId]);
-
-  // CR064 P8 — convert each stream's amount from ITS OWN currency before summing.
-  //
-  // These branches used to sum `expense_amount` / `income_amount` raw, in whatever currency
-  // each module happens to use, into a figure every consumer reads as USD. Measured on prod
-  // 2026-08-02: `2026 Base` reported 500,000 of UB income (PLN) and 55,000 of Barkeria income
-  // (PLN) as though they were dollars — about **+400,000 USD** of base-year income that does
-  // not exist, against ~13,000 of PLN property expense overstated the same way.
-  //
-  // It was never only a display defect. `index.js` folds this base-year net cash flow into
-  // the cash sweep's OPENING CASH, so the sweep opened that much richer and stayed there for
-  // the whole horizon — the CR049 §1 failure mode, in the very function CR049 created so the
-  // base year would have one source.
-  //
-  // The rate is the scenario's own base-year rate (CR051's `baseYearFxRate`), which is what
-  // the engine divides by when it projects the same stream — so the base-year column and
-  // Period 1 agree instead of differing by the FX rate. A missing or zero rate for a currency
-  // in use THROWS there and therefore here.
-  const scenarioRow = await client.query('SELECT name FROM forecast_scenarios WHERE id = $1', [scenarioId]);
-  const scenarioName = scenarioRow.rows[0]?.name || null;
-  const rateCache = new Map();
-  const rateFor = async (currency) => {
-    const ccy = (currency || 'USD').trim() || 'USD';
-    if (ccy === 'USD') return 1;
-    if (!rateCache.has(ccy)) rateCache.set(ccy, await baseYearFxRate(scenarioName, ccy));
-    return rateCache.get(ccy);
-  };
+  const result = await client.query(`
+    WITH RECURSIVE cat_tree AS (
+      SELECT flc.fc_line_id, c.id
+      FROM fc_line_categories flc
+      JOIN accounts c ON flc.category_id = c.id
+      UNION ALL
+      SELECT ct.fc_line_id, ch.id
+      FROM cat_tree ct
+      JOIN accounts ch ON ch.parent_id = ct.id
+    ),
+    -- Each leaf counted once per fc_line. The same CTE \`fcLines.getBudgetTotals\` uses, so the
+    -- base-year column and the stream cards' budget reference cannot disagree about which
+    -- accounts a line covers.
+    distinct_leaves AS (
+      SELECT DISTINCT fc_line_id, id
+      FROM cat_tree ct
+      WHERE NOT EXISTS (SELECT 1 FROM accounts ch WHERE ch.parent_id = ct.id)
+    )
+    SELECT l.name AS label, COALESCE(SUM(be.base_amount), 0) AS amount
+    FROM fc_lines l
+    JOIN distinct_leaves dl ON dl.fc_line_id = l.id
+    JOIN budget_entries be ON be.category_id = dl.id AND be.budget_year = $1
+    GROUP BY l.name
+  `, [baseYear]);
 
   const values = {};
-  for (const row of streamResult.rows) {
+  for (const row of result.rows) {
     const amt = parseFloat(row.amount) || 0;
-    if (amt === 0) continue;
-    const usd = amt / (await rateFor(row.currency));
-    values[row.label] = (values[row.label] || 0) + usd;
+    if (amt === 0) continue;   // an unbudgeted line is absent, not a zero row
+    values[row.label] = (values[row.label] || 0) + amt;
   }
-
   return values;
 }
 module.exports = {
