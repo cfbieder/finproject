@@ -180,3 +180,50 @@ Released as **v3.19.0** on 2026-08-08 with owner sign-off. Because this changes 
 INPUT rather than its output, a deploy alone moves nothing — prod's stored entries were generated
 by the old code. **All five scenarios were regenerated on prod after the deploy**, and the result
 recorded in §10.
+
+---
+
+## 10. Deployed to prod 2026-08-08 — and what else came with it
+
+The deploy alone moves nothing here: this changes the engine's **input**, and prod's stored entries
+were produced by the old code. All five scenarios were regenerated after it, and prod is
+**idempotent** (two consecutive regenerates byte-identical).
+
+The regenerate moved more than CR075, and the difference is worth recording because it is a hazard
+this project has hit before. **Prod's stored entries were stale — 1,328 rows out of date** — because
+three owner edits had been made through the UI without a regenerate afterwards:
+
+| module | edit |
+|---|---|
+| `US - Nokomis` | market value 339,962.17 → **390,000.00** (cost basis unchanged) |
+| `US - Nokomis` | capital-gains tax override → **0%** |
+| `SP - Panorama Mar 6` | growth 0.0 → **0.5** × inflation |
+
+So one regenerate materialised **two independent changes at once**. That is exactly the shape
+recorded against roadmap Known Issue #2 — *"the cost stops being invisible, which is the right
+outcome; the hazard is that it lands silently alongside whatever else prompted the regenerate."*
+
+It was decomposed rather than reported as one number. The owner's three edits were replayed onto
+the dev copy, and **dev then reproduced prod exactly on all five scenarios**, which is what makes
+the split below trustworthy rather than arithmetic:
+
+| scenario | prod's STALE stored | recomputed, old code | **CR075** | the owner's 3 edits | **prod now** |
+|---|--:|--:|--:|--:|--:|
+| 2026 Base | 3,107,436 | 2,845,816 | **+397,705** | +261,569 | **3,505,089** |
+| 2026 Buy Business | 6,845,456 | 7,999,021 | **+397,132** | +261,420 | **8,657,572** |
+| 2026 Downside | −706,118 | 163,299 | **+513,774** | +325,485 | **1,002,558** |
+| 2026 Upside | 4,933,766 | 6,401,435 | **+230,666** | +257,993 | **6,890,094** |
+| 2026 SRQ House Purchase | −744,428 | −744,428 | **−337** | −947 | **−745,713** |
+
+Every CR075 figure matches §6's dev measurement to the dollar. Net worth at 2062, balances read AT
+the horizon.
+
+**A note on `US - Nokomis`:** its market value now exceeds its cost basis, so R5 no longer reports
+it at all; and `SP - Panorama Mar 6` is no longer flat, so R5 moves it from *"sold without
+realizing any gain"* to *"taxed only on growth since the base date"* — the v3.18.1 branching
+behaving as designed on data that changed underneath it.
+
+**A guard proved itself on the way.** Replaying the edits on dev by raw SQL set `market_value`
+without its USD twin, and the CR064 P13 currency guard refused the build with the exact sentence it
+was written for. The UI sets both columns, so prod was never at risk — but the guard caught the
+hand-edit that would have been.
