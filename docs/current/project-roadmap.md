@@ -24,7 +24,11 @@ Living plan for the Fin project — open Change Requests, known issues, ongoing 
   constraint: **nothing generated may state a number or assert what the engine does.**
 
 <a id="cr076"></a>
-- **🔴 CR076 — Forecast model review (2026-08-09), IN-PROGRESS — §8 steps 1–3 SHIPPED in v3.20.0.** Full detail:
+- **🔴 CR076 — Forecast model review (2026-08-09), IN-PROGRESS — §8 COMPLETE; steps 1–3 shipped
+  v3.20.0, steps 4–5 shipped v3.21.0, and **step 6 (D2–D6) is BUILT AND MEASURED BUT UNDEPLOYED**
+  (§14–§18). Cumulative effect of the undeployed five, measured one at a time on dev against an
+  idempotent engine: Base 4,442,681 → **4,571,404**, Buy Business → **9,647,452**, Downside →
+  **2,442,858**, Upside → **7,942,686**, SRQ → **−678,505**. Full detail:
   [CR076](../cr/cr-076-forecast-model-review.md). Five parallel reviewers over the engine, the
   warning rules and a prod copy, plus perturbation scenarios.
   - **§2 is a P0 documentation correction and is APPLIED.** The published net-worth figures came

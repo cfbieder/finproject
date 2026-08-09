@@ -34,7 +34,8 @@ cash movement** — as a balance. **The app was never wrong; the roll-up was**, 
 constant (+894K to −84K), so it contaminated comparisons too. **Any forecast figure quoted in a
 document must come from the app's own exported functions or the engine — never a SQL re-derivation
 written for the occasion.** §1 records what is SOUND and is the larger half. §8 is the fix order;
-§7 holds seven owner decisions. **v3.21.0** adds §8 steps 4–5: the growth hint said the OPPOSITE
+§7 holds seven owner decisions. **§8 IS NOW COMPLETE** — D2–D6 are built and measured on dev but
+**NOT YET DEPLOYED** (§14–§18). **v3.21.0** added §8 steps 4–5: the growth hint said the OPPOSITE
 of the arithmetic (**70 of 110** streams carry a multiplier chosen while reading it — `Social
 Security` at 0.25 against a statutory full-CPI COLA is the one to check), **R10** catches a
 multiplier that is really a typed percent (`OCME` at −20 = −50%/yr), a missing inflation rate now
