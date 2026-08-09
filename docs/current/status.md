@@ -6,7 +6,7 @@
 > **The budget is load-bearing** (cut from 216 lines 2026-08-05): overrun = restatement the CR
 > index and roadmap already own, and it is where stale facts collect.
 
-**Last updated:** 2026-08-09 · **Live version:** v3.20.0 (see `VERSION` / git tags)
+**Last updated:** 2026-08-09 · **Live version:** v3.21.0 (see `VERSION` / git tags)
 
 ## Current phase
 **The model, since [CR069](../cr/cr-069-forecast-streams.md) (v3.13.1 → v3.14.1, migrations
@@ -34,11 +34,16 @@ cash movement** — as a balance. **The app was never wrong; the roll-up was**, 
 constant (+894K to −84K), so it contaminated comparisons too. **Any forecast figure quoted in a
 document must come from the app's own exported functions or the engine — never a SQL re-derivation
 written for the occasion.** §1 records what is SOUND and is the larger half. §8 is the fix order;
-§7 holds seven owner decisions. **Net assets at 2062, post-v3.20.0:** Base **4,442,681** ·
-Buy Business **9,518,358** · Downside **1,937,950** · Upside **7,777,205** · SRQ **−783,305**.
+§7 holds seven owner decisions. **v3.21.0** adds §8 steps 4–5: the growth hint said the OPPOSITE
+of the arithmetic (**70 of 110** streams carry a multiplier chosen while reading it — `Social
+Security` at 0.25 against a statutory full-CPI COLA is the one to check), **R10** catches a
+multiplier that is really a typed percent (`OCME` at −20 = −50%/yr), a missing inflation rate now
+**fails loud** instead of flat-lining 36 years, and **D8** gives the base year the rate declared
+FOR it. **Net assets at 2062, post-v3.21.0:** Base **4,442,681** · Buy Business **9,518,358** ·
+Downside **2,050,287** · Upside **7,777,205** · SRQ **−783,305**.
 
-⚠️ **FIVE number-moving changes in five days** (CR072 P5, CR071 §7's data edits, Known Issue #2
-materialising, CR075, and now CR076 D1). Each was measured before and after on a prod copy against
+⚠️ **SIX number-moving changes in five days** (CR072 P5, CR071 §7's data edits, Known Issue #2
+materialising, CR075, CR076 D1, and CR076 D8 — Downside only, +112,337). Each was measured before and after on a prod copy against
 an engine first proven idempotent, and each matched its prediction. **CR076 §2 is the limit of what
 that gate proves:** it compares a number to itself, so it catches a *changed* number and never a
 *wrongly-derived* one — which is exactly how five published figures stayed wrong through it.
