@@ -736,3 +736,61 @@ rules the owner would have to maintain, and §7 is the place for it.
 
 **Gate:** 870 backend across 63 suites (8 new, pinning the bucketing rules rather than re-testing
 the engine around them), engine idempotent. **Not yet deployed.**
+---
+
+## 19. Deployed to prod 2026-08-09 as v3.22.0 — and the three owner edits it had to be untangled from
+
+Backup `fin_backup_20260809_150150.dump`. **Prod's pre-regenerate state did NOT match the
+prediction**, and stopping to find out why was the whole value of the exercise.
+
+Four scenarios sat exactly where v3.21.0 left them. **`2026 Base` did not** — 4,377,029.95 against
+an expected 4,442,680.51. Its inputs had changed. Three edits to `OCME Sp. z o.o.`, made through
+the UI and regenerated on Base alone:
+
+| # | edit |
+|---|---|
+| 1 | `growth_rate` **−20 → −30** |
+| 2 | its **2045 Full disposal deleted** |
+| 3 | a **100,000 PLN OneTime investment added at 2026-07-01** |
+
+The first diff caught only #1, because it compared too few columns. #3 — a base-year investment,
+and therefore a cash outflow that feeds opening cash and rides the horizon — is what the −65,650
+actually was. **A narrow diff is worse than none: it produces a confident, incomplete answer.**
+
+### The four variants were stale, and a regenerate was always going to move them
+
+`2026 Buy Business`, `Downside`, `SRQ` and `Upside` are CR050 **variants of Base**, materialised
+from base ⊕ overrides at generate time. Base was edited and regenerated; the variants were not. So
+prod held a Base carrying the edits and four variants that did not, and **the next regenerate for
+any reason would have propagated them** — arriving as an unexplained ~65–85K drop per scenario
+alongside whatever else prompted it. That is CR075 §10's hazard with an extra step.
+
+### The decomposition
+
+All three edits were replayed onto dev, dev proven idempotent, and **prod's fingerprint after
+regenerating matched dev's byte for byte** (`1431ac99…`), so the split below is measured, not
+inferred:
+
+| scenario | prod before | **CR076 D2–D6** | the owner's 3 edits | **prod now** |
+|---|--:|--:|--:|--:|
+| 2026 Base | 4,377,029.95 | **+129,159.68** | *(already in the before)* | **4,506,189.63** |
+| 2026 Buy Business | 9,518,357.56 | +129,094.29 | −65,642.57 | **9,581,809.28** |
+| 2026 Downside | 2,050,287.01 | +392,570.60 | −82,222.59 | **2,360,635.02** |
+| 2026 Upside | 7,777,204.75 | +165,481.41 | −63,968.06 | **7,878,718.10** |
+| 2026 SRQ House Purchase | −783,304.50 | +104,799.28 | −84,678.33 | **−763,183.55** |
+
+Base's whole movement is D2–D6, because its inputs were identical on both sides. The four variants
+mix the two, and are split using the dev measurements at each input state.
+
+All five bank lines land on the sweep's band (199,999.97–200,000.19) — the engine-vs-app check §18
+earned.
+
+### ⚠️ Open for the owner: `OCME` at −30
+
+`growth_rate` is a **multiplier of inflation**, so **−30 is −75%/yr**, not −30%. If edit #1 was a
+response to §11's R10 warning about −20 meaning −50%/yr, it has moved in the wrong direction — and
+**R10 still fires**, since it triggers at |value| ≥ 5. `−30 × 2.5%` decays 156,500 PLN to under 200
+PLN within eight years. For a true −30%/yr the value would be **−12** at the current 2.5%
+assumption. The module now also has **no disposal**, so it is held to the horizon, and carries a
+fresh 100,000 PLN contribution — worth confirming those three read together the way they were
+meant.
