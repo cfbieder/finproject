@@ -6,7 +6,7 @@ How testing is organised across the project, what's automated, and where to run 
 
 ### Backend Jest tests — `cd server && npm test`
 
-**849 tests across 61 suites** (measured 2026-08-09, CR076 step 5). **This file is the single home for live test counts** — `status.md`, `project-description.md` and `project-roadmap.md` §3 link here rather than restating, because four independent restatements is what let all four drift apart (each was right on the day it was written and none was updated since). Two flavors: pure/mocked suites, and **DB-backed suites** that self-seed throwaway rows by unique name against `DATABASE_URL` (dev Postgres :5434) and clean up after themselves — never TRUNCATE. Skip the DB-backed ones with `SKIP_DB_TESTS=1`. Run with `npx env-cmd -e development -- npm test` so `DATABASE_URL` is set.
+**855 tests across 62 suites** (measured 2026-08-09, CR076 step 6a). **This file is the single home for live test counts** — `status.md`, `project-description.md` and `project-roadmap.md` §3 link here rather than restating, because four independent restatements is what let all four drift apart (each was right on the day it was written and none was updated since). Two flavors: pure/mocked suites, and **DB-backed suites** that self-seed throwaway rows by unique name against `DATABASE_URL` (dev Postgres :5434) and clean up after themselves — never TRUNCATE. Skip the DB-backed ones with `SKIP_DB_TESTS=1`. Run with `npx env-cmd -e development -- npm test` so `DATABASE_URL` is set.
 
 | File | Tests | Coverage |
 |------|-------|----------|

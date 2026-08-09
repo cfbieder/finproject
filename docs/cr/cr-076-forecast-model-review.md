@@ -252,8 +252,8 @@ opposite things share the word "growth".
    themselves are now an owner question, stated in §11.
 5. ✅ **D7 / D8** — fail loud on a missing inflation row *(§12)*; honour a PeriodStart−1
    assumption *(§13, ⚠️ MOVES NUMBERS — measured)*.
-6. **D2, D3, D4, D5, D6** — each moves numbers and needs CR075's before/after gate on an engine
-   first proven idempotent. Not more than one at a time.
+6. **D2 ✅ (§14) · D3, D4, D5, D6** — each moves numbers and needs CR075's before/after gate on
+   an engine first proven idempotent. Not more than one at a time.
 
 ## 10. Shipped in v3.20.0 (2026-08-09)
 
@@ -473,3 +473,55 @@ across two further regenerates.
 Shipped alongside §11's step 4 (the growth hint and R10) and §12's D7, neither of which moves a
 number — so this regenerate carried exactly one number-moving change, which is the property CR075
 §10 warned was lost when two landed together.
+---
+
+## 14. Step 6a — D2, the sweep's opening cash is now the canonical balance
+
+The sweep read the `closing_balance` **column** off each account's latest transaction. Every other
+balance in Fin is `opening_balance + Σ(amount)` from `opening_balance_date` — `services/reports.js`
+says so, and its own comment calls the column approach *"prone to stale PS data"*. The sweep was
+the last reader still on the old method, and it is the one whose number rides all 36 years:
+`startingCash` is what the sweep pins its band to, every year.
+
+**Measured on prod at 2025-12-31 — 12 of 17 bank accounts agree exactly, 5 do not:**
+
+| account | sweep read | the book says | |
+|---|--:|--:|---|
+| `PKO EUR` | **−4,848.85** EUR | **+151.15** | the sign is simply wrong |
+| `PKO TFI` | *(no row)* | 6,000.00 PLN | no `closing_balance` anywhere, so it counted as **zero** |
+| `PKO` | 69,013.28 | 81,390.57 PLN | +12,377.29 |
+| `PKO Savings` | 183,965.69 | 186,292.43 PLN | +2,326.74 |
+| `Wise - USD` | 1,327.45 | 1,545.76 USD | +218.31 |
+| `WISE - EUR` | 598.41 | 104.93 EUR | −493.48 |
+
+Totals: **358,267.30 vs 369,544.23 — a gap of 11,276.93**, which is exactly the constant offset the
+Review's Bank Accounts row carried in *every year of every scenario*. And `fcWarnings` W1/W4 judge
+"cash below the low band" against that series, so a warning rule was being fed the wrong input too.
+
+**The app was never wrong here either** — it seeds from the canonical balance report. That is why
+it displayed 211,276.90 against a 200,000 band while the engine held 200,000. After the fix the two
+agree: **the bank row now reads 199,999.92–200,000.01, the band itself.** That agreement is the
+verification, not the delta.
+
+Extracted to `crud.getOpeningBankCash` so it could be **tested against seeded rows rather than
+asserted** — six DB-backed cases, each seeding an account whose stored `closing_balance` is wrong,
+so the old implementation fails them by construction. The CR024 `balance_from_feed` override is
+deliberately not replicated (0 accounts in this tree carry it), and currency comes from the account
+(verified: 0 bank transactions carry a different one).
+
+**The extraction caught its own regression.** Making `startingCash` a `const` broke CR075's
+`startingCash += correctedBaseYearDelta` — and the DB-backed transactionality suite failed with
+*"Assignment to constant variable"*. Five tests that exist for a different reason caught it before
+it reached a measurement.
+
+| scenario | before | after | delta |
+|---|--:|--:|--:|
+| Base | 4,442,680.51 | **4,459,563.37** | **+16,882.86** |
+| Buy Business | 9,518,357.56 | **9,535,950.30** | +17,592.74 |
+| Downside | 2,050,287.01 | **2,074,699.78** | +24,412.77 |
+| Upside | 7,777,204.75 | **7,794,060.94** | +16,856.19 |
+| SRQ House Purchase | −783,304.50 | **−758,384.65** | +24,919.85 |
+
+All five rise, which is the right direction: the seed rose 11,276.93 and compounds. Engine
+idempotent; the extraction itself verified byte-identical to the measured fix. 855 backend across
+62 suites. **Not yet deployed.**

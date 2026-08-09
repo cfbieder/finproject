@@ -499,7 +499,62 @@ async function getBaseYearValues(scenarioId, baseYear = null, client = db) {
   }
   return values;
 }
+/**
+ * The sweep's OPENING CASH: every account in the `Bank Accounts` tree, valued the canonical way
+ * and converted to USD at the rate nearest `asOfDate`.
+ *
+ * CR076 D2 — extracted from `index.js` so it can be TESTED against seeded rows rather than
+ * asserted. It used to read the `closing_balance` column off each account's latest transaction,
+ * while every other balance in Fin is `opening_balance + Σ(amount)` from `opening_balance_date`
+ * (`services/reports.js`, whose comment calls closing_balance "prone to stale PS data"). On prod
+ * the two disagreed by 11,276.93 — `PKO EUR` stored −4,848.85 EUR against a book value of
+ * +151.15, and `PKO TFI` had no `closing_balance` row at all so 6,000 PLN counted as zero.
+ *
+ * That figure is `startingCash`, which the sweep pins its band to every year, so the error rode
+ * all 36 forecast years — and `fcWarnings` W1/W4 judged "cash below the low band" against it.
+ *
+ * The CR024 `balance_from_feed` override is deliberately not replicated: 0 accounts in this tree
+ * carry it. Currency comes from the ACCOUNT, matching `reports.js`.
+ */
+async function getOpeningBankCash(client, asOfDate) {
+  const result = await client.query(`
+    WITH RECURSIVE bank_tree AS (
+      SELECT id, currency, opening_balance, opening_balance_date
+      FROM accounts WHERE name = 'Bank Accounts'
+      UNION ALL
+      SELECT a.id, a.currency, a.opening_balance, a.opening_balance_date
+      FROM accounts a JOIN bank_tree bt ON a.parent_id = bt.id
+    ),
+    account_balances AS (
+      SELECT bt.id,
+             COALESCE(bt.currency, 'USD') AS currency,
+             bt.opening_balance + COALESCE(SUM(t.amount), 0) AS closing_balance
+      FROM bank_tree bt
+      LEFT JOIN transactions t
+        ON t.account_id = bt.id
+       AND t.transaction_date >= bt.opening_balance_date
+       AND t.transaction_date <= $1
+      GROUP BY bt.id, bt.currency, bt.opening_balance
+    )
+    SELECT ab.closing_balance, ab.currency,
+      COALESCE(
+        (SELECT er.rate FROM exchange_rates er
+         WHERE er.from_currency = ab.currency AND er.to_currency = 'USD'
+         ORDER BY ABS(er.rate_date - $1::date) ASC LIMIT 1),
+        1.0
+      ) AS fx_rate
+    FROM account_balances ab
+  `, [asOfDate]);
+
+  let total = 0;
+  for (const row of result.rows) {
+    total += (parseFloat(row.closing_balance) || 0) * (parseFloat(row.fx_rate) || 1);
+  }
+  return total;
+}
+
 module.exports = {
+  getOpeningBankCash,
   lookupAccountByName,
   refreshModulesFromActuals,
   listAllModulesRaw,

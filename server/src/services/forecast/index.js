@@ -411,35 +411,12 @@ async function generateForecast(scenarioName, { writeAudit = true } = {}) {
       // Get actual bank balance from ledger (LastActualYear = PeriodStart - 2)
       const lastActualYear = scenario.PeriodStart - 2;
       const lastActualDate = `${lastActualYear}-12-31`;
-      const bankBalResult = await dbc.query(`
-        WITH RECURSIVE bank_tree AS (
-          SELECT id, currency FROM accounts WHERE name = 'Bank Accounts'
-          UNION ALL
-          SELECT a.id, a.currency FROM accounts a JOIN bank_tree bt ON a.parent_id = bt.id
-        ),
-        latest_balances AS (
-          SELECT DISTINCT ON (t.account_id)
-            t.account_id, t.closing_balance,
-            COALESCE(t.currency, bt.currency, 'USD') as currency
-          FROM transactions t
-          JOIN bank_tree bt ON t.account_id = bt.id
-          WHERE t.transaction_date <= $1 AND t.closing_balance IS NOT NULL
-          ORDER BY t.account_id, t.transaction_date DESC, t.id DESC
-        )
-        SELECT lb.closing_balance, lb.currency,
-          COALESCE(
-            (SELECT er.rate FROM exchange_rates er
-             WHERE er.from_currency = lb.currency AND er.to_currency = 'USD'
-             ORDER BY ABS(er.rate_date - $1::date) ASC LIMIT 1),
-            1.0
-          ) as fx_rate
-        FROM latest_balances lb
-      `, [lastActualDate]);
-
-      let startingCash = 0;
-      for (const row of bankBalResult.rows) {
-        startingCash += (parseFloat(row.closing_balance) || 0) * (parseFloat(row.fx_rate) || 1);
-      }
+      // CR076 D2 — the sweep's OPENING CASH is the canonical balance, not `closing_balance`.
+      // ONE implementation, in `crud.getOpeningBankCash`, so it can be tested against seeded rows
+      // instead of asserted — and so this cannot drift from the query the way the growth formula
+      // did (D1). The reasoning, the prod measurement and the CR024 note live on that function.
+      // `let`, not `const`: CR075 folds the base-year delta into this below (line ~471).
+      let startingCash = await crud.getOpeningBankCash(dbc, lastActualDate);
       console.log(`[FORECAST-GENERATE] Starting cash balance (${lastActualYear}): ${startingCash.toFixed(0)}`);
 
       // Get year-over-year cash deltas from Bank Accounts entries
