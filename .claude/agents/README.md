@@ -15,6 +15,7 @@ gates). Keep them that way: when a standard changes, change the doc it points at
 | `migration-reviewer` | append-only, fresh-DB safety, dev→prod→deploy order | any file under `server/db/migrations/` is added or changed |
 | `code-quality-reviewer` | correctness, simplicity, Fin's repeat defect classes | after a non-trivial change, before committing |
 | `ui-design-reviewer` | frontend code quality **and** product design | any change under `frontend/src` |
+| `financial_software_expert` | planning/accounting **domain**, and forecast design partner — right inputs per asset class, right outputs to decide on | designing or revising any forecast surface or CR; deciding what inputs a module type should carry |
 | `cr-technical-reviewer` | **CR pass 1** — senior engineer, technical soundness | a CR is drafted or substantially revised |
 | `cr-signoff-pm` | **CR pass 2** — senior PM, scope/value → go / revise / defer | after pass 1 clears the design |
 | `docs-currency-reviewer` | docs-vs-code drift, one-source-of-truth | before `/close`, or after shipping a CR increment |
@@ -22,7 +23,10 @@ gates). Keep them that way: when a standard changes, change the doc it points at
 
 **Invoking:** by intent — *"security-review this migration"*, *"run code-quality and migration
 review on this branch"* (they fan out in parallel), or *"review CR-0NN"* → technical pass
-first, then the PM sign-off, which assumes pass 1 is done and will not repeat it.
+first, then the PM sign-off, which assumes pass 1 is done and will not repeat it. On a UI
+change with financial content, `ui-design-reviewer` and `financial_software_expert` are
+complementary and run in parallel: the first asks whether the number is *legible*, the second
+whether it is the *right number*.
 
 **What they give back:** a severity-ranked **Severity · `file:line` · Issue · Why · Fix** list,
 with an explicit "nothing found" when the work is clean, and an offer to write
