@@ -63,9 +63,9 @@ scenarios are REGENERATED**. It changes far less often than this file does.
   multipliers (`Purchases` 0.5 · `Travel` 0.8 · `Total Salary` 0.8 · `Car Expenses` 0.9) have **no
   external benchmark** — unlike Social Security, a household may genuinely spend less in real terms
   with age — so each is a belief to state or dismiss, not a defect to fix.
-- **Type the selling-cost rates** — [CR078](../cr/cr-078-disposal-selling-costs.md) shipped the
-  capability **dormant**; it is worth nothing until a rate exists. Property 3–6%, business 1–3%,
-  and CVC's capital returns stay **empty**. That edit MOVES NUMBERS and needs its own measurement.
+- **Re-examine SRQ** — at **−1,392,889** it is the scenario the selling costs hurt most, and the
+  question is now whether the house purchase is viable in its current shape at all, not whether the
+  arithmetic is right.
 - **`Retirement Home`'s 200,000 at 2052** — a `Fixed $` row is in the money of its own year, so it
   is ~105,000 today. CR079's toggle now makes that checkable by eye rather than by arithmetic.
 - **CR076 §7 remainder** — price idle cash (two scenario scalars); loss carry-forward (tax rules
