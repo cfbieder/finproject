@@ -785,12 +785,20 @@ mix the two, and are split using the dev measurements at each input state.
 All five bank lines land on the sweep's band (199,999.97–200,000.19) — the engine-vs-app check §18
 earned.
 
-### ⚠️ Open for the owner: `OCME` at −30
+### ✅ Owner decision 2026-08-09: `OCME` at −30 is DELIBERATE
 
-`growth_rate` is a **multiplier of inflation**, so **−30 is −75%/yr**, not −30%. If edit #1 was a
-response to §11's R10 warning about −20 meaning −50%/yr, it has moved in the wrong direction — and
-**R10 still fires**, since it triggers at |value| ≥ 5. `−30 × 2.5%` decays 156,500 PLN to under 200
-PLN within eight years. For a true −30%/yr the value would be **−12** at the current 2.5%
-assumption. The module now also has **no disposal**, so it is held to the horizon, and carries a
-fresh 100,000 PLN contribution — worth confirming those three read together the way they were
-meant.
+Asked and answered — the business is expected to collapse and the 100,000 PLN contribution is
+being written off on purpose. **No code change.** R10 goes on flagging it, which is correct: the
+rule cannot tell a deliberate write-off from a percentage typed into a multiplier box, and it
+should not try. The owner dismisses it in the Cash Health panel, and CR074's fingerprint brings it
+back if the value ever changes — an accepted judgement, behaving exactly as CR074 §1 intended.
+
+**This is the R10 warning earning its keep in the other direction:** it surfaced a number for a
+decision, the decision was made, and the record is now explicit rather than tribal.
+
+### The arithmetic, for the record: `OCME` at −30
+
+`growth_rate` is a **multiplier of inflation**, so **−30 is −75%/yr**. The live path on prod:
+29,263 USD in 2026 (after the new contribution) → 7,316 in 2027 → 457 in 2029 → 0 by 2034. For a
+true −30%/yr the multiplier would be **−12** at the current 2.5% assumption; −20%/yr would be −8.
+The module also now has **no disposal**, so it is held to the horizon rather than sold.
