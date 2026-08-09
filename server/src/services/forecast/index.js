@@ -22,7 +22,7 @@ const { LabelFrame } = require("./frame");
 // CR069 P2 — ONE builder. `fcbuilder-incexp.js` is deleted: an income/expense item is a
 // module with `has_valuation = FALSE` and a single stream, and goes through the same path.
 const { computeModule, writeAuditTrail } = require("./fcbuilder-module");
-const { insertModuleEntries } = require("./fcbuilder-common");
+const { insertModuleEntries, growthPctForYear } = require("./fcbuilder-common");
 const { deriveLoanSchedule } = require("./fcbuilder-loan");
 const { CATEGORIES, PATHS } = require("./constants");
 const { computeCashSweepIterative } = require("./cash-sweep");
@@ -591,20 +591,39 @@ async function generateForecast(scenarioName, { writeAudit = true } = {}) {
         console.log(`[FORECAST-GENERATE] Cash sweep: Created ${rebalanceEntries} entries`);
       }
 
-      // Write audit trail (CR053: skipped for solver scratch builds — see Step 6b)
-      if (writeAudit && sweepLog.length > 0) {
+      // CR076 §3 — the audit CSV must describe the sweep that was COMMITTED.
+      //
+      // It used to be written right here, from this FIRST pass. Step 7b then deletes every
+      // `_cash_sweep`/`_sweep_bal`/`_rebalance` row, re-runs the sweep to convergence and inserts
+      // different entries — and never rewrote the file. `FCCashSweepModal.jsx` serves it, so the
+      // owner's only window into the sweep described a forecast that had been thrown away.
+      //
+      // On prod SRQ the file claimed every year landed at exactly 200,000.00 with no shortfall,
+      // while the committed entries carried `Cash Shortfall −1,017,119.05` — the explanation
+      // screen contradicting the warning panel beside it. On Base it claimed `Fidelity Stocks`
+      // was liquidated in 2061-62; the entries never touched it.
+      //
+      // So: hold the log, let the convergence loop replace it, and write once at the end.
+      let finalSweepLog = sweepLog;
+      const writeSweepAudit = () => {
+        // CR053: skipped for solver scratch builds — see Step 6b.
+        if (!writeAudit || !finalSweepLog || finalSweepLog.length === 0) return;
         try {
           const auditDir = PATHS.AUDIT_TRAIL_DIR;
           fs.mkdirSync(auditDir, { recursive: true });
           const scenarioSafe = (scenarioName || '').replace(/[^a-z0-9]/gi, '_');
           const csvPath = path.join(auditDir, `${scenarioSafe}_cash_sweep.csv`);
-          const headers = ['Year', 'Action', 'Amount', 'CashBefore', 'CashAfter', 'NetModuleEffect', 'Modules'];
+          // `Shortfall` is new: `sweepLog` has always carried the field and the header never had
+          // a column for it, so the one number that says the plan ran out of money could not
+          // appear in the file at all.
+          const headers = ['Year', 'Action', 'Amount', 'CashBefore', 'CashAfter', 'Shortfall', 'NetModuleEffect', 'Modules'];
           const lines = [headers.join(',')];
-          for (const row of sweepLog) {
+          for (const row of finalSweepLog) {
             const netEffect = (row.sweepBalance || 0) - (row.moduleWithdrawal || 0);
             lines.push([
               row.year, row.action, (row.amount || 0).toFixed(2),
               (row.cashBefore || 0).toFixed(2), (row.cashAfter || 0).toFixed(2),
+              (row.shortfall || 0).toFixed(2),
               netEffect.toFixed(2),
               row.modules || '',
             ].join(','));
@@ -614,7 +633,7 @@ async function generateForecast(scenarioName, { writeAudit = true } = {}) {
         } catch (auditErr) {
           console.error('[FORECAST-GENERATE] Failed to write cash sweep audit:', auditErr.message);
         }
-      }
+      };
 
       // Step 7b: Iterative income↔sweep convergence — for EVERY ranked module with a
       // yield schedule, not just the primary (CR048 A1).
@@ -722,8 +741,14 @@ async function generateForecast(scenarioName, { writeAudit = true } = {}) {
               mv[0] = origM + inv[0] + disp[0];
             }
             for (let i = 1; i < modYearsCount; i++) {
-              const idx = (modStartYear + i) - periodStartYr;
-              const g = idx >= 0 && idx < inflationLen ? growthPct * inflationSeries[idx] : 0;
+              // CR076 D1 — this loop UPDATEs the rows `fcbuilder-module.js` wrote, so its growth
+              // series MUST be the builder's. It was a second copy, and it drifted: CR072 §8 added
+              // the pre-PeriodStart clamp to the builder and left this one behind, so the mirror
+              // (which writes last) struck every MV-driven stream on the PREVIOUS year's balance
+              // pair — `Fidelity Stocks` 2027 dividend read 27,723.71, the average of its 2025 and
+              // 2026 values, beside a 2027 balance of 1,438,381. −39,715 on Base.
+              // Now one implementation, called from both. Do not inline it back.
+              const g = growthPctForYear(modStartYear + i, periodStartYr, growthPct, inflationSeries);
               const ug = mv[i - 1] * (g / 100);
               const avail = mv[i - 1] + ug + inv[i];
               if (disp[i] < -avail && avail > 0) disp[i] = -avail;
@@ -957,13 +982,22 @@ async function generateForecast(scenarioName, { writeAudit = true } = {}) {
             // The CR045 P2 series (basis, growth, tax rate) are properties of the module,
             // not of the iteration, so they carry over from sweepArgs — omitting them here
             // would silently drop the capital-gains tax on every rebuild.
-            const { entries: newSweepEntries } = computeCashSweepIterative({
+            const { entries: newSweepEntries, sweepLog: newSweepLog } = computeCashSweepIterative({
               ...sweepArgs,
               cashSweepLow: cashSweepLow ?? cashSweepHigh ?? 0,
               cashSweepHigh: cashSweepHigh ?? cashSweepLow ?? 0,
               cashDeltaByYear: newCashDelta,
               moduleBalanceByYear: newModBal,
             });
+
+            // CR076 §3 — this run is the one that gets committed, so it is the one the audit
+            // CSV must describe. Its log used to be discarded at the destructure.
+            finalSweepLog = newSweepLog;
+            // CR076 F8 — `rebalanceEntries` was captured from the first pass and never updated,
+            // so the reported `entriesCreated` disagreed with the rows that actually landed
+            // (Base said 1578 against 1574). Cosmetic, but it makes a real row-count change
+            // indistinguishable from noise.
+            rebalanceEntries = newSweepEntries.length;
 
             if (newSweepEntries.length > 0) {
               const sv = [], sp = [];
@@ -979,6 +1013,9 @@ async function generateForecast(scenarioName, { writeAudit = true } = {}) {
             }
           } // end convergence loop
         }
+
+        // CR076 §3 — written LAST, from the sweep that was actually committed.
+        writeSweepAudit();
       } // end if (sweepModule)
     } // end if (hasSweepBand)
 

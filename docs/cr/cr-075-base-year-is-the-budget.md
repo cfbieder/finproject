@@ -125,6 +125,16 @@ invisible.
 
 ## 6. The measurement
 
+> ⚠️ **CORRECTED 2026-08-09 — the LEVELS below are wrong.** See
+> [CR076 §2](cr-076-forecast-model-review.md). They came from a SQL roll-up that summed
+> `forecast_entries` by account, which reads `Bank Accounts` — a per-module **annual cash
+> movement** — as if it were a balance. The app was never wrong; only the roll-up was.
+> Base at 2062 is **4,398,898**, not 3,243,520.
+> The **direction, mechanism and gate discipline of this CR stand**: before and after were measured
+> by the same method on an idempotent engine, so the deltas are indicative — but they carry the
+> same contamination (a comparable measurement was later shown to be off by ~4.4%), and the
+> shortfall figures below are *sums of a cumulative quantity*, which double-count (CR076 §3).
+
 Dev re-synced from prod first (it had drifted, and that drift already caused one mis-verification
 this week). Engine proven **idempotent** — two consecutive regenerates byte-identical — so every
 delta below is attributable to the change.
@@ -206,6 +216,12 @@ outcome; the hazard is that it lands silently alongside whatever else prompted t
 It was decomposed rather than reported as one number. The owner's three edits were replayed onto
 the dev copy, and **dev then reproduced prod exactly on all five scenarios**, which is what makes
 the split below trustworthy rather than arithmetic:
+
+> ⚠️ **CORRECTED 2026-08-09 — the LEVELS in this table are wrong**, by the same roll-up defect
+> recorded above ([CR076 §2](cr-076-forecast-model-review.md)). The **decomposition itself stands** —
+> dev reproduced prod exactly on all five scenarios, which is what made the split trustworthy — but
+> "prod now" understates every scenario. Correct net assets at 2062: Base **4,398,898** ·
+> Buy Business **9,474,620** · Downside **1,881,988** · Upside **7,733,471** · SRQ **−829,508**.
 
 | scenario | prod's STALE stored | recomputed, old code | **CR075** | the owner's 3 edits | **prod now** |
 |---|--:|--:|--:|--:|--:|

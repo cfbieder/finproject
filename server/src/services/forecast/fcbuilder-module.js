@@ -2,7 +2,7 @@ const fs = require("fs");
 const path = require("path");
 const { PATHS } = require("./constants");
 const { LabelFrame } = require("./frame");
-const { getIndexValues, buildFcEntriesPayload, insertModuleEntries } = require("./fcbuilder-common");
+const { getIndexValues, buildFcEntriesPayload, insertModuleEntries, growthPctForYear } = require("./fcbuilder-common");
 const { computeStreamSeries, applyStreamWindow, yearIndex } = require("./fcbuilder-stream");
 
 const auditTrailDir = PATHS.AUDIT_TRAIL_DIR;
@@ -252,9 +252,9 @@ function computeModule(module, scenario, df_assumptions, df_categories, categori
   const growthValues = new Array(yearsCount).fill(0);
   for (let i = 0, year = startyear; year <= endyear; i++, year++) {
     if (i === 0) { growthValues[i] = 0; continue; }   // the base year is observed, not projected
-    const idx = year - periodStart;
-    const rateIdx = idx < 0 ? 0 : idx;                // pre-horizon years borrow the first rate
-    growthValues[i] = rateIdx < inflationLen ? growthPct * inflationSeries[rateIdx] : 0;
+    // CR076 D1 — ONE implementation, shared with index.js's convergence loop, which overwrites
+    // these rows. They drifted once and cost −39,715; see `growthPctForYear`.
+    growthValues[i] = growthPctForYear(year, periodStart, growthPct, inflationSeries);
   }
 
   const unrealizedGainValues = new Array(yearsCount).fill(0);

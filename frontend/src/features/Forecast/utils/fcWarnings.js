@@ -79,16 +79,28 @@ export function computeForecastWarnings({
   }
   if (shortfallByYear.size > 0) {
     const shortYears = [...shortfallByYear.keys()].sort((a, b) => a - b);
-    const total = [...shortfallByYear.values()].reduce((s, v) => s + v, 0);
+    // CR076 §3 — the shortfall is CUMULATIVE, so it must NOT be summed.
+    //
+    // `cash-sweep.js` declares `runningCash` once OUTSIDE the year loop and the shortfall entry
+    // never adds back to it, so each year's row is `cashSweepLow − runningCash` on a balance that
+    // already carries every prior unfunded year. Summing counts the same dollars once per year:
+    // prod SRQ stored 2061 −169,573.32 and 2062 −1,017,119.05, and this rule reported $1.2M —
+    // but 2062's figure ALREADY contains 2061's gap. The true terminal shortfall is 1,017,119.
+    //
+    // The worst year is therefore the honest headline, and for a monotonically deepening hole it
+    // is also the last one. `Math.min` because the entries are stored negative.
+    const worst = Math.min(...shortfallByYear.values());
     warnings.push({
       id: "unfunded-shortfall",
       severity: "error",
       title: "Cash shortfall the forecast could not fund",
       detail:
         "The sweep ran out of assets to sell: it could not raise enough cash to hold the " +
-        "low band. Rank another module for the sweep to draw on, or schedule a disposal.",
+        "low band. This figure is the WORST year's gap to the band, not a total — each year's " +
+        "shortfall already carries the years before it. Rank another module for the sweep to " +
+        "draw on, or schedule a disposal.",
       years: shortYears,
-      amount: total,
+      amount: worst,
     });
   }
 
@@ -386,8 +398,9 @@ export function computeModuleIntegrityWarnings(modules = [], { periodStart = nul
           : shrinking
             ? `Cost basis and market value are both ${formatMoney(market)} at the base date, but ` +
               "the module shrinks from there — so the disposal books a capital LOSS against the " +
-              "basis, which may offset gains elsewhere. If the basis is a placeholder rather than " +
-              "the real purchase price, that loss is wrong."
+              "basis. The engine does NOT apply that loss against any gain: no tax is reduced " +
+              "anywhere by this sale. If the basis is a placeholder rather than the real purchase " +
+              "price, that loss is wrong."
             : `Cost basis and market value are both ${formatMoney(market)} at the base date, so ` +
               "the sale is taxed on the growth since then and on nothing before it. That is right " +
               "only if the asset was acquired at today's value; if the basis is a placeholder " +
@@ -451,23 +464,54 @@ export function computeModuleIntegrityWarnings(modules = [], { periodStart = nul
       }
     }
 
-    // ---- R7: a disposal dated before the forecast starts -------------------
-    if (
-      periodStart != null &&
-      (mod.DisposeCount ?? 0) > 0 &&
-      mod.DisposeFirstYear != null &&
-      Number(mod.DisposeFirstYear) < Number(periodStart)
-    ) {
-      out.push({
-        id: `disposal-before-start-${name}`,
-        severity: "warning",
-        title: `"${name}" disposes in ${mod.DisposeFirstYear}, before the forecast starts`,
-        detail:
-          `The projection begins in ${periodStart}, so a disposal dated ${mod.DisposeFirstYear} ` +
-          "never happens — the balance it was meant to clear stays on the books for the whole plan.",
-        years: [],
-        amount: null,
-      });
+    // ---- R7: a disposal dated in the BASE year -----------------------------
+    //
+    // CR076 §3 — this rule was WRONG, twice over, and fired on 20 prod rows saying so.
+    //
+    // It claimed a disposal dated before PeriodStart "never happens — the balance it was meant to
+    // clear stays on the books for the whole plan." The engine indexes a disposal against the
+    // MODULE'S OWN base year (`fcbuilder-module.js`: `new Date(entry.Date).getFullYear() -
+    // startyear`, where `startyear` is the module's `base_date`), NOT against PeriodStart. Every
+    // affected module has a 2025 base date, so a 2026 disposal is index 1 — inside the array, and
+    // executed. Prod showed `US - Nokomis` booking 394,875 of proceeds with NO balance row left.
+    //
+    // CR075 §5 fixed this rule's INPUT (it was being handed PeriodStart−2) and took the panel from
+    // 13 issues to 17. Nobody then checked whether its SENTENCE was true. It was not.
+    //
+    // What is actually true and worth saying: a base-year disposal executes, but its proceeds land
+    // in the plan's OPENING CASH rather than in any forecast year, and its CGT falls the year
+    // after — so it is invisible in the forecast columns. That is worth an `info`, not a warning.
+    //
+    // The original claim only holds when the disposal predates the module's own base date, which
+    // is what `< periodStart - 1` approximates (0 such rows on prod).
+    const disposeYear = mod.DisposeFirstYear != null ? Number(mod.DisposeFirstYear) : null;
+    const baseYear = periodStart != null ? Number(periodStart) - 1 : null;
+    if (periodStart != null && (mod.DisposeCount ?? 0) > 0 && disposeYear != null) {
+      if (disposeYear < baseYear) {
+        out.push({
+          id: `disposal-before-start-${name}`,
+          severity: "warning",
+          title: `"${name}" disposes in ${disposeYear}, before the plan's base year`,
+          detail:
+            `The base year is ${baseYear}, so a disposal dated ${disposeYear} falls outside every ` +
+            "column the engine builds — the balance it was meant to clear stays on the books for " +
+            "the whole plan.",
+          years: [],
+          amount: null,
+        });
+      } else if (disposeYear === baseYear) {
+        out.push({
+          id: `disposal-in-base-year-${name}`,
+          severity: "info",
+          title: `"${name}" is sold in the base year ${disposeYear}`,
+          detail:
+            `The sale executes: the balance is cleared in the ${baseYear} column and the proceeds ` +
+            `land in the plan's opening cash, not in any forecast year. Any capital-gains tax ` +
+            `falls in ${baseYear + 1}.`,
+          years: [],
+          amount: null,
+        });
+      }
     }
 
     // ---- CVC: distributing twice, and the form cannot say which is meant ----

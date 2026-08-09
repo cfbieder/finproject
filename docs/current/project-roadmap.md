@@ -10,6 +10,32 @@ Living plan for the Fin project — open Change Requests, known issues, ongoing 
 
 ### 1.1 Open / In-Progress
 
+<a id="cr076"></a>
+- **🔴 CR076 — Forecast model review (2026-08-09), OPEN.** Full detail:
+  [CR076](../cr/cr-076-forecast-model-review.md). Five parallel reviewers over the engine, the
+  warning rules and a prod copy, plus perturbation scenarios.
+  - **§2 is a P0 documentation correction and is APPLIED.** The published net-worth figures came
+    from a SQL roll-up that read `Bank Accounts` — a per-module **annual cash movement** — as a
+    balance. **The app was never wrong; the roll-up was.** Correct at 2062: Base **4,398,898** ·
+    Buy Business **9,474,620** · Downside **1,881,988** · Upside **7,733,471** · SRQ **−829,508**.
+    Error up to 894K and **not constant**, so comparisons were contaminated too. CR075 §6/§10 and
+    `status.md` annotated. *Rule earned: a forecast figure in any document comes from the app's own
+    exported functions or the engine, never a SQL re-derivation written for the occasion.*
+  - **§3 — 3 more warning rules wrong** (R7 false on all 20 rows it fires on; W2's headline
+    double-counts a cumulative quantity; R5's loss branch claims an offset the engine does not do),
+    making **5 of 8**. Plus: the cash-sweep audit CSV is written **before** the sweep is re-run to
+    convergence, so it describes a forecast that was discarded.
+  - **§4 — 8 money-moving defects**, largest first: D1 the convergence loop's stale copy of the
+    growth formula (−39,715, one line); D2 the sweep's opening cash uses `closing_balance` (11,277);
+    D3 foreign cost basis re-translated yearly (−51,659); D4 base-year tax still reads the typed
+    amount; D5 a stream's final year halved twice; D6 same-year gains and losses never net;
+    D7 an empty inflation list silently yields 0% for 36 years; D8 a PeriodStart−1 assumption is discarded.
+  - **§5 — two labels teach the wrong model:** the growth hint's clauses are swapped (70 of 110
+    streams carry a multiplier), and a yield stream has no rate field at all.
+  - **§7 — owner decisions:** price the cash, selling costs on disposals, a nominal-vs-real view,
+    `OCME` at −20, and the 12-of-15 base-year-vs-first-forecast-year gap.
+  - **§8 is the fix order.** §9 lists what was not independently re-verified (D3/D4/D5).
+
 <a id="cr070"></a>
 <a id="cr071"></a>
 - **CR070 + CR071 — ✅ SHIPPED in v3.15.0 (2026-08-05).** Full detail in

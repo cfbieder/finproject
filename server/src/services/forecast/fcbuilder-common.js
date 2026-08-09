@@ -84,4 +84,33 @@ const insertModuleEntries = async (db, entries) => {
   return entries;
 };
 
-module.exports = { getIndexValues, buildFcEntriesPayload, insertModuleEntries };
+/**
+ * A valuation module's growth rate for one year, as a PERCENT.
+ *
+ * CR076 D1 — this exists because the formula had TWO implementations and they drifted.
+ * `fcbuilder-module.js` builds a module's market-value series; `index.js`'s convergence loop
+ * rebuilds it to re-solve the cash sweep, and then UPDATEs the rows the builder wrote. CR072 §8
+ * added the `idx < 0` clamp to the builder — so the year between a module's `base_date` and
+ * PeriodStart compounds — and left the mirror on the old formula. The mirror won, because it
+ * writes last: every MV-driven stream was struck on the PREVIOUS year's balance pair. Prod's
+ * `Fidelity Stocks` 2027 dividend read 27,723.71, the average of its 2025 and 2026 values, beside
+ * a 2027 balance of 1,438,381 — one module, one year, two market values, and −39,715 on Base.
+ *
+ * `growth_rate` is a MULTIPLIER OF INFLATION, not a rate: 0.8 × 2.5% = 2.0%/yr.
+ * Years before PeriodStart borrow the first rate rather than reading none.
+ *
+ * Both call sites must use this. Do not re-derive it.
+ */
+const growthPctForYear = (year, periodStart, growthPct, inflationSeries) => {
+  const idx = Number(year) - Number(periodStart);
+  const rateIdx = idx < 0 ? 0 : idx;
+  const series = Array.isArray(inflationSeries) ? inflationSeries : [];
+  return rateIdx < series.length ? growthPct * series[rateIdx] : 0;
+};
+
+module.exports = {
+  getIndexValues,
+  buildFcEntriesPayload,
+  insertModuleEntries,
+  growthPctForYear,
+};

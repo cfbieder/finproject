@@ -67,20 +67,30 @@ describe("computeForecastWarnings", () => {
     expect(ids(ws)).not.toContain("no-sweep-module");
   });
 
-  it("aggregates unfunded Cash Shortfall entries by year", () => {
+  // CR076 §3 — the shortfall is CUMULATIVE and must not be summed.
+  //
+  // `cash-sweep.js` declares `runningCash` once outside the year loop and never tops it up from
+  // the shortfall entry, so each row is the gap to the band on a balance that already carries
+  // every prior unfunded year. The old test asserted the SUM (-350000) and passed for a year,
+  // which is how prod came to display $1.2M for a plan whose real terminal gap was 1,017,119.
+  //
+  // The figures below are prod's actual SRQ rows, so this test fails against the old code with
+  // exactly the number the owner was shown.
+  it("reports the WORST year's shortfall, never the sum (it is cumulative)", () => {
     const ws = computeForecastWarnings(
       healthy({
         entries: [
           ...healthy().entries,
-          { Year: 2026, Account: "Cash Shortfall", Amount: -100000, Module: "_cash_sweep" },
-          { Year: 2027, Account: "Cash Shortfall", Amount: -250000, Module: "_cash_sweep" },
+          { Year: 2026, Account: "Cash Shortfall", Amount: -169573.32, Module: "_cash_sweep" },
+          { Year: 2027, Account: "Cash Shortfall", Amount: -1017119.05, Module: "_cash_sweep" },
         ],
       })
     );
     const w = ws.find((x) => x.id === "unfunded-shortfall");
     expect(w.severity).toBe("error");
     expect(w.years).toEqual([2026, 2027]);
-    expect(w.amount).toBe(-350000);
+    // The terminal gap — NOT -1186692.37, which double-counts 2026 inside 2027.
+    expect(w.amount).toBe(-1017119.05);
   });
 
   it("flags years where the bank balance goes negative, reporting the worst", () => {
@@ -354,12 +364,20 @@ describe("CR071 — module integrity warnings", () => {
       modules: [disposer],
       cashSweepLow: null,
     };
-    // Without it, years[0] = 2025 and a 2026 disposal looks like it is inside the plan.
+    // CR076 §3 — the plumbing fix above was right; the SENTENCE it enabled was not, and this
+    // test pinned the wrong one. The engine indexes a disposal against the MODULE'S OWN base
+    // year, not PeriodStart, so a 2026 disposal on a 2025-based module executes: prod showed
+    // `US - Nokomis` booking 394,875 of proceeds and leaving NO balance row behind.
+    //
+    // What the real PeriodStart still buys is telling the base year apart from a forecast year.
+    // Without it, years[0] = 2025 and a 2026 disposal cannot be identified as base-year at all.
     expect(computeForecastWarnings(args).map((w) => w.id))
-      .not.toContain("disposal-before-start-Tax Liabilities");
-    // With the real PeriodStart it is caught.
-    expect(computeForecastWarnings({ ...args, periodStart: 2027 }).map((w) => w.id))
-      .toContain("disposal-before-start-Tax Liabilities");
+      .not.toContain("disposal-in-base-year-Tax Liabilities");
+    // With it, the base-year sale is identified — and reported for what it is, not as a sale
+    // that "never happens".
+    const withStart = computeForecastWarnings({ ...args, periodStart: 2027 });
+    expect(withStart.map((w) => w.id)).toContain("disposal-in-base-year-Tax Liabilities");
+    expect(withStart.map((w) => w.id)).not.toContain("disposal-before-start-Tax Liabilities");
   });
 
   it("R9 — a module earning in the budget year with nothing budgeted on its line", () => {
@@ -411,10 +429,32 @@ describe("CR071 — module integrity warnings", () => {
     expect(ids.some((i) => i.startsWith("stream-no-line-"))).toBe(true);
   });
 
-  it("R7 — flags a disposal dated before the forecast starts", () => {
-    // `Tax Liabilities` on prod disposes 2026-07-01, which is the base year, not a forecast year.
+  // CR076 §3 — R7 asserted that a disposal before PeriodStart "never happens" and that the
+  // balance "stays on the books for the whole plan". Both halves were false for the only rows it
+  // fired on. The engine's disposal index is `disposalYear − module.base_date year`
+  // (`fcbuilder-module.js`), so a 2026 sale on a 2025-based module is index 1 and executes; the
+  // frame's first column IS the base year, so the cleared balance is written.
+  //
+  // Falsified against prod before this was changed: `US - Nokomis` 2026-2029 carries
+  // `Bank Accounts 394,875` and `Transfer - Bank 394,875` and NO balance row at all.
+  it("R7 — a base-year disposal is reported as executed, not as never happening", () => {
+    // `Tax Liabilities` on prod disposes 2026-07-01 — the base year, with PeriodStart 2027.
     const tl = mod({ Name: "Tax Liabilities", DisposeCount: 1, DisposeFirstYear: 2026 });
-    expect(ids([tl], 2027)).toContain("disposal-before-start-Tax Liabilities");
+    const got = ids([tl], 2027);
+    expect(got).not.toContain("disposal-before-start-Tax Liabilities");
+    expect(got).toContain("disposal-in-base-year-Tax Liabilities");
+    const w = computeModuleIntegrityWarnings([tl], { periodStart: 2027 })
+      .find((x) => x.id === "disposal-in-base-year-Tax Liabilities");
+    expect(w.severity).toBe("info");
+    expect(w.detail).toMatch(/opening cash/);
+    expect(w.detail).toMatch(/2027/);          // the CGT year
+  });
+
+  it("R7 — a disposal before the BASE year does still strand the balance", () => {
+    // The original claim is true only here: outside every column the engine builds.
+    // Prod has 0 such rows, which is why the live firings were all false positives.
+    expect(ids([mod({ Name: "Ancient", DisposeCount: 1, DisposeFirstYear: 2024 })], 2027))
+      .toContain("disposal-before-start-Ancient");
     expect(ids([mod({ Name: "Later", DisposeCount: 1, DisposeFirstYear: 2030 })], 2027))
       .not.toContain("disposal-before-start-Later");
   });
