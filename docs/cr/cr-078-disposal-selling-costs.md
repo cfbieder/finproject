@@ -1,6 +1,6 @@
 # CR078 — Selling costs on a disposal
 
-**Status:** SHIPPED **v3.24.0 (2026-08-09)**, migration 062, **DORMANT** — no disposal carries a
+**Status:** SHIPPED **v3.24.0 (2026-08-09)**, migration 062. **LIVE since 2026-08-09** — rates set (§9); no longer dormant — no disposal carries a
 cost, so the engine is byte-identical until the owner types a rate. §6 Q1 answered by the owner;
 Q2–Q4 taken as routine calls and recorded in §8. **Open:** §4's advisory rule, and the rates
 themselves.
@@ -192,3 +192,61 @@ and an empty field never becomes 0.
 dev only — it reaches prod through `deploy-to-production.sh` Step 2b at release.** Dormant, so the
 release moves nothing; the numbers move when the owner types a rate, and that edit deserves its own
 before/after measurement.
+
+---
+
+## 9. Rates set, 2026-08-09 — and the variant-sync bug it exposed
+
+### The rates (owner decision, by jurisdiction)
+
+| kind | rate | modules |
+|---|--:|---|
+| Real Estate · USD | **7%** | `US - Nokomis`, `US - Casarina`, `Sarasota House` |
+| Real Estate · EUR (Spain) | **6%** | `SP - Panorama Mar 4`, `SP - Panorama Mar 6`, `SP - Sea Senses` |
+| Real Estate · PLN (Poland) | **4%** | `PL - Muszlowa`, `PL - Niemena` |
+| Business | **2%** | `United Beverages`, `Barkeria`, `New Business` |
+| Private Equity · Liability | **NULL** | both CVC funds, `PLN Credit Cards`, `Tax Liabilities` |
+
+The CVC rows are the reason the field is per-row: 2,033,048 of **capital returns**, which are
+distributions modelled as disposals and carry no selling cost. Verified untouched after the change.
+
+### ⚠️ The variant sync silently dropped the new column
+
+The first measurement moved **only `2026 Base`**. The four variants were byte-identical — and that
+was the finding, not the result.
+
+`syncVariant` reads a module's own COLUMNS from `information_schema` — CR050's deliberate fix for
+this exact class, after `copyScenario`'s hand-maintained list omitted `has_valuation`. But a child
+TABLE's columns are still **hand-listed** in `SCHEDULE_TABLES`, and migration 062's
+`disposal_cost_pct` was not added to them. So the rates were set on Base, all five regenerated, and
+**four scenarios silently kept GROSS proceeds on 5.5M of property sales**. Nothing errored.
+
+Fixed in both places it is named — the schedule column list and `interceptSchedules`' patch
+builder — and guarded by `variantSchedules.test.js`, which asserts every `SCHEDULE_TABLES` list
+against the **live schema** and names the offending column when it drifts. It fails on the
+pre-fix code.
+
+**This is migration 057's own warning coming true two years' worth of CRs later.** The lesson it
+recorded — *the module columns ride along free, a child table does not* — was written down and
+still not enough, because nothing enforced it. Now something does.
+
+### Measured, engine proven idempotent
+
+| scenario | before | after | delta |
+|---|--:|--:|--:|
+| Base | 4,674,650.12 | **4,071,160.44** | −603,489.68 |
+| Buy Business | 9,750,208.47 | **9,102,334.66** | −647,873.81 |
+| Downside | 2,574,048.63 | **1,893,368.23** | −680,680.40 |
+| Upside | 8,047,179.99 | **7,404,137.78** | −643,042.21 |
+| SRQ House Purchase | −596,918.54 | **−1,392,888.55** | −795,970.01 |
+
+**Every scenario falls, which is the whole point** — the plan had been assuming it kept 100% of
+every sale. The figures exceed §1's 220,000–500,000 estimate because that counted only the fees:
+money not received in 2026 also does not earn for the following 36 years. **SRQ falls most**,
+which is coherent — it is the scenario already in shortfall, so cash it never receives is cash the
+sweep cannot use.
+
+Mechanism verified per jurisdiction, to the cent: `SP - Panorama Mar 4` 453,488.37 → **426,279.07**
+(×0.94), `US - Nokomis` 394,875.00 → **367,233.75** (×0.93), `PL - Niemena` 2,115,200.58 →
+**2,030,592.56** (×0.96), `United Beverages` 4,106,205.12 → **4,024,081.01** (×0.98), and both CVC
+funds **unchanged**.

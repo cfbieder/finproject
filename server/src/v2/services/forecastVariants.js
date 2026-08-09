@@ -39,7 +39,13 @@ const SCHEDULE_KEYS = {
 
 const SCHEDULE_TABLES = {
   investments: { table: 'forecast_module_investments', fk: 'module_id', cols: ['investment_date', 'amount', 'flag', 'note', 'date_end'] },
-  disposals: { table: 'forecast_module_disposals', fk: 'module_id', cols: ['disposal_date', 'amount', 'flag', 'note', 'date_end'] },
+  // CR078 — `disposal_cost_pct` MUST be here. The module COLUMNS ride along free (sync reads
+  // information_schema, CR050's deliberate fix for the dropped-column class); a child table's
+  // columns are hand-listed, so a new one is invisible until someone notices four scenarios
+  // disagreeing with the fifth. Which is exactly what happened: the rates were set on Base, all
+  // five regenerated, and only Base moved — the variants silently kept GROSS proceeds.
+  // `variantSchedules.test.js` now fails if this list drifts from the table again.
+  disposals: { table: 'forecast_module_disposals', fk: 'module_id', cols: ['disposal_date', 'amount', 'flag', 'note', 'date_end', 'disposal_cost_pct'] },
 
   // CR062 — a loan's principal schedule. The loan COLUMNS ride along free (sync
   // reads information_schema, CR050's deliberate fix for the dropped-column class);
@@ -957,7 +963,10 @@ async function interceptSchedules(entityType, rowId, body) {
     if (Array.isArray(body.Dispose)) {
       patch.disposals = body.Dispose
         .filter((d) => d.Date || d.Amount !== undefined)
-        .map((d) => ({ disposal_date: d.Date, amount: d.Amount, flag: d.Flag || '', note: d.Note || '', date_end: d.DateEnd || null }));
+        .map((d) => ({ disposal_date: d.Date, amount: d.Amount, flag: d.Flag || '', note: d.Note || '', date_end: d.DateEnd || null,
+          // CR078 — the second place a new schedule column has to be named. NULL and 0 are
+          // different answers here, so an absent key must not become 0.
+          disposal_cost_pct: d.CostPct === '' || d.CostPct == null ? null : Number(d.CostPct) }));
     }
     if (Array.isArray(body.Amortization)) {
       patch.amortization = body.Amortization
@@ -1290,6 +1299,10 @@ function valuesEqual(a, b) {
 }
 
 module.exports = {
+  // CR078 — exported ONLY so a test can assert these lists still match their tables. A child
+  // table's columns are hand-maintained here, and a missing one is silent: the variants keep the
+  // old value while the base moves, and nothing errors.
+  SCHEDULE_TABLES,
   buildStreamsPatch,
   resolveSweepFlags,   // CR070 P4 — exported so the derivation arm is testable in isolation
   parentOf,
