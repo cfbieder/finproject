@@ -285,7 +285,34 @@ the CSV's 114,652.46 / 970,915.88 now match the committed `Cash Shortfall` entri
 2062 reports `shortfall` rather than a `sweep_out` that never happened. `rebalanceEntries` is also
 now taken from the committed run (§6 F8).
 
-**Gate:** 839 backend · 466 frontend · lint 0 errors · six ratchets · no migration.
+**Gate:** 839 backend · 466 frontend · 8/8 e2e · lint 0 errors · six ratchets · no migration.
+
+### Deployed to prod 2026-08-09
+
+D1 changes the engine's **output**, so — unlike CR075, where it changed the input — a deploy alone
+still moves nothing until the stored entries are rebuilt. All five scenarios were regenerated after
+the deploy (backup `fin_backup_20260809_024702.dump`).
+
+Prod's pre-regenerate state was **exactly** the §2 corrected figures, confirming nothing had drifted
+between the dev measurement and the deploy. After regenerating, **prod's entry fingerprint is
+byte-identical to dev's measured post-D1 state** (`b3e6684b…`), so the prediction did not merely
+match at the horizon — it matched at every row of every year of every scenario:
+
+| scenario | before | **prod now** | delta |
+|---|--:|--:|--:|
+| 2026 Base | 4,398,897.74 | **4,442,680.51** | **+43,782.77** |
+| 2026 Buy Business | 9,474,619.81 | **9,518,357.56** | +43,737.75 |
+| 2026 Downside | 1,881,988.37 | **1,937,949.90** | +55,961.53 |
+| 2026 Upside | 7,733,471.04 | **7,777,204.75** | +43,733.71 |
+| 2026 SRQ House Purchase | −829,507.74 | **−783,304.50** | +46,203.24 |
+
+Prod is **idempotent** (two consecutive regenerates byte-identical). Unlike CR075's deploy, nothing
+else rode along: no un-regenerated owner edits were pending, which is why the before-state matched
+the prediction exactly and the decomposition needed no unpicking this time.
+
+The audit trail now agrees with the entries on prod — SRQ's CSV reports
+`2062 shortfall … Shortfall 970,915.88` against a committed `Cash Shortfall −970,915.88`, where
+before the deploy it would have claimed a `sweep_out` landing at exactly 200,000.00.
 
 ## 9. Not verified
 
