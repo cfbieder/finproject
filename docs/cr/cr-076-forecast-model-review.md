@@ -250,8 +250,8 @@ opposite things share the word "growth".
    it is worse than either alone. *(v3.20.0)*
 4. ✅ **§5's growth hint** + **R10**, an outlier guard. *(step 4, below)* — the multipliers
    themselves are now an owner question, stated in §11.
-5. **D7 ✅ / D8** — fail loud on a missing inflation row *(done, §12)*; honour a PeriodStart−1
-   assumption *(open — it MOVES NUMBERS, so it belongs with step 6)*.
+5. ✅ **D7 / D8** — fail loud on a missing inflation row *(§12)*; honour a PeriodStart−1
+   assumption *(§13, ⚠️ MOVES NUMBERS — measured)*.
 6. **D2, D3, D4, D5, D6** — each moves numbers and needs CR075's before/after gate on an engine
    first proven idempotent. Not more than one at a time.
 
@@ -407,3 +407,54 @@ code produced for an *absent* rate, so the pair demonstrates the distinction the
 **Moves nothing:** all five scenarios regenerated on dev came back byte-identical
 (`b3e6684b…`). All five prod scenarios and the e2e seed carry an inflation row, so nothing live is
 in the refused state. 845 backend across 61 suites.
+
+---
+
+## 13. Step 5b — D8, the base year now reads the rate declared for it
+
+`buildRates` builds its series from **PeriodStart**, so a row dated **PeriodStart − 1** survived
+only as the loop's seed and was overwritten on the first iteration whenever a PeriodStart row also
+existed. But the frame's first column **is** PeriodStart − 1 (`index.js: buildColumns` →
+`result[0] = years[0] - 1`), so the base year was reading an assumption the owner never declared
+for it.
+
+`2026 Downside` declares **FX 2026: PLN 3.9** and **FX 2027: PLN 4.5**, and the engine struck the
+**2026** column at 4.5 — the 2026 declaration was inert. The other four scenarios declare a single
+2026 row, which carries forward, so they were never affected.
+
+`loadScenarioConfig` now resolves `scenario.BaseYearRates` (inflation · PLN · EUR) with
+`rateAtYear`, the same step-function walk `buildRates` uses, and the two `idx < 0` sites consume it
+— the builder's FX loop and growth series, and **the convergence loop's mirrors of both**, because
+that loop overwrites the builder's rows and a difference there would be [§10](#10-shipped-in-v3200-2026-08-09)'s
+D1 all over again in the FX column. A year with nothing declared for it keeps the old
+backwards-carry, which is the no-change guarantee for the other four scenarios.
+
+**Inflation gets the same treatment though nothing moves today** — every scenario declares a single
+inflation row. It is not defensive padding: `fcbuilder-module.js`'s own comment argues CR072 §8 was
+right *because* inflation is declared for 2026, and that argument dies the moment a 2027 row is
+added. The latent half is closed with the live one.
+
+### Measured, engine proven idempotent
+
+| scenario | before | after | delta |
+|---|--:|--:|--:|
+| Base | 4,442,680.51 | 4,442,680.51 | **0.00** |
+| Buy Business | 9,518,357.56 | 9,518,357.56 | **0.00** |
+| Upside | 7,777,204.75 | 7,777,204.75 | **0.00** |
+| SRQ House Purchase | −783,304.50 | −783,304.50 | **0.00** |
+| **Downside** | 1,937,949.90 | **2,050,287.01** | **+112,337.11** |
+
+Exactly the scenario predicted, and nothing else — to the cent.
+
+**The mechanism is exact.** Every PLN module's 2026 value scales by **4.5 / 3.9 = 1.153846**:
+`United Beverages` 3,250,000 → 3,750,000, `Barkeria` 888,304.85 → 1,024,967.14, `PL - Niemena`
+976,589.35 → 1,126,833.87.
+
+**The clincher:** all five scenarios now report the SAME 2026 value for `Barkeria`
+(**1,024,967.14**), where Downside alone used to read 888,304.85. That is the correct shape — the
+five scenarios declare the *same* 2026 FX, so their base years must agree, and Downside's stress
+belongs in 2027 where it is declared. A scenario should diverge from the year its assumptions
+diverge, not a year early.
+
+**Gate:** 849 backend across 61 suites, engine idempotent (two regenerates byte-identical).
+Not yet deployed.

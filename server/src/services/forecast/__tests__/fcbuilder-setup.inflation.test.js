@@ -72,3 +72,67 @@ test('a rate of 0 is a REAL rate and is allowed through', async () => {
   const cfg = await loadScenarioConfig('S');
   expect(cfg.inflationRates).toEqual([0, 0, 0, 0]);
 });
+
+/**
+ * CR076 D8 — the assumption declared for the BASE year (PeriodStart − 1) must reach the engine.
+ *
+ * `buildRates` starts its series at PeriodStart, so a row dated PeriodStart−1 survived only as
+ * the loop's seed and was overwritten on the first iteration whenever a PeriodStart row existed.
+ * The frame's first column IS PeriodStart−1, so the base year read a rate the owner never
+ * declared for it: `2026 Downside` declares FX 2026 = PLN 3.9 and 2027 = 4.5, and the engine
+ * struck the 2026 column at 4.5.
+ */
+describe('CR076 D8 — base-year (PeriodStart-1) assumptions', () => {
+  const docWithFx = (fxRows, inflationRows) => ({
+    category: ['Year', 'Inflation', 'FX - PLN', 'FX - EUR', 'Bank Accounts'],
+    scenarios: [{ Name: 'S', PeriodStart: 2027, PeriodEnd: 2030 }],
+    inflation: inflationRows || [{ Scenario: 'S', Year: 2026, Rate: 2.5 }],
+    'Tax Rate': [{ Scenario: 'S', Rate: 20 }],
+    FX: fxRows,
+  });
+
+  test("the base year keeps ITS OWN declared rate when PeriodStart declares a different one", async () => {
+    // Prod's `2026 Downside`, exactly.
+    assumpRepo.getDoc.mockResolvedValue(docWithFx([
+      { Scenario: 'S', Year: 2026, Rates: { PLN: 3.9, EUR: 0.86 } },
+      { Scenario: 'S', Year: 2027, Rates: { PLN: 4.5, EUR: 0.9 } },
+    ]));
+    const cfg = await loadScenarioConfig('S');
+    expect(cfg.scenario.BaseYearRates.PLN).toBe(3.9);   // was 4.5 — the bug
+    expect(cfg.scenario.BaseYearRates.EUR).toBe(0.86);
+    expect(cfg.fxratesPLN[0]).toBe(4.5);                // PeriodStart itself is unchanged
+  });
+
+  test('a single declared rate carries backwards, so one-row scenarios are untouched', async () => {
+    // The other four prod scenarios. This is the no-change guarantee.
+    assumpRepo.getDoc.mockResolvedValue(docWithFx([
+      { Scenario: 'S', Year: 2026, Rates: { PLN: 3.9, EUR: 0.86 } },
+    ]));
+    const cfg = await loadScenarioConfig('S');
+    expect(cfg.scenario.BaseYearRates.PLN).toBe(3.9);
+    expect(cfg.fxratesPLN[0]).toBe(3.9);
+  });
+
+  test('a rate declared only AFTER the base year still carries backwards', async () => {
+    // No 2026 row at all: the base year has nothing of its own, so it keeps the old behaviour
+    // rather than inventing a rate.
+    assumpRepo.getDoc.mockResolvedValue(docWithFx([
+      { Scenario: 'S', Year: 2027, Rates: { PLN: 4.5, EUR: 0.9 } },
+    ]));
+    const cfg = await loadScenarioConfig('S');
+    expect(cfg.scenario.BaseYearRates.PLN).toBe(4.5);
+  });
+
+  test('inflation gets the same treatment, closing the latent half', async () => {
+    // No prod scenario has two inflation rows today, so this is currently dormant — but the
+    // engine's own comment argued CR072 §8 was right BECAUSE inflation is declared for 2026,
+    // and that argument dies the moment a 2027 row is added.
+    assumpRepo.getDoc.mockResolvedValue(docWithFx(
+      [{ Scenario: 'S', Year: 2026, Rates: { PLN: 3.9, EUR: 0.86 } }],
+      [{ Scenario: 'S', Year: 2026, Rate: 2.5 }, { Scenario: 'S', Year: 2027, Rate: 4 }]
+    ));
+    const cfg = await loadScenarioConfig('S');
+    expect(cfg.scenario.BaseYearRates.inflation).toBe(2.5);
+    expect(cfg.inflationRates[0]).toBe(4);
+  });
+});

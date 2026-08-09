@@ -748,7 +748,10 @@ async function generateForecast(scenarioName, { writeAudit = true } = {}) {
               // pair — `Fidelity Stocks` 2027 dividend read 27,723.71, the average of its 2025 and
               // 2026 values, beside a 2027 balance of 1,438,381. −39,715 on Base.
               // Now one implementation, called from both. Do not inline it back.
-              const g = growthPctForYear(modStartYear + i, periodStartYr, growthPct, inflationSeries);
+              const g = growthPctForYear(
+                modStartYear + i, periodStartYr, growthPct, inflationSeries,
+                scenario?.BaseYearRates?.inflation
+              );
               const ug = mv[i - 1] * (g / 100);
               const avail = mv[i - 1] + ug + inv[i];
               if (disp[i] < -avail && avail > 0) disp[i] = -avail;
@@ -766,10 +769,16 @@ async function generateForecast(scenarioName, { writeAudit = true } = {}) {
             const fxCol = mod.Currency === 'PLN' ? categories[2] : mod.Currency === 'EUR' ? categories[3] : null;
             if (fxCol && df_assumptions.columns.includes(fxCol)) {
               const fxSeries = df_assumptions.column(fxCol).values;
-              const firstFx = fxSeries[0] || 1;
+              // CR076 D8 — must match `fcbuilder-module.js`'s pre-period rate exactly; this loop
+              // overwrites the rows the builder wrote, so a difference here is the D1 defect all
+              // over again in the FX column.
+              const declaredBaseFx = Number(scenario?.BaseYearRates?.[mod.Currency]);
+              const preFx = Number.isFinite(declaredBaseFx) && declaredBaseFx > 0
+                ? declaredBaseFx
+                : (fxSeries[0] || 1);
               for (let i = 0, yr = modStartYear; yr <= modEndYear; i++, yr++) {
                 const idx = yr - periodStartYr;
-                modFx[i] = (idx >= 0 && idx < fxSeries.length) ? fxSeries[idx] : firstFx;
+                modFx[i] = (idx >= 0 && idx < fxSeries.length) ? fxSeries[idx] : preFx;
               }
             }
           }

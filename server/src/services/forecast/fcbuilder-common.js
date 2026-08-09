@@ -101,10 +101,19 @@ const insertModuleEntries = async (db, entries) => {
  *
  * Both call sites must use this. Do not re-derive it.
  */
-const growthPctForYear = (year, periodStart, growthPct, inflationSeries) => {
+const growthPctForYear = (year, periodStart, growthPct, inflationSeries, baseYearInflation = null) => {
   const idx = Number(year) - Number(periodStart);
-  const rateIdx = idx < 0 ? 0 : idx;
   const series = Array.isArray(inflationSeries) ? inflationSeries : [];
+  // CR076 D8 — a pre-period year uses the inflation the owner DECLARED for it when there is one.
+  // `buildRates` starts at PeriodStart, so a PeriodStart−1 row was unreachable here and the base
+  // year silently borrowed PeriodStart's rate. Prod is unaffected today (every scenario declares
+  // a single inflation row, so declared == series[0]), but the moment a second row is added the
+  // base year would have gone on reading the wrong one — the same shape as the FX bug this
+  // fixes, which IS live on `2026 Downside`.
+  if (idx < 0 && baseYearInflation != null && Number.isFinite(Number(baseYearInflation))) {
+    return growthPct * Number(baseYearInflation);
+  }
+  const rateIdx = idx < 0 ? 0 : idx;
   return rateIdx < series.length ? growthPct * series[rateIdx] : 0;
 };
 

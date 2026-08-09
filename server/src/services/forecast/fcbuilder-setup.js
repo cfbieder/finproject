@@ -24,6 +24,31 @@ async function loadFCAssump() {
   }
 }
 
+/**
+ * The rate in effect at `year`, read from the SAME step-function `entries` `buildRates` walks:
+ * each row sets a rate that carries forward until the next row.
+ *
+ * CR076 D8 — this exists because `buildRates` starts its series at PeriodStart, so a row dated
+ * **PeriodStart − 1** survives only as the loop's seed and is overwritten on the very first
+ * iteration whenever a PeriodStart row also exists. The frame's first column IS PeriodStart − 1
+ * (`index.js: buildColumns` → `result[0] = years[0] - 1`), so the base year was reading an
+ * assumption the owner did not declare for it: `2026 Downside` declares **FX 2026: PLN 3.9** and
+ * 2027: 4.5, and the engine struck the 2026 column at **4.5**, making the 3.9 inert.
+ *
+ * A year before the first row keeps that row's rate — the same backwards-carry the engine already
+ * applied, so a scenario that declares one rate is unaffected.
+ */
+function rateAtYear(entries, year) {
+  if (!Array.isArray(entries) || entries.length === 0) return null;
+  let rate = entries[0].Rate;
+  for (const entry of entries) {
+    if (Number(entry.Year) <= Number(year)) rate = entry.Rate;
+    else break;
+  }
+  const num = Number(rate);
+  return Number.isFinite(num) ? num : null;
+}
+
 function buildRates(entries, periodStart, periodEnd) {
   const yearsCount = periodEnd - periodStart + 1;
   const result = new Array(yearsCount);
@@ -124,6 +149,18 @@ async function loadScenarioConfig(scenarioName) {
   const inflationRates = buildRates(inflation, periodStart, periodEnd);
   const fxratesPLN = buildRates(fxratePLN, periodStart, periodEnd);
   const fxratesEUR = buildRates(fxrateEUR, periodStart, periodEnd);
+
+  // CR076 D8 — the rates the owner declared for the BASE year (PeriodStart − 1), which is the
+  // frame's first column and the one the engine had no way to read. Attached to `scenario`
+  // because that is already the config carrier (`TaxRate` rides there too), and because
+  // `computeModule` receives it while the rate arrays reach it only as a frame indexed from
+  // PeriodStart. Falls back to the in-period series, so a scenario declaring a single rate keeps
+  // exactly the behaviour it had.
+  scenario.BaseYearRates = {
+    inflation: rateAtYear(inflation, periodStart - 1) ?? inflationRates[0] ?? 0,
+    PLN: rateAtYear(fxratePLN, periodStart - 1) ?? fxratesPLN[0] ?? null,
+    EUR: rateAtYear(fxrateEUR, periodStart - 1) ?? fxratesEUR[0] ?? null,
+  };
 
   const yearsCount = periodEnd - periodStart + 1;
   const years = new Array(yearsCount);

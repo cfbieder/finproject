@@ -214,14 +214,22 @@ function computeModule(module, scenario, df_assumptions, df_categories, categori
       }
     } else if (fxColumn && df_assumptions.columns.includes(fxColumn)) {
       const fxSeries = df_assumptions.column(fxColumn).values;
-      const firstFxRate = fxSeries[0] || 1;
+      // CR076 D8 — a pre-period year uses the rate the owner DECLARED for it, not PeriodStart's.
+      // `buildRates` starts its series at PeriodStart, so a row dated PeriodStart−1 was
+      // unreachable from `fxSeries` and the base year borrowed index 0. `2026 Downside` declares
+      // FX 2026: PLN 3.9 and 2027: 4.5, and the 2026 column was struck at 4.5 — the owner's 2026
+      // declaration was inert. Falls back to the old value when nothing is declared for the base
+      // year, so the four scenarios with a single FX row are untouched.
+      const declaredBaseRate = Number(scenario?.BaseYearRates?.[module.Currency]);
+      const preFxRate = Number.isFinite(declaredBaseRate) && declaredBaseRate > 0
+        ? declaredBaseRate
+        : (fxSeries[0] || 1);
       for (let i = 0, year = startyear; year <= endyear; i++, year++) {
         const idx = year - periodStart;
         if (idx >= 0 && idx < fxSeries.length) {
           fxrates[i] = fxSeries[idx];
         } else if (idx < 0) {
-          // Pre-period years: use first available FX rate
-          fxrates[i] = firstFxRate;
+          fxrates[i] = preFxRate;
         }
       }
     }
@@ -254,7 +262,9 @@ function computeModule(module, scenario, df_assumptions, df_categories, categori
     if (i === 0) { growthValues[i] = 0; continue; }   // the base year is observed, not projected
     // CR076 D1 — ONE implementation, shared with index.js's convergence loop, which overwrites
     // these rows. They drifted once and cost −39,715; see `growthPctForYear`.
-    growthValues[i] = growthPctForYear(year, periodStart, growthPct, inflationSeries);
+    growthValues[i] = growthPctForYear(
+      year, periodStart, growthPct, inflationSeries, scenario?.BaseYearRates?.inflation
+    );
   }
 
   const unrealizedGainValues = new Array(yearsCount).fill(0);
