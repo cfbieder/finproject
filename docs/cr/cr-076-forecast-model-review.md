@@ -250,7 +250,8 @@ opposite things share the word "growth".
    it is worse than either alone. *(v3.20.0)*
 4. ✅ **§5's growth hint** + **R10**, an outlier guard. *(step 4, below)* — the multipliers
    themselves are now an owner question, stated in §11.
-5. **D7 / D8** — fail loud on a missing inflation row; honour a PeriodStart−1 assumption.
+5. **D7 ✅ / D8** — fail loud on a missing inflation row *(done, §12)*; honour a PeriodStart−1
+   assumption *(open — it MOVES NUMBERS, so it belongs with step 6)*.
 6. **D2, D3, D4, D5, D6** — each moves numbers and needs CR075's before/after gate on an engine
    first proven idempotent. Not more than one at a time.
 
@@ -378,3 +379,31 @@ they should be a stated belief rather than a side-effect of the label.
 
 This is a data question, not a code one: changing any of them **moves numbers** and needs the §8
 step 6 gate.
+
+---
+
+## 12. Step 5a — D7, a missing inflation rate now fails loud
+
+`buildRates` returns `entries[0]?.Rate ?? 0`, so a scenario with no inflation row silently produced
+**0% for the whole horizon**. That is not "a scenario with no inflation": since CR072 §8 a module's
+growth is `growth_rate × inflation` and a yield is `inflation + spread`, so zero inflation stops
+every asset appreciating, every yield paying and every stream escalating — 36 years of a plan
+quietly flat-lining, with no error and a page that renders perfectly.
+
+The asymmetry is the argument for fixing it: **the FX path already fails loud on exactly this
+shape**, and FX moves far less of the model than inflation does. The four assumption documents key
+scenarios **by name**, so a rename is one edit away from this state — which is also the realistic
+shape of the bug, and what the test seeds.
+
+`loadScenarioConfig` now throws when the scenario has no inflation row, and separately when a rate
+is non-numeric (which `Number()` would otherwise read as 0). The message names the scenario and
+points at Forecast Settings, because a guard the owner cannot act on is half a guard.
+
+**A rate of 0 is a REAL rate and is deliberately allowed through** — deliberate zero inflation is a
+legitimate thing to model, and conflating absence with zero would make the guard refuse a valid
+plan. That test is also the falsification: it returns `[0,0,0,0]`, which is exactly what the old
+code produced for an *absent* rate, so the pair demonstrates the distinction the guard creates.
+
+**Moves nothing:** all five scenarios regenerated on dev came back byte-identical
+(`b3e6684b…`). All five prod scenarios and the e2e seed carry an inflation row, so nothing live is
+in the refused state. 845 backend across 61 suites.

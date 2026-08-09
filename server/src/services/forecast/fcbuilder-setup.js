@@ -81,6 +81,34 @@ async function loadScenarioConfig(scenarioName) {
   }
   inflation.sort((a, b) => a.Year - b.Year);
 
+  // CR076 D7 — a missing inflation assumption must FAIL LOUD, not default to zero.
+  //
+  // `buildRates` returns `entries[0]?.Rate ?? 0`, so an empty list silently yields **0% for the
+  // whole horizon**. That is not "a scenario with no inflation": since CR072 §8 a module's growth
+  // is `growth_rate × inflation` and a yield is `inflation + spread`, so zero inflation stops
+  // every asset appreciating, every yield paying and every stream escalating — 36 years of a
+  // plan quietly flat-lining, with no error and a page that renders perfectly.
+  //
+  // The asymmetry is the argument: the FX path ALREADY fails loud on exactly this shape
+  // (`baseYearFxRate` below, and the engine's own per-currency guard), and FX moves far less of
+  // the model than inflation does. The four assumption documents key scenarios by NAME, so a
+  // renamed or newly-created scenario is one edit away from this state.
+  if (inflation.length === 0) {
+    throw new Error(
+      `Scenario "${scenario.Name}" has no inflation assumption. The engine applies growth as a ` +
+      `MULTIPLE of inflation and yields as a spread over it, so a missing rate would silently ` +
+      `flat-line every asset, yield and expense for the whole horizon. Set the "Inflation" ` +
+      `assumption for this scenario in Forecast Settings.`
+    );
+  }
+  const badInflation = inflation.find((e) => !Number.isFinite(Number(e.Rate)));
+  if (badInflation) {
+    throw new Error(
+      `Scenario "${scenario.Name}" has a non-numeric inflation rate for ${badInflation.Year} ` +
+      `(${JSON.stringify(badInflation.Rate)}). It would be read as 0% and flat-line the plan.`
+    );
+  }
+
   const fxratePLN = [];
   const fxrateEUR = [];
   for (let i = 0; i < FCAssump.FX.length; i++) {
