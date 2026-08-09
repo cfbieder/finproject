@@ -1131,3 +1131,79 @@ describe("CR072 §8 — years between base_date and PeriodStart", () => {
     expect(byYear[2028]).toBeCloseTo(1000, 2);
   });
 });
+
+// ─────────────────────────────────────────────────────────────────────────────────────
+// CR076 D4 — the base year's income tax is charged on the BUDGET, not the typed amount.
+//
+// CR075 made year −1 the budget, but this block went on taxing `stream.amount`. On prod
+// `UB Income` carried 500,000 PLN typed (128,205 USD at 3.9) against a 2026 budget of
+// 192,266 USD, so the income and the tax on it came from different sources — the exact
+// divergence CR075 §1 named and only half closed. 14,734 of tax at 23%.
+//
+// The budget is USD (`base_amount`), so this tax is accumulated in USD rather than
+// converted out of local currency.
+// ─────────────────────────────────────────────────────────────────────────────────────
+describe("CR076 D4 — base-year income tax follows the budget", () => {
+  const incomeModule = {
+    BaseValue: 1000, BaseValueUSD: 1000,
+    MarketValue: 1000, MarketValueUSD: 1000,
+    Growth: 0, ExpensePct: 0,
+    income_amount: 100,                       // the TYPED figure
+    IncomeCategory: "Test Income",
+  };
+  const taxOf = (db) => {
+    const byYear = {};
+    getEntriesForAccount(db, "Taxes").forEach((e) => { byYear[e.forecast_year] = e.amount; });
+    return byYear;
+  };
+
+  test("with a budget on the line, the budget figure is taxed — not the typed amount", async () => {
+    const { db } = await runModule(incomeModule, {
+      TaxRate: 25,
+      BaseYearBudgetByLine: { "Test Income": 400 },   // 4× the typed 100
+      BaseYearIncomeClaimants: { "Test Income": 1 },
+    }, { inflation: [0, 0, 0, 0, 0] });
+
+    // Base-year tax is deferred to PeriodStart: 25% of the BUDGET's 400, not of 100.
+    expect(taxOf(db)[2026]).toBeCloseTo(-100, 2);
+  });
+
+  test("with NO budget on the line, it falls back to the typed amount", async () => {
+    // R9 already reports a module implying base-year money the budget does not carry, so the
+    // gap stays visible rather than becoming silently untaxed.
+    const { db } = await runModule(incomeModule, {
+      TaxRate: 25,
+      BaseYearBudgetByLine: { "Some Other Line": 999 },
+      BaseYearIncomeClaimants: {},
+    }, { inflation: [0, 0, 0, 0, 0] });
+
+    expect(taxOf(db)[2026]).toBeCloseTo(-25, 2);     // 25% of the typed 100
+  });
+
+  test("a line claimed by two income streams is split, not counted twice", async () => {
+    // The budget is per LINE and this tax is per STREAM. Both live claimants are exclusive
+    // today, so this is a guard against a future shared line rather than a live case.
+    const { db } = await runModule(incomeModule, {
+      TaxRate: 25,
+      BaseYearBudgetByLine: { "Test Income": 400 },
+      BaseYearIncomeClaimants: { "Test Income": 2 },
+    }, { inflation: [0, 0, 0, 0, 0] });
+
+    expect(taxOf(db)[2026]).toBeCloseTo(-50, 2);     // 25% of 400/2
+  });
+
+  test("the stream's own tax override still wins over the scenario rate", async () => {
+    // D4 changes the BASE the tax is charged on, never which rate applies.
+    const { db } = await runModule(
+      { ...incomeModule, income_tax_rate_override: 10 },
+      {
+        TaxRate: 25,
+        BaseYearBudgetByLine: { "Test Income": 400 },
+        BaseYearIncomeClaimants: { "Test Income": 1 },
+      },
+      { inflation: [0, 0, 0, 0, 0] }
+    );
+
+    expect(taxOf(db)[2026]).toBeCloseTo(-40, 2);     // 10% of 400
+  });
+});

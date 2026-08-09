@@ -330,6 +330,37 @@ async function generateForecast(scenarioName, { writeAudit = true } = {}) {
     // flattened forecast_entries payload.
     console.log(`[FORECAST-GENERATE] Processing ${bsModules.length} modules...`);
 
+    // CR076 D4 — the base year's income is the BUDGET (CR075), so the tax on it must be too.
+    //
+    // `fcbuilder-module`'s base-year income-tax block taxes the stream's TYPED amount, which
+    // CR075 stopped using for the base year's income. `UB Income` carries 500,000 PLN typed
+    // (128,205 USD at 3.9) against a 2026 budget of 192,266 USD — so the income and the tax on
+    // it came from different sources, which is the very divergence CR075 §1 named and only half
+    // closed. At 23% that is 14,734 of tax the plan was not charging.
+    //
+    // Loaded HERE rather than at its old site below, because the module loop needs it. The same
+    // map is reused for the opening-cash fold, so there is one read and one source.
+    //
+    // Apportioned by claimant count: the budget is per FC LINE and this tax is per STREAM, so a
+    // line shared by two income streams would otherwise be claimed twice over. Both live
+    // claimants are exclusive (verified: `Barkeria Income` and `UB Income`, one stream each), so
+    // the division is a no-op today and a defensible split rather than a double count tomorrow.
+    const baseYearForBudget = scenario.PeriodStart - 1;
+    const baseYearValuesForTax = await crud.getBaseYearValues(scenarioId, baseYearForBudget, dbc);
+    const baseYearIncomeClaimants = {};
+    for (const m of bsModules) {
+      if (m.HasValuation === false) continue;
+      for (const st of (m.Streams || [])) {
+        if (st.direction !== 'income') continue;
+        if (!(Math.abs(parseFloat(st.amount) || 0) > 0)) continue;
+        const line = st.lineName;
+        if (!line) continue;
+        baseYearIncomeClaimants[line] = (baseYearIncomeClaimants[line] || 0) + 1;
+      }
+    }
+    scenario.BaseYearBudgetByLine = baseYearValuesForTax;
+    scenario.BaseYearIncomeClaimants = baseYearIncomeClaimants;
+
     const computed = bsModules.map((module) => ({
       module,
       result: computeModule(
@@ -457,7 +488,9 @@ async function generateForecast(scenarioName, { writeAudit = true } = {}) {
         // paying those same costs out of Bank Accounts in all 36 forecast years. The sweep
         // therefore opened ~$65K richer than the plan, and since it pins cash to the band
         // every year, the error rode the whole horizon instead of washing out.
-        const baseYearValues = await crud.getBaseYearValues(scenarioId, baseYear, dbc);
+        // CR076 D4 — read ONCE, before Step 6a, because the module loop needs the same map for
+        // the base-year income tax. Re-reading here would be a second source of one number.
+        const baseYearValues = baseYearValuesForTax;
         const budgetNCF = Object.values(baseYearValues).reduce((sum, v) => sum + (Number(v) || 0), 0);
 
         // Get engine transfers for BaseYear (Transfer - Bank entries)

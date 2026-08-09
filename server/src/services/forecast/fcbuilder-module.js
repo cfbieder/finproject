@@ -520,10 +520,15 @@ function computeModule(module, scenario, df_assumptions, df_categories, categori
   // rate. NULL falls back, so every existing module is byte-identical. 0 is a real rate
   // (income taxed at nothing), not "unset" — hence the `!= null` checks.
   const taxValues = new Array(yearsCount).fill(0);
-  // CR076 D3 — capital-gains tax, accumulated in USD because the gain it is charged on is
-  // USD-functional. Income tax stays in `taxValues` (local currency); the two are combined at
-  // the frame boundary below.
-  const gainsTaxUSD = new Array(yearsCount).fill(0);
+  // Taxes that are natively USD, kept apart from `taxValues` (local currency) and combined at
+  // the frame boundary below:
+  //   CR076 D3 — capital-gains tax, because a US person's gain is measured in USD against a
+  //              basis fixed at acquisition.
+  //   CR076 D4 — the base year's income tax, because the base year's income is the BUDGET and
+  //              `base_amount` is already USD.
+  // Forecast-year income tax stays in `taxValues`: it is earned and taxed in its own currency
+  // year by year, which is what the stream-level override exists for.
+  const usdTaxValues = new Array(yearsCount).fill(0);
   const scenarioRate = Number(scenario?.TaxRate ?? 0);
   const gainsRate = module.tax_rate_override != null ? Number(module.tax_rate_override) : scenarioRate;
   const gainsFactor = Number.isFinite(gainsRate) ? -gainsRate / 100 : 0;
@@ -567,7 +572,35 @@ function computeModule(module, scenario, df_assumptions, df_categories, categori
         // Tax what the base year actually EARNED: the full amount, halved when the window
         // opens or closes in the base year itself (the July-1 half year).
         const halvesBaseYear = from === 0 || to === 0;
-        taxValues[period1Idx] += incomeFactor * amount * (halvesBaseYear ? 0.5 : 1);
+        const halve = halvesBaseYear ? 0.5 : 1;
+
+        // CR076 D4 — the base year's income is the BUDGET (CR075), so tax the budget.
+        //
+        // This taxed `stream.amount`, the TYPED figure, which CR075 stopped using as the base
+        // year's income. `UB Income` carries 500,000 PLN typed — 128,205 USD at 3.9 — against a
+        // 2026 budget of 192,266 USD, so the income and the tax on it came from different
+        // sources: exactly the divergence CR075 §1 named and only half closed. 14,734 of tax
+        // at 23%. (`Barkeria Income` agrees either way, at 66,799 — but only because its budget
+        // was derived from the typed amount in the first place.)
+        //
+        // The budget is USD (`base_amount`, at the budget's own recorded rates), so this tax is
+        // accumulated in USD alongside the gains tax rather than converted out of LC.
+        // Apportioned by claimant count because the budget is per LINE and this is per STREAM.
+        const line = stream.lineName;
+        const budgetMap = scenario?.BaseYearBudgetByLine;
+        const budgetUSD = line && budgetMap && budgetMap[line] != null
+          ? Math.abs(Number(budgetMap[line]) || 0)
+          : null;
+
+        if (budgetUSD != null && budgetUSD > 0) {
+          const claimants = Math.max(1, Number(scenario?.BaseYearIncomeClaimants?.[line]) || 1);
+          usdTaxValues[period1Idx] += incomeFactor * (budgetUSD / claimants) * halve;
+        } else {
+          // No budget on this line: fall back to the typed amount, as before. R9 already
+          // reports a module implying base-year money the budget does not carry, so the gap
+          // is visible rather than silently untaxed.
+          taxValues[period1Idx] += incomeFactor * amount * halve;
+        }
       }
     }
   }
@@ -583,8 +616,8 @@ function computeModule(module, scenario, df_assumptions, df_categories, categori
   // LC gain and converting it — as this did — charges tax on an FX movement that is never booked
   // as a gain anywhere, because there is no FX gain/loss line in the model.
   //
-  // The gains tax is accumulated in USD and folded back into the LC `taxValues` at the paying
-  // year's rate, so the local-currency audit column stays complete and the two agree.
+  // The USD taxes are folded back into the LC `taxValues` at the paying year's rate, so the
+  // local-currency audit column stays complete and the two rows describe the same payment.
   for (let i = 0; i < yearsCount; i++) {
     const targetIdx = i + 1 < yearsCount ? i + 1 : i;
 
@@ -596,7 +629,7 @@ function computeModule(module, scenario, df_assumptions, df_categories, categori
     if (incomeTaxLC !== 0) taxValues[targetIdx] += incomeTaxLC;
 
     if (gainsFactor !== 0 && realizedGainUSD[i] > 0) {
-      gainsTaxUSD[targetIdx] += gainsFactor * realizedGainUSD[i];
+      usdTaxValues[targetIdx] += gainsFactor * realizedGainUSD[i];
     }
   }
 
@@ -614,10 +647,10 @@ function computeModule(module, scenario, df_assumptions, df_categories, categori
   const disposeValuesUSD = toUSD(disposeValues);
   const unrealizedGainValuesUSD = toUSD(unrealizedGainValues);
   // Income tax converts with the income it is charged on; the gains tax is already USD.
-  const taxValuesUSD = toUSD(taxValues).map((v, i) => v + gainsTaxUSD[i]);
+  const taxValuesUSD = toUSD(taxValues).map((v, i) => v + usdTaxValues[i]);
   // Keep the local-currency audit column complete: the gains tax expressed at the paying year's
   // rate, so the LC and USD tax rows describe the same payment.
-  for (let i = 0; i < yearsCount; i++) taxValues[i] += gainsTaxUSD[i] * (fxrates[i] || 1);
+  for (let i = 0; i < yearsCount; i++) taxValues[i] += usdTaxValues[i] * (fxrates[i] || 1);
 
   // Every stream is converted BEFORE the base-year FX override below, because that override
   // REPLACES `fxrates[0]` with the module's own stored implied rate. The old builder converted

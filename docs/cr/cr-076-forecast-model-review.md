@@ -252,8 +252,8 @@ opposite things share the word "growth".
    themselves are now an owner question, stated in §11.
 5. ✅ **D7 / D8** — fail loud on a missing inflation row *(§12)*; honour a PeriodStart−1
    assumption *(§13, ⚠️ MOVES NUMBERS — measured)*.
-6. **D2 ✅ (§14) · D3 ✅ (§15) · D4, D5, D6** — each moves numbers and needs CR075's before/after
-   gate on an engine first proven idempotent. Not more than one at a time.
+6. **D2 ✅ (§14) · D3 ✅ (§15) · D4 ✅ (§16) · D5, D6** — each moves numbers and needs CR075's
+   before/after gate on an engine first proven idempotent. Not more than one at a time.
 
 ## 10. Shipped in v3.20.0 (2026-08-09)
 
@@ -589,3 +589,54 @@ scenario at all. That is the same boundary the review recorded as an unlabelled 
 revaluation between the 2025 and 2026 columns.
 
 **Gate:** 855 backend across 62 suites, engine idempotent. **Not yet deployed.**
+---
+
+## 16. Step 6c — D4, the base year's income tax follows the budget
+
+CR075 made year −1 the budget. The base-year income-tax block went on taxing `stream.amount`, the
+**typed** figure — so the income and the tax charged on it came from different sources. That is the
+divergence CR075 §1 named and only half closed.
+
+Only **two streams** reach this block on prod, and each owns its FC line outright (verified:
+`streams_on_line = 1`), so the line's budget *is* that stream's base-year income and no
+apportionment is needed today:
+
+| module | typed | in USD @3.9 | 2026 budget | gap |
+|---|--:|--:|--:|--:|
+| `Barkeria Sp. z o.o.` | 260,518 PLN | 66,799 | 66,799 | **0** — its budget was derived from the typed amount |
+| `United Beverages` | 500,000 PLN | 128,205 | **192,266** | **64,061** |
+
+At 23% that is **14,734** of tax the plan was not charging. Verified after the fix: UB's 2027 tax
+reads **−44,221.09**, which is 192,265.63 × 23% exactly, against 29,487.18 before — a difference of
+**14,733.91**.
+
+The budget is USD (`base_amount`, at the budget's own recorded rates), so this tax joins the gains
+tax in a USD accumulator rather than being converted out of local currency. **Forecast-year income
+tax is untouched** and stays in local currency — it is earned and taxed there year by year, which
+is what the stream-level override exists for. The map is read **once**, before the module loop, and
+reused for the opening-cash fold, so there is one read and one source. Apportioned by claimant
+count so a shared line cannot be claimed twice.
+
+**No budget on the line ⇒ falls back to the typed amount.** R9 already reports a module implying
+base-year money the budget does not carry, so the gap stays visible rather than becoming silently
+untaxed.
+
+| scenario | before (post-D3) | after | delta |
+|---|--:|--:|--:|
+| Base | 4,575,988.58 | **4,539,146.37** | **−36,842.21** |
+| Buy Business | 9,652,386.21 | **9,614,666.38** | −37,719.83 |
+| Downside | 2,467,223.65 | **2,402,838.34** | −64,385.31 |
+| **Upside** | 7,910,476.34 | **7,910,500.67** | **+24.33** |
+| SRQ House Purchase | −641,945.18 | **−691,185.51** | −49,240.33 |
+
+**The first fix in this CR that REDUCES net worth**, which is the coherence check: it charges tax
+that was being missed.
+
+**Upside barely moves, and that is the sharpest verification of all.** Its UB stream is typed
+**750,000 PLN**, not 500,000 — and 750,000 / 3.9 = **192,308**, which already matches the 192,266
+budget. The owner had hand-corrected that scenario at some point. So D4 has nothing to correct
+there, and the residual +24.33 is the tail of a 42 USD difference taxed and compounded. **The
+effect is exactly proportional to how far each scenario's typed amount had drifted from the
+budget.**
+
+**Gate:** 859 backend across 62 suites (4 new), engine idempotent. **Not yet deployed.**
