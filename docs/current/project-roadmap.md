@@ -10,6 +10,16 @@ Living plan for the Fin project — open Change Requests, known issues, ongoing 
 
 ### 1.1 Open / In-Progress
 
+<a id="cr079"></a>
+- **CR079 — The plan in today's money. IN-PROGRESS: deflator core built, wiring not started.**
+  Full detail: [CR079](../cr/cr-079-real-terms-view.md). Every forecast figure is **nominal** and
+  nothing says so — Base's 4,674,650 at 2062 is about **1,921,719** in 2026 money (a 2.43×
+  factor). Increment 1 is a pure, 16-tested deflator that reads the same step function the engine
+  does, inflates pre-base years so the 2025 actual is comparable, and returns **null** when a
+  scenario has no inflation so the view disables rather than claiming nominal = real.
+  **Increment 2 is deliberately not half-done:** money reaches the Review by four independent
+  paths and a partially deflated page is worse than a nominal one, because both look like money.
+
 <a id="cr078"></a>
 - **CR078 — Selling costs on a disposal. PROPOSED, needs §6 decisions first.** Full detail:
   [CR078](../cr/cr-078-disposal-selling-costs.md). Every disposal books **gross** proceeds: no
