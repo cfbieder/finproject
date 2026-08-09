@@ -29,8 +29,8 @@ const MODES = [
 /** Which change flags a mode actually reads. Offering the others would be a lie. */
 const FLAGS_FOR_MODE = {
   amount: [
-    { value: "Fixed $", label: "Fixed $ — permanent level change" },
-    { value: "One-Off $", label: "One-Off $ — this year only" },
+    { value: "Fixed $", label: "Fixed $ — permanent level change, in that year's money" },
+    { value: "One-Off $", label: "One-Off $ — this year only, in that year's money" },
     { value: "Percent %", label: "Percent % — override this year's growth" },
   ],
   yield: [{ value: "Spread %", label: "Spread % — yield over inflation, carries forward" }],
@@ -389,6 +389,24 @@ export default function FCModulesStreams({
               A change is <b>more of this stream</b> when positive: on an expense,
               <b> −25,000</b> means the cost falls by 25,000. A <b>Percent %</b> is a rate —
               <b> −100</b> ends the stream.
+            </p>
+            {/*
+              CR076 §7 — the money basis, said where the number is typed.
+
+              The engine is `level[i] = prev × (1 + growth) + fixed[i]`: the escalation applies to
+              the PREVIOUS level, and a Fixed $ is added RAW. So the amount enters at face value in
+              its own year and keeps pace only from then on — it is NOT expressed in today's money.
+              Verified against `Social Security`: 20,000 at 2035 → 25,602 at 2045, exactly
+              20,000 × 1.025¹⁰.
+
+              Worth saying on the form because the gap grows with the horizon and is invisible:
+              `Retirement Home`'s 200,000 at 2052 is about 105,000 in 2026 money.
+            */}
+            <p className="fc-stream-card__hint">
+              A <b>$</b> amount is in the money of <b>the year you date it</b>, not today&apos;s. It
+              keeps pace with inflation from that year onward — so 200,000 dated 2052 is 200,000 of
+              2052 dollars, worth roughly half that today. To mean today&apos;s money, enter the
+              amount inflated to that year.
             </p>
           </div>
         )}

@@ -847,3 +847,31 @@ All were chosen while the form's hint said the opposite of the arithmetic (§11)
 Security these have **no external benchmark** — a household genuinely may spend less in real terms
 with age — so each is a belief to state rather than a defect to fix. `Healthcare` at **1.1** and
 `Tax` at **0** look deliberate and are left alone.
+---
+
+## 21. The `Fixed $` money basis — labelled, 2026-08-09
+
+§7 Q2's other half, flagged three times across this session and now said where the number is typed.
+
+`fcbuilder-stream.js` is `level[i] = prev × (1 + growth) + fixed[i]`: the escalation applies to the
+PREVIOUS level and a `Fixed $` is added **raw**. So the amount enters at **face value in its own
+year** and keeps pace only from then on — it is not expressed in today's money, and nothing on the
+form said so.
+
+**Verified against the engine before the label was written**, which is the discipline this CR
+exists to enforce and the one I broke in CR078 earlier the same day: `Social Security` 20,000 dated
+2035 reads 20,000 in 2035 and **25,602 in 2045**, exactly 20,000 × 1.025¹⁰.
+
+The gap grows with the horizon and is invisible: `Retirement Home`'s **200,000 at 2052 is about
+105,000 in 2026 money**. The flag labels now read *"in that year's money"* and the card carries a
+sentence saying what to enter to mean today's.
+
+**No advisory rule, deliberately.** One would have to state what the amount is worth today, and
+that needs the inflation series, which the warnings module does not receive.
+[CR077](cr-077-assumption-advisor-tab.md) §7's own standard is that an advisory cites a falsifiable
+number; one that could only say *"this is in 2052 money"* is a label, and belongs on the form where
+it now is. Plumbing inflation into the warnings is a deliberate change to their input contract —
+the same contract that produced R7's `periodStart` bug — and should be made on purpose, not as a
+side effect.
+
+**Moves nothing:** labels and a hint. 475 frontend, lint 0 errors.
