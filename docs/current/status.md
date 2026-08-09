@@ -6,7 +6,7 @@
 > **The budget is load-bearing** (cut from 216 lines 2026-08-05): overrun = restatement the CR
 > index and roadmap already own, and it is where stale facts collect.
 
-**Last updated:** 2026-08-08 · **Live version:** v3.19.0 (see `VERSION` / git tags)
+**Last updated:** 2026-08-09 · **Live version:** v3.20.0 (see `VERSION` / git tags)
 
 ## Current phase
 **The model, since [CR069](../cr/cr-069-forecast-streams.md) (v3.13.1 → v3.14.1, migrations
@@ -27,24 +27,23 @@ by construction, so three income lines read zero. The base year was **152,802 sh
 figure is the cash sweep's **opening cash**. Now read from `budget_entries`. One budget ⇒ all
 scenarios share one base year.
 
-🔴 **[CR076](../cr/cr-076-forecast-model-review.md) — the model review (2026-08-09), and it
-CORRECTED THE PUBLISHED FIGURES.** Net worth at 2062 was being quoted from a SQL roll-up that read
-`Bank Accounts` — a per-module **annual cash movement** — as a balance. **The app was never wrong;
-the roll-up was.** Correct: Base **4,398,898** · Buy Business **9,474,620** · Downside
-**1,881,988** · Upside **7,733,471** · SRQ **−829,508**. The error is not constant (+894K to −84K),
-so it contaminated comparisons too. **Any forecast figure quoted in a document must come from the
-app's own exported functions or the engine — never from a SQL re-derivation written for the
-occasion.** CR076 also records 3 more wrong warning rules, 8 money-moving defects and 2 swapped
-input labels; §8 is the fix order.
+🔴 **[CR076](../cr/cr-076-forecast-model-review.md) — the five-reviewer model review
+(2026-08-09), partly shipped as v3.20.0. It CORRECTED THE PUBLISHED FIGURES and MOVES NUMBERS.**
+Net worth at 2062 was quoted from a SQL roll-up that read `Bank Accounts` — a per-module **annual
+cash movement** — as a balance. **The app was never wrong; the roll-up was**, and the error was not
+constant (+894K to −84K), so it contaminated comparisons too. **Any forecast figure quoted in a
+document must come from the app's own exported functions or the engine — never a SQL re-derivation
+written for the occasion.** §1 records what is SOUND and is the larger half. §8 is the fix order;
+§7 holds seven owner decisions. **Net assets at 2062, post-v3.20.0:** Base **4,442,681** ·
+Buy Business **9,518,358** · Downside **1,937,950** · Upside **7,777,205** · SRQ **−783,305**.
 
-⚠️ **Four number-moving changes have landed in four days** (CR072 P5, CR071 §7's data edits,
-Known Issue #2 materialising, and now CR075). Each was measured before and after on a prod copy
-against an engine first proven idempotent, and each matched its prediction. That gate is the only
-reason any of them is trustworthy — do not ship a fifth without it. **CR076 §2 is the limit of what
-that gate proves:** it compares a number to itself, so it catches a changed number and never a
-wrongly-derived one.
+⚠️ **FIVE number-moving changes in five days** (CR072 P5, CR071 §7's data edits, Known Issue #2
+materialising, CR075, and now CR076 D1). Each was measured before and after on a prod copy against
+an engine first proven idempotent, and each matched its prediction. **CR076 §2 is the limit of what
+that gate proves:** it compares a number to itself, so it catches a *changed* number and never a
+*wrongly-derived* one — which is exactly how five published figures stayed wrong through it.
 
-### The recurring failure, now found FIVE times
+### The recurring failure, now found SEVEN times
 A rule or a figure that asserts something about the engine, derived from a **restatement** rather
 than from the engine's own formula or the real input:
 
@@ -55,6 +54,8 @@ than from the engine's own formula or the real input:
 | CR075 §1 | the base year was the budget | it was the modules' typed amounts |
 | CR073 | LIST and DETAIL agreed | they drifted three times in three days |
 | [CR076 §2](../cr/cr-076-forecast-model-review.md) | a roll-up summing entries gave net worth | it read a **flow** (`Bank Accounts`) as a **stock** — 5 published figures wrong by up to 894K |
+| [CR076 D1](../cr/cr-076-forecast-model-review.md) | one growth formula | **two copies**, drifted since CR072 §8 — the mirror wrote last, so every yield was struck a year early (−39,715) |
+| [CR076 §3](../cr/cr-076-forecast-model-review.md) | R7's SENTENCE, after CR075 fixed its input | the engine indexes disposals against the **module's** base year — false on all 20 rows |
 
 **5 of the 8 detection rules have now been found wrong this way** (CR076 §3 adds R7, W2 and R5's
 loss branch), and every gate passed each time because they checked a warning FIRED, never that

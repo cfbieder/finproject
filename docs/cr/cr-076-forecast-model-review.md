@@ -1,6 +1,7 @@
 # CR076 — The forecast model review, and the figures it corrected
 
-**Status:** OPEN — findings recorded, fixes sequenced below · **P0 (§2) is a documentation correction and is already applied**
+**Status:** IN-PROGRESS — **§8 steps 1–3 SHIPPED in v3.20.0 (2026-08-09)** *(⚠️ MOVES NUMBERS; no
+migration)*; steps 4–6 open. The §2 documentation correction is applied.
 **Track:** v3
 **Origin:** owner, 2026-08-09 — *"Use a team of agents including the financial_software_expert to review
 the Forecast Model, run test scenarios and provide recommendations for improvement or highlight errors."*
@@ -243,14 +244,48 @@ opposite things share the word "growth".
 
 ## 8. Fix order
 
-1. **§2 — correct the published figures.** Docs only. *(applied)*
-2. **D1**, then **R7 / W2 / R5** copy. One line and three sentences; all visibly wrong today.
-3. **Rewrite the sweep CSV after convergence.** An explanation contradicting the warning beside it
-   is worse than either alone.
+1. ✅ **§2 — correct the published figures.** Docs only. *(v3.20.0)*
+2. ✅ **D1**, then **R7 / W2 / R5** copy. One line and three sentences. *(v3.20.0)*
+3. ✅ **Rewrite the sweep CSV after convergence.** An explanation contradicting the warning beside
+   it is worse than either alone. *(v3.20.0)*
 4. **§5's growth hint**, then revisit the 70 multipliers with the owner.
 5. **D7 / D8** — fail loud on a missing inflation row; honour a PeriodStart−1 assumption.
 6. **D2, D3, D4, D5, D6** — each moves numbers and needs CR075's before/after gate on an engine
    first proven idempotent. Not more than one at a time.
+
+## 10. Shipped in v3.20.0 (2026-08-09)
+
+**D1 — one growth formula.** `growthPctForYear` now lives once in `fcbuilder-common.js`; both the
+builder and the convergence loop call it, and `growth-formula-parity.test.js` fails if either
+re-derives it (it strips comments first, so the formula may still be *described*). Measured on dev
+against an engine proven idempotent, then the extraction itself verified **byte-identical** to the
+measured fix:
+
+| scenario | before | after | delta |
+|---|--:|--:|--:|
+| Base | 4,398,898 | **4,442,681** | **+43,783** |
+| Buy Business | 9,474,620 | 9,518,358 | +43,738 |
+| Downside | 1,881,988 | 1,937,950 | +55,962 |
+| Upside | 7,733,471 | 7,777,205 | +43,734 |
+| SRQ House Purchase | −829,508 | −783,305 | +46,203 |
+
+Mechanism confirmed directly: `Fidelity Stocks` 2027 dividend now reads **28,416.80** — the
+builder's own figure — where the mirror had been emitting it a year late.
+
+**R7 / W2 / R5.** R7 becomes `disposal-in-base-year-*` at `info`, saying what actually happens
+(the sale executes, proceeds land in opening cash, CGT falls the year after); the original claim
+survives only for a disposal before the *base* year, which prod has none of. W2 reports the worst
+year instead of a sum. R5's loss branch says the engine applies no offset. **Three tests that
+pinned the wrong claims were rewritten, not deleted** — W2's now uses prod's real SRQ rows, so it
+fails against the old code with exactly the figure the owner was shown.
+
+**The sweep audit CSV** is written after the convergence loop from the committed run, and gained
+the `Shortfall` column the header never had (`sweepLog` always carried the field). Verified on dev:
+the CSV's 114,652.46 / 970,915.88 now match the committed `Cash Shortfall` entries to the cent, and
+2062 reports `shortfall` rather than a `sweep_out` that never happened. `rebalanceEntries` is also
+now taken from the committed run (§6 F8).
+
+**Gate:** 839 backend · 466 frontend · lint 0 errors · six ratchets · no migration.
 
 ## 9. Not verified
 
