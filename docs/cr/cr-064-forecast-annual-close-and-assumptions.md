@@ -3,8 +3,9 @@
 Three findings and four improvements that came out of one question — *"we customised the module
 form for Loan; should the other types get the same treatment?"* The answer to that question is
 **no** (§5), but looking for the answer turned up a silent wrong number in the editor, two orphan
-rows in prod, and the fact that **every module in every scenario is still anchored to
-2025-12-31** with no supported way to move them forward.
+rows in prod, and the fact that **every balance-sheet module in every scenario is still anchored
+to 2025-12-31** — 18 per scenario, a year behind the scenario's own base year — with no supported
+way to move them forward (re-measured 2026-08-09, §3.1).
 [Roadmap](../current/project-roadmap.md#cr064)
 
 **Opened:** 2026-08-02 · **Track:** v3 · **Migration:** 052 (P1) · 055 (P6)
@@ -177,9 +178,18 @@ unpatched route, which loses it).
 
 ### 3.1 What was measured, and what already exists
 
-**Measured.** Every module in all five scenarios is anchored at `base_date = 2025-12-31`, except
-the three the owner added recently (`Sarasota House`, `New Business`, `Business Loan`) at
-`2026-12-31`. Every scenario runs `PeriodStart = 2027`, so each one carries **two base years at
+**Measured (2026-08-03; re-measured 2026-08-09 — the split has moved, the defect has not).**
+Every **balance-sheet** module in all five scenarios is still anchored at `base_date = 2025-12-31`
+— 18 per scenario (`SP - *`, `PL - *`, `US - *`, the Fidelity accounts, `United Beverages`,
+`Barkeria`, `OCME`, the CVC funds, `Misc Investments`, both credit cards, `Tax Liabilities`).
+The other **16 per scenario now sit at `2026-12-31`**, which is *correct* for `PeriodStart = 2027`:
+they are the P&L modules [CR069](cr-069-forecast-streams.md)/[CR070](cr-070-module-inputs-by-type.md)
+created when income/expense items became modules (`Living Expenses`, `Travel`, `Healthcare`,
+`Children`, `Purchases`, `Car Expenses`, `Total Salary`, `Social Security`, `Tax`, `One-Off Items`,
+`Retirement Home`, `Car Purchase Chris`), plus the four the owner added (`Sarasota House`,
+`New Business`, `Business Loan`, `House Morgage`). *So the original "except the three" reading is
+stale, but the finding is not — and a scenario now carries two module base years side by side,
+which is the §3.3 warning's exact case rather than a hypothetical.* Every scenario runs `PeriodStart = 2027`, so each one carries **two base years at
 once** — the scenario's own (`PeriodStart − 1` = 2026, which is what the sweep, the income/expense
 seed and the Review's base-year column use) and the modules' (2025, which is where each module's
 value series starts and grows from). The module anchor is **a year behind the scenario's**, and
