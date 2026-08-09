@@ -611,12 +611,20 @@ async function addInvestment(moduleId, data, client = db) {
 
 async function addDisposal(moduleId, data, client = db) {
   const sql = `
-    INSERT INTO forecast_module_disposals (module_id, disposal_date, amount, flag, note, date_end)
-    VALUES ($1, $2, $3, $4, $5, $6)
+    INSERT INTO forecast_module_disposals
+      (module_id, disposal_date, amount, flag, note, date_end, disposal_cost_pct)
+    VALUES ($1, $2, $3, $4, $5, $6, $7)
     RETURNING *
   `;
   const amount = data.amount ?? (data.flag === 'Full' ? 0 : null);
-  const result = await client.query(sql, [moduleId, data.disposal_date, amount, data.flag, data.note, data.date_end || null]);
+  // CR078 — NULL and 0 mean different things here and both must survive the write. NULL is
+  // "no selling cost modelled" (the migration's default, and what CR077's advisory asks about);
+  // 0 is "considered, and free". `?? null` keeps an absent key NULL without turning a typed 0
+  // into one, which `|| null` would.
+  const costPct = data.disposal_cost_pct ?? null;
+  const result = await client.query(sql, [
+    moduleId, data.disposal_date, amount, data.flag, data.note, data.date_end || null, costPct,
+  ]);
   return result.rows[0];
 }
 

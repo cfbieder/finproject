@@ -87,7 +87,19 @@ export const normalizeTransfers = (transfers) => {
           ? dateEndValue.toISOString()
           : null;
 
-      return { Date: date, Amount: numericValue, Flag: flag, ...(dateEnd ? { DateEnd: dateEnd } : {}) };
+      // CR078 — the selling cost on a disposal, carried through only when it is actually set.
+      // NULL/absent means "no cost modelled" and 0 means "considered, and free", so an empty
+      // field must NOT become 0 and a typed 0 must NOT become absent. Spread conditionally so a
+      // row that never had one is unchanged on the wire — an Invest row never carries it.
+      const rawCost = entry.CostPct;
+      const hasCost = rawCost !== "" && rawCost !== null && rawCost !== undefined
+        && !Number.isNaN(Number(rawCost));
+
+      return {
+        Date: date, Amount: numericValue, Flag: flag,
+        ...(dateEnd ? { DateEnd: dateEnd } : {}),
+        ...(hasCost ? { CostPct: Number(rawCost) } : {}),
+      };
     })
     .filter(Boolean);
 };

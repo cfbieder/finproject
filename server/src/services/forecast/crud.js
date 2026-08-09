@@ -151,6 +151,10 @@ async function replaceModuleSchedules(id, body) {
             flag: disp.Flag || '',
             note: disp.Note || '',
             date_end: disp.DateEnd || null,
+            // CR078 — the selling cost on this sale. Empty string from a cleared form field is
+            // NULL ("not modelled"), not 0 ("free") — the two are different answers.
+            disposal_cost_pct:
+              disp.CostPct === '' || disp.CostPct == null ? null : Number(disp.CostPct),
           }, client);
         }
       }

@@ -1907,6 +1907,36 @@ export default function FCModulesEditModal({
                                     step={isPctRow ? "0.01" : "1"}
                                   />
                                 </div>
+                                {/* CR078 — the selling cost on THIS sale. Disposals only: an
+                                    Invest row has nothing to sell, and a percentage row is
+                                    already a rate. Per row because a property sale carries
+                                    3–6% while a fund's capital return carries nothing.
+                                    Left EMPTY means "not modelled" — deliberately not the same
+                                    as a typed 0, which means "considered, and free". */}
+                                {field === "Dispose" && !isPctRow && (
+                                  <div className="fc-modules-modal__transfer-field">
+                                    <label className="fc-modules-modal__transfer-label">
+                                      Selling cost %
+                                    </label>
+                                    <input
+                                      type="text"
+                                      inputMode="decimal"
+                                      className="fc-modules-modal__input fc-modules-modal__input--small"
+                                      value={entry?.CostPct ?? ""}
+                                      title="Agent fee, transfer tax, legal — as a % of this sale's price. Comes off the cash AND the taxable gain. Leave empty if not modelled."
+                                      onChange={(event) =>
+                                        updateTransferEntry(
+                                          field,
+                                          index,
+                                          "CostPct",
+                                          event.target.value.replace(/,/g, "")
+                                        )
+                                      }
+                                      placeholder="—"
+                                      step="0.01"
+                                    />
+                                  </div>
+                                )}
                               </div>
                               <button
                                 type="button"

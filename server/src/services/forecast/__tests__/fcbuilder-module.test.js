@@ -1272,3 +1272,96 @@ describe("CR076 D5 — a Full disposal halves the sale year once, not twice", ()
     expect(sumFor(db, "Test Income", 2029)).toBeCloseTo(0, 2);
   });
 });
+
+// ─────────────────────────────────────────────────────────────────────────────────────
+// CR078 — a selling cost on a disposal.
+//
+// A selling cost REDUCES THE AMOUNT REALIZED: it comes off the cash received AND off the
+// taxable gain. Netting only the cash would leave the plan paying tax on money it never
+// received; netting only the gain would hand it cash it never got. Both halves are pinned
+// here because the first implementation got the ORDERING wrong and produced exactly the
+// second failure — the cost was computed before the Full-disposal branch had set
+// `disposeValues`, so the gain moved and the cash did not.
+// ─────────────────────────────────────────────────────────────────────────────────────
+describe("CR078 — selling costs on a disposal", () => {
+  const sold = (extra = {}) => ({
+    BaseValue: 600, BaseValueUSD: 600,
+    MarketValue: 1000, MarketValueUSD: 1000,
+    Growth: 0, ExpensePct: 0,
+    ...extra,
+  });
+  const at = (db, account, year) =>
+    getEntriesForAccount(db, account)
+      .filter((e) => e.forecast_year === year)
+      .reduce((s, e) => s + e.amount, 0);
+
+  test("with NO cost set, everything is exactly as before (dormant)", async () => {
+    const { db } = await runModule(
+      sold({ Dispose: [{ Date: "2028-07-01", Amount: 0, Flag: "Full" }] }),
+      { TaxRate: 25 }, { inflation: [0, 0, 0, 0, 0] }
+    );
+    expect(at(db, "Transfer - Bank", 2028)).toBeCloseTo(1000, 2);
+    expect(at(db, "Taxes", 2029)).toBeCloseTo(-100, 2);   // 25% of (1000 − 600)
+  });
+
+  test("a FULL disposal: the cost comes off the cash AND off the gain", async () => {
+    // This is the case the ordering bug broke — `disposeValues` for a Full disposal is only
+    // final after the Full branch runs, so a cost computed before it read zero.
+    const { db } = await runModule(
+      sold({ Dispose: [{ Date: "2028-07-01", Amount: 0, Flag: "Full", CostPct: 10 }] }),
+      { TaxRate: 25 }, { inflation: [0, 0, 0, 0, 0] }
+    );
+    expect(at(db, "Transfer - Bank", 2028)).toBeCloseTo(900, 2);   // 1000 − 10%
+    // gain = 900 net proceeds − 600 basis = 300, taxed at 25% the following year
+    expect(at(db, "Taxes", 2029)).toBeCloseTo(-75, 2);
+  });
+
+  test("a PARTIAL disposal is costed on its own tranche", async () => {
+    const { db } = await runModule(
+      sold({ Dispose: [{ Date: "2028-07-01", Amount: 500, Flag: "OneTime", CostPct: 10 }] }),
+      { TaxRate: 25 }, { inflation: [0, 0, 0, 0, 0] }
+    );
+    expect(at(db, "Transfer - Bank", 2028)).toBeCloseTo(450, 2);   // 500 − 10%
+  });
+
+  test("a disposal with NO CostPct beside one that has it stays gross", async () => {
+    // The whole reason the rate is per ROW: CVC's capital returns must stay at zero while a
+    // property sale carries a fee.
+    const { db } = await runModule(
+      sold({
+        MarketValue: 2000, MarketValueUSD: 2000,
+        Dispose: [
+          { Date: "2028-07-01", Amount: 500, Flag: "OneTime" },              // free
+          { Date: "2029-07-01", Amount: 500, Flag: "OneTime", CostPct: 10 }, // 10%
+        ],
+      }),
+      { TaxRate: 0 }, { inflation: [0, 0, 0, 0, 0] }
+    );
+    expect(at(db, "Transfer - Bank", 2028)).toBeCloseTo(500, 2);
+    expect(at(db, "Transfer - Bank", 2029)).toBeCloseTo(450, 2);
+  });
+
+  test("a cost of 0 behaves exactly like no cost", async () => {
+    // NULL and 0 mean different things to the OWNER (unanswered vs considered-and-free) but
+    // must be identical to the engine.
+    const { db } = await runModule(
+      sold({ Dispose: [{ Date: "2028-07-01", Amount: 0, Flag: "Full", CostPct: 0 }] }),
+      { TaxRate: 25 }, { inflation: [0, 0, 0, 0, 0] }
+    );
+    expect(at(db, "Transfer - Bank", 2028)).toBeCloseTo(1000, 2);
+    expect(at(db, "Taxes", 2029)).toBeCloseTo(-100, 2);
+  });
+
+  test("a cost cannot turn a gain into a refund — a loss is still not relieved here", async () => {
+    // 60% on a barely-profitable sale drives the gain negative. `fcbuilder-module` taxes only
+    // positive gains (CR076 D6 nets losses at the SCENARIO level), so this must book no tax
+    // rather than a negative one.
+    const { db } = await runModule(
+      sold({ BaseValue: 900, BaseValueUSD: 900,
+        Dispose: [{ Date: "2028-07-01", Amount: 0, Flag: "Full", CostPct: 60 }] }),
+      { TaxRate: 25 }, { inflation: [0, 0, 0, 0, 0] }
+    );
+    expect(at(db, "Transfer - Bank", 2028)).toBeCloseTo(400, 2);
+    expect(at(db, "Taxes", 2029)).toBeCloseTo(0, 2);
+  });
+});

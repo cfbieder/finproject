@@ -432,6 +432,53 @@ function computeModule(module, scenario, df_assumptions, df_categories, categori
     }
   }
 
+  // ── CR078 — the selling cost on a disposal ─────────────────────────────────────────
+  //
+  // A selling cost (agent commission, transfer tax, legal, broker) REDUCES THE AMOUNT REALIZED.
+  // It is not an operating expense, so it does not belong on the P&L beside `Property Costs` —
+  // it comes off the cash received AND off the taxable gain. Netting only the first would have
+  // the plan pay tax on money it never received, which is the likely implementation error here
+  // and the reason it is stated before the code.
+  //
+  // Computed AFTER the recurrence and the Full-disposal branch, because only then are
+  // `disposeValues` final: the partial branch caps them against available market value, and the
+  // Full branch replaces them outright with `−prevMV − halfYearGrowth`. Reading a percentage off
+  // `entry.Amount` instead would miss both.
+  //
+  // Per ROW, so `CVC Fund VIII`/`IX`'s capital returns can stay at zero while a property sale
+  // carries 3–6%. NULL means "no cost modelled" and contributes nothing — the migration keeps
+  // that distinct from a typed 0%.
+  const disposalCostValues = new Array(yearsCount).fill(0);
+  if (hasValuation && Array.isArray(module.Dispose)) {
+    const pctByIdx = new Map();
+    for (const entry of module.Dispose) {
+      if (!entry || entry.CostPct == null) continue;
+      const pct = Number(entry.CostPct);
+      if (!Number.isFinite(pct) || pct <= 0) continue;
+      const idx = new Date(entry.Date).getFullYear() - startyear;
+      if (entry.Flag === 'Periodic') {
+        const endYr = entry.DateEnd ? new Date(entry.DateEnd).getFullYear() : endyear;
+        const endIdx = Math.min(endYr - startyear, yearsCount - 1);
+        for (let j = Math.max(0, idx); j <= endIdx; j++) pctByIdx.set(j, pct);
+      } else if (idx >= 0 && idx < yearsCount) {
+        pctByIdx.set(idx, pct);
+      }
+    }
+    for (const [idx, pct] of pctByIdx) {
+      // `disposeValues` is NEGATIVE when selling, so gross proceeds is its negation. A year with
+      // no disposal (or a net purchase) yields nothing, which is what `> 0` guards.
+      const gross = -disposeValues[idx];
+      if (gross > 0) disposalCostValues[idx] = gross * (pct / 100);
+    }
+    // The gain falls with the proceeds. In local currency here; the USD-functional twin below.
+    for (let i = 0; i < yearsCount; i++) {
+      if (disposalCostValues[i] !== 0) {
+        realizedGainValues[i] -= disposalCostValues[i];
+        realizedGainUSD[i] -= disposalCostValues[i] / (fxrates[i] || 1);
+      }
+    }
+  }
+
   // ── THE STREAMS ────────────────────────────────────────────────────────────────────
   //
   // One evaluator, one loop. What used to be ~180 lines of two near-parallel blocks (plus a
@@ -694,7 +741,13 @@ function computeModule(module, scenario, df_assumptions, df_categories, categori
     dfCategoryValues[i].fill(0);
   }
 
-  const transferValues = disposeValuesUSD.map((dispose, idx) => -dispose - investValuesUSD[idx]);
+  // CR078 — the selling cost leaves with the sale. `-dispose` is the GROSS proceeds, so netting
+  // the cost here is what actually reduces the cash the sweep receives; the matching reduction in
+  // the taxable gain happened above. Both halves, or the plan is taxed on money it never got.
+  const disposalCostValuesUSD = toUSD(disposalCostValues);
+  const transferValues = disposeValuesUSD.map(
+    (dispose, idx) => -dispose - investValuesUSD[idx] - disposalCostValuesUSD[idx]
+  );
 
   if (hasValuation) {
     writeValuesToCategoryRow(
@@ -762,6 +815,8 @@ function computeModule(module, scenario, df_assumptions, df_categories, categori
     BaseValueUSD: baseValuesUSD, marketValuesUSD: marketValuesUSD,
     UnrealizedGain: unrealizedGainValuesUSD, RealizedGain: realizedGainValuesUSD,
     Invest: investValuesUSD, Dispose: disposeValuesUSD,
+    // CR078 — the gross → net bridge the owner asked to SEE. Netted in the numbers, visible here.
+    DisposalCost: disposalCostValuesUSD,
   };
   // One column per stream, labelled by its line — so the audit trail names what it posts to.
   // De-duplicated, since two streams may share a line and a frame cannot carry a repeated key.

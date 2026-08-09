@@ -956,6 +956,9 @@ router.get('/modules/:id', async (req, res, next) => {
           Amount: parseFloat(r.amount) || 0,
           Flag: r.flag || '',
           DateEnd: r.date_end || null,
+          // CR078 — NULL stays NULL. It means "no selling cost modelled", which the form must
+          // render as empty rather than as 0; the two are different answers.
+          CostPct: r.disposal_cost_pct != null ? parseFloat(r.disposal_cost_pct) : null,
         })),
       },
     });
@@ -1101,6 +1104,10 @@ router.post('/modules', async (req, res, next) => {
             flag: disp.Flag || '',
             note: disp.Note || '',
             date_end: disp.DateEnd || null,
+            // CR078 — the SECOND write site. `replaceModuleSchedules` is the other; a field
+            // added to one and not the other is exactly the LIST/DETAIL drift CR073 closed.
+            disposal_cost_pct:
+              disp.CostPct === '' || disp.CostPct == null ? null : Number(disp.CostPct),
           });
         }
       }

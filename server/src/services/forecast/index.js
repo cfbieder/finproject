@@ -149,6 +149,9 @@ async function loadModulesForScenario(scenarioId, fcLineNameMap, dbc = db, scena
       Amount: parseFloat(r.amount) || 0,
       Flag: r.flag || '',
       DateEnd: r.date_end || null,
+      // CR078 — the selling cost on THIS sale, as a percent of its gross proceeds. NULL means
+      // "no cost modelled", which is deliberately not the same as 0% (migration 062).
+      CostPct: r.disposal_cost_pct != null ? parseFloat(r.disposal_cost_pct) : null,
     }));
 
     // CR062 — a LOAN's principal schedule is DERIVED here, never stored. The five

@@ -1,6 +1,8 @@
 # CR078 — Selling costs on a disposal
 
-**Status:** PROPOSED — not started. Needs a design decision (§6) before code.
+**Status:** BUILT, awaiting release — **migration 062 applied to dev**, engine + write path + form
+done, **DORMANT** (no disposal carries a cost, so the engine is byte-identical). §6 Q1 answered by
+the owner; Q2–Q4 taken as routine calls and recorded in §8.
 **Track:** v3
 **Origin:** [CR076 §7 Q2](cr-076-forecast-model-review.md) — *"there is no selling-cost / disposal-cost
 field… For a plan with six property disposals this is the one balance-sheet input I would add."*
@@ -120,3 +122,72 @@ The **money basis of `Fixed $` / `One-Off $`** (CR076 §7 Q2's other half): thos
 (~13,300 today) and `Retirement Home`'s 200,000 at 2052 is worth ~105,000 in 2026 money. That is a
 real ambiguity in a live input and deserves its own decision — but it is a different field and a
 different fix, and bundling the two would make both harder to measure.
+
+
+---
+
+## 8. Built 2026-08-09 — dormant until a rate is typed
+
+### Owner decision (§6 Q1) and the three routine calls
+
+**Q1 — net it, and show the gross → net bridge in the module output.** Accounting-correct, no new
+FC line, and the number stays traceable to its parts, which is the reconcile rule CR076 asks of
+every surface. The bridge is exposed as `DisposalCost` on the module's returned series.
+
+Q2–Q4 were routine and are recorded rather than asked: **percentage only** (a flat fee is
+expressible as a percentage at this horizon, and a percentage is currency-neutral so it needs no FX
+handling); **it applies to a partial disposal's tranche** (`CVC`'s `OneTime` rows stay at zero
+because their rate is NULL, not because partials are exempt); and **the default is NULL, not a
+per-country rate** — verified first that transfer taxes are **not** modelled anywhere else, so this
+is a gap rather than a duplicate (the property modules' only expense streams are recurring
+`Property Costs` carry, with no window).
+
+### Migration 062
+
+`disposal_cost_pct numeric(6,4)`, **nullable with no default**, plus a CHECK keeping it in
+`[0, 100)`. NULL means "no cost modelled" — deliberately not the same as a typed 0, which means
+"considered, and free". A `DEFAULT 0` would read identically to the engine but would assert that
+the owner had considered and chosen zero for 20 existing disposals, which is untrue.
+
+Applied to **dev through `migrate.js`** (never `psql -f` — migration 057's row is the standing
+warning). Probed with real writes: `−1` rejected by the CHECK, `100` rejected by the numeric
+precision, `5.7500` round-trips losslessly. **Inert: all five scenarios regenerate byte-identical.**
+
+### ⚠️ The ordering bug, which is this project's signature failure
+
+The first implementation computed the cost **before** the Full-disposal branch, and its comment
+claimed it ran after. For a Full disposal `disposeValues` is only final once that branch replaces
+it with `−prevMV − halfYearGrowth`, so the cost read zero — **the gain moved and the cash did
+not.** That is precisely the half of the accounting §3 warns about, and it is
+[failure-patterns.md](../current/failure-patterns.md) §1 again: *a comment describing intent rather
+than behaviour*. I wrote the warning and then committed the error it warns about, in the same file.
+
+Caught by measuring on real data rather than by reading. A test now pins the Full case.
+
+### Verified on prod data, both halves, to the cent
+
+`SP - Panorama Mar 4` with a 5% cost:
+
+| | before | after | delta |
+|---|--:|--:|--:|
+| cash (`Transfer - Bank`) | 453,488.37 | **430,813.95** | −22,674.42 = **exactly 5%** |
+| tax (2027) | 12,670.99 | **5,868.66** | −6,802.33 = **exactly 30% of the cost** |
+
+Then reverted; dev regenerates byte-identical again.
+
+### Write path — both sites
+
+`replaceModuleSchedules` **and** the create path in `routes/forecast.js`. A field added to one and
+not the other is exactly the projection drift [CR073](cr-073-two-recurrence-guards.md) closed after
+it happened three times in three days. NULL survives the round trip in both directions, verified
+through the live API: 4.5 saved and reopened, then cleared back to NULL.
+
+`normalizeTransfers` carries `CostPct` **only when set**, so an Invest row is unchanged on the wire
+and an empty field never becomes 0.
+
+### Gate
+
+876 backend (6 new) · 475 frontend · 8/8 e2e · lint 0 errors · six ratchets · **migration 062 on
+dev only — it reaches prod through `deploy-to-production.sh` Step 2b at release.** Dormant, so the
+release moves nothing; the numbers move when the owner types a rate, and that edit deserves its own
+before/after measurement.
