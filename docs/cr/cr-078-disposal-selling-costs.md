@@ -1,8 +1,9 @@
 # CR078 — Selling costs on a disposal
 
-**Status:** BUILT, awaiting release — **migration 062 applied to dev**, engine + write path + form
-done, **DORMANT** (no disposal carries a cost, so the engine is byte-identical). §6 Q1 answered by
-the owner; Q2–Q4 taken as routine calls and recorded in §8.
+**Status:** SHIPPED **v3.24.0 (2026-08-09)**, migration 062, **DORMANT** — no disposal carries a
+cost, so the engine is byte-identical until the owner types a rate. §6 Q1 answered by the owner;
+Q2–Q4 taken as routine calls and recorded in §8. **Open:** §4's advisory rule, and the rates
+themselves.
 **Track:** v3
 **Origin:** [CR076 §7 Q2](cr-076-forecast-model-review.md) — *"there is no selling-cost / disposal-cost
 field… For a plan with six property disposals this is the one balance-sheet input I would add."*

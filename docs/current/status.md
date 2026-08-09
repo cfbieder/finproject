@@ -8,7 +8,7 @@
 > and it is where stale facts collect. Still over — the next cut should take *Live infrastructure*
 > to a guide, since it changes far less often than anything around it.
 
-**Last updated:** 2026-08-09 · **Live version:** v3.23.0 (see `VERSION` / git tags)
+**Last updated:** 2026-08-09 · **Live version:** v3.24.0 (see `VERSION` / git tags)
 
 ## Current phase
 **The model, since [CR069](../cr/cr-069-forecast-streams.md):** a module is *identity + optional
@@ -30,6 +30,14 @@ decisions**; §14–§18 hold the measurements.
 **2,574,049** · Upside **8,047,180** · SRQ **−596,919**. Owner decisions applied 2026-08-09:
 `Social Security` → **full CPI** (cuts to be modelled separately, not fused into the indexation),
 and `OCME` at −30 confirmed a **deliberate write-off**.
+
+**[CR078](../cr/cr-078-disposal-selling-costs.md) — v3.24.0, migration 062, DORMANT.** Every
+disposal booked **gross** proceeds — no agent fee, transfer tax or plusvalía anywhere — on
+5,566,755 of property and 5,445,368 of business sales. A per-ROW `disposal_cost_pct` now comes off
+the cash **and** the taxable gain (a selling cost reduces the amount realized). **NULL ≠ 0**: NULL
+is *not modelled*, 0 is *considered and free*, and every layer preserves the difference. Nothing
+moves until a rate is typed — **that edit needs its own before/after measurement.** Property 3–6%,
+business 1–3%, and CVC's capital returns stay **empty** (distributions, not sales).
 
 **[CR077](../cr/cr-077-assumption-advisor-tab.md) — v3.23.0:** Cash Health is now **two tabs**,
 *Integrity* (a defect to fix) and *Assumptions to consider* (a judgement to record), counted and
