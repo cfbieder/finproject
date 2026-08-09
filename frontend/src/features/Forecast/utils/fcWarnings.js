@@ -234,7 +234,53 @@ export function computeForecastWarnings({
     baseYearValues,
   }));
 
-  return warnings;
+  // CR077 — "idle cash is unpriced" was DROPPED as a rule, deliberately.
+  //
+  // It was written, and it fired on every scenario that has a sweep — which is all of them,
+  // always, forever. A rule that cannot NOT fire carries no information: it is documentation
+  // wearing a warning's clothes, and it is exactly the noise CR074 was built to remove. It also
+  // permanently suppressed the all-clear, since that is gated on `warnings.length === 0`.
+  //
+  // The underlying point is real (the sweep sells a return-earning asset to hold a 0% balance,
+  // and a shortfall costs nothing either), so it stays where it belongs: a decision in
+  // CR076 §7 Q1, not a row the owner dismisses once per scenario and never thinks about again.
+  //
+  // The test for a new advisory: could this be absent on a plausible plan? If not, it is not a
+  // finding.
+
+  return warnings.map(classifyWarning);
+}
+
+/**
+ * CR077 — is this a DEFECT or a JUDGEMENT?
+ *
+ * The panel had grown to mix two kinds of statement under one heading and one severity scale:
+ * *"`Business Loan` is configured but excluded"* (the model is not doing what the data says) sat
+ * beside *"`CVC Fund IX` both pays a yield and returns capital"* (a question only the owner can
+ * answer). They demand different things — a defect is FIXED, a judgement is RECORDED — so mixing
+ * them means re-triaging the same calls on every render, which is what CR074's dismissals exist
+ * to relieve.
+ *
+ * Classified centrally rather than at each `push` site, so a new rule cannot silently default
+ * into the wrong tab by omission: an unlisted id is INTEGRITY, the louder of the two, and a rule
+ * that belongs in advice has to say so here.
+ *
+ * The test is not severity. It is: **if this is true, is something wrong — or is something
+ * merely worth deciding?**
+ */
+const ADVISORY_PREFIXES = [
+  "disposal-in-base-year-",            // the sale executes; this explains WHERE the money went
+  "disposal-no-gain-",                 // is the cost basis a placeholder? only the owner knows
+  "yield-and-dispose-",                // is the growth rate net of distributions? owner's call
+  "foreign-income-no-tax-override-",   // which rate really applies to already-taxed income
+  "growth-multiplier-outlier-",        // a deliberate write-off looks identical to a typo
+  "escalation-below-inflation-",       // CR077 — a real-terms erosion the owner may have chosen
+];
+
+export function classifyWarning(w) {
+  if (!w || typeof w.id !== "string") return w;
+  const advisory = ADVISORY_PREFIXES.some((p) => w.id.startsWith(p));
+  return { ...w, kind: advisory ? "advisory" : "integrity" };
 }
 
 /**
@@ -262,6 +308,46 @@ export function computeModuleIntegrityWarnings(modules = [], { periodStart = nul
     const name = mod.Name || "(unnamed)";
     const streams = Array.isArray(mod.Streams) ? mod.Streams : [];
     const hasValuation = mod.HasValuation !== false;
+
+    // ---- A1 (CR077): a flow that loses ground to inflation, deliberately or not ----
+    //
+    // `growth_mult` is a MULTIPLIER of inflation, so anything below 1 shrinks in real terms —
+    // and the form's hint said the OPPOSITE of that until v3.21.0 (CR076 §11), while **70 of
+    // 110** streams carry an explicit multiplier and most are below 1.
+    //
+    // This is advice, not a defect: a household may genuinely intend to spend less in real terms
+    // with age, and `Social Security` at 0.25 turned out to be worth changing while `Healthcare`
+    // at 1.1 and `Tax` at 0 were deliberate. The rule states the consequence and lets the owner
+    // decide — which is the whole point of the advisory tab.
+    //
+    // Direction changes what it means, so it changes the sentence: an income below inflation is
+    // a risk the owner carries; an expense below inflation makes the PLAN LOOK BETTER, which is
+    // the more dangerous of the two because nothing else on the page flags optimism.
+    for (const st of streams) {
+      const mult = num(st?.growth_mult);
+      if (mult == null || mult >= 1) continue;
+      const isIncome = st?.direction === "income";
+      const line = st?.fc_line_name || st?.lineName || null;
+      const label = line ? `"${name}" → ${line}` : `"${name}"`;
+      const pctOfInflation = Math.round(mult * 100);
+      out.push({
+        id: `escalation-below-inflation-${name}-${st?.direction || "?"}-${st?.id ?? "new"}`,
+        severity: "info",
+        title: isIncome
+          ? `${label} rises at ${mult}× inflation, so it buys less every year`
+          : `${label} rises at ${mult}× inflation, so the plan assumes it gets cheaper in real terms`,
+        detail: isIncome
+          ? `This income keeps only ${pctOfInflation}% of inflation, so its purchasing power falls ` +
+            "every year of the plan. That is right only if you expect the payment itself to be " +
+            "eroded — an indexed or contractual income should sit at 1."
+          : `This cost keeps only ${pctOfInflation}% of inflation, so the plan assumes it shrinks ` +
+            "in real terms year after year. That may be deliberate — spending often falls with " +
+            "age — but it makes the forecast LOOK BETTER, and nothing else on this page says so. " +
+            "A cost that simply tracks prices should sit at 1.",
+        years: [],
+        amount: null,
+      });
+    }
 
     // ---- R10: a growth MULTIPLIER that looks like a typed percentage -------
     //
@@ -566,7 +652,10 @@ export function computeModuleIntegrityWarnings(modules = [], { periodStart = nul
     }
   }
 
-  return out;
+  // CR077 — classify HERE too, not only in `computeForecastWarnings`. Every exported producer
+  // returns classified warnings, so no consumer can receive one without a `kind` and quietly
+  // route it to the wrong tab.
+  return out.map(classifyWarning);
 }
 
 /**

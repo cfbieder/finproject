@@ -240,3 +240,48 @@
   align-items: center;
   gap: 0.3rem;
 }
+
+/* ── CR077 — integrity vs. assumptions ────────────────────────────────────────
+   Two kinds of statement, so two tabs. BOTH counts stay on screen whichever is
+   selected: switching to advice must never be a way to stop seeing that a real
+   defect is waiting, which is CR045 §1's failure mode in a new shape. */
+.fc-warnings__tabs {
+  display: flex;
+  gap: var(--space-xs);
+  padding: 0 var(--space-md);
+  border-bottom: 1px solid var(--border);
+}
+
+.fc-warnings__tab {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  padding: var(--space-xs) var(--space-sm);
+  border: none;
+  border-bottom: 2px solid transparent;
+  background: none;
+  color: var(--muted);
+  font-size: 0.78rem;
+  font-weight: 600;
+  cursor: pointer;
+  /* Only the border moves, so switching tabs does not reflow the rows below. */
+  margin-bottom: -1px;
+}
+
+.fc-warnings__tab:hover {
+  color: var(--ink);
+}
+
+.fc-warnings__tab--active {
+  color: var(--ink);
+  border-bottom-color: var(--accent);
+}
+
+.fc-warnings__tab-count {
+  padding: 0.05rem 0.35rem;
+  border-radius: var(--radius-sm);
+  background: var(--surface-muted);
+  border: 1px solid var(--border);
+  font-size: 0.7rem;
+  font-weight: 600;
+}

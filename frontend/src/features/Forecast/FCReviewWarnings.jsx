@@ -43,6 +43,7 @@ export default function FCReviewWarnings({ warnings = [], onAutoAdjust, scenario
   const [collapsed, setCollapsed] = useState(false);
   const [dismissals, setDismissals] = useState({});
   const [showDismissed, setShowDismissed] = useState(false);
+  const [tabChoice, setTabChoice] = useState(null);   // CR077 — null = let the panel choose
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
 
@@ -62,9 +63,31 @@ export default function FCReviewWarnings({ warnings = [], onAutoAdjust, scenario
     return () => { active = false; };
   }, [scenario]);
 
+  // ── CR077 — two tabs, because these are two kinds of statement ─────────────
+  //
+  // INTEGRITY: the model is not doing what your data says. A defect, to be FIXED.
+  // ADVISORY:  the engine is faithfully applying an input worth a second look. A judgement,
+  //            to be RECORDED.
+  //
+  // Counted and dismissed SEPARATELY, so accepting six assumptions cannot bury one real defect
+  // — which is the failure CR045 §1 exists to prevent, and exactly what a single mixed list of
+  // 21 rows was drifting towards.
+  const byKind = useMemo(() => {
+    const integrity = [];
+    const advisory = [];
+    for (const w of warnings) (w?.kind === "advisory" ? advisory : integrity).push(w);
+    return { integrity, advisory };
+  }, [warnings]);
+
+  // Null until the owner picks, so the panel can open on the tab that has something to say —
+  // but it opens on INTEGRITY whenever there is anything there, because a defect outranks advice.
+  const tab = tabChoice
+    ?? (byKind.integrity.length === 0 && byKind.advisory.length > 0 ? "advisory" : "integrity");
+  const activeAll = tab === "advisory" ? byKind.advisory : byKind.integrity;
+
   const { visible, dismissed } = useMemo(
-    () => partitionDismissed(warnings, dismissals),
-    [warnings, dismissals]
+    () => partitionDismissed(activeAll, dismissals),
+    [activeAll, dismissals]
   );
 
   const dismiss = useCallback(async (list) => {
@@ -131,7 +154,7 @@ export default function FCReviewWarnings({ warnings = [], onAutoAdjust, scenario
           <AlertTriangle size={15} />
           {/* The FULL count, always. Reporting only what is left to read would make the panel
               understate the plan's problems, which is the one thing it exists not to do. */}
-          Cash health — {warnings.length} issue{warnings.length === 1 ? "" : "s"}
+          Cash health — {activeAll.length} {tab === "advisory" ? "suggestion" : "issue"}{activeAll.length === 1 ? "" : "s"}
           {dismissed.length > 0 && (
             <span className="fc-warnings__dismissed-count">{dismissed.length} dismissed</span>
           )}
@@ -144,6 +167,28 @@ export default function FCReviewWarnings({ warnings = [], onAutoAdjust, scenario
           className={`fc-warnings__chevron${collapsed ? " fc-warnings__chevron--collapsed" : ""}`}
         />
       </button>
+
+      {/* CR077 — the two tabs. Both counts are always on screen, so switching away from
+          integrity can never hide that it has something in it. */}
+      {!collapsed && (
+        <div className="fc-warnings__tabs" role="tablist" aria-label="Cash health sections">
+          <button
+            type="button" role="tab" aria-selected={tab === "integrity"}
+            className={`fc-warnings__tab${tab === "integrity" ? " fc-warnings__tab--active" : ""}`}
+            onClick={() => { setTabChoice("integrity"); setShowDismissed(false); }}
+          >
+            Integrity <span className="fc-warnings__tab-count">{byKind.integrity.length}</span>
+          </button>
+          <button
+            type="button" role="tab" aria-selected={tab === "advisory"}
+            className={`fc-warnings__tab${tab === "advisory" ? " fc-warnings__tab--active" : ""}`}
+            onClick={() => { setTabChoice("advisory"); setShowDismissed(false); }}
+          >
+            Assumptions to consider{" "}
+            <span className="fc-warnings__tab-count">{byKind.advisory.length}</span>
+          </button>
+        </div>
+      )}
 
       {(onAutoAdjust && errorCount > 0) || canDismiss ? (
         <div className="fc-warnings__actions">
@@ -190,11 +235,25 @@ export default function FCReviewWarnings({ warnings = [], onAutoAdjust, scenario
         <>
           {/* Every issue accepted. Said in its own words rather than falling through to the
               all-clear above, which is a statement about the plan and would be false here. */}
-          {visible.length === 0 && !showDismissed && (
+          {visible.length === 0 && !showDismissed && dismissed.length > 0 && (
             <p className="fc-warnings__all-dismissed">
-              All {dismissed.length} issue{dismissed.length === 1 ? " is" : "s are"} dismissed —
-              nothing is fixed, they are accepted. Use “Show {dismissed.length} dismissed” to
-              read them again.
+              All {dismissed.length}{" "}
+              {tab === "advisory" ? "suggestion" : "issue"}
+              {dismissed.length === 1 ? " is" : "s are"} dismissed — nothing is fixed, they are
+              accepted. Use “Show {dismissed.length} dismissed” to read them again.
+            </p>
+          )}
+
+          {/* CR077 — a tab with nothing in it at all. Distinct from "all dismissed" above, and
+              the wording is deliberately different for each: an empty INTEGRITY tab is a claim
+              about the PLAN (CR045 §1's all-clear, correctly scoped), while an empty ADVISORY
+              tab is only a claim about this list. Saying "cash stays funded" from the advisory
+              tab would be the CR074 property-2 mistake in a new place. */}
+          {activeAll.length === 0 && (
+            <p className="fc-warnings__all-dismissed">
+              {tab === "integrity"
+                ? "No integrity issues — cash stays funded across every forecast year, and every module reaches the projection the way its data says."
+                : "No assumptions flagged. That is not a statement that your assumptions are right — only that none tripped a rule."}
             </p>
           )}
 

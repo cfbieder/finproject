@@ -1,7 +1,8 @@
 # CR077 — Splitting the Cash Health panel: integrity vs. assumption advice
 
-**Status:** PROPOSED — not started. **Deliberately sequenced AFTER [CR076](cr-076-forecast-model-review.md)
-§8 step 6 (D2–D6)** at the owner's instruction, 2026-08-09.
+**Status:** IN-PROGRESS — **increment 1 BUILT** (§7), awaiting release. No migration; **no
+forecast number moves** — this is a reading surface over the existing derivation. Its prerequisite
+(CR076 §8 step 6) is complete.
 **Track:** v3
 **Origin:** owner, 2026-08-09 — *"can we split the comments section on the forecast page into two
 tabs (a) the types of warnings we show not related to model integrity and (b) a new 2nd tab with
@@ -102,3 +103,70 @@ working pattern for this and its own drawer.
 numbers ARE, and an advisory panel built over figures that are about to move would need
 re-verifying immediately — and would risk teaching the owner to trust advice derived from a value
 under repair.
+
+---
+
+## 7. Increment 1 — built 2026-08-09
+
+### The split, and where each rule landed
+
+Classification is **central**, not at each `push` site: an unlisted id defaults to **integrity**,
+the louder of the two, so a new rule that forgets to classify itself lands in the tab that gets
+read rather than the one that gets accepted. Every exported producer
+(`computeForecastWarnings`, `computeModuleIntegrityWarnings`, `computeLoanWarnings`) returns
+classified warnings, so no consumer can receive one without a `kind`.
+
+**Advisory** — `disposal-in-base-year` (explains where the money went) · `disposal-no-gain` (is the
+basis a placeholder?) · `yield-and-dispose` (is growth net of distributions?) ·
+`foreign-income-no-tax-override` · `growth-multiplier-outlier` · the new
+`escalation-below-inflation`. **Everything else is integrity.**
+
+The test is not severity. It is: *if this is true, is something WRONG — or merely worth DECIDING?*
+
+**Measured on prod's `2026 Base`: 4 integrity, 12 advisory.** The integrity tab now holds four
+rows, all genuine (`configured-but-excluded` × 4), where the single list was heading past twenty.
+
+### The one new rule: `escalation-below-inflation`
+
+`growth_mult` is a multiplier of inflation, so anything below 1 shrinks in real terms — and the
+form's hint said the opposite until v3.21.0, while **70 of 110** streams carry an explicit
+multiplier. Direction changes the meaning, so it changes the sentence: an income below inflation is
+a risk the owner carries, while **an expense below inflation makes the plan LOOK BETTER**, which is
+the more dangerous of the two because nothing else on the page flags optimism.
+
+Blank never fires (blank means 1, and firing on the default would report most of the plan).
+
+### ⚠️ A rule that was written and then DELETED
+
+`idle-cash-unpriced` was built — the sweep sells a return-earning asset to hold a 0% balance, and a
+shortfall costs nothing either (§7 Q1). It fired on **every scenario that has a sweep, which is all
+of them, always**. A rule that cannot *not* fire carries no information: it is documentation
+wearing a warning's clothes, and it is precisely the noise CR074 exists to remove. It also
+permanently suppressed the all-clear, which is gated on `warnings.length === 0` — **a unit test
+caught that**, not review.
+
+The underlying point is real and stays a decision in CR076 §7 Q1. **The test for any new advisory:
+could this be absent on a plausible plan? If not, it is not a finding.**
+
+### CR074's three properties, preserved PER TAB
+
+1. **Dismissed is never invisible** — both tab counts are always on screen, so switching to advice
+   can never hide that a defect is waiting.
+2. **All-dismissed is not all-clear** — and the empty states are worded differently on purpose. An
+   empty **integrity** tab is a claim about the PLAN (CR045 §1's all-clear, correctly scoped); an
+   empty **advisory** tab is only a claim about the list, and says so: *"That is not a statement
+   that your assumptions are right — only that none tripped a rule."* Saying "cash stays funded"
+   from the advisory tab would be CR074's property-2 mistake in a new place.
+3. **Expiry on change** — untouched; dismissals still key on `warningFingerprint`.
+
+The section-level all-clear still requires **both** tabs empty.
+
+### Deliberately not in this increment
+
+The **LLM stage** (§4). The deterministic rules are the foundation it would prioritise or phrase,
+and shipping the generator first would put a confident sentence about the engine on the one panel
+where a wrong one does most damage. A "considered" state distinct from "dismissed" (§5 Q1) is also
+deferred — dismissal already carries the meaning, and a second state needs a reason to exist.
+
+**Gate:** 870 backend · 475 frontend (7 new) · 8/8 e2e · lint 0 errors · six ratchets. The
+dead-token ratchet caught a `--text` that does not exist in this codebase (`--ink` does).

@@ -502,3 +502,94 @@ describe("CR071 — module integrity warnings", () => {
       Streams: [{ id: 1, direction: "income", mode: "amount", fc_line_id: 2 }] })])).toEqual([]);
   });
 });
+
+// ─────────────────────────────────────────────────────────────────────────────────────
+// CR077 — integrity vs. assumptions.
+//
+// The panel mixed two kinds of statement under one severity scale: a DEFECT to fix beside
+// a JUDGEMENT to record. They are counted and dismissed separately now, so accepting six
+// assumptions cannot bury one real defect — CR045 §1's failure mode in a new shape.
+// ─────────────────────────────────────────────────────────────────────────────────────
+const crMod = (o = {}) => ({
+  Name: "M", Type: "Real Estate", Currency: "USD", SetupStatus: "complete",
+  HasValuation: true, Streams: [], Amortization: [],
+  DisposeCount: 0, DisposeFullCount: 0, DisposeFirstYear: null, ...o,
+});
+
+describe("CR077 — warning classification", () => {
+  const kindOf = (mods, id) =>
+    computeModuleIntegrityWarnings(mods, { periodStart: 2027 }).find((w) => w.id === id)?.kind;
+
+  it("an unlisted id defaults to INTEGRITY, the louder of the two", () => {
+    // The default matters: a new rule that forgets to classify itself must land in the tab
+    // that gets read, not the one that gets accepted.
+    expect(wf.classifyWarning({ id: "some-brand-new-rule" }).kind).toBe("integrity");
+  });
+
+  it("a defect is integrity; a judgement is advisory", () => {
+    const excluded = crMod({ Name: "Parked", SetupStatus: "exclude", Streams: [
+      { id: 1, direction: "expense", mode: "amount", amount: 100, fc_line_id: 4 },
+    ] });
+    expect(kindOf([excluded], "configured-but-excluded-Parked")).toBe("integrity");
+
+    const outlier = crMod({ Name: "Collapsing", Growth: -30 });
+    expect(kindOf([outlier], "growth-multiplier-outlier-Collapsing")).toBe("advisory");
+  });
+
+  it("every warning carries a kind — none can reach the panel unclassified", () => {
+    // The panel routes on `kind`; an undefined one would silently land in integrity by the
+    // `!== "advisory"` fallback, which is safe but hides a missing classification.
+    const ws = computeForecastWarnings({
+      years: [2026, 2027],
+      bankBalanceByYear: [-5, -5],
+      entries: [{ Year: 2027, Account: "Cash Shortfall", Amount: -100, Module: "_cash_sweep" }],
+      modules: [crMod({ Name: "M", Growth: -30 })],
+      cashSweepLow: 200000,
+      periodStart: 2027,
+    });
+    expect(ws.length).toBeGreaterThan(0);
+    expect(ws.every((w) => w.kind === "integrity" || w.kind === "advisory")).toBe(true);
+  });
+});
+
+describe("CR077 A1 — a flow that loses ground to inflation", () => {
+  const ids = (mods) =>
+    computeModuleIntegrityWarnings(mods, { periodStart: 2027 }).map((w) => w.id);
+  const find = (mods, id) =>
+    computeModuleIntegrityWarnings(mods, { periodStart: 2027 }).find((w) => w.id === id);
+
+  it("an EXPENSE below inflation is flagged as making the plan look better", () => {
+    // The dangerous direction: nothing else on the page flags optimism.
+    const m = crMod({ Name: "Household", Streams: [
+      { id: 7, direction: "expense", mode: "amount", amount: 50000, growth_mult: 0.5, fc_line_id: 4, fc_line_name: "Purchases" },
+    ] });
+    const w = find([m], "escalation-below-inflation-Household-expense-7");
+    expect(w.kind).toBe("advisory");
+    expect(w.detail).toMatch(/LOOK BETTER/);
+    expect(w.detail).toMatch(/only 50%/);
+  });
+
+  it("an INCOME below inflation is flagged as buying less each year", () => {
+    const m = crMod({ Name: "Pension", Streams: [
+      { id: 9, direction: "income", mode: "amount", amount: 20000, growth_mult: 0.25, fc_line_id: 4 },
+    ] });
+    const w = find([m], "escalation-below-inflation-Pension-income-9");
+    expect(w.title).toMatch(/buys less every year/);
+  });
+
+  it("1 and above never fire — tracking or beating inflation is not a finding", () => {
+    for (const g of [1, 1.1, 2]) {
+      expect(ids([crMod({ Name: `M${g}`, Streams: [
+        { id: 3, direction: "expense", mode: "amount", amount: 100, growth_mult: g, fc_line_id: 4 },
+      ] })])).not.toContain(`escalation-below-inflation-M${g}-expense-3`);
+    }
+  });
+
+  it("a BLANK multiplier never fires — blank means 1", () => {
+    // `fcbuilder-stream` reads null/'' as 1. Firing on blank would report the default as a
+    // finding on most streams in the plan.
+    expect(ids([crMod({ Name: "Blank", Streams: [
+      { id: 3, direction: "expense", mode: "amount", amount: 100, growth_mult: null, fc_line_id: 4 },
+    ] })])).not.toContain("escalation-below-inflation-Blank-expense-3");
+  });
+});
