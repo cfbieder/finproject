@@ -802,3 +802,48 @@ decision, the decision was made, and the record is now explicit rather than trib
 29,263 USD in 2026 (after the new contribution) → 7,316 in 2027 → 457 in 2029 → 0 by 2034. For a
 true −30%/yr the multiplier would be **−12** at the current 2.5% assumption; −20%/yr would be −8.
 The module also now has **no disposal**, so it is held to the horizon rather than sold.
+---
+
+## 20. Owner decisions on §11's multipliers, 2026-08-09 — and the first one applied
+
+### `Social Security` → full CPI (1.0). APPLIED to prod.
+
+It escalated at **0.25 × inflation = 0.625%/yr**, against a statutory COLA of full CPI: 20,000 in
+2035 reached only **23,664** by 2062, losing ~40% of its purchasing power. Now **1.0**, reaching
+**38,956** — flat in today's money, which is what a COLA'd benefit is.
+
+**The reasoning matters more than the number.** The owner was offered "keep 0.25 as a deliberate
+haircut" and chose full CPI *with cuts modelled separately if wanted*. That keeps two different
+assumptions — how the benefit is INDEXED, and whether it will be CUT — as two visible inputs
+rather than one multiplier silently carrying both. A 0.25 that means "COLA minus my guess at
+means-testing" cannot be reviewed, because neither half can be seen.
+
+Measured on dev against an idempotent engine, then applied to prod, whose fingerprint matches dev
+byte for byte (`5d407b39…`). Changed on **Base only** — the four variants inherit it through
+CR050's sync, exactly as the OCME edits did:
+
+| scenario | before | after | delta |
+|---|--:|--:|--:|
+| Base | 4,506,189.63 | **4,674,650.12** | **+168,460.49** |
+| Buy Business | 9,581,809.28 | **9,750,208.47** | +168,399.19 |
+| Downside | 2,360,635.02 | **2,574,048.63** | +213,413.61 |
+| Upside | 7,878,718.10 | **8,047,179.99** | +168,461.89 |
+| SRQ House Purchase | −763,183.55 | **−596,918.54** | +166,265.01 |
+
+**A caveat the owner should see, and NOT fixed here:** the 20,000 is a `Fixed $` change row, and
+`fcbuilder-stream` adds those **raw, in the money of their own year** (§7 Q2). So it is 20,000 of
+**2035** dollars, not of today's — worth ~13,300 in 2026 money. Full CPI now holds its value
+*from 2035 onward*, which is correct; whether 20,000 was meant as today's money is a separate
+question about that input, not about the COLA.
+
+### `OCME` at −30 → DELIBERATE, no change
+
+See §19. R10 goes on firing and is dismissed rather than suppressed.
+
+### Still open: the other sub-1 multipliers
+
+`Purchases` 0.5 · `Travel` 0.8 · `Total Salary` 0.8 · `Car Expenses` 0.9 · `New Business` 0.9.
+All were chosen while the form's hint said the opposite of the arithmetic (§11). Unlike Social
+Security these have **no external benchmark** — a household genuinely may spend less in real terms
+with age — so each is a belief to state rather than a defect to fix. `Healthcare` at **1.1** and
+`Tax` at **0** look deliberate and are left alone.
