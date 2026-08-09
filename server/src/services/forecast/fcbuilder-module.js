@@ -785,6 +785,13 @@ function computeModule(module, scenario, df_assumptions, df_categories, categori
     account: module?.Account,
     entries: buildFcEntriesPayload(df_categories, scenarioId, module?.Name, module?.Comment),
     audit: { dfModuleLC: df_module_LC, dfModuleUSD: df_module_USD, dfCategories: df_categories },
+    // CR076 D6 — what this module realized, exposed so the SCENARIO can net gains against
+    // losses within a year. It cannot be done here: `computeModule` is per-module and pure, and
+    // an offset is by definition a fact about two modules at once. Reported in USD at the
+    // module's own gains rate, so the caller can bucket by rate without re-deriving either.
+    gains: hasValuation
+      ? { startyear, realizedGainUSD: realizedGainUSD.slice(), gainsRatePct: gainsRate }
+      : null,
   };
 }
 

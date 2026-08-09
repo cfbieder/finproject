@@ -370,6 +370,71 @@ async function generateForecast(scenarioName, { writeAudit = true } = {}) {
       ),
     }));
 
+    // CR076 D6 — a capital LOSS now offsets a capital GAIN realized in the same year.
+    //
+    // `fcbuilder-module` taxes `realizedGainUSD > 0` and drops anything negative, per module,
+    // with no netting and no carry-forward. Live in all five scenarios in 2026:
+    // `SP - Panorama Mar 4` disposes at +40,000 EUR and is taxed, while `SP - Sea Senses`
+    // disposes at −21,124 EUR on the SAME DAY and the loss is worth nothing. For a US person
+    // that is simply wrong — losses offset gains — and it overstates 2026's tax by ~7,368 in a
+    // year whose cash the sweep then pins for the rest of the horizon.
+    //
+    // Done at the SCENARIO level because an offset is a fact about two modules at once, and
+    // `computeModule` is per-module and pure. It is ADDITIVE: a credit row on `Taxes`, keyed to
+    // the synthetic `_gain_netting` module, so no module's own arithmetic is rewritten and the
+    // adjustment is visible on its own line rather than buried in a module's tax.
+    //
+    // BUCKETED BY RATE, which is the one real ambiguity here: netting a gain taxed at 23%
+    // against a loss that would have relieved 30% would invent a number. Like relieves like; a
+    // 0%-rate module (`US - Nokomis`) neither pays nor absorbs anything and drops out by
+    // construction. Deferred a year, exactly as the gains tax it adjusts.
+    //
+    // NOT a carry-forward. `OCME`'s 2045 loss still relieves nothing, because its only
+    // same-year gain is in a different year — real tax rules would carry it, and that is a
+    // separate decision (rules the owner would have to maintain) recorded in CR076 §18.
+    const nettingEntries = [];
+    {
+      const byYearRate = new Map();   // `${year}|${ratePct}` → { gains, losses }
+      for (const { result } of computed) {
+        const g = result?.gains;
+        if (!g || !Number.isFinite(g.gainsRatePct) || g.gainsRatePct === 0) continue;
+        for (let i = 0; i < g.realizedGainUSD.length; i++) {
+          const v = Number(g.realizedGainUSD[i]) || 0;
+          if (v === 0) continue;
+          const key = `${g.startyear + i}|${g.gainsRatePct}`;
+          const bucket = byYearRate.get(key) || { gains: 0, losses: 0 };
+          if (v > 0) bucket.gains += v; else bucket.losses += -v;
+          byYearRate.set(key, bucket);
+        }
+      }
+      const horizon = scenario.PeriodEnd;
+      for (const [key, { gains, losses }] of byYearRate) {
+        const offset = Math.min(gains, losses);
+        if (!(offset > 0)) continue;
+        const [yearStr, rateStr] = key.split('|');
+        const payYear = Math.min(Number(yearStr) + 1, horizon);
+        if (payYear < years[0]) continue;              // relief before the plan starts is not ours to book
+        const credit = offset * (Number(rateStr) / 100);   // POSITIVE: it reduces a negative tax
+        const comment = `Capital loss offsetting a same-year gain at ${rateStr}%`;
+        nettingEntries.push({
+          scenario_id: scenarioId, forecast_year: payYear, amount: credit,
+          account: CATEGORIES.TAXES_US, module: '_gain_netting', comment,
+        });
+        // The MATCHING cash row. A module writes its P&L row and a `Bank Accounts` row carrying
+        // the same money (`Fidelity Stocks` 2028: income 28,416.80 − tax 8,317.11 = cash
+        // 20,099.69), and the sweep reads its `cashDeltaByYear` from those Bank Accounts rows.
+        // Writing only the `Taxes` row left the RELIEF visible to the Review's running balance —
+        // which derives cash from Income + Expense + Transfers — and invisible to the engine,
+        // so the bank line read 208,679.67 against a 200,000 band. That is precisely the
+        // engine-vs-app split D2 had just closed, reintroduced in a new place, and it is why
+        // the band is worth checking after every one of these changes.
+        nettingEntries.push({
+          scenario_id: scenarioId, forecast_year: payYear, amount: credit,
+          account: CATEGORIES.BANK_ACCOUNTS, module: '_gain_netting', comment,
+        });
+      }
+    }
+
     // Step 6b: audit-trail CSVs (fs side effect, kept out of the numbers path).
     // CR053: the auto-adjust solver rebuilds a throwaway scratch scenario ~10× per solve;
     // writeAudit=false skips this so it neither wastes I/O nor litters the audit trail
@@ -397,6 +462,12 @@ async function generateForecast(scenarioName, { writeAudit = true } = {}) {
         account: c.result.account,
         entriesCount: inserted.length,
       });
+    }
+
+    // CR076 D6 — the same-year loss offsets, written after the modules they adjust.
+    if (nettingEntries.length > 0) {
+      await insertModuleEntries(dbc, nettingEntries);
+      console.log(`[FORECAST-GENERATE] Capital-loss netting: ${nettingEntries.length} credit(s)`);
     }
 
     // Step 7: Cash Sweep & Auto-Balance (iterative year-by-year)

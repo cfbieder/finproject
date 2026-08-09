@@ -252,8 +252,10 @@ opposite things share the word "growth".
    themselves are now an owner question, stated in §11.
 5. ✅ **D7 / D8** — fail loud on a missing inflation row *(§12)*; honour a PeriodStart−1
    assumption *(§13, ⚠️ MOVES NUMBERS — measured)*.
-6. **D2 ✅ (§14) · D3 ✅ (§15) · D4 ✅ (§16) · D5 ✅ (§17) · D6** — each moves numbers and needs
-   CR075's before/after gate on an engine first proven idempotent. Not more than one at a time.
+6. ✅ **D2 (§14) · D3 (§15) · D4 (§16) · D5 (§17) · D6 (§18)** — each moved numbers and each was
+   measured behind CR075's gate on an engine first proven idempotent, one at a time.
+
+**§8 is COMPLETE.** [CR077](cr-077-assumption-advisor-tab.md) is unblocked.
 
 ## 10. Shipped in v3.20.0 (2026-08-09)
 
@@ -683,3 +685,54 @@ result here.
 
 **Gate:** 862 backend across 62 suites (3 new, each falsified against the old behaviour — the
 window case returned 25 instead of 50), engine idempotent. **Not yet deployed.**
+---
+
+## 18. Step 6e — D6, a capital loss offsets a same-year gain
+
+`fcbuilder-module` taxes `realizedGainUSD > 0` and drops anything negative, per module, with no
+netting and no carry-forward. Live in all five scenarios in 2026: `SP - Panorama Mar 4` disposes at
+a gain and is taxed, while `SP - Sea Senses` disposes at a **loss on the same day** and the loss is
+worth nothing. For a US person that is simply wrong — losses offset gains.
+
+Done as a **scenario-level pass**, because an offset is a fact about two modules at once and
+`computeModule` is per-module and pure. It is **additive**: a credit on `Taxes` keyed to a
+synthetic `_gain_netting` module, so no module's arithmetic is rewritten and the adjustment shows
+on its own line instead of being buried inside a module's tax.
+
+**Bucketed by rate**, which is the one real judgement here: netting a gain taxed at 23% against a
+loss that would have relieved 30% would invent a number, so like relieves like. A 0%-rate module
+(`US - Nokomis`) neither pays nor absorbs — otherwise its untaxed gain would consume relief the
+owner is entitled to elsewhere. Capped at the smaller side, so relief can never exceed the tax
+actually charged. Deferred a year, exactly as the gains tax it adjusts.
+
+On prod data it produces **one credit of 8,679.67 in 2027, in every scenario**. That is larger than
+§4's estimate of 7,368 — and correctly so: that figure predated D3, and once the basis is held at
+its acquisition rate the USD loss on `Sea Senses` is bigger (basis 420,302 against proceeds
+391,389) than the naive EUR-converted one.
+
+### ⚠️ It reintroduced the exact bug D2 had just closed, and the band caught it
+
+The first implementation wrote only the `Taxes` row. The Review derives its bank balance from
+Income + Expense + Transfers, so it saw the relief; the engine's sweep reads `cashDeltaByYear` from
+**`Bank Accounts`** rows, so it did not. The bank line read **208,679.67** against a 200,000 band —
+an engine-vs-app split of exactly the credit.
+
+A module writes its P&L row **and** a matching cash row (`Fidelity Stocks` 2028: income 28,416.80 −
+tax 8,317.11 = cash 20,099.69). The netting now does the same. **Checking the bank line against the
+band is the cheapest possible test that the engine and the app still agree**, and it is worth doing
+after every one of these changes.
+
+| scenario | before (post-D5) | after | delta |
+|---|--:|--:|--:|
+| Base | 4,549,680.38 | **4,571,404.45** | +21,724.07 |
+| Buy Business | 9,625,231.32 | **9,647,451.85** | +22,220.53 |
+| Downside | 2,415,406.48 | **2,442,857.61** | +27,451.13 |
+| Upside | 7,921,032.53 | **7,942,686.16** | +21,653.63 |
+| SRQ House Purchase | −707,276.47 | **−678,505.22** | +28,771.25 |
+
+**NOT a carry-forward.** `OCME`'s 2045 loss still relieves nothing, because its only companion gain
+is in a different year. Real tax rules would carry it — that is a separate decision, involving
+rules the owner would have to maintain, and §7 is the place for it.
+
+**Gate:** 870 backend across 63 suites (8 new, pinning the bucketing rules rather than re-testing
+the engine around them), engine idempotent. **Not yet deployed.**
