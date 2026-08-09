@@ -252,8 +252,8 @@ opposite things share the word "growth".
    themselves are now an owner question, stated in §11.
 5. ✅ **D7 / D8** — fail loud on a missing inflation row *(§12)*; honour a PeriodStart−1
    assumption *(§13, ⚠️ MOVES NUMBERS — measured)*.
-6. **D2 ✅ (§14) · D3 ✅ (§15) · D4 ✅ (§16) · D5, D6** — each moves numbers and needs CR075's
-   before/after gate on an engine first proven idempotent. Not more than one at a time.
+6. **D2 ✅ (§14) · D3 ✅ (§15) · D4 ✅ (§16) · D5 ✅ (§17) · D6** — each moves numbers and needs
+   CR075's before/after gate on an engine first proven idempotent. Not more than one at a time.
 
 ## 10. Shipped in v3.20.0 (2026-08-09)
 
@@ -640,3 +640,46 @@ effect is exactly proportional to how far each scenario's typed amount had drift
 budget.**
 
 **Gate:** 859 backend across 62 suites (4 new), engine idempotent. **Not yet deployed.**
+---
+
+## 17. Step 6d — D5, the sale year is halved once
+
+The Full-disposal block halved every stream in the sale year unconditionally. That was too often
+in **two independent ways**, and the second was not in this CR's original write-up — it came out of
+the balance-sheet review and lands on the same line:
+
+**(a) The CR046 window may already have halved that index.** The acquisition gate twenty lines
+above guards against exactly this and says why — *"Don't halve a year the CR046 window already
+halved — that would leave 25%"* — and the disposal path had no such check. `Sarasota House` carries
+a 45,000 expense windowed to 2048-07-01 **and** a Full disposal on the same date.
+
+**(b) An MV-driven stream is already half by construction.** The disposal block sets
+`marketValues[dispIdx] = 0`, and a yield is `avg(mv[i], mv[i−1]) × rate` — so the average **is** the
+half-year figure. Halving again leaves a quarter year. The fix reuses the same `gateable` predicate
+the ownership gate uses, so the acquisition and disposal sides cannot drift apart.
+
+**Both verified against prod, both exactly 2×:**
+
+| | old | new |
+|---|--:|--:|
+| `CVC Fund VIII` 2033 dividend (Base) | 3,462.52 | **6,925.05** |
+| `Sarasota House` 2048 Property Costs (SRQ) | −19,367.68 | **−38,735.36** |
+
+The second matches §4's predicted 19,368 / 38,736 to the cent.
+
+| scenario | before (post-D4) | after | delta |
+|---|--:|--:|--:|
+| Base | 4,539,146.37 | **4,549,680.38** | +10,534.01 |
+| Buy Business | 9,614,666.38 | **9,625,231.32** | +10,564.94 |
+| Downside | 2,402,838.34 | **2,415,406.48** | +12,568.14 |
+| Upside | 7,910,500.67 | **7,921,032.53** | +10,531.86 |
+| **SRQ House Purchase** | −691,185.51 | **−707,276.47** | **−16,090.96** |
+
+**SRQ moves the opposite way from the other four, and that is the check.** The two halves of the
+fix push in opposite directions: (b) raises yield income in a sale year, which lifts every scenario
+holding the CVC funds; (a) raises an expense that was being under-charged, and `Sarasota House`
+only exists in SRQ. A single fix producing one sign everywhere would have been the suspicious
+result here.
+
+**Gate:** 862 backend across 62 suites (3 new, each falsified against the old behaviour — the
+window case returned 25 instead of 50), engine idempotent. **Not yet deployed.**

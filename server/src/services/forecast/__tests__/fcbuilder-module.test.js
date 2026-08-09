@@ -1207,3 +1207,68 @@ describe("CR076 D4 — base-year income tax follows the budget", () => {
     expect(taxOf(db)[2026]).toBeCloseTo(-40, 2);     // 10% of 400
   });
 });
+
+// ─────────────────────────────────────────────────────────────────────────────────────
+// CR076 D5 — the sale year is halved ONCE.
+//
+// The Full-disposal block halved every stream in the sale year unconditionally, two ways
+// too often:
+//   (a) the CR046 window may have halved the same index already — the acquisition gate
+//       guards against exactly this and says so ("that would leave 25%"); this path did
+//       not. `Sarasota House`: 2048 Property Costs 19,368 against an honest 38,736.
+//   (b) an MV-driven stream is already half by construction, because the disposal sets
+//       marketValues[dispIdx] = 0 and a yield averages mv[i] with mv[i-1]. Halving again
+//       leaves a QUARTER year — `CVC Fund VIII` paid 2,977.77 EUR in its sale year.
+// ─────────────────────────────────────────────────────────────────────────────────────
+describe("CR076 D5 — a Full disposal halves the sale year once, not twice", () => {
+  const sumFor = (db, account, year) =>
+    getEntriesForAccount(db, account)
+      .filter((e) => e.forecast_year === year)
+      .reduce((s, e) => s + e.amount, 0);
+
+  test("an amount stream whose WINDOW also ends in the sale year is halved once", async () => {
+    const { db } = await runModule({
+      BaseValue: 1000, BaseValueUSD: 1000,
+      MarketValue: 1000, MarketValueUSD: 1000,
+      Growth: 0, ExpensePct: 0,
+      expense_amount: 100,
+      expense_end_date: "2028-07-01",
+      ExpCategory: "Test Expense",
+      Dispose: [{ Date: "2028-07-01", Amount: 0, Flag: "Full" }],
+    }, { TaxRate: 0 }, { inflation: [0, 0, 0, 0, 0] });
+
+    // Half of 100 — NOT a quarter. Falsified against the old code, which gave 25.
+    expect(sumFor(db, "Test Expense", 2028)).toBeCloseTo(-50, 2);
+  });
+
+  test("an amount stream with NO window is still halved in the sale year", async () => {
+    // The half-year convention itself must survive the fix.
+    const { db } = await runModule({
+      BaseValue: 1000, BaseValueUSD: 1000,
+      MarketValue: 1000, MarketValueUSD: 1000,
+      Growth: 0, ExpensePct: 0,
+      expense_amount: 100,
+      ExpCategory: "Test Expense",
+      Dispose: [{ Date: "2028-07-01", Amount: 0, Flag: "Full" }],
+    }, { TaxRate: 0 }, { inflation: [0, 0, 0, 0, 0] });
+
+    expect(sumFor(db, "Test Expense", 2028)).toBeCloseTo(-50, 2);
+    expect(sumFor(db, "Test Expense", 2029)).toBeCloseTo(0, 2);   // nothing after the sale
+  });
+
+  test("a YIELD stream is not halved again — its average already is the half year", async () => {
+    // 10% on a flat 1000: a full year is 100. The disposal zeroes the sale year's market
+    // value, so avg(0, 1000) x 10% = 50 is ALREADY the half year. The old code returned 25.
+    const { db } = await runModule({
+      BaseValue: 1000, BaseValueUSD: 1000,
+      MarketValue: 1000, MarketValueUSD: 1000,
+      Growth: 0, ExpensePct: 0,
+      IncomePct: [{ Date: "2025-12-31", Value: 10 }],
+      IncomeCategory: "Test Income",
+      Dispose: [{ Date: "2028-07-01", Amount: 0, Flag: "Full" }],
+    }, { TaxRate: 0 }, { inflation: [0, 0, 0, 0, 0] });
+
+    expect(sumFor(db, "Test Income", 2028)).toBeCloseTo(50, 2);
+    expect(sumFor(db, "Test Income", 2029)).toBeCloseTo(0, 2);
+  });
+});

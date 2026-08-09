@@ -498,7 +498,26 @@ function computeModule(module, scenario, df_assumptions, df_categories, categori
             // Base year disposal: base year stays as budget, zero all forecast years
             for (let j = 1; j < yearsCount; j++) series[j] = 0;
           } else {
-            series[dispIdx] = series[dispIdx] / 2;
+            // CR076 D5 — halve the sale year ONCE, and only for streams that are not already
+            // half by construction. Two ways this was over-halving:
+            //
+            //  (a) the CR046 WINDOW may have halved this same index already. The acquisition
+            //      gate 20 lines up guards against exactly that (`!halvedByWindow.has(i)`, with
+            //      a comment saying "that would leave 25%"); this path did not. `Sarasota House`
+            //      carries a 45,000 expense windowed to 2048-07-01 AND a Full disposal on the
+            //      same date, and its 2048 Property Costs came out at 19,368 against an honest
+            //      half-year of 38,736.
+            //
+            //  (b) an MV-DRIVEN stream (yield, a loan's derived interest, `pct_of_value` with a
+            //      base market value) is already halved: the Full-disposal block above sets
+            //      `marketValues[dispIdx] = 0`, and a yield is `avg(mv[i], mv[i-1]) × rate`, so
+            //      the average IS the half-year figure. Halving again leaves a QUARTER year —
+            //      `CVC Fund VIII` paid 2,977.77 EUR in its 2033 sale year against ~6,011.
+            //      This is the same reasoning the ownership gate states for the acquisition side;
+            //      `gateable` is reused so the two sides cannot drift apart.
+            if (gateable && !halvedByWindow.has(dispIdx)) {
+              series[dispIdx] = series[dispIdx] / 2;
+            }
             for (let j = dispIdx + 1; j < yearsCount; j++) series[j] = 0;
           }
         }
