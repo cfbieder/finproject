@@ -8,7 +8,7 @@
 > and it is where stale facts collect. Still over — the next cut should take *Live infrastructure*
 > to a guide, since it changes far less often than anything around it.
 
-**Last updated:** 2026-08-09 · **Live version:** v3.24.0 (see `VERSION` / git tags)
+**Last updated:** 2026-08-09 · **Live version:** v3.25.0 (see `VERSION` / git tags)
 
 ## Current phase
 **The model, since [CR069](../cr/cr-069-forecast-streams.md):** a module is *identity + optional
@@ -30,6 +30,15 @@ decisions**; §14–§18 hold the measurements.
 **2,574,049** · Upside **8,047,180** · SRQ **−596,919**. Owner decisions applied 2026-08-09:
 `Social Security` → **full CPI** (cuts to be modelled separately, not fused into the indexation),
 and `OCME` at −30 confirmed a **deliberate write-off**.
+
+**[CR079](../cr/cr-079-real-terms-view.md) — v3.25.0: the Review can show the plan in TODAY's
+money.** Every figure was nominal and nothing said so — at 2.5%, 2026 → 2062 is a **2.43× factor**,
+so Base's headline **4,674,650 is ≈ 1,921,719** of today's purchasing power. A toggle deflates the
+whole page (all five money paths, the bank series **after** accumulation, the 2025 actual
+**inflated** into base-year money), with a banner and labelled KPIs so a screenshot cannot lie
+about its basis. Resets to nominal each visit; **the Excel export stays nominal always.** Compare
+is not covered yet. Also: `Fixed $` / `One-Off $` now say **which year's money** they are in —
+`Retirement Home`'s 200,000 at 2052 is ~105,000 today, which the toggle now makes checkable.
 
 **[CR078](../cr/cr-078-disposal-selling-costs.md) — v3.24.0, migration 062, DORMANT.** Every
 disposal booked **gross** proceeds — no agent fee, transfer tax or plusvalía anywhere — on
