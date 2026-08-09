@@ -3,12 +3,12 @@
 > The one mandatory read at session start. Keep ≤ ~60 lines; link onward, never restate.
 > CR statuses live in the [CR index](../cr/README.md); the running version lives in `VERSION`.
 > Older headlines: [status log](../archive/status-log_2026-08-01.md).
-> **The budget is load-bearing** (216 → 60 on 2026-08-05; 135 → **86** on 2026-08-09, by lifting
-> the failure table into its own file): overrun = restatement the CR index and roadmap already own,
-> and it is where stale facts collect. Still over — the next cut should take *Live infrastructure*
-> to a guide, since it changes far less often than anything around it.
+> **The budget is load-bearing** (216 → 60 on 2026-08-05; 122 → **94** on 2026-08-09, by lifting
+> the failure table and the infrastructure block into their own files): overrun = restatement the
+> CR index and roadmap already own, and it is where stale facts collect. Each cut has come from
+> MOVING something that changes on a different clock, never from deleting what is true.
 
-**Last updated:** 2026-08-09 · **Live version:** v3.25.0 (see `VERSION` / git tags)
+**Last updated:** 2026-08-09 · **Live version:** v3.25.1 (see `VERSION` / git tags)
 
 ## Current phase
 **The model, since [CR069](../cr/cr-069-forecast-streams.md):** a module is *identity + optional
@@ -20,39 +20,21 @@ valuation + N first-class **streams***. Shipped since 2026-08-05 and not restate
 when the warning's figures change**) · [CR075](../cr/cr-075-base-year-is-the-budget.md) (**year −2
 is ACTUAL, year −1 is the BUDGET**, read from `budget_entries`; one budget ⇒ one base year).
 
-🔴 **[CR076](../cr/cr-076-forecast-model-review.md) — the five-reviewer model review, §8 COMPLETE
+🔴 **[CR076](../cr/cr-076-forecast-model-review.md) — the five-reviewer model review; §8 COMPLETE
 across v3.20.0–v3.22.0.** It corrected **our own published figures** and moved numbers eight times.
-**§1 records what is SOUND and is the larger half** — roll-forward, basis, pro-rata disposals,
-gain-at-disposal, loans, stocks-vs-flows all verified correct. §7 + §11 hold **open owner
-decisions**; §14–§18 hold the measurements.
+**§1 records what is SOUND and is the larger half.** §7 + §11 still hold open owner decisions.
+Shipped since, all detailed in the [CR index](../cr/README.md) and the
+[roadmap](project-roadmap.md): [CR077](../cr/cr-077-assumption-advisor-tab.md) (v3.23.0 — Cash
+Health splits into **Integrity** vs **Assumptions to consider**, counted and dismissed separately)
+· [CR078](../cr/cr-078-disposal-selling-costs.md) (v3.24.0, migration 062 — a per-row selling cost
+off the cash **and** the gain; **DORMANT until a rate is typed**, and that edit needs its own
+measurement) · [CR079](../cr/cr-079-real-terms-view.md) (v3.25.0 — the Review shows the plan in
+**today's money**; the export stays nominal; Compare not yet covered).
 
 **Net assets at 2062 (live):** Base **4,674,650** · Buy Business **9,750,208** · Downside
-**2,574,049** · Upside **8,047,180** · SRQ **−596,919**. Owner decisions applied 2026-08-09:
-`Social Security` → **full CPI** (cuts to be modelled separately, not fused into the indexation),
-and `OCME` at −30 confirmed a **deliberate write-off**.
-
-**[CR079](../cr/cr-079-real-terms-view.md) — v3.25.0: the Review can show the plan in TODAY's
-money.** Every figure was nominal and nothing said so — at 2.5%, 2026 → 2062 is a **2.43× factor**,
-so Base's headline **4,674,650 is ≈ 1,921,719** of today's purchasing power. A toggle deflates the
-whole page (all five money paths, the bank series **after** accumulation, the 2025 actual
-**inflated** into base-year money), with a banner and labelled KPIs so a screenshot cannot lie
-about its basis. Resets to nominal each visit; **the Excel export stays nominal always.** Compare
-is not covered yet. Also: `Fixed $` / `One-Off $` now say **which year's money** they are in —
-`Retirement Home`'s 200,000 at 2052 is ~105,000 today, which the toggle now makes checkable.
-
-**[CR078](../cr/cr-078-disposal-selling-costs.md) — v3.24.0, migration 062, DORMANT.** Every
-disposal booked **gross** proceeds — no agent fee, transfer tax or plusvalía anywhere — on
-5,566,755 of property and 5,445,368 of business sales. A per-ROW `disposal_cost_pct` now comes off
-the cash **and** the taxable gain (a selling cost reduces the amount realized). **NULL ≠ 0**: NULL
-is *not modelled*, 0 is *considered and free*, and every layer preserves the difference. Nothing
-moves until a rate is typed — **that edit needs its own before/after measurement.** Property 3–6%,
-business 1–3%, and CVC's capital returns stay **empty** (distributions, not sales).
-
-**[CR077](../cr/cr-077-assumption-advisor-tab.md) — v3.23.0:** Cash Health is now **two tabs**,
-*Integrity* (a defect to fix) and *Assumptions to consider* (a judgement to record), counted and
-dismissed separately so accepting six assumptions cannot bury one real defect. 4 integrity vs 12
-advisory on Base. Its LLM stage is deliberately deferred: **nothing generated may state a number or
-assert what the engine does.**
+**2,574,049** · Upside **8,047,180** · SRQ **−596,919** — and **≈1,921,719** for Base in 2026
+dollars, which is the gap CR079 exists to show. Owner decisions applied 2026-08-09: `Social
+Security` → **full CPI**, `OCME` at −30 a **deliberate write-off**.
 
 ⚠️ **Eleven number-moving changes in five days**, each measured before/after on a prod copy against
 an engine first proven idempotent, and each matching its prediction. **That gate compares a number
@@ -75,34 +57,24 @@ at session start: the timezone rule (#3), the unannounced red `main` (#12), the 
 spot (#10), dirty-tree deploys (#17). #2 and #15 are CLOSED.
 
 ## Live infrastructure
-- **Dev and prod are the same host** (`192.168.1.87` / Tailscale `100.94.46.62`) — prod
-  `psproject` :3005/:5433 (volume `fin_postgres_data`), dev :3105/:5434, v4 `finv4` :3205/:5435.
-  Prod: `https://fin.tail413695.ts.net`. `bank-feed/` :3007 feeds 28 accounts; ocr-llm gateway
-  `100.66.213.40:8080`. Both are separate repos.
-- Deploy: `./Scripts/deploy-to-production.sh` (DB backup first). Migrations **dev first, through
-  `migrate.js`** — a `psql -f` apply writes no ledger row and is invisible to the guard. Registry:
-  [migrations.md](migrations.md). *A deploy's Step 1 backup predates its Step 2b migration.*
-- **An engine change moves nothing until the scenarios are REGENERATED.** Deploy, then regenerate,
-  then check the fingerprint against the dev measurement.
-- The prod container runs as **root** and writes root-owned audit CSVs, so a host-run generation
-  fails with EACCES — generate through the container.
-- **Gates:** counts live in [test-overview.md](test-overview.md). Lint **blocking** (0 errors) plus
-  six ratchets that may only shrink.
+Moved to [guides/infrastructure.md](../guides/infrastructure.md) — hosts, ports, the deploy script,
+the dev-first migration rule, and the fact that **an engine change moves nothing until the
+scenarios are REGENERATED**. It changes far less often than this file does.
 
 ## Next
 - **Work the 12 advisories** now visible in Cash Health → *Assumptions to consider*. The sub-1
   multipliers (`Purchases` 0.5 · `Travel` 0.8 · `Total Salary` 0.8 · `Car Expenses` 0.9) have **no
   external benchmark** — unlike Social Security, a household may genuinely spend less in real terms
   with age — so each is a belief to state or dismiss, not a defect to fix.
-- **Selling costs on disposals** — the largest remaining §7 item and the only one that changes a
-  real number: the base year alone books **1,239,753 of GROSS property proceeds** straight into the
-  sweep's opening cash, with no agent fee, transfer tax or plusvalía anywhere in the model. One
-  `disposal_cost_pct` per disposal row, off proceeds **and** off the gain. CR-sized (schema + form +
-  engine + a measured gate).
-- **CR076 §7 remainder** — price idle cash (two scenario scalars); loss carry-forward (tax rules the
-  owner would maintain; same-year netting already covers the live case); and confirm whether
-  `Social Security`'s 20,000 `Fixed $` was meant as **2035 dollars** (~13,300 today) — the money
-  basis of `Fixed $` / `One-Off $` is a live ambiguity, not just that one row.
+- **Type the selling-cost rates** — [CR078](../cr/cr-078-disposal-selling-costs.md) shipped the
+  capability **dormant**; it is worth nothing until a rate exists. Property 3–6%, business 1–3%,
+  and CVC's capital returns stay **empty**. That edit MOVES NUMBERS and needs its own measurement.
+- **`Retirement Home`'s 200,000 at 2052** — a `Fixed $` row is in the money of its own year, so it
+  is ~105,000 today. CR079's toggle now makes that checkable by eye rather than by arithmetic.
+- **CR076 §7 remainder** — price idle cash (two scenario scalars); loss carry-forward (tax rules
+  the owner would maintain; same-year netting already covers the live case).
+- **Real terms on Compare** — CR079's natural next increment, and the smaller half: one
+  `buildScenarioMatrix` path rather than the Review's four.
 - **CR077's LLM stage** — only over the deterministic rules, never instead of them.
 - **Owner QA of the P&L module inputs** — CR076 §5 and §7 are the agenda.
 - **[CR066](../cr/cr-066-fc-line-mapping-completeness.md) P0** · **CR064 P2/P4/P5/P10** ·

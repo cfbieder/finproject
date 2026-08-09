@@ -1,7 +1,11 @@
 # CR076 — The forecast model review, and the figures it corrected
 
-**Status:** IN-PROGRESS — **§8 steps 1–3 SHIPPED in v3.20.0 (2026-08-09)** *(⚠️ MOVES NUMBERS; no
-migration)*; steps 4–6 open. The §2 documentation correction is applied.
+**Status:** IN-PROGRESS — **§8 is COMPLETE**, shipped across **v3.20.0 → v3.22.0** *(⚠️ each step
+MOVED NUMBERS and each was measured individually; no migration)*. §11 (the growth hint + R10) and
+§21 (the `Fixed $` money basis) also shipped, in v3.21.0 and v3.25.0. **Still open:** §7's
+remaining owner decisions — price idle cash, loss carry-forward — and the sub-1 stream multipliers
+in §11. Two §7 items became their own CRs: selling costs → [CR078](cr-078-disposal-selling-costs.md),
+nominal-vs-real → [CR079](cr-079-real-terms-view.md).
 **Track:** v3
 **Origin:** owner, 2026-08-09 — *"Use a team of agents including the financial_software_expert to review
 the Forecast Model, run test scenarios and provide recommendations for improvement or highlight errors."*

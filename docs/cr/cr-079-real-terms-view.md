@@ -1,8 +1,9 @@
 # CR079 — The plan in today's money
 
-**Status:** BUILT — increments 1 and 2 complete on the Review, awaiting release. No migration;
-**no forecast number moves** — a display transform over data already loaded. Compare and the Home
-hero are not covered (owner decision, §5).
+**Status:** SHIPPED **v3.25.0 (2026-08-09)** — increments 1 and 2, on the Review. No migration;
+**no forecast number moves** — a display transform over data already loaded, and the release
+verified prod's entries fingerprint **unchanged**. **Open:** Compare and the Home hero are not
+covered (owner decision, §5); Compare is the natural next increment and is the smaller half.
 **Track:** v3
 **Origin:** [CR076 §7 Q3](cr-076-forecast-model-review.md) — *"Everything is nominal and nothing
 says so… For a plan whose whole point is a 2062 number, this is the highest-value output
