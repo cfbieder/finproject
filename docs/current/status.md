@@ -31,17 +31,14 @@ off the cash **and** the gain; **DORMANT until a rate is typed**, and that edit 
 measurement) · [CR079](../cr/cr-079-real-terms-view.md) (v3.25.0 — the Review shows the plan in
 **today's money**; the export stays nominal; Compare not yet covered).
 
-**Net assets at 2062 (live):** Base **4,674,650** · Buy Business **9,750,208** · Downside
-**2,574,049** · Upside **8,047,180** · SRQ **−596,919** — and **≈1,921,719** for Base in 2026
-dollars, which is the gap CR079 exists to show. Owner decisions applied 2026-08-09: `Social
-Security` → **full CPI**, `OCME` at −30 a **deliberate write-off**.
+**Net assets at 2062 (live, post-selling-costs):** Base **4,071,160** · Buy Business **9,102,335**
+· Downside **1,893,368** · Upside **7,404,138** · SRQ **−1,392,889**. Owner decisions applied
+2026-08-09: selling costs by jurisdiction (**US 7 · Spain 6 · Poland 4 · business 2%**, CVC capital
+returns exempt — **−603K to −796K per scenario**, the plan had been keeping 100% of every sale);
+`Social Security` → **full CPI**; `OCME` at −30 a **deliberate write-off**.
 
-⚠️ **Eleven number-moving changes in five days**, each measured before/after on a prod copy against
-an engine first proven idempotent, and each matching its prediction. **That gate compares a number
-to itself, so it catches a *changed* number and never a *wrongly-derived* one** — which is exactly
-how five published figures stayed wrong through it (CR076 §2). **Cheapest complementary check: the
-Review's bank line must sit on the sweep's band.** Engine and app derive cash differently, and that
-one number caught two separate divergences (CR076 §14, §18).
+⚠️ **SRQ is now nearly −1.4M** — the selling costs cost it most precisely because it was already in
+shortfall, so cash it never receives is cash the sweep cannot use.
 
 ### The recurring failure
 **[failure-patterns.md](failure-patterns.md) is the canonical list** — seven shapes, each found
