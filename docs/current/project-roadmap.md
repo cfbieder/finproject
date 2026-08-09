@@ -10,6 +10,17 @@ Living plan for the Fin project — open Change Requests, known issues, ongoing 
 
 ### 1.1 Open / In-Progress
 
+<a id="cr078"></a>
+- **CR078 — Selling costs on a disposal. PROPOSED, needs §6 decisions first.** Full detail:
+  [CR078](../cr/cr-078-disposal-selling-costs.md). Every disposal books **gross** proceeds: no
+  agent fee, transfer tax, legal or broker cost anywhere in the model. Property sales total
+  **5,566,755** on Base (3–6% = 167K–334K) and business sales **5,445,368** (1–3% = 54K–163K).
+  **The base year matters most** — its 1,239,753 folds into the sweep's opening cash, which is
+  pinned every year, so the error rides the whole horizon (CR049 §1). **Per-ROW**, because
+  `CVC`'s 2,033,048 of capital returns must stay at zero while a property sale carries 3–6%.
+  The cost comes off cash **and** off the gain — netting only the first would tax money never
+  received. **§6 has four questions to settle before code**, chiefly netted-silently vs shown.
+
 <a id="cr077"></a>
 - **CR077 — Cash Health panel: integrity vs. assumption advice. PROPOSED, not started.** Full
   detail: [CR077](../cr/cr-077-assumption-advisor-tab.md). Owner-requested 2026-08-09 and
