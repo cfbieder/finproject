@@ -14,6 +14,7 @@ import Rest from "../../../js/rest.js";
  */
 export function useScenarios() {
   const [scenarios, setScenarios] = useState([]);
+  const [inflationRows, setInflationRows] = useState([]);
   const [selectedScenario, setSelectedScenario] = useState("");
   const [loadError, setLoadError] = useState("");
   const [isLoading, setIsLoading] = useState(false);
@@ -30,6 +31,11 @@ export function useScenarios() {
       const response = await Rest.fetchJson("/api/v2/forecast/assumptions");
       const list = response?.scenarios || [];
       setScenarios(list);
+      // CR079 — the same document already carries the inflation rows, and the real-terms view
+      // needs them. Kept rather than re-fetched: a second read could resolve a different series
+      // from the one the scenarios came from, and a deflator that disagrees with the numbers it
+      // deflates is the failure this whole feature exists to remove.
+      setInflationRows(Array.isArray(response?.inflation) ? response.inflation : []);
 
       setSelectedScenario((current) => {
         // Keep current selection if already set
@@ -61,6 +67,7 @@ export function useScenarios() {
 
   return {
     scenarios,
+    inflationRows,   // CR079 — for the real-terms deflator
     selectedScenario,
     setSelectedScenario,
     isLoading,

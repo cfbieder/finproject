@@ -53,7 +53,7 @@ Naming: Vitest convention `*.test.{js,jsx}` under `__tests__/`. `npm run test:wa
 
 ### Playwright e2e — `./Scripts/e2e.sh`
 
-**8 tests across 4 spec files, 0 skipped** (since 2026-08-05). The script stands up a throwaway
+**9 tests across 5 spec files, 0 skipped** (2026-08-09 — `real-terms.spec.js` added by CR079). The script stands up a throwaway
 Postgres, applies the whole migration chain, seeds
 [`server/db/e2e-seed.sql`](../../server/db/e2e-seed.sql), starts the API, builds and serves the real
 bundle, then runs the specs — so it tests the built frontend against a real database, not mocks.

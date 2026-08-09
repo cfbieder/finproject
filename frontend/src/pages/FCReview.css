@@ -1,0 +1,33 @@
+
+/* ── CR079 — the real-terms control and its banner ────────────────────────────
+   The banner sits WITH the numbers rather than only on the control, because a
+   screenshot crops to the figures and a state that changes what money means has
+   to declare itself where it is read. */
+.fc-review__real-terms {
+  display: flex;
+  align-items: center;
+  gap: var(--space-md);
+  flex-wrap: wrap;
+  margin-bottom: var(--space-sm);
+}
+
+.fc-review__real-terms-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  font-size: 0.8rem;
+  font-weight: 600;
+  color: var(--muted);
+  cursor: pointer;
+}
+
+.fc-review__real-terms-toggle:hover { color: var(--ink); }
+
+.fc-review__real-terms-banner {
+  padding: 0.2rem 0.6rem;
+  border-radius: var(--radius-sm);
+  background: var(--surface-muted);
+  border: 1px solid var(--border);
+  font-size: 0.78rem;
+  color: var(--ink);
+}

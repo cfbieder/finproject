@@ -1,8 +1,8 @@
 # CR079 — The plan in today's money
 
-**Status:** IN-PROGRESS — **increment 1 (the deflator core) BUILT and tested**; the wiring is
-increment 2 and is deliberately NOT started. No migration; **no forecast number moves** — a display
-transform over data already loaded.
+**Status:** BUILT — increments 1 and 2 complete on the Review, awaiting release. No migration;
+**no forecast number moves** — a display transform over data already loaded. Compare and the Home
+hero are not covered (owner decision, §5).
 **Track:** v3
 **Origin:** [CR076 §7 Q3](cr-076-forecast-model-review.md) — *"Everything is nominal and nothing
 says so… For a plan whose whole point is a 2062 number, this is the highest-value output
@@ -91,3 +91,70 @@ page actually renders.
    nominal figures are what tie to the exported spreadsheet.
 4. **Excel export** — nominal only, or follow the toggle? Nominal only is safer; an exported file
    loses the banner that says which basis it is in.
+
+
+---
+
+## 5. Owner decisions, 2026-08-09
+
+Taken one at a time before any wiring, because each changed the shape of the next:
+
+| | decision |
+|---|---|
+| scope | **Review only.** It carries all four money paths, so doing it completely there proves the approach on the hardest surface. Compare reaches its numbers through a separate path (`buildScenarioMatrix`) and would have doubled the area a partial application could hide in. |
+| labelling | **Banner + labelled KPIs.** A screenshot crops to the figures, not the control. |
+| persistence | **Resets to nominal every visit.** Nominal is the basis the export, the audit CSVs and every figure in the docs speak, so the page agrees with its surroundings by default. |
+| export | **Always nominal.** An exported file loses the banner, and money with no stated basis is the failure this whole review has been removing. |
+
+## 6. Increment 2 — built
+
+### Wired at the prop boundary, not inside the table
+
+All five money paths are deflated where they are handed to `FCReviewTable`, so `FCReviewTable`
+itself is untouched. Each deflated view is derived from its **nominal** memo and never chained off
+another, so nothing can be deflated twice.
+
+| path | treatment |
+|---|---|
+| `getCellValue` | wrapped — table cells and forecast-year P&L |
+| `balanceDisplayValues` | deflated **per year after accumulation** — the running bank balance |
+| `totalAssets` / `totalLiabilities` / `netAssets` / KPIs | deflated from the nominal series |
+| `baseActualTotalsByYear` | the 2025 actual column, **inflated** into base-year money |
+| `baseYearBudget` | **untouched** — its factor is exactly 1 |
+
+The bank series is the one that had to be got right: it *accumulates*, so deflating during
+accumulation would divide each year's addition by a different factor and produce a balance that is
+nobody's money. It is deflated once, after.
+
+### ⚠️ A naming trap, avoided rather than hit
+
+`FCReview` already has a `baseYear`, and it is **`sortedYears[0]` = PeriodStart − 2** — the last
+ACTUAL year — while `baseYears` (plural) holds PeriodStart − 1. Anchoring the deflator on the
+obvious-looking variable would have deflated to **2025** money and labelled it 2026: R7's shape
+exactly, a value taken from a variable whose name is not what it holds. The anchor is written as
+`periodStart − 1` explicitly, with the reason recorded at the line.
+
+### The browser check, which is why this was not shipped on unit tests alone
+
+`real-terms.spec.js` asserts what jsdom cannot see: with the toggle on, a real money cell in the
+rendered table **changes**, the banner declaring the basis **is visible with the numbers**, and
+unchecking returns the cell to its original string. A page showing some rows in today's money and
+some in 2062 money would look entirely normal — both are money — so "it renders" is not the
+assertion; "it changes, says so, and comes back" is.
+
+The first run **skipped**, because the Review is empty until the engine has run and the toggle
+needs real years to build a deflator over. That is the graceful-degradation path working, and it
+would have read as a pass on a less explicit spec.
+
+### One more thing the tests could not see
+
+`FCReview.css` did not exist — the page imports `PageLayout.css` only — so the new stylesheet was
+**orphaned**: never imported, never loaded. Every gate passed anyway, including the browser check,
+because they all assert behaviour and text rather than appearance. Caught by reading the staged
+file list and noticing the file was **added** rather than modified.
+
+Worth recording as its own small pattern: *a new stylesheet is not wired by existing.* The e2e
+suite deliberately asserts values rather than styling ([test-overview](../current/test-overview.md)),
+which is the right trade — but it means CSS arrives unverified and has to be checked another way.
+
+**Gate:** 491 frontend · **9/9 e2e** (one new) · lint 0 errors · six ratchets · no migration.

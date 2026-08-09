@@ -41,12 +41,14 @@ import { KpiCard, KpiCardRow } from "../components/KpiCards.jsx";
 import FCReviewWarnings from "../features/Forecast/FCReviewWarnings.jsx";
 import FCAutoAdjustModal from "../features/Forecast/FCAutoAdjustModal.jsx";
 import { computeForecastWarnings } from "../features/Forecast/utils/fcWarnings.js";
+import { buildDeflators, toRealTerms } from "../features/Forecast/utils/fcRealTerms.js";
 import { buildBreakdownSeries } from "../features/Forecast/utils/fcBreakdown.js";
 import { resolveCashValue } from "../features/Forecast/utils/fcCashValue.js";
 import { TrendingUp, TrendingDown, DollarSign, Landmark } from "lucide-react";
 import Rest from "../js/rest.js";
 import FCStepNav from "../features/Forecast/FCStepNav.jsx";
 import "./PageLayout.css";
+import "./FCReview.css";   // CR079 — the real-terms control and banner
 
 const GRAPH_COLORS = [
   "#6B8E6B",
@@ -82,6 +84,7 @@ export default function FCReview() {
     scenarios,
     selectedScenario,
     setSelectedScenario,
+    inflationRows,               // CR079 — the real-terms deflator
     isLoading: scenariosLoading,
     loadError: scenariosError,
     reload: reloadScenarios,
@@ -395,6 +398,44 @@ export default function FCReview() {
   }, [years, periodStart]);
 
   const baseYear = sortedYears[0];
+
+  // ── CR079 — the plan in today's money ──────────────────────────────────────
+  //
+  // Every figure here is NOMINAL and nothing said so: at 2.5%, 2026 → 2062 is a 2.43× factor, so
+  // Base's headline 4,674,650 is about 1,921,719 of today's purchasing power.
+  //
+  // Resets to nominal on every visit BY DESIGN (owner decision): nominal is the basis the Excel
+  // export, the audit CSVs and every figure in the docs speak, so the page agrees with its
+  // surroundings by default and switching is a deliberate act of asking a different question.
+  const [showRealTerms, setShowRealTerms] = useState(false);
+
+  // Anchored on PeriodStart − 1, the BUDGET year — what the owner means by "today".
+  //
+  // NOT `baseYear` above, which despite its name is `sortedYears[0]` = PeriodStart − **2**, the
+  // last ACTUAL year. Using it would silently deflate to 2025 money and label it 2026 — the same
+  // shape as R7, a value taken from a variable whose name is not what it holds.
+  const realTermsAnchor = periodStart ? Number(periodStart) - 1 : null;
+  const deflators = useMemo(
+    () => buildDeflators({
+      inflationRows: inflationRows,
+      scenarioName: selectedScenario,
+      baseYear: realTermsAnchor,
+      years: sortedYears,
+    }),
+    [inflationRows, selectedScenario, realTermsAnchor, sortedYears]
+  );
+  // Null unless the toggle is on AND the scenario actually declares inflation — a scenario with
+  // none disables the control rather than rendering a deflator of 1.0, which would claim nominal
+  // and real are the same thing (the display-side twin of CR076 D7).
+  const deflating = showRealTerms && deflators ? deflators : null;
+
+  /** One nominal series → base-year money, aligned to `sortedYears`. */
+  const deflateSeries = useCallback(
+    (arr) => (deflating && Array.isArray(arr)
+      ? arr.map((v, i) => toRealTerms(v, sortedYears[i], deflating))
+      : arr),
+    [deflating, sortedYears]
+  );
 
   const balanceLevel1Labels = useMemo(
     () =>
@@ -813,6 +854,55 @@ export default function FCReview() {
    * Subtracting it added the debt to net assets instead. `useOverview.js` and CR062's
    * `equity.js` already read the convention this way; Review and Compare did not.
    */
+  // ── CR079 — the deflated views the table actually renders ──────────────────
+  //
+  // Derived from the NOMINAL memos, never chained off each other, so nothing can be deflated
+  // twice. Each is a pass-through when the toggle is off.
+  //
+  // The bank series is the subtle one: `balanceDisplayValues` ACCUMULATES a running balance, so
+  // it must be deflated per year AFTER accumulation — deflating during would divide each year's
+  // addition by a different factor and produce a balance that is not any year's money.
+  const displayGetCellValue = useCallback(
+    (row, year, isCashSection) => {
+      const value = getCellValue(row, year, isCashSection);
+      return deflating ? toRealTerms(value, year, deflating) : value;
+    },
+    [getCellValue, deflating]
+  );
+
+  const displayBalanceValues = useMemo(() => {
+    if (!deflating) return balanceDisplayValues;
+    const out = new Map();
+    for (const [label, series] of balanceDisplayValues) {
+      out.set(label, series.map((v, i) => toRealTerms(v, sortedYears[i], deflating)));
+    }
+    return out;
+  }, [balanceDisplayValues, deflating, sortedYears]);
+
+  // The LAST-ACTUAL column (PeriodStart − 2). Its deflator is BELOW 1, so this INFLATES a 2025
+  // actual into 2026 money — which is the point: a page headed "in 2026 dollars" must not leave
+  // one column in 2025 money. The BUDGET year needs no treatment at all; its factor is exactly 1,
+  // which is why `baseYearBudget` is passed through untouched.
+  const displayBaseActualTotals = useMemo(() => {
+    if (!deflating) return baseActualTotalsByYear;
+    const out = new Map();
+    for (const [year, totals] of baseActualTotalsByYear) {
+      const scale = (m) => {
+        if (!(m instanceof Map)) return m;
+        const next = new Map();
+        for (const [k, v] of m) next.set(k, toRealTerms(v, year, deflating));
+        return next;
+      };
+      out.set(year, {
+        ...totals,
+        level1: scale(totals?.level1),
+        level2: scale(totals?.level2),
+        net: toRealTerms(totals?.net, year, deflating),
+      });
+    }
+    return out;
+  }, [baseActualTotalsByYear, deflating]);
+
   const netAssetsByYear = useMemo(() => {
     return sortedYears.map((_, index) => {
       return (totalAssetsByYear[index] || 0) + (totalLiabilitiesByYear[index] || 0);
@@ -913,20 +1003,21 @@ export default function FCReview() {
     // Helper: get income/expense/net for each year
     const incomeByYear = sortedYears.map((year) => {
       const row = { label: "Income", level: 1 };
-      return { value: getCellValue(row, year, true) ?? 0 };
+      return { value: displayGetCellValue(row, year, true) ?? 0 };
     });
 
     const expenseByYear = sortedYears.map((year) => {
       const row = { label: "Expense", level: 1 };
-      return { value: getCellValue(row, year, true) ?? 0 };
+      return { value: displayGetCellValue(row, year, true) ?? 0 };
     });
 
     const netCashFlowByYear = sortedYears.map((year) => {
       const row = { isNet: true };
-      return { value: getCellValue(row, year, true) ?? 0 };
+      return { value: displayGetCellValue(row, year, true) ?? 0 };
     });
 
-    const totalAssetsByYearChart = totalAssetsByYear.map((v) => ({
+    // CR079 — the DEFLATED totals, so the KPI row can never disagree with the table below it.
+    const totalAssetsByYearChart = deflateSeries(totalAssetsByYear).map((v) => ({
       value: Number.isFinite(v) ? v : 0,
     }));
 
@@ -949,7 +1040,7 @@ export default function FCReview() {
       lastYearLabel: sortedYears[lastYear],
       prevYearLabel: sortedYears[prevYear],
     };
-  }, [sortedYears, entries, baseActualTotalsByYear, getCellValue, totalAssetsByYear]);
+  }, [sortedYears, entries, baseActualTotalsByYear, displayGetCellValue, totalAssetsByYear, deflateSeries]);
 
   // =============================================================================
   // COMPUTED VALUES - Cash health warnings (CR045)
@@ -1724,10 +1815,33 @@ export default function FCReview() {
           onCashSweepClick={handleCashSweepClick}
           cashSweepDisabled={!selectedScenario}
         />
+        {/* CR079 — the real-terms control, and the banner that stops the state being misread.
+            A toggle that can be left on is a toggle that gets screenshotted in the wrong state,
+            so the BASIS is declared where the numbers are, not only where it is set — the same
+            reasoning as CR074's "dismissed is never invisible". Disabled when the scenario
+            declares no inflation, because then there is no honest deflator to apply. */}
+        {deflators && (
+          <div className="fc-review__real-terms">
+            <label className="fc-review__real-terms-toggle">
+              <input
+                type="checkbox"
+                checked={showRealTerms}
+                onChange={(e) => setShowRealTerms(e.target.checked)}
+              />
+              <span>Show in {realTermsAnchor} dollars</span>
+            </label>
+            {showRealTerms && (
+              <span className="fc-review__real-terms-banner">
+                All figures on this page are in <b>{realTermsAnchor} dollars</b> — deflated by the
+                scenario&apos;s own inflation. The Excel export stays nominal.
+              </span>
+            )}
+          </div>
+        )}
         {kpiValues && (
           <KpiCardRow>
             <KpiCard
-              title="Total Assets"
+              title={showRealTerms ? "Total Assets · " + realTermsAnchor + "$" : "Total Assets"}
               value={kpiValues.assetsLatest}
               icon={<Landmark size={16} />}
               changeValue={kpiValues.assetsChange}
@@ -1738,7 +1852,7 @@ export default function FCReview() {
               chartColor="#567856"
             />
             <KpiCard
-              title="Net Cash Flow"
+              title={showRealTerms ? "Net Cash Flow · " + realTermsAnchor + "$" : "Net Cash Flow"}
               value={kpiValues.netLatest}
               icon={<DollarSign size={16} />}
               changeValue={kpiValues.netChange}
@@ -1749,7 +1863,7 @@ export default function FCReview() {
               chartColor="#5B8C5B"
             />
             <KpiCard
-              title="Income"
+              title={showRealTerms ? "Income · " + realTermsAnchor + "$" : "Income"}
               value={kpiValues.incomeLatest}
               icon={<TrendingUp size={16} />}
               changeValue={kpiValues.incomeChange}
@@ -1760,7 +1874,7 @@ export default function FCReview() {
               chartColor="#059669"
             />
             <KpiCard
-              title="Expenses"
+              title={showRealTerms ? "Expenses · " + realTermsAnchor + "$" : "Expenses"}
               value={kpiValues.expenseLatest}
               icon={<TrendingDown size={16} />}
               changeValue={kpiValues.expenseChange}
@@ -1786,7 +1900,7 @@ export default function FCReview() {
           lastActualYears={lastActualYears}
           birthYear={birthYear}
           baseYearBudget={baseYearValues}
-          baseActualTotalsByYear={baseActualTotalsByYear}
+          baseActualTotalsByYear={displayBaseActualTotals}
           categoryToLineMap={categoryToLineMap}
           cashAccountMap={cashAccountMap}
           periodStart={periodStart}
@@ -1803,13 +1917,13 @@ export default function FCReview() {
           balanceAccounts={balanceAccounts}
           cashRowsWithNet={cashRowsWithNet}
           transferDetailRows={transferDetailRows}
-          getCellValue={getCellValue}
-          balanceDisplayValues={balanceDisplayValues}
+          getCellValue={displayGetCellValue}
+          balanceDisplayValues={displayBalanceValues}
           balanceAccountMap={balanceAccountMap}
           bankAccountLabels={bankAccountLabels}
-          totalAssetsByYear={totalAssetsByYear}
-          totalLiabilitiesByYear={totalLiabilitiesByYear}
-          netAssetsByYear={netAssetsByYear}
+          totalAssetsByYear={deflateSeries(totalAssetsByYear)}
+          totalLiabilitiesByYear={deflateSeries(totalLiabilitiesByYear)}
+          netAssetsByYear={deflateSeries(netAssetsByYear)}
           onNetAssetsDoubleClick={handleNetAssetsDoubleClick}
           onCellDoubleClick={handleCellDoubleClick}
           onCashTransferClick={handleCashTransferClick}
