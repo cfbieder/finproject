@@ -8,7 +8,7 @@
 > and it is where stale facts collect. Still over — the next cut should take *Live infrastructure*
 > to a guide, since it changes far less often than anything around it.
 
-**Last updated:** 2026-08-09 · **Live version:** v3.22.0 (see `VERSION` / git tags)
+**Last updated:** 2026-08-09 · **Live version:** v3.23.0 (see `VERSION` / git tags)
 
 ## Current phase
 **The model, since [CR069](../cr/cr-069-forecast-streams.md):** a module is *identity + optional
@@ -26,8 +26,16 @@ across v3.20.0–v3.22.0.** It corrected **our own published figures** and moved
 gain-at-disposal, loans, stocks-vs-flows all verified correct. §7 + §11 hold **open owner
 decisions**; §14–§18 hold the measurements.
 
-**Net assets at 2062 (v3.22.0):** Base **4,571,404** · Buy Business **9,647,452** · Downside
-**2,442,858** · Upside **7,942,686** · SRQ **−678,505**.
+**Net assets at 2062 (live):** Base **4,674,650** · Buy Business **9,750,208** · Downside
+**2,574,049** · Upside **8,047,180** · SRQ **−596,919**. Owner decisions applied 2026-08-09:
+`Social Security` → **full CPI** (cuts to be modelled separately, not fused into the indexation),
+and `OCME` at −30 confirmed a **deliberate write-off**.
+
+**[CR077](../cr/cr-077-assumption-advisor-tab.md) — v3.23.0:** Cash Health is now **two tabs**,
+*Integrity* (a defect to fix) and *Assumptions to consider* (a judgement to record), counted and
+dismissed separately so accepting six assumptions cannot bury one real defect. 4 integrity vs 12
+advisory on Base. Its LLM stage is deliberately deferred: **nothing generated may state a number or
+assert what the engine does.**
 
 ⚠️ **Eleven number-moving changes in five days**, each measured before/after on a prod copy against
 an engine first proven idempotent, and each matching its prediction. **That gate compares a number
@@ -65,11 +73,20 @@ spot (#10), dirty-tree deploys (#17). #2 and #15 are CLOSED.
   six ratchets that may only shrink.
 
 ## Next
-- **[CR077](../cr/cr-077-assumption-advisor-tab.md) — UNBLOCKED** (its prerequisite was CR076 §8):
-  split Cash Health into **integrity** vs **assumptions to consider**.
-- **CR076 §7 + §11 owner decisions** — `Social Security` at 0.25 × inflation against a statutory
-  full-CPI COLA is the one to answer first, and it should precede CR077 since tab (b) is built to
-  surface exactly that. Then: price idle cash, selling costs on disposals, loss carry-forward.
+- **Work the 12 advisories** now visible in Cash Health → *Assumptions to consider*. The sub-1
+  multipliers (`Purchases` 0.5 · `Travel` 0.8 · `Total Salary` 0.8 · `Car Expenses` 0.9) have **no
+  external benchmark** — unlike Social Security, a household may genuinely spend less in real terms
+  with age — so each is a belief to state or dismiss, not a defect to fix.
+- **Selling costs on disposals** — the largest remaining §7 item and the only one that changes a
+  real number: the base year alone books **1,239,753 of GROSS property proceeds** straight into the
+  sweep's opening cash, with no agent fee, transfer tax or plusvalía anywhere in the model. One
+  `disposal_cost_pct` per disposal row, off proceeds **and** off the gain. CR-sized (schema + form +
+  engine + a measured gate).
+- **CR076 §7 remainder** — price idle cash (two scenario scalars); loss carry-forward (tax rules the
+  owner would maintain; same-year netting already covers the live case); and confirm whether
+  `Social Security`'s 20,000 `Fixed $` was meant as **2035 dollars** (~13,300 today) — the money
+  basis of `Fixed $` / `One-Off $` is a live ambiguity, not just that one row.
+- **CR077's LLM stage** — only over the deterministic rules, never instead of them.
 - **Owner QA of the P&L module inputs** — CR076 §5 and §7 are the agenda.
 - **[CR066](../cr/cr-066-fc-line-mapping-completeness.md) P0** · **CR064 P2/P4/P5/P10** ·
   **CR059 P3a** → P4 cutover, then CR060's recon page.

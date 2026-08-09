@@ -1,8 +1,9 @@
 # CR077 — Splitting the Cash Health panel: integrity vs. assumption advice
 
-**Status:** IN-PROGRESS — **increment 1 BUILT** (§7), awaiting release. No migration; **no
-forecast number moves** — this is a reading surface over the existing derivation. Its prerequisite
-(CR076 §8 step 6) is complete.
+**Status:** IN-PROGRESS — **increment 1 SHIPPED in v3.23.0 (2026-08-09)**; the LLM stage (§4) and
+§5's open questions remain. No migration; **no forecast number moves** — a reading surface over the
+existing derivation, and the only release in this sequence that needed no regenerate. Its
+prerequisite (CR076 §8 step 6) is complete.
 **Track:** v3
 **Origin:** owner, 2026-08-09 — *"can we split the comments section on the forecast page into two
 tabs (a) the types of warnings we show not related to model integrity and (b) a new 2nd tab with
