@@ -248,7 +248,8 @@ opposite things share the word "growth".
 2. ✅ **D1**, then **R7 / W2 / R5** copy. One line and three sentences. *(v3.20.0)*
 3. ✅ **Rewrite the sweep CSV after convergence.** An explanation contradicting the warning beside
    it is worse than either alone. *(v3.20.0)*
-4. **§5's growth hint**, then revisit the 70 multipliers with the owner.
+4. ✅ **§5's growth hint** + **R10**, an outlier guard. *(step 4, below)* — the multipliers
+   themselves are now an owner question, stated in §11.
 5. **D7 / D8** — fail loud on a missing inflation row; honour a PeriodStart−1 assumption.
 6. **D2, D3, D4, D5, D6** — each moves numbers and needs CR075's before/after gate on an engine
    first proven idempotent. Not more than one at a time.
@@ -320,3 +321,60 @@ D3, D4 and D5 are recorded from worked arithmetic against the audit CSVs and sto
 were **not** independently re-derived here — they are the three to re-check before acting.
 No page was driven in a browser; §2's figures come from the app's own exported functions against
 the live API, which is the same code path but not the same as a screenshot.
+
+---
+
+## 11. Step 4 — the growth hint, R10, and the question it leaves the owner
+
+### The hint said the opposite of the arithmetic
+
+`FCModulesStreams.jsx` read *"Blank = 1 = inflation. 0 = flat in today's money."* The engine is
+`pct[i] = inflation × mult`, compounded on the prior level — so **1** is what holds its value in
+today's money and **0** freezes the *cash* amount, shedding ~2.5%/yr in real terms. Both clauses
+were backwards. It now reads:
+
+> Blank = 1 = keeps pace with inflation, so it holds its value in today's money. 0 = the same cash
+> every year, which buys less each year. 0.5 = rises at half inflation, so it still shrinks in real
+> terms.
+
+The third clause is the one that matters, because sub-1 is where the live data sits.
+
+### R10 — a multiplier that reads like a typed percentage
+
+`growth_rate` is a multiplier of inflation, and nothing checked its magnitude. Prod's real
+distribution across valuation modules:
+
+| growth_rate | modules | |
+|---:|---:|---|
+| −20 | 5 | **`OCME Sp. z o.o.` — a 13× outlier, read as −50%/yr** |
+| −1 … 1.5 | 105 | everything else |
+
+`OCME` decays 56,500 PLN to 113 by 2032 and nothing said so. The only plausible reading is a
+percentage typed into a multiplier box. R10 fires at `|growth_rate| ≥ 5` — set well clear of 1.5,
+the largest value legitimately in use, so it cannot fire on a real choice while still catching a
+two-digit typo. **Verified against prod: exactly 5 firings (`OCME`, once per scenario), 105 modules
+silent.** A flow module is exempt: it has no valuation to grow.
+
+### ⚠️ Open for the owner — the multipliers were chosen against the wrong hint
+
+The hint is fixed; the numbers entered while it was wrong are not. Every amount stream on Base:
+
+| multiplier | streams | what it now means |
+|---:|---:|---|
+| blank (= 1) | 8 | tracks inflation |
+| 0.0 | 1 | `Tax` — deliberate, the stream ends at 2027 anyway |
+| **0.25** | 1 | **`Social Security`** — 0.625%/yr against a statutory full-CPI COLA |
+| **0.5** | 1 | **`Purchases`** — sheds ~36% of purchasing power by 2062 |
+| **0.8** | 2 | `Total Salary`, `Travel` — ~17% |
+| **0.9** | 2 | `Car Expenses`, `New Business` |
+| 1.0 | 6 | tracks inflation |
+| 1.1 | 1 | `Healthcare` — above inflation, which is the conventional assumption |
+
+`Healthcare` at 1.1 and `Tax` at 0 look deliberate. **`Social Security` at 0.25 is the one to check
+first** — statutory COLA is full CPI, so 0.25 is hard to justify as an assumption and easy to
+explain as "0.25 read as *a quarter of the way to inflation-proof*" under the old wording. The
+sub-1 expense multipliers are defensible as a real-terms belief that spending falls with age, but
+they should be a stated belief rather than a side-effect of the label.
+
+This is a data question, not a code one: changing any of them **moves numbers** and needs the §8
+step 6 gate.

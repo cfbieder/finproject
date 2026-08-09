@@ -380,6 +380,30 @@ describe("CR071 — module integrity warnings", () => {
     expect(withStart.map((w) => w.id)).not.toContain("disposal-before-start-Tax Liabilities");
   });
 
+  // CR076 §5 — `growth_rate` is a MULTIPLIER of inflation, so −20 is −50%/yr at a 2.5%
+  // assumption, not −20%/yr. The values below are prod's real distribution: every module sits
+  // in [−1, 1.5] except `OCME Sp. z o.o.` at −20, which decays 56,500 PLN to 113 by 2032 with
+  // nothing reporting it.
+  it("R10 — flags a growth multiplier that reads like a typed percentage", () => {
+    const ocme = mod({ Name: "OCME Sp. z o.o.", Growth: -20 });
+    const w = computeModuleIntegrityWarnings([ocme], { periodStart: 2027 })
+      .find((x) => x.id === "growth-multiplier-outlier-OCME Sp. z o.o.");
+    expect(w).toBeTruthy();
+    expect(w.severity).toBe("warning");
+    expect(w.detail).toMatch(/MULTIPLIER of inflation/);
+  });
+
+  it("R10 — stays silent on every multiplier the owner actually uses", () => {
+    // The whole live range, so a widened threshold cannot start firing on real choices.
+    for (const g of [-1, 0, 0.25, 0.5, 0.8, 0.85, 1, 1.5]) {
+      expect(ids([mod({ Name: `M${g}`, Growth: g })], 2027))
+        .not.toContain(`growth-multiplier-outlier-M${g}`);
+    }
+    // A flow module has no valuation to grow, so it is not this rule's business.
+    expect(ids([mod({ Name: "Flow", Growth: -20, HasValuation: false })], 2027))
+      .not.toContain("growth-multiplier-outlier-Flow");
+  });
+
   it("R9 — a module earning in the budget year with nothing budgeted on its line", () => {
     // CR075: year −1 is the BUDGET and nothing else contributes to it, so an unbudgeted cost
     // reads as a real zero. This rule is what makes that gap visible — it is the price of the

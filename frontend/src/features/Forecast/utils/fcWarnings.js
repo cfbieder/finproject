@@ -263,6 +263,36 @@ export function computeModuleIntegrityWarnings(modules = [], { periodStart = nul
     const streams = Array.isArray(mod.Streams) ? mod.Streams : [];
     const hasValuation = mod.HasValuation !== false;
 
+    // ---- R10: a growth MULTIPLIER that looks like a typed percentage -------
+    //
+    // CR076 §5 — `growth_rate` is a multiplier OF INFLATION, not a rate: the engine computes
+    // `growthPct × inflation` (`fcbuilder-common.js: growthPctForYear`). So 0.8 means 0.8 ×
+    // inflation, and −20 means −20 × inflation — which at a 2.5% assumption is −50% a year.
+    //
+    // `OCME Sp. z o.o.` carries exactly that in all five prod scenarios and decays from 56,500
+    // PLN to 113 by 2032. Nothing flagged it: every OTHER module on prod sits in [−1, 1.5], so
+    // it is a 13× outlier, and the only plausible reading is a PERCENTAGE typed into a
+    // multiplier box.
+    //
+    // The threshold is set well clear of real data rather than at a round number — 1.5 is the
+    // largest legitimate value in use (the CVC funds), so 5 cannot fire on anything the owner
+    // has actually chosen while still catching a two-digit typo.
+    const growthMult = num(mod.Growth);
+    if (hasValuation && growthMult != null && Math.abs(growthMult) >= 5) {
+      out.push({
+        id: `growth-multiplier-outlier-${name}`,
+        severity: "warning",
+        title: `"${name}" grows at ${growthMult}× inflation — check this is a multiplier, not a percent`,
+        detail:
+          `This field is a MULTIPLIER of inflation, not a rate, so the engine applies ` +
+          `${growthMult} × inflation every year. If you meant ${growthMult}% a year, the value ` +
+          `here should be ${growthMult} divided by the inflation assumption instead. Every other ` +
+          `module in this plan sits between −1 and 1.5.`,
+        years: [],
+        amount: null,
+      });
+    }
+
     // ---- R3: the type says loan, the data says not-loan -------------------
     // The sharpest rule in the CR, because the guard that would otherwise catch it is switched
     // off by the very condition that causes it: `computeLoanWarnings` returns early on

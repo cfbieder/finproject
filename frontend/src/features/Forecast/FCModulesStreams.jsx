@@ -194,7 +194,20 @@ export default function FCModulesStreams({
                   growth_mult: e.target.value === "" ? null : e.target.value,
                 })}
               />
-              <small>Blank = 1 = inflation. 0 = flat in today&apos;s money.</small>
+              {/*
+                CR076 §5 — this hint had its two clauses SWAPPED, and 70 of 110 amount streams
+                carry an explicit multiplier chosen while reading it.
+
+                The engine is `pct[i] = inflation × mult` compounded on the prior level
+                (`fcbuilder-stream.js`). So mult = 1 tracks inflation and is what holds its value
+                in today's money; mult = 0 freezes the CASH amount and therefore SHRINKS ~2.5%/yr
+                in real terms. The old text promised the opposite of both.
+              */}
+              <small>
+                Blank = 1 = keeps pace with inflation, so it holds its value in today&apos;s
+                money. 0 = the same cash every year, which buys less each year. 0.5 = rises at
+                half inflation, so it still shrinks in real terms.
+              </small>
             </label>
           )}
 
