@@ -457,4 +457,19 @@ belongs in 2027 where it is declared. A scenario should diverge from the year it
 diverge, not a year early.
 
 **Gate:** 849 backend across 61 suites, engine idempotent (two regenerates byte-identical).
-Not yet deployed.
+
+### Deployed to prod 2026-08-09 as v3.21.0
+
+Backup `fin_backup_20260809_140647.dump`. Prod's pre-regenerate state was exactly the post-v3.20.0
+figures, and after regenerating **prod's fingerprint is byte-identical to dev's**
+(`589830961ece…`) — so the prediction held at every row, not just at the horizon. Prod idempotent
+across two further regenerates.
+
+| scenario | before | **prod now** | delta |
+|---|--:|--:|--:|
+| Base · Buy Business · Upside · SRQ | — | unchanged | **0.00** |
+| **2026 Downside** | 1,937,949.90 | **2,050,287.01** | **+112,337.11** |
+
+Shipped alongside §11's step 4 (the growth hint and R10) and §12's D7, neither of which moves a
+number — so this regenerate carried exactly one number-moving change, which is the property CR075
+§10 warned was lost when two landed together.
