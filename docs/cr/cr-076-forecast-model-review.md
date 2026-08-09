@@ -252,8 +252,8 @@ opposite things share the word "growth".
    themselves are now an owner question, stated in §11.
 5. ✅ **D7 / D8** — fail loud on a missing inflation row *(§12)*; honour a PeriodStart−1
    assumption *(§13, ⚠️ MOVES NUMBERS — measured)*.
-6. **D2 ✅ (§14) · D3, D4, D5, D6** — each moves numbers and needs CR075's before/after gate on
-   an engine first proven idempotent. Not more than one at a time.
+6. **D2 ✅ (§14) · D3 ✅ (§15) · D4, D5, D6** — each moves numbers and needs CR075's before/after
+   gate on an engine first proven idempotent. Not more than one at a time.
 
 ## 10. Shipped in v3.20.0 (2026-08-09)
 
@@ -525,3 +525,67 @@ it reached a measurement.
 All five rise, which is the right direction: the seed rose 11,276.93 and compounds. Engine
 idempotent; the extraction itself verified byte-identical to the measured fix. 855 backend across
 62 suites. **Not yet deployed.**
+---
+
+## 15. Step 6b — D3, the USD cost basis is carried, not re-translated
+
+### ⚠️ This one needed an owner decision first, and the review's own figure rested on it
+
+The reported mechanism was confirmed exactly: `baseValuesUSD` was `baseValues.map(v => v / fxrates[i])`,
+so a foreign asset's cost basis was **restated at every year's rate**.
+
+But *"over-taxed by 51,659"* did **not** follow automatically. The engine computes the gain **and
+the tax** in local currency and converts the tax at the sale-year rate — which is **correct** if
+the gain is taxed where the asset is. It is wrong only for a **USD-functional** taxpayer, where
+basis is fixed in USD at acquisition. That is a tax-position question, not a bug, and picking the
+wrong answer would have produced an authoritative wrong tax number — the exact failure this CR
+exists to stop. **§9 flagged D3 as unverified for good reason.**
+
+**Owner decision, 2026-08-09: USD-functional (US person, worldwide gains).** The engine's own tax
+comment already assumed it — UB's dividend is described as *"paid net of Polish tax… while a future
+sale of the business is still a normal capital gain at the full rate"*, and a US capital gain is
+measured in USD.
+
+### What changed
+
+The USD basis is now walked through **the same recurrence as its local-currency twin**: initial
+basis at the module's own acquisition rate, each contribution at the rate of the year it is made,
+and releases pro-rata on the same fraction (the fraction is currency-independent — both its terms
+are LC). The realized gain becomes `proceeds at the SALE rate − basis at the ACQUISITION rate`.
+
+Capital-gains tax is accumulated in USD and folded back into the local-currency audit column at the
+paying year's rate, so both tax rows describe the same payment. **Income tax stays in local
+currency** — it is earned and taxed there year by year, which is why the stream override exists.
+
+The base-year `baseValuesUSD[0]` pin is removed: it existed only to undo the restatement, and is
+now redundant when nothing happens in the base year and *wrong* when something does.
+
+### Verified on the mechanism, not just the total
+
+`United Beverages` in Downside, 2036 disposal — proceeds **unchanged** at 2,555,418.34:
+
+| | old | new |
+|---|--:|--:|
+| USD basis | 4,000,000 / 4.5 = **888,889** | **1,113,492** (at its stored 3.5923) |
+| gain | 1,666,529 | 1,441,926 |
+| 2037 tax | **−399,658.41** | **−347,999.69** |
+
+**−51,658.72**, matching §4's predicted 51,659 to the cent, and 23% of the 224,603 of basis that
+had been disappearing.
+
+| scenario | before (post-D2) | after | delta |
+|---|--:|--:|--:|
+| Base | 4,459,563.37 | **4,575,988.58** | +116,425.21 |
+| Buy Business | 9,535,950.30 | **9,652,386.21** | +116,435.91 |
+| **Downside** | 2,074,699.78 | **2,467,223.65** | **+392,523.87** |
+| Upside | 7,794,060.94 | **7,910,476.34** | +116,415.40 |
+| SRQ House Purchase | −758,384.65 | **−641,945.18** | +116,439.47 |
+
+**Downside moves 3.4× the others, and that is the coherence check.** It is the only scenario whose
+FX assumption moves (3.9 → 4.5), so it is where basis erosion was worst. The other four still move
+~116,4xx because their basis was ALSO being restated — from the acquisition rate of **3.5923** to
+the scenario assumption of **3.9**, a 7.9% haircut on every foreign basis with no FX change in the
+scenario at all. That is the same boundary the review recorded as an unlabelled −536,862
+revaluation between the 2025 and 2026 columns.
+
+**Gate:** 855 backend across 62 suites, engine idempotent. **Not yet deployed.**

@@ -270,6 +270,32 @@ function computeModule(module, scenario, df_assumptions, df_categories, categori
   const unrealizedGainValues = new Array(yearsCount).fill(0);
   const realizedGainValues = new Array(yearsCount).fill(0);
 
+  // CR076 D3 — the USD cost basis is carried, not re-translated (owner decision 2026-08-09:
+  // gains are USD-functional, taxed as a US person on worldwide gains).
+  //
+  // `baseValuesUSD` used to be `baseValues.map(v => v / fxrates[i])`, so a foreign asset's cost
+  // basis was restated at EVERY year's rate. On `2026 Downside`, `United Beverages` acquired at
+  // PLN 3.5923 (the module's own stored implied rate: 4,000,000 / 1,113,492) had its USD basis
+  // fall to 4,000,000 / 4.5 = 888,889 the moment the scenario's FX assumption bit — **224,603 USD
+  // of basis vanishing with no transaction behind it**, and the FX movement then taxed as a gain
+  // while never appearing as one (there is no FX gain/loss line anywhere).
+  //
+  // A USD-functional gain is `proceeds at the SALE rate − basis at the ACQUISITION rate`. So the
+  // basis is walked through the same recurrence as its local-currency twin — initial basis at the
+  // acquisition rate, each contribution at ITS OWN year's rate, and releases pro-rata on the same
+  // fraction — rather than being recomputed from an LC total.
+  //
+  // This is what the engine's own tax comment already assumed: UB's dividend is described as
+  // "paid net of Polish tax… while a future sale of the business is still a normal capital gain
+  // at the full rate" — a US capital gain, which is measured in USD.
+  const baseValuesUSDSeries = new Array(yearsCount).fill(hasValuation ? (module.BaseValueUSD ?? 0) : 0);
+  const realizedGainUSD = new Array(yearsCount).fill(0);
+  // The module's OWN acquisition rate, not the scenario assumption. Falls back to the assumption
+  // only when no USD twin is stored (a USD module, where both are 1).
+  const acquisitionRate = (module.BaseValueUSD ?? 0) !== 0
+    ? (module.BaseValue ?? 0) / (module.BaseValueUSD ?? 1)
+    : (fxrates[0] || 1);
+
   // ── THE BALANCE PATH — valuation modules only ──────────────────────────────────────
   if (hasValuation) {
     // Investment transactions. Periodic entries expand from Date to DateEnd (or the horizon).
@@ -321,6 +347,14 @@ function computeModule(module, scenario, df_assumptions, df_categories, categori
       baseValues[0] = origBase + investValues[0] + safeDisposeAdj;
       marketValues[0] = origMarket + investValues[0] + disposeValues[0];
       realizedGainValues[0] = -disposeValues[0] + (origMarket === 0 ? 0 : (disposeValues[0] * origBase) / origMarket);
+
+      // CR076 D3 — the USD twin. The released FRACTION is currency-independent (both terms are
+      // LC), so it applies unchanged to the USD basis. Index 0 is the module's base-date year, so
+      // it converts at the acquisition rate, not at a scenario assumption.
+      const origBaseUSD = module.BaseValueUSD ?? 0;
+      const releasedFrac0 = origMarket === 0 ? 0 : disposeValues[0] / origMarket;
+      baseValuesUSDSeries[0] = origBaseUSD + investValues[0] / acquisitionRate + releasedFrac0 * origBaseUSD;
+      realizedGainUSD[0] = -disposeValues[0] / acquisitionRate + releasedFrac0 * origBaseUSD;
     }
 
     for (let i = 1; i < yearsCount; i++) {
@@ -342,6 +376,16 @@ function computeModule(module, scenario, df_assumptions, df_categories, categori
       baseValues[i] = prevBase + investValues[i] + safeDisposeAdjustment;
       marketValues[i] = prevMarket + unrealizedGainValues[i] + investValues[i] + disposeValues[i];
       realizedGainValues[i] = -disposeValues[i] + (prevMarket === 0 ? 0 : (disposeValues[i] * prevBase) / prevMarket);
+
+      // CR076 D3 — the USD twin, same recurrence. A contribution enters the basis at the rate of
+      // the year it is MADE (that is its acquisition cost); proceeds leave at the sale year's
+      // rate. The difference between the two is the FX gain, and it now lands in the gain rather
+      // than silently rewriting history.
+      const prevBaseUSD = baseValuesUSDSeries[i - 1];
+      const rateHere = fxrates[i] || 1;
+      const releasedFrac = prevMarket === 0 ? 0 : disposeValues[i] / prevMarket;
+      baseValuesUSDSeries[i] = prevBaseUSD + investValues[i] / rateHere + releasedFrac * prevBaseUSD;
+      realizedGainUSD[i] = -disposeValues[i] / rateHere + releasedFrac * prevBaseUSD;
     }
   }
 
@@ -369,10 +413,17 @@ function computeModule(module, scenario, df_assumptions, df_categories, categori
         unrealizedGainValues[idx] = idx === 0 ? 0 : (marketValues[idx] - prevMV) / 2;
         disposeValues[idx] = -prevMV - unrealizedGainValues[idx];
         realizedGainValues[idx] = -disposeValues[idx] - baseValues[idx];
+        // CR076 D3 — the USD twin: everything left is sold, so the whole remaining USD basis is
+        // released. Proceeds convert at the SALE year's rate; the basis keeps its acquisition
+        // rate. Computed before `baseValuesUSDSeries[idx]` is zeroed, exactly as the LC line
+        // above uses `baseValues[idx]` before zeroing it.
+        realizedGainUSD[idx] = -disposeValues[idx] / (fxrates[idx] || 1) - baseValuesUSDSeries[idx];
+        baseValuesUSDSeries[idx] = 0;
         baseValues[idx] = 0;
         marketValues[idx] = 0;
         for (let j = idx + 1; j < yearsCount; j++) {
           baseValues[j] = 0;
+          baseValuesUSDSeries[j] = 0;   // CR076 D3 — nothing left to hold a basis in either currency
           marketValues[j] = 0;
           unrealizedGainValues[j] = 0;
           growthValues[j] = 0;
@@ -469,6 +520,10 @@ function computeModule(module, scenario, df_assumptions, df_categories, categori
   // rate. NULL falls back, so every existing module is byte-identical. 0 is a real rate
   // (income taxed at nothing), not "unset" — hence the `!= null` checks.
   const taxValues = new Array(yearsCount).fill(0);
+  // CR076 D3 — capital-gains tax, accumulated in USD because the gain it is charged on is
+  // USD-functional. Income tax stays in `taxValues` (local currency); the two are combined at
+  // the frame boundary below.
+  const gainsTaxUSD = new Array(yearsCount).fill(0);
   const scenarioRate = Number(scenario?.TaxRate ?? 0);
   const gainsRate = module.tax_rate_override != null ? Number(module.tax_rate_override) : scenarioRate;
   const gainsFactor = Number.isFinite(gainsRate) ? -gainsRate / 100 : 0;
@@ -518,18 +573,30 @@ function computeModule(module, scenario, df_assumptions, df_categories, categori
   }
 
   // Tax deferred by one year — US tax is paid the year after the income or the gain.
+  //
+  // CR076 D3 — the CAPITAL-GAINS tax is now computed on the USD-functional gain, while INCOME tax
+  // stays in local currency and converts with the rest of the stream.
+  //
+  // They are genuinely different: income is earned and taxed in its own currency year by year
+  // (and the stream override exists precisely because it arrives already taxed there), whereas a
+  // US person's capital gain is measured in USD against a basis fixed at acquisition. Taxing the
+  // LC gain and converting it — as this did — charges tax on an FX movement that is never booked
+  // as a gain anywhere, because there is no FX gain/loss line in the model.
+  //
+  // The gains tax is accumulated in USD and folded back into the LC `taxValues` at the paying
+  // year's rate, so the local-currency audit column stays complete and the two agree.
   for (let i = 0; i < yearsCount; i++) {
-    let currentYearTax = 0;
-    if (gainsFactor !== 0 && realizedGainValues[i] > 0) {
-      currentYearTax += gainsFactor * realizedGainValues[i];
-    }
+    const targetIdx = i + 1 < yearsCount ? i + 1 : i;
+
+    let incomeTaxLC = 0;
     for (const { stream, series } of computed) {
       if (stream.direction !== 'income') continue;
-      if (series[i] > 0) currentYearTax += streamIncomeFactor(stream) * series[i];
+      if (series[i] > 0) incomeTaxLC += streamIncomeFactor(stream) * series[i];
     }
-    if (currentYearTax !== 0) {
-      const targetIdx = i + 1 < yearsCount ? i + 1 : i;
-      taxValues[targetIdx] += currentYearTax;
+    if (incomeTaxLC !== 0) taxValues[targetIdx] += incomeTaxLC;
+
+    if (gainsFactor !== 0 && realizedGainUSD[i] > 0) {
+      gainsTaxUSD[targetIdx] += gainsFactor * realizedGainUSD[i];
     }
   }
 
@@ -537,13 +604,20 @@ function computeModule(module, scenario, df_assumptions, df_categories, categori
 
   // Convert LC to USD
   const toUSD = (series) => series.map((v, i) => v / (fxrates[i] || 1));
-  const baseValuesUSD = baseValues.map((v, i) => v / (fxrates[i] || 1));
+  // CR076 D3 — the basis and the realized gain are ALREADY in USD, carried at the acquisition
+  // rate through the recurrence above. They must NOT be re-derived from their LC twins here:
+  // that is precisely the restatement that lost 224,603 of `United Beverages`' basis.
+  const baseValuesUSD = baseValuesUSDSeries;
+  const realizedGainValuesUSD = realizedGainUSD;
   const marketValuesUSD = marketValues.map((v, i) => v / (fxrates[i] || 1));
   const investValuesUSD = toUSD(investValues);
   const disposeValuesUSD = toUSD(disposeValues);
   const unrealizedGainValuesUSD = toUSD(unrealizedGainValues);
-  const realizedGainValuesUSD = toUSD(realizedGainValues);
-  const taxValuesUSD = toUSD(taxValues);
+  // Income tax converts with the income it is charged on; the gains tax is already USD.
+  const taxValuesUSD = toUSD(taxValues).map((v, i) => v + gainsTaxUSD[i]);
+  // Keep the local-currency audit column complete: the gains tax expressed at the paying year's
+  // rate, so the LC and USD tax rows describe the same payment.
+  for (let i = 0; i < yearsCount; i++) taxValues[i] += gainsTaxUSD[i] * (fxrates[i] || 1);
 
   // Every stream is converted BEFORE the base-year FX override below, because that override
   // REPLACES `fxrates[0]` with the module's own stored implied rate. The old builder converted
@@ -553,7 +627,11 @@ function computeModule(module, scenario, df_assumptions, df_categories, categori
   const streamsUSD = computed.map(({ stream, series }) => ({ stream, usd: toUSD(series) }));
 
   if (hasValuation) {
-    baseValuesUSD[0] = module.BaseValueUSD ?? 0;
+    // CR076 D3 — `baseValuesUSD[0]` is NO LONGER overridden here. It used to be pinned to the
+    // stored `BaseValueUSD` because the map above had just restated it at the assumption rate;
+    // now the recurrence carries it at the acquisition rate from the start, so the pin is
+    // redundant when nothing happens in the base year (the two are identical) and WRONG when
+    // something does — it would discard a base-year contribution or disposal.
     marketValuesUSD[0] = module.MarketValueUSD ?? 0;
     fxrates[0] = baseValuesUSD[0] !== 0 ? baseValues[0] / baseValuesUSD[0] : 1;
   }
