@@ -324,10 +324,23 @@ async function copyScenario(sourceId, newName) {
         SELECT $1, investment_date, amount, flag, note, date_end FROM forecast_module_investments WHERE module_id = $2
       `, [newModuleId, mod.id]);
 
-      // Copy disposals
+      // Copy disposals.
+      //
+      // ⚠️ `disposal_cost_pct` (CR078, migration 062) is part of this list, and was missing from
+      // it until 2026-08-10 — so every scenario made by COPY silently lost its selling costs and
+      // reported the full sale proceeds. v3.25.2 fixed exactly this omission in the VARIANT SYNC
+      // path; this is the same column dropped from the other hand-maintained list, found when a
+      // scratch copy of `2026 SRQ House Purchase` measured ~890K better than the original for no
+      // modelled reason. Same failure shape as CR064 P6's sweep of hand-kept column lists.
+      //
+      // A new column on this table MUST be added here. `copyScenario.columns.test.js` asserts the
+      // copy round-trips every column of this table, so the next omission fails a test instead of
+      // quietly inflating a forecast.
       await client.query(`
-        INSERT INTO forecast_module_disposals (module_id, disposal_date, amount, flag, note, date_end)
-        SELECT $1, disposal_date, amount, flag, note, date_end FROM forecast_module_disposals WHERE module_id = $2
+        INSERT INTO forecast_module_disposals
+          (module_id, disposal_date, amount, flag, note, date_end, disposal_cost_pct)
+        SELECT $1, disposal_date, amount, flag, note, date_end, disposal_cost_pct
+        FROM forecast_module_disposals WHERE module_id = $2
       `, [newModuleId, mod.id]);
 
       // Copy the CR062 amortization schedule
