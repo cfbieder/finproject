@@ -60,8 +60,18 @@ routes, and that single number caught two separate divergences ([CR076 §14](../
 then **overwrote the builder's rows**, so the stale copy won. Same shape as CR073's two projections
 and CR049's hand-copied base-year query.
 
+**A hand-maintained COLUMN LIST is the same shape**, and it has now failed twice on one column:
+CR078's `disposal_cost_pct` was dropped by the **variant sync** (fixed v3.25.2) and, a day later,
+found dropped by **`copyScenario`** — the other list, never updated. The copy therefore reported the
+**full** sale proceeds, so a copied scenario read *better* than its original, and it was caught only
+because a scratch copy measured ~890K better than its source for no modelled reason *while being
+used to measure something else*. CR064 P6's sweep of hand-kept lists is the same family.
+
 **Counter-practice:** one implementation, called from both sites, plus a test that fails if either
-re-derives it. `growthPctForYear` and `getOpeningBankCash` are the two that now exist.
+re-derives it. `growthPctForYear` and `getOpeningBankCash` are the two that now exist. Where a list
+genuinely must be enumerated, **do not test it by enumerating it again** — derive the expectation
+from the source of truth: `copyScenario.columns.test.js` reads `information_schema` and asserts the
+copy round-trips every column, so the next column added is covered by a test nobody edits.
 
 ## 5. A test whose fixture cannot exhibit the bug
 

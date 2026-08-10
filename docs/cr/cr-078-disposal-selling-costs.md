@@ -250,3 +250,30 @@ Mechanism verified per jurisdiction, to the cent: `SP - Panorama Mar 4` 453,488.
 (×0.94), `US - Nokomis` 394,875.00 → **367,233.75** (×0.93), `PL - Niemena` 2,115,200.58 →
 **2,030,592.56** (×0.96), `United Beverages` 4,106,205.12 → **4,024,081.01** (×0.98), and both CVC
 funds **unchanged**.
+---
+
+## 10. The COPY path dropped the same column (2026-08-10, fixed)
+
+§9 fixed `disposal_cost_pct` going missing through the **variant sync**. `copyScenario` enumerates
+the same child table's columns in its own hand-maintained list, and never carried it either — so
+**every scenario made by COPY silently lost its selling costs and reported the full sale proceeds**.
+Two lists, one column added, one list updated.
+
+**It presents as a copy reading *better* than its original**, which is the worst way for this to
+show up. It was found only because a scratch copy of `2026 SRQ House Purchase` measured **~890K
+better** than the source for no modelled reason — *while being used to measure something else
+entirely* (whether `Sarasota House`'s growth rate was an unset field). Trusted, that number would
+have argued for a house purchase on the strength of a cost that had quietly gone missing. The
+measurement was re-run against prod, where the 7% survives, and the real improvement was **+915,959,
+not the ~1.8M the copy implied**.
+
+**The guard does not enumerate columns, because enumerating is what failed twice.**
+`repositories/__tests__/copyScenario.columns.test.js` reads each child table's real columns from
+`information_schema` and asserts a copy round-trips every one of them — disposals, investments and
+amortization — so a column added tomorrow is covered without anyone remembering the file exists.
+Every seeded value is distinctive and non-null on purpose: a null fixture passes whether or not the
+column is copied, which is precisely how the original omission hid. Falsified against the unfixed
+code (`disposal_cost_pct=null` against an expected `7.0000`).
+
+*Same family as [CR064](cr-064-forecast-annual-close-and-assumptions.md) P6's sweep of hand-kept
+column lists, and one more instance for [failure-patterns.md](../current/failure-patterns.md).*

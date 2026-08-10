@@ -8,7 +8,7 @@
 > CR index and roadmap already own, and it is where stale facts collect. Each cut has come from
 > MOVING something that changes on a different clock, never from deleting what is true.
 
-**Last updated:** 2026-08-09 · **Live version:** v3.25.2 (see `VERSION` / git tags)
+**Last updated:** 2026-08-10 · **Live version:** v3.26.1 (see `VERSION` / git tags)
 
 ## Current phase
 **The model, since [CR069](../cr/cr-069-forecast-streams.md):** a module is *identity + optional
@@ -27,18 +27,21 @@ Shipped since, all detailed in the [CR index](../cr/README.md) and the
 [roadmap](project-roadmap.md): [CR077](../cr/cr-077-assumption-advisor-tab.md) (v3.23.0 — Cash
 Health splits into **Integrity** vs **Assumptions to consider**, counted and dismissed separately)
 · [CR078](../cr/cr-078-disposal-selling-costs.md) (v3.24.0, migration 062 — a per-row selling cost
-off the cash **and** the gain; **DORMANT until a rate is typed**, and that edit needs its own
-measurement) · [CR079](../cr/cr-079-real-terms-view.md) (v3.25.0 — the Review shows the plan in
-**today's money**; the export stays nominal; Compare not yet covered).
+off the cash **and** the gain; rates live since 2026-08-09) ·
+[CR079](../cr/cr-079-real-terms-view.md) (v3.25.0 the Review, **v3.26.0 Compare** — the plan in
+**today's money** on both; the export stays nominal).
 
-**Net assets at 2062 (live, post-selling-costs):** Base **4,071,160** · Buy Business **9,102,335**
-· Downside **1,893,368** · Upside **7,404,138** · SRQ **−1,392,889**. Owner decisions applied
-2026-08-09: selling costs by jurisdiction (**US 7 · Spain 6 · Poland 4 · business 2%**, CVC capital
-returns exempt — **−603K to −796K per scenario**, the plan had been keeping 100% of every sale);
-`Social Security` → **full CPI**; `OCME` at −30 a **deliberate write-off**.
+**Net assets at 2062 (live):** Base **4,071,160** · Buy Business **9,102,335** · Downside
+**1,893,368** · Upside **7,404,138** · SRQ **−476,930**. Owner decisions applied 2026-08-09:
+selling costs by jurisdiction (**US 7 · Spain 6 · Poland 4 · business 2%**, CVC capital returns
+exempt — **−603K to −796K per scenario**, the plan had been keeping 100% of every sale);
+`Social Security` → **full CPI**; `OCME` at −30 a **deliberate write-off**. **2026-08-10:
+`Sarasota House` growth **0 → 1.0**** — the only US property not at full CPI, and an unset field
+rather than a belief (owner); only SRQ moved, **−1,392,889 → −476,930**, the other four
+**byte-identical** ([v3.26.1](project-roadmap.md)).
 
-⚠️ **SRQ is now nearly −1.4M** — the selling costs cost it most precisely because it was already in
-shortfall, so cash it never receives is cash the sweep cannot use.
+⚠️ **SRQ is still −476,930.** It is bought **entirely for cash** (`House Morgage` is `exclude`
+everywhere), earns **no rent** against 45,000/yr, and sells at 7%. **Financing is the untested lever.**
 
 ### The recurring failure
 **[failure-patterns.md](failure-patterns.md) is the canonical list** — seven shapes, each found
