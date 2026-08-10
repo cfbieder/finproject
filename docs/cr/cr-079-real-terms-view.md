@@ -1,9 +1,9 @@
 # CR079 — The plan in today's money
 
-**Status:** SHIPPED **v3.25.0 (2026-08-09)** — increments 1 and 2, on the Review. No migration;
-**no forecast number moves** — a display transform over data already loaded, and the release
-verified prod's entries fingerprint **unchanged**. **Open:** Compare and the Home hero are not
-covered (owner decision, §5); Compare is the natural next increment and is the smaller half.
+**Status:** SHIPPED — increments 1 and 2 on the Review at **v3.25.0 (2026-08-09)**, increment 3 on
+**Compare** (§7). No migration; **no forecast number moves** — a display transform over data
+already loaded, and each release verified prod's entries fingerprint **unchanged**. **Open:** the
+Home hero is still nominal-only.
 **Track:** v3
 **Origin:** [CR076 §7 Q3](cr-076-forecast-model-review.md) — *"Everything is nominal and nothing
 says so… For a plan whose whole point is a 2062 number, this is the highest-value output
@@ -159,3 +159,72 @@ suite deliberately asserts values rather than styling ([test-overview](../curren
 which is the right trade — but it means CSS arrives unverified and has to be checked another way.
 
 **Gate:** 491 frontend · **9/9 e2e** (one new) · lint 0 errors · six ratchets · no migration.
+---
+
+## 7. Increment 3 — Compare, in today's money
+
+§5 deferred this deliberately, on the reasoning that the Review carried all four money paths and
+was the harder proof. That held: Compare needed **one** conversion, not four.
+
+### One choke point, because deflation is linear
+
+`deflateMatrix` is applied to **matA and matB before `compareMatrices`**, not to the comparison it
+produces. `deflate(B) − deflate(A)` equals `deflate(B − A)`, so the two are arithmetically the same
+— but converting the *inputs* means the table, the charts, the commentary and the four KPI cards
+all read one already-converted set of numbers. There is no path to a partially converted page
+because there is only one conversion. Converting the output would have left four call sites each
+having to remember, which is precisely the shape §3 warned about.
+
+`FCCompareAIPanel` is unaffected: it takes only the two scenario NAMES and fetches server-side, so
+the LLM keeps seeing nominal figures. Compare has no Excel export, so §5's "always nominal" export
+decision has nothing to bind here.
+
+### Each scenario deflates by its OWN inflation
+
+Not a detail — the main reason this belongs on Compare at all. If `Downside` assumed higher
+inflation than `Base`, its nominal 2062 figure would be larger for a reason that has nothing to do
+with the plan, and comparing the two nominally would flatter it. Today all five scenarios sit at
+2.5%, so the deflators happen to coincide; the code does not depend on that.
+
+**The anchor is shared, though.** Each scenario's own base year is its `PeriodStart − 1`, and the
+two need not agree. Anchoring each on its own would put A in one year's money and B in another
+while the page called both "today" — every delta then being the difference of two different
+currencies. The **earlier** of the two is used for both, and the banner names it.
+
+And it is **both or neither**: if only one side can build a deflator, none is applied. One column in
+today's money beside another in 2062 money would make every delta meaningless while still looking
+exactly like money.
+
+### ⚠️ The hand-listed field set, guarded this time
+
+`deflateMatrix` works off named fields (`MATRIX_MONEY_SERIES` / `MATRIX_MONEY_MAPS`). That is the
+same construction that silently dropped `disposal_cost_pct` from the variant sync eight days of
+work ago — code that keeps working and just stops covering one thing.
+
+So `fcCompareRealTerms.test.js` asserts the lists against the keys a **real** matrix actually
+carries. A new series added to `buildScenarioMatrix` fails the test **by name** rather than
+rendering nominal on a page headed "2026 dollars". Verified by adding a probe field and watching it
+fail with `expected [ 'tempProbeSeries' ] to deeply equal []`, then removing it — a guard that has
+never failed is not known to be a guard.
+
+The suite also pins that `deflateMatrix` does not mutate its input: FCCompare derives the deflated
+view from the nominal memo on every render, and writing through would deflate an already-deflated
+matrix on the second pass — producing a plausible smaller number rather than an error.
+
+### What the browser check found
+
+`compare-real-terms.spec.js` failed on its first real run, and the reason was worth keeping: the
+e2e world has a second scenario, **`Base Case`**, which exists in `forecast_scenarios` but carries
+no `PeriodStart` in the assumptions doc. It is Compare's DEFAULT baseline. With no base year there
+is no honest deflator, and the toggle correctly rendered **disabled**.
+
+That is the graceful-degradation path taken by a genuinely half-configured scenario, so the spec
+now asserts **both** states — disabled on `Base Case`, enabled once A is switched to a scenario
+that declares a period — rather than stepping around the default.
+
+**Known limit, stated rather than papered over:** the seed has one *generated* scenario, so the
+browser runs with A ≡ B, where every delta is zero and zero deflates to zero. The delta path is
+covered by unit test; the browser covers the A/B value path.
+
+**Gate:** 498 frontend (+7) · **10/10 e2e** (one new) · lint 0 errors · six ratchets · no migration
+· no engine change, so no regenerate and no fingerprint movement.

@@ -13,10 +13,59 @@
  * seed the Bank Accounts running balance, exactly as Review does.
  */
 
+import { toRealTerms } from "./fcRealTerms.js";
+
 const toNum = (v) => {
   const n = Number(v);
   return Number.isFinite(n) ? n : 0;
 };
+
+/**
+ * CR079 increment 3 — every money-carrying field on a `buildScenarioMatrix` result.
+ *
+ * Hand-listed, and therefore the thing most likely to go stale: a new series added to the matrix
+ * would pass through `deflateMatrix` NOMINAL while everything beside it is in today's money, which
+ * is the "partially deflated page" this feature must not produce. `fcCompareRealTerms.test.js`
+ * asserts these two lists against the keys a REAL matrix actually carries, so the omission fails a
+ * test rather than shipping — the same guard `variantSchedules.test.js` puts on the variant sync
+ * after a hand-listed column set silently dropped `disposal_cost_pct`.
+ */
+export const MATRIX_MONEY_SERIES = ["netCashFlow", "totalAssets", "totalLiabilities", "netAssets"];
+export const MATRIX_MONEY_MAPS = ["cash", "balance"];
+/** Keys that legitimately carry no money, so their absence from the lists above is correct. */
+export const MATRIX_NON_MONEY = ["years", "labelsWithData"];
+
+/**
+ * Express a whole scenario matrix in base-year money.
+ *
+ * Applied to matA and matB BEFORE `compareMatrices`, deliberately: deflation is linear, so
+ * `deflate(B) − deflate(A)` equals `deflate(B − A)`, and doing it on the inputs means the table,
+ * the charts, the commentary and the KPI cards all read one already-converted set of numbers
+ * instead of four call sites each having to remember. There is no path to a partially converted
+ * page because there is only one conversion.
+ *
+ * Compare's matrix holds FORECAST years only (`year >= periodStart`), so unlike the Review there is
+ * no base-year column at exactly 1 and no earlier actual column to inflate — every deflator here is
+ * above 1.
+ *
+ * A null `deflators` returns the matrix untouched, so "real terms off" and "this scenario declares
+ * no inflation" are the same code path.
+ */
+export function deflateMatrix(matrix, deflators) {
+  if (!matrix || !deflators) return matrix;
+  const series = (arr) =>
+    (arr || []).map((v, i) => toRealTerms(v, matrix.years[i], deflators));
+  const out = { ...matrix };
+  for (const key of MATRIX_MONEY_SERIES) out[key] = series(matrix[key]);
+  for (const key of MATRIX_MONEY_MAPS) {
+    const converted = new Map();
+    for (const [label, values] of matrix[key] || new Map()) {
+      converted.set(label, series(values));
+    }
+    out[key] = converted;
+  }
+  return out;
+}
 
 /**
  * Aggregates flat forecast entries into cash / balance lookup maps.

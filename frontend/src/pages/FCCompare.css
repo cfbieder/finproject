@@ -410,3 +410,25 @@
   margin-bottom: 0.25rem;
   white-space: nowrap;
 }
+
+/* ── CR079 increment 3 — the real-terms banner on Compare ─────────────────────
+   Full-width and above the KPI row rather than inline with the control: on this
+   page the DELTAS are what get read and screenshotted, and a delta in today's
+   money looks identical to one in 2062 money. Tokens only — `--ink`, not
+   `--text`, which does not exist. */
+.fc-compare-real-terms-banner {
+  padding: 0.45rem 0.9rem;
+  border-radius: var(--radius-sm);
+  background: var(--surface-muted);
+  border: 1px solid var(--border);
+  font-size: 0.8rem;
+  color: var(--ink);
+  margin-bottom: 0.75rem;
+}
+
+/* A disabled toggle has to look disabled, or "both scenarios must declare an
+   inflation rate" only ever reaches the hover title. */
+.fc-compare-hide-toggle:has(input:disabled) {
+  opacity: 0.5;
+  cursor: not-allowed;
+}

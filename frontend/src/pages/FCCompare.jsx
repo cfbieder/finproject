@@ -26,7 +26,9 @@ import {
   buildScenarioMatrix,
   compareMatrices,
   buildCommentary,
+  deflateMatrix,
 } from "../features/Forecast/utils/fcCompareUtils.js";
+import { buildDeflators, inflationRateFor } from "../features/Forecast/utils/fcRealTerms.js";
 import { KpiCard, KpiCardRow } from "../components/KpiCards.jsx";
 import Rest from "../js/rest.js";
 import "./PageLayout.css";
@@ -55,13 +57,20 @@ function useBaseYearValues(scenario) {
 }
 
 export default function FCCompare() {
-  const { scenarios, isLoading: scenariosLoading, loadError: scenariosError } =
-    useScenarios();
+  const {
+    scenarios,
+    inflationRows,               // CR079 — the real-terms deflator
+    isLoading: scenariosLoading,
+    loadError: scenariosError,
+  } = useScenarios();
 
   const [scenarioA, setScenarioA] = useState("");
   const [scenarioB, setScenarioB] = useState("");
   const [mode, setMode] = useState("delta"); // "delta" | "a" | "b"
   const [hideUnchanged, setHideUnchanged] = useState(true);
+  // Resets to nominal every visit, like the Review's: nominal is the basis the export, the audit
+  // CSVs and every figure in the docs speak.
+  const [realTerms, setRealTerms] = useState(false);
 
   // Default A = first scenario, B = first different one.
   useEffect(() => {
@@ -119,7 +128,7 @@ export default function FCCompare() {
     dataB.yearsError ||
     dataB.entriesError;
 
-  const compare = useMemo(() => {
+  const matrices = useMemo(() => {
     if (loading || !scenarioA || !scenarioB) return null;
     if (!cashAccounts.length || !balanceAccounts.length) return null;
 
@@ -137,12 +146,10 @@ export default function FCCompare() {
         balanceRows: balanceAccounts,
       });
 
-    const matA = build(dataA, scenarioObjA, baseYearValuesA, baseBalA);
-    const matB = build(dataB, scenarioObjB, baseYearValuesB, baseBalB);
-    return compareMatrices(matA, matB, {
-      cashRows: cashAccounts,
-      balanceRows: balanceAccounts,
-    });
+    return {
+      matA: build(dataA, scenarioObjA, baseYearValuesA, baseBalA),
+      matB: build(dataB, scenarioObjB, baseYearValuesB, baseBalB),
+    };
   }, [
     loading,
     scenarioA,
@@ -160,6 +167,50 @@ export default function FCCompare() {
     balanceAccounts,
     balanceAccountMap,
   ]);
+
+  // CR079 increment 3 — "today" for a COMPARISON of two scenarios.
+  //
+  // Each scenario's own base year is its PeriodStart − 1, and the two need not agree. Anchoring
+  // each on its own would put A in one year's money and B in another while the page called both
+  // "today", and every delta between them would be the difference of two different currencies.
+  // The earlier of the two is used for BOTH, and the banner names it.
+  const realTermsAnchor = useMemo(() => {
+    const a = Number(scenarioObjA?.PeriodStart);
+    const b = Number(scenarioObjB?.PeriodStart);
+    if (!Number.isFinite(a) || !Number.isFinite(b)) return null;
+    return Math.min(a, b) - 1;
+  }, [scenarioObjA, scenarioObjB]);
+
+  // Offered only when BOTH scenarios declare inflation. Checked independently of the toggle so the
+  // control is disabled rather than silently doing nothing when ticked.
+  const realTermsAvailable =
+    realTermsAnchor != null &&
+    inflationRateFor(inflationRows, scenarioA, realTermsAnchor) != null &&
+    inflationRateFor(inflationRows, scenarioB, realTermsAnchor) != null;
+
+  const deflators = useMemo(() => {
+    if (!realTerms || !matrices || realTermsAnchor == null) return null;
+    const of = (name, years) =>
+      buildDeflators({ inflationRows, scenarioName: name, baseYear: realTermsAnchor, years });
+    const a = of(scenarioA, matrices.matA.years);
+    const b = of(scenarioB, matrices.matB.years);
+    // BOTH or NEITHER. One side in today's money against the other in 2062 money would make every
+    // delta on the page meaningless while still looking exactly like money.
+    return a && b ? { a, b } : null;
+  }, [realTerms, matrices, realTermsAnchor, inflationRows, scenarioA, scenarioB]);
+
+  // Each scenario is deflated by ITS OWN inflation. That is the point rather than a detail: if
+  // Downside assumes higher inflation than Base, its nominal 2062 figure is inflated by more, and
+  // comparing the two nominally flatters it for a reason that has nothing to do with the plan.
+  const compare = useMemo(() => {
+    if (!matrices) return null;
+    const matA = deflators ? deflateMatrix(matrices.matA, deflators.a) : matrices.matA;
+    const matB = deflators ? deflateMatrix(matrices.matB, deflators.b) : matrices.matB;
+    return compareMatrices(matA, matB, {
+      cashRows: cashAccounts,
+      balanceRows: balanceAccounts,
+    });
+  }, [matrices, deflators, cashAccounts, balanceAccounts]);
 
   const commentary = useMemo(
     () =>
@@ -311,6 +362,28 @@ export default function FCCompare() {
           Hide unchanged rows
         </label>
 
+        {/* CR079 increment 3 — the same control the Review carries, on the surface where nominal
+            misleads most: two scenarios 36 years out are both inflated by the same factor, so
+            comparing them nominally flatters BOTH and hides how much of a gap is purchasing power
+            rather than plan. Disabled, not hidden, when a scenario declares no inflation — an
+            absent control reads as a missing feature, a disabled one states why. */}
+        <label
+          className="fc-compare-hide-toggle"
+          title={
+            realTermsAvailable
+              ? `Express both scenarios in ${realTermsAnchor} dollars`
+              : "Both scenarios must declare an inflation rate"
+          }
+        >
+          <input
+            type="checkbox"
+            checked={realTerms && realTermsAvailable}
+            disabled={!realTermsAvailable}
+            onChange={(e) => setRealTerms(e.target.checked)}
+          />
+          Show in {realTermsAnchor ?? "base-year"} dollars
+        </label>
+
         {/* Rebuilds A and B, so the comparison is between two current forecasts. */}
         <button
           type="button"
@@ -339,10 +412,18 @@ export default function FCCompare() {
       )}
       {loading && <div className="fc-compare-loading">Loading scenarios…</div>}
 
+      {/* A screenshot crops to the figures, not to the control that produced them. */}
+      {deflators && (
+        <div className="fc-compare-real-terms-banner">
+          Every figure below — deltas included — is in <b>{realTermsAnchor} dollars</b>, each
+          scenario deflated by its own inflation.
+        </div>
+      )}
+
       {!loading && kpis && (
         <KpiCardRow>
           <KpiCard
-            title="Net Assets (B)"
+            title={deflators ? "Net Assets (B) · " + realTermsAnchor + "$" : "Net Assets (B)"}
             value={kpis.netAssets.value}
             icon={<Landmark size={16} />}
             changeValue={kpis.netAssets.delta}
@@ -353,7 +434,7 @@ export default function FCCompare() {
             chartColor="#4A72B0"
           />
           <KpiCard
-            title="Total Assets (B)"
+            title={deflators ? "Total Assets (B) · " + realTermsAnchor + "$" : "Total Assets (B)"}
             value={kpis.totalAssets.value}
             icon={<TrendingUp size={16} />}
             changeValue={kpis.totalAssets.delta}
@@ -364,7 +445,7 @@ export default function FCCompare() {
             chartColor="#4A72B0"
           />
           <KpiCard
-            title="Net Cash Flow (B)"
+            title={deflators ? "Net Cash Flow (B) · " + realTermsAnchor + "$" : "Net Cash Flow (B)"}
             value={kpis.netCashFlow.value}
             icon={<DollarSign size={16} />}
             changeValue={kpis.netCashFlow.delta}
@@ -375,7 +456,7 @@ export default function FCCompare() {
             chartColor="#4A72B0"
           />
           <KpiCard
-            title="Expenses (B)"
+            title={deflators ? "Expenses (B) · " + realTermsAnchor + "$" : "Expenses (B)"}
             value={kpis.expense.value}
             icon={<TrendingDown size={16} />}
             changeValue={kpis.expense.delta}
