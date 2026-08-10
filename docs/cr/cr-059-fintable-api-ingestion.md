@@ -931,6 +931,65 @@ gzip-verified beforehand. All six reported accounts resolve to same-day balances
 - **Nothing goes into `server/db/migrations/` until the window it will run in.** Generate to the
   scratchpad, rehearse, then place-and-run.
 
+## 21. Cutover — done 2026-08-10, and the two things it taught
+
+**fin now ingests from fintable's REST API.** `FINTABLE_SOURCE=api`, floor
+`FINTABLE_API_MIN_DATE=2026-08-05`, carry-over window 5 days. Rollback is still one
+environment variable and a recreate.
+
+**Applied in one window** (backups of both databases taken and gzip-verified first): bank-feed **005**
+(`sync_state`, which had never reached the live store) and **006** (account ids), fin **063** (all three
+id columns). The service was stopped for the window so no Sheet sync could land mid-flight.
+
+**Two mistakes, both mine, both caught before the ledger.**
+
+**(1) I recreated the container without rebuilding the image.** `docker compose up -d` reuses the
+existing image, so the first API sync ran on a build from 2026-07-31 that did not contain
+`boundaryCarryover.js` at all — it inserted 108 rows under fresh API ids. Caught by reading the sync
+summary and finding no `boundary_carryover` block in it. *A recreate is not a deploy.*
+
+**(2) The carry-over was one-shot, and the collision is not.** After it runs, rows sit in our store
+under Sheet ids while fintable keeps serving them under API ids — permanently. The guard then switched
+the fix off, so nine hourly cron syncs (1783–1791) ran with no carry-over and inserted 41 duplicate
+rows; fin's 06:00 ingest staged 44 of them. It now runs on **every** API sync, costs one indexed SELECT,
+and goes inert on its own once the floor is raised past the transition window. **This was a real design
+error, not an operational slip** — the weekly full sweep would have hit it regardless of tonight.
+
+**Nothing reached the ledger either time: 0 promoted, 0 ledger rows created.** That is the second and
+third time in this CR that fin's human-in-the-loop promote gate has been the thing that made a mistake
+cheap. It is worth naming as a design property rather than luck.
+
+**One improvement came out of the run.** Two pairs of identical same-day AMD option trades were refused
+as ambiguous and would have promoted as 4 duplicate ledger rows. When the number of unclaimed candidates
+*exactly equals* the number of incoming rows competing for that key, the rows are indistinguishable —
+which is what made them ambiguous — so every pairing gives the same result and pairing is lossless. It
+fires only on exact count equality; a third identical trade breaks it and falls back to refusing.
+
+**Final cutover sync:** 117 considered → **108 carried over, 0 ambiguous, 9 genuinely new**. fin's ingest
+then reported **fetched=441, staged=441, new=9, updated=432** — without the carry-over all 441 would have
+been new, and 432 rows would have re-promoted as duplicates.
+
+**Full test results:**
+
+| check | result |
+|---|---|
+| Second sync inserts nothing (idempotent) | **0 inserted** |
+| Duplicate groups created by the cutover | **0** (26 exist, all Sheet-era, oldest 2026-06-02) |
+| Live mappings with no feed balance | **0** (27 during the 044 incident) |
+| Unmapped staging rows | **0** |
+| Duplicate `bank_feed_external_id` in the ledger | **0** |
+| Orphaned feed transactions | **0** |
+| Feed balances | all **2026-08-10**, same day |
+| Sheet-vs-API equivalence gate | **PASS**, 2,809 matched, 3 accepted exceptions |
+| bank-feed tests | **183 green** |
+| fin backend tests | **883 green / 65 suites** |
+
+**Still to do:** raise `FINTABLE_API_MIN_DATE` past 2026-08-10 in about a week, once late-arriving rows
+have stopped landing in the transition window — at which point the carry-over becomes a no-op and can
+eventually be deleted. And the **26 pre-existing duplicate groups** in the feed store deserve their own
+look; they are not from this cutover but three-copy rows like Black Card's 2026-07-14 `-136.53` are worth
+understanding.
+
 ## Status
 
 P0 done (§11), P1 built and shadow-verified (§13), both §12 decisions settled, default still
