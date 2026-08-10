@@ -879,3 +879,35 @@ the same contract that produced R7's `periodStart` bug — and should be made on
 side effect.
 
 **Moves nothing:** labels and a hint. 475 frontend, lint 0 errors.
+---
+
+## 13. Owner decisions on the advisory set, 2026-08-10
+
+The 15 live advisories (17 before [CR077 §7](cr-077-assumption-advisor-tab.md)'s two guards) were
+worked through one at a time. **Every one was already deliberate — no model change resulted.**
+Recorded here so they stop re-surfacing as open questions.
+
+| group | decision | reasoning |
+|---|---|---|
+| **cost basis = market** on 5 assets ($3.75M) | **all real, no change** | a deliberate 2025-12-31 revaluation: the plan taxes only post-2025 growth, consistently. Walked asset by asset — `PL - Niemena`, `US - Casarina` and `Barkeria` individually, the last two together once the pattern held. |
+| **CVC Fund VIII / IX** yield **and** capital returns | **growth is NAV net of distributions** | 3.75% NAV growth plus a ~4.2% yield is ~8%/yr total, and Fund IX returns **2.4× gross** on $408,779 of calls over eleven years. Ordinary PE outcomes, not double-counted ones. |
+| **escalation below inflation** — `Purchases` 0.5, `Travel` 0.8, `Car Expenses` 0.9, `Total Salary` 0.8 | **keep all four** | they sit around a real external benchmark (~1%/yr real spending decline through retirement): three are MORE conservative than it and only `Purchases` is slightly past. |
+| **`Tax`** ($55,103, `Taxes PL`) | **deliberately retired at 2027** | superseded by the per-stream `tax_rate_override` that charges Polish income tax where it is earned; a second manual line would double-count. |
+| **`disposal-in-base-year`** ×4 | informational | the sale executes and the proceeds land in opening cash. Nothing to decide. |
+
+### ⚠️ Correcting §1's claim that these have no benchmark
+
+[status.md](../current/status.md) and earlier notes said the sub-1 multipliers have **no external
+benchmark**, so each was a bare belief. That is **wrong**: household spending declines roughly
+**1%/yr in real terms** through retirement (Blanchett's retirement-spending work), which is exactly
+what a sub-1 multiplier of inflation encodes. Against it, `Travel` at 0.8 (−0.50%/yr real) and
+`Car Expenses` at 0.9 (−0.25%) are conservative, and only `Purchases` at 0.5 (−1.25%) is past it.
+
+The caveat that survives: the decline literature starts at **retirement**, not today. `Total Salary`
+is down to $3,786, which suggests that point has effectively arrived — but it is the assumption the
+0.5 rests on.
+
+### What this closes
+
+CR076 §7's "work the advisories" item is **done**. The remaining §7 entries are unaffected: price
+idle cash, and loss carry-forward.

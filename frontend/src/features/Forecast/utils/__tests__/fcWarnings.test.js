@@ -592,4 +592,44 @@ describe("CR077 A1 — a flow that loses ground to inflation", () => {
       { id: 3, direction: "expense", mode: "amount", amount: 100, growth_mult: null, fc_line_id: 4 },
     ] })])).not.toContain("escalation-below-inflation-Blank-expense-3");
   });
+
+  it("an amount-mode stream of ZERO never fires — nothing cannot erode", () => {
+    // Found live 2026-08-10: `New Business` sits at amount 0.00 with 0.9× in all five scenarios
+    // and produced an advisory about the escalation of nothing. Same shape as `idle-cash-unpriced`,
+    // which CR077 deleted for firing where it carried no information.
+    expect(ids([crMod({ Name: "Empty", Streams: [
+      { id: 3, direction: "income", mode: "amount", amount: 0, growth_mult: 0.9, fc_line_id: 4 },
+    ] })])).not.toContain("escalation-below-inflation-Empty-income-3");
+  });
+
+  it("a stream RETIRED by a -100% change never fires — it is not in the plan", () => {
+    // Found live 2026-08-10: `Tax` ($55,103, account `Taxes PL`) is zeroed from 2027 by a
+    // -100% row, superseded by the per-stream tax_rate_override. It produces NO forecast entries,
+    // and the advisory was still reasoning about what its escalation implied over 36 years.
+    expect(ids([crMod({ Name: "Retired", Streams: [
+      { id: 3, direction: "expense", mode: "amount", amount: 55103, growth_mult: 0, fc_line_id: 4,
+        changes: [{ change_date: "2027-12-31", amount: -100, flag: "Percent %" }] },
+    ] })])).not.toContain("escalation-below-inflation-Retired-expense-3");
+  });
+
+  it("a REVIVED stream fires again — Fixed $ adds to the level, it does not scale it", () => {
+    // The reason this is not simply "does a -100 row exist": a later Fixed $ puts money back, so
+    // the stream is live from that year and its escalation matters again.
+    expect(ids([crMod({ Name: "Revived", Streams: [
+      { id: 3, direction: "expense", mode: "amount", amount: 55103, growth_mult: 0.5, fc_line_id: 4,
+        changes: [
+          { change_date: "2027-12-31", amount: -100, flag: "Percent %" },
+          { change_date: "2035-12-31", amount: 20000, flag: "Fixed $" },
+        ] },
+    ] })])).toContain("escalation-below-inflation-Revived-expense-3");
+  });
+
+  it("a YIELD stream still fires at zero — its typed amount is dead, not its money", () => {
+    // All 20 yield streams and all 10 derived ones store amount 0.00 while paying real money
+    // (CVC Fund IX distributes ~4.2% from a stream typed 0.00). Applying the zero test to those
+    // modes would silence live streams, so the guard is amount-mode only.
+    expect(ids([crMod({ Name: "Fund", Streams: [
+      { id: 3, direction: "income", mode: "yield", amount: 0, growth_mult: 0.9, fc_line_id: 4 },
+    ] })])).toContain("escalation-below-inflation-Fund-income-3");
+  });
 });

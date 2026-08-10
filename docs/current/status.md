@@ -59,10 +59,11 @@ the dev-first migration rule, and the fact that **an engine change moves nothing
 scenarios are REGENERATED**. It changes far less often than this file does.
 
 ## Next
-- **Work the 12 advisories** now visible in Cash Health → *Assumptions to consider*. The sub-1
-  multipliers (`Purchases` 0.5 · `Travel` 0.8 · `Total Salary` 0.8 · `Car Expenses` 0.9) have **no
-  external benchmark** — unlike Social Security, a household may genuinely spend less in real terms
-  with age — so each is a belief to state or dismiss, not a defect to fix.
+- ~~Work the advisories~~ **DONE 2026-08-10** ([CR076 §13](../cr/cr-076-forecast-model-review.md)):
+  all 15 walked with the owner, **every one already deliberate — no model change**. The sub-1
+  multipliers DO have an external benchmark (~1%/yr real spending decline in retirement); three of
+  the four are more conservative than it. Two rules were firing on streams that are **not in the
+  plan** and are now guarded ([CR077 §7](../cr/cr-077-assumption-advisor-tab.md)).
 - **Re-examine SRQ** — at **−1,392,889** it is the scenario the selling costs hurt most, and the
   question is now whether the house purchase is viable in its current shape at all, not whether the
   arithmetic is right.
@@ -70,8 +71,9 @@ scenarios are REGENERATED**. It changes far less often than this file does.
   is ~105,000 today. CR079's toggle now makes that checkable by eye rather than by arithmetic.
 - **CR076 §7 remainder** — price idle cash (two scenario scalars); loss carry-forward (tax rules
   the owner would maintain; same-year netting already covers the live case).
-- **Real terms on Compare** — CR079's natural next increment, and the smaller half: one
-  `buildScenarioMatrix` path rather than the Review's four.
+- ~~Real terms on Compare~~ **DONE** ([CR079 §7](../cr/cr-079-real-terms-view.md)) — one
+  `buildScenarioMatrix` choke point; each scenario deflates by its OWN inflation, the anchor is
+  shared. Only the **Home hero** is still nominal-only.
 - **CR077's LLM stage** — only over the deterministic rules, never instead of them.
 - **Owner QA of the P&L module inputs** — CR076 §5 and §7 are the agenda.
 - **[CR066](../cr/cr-066-fc-line-mapping-completeness.md) P0** · **CR064 P2/P4/P5/P10** ·

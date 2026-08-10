@@ -299,6 +299,35 @@ export function classifyWarning(w) {
  * which is PeriodStart−2 once the actual and budget columns are unshifted on. A date before it is
  * not in the plan.
  */
+/**
+ * Has a `Percent %` change of −100 or worse permanently switched this stream off?
+ *
+ * `fcbuilder-stream.expandChanges` gives a `Percent %` row the growth RATE for its own year, and
+ * the LEVEL carries forward through the recurrence — so −100% takes the stream to zero that year
+ * and it stays zero. Found live 2026-08-10: `Tax` ($55,103, account `Taxes PL`) is retired at
+ * 2027 that way, superseded by the per-stream `tax_rate_override` that charges Polish income tax
+ * where it is earned. It contributes NOTHING to the forecast, and the advisory tab was
+ * nonetheless discussing what its escalation rate implied over 36 years.
+ *
+ * A later `Fixed $` or `One-Off $` row DOES revive the stream — those add to the level rather than
+ * scaling it — so a revival after the kill means the stream is live again and the rules should
+ * keep reading it. That is why this is not simply "does a −100 row exist".
+ */
+function isRetiredStream(st) {
+  const changes = Array.isArray(st?.changes) ? st.changes : [];
+  if (!changes.length) return false;
+  const at = (c) => String(c?.change_date ?? "");
+  const kill = changes
+    .filter((c) => c?.flag === "Percent %" && Number(c?.amount) <= -100)
+    .sort((a, b) => at(a).localeCompare(at(b)))[0];
+  if (!kill) return false;
+  return !changes.some(
+    (c) => (c?.flag === "Fixed $" || c?.flag === "One-Off $") &&
+           Number(c?.amount) !== 0 &&
+           at(c) > at(kill)
+  );
+}
+
 export function computeModuleIntegrityWarnings(modules = [], { periodStart = null, baseYearValues = null } = {}) {
   const out = [];
   const num = (v) => (v == null || v === "" ? null : Number(v));
@@ -326,6 +355,17 @@ export function computeModuleIntegrityWarnings(modules = [], { periodStart = nul
     for (const st of streams) {
       const mult = num(st?.growth_mult);
       if (mult == null || mult >= 1) continue;
+      // A stream with no money cannot erode. `New Business` carries `amount = 0` at 0.9× in all
+      // five scenarios and produced an advisory about the escalation of nothing — the same shape
+      // as the `idle-cash-unpriced` rule CR077 deleted for firing where it carried no information.
+      //
+      // Guarded on `amount` mode ONLY: a yield or derived stream's typed amount is DEAD (all 20
+      // yield streams and all 10 derived ones store 0.00 while paying real money, which is why
+      // CVC Fund IX distributes ~4.2%), so the same test there would silence live streams. Those
+      // modes never carry a sub-1 multiplier today, but the guard must not depend on that holding.
+      const mode = st?.mode ?? "amount";
+      if (mode === "amount" && num(st?.amount) === 0) continue;
+      if (isRetiredStream(st)) continue;
       const isIncome = st?.direction === "income";
       const line = st?.fc_line_name || st?.lineName || null;
       const label = line ? `"${name}" → ${line}` : `"${name}"`;

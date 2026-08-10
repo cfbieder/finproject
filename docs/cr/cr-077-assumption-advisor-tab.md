@@ -171,3 +171,53 @@ deferred — dismissal already carries the meaning, and a second state needs a r
 
 **Gate:** 870 backend · 475 frontend (7 new) · 8/8 e2e · lint 0 errors · six ratchets. The
 dead-token ratchet caught a `--text` that does not exist in this codebase (`--ink` does).
+---
+
+## 7. The first real working session, 2026-08-10 — two rules that fired on nothing
+
+The tab was built, then actually **worked through** with the owner for the first time: 17 advisories
+across five scenarios, collapsing into four questions because the same rows repeat per scenario.
+
+**The outcome was no model change at all.** Every judgement was already deliberate. That is the tab
+doing its job — but it also exposed that **two of the 17 were about streams that are not in the
+plan**, which is the one thing an advisory must never be.
+
+| | what fired | why it carried no information |
+|---|---|---|
+| `New Business` | escalation at 0.9× | the stream's `amount` is **0.00** in all five scenarios |
+| `Tax` | escalation at 0× | a **−100% `Percent %` change at 2027** retires the stream permanently |
+
+Both are now guarded, with tests, and the live count fell **17 → 15** per scenario.
+
+### Why each guard is shaped the way it is
+
+- **Zero amount, `amount` mode ONLY.** All 20 `yield` streams and all 10 `derived` ones store
+  `amount = 0.00` while paying real money — `CVC Fund IX` distributes ~4.2% from a stream typed
+  0.00 — so the same test applied to those modes would silence live streams. Those modes carry no
+  sub-1 multiplier today; the guard must not depend on that continuing to be true.
+- **Retired by −100%, unless revived.** `expandChanges` gives a `Percent %` row the growth RATE for
+  its own year while the LEVEL carries forward, so −100% zeroes the stream and it stays zero. But a
+  later `Fixed $` or `One-Off $` ADDS to the level rather than scaling it, and revives the stream —
+  so the rule is not "does a −100 row exist", and a test pins the revival case.
+
+### ⚠️ The pattern underneath both
+
+**These rules read module CONFIGURATION and never the generated RESULT.** A stream can be fully
+configured, carry a plausible multiplier, and contribute exactly nothing — and nothing in the
+warnings layer can tell. It is the same shape as `idle-cash-unpriced`, which this CR deleted for
+firing on every scenario always: *a finding that cannot be absent is not a finding.*
+
+Both guards here are configuration-side approximations of a result-side question. The honest fix —
+asking the entries whether a stream produced anything — has no channel today. Worth recording as a
+limit rather than pretending the two guards close the class.
+
+### What the session cost, and what it was worth
+
+The `Tax` advisory was investigated on a **wrong premise of mine**: I sized it as "a flat $55,103
+for 36 years at 0× escalation, a $1.25M understatement", recommended moving it to 1.0, and the
+owner agreed. Applying it to dev and regenerating produced a **byte-identical fingerprint** — which
+is what sent me looking, and found the −100% row. The measurement caught the error; the reasoning
+did not. See [failure-patterns](../current/failure-patterns.md) — a figure asserted about the
+engine's behaviour, wrong for the eighth-plus time, and again only found by measuring.
+
+The edit was reverted and dev's fingerprint returned to `105e5ea4d48ddf8db9efa67e30592651`.
