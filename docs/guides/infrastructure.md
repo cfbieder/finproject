@@ -11,12 +11,12 @@ around it, which is exactly why it does not belong in a session snapshot.
   `100.66.213.40:8080`. Both are separate repos.
 - Deploy: `./Scripts/deploy-to-production.sh` (DB backup first). Migrations **dev first, through
   `migrate.js`** — a `psql -f` apply writes no ledger row and is invisible to the guard. Registry:
-  [migrations.md](migrations.md). *A deploy's Step 1 backup predates its Step 2b migration.*
+  [migrations.md](../current/migrations.md). *A deploy's Step 1 backup predates its Step 2b migration.*
 - **An engine change moves nothing until the scenarios are REGENERATED.** Deploy, then regenerate,
   then check the fingerprint against the dev measurement.
 - The prod container runs as **root** and writes root-owned audit CSVs, so a host-run generation
   fails with EACCES — generate through the container.
-- **Gates:** counts live in [test-overview.md](test-overview.md). Lint **blocking** (0 errors) plus
+- **Gates:** counts live in [test-overview.md](../current/test-overview.md). Lint **blocking** (0 errors) plus
   six ratchets that may only shrink.
 
 

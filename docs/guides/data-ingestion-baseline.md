@@ -2,7 +2,7 @@
 
 > **Pack role:** the correctness floor for **importing external data and deriving state from
 > it** — file/CSV/API imports, transaction reconstruction, any "upload → parse → replace →
-> recompute" pipeline. [`.claude/rules/migrations.md`](.claude/rules/migrations.md) covers
+> recompute" pipeline. [`.claude/rules/migrations.md`](../../.claude/rules/migrations.md) covers
 > *schema* change safety; this doc covers *data* change safety, the layer above it. The
 > failure modes here are quiet: they return `200 OK`, render a healthy UI, and corrupt the
 > numbers behind it. Every rule below was learned from a real incident.
@@ -86,7 +86,7 @@ transform was correct because it didn't throw.
 ## Adopting
 
 1. Read this before building any import/replace or reconstruct-from-source feature.
-2. The always-on distillation is [`.claude/rules/data-import.md`](.claude/rules/data-import.md)
+2. The always-on distillation is [`.claude/rules/data-import.md`](../../.claude/rules/data-import.md)
    (path-scoped to parser/importer/loader files) — it fires when you touch ingestion code.
 3. New importer → the CR's impact checklist should confirm: validate-before-destroy, real
    fixtures pinned, derived-from-full-source, reconciliation asserted.

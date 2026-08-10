@@ -17,7 +17,7 @@ read-only drawer that stands between.
 [CR069](cr-069-forecast-streams.md) (streams as rows — this CR finishes what P3 started),
 [CR064 §4.1/§5](cr-064-forecast-annual-close-and-assumptions.md) (the decision this CR reopens),
 [CR062](cr-062-forecast-loan-module.md) (the existing per-type carve-out and its retype discipline),
-[CR041](cr-041-module-ownership-gating.md), [CR045](cr-045-cash-sweep-cascade.md),
+[CR041](cr-041-module-ownership-gating.md), [CR045](cr-045-forecast-cash-warnings-liquidation.md),
 [CR050](cr-050-forecast-scenario-variants.md).
 
 **Review status:** **pass 1 (technical) → REVISE**, ten blocking findings, all addressed and marked ⓘ

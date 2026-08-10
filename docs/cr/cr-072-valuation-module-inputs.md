@@ -11,7 +11,7 @@ P2–P6 → **v3.17.0 minor** · **Depends on:**
 [CR070](cr-070-module-inputs-by-type.md) (capabilities; and §3 below is where its residue detector
 turns out **not** to apply), [CR069](cr-069-forecast-streams.md) (streams as rows),
 [CR064](cr-064-forecast-annual-close-and-assumptions.md) (P9's PeriodStart anchor, which §5/§6
-extend), [CR051](cr-051-multi-currency.md) (the Matched ↔ currency coupling §3 trips over).
+extend), [CR051](cr-051-forecast-expense-currency.md) (the Matched ↔ currency coupling §3 trips over).
 
 **Review status: two-pass reviewed 2026-08-05 → REVISE, both passes, and both were right.** Pass 1
 killed the safety argument outright (§3); pass 2 carved P0+P1 out as a hotfix. Everything marked ⓘ
