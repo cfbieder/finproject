@@ -984,6 +984,21 @@ been new, and 432 rows would have re-promoted as duplicates.
 | bank-feed tests | **183 green** |
 | fin backend tests | **883 green / 65 suites** |
 
+**The import afterwards caught §18 at the ledger door.** Two pending rows would have double-booked
+Revolut-EUR: staging held `4044604745776048193--634f1912…` while the ledger already held
+`acc_01KYS5BECV…--634f1912…` — **the same transaction with the same hash suffix, differing only in the
+account prefix**, so `ON CONFLICT (bank_feed_external_id)` compares the full string and misses. A
+generalised sweep — *does any pending row share a hash suffix with a ledger row on the same account?* —
+found **exactly these two and nothing else**. They were pointed at the ledger rows that already hold
+them (true, and it stops the insert) rather than deleted. **This is the concrete case for the
+promote-time duplicate guard on the roadmap: suffix comparison catches what full-id comparison cannot,
+and it is one query.**
+
+**10 rows promoted** (ledger 1,574 → 1,584), 0 duplicate ids afterwards. Everything else pending is
+deliberately held: **369 suppressed net-zero plumbing rows** on the Fidelity accounts (loans, journal
+entries, option expirations) and the rest below their `promote_from_date` cutoffs. **Rows still
+promotable: 0.**
+
 **Still to do:** raise `FINTABLE_API_MIN_DATE` past 2026-08-10 in about a week, once late-arriving rows
 have stopped landing in the transition window — at which point the carry-over becomes a no-op and can
 eventually be deleted. And the **26 pre-existing duplicate groups** in the feed store deserve their own
