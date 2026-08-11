@@ -406,7 +406,7 @@ async function findModulesByScenario(scenarioId) {
   // a page reads the list, the list lacks the child rows, and the feature silently
   // shows nothing. The four loan_* columns come free via `m.*`.
   const sql = `
-    SELECT m.*, a.name as account_name, a.account_type,
+    SELECT m.*, a.name as account_name, a.account_type, a.currency AS account_currency,
       -- CR069 P2 — the module's streams with their change rows, so list consumers (the Review
       -- page's graph point-adjust among them) can read a stream without an N+1.
       COALESCE((
@@ -457,7 +457,7 @@ async function findModulesByScenario(scenarioId) {
  */
 async function findModuleById(id) {
   const moduleResult = await db.query(`
-    SELECT m.*, a.name as account_name, a.account_type
+    SELECT m.*, a.name as account_name, a.account_type, a.currency AS account_currency
     FROM forecast_modules m
     LEFT JOIN accounts a ON m.account_id = a.id
     WHERE m.id = $1

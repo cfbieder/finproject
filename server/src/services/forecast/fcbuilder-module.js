@@ -188,10 +188,39 @@ function computeModule(module, scenario, df_assumptions, df_categories, categori
   // Collapsing them onto the stricter rule would be an improvement and a BEHAVIOUR CHANGE,
   // which this CR's gate forbids; it is a candidate for a follow-up, not for a refactor whose
   // contract is "no number moves".
+  //
+  // ─── The follow-up, taken NARROWLY (roadmap Known Issue #19, 2026-08-10) ───
+  //
+  // One half of that asymmetry is closed here and the other is deliberately left alone.
+  //
+  // `fxColumn` maps **only PLN and EUR**. Every other currency resolves to null, and the
+  // valuation branch below is an `else if` with NO else — so a module denominated in
+  // anything else silently keeps `fxrates`' `fill(1)` and posts its LOCAL amount onto a
+  // USD balance sheet, for every year, exactly as the mislabelled PLN cards did. The flow
+  // branch already throws on this; the valuation branch is the gap.
+  //
+  // This is reachable: `WISE - GBP` (account 24) is a live account, and CR064 P13's guard
+  // cannot see the case at all — it fires on a USD label whose two value columns disagree,
+  // and a GBP module is honestly labelled GBP.
+  //
+  // Scoped to the UNMAPPABLE currency only. The other half — a mappable currency whose
+  // assumption column is absent from the scenario — keeps its rate-of-1 behaviour, because
+  // tightening it WOULD move numbers if any scenario were ever missing a PLN or EUR column,
+  // and "no number moves" is the contract this change is held to. Dormant on arrival:
+  // prod's modules are EUR 25 / PLN 30 / USD 115, so nothing trips it today.
   if (module.Currency && module.Currency !== "USD") {
     const fxColumn =
       module.Currency === "PLN" ? categories[2] :
       module.Currency === "EUR" ? categories[3] : null;
+
+    if (!fxColumn) {
+      throw new Error(
+        `Module "${module.Name}" is denominated in ${module.Currency}, which the forecast ` +
+        `engine cannot convert — it carries FX assumptions for PLN and EUR only. ` +
+        `Add an FX series for ${module.Currency}, or hold this module in a currency that has one. ` +
+        `(Left unchecked the engine would treat ${module.Currency} as USD at a rate of 1.)`
+      );
+    }
 
     if (!hasValuation) {
       if (!fxColumn || !df_assumptions.columns.includes(fxColumn)) {

@@ -8,7 +8,7 @@
 > CR index and roadmap already own, and it is where stale facts collect. Each cut has come from
 > MOVING something that changes on a different clock, never from deleting what is true.
 
-**Last updated:** 2026-08-10 · **Live version:** v3.26.1 (see `VERSION` / git tags)
+**Last updated:** 2026-08-11 · **Live version:** v3.27.0 (see `VERSION` / git tags)
 
 ## Current phase
 **The model, since [CR069](../cr/cr-069-forecast-streams.md):** a module is *identity + optional
@@ -50,7 +50,15 @@ warning sentence, or any figure that asserts what the engine does. The one that 
 **a restatement asserted as the engine's behaviour, found eight times.**
 
 ## Known issues
-[roadmap §3](project-roadmap.md#3-known-issues) is canonical. **#18 (open):** a fresh DB enforces
+[roadmap §3](project-roadmap.md#3-known-issues) is canonical. **#19 and #20 CLOSED 2026-08-11
+(v3.27.0):** the module-currency defect closed at its source — migration **064** relabels the eight
+rollup accounts whose children are unanimously non-USD (`Tax Liabilities` left alone, genuinely
+mixed), the engine now **throws** on a currency it cannot convert (falsified: a £10,000 module was
+posting **$10,000**), and `fcWarnings` **R11** reports a module whose currency disagrees with its
+account — the one shape no engine guard can see, because the values agree and are simply wrong.
+**#20 was a red `main` nothing announced:** `crud.openingBankCash.test.js` threw on a `Bank Accounts`
+root that `ci-seed.sql` never creates, so **five consecutive CI runs failed** while every local run
+passed; the suite now seeds and cleans up its own root. **#18 (open):** a fresh DB enforces
 `fc_lines.line_type`'s CHECK while dev and prod do not (007 auto-baselined) — a test can pass on
 dev and fail only in CI; 0 violating rows, so a forward migration closes it cheaply. Worth knowing
 at session start: the timezone rule (#3), the unannounced red `main` (#12), the ESLint JSX blind

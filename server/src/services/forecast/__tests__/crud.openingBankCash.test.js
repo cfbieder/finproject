@@ -50,16 +50,43 @@ describeOrSkip('CR076 D2 — getOpeningBankCash', () => {
       [accountId, date, amount, currency, `${TAG} txn`, closingBalance]
     );
 
+  // Set only when THIS suite created the root, so the cleanup removes exactly what it made.
+  let createdRoot = false;
+
   beforeAll(async () => {
     const root = await db.query(`SELECT id FROM accounts WHERE name = 'Bank Accounts' LIMIT 1`);
-    if (!root.rows.length) throw new Error('No "Bank Accounts" root in this database');
-    bankRootId = root.rows[0].id;
+    if (root.rows.length) {
+      bankRootId = root.rows[0].id;
+      return;
+    }
+    // This used to `throw`, and it made CI RED — `ci-seed.sql` carries no `Bank Accounts`
+    // root, so every run against a fresh migrations+seed database failed all six tests
+    // here while dev (which has the root) stayed green. Confirmed on 2026-08-10: five
+    // consecutive red runs on `main`, unannounced — roadmap Known Issue #12's exact shape,
+    // and the suite that reports it is the one that cannot see it.
+    //
+    // Every other fixture in this file is already self-seeded and cleaned up; the root was
+    // the one borrowed row. It is now seeded too, which is the documented pattern for a
+    // DB-backed suite here — and it keeps the dev/prod path byte-identical, because the
+    // branch only runs when the root is genuinely absent.
+    const made = await db.query(
+      `INSERT INTO accounts (name, parent_id, account_type, section, currency,
+                             opening_balance, opening_balance_date)
+       VALUES ('Bank Accounts', NULL, 'asset', 'balance_sheet', 'USD', 0, '2025-01-01')
+       RETURNING id`
+    );
+    bankRootId = made.rows[0].id;
+    createdRoot = true;
   });
 
   afterAll(async () => {
     if (madeAccountIds.length) {
       await db.query(`DELETE FROM transactions WHERE account_id = ANY($1)`, [madeAccountIds]);
       await db.query(`DELETE FROM accounts WHERE id = ANY($1)`, [madeAccountIds]);
+    }
+    // Only if we made it. On dev and prod the root is real data and must survive.
+    if (createdRoot && bankRootId) {
+      await db.query(`DELETE FROM accounts WHERE id = $1`, [bankRootId]);
     }
   });
 

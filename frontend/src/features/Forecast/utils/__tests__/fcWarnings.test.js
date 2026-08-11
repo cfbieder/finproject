@@ -633,3 +633,70 @@ describe("CR077 A1 — a flow that loses ground to inflation", () => {
     ] })])).toContain("escalation-below-inflation-Fund-income-3");
   });
 });
+
+// ─────────────────────────────────────────────────────────────────────────────────────
+// Known Issue #19 — R11: the module's currency disagrees with its account's.
+//
+// The third shape of the currency defect, and the only one no engine guard can catch.
+// CR064 P13 fires when a USD-labelled module's two VALUE columns disagree; the #19 engine
+// guard fires on a currency with no FX series. Neither sees values that AGREE because both
+// were typed in local currency under a USD label — self-consistent, and simply wrong.
+//
+// The linked account is the only independent witness. `PLN Credit Cards` is the worked
+// example: account 65 said USD, its four PKO children said PLN, the module copied the
+// parent, and 18,250 of liability that did not exist rode every forecast year.
+// ─────────────────────────────────────────────────────────────────────────────────────
+describe("Known Issue #19 — R11: module currency vs account currency", () => {
+  const ccyMod = (o = {}) => ({
+    Name: "M", Type: "Liability", Currency: "USD", SetupStatus: "complete",
+    HasValuation: true, Streams: [], Amortization: [],
+    DisposeCount: 0, DisposeFullCount: 0, DisposeFirstYear: null, ...o,
+  });
+  const warn = (m, id) =>
+    computeModuleIntegrityWarnings([m], { periodStart: 2027 }).find((w) => w.id === id);
+
+  it("flags a USD module on a PLN account — the shape that actually shipped", () => {
+    const w = warn(
+      ccyMod({ Name: "PLN Credit Cards", Currency: "USD", AccountCurrency: "PLN" }),
+      "currency-usd-over-account-PLN Credit Cards"
+    );
+    expect(w).toBeTruthy();
+    expect(w.severity).toBe("warning");
+    // Integrity, not advice: if this is true, something IS wrong.
+    expect(w.kind).toBe("integrity");
+  });
+
+  it("treats one non-USD currency over another as a JUDGEMENT, not a defect", () => {
+    const w = warn(
+      ccyMod({ Name: "Spanish Flat", Currency: "EUR", AccountCurrency: "PLN" }),
+      "currency-differs-from-account-Spanish Flat"
+    );
+    expect(w).toBeTruthy();
+    expect(w.kind).toBe("advisory");
+  });
+
+  it("stays silent when the two agree — this is what keeps it dormant", () => {
+    for (const c of ["USD", "PLN", "EUR"]) {
+      const ws = computeModuleIntegrityWarnings(
+        [ccyMod({ Currency: c, AccountCurrency: c })], { periodStart: 2027 }
+      ).filter((w) => w.id.startsWith("currency-"));
+      expect(ws).toHaveLength(0);
+    }
+  });
+
+  it("stays silent when the account currency is unknown, rather than guessing", () => {
+    // An unlinked module has no witness. Reporting one would be a false positive on every
+    // module the API has not joined an account onto.
+    const ws = computeModuleIntegrityWarnings(
+      [ccyMod({ Currency: "PLN", AccountCurrency: null })], { periodStart: 2027 }
+    ).filter((w) => w.id.startsWith("currency-"));
+    expect(ws).toHaveLength(0);
+  });
+
+  it("is case-insensitive, so a lower-cased label is not reported as a mismatch", () => {
+    const ws = computeModuleIntegrityWarnings(
+      [ccyMod({ Currency: "pln", AccountCurrency: "PLN" })], { periodStart: 2027 }
+    ).filter((w) => w.id.startsWith("currency-"));
+    expect(ws).toHaveLength(0);
+  });
+});

@@ -275,6 +275,7 @@ const ADVISORY_PREFIXES = [
   "foreign-income-no-tax-override-",   // which rate really applies to already-taxed income
   "growth-multiplier-outlier-",        // a deliberate write-off looks identical to a typo
   "escalation-below-inflation-",       // CR077 — a real-terms erosion the owner may have chosen
+  "currency-differs-from-account-",    // #19 — a mixed-currency account has no single right label
 ];
 
 export function classifyWarning(w) {
@@ -441,6 +442,57 @@ export function computeModuleIntegrityWarnings(modules = [], { periodStart = nul
           "else about it (amount, years, schedule, security) is being ignored.",
         years: [],
         amount: num(mod.LoanPrincipal) ? -Math.abs(num(mod.LoanPrincipal)) : null,
+      });
+    }
+
+    // ---- R11: the module's currency disagrees with its account's ------------
+    //
+    // Roadmap Known Issue #19, and the one shape neither engine guard can catch.
+    //
+    // CR064 P13 fires on a USD label whose two VALUE columns disagree; the #19 guard fires on
+    // a currency the engine has no FX series for. Neither sees the case where the two columns
+    // AGREE because both were entered in local currency under a USD label — the numbers are
+    // self-consistent and simply wrong, and the engine then skips the FX branch entirely and
+    // posts the local amount onto a USD balance sheet for every year of the horizon.
+    //
+    // The linked account is the only independent witness. A module inherits its currency from
+    // the account at creation, so a disagreement means one of them was changed afterwards —
+    // and the engine believes the MODULE. That is exactly how `PLN Credit Cards` came to carry
+    // 18,250 of liability that did not exist: account 65 said USD, its four PKO children said
+    // PLN, and the module copied the parent.
+    //
+    // A WARNING, not a throw, deliberately. A legitimate disagreement exists — `Tax Liabilities`
+    // aggregates a USD and a PLN reserve, so its account has no single right answer and its
+    // module is correctly USD. Refusing that in the engine would block a generate over a
+    // judgement call. Reporting it puts the choice where it belongs.
+    const modCcy = String(mod.Currency || "USD").toUpperCase();
+    const acctCcy = mod.AccountCurrency ? String(mod.AccountCurrency).toUpperCase() : null;
+    if (acctCcy && acctCcy !== modCcy) {
+      const usdOverLocal = modCcy === "USD";
+      out.push({
+        // Two prefixes, because the two cases answer the classifier's question differently:
+        // USD over a local account is something WRONG (integrity); one non-USD currency over
+        // another is something to DECIDE (advisory, listed above).
+        id: usdOverLocal
+          ? `currency-usd-over-account-${name}`
+          : `currency-differs-from-account-${name}`,
+        severity: usdOverLocal ? "warning" : "info",
+        title: usdOverLocal
+          ? `"${name}" is held in USD while its account is ${acctCcy}`
+          : `"${name}" is held in ${modCcy} while its account is ${acctCcy}`,
+        detail: usdOverLocal
+          ? `The engine reads FX assumptions only when a module's currency is NOT USD, so if ` +
+            `these values were typed in ${acctCcy} they are being posted to the balance sheet ` +
+            `as dollars, unconverted, in every year. Nothing else would say so — the figure ` +
+            `looks plausible and stays wrong. Check the values against the account, then set ` +
+            `the module to whichever currency they are actually in.`
+          : `A module normally inherits its account's currency, so one of the two was changed ` +
+            `afterwards and the engine follows the MODULE. That can be right — an account that ` +
+            `aggregates more than one currency has no single correct label — but it is worth ` +
+            `confirming which of the two is the intended one.`,
+        years: [],
+        amount: null,
+        dismissible: true,
       });
     }
 

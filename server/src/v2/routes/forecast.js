@@ -769,6 +769,10 @@ function moduleCommonFields(m) {
     Name: m.name,
     Account: m.account_name,
     Currency: m.currency,
+    // Known Issue #19 — the LINKED ACCOUNT's currency, so `fcWarnings` can report a module
+    // whose currency disagrees with it. A module inherits this at creation; when the two
+    // drift apart the engine believes the MODULE, and a wrong USD label there is silent.
+    AccountCurrency: m.account_currency || null,
     TaxRateOverride: m.tax_rate_override != null ? parseFloat(m.tax_rate_override) : null,
     BaseDate: m.base_date,
     BaseValue: m.base_value,
