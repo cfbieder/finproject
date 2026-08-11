@@ -78,7 +78,7 @@ books `expected − computed` as a dated, idempotent plug row with FX, a stale-f
 plausibility guard. Three things are hardcoded: the category (88), the month-end date snap, and
 `source='mtm'`. Part B parameterizes them.
 
-### B1 — schema (migrations 067 and 068)
+### B1 — schema (migration 067)
 
 ```sql
 ALTER TABLE account_source_mappings
@@ -93,11 +93,19 @@ dispatch was `if (mode === 'mtm') … else calibrate`, so *any* unrecognised mod
 click in that window would have re-anchored `opening_balance` on both accounts and wiped exactly
 the history migration 065 had just booked.
 
-Split accordingly: **067** adds the column only, before the deploy; **068** flips the two accounts,
-**after** it. And the same deploy removes the trap for good — an unrecognised mode now **throws**
-rather than falling through, so the fourth mode cannot re-set this. Falsified: with the throw
-removed, the unknown-mode test resolves to `calibrate` proposing `new_opening: 12345.67` against an
-`old_opening` of 10000.
+Split accordingly: **067** adds the column only, before the deploy. And the same deploy removes the
+trap for good — an unrecognised mode now **throws** rather than falling through, so the fourth mode
+cannot re-set this. Falsified: with the throw removed, the unknown-mode test resolves to `calibrate`
+proposing `new_opening: 12345.67` against an `old_opening` of 10000.
+
+**Then 068 was withdrawn too, and the ordering problem with it.** The mode flip was first written as
+migration 068, applied after the deploy. That header spent twenty lines justifying an inversion of
+the standing migrations-before-code rule — which was the tell. `reconcile_mode` and
+`accrual_category_id` are per-install **configuration**, the same family as `feed_sign`,
+`feed_negate_tx` and `promote_from_date`, none of which is set by a migration. Setting it on the
+reconcile page after the deploy needs no exception to any rule, avoids
+`--allow-unverified-migrations` (Step 2b(i) would rightly have refused a file that never ran on
+dev), and gets validation a migration cannot have. **067 is the only migration this CR ships.**
 
 ### B2 — engine
 
@@ -199,6 +207,7 @@ than guessed at; a NULL category refuses instead of defaulting; re-running super
 duplicating; an earlier accrual row is part of the base and not re-recognised; and `calibrate` /
 `mtm` are unchanged by the new dispatch.
 
-**Remaining before this is closed:** deploy, then apply migration 068 (in that order — see B1), and
-take the first real `accrue` run at the next month-end, which is when the signal clears the band
-(B4). Neither reviewer pass (cr-technical-reviewer, cr-signoff-pm) has been run.
+**Remaining before this is closed:** deploy; set both accounts to `accrue` / `Interest Income` on
+the reconcile page (which also verifies the new UI path in a browser); then take the first real run
+at the next month-end, when the signal clears the band (B4). Neither reviewer pass
+(cr-technical-reviewer, cr-signoff-pm) has been run.
