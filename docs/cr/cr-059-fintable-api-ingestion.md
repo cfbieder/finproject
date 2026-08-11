@@ -1114,9 +1114,9 @@ forever.
 
 1. ✅ **The promote-time duplicate guard — DONE (v3.28.1), see §22.7.**
 2. ✅ **The event-hash guard's dormancy — DONE (v3.28.1), see §22.7.**
-3. **Raise `FINTABLE_API_MIN_DATE` (P1).** Still the §21 item, now with a second reason: 108 rows
-   depend on the carry-over on every sweep, and raising the floor retires both the exposure and the
-   pass together.
+3. ⛔ **Raise `FINTABLE_API_MIN_DATE` (P1) — DO NOT, on the stated plan. See §22.9:** the arrival-lag
+   figure the plan rests on is wrong by an order of magnitude, and every raise opens a *silent*
+   data-loss window sized by the lag tail.
 4. **Size the insert guard to the real failure (P2).** A separate, much lower ceiling on inserts *dated
    inside the transition window* would have caught this at 23.
 5. **Detect two generations in our own store (P2).** Nothing notices that bank-feed holds the same
@@ -1219,6 +1219,68 @@ they need a statement rather than a rule.
 *identical-looking money*, not error. The same content grouping that found §22's 20 real duplicates
 finds 36 rows that are almost certainly fine, and only the identifiers underneath — `ps_id`,
 `transaction_id`, `pending_transaction_id` — separate the two.
+
+## 22.9 The arrival-lag figure is wrong by an order of magnitude, and the floor is now a silent-loss risk
+
+Going to schedule item 3 — raise `FINTABLE_API_MIN_DATE` — meant re-checking the number the whole
+plan rests on. **It does not survive the check, and the conclusion inverts: the floor should not be
+raised on the stated plan, and may need to come down.**
+
+§19 measured arrival lag as **"1–2 days across 71 rows"** (2026-07-30 .. 08-01) and used it to size
+`FINTABLE_API_CARRYOVER_DAYS = 5` at *"2.5× the observed maximum"*. Measured now against
+`feed_transactions.ingested_at` — bank-feed's own first-seen stamp, not fin's, so fin's daily cron
+does not inflate it — over **2,151 rows since 2026-06-01**:
+
+| lag | rows | share |
+|---|---:|---:|
+| ≥ 5 days | 95 | **4.4%** |
+| ≥ 10 days | 54 | 2.5% |
+| ≥ 17 days (p99) | 24 | 1.1% |
+| max | **53 days** | |
+
+**5 was never 2.5× the maximum. It is below the 99th percentile.** The original figure was taken from
+a 3-day window during which nothing slow happened, and a 10× larger sample has a long tail: a fifth of
+a percent of rows arrive more than a month late.
+
+**Why this matters more than the window.** §22.4 made the carry-over floor `minDate`, so
+`carryoverWindowDays` is unused while `minDate` is set and the undersizing is currently inert. The
+live consequence is the **floor itself**. `FINTABLE_API_MIN_DATE = 2026-08-05` is applied
+unconditionally as `dateFrom`, so **any transaction dated before 2026-08-05 that fintable first serves
+after the 2026-08-10 cutover is never fetched, and nothing says so.** At 4.4% arriving ≥5 days late,
+rows dated 08-01..08-04 landing on or after 08-10 fall in that hole — on ~27 rows/day, order 3–5 rows.
+Small, one-time, and **silent**, which the [data-import rules](../../.claude/rules/data-import.md)
+single out as the failure mode to design against: *"external data imports fail silently — 200 OK over
+corrupt/missing data."*
+
+**And every raise opens a fresh window.** Moving the floor to 08-11 would make rows dated 08-05..08-10
+permanently unfetchable on the same terms. Item 3's "in about a week" is sized to the wrong number: a
+raise is only safe once the lag tail for everything below the new floor has drained, which is **≥21
+days**, not 7.
+
+**Which way to fail has changed, and it changed in our favour.** The floor was set high because a low
+one re-serves old rows under API ids and collides — but that is precisely what §22.4's carry-over now
+covers across the *whole* fetch range, with fin's content guard (§22.7) behind it. So the trade is no
+longer *silent loss vs. duplicate*; it is **silent loss vs. a duplicate caught twice**. The project's
+stated bias resolves that immediately.
+
+**Three options, costed** — the cost of a lower floor is how many rows the carry-over must match on
+each full sweep:
+
+| floor | rows through carry-over | recovers late arrivals dated |
+|---|---:|---|
+| `2026-08-05` (today) | 140 | nothing before 08-05 |
+| `2026-07-15` | 775 | back to mid-July |
+| `2026-07-01` | 1,196 | back to July |
+
+The honest long-term answer is neither: **a fixed floor cannot be right, because the thing it must
+outrun is a moving tail.** A rolling look-back (`now − N days`, N ≈ 30) bounds history *and* never
+blocks a late arrival, and it is the same shape of fix as §22.4 — stop pinning a window that has to
+track something that moves. That is a design change in bank-feed and is not made here.
+
+**Counted as a tenth instance of [failure pattern #1](../current/failure-patterns.md).** Not a
+restatement of the engine this time but of a *measurement*: a figure taken from a sample too small to
+contain the behaviour it was used to size, then quoted forward as *"2.5× the observed maximum"* — a
+ratio that reads as margin and was a deficit.
 
 ## Status
 
