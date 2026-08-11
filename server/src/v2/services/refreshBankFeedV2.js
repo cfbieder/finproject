@@ -277,6 +277,15 @@ async function promote() {
   let suppressed = 0;
   let mirrored = 0;          // CR032: auto-offset legs created for core-cash sweeps
   let skippedDup = 0;        // CR036: manual rows already present in the ledger
+  // CR059 §22 observability. skippedDupContent is the number the reconcile page
+  // should never see move for no reason: a non-zero value means the feed
+  // re-delivered rows we already hold, which is the signal that an upstream id
+  // scheme changed. eventHashApplicable answers "is the older guard still doing
+  // anything?" — it went to 0 for live rows at the cutover and nothing said so.
+  let skippedDupContent = 0;
+  let eventHashApplicable = 0;
+  let eventHashSkips = 0;
+  const contentClaimed = [];   // ledger ids already matched in THIS batch
   const mergedWithPsCount = {};
   const dedup = dedupEnabled();
 
@@ -307,8 +316,19 @@ async function promote() {
       // This is exact, so it runs ahead of — and independently of — the fuzzy
       // BANK_FEED_DEDUP_ENABLED matching below: turning that off means "do not
       // guess", not "import the same event twice". Compared with `right()` rather
-      // than LIKE so the hash needs no wildcard escaping; no `--` in the id (a
-      // non-fintable source) means no check.
+      // than LIKE so the hash needs no wildcard escaping.
+      //
+      // IT ONLY APPLIES TO SHEET-ERA IDS, and used to say an id without `--` was
+      // "a non-fintable source". That stopped being true at the CR059 cutover:
+      // fintable's API serves opaque ULIDs (`tx_01KZCJS3WDXK…`) with no separator
+      // and no component shared between two ids for the same event, so this guard
+      // silently stopped applying to the live feed — nothing announced it, and
+      // CR059 §22's 28 duplicate ledger rows walked straight past where it used to
+      // stand. It is kept because ~776 Sheet-era ids remain in the ledger and it is
+      // exact where it applies; what covers the API path is the content guard
+      // below, which does not care what an id looks like. `usedEventHash` is
+      // reported so "this guard is dormant" is a number on the summary rather than
+      // something to rediscover.
       const sepAt = String(r.external_id || '').indexOf('--');
       if (sepAt > 0) {
         const eventHash = String(r.external_id).slice(sepAt + 2);
@@ -320,7 +340,77 @@ async function promote() {
             AND right(bank_feed_external_id, length($3) + 2) = '--' || $3
           LIMIT 1
         `, [r.fin_account_id, r.external_id, eventHash])).rows[0];
-        if (prior) { matchedTxId = prior.id; matchAction = 'skip'; }
+        eventHashApplicable++;
+        if (prior) { matchedTxId = prior.id; matchAction = 'skip'; eventHashSkips++; }
+      }
+
+      // CR059 §22 — THE CONTENT GUARD. The last line of defence against the same
+      // transaction arriving under an id we have never seen, which is what every
+      // other layer keys on:
+      //
+      //   staging (source, external_id) UNIQUE      — new id, no conflict
+      //   ON CONFLICT (bank_feed_external_id)       — new id, no conflict
+      //   promote_from_date                         — months older than the rows
+      //   the event-hash guard above                — needs `--`; API ids have none
+      //   findPsMatch below                         — queries `source='pocketsmith'
+      //                                               AND bank_feed_external_id IS
+      //                                               NULL`, so it structurally
+      //                                               cannot see a FED twin
+      //
+      // No id-based guard can survive an upstream changing its id scheme, so this
+      // one matches on content instead: same account, same date, same amount, same
+      // description as a row the feed already put in the ledger.
+      //
+      // INTERCHANGEABLE ROWS, and why this is not a plain EXISTS. Two identical
+      // same-day trades are ordinary on the Fidelity options account — CR059 §21
+      // hit exactly that, and §22's forced sweep confirmed the two AMD -244.66 puts
+      // on 2026-08-06 are genuinely two trades. So a candidate is CLAIMED once and
+      // cannot match a second staged row: 2 held + 2 incoming skips both, 2 held +
+      // 3 incoming skips two and inserts the third. Nothing is dropped and nothing
+      // duplicates, whichever way round the pairing goes.
+      //
+      // EXACT DATE ONLY, deliberately. A tolerance window would also catch the
+      // posted-vs-authorization shift (§13.2), but it is bank-feed's
+      // boundaryCarryover that owns that case — it has the tolerance, and it
+      // matches against its own store before fin ever sees the row. Widening here
+      // buys little and costs the one failure that must not happen: a false match
+      // SILENTLY DROPS a real transaction, while a missed one is a visible
+      // duplicate on the reconcile page. Ambiguity resolves toward the duplicate,
+      // the same bias boundaryCarryover is built on.
+      //
+      // Runs independently of BANK_FEED_DEDUP_ENABLED, like the guard above:
+      // "do not guess" must not mean "import the same transaction twice". It also
+      // deliberately does NOT inherit the transfer-mirror exclusion below — that
+      // exclusion exists so a sweep is never LINKED to a PS row, and 8 of §22's 20
+      // duplicates were core-sweep rows, each of which also minted a second
+      // auto-offset mirror.
+      if (!matchAction) {
+        const twin = (await client.query(`
+          SELECT id FROM transactions
+          WHERE account_id = $1
+            AND transaction_date = $2::date
+            AND amount = $3
+            AND bank_feed_external_id IS NOT NULL
+            AND bank_feed_external_id <> $4
+            AND upper(regexp_replace(btrim(coalesce(description1, '')), '\\s+', ' ', 'g'))
+              = upper(regexp_replace(btrim(coalesce($5::text, '')), '\\s+', ' ', 'g'))
+            AND NOT (id = ANY($6::bigint[]))
+          ORDER BY id
+          LIMIT 1
+        `, [
+          r.fin_account_id,
+          r.transaction_date,
+          r.amount,
+          r.external_id,
+          r.description || r.merchant || null,
+          contentClaimed,
+        ])).rows[0];
+        if (twin) {
+          matchedTxId = twin.id;
+          matchAction = 'skip';
+          contentClaimed.push(twin.id);
+          skippedDupContent++;
+        }
       }
 
       // CR032: core-sweep mirrors are synthetic net-zero plumbing — never link
@@ -491,6 +581,13 @@ async function promote() {
     suppressed,            // CR024 Phase 2: net-zero plumbing rows held back
     mirrored,              // CR032: auto-offset legs created for core-cash sweeps
     skippedDup,            // CR036: manual rows deduped against the existing ledger
+    // CR059 §22. A non-zero skippedDupContent is not routine housekeeping — it is
+    // the feed re-delivering transactions the ledger already holds, i.e. exactly
+    // the condition that put 28 rows and +2,888.80 into prod. Surfaced so it can
+    // be watched rather than inferred after the fact.
+    skippedDupContent,
+    eventHashApplicable,   // rows whose id still carries a `--` event hash (0 = dormant)
+    eventHashSkips,
     skipped: 0,
     protectedCount: 0,
     mergedWithPsCount,

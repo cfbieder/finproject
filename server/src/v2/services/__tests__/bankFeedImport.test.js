@@ -551,6 +551,172 @@ dbDescribe('refreshBankFeedV2.promote (DB)', () => {
     );
     expect(inserted.rows).toHaveLength(0);
   });
+
+  // ──────────────────────────────────────────────────────────────────────────
+  // CR059 §22 — the content guard.
+  //
+  // The defect these pin down reached prod: fintable's API replaced the Sheet's
+  // `{account}--{hash}` ids with opaque ULIDs, so every id-keyed guard saw rows
+  // it had never seen and 28 duplicates (+2,888.80, +2,432.38 of it Interest
+  // Income) promoted. The ids here are deliberately ULID-SHAPED — a `--` id would
+  // be caught by the older event-hash guard and would prove nothing about this one.
+  //
+  // The property that matters most is NOT "duplicates are skipped" but "a
+  // genuinely new row is never dropped to achieve that": a false skip loses real
+  // money silently, a missed one is a visible duplicate. Two identical same-day
+  // option trades are ordinary on this feed, so the interchangeable-row cases
+  // below are the ones worth breaking.
+  // ──────────────────────────────────────────────────────────────────────────
+
+  const ULID = (n) => `test-bf-c-tx_01KZCJS3${String(n).padStart(4, '0')}`;
+
+  // A row the feed already put in the ledger, exactly as promote() would have.
+  async function seedLedgerFeedRow(externalId, over = {}) {
+    const res = await db.query(
+      `INSERT INTO transactions
+         (transaction_date, description1, amount, currency, account_id, source,
+          bank_feed_external_id, accepted)
+       VALUES ($1, $2, $3, 'USD', $4, 'bank-feed', $5, FALSE)
+       RETURNING id`,
+      [over.date || '2026-08-05', over.desc || 'INTEREST IBM INTL CAP PTE LTD NOTE',
+        over.amount != null ? over.amount : 2375.00, ACCT, externalId]
+    );
+    return res.rows[0].id;
+  }
+  const stagedLike = (externalId, over = {}) => seedStaging(externalId, UUID_OK, {
+    transaction_date: over.date || '2026-08-05',
+    amount: over.amount != null ? over.amount : 2375.00,
+    currency: 'USD',
+    base_amount: over.amount != null ? over.amount : 2375.00,
+    description: over.desc || 'INTEREST IBM INTL CAP PTE LTD NOTE',
+  });
+  const ledgerRows = async (desc = 'INTEREST IBM INTL CAP PTE LTD NOTE') => (await db.query(
+    `SELECT id, bank_feed_external_id FROM transactions
+      WHERE account_id = $1 AND description1 = $2 ORDER BY id`, [ACCT, desc]
+  )).rows;
+
+  test('REGRESSION §22: the same transaction under a NEW opaque id does not promote again', async () => {
+    await seedMapping(UUID_OK, false);
+    const heldId = await seedLedgerFeedRow('test-bf-c-held-sheetid');
+    await stagedLike(ULID(1));                       // re-delivered, new id shape
+
+    const sync = await orchestrator.promote();
+
+    expect(await ledgerRows()).toHaveLength(1);      // still one — no second copy
+    expect(sync.skippedDupContent).toBeGreaterThanOrEqual(1);
+    // The staging row records WHAT it was deduped against, so a wrong skip is
+    // auditable and reversible rather than a silent disappearance.
+    const st = (await db.query(
+      `SELECT promoted_transaction_id FROM bankfeed_staging WHERE external_id = $1`, [ULID(1)]
+    )).rows[0];
+    expect(Number(st.promoted_transaction_id)).toBe(Number(heldId));
+  });
+
+  test('interchangeable rows: 2 held + 2 re-delivered → both skipped, still 2', async () => {
+    // Two genuinely distinct same-day trades already in the ledger. A plain EXISTS
+    // check also passes this one; the next test is the one it fails.
+    await seedMapping(UUID_OK, false);
+    await seedLedgerFeedRow('test-bf-c-held-a', { desc: 'YOU BOUGHT OPENING PUT AMD', amount: -244.66 });
+    await seedLedgerFeedRow('test-bf-c-held-b', { desc: 'YOU BOUGHT OPENING PUT AMD', amount: -244.66 });
+    await stagedLike(ULID(2), { desc: 'YOU BOUGHT OPENING PUT AMD', amount: -244.66 });
+    await stagedLike(ULID(3), { desc: 'YOU BOUGHT OPENING PUT AMD', amount: -244.66 });
+
+    await orchestrator.promote();
+
+    expect(await ledgerRows('YOU BOUGHT OPENING PUT AMD')).toHaveLength(2);
+  });
+
+  test('NO SILENT DROP: 2 held + 3 incoming → 2 skipped and the genuinely new one INSERTS', async () => {
+    // The case that makes this a claiming matcher rather than an EXISTS. A third
+    // identical trade really does happen; dropping it would lose real money with
+    // nothing on screen to show for it.
+    await seedMapping(UUID_OK, false);
+    await seedLedgerFeedRow('test-bf-c-held-c', { desc: 'YOU BOUGHT OPENING PUT AMD', amount: -244.66 });
+    await seedLedgerFeedRow('test-bf-c-held-d', { desc: 'YOU BOUGHT OPENING PUT AMD', amount: -244.66 });
+    await stagedLike(ULID(4), { desc: 'YOU BOUGHT OPENING PUT AMD', amount: -244.66 });
+    await stagedLike(ULID(5), { desc: 'YOU BOUGHT OPENING PUT AMD', amount: -244.66 });
+    await stagedLike(ULID(6), { desc: 'YOU BOUGHT OPENING PUT AMD', amount: -244.66 });
+
+    await orchestrator.promote();
+
+    const rows = await ledgerRows('YOU BOUGHT OPENING PUT AMD');
+    expect(rows).toHaveLength(3);                    // 2 held + exactly 1 new
+    // and no ledger row was claimed twice
+    expect(new Set(rows.map((x) => x.id)).size).toBe(3);
+  });
+
+  test('a different date is NOT deduped — the match is exact-date by design', async () => {
+    // Tolerance belongs to bank-feed's boundaryCarryover, which matches against
+    // its own store. Widening it here would trade a visible duplicate for a
+    // silent drop on genuinely repeated charges.
+    await seedMapping(UUID_OK, false);
+    await seedLedgerFeedRow('test-bf-c-held-e', { desc: 'DELUXE TOWN DINER', amount: -142.73, date: '2026-08-05' });
+    await stagedLike(ULID(7), { desc: 'DELUXE TOWN DINER', amount: -142.73, date: '2026-08-06' });
+
+    await orchestrator.promote();
+
+    expect(await ledgerRows('DELUXE TOWN DINER')).toHaveLength(2);
+  });
+
+  test('a genuinely new row still promotes normally', async () => {
+    await seedMapping(UUID_OK, false);
+    await seedLedgerFeedRow('test-bf-c-held-f', { desc: 'NEWPORT MANSION TICKET', amount: -64.00 });
+    await stagedLike(ULID(8), { desc: 'NEWPORT MANSION TICKET', amount: -99.00 });
+
+    await orchestrator.promote();
+
+    expect(await ledgerRows('NEWPORT MANSION TICKET')).toHaveLength(2);
+  });
+
+  test('core sweeps are covered too — and no second auto-offset mirror is minted', async () => {
+    // 8 of §22's 20 duplicates were core-sweep rows, each of which ALSO minted a
+    // second mirror. The guard deliberately does not inherit promote()'s
+    // transfer-mirror exclusion, which exists only to stop sweeps LINKING to PS.
+    await seedMapping(UUID_OK, false);
+    const desc = 'PURCHASE INTO CORE ACCOUNT test-bf-c-sweep';
+    await stagedLike(ULID(9), { desc, amount: -50.79 });
+    await orchestrator.promote();                    // first pass: inserts + mirrors
+
+    const afterFirst = await ledgerRows(desc);
+    const mirrorsFirst = (await db.query(
+      `SELECT id FROM transactions WHERE source = 'auto-offset' AND description1 = $1`, [desc]
+    )).rows;
+
+    await stagedLike(ULID(10), { desc, amount: -50.79 });   // re-delivered under a new id
+    await orchestrator.promote();
+
+    expect(await ledgerRows(desc)).toHaveLength(afterFirst.length);
+    const mirrorsAfter = (await db.query(
+      `SELECT id FROM transactions WHERE source = 'auto-offset' AND description1 = $1`, [desc]
+    )).rows;
+    expect(mirrorsAfter).toHaveLength(mirrorsFirst.length);
+  });
+
+  test('an un-stamped PS twin still LINKS — the guard does not steal the CR022 path', async () => {
+    // The guard only considers rows the feed already owns
+    // (bank_feed_external_id IS NOT NULL); a PS row awaiting its stamp must still
+    // be linked, not skipped, or the feed id never lands on it.
+    await seedMapping(UUID_OK, false);
+    await seedPsRow(PS_ID_BASE + 41, { date: '2026-08-05', desc: 'ps twin row', amount: -12.34, currency: 'USD' });
+    await stagedLike(ULID(11), { desc: 'ps twin row', amount: -12.34 });
+
+    const sync = await orchestrator.promote();
+
+    const ps = (await db.query(
+      `SELECT bank_feed_external_id FROM transactions WHERE ps_id = $1`, [PS_ID_BASE + 41]
+    )).rows[0];
+    expect(ps.bank_feed_external_id).toBe(ULID(11));   // linked, not skipped
+    expect(sync.linked).toBeGreaterThanOrEqual(1);
+  });
+
+  test('eventHashApplicable reports the older guard as dormant for opaque ids', async () => {
+    // The number that would have made §22 visible early: it silently went to 0 for
+    // live rows at the cutover and nothing said so.
+    await seedMapping(UUID_OK, false);
+    await stagedLike(ULID(12), { desc: 'opaque id row', amount: -5.00 });
+    const sync = await orchestrator.promote();
+    expect(sync.eventHashApplicable).toBe(0);
+  });
 });
 
 // ════════════════════════════════════════════════════════════════════════════

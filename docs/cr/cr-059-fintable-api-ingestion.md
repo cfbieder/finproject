@@ -1112,14 +1112,8 @@ forever.
 
 ### 22.6 What this leaves open
 
-1. **The promote-time duplicate guard (P0).** §21 already made the case from the Revolut suffix pair;
-   this incident is stronger, because **no id-based guard can work when the upstream changes its id
-   scheme**. Match a staged row against **bank-feed** rows too — `(account, date ± tolerance, amount,
-   normalized description)` — not only against un-stamped PS rows. It is the one layer that would have
-   caught all 20 regardless of what the ids did.
-2. **The event-hash guard needs to know it is dormant (P0).** It should assert its precondition rather
-   than no-op: if the source is fintable and the id carries no `--`, that is a *changed id scheme*, not
-   a *non-fintable source*, and it should say so loudly.
+1. ✅ **The promote-time duplicate guard — DONE (v3.28.1), see §22.7.**
+2. ✅ **The event-hash guard's dormancy — DONE (v3.28.1), see §22.7.**
 3. **Raise `FINTABLE_API_MIN_DATE` (P1).** Still the §21 item, now with a second reason: 108 rows
    depend on the carry-over on every sweep, and raising the floor retires both the exposure and the
    pass together.
@@ -1134,6 +1128,57 @@ forever.
    one batch* — either genuine or fintable double-serving (§18), not a fin dedup failure. Worth checking
    against the statements. The `Fidelity Options` same-day pairs are **confirmed genuine**: the forced
    sweep carried the two AMD `-244.66` opening puts over to two *distinct* kept ids.
+
+## 22.7 The content guard — closing the class, not the defect (v3.28.1)
+
+§22.4 stopped *this* defect at its source. §22.7 is the answer to the question that outlives it:
+**what catches the next upstream that changes its ids?** Every guard listed in §22.2 keys on an
+identifier, and an id-keyed guard cannot, even in principle, recognise a row whose id it has never
+seen. So the new one keys on **content**: same account, same date, same amount, same description as a
+row **the feed already owns** (`bank_feed_external_id IS NOT NULL` — which covers fed rows *and*
+PS rows the link path has stamped). `refreshBankFeedV2.promote()`, ahead of the fuzzy PS matcher.
+
+**Three decisions carry the design.**
+
+**It claims, it does not test existence.** Two identical same-day trades are ordinary on the Fidelity
+options account — §21 hit exactly that, and §22.5's forced sweep confirmed the two AMD `-244.66` puts
+on 2026-08-06 are genuinely two trades. A plain `EXISTS` would collapse them. Each ledger candidate is
+therefore **claimed once** and cannot match a second staged row: 2 held + 2 incoming skips both;
+**2 held + 3 incoming skips two and inserts the third**. Nothing is dropped and nothing duplicates,
+whichever way round the pairing goes — the same losslessness argument as `boundaryCarryover`'s
+interchangeable-rows case.
+
+**Exact date, deliberately.** A tolerance window would also catch the posted-vs-authorization shift
+(§13.2), but that case belongs to `boundaryCarryover`, which has the tolerance *and* matches against
+its own store before fin sees the row. Widening here buys little and costs the one failure that must
+not happen: **a false match silently drops a real transaction; a missed one is a visible duplicate on
+the reconcile page.** Ambiguity resolves toward the duplicate — §19's bias, unchanged. Every skip also
+writes `bankfeed_staging.promoted_transaction_id`, so a wrong skip is auditable and reversible rather
+than a disappearance.
+
+**It does not inherit the `transfer-mirror` exclusion.** That exclusion exists so a core sweep is never
+*linked* to a PS row. **8 of the 20 duplicates were core sweeps**, each of which also minted a second
+auto-offset mirror, so inheriting it would have left 40% of the incident uncovered. It is likewise
+independent of `BANK_FEED_DEDUP_ENABLED`, on the same reasoning the event-hash guard already used:
+*"do not guess"* must not mean *"import the same transaction twice"*.
+
+**The event-hash guard (item 2) is kept, not made to throw.** Throwing was the wrong instinct: the API
+path is legitimate, and ~776 Sheet-era ids remain in the ledger where the guard is exact. What was
+wrong was a comment claiming an id without `--` meant *"a non-fintable source"* — false from the
+cutover onward. The comment now states which id shapes it covers and which the content guard covers,
+and `eventHashApplicable` / `eventHashSkips` are **reported on the promote summary**, so "this guard is
+dormant" is a number to watch rather than something to rediscover. `skippedDupContent` is reported for
+the opposite reason: a non-zero value means the feed is re-delivering rows the ledger already holds,
+which is the earliest fin-side signal that an upstream id scheme has moved.
+
+**8 tests, 4 falsified against the unfixed code** — the §22 regression, both interchangeable-row cases,
+and the core-sweep case fail without the guard; the four that assert it does **not** over-reach (a
+different date, a genuinely new row, an un-stamped PS twin still *links*, and the dormancy counter)
+pass either way, which is what makes them worth having. **908 backend tests green / 66 suites.**
+
+**What this does not close:** items 3–6 above. In particular the content guard is fin's *last* line —
+it fires after the row has already been fetched, staged and considered, and it is deliberately narrow.
+It is not a reason to leave the transition window open (item 3).
 
 ## Status
 
