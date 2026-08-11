@@ -11,7 +11,7 @@ Living plan for the Fin project — open Change Requests, known issues, ongoing 
 ### 1.1 Open / In-Progress
 
 <a id="cr080"></a>
-- **CR080 — The `accrue` reconcile mode. DRAFT: Part A shipped, Part B unreviewed.**
+- **CR080 — The `accrue` reconcile mode. Part A shipped; Part B BUILT, awaiting deploy.**
   Full detail: [CR080](../cr/cr-080-feed-accrual-reconcile-mode.md). `Wise - USD` (8) and
   `WISE - EUR` (13) are **Wise Assets** balances — a money-market fund, not cash. The feed
   delivers the monthly `ACCRUAL_CHECKOUT … Assets service fee` but **never the yield those fees
@@ -19,13 +19,22 @@ Living plan for the Fin project — open Change Requests, known issues, ongoing 
   behind it. Neither existing mode fits: `calibrate` folds a *recurring* flow into a constant at
   opening (migration 046's documented failure), and `mtm` books the right shape to
   `Unrealized G/L` — an **expense** category, so yield never reaches income or anything
-  tax-facing. **Part A shipped** (migrations **065** + **066**, prod 2026-08-11): the history
-  booked to `Interest Income`, measured as Δ(feed − fin) between endpoints the feed has settled,
-  with the pre-feed-history error booked separately rather than hidden inside the plug. **Part B**
-  parameterizes `mtm()`'s three hardcoded values into an `accrue` mode; the real design work is
-  the **guard**, since `mtm`'s 15%-of-balance test would let a missed $500 transfer be laundered
-  into income permanently. Migration 067. **Not yet reviewed** (cr-technical-reviewer /
-  cr-signoff-pm) and no code written.
+  tax-facing. **Part A shipped** (migrations **065** + **066**, prod 2026-08-11). **Part B built**
+  — third mode, per-mapping category with no default, and a guard on **implied annualised yield**
+  rather than mtm's %-of-balance test, which a missed $500 transfer (12%) would have walked
+  straight through. 14 tests; the two carrying the safety argument are **falsified against the
+  unfixed code**.
+  - **Building it corrected the design twice, both ways that would have shipped a lie.** The draft
+    seeded the accounts to `accrue` in the schema migration as "inert" — it was not: any
+    unrecognised mode fell through to `calibrate`, and migrations land *before* code, so a
+    Reconcile click would have destroyed Part A. Split into **067** (column, pre-deploy) + **068**
+    (flip, post-deploy), and an unknown mode now throws. And the draft's booking rule selected
+    **zero** observations — this feed labels rows at or *ahead* of their sync, so "synced after the
+    day ended" never happens; now `LEAST(balance_date, synced_on − 1)`.
+  - **Remaining:** deploy → apply **068** → first real run at month-end. Against prod today both
+    accounts correctly **refuse**, one per guard, and the feed's day-jitter (±1.5) exceeding one
+    day of accrual (0.40) is why this belongs on the monthly reconcile, not the weekly loop.
+  - **Not reviewed** — neither cr-technical-reviewer nor cr-signoff-pm has seen it.
 
 <a id="cr079"></a>
 - **CR079 — The plan in today's money. IN-PROGRESS: deflator core built, wiring not started.**

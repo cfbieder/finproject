@@ -59,9 +59,12 @@ export default function BalanceReconciliation() {
   const [markBalanceDate, setMarkBalanceDate] = useState("");
   const [uploadAccount, setUploadAccount] = useState(null); // CR036: manual statement upload target
   const [showHelp, setShowHelp] = useState(false); // sign-convention explainer, collapsed by default
+  const [plCategories, setPlCategories] = useState([]); // CR080: accrual category options
 
-  // Set how an account reconciles: 'calibrate' (bank/cash → DRIFT) or 'mtm'
-  // (brokerage / mark-to-market holdings → MTM GAP). Harmless on its own.
+  // Set how an account reconciles: 'calibrate' (bank/cash → DRIFT), 'mtm'
+  // (brokerage / mark-to-market holdings → MTM GAP) or 'accrue' (CR080: yield the
+  // feed reports in its balance but never posts as a transaction → ACCRUAL).
+  // Harmless on its own — the reconcile action each governs is confirm-gated.
   const setMode = async (accountId, mode) => {
     setSavingMode(accountId);
     setReconcileMsg(null);
@@ -70,6 +73,25 @@ export default function BalanceReconciliation() {
       await loadBalanceRecon();
     } catch (err) {
       setReconcileMsg(`mode change failed — ${err.message}`);
+    } finally {
+      setSavingMode(null);
+    }
+  };
+
+  // CR080: which income category an accrue-mode account's yield books to. There
+  // is no default by design — booking yield to Unrealized G/L (an EXPENSE
+  // category) is the defect the mode exists to fix, so the server refuses both a
+  // NULL category in 'accrue' mode and clearing it while the mode is selected.
+  const setAccrualCategory = async (accountId, categoryId) => {
+    setSavingMode(accountId);
+    setReconcileMsg(null);
+    try {
+      await Rest.patch(`/bank-feed/accrual-category/${accountId}`, {
+        categoryId: categoryId === "" ? null : Number(categoryId),
+      });
+      await loadBalanceRecon();
+    } catch (err) {
+      setReconcileMsg(`accrual category change failed — ${err.message}`);
     } finally {
       setSavingMode(null);
     }
@@ -101,6 +123,12 @@ export default function BalanceReconciliation() {
 
   useEffect(() => {
     loadBalanceRecon();
+    // CR080: P&L leaves for the accrual-category picker. Non-fatal — the page's
+    // job is reconciliation, and an empty list disables the picker rather than
+    // taking the whole table down.
+    Rest.get("/categories")
+      .then((res) => setPlCategories(res?.data || []))
+      .catch(() => setPlCategories([]));
   }, []);
 
   // Open the confirm dialog (the action WRITES, so confirm first).
@@ -108,7 +136,10 @@ export default function BalanceReconciliation() {
     const action =
       a.reconcile_mode === "mtm"
         ? `post an Unrealized-G/L (MTM) entry for "${a.name}" as of ${bookDate}`
-        : `re-anchor opening_balance for "${a.name}" to the bank's reported balance`;
+        : a.reconcile_mode === "accrue"
+          ? `book the gap on "${a.name}" to ${a.accrual_category_name || "its accrual category"}, ` +
+            `dated the latest settled feed observation`
+          : `re-anchor opening_balance for "${a.name}" to the bank's reported balance`;
     setConfirm({
       account: a,
       title: "Reconcile to feed",
@@ -133,7 +164,17 @@ export default function BalanceReconciliation() {
           ? `${a.name}: booked MTM entry ${fmtNum(res.mtm_amount)} dated ${res.month_end}` +
               (res.removed_read_override ? " (read-override removed)" : "") +
               (res.note ? ` — ${res.note}` : "")
-          : `${a.name}: re-anchored opening balance ${fmtNum(res.old_opening)} → ${fmtNum(res.new_opening)}`
+          : res.mode === "accrue"
+            // A refused run returns 200 with applied:false and the reason. Reporting
+            // it as "booked" would be a lie the ledger then contradicts — and the
+            // refusal IS the useful outcome, because it usually means a missing
+            // transaction rather than yield.
+            ? res.applied
+              ? `${a.name}: booked accrual ${fmtNum(res.accrual_amount)} dated ${res.book_date}` +
+                  ` (${(res.implied_apy * 100).toFixed(2)}%/yr over ${res.period_days}d)` +
+                  (res.note ? ` — ${res.note}` : "")
+              : `${a.name}: NOT booked — ${res.note || "refused"}`
+            : `${a.name}: re-anchored opening balance ${fmtNum(res.old_opening)} → ${fmtNum(res.new_opening)}`
       );
       await loadBalanceRecon();
     } catch (err) {
@@ -308,8 +349,12 @@ export default function BalanceReconciliation() {
         <tbody>
           {visibleAccounts.map((a) => {
             const isMtm = a.reconcile_mode === "mtm";
+            const isAccrue = a.reconcile_mode === "accrue";
+            // An accrue account's drift is EXPECTED — it is yield the feed has
+            // reported and fin has not booked yet — so it reads muted like mtm,
+            // not as the red that means "something is wrong".
             const driftCls =
-              a.reconciled === true ? "bfd-ok" : isMtm ? "bfd-muted" : "bfd-danger";
+              a.reconciled === true ? "bfd-ok" : isMtm || isAccrue ? "bfd-muted" : "bfd-danger";
             return (
               <tr key={a.account_id}>
                 <td>{a.name}</td>
@@ -318,11 +363,33 @@ export default function BalanceReconciliation() {
                     value={a.reconcile_mode || "calibrate"}
                     disabled={savingMode === a.account_id}
                     onChange={(e) => setMode(a.account_id, e.target.value)}
-                    title="How this account reconciles: bank (re-anchor opening_balance, shows DRIFT) vs brokerage (post Unrealized-G/L, shows MTM GAP)"
+                    title="How this account reconciles: bank (re-anchor opening_balance, shows DRIFT), brokerage (post Unrealized-G/L, shows MTM GAP), or accruing (book the gap to an income category, shows ACCRUAL)"
                   >
                     <option value="calibrate">bank (calibrate)</option>
                     <option value="mtm">brokerage (mtm)</option>
+                    <option value="accrue">accruing (accrue)</option>
                   </select>
+                  {isAccrue || a.accrual_category_id != null ? (
+                    <select
+                      className="bfd-accrual-category"
+                      value={a.accrual_category_id ?? ""}
+                      disabled={savingMode === a.account_id}
+                      onChange={(e) => setAccrualCategory(a.account_id, e.target.value)}
+                      title={
+                        "Which income category this account's yield is booked to. " +
+                        "Required for accrue mode and deliberately has NO default — " +
+                        "the whole point of the mode is that yield must not land in " +
+                        "Unrealized G/L, which is an expense category."
+                      }
+                    >
+                      <option value="">— accrual category —</option>
+                      {plCategories.map((c) => (
+                        <option key={c.id} value={c.id}>
+                          {c.name}
+                        </option>
+                      ))}
+                    </select>
+                  ) : null}
                   <label
                     className="bfd-negate-toggle"
                     title={
@@ -397,6 +464,8 @@ export default function BalanceReconciliation() {
                     <StatusPill label="reconciled" kind="ok" />
                   ) : isMtm ? (
                     <StatusPill label="MTM gap" kind="warn" />
+                  ) : isAccrue ? (
+                    <StatusPill label="accrual" kind="warn" />
                   ) : (
                     <StatusPill label="drift" kind="danger" />
                   )}

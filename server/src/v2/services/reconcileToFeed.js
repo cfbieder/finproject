@@ -33,7 +33,17 @@ const { usdBaseAmount } = require('./fx');
 const UNREALIZED_GL_CATEGORY_ID = 88; // accounts.id "Unrealized G/L" (expense)
 const MTM_SOURCE = 'mtm';
 const MTM_DESCRIPTION = 'Unrealized G/L (feed MTM)';
+const ACCRUAL_SOURCE = 'accrual';
+const ACCRUAL_DESCRIPTION = 'Yield accrual (feed-derived)';
 const TOLERANCE = 0.01;
+// CR080: plausible band for the implied ANNUALISED yield an `accrue` run books.
+// This replaces mtm's %-of-balance test, which cannot do this job: a missed 500
+// transfer on a 4,100 balance is 12% — inside mtm's 15% threshold — and would be
+// booked as income permanently, where an mtm row at least re-marks against the
+// feed next period and self-corrects. A rate band asks the only question that
+// separates yield from a missing transaction: does it accrue like interest?
+const ACCRUAL_MIN_APY = -0.01; // a fund CAN dip; a sustained negative cannot be yield
+const ACCRUAL_MAX_APY = 0.10;
 // Safety guard: an MTM amount this large a share of the feed almost certainly
 // means computed never tracked market (basis unanchored) — feed−computed would
 // book unrecorded principal as phantom gain. Block apply unless forced.
@@ -74,6 +84,7 @@ async function reconcileToFeed(accountId, { asOf = null, dryRun = false, force =
   // a month-end may be absent locally while the bank-feed service still has it.
   const m = (await db.query(
     `SELECT m.external_name, m.reconcile_mode, m.balance_from_feed, m.ignored, m.feed_sign,
+            m.accrual_category_id,
             a.name, a.account_type, a.currency, a.opening_balance
      FROM account_source_mappings m JOIN accounts a ON a.id = m.account_id
      WHERE m.source = 'bank-feed' AND m.account_id = $1`,
@@ -108,6 +119,24 @@ async function reconcileToFeed(accountId, { asOf = null, dryRun = false, force =
     }
     const markAgainst = balanceDate ? await normalizeDate(db, balanceDate) : null;
     return db.transaction((client) => mtm(client, accountId, m, monthEnd, dryRun, force, markAgainst));
+  }
+
+  if (m.reconcile_mode === 'accrue') {
+    return db.transaction((client) => accrue(client, accountId, m, asOfDate, dryRun, force, balanceDate));
+  }
+
+  // An UNRECOGNISED mode must not silently fall through to calibrate. This was a
+  // live hazard the moment a third mode existed: `calibrate` rewrites
+  // opening_balance, so a mapping set to a mode this build does not know — a DB
+  // migrated ahead of its code, which is the REQUIRED deploy order here — would
+  // have re-anchored the account on the next Reconcile click and destroyed
+  // exactly the history migration 065 had just booked. Refuse instead.
+  if (m.reconcile_mode !== 'calibrate') {
+    throw new Error(
+      `account ${accountId} (${m.name}) has reconcile_mode '${m.reconcile_mode}', which this build ` +
+      `does not implement — refusing rather than falling back to calibrate, which would rewrite ` +
+      `opening_balance. Deploy the code that implements this mode, or set the mapping back.`
+    );
   }
   return db.transaction((client) => calibrate(client, accountId, m, asOfDate, dryRun));
 }
@@ -328,6 +357,212 @@ async function mtm(client, accountId, m, monthEnd, dryRun, force = false, markAg
   return summary;
 }
 
+/**
+ * CR080 `accrue` — book the yield a feed reports in its BALANCE but never posts
+ * as a transaction (Wise Assets: the money sits in a money-market fund, and the
+ * feed delivers only the monthly service fee charged against the yield).
+ *
+ * Deliberately a SIBLING of `mtm()` rather than a parameterization of it. The two
+ * share the plug arithmetic and little else: mtm's month-end snap, flat-run
+ * detection and %-of-balance threshold are all wrong here, and threading four
+ * behaviour flags through one function to express that would be harder to read —
+ * and riskier to a working mtm — than the ~20 lines they have in common.
+ *
+ * Three things differ from mtm, and each is the fix to a specific way this can lie:
+ *
+ *   1. The booking date is the OBSERVATION'S OWN `balance_date`, and only an
+ *      observation the feed synced AFTER that day ended is eligible. Booking on
+ *      the click date against the newest row would turn any transaction fin has
+ *      recorded ahead of the feed into "yield" — near-certain on an active day
+ *      with a feed that syncs in the small hours (CR065 §11).
+ *   2. The category comes from the mapping and there is NO default. Falling back
+ *      to Unrealized G/L would silently reintroduce the exact defect CR080 exists
+ *      to fix: yield booked to an expense category, invisible to income and tax.
+ *   3. The guard is a RATE, not a share of balance — see ACCRUAL_MIN/MAX_APY.
+ */
+async function accrue(client, accountId, m, asOfDate, dryRun, force = false, balanceDate = null) {
+  if (m.accrual_category_id == null) {
+    throw new Error(
+      `account ${accountId} (${m.name}) is set to 'accrue' but has no accrual_category_id — ` +
+      `set the income category this account's yield belongs to before reconciling`
+    );
+  }
+
+  // ── Which day can this observation speak for? ────────────────────────────────
+  //
+  // NOT the date it is labelled with. Measured across this feed's whole history,
+  // `synced_on - balance_date` is 0 (53 rows), -1 (29) or -2 (2) and NEVER
+  // positive: the feed labels a balance with the date it was synced, or with a
+  // date up to two days AHEAD of the sync. So a row dated D was in general taken
+  // before D happened, and pairing it with fin's balance on D would count fin's
+  // own later transactions for that day as yield.
+  //
+  //     bookDate = LEAST(balance_date, synced_on - 1)
+  //
+  // — the last day the observation can be presumed to fully contain, correct in
+  // all three regimes: labelled ahead of the sync (take synced_on-1), labelled on
+  // the sync day (same), and genuinely settled, synced after the labelled day
+  // ended (take balance_date, losing nothing).
+  //
+  // This is deliberately a CONSERVATIVE PAIRING, not a claim about the feed's
+  // true lag — whether that lag runs in calendar or business days is still
+  // unproven (roadmap Known Issue #14, and CR065 §11 declined to guess it). It
+  // can only ever under-claim a day, which costs one day of accrual that the next
+  // run picks up, where over-claiming books a real transaction as income forever.
+  //
+  // A NULL `source_synced_at` (rows predating CR035's sync-time capture) cannot be
+  // placed at all and is excluded unless the caller names it via `balanceDate`.
+  const obs = (await client.query(
+    balanceDate
+      ? `SELECT balance, balance_date::text AS balance_date,
+                (source_synced_at AT TIME ZONE 'UTC')::date::text AS synced_on,
+                $3::date AS book_date
+           FROM bankfeed_balances
+          WHERE feed_account_external_id = $1 AND balance_date = $2::date`
+      : `SELECT balance, balance_date::text AS balance_date,
+                (source_synced_at AT TIME ZONE 'UTC')::date::text AS synced_on,
+                LEAST(balance_date,
+                      (source_synced_at AT TIME ZONE 'UTC')::date - 1) AS book_date
+           FROM bankfeed_balances
+          WHERE feed_account_external_id = $1
+            AND balance_date <= $2::date
+            AND source_synced_at IS NOT NULL
+          ORDER BY LEAST(balance_date,
+                         (source_synced_at AT TIME ZONE 'UTC')::date - 1) DESC,
+                   balance_date DESC
+          LIMIT 1`,
+    balanceDate
+      ? [m.external_name, balanceDate, balanceDate]
+      : [m.external_name, asOfDate]
+  )).rows[0];
+
+  if (!obs) {
+    throw new Error(
+      `no usable feed balance for account ${accountId} on/before ${asOfDate} — no observation ` +
+      `carries a sync time, so none can be placed against a day. Pass balanceDate to name the ` +
+      `observation to use.`
+    );
+  }
+
+  const bookDate = (await client.query(`SELECT $1::date::text AS d`, [obs.book_date])).rows[0].d;
+
+  // An accrual already booked LATER than the day this observation can speak for
+  // means the period is already closed past this point. Booking here would double
+  // count it: the later row sits outside the `<= bookDate` base and would be added
+  // again. Refuse rather than silently re-recognise income.
+  const laterAccrual = (await client.query(
+    `SELECT MAX(transaction_date)::text AS d FROM transactions
+      WHERE account_id = $1 AND source = $2 AND transaction_date > $3::date`,
+    [accountId, ACCRUAL_SOURCE, bookDate]
+  )).rows[0].d;
+  if (laterAccrual) {
+    throw new Error(
+      `account ${accountId} (${m.name}) already has an accrual dated ${laterAccrual}, later than the ` +
+      `${bookDate} this feed observation can speak for — the feed has not advanced past the last ` +
+      `booking yet. Wait for a newer observation.`
+    );
+  }
+
+  // The period this accrual covers, for the rate guard: since the last accrual
+  // row, or — on the first ever run — since the earliest feed observation, which
+  // is the earliest date any of this is evidenced from.
+  const period = (await client.query(
+    `SELECT COALESCE(
+              (SELECT MAX(transaction_date) FROM transactions
+                WHERE account_id = $1 AND source = $3 AND transaction_date < $2::date),
+              (SELECT MIN(balance_date) FROM bankfeed_balances
+                WHERE feed_account_external_id = $4)
+            )::text AS since`,
+    [accountId, bookDate, ACCRUAL_SOURCE, m.external_name]
+  )).rows[0];
+
+  const days = period.since
+    ? (await client.query(`SELECT ($1::date - $2::date) AS d`, [bookDate, period.since])).rows[0].d
+    : null;
+
+  // computed AS-OF the booking date, EXCLUDING any accrual row already dated it
+  // (so a re-run recomputes against the same base → idempotent). Earlier accrual
+  // rows are deliberately INCLUDED: they are booked income, not part of the gap.
+  const comp = (await client.query(
+    `SELECT $2::numeric + COALESCE(SUM(amount), 0) AS computed
+     FROM transactions
+     WHERE account_id = $1 AND transaction_date <= $3::date
+       ${BALANCE_WINDOW_FLOOR_SQL}
+       AND NOT (source = $4 AND transaction_date = $3::date)`,
+    [accountId, m.opening_balance, bookDate, ACCRUAL_SOURCE]
+  )).rows[0];
+
+  const feedVal = Number(obs.balance);
+  const computed = Number(comp.computed);
+  const expected = expectedFromFeed(m, feedVal);
+  const amount = Math.round((expected - computed) * 100) / 100;
+
+  // ── The guard ────────────────────────────────────────────────────────────────
+  // Annualise what this run would book over the period it covers and require it
+  // to look like a yield. A missing transaction does not accrue linearly, so it
+  // lands far outside the band; genuine yield sits inside it by construction.
+  const apy = days > 0 && Math.abs(computed) > 0
+    ? (amount / Math.abs(computed)) * (365 / Number(days))
+    : null;
+  const implausible = apy === null || apy < ACCRUAL_MIN_APY || apy > ACCRUAL_MAX_APY;
+
+  const summary = {
+    account_id: accountId, name: m.name, mode: 'accrue', book_date: bookDate,
+    feed_date: obs.balance_date, feed_synced_on: obs.synced_on,
+    feed_balance: feedVal, computed_excl_accrual: computed,
+    accrual_amount: amount, category_id: m.accrual_category_id,
+    period_since: period.since, period_days: days === null ? null : Number(days),
+    implied_apy: apy === null ? null : Math.round(apy * 10000) / 10000,
+    implausible, applied: false,
+  };
+
+  let baseAmount = null;
+  if (Math.abs(amount) >= TOLERANCE) {
+    // Always via the helper — never a re-derivation of the conversion rule. An
+    // inline copy in migration 065 dropped its USD-is-1 case and wrote four NULL
+    // base_amounts that migration 066 had to repair.
+    baseAmount = await usdBaseAmount(client, amount, m.currency, bookDate);
+    if (baseAmount == null) {
+      throw new Error(`no USD exchange rate for ${m.currency} on/before ${bookDate} — cannot book accrual for account ${accountId} (${m.name})`);
+    }
+    summary.base_amount = baseAmount;
+  }
+
+  if (implausible && !force) {
+    summary.note = apy === null
+      ? `cannot establish the period this accrual covers (no prior accrual row and no feed history), ` +
+        `so the yield it implies cannot be checked. Pass force to book it anyway.`
+      : `${amount} over ${days} day(s) on ${computed.toFixed(2)} implies ${(apy * 100).toFixed(2)}%/yr, ` +
+        `outside the plausible band ${(ACCRUAL_MIN_APY * 100).toFixed(0)}%..${(ACCRUAL_MAX_APY * 100).toFixed(0)}%. ` +
+        `A gap that does not accrue like yield is usually a MISSING TRANSACTION — booking it here would ` +
+        `file it as income permanently. Find the transaction, or pass force.`;
+    if (!dryRun) return summary; // refuse to write; surface the reason
+  }
+
+  if (!dryRun) {
+    await client.query(
+      `DELETE FROM transactions WHERE account_id = $1 AND source = $2 AND transaction_date = $3::date`,
+      [accountId, ACCRUAL_SOURCE, bookDate]
+    );
+    if (Math.abs(amount) >= TOLERANCE) {
+      await client.query(
+        `INSERT INTO transactions
+           (transaction_date, description1, amount, currency, base_amount, base_currency,
+            account_id, category_id, source, accepted)
+         VALUES ($1, $2, $3, $4, $5, 'USD', $6, $7, $8, TRUE)`,
+        [bookDate, ACCRUAL_DESCRIPTION, amount, m.currency, baseAmount, accountId,
+         m.accrual_category_id, ACCRUAL_SOURCE]
+      );
+    } else {
+      summary.note = 'no accrual posted (< tolerance)';
+    }
+    summary.applied = true;
+  } else if (Math.abs(amount) < TOLERANCE) {
+    summary.note = 'no accrual needed (< tolerance)';
+  }
+  return summary;
+}
+
 async function calibrate(client, accountId, m, asOfDate, dryRun) {
   const feed = (await client.query(
     `SELECT balance, balance_date::text AS balance_date FROM bankfeed_balances
@@ -370,4 +605,7 @@ async function calibrate(client, accountId, m, asOfDate, dryRun) {
   return summary;
 }
 
-module.exports = { reconcileToFeed, UNREALIZED_GL_CATEGORY_ID, MTM_SOURCE };
+module.exports = {
+  reconcileToFeed, UNREALIZED_GL_CATEGORY_ID, MTM_SOURCE,
+  ACCRUAL_SOURCE, ACCRUAL_MIN_APY, ACCRUAL_MAX_APY,
+};

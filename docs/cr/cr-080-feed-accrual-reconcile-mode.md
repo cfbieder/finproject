@@ -78,15 +78,26 @@ books `expected − computed` as a dated, idempotent plug row with FX, a stale-f
 plausibility guard. Three things are hardcoded: the category (88), the month-end date snap, and
 `source='mtm'`. Part B parameterizes them.
 
-### B1 — schema (migration 067)
+### B1 — schema (migrations 067 and 068)
 
 ```sql
 ALTER TABLE account_source_mappings
   ADD COLUMN IF NOT EXISTS accrual_category_id INTEGER REFERENCES accounts(id);
 ```
 
-`reconcile_mode` accepts a third value `'accrue'`. Seed accounts 8 and 13 to
-`('accrue', 74)` — the mode change is inert until B2 ships, since nothing reads `'accrue'` yet.
+**⚠️ Corrected during the build — the first draft of this section was wrong in a way that would
+have destroyed Part A.** It said to seed accounts 8 and 13 to `('accrue', 74)` in the same
+migration, "inert until B2 ships, since nothing reads `'accrue'` yet". It is not inert. The
+dispatch was `if (mode === 'mtm') … else calibrate`, so *any* unrecognised mode reached
+`calibrate` — and migrations are applied to prod **before** the code that uses them. A Reconcile
+click in that window would have re-anchored `opening_balance` on both accounts and wiped exactly
+the history migration 065 had just booked.
+
+Split accordingly: **067** adds the column only, before the deploy; **068** flips the two accounts,
+**after** it. And the same deploy removes the trap for good — an unrecognised mode now **throws**
+rather than falling through, so the fourth mode cannot re-set this. Falsified: with the throw
+removed, the unknown-mode test resolves to `calibrate` proposing `new_opening: 12345.67` against an
+`old_opening` of 10000.
 
 ### B2 — engine
 
@@ -98,11 +109,24 @@ differs in four ways:
    defaulting to anything. A silent fallback to 88 would reintroduce the exact defect this CR fixes.
 2. **Source tag** — `'accrual'`, matching the rows migration 065 already wrote, so the first real
    run supersedes rather than duplicates them.
-3. **Booking date** — the **feed observation's own `balance_date`**, not the click date and not a
-   month-end snap. Reuse CR065 §11's `syncedBeforeDayEnded` check so it can only ever mark a day
-   the observation could actually contain. Booking on the click date against an unsettled row would
-   turn any transaction fin has recorded ahead of the feed into "interest", and with this feed's
-   lag that is near-certain on any active day.
+3. **Booking date** — **corrected during the build, and this is the substantive design change.**
+   The draft said "the observation's own `balance_date`", gated by CR065 §11's
+   `syncedBeforeDayEnded` (usable only if synced *after* the labelled day ended). Implemented as
+   written, it selected **zero** observations and the mode could never have run for any account.
+   Measured across the real feed's whole history, `synced_on − balance_date` is **0 (53 rows),
+   −1 (29) or −2 (2), and never positive**: rows are labelled with the sync date or a date *ahead*
+   of it, so "settled" in that sense never happens here. The rule is now
+
+   ```
+   bookDate = LEAST(balance_date, synced_on − 1)
+   ```
+
+   the last day the observation can be presumed to fully contain — correct in all three regimes
+   (labelled ahead of the sync, labelled on it, genuinely settled), and the observation chosen is
+   the one that can speak for the latest such day. This is a **conservative pairing, not a claim
+   about the feed's true lag**, which remains unproven (Known Issue #14; CR065 §11 declined to
+   guess it). It can only under-claim by a day — which the next run picks up — where over-claiming
+   books a real transaction as income forever.
 4. **The guard — the part that genuinely needs new design.** `mtm`'s
    `MTM_IMPLAUSIBLE_PCT = 0.15` is *useless here*: a missed $500 transfer on Wise USD is 12% of
    balance and sails straight through, permanently laundered into income and never revisited (an
@@ -119,6 +143,26 @@ USD-is-1 case and wrote four NULLs.
 Idempotency follows `mtm`: delete prior `source='accrual'` rows at the booking date, and compute
 the base *including* earlier accrual rows (only the same-date row is excluded).
 
+**A fifth difference, found by running it against prod:** an accrual dated *later* than the day the
+newest observation can speak for must **refuse**, not book. Such a row sits outside the
+`<= bookDate` base and would be recognised a second time. This is not hypothetical — it is
+`WISE - EUR`'s live state, whose Part A accrual is dated 2026-08-09 while the newest observation
+reaches only 2026-08-08.
+
+### B4 — cadence: this mode is monthly, not daily
+
+Running it against prod read-only, **both accounts currently refuse**, and both refusals are
+correct: EUR on the double-count guard above, USD on the rate guard (−1.08 over one day on 4,074.95
+is −9.7%/yr, outside the band).
+
+The reason generalises. This feed's day-granularity jitter is **larger than one day of accrual** —
+roughly ±1.5 against 0.40/day on the USD account — so a single-day run is noise-dominated and
+essentially cannot clear the band. Over a month the same jitter is ±0.45%/yr around a 3.6% signal
+and passes comfortably. **The APY band therefore self-selects for longer periods**, which is the
+behaviour we want and needs no separate minimum-period rule: a too-frequent click refuses loudly
+instead of booking noise as income. Operationally this belongs with the month-end reconcile, beside
+the MTM run — not on the weekly loop.
+
 ### B3 — UI
 
 Third option in the reconcile-mode dropdown on
@@ -134,14 +178,27 @@ existing `MTM GAP` / `DRIFT` badge needs a third state.
   it fails on exactly the days Δgap fails on (unsettled observations), so it buys nothing.
 - **Re-treating Fidelity Cash Mgt.** See above — 046's sign-flip evidence stands.
 
-## Verification
+## Verification — done
 
-- Reconcile both Wise accounts on a prod copy; the booked amount must equal Δgap over the interval
-  and the account must tie to the settled observation **to the cent**.
-- **Falsification, not just confirmation:** inject a synthetic missing transaction (delete a card
-  row), re-run, and confirm the yield guard **refuses** rather than booking it as income. A guard
-  that has never refused anything has not been tested.
-- Confirm `accrue` with `accrual_category_id` NULL refuses.
-- Confirm a re-run at the same date supersedes rather than duplicates, and that the base includes
-  prior accrual rows.
-- Flags-OFF v3 regression: `calibrate` and `mtm` behaviour byte-identical.
+`server/src/v2/services/__tests__/reconcileAccrue.test.js`, 14 tests, all passing; **896 backend
+across 66 suites**, 507 frontend, frontend build ✓, lint clean on the changed files.
+
+Two of them were **falsified against the unfixed code**, because a guard that has never refused
+anything has not been tested:
+
+- **the rate guard** — widening `ACCRUAL_MAX_APY` to 99 makes the missing-transaction test fail.
+  The fixture is the Wise-USD shape exactly: a 500 deposit fin never recorded, which is **5% of
+  balance and so INSIDE mtm's 15% threshold** — the concrete demonstration that the old guard
+  cannot do this job.
+- **the fall-through** — removing the throw makes the unknown-mode test resolve to `calibrate`
+  proposing `new_opening: 12345.67` against `old_opening: 10000`, i.e. the destruction described
+  in B1, printed.
+
+Also pinned: the three booking-date regimes; an observation with no sync time is excluded rather
+than guessed at; a NULL category refuses instead of defaulting; re-running supersedes rather than
+duplicating; an earlier accrual row is part of the base and not re-recognised; and `calibrate` /
+`mtm` are unchanged by the new dispatch.
+
+**Remaining before this is closed:** deploy, then apply migration 068 (in that order — see B1), and
+take the first real `accrue` run at the next month-end, which is when the signal clears the band
+(B4). Neither reviewer pass (cr-technical-reviewer, cr-signoff-pm) has been run.

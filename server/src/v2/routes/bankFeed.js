@@ -290,14 +290,31 @@ router.post('/reconcile/:accountId', async (req, res, next) => {
  * opening_balance; drift shows as DRIFT) or 'mtm' (brokerage / mark-to-market
  * holdings: post an Unrealized-G/L entry; drift shows as MTM GAP). Setting the
  * mode is harmless on its own — the reconcile action it governs is confirm-gated.
+ * CR080 adds 'accrue' (yield the feed reports in its balance but never posts as a
+ * transaction; drift shows as ACCRUAL) — which needs a category, so selecting it
+ * without one set is refused HERE rather than at reconcile time. A mapping parked
+ * in a mode its own reconcile action will refuse is a trap for whoever clicks next.
  */
 router.patch('/reconcile-mode/:accountId', async (req, res, next) => {
   try {
     const accountId = Number(req.params.accountId);
     const { mode } = req.body || {};
     if (!Number.isInteger(accountId)) return res.status(400).json({ error: 'invalid accountId' });
-    if (!['calibrate', 'mtm'].includes(mode)) {
-      return res.status(400).json({ error: "mode must be 'calibrate' or 'mtm'" });
+    if (!['calibrate', 'mtm', 'accrue'].includes(mode)) {
+      return res.status(400).json({ error: "mode must be 'calibrate', 'mtm' or 'accrue'" });
+    }
+    if (mode === 'accrue') {
+      const cur = (await db.query(
+        `SELECT accrual_category_id FROM account_source_mappings
+          WHERE source = 'bank-feed' AND account_id = $1`,
+        [accountId]
+      )).rows[0];
+      if (!cur) return res.status(404).json({ error: 'no bank-feed mapping for that account' });
+      if (cur.accrual_category_id == null) {
+        return res.status(400).json({
+          error: "set an accrual category before selecting 'accrue' — the mode has no default category by design",
+        });
+      }
     }
     const r = await db.query(
       `UPDATE account_source_mappings SET reconcile_mode = $2
@@ -309,6 +326,52 @@ router.patch('/reconcile-mode/:accountId', async (req, res, next) => {
     res.json({ data: r.rows[0] });
   } catch (err) {
     console.error('[v2/bank-feed] set reconcile-mode failed:', err.message);
+    next(err);
+  }
+});
+
+/**
+ * PATCH /api/v2/bank-feed/accrual-category/:accountId  body: { categoryId }
+ * CR080: which income category an `accrue` account's yield is booked to. `null`
+ * clears it — refused while the mapping is actually IN 'accrue' mode, which would
+ * otherwise leave the account in a mode that can no longer run.
+ */
+router.patch('/accrual-category/:accountId', async (req, res, next) => {
+  try {
+    const accountId = Number(req.params.accountId);
+    const { categoryId } = req.body || {};
+    if (!Number.isInteger(accountId)) return res.status(400).json({ error: 'invalid accountId' });
+    if (categoryId !== null && !Number.isInteger(categoryId)) {
+      return res.status(400).json({ error: 'categoryId must be an integer or null' });
+    }
+    if (categoryId !== null) {
+      const cat = (await db.query(
+        `SELECT id, account_type FROM accounts WHERE id = $1 AND section = 'profit_loss'`,
+        [categoryId]
+      )).rows[0];
+      if (!cat) return res.status(400).json({ error: 'categoryId is not a P&L category' });
+    } else {
+      const cur = (await db.query(
+        `SELECT reconcile_mode FROM account_source_mappings
+          WHERE source = 'bank-feed' AND account_id = $1`,
+        [accountId]
+      )).rows[0];
+      if (cur && cur.reconcile_mode === 'accrue') {
+        return res.status(400).json({
+          error: "cannot clear the accrual category while the account is in 'accrue' mode — change the mode first",
+        });
+      }
+    }
+    const r = await db.query(
+      `UPDATE account_source_mappings SET accrual_category_id = $2
+       WHERE source = 'bank-feed' AND account_id = $1
+       RETURNING account_id, accrual_category_id`,
+      [accountId, categoryId]
+    );
+    if (!r.rows[0]) return res.status(404).json({ error: 'no bank-feed mapping for that account' });
+    res.json({ data: r.rows[0] });
+  } catch (err) {
+    console.error('[v2/bank-feed] set accrual-category failed:', err.message);
     next(err);
   }
 });

@@ -139,7 +139,7 @@ async function balanceReconcile({ asOf = null, tolerance = 0.01 } = {}) {
     WITH mapped AS (
       SELECT m.external_name AS feed_uuid, m.account_id,
              m.balance_from_feed, m.promote_from_date, m.trade_treatment, m.reconcile_mode,
-             m.feed_sign, m.feed_negate_tx
+             m.feed_sign, m.feed_negate_tx, m.accrual_category_id
       FROM account_source_mappings m
       WHERE m.source = 'bank-feed' AND m.ignored IS NOT TRUE AND m.account_id IS NOT NULL
     ),
@@ -203,7 +203,9 @@ async function balanceReconcile({ asOf = null, tolerance = 0.01 } = {}) {
       f.feed_synced_at::text AS feed_synced_at,
       f.currency,
       m.balance_from_feed, m.promote_from_date::text AS promote_from_date, m.trade_treatment, m.reconcile_mode,
-      m.feed_sign, m.feed_negate_tx,
+      m.feed_sign, m.feed_negate_tx, m.accrual_category_id,
+      -- CR080: the category an accrue-mode account's yield books to, for display.
+      (SELECT ac.name FROM accounts ac WHERE ac.id = m.accrual_category_id) AS accrual_category_name,
       -- feed_sign converts the feed's reported balance into fin's stored sign.
       -- NULL → account_type heuristic (liability -1, asset +1) = pre-029 behavior.
       ROUND(f.feed_balance * COALESCE(m.feed_sign, CASE WHEN c.account_type = 'liability' THEN -1 ELSE 1 END), 2) AS expected_balance,
