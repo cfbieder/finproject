@@ -1122,12 +1122,8 @@ forever.
 5. **Detect two generations in our own store (P2).** Nothing notices that bank-feed holds the same
    transaction under a Sheet id and an API id; the carry-over reports `already_known` and never
    self-heals. One query, and it is the earliest possible signal.
-6. **The 26 pre-existing duplicate groups (P2)** — §21's open item, still open. Two are now
-   characterised and are **not** this defect: `LUXURY CARD` 2026-07-14 `-136.53` **×3** and
-   `Delta SkyMiles Reserve Card` 2026-07-11 `-368.54` **×2**, each arriving as *distinct upstream ids in
-   one batch* — either genuine or fintable double-serving (§18), not a fin dedup failure. Worth checking
-   against the statements. The `Fidelity Options` same-day pairs are **confirmed genuine**: the forced
-   sweep carried the two AMD `-244.66` opening puts over to two *distinct* kept ids.
+6. ✅ **The pre-existing duplicate groups (P2) — TRIAGED, see §22.8.** Not a fin defect in any of
+   them; what remains is an owner statement check on a costed shortlist.
 
 ## 22.7 The content guard — closing the class, not the defect (v3.28.1)
 
@@ -1176,9 +1172,53 @@ and the core-sweep case fail without the guard; the four that assert it does **n
 different date, a genuinely new row, an un-stamped PS twin still *links*, and the dormancy counter)
 pass either way, which is what makes them worth having. **908 backend tests green / 66 suites.**
 
-**What this does not close:** items 3–6 above. In particular the content guard is fin's *last* line —
+**What this does not close:** items 3–5 above. In particular the content guard is fin's *last* line —
 it fires after the row has already been fetched, staged and considered, and it is deliberately narrow.
 It is not a reason to leave the transition window open (item 3).
+
+## 22.8 The pre-existing duplicate groups, triaged — and the alarm was mostly wrong
+
+§21 flagged **26 pre-existing duplicate groups** and nobody had looked. Looking gives **42 groups /
+44 extra rows / 16,058 gross** across 2026, which on first sight reads as five times the §22 incident.
+**It is not.** The number is a content grouping, and content cannot tell a duplicate from a genuine
+repeat. Split by what the rows actually carry:
+
+| class | groups | extra rows | gross | verdict |
+|---|---:|---:|---:|---|
+| **PocketSmith-era** | 35 | 36 | 14,290.42 | **not a fin defect** |
+| **bank-feed era** | 7 | 8 | 1,767.92 | **not a fin defect** |
+
+**The PocketSmith rows each carry their own distinct `ps_id`** — a UNIQUE column — so PocketSmith held
+two records and fin imported both, faithfully. There is no fin-side double-import here and no ongoing
+risk: PS ingestion is retired. Whether *PocketSmith* was right is an upstream question, and the rows
+are still in the ledger either way.
+
+**The bank-feed rows each carry a distinct upstream id and arrived in the same batch**, so they are not
+the §22 shape (which needs two batches and two id generations). Reading the Plaid payload underneath
+settles two of them, and the method is the useful part — **`pending_transaction_id` is the
+discriminator, because one pending authorization cannot settle into two posted transactions**:
+
+- **`LUXURY CARD` 2026-07-14 `COLLEGEBOARD*SAT ONLN.` −136.53 ×3 — three REAL charges.** The three
+  payloads are byte-identical except `transaction_id` **and `pending_transaction_id`**, which are three
+  *distinct* pending authorizations. The bank charged three times. Either three genuine registrations
+  or a **triple-charge worth disputing — 273.06**.
+- **`Delta SkyMiles` 2026-07-11 `Delta Air Lines` −368.54 ×2 — genuinely ambiguous.** Identical in
+  every Plaid field except `transaction_id`, and `pending_transaction_id` is `null` on both, so the
+  discriminator is unavailable. Needs the statement.
+- **`Fidelity Options` — 5 groups, all same-day identical option trades**, ordinary on that account and
+  confirmed genuine for 2026-08-06 by §22.5's sweep.
+
+**What is left is an owner statement check, not engineering.** Ranked by exposure: `Delta` WARSAW
+2026-05-07 **4,459.76** · `Delta` TRAVELOCITY 2026-02-08 **3,793.34** · `PKO` 2026-04-01 **1,000.00** ·
+`Caixa EUR` H1 2026-01-16 **834.08** · `Caixa EUR` H2 2026-01-16 **629.46** · `PKO` 2026-04-13 ×3
+**400.00** · the `Delta` and `COLLEGEBOARD` fed rows above. The Caixa and PKO rows are plausibly
+genuine — several are per-unit community fees where equal amounts are expected — which is exactly why
+they need a statement rather than a rule.
+
+**The lesson worth keeping:** "42 duplicate groups" was a frightening number that mostly measured
+*identical-looking money*, not error. The same content grouping that found §22's 20 real duplicates
+finds 36 rows that are almost certainly fine, and only the identifiers underneath — `ps_id`,
+`transaction_id`, `pending_transaction_id` — separate the two.
 
 ## Status
 
