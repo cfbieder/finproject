@@ -85,6 +85,12 @@ scenarios are REGENERATED**. It changes far less often than this file does.
 - ~~Real terms on Compare~~ **DONE** ([CR079 §7](../cr/cr-079-real-terms-view.md)) — one
   `buildScenarioMatrix` choke point; each scenario deflates by its OWN inflation, the anchor is
   shared. Only the **Home hero** is still nominal-only.
+- **[CR080](../cr/cr-080-feed-accrual-reconcile-mode.md) Part B — the `accrue` reconcile mode.**
+  Part A shipped (migrations **065** + **066**, prod 2026-08-11): the two **Wise Assets** accounts
+  hold a money-market fund whose yield the feed never posts as a transaction, and neither existing
+  mode books it to a place that is both dated and income. Part B is **drafted, unreviewed, no code**
+  — the design work is the guard, since `mtm`'s 15%-of-balance test would let a missed transfer be
+  laundered into income permanently. Migration 067.
 - **CR077's LLM stage** — only over the deterministic rules, never instead of them.
 - **Owner QA of the P&L module inputs** — CR076 §5 and §7 are the agenda.
 - **[CR066](../cr/cr-066-fc-line-mapping-completeness.md) P0** · **CR064 P2/P4/P5/P10** ·

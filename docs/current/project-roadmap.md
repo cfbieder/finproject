@@ -10,6 +10,23 @@ Living plan for the Fin project — open Change Requests, known issues, ongoing 
 
 ### 1.1 Open / In-Progress
 
+<a id="cr080"></a>
+- **CR080 — The `accrue` reconcile mode. DRAFT: Part A shipped, Part B unreviewed.**
+  Full detail: [CR080](../cr/cr-080-feed-accrual-reconcile-mode.md). `Wise - USD` (8) and
+  `WISE - EUR` (13) are **Wise Assets** balances — a money-market fund, not cash. The feed
+  delivers the monthly `ACCRUAL_CHECKOUT … Assets service fee` but **never the yield those fees
+  are charged against**, so fin drifts below the feed a little every day with no transaction
+  behind it. Neither existing mode fits: `calibrate` folds a *recurring* flow into a constant at
+  opening (migration 046's documented failure), and `mtm` books the right shape to
+  `Unrealized G/L` — an **expense** category, so yield never reaches income or anything
+  tax-facing. **Part A shipped** (migrations **065** + **066**, prod 2026-08-11): the history
+  booked to `Interest Income`, measured as Δ(feed − fin) between endpoints the feed has settled,
+  with the pre-feed-history error booked separately rather than hidden inside the plug. **Part B**
+  parameterizes `mtm()`'s three hardcoded values into an `accrue` mode; the real design work is
+  the **guard**, since `mtm`'s 15%-of-balance test would let a missed $500 transfer be laundered
+  into income permanently. Migration 067. **Not yet reviewed** (cr-technical-reviewer /
+  cr-signoff-pm) and no code written.
+
 <a id="cr079"></a>
 - **CR079 — The plan in today's money. IN-PROGRESS: deflator core built, wiring not started.**
   Full detail: [CR079](../cr/cr-079-real-terms-view.md). Every forecast figure is **nominal** and
