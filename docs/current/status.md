@@ -100,8 +100,13 @@ scenarios are REGENERATED**. It changes far less often than this file does.
   it to an **expense** category. Both now book to `Interest Income` on a dated row, guarded by
   **implied annualised yield** — a missed transfer that `mtm`'s 15%-of-balance test would pass is
   refused. **Both accounts currently refuse, correctly:** the feed's day-jitter exceeds one day of
-  accrual, so this runs at **month-end**, beside the MTM run. Dev's ledger lacks 065–067 (applied
-  prod-first) — `sync-db-prod-to-dev.sh` resolves it.
+  accrual, so this runs at **month-end**, beside the MTM run. **Corrected 2026-08-11 by migration 069:** 065 had filed the
+  leftover difference as an unexplained `Unrealized G/L` loss, reasoning that fin sitting ABOVE the
+  feed could not be yield. It was a **calibration plug** — the owner had been calibrating for
+  months, and `calibrate()` rewrites `opening_balance`, shifting every historical date by one
+  constant, **with no audit row**. Moved into `opening_balance`; a fabricated −32.56 loss removed,
+  `Interest Income` untouched, and **all eight anchors now tie to the feed to the cent**. Dev's
+  ledger lacks 065–067/069 (applied prod-first) — `sync-db-prod-to-dev.sh` resolves it.
 - **CR077's LLM stage** — only over the deterministic rules, never instead of them.
 - **Owner QA of the P&L module inputs** — CR076 §5 and §7 are the agenda.
 - **[CR066](../cr/cr-066-fc-line-mapping-completeness.md) P0** · **CR064 P2/P4/P5/P10** ·

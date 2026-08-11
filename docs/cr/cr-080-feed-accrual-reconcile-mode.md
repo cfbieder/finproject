@@ -61,12 +61,29 @@ comparing the feed against fin same-day and against fin lagged one day give the 
 independent intervals per account then implied the same annualised yield to within 0.007/day — a
 missing transaction does not accrue linearly.
 
-**2. The current gap is not the accrual.** Both gaps *start negative*: at 2026-06-05 fin was ABOVE
-the feed by 23.83 / 7.50, which unbooked yield cannot cause. That is a separate error predating all
-feed history. Booking today's gap as one interest row would have understated 2026 interest by ~24
-and retired the old error into income silently, so it was booked separately to `Unrealized G/L`
-dated 2026-06-04 — **not** folded into `opening_balance`, which would have moved four years of
-history by an amount that demonstrably did not exist for most of it.
+**2. The current gap is not the accrual — but the leftover is a CALIBRATION PLUG, not an error.**
+Both gaps *start negative*: at 2026-06-05 fin sat ABOVE the feed by 23.83 / 7.50. Booking today's
+2.79 as one interest row would therefore have understated 2026 interest by ~24, so the two parts had
+to be separated — that much was right, and it is why `Interest Income` correctly reads 25.43 USD /
+7.89 EUR rather than 1.60 / 0.39.
+
+**What 065 got wrong was the leftover's nature**, and it is worth recording because the mistake is
+reusable. It reasoned: unbooked yield pushes fin BELOW the feed, fin is ABOVE, therefore this is not
+yield but an unattributable older error → `Unrealized G/L`. **That premise only holds for a ledger
+nobody has re-anchored.** The owner had been **calibrating these accounts for months**, and
+`calibrate()` rewrites `opening_balance` — a single constant applied to every historical date — so
+an August calibration drags June's balance up with it. Fin sitting above the feed in June is exactly
+what a later calibration looks like. The sign test was answering a question about a static ledger
+that these accounts had not been for months.
+
+Nothing in the data was hidden; `calibrate()` simply **writes no audit row at all**, so the only
+trace was the shape of the gap — a straight line through zero at the calibration date, which both
+accounts cross in the first days of August. **Migration 069** moves the plug out of `Unrealized G/L`
+and into `opening_balance`, reversing 065's own objection to `opening_balance`: the plug was
+**already in there**, so this takes 23.83 / 7.50 out of the existing smear rather than adding one.
+Balance-neutral on every date; it removes a fabricated −32.56 loss and leaves `Interest Income`
+untouched. The post-condition is the proof — **all eight measured anchors tie to the feed to the
+cent**, not just today's balance.
 
 Also fixed: the `Converted 34.99 CHF to 37.52 EUR` row was categorised `Interest Income`, inflating
 that category by 4.75× the entire real 2026 yield on the account. Now `Transfer - FX` (208).
@@ -207,7 +224,7 @@ than guessed at; a NULL category refuses instead of defaulting; re-running super
 duplicating; an earlier accrual row is part of the base and not re-recognised; and `calibrate` /
 `mtm` are unchanged by the new dispatch.
 
-**Shipped v3.28.0 (2026-08-11), migration 067.** Both accounts are live on `accrue` /
+**Shipped v3.28.0 (2026-08-11), migrations 067 + 069.** Both accounts are live on `accrue` /
 `Interest Income`; `WISE - EUR` reconciles to **0** and `Wise - USD` carries −1.19, the accrual
 since the 08-07 anchor. Both API guards were verified **against live prod**, not a fixture:
 selecting `accrue` with no category was refused, and clearing the category while in `accrue` was
