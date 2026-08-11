@@ -11,7 +11,7 @@ Living plan for the Fin project — open Change Requests, known issues, ongoing 
 ### 1.1 Open / In-Progress
 
 <a id="cr080"></a>
-- **CR080 — The `accrue` reconcile mode. Part A shipped; Part B BUILT, awaiting deploy.**
+- **CR080 — The `accrue` reconcile mode. ✅ COMPLETED — v3.28.0 (2026-08-11), migrations 065–067.**
   Full detail: [CR080](../cr/cr-080-feed-accrual-reconcile-mode.md). `Wise - USD` (8) and
   `WISE - EUR` (13) are **Wise Assets** balances — a money-market fund, not cash. The feed
   delivers the monthly `ACCRUAL_CHECKOUT … Assets service fee` but **never the yield those fees
@@ -31,7 +31,7 @@ Living plan for the Fin project — open Change Requests, known issues, ongoing 
     flip moved out of migrations entirely — it is configuration; an unknown mode now throws. And the draft's booking rule selected
     **zero** observations — this feed labels rows at or *ahead* of their sync, so "synced after the
     day ended" never happens; now `LEAST(balance_date, synced_on − 1)`.
-  - **Remaining:** deploy → set both accounts to `accrue` on the reconcile page → first real run at month-end. Against prod today both
+  - **Remaining:** the first real run happens at **month-end** — today both accounts refuse, correctly. Dev's ledger lacks 065–067 (applied prod-first); `sync-db-prod-to-dev.sh` resolves it. Against prod today both
     accounts correctly **refuse**, one per guard, and the feed's day-jitter (±1.5) exceeding one
     day of accrual (0.40) is why this belongs on the monthly reconcile, not the weekly loop.
   - **Not reviewed** — neither cr-technical-reviewer nor cr-signoff-pm has seen it.

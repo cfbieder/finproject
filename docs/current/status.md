@@ -91,12 +91,15 @@ scenarios are REGENERATED**. It changes far less often than this file does.
 - ~~Real terms on Compare~~ **DONE** ([CR079 §7](../cr/cr-079-real-terms-view.md)) — one
   `buildScenarioMatrix` choke point; each scenario deflates by its OWN inflation, the anchor is
   shared. Only the **Home hero** is still nominal-only.
-- **[CR080](../cr/cr-080-feed-accrual-reconcile-mode.md) — the `accrue` reconcile mode. BUILT,
-  awaiting deploy.** The two **Wise Assets** accounts hold a money-market fund whose yield the feed
-  never posts as a transaction; neither existing mode books it somewhere both dated and income.
-  Part A shipped (**065** + **066**, prod 2026-08-11); Part B built with 14 tests, two falsified
-  against the unfixed code. **Remaining: deploy → set both accounts to `accrue` on the reconcile
-  page → first run at month-end** (the flip is configuration, not a migration). Not reviewed by either CR pass.
+- ~~CR080 — the `accrue` reconcile mode~~ **DONE, v3.28.0 (2026-08-11)**
+  ([CR080](../cr/cr-080-feed-accrual-reconcile-mode.md), migrations 065–067). Two **Wise Assets**
+  accounts hold a money-market fund whose yield the feed reports in its BALANCE and never posts as
+  a transaction; `calibrate` would fold a recurring flow into a constant at opening and `mtm` books
+  it to an **expense** category. Both now book to `Interest Income` on a dated row, guarded by
+  **implied annualised yield** — a missed transfer that `mtm`'s 15%-of-balance test would pass is
+  refused. **Both accounts currently refuse, correctly:** the feed's day-jitter exceeds one day of
+  accrual, so this runs at **month-end**, beside the MTM run. Dev's ledger lacks 065–067 (applied
+  prod-first) — `sync-db-prod-to-dev.sh` resolves it.
 - **CR077's LLM stage** — only over the deterministic rules, never instead of them.
 - **Owner QA of the P&L module inputs** — CR076 §5 and §7 are the agenda.
 - **[CR066](../cr/cr-066-fc-line-mapping-completeness.md) P0** · **CR064 P2/P4/P5/P10** ·

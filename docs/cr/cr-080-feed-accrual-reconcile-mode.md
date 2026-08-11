@@ -1,4 +1,4 @@
-# CR080 — The `accrue` reconcile mode (yield a feed never posts) — 🟡 DRAFT
+# CR080 — The `accrue` reconcile mode (yield a feed never posts) — ✅ COMPLETED (v3.28.0, 2026-08-11)
 
 Roadmap anchor: [project-roadmap.md#cr080](../current/project-roadmap.md#cr080). **Track: v3** —
 no flags, no tenant context, nothing under `server/src/v2/db/`.
@@ -207,7 +207,14 @@ than guessed at; a NULL category refuses instead of defaulting; re-running super
 duplicating; an earlier accrual row is part of the base and not re-recognised; and `calibrate` /
 `mtm` are unchanged by the new dispatch.
 
-**Remaining before this is closed:** deploy; set both accounts to `accrue` / `Interest Income` on
-the reconcile page (which also verifies the new UI path in a browser); then take the first real run
-at the next month-end, when the signal clears the band (B4). Neither reviewer pass
-(cr-technical-reviewer, cr-signoff-pm) has been run.
+**Shipped v3.28.0 (2026-08-11), migration 067.** Both accounts are live on `accrue` /
+`Interest Income`; `WISE - EUR` reconciles to **0** and `Wise - USD` carries −1.19, the accrual
+since the 08-07 anchor. Both API guards were verified **against live prod**, not a fixture:
+selecting `accrue` with no category was refused, and clearing the category while in `accrue` was
+refused.
+
+**Still open:** the first real `accrue` run happens at month-end, when the signal clears the band
+(B4) — today both accounts correctly refuse. Dev's ledger lacks rows for 065–067 (they were applied
+prod-first); `Scripts/sync-db-prod-to-dev.sh` resolves it. Neither reviewer pass
+(cr-technical-reviewer, cr-signoff-pm) was run — this shipped on measurement and falsification
+instead.
