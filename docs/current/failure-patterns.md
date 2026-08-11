@@ -9,7 +9,7 @@ does not.
 
 ---
 
-## 1. A restatement asserted as the engine's behaviour — found EIGHT times
+## 1. A restatement asserted as the engine's behaviour — found NINE times
 
 Someone writes a rule, a comment, a warning sentence or a figure that asserts what the engine does,
 derived from a **paraphrase of it** rather than from the formula or the real input.
@@ -24,6 +24,7 @@ derived from a **paraphrase of it** rather than from the formula or the real inp
 | [CR076 D1](../cr/cr-076-forecast-model-review.md) | one growth formula | **two copies** of it, drifted since CR072 §8 — and the mirror wrote last (−39,715) |
 | [CR076 §3](../cr/cr-076-forecast-model-review.md) | R7's *sentence*, after CR075 fixed its input | false on all 20 rows it fired on — the engine indexes disposals against the **module's** base year |
 | [CR076 D4](../cr/cr-076-forecast-model-review.md) | base-year income and the tax on it | income came from the budget, the tax from the typed amount |
+| [CR059 §22](../cr/cr-059-fintable-api-ingestion.md) | the promote gate is "a design property, not luck" | it stops only the **stage-only cron**; a human pressing Import now promoted **28 duplicate rows / +2,888.80**. A comment reading *"no `--` means a non-fintable source"* had likewise become false at cutover, silently retiring the guard that would have caught them |
 
 **Why it survives review:** the restatement is usually *true of something* — an earlier version, a
 neighbouring code path, a different jurisdiction — so it reads as correct to anyone who has not put

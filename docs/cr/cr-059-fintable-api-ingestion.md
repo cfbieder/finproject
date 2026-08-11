@@ -1005,6 +1005,136 @@ eventually be deleted. And the **26 pre-existing duplicate groups** in the feed 
 look; they are not from this cutover but three-copy rows like Black Card's 2026-07-14 `-136.53` are worth
 understanding.
 
+## 22. The carry-over floor walked off the exposure — and this one reached the ledger (2026-08-11)
+
+**28 duplicate rows and +2,888.80 of phantom income landed in prod**, found by the owner reading the
+transactions list and asking why `INTEREST IBM INTL CAP PTE LTD` appeared twice. This is the third
+duplication defect in this CR and the **first to reach the ledger**. §21's claim that the promote gate
+makes these mistakes cheap did not hold, and §22.3 explains why it was never going to.
+
+### 22.1 Two floors that agreed on exactly one day
+
+The **fetch** floor is `FINTABLE_API_MIN_DATE` (2026-08-05), applied unconditionally by
+`adapters/fintableApi.js` as `dateFrom` — every sync asks fintable for everything from that date,
+forever, sweep or not. The **carry-over** floor was a rolling `syncDate − FINTABLE_API_CARRYOVER_DAYS`,
+clamped *upward* to `minDate` (`min > asDay ? min : asDay`).
+
+They were equal on **2026-08-10** — the cutover — because `08-10 − 5 = 08-05`. That is the only day
+they could ever agree. On 08-11 the rolling floor moved to **08-06** while the fetch floor stayed at
+**08-05**, so rows dated 08-05 were still fetched and no longer even *considered*:
+`planBoundaryCarryover` filters `inWindow` on `>= floorDate` **before** any matching happens.
+
+Sync 1805 (2026-08-11 00:02) records it exactly:
+
+```
+fetched:   {date_from: "2026-08-05", transaction_rows: 41}
+carryover: {window_from: "2026-08-06", considered: 18, carried_over: 18}
+inserted:  23
+```
+
+41 fetched − 18 in window = **23 rows the carry-over never looked at**. They adopted their API ids,
+fin staged all 23 at 01:21, promoted 20, and the neutralizer added 8 auto-offset legs.
+
+**The ledger damage:** 28 rows across Fidelity Bond, Options and Stocks — **+2,432.38 Interest Income**
+(2,375.00 + 50.79 + 6.59), **+219.98 dividend**, +236.44 option trades, and 16 transfer legs netting to
+**zero**. Net-of-transfers invisible to a balance check, the Black Card shape for the third time.
+
+### 22.2 Five layers, and none of them could see it
+
+| layer | why it missed |
+|---|---|
+| `bankfeed_staging (source, external_id)` UNIQUE | the API id is new — no conflict |
+| `transactions.bank_feed_external_id` ON CONFLICT | the API id is new — no conflict |
+| `promote_from_date` (2026-05-16) | far older than 08-05 — no block |
+| **v3.7.2's event-hash guard** | **silently dead — see below** |
+| `findPsMatch` fuzzy dedup | queries `source = 'pocketsmith' AND bank_feed_external_id IS NULL` — structurally cannot see a **bank-feed** twin |
+
+**The fourth is the one that should alarm us.** v3.7.2 added an exact guard for precisely this class:
+a staged row whose *event hash* already sits on a ledger row for that account is the same event under
+a new id. It keys on the Sheet id's shape, `{provider_account_id}--{event_hash}`, and its own comment
+says *"no `--` in the id (a non-fintable source) means no check"*. **API ids are opaque ULIDs —
+`tx_01KZCJS3WDXKT008ETYQ46GJAV` — with no separator and no shared component.** All 13 API-id rows in
+the ledger contain no `--`. The guard did not fail; it stopped existing, at cutover, silently, and the
+comment's parenthetical became false the moment the API became the fintable source. §21 recorded that
+the cutover *"retires this class"* — true of the misattribution half (the converter joins on
+`tx.account_id`), false of the **dedup** half, which was still load-bearing.
+
+### 22.3 The promote gate is not what §21 said it was
+
+§21 named the human-in-the-loop promote gate *"a design property rather than luck"*. The gate is real
+but narrower than that sentence: the 06:00 cron (`Scripts/refresh-bank-feed.sh` → `POST /ingest`) is
+**stage-only** and never promotes, so unattended runs cannot touch the ledger. That is what held twice
+during the cutover. It says nothing about a human pressing **Import now** (`POST /refresh` = ingest +
+promote), which is what happened at 01:21 — and the reviewer had nothing to go on, because the 20 rows
+carried correct dates, correct amounts, correct descriptions and ids the ledger had never seen. **A
+gate that only stops unattended writes does not stop a duplicate that looks new.** Counted as a ninth
+instance of [failure pattern #1](../current/failure-patterns.md) — a restatement asserted as behaviour.
+
+### 22.4 The fix
+
+**bank-feed `4840679`.** `boundaryFloor` returns `minDate` outright whenever it is set; the rolling
+window survives only as a bounded fallback for an unset `minDate` (which is `optional()`). **The
+protection window now covers the fetch window by construction**, and raising `FINTABLE_API_MIN_DATE`
+moves both floors together — which is what actually retires the pass, rather than a window that
+happened to reach the floor for one day.
+
+`boundaryFloor` had **no test**, which is how a one-day-correct window shipped. It is exported and
+pinned now: **7 tests**, including the property that the floor never rises above `minDate` across a
+full year of sync dates. The three regression tests were **falsified against the old implementation
+first** — 46, 47 and 48 fail on it and pass on the fix. **190 tests green** (was 183).
+
+### 22.5 Verified against the failure that had not happened yet
+
+The incremental sync could not prove the fix — it fetches only what moved. So the weekly sweep was
+forced (`DELETE FROM sync_state WHERE key = 'fintable_api.last_full_sweep'`), which is exactly the
+**2026-08-17** scenario: a full re-read from 2026-08-05 against what would have been a floor of
+2026-08-12.
+
+```
+[sync 1819] full read
+boundary carry-over: window_from 2026-08-05, considered 137,
+                     carried_over 108, ambiguous 0
+transactions: inserted 0, updated 137
+```
+
+**All 108 rows still held under Sheet ids reclaimed their ids; nothing inserted.** Left standing, that
+sweep would have duplicated all 108 in one shot — **and the insert guard would not have fired**: 300 is
+sized against a full-history re-insert (~2,406 rows), an order of magnitude above the only re-insert
+this class actually produces. The forced sweep also reset the timer, so 08-17 is a non-event.
+
+**Cleanup** (both DBs backed up first): 23 duplicate API-id rows deleted from bank-feed's store, 23 fin
+staging rows, 28 ledger rows — the delete set verified self-contained (no `income_restatements`,
+`security_transactions` or `transfer_match_group_members` references; no row outside the set paired
+into it) and guarded by an abort if it was not exactly 28/20/8. **The 13 `tx_`-id rows dated 08-09/08-10
+have no twin and were kept** — genuinely new. Deleting bank-feed's copies is what makes it permanent:
+with only one generation in the store the carry-over re-matches instead of reporting `already_known`
+forever.
+
+### 22.6 What this leaves open
+
+1. **The promote-time duplicate guard (P0).** §21 already made the case from the Revolut suffix pair;
+   this incident is stronger, because **no id-based guard can work when the upstream changes its id
+   scheme**. Match a staged row against **bank-feed** rows too — `(account, date ± tolerance, amount,
+   normalized description)` — not only against un-stamped PS rows. It is the one layer that would have
+   caught all 20 regardless of what the ids did.
+2. **The event-hash guard needs to know it is dormant (P0).** It should assert its precondition rather
+   than no-op: if the source is fintable and the id carries no `--`, that is a *changed id scheme*, not
+   a *non-fintable source*, and it should say so loudly.
+3. **Raise `FINTABLE_API_MIN_DATE` (P1).** Still the §21 item, now with a second reason: 108 rows
+   depend on the carry-over on every sweep, and raising the floor retires both the exposure and the
+   pass together.
+4. **Size the insert guard to the real failure (P2).** A separate, much lower ceiling on inserts *dated
+   inside the transition window* would have caught this at 23.
+5. **Detect two generations in our own store (P2).** Nothing notices that bank-feed holds the same
+   transaction under a Sheet id and an API id; the carry-over reports `already_known` and never
+   self-heals. One query, and it is the earliest possible signal.
+6. **The 26 pre-existing duplicate groups (P2)** — §21's open item, still open. Two are now
+   characterised and are **not** this defect: `LUXURY CARD` 2026-07-14 `-136.53` **×3** and
+   `Delta SkyMiles Reserve Card` 2026-07-11 `-368.54` **×2**, each arriving as *distinct upstream ids in
+   one batch* — either genuine or fintable double-serving (§18), not a fin dedup failure. Worth checking
+   against the statements. The `Fidelity Options` same-day pairs are **confirmed genuine**: the forced
+   sweep carried the two AMD `-244.66` opening puts over to two *distinct* kept ids.
+
 ## Status
 
 P0 done (§11), P1 built and shadow-verified (§13), both §12 decisions settled, default still

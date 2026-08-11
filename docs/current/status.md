@@ -47,10 +47,16 @@ everywhere), earns **no rent** against 45,000/yr, and sells at 7%. **Financing i
 **[failure-patterns.md](failure-patterns.md) is the canonical list** — seven shapes, each found
 more than once, each having passed the gates meant to catch it. Read it before writing a rule, a
 warning sentence, or any figure that asserts what the engine does. The one that has cost most:
-**a restatement asserted as the engine's behaviour, found eight times.**
+**a restatement asserted as the engine's behaviour, found NINE times** — and the ninth
+([CR059 §22](../cr/cr-059-fintable-api-ingestion.md)) is the first to reach the **ledger**.
 
 ## Known issues
-[roadmap §3](project-roadmap.md#3-known-issues) is canonical. **#19 and #20 CLOSED 2026-08-11
+[roadmap §3](project-roadmap.md#3-known-issues) is canonical. 🔴 **A feed duplicate REACHED PROD
+2026-08-11** ([CR059 §22](../cr/cr-059-fintable-api-ingestion.md)) — 28 rows, **+2,888.80 phantom
+income**, net-of-transfers invisible to a balance check. Fixed at source and cleaned up; a forced
+sweep reclaimed all 108 exposed rows, 0 inserted. **The class is open:** five dedup layers, none able
+to see a fed row duplicating another — the P0 is a **promote-time duplicate guard**, since no
+id-based guard survives an upstream changing its ids. **#19 and #20 CLOSED 2026-08-11
 (v3.27.0):** the module-currency defect closed at its source — migration **064** relabels the eight
 rollup accounts whose children are unanimously non-USD (`Tax Liabilities` left alone, genuinely
 mixed), the engine now **throws** on a currency it cannot convert (falsified: a £10,000 module was
@@ -89,8 +95,8 @@ scenarios are REGENERATED**. It changes far less often than this file does.
   awaiting deploy.** The two **Wise Assets** accounts hold a money-market fund whose yield the feed
   never posts as a transaction; neither existing mode books it somewhere both dated and income.
   Part A shipped (**065** + **066**, prod 2026-08-11); Part B built with 14 tests, two falsified
-  against the unfixed code. **Remaining: deploy → apply 068 → first run at month-end** (068 is the
-  one migration applied AFTER the code, and its header says why). Not reviewed by either CR pass.
+  against the unfixed code. **Remaining: deploy → set both accounts to `accrue` on the reconcile
+  page → first run at month-end** (the flip is configuration, not a migration). Not reviewed by either CR pass.
 - **CR077's LLM stage** — only over the deterministic rules, never instead of them.
 - **Owner QA of the P&L module inputs** — CR076 §5 and §7 are the agenda.
 - **[CR066](../cr/cr-066-fc-line-mapping-completeness.md) P0** · **CR064 P2/P4/P5/P10** ·
