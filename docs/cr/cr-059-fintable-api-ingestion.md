@@ -1282,6 +1282,66 @@ restatement of the engine this time but of a *measurement*: a figure taken from 
 contain the behaviour it was used to size, then quoted forward as *"2.5× the observed maximum"* — a
 ratio that reads as margin and was a deficit.
 
+## 22.10 One rolling floor — and the third floor nobody had counted (bank-feed `955be06`)
+
+**`fetchFloor()` is now the only place a transaction-date floor is computed**, and `runSync` derives
+it **once** into a single variable handed to both consumers — the fetch (as an explicit `dateFrom`,
+not the adapter's own default) and `planBoundaryCarryover`. Two values that must agree is a defect
+waiting for a calendar; one variable cannot drift. It rolls: `today − FINTABLE_API_LOOKBACK_DAYS`
+(**30**, sized on the real p99 of 17), with `FINTABLE_API_MIN_DATE` demoted to an **absolute backstop**
+that only bounds how far a mis-set look-back can reach.
+
+**The code half was not the fix, and finding that out was the useful part.** `minDate` still clamps
+*upward*, so a rolling window with `minDate` left at the cutover date changes nothing. The first
+regression test written for this **passed against the unfixed code** for exactly that reason — it set
+`minDate` to a low backstop and proved nothing. So the config moved too (**2026-08-05 → 2026-06-01**),
+and `backstopPinsFloor()` now detects the shape that made it wrong: *a backstop sitting inside the
+look-back is the operating floor wearing a backstop's name.* It warns on every sync and rides on the
+summary as `floor_pinned_by_backstop`, so it lands in `sync_jobs` rather than only in a log line
+nobody greps. It warns rather than throws — a pinned floor stops the reach growing but destroys
+nothing, while refusing to boot would also stop the accounts that *are* in range.
+
+**192 tests, both regressions falsified against the old code**: the fixed floor fails *"the backstop
+does not raise the floor above the rolling window"*, and deleting the detection fails the §22.9 case.
+
+**Verified on the live feed, not only in tests.** Forced full sweep after deploy:
+
+```
+window_from 2026-07-13   (was 2026-08-05)
+considered 905, carried_over 841, already_known 59, no_candidate 3, ambiguous 2
+inserted 5, updated 900        floor_pinned_by_backstop: false
+```
+
+The 5 inserts are the recovered range behaving exactly as designed: **4 are §18's known Revolut
+double-serve** (the same two 2026-07-26 transactions under both the EUR and the legacy "(USD)"
+wallet) and one is a 0.00 collateral row — all previously *below* the old floor and therefore
+invisible. fin then staged them, and the **content guard (§22.7) marked precisely those two Revolut
+rows `SKIP-dup`** while letting 31 genuinely-new 2026-08-10 rows through. That is the whole design
+working end to end: a wider reach recovers real data, ambiguity resolves to a visible duplicate, and
+the last line catches it before the ledger.
+
+### The third floor
+
+Widening bank-feed exposed a floor **one layer down that nobody had counted**. There were never two
+floors in this pipeline, there were three:
+
+| floor | was | now |
+|---|---|---|
+| bank-feed fetch (`dateFrom`) | fixed `2026-08-05` | rolling **30d** |
+| bank-feed carry-over | rolling `sync − 5d` | **the same value** |
+| **fin's ingest window** (`SINCE_DAYS`) | **fixed 14d** | **30d** |
+
+`/v1/transactions?since=` filters on `transaction_date`, so fin's daily cron asking for 14 days meant
+a row arriving 20 days late would sit in bank-feed and **never be staged in fin** — the identical
+silent-loss shape, with a 200 OK over it, against a measured p99 of 17 days. `Scripts/refresh-bank-feed.sh`
+now defaults to 30 and the crontab's `SINCE_DAYS=14` override is removed so the script is the single
+source. Widening only costs a larger idempotent re-stage, and §22.7's guard is what makes a re-stage
+safe.
+
+**The lesson generalises past this CR:** a pipeline's floors have to be counted end to end, because
+widening one only moves the loss to the narrowest remaining one. Two of these three were found by
+following a number that did not survive being re-measured.
+
 ## Status
 
 P0 done (§11), P1 built and shadow-verified (§13), both §12 decisions settled, default still

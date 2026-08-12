@@ -14,8 +14,8 @@
 #   3. staging → ledger                   : manual, via the UI button
 #
 # Usage:
-#   ./Scripts/refresh-bank-feed.sh              # stage last 14 days
-#   SINCE_DAYS=30 ./Scripts/refresh-bank-feed.sh
+#   ./Scripts/refresh-bank-feed.sh              # stage last 30 days
+#   SINCE_DAYS=45 ./Scripts/refresh-bank-feed.sh
 #   BASE_URL=http://192.168.1.87:3005 ./Scripts/refresh-bank-feed.sh
 #   ./Scripts/refresh-bank-feed.sh --dry-run    # show the request, don't send
 #
@@ -28,7 +28,14 @@
 set -euo pipefail
 
 BASE_URL="${BASE_URL:-http://localhost:3005}"
-SINCE_DAYS="${SINCE_DAYS:-14}"
+# MUST NOT BE NARROWER THAN bank-feed's FINTABLE_API_LOOKBACK_DAYS (30).
+# `since` filters on transaction_date, so this is a floor of exactly the kind
+# CR059 §22.9 is about: bank-feed now recovers late arrivals for 30 days, and at
+# 14 a row arriving 20 days late would sit in the feed store and never be staged
+# here — invisible, with a 200 OK over it. Measured lag p99 is 17 days, max 53,
+# so 14 cut the tail. Widening only costs a larger idempotent re-stage; fin's
+# promote-time content guard (§22.7) is what stops a re-stage duplicating.
+SINCE_DAYS="${SINCE_DAYS:-30}"
 ENDPOINT="${BASE_URL}/api/v2/ingest-bank-feed/ingest"
 DRY_RUN="${1:-}"
 
