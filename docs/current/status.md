@@ -62,8 +62,12 @@ incoming still inserts the third, and matches on exact date because a false matc
 silently. **The floor is fixed too (§22.9–22.10, 2026-08-12)** — NOT by raising it: the "1–2 day"
 arrival lag it rested on is really **p99 17 / max 53**, so a fixed floor was silently dropping late
 arrivals. It now **rolls** at 30d from **one** function feeding both the fetch and the carry-over, and
-there turned out to be a **third** floor — fin's own cron asked for 14 days. Only items 4–5 (insert-guard
-sizing, two-generation detector) remain, both defence-in-depth. **#19 and #20 CLOSED 2026-08-11
+there turned out to be a **third** floor — fin's own cron asked for 14 days. **§22 is now fully closed** — items 4–5 shipped too
+([§22.11](../cr/cr-059-fintable-api-ingestion.md)): the insert ceiling scales with the batch (a flat 300
+could never fire on a 40-row tick), and a **generation detector** catches one transaction held under two
+id schemes — the one shape the carry-over reports as `already_known` and can never see. It found 2 groups
+on run one (§18+§22 compounding; **fin correct throughout**) and carries a reasoned exception list whose
+stale check caught its own author within a run. **#19 and #20 CLOSED 2026-08-11
 (v3.27.0):** the module-currency defect closed at its source — migration **064** relabels the eight
 rollup accounts whose children are unanimously non-USD (`Tax Liabilities` left alone, genuinely
 mixed), the engine now **throws** on a currency it cannot convert (falsified: a £10,000 module was
