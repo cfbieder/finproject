@@ -235,3 +235,53 @@ refused.
 prod-first); `Scripts/sync-db-prod-to-dev.sh` resolves it. Neither reviewer pass
 (cr-technical-reviewer, cr-signoff-pm) was run — this shipped on measurement and falsification
 instead.
+
+## Historical reconstruction — attempted, measured, and declined (2026-08-12)
+
+Interest earned **before 2026-06-05** (the feed's first observation) is not booked. The owner
+supplied Wise's own CSV exports for both accounts and confirmed **no interest statement is
+available**, so this records what the data can and cannot settle, to stop it being re-derived.
+
+**What the Wise CSVs settled.** Neither export contains a single interest row — Wise does not post
+the Assets yield as a transaction even in its own record, which confirms the diagnosis from the
+other side. They do carry the monthly `ACCRUAL_CHARGE` Assets fee, and fee ÷ average balance holds
+at **0.127–0.154%/yr across a 13× range of balances** on the USD account. That is an independent
+check that **fin's transaction history for these accounts is complete** — missing rows would make
+the computed balances wrong and scatter the ratio.
+
+**What actually measured it.** Every PocketSmith row carries `closing_balance`, a bank-reported
+running balance — 389 rows on USD back to 2023-01-01, 610 on EUR back to 2022-03-26. Over any span,
+`interest = Δ(closing_balance) − Σ(transactions)`, with **no rate assumption**. Taken across the
+whole history the result is order-independent (it telescopes to the first and last rows):
+
+| | period | unexplained |
+|---|---|---:|
+| Wise – USD (8) | 2023-01-01 → 2026-05-14 | **+187.21** |
+| WISE – EUR (13) | 2022-03-26 → 2026-06-03 | **−504.27** |
+
+USD's +187.21 cross-checks against the month-by-month figures (104.22 Mar + 73.49 Apr + 8.37 May =
+186.08; the 1.13 difference is one Wise transfer fee), and April's 73.49 landed within **13 cents**
+of a completely independent estimate from average balance × the feed-measured rate (73.36). Almost
+all of the 187 falls in March–May 2026.
+
+**⚠️ EUR's −504.27 is NEGATIVE, which interest cannot be.** The EUR account has a genuine gap in its
+history — most likely a single missing transaction around 2026-05. Logged here as a data-quality
+issue in its own right; it is **not** an interest question and is unrelated to CR080's engine.
+
+**Two false trails, recorded because both looked convincing.** An earlier pass put the figure at
+**~$492 USD / €121 EUR** by applying the feed-measured rate to average balances — ~2.6× too high,
+because it assumed the entire balance was invested in Assets and that the June rate held back to
+January. And a "13,000 hole" in January 2026 was an artifact of **within-day row ordering**, not
+missing data: December closes at 1,327.45 and January's cashback closes at 1,328.11 = 1,327.45 +
+0.66, chaining perfectly. Within-day ordering in the PS export is ambiguous, and it flipped the
+monthly answer twice.
+
+**Owner decision (2026-08-12): leave it — book nothing.** The money is **not missing from any
+balance**; the calibrations already put it there, and every account ties to the bank today. What is
+absent is only the *classification*: roughly $187 of pre-June-2026 interest sits inside
+`opening_balance` instead of appearing as `Interest Income`. Booking a reconstruction would have
+meant entering a number derived from a source with a known −504 defect, which is precisely the
+"launder a data error into income" failure the `accrue` guard exists to prevent.
+
+From 2026-06-05 the feed measures it properly and the monthly `accrue` run books it as income, so
+the gap does not grow.

@@ -107,6 +107,13 @@ scenarios are REGENERATED**. It changes far less often than this file does.
   constant, **with no audit row**. Moved into `opening_balance`; a fabricated −32.56 loss removed,
   `Interest Income` untouched, and **all eight anchors now tie to the feed to the cent**. Dev's
   ledger lacks 065–067/069 (applied prod-first) — `sync-db-prod-to-dev.sh` resolves it.
+  **Pre-June-2026 interest: owner decided 2026-08-12 to book nothing.** No Wise interest statement
+  exists; measured from PocketSmith's own `closing_balance` chain it is **+187.21 USD** (2023→May
+  2026, order-independent, cross-checked two ways) — but **−504.27 on EUR, which interest cannot
+  be**, so that account has a real gap, likely one missing transaction around 2026-05. ⚠️ **Balances
+  are correct on both**; only the *classification* is missing (it sits in `opening_balance`, not
+  `Interest Income`). Full record, including two false trails that looked convincing, in
+  [CR080](../cr/cr-080-feed-accrual-reconcile-mode.md#historical-reconstruction--attempted-measured-and-declined-2026-08-12).
 - **CR077's LLM stage** — only over the deterministic rules, never instead of them.
 - **Owner QA of the P&L module inputs** — CR076 §5 and §7 are the agenda.
 - **[CR066](../cr/cr-066-fc-line-mapping-completeness.md) P0** · **CR064 P2/P4/P5/P10** ·
