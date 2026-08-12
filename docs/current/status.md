@@ -8,7 +8,7 @@
 > CR index and roadmap already own, and it is where stale facts collect. Each cut has come from
 > MOVING something that changes on a different clock, never from deleting what is true.
 
-**Last updated:** 2026-08-11 · **Live version:** v3.28.1 (see `VERSION` / git tags)
+**Last updated:** 2026-08-12 · **Live version:** v3.28.1 (see `VERSION` / git tags)
 
 ## Current phase
 **The model, since [CR069](../cr/cr-069-forecast-streams.md):** a module is *identity + optional
@@ -47,8 +47,9 @@ everywhere), earns **no rent** against 45,000/yr, and sells at 7%. **Financing i
 **[failure-patterns.md](failure-patterns.md) is the canonical list** — seven shapes, each found
 more than once, each having passed the gates meant to catch it. Read it before writing a rule, a
 warning sentence, or any figure that asserts what the engine does. The one that has cost most:
-**a restatement asserted as the engine's behaviour, found NINE times** — and the ninth
-([CR059 §22](../cr/cr-059-fintable-api-ingestion.md)) is the first to reach the **ledger**.
+**a restatement asserted as the engine's behaviour, found TEN times** — the ninth
+([CR059 §22](../cr/cr-059-fintable-api-ingestion.md)) is the first to reach the **ledger**, and the
+tenth (§22.9) is the first where the restatement is of a **measurement**, not the engine.
 
 ## Known issues
 [roadmap §3](project-roadmap.md#3-known-issues) is canonical. 🔴 **A feed duplicate REACHED PROD
@@ -58,7 +59,11 @@ sweep reclaimed all 108 exposed rows, 0 inserted. **The class is closed too, v3.
 ([§22.7](../cr/cr-059-fintable-api-ingestion.md)): `promote()` now dedups on **content**, since no
 id-keyed guard can recognise a row whose id it has never seen — it *claims* candidates so 2 held + 3
 incoming still inserts the third, and matches on exact date because a false match drops real money
-silently. Items 3–6 remain, **P1 = raise `FINTABLE_API_MIN_DATE`**. **#19 and #20 CLOSED 2026-08-11
+silently. **The floor is fixed too (§22.9–22.10, 2026-08-12)** — NOT by raising it: the "1–2 day"
+arrival lag it rested on is really **p99 17 / max 53**, so a fixed floor was silently dropping late
+arrivals. It now **rolls** at 30d from **one** function feeding both the fetch and the carry-over, and
+there turned out to be a **third** floor — fin's own cron asked for 14 days. Only items 4–5 (insert-guard
+sizing, two-generation detector) remain, both defence-in-depth. **#19 and #20 CLOSED 2026-08-11
 (v3.27.0):** the module-currency defect closed at its source — migration **064** relabels the eight
 rollup accounts whose children are unanimously non-USD (`Tax Liabilities` left alone, genuinely
 mixed), the engine now **throws** on a currency it cannot convert (falsified: a £10,000 module was
