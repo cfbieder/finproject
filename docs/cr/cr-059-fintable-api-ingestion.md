@@ -1117,11 +1117,8 @@ forever.
 3. ⛔ **Raise `FINTABLE_API_MIN_DATE` (P1) — DO NOT, on the stated plan. See §22.9:** the arrival-lag
    figure the plan rests on is wrong by an order of magnitude, and every raise opens a *silent*
    data-loss window sized by the lag tail.
-4. **Size the insert guard to the real failure (P2).** A separate, much lower ceiling on inserts *dated
-   inside the transition window* would have caught this at 23.
-5. **Detect two generations in our own store (P2).** Nothing notices that bank-feed holds the same
-   transaction under a Sheet id and an API id; the carry-over reports `already_known` and never
-   self-heals. One query, and it is the earliest possible signal.
+4. ✅ **Size the insert guard to the real failure (P2) — DONE, see §22.11.**
+5. ✅ **Detect two generations in our own store (P2) — DONE, see §22.11.**
 6. ✅ **The pre-existing duplicate groups (P2) — TRIAGED, see §22.8.** Not a fin defect in any of
    them; what remains is an owner statement check on a costed shortlist.
 
@@ -1172,7 +1169,7 @@ and the core-sweep case fail without the guard; the four that assert it does **n
 different date, a genuinely new row, an un-stamped PS twin still *links*, and the dormancy counter)
 pass either way, which is what makes them worth having. **908 backend tests green / 66 suites.**
 
-**What this does not close:** items 3–5 above. In particular the content guard is fin's *last* line —
+**What this does not close:** item 3 above. In particular the content guard is fin's *last* line —
 it fires after the row has already been fetched, staged and considered, and it is deliberately narrow.
 It is not a reason to leave the transition window open (item 3).
 
@@ -1341,6 +1338,68 @@ safe.
 **The lesson generalises past this CR:** a pipeline's floors have to be counted end to end, because
 widening one only moves the loss to the narrowest remaining one. Two of these three were found by
 following a number that did not survive being re-measured.
+
+## 22.11 The last two guards — and both found something on their first run (bank-feed `02104da`, `9d92a53`, `1399c9a`)
+
+Items 4 and 5, closing §22. Both are **defence in depth** — §22.7's content guard already stops
+duplicates reaching the ledger — and both cover a gap nothing else can see.
+
+### Item 4 — the ceiling has to scale with the run
+
+`FINTABLE_API_MAX_INSERTS` was a flat 300, sized once against a full-history re-insert (2,406 rows /
+~89 days ≈ 27/day, so 300 read as *"~11 days of traffic"*). **That number is meaningless across the
+range of runs this service makes.** An incremental tick fetches 3–40 rows, where 300 is 750–10,000% of
+the batch and the guard is *structurally incapable of firing*; a full sweep now fetches ~905, where
+300 is a third of it. And the failure it guards is not a count — identifiers ceasing to line up takes
+out a **fraction** of whatever was fetched, whether that is 40 rows or 900.
+
+It now trips on the **lower of the flat count and 25% of the batch**, with a floor of 25 so a
+percentage cannot fire on a tiny batch that is legitimately all-new. Live steady state is **5 inserts
+in 905 = 0.6%**; a total matching failure is 100%. A partial failure still passes here on purpose:
+this is the coarse backstop one layer before fin, and §22.7 is the precise one.
+
+### Item 5 — two generations in our own store
+
+Nothing could see the state §22 left behind: the same transaction under both a Sheet id and an API id.
+**The carry-over structurally cannot notice it** — on every later sync it finds the incoming API id
+already present and reports `already_known`, which is exactly what a healthy row reports. It never
+self-heals and never announces itself, which is why §22 was found by the owner reading a list.
+
+`generationDrift.js` keys on **id shape, not content**, and that distinction is the whole design.
+Content grouping over-reports badly — §22.8 measured 42 groups, of which 35 were PocketSmith rows with
+distinct `ps_id`s and 5 were genuine same-day option trades. Identical money is normal. What is *not*
+normal is one content group carrying ids from two **generations**, because an upstream serves one
+scheme at a time.
+
+**It found two groups on its first live run, and they are §18 and §22 compounding.** Each Revolut
+transaction is held **three** times: under the current Sheet account prefix, under the legacy numeric
+prefix **with the same event hash** (§18's mis-attributed "(USD)" wallet), and under the API's ULID.
+**fin is correct throughout** — one ledger row each (2709344, 2709345), with all three staging
+generations pointed at it: the legacy-prefix row suppressed per §18, the API row skipped by §22.7's
+content guard doing exactly its job. The drift is in bank-feed's store alone, and **deleting it would
+not stick**, because fintable still serves all three.
+
+### The exception list, and why it was not optional
+
+Left there, the detector would warn **every hour, forever**, about a condition already reasoned
+through — and alert fatigue is how the *next* one gets missed. That would have made it actively worse
+than having nothing. So it takes the discipline `scripts/compare-exceptions.json` already uses: a case
+is silenced only with a **reason, a date and an expiry**, and the detector reports entries that have
+**stopped matching** (`stale`) or **passed their expiry** (`expired`). A stale entry means either the
+condition was fixed and the entry should go, or the detector broke — both need a human. That is the
+difference between an allowlist and a rubber stamp.
+
+**It caught its own author within one run.** I wrote `PIOTR WOJTUN` into an exception from memory; the
+store says `PIOTR WICHOWSKI`. The entry matched nothing, the group kept warning, and the run reported
+the exception as stale — the failure mode the check exists for, firing on its first live use against
+the person who had just written it. Corrected by reading the value out of `feed_transactions` rather
+than typing it again. Final state: **`groups 0, suppressed 2, stale 0, expired 0`**.
+
+**207 tests**, seven new, **four falsified against the naive versions first** — the three ceiling
+cases fail on a flat guard, and *"two rows of the SAME generation are NOT reported"* fails on a
+content-only detector, which is precisely the §22.8 over-report the shape test prevents.
+
+**§22 is now closed except item 3** (the fetch floor), which §22.9–22.10 answered by inverting it.
 
 ## Status
 
