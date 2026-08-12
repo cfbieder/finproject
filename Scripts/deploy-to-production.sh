@@ -9,7 +9,7 @@
 # 4. Verifies deployment health
 #
 # Usage: ./deploy-to-production.sh [--with-git] [--no-backup] [--allow-dirty]
-#                                  [--allow-unverified-migrations]
+#                                  [--allow-unverified-migrations] [--allow-red-ci]
 #
 set -euo pipefail
 
@@ -24,6 +24,7 @@ SKIP_GIT=true  # Skip git by default - handle manually
 NO_BACKUP=false
 ALLOW_DIRTY=false
 ALLOW_UNVERIFIED_MIGRATIONS=false
+ALLOW_RED_CI=false
 BACKUP_DIR="$PROJECT_DIR/Backups"
 mkdir -p "$BACKUP_DIR"
 BACKUP_FILE="$BACKUP_DIR/fin_backup_$(date +%Y%m%d_%H%M%S).dump"
@@ -47,8 +48,12 @@ for arg in "$@"; do
             ALLOW_UNVERIFIED_MIGRATIONS=true
             shift
             ;;
+        --allow-red-ci)
+            ALLOW_RED_CI=true
+            shift
+            ;;
         --help|-h)
-            echo "Usage: $0 [--with-git] [--no-backup] [--allow-dirty] [--allow-unverified-migrations]"
+            echo "Usage: $0 [--with-git] [--no-backup] [--allow-dirty] [--allow-unverified-migrations] [--allow-red-ci]"
             echo ""
             echo "Options:"
             echo "  --with-git     Enable git commit and push (skipped by default)"
@@ -56,6 +61,7 @@ for arg in "$@"; do
             echo "  --allow-dirty  Deploy build-affecting changes that are not committed"
             echo "  --allow-unverified-migrations"
             echo "                 Apply a migration to prod that has never run on dev"
+            echo "  --allow-red-ci Deploy a commit whose CI is red, unfinished, or never ran"
             echo "  --help         Show this help message"
             echo ""
             echo "Default behavior: Skips git, backs up database, deploys to production"
@@ -114,6 +120,56 @@ if git rev-parse --git-dir >/dev/null 2>&1; then
         fi
     fi
     echo "Deploying $(git rev-parse --short HEAD)$(git describe --tags --exact-match HEAD 2>/dev/null | sed 's/^/ (/;s/$/)/')"
+    echo ""
+fi
+
+# Step 0b: Refuse to ship over a gate that is red, unfinished, or never ran (Known Issue #12).
+#
+# `main` has gone red and STAYED red five times with nothing announcing it — the worst run
+# was 30 consecutive pushes covering three releases and a prod deploy, because a red run is
+# visible only to whoever opens the Actions tab. Every instance was caught by someone
+# happening to look, which is the same non-control as "harm was nil because someone checked
+# afterwards" in Step 0.
+#
+# Step 0 has already established that the build paths match HEAD, so HEAD is what ships and
+# HEAD is what this asks about. The three refusals are one idea — nothing has verified this
+# code: red (verified broken), pending (not finished), and no run at all (usually an
+# unpushed commit, so CI never saw it).
+#
+# NOT a refusal: check-ci exit 4, "could not ask GitHub". A gate that blocks a prod deploy
+# during a GitHub outage gets bypassed reflexively, and a guard people bypass by habit is
+# worse than no guard — the same reasoning that scopes Step 0 to build paths only.
+if [ -x "$SCRIPT_DIR/check-ci.sh" ]; then
+    echo "Step 0b: Checking CI for the commit being deployed..."
+    CI_RC=0
+    # --wait, not a bare check: /close pushes and deploys back to back, so CI is normally
+    # mid-flight when we arrive here. Refusing that would refuse every release and teach
+    # --allow-red-ci as a reflex. It blocks for up to 10 minutes, then reports what it has.
+    "$SCRIPT_DIR/check-ci.sh" HEAD --quiet --wait || CI_RC=$?
+
+    case "$CI_RC" in
+        0) echo "✓ CI green" ;;
+        4) echo "  (deploy continues — unknown is not the same as red)" ;;
+        1|2|3)
+            case "$CI_RC" in
+                1) WHY="CI is RED on this commit" ;;
+                2) WHY="CI has not finished on this commit" ;;
+                3) WHY="no CI run exists for this commit" ;;
+            esac
+            if [ "$ALLOW_RED_CI" = true ]; then
+                echo "⚠ Deploying anyway (--allow-red-ci): $WHY."
+            else
+                echo ""
+                echo "ERROR: $WHY — refusing to deploy."
+                echo "----------------------------------------"
+                echo "Nothing has verified what you are about to put in front of prod."
+                echo ""
+                echo "Fix it, wait for the run, or push the commit so CI can see it —"
+                echo "or re-run with --allow-red-ci if shipping unverified is deliberate."
+                exit 1
+            fi
+            ;;
+    esac
     echo ""
 fi
 

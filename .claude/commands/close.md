@@ -35,6 +35,8 @@ Finalize this release end-to-end for **psproject** (Fin). Follow the project con
    Verify with `git show HEAD --name-status` that only your files landed before pushing.
 
 4. **Deploy to prod** — Run `./Scripts/deploy-to-production.sh` from the repo root. This backs up the prod DB, rebuilds + restarts production containers, and verifies health. Watch the output and report success/failure.
+   - **Step 0b consults CI** (Known Issue #12). Because you have just pushed, CI is normally still running — the script **waits** for it (up to 10 min), so expect a pause with `· CI still running, waiting…` lines. That is the gate working, not a hang.
+   - If it reports **CI is RED**, the deploy stops. **Do not reach for `--allow-red-ci`** — report the failing job and stop; shipping over a red gate is the thing this exists to prevent, and it has happened before. Overriding is an owner decision, not a step in this workflow.
 
 ## Guardrails
 - Stop and ask before any destructive or irreversible step: force-push, deploying a **major** version bump, tagging over an existing tag, or anything `deploy-to-production.sh` warns about.

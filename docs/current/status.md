@@ -82,7 +82,8 @@ dev and fail only in CI; 0 violating rows, so a forward migration closes it chea
 **dev only** (a CI-built DB gives it **11**) — so all 12 of its tests failed on the FK the day they
 shipped; the id is now resolved by name. Fifth instance of #12, and the first where the seed
 already carried the row: the **id**, not the row, was the borrowed fact. Worth knowing
-at session start: the timezone rule (#3), the unannounced red `main` (#12), the ESLint JSX blind
+at session start: the timezone rule (#3), the unannounced red `main` (#12 — now **askable**:
+`./Scripts/check-ci.sh`, and deploy **Step 0b** refuses a red/unfinished/unverified gate), the ESLint JSX blind
 spot (#10), dirty-tree deploys (#17). #2 and #15 are CLOSED.
 
 ## Live infrastructure
