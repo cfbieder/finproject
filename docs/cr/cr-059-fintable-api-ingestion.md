@@ -866,6 +866,14 @@ falsified against a naive nearest-date implementation first** — it passes the 
 Window is `FINTABLE_API_CARRYOVER_DAYS`, default **5** (2.5× the observed maximum lag). Guarded by a
 `sync_state` key so it runs exactly once: a second run would match against ids that have already moved.
 
+> ⚠️ **Both claims in that last sentence were wrong, and both were found in production.** The
+> one-shot guard was wrong — the collision is not one-shot ([§21](#21-cutover--done-2026-08-10-and-the-two-things-it-taught));
+> it runs on every sync. And *"2.5× the observed maximum lag"* was measured on 71 rows over three
+> days: the real distribution over 2,151 rows is **p99 17 days, max 53**, so 5 was *below* the p99
+> ([§22.9](#229-the-arrival-lag-figure-is-wrong-by-an-order-of-magnitude-and-the-floor-is-now-a-silent-loss-risk)).
+> `FINTABLE_API_CARRYOVER_DAYS` no longer exists — the floor is a rolling `FINTABLE_API_LOOKBACK_DAYS`
+> (30) computed once and shared by the fetch and the carry-over ([§22.10](#2210-one-rolling-floor--and-the-third-floor-nobody-had-counted-bank-feed-955be06)).
+
 **P3a is built and rehearsed against real prod data.** `scripts/crosswalk-plan.js` produces the plan,
 `scripts/emit-crosswalk-sql.js` generates fin **044** and bank-feed **006** from it — the 31 pairs are
 never retyped. Rehearsed on a throwaway copy of prod's `account_source_mappings` + `bankfeed_staging`

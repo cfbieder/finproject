@@ -873,7 +873,10 @@ curl -s "http://localhost:3005/api/v2/bank-feed/reconciliation?sinceDays=30" | j
 # ──────────────────────────────────────────────────────────────────────
 crontab -e
 #  add (stage-only — promotion stays the manual "Import now" button):
-#  0 6 * * * BASE_URL=http://localhost:3005 SINCE_DAYS=14 /home/cfbieder/psproject/Scripts/refresh-bank-feed.sh >> /home/cfbieder/psproject/logs/refresh-bank-feed.log 2>&1
+#  SUPERSEDED 2026-08-12 — the SINCE_DAYS=14 override is REMOVED from the live crontab so the
+#  script's own default (30) governs; see CR059 §22.10. 14 was narrower than bank-feed's 30-day
+#  look-back, so a late-arriving row could sit in the feed store and never be staged here.
+#  0 6 * * * BASE_URL=http://localhost:3005 /home/cfbieder/psproject/Scripts/refresh-bank-feed.sh >> /home/cfbieder/psproject/logs/refresh-bank-feed.log 2>&1
 
 # ──────────────────────────────────────────────────────────────────────
 # ROLLBACK (if anything in 3–7 goes wrong)
