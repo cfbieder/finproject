@@ -1195,10 +1195,12 @@ the §22 shape (which needs two batches and two id generations). Reading the Pla
 settles two of them, and the method is the useful part — **`pending_transaction_id` is the
 discriminator, because one pending authorization cannot settle into two posted transactions**:
 
-- **`LUXURY CARD` 2026-07-14 `COLLEGEBOARD*SAT ONLN.` −136.53 ×3 — three REAL charges.** The three
-  payloads are byte-identical except `transaction_id` **and `pending_transaction_id`**, which are three
-  *distinct* pending authorizations. The bank charged three times. Either three genuine registrations
-  or a **triple-charge worth disputing — 273.06**.
+- **`LUXURY CARD` 2026-07-14 `COLLEGEBOARD*SAT ONLN.` −136.53 ×3 — three REAL charges. ✅ CONFIRMED
+  CORRECT BY THE OWNER, 2026-08-12 — three genuine registrations, nothing to dispute, no action.**
+  The three payloads are byte-identical except `transaction_id` **and `pending_transaction_id`**, which
+  are three *distinct* pending authorizations. **The `pending_transaction_id` reading was right**: it
+  said three separate authorizations, and three separate charges is what they were. That is the useful
+  result — the discriminator predicted the real-world answer, so it can be trusted on the next one.
 - **`Delta SkyMiles` 2026-07-11 `Delta Air Lines` −368.54 ×2 — genuinely ambiguous.** Identical in
   every Plaid field except `transaction_id`, and `pending_transaction_id` is `null` on both, so the
   discriminator is unavailable. Needs the statement.
@@ -1208,7 +1210,8 @@ discriminator, because one pending authorization cannot settle into two posted t
 **What is left is an owner statement check, not engineering.** Ranked by exposure: `Delta` WARSAW
 2026-05-07 **4,459.76** · `Delta` TRAVELOCITY 2026-02-08 **3,793.34** · `PKO` 2026-04-01 **1,000.00** ·
 `Caixa EUR` H1 2026-01-16 **834.08** · `Caixa EUR` H2 2026-01-16 **629.46** · `PKO` 2026-04-13 ×3
-**400.00** · the `Delta` and `COLLEGEBOARD` fed rows above. The Caixa and PKO rows are plausibly
+**400.00** · the `Delta` fed row above. (**`COLLEGEBOARD` is closed** — confirmed correct by the owner
+2026-08-12.) The Caixa and PKO rows are plausibly
 genuine — several are per-unit community fees where equal amounts are expected — which is exactly why
 they need a statement rather than a rule.
 
