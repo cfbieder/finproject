@@ -33,7 +33,7 @@ function sendUpstreamError(res, error, context) {
 
 /**
  * POST /refresh  — full ingest + promote.
- * Body: { sinceDays?: number (default 14), since?: 'YYYY-MM-DD' }
+ * Body: { sinceDays?: number (default 30 — see DEFAULT_SINCE_DAYS), since?: 'YYYY-MM-DD' }
  */
 router.post('/refresh', async (req, res) => {
   const { sinceDays, since } = req.body || {};
@@ -52,7 +52,7 @@ router.post('/refresh', async (req, res) => {
  * POST /ingest — STAGE ONLY (fetch + stage to bankfeed_staging, no promote).
  * The scheduled/cron path (G1): unattended runs stage but never touch the
  * ledger — promotion stays behind the "Import now" button (human in the loop).
- * Body: { sinceDays?: number (default 14), since?: 'YYYY-MM-DD' }
+ * Body: { sinceDays?: number (default 30 — see DEFAULT_SINCE_DAYS), since?: 'YYYY-MM-DD' }
  */
 router.post('/ingest', async (req, res) => {
   const { sinceDays, since } = req.body || {};

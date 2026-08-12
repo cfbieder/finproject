@@ -170,7 +170,18 @@ async function fetchAllTransactions(since) {
   return { rows, pages };
 }
 
-async function ingest({ sinceDays = 14, since, syncMaxAgeMin } = {}) {
+// THE INGEST WINDOW MUST NOT BE NARROWER THAN bank-feed's FINTABLE_API_LOOKBACK_DAYS
+// (30). `/v1/transactions?since=` filters on transaction_date, so this is a floor
+// of exactly the kind CR059 §22.9 is about: bank-feed recovers late arrivals for
+// 30 days, and at 14 a row arriving 20 days late would sit in the feed store and
+// never be staged here — invisible, under a 200 OK. Measured arrival lag is p99 17
+// days, max 53, so 14 cut the tail. This is the DEFAULT and the authoritative
+// value; callers that pass their own must not go below it without knowing that.
+// Widening only costs a larger idempotent re-stage, and promote()'s content guard
+// (§22.7) is what makes a re-stage safe rather than duplicating.
+const DEFAULT_SINCE_DAYS = 30;
+
+async function ingest({ sinceDays = DEFAULT_SINCE_DAYS, since, syncMaxAgeMin } = {}) {
   const sinceDate = since || isoDaysAgo(sinceDays);
   // Pull fresh upstream data first (best-effort) so this stage isn't on stale data.
   await syncUpstream({ maxAgeMin: syncMaxAgeMin });

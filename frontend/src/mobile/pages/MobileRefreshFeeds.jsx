@@ -57,7 +57,8 @@ function latestDate(records, field) {
 }
 
 export default function MobileRefreshFeeds() {
-  const [days, setDays] = useState(14);
+  // 30 tracks bank-feed's look-back and the server default (CR059 §22.9).
+  const [days, setDays] = useState(30);
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [result, setResult] = useState(null); // { inserted, linked, staged, ignored }
   const [status, setStatus] = useState(null); // { type, message }

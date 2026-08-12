@@ -48,7 +48,10 @@ export default function RefreshFeeds() {
     useState(false);
   const [modifiedTransactionsError, setModifiedTransactionsError] =
     useState(null);
-  const [daysHistory, setDaysHistory] = useState(7);
+  // 30 tracks bank-feed's FINTABLE_API_LOOKBACK_DAYS and the server's
+  // DEFAULT_SINCE_DAYS (CR059 §22.9): measured arrival lag is p99 17 days, so a
+  // narrower window silently misses late-arriving rows.
+  const [daysHistory, setDaysHistory] = useState(30);
 
   // Active view: which table section to display (radio-style, one at a time)
   const [activeView, setActiveView] = useState("review");
@@ -173,7 +176,7 @@ export default function RefreshFeeds() {
 
     const parsedDays = Number(daysHistory);
     const sinceDays =
-      Number.isFinite(parsedDays) && parsedDays > 0 ? parsedDays : 14;
+      Number.isFinite(parsedDays) && parsedDays > 0 ? parsedDays : 30;
 
     try {
       const res = await Rest.fetchJson("/api/v2/ingest-bank-feed/refresh", {
