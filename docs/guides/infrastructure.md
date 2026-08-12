@@ -12,6 +12,10 @@ around it, which is exactly why it does not belong in a session snapshot.
 - Deploy: `./Scripts/deploy-to-production.sh` (DB backup first). Migrations **dev first, through
   `migrate.js`** — a `psql -f` apply writes no ledger row and is invisible to the guard. Registry:
   [migrations.md](../current/migrations.md). *A deploy's Step 1 backup predates its Step 2b migration.*
+- **Step 0b consults CI** (2026-08-12, [#12](../current/project-roadmap.md#3-known-issues)): a commit
+  that is red, unfinished, or has no run is refused — `--allow-red-ci` overrides. It **waits** for a
+  run in flight, so a deploy straight after a push pauses ~2 min rather than failing. Ask any time
+  with `./Scripts/check-ci.sh` (`[ref] [--wait]`; exit 0/1/2/3/4 = green/red/pending/none/unknown).
 - **An engine change moves nothing until the scenarios are REGENERATED.** Deploy, then regenerate,
   then check the fingerprint against the dev measurement.
 - The prod container runs as **root** and writes root-owned audit CSVs, so a host-run generation
