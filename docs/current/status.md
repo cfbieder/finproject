@@ -68,7 +68,11 @@ account — the one shape no engine guard can see, because the values agree and 
 root that `ci-seed.sql` never creates, so **five consecutive CI runs failed** while every local run
 passed; the suite now seeds and cleans up its own root. **#18 (open):** a fresh DB enforces
 `fc_lines.line_type`'s CHECK while dev and prod do not (007 auto-baselined) — a test can pass on
-dev and fail only in CI; 0 violating rows, so a forward migration closes it cheaply. Worth knowing
+dev and fail only in CI; 0 violating rows, so a forward migration closes it cheaply. **#21 FIXED
+2026-08-11:** CR080's new `reconcileAccrue` suite hardcoded `INTEREST_INCOME = 74` — the id on
+**dev only** (a CI-built DB gives it **11**) — so all 12 of its tests failed on the FK the day they
+shipped; the id is now resolved by name. Fifth instance of #12, and the first where the seed
+already carried the row: the **id**, not the row, was the borrowed fact. Worth knowing
 at session start: the timezone rule (#3), the unannounced red `main` (#12), the ESLint JSX blind
 spot (#10), dirty-tree deploys (#17). #2 and #15 are CLOSED.
 

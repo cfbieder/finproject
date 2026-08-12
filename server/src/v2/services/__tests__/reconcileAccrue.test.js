@@ -28,7 +28,10 @@ const dbDescribe = process.env.SKIP_DB_TESTS ? describe.skip : describe;
 dbDescribe('reconcileToFeed — accrue (DB)', () => {
   const ACCT = 'TestAccrueAcct';
   const UUID = 'test-accrue-uuid';
-  const INTEREST_INCOME = 74;
+  // Resolved by NAME, never hardcoded: the id differs per database (74 on dev,
+  // 11 on a CI database built from the migration chain + ci-seed.sql), and a
+  // borrowed id turns the whole suite red on the FK to accounts(id).
+  let INTEREST_INCOME;
   let acctId;
 
   async function cleanup() {
@@ -78,6 +81,16 @@ dbDescribe('reconcileToFeed — accrue (DB)', () => {
       [date, amount, acctId, source]
     );
   }
+
+  beforeAll(async () => {
+    const r = await db.query(`SELECT id FROM accounts WHERE name = 'Interest Income' LIMIT 1`);
+    if (!r.rows[0]) {
+      // Say what is missing. Left to the FK, this arrives as an opaque
+      // constraint violation from freshAccount — the failure this fixed.
+      throw new Error("'Interest Income' account missing — apply server/db/ci-seed.sql");
+    }
+    INTEREST_INCOME = r.rows[0].id;
+  });
 
   afterAll(async () => { await cleanup(); });
 
