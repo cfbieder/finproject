@@ -1215,8 +1215,20 @@ discriminator, because one pending authorization cannot settle into two posted t
 - **`Fidelity Options` — 5 groups, all same-day identical option trades**, ordinary on that account and
   confirmed genuine for 2026-08-06 by §22.5's sweep.
 
-**What is left is an owner statement check, not engineering.** Ranked by exposure: `Delta` WARSAW
-2026-05-07 **4,459.76** · `Delta` TRAVELOCITY 2026-02-08 **3,793.34** · `PKO` 2026-04-01 **1,000.00** ·
+**OWNER CHECKS 2026-08-12 — the two largest are BOTH GENUINE**, against the statements:
+`Delta` WARSAW 2026-05-07 **4,459.76 ×2** and `TRAVELOCITY` 2026-02-08 **3,793.34 ×2**. Two real
+charges each; the ledger is correct as it stands and nothing is deleted. **8,253.10 of the 14,290
+"at risk" was never at risk.**
+
+That is the finding, not a footnote. The two largest exposures — the ones that made the 42-group
+number look alarming — are both ordinary travel bookings where two tickets were bought at one fare in
+one session. Identical same-day money on a travel card is a **pattern**, not a coincidence needing an
+explanation, and §22.8's caution was right in the direction it pointed but still understated: content
+grouping does not merely over-report, it over-reports *most* on the largest and most frightening
+rows, because big identical amounts are exactly what a two-passenger booking produces.
+
+**What is left is an owner statement check, not engineering.** Ranked by exposure: ~~`Delta` WARSAW
+2026-05-07 **4,459.76**~~ **GENUINE** · `Delta` TRAVELOCITY 2026-02-08 **3,793.34** · `PKO` 2026-04-01 **1,000.00** ·
 `Caixa EUR` H1 2026-01-16 **834.08** · `Caixa EUR` H2 2026-01-16 **629.46** · `PKO` 2026-04-13 ×3
 **400.00** · the `Delta` fed row above. (**`COLLEGEBOARD` is closed** — confirmed correct by the owner
 2026-08-12.) The Caixa and PKO rows are plausibly
