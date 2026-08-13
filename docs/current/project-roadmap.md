@@ -945,6 +945,24 @@ Small fixes, refactors, and one-off cleanups that don't warrant their own CR fil
     not read ambient data *and may not name a surrogate key* — ids are per-database facts, so
     "seed it in `ci-seed.sql`" only closes the half of the class that matches by name.
 
+22. **AI Review's one-click Apply shows the model's own `current_value`, and never previews the
+    consequence** *(found 2026-08-11 while scoping [CR081](../cr/cr-081-ai-line-assistant.md); live
+    since CR006/CR040).* The drawer's confirm modal renders `field`, `current_value`,
+    `proposed_value`, `reason` — but `aiReview.applyAction` destructures only
+    `{ type, module_id, field, proposed_value }`, so **`current_value` is never read server-side.**
+    It is whatever the LLM asserted, displayed to the owner as the current state of their plan. If
+    the model states it wrongly, the owner approves a change against a false premise and one click
+    writes it. This is [CR077 §4](../cr/cr-077-assumption-advisor-tab.md)'s own rule — *nothing
+    generated may state a number* — already violated on a shipped path, on the one surface where a
+    wrong number is acted on rather than merely read. Second half: the modal is a CONFIRMATION, not
+    a preview — it shows the INPUT (`growth_rate 0.5 → 1.0`) and never what the change does to the
+    plan. **Blast radius is also unstated:** the allowlisted fields sit on modules, so applying to a
+    base scenario moves its four variants with no mention of it. Bounded today by a deliberately
+    narrow allowlist (`growth_rate`, `tax_rate_override` on valuation modules only, plus the sweep
+    bands) and by `applyAction` refusing retired tables — so the damage a wrong apply can do is real
+    but small. CR081 P0 closes both halves; the `current_value` read is a few lines and worth doing
+    even if the rest is never built.
+
 ---
 
 ## 4. Frontend Improvement Themes (ongoing)
