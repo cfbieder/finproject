@@ -67,7 +67,9 @@ there turned out to be a **third** floor — fin's own cron asked for 14 days. *
 could never fire on a 40-row tick), and a **generation detector** catches one transaction held under two
 id schemes — the one shape the carry-over reports as `already_known` and can never see. It found 2 groups
 on run one (§18+§22 compounding; **fin correct throughout**) and carries a reasoned exception list whose
-stale check caught its own author within a run. **#19 and #20 CLOSED 2026-08-11
+stale check caught its own author within a run. **All owner checks are COMPLETE (2026-08-12): all 42 duplicate
+candidates are GENUINE** — 16,058 gross, **zero fin defects, zero wrong money** ([§22.8](../cr/cr-059-fintable-api-ingestion.md)),
+and the best evidence yet for the content guard's exact-date/claiming bias, since a looser guard would have eaten them. **#19 and #20 CLOSED 2026-08-11
 (v3.27.0):** the module-currency defect closed at its source — migration **064** relabels the eight
 rollup accounts whose children are unanimously non-USD (`Tax Liabilities` left alone, genuinely
 mixed), the engine now **throws** on a currency it cannot convert (falsified: a £10,000 module was
