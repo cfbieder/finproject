@@ -7,8 +7,11 @@
 # found by someone happening to open the Actions tab. This is that tab, on the terminal
 # the work already happens in, so the answer is one command instead of a context switch.
 #
-# Usage: ./check-ci.sh [ref] [--quiet] [--wait[=SECONDS]]
+# Usage: ./check-ci.sh [ref] [--quiet] [--wait[=SECONDS]] [--latest[=BRANCH]]
 #          ref      commit/branch/tag to ask about (default HEAD)
+#          --latest ask about the newest run on BRANCH (default main) instead of a local
+#                   ref — "is the trunk green right now", which a checkout that is behind
+#                   or on unpushed work cannot answer. The session-start hook uses this.
 #          --quiet  one line, for scripts. deploy-to-production.sh Step 0b calls this.
 #                   RED always prints in full, quiet or not — it is the one verdict
 #                   that must not be summarised away.
@@ -43,48 +46,72 @@ REF="HEAD"
 QUIET=false
 WAIT=0
 POLL=15
+LATEST=false
+BRANCH="main"
 for arg in "$@"; do
     case "$arg" in
         --quiet|-q) QUIET=true ;;
         --wait)     WAIT=600 ;;
         --wait=*)   WAIT="${arg#*=}" ;;
-        --help|-h)  sed -n '3,34p' "${BASH_SOURCE[0]}" | sed 's/^#\ \?//'; exit 0 ;;
+        --latest)   LATEST=true ;;
+        --latest=*) LATEST=true; BRANCH="${arg#*=}" ;;
+        --help|-h)  sed -n '3,39p' "${BASH_SOURCE[0]}" | sed 's/^#\ \?//'; exit 0 ;;
         *)          REF="$arg" ;;
     esac
 done
 
 say() { [ "$QUIET" = true ] || printf '%s\n' "$@"; }
 
-if ! SHA="$(git rev-parse --verify "$REF^{commit}" 2>/dev/null)"; then
-    echo "check-ci: not a commit: $REF" >&2
-    exit 4
-fi
-SHORT="${SHA:0:7}"
-# A friendly name when there is one (tag, or the branch for HEAD//a branch ref); for a
-# bare sha `rev-parse --abbrev-ref` returns empty, and "$SHORT" alone reads better than
-# a dangling separator.
-LABEL="$(git describe --tags --exact-match "$SHA" 2>/dev/null || true)"
-[ -z "$LABEL" ] && LABEL="$(git rev-parse --abbrev-ref "$REF" 2>/dev/null || true)"
-case "$LABEL" in ""|HEAD|"$SHA") WHERE="$SHORT" ;; *) WHERE="$LABEL @ $SHORT" ;; esac
-
 if ! command -v gh >/dev/null 2>&1 || ! gh auth status >/dev/null 2>&1; then
-    echo "⚠ check-ci: cannot reach GitHub (gh missing or not authenticated) — CI UNKNOWN for $SHORT"
+    echo "⚠ check-ci: cannot reach GitHub (gh missing or not authenticated) — CI UNKNOWN"
     exit 4
 fi
 
-# --limit 20 covers re-runs and any second workflow; a commit has far fewer.
-# `timeout` so a hung network cannot stall a deploy that is otherwise ready to go.
-# gh carries its own jq, so --jq needs no jq on the host.
-#
-# $SHA is the FULL 40-char sha, and must be: `gh run list --commit` matches on the whole
-# string and returns an empty list for an abbreviated one, with no error and no warning.
-# Hence the rev-parse above rather than passing $REF through. The mistake is self-punishing
-# in the safe direction — empty reads as "no run" (exit 3), which REFUSES a deploy rather
-# than waving one through — but it reads like a fact and is not one.
+if [ "$LATEST" = true ]; then
+    # "Is the trunk green RIGHT NOW" — the session-start question, and one no local ref
+    # can answer: the checkout may be behind origin, or sitting on unpushed work, and
+    # either way the sha it names is not the one CI last spoke about. Ask GitHub for the
+    # newest run on the branch and report that.
+    SHA="$(timeout 20 gh run list --branch "$BRANCH" --limit 1 --json headSha \
+           --jq '.[0].headSha // empty' 2>/dev/null || true)"
+    if [ -z "$SHA" ]; then
+        echo "check-ci: no runs found on branch $BRANCH"
+        exit 3
+    fi
+    SHORT="${SHA:0:7}"
+    WHERE="$BRANCH @ $SHORT"
+else
+    if ! SHA="$(git rev-parse --verify "$REF^{commit}" 2>/dev/null)"; then
+        echo "check-ci: not a commit: $REF" >&2
+        exit 4
+    fi
+    SHORT="${SHA:0:7}"
+    # A friendly name when there is one (tag, or the branch for HEAD/a branch ref); for a
+    # bare sha `rev-parse --abbrev-ref` returns empty, and "$SHORT" alone reads better
+    # than a dangling separator.
+    LABEL="$(git describe --tags --exact-match "$SHA" 2>/dev/null || true)"
+    [ -z "$LABEL" ] && LABEL="$(git rev-parse --abbrev-ref "$REF" 2>/dev/null || true)"
+    case "$LABEL" in ""|HEAD|"$SHA") WHERE="$SHORT" ;; *) WHERE="$LABEL @ $SHORT" ;; esac
+fi
+
+# --latest resolved its sha FROM GitHub, so it is pushed by construction; a local ref
+# has to be asked. This only gates whether waiting can ever pay off.
 PUSHED=true
-[ -z "$(git branch -r --contains "$SHA" 2>/dev/null)" ] && PUSHED=false
+if [ "$LATEST" = false ] && [ -z "$(git branch -r --contains "$SHA" 2>/dev/null)" ]; then
+    PUSHED=false
+fi
 
 # Ask GitHub once. Sets VERDICT (green|red|pending|none|unknown) and DETAIL.
+#
+# --limit 20 covers re-runs and any second workflow; a commit has far fewer. `timeout` so
+# a hung network cannot stall a deploy that is otherwise ready to go. gh carries its own
+# jq, so --jq needs no jq on the host.
+#
+# $SHA is the FULL 40-char sha, and must be: `gh run list --commit` matches on the whole
+# string and returns an empty list for an abbreviated one, with no error and no warning —
+# hence resolving through rev-parse above rather than passing $REF straight through. The
+# mistake is self-punishing in the safe direction (empty reads as "no run", exit 3, which
+# REFUSES a deploy rather than waving one through) but it reads like a fact and is not one.
 evaluate() {
     VERDICT=""; DETAIL=""
     local runs
