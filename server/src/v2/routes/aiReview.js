@@ -120,13 +120,44 @@ router.delete("/:reviewId", async (req, res, next) => {
   }
 });
 
-// POST /api/v2/ai-review/apply — Apply a recommended change
-router.post("/apply", async (req, res, next) => {
+// POST /api/v2/ai-review/action-context — what this action would ACTUALLY change
+//
+// CR081 P0a. The confirm dialog used to render `current_value` straight out of the model's JSON,
+// which the server never read — so a hallucinated "from" value meant the owner approved a change
+// against a state that was never true. This returns the value read from the row, plus the scenario
+// the write would land in, and refuses anything `/apply` would refuse — so a bad action cannot even
+// open a dialog.
+router.post("/action-context", async (req, res, next) => {
   try {
-    const { action } = req.body;
+    const { reviewId, action } = req.body;
     if (!action) return res.status(400).json({ error: "Action is required" });
 
-    const result = await aiReview.applyAction(action);
+    const resolved = await aiReview.resolveAction(reviewId, action);
+    res.json({
+      current_value: resolved.currentValue,
+      proposed_value: resolved.proposedValue,
+      field: resolved.field,
+      entity: resolved.entity,
+      name: resolved.name,
+      scenario: resolved.scenarioName,
+      is_variant: resolved.isVariant,
+    });
+  } catch (error) {
+    res.status(400).json({ error: error.message });
+  }
+});
+
+// POST /api/v2/ai-review/apply — Apply a recommended change
+//
+// CR081 P0a: `reviewId` is REQUIRED. Without it the write target came from the model's JSON and
+// nothing checked it belonged to the reviewed scenario — a review of one scenario could write a
+// module in another, whose edits then fan out to its variants.
+router.post("/apply", async (req, res, next) => {
+  try {
+    const { reviewId, action } = req.body;
+    if (!action) return res.status(400).json({ error: "Action is required" });
+
+    const result = await aiReview.applyAction(reviewId, action);
     res.json(result);
   } catch (error) {
     console.error("[ai-review] Apply failed:", error.message);

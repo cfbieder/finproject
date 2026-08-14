@@ -32,6 +32,13 @@ Every line above is a rule something has already broken:
   invisible to the guard (migration 057's own registry row records the incident).
 - **A deploy's Step 1 backup predates its Step 2b migration**, so restoring from one lands a
   migration short — which happened, and re-created four tables migration 060 had just dropped.
+- **`server-dev` runs a BUILT image with no source mount, so `restart` re-runs the OLD code.**
+  Use `docker compose -f docker-compose.dev.yml up -d --build server-dev`. Written down because a
+  restart-then-verify against dev on 2026-08-14 tested the pre-fix code, reported the fix "not
+  working", and — since the old code was the code with the defect — **accepted a write the new code
+  refuses**, changing a module on dev. Recovered by reading the value back from prod (the two were
+  byte-identical) and the entries fingerprint was unaffected, but the general shape is: *verifying a
+  fix against a stale binary can exercise the very bug you removed.*
 - **An engine change moves nothing until the scenarios are regenerated.** Deploy, regenerate, then
   check the entries fingerprint against the dev measurement. Skipping the check is how a stale
   1,328-row prod state went unnoticed (CR075 §10).

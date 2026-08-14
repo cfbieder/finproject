@@ -80,7 +80,10 @@ function MessageContent({ content, onApply, appliedActions }) {
             <div style={{ fontWeight: 600, marginBottom: "0.25rem" }}>
               {part.isApplied ? "Applied" : "Recommendation"}:
               {" "}{a.field?.replace(/_/g, " ")} → {a.proposed_value}
-              {a.current_value != null && <span style={{ color: "var(--muted)" }}> (was {a.current_value})</span>}
+              {/* CR081 P0a — the model's `current_value` is NOT rendered. It was never read
+                  server-side, so "(was 0.5)" was the model's claim about the plan presented as
+                  fact. The real current value is read from the row and shown in the confirm
+                  dialog, where it is about to be acted on. */}
             </div>
             {a.reason && <div style={{ color: "var(--ink-secondary)", fontSize: "0.78rem" }}>{a.reason}</div>}
             {!part.isApplied && (
@@ -275,14 +278,36 @@ export default function FCAIReviewDrawer({ isOpen, onClose, scenarioName, onUnre
     }
   };
 
-  const handleApply = (action, key) => {
-    setConfirmAction({ action, key });
+  // CR081 P0a — ask the SERVER what this action would really change before showing a dialog.
+  //
+  // The dialog used to render `current_value` out of the model's own JSON. The server never read
+  // it, so a hallucinated "from" value meant the owner approved a change against a state that was
+  // never true. `action-context` returns the value read from the row and the scenario the write
+  // would land in, and refuses anything `/apply` would refuse — so a bad action never opens a
+  // dialog at all.
+  const handleApply = async (action, key) => {
+    setConfirmAction({ action, key, loading: true });
+    try {
+      const ctx = await Rest.post("/ai-review/action-context", {
+        reviewId: activeReviewId,
+        action,
+      });
+      setConfirmAction({ action, key, context: ctx });
+    } catch (e) {
+      setConfirmAction(null);
+      setError(e.message || "This recommendation cannot be applied");
+    }
   };
 
   const confirmApply = async () => {
-    if (!confirmAction) return;
+    if (!confirmAction?.context) return;
     try {
-      await Rest.post("/ai-review/apply", { action: confirmAction.action });
+      // `reviewId` is REQUIRED server-side: it is what scopes the write to the scenario under
+      // review, so the model cannot name a target in a scenario this conversation is not about.
+      await Rest.post("/ai-review/apply", {
+        reviewId: activeReviewId,
+        action: confirmAction.action,
+      });
       setAppliedActions(prev => new Set([...prev, confirmAction.key]));
       setConfirmAction(null);
     } catch (e) {
@@ -489,19 +514,40 @@ export default function FCAIReviewDrawer({ isOpen, onClose, scenarioName, onUnre
             width: "min(440px, 90vw)", boxShadow: "0 20px 40px rgba(0,0,0,0.2)",
           }}>
             <h4 style={{ margin: "0 0 1rem", fontSize: "1rem" }}>Confirm Change</h4>
+            {confirmAction.loading ? (
+              <div style={{ fontSize: "0.85rem", color: "var(--muted)" }}>Reading the current value…</div>
+            ) : (
             <table style={{ width: "100%", fontSize: "0.85rem", borderCollapse: "collapse" }}>
               <tbody>
+                {/* Which scenario the write lands in. Absent before CR081 P0a, which is how a
+                    review of one scenario could apply a change to another without saying so. */}
                 <tr>
-                  <td style={{ padding: "0.4rem 0", color: "var(--muted)" }}>Field</td>
-                  <td style={{ padding: "0.4rem 0", fontWeight: 600 }}>{confirmAction.action.field?.replace(/_/g, " ")}</td>
+                  <td style={{ padding: "0.4rem 0", color: "var(--muted)" }}>Scenario</td>
+                  <td style={{ padding: "0.4rem 0", fontWeight: 600 }}>
+                    {confirmAction.context.scenario}
+                    {confirmAction.context.is_variant && (
+                      <span style={{ color: "var(--muted)", fontWeight: 400 }}> (variant)</span>
+                    )}
+                  </td>
                 </tr>
                 <tr>
+                  <td style={{ padding: "0.4rem 0", color: "var(--muted)" }}>
+                    {confirmAction.context.entity === "module" ? "Module" : "Setting"}
+                  </td>
+                  <td style={{ padding: "0.4rem 0" }}>{confirmAction.context.name}</td>
+                </tr>
+                <tr>
+                  <td style={{ padding: "0.4rem 0", color: "var(--muted)" }}>Field</td>
+                  <td style={{ padding: "0.4rem 0", fontWeight: 600 }}>{confirmAction.context.field?.replace(/_/g, " ")}</td>
+                </tr>
+                {/* Read from the row by the server — NOT the model's `current_value`. */}
+                <tr>
                   <td style={{ padding: "0.4rem 0", color: "var(--muted)" }}>Current</td>
-                  <td style={{ padding: "0.4rem 0" }}>{confirmAction.action.current_value}</td>
+                  <td style={{ padding: "0.4rem 0" }}>{String(confirmAction.context.current_value ?? "—")}</td>
                 </tr>
                 <tr>
                   <td style={{ padding: "0.4rem 0", color: "var(--muted)" }}>Proposed</td>
-                  <td style={{ padding: "0.4rem 0", fontWeight: 600, color: "var(--primary)" }}>{confirmAction.action.proposed_value}</td>
+                  <td style={{ padding: "0.4rem 0", fontWeight: 600, color: "var(--primary)" }}>{String(confirmAction.context.proposed_value)}</td>
                 </tr>
                 {confirmAction.action.reason && (
                   <tr>
@@ -511,6 +557,7 @@ export default function FCAIReviewDrawer({ isOpen, onClose, scenarioName, onUnre
                 )}
               </tbody>
             </table>
+            )}
             <div style={{ display: "flex", justifyContent: "flex-end", gap: "0.5rem", marginTop: "1.25rem" }}>
               <button
                 onClick={() => setConfirmAction(null)}
@@ -520,7 +567,8 @@ export default function FCAIReviewDrawer({ isOpen, onClose, scenarioName, onUnre
               </button>
               <button
                 onClick={confirmApply}
-                style={{ padding: "0.4rem 1rem", borderRadius: "0.375rem", border: "none", background: "var(--primary-light)", color: "white", cursor: "pointer", fontSize: "0.85rem", fontWeight: 600 }}
+                disabled={!confirmAction.context}
+                style={{ padding: "0.4rem 1rem", borderRadius: "0.375rem", border: "none", background: "var(--primary-light)", color: "white", cursor: confirmAction.context ? "pointer" : "not-allowed", fontSize: "0.85rem", fontWeight: 600, opacity: confirmAction.context ? 1 : 0.5 }}
               >
                 Apply
               </button>
