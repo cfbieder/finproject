@@ -1,6 +1,6 @@
 # CR081 — Ask about this line: AI-proposed edits, previewed before they land
 
-**Status:** PLANNED — scoped 2026-08-11, not started. No code written.
+**Status:** **DEFERRED** (owner, 2026-08-14) after a two-pass review — pass 1 *revise*, pass 2 *defer*. **P0a was carved out and SHIPPED (v3.28.3)** as a defect fix; see §12. The successor for the value this CR was reaching for is an **editor-side consequence preview with no LLM** (§13).
 **Track:** v3
 **Origin:** owner request 2026-08-11, from the [CR076 §13](cr-076-forecast-model-review.md) advisory
 session: *"add AI Help where I ask a specific question about a line, the local LLM proposes a few
@@ -143,3 +143,81 @@ to a line is what bounds the fact sheet and makes the action target unambiguous)
 4. **Revert semantics** — does undo restore the prior value, or re-run the inverse action? The
    former is safer; the latter composes. Likely store the prior value.
 5. **Does P1 ship on the Review row, the module editor, or both?**
+
+---
+
+## 11. ⚠️ Corrections — what this document got wrong
+
+Recorded rather than quietly edited, because the errors are the same shapes this project keeps
+paying for.
+
+| §  | claimed | actually |
+|---|---|---|
+| 2 | `audit_log` is "live" | it exists since migration 001 and **nothing had ever written to it**. P0a is its first writer. |
+| 5 | "a base edit propagates to four variants" | **four `streams` overrides already exist on prod**, and a streams override replaces the module's stream set wholesale — so a base stream edit reaches *nothing* on Upside and Downside. The radius must be **computed per action**, and must report what does **not** move. Asserting a fixed "four" is [failure-patterns](../current/failure-patterns.md) §1 — a restatement asserted as the engine's behaviour — arriving inside the very CR that cites it. |
+| 4 | the token hashes the entries fingerprint | an apply mutates **inputs**; entries are the *result of the last build*. Stale entries beside fresh inputs is this system's NORMAL state, so the token would accept an apply against an input state the preview never saw. |
+| 5 | a preview shows warnings and today's-money figures | both are computed by **frontend-only** modules (`fcWarnings.js`, `fcRealTerms.js`); no server implementation exists. The endpoint would have to return raw before/after entries and let the client derive them. |
+| 3 | two live defects | **four.** The two missed are worse, and are what P0a actually fixed — see §12. |
+| 7 | P0 ≈ 1 day, P0–P3 ≈ a week | the scratch machinery is a *pattern inline in the bisection solver*, not a reusable primitive. Realistic P0–P3 is **2–3 weeks**. |
+
+## 12. P0a — shipped v3.28.3 as a defect fix
+
+Carved out on both reviewers' recommendation and shipped independently of everything above.
+
+**The two defects §3 missed, both found by pass 1:**
+
+1. **The write target was chosen by the model and never validated.** `POST /ai-review/apply` took
+   `{ action }` with no `reviewId`, so the server had no idea which scenario the conversation was
+   about. `applyAction` checked the module *existed* but never that it belonged to the reviewed
+   scenario — so a review of `2026 Downside` could write a module in `2026 Base`, whose edits then
+   fan out. The dialog never named a scenario, so nothing surfaced it.
+2. **`update_scenario` bypassed the CR050 reconcile**, which lives in the scenarios **route**, not
+   the repository. A sweep-band change applied to a variant reported success and was then erased by
+   the next sync rewriting the band from base ⊕ overrides — accepted, stored, silently reverted,
+   which the route's own comment calls "the one failure mode this feature must not have".
+   (`updateModule` *does* intercept, which is why the module path was safe.)
+
+**Shipped:** `reviewId` required; a shared `resolveAction` validator behind both the confirm dialog
+and the write, so they cannot drift; `current_value` read from the row and the model no longer even
+asked for one; the variant reconcile called; one `audit_log` row per apply; the dialog now names the
+**scenario** and marks a variant.
+
+**10 tests — the first this path has ever had.** Four are characterization of guards that already
+existed, written so the refactor could not silently drop them. Both new guards were verified by
+disabling them and watching the right test fail.
+
+### ⚠️ What verifying it cost
+
+The live check was run after a `docker compose restart` of `server-dev` — which runs a **built image
+with no source mount**, so it re-ran the OLD code. The verification therefore exercised the unfixed
+path, which *accepted* the write, and set `New Business`'s growth to 2.0 on dev. Recovered by
+reading the value back from prod (byte-identical at the time) and the entries fingerprint never
+moved (`New Business` is `exclude`). Rule now in
+[guides/infrastructure.md](../guides/infrastructure.md): *verifying a fix against a stale binary can
+exercise the very bug you removed.*
+
+## 13. The successor — an editor-side consequence preview, no LLM
+
+Both reviewers converged on this independently, and it is what P1–P3 were really reaching for:
+
+> **When you save any edit, show what it does before you commit it** — net assets before → after in
+> nominal **and** today's money, the line's own series, warnings gained or lost, and which scenarios
+> actually move.
+
+It serves **every** edit the owner makes rather than only AI-originated ones, needs no token
+contract, no closed action schema and no benchmark table, and would make this CR's AI half a small
+increment on top rather than a week of plumbing. It gets its own CR when started.
+
+### Why the rest is deferred, in one line
+
+The measured acceptance rate on AI-proposed assumption edits is **0/15, twice**
+([CR076 §13](cr-076-forecast-model-review.md), [CR077 §7](cr-077-assumption-advisor-tab.md)); the AI
+drawer has 8 reviews in four months and was not used during either of the two largest review
+sessions this project has run; and the one phase that would deliver demonstrated value — P4's
+sourced benchmarks — is the one the stated architecture **cannot** deliver, since a local model
+cannot search and will fake it confidently.
+
+**What would change the decision:** the owner is blocked wanting to use it · an advisory pass
+produces a change he would have accepted from a proposal · the cheap P4 (a sourced, dated sentence
+against an assumption — the Blanchett pattern from CR076 §13) gets used and he wants it structured ·
+or §13's preview ships and proves the preview was the point.

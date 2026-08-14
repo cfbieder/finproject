@@ -99,16 +99,21 @@ the dev-first migration rule, and the fact that **an engine change moves nothing
 scenarios are REGENERATED**. It changes far less often than this file does.
 
 ## Next
-- ~~Work the advisories~~ **DONE 2026-08-10** ([CR076 §13](../cr/cr-076-forecast-model-review.md)):
-  all 15 walked with the owner, **every one already deliberate — no model change**. The sub-1
-  multipliers DO have an external benchmark (~1%/yr real spending decline in retirement); three of
-  the four are more conservative than it. Two rules were firing on streams that are **not in the
-  plan** and are now guarded ([CR077 §7](../cr/cr-077-assumption-advisor-tab.md)).
-- **Re-examine SRQ** — at **−1,392,889** it is the scenario the selling costs hurt most, and the
-  question is now whether the house purchase is viable in its current shape at all, not whether the
-  arithmetic is right.
-- **`Retirement Home`'s 200,000 at 2052** — a `Fixed $` row is in the money of its own year, so it
-  is ~105,000 today. CR079's toggle now makes that checkable by eye rather than by arithmetic.
+- ~~Advisories~~ · ~~Real terms on Compare~~ **BOTH DONE** — all 15 advisories walked, **every one
+  already deliberate, no model change** ([CR076 §13](../cr/cr-076-forecast-model-review.md)); two
+  rules firing on streams **not in the plan** guarded, 17 → 15
+  ([CR077 §7](../cr/cr-077-assumption-advisor-tab.md)); Compare in today's money, v3.26.0
+  ([CR079 §7](../cr/cr-079-real-terms-view.md)) — only the **Home hero** stays nominal-only.
+- 🔴 **NEXT BUILD — the editor-side consequence preview, NO LLM**
+  ([CR081 §13](../cr/cr-081-ai-line-assistant.md)): on saving ANY edit, show net assets before →
+  after (nominal + today's money), the line's series, warnings gained/lost, and which scenarios
+  really move. **CR081 itself is DEFERRED** — AI-proposed-edit acceptance measured **0/15, twice**,
+  and its one high-value phase needs data a local model cannot fetch.
+- **Re-examine SRQ** — **−476,930**: funds itself 35 of 36 years, dry in the last. Marginal, not
+  hopeless. **Financing is the untested lever** (all cash, no rent, sells at 7%).
+- **`Retirement Home`** — ~**105,000**/yr today for two, reasonable for assisted living, but the plan
+  **double-counts** `Living Expenses` on top (~83,000) while escalating care at general inflation.
+  The two errors nearly cancel — by luck, not design.
 - **CR076 §7 remainder** — price idle cash (two scenario scalars); loss carry-forward (tax rules
   the owner would maintain; same-year netting already covers the live case).
 - ~~Real terms on Compare~~ **DONE** ([CR079 §7](../cr/cr-079-real-terms-view.md)) — one
