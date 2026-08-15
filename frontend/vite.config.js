@@ -121,7 +121,16 @@ export default defineConfig(() => {
       },
     },
     server: {
-      host: "0.0.0.0",
+      // CR082 P0b — tailnet, never the LAN. This was "0.0.0.0", which mattered
+      // more than it looks: the dev server PROXIES /api to the dev API, so an
+      // open :5174 hands out the whole dev database even after :3105 itself is
+      // bound to loopback. Dev carries a full copy of production
+      // (sync-db-prod-to-dev.sh), account numbers included.
+      //
+      // The Tailscale address is an interface on this host, so localhost-style
+      // access still works from the machine itself while the house network is
+      // shut out. Override with DEV_HOST when that is inconvenient.
+      host: process.env.DEV_HOST || "100.94.46.62",
       port: 5174,
       proxy: {
         "/api": {

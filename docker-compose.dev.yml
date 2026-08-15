@@ -32,7 +32,12 @@ services:
     container_name: fin-server-dev
     restart: unless-stopped
     ports:
-      - "3105:3005"  # Dev port (production uses 3005)
+      # CR082 P0b: loopback only, matching prod's :3005. Dev is about to receive
+      # a full copy of production via sync-db-prod-to-dev.sh — same ledger, same
+      # account numbers — so an open dev port is an open prod port wearing a
+      # different number. The Vite dev server proxies to localhost:3105 from the
+      # host, so it is unaffected.
+      - "127.0.0.1:3105:3005"  # Dev port (production uses 3005)
     environment:
       NODE_ENV: development
       PORT: 3005
