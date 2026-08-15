@@ -19,10 +19,16 @@ import "./TaxFbar.css";
  *    December-31 rate; `exchange_rates` is ECB. Measured against Treasury's own
  *    API the two agree closely (2024 PLN: 0.243019 vs 0.243427, 0.17%), so the
  *    prefill is a good approximation and NOT a good citation -- the point of
- *    replacing it is being able to name the mandated source, not correcting a
- *    material error. Getting the DATE wrong is the expensive mistake: the TY2024
- *    return used Treasury's 31-March rate (3.982) instead of 31-December
- *    (4.108) and over-converted every PLN line by 3.2%.
+ *    replacing it is naming the mandated source, not correcting a big number.
+ *
+ *    The warning box deliberately carries only the two facts that PREVENT an
+ *    error -- which date, which direction -- and not the reasoning behind them.
+ *    An earlier draft also recounted the TY2024 return using Treasury's 31-March
+ *    rate (3.982 rather than 4.108, over-converting every PLN line by 3.2%);
+ *    true, and the origin of the rule, but a warning that has to be read twice
+ *    is a warning that gets skipped. The direction typo is caught by the guard
+ *    on save regardless; the DATE is the one thing only the reader can get
+ *    right, so it is the one thing emphasised.
  */
 
 const money = (n) =>
@@ -193,12 +199,10 @@ export default function TaxFbar() {
             <section className="tfb-rates">
               <h2>Exchange rates</h2>
               <p className="tfb-rates__warn">
-                {nonTreasury.length} rate(s) are still the <strong>ECB prefill</strong>, not the
-                Treasury <strong>December&nbsp;31</strong> rate FinCEN requires. The two agree
-                closely, so this is about citing the mandated source rather than fixing a big
-                number — but the <em>date</em> matters: the TY2024 return used Treasury&apos;s
-                31&nbsp;March rate and over-converted every PLN line by 3.2%. Enter this column as{" "}
-                <strong>USD per 1 unit</strong>; Treasury publishes the reciprocal.
+                {nonTreasury.length} rate(s) are still the <strong>ECB prefill</strong>. FinCEN
+                requires the Treasury <strong>31 December</strong> rate. Enter this column as{" "}
+                <strong>USD per 1 unit</strong> — Treasury publishes the reciprocal, and pasting it
+                that way round is refused.
               </p>
               <ul className="tfb-rates__list">
                 {report.rates
