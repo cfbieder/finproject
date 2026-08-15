@@ -16,8 +16,13 @@ import "./TaxFbar.css";
  *    rows are outstanding — more money cannot take it back under — but UNDER 10k
  *    with rows missing is not "no filing required", and the page says so.
  *  - present the prefilled FX as the filing rate. FinCEN requires the TREASURY
- *    December-31 rate; `exchange_rates` is ECB. Measured on the TY2024 filing
- *    those differed by 3.4% on PLN, in the direction that under-reports.
+ *    December-31 rate; `exchange_rates` is ECB. Measured against Treasury's own
+ *    API the two agree closely (2024 PLN: 0.243019 vs 0.243427, 0.17%), so the
+ *    prefill is a good approximation and NOT a good citation -- the point of
+ *    replacing it is being able to name the mandated source, not correcting a
+ *    material error. Getting the DATE wrong is the expensive mistake: the TY2024
+ *    return used Treasury's 31-March rate (3.982) instead of 31-December
+ *    (4.108) and over-converted every PLN line by 3.2%.
  */
 
 const money = (n) =>
@@ -189,9 +194,11 @@ export default function TaxFbar() {
               <h2>Exchange rates</h2>
               <p className="tfb-rates__warn">
                 {nonTreasury.length} rate(s) are still the <strong>ECB prefill</strong>, not the
-                Treasury December-31 rate FinCEN requires. On the TY2024 filing those differed
-                by <strong>3.4%</strong> on PLN, in the direction that under-reports. Enter this
-                column as <strong>USD per 1 unit</strong> — Treasury publishes the reciprocal.
+                Treasury <strong>December&nbsp;31</strong> rate FinCEN requires. The two agree
+                closely, so this is about citing the mandated source rather than fixing a big
+                number — but the <em>date</em> matters: the TY2024 return used Treasury&apos;s
+                31&nbsp;March rate and over-converted every PLN line by 3.2%. Enter this column as{" "}
+                <strong>USD per 1 unit</strong>; Treasury publishes the reciprocal.
               </p>
               <ul className="tfb-rates__list">
                 {report.rates

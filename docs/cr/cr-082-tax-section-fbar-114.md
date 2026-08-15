@@ -464,10 +464,26 @@ XML, filling the official 114 PDF, e-filing.
 > reason); and the **private-equity exclusion is FBAR-only** — the CVC funds drop off the FBAR
 > under §8.2 and may well be 8938 items. Do not generalise the report-only line when 8938 arrives.
 
-**Also newly evidenced (2026-08-15):** the preparer's TY2024 conversion was **PLN→USD 0.2512571**
-against our ECB series' **0.243019** — a **3.4% gap**, in the direction that under-reports. Two
-filed lines pin it exactly (10,000 PLN → $2,513; 35,000 → $8,794), and the same pair confirms the
-round-UP rule. §4's argument, demonstrated on filed figures rather than argued. Adjacent and **not claimed here**: giving `calibrate()`
+**⚠️ Corrected 2026-08-15, and the correction is the more useful finding.** This section first
+claimed the preparer used the Treasury rate and that our ECB series sat **3.4%** away from it. That
+was **inferred from a difference, never checked against Treasury** — a plausible number asserted as
+authoritative, in the section written to forbid exactly that. Checked against Treasury's Fiscal
+Data API:
+
+| TY2024 PLN → USD | | |
+|---|---:|---|
+| Treasury, 31 Dec 2024 (4.108/USD) | **0.243427** | the mandated rate |
+| our ECB series | 0.243019 | **0.17% away** — a good approximation |
+| the preparer's, recovered from two filed lines | 0.251257 | **3.2% away** — the outlier |
+
+**The preparer used Treasury's 31 MARCH 2024 rate (3.982 → 0.251130), not 31 December.** FBAR
+requires the last day of the calendar year, so every PLN line on the TY2024 return was converted
+~3.2% high — roughly **$30,000 of over-reported maximum**. Not a penalty exposure, but wrong, and
+it will recur if it is baked into their process.
+
+**What survives:** replace the prefill before filing — but for *citation*, not because it is
+materially wrong. The expensive error is the **date**, not the source. (The round-UP rule is still
+confirmed by the same pair: 10,000 × 0.2512571 = 2,512.571, filed as 2,513.) Adjacent and **not claimed here**: giving `calibrate()`
 an `audit_log` row (§6). Carry forward one thing: **8938 reports the equity interest in `Barkeria`
 itself**, precisely what §3 says is *not* an FBAR account — the report-only abstraction is
 FBAR-shaped, do not generalise it when 8938 arrives.

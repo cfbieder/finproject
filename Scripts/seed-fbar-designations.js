@@ -209,12 +209,23 @@ async function main() {
     partIVCount++;
   }
 
-  // FX. 2024 is the rate the preparer DEMONSTRABLY used, recovered from two
-  // filed lines (10,000 PLN -> $2,513 and 35,000 -> $8,794). 2025 is the ECB
-  // prefill and is labelled as such — it is not the filing rate.
+  // FX. 2024 is the REAL Treasury 31-Dec rate, taken from the Fiscal Data API
+  // (4.108 PLN/USD -> 0.243427), NOT the 0.251257 recoverable from the filed
+  // lines. Those are different numbers and the difference is the finding: the
+  // TY2024 return used Treasury's 31-MARCH rate (3.982 -> 0.251130), so every
+  // PLN line was converted ~3.2% high, ~$30k of over-reported maximum. FBAR
+  // requires the last day of the calendar year.
+  //
+  // An earlier draft of this script had it backwards -- it stored the
+  // preparer's figure as 'treasury' on the assumption that a preparer would be
+  // using the mandated rate, and concluded from the gap that our own ECB series
+  // was 3.4% off. Checked against source, the ECB series is within 0.17% and
+  // the preparer's rate was the outlier. Inferring an authority from a
+  // difference is the failure this whole CR catalogues.
   await db.query(
     `INSERT INTO tax_fx_rates (tax_year, currency, rate_to_usd, source, note)
-     VALUES (2024,'PLN',0.251257,'treasury','Recovered from the TY2024 filing: 35,000 PLN filed as $8,794')
+     VALUES (2024,'PLN',0.243427,'treasury',
+             'Treasury 31-Dec-2024, 4.108 PLN/USD (Fiscal Data API). NOTE: the filed TY2024 return used 0.251257 = Treasury 31-MARCH-2024 (3.982), over-converting every PLN line by ~3.2%.')
      ON CONFLICT (tax_year, currency) DO UPDATE SET rate_to_usd=EXCLUDED.rate_to_usd,
        source=EXCLUDED.source, note=EXCLUDED.note`
   );
