@@ -109,6 +109,31 @@ scenarios are REGENERATED**. It changes far less often than this file does.
   after (nominal + today's money), the line's series, warnings gained/lost, and which scenarios
   really move. **CR081 itself is DEFERRED** — AI-proposed-edit acceptance measured **0/15, twice**,
   and its one high-value phase needs data a local model cannot fetch.
+- ⏱ 🔴 **[CR082](../cr/cr-082-tax-section-fbar-114.md) — a `Taxes` section, first form FinCEN 114
+  (FBAR). ENGINE BUILT 2026-08-15, migration 070 written — not applied, not committed, not
+  deployed** ([§11a](../cr/cr-082-tax-section-fbar-114.md)). `fbarMaxValue.js` + **10 tests** (all
+  §10 gates, self-built fixture) + `Scripts/fbar-worksheet.js`; **928 backend tests pass**; 070
+  clean and **idempotent by measurement** on the full chain against an empty Postgres. **TY2025
+  working papers generated from prod — 20 of 22 rows computed, aggregate ≥ $2,601,861.** Building
+  the engine found a **second live instance** of the same-day artifact: `WISE - GBP` reads
+  **1,065.00 row-ordered against 3.68 end-of-day (289×)** — +1,065.00 in and −1,061.32 out on
+  2025-10-25, the account's only activity all year. Assume the pattern wherever money moves between
+  currencies. ⚠️ **070 must NOT be hand-applied to dev** — dev's ledger is behind prod by 065–069,
+  so `migrate.js` reports five pending; `sync-db-prod-to-dev.sh` first. **TARGET TY2025, DUE
+  2026-10-15 — 61 days** (owner is on the automatic extension, confirmed
+  2026-08-15; migration 070). **Both review passes returned *revise* and the technical pass
+  falsified four of the CR's own numbers** — recorded in its §12, because the worst of them was the
+  CR converting PLN at a stale rate in §5 while §4 argued that a plausible rate asserted as an
+  authoritative one is this project's most-repeated failure. Corrected findings: the maximum must be
+  **end-of-day** (`PKO` 2025 = **631,678.72 PLN / $175,842**; a row-ordered running sum gives
+  **793,548** under `(date, id)` and **4,393,629** under `(date, amount DESC)` — the naive answer is
+  a *range* set by an arbitrary tie-break, since transactions carry no timestamp), it must include
+  the **Jan-1 carry-in** (12 accounts carry in above their in-year max, incl. `Wise - USD` at
+  1,718.27 vs 1,552.20 — the CR's own flagship example), and a filed year must be **frozen**, since
+  `calibrate()` rewrites `opening_balance` across all history and writes **no audit row**.
+  ⚠️ **`GET /api/v2/util/coa-traits` already serves every account number in plaintext to any
+  unauthenticated caller** — closing it, and nginx basic-auth, are **P0, before any number is
+  entered**. Six owner tax calls in §8, none blocking.
 - **Re-examine SRQ** — **−476,930**: funds itself 35 of 36 years, dry in the last. Marginal, not
   hopeless. **Financing is the untested lever** (all cash, no rent, sells at 7%).
 - **`Retirement Home`** — ~**105,000**/yr today for two, reasonable for assisted living, but the plan

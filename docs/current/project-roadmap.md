@@ -10,6 +10,54 @@ Living plan for the Fin project — open Change Requests, known issues, ongoing 
 
 ### 1.1 Open / In-Progress
 
+<a id="cr082"></a>
+- **CR082 — A Taxes section, first form: FinCEN Form 114 (FBAR). 📋 PLANNED — migration 070.
+  ⏱ TARGET TY2025, DUE 2026-10-15 (61 days).** Owner is on the automatic extension (confirmed
+  2026-08-15), so this is date-bound: **P1+P2 is the shippable unit** and the **freeze ships with
+  P2**, not after it — you can file by transcribing from the browser, so the export is the
+  convenience while the freeze is the only thing that makes filed figures recoverable. **Both
+  review passes returned *revise*; the technical pass falsified four of the CR's own load-bearing
+  numbers, all recorded in its §12** rather than quietly patched — the worst being the CR
+  converting PLN at a stale ≈0.2344 in §5 while §4 argued that a plausible rate asserted as an
+  authoritative one is this project's most-repeated failure. **P0 is security, not features:**
+  `GET /api/v2/util/coa-traits` (`routes/util/coa.js:24-31`) already returns `AccountNumber` for
+  every active account to any unauthenticated caller and `COATreeRow.jsx:78` renders it, so
+  "masked in the UI" was false as drafted — that endpoint and nginx basic-auth land **before any
+  number is entered**. Also seeds **TY2024 as `filed`** from last year's actual return, turning
+  P2's first run into a verification against a known-good output rather than a leap of faith.
+  Full detail: [CR082](../cr/cr-082-tax-section-fbar-114.md). A new `Taxes` nav category whose
+  first page produces the FBAR worksheet: which accounts are foreign (an explicit per-account
+  designation, **not** a currency filter — `Wise - USD` is foreign, a EUR property is not an
+  account), their account numbers and institution blocks entered **once and remembered**, and the
+  maximum value each reached during the calendar year. **Fintable carries no account numbers** —
+  verified against `bank-feed/contracts/v1/README.md` and both converters; the feed's only
+  institution datum is `institution_name` per *connection*. Three findings shape it. **(1) The
+  maximum must be taken over end-of-day balances, never a row-ordered running sum:** verified on
+  prod, `PKO`'s 2025 max is **631,678.72 PLN ($175,842)** end-of-day against **793,548** under
+  `ORDER BY (date, id)` — what `findLedgerWithRunningBalance` actually does — and **4,393,629**
+  under `(date, amount DESC)`. 2025-06-23 saw 4,294,000 PLN in and out, net 0.00; transactions
+  carry a date and no timestamp, so the naive answer is not one wrong number but a **range chosen
+  by an arbitrary tie-break**, +$45,060 to +$1,047,226 of maximum that never existed. **(2) It must
+  include the January-1 carry-in** — 12 accounts carry in above their in-year maximum, including
+  `Wise - USD` (1,718.27 vs 1,552.20, the CR's own flagship reportable example) and
+  `United Beverages` (30,425,000 vs 27,642,000 PLN), and eight with no in-year activity return NULL,
+  which must never render as 0. **(3) History is not stable** —
+  `calibrate()` rewrites `opening_balance`, one constant across **every** historical date
+  (migration [069](../cr/cr-080-feed-accrual-reconcile-mode.md) is the case study), and `mtm`/`accrue`
+  insert back-dated rows; so a filed year is **frozen into a snapshot**, not recomputed, and
+  reopening shows filed-vs-recomputed rather than overwriting. Conversion uses the **Treasury
+  Dec-31 rate**, prefilled from our frankfurter series and visibly marked as a prefill until the
+  owner pastes the real one — **and the direction is a trap: Treasury quotes foreign-per-USD where
+  `exchange_rates` stores USD-per-foreign**, so EUR and GBP are plausible in either direction and
+  pasting the wrong one moves the maximum ~38% toward under-reporting; the field states the
+  direction and a plausibility gate refuses a rate far from the prefill. Exports are **XLSX +
+  print-PDF worksheets** (owner decision, 2026-08-15) — reusing `excelExporter.js` and
+  `xlsx@0.18.5`, no new library; BSA batch XML and filling FinCEN's Adobe-only XFA 114 are both out
+  of scope, with reasons. Six owner (not design) calls in §8 — the Polish operating companies, the
+  CVC funds / `PKO TFI`, the PLN credit cards, joint accounts, signature authority over accounts
+  not in fin at all, and Form 114a — **none of which blocks the build**, since report-only lines
+  and the typed-override path hold every shape they can take.
+
 <a id="cr080"></a>
 - **CR080 — The `accrue` reconcile mode. ✅ COMPLETED — v3.28.0 (2026-08-11), migrations 065–067.**
   Full detail: [CR080](../cr/cr-080-feed-accrual-reconcile-mode.md). `Wise - USD` (8) and
@@ -752,6 +800,7 @@ Release-level history; detail in the linked CR file or [§7 Migration History](#
 
 Small fixes, refactors, and one-off cleanups that don't warrant their own CR file. New work that grows beyond a line item gets promoted to a CR.
 
+- [ ] 🔴 **nginx basic-auth in front of Fin, + close the account-number leak — a P0 PREREQUISITE for [CR082](../cr/cr-082-tax-section-fbar-114.md) P1 (raised 2026-08-15 by that CR's PM review).** CR082 is what puts **full foreign bank account numbers, a TIN and a date of birth** into an app that is reachable **unauthenticated** on LAN and Tailscale; the mitigation cannot live as a sentence inside the CR that creates the exposure, so it is tracked here with its own owner. Two parts. **(1) The leak already exists, independent of CR082:** `GET /api/v2/util/coa-traits` (`server/src/v2/routes/util/coa.js:24-31` → `repositories/accounts.js:503-518`) returns `AccountNumber` for **every active account** to any caller, and `frontend/src/features/COAManagement/COATreeRow.jsx:78` renders it as a plain column — so CR082's drafted claim of "masked in the UI with an explicit reveal" was false, and its own "appears in no log line" test would have passed while the API served the whole set. Today only **3 of 57** accounts carry a number, which is the entire reason this is cheap right now. **(2) ⚠️ CORRECTED 2026-08-15 — nginx basic-auth ALONE DOES NOT CLOSE THIS, and the first draft of this item said it would.** The API listens on **`0.0.0.0:3005`** (`docker-compose.yml` publishes `"3005:3005"`), so nginx is one path to it and not the only one. Proved rather than argued: `curl http://192.168.1.87:3005/api/v2/util/coa-traits` from the LAN returns **230 accounts each carrying an `AccountNumber` field**, unauthenticated, never touching nginx. Auth on the proxy would have left that wide open while looking like a fix — the same shape as the CR082 §7 claim this item exists to correct. **So P0 splits in two.** **P0a (code, low risk, closes the leak on every network path):** drop `AccountNumber` from the `/util/coa-traits` payload and the plain column in `COATreeRow.jsx`; cheap **now**, while only 3 of 57 accounts carry a number. **P0b (network):** bind the published port to loopback (`127.0.0.1:3005:3005`) *and* add basic-auth at nginx. **The caller audit says P0b is safe** — the only non-browser caller is the 06:00 feed cron (`Scripts/refresh-bank-feed.sh`, `BASE_URL=http://localhost:3005`), which keeps working on a loopback bind; nginx reaches the API as `http://server:3005` over the docker network, unaffected by host publishing; and remote viewing is via nginx on 443/Tailscale, not 3005. Independent of [CR027](../cr/cr-027-multi-tenancy-final-release.md)'s real auth (`AUTH_ENABLED`, v4, dormant) and does not wait on it. Also add the location-only rows to [secrets-inventory.md](secrets-inventory.md) (*names and locations, never values*).
 - [x] ~~**Transactions period filter was off by a day west of UTC**~~ — *Released v3.11.1 (2026-07-31), frontend only, no migration.* `TransActual`'s client-side date filter parsed `transaction_date` with a bare `new Date()` (UTC midnight) and bucketed it by *local* parts, so a row dated the 1st of the from-month vanished while the 1st of the month after the range appeared. The KPI tile is server-side and kept counting the missing row, which is what made it visible. Now compares date-only ISO strings (`getDateRangeBounds` / `isEntryInDateRange`, `transactionUtils.js`). **Still open, related:** the server's `toDate` bound is `<=` on an *exclusive* upper bound, so `/transactions` returns rows dated the first day *after* the requested range — harmless now that the client excludes them, but any other caller of `findAllExtended` with an exclusive bound inherits it.
 - [ ] **One Tax Reserve row may be miscategorized — owner decision, not a defect (noticed 2026-08-01).** On `Tax Reserve - US` the two categories split cleanly by sign: every **negative** row is `Tax Reserve` (−20,000 · −580,000 · −160,654) and every **positive** row is `Taxes US` (+557,000 · +23,654 · +180,000 · +20,000). **`2025-12-01 −55,000.00` is the only negative row carrying `Taxes US`**, breaking the pattern the other seven follow — and it is why a *category* filter on `Tax Reserve` did not show it (the row's description and account are both "Tax Reserve"; only the category differs). `Tax Reserve - PL` has the same shape plus a one-off `Tax Adjustment` (2024-01-12). **Not touched:** the intended split between the two categories is the owner's to state, and the row may be deliberate. If it is an error, the fix is a single-row recategorization — balances do not move, only P&L attribution.
 - [ ] **Frontend lint debt:** *(bullet corrected 2026-08-01 — it still described the 2026-06-12 state and the CI facts had moved on.)* Errors are **0** and `npm run lint` is **blocking** in `.github/workflows/ci.yml` (that flip happened in CR043; the gate was then red on `main` v3.4.8→v3.6.0 on a false positive, see Known Issue #10). What remains is **78 warnings across three rules**: `react-hooks/set-state-in-effect` **34** and `react-refresh/only-export-components` **21** (mostly the TransactionTable co-export cluster), both held at baseline by the blocking `lint:debt` ratchet and therefore able only to shrink — plus **`react-hooks/exhaustive-deps` 23, which the ratchet does not cover at all** and which can grow silently. Either add it to `check-lint-debt.sh` or fix it out; "it's only a warning" is exactly how the other two got baselined. Clearing the co-export cluster is the `TransactionTable` extraction below.
