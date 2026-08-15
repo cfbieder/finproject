@@ -46,6 +46,15 @@ Samples/Moneysheets/
 # wrapped around real balances.
 Samples/Fidelity/
 
+# Filed tax returns (CR082 / FBAR work). The most sensitive class in this repo:
+# a return carries SSNs for the filer AND spouse, dates of birth, home address,
+# dependants, and the FinCEN 114 account numbers — i.e. every field the CR082
+# security note (secrets-inventory: names and locations, NEVER values) exists to
+# keep out of documents. Nothing under here is ever committed, and there are
+# deliberately no fixtures: a redacted return is still a real return's layout
+# wrapped around real figures. Extracted FBAR data belongs in Postgres, not here.
+Samples/Tax/
+
 .claude/settings.local.json
 .ds-sync/
 ds-bundle/
