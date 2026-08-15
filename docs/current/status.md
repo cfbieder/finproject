@@ -110,17 +110,23 @@ scenarios are REGENERATED**. It changes far less often than this file does.
   really move. **CR081 itself is DEFERRED** — AI-proposed-edit acceptance measured **0/15, twice**,
   and its one high-value phase needs data a local model cannot fetch.
 - ⏱ 🔴 **[CR082](../cr/cr-082-tax-section-fbar-114.md) — a `Taxes` section, first form FinCEN 114
-  (FBAR). ENGINE BUILT 2026-08-15, migration 070 written — not applied, not committed, not
-  deployed** ([§11a](../cr/cr-082-tax-section-fbar-114.md)). `fbarMaxValue.js` + **10 tests** (all
-  §10 gates, self-built fixture) + `Scripts/fbar-worksheet.js`; **928 backend tests pass**; 070
-  clean and **idempotent by measurement** on the full chain against an empty Postgres. **TY2025
-  working papers generated from prod — 20 of 22 rows computed, aggregate ≥ $2,601,861.** Building
-  the engine found a **second live instance** of the same-day artifact: `WISE - GBP` reads
-  **1,065.00 row-ordered against 3.68 end-of-day (289×)** — +1,065.00 in and −1,061.32 out on
-  2025-10-25, the account's only activity all year. Assume the pattern wherever money moves between
-  currencies. ⚠️ **070 must NOT be hand-applied to dev** — dev's ledger is behind prod by 065–069,
-  so `migrate.js` reports five pending; `sync-db-prod-to-dev.sh` first. **TARGET TY2025, DUE
-  2026-10-15 — 61 days** (owner is on the automatic extension, confirmed
+  (FBAR). P0b + P1 + P2 BUILT 2026-08-15, live on DEV, pushed; PROD UNTOUCHED**
+  ([§11a](../cr/cr-082-tax-section-fbar-114.md)). Engine + 10 tests, migration 070, 11 endpoints,
+  the seeder, and both pages (`/tax/foreign-accounts`, `/tax/fbar`). **928 backend + 507 frontend
+  tests, lint 0, ratchets at baseline, build green.** ⚠️ **Nothing rendered in a browser** — no
+  renderer on this host; the pages need an eyeball before prod. **Three same-shape security holes
+  closed, and the first fix proposed would not have worked:** `curl 192.168.1.87:3005/api/v2/util/coa-traits`
+  returned **230 accounts with `AccountNumber`**, unauthenticated, never touching nginx — so proxy
+  auth would have looked like a fix. The UI (`3006`/`5175`) and **dev** (`3105`/`5174`) were open
+  too, and Vite *proxies* `/api`, so closing dev's API alone would still have leaked while
+  `sync-db-prod-to-dev.sh` copied prod into it. All loopback now; UI on the tailnet
+  (`https://fin.tail413695.ts.net`), dev at `100.94.46.62:5174`; **the LAN is dead by design.**
+  The sync **resolved the 065–069 dev ledger gap** and 070 applied through the runner. **070's
+  `UNIQUE(account_id)` then caught a seeder defect on its first row** — one fin `Santandar` vs five
+  filed WBK accounts, so "one candidate" ≠ unambiguous. Also found a **second live instance** of the
+  same-day artifact: `WISE - GBP` **1,065.00 row-ordered vs 3.68 end-of-day (289×)**, its only
+  activity all year — assume the pattern wherever money crosses currencies. **TARGET TY2025, DUE
+  2026-10-15** (owner is on the automatic extension, confirmed
   2026-08-15; migration 070). **Both review passes returned *revise* and the technical pass
   falsified four of the CR's own numbers** — recorded in its §12, because the worst of them was the
   CR converting PLN at a stale rate in §5 while §4 argued that a plausible rate asserted as an

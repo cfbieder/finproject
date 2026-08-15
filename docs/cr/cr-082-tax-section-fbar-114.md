@@ -502,6 +502,48 @@ reports its **carry-in** of 1,718.27 — the two figures whose absence falsified
 pending files and running it would drag those four along. Applying 070 by hand with `psql` is the
 one thing migration 057's row warns against. **Resolve the ledger first, then migrate.**
 
+### Continued the same day — P0b, P1 and P2 built
+
+| Also shipped (dev, **not deployed**) | |
+|---|---|
+| `docker-compose.yml` · `docker-compose.dev.yml` · `vite.config.js` | **P0b** — every fin port off the LAN |
+| `server/src/v2/services/fbarReport.js` | assembles a year: designations × engine × rates |
+| `server/src/v2/routes/tax.js` | 11 endpoints, all enveloped |
+| `Scripts/seed-fbar-designations.js` | seeds from last year's papers |
+| `frontend/src/pages/TaxForeignAccounts.jsx` · `TaxFbar.jsx` | the two pages + `Taxes` nav |
+
+**P0b was bigger than "add auth", because the first plan would not have worked.**
+`curl http://192.168.1.87:3005/api/v2/util/coa-traits` returned **230 accounts, each with an
+`AccountNumber`**, unauthenticated — a request that never touches nginx, so proxy auth would have
+read as a fix while changing nothing. Then the same shape twice more: the **UI** published
+`3006`/`5175` on every interface, so closing the API alone left the whole app open; and **dev** was
+wide open on `3105`/`5174` while `sync-db-prod-to-dev.sh` was about to copy all of prod into it —
+and closing dev's API alone would still have leaked, because Vite *proxies* `/api`. Everything is
+now loopback, with the UI on the tailnet via `tailscale serve`. Owner chose Tailscale device auth
+over basic-auth: no shared password, no PWA prompt. **The dev sync then resolved the 065–069 ledger
+gap this CR had been carrying, and 070 applied through the runner as the only pending file.**
+
+**Migration 070's `UNIQUE(account_id)` caught a defect in the seeder on the first row it saw.** The
+auto-link rule was "exactly one fin candidate by institution + currency". It threw 23505 at once:
+fin holds **one** `Santandar`, the 2024 filing holds **five** Bank Zachodni WBK accounts, and two
+PLN rows both resolved to account 22. **One candidate is not the same as unambiguous** — when N
+rows chase one account, picking any is a 1-in-N guess. Both counts must be 1. Result on dev: 20
+Part III + 12 Part IV, **all `unreviewed`**, 6 auto-linked, 6 flagged with their competitors named,
+7 with no fin account. The six linked lines reproduce the standalone worksheet to the cent.
+
+**The FX direction guard is live and falsified.** `PUT /fx-rates/:year` compares against our
+reference and refuses beyond ±25%. Pasting Treasury's EUR figure the natural way round (0.851) is
+rejected with *"≈0.8511 is EUR per USD; you probably meant 1.175088"* — it returns the reciprocal of
+what was typed, which is the number intended.
+
+**`check-modal-adoption.sh` rejected the designation page's hand-rolled dialog**, which was a real
+upgrade rather than gate-appeasement: `<Modal>` (CR042 U4) brings focus trapping, ESC, scroll lock
+and ARIA wiring the bespoke overlay had none of.
+
+⚠️ **Nothing has been rendered in a browser** — no renderer on this host. The pages pass lint, both
+ratchets, the modal guard, 507 frontend tests and the build, but "the gates are green" and "the page
+looks right" are different claims. **Prod still has no `tax_*` tables.**
+
 **Two figures this build corrected:**
 
 - **The form entry is `ceil`, and the CR quotes the conversion.** 631,678.72 × 0.278373 = 175,842.30

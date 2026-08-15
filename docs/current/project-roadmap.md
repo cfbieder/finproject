@@ -11,7 +11,7 @@ Living plan for the Fin project — open Change Requests, known issues, ongoing 
 ### 1.1 Open / In-Progress
 
 <a id="cr082"></a>
-- **CR082 — A Taxes section, first form: FinCEN Form 114 (FBAR). 📋 PLANNED — migration 070.
+- **CR082 — A Taxes section, first form: FinCEN Form 114 (FBAR). 🔨 IN-PROGRESS — P0b+P1+P2 built 2026-08-15, LIVE ON DEV, prod untouched; migration 070 on dev only. P3 (export) + freeze remain. Pages not yet rendered in a browser.
   ⏱ TARGET TY2025, DUE 2026-10-15 (61 days).** Owner is on the automatic extension (confirmed
   2026-08-15), so this is date-bound: **P1+P2 is the shippable unit** and the **freeze ships with
   P2**, not after it — you can file by transcribing from the browser, so the export is the
