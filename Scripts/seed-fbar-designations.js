@@ -29,8 +29,16 @@
  *    while leaving the aggregate untouched, so no total would reveal it. Those
  *    stay unlinked for the owner to resolve against the figures.
  *
- * Idempotent: keyed on (institution_name, account_number), re-running updates
- * rather than duplicating.
+ * Idempotent: keyed on `label`, which the seeder guarantees unique.
+ *
+ * It was keyed on (institution_name, account_number) until that silently ATE
+ * ROWS: Part IV numbers are all masked to `**********` in the client copy, so
+ * twelve signature-authority accounts collapsed into eight, and Part III's
+ * twenty into eighteen. Nothing errored -- the upsert simply treated each
+ * collision as an update of the previous row. Dropping a reportable account
+ * from an FBAR is the single worst outcome this feature can produce, and it was
+ * invisible in every gate; only counting the rendered rows against the input
+ * caught it. The seeder now asserts the count and refuses to finish quietly.
  */
 
 const fs = require('fs');
@@ -91,12 +99,22 @@ async function finCandidates(institution, currency) {
   return rows;
 }
 
+/**
+ * Labels are the upsert key, so they must be unique. A masked or missing account
+ * number cannot distinguish two accounts at one institution — which is exactly
+ * the Part IV shape — so collisions get a suffix rather than being merged.
+ */
+function uniqueLabel(base, seen) {
+  let label = base, n = 2;
+  while (seen.has(label)) label = `${base} #${n++}`;
+  seen.add(label);
+  return label;
+}
+
 async function upsert(d) {
   const { rows: existing } = await db.query(
-    `SELECT id FROM tax_foreign_accounts
-      WHERE institution_name IS NOT DISTINCT FROM $1
-        AND own_account_number IS NOT DISTINCT FROM $2`,
-    [d.institution_name, d.own_account_number]
+    `SELECT id FROM tax_foreign_accounts WHERE label = $1`,
+    [d.label]
   );
   if (existing.length) {
     await db.query(
@@ -144,6 +162,7 @@ async function main() {
     groupSize.set(groupKey(r), (groupSize.get(groupKey(r)) || 0) + 1);
   }
 
+  const seenLabels = new Set();
   let linked = 0, ambiguous = 0, unlinkable = 0, created = 0, updated = 0;
   const report = [];
 
@@ -168,7 +187,8 @@ async function main() {
     // `own_currency` is only legal on a report-only line (the CHECK pairs it
     // with a NULL account_id). A linked row takes its currency from the ledger.
     const d = {
-      label: `${r.institution} ${String(r.account_number).replace(/\s+/g, '').slice(-4)} (${currency})`,
+      label: uniqueLabel(
+        `${r.institution} ${String(r.account_number).replace(/\s+/g, '').slice(-4)} (${currency})`, seenLabels),
       fbar_part: 'III',
       account_kind: /securities/i.test(r.acct_type) ? 'securities' : 'bank',
       own_account_number: r.account_number,
@@ -191,7 +211,9 @@ async function main() {
   let partIVCount = 0;
   for (const r of filed.filter((x) => x.part === 'IV')) {
     const d = {
-      label: r.institution || `(name missing — page ${r.page})`,
+      label: uniqueLabel(
+        [r.institution || '(institution name missing in the client copy)',
+         r.city, r.postal].filter(Boolean).join(' · '), seenLabels),
       fbar_part: 'IV',
       account_kind: 'bank',
       own_account_number: r.account_number || 'UNKNOWN',
@@ -247,7 +269,17 @@ async function main() {
      ON CONFLICT (tax_year, currency) DO NOTHING`
   );
 
-  console.log(`designations: ${created} created, ${updated} updated`);
+  // Refuse to finish quietly on a row count that does not match the input. The
+  // dedupe key ate four rows before anyone noticed, and no test could see it.
+  const expected = partIII.filter((r) => r.institution && r.account_number).length + partIVCount;
+  const { rows: actual } = await db.query(`SELECT count(*)::int AS n FROM tax_foreign_accounts`);
+  if (actual[0].n !== expected) {
+    throw new Error(
+      `row count mismatch: seeded ${expected} designations but the table holds ${actual[0].n}. ` +
+      `A collapsed upsert key silently merges accounts — refusing to report success.`
+    );
+  }
+  console.log(`designations: ${created} created, ${updated} updated  (${actual[0].n} rows, matches input)`);
   console.log(`  Part III   : ${partIII.length}  (linked ${linked}, ambiguous ${ambiguous}, no fin account ${unlinkable})`);
   console.log(`  Part IV    : ${partIVCount}  (all report-only, all needing a typed figure)`);
   console.log(`  every row  : review_state='unreviewed'\n`);

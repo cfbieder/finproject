@@ -468,6 +468,26 @@ export const routes = [
     // but it has no place in the user-facing nav.
     showInNav: false,
   },
+
+  // Taxes (CR082). New top-level section; FinCEN 114 is its first form.
+  {
+    path: "/tax/foreign-accounts",
+    component: TaxForeignAccounts,
+    label: "Foreign Accounts",
+    category: "Taxes",
+    description:
+      "Which accounts FBAR reports, their numbers and institutions — entered once, reviewed yearly",
+    icon: Landmark,
+  },
+  {
+    path: "/tax/fbar",
+    component: TaxFbar,
+    label: "FBAR (Form 114)",
+    category: "Taxes",
+    description:
+      "The year's maximum account values, the $10,000 test, and the filing worksheet",
+    icon: FileSpreadsheet,
+  },
 ];
 
 /**
@@ -564,26 +584,7 @@ export const SIDEBAR_GROUPS = [
   { divider: true, key: "div-admin" },
   { key: "data", label: "Data Sources", icon: HardDrive, category: "Database" },
   { key: "settings", label: "Settings", icon: Settings2, category: "Settings" },
-
-  // Taxes (CR082). New top-level section; FinCEN 114 is its first form.
-  {
-    path: "/tax/foreign-accounts",
-    component: TaxForeignAccounts,
-    label: "Foreign Accounts",
-    category: "Taxes",
-    description:
-      "Which accounts FBAR reports, their numbers and institutions — entered once, reviewed yearly",
-    icon: Landmark,
-  },
-  {
-    path: "/tax/fbar",
-    component: TaxFbar,
-    label: "FBAR (Form 114)",
-    category: "Taxes",
-    description:
-      "The year's maximum account values, the $10,000 test, and the filing worksheet",
-    icon: FileSpreadsheet,
-  },
+  { key: "taxes", label: "Taxes", icon: Landmark, category: "Taxes" },
 ];
 
 /**
