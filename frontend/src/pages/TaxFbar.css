@@ -179,17 +179,6 @@
   font-weight: var(--font-weight-medium);
 }
 
-.tfb-btn {
-  padding: 0.35rem 0.7rem;
-  border: 1px solid var(--border);
-  border-radius: var(--radius-md);
-  background: var(--bg);
-  color: var(--ink);
-  cursor: pointer;
-}
-
-.tfb-btn:disabled { opacity: 0.5; cursor: not-allowed; }
-
 /* ---- needs / cells ---- */
 
 .tfb-need {

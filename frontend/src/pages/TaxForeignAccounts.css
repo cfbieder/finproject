@@ -126,24 +126,6 @@
 
 .tfa-state--excluded { color: var(--muted); }
 
-.tfa-btn {
-  padding: 0.35rem 0.7rem;
-  border: 1px solid var(--border);
-  border-radius: var(--radius-md);
-  background: var(--bg);
-  color: var(--ink);
-  cursor: pointer;
-  transition: background var(--transition-fast);
-}
-
-.tfa-btn:hover { background: var(--bg-tertiary); }
-
-.tfa-btn--primary {
-  background: var(--accent);
-  border-color: var(--accent-strong);
-  color: var(--bg);
-}
-
 /* ---- modal ---- */
 
 /* The dialog chrome — overlay, focus trap, ESC, ARIA — comes from the shared

@@ -134,7 +134,7 @@ export default function TaxForeignAccounts() {
       key: "actions",
       header: "",
       render: (r) => (
-        <button type="button" className="tfa-btn" onClick={() => setEditing(r)}>
+        <button type="button" className="btn btn--secondary btn--xs" onClick={() => setEditing(r)}>
           Edit
         </button>
       ),
@@ -288,8 +288,8 @@ function EditDialog({ row, taxYear, onClose, onSaved }) {
       dismissable={!saving}
       footer={
         <>
-          <button type="button" className="tfa-btn" onClick={onClose}>Cancel</button>
-          <button type="button" className="tfa-btn tfa-btn--primary" onClick={save} disabled={saving}>
+          <button type="button" className="btn btn--secondary btn--sm" onClick={onClose}>Cancel</button>
+          <button type="button" className="btn btn--primary btn--sm" onClick={save} disabled={saving}>
             {saving ? "Saving…" : "Save"}
           </button>
         </>

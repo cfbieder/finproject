@@ -224,7 +224,7 @@ export default function TaxFbar() {
                         />
                         <button
                           type="button"
-                          className="tfb-btn"
+                          className="btn btn--secondary btn--xs"
                           disabled={!rateDraft[ccy]}
                           onClick={() => saveRate(ccy)}
                         >
