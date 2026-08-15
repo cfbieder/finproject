@@ -65,8 +65,13 @@ Per account (Part II own · Part III joint · Part IV signature authority only):
 | Type: bank / securities / other *(+ description)* | manual, remembered |
 | Financial institution name | manual (feed gives `institution_name` per *connection* only) |
 | Institution street, city, state/province, postal, **country code** | **manual, remembered** |
-| Account closed during the year | manual, per account-year |
 | Jointly owned + co-owner name/TIN/address | manual, remembered |
+
+That is the **whole** per-account field set — verified 2026-08-15 against the filed TY2024
+form (Part III record blocks, `Client Copy 2024 …pdf` p.7): items 15/15a, 16, 17, 18, 19–23,
+24–33 and nothing else. In particular there is **no "account opened during the year" and no
+"account closed during the year" checkbox** on FinCEN 114 — those are **Form 8938** fields, which
+is why they appear on the preparer's request sheet (§12.4).
 
 Plus **Part I filer info** — name, **TIN**, **DOB**, address, filing capacity — constant, stored once.
 
@@ -604,3 +609,22 @@ stated 0.278373: **$175,842 / $220,902 / $1,223,068**, not "$148K" and "$1.03M".
 11. **`is_reportable` as a boolean** conflated "excluded" with "not yet reviewed" (§3).
 12. **The designation screen was present-tense and active-only**, dropping accounts closed since the
     reported year (§7).
+
+## 12b. Corrections found after the code was written (2026-08-15)
+
+13. **FBAR has no closed- or opened-during-the-year checkbox.** §3's field table listed "Account
+    closed during the year" as a Form 114 field and the schema carries
+    `tax_fbar_filing_lines.closed_during_year`. Verified against the filed TY2024 client copy
+    (p.7, two full Part III record blocks): the per-account fields are **15/15a, 16, 17, 18,
+    19–23, 24–33** and nothing more. Opened/closed-in-year are **Form 8938** fields — which is
+    why the preparer's request sheet carries them, and 8938 *is* required for this filer
+    (§11 out-of-scope note). Consequences:
+    - **Nothing to build.** The absent UI control for `closed_during_year` was previously called
+      a gap; it is not one. Do not add it as an FBAR field.
+    - **The column stays.** Dropping it needs a migration and buys nothing; it is inert, defaults
+      FALSE, and 8938 is the Taxes section's known second occupant. It is now documented as an
+      8938/internal flag, not a 114 field.
+    - **The real missing control is 15a, `max_unknown`** — a genuine Form 114 checkbox with no UI.
+      With 21 of 35 TY2025 lines carrying no computed figure, this is the one that gets used.
+    - A closed account is still **reported for the year it was open**; that rule was never in
+      doubt. What was wrong was believing the form records the closure.
