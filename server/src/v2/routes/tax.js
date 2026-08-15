@@ -159,8 +159,53 @@ router.patch('/designations/:id', async (req, res, next) => {
     const body = req.body || {};
     const cols = DESIGNATION_FIELDS.filter((f) => body[f] !== undefined);
     if (!cols.length) return res.status(400).json({ error: 'no updatable fields supplied' });
-    const sets = cols.map((c, i) => `${c} = $${i + 2}`);
-    const vals = cols.map((c) => body[c] === '' ? null : body[c]);
+    const patch = Object.fromEntries(cols.map((c) => [c, body[c] === '' ? null : body[c]]));
+
+    // account_id and own_currency are the two halves of source_ck:
+    //   (account_id IS NULL) = (own_currency IS NOT NULL)
+    // A caller sending only one half writes a state the table forbids, which is
+    // what "violates check constraint tax_foreign_accounts_source_ck" meant when
+    // linking a report-only row to a fin account. The pairing is this table's
+    // invariant, so the server completes the move rather than making every
+    // caller remember it.
+    const { rows: cur } = await db.query(
+      `SELECT tfa.account_id, tfa.own_currency, tfa.own_account_number,
+              a.currency AS linked_currency
+         FROM tax_foreign_accounts tfa
+         LEFT JOIN accounts a ON a.id = tfa.account_id
+        WHERE tfa.id = $1`,
+      [req.params.id]
+    );
+    if (!cur.length) return res.status(404).json({ error: 'designation not found' });
+    const before = cur[0];
+    const nextAccountId = 'account_id' in patch ? patch.account_id : before.account_id;
+
+    if (nextAccountId != null) {
+      // Linked: the ledger owns the currency. own_account_number is KEPT — it is
+      // often the only full IBAN we hold, and it already outranks the ledger's
+      // number for display.
+      patch.own_currency = null;
+    } else {
+      const ccy = ('own_currency' in patch ? patch.own_currency : null)
+        || before.own_currency || before.linked_currency;
+      if (!ccy) {
+        return res.status(400).json({
+          error: 'own_currency is required when a designation has no linked account — '
+               + 'a typed maximum has no tax_fx_rates key without one',
+        });
+      }
+      patch.own_currency = ccy;
+      const num = 'own_account_number' in patch ? patch.own_account_number : before.own_account_number;
+      if (!num) {
+        return res.status(400).json({
+          error: 'own_account_number is required when a designation has no linked account',
+        });
+      }
+    }
+
+    const finalCols = Object.keys(patch);
+    const sets = finalCols.map((c, i) => `${c} = $${i + 2}`);
+    const vals = finalCols.map((c) => patch[c]);
     const { rows } = await db.query(
       `UPDATE tax_foreign_accounts SET ${sets.join(', ')}, updated_at = NOW()
         WHERE id = $1 RETURNING id`,

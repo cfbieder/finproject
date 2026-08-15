@@ -84,6 +84,17 @@ dbDescribe('CR082 — Taxes API and report assembly (DB)', () => {
 
   afterAll(async () => { await cleanup(); await unparkRealDesignations(); await db.close(); });
 
+  // account_id is UNIQUE on tax_foreign_accounts — one designation per ledger
+  // account — so any test that links needs an account of its own.
+  async function mkAccount(suffix) {
+    const { rows } = await db.query(
+      `INSERT INTO accounts (name, account_type, section, currency, opening_balance,
+                             opening_balance_date, is_active)
+       VALUES ($1,'asset','balance_sheet','PLN',0,'1990-01-01',TRUE) RETURNING id`,
+      [`${PREFIX}_${suffix}`]);
+    return rows[0].id;
+  }
+
   async function mkDesignation(label, extra = {}) {
     const body = {
       label: `${PREFIX}_${label}`, fbar_part: 'III', account_kind: 'bank',
@@ -119,6 +130,64 @@ dbDescribe('CR082 — Taxes API and report assembly (DB)', () => {
         label: `${PREFIX}_Both`, account_id: acctId, own_currency: 'PLN', own_account_number: 'X',
       });
       expect(r.status).toBeGreaterThanOrEqual(400);
+    });
+
+    // The bug this suite missed: POST enforced the pairing, PATCH did not. Every
+    // test above created designations already in their final shape, so nothing
+    // ever MOVED a row between the two states — and the UI's whole purpose is
+    // moving them. Linking a report-only row from the picker answered 500 with
+    // the raw constraint name.
+    test('linking a report-only row clears own_currency instead of violating source_ck', async () => {
+      const linkTo = await mkAccount('LinkTarget');
+      const id = await mkDesignation('ToLink');            // report-only: own_currency = PLN
+      const r = await request(app, 'PATCH', `/tax/designations/${id}`, { account_id: linkTo });
+      expect(r.status).toBe(200);
+
+      const { rows } = await db.query(
+        `SELECT account_id, own_currency, own_account_number
+           FROM tax_foreign_accounts WHERE id = $1`, [id]);
+      expect(rows[0].account_id).toBe(linkTo);
+      expect(rows[0].own_currency).toBeNull();
+      // KEPT: often the only full IBAN held, and it outranks the ledger number
+      // for display, so clearing it would lose the better datum.
+      expect(rows[0].own_account_number).toBe('MASKED');
+    });
+
+    test('unlinking restores a currency from the account it was linked to', async () => {
+      const id = await mkDesignation('ToUnlink', { account_id: await mkAccount('UnlinkFrom') });
+      const r = await request(app, 'PATCH', `/tax/designations/${id}`,
+        { account_id: null, own_account_number: 'X123' });
+      expect(r.status).toBe(200);
+      const { rows } = await db.query(
+        `SELECT account_id, own_currency FROM tax_foreign_accounts WHERE id = $1`, [id]);
+      expect(rows[0].account_id).toBeNull();
+      // Inherited from the ledger account rather than left NULL, which would be
+      // a row with a typed maximum and no tax_fx_rates key to convert it.
+      expect(rows[0].own_currency).toBe('PLN');
+    });
+
+    test('unlinking with no number to fall back on is refused, not half-written', async () => {
+      const bare = await mkAccount('NoNumberAcct');
+      const id = await mkDesignation('NoNumber', { account_id: bare });
+      const r = await request(app, 'PATCH', `/tax/designations/${id}`, { account_id: null });
+      expect(r.status).toBe(400);
+      expect(r.body.error).toMatch(/own_account_number/);
+      const { rows } = await db.query(
+        `SELECT account_id FROM tax_foreign_accounts WHERE id = $1`, [id]);
+      expect(rows[0].account_id).toBe(bare);   // unchanged
+    });
+
+    test('a state change still patches cleanly and does not disturb the pairing', async () => {
+      const id = await mkDesignation('StateOnly');
+      const r = await request(app, 'PATCH', `/tax/designations/${id}`,
+        { review_state: 'excluded' });
+      expect(r.status).toBe(200);
+      const { rows } = await db.query(
+        `SELECT review_state, account_id, own_currency
+           FROM tax_foreign_accounts WHERE id = $1`, [id]);
+      expect(rows[0].review_state).toBe('excluded');
+      expect(rows[0].account_id).toBeNull();
+      expect(rows[0].own_currency).toBe('PLN');
     });
   });
 
