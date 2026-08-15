@@ -1,0 +1,256 @@
+'use strict';
+/**
+ * tax.js — CR082. The Taxes section's API, mounted at /api/v2/tax.
+ *
+ * Every success response is `{ data: … }` (CR043 N8 — the bare/enveloped split
+ * is what broke the Modify Transfer modal silently, and `check-api-envelope.sh`
+ * only ratchets down).
+ *
+ * ── Account numbers ──
+ * The list endpoint returns them MASKED. Full numbers come only from the
+ * single-designation reveal, which the edit form calls when opened. That is not
+ * a security boundary — this app has no auth, and CR082 §7.1 says so plainly —
+ * it is blast-radius: the bulk payload that every page load fetches should not
+ * carry 15 IBANs, because `/util/coa-traits` already taught us that a bulk dump
+ * is the thing that leaks. The real control is the network binding (P0b).
+ */
+
+const express = require('express');
+const router = express.Router();
+const db = require('../db');
+const { buildYear, freezeYear, filedVsRecomputed } = require('../../v2/services/fbarReport');
+
+/** `PL61 1090 …3000` → `PL61 …3000`. Never reversible, never logged. */
+function maskNumber(n) {
+  if (!n) return null;
+  const s = String(n).replace(/\s+/g, '');
+  if (s.length <= 8) return `…${s.slice(-2)}`;
+  return `${s.slice(0, 4)}…${s.slice(-4)}`;
+}
+
+const DESIGNATION_FIELDS = [
+  'label', 'review_state', 'fbar_part', 'account_kind', 'account_kind_other',
+  'own_account_number', 'own_currency', 'institution_name', 'institution_street',
+  'institution_city', 'institution_region', 'institution_postal', 'institution_country',
+  'joint_owner_name', 'joint_owner_tin', 'joint_owner_address', 'notes', 'account_id',
+];
+
+// GET /api/v2/tax/designations — masked list
+router.get('/designations', async (req, res, next) => {
+  try {
+    const { rows } = await db.query(
+      `SELECT tfa.*, a.name AS account_name, a.currency AS account_currency,
+              a.account_number AS ledger_account_number
+         FROM tax_foreign_accounts tfa
+         LEFT JOIN accounts a ON a.id = tfa.account_id
+        ORDER BY tfa.fbar_part NULLS LAST, tfa.institution_name, tfa.label`
+    );
+    res.json({
+      data: rows.map((r) => {
+        const full = r.own_account_number || r.ledger_account_number;
+        const { own_account_number, ledger_account_number, ...rest } = r;
+        return { ...rest, account_number_masked: maskNumber(full), has_account_number: !!full };
+      }),
+    });
+  } catch (e) { next(e); }
+});
+
+// GET /api/v2/tax/designations/:id/number — the explicit reveal
+router.get('/designations/:id/number', async (req, res, next) => {
+  try {
+    const { rows } = await db.query(
+      `SELECT tfa.own_account_number, a.account_number
+         FROM tax_foreign_accounts tfa
+         LEFT JOIN accounts a ON a.id = tfa.account_id
+        WHERE tfa.id = $1`,
+      [req.params.id]
+    );
+    if (!rows.length) return res.status(404).json({ error: 'designation not found' });
+    res.json({ data: { account_number: rows[0].own_account_number || rows[0].account_number || '' } });
+  } catch (e) { next(e); }
+});
+
+// GET /api/v2/tax/unlinked-candidates?designationId= — fin accounts this row could be
+router.get('/unlinked-candidates', async (req, res, next) => {
+  try {
+    const { currency, taxYear } = req.query;
+    if (!currency) return res.status(400).json({ error: 'currency is required' });
+    const year = Number(taxYear) || new Date().getFullYear() - 1;
+    const { rows } = await db.query(
+      `SELECT a.id, a.name, a.currency
+         FROM accounts a
+        WHERE a.is_active AND a.currency = $1
+          AND a.account_type IN ('asset','liability')
+          AND NOT EXISTS (SELECT 1 FROM accounts c WHERE c.parent_id = a.id)
+          AND NOT EXISTS (SELECT 1 FROM tax_foreign_accounts t WHERE t.account_id = a.id)
+        ORDER BY a.name`,
+      [currency]
+    );
+    // Each candidate carries its computed maximum, so the choice is made against
+    // real figures rather than names alone — the three PKO PLN accounts differ by
+    // over a million dollars and are indistinguishable by name.
+    const { accountYearFigures } = require('../../v2/services/fbarMaxValue');
+    const out = [];
+    for (const a of rows) {
+      const f = await accountYearFigures(db, a.id, year);
+      out.push({ ...a, max_native: f.refused ? null : f.reportable_max_native,
+                 refused: !!f.refused, refusal: f.refusal_reason || null });
+    }
+    res.json({ data: out });
+  } catch (e) { next(e); }
+});
+
+// POST /api/v2/tax/designations
+router.post('/designations', async (req, res, next) => {
+  try {
+    const body = req.body || {};
+    if (!body.label) return res.status(400).json({ error: 'label is required' });
+    const cols = DESIGNATION_FIELDS.filter((f) => body[f] !== undefined);
+    const vals = cols.map((c) => body[c] === '' ? null : body[c]);
+    const { rows } = await db.query(
+      `INSERT INTO tax_foreign_accounts (${cols.join(',')})
+       VALUES (${cols.map((_, i) => `$${i + 1}`).join(',')}) RETURNING id`,
+      vals
+    );
+    res.status(201).json({ data: { id: rows[0].id } });
+  } catch (e) { next(e); }
+});
+
+// PATCH /api/v2/tax/designations/:id
+router.patch('/designations/:id', async (req, res, next) => {
+  try {
+    const body = req.body || {};
+    const cols = DESIGNATION_FIELDS.filter((f) => body[f] !== undefined);
+    if (!cols.length) return res.status(400).json({ error: 'no updatable fields supplied' });
+    const sets = cols.map((c, i) => `${c} = $${i + 2}`);
+    const vals = cols.map((c) => body[c] === '' ? null : body[c]);
+    const { rows } = await db.query(
+      `UPDATE tax_foreign_accounts SET ${sets.join(', ')}, updated_at = NOW()
+        WHERE id = $1 RETURNING id`,
+      [req.params.id, ...vals]
+    );
+    if (!rows.length) return res.status(404).json({ error: 'designation not found' });
+    res.json({ data: { id: rows[0].id } });
+  } catch (e) { next(e); }
+});
+
+// DELETE /api/v2/tax/designations/:id
+router.delete('/designations/:id', async (req, res, next) => {
+  try {
+    const { rowCount } = await db.query(`DELETE FROM tax_foreign_accounts WHERE id = $1`, [req.params.id]);
+    if (!rowCount) return res.status(404).json({ error: 'designation not found' });
+    res.json({ data: { deleted: true } });
+  } catch (e) { next(e); }
+});
+
+// GET/PUT /api/v2/tax/fx-rates/:year
+router.get('/fx-rates/:year', async (req, res, next) => {
+  try {
+    const { rows } = await db.query(
+      `SELECT currency, rate_to_usd, source, note FROM tax_fx_rates
+        WHERE tax_year = $1 ORDER BY currency`,
+      [req.params.year]
+    );
+    res.json({ data: rows.map((r) => ({ ...r, rate_to_usd: Number(r.rate_to_usd) })) });
+  } catch (e) { next(e); }
+});
+
+router.put('/fx-rates/:year', async (req, res, next) => {
+  try {
+    const { currency, rate_to_usd, source, note } = req.body || {};
+    if (!currency || !(Number(rate_to_usd) > 0)) {
+      return res.status(400).json({ error: 'currency and a positive rate_to_usd are required' });
+    }
+    // The direction guard. Treasury publishes foreign-per-USD; this column is
+    // USD-per-foreign. For EUR and GBP both readings are plausible numbers of
+    // the same order, so a reciprocal typo is invisible — and it moves the
+    // reported maximum ~38% toward UNDER-reporting. Compared against whatever
+    // reference rate we hold; refused past 25% unless explicitly confirmed.
+    const { rows: ref } = await db.query(
+      `SELECT rate FROM exchange_rates
+        WHERE from_currency = $1 AND to_currency = 'USD'
+          AND rate_date = make_date($2::int, 12, 31)`,
+      [currency, req.params.year]
+    );
+    if (ref.length && !req.body.confirm_outlier) {
+      const refRate = Number(ref[0].rate);
+      const ratio = Number(rate_to_usd) / refRate;
+      if (ratio > 1.25 || ratio < 0.8) {
+        return res.status(409).json({
+          error: 'rate_direction_suspect',
+          message:
+            `${rate_to_usd} is ${ratio.toFixed(2)}x our ${currency} reference (${refRate}). ` +
+            `This column is USD per 1 ${currency}; Treasury publishes ${currency} per USD ` +
+            `(≈${(1 / refRate).toFixed(4)}). If you meant the reciprocal, invert it. ` +
+            `Resend with confirm_outlier=true to store as typed.`,
+          reference_rate: refRate,
+          reciprocal_of_entered: Number((1 / Number(rate_to_usd)).toFixed(6)),
+        });
+      }
+    }
+    await db.query(
+      `INSERT INTO tax_fx_rates (tax_year, currency, rate_to_usd, source, note)
+       VALUES ($1,$2,$3,$4,$5)
+       ON CONFLICT (tax_year, currency) DO UPDATE
+         SET rate_to_usd = EXCLUDED.rate_to_usd, source = EXCLUDED.source, note = EXCLUDED.note`,
+      [req.params.year, currency, rate_to_usd, source || 'manual', note || null]
+    );
+    res.json({ data: { tax_year: Number(req.params.year), currency, rate_to_usd: Number(rate_to_usd) } });
+  } catch (e) { next(e); }
+});
+
+// GET /api/v2/tax/fbar/:year — the report
+router.get('/fbar/:year', async (req, res, next) => {
+  try {
+    res.json({ data: await buildYear(db, Number(req.params.year)) });
+  } catch (e) { next(e); }
+});
+
+// PUT /api/v2/tax/fbar/:year/line/:designationId — typed figure / per-year flags
+router.put('/fbar/:year/line/:designationId', async (req, res, next) => {
+  try {
+    const { manual_value_native, manual_reason, max_unknown, closed_during_year } = req.body || {};
+    const { ensureDraft } = require('../../v2/services/fbarReport');
+    const filing = await ensureDraft(db, Number(req.params.year));
+    if (filing.status === 'filed') {
+      return res.status(409).json({ error: 'year is filed — reopen or amend rather than editing' });
+    }
+    await db.query(
+      `INSERT INTO tax_fbar_filing_lines
+         (filing_id, tax_foreign_account_id, label, manual_value_native, manual_reason,
+          max_unknown, closed_during_year)
+       VALUES ($1, $2, COALESCE((SELECT label FROM tax_foreign_accounts WHERE id = $2), '?'),
+               $3, $4, COALESCE($5, FALSE), COALESCE($6, FALSE))`,
+      [filing.id, req.params.designationId,
+       manual_value_native === '' || manual_value_native === undefined ? null : manual_value_native,
+       manual_reason || null, max_unknown, closed_during_year]
+    );
+    res.json({ data: { ok: true } });
+  } catch (e) { next(e); }
+});
+
+// POST /api/v2/tax/fbar/:year/freeze
+router.post('/fbar/:year/freeze', async (req, res, next) => {
+  try {
+    const out = await freezeYear(db, Number(req.params.year), {
+      filedOn: req.body?.filed_on || null,
+      note: req.body?.note || null,
+      force: req.body?.force === true,
+    });
+    res.json({ data: out });
+  } catch (e) {
+    if (/already filed|without a figure/.test(e.message)) {
+      return res.status(409).json({ error: e.message });
+    }
+    next(e);
+  }
+});
+
+// GET /api/v2/tax/fbar/:year/diff — filed vs recomputed
+router.get('/fbar/:year/diff', async (req, res, next) => {
+  try {
+    res.json({ data: await filedVsRecomputed(db, Number(req.params.year)) });
+  } catch (e) { next(e); }
+});
+
+module.exports = router;
