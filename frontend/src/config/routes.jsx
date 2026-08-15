@@ -29,6 +29,7 @@ import {
   Wallet,
   Palette,
   LineChart,
+  Landmark,
 } from "lucide-react";
 
 // Eagerly loaded pages (for fast initial render)
@@ -68,6 +69,8 @@ const COAManagement = lazy(() => import("../pages/COAManagement"));
 const BudgetFX = lazy(() => import("../pages/BudgetFX"));
 const CategoryTrend = lazy(() => import("../pages/CategoryTrend"));
 const UIPreview = lazy(() => import("../pages/UIPreview"));
+const TaxForeignAccounts = lazy(() => import("../pages/TaxForeignAccounts"));
+const TaxFbar = lazy(() => import("../pages/TaxFbar"));
 
 /**
  * Category metadata for landing pages.
@@ -96,6 +99,10 @@ export const CATEGORY_META = {
   Settings: {
     description: "Configure chart of accounts and application preferences",
     icon: Settings2,
+  },
+  Taxes: {
+    description: "Foreign account reporting and other annual tax forms",
+    icon: Landmark,
   },
 };
 
@@ -557,6 +564,26 @@ export const SIDEBAR_GROUPS = [
   { divider: true, key: "div-admin" },
   { key: "data", label: "Data Sources", icon: HardDrive, category: "Database" },
   { key: "settings", label: "Settings", icon: Settings2, category: "Settings" },
+
+  // Taxes (CR082). New top-level section; FinCEN 114 is its first form.
+  {
+    path: "/tax/foreign-accounts",
+    component: TaxForeignAccounts,
+    label: "Foreign Accounts",
+    category: "Taxes",
+    description:
+      "Which accounts FBAR reports, their numbers and institutions — entered once, reviewed yearly",
+    icon: Landmark,
+  },
+  {
+    path: "/tax/fbar",
+    component: TaxFbar,
+    label: "FBAR (Form 114)",
+    category: "Taxes",
+    description:
+      "The year's maximum account values, the $10,000 test, and the filing worksheet",
+    icon: FileSpreadsheet,
+  },
 ];
 
 /**

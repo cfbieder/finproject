@@ -1,0 +1,237 @@
+/* CR082 P1 — the foreign-account designation screen.
+   Tokens only: every colour here resolves in light and dark (CR026). */
+
+.tfa-page {
+  padding: 1.5rem;
+  max-width: 1400px;
+}
+
+.tfa-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 1.5rem;
+  flex-wrap: wrap;
+}
+
+.tfa-header h1 {
+  margin: 0 0 0.25rem;
+  font-family: var(--font-heading);
+  color: var(--ink);
+}
+
+.tfa-sub {
+  margin: 0;
+  color: var(--muted);
+  max-width: 62ch;
+}
+
+.tfa-year {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+  font-size: 0.8rem;
+  color: var(--muted);
+}
+
+.tfa-year input {
+  width: 7rem;
+  padding: 0.4rem 0.5rem;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  background: var(--bg);
+  color: var(--ink);
+  font-variant-numeric: tabular-nums;
+}
+
+.tfa-counts {
+  display: flex;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+  margin: 1rem 0 0.75rem;
+}
+
+.tfa-chip {
+  padding: 0.2rem 0.6rem;
+  border-radius: 999px;
+  border: 1px solid var(--border);
+  background: var(--bg-secondary);
+  color: var(--ink-secondary);
+  font-size: 0.78rem;
+}
+
+.tfa-chip--warn {
+  border-color: var(--warning, var(--gold-strong));
+  background: var(--gold-subtle);
+  color: var(--ink);
+}
+
+.tfa-chip--ok {
+  border-color: var(--growth-positive);
+  color: var(--growth-positive);
+}
+
+.tfa-banner {
+  margin: 0 0 1rem;
+  padding: 0.6rem 0.85rem;
+  border-left: 3px solid var(--gold-strong);
+  background: var(--gold-subtle);
+  border-radius: var(--radius-md);
+  color: var(--ink);
+  max-width: 80ch;
+}
+
+.tfa-error {
+  color: var(--danger-strong);
+  background: var(--danger-subtle);
+  padding: 0.5rem 0.75rem;
+  border-radius: var(--radius-md);
+}
+
+.tfa-label__main { display: block; }
+
+.tfa-label__note {
+  display: block;
+  font-size: 0.74rem;
+  color: var(--muted);
+  max-width: 46ch;
+}
+
+.tfa-num {
+  font-family: var(--font-mono);
+  font-size: 0.82rem;
+}
+
+.tfa-linked { color: var(--ink); }
+
+.tfa-unlinked {
+  color: var(--muted);
+  font-style: italic;
+  font-size: 0.8rem;
+}
+
+.tfa-state {
+  padding: 0.2rem 0.4rem;
+  border-radius: var(--radius-md);
+  border: 1px solid var(--border);
+  background: var(--bg);
+  color: var(--ink);
+  font-size: 0.78rem;
+}
+
+.tfa-state--unreviewed {
+  border-color: var(--gold-strong);
+  background: var(--gold-subtle);
+}
+
+.tfa-state--excluded { color: var(--muted); }
+
+.tfa-btn {
+  padding: 0.35rem 0.7rem;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  background: var(--bg);
+  color: var(--ink);
+  cursor: pointer;
+  transition: background var(--transition-fast);
+}
+
+.tfa-btn:hover { background: var(--bg-tertiary); }
+
+.tfa-btn--primary {
+  background: var(--accent);
+  border-color: var(--accent-strong);
+  color: var(--bg);
+}
+
+/* ---- modal ---- */
+
+/* The dialog chrome — overlay, focus trap, ESC, ARIA — comes from the shared
+   Modal primitive (CR042 U4); check-modal-adoption.sh fails the build on a
+   bespoke role="dialog", and correctly caught this page's first draft. Only the
+   body layout lives here. */
+.tfa-modal { color: var(--ink); }
+
+.tfa-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(210px, 1fr));
+  gap: 0.75rem 1rem;
+}
+
+.tfa-field {
+  display: flex;
+  flex-direction: column;
+  gap: 0.2rem;
+  font-size: 0.78rem;
+  color: var(--muted);
+}
+
+.tfa-field--wide { grid-column: 1 / -1; }
+
+.tfa-field input,
+.tfa-field select,
+.tfa-field textarea {
+  padding: 0.4rem 0.5rem;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  background: var(--bg);
+  color: var(--ink);
+  font: inherit;
+}
+
+.tfa-field input:disabled {
+  background: var(--bg-tertiary);
+  color: var(--muted);
+}
+
+.tfa-link {
+  margin-top: 1.25rem;
+  padding-top: 1rem;
+  border-top: 1px solid var(--border-subtle);
+}
+
+.tfa-link h3 {
+  margin: 0 0 0.35rem;
+  font-size: 0.95rem;
+}
+
+.tfa-link__why {
+  margin: 0 0 0.6rem;
+  color: var(--muted);
+  font-size: 0.82rem;
+  max-width: 76ch;
+}
+
+.tfa-link__none { color: var(--muted); }
+
+.tfa-cands {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+}
+
+.tfa-cands label {
+  display: flex;
+  align-items: baseline;
+  gap: 0.5rem;
+  padding: 0.3rem 0.4rem;
+  border-radius: var(--radius-md);
+  cursor: pointer;
+}
+
+.tfa-cands label:hover { background: var(--bg-secondary); }
+
+.tfa-cands__amt {
+  margin-left: auto;
+  font-family: var(--font-mono);
+  font-size: 0.8rem;
+  color: var(--ink-secondary);
+}
+
+@media (max-width: 700px) {
+  .tfa-page { padding: 1rem 0.75rem; }
+  .tfa-grid { grid-template-columns: 1fr; }
+}

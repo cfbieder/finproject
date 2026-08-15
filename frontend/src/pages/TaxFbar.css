@@ -1,0 +1,227 @@
+/* CR082 P2 — the FBAR working papers. Tokens only (CR026 light/dark parity). */
+
+.tfb-page {
+  padding: 1.5rem;
+  max-width: 1400px;
+}
+
+.tfb-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 1.5rem;
+  flex-wrap: wrap;
+}
+
+.tfb-header h1 {
+  margin: 0 0 0.25rem;
+  font-family: var(--font-heading);
+  color: var(--ink);
+}
+
+.tfb-sub {
+  margin: 0;
+  color: var(--muted);
+  max-width: 72ch;
+}
+
+.tfb-year {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+  font-size: 0.8rem;
+  color: var(--muted);
+}
+
+.tfb-year input,
+.tfb-rates__list input {
+  padding: 0.4rem 0.5rem;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  background: var(--bg);
+  color: var(--ink);
+  font-variant-numeric: tabular-nums;
+}
+
+.tfb-year input { width: 7rem; }
+
+.tfb-error {
+  color: var(--danger-strong);
+  background: var(--danger-subtle);
+  padding: 0.5rem 0.75rem;
+  border-radius: var(--radius-md);
+}
+
+/* ---- verdict ---- */
+
+.tfb-verdict {
+  display: flex;
+  gap: 1rem;
+  align-items: stretch;
+  flex-wrap: wrap;
+  margin: 1.25rem 0;
+}
+
+.tfb-agg {
+  display: flex;
+  flex-direction: column;
+  gap: 0.15rem;
+  padding: 0.75rem 1rem;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  background: var(--bg-secondary);
+  min-width: 15rem;
+}
+
+.tfb-agg__label {
+  font-size: 0.75rem;
+  color: var(--muted);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.tfb-agg__value {
+  font-family: var(--font-mono);
+  font-size: 1.5rem;
+  font-weight: var(--font-weight-semibold);
+  color: var(--ink);
+}
+
+.tfb-thresh {
+  flex: 1 1 22rem;
+  padding: 0.75rem 1rem;
+  border-radius: var(--radius-md);
+  border-left: 3px solid var(--border-strong);
+  background: var(--bg-secondary);
+  color: var(--ink);
+  display: flex;
+  align-items: center;
+}
+
+.tfb-thresh--yes {
+  border-left-color: var(--info-strong);
+  background: var(--info-subtle);
+}
+
+.tfb-thresh--no {
+  border-left-color: var(--growth-positive);
+  background: var(--bg-secondary);
+}
+
+.tfb-thresh--unknown {
+  border-left-color: var(--gold-strong);
+  background: var(--gold-subtle);
+}
+
+.tfb-status {
+  padding: 0.75rem 1rem;
+  color: var(--muted);
+  align-self: center;
+}
+
+/* ---- rates ---- */
+
+.tfb-rates {
+  margin: 0 0 1.5rem;
+  padding: 0.85rem 1rem;
+  border: 1px solid var(--gold-strong);
+  background: var(--gold-subtle);
+  border-radius: var(--radius-md);
+}
+
+.tfb-rates h2 {
+  margin: 0 0 0.35rem;
+  font-size: 1rem;
+  font-family: var(--font-heading);
+}
+
+.tfb-rates__warn {
+  margin: 0 0 0.75rem;
+  color: var(--ink);
+  max-width: 84ch;
+  font-size: 0.86rem;
+}
+
+.tfb-rates__list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+}
+
+.tfb-rates__list li {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  flex-wrap: wrap;
+}
+
+.tfb-rates__ccy {
+  font-family: var(--font-mono);
+  font-weight: var(--font-weight-semibold);
+  min-width: 3rem;
+}
+
+.tfb-rates__reject {
+  flex-basis: 100%;
+  margin: 0.15rem 0 0.5rem;
+  padding: 0.4rem 0.6rem;
+  border-radius: var(--radius-md);
+  background: var(--danger-subtle);
+  color: var(--danger-strong);
+  font-size: 0.82rem;
+}
+
+.tfb-prefill {
+  color: var(--danger-strong);
+  font-weight: var(--font-weight-medium);
+}
+
+.tfb-btn {
+  padding: 0.35rem 0.7rem;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  background: var(--bg);
+  color: var(--ink);
+  cursor: pointer;
+}
+
+.tfb-btn:disabled { opacity: 0.5; cursor: not-allowed; }
+
+/* ---- needs / cells ---- */
+
+.tfb-need {
+  color: var(--danger-strong);
+  font-size: 0.8rem;
+  font-style: italic;
+}
+
+.tfb-needs {
+  margin-top: 1.5rem;
+  padding: 0.85rem 1rem;
+  border-left: 3px solid var(--danger-strong);
+  background: var(--danger-subtle);
+  border-radius: var(--radius-md);
+}
+
+.tfb-needs h2 {
+  margin: 0 0 0.25rem;
+  font-size: 1rem;
+  font-family: var(--font-heading);
+  color: var(--ink);
+}
+
+.tfb-needs ul {
+  margin: 0.5rem 0 0;
+  padding-left: 1.1rem;
+  color: var(--ink);
+}
+
+.tfb-detail { color: var(--muted); font-size: 0.82rem; }
+
+@media (max-width: 700px) {
+  .tfb-page { padding: 1rem 0.75rem; }
+  .tfb-verdict { flex-direction: column; }
+}
