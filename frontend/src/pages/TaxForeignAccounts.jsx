@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
+import { AlertTriangle } from "lucide-react";
 import Rest from "../js/rest";
 import DataTable from "../components/DataTable/DataTable";
 import Modal from "../components/Modal/Modal";
@@ -123,12 +124,22 @@ export default function TaxForeignAccounts() {
     {
       key: "account_id",
       header: "Linked to fin",
-      render: (r) =>
-        r.account_id ? (
-          <span className="tfa-linked">{r.account_name}</span>
-        ) : (
-          <span className="tfa-unlinked">not linked — no computed figure</span>
-        ),
+      render: (r) => {
+        if (r.account_id) return <span className="tfa-linked">{r.account_name}</span>;
+        // Unlinked means no ledger behind the line, so its maximum can only be
+        // typed. That is a problem worth seeing only if the line is actually
+        // going on the form — an EXCLUDED row is unlinked on purpose and an
+        // amber flag on it is noise that trains you to ignore the amber.
+        if (r.review_state === "excluded") {
+          return <span className="tfa-unlinked">not linked</span>;
+        }
+        return (
+          <span className="tfa-unlinked tfa-unlinked--warn">
+            <AlertTriangle size={14} aria-hidden="true" />
+            not linked — figure must be typed
+          </span>
+        );
+      },
     },
     {
       key: "actions",

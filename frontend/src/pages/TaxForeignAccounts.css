@@ -110,6 +110,23 @@
   font-size: 0.8rem;
 }
 
+/* Amber, not red: a typed figure is a legitimate way to fill this line
+   (every Part IV row is one). It needs attention, it is not an error. */
+.tfa-unlinked--warn {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+  padding: 0.15rem 0.4rem;
+  border-radius: var(--radius-md);
+  border: 1px solid var(--border);
+  background: var(--warning-subtle);
+  color: var(--warning-strong);
+  font-style: normal;
+  font-weight: var(--font-weight-medium);
+}
+
+.tfa-unlinked--warn svg { flex-shrink: 0; }
+
 .tfa-state {
   padding: 0.2rem 0.4rem;
   border-radius: var(--radius-md);
