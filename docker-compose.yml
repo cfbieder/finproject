@@ -90,8 +90,24 @@ services:
     depends_on:
       - server
     ports:
-      - "3006:80"
-      - "5175:443"
+      # CR082 P0b: loopback ONLY, so the UI is reachable exclusively over the
+      # tailnet. `tailscale serve` already fronts this —
+      #   https://fin.tail413695.ts.net -> https+insecure://localhost:5175
+      # — and it runs ON the host, so a 127.0.0.1 binding is all it needs. What
+      # this removes is the parallel unauthenticated door: these were published
+      # on every interface, so http://192.168.1.87:3006 served the whole app,
+      # COA page included, to anything on the house network.
+      #
+      # Tailscale's own device auth is the gate. Chosen over nginx basic-auth
+      # (owner, 2026-08-15): no shared password to manage or leak, no browser
+      # prompt fighting the installed PWA's service worker, and the tailnet is
+      # already an authenticated network.
+      #
+      # ⚠️ Consequence, and it is the point: fin is no longer reachable from the
+      # LAN at all. Any device that used http://192.168.1.87:3006 must join the
+      # tailnet and use the ts.net URL.
+      - "127.0.0.1:3006:80"
+      - "127.0.0.1:5175:443"
     volumes:
       - ./certs:/etc/nginx/certs:ro
       - ./frontend/nginx.conf:/etc/nginx/conf.d/default.conf:ro
