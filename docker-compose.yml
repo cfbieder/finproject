@@ -54,7 +54,18 @@ services:
       # via host.docker.internal on Linux (CR021 Phase 7).
       - "host.docker.internal:host-gateway"
     ports:
-      - "3005:3005"
+      # CR082 P0b: loopback ONLY. This was "3005:3005" — every interface — so the
+      # whole API answered anything on the LAN or the tailnet, bypassing nginx
+      # entirely. Proved rather than argued: a plain
+      #   curl http://192.168.1.87:3005/api/v2/util/coa-traits
+      # returned all 230 accounts, each with its AccountNumber, unauthenticated.
+      # CR082 is about to put full foreign bank account numbers in that column,
+      # so auth on the proxy alone would have looked like a fix while leaving the
+      # real door open. Same reasoning as CR034's DB binding, one notch tighter:
+      # nginx reaches the API as server:3005 over the docker network (host
+      # publishing is irrelevant to it), and the 06:00 feed cron uses
+      # localhost:3005, so neither is affected.
+      - "127.0.0.1:3005:3005"
     volumes:
       - ./components/data:/app/components/data
       - ./components/reports:/app/components/reports

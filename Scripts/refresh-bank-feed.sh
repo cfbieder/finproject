@@ -16,7 +16,9 @@
 # Usage:
 #   ./Scripts/refresh-bank-feed.sh              # stage last 30 days
 #   SINCE_DAYS=45 ./Scripts/refresh-bank-feed.sh
-#   BASE_URL=http://192.168.1.87:3005 ./Scripts/refresh-bank-feed.sh
+#   (The API is bound to 127.0.0.1 since CR082 P0b — it no longer answers on the
+#    LAN or the tailnet, so this script must run ON the host. A BASE_URL naming
+#    192.168.1.87 or 100.94.46.62 will now be refused, by design.)
 #   ./Scripts/refresh-bank-feed.sh --dry-run    # show the request, don't send
 #
 # Crontab (daily 06:00, like backup-to-remote.sh runs on its own cadence):
