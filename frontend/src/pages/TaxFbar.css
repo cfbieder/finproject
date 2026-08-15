@@ -164,6 +164,23 @@
   min-width: 3rem;
 }
 
+/* Fixed widths so the three rows read as a column, not three ragged lines. */
+.tfb-rates__cur {
+  min-width: 12rem;
+  font-size: 0.85rem;
+}
+
+.tfb-rates__list input.tfb-rates__in {
+  width: 9rem;
+  text-align: right;
+}
+
+.tfb-rates__unit {
+  color: var(--muted);
+  font-size: 0.8rem;
+  min-width: 7rem;
+}
+
 .tfb-rates__reject {
   flex-basis: 100%;
   margin: 0.15rem 0 0.5rem;

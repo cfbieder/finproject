@@ -61,7 +61,17 @@ export default function TaxFbar() {
     setError("");
     try {
       const r = await Rest.fetchJson(`/api/v2/tax/fbar/${y}`);
-      setReport(r?.data || null);
+      const data = r?.data || null;
+      setReport(data);
+      // Seed each rate box with the rate currently stored, so the field is an
+      // EDIT of a real number rather than a blank you retype from scratch.
+      // Safe only because "Set as Treasury" is disabled while the value is
+      // unchanged — otherwise one click would stamp the ECB prefill 'treasury'.
+      setRateDraft(
+        Object.fromEntries(
+          (data?.rates || []).map((x) => [x.currency.trim(), String(x.rate_to_usd)])
+        )
+      );
     } catch (e) {
       setError(e?.message || "Failed to load the report.");
     } finally {
@@ -82,8 +92,7 @@ export default function TaxFbar() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ currency, rate_to_usd: Number(value), source: "treasury" }),
       });
-      setRateDraft((d) => ({ ...d, [currency]: "" }));
-      await load(year);
+      await load(year); // reseeds every box from what is now stored
     } catch (e) {
       // The direction guard answers 409 with the reciprocal of what was typed —
       // which is almost always the number the user meant. Surface it verbatim.
@@ -200,35 +209,55 @@ export default function TaxFbar() {
               <h2>Exchange rates</h2>
               <p className="tfb-rates__warn">
                 {nonTreasury.length} rate(s) are still the <strong>ECB prefill</strong>. FinCEN
-                requires the Treasury <strong>31 December</strong> rate. Enter this column as{" "}
-                <strong>USD per 1 unit</strong> — Treasury publishes the reciprocal, and pasting it
-                that way round is refused.
+                requires the Treasury <strong>31 December</strong> rate — that date, not an average
+                and not the day the maximum occurred. Each box holds the rate stored now; edit it,
+                then Set. Treasury publishes the reciprocal of this direction, and pasting it that
+                way round is refused on save.
               </p>
               <ul className="tfb-rates__list">
                 {report.rates
                   .filter((r) => r.currency.trim() !== "USD")
                   .map((r) => {
                     const ccy = r.currency.trim();
+                    const draft = rateDraft[ccy] ?? "";
+                    // Unchanged ⇒ nothing to assert. This is what makes the
+                    // prefill safe: you cannot stamp the ECB number 'treasury'
+                    // without first editing it into a different number.
+                    const unchanged =
+                      draft === "" ||
+                      !Number.isFinite(Number(draft)) ||
+                      Number(draft) === Number(r.rate_to_usd);
                     return (
                       <li key={ccy}>
                         <span className="tfb-rates__ccy">{ccy}</span>
-                        <span className={r.source === "treasury" ? "" : "tfb-prefill"}>
-                          {r.rate_to_usd} <em>({r.source})</em>
+                        <span
+                          className={`tfb-rates__cur ${
+                            r.source === "treasury" ? "" : "tfb-prefill"
+                          }`}
+                        >
+                          <em>{r.source}</em>
                         </span>
                         <input
+                          className="tfb-rates__in"
                           type="number"
                           step="0.000001"
-                          placeholder="Treasury rate"
-                          value={rateDraft[ccy] ?? ""}
+                          aria-label={`${ccy} rate, USD per 1 ${ccy}`}
+                          value={draft}
                           onChange={(e) => setRateDraft((d) => ({ ...d, [ccy]: e.target.value }))}
                         />
+                        <span className="tfb-rates__unit">USD per 1 {ccy}</span>
                         <button
                           type="button"
                           className="btn btn--secondary btn--xs"
-                          disabled={!rateDraft[ccy]}
+                          disabled={unchanged}
+                          title={
+                            unchanged
+                              ? "Edit the rate first — an unchanged value has nothing to restamp."
+                              : `Store ${draft} as the Treasury 31-Dec rate for ${ccy}`
+                          }
                           onClick={() => saveRate(ccy)}
                         >
-                          Set
+                          Set as Treasury
                         </button>
                         {rateMsg?.currency === ccy && (
                           <p className="tfb-rates__reject">{rateMsg.text}</p>
