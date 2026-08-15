@@ -174,17 +174,35 @@ router.put('/fx-rates/:year', async (req, res, next) => {
     );
     if (ref.length && !req.body.confirm_outlier) {
       const refRate = Number(ref[0].rate);
-      const ratio = Number(rate_to_usd) / refRate;
-      if (ratio > 1.25 || ratio < 0.8) {
+      const entered = Number(rate_to_usd);
+      // A reciprocal typo is not detectable by MAGNITUDE, which is how the first
+      // version of this guard got it wrong: a ±25% band caught EUR at 1.175
+      // (whose inverse, 0.851, sits 28% away) and would have sailed past EUR at
+      // 1.10 (inverse 0.909, only 17% away). The band shrinks to nothing as a
+      // rate approaches parity — precisely where the two directions are hardest
+      // for a human to tell apart.
+      //
+      // The right question is not "is this far from the reference" but "is this
+      // closer to the reference or to its INVERSE". Compared in log space, so
+      // the test is symmetric: a rate and its reciprocal are equidistant from 1.
+      const dDirect = Math.abs(Math.log(entered / refRate));
+      const dInverse = Math.abs(Math.log(entered * refRate));
+      const inverted = dInverse < dDirect;
+      const wayOff = entered / refRate > 1.25 || entered / refRate < 0.8;
+      if (inverted || wayOff) {
         return res.status(409).json({
           error: 'rate_direction_suspect',
-          message:
-            `${rate_to_usd} is ${ratio.toFixed(2)}x our ${currency} reference (${refRate}). ` +
-            `This column is USD per 1 ${currency}; Treasury publishes ${currency} per USD ` +
-            `(≈${(1 / refRate).toFixed(4)}). If you meant the reciprocal, invert it. ` +
-            `Resend with confirm_outlier=true to store as typed.`,
+          message: inverted
+            ? `${entered} looks INVERTED: it is closer to 1/${refRate} than to our ${currency} ` +
+              `reference of ${refRate}. This column is USD per 1 ${currency}; Treasury publishes ` +
+              `${currency} per USD. You probably meant ${(1 / entered).toFixed(6)}. ` +
+              `Resend with confirm_outlier=true to store as typed.`
+            : `${entered} is ${(entered / refRate).toFixed(2)}x our ${currency} reference ` +
+              `(${refRate}) — outside the plausible band. Resend with confirm_outlier=true ` +
+              `to store as typed.`,
           reference_rate: refRate,
-          reciprocal_of_entered: Number((1 / Number(rate_to_usd)).toFixed(6)),
+          reciprocal_of_entered: Number((1 / entered).toFixed(6)),
+          suspected: inverted ? 'inverted' : 'out_of_band',
         });
       }
     }
