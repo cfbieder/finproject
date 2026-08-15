@@ -70,32 +70,69 @@ router.get('/designations/:id/number', async (req, res, next) => {
   } catch (e) { next(e); }
 });
 
-// GET /api/v2/tax/unlinked-candidates?designationId= — fin accounts this row could be
+// GET /api/v2/tax/unlinked-candidates — fin accounts this designation could be
 router.get('/unlinked-candidates', async (req, res, next) => {
   try {
-    const { currency, taxYear } = req.query;
+    const { currency, taxYear, institution } = req.query;
     if (!currency) return res.status(400).json({ error: 'currency is required' });
     const year = Number(taxYear) || new Date().getFullYear() - 1;
+
+    // Every unlinked account in the currency is returned — nothing is filtered
+    // out. Filtering would need a rule for what counts as "a financial account",
+    // and any such rule is hardcoded chart names that rot: reorganise the COA and
+    // a legitimate candidate silently disappears.
+    //
+    // Instead each candidate carries its PARENT (the owner's own COA grouping),
+    // which is the honest discriminator. `Santandar` sits under `PLN Bank
+    // Accounts`; `PL - Niemena` under `PL - Properties`; `United Beverages` under
+    // `PL Investments`. That distinction is obvious on sight and needs no logic.
+    //
+    // Name similarity alone does NOT solve this, which is why it is only a tie-
+    // break: the case that exposed the problem is a designation reading "Erste"
+    // (formerly Bank Zachodni WBK) whose fin account is called `Santandar` —
+    // three names for one bank, zero token overlap between any of them.
     const { rows } = await db.query(
-      `SELECT a.id, a.name, a.currency
+      `SELECT a.id, a.name, a.currency, p.name AS parent_name
          FROM accounts a
+         LEFT JOIN accounts p ON p.id = a.parent_id
         WHERE a.is_active AND a.currency = $1
           AND a.account_type IN ('asset','liability')
           AND NOT EXISTS (SELECT 1 FROM accounts c WHERE c.parent_id = a.id)
           AND NOT EXISTS (SELECT 1 FROM tax_foreign_accounts t WHERE t.account_id = a.id)
-        ORDER BY a.name`,
+        ORDER BY p.name NULLS LAST, a.name`,
       [currency]
     );
+
     // Each candidate carries its computed maximum, so the choice is made against
-    // real figures rather than names alone — the three PKO PLN accounts differ by
-    // over a million dollars and are indistinguishable by name.
+    // real figures rather than names — the three PKO PLN accounts are
+    // indistinguishable by name and differ by over a million dollars.
     const { accountYearFigures } = require('../../v2/services/fbarMaxValue');
+    const tokens = String(institution || '')
+      .toLowerCase().split(/[^a-z0-9]+/).filter((t) => t.length > 2);
+    // A SORT hint, never a filter — and the distinction is the whole point. If
+    // this pattern is wrong the account still appears, one row lower; a filter
+    // built on the same guess would make it vanish. Ordering alphabetically by
+    // group is worse than useless here: `PL - Properties` sorts above `PLN Bank
+    // Accounts`, so the one real candidate for an Erste row landed 7th of 8,
+    // below two properties and four company holdings.
+    const BANKISH = /bank|cash|checking|saving|deposit|current/i;
     const out = [];
     for (const a of rows) {
       const f = await accountYearFigures(db, a.id, year);
-      out.push({ ...a, max_native: f.refused ? null : f.reportable_max_native,
-                 refused: !!f.refused, refusal: f.refusal_reason || null });
+      const hay = `${a.name} ${a.parent_name || ''}`.toLowerCase();
+      out.push({
+        ...a,
+        max_native: f.refused ? null : f.reportable_max_native,
+        refused: !!f.refused,
+        refusal: f.refusal_reason || null,
+        name_match: tokens.some((t) => hay.includes(t)),
+        group_bankish: BANKISH.test(a.parent_name || ''),
+      });
     }
+    out.sort((x, y) => (y.name_match - x.name_match)
+      || (y.group_bankish - x.group_bankish)
+      || String(x.parent_name || '').localeCompare(String(y.parent_name || ''))
+      || x.name.localeCompare(y.name));
     res.json({ data: out });
   } catch (e) { next(e); }
 });

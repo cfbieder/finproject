@@ -224,6 +224,15 @@
 
 .tfa-cands label:hover { background: var(--bg-secondary); }
 
+.tfa-cands__grp {
+  font-size: 0.76rem;
+  color: var(--muted);
+  padding: 0.05rem 0.4rem;
+  border: 1px solid var(--border-subtle);
+  border-radius: 999px;
+  white-space: nowrap;
+}
+
 .tfa-cands__amt {
   margin-left: auto;
   font-family: var(--font-mono);

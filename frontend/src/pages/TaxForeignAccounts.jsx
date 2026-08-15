@@ -229,7 +229,8 @@ function EditDialog({ row, taxYear, onClose, onSaved }) {
       .catch(() => alive && setFullNumber(""));
     if (!row.account_id && currency) {
       Rest.fetchJson(
-        `/api/v2/tax/unlinked-candidates?currency=${encodeURIComponent(currency)}&taxYear=${taxYear}`
+        `/api/v2/tax/unlinked-candidates?currency=${encodeURIComponent(currency)}` +
+          `&taxYear=${taxYear}&institution=${encodeURIComponent(row.institution_name || "")}`
       )
         .then((r) => alive && setCandidates(r?.data || []))
         .catch(() => alive && setCandidates([]));
@@ -237,7 +238,7 @@ function EditDialog({ row, taxYear, onClose, onSaved }) {
     return () => {
       alive = false;
     };
-  }, [row.id, row.account_id, currency, taxYear]);
+  }, [row.id, row.account_id, row.institution_name, currency, taxYear]);
 
   const set = (k) => (e) => setForm((f) => ({ ...f, [k]: e.target.value }));
 
@@ -366,8 +367,10 @@ function EditDialog({ row, taxYear, onClose, onSaved }) {
             <p className="tfa-link__why">
               Without a link there is no computed maximum and you type the figure by hand.
               Linked to the <em>wrong</em> account, the figure is real and belongs to
-              something else — which no total will catch. The {currency || "—"} maxima for{" "}
-              {taxYear} are shown so you can tell them apart by amount.
+              something else — which no total will catch. Every unlinked {currency || "—"}{" "}
+              account is listed, including properties and holdings, so check the{" "}
+              <strong>group</strong> as well as the name; {taxYear} maxima are shown so you
+              can also tell them apart by amount.
             </p>
             {candidates === null ? (
               <p>Looking for candidates…</p>
@@ -398,6 +401,12 @@ function EditDialog({ row, taxYear, onClose, onSaved }) {
                         onChange={() => setForm((f) => ({ ...f, account_id: c.id }))}
                       />
                       <span>{c.name}</span>
+                      {/* The COA group is the discriminator. Nothing is filtered
+                          out of this list, so a property and a company sit in it
+                          alongside the bank accounts — and "PL - Properties"
+                          beside the name is what makes that obvious at a glance,
+                          without a rule that decides for you. */}
+                      <span className="tfa-cands__grp">{c.parent_name || "—"}</span>
                       <span className="tfa-cands__amt">
                         {c.refused ? `refused: ${c.refusal}` : `max ${fmt(c.max_native, c.currency)}`}
                       </span>
