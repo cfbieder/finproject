@@ -136,12 +136,29 @@
   font-size: 0.78rem;
 }
 
+/* Three states, three backgrounds. Reportable and excluded previously differed
+   only by text colour on the same white field, so the two opposite decisions
+   looked alike at a glance -- which is the one thing this column exists to
+   show. Colour carries the meaning; the selected label still states it, so
+   nothing depends on distinguishing the hues. */
 .tfa-state--unreviewed {
   border-color: var(--gold-strong);
   background: var(--gold-subtle);
+  color: var(--gold-strong);
 }
 
-.tfa-state--excluded { color: var(--muted); }
+.tfa-state--reportable {
+  border-color: var(--success-strong);
+  background: var(--success-subtle);
+  color: var(--success-strong);
+  font-weight: var(--font-weight-medium);
+}
+
+.tfa-state--excluded {
+  border-color: var(--border-strong);
+  background: var(--bg-tertiary);
+  color: var(--muted);
+}
 
 /* ---- modal ---- */
 
