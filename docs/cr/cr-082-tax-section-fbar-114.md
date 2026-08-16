@@ -1,9 +1,12 @@
 # CR082 — A Taxes section, first form: FinCEN Form 114 (FBAR) — ✅ COMPLETE (2026-08-16)
 
 > **Every phase built and every open item closed — [§11c](#11c-the-remaining-items-closed-2026-08-16).**
-> P0b–P3 have been live on prod since 2026-08-16; the final increment (P0a, migration **071**,
-> the carry-in guard, freeze-on-file, TY2024-as-filed, XLSX and the Part I filer block) is on
-> `main` and **NOT yet deployed**. ⚠️ **A deploy must apply migration 071 to prod first.**
+> **Everything is on prod as of 2026-08-16** — P0b–P3 earlier that day, then the final increment
+> (P0a, migration **071**, the carry-in guard, freeze-on-file, TY2024-as-filed, XLSX and the Part I
+> filer block), with **071 applied to prod before the code** by the deploy script's Step 2b.
+> Verified against the running API afterwards: `/util/coa-traits` serves **no** full account number
+> for any of its 230 accounts, TY2024 reads `filed` with 31 lines, and TY2025 still reports 16 lines
+> at **$2,627,821** with nothing outstanding.
 
 Roadmap anchor: [project-roadmap.md#cr082](../current/project-roadmap.md#cr082). **Track: v3** —
 no flags, no tenant context, nothing under `server/src/v2/db/`.
@@ -632,8 +635,8 @@ tokens, primitives, envelopes and behaviour, and every one of them passed while 
 
 ## 11c. The remaining items, closed 2026-08-16
 
-Everything §11b listed as still open. On `main`, **not yet deployed** — a deploy must apply
-**migration 071** to prod first.
+Everything §11b listed as still open. **Deployed to prod 2026-08-16**, migration **071** applied
+first through the runner, and the TY2024 filing seeded on prod as well as dev.
 
 | Item | What shipped |
 |---|---|

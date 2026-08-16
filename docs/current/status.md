@@ -8,7 +8,7 @@
 > CR index and roadmap already own, and it is where stale facts collect. Each cut has come from
 > MOVING something that changes on a different clock, never from deleting what is true.
 
-**Last updated:** 2026-08-16 · **Live version:** **v3.29.0** (see `VERSION` / git tags) — the untagged drift past `v3.28.3` is closed by this release, which carries CR082's fixes with it
+**Last updated:** 2026-08-16 · **Live version:** **v3.29.0** (see `VERSION` / git tags) — ⚠️ prod runs **`2301cf5`, three commits PAST that tag** (CR082's closeout + the CI fix), deployed without a version bump
 
 ## Current phase
 **The model, since [CR069](../cr/cr-069-forecast-streams.md):** a module is *identity + optional
@@ -113,7 +113,7 @@ scenarios are REGENERATED**. It changes far less often than this file does.
   **CR081 stays DEFERRED** — AI-proposed-edit acceptance measured **0/15, twice**, and its one
   high-value phase needs data a local model cannot fetch.
 - ⏱ 🟢 **[CR082](../cr/cr-082-tax-section-fbar-114.md) — a `Taxes` section, first form FinCEN 114
-  (FBAR). LIVE ON PROD, and every open item now CLOSED (2026-08-16, on `main`, not yet deployed).**
+  (FBAR). COMPLETE AND FULLY ON PROD — every open item closed and deployed 2026-08-16.**
   Migration 070 (dev + prod 2026-08-15), code deployed 08-16; **TY2025 has a figure on every line** —
   16 lines, 13 computed and 3 typed, aggregate $2,627,821, threshold exceeded. Full record:
   [§11b](../cr/cr-082-tax-section-fbar-114.md#11b-shipped-to-prod-2026-08-16) and
@@ -121,13 +121,17 @@ scenarios are REGENERATED**. It changes far less often than this file does.
   The seven that closed: **P0a** — `/util/coa-traits` served a full `AccountNumber` for all 230
   accounts to any caller; now masked, with a per-account reveal (**the frontend half is the risky
   one — the old read-row-and-post-it-back would have wiped real numbers on any rename**) ·
-  **year-scoped `review_state`** (migration **071**, dev-applied) so excluding a 2026-opened account
+  **year-scoped `review_state`** (migration **071**, dev + prod) so excluding a 2026-opened account
   no longer hides it from TY2026 · the **§12b.14 carry-in guard**, which cannot tell "held X on 1
   January" from "did not exist yet" and now says so · **freeze-on-file wired to a button** (it had
   endpoints nobody could reach) **plus amendments** · **TY2024 seeded as filed** — 31 lines,
   $1,462,652, matching the client copy · **XLSX** with its own formatter (the shared one returns
   **0** for a missing figure) · **Part I filer block**, TIN/DOB in Postgres only.
-  ⚠️ **Deploy needs migration 071 applied to prod first.**
+  Migration **071** was applied to prod before the code (deploy Step 2b), the TY2024 filing is
+  seeded on prod as well as dev, and the API was re-checked afterwards: **no full account number
+  for any of 230 accounts**, TY2024 `filed` with 31 lines, TY2025 unchanged at $2,627,821.
+  ⚠️ **Prod runs `2301cf5`, past the `v3.29.0` tag — this increment shipped without a version bump.**
+  ⚠️ **The Part I filer block is empty**: the owner still has to enter name/TIN/DOB/address once.
 - 📋 **[CR083](../cr/cr-083-budget-latest-estimate.md) — the budget Latest Estimate (LE), DRAFTED
   2026-08-16, design CLOSED, ready to build.** **Two full dual-review rounds**: round 1 falsified three
   of the CR's headline figures, round 2 **four more — three inside paragraphs round 1 had just
