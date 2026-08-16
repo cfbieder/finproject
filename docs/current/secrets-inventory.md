@@ -11,6 +11,22 @@
 | FINTABLE_API_TOKEN | bank-feed → fintable REST API V2 (CR059) | `bank-feed/.env` on 192.168.1.87 (placeholder in `.env.example`) | ☐ | 2026-07-28 (created) | **expires 1 year — 2027-07-28** / exposure / scope change (read → write for reconnect) |
 | ~~anthropic_api_key~~ | nothing in Fin | REMOVED 2026-08-05 (v3.14.2) from `components/data/appdata.json` **and** the `app_data` table | n/a | **REVOKED 2026-08-05** (console key `chris-ocme-api-key`) | closed |
 
+**Not env vars, but they belong on this page: the CR082 identity data.** Locations only, per this
+file's standing rule — and the reason they are listed is the lesson at the bottom of it, that a
+secret can live in a *data document* and nothing here would have named it.
+
+| Data | Lives in | Served how | Never in |
+|---|---|---|---|
+| Foreign bank account numbers (full) | `accounts.account_number` · `tax_foreign_accounts.own_account_number` — **Postgres only** | Masked in every list; full value only from `GET /util/coa/:id/account-number` and `GET /tax/designations/:id/number`, one account at a time | No file, no log line, no `audit_log` payload, no diagnostic dump. **`GET /util/coa-traits` served all 230 in full until CR082 P0a (2026-08-16)** |
+| Filer TIN and date of birth (Form 114 Part I) | `app_data.tax_filer` — **Postgres only** | Masked by `GET /tax/filer` (TIN to last four, DOB to year); full values only from `GET /tax/filer/reveal` | Omitted from `GET /util/appdata`, which merges the whole `app_data` table into its response. **`POST /util/appdata` REFUSES this key** — that handler persists to a JSON file on disk |
+| Joint-owner name / TIN / address | `tax_foreign_accounts.joint_owner_*` — Postgres only | Designation editor | As above |
+
+⚠️ **These are not rotatable.** A leaked API key is revoked; a leaked TIN, date of birth or IBAN is
+leaked permanently. That asymmetry is why the controls are placement (Postgres, never a document)
+and blast radius (no bulk payload ever carries them) rather than rotation — and why every `pg_dump`
+in `Backups/` taken after 2026-08-15 contains all of it in plaintext, the same way the pre-2026-08-05
+dumps still carry the revoked Anthropic key.
+
 **Removed 2026-08-05 — `anthropic_api_key`.** `GET /api/v2/util/appdata` returned the whole
 appdata document to any caller (v3 has no auth), including this key, reachable over the Tailscale
 origin. **Nothing read it** — AI Review goes through the ocr-llm gateway (`LLM_GATEWAY_URL`), and

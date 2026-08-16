@@ -1,4 +1,9 @@
-# CR082 — A Taxes section, first form: FinCEN Form 114 (FBAR) — 🔨 IN-PROGRESS (P0b–P3 LIVE ON PROD)
+# CR082 — A Taxes section, first form: FinCEN Form 114 (FBAR) — ✅ COMPLETE (2026-08-16)
+
+> **Every phase built and every open item closed — [§11c](#11c-the-remaining-items-closed-2026-08-16).**
+> P0b–P3 have been live on prod since 2026-08-16; the final increment (P0a, migration **071**,
+> the carry-in guard, freeze-on-file, TY2024-as-filed, XLSX and the Part I filer block) is on
+> `main` and **NOT yet deployed**. ⚠️ **A deploy must apply migration 071 to prod first.**
 
 Roadmap anchor: [project-roadmap.md#cr082](../current/project-roadmap.md#cr082). **Track: v3** —
 no flags, no tenant context, nothing under `server/src/v2/db/`.
@@ -624,6 +629,71 @@ tokens, primitives, envelopes and behaviour, and every one of them passed while 
   too (§7 specified year-scoped and this does not deliver it).
 - The §12b.14 carry-in guard · XLSX beyond CSV · Part I filer block (name, TIN, DOB, address) never
   entered.
+
+## 11c. The remaining items, closed 2026-08-16
+
+Everything §11b listed as still open. On `main`, **not yet deployed** — a deploy must apply
+**migration 071** to prod first.
+
+| Item | What shipped |
+|---|---|
+| **P0a** — the account-number leak | `/util/coa-traits` now serves `AccountNumberMasked` + `HasAccountNumber`; the full value comes from `GET /util/coa/:id/account-number`, one account at a time, called by the COA edit form when it opens — the same shape `routes/tax.js` already used |
+| **TY2024 as `filed`** | `Scripts/seed-fbar-2024-filing.js`; 31 lines (19 III + 12 IV), **$1,462,652**, matching the figure independently extracted from the client copy |
+| **Freeze-on-file** | *Mark as filed* and *Open an amendment* on `/tax/fbar`, plus the filed-vs-recomputed diff loading unprompted |
+| **Year-scoped `review_state`** | Migration **071** — a sparse per-year override, resolved `COALESCE(override, standing)` |
+| **§12b.14 carry-in guard** | `carry_in_only` on the engine, `warning: unverified_carry_in` on the line, amber on screen, on the CSV, black on paper |
+| **XLSX** | `utils/fbarWorkbook.js` with its own formatter and a pre-flight refusal |
+| **Part I filer block** | `app_data.tax_filer`, masked read + explicit reveal, excluded from `/util/appdata` and refused by its POST |
+
+**Four defects surfaced while closing them, none of which the suite could see.**
+
+**1. P0a's frontend half was the dangerous half, and the roadmap's one-line prescription
+("drop `AccountNumber` from the payload and the column") would have caused data loss.** COA rows
+carried the stored number and posted it back on **every** save — `resolveField('accountNumber')`.
+Remove it from the payload and that round-trip writes an **empty string** over a real account number
+on any unrelated rename, and over **every selected account at once** in a multi-edit. The number is
+now sent only when that edit typed one; `/coa/update` already treats an absent key as "leave it
+alone", which is why the fix is a deleted key rather than a value. The move path stops restating it
+at all.
+
+**2. Item 15a blocked its own filing.** "Maximum value unknown" is an answer Form 114 provides for,
+but the line sat in `needs_attention`, and `freezeYear` refuses a year with anything in that list.
+So the only way to file a legitimately unknown maximum was `force` — i.e. to override the guard
+protecting every other line. It is now its own category: no figure, aggregate still a **floor**, not
+an outstanding task. §12b.13 called 15a "the one that gets used"; it was also the one that could not
+be filed.
+
+**3. The diff said "nothing has moved" when nothing had been *checked*.** TY2024's filed lines stand
+alone — `tax_foreign_account_id` is NULL, exactly as migration 070 intends for a return transcribed
+from paper — so there was nothing to recompute them against, and a null delta was indistinguishable
+from a figure that still reconciles. **A filing where zero lines could be verified read as a filing
+where zero lines had changed.** `filedVsRecomputed` now returns `comparable` per row with
+`comparable_count` / `moved_count`, and the panel leads with how many of the filed lines can be
+recomputed at all. *Found by seeding TY2024 — which is precisely the verification §9 said it would
+buy, arriving within a minute of the seed.*
+
+**4. The typed-figure dialog erased its own provenance.** The PUT **replaces** the override row
+(there is no unique key on `(filing_id, designation)` — §12.1's shape), and the dialog opened with a
+blank reason box. So correcting an amount wiped `manual_reason`. That is why the three TY2025 typed
+lines carry no source, which §11b noted without finding the cause.
+
+**Two exposure paths closed with the filer block, both `/util/coa-traits` one table over.**
+`GET /util/appdata` merges the **whole `app_data` table** into its response with `Object.assign`, so
+`tax_filer` would have been served to every caller on every page load; it is now on that endpoint's
+redaction list, **named explicitly rather than pattern-matched**, because the dangerous key is always
+the one nobody thought to list. And `POST /util/appdata` persists to a **JSON file on disk**, which
+§7.1 forbids for a TIN — it now refuses the key with a sentence rather than dropping it silently.
+
+**Verified:** 981 backend + 517 frontend tests; the tax suites **green on a from-scratch database**
+via `Scripts/test-fresh-db.sh`, with 071's post-condition NOTICE emitted on the full chain; all five
+ratchets clean. ⚠️ **Nothing has been rendered in a browser** — still no renderer on this host, and
+§11b's eight owner-found defects are the standing evidence that green gates and a correct page are
+different claims. The XLSX tests assert **cell contents** rather than that a file appeared, which is
+the nearest available substitute.
+
+**Still true, and out of scope here:** `PKO TFI` shows 6,000 PLN on the balance sheet continuously
+since 1990 (a ledger defect, tracked on the roadmap), and giving `calibrate()` an `audit_log` row
+remains the adjacent work §6 named — the diff can still show *what* moved and not *why*.
 
 ## 12. Corrections to this CR, made before any code (2026-08-15)
 

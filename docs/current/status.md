@@ -113,16 +113,21 @@ scenarios are REGENERATED**. It changes far less often than this file does.
   **CR081 stays DEFERRED** — AI-proposed-edit acceptance measured **0/15, twice**, and its one
   high-value phase needs data a local model cannot fetch.
 - ⏱ 🟢 **[CR082](../cr/cr-082-tax-section-fbar-114.md) — a `Taxes` section, first form FinCEN 114
-  (FBAR). LIVE ON PROD** — migration 070 (dev + prod 2026-08-15), code deployed 08-16; 12 endpoints,
-  both pages, typed figures, CSV + print/PDF. Full record: [§11b](../cr/cr-082-tax-section-fbar-114.md#11b-shipped-to-prod-2026-08-16).
-  **TY2025 now has a figure on every line** — 16 lines, 13 computed and 3 typed from statements,
-  aggregate $2,627,821, threshold exceeded. Ready to hand to the preparer.
-  ⚠️ **P0a is still open**: `GET /api/v2/util/coa-traits` returns an `AccountNumber` field for all
-  230 accounts to any caller, and `COATreeRow.jsx:78` renders it. The *network* exposure is closed
-  (everything loopback, UI on the tailnet) but the payload was never scrubbed — and **32 of 36
-  designations now hold full foreign account numbers**, so "before any number is entered" is a gate
-  that has already been passed. Remaining beyond that: freeze-on-file unexercised · `review_state`
-  is global not per-year · the §12b.14 carry-in guard · TY2024-as-filed was never seeded.
+  (FBAR). LIVE ON PROD, and every open item now CLOSED (2026-08-16, on `main`, not yet deployed).**
+  Migration 070 (dev + prod 2026-08-15), code deployed 08-16; **TY2025 has a figure on every line** —
+  16 lines, 13 computed and 3 typed, aggregate $2,627,821, threshold exceeded. Full record:
+  [§11b](../cr/cr-082-tax-section-fbar-114.md#11b-shipped-to-prod-2026-08-16) and
+  [§11c](../cr/cr-082-tax-section-fbar-114.md#11c-the-remaining-items-closed-2026-08-16).
+  The seven that closed: **P0a** — `/util/coa-traits` served a full `AccountNumber` for all 230
+  accounts to any caller; now masked, with a per-account reveal (**the frontend half is the risky
+  one — the old read-row-and-post-it-back would have wiped real numbers on any rename**) ·
+  **year-scoped `review_state`** (migration **071**, dev-applied) so excluding a 2026-opened account
+  no longer hides it from TY2026 · the **§12b.14 carry-in guard**, which cannot tell "held X on 1
+  January" from "did not exist yet" and now says so · **freeze-on-file wired to a button** (it had
+  endpoints nobody could reach) **plus amendments** · **TY2024 seeded as filed** — 31 lines,
+  $1,462,652, matching the client copy · **XLSX** with its own formatter (the shared one returns
+  **0** for a missing figure) · **Part I filer block**, TIN/DOB in Postgres only.
+  ⚠️ **Deploy needs migration 071 applied to prod first.**
 - 📋 **[CR083](../cr/cr-083-budget-latest-estimate.md) — the budget Latest Estimate (LE), DRAFTED
   2026-08-16, design CLOSED, ready to build.** **Two full dual-review rounds**: round 1 falsified three
   of the CR's headline figures, round 2 **four more — three inside paragraphs round 1 had just
