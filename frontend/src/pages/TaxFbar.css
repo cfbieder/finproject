@@ -299,13 +299,25 @@
   flex-wrap: wrap;
 }
 
+/* The tax year lives only inside an <input>, which print hides — so without
+   this the sheet handed to a preparer would not say WHICH YEAR it is for. Set
+   from the page via a CSS custom property so there is one source for it. */
+.tfb-printhead { display: none; }
+
 /* ---- print / PDF ----
-   The browser's "Save as PDF" is the PDF export. What it must not print is the
-   application around the papers: the sidebar, the toolbar, and the row buttons
-   are navigation, and on paper they are just ink. */
+   The shell (sidebar, top strip, footer) and the table scroll clip are handled
+   globally in Layout.css / DataTable.css. Only what is specific to these
+   working papers lives here. */
 @media print {
   .tfb-header__tools,
   .tfb-page .btn { display: none !important; }
+
+  .tfb-printhead {
+    display: block;
+    margin: 0 0 0.75rem;
+    font-size: 0.85rem;
+    color: #000;
+  }
 
   .tfb-page {
     padding: 0;
@@ -313,17 +325,21 @@
     color: #000;
   }
 
+  .tfb-sub { max-width: none; }
+
+  /* Tinted panels turn to grey mush on a mono printer; outline them instead. */
   .tfb-rates,
-  .tfb-needs {
+  .tfb-needs,
+  .tfb-agg,
+  .tfb-thresh {
     border: 1px solid #999;
     background: transparent;
+    color: #000;
   }
 
-  .tfb-agg,
-  .tfb-thresh { background: transparent; border: 1px solid #999; }
+  /* Keep the verdict and the rate provenance with the figures they qualify. */
+  .tfb-verdict,
+  .tfb-rates { page-break-inside: avoid; }
 
-  /* A row split across a page break is a figure you have to hunt for. */
-  table { page-break-inside: auto; }
-  tr { page-break-inside: avoid; page-break-after: auto; }
-  thead { display: table-header-group; }
+  .tfb-needs { page-break-before: auto; }
 }

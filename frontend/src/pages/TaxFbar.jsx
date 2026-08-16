@@ -226,6 +226,13 @@ export default function TaxFbar() {
       <header className="tfb-header">
         <div>
           <h1>FinCEN Form 114 (FBAR)</h1>
+          {/* Print-only. The year is otherwise held in an <input> that print
+              hides, which would leave the sheet not saying which year it is. */}
+          <p className="tfb-printhead">
+            <strong>Tax year {year}</strong> · working papers printed{" "}
+            {new Date().toISOString().slice(0, 10)}
+            {report ? ` · ${report.lines.length} accounts · filing status ${report.filing_status}` : ""}
+          </p>
           <p className="tfb-sub">
             Working papers, not a filable form. Form 114 asks one figure per account: the
             maximum value during the calendar year. Year-end is shown as supporting data —

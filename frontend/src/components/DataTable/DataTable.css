@@ -115,3 +115,41 @@
     white-space: nowrap;
   }
 }
+
+/* ---- print ----
+   `.data-table-scroll` is what lets a wide table scroll sideways on screen. In
+   print there is no sideways: the viewport is the sheet, so the container clips
+   instead of scrolling and the right-hand columns simply vanish — which is how
+   the FBAR papers printed without their USD column. Release the clip, let the
+   table lay out at whatever width it needs, and shrink the type to fit. */
+@media print {
+  .data-table-wrap,
+  .data-table-scroll {
+    overflow: visible !important;
+    border: none;
+    background: transparent;
+    max-height: none !important;
+  }
+
+  .data-table {
+    font-size: 0.7rem;
+    width: 100%;
+    table-layout: auto;
+  }
+
+  /* A sticky header is positioned against a scroll container that no longer
+     exists, and prints once, floating. Repeat it per page instead. */
+  .data-table thead {
+    position: static;
+    display: table-header-group;
+    background: transparent;
+  }
+
+  .data-table th,
+  .data-table td {
+    padding: 0.2rem 0.35rem;
+    border-bottom: 1px solid #ccc;
+  }
+
+  .data-table tr { page-break-inside: avoid; }
+}

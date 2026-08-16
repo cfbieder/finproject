@@ -64,3 +64,40 @@
     transform: translateY(0);
   }
 }
+
+/* ---- print ----
+   Printing a page should produce the page, not a photograph of the
+   application. Everything the shell contributes — sidebar, top strip, footer,
+   the command palette and help panel — is navigation: useful on screen, pure
+   ink on paper. This lives in Layout.css rather than in one page's stylesheet
+   because the shell is what has to be removed, and it is the same shell on
+   every page. */
+@media print {
+  .sidebar,
+  .topstrip,
+  .app-footer {
+    display: none !important;
+  }
+
+  .app-layout,
+  .app-layout--sidebar {
+    display: block;
+    min-height: 0;
+    background: #fff;
+  }
+
+  .app-main { display: block; }
+
+  /* The shell owns width and gutters on screen; on paper the sheet does. */
+  .page-content-area {
+    display: block;
+    animation: none;
+  }
+
+  .page-shell {
+    display: block;
+    max-width: none;
+    margin: 0;
+    padding: 0;
+  }
+}
