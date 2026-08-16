@@ -2,6 +2,7 @@ import { useCallback, useEffect, useState } from "react";
 import Rest from "../js/rest";
 import DataTable from "../components/DataTable/DataTable";
 import Modal from "../components/Modal/Modal";
+import { exportFbarWorkbook, fbarExportBlockers } from "../utils/fbarWorkbook";
 import "./TaxFbar.css";
 
 /**
@@ -65,14 +66,26 @@ export default function TaxFbar() {
   const [rateDraft, setRateDraft] = useState({});
   const [rateMsg, setRateMsg] = useState(null);
   const [figureFor, setFigureFor] = useState(null);
+  const [freezing, setFreezing] = useState(false);
+  const [diff, setDiff] = useState(null);
+  const [fileMsg, setFileMsg] = useState("");
 
   const load = useCallback(async (y) => {
     setLoading(true);
     setError("");
+    setFileMsg("");
     try {
       const r = await Rest.fetchJson(`/api/v2/tax/fbar/${y}`);
       const data = r?.data || null;
       setReport(data);
+
+      // Filed years carry a diff worth seeing unprompted: `calibrate()` rewrites
+      // opening_balance across all history with no audit row, so a filed figure
+      // and the same figure recomputed today drift apart for reasons that leave
+      // no trace in the ledger. Waiting for the user to ask would mean the drift
+      // is only ever found by someone who already suspected it.
+      const d = await Rest.fetchJson(`/api/v2/tax/fbar/${y}/diff`);
+      setDiff(d?.data?.filed ? d.data : null);
       // Seed each rate box with the rate currently stored, so the field is an
       // EDIT of a real number rather than a blank you retype from scratch.
       // Safe only because "Set as Treasury" is disabled while the value is
@@ -107,6 +120,63 @@ export default function TaxFbar() {
       // The direction guard answers 409 with the reciprocal of what was typed —
       // which is almost always the number the user meant. Surface it verbatim.
       setRateMsg({ currency, text: e?.message || "Rate rejected." });
+    }
+  };
+
+  /**
+   * Mark the year filed. This is the only thing that makes a filed figure
+   * recoverable: `calibrate()` moves history with no audit row, so a year that
+   * is merely "computed and then transcribed" cannot be reproduced afterwards.
+   * The freeze COPIES every figure, number and institution name onto the filing
+   * lines rather than joining to them.
+   *
+   * Refuses a year with lines still missing a figure — a filing frozen with
+   * holes records a number nobody stands behind — and says so rather than
+   * offering a force button here. Force exists on the API for the seeding case
+   * (a historical year reconstructed from a paper return); it is not a thing to
+   * click past on the year you are about to send.
+   */
+  const freeze = async () => {
+    if (!window.confirm(
+      `Mark tax year ${year} as FILED?\n\n`
+      + `Every figure, account number and institution name is copied into the filing `
+      + `as it stands right now, and the year stops accepting edits. This is what makes `
+      + `the filed numbers survive a later calibrate() — but it is not reversible: a `
+      + `correction is a second filing (an amendment), not an edit to this one.`
+    )) return;
+    setFreezing(true);
+    setFileMsg("");
+    try {
+      const r = await Rest.fetchJson(`/api/v2/tax/fbar/${year}/freeze`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ filed_on: null, note: null }),
+      });
+      setFileMsg(`Filed — ${r?.data?.lines ?? 0} line(s) frozen.`);
+      await load(year);
+    } catch (e) {
+      setFileMsg(e?.message || "Could not file the year.");
+    } finally {
+      setFreezing(false);
+    }
+  };
+
+  const amend = async () => {
+    if (!window.confirm(
+      `Open an amendment for ${year}?\n\n`
+      + `The filed figures stay exactly as they are and stay readable — this starts a `
+      + `SECOND filing for the same year, which is what an amended FBAR is.`
+    )) return;
+    setFreezing(true);
+    setFileMsg("");
+    try {
+      const r = await Rest.fetchJson(`/api/v2/tax/fbar/${year}/amend`, { method: "POST" });
+      setFileMsg(`Amendment ${r?.data?.amendment_seq} opened — the year is editable again.`);
+      await load(year);
+    } catch (e) {
+      setFileMsg(e?.message || "Could not open an amendment.");
+    } finally {
+      setFreezing(false);
     }
   };
 
@@ -247,6 +317,20 @@ export default function TaxFbar() {
     URL.revokeObjectURL(url);
   };
 
+  // The Excel worksheet is the one a preparer transcribes from, so unlike the CSV
+  // it refuses while any reportable line has no figure — an empty cell in a money
+  // column gets read as zero by whoever opens it next.
+  const exportBlockers = report ? fbarExportBlockers(report) : [];
+
+  const exportXlsx = () => {
+    setFileMsg("");
+    try {
+      exportFbarWorkbook(report, year);
+    } catch (e) {
+      setFileMsg(e?.message || "Could not build the worksheet.");
+    }
+  };
+
   return (
     <div className="tfb-page">
       <header className="tfb-header">
@@ -275,8 +359,24 @@ export default function TaxFbar() {
             className="btn btn--secondary btn--sm"
             disabled={!report}
             onClick={exportCsv}
+            title="The working dump — includes the outstanding lines, labelled"
           >
             Export CSV
+          </button>
+          <button
+            type="button"
+            className="btn btn--secondary btn--sm"
+            disabled={!report || exportBlockers.length > 0}
+            onClick={exportXlsx}
+            title={
+              exportBlockers.length > 0
+                ? `Not ready: ${exportBlockers.length} line(s) still have no figure. `
+                  + `A worksheet is transcribed from, so a hole in it becomes a hole in `
+                  + `the filing.\n\n${exportBlockers.join("\n")}`
+                : "The transcription worksheet: figures, provenance and the rate each used"
+            }
+          >
+            Export Excel
           </button>
           <button
             type="button"
@@ -324,9 +424,82 @@ export default function TaxFbar() {
               )}
             </div>
             <div className="tfb-status">
-              Filing status: <strong>{report.filing_status}</strong>
+              <span>
+                Filing status: <strong>{report.filing_status}</strong>
+              </span>
+              {report.filing_status === "filed" ? (
+                <button
+                  type="button"
+                  className="btn btn--secondary btn--sm"
+                  disabled={freezing}
+                  onClick={amend}
+                  title="Start a second filing for this year. The filed one is never overwritten."
+                >
+                  Open an amendment
+                </button>
+              ) : (
+                <button
+                  type="button"
+                  className="btn btn--primary btn--sm"
+                  disabled={freezing || report.needs_attention.length > 0}
+                  onClick={freeze}
+                  title={
+                    report.needs_attention.length > 0
+                      ? `${report.needs_attention.length} line(s) still have no figure — a filing frozen with holes records a number nobody stands behind.`
+                      : "Copy every figure into the filing and stop accepting edits"
+                  }
+                >
+                  {freezing ? "Working…" : "Mark as filed"}
+                </button>
+              )}
+              {fileMsg && <span className="tfb-filemsg">{fileMsg}</span>}
             </div>
           </section>
+
+          {/* ── The point of the freeze, made visible (§6) ──
+              A filed figure and the same figure recomputed today should be
+              identical. When they are not, `calibrate()` has rewritten
+              opening_balance across all history — with no audit row, which is
+              why this panel can show WHAT moved and not WHY. */}
+          {diff && (
+            <section
+              className={
+                diff.rows.some((r) => r.delta_native)
+                  ? "tfb-diff tfb-diff--moved"
+                  : "tfb-diff"
+              }
+            >
+              <h2>Filed vs recomputed today</h2>
+              {diff.rows.some((r) => r.delta_native) ? (
+                <p className="tfb-sub">
+                  The ledger no longer reproduces what was filed. That is expected — a
+                  single <code>calibrate()</code> rewrites <code>opening_balance</code> across
+                  every historical date and writes no audit row — and it is exactly why the
+                  filed figures were copied rather than left to be recomputed. The filed
+                  column is what was sent; nothing here changes it.
+                </p>
+              ) : (
+                <p className="tfb-sub">
+                  Every filed figure still recomputes to the same number. Nothing has moved
+                  under this filing.
+                </p>
+              )}
+              <ul className="tfb-diff__list">
+                {diff.rows
+                  .filter((r) => r.delta_native)
+                  .map((r) => (
+                    <li key={r.label}>
+                      <strong>{r.label}</strong> — filed {native(r.filed_native, r.currency)},
+                      now {native(r.recomputed_native, r.currency)}{" "}
+                      <span className="tfb-detail">
+                        ({r.delta_native > 0 ? "+" : ""}
+                        {Number(r.delta_native).toLocaleString("en-US")})
+                      </span>
+                    </li>
+                  ))}
+              </ul>
+            </section>
+          )}
 
           {nonTreasury.length > 0 && (
             <section className="tfb-rates">
@@ -473,7 +646,14 @@ function FigureDialog({ line, taxYear, onClose, onSaved }) {
   const [amount, setAmount] = useState(
     line.source === "typed" && line.max_native !== null ? String(line.max_native) : ""
   );
-  const [reason, setReason] = useState("");
+  // Prefilled, because the PUT REPLACES the override row rather than patching it
+  // (there is no unique key on (filing_id, designation) — see the route). Opening
+  // this dialog to correct an amount and leaving the box blank therefore used to
+  // erase the provenance. That is how the three TY2025 typed lines ended up with
+  // no `manual_reason`: the sheet could not say which statement each came from.
+  const [reason, setReason] = useState(
+    line.source === "typed" ? (line.detail || "") : ""
+  );
   const [unknown, setUnknown] = useState(line.max_unknown === true);
   const [saving, setSaving] = useState(false);
   const [err, setErr] = useState("");

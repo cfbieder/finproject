@@ -117,6 +117,10 @@
   padding: 0.75rem 1rem;
   color: var(--muted);
   align-self: center;
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  flex-wrap: wrap;
 }
 
 /* ---- rates ---- */
@@ -386,3 +390,40 @@
 
   .tfb-needs { page-break-before: auto; }
 }
+
+/* ---- filing controls and the filed-vs-recomputed diff (CR082 §6) ---- */
+.tfb-filemsg {
+  font-size: 0.82rem;
+  color: var(--ink-secondary);
+  max-width: 46ch;
+}
+
+.tfb-diff {
+  margin-top: 1.25rem;
+  padding: 0.85rem 1rem;
+  border-left: 3px solid var(--border);
+  background: var(--bg-secondary);
+  border-radius: var(--radius-md);
+}
+
+/* Only tinted when something actually moved. A panel that looks like a warning
+   whether or not there is anything wrong is one that stops being read. */
+.tfb-diff--moved {
+  border-left-color: var(--gold-strong);
+  background: var(--gold-subtle);
+}
+
+.tfb-diff h2 {
+  margin: 0 0 0.25rem;
+  font-size: 1rem;
+  font-family: var(--font-heading);
+  color: var(--ink);
+}
+
+.tfb-diff__list {
+  margin: 0.5rem 0 0;
+  padding-left: 1.1rem;
+  color: var(--ink);
+}
+
+.tfb-diff__list:empty { display: none; }

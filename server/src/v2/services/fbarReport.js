@@ -132,6 +132,16 @@ async function buildYear(client, taxYear) {
       line.source = 'typed';
       line.max_native = typed;
       line.detail = ov.manual_reason || null;
+    } else if (line.max_unknown) {
+      // Form 114 item 15a. "The maximum value is unknown" is an ANSWER the form
+      // provides for, not an outstanding task — it is the honest response when no
+      // statement can be obtained, and it is better than a guess that reads as a
+      // measurement. So it carries no figure, contributes nothing to the
+      // aggregate (which stays a floor), and must NOT sit in `needs_attention`:
+      // doing so made a year containing one impossible to freeze without `force`,
+      // which would have meant the only way to file a legitimately-unknown
+      // maximum was to override the guard protecting every other line.
+      line.source = 'unknown_15a';
     } else if (d.account_id) {
       const f = await accountYearFigures(client, d.account_id, taxYear);
       if (f.refused) {
@@ -162,7 +172,7 @@ async function buildYear(client, taxYear) {
     }
 
     // 2. Convert. A missing rate is a refusal, never a guess.
-    if (line.needs_figure === null) {
+    if (line.needs_figure === null && line.max_native !== null) {
       if (!currency) {
         line.needs_figure = NEEDS.NO_CURRENCY;
       } else {
@@ -183,7 +193,11 @@ async function buildYear(client, taxYear) {
   const withFigure = lines.filter((l) => l.max_usd !== null);
   const missing = lines.filter((l) => l.max_usd === null);
   const aggregate = withFigure.reduce((s, l) => s + l.max_usd, 0);
+  // A 15a line still has no figure, so the aggregate is still a FLOOR — the
+  // verdict must not read as complete. What it no longer is, is an outstanding
+  // task blocking the filing.
   const isFloor = missing.length > 0;
+  const outstanding = missing.filter((l) => !l.max_unknown);
 
   return {
     tax_year: taxYear,
@@ -198,9 +212,15 @@ async function buildYear(client, taxYear) {
     // UNDER 10k with rows outstanding is NOT "no filing required"; that is the
     // "looks like an answer" failure one level up from a zeroed line.
     threshold_exceeded: aggregate > 10000 ? true : (isFloor ? null : false),
-    needs_attention: missing.map((l) => ({
+    needs_attention: outstanding.map((l) => ({
       designation_id: l.designation_id, label: l.label,
       reason: l.needs_figure, detail: l.detail,
+    })),
+    // Answered "unknown" under item 15a — reported separately so the export can
+    // print them as such and the count is visible, rather than being silently
+    // absent from both lists.
+    unknown_15a: missing.filter((l) => l.max_unknown).map((l) => ({
+      designation_id: l.designation_id, label: l.label,
     })),
     // Kept SEPARATE from needs_attention. Those lines have no figure and block
     // the verdict; these have one and do not. Folding them together would
@@ -283,6 +303,40 @@ async function freezeYear(client, taxYear, { filedOn = null, note = null, force 
 }
 
 /**
+ * Open an amendment: a NEW filing for the same year, `draft`, at the next
+ * `amendment_seq`. The filed rows are untouched and stay readable beside it —
+ * `(tax_year, amendment_seq)` rather than `tax_year UNIQUE` exists for exactly
+ * this (§6).
+ *
+ * There is deliberately no "reopen" that flips a filed row back to draft. What
+ * was sent to FinCEN was sent; a correction is a second filing, which is also
+ * what an amended FBAR actually is. Un-filing would make the frozen figures
+ * editable again and destroy the only record of what was filed — the thing the
+ * freeze exists to prevent.
+ */
+async function amendYear(client, taxYear) {
+  const { rows } = await client.query(
+    `SELECT id, amendment_seq, status FROM tax_fbar_filings
+      WHERE tax_year = $1 ORDER BY amendment_seq DESC LIMIT 1`,
+    [taxYear]
+  );
+  if (!rows.length) {
+    throw new Error(`${taxYear} has no filing to amend`);
+  }
+  if (rows[0].status !== 'filed') {
+    throw new Error(
+      `${taxYear} is already a draft (amendment ${rows[0].amendment_seq}) — edit it rather than amending`
+    );
+  }
+  const ins = await client.query(
+    `INSERT INTO tax_fbar_filings (tax_year, amendment_seq, status)
+     VALUES ($1, $2, 'draft') RETURNING id, amendment_seq`,
+    [taxYear, rows[0].amendment_seq + 1]
+  );
+  return { filing_id: ins.rows[0].id, amendment_seq: ins.rows[0].amendment_seq };
+}
+
+/**
  * What was filed, beside what the same year computes today. The point of the
  * freeze: `calibrate()` moves history with no audit row, so these diverge for
  * reasons that are invisible in the ledger. Shows WHAT changed; it cannot show
@@ -325,4 +379,6 @@ async function filedVsRecomputed(client, taxYear) {
   };
 }
 
-module.exports = { buildYear, freezeYear, filedVsRecomputed, ensureDraft, NEEDS, WARN };
+module.exports = {
+  buildYear, freezeYear, amendYear, filedVsRecomputed, ensureDraft, NEEDS, WARN,
+};

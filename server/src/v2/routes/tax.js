@@ -18,7 +18,9 @@
 const express = require('express');
 const router = express.Router();
 const db = require('../db');
-const { buildYear, freezeYear, filedVsRecomputed } = require('../../v2/services/fbarReport');
+const {
+  buildYear, freezeYear, amendYear, filedVsRecomputed,
+} = require('../../v2/services/fbarReport');
 
 /** `PL61 1090 …3000` → `PL61 …3000`. Never reversible, never logged. */
 function maskNumber(n) {
@@ -424,6 +426,19 @@ router.post('/fbar/:year/freeze', async (req, res, next) => {
     res.json({ data: out });
   } catch (e) {
     if (/already filed|without a figure/.test(e.message)) {
+      return res.status(409).json({ error: e.message });
+    }
+    next(e);
+  }
+});
+
+// POST /api/v2/tax/fbar/:year/amend — a second filing for the same year.
+// There is no "unfile": see the service note.
+router.post('/fbar/:year/amend', async (req, res, next) => {
+  try {
+    res.json({ data: await amendYear(db, Number(req.params.year)) });
+  } catch (e) {
+    if (/no filing to amend|already a draft/.test(e.message)) {
       return res.status(409).json({ error: e.message });
     }
     next(e);

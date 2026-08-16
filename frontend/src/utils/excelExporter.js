@@ -45,8 +45,14 @@ const buildSheet = (headers, rows) => {
 
 /**
  * Triggers download of a workbook as .xlsx
+ *
+ * Exported so other sheets can reuse the download half without inheriting
+ * `formatNum` below, which coerces anything non-finite to **0**. That is right
+ * for a balance sheet, where a missing node genuinely holds nothing, and wrong
+ * for the FBAR worksheet, where 0 is the claim "this account held nothing all
+ * year" (CR082 §7). `fbarWorkbook.js` brings its own formatter for that reason.
  */
-const downloadWorkbook = (wb, filename) => {
+export const downloadWorkbook = (wb, filename) => {
   const buffer = XLSX.write(wb, { bookType: "xlsx", type: "array" });
   const blob = new Blob([buffer], {
     type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",

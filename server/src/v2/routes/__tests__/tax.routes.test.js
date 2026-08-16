@@ -243,6 +243,17 @@ dbDescribe('CR082 — Taxes API and report assembly (DB)', () => {
       const line = report.lines.find((l) => l.designation_id === id);
       expect(line.max_unknown).toBe(true);
       expect(line.max_usd).toBeNull();
+
+      // 15a is an ANSWER the form provides for, not an outstanding task. It used
+      // to sit in `needs_attention`, which made a year containing one impossible
+      // to freeze without `force` — i.e. the only way to file a legitimately
+      // unknown maximum was to override the guard protecting every other line.
+      expect(report.needs_attention.map((n) => n.designation_id)).not.toContain(id);
+      expect(report.unknown_15a.map((n) => n.designation_id)).toContain(id);
+      // It still has no figure, so the aggregate is still a floor.
+      expect(report.aggregate_is_floor).toBe(true);
+
+      await request(app, 'DELETE', `/tax/designations/${id}`);
     });
   });
 
@@ -486,6 +497,43 @@ dbDescribe('CR082 — Taxes API and report assembly (DB)', () => {
         `SELECT account_number FROM tax_fbar_filing_lines
           WHERE filing_id = (SELECT id FROM tax_fbar_filings WHERE tax_year = $1)`, [YEAR]);
       expect(rows[0].account_number).toBe('PL99 1234 5678');
+    });
+
+    // Runs LAST in this block: it creates a second filing for the year, and the
+    // assertions above use a single-row subquery on `tax_fbar_filings`.
+    test('an amendment is a SECOND filing — the filed one is never unfiled', async () => {
+      const amend = await request(app, 'POST', `/tax/fbar/${YEAR}/amend`, {});
+      expect(amend.status).toBe(200);
+      expect(amend.body.data.amendment_seq).toBe(1);
+
+      // The original is untouched and still readable — the whole reason the key
+      // is (tax_year, amendment_seq) and not tax_year UNIQUE.
+      const { rows: filings } = await db.query(
+        `SELECT amendment_seq, status FROM tax_fbar_filings
+          WHERE tax_year = $1 ORDER BY amendment_seq`, [YEAR]);
+      expect(filings).toHaveLength(2);
+      expect(filings[0]).toMatchObject({ amendment_seq: 0, status: 'filed' });
+      expect(filings[1]).toMatchObject({ amendment_seq: 1, status: 'draft' });
+
+      // The year edits again, against the amendment.
+      const rep = await buildYear(db, YEAR);
+      expect(rep.filing_status).toBe('draft');
+
+      // And the diff still reads the FILED one, not the open draft.
+      const d = await filedVsRecomputed(db, YEAR);
+      expect(d.filed).toBe(true);
+      expect(d.rows.length).toBeGreaterThan(0);
+
+      // A second amend while one is open is refused rather than stacking drafts.
+      const twice = await request(app, 'POST', `/tax/fbar/${YEAR}/amend`, {});
+      expect(twice.status).toBe(409);
+      expect(twice.body.error).toMatch(/already a draft/);
+    });
+
+    test('a year with no filing at all cannot be amended', async () => {
+      const r = await request(app, 'POST', `/tax/fbar/${YEAR - 5}/amend`, {});
+      expect(r.status).toBe(409);
+      expect(r.body.error).toMatch(/no filing to amend/);
     });
   });
 });
