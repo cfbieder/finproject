@@ -312,7 +312,7 @@ ssh cfbieder@192.168.1.87 && cd ~/psproject
 | Script | Purpose |
 |--------|---------|
 | `dev-start.sh` | tmux dev environment |
-| `e2e.sh` | Throwaway Postgres + API + built bundle, then the 8 Playwright specs |
+| `e2e.sh` | Throwaway Postgres + API + built bundle, then the Playwright specs (count in [test-overview.md](test-overview.md)) |
 | `check-lint-debt.sh` | Ratchet: baselined ESLint warnings may only shrink |
 | `check-api-envelope.sh` | Ratchet: v2 responses stay `{data}` + `Rest.unwrap()` |
 | `refresh-bank-feed.sh` | Pulls the bank-feed service's latest balances/transactions. **Stage-only — never promotes** (unattended runs cannot touch the ledger). Crontab `0 6 * * *` with **no `SINCE_DAYS` override**, so the script's own default of **30** governs — it must track bank-feed's `FINTABLE_API_LOOKBACK_DAYS` ([CR059 §22.10](../cr/cr-059-fintable-api-ingestion.md)) |

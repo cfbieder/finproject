@@ -53,7 +53,7 @@ Naming: Vitest convention `*.test.{js,jsx}` under `__tests__/`. `npm run test:wa
 
 ### Playwright e2e — `./Scripts/e2e.sh`
 
-**9 tests across 5 spec files, 0 skipped** (2026-08-09 — `real-terms.spec.js` added by CR079). The script stands up a throwaway
+**10 tests across 6 spec files, 0 skipped** (2026-08-16). The script stands up a throwaway
 Postgres, applies the whole migration chain, seeds
 [`server/db/e2e-seed.sql`](../../server/db/e2e-seed.sql), starts the API, builds and serves the real
 bundle, then runs the specs — so it tests the built frontend against a real database, not mocks.
@@ -64,6 +64,14 @@ bundle, then runs the specs — so it tests the built frontend against a real da
 | `write-paths.spec.js` | 2 | **the value must survive a reopen** — a module's tax override of 0 and income window (CR043 N10), and a COA type change (the v3.0.104 silent drop) |
 | `cr051-currency.spec.js` | 1 | a PLN expense keeps its currency through save + reopen **and** the server derives the USD twin (400 PLN ÷ 4 = 100). Skipped from the day it was written until 2026-08-05 — the Currency `<select>` offers the distinct currencies of every active account, so a USD-only seed could not show PLN. The seed now carries `E2E PLN Wallet`, zero-balance and transaction-free so it cannot move `money-paths`' 108,500 |
 | `nested-modal.spec.js` | 1 | the module output panel opened from the editor can be closed (nested-dialog pointer-events, v3.7.3) |
+| `real-terms.spec.js` | 1 | the Review's today's-money toggle deflates the page **and declares its basis** (CR079, v3.25.0) |
+| `compare-real-terms.spec.js` | 1 | the same toggle on Compare, across A/B (CR079, v3.26.0) |
+
+`helpers.js` is **not** a spec — it holds `confirmSavePreview`, the step CR084 (v3.29.0) added in
+front of every module save. Two specs drive that save, and both broke on it: the preview is a
+SECOND `[role=dialog]`, so the locator matched two elements and the editor never closed. Extracted
+rather than copied into each (failure-pattern #4), and scoped to the preview's own root rather than
+to "the second dialog", because dialog ordering is not a contract.
 
 `e2e.sh` **refuses a bound port**, `exec`s the API and frontend so `$!` is the real pid, and sweeps
 both ports on exit. Before that fix the suite silently tested a server orphaned on :3998 since
