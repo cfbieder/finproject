@@ -219,12 +219,58 @@ router.get('/balance-recon', async (req, res, next) => {
     } catch (e) {
       console.warn('[v2/bank-feed] institution enrich failed (non-fatal):', e.message);
     }
+
+    // CR060: attach the upstream CONNECTION's health to each row, so a dead feed
+    // is visible next to the account it kills rather than in a page nobody opens.
+    // This is the failure this CR exists for: a GoCardless re-consent silently
+    // cut Revolut from three wallets to one and went unnoticed for SEVEN WEEKS,
+    // because a feed that stops produces no error — the balance simply stops
+    // moving, and a stale number looks exactly like an unchanged one.
+    //
+    // Keyed on feed_external_id, which since CR059 P3a IS the fintable account
+    // id, so the join is exact rather than by name.
+    //
+    // Separate try/catch from the institution enrich above, deliberately: these
+    // are independent signals and one being unavailable must not blank the other.
+    // Non-fatal either way — a reconciliation page that will not render because
+    // the health service is down has made an outage worse rather than visible.
+    try {
+      const feeds = await client.feedsHealth();
+      attachFeedHealth(result, feeds && feeds.upstream);
+    } catch (e) {
+      console.warn('[v2/bank-feed] upstream health enrich failed (non-fatal):', e.message);
+      attachFeedHealth(result, { ok: false, reason: e.message });
+    }
     res.json(result);
   } catch (err) {
     console.error('[v2/bank-feed] balance-recon failed:', err.message);
     next(err);
   }
 });
+
+/**
+ * CR060 — attach each row's upstream CONNECTION health, in place.
+ *
+ * Extracted from the route so the one distinction that matters is testable
+ * without a container: **`feed_health: null` means "we could not ask"**, while
+ * **`state: 'unknown'` means "we asked and this account has no upstream
+ * counterpart"**. Collapsing those would let a health-service outage render as a
+ * quiet blank on every row — a page that looks fine precisely when the thing
+ * reporting breakage is itself broken.
+ *
+ * @param {{accounts: object[]}} result   mutated in place
+ * @param {object|null} upstream          the `upstream` block from /v1/health/feeds
+ */
+function attachFeedHealth(result, upstream) {
+  const ok = !!(upstream && upstream.ok);
+  const byAccount = (ok && upstream.accounts_health) || null;
+  result.upstream_ok = ok;
+  result.upstream_reason = !ok ? ((upstream && upstream.reason) || 'upstream health unavailable') : null;
+  for (const a of result.accounts || []) {
+    a.feed_health = byAccount ? (byAccount[a.feed_external_id] || null) : null;
+  }
+  return result;
+}
 
 /**
  * Build a map of feed account external_id → institution_name by joining the
@@ -497,3 +543,7 @@ router.post('/manual/commit', async (req, res) => {
 });
 
 module.exports = router;
+// Exported for tests. The route is an Express handler needing a live service and
+// a database; the enrichment logic is neither, and it carries the one rule worth
+// pinning down (null = could-not-ask vs 'unknown' = asked-and-absent).
+module.exports.attachFeedHealth = attachFeedHealth;

@@ -38,6 +38,48 @@ function StatusPill({ label, kind }) {
   return <span className={`bfd-pill bfd-pill-${kind}`}>{label}</span>;
 }
 
+// CR060 — the upstream CONNECTION behind this row's feed.
+//
+// Deliberately silent when the connection is healthy. The row already carries
+// four numbers and a status; a green tick per row would be noise, and the header
+// pill says "all feeds healthy" once, which is the reassurance that was missing.
+// Only a state that needs a human appears here — and it appears on the ROW,
+// because "Bank Pekao is dead" means nothing until it is attached to the account
+// whose balance stopped moving.
+//
+// `null` is NOT rendered as healthy: it means either this account has no upstream
+// counterpart, or the health service could not be reached — the banner above
+// covers the second case, since a per-row "unknown" on every row would be noise
+// of exactly the kind this CR just spent a threshold fix removing.
+const HEALTH_LABEL = {
+  needs_reconnect: "reconnect needed",
+  unhealthy: "upstream error",
+  never_synced: "never synced",
+  stale: "feed silent",
+};
+
+function ConnectionHealth({ health }) {
+  if (!health || !health.attention) return null;
+  const label = HEALTH_LABEL[health.state] || health.state;
+  const days = health.days_since_upstream_sync;
+  // needs_reconnect is the only state with an action attached, so it is the only
+  // one painted as danger; the rest are "look at this", not "do this now".
+  const kind = health.state === "needs_reconnect" ? "danger" : "warn";
+  return (
+    <div
+      className={`bfd-${kind}`}
+      style={{ fontSize: "0.7rem", fontWeight: 600 }}
+      title={
+        `${health.institution_name || "This feed"} — ${health.status_text || label}` +
+        (days != null ? ` · last upstream sync ${days}d ago` : "")
+      }
+    >
+      ⚠ {label}
+      {days != null && days > 0 ? ` · ${days}d` : ""}
+    </div>
+  );
+}
+
 /**
  * BalanceReconciliation (CR023 §4.C) — per fed account, fin's computed balance
  * vs the bank's reported `feed_balances`, sign-aware, with a "Reconcile to feed"
@@ -220,6 +262,22 @@ export default function BalanceReconciliation() {
       : byInstitution.filter((a) => rowStatus(a) === statusFilter);
   const visibleUnreconciled = visibleAccounts.filter((a) => a.reconciled === false).length;
 
+  // CR060 — distinct CONNECTIONS needing attention, not rows. One dead
+  // connection can carry several accounts (Revolut had three wallets), and
+  // counting rows would report "3 feeds need attention" for a single broken
+  // consent — inflating the number the owner is meant to act on.
+  //
+  // Counted over ALL accounts rather than the filtered view: a feed the current
+  // filter hides is still broken, and a count that changes when you filter is a
+  // count nobody can trust.
+  const feedsNeedingAttention = [
+    ...new Map(
+      (balRecon.accounts || [])
+        .filter((a) => a.feed_health && a.feed_health.attention)
+        .map((a) => [a.feed_health.connection_id || a.feed_health.institution_name, a.feed_health]),
+    ).values(),
+  ];
+
   return (
     <section className="bfd-section recon-panel">
       <div className="recon-title-row">
@@ -275,6 +333,21 @@ export default function BalanceReconciliation() {
           label={visibleUnreconciled === 0 ? "all reconciled" : `${visibleUnreconciled} unreconciled`}
           kind={visibleUnreconciled === 0 ? "ok" : "warn"}
         />
+        {/* CR060 — feed health, stated rather than implied. This CR's own
+            argument for the admin page applies here: blank space is an ambiguous
+            signal, not a reassuring one, so "all feeds healthy" is said out loud.
+            The three cases are deliberately distinct — healthy, N need attention,
+            and "we could not ask", which must never be allowed to look healthy. */}
+        {balRecon.upstream_ok === false ? (
+          <StatusPill label="feed health unavailable" kind="warn" />
+        ) : feedsNeedingAttention.length > 0 ? (
+          <StatusPill
+            label={`${feedsNeedingAttention.length} feed${feedsNeedingAttention.length === 1 ? "" : "s"} need attention`}
+            kind="danger"
+          />
+        ) : balRecon.upstream_ok ? (
+          <StatusPill label="all feeds healthy" kind="ok" />
+        ) : null}
         <label className="bfd-muted">
           Feed{" "}
           <select
@@ -456,6 +529,7 @@ export default function BalanceReconciliation() {
                       </div>
                     );
                   })()}
+                  <ConnectionHealth health={a.feed_health} />
                 </td>
                 <td>
                   {a.reconciled == null ? (
