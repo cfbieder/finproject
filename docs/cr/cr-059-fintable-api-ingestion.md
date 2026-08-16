@@ -1,4 +1,16 @@
-# CR059 — Fintable API ingestion (retire the Google Sheets adapter) — IN-PROGRESS (rev 4 — P0/P1 built, P2 running, P3a/P4 to build)
+# CR059 — Fintable API ingestion (retire the Google Sheets adapter) — **DONE / LIVE** (cut over 2026-08-10; Sheet path retained as rollback + watchdog)
+
+> **Ingest source as of 2026-08-16: the REST API, exclusively.** `FINTABLE_SOURCE=api` in the live
+> service; **every** sync since the 2026-08-10 cutover has run `source=api` (24/24 in the last 24h) and
+> **not one has used the Sheet**. `fetchFintable()` has exactly one call site — inside
+> `fetchAndConvertFromSheet()`, reached only when `config.fintable.source !== 'api'`. Data is current:
+> balances and staged rows through 2026-08-16, 0 mappings without a feed balance.
+>
+> The Sheet is still *reachable* for two deliberate reasons, neither in the daily path — the **rollback**
+> (`FINTABLE_SOURCE=sheets` + recreate) and the **hourly equivalence watchdog**, which reads both
+> upstreams into a throwaway store on :55432 that touches neither the live feed nor fin. Retirement
+> sequencing and the 2026-08-31 exception expiry are tracked in
+> [the roadmap](../current/project-roadmap.md#cr059-sheet-retirement).
 
 Replace bank-feed's Google-Sheets-scraping upstream with **Fintable's own REST API (V2)**, which now
 serves the same accounts, balances and transactions as structured JSON — plus a stable per-transaction

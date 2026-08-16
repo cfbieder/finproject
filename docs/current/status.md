@@ -109,12 +109,30 @@ scenarios are REGENERATED**. It changes far less often than this file does.
   after (nominal + today's money), the line's series, warnings gained/lost, and which scenarios
   really move. **CR081 itself is DEFERRED** — AI-proposed-edit acceptance measured **0/15, twice**,
   and its one high-value phase needs data a local model cannot fetch.
-- ⏱ 🔴 **[CR082](../cr/cr-082-tax-section-fbar-114.md) — a `Taxes` section, first form FinCEN 114
-  (FBAR). P0b + P1 + P2 BUILT 2026-08-15, live on DEV, pushed; PROD UNTOUCHED**
-  ([§11a](../cr/cr-082-tax-section-fbar-114.md)). Engine + 10 tests, migration 070, 11 endpoints,
-  the seeder, and both pages (`/tax/foreign-accounts`, `/tax/fbar`). **928 backend + 507 frontend
-  tests, lint 0, ratchets at baseline, build green.** ⚠️ **Nothing rendered in a browser** — no
-  renderer on this host; the pages need an eyeball before prod. **Three same-shape security holes
+- ⏱ 🟢 **[CR082](../cr/cr-082-tax-section-fbar-114.md) — a `Taxes` section, first form FinCEN 114
+  (FBAR). P0b + P1 + P2 + P3 export LIVE ON PROD 2026-08-16**
+  ([§11a](../cr/cr-082-tax-section-fbar-114.md)). Migration 070 (dev 08-15, prod 08-16), 12
+  endpoints, both pages (`/tax/foreign-accounts`, `/tax/fbar`), typed-figure and add-account
+  dialogs, CSV + print/PDF export. **949 backend + 507 frontend tests, lint 0, ratchets at
+  baseline.** **TY2025 is being prepared in the app**: 15 lines, 13 computed, aggregate ≈$2.63M,
+  threshold exceeded, Treasury 31-Dec rates fetched from the Fiscal Data API. Only the Erste
+  statement figures are outstanding.
+  **Eight defects the owner's own review found, all fixed** — and every one was invisible to the
+  test suite: the pages rolled their own button classes (CI caught it); linking an account from the
+  picker raised the raw CHECK-constraint name, because 14 tests created designations already in
+  their final shape and none ever *moved* a row between states, which is the only thing that screen
+  does; `Reportable` and `Excluded` were the same colour; the USD column rendered reason prose under
+  a `$` heading; editing a typed figure twice left two override rows with an arbitrary winner
+  (§12.1's shape again); and **printing produced the app with the money column clipped off** —
+  `.data-table-scroll` scrolls sideways on screen and simply *clips* on paper, so the working papers
+  printed without Maximum (USD), the one figure Form 114 asks for. Print now works app-wide.
+  **Two form facts corrected against the filed TY2024 copy (§12b):** FBAR has **no opened- or
+  closed-during-the-year checkbox** (those are Form 8938, which is also required for this filer),
+  and the engine **cannot distinguish "held X on 1 January" from "did not exist yet"** — both render
+  as a carry-in, which is how `PKO TFI` and `Revolut-PLN`, both set up in 2026, were sitting on the
+  TY2025 report. Remaining: freeze-on-file unexercised; `review_state` is **global, not per-year**,
+  so excluding a 2026-opened account hides it from TY2026 too (§7); the carry-in guard (§12b.14).
+  **Three same-shape security holes
   closed, and the first fix proposed would not have worked:** `curl 192.168.1.87:3005/api/v2/util/coa-traits`
   returned **230 accounts with `AccountNumber`**, unauthenticated, never touching nginx — so proxy
   auth would have looked like a fix. The UI (`3006`/`5175`) and **dev** (`3105`/`5174`) were open
@@ -174,7 +192,8 @@ scenarios are REGENERATED**. It changes far less often than this file does.
 - **CR077's LLM stage** — only over the deterministic rules, never instead of them.
 - **Owner QA of the P&L module inputs** — CR076 §5 and §7 are the agenda.
 - **[CR066](../cr/cr-066-fc-line-mapping-completeness.md) P0** · **CR064 P2/P4/P5/P10** ·
-  **CR059 P3a** → P4 cutover, then CR060's recon page.
+  **CR060's recon page** (CR059 is **done** — cut over to the API 2026-08-10; what remains is dated,
+  not built: retire the Sheet rollback ~2026-08-24 and the 2026-08-31 gate-exception expiry).
 - **With the owner, do not start unasked:** "2026 Downside" (being redone) · CR048's equity-growth
   and FX-stress decisions · [CR058 §12.8–12.9](../cr/cr-058-quicken-valuation-anchors.md) ·
   [CR059](../cr/cr-059-fintable-api-ingestion.md)'s Chase date basis. **`House Morgage` is
