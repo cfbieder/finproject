@@ -15,6 +15,7 @@ const validate = require('../utils/validate');
 const crud = require('../../services/forecast/crud');
 const equity = require('../../services/forecast/equity'); // CR062 P2
 const variants = require('../services/forecastVariants'); // CR050
+const preview = require('../services/forecastPreview');   // CR084 — save-time consequence preview
 const { baseYearFxRate } = require('../../services/forecast/fcbuilder-setup'); // CR051
 const { generateForecast } = require('../../services/forecast');
 const autoAdjust = require('../services/forecastAutoAdjust'); // CR053
@@ -1152,6 +1153,30 @@ router.post('/modules', async (req, res, next) => {
 
 // PUT /api/v2/forecast/modules/:id
 // Accepts PascalCase fields with embedded arrays (Invest, Dispose, IncomePct)
+// POST /api/v2/forecast/modules/:id/preview — CR084: what would this edit DO?
+//
+// Runs the scenario twice on a throwaway copy — once as it stands, once with the change — and
+// returns both entry sets. The client diffs them with the same `compareMatrices` the Compare page
+// uses, so a preview and a comparison cannot show different arithmetic.
+//
+// Deliberately a POST that WRITES NOTHING to the real scenario: the only mutation is against a
+// scratch that is torn down in a `finally`.
+router.post('/modules/:id/preview', async (req, res, next) => {
+  try {
+    const id = Number(req.params.id);
+    if (!Number.isFinite(id)) return res.status(400).json({ error: 'Invalid module id' });
+    const patch = req.body?.patch;
+    if (!patch || typeof patch !== 'object' || Array.isArray(patch)) {
+      return res.status(400).json({ error: 'A `patch` object is required' });
+    }
+    const result = await preview.previewModuleChange({ moduleId: id, patch });
+    res.json({ data: result });
+  } catch (error) {
+    console.error('[forecast/modules/:id/preview] failed:', error.message);
+    res.status(400).json({ error: error.message });
+  }
+});
+
 router.put('/modules/:id', async (req, res, next) => {
   try {
     const id = parseInt(req.params.id);

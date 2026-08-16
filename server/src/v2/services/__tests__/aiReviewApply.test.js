@@ -166,3 +166,26 @@ describeOrSkip('CR081 P0a — AI Review apply guards', () => {
     await db.query('DELETE FROM audit_log WHERE user_info = $1', [`ai-review:${variantReviewId}`]);
   });
 });
+
+/**
+ * The prompt is the contract with the model, and one line of it caused a real bad recommendation.
+ * Plain assertions on a string, deliberately: this is the only place the units are stated, and a
+ * revert would otherwise be silent.
+ */
+describe('CR081 P0a — what the system prompt tells the model', () => {
+  const { DEFAULT_SYSTEM_PROMPT } = aiReview;
+
+  test('states that growth_rate is a MULTIPLIER of inflation, with a worked figure', () => {
+    // Observed on prod 2026-08-14: the model proposed `growth_rate → 4` for `Fidelity Stocks`
+    // (then 1.0000) reasoning "a more realistic nominal growth rate for US equities" — it read 4
+    // as 4%, where 4 means 4 × inflation ≈ 10%/yr. Nothing in the prompt had said otherwise.
+    expect(DEFAULT_SYSTEM_PROMPT).toMatch(/MULTIPLIER OF INFLATION/);
+    expect(DEFAULT_SYSTEM_PROMPT).toMatch(/growth_rate 4 = 10%\/yr/);
+  });
+
+  test('does NOT ask the model for current_value', () => {
+    // It was never read server-side, so asking for it only invited a number to be invented and
+    // then rendered to the owner as fact.
+    expect(DEFAULT_SYSTEM_PROMPT).not.toMatch(/current_value/);
+  });
+});
