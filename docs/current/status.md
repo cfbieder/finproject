@@ -104,7 +104,7 @@ scenarios are REGENERATED**. It changes far less often than this file does.
   rules firing on streams **not in the plan** guarded, 17 → 15
   ([CR077 §7](../cr/cr-077-assumption-advisor-tab.md)); Compare in today's money, v3.26.0
   ([CR079 §7](../cr/cr-079-real-terms-view.md)) — only the **Home hero** stays nominal-only.
-- ~~The editor-side consequence preview~~ **DONE, v3.29.0**
+- ~~The editor-side consequence preview~~ **DONE, v3.29.0** (spinner v3.30.1; **LIVE on prod** since v3.30.0)
   ([CR084](../cr/cr-084-save-time-consequence-preview.md)): **Save now shows what it DOES first** —
   net assets before → after, nominal **and** in today's money, plus which scenarios move and which
   do **not**. Two real engine builds on a throwaway copy, applied through the SAME body→columns
