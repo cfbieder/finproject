@@ -11,7 +11,7 @@ Living plan for the Fin project — open Change Requests, known issues, ongoing 
 ### 1.1 Open / In-Progress
 
 <a id="cr082"></a>
-- **CR082 — A Taxes section, first form: FinCEN Form 114 (FBAR). 🔨 IN-PROGRESS — P0b+P1+P2 built 2026-08-15, LIVE ON DEV, prod untouched; migration 070 on dev only. P3 (export) + freeze remain. Pages not yet rendered in a browser.
+- **CR082 — A Taxes section, first form: FinCEN Form 114 (FBAR). 🔨 IN-PROGRESS — P0b+P1+P2+P3 LIVE ON PROD; migration 070 dev + prod 2026-08-15, code deployed 08-16. **TY2025 complete in the app: 16 lines, every one carrying a figure** (13 computed, 3 typed), aggregate $2,627,821. Remaining: **P0a — `/util/coa-traits` still serves an `AccountNumber` field for all 230 accounts and `COATreeRow.jsx:78` renders it; the network exposure is closed but the payload was never scrubbed** · freeze-on-file unexercised · `review_state` is global not per-year, so excluding a 2026-opened account hides it from TY2026 too (§7) · the carry-in guard (§12b.14) · TY2024-as-filed never seeded · XLSX beyond CSV.
   ⏱ TARGET TY2025, DUE 2026-10-15 (61 days).** Owner is on the automatic extension (confirmed
   2026-08-15), so this is date-bound: **P1+P2 is the shippable unit** and the **freeze ships with
   P2**, not after it — you can file by transcribing from the browser, so the export is the
@@ -23,8 +23,10 @@ Living plan for the Fin project — open Change Requests, known issues, ongoing 
   `GET /api/v2/util/coa-traits` (`routes/util/coa.js:24-31`) already returns `AccountNumber` for
   every active account to any unauthenticated caller and `COATreeRow.jsx:78` renders it, so
   "masked in the UI" was false as drafted — that endpoint and nginx basic-auth land **before any
-  number is entered**. Also seeds **TY2024 as `filed`** from last year's actual return, turning
-  P2's first run into a verification against a known-good output rather than a leap of faith.
+  number is entered**. ~~Also seeds **TY2024 as `filed`**~~ — **this never happened.** `tax_fbar_filings` holds one row,
+  `(2025, 0, draft)`. §9 called it "the cheapest correctness gate available" and it was silently
+  skipped; the TY2024 figures live only in gitignored `Samples/Tax/` worksheets. Still worth doing:
+  it turns a future run into a verification against a known-good output.
   Full detail: [CR082](../cr/cr-082-tax-section-fbar-114.md). A new `Taxes` nav category whose
   first page produces the FBAR worksheet: which accounts are foreign (an explicit per-account
   designation, **not** a currency filter — `Wise - USD` is foreign, a EUR property is not an
@@ -263,7 +265,7 @@ Living plan for the Fin project — open Change Requests, known issues, ongoing 
 - **CR061 — [Investment holdings and market prices](../cr/cr-061-holdings-and-prices.md)** — *📋 PLANNED · v3 · split out of CR059 §15B+C.* `securities` and `quicken_price_staging` are **0 rows** — the absence that made [CR056](../cr/cr-056-investment-returns.md) derive returns from ledger postings, [CR058](../cr/cr-058-quicken-valuation-anchors.md) rebuild brokerage history from Quicken, and [CR020](../cr/cr-020-stock-investment-module.md) sit as a skeleton. Fintable serves daily holdings snapshots (quantity, price, market value, cost basis) for the six Fidelity accounts, plus public split-adjusted equity prices where fin has **no** price source at all. Constraints to design around: `cost_basis` is the position total not per share, holdings have **no history pagination** (one call per day per account), and the default IEX feed is a single exchange cacheable up to an hour.
 
 <a id="cr059"></a>
-- **CR059 — [Fintable API ingestion](../cr/cr-059-fintable-api-ingestion.md)** — *🔄 IN-PROGRESS (rev 3) — **P0/P1 built and verified, P2 running on cron**, P3/P4 unbuilt · v3 · pass 1 `revise` (5 blocking, all restated) → pass 2 `revise` (5 must-resolve).* Fintable now serves its own **REST API (V2)**, so bank-feed no longer has to scrape the Google Sheet Fintable exports into. The Sheet costs us a **display-name join** for tx→account (the 2026-07-14 Black Card incident: 31 duplicates, $8.4K gross, **net +$267** so no balance check could see it), Excel-serial dates, floats, a currency that has to be dug out of a JSON string with a different path per upstream, institution identity **guessed** from raw shapes (17 `bank_connections` rows for ~11 real institutions), a full two-tab re-read every hour, and a Google service account + keyfile in the path. The API gives `account_id` on every transaction (the name join stops existing), exact decimal amounts, `YYYY-MM-DD` dates, first-class `connection`/`provider`/`institution_name`, `updated_since` incremental sync, the true `last_successful_update`, and **holdings** — the securities tables [CR019](../cr/cr-019-quicken-import.md)/[CR022](../cr/cr-022-bank-feed-parallel-import.md) left at 0 rows (deferred to its own CR).
+- **CR059 — [Fintable API ingestion](../cr/cr-059-fintable-api-ingestion.md)** — *✅ **DONE — cut over 2026-08-10, ingest is the API exclusively** (`FINTABLE_SOURCE=api`; no sync has used the Sheet since). What remains is dated, not built: [retire the Sheet rollback](#cr059-sheet-retirement) ~2026-08-24 and the [2026-08-31 gate-exception expiry](#cr059-exception-expiry) · v3 · pass 1 `revise` (5 blocking, all restated) → pass 2 `revise` (5 must-resolve).* Fintable now serves its own **REST API (V2)**, so bank-feed no longer has to scrape the Google Sheet Fintable exports into. The Sheet costs us a **display-name join** for tx→account (the 2026-07-14 Black Card incident: 31 duplicates, $8.4K gross, **net +$267** so no balance check could see it), Excel-serial dates, floats, a currency that has to be dug out of a JSON string with a different path per upstream, institution identity **guessed** from raw shapes (17 `bank_connections` rows for ~11 real institutions), a full two-tab re-read every hour, and a Google service account + keyfile in the path. The API gives `account_id` on every transaction (the name join stops existing), exact decimal amounts, `YYYY-MM-DD` dates, first-class `connection`/`provider`/`institution_name`, `updated_since` incremental sync, the true `last_successful_update`, and **holdings** — the securities tables [CR019](../cr/cr-019-quicken-import.md)/[CR022](../cr/cr-022-bank-feed-parallel-import.md) left at 0 rows (deferred to its own CR).
   - *The whole plan hung on one measurement (Phase 0, now run):* **do the API's ids equal the ids we already store?** Ours are the Sheet's account UUIDs and composite tx hashes, and they are load-bearing into fin — 31 `account_source_mappings`, 2,080 `bankfeed_staging` rows, **1,362 of them already promoted to the ledger**. If the ids differ and we just swap adapters, every row re-stages as new and re-promotes: the Black Card shape at ~1,000× scale, again net-of-payments invisible. Same-ids ⇒ drop-in swap; different ⇒ a two-database crosswalk (fin migration **043**).
   - *Second, independent version of that risk:* the API can serve **more history than the Sheet tab held** (our earliest feed row is 2026-04-30) and **5 of 31 mappings still have `promote_from_date = NULL`** — "promote everything". Mitigated by a date floor, an insert-count guard that aborts and rolls back, and filling those 5 cutoffs before cutover.
   - *MCP connector (owner's question):* worth adding for ops/triage, **not** for ingestion — it is OAuth+PKCE with 1-hour tokens, requires the write-capable `mcp:use` scope, and shares the same rate buckets. PAT for the service, MCP for the humans.
@@ -834,6 +836,35 @@ Small fixes, refactors, and one-off cleanups that don't warrant their own CR fil
 ---
 
 ## 3. Known Issues
+
+- [ ] **CR082 P0a — `/util/coa-traits` serves an `AccountNumber` field for all 230 accounts,
+  unauthenticated (still true 2026-08-16).** `routes/util/coa.js` → `accounts.js:503-518`, rendered by
+  `COATreeRow.jsx:78`. P0b closed the *network* (every port loopback, UI on the tailnet, basic-auth
+  superseded by Tailscale device auth) but the payload was never scrubbed, and **32 of 36 CR082
+  designations now hold full foreign account numbers** — so the CR's "before any number is entered"
+  gate has already been passed. Only 3 of 230 accounts populate the field, so dropping it costs
+  nothing. [CR082 §7.1](../cr/cr-082-tax-section-fbar-114.md).
+
+- [ ] **The FBAR engine cannot distinguish "held X on 1 January" from "the account did not exist
+  yet"** — both render as `max_on: carry-in`. Found 2026-08-16: `PKO TFI` and `Revolut-PLN` were both
+  set up in **2026** and were sitting on the TY2025 report with carry-in figures, from
+  `opening_balance` values dated 1990-01-01 (the standard CR012 convention) on accounts with no
+  pre-history for the plug to represent. Both are excluded now, but by hand. A computed line whose
+  maximum is a pure carry-in *and* which has zero transactions in the reported year is not a verified
+  figure and should not sit among the computed rows looking settled.
+  [CR082 §12b.14](../cr/cr-082-tax-section-fbar-114.md).
+
+- [ ] **`tax_foreign_accounts.review_state` is global, not per-year.** Excluding an account opened in
+  2026 removes it from **every** year's report, including TY2026 where it belongs. Two rows carry
+  capitalised notes saying "set back to reportable for TY2026", which is a note relying on someone
+  reading it. [CR082 §7](../cr/cr-082-tax-section-fbar-114.md) specified a year-scoped designation
+  screen and the build does not deliver one.
+
+- [ ] **`PKO TFI` shows 6,000 PLN on the balance sheet continuously since 1990** (found 2026-08-16,
+  outside CR082). The account was created in fin on 2026-03-01 with `opening_balance` 6,000 dated
+  `1990-01-01`; its first transaction is 2026-02-09. Small (~$1,671) but wrong for every historical
+  date, and it is a **ledger** defect rather than a tax one — the same shape will recur for any
+  account added after the fact with a calibration plug and no real pre-history.
 
 - [x] ~~**The e2e suite was testing a three-week-old server**~~ — **FIXED in v3.14.1 (CR069 P3), root cause and all.** `Scripts/e2e.sh` started its server in a `( … ) &` **subshell**, so `$!` held the SUBSHELL's pid: `cleanup` killed the wrapper and node was reparented to init, still holding `:3998`. `npx vite preview` has the same shape one level down, which is how `:4173` collected its own orphan. Found because a July-14 server rejected exactly the fields CR062 (2026-07-31) and CR064 P6 (2026-08-02) added after it, which read as a CR069 regression until the process list was checked — every run in between had reported on stale code while claiming to test the working tree. Three fixes, because the guard alone would only have made it loud: the script now **refuses to start** if either port is already bound (naming the process and the remedy), **`exec`s** so the tracked pid is the real one, and **sweeps both ports on exit** — safe precisely because the guard proved they were free at the start, so anything listening is ours. Verified: it caught two live orphans during the P3 work, and the ports release cleanly every run.
 

@@ -1,4 +1,4 @@
-# CR082 — A Taxes section, first form: FinCEN Form 114 (FBAR) — 📋 PLANNED
+# CR082 — A Taxes section, first form: FinCEN Form 114 (FBAR) — 🔨 IN-PROGRESS (P0b–P3 LIVE ON PROD)
 
 Roadmap anchor: [project-roadmap.md#cr082](../current/project-roadmap.md#cr082). **Track: v3** —
 no flags, no tenant context, nothing under `server/src/v2/db/`.
@@ -500,6 +500,10 @@ virtue on a sheet that will carry foreign account numbers — worth one sentence
 
 ## 11a. Built 2026-08-15 (overnight) — P2 engine first, ahead of P1
 
+> **Superseded by [§11b](#11b-shipped-to-prod-2026-08-16).** This is the build log as it
+> stood on 2026-08-15 and still says "not deployed", "11 endpoints" and "prod still has no
+> `tax_*` tables". All three were true that night and none is true now.
+
 Built out of order, deliberately: the accountant needs **numbers** by 2026-08-16, and the numbers
 need no account numbers, no designation screen and therefore no P0. The security prerequisite
 still gates P1 and has not been touched.
@@ -572,6 +576,54 @@ looks right" are different claims. **Prod still has no `tax_*` tables.**
   *conversion* and the wrong *form entry*; rounding up is a FinCEN rule, not a display choice, and
   the two differ on every line. Pinned by a test rather than by a doc edit.
 - **`WISE - GBP` (§5.1)** — a second live instance of the same-day artifact, 289×.
+
+
+## 11b. Shipped to prod 2026-08-16
+
+Migration **070** applied to prod 2026-08-15 23:25 UTC (backup first), code deployed 2026-08-16,
+and the 35 designations copied from dev rather than re-seeded so the owner's review decisions
+survived. A 36th (`OCME - Pekao`) was added through the new UI. `schema_migrations.checksum`
+is **md5** — the registry insert fails on NOT NULL if you reach for sha256.
+
+**TY2025 is complete in the app**, not on a spreadsheet: **16 lines, every one carrying a figure** —
+13 computed from the ledger, 3 typed from statements (`Bank Zachodni WBK 2408` 45,000 PLN, `WBK 3533`
+0.00 USD, `OCME - Pekao` 50,000 PLN) — aggregate **$2,627,821**, threshold exceeded, `needs_attention`
+empty, and the aggregate is no longer a floor. Treasury 31-Dec rates fetched from the Fiscal Data API
+rather than transcribed. *The three typed lines carry no `manual_reason`*, so the sheet cannot say
+which statement each came from.
+
+**Eight defects the owner's review found in one session, none of which the suite could see:**
+
+| | what | why the tests missed it |
+|---|---|---|
+| 1 | Pages defined one-off button classes | CI caught it — the only one that was gated |
+| 2 | Linking from the picker raised the raw CHECK-constraint name | 14 tests created designations already in their final shape; **none moved a row between states**, which is the only thing that screen does |
+| 3 | `Reportable` / `Excluded` looked identical | no test asserts a colour, and none should |
+| 4 | The USD column rendered reason prose under a `$` heading | ditto |
+| 5 | Unlinked rows were the quietest thing in the row | ditto |
+| 6 | Editing a typed figure twice left two override rows, arbitrary winner | no test edited the same line twice — §12.1's tie-break shape, in the one place a human types the number |
+| 7 | **Print produced the app with the money column clipped** | `.data-table-scroll` scrolls sideways on screen and **clips** on paper, so the papers printed without Maximum (USD). A cut-off column looks like a narrower table, not like missing data |
+| 8 | The rate box stamped `treasury` on whatever was typed | and it duly stamped the ECB values, transcribed from the wrong column of a two-column table in chat |
+
+Items 3–5 and 7 are all the same gap: **nothing in the suite looks at the page.** The gates cover
+tokens, primitives, envelopes and behaviour, and every one of them passed while the page was wrong.
+
+**Still open:**
+
+- **P0a was never done, and §9 wrongly places it inside shipped P1.** `GET /api/v2/util/coa-traits`
+  still returns an `AccountNumber` field for all **230** accounts to any caller, and
+  `COATreeRow.jsx:78` still renders it. P0b closed the *network* (loopback + tailnet; basic-auth was
+  superseded by Tailscale device auth) but the *payload* was never scrubbed — and **32 of 36
+  designations now hold full foreign account numbers**, so "before any number is entered" is a gate
+  that has already been passed. This is the CR's own §7.1 finding, still true.
+- **TY2024-as-`filed` was never seeded.** `tax_fbar_filings` holds one row: `(2025, 0, draft)`. §9
+  called this "the cheapest correctness gate available" — a verification of P2's first run against a
+  known-good output — and it silently did not happen.
+- Freeze-on-file has never been exercised on real data.
+- `review_state` is **global, not per-year**, so excluding a 2026-opened account hides it from TY2026
+  too (§7 specified year-scoped and this does not deliver it).
+- The §12b.14 carry-in guard · XLSX beyond CSV · Part I filer block (name, TIN, DOB, address) never
+  entered.
 
 ## 12. Corrections to this CR, made before any code (2026-08-15)
 

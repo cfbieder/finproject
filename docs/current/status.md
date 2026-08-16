@@ -8,7 +8,7 @@
 > CR index and roadmap already own, and it is where stale facts collect. Each cut has come from
 > MOVING something that changes on a different clock, never from deleting what is true.
 
-**Last updated:** 2026-08-12 · **Live version:** v3.28.2 (see `VERSION` / git tags)
+**Last updated:** 2026-08-16 · **Live version:** see `VERSION` / git tags — ⚠️ prod currently runs **unreleased `main`**, several commits past the `v3.28.3` tag (CR082 deployed without a version bump)
 
 ## Current phase
 **The model, since [CR069](../cr/cr-069-forecast-streams.md):** a module is *identity + optional
@@ -110,54 +110,16 @@ scenarios are REGENERATED**. It changes far less often than this file does.
   really move. **CR081 itself is DEFERRED** — AI-proposed-edit acceptance measured **0/15, twice**,
   and its one high-value phase needs data a local model cannot fetch.
 - ⏱ 🟢 **[CR082](../cr/cr-082-tax-section-fbar-114.md) — a `Taxes` section, first form FinCEN 114
-  (FBAR). P0b + P1 + P2 + P3 export LIVE ON PROD 2026-08-16**
-  ([§11a](../cr/cr-082-tax-section-fbar-114.md)). Migration 070 (dev 08-15, prod 08-16), 12
-  endpoints, both pages (`/tax/foreign-accounts`, `/tax/fbar`), typed-figure and add-account
-  dialogs, CSV + print/PDF export. **949 backend + 507 frontend tests, lint 0, ratchets at
-  baseline.** **TY2025 is being prepared in the app**: 15 lines, 13 computed, aggregate ≈$2.63M,
-  threshold exceeded, Treasury 31-Dec rates fetched from the Fiscal Data API. Only the Erste
-  statement figures are outstanding.
-  **Eight defects the owner's own review found, all fixed** — and every one was invisible to the
-  test suite: the pages rolled their own button classes (CI caught it); linking an account from the
-  picker raised the raw CHECK-constraint name, because 14 tests created designations already in
-  their final shape and none ever *moved* a row between states, which is the only thing that screen
-  does; `Reportable` and `Excluded` were the same colour; the USD column rendered reason prose under
-  a `$` heading; editing a typed figure twice left two override rows with an arbitrary winner
-  (§12.1's shape again); and **printing produced the app with the money column clipped off** —
-  `.data-table-scroll` scrolls sideways on screen and simply *clips* on paper, so the working papers
-  printed without Maximum (USD), the one figure Form 114 asks for. Print now works app-wide.
-  **Two form facts corrected against the filed TY2024 copy (§12b):** FBAR has **no opened- or
-  closed-during-the-year checkbox** (those are Form 8938, which is also required for this filer),
-  and the engine **cannot distinguish "held X on 1 January" from "did not exist yet"** — both render
-  as a carry-in, which is how `PKO TFI` and `Revolut-PLN`, both set up in 2026, were sitting on the
-  TY2025 report. Remaining: freeze-on-file unexercised; `review_state` is **global, not per-year**,
-  so excluding a 2026-opened account hides it from TY2026 too (§7); the carry-in guard (§12b.14).
-  **Three same-shape security holes
-  closed, and the first fix proposed would not have worked:** `curl 192.168.1.87:3005/api/v2/util/coa-traits`
-  returned **230 accounts with `AccountNumber`**, unauthenticated, never touching nginx — so proxy
-  auth would have looked like a fix. The UI (`3006`/`5175`) and **dev** (`3105`/`5174`) were open
-  too, and Vite *proxies* `/api`, so closing dev's API alone would still have leaked while
-  `sync-db-prod-to-dev.sh` copied prod into it. All loopback now; UI on the tailnet
-  (`https://fin.tail413695.ts.net`), dev at `100.94.46.62:5174`; **the LAN is dead by design.**
-  The sync **resolved the 065–069 dev ledger gap** and 070 applied through the runner. **070's
-  `UNIQUE(account_id)` then caught a seeder defect on its first row** — one fin `Santandar` vs five
-  filed WBK accounts, so "one candidate" ≠ unambiguous. Also found a **second live instance** of the
-  same-day artifact: `WISE - GBP` **1,065.00 row-ordered vs 3.68 end-of-day (289×)**, its only
-  activity all year — assume the pattern wherever money crosses currencies. **TARGET TY2025, DUE
-  2026-10-15** (owner is on the automatic extension, confirmed
-  2026-08-15; migration 070). **Both review passes returned *revise* and the technical pass
-  falsified four of the CR's own numbers** — recorded in its §12, because the worst of them was the
-  CR converting PLN at a stale rate in §5 while §4 argued that a plausible rate asserted as an
-  authoritative one is this project's most-repeated failure. Corrected findings: the maximum must be
-  **end-of-day** (`PKO` 2025 = **631,678.72 PLN / $175,842**; a row-ordered running sum gives
-  **793,548** under `(date, id)` and **4,393,629** under `(date, amount DESC)` — the naive answer is
-  a *range* set by an arbitrary tie-break, since transactions carry no timestamp), it must include
-  the **Jan-1 carry-in** (12 accounts carry in above their in-year max, incl. `Wise - USD` at
-  1,718.27 vs 1,552.20 — the CR's own flagship example), and a filed year must be **frozen**, since
-  `calibrate()` rewrites `opening_balance` across all history and writes **no audit row**.
-  ⚠️ **`GET /api/v2/util/coa-traits` already serves every account number in plaintext to any
-  unauthenticated caller** — closing it, and nginx basic-auth, are **P0, before any number is
-  entered**. Six owner tax calls in §8, none blocking.
+  (FBAR). LIVE ON PROD** — migration 070 (dev + prod 2026-08-15), code deployed 08-16; 12 endpoints,
+  both pages, typed figures, CSV + print/PDF. Full record: [§11b](../cr/cr-082-tax-section-fbar-114.md#11b-shipped-to-prod-2026-08-16).
+  **TY2025 now has a figure on every line** — 16 lines, 13 computed and 3 typed from statements,
+  aggregate $2,627,821, threshold exceeded. Ready to hand to the preparer.
+  ⚠️ **P0a is still open**: `GET /api/v2/util/coa-traits` returns an `AccountNumber` field for all
+  230 accounts to any caller, and `COATreeRow.jsx:78` renders it. The *network* exposure is closed
+  (everything loopback, UI on the tailnet) but the payload was never scrubbed — and **32 of 36
+  designations now hold full foreign account numbers**, so "before any number is entered" is a gate
+  that has already been passed. Remaining beyond that: freeze-on-file unexercised · `review_state`
+  is global not per-year · the §12b.14 carry-in guard · TY2024-as-filed was never seeded.
 - **Re-examine SRQ** — **−476,930**: funds itself 35 of 36 years, dry in the last. Marginal, not
   hopeless. **Financing is the untested lever** (all cash, no rent, sells at 7%).
 - **`Retirement Home`** — ~**105,000**/yr today for two, reasonable for assisted living, but the plan
