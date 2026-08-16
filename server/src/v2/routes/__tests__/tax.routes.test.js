@@ -257,6 +257,88 @@ dbDescribe('CR082 — Taxes API and report assembly (DB)', () => {
     });
   });
 
+  // ── Part I (§3, §7.1) ──
+  // The TIN and DOB get the same treatment as an account number, and the
+  // interesting assertions are about where they must NOT appear.
+  describe('the filer block', () => {
+    const psdata = require('../../repositories').psdata;
+    let priorFiler;
+
+    beforeAll(async () => {
+      priorFiler = await psdata.getAppData('tax_filer');
+    });
+    afterAll(async () => {
+      if (priorFiler) await psdata.setAppData('tax_filer', priorFiler);
+      else await db.query(`DELETE FROM app_data WHERE key = 'tax_filer'`);
+    });
+
+    test('stores the block, and serves it MASKED', async () => {
+      const put = await request(app, 'PUT', '/tax/filer', {
+        name_last: 'Testerson', name_first: 'Chris', tin_type: 'SSN',
+        tin: '123-45-6789', dob: '1970-03-14',
+        address_city: 'Warsaw', address_country: 'PL',
+      });
+      expect(put.status).toBe(200);
+
+      const got = await request(app, 'GET', '/tax/filer');
+      expect(got.status).toBe(200);
+      expect(got.body.data.name_last).toBe('Testerson');
+      // The two that matter: recognisable, not reconstructable.
+      expect(got.body.data.tin_masked).toBe('•••-••-6789');
+      expect(got.body.data.dob_masked).toBe('1970-••-••');
+      expect(got.body.data.has_tin).toBe(true);
+      expect(JSON.stringify(got.body)).not.toContain('123-45-6789');
+      expect(JSON.stringify(got.body)).not.toContain('1970-03-14');
+    });
+
+    test('the reveal returns them in full, and nothing else', async () => {
+      const r = await request(app, 'GET', '/tax/filer/reveal');
+      expect(r.status).toBe(200);
+      expect(r.body.data.tin).toBe('123-45-6789');
+      expect(r.body.data.dob).toBe('1970-03-14');
+      expect(Object.keys(r.body.data).sort()).toEqual(['dob', 'tin']);
+    });
+
+    test('an omitted TIN leaves the stored one alone; an empty string clears it', async () => {
+      // The COA account-number shape P0a had to unpick: a form that could not
+      // read the value must not be able to save a blank over it.
+      await request(app, 'PUT', '/tax/filer', { name_last: 'Renamed' });
+      let r = await request(app, 'GET', '/tax/filer/reveal');
+      expect(r.body.data.tin).toBe('123-45-6789');
+
+      await request(app, 'PUT', '/tax/filer', { tin: '' });
+      r = await request(app, 'GET', '/tax/filer/reveal');
+      expect(r.body.data.tin).toBe('');
+
+      await request(app, 'PUT', '/tax/filer', { tin: '123-45-6789' });
+    });
+
+    // The gate this whole CR keeps having to relearn: the bulk payload is what
+    // leaks. `GET /util/appdata` merges the entire app_data TABLE into its
+    // response, so without an explicit exclusion the TIN would be served on
+    // every page load that touches appdata — /util/coa-traits, one table over.
+    test('GET /util/appdata does NOT serve the filer block', async () => {
+      const utilRouter = require('../util');
+      const utilApp = makeApp('/util', utilRouter);
+      const r = await request(utilApp, 'GET', '/util/appdata');
+      expect(r.status).toBe(200);
+      const body = JSON.stringify(r.body);
+      expect(body).not.toContain('123-45-6789');
+      expect(body).not.toContain('tax_filer');
+      expect(body).not.toContain('Testerson');
+    });
+
+    test('POST /util/appdata REFUSES the key — that handler writes to a file', async () => {
+      const utilRouter = require('../util');
+      const utilApp = makeApp('/util', utilRouter);
+      const r = await request(utilApp, 'POST', '/util/appdata', {
+        updates: [{ key: 'tax_filer', value: { tin: '999-99-9999' } }],
+      });
+      expect(r.status).toBe(400);
+      expect(r.body.error).toMatch(/not writable here/);
+    });
+  });
+
   describe('the FX direction guard', () => {
     test('refuses a rate pasted in Treasury’s direction, and returns the reciprocal', async () => {
       // Treasury publishes foreign-per-USD; this column is USD-per-foreign. For
@@ -497,6 +579,31 @@ dbDescribe('CR082 — Taxes API and report assembly (DB)', () => {
         `SELECT account_number FROM tax_fbar_filing_lines
           WHERE filing_id = (SELECT id FROM tax_fbar_filings WHERE tax_year = $1)`, [YEAR]);
       expect(rows[0].account_number).toBe('PL99 1234 5678');
+    });
+
+    test('a filed line with nothing behind it reads as UNCHECKED, not as unchanged', async () => {
+      // A historical return transcribed from paper stands alone: migration 070
+      // makes `tax_foreign_account_id` a soft reference precisely so a filed line
+      // survives its designation. Such a line has nothing to recompute from, and
+      // reporting a null delta for it made it indistinguishable from a figure
+      // that still reconciles — so a filing where NOTHING could be checked read
+      // as one where nothing had moved.
+      const { rows: f } = await db.query(
+        `SELECT id FROM tax_fbar_filings WHERE tax_year = $1 AND status = 'filed'
+          ORDER BY amendment_seq DESC LIMIT 1`, [YEAR]);
+      await db.query(
+        `INSERT INTO tax_fbar_filing_lines
+           (filing_id, tax_foreign_account_id, label, max_value_usd)
+         VALUES ($1, NULL, $2, 12345)`,
+        [f[0].id, `${PREFIX}_PaperOnly`]);
+
+      const d = await filedVsRecomputed(db, YEAR);
+      const paper = d.rows.find((r) => r.label === `${PREFIX}_PaperOnly`);
+      expect(paper.comparable).toBe(false);
+      expect(paper.recomputed_native).toBeNull();
+      expect(d.comparable_count).toBeLessThan(d.rows.length);
+      // It must not be counted as a line that moved, either.
+      expect(d.moved_count).toBe(0);
     });
 
     // Runs LAST in this block: it creates a second filing for the year, and the

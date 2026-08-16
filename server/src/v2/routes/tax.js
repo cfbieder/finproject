@@ -18,6 +18,7 @@
 const express = require('express');
 const router = express.Router();
 const db = require('../db');
+const psdata = require('../repositories').psdata;
 const {
   buildYear, freezeYear, amendYear, filedVsRecomputed,
 } = require('../../v2/services/fbarReport');
@@ -30,12 +31,93 @@ function maskNumber(n) {
   return `${s.slice(0, 4)}…${s.slice(-4)}`;
 }
 
+/**
+ * ── Part I: the filer (CR082 §3, §7.1) ──
+ *
+ * Form 114 Part I asks for the filer's name, TIN, date of birth and address, and
+ * fin held none of them — so every year they were retyped from somewhere else,
+ * which is the retyping this CR exists to end.
+ *
+ * A TIN and a DOB get exactly the same treatment as an account number. They live
+ * in Postgres (`app_data.tax_filer`) and in no document — note that
+ * `POST /util/appdata` writes to a JSON FILE and therefore REFUSES this key —
+ * the read below masks them, and the full values come only from the explicit
+ * reveal. `GET /util/appdata` merges the whole `app_data` table into its
+ * response, so the key is also on that endpoint's redaction list; without it
+ * this block would have been served to every caller on every page load, which is
+ * the `/util/coa-traits` failure repeated one table over.
+ */
+const FILER_KEY = 'tax_filer';
+const FILER_FIELDS = [
+  'name_last', 'name_first', 'name_middle', 'tin', 'tin_type', 'dob',
+  'address_street', 'address_city', 'address_region', 'address_postal', 'address_country',
+];
+/** The two that are not merely personal but identity documents. */
+const FILER_SENSITIVE = ['tin', 'dob'];
+
 const DESIGNATION_FIELDS = [
   'label', 'review_state', 'fbar_part', 'account_kind', 'account_kind_other',
   'own_account_number', 'own_currency', 'institution_name', 'institution_street',
   'institution_city', 'institution_region', 'institution_postal', 'institution_country',
   'joint_owner_name', 'joint_owner_tin', 'joint_owner_address', 'notes', 'account_id',
 ];
+
+// GET /api/v2/tax/filer — masked. Never the whole block.
+router.get('/filer', async (req, res, next) => {
+  try {
+    const stored = (await psdata.getAppData(FILER_KEY)) || {};
+    const out = {};
+    for (const f of FILER_FIELDS) {
+      if (FILER_SENSITIVE.includes(f)) {
+        // A DOB is masked to its year and a TIN to its last four. Both are
+        // enough to recognise "yes, that is the right one" without the payload
+        // carrying the value — which is the same bargain the account-number
+        // mask makes.
+        const v = stored[f] ? String(stored[f]) : '';
+        out[`${f}_masked`] = v
+          ? (f === 'dob' ? `${v.slice(0, 4)}-••-••` : `•••-••-${v.replace(/\D/g, '').slice(-4)}`)
+          : '';
+        out[`has_${f}`] = !!v;
+      } else {
+        out[f] = stored[f] ?? '';
+      }
+    }
+    res.json({ data: out });
+  } catch (e) { next(e); }
+});
+
+// GET /api/v2/tax/filer/reveal — the explicit reveal, called by the form on open.
+router.get('/filer/reveal', async (req, res, next) => {
+  try {
+    const stored = (await psdata.getAppData(FILER_KEY)) || {};
+    res.json({
+      data: Object.fromEntries(FILER_SENSITIVE.map((f) => [f, stored[f] ?? ''])),
+    });
+  } catch (e) {
+    // Does not echo the block — an error path is a log line.
+    console.error('[v2/tax/filer/reveal] Failed');
+    next(e);
+  }
+});
+
+// PUT /api/v2/tax/filer
+router.put('/filer', async (req, res, next) => {
+  try {
+    const body = req.body || {};
+    const stored = (await psdata.getAppData(FILER_KEY)) || {};
+    const next_ = { ...stored };
+    for (const f of FILER_FIELDS) {
+      if (body[f] === undefined) continue;
+      // An ABSENT sensitive field leaves the stored value alone; an empty string
+      // clears it. Without that distinction a form that failed to reveal would
+      // save blanks over a TIN — the same shape as the COA account-number
+      // round-trip P0a had to unpick.
+      next_[f] = body[f] === '' ? null : body[f];
+    }
+    await psdata.setAppData(FILER_KEY, next_);
+    res.json({ data: { saved: true } });
+  } catch (e) { next(e); }
+});
 
 // GET /api/v2/tax/designations?taxYear=YYYY — masked list, review state resolved
 // for that year (CR082 §7 / migration 071). Without a year it falls back to the

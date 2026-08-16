@@ -69,6 +69,8 @@ export default function TaxFbar() {
   const [freezing, setFreezing] = useState(false);
   const [diff, setDiff] = useState(null);
   const [fileMsg, setFileMsg] = useState("");
+  const [filer, setFiler] = useState(null);
+  const [editingFiler, setEditingFiler] = useState(false);
 
   const load = useCallback(async (y) => {
     setLoading(true);
@@ -86,6 +88,11 @@ export default function TaxFbar() {
       // is only ever found by someone who already suspected it.
       const d = await Rest.fetchJson(`/api/v2/tax/fbar/${y}/diff`);
       setDiff(d?.data?.filed ? d.data : null);
+
+      // Part I. Masked — the TIN and DOB come only from the reveal the form
+      // calls when it opens.
+      const f = await Rest.fetchJson("/api/v2/tax/filer");
+      setFiler(f?.data || null);
       // Seed each rate box with the rate currently stored, so the field is an
       // EDIT of a real number rather than a blank you retype from scratch.
       // Safe only because "Set as Treasury" is disabled while the value is
@@ -463,30 +470,34 @@ export default function TaxFbar() {
               why this panel can show WHAT moved and not WHY. */}
           {diff && (
             <section
-              className={
-                diff.rows.some((r) => r.delta_native)
-                  ? "tfb-diff tfb-diff--moved"
-                  : "tfb-diff"
-              }
+              className={diff.moved_count ? "tfb-diff tfb-diff--moved" : "tfb-diff"}
             >
               <h2>Filed vs recomputed today</h2>
-              {diff.rows.some((r) => r.delta_native) ? (
-                <p className="tfb-sub">
-                  The ledger no longer reproduces what was filed. That is expected — a
-                  single <code>calibrate()</code> rewrites <code>opening_balance</code> across
-                  every historical date and writes no audit row — and it is exactly why the
-                  filed figures were copied rather than left to be recomputed. The filed
-                  column is what was sent; nothing here changes it.
-                </p>
-              ) : (
-                <p className="tfb-sub">
-                  Every filed figure still recomputes to the same number. Nothing has moved
-                  under this filing.
-                </p>
-              )}
+              <p className="tfb-sub">
+                {/* "Nothing moved" and "nothing was checked" are different
+                    answers, and a filing transcribed from paper produces the
+                    second — its lines stand alone with no designation behind
+                    them, so there is nothing to recompute them from. Saying
+                    "nothing has moved" there would be the exact failure this
+                    feature is written against. */}
+                <strong>
+                  {diff.comparable_count} of {diff.rows.length} filed line(s)
+                </strong>{" "}
+                can be recomputed from the ledger
+                {diff.comparable_count < diff.rows.length && (
+                  <> — the rest were filed with no fin account behind them and are a record
+                  only</>
+                )}
+                .{" "}
+                {diff.comparable_count === 0
+                  ? "Nothing here has been checked against the ledger."
+                  : diff.moved_count
+                    ? `${diff.moved_count} no longer reproduce${diff.moved_count === 1 ? "s" : ""} the filed figure. That is expected — a single calibrate() rewrites opening_balance across every historical date and writes no audit row — and it is exactly why the filed figures were copied rather than left to be recomputed. The filed column is what was sent; nothing here changes it.`
+                    : "Every one of them still recomputes to the filed figure."}
+              </p>
               <ul className="tfb-diff__list">
                 {diff.rows
-                  .filter((r) => r.delta_native)
+                  .filter((r) => r.comparable && r.delta_native)
                   .map((r) => (
                     <li key={r.label}>
                       <strong>{r.label}</strong> — filed {native(r.filed_native, r.currency)},
@@ -500,6 +511,50 @@ export default function TaxFbar() {
               </ul>
             </section>
           )}
+
+          {/* ── Part I ──
+              The form's first page, and the one thing on it fin never held: the
+              filer's own name, TIN, date of birth and address were retyped from
+              somewhere else every year. Incomplete is the loud state, because a
+              worksheet that is silent about Part I reads as one that does not
+              need it. */}
+          <section
+            className={
+              filer && filer.name_last && filer.has_tin && filer.has_dob
+                ? "tfb-filer"
+                : "tfb-filer tfb-filer--todo"
+            }
+          >
+            <h2>Part I — the filer</h2>
+            {filer && (filer.name_last || filer.has_tin) ? (
+              <p className="tfb-filer__line">
+                <strong>
+                  {[filer.name_first, filer.name_middle, filer.name_last]
+                    .filter(Boolean)
+                    .join(" ") || "(no name)"}
+                </strong>
+                {" · "}
+                {filer.tin_type || "TIN"} {filer.tin_masked || "—"}
+                {" · born "}
+                {filer.dob_masked || "—"}
+                {filer.address_city ? ` · ${filer.address_city}` : ""}
+                {filer.address_country ? `, ${filer.address_country}` : ""}
+              </p>
+            ) : (
+              <p className="tfb-filer__line">
+                Not entered. Form 114 will not accept a filing without it, and it is the
+                one part of the form fin has never held — so it gets retyped from somewhere
+                else every year, which is exactly what this section exists to stop.
+              </p>
+            )}
+            <button
+              type="button"
+              className="btn btn--secondary btn--xs"
+              onClick={() => setEditingFiler(true)}
+            >
+              {filer && filer.name_last ? "Edit" : "Enter the filer"}
+            </button>
+          </section>
 
           {nonTreasury.length > 0 && (
             <section className="tfb-rates">
@@ -613,6 +668,17 @@ export default function TaxFbar() {
         </>
       )}
 
+      {editingFiler && (
+        <FilerDialog
+          masked={filer}
+          onClose={() => setEditingFiler(false)}
+          onSaved={async () => {
+            setEditingFiler(false);
+            await load(year);
+          }}
+        />
+      )}
+
       {figureFor && (
         <FigureDialog
           line={figureFor}
@@ -625,6 +691,138 @@ export default function TaxFbar() {
         />
       )}
     </div>
+  );
+}
+
+/**
+ * Part I — the filer block.
+ *
+ * The TIN and the DOB are fetched from the reveal endpoint when this opens, not
+ * taken from the masked payload the page already holds. That matters for more
+ * than display: saving a masked value back would write `•••-••-1234` into the
+ * store, which is the shape of defect CR082 P0a had to unpick on the COA editor.
+ * If the reveal fails, those two fields stay untouched on save rather than being
+ * cleared — an absent key means "leave it alone" on the server.
+ */
+function FilerDialog({ masked, onClose, onSaved }) {
+  const [form, setForm] = useState({ ...(masked || {}) });
+  const [revealed, setRevealed] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const [err, setErr] = useState("");
+
+  useEffect(() => {
+    let alive = true;
+    Rest.fetchJson("/api/v2/tax/filer/reveal")
+      .then((r) => {
+        if (!alive) return;
+        setForm((f) => ({ ...f, tin: r?.data?.tin ?? "", dob: r?.data?.dob ?? "" }));
+        setRevealed(true);
+      })
+      .catch(() => alive && setRevealed(false));
+    return () => { alive = false; };
+  }, []);
+
+  const set = (k) => (e) => setForm((f) => ({ ...f, [k]: e.target.value }));
+
+  const save = async () => {
+    setSaving(true);
+    setErr("");
+    try {
+      const body = {
+        name_last: form.name_last || "", name_first: form.name_first || "",
+        name_middle: form.name_middle || "", tin_type: form.tin_type || "SSN",
+        address_street: form.address_street || "", address_city: form.address_city || "",
+        address_region: form.address_region || "", address_postal: form.address_postal || "",
+        address_country: form.address_country || "",
+      };
+      // Only sent when they were successfully revealed — see the note above.
+      if (revealed) {
+        body.tin = form.tin || "";
+        body.dob = form.dob || "";
+      }
+      await Rest.fetchJson("/api/v2/tax/filer", {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(body),
+      });
+      await onSaved();
+    } catch (e) {
+      setErr(e?.message || "Save failed.");
+      setSaving(false);
+    }
+  };
+
+  return (
+    <Modal
+      open
+      onClose={onClose}
+      title="Part I — the filer"
+      description="Form 114's first page: who is filing. Stored in Postgres and in no document."
+      size="wide"
+      dismissable={!saving}
+      footer={
+        <>
+          <button type="button" className="btn btn--secondary btn--sm" onClick={onClose}>Cancel</button>
+          <button type="button" className="btn btn--primary btn--sm" onClick={save} disabled={saving}>
+            {saving ? "Saving…" : "Save"}
+          </button>
+        </>
+      }
+    >
+      <div className="tfb-filerform">
+        <label><span>Last name</span>
+          <input value={form.name_last || ""} onChange={set("name_last")} /></label>
+        <label><span>First name</span>
+          <input value={form.name_first || ""} onChange={set("name_first")} /></label>
+        <label><span>Middle</span>
+          <input value={form.name_middle || ""} onChange={set("name_middle")} /></label>
+
+        <label><span>Identification type</span>
+          <select value={form.tin_type || "SSN"} onChange={set("tin_type")}>
+            <option value="SSN">SSN / ITIN</option>
+            <option value="EIN">EIN</option>
+            <option value="FOREIGN">Foreign identification</option>
+          </select></label>
+        <label><span>TIN</span>
+          <input
+            value={form.tin || ""}
+            onChange={set("tin")}
+            disabled={!revealed}
+            placeholder={revealed ? "" : "could not be read — left unchanged on save"}
+          /></label>
+        <label><span>Date of birth</span>
+          <input
+            type="date"
+            value={form.dob || ""}
+            onChange={set("dob")}
+            disabled={!revealed}
+          /></label>
+
+        <label className="tfb-filerform--wide"><span>Street</span>
+          <input value={form.address_street || ""} onChange={set("address_street")} /></label>
+        <label><span>City</span>
+          <input value={form.address_city || ""} onChange={set("address_city")} /></label>
+        <label><span>State / region</span>
+          <input value={form.address_region || ""} onChange={set("address_region")} /></label>
+        <label><span>Postal code</span>
+          <input value={form.address_postal || ""} onChange={set("address_postal")} /></label>
+        <label><span>Country (2-letter)</span>
+          <input
+            maxLength={2}
+            value={form.address_country || ""}
+            onChange={(e) =>
+              setForm((f) => ({ ...f, address_country: e.target.value.toUpperCase() }))}
+          /></label>
+
+        <p className="tfb-filerform__note tfb-filerform--wide">
+          The TIN and date of birth are held in Postgres only. They are masked everywhere
+          else in the app, are omitted from the <code>/util/appdata</code> payload, and are
+          never written to a file — <code>POST /util/appdata</code> refuses this key
+          outright, because that handler persists to disk.
+        </p>
+        {err && <p className="tfb-error">{err}</p>}
+      </div>
+    </Modal>
   );
 }
 

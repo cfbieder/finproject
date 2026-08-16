@@ -358,24 +358,37 @@ async function filedVsRecomputed(client, taxYear) {
   const now = await buildYear(client, taxYear);
   const byId = new Map(now.lines.map((l) => [l.designation_id, l]));
 
+  const rows = filed.map((f) => {
+    const cur = f.tax_foreign_account_id ? byId.get(f.tax_foreign_account_id) : null;
+    const filedNative = f.max_value_native === null ? null : Number(f.max_value_native);
+    const nowNative = cur?.max_native ?? null;
+    return {
+      label: f.label,
+      currency: f.currency,
+      // ── "Equal" and "never compared" are not the same answer ──
+      // A filed line whose designation was deleted, or which never had one — a
+      // historical return transcribed from paper stands alone by design
+      // (migration 070: "the line must stand alone") — has nothing to compare
+      // against. Reporting a null delta for it made it indistinguishable from a
+      // figure that still reconciles, so a filing where NOTHING could be checked
+      // read as a filing where nothing had moved. That is the "looks like an
+      // answer" shape this whole feature is written against.
+      comparable: !!cur,
+      filed_native: filedNative,
+      recomputed_native: nowNative,
+      delta_native: filedNative !== null && nowNative !== null
+        ? Math.round((nowNative - filedNative) * 100) / 100 : null,
+      filed_usd: f.max_value_usd === null ? null : Number(f.max_value_usd),
+      recomputed_usd: cur?.max_usd ?? null,
+    };
+  });
+
   return {
     tax_year: taxYear,
     filed: true,
-    rows: filed.map((f) => {
-      const cur = byId.get(f.tax_foreign_account_id);
-      const filedNative = f.max_value_native === null ? null : Number(f.max_value_native);
-      const nowNative = cur?.max_native ?? null;
-      return {
-        label: f.label,
-        currency: f.currency,
-        filed_native: filedNative,
-        recomputed_native: nowNative,
-        delta_native: filedNative !== null && nowNative !== null
-          ? Math.round((nowNative - filedNative) * 100) / 100 : null,
-        filed_usd: f.max_value_usd === null ? null : Number(f.max_value_usd),
-        recomputed_usd: cur?.max_usd ?? null,
-      };
-    }),
+    rows,
+    comparable_count: rows.filter((r) => r.comparable).length,
+    moved_count: rows.filter((r) => r.comparable && r.delta_native).length,
   };
 }
 

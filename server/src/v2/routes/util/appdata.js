@@ -28,12 +28,34 @@ const psdata = require('../../repositories').psdata;
  */
 const SECRET_KEY_RE = /(^|_)(api_?key|secret|token|password|passwd|credential)s?($|_)/i;
 
-/** Strip anything that looks like a credential. Returns a copy; the source is untouched. */
+/**
+ * A credential is not the only thing that must not ride this payload.
+ *
+ * CR082 stores the FBAR filer block — name, TIN, date of birth, address — in
+ * `app_data` under `tax_filer` (§3), and `GET /appdata` merges the whole
+ * `app_data` TABLE into its response with `Object.assign`. So a key written
+ * there is served to every caller by default, which is precisely how
+ * `/util/coa-traits` came to hand out 230 account numbers (CR082 P0a). A TIN and
+ * a DOB get the same treatment as an account number (§7.1): the bulk payload
+ * never carries them, and `GET /tax/filer` serves a masked form with an explicit
+ * reveal.
+ *
+ * Named explicitly rather than pattern-matched: `tax_filer` looks like ordinary
+ * configuration, and the whole lesson of the key above is that the dangerous key
+ * is the one nobody thought to list.
+ */
+const PII_KEYS = new Set(['tax_filer']);
+
+/**
+ * Strip anything that looks like a credential, and the known PII keys. Returns a
+ * copy; the source is untouched.
+ */
 function redactSecrets(doc) {
   if (!doc || typeof doc !== 'object') return doc;
   const out = {};
   for (const [k, v] of Object.entries(doc)) {
     if (SECRET_KEY_RE.test(k)) continue;   // omitted entirely — not masked, which still leaks length
+    if (PII_KEYS.has(k)) continue;
     out[k] = v;
   }
   return out;
@@ -94,6 +116,16 @@ router.post('/appdata', async (req, res, next) => {
       if (!update || typeof update !== 'object') continue;
       const { key, value } = update;
       if (typeof key === 'string' && key.trim()) {
+        // This handler persists to a JSON FILE on disk, and CR082 §7.1 is
+        // explicit that the TIN and DOB live in Postgres and in no document.
+        // Refused rather than quietly dropped: a silent no-op here would look
+        // like a successful save of a number that then was not there.
+        if (PII_KEYS.has(key.trim())) {
+          return res.status(400).json({
+            error: `'${key.trim()}' is not writable here — it holds a TIN and a date of `
+                 + 'birth, and this endpoint persists to a file on disk. Use PUT /api/v2/tax/filer.',
+          });
+        }
         setFields[key.trim()] = value;
       }
     }
