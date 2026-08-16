@@ -183,3 +183,21 @@ cancel.
 
 **Gate:** 981 backend (+7) · 517 frontend · lint 0 errors · six ratchets · no migration · no engine
 change, so no regenerate and no fingerprint movement.
+
+## 8. The wait needed to look like a wait (2026-08-16)
+
+Owner-reported, and a real gap rather than polish: the modal opened on the RESPONSE, so for the
+second or more it takes to run two engine builds the screen did nothing at all — indistinguishable
+from a dead button, on the one control whose entire job is to say *"wait, look at this first"*.
+The modal's own loading branch existed and was effectively unreachable.
+
+The dialog now opens on the **click**, with a spinner and *"running the forecast twice…"*, and the
+module name is passed separately so the title is right before the data arrives. Measured in a
+browser: **spinner at 140 ms, results at ~1.0 s.** A preview failure closes the dialog rather than
+leaving a permanent spinner, and returns the error to the editor where the unsaved change still is.
+
+**A second defect the same check found:** the confirm button read **"Saving…"** while the preview was
+still building — directly contradicting the note below it, which says nothing has been saved yet, on
+the one screen whose whole purpose is that distinction. There are three states, not two: it now
+reads *"Working it out…"* → *"Saving…"* → *"Save this change"*. It is disabled throughout the wait,
+verified by sampling it every 120 ms rather than once.

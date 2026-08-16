@@ -34,7 +34,8 @@ const signed = (v) =>
       Number(v).toLocaleString(undefined, { maximumFractionDigits: 0 });
 
 export default function FCSavePreviewModal({
-  preview,
+  preview,          // null while the server is still building both sides
+  moduleName,       // known before the preview returns, so the title is right immediately
   periodStart,
   inflationRows,
   saving,
@@ -104,14 +105,20 @@ export default function FCSavePreviewModal({
     };
   }, [compare, inflationRows, periodStart, preview]);
 
-  const loading = !compare || !headline;
+  const loading = !preview || !compare || !headline;
   const unchanged = headline && Math.abs(Number(headline.delta) || 0) < 1;
 
   return (
-    <Modal open onClose={onCancel} title={`Save "${preview?.module}" — what it does`} size="wide">
+    <Modal open onClose={onCancel} title={`Save "${preview?.module ?? moduleName}" — what it does`} size="wide">
       <div className="fc-save-preview">
         {loading ? (
-          <p className="fc-save-preview__loading">Working out what this change does…</p>
+          /* The modal opens on the CLICK, not on the response: two real engine builds take a
+             second or more, and before this the screen did nothing at all in that window — the
+             owner had no way to tell a slow preview from a dead button. */
+          <p className="fc-save-preview__loading" role="status" aria-live="polite">
+            <span className="fc-save-preview__spinner" aria-hidden="true" />
+            Working out what this change does — running the forecast twice…
+          </p>
         ) : (
           <>
             <table className="fc-save-preview__table">
@@ -186,7 +193,10 @@ export default function FCSavePreviewModal({
             onClick={onConfirm}
             disabled={saving || loading}
           >
-            {saving ? "Saving…" : "Save this change"}
+            {/* Three states, not two. While the preview is still building, `saving` is also true —
+                labelling that "Saving…" would contradict the note directly below it, which says
+                nothing has been saved yet, on the one screen whose purpose is that distinction. */}
+            {loading ? "Working it out…" : saving ? "Saving…" : "Save this change"}
           </button>
         </div>
       </div>

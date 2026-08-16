@@ -508,6 +508,7 @@ export default function FCModuleManage() {
    * unpreviewed write. The owner is told, and can retry or cancel.
    */
   const [pendingPreview, setPendingPreview] = useState(null);
+  const [previewOpen, setPreviewOpen] = useState(false);
   const [previewBusy, setPreviewBusy] = useState(false);
 
   const handleSaveEdit = async (event) => {
@@ -520,6 +521,11 @@ export default function FCModuleManage() {
       return;
     }
 
+    // The modal opens on the CLICK, not on the response. Two real engine builds take a second or
+    // more, and until the dialog appeared the screen did nothing at all — indistinguishable from a
+    // dead button, on the one control whose whole job is to say "wait, look at this first".
+    setPreviewOpen(true);
+    setPendingPreview(null);
     setPreviewBusy(true);
     setEditError("");
     try {
@@ -528,6 +534,9 @@ export default function FCModuleManage() {
       });
       setPendingPreview(res.data ?? res);
     } catch (err) {
+      // Close the dialog on failure: leaving it open on a permanent spinner is worse than no
+      // dialog. The error goes back to the editor, where the unsaved change still is.
+      setPreviewOpen(false);
       setEditError(
         `Could not work out what this change would do, so it has NOT been saved: ` +
         `${err?.message || "the preview failed"}. Try again, or cancel.`
@@ -542,6 +551,7 @@ export default function FCModuleManage() {
     try {
       const ok = await saveModule();
       setPendingPreview(null);
+      setPreviewOpen(false);
       if (ok) closeEditModal();
     } finally {
       setPreviewBusy(false);
@@ -793,14 +803,15 @@ export default function FCModuleManage() {
           renders, so the number shown is the number that goes.
         */}
         {/* CR084 — what this save does, before it does it. */}
-        {pendingPreview && (
+        {previewOpen && (
           <FCSavePreviewModal
             preview={pendingPreview}
+            moduleName={editForm?.Name || selectedModule?.Name || "this module"}
             periodStart={selectedScenarioDetails?.PeriodStart}
             inflationRows={assumptions?.inflation || []}
             saving={previewBusy}
             onConfirm={confirmPreviewedSave}
-            onCancel={() => setPendingPreview(null)}
+            onCancel={() => { setPreviewOpen(false); setPendingPreview(null); }}
           />
         )}
         <FCConfirmDeleteModal

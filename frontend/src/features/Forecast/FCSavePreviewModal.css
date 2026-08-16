@@ -34,3 +34,30 @@
   gap: var(--space-sm);
   margin-top: var(--space-lg);
 }
+
+/* The wait is real — two engine builds — so it gets a spinner rather than a static line. */
+.fc-save-preview__loading {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: var(--space-md) 0;
+}
+
+.fc-save-preview__spinner {
+  width: 16px;
+  height: 16px;
+  flex: none;
+  border: 2px solid var(--border);
+  border-top-color: var(--primary);
+  border-radius: 50%;
+  animation: fcSavePreviewSpin 0.8s linear infinite;
+}
+
+@keyframes fcSavePreviewSpin {
+  to { transform: rotate(360deg); }
+}
+
+/* Respect a reduced-motion preference: keep the affordance, drop the animation. */
+@media (prefers-reduced-motion: reduce) {
+  .fc-save-preview__spinner { animation: none; border-top-color: var(--primary); }
+}
