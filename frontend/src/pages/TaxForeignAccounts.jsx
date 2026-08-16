@@ -51,18 +51,21 @@ export default function TaxForeignAccounts() {
   const [adding, setAdding] = useState(false);
   const [taxYear, setTaxYear] = useState(new Date().getFullYear() - 1);
 
+  // The year is a parameter of the LIST, not only of the figures: `review_state`
+  // resolves per year (migration 071), so the same designation can read
+  // reportable for 2026 and excluded for 2025.
   const load = useCallback(async () => {
     setLoading(true);
     setError("");
     try {
-      const r = await Rest.fetchJson("/api/v2/tax/designations");
+      const r = await Rest.fetchJson(`/api/v2/tax/designations?taxYear=${taxYear}`);
       setRows(r?.data || []);
     } catch (e) {
       setError(e?.message || "Failed to load designations.");
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [taxYear]);
 
   useEffect(() => {
     load();
@@ -90,16 +93,35 @@ export default function TaxForeignAccounts() {
     {
       key: "review_state",
       header: "Reviewed",
+      // The select writes the STANDING answer — the one that carries into every
+      // future year — because that is the common case and the thing that makes
+      // next year's pass a diff rather than a re-read. A year-only exception is
+      // deliberately NOT reachable from here: it is the rarer decision, it needs
+      // a reason attached, and one dropdown that sometimes means "this year" and
+      // sometimes "every year" is the ambiguity migration 071 exists to remove.
       render: (r) => (
-        <select
-          className={`tfa-state tfa-state--${r.review_state}`}
-          value={r.review_state}
-          onChange={(e) => patch(r.id, { review_state: e.target.value })}
-        >
-          {STATES.map(([v, l]) => (
-            <option key={v} value={v}>{l}</option>
-          ))}
-        </select>
+        <div className="tfa-statecell">
+          <select
+            className={`tfa-state tfa-state--${r.review_state}`}
+            value={r.year_review_state || r.standing_review_state || r.review_state}
+            disabled={!!r.year_review_state}
+            title={
+              r.year_review_state
+                ? `Overridden for ${taxYear} — change it in Edit.`
+                : "Applies to every year"
+            }
+            onChange={(e) => patch(r.id, { review_state: e.target.value })}
+          >
+            {STATES.map(([v, l]) => (
+              <option key={v} value={v}>{l}</option>
+            ))}
+          </select>
+          {r.year_review_state && (
+            <span className="tfa-yearchip" title={r.year_review_note || ""}>
+              {taxYear} only
+            </span>
+          )}
+        </div>
       ),
     },
     { key: "fbar_part", header: "Part", render: (r) => r.fbar_part || "—" },
@@ -414,7 +436,10 @@ function EditDialog({ row, taxYear, onClose, onSaved }) {
         joint_owner_tin: form.joint_owner_tin,
         joint_owner_address: form.joint_owner_address,
         notes: form.notes,
-        review_state: form.review_state,
+        // The STANDING answer. `form.review_state` is the resolved one and
+        // writing it back here would silently promote a year exception into a
+        // permanent decision the first time anyone saved an address change.
+        review_state: form.standing_review_state ?? row.standing_review_state ?? form.review_state,
       };
       // Only a report-only line stores its own number; a linked row's number
       // lives on the ledger account (the schema CHECK enforces the pairing).
@@ -425,6 +450,22 @@ function EditDialog({ row, taxYear, onClose, onSaved }) {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(body),
       });
+
+      // The year exception is its own verb (see the route's note) — a separate
+      // call so a caller cannot mean one and write the other.
+      const yearPath = `/api/v2/tax/designations/${row.id}/year-state/${taxYear}`;
+      if (form.year_review_state) {
+        await Rest.fetchJson(yearPath, {
+          method: "PUT",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            review_state: form.year_review_state,
+            note: form.year_review_note || null,
+          }),
+        });
+      } else if (row.year_review_state) {
+        await Rest.fetchJson(yearPath, { method: "DELETE" });
+      }
       await onSaved();
     } catch (e) {
       setErr(e?.message || "Save failed.");
@@ -464,8 +505,12 @@ function EditDialog({ row, taxYear, onClose, onSaved }) {
               {KINDS.map(([v, l]) => <option key={v} value={v}>{l}</option>)}
             </select>
           </Field>
-          <Field label="Review state">
-            <select value={form.review_state} onChange={set("review_state")}>
+          <Field label="Review state (every year)">
+            <select
+              value={form.standing_review_state ?? form.review_state}
+              onChange={(e) =>
+                setForm((f) => ({ ...f, standing_review_state: e.target.value }))}
+            >
               {STATES.map(([v, l]) => <option key={v} value={v}>{l}</option>)}
             </select>
           </Field>
@@ -514,6 +559,38 @@ function EditDialog({ row, taxYear, onClose, onSaved }) {
             <textarea rows={2} value={form.notes || ""} onChange={set("notes")} />
           </Field>
         </div>
+
+        {/* ── The year exception (§7, migration 071) ──
+            An account opened in 2026 must be off the 2025 report and on the 2026
+            one. Before this existed the only way to say that was `excluded`,
+            which removed it from BOTH — and the workaround was a capitalised
+            note in the field above asking a future reader to put it back. */}
+        <section className="tfa-yearstate">
+          <h3>Just for {taxYear}</h3>
+          <p className="tfa-yearstate__why">
+            Overrides the answer above for this one year and nothing else. Use it when the
+            account did not exist yet, was closed before the year began, or was held only
+            during it — not to record a permanent decision.
+          </p>
+          <div className="tfa-yearstate__row">
+            <select
+              value={form.year_review_state || ""}
+              onChange={(e) =>
+                setForm((f) => ({ ...f, year_review_state: e.target.value || null }))}
+            >
+              <option value="">
+                Use the standing answer ({form.standing_review_state ?? form.review_state})
+              </option>
+              {STATES.map(([v, l]) => <option key={v} value={v}>{l} — {taxYear} only</option>)}
+            </select>
+            <input
+              placeholder={`why ${taxYear} differs, e.g. account opened 2026-03`}
+              value={form.year_review_note || ""}
+              disabled={!form.year_review_state}
+              onChange={(e) => setForm((f) => ({ ...f, year_review_note: e.target.value }))}
+            />
+          </div>
+        </section>
 
         {!row.account_id && (
           <section className="tfa-link">

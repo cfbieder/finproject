@@ -327,6 +327,80 @@ dbDescribe('CR082 — Taxes API and report assembly (DB)', () => {
       expect(rep.lines.find((l) => l.designation_id === id)).toBeUndefined();
     });
 
+    // ── §7 / migration 071 ──
+    // The defect: excluding an account that was opened in 2026 removed it from
+    // TY2026 as well as from TY2025. Two live rows carried a capitalised note
+    // asking a future reader to undo it by hand.
+    test('excluding a designation FOR ONE YEAR leaves every other year alone', async () => {
+      const id = await mkDesignation('YearScoped');
+      const r = await request(app, 'PUT', `/tax/designations/${id}/year-state/${YEAR}`,
+        { review_state: 'excluded', note: 'opened after this year' });
+      expect(r.status).toBe(200);
+
+      // Gone from the year it was excluded for...
+      const excludedYear = await buildYear(db, YEAR);
+      expect(excludedYear.lines.find((l) => l.designation_id === id)).toBeUndefined();
+
+      // ...and still present in the next one, which is the whole point.
+      const nextYear = await buildYear(db, YEAR + 1);
+      const still = nextYear.lines.find((l) => l.designation_id === id);
+      expect(still).toBeDefined();
+      expect(still.review_state).toBe('unreviewed');   // the standing answer
+      expect(still.year_review_state).toBeNull();      // no override for that year
+
+      // The standing answer is untouched — a year override is not an edit to it.
+      const { rows } = await db.query(
+        `SELECT review_state FROM tax_foreign_accounts WHERE id = $1`, [id]);
+      expect(rows[0].review_state).toBe('unreviewed');
+
+      await db.query(`DELETE FROM tax_fbar_filings WHERE tax_year = $1`, [YEAR + 1]);
+    });
+
+    test('clearing a year override restores the standing answer', async () => {
+      const id = await mkDesignation('YearCleared');
+      await request(app, 'PUT', `/tax/designations/${id}/year-state/${YEAR}`,
+        { review_state: 'excluded' });
+      expect(
+        (await buildYear(db, YEAR)).lines.find((l) => l.designation_id === id)
+      ).toBeUndefined();
+
+      const del = await request(app, 'DELETE', `/tax/designations/${id}/year-state/${YEAR}`);
+      expect(del.status).toBe(200);
+      expect(del.body.data.cleared).toBe(true);
+      expect(
+        (await buildYear(db, YEAR)).lines.find((l) => l.designation_id === id)
+      ).toBeDefined();
+    });
+
+    test('a year override can also REPORT a designation that is excluded standing', async () => {
+      // The reverse direction, and the one a from_year/to_year range could not
+      // express: a standing "excluded" with one year saying otherwise.
+      const id = await mkDesignation('YearReinstated');
+      await request(app, 'PATCH', `/tax/designations/${id}`, { review_state: 'excluded' });
+      expect(
+        (await buildYear(db, YEAR)).lines.find((l) => l.designation_id === id)
+      ).toBeUndefined();
+
+      await request(app, 'PUT', `/tax/designations/${id}/year-state/${YEAR}`,
+        { review_state: 'reportable', note: 'held during this year only' });
+      const line = (await buildYear(db, YEAR)).lines.find((l) => l.designation_id === id);
+      expect(line).toBeDefined();
+      expect(line.year_review_state).toBe('reportable');
+      expect(line.year_review_note).toBe('held during this year only');
+
+      await request(app, 'DELETE', `/tax/designations/${id}/year-state/${YEAR}`);
+    });
+
+    test('a year override refuses a state that is not one of the three', async () => {
+      const id = await mkDesignation('YearBadState');
+      const r = await request(app, 'PUT', `/tax/designations/${id}/year-state/${YEAR}`,
+        { review_state: 'maybe' });
+      expect(r.status).toBe(400);
+      const missing = await request(app, 'PUT', `/tax/designations/99999999/year-state/${YEAR}`,
+        { review_state: 'excluded' });
+      expect(missing.status).toBe(404);
+    });
+
     test('the $10,000 verdict is THREE-valued, and refuses to say "no" on a partial set', async () => {
       const rep = await buildYear(db, YEAR);
       // Over 10k holds however many rows are missing — more money cannot take it

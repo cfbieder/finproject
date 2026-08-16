@@ -110,6 +110,48 @@ dbDescribe('fbarMaxValue — the maximum during a calendar year (DB)', () => {
     expect(f.max_native).not.toBe(0);
   });
 
+  // ── §12b.14 ──
+  // The engine cannot tell "held this on 1 January" from "this account did not
+  // exist yet", and both render as `max_on: carry-in`. It reports the condition
+  // instead, and these three cases fix where the line falls.
+  test('a maximum that is pure carry-in with an EMPTY year is flagged, not settled', async () => {
+    // The `PKO TFI` shape exactly: the account row is created in 2026, its
+    // opening_balance carries the house 1990-01-01 sentinel, and it has no 2025
+    // rows at all — so a 2026 calibration plug reports as a 2025 balance.
+    const id = await mkAccount('LateOpened', { opening: 6000 });
+    await addTx(id, '2026-02-09', 250);         // first activity is AFTER the year
+
+    const f = await accountYearFigures(db, id, 2025);
+
+    expect(f.max_native).toBe(6000);            // still computed — not refused
+    expect(f.max_on).toBe('carry-in');
+    expect(f.in_year_tx_days).toBe(0);
+    expect(f.carry_in_only).toBe(true);
+  });
+
+  test('a carry-in maximum with in-year activity is NOT flagged', async () => {
+    // The `Wise - USD` shape. The maximum is still the carry-in, but the year
+    // holds rows that corroborate the account was live — which is the entire
+    // difference from the case above, and the reason the flag keys on the
+    // transaction count rather than on `max_on` alone.
+    const id = await mkAccount('DrainedLive', { opening: 0 });
+    await addTx(id, '2024-05-01', 1718.27);
+    await addTx(id, '2025-02-01', -1000);
+    const f = await accountYearFigures(db, id, 2025);
+
+    expect(f.max_on).toBe('carry-in');
+    expect(f.carry_in_only).toBe(false);
+  });
+
+  test('an account that peaked in-year is never flagged', async () => {
+    const id = await mkAccount('Peaked', { opening: 100 });
+    await addTx(id, '2025-06-01', 900);
+    const f = await accountYearFigures(db, id, 2025);
+
+    expect(f.max_on).toBe('2025-06-01');
+    expect(f.carry_in_only).toBe(false);
+  });
+
   test('rows below opening_balance_date are invisible, here as everywhere', async () => {
     const id = await mkAccount('Floor', { opening: 100, floor: '2000-01-01' });
     await addTx(id, '1999-12-31', 1950.61);   // the Chase Checking shape

@@ -49,6 +49,14 @@ const REASONS = {
   no_currency_on_designation: "no currency set",
 };
 
+/**
+ * A line that HAS a figure and should not be read as settled. Kept apart from
+ * REASONS on purpose: those lines block the verdict, these do not.
+ */
+const WARNINGS = {
+  unverified_carry_in: "carry-in only — confirm against a statement",
+};
+
 export default function TaxFbar() {
   const [year, setYear] = useState(new Date().getFullYear() - 1);
   const [report, setReport] = useState(null);
@@ -113,7 +121,21 @@ export default function TaxFbar() {
       render: (l) =>
         l.needs_figure ? <span className="tfb-need">NEEDS FIGURE</span> : native(l.max_native, l.currency),
     },
-    { key: "max_on", header: "Peaked", render: (l) => l.max_on || "—" },
+    {
+      key: "max_on",
+      header: "Peaked",
+      // §12b.14 — "carry-in" reads as a settled answer, and on an account that
+      // did not exist yet it is a 1990-dated calibration plug projected
+      // backwards. `PKO TFI` and `Revolut-PLN` both sat here looking ordinary.
+      render: (l) =>
+        l.warning === "unverified_carry_in" ? (
+          <span className="tfb-warn" title={l.warning_detail || ""}>
+            carry-in, no {year} activity
+          </span>
+        ) : (
+          l.max_on || "—"
+        ),
+    },
     {
       key: "rate_to_usd",
       header: "Rate",
@@ -202,13 +224,17 @@ export default function TaxFbar() {
       "#",
     ];
     const cols = ["Part", "Account", "Institution", "Country", "Currency", "Maximum (native)",
-      "Peaked on", "FX rate", "FX source", "Maximum (USD)", "Source"];
+      "Peaked on", "FX rate", "FX source", "Maximum (USD)", "Source", "Warning"];
     const body = report.lines.map((l) => [
       l.fbar_part, l.label, l.institution_name, l.institution_country, l.currency,
       l.max_native, l.max_on, l.rate_to_usd, l.rate_source, l.max_usd,
       l.max_usd === null
         ? (l.max_unknown ? "value unknown (15a)" : "NEEDS FIGURE — not zero")
         : l.source,
+      // The warning travels with the sheet. A worksheet that shows a corroborated
+      // and an uncorroborated figure identically is the "looks like an answer"
+      // failure moved off the screen and onto paper.
+      l.warning ? (WARNINGS[l.warning] || l.warning) : "",
     ].map(q).join(","));
 
     const blob = new Blob([`${head.join("\n")}\n${cols.join(",")}\n${body.join("\n")}\n`],
@@ -373,6 +399,26 @@ export default function TaxFbar() {
             rowKey={(l) => l.designation_id}
             emptyMessage="No designations — start on the Foreign accounts page."
           />
+
+          {report.warnings?.length > 0 && (
+            <section className="tfb-warns">
+              <h2>{report.warnings.length} line(s) computed but not corroborated</h2>
+              <p className="tfb-sub">
+                Each of these has a figure and each is in the aggregate. What none of them
+                has is a single {year} transaction — so the number is the balance carried in
+                from {year - 1}, which is also exactly what an account opened <em>after</em>{" "}
+                {year} reports. The ledger cannot tell those apart; a statement can.
+              </p>
+              <ul>
+                {report.warnings.map((w) => (
+                  <li key={w.designation_id}>
+                    <strong>{w.label}</strong> — {WARNINGS[w.warning] || w.warning}
+                    {w.detail ? <span className="tfb-detail"> ({w.detail})</span> : null}
+                  </li>
+                ))}
+              </ul>
+            </section>
+          )}
 
           {report.needs_attention.length > 0 && (
             <section className="tfb-needs">

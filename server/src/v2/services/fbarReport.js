@@ -30,6 +30,16 @@ const NEEDS = {
 };
 
 /**
+ * A line that HAS a figure but should not be read as settled. Distinct from
+ * `needs_figure` on purpose: a warned line still converts, still sums into the
+ * aggregate and can still be filed. What it must not do is sit among the
+ * computed rows looking like every other one.
+ */
+const WARN = {
+  UNVERIFIED_CARRY_IN: 'unverified_carry_in',
+};
+
+/**
  * @returns {Promise<object>} {
  *   tax_year, rates: [...], lines: [...],
  *   aggregate_usd,            sum of the lines that HAVE a figure
@@ -45,13 +55,24 @@ async function buildYear(client, taxYear) {
   );
   const rateFor = new Map(rates.map((r) => [r.currency.trim(), r]));
 
+  // ── review_state resolves PER YEAR (CR082 §7, migration 071) ──
+  //
+  // The standing column is the answer for every year that has no override. The
+  // override exists because excluding an account opened in 2026 used to remove
+  // it from TY2026 as well as TY2025, and the workaround was a capitalised note
+  // asking a future reader to put it back.
   const { rows: designations } = await client.query(
-    `SELECT tfa.*, a.name AS account_name, a.currency AS account_currency
+    `SELECT tfa.*, a.name AS account_name, a.currency AS account_currency,
+            COALESCE(ys.review_state, tfa.review_state) AS effective_review_state,
+            ys.review_state AS year_review_state,
+            ys.note          AS year_review_note
        FROM tax_foreign_accounts tfa
        LEFT JOIN accounts a ON a.id = tfa.account_id
-      WHERE tfa.review_state <> 'excluded'
+       LEFT JOIN tax_foreign_account_year_states ys
+              ON ys.tax_foreign_account_id = tfa.id AND ys.tax_year = $1
+      WHERE COALESCE(ys.review_state, tfa.review_state) <> 'excluded'
       ORDER BY tfa.fbar_part NULLS LAST, tfa.institution_name, tfa.label`,
-    []
+    [taxYear]
   );
 
   // Per-account-year overrides and flags live on the year's draft filing lines.
@@ -76,7 +97,12 @@ async function buildYear(client, taxYear) {
       label: d.label,
       account_id: d.account_id,
       account_name: d.account_name,
-      review_state: d.review_state,
+      review_state: d.effective_review_state,
+      // Non-null when THIS year departs from the standing answer, so the page
+      // can say which of the two it is showing rather than making them
+      // indistinguishable — the failure the standing-only column was.
+      year_review_state: d.year_review_state,
+      year_review_note: d.year_review_note,
       fbar_part: d.fbar_part,
       account_kind: d.account_kind,
       institution_name: d.institution_name,
@@ -92,6 +118,8 @@ async function buildYear(client, taxYear) {
       rate_source: null,
       max_usd: null,
       needs_figure: null,
+      warning: null,
+      warning_detail: null,
       detail: null,
     };
 
@@ -117,6 +145,17 @@ async function buildYear(client, taxYear) {
         // Surfaced so a credit card reading 0 is legibly "never in credit"
         // rather than "we found nothing".
         if (f.max_native < 0) line.detail = `true maximum ${f.max_native}, reported 0`;
+        // §12b.14 — the whole figure came from before the year, and the year
+        // holds no rows to corroborate it. Either the account was genuinely
+        // dormant all year, or it did not exist yet and a later calibration plug
+        // is being projected backwards. The ledger cannot say which.
+        if (f.carry_in_only) {
+          line.warning = WARN.UNVERIFIED_CARRY_IN;
+          line.warning_detail =
+            `no ${taxYear} transactions — the figure is the carry-in from `
+            + `${taxYear - 1}, which is also what an account opened AFTER ${taxYear} `
+            + `reports. Confirm against a statement, or exclude the line for this year.`;
+        }
       }
     } else {
       line.needs_figure = NEEDS.NO_LEDGER;
@@ -162,6 +201,14 @@ async function buildYear(client, taxYear) {
     needs_attention: missing.map((l) => ({
       designation_id: l.designation_id, label: l.label,
       reason: l.needs_figure, detail: l.detail,
+    })),
+    // Kept SEPARATE from needs_attention. Those lines have no figure and block
+    // the verdict; these have one and do not. Folding them together would
+    // either make a warned line un-fileable or make a missing one look
+    // advisory, and both are worse than two lists.
+    warnings: lines.filter((l) => l.warning).map((l) => ({
+      designation_id: l.designation_id, label: l.label,
+      warning: l.warning, detail: l.warning_detail,
     })),
   };
 }
@@ -278,4 +325,4 @@ async function filedVsRecomputed(client, taxYear) {
   };
 }
 
-module.exports = { buildYear, freezeYear, filedVsRecomputed, ensureDraft, NEEDS };
+module.exports = { buildYear, freezeYear, filedVsRecomputed, ensureDraft, NEEDS, WARN };

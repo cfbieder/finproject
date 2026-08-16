@@ -227,6 +227,38 @@
 
 .tfb-detail { color: var(--muted); font-size: 0.82rem; }
 
+/* ---- computed-but-not-corroborated (CR082 §12b.14) ----
+   Amber, not red: these lines HAVE a figure and do not block the verdict. Using
+   the danger colour would put them beside the missing-figure rows and train the
+   eye to read both as the same problem. */
+.tfb-warn {
+  color: var(--gold-strong);
+  font-size: 0.8rem;
+  font-style: italic;
+  cursor: help;
+}
+
+.tfb-warns {
+  margin-top: 1.5rem;
+  padding: 0.85rem 1rem;
+  border-left: 3px solid var(--gold-strong);
+  background: var(--gold-subtle);
+  border-radius: var(--radius-md);
+}
+
+.tfb-warns h2 {
+  margin: 0 0 0.25rem;
+  font-size: 1rem;
+  font-family: var(--font-heading);
+  color: var(--ink);
+}
+
+.tfb-warns ul {
+  margin: 0.5rem 0 0;
+  padding-left: 1.1rem;
+  color: var(--ink);
+}
+
 @media (max-width: 700px) {
   .tfb-page { padding: 1rem 0.75rem; }
   .tfb-verdict { flex-direction: column; }
@@ -330,11 +362,22 @@
   /* Tinted panels turn to grey mush on a mono printer; outline them instead. */
   .tfb-rates,
   .tfb-needs,
+  .tfb-warns,
   .tfb-agg,
   .tfb-thresh {
     border: 1px solid #999;
     background: transparent;
     color: #000;
+  }
+
+  /* Amber on paper is a faint grey that reads as decoration. The warning is the
+     reason the row is on this sheet at all, so it prints as black italic — the
+     same reasoning as item 7 in §11b, where a column that merely LOOKED narrower
+     on paper was in fact absent. */
+  .tfb-warn,
+  .tfb-need {
+    color: #000;
+    font-style: italic;
   }
 
   /* Keep the verdict and the rate provenance with the figures they qualify. */

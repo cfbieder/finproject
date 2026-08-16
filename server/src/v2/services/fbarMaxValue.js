@@ -96,7 +96,8 @@ async function crossCurrencyRows(client, accountId, taxYear) {
  *   max_on,                   'carry-in' | ISO date of the end-of-day peak
  *   reportable_max_native,    max_native floored at 0 (FBAR reports no negative)
  *   year_end_native,
- *   in_year_tx_count,
+ *   in_year_tx_days,
+ *   carry_in_only,            the maximum is the carry-in AND the year is empty
  *   refused, refusal_reason, refusal_detail
  * }
  */
@@ -177,6 +178,29 @@ async function accountYearFigures(client, accountId, taxYear) {
     : 'carry-in';
   const yearEnd = r.year_end === null ? carryIn : Number(r.year_end);
 
+  // ── The carry-in cannot distinguish "held this on 1 January" from "this
+  // account did not exist yet" (CR082 §12b.14) ──
+  //
+  // `carry` is computed from `opening_balance` plus every row up to Dec-31 of
+  // the prior year. On an account fin has held for a decade that is a real
+  // balance. On an account CREATED later, whose `opening_balance` carries the
+  // house 1990-01-01 sentinel (the CR012 convention, on all 26 recent
+  // accounts), the same expression projects a 2026 calibration plug back 36
+  // years and reports it as a 2025 balance.
+  //
+  // Found live: `PKO TFI` was created 2026-03-01, its first transaction is
+  // 2026-02-09, and it sat on the TY2025 report at 6,000 PLN. `Revolut-PLN` has
+  // the identical signature. Both were caught by the owner, by hand.
+  //
+  // Nothing here can tell the two apart — the ledger does not record when an
+  // account was opened in the real world, and inferring it from the first
+  // transaction would be a guess the form would then carry. So the engine
+  // reports the CONDITION, not a verdict: the maximum came entirely from before
+  // the year, and the year itself is empty. That is a figure to confirm against
+  // a statement, not a figure to file. §12.2 fixed the opposite error (a maximum
+  // that MISSED the carry-in); this is the same seam from the other side.
+  const carryInOnly = maxOn === 'carry-in' && dayCount === 0;
+
   return {
     account_id: a.id,
     name: a.name,
@@ -184,6 +208,7 @@ async function accountYearFigures(client, accountId, taxYear) {
     carry_in_native: round2(carryIn),
     max_native: round2(maxNative),
     max_on: maxOn,
+    carry_in_only: carryInOnly,
     // FBAR reports no negative maximum. Kept beside the true figure rather than
     // replacing it: a credit card whose true maximum is -949.60 reports 0, and
     // silently storing 0 would lose the fact that it was never in credit.

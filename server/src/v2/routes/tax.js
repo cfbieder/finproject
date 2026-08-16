@@ -35,23 +35,96 @@ const DESIGNATION_FIELDS = [
   'joint_owner_name', 'joint_owner_tin', 'joint_owner_address', 'notes', 'account_id',
 ];
 
-// GET /api/v2/tax/designations — masked list
+// GET /api/v2/tax/designations?taxYear=YYYY — masked list, review state resolved
+// for that year (CR082 §7 / migration 071). Without a year it falls back to the
+// standing column, which is what every caller got before year-scoping existed.
 router.get('/designations', async (req, res, next) => {
   try {
+    const taxYear = Number(req.query.taxYear) || null;
     const { rows } = await db.query(
       `SELECT tfa.*, a.name AS account_name, a.currency AS account_currency,
-              a.account_number AS ledger_account_number
+              a.account_number AS ledger_account_number,
+              COALESCE(ys.review_state, tfa.review_state) AS effective_review_state,
+              ys.review_state AS year_review_state,
+              ys.note          AS year_review_note
          FROM tax_foreign_accounts tfa
          LEFT JOIN accounts a ON a.id = tfa.account_id
-        ORDER BY tfa.fbar_part NULLS LAST, tfa.institution_name, tfa.label`
+         LEFT JOIN tax_foreign_account_year_states ys
+                ON ys.tax_foreign_account_id = tfa.id AND ys.tax_year = $1
+        ORDER BY tfa.fbar_part NULLS LAST, tfa.institution_name, tfa.label`,
+      [taxYear]
     );
     res.json({
       data: rows.map((r) => {
         const full = r.own_account_number || r.ledger_account_number;
-        const { own_account_number, ledger_account_number, ...rest } = r;
-        return { ...rest, account_number_masked: maskNumber(full), has_account_number: !!full };
+        const {
+          own_account_number, ledger_account_number, effective_review_state, ...rest
+        } = r;
+        return {
+          ...rest,
+          // `review_state` is what applies to the requested year. The standing
+          // value is still available as `standing_review_state`, because the
+          // screen has to be able to say "reportable in general, excluded for
+          // this year" — which is the whole point of 071.
+          review_state: effective_review_state,
+          standing_review_state: r.review_state,
+          account_number_masked: maskNumber(full),
+          has_account_number: !!full,
+        };
       }),
     });
+  } catch (e) { next(e); }
+});
+
+/**
+ * PUT /api/v2/tax/designations/:id/year-state/:year — this year's answer.
+ * DELETE the same path clears the override and the standing answer applies again.
+ *
+ * Deliberately a separate endpoint from PATCH /designations/:id: writing
+ * `review_state` on the designation is a statement about every year, and the two
+ * were indistinguishable in the P1 build. Making the year-scoped write its own
+ * verb means a caller cannot mean one and do the other.
+ */
+router.put('/designations/:id/year-state/:year', async (req, res, next) => {
+  try {
+    const year = Number(req.params.year);
+    const { review_state: state, note } = req.body || {};
+    if (!Number.isInteger(year)) {
+      return res.status(400).json({ error: 'year must be an integer' });
+    }
+    if (!['unreviewed', 'reportable', 'excluded'].includes(state)) {
+      return res.status(400).json({
+        error: 'review_state must be one of unreviewed, reportable, excluded',
+      });
+    }
+    const { rows: exists } = await db.query(
+      `SELECT id FROM tax_foreign_accounts WHERE id = $1`, [req.params.id]
+    );
+    if (!exists.length) return res.status(404).json({ error: 'designation not found' });
+
+    const { rows } = await db.query(
+      `INSERT INTO tax_foreign_account_year_states
+         (tax_foreign_account_id, tax_year, review_state, note)
+       VALUES ($1, $2, $3, $4)
+       ON CONFLICT (tax_foreign_account_id, tax_year) DO UPDATE
+         SET review_state = EXCLUDED.review_state,
+             note         = EXCLUDED.note,
+             updated_at   = NOW()
+       RETURNING id, review_state`,
+      [req.params.id, year, state, note || null]
+    );
+    res.json({ data: { tax_year: year, ...rows[0] } });
+  } catch (e) { next(e); }
+});
+
+router.delete('/designations/:id/year-state/:year', async (req, res, next) => {
+  try {
+    const { rowCount } = await db.query(
+      `DELETE FROM tax_foreign_account_year_states
+        WHERE tax_foreign_account_id = $1 AND tax_year = $2`,
+      [req.params.id, req.params.year]
+    );
+    res.json({ data: { cleared: rowCount > 0 } });
   } catch (e) { next(e); }
 });
 
