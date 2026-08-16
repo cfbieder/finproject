@@ -119,8 +119,13 @@ scenarios are REGENERATED**. It changes far less often than this file does.
   [§11c](../cr/cr-082-tax-section-fbar-114.md#11c-the-remaining-items-closed-2026-08-16); the
   security half (`/util/coa-traits` served a full account number for **all 230 accounts to any
   caller**) is [§7.1](../cr/cr-082-tax-section-fbar-114.md#71-account-numbers--and-a-claim-the-review-falsified).
-  ⚠️ **Two owner actions before filing:** the **Part I filer block is empty** (name/TIN/DOB/address,
-  entered once), and the year must be **marked filed** to freeze its figures against `calibrate()`.
+  **TY2025 is FILED (2026-08-16)** — the owner entered Part I and froze the year in the UI the same
+  evening, so **freeze-on-file has now been exercised on real data**, which is the one item the
+  tests could only simulate. The snapshot copied **16 lines / $2,627,821**, with the account number
+  and institution name on each **copied, not joined**; the diff reads **16 of 16 comparable, 0
+  moved**. ⚠️ **TY2024 carries an empty draft amendment** (seq 1, 0 lines) from trying that button,
+  so the 2024 page reads `draft` while the original filing — 31 lines, $1,462,652, filed
+  2025-10-07 — is intact underneath. Deleting the one row restores the `filed` display.
 - 📋 **[CR083](../cr/cr-083-budget-latest-estimate.md) — the budget Latest Estimate (LE), DRAFTED
   2026-08-16, design CLOSED, ready to build.** **Two full dual-review rounds**: round 1 falsified three
   of the CR's headline figures, round 2 **four more — three inside paragraphs round 1 had just

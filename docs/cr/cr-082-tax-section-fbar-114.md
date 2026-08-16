@@ -5,8 +5,9 @@
 > (P0a, migration **071**, the carry-in guard, freeze-on-file, TY2024-as-filed, XLSX and the Part I
 > filer block), with **071 applied to prod before the code** by the deploy script's Step 2b.
 > Verified against the running API afterwards: `/util/coa-traits` serves **no** full account number
-> for any of its 230 accounts, TY2024 reads `filed` with 31 lines, and TY2025 still reports 16 lines
-> at **$2,627,821** with nothing outstanding.
+> for any of its 230 accounts, TY2024 holds its filed return (31 lines, **$1,462,652**), and TY2025
+> reports 16 lines at **$2,627,821** with nothing outstanding — **and was FILED the same evening**
+> (§11c), which is the first time the freeze has run on real data.
 
 Roadmap anchor: [project-roadmap.md#cr082](../current/project-roadmap.md#cr082). **Track: v3** —
 no flags, no tenant context, nothing under `server/src/v2/db/`.
@@ -696,6 +697,14 @@ ratchets clean. ⚠️ **Nothing has been rendered in a browser** — still no r
 §11b's eight owner-found defects are the standing evidence that green gates and a correct page are
 different claims. The XLSX tests assert **cell contents** rather than that a file appeared, which is
 the nearest available substitute.
+
+**The freeze was exercised for real the same evening.** The owner entered Part I and marked TY2025
+filed through the UI: **16 lines / $2,627,821** copied onto the filing, 14 of 16 carrying an account
+number and all 16 an institution name — **copied, not joined**, per §6 — and the diff reads 16 of 16
+comparable with 0 moved, which is the correct state immediately after a freeze. `Open an amendment`
+was exercised too, leaving TY2024 with an empty `amendment_seq = 1` draft over its intact original
+(31 lines, $1,462,652, filed 2025-10-07). That is the designed behaviour — an amendment never
+unfiles anything — but it does mean the 2024 page reads `draft` until the empty row is removed.
 
 **Still true, and out of scope here:** `PKO TFI` shows 6,000 PLN on the balance sheet continuously
 since 1990 (a ledger defect, tracked on the roadmap), and giving `calibrate()` an `audit_log` row
