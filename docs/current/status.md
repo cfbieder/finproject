@@ -121,9 +121,11 @@ scenarios are REGENERATED**. It changes far less often than this file does.
   that has already been passed. Remaining beyond that: freeze-on-file unexercised · `review_state`
   is global not per-year · the §12b.14 carry-in guard · TY2024-as-filed was never seeded.
 - 📋 **[CR083](../cr/cr-083-budget-latest-estimate.md) — the budget Latest Estimate (LE), DRAFTED
-  2026-08-16, design CLOSED, ready to build.** Both passes returned *revise* and the technical pass
-  falsified three of the CR's own headline figures (§16); **all ten owner decisions then resolved in
-  one `/question` pass.** Runs **in parallel with CR082, in a git worktree** (#23). **P0a+P0b
+  2026-08-16, design CLOSED, ready to build.** **Two full dual-review rounds**: round 1 falsified three
+  of the CR's headline figures, round 2 **four more — three inside paragraphs round 1 had just
+  corrected** (§16). *A correction is not a fix until its replacement is verified too.* All ten owner
+  decisions resolved in one `/question` pass. ⚠️ **Migration 071 was taken by the CR082 thread within
+  the hour** — the parallelism decision biting immediately. Runs **in parallel with CR082, in a git worktree** (#23). **P0a+P0b
   committed.** Actuals to a cut plus estimate months seeded from
   the budget, in **its own tables** — **ten functions plus a view** read `budget_entries` ignoring `version_id`,
   and `POST /budget/versions/:id/copy` already accepts the **same** `budget_year` with no guard, so

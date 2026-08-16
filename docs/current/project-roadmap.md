@@ -19,13 +19,19 @@ Living plan for the Fin project — open Change Requests, known issues, ongoing 
   `utils/excelExporter.js`. **P0a + P0b committed together.**
   A full-calendar-year LE — actuals to a cut plus estimate months seeded from the budget — in **its own
   two tables**, because **ten functions plus a view** read `budget_entries` ignoring `version_id` and a second
-  budget *version* would double the forecast base year and every budget report. **Queue position: after
-  the CR082 TY2025 remainder (hard deadline 2026-10-15) and the CR081 successor; before CR066 P0 /
-  CR064 P2 / CR060.** Target the **September or October** close for P0b.
+  budget *version* would double the forecast base year and every budget report.
+  **Board order after round-2 sign-off:** tag prod → **CR082 P0a** (the `coa-traits` leak — security,
+  goes first regardless) → **CR083 P0a** in the worktree, merged as its own shippable unit →
+  **CR082 P2** freeze-on-file + TY2024-as-filed (the deadline items) → **CR083 P0b**, targeting the
+  **September close** → CR083 P1 → P2 only once the CR §11.4 gaps are closed. CR066 P0, CR064 P2 and
+  CR060 stay behind all of it.
   **P0a is separable and worth doing on its own:** the FY-landing figure is arithmetically
   `budget_FY + (actual_YTD − budget_YTD)` = `−137,555 + 34,556 = −102,999`, both terms already on
-  `/budget-vs-actual` — so a KPI there plus the scope exclusions delivers the headline in about a day,
-  with no schema beyond one account flag, and tests whether the owner looks before the grid is built.
+  `/budget-vs-actual` — so a KPI there plus the scope exclusion delivers the headline in about half a
+  day with **no schema at all** (it reuses `accounts.is_transfer`). ⚠️ **It is deliberately additive
+  and does NOT re-base the existing page** — `getCashFlow`'s transfer exclusion is a *name-string*
+  match that misses `Return of Capital` and `Valuation - Historical` and never excludes
+  `Unrealized G/L`, so re-basing would move numbers the owner reads weekly (CR083 §11.2).
   Two findings the CR turned up that stand **whether or not it is ever built** — see §2.1/§7 of the CR:
   **(i)** `POST /budget/versions/:id/copy` accepts an **arbitrary `budget_year`, including the same
   one, with no guard** (`server/src/v2/routes/budget.js:57-69`) while six readers ignore `version_id`
@@ -870,6 +876,50 @@ Small fixes, refactors, and one-off cleanups that don't warrant their own CR fil
 ---
 
 ## 3. Known Issues
+
+- [ ] **Two P&L categories post transactions to a NON-LEAF and the cash-flow report cannot see them**
+  (found 2026-08-16, [CR083](../cr/cr-083-budget-latest-estimate.md) §2.1a). `Car Expense` (181,
+  −50.00, 5 rows) and `Children - Anna` (175, −10.36, 1 row) have children **and** carry transactions
+  directly. `buildCashFlowNode` (`server/src/services/reports.js:397`) reads `categoryTotals[name]`
+  **only on leaves**, so **−60.36 of 2026 spend is invisible** on `/budget-vs-actual` and nothing
+  announces it. Small today; the shape is what matters — a category that grows children later
+  silently drops its own direct postings out of every cash-flow view. Fix: sum the node's own total
+  as well as its children's, or refuse to let a parent carry transactions.
+
+- [ ] **`extractTransferCategories` is duplicated verbatim in two services** (same source, CR083
+  §11.2) — `server/src/services/budget.js:72` and `server/src/services/reports.js:362`.
+  Failure-pattern #4, live. It is also a **name walk**: it matches the parent node on
+  `.includes('transfer')` and collects its leaves, so renaming `Transfers` silently disables the
+  exclusion, and a `profit_loss` leaf named `Transfer - x` **outside** the subtree is silently
+  excluded. `accounts.is_transfer` is already TRUE on exactly the right 13 accounts. Unify onto the
+  predicate, one copy.
+
+- [ ] **`/budget-vs-actual` and `/cash-flow-periods` carry CR082's print-clipping defect TODAY**
+  (found 2026-08-16 drafting [CR083](../cr/cr-083-budget-latest-estimate.md) §10.6). `DataTable.css:119-155`
+  fixed `.data-table-scroll`, but `frontend/src/pages/PageLayout.css` contains **zero `@media print`
+  blocks** while `.budget-realization-scroll` (`:2425`) is `overflow:auto` + `max-height` with a
+  sticky `thead` (`:2540-2585`). Printing those pages clips the right-hand columns off the paper and
+  the result looks like a *narrower table*, not like missing data — which is exactly how the FBAR
+  working papers printed without Maximum (USD). CR083 no longer inherits it (its grid does not scroll
+  sideways at all) and does not fix it. Same treatment as `DataTable.css`: release the overflow,
+  un-stick the header, land it in `PageLayout.css`.
+
+- [ ] **`/budget-vs-actual` excludes transfers by NAME STRING, and never excludes `Unrealized G/L`**
+  (same source, CR083 §11.2). `extractTransferCategories` (`server/src/services/budget.js:72-92`)
+  walks the COA matching `node.name.toLowerCase().includes('transfer')`, which **misses
+  `Return of Capital` (217) and `Valuation - Historical` (229)** — both inside the `Transfers`
+  subtree — while `Unrealized G/L` (88, **+213,595 YTD 2026**) is not excluded under any of its
+  `exclude|only|include` options. `accounts.is_transfer` is already TRUE on exactly the right 13
+  accounts, so `NOT is_transfer AND id <> 88` is the correct predicate. **Deliberately NOT done in
+  CR083** — re-basing moves numbers on a page the owner reads weekly and needs a before/after check
+  on `/budget-vs-actual` (3 tabs), `/m/budget` and `/category-trend`. Worth doing on its own.
+
+- [ ] **Two math evaluators, and the budget worksheet uses the weaker one** (same source, CR083 §10.5).
+  `frontend/src/utils/amountFormula.js` is a recursive-descent parser with the load-bearing
+  thousands-comma rule; `evaluateMathInput`
+  (`frontend/src/features/BudgetEntry/utils/budgetInputUtils.js:440`) builds a `Function(...)` —
+  charset-allowlisted, so not arbitrary execution, but it has **no thousands-comma rule**. CR083's
+  grid uses `amountFormula`; migrate `BudgetWorksheetV2` to it and delete the duplicate.
 
 - [ ] **`POST /budget/versions/:id/copy` will silently double the forecast base year, and one
   mis-click is all it takes** (found 2026-08-16 drafting [CR083](../cr/cr-083-budget-latest-estimate.md) §7).

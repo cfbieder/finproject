@@ -4,21 +4,29 @@ Roadmap anchor: [project-roadmap.md#cr083](../current/project-roadmap.md#cr083).
 no flags, no tenant context, nothing under `server/src/v2/db/`.
 **Depends on:** [CR075](cr-075-base-year-is-the-budget.md) (the forecast base year reads
 `budget_entries`; this CR's §8 is entirely about not disturbing that) ·
-[CR042](cr-042-report-consolidation.md) (`ReportTabs`, the ≤8 nav rule) ·
+[CR042](cr-042-report-consolidation.md) (the ≤8 nav rule — **not** `ReportTabs`; §11.1 cut the tab strip) ·
 [CR054](cr-054-cash-flow-by-account.md) (the "state the currency where the number is read" rule).
 **Relates to but does not overlap:** [CR064 §3](cr-064-forecast-annual-close-and-assumptions.md)
 (the *forecast* annual close — a different artefact in a different table).
 
-**Opened:** 2026-08-16 · **Migration:** **071** (P0b). Applied **dev first, then prod, then the code
+**Opened:** 2026-08-16 · **Migration:** ⚠️ **number claimed at build time, NOT reserved here — 072 at
+the earliest.** This CR first said 071; by the time round 2 reviewed it,
+`071_tax_foreign_account_year_states.sql` already existed on disk from the CR082 thread, written the
+same evening. That is migration **064**'s note (*"Numbered 064, not 063 — another thread committed
+mid-build"*) replayed, and §15 decision 8's parallelism is what causes it. **The migration number is
+the sharpest contended resource between these two CRs**, along with `docs/current/migrations.md`,
+`docs/cr/README.md`, the roadmap and `status.md` — not just the two frontend files decision 8 names. Applied **dev first, then prod, then the code
 that reads it** (`Scripts/deploy-to-production.sh`, which backs up prod first) — the rule in
 [git-concurrency.md](../../.claude/rules/git-concurrency.md) §6. The migration is
 **append-only, fresh-DB-safe, order-independent and asserts no production data fact**
 ([migrations.md 046](../current/migrations.md) records what happens otherwise: a migration that
-asserts a prod fact fails CI and takes the backend *and* e2e jobs with it). ⚠️ **It seeds nothing** —
-`exclude_from_le` ships `DEFAULT false` and the ~13 accounts are set by an app action or a documented
-one-off. Configuration inside a migration is what CR080's 065 got wrong and what withdrew 068.
+asserts a prod fact fails CI and takes the backend *and* e2e jobs with it). ⚠️ **It seeds nothing and
+adds no column to `accounts`** — §2 uses the existing `accounts.is_transfer`, so there is no flag to
+default and nothing to configure. Configuration inside a migration is what CR080's 065 got wrong and
+what withdrew 068.
 
-**Review passes:** technical (pass 1) and PM sign-off (pass 2) both run 2026-08-16 — see §16.
+**Review passes:** technical + PM sign-off, **two rounds each, all four on 2026-08-16** — round 1 on
+the draft, round 2 on the owner-revised design. See §16.
 
 ## The ask
 
@@ -147,7 +155,11 @@ duplicate has already failed twice on one column).
 | ex `Transfer - *` | +222,870 |
 | ex transfers **and** ex valuation | **+25,684** |
 
-The exclusion moves the actual half by **197,186** — and that is the whole meaning of the LE:
+The exclusion moves the actual half by **183,157** on the basis §2 actually defines
+(208,841 − 25,684, which is also 213,595 − 30,438). ⚠️ **The 197,186 quoted earlier — and confirmed by
+the owner in §15 decision 2 — is measured from the *name-match* row (222,870), not from the
+`NOT is_transfer AND id <> 88` row.** Both are real; they answer different questions. The figure that
+matters is **183,157**, and it is the whole meaning of the LE:
 
 | category | 2026 YTD | why out |
 |---|--:|---|
@@ -179,9 +191,13 @@ also explains the arithmetic: the name match gives −14,029, the actual subtree
 the resolved excluded-id set on the LE header (§7.1, S8) — otherwise flipping it after finalising
 leaves an "immutable" LE whose lines no longer describe the scope its total was computed on.
 
-**And reuse the existing convention, don't invent a third.** `services/budget.js:611 getCashFlow`
-already implements `exclude | only | include` for transfers, and `/budget-vs-actual` exposes it. The
-LE hard-coding "always exclude" would be a third convention for one idea.
+⚠️ **And do NOT reuse `getCashFlow`'s convention — the first draft said to, contradicting itself two
+paragraphs after "do not match on the name."** `services/budget.js:611 getCashFlow` implements
+`exclude | only | include`, but it is **built on the name walk**, and `extractTransferCategories` is
+already **duplicated verbatim** in `services/budget.js:72` and `services/reports.js:362` —
+failure-pattern #4, live today. Reusing it means a **third** copy of a name matcher; the LE uses the
+predicate and hard-codes "always exclude", because an LE that could include transfers would not be an
+LE. Unifying the two existing copies onto `is_transfer` is a roadmap bullet (§11.2).
 
 **`Option Trade` (id 76) stays in, at net — but it must be refused by the proposal engine, and the
 first draft of this CR was wrong about how.** It is genuinely mapped to fc_line `Dividend Income`,
@@ -195,7 +211,7 @@ largest driver of the proposal engine's headline**. §3.4 adds the guard that ac
 (76 income + 645 expense, verified). An LE of the balance sheet is the forecast's job and CR075
 already owns that boundary.
 
-### 2.1 The uncategorised account-level budget rows — ⏱ owner decision taken: investigate first
+### 2.1 The uncategorised account-level budget rows — ✅ RESOLVED: a plug, excluded
 
 **First, the thing that is settled: the budget contains no balance-sheet lines at all.** Every entry
 carries two dimensions — `category_id` (what the money is *for*) and `account_id` (which account it
@@ -241,12 +257,34 @@ The data cannot say whether that allowance is genuine incremental spend or a lef
 before the itemised lines grew to cover the same money. If it is a plug, carrying it into an LE that
 already holds categorised actuals **double-counts up to $35,900**.
 
-**Owner decision, 2026-08-16: investigate first.** So:
+**Owner decision, 2026-08-16: originally *"investigate first"* — now RESOLVED to *plug, excluded*
+on the creation-date evidence in §2.2/§15 #1.** So:
 
 - **The LE excludes these rows** and shows them as an *unallocated budget allowance* memo line below
   the total, never inside it. **L6** fires whenever both are present. This matches today's forecast
   behaviour — `crud.js:494` joins on `category_id`, so these rows are already invisible to the base
   year — and it means the CR is unblocked either way.
+### 2.1a Two categories post transactions to a NON-LEAF, and the report cannot see them
+
+Verified: `Car Expense` (181, **−50.00**, 5 rows) and `Children - Anna` (175, **−10.36**, 1 row) both
+have children **and** carry transactions directly — **−60.36** Jan–Jul inside the LE scope.
+
+`buildCashFlowNode` (`services/reports.js:397`) reads `categoryTotals[name]` **only on leaves**, so
+`/budget-vs-actual` nets **25,743.86** for Jan–Jul while `NOT is_transfer AND id <> 88` over every
+row gives **25,683.50**. The recursive CTE §2 tells the builder to reuse (`distinct_leaves`,
+`services/forecast/crud.js:486`, `WHERE NOT EXISTS (child)`) is **also leaf-only**, so following §2
+literally would produce the report's number, not this CR's.
+
+**Rule: the LE counts every transaction in scope, parent-posted included.** Money posted to a parent
+is money. The landing stays **−102,999**.
+
+⚠️ **Consequence for §13's invariant.** `Σ(LE actual months) = Σ(budget-vs-actual for the same months
+and scope)` is the correctness gate, and it **does not hold today** — it is off by exactly **$60.36**,
+and the builder would have nothing to reconcile against. So the invariant is stated as
+`Σ(LE) − Σ(report) = Σ(transactions on non-leaf categories in scope)`, which is checkable, and the
+report's leaf-only blindness is a **roadmap bullet in its own right**: two categories' spend is
+invisible on a page the owner reads weekly, and nothing announces it.
+
 ### 2.2 The investigation was run (2026-08-16) and it does not resolve — because the account dimension is unreliable
 
 The reconciliation the owner asked for was attempted: for each account, itemised budget Jan–Jul vs
@@ -342,7 +380,7 @@ For a cut after month `K` (actual = 1..K, estimate `R` = K+1..12), category `c`:
 
 | id | name | formula (per estimate month `m ∈ R`) |
 |---|---|---|
-| `CARRY` | Budget carried | `est[m] = budget[c][m]` |
+| `CARRY` | Budget carried | `est[m].base_amount = budget[c][m].base_amount` — **the stored value, verbatim** (see §5.1) |
 | `PHASE_TO_YTD` | Budget re-levelled to YTD | `r = actual_ytd[c] / budget_ytd[c]`; `est[m] = budget[c][m] × clamp(r, 0.25, 4.0)` |
 | `TRAIL_N` | Trailing-N average | `est[m] = Σ actual[c][K−N+1..K] / N`, N default 3 |
 | `ZERO` | Done for the year | `est[m] = 0` |
@@ -378,10 +416,17 @@ budget_ytd == 0 and budget_rest == 0 and actual_ytd != 0  -> E: TRAIL_3, flag "n
 budget_rest == 0 and budget_ytd != 0                      -> A: ZERO, badge "budget fully phased before the cut"
 budget_ytd == 0 and budget_rest != 0                      -> B: CARRY, badge "nothing to learn from YTD"
 budget_months >= K and actual_months >= K-1               -> C: propose PHASE_TO_YTD, show r + churn
+  -- budget_months / actual_months = DISTINCT months carrying rows in 1..K, not across all 12.
+  -- Counted any other way the buckets do not reproduce (C is 33 with bm_ytd>=7 and am>=6).
 otherwise                                                 -> D: CARRY, advisory "YTD x vs budget-YTD y"
 ```
 
-Two corrections the first draft needed:
+⚠️ **The classifier only BADGES — it never writes a method.** Bucket A's `ZERO` and bucket E's
+`TRAIL_3` are what the *advisory* offers, not what gets stored; every line is `CARRY` until the owner
+acts (§11 P1 correctly calls `TRAIL_3`/`ZERO` "manual overrides"). Without this sentence the "default
+`CARRY` on every line" rule and the classifier's per-bucket assignments read as contradicting.
+
+Two further corrections the first draft needed:
 
 - **Bucket A's action is `ZERO`, not "`CARRY` (=0)".** `CARRY` is defined as `est[m] = budget[c][m]`,
   which is not zero per month; it only *sums* to zero. Say what is meant.
@@ -399,7 +444,8 @@ this CR got in:**
 4. 🔴 **Refuse when churn `Σ|amount| ÷ |Σ amount| ≥ 3.0`** — a net figure standing on enormous
    two-way gross is not a level that can be re-levelled.
 
-**Guard 4 is not a judgement call; the data separates cleanly.** Churn across all 26 bucket-C lines:
+**Guard 4 is not a judgement call; the data separates cleanly.** Bucket C is **33** lines (§3.1);
+**26** survive guards 1 and 3; guard 4 then refuses **1**. Churn across those 26:
 
 | line | budget YTD | budget rest | actual YTD | r | **churn** | effect |
 |---|--:|--:|--:|--:|--:|--:|
@@ -472,10 +518,11 @@ Freeze the actual months at save; on every view recompute the live actual for th
   still says what it said in May. A live LE is just today's report.
 - **A pure freeze is quietly wrong.** July gained 85 P&L rows in the first 16 days of August.
 - **The hybrid loses nothing** and turns the problem into a stated number. Use the **real** drift, not
-  a placeholder: *"LE-08-26 froze Jul at −45,451 over 605 rows; the ledger now says −44,787 —
-  **85 rows / +$663.82** have landed since."* (The first draft's example showed identical figures and
-  zero rows, i.e. it illustrated *no drift at all* — failure-pattern #2, a rule shown firing without
-  its sentence being true.) Past a threshold **L2** fires and the owner
+  a placeholder: *"LE-08-26 froze Jul at **−46,115 over 520 rows**; the ledger now says **−45,451
+  over 605** — **85 rows / +$663.82** have landed since."* ⚠️ Round 2 caught the version before this
+  one freezing at the **post-drift** row count and inventing the "now" figure — self-consistent
+  arithmetic on inverted facts, and this is the **copy spec for L2**. Failure-pattern #2 in the
+  paragraph round 1 had already corrected for failure-pattern #2. Past a threshold **L2** fires and the owner
   re-cuts, which **creates a new LE — it never mutates the old one.**
 
 This matters more than it looks: `calibrate()` rewrites `opening_balance` across all history and
@@ -490,24 +537,42 @@ shape again. An LE that re-reads history silently restates itself.
 
 Actual months carry transaction-rate USD; estimate months carry `budget_fx_rates`. **Keep the mix.**
 
-**Measured — on the LE's own scope, and against the market rather than against the budget table.**
-The first draft got this wrong twice: it took the numerator on the LE scope and the denominator on
-the uncategorised-inclusive scope (the 122,000 PLN difference is entirely the excluded `PKO`
-allowance), and it called the **budget table's own month-8 row** the "realised August rate", which is
-the budget quoting itself. Corrected, using the genuine 16-day August average from `exchange_rates`
-(**PLN 3.7299, EUR 0.8667**):
+**Measured — and round 2 found the measurement was of the wrong thing.** Round 1 corrected the scope
+and the rate source; round 2 found the remaining error: **"estimate months carry `budget_fx_rates`"
+is not what the carried numbers are.** `budget_entries.base_amount` holds each row's **last-touched**
+rate, not the table's current one. Verified on the LE scope, Sep–Dec: PLN rows carry **9 distinct
+implied rates** (avg **3.6733**, against a declared **3.5517**); EUR carries **3** (avg **0.8646**,
+declared **0.84353**). So the three bases are:
 
-| currency | native remaining | USD @ budget rate | USD @ Aug market |
-|---|--:|--:|--:|
-| EUR | −1,738 | −2,009 | −2,006 |
-| PLN | **−36,547** | **−8,747** | **−9,798** |
-| USD | −117,927 | −117,927 | −117,927 |
-| **total** | | **−128,682** | **−129,730** |
+| basis | remaining Aug–Dec |
+|---|--:|
+| stored `base_amount` — what the grid actually carries | **−128,682** |
+| recomputed at the **declared** `budget_fx_rates` | **−129,737** |
+| at the August market rate (PLN 3.7299 / EUR 0.8667) | **−129,730** |
 
-Restating moves the remaining by **−$1,048 on $128,682 — 0.81%, and it is UNFAVOURABLE**, not
-favourable as the first draft implied. Against a method error of **$147,028** (§3.2) it is still
-third-order, so the conclusion stands: building FX restatement before the proposal engine optimises
-the wrong term.
+**Against the declared budget rates, restating at market is worth +$7 — nil.** The "−$1,048 /
+0.81%" is really the staleness of `base_amount` versus market, which is a different claim.
+
+**The §5 conclusion survives; the argument for it does not.** Defer FX restatement — but because the
+carried figures and the declared rates already differ by $1,054, not because the market has moved.
+
+### 5.1 What `CARRY` copies — this must be stated or P0a and P0b will disagree
+
+`CARRY` copies **`base_amount` verbatim**, sets `fx_basis='budget'` and stores
+`fx_rate = amount / base_amount` **per row** — the rate that figure was actually computed at.
+
+It matters because the alternative (`amount ÷ budget_fx_rates`) differs by **$1,054** on the LE's own
+headline, and **P0a already uses stored `base_amount`** (that is where −137,555 comes from). Two
+phases choosing differently would put two landings on the board.
+
+⚠️ **And the banner §5 mandates would assert a rate the numbers were not computed at** — *"Estimate
+months Aug–Dec at the 2026 budget rates (PLN 3.5517…)"* is false of the figures on screen. That is
+failure-pattern #7 **in the banner written to prevent failure-pattern #7**. It must read, in
+substance:
+
+> Actual months Jan–Jul at transaction rates. Estimate months Aug–Dec at **the rate each budget row
+> carries** — PLN 3.51–3.74 across Sep–Dec, against a declared budget rate of 3.5517 and an August
+> market rate of 3.7299.
 
 **Conceptual.** Mixing is *correct for an LE*. Actuals happened at the rate they happened at — that
 is a fact and must not be restated. The estimate months are an assumption, and the budget rate is
@@ -522,7 +587,7 @@ sit on the original **2026-03-13** assumption:
 |---|--:|--:|--:|
 | PLN | 3.5517 | **3.7299** | **4.8%** |
 | EUR | 0.84353 | **0.8667** | **2.7%** |
-| GBP | 0.73302 | 0.7418 | 1.2% — and **never re-rated at all**, still on the 2026-03-13 basis for *every* month |
+| GBP | 0.73302 | 0.7418 | 1.2% — months **1–6 were re-rated 2026-06-03**; only 7–12 sit on 2026-03-13. It was **skipped in the August pass**, not never re-rated |
 
 ⚠️ **The first draft illustrated this with the wrong line.** It said *"against a PLN 690,000
 dividend"* — but that `Financial Income - UB Dividend` row is dated **2026-01-01**, so it sits wholly
@@ -598,17 +663,23 @@ quoted in three places (five, seven, six).** That is failure-pattern #1 committe
 | `v2/repositories/fcLines.js:228` `findUnassignedCategories` | mapping completeness | ❌ none |
 | `v2/repositories/fcLines.js:379` `getBudgetBreakdown` | the stream-card drill-down | ❌ none |
 | `v2/repositories/fcLines.js:410` `getBudgetTotals` | FC-line budget totals / stream cards | ❌ none |
+| `v2/repositories/budget.js:159` `findAllExtended` | `GET /budget/entries` (`routes/budget.js:208`), `services/budget.js:416` | ❌ when `versionId` omitted |
 | `v2/repositories/budget.js:254` `sumByCategory` | `GET /budget/entries/summary/by-category` | ❌ when `versionId` omitted |
 | `v2/repositories/budget.js:293` `sumByMonth` | `GET /budget/entries/summary/by-month` | ❌ when `versionId` omitted |
-| `services/reports.js:526` | `/category-trend` budget series | ❌ none *(filters `entry_date` + `c.name`, not `budget_year`)* |
-| `services/budget.js:320` | `/budget-worksheet` monthly balance | ❌ none |
+| `services/reports.js:526` `getCategoryTrend` | `/category-trend` budget series | ❌ none *(filters `entry_date` + `c.name`, not `budget_year`)* |
+| `services/budget.js:320` `getSummary` | `/budget-worksheet` monthly balance | ❌ none |
 | `services/budget.js:634` `getCashFlow` | `/budget-vs-actual` (all 3 tabs), `/m/budget` | ❌ none *(filters `entry_date`)* |
 | `v_budget_vs_actual` (view) | | ❌ none |
 | `v2/repositories/budget.js:327` `compareToActual` | | ✅ **the only one that does** |
 
-**Ten functions plus the view.** And three of the `fcLines` joins use
-`($1::int IS NULL OR be.budget_year = $1)` — passed a null year they read **every year**, which is
-broader still.
+**Eleven live functions plus the view** — twelve counting `v2/repositories/budget.js:115 findAll`,
+which has the same shape, is exported, and has no live caller found. ⚠️ The first draft said five,
+seven and six in three different places; round 1 corrected it to ten; round 2 found `findAllExtended`
+and `findAll`. **Three rounds, three counts** — the point is not the number, it is that a count in
+this CR is not trustworthy unless every row was opened. And two of the `fcLines` joins use
+`($1::int IS NULL OR be.budget_year = $1)` — **`fcLines.js:45` and `:229` only**; `:379` and `:410`
+use a plain `AND be.budget_year = $1`. Passed a null year those two read **every year**, which is
+broader still, and §11.4 is where that bites.
 
 The first LE saved as a version row would **double the Budget column across the product and double
 the forecast base year** — a failure invisible to a balance check, showing up as a plausible plan
@@ -630,11 +701,18 @@ budget_le
   status TEXT NOT NULL DEFAULT 'draft'
     CHECK (status IN ('draft','final','superseded'))          -- VARCHAR+CHECK, never a PG enum (070)
   superseded_by INT REFERENCES budget_le(id)
-  excluded_account_ids INT[] NOT NULL                          -- the resolved scope, snapshotted (S8)
+  excluded_category_ids INT[] NOT NULL                        -- the resolved scope, snapshotted.
+    -- NOT `excluded_account_ids`: §2.2 keys the LE on CATEGORY and budget_le_lines has a separate
+    -- account_id dimension, so the old name would get joined to the wrong column.
   note · created_at · updated_at
   CHECK (actual_through >= make_date(budget_year,1,31))        -- §6: no January LE
-  CHECK (actual_through <  make_date(budget_year+1,1,1))       -- §6: no MM=13
-  UNIQUE (budget_year, name) WHERE status <> 'superseded'      -- §6 supersede needs this partial
+  CHECK (actual_through <  make_date(budget_year,12,1))        -- §6: no MM=13.
+    -- NOT `< make_date(budget_year+1,1,1)`, which accepts 2026-12-31 whose first estimate month
+    -- IS 13 -- the case §6 refuses in prose, let through by the CHECK labelled "no MM=13".
+  CHECK (actual_through =                                      -- §6: MM = actual_through + 1 month
+    (date_trunc('month',actual_through) + interval '1 month - 1 day')::date)
+    -- without this, 2026-08-15 is accepted and MM is undefined.
+  -- (budget_year, name) uniqueness is a PARTIAL INDEX -- see below, not a table constraint
 
 budget_le_lines
   id · le_id INT NOT NULL REFERENCES budget_le(id) ON DELETE CASCADE
@@ -645,16 +723,26 @@ budget_le_lines
     CHECK ((category_id IS NULL) <> (account_id IS NULL))
   currency CHAR(3) NOT NULL                                    -- part of the GRAIN, see below
   source  TEXT NOT NULL CHECK (source IN ('actual','budget_carry','manual'))
-  method  TEXT NOT NULL CHECK (method IN ('ACTUAL','CARRY','PHASE_TO_YTD','MANUAL','ZERO'))
+  method  TEXT NOT NULL CHECK (method IN ('ACTUAL','CARRY','PHASE_TO_YTD','TRAIL_3','ZERO','MANUAL'))
+                                        -- TRAIL_3 is P1, but it goes in THIS CHECK: otherwise P1
+                                        -- needs a whole migration to widen a constraint the first
+                                        -- one could have got right. List every method the roadmap knows about.
   method_input jsonb                    -- the advisory's operands, kept even when not taken
   amount NUMERIC(15,2) NOT NULL · base_amount NUMERIC(15,2) NOT NULL
   fx_rate NUMERIC · fx_basis TEXT CHECK (fx_basis IN ('budget','transaction','spot','manual'))
   snapshot_row_count INT · snapshot_sum NUMERIC(15,2)          -- actual rows only; NULL on estimates
   note TEXT
-  UNIQUE (le_id, category_id, period_month, currency) WHERE category_id IS NOT NULL
-  UNIQUE (le_id, account_id,  period_month, currency) WHERE account_id  IS NOT NULL
   INDEX (le_id, period_month)
-INDEX budget_le (budget_year, actual_through DESC) WHERE status <> 'superseded'  -- the picker
+
+-- ⚠️ `UNIQUE (...) WHERE ...` is NOT a valid table constraint in Postgres. These are indexes, and
+-- the point of this block is DDL that is right the first time:
+CREATE UNIQUE INDEX ... ON budget_le_lines (le_id, category_id, period_month, currency)
+  WHERE category_id IS NOT NULL;
+CREATE UNIQUE INDEX ... ON budget_le_lines (le_id, account_id,  period_month, currency)
+  WHERE account_id  IS NOT NULL;
+CREATE UNIQUE INDEX ... ON budget_le      (budget_year, name)  WHERE status <> 'superseded';
+CREATE        INDEX ... ON budget_le      (budget_year, actual_through DESC)
+  WHERE status <> 'superseded';   -- the picker
 ```
 
 ⚠️ **`currency` is part of the grain, and leaving it out would have been the CR037 bug again.**
@@ -672,7 +760,13 @@ every NULL is distinct, so unlimited duplicates would be accepted. This is
 `budget_entries` itself has **no** unique constraint on its own grain, which is part of why 72 of its
 rows drifted uncategorised.
 
-⚠️ **`UNIQUE (budget_year, name)` must be partial or §6's supersede path is unreachable.** §6 defines
+⚠️ **The supersede must happen AT FINALISE, not at creation.** The partial unique means a *draft*
+`LE-08-26` cannot coexist with a *final* `LE-08-26`. So `recut` creates the draft first and marks the
+old one `superseded` **in the same transaction as the new one's finalise** — otherwise an abandoned
+draft leaves the owner holding only a superseded artefact, which the picker demotes. Between the two,
+the picker shows the final LE plus its draft, labelled.
+
+⚠️ **And `UNIQUE (budget_year, name)` must be partial or §6's supersede path is unreachable.** §6 defines
 `name = LE-MM-YY` from `actual_through` and says a second LE in one month *keeps both rows*. Two LEs
 in one month share `MM`, so they share the name, and the second `INSERT` would raise a unique
 violation. The partial index above resolves it, and the supersede must therefore be **one
@@ -710,8 +804,8 @@ full, and dies in `beforeAll` on CI's.
 
 `GET/POST /api/v2/budget/le` · `GET/PATCH/DELETE /le/:id` · `POST /le/:id/finalize` ·
 `POST /le/:id/recut` (supersede + insert, **one transaction** — §7.1) · `GET /le/:id/lines` ·
-`PATCH /le/:id/lines` (batch) · `GET /le/:id/proposals` · `GET /le/:id/drift` ·
-`GET /le/:id/advisories` · `POST /le/:id/seed-budget?year=` (P2). **No `/le/closed-through`** (§1.2
+`PATCH /le/:id/lines` (batch) · `GET /le/:id/advisories` · `GET /le/:id/drift` ·
+`POST /le/:id/seed-budget?year=` (P2, and see §11.4). **No `/le/closed-through`** (§1.2
 removed the concept) and **no `/le/compare`** (§11.1 — the comparison surface is cut).
 
 ⚠️ **Route order and file layout are gates, not style.** Any literal segment must register **before**
@@ -720,6 +814,11 @@ removed the concept) and **no `/le/compare`** (§11.1 — the comparison surface
 `Scripts/check-api-envelope.sh` globs `server/src/v2/routes/*.js` **only**, so a nested
 `routes/budgetLe/index.js` would escape the gate entirely — use a flat `routes/budgetLe.js`. Every
 handler returns `{ data: … }`.
+
+⚠️ **Transactionality is not just `recut`.** `POST /le` materialises ~1,116 rows,
+`PATCH /le/:id/lines` is a batch, and `finalize` writes the snapshot columns across every actual row.
+**Each runs in a single transaction.** CR037's non-transactional multi-row write is on this CR's own
+risk list, and **L10 is the only thing that would ever notice a half-written LE**.
 
 **All proposal arithmetic is server-side** and returns its operands
 (`{categoryId, basis, operands, perMonth, monthsAffected, lineFyBefore, lineFyAfter, churn, reason}`
@@ -772,16 +871,16 @@ Each rule states the number it protects, measured on today's data.
 | id | rule | trigger | protects |
 |---|---|---|---|
 | **L1** | `le-month-may-be-incomplete` | month `actual_through`'s row count or value is materially below the trailing median for the same elapsed-days window — **an arrival-lag test, never a reconcile test, and always advisory** (§1.2: the reconcile signal exists for 11 of 113 accounts) | the actual half. On this book it is worth **$664**, which is why it advises rather than gates |
-| **L2** | `le-actuals-drifted` | live actual for a frozen month ≠ snapshot, by > $250 or > 5 rows | LE-vs-LE comparability. **85 rows / +$664** landed for July in 16 days |
+| **L2** | `le-actuals-drifted` | live actual ≠ snapshot **per frozen MONTH, aggregated across categories** (not per line, not per currency slice, not per LE) by > $250 **or** > 5 rows. ⚠️ The grain must be stated or the rule fires always or never: July's real drift is +663.82 / 85 rows in **aggregate** and thin per line | LE-vs-LE comparability. **85 rows / +$664** landed for July in 16 days |
 | **L3** | `le-annualised-a-lumpy-line` | a non-`CARRY` method on a bucket-A or bucket-B line | **$136,288** on `UB Dividend`. **Blocks** auto-propose; warns on a typed figure |
 | **L4** | `le-dropped-committed-cost` | `budget_rest ≠ 0` and `estimate_rest = 0` with no `note` | **−$66,381** (`Taxes US` −55,000 Dec, `Property Tax - US` −9,800 Nov) |
 | **L5** | `le-unbudgeted-actual-not-estimated` | YTD actual, no budget, no LE estimate | 8 lines / −$2,033 today; the class grows |
 | **L6** | `le-uncategorised-allowance-double-count` | categorised estimates **and** uncategorised account-level budget rows for the same account/period | **−$35,900** in the Aug–Dec window (−86,796 FY) |
-| **L7** | `le-excluded-category-present` | a transfer / `Unrealized G/L` / `Valuation - Historical` row reached the LE | **+$213,595** of MTM alone |
-| **L8** | `le-fx-basis-stale` | budget FX for an estimate month > 3% from the latest realised rate | **PLN 5.0%.** Fires on day one, correctly |
+| **L7** *(server invariant + test, NOT a screen warning — §11.1)* | `le-excluded-category-present` | a transfer / `Unrealized G/L` / `Valuation - Historical` row reached the LE | **+$213,595** of MTM alone |
+| **L8** | `le-fx-basis-stale` | the rate a carried row was computed at differs > 3% from the latest market rate (§5.1 — **the row's own rate, not the declared table rate**) | **PLN carries 3.51–3.74 against a 3.7299 market**; declared-vs-market is only **4.8%** and stored-vs-declared is **$1,054** |
 | **L9** | `le-proposal-guard-fired` | any of §3.4's **four** guards refused a line — sign flip, clamp hit, tiny denominator, or **churn ≥ 3.0** | ⚠️ the first draft claimed L9 caught `Option Trade`. It did not: r = 3.10 is *inside* the clamp and the signs agree. The churn guard is what catches it, and it is worth **$12,275** |
 | **L10** | `le-does-not-tie` | `Σ(month lines) ≠ header FY total`, or `Σ(actual months) ≠ live actual at snapshot time` | the reconcile invariant. **Must exist in P0** |
-| **L11** | `le-coverage-changed` | two compared LEs have different category sets | stops the LE-walk attributing a coverage change to a business change |
+| ~~L11~~ | ~~`le-coverage-changed`~~ | — | **CUT with the comparison surface** (§11.1) |
 
 ⚠️ Two lessons already paid for. [failure-patterns #2](../current/failure-patterns.md): **five of
 eight forecast warning rules were tested for FIRING and were wrong in their sentence** —
@@ -822,15 +921,15 @@ body, i.e. a new page wearing an old URL (no deep link, no ⌘K entry, back-butt
 — it does not need to be spread across columns nobody can edit. `/budget-vs-actual` already shows
 the month-by-month shape, with drill-down, and does it better.
 
-Ten columns on a 1440 laptop with a 260px label column — **no horizontal scroll, prints portrait**:
+Eleven physical columns (a 260px label + ten numeric/text) on a 1440 laptop — **no horizontal scroll, prints portrait**:
 
 ```
 ┌────────────────────────────────────────────────────────────────────────────────────────┐
 │ Latest Estimate            [ LE-08-26 ▾ ]   Draft · 4 unsaved edits          [ Save ▾ ] │
 ├────────────────────────────────────────────────────────────────────────────────────────┤
 │ ┌FY2026 landing──┐ ┌Income FY────┐ ┌Expenses FY──┐ ┌% of yr actual┐                     │
-│ │  ($102,999)    │ │   $415.1K   │ │  ($286.7K)  │ │  7 of 12     │                     │
-│ │ ▲ +34,556 vs bd│ │ ▲ +$4.1K    │ │ ▼ ($3.4K)   │ │  Jan–Jul     │                     │
+│ │   (102,999)    │ │   434,218   │ │  (537,217)  │ │  7 of 12     │                     │
+│ │ ▲ +34,556 vs bd│ │ ▲ +42,356   │ │ ▼  (7,800)  │ │  Jan–Jul     │                     │
 │ └────────────────┘ └─────────────┘ └─────────────┘ └──────────────┘                     │
 │ Actuals Jan–Jul · Estimate Aug–Dec · USD; non-USD at 2026 budget FX rates †              │
 ├────────────────────────────────────────────────────────────────────────────────────────┤
@@ -839,10 +938,10 @@ Ten columns on a 1440 laptop with a 260px label column — **no horizontal scrol
 │                      │  ACTUAL  ║   ESTIMATE — Aug–Dec 2026    │        │        │      │
 │ CATEGORY             │ JAN–JUL  ║  AUG   SEP   OCT   NOV   DEC │FY TOTAL│ BUDGET │ VAR  │ BASIS
 ├──────────────────────┼──────────╫──────────────────────────────┼────────┼────────┼──────┼──────
-│ ▾ Income             │  239,100 ║ 34,000 34,000 34,000 34,000 40,000│415,100│411,000│+4,100│
+│ ▾ Income             │  361,183 ║ ...                          │ 434,218│ 391,862│+42,356│
 │    Interest Income ⓘ │   38,139 ║[ 4,000][ 4,000][ 4,000][ 4,000][ 4,000]│ 58,139│ 46,000│+12,139│Budget
-│      ⓘ  YTD 38,139 ÷ budget-YTD 26,000 = 1.467 → 5,868/mo would give FY 67,477          │
-│ ▾ Expense            │ (171,300)║ ...                          │(286,700)│(283,300)│(3,400)│
+│      ⓘ  YTD 38,138.55 ÷ budget-YTD 25,999.86 = 1.466874 → 5,867.47/mo → FY 67,475.90    │
+│ ▾ Expense            │ (335,500)║ ...                          │(537,217)│(529,417)│(7,800)│
 │    Bank Fees      ▲  │  (3,966) ║[  (413)][  (413)][  (413)][  (413)][  (413)]│(6,031)│(3,449)│(2,582)│Typed
 │    Taxes US       ⚠  │        0 ║[     0][     0][     0][     0][(55,000)]│(55,000)│(55,000)│  —  │Budget
 ├──────────────────────┼──────────╫──────────────────────────────┼────────┼────────┼──────┼──────
@@ -851,6 +950,19 @@ Ten columns on a 1440 laptop with a 260px label column — **no horizontal scrol
   ‖ left is fact · right is your estimate       [ ] = editable      † see /budget-fx
   ⓘ an advisory (§10.4)   ▲ you typed it   (no mark) carried from budget   ⚠ lumpy, no advisory
 ```
+
+⚠️ **Column budget: 11 physical columns** — label + YTD + 5 estimate + FY + Budget + Var + Basis —
+at ~89px each on 1440 with the sidebar. **That is the ceiling, and P1 must respect it.** §12 rank 3
+(timing-vs-permanent) is **two figures per line** and does **not** fit: it lives in
+`BudgetDetailModal` and the export, not the grid. "No horizontal scroll" is the guarantee §10.6 leans
+on to delete the print hazard at its root, so breaking it in P1 would re-open a defect this CR closed.
+
+⚠️ **Every figure in that mock ties, and it must stay that way — it is the builder's KPI spec.**
+361,183 − 335,500 = **25,684**; 434,218 − 537,217 = **−102,999**; +42,356 − 7,800 = **+34,556**.
+Round 2 caught the previous version where Income FY + Expenses FY came to **+128.4K** against a
+stated landing of **(102,999)**, and the YTD columns to **67,800** against a stated **25,684** — the
+same class as round 1's fabricated `Interest Income` budget, in the section that replaced it.
+**L10 must pass on this picture before it passes on any data.**
 
 **Double-click the YTD ACTUAL cell** → `features/Budgets/BudgetDetailModal.jsx`, the same modal
 `/budget-vs-actual` already uses. That is where the month-by-month detail lives, and reusing it costs
@@ -887,7 +999,7 @@ inverting their light-mode meaning. That inversion is the shape of all 12 CR026 
 No `rgba()` gradients, no inline hex.
 
 **Dark-mode checklist for sign-off:** the seam rule on both surfaces · the actual/estimate surface
-pair · the `◆`/`▲`/`⚠` marks · the proposal drawer's before/after figures · the KPI change colours ·
+pair · the `ⓘ`/`▲`/`⚠` marks · the advisory row's figures against the grid beneath it · the KPI colours ·
 **and one print from each theme** (browsers print the live DOM; `color: var(--ink)` = `#E2E8F0` on
 white paper is near-invisible — `TaxFbar.css` forces `color: #000` in print for exactly this).
 
@@ -908,16 +1020,27 @@ Accept-all, no drawer and no undo stack, because there is nothing to undo.
 
 Design rules, unchanged from the first draft because they are what makes it checkable:
 
-- **Show the operands, not a verdict.** `38,139 ÷ 26,000 = 1.467` is verifiable in two seconds;
-  "based on recent trends" is not.
+- **Show the operands, not a verdict.** `38,138.55 ÷ 25,999.86 = 1.466874` is verifiable in two
+  seconds; "based on recent trends" is not.
+- ⚠️ **State the allocation rule, and make the arithmetic tie.** The version round 2 caught printed
+  *"5,868/mo → line FY 67,477"* while a reader multiplying got 5 × 5,868 = 29,340 → **67,479** —
+  three numbers for one line, in the example that replaced round 1's wrong example, and **L10 would
+  fire on the CR's own showcase.** The rule: **round to 2 dp per month, the last estimate month
+  absorbs the residual**, and printed per-month × months must equal the printed line FY. (Aug–Dec
+  `Interest Income` budget is **3,999.98**/mo — 500 + 2,000 + 1,499.98 — not 4,000.)
 - **State the consequence at line level** — the resulting line FY and its delta vs budget — because
   a suggestion whose effect you cannot see is a suggestion you cannot judge.
 - **Say why it is NOT re-levelling**, when it is not: `Option Trade` (churn 29.0) and
   `UB Dividend` (budgeted in 2 of 12 months) render the refusal and the number the naive method
   *would* have given (+12,275 and +136,288), because the refusal is more useful than silence.
-- `[ use this figure ]` writes the number into the five cells as a **`MANUAL`** edit, not as
-  `proposed_accepted`. It is a typing shortcut, not an acceptance workflow — one click, fully
-  reversible by editing, and it needs no `proposed_amount` bookkeeping.
+- `[ use this figure ]` writes `source='manual'` — it is a typing shortcut, not an acceptance
+  workflow — but **`method='PHASE_TO_YTD'` with `method_input={r, budget_ytd, actual_ytd,
+  per_month}`**, ⚠️ **not `method='MANUAL'`**. Round 2 caught the contradiction: with `MANUAL`,
+  nothing in the system ever writes `PHASE_TO_YTD`, so `method_input` has **no writer**,
+  `PHASE_TO_YTD` is a dead CHECK value, and §4.1's *"a row carrying its own operands cannot be
+  paraphrased"* — the strongest correctness argument in this CR — has no implementation. `source`
+  says who chose it; `method` + `method_input` say how the number was derived. Both are needed, and
+  keeping them costs one field in the write payload.
 
 **If the owner ends up using the shortcut on most advisories, the accept/reject drawer is then
 justified by evidence** and is a small addition on top. That is the order CR081 argues for.
@@ -929,8 +1052,13 @@ justified by evidence** and is a small addition on top. That is the order CR081 
 | state | mark | `Basis` column |
 |---|---|---|
 | carried from budget | none | `Budget` |
-| proposed, accepted | `◆` `var(--info)` | `Re-levelled r=1.47` |
 | user-typed | `▲` `var(--accent)` | `Typed` |
+| *(an advisory is available on this line)* | `ⓘ` `var(--info)` | — *(the line's own basis is unchanged until the owner acts)* |
+
+⚠️ **There is no `proposed, accepted` state.** §11.1 collapsed `source` to
+`actual | budget_carry | manual`, so a figure taken from an advisory is `manual` — identical to one
+typed by hand, because that is exactly what it is (§10.4). `ⓘ` marks *availability*, not provenance,
+and it disappears once the line is edited.
 
 `--info` (`#8B7BB5`/`#A99BC9`) and `--accent` (`#6B8E6B`/`#8CB68C`) are distinct hues defined in both
 themes and collide with neither `--growth-positive` nor `--growth-negative`. The `Basis` column being
@@ -939,18 +1067,20 @@ heading) in one move — it prints, it exports, it reads in greyscale. Mixed row
 **Roll-up rows carry no mark** — they are sums, and marking them implies an edit that does not exist.
 
 **Editing.** A cell edit applies to **that month only** — a number typed into Sep that silently
-rewrites Oct–Dec cannot be attributed by the reader. The **`FY TOTAL` cell is editable** and *that*
-is the spread affordance: type a full-year target, choose evenly or pro-rata once, see the resulting
-per-month figure before it commits. Math expressions use
+rewrites Oct–Dec cannot be attributed by the reader. **The `FY TOTAL` cell is read-only**: §11.1 cut
+the spread edit, because it is a second editing model and the *Apply run rate to remaining* row action
+already covers the need. Math expressions use
 **`frontend/src/utils/amountFormula.js` (`evaluateAmountFormula`)** — the safe recursive-descent
 parser with the thousands-comma rule — **not** `evaluateMathInput`
 (`features/BudgetEntry/utils/budgetInputUtils.js:428`), which is `new Function(...)`. Two evaluators
 already exist; a 1,000-cell editable grid adopts the safe one and the worksheet migration is a
 follow-up bullet. Enter commits and moves down; Tab right; Esc reverts; ⌘Z undoes.
 
-Row menu (each item showing its resulting line FY total): *Apply run rate to remaining* · *Scale
-remaining by %* · *Set remaining to 0* · *Copy Aug across Sep–Dec* · *Revert line to budget*. Only
-the two destructive ones take a `ConfirmModal`.
+Row menu — **two actions, not five** (§11.1 cut *Scale remaining by %*, *Set remaining to 0* and
+*Copy Aug across*), each showing its resulting line FY total: **_Apply run rate to remaining_** (the
+one the owner asked for by name — and it carries §3.4's four guards, since a manual invocation on a
+lumpy line is exactly what L3 exists to stop) and **_Revert line to budget_**, which takes a
+`ConfirmModal`.
 
 **Double-click an actual cell → `features/Budgets/BudgetDetailModal.jsx`.** Verifying the actual half
 is half of trusting the estimate half, and it costs nothing new.
@@ -963,9 +1093,9 @@ day one it holds exactly one row, which is the whole argument against building t
 **Headline KPIs** (`components/KpiCards.jsx`): FY landing (vs Budget) · Income FY · Expenses FY
 (`positiveIsGood: false`) · **% of year actual**. Under them a **text strip, not a fifth card** — *"Actuals
 Jan–Jul (7 of 12 months, 58% of the year) · Estimate Aug–Dec · All figures USD"*; % of year actual
-is on the card here because §11.1 cut the *vs prior LE* card with the series. Pass `chartColor="var(--chart-emerald)"`, **never** the
-`#5B8C5B` literals in `BudgetRealizationContent.jsx:97,110,125,142` — those are in the
-`check-inline-hex.sh` baseline and new ones fail CI. `formatKpiValue` compacts to `$1.2M`: fine on a
+is on the card here because §11.1 cut the *vs prior LE* card with the series. Pass `chartColor="var(--chart-emerald)"`, **never** a hex literal — `BudgetRealizationContent.jsx` carries four (`:97` `#5B8C5B`, `:111`
+`#C0504D`, `:125` `#567856`, `:142` `#8b5cf6`), all in the `check-inline-hex.sh` baseline, and new
+ones fail CI. (The first draft said all four were `#5B8C5B` and cited `:110`.) `formatKpiValue` compacts to `$1.2M`: fine on a
 card, never the only place a number appears.
 
 ### 10.6 Print and export — the hazard is now removed, not mitigated
@@ -984,7 +1114,7 @@ so the class of defect cannot occur. Three requirements remain, all cheap:
    drop the surface tints. And print once **from dark mode**: browsers print the live DOM, and
    `color: var(--ink)` = `#E2E8F0` on white paper is near-invisible, which is why `TaxFbar.css`
    forces `color: #000` in print.
-3. Hide the KPI cards, toolbar, tabs, buttons and filters (`Layout.css:75-103` already removes the
+3. Hide the KPI cards, toolbar, buttons and filters (`Layout.css:75-103` already removes the
    shell); `tr { page-break-inside: avoid; }`.
 
 ⚠️ **Still worth recording for whoever touches the neighbours:** `PageLayout.css` contains **zero**
@@ -1001,7 +1131,7 @@ the export is worth anything three months later.
 
 ### 10.7 Mobile — **nothing in P0/P1.**
 
-A 12 × N editable grid on a phone is horizontal scroll, which the mobile shell's contract forbids,
+A grid with five editable month columns on a phone is horizontal scroll, which the mobile shell's contract forbids,
 and building an LE is deliberate desk work. **P2, optional:** a read-only block appended to
 `/m/budget` (`mobile/pages/MobileBudgetRealization.jsx`) — three figures in the existing `m-kpi`
 markup plus the top 8 lines by |LE − Budget| in the existing `m-var` list. **No new route and no 6th
@@ -1044,10 +1174,10 @@ threads on one shared tree have already committed over each other twice; the con
 
 | | scope | why this gate |
 |---|---|---|
-| **P0a** | **No schema, no new page.** An **FY-landing KPI on `/budget-vs-actual`** — *"FY2026 landing at carry: (102,999) · budget (137,555) · YTD variance +34,556"* — with §2's exclusion (`NOT is_transfer AND id <> 88`) applied **to that page**. | Delivers the **primary** use in about a day. The exclusion is not LE-specific: transfers and `Unrealized G/L` distort budget-vs-actual **today**. Ships first inside the same commitment. |
-| **P0b** | Migration **071** (the two tables, nothing seeded). The **calendar-month cut** (§1.2), overridable both ways. Scope per §2, keyed on category (§2.2). **The grid (§10.2): one YTD ACTUAL column + Aug–Dec editable + FY / Budget / Var / Basis — ten columns, no modes, no sticky column, no horizontal scroll.** Per-cell editing, two row actions (*Apply run rate to remaining*, *Revert line to budget*), the boundary treatment (§10.3), the FX banner, print + export (§10.6). Warnings **L4 + L10**. Finalise → immutable; re-cut supersedes. **No proposal machinery.** | The artefact itself. The narrowed grid removes about a third of the frontend work *and* the print-clipping hazard at its root. |
-| **P1** | The bucket classifier + `PHASE_TO_YTD` **as an inline advisory with no accept button** (§10.4), including the four guards and the refusal copy. `TRAIL_3` / `ZERO` as manual overrides. Drift (**L2**) + `POST /le/:id/recut`. **The timing-vs-permanent variance split** (§12 rank 3). Warnings **L3, L5, L8, L9**. | The advisory is a fraction of the drawer and tests the premise CR081 measured at 0/15 twice. The variance split is what makes P1 more than cosmetic. |
-| **P2** | 🆕 **Seed next year's budget from an LE** — the owner's stated secondary use, and **not in the first draft at all**. `POST /budget/le/:id/seed-budget?year=2027` writes a new `budget_versions` row + `budget_entries` for the target year from the LE's FY shape. ⚠️ It **must** write into a *different* `budget_year`, which is the one case §7's copy footgun does not bite. Plus the read-only LE reference column on `FCReview` (§8.1) — displayed, never summed. Optional restate-at-spot; optional read-only `/m/budget` block. | Wants a real LE to exist first, and wants the November cut to be worth rolling forward. |
+| **P0a** | **No schema, no new page, and it does NOT re-base the existing page.** An **FY-landing KPI on `/budget-vs-actual`** — *"FY2026 landing at carry: (102,999) · budget (137,555) · YTD variance +34,556"* — which **computes §2's scope itself (`NOT is_transfer AND id <> 88`) and names it beside the figure**. The table below it keeps its current numbers and its current transfer convention. See §11.2. | Delivers the **primary** use in about half a day, purely additive, and moves no number the owner already reads. |
+| **P0b** | Migration **072+** (the two tables, nothing seeded). **Drift (`L2`) ships HERE, not in P1** — see §11.3. The **calendar-month cut** (§1.2), overridable both ways. Scope per §2, keyed on category (§2.2). **The grid (§10.2): one YTD ACTUAL column + Aug–Dec editable + FY / Budget / Var / Basis — ten columns, no modes, no sticky column, no horizontal scroll.** Per-cell editing, two row actions (*Apply run rate to remaining*, *Revert line to budget*), the boundary treatment (§10.3), the FX banner, print + export (§10.6). Warnings **L2 + L4 + L10**. Finalise → immutable; re-cut supersedes. **No proposal machinery.** | The artefact itself. The narrowed grid removes about a third of the frontend work *and* the print-clipping hazard at its root. |
+| **P1** | The bucket classifier + `PHASE_TO_YTD` **as an inline advisory with no accept button** (§10.4), including the four guards and the refusal copy. `TRAIL_3` / `ZERO` as manual overrides. `POST /le/:id/recut`. **The timing-vs-permanent variance split** (§12 rank 3). Warnings **L3, L5, L8, L9**. | The advisory is a fraction of the drawer and tests the premise CR081 measured at 0/15 twice. The variance split is what makes P1 more than cosmetic. |
+| **P2** | 🆕 **Seed next year's budget from an LE** — the owner's stated secondary use, **not in the first draft at all and NOT YET SPECIFIED ENOUGH TO SCHEDULE (§11.4)**. Plus the read-only LE reference column on `FCReview` (§8.1) — displayed, never summed. Optional restate-at-spot; optional read-only `/m/budget` block. | Wants a real LE to exist first. **The seed is the only data-mutating thing in this CR** and it does not get scheduled until §11.4's gaps are closed. |
 
 ### 11.1 Cut by the owner's answers — do not build these
 
@@ -1065,6 +1195,100 @@ threads on one shared tree have already committed over each other twice; the con
 - **L7 as a screen warning** — if an excluded category reaches the LE the *query* is wrong. That is a
   server-side invariant plus a test, not something to ask the owner to catch.
 
+### 11.2 P0a's blast radius — additive, and the reason is FRAGILITY, not wrong figures
+
+⚠️ **The first version of this section asserted two "verified consequences" that are both false, and
+they were its entire justification.** Round 2 falsified them; recorded here rather than patched away,
+because this is the CR's fourth instance of failure-pattern #1 and the first where the wrong claim
+had already been repeated to the owner.
+
+What was claimed, and what is true:
+
+| claimed | actually |
+|---|---|
+| `extractTransferCategories` *"misses `Return of Capital` (217) and `Valuation - Historical` (229)"* | ❌ **False.** It matches the **parent** node `Transfers` on `.includes('transfer')`, then `collectLeaves(node.children)` pushes **all 13** leaf descendants (`services/budget.js:86-101`). Verified live: `transfers=exclude` → 110 leaves, both absent; `transfers=include` → 122 leaves, both present, delta exactly **−30,437.52** — the full subtree |
+| *"does not exclude `Unrealized G/L` (88) at all … the +213,595 is in those figures today"* | ❌ **False.** `reports.js:251` defaults `includeUnrealizedGL = false` and `:404` drops the node; `MobileBudgetRealization.jsx:91,97` pass `false` explicitly. It is **not** in those figures. (The budget side has no such option, but there are **zero** 2026 budget rows on 88.) |
+
+**So `/budget-vs-actual` is not wrong today, and P0a is still additive — for a different reason.** The
+difference between the two exclusions is **mechanism**, and the name walk is fragile in two ways the
+predicate is not:
+
+- rename `Transfers` and the exclusion **silently stops working**;
+- add a `profit_loss` leaf named `Transfer - x` **outside** the subtree and it is **silently
+  excluded**.
+
+`accounts.is_transfer` is TRUE on exactly the right 13 accounts and survives both. But swapping a
+live page onto a different predicate is a change to numbers the owner reads weekly, needs a
+before/after on four surfaces, and is not this CR's job.
+
+| | scope | cost |
+|---|---|---|
+| **(a) additive KPI — CHOSEN** | The KPI computes `NOT is_transfer AND id <> 88` itself and **states that scope on the card**. The existing table keeps its own convention. | ~½ day, moves nothing |
+| (b) re-base the page | Switch `getCashFlow` to `is_transfer`. | 1.5–2 days, four surfaces to re-check, and it fixes fragility rather than a live wrong number |
+
+⚠️ **Two conventions on one screen is a real cost, and the KPI will NOT tie to the table beneath
+it** — by **$60.36** today (§2.1a's parent-posted rows, which the report cannot see) and by **$1,054**
+if P0a and P0b pick different FX bases (§5.1 fixes that: both carry stored `base_amount`). **The card
+states its own scope and says it differs**, or it derives from the same service as the table. Silently
+putting two differently-derived numbers on one screen is how a reader loses trust in both. The re-basing is a roadmap bullet.
+
+⚠️ **And `extractTransferCategories` is duplicated verbatim** in `services/budget.js:72` and
+`services/reports.js:362` — failure-pattern #4, live, today. Also a roadmap bullet.
+
+### 11.3 Why drift (L2) moved from P1 into P0b
+
+§4.2 is the CR's own correctness argument: *"a pure freeze is quietly wrong"*, evidenced by July
+gaining **85 rows / +$663.82 in 16 days**. P0b ships the freeze — finalise → immutable, actuals
+snapshotted — and the first draft put the figure that makes that freeze *honest* in P1. Between the
+two, a finalised LE can diverge from the ledger **with no signal**, and since only P0a and P0b are
+committed, that gap had no end date.
+
+Drift is a query over `snapshot_row_count` / `snapshot_sum`, which the migration already stores. It
+is hours, not days. **Shipping an immutable artefact without it is shipping a number that can quietly
+stop being true.**
+
+
+### 11.4 P2's seed-next-year is not schedulable yet — three gaps and a risk the CR did not name
+
+`POST /budget/le/:id/seed-budget?year=2027` would write a `budget_versions` row plus ~800
+`budget_entries` from the LE's FY shape. **It is the only data-mutating operation in this CR**, into a
+table ten functions aggregate. Unspecified today, and all three must be closed before it is scheduled:
+
+1. **What seeds** — the LE's per-month shape, or the FY total re-spread? Is inflation applied?
+2. **Idempotency and collision** — **2027 already holds 12 rows**, and `budget_entries` has **no unique
+   constraint on its own grain** (§7.1), so a double-run duplicates *silently*. That is the
+   back-fill-duplicate shape that has already cost this project real money
+   ([CR059 §22](cr-059-fintable-api-ingestion.md)). **A dry-run/preview and a delete path are
+   prerequisites, not polish.**
+3. **Reversibility** — how the owner undoes a seed they did not want.
+
+⚠️ **The risk the CR missed, verified in code.** §7 records `budget_entries`' readers as
+*version*-blind. `fcLines.findAll` is also **year-blind**:
+
+```sql
+LEFT JOIN budget_entries be ON be.category_id = dl.id
+  AND ($1::int IS NULL OR be.budget_year = $1)          -- repositories/fcLines.js:44
+```
+
+`routes/fcLines.js:17` passes **`null`** when `budgetYear` is absent, and
+`FCModulesEdit.jsx:402` calls `Rest.get("/fc-lines")` with **no year**. So the per-category
+`budget_total` inside `findAll`'s `categories[]` sums `budget_entries` across **every year**.
+
+⚠️ **Corrected on round 2 — the path first cited here was wrong.** `FCModulesEdit.jsx:407-408`
+builds its `totMap` from the **second, year-scoped** call (`/fc-lines/budget-totals?budgetYear=…` at
+`:403`), and `FCLineMapping.jsx:48` always passes a year. **The year-blind figure is real and
+reachable; the specific consumer named was not.** Today 2027 holds **12 rows / −3,600** and the
+contamination is trivial; **seeding ~800 rows into 2027 is what makes it material**, so the seed is
+the thing that turns a latent year-blindness into a wrong number. Find the live consumer before
+building P2.
+
+⚠️ **And a second-order reversal to state deliberately rather than discover.** §8.1 gives four
+arguments for refusing to let the LE feed the forecast base year. Once [CR064 P2](cr-064-forecast-annual-close-and-assumptions.md)'s
+annual close moves `PeriodStart` to 2028, [CR075](cr-075-base-year-is-the-budget.md) makes the base
+year the **2027 budget** — which, if P2 seeded it, is LE-derived. **The refusal holds this year and
+quietly reverses the next.** Decide it on purpose.
+
+
 ## 12. The headline figures, ranked
 
 Re-ranked after the owner's 2026-08-16 answers: the **landing number is the point**, the series is
@@ -1076,7 +1300,7 @@ not, so what was rank 4 drops out of the build entirely (§11.1).
 | **2** | **LE vs Budget, FY and by line, with the driver** — `+34,556 favourable` | the decision: better or worse, and because of what |
 | **3** | **Variance split: timing vs permanent** — per line, `budget_ytd − actual_ytd` (realisation) vs `budget_rest − estimate_rest` (a changed view) | stops the owner acting on a phasing artefact. `Purchases - Kasia` is −1,407 unfavourable YTD with **zero** remaining; `Taxes US` is 0/0 YTD with −55,000 still to come. Opposite situations that rank 2 alone cannot tell apart |
 | ~~4~~ | ~~LE vs prior LE — the walk~~ | **CUT.** The owner's primary use is the landing number, not the series (§11.1) |
-| **5** | **LE vs prior-year actual** | the only cross-year sanity check available — 2025 has just 14 budget rows but full actuals. Cheap; keep as a column |
+| ~~5~~ | ~~LE vs prior-year actual, as a column~~ | **CUT from the grid** — it would be an eleventh column against §10.2's "ten columns, no horizontal scroll", and the constraint is what removes the print hazard. Available in the **export** instead, where width is free |
 | **6** | Cash-flow landing | needs the transfer/balance-sheet scope this CR excludes. Not scheduled |
 
 Every one states **nominal** and **after tax** — this book's `Taxes US` / `Taxes SP` /
@@ -1089,7 +1313,9 @@ Every one states **nominal** and **after tax** — this book's `Taxes US` / `Tax
 | **#1** a restatement asserted as engine behaviour (×10) | ⚠️ **This CR committed it twice and had to be corrected on review** — §7's reader table cited three functions wrongly and quoted three different counts in three places, and §1.2's cut was derived from a `reconcile_mode` name rather than from what the code writes. The count is **ten functions plus the view** (§7), each named with its **full path and enclosing function**, because there are two different `budget.js`. Likewise never write *"the LE freezes closed months"* without stating what "closed" derives from — the answer turned out to be *nothing*. |
 | **#4** two copies of one formula | The category→line recursive CTE lives in `crud.js` **and** `fcLines.js` and is documented as *"the same CTE, so the two cannot disagree"*. A third copy in the LE breaks that guarantee. Call the existing one. |
 | **#5** a fixture that cannot exhibit the bug | The boundary test must seed a transaction **in the estimate window**, a budget row **in the actual window**, and a late row landing **after the snapshot**. CR075 §7 records a base-year test that passed vacuously because no budget row existed. |
-| **#3** the before/after gate cannot see a wrongly-derived number | Derive the headline through the app's own exported function, never a SQL re-derivation written for this CR. Check the independent invariant: `Σ(LE actual months) = Σ(budget-vs-actual for the same months and scope)`. |
+| **#3** the before/after gate cannot see a wrongly-derived number | Derive the headline through the app's own exported function, never a SQL re-derivation written for this CR. Check the independent invariant — but the **exact** form, not the naive one:
+`Σ(LE actual months) − Σ(budget-vs-actual, same months and scope) = Σ(rows on non-leaf categories)`,
+which is **$60.36** today (§2.1a). The naive equality fails and would send the builder hunting. |
 | **#7** a label stating the opposite of the arithmetic | `LE-08-26` never appears without "Jan–Jul actual, Aug–Dec estimate" adjacent; every column header states `actual_through` and the FX basis. |
 | **#2** warnings tested for firing, never for truth | §9's note. Assert each L-rule's sentence and its quantity against real rows. |
 
@@ -1120,7 +1346,7 @@ Every one states **nominal** and **after tax** — this book's `Taxes US` / `Tax
 | # | question | answer |
 |---|---|---|
 | **1** | The 72 uncategorised budget rows (−86,796 FY; −35,900 Aug–Dec) — genuine incremental spend, or a plug from before the itemised lines covered the same money? | ✅ **Plug — excluded.** Owner first said *"investigate first"*; the investigation (§2.2) showed the account dimension cannot answer it, but the **creation dates can**: all 72 are from the **2026-01-29 initial import** and **none** has been added since, while the owner has added **131 itemised categorised rows on top of them** in the months after. Legacy, not incremental. Memo line below the total, **L6** fires. |
-| **2** | Confirm the exclusion set — `Unrealized G/L` + the `Transfers` subtree (§2). It moves the actual half by **197,186**. | ✅ **Excluded**, via `NOT is_transfer AND id <> 88` — no new flag, no name match. |
+| **2** | Confirm the exclusion set — `Unrealized G/L` + the `Transfers` subtree (§2). It moves the actual half by **183,157** *(the CR said 197,186 when asked; that figure is measured off the name-match basis, not the one §2 defines — §2's note. The decision is unaffected: both say "exclude")*. | ✅ **Excluded**, via `NOT is_transfer AND id <> 88` — no new flag, no name match. |
 | **3** | Confirm the LE must **not** feed the forecast base year (§8.1). | ✅ **Not fed.** Read-only reference column on `FCReview` is the P2 form of the link. |
 | **4** | `MM` = first **estimate** month (§6). | ✅ **First estimate month.** With §1.2's calendar cut the two readings coincide in the normal case, so an August LE is `LE-08-26` exactly as asked; they diverge only on a deliberate backward override. |
 | **5** | Second LE in one month: supersede, or keep both as variants? | ✅ **Supersede** — and §11.1 cutting the comparison surface makes it clearly right; two LEs per month would only have mattered for a series the owner is not building. |
@@ -1149,7 +1375,7 @@ late-arrival figure, `getBaseYearValues(2026) = −137,555`, and every frontend 
 | # | the claim | what is true | cost |
 |---|---|---|--:|
 | **1** | *"the proposal is driven mostly by `Interest Income` … real, explainable level shifts"*, and *"**L9** is what catches `Option Trade`"* | **`Option Trade` passed all three original guards** (r = 3.10 is *inside* the clamp, signs agree, denominator 8,167) and was the **largest single driver**. L9 could never have fired. Guard 4 (churn ≥ 3.0) added — and the data separates cleanly, 29.0 against 1.0–1.3 everywhere else | **$12,275**, 57% of the effect. Landing −81,389 → **−93,664** |
-| **2** | §10.4's showcase drawer: `Interest Income` *"budget 4,333/mo, line FY 52,000"*, proposed *"5,447/mo"* labelled `Re-levelled to YTD r=1.47` | **52,000 is not in the database** — FY is **46,000** (4,000/mo). And **5,447 = 38,139 ÷ 7**, a *run-rate* level — the method §3.2 spends a section forbidding — shown under the label of the method being recommended. `PHASE_TO_YTD` gives **5,868/mo, FY 67,477** | failure-pattern **#7** in the showcase |
+| **2** | §10.4's showcase drawer: `Interest Income` *"budget 4,333/mo, line FY 52,000"*, proposed *"5,447/mo"* labelled `Re-levelled to YTD r=1.47` | **52,000 is not in the database** — FY is **46,000**; Aug–Dec is 3,999.98/mo and Jan–Jul is 3,714/mo (25,999.86 over 7), so no single monthly rate describes the year. And **5,447 = 38,139 ÷ 7**, a *run-rate* level — the method §3.2 spends a section forbidding — shown under the label of the method being recommended. `PHASE_TO_YTD` gives **5,868/mo, FY 67,477** | failure-pattern **#7** in the showcase |
 | **3** | §5: restating at FX moves *"$881 / 0.68%"* against *"a PLN 690,000 dividend"*, and PLN is *"5.0% from the realised August rate"* | Numerator on LE scope, **denominator on the uncategorised-inclusive scope**; "realised August" was the **budget table quoting itself**. Corrected: **−$1,048 / 0.81%, unfavourable**, PLN **4.8%** vs the real market rate. And the 690,000 dividend is dated **2026-01-01** — wholly in the *actual* half, untouched by the stale rate. The real exposure is `Financial Income - Barkeria`, 120,000 PLN in December | the §4 warning about stale rates, committed in §5 |
 
 ### Also corrected
@@ -1182,8 +1408,9 @@ late-arrival figure, `getBaseYearValues(2026) = −137,555`, and every frontend 
 - **§4.2** — the drift example showed *zero* drift. Replaced with the measured 85 rows / +$663.82.
 - **§3.3** — seven methods trimmed to five; `POT` had no caller and `PY_SEASON` is a level derived
   from a shape, which §3.4 argues against.
-- **§7.2** — route ordering (`/compare` before `/:id`), flat file so
-  `Scripts/check-api-envelope.sh` sees it, and `/le/closed-through` dropped with §1.2.
+- **§7.2** — any literal segment registers before `/:id`, flat file so
+  `Scripts/check-api-envelope.sh` sees it; `/le/closed-through` dropped with §1.2 and `/le/compare`
+  with §11.1.
 - **§11** — P0a extracted; Compare/Versions tabs, two column modes, the FY-total spread edit and
   three row-menu actions deferred; L7 demoted to a server invariant.
 
@@ -1200,3 +1427,85 @@ One item stays open as a **build-time** decision, not an owner one:
 - **A 2027 LE is unspecified.** `budget_entries` already holds **12 rows for `budget_year = 2027`;
   §6 keys identity on `(budget_year, actual_through, created_at)` but nothing requires a budget to
   exist, and 12 rows put every line in bucket B or E. Decide before someone tries it.
+
+### Round 2 — 2026-08-16, on the owner-revised design
+
+Both passes re-ran after the ten owner decisions, because the reviewed document and the committed one
+differed by about a third of the scope. **PM: GO**, gated on a consistency pass rather than rework.
+
+The finding worth recording: **§11.1 cut the design but never reconciled itself back into the body**,
+so four places still described what had been removed — and one of them was the **CR header block**,
+still telling a builder to add an `exclude_from_le` column and a seeder that §2 and §7.1 had deleted.
+That is a stale sentence in a spec, implemented as written: the exact shape §13 exists to warn about,
+committed by the document that warns about it, for the third time. All four are now reconciled
+(§10.3, §10.5, §7.1's `method` CHECK, §12 rank 5).
+
+Also from round 2, all verified in code before applying:
+
+- **P0a's blast radius was unbounded** (§11.2). It was written as an additive KPI while costing a
+  re-basing of `/budget-vs-actual`, whose transfer exclusion is a **name-string** match missing
+  `Return of Capital` and `Valuation - Historical`, and which never excludes `Unrealized G/L` at all.
+  P0a is now explicitly additive; the re-basing is a roadmap bullet.
+- **Drift (L2) moved from P1 into P0b** (§11.3). P0b ships an immutable artefact; L2 is what keeps it
+  honest, and only P0a+P0b are committed, so the gap had no end date. Hours of work, not days.
+- **`TRAIL_3` added to the migration's `method` CHECK** — P1 would otherwise have needed a whole
+  migration to widen a constraint the first one could get right.
+- **P2 is not schedulable** (§11.4) — three unspecified behaviours, no dry-run, no delete path, into a
+  table with **no unique constraint on its own grain**. Plus a risk the CR had not named: the FC-line
+  budget hint is **year-blind** as well as version-blind (`fcLines.js:44` with a null `budgetYear`,
+  reached from `FCModulesEdit.jsx:402`), and seeding ~800 rows into 2027 is what makes that material.
+  And §8.1's refusal to feed the forecast **quietly reverses** once CR064 P2 moves `PeriodStart` and
+  CR075 makes the 2027 budget the base year.
+
+**Owner action outstanding, and it is not something an agent should do unasked:** prod is running
+**untagged `main`, several commits past `v3.28.3`** (CR082 deployed without a bump). Tag it before
+CR083's first commit, or "what is on prod" becomes unanswerable with two concurrent streams.
+
+### Round 2, technical pass — nine blocking findings, four of them new wrong numbers
+
+The technical pass **re-derived every round-1 correction against prod and all of them reproduce to
+the cent** (the churn guard's +9,335 / −93,664 / +43,891, `Interest Income` 46,000, the Aug market
+rates, `is_transfer` = the 13 subtree descendants, the multi-currency grain, `getBaseYearValues` =
+−137,554.99, the §3.1 buckets, all five §3.2 run-rate lines, and every frontend citation).
+
+**But the sections rewritten after round 1 introduced four new figure errors of exactly the class
+this CR exists to prevent**, which is the finding that matters more than any individual fix:
+
+| # | what was wrong | now |
+|---|---|---|
+| **B3** | §11.2 asserted `/budget-vs-actual` *"misses `Return of Capital` and `Valuation - Historical`"* and *"does not exclude `Unrealized G/L` at all"*. **Both false** — the name walk matches the **parent** `Transfers` and collects all 13 leaves; `includeUnrealizedGL` defaults `false`. **This wrong claim had already been repeated to the owner.** | §11.2 rewritten on **fragility**, which is true, instead of wrong figures, which was not |
+| **B7** | §10.2's mock: Income FY + Expenses FY = **+128.4K** against a stated landing of **(102,999)**; YTD columns summed to **67,800** against **25,684** | every figure now ties; it is the KPI spec, so **L10 must pass on the picture** |
+| **B5** | §10.4's advisory printed "5,868/mo → FY 67,477" while 5 × 5,868 = **67,479** — three numbers for one line, in the example that replaced round 1's wrong example | exact operands, plus a stated allocation rule (2 dp, last month absorbs the residual) |
+| **B6** | §4.2's drift example froze July at the **post-drift** row count and invented the "now" figure — self-consistent arithmetic on inverted facts, and it is **L2's copy spec** | the measured endpoints: −46,115 over 520 → −45,451 over 605 |
+
+**Three of those four are in paragraphs round 1 had just corrected for the same failure pattern.**
+That is the finding to carry into the build: *a correction is not a fix until its replacement is
+verified too.*
+
+Also blocking, and all applied:
+
+- **B1 — migration 071 was already taken** by the CR082 thread, on disk, the same evening (§ header).
+  The number is now claimed at build time. This is migration **064**'s note replayed, caused by the
+  parallelism §15 decision 8 chose, and it shows decision 8's "the file overlap is two frontend files
+  **only**" was wrong: `server/db/migrations/`, `migrations.md`, the CR index, the roadmap and
+  `status.md` are all contended, and **the migration number is the sharpest**.
+- **B2 — the headline does not tie to `/budget-vs-actual`**, by exactly **$60.36**: `Car Expense` and
+  `Children - Anna` post to **non-leaf** categories and `buildCashFlowNode` reads leaves only. §2.1a
+  states the rule (the LE counts them) and §13's invariant is restated in its exact form.
+- **B4 — `base_amount` is at each row's last-touched rate**, not the declared budget rate (Sep–Dec PLN
+  carries **9 distinct rates**). Against the declared rates, restating at market is worth **+$7**, not
+  −$1,048. §5.1 now pins what `CARRY` copies, because P0a and P0b choosing differently would put two
+  landings on the board.
+- **B8** — `CHECK (actual_through < make_date(budget_year+1,1,1))` accepted **2026-12-31**, whose
+  first estimate month is 13 — the case its own comment said it refused. Plus nothing forced a month
+  end, and `UNIQUE (…) WHERE …` is not a valid table constraint in Postgres.
+- **B9** — with `[ use this figure ]` writing `method='MANUAL'`, nothing ever wrote `PHASE_TO_YTD`, so
+  `method_input` had **no writer** and §4.1's reproducibility argument had no implementation. The
+  advisory now writes `source='manual'`, `method='PHASE_TO_YTD'`, `method_input={…}`.
+
+Fourteen should-fix items applied too, including: the version-blind count is **eleven live functions
+plus the view** (round 1 said ten, the draft said five/seven/six — **three rounds, three counts**);
+only **two** `fcLines` joins are year-blind, not three; §11.4's cited consumer was wrong even though
+the year-blindness is real; the 197,186 exclusion figure is measured off the name-match basis and the
+right number is **183,157**; L2's threshold needed a grain; `excluded_account_ids` holds **category**
+ids; and §12 rank 3 does not fit the eleven-column grid, so it lives in the drill-down and the export.
