@@ -1,4 +1,4 @@
-# CR060 — Feed connection health (read-only) — IN-PROGRESS (bank-feed side built, not deployed)
+# CR060 — Feed connection health (read-only) — IN-PROGRESS (bank-feed side **built AND deployed**; fin recon page to do)
 
 Surface what fintable already tells us about the *health* of each bank connection, so a dead feed is
 visible the day it dies instead of the week someone notices the numbers stopped moving.
@@ -69,7 +69,19 @@ never over-reports, which is the right direction for a signal that triggers manu
 
 ## Still to do
 
-- **Deploy** (rebuild the bank-feed stack).
+- ~~**Deploy** (rebuild the bank-feed stack).~~ **DONE** — it shipped with CR059's cutover rebuilds; the
+  `upstream` block has been live on `/v1/health/feeds` since 2026-08-10. This line said "not deployed"
+  for six days after it was.
+- **The threshold was guessed, and is now measured — 26h → 48h (2026-08-16, bank-feed).** The constant
+  justified itself with *"fintable syncs each bank every 6-23h"*, which is wrong: over **1,457 upstream
+  timestamps / 605 real gaps**, the median is 22-25h and the tail is the **weekend** (Friday-started
+  gaps average 25.3h vs 17-21h; Capital One and Fidelity reach p95 ~46h). At 26h it flagged **18.3% of
+  all normal gaps, every one of the 11 institutions at some point, and 8 of 13 connections at once —
+  all reporting `READY` with nothing wrong.** 48h is the first threshold above a skipped day: 0.5% of
+  gaps, 2 institutions, and Bank Pekao's genuine outage still caught. **Live now: 13 connections, 0
+  needing attention.** This had to land *before* the fin page: shipping the display against a threshold
+  that paints 8 permanent red rows would have burned the signal on its first day — the same argument
+  this CR already makes for keeping `provider_notices` out of `needs_attention`.
 - **fin side:** surface it on the reconcile page's per-feed row — the place a stale feed actually hurts.
 - Decide whether `needs_reconnect` should reach the owner rather than waiting to be looked at (a push
   notification path already exists from CR006).

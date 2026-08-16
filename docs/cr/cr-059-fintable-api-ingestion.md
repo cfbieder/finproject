@@ -1139,8 +1139,14 @@ forever.
    data-loss window sized by the lag tail.
 4. ✅ **Size the insert guard to the real failure (P2) — DONE, see §22.11.**
 5. ✅ **Detect two generations in our own store (P2) — DONE, see §22.11.**
-6. ✅ **The pre-existing duplicate groups (P2) — TRIAGED, see §22.8.** Not a fin defect in any of
-   them; what remains is an owner statement check on a costed shortlist.
+6. ✅ **The pre-existing duplicate groups (P2) — CLOSED.** Triaged in §22.8 (not a fin defect in any
+   of them), and the owner statement check that remained is now **complete: 2026-08-16, every item on
+   the shortlist came back GENUINE.** Delta WARSAW 4,459.76 · Delta TRAVELOCITY 3,793.34 · PKO
+   1,000.00 · Caixa EUR 834.08 + 629.46 · PKO ×3 400.00 · Delta ×2 368.54 — all real charges, nothing
+   to recover, **no fin defect and no wrong money anywhere in the 42 candidates**. Recorded because
+   the alternative is someone re-opening 16,058 gross of already-settled questions. *The useful
+   residue is methodological:* content grouping flags genuine repeats as readily as duplicates, so it
+   is a **triage input, not a verdict** — every one of the 42 it surfaced was legitimate.
 
 ## 22.7 The content guard — closing the class, not the defect (v3.28.1)
 
