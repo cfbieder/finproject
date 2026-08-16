@@ -10,6 +10,40 @@ Living plan for the Fin project — open Change Requests, known issues, ongoing 
 
 ### 1.1 Open / In-Progress
 
+<a id="cr083"></a>
+- **CR083 — Budget: the Latest Estimate (LE). 📋 PLANNED — design CLOSED 2026-08-16, ready to build.**
+  Both review passes returned *revise* and the technical pass **falsified three of the CR's own
+  headline figures** (recorded in its §16, not quietly patched); **all ten owner decisions then
+  resolved in one `/question` pass** (§15). **Runs in parallel with the CR082 TY2025 remainder, in a
+  git worktree** — Known Issue #23 is live and the only contended files are `config/routes.jsx` and
+  `utils/excelExporter.js`. **P0a + P0b committed together.**
+  A full-calendar-year LE — actuals to a cut plus estimate months seeded from the budget — in **its own
+  two tables**, because **ten functions plus a view** read `budget_entries` ignoring `version_id` and a second
+  budget *version* would double the forecast base year and every budget report. **Queue position: after
+  the CR082 TY2025 remainder (hard deadline 2026-10-15) and the CR081 successor; before CR066 P0 /
+  CR064 P2 / CR060.** Target the **September or October** close for P0b.
+  **P0a is separable and worth doing on its own:** the FY-landing figure is arithmetically
+  `budget_FY + (actual_YTD − budget_YTD)` = `−137,555 + 34,556 = −102,999`, both terms already on
+  `/budget-vs-actual` — so a KPI there plus the scope exclusions delivers the headline in about a day,
+  with no schema beyond one account flag, and tests whether the owner looks before the grid is built.
+  Two findings the CR turned up that stand **whether or not it is ever built** — see §2.1/§7 of the CR:
+  **(i)** `POST /budget/versions/:id/copy` accepts an **arbitrary `budget_year`, including the same
+  one, with no guard** (`server/src/v2/routes/budget.js:57-69`) while six readers ignore `version_id`
+  — one mis-click silently doubles the forecast base year; **(ii)** the 2026 budget's dimensions are
+  badly incomplete — **72 rows / −86,796 have no category** and **32 rows / −99,191 have no account**
+  (only −38,364 has both), which already distorts `/budget-vs-actual` variance today and made the
+  owner's own allowance question unanswerable by account.
+  **The owner's answers cut about a third of the build.** The LE is **primarily a landing number**,
+  secondarily an input to next year's budget, and **explicitly not a frozen series** — so the Compare
+  tab, the Versions tab, the LE-to-LE walk, the trend chart, `PY_SEASON`, `L11` and the two
+  `proposed_*` sources are all out. The grid narrowed to **one YTD ACTUAL column + Aug–Dec editable
+  (ten columns, no modes, no sticky column, no horizontal scroll)**, which removes the CR082
+  print-clipping hazard at its root rather than mitigating it; proposals ship as an **inline advisory
+  with no accept button** (CR081 measured the accept flow at 0/15, twice). **P2 gains what was never
+  in the CR: seed next year's budget from an LE.** The last open question closed on evidence — all 72
+  uncategorised allowance rows are from the 2026-01-29 import and **none** added since, while the
+  owner has added **131 itemised categorised rows on top of them**: legacy, not incremental.
+
 <a id="cr082"></a>
 - **CR082 — A Taxes section, first form: FinCEN Form 114 (FBAR). 🔨 IN-PROGRESS — P0b+P1+P2+P3 LIVE ON PROD; migration 070 dev + prod 2026-08-15, code deployed 08-16. **TY2025 complete in the app: 16 lines, every one carrying a figure** (13 computed, 3 typed), aggregate $2,627,821. Remaining: **P0a — `/util/coa-traits` still serves an `AccountNumber` field for all 230 accounts and `COATreeRow.jsx:78` renders it; the network exposure is closed but the payload was never scrubbed** · freeze-on-file unexercised · `review_state` is global not per-year, so excluding a 2026-opened account hides it from TY2026 too (§7) · the carry-in guard (§12b.14) · TY2024-as-filed never seeded · XLSX beyond CSV.
   ⏱ TARGET TY2025, DUE 2026-10-15 (61 days).** Owner is on the automatic extension (confirmed
@@ -836,6 +870,22 @@ Small fixes, refactors, and one-off cleanups that don't warrant their own CR fil
 ---
 
 ## 3. Known Issues
+
+- [ ] **`POST /budget/versions/:id/copy` will silently double the forecast base year, and one
+  mis-click is all it takes** (found 2026-08-16 drafting [CR083](../cr/cr-083-budget-latest-estimate.md) §7).
+  The route (`server/src/v2/routes/budget.js:57-69`) takes `budget_year` straight from the request
+  body with **no guard against the source version's own year**, so copying 2026 "Original" to a 2026
+  "Revision 2" is accepted — while **six aggregate readers of `budget_entries` filter on
+  `budget_year` and ignore `version_id`**: `forecast/crud.js:494` (the CR075 base year),
+  `fcLines.js:228` and `:379`, `reports.js:522-533`, `services/budget.js:320` and `:634`, plus the
+  `v_budget_vs_actual` view. Only `budget.js:327 compareToActual` filters by version. The result is
+  every budget figure in the app at exactly **2×**, which reads as a plausible plan rather than a
+  defect, and a base-year error **does not wash out** — CR075 §2 records it riding all 36 years.
+  Cheap fix: refuse a same-year copy, or make the six readers version-aware. Related: the two
+  dimensions of `budget_entries` are already badly incomplete — **72 rows / −86,796 have no
+  category**, **32 rows / −99,191 have no account**, only −38,364 has both — which distorts
+  `/budget-vs-actual` variance today and there is **no unique constraint** on
+  `(version_id, category_id, entry_date)` to have prevented the drift.
 
 - [ ] **CR082 P0a — `/util/coa-traits` serves an `AccountNumber` field for all 230 accounts,
   unauthenticated (still true 2026-08-16).** `routes/util/coa.js` → `accounts.js:503-518`, rendered by

@@ -120,6 +120,29 @@ scenarios are REGENERATED**. It changes far less often than this file does.
   designations now hold full foreign account numbers**, so "before any number is entered" is a gate
   that has already been passed. Remaining beyond that: freeze-on-file unexercised · `review_state`
   is global not per-year · the §12b.14 carry-in guard · TY2024-as-filed was never seeded.
+- 📋 **[CR083](../cr/cr-083-budget-latest-estimate.md) — the budget Latest Estimate (LE), DRAFTED
+  2026-08-16, design CLOSED, ready to build.** Both passes returned *revise* and the technical pass
+  falsified three of the CR's own headline figures (§16); **all ten owner decisions then resolved in
+  one `/question` pass.** Runs **in parallel with CR082, in a git worktree** (#23). **P0a+P0b
+  committed.** Actuals to a cut plus estimate months seeded from
+  the budget, in **its own tables** — **ten functions plus a view** read `budget_entries` ignoring `version_id`,
+  and `POST /budget/versions/:id/copy` already accepts the **same** `budget_year` with no guard, so
+  a second budget *version* is one mis-click from doubling the forecast base year
+  ([roadmap §3](project-roadmap.md#3-known-issues)). **Scope decides the answer:** `Unrealized G/L`
+  is **+213,595** YTD with no budget line, so leaving valuation and transfers in lands 2026 at
+  **+44,259** against a −224,351 budget — a 269K "improvement" that is pure market movement;
+  excluded it lands at **−102,999**. **Naive run rate is $147,028 wrong and reports a profitable
+  year** (`UB Dividend` pays in 2 months of 12, `Taxes US` −55,000 in December alone), so `CARRY` is
+  the default. **Neither "last full month" nor "closed month" works as the cut** — 102 of 113
+  accounts are `calibrate`, which writes no dated row, so the reconcile signal exists for 11
+  accounts and those are the MTM rows the LE excludes; the cut is the calendar month and drift is
+  reported, worth **$664**. **P0a needs no LE at all** — the landing is
+  `budget_FY + (actual_YTD − budget_YTD)`, both terms already on `/budget-vs-actual`. **The owner's answers cut a third of the build:**
+  the LE is **primarily a landing number**, not a frozen series — so the Compare/Versions tabs, the
+  LE-to-LE walk, the chart, `PY_SEASON` and `L11` are out; the grid is **one YTD column + Aug–Dec,
+  ten columns, no horizontal scroll** (which removes the CR082 print-clipping hazard at its root);
+  proposals are an **inline advisory with no accept button** (CR081: 0/15, twice). P2 gains
+  **seed-next-year's-budget**, never in the draft.
 - **Re-examine SRQ** — **−476,930**: funds itself 35 of 36 years, dry in the last. Marginal, not
   hopeless. **Financing is the untested lever** (all cash, no rent, sells at 7%).
 - **`Retirement Home`** — ~**105,000**/yr today for two, reasonable for assisted living, but the plan
