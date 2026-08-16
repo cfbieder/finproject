@@ -21,7 +21,7 @@ const describeOrSkip = process.env.SKIP_DB_TESTS ? describe.skip : describe;
 const TAG = '__cr084test_';
 
 describeOrSkip('CR084 — preview a module change', () => {
-  let baseId, variantId, overriddenVariantId, moduleId, accountId;
+  let baseId, variantId, overriddenVariantId, moduleId, accountId, fcLineId;
 
   /**
    * Register / unregister a scenario in the shared assumptions DOCUMENT.
@@ -37,6 +37,12 @@ describeOrSkip('CR084 — preview a module change', () => {
       scenarios: { Name: name, Description: 'cr084 test', IsActive: true, PeriodStart: 2027, PeriodEnd: 2032 },
       inflation: { Scenario: name, Year: 2027, Rate: 2.5 },
       'Tax Rate': { Scenario: name, Rate: 30 },
+      // `fcbuilder-setup.js:139` iterates `FCAssump.FX.length` unguarded, so an absent document is
+      // a TypeError rather than the loud "missing assumption" the inflation path gives — which is
+      // why this read as "Cannot read properties of undefined" instead of naming what was missing.
+      // The scenario's own base date is 2025-12-31 and PeriodStart is 2027, so the base-year rate
+      // (PeriodStart − 1) matters: seed both years rather than only the first in-period one.
+      FX: { Scenario: name, Year: 2026, Rates: { PLN: 3.9, EUR: 0.86 } },
     };
     for (const [key, row] of Object.entries(rows)) {
       const field = key === 'scenarios' ? 'Name' : 'Scenario';
@@ -53,7 +59,49 @@ describeOrSkip('CR084 — preview a module change', () => {
     }
   };
 
+  /**
+   * The cash sweep's anchor account. `Cash sweep requires a COA account named "Bank Accounts"`
+   * (CR043 N9) — and this suite's own assertions read `e.Account === 'Bank Accounts'`, so it is a
+   * hard dependency of the test as well as of the engine. `ci-seed.sql` does not create it.
+   *
+   * Seeded by NAME because the engine looks it up by name; created only when absent and removed
+   * only if this suite created it, since dev and prod own a real one with the whole ledger under it.
+   */
+  let seededBankAccounts = false;
+  const ensureBankAccounts = async () => {
+    const { rows } = await db.query(`SELECT id FROM accounts WHERE name = 'Bank Accounts'`);
+    if (rows.length) return;
+    await db.query(
+      `INSERT INTO accounts (name, account_type, section, currency, is_active)
+       VALUES ('Bank Accounts', 'asset', 'balance_sheet', 'USD', TRUE)`
+    );
+    seededBankAccounts = true;
+  };
+
+  /**
+   * `FCAssump.category` is the engine's POSITIONAL column list for the assumptions frame —
+   * `[Year, Inflation, PLN, EUR, Bank Accounts]`, read by index at `index.js:268-270` — and
+   * `fcbuilder-setup.js:17` throws without it. Unlike the per-scenario keys above it is
+   * install-wide, so it exists on dev and on prod and NOT on a from-scratch database:
+   * `ci-seed.sql` writes no `forecast_assumptions` at all.
+   *
+   * Seeded only when ABSENT, and removed only if this suite created it. Deleting a real one would
+   * break every forecast on the database the tests happen to be pointed at.
+   */
+  let seededCategoryDoc = false;
+  const ensureCategoryDoc = async () => {
+    const { rows } = await db.query(`SELECT value FROM forecast_assumptions WHERE key = 'category'`);
+    if (rows.length) return;
+    await db.query(
+      `INSERT INTO forecast_assumptions (key, value, ord) VALUES ('category', $1, 0)`,
+      [JSON.stringify(['Year', 'Inflation', 'PLN', 'EUR', 'Bank Accounts'])]
+    );
+    seededCategoryDoc = true;
+  };
+
   beforeAll(async () => {
+    await ensureCategoryDoc();
+    await ensureBankAccounts();
     const mkScenario = async (name, parent = null) => {
       const { rows } = await db.query(
         `INSERT INTO forecast_scenarios (name, is_active, cash_sweep_low, cash_sweep_high, parent_scenario_id)
@@ -75,6 +123,19 @@ describeOrSkip('CR084 — preview a module change', () => {
       [TAG + 'account']
     );
     accountId = acct.rows[0].id;
+
+    // Same reasoning as the account above, and it was missed here: the stream test borrowed
+    // `SELECT id FROM fc_lines ORDER BY id LIMIT 1`, which is empty on a from-scratch database —
+    // `ci-seed.sql` creates no fc_lines — so the whole suite died on `.id of undefined` in CI while
+    // passing against dev. Known Issue #12 exactly, and the file's own comment two lines up is the
+    // rule it broke.
+    const line = await db.query(
+      `INSERT INTO fc_lines (name, line_type, display_order)
+       VALUES ($1, 'bs_module_expense', 9999) RETURNING id`,
+      [TAG + 'line']
+    );
+    fcLineId = line.rows[0].id;
+
     variantId = await mkScenario('plain-variant', baseId);
     overriddenVariantId = await mkScenario('overridden-variant', baseId);
 
@@ -100,6 +161,13 @@ describeOrSkip('CR084 — preview a module change', () => {
     await assumptionsDoc(TAG + 'base', 'remove');
     await db.query(`DELETE FROM forecast_scenarios WHERE name LIKE $1`, [TAG + '%']);
     await db.query(`DELETE FROM accounts WHERE name LIKE $1`, [TAG + '%']);
+    await db.query(`DELETE FROM fc_lines WHERE name LIKE $1`, [TAG + '%']);
+    if (seededCategoryDoc) {
+      await db.query(`DELETE FROM forecast_assumptions WHERE key = 'category'`);
+    }
+    if (seededBankAccounts) {
+      await db.query(`DELETE FROM accounts WHERE name = 'Bank Accounts'`);
+    }
   });
 
   describe('blastRadius', () => {
@@ -194,9 +262,6 @@ describeOrSkip('CR084 — preview a module change', () => {
       // does not live on the module row at all: it is written by `replaceModuleStreams` from the
       // editor's `Streams` array. A preview that only mapped module COLUMNS would have shown "no
       // change" here, which is worse than showing nothing — the owner had just edited the amount.
-      const line = await db.query(`SELECT id FROM fc_lines ORDER BY id LIMIT 1`);
-      const fcLineId = line.rows[0].id;
-
       const res = await preview.previewModuleChange({
         moduleId,
         patch: {

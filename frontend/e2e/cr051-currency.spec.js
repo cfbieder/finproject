@@ -1,4 +1,5 @@
 import { test, expect } from "@playwright/test";
+import { confirmSavePreview } from "./helpers.js";
 
 /**
  * CR051 — foreign-currency expense, full browser round-trip.
@@ -64,6 +65,7 @@ test.describe("CR051 — foreign-currency expense", () => {
     await card.getByLabel("Expense line").selectOption({ label: "E2E Expense Line" });
 
     await dialog.getByRole("button", { name: /Create|Save/ }).first().click();
+    await confirmSavePreview(page);
     await expect(dialog).toBeHidden();
 
     // REOPEN — the assertion that matters. The currency was hard-pinned to USD before CR051,

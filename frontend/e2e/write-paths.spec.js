@@ -1,4 +1,5 @@
 import { test, expect } from "@playwright/test";
+import { confirmSavePreview } from "./helpers.js";
 
 /**
  * WRITE-path smoke tests (CR043 Phase 4).
@@ -58,6 +59,7 @@ test.describe("write paths — the value must survive a reopen", () => {
     await card.getByLabel("Start year").selectOption("2028");
 
     await dialog.getByRole("button", { name: /Save Changes/i }).click();
+    await confirmSavePreview(page);
     await expect(dialog).toBeHidden();
 
     // REOPEN. Asserting on the save response is the mistake that let N10 ship: the API
