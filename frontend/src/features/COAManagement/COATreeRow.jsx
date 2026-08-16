@@ -75,7 +75,11 @@ export default function COATreeRow({
       </td>
       <td>{capitalize(row.type)}</td>
       <td>{row.currency}</td>
-      <td>{row.accountNumber || "\u2014"}</td>
+      {/* Masked, and masked at the SOURCE \u2014 the payload behind this cell stopped
+          carrying full numbers in CR082 P0a. Rendering `row.accountNumber` here
+          would print an empty cell for every account, because nothing fills it
+          until the edit form reveals one. */}
+      <td>{row.accountNumberMasked || "\u2014"}</td>
       <td className="coa-tree-row__actions-cell">
         <div className="coa-row-actions">
           <button

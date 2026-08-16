@@ -52,7 +52,7 @@ d('routes/util.js', () => {
       expect(r.body).toBeDefined();
     });
 
-    test('GET /coa-traits → 200, name → { Currency, Type, AccountNumber }', async () => {
+    test('GET /coa-traits → 200, name → { Currency, Type, AccountNumberMasked }', async () => {
       const r = await req('GET', '/coa-traits');
       expect(r.status).toBe(200);
       const traits = r.body[PARENT];
@@ -60,6 +60,52 @@ d('routes/util.js', () => {
       // `Type` here IS accounts.account_type — the thing /coa/update was dropping.
       expect(traits.Type).toBe('expense');
       expect(traits.Currency).toBe('USD');
+    });
+
+    // ── CR082 P0a ──
+    // The gate the CR wrote for itself and then did not have: "the full number
+    // appears in no ... API response". It asserts on the WHOLE payload rather
+    // than on this test's own row, because the defect was never about one
+    // account — it was that a page-load payload carried 230 of them.
+    test('GET /coa-traits serves NO full account number, for any account', async () => {
+      const NUMBERED = `${TAG}_Numbered`;
+      const secret = 'PL61109010143000123456789012';
+      await db.query(
+        `INSERT INTO accounts (name, parent_id, account_type, section, currency,
+                               account_number, is_active)
+         VALUES ($1, $2, 'asset', 'balance_sheet', 'PLN', $3, TRUE)`,
+        [NUMBERED, parentId, secret]
+      );
+
+      const r = await req('GET', '/coa-traits');
+      expect(r.status).toBe(200);
+      expect(JSON.stringify(r.body)).not.toContain(secret);
+      // Nor any other account's, for callers who know a suffix rather than the
+      // whole string.
+      expect(JSON.stringify(r.body)).not.toContain('123456789012');
+
+      const traits = r.body[NUMBERED];
+      expect(traits.HasAccountNumber).toBe(true);
+      expect(traits.AccountNumberMasked).toBe('PL61…9012');
+    });
+
+    test('GET /coa/:id/account-number → the full number, one account at a time', async () => {
+      const REVEAL = `${TAG}_Reveal`;
+      const secret = 'GB29NWBK60161331926819';
+      const ins = await db.query(
+        `INSERT INTO accounts (name, parent_id, account_type, section, currency,
+                               account_number, is_active)
+         VALUES ($1, $2, 'asset', 'balance_sheet', 'GBP', $3, TRUE) RETURNING id`,
+        [REVEAL, parentId, secret]
+      );
+      const r = await req('GET', `/coa/${ins.rows[0].id}/account-number`);
+      expect(r.status).toBe(200);
+      expect(r.body.accountNumber).toBe(secret);
+
+      const missing = await req('GET', '/coa/99999999/account-number');
+      expect(missing.status).toBe(404);
+      const bad = await req('GET', '/coa/not-a-number/account-number');
+      expect(bad.status).toBe(400);
     });
 
     test('GET /coa/BalanceSheet and /coa/CashFlow → 200, trees', async () => {

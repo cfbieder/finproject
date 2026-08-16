@@ -104,7 +104,12 @@ const buildCoaRows = (coaData = [], traitsMap = {}, fedNames = null) => {
       currency,
       accountType,
       accountCurrency,
-      accountNumber: traits.AccountNumber || "",
+      // CR082 P0a — the bulk traits payload no longer carries full account
+      // numbers. `accountNumber` stays empty until the edit form reveals one for
+      // a single account; the tree shows the mask.
+      accountNumber: "",
+      accountNumberMasked: traits.AccountNumberMasked || "",
+      hasAccountNumber: !!traits.HasAccountNumber,
       isCategory,
       fed: !isCategory && fedNames instanceof Set && fedNames.has(name),
     };
@@ -480,6 +485,21 @@ export default function COAManagement() {
         editRow.pocketsmithName = psMapping?.external_name ?? "";
         editRow.quickenName = qkMapping?.external_name ?? "";
       }
+
+      // CR082 P0a — the explicit reveal. One account, on the deliberate act of
+      // opening its editor, instead of every number arriving with every page
+      // load. Failure is non-critical: the field opens blank and the save path
+      // omits it, so a number that could not be read cannot be overwritten
+      // either.
+      const revealId = editRow.accountId || row.accountId;
+      if (revealId && row.hasAccountNumber) {
+        try {
+          const revealed = await Rest.fetchCoaAccountNumber(revealId);
+          editRow.accountNumber = revealed?.accountNumber ?? "";
+        } catch {
+          editRow.accountNumber = "";
+        }
+      }
     }
 
     setEditModal({
@@ -603,12 +623,15 @@ export default function COAManagement() {
       await Rest.fetchJson("/api/v2/util/coa/add", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
+        // A move re-parents an existing account; it has no business restating
+        // that account's number. `/coa/add`'s re-parent branch keeps the stored
+        // value when none is sent, so omitting the key is what preserves it now
+        // that rows carry only a mask (CR082 P0a).
         body: JSON.stringify({
           path: targetPath,
           name: row.name,
           type: row.type === "Category" ? "" : row.type,
           currency: row.currency === "\u2014" ? "" : row.currency,
-          accountNumber: row.accountNumber,
           isCategory: row.isCategory,
         }),
       });
@@ -713,9 +736,15 @@ export default function COAManagement() {
         const nextCurrency = isCategoryTarget
           ? target.currency
           : resolveField("currency", target);
-        const nextAccountNumber = isCategoryTarget
-          ? target.accountNumber
-          : resolveField("accountNumber", target);
+        // CR082 P0a — an account number is written ONLY when this edit typed
+        // one. Rows no longer carry the stored value (the traits payload sends a
+        // mask), so the old `resolveField` round-trip would now post an empty
+        // string and wipe the number on every unrelated rename — and in a
+        // multi-edit it would wipe every selected account at once. `/coa/update`
+        // treats an ABSENT key as "leave it alone", which is the whole reason
+        // this is a delete rather than a value.
+        const accountNumberEdited =
+          !isCategoryTarget && editModal.changedFields?.accountNumber === true;
 
         const pathForApi = [
           ...target.path,
@@ -735,7 +764,9 @@ export default function COAManagement() {
             name: nextName,
             type: nextType,
             currency: nextCurrency,
-            accountNumber: nextAccountNumber,
+            ...(accountNumberEdited
+              ? { accountNumber: editModal.row.accountNumber }
+              : {}),
           }),
         });
 
@@ -765,7 +796,6 @@ export default function COAManagement() {
             name: nextName,
             type: nextType,
             currency: nextCurrency,
-            accountNumber: nextAccountNumber,
             id: `${target.path.join("|")}-${nextName}`,
             originalName: undefined,
           },

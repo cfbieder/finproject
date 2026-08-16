@@ -496,9 +496,36 @@ async function getNestedTree({ section } = {}) {
 }
 
 /**
+ * `PL61 1090 …3000` → `PL61 …3000`. Never reversible, never logged.
+ * Same rule as `routes/tax.js` — one masking convention across the app.
+ */
+function maskAccountNumber(n) {
+  if (!n) return '';
+  const s = String(n).replace(/\s+/g, '');
+  if (s.length <= 8) return `…${s.slice(-2)}`;
+  return `${s.slice(0, 4)}…${s.slice(-4)}`;
+}
+
+/**
  * Get a traits map mirroring the shape of coa_traits.json.
  *
- * Returns { "AccountName": { Currency, Type, AccountNumber } }
+ * Returns { "AccountName": { Currency, Type, AccountNumberMasked, HasAccountNumber } }
+ *
+ * ── CR082 P0a: `AccountNumber` used to be here, in full, for every active
+ * account ──
+ *
+ * This is the payload every COA page load fetches, and it was the standing
+ * counter-example to CR082 §7.1's claim that numbers are "masked in the UI with
+ * an explicit reveal": they were served in bulk to any caller, and the CR's own
+ * "appears in no log line" gate would have passed while this endpoint handed
+ * over the whole set. P0b closed the network paths (loopback binds + tailnet);
+ * it did not touch the payload, and 32 of 36 FBAR designations now hold full
+ * foreign account numbers.
+ *
+ * The full value is not gone — it comes from `GET /util/coa/:id/account-number`,
+ * one account at a time, which the COA edit form calls when it opens. That is
+ * not a security boundary (this app has no auth, and the CR says so plainly); it
+ * is blast radius. A bulk dump is the thing that leaks.
  */
 async function getTraitsMap() {
   const sql = `
@@ -513,7 +540,8 @@ async function getTraitsMap() {
     traits[row.name] = {
       Currency: row.currency || 'N/A',
       Type: row.account_type,
-      AccountNumber: row.account_number || '',
+      AccountNumberMasked: maskAccountNumber(row.account_number),
+      HasAccountNumber: !!row.account_number,
     };
   }
   return traits;
@@ -530,6 +558,7 @@ module.exports = {
   getDescendants,
   getBalances,
   getTraitsMap,
+  maskAccountNumber,
   findPLeaves,
   computeIsTransfer,
   create,

@@ -19,7 +19,10 @@ const ACCOUNT_TYPES = ['asset', 'liability', 'equity', 'income', 'expense'];
 
 /**
  * GET /api/v2/util/coa-traits
- * Get Chart of Accounts traits from PostgreSQL
+ * Get Chart of Accounts traits from PostgreSQL.
+ *
+ * Account numbers come back MASKED (CR082 P0a). The full value is fetched one
+ * account at a time from /coa/:id/account-number below.
  */
 router.get('/coa-traits', async (req, res, next) => {
   try {
@@ -27,6 +30,34 @@ router.get('/coa-traits', async (req, res, next) => {
     res.json(traits);
   } catch (error) {
     console.error('[v2/util/coa-traits] Failed to fetch coa-traits:', error);
+    next(error);
+  }
+});
+
+/**
+ * GET /api/v2/util/coa/:id/account-number — the explicit reveal.
+ *
+ * One account, by id, called by the COA edit form when it opens. Split out of
+ * `/coa-traits` by CR082 P0a: that payload is fetched on every COA page load and
+ * carried every account number in full.
+ *
+ * The number is never logged — not on success and not in the 404 path — which is
+ * the same rule `routes/tax.js` follows for `own_account_number`.
+ */
+router.get('/coa/:id/account-number', async (req, res, next) => {
+  try {
+    const id = Number(req.params.id);
+    if (!Number.isInteger(id)) {
+      return res.status(400).json({ error: 'id must be an integer' });
+    }
+    const account = await accountsRepo.findById(id);
+    if (!account) {
+      return res.status(404).json({ error: 'Account not found' });
+    }
+    res.json({ id: account.id, accountNumber: account.account_number || '' });
+  } catch (error) {
+    // Deliberately does not echo the row — an error path is a log line.
+    console.error('[v2/util/coa/:id/account-number] Failed for id', req.params.id);
     next(error);
   }
 });

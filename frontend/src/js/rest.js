@@ -265,8 +265,18 @@ export default class Rest {
   }
 
   static async fetchCoaTraits() {
-    // Using v2 API
+    // Using v2 API. Account numbers come back MASKED (CR082 P0a) — the full
+    // value is one call per account, below.
     return Rest.fetchJson("/api/v2/util/coa-traits");
+  }
+
+  /**
+   * One account's full number, for the COA edit form. Deliberately NOT part of
+   * the traits payload: that one is fetched on every COA page load, and a bulk
+   * dump is the thing that leaks (CR082 §7.1).
+   */
+  static async fetchCoaAccountNumber(accountId) {
+    return Rest.fetchJson(`/api/v2/util/coa/${accountId}/account-number`);
   }
 
   static async fetchBudgetActualEntries({
