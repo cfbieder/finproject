@@ -68,11 +68,13 @@ net-worth figures the one time that was tried. The client diffs the two entry se
 `compareMatrices` Compare uses, so a preview and a comparison cannot show different arithmetic.
 
 **Endpoint:** `POST /api/v2/forecast/modules/:id/preview` — a POST that writes nothing to the real
-scenario. 6 tests. Verified on dev against real data: `Fidelity Stocks` at 1× → 2× inflation shows
+scenario. 7 tests. Verified on dev against real data: `Fidelity Stocks` at 1× → 2× inflation shows
 **3,413,574 → 8,325,884** at 2062, all four variants named as moving, real module untouched, zero
 scratch scenarios and zero scratch rows left in the assumptions document.
 
-## 4. Not built — and the wiring is the point
+## 4. ⚠️ The wiring's FIRST attempt — built, then reverted
+
+*(Kept because the reason is the point. The wiring shipped on the second attempt — see §7.)*
 
 The module editor's Save was wired to this and **reverted before commit**. The browser check found
 it: clicking Save produced `400 — Preview could not apply the change to the throwaway copy`.
@@ -118,7 +120,7 @@ every gate passes is exactly how `FCReview.css` shipped unloaded in v3.25.0.
   it is shared with every other caller of scenario copy. The window is now one statement wide rather
   than the ~1s of a whole preview.
 - **Scratch scenarios are `is_active = TRUE`** and nothing filters them from the pickers, so a
-  process killed mid-preview leaves one visible. A startup sweep of `__scratch_%` belongs with §5.
+  process killed mid-preview leaves one visible. A startup sweep of `__scratch_%` is **still open** — see §9.
 
 ---
 
@@ -201,3 +203,15 @@ still building — directly contradicting the note below it, which says nothing 
 the one screen whose whole purpose is that distinction. There are three states, not two: it now
 reads *"Working it out…"* → *"Saving…"* → *"Save this change"*. It is disabled throughout the wait,
 verified by sampling it every 120 ms rather than once.
+
+## 9. Still open
+
+Neither blocks anything shipped; both are recorded so they are not rediscovered.
+
+1. **`copyScenario` is still a read-modify-write** over the four shared `forecast_assumptions` rows
+   (§6). The teardown half was fixed; this half was deliberately left because it is shared with every
+   other caller of scenario copy and changing it belongs to its own change. The window is one
+   statement wide.
+2. **No startup sweep for stale `__scratch_%` scenarios.** The `finally` covers every failure short
+   of the process dying mid-preview; if that happens the copy is left `is_active = TRUE` and shows up
+   in every scenario picker. Nothing filters them today.
