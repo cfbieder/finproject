@@ -628,3 +628,21 @@ stated 0.278373: **$175,842 / $220,902 / $1,223,068**, not "$148K" and "$1.03M".
       With 21 of 35 TY2025 lines carrying no computed figure, this is the one that gets used.
     - A closed account is still **reported for the year it was open**; that rule was never in
       doubt. What was wrong was believing the form records the closure.
+
+14. **The engine cannot tell "held X on 1 January" from "did not exist yet".** Both render as
+    `max_on: carry-in`. Found 2026-08-16 when the owner corrected `PKO TFI` from "opened during
+    2025" to **opened 2026**: it reported a TY2025 maximum of 6,000 PLN drawn from an
+    `opening_balance` of 6,000 dated **1990-01-01** on an `accounts` row created 2026-03-01, with
+    **no 2025 transactions at all** (first is 2026-02-09). The 1990 date is not the anomaly — it is
+    the house CR012 convention on all 26 recent accounts. The anomaly is a calibration plug on an
+    account with **no pre-history for it to represent**, which the plug then projects back 36 years.
+    - §12.2 fixed the opposite error (a maximum that *missed* the carry-in). This is the same seam
+      from the other side: a carry-in asserted for a year the account did not exist.
+    - **`Revolut-PLN` has the identical signature** — zero 2025 transactions, first 2026-03-22 —
+      and was on the TY2025 report at 0.00 as a carry-in. Owner question, not an engine bug.
+    - **Cheap guard worth building:** a computed line whose maximum is a pure carry-in *and* which
+      has zero transactions in the reported year is not a verified figure. It should carry a
+      warning, not sit among the computed rows looking settled. Two of the fourteen computed
+      TY2025 lines were in exactly that state.
+    - Separately, and outside CR082: fin's balance sheet shows `PKO TFI` holding 6,000 PLN
+      continuously since 1990. Small ($1,671) but wrong.
