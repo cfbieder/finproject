@@ -616,7 +616,10 @@ which statement each came from.
 Items 3–5 and 7 are all the same gap: **nothing in the suite looks at the page.** The gates cover
 tokens, primitives, envelopes and behaviour, and every one of them passed while the page was wrong.
 
-**Still open:**
+**Still open** — *as of this section's own date. **Every item below was closed later the same day;
+[§11c](#11c-the-remaining-items-closed-2026-08-16) is the current state.** Kept unedited because the
+list is the record of what shipping P1–P3 actually left behind, and rewriting it would erase the
+gap between "deployed" and "done":*
 
 - **P0a was never done, and §9 wrongly places it inside shipped P1.** `GET /api/v2/util/coa-traits`
   still returns an `AccountNumber` field for all **230** accounts to any caller, and
