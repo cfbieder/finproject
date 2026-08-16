@@ -59,7 +59,8 @@ async function buildYear(client, taxYear) {
   const { rows: overrides } = await client.query(
     `SELECT tax_foreign_account_id, manual_value_native, manual_reason,
             max_unknown, closed_during_year
-       FROM tax_fbar_filing_lines WHERE filing_id = $1`,
+       FROM tax_fbar_filing_lines WHERE filing_id = $1
+      ORDER BY id`,          // last write wins, deterministically
     [filing.id]
   );
   const overrideFor = new Map(

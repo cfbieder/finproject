@@ -48,6 +48,7 @@ export default function TaxForeignAccounts() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [editing, setEditing] = useState(null);
+  const [adding, setAdding] = useState(false);
   const [taxYear, setTaxYear] = useState(new Date().getFullYear() - 1);
 
   const load = useCallback(async () => {
@@ -162,14 +163,19 @@ export default function TaxForeignAccounts() {
             cannot derive. Entered once; reviewed each year.
           </p>
         </div>
-        <label className="tfa-year">
-          Figures for
-          <input
-            type="number"
-            value={taxYear}
-            onChange={(e) => setTaxYear(Number(e.target.value))}
-          />
-        </label>
+        <div className="tfa-header__tools">
+          <label className="tfa-year">
+            Figures for
+            <input
+              type="number"
+              value={taxYear}
+              onChange={(e) => setTaxYear(Number(e.target.value))}
+            />
+          </label>
+          <button type="button" className="btn btn--primary btn--sm" onClick={() => setAdding(true)}>
+            Add account
+          </button>
+        </div>
       </header>
 
       <div className="tfa-counts">
@@ -204,6 +210,17 @@ export default function TaxForeignAccounts() {
         />
       )}
 
+      {adding && (
+        <AddDialog
+          onClose={() => setAdding(false)}
+          onCreated={async (newRow) => {
+            setAdding(false);
+            await load();
+            setEditing(newRow);   // straight into the full form for the rest
+          }}
+        />
+      )}
+
       {editing && (
         <EditDialog
           row={editing}
@@ -224,6 +241,132 @@ export default function TaxForeignAccounts() {
  * from the list payload, which carries only a mask — see the route's note: this
  * is blast radius, not a boundary.
  */
+/**
+ * Create a new designation — a Part IV company, a bank fin does not track, an
+ * account opened this year.
+ *
+ * It asks only for what the schema's two CHECKs require, then hands straight
+ * over to the full editor for the address and the rest. The row is created
+ * report-only (no `account_id`): every new line starts with its own currency
+ * and number, and linking it to a fin account is a separate, deliberate act in
+ * the editor, where the candidate list shows each account's computed maximum.
+ * The two constraints are the reason currency and number are mandatory here:
+ *
+ *   (account_id IS NULL) = (own_currency IS NOT NULL)
+ *   account_id IS NOT NULL OR own_account_number IS NOT NULL
+ */
+function AddDialog({ onClose, onCreated }) {
+  const [form, setForm] = useState({
+    label: "", fbar_part: "IV", account_kind: "bank",
+    own_currency: "PLN", own_account_number: "",
+    institution_name: "", institution_country: "PL",
+  });
+  const [saving, setSaving] = useState(false);
+  const [err, setErr] = useState("");
+  const set = (k) => (e) => setForm((f) => ({ ...f, [k]: e.target.value }));
+
+  const missing = !form.label.trim() || !form.own_currency.trim()
+    || !form.own_account_number.trim();
+
+  const create = async () => {
+    setSaving(true);
+    setErr("");
+    try {
+      const r = await Rest.fetchJson("/api/v2/tax/designations", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          ...form,
+          own_currency: form.own_currency.trim().toUpperCase(),
+          review_state: "reportable",   // you added it on purpose; it is not unreviewed
+        }),
+      });
+      await onCreated({ ...form, id: r?.data?.id, account_id: null, review_state: "reportable" });
+    } catch (e) {
+      setErr(e?.message || "Could not create the account.");
+      setSaving(false);
+    }
+  };
+
+  return (
+    <Modal
+      open
+      onClose={onClose}
+      title="Add a foreign account"
+      description="The minimum Form 114 needs to identify it. The address and the rest come next."
+      dismissable={!saving}
+      footer={
+        <>
+          <button type="button" className="btn btn--secondary btn--sm" onClick={onClose}>Cancel</button>
+          <button
+            type="button"
+            className="btn btn--primary btn--sm"
+            onClick={create}
+            disabled={saving || missing}
+            title={missing ? "Label, currency and account number are all required." : ""}
+          >
+            {saving ? "Creating…" : "Create and continue"}
+          </button>
+        </>
+      }
+    >
+      <div className="tfa-modal">
+        <div className="tfa-grid">
+          <Field label="Label" wide>
+            <input
+              value={form.label}
+              onChange={set("label")}
+              placeholder="how you will recognise it, e.g. Erste 1791 (PLN)"
+            />
+          </Field>
+          <Field label="FBAR part">
+            <select value={form.fbar_part} onChange={set("fbar_part")}>
+              {PARTS.map(([v, l]) => <option key={v} value={v}>{l}</option>)}
+            </select>
+          </Field>
+          <Field label="Account type">
+            <select value={form.account_kind} onChange={set("account_kind")}>
+              {KINDS.map(([v, l]) => <option key={v} value={v}>{l}</option>)}
+            </select>
+          </Field>
+          <Field label="Currency">
+            <input
+              maxLength={3}
+              value={form.own_currency}
+              onChange={(e) => setForm((f) => ({ ...f, own_currency: e.target.value.toUpperCase() }))}
+            />
+          </Field>
+          <Field label="Country (2-letter)">
+            <input
+              maxLength={2}
+              value={form.institution_country}
+              onChange={(e) =>
+                setForm((f) => ({ ...f, institution_country: e.target.value.toUpperCase() }))}
+            />
+          </Field>
+          <Field label="Account number" wide>
+            <input
+              value={form.own_account_number}
+              onChange={set("own_account_number")}
+              placeholder="IBAN or other designation — Form 114 accepts either"
+            />
+          </Field>
+          <Field label="Institution" wide>
+            <input value={form.institution_name} onChange={set("institution_name")} />
+          </Field>
+        </div>
+        <p className="tfa-add__note">
+          Created as a <strong>report-only</strong> line: its maximum is typed from a
+          statement rather than computed. If fin does track the account, link it in the
+          next step — the picker shows each candidate&apos;s {new Date().getFullYear() - 1}{" "}
+          maximum, which is what tells same-named accounts apart.
+        </p>
+        {err && <p className="tfa-error">{err}</p>}
+      </div>
+    </Modal>
+  );
+}
+
 function EditDialog({ row, taxYear, onClose, onSaved }) {
   const [form, setForm] = useState({ ...row });
   const [fullNumber, setFullNumber] = useState("");

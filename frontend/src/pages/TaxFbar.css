@@ -231,3 +231,99 @@
   .tfb-page { padding: 1rem 0.75rem; }
   .tfb-verdict { flex-direction: column; }
 }
+
+/* ---- typed-figure dialog ---- */
+
+.tfb-figure {
+  display: flex;
+  flex-direction: column;
+  gap: 0.9rem;
+}
+
+.tfb-figure__row {
+  display: flex;
+  flex-direction: column;
+  gap: 0.3rem;
+}
+
+.tfb-figure__row > span {
+  font-size: 0.82rem;
+  font-weight: var(--font-weight-semibold);
+  color: var(--ink);
+}
+
+.tfb-figure__row input {
+  padding: 0.5rem 0.6rem;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  background: var(--bg);
+  color: var(--ink);
+  font-variant-numeric: tabular-nums;
+}
+
+.tfb-figure__row input:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.tfb-figure__hint {
+  margin: 0;
+  color: var(--muted);
+  font-size: 0.82rem;
+  max-width: 62ch;
+}
+
+.tfb-figure__check {
+  display: flex;
+  gap: 0.5rem;
+  align-items: flex-start;
+  padding: 0.6rem 0.7rem;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  background: var(--warning-subtle);
+  font-size: 0.82rem;
+  line-height: 1.4;
+}
+
+.tfb-figure__check input { margin-top: 0.15rem; flex-shrink: 0; }
+
+.tfb-typed {
+  color: var(--info-strong);
+  font-weight: var(--font-weight-medium);
+}
+
+.tfb-header__tools {
+  display: flex;
+  align-items: flex-end;
+  gap: 0.6rem;
+  flex-wrap: wrap;
+}
+
+/* ---- print / PDF ----
+   The browser's "Save as PDF" is the PDF export. What it must not print is the
+   application around the papers: the sidebar, the toolbar, and the row buttons
+   are navigation, and on paper they are just ink. */
+@media print {
+  .tfb-header__tools,
+  .tfb-page .btn { display: none !important; }
+
+  .tfb-page {
+    padding: 0;
+    max-width: none;
+    color: #000;
+  }
+
+  .tfb-rates,
+  .tfb-needs {
+    border: 1px solid #999;
+    background: transparent;
+  }
+
+  .tfb-agg,
+  .tfb-thresh { background: transparent; border: 1px solid #999; }
+
+  /* A row split across a page break is a figure you have to hunt for. */
+  table { page-break-inside: auto; }
+  tr { page-break-inside: avoid; page-break-after: auto; }
+  thead { display: table-header-group; }
+}

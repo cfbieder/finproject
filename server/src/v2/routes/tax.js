@@ -315,6 +315,17 @@ router.put('/fbar/:year/line/:designationId', async (req, res, next) => {
     if (filing.status === 'filed') {
       return res.status(409).json({ error: 'year is filed — reopen or amend rather than editing' });
     }
+    // Replace, don't accumulate. There is no unique key on
+    // (filing_id, tax_foreign_account_id), so a second edit of the same line used
+    // to leave TWO override rows — and buildYear folds them into a Map with no
+    // ORDER BY, meaning the winner was whichever Postgres happened to return
+    // last. Typing a figure, correcting it, and getting the first value back is
+    // the same arbitrary-tie-break shape as §12.1.
+    await db.query(
+      `DELETE FROM tax_fbar_filing_lines
+        WHERE filing_id = $1 AND tax_foreign_account_id = $2`,
+      [filing.id, req.params.designationId]
+    );
     await db.query(
       `INSERT INTO tax_fbar_filing_lines
          (filing_id, tax_foreign_account_id, label, manual_value_native, manual_reason,

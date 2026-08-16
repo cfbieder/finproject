@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState } from "react";
 import Rest from "../js/rest";
 import DataTable from "../components/DataTable/DataTable";
+import Modal from "../components/Modal/Modal";
 import "./TaxFbar.css";
 
 /**
@@ -55,6 +56,7 @@ export default function TaxFbar() {
   const [error, setError] = useState("");
   const [rateDraft, setRateDraft] = useState({});
   const [rateMsg, setRateMsg] = useState(null);
+  const [figureFor, setFigureFor] = useState(null);
 
   const load = useCallback(async (y) => {
     setLoading(true);
@@ -129,25 +131,95 @@ export default function TaxFbar() {
       key: "max_usd",
       header: "Maximum (USD)",
       numeric: true,
-      render: (l) =>
-        l.max_usd === null ? (
-          <span className="tfb-need" title={REASONS[l.needs_figure] || l.needs_figure}>
-            {REASONS[l.needs_figure] || "needs a figure"}
-          </span>
-        ) : (
-          money(l.max_usd)
-        ),
+      // Prose does not belong in a money column. This used to render the reason
+      // ("no fin account — type the figure") right-aligned under a $ heading,
+      // which read as a garbled amount. The reason moved to Source, where the
+      // row already had nothing to say.
+      render: (l) => (l.max_usd === null ? "—" : money(l.max_usd)),
     },
     {
       key: "source",
       header: "Source",
-      render: (l) => (l.source === "typed" ? "typed" : l.source === "computed" ? "computed" : "—"),
+      render: (l) => {
+        if (l.source === "typed") return <span className="tfb-typed">typed</span>;
+        if (l.source === "computed") return "computed";
+        if (l.max_unknown) return <span className="tfb-need">value unknown (15a)</span>;
+        return (
+          <span className="tfb-need" title={l.needs_figure || ""}>
+            {REASONS[l.needs_figure] || "needs a figure"}
+          </span>
+        );
+      },
+    },
+    {
+      key: "actions",
+      header: "",
+      render: (l) => (
+        <button
+          type="button"
+          className="btn btn--secondary btn--xs"
+          disabled={report?.filing_status === "filed"}
+          title={
+            report?.filing_status === "filed"
+              ? "This year is filed — reopen or amend rather than editing."
+              : "Type a maximum for this line"
+          }
+          onClick={() => setFigureFor(l)}
+        >
+          {l.source === "typed" ? "Edit figure" : "Type figure"}
+        </button>
+      ),
     },
   ];
 
   const nonTreasury = (report?.rates || []).filter(
     (r) => r.source !== "treasury" && r.currency.trim() !== "USD"
   );
+
+  // Built from the same `report` object the table renders, so the file and the
+  // page cannot disagree. Scripts/fbar-package.js produces the same sheet from
+  // the same endpoint for the on-disk case; neither re-derives a figure.
+  const exportCsv = () => {
+    const q = (v) => {
+      if (v === null || v === undefined) return "";
+      const s = String(v);
+      return /[",\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
+    };
+    const head = [
+      `# FinCEN Form 114 (FBAR) — tax year ${year} working papers`,
+      `# Exported ${new Date().toISOString().slice(0, 10)} from fin. MAXIMUM = highest END-OF-DAY`,
+      "#   balance across the whole calendar year, including the 1 January carry-in.",
+      "#   Computed from the ledger — not an estimate. Blank is NOT zero.",
+      `# ${report.lines.filter((l) => l.max_usd !== null).length} of ${report.lines.length}`
+        + ` lines computed. Aggregate $${Number(report.aggregate_usd).toLocaleString("en-US")}`
+        + `${report.aggregate_is_floor ? " — a FLOOR while any line is outstanding." : "."}`,
+      "#",
+      "# FX rates applied:",
+      ...report.rates
+        .filter((r) => r.currency.trim() !== "USD")
+        .map((r) => `#   ${r.currency.trim()} ${r.rate_to_usd} USD per unit [${r.source}]`
+          + (r.source === "treasury" ? "" : "  NOT the Treasury rate — replace before filing")),
+      "#",
+    ];
+    const cols = ["Part", "Account", "Institution", "Country", "Currency", "Maximum (native)",
+      "Peaked on", "FX rate", "FX source", "Maximum (USD)", "Source"];
+    const body = report.lines.map((l) => [
+      l.fbar_part, l.label, l.institution_name, l.institution_country, l.currency,
+      l.max_native, l.max_on, l.rate_to_usd, l.rate_source, l.max_usd,
+      l.max_usd === null
+        ? (l.max_unknown ? "value unknown (15a)" : "NEEDS FIGURE — not zero")
+        : l.source,
+    ].map(q).join(","));
+
+    const blob = new Blob([`${head.join("\n")}\n${cols.join(",")}\n${body.join("\n")}\n`],
+      { type: "text/csv;charset=utf-8" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `fbar-${year}-working-papers.csv`;
+    a.click();
+    URL.revokeObjectURL(url);
+  };
 
   return (
     <div className="tfb-page">
@@ -160,10 +232,29 @@ export default function TaxFbar() {
             the form has no field for it.
           </p>
         </div>
-        <label className="tfb-year">
-          Tax year
-          <input type="number" value={year} onChange={(e) => setYear(Number(e.target.value))} />
-        </label>
+        <div className="tfb-header__tools">
+          <label className="tfb-year">
+            Tax year
+            <input type="number" value={year} onChange={(e) => setYear(Number(e.target.value))} />
+          </label>
+          <button
+            type="button"
+            className="btn btn--secondary btn--sm"
+            disabled={!report}
+            onClick={exportCsv}
+          >
+            Export CSV
+          </button>
+          <button
+            type="button"
+            className="btn btn--secondary btn--sm"
+            disabled={!report}
+            onClick={() => window.print()}
+            title="Prints the working papers; choose “Save as PDF” in the print dialog"
+          >
+            Print / PDF
+          </button>
+        </div>
       </header>
 
       {error && <p className="tfb-error">{error}</p>}
@@ -295,6 +386,120 @@ export default function TaxFbar() {
           )}
         </>
       )}
+
+      {figureFor && (
+        <FigureDialog
+          line={figureFor}
+          taxYear={year}
+          onClose={() => setFigureFor(null)}
+          onSaved={async () => {
+            setFigureFor(null);
+            await load(year);
+          }}
+        />
+      )}
     </div>
+  );
+}
+
+/**
+ * Type a maximum for a line fin cannot compute — the Erste accounts, and every
+ * Part IV line, where the figure comes off a statement rather than the ledger.
+ *
+ * Two things it is careful about:
+ *
+ *  - **Blank is not zero.** Clearing the box removes the typed figure and the
+ *    line goes back to NEEDS FIGURE. It does not store 0, because 0 is the
+ *    claim "this account held nothing all year" and an empty box is not that.
+ *  - **15a exists for the case where the figure is genuinely unobtainable.**
+ *    Form 114 has a "maximum account value unknown" checkbox, and it is the
+ *    honest answer when a statement cannot be got — better than a guess that
+ *    reads as a measurement. Ticking it clears the amount.
+ */
+function FigureDialog({ line, taxYear, onClose, onSaved }) {
+  const [amount, setAmount] = useState(
+    line.source === "typed" && line.max_native !== null ? String(line.max_native) : ""
+  );
+  const [reason, setReason] = useState("");
+  const [unknown, setUnknown] = useState(line.max_unknown === true);
+  const [saving, setSaving] = useState(false);
+  const [err, setErr] = useState("");
+
+  const save = async () => {
+    setSaving(true);
+    setErr("");
+    try {
+      await Rest.fetchJson(`/api/v2/tax/fbar/${taxYear}/line/${line.designation_id}`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          manual_value_native: unknown || amount === "" ? null : Number(amount),
+          manual_reason: reason || null,
+          max_unknown: unknown,
+        }),
+      });
+      await onSaved();
+    } catch (e) {
+      setErr(e?.message || "Save failed.");
+      setSaving(false);
+    }
+  };
+
+  return (
+    <Modal
+      open
+      onClose={onClose}
+      title={line.label}
+      description={`Maximum value during ${taxYear}, in ${line.currency || "the account currency"}.`}
+      dismissable={!saving}
+      footer={
+        <>
+          <button type="button" className="btn btn--secondary btn--sm" onClick={onClose}>Cancel</button>
+          <button type="button" className="btn btn--primary btn--sm" onClick={save} disabled={saving}>
+            {saving ? "Saving…" : "Save figure"}
+          </button>
+        </>
+      }
+    >
+      <div className="tfb-figure">
+        <label className="tfb-figure__row">
+          <span>Maximum ({line.currency || "native"})</span>
+          <input
+            type="number"
+            step="0.01"
+            value={amount}
+            disabled={unknown}
+            onChange={(e) => setAmount(e.target.value)}
+            placeholder="highest balance at any point in the year"
+          />
+        </label>
+        <p className="tfb-figure__hint">
+          The highest balance the account reached at any point during {taxYear} — not the
+          year-end balance, and not an average. Form 114 asks for nothing else.
+          Leave it empty to clear a typed figure; empty means <strong>no figure</strong>,
+          which is not the same as zero.
+        </p>
+
+        <label className="tfb-figure__check">
+          <input type="checkbox" checked={unknown} onChange={(e) => setUnknown(e.target.checked)} />
+          <span>
+            Maximum value is unknown <em>(Form 114 item 15a)</em> — tick only if no statement
+            can be obtained. This is the honest answer when the figure cannot be got; a guess
+            that looks like a measurement is not.
+          </span>
+        </label>
+
+        <label className="tfb-figure__row">
+          <span>Where it came from</span>
+          <input
+            value={reason}
+            onChange={(e) => setReason(e.target.value)}
+            placeholder="e.g. Erste statement, Dec 2025"
+          />
+        </label>
+
+        {err && <p className="tfb-error">{err}</p>}
+      </div>
+    </Modal>
   );
 }

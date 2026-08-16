@@ -191,6 +191,61 @@ dbDescribe('CR082 — Taxes API and report assembly (DB)', () => {
     });
   });
 
+  describe('typed figures', () => {
+    // There is no unique key on (filing_id, tax_foreign_account_id), so the PUT
+    // used to INSERT a second override row on every edit — and buildYear folds
+    // them into a Map from a query with no ORDER BY, so which one won was
+    // whatever Postgres returned last. Correcting a figure and getting the old
+    // one back is the arbitrary-tie-break shape from §12.1, in the one place
+    // where the number is entered by hand and nothing recomputes it.
+    test('editing a typed figure REPLACES it rather than stacking a second override', async () => {
+      const id = await mkDesignation('Typed');
+      const put = (v) => request(app, 'PUT', `/tax/fbar/${YEAR}/line/${id}`,
+        { manual_value_native: v, manual_reason: `set to ${v}` });
+
+      expect((await put(1000)).status).toBe(200);
+      expect((await put(2500)).status).toBe(200);
+
+      const { rows } = await db.query(
+        `SELECT l.manual_value_native FROM tax_fbar_filing_lines l
+           JOIN tax_fbar_filings f ON f.id = l.filing_id
+          WHERE f.tax_year = $1 AND l.tax_foreign_account_id = $2`, [YEAR, id]);
+      expect(rows).toHaveLength(1);
+      expect(Number(rows[0].manual_value_native)).toBe(2500);
+
+      const report = await buildYear(db, YEAR);
+      const line = report.lines.find((l) => l.designation_id === id);
+      expect(line.source).toBe('typed');
+      expect(Number(line.max_native)).toBe(2500);
+    });
+
+    test('clearing a typed figure returns the line to NEEDS FIGURE, not to zero', async () => {
+      const id = await mkDesignation('Cleared');
+      await request(app, 'PUT', `/tax/fbar/${YEAR}/line/${id}`, { manual_value_native: 500 });
+      await request(app, 'PUT', `/tax/fbar/${YEAR}/line/${id}`, { manual_value_native: '' });
+
+      const report = await buildYear(db, YEAR);
+      const line = report.lines.find((l) => l.designation_id === id);
+      // A zero would claim the account held nothing all year. An empty box is
+      // the absence of a claim, and the two must not collapse into each other.
+      expect(line.max_usd).toBeNull();
+      expect(line.max_native).toBeNull();
+      expect(line.needs_figure).toBeTruthy();
+    });
+
+    test('15a — an unknown maximum is recorded as unknown, and carries no amount', async () => {
+      const id = await mkDesignation('Unknown15a');
+      const r = await request(app, 'PUT', `/tax/fbar/${YEAR}/line/${id}`,
+        { max_unknown: true, manual_value_native: null });
+      expect(r.status).toBe(200);
+
+      const report = await buildYear(db, YEAR);
+      const line = report.lines.find((l) => l.designation_id === id);
+      expect(line.max_unknown).toBe(true);
+      expect(line.max_usd).toBeNull();
+    });
+  });
+
   describe('the FX direction guard', () => {
     test('refuses a rate pasted in Treasury’s direction, and returns the reciprocal', async () => {
       // Treasury publishes foreign-per-USD; this column is USD-per-foreign. For
