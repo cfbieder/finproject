@@ -940,7 +940,7 @@ Eleven physical columns (a 260px label + ten numeric/text) on a 1440 laptop — 
 ├──────────────────────┼──────────╫──────────────────────────────┼────────┼────────┼──────┼──────
 │ ▾ Income             │  361,183 ║ ...                          │ 434,218│ 391,862│+42,356│
 │    Interest Income ⓘ │   38,139 ║[ 4,000][ 4,000][ 4,000][ 4,000][ 4,000]│ 58,139│ 46,000│+12,139│Budget
-│      ⓘ  YTD 38,138.55 ÷ budget-YTD 25,999.86 = 1.466874 → 5,867.47/mo → FY 67,475.90    │
+│      ⓘ  YTD 38,138.55 ÷ budget-YTD 25,999.86 = 1.466875 → 5,867.47/mo → FY 67,475.90    │
 │ ▾ Expense            │ (335,500)║ ...                          │(537,217)│(529,417)│(7,800)│
 │    Bank Fees      ▲  │  (3,966) ║[  (413)][  (413)][  (413)][  (413)][  (413)]│(6,031)│(3,449)│(2,582)│Typed
 │    Taxes US       ⚠  │        0 ║[     0][     0][     0][     0][(55,000)]│(55,000)│(55,000)│  —  │Budget
@@ -1020,7 +1020,7 @@ Accept-all, no drawer and no undo stack, because there is nothing to undo.
 
 Design rules, unchanged from the first draft because they are what makes it checkable:
 
-- **Show the operands, not a verdict.** `38,138.55 ÷ 25,999.86 = 1.466874` is verifiable in two
+- **Show the operands, not a verdict.** `38,138.55 ÷ 25,999.86 = 1.466875` is verifiable in two
   seconds; "based on recent trends" is not.
 - ⚠️ **State the allocation rule, and make the arithmetic tie.** The version round 2 caught printed
   *"5,868/mo → line FY 67,477"* while a reader multiplying got 5 × 5,868 = 29,340 → **67,479** —
