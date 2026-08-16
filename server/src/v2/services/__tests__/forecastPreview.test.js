@@ -129,7 +129,7 @@ describeOrSkip('CR084 — preview a module change', () => {
 
   describe('previewModuleChange', () => {
     test('leaves the real module and its scenario untouched', async () => {
-      await preview.previewModuleChange({ moduleId, patch: { growth_rate: 9 } });
+      await preview.previewModuleChange({ moduleId, patch: { Growth: 9 } });
 
       const after = await repo.findModuleById(moduleId);
       expect(Number(after.growth_rate)).toBe(1);
@@ -151,7 +151,7 @@ describeOrSkip('CR084 — preview a module change', () => {
         [baseId]
       );
 
-      const res = await preview.previewModuleChange({ moduleId, patch: { growth_rate: 2 } });
+      const res = await preview.previewModuleChange({ moduleId, patch: { Growth: 2 } });
 
       expect(res.before.some((e) => e.Module === 'STALE_POISON')).toBe(false);
       expect(res.after.some((e) => e.Module === 'STALE_POISON')).toBe(false);
@@ -164,7 +164,7 @@ describeOrSkip('CR084 — preview a module change', () => {
     test('actually shows a DIFFERENCE — doubling growth raises the holding every year', async () => {
       // Without this the suite would pass on a preview that returned two identical builds, which is
       // the failure mode a "it ran and cleaned up" test cannot see.
-      const res = await preview.previewModuleChange({ moduleId, patch: { growth_rate: 2 } });
+      const res = await preview.previewModuleChange({ moduleId, patch: { Growth: 2 } });
 
       const holding = (rows) => {
         const byYear = new Map();
@@ -189,8 +189,33 @@ describeOrSkip('CR084 — preview a module change', () => {
       expect(gaps[gaps.length - 1]).toBeGreaterThan(1000);
     });
 
+    test('⚠️ previews a STREAM edit — the case a column-only preview would have missed', async () => {
+      // The reason `moduleBodyToColumns` was extracted rather than reimplemented. A stream amount
+      // does not live on the module row at all: it is written by `replaceModuleStreams` from the
+      // editor's `Streams` array. A preview that only mapped module COLUMNS would have shown "no
+      // change" here, which is worse than showing nothing — the owner had just edited the amount.
+      const line = await db.query(`SELECT id FROM fc_lines ORDER BY id LIMIT 1`);
+      const fcLineId = line.rows[0].id;
+
+      const res = await preview.previewModuleChange({
+        moduleId,
+        patch: {
+          Streams: [
+            { Direction: 'expense', FcLineId: fcLineId, Mode: 'amount', Amount: 40000, GrowthMult: 1 },
+          ],
+        },
+      });
+
+      const cashOut = (rows) =>
+        rows.filter((e) => e.Module === TAG + 'holding' && e.Account === 'Bank Accounts')
+            .reduce((sum, e) => sum + Number(e.Amount), 0);
+
+      // The module had no expense stream; now it spends 40,000/yr. Cash out must fall.
+      expect(cashOut(res.after)).toBeLessThan(cashOut(res.before));
+    });
+
     test('refuses a module that does not exist rather than previewing nothing', async () => {
-      await expect(preview.previewModuleChange({ moduleId: 99999999, patch: { growth_rate: 1 } }))
+      await expect(preview.previewModuleChange({ moduleId: 99999999, patch: { Growth: 1 } }))
         .rejects.toThrow(/Module not found/);
     });
   });

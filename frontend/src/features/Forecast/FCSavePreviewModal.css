@@ -1,0 +1,36 @@
+/* CR084 — the save-time consequence preview. Tokens only; `--ink`, never `--text`. */
+.fc-save-preview__loading { color: var(--muted); font-size: 0.9rem; }
+
+.fc-save-preview__table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.9rem;
+  margin-bottom: var(--space-md);
+}
+.fc-save-preview__table th,
+.fc-save-preview__table td {
+  padding: 0.4rem 0.6rem;
+  text-align: right;
+  border-bottom: 1px solid var(--border);
+}
+.fc-save-preview__table th:first-child,
+.fc-save-preview__table td:first-child { text-align: left; color: var(--muted); }
+.fc-save-preview__table th { color: var(--muted); font-weight: 600; }
+.fc-save-preview__table .up { color: var(--success); font-weight: 600; }
+.fc-save-preview__table .down { color: var(--danger); font-weight: 600; }
+
+.fc-save-preview__unchanged { font-size: 0.85rem; color: var(--muted); margin: 0 0 var(--space-sm); }
+
+.fc-save-preview__radius { font-size: 0.85rem; color: var(--ink); }
+.fc-save-preview__radius p { margin: 0.25rem 0; }
+/* The half that is easy to miss: a variant with its own override keeps its old value. */
+.fc-save-preview__blocked { color: var(--warning); }
+
+.fc-save-preview__note { font-size: 0.78rem; color: var(--muted); margin-top: var(--space-md); }
+
+.fc-save-preview__actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: var(--space-sm);
+  margin-top: var(--space-lg);
+}

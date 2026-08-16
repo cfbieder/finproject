@@ -15,6 +15,7 @@ const validate = require('../utils/validate');
 const crud = require('../../services/forecast/crud');
 const equity = require('../../services/forecast/equity'); // CR062 P2
 const variants = require('../services/forecastVariants'); // CR050
+const { moduleBodyToColumns, assertSweepEligible, isLoanBody } = require('../services/moduleWrite'); // CR084
 const preview = require('../services/forecastPreview');   // CR084 — save-time consequence preview
 const { baseYearFxRate } = require('../../services/forecast/fcbuilder-setup'); // CR051
 const { generateForecast } = require('../../services/forecast');
@@ -70,7 +71,6 @@ const MODULE_WRITE_FIELDS = [
  * engine has never read that column, so a renamed type must not change what the
  * data means. `!= null` because 0% is a real rate.
  */
-const isLoanBody = (body) => body?.LoanInterestRate != null;
 
 /**
  * CR062 — a loan MUST post its interest somewhere. `cashChange` sums the expense
@@ -103,22 +103,6 @@ const isLoanBody = (body) => body?.LoanInterestRate != null;
  * Neither condition fires on today's data (ranks are held only by Stocks and Fixed Income), so
  * this closes a hazard rather than changing behaviour.
  */
-function assertSweepEligible(row, name = 'This module') {
-  if (row?.has_valuation === false) {
-    throw validate.badRequest(
-      `${name} has no balance sheet, so it cannot be a cash-sweep source — it would absorb ` +
-      `unlimited deposits into a P&L account and could never fund a shortfall.`
-    );
-  }
-  const mv = row?.market_value == null ? null : Number(row.market_value);
-  if (mv != null && mv < 0) {
-    throw validate.badRequest(
-      `${name} carries a debt, so it cannot be a cash-sweep source — it can absorb deposits it ` +
-      `cannot repay, and the sweep can never draw from a negative balance.`
-    );
-  }
-}
-
 function assertLoanHasInterestLine(effectiveFcLineId) {
   if (effectiveFcLineId === undefined || effectiveFcLineId === null || effectiveFcLineId === '') {
     throw validate.badRequest('A loan needs an Interest Line — without one its interest would leave the bank balance without appearing on any P&L line.');
@@ -1220,71 +1204,10 @@ router.put('/modules/:id', async (req, res, next) => {
       await assertSecuredAssetLink(body.SecuredAssetModuleId || null, before.scenario_id, id);
     }
 
-    // Build update data from PascalCase fields
-    const updateData = {};
-
-    if (body.Account !== undefined) {
-      updateData.account_id = await crud.lookupAccountByName(body.Account);
-    }
-    if (body.Name !== undefined) updateData.name = body.Name;
-    if (body.Type !== undefined) updateData.module_type = body.Type;
-    if (body.Currency !== undefined) updateData.currency = body.Currency;
-    if (body.TaxRateOverride !== undefined) updateData.tax_rate_override = body.TaxRateOverride;
-    if (body.SetupStatus !== undefined) updateData.setup_status = body.SetupStatus;
-    // CR069 P2 — `has_valuation` is a real, writable property: FALSE makes the module a pure
-    // P&L container (what an Expenditure item became). Without this mapping there was no API
-    // path that could create one — a new expense item saved with has_valuation TRUE, zero
-    // values, and CR041's ownership gate then zeroed its stream: accepted, stored, and
-    // silently absent from the forecast.
-    if (body.HasValuation !== undefined) updateData.has_valuation = Boolean(body.HasValuation);
-    // The retired income_/expense_ COLUMNS are deliberately NOT written here any more. They
-    // are still ACCEPTED (the editor sends them until P3) but they are routed only to
-    // `crud.replaceModuleStreams`. Writing them too would let a variant save turn one into an
-    // override on a column the engine no longer reads — migration 058's post-condition
-    // re-broken by the running app, which is this CR's own §6 argument arriving through the
-    // write path.
-    if (body.BaseDate !== undefined) updateData.base_date = body.BaseDate;
-    if (body.BaseValue !== undefined) updateData.base_value = body.BaseValue;
-    if (body.MarketValue !== undefined) updateData.market_value = body.MarketValue;
-    if (body.BaseValueUSD !== undefined) updateData.base_value_usd = body.BaseValueUSD;
-    if (body.MarketValueUSD !== undefined) updateData.market_value_usd = body.MarketValueUSD;
-    // CR062 — Growth is COERCED to 0 on a loan, never rejected. buildModulePayload
-    // always emits Growth from editForm, so a module retyped Asset (Growth 1.0) →
-    // Loan would 400 on every save with no visible field to fix. Growth on a
-    // liability capitalizes interest into the balance, double-counting the
-    // interest line.
-    if (body.Growth !== undefined) updateData.growth_rate = isLoanBody(body) ? 0 : body.Growth;
-    if (body.LoanPrincipal !== undefined) updateData.loan_principal = body.LoanPrincipal ?? null;
-    if (body.LoanStartDate !== undefined) updateData.loan_start_date = body.LoanStartDate || null;
-    if (body.LoanEndDate !== undefined) updateData.loan_end_date = body.LoanEndDate || null;
-    if (body.LoanInterestRate !== undefined) updateData.loan_interest_rate = body.LoanInterestRate ?? null;
-    if (body.SecuredAssetModuleId !== undefined) {
-      updateData.secured_asset_module_id = body.SecuredAssetModuleId || null;
-    }
-    if (body.Comment !== undefined) updateData.comment = body.Comment;
-    if (body.Matched !== undefined) updateData.is_matched = Boolean(body.Matched);
-    // CR017: cash sweep is now a priority-ordered set (cash_sweep_priority); the legacy
-    // cash_sweep_target boolean is kept in sync as "priority == 1" for back-compat.
-    if (body.CashSweepPriority !== undefined) {
-      const raw = body.CashSweepPriority;
-      const pri = (raw === null || raw === '' || !(Number(raw) > 0)) ? null : parseInt(raw, 10);
-      // Judged on the state the row will HAVE after this write, not the one it has now: a save
-      // that ranks a module and flips it to a flow module in the same body must be refused.
-      if (pri != null) {
-        assertSweepEligible(
-          { has_valuation: updateData.has_valuation ?? before?.has_valuation,
-            market_value: updateData.market_value ?? before?.market_value },
-          before?.name ? `"${before.name}"` : 'This module'
-        );
-      }
-      updateData.cash_sweep_priority = pri;
-      updateData.cash_sweep_target = pri === 1;
-    } else if (body.CashSweepTarget !== undefined) {
-      // Bare target toggle (older callers) maps onto the priority model: on → 1, off → null
-      const on = Boolean(body.CashSweepTarget);
-      updateData.cash_sweep_target = on;
-      updateData.cash_sweep_priority = on ? 1 : null;
-    }
+    // CR084 — the SAME translation the save-time preview applies to its throwaway copy.
+    // Extracted to `services/moduleWrite` so the two cannot drift: a preview that maps the body
+    // differently from the save previews something the save will not do.
+    const updateData = await moduleBodyToColumns(body, before);
 
     // Keep priorities unique within a scenario: REJECT a rank already held by another
     // module (no silent eviction) and keep the legacy single-target flag unique to priority 1.

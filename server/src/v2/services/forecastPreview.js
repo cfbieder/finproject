@@ -20,6 +20,8 @@
 const db = require('../db');
 const repo = require('../repositories').forecast;
 const { withScratchScenario, readEntries } = require('./forecastScratch');
+const { moduleBodyToColumns } = require('./moduleWrite');
+const crud = require('../../services/forecast/crud');
 
 /**
  * Which OTHER scenarios would this module edit actually reach?
@@ -109,8 +111,31 @@ async function previewModuleChange({ moduleId, patch }) {
       );
     }
 
-    const updated = await repo.updateModule(match[0].id, patch);
-    if (!updated) throw new Error('Preview could not apply the change to the throwaway copy');
+    // ⚠️ The edit is applied through the SAME three steps the save performs, in the same order:
+    // the shared body→columns mapping, then the schedules, then the streams. Anything less
+    // previews a different edit. The first version of this called `repo.updateModule` with the
+    // editor's PascalCase body — which the repository does not understand — and 400'd on the first
+    // browser check; had the shapes merely overlapped it would have shown "no change" to an owner
+    // who had just edited a stream amount.
+    //
+    // The scratch is STANDALONE, so `updateModule`'s variant intercept and `interceptSchedules`
+    // are inert here — the copy is written directly, which is the point of copying it.
+    const scratchModuleId = match[0].id;
+    const before2 = await repo.findModuleById(scratchModuleId);
+    const columns = await moduleBodyToColumns(patch, before2);
+    if (Object.keys(columns).length > 0) {
+      const updated = await repo.updateModule(scratchModuleId, columns);
+      if (!updated) throw new Error('Preview could not apply the change to the throwaway copy');
+    }
+    // Guarded exactly as the route guards it: `replaceModuleSchedules` DELETES before it
+    // reinserts, so calling it for a body that never mentions a schedule would wipe the module's
+    // disposals on the copy and report a vast difference the real save would never produce.
+    if (Array.isArray(patch.Invest) || Array.isArray(patch.Dispose) ||
+        Array.isArray(patch.IncomePct) || Array.isArray(patch.Amortization) ||
+        Array.isArray(patch.IncomeSteps)) {
+      await crud.replaceModuleSchedules(scratchModuleId, patch);
+    }
+    await crud.replaceModuleStreams(scratchModuleId, patch);
 
     // AFTER — same copy, same engine, one difference.
     await build();

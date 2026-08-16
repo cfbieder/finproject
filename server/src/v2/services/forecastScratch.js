@@ -17,10 +17,16 @@
 //  3. **Cleanup runs in `finally`**, so a failed build still tears down. A leaked scratch is
 //     `is_active = TRUE` and shows up in every scenario picker in the app.
 //
-// ⚠️ Known concurrency hazard, inherited and NOT fixed here: `copyScenario` and the prune are both
-// read-modify-writes over the same four shared `forecast_assumptions` rows, so a teardown that read
-// the document before an owner saved a new inflation path will overwrite that save. CR053 made this
-// rare (one owner-initiated solve). A preview per save makes it routine — see CR084 §"open".
+// ⚠️ Concurrency, stated precisely because half of it is fixed and half is not.
+// The four shared `forecast_assumptions` rows are touched twice per scratch: once by
+// `copyScenario` (which ADDS the scratch's rows) and once by the teardown (which removes them).
+// Both were read-modify-writes in CR053, so either could overwrite an owner's concurrent save of a
+// new inflation path — and the failure that produces is the quiet one CR064 documents, a build at
+// **0% inflation for the whole horizon**.
+//   • TEARDOWN: fixed here — the filter runs inside the UPDATE, one statement, no window.
+//   • `copyScenario`: still a read-modify-write, and NOT changed by this CR because it is shared
+//     with every other caller of scenario copy. The window is ~one statement wide rather than the
+//     ~1s of a whole preview, but it is real. Recorded in CR084 §6 as the residual.
 
 const db = require('../db');
 const repo = require('../repositories').forecast;
@@ -31,22 +37,36 @@ const SCRATCH_PREFIX = '__scratch_';
 /** The assumptions-document keys that carry per-scenario rows keyed by name. */
 const ASSUMPTION_DOC_KEYS = ['scenarios', 'inflation', 'FX', 'Tax Rate'];
 
+/**
+ * Remove a scratch's rows from the shared assumptions document — in ONE statement per key.
+ *
+ * ⚠️ CR053's version read the document into JS, filtered, and wrote the whole array back. That is a
+ * read-modify-write over four rows every scenario shares, so a teardown that read the document
+ * before an owner saved a new inflation path would overwrite that save — and the failure it
+ * produces is the quiet one CR064 documents, where an empty inflation list builds at **0% for the
+ * whole horizon**. CR053 made it rare (one owner-initiated solve). A preview on every module save
+ * makes it routine, so the window is closed rather than inherited.
+ *
+ * The filter now runs INSIDE the UPDATE, so the read and the write are the same statement and no
+ * concurrent save can be lost between them.
+ */
 async function pruneAssumptionsForName(client, name) {
   const nameFieldFor = (key) => (key === 'scenarios' ? 'Name' : 'Scenario');
   for (const key of ASSUMPTION_DOC_KEYS) {
-    const row = await client.query('SELECT value FROM forecast_assumptions WHERE key = $1', [key]);
-    if (!row.rows[0]) continue;
-    const raw = row.rows[0].value;
-    const list = typeof raw === 'string' ? JSON.parse(raw) : raw;
-    if (!Array.isArray(list)) continue;
-    const field = nameFieldFor(key);
-    const next = list.filter((e) => !e || e[field] !== name);
-    if (next.length !== list.length) {
-      await client.query(
-        'UPDATE forecast_assumptions SET value = $1, updated_at = NOW() WHERE key = $2',
-        [JSON.stringify(next), key]
-      );
-    }
+    await client.query(
+      `UPDATE forecast_assumptions
+          SET value = COALESCE(
+                (SELECT jsonb_agg(e)
+                   FROM jsonb_array_elements(value::jsonb) e
+                  WHERE e->>$3 IS DISTINCT FROM $2),
+                '[]'::jsonb),
+              updated_at = NOW()
+        WHERE key = $1
+          AND jsonb_typeof(value::jsonb) = 'array'
+          AND EXISTS (SELECT 1 FROM jsonb_array_elements(value::jsonb) e
+                       WHERE e->>$3 IS NOT DISTINCT FROM $2)`,
+      [key, name, nameFieldFor(key)]
+    );
   }
 }
 

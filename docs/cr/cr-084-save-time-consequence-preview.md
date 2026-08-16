@@ -1,7 +1,7 @@
 # CR084 — What this edit does, before you save it
 
-**Status:** **IN-PROGRESS** — the server half is BUILT and tested (§3); the module-editor wiring is
-**deliberately NOT shipped** and §5 says exactly why and what it needs.
+**Status:** **COMPLETE** — server half (§3) and the module-editor wiring (§7) both shipped. §4–5
+record the wiring's first attempt, which was built and reverted, because the reason is the point.
 **Track:** v3
 **Origin:** [CR081 §13](cr-081-ai-line-assistant.md). Both reviewers of CR081 converged on this
 independently and preferred it to the AI assistant it was carved out of — it serves **every** edit
@@ -95,7 +95,7 @@ never proceed.
 The finished modal component was **deleted rather than left unreferenced**. An orphaned file that
 every gate passes is exactly how `FCReview.css` shipped unloaded in v3.25.0.
 
-## 5. What the wiring needs
+## 5. What the wiring needed (all done — see §7)
 
 1. **Extract the body → columns mapping** out of `PUT /modules/:id` into one function used by both
    the route and the preview. Same code, or the preview is a second opinion about the save.
@@ -107,10 +107,79 @@ every gate passes is exactly how `FCReview.css` shipped unloaded in v3.25.0.
 ## 6. Costs accepted knowingly
 
 - **Two real engine builds per preview** (~0.5s each on dev). Preview on save, not on keystroke.
-- ⚠️ **Inherited concurrency hazard, NOT fixed:** `copyScenario` and the teardown are both
-  read-modify-writes over the same four shared `forecast_assumptions` rows, so a teardown that read
-  the document before an owner saved a new inflation path would overwrite that save. CR053 made this
-  rare (one owner-initiated solve); a preview per save makes it routine. Needs an advisory lock on a
-  fixed assumptions key before the wiring ships.
+- ⚠️ **Concurrency on the shared assumptions document — half fixed, half residual.** Those four rows
+  are touched twice per scratch: `copyScenario` adds the scratch's entries, the teardown removes
+  them. Both were read-modify-writes in CR053, so either could overwrite an owner's concurrent save
+  of a new inflation path — the quiet failure CR064 documents, a build at **0% inflation for the
+  whole horizon**. CR053 made it rare (one owner-initiated solve); a preview on every save makes it
+  routine, so it could not simply be inherited.
+  **Fixed:** the teardown's filter now runs *inside* the UPDATE — one statement, no window.
+  **Residual:** `copyScenario` is still a read-modify-write and was deliberately left alone, because
+  it is shared with every other caller of scenario copy. The window is now one statement wide rather
+  than the ~1s of a whole preview.
 - **Scratch scenarios are `is_active = TRUE`** and nothing filters them from the pickers, so a
   process killed mid-preview leaves one visible. A startup sweep of `__scratch_%` belongs with §5.
+
+---
+
+## 7. Shipped — the wiring, second attempt
+
+### `services/moduleWrite.js` — one mapping, two callers
+
+`PUT /modules/:id`'s 24-branch body→columns translation is **extracted**, and the route now calls it
+rather than owning it. The preview applies the edit through the same three steps the save performs,
+in the same order: **the shared mapping → `replaceModuleSchedules` → `replaceModuleStreams`**.
+
+The schedule call carries the route's guard verbatim — `replaceModuleSchedules` DELETEs before it
+reinserts, so calling it for a body that never mentions a schedule would wipe the module's disposals
+on the copy and report a vast difference the real save would never produce.
+
+Deliberately NOT extracted: the sweep-priority **clash** checks and the loan-retype snapshot. Those
+query other rows and belong to request handling. The sweep priority **mapping** did move, because it
+changes what the engine reads.
+
+### A test that only the extraction makes possible
+
+`previews a STREAM edit` adds a 40,000/yr expense stream and asserts cash out falls. A stream amount
+does not live on the module row at all — it is written by `replaceModuleStreams` from the editor's
+`Streams` array — so the column-only version would have shown **"no change"** to an owner who had
+just edited the amount. That is the case worth having, and it is why the mapping was extracted
+rather than reimplemented.
+
+The suite also caught the contract change: three tests patched `{ growth_rate }` (a column) and went
+green-to-red the moment the endpoint began taking the editor's wire shape.
+
+### ⚠️ The browser check found it again — a third time
+
+The wiring rendered nothing on the first run. `HTTP 200`, no console error, no exception: the shared
+`Modal` primitive takes **`open`**, and the component passed **`isOpen`**. An undefined prop is not
+an error, so the dialog simply never opened and every other gate stayed green.
+
+That is now three defects in this CR that only a browser found — the wire/column mismatch, the
+silent save-on-failure, and this. Unit tests assert behaviour and text; they cannot see a component
+that isn't there.
+
+### What the finished thing does
+
+Verified on dev against `2026 Base`:
+
+| | now | after saving | change |
+|---|--:|--:|--:|
+| nominal | 4,031,239 | 10,063,962 | **+6,032,723** |
+| in 2026 dollars | 1,657,217 | 4,137,232 | **+2,480,015** |
+
+…for `Fidelity Stocks` growth 1× → 2× inflation, naming all four variants that would move. Cancel
+leaves the module at 1.0000, with **zero** scratch scenarios and **zero** scratch rows in the
+assumptions document.
+
+**A useful second result:** opening the editor and saving with **no change** reports `+0` and says
+so. The round trip through `buildModulePayload` → preview → engine is lossless; a lossy mapping
+would have shown a spurious delta, and that is the cheapest ongoing check that the two paths still
+agree.
+
+**A preview failure now BLOCKS.** The first attempt caught the error and saved anyway — a silent
+write reported as nothing. The owner is now told the change was **not** saved and can retry or
+cancel.
+
+**Gate:** 981 backend (+7) · 517 frontend · lint 0 errors · six ratchets · no migration · no engine
+change, so no regenerate and no fingerprint movement.

@@ -5,6 +5,7 @@ import FCModulesTable from "../features/Forecast/FCModulesTable.jsx";
 import FCConfirmDeleteModal from "../features/Forecast/FCConfirmDeleteModal.jsx";
 import FCModulesUnmatchedModal from "../features/Forecast/FCModulesUnmatchedModal.jsx";
 import FCAddFromActualsModal from "../features/Forecast/FCAddFromActualsModal.jsx";
+import FCSavePreviewModal from "../features/Forecast/FCSavePreviewModal.jsx";   // CR084
 import { useAssumptions } from "../features/Forecast/hooks/useAssumptions.js";
 import { useModules } from "../features/Forecast/hooks/useModules.js";
 import { useUnmatchedItems } from "../features/Forecast/hooks/useUnmatchedItems.js";
@@ -492,10 +493,59 @@ export default function FCModuleManage() {
     }
   };
 
+  /**
+   * CR084 — a save shows what it DOES before it lands.
+   *
+   * The preview runs the scenario twice on a throwaway copy — as it stands, and with this edit —
+   * so the figures come from the real engine rather than a second opinion about it. It applies the
+   * edit through the SAME body→columns mapping, schedule and stream writes the save performs, so
+   * what is previewed is what will happen.
+   *
+   * A DRAFT is exempt: it has no id, so there is nothing to build against and no "before".
+   *
+   * ⚠️ A preview FAILURE BLOCKS. An earlier revision caught the error and saved anyway, which
+   * silently wrote a module while reporting nothing — a failed preview must never become an
+   * unpreviewed write. The owner is told, and can retry or cancel.
+   */
+  const [pendingPreview, setPendingPreview] = useState(null);
+  const [previewBusy, setPreviewBusy] = useState(false);
+
   const handleSaveEdit = async (event) => {
     event.preventDefault();
-    const ok = await saveModule();
-    if (ok) closeEditModal();
+
+    const moduleId = editForm?.id ?? selectedModule?.id;
+    if (!moduleId) {                      // draft — nothing to compare against
+      const ok = await saveModule();
+      if (ok) closeEditModal();
+      return;
+    }
+
+    setPreviewBusy(true);
+    setEditError("");
+    try {
+      const res = await Rest.post(`/forecast/modules/${moduleId}/preview`, {
+        patch: buildModulePayload(editForm),
+      });
+      setPendingPreview(res.data ?? res);
+    } catch (err) {
+      setEditError(
+        `Could not work out what this change would do, so it has NOT been saved: ` +
+        `${err?.message || "the preview failed"}. Try again, or cancel.`
+      );
+    } finally {
+      setPreviewBusy(false);
+    }
+  };
+
+  const confirmPreviewedSave = async () => {
+    setPreviewBusy(true);
+    try {
+      const ok = await saveModule();
+      setPendingPreview(null);
+      if (ok) closeEditModal();
+    } finally {
+      setPreviewBusy(false);
+    }
   };
 
   /**
@@ -742,6 +792,17 @@ export default function FCModuleManage() {
           It names the fields that will go, from the same Inheritance payload the badge
           renders, so the number shown is the number that goes.
         */}
+        {/* CR084 — what this save does, before it does it. */}
+        {pendingPreview && (
+          <FCSavePreviewModal
+            preview={pendingPreview}
+            periodStart={selectedScenarioDetails?.PeriodStart}
+            inflationRows={assumptions?.inflation || []}
+            saving={previewBusy}
+            onConfirm={confirmPreviewedSave}
+            onCancel={() => setPendingPreview(null)}
+          />
+        )}
         <FCConfirmDeleteModal
           isOpen={Boolean(resetPrompt)}
           selectedEntry={selectedModule}
