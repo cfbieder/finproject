@@ -8,7 +8,7 @@
 > CR index and roadmap already own, and it is where stale facts collect. Each cut has come from
 > MOVING something that changes on a different clock, never from deleting what is true.
 
-**Last updated:** 2026-08-16 · **Live version:** see `VERSION` / git tags — ⚠️ prod currently runs **unreleased `main`**, several commits past the `v3.28.3` tag (CR082 deployed without a version bump)
+**Last updated:** 2026-08-16 · **Live version:** **v3.29.0** (see `VERSION` / git tags) — the untagged drift past `v3.28.3` is closed by this release, which carries CR082's fixes with it
 
 ## Current phase
 **The model, since [CR069](../cr/cr-069-forecast-streams.md):** a module is *identity + optional
@@ -104,11 +104,14 @@ scenarios are REGENERATED**. It changes far less often than this file does.
   rules firing on streams **not in the plan** guarded, 17 → 15
   ([CR077 §7](../cr/cr-077-assumption-advisor-tab.md)); Compare in today's money, v3.26.0
   ([CR079 §7](../cr/cr-079-real-terms-view.md)) — only the **Home hero** stays nominal-only.
-- 🔴 **NEXT BUILD — the editor-side consequence preview, NO LLM**
-  ([CR081 §13](../cr/cr-081-ai-line-assistant.md)): on saving ANY edit, show net assets before →
-  after (nominal + today's money), the line's series, warnings gained/lost, and which scenarios
-  really move. **CR081 itself is DEFERRED** — AI-proposed-edit acceptance measured **0/15, twice**,
-  and its one high-value phase needs data a local model cannot fetch.
+- ~~The editor-side consequence preview~~ **DONE, v3.29.0**
+  ([CR084](../cr/cr-084-save-time-consequence-preview.md)): **Save now shows what it DOES first** —
+  net assets before → after, nominal **and** in today's money, plus which scenarios move and which
+  do **not**. Two real engine builds on a throwaway copy, applied through the SAME body→columns
+  mapping the save uses (`services/moduleWrite`, extracted) so a preview cannot differ from the
+  save. **Three defects only a browser found**, incl. a preview failure that *saved anyway*.
+  **CR081 stays DEFERRED** — AI-proposed-edit acceptance measured **0/15, twice**, and its one
+  high-value phase needs data a local model cannot fetch.
 - ⏱ 🟢 **[CR082](../cr/cr-082-tax-section-fbar-114.md) — a `Taxes` section, first form FinCEN 114
   (FBAR). LIVE ON PROD** — migration 070 (dev + prod 2026-08-15), code deployed 08-16; 12 endpoints,
   both pages, typed figures, CSV + print/PDF. Full record: [§11b](../cr/cr-082-tax-section-fbar-114.md#11b-shipped-to-prod-2026-08-16).
