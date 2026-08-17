@@ -881,6 +881,21 @@ Small fixes, refactors, and one-off cleanups that don't warrant their own CR fil
 
 ## 3. Known Issues
 
+- [ ] **The e2e Generate specs race their own scenario load, and it reds `main`** (found 2026-08-17
+  on CR083 P0a's push — three specs failed, the whole job passed on a re-run of **identical code**).
+  `compare-real-terms.spec.js:23` and `money-paths.spec.js:65` do
+  `selectOption({label: "E2E Scenario"})` and then immediately
+  `getByRole("button", {name: /^generate/i}).click()`. But
+  `FCReviewSelector.jsx:25` computes `disableGenerate = generateDisabled || !selectedScenario ||
+  isLoading || !!loadError` — so while the newly selected scenario's entries load, the button is
+  **disabled**, and Playwright's actionability check burns the full 30s waiting for it. The failure
+  log shows exactly that: `locator resolved to <button disabled …>` retried 61 times.
+  `money-paths.spec.js:41` (balance sheet) fails in the same runs on a 10s timeout, so the trigger is
+  probably one slow API window rather than three independent bugs. **This is a test-side race, not a
+  product defect** — but it costs a red `main`, which blocks prod deploys at Step 0b and is exactly
+  the "red main nobody announced" tax (#12). Fix: await the scenario load before clicking (the
+  helpers added in `2301cf5` are the pattern), or assert the button is enabled first.
+
 - [ ] **Two P&L categories post transactions to a NON-LEAF and the cash-flow report cannot see them**
   (found 2026-08-16, [CR083](../cr/cr-083-budget-latest-estimate.md) §2.1a). `Car Expense` (181,
   −50.00, 5 rows) and `Children - Anna` (175, −10.36, 1 row) have children **and** carry transactions
