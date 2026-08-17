@@ -760,21 +760,49 @@ every NULL is distinct, so unlimited duplicates would be accepted. This is
 `budget_entries` itself has **no** unique constraint on its own grain, which is part of why 72 of its
 rows drifted uncategorised.
 
-⚠️ **The supersede must happen AT FINALISE, not at creation.** The partial unique means a *draft*
-`LE-08-26` cannot coexist with a *final* `LE-08-26`. So `recut` creates the draft first and marks the
-old one `superseded` **in the same transaction as the new one's finalise** — otherwise an abandoned
-draft leaves the owner holding only a superseded artefact, which the picker demotes. Between the two,
-the picker shows the final LE plus its draft, labelled.
+⚠️ **`recut` is SUPERSEDE-then-INSERT, in one transaction — and the other flow this CR described is
+impossible.** An earlier version of this paragraph said `recut` *"creates the draft first and marks the
+old one superseded in the same transaction as the new one's finalise… between the two, the picker
+shows the final LE plus its draft."* Migration review demonstrated that it cannot work: inserting a
+`draft` `LE-08-26` while a `final` `LE-08-26` lives raises
+`duplicate key value violates unique constraint "budget_le_year_cut_uniq"`. The index encodes
+supersede-then-insert, and P0b must be built to that flow.
 
-⚠️ **And `UNIQUE (budget_year, name)` must be partial or §6's supersede path is unreachable.** §6 defines
+**The consequence to design for:** between the supersede and the insert there is no live LE for that
+cut, and if the new draft is later deleted the owner is left holding only a superseded artefact
+(`ON DELETE SET NULL` clears the pointer but not the status). The route owns that — either refuse to
+delete the last LE of a chain, or restore its predecessor.
+
+⚠️ **Uniqueness is keyed on the CUT, not the name.** §6 says the name is a label and *"never key
+anything on the string"* — and the first schema did exactly that. Review showed the hole: `le-08-26`,
+`LE-08-26 ` (trailing space) and an `LE-08-26` whose `actual_through` was 2026-02-28 were all
+accepted, leaving **two live LEs on one cut**, so the supersede rule held only while the name
+generator stayed byte-deterministic. `budget_le_year_cut_uniq (budget_year, actual_through)
+WHERE status <> 'superseded'` now carries it; `actual_through` is already pinned to a month end, so
+within a month it is uniquely determined. The name index is kept as well, and it too must be partial
+or §6's supersede path is unreachable. §6 defines
 `name = LE-MM-YY` from `actual_through` and says a second LE in one month *keeps both rows*. Two LEs
 in one month share `MM`, so they share the name, and the second `INSERT` would raise a unique
 violation. The partial index above resolves it, and the supersede must therefore be **one
 transaction** (mark the old `superseded`, then insert).
 
-≈**1,116+** rows per LE — the LE scope is **93** categories, not the 85 the budget covers, because
-§8.1's 8 unbudgeted-but-active lines are in it too, and multi-currency cells add slices on top. Still
-trivial.
+**Measured, not estimated: 760 rows for an August 2026 LE** — 525 actual (93 categories, 3
+currencies) + 235 estimate (66 categories, 3 currencies). The earlier "≈1,116" assumed a **dense**
+93 × 12 grid; the materialisation is **sparse**, and that is a deliberate choice rather than an
+accident of the query:
+
+⚠️ **Sparse, because "no budget line" and "estimated zero" are different facts and L4 depends on
+telling them apart.** A dense grid writes a zero row for every category-month with no budget, and
+then `estimate_rest = 0` means both *"nothing was ever budgeted here"* and *"the owner deliberately
+zeroed it"* — collapsing exactly the distinction **L4** exists to police (`budget_rest ≠ 0` and
+`estimate_rest = 0` with no note, worth **−66,381** on `Taxes US` and `Property Tax - US`). Sparse
+keeps the difference: a missing row is silence, a zero row is a decision.
+
+**The grid is therefore 94 rows deep, not 93** — the union of *has actuals* (93) and *has remaining
+budget* (66). **28 categories have YTD actuals but nothing budgeted for the rest of the year** (bucket
+A or E), and **1 has remaining budget but no actuals** (bucket B). Both must render: the first with an
+empty, editable estimate half, the second with an empty YTD. **The UI must treat an absent cell as
+editable-empty and INSERT on first edit**, not as zero.
 
 **No new exclusion flag** — §2 uses `is_transfer` (already TRUE on the right 13 accounts) plus
 `id <> 88`, so the migration adds **no column to `accounts` at all** and there is nothing to seed and
