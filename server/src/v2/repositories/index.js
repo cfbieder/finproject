@@ -12,6 +12,7 @@
 const transactions = require('./transactions');
 const accounts = require('./accounts');
 const budget = require('./budget');
+const budgetLe = require('./budgetLe');
 const forecast = require('./forecast');
 const psdata = require('./psdata');
 const budgetFxRates = require('./budgetFxRates');
@@ -24,6 +25,7 @@ module.exports = {
   transactions,
   accounts,
   budget,
+  budgetLe,
   forecast,
   psdata,
   budgetFxRates,
