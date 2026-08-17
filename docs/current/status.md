@@ -8,7 +8,7 @@
 > CR index and roadmap already own, and it is where stale facts collect. Each cut has come from
 > MOVING something that changes on a different clock, never from deleting what is true.
 
-**Last updated:** 2026-08-16 · **Live version:** **v3.30.0** (see `VERSION` / git tags) — CR082 complete and fully on prod; the untagged drift past `v3.29.0` is closed by this release
+**Last updated:** 2026-08-16 · **Live version:** **v3.30.1** (see `VERSION` / git tags) — CR082 complete and fully on prod, CR084 shipped; the untagged drift past `v3.29.0` is closed
 
 ## Current phase
 **The model, since [CR069](../cr/cr-069-forecast-streams.md):** a module is *identity + optional
@@ -131,9 +131,9 @@ scenarios are REGENERATED**. It changes far less often than this file does.
   of the CR's headline figures, round 2 **four more — three inside paragraphs round 1 had just
   corrected** (§16). *A correction is not a fix until its replacement is verified too.* All ten owner
   decisions resolved in one `/question` pass. ⚠️ **Migration 071 was taken by the CR082 thread within
-  the hour** — the parallelism decision biting immediately. Runs **in parallel with CR082, in a git worktree** (#23). **P0a+P0b
+  the hour** — the parallelism decision biting immediately. **CR082 and CR084 have since COMPLETED, so the budget surface is uncontended** — the worktree is now hygiene rather than a requirement, and migration **072** is free and clean. **P0a+P0b
   committed.** Actuals to a cut plus estimate months seeded from
-  the budget, in **its own tables** — **ten functions plus a view** read `budget_entries` ignoring `version_id`,
+  the budget, in **its own tables** — **eleven functions plus a view** read `budget_entries` ignoring `version_id`,
   and `POST /budget/versions/:id/copy` already accepts the **same** `budget_year` with no guard, so
   a second budget *version* is one mis-click from doubling the forecast base year
   ([roadmap §3](project-roadmap.md#3-known-issues)). **Scope decides the answer:** `Unrealized G/L`

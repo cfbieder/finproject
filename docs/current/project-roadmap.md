@@ -18,7 +18,7 @@ Living plan for the Fin project — open Change Requests, known issues, ongoing 
   git worktree** — Known Issue #23 is live and the only contended files are `config/routes.jsx` and
   `utils/excelExporter.js`. **P0a + P0b committed together.**
   A full-calendar-year LE — actuals to a cut plus estimate months seeded from the budget — in **its own
-  two tables**, because **ten functions plus a view** read `budget_entries` ignoring `version_id` and a second
+  two tables**, because **eleven functions plus a view** read `budget_entries` ignoring `version_id` and a second
   budget *version* would double the forecast base year and every budget report.
   **Board order after round-2 sign-off:** tag prod → **CR082 P0a** (the `coa-traits` leak — security,
   goes first regardless) → **CR083 P0a** in the worktree, merged as its own shippable unit →
@@ -34,7 +34,7 @@ Living plan for the Fin project — open Change Requests, known issues, ongoing 
   `Unrealized G/L`, so re-basing would move numbers the owner reads weekly (CR083 §11.2).
   Two findings the CR turned up that stand **whether or not it is ever built** — see §2.1/§7 of the CR:
   **(i)** `POST /budget/versions/:id/copy` accepts an **arbitrary `budget_year`, including the same
-  one, with no guard** (`server/src/v2/routes/budget.js:57-69`) while six readers ignore `version_id`
+  one, with no guard** (`server/src/v2/routes/budget.js:57-69`) while eleven readers ignore `version_id`
   — one mis-click silently doubles the forecast base year; **(ii)** the 2026 budget's dimensions are
   badly incomplete — **72 rows / −86,796 have no category** and **32 rows / −99,191 have no account**
   (only −38,364 has both), which already distorts `/budget-vs-actual` variance today and made the
@@ -935,7 +935,7 @@ Small fixes, refactors, and one-off cleanups that don't warrant their own CR fil
   `v_budget_vs_actual` view. Only `budget.js:327 compareToActual` filters by version. The result is
   every budget figure in the app at exactly **2×**, which reads as a plausible plan rather than a
   defect, and a base-year error **does not wash out** — CR075 §2 records it riding all 36 years.
-  Cheap fix: refuse a same-year copy, or make the six readers version-aware. Related: the two
+  Cheap fix: refuse a same-year copy, or make the eleven readers version-aware. Related: the two
   dimensions of `budget_entries` are already badly incomplete — **72 rows / −86,796 have no
   category**, **32 rows / −99,191 have no account**, only −38,364 has both — which distorts
   `/budget-vs-actual` variance today and there is **no unique constraint** on
