@@ -44,6 +44,8 @@ const Balances = lazy(() => import("../pages/Balances"));
 const BudgetInput = lazy(() => import("../pages/BudgetWorksheetV2"));
 // CR042 U5: the three budget-vs-actual variants are now tabs inside BudgetVsActual.
 const BudgetVsActual = lazy(() => import("../pages/BudgetVsActual"));
+// CR083 P0b: the Latest Estimate. One screen, no tab strip (§11.1).
+const BudgetLE = lazy(() => import("../pages/BudgetLE"));
 // CR042 U5: the two cash-flow pages are now tabs inside CashFlowTabs.
 const CashFlowTabs = lazy(() => import("../pages/CashFlowTabs"));
 const InvestmentReturns = lazy(() => import("../pages/InvestmentReturns"));
@@ -206,6 +208,15 @@ export const routes = [
     category: "Budgeting",
     description: "Create and edit monthly budget entries",
     icon: FileSpreadsheet,
+  },
+  {
+    path: "/budget-le",
+    component: BudgetLE,
+    label: "Latest Estimate",
+    category: "Budgeting",
+    description:
+      "Where the year lands — actual months to the cut, plus an estimate for the rest",
+    icon: Target,
   },
   {
     path: "/budget-vs-actual",

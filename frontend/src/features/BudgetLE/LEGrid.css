@@ -1,0 +1,196 @@
+/*
+ * CR083 §10.2/§10.3 — the Latest Estimate grid.
+ *
+ * Tokens only. Every colour used here is defined at both `:root` and
+ * `:root[data-theme="dark"]`, so there is no theme-specific rule to keep in
+ * sync — the CR026 dark audit found 12 defects that were all the same shape.
+ *
+ * Deliberately NO scroll container and NO sticky first column. Eleven columns
+ * fit a laptop, and the scroll-plus-sticky combination is exactly what printed
+ * CR082's FBAR working papers with the money column clipped off. The constraint
+ * is load-bearing: adding a twelfth column means re-solving print.
+ */
+
+.le-toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: 1rem;
+  padding: 0.75rem 1rem;
+  margin-bottom: 1rem;
+  background: var(--surface-muted);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+}
+
+.le-toolbar__field { display: flex; flex-direction: column; gap: 0.25rem; }
+
+.le-toolbar__label {
+  font-size: 0.7rem;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+
+.le-toolbar__select {
+  padding: 0.35rem 0.5rem;
+  background: var(--surface);
+  color: var(--ink);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  font-size: 0.85rem;
+}
+
+.le-toolbar__actions { display: flex; gap: 0.5rem; margin-left: auto; }
+
+.le-error {
+  padding: 0.6rem 0.9rem;
+  margin: 0 0 1rem;
+  color: var(--growth-negative);
+  background: var(--surface-muted);
+  border: 1px solid var(--border);
+  border-left: 3px solid var(--growth-negative);
+  border-radius: 4px;
+  font-size: 0.85rem;
+}
+
+.le-empty {
+  padding: 1.25rem;
+  color: var(--muted);
+  background: var(--surface-muted);
+  border: 1px dashed var(--border-strong);
+  border-radius: 6px;
+  font-size: 0.9rem;
+}
+
+/* ---- the grid ---------------------------------------------------------- */
+
+.le-grid-wrap { margin-top: 0.5rem; }
+
+.le-grid {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.8rem;
+}
+
+.le-grid th,
+.le-grid td {
+  padding: 0.3rem 0.5rem;
+  border-bottom: 1px solid var(--border);
+}
+
+.le-grid thead th {
+  font-size: 0.68rem;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--muted);
+  background: var(--surface-muted);
+  text-align: right;
+  white-space: nowrap;
+}
+
+/* Signal 1 of 4: the boundary stated in WORDS, so it prints and cannot be
+   misread by someone who has not been told the convention. */
+.le-grid__grouprow th { border-bottom: none; padding-bottom: 0.15rem; }
+.le-grid__group { text-align: center; color: var(--muted); }
+
+/* Signal 2: a 2px rule at the seam — legible on its own surface in both themes. */
+.le-grid__seam { border-left: 2px solid var(--border-strong); }
+
+.le-grid__cat {
+  width: 260px;
+  text-align: left;
+  font-weight: 500;
+  color: var(--ink);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.le-grid__num { text-align: right; white-space: nowrap; }
+.le-grid__basis { text-align: left; color: var(--muted); font-size: 0.72rem; white-space: nowrap; }
+
+/* Signal 3: ground tone, not a tint. The estimate half is the BRIGHTER surface
+   in both themes. Never --primary-subtle / --success-subtle here: in dark those
+   are near-black and read as DISABLED, inverting their light-mode meaning. */
+.le-grid tbody td { background: var(--surface); }
+.le-grid tbody td:nth-child(2) { background: var(--surface-muted); }
+
+.le-grid tbody tr:hover td,
+.le-grid tbody tr:hover th { background: var(--surface-muted); }
+
+.le-grid__money {
+  font-family: var(--font-mono);
+  font-variant-numeric: tabular-nums;
+  color: var(--ink);
+}
+.le-grid__money--neg { color: var(--growth-negative); }
+.le-grid__money--fav { color: var(--growth-positive); }
+.le-grid__money--adv { color: var(--growth-negative); }
+.le-grid__money--bold { font-weight: 600; }
+
+.le-grid__empty { color: var(--muted); }
+
+.le-grid tfoot th,
+.le-grid tfoot td {
+  border-top: 2px solid var(--border-strong);
+  border-bottom: none;
+  font-weight: 600;
+  background: var(--surface-muted);
+}
+
+.le-grid__printhead { display: none; }
+
+.le-grid__basisnote {
+  margin: 0.75rem 0 0;
+  font-size: 0.75rem;
+  line-height: 1.5;
+  color: var(--muted);
+}
+
+/* ---- print ------------------------------------------------------------- */
+
+@media print {
+  /* The header block, because the LE name lives in a picker and print hides
+     form controls — the CR082 defect where the working papers never said which
+     tax year they were for. */
+  .le-grid__printhead {
+    display: block;
+    margin-bottom: 0.5rem;
+    padding-bottom: 0.35rem;
+    border-bottom: 1px solid #000;
+    font-size: 0.72rem;
+    color: #000;
+  }
+
+  .le-toolbar,
+  .le-error,
+  .le-empty { display: none; }
+
+  /* Tints turn to grey mush on a mono printer; keep the seam rule and the words. */
+  .le-grid thead th,
+  .le-grid tbody td,
+  .le-grid tbody td:nth-child(2),
+  .le-grid tfoot th,
+  .le-grid tfoot td { background: none; }
+
+  /* Browsers print the live DOM, so a dark-mode --ink of #E2E8F0 lands
+     near-invisible on white paper. TaxFbar.css forces #000 for the same reason. */
+  .le-grid,
+  .le-grid th,
+  .le-grid td,
+  .le-grid__money,
+  .le-grid__money--neg,
+  .le-grid__money--fav,
+  .le-grid__money--adv,
+  .le-grid__empty,
+  .le-grid__basis,
+  .le-grid__basisnote { color: #000; }
+
+  .le-grid { font-size: 0.62rem; }
+  .le-grid th, .le-grid td { padding: 0.2rem 0.25rem; }
+  .le-grid tr { page-break-inside: avoid; }
+  .le-grid thead { display: table-header-group; }
+}

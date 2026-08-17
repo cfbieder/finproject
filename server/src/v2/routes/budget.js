@@ -11,6 +11,8 @@ const router = express.Router();
 const repo = require('../repositories').budget;
 const budgetFxRatesRepo = require('../repositories').budgetFxRates;
 const budgetService = require('../../services/budget');
+const budgetLeService = require('../../services/budgetLe');
+const budgetLeRepo = require('../repositories').budgetLe;
 
 // ============================================================================
 // Budget Versions
@@ -343,6 +345,56 @@ router.get('/summary', async (req, res, next) => {
     console.error('[v2/budget/summary] Failed to build summary:', error);
     next(error);
   }
+});
+
+// ============================================================================
+// Latest Estimate (CR083 P0b)
+//
+// Route order matters: every literal segment registers BEFORE `/le/:id`, or
+// Express 5 binds the literal to the param. The file already gets this right for
+// `/entries/summary/*` ahead of `/entries/:id`.
+// ============================================================================
+
+// GET /api/v2/budget/le?year=2026
+router.get('/le', async (req, res, next) => {
+  try {
+    res.json({ data: await budgetLeService.list({ budgetYear: req.query.year }) });
+  } catch (error) { next(error); }
+});
+
+// POST /api/v2/budget/le  { budgetYear, actualThrough?, label?, note? }
+router.post('/le', async (req, res, next) => {
+  try {
+    const le = await budgetLeService.create(req.body || {});
+    res.status(201).json({ data: le });
+  } catch (error) { next(error); }
+});
+
+// GET /api/v2/budget/le/:id/grid — the shaped grid; all money maths server-side.
+router.get('/le/:id/grid', async (req, res, next) => {
+  try {
+    const grid = await budgetLeService.getGrid(parseInt(req.params.id, 10));
+    if (!grid) return res.status(404).json({ error: 'Latest Estimate not found' });
+    res.json({ data: grid });
+  } catch (error) { next(error); }
+});
+
+// GET /api/v2/budget/le/:id
+router.get('/le/:id', async (req, res, next) => {
+  try {
+    const le = await budgetLeRepo.findById(parseInt(req.params.id, 10));
+    if (!le) return res.status(404).json({ error: 'Latest Estimate not found' });
+    res.json({ data: le });
+  } catch (error) { next(error); }
+});
+
+// DELETE /api/v2/budget/le/:id
+router.delete('/le/:id', async (req, res, next) => {
+  try {
+    const ok = await budgetLeService.remove(parseInt(req.params.id, 10));
+    if (!ok) return res.status(404).json({ error: 'Latest Estimate not found' });
+    res.json({ data: { deleted: true } });
+  } catch (error) { next(error); }
 });
 
 // ============================================================================
