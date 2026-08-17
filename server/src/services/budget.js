@@ -664,6 +664,132 @@ async function getCashFlow({ fromDate, toDate, transfers = 'exclude' }) {
   return { 'Profit & Loss Accounts': nodes };
 }
 
+// ---------------------------------------------------------------------------
+// Full-year landing — CR083 P0a
+// ---------------------------------------------------------------------------
+
+/**
+ * The full-year "landing" figure: actual months to the cut, plus the budget for
+ * the rest of the year. The identity is
+ *
+ *     landing = actual_ytd + budget_rest
+ *             = budget_fy + (actual_ytd - budget_ytd)
+ *
+ * so the variance against budget is exactly the year-to-date variance — the
+ * remaining months cancel, because carrying the budget is what "at carry" means.
+ *
+ * ⚠️ This deliberately uses a DIFFERENT, narrower scope from `getCashFlow` and
+ * therefore will NOT tie to the table on the same page. See CR083 §11.2:
+ *
+ *   - `getCashFlow` excludes transfers via `extractTransferCategories`, a walk
+ *     that matches the *parent* node on `.includes('transfer')` and collects its
+ *     leaves. Correct today, but it breaks silently if `Transfers` is renamed,
+ *     and it silently catches any `profit_loss` leaf named `Transfer - x`
+ *     outside the subtree. Here we use `accounts.is_transfer`, which is TRUE on
+ *     exactly the 13 subtree members and survives both.
+ *   - The two differ by the transactions posted directly to NON-LEAF categories
+ *     (CR083 §2.1a): `buildCashFlowNode` reads leaves only, so `Car Expense` and
+ *     `Children - Anna` contribute here and not there. Measured at $60.36 for
+ *     2026 — small, but it is a real difference and the UI must say so rather
+ *     than present two derivations as one number.
+ *
+ * `Unrealized G/L` is resolved BY NAME, not by its id. `ci-seed.sql` does pin it
+ * to 88, but Known Issue #21 is a suite that hardcoded an id which differed
+ * between dev and CI, and it cost 12 tests on the day it shipped.
+ */
+async function getFyLanding({ year } = {}) {
+  const parsedYear = parseInt(year, 10) || new Date().getFullYear();
+  if (!Number.isInteger(parsedYear) || parsedYear < 1900 || parsedYear > 2200) {
+    throw validate.badRequest('year must be a four-digit year');
+  }
+
+  // The cut is the last COMPLETE calendar month, derived from the database's own
+  // clock so the whole figure sits on one clock (CR083 §1.2 — a "closed month"
+  // cannot be derived: 102 of 113 balance-sheet accounts are `calibrate`, which
+  // writes no dated row at all, so there is no close signal to read).
+  //
+  // Clamped into the year: a past year gets 31 Dec, a future year gets an empty
+  // actual window rather than a negative one.
+  const sql = `
+    WITH scope AS (
+      SELECT a.id
+      FROM accounts a
+      WHERE a.section = 'profit_loss'
+        AND NOT a.is_transfer
+        AND a.name <> 'Unrealized G/L'
+    ),
+    bounds AS (
+      SELECT
+        make_date($1, 1, 1)  AS year_start,
+        make_date($1, 12, 31) AS year_end,
+        LEAST(
+          make_date($1, 12, 31),
+          GREATEST(
+            make_date($1, 1, 1) - 1,
+            (date_trunc('month', CURRENT_DATE)::date - 1)
+          )
+        ) AS actual_through
+    )
+    SELECT
+      b.actual_through,
+      b.year_end,
+      GREATEST(
+        0,
+        (EXTRACT(YEAR FROM b.actual_through) - $1) * 12
+          + EXTRACT(MONTH FROM b.actual_through)
+      )::int AS actual_months,
+      COALESCE((
+        SELECT SUM(t.base_amount) FROM transactions t
+        JOIN scope s ON s.id = t.category_id
+        WHERE t.transaction_date >= b.year_start
+          AND t.transaction_date <= b.actual_through
+      ), 0) AS actual_ytd,
+      COALESCE((
+        SELECT SUM(e.base_amount) FROM budget_entries e
+        JOIN scope s ON s.id = e.category_id
+        WHERE e.budget_year = $1
+          AND e.entry_date >= b.year_start
+          AND e.entry_date <= b.actual_through
+      ), 0) AS budget_ytd,
+      COALESCE((
+        SELECT SUM(e.base_amount) FROM budget_entries e
+        JOIN scope s ON s.id = e.category_id
+        WHERE e.budget_year = $1
+          AND e.entry_date > b.actual_through
+          AND e.entry_date <= b.year_end
+      ), 0) AS budget_rest
+    FROM bounds b
+  `;
+
+  const { rows } = await db.query(sql, [parsedYear]);
+  const row = rows[0];
+
+  const actualYtd = parseFloat(row.actual_ytd) || 0;
+  const budgetYtd = parseFloat(row.budget_ytd) || 0;
+  const budgetRest = parseFloat(row.budget_rest) || 0;
+
+  const landing = actualYtd + budgetRest;
+  const budgetFy = budgetYtd + budgetRest;
+
+  return {
+    year: parsedYear,
+    actualThrough: row.actual_through,
+    actualMonths: row.actual_months,
+    actualYtd,
+    budgetYtd,
+    budgetRest,
+    budgetFy,
+    landing,
+    // landing - budgetFy, which reduces to actualYtd - budgetYtd. Computed the
+    // long way so the returned numbers are self-checking rather than asserted.
+    variance: landing - budgetFy,
+    scope: {
+      basis: 'profit_loss, excluding transfers and Unrealized G/L',
+      tiesToTable: false,
+    },
+  };
+}
+
 module.exports = {
   // helpers exported for the route layer's validation guards
   isValidDateString,
@@ -676,4 +802,5 @@ module.exports = {
   listBudgetEntriesV1,
   getActualEntries,
   getCashFlow,
+  getFyLanding,
 };

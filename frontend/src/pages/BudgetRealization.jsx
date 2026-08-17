@@ -669,6 +669,38 @@ export default function BudgetRealization() {
     netActualValue, netBudgetValue, netVarianceValue,
   ]);
 
+  // ---- CR083 P0a: the full-year landing ------------------------------------
+  // Full-year and scope-fixed, so it is deliberately NOT driven by the period
+  // selector or the transfer/unrealized toggles above it — only by the budget
+  // year. It will not tie to the table below; that is stated on the strip.
+  const [fyLanding, setFyLanding] = useState(null);
+
+  useEffect(() => {
+    if (!budgetYear) return undefined;
+    let isActive = true;
+
+    // Deliberately no synchronous reset to null here. It would add a
+    // `react-hooks/set-state-in-effect` violation over the baseline (which may
+    // only shrink), and it is also the better behaviour: while a new year
+    // loads, the strip keeps showing the previous year's figures under the
+    // previous year's own label — every figure it renders comes from one
+    // payload, so it lags rather than going briefly inconsistent or blank.
+    Rest.get(`/budget/fy-landing?year=${encodeURIComponent(budgetYear)}`)
+      .then((payload) => {
+        if (!isActive) return;
+        setFyLanding(Rest.unwrap(payload) || null);
+      })
+      .catch((error) => {
+        if (!isActive) return;
+        console.error("[BudgetRealization] Failed to load FY landing:", error);
+        setFyLanding(null);
+      });
+
+    return () => {
+      isActive = false;
+    };
+  }, [budgetYear]);
+
   const netBudgetHasValue =
     netBudgetValue !== null && netBudgetValue !== undefined;
   const netActualHasValue =
@@ -985,6 +1017,7 @@ export default function BudgetRealization() {
           onExport={handleExport}
           canExport={hasActualData || hasBudgetData}
           kpiData={kpiData}
+          fyLanding={fyLanding}
         />
       </main>
       <BudgetDetailModal

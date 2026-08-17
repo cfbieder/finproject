@@ -2,6 +2,7 @@ import { memo } from "react";
 import { DollarSign, TrendingUp, TrendingDown, Target, ChevronDown, ChevronUp } from "lucide-react";
 import PeriodSelector from "../../components/PeriodSelector/PeriodSelector.jsx";
 import { KpiCard, KpiCardRow } from "../../components/KpiCards.jsx";
+import FyLandingStrip from "./FyLandingStrip.jsx";
 
 function BudgetRealizationContent({
   filteredCategoryTree,
@@ -26,6 +27,7 @@ function BudgetRealizationContent({
   onExport,
   canExport = false,
   kpiData,
+  fyLanding,
 }) {
   return (
     <div className="budget-realization-content">
@@ -79,6 +81,8 @@ function BudgetRealizationContent({
           </div>
         </section>
       )}
+
+      <FyLandingStrip landing={fyLanding} />
 
       {kpiData && (
         <KpiCardRow>

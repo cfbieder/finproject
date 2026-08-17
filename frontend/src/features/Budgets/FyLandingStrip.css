@@ -1,0 +1,99 @@
+/*
+ * CR083 P0a — the full-year landing strip.
+ *
+ * Tokens only: every colour here is defined at both `:root` and
+ * `:root[data-theme="dark"]`, so there is no theme-specific rule to keep in
+ * sync. The CR026 dark audit found 12 defects that were all the same shape —
+ * an rgba() or a literal that only read in one theme.
+ */
+
+.fy-landing {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 0.5rem 2.5rem;
+  padding: 0.75rem 1rem;
+  margin: 0 0 1rem;
+  background: var(--surface-muted);
+  border: 1px solid var(--border);
+  border-left: 3px solid var(--border-strong);
+  border-radius: 6px;
+}
+
+.fy-landing__figures {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35rem 2.5rem;
+}
+
+.fy-landing__figure {
+  display: flex;
+  flex-direction: column;
+  gap: 0.15rem;
+}
+
+.fy-landing__label {
+  font-size: 0.7rem;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+
+.fy-landing__value {
+  font-family: var(--font-mono);
+  font-variant-numeric: tabular-nums;
+  font-size: 1.05rem;
+  font-weight: 600;
+  color: var(--ink);
+}
+
+.fy-landing__value--negative {
+  color: var(--growth-negative);
+}
+
+.fy-landing__value--favourable {
+  color: var(--growth-positive);
+}
+
+.fy-landing__value--adverse {
+  color: var(--growth-negative);
+}
+
+.fy-landing__basis {
+  flex: 1 1 22rem;
+  margin: 0;
+  font-size: 0.75rem;
+  line-height: 1.45;
+  color: var(--muted);
+}
+
+/*
+ * Print: this is a real figure on a working paper, so it prints — but as rules
+ * and text, never as a tinted panel, which greys to mush on a mono printer.
+ * `TaxFbar.css` forces `color: #000` in print for the same reason: browsers
+ * print the live DOM, and a dark-mode `--ink` of #E2E8F0 on white paper is
+ * near-invisible.
+ */
+@media print {
+  .fy-landing {
+    background: none;
+    border: 0;
+    border-bottom: 1px solid #000;
+    border-radius: 0;
+    padding: 0 0 0.35rem;
+    page-break-inside: avoid;
+  }
+
+  .fy-landing__label,
+  .fy-landing__basis {
+    color: #000;
+  }
+
+  .fy-landing__value,
+  .fy-landing__value--negative,
+  .fy-landing__value--favourable,
+  .fy-landing__value--adverse {
+    color: #000;
+  }
+}

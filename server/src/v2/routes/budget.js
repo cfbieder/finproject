@@ -346,6 +346,27 @@ router.get('/summary', async (req, res, next) => {
 });
 
 // ============================================================================
+// Full-year landing (CR083 P0a)
+// ============================================================================
+
+/**
+ * GET /api/v2/budget/fy-landing?year=2026
+ *
+ * Where the year lands if the remaining months come in at budget:
+ * actual months to the last complete calendar month, plus the budget for the
+ * rest. Additive — it changes nothing on this page, and it deliberately does
+ * NOT tie to the table beside it (see the service note / CR083 §11.2).
+ */
+router.get('/fy-landing', async (req, res, next) => {
+  try {
+    const landing = await budgetService.getFyLanding({ year: req.query.year });
+    res.json({ data: landing });
+  } catch (error) {
+    next(error);
+  }
+});
+
+// ============================================================================
 // Category Groups (for filter dropdowns)
 // ============================================================================
 
