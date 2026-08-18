@@ -1,13 +1,15 @@
 import { useCallback, useEffect, useState } from "react";
 import Rest from "../js/rest.js";
 import LEGrid from "../features/BudgetLE/LEGrid.jsx";
+import LECategorySheet from "../features/BudgetLE/LECategorySheet.jsx";
 import "./PageLayout.css";
 
 /**
  * CR083 P0b — the Latest Estimate.
  *
- * Read-only in this increment: create an LE, look at it, delete it. Editing the
- * estimate months, finalise, recut and the warnings come next.
+ * Create an LE, read the summary in Chart-of-Accounts order, and edit any
+ * category's estimate months in its own worksheet. Finalise, recut and the
+ * warnings come next.
  *
  * One screen and no tab strip — §11.1 cut the Compare and Versions tabs with the
  * frozen-series reading the owner did not pick. Saved LEs are a picker in the
@@ -19,8 +21,10 @@ function BudgetLE() {
   const [list, setList] = useState([]);
   const [selectedId, setSelectedId] = useState(null);
   const [grid, setGrid] = useState(null);
+  const [refreshKey, setRefreshKey] = useState(0);
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
+  const [openCategory, setOpenCategory] = useState(null);
 
   const loadList = useCallback(async (y) => {
     try {
@@ -47,7 +51,7 @@ function BudgetLE() {
         setError("Could not load that estimate.");
       });
     return () => { active = false; };
-  }, [selectedId]);
+  }, [selectedId, refreshKey]);
 
   const handleCreate = async () => {
     setBusy(true);
@@ -99,7 +103,7 @@ function BudgetLE() {
           <h1 className="realization-toolbar-header__title">Latest Estimate</h1>
           <p className="realization-toolbar-header__description">
             Where the year lands: actual months to the cut, plus an estimate for
-            the rest. Read-only for now — editing comes next.
+            the rest. Click a category to open its month-by-month worksheet.
           </p>
         </div>
       </div>
@@ -158,7 +162,18 @@ function BudgetLE() {
         </p>
       )}
 
-      {grid && <LEGrid grid={grid} />}
+      {grid && <LEGrid grid={grid} onOpenCategory={setOpenCategory} />}
+
+      {openCategory != null && selectedId && (
+        <LECategorySheet
+          leId={selectedId}
+          categoryId={openCategory}
+          onClose={() => setOpenCategory(null)}
+          // Re-read the summary after a save so the grid, the roll-ups and the
+          // NET line cannot drift from the worksheet that just changed them.
+          onSaved={() => setRefreshKey((k) => k + 1)}
+        />
+      )}
     </main>
   );
 }

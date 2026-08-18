@@ -2,8 +2,7 @@ import { memo } from "react";
 import { formatCurrencyValue } from "../BudgetEntry/utils/budgetInputUtils.js";
 import "./LEGrid.css";
 
-const MONTH_LABEL = ["JAN","FEB","MAR","APR","MAY","JUN","JUL","AUG","SEP","OCT","NOV","DEC"];
-const monthLabel = (ym) => MONTH_LABEL[Number(ym.slice(5, 7)) - 1] || ym;
+const MONTHS = ["JAN","FEB","MAR","APR","MAY","JUN","JUL","AUG","SEP","OCT","NOV","DEC"];
 
 function Money({ value, bold = false }) {
   if (value === null || value === undefined) return <span className="le-grid__empty">—</span>;
@@ -26,30 +25,34 @@ function Variance({ value }) {
 }
 
 /**
- * CR083 §10.2 — eleven physical columns: 1 label + YTD ACTUAL + 5 estimate
- * months + FY / BUDGET / VAR / BASIS.
+ * CR083 §10.2 — the LE summary.
  *
- * The width is the point, not an accident. A 12-month grid needs a scroll
- * container and a sticky first column, and that combination is exactly what
- * clipped the money column off CR082's printed FBAR working papers. Eleven
- * columns fit without scrolling, so the defect cannot occur rather than being
- * mitigated. Do not add a twelfth without re-solving print.
+ * SEVEN columns: category, one actual, ONE estimate, FY, budget, variance,
+ * basis. The five month columns an earlier version carried were read-only and
+ * bought width for nothing; the month detail belongs in the worksheet, where it
+ * can be edited. Width remains the load-bearing constraint — no scroll container
+ * and no sticky column, which is what lets the print stylesheet stay simple
+ * instead of re-solving the clipping that lost CR082's money column on paper.
  *
- * The actual/estimate boundary is carried by FOUR independent signals, because
- * it must survive dark mode, a mono printer and a reader who has not been told
- * the convention: the group header in words, a 2px rule at the seam, a ground
- * tone (not a tint), and — once editing ships — editability itself.
+ * Rows follow the CHART OF ACCOUNTS order and keep its hierarchy, so the LE
+ * reads like every other report rather than inventing an alphabetical third
+ * ordering. A parent's figures are its subtree plus anything posted directly to
+ * it, and parents carry no BASIS — §10.5: marking a sum implies an edit that
+ * does not exist.
  */
-function LEGrid({ grid }) {
+function LEGrid({ grid, onOpenCategory }) {
   const { le, estimateMonths, rows, totals, fxBasis, scopeNote } = grid;
-  const lastActual = MONTH_LABEL[le.actualMonths - 1];
+  const lastActual = MONTHS[le.actualMonths - 1];
+  const firstEstimate = estimateMonths.length
+    ? MONTHS[Number(estimateMonths[0].slice(5, 7)) - 1]
+    : null;
 
   return (
     <section className="le-grid-wrap" aria-label={`Latest Estimate ${le.name}`}>
       <div className="le-grid__printhead">
         <strong>{le.name}</strong>{le.label ? ` — ${le.label}` : ""} · FY{le.budgetYear} ·
-        actual Jan–{lastActual} ({le.actualMonths} of 12, to {le.actualThrough}) ·
-        estimate {monthLabel(estimateMonths[0] || "")}–DEC · USD
+        actual Jan–{lastActual} ({le.actualMonths} of 12, to {le.actualThrough})
+        {firstEstimate ? ` · estimate ${firstEstimate}–DEC` : ""} · USD
       </div>
 
       <table className="le-grid">
@@ -57,19 +60,15 @@ function LEGrid({ grid }) {
           <tr className="le-grid__grouprow">
             <th />
             <th className="le-grid__group">ACTUAL</th>
-            <th className="le-grid__group le-grid__seam" colSpan={estimateMonths.length}>
-              ESTIMATE — carried from budget
-            </th>
+            <th className="le-grid__group le-grid__seam">ESTIMATE</th>
             <th colSpan={4} />
           </tr>
           <tr>
             <th className="le-grid__cat">CATEGORY</th>
             <th className="le-grid__num">JAN–{lastActual}</th>
-            {estimateMonths.map((m, i) => (
-              <th key={m} className={`le-grid__num${i === 0 ? " le-grid__seam" : ""}`}>
-                {monthLabel(m)}
-              </th>
-            ))}
+            <th className="le-grid__num le-grid__seam">
+              {firstEstimate ? `${firstEstimate}–DEC` : "—"}
+            </th>
             <th className="le-grid__num">FY TOTAL</th>
             <th className="le-grid__num">BUDGET FY</th>
             <th className="le-grid__num">VAR</th>
@@ -79,18 +78,30 @@ function LEGrid({ grid }) {
 
         <tbody>
           {rows.map((r) => (
-            <tr key={r.categoryId}>
-              <th scope="row" className="le-grid__cat">{r.categoryName}</th>
+            <tr
+              key={r.categoryId}
+              className={`le-grid__row le-grid__row--d${Math.min(r.depth, 3)}${
+                r.hasChildren ? " le-grid__row--rollup" : ""
+              }`}
+            >
+              <th scope="row" className="le-grid__cat">
+                <span style={{ paddingLeft: `${r.depth * 1.1}rem` }}>
+                  {r.editable ? (
+                    <button
+                      type="button"
+                      className="le-grid__catlink"
+                      onClick={() => onOpenCategory(r.categoryId)}
+                      title={`Open the ${r.categoryName} worksheet`}
+                    >
+                      {r.categoryName}
+                    </button>
+                  ) : (
+                    r.categoryName
+                  )}
+                </span>
+              </th>
               <td className="le-grid__num"><Money value={r.ytdActual} /></td>
-              {estimateMonths.map((m, i) => (
-                <td key={m} className={`le-grid__num${i === 0 ? " le-grid__seam" : ""}`}>
-                  {/* A MISSING cell is silence, not zero — §7.1. Rendering it as
-                      0.00 would make "never budgeted" look like "zeroed", which
-                      is the distinction L4 exists to police. */}
-                  {r.months[m] ? <Money value={r.months[m].baseAmount} />
-                               : <span className="le-grid__empty">—</span>}
-                </td>
-              ))}
+              <td className="le-grid__num le-grid__seam"><Money value={r.estimateTotal} /></td>
               <td className="le-grid__num"><Money value={r.fyTotal} bold /></td>
               <td className="le-grid__num"><Money value={r.budgetFy} /></td>
               <td className="le-grid__num"><Variance value={r.variance} /></td>
@@ -103,9 +114,7 @@ function LEGrid({ grid }) {
           <tr>
             <th scope="row" className="le-grid__cat">NET</th>
             <td className="le-grid__num"><Money value={totals.ytdActual} bold /></td>
-            {estimateMonths.map((m, i) => (
-              <td key={m} className={`le-grid__num${i === 0 ? " le-grid__seam" : ""}`} />
-            ))}
+            <td className="le-grid__num le-grid__seam"><Money value={totals.estimateTotal} bold /></td>
             <td className="le-grid__num"><Money value={totals.fyTotal} bold /></td>
             <td className="le-grid__num"><Money value={totals.budgetFy} bold /></td>
             <td className="le-grid__num"><Variance value={totals.variance} /></td>
@@ -115,8 +124,9 @@ function LEGrid({ grid }) {
       </table>
 
       <p className="le-grid__basisnote">
-        <strong>Left of the rule is fact; right of it is the budget carried forward.</strong>{" "}
-        {scopeNote} {fxBasis}
+        <strong>Left of the rule is fact; right of it is your estimate.</strong>{" "}
+        Click a category to open its month-by-month worksheet and edit the
+        estimate. {scopeNote} {fxBasis}
       </p>
     </section>
   );

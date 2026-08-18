@@ -379,6 +379,30 @@ router.get('/le/:id/grid', async (req, res, next) => {
   } catch (error) { next(error); }
 });
 
+// GET /api/v2/budget/le/:id/category/:categoryId — the per-category worksheet
+router.get('/le/:id/category/:categoryId', async (req, res, next) => {
+  try {
+    const sheet = await budgetLeService.getCategoryWorksheet(
+      parseInt(req.params.id, 10), parseInt(req.params.categoryId, 10)
+    );
+    if (!sheet) return res.status(404).json({ error: 'Not found' });
+    res.json({ data: sheet });
+  } catch (error) { next(error); }
+});
+
+// PATCH /api/v2/budget/le/:id/category/:categoryId  { values: { 'YYYY-MM': n|null } }
+router.patch('/le/:id/category/:categoryId', async (req, res, next) => {
+  try {
+    const sheet = await budgetLeService.saveCategoryEstimates(
+      parseInt(req.params.id, 10),
+      parseInt(req.params.categoryId, 10),
+      (req.body || {}).values
+    );
+    if (!sheet) return res.status(404).json({ error: 'Not found' });
+    res.json({ data: sheet });
+  } catch (error) { next(error); }
+});
+
 // GET /api/v2/budget/le/:id
 router.get('/le/:id', async (req, res, next) => {
   try {

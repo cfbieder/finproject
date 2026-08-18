@@ -196,8 +196,44 @@ async function create({ budgetYear, actualThrough, label, note }) {
     );
     const le = header[0];
 
+    // Seed the estimate half from the most recent PRIOR LE for this year where
+    // it has a figure, falling back to the budget where it does not. Carrying
+    // the budget forward every time would throw away the owner's own latest
+    // thinking the moment a second LE is cut — the whole point of a series is
+    // that LE-09 starts where LE-08 finished.
+    //
+    // The provenance travels WITH the number: a month the owner typed stays
+    // `manual`, a month that was carried from budget stays `budget_carry`. That
+    // is why no new `source` value is needed for "carried from a prior LE" —
+    // what carried forward is the fact, not the act of carrying.
+    const { rows: prior } = await client.query(
+      `SELECT id FROM budget_le
+       WHERE budget_year = $1 AND id <> $2
+       ORDER BY actual_through DESC, created_at DESC
+       LIMIT 1`,
+      [budgetYear, le.id]
+    );
+
+    let priorByCell = new Map();
+    if (prior.length) {
+      const { rows: pl } = await client.query(
+        `SELECT category_id, period_month, currency, amount, base_amount,
+                source, method, fx_rate, fx_basis
+         FROM budget_le_lines
+         WHERE le_id = $1 AND source <> 'actual' AND period_month > $2::date`,
+        [prior[0].id, actualThrough]
+      );
+      priorByCell = new Map(
+        pl.map((r) => [`${r.category_id}|${String(r.period_month).slice(0, 10)}|${r.currency}`, r])
+      );
+    }
+
     const lines = await materialise({ budgetYear, actualThrough }, client);
-    for (const l of lines) {
+    for (const raw of lines) {
+      // An estimate cell the prior LE already answered wins over the budget.
+      const key = `${raw.category_id}|${String(raw.period_month).slice(0, 10)}|${raw.currency}`;
+      const carried = raw.source !== 'actual' && priorByCell.get(key);
+      const l = carried ? { ...raw, ...carried, snapshot_row_count: null, snapshot_sum: null } : raw;
       await client.query(
         `INSERT INTO budget_le_lines
            (le_id, category_id, period_month, currency, source, method,
@@ -210,7 +246,7 @@ async function create({ budgetYear, actualThrough, label, note }) {
       );
     }
 
-    return { ...le, line_count: lines.length };
+    return { ...le, line_count: lines.length, seeded_from_le: prior[0]?.id || null };
   });
 }
 

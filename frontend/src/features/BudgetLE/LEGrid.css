@@ -5,10 +5,11 @@
  * `:root[data-theme="dark"]`, so there is no theme-specific rule to keep in
  * sync — the CR026 dark audit found 12 defects that were all the same shape.
  *
- * Deliberately NO scroll container and NO sticky first column. Eleven columns
- * fit a laptop, and the scroll-plus-sticky combination is exactly what printed
- * CR082's FBAR working papers with the money column clipped off. The constraint
- * is load-bearing: adding a twelfth column means re-solving print.
+ * Deliberately NO scroll container and NO sticky first column. Seven columns fit
+ * a laptop with room to spare, and the scroll-plus-sticky combination is exactly
+ * what printed CR082's FBAR working papers with the money column clipped off.
+ * The constraint is load-bearing: the month detail went to the worksheet partly
+ * so this table would never need to grow back into it.
  */
 
 .le-toolbar {
@@ -91,7 +92,7 @@
   white-space: nowrap;
 }
 
-/* Signal 1 of 4: the boundary stated in WORDS, so it prints and cannot be
+/* Signal 1 of 3: the boundary stated in WORDS, so it prints and cannot be
    misread by someone who has not been told the convention. */
 .le-grid__grouprow th { border-bottom: none; padding-bottom: 0.15rem; }
 .le-grid__group { text-align: center; color: var(--muted); }
@@ -146,6 +147,116 @@
 .le-grid__basisnote {
   margin: 0.75rem 0 0;
   font-size: 0.75rem;
+  line-height: 1.5;
+  color: var(--muted);
+}
+
+/* ---- hierarchy ---------------------------------------------------------- */
+
+/* Depth is carried by indentation and weight, not by colour — a tinted "level"
+   scale is the thing that inverts in dark mode. */
+.le-grid__row--rollup .le-grid__cat { font-weight: 600; }
+.le-grid__row--d0 .le-grid__cat { font-weight: 700; letter-spacing: 0.02em; }
+.le-grid__row--d0 td { border-top: 1px solid var(--border-strong); }
+
+/* A LINK, not a button — and the name matters, because check-button-css.sh
+   correctly flagged the earlier `__catbtn`. The element stays a <button> so it
+   is reachable and operable by keyboard, but the shared `.btn` system is the
+   wrong visual: it would put a padded, bordered control in all 117 rows of a
+   dense table. This is the same affordance as a drill-down link. */
+.le-grid__catlink {
+  padding: 0;
+  font: inherit;
+  color: var(--ink);
+  background: none;
+  border: 0;
+  border-bottom: 1px dotted var(--border-strong);
+  cursor: pointer;
+  text-align: left;
+}
+.le-grid__catlink:hover { color: var(--primary); border-bottom-color: var(--primary); }
+.le-grid__catlink:focus-visible {
+  outline: none;
+  box-shadow: var(--shadow-focus);
+  border-radius: 2px;
+}
+
+/* ---- the category worksheet -------------------------------------------- */
+
+.le-sheet { width: 100%; border-collapse: collapse; font-size: 0.82rem; }
+
+.le-sheet th,
+.le-sheet td { padding: 0.28rem 0.5rem; border-bottom: 1px solid var(--border); }
+
+.le-sheet thead th {
+  font-size: 0.68rem;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--muted);
+  text-align: right;
+}
+.le-sheet thead th.le-sheet__month { text-align: left; }
+
+.le-sheet__month { text-align: left; font-weight: 500; color: var(--ink); white-space: nowrap; }
+.le-sheet__num { text-align: right; white-space: nowrap; }
+
+/* Signal: the actual half is the muted ground, the estimate half the brighter
+   one — the same convention as the summary grid, so the two agree. */
+.le-sheet__row--actual td,
+.le-sheet__row--actual th { background: var(--surface-muted); }
+
+.le-sheet__tag {
+  margin-left: 0.4rem;
+  font-size: 0.62rem;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+
+.le-sheet__count {
+  margin-left: 0.4rem;
+  font-size: 0.65rem;
+  color: var(--muted);
+}
+
+.le-sheet__muted { color: var(--muted); }
+.le-sheet__empty { color: var(--muted); }
+
+.le-sheet__input {
+  width: 8.5rem;
+  padding: 0.2rem 0.4rem;
+  font-family: var(--font-mono);
+  font-variant-numeric: tabular-nums;
+  font-size: 0.82rem;
+  text-align: right;
+  color: var(--ink);
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 3px;
+}
+.le-sheet__input:focus-visible {
+  outline: none;
+  border-color: var(--primary);
+  box-shadow: var(--shadow-focus);
+}
+.le-sheet__input:disabled { color: var(--muted); background: var(--surface-muted); }
+
+.le-sheet__footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  width: 100%;
+}
+.le-sheet__footer-actions { display: flex; gap: 0.5rem; }
+.le-sheet__projected { font-size: 0.8rem; color: var(--muted); }
+.le-sheet__dirty { color: var(--growth-negative); font-style: italic; }
+.le-sheet__loading { color: var(--muted); }
+
+.le-sheet__note {
+  margin: 0.75rem 0 0;
+  font-size: 0.73rem;
   line-height: 1.5;
   color: var(--muted);
 }
