@@ -56,6 +56,29 @@ async function budgetFyByCategory(budgetYear, client = db) {
 }
 
 /**
+ * Categories carrying transactions anywhere in the year, and how much of that
+ * falls AFTER the cut. Keyed by category id; the value is the post-cut total.
+ */
+async function liveActivityByCategory(budgetYear, actualThrough, client = db) {
+  const { rows } = await client.query(
+    `WITH scope AS (${repo.SCOPE_SQL})
+     SELECT t.category_id,
+            COALESCE(SUM(t.base_amount) FILTER (
+              WHERE t.transaction_date > $2::date
+            ), 0) AS post_cut
+     FROM transactions t
+     JOIN scope s ON s.id = t.category_id
+     WHERE t.transaction_date >= make_date($1, 1, 1)
+       AND t.transaction_date <= make_date($1, 12, 31)
+     GROUP BY 1`,
+    [budgetYear, actualThrough]
+  );
+  const m = new Map();
+  for (const r of rows) m.set(r.category_id, Number(r.post_cut) || 0);
+  return m;
+}
+
+/**
  * The grid, in COA order with the hierarchy intact.
  *
  * Ordering comes from `getNestedTree`, which since CR063 sorts siblings by
@@ -77,10 +100,18 @@ async function getGrid(leId) {
   const le = await repo.findById(leId);
   if (!le) return null;
 
-  const [lines, budgetFy, tree] = await Promise.all([
+  const [lines, budgetFy, tree, live] = await Promise.all([
     repo.findLines(leId),
     budgetFyByCategory(le.budget_year),
     accountsRepo.getNestedTree({ section: 'profit_loss' }),
+    // Any category with activity ANYWHERE in the year, including AFTER the cut.
+    // Without this a category that first spends in an estimate month and has no
+    // budget line is invisible — it has nothing in the actual half and nothing
+    // to carry into the estimate half — and therefore cannot be estimated at
+    // all, because there is no row to open. That is what a genuinely new expense
+    // looks like, and `Purchases - IT Costs` is the live example: no 2026 budget
+    // and, on a database whose sync predates July, activity only from August.
+    liveActivityByCategory(le.budget_year, String(le.actual_through).slice(0, 10)),
   ]);
 
   const cut = String(le.actual_through).slice(0, 10);
@@ -128,7 +159,8 @@ async function getGrid(leId) {
     }
 
     const hasOwn = o.ytdActual !== 0 || o.estimateTotal !== 0
-      || (budgetFy.get(node.id) || 0) !== 0;
+      || (budgetFy.get(node.id) || 0) !== 0
+      || live.has(node.id);
     const empty = totals.ytdActual === 0 && totals.estimateTotal === 0
       && totals.budgetFy === 0;
 
@@ -139,7 +171,23 @@ async function getGrid(leId) {
     }
 
     const fyTotal = totals.ytdActual + totals.estimateTotal;
+    const post = live.get(node.id) || 0;
     rows[slot] = {
+      // Money already spent on the ESTIMATE side of the cut. It is not part of
+      // FY TOTAL — the estimate is what the owner says the rest of the year will
+      // be, and quietly adding actuals to it would make a typed figure mean
+      // something the owner did not type. It is surfaced so the estimate can be
+      // judged against it, and it is what L5 will fire on in P1.
+      postCutActual: post,
+      // ...but only FLAGGED where it says something. In mid-August a third of
+      // the book has some post-cut activity, so marking all of it is wallpaper.
+      // Two cases actually warrant a reader's attention:
+      //   - spending with NO estimate at all (the `Purchases - IT Costs` shape:
+      //     no budget line, so nothing carried, so nothing to overrun); and
+      //   - spending that has ALREADY exceeded the whole remaining estimate.
+      // Compared on absolutes, because expenses are negative.
+      overspent: post !== 0
+        && Math.abs(post) > Math.abs(totals.estimateTotal) - 0.005,
       categoryId: node.id,
       categoryName: node.name,
       depth,

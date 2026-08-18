@@ -181,6 +181,17 @@
   border-radius: 2px;
 }
 
+.le-grid__spent {
+  margin-left: 0.45rem;
+  padding: 0.02rem 0.3rem;
+  font-size: 0.62rem;
+  letter-spacing: 0.03em;
+  color: var(--muted);
+  border: 1px solid var(--border-strong);
+  border-radius: 2px;
+  white-space: nowrap;
+}
+
 /* ---- the category worksheet -------------------------------------------- */
 
 .le-sheet { width: 100%; border-collapse: collapse; font-size: 0.82rem; }

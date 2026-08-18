@@ -98,6 +98,20 @@ function LEGrid({ grid, onOpenCategory }) {
                   ) : (
                     r.categoryName
                   )}
+                  {/* Money already spent on the ESTIMATE side of the cut. It is
+                      deliberately NOT added to FY TOTAL — the estimate is what
+                      the owner said the rest of the year would be, and folding
+                      actuals in would make a typed figure mean something they
+                      did not type. Flagged so the estimate can be judged
+                      against it. */}
+                  {!r.hasChildren && r.overspent && (
+                    <span
+                      className="le-grid__spent"
+                      title={`${formatCurrencyValue(Number(r.postCutActual))} already spent after the cut — at or above the whole remaining estimate, and not in it`}
+                    >
+                      spent {formatCurrencyValue(Math.abs(Number(r.postCutActual)))}
+                    </span>
+                  )}
                 </span>
               </th>
               <td className="le-grid__num"><Money value={r.ytdActual} /></td>
@@ -126,7 +140,9 @@ function LEGrid({ grid, onOpenCategory }) {
       <p className="le-grid__basisnote">
         <strong>Left of the rule is fact; right of it is your estimate.</strong>{" "}
         Click a category to open its month-by-month worksheet and edit the
-        estimate. {scopeNote} {fxBasis}
+        estimate. <strong>“spent”</strong> marks money already booked after the
+        cut — it is not folded into the estimate, so a category showing it may
+        need one. {scopeNote} {fxBasis}
       </p>
     </section>
   );
