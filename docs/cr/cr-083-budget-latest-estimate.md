@@ -1,4 +1,4 @@
-# CR083 — Budget: the Latest Estimate (LE) — 📋 PLANNED (design closed, ready to build)
+# CR083 — Budget: the Latest Estimate (LE) — 🔨 IN-PROGRESS (P0a + P0b LIVE, v3.31.0)
 
 Roadmap anchor: [project-roadmap.md#cr083](../current/project-roadmap.md#cr083). **Track: v3** —
 no flags, no tenant context, nothing under `server/src/v2/db/`.
@@ -1584,3 +1584,87 @@ variance **+34,556.07**.
 `budget_entries` or `/budget-vs-actual`. So the worktree is now hygiene rather than a requirement,
 migration **072** is free and clean, and prod is tagged — which closes the one outstanding owner
 action. **Position: P0a → P0b, no interleave.**
+
+
+---
+
+## 17. What shipped — v3.31.0, 2026-08-18
+
+**P0a and P0b, both live.** Migration **072** (dev 2026-08-17, prod with this release).
+
+**P0a — the FY landing.** `GET /api/v2/budget/fy-landing?year=` plus a strip on
+`/budget-vs-actual`. Derived through the service against prod: cut **2026-07-31** (7 months),
+actual YTD **25,683.50**, budget rest **−128,682.42**, landing **−102,998.92**, budget FY
+**−137,554.99**, variance **+34,556.07** — the CR's headline, produced by running code rather than a
+fourth reading of this document. Deliberately **additive**: it computes §2's scope itself and names
+it, and does **not** re-base the existing page (§11.2).
+
+**P0b — the LE itself**, at **`/budget-le`**. Create an LE for a year, read it in
+Chart-of-Accounts order, open any category's month-by-month worksheet and type the estimate months.
+Nine endpoints under `/budget/le`.
+
+### 17.1 What the owner changed after seeing it
+
+Three requests, all shipped, and the third was the sharpest:
+
+1. **One estimate column, not five.** The summary is **seven columns**; the month detail moved to
+   the worksheet where it can be edited. Width stays the load-bearing constraint — measured in a
+   browser at 1440, `scrollWidth == innerWidth` — because no scroll container and no sticky column is
+   what keeps §10.6's print block simple instead of re-solving CR082's clipping.
+2. **Chart-of-Accounts order, with the categories.** Rows come from `getNestedTree`
+   (CR063's `display_order`), parents included and rolled up. **117 rows against 93 leaves.** A
+   parent's figures are its subtree **plus anything posted directly to it**, and the NET line sums
+   only depth-0 rows or parents and children double-count.
+3. **A new LE carries the PRIOR one forward**, falling back to budget only where it has none. The
+   point of a series is that LE-09 starts where LE-08 finished. **No new `source` value was needed:
+   the provenance travels with the number** — a month the owner typed stays `manual`, a month carried
+   from budget stays `budget_carry`.
+
+### 17.2 Two defects the owner found that no gate could
+
+- **A category that only spends AFTER the cut was invisible — and unestimable.**
+  `Purchases - IT Costs` has no 2026 budget line, so it had nothing in either half and the
+  "drop empty subtrees" rule removed it. There was then **no row to click**, so it could not be
+  estimated at all. That is exactly the shape of a genuinely new expense. The grid now keeps any
+  category with activity anywhere in the year.
+- Post-cut spend is now surfaced, but **only where it says something**: flagging every category with
+  August activity lit **39 of 118 rows**. Narrowed to "no estimate at all" or "already past the whole
+  remaining estimate", it is **4** — including `FL - Car Costs` at 903 against an 800 estimate for the
+  rest of the year.
+
+### 17.3 The deviations section — asked for as AI, shipped as arithmetic
+
+The owner asked for a collapsible section where the local LLM flags year-to-date deviations worth
+carrying into the LE. It ships **deterministic**, and the reasoning is the point: **CR081 measured
+AI-proposed edits at 0/15, twice**; `status.md` names the next build as the consequence preview
+**with no LLM**; and **CR077's rule** is that an LLM stage runs *over* the deterministic rules, never
+instead of them. Measured, the detection needs no model — six categories deviate by >$2,000 YTD and
+every figure is a division.
+
+**The trigger is deliberately NOT "actual differs from budget year-to-date."** A category overspent
+because its budget is back-loaded needs no change; the year still lands where the budget says. What
+is flagged is a deviation implying a **level shift** — §12 rank 3's timing-vs-permanent distinction —
+and materiality is measured on **the effect on the remaining months**, not on the YTD gap. It is
+§3.4's classifier and all four guards, arriving with P1's machinery early.
+
+Seven flags on the live book, ranked, totalling **+13,952.49**. `Option Trade` is **refused and told
+why** (churn 29.0×) rather than silently omitted — the guard whose absence made it 57% of the
+proposal engine's headline in review. A figure the owner typed is tagged **"you typed this"**,
+because an advisory that nags about settled decisions stops being read. **No Accept button**, by the
+same CR081 evidence; the section is non-blocking, so its fetch failing leaves the grid untouched.
+
+**Where a model would genuinely add something, and it is not what CR081 measured:** reading
+transaction *descriptions* to tell a one-off from a new recurring cost. `Purchases - Subscriptions`
+jumped to **−965.79 in June**, when `CLOUDFLARE` first appears; the merchant names answer whether to
+raise Aug–Dec and the totals never will. **Deferred until the flags themselves prove useful** — the
+cheap test CR081 skipped.
+
+### 17.4 Still open
+
+- **Finalise, recut, and the remaining warnings (L1/L4/L6)** are NOT built. ⚠️ **Before finalise
+  ships**, the full-year budget per category must be snapshotted onto the LE: `BUDGET FY` and the
+  variance are read **live** from `budget_entries` today, which is correct for a draft and wrong for
+  a frozen artefact — the owner edits the budget in-year (30 rows since April, 22 backdated). That
+  needs a column, and therefore a migration.
+- **P1** (the advisory's accept path, `TRAIL_3`/`ZERO`, drift **L2**) and **P2** (§11.4's seed-next-
+  year, still not specified enough to schedule).
