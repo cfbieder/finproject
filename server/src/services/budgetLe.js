@@ -413,6 +413,190 @@ async function saveCategoryEstimates(leId, categoryId, values) {
   return getCategoryWorksheet(leId, categoryId);
 }
 
+// ---------------------------------------------------------------------------
+// Deviations — CR083, the deterministic half of §3.4
+// ---------------------------------------------------------------------------
+
+// Guards from §3.4. All four, because the fourth is the one whose absence let
+// `Option Trade` become 57% of the proposal engine's headline in review.
+const RATIO_CLAMP = [0.25, 4.0];
+const MIN_DENOMINATOR = 500;     // a tiny budget makes a wild ratio
+const CHURN_REFUSE = 3.0;        // gross ÷ |net|: a net standing on two-way gross
+// Materiality is measured on the EFFECT, not on the year-to-date gap. A category
+// can be far off YTD and still imply no change to the rest of the year; what
+// earns the owner's attention is a deviation that moves the months still to come.
+const MATERIAL_EFFECT = 1000;
+
+/**
+ * Categories whose year-to-date behaviour says the REMAINING months of the LE
+ * may be wrong.
+ *
+ * Deliberately arithmetic, start to finish. CR077's rule is that an LLM stage
+ * runs "only over the deterministic rules, never instead of them", and CR081
+ * measured model-proposed edits at 0/15 twice. So detection, ranking and the
+ * proposed figure are all computed here; anything a model ever adds sits on top
+ * and can fail without taking the section with it.
+ *
+ * The trigger is NOT "actual differs from budget year-to-date". A category that
+ * is overspent because its budget is back-loaded needs no LE change at all — the
+ * year still lands where the budget says. What is flagged is a deviation that
+ * implies a LEVEL shift, which is §12 rank 3's timing-vs-permanent distinction.
+ */
+async function getDeviations(leId) {
+  const le = await repo.findById(leId);
+  if (!le) return null;
+
+  const cut = String(le.actual_through).slice(0, 10);
+  const year = le.budget_year;
+
+  const { rows } = await db.query(
+    `WITH scope AS (${repo.SCOPE_SQL}),
+     b AS (
+       SELECT category_id,
+              COALESCE(SUM(base_amount) FILTER (WHERE entry_date <= $2::date), 0) AS budget_ytd,
+              COALESCE(SUM(base_amount) FILTER (WHERE entry_date >  $2::date), 0) AS budget_rest,
+              COUNT(DISTINCT date_trunc('month', entry_date))
+                FILTER (WHERE entry_date <= $2::date)::int AS budget_months
+       FROM budget_entries WHERE budget_year = $1 GROUP BY 1
+     ),
+     a AS (
+       SELECT category_id,
+              COALESCE(SUM(base_amount), 0) AS actual_ytd,
+              COALESCE(SUM(ABS(base_amount)), 0) AS gross_ytd,
+              COUNT(DISTINCT date_trunc('month', transaction_date))::int AS actual_months
+       FROM transactions
+       WHERE transaction_date >= make_date($1,1,1) AND transaction_date <= $2::date
+       GROUP BY 1
+     ),
+     le_est AS (
+       SELECT category_id,
+              COALESCE(SUM(base_amount), 0) AS estimate_rest,
+              BOOL_OR(source = 'manual') AS estimate_is_typed
+       FROM budget_le_lines WHERE le_id = $3 AND source <> 'actual' GROUP BY 1
+     )
+     SELECT s.id, acc.name,
+            COALESCE(b.budget_ytd,0)    AS budget_ytd,
+            COALESCE(b.budget_rest,0)   AS budget_rest,
+            COALESCE(b.budget_months,0) AS budget_months,
+            COALESCE(a.actual_ytd,0)    AS actual_ytd,
+            COALESCE(a.gross_ytd,0)     AS gross_ytd,
+            COALESCE(a.actual_months,0) AS actual_months,
+            COALESCE(l.estimate_rest,0) AS estimate_rest,
+            COALESCE(l.estimate_is_typed,false) AS estimate_is_typed
+     FROM scope s
+     JOIN accounts acc ON acc.id = s.id
+     LEFT JOIN b ON b.category_id = s.id
+     LEFT JOIN a ON a.category_id = s.id
+     LEFT JOIN le_est l ON l.category_id = s.id`,
+    [year, cut, leId]
+  );
+
+  const K = new Date(`${cut}T00:00:00Z`).getUTCMonth() + 1;
+  const flags = [];
+
+  for (const r of rows) {
+    const budgetYtd = Number(r.budget_ytd);
+    const budgetRest = Number(r.budget_rest);
+    const actualYtd = Number(r.actual_ytd);
+    const grossYtd = Number(r.gross_ytd);
+    const estimateRest = Number(r.estimate_rest);
+    const estimateIsTyped = r.estimate_is_typed === true;
+    const churn = actualYtd === 0 ? 0 : grossYtd / Math.abs(actualYtd);
+
+    // §3.1's buckets. The method only matters on bucket C; on the rest the
+    // correct answer is to leave the budget alone, which is why they are
+    // reported as context rather than as something to act on.
+    let bucket;
+    if (budgetYtd === 0 && budgetRest === 0 && actualYtd !== 0) bucket = 'E';
+    else if (budgetRest === 0 && budgetYtd !== 0) bucket = 'A';
+    else if (budgetYtd === 0 && budgetRest !== 0) bucket = 'B';
+    else if (r.budget_months >= K && r.actual_months >= K - 1) bucket = 'C';
+    else bucket = 'D';
+
+    // E is its own kind of flag: real money with no budget line, so nothing was
+    // carried and there is nothing to overrun. Eight such categories on this
+    // book.
+    if (bucket === 'E' && Math.abs(actualYtd) >= MATERIAL_EFFECT) {
+      flags.push({
+        categoryId: r.id, categoryName: r.name, kind: 'no_budget', bucket,
+        budgetYtd, actualYtd, deviation: actualYtd, ratio: null,
+        estimateRest, proposedRest: null, effect: null,
+        reason: `${fmt(actualYtd)} spent year-to-date with no budget line at all, so nothing was carried into the estimate.`,
+      });
+      continue;
+    }
+
+    if (bucket !== 'C') continue;
+
+    const ratio = actualYtd / budgetYtd;
+    const guards = [];
+    if (Math.sign(actualYtd) !== Math.sign(budgetYtd)) guards.push('sign flip');
+    if (Math.abs(budgetYtd) < MIN_DENOMINATOR) guards.push('budget too small to divide by');
+    if (churn >= CHURN_REFUSE) guards.push(`churn ${churn.toFixed(1)}× — a net standing on two-way gross`);
+    const clamped = ratio < RATIO_CLAMP[0] || ratio > RATIO_CLAMP[1];
+    if (clamped) guards.push('ratio outside the 0.25–4.0 clamp');
+
+    const r2 = Math.min(Math.max(ratio, RATIO_CLAMP[0]), RATIO_CLAMP[1]);
+    // Re-level the budget's OWN monthly shape, so a December tax bill and a
+    // November property tax survive the adjustment. This is PHASE_TO_YTD, and it
+    // is why a flat run-rate is not used: on this book that is $147,028 wrong.
+    const proposedRest = budgetRest * r2;
+    const effect = proposedRest - estimateRest;
+
+    if (guards.length) {
+      // Reported, never proposed. A refusal that names its reason is more useful
+      // than silence — `Option Trade` would otherwise look overlooked.
+      if (Math.abs(budgetRest * (r2 - 1)) >= MATERIAL_EFFECT) {
+        flags.push({
+          categoryId: r.id, categoryName: r.name, kind: 'refused', bucket,
+          budgetYtd, actualYtd, deviation: actualYtd - budgetYtd, ratio,
+          estimateRest, proposedRest: null, effect: null, guards,
+          reason: `Running at ${ratio.toFixed(2)}× budget year-to-date, but re-levelling is refused: ${guards.join('; ')}.`,
+        });
+      }
+      continue;
+    }
+
+    if (Math.abs(effect) < MATERIAL_EFFECT) continue;
+
+    flags.push({
+      categoryId: r.id, categoryName: r.name, kind: 'relevel', bucket,
+      budgetYtd, actualYtd, deviation: actualYtd - budgetYtd, ratio,
+      estimateRest, proposedRest, effect, guards: [], estimateIsTyped,
+      reason: `Year-to-date ${fmt(actualYtd)} against a budget of ${fmt(budgetYtd)} — ${ratio.toFixed(3)}×. `
+        + `Re-levelling the budget's own monthly shape for the rest of the year gives ${fmt(proposedRest)} `
+        + `instead of ${fmt(estimateRest)}`
+        // A figure the owner typed is a decision, not an oversight. Saying so is
+        // the difference between a flag and a nag -- and an advisory that nags
+        // about settled decisions is one the owner stops reading.
+        + (estimateIsTyped ? `, which you typed.` : `.`),
+    });
+  }
+
+  flags.sort((x, y) =>
+    Math.abs(y.effect ?? y.deviation ?? 0) - Math.abs(x.effect ?? x.deviation ?? 0));
+
+  const actionable = flags.filter((f) => f.kind === 'relevel');
+  return {
+    leId, actualThrough: cut, actualMonths: K,
+    flags,
+    totalEffect: actionable.reduce((s, f) => s + f.effect, 0),
+    thresholds: {
+      materialEffect: MATERIAL_EFFECT,
+      note: `Materiality is measured on the effect a change would have on the months still to come, `
+        + `not on the year-to-date gap — a category can be far off year-to-date and still imply no `
+        + `change to the rest of the year.`,
+    },
+  };
+}
+
+function fmt(n) {
+  const v = Math.abs(Number(n) || 0).toLocaleString('en-US', {
+    minimumFractionDigits: 2, maximumFractionDigits: 2,
+  });
+  return Number(n) < 0 ? `($${v})` : `$${v}`;
+}
+
 async function list({ budgetYear } = {}) {
   return repo.findAll({ budgetYear: budgetYear ? parseInt(budgetYear, 10) : undefined });
 }
@@ -431,5 +615,5 @@ async function remove(id) {
 
 module.exports = {
   defaultCut, getGrid, list, create, remove, budgetFyByCategory,
-  getCategoryWorksheet, saveCategoryEstimates,
+  getCategoryWorksheet, saveCategoryEstimates, getDeviations,
 };

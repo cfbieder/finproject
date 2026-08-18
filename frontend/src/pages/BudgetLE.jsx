@@ -2,6 +2,7 @@ import { useCallback, useEffect, useState } from "react";
 import Rest from "../js/rest.js";
 import LEGrid from "../features/BudgetLE/LEGrid.jsx";
 import LECategorySheet from "../features/BudgetLE/LECategorySheet.jsx";
+import LEDeviations from "../features/BudgetLE/LEDeviations.jsx";
 import "./PageLayout.css";
 
 /**
@@ -21,6 +22,7 @@ function BudgetLE() {
   const [list, setList] = useState([]);
   const [selectedId, setSelectedId] = useState(null);
   const [grid, setGrid] = useState(null);
+  const [deviations, setDeviations] = useState(null);
   const [refreshKey, setRefreshKey] = useState(0);
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
@@ -43,6 +45,9 @@ function BudgetLE() {
   useEffect(() => {
     if (!selectedId) return undefined;
     let active = true;
+    Rest.get(`/budget/le/${selectedId}/deviations`)
+      .then((p) => { if (active) setDeviations(Rest.unwrap(p) || null); })
+      .catch(() => { if (active) setDeviations(null); });   // advisory: never blocks the page
     Rest.get(`/budget/le/${selectedId}/grid`)
       .then((p) => { if (active) { setGrid(Rest.unwrap(p) || null); setError(""); } })
       .catch((e) => {
@@ -160,6 +165,10 @@ function BudgetLE() {
           actual months up to the last complete month and carries the budget for
           the rest.
         </p>
+      )}
+
+      {grid && (
+        <LEDeviations data={deviations} onOpenCategory={setOpenCategory} />
       )}
 
       {grid && <LEGrid grid={grid} onOpenCategory={setOpenCategory} />}

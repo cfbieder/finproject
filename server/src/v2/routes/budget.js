@@ -379,6 +379,15 @@ router.get('/le/:id/grid', async (req, res, next) => {
   } catch (error) { next(error); }
 });
 
+// GET /api/v2/budget/le/:id/deviations — deterministic flags, no LLM
+router.get('/le/:id/deviations', async (req, res, next) => {
+  try {
+    const d = await budgetLeService.getDeviations(parseInt(req.params.id, 10));
+    if (!d) return res.status(404).json({ error: 'Latest Estimate not found' });
+    res.json({ data: d });
+  } catch (error) { next(error); }
+});
+
 // GET /api/v2/budget/le/:id/category/:categoryId — the per-category worksheet
 router.get('/le/:id/category/:categoryId', async (req, res, next) => {
   try {

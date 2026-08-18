@@ -65,6 +65,73 @@
   font-size: 0.9rem;
 }
 
+/* ---- deviations ---------------------------------------------------------- */
+
+.le-dev {
+  margin-bottom: 1rem;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-left: 3px solid var(--border-strong);
+  border-radius: 6px;
+  overflow: hidden;
+}
+
+.le-dev__head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 0.5rem;
+  width: 100%;
+  padding: 0.6rem 0.9rem;
+  font: inherit;
+  text-align: left;
+  color: var(--ink);
+  background: var(--surface-muted);
+  border: 0;
+  cursor: pointer;
+}
+.le-dev__head:focus-visible { outline: none; box-shadow: var(--shadow-focus); }
+
+.le-dev__chev { color: var(--muted); font-size: 0.75rem; }
+.le-dev__title { font-weight: 600; font-size: 0.85rem; }
+.le-dev__sub { font-size: 0.78rem; color: var(--muted); }
+
+.le-dev__body { padding: 0.75rem 0.9rem 0.9rem; }
+.le-dev__intro,
+.le-dev__note { margin: 0 0 0.6rem; font-size: 0.75rem; line-height: 1.5; color: var(--muted); }
+.le-dev__note { margin: 0.6rem 0 0; }
+
+.le-dev__list { margin: 0; padding: 0; list-style: none; }
+
+.le-dev__item { padding: 0.5rem 0; border-top: 1px solid var(--border); }
+.le-dev__item:first-child { border-top: 0; }
+
+.le-dev__itemhead { display: flex; flex-wrap: wrap; align-items: baseline; gap: 0.5rem; }
+
+.le-dev__effect {
+  font-family: var(--font-mono);
+  font-variant-numeric: tabular-nums;
+  font-size: 0.82rem;
+  font-weight: 600;
+}
+
+.le-dev__tag {
+  padding: 0.02rem 0.35rem;
+  font-size: 0.62rem;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--muted);
+  border: 1px solid var(--border-strong);
+  border-radius: 2px;
+}
+
+.le-dev__reason {
+  margin: 0.25rem 0 0;
+  font-size: 0.76rem;
+  line-height: 1.5;
+  color: var(--muted);
+}
+
 /* ---- the grid ---------------------------------------------------------- */
 
 .le-grid-wrap { margin-top: 0.5rem; }
