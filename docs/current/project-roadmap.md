@@ -10,6 +10,49 @@ Living plan for the Fin project — open Change Requests, known issues, ongoing 
 
 ### 1.1 Open / In-Progress
 
+<a id="cr085"></a>
+- **CR085 — Forecast sensitivity: which assumption is load-bearing. 📝 P0 BUILT (migration 073); P1/P2 DEFERRED at sign-off.**
+  A **tornado** over module, stream and scenario-assumption knobs — every point a real
+  `generateForecast` build on CR084's `withScratchScenario` harness, ranked by nominal net assets at
+  the final year. Answers the one question no number of pairwise `/forecast-compare` runs can:
+  *which* of the ~40 hand-typed assumptions the plan rests on. Seven owner decisions locked 2026-08-19
+  ([CR085 §2](../cr/cr-085-forecast-sensitivity.md)); **CR064 §13 designed this and deferred it** —
+  it is worth building at all only because CR084 shipped the harness it wanted reused.
+  ⚠️ **The CR's first draft opened on `2026 SRQ House Purchase` at −1,392,889, which was STALE** —
+  status.md has recorded **−476,930** since 2026-08-10, when `Sarasota House` growth went 0 → 1.0.
+  Corrected in [§1.1](../cr/cr-085-forecast-sensitivity.md), not patched over, because a restated
+  figure asserted as current is this project's most-repeated failure. **The correction is the better
+  argument:** one unset field was worth **916K** and the owner found it, not the app — the same class
+  as CR078's selling costs and the ~890K copy defect.
+  **P1 + P2 DEFERRED at PM sign-off (2026-08-19)**, behind (a) the **SRQ financing experiment** —
+  `House Morgage` is `exclude` in all five scenarios carrying a fully specified loan (500,000 @ 6.0%
+  to 2048), so testing "is SRQ viable with financing" is **one field flip plus a regenerate**, and it
+  tests the CR's own premise — and (b) **CR083 P1 or its explicit closure**. SRQ is a *breakeven*
+  question and a tornado cannot answer it; solve-for is the matching instrument, and the owner ranked
+  it third. Five scope cuts adopted for whenever P1 is picked up
+  ([§15](../cr/cr-085-forecast-sensitivity.md)): no assumption-list knobs, two metrics and no
+  switcher (real terms provably cannot reorder a bar), no strict-verify toggle, no binary kind, and
+  runs compose so the 8-knob cap is a batch size not a ceiling.
+  **Tracked here, not only in the CR:** P2's `forecast_stream_changes` (`Spread %`) knobs, and
+  **converting CR053's auto-adjust solver to CR084's `withScratchScenario`** — it still carries its
+  own inline copy, teardown and read-modify-write prune.
+  **P0 — BUILT and verified on a from-scratch DB, prod pending.** Two pre-existing defects:
+  (a) **migration 073 `forecast_scenarios.is_scratch`** — a throwaway copy was `is_active = TRUE` and
+  filtered nowhere, so it showed in **all seven scenario pickers** while it existed and permanently
+  if the process died first (open since CR053, recorded as [CR084 §9.2](../cr/cr-084-save-time-consequence-preview.md));
+  the flag now lands **inside the copy transaction**, `findAllScenarios` hides it in both branches,
+  and a boot sweep removes flagged rows over an hour old. (b) **`copyScenario`'s five child-table
+  column lists are now DERIVED** from `information_schema` — two of them (`forecast_streams`,
+  `forecast_stream_changes`) were hand-kept *and* untested, in the schema CR069–CR073 keep changing.
+  That list-drift is what cost the ~890K `disposal_cost_pct` defect. ⚠️ The new test **passed on dev
+  and failed on a fresh DB** by reaching for an ambient `fc_lines` row — caught by
+  `Scripts/test-fresh-db.sh` before the push, which is what it is for.
+  **Pass 1 (technical) returned *revise*** with five blocking items, each a route to a confidently
+  wrong ranking with no error raised — `PeriodStart` as a knob (the base year IS the budget),
+  liabilities stored negative inverting every loan bar, `Spread %` being **rows not columns**, the
+  metrics being frontend code CR084 refused to port, and a lossy revert corrupting every later point.
+  All resolved and recorded in [CR085 §14](../cr/cr-085-forecast-sensitivity.md).
+
 <a id="cr083"></a>
 - **CR083 — Budget: the Latest Estimate (LE). 🔨 IN-PROGRESS — P0a + P0b LIVE (v3.31.0), migration 072.**
   `/budget-le` — create an LE, read it in **Chart-of-Accounts order** with the categories rolled up

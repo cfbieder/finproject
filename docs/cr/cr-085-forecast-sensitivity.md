@@ -1,0 +1,524 @@
+# CR085 — Which assumption is load-bearing: sensitivity as a tornado — **P0 BUILT · P1/P2 DEFERRED**
+
+**Status:** **PLANNED.** **P0 (§9) is BUILT and fresh-DB verified; prod pending.** **P1 and P2 are
+DEFERRED** at PM sign-off (§15) behind two things: the ten-minute SRQ financing experiment that
+tests this CR's own premise, and CR083 P1. Both review passes are recorded rather than absorbed —
+pass 1 *revise*, five blocking items (§14); pass 2 *GO on P0, DEFER P1* with five scope cuts (§15).
+[Roadmap](../current/project-roadmap.md#cr085)
+**Track:** v3 · **Migration:** 073 (`is_scratch`, additive and inert — **applied to dev 2026-08-19**)
+**Opened:** 2026-08-19
+**Origin:** [CR064 §13](cr-064-forecast-annual-close-and-assumptions.md) designed this and deferred
+it ("reuse, not new machinery — but nothing is *wrong* without it, which is why it is last"). It is
+worth building now for a reason that did not hold then: **the machinery it wanted someone to reuse
+has since been built** — [CR084](cr-084-save-time-consequence-preview.md) extracted
+`withScratchScenario` out of CR053's solver, and CR085 is that harness in a loop.
+
+**Depends on:** [CR084](cr-084-save-time-consequence-preview.md) (`forecastScratch.js`) ·
+[CR053](cr-053-forecast-auto-adjust-spend-to-fund.md) (the job/poll *pattern*, `totalShortfall`) ·
+[CR067](cr-067-forecast-multi-compare.md) (`FCTrajectoryChart`, P2 only) ·
+[CR079](cr-079-real-terms-view.md) (the real-terms deflator)
+
+---
+
+## 1. The question the app cannot answer
+
+Prod carries five scenarios and roughly forty numbers the owner typed by hand: growth rates,
+inflation, FX paths, tax rates, selling costs, sale years, expense levels. Every one is a judgement.
+Nothing in the app says **which of them the plan actually rests on**.
+
+The only way to find out today is to hand-build a variant per question and read it on
+`/forecast-compare`. That answers "what does *this* change do", one change at a time, and it never
+produces the ranking — the ranking cannot be assembled from pairwise comparisons, because it
+requires them to share a baseline and to use comparable nudges.
+
+### 1.1 ⚠️ The motivating figure this CR first cited was STALE, and its correction is the better argument
+
+The first draft opened on `2026 SRQ House Purchase` at **−1,392,889** and the open question of
+whether the purchase is viable at all. **That number was superseded nine days before this CR was
+written.** [status.md](../current/status.md) records it moving to **−476,930** on 2026-08-10, when
+`Sarasota House` growth went **0 → 1.0** — the only US property not at full CPI, *"an unset field
+rather than a belief"*. Only SRQ moved; the other four scenarios were byte-identical.
+
+Correcting it here rather than quietly is the point: this project's most-repeated failure is **a
+restated figure asserted as current, found ten times**, and a CR whose whole pitch is "surface the
+silently-wrong number" cannot open with one.
+
+**The correction is a better case for this CR than the original claim was.** One unset field was
+worth **916K** in a single scenario, and it was found by the owner, not by the app. That is the same
+class as CR078's selling costs (**−603K to −796K per scenario**, a plan that had been keeping 100%
+of every sale) and as the `disposal_cost_pct` copy defect (**~890K**, §6). A tornado is an
+instrument for exactly that class: it makes a field nobody has questioned show up as a large bar.
+
+**What it is NOT is an answer to the SRQ question.** status.md names *"financing is the untested
+lever"*, and `House Morgage` is `setup_status = 'exclude'` in all five scenarios while carrying a
+fully specified loan (500,000 at 6.0% to 2048-07-01). Testing that is **one field flip plus a
+regenerate**, and CR084's save-time preview already shows the delta before it is committed. That
+experiment is a precondition of this CR (§15), not a use for it — a breakeven question wants
+solve-for, which the owner ranked third (§11).
+
+## 2. Decisions (locked with the owner, 2026-08-19)
+
+| # | Question | Decision |
+|---|---|---|
+| 1 | Which output leads? | **Tornado** — ranked low/high bars per knob. The trajectory-line sweep (§12 P2) falls out of the same API and does not lead. |
+| 2 | What may be a knob? | **Module fields, stream fields, and scenario-level assumptions** (inflation, FX paths, tax rate, sweep band) — the whole scenario, not one module. |
+| 3 | How is a perturbed run computed? | **CR084's scratch harness**, with a fidelity gate (§6). Not a transaction-rollback on the real scenario; not an in-memory engine. |
+| 4 | What are bars ranked by? | **Nominal net assets at the anchor's final year.** Other metrics come from the same builds, so re-ranking costs no rebuild. |
+| 5 | Who sets the ± ? | **Per-kind defaults, editable per knob** (§4). Every bar prints its own ±. |
+| 6 | Are runs stored? | **No.** Ephemeral results in a job map; the *knob set* persists to `localStorage`. |
+| 7 | Scratch scenarios in the pickers | **`is_scratch` column, migration 073.** Built and verified ahead of the rest — §9. |
+
+**Numbering:** this was scoped as "CR080 / migration 065". Both were taken while it sat unwritten.
+Recorded because the earlier scoping notes carry the wrong numbers.
+
+## 3. What already exists — the reuse inventory
+
+| need | already built | where |
+|---|---|---|
+| throwaway copy + guaranteed teardown | `withScratchScenario(scenarioId, fn)` | [forecastScratch.js:97](../../server/src/v2/services/forecastScratch.js) |
+| a real engine build against the copy | `build()` on that harness, `writeAudit: false` | forecastScratch.js:100-107 |
+| reading a built scenario's entries | `readEntries(scenarioId)` | forecastScratch.js:119 |
+| assumptions-document teardown, race-free | `pruneAssumptionsForName` — filter inside the UPDATE | forecastScratch.js:53 |
+| Σ unfunded shortfall as a scalar | `totalShortfall` | [forecastAutoAdjust.js:153](../../server/src/v2/services/forecastAutoAdjust.js) |
+| the four scalar metrics | `buildScenarioMatrix`, `fcRealTerms` — **frontend, and they stay there** (§5.3) | `frontend/src/features/Forecast/utils/fcCompareUtils.js` |
+| the trajectory chart (P2 only) | `FCTrajectoryChart` | [FCTrajectoryChart.jsx](../../frontend/src/features/Forecast/FCTrajectoryChart.jsx) |
+
+**Two rows the first draft overstated, corrected at review:**
+
+- **The job runner is a pattern, not an import.** `startSolveJob` (forecastAutoAdjust.js:445) is
+  hard-wired to `solveSpendReduction`. It is ~30 lines to generalise; nobody should plan on a free
+  import.
+- **CR053 was never converted to CR084's harness.** It still carries its own inline copy, its own
+  teardown and its own read-modify-write `pruneAssumptionsForName` (forecastAutoAdjust.js:162-180).
+  P0 gave its scratch the `is_scratch` flag, which is the part that mattered; converting it to
+  `withScratchScenario` is worth doing and is **not** in this CR's scope.
+
+**Cost of a build: ~0.5 s** on dev — measured 314 ms and 662 ms on `2026 Base` (30 modules, ~1,600
+entries), matching CR084 §6's own figure. Eight knobs is 17 builds ≈ **8 s**.
+
+## 4. The knob model
+
+A knob is `{ target, field, kind, low, high }`. **"± 10%" is wrong for most of these fields**, so the
+kind decides the arithmetic:
+
+| kind | fields | perturbation | why not relative % |
+|---|---|---|---|
+| **rate** | `growth_rate`, `loan_interest_rate`, `tax_rate_override`, `disposal_cost_pct` | ± percentage **points**, default ±1pp | 0.5% ± 25% is 0.375–0.625%, not a stress; 4% ± 1pp is |
+| **level** | `base_value`/`market_value`, `forecast_streams.amount`, `loan_principal`, investment and disposal amounts | ± relative %, default ±10% | correct here, and the only kind where it is |
+| **multiplier** | `forecast_streams.growth_mult` — a multiple *of inflation* ("Growth (x Inflation)") | ± absolute, default ±0.25× | dimensionless; percentage points are meaningless on it |
+| **timing** | stream `start_date`/`end_date`, disposal date, `loan_end_date` | ± whole **years**, default ±2y | no percentage form exists, and these move a plan most |
+| **assumption-list** ~~P1~~ | `inflation` (rate, ±1pp), `FX` (**relative %, ±10%** — a rate of 3.9 has no pp reading) | applied to **every year's** entry in the scenario's own rows | the value is a path, not a scalar. **CUT FROM P1 (§15 cut 1)** — these are the only knobs that write the shared assumptions document |
+| **binary** ~~P1~~ | module `setup_status`, a disposal present/absent | two states, no band | not a continuous axis. **CUT FROM P1 (§15 cut 4)** — its two live instances deserve real variant scenarios |
+
+### 4.1 What is deliberately NOT a knob, and why
+
+- **`PeriodStart` / `PeriodEnd` are excluded from P1.** They are not perturbations; they change what
+  the number means. The base year is `PeriodStart − 1` and **the base year IS the budget**
+  ([CR075](cr-075-base-year-is-the-budget.md); `services/forecast/crud.js` `getBaseYearValues`), so
+  shifting `PeriodStart` reads a `budget_year` that does not exist and silently collapses base-year
+  income, the base-year income tax and the sweep's opening cash. Opening bank cash separately reads
+  `PeriodStart − 2` from the ledger. And a `PeriodEnd` knob would measure its low bar at 2060 and its
+  high bar at 2064 against a 2062 anchor — three different questions, drawn as one bar. If they are
+  ever wanted, they need their own metric definition, not a row in this table.
+- **`derived`-mode streams.** Computed from another figure; perturbing one either does nothing or
+  double-counts.
+- **`amount` on a `yield` or `pct_of_value` stream.** It is 0 by construction on those modes, so the
+  knob is a guaranteed no-op — and a 0-impact bar reads as "this does not matter", which is the
+  failure §4.3 rule 3 exists to prevent. **The whitelist is keyed on `(field, stream.mode)`, not on
+  the field alone.**
+- **`Spread %`, `Fixed $`, `One-Off $` and `Percent %` schedules.** These are *not columns*: they are
+  `forecast_stream_changes` rows carried forward year to year (`fcbuilder-stream.js:92-113`, applied
+  at :163-171). A column-oriented setter has nothing to write. They are real sensitivity targets and
+  they are **deferred to P2**, where they take the same whole-list treatment as inflation.
+
+### 4.2 Sign: low and high are defined on the METRIC, never on the field
+
+**Liabilities are stored negative** — `moduleWrite.js` treats `market_value < 0` as debt, and the
+engine's own worked example is `PLN Credit Cards` at −24,542.66 (fcbuilder-module.js:161-165). So
+"+10% on `market_value`" makes a house worth more and a mortgage worth *more negative*. A tornado
+that labels both ends by the field's arithmetic sign is confidently backwards for every loan and
+credit-card module in the plan.
+
+Therefore: a knob's two runs are computed, and the bar is labelled by **which direction the metric
+moved**, with the perturbation printed beside it. Never by the sign of the arithmetic. A unit test
+covers a module with a negative `market_value`.
+
+### 4.3 Four rules that are not negotiable
+
+1. **A level knob moves BOTH currency columns by the same factor.** The engine reads `BaseValue`
+   *and* `BaseValueUSD`, derives the implied acquisition FX rate from their ratio
+   ([fcbuilder-module.js:324](../../server/src/services/forecast/fcbuilder-module.js)), and — for a
+   module marked USD — **throws** if the two disagree by more than a cent (fcbuilder-module.js:166-177).
+   Scaling one alone either re-rates the module's currency or aborts the build outright.
+2. **Assumption knobs are lists, and their setter is one scoped UPDATE.** `inflation` and `FX` are
+   `{Year, …}` arrays inside four `forecast_assumptions` rows that **every scenario shares**. The
+   column is `json`, not `jsonb`, deliberately (CR039 byte-parity), so a whole-array round-trip
+   through JS rewrites other scenarios' entries as a side effect. The setter touches only elements
+   whose `Scenario` equals the scratch's name, in a single statement — the shape
+   `forecastScratch.js:53-70` already uses for teardown.
+3. **Targets resolve by NAME on the scratch, never by id.** `copyScenario` re-keys every id, so a
+   real module id means nothing on the copy — CR084 hit this and resolves by name with an ambiguity
+   guard ([forecastPreview.js:100-112](../../server/src/v2/services/forecastPreview.js)). A stream
+   resolves within its module by `(direction, fc_line_id)`, but note `idx_fc_streams_unique_line` is
+   **partial** (`WHERE fc_line_id IS NOT NULL`) with a second index for the NULL branch, and live
+   modules carry NULL `fc_line_id` — so the key is `(direction, fc_line_id)` **with NULL as a
+   distinct value**, matching the two indexes. **A target resolving to zero rows or to more than one
+   aborts the run**, naming the count. A knob silently skipped is a knob that reads as harmless.
+4. **The settable field list is a closed server-side whitelist**, and every entry declares its **NULL
+   semantics**. Field names never reach SQL as identifiers. NULL is load-bearing in more places than
+   is obvious: `tax_rate_override` NULL = fall back to the scenario rate (never 0); `growth_mult`
+   NULL ≡ 1 ≡ plain inflation; `disposal_cost_pct` NULL = "not modelled" while 0 = "considered, and
+   free"; `end_date` NULL = open-ended, which a ±2y shift must not materialise into a date;
+   `amount_usd` is nullable by design. The setter test iterates the whitelist with a NULL fixture per
+   field.
+
+## 5. The run
+
+### 5.1 The loop
+
+```
+withScratchScenario(scenarioId, async ({ id, build }) => {
+  assertCopyFidelity(sourceId, id)          // §6 layer 1 — before any number
+  feasibilityPass(id, knobs)                // §5.2 — every band applied and reverted, 0 builds
+  await build();  zero = readEntries(id);  fingerprint = inputFingerprint(id)
+  for (const knob of knobs)
+    for (const side of ['low', 'high']) {
+      const restore = await apply(id, knob, side)   // captures the PRIOR VALUE
+      await build();  record(knob, side, readEntries(id))
+      await restore()
+      assertFingerprint(id, fingerprint)            // §5.2 — or abort loudly
+    }
+})                                                  // teardown in `finally`, always
+```
+
+- **The anchor is the zero-point build on the scratch, never the source's stored entries.** CR084's
+  central finding, inherited verbatim: *"`forecast_entries` is the result of the last build, and
+  stale entries beside fresh inputs is the NORMAL state of this system"*. Diffing against stored
+  entries attributes every un-regenerated edit since the last build to the knob being measured.
+- **Revert, don't re-copy.** Re-copying per point would cost ~0.3 s each and touch the shared
+  assumptions document 2N more times.
+- **Caps: ≤ 8 knobs** ⇒ at most 17 builds. (A build cap is stated in P2, where a sweep can exceed
+  this; in P1 the knob cap binds first and a second cap would be dead text.)
+
+### 5.2 Two guards the first draft did not have
+
+**A feasibility pass, before any build.** Perturbations hit CHECK constraints:
+`disposal_cost_pct` is `CHECK (>= 0 AND < 100)`, so ±1pp on a 0.5% cost violates it;
+`forecast_streams.amount`/`amount_usd` are `CHECK (>= 0)` magnitudes. Discovering that on build 11 of
+17 wastes eight seconds and returns nothing. Every knob is applied and immediately reverted at both
+ends first — zero builds — and an infeasible band is refused up front with the field named.
+
+**A drift detector on the revert.** This is the loop's only silent failure mode: if one restore is
+lossy, every later point measures its knob *plus* a residue — fifteen wrong bars, no exception. Two
+rules close it:
+
+- **`restore` replays a captured prior value; it never computes an inverse.** `× 1/1.1` after `× 1.1`
+  does not return a `NUMERIC(15,2)` to where it started.
+- **A fingerprint of the scratch's inputs** — modules, streams, stream changes and its own
+  assumptions rows — is taken after the zero-point build and re-checked after **every** restore.
+  Milliseconds against a 0.5 s build, and it converts a silent cumulative error into a loud abort.
+
+### 5.3 Where the metrics are computed — the server returns entries, not numbers
+
+Net assets is `buildScenarioMatrix` and real terms is `fcRealTerms`; **both are frontend code**, and
+CR084 explicitly refused to port them: *"porting them would create a second implementation of numbers
+the Review and Compare pages already render"* (forecastPreview.js). A server-side net-assets sum that
+disagreed with Compare on any rule — sign conventions, which accounts roll into assets — would
+produce a **different ranking with no error anywhere**.
+
+So the API returns **raw entries per point** and the client computes the metrics with the code
+Compare uses. 17 points × ~1,700 rows ≈ 3 MB, on a LAN, for an owner-initiated action. The one
+exception is **Σ unfunded shortfall**, which stays server-side because `totalShortfall` is already
+server code reading `Cash Shortfall` rows directly.
+
+**P1 ships exactly TWO metrics, and the switcher is cut (§15 cut 2):** nominal net assets at the
+anchor's final year, and Σ unfunded shortfall. Enumerated deliberately — the first draft said "the
+four metrics" and never listed them, while `fcTrajectoryMetrics.js` defines **five**, and an
+un-enumerated count becomes five in the build.
+
+**Real terms cannot reorder a bar, so it is not a metric worth a control.** `fcRealTerms` deflates by
+`(scenario name, year)`, and every point in one run shares both — so the deflator is one identical
+scalar across all 17 points and a real-terms ranking is *arithmetically identical* to the nominal
+one. It relabels the axis. The single exception is an inflation knob, which cut 1 removes from P1.
+
+### 5.4 Non-linearity is real and must not be smoothed over
+
+The cash sweep and forced liquidation make the model path-dependent: a downward nudge can trigger a
+sale that changes everything after it. Every point is a real engine build, so each number is true —
+but the tornado's *shape* implies independence and near-linearity, and that implication is false.
+
+- **Never display a sum of impacts**, and never offer an "all knobs at low" bar. That case is a
+  scenario, and the app already has scenarios.
+- **Flag a knob whose low and high impacts are asymmetric beyond a threshold as a regime change**,
+  naming the sweep as the likely cause. The threshold is §13.2, still open.
+
+## 6. The fidelity gate
+
+**The failure this guards against has already happened, in production, through this exact code
+path.** `copyScenario` dropped `disposal_cost_pct`, so every copied scenario reported the full sale
+proceeds with no selling costs — *"it surfaced only because a scratch copy of `2026 SRQ House
+Purchase` measured ~890K better than the original for no modelled reason"*
+([copyScenario.columns.test.js](../../server/src/v2/repositories/__tests__/copyScenario.columns.test.js)).
+A sensitivity run is that same copy, in a loop, presented as a ranking.
+
+Because the anchor and every perturbed run come from the **same** copy, a dropped column cancels out
+of the **Δ arithmetic**. It does not cancel out of the **anchor** the page prints, nor out of the
+**regime** — a plan built without selling costs sits in a different place relative to the cash sweep,
+so a knob's measured impact, and therefore the ranking, can differ.
+
+**Resolved after pass 1 — three layers, and the middle one is now the owner's choice:**
+
+- **Layer 1 — structural, mandatory, free.** After the copy, compare source and scratch row counts
+  and per-column checksums across `forecast_modules` and every child table. Read-only; no build; no
+  write to the source. **Its exclusion list is the repository's own derived column list, exported and
+  consumed** — the copy deliberately omits `id`, `scenario_id`, `created_at`, `updated_at`,
+  `origin_base_id` and repoints `secured_asset_module_id` in a second pass, so a hand-kept second
+  exclusion list would both false-positive on every run and re-create the drift §9 exists to kill.
+- **Layer 2 — a staleness *banner*, free, non-blocking.** Compare the zero-point metrics against the
+  source's **stored** entries — one read, no build, no write — and say *"the stored forecast differs
+  from a fresh build by X; regenerate to see this on Review."* This delivers the divergence signal
+  that motivated the original decision, and it never blocks a ranking on it.
+- **Layer 3 — ~~"strict verify", a labelled toggle~~ — CUT (§15 cut 3).** Layers 1 and 2 are both free and mandatory; this was a UI control plus a write path the owner did not ask for. Build it only if layer 1 ever fires ambiguously. Retained here as the design, should that happen: Regenerates the source and requires
+  the zero-point build to match it. Strictly stronger than layer 1; its cost is a write the owner did
+  not ask for (the advisory lock plus ~1,600 rewritten entry rows), so the control says *"also
+  regenerates «scenario»"* and the write is a choice rather than a side effect.
+
+**Recorded so the reasoning is not read as inconsistent:** the "layer 2 writes to owner data"
+objection is weaker than it first looked, because §7 hazard 1 already mandates a write to the source
+— syncing the variant materialises rows into it. The difference is one of degree.
+
+## 7. Hazards carried into the build
+
+1. **Sensitising a variant needs a sync first, and on live data the target usually IS a variant.**
+   The scratch is parentless — deliberately, so a direct write to it survives (forecastScratch.js:10-13)
+   — so `generateForecast`'s Step 0 variant sync never fires on it (index.js:255-260, gated on
+   `parent_scenario_id`). **Four of five scenarios are variants**, `2026 SRQ House Purchase` among
+   them. Copy an unsynced variant and the entire run measures a stale materialisation. Use
+   `syncIfStale`, not a forced sync: same guarantee, no write when the variant is already fresh.
+2. **Two scratch prefixes exist** — `__scratch_` (CR084) and `__autoadjust_` (CR053). §9's
+   `is_scratch` column supersedes both as the thing to filter and sweep on; CR053's solver now sets
+   it, though it still has its own inline harness (§3).
+3. **Assumption knobs write the shared document, and this CR widens that exposure.** The first draft
+   claimed it did not. It does: an inflation/FX/tax knob's setter and its restore each write
+   `forecast_assumptions` — 4 writes per knob, on four rows every scenario's inflation lives in, for
+   exactly the knobs Decision 2 promotes. §4.3 rule 2's single scoped UPDATE is what keeps each of
+   those writes atomic. `copyScenario` remains a read-modify-write ([CR084 §9.1](cr-084-save-time-consequence-preview.md)),
+   unchanged here.
+4. **`tax_rate_override` and four other fields are NULL-load-bearing** — §4.3 rule 4.
+5. **Concurrency.** Two runs, or a run and a CR084 preview, each hold their own scratch and their own
+   advisory lock, so they neither deadlock nor contend on the engine — but they do contend on the
+   assumptions document (hazard 3). **The job map must refuse a second run while one is in flight**;
+   it has no such guard today (`startSolveJob` keys nothing on scenario).
+6. **17 sequential builds block the single Node event loop for ~8 s.** The job map makes the
+   *request* async; the *work* still runs in-process, so the API, the feed cron and the owner's other
+   tabs stall. CR053 set the precedent at ~12 builds; this is not a new class of problem but it is
+   larger. Stated as a known degradation, with `setImmediate` between builds so the loop drains, and
+   the measured number published in the release note.
+
+## 8. API and UI
+
+| route | purpose |
+|---|---|
+| `POST /api/v2/forecast/sensitivity` | body `{ scenario, knobs[] }` → `{ data: { jobId } }` |
+| `GET /api/v2/forecast/sensitivity/:jobId` | `{ data: { status, result?, error? } }` — `result` carries raw entries per point (§5.3) |
+
+Envelope is `{ data: … }` — `check-api-envelope.sh` counts bare `res.json(x)` and may only shrink.
+
+**UI** — a new page `/forecast-sensitivity`, `category: "Forecasting"`, lazy, **no `step`** and no
+`ForecastProvider`, following `FCMultiCompare` and `FCEquity`. (routes.jsx records a CR042 invariant
+about the Forecasting group being exactly the steps `FCStepNav` numbers — **five** since CR069 P2,
+not six; the repo's own comments still say six in two places and that is where the first draft of
+this CR picked it up.) Compare's KPI row and delta grid are pairwise *by construction*, the same
+reason [CR067 decision 1](cr-067-forecast-multi-compare.md) gave for not extending that page.
+
+- Scenario picker → grouped knob picker (scenario-level knobs first, then one group per module).
+- Each knob shows its kind, its default band and an editable low/high; infeasible bands are refused
+  by the feasibility pass (§5.2) before anything runs.
+- Run → spinner with a build counter (CR084 §8: **the wait has to look like a wait**).
+- Result: horizontal bars sorted by |impact|, **each labelled with its own ±**, an anchor line at the
+  zero-point value, direction taken from the metric (§4.2), a regime-change flag, the staleness
+  banner (§6 layer 2), and a metric switcher that re-ranks with no rebuild.
+- **No new `*-btn` / `*-button` class definitions** — `check-button-css.sh` is a ratchet.
+
+## 9. P0 — BUILT AND VERIFIED (2026-08-19)
+
+Two pre-existing defects, both independently useful, neither needing the rest of CR085. Built first
+so this CR's own risk stays confined to the knob layer.
+
+**Migration 073 — `forecast_scenarios.is_scratch BOOLEAN NOT NULL DEFAULT FALSE`** plus a partial
+index on `created_at WHERE is_scratch`, back-filling the flag onto anything already named
+`__scratch_%` or `__autoadjust_%` (0 rows on dev). Additive and inert: every existing row is FALSE,
+which is exactly today's behaviour. It closes
+[CR084 §9.2](cr-084-save-time-consequence-preview.md) — CR053's solver and CR084's preview both build
+their scratch through `copyScenario`, which inserts `is_active = TRUE`, and `findAllScenarios`
+filtered on nothing else, so a scratch was visible in **all seven scenario pickers** while it existed
+and permanently if the process died before teardown.
+
+- `findAllScenarios` excludes it from **both** branches — `activeOnly: false` is exactly where a
+  leaked scratch would resurface.
+- **`copyScenario` takes `{ isScratch }` so the flag lands in the SAME transaction as the copy.** A
+  second statement afterwards would leave a crash window in which the row leaks *unflagged*, and an
+  unflagged leak is invisible to the sweep — the flag would reintroduce the leak it closes.
+- `sweepStaleScratch()` runs at boot and deletes flagged scenarios **older than an hour**. Keyed on
+  age, because a live run's scratch is indistinguishable from a leaked one except by age, and
+  deleting a live one fails the owner's build mid-flight.
+- *Rejected:* a name-prefix test (two prefixes already exist, and CR050 §3 rejected name-keying for
+  this exact reason) and reusing `is_active` (owner-facing — in `SCENARIO_UPDATE_FIELDS`, exposed as
+  `IsActive`, so the owner could flip a scratch back into every picker).
+- Post-conditions assert the column, the index, and that **no non-scratch scenario was flagged** —
+  the one that protects owner data, since a too-broad back-fill would hide a live scenario and then
+  let the sweep delete it. Schema-qualified via `current_schema()` per the 070/071 lesson. Idempotent,
+  proved by applying it twice.
+
+**`copyScenario`'s child-table column lists are now derived.** `forecast_modules` already read its
+columns from `information_schema`; its five child inserts did not, and `copyScenario.columns.test.js`
+guarded three of the five — `forecast_streams` and `forecast_stream_changes` were both unguarded
+**and** hand-enumerated, in the part of the schema CR069–CR073 have been actively changing. All five
+are derived now, once per copy rather than once per module, and the test covers all five.
+
+**Verified:** the whole backend suite against a from-scratch CI-shaped database
+(`Scripts/test-fresh-db.sh`) — 1,003 passing before, and the two new files 8/8 after. The first run
+of the new test **failed there and passed on dev**, because it reached for an ambient `fc_lines` row
+that a fresh database does not have; it now seeds its own, with an explicit `line_type` because a
+fresh DB enforces 007's CHECK that dev has auto-baselined away (Known Issue #18). That is the failure
+`test-fresh-db.sh` exists to catch, caught before the push rather than in CI.
+
+## 10. Verification
+
+- **Unit — the setters.** One per kind: a rate knob moves percentage points; a level knob moves
+  **both** currency columns and leaves the implied acquisition FX unchanged; a multiplier moves
+  absolutely; a timing knob moves whole years; **a module with a negative `market_value` produces a
+  bar whose direction follows the metric, not the arithmetic** (§4.2). Property-style over the
+  whitelist so a new kind cannot skip it, with a **NULL fixture per field** (§4.3 rule 4).
+- **Unit — restore is a replay, not an inverse**, and the fingerprint check fails a deliberately
+  lossy restore (§5.2).
+- **Integration — the anchor.** A **zero-knob** run equals a direct build of the source, on a
+  scenario whose stored entries were deliberately staled first. Asserts both that the anchor is the
+  scratch's own build and that stored entries are not consulted.
+- **Integration — the variant trap (§7 hazard 1).** Edit the base, do **not** sync, run a zero-knob
+  sensitivity on the variant, assert the anchor equals a fresh build of the *synced* variant. Without
+  this the whole run measures a stale materialisation and nothing fails.
+- **Integration — the source is byte-identical before and after a run**: its `forecast_modules`,
+  `forecast_streams`, `forecast_stream_changes` and its four assumptions-document rows. Every hazard
+  that can damage owner data surfaces as one diff here.
+- **Integration — the gate's comparator**, tested directly: copy, null a column on the scratch,
+  assert `assertCopyFidelity` throws. (Testing it *through* `copyScenario` would need `copyScenario`
+  edited to be wrong, which is not a test.)
+- **Integration — refusals:** a target matching zero or two rows; a `derived`-mode stream; `amount`
+  on a yield stream; an infeasible band caught by the feasibility pass with zero builds spent; a
+  second concurrent run; 9 knobs refused with the count rather than truncated.
+- **Gates** — server + frontend suites green **on `Scripts/test-fresh-db.sh`, not only against dev**,
+  lint 0 errors, production build clean, all six ratchets non-increasing.
+
+## 11. Non-goals
+
+- **Monte Carlo / stochastic returns** — [CR064 §14](cr-064-forecast-annual-close-and-assumptions.md):
+  *"converts a model the owner can explain line by line into one nobody can."* Still right.
+- **Two-knob grids / heat maps.** N×M builds for a picture needing a third dimension to read.
+- **Solve-for / goal-seek.** Ranked third of three by the owner; CR053's bisection is the base for it.
+- **Stored run history** — Decision 6.
+- **Converting CR053's solver to `withScratchScenario`** — worth doing, not here (§3).
+- **No engine change.** Every number comes from `generateForecast`, unmodified.
+
+## 12. Phases
+
+| | scope | state |
+|---|---|---|
+| **P0** | §9 — migration 073, `is_scratch` filtering and sweep, `copyScenario` child lists derived + tests | **BUILT, verified on a fresh DB. GO at sign-off — ships standalone, prod pending.** |
+| **P1** | The knob layer (module + stream knobs only), the two routes, the tornado page, two metrics | **DEFERRED (§15).** Unblocks on the SRQ financing experiment + CR083 P1 |
+| **P2** | Sweep view (`FCTrajectoryChart`) · the `forecast_stream_changes` list knobs (§4.1) · the assumption-list and binary knobs cut from P1 | **DEFERRED**, after P1 |
+
+## 13. Open
+
+1. ~~**§6 layer 3**~~ — **CLOSED by cutting it** (§15 cut 3). The owner's original decision was
+   "abort unless the zero-point matches a fresh build of the source"; layers 1 and 2 deliver the
+   protection and the divergence signal for free, so the toggle is not built. **This overrides an
+   owner decision and should be confirmed rather than assumed.**
+2. **The regime-change threshold** (§5.4). A number picked without evidence will cry wolf on every
+   knob or never fire. Proposal: derive it from the first real run rather than guessing now.
+3. **Whether ±1pp inflation and ±10% spend are comparable enough to share one sort.** They are not,
+   strictly, and no normalisation fixes it — elasticity is undefined for the timing and binary knobs
+   that move this plan most. **Resolution taken:** one global sort, every bar labelled with its own ±
+   (Decision 5), and a caption stating the bars answer *"how much does a plausible move in this knob
+   move the plan"*, not *"which knob is most sensitive per unit"*. Grouping by kind would fragment
+   the single output this CR exists to produce.
+
+## 14. Review — pass 1 (technical), 2026-08-19
+
+**Verdict: revise.** The reuse story and the harness held up; five blocking items did not. All are
+resolved above, and the corrections are recorded rather than silently absorbed:
+
+| finding | resolution |
+|---|---|
+| **B1** `PeriodStart`/`PeriodEnd` change what the number means (base year IS the budget; a `PeriodEnd` knob measures three different years) | Removed from the knob set — §4.1 |
+| **B2** liabilities are stored negative, so "+10%" inverts for every loan | Low/high defined on the metric, never the field — §4.2, with a negative-value test |
+| **B3** `Spread %` and friends are `forecast_stream_changes` **rows**, not columns; `amount` is 0 by construction on yield/pct_of_value streams | Whitelist keyed on `(field, mode)`; those excluded or deferred to P2 — §4.1 |
+| **B4** the four metrics are frontend code CR084 refused to port | Server returns raw entries; client computes — §5.3 |
+| **B5** a lossy restore corrupts every later point, silently | Restore replays a captured value; input fingerprint re-checked after each one — §5.2 |
+| **S1** perturbations hit CHECK constraints mid-run | Feasibility pass before any build — §5.2 |
+| **S2** NULL-load-bearing is broader than one field | Every whitelist entry declares NULL semantics — §4.3 rule 4 |
+| **S3** assumption knobs *do* widen the shared-document exposure | Stated honestly, single scoped UPDATE, `json` not `jsonb` — §4.3 rule 2, §7 hazard 3 |
+| **S4** FX had no kind | Added as relative %, with the deliberate gain/loss noted — §4 |
+| **S5** the gate's exclusions would false-positive | Consumes the repository's derived list — §6 layer 1 |
+| **S6** the tests missed the two likeliest failures | Variant-sync test, source-byte-identical test, comparator test — §10 |
+| **S7** 17 builds block the event loop; no one-run guard | §7 hazards 5 and 6 |
+| **S8** the flag must be set inside the copy transaction; the sweep needs an age floor | **Already built that way** — §9 |
+| **S9** migration under-specified vs the 070–072 house pattern | Post-conditions, schema-qualified, idempotency proved — §9 |
+| **S10** four citations off, "six steps" is five | Corrected throughout; the stale "six" traced to two repo comments — §8 |
+| **N1–N5** dead cap, missing index row, job runner overstated, CR053 unconverted, prefer `syncIfStale` | §5.1, index row added, §3, §11, §7 hazard 1 |
+
+## 15. Review — pass 2 (PM sign-off), 2026-08-19
+
+**Verdict: GO on P0 only. P1 and P2 DEFERRED.**
+
+**P0 ships standalone, now.** It fixes two pre-existing defects, one of them the same class that
+produced the ~890K `disposal_cost_pct` error, and that justification stands without CR085 existing at
+all. Verified against prod at review time: prod is at migration 072 and holds **0 rows** matching
+`__%`, so 073's back-fill flags nothing and the boot sweep is a no-op on first restart.
+
+⚠️ **The deploy order is load-bearing, not conventional.** `repositories/forecast.js`
+(`findAllScenarios`, `copyScenario`) references `is_scratch` with **no** error handling, so
+code-before-migration breaks every scenario picker and every save-time preview on prod.
+`deploy-to-production.sh` Step 2b already sequences this; it must not be hand-run out of order. And
+**between the migration and the server restart, assert `SELECT count(*) FROM forecast_scenarios
+WHERE is_scratch` = 0** — `sweepStaleScratch()` *deletes* what the back-fill flagged and swallows its
+own errors, so a too-broad flag would destroy owner data silently. Assert it at deploy time, not from
+a review taken earlier.
+
+**Why P1 is deferred — and it is not the design.** The design cleared pass 1. Two things sank the
+*case*:
+
+1. **The motivating figure was stale and the live question is not a ranking question.** Both are
+   corrected in §1.1. SRQ is a **breakeven** question; the matching instrument is solve-for, which
+   the owner ranked third. The tornado cannot resolve it.
+2. **Sequencing.** The roadmap's own board order ends *"CR066 P0, CR064 P2 and CR060 stay behind all
+   of it"* and does not mention CR085. CR083 P1 carries an unfinished correctness hazard on a page
+   the owner reads weekly; two CR059 items are date-bound; CR060 has had Bank Pekao unhealthy and
+   invisible since 2026-07-24. Opening an eleventh in-progress front — on `config/routes.jsx`, one of
+   only two files CR083's worktree contends, with Known Issue #23 live — is the delivery cost.
+
+**Unblocks on:** (a) the **SRQ financing experiment** — flip `House Morgage` off `exclude` in the SRQ
+scenario and regenerate; ten minutes, and it tests this CR's premise as well as answering the open
+question. If it settles SRQ, P1's motivation shrinks to the general class; if it surfaces *"what else
+is unset the way that growth rate was"*, P1 is validated on evidence rather than on argument. And
+(b) **CR083 P1, or its explicit closure.** Revisit in weeks, not quarters.
+
+### The five cuts, ADOPTED — they bind the P1 build and override the body where they differ
+
+| # | cut | why |
+|---|---|---|
+| 1 | **Assumption-list knobs (inflation, FX, tax) out of P1** — §4 | They are the *only* knobs that write the shared `forecast_assumptions` document (4 writes per knob per side, on rows every scenario's inflation lives in), and the sole reason §4.3 rule 2, the `json`-not-`jsonb` care and the scoped-UPDATE setter exist. Removes the CR's largest blast radius and ~⅓ of the setter surface. Inflation sensitivity is already reachable via a variant. |
+| 2 | **Two metrics, no switcher** — §5.3 | Real-terms deflation is one identical scalar across every point in a run, so it **cannot reorder a bar**. The switcher was a control that provably changes nothing. |
+| 3 | **§6 layer 3 "strict verify" not built** — §6, §13.1 | Layers 1 and 2 are free and mandatory; this was a UI control plus an unrequested write path. Closes the CR's only open owner decision by cutting rather than asking — **and therefore needs the owner's confirmation, since it overrides Decision 3's original phrasing.** |
+| 4 | **`binary` kind out of P1** — §4 | Needs a chart special case, and its two live instances (`House Morgage`, `Business Loan`, both `exclude`) deserve real variant scenarios — which is the unblocking experiment anyway. |
+| 5 | **Say that runs compose** — §5.1 | Prod carries 34 modules and 28 streams: ~250 candidate knobs against a cap of 8. Unlike the pairwise problem §1 rejects, tornado bars from separate runs **on an unchanged source share an anchor and are comparable**, so the cap is a batch size, not a limit on the question. Ship a default knob set (top-N modules by magnitude) so the first run does not open empty. |
+
+### Smaller notes carried forward
+
+- **Sweep at the start of a run too**, not only at boot — one line. A scratch leaked by a killed
+  process otherwise survives (hidden, so harmless) until the next restart.
+- **Read [CR064 P2](cr-064-forecast-annual-close-and-assumptions.md) before building P1.** It changes
+  the base-year anchoring that §4.1 reasons about when it excludes `PeriodStart`; if P2 ships after
+  P1, the whitelist needs re-checking.
+- **Two deferred items are tracked on the roadmap, not only here:** P2's `forecast_stream_changes`
+  knobs, and converting CR053's solver to `withScratchScenario` (§3, §11).

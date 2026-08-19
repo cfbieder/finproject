@@ -99,6 +99,12 @@ the dev-first migration rule, and the fact that **an engine change moves nothing
 scenarios are REGENERATED**. It changes far less often than this file does.
 
 ## Next
+- **[CR085](../cr/cr-085-forecast-sensitivity.md) P0 is built and awaiting prod** (migration **073**,
+  `is_scratch`): a throwaway scratch scenario was visible in all seven pickers, and `copyScenario`
+  still had two hand-kept child column lists. **Migration BEFORE code** — the repository reads the
+  new column unguarded — and assert 0 flagged rows between the two, because the boot sweep *deletes*
+  what the back-fill flags. **P1/P2 deferred at sign-off**; the unblocking step is the ten-minute
+  **SRQ financing experiment** (`House Morgage` is `exclude` with a full 500,000 @ 6% loan behind it).
 - ~~Advisories~~ · ~~Real terms on Compare~~ **BOTH DONE** — all 15 advisories walked, **every one
   already deliberate, no model change** ([CR076 §13](../cr/cr-076-forecast-model-review.md)); two
   rules firing on streams **not in the plan** guarded, 17 → 15
