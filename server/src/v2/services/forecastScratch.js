@@ -98,7 +98,10 @@ async function withScratchScenario(scenarioId, fn) {
   const name = `${SCRATCH_PREFIX}${scenarioId}_${Date.now()}_${Math.floor(Math.random() * 1e6)}`;
   let scratch = null;
   try {
-    scratch = await repo.copyScenario(scenarioId, name);
+    // CR085 P0 — `isScratch` marks the copy in the DATABASE (migration 073), which is what keeps
+    // it out of every scenario picker and what lets `sweepStaleScratch` find one this `finally`
+    // never got to run for. The name prefix above is now only a human-readable hint.
+    scratch = await repo.copyScenario(scenarioId, name, { isScratch: true });
     const build = async () => {
       // `writeAudit: false` — the audit CSVs are written by the container as root and a scratch's
       // would never be read. CR053 does the same.
@@ -123,10 +126,49 @@ async function readEntries(scenarioId) {
   return rows;
 }
 
+/**
+ * Delete scratch scenarios that no run can still be using — CR085 P0, closing CR084 §9.2.
+ *
+ * The `finally` in `withScratchScenario` covers every failure short of the process dying between
+ * the copy and the teardown. When that happens the copy survives, and before migration 073 it
+ * survived VISIBLY: `copyScenario` inserts `is_active = TRUE`, so it appeared in every scenario
+ * picker in the app with no way to tell it from a real scenario.
+ *
+ * ⚠️ Keyed on AGE, not on existence. A scratch belonging to a run happening right now is
+ * indistinguishable from a leaked one except by how old it is, and deleting a live one would fail
+ * the owner's build mid-flight. One hour is far longer than the longest run this harness supports
+ * (CR085 caps a sensitivity run at ~40 builds, well under a minute) and far shorter than the
+ * interval between deploys, which is when this runs.
+ *
+ * Failures are logged and swallowed: a boot-time cleanup must never stop the server from starting.
+ *
+ * @param {number} [olderThanMinutes=60]
+ * @returns {Promise<number>} how many were removed
+ */
+async function sweepStaleScratch(olderThanMinutes = 60) {
+  try {
+    const { rows } = await db.query(
+      `SELECT id, name FROM forecast_scenarios
+        WHERE is_scratch AND created_at < NOW() - ($1 || ' minutes')::interval
+        ORDER BY id`,
+      [String(olderThanMinutes)]
+    );
+    for (const r of rows) await destroyScratch(r.id, r.name);
+    if (rows.length) {
+      console.log(`[scratch] swept ${rows.length} stale scratch scenario(s): ${rows.map((r) => r.name).join(', ')}`);
+    }
+    return rows.length;
+  } catch (err) {
+    console.error('[scratch] stale sweep failed:', err.message);
+    return 0;
+  }
+}
+
 module.exports = {
   withScratchScenario,
   readEntries,
   SCRATCH_PREFIX,
   // Exported for the stale-scratch sweep and for tests that assert nothing was left behind.
   destroyScratch,
+  sweepStaleScratch,
 };

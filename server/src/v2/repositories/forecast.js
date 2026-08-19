@@ -18,7 +18,13 @@ const variants = require('../services/forecastVariants'); // CR050 — variant w
  * Get all scenarios
  */
 async function findAllScenarios({ activeOnly = true } = {}) {
-  const whereClause = activeOnly ? 'WHERE is_active = TRUE' : '';
+  // CR085 P0 — scratch scenarios are hidden from EVERY list, including the `activeOnly: false`
+  // one. A throwaway copy that outlives its run (a process killed mid-preview) is garbage the
+  // owner should never see, and `is_active` does not say so: `copyScenario` inserts TRUE, which
+  // is why one has been showing up in all seven pickers since CR053 (CR084 §9.2).
+  const whereClause = activeOnly
+    ? 'WHERE is_active = TRUE AND is_scratch = FALSE'
+    : 'WHERE is_scratch = FALSE';
   const sql = `
     SELECT s.*,
       (SELECT COUNT(*)::int FROM forecast_modules WHERE scenario_id = s.id) as module_count,
@@ -197,9 +203,17 @@ async function deleteScenario(id) {
 }
 
 /**
- * Deep copy a scenario with all related data
+ * Deep copy a scenario with all related data.
+ *
+ * @param {number} sourceId
+ * @param {string} newName
+ * @param {object} [opts]
+ * @param {boolean} [opts.isScratch=false]  mark the copy a throwaway (CR085 P0, migration 073) —
+ *   hidden from every scenario list and swept once stale. Set by the callers that create a copy
+ *   to build against and delete: CR084's preview harness and CR053's auto-adjust solver. A copy
+ *   the OWNER asked for is never scratch, which is why this defaults to false.
  */
-async function copyScenario(sourceId, newName) {
+async function copyScenario(sourceId, newName, { isScratch = false } = {}) {
   return await db.transaction(async (client) => {
     // Create new scenario
     const source = await client.query('SELECT * FROM forecast_scenarios WHERE id = $1', [sourceId]);
@@ -214,8 +228,10 @@ async function copyScenario(sourceId, newName) {
       newId = existing.rows[0].id;
       // Mirror scenario-level fields from source onto target
       await client.query(
-        'UPDATE forecast_scenarios SET cash_sweep_low = $1, cash_sweep_high = $2, updated_at = NOW() WHERE id = $3',
-        [source.rows[0].cash_sweep_low, source.rows[0].cash_sweep_high, newId]
+        `UPDATE forecast_scenarios
+            SET cash_sweep_low = $1, cash_sweep_high = $2, is_scratch = $4, updated_at = NOW()
+          WHERE id = $3`,
+        [source.rows[0].cash_sweep_low, source.rows[0].cash_sweep_high, newId, isScratch]
       );
       // Clear existing data so we can copy fresh
       const oldModules = await client.query('SELECT id FROM forecast_modules WHERE scenario_id = $1', [newId]);
@@ -228,10 +244,10 @@ async function copyScenario(sourceId, newName) {
       await client.query('DELETE FROM forecast_entries WHERE scenario_id = $1', [newId]);
     } else {
       const newScenario = await client.query(`
-        INSERT INTO forecast_scenarios (name, description, is_active, cash_sweep_low, cash_sweep_high)
-        VALUES ($1, $2, TRUE, $3, $4)
+        INSERT INTO forecast_scenarios (name, description, is_active, cash_sweep_low, cash_sweep_high, is_scratch)
+        VALUES ($1, $2, TRUE, $3, $4, $5)
         RETURNING *
-      `, [newName, `Copy of ${source.rows[0].name}`, source.rows[0].cash_sweep_low, source.rows[0].cash_sweep_high]);
+      `, [newName, `Copy of ${source.rows[0].name}`, source.rows[0].cash_sweep_low, source.rows[0].cash_sweep_high, isScratch]);
       newId = newScenario.rows[0].id;
     }
 
@@ -307,6 +323,33 @@ async function copyScenario(sourceId, newName) {
         ORDER BY ordinal_position`
     )).rows.map((r) => r.column_name);
 
+    // CR085 P0 — the CHILD lists are derived too, for the same reason the module list above is.
+    //
+    // Until now only `forecast_modules` read its columns from information_schema; its five child
+    // tables were still hand-enumerated. That is precisely how `disposal_cost_pct` (CR078,
+    // migration 062) went missing from the disposals list — every copied scenario silently lost
+    // its selling costs and reported the FULL sale proceeds, found only because a scratch copy of
+    // `2026 SRQ House Purchase` measured ~890K BETTER than the original for no modelled reason.
+    // `copyScenario.columns.test.js` was written then, but it guarded three of the five tables:
+    // `forecast_streams` and `forecast_stream_changes` were both unguarded AND hand-enumerated,
+    // in the part of the schema CR069-CR073 have been actively changing. No list is hand-kept now.
+    //
+    // Derived ONCE, outside the per-module loop: five information_schema reads per copy, not five
+    // per module. The names come from the catalog, never from a caller, so interpolating them is
+    // not an injection surface.
+    const CHILD_IDENTITY = new Set(['id', 'module_id']);
+    const childCols = async (table, notCopied = CHILD_IDENTITY) => (await client.query(
+      `SELECT column_name FROM information_schema.columns
+        WHERE table_schema = current_schema() AND table_name = $1
+        ORDER BY ordinal_position`, [table]
+    )).rows.map((r) => r.column_name).filter((c) => !notCopied.has(c));
+
+    const investCols = await childCols('forecast_module_investments');
+    const disposeCols = await childCols('forecast_module_disposals');
+    const amortCols = await childCols('forecast_module_amortization');
+    const streamCols = await childCols('forecast_streams');
+    const streamChangeCols = await childCols('forecast_stream_changes', new Set(['id', 'stream_id']));
+
     for (const mod of modules.rows) {
       const placeholders = copyCols.map((_, i) => `$${i + 2}`).join(', ');
       const newModule = await client.query(
@@ -318,36 +361,19 @@ async function copyScenario(sourceId, newName) {
       const newModuleId = newModule.rows[0].id;
       idMap.set(mod.id, newModuleId);
 
-      // Copy investments
-      await client.query(`
-        INSERT INTO forecast_module_investments (module_id, investment_date, amount, flag, note, date_end)
-        SELECT $1, investment_date, amount, flag, note, date_end FROM forecast_module_investments WHERE module_id = $2
-      `, [newModuleId, mod.id]);
-
-      // Copy disposals.
-      //
-      // ⚠️ `disposal_cost_pct` (CR078, migration 062) is part of this list, and was missing from
-      // it until 2026-08-10 — so every scenario made by COPY silently lost its selling costs and
-      // reported the full sale proceeds. v3.25.2 fixed exactly this omission in the VARIANT SYNC
-      // path; this is the same column dropped from the other hand-maintained list, found when a
-      // scratch copy of `2026 SRQ House Purchase` measured ~890K better than the original for no
-      // modelled reason. Same failure shape as CR064 P6's sweep of hand-kept column lists.
-      //
-      // A new column on this table MUST be added here. `copyScenario.columns.test.js` asserts the
-      // copy round-trips every column of this table, so the next omission fails a test instead of
-      // quietly inflating a forecast.
-      await client.query(`
-        INSERT INTO forecast_module_disposals
-          (module_id, disposal_date, amount, flag, note, date_end, disposal_cost_pct)
-        SELECT $1, disposal_date, amount, flag, note, date_end, disposal_cost_pct
-        FROM forecast_module_disposals WHERE module_id = $2
-      `, [newModuleId, mod.id]);
-
-      // Copy the CR062 amortization schedule
-      await client.query(`
-        INSERT INTO forecast_module_amortization (module_id, effective_date, pct)
-        SELECT $1, effective_date, pct FROM forecast_module_amortization WHERE module_id = $2
-      `, [newModuleId, mod.id]);
+      // The module's three flat schedules. One shape for all of them: every column the table
+      // has, straight across, under the new parent id.
+      for (const [table, cols] of [
+        ['forecast_module_investments', investCols],
+        ['forecast_module_disposals', disposeCols],
+        ['forecast_module_amortization', amortCols],
+      ]) {
+        await client.query(
+          `INSERT INTO ${table} (module_id, ${cols.join(', ')})
+           SELECT $1, ${cols.join(', ')} FROM ${table} WHERE module_id = $2`,
+          [newModuleId, mod.id]
+        );
+      }
 
       // CR069 — streams, and each stream's own change rows. TWO levels, so the child ids have
       // to be remapped as they are created; a `SELECT ... INSERT` cannot express it. A copy
@@ -357,17 +383,18 @@ async function copyScenario(sourceId, newName) {
         'SELECT * FROM forecast_streams WHERE module_id = $1 ORDER BY id', [mod.id]
       );
       for (const st of srcStreams.rows) {
-        const newStream = await client.query(`
-          INSERT INTO forecast_streams (
-            module_id, direction, fc_line_id, mode, amount, amount_usd,
-            growth_mult, start_date, end_date, tax_rate_override
-          ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10) RETURNING id
-        `, [newModuleId, st.direction, st.fc_line_id, st.mode, st.amount, st.amount_usd,
-            st.growth_mult, st.start_date, st.end_date, st.tax_rate_override]);
-        await client.query(`
-          INSERT INTO forecast_stream_changes (stream_id, change_date, amount, flag)
-          SELECT $1, change_date, amount, flag FROM forecast_stream_changes WHERE stream_id = $2
-        `, [newStream.rows[0].id, st.id]);
+        const streamPlaceholders = streamCols.map((_, i) => `$${i + 2}`).join(', ');
+        const newStream = await client.query(
+          `INSERT INTO forecast_streams (module_id, ${streamCols.join(', ')})
+           VALUES ($1, ${streamPlaceholders}) RETURNING id`,
+          [newModuleId, ...streamCols.map((c) => st[c] ?? null)]
+        );
+        await client.query(
+          `INSERT INTO forecast_stream_changes (stream_id, ${streamChangeCols.join(', ')})
+           SELECT $1, ${streamChangeCols.join(', ')}
+             FROM forecast_stream_changes WHERE stream_id = $2`,
+          [newStream.rows[0].id, st.id]
+        );
       }
     }
 

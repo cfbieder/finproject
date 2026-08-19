@@ -219,7 +219,7 @@ async function solveSpendReduction({ scenarioName, lines, minRetain = 0, toleran
   const scratchName = `${SCRATCH_PREFIX}${target.id}_${Date.now()}_${Math.floor(Math.random() * 1e6)}`;
   let scratch = null;
   try {
-    scratch = await repo.copyScenario(target.id, scratchName);
+    scratch = await repo.copyScenario(target.id, scratchName, { isScratch: true }); // CR085 P0
     const baseline = await readScratchBaseline(scratch.id, resolved);
 
     let evals = 0;
