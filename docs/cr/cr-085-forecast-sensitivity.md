@@ -413,7 +413,16 @@ fresh DB enforces 007's CHECK that dev has auto-baselined away (Known Issue #18)
 ## 11. Non-goals
 
 - **Monte Carlo / stochastic returns** — [CR064 §14](cr-064-forecast-annual-close-and-assumptions.md):
-  *"converts a model the owner can explain line by line into one nobody can."* Still right.
+  *"converts a model the owner can explain line by line into one nobody can."* Still right, and the
+  competitor review of 2026-08-19 (§16) strengthened it twice. **Measured on dev:** valuation modules
+  total **$12,587,446**, of which marketable securities (Fidelity Stocks + Fixed Income) are **$2.61M
+  = 21%**. A Monte Carlo over equity vol would randomise that fifth while holding constant the things
+  that actually decide the answer — the United Beverages exit price (**$4,175,595 = 33% of the sheet**,
+  realised in one `Full` disposal on 2036-07-01), the sale years, and the PLN/EUR paths. **And the
+  incumbent's own documentation admits the failure mode:** Boldin publishes a help article explaining
+  why its Monte Carlo page disagrees with its Overview *and* with its Chance of Success report —
+  three surfaces, three numbers, one plan. The tornado is the honest form of the question here: not
+  *"82%"*, but *"a 1pp inflation miss costs X"*.
 - **Two-knob grids / heat maps.** N×M builds for a picture needing a third dimension to read.
 - **Solve-for / goal-seek.** Ranked third of three by the owner; CR053's bisection is the base for it.
 - **Stored run history** — Decision 6.
@@ -522,3 +531,58 @@ is unset the way that growth rate was"*, P1 is validated on evidence rather than
   P1, the whitelist needs re-checking.
 - **Two deferred items are tracked on the roadmap, not only here:** P2's `forecast_stream_changes`
   knobs, and converting CR053's solver to `withScratchScenario` (§3, §11).
+
+## 16. Competitor review, 2026-08-19 — what this CR already covers
+
+Owner-requested review of three commercial products (**Boldin** ex-NewRetirement · **Odyssey Money**
+· **Monarch Money**), asking whether they carry features or formatting Fin should adopt. Recorded
+here because the answer for the planning half is largely *"CR085, already designed"* — and because
+one product ships this CR's exact output, which is corroboration the design did not have at sign-off.
+
+**Odyssey Money's entire projection surface is a tornado in chip form.** Its "adjustments that could
+make a meaningful difference" is a row of discrete labelled levers — `+$200/month`, `Delay SS to 70`,
+`+2 years`, `Market crash (−30%)`, `SS −23%` — each carrying its own delta. Four of this CR's
+decisions match it, arrived at independently:
+
+| Odyssey / Boldin pattern | Already decided here |
+|---|---|
+| Magnitude baked into the lever's own label | Decision 5 — one global sort, **every bar labelled with its own ±** |
+| Upside and adverse stress-tests in one row | §4.2 — low/high defined **on the metric, never the field** |
+| Never opens empty | §15 cut 5 — ship a default knob set (top-N modules by magnitude) |
+| Non-linear response | §5.4 — regime-change detection (threshold still open, §13.2) |
+
+*Not adopted from them:* Odyssey's **0–100 readiness score** and Boldin's **Chance of Success %** —
+composites that hide which scenario and which assumption produced them, which is the restatement
+class [CR076](cr-076-forecast-model-review.md) exists to remove. Fin already reports the stronger
+statement: *the year cash runs out and by how much* (`fcWarnings.js`). Boldin's **Roth Conversion
+Explorer**, **RMDs** and **SS claiming optimiser** fail on measured data rather than on principle —
+tax-deferred is **$292,069 = 2.3%** of assets, and `Fidelity IRA` is a *child* of `Fidelity Stock`,
+so it is not even separated from taxable. Caveat on the third product: Odyssey's whole public surface
+is 11 pages with **no independent coverage found**, so everything about it is vendor-stated.
+
+### Deliberately NOT folded into this CR — drafted after CR085 is implemented (owner, 2026-08-19)
+
+The review produced two forecast outputs worth building. **Neither belongs here**: they share no
+machinery with the tornado (no scratch copies, no knobs, no job/poll), and P1 is deferred on
+*delivery cost*, not design (§15) — adding scope would make its unblock harder and would need a
+third review pass. Tracked as a roadmap bullet until then.
+
+1. **Lifetime tax per scenario.** Boldin's moat is that lifetime federal tax and lifetime IRMAA are
+   comparable scenario metrics. **Fin computes lifetime tax and discards it** — `2026 Base` carries
+   **183 `Taxes` rows summing −$4,120,870** nominal, on no surface anywhere. A row on
+   `/forecast-compare`, nominal and in today's money, per scenario (a cross-scenario total is
+   meaningless). SQL sum + UI row: no schema, no engine. It also makes a future tax knob legible.
+2. **Concentration and liquidity on the Equity report.** The largest risk in this plan is one none of
+   the three products would detect: **33% of the sheet is one PLN business** realised in a single
+   2036 disposal, while the assets the sweep can actually sell are **21%**. `equity.js` already
+   computes value − secured debt per asset per year; two derived columns plus a `>25% in one module`
+   rule in `fcWarnings.js`. Argue it as a warning, not a chart — the warnings panel is where the
+   owner already looks.
+
+*Also out, and stated so it is not re-proposed:* **extending CR053's solver** to bisect on a disposal
+year or loan size — §11 already lists solve-for **and** the solver conversion as non-goals, and §15
+found SRQ to be a breakeven question the tornado cannot resolve. **Recurring-transaction detection**
+belongs to [CR083](cr-083-budget-latest-estimate.md) as an LE worksheet pre-fill, if the LE proves
+annoying to fill — measure that before building. The formatting findings (delta percentages, a
+balance-sheet Δ column, `AttentionStrip` on mobile, one negative-money convention on Home) are
+cross-page UI with no forecast content and want a patch release, not a CR.
