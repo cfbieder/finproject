@@ -1451,6 +1451,63 @@ content-only detector, which is precisely the §22.8 over-report the shape test 
 
 **§22 is now closed except item 3** (the fetch floor), which §22.9–22.10 answered by inverting it.
 
+## 22.12 The upstream did change its ids — nine days later, and it cost us nothing (2026-08-20)
+
+Fintable emailed to say they had corrected how they derive a GoCardless transaction's identity: every
+GoCardless `ext_id` re-keys **once** to a value beginning `gocardless_v3_`, part of it already shipped
+inside a bug fix without an announcement. This is the exact event §22.7 was built against — *"what
+catches the next upstream that changes its ids?"* — arriving **nine days** after that guard shipped.
+
+**It cost us nothing, and the reason is one line of the converter.**
+`converters/fintableApiToCanonical.js` keys `external_id` on **`tx.id`**, not `ext_id`. The string
+`ext_id` appears **nowhere** in bank-feed's or fin's source; it is stored inside `raw.row` and never
+read. Fintable's own guidance — *"if you key on `id`, there is nothing to do"* — applies to us
+unmodified.
+
+**The re-key had already reached us before the email did.** 155 rows in the feed store carry
+`gocardless_v3_` in `raw.row.ext_id`, dated **2026-07-20 → 2026-08-19**; two carry `previous_ext_id`.
+Our keys stayed 29-char `tx_` ULIDs throughout, the ledger holds 184 of them, and the hourly gate was
+green across the whole window — it pairs on **amount + date + description within a tolerance, never on
+an id**, so it is structurally immune to a re-key. That immunity was designed for a different reason
+(§13.2's basis shift) and paid off here.
+
+**`ext_id` IS the Sheet's `⚡ Transaction ID` column — confirmed, not inferred.** Both
+`previous_ext_id` values (`4044604745776048193--4365c160…`, `…--634f1912…`) exist as `external_id`
+keys in our own store as Sheet-era rows. So the composite §22.2 describes as
+`{provider_account_id}--{event_hash}` is Fintable's `ext_id`, and the new shape is
+`{provider_account_id}--gocardless_v3_{64 hex}`. Fittingly, both sit on `4044604745776048193` — the
+legacy Revolut wallet migration **050** made ignore-only.
+
+### What this would have done to the Sheet path
+
+The rollback (`FINTABLE_SOURCE=sheets`) is the one place this bites, and it bites twice.
+
+1. **A mass duplicate, §22.2 verbatim.** Every GoCardless row would arrive under a new id. The
+   event-hash guard splits on `--` and matches the **suffix**, now `gocardless_v3_<hash>`, which can
+   never equal any of the 776 Sheet-era hashes in the ledger — so it would go dormant a second time,
+   by a second mechanism, exactly as it did at cutover. **§22.7's content guard is what would hold**,
+   and this is the first evidence that the class it closes is real rather than anticipated.
+2. **⚠️ A hard length overflow — new, and nobody had checked it.** One `ext_id` measures **110
+   characters** (`acc_01KYS5BECVFH89QPSRQSFN4M99--gocardless_v3_…`) against **`VARCHAR(100)`** on both
+   `bankfeed_staging.external_id` and `transactions.bank_feed_external_id`. 150 more sit at **99** —
+   one character of headroom. It would throw rather than corrupt, so it fails loudly, but it would
+   stop ingest dead.
+
+**The durable fact, worth more than either:** bank-feed's `feed_transactions.external_id` is
+**`VARCHAR(200)`** while fin's two id columns are **`VARCHAR(100)`**. *fin's ledger cannot hold every
+id bank-feed's store can.* Any future upstream with longer ids breaks at the **fin** boundary, not the
+one we would think to check — and the width asymmetry is invisible from either repo alone. Not worth a
+widening migration today (API ids are a fixed 29 chars and the Sheet path retires), but it is the
+thing to look at first the next time an id scheme moves.
+
+**Not accepted: Fintable's offer to hold our connections at their current ids.** It would freeze us on
+the derivation they have just told us was wrong, for a re-key we are structurally indifferent to.
+
+**The caveat this does not remove.** *"We key on `id`, so we are safe"* is a **promise, not a
+structural guarantee.** Migration **050** records Fintable re-serving Revolut history under fresh
+`tx_` ids when that wallet was rebuilt — so `id` has moved before, on the very account these two
+`previous_ext_id` rows sit on. The content guard, not the choice of key, is what actually covers that.
+
 ## Status
 
 P0 done (§11), P1 built and shadow-verified (§13), both §12 decisions settled, default still

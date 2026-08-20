@@ -182,6 +182,9 @@ scenarios are REGENERATED**. It changes far less often than this file does.
 - **[CR066](../cr/cr-066-fc-line-mapping-completeness.md) P0** · **CR064 P2/P4/P5/P10** ·
   **CR060's recon page** (CR059 is **done** — cut over to the API 2026-08-10; what remains is dated,
   not built: retire the Sheet rollback ~2026-08-24 and the 2026-08-31 gate-exception expiry).
+  **Fintable re-keyed every GoCardless `ext_id` 2026-08-20 — we were unaffected, because we key on
+  `tx.id`** ([§22.12](../cr/cr-059-fintable-api-ingestion.md)); it makes the Sheet rollback a
+  repair-before-use path, not a revert.
 - **With the owner, do not start unasked:** "2026 Downside" (being redone) · CR048's equity-growth
   and FX-stress decisions · [CR058 §12.8–12.9](../cr/cr-058-quicken-valuation-anchors.md) ·
   [CR059](../cr/cr-059-fintable-api-ingestion.md)'s Chase date basis. **`House Morgage` is
