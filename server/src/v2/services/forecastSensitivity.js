@@ -373,7 +373,7 @@ async function listKnobs(scenarioName, client = db) {
   );
   const out = [];
 
-  const offer = (spec, row, moduleRow, target, current) => {
+  const offer = (spec, row, moduleRow, target, current, streams = []) => {
     try {
       knobs._internals.assertApplicable(spec, row, moduleRow);
     } catch {
@@ -383,23 +383,29 @@ async function listKnobs(scenarioName, client = db) {
       entity: spec.entity, field: spec.field, kind: spec.kind, label: spec.label,
       band: knobs.DEFAULT_BAND[spec.kind],
       module: moduleRow.name, moduleType: moduleRow.module_type, target,
+      // Asset · liability · income · expense, decided server-side from what the ENGINE branches
+      // on. The frontend must not re-derive it from `module_type`, which is free text.
+      group: knobs.knobGroup(spec, row, moduleRow, streams),
       current: current == null ? null : String(current),
     });
   };
 
   for (const m of mods) {
-    for (const [field, spec] of Object.entries(knobs.MODULE_FIELDS)) {
-      offer({ ...spec, entity: 'module', field }, m, m, { module: m.name }, m[field]);
-    }
-
+    // Loaded FIRST: a flow module has no valuation to classify by, so its group comes from the
+    // direction of its own streams.
     const { rows: streams } = await client.query(
       'SELECT * FROM forecast_streams WHERE module_id = $1 ORDER BY direction, id', [m.id]
     );
+
+    for (const [field, spec] of Object.entries(knobs.MODULE_FIELDS)) {
+      offer({ ...spec, entity: 'module', field }, m, m, { module: m.name }, m[field], streams);
+    }
+
     for (const st of streams) {
       for (const [field, spec] of Object.entries(knobs.STREAM_FIELDS)) {
         offer(
           { ...spec, entity: 'stream', field }, st, m,
-          { module: m.name, direction: st.direction, fcLineId: st.fc_line_id }, st[field]
+          { module: m.name, direction: st.direction, fcLineId: st.fc_line_id }, st[field], streams
         );
       }
     }
@@ -412,9 +418,12 @@ async function listKnobs(scenarioName, client = db) {
         const date = d.disposal_date instanceof Date
           ? `${d.disposal_date.getFullYear()}-${String(d.disposal_date.getMonth() + 1).padStart(2, '0')}-${String(d.disposal_date.getDate()).padStart(2, '0')}`
           : d.disposal_date;
+        // ⚠️ The date rides in the LABEL. A module with three disposals otherwise offers
+        // "Disposal amount / Selling cost / Disposal date" three times over with nothing to
+        // tell them apart, and picking the wrong one is invisible until the bar is wrong.
         offer(
-          { ...spec, entity: 'disposal', field }, d, m,
-          { module: m.name, date }, d[field]
+          { ...spec, entity: 'disposal', field, label: `${spec.label} (${date})` }, d, m,
+          { module: m.name, date }, d[field], streams
         );
       }
     }

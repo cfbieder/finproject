@@ -131,3 +131,82 @@ describe('shiftYears reads LOCAL date components', () => {
     expect(shiftYears('2040-02-29', 1)).toBe('2041-02-29');   // normalised by Postgres on write
   });
 });
+
+
+describe("⚠️ knobs the ENGINE would never read are refused, not offered", () => {
+  const { _internals } = require("../sensitivityKnobs");
+  const flow = { name: "Living Expenses", has_valuation: false, setup_status: "complete" };
+  const valued = { name: "Sarasota House", has_valuation: true, setup_status: "complete" };
+
+  it("refuses growth and value on a module with NO valuation", () => {
+    // fcbuilder-module.js forces all three to zero when has_valuation is false:
+    //   baseValues = hasValuation ? BaseValue : 0   (:142)
+    //   marketValues = hasValuation ? MarketValue : 0 (:143)
+    //   growthPct  = hasValuation ? Growth : 0      (:288)
+    // Twelve of thirty live modules are flow modules, so this was ~36 no-op knobs on offer, each
+    // drawing a zero bar that reads "this assumption does not matter".
+    for (const field of ["growth_rate", "market_value", "base_value"]) {
+      expect(() => _internals.assertApplicable(spec("module", field), flow, flow))
+        .toThrow(/reads its value and growth as ZERO/);
+    }
+  });
+
+  it("still allows the module tax rate on a flow module", () => {
+    // It is the FALLBACK for a stream's income tax, so it is live even with no valuation.
+    expect(() => _internals.assertApplicable(spec("module", "tax_rate_override"), flow, flow))
+      .not.toThrow();
+  });
+
+  it("refuses the loan fields on a module carrying no loan", () => {
+    const noLoan = { ...valued, loan_principal: null };
+    expect(() => _internals.assertApplicable(spec("module", "loan_interest_rate"), noLoan, noLoan))
+      .toThrow(/carries no loan/);
+  });
+
+  it("allows them once a loan is there", () => {
+    const loan = { ...valued, loan_principal: 500000 };
+    expect(() => _internals.assertApplicable(spec("module", "loan_interest_rate"), loan, loan))
+      .not.toThrow();
+  });
+});
+
+describe("knobGroup classifies from the ENGINE, never from module_type", () => {
+  const { knobGroup } = require("../sensitivityKnobs");
+  const mod = (over) => ({
+    name: "m", has_valuation: true, market_value: 100, base_value: 100,
+    loan_principal: null, module_type: "Whatever The Owner Typed", ...over,
+  });
+
+  it("a valued module is an asset; a negative one is a liability", () => {
+    expect(knobGroup(spec("module", "growth_rate"), mod(), mod())).toBe("asset");
+    // `PLN Credit Cards` lives at -24,542.66 and moduleWrite treats market_value < 0 as debt.
+    const debt = mod({ market_value: -24542.66 });
+    expect(knobGroup(spec("module", "growth_rate"), debt, debt)).toBe("liability");
+  });
+
+  it("a module carrying a loan is a liability whatever its value says", () => {
+    const loan = mod({ loan_principal: 500000 });
+    expect(knobGroup(spec("module", "growth_rate"), loan, loan)).toBe("liability");
+  });
+
+  it("a stream is classified by its own direction", () => {
+    const m = mod({ has_valuation: false });
+    expect(knobGroup(spec("stream", "amount"), { direction: "income" }, m)).toBe("income");
+    expect(knobGroup(spec("stream", "amount"), { direction: "expense" }, m)).toBe("expense");
+  });
+
+  it("a flow module takes the direction of its streams", () => {
+    const m = mod({ has_valuation: false });
+    const k = spec("module", "tax_rate_override");
+    expect(knobGroup(k, m, m, [{ direction: "expense" }])).toBe("expense");
+    expect(knobGroup(k, m, m, [{ direction: "income" }])).toBe("income");
+    expect(knobGroup(k, m, m, [])).toBe("other");
+  });
+
+  it("⚠️ ignores module_type entirely — it is free text the owner edits", () => {
+    // Prod carries both `Asset` and `Business`, and nothing constrains the column. CR070 records
+    // the same rule for module capabilities.
+    const liar = mod({ module_type: "Expense", market_value: 100 });
+    expect(knobGroup(spec("module", "growth_rate"), liar, liar)).toBe("asset");
+  });
+});

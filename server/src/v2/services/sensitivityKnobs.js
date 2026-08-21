@@ -45,21 +45,38 @@ const DEFAULT_BAND = Object.freeze({
  * value would change the model's SHAPE rather than its size.
  */
 const MODULE_FIELDS = Object.freeze({
+  // ⚠️ `requiresValuation` is an ENGINE precondition, not a UI preference. `fcbuilder-module.js`
+  // forces all three of these to zero when `has_valuation` is false:
+  //     baseValues   = hasValuation ? BaseValue   : 0     (:142)
+  //     marketValues = hasValuation ? MarketValue : 0     (:143)
+  //     growthPct    = hasValuation ? Growth      : 0     (:288)
+  // so on a flow module the knob writes, the build succeeds and NOTHING moves — a zero-length bar
+  // that reads "this assumption does not matter" when the truth is "the engine never reads this
+  // field here". Twelve of the thirty live modules on `2026 Base` are flow modules, so this was
+  // roughly 36 no-op knobs on offer.
   growth_rate: {
-    kind: KIND.MULTIPLIER, label: 'Growth (× inflation)', nullIs: 0,
+    kind: KIND.MULTIPLIER, label: 'Growth (× inflation)', nullIs: 0, requiresValuation: true,
   },
   market_value: {
     kind: KIND.LEVEL, label: 'Market value', usdTwin: 'market_value_usd', nullIs: 0,
+    requiresValuation: true,
   },
   base_value: {
     kind: KIND.LEVEL, label: 'Cost basis', usdTwin: 'base_value_usd', nullIs: 0,
+    requiresValuation: true,
   },
-  loan_principal: { kind: KIND.LEVEL, label: 'Loan principal', nullIs: 0 },
-  loan_interest_rate: { kind: KIND.RATE, label: 'Loan interest rate', nullIs: 0 },
+  // The three loan fields are read only when the module actually carries a loan.
+  loan_principal: { kind: KIND.LEVEL, label: 'Loan principal', nullIs: 0, requiresLoan: true },
+  loan_interest_rate: { kind: KIND.RATE, label: 'Loan interest rate', nullIs: 0, requiresLoan: true },
+  loan_end_date: {
+    kind: KIND.TIMING, label: 'Loan end date', refuseWhenNull: true, requiresLoan: true,
+  },
+  // NOT valuation-gated: besides capital gains, this is the FALLBACK for a stream's income tax
+  // (`stream.tax_rate_override ?? module.tax_rate_override ?? scenarioRate`, fcbuilder-module.js
+  // :632-634), so it is live on a flow module whose streams carry no override of their own.
   tax_rate_override: {
     kind: KIND.RATE, label: 'Tax rate (gains)', nullIsScenarioRate: true,
   },
-  loan_end_date: { kind: KIND.TIMING, label: 'Loan end date', refuseWhenNull: true },
 });
 
 const STREAM_FIELDS = Object.freeze({
@@ -80,13 +97,16 @@ const STREAM_FIELDS = Object.freeze({
 });
 
 const DISPOSAL_FIELDS = Object.freeze({
-  amount: { kind: KIND.LEVEL, label: 'Disposal amount', nullIs: 0 },
+  // Disposing of a module the engine values at zero moves nothing — same gate, same reason.
+  amount: { kind: KIND.LEVEL, label: 'Disposal amount', nullIs: 0, requiresValuation: true },
   disposal_cost_pct: {
-    kind: KIND.RATE, label: 'Selling cost', nullIs: 0,
+    kind: KIND.RATE, label: 'Selling cost', nullIs: 0, requiresValuation: true,
     // CR078: NULL means "no selling cost modelled" and 0 means "considered, and free". They are
     // different statements, so a restore must put NULL back as NULL.
   },
-  disposal_date: { kind: KIND.TIMING, label: 'Disposal date', refuseWhenNull: true },
+  disposal_date: {
+    kind: KIND.TIMING, label: 'Disposal date', refuseWhenNull: true, requiresValuation: true,
+  },
 });
 
 const ENTITIES = Object.freeze({
@@ -307,6 +327,18 @@ function assertApplicable(spec, row, moduleRow) {
     throw new KnobError(`"${spec.label}" is not set on this row, so there is nothing to shift.`);
   }
 
+  if (spec.requiresValuation && moduleRow && !moduleRow.has_valuation) {
+    throw new KnobError(
+      `"${moduleRow.name}" carries no valuation, so the engine reads its value and growth as ` +
+      `ZERO — "${spec.label}" would move nothing. This module is its streams; sensitise one of ` +
+      `those instead.`
+    );
+  }
+
+  if (spec.requiresLoan && moduleRow && moduleRow.loan_principal == null) {
+    throw new KnobError(`"${moduleRow.name}" carries no loan, so "${spec.label}" is never read.`);
+  }
+
   // ⚠️ THE EXCLUDED-MODULE GUARD APPLIES TO EVERY ENTITY, NOT JUST TO MODULE FIELDS.
   //
   // The engine skips an `exclude` module entirely, so a knob anywhere underneath it — a stream
@@ -324,8 +356,48 @@ function assertApplicable(spec, row, moduleRow) {
   }
 }
 
+/**
+ * Which of the four groups a knob belongs in — asset · liability · income · expense.
+ *
+ * ⚠️ Keyed on what the ENGINE branches on: `has_valuation`, the SIGN of the value, the presence of
+ * a loan, and a stream's `direction`. **Never on `module_type`**, which is free text the owner
+ * edits — prod carries both `Asset` and `Business` and nothing constrains it. CR070 records the
+ * same rule for module capabilities and for the same reason.
+ *
+ * A liability is a module the engine treats as debt: it carries a loan, or its value is negative
+ * (`moduleWrite.js` treats `market_value < 0` as debt; the engine's worked example is
+ * `PLN Credit Cards` at −24,542.66).
+ */
+function knobGroup(spec, row, moduleRow, streams = []) {
+  if (spec.entity === 'stream') return row.direction === 'income' ? 'income' : 'expense';
+
+  const isDebt = moduleRow.loan_principal != null
+    || Number(moduleRow.market_value) < 0
+    || Number(moduleRow.base_value) < 0;
+
+  if (moduleRow.has_valuation) return isDebt ? 'liability' : 'asset';
+
+  // A flow module IS its streams, so a module-level knob on one inherits their direction.
+  const dirs = new Set(streams.map((st) => st.direction));
+  if (dirs.has('income') && !dirs.has('expense')) return 'income';
+  if (dirs.has('expense') && !dirs.has('income')) return 'expense';
+  if (dirs.has('income')) return 'income';
+  return 'other';
+}
+
+/** Display order — balance sheet first, then the flows, as the owner reads a plan. */
+const GROUPS = Object.freeze([
+  { key: 'asset', label: 'Assets' },
+  { key: 'liability', label: 'Liabilities' },
+  { key: 'income', label: 'Income' },
+  { key: 'expense', label: 'Expenses' },
+  { key: 'other', label: 'Other' },
+]);
+
 module.exports = {
   KIND,
+  knobGroup,
+  GROUPS,
   DEFAULT_BAND,
   KnobError,
   ENTITIES,
