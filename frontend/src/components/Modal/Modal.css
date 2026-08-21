@@ -42,6 +42,12 @@
   width: min(720px, calc(100vw - 3rem));
 }
 
+/* CR085 — a chart needs the width a chart needs. A 36-year trajectory at 720px puts the year
+   ticks on top of each other, which is the one axis on that chart a reader scans. */
+.modal--chart {
+  width: min(1200px, calc(100vw - 3rem));
+}
+
 /* Bare mode: position + focus context only; the caller's own card supplies the
    background, border, padding, and width (used for the migrated fc-*-modals). */
 .modal--bare {

@@ -174,3 +174,113 @@ export function storedDrift(result, shared) {
   const delta = fresh - stored;
   return Math.abs(delta) < 1 ? null : { fresh, stored, delta };
 }
+
+/**
+ * The three trajectories behind ONE bar — base, that knob's low run, its high run.
+ *
+ * ⚠️ WHY THIS EXISTS. The tornado ranks on a single end-year number, and that number cannot say
+ * WHEN the damage lands. A knob costing 70K by 2062 but running the plan dry in 2041 is a
+ * different problem from one that drifts gently for thirty-five years, and both draw the same bar.
+ *
+ * ⚠️ SERIES ARE KEYED BY YEAR, NEVER BY ARRAY POSITION. Each matrix trims its years to its own
+ * `PeriodStart` (fcCompareUtils.js), so plotting the arrays positionally would silently shift two
+ * runs against each other — same index, different year, no error, a wrong chart that looks right.
+ * This is CR067 §4's trap; the runs here share a PeriodStart today, which is exactly what would
+ * make a positional bug invisible.
+ *
+ * @returns {{years: number[], series: Array<{name, values, color, strokeWidth}>}}
+ */
+export function knobTrajectory(result, knobId, shared, metricKey, colors, mode = "absolute") {
+  if (!result) return { years: [], series: [] };
+
+  const runs = [
+    { key: "base", label: "base", entries: result.anchor?.entries, width: 3, color: colors.base },
+    ...["low", "high"].map((side) => {
+      const p = (result.points || []).find((x) => x.knobId === knobId && x.side === side);
+      return {
+        key: side,
+        label: side === "low" ? "down" : "up",
+        entries: p?.entries,
+        width: 1.75,
+        color: side === "low" ? colors.adverse : colors.favourable,
+      };
+    }),
+  ].filter((r) => Array.isArray(r.entries) && r.entries.length);
+
+  const matrices = runs.map((r) => ({ ...r, matrix: matrixFor(r.entries, shared) }))
+    .filter((r) => r.matrix);
+  if (!matrices.length) return { years: [], series: [] };
+
+  const years = [...new Set(matrices.flatMap((r) => r.matrix.years || []))]
+    .map(Number).filter(Number.isFinite).sort((a, b) => a - b);
+
+  const perRun = matrices.map((r) => ({
+    ...r,
+    byYear: seriesByYear(r.matrix, metricKey),
+  }));
+
+  // ⚠️ THE ABSOLUTE VIEW HIDES MOST KNOBS. A ±0.25× growth knob moves ~180K against a $12M plan,
+  // so all three lines overlap and the reader learns nothing about WHEN they separate — which is
+  // the entire reason this chart exists beside the bar. The delta view subtracts the base, so the
+  // base is a flat zero and the two runs fan out at whatever scale they actually have.
+  const baseByYear = perRun.find((r) => r.key === "base")?.byYear;
+  const asDelta = mode === "delta" && baseByYear;
+
+  const series = perRun
+    // In delta mode the base IS the zero line, so drawing it as a series would be a flat line
+    // labelled "base" on top of the axis.
+    .filter((r) => !(asDelta && r.key === "base"))
+    .map((r) => ({
+      name: r.label,
+      color: r.color,
+      strokeWidth: asDelta ? 2 : r.width,
+      // Interior gaps stay gaps: a year the engine wrote no rows for is a break in the line,
+      // not a collapse to zero.
+      values: years.map((y) => {
+        const v = r.byYear.has(y) ? r.byYear.get(y) : null;
+        if (!asDelta) return v;
+        const b = baseByYear.has(y) ? baseByYear.get(y) : null;
+        return v == null || b == null ? null : v - b;
+      }),
+    }));
+
+  return { years, series };
+}
+
+function matrixFor(entries, shared) {
+  const years = yearsOf(entries);
+  if (!years.length) return null;
+  const m = buildScenarioMatrix({
+    entries,
+    years,
+    periodStart: shared.periodStart,
+    baseYearValues: shared.baseYearValues,
+    lastActualBalance: shared.lastActualBalance,
+    cashAccountMap: shared.cashAccountMap,
+    balanceAccountMap: shared.balanceAccountMap,
+    balanceRows: shared.balanceRows,
+  });
+  return m ? { ...m, years: m.years || years } : null;
+}
+
+/**
+ * One metric's values keyed by YEAR.
+ *
+ * ⚠️ `netCashFlow` exists TWICE on a matrix — a top-level array of plain numbers that is never
+ * null, and `cash.get("Net Cash Flow")` which IS null in a year carrying no Income/Expense/
+ * Transfers rows. Compare plots the second; reading the first draws 0 where Compare draws a gap.
+ */
+function seriesByYear(matrix, metricKey) {
+  const rowFor = {
+    netAssets: () => matrix.netAssets,
+    totalAssets: () => matrix.totalAssets,
+    netCashFlow: () => matrix.cash?.get("Net Cash Flow"),
+    income: () => matrix.cash?.get("Income"),
+    expense: () => matrix.cash?.get("Expense"),
+  }[metricKey];
+  const values = rowFor ? rowFor() : null;
+  const out = new Map();
+  if (!Array.isArray(values)) return out;
+  (matrix.years || []).forEach((y, i) => out.set(Number(y), values[i] ?? null));
+  return out;
+}

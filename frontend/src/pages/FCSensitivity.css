@@ -215,3 +215,85 @@
 }
 
 .fc-sensitivity .fc-sens-incomparable h3 { font-size: 0.85rem; color: var(--ink); margin: 0 0 0.3rem; }
+
+/* CR085 P2 — the type groups in the picker, and the trajectory modal. */
+.fc-sensitivity .fc-sens-group > summary {
+  font-weight: 600;
+  color: var(--ink);
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  padding: 0.4rem 0;
+  border-bottom: 1px solid var(--border);
+  margin-bottom: 0.2rem;
+}
+
+.fc-sensitivity .fc-sens-group-count {
+  color: var(--ink-tertiary);
+  font-weight: 400;
+  font-size: 0.75rem;
+}
+
+.fc-sensitivity .fc-sens-group > details {
+  margin-left: 0.6rem;
+}
+
+/* A button, so the trajectory is reachable by keyboard — an SVG bar is not. No new *-btn class:
+   `check-button-css.sh` ratchets on those, so this is an element rule under its own table. */
+.fc-tornado-open {
+  background: none;
+  border: 0;
+  padding: 0;
+  font: inherit;
+  color: var(--ink);
+  text-align: left;
+  cursor: pointer;
+  text-decoration: underline;
+  text-decoration-color: var(--border);
+  text-underline-offset: 3px;
+}
+
+.fc-tornado-open:hover { text-decoration-color: var(--accent); }
+
+.fc-sens-trajectory-lead {
+  color: var(--ink-tertiary);
+  font-size: 0.85rem;
+  margin: 0 0 0.5rem;
+}
+
+.fc-sens-trajectory-regime {
+  color: var(--warning);
+  font-size: 0.82rem;
+  margin-top: 0.6rem;
+}
+
+.fc-sens-trajectory-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 1rem;
+  flex-wrap: wrap;
+}
+
+.fc-sens-trajectory-mode {
+  display: inline-flex;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  overflow: hidden;
+  flex: none;
+}
+
+.fc-sens-trajectory-mode button {
+  background: var(--surface-elevated);
+  color: var(--ink-tertiary);
+  border: 0;
+  padding: 0.35rem 0.7rem;
+  font-size: 0.78rem;
+  cursor: pointer;
+}
+
+.fc-sens-trajectory-mode button.is-active {
+  background: var(--info-subtle);
+  color: var(--ink);
+  font-weight: 600;
+}

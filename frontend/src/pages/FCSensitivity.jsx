@@ -10,6 +10,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import FCTornadoChart from "../features/Forecast/FCTornadoChart.jsx";
+import FCSensitivityTrajectoryModal from "../features/Forecast/FCSensitivityTrajectoryModal.jsx";
 import useSensitivityRun from "../features/Forecast/hooks/useSensitivityRun.js";
 import { useScenarios } from "../features/Forecast/hooks/useScenarios.js";
 import { useFCLineStructure } from "../features/Forecast/hooks/useFCLineStructure.js";
@@ -25,6 +26,15 @@ import "./FCCompare.css";
 import "./FCSensitivity.css";
 
 const MAX_KNOBS = 8;
+
+/** Balance sheet first, then the flows — the order a plan is read in. */
+const GROUP_ORDER = [
+  { key: "asset", label: "Assets" },
+  { key: "liability", label: "Liabilities" },
+  { key: "income", label: "Income" },
+  { key: "expense", label: "Expenses" },
+  { key: "other", label: "Other" },
+];
 
 /**
  * A knob's current value, readable. The raw column value ran straight into the field label
@@ -55,6 +65,7 @@ export default function FCSensitivity() {
     return Array.isArray(saved?.knobs) ? saved.knobs : [];
   });
   const [metricKey, setMetricKey] = useState(METRICS[0].key);
+  const [openRow, setOpenRow] = useState(null);
 
   const { start, state, result, error } = useSensitivityRun();
   const options = useMemo(() => scenarioOptions(scenarios || []), [scenarios]);
@@ -139,13 +150,26 @@ export default function FCSensitivity() {
     setSelected((prev) => prev.map((p) => (keyOf(p) === id ? { ...p, band: Number(band) } : p)));
   };
 
+  /**
+   * Assets · Liabilities · Income · Expenses, then modules inside each.
+   *
+   * ⚠️ The group comes from the SERVER, which derives it from what the engine branches on
+   * (`has_valuation`, the sign of the value, the presence of a loan, a stream's direction). It is
+   * deliberately NOT derived here from `module_type`: that column is free text the owner edits —
+   * prod carries both `Asset` and `Business` — and CR070 records the same rule for module
+   * capabilities, for the same reason.
+   */
   const grouped = useMemo(() => {
-    const m = new Map();
+    const byGroup = new Map(GROUP_ORDER.map((g) => [g.key, new Map()]));
     for (const k of catalogue) {
-      if (!m.has(k.module)) m.set(k.module, []);
-      m.get(k.module).push(k);
+      const g = byGroup.get(k.group) || byGroup.get("other");
+      if (!g) continue;
+      if (!g.has(k.module)) g.set(k.module, []);
+      g.get(k.module).push(k);
     }
-    return [...m.entries()];
+    return GROUP_ORDER
+      .map((g) => ({ ...g, modules: [...(byGroup.get(g.key) || new Map()).entries()] }))
+      .filter((g) => g.modules.length > 0);
   }, [catalogue]);
 
   const ranked = useMemo(() => {
@@ -218,7 +242,15 @@ export default function FCSensitivity() {
               as you don&apos;t edit the scenario in between, the bars are comparable.
             </p>
           )}
-          {grouped.map(([module, ks]) => (
+          {grouped.map((group) => (
+            <details key={group.key} className="fc-sens-group" open>
+              <summary>
+                {group.label}
+                <span className="fc-sens-group-count">
+                  {group.modules.reduce((n, [, ks]) => n + ks.length, 0)}
+                </span>
+              </summary>
+              {group.modules.map(([module, ks]) => (
             <details key={module}>
               <summary>{module}</summary>
               {ks.map((k) => {
@@ -251,6 +283,8 @@ export default function FCSensitivity() {
                 );
               })}
             </details>
+              ))}
+            </details>
           ))}
         </aside>
 
@@ -272,8 +306,21 @@ export default function FCSensitivity() {
           )}
 
           {ranked?.rows?.length > 0 && (
-            <FCTornadoChart rows={ranked.rows} metric={ranked.metric} anchor={ranked.anchor} />
+            <FCTornadoChart
+              rows={ranked.rows}
+              metric={ranked.metric}
+              anchor={ranked.anchor}
+              onSelect={setOpenRow}
+            />
           )}
+
+          <FCSensitivityTrajectoryModal
+            open={Boolean(openRow)}
+            onClose={() => setOpenRow(null)}
+            result={result}
+            row={openRow}
+            shared={shared}
+          />
 
           {ranked?.incomparable?.length > 0 && (
             /* Surfaced, never dropped: a knob missing from a ranking reads as one that does not

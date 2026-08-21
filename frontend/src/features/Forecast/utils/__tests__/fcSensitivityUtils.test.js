@@ -5,8 +5,9 @@
  */
 import { describe, expect, it } from "vitest";
 import {
-  bandLabel, isRegimeChange, rankKnobs, REGIME_CHANGE_RATIO,
+  bandLabel, isRegimeChange, knobTrajectory, rankKnobs, REGIME_CHANGE_RATIO,
 } from "../fcSensitivityUtils.js";
+import { vi } from "vitest";
 
 const knob = (id, kind = "rate", band = 1) => ({
   knobId: id, module: id, field: "growth_rate", label: "Growth", kind, band,
@@ -107,5 +108,75 @@ describe("bandLabel — every bar carries its own ±", () => {
 
   it("is empty rather than misleading when there is no band", () => {
     expect(bandLabel({ kind: "rate" })).toBe("");
+  });
+});
+
+
+/**
+ * CR085 P2 — the trajectory behind one bar.
+ *
+ * `buildScenarioMatrix` is mocked: these assert the ALIGNMENT and the delta arithmetic, which is
+ * where this can be silently wrong. What the matrix itself computes is Compare's own test's job.
+ */
+vi.mock("../fcCompareUtils.js", () => ({
+  buildScenarioMatrix: ({ entries }) => {
+    // Each fixture entry is { Year, Amount }; the mock returns them as a netAssets row.
+    const years = entries.map((e) => Number(e.Year));
+    return { years, netAssets: entries.map((e) => e.Amount), totalAssets: [], cash: new Map() };
+  },
+}));
+
+const run = (knobId, side, pairs) => ({
+  knobId, side, entries: pairs.map(([Year, Amount]) => ({ Year, Amount })),
+});
+
+const COLORS = { base: "#000", adverse: "#a00", favourable: "#00a" };
+
+describe("knobTrajectory", () => {
+  const result = {
+    anchor: { entries: [[2027, 100], [2028, 110], [2029, 120]].map(([Year, Amount]) => ({ Year, Amount })) },
+    points: [
+      run("k", "low", [[2027, 90], [2028, 95], [2029, 100]]),
+      run("k", "high", [[2027, 105], [2028, 120], [2029, 140]]),
+    ],
+  };
+
+  it("returns base, down and up in the absolute view", () => {
+    const { years, series } = knobTrajectory(result, "k", {}, "netAssets", COLORS);
+    expect(years).toEqual([2027, 2028, 2029]);
+    expect(series.map((s) => s.name)).toEqual(["base", "down", "up"]);
+    expect(series[0].values).toEqual([100, 110, 120]);
+    expect(series[2].values).toEqual([105, 120, 140]);
+  });
+
+  it("⚠️ the delta view subtracts the base and DROPS it as a series", () => {
+    // The base is the zero line in that view; drawing it would be a flat line labelled "base"
+    // sitting on the axis.
+    const { series } = knobTrajectory(result, "k", {}, "netAssets", COLORS, "delta");
+    expect(series.map((s) => s.name)).toEqual(["down", "up"]);
+    expect(series[0].values).toEqual([-10, -15, -20]);
+    expect(series[1].values).toEqual([5, 10, 20]);
+  });
+
+  it("⚠️ keys by YEAR, never by array position", () => {
+    // Each matrix trims to its own PeriodStart, so a positional plot would shift two runs
+    // against each other — same index, different year, no error. CR067 §4's trap.
+    const shifted = {
+      anchor: result.anchor,
+      points: [
+        run("k", "low", [[2028, 95], [2029, 100]]),          // starts a year LATER
+        run("k", "high", [[2027, 105], [2028, 120], [2029, 140]]),
+      ],
+    };
+    const { years, series } = knobTrajectory(shifted, "k", {}, "netAssets", COLORS);
+    expect(years).toEqual([2027, 2028, 2029]);
+    const down = series.find((s) => s.name === "down");
+    expect(down.values[0]).toBeNull();     // 2027 has no low run
+    expect(down.values[1]).toBe(95);       // 95 lands on 2028, not on 2027
+  });
+
+  it("returns nothing rather than a half chart when the knob has no runs", () => {
+    expect(knobTrajectory(result, "missing", {}, "netAssets", COLORS).series
+      .filter((s) => s.name !== "base")).toHaveLength(0);
   });
 });

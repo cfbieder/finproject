@@ -18,7 +18,7 @@ import "./Modal.css";
  *                a string, or set `hideTitle` to keep it screen-reader-only.
  *   description  optional sub-header text (wired to aria-describedby).
  *   footer       optional node rendered in the actions bar (right-aligned).
- *   size         "default" (520px) | "wide" (720px).
+ *   size         "default" (520px) | "wide" (720px) | "chart" (1200px, CR085).
  *   dismissable  when false, ESC / overlay-click / ✕ are disabled (busy state).
  */
 export default function Modal({

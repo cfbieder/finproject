@@ -64,7 +64,7 @@ OuterLabel.propTypes = {
 const knobLabel = (knob) =>
   `${knob.module} · ${knob.label ?? knob.field}`;
 
-export default function FCTornadoChart({ rows, metric, anchor }) {
+export default function FCTornadoChart({ rows, metric, anchor, onSelect }) {
   const { theme } = useTheme();
   const colors = tornadoColors(theme);
   const chrome = chartChrome(theme);
@@ -89,6 +89,12 @@ export default function FCTornadoChart({ rows, metric, anchor }) {
     ...data.flatMap((d) => [Math.abs(d.low), Math.abs(d.high)]),
     1
   );
+
+  // ⚠️ HEADROOM FOR THE OUTER LABELS. The domain used to stop at the longest bar, so that bar's
+  // own value label was drawn past the plot edge — on the left it landed on top of the Y-axis
+  // category text ("CVC Fund VIII · Growth (× inflation)" with "($69.1K)" through it), which is
+  // what a single-row run looks like. 12% of the extent is enough for a "($198.3K)" at 11px.
+  const padded = extent * 1.12;
 
   // ⚠️ TICKS ARE PINNED, and 0 IS ONE OF THEM. Left to itself recharts chose a "nice" set that
   // did not include zero — the centre tick read $1.7K while the anchor line sat at 0 — which on a
@@ -115,7 +121,7 @@ export default function FCTornadoChart({ rows, metric, anchor }) {
         <BarChart data={data} layout="vertical" margin={{ top: 8, right: 72, bottom: 8, left: 8 }}>
           <XAxis
             type="number"
-            domain={[-extent, extent]}
+            domain={[-padded, padded]}
             ticks={ticks}
             tickFormatter={(v) => (v === 0 ? "anchor" : formatKpiValue(v))}
             stroke={chrome.ink}
@@ -140,13 +146,27 @@ export default function FCTornadoChart({ rows, metric, anchor }) {
             labelFormatter={(l) => l}
           />
           {/* 2px surface gap between the two bars of a row — `barGap` in surface, not a stroke. */}
-          <Bar dataKey="low" barSize={13} radius={[4, 4, 4, 4]} isAnimationActive={false}>
+          <Bar
+            dataKey="low"
+            barSize={13}
+            radius={[4, 4, 4, 4]}
+            isAnimationActive={false}
+            onClick={(d) => onSelect?.(rows[d?.index ?? -1])}
+            cursor={onSelect ? "pointer" : undefined}
+          >
             {data.map((d) => (
               <Cell key={`low-${d.label}`} fill={colorFor(d.low)} />
             ))}
             <LabelList dataKey="low" content={(p) => <OuterLabel {...p} ink={chrome.ink} />} />
           </Bar>
-          <Bar dataKey="high" barSize={13} radius={[4, 4, 4, 4]} isAnimationActive={false}>
+          <Bar
+            dataKey="high"
+            barSize={13}
+            radius={[4, 4, 4, 4]}
+            isAnimationActive={false}
+            onClick={(d) => onSelect?.(rows[d?.index ?? -1])}
+            cursor={onSelect ? "pointer" : undefined}
+          >
             {data.map((d) => (
               <Cell key={`high-${d.label}`} fill={colorFor(d.high)} />
             ))}
@@ -162,6 +182,7 @@ export default function FCTornadoChart({ rows, metric, anchor }) {
         <caption>
           Each knob moved on its own, everything else held still. The ± is the move that produced
           the bar — so a longer bar is not automatically a bigger risk.
+          {onSelect && " Open a row to see the path, not just where it ends."}
         </caption>
         <thead>
           <tr>
@@ -173,9 +194,17 @@ export default function FCTornadoChart({ rows, metric, anchor }) {
           </tr>
         </thead>
         <tbody>
-          {data.map((d) => (
+          {data.map((d, i) => (
             <tr key={d.label}>
-              <th scope="row">{d.label}</th>
+              <th scope="row">
+                {/* The row, not only the bar, opens the trajectory: a 13px bar is a poor hit
+                    target, and a button is reachable by keyboard where an SVG rect is not. */}
+                {onSelect ? (
+                  <button type="button" className="fc-tornado-open" onClick={() => onSelect(rows[i])}>
+                    {d.label}
+                  </button>
+                ) : d.label}
+              </th>
               <td>{d.band}</td>
               <td>{formatKpiValue(d.low)}</td>
               <td>{formatKpiValue(d.high)}</td>
@@ -207,4 +236,5 @@ FCTornadoChart.propTypes = {
   rows: PropTypes.arrayOf(PropTypes.object).isRequired,
   metric: PropTypes.object,
   anchor: PropTypes.number,
+  onSelect: PropTypes.func,
 };
