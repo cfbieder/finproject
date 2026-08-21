@@ -1508,6 +1508,78 @@ structural guarantee.** Migration **050** records Fintable re-serving Revolut hi
 `tx_` ids when that wallet was rebuilt — so `id` has moved before, on the very account these two
 `previous_ext_id` rows sit on. The content guard, not the choice of key, is what actually covers that.
 
+## 23. Customizable descriptions — the upstream will fix our noise, and we should decline (2026-08-20)
+
+Fintable announced per-account **`description_parts`**: tick and reorder the pieces they join into
+`description` (bank reference · statement description · memo · merchant, plus whatever else that bank
+sends), with the composition exposed on the account in the API. Their worked example is a leading bank
+reference that is noise to one customer and the reconciliation key to another.
+
+**The noise is measurably ours.** **339 of 3,141** stored descriptions are multi-part, and the doubling
+is real:
+
+```
+FV/171570/26/UR - URTICA Sp. z o.o. FV/171570/26/UR - URTICA Sp. z o.o. -- OC MEDYCYNY ESTETYCZNEJ -- Orange Polska
+ALLEGRO KLIK 01A01417-5E94-77A7-8A16-DAA709B9BC72 ALLEGRO KLIK 01A01417-5E94-77A7-8A16-DAA709B9BC72
+```
+
+We already knew. `services/categorySuggest.js` says so in its own header — *"PKO bank-feed descriptions
+are noisy and DOUBLED"* — and `merchantTokens()` exists to strip digit runs, IBAN-ish refs and trailing
+location tokens, then collapse the whole-string doubling. **We built a downstream workaround for the
+exact defect the upstream now offers to fix at source.**
+
+### 23.1 Why flipping their toggle is the wrong move
+
+Three things key on description, and the first two are guards that would not fail — they would *stop
+existing*, which is [§22.2](#222-five-layers-and-none-of-them-could-see-it)'s shape for the third time.
+
+| what | how it breaks |
+|---|---|
+| **The content dedupe guard** (§22.7) | compares `upper(regexp_replace(btrim(description1),'\s+',' '))` **exactly**. Promoted ledger rows keep the old wording; new staged rows arrive with the new. Nothing matches again — and this is the guard that just proved itself against the [§22.12](#2212-the-upstream-did-change-its-ids--nine-days-later-and-it-cost-us-nothing-2026-08-20) `ext_id` re-key |
+| **The category-suggest corpus** | ~37k accepted rows keyed by `merchantTokens`. Drop the reference from that Orange row and the key moves `fv ur urtica` → `oc medycyny estetycznej`. **No overlap**, so suggestions degrade per merchant until the corpus rebuilds |
+| **fin vs bank-feed agreement** | *"saving updates the transactions Fintable has already stored"* — bank-feed's store would update in place (it keys on `tx.id`, unchanged) while fin's **promoted ledger rows would not**. Permanent divergence on description, and both the reconcile page and the hourly equivalence gate match on it |
+
+### 23.2 If we ever want this, compose it ourselves — and the reason is re-derivability
+
+**We already hold the inputs.** All **276** API rows store the provider payload in `raw.parsed`, and the
+GoCardless rows carry `remittanceInformationUnstructured` (148), `creditorName` (78), `debtorName` (43),
+`additionalInformation` (22) and the rest. bank-feed can compose the description itself, in
+`fintableApiToCanonical.js`, with no upstream setting involved.
+
+**The deciding advantage is not cleanliness, it is re-derivability.** A local rule lives in git, can be
+re-applied over history, and keeps old and new rows in one format — which is precisely what the content
+guard and the suggestion corpus need. **A remote toggle is an unversioned setting that rewrites history
+and appears in no diff** — the same property that made the `ext_id` re-key arrive unannounced, and the
+same reason `merchantTokens()` normalising *downstream* has been the durable answer so far.
+
+**Decision: decline the feature, note the option.** Not scheduled — `merchantTokens()` already absorbs
+the noise where it costs us anything, and any change here has to re-derive existing rows in the same
+window or knowingly accept the guard lapse. Tracked as a roadmap line, not a phase.
+
+## 24. Workspaces — the CR027 blocker has an upstream answer now (2026-08-20)
+
+Fintable also announced **Workspaces** (the renamed, revamped Sub Accounts): separate environments
+under one login and plan, each with its own bank connections and data, and — new — **per-credential
+workspace grants**, so one Personal Access Token can reach several workspaces, ticked explicitly and
+re-checked per request.
+
+That speaks directly to [CR027](cr-027-multi-tenancy-final-release.md)'s Phase 7 callout, which states
+the constraint as structural — bank-feed reads **one** owner's source and has *"no concept of per-user
+bank connections"*, so the feed is *"effectively owner-only"*. **The upstream half now has an answer:**
+a workspace per tenant plus one grant-scoped token supplies (a) per-tenant authorization and part of
+(b) routing.
+
+**It does not make per-tenant feeds cheap.** Office/Enterprise plan; billing stays **combined under the
+owner**, so the owner funds every tenant's volume and this is not self-serve SaaS; bank-feed has no
+workspace or tenant column, so the routing is still real schema work; and (c) the per-tenant reconnect
+UX is untouched.
+
+**And for Fin today it is actively unwanted.** The ledger deliberately holds personal finances *and* the
+Polish operating companies in one book — the forecast and the balance sheet depend on that — so
+splitting upstream into workspaces would add a merge step to solve a problem we do not have.
+
+Recorded so nobody re-derives *"Fintable cannot do this"* in a year. **No CR, no action.**
+
 ## Status
 
 P0 done (§11), P1 built and shadow-verified (§13), both §12 decisions settled, default still
