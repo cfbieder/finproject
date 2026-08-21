@@ -202,6 +202,33 @@ async function deleteScenario(id) {
   return result.rowCount > 0;
 }
 
+const CHILD_IDENTITY = new Set(['id', 'module_id']);
+
+/**
+ * The columns a scenario copy carries into each of the module's child tables — DERIVED from
+ * information_schema, never hand-kept (see the note inside `copyScenario`).
+ *
+ * ⚠️ Exported because CR085's fidelity gate compares a scratch copy against its source column by
+ * column, and it must use THIS list. The copy deliberately omits `id` and the parent key, so a gate
+ * with its own hand-kept exclusion list would false-positive on every run — and a second hand-kept
+ * list is the exact drift this derivation exists to kill.
+ */
+async function copyChildColumns(client = db) {
+  const cols = async (table, notCopied = CHILD_IDENTITY) => (await client.query(
+    `SELECT column_name FROM information_schema.columns
+      WHERE table_schema = current_schema() AND table_name = $1
+      ORDER BY ordinal_position`, [table]
+  )).rows.map((r) => r.column_name).filter((c) => !notCopied.has(c));
+
+  return {
+    investCols: await cols('forecast_module_investments'),
+    disposeCols: await cols('forecast_module_disposals'),
+    amortCols: await cols('forecast_module_amortization'),
+    streamCols: await cols('forecast_streams'),
+    streamChangeCols: await cols('forecast_stream_changes', new Set(['id', 'stream_id'])),
+  };
+}
+
 /**
  * Deep copy a scenario with all related data.
  *
@@ -337,18 +364,9 @@ async function copyScenario(sourceId, newName, { isScratch = false } = {}) {
     // Derived ONCE, outside the per-module loop: five information_schema reads per copy, not five
     // per module. The names come from the catalog, never from a caller, so interpolating them is
     // not an injection surface.
-    const CHILD_IDENTITY = new Set(['id', 'module_id']);
-    const childCols = async (table, notCopied = CHILD_IDENTITY) => (await client.query(
-      `SELECT column_name FROM information_schema.columns
-        WHERE table_schema = current_schema() AND table_name = $1
-        ORDER BY ordinal_position`, [table]
-    )).rows.map((r) => r.column_name).filter((c) => !notCopied.has(c));
-
-    const investCols = await childCols('forecast_module_investments');
-    const disposeCols = await childCols('forecast_module_disposals');
-    const amortCols = await childCols('forecast_module_amortization');
-    const streamCols = await childCols('forecast_streams');
-    const streamChangeCols = await childCols('forecast_stream_changes', new Set(['id', 'stream_id']));
+    const {
+      investCols, disposeCols, amortCols, streamCols, streamChangeCols,
+    } = await copyChildColumns(client);
 
     for (const mod of modules.rows) {
       const placeholders = copyCols.map((_, i) => `$${i + 2}`).join(', ');
@@ -831,6 +849,7 @@ module.exports = {
   renameScenario,
   deleteScenario,
   copyScenario,
+  copyChildColumns,
   // Modules
   findModulesByScenario,
   findModuleById,

@@ -20,6 +20,7 @@ const preview = require('../services/forecastPreview');   // CR084 — save-time
 const { baseYearFxRate } = require('../../services/forecast/fcbuilder-setup'); // CR051
 const { generateForecast } = require('../../services/forecast');
 const autoAdjust = require('../services/forecastAutoAdjust'); // CR053
+const sensitivity = require('../services/forecastSensitivity'); // CR085
 const { PATHS } = require('../../services/forecast/constants');
 
 // Fields PUT /scenarios/:id may set (mirrors updateScenario's own allow-list).
@@ -1706,6 +1707,64 @@ router.delete('/audittrail/:scenario', (req, res, next) => {
     res.json({ success: true, deletedCount });
   } catch (error) {
     console.error('[forecast/audittrail DELETE] Failed:', error);
+    next(error);
+  }
+});
+
+// ============================================================================
+// Sensitivity (CR085 P1) — which assumption is load-bearing
+// ============================================================================
+//
+// ⚠️ These three respond in the `{ data: … }` envelope, unlike the auto-adjust routes above.
+// `check-api-envelope.sh` counts un-enveloped responses and may only SHRINK; the bare ones nearby
+// are baselined, and adding more would fail the ratchet. (The check is a text scan, so writing the
+// bare form out even inside a comment counts against it — which is how this note first did.)
+
+// GET /api/v2/forecast/sensitivity/knobs/:scenario — what can be moved, and by how much
+router.get('/sensitivity/knobs/:scenario', async (req, res, next) => {
+  try {
+    const scenario = req.params.scenario?.trim();
+    if (!scenario) return res.status(400).json({ error: 'Scenario name is required' });
+    const knobs = await sensitivity.listKnobs(scenario);
+    res.json({ data: { scenario, knobs } });
+  } catch (error) {
+    if (error instanceof sensitivity.SensitivityError) {
+      return res.status(404).json({ error: error.message });
+    }
+    console.error('[forecast/sensitivity/knobs] Failed:', error);
+    next(error);
+  }
+});
+
+// POST /api/v2/forecast/sensitivity — start a run (async; poll the returned jobId)
+// body: { scenario, knobs: [{ entity, target, field, band?, lowBand?, highBand? }] }
+router.post('/sensitivity', async (req, res, next) => {
+  try {
+    const { scenario, knobs } = req.body || {};
+    if (!scenario) return res.status(400).json({ error: 'scenario is required' });
+    if (!Array.isArray(knobs) || knobs.length === 0) {
+      return res.status(400).json({ error: 'at least one knob is required' });
+    }
+    const jobId = sensitivity.startSensitivityJob({ scenarioName: scenario, knobs });
+    res.status(202).json({ data: { jobId, status: 'running' } });
+  } catch (error) {
+    // A refused run is the owner's problem to read, not a 500: too many knobs, a knob that cannot
+    // move, or another run already going.
+    if (error instanceof sensitivity.SensitivityError || error instanceof sensitivity.KnobError) {
+      return res.status(409).json({ error: error.message });
+    }
+    console.error('[forecast/sensitivity] Failed:', error);
+    next(error);
+  }
+});
+
+// GET /api/v2/forecast/sensitivity/:jobId — poll a run (carries the build counter)
+router.get('/sensitivity/:jobId', (req, res, next) => {
+  try {
+    const job = sensitivity.getSensitivityJob(req.params.jobId);
+    if (!job) return res.status(404).json({ error: 'Job not found or expired' });
+    res.json({ data: job });
+  } catch (error) {
     next(error);
   }
 });
