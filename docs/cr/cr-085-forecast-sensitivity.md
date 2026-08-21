@@ -1,9 +1,20 @@
-# CR085 — Which assumption is load-bearing: sensitivity as a tornado — **P0 BUILT · P1/P2 DEFERRED**
+# CR085 — Which assumption is load-bearing: sensitivity as a tornado — ✅ **COMPLETE (P0 · P1 · P2)**
 
-**Status:** **PLANNED.** **P0 (§9) is BUILT and fresh-DB verified; prod pending.** **P1 and P2 are
-DEFERRED** at PM sign-off (§15) behind two things: the ten-minute SRQ financing experiment that
-tests this CR's own premise, and CR083 P1. Both review passes are recorded rather than absorbed —
-pass 1 *revise*, five blocking items (§14); pass 2 *GO on P0, DEFER P1* with five scope cuts (§15).
+**Status:** **COMPLETE and LIVE** — P0 + P1 as **v3.32.0** (migration 073), P2 as **v3.33.0**.
+**P1 and P2 were both built at owner instruction, over this CR's own sign-off defer (§15)**, with
+all five scope cuts kept. Every review pass is recorded rather than absorbed — pass 1 *revise*, five
+blocking (§14); pass 2 *GO on P0, DEFER P1*, five cuts (§15); a competitor review (§16); as-built
+§17 and §18.
+
+⚠️ **The lesson this CR paid for, four times: a knob that writes, builds and moves NOTHING.** It
+draws a zero-length bar reading *"this assumption does not matter"* in a chart whose entire claim is
+that the bars are ranked. An `exclude`d module (§17) · a valuation-gated field, **109 of 300 knobs**
+(§18) · a negative-`width` bar label (§17) · and **this CR's own §4** filing `growth_rate` as a rate
+when the engine reads it as a *multiplier of inflation*. Three were caught by reading the engine;
+one only by rendering the page and looking at it.
+
+**Still open and not built:** the **SRQ financing experiment** (§15) — the ten-minute test of this
+CR's own premise — and §15 cut 5's default knob set, so the picker opens empty.
 [Roadmap](../current/project-roadmap.md#cr085)
 **Track:** v3 · **Migration:** 073 (`is_scratch`, additive and inert — **applied to dev 2026-08-19**)
 **Opened:** 2026-08-19

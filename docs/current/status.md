@@ -8,7 +8,7 @@
 > CR index and roadmap already own, and it is where stale facts collect. Each cut has come from
 > MOVING something that changes on a different clock, never from deleting what is true.
 
-**Last updated:** 2026-08-20 · **Live version:** **v3.32.0** (see `VERSION` / git tags) — CR085's sensitivity tornado live (migration 073); CR083's Latest Estimate (072); CR082 and CR084 complete
+**Last updated:** 2026-08-21 · **Live version:** **v3.33.0** (see `VERSION` / git tags) — CR085 COMPLETE (tornado + trajectory, migration 073); CR083's Latest Estimate (072); CR082 and CR084 complete
 
 ## Current phase
 **The model, since [CR069](../cr/cr-069-forecast-streams.md):** a module is *identity + optional
@@ -20,12 +20,19 @@ valuation + N first-class **streams***. Shipped since 2026-08-05 and not restate
 when the warning's figures change**) · [CR075](../cr/cr-075-base-year-is-the-budget.md) (**year −2
 is ACTUAL, year −1 is the BUDGET**, read from `budget_entries`; one budget ⇒ one base year).
 
-**New this release — [CR085](../cr/cr-085-forecast-sensitivity.md) (v3.32.0, migration 073):**
-`/forecast-sensitivity` ranks **which assumption the plan rests on**, every bar a real engine build
-on CR084's scratch harness. It also closed two defects that predate it — a scratch scenario was
-visible in all seven pickers, and `copyScenario` still had two hand-kept child column lists (the
-class that once made a copy read ~890K better than its original). ⚠️ **The CR's own §4 filed
-`growth_rate` as a rate; the engine says it is a MULTIPLIER of inflation.**
+**[CR085](../cr/cr-085-forecast-sensitivity.md) is COMPLETE (v3.32.0 + v3.33.0, migration 073).**
+`/forecast-sensitivity` ranks **which assumption the plan rests on** — every bar a real engine build
+on CR084's scratch harness — and clicking one opens the **trajectory** behind it, because the bar
+ranks on the final year and cannot say *when* the damage lands. It also closed two defects that
+predate it: a scratch scenario was visible in all seven pickers, and `copyScenario` still had two
+hand-kept child column lists (the class that once made a copy read ~890K better than its original).
+
+⚠️ **Building it produced FOUR defects of one shape, and they are the durable lesson** — a knob that
+writes, builds and moves nothing, drawing a zero-length bar that reads *"this assumption does not
+matter"* in a chart whose entire claim is that the bars are ranked. An `exclude`d module · a
+valuation-gated field (**109 of 300 knobs**) · a negative-width bar label · and the CR's own §4
+filing `growth_rate` as a rate when the engine reads it as a **multiplier of inflation**. Three were
+caught by reading the engine, one only by rendering the page and looking at it.
 
 🔴 **[CR076](../cr/cr-076-forecast-model-review.md) — the five-reviewer model review; §8 COMPLETE
 across v3.20.0–v3.22.0.** It corrected **our own published figures** and moved numbers eight times.
