@@ -63,6 +63,33 @@ const SERIES = {
 /** How many scenarios one chart can carry — past this, colour stops distinguishing them. */
 export const MAX_SERIES = SERIES.light.length;
 
+/**
+ * CR085 — the tornado's diverging pair, and it is SEMANTIC rather than positional.
+ *
+ * A tornado bar is coloured by whether the metric moved FAVOURABLY, never by the arithmetic sign
+ * of the perturbation and never by which end of the knob it is. Two reasons, both load-bearing:
+ *
+ *  • Liabilities are stored negative, so "+10% on market_value" grows a house and grows a
+ *    mortgage's debt. Colouring by the field's sign is backwards for every loan in the plan.
+ *  • For "total unfunded shortfall", DOWN is good. A palette that hard-codes red-for-negative
+ *    would paint the best outcome on the chart as the alarming one.
+ *
+ * Values are CR040's `pos`/`neg` delta-bar pair, reused so Compare and Sensitivity speak one
+ * visual language. Re-validated for this use with the dataviz six-checks against Fin's own
+ * surfaces (#FFFFFF light / #1C1F22 dark):
+ *
+ *   light — CVD ΔE 15.2 (protan), normal-vision ΔE 22.6, contrast ≥ 3:1 — ALL PASS
+ *   dark  — CVD ΔE 22.1 (protan), normal-vision ΔE 30.6, contrast ≥ 3:1 — ALL PASS
+ *
+ * `axis` is the neutral midpoint the diverging scale needs — a gray, never a third hue.
+ */
+const TORNADO = {
+  light: { favourable: "#4A72B0", adverse: "#C0504D", axis: "#8A8F98" },
+  dark: { favourable: "#3987E5", adverse: "#E05252", axis: "#7C838B" },
+};
+
+export const tornadoColors = (theme) => TORNADO[key(theme)];
+
 export const chartChrome = (theme) => CHROME[key(theme)];
 export const compareABColors = (theme) => COMPARE_AB[key(theme)];
 export const seriesColors = (theme) => SERIES[key(theme)];

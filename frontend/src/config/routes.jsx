@@ -26,6 +26,7 @@ import {
   Eye,
   ArrowLeftRight,
   GitCompare,
+  SlidersHorizontal,
   Wallet,
   Palette,
   LineChart,
@@ -55,6 +56,7 @@ const FCModuleManage = lazy(() => import("../pages/FCModuleManage"));
 const FCReview = lazy(() => import("../pages/FCReview"));
 const FCCompare = lazy(() => import("../pages/FCCompare"));
 const FCMultiCompare = lazy(() => import("../pages/FCMultiCompare"));
+const FCSensitivity = lazy(() => import("../pages/FCSensitivity"));
 const FCScenarios = lazy(() => import("../pages/FCScenarios"));
 const FCSettings = lazy(() => import("../pages/FCSettings"));
 const ProgramSettings = lazy(() => import("../pages/ProgramSettings"));
@@ -320,6 +322,19 @@ export const routes = [
     description:
       "One base scenario and any of its variants on a single trajectory chart — the fan, where Compare gives you one pair at a time",
     icon: GitCompare,
+  },
+  {
+    // CR085 — a report over a generated forecast, so no `step` and no `wrapper:
+    // ForecastProvider`, following Multi-Compare and Equity. Compare and Multi-Compare
+    // both answer "how do these PLANS differ?"; this answers "which assumption inside ONE
+    // plan is it resting on?", which no number of pairwise comparisons produces.
+    path: "/forecast-sensitivity",
+    component: FCSensitivity,
+    label: "Forecast Sensitivity",
+    category: "Forecasting",
+    description:
+      "Move one assumption at a time and rank what actually moves the plan — every bar a real forecast build",
+    icon: SlidersHorizontal,
   },
   {
     // CR062 P2 — sits in Forecasting, deliberately WITHOUT a `step`. It is a report

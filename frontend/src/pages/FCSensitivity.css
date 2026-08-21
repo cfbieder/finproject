@@ -1,0 +1,217 @@
+/* CR085 P1 — /forecast-sensitivity.
+   No new *-btn / *-button class definitions: `Scripts/check-button-css.sh` is a ratchet that
+   fails on any new one, so the controls here are element selectors under their own container. */
+
+.fc-sensitivity .fc-sens-controls {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: var(--space-4);
+  margin-bottom: var(--space-4);
+}
+
+.fc-sensitivity .fc-sens-controls label {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+  font-size: 0.8rem;
+  color: var(--ink-tertiary);
+}
+
+.fc-sensitivity .fc-sens-controls select,
+.fc-sensitivity .fc-sens-band input {
+  background: var(--surface-elevated);
+  color: var(--ink);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 0.35rem 0.5rem;
+}
+
+.fc-sensitivity .fc-sens-metric {
+  display: inline-flex;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  overflow: hidden;
+}
+
+.fc-sensitivity .fc-sens-metric button {
+  background: var(--surface-elevated);
+  color: var(--ink-tertiary);
+  border: 0;
+  padding: 0.45rem 0.8rem;
+  font-size: 0.8rem;
+  cursor: pointer;
+}
+
+.fc-sensitivity .fc-sens-metric button.is-active {
+  background: var(--info-subtle);
+  color: var(--ink);
+  font-weight: 600;
+}
+
+.fc-sensitivity .fc-sens-run {
+  background: var(--accent);
+  color: var(--on-accent);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 0.5rem 1rem;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.fc-sensitivity .fc-sens-run:disabled { opacity: 0.5; cursor: default; }
+
+.fc-sensitivity .fc-sens-body {
+  display: grid;
+  grid-template-columns: minmax(260px, 320px) 1fr;
+  gap: var(--space-4);
+  align-items: start;
+}
+
+@media (max-width: 900px) {
+  .fc-sensitivity .fc-sens-body { grid-template-columns: 1fr; }
+}
+
+.fc-sensitivity .fc-sens-picker {
+  background: var(--surface-elevated);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: var(--space-3);
+  max-height: 70vh;
+  overflow-y: auto;
+}
+
+.fc-sensitivity .fc-sens-picker h2 {
+  font-size: 0.9rem;
+  display: flex;
+  justify-content: space-between;
+  margin: 0 0 0.5rem;
+  color: var(--ink);
+}
+
+.fc-sensitivity .fc-sens-picker h2 span { color: var(--ink-tertiary); font-weight: 400; }
+.fc-sensitivity .fc-sens-picker summary { cursor: pointer; padding: 0.3rem 0; font-size: 0.85rem; }
+
+.fc-sensitivity .fc-sens-knob {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+  padding: 0.15rem 0 0.15rem 0.8rem;
+  font-size: 0.8rem;
+}
+
+.fc-sensitivity .fc-sens-knob label {
+  flex: 1;
+  flex-direction: row;
+  align-items: center;
+  gap: 0.4rem;
+  color: var(--ink);
+  min-width: 0;
+}
+
+.fc-sensitivity .fc-sens-knob-label { flex: 1; }
+
+.fc-sensitivity .fc-sens-knob em {
+  color: var(--ink-tertiary);
+  font-style: normal;
+  font-size: 0.75rem;
+  margin-left: 0.5rem;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+.fc-sensitivity .fc-sens-band { display: inline-flex; align-items: center; gap: 0.3rem; font-size: 0.75rem; color: var(--ink-tertiary); }
+.fc-sensitivity .fc-sens-band input { width: 4.5rem; }
+
+.fc-sensitivity .fc-sens-note { color: var(--ink-tertiary); font-size: 0.85rem; }
+.fc-sensitivity .fc-sens-error { color: var(--danger); font-size: 0.85rem; }
+
+.fc-sensitivity .fc-sens-drift {
+  background: var(--warning-subtle);
+  border: 1px solid var(--border);
+  border-left-width: 3px;
+  border-radius: 6px;
+  padding: 0.5rem 0.75rem;
+  font-size: 0.85rem;
+  color: var(--ink);
+}
+
+/* Two marks, so a legend is always present — and it names the DIRECTION the metric moved,
+   never which end of the knob produced it. */
+.fc-tornado-legend {
+  display: flex;
+  gap: 1.2rem;
+  font-size: 0.8rem;
+  color: var(--ink-tertiary);
+  margin-bottom: 0.4rem;
+}
+
+.fc-tornado-legend i {
+  display: inline-block;
+  width: 10px;
+  height: 10px;
+  border-radius: 3px;
+  margin-right: 0.35rem;
+  vertical-align: middle;
+}
+
+/* The accessible table view — the same numbers the bars carry, plus the move that produced them. */
+.fc-tornado-table {
+  width: 100%;
+  border-collapse: collapse;
+  margin-top: 0.75rem;
+  font-size: 0.8rem;
+}
+
+.fc-tornado-table caption {
+  caption-side: top;
+  text-align: left;
+  color: var(--ink-tertiary);
+  font-size: 0.78rem;
+  padding-bottom: 0.4rem;
+}
+
+.fc-tornado-table th,
+.fc-tornado-table td {
+  text-align: right;
+  padding: 0.3rem 0.5rem;
+  border-bottom: 1px solid var(--border);
+  font-variant-numeric: tabular-nums;
+  color: var(--ink);
+}
+
+.fc-tornado-table thead th {
+  color: var(--ink-tertiary);
+  font-weight: 500;
+  font-variant-numeric: normal;
+}
+
+.fc-tornado-table th:first-child,
+.fc-tornado-table tbody th {
+  text-align: left;
+  font-weight: 400;
+}
+
+.fc-tornado-regime { color: var(--warning); white-space: nowrap; }
+
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
+
+.fc-tornado-anchor { font-size: 0.8rem; color: var(--ink-tertiary); margin-top: 0.5rem; }
+
+.fc-sensitivity .fc-sens-incomparable {
+  margin-top: 1rem;
+  font-size: 0.82rem;
+  color: var(--ink-tertiary);
+}
+
+.fc-sensitivity .fc-sens-incomparable h3 { font-size: 0.85rem; color: var(--ink); margin: 0 0 0.3rem; }
