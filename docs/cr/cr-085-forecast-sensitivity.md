@@ -586,3 +586,80 @@ belongs to [CR083](cr-083-budget-latest-estimate.md) as an LE worksheet pre-fill
 annoying to fill — measure that before building. The formatting findings (delta percentages, a
 balance-sheet Δ column, `AttentionStrip` on mobile, one negative-money convention on Home) are
 cross-page UI with no forecast content and want a patch release, not a CR.
+
+## 16. As built — P1 (2026-08-19)
+
+Built at the owner's instruction, overriding §15's defer. The five scope cuts were kept.
+
+**Server** — `services/sensitivityKnobs.js` (the closed catalogue, the four kinds, apply/restore),
+`services/forecastSensitivity.js` (the loop, the fidelity gate, the fingerprint, the feasibility
+pass, the job map), `repositories/forecast.js` (`copyChildColumns` extracted and exported so the
+gate consumes the copy's own list), three routes on the `{ data }` envelope.
+**Frontend** — `utils/fcSensitivityUtils.js` (ranking, regime flag, band labels),
+`FCTornadoChart.jsx`, `pages/FCSensitivity.jsx` + `.css`, `hooks/useSensitivityRun.js`,
+`utils/fcSeriesPalette.js` (+ the diverging pair), `config/routes.jsx`.
+
+### ⚠️ The units were read out of the engine, and one of them was wrong in this CR's own §4
+
+The first draft of §4 filed **`forecast_modules.growth_rate` under `rate`, ±1 percentage point.**
+It is not a rate. `growthPctForYear` returns `growthPct * inflationSeries[i]`
+(fcbuilder-common.js:104-118), so it is a **multiplier of inflation**: `1.0` is full CPI and prod
+carries `-30` on `OCME` as a deliberate write-off. A ±1pp band on a `1.0` would have swung it to
+0.0/2.0 — **zeroing or doubling an asset's growth while calling it a small stress**, and drawing
+the resulting enormous bar as if it were comparable to a ±1pp move in a tax rate. Corrected before
+any code was written, and pinned by a test that states the engine's expression.
+
+The rates that *are* percentage points were confirmed the same way — the engine divides them by
+100 (`-rate / 100` at fcbuilder-module.js:629/635, `gross * (pct / 100)` at :500) — and the live
+ranges agree: `loan_interest_rate` 6–7, `tax_rate_override` 0–23, `growth_mult` 0–1.1.
+
+### Two defects the build found, both of the class this CR is about
+
+1. **A knob under an `exclude`d module drew a silent zero bar.** The first live run put a ±2y shift
+   on `New Business`'s 2040 disposal and got `rowsChanged=0, Δ=0`. The engine skips an excluded
+   module entirely, so the write succeeded, the build succeeded, and **nothing moved** — a
+   zero-length bar in a ranked chart, reading *"this assumption does not matter"* when the truth
+   was *"this module is not in the plan"*. The guard existed but tested `entity === 'module'`, so
+   both child entities walked through it. It now covers every entity, and the run refuses the knob
+   with that sentence rather than ranking it at zero. Regression test in
+   `forecastSensitivity.test.js`.
+2. **Negative bars labelled themselves on the inside.** For a bar left of the axis recharts returns
+   a **negative `width`**, so `x` is the anchor end, not the outer end — every negative value
+   rendered as dark ink on a dark red fill. Found by rendering the page and looking at it, which is
+   the only gate that could have found it.
+
+Also fixed on the way through: an ambiguous `amount` in the gate's join across
+`forecast_stream_changes`/`forecast_streams`; `scenarioOptions` returns `{name, label}` and the
+page had assumed `{value}`, so the picker silently offered nothing.
+
+### The chart
+
+The diverging pair is CR040's `pos`/`neg`, re-validated for this use with the dataviz six-checks
+against Fin's own surfaces — light CVD ΔE 15.2 / normal 22.6, dark CVD ΔE 22.1 / normal 30.6,
+contrast ≥ 3:1 in both, **all checks pass**. Colour encodes *favourable*, never the sign of the
+number: liabilities are stored negative and on the shortfall metric down is good, so a sign-keyed
+palette would paint the best outcome as the alarming one. The midpoint tick reads **`anchor`** —
+recharts' own "nice" ticks omitted zero and labelled the centre `$1.7K`, which on a chart whose
+every bar is a distance from the anchor is the one tick that must be right.
+
+### Verified
+
+- **Server, on a from-scratch database:** 28 tests across the knob arithmetic (kinds, NULL
+  semantics, the liability sign, the closed whitelist, local-midnight date shifts) and the run
+  internals (name resolution and its ambiguity aborts, exact restore including NULL, the drift
+  fingerprint, the fidelity gate firing on a mutated copy, the caps).
+- **Frontend:** 17 new tests — the ranking (sorted by the larger side, deltas against the anchor,
+  an unmeasurable knob SURFACED rather than dropped), the regime-change rule, the band labels, and
+  the tornado's colour semantics in both themes.
+- **Against real data on dev:** a 4-knob run over `2026 Base` — 9 builds, 3.5 s, gate passed,
+  fingerprint held across all 8 restores, **0 scratch scenarios left behind**. All four kinds move
+  the plan and in the right direction: growth ±0.25× → −169,104 / +183,712 (mildly asymmetric, as
+  compounding implies), tax ±1pp → +3,482 / −3,482 (inverted, correctly), market value ±10% →
+  ∓170K, disposal date ±2y → 154 and 144 rows changed.
+- **In the browser, both themes, zero console errors**, through the whole flow: pick knobs → run →
+  ranked bars, values outside the bars, the table, the anchor line.
+- **Gates:** frontend suite and backend suite green, lint 0 errors, production build clean, all six
+  ratchets at baseline.
+
+**Not built, and still true to §15:** the assumption-list knobs, the binary kind, the metric
+switcher beyond the two metrics, and layer 3. P2 is untouched.

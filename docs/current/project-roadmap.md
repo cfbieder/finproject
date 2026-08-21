@@ -11,7 +11,7 @@ Living plan for the Fin project — open Change Requests, known issues, ongoing 
 ### 1.1 Open / In-Progress
 
 <a id="cr085"></a>
-- **CR085 — Forecast sensitivity: which assumption is load-bearing. 📝 P0 BUILT (migration 073); P1/P2 DEFERRED at sign-off.**
+- **CR085 — Forecast sensitivity: which assumption is load-bearing. ✅ P0 + P1 BUILT (migration 073), prod pending; P2 open.**
   A **tornado** over module, stream and scenario-assumption knobs — every point a real
   `generateForecast` build on CR084's `withScratchScenario` harness, ranked by nominal net assets at
   the final year. Answers the one question no number of pairwise `/forecast-compare` runs can:
@@ -36,6 +36,16 @@ Living plan for the Fin project — open Change Requests, known issues, ongoing 
   **Tracked here, not only in the CR:** P2's `forecast_stream_changes` (`Spread %`) knobs, and
   **converting CR053's auto-adjust solver to CR084's `withScratchScenario`** — it still carries its
   own inline copy, teardown and read-modify-write prune.
+  **P1 was then BUILT anyway, at the owner's instruction (2026-08-19), with all five cuts kept**
+  ([§16](../cr/cr-085-forecast-sensitivity.md)). ⚠️ **The CR's own §4 had a unit wrong and it was
+  caught by reading the engine before any code was written:** `forecast_modules.growth_rate` is a
+  **multiplier of inflation** (`growthPct * inflationSeries[i]`), not a rate — a ±1pp band would
+  have swung a `1.0` to 0.0/2.0, zeroing or doubling an asset's growth and drawing the huge bar as
+  if it were comparable to ±1pp on a tax rate. Two further defects surfaced during the build, both
+  the silent-zero-bar class: a knob under an `exclude`d module wrote, built and moved nothing; and
+  recharts returns a **negative width** for a left-going bar, so every negative value labelled
+  itself inside its own fill. **The unblocking SRQ financing experiment is still not run** — it
+  remains the thing that would say whether this page answers the question that is actually open.
   **P0 — BUILT and verified on a from-scratch DB, prod pending.** Two pre-existing defects:
   (a) **migration 073 `forecast_scenarios.is_scratch`** — a throwaway copy was `is_active = TRUE` and
   filtered nowhere, so it showed in **all seven scenario pickers** while it existed and permanently

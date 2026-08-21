@@ -99,12 +99,17 @@ the dev-first migration rule, and the fact that **an engine change moves nothing
 scenarios are REGENERATED**. It changes far less often than this file does.
 
 ## Next
-- **[CR085](../cr/cr-085-forecast-sensitivity.md) P0 is built and awaiting prod** (migration **073**,
-  `is_scratch`): a throwaway scratch scenario was visible in all seven pickers, and `copyScenario`
-  still had two hand-kept child column lists. **Migration BEFORE code** — the repository reads the
-  new column unguarded — and assert 0 flagged rows between the two, because the boot sweep *deletes*
-  what the back-fill flags. **P1/P2 deferred at sign-off**; the unblocking step is the ten-minute
-  **SRQ financing experiment** (`House Morgage` is `exclude` with a full 500,000 @ 6% loan behind it).
+- **[CR085](../cr/cr-085-forecast-sensitivity.md) P0 + P1 are built and awaiting prod** —
+  `/forecast-sensitivity`: up to 8 knobs, each moved down and up on its own, **every point a real
+  engine build**; bars coloured by whether the metric moved *favourably*, never by the sign.
+  P1 was built at owner instruction over the sign-off's defer, with all five scope cuts kept.
+  ⚠️ **Its own §4 had `growth_rate` filed as a rate; it is a MULTIPLIER of inflation** — caught by
+  reading the engine before coding, and a ±1pp band would have swung 1.0 to 0.0/2.0.
+  **The SRQ financing experiment that would test this page's premise is still not run.**
+- **P0 detail** (migration **073**, `is_scratch`): a throwaway scratch scenario was visible in all
+  seven pickers, and `copyScenario` still had two hand-kept child column lists. ⚠️ **Migration
+  BEFORE code** — the repository reads the new column unguarded — and assert **0 flagged rows**
+  between the two, because the boot sweep *deletes* what the back-fill flags.
 - ~~Advisories~~ · ~~Real terms on Compare~~ **BOTH DONE** — all 15 advisories walked, **every one
   already deliberate, no model change** ([CR076 §13](../cr/cr-076-forecast-model-review.md)); two
   rules firing on streams **not in the plan** guarded, 17 → 15
