@@ -8,7 +8,7 @@
 > CR index and roadmap already own, and it is where stale facts collect. Each cut has come from
 > MOVING something that changes on a different clock, never from deleting what is true.
 
-**Last updated:** 2026-08-18 · **Live version:** **v3.31.0** (see `VERSION` / git tags) — CR083's Latest Estimate live (migration 072); CR082 and CR084 complete
+**Last updated:** 2026-08-20 · **Live version:** **v3.32.0** (see `VERSION` / git tags) — CR085's sensitivity tornado live (migration 073); CR083's Latest Estimate (072); CR082 and CR084 complete
 
 ## Current phase
 **The model, since [CR069](../cr/cr-069-forecast-streams.md):** a module is *identity + optional
@@ -19,6 +19,13 @@ valuation + N first-class **streams***. Shipped since 2026-08-05 and not restate
 [CR074](../cr/cr-074-dismissible-cash-health-warnings.md) (migration 061 — a dismissal **expires
 when the warning's figures change**) · [CR075](../cr/cr-075-base-year-is-the-budget.md) (**year −2
 is ACTUAL, year −1 is the BUDGET**, read from `budget_entries`; one budget ⇒ one base year).
+
+**New this release — [CR085](../cr/cr-085-forecast-sensitivity.md) (v3.32.0, migration 073):**
+`/forecast-sensitivity` ranks **which assumption the plan rests on**, every bar a real engine build
+on CR084's scratch harness. It also closed two defects that predate it — a scratch scenario was
+visible in all seven pickers, and `copyScenario` still had two hand-kept child column lists (the
+class that once made a copy read ~890K better than its original). ⚠️ **The CR's own §4 filed
+`growth_rate` as a rate; the engine says it is a MULTIPLIER of inflation.**
 
 🔴 **[CR076](../cr/cr-076-forecast-model-review.md) — the five-reviewer model review; §8 COMPLETE
 across v3.20.0–v3.22.0.** It corrected **our own published figures** and moved numbers eight times.
@@ -99,17 +106,15 @@ the dev-first migration rule, and the fact that **an engine change moves nothing
 scenarios are REGENERATED**. It changes far less often than this file does.
 
 ## Next
-- **[CR085](../cr/cr-085-forecast-sensitivity.md) P0 + P1 are built and awaiting prod** —
-  `/forecast-sensitivity`: up to 8 knobs, each moved down and up on its own, **every point a real
-  engine build**; bars coloured by whether the metric moved *favourably*, never by the sign.
-  P1 was built at owner instruction over the sign-off's defer, with all five scope cuts kept.
-  ⚠️ **Its own §4 had `growth_rate` filed as a rate; it is a MULTIPLIER of inflation** — caught by
-  reading the engine before coding, and a ±1pp band would have swung 1.0 to 0.0/2.0.
-  **The SRQ financing experiment that would test this page's premise is still not run.**
-- **P0 detail** (migration **073**, `is_scratch`): a throwaway scratch scenario was visible in all
-  seven pickers, and `copyScenario` still had two hand-kept child column lists. ⚠️ **Migration
-  BEFORE code** — the repository reads the new column unguarded — and assert **0 flagged rows**
-  between the two, because the boot sweep *deletes* what the back-fill flags.
+- **Run the SRQ financing experiment.** `House Morgage` is `setup_status='exclude'` in **all five**
+  scenarios while carrying a fully specified loan (**500,000 @ 6.0% to 2048**), so testing "is SRQ
+  viable with financing" is **one field flip plus a regenerate** — and CR084's preview shows the
+  delta before it is committed. [CR085's sign-off](../cr/cr-085-forecast-sensitivity.md) made this
+  the precondition for building its page; the page was built first, at owner instruction, so this is
+  now owed rather than pending. SRQ is a **breakeven** question and a tornado cannot answer one.
+- **[CR085](../cr/cr-085-forecast-sensitivity.md) leftovers** — the picker opens **empty** (§15
+  cut 5's default knob set was not built), and P2 (the sweep view, the `Spread %` list knobs) is
+  untouched.
 - ~~Advisories~~ · ~~Real terms on Compare~~ **BOTH DONE** — all 15 advisories walked, **every one
   already deliberate, no model change** ([CR076 §13](../cr/cr-076-forecast-model-review.md)); two
   rules firing on streams **not in the plan** guarded, 17 → 15

@@ -548,7 +548,7 @@ decisions match it, arrived at independently:
 |---|---|
 | Magnitude baked into the lever's own label | Decision 5 — one global sort, **every bar labelled with its own ±** |
 | Upside and adverse stress-tests in one row | §4.2 — low/high defined **on the metric, never the field** |
-| Never opens empty | §15 cut 5 — ship a default knob set (top-N modules by magnitude) |
+| Never opens empty | §15 cut 5 — ship a default knob set (top-N modules by magnitude). ⚠️ **NOT BUILT in P1** — the picker still opens with nothing selected (§17) |
 | Non-linear response | §5.4 — regime-change detection (threshold still open, §13.2) |
 
 *Not adopted from them:* Odyssey's **0–100 readiness score** and Boldin's **Chance of Success %** —
@@ -563,9 +563,11 @@ is 11 pages with **no independent coverage found**, so everything about it is ve
 ### Deliberately NOT folded into this CR — drafted after CR085 is implemented (owner, 2026-08-19)
 
 The review produced two forecast outputs worth building. **Neither belongs here**: they share no
-machinery with the tornado (no scratch copies, no knobs, no job/poll), and P1 is deferred on
-*delivery cost*, not design (§15) — adding scope would make its unblock harder and would need a
-third review pass. Tracked as a roadmap bullet until then.
+machinery with the tornado (no scratch copies, no knobs, no job/poll), and P1 was at the time
+deferred on *delivery cost*, not design (§15) — adding scope would have made its unblock harder and
+needed a third review pass. Tracked as a roadmap bullet. **(P1 has since been BUILT — §17 — so the
+"deferred" half of this reasoning is spent; the "shares no machinery" half is not, and it is the
+half that matters.)**
 
 1. **Lifetime tax per scenario.** Boldin's moat is that lifetime federal tax and lifetime IRMAA are
    comparable scenario metrics. **Fin computes lifetime tax and discards it** — `2026 Base` carries
@@ -587,7 +589,7 @@ annoying to fill — measure that before building. The formatting findings (delt
 balance-sheet Δ column, `AttentionStrip` on mobile, one negative-money convention on Home) are
 cross-page UI with no forecast content and want a patch release, not a CR.
 
-## 16. As built — P1 (2026-08-19)
+## 17. As built — P1 (2026-08-19)
 
 Built at the owner's instruction, overriding §15's defer. The five scope cuts were kept.
 
@@ -663,3 +665,9 @@ every bar is a distance from the anchor is the one tick that must be right.
 
 **Not built, and still true to §15:** the assumption-list knobs, the binary kind, the metric
 switcher beyond the two metrics, and layer 3. P2 is untouched.
+
+⚠️ **One adopted cut did NOT ship in full.** §15 cut 5 has two halves: *say that runs compose* and
+*ship a default knob set (top-N modules by magnitude) so the first run does not open empty*. The
+first is in the UI copy; **the second is not built — the picker opens with nothing selected.** It
+stays open rather than being quietly dropped, because §16's competitor review lists "never opens
+empty" as a pattern all three products share and this CR claimed to match.
