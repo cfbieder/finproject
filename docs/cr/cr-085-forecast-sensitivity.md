@@ -671,3 +671,70 @@ switcher beyond the two metrics, and layer 3. P2 is untouched.
 first is in the UI copy; **the second is not built — the picker opens with nothing selected.** It
 stays open rather than being quietly dropped, because §16's competitor review lists "never opens
 empty" as a pattern all three products share and this CR claimed to match.
+
+## 18. As built — P2 (2026-08-21)
+
+Owner-requested after seeing P1 on prod: *"for the output report I prefer [the trajectory chart] to
+supplement [the tornado]. Maybe we should make this a pop up modal to give more space?"* — and
+separately, *"knobs should be grouped by type (asset, liability, income, expense)"*.
+
+**The trajectory modal.** Clicking a bar, or the assumption name in the table, opens a
+1200px-wide `<Modal>` carrying **`FCTrajectoryChart` reused unchanged** — the same component
+`/forecast-multi-compare` draws, so the two pages cannot drift on tooltip, axis or palette. Three
+lines only: base, the knob's down run, its up run. Cross-knob comparison is what the tornado is
+*for*; overlaying every run would be the spaghetti CR067 capped that chart at seven to avoid.
+
+**Why it earns its place: the bar cannot say WHEN.** The tornado ranks on net assets at the final
+year. A knob that costs 70K by 2062 and one that runs the plan dry in 2041 draw the same bar.
+
+**And a second view, because the first one hides most knobs.** A ±0.25× growth knob moves ~180K
+against a $12M plan, so in absolute terms all three lines overlap and the reader learns nothing
+about where they separate — visible immediately on the first render. **Difference from base**
+subtracts the anchor, so the base becomes a flat zero (and is dropped as a series rather than drawn
+on the axis) and the two runs fan out at their own scale. On `Barkeria · Growth ±0.25×` that view
+shows a clear kink at 2040–41 where both runs jog — the disposal, and the sweep responding to it —
+which the absolute view renders as three touching lines. Absolute stays the default, as asked.
+
+### ⚠️ A third silent-zero-bar defect, found while working out how to group the knobs
+
+Deciding asset-vs-flow meant asking what the engine branches on, and the answer exposed the same
+class again: **`fcbuilder-module.js` forces `baseValues`, `marketValues` and `growthPct` to ZERO
+when `has_valuation` is false** (:142, :143, :288). **Twelve of the thirty live modules on
+`2026 Base` are flow modules**, so `growth_rate`, `market_value` and `base_value` were being offered
+on every one of them — roughly **36 knobs that would write, build, and move nothing**, each drawing
+a zero-length bar reading *"this assumption does not matter"*. Disposal knobs got the same gate
+(disposing of a module valued at zero moves nothing), and the three loan fields are now gated on the
+module actually carrying a loan. **The catalogue fell from 300 knobs to 191.**
+
+*Module-level `tax_rate_override` is deliberately NOT gated:* besides capital gains it is the
+fallback for a stream's income tax (`stream.tax_rate_override ?? module.tax_rate_override ??
+scenarioRate`), so it is live on a flow module whose streams carry no override of their own.
+
+### Grouping is derived from the engine, never from `module_type`
+
+Assets · Liabilities · Income · Expenses, computed **server-side** and sent with each knob. A
+liability is a module the engine treats as debt — it carries a loan, or its value is negative
+(`PLN Credit Cards` at −24,542.66). A stream takes its own `direction`; a flow module takes the
+direction of its streams. **`module_type` is not consulted**: it is free text the owner edits, prod
+carries both `Asset` and `Business`, and CR070 records the same rule for module capabilities. A test
+asserts a module whose `module_type` says `Expense` but whose value is positive still groups as an
+asset. Live split on `2026 Base`: **Assets 108 · Expenses 40 · Income 25 · Liabilities 18**, nothing
+unclassified.
+
+### Two fixes from the owner's screenshot
+
+- **The negative bar's value label collided with the Y-axis category text** — `($69.1K)` printed
+  through `CVC Fund VIII · Growth (× inflation)`. The domain stopped at the longest bar, so that
+  bar's own outer label was drawn past the plot edge. The domain now carries 12% headroom.
+- **Disposal knobs now name their disposal** (`Selling cost (2040-07-01)`). A module with three
+  disposals otherwise offered "Disposal amount / Selling cost / Disposal date" three times over with
+  nothing to tell them apart, and picking the wrong one is invisible until the bar is wrong.
+
+### Also
+
+`Modal` gained a **`chart` size (1200px)**, additive — a 36-year trajectory at the existing 720px
+`wide` puts the year ticks on top of each other. The table's assumption name is a **button**, so the
+trajectory is reachable by keyboard; a 13px SVG bar is not.
+
+**Verified:** 26 knob tests + 14 trajectory/ranking tests; both themes in a real browser through
+pick → run → open → switch view, zero console errors; all six ratchets at baseline.
