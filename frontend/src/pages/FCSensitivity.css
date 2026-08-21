@@ -249,11 +249,30 @@
   text-align: left;
   cursor: pointer;
   text-decoration: underline;
-  text-decoration-color: var(--border);
+  text-decoration-color: var(--accent);
   text-underline-offset: 3px;
 }
 
-.fc-tornado-open:hover { text-decoration-color: var(--accent); }
+.fc-tornado-open:hover { color: var(--accent); }
+
+/* The row's real affordance. A link-styled label was not one: the owner's first reaction to the
+   shipped page was "I do not see the new graph" — it was there, one click away, and invisible. */
+.fc-tornado-path-cell { text-align: right; white-space: nowrap; }
+
+.fc-tornado-path {
+  background: none;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 0.2rem 0.55rem;
+  font-size: 0.75rem;
+  color: var(--accent);
+  cursor: pointer;
+}
+
+.fc-tornado-path:hover {
+  border-color: var(--accent);
+  background: var(--accent-subtle);
+}
 
 .fc-sens-trajectory-lead {
   color: var(--ink-tertiary);

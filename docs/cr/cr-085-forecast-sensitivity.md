@@ -749,3 +749,22 @@ trajectory is reachable by keyboard; a 13px SVG bar is not.
 
 **Verified:** 26 knob tests + 14 trajectory/ranking tests; both themes in a real browser through
 pick → run → open → switch view, zero console errors; all six ratchets at baseline.
+
+### ⚠️ P2 shipped invisible — the affordance was the feature
+
+The owner's first response to the deployed page was **"I do not see the new graph asked for?"**
+
+Nothing was broken. Driven against the running prod build: two open-controls present, clicking one
+opens the dialog with three lines, zero console errors. The chart was there, one click away, and
+**invisible as a feature** — the only way in was the assumption name in the table, styled as a
+button with a `--border`-coloured underline, plus one sentence in the table's caption explaining it.
+
+That is a design failure, not a discovery problem, and it is worth naming because it is the UI
+cousin of this CR's other four defects: *something that is present, produces no visible effect, and
+therefore reads as absent.* A zero-length bar says "this assumption does not matter"; an
+undiscoverable control says "this feature was not built".
+
+Fixed with a **named control on every row — "See the path →"** — in its own column, plus the
+assumption name restyled as an accent-coloured link rather than plain text. Three tests guard it:
+the control exists and calls back with its row, the row label still works for anyone who reaches
+for it, and neither renders when there is nothing to open.

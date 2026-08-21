@@ -191,6 +191,7 @@ export default function FCTornadoChart({ rows, metric, anchor, onSelect }) {
             <th scope="col">Down</th>
             <th scope="col">Up</th>
             <th scope="col"><span className="sr-only">Warning</span></th>
+            {onSelect && <th scope="col"><span className="sr-only">Trajectory</span></th>}
           </tr>
         </thead>
         <tbody>
@@ -219,6 +220,22 @@ export default function FCTornadoChart({ rows, metric, anchor, onSelect }) {
                   </span>
                 )}
               </td>
+              {/* ⚠️ A NAMED CONTROL, not a link-styled row label. The first version made the
+                  assumption name a button with a faint underline and explained it in the table's
+                  caption; the owner's response to the shipped page was "I do not see the new
+                  graph" — the chart was there, one click away, and invisible as a feature. An
+                  affordance nobody finds is the same as one that was never built. */}
+              {onSelect && (
+                <td className="fc-tornado-path-cell">
+                  <button
+                    type="button"
+                    className="fc-tornado-path"
+                    onClick={() => onSelect(rows[i])}
+                  >
+                    See the path →
+                  </button>
+                </td>
+              )}
             </tr>
           ))}
         </tbody>

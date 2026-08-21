@@ -111,3 +111,34 @@ describe("what the chart says in words", () => {
     expect(screen.getByText("lowers net assets")).toBeTruthy();
   });
 });
+
+
+describe("⚠️ the trajectory has to be FINDABLE", () => {
+  it("gives every row a named control, not just a link-styled label", () => {
+    // The first version made the assumption name a button with a faint border-coloured underline
+    // and explained it in the table caption. The owner's reaction to the shipped page was "I do
+    // not see the new graph" — it was there, one click away, and invisible as a feature. An
+    // affordance nobody finds is the same as one that was never built.
+    setTheme("light");
+    const onSelect = vi.fn();
+    render(<FCTornadoChart rows={rows} metric={HIGHER} anchor={0} onSelect={onSelect} />);
+    const control = screen.getByRole("button", { name: /see the path/i });
+    expect(control).toBeTruthy();
+    control.click();
+    expect(onSelect).toHaveBeenCalledWith(rows[0]);
+  });
+
+  it("the assumption name opens it too, for anyone who reaches for the row label", () => {
+    setTheme("light");
+    const onSelect = vi.fn();
+    render(<FCTornadoChart rows={rows} metric={HIGHER} anchor={0} onSelect={onSelect} />);
+    screen.getByRole("button", { name: rows[0].knob.module + " · " + rows[0].knob.label }).click();
+    expect(onSelect).toHaveBeenCalledWith(rows[0]);
+  });
+
+  it("renders no control at all when there is nothing to open", () => {
+    setTheme("light");
+    render(<FCTornadoChart rows={rows} metric={HIGHER} anchor={0} />);
+    expect(screen.queryByRole("button", { name: /see the path/i })).toBeNull();
+  });
+});
