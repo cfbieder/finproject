@@ -71,11 +71,19 @@ const MODULE_FIELDS = Object.freeze({
   loan_end_date: {
     kind: KIND.TIMING, label: 'Loan end date', refuseWhenNull: true, requiresLoan: true,
   },
-  // NOT valuation-gated: besides capital gains, this is the FALLBACK for a stream's income tax
-  // (`stream.tax_rate_override ?? module.tax_rate_override ?? scenarioRate`, fcbuilder-module.js
-  // :632-634), so it is live on a flow module whose streams carry no override of their own.
+  // ⚠️ Not valuation-gated, but TAXABILITY-gated, and the difference cost a fifth zero bar.
+  //
+  // This column is read in exactly two places: as the capital-gains rate on a DISPOSAL, and as the
+  // fallback for an INCOME stream's tax (`stream.tax_rate_override ?? module.tax_rate_override ??
+  // scenarioRate`, fcbuilder-module.js:632-634). An expense-only flow module has neither — the
+  // CHECK `fc_stream_tax_is_income_only` guarantees its expense streams carry no tax — so moving
+  // this rate writes, builds, and moves nothing.
+  //
+  // Found in the shipped table: `Car Expenses · Tax rate (gains)` ranked with $0 down AND $0 up,
+  // which in a ranked chart reads as "this assumption does not matter" rather than "this rate is
+  // never read here".
   tax_rate_override: {
-    kind: KIND.RATE, label: 'Tax rate (gains)', nullIsScenarioRate: true,
+    kind: KIND.RATE, label: 'Tax rate (gains)', nullIsScenarioRate: true, requiresTaxable: true,
   },
 });
 
@@ -260,17 +268,26 @@ function perturb(spec, current, band, side, { scenarioRate = 0 } = {}) {
 // ---------------------------------------------------------------------------
 
 /**
- * Apply one side of one knob to the scratch, returning a `restore()` that puts back the value
- * that was actually there.
+ * Apply one side of one knob to the scratch.
+ *
+ * @returns {{restore: Function, value: *, before: *}} `restore()` puts back the value that was
+ *   actually there; `value` is what the knob was moved TO and `before` what it was.
  *
  * ⚠️ `restore` REPLAYS A CAPTURED PRIOR VALUE. It never computes an inverse: `× 1/1.1` after
  * `× 1.1` does not return a NUMERIC(15,2) to where it started, and a lossy restore is the loop's
  * only silent failure mode — every later point would measure its own knob plus a residue.
+ *
+ * ⚠️ `value` and `before` are REPORTED, not just written. "±0.25×" on a growth of 0.8 does not
+ * tell a reader it lands at 0.55 and 1.05, and "±50%" on a market value says nothing at all
+ * without the value. The table shows the band AND both ends because the band alone is unreadable.
  */
 async function applyKnob(client, scenarioId, knob, side, { scenarioRate = 0 } = {}) {
   const spec = specFor(knob.entity, knob.field);
   const { row, moduleRow } = await resolveTarget(client, scenarioId, knob.entity, knob.target);
-  assertApplicable(spec, row, moduleRow);
+  // Only the specs that need it pay for the extra reads, and the SETTER uses the same predicate
+  // the picker does — two implementations of "may this knob move?" would drift into offering one
+  // the run then refuses, or hiding one that works.
+  assertApplicable(spec, row, moduleRow, await applicabilityContext(client, spec, moduleRow));
 
   const band = knob[side === 'low' ? 'lowBand' : 'highBand'] ?? knob.band ?? DEFAULT_BAND[spec.kind];
   const before = row[knob.field];
@@ -288,10 +305,12 @@ async function applyKnob(client, scenarioId, knob, side, { scenarioRate = 0 } = 
 
   await writeRow(client, spec, row.id, cols, vals);
 
-  return async function restore() {
+  const restore = async () => {
     const restoreVals = spec.usdTwin ? [before, beforeTwin] : [before];
     await writeRow(client, spec, row.id, cols, restoreVals);
   };
+
+  return { restore, value, before };
 }
 
 /** Every column name here is a key of the closed catalogue above, never caller input. */
@@ -305,7 +324,16 @@ async function writeRow(client, spec, id, cols, vals) {
   await client.query(`UPDATE ${spec.table} SET ${sets} WHERE id = $1`, [id, ...vals]);
 }
 
-function assertApplicable(spec, row, moduleRow) {
+async function applicabilityContext(client, spec, moduleRow) {
+  if (!spec.requiresTaxable || !moduleRow) return {};
+  const [streams, disposals] = await Promise.all([
+    client.query('SELECT direction FROM forecast_streams WHERE module_id = $1', [moduleRow.id]),
+    client.query('SELECT id FROM forecast_module_disposals WHERE module_id = $1', [moduleRow.id]),
+  ]);
+  return { streams: streams.rows, disposals: disposals.rows };
+}
+
+function assertApplicable(spec, row, moduleRow, context = {}) {
   if (spec.entity === 'stream') {
     if (EXCLUDED_STREAM_MODES.has(row.mode)) {
       throw new KnobError(
@@ -337,6 +365,17 @@ function assertApplicable(spec, row, moduleRow) {
 
   if (spec.requiresLoan && moduleRow && moduleRow.loan_principal == null) {
     throw new KnobError(`"${moduleRow.name}" carries no loan, so "${spec.label}" is never read.`);
+  }
+
+  if (spec.requiresTaxable && moduleRow) {
+    const hasIncome = (context.streams || []).some((st) => st.direction === 'income');
+    const hasGains = Boolean(moduleRow.has_valuation) && (context.disposals || []).length > 0;
+    if (!hasIncome && !hasGains) {
+      throw new KnobError(
+        `"${moduleRow.name}" has nothing this rate applies to — no income stream to tax and no ` +
+        `disposal to realise a gain on — so "${spec.label}" would move nothing.`
+      );
+    }
   }
 
   // ⚠️ THE EXCLUDED-MODULE GUARD APPLIES TO EVERY ENTITY, NOT JUST TO MODULE FIELDS.

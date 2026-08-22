@@ -151,10 +151,32 @@ describe("⚠️ knobs the ENGINE would never read are refused, not offered", ()
     }
   });
 
-  it("still allows the module tax rate on a flow module", () => {
-    // It is the FALLBACK for a stream's income tax, so it is live even with no valuation.
-    expect(() => _internals.assertApplicable(spec("module", "tax_rate_override"), flow, flow))
-      .not.toThrow();
+  it("⚠️ allows the module tax rate only where there is something to TAX", () => {
+    // The column is read in exactly two places: the capital-gains rate on a disposal, and the
+    // fallback for an INCOME stream's tax. An expense-only flow module has neither — the CHECK
+    // `fc_stream_tax_is_income_only` guarantees its expense streams carry no tax — so the knob
+    // writes, builds and moves nothing. It shipped ranking at $0 down AND $0 up on
+    // `Car Expenses · Tax rate (gains)`, which reads as "does not matter" rather than "never read".
+    const tax = spec("module", "tax_rate_override");
+
+    expect(() => _internals.assertApplicable(tax, flow, flow, {
+      streams: [{ direction: "expense" }], disposals: [],
+    })).toThrow(/nothing this rate applies to/);
+
+    // An income stream to tax
+    expect(() => _internals.assertApplicable(tax, flow, flow, {
+      streams: [{ direction: "income" }], disposals: [],
+    })).not.toThrow();
+
+    // Or a disposal on a valued module, which realises a gain
+    expect(() => _internals.assertApplicable(tax, valued, valued, {
+      streams: [], disposals: [{ id: 1 }],
+    })).not.toThrow();
+
+    // A valued module with NO disposal realises no gain either
+    expect(() => _internals.assertApplicable(tax, valued, valued, {
+      streams: [], disposals: [],
+    })).toThrow(/nothing this rate applies to/);
   });
 
   it("refuses the loan fields on a module carrying no loan", () => {

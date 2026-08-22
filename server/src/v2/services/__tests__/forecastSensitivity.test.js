@@ -101,7 +101,7 @@ dbDescribe('sensitivity run internals (DB)', () => {
         'SELECT market_value, market_value_usd FROM forecast_modules WHERE id = $1', [assetId]
       )).rows[0];
 
-      const restore = await knobs.applyKnob(db, srcId, knob('market_value', { band: 10 }), 'high');
+      const { restore } = await knobs.applyKnob(db, srcId, knob('market_value', { band: 10 }), 'high');
       const during = (await db.query(
         'SELECT market_value, market_value_usd FROM forecast_modules WHERE id = $1', [assetId]
       )).rows[0];
@@ -121,7 +121,7 @@ dbDescribe('sensitivity run internals (DB)', () => {
     it('⚠️ restores a NULL as NULL, not as 0', async () => {
       // `tax_rate_override` NULL means "use the scenario rate". Restoring it as 0 would silently
       // leave the module tax-free for every later point in the run.
-      const restore = await knobs.applyKnob(
+      const { restore } = await knobs.applyKnob(
         db, srcId, knob('tax_rate_override', { band: 1 }), 'high', { scenarioRate: 23 }
       );
       const during = (await db.query(
@@ -165,7 +165,7 @@ dbDescribe('sensitivity run internals (DB)', () => {
   describe('the drift detector', () => {
     it('the fingerprint moves on a write and returns on the restore', async () => {
       const before = await sens.inputFingerprint(srcId);
-      const restore = await knobs.applyKnob(
+      const { restore } = await knobs.applyKnob(
         db, srcId, { entity: 'module', target: { module: ASSET }, field: 'growth_rate', band: 0.25 }, 'high'
       );
       expect(await sens.inputFingerprint(srcId)).not.toBe(before);

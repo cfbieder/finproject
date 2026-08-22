@@ -209,11 +209,17 @@ async function runSensitivity({ scenarioName, knobs: knobList, onProgress = () =
     const points = [];
     for (const knob of knobList) {
       for (const side of ['low', 'high']) {
-        const restore = await knobs.applyKnob(db, scratchId, knob, side, { scenarioRate });
+        const { restore, value, before } = await knobs.applyKnob(
+          db, scratchId, knob, side, { scenarioRate }
+        );
         try {
           await build();
           points.push({
             knobId: knobs.knobId(knob), side,
+            // What the knob was actually moved TO, and from. "±0.25×" on a growth of 0.8 is
+            // unreadable without them.
+            appliedValue: value == null ? null : String(value),
+            beforeValue: before == null ? null : String(before),
             entries: await readEntries(scratchId),
             shortfall: await totalShortfall(scratchId),
           });
@@ -343,6 +349,34 @@ function startSensitivityJob(params) {
   return jobId;
 }
 
+/** Same one-at-a-time guard: a combination run holds a scratch and the engine exactly as a ranking run does. */
+function startCombinedJob(params) {
+  pruneJobs();
+  for (const [, j] of jobs) {
+    if (j.status === 'running') {
+      throw new SensitivityError(
+        `A sensitivity run on "${j.scenario}" is still going. They share one engine, so a second ` +
+        `run would slow both — wait for it, or reload if it has been more than a minute.`
+      );
+    }
+  }
+  const jobId = `sens_${Date.now()}_${++jobSeq}`;
+  const job = {
+    status: 'running', startedAt: Date.now(), scenario: params.scenarioName, done: 0,
+    total: (params.combinations?.length ?? 0) + 1,
+  };
+  jobs.set(jobId, job);
+
+  runCombined({ ...params, onProgress: (d, t) => { job.done = d; job.total = t; } })
+    .then((result) => jobs.set(jobId, { ...job, status: 'done', result }))
+    .catch((error) => {
+      console.error('[sensitivity] combined run failed:', error.message);
+      jobs.set(jobId, { ...job, status: 'error', error: error.message });
+    });
+
+  return jobId;
+}
+
 function getSensitivityJob(jobId) {
   const j = jobs.get(jobId);
   if (!j) return null;
@@ -351,6 +385,105 @@ function getSensitivityJob(jobId) {
     ...(j.result ? { result: j.result } : {}),
     ...(j.error ? { error: j.error } : {}),
   };
+}
+
+/**
+ * CR085 P3 — all the knobs moved AT ONCE, as a real build.
+ *
+ * ⚠️ THIS IS NOT THE SUM OF THE BARS, AND THAT IS THE ENTIRE POINT.
+ * §5.4 forbids *displaying a sum of impacts*, because the model is path-dependent: the cash sweep
+ * sells different assets when three things move together than when each moves alone, so adding the
+ * bars gives a number the engine never produces. Building the combination instead gives a MEASURED
+ * number, and the gap between it and the sum is the interaction — which is the only honest way to
+ * say whether the tornado's implied independence holds on this plan.
+ *
+ * The caller supplies an explicit `side` per knob, because "all adverse" is a statement about the
+ * METRIC and the metric is computed on the client (§5.3). The server does not guess it.
+ *
+ * Its own anchor is rebuilt here rather than carried over from the ranking run: a different scratch
+ * copy is a different scenario, and a combination compared against another run's anchor would fold
+ * any copy-to-copy difference into the interaction figure.
+ *
+ * @param {Array} combinations [{ label, knobs: [{entity,target,field,band,side}] }]
+ */
+async function runCombined({ scenarioName, combinations, onProgress = () => {} }) {
+  if (!scenarioName) throw new SensitivityError('scenario is required');
+  if (!Array.isArray(combinations) || combinations.length === 0) {
+    throw new SensitivityError('at least one combination is required');
+  }
+  for (const c of combinations) {
+    if (!Array.isArray(c.knobs) || c.knobs.length === 0) {
+      throw new SensitivityError('a combination needs at least one knob');
+    }
+    if (c.knobs.length > MAX_KNOBS) {
+      throw new SensitivityError(`a combination may hold at most ${MAX_KNOBS} knobs`);
+    }
+    for (const k of c.knobs) {
+      if (k.side !== 'low' && k.side !== 'high') {
+        throw new SensitivityError(`each knob needs an explicit side; got "${k.side}"`);
+      }
+    }
+  }
+
+  const source = await repo.findScenarioByName(scenarioName);
+  if (!source) throw new SensitivityError(`Scenario "${scenarioName}" not found`);
+  if (source.parent_scenario_id) await variants.syncIfStale(source.id);
+  await sweepStaleScratch(60);
+
+  const scenarioRate = await scenarioTaxRate(scenarioName);
+  const totalBuilds = combinations.length + 1;
+  let done = 0;
+
+  return withScratchScenario(source.id, async ({ id: scratchId, build }) => {
+    await assertCopyFidelity(source.id, scratchId);
+
+    await build();
+    done += 1; onProgress(done, totalBuilds);
+    const anchor = { entries: await readEntries(scratchId), shortfall: await totalShortfall(scratchId) };
+    const fingerprint = await inputFingerprint(scratchId);
+
+    const out = [];
+    for (const combo of combinations) {
+      const restores = [];
+      try {
+        // Applied in one pass, all of them, before a single build. Every knob is a distinct row —
+        // two knobs on the SAME field of the same row would have the second silently overwrite the
+        // first's capture and make the restore lossy, so that is refused up front.
+        const seen = new Set();
+        for (const k of combo.knobs) {
+          const id = knobs.knobId(k);
+          if (seen.has(id)) {
+            throw new SensitivityError(`"${id}" appears twice in one combination`);
+          }
+          seen.add(id);
+          const { restore } = await knobs.applyKnob(db, scratchId, k, k.side, { scenarioRate });
+          restores.push(restore);
+        }
+        await build();
+        out.push({
+          label: combo.label,
+          knobs: combo.knobs.map((k) => ({ knobId: knobs.knobId(k), side: k.side })),
+          entries: await readEntries(scratchId),
+          shortfall: await totalShortfall(scratchId),
+        });
+      } finally {
+        // Unwound in REVERSE, so a field touched by two writes lands back on the earliest capture.
+        for (const r of restores.reverse()) await r();
+      }
+      done += 1; onProgress(done, totalBuilds);
+
+      const after = await inputFingerprint(scratchId);
+      if (after !== fingerprint) {
+        throw new SensitivityError(
+          `The throwaway copy did not return to its starting state after the "${combo.label}" ` +
+          `combination, so any later figure would carry a residue. The run stops here.`
+        );
+      }
+      await new Promise((r) => setImmediate(r));
+    }
+
+    return { scenario: scenarioName, anchor, combinations: out, builds: totalBuilds };
+  });
 }
 
 // ---------------------------------------------------------------------------
@@ -373,9 +506,9 @@ async function listKnobs(scenarioName, client = db) {
   );
   const out = [];
 
-  const offer = (spec, row, moduleRow, target, current, streams = []) => {
+  const offer = (spec, row, moduleRow, target, current, streams = [], disposals = []) => {
     try {
-      knobs._internals.assertApplicable(spec, row, moduleRow);
+      knobs._internals.assertApplicable(spec, row, moduleRow, { streams, disposals });
     } catch {
       return;   // not offerable — the setter would refuse it, so the picker does not show it
     }
@@ -396,23 +529,25 @@ async function listKnobs(scenarioName, client = db) {
     const { rows: streams } = await client.query(
       'SELECT * FROM forecast_streams WHERE module_id = $1 ORDER BY direction, id', [m.id]
     );
+    // Loaded before the module-level offers: a module's tax rate is only live if there is
+    // something to tax — an income stream, or a disposal to realise a gain on.
+    const { rows: disposals } = await client.query(
+      'SELECT * FROM forecast_module_disposals WHERE module_id = $1 ORDER BY disposal_date', [m.id]
+    );
 
     for (const [field, spec] of Object.entries(knobs.MODULE_FIELDS)) {
-      offer({ ...spec, entity: 'module', field }, m, m, { module: m.name }, m[field], streams);
+      offer({ ...spec, entity: 'module', field }, m, m, { module: m.name }, m[field], streams, disposals);
     }
 
     for (const st of streams) {
       for (const [field, spec] of Object.entries(knobs.STREAM_FIELDS)) {
         offer(
           { ...spec, entity: 'stream', field }, st, m,
-          { module: m.name, direction: st.direction, fcLineId: st.fc_line_id }, st[field], streams
+          { module: m.name, direction: st.direction, fcLineId: st.fc_line_id }, st[field],
+          streams, disposals
         );
       }
     }
-
-    const { rows: disposals } = await client.query(
-      'SELECT * FROM forecast_module_disposals WHERE module_id = $1 ORDER BY disposal_date', [m.id]
-    );
     for (const d of disposals) {
       for (const [field, spec] of Object.entries(knobs.DISPOSAL_FIELDS)) {
         const date = d.disposal_date instanceof Date
@@ -423,7 +558,7 @@ async function listKnobs(scenarioName, client = db) {
         // tell them apart, and picking the wrong one is invisible until the bar is wrong.
         offer(
           { ...spec, entity: 'disposal', field, label: `${spec.label} (${date})` }, d, m,
-          { module: m.name, date }, d[field], streams
+          { module: m.name, date }, d[field], streams, disposals
         );
       }
     }
@@ -433,6 +568,8 @@ async function listKnobs(scenarioName, client = db) {
 
 module.exports = {
   runSensitivity,
+  runCombined,
+  startCombinedJob,
   listKnobs,
   startSensitivityJob,
   getSensitivityJob,

@@ -1758,6 +1758,31 @@ router.post('/sensitivity', async (req, res, next) => {
   }
 });
 
+// POST /api/v2/forecast/sensitivity/combined — all the knobs moved AT ONCE, as a real build
+// body: { scenario, combinations: [{ label, knobs: [{ entity, target, field, band, side }] }] }
+//
+// ⚠️ The caller supplies an explicit `side` per knob. "All adverse" is a statement about the
+// METRIC, and the metric is computed on the client — the server does not guess which way is bad.
+//
+// Defined BEFORE `/sensitivity/:jobId`, or "combined" is read as a job id.
+router.post('/sensitivity/combined', async (req, res, next) => {
+  try {
+    const { scenario, combinations } = req.body || {};
+    if (!scenario) return res.status(400).json({ error: 'scenario is required' });
+    if (!Array.isArray(combinations) || combinations.length === 0) {
+      return res.status(400).json({ error: 'at least one combination is required' });
+    }
+    const jobId = sensitivity.startCombinedJob({ scenarioName: scenario, combinations });
+    res.status(202).json({ data: { jobId, status: 'running' } });
+  } catch (error) {
+    if (error instanceof sensitivity.SensitivityError || error instanceof sensitivity.KnobError) {
+      return res.status(409).json({ error: error.message });
+    }
+    console.error('[forecast/sensitivity/combined] Failed:', error);
+    next(error);
+  }
+});
+
 // GET /api/v2/forecast/sensitivity/:jobId — poll a run (carries the build counter)
 router.get('/sensitivity/:jobId', (req, res, next) => {
   try {
