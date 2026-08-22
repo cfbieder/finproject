@@ -70,5 +70,50 @@ export default function useSensitivityRun() {
     }
   }, []);
 
-  return { start, state, result, error };
+  /**
+   * The combination run — all the knobs at once, as a real build.
+   *
+   * Its own state, so firing it never blanks the ranking that is already on screen; the ranking is
+   * what the reader came for and what the combination is compared against.
+   */
+  const [combined, setCombined] = useState(null);
+  const [combinedState, setCombinedState] = useState({ status: "idle", done: 0, total: 0 });
+
+  const startCombined = useCallback(async (scenario, combinations) => {
+    setCombined(null);
+    setCombinedState({ status: "running", done: 0, total: combinations.length + 1 });
+    let jobId;
+    try {
+      ({ jobId } = await Rest.post("/forecast/sensitivity/combined", { scenario, combinations })
+        .then((r) => r.data));
+    } catch (e) {
+      setCombinedState({ status: "error", done: 0, total: 0, error: e?.message || "Could not start" });
+      return;
+    }
+    for (;;) {
+      await new Promise((r) => setTimeout(r, POLL_MS));
+      if (cancelled.current) return;
+      let job;
+      try {
+        job = await Rest.get(`/forecast/sensitivity/${jobId}`).then((r) => r.data);
+      } catch (e) {
+        setCombinedState({ status: "error", done: 0, total: 0, error: e?.message || "Lost contact" });
+        return;
+      }
+      if (cancelled.current) return;
+      if (job.status === "running") {
+        setCombinedState({ status: "running", done: job.done || 0, total: job.total || 0 });
+        continue;
+      }
+      if (job.status === "done") {
+        setCombined(job.result);
+        setCombinedState({ status: "done", done: job.total || 0, total: job.total || 0 });
+      } else {
+        setCombinedState({ status: "error", done: 0, total: 0, error: job.error || "The run failed." });
+      }
+      return;
+    }
+  }, []);
+
+  return { start, state, result, error, startCombined, combined, combinedState };
 }

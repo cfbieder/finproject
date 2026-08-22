@@ -83,10 +83,25 @@ export const MAX_SERIES = SERIES.light.length;
  *
  * `axis` is the neutral midpoint the diverging scale needs — a gray, never a third hue.
  */
+/**
+ * ⚠️ `base` IS CHROME, NOT A THIRD SERIES, and it is dashed for exactly that reason.
+ *
+ * The first version drew the base line in the categorical set's slot 0 — which is blue, and the
+ * FAVOURABLE pole is also blue. Two blue lines, one of them the reference the other two are
+ * measured against. Validating a neutral gray as a third categorical hue then FAILED on its own
+ * terms (chroma floor, and blue↔gray at ΔE 8.7 normal-vision in light, under the 15 floor).
+ *
+ * The resolution is that a reference is not a category. It takes a neutral AND a dash — secondary
+ * encoding — so the two data hues keep the separation they were validated for (light CVD ΔE 15.2 /
+ * normal 22.6; dark 22.1 / 30.6) and the baseline reads as the axis it effectively is.
+ */
 const TORNADO = {
-  light: { favourable: "#4A72B0", adverse: "#C0504D", axis: "#8A8F98" },
-  dark: { favourable: "#3987E5", adverse: "#E05252", axis: "#7C838B" },
+  light: { favourable: "#4A72B0", adverse: "#C0504D", axis: "#8A8F98", base: "#6C7782" },
+  dark: { favourable: "#3987E5", adverse: "#E05252", axis: "#7C838B", base: "#A0AEB9" },
 };
+
+/** The dash pattern a reference line wears, so "base" is never mistaken for a measurement. */
+export const BASE_DASH = "6 4";
 
 export const tornadoColors = (theme) => TORNADO[key(theme)];
 

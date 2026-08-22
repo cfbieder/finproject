@@ -316,3 +316,41 @@
   color: var(--ink);
   font-weight: 600;
 }
+
+/* CR085 P3 — the applied value beside each impact, and the combination control. */
+.fc-tornado-now { color: var(--ink-tertiary); font-variant-numeric: tabular-nums; }
+
+.fc-tornado-at {
+  display: block;
+  font-size: 0.7rem;
+  color: var(--ink-tertiary);
+  font-variant-numeric: tabular-nums;
+}
+
+.fc-tornado-combine-line {
+  display: flex;
+  align-items: baseline;
+  gap: 0.6rem;
+  flex-wrap: wrap;
+  margin-top: 0.8rem;
+  font-size: 0.8rem;
+  color: var(--ink-tertiary);
+}
+
+.fc-tornado-combine {
+  background: none;
+  border: 1px solid var(--accent);
+  border-radius: 6px;
+  padding: 0.25rem 0.7rem;
+  font-size: 0.78rem;
+  color: var(--accent);
+  cursor: pointer;
+  flex: none;
+}
+
+.fc-tornado-combine:hover { background: var(--accent-subtle); }
+
+.fc-sens-interaction { margin-top: 1rem; }
+.fc-sens-interaction th { font-weight: 400; color: var(--ink-tertiary); }
+.fc-sens-interaction td { text-align: right; }
+.fc-sens-interaction-verdict { color: var(--ink-tertiary); font-size: 0.75rem; margin-left: 0.4rem; }

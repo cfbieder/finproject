@@ -16,6 +16,7 @@
  */
 
 import { buildScenarioMatrix } from "./fcCompareUtils.js";
+import { BASE_DASH } from "./fcSeriesPalette.js";
 
 export const METRICS = [
   {
@@ -93,9 +94,15 @@ export function rankKnobs(result, metricKey, shared) {
     : netAssetsAtEnd(result.anchor?.entries, shared);
 
   const byKnob = new Map();
+  const applied = new Map();
   for (const p of result.points || []) {
     if (!byKnob.has(p.knobId)) byKnob.set(p.knobId, {});
     byKnob.get(p.knobId)[p.side] = metricValue(p, metricKey, shared);
+    // What the knob was actually moved TO on this side, and from — carried through so the table
+    // can print "±0.25× · at 0.55" instead of a band nobody can resolve.
+    if (!applied.has(p.knobId)) applied.set(p.knobId, {});
+    applied.get(p.knobId)[p.side] = p.appliedValue;
+    applied.get(p.knobId).before = p.beforeValue;
   }
 
   const rows = [];
@@ -114,11 +121,14 @@ export function rankKnobs(result, metricKey, shared) {
     const dHigh = hi - anchor;
     const span = Math.max(Math.abs(dLow), Math.abs(dHigh));
 
+    const vals = applied.get(knob.knobId) || {};
     rows.push({
       knobId: knob.knobId,
-      knob,
+      knob: { ...knob, currentValue: vals.before ?? knob.currentValue },
       low: dLow,
       high: dHigh,
+      lowValue: vals.low,
+      highValue: vals.high,
       span,
       regimeChange: isRegimeChange(dLow, dHigh),
     });
@@ -194,7 +204,7 @@ export function knobTrajectory(result, knobId, shared, metricKey, colors, mode =
   if (!result) return { years: [], series: [] };
 
   const runs = [
-    { key: "base", label: "base", entries: result.anchor?.entries, width: 3, color: colors.base },
+    { key: "base", label: "base", entries: result.anchor?.entries, width: 2, color: colors.base, dash: BASE_DASH },
     ...["low", "high"].map((side) => {
       const p = (result.points || []).find((x) => x.knobId === knobId && x.side === side);
       return {
@@ -233,6 +243,7 @@ export function knobTrajectory(result, knobId, shared, metricKey, colors, mode =
     .map((r) => ({
       name: r.label,
       color: r.color,
+      dash: r.dash,
       strokeWidth: asDelta ? 2 : r.width,
       // Interior gaps stay gaps: a year the engine wrote no rows for is a break in the line,
       // not a collapse to zero.
@@ -283,4 +294,126 @@ function seriesByYear(matrix, metricKey) {
   if (!Array.isArray(values)) return out;
   (matrix.years || []).forEach((y, i) => out.set(Number(y), values[i] ?? null));
   return out;
+}
+
+
+/** Format a knob value the way the picker does — the raw column value is not a thing anyone reads. */
+export function formatKnobValue(kind, value) {
+  if (value == null) return "—";
+  if (kind === "timing") return String(value).slice(0, 10);
+  const n = Number(value);
+  if (!Number.isFinite(n)) return String(value);
+  if (kind === "rate") return `${Number(n.toFixed(4))}%`;
+  if (kind === "multiplier") return `${Number(n.toFixed(4))}×`;
+  return Math.abs(n) >= 1000
+    ? n.toLocaleString(undefined, { maximumFractionDigits: 0 })
+    : String(Number(n.toFixed(2)));
+}
+
+/**
+ * Which side of a knob moved the metric the WRONG way.
+ *
+ * ⚠️ Decided on the metric, never on the arithmetic. Liabilities are stored negative and on the
+ * shortfall metric down is good, so "low" is not a synonym for "worse".
+ */
+export function adverseSideFor(row, metric) {
+  const lowerIsBetter = metric?.better === "lower";
+  const worse = (a, b) => (lowerIsBetter ? a > b : a < b);
+  return worse(row.low, row.high) ? "low" : "high";
+}
+
+/**
+ * The two combinations worth building from a finished ranking: everything against you, and
+ * everything for you.
+ */
+export function combinationsFor(rows, metric) {
+  const sideOf = (r) => adverseSideFor(r, metric);
+  const flip = (side) => (side === "low" ? "high" : "low");
+  const spec = (label, pick) => ({
+    label,
+    knobs: rows.map((r) => ({
+      entity: r.knob.entity,
+      target: r.knob.target,
+      field: r.knob.field,
+      band: r.knob.band ?? r.knob.lowBand ?? r.knob.highBand,
+      side: pick(r),
+    })),
+  });
+  return [
+    spec("All adverse", (r) => sideOf(r)),
+    spec("All favourable", (r) => flip(sideOf(r))),
+  ];
+}
+
+/**
+ * ⚠️ THE COMBINED RUN IS NOT THE SUM OF THE BARS, AND THE GAP IS THE PRODUCT.
+ *
+ * §5.4 forbids DISPLAYING a sum of impacts, because the model is path-dependent — the cash sweep
+ * sells different assets when three things move at once than when each moves alone, so adding the
+ * bars yields a figure the engine never produces. Measuring the combination instead is legitimate,
+ * and the difference between the two is the interaction: the only honest answer to "do these risks
+ * compound or cancel?", which is the question a tornado structurally cannot ask.
+ *
+ * The sum appears here ONLY as the thing the measurement is compared against — never on its own.
+ */
+export function interactionSummary(rows, metric, combinedResult, shared) {
+  if (!combinedResult) return null;
+  const anchor = metricOf(combinedResult.anchor, metric, shared);
+  const adverse = combinedResult.combinations?.find((c) => c.label === "All adverse");
+  if (anchor == null || !adverse) return null;
+
+  const measured = metricOf(adverse, metric, shared);
+  if (measured == null) return null;
+
+  const summed = rows.reduce(
+    (acc, r) => acc + (adverseSideFor(r, metric) === "low" ? r.low : r.high),
+    0
+  );
+  const measuredDelta = measured - anchor;
+  const interaction = measuredDelta - summed;
+  const worseThanSum = metric?.better === "lower" ? interaction > 0 : interaction < 0;
+
+  return { summed, measured: measuredDelta, interaction, worseThanSum, anchor };
+}
+
+function metricOf(run, metric, shared) {
+  if (!run) return null;
+  return metric?.key === "shortfall"
+    ? Number(run.shortfall ?? 0)
+    : netAssetsAtEnd(run.entries, shared);
+}
+
+/** base + the combinations, as trajectory series. */
+export function combinedTrajectory(combinedResult, shared, metricKey, colors) {
+  if (!combinedResult) return { years: [], series: [] };
+  const runs = [
+    { label: "base", entries: combinedResult.anchor?.entries, color: colors.base, width: 2, dash: BASE_DASH },
+    ...(combinedResult.combinations || []).map((c) => ({
+      label: c.label === "All adverse" ? "all adverse" : "all favourable",
+      entries: c.entries,
+      color: c.label === "All adverse" ? colors.adverse : colors.favourable,
+      width: 2,
+    })),
+  ].filter((r) => Array.isArray(r.entries) && r.entries.length);
+
+  const matrices = runs.map((r) => ({ ...r, matrix: matrixFor(r.entries, shared) }))
+    .filter((r) => r.matrix);
+  if (!matrices.length) return { years: [], series: [] };
+
+  const years = [...new Set(matrices.flatMap((r) => r.matrix.years || []))]
+    .map(Number).filter(Number.isFinite).sort((a, b) => a - b);
+
+  return {
+    years,
+    series: matrices.map((r) => {
+      const byYear = seriesByYear(r.matrix, metricKey);
+      return {
+        name: r.label,
+        color: r.color,
+        dash: r.dash,
+        strokeWidth: r.width,
+        values: years.map((y) => (byYear.has(y) ? byYear.get(y) : null)),
+      };
+    }),
+  };
 }

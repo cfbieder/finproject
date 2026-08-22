@@ -31,7 +31,7 @@ import { METRICS } from "./utils/fcTrajectoryMetrics.js";
  * @param {Object}   props
  * @param {string}   props.title       - card heading
  * @param {Array}    props.years       - x axis, ascending
- * @param {Array}    props.series      - [{ name, values, color, strokeWidth }] aligned to `years`
+ * @param {Array}    props.series      - [{ name, values, color, strokeWidth, dash? }] aligned to `years`
  * @param {string}   props.metric      - selected METRICS key (controlled by the caller)
  * @param {Function} props.onMetricChange
  * @param {number}   [props.height]
@@ -113,6 +113,10 @@ export default function FCTrajectoryChart({
               name={s.name}
               stroke={s.color}
               strokeWidth={s.strokeWidth ?? 2}
+              // CR085 — optional, and undefined for every existing caller, so Compare and
+              // Multi-Compare render byte-identically. A dashed line is how a REFERENCE is told
+              // from a measurement without spending a categorical hue on it.
+              strokeDasharray={s.dash}
               dot={false}
               activeDot={{ r: 4 }}
               // A year a scenario does not cover stays a GAP. CR040's zero-coalescing lives

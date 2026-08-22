@@ -5,7 +5,8 @@
  */
 import { describe, expect, it } from "vitest";
 import {
-  bandLabel, isRegimeChange, knobTrajectory, rankKnobs, REGIME_CHANGE_RATIO,
+  adverseSideFor, bandLabel, combinationsFor, formatKnobValue, interactionSummary,
+  isRegimeChange, knobTrajectory, rankKnobs, REGIME_CHANGE_RATIO,
 } from "../fcSensitivityUtils.js";
 import { vi } from "vitest";
 
@@ -178,5 +179,89 @@ describe("knobTrajectory", () => {
   it("returns nothing rather than a half chart when the knob has no runs", () => {
     expect(knobTrajectory(result, "missing", {}, "netAssets", COLORS).series
       .filter((s) => s.name !== "base")).toHaveLength(0);
+  });
+});
+
+
+describe("adverseSideFor — decided on the METRIC, never the arithmetic", () => {
+  const row = (low, high) => ({ low, high });
+
+  it("on a higher-is-better metric, the side that lowers it is adverse", () => {
+    expect(adverseSideFor(row(-100, 50), { better: "higher" })).toBe("low");
+    expect(adverseSideFor(row(100, -50), { better: "higher" })).toBe("high");
+  });
+
+  it("⚠️ on a lower-is-better metric the SAME numbers flip which side is adverse", () => {
+    // On "total unfunded shortfall" a fall is good news. A rule keyed on the sign of the delta
+    // would call the best outcome the bad one.
+    expect(adverseSideFor(row(-100, 50), { better: "lower" })).toBe("high");
+  });
+});
+
+describe("combinationsFor", () => {
+  const rows = [
+    { low: -100, high: 50, knob: { entity: "module", target: { module: "A" }, field: "growth_rate", band: 0.25 } },
+    { low: 80, high: -90, knob: { entity: "stream", target: { module: "B" }, field: "amount", band: 10 } },
+  ];
+
+  it("builds an all-adverse and an all-favourable set, per knob", () => {
+    const [adverse, favourable] = combinationsFor(rows, { better: "higher" });
+    expect(adverse.label).toBe("All adverse");
+    // Knob A is worst at low, knob B is worst at high — an "all adverse" set is a MIX of sides,
+    // which is exactly why "all knobs at low" would not be the stress case.
+    expect(adverse.knobs.map((k) => k.side)).toEqual(["low", "high"]);
+    expect(favourable.knobs.map((k) => k.side)).toEqual(["high", "low"]);
+  });
+
+  it("carries the band through, so the combined run moves each knob by the same amount", () => {
+    const [adverse] = combinationsFor(rows, { better: "higher" });
+    expect(adverse.knobs.map((k) => k.band)).toEqual([0.25, 10]);
+  });
+});
+
+describe("interactionSummary — the sum is only ever the COMPARISON", () => {
+  const rows = [
+    { low: -100, high: 50, knob: {} },
+    { low: 80, high: -90, knob: {} },
+  ];
+  // Metric = shortfall so no matrix is needed; anchor 0.
+  const combinedResult = (measured) => ({
+    anchor: { shortfall: 0, entries: [] },
+    combinations: [{ label: "All adverse", shortfall: measured, entries: [] }],
+  });
+
+  it("reports the measured combination, the sum, and the gap between them", () => {
+    // lower-is-better: adverse side is whichever RAISES shortfall → A high (+50), B low (+80).
+    const r = interactionSummary(rows, { key: "shortfall", better: "lower" }, combinedResult(150), {});
+    expect(r.summed).toBe(130);      // 50 + 80, never displayed on its own
+    expect(r.measured).toBe(150);
+    expect(r.interaction).toBe(20);
+    expect(r.worseThanSum).toBe(true);   // more shortfall than the parts predicted
+  });
+
+  it("⚠️ says OFFSET when the combination is milder than the parts", () => {
+    // The whole reason this exists: the sweep sells different assets when several things move at
+    // once, so the engine's answer is NOT the sum. Either direction is a real finding.
+    const r = interactionSummary(rows, { key: "shortfall", better: "lower" }, combinedResult(110), {});
+    expect(r.interaction).toBe(-20);
+    expect(r.worseThanSum).toBe(false);
+  });
+
+  it("returns nothing rather than a misleading zero when the run is absent", () => {
+    expect(interactionSummary(rows, { key: "shortfall", better: "lower" }, null, {})).toBeNull();
+  });
+});
+
+describe("formatKnobValue — the band alone is unreadable", () => {
+  it("renders each kind in its own unit", () => {
+    // "±0.25×" does not tell anyone a growth of 0.8 lands at 0.55 and 1.05.
+    expect(formatKnobValue("multiplier", "0.55")).toBe("0.55×");
+    expect(formatKnobValue("rate", "19")).toBe("19%");
+    expect(formatKnobValue("timing", "2040-07-01T00:00:00.000Z")).toBe("2040-07-01");
+    expect(formatKnobValue("level", "28524.618000000002")).toBe("28,525");
+  });
+
+  it("is a dash, not a zero, when there is no value", () => {
+    expect(formatKnobValue("level", null)).toBe("—");
   });
 });

@@ -22,7 +22,7 @@ import {
 } from "recharts";
 import useTheme from "../../hooks/useTheme.js";
 import { chartChrome, tooltipStyle, tornadoColors } from "./utils/fcSeriesPalette.js";
-import { bandLabel } from "./utils/fcSensitivityUtils.js";
+import { bandLabel, formatKnobValue } from "./utils/fcSensitivityUtils.js";
 import { formatKpiValue } from "../../components/KpiCards.jsx";
 
 const ROW_HEIGHT = 46;
@@ -64,7 +64,7 @@ OuterLabel.propTypes = {
 const knobLabel = (knob) =>
   `${knob.module} · ${knob.label ?? knob.field}`;
 
-export default function FCTornadoChart({ rows, metric, anchor, onSelect }) {
+export default function FCTornadoChart({ rows, metric, anchor, onSelect, onCombine, combineLabel }) {
   const { theme } = useTheme();
   const colors = tornadoColors(theme);
   const chrome = chartChrome(theme);
@@ -81,6 +81,12 @@ export default function FCTornadoChart({ rows, metric, anchor, onSelect }) {
     low: r.low,
     high: r.high,
     regimeChange: r.regimeChange,
+    kind: r.knob.kind,
+    // ⚠️ The band alone is unreadable. "±0.25×" on a growth of 0.8 does not tell anyone it lands
+    // at 0.55 and 1.05, and "±50%" on a market value says nothing at all without the value.
+    now: r.knob.currentValue,
+    lowValue: r.lowValue,
+    highValue: r.highValue,
   }));
 
   // A symmetric domain, so a bar's LENGTH is comparable left to right. An auto domain would make
@@ -187,6 +193,7 @@ export default function FCTornadoChart({ rows, metric, anchor, onSelect }) {
         <thead>
           <tr>
             <th scope="col">Assumption</th>
+            <th scope="col">Now</th>
             <th scope="col">Moved by</th>
             <th scope="col">Down</th>
             <th scope="col">Up</th>
@@ -206,9 +213,16 @@ export default function FCTornadoChart({ rows, metric, anchor, onSelect }) {
                   </button>
                 ) : d.label}
               </th>
+              <td className="fc-tornado-now">{formatKnobValue(d.kind, d.now)}</td>
               <td>{d.band}</td>
-              <td>{formatKpiValue(d.low)}</td>
-              <td>{formatKpiValue(d.high)}</td>
+              <td>
+                {formatKpiValue(d.low)}
+                <span className="fc-tornado-at">at {formatKnobValue(d.kind, d.lowValue)}</span>
+              </td>
+              <td>
+                {formatKpiValue(d.high)}
+                <span className="fc-tornado-at">at {formatKnobValue(d.kind, d.highValue)}</span>
+              </td>
               <td>
                 {d.regimeChange && (
                   <span className="fc-tornado-regime" title={
@@ -241,6 +255,21 @@ export default function FCTornadoChart({ rows, metric, anchor, onSelect }) {
         </tbody>
       </table>
 
+      {onCombine && rows.length > 1 && (
+        /* ⚠️ A REAL BUILD, never the sum of the bars. §5.4 forbids adding impacts because the
+           model is path-dependent; measuring the combination is the opposite of that, and the gap
+           between the two is the interaction — the question a tornado structurally cannot ask. */
+        <p className="fc-tornado-combine-line">
+          <button type="button" className="fc-tornado-combine" onClick={onCombine}>
+            {combineLabel || `See all ${rows.length} together →`}
+          </button>
+          <span>
+            Builds the plan once with every one of these moved at the same time — which is not the
+            same as adding the bars up.
+          </span>
+        </p>
+      )}
+
       <p className="fc-tornado-anchor">
         Anchor — {metric?.label}: <strong>{formatKpiValue(anchor)}</strong>,
         rebuilt for this run rather than read from the saved forecast.
@@ -254,4 +283,6 @@ FCTornadoChart.propTypes = {
   metric: PropTypes.object,
   anchor: PropTypes.number,
   onSelect: PropTypes.func,
+  onCombine: PropTypes.func,
+  combineLabel: PropTypes.string,
 };

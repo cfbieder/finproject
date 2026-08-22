@@ -18,7 +18,7 @@ import { useBalanceSheetAccounts } from "../features/Forecast/hooks/useBalanceSh
 import { scenarioOptions } from "../features/Forecast/utils/scenarioOptions.js";
 import { aggregateBalanceReport } from "../features/Forecast/utils/fcBalanceAggregate.js";
 import {
-  METRICS, bandLabel, rankKnobs, storedDrift,
+  METRICS, bandLabel, combinationsFor, interactionSummary, rankKnobs, storedDrift,
 } from "../features/Forecast/utils/fcSensitivityUtils.js";
 import Rest from "../js/rest.js";
 import "./PageLayout.css";
@@ -67,7 +67,8 @@ export default function FCSensitivity() {
   const [metricKey, setMetricKey] = useState(METRICS[0].key);
   const [openRow, setOpenRow] = useState(null);
 
-  const { start, state, result, error } = useSensitivityRun();
+  const { start, state, result, error, startCombined, combined, combinedState } =
+    useSensitivityRun();
   const options = useMemo(() => scenarioOptions(scenarios || []), [scenarios]);
 
   // ⚠️ DERIVED, not written by an effect. `react-hooks/set-state-in-effect` is a ratchet that may
@@ -181,6 +182,13 @@ export default function FCSensitivity() {
   const drift = useMemo(
     () => (result && shared ? storedDrift(result, shared) : null),
     [result, shared]
+  );
+
+  const interaction = useMemo(
+    () => (ranked?.rows?.length && shared
+      ? interactionSummary(ranked.rows, ranked.metric, combined, shared)
+      : null),
+    [ranked, combined, shared]
   );
 
   const canRun = scenario && selected.length > 0 && state.status !== "running";
@@ -311,6 +319,11 @@ export default function FCSensitivity() {
               metric={ranked.metric}
               anchor={ranked.anchor}
               onSelect={setOpenRow}
+              combineLabel={`See all ${ranked.rows.length} together →`}
+              onCombine={() => {
+                setOpenRow("__combined__");
+                startCombined(scenario, combinationsFor(ranked.rows, ranked.metric));
+              }}
             />
           )}
 
@@ -320,6 +333,9 @@ export default function FCSensitivity() {
             result={result}
             row={openRow}
             shared={shared}
+            combined={combined}
+            combinedState={combinedState}
+            interaction={interaction}
           />
 
           {ranked?.incomparable?.length > 0 && (
