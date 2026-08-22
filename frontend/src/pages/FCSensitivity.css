@@ -354,3 +354,84 @@
 .fc-sens-interaction th { font-weight: 400; color: var(--ink-tertiary); }
 .fc-sens-interaction td { text-align: right; }
 .fc-sens-interaction-verdict { color: var(--ink-tertiary); font-size: 0.75rem; margin-left: 0.4rem; }
+
+/* CR085 P3 — what is selected, visible without hunting, and a way back to nothing.
+   No new *-btn / *-button class definitions: `check-button-css.sh` ratchets on those. */
+.fc-sensitivity .fc-sens-selected {
+  border: 1px solid var(--accent);
+  border-radius: 8px;
+  padding: 0.4rem 0.5rem 0.5rem;
+  margin-bottom: 0.6rem;
+  background: var(--accent-subtle);
+  /* Sticky inside the picker's own scroll: the complaint was "I cannot see which three are
+     selected", and a summary that scrolls out of view answers it only while you are already
+     at the top. An opaque background is required, or the list shows through it. */
+  position: sticky;
+  top: 0;
+  z-index: 1;
+}
+
+.fc-sensitivity .fc-sens-selected-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  font-size: 0.75rem;
+  color: var(--ink-tertiary);
+  margin-bottom: 0.25rem;
+}
+
+.fc-sensitivity .fc-sens-clear {
+  background: none;
+  border: 0;
+  padding: 0;
+  font: inherit;
+  color: var(--accent-strong);
+  cursor: pointer;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+
+.fc-sensitivity .fc-sens-selected ul { list-style: none; margin: 0; padding: 0; }
+
+.fc-sensitivity .fc-sens-selected li {
+  display: flex;
+  align-items: baseline;
+  gap: 0.4rem;
+  font-size: 0.78rem;
+  padding: 0.1rem 0;
+  color: var(--ink);
+}
+
+.fc-sensitivity .fc-sens-chip-name { flex: 1; min-width: 0; }
+.fc-sensitivity .fc-sens-chip-band { color: var(--ink-tertiary); font-size: 0.72rem; white-space: nowrap; }
+
+.fc-sensitivity .fc-sens-chip-drop {
+  background: none;
+  border: 0;
+  padding: 0 0.15rem;
+  font-size: 0.95rem;
+  line-height: 1;
+  color: var(--ink-tertiary);
+  cursor: pointer;
+}
+
+.fc-sensitivity .fc-sens-chip-drop:hover { color: var(--danger); }
+
+.fc-sensitivity .fc-sens-group-picked {
+  color: var(--accent-strong);
+  font-weight: 600;
+  margin-right: 0.4rem;
+}
+
+.fc-sensitivity .fc-sens-module-picked {
+  display: inline-block;
+  margin-left: 0.4rem;
+  min-width: 1.05rem;
+  padding: 0 0.25rem;
+  border-radius: 999px;
+  background: var(--accent);
+  color: var(--on-accent);
+  font-size: 0.68rem;
+  text-align: center;
+  font-weight: 600;
+}

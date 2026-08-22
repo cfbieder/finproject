@@ -133,6 +133,12 @@ export default function FCSensitivity() {
     localStorage.setItem(STORAGE_KEY, JSON.stringify({ scenario, knobs: selected }));
   }, [scenario, selected]);
 
+  const countSelected = (modules) =>
+    modules.reduce(
+      (n, [, ks]) => n + ks.filter((k) => selected.some((p) => keyOf(p) === keyOf(k))).length,
+      0
+    );
+
   const keyOf = (k) =>
     `${k.entity}|${k.module}|${k.target?.direction ?? k.target?.date ?? ""}|${k.field}`;
 
@@ -242,6 +248,38 @@ export default function FCSensitivity() {
           <h2>
             Knobs <span>{selected.length}/{MAX_KNOBS}</span>
           </h2>
+
+          {/* ⚠️ WHAT IS SELECTED HAS TO BE VISIBLE WITHOUT HUNTING FOR IT.
+              The picker is a long scrolled list of collapsed groups, and a selection three modules
+              down is invisible — the count said "3/8" and nothing said WHICH three, so the only way
+              to reset was to remember. It also survives a reload via localStorage, which made the
+              problem worse: the boxes were ticked somewhere off-screen with no trace on open. */}
+          {selected.length > 0 && (
+            <div className="fc-sens-selected">
+              <div className="fc-sens-selected-head">
+                <span>Selected</span>
+                <button type="button" className="fc-sens-clear" onClick={() => setSelected([])}>
+                  Clear all
+                </button>
+              </div>
+              <ul>
+                {selected.map((k) => (
+                  <li key={keyOf(k)}>
+                    <span className="fc-sens-chip-name">{k.module} · {k.label}</span>
+                    <span className="fc-sens-chip-band">{bandLabel(k)}</span>
+                    <button
+                      type="button"
+                      className="fc-sens-chip-drop"
+                      aria-label={`Remove ${k.module} ${k.label}`}
+                      onClick={() => toggle(k)}
+                    >
+                      ×
+                    </button>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          )}
           {/* The cap is a BATCH SIZE, not a limit on the question: runs on an unchanged scenario
               share an anchor, so a second run's bars are comparable to this one's. */}
           {selected.length >= MAX_KNOBS && (
@@ -255,12 +293,24 @@ export default function FCSensitivity() {
               <summary>
                 {group.label}
                 <span className="fc-sens-group-count">
+                  {/* The selected count leads, because that is what a reader is looking for when
+                      they scroll back to change something. */}
+                  {countSelected(group.modules) > 0 && (
+                    <strong className="fc-sens-group-picked">{countSelected(group.modules)} picked</strong>
+                  )}
                   {group.modules.reduce((n, [, ks]) => n + ks.length, 0)}
                 </span>
               </summary>
-              {group.modules.map(([module, ks]) => (
-            <details key={module}>
-              <summary>{module}</summary>
+              {group.modules.map(([module, ks]) => {
+                const picked = ks.filter((k) => selected.some((p) => keyOf(p) === keyOf(k))).length;
+                return (
+            // `open` is DERIVED from whether this module holds a selection, so a restored
+            // selection is visible on load instead of hidden inside a closed group.
+            <details key={module} open={picked > 0}>
+              <summary>
+                {module}
+                {picked > 0 && <span className="fc-sens-module-picked">{picked}</span>}
+              </summary>
               {ks.map((k) => {
                 const id = keyOf(k);
                 const chosen = selected.find((p) => keyOf(p) === id);
@@ -291,7 +341,8 @@ export default function FCSensitivity() {
                 );
               })}
             </details>
-              ))}
+                );
+              })}
             </details>
           ))}
         </aside>

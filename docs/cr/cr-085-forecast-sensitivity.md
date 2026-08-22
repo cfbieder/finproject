@@ -832,3 +832,27 @@ arithmetic in **both** directions, the adverse side keyed on the metric, an all-
 a *mix* of sides, the taxability gate, and the value formatting per kind. Lint 0 errors, build
 clean, all six ratchets at baseline, both themes driven through run → combine with zero console
 errors.
+
+### The picker could not say what was selected (2026-08-22)
+
+*"It is hard to reset as I can not see which three knobs are selected."*
+
+The count said **3/8** and nothing said **which three**. The picker is a long scrolled list of
+collapsed groups, so a selection three modules down was invisible — and because the selection
+persists to `localStorage`, a reload restored ticked boxes *inside closed groups*, leaving no trace
+at all on open. The only way to reset was to remember what you had picked.
+
+Four changes, all in the picker:
+
+- A **sticky "Selected" panel** at its top, listing each chosen knob by module and field with its
+  band, each removable with an ×. Sticky because a summary that scrolls out of view answers the
+  question only while you are already at the top.
+- **Clear all**, which is the reset that did not exist.
+- Each **type group** shows how many of its knobs are picked (`Expenses · 2 picked · 30`).
+- Each **module** shows a count badge, and a module holding a selection **opens itself** — `open`
+  is derived from the selection rather than written by an effect, so a restored selection is
+  visible on load instead of hidden.
+
+This is the same family as the six defects above — state that exists, produces no visible sign, and
+therefore reads as absent — but it is the first one where what was invisible was **the reader's own
+input** rather than the engine's output.
