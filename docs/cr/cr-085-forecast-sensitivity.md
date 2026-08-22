@@ -768,3 +768,67 @@ Fixed with a **named control on every row — "See the path →"** — in its ow
 assumption name restyled as an accent-coloured link rather than plain text. Three tests guard it:
 the control exists and calls back with its row, the row label still works for anyone who reaches
 for it, and neither renders when there is nothing to open.
+
+## 19. As built — P3: every change at once, and what the ± lands on (2026-08-22)
+
+Two owner asks after using P2 on prod: *"can we also allow for a click to see the graph with all
+changes applied (3 in this case)"* and *"how can we better see what values the ± actually
+represent? can we show the actual value not just the ±%?"*
+
+### The combined run — and why it does not contradict §5.4
+
+§5.4 says **never display a sum of impacts**. That rule stands, and it is *why* this is worth
+building. The model is path-dependent: the cash sweep sells different assets when several things
+move at once than when each moves alone, so **adding the bars gives a number the engine never
+produces**. Building the combination gives a **measured** one, and the difference between the two
+is the interaction — the only honest answer to *"do these risks compound or cancel?"*, which is a
+question a tornado structurally cannot ask. **The sum now appears in exactly one place: as the
+thing the measurement is compared against.**
+
+Measured on live dev data with four knobs: the bars sum to **−$623.8K**, the combination measures
+**−$646.9K**. They **compound by $23.1K**, and nothing in the ranking could have said so.
+
+`POST /sensitivity/combined` takes an **explicit `side` per knob**, because "all adverse" is a
+statement about the *metric* and the metric is computed on the client (§5.3) — for an expense knob,
+*down* is the good direction, so an all-adverse set is a **mix** of low and high sides, not "all
+knobs at low". It **rebuilds its own anchor** rather than borrowing the ranking run's: a different
+scratch copy is a different scenario, and comparing across them would fold any copy-to-copy
+difference into the interaction figure. Knobs are applied in one pass; a duplicate knob inside one
+combination is **refused** (the second would overwrite the first's captured value and make the
+restore lossy); restores unwind in **reverse**.
+
+### The band alone was unreadable
+
+"±0.25×" does not tell a reader that a growth of 0.8 lands at **0.55 and 1.05**, and "±50%" on a
+market value says nothing at all without the value. Every point now reports what the knob was moved
+**to** and **from**, and the table carries a **Now** column plus the resolved value under each
+impact.
+
+### ⚠️ The FIFTH zero bar, and it was visible in the shipped table
+
+`Car Expenses · Tax rate (gains)` ranked at **$0 down and $0 up**. A module's `tax_rate_override` is
+read in exactly two places — the capital-gains rate on a **disposal**, and the fallback for an
+**income** stream's tax (fcbuilder-module.js:632-634). An expense-only flow module has neither,
+because `fc_stream_tax_is_income_only` guarantees its expense streams carry no tax. §18 had
+explicitly reasoned that this field was safe to leave ungated; that reasoning was right about *why*
+it is not valuation-gated and wrong about the conclusion. Now gated on there being something to
+tax. **191 knobs → 179.**
+
+### ⚠️ Base and "all favourable" were both blue
+
+The base line took slot 0 of the categorical set — which is blue — and the **favourable** pole of
+the diverging pair is also blue. Two blue lines, one of them the reference the other two are
+measured against. Caught by rendering it, not by any gate.
+
+Validating a neutral gray as a *third categorical hue* then **failed on its own terms**: chroma
+floor, and blue↔gray at **ΔE 8.7** normal-vision in light, under the 15 floor. The resolution is
+that **a reference is not a category** — it takes a neutral *and a dash*, which is secondary
+encoding, so the two data hues keep the separation they were validated for and the baseline reads
+as the axis it effectively is. `FCTrajectoryChart` gained an optional per-series `dash`, undefined
+for every existing caller, so Compare and Multi-Compare render byte-identically.
+
+**Verified:** 291 backend / 550 frontend tests green on a from-scratch database — the interaction
+arithmetic in **both** directions, the adverse side keyed on the metric, an all-adverse set that is
+a *mix* of sides, the taxability gate, and the value formatting per kind. Lint 0 errors, build
+clean, all six ratchets at baseline, both themes driven through run → combine with zero console
+errors.

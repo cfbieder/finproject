@@ -8,7 +8,7 @@
 > CR index and roadmap already own, and it is where stale facts collect. Each cut has come from
 > MOVING something that changes on a different clock, never from deleting what is true.
 
-**Last updated:** 2026-08-21 · **Live version:** **v3.33.1** (see `VERSION` / git tags) — CR085 COMPLETE (tornado + trajectory, migration 073); CR083's Latest Estimate (072); CR082 and CR084 complete
+**Last updated:** 2026-08-22 · **Live version:** **v3.34.0** (see `VERSION` / git tags) — CR085 COMPLETE (tornado + trajectory, migration 073); CR083's Latest Estimate (072); CR082 and CR084 complete
 
 ## Current phase
 **The model, since [CR069](../cr/cr-069-forecast-streams.md):** a module is *identity + optional
@@ -35,7 +35,11 @@ filing `growth_rate` as a rate when the engine reads it as a **multiplier of inf
 caught by reading the engine, one only by rendering the page and looking at it. **A fifth, in the
 UI, cost two rounds of "I do not see it":** P2's trajectory shipped behind an affordance too subtle
 to find, and then the *fix* sat committed-but-undeployed while the report of that was buried at the
-end of a long message. Present-but-invisible is the same failure wearing different clothes.
+end of a long message. Present-but-invisible is the same failure wearing different clothes. **A
+sixth was visible in the shipped table** — a module tax rate ranking at $0 both ways on an
+expense-only module, which [§18](../cr/cr-085-forecast-sensitivity.md) had explicitly argued was
+safe to leave ungated. **Every one of the six was found by a person looking at the output, never by
+a gate.**
 
 🔴 **[CR076](../cr/cr-076-forecast-model-review.md) — the five-reviewer model review; §8 COMPLETE
 across v3.20.0–v3.22.0.** It corrected **our own published figures** and moved numbers eight times.
