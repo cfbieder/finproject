@@ -8,7 +8,7 @@
 > CR index and roadmap already own, and it is where stale facts collect. Each cut has come from
 > MOVING something that changes on a different clock, never from deleting what is true.
 
-**Last updated:** 2026-08-22 · **Live version:** **v3.34.0** (see `VERSION` / git tags) — CR085 COMPLETE (tornado + trajectory, migration 073); CR083's Latest Estimate (072); CR082 and CR084 complete
+**Last updated:** 2026-08-22 · **Live version:** **v3.34.1** (see `VERSION` / git tags) — CR085 COMPLETE (tornado + trajectory, migration 073); CR083's Latest Estimate (072); CR082 and CR084 complete
 
 ## Current phase
 **The model, since [CR069](../cr/cr-069-forecast-streams.md):** a module is *identity + optional
@@ -39,7 +39,8 @@ end of a long message. Present-but-invisible is the same failure wearing differe
 sixth was visible in the shipped table** — a module tax rate ranking at $0 both ways on an
 expense-only module, which [§18](../cr/cr-085-forecast-sensitivity.md) had explicitly argued was
 safe to leave ungated. **Every one of the six was found by a person looking at the output, never by
-a gate.**
+a gate** — and a **seventh** was the picker being unable to say which knobs were selected, the
+first of them where what was invisible was the reader's own INPUT rather than the engine's output.
 
 🔴 **[CR076](../cr/cr-076-forecast-model-review.md) — the five-reviewer model review; §8 COMPLETE
 across v3.20.0–v3.22.0.** It corrected **our own published figures** and moved numbers eight times.
