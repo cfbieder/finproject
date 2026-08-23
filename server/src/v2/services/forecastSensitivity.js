@@ -591,6 +591,12 @@ async function listKnobs(scenarioName, client = db) {
       // on. The frontend must not re-derive it from `module_type`, which is free text.
       group: knobs.knobGroup(spec, row, moduleRow, streams),
       current: current == null ? null : String(current),
+      // ⚠️ USD, ALWAYS. A knob moves the module's OWN-currency column, and `United Beverages` at
+      // 15,000,000 PLN would otherwise outrank every dollar figure in the plan by sorting on a
+      // number that is not money — the CR054 class, and the same 3.6× the results table already
+      // had to fix. Null for anything without a USD twin: those are simply not candidates.
+      usdMagnitude: spec.usdTwin && row[spec.usdTwin] != null
+        ? Math.abs(Number(row[spec.usdTwin])) : null,
     });
   };
 
@@ -683,7 +689,70 @@ async function listKnobs(scenarioName, client = db) {
       }
     }
   }
-  return out;
+  return markStartingSet(out);
+}
+
+/** How many knobs the picker opens with — 11 builds, about six seconds, well inside the cap. */
+const STARTING_SET_SIZE = 5;
+
+/**
+ * §15 cut 5 — the picker should not open empty. Its other half ("say that runs compose") shipped
+ * with P1; this is the half that did not.
+ *
+ * ⚠️ A STARTING SET MUST NOT READ AS AN ANSWER. This page exists because you CANNOT tell in advance
+ * which assumption the plan rests on — that is the whole premise, and a pre-ticked set labelled as
+ * anything like "the important ones" would contradict it before the first build. So the rule is
+ * deliberately dumb and stated plainly in the UI: **the biggest numbers in the plan**, which is a
+ * fact about the balance sheet, not a claim about sensitivity. The run is what turns one into the
+ * other, and the two are genuinely different — a large asset disposed in year one moves less than a
+ * middling one compounding for thirty-six.
+ *
+ * Only LEVEL knobs with a USD twin are candidates: a magnitude is the only thing comparable across
+ * knobs, and rates, multipliers and dates do not have one. Cost basis is excluded — it is a tax
+ * input rather than a driver of the plan, and §22 established that it only moves anything at all
+ * when the module is sold.
+ *
+ * BREADTH FIRST, THEN SIZE: one knob from each group before a second from any, so a plan whose four
+ * biggest numbers are all assets does not open with four ways of asking the same question.
+ *
+ * ⚠️ BUT BREADTH HAS A FLOOR, or it reproduces this CR's own pathology. On `2026 Base` the largest
+ * LIABILITY is `USD Credit Cards` at $27,187, against `United Beverages` at $4,175,595 — a hundred
+ * and fifty times smaller. Included for balance it draws a bar of a few pixels beside one that
+ * fills the chart, and a bar that renders as nothing reads as *"this assumption does not matter"*,
+ * which is the exact misreading eleven fixes in this CR exist to prevent. A group whose best
+ * candidate is under 1% of the largest one is left out and its slot goes to the next biggest
+ * knob instead.
+ */
+const STARTING_SET_FLOOR = 0.01;
+
+function markStartingSet(list) {
+  const all = list
+    .filter((k) => k.kind === knobs.KIND.LEVEL && k.usdMagnitude > 0 && k.field !== 'base_value')
+    .sort((a, b) => b.usdMagnitude - a.usdMagnitude);
+  if (!all.length) return list;
+
+  // ⚠️ THE FLOOR APPLIES TO BOTH PASSES. It first guarded only the breadth pass, so a plan with
+  // few candidates could still open with a knob 150× smaller than the largest — admitted by SIZE
+  // rather than by balance, and drawing exactly the same few-pixel bar. Caught by its own test.
+  // A short starting set is a better answer than a padded one.
+  const floor = all[0].usdMagnitude * STARTING_SET_FLOOR;
+  const candidates = all.filter((k) => k.usdMagnitude >= floor);
+
+  const picked = [];
+  const seenGroups = new Set();
+  for (const k of candidates) {
+    if (picked.length >= STARTING_SET_SIZE) break;
+    if (seenGroups.has(k.group)) continue;
+    seenGroups.add(k.group);
+    picked.push(k);
+  }
+  for (const k of candidates) {
+    if (picked.length >= STARTING_SET_SIZE) break;
+    if (!picked.includes(k)) picked.push(k);
+  }
+
+  for (const k of picked) k.starting = true;
+  return list;
 }
 
 module.exports = {
@@ -691,6 +760,8 @@ module.exports = {
   runCombined,
   startCombinedJob,
   listKnobs,
+  // Exported for its unit test: the rule is a judgement, and a judgement needs pinning.
+  _internals: { markStartingSet, STARTING_SET_SIZE, STARTING_SET_FLOOR },
   startSensitivityJob,
   getSensitivityJob,
   assertCopyFidelity,

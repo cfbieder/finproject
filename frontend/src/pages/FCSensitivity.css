@@ -649,3 +649,12 @@
   line-height: 1.5;
   font-variant-numeric: tabular-nums;
 }
+
+/* The caption under a pre-ticked starting set. Recessive — it explains the selection, it is not
+   part of it — but present, because five ticked boxes with no explanation read as an assertion. */
+.fc-sensitivity .fc-sens-starting-note {
+  margin: 0.35rem 0 0;
+  color: var(--ink-tertiary);
+  font-size: 0.72rem;
+  line-height: 1.45;
+}

@@ -1296,3 +1296,70 @@ that mattered did not exist. Both halves of that are now closed.
 
 Verified by re-sweep, comparing on `(entity, module, field)`: **nothing that worked was lost**, and
 the fourteen new knobs are all live.
+
+---
+
+## 24. §15 cut 5's other half — the picker stops opening empty (2026-08-23)
+
+Cut 5 had two halves. *Say that runs compose* shipped with P1; **ship a default knob set** did not,
+so for five releases the page opened with 154 unticked checkboxes and no obvious first move.
+
+### ⚠️ A STARTING SET MUST NOT READ AS AN ANSWER
+
+This page exists because you **cannot** tell in advance which assumption the plan rests on. Five
+pre-ticked knobs with no caption would be this page's answer to its own question, asserted before a
+single build. So the rule is deliberately dumb, and the UI says so in as many words:
+
+> The biggest numbers in the plan, so the page opens on something rather than nothing. That is a
+> fact about the balance sheet, **not** a ranking — turning one into the other is what the run is for.
+
+**And the very first cold run proved the caption honest.** One click, no edits:
+
+| rank | knob | its size | what it moved |
+|---|---|---|---|
+| **1** | `Living Expenses · Amount` | **$127,372** | **−$1.1M** |
+| 2 | `United Beverages · Market value` | **$4,175,595** | −$677.0K |
+| 3 | `Fidelity Stocks · Market value` | $1,369,072 | −$521.2K |
+| 4 | `Fidelity Fixed Income · Market value` | $1,241,052 | −$322.6K |
+| 5 | `United Beverages · Amount · UB Income` | $128,205 | −$246.5K |
+
+**The smallest number in the set is the biggest lever, and the largest is second** — a 33× size gap
+inverted. Size and sensitivity are different things, the page exists to tell them apart, and the
+starting set must not pretend otherwise.
+
+### The rule
+
+Candidates are **LEVEL knobs with a USD twin** — a magnitude is the only thing comparable across
+knobs, and rates, multipliers and dates have none. ⚠️ **USD, always**: a knob moves the module's
+own-currency column, so `United Beverages` at 15,000,000 **PLN** would otherwise outrank every
+dollar in the plan by sorting on a number that is not money (the CR054 class, and the same 3.6×
+the results table already had to fix). `base_value` is excluded — §22 established it only moves
+anything when the module is sold, so it is a poor opening question however large.
+
+**Breadth first, then size:** one knob per group before a second from any, so a plan whose biggest
+numbers are all assets does not open with four ways of asking one question.
+
+⚠️ **But breadth has a floor, or it reproduces this CR's own pathology.** The largest *liability* on
+`2026 Base` is `USD Credit Cards` at **$27,187** against `United Beverages` at **$4,175,595** — 150×
+smaller. Included for balance it draws a few pixels beside a bar that fills the chart, and a bar
+that renders as nothing reads as *"this assumption does not matter"*. Anything under **1%** of the
+largest candidate is left out.
+
+⚠️ **And the floor first guarded only the breadth pass** — so with few candidates a knob could still
+get in by SIZE, same few-pixel bar, admitted through the other door. Caught by its own unit test.
+**A short starting set is better than a padded one.**
+
+### `null` and `[]` are different statements, and this needs both
+
+- `null` — *has not chosen yet* — is what lets the picker open on the starting set.
+- `[]` — *chose nothing*, what **Clear all** leaves — must STAY empty, or the page re-ticks five
+  knobs the reader just removed and reads as broken. Verified across a reload.
+- Changing scenario returns to `null`, not `[]`: a different plan has different biggest numbers, and
+  a blank picker for a plan they have never looked at is the exact thing this cut exists to stop.
+- Storage writes `knobs: null` while untouched, so a reload re-derives from the **current**
+  catalogue rather than pinning yesterday's five knobs.
+
+⚠️ **Derived, never written by an effect** — `react-hooks/set-state-in-effect` is a ratchet that may
+only shrink, and v3.34.1's picker fix records the same reasoning.
+
+**Eleven builds, about six seconds.** With this, CR085 has no unbuilt scope left.

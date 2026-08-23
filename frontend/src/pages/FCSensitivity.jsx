@@ -62,9 +62,17 @@ export default function FCSensitivity() {
   const [chosenScenario, setChosenScenario] = useState(
     () => JSON.parse(localStorage.getItem(STORAGE_KEY) || "{}")?.scenario || ""
   );
-  const [selected, setSelected] = useState(() => {
+  /**
+   * ⚠️ NULL AND [] ARE DIFFERENT STATEMENTS, and §15 cut 5 needs both.
+   *
+   * `null` is "this reader has not chosen yet", and it is what lets the picker open with the
+   * server's starting set instead of empty. `[]` is "chose nothing" — what *Clear all* leaves
+   * behind — and it must STAY empty, or the page would re-tick five knobs the reader had just
+   * removed and read as broken.
+   */
+  const [selection, setSelection] = useState(() => {
     const saved = JSON.parse(localStorage.getItem(STORAGE_KEY) || "{}");
-    return Array.isArray(saved?.knobs) ? saved.knobs : [];
+    return Array.isArray(saved?.knobs) ? saved.knobs : null;
   });
   const [metricKey, setMetricKey] = useState(METRICS[0].key);
   const [openRow, setOpenRow] = useState(null);
@@ -99,6 +107,26 @@ export default function FCSensitivity() {
     enabled: Boolean(scenario),
   });
   const catalogue = useMemo(() => catalogueQuery.data || [], [catalogueQuery.data]);
+
+  /**
+   * §15 cut 5 — the picker used to open with nothing ticked and 154 checkboxes to read.
+   *
+   * ⚠️ DERIVED, never written by an effect. `react-hooks/set-state-in-effect` is a ratchet that may
+   * only shrink, and the picker fix in v3.34.1 records the same reasoning: an effect that seeds
+   * state from a query is two violations and a render the reader can see happen.
+   */
+  const startingSet = useMemo(
+    () => catalogue.filter((k) => k.starting).map((k) => ({ ...k, bands: [k.band] })),
+    [catalogue]
+  );
+  const untouched = selection === null;
+  const selected = useMemo(
+    () => (untouched ? startingSet : selection),
+    [untouched, startingSet, selection]
+  );
+  /** Any mutation is a choice, so it always writes a real array — `null` never comes back. */
+  const setSelected = (next) =>
+    setSelection((prev) => (typeof next === "function" ? next(prev ?? startingSet) : next));
   const catalogueError = catalogueQuery.isError
     ? (catalogueQuery.error?.message || "Could not load the knobs")
     : null;
@@ -140,8 +168,10 @@ export default function FCSensitivity() {
   }, [meta, baseYearQuery.data, balanceQuery.data, cashAccountMap, balanceAccountMap, balanceAccounts]);
 
   useEffect(() => {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify({ scenario, knobs: selected }));
-  }, [scenario, selected]);
+    // `knobs: null` for an untouched picker, so a reload re-derives the starting set from the
+    // CURRENT catalogue rather than pinning yesterday's five knobs into storage.
+    localStorage.setItem(STORAGE_KEY, JSON.stringify({ scenario, knobs: untouched ? null : selected }));
+  }, [scenario, selected, untouched]);
 
   const countSelected = (modules) =>
     modules.reduce(
@@ -331,7 +361,10 @@ export default function FCSensitivity() {
       <section className="fc-sens-controls">
         <label>
           Scenario
-          <select value={scenario} onChange={(e) => { setChosenScenario(e.target.value); setSelected([]); }}>
+          {/* Back to `null`, not `[]`: a different scenario has different biggest numbers, and
+              clearing to empty would hand the reader a blank picker for a plan they have never
+              looked at — the exact thing §15 cut 5 exists to stop. */}
+          <select value={scenario} onChange={(e) => { setChosenScenario(e.target.value); setSelection(null); }}>
             {options.map((o) => (
               <option key={o.name} value={o.name}>{o.label}</option>
             ))}
@@ -453,11 +486,25 @@ export default function FCSensitivity() {
           {selected.length > 0 && (
             <div className="fc-sens-selected">
               <div className="fc-sens-selected-head">
-                <span>Selected</span>
-                <button type="button" className="fc-sens-clear" onClick={() => setSelected([])}>
+                <span>{untouched ? "Starting set" : "Selected"}</span>
+                <button type="button" className="fc-sens-clear" onClick={() => setSelection([])}>
                   Clear all
                 </button>
               </div>
+              {/* ⚠️ THIS SENTENCE IS LOAD-BEARING AND IS NOT DECORATION.
+                  The page exists because you CANNOT tell in advance which assumption the plan rests
+                  on. Five pre-ticked knobs with no caption would read as this page's answer to its
+                  own question, asserted before a single build — so the caption says exactly what
+                  the rule is (the biggest numbers) and exactly what it is not (a ranking). The two
+                  really do differ: a large asset sold in year one moves less than a middling one
+                  compounding for thirty-six. */}
+              {untouched && (
+                <p className="fc-sens-starting-note">
+                  The biggest numbers in the plan, so the page opens on something rather than
+                  nothing. That is a fact about the balance sheet, <strong>not</strong> a ranking —
+                  turning one into the other is what the run is for.
+                </p>
+              )}
               <ul>
                 {selected.map((k) => (
                   <li key={keyOf(k)}>
