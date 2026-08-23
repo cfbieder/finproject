@@ -999,6 +999,9 @@ you to know which module holds it. Typing `growth` narrows 179 knobs to 42.
 **Multi-band knobs, as nested bars.** A knob carries a set of bands chosen from presets per kind
 (level ±10/20/50%, rate ±0.5/1/2pp, multiplier ±0.25/0.5/1×, timing ±1/2/5y) — presets rather than
 a free number, because comparing bands across knobs only means anything when they are the same.
+⚠️ **SUPERSEDED by [§21](#21-bands-the-owner-types-2026-08-23) (2026-08-23), at owner request:** any
+band can now be typed. The comparability argument was real but it is not an argument for *refusing*
+the question — it is an argument for **saying when it applies**, which `bandMismatch` now does.
 
 ⚠️ **The ranking runs on ONE named band — the smallest each knob carries** — because a knob probed
 at ±50% would otherwise outrank one probed at ±10% purely for having been pushed harder. That is
