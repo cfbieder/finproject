@@ -938,3 +938,37 @@ list of bands, the cap moved from knobs to **builds** (`MAX_BUILDS = 50`), and t
 found `Barkeria · Market value` moving **−201,268 / −409,228 / −1,324,512** at ±10/20/50%: the
 downside is **6.58× the ±10% impact for a 5× band**, non-linear, and invisible at a single band. The
 nested-bar chart is deliberately held until Tier 3 settles the layout.
+
+### Tier 2 — accessibility (2026-08-23)
+
+- **A token focus ring, app-wide** (`index.css`) — `outline: 2px solid var(--primary-strong)`, at
+  **5.26:1** light / **5.87:1** dark, replacing a `--shadow-focus` that composites to **1.18:1** /
+  1.65:1. ⚠️ **The review's framing of this was partly wrong and it is worth recording:** the shadow
+  really is invisible, but Chromium still draws *its own* ring on buttons, so the rendered focus
+  state was never absent — verified by keyboard-focusing a control and looking at it. The new rule
+  demonstrably applies to `select`, `summary` and inputs (measured `2px solid #537453`); on buttons
+  the UA ring wins and is legible. An improvement in consistency, not the barrier described.
+- **The band input was invisible in dark** — `--surface-elevated` on an already-elevated panel with
+  a `--border` at 1.06:1, so the field that decides the ± was a bare floating number that did not
+  look editable. Now recessed (`--bg` + `--border-strong`).
+- **Three light-mode contrast failures fixed**: the `⚠ not symmetric` flag at **2.79:1** →
+  `--warning-strong` (it is how a reader learns the sweep fired, and it was the faintest text in the
+  table); `See the path` / `See all N together` at **3.68:1** → `--accent-strong`; the module badge
+  at 3.68:1 → `--primary-strong`.
+- **`aria-pressed` on both toggles.** The two metrics have OPPOSITE favourable directions, so
+  reading the chart against the wrong one inverts every bar — the selected state cannot rest on a
+  1.06:1 tint and a font weight, and it must be announced.
+- **The chart is `aria-hidden`**, because recharts exposes every tick and label as a bare text node
+  and the results table is a genuine equivalent — the two were being read as duplicates.
+- **Favourable/adverse is no longer colour-alone**: an `sr-only` `(favourable)`/`(adverse)` rides in
+  each Down/Up cell. On the shortfall metric the sign of the delta does *not* track the colour a
+  sighted reader sees, so the one dimension colour uniquely carried was the one the text omitted.
+- **`role="status"` on the build counter and `role="alert"` on both errors** — a run takes seconds
+  and every signal for it lived inside a button label a screen reader never revisits.
+- **Checkbox names carry the module** (`United Beverages — Market value, currently …`); the module
+  lived only in an ancestor `<summary>`, so a forms list read "Amount 31,694" dozens of times.
+- **At the 8-knob cap the unchecked boxes are `disabled`** rather than silently ignoring the click,
+  and the band input has a `min` — the server already refuses a zero band, but the input should not
+  offer one.
+- **The feasibility refusal renders as written** (`white-space: pre-line`) instead of collapsing its
+  bulleted list into one run-on sentence.

@@ -62,6 +62,7 @@ export default function FCSensitivityTrajectoryModal({
           <div className="fc-sens-trajectory-mode" role="group" aria-label="View">
             <button
               type="button"
+              aria-pressed={mode === "absolute"}
               className={mode === "absolute" ? "is-active" : ""}
               onClick={() => setMode("absolute")}
             >
@@ -69,6 +70,7 @@ export default function FCSensitivityTrajectoryModal({
             </button>
             <button
               type="button"
+              aria-pressed={mode === "delta"}
               className={mode === "delta" ? "is-active" : ""}
               onClick={() => setMode("delta")}
               title="Subtract the base, so the two runs fan out at their own scale instead of overlapping it"

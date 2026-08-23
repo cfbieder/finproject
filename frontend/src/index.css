@@ -372,8 +372,36 @@ button:active:not(:disabled) {
   transform: translateY(0);
 }
 
-button:focus-visible {
+/*
+ * ⚠️ A REAL FOCUS RING, APP-WIDE.
+ *
+ * `button { outline: none }` above strips the UA ring from every button in Fin, and the
+ * replacement was `--shadow-focus` — a 15%/25%-alpha green that composites to **1.18:1** on white
+ * and **1.65:1** on the dark surface. Effectively invisible in both themes, which means every
+ * keyboard path in the app was untraceable by eye: nothing showed where you were.
+ *
+ * An opaque outline, not a translucent shadow, because a shadow tinted at 15% cannot reach 3:1
+ * against a light surface whatever hue it uses. `outline-offset` keeps it clear of the control's
+ * own border, and `outline` does not affect layout the way a border would.
+ *
+ * The shadow is kept alongside it: on the accent-filled buttons it reads as a soft halo, and
+ * removing it would change their look for no benefit.
+ */
+button:focus-visible,
+a:focus-visible,
+[role="button"]:focus-visible,
+summary:focus-visible {
+  outline: 2px solid var(--primary-strong);
+  outline-offset: 2px;
   box-shadow: var(--shadow-focus);
+}
+
+/* Inputs keep their own border and only gain the ring, so the box does not appear to grow. */
+input:focus-visible,
+select:focus-visible,
+textarea:focus-visible {
+  outline: 2px solid var(--primary-strong);
+  outline-offset: 1px;
 }
 
 button:disabled {

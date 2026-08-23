@@ -20,9 +20,12 @@
 
 .fc-sensitivity .fc-sens-controls select,
 .fc-sensitivity .fc-sens-band input {
-  background: var(--surface-elevated);
+  /* ⚠️ RECESSED, not elevated. These sit INSIDE an elevated panel, so `--surface-elevated` on
+     `--surface-elevated` with a `--border` at 1.06:1 in dark made the band input a bare floating
+     number with no box — the field that decides the ± did not look editable. */
+  background: var(--bg);
   color: var(--ink);
-  border: 1px solid var(--border);
+  border: 1px solid var(--border-strong);
   border-radius: 6px;
   padding: 0.35rem 0.5rem;
 }
@@ -124,7 +127,13 @@
 .fc-sensitivity .fc-sens-band input { width: 4.5rem; }
 
 .fc-sensitivity .fc-sens-note { color: var(--ink-tertiary); font-size: 0.85rem; }
-.fc-sensitivity .fc-sens-error { color: var(--danger); font-size: 0.85rem; }
+/* `feasibilityPass` composes a genuinely useful multi-line refusal; without this the browser
+   collapses it into one run-on sentence with bullets mid-line. */
+.fc-sensitivity .fc-sens-error {
+  color: var(--danger);
+  font-size: 0.85rem;
+  white-space: pre-line;
+}
 
 .fc-sensitivity .fc-sens-drift {
   background: var(--warning-subtle);
@@ -192,7 +201,9 @@
   font-weight: 400;
 }
 
-.fc-tornado-regime { color: var(--warning); white-space: nowrap; }
+/* --warning is 2.79:1 on white. This is how a reader learns the cash sweep fired on one side;
+   it should not be the faintest text in the table. */
+.fc-tornado-regime { color: var(--warning-strong); white-space: nowrap; }
 
 .sr-only {
   position: absolute;
@@ -265,7 +276,7 @@
   border-radius: 6px;
   padding: 0.2rem 0.55rem;
   font-size: 0.75rem;
-  color: var(--accent);
+  color: var(--accent-strong);   /* --accent is 3.68:1 on white at 12px */
   cursor: pointer;
 }
 
@@ -343,7 +354,7 @@
   border-radius: 6px;
   padding: 0.25rem 0.7rem;
   font-size: 0.78rem;
-  color: var(--accent);
+  color: var(--accent-strong);   /* --accent is 3.68:1 on white */
   cursor: pointer;
   flex: none;
 }
@@ -429,7 +440,7 @@
   min-width: 1.05rem;
   padding: 0 0.25rem;
   border-radius: 999px;
-  background: var(--accent);
+  background: var(--primary-strong);   /* white on --accent is 3.68:1 at 11px bold */
   color: var(--on-accent);
   font-size: 0.68rem;
   text-align: center;

@@ -70,10 +70,8 @@ export default function FCTornadoChart({ rows, metric, anchor, onSelect, onCombi
   const chrome = chartChrome(theme);
   const lowerIsBetter = metric?.better === "lower";
 
-  const colorFor = (delta) => {
-    const favourable = lowerIsBetter ? delta < 0 : delta > 0;
-    return favourable ? colors.favourable : colors.adverse;
-  };
+  const favourable = (delta) => (lowerIsBetter ? delta < 0 : delta > 0);
+  const colorFor = (delta) => (favourable(delta) ? colors.favourable : colors.adverse);
 
   const data = rows.map((r) => ({
     label: knobLabel(r.knob),
@@ -124,6 +122,10 @@ export default function FCTornadoChart({ rows, metric, anchor, onSelect, onCombi
         </span>
       </div>
 
+      {/* ⚠️ Hidden from assistive tech ON PURPOSE. recharts exposes every tick and category label
+          as a bare text node with no role, and the table below is a genuine equivalent — without
+          this the two are read one after the other as duplicates. */}
+      <div aria-hidden="true">
       <ResponsiveContainer width="100%" height={Math.max(data.length * ROW_HEIGHT + 48, 160)}>
         <BarChart data={data} layout="vertical" margin={{ top: 8, right: 72, bottom: 8, left: 8 }}>
           <XAxis
@@ -187,6 +189,7 @@ export default function FCTornadoChart({ rows, metric, anchor, onSelect, onCombi
           </Bar>
         </BarChart>
       </ResponsiveContainer>
+      </div>
 
       {/* The accessible table view: the same numbers as the bars, plus the band that produced
           them. It replaces an earlier list that simply repeated the row labels — which cost a
@@ -227,6 +230,12 @@ export default function FCTornadoChart({ rows, metric, anchor, onSelect, onCombi
               <td>{d.band}</td>
               <td>
                 {formatKpiValue(d.low)}
+                {/* ⚠️ The one dimension colour uniquely carries. On the shortfall metric the SIGN
+                    of the delta no longer tracks the colour a sighted reader sees, so the text
+                    equivalent has to say it. */}
+                <span className="sr-only">
+                  {" "}({favourable(d.low) ? "favourable" : "adverse"})
+                </span>
                 <span className="fc-tornado-at">
                   at {d.lowAt.primary}
                   {d.lowAt.secondary && <> · {d.lowAt.secondary}</>}
@@ -234,6 +243,9 @@ export default function FCTornadoChart({ rows, metric, anchor, onSelect, onCombi
               </td>
               <td>
                 {formatKpiValue(d.high)}
+                <span className="sr-only">
+                  {" "}({favourable(d.high) ? "favourable" : "adverse"})
+                </span>
                 <span className="fc-tornado-at">
                   at {d.highAt.primary}
                   {d.highAt.secondary && <> · {d.highAt.secondary}</>}

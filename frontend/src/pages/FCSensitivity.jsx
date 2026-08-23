@@ -41,6 +41,12 @@ const GROUP_ORDER = [
  * ("Market value3918992.00") and a 15-digit numeric is not a thing anyone reads — the point of
  * showing it is "is this the field I mean", which wants a shape, not every cent.
  */
+/** The unit a band is expressed in, for the input's accessible name. */
+function bandUnit(kind) {
+  return { rate: "percentage points", level: "percent", multiplier: "multiples", timing: "years" }[kind]
+    || "units";
+}
+
 function formatCurrent(k) {
   if (k.current == null) return "—";
   if (k.kind === "timing") return String(k.current).slice(0, 10);
@@ -251,6 +257,10 @@ export default function FCSensitivity() {
             <button
               key={m.key}
               type="button"
+              // ⚠️ The two metrics have OPPOSITE favourable directions, so reading the chart
+              // against the wrong one inverts every bar. The selected state cannot rest on a
+              // 1.06:1 background tint plus a font weight, and it must be announced.
+              aria-pressed={metricKey === m.key}
               className={metricKey === m.key ? "is-active" : ""}
               onClick={() => setMetricKey(m.key)}
             >
@@ -275,8 +285,15 @@ export default function FCSensitivity() {
       </section>
 
       {scenariosLoading && <p className="fc-sens-note">Loading scenarios…</p>}
-      {catalogueError && <p className="fc-sens-error">{catalogueError}</p>}
-      {error && <p className="fc-sens-error">{error}</p>}
+      {/* A run takes several seconds and every signal for it lived inside the button's own label,
+          which a screen reader never revisits. */}
+      {state.status === "running" && (
+        <p className="fc-sens-note" role="status">
+          Building {state.done}/{state.total} — each one is a real forecast build.
+        </p>
+      )}
+      {catalogueError && <p className="fc-sens-error" role="alert">{catalogueError}</p>}
+      {error && <p className="fc-sens-error" role="alert">{error}</p>}
 
       <div className="fc-sens-body">
         <aside className="fc-sens-picker">
@@ -355,6 +372,13 @@ export default function FCSensitivity() {
                       <input
                         type="checkbox"
                         checked={Boolean(chosen)}
+                        // The module lives in an ancestor <summary>, which carries no grouping
+                        // semantics to a screen reader — so a forms list read "Amount 31,694",
+                        // "Amount 127,372" dozens of times with nothing to tell them apart.
+                        aria-label={`${module} — ${k.label}, currently ${formatCurrent(k)}`}
+                        // At the cap an unchecked box was a silent no-op. Disabled is both the
+                        // programmatic answer and the visible one.
+                        disabled={!chosen && selected.length >= MAX_KNOBS}
                         onChange={() => toggle(k)}
                       />
                       <span className="fc-sens-knob-label">{k.label}</span>
@@ -365,9 +389,10 @@ export default function FCSensitivity() {
                         <input
                           type="number"
                           step="0.05"
+                          min="0.01"
                           value={chosen.band}
                           onChange={(e) => setBand(k, e.target.value)}
-                          aria-label={`Band for ${k.label}`}
+                          aria-label={`Band for ${module} ${k.label}, in ${bandUnit(k.kind)}`}
                         />
                         {bandLabel({ ...chosen, band: chosen.band })}
                       </span>
