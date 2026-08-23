@@ -209,7 +209,16 @@ Also needed, in order of evidence:
 
 ## 7. Phases
 
-**Phase 0 — measure, so Phase 1 cannot regress.** (S)
+~~**Phase 0 — measure, so Phase 1 cannot regress.**~~ ⚠️ **DEFERRED / mostly CUT at pass-2 sign-off
+(§14 P1) — and the TBD baselines were the symptom, not the disease.** The disease is that Phase 0 **guards
+before it fixes**, inverting value delivery: the owner's first observable benefit arrives only after three
+scripts, three baseline files, three npm entries and a `ci.yml` edit. A guard should be committed for a
+metric someone intends to move, and two of these three are not. Per guard — **type-scale adoption: CUT**,
+with Phase 2 (they are coupled); **duplicate-selectors: keep only alongside a decision to fix
+`.balance-panel` ×3 and the two rival `DataTable` stylesheets**, since a ratchet at 131 with no reduction
+plan does nothing until someone adds 132; **css-literals: defensible but low value** — the convention held
+perfectly for 2,161 new CSS lines *without* it (§2). **Phase 1's token repoints go first, and did**
+(§13). *(Superseded design follows.)* (S)
 
 ⚠️ **Pass 1 could not reproduce ANY of the three drafted baselines (§12 C7).** A shrink-only guard
 baselined below the true count **fails on its own first CI run and blocks every commit** until someone
@@ -266,13 +275,27 @@ only *removes* rows from `.modal-adoption-baseline.txt`, which `comm -13` permit
 5. **`<h1>` on the 10 pages missing one**; a `404` route (`App.jsx` has no `<Route path="*">`, so an
    unknown URL renders full chrome around a blank page).
 
-**Phase 2 — the type scale.** (M) Cut to **6 steps** from the measured histogram: 36 distinct
+~~**Phase 2 — the type scale.**~~ ⚠️ **CUT at pass-2 sign-off (§14 P1).** No owner story: 1,059
+declarations and six steps, and the payoff is "pages look consistent" to the one person who already reads
+them daily. ⚠️ **It is coupled to Phase 0's type guard — they stand or fall together**, and the draft did
+not say so: a shrink-only adoption guard with no sweep behind it freezes adoption at 1.23% and taxes every
+future feature that adds a `font-size`. If the scale ever happens it should be **opportunistic in new
+stylesheets, with no guard and no sweep** — the same treatment §7 already gives the rgba sweep. Recorded
+here with its measurements rather than dropped. *(Superseded design follows.)* (M) Cut to **6 steps** from the measured histogram: 36 distinct
 rendered sizes, but the top six cover **75%** of 31,809 visible elements (13.12px 22% · 13.33px 21% ·
 15.2px 14% · 14.4px 7% · 16px 7% · 13.6px 6%). Adopt in the **six new stylesheets first** — they are
 the cleanest and the ones still growing — then the top ten by declaration count.
 
-**Phase 3 — the primitives.** (M/L) `<PageHeader>` → `<Money>` → `<FilterPanel>`, in that order:
-§6 shows the header is the one currently costing per-page.
+**Phase 3 — the primitives.** ⚠️ **Re-scoped at pass-2 sign-off (§14 P1).**
+- **`<PageHeader>` — GO, downgraded to S** and **merged with Phase 1.5's `<h1>` ×10**: same files, same
+  edit, and doing them separately is two passes over ten pages. §6's evidence stands and is still growing.
+- ~~`<Money>`~~ → **MOVED to [CR087](cr-087-money-legibility.md) P1** (C9 option (c), both sign-offs agree).
+  Its justification is money-correctness, which is CR087's subject. ⚠️ **With a fence:** CR087 builds it for
+  its own two surfaces; **the 22-call-site `toLocaleString` sweep stays here**, or CR086's largest job
+  migrates into CR087's P1.
+- ~~`<FilterPanel>`~~ **CUT.** Six date selectors / 1,398 lines is a refactor with no observable payoff. The
+  one defensible sliver — `.balance-panel` ×3 giving a **load-order-dependent look** — becomes a roadmap
+  bullet.
 
 ⚠️ **Sequencing against in-flight work (pass 1).** Three collisions the draft did not name:
 **CR083 (IN-PROGRESS)** — Phase 2 says "adopt in the six new stylesheets first", two of which
@@ -281,7 +304,13 @@ is a ConfirmModal, `<Modal>` **and** `<DataTable>` consumer, and Phase 1.3 rewri
 **[CR087](cr-087-money-legibility.md) §3** owns `/balance-calibration`'s calibrate P0 while Phase 4 owns
 its visuals — **CR087 lands first.**
 
-**Phase 4 — the two worst working surfaces.** (M) `/balance-calibration` (see
+~~**Phase 4 — the two worst working surfaces.**~~ ⚠️ **CUT as a phase at pass-2 sign-off (§14 P1); both
+halves re-homed.** `/balance-calibration` visuals go into [CR087](cr-087-money-legibility.md) §3's own pass
+— it is already rewriting that page's confirm, adding `Ccy`/`Local` and a `Last calibrated` column, so
+fixing the clipped `Reconcile` button and the unstyled in-cell `<select>`s there is **one page-open instead
+of two**. `/quicken-import`'s 27px overflow and its leaked `/tmp/...` path become roadmap bullets —
+⚠️ **[CR019](cr-019-quicken-import.md) owns that page and is IN-PROGRESS, a fourth collision §7 did not
+name.** *(Superseded design follows.)* (M) `/balance-calibration` (see
 [CR087](cr-087-money-legibility.md) §3 — the currency column is a money defect, but the clipped
 `Reconcile` button, the unstyled native `<select>`s in table cells at two widths, and the 2× row-height
 variance are visual) and `/quicken-import` (the 27px overflow, plus it is leaking an absolute
@@ -317,9 +346,19 @@ server → the **built** bundle → Playwright — and **CI already runs it** (`
 gradient-painted ancestors and **scores white-on-white as 1.00:1** — 76 elements on `/forecast-modules`
 alone. Until it samples gradient stops the way `leaks` already does, contrast cannot gate.
 
-**So §8 ships in two steps.** Assertions **1, 3 and 4 are data-independent** and gate now; assertion 2
-lands once `bd()` is fixed and the seed question is answered. Runtime ~6 min for 37 routes × 2 themes
-here (a GitHub runner is 2–3× slower); it belongs in the `e2e:` job, not the pre-commit path.
+⚠️ **Pass-2 sign-off resolved this differently, and better (§14 P2): commit the rig, do not gate on it.**
+A partial gate is not worth its CI cost — assertion 3 has found exactly one route in its life and that route
+is a one-line fix; assertion 4 **cannot gate until Phase 1.5 lands**, since 10 routes fail it today; and
+assertion 1 is already at **zero on 32 of 37 routes**, so after the three-declaration fix its baseline is
+zero, not a ratchet. Paying 12–18 min of CI per push to hold a line already at zero is a poor trade.
+
+**And the failure mode [CR026 §14](cr-026-ui-revamp.md) actually suffered was NON-COMMITMENT, not
+non-gating** — the rig was thrown away and its defect class went unmeasured for two months. So: commit
+`frontend/e2e/ui-render.spec.js` as a **runnable, non-blocking** spec (`npm run ui:render`), with the exact
+commands and today's numbers recorded beside it. **Zero CI cost, no baseline file, no `ui-seed.sql`
+decision, and no dependency on fixing `bd()` first.** Wire assertion 1 into the blocking `e2e:` job only
+once the five leaking routes are at zero; assertion 2 lands whenever someone wants it and never blocks a
+release. ⚠️ **This is the actual asset** — it produced every real number in this CR and killed four claims.
 
 ⚠️ **This is the item with the longest evidence trail in the CR.** [CR026 §14](cr-026-ui-revamp.md)
 recommended it and shipped the rig uncommitted. Two months later its exact defect class was still
@@ -418,3 +457,48 @@ commands **before** any guard is committed.
 | When | What | Measured result |
 |---|---|---|
 | **v3.37.2 · 2026-08-23** | §3's **money-colour repoint** — six token values, light mode only (Phase 1.1, first half) | Light contrast failures **2,364 → 1,227 (−48%)**; `#1A9E74`, `#C0504D` and `#14805E` each **649 / 407 / 80 → 0**; the four new values fail **0** times anywhere; **dark byte-identical**. `fc-review` alone went **594 → 95**. Verified by re-running the §8 rig against the rebuilt bundle on the same data. |
+
+
+---
+
+## 14. Pass 2 sign-off (2026-08-23) — **REVISE overall, GO on one carved increment**
+
+The verdict, recorded in full because the carve is the useful part.
+
+**P1 — the packaging, not the measurement.** *"CR086 is well-measured and badly packaged… five CRs in one
+coat: an S-sized colour fix, an S-sized modal-safety fix that belongs to CR087, an M-sized CI capability,
+an L-sized design-system campaign, and two page cleanups that belong to other people's open CRs."* §10's
+non-goals discipline is called the strongest part of the scoping — and the same instinct, applied
+consistently, deletes Phase 2 as well. Cuts applied above.
+
+**P2 — §8 becomes a committed rig, not a gate.** Applied above.
+
+**P3 — the case against building any of it now, stated plainly.** Contrast at 3.39:1 vs 4.5:1 is a
+**compliance** framing for a public product; Fin has one user who has read these figures weekly for months
+without reporting illegibility, and the CR never states what the owner can *do* afterwards that they cannot
+do today. Two things survived that objection and only two: **`ConfirmModal`** (a safety surface CR087 is
+about to build its P0 on) and **the money-colour repoint** (a money story, not a standards story) — which
+is why that was carved out and **shipped first** (§13).
+
+**P4 — the finding neither CR contained.** CR087 §3 proposes putting the `old → new (Δ X CCY)` preview
+**into `ConfirmModal`**, a component this CR independently measured as having no Esc, no focus trap and a
+white card in a dark app, on the confirm that gates promote/calibrate/delete. **CR087 is about to build its
+highest-value item on a component this CR measured as unfit.** Recorded in both CRs; the sequencing is an
+owner call (below).
+
+**P5 — the CR060 collision does not dissolve.** Three of the four collisions §7 names disappear once the
+cuts above land. `RefreshFeeds.jsx` does not: it is a ConfirmModal, `<Modal>` **and** `<DataTable>` consumer,
+CR060 is rewriting it, and roadmap §3 #23 records agent threads committing over each other twice in one day
+on this trunk. **The ConfirmModal migration either waits for CR060's recon page or is done inside it.**
+⚠️ **Note the sign-off's own ranking rationale for CR060 was separately falsified by the owner** — Pekao is
+OCME's bank and fin ignores it ([CR060 §Why](cr-060-feed-connection-health.md)) — so the *collision* stands
+but the *urgency* that put CR060 first does not.
+
+**Owner decisions still open.** (1) Does the type scale ever happen — this one halves the CR. (2) C9: who
+owns `<Money>` — both sign-offs say CR087. (3) Is the render rig a gate or a committed on-demand tool — both
+say committed, non-blocking. (4) Does `ConfirmModal` get fixed before CR087's preview lands in it, or does
+P0 ship on it as-is.
+
+**Not accepted:** the sign-off made *"decouple `--chart-*` before repointing `--growth-*`"* a blocking
+condition. **Verified false and the premise was this CR's own** — every `--chart-*` is an independent
+literal hex (§12 C13). The repoint shipped as text-only, and no forecast chart moved.

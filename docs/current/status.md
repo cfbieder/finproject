@@ -130,7 +130,11 @@ scenarios are REGENERATED**. It changes far less often than this file does.
   display-side instance of this CR's defect class was found by the owner, not by a gate.
 - 🔄 **[CR086](../cr/cr-086-ui-visual-system.md) §3 SHIPPED v3.37.2 (2026-08-23) — light contrast
   failures 2,364 → 1,227 (−48%), dark byte-identical, delta ties to prediction within one element.
-  [CR087](../cr/cr-087-money-legibility.md) unbuilt. Both from a
+  [CR087](../cr/cr-087-money-legibility.md) unbuilt but **pass-2 APPROVED for build — P0a is next**:
+  migration **074**, an `accounts` audit trigger, plus one reader. `calibrate()` re-anchors
+  `opening_balance` across **20 accounts monthly** with no record, and freeze-on-file protects only the
+  16 filed FBAR lines. ⚠️ Two owner calls first: **072 argues this repo keeps exactly one non-internal
+  trigger**, and **CR087's preview lands in the `ConfirmModal` CR086 measured as unfit**. Both from a
   whole-app UI review, designed 2026-08-23, nothing built.** CR086 answers the line above: its §8
   commits `Scripts/check-ui-render.sh`, **the display-half gate** — headless Chromium over all 37
   routes in both themes, asserting no light surface in dark, real computed contrast, no horizontal

@@ -47,6 +47,20 @@ ban. EUR 1,409.25 sits in the same unlabelled column as USD 1,166,089.24, and th
 `Math.abs(drift)` **across currencies**, so a 5,000 PLN drift outranks a $3,000 USD one and the owner
 works it in the wrong order.
 
+⚠️ **SPLIT at pass-2 sign-off (§10 P1) — these are two surfaces with an order-of-magnitude cost
+difference, and the draft priced them as one.**
+
+- ✅ **`/balance-calibration` — GO (P1).** `f.currency` is **already in the `balanceReconcile` SELECT and
+  spread to the client**, so labelling the row is **frontend-only**. Only the USD-equivalent sort costs
+  anything (a server-side FX lookup). **11 of the live fed rows are non-USD** — this is the runbook being
+  worked in the wrong order today, on the page the owner *works*.
+- ⏸ **`BalanceReport`'s `Local` column — DEFER.** C5a makes it a query change (`ARRAY_AGG(DISTINCT
+  t.currency)`) plus a mixed-currency marker plus migration 064's unanimity predicate for the 8 relabelled
+  rollups. Three moving parts on a page the owner *reads*. Different increment, possibly its own CR.
+
+⚠️ **And re-price §1 accordingly:** *"almost nothing here needs a new computation"* is **true for the
+reconcile page and false for the balance sheet.**
+
 **The change:** `Ccy` + `Local` columns on leaf rows; `currency` beside every figure on the reconcile
 row; sort the queue on USD-equivalent drift and say so in the header.
 
@@ -224,6 +238,27 @@ expiry, fetched once on mount and never refreshed. And **no pill carries an amou
 drifting $4 total and three drifting $150,000 render identically, while `total_transfer_imbalanced`
 is already computed by `bankFeedReconciliation.js` and never exposed.
 
+⚠️ **CUT at pass-2 sign-off (§10 P2). Book Health as designed is DEFERRED; what ships is the cheap half.**
+Pass 1 left ~2 of 7 rules working on day one, and the survivors are exactly what the cheap version delivers.
+**The cut line is precise: keep everything reachable from `/util/attention-summary`, drop everything that
+needs new storage.** That endpoint already calls `balanceReconcile({})` and holds `drift`, `currency`,
+`transfer_unpaired_legs` and `transfer_imbalance` per account — **and throws all of it away to emit six
+counts.** So:
+
+- ✅ **Ships:** amounts on the drift pills (per currency), and an **unpaired-legs pill**. A handful of lines
+  in one route and one component. **No severity model, no dismissals, no second migration, no
+  `reconcile_events`.** The unpaired-legs pill is the highest-value one — the runbook says clear it *before*
+  the MTM, and 2026-08-02's $150,000 counter-leg is what happens when nobody does.
+- ⏸ **Deferred:** the rule engine, dismissal fingerprints, severity classes. Re-propose once §3's audit has
+  90 days of data behind the repeat-calibration rule — at which point it is a different, better-founded CR.
+- ❌ **Dropped outright:** the **>120%-of-pro-rated** rule — [CR083](cr-083-budget-latest-estimate.md)'s
+  `/budget-le` deviations engine shipped it at v3.31.0 with a materiality trigger.
+- ➡️ **Moved to CR083:** the "one free item" below (days-elapsed + a pro-rated budget column on
+  `/budget-vs-actual`) — that is **CR083's live surface**; it owns the FY-landing strip there and still has
+  finalise/recut to build. Two threads editing that page is the collision cost that is not theoretical.
+
+*(The superseded full design follows, kept for the rules' measurements.)*
+
 **The change:** port the `fcWarnings` **record shape** to actuals as **Book Health**.
 
 ⚠️ **Pass 1 corrected the mechanism and noise-tested the rules (§9 C7). Both matter.**
@@ -310,9 +345,30 @@ column when the period includes today. It removes the single most common misread
 
 ## 7. Sequencing
 
-**P0 — the write, and the variance that reads favourable when a fetch fails.** §3 (preview + the
-**409-on-drift** apply + the trigger + `Last calibrated`) and §4c. ⚠️ **§4b moved to P1 in pass 1
-(§9 C1)** — it is latent, not live. ⚠️ **And `reconcileManual.js:291`'s `resetOpeningBalance` → 0 joins
+⚠️ **Re-sequenced at pass-2 sign-off (§10 P3). The build order below is the approved one.**
+
+| Step | What | Why here |
+|---|---|---|
+| **P0a** | **Migration 074 (the `accounts` audit trigger) + ONE READER** — the `Last calibrated` column | Needs **no owner design decision, no CR086 dependency, no modal**. Covers all three app writers plus five scripts plus manual `psql` — coverage no UI change can reach — and gives `calibrate()` an undo path for the first time (`old_values` holds the prior anchor). ⚠️ **Applying 074 to prod ahead of any code is strictly beneficial**: it starts recording calibrations before the preview exists. ⚠️ **It must ship WITH the reader** — a trigger writing rows nobody looks at is invisible state that renders nothing, which is [CR085](cr-085-forecast-sensitivity.md)'s named defect class. Resolves the `last_calibrated_at` question (revive or retire) as part of it. |
+| **P0b** | §4c **both directions** + §4b's branch deletion + the five-surface test | Independent files, no dependency on P0a, safe in parallel |
+| **P0c** | The preview + the **409-on-drift** apply + `resetOpeningBalance` under the same confirm | ⚠️ **Must land before [CR086](cr-086-ui-visual-system.md) Phase 1.3** (see the ConfirmModal note below) |
+| **P1** | `/balance-calibration` currency + the USD-equivalent sort + **`<Money>`** | |
+
+⚠️ **The ConfirmModal collision, named here because neither CR contained it.** P0c writes a multi-line
+numeric body into `ConfirmModal` (citing its `pre-line`); CR086 Phase 1.3 **replaces that component** with
+Radix `<Modal>` — and CR086 §5 measured it as having **no Esc, no focus trap, 17 naked hex literals and a
+white card in a dark app**, on the confirm that gates promote/calibrate/delete. **Either sequence P0c first
+and have CR086 re-verify the preview body, or fix ConfirmModal first — but decide before starting, not
+halfway through.** ⚠️ CR086's own sign-off adds that the ConfirmModal migration collides with **CR060**
+rewriting `RefreshFeeds.jsx`.
+
+**P0 (superseded framing, kept for its reasoning) — the write, and the variance that reads favourable when
+a fetch fails.** §3 (preview + the **409-on-drift** apply + the trigger + `Last calibrated`) and §4c.
+⚠️ **§4b: pass 1 moved it to P1 as latent; pass 2 says do it NOW as a patch, not as CR scope** — a latent
+sign-flip whose fix is deleting one branch in two files is cheaper to fix than to track. It is **not** a
+drive-by: it flips signs on a screen **and** an exported workbook, so it ships with the five-surface test.
+Bill it as a roadmap-bullet fix landed alongside P0b. *(Original pass-1 note follows.)* ⚠️ **§4b moved to
+P1 in pass 1 (§9 C1)** — it is latent, not live. ⚠️ **And `reconcileManual.js:291`'s `resetOpeningBalance` → 0 joins
 P0**: a live, one-click, unaudited destructive write on the same page family that the draft omitted
 entirely.
 
@@ -385,3 +441,47 @@ citations; §8's `rate: 1`. The reviewer checked **dev**, not prod.
 
 **Reviewer nit not accepted:** it proposed citing `reconcileToFeed.js:583-587` for the summary literal.
 The two fields the text actually quotes are on `:585-586`; the citation stands.
+
+
+---
+
+## 10. Pass 2 sign-off (2026-08-23) — **GO on P0a/P0b/P0c · REVISE before P1 · DEFER §5**
+
+**P1 — the P0 survived its steelman, and got stronger.** The freeze-on-file objection fails on **scope**:
+CR082 protects *filed FBAR line items* — 16 rows, snapshotted, copied-not-joined. It protects nothing else;
+net worth, the ledger, `/budget-vs-actual`, CR083's LE actual half and every unfiled year still sit on a
+mutable `opening_balance` with no record. *"Only the owner clicks it"* is an argument **for**, not against —
+a single-user system has no second pair of eyes, so **the record is the only reviewer**. And the toast is
+the defect, not the answer: the number arrives after it is unchangeable, and C3 shows the applied figure can
+differ from any figure previewed. The decisive fact is frequency (§3): **20 live calibrate accounts,
+re-anchored monthly.** Cost already on the record: CR080's fabricated −32.56 loss needed **three migrations
+(065 → 069) and a multi-day dig** precisely because no audit row existed to consult.
+
+**P2 — §5 cut, §2 split, §4b as a patch.** Applied above.
+
+**P3 — one migration, not two.** With §5 cut the dismissals table disappears. **074 alone** is justified and
+unusually cheap: additive DDL, no backfill, no data mutation, reversible by `DROP TRIGGER`, and
+`audit_log`'s NOT NULLs (`table_name`, `record_id`, `action`) are all trigger-fillable with no FK.
+⚠️ **One convention reversal to make deliberately:** migration **072**'s own file argues *"this repo has
+exactly one non-internal trigger, so a trigger would be against convention."* Auditing a column is not
+enforcing an invariant, so the reversal is defensible — but it is written down and eight weeks old, and
+should be an owner call, not a silent one.
+
+**P4 — C9 settled as (c), with a fence.** `<Money>` moves to **CR087 P1**; CR086 Phase 3 consumes it. The
+*behavioural* contract (native vs base currency, mixed-currency marker, null → `—` vs zero → `0`) is a
+correctness decision and belongs in the CR that says a figure can be read wrong; the *visual* contract
+(tabular figures, `--growth-*`) is a token CR086 already repointed, so there is **no circular dependency**.
+⚠️ **The fence is load-bearing:** CR087 builds it for its own two surfaces and does **not** do the
+22-call-site `toLocaleString` sweep — that stays CR086, or CR086's largest job migrates into CR087's P1.
+
+**P5 — two build notes worth having before starting.** `f.currency` on the reconcile row is the **feed's**
+currency, not the account's, so rows with no feed render blank — decide the fallback before building. And
+the trigger sees the **column change, not the button**: `SET LOCAL app.actor` in the three services would let
+it record *which* path wrote. Old/new/when is probably enough for CR080-class forensics; "which action" is
+what tells you whether it was intentional.
+
+**Also flagged:** §4a's pinned `Balance brought forward` row is a **new feature** — ship the rename-and-mute
+alone and see if the owner asks for the rest. And **this CR's index row is ~1,000 words** against the index's
+own *"keep descriptions to a single line"* — CR083's and CR086's rows are the same. The roll-up is becoming a
+second spec, which is the restatement failure this project pays for most often. Worth a separate cleanup
+pass, not a blocker.
