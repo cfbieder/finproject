@@ -24,7 +24,9 @@ Living plan for the Fin project — open Change Requests, known issues, ongoing 
   figure asserted as current is this project's most-repeated failure. **The correction is the better
   argument:** one unset field was worth **916K** and the owner found it, not the app — the same class
   as CR078's selling costs and the ~890K copy defect.
-  **P1 + P2 DEFERRED at PM sign-off (2026-08-19)**, behind (a) the **SRQ financing experiment** —
+  **P1 + P2 were DEFERRED at PM sign-off (2026-08-19)** and then built anyway at owner
+  instruction; both unblocking conditions are now spent — (a) the **SRQ financing experiment**,
+  declined 2026-08-23 —
   `House Morgage` is `exclude` in all five scenarios carrying a fully specified loan (500,000 @ 6.0%
   to 2048), so testing "is SRQ viable with financing" is **one field flip plus a regenerate**, and it
   tests the CR's own premise — and (b) **CR083 P1 or its explicit closure**. SRQ is a *breakeven*
@@ -44,8 +46,12 @@ Living plan for the Fin project — open Change Requests, known issues, ongoing 
   if it were comparable to ±1pp on a tax rate. Two further defects surfaced during the build, both
   the silent-zero-bar class: a knob under an `exclude`d module wrote, built and moved nothing; and
   recharts returns a **negative width** for a left-going bar, so every negative value labelled
-  itself inside its own fill. **The unblocking SRQ financing experiment is still not run** — it
-  remains the thing that would say whether this page answers the question that is actually open.
+  itself inside its own fill. **The SRQ financing experiment is DECLINED (owner, 2026-08-23)** — not
+  done, and no longer owed. It was §15's precondition for *whether to build P1*; P1, P2 and P3 all
+  shipped at owner instruction, so the question it gated is closed. Recorded rather than deleted so
+  a precondition that vanishes does not read as an oversight. `House Morgage` remains
+  `setup_status='exclude'` in all five scenarios carrying a fully specified 500,000 @ 6% loan to
+  2048, so the experiment is still one field flip plus a regenerate if it is ever wanted.
   **P0 — BUILT and verified on a from-scratch DB, prod pending.** Two pre-existing defects:
   (a) **migration 073 `forecast_scenarios.is_scratch`** — a throwaway copy was `is_active = TRUE` and
   filtered nowhere, so it showed in **all seven scenario pickers** while it existed and permanently

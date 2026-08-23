@@ -121,15 +121,10 @@ the dev-first migration rule, and the fact that **an engine change moves nothing
 scenarios are REGENERATED**. It changes far less often than this file does.
 
 ## Next
-- **Run the SRQ financing experiment.** `House Morgage` is `setup_status='exclude'` in **all five**
-  scenarios while carrying a fully specified loan (**500,000 @ 6.0% to 2048**), so testing "is SRQ
-  viable with financing" is **one field flip plus a regenerate** — and CR084's preview shows the
-  delta before it is committed. [CR085's sign-off](../cr/cr-085-forecast-sensitivity.md) made this
-  the precondition for building its page; the page was built first, at owner instruction, so this is
-  now owed rather than pending. SRQ is a **breakeven** question and a tornado cannot answer one.
-- **[CR085](../cr/cr-085-forecast-sensitivity.md) leftovers** — the picker opens **empty** (§15
-  cut 5's default knob set was not built), and P2 (the sweep view, the `Spread %` list knobs) is
-  untouched.
+- **[CR085](../cr/cr-085-forecast-sensitivity.md) leftovers** — P0–P3 are all **live**; what is
+  still unbuilt is the `Spread %` (`forecast_stream_changes`) knobs, the assumption-list and binary
+  knobs cut at sign-off, and §15 cut 5's default knob set, so the picker opens **empty**. The SRQ
+  financing experiment was **declined** (owner, 2026-08-23).
 - ~~Advisories~~ · ~~Real terms on Compare~~ **BOTH DONE** — all 15 advisories walked, **every one
   already deliberate, no model change** ([CR076 §13](../cr/cr-076-forecast-model-review.md)); two
   rules firing on streams **not in the plan** guarded, 17 → 15

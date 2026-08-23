@@ -13,8 +13,8 @@ that the bars are ranked. An `exclude`d module (§17) · a valuation-gated field
 when the engine reads it as a *multiplier of inflation*. Three were caught by reading the engine;
 one only by rendering the page and looking at it.
 
-**Still open and not built:** the **SRQ financing experiment** (§15) — the ten-minute test of this
-CR's own premise — and §15 cut 5's default knob set, so the picker opens empty.
+**Still open and not built:** §15 cut 5's default knob set, so the picker opens empty. *(The **SRQ
+financing experiment** — §15's precondition — was **declined by the owner on 2026-08-23**; see §15.)*
 [Roadmap](../current/project-roadmap.md#cr085)
 **Track:** v3 · **Migration:** 073 (`is_scratch`, additive and inert — **applied to dev 2026-08-19**)
 **Opened:** 2026-08-19
@@ -444,9 +444,15 @@ fresh DB enforces 007's CHECK that dev has auto-baselined away (Known Issue #18)
 
 | | scope | state |
 |---|---|---|
-| **P0** | §9 — migration 073, `is_scratch` filtering and sweep, `copyScenario` child lists derived + tests | **BUILT, verified on a fresh DB. GO at sign-off — ships standalone, prod pending.** |
-| **P1** | The knob layer (module + stream knobs only), the two routes, the tornado page, two metrics | **DEFERRED (§15).** Unblocks on the SRQ financing experiment + CR083 P1 |
-| **P2** | Sweep view (`FCTrajectoryChart`) · the `forecast_stream_changes` list knobs (§4.1) · the assumption-list and binary knobs cut from P1 | **DEFERRED**, after P1 |
+| **P0** | §9 — migration 073, `is_scratch` filtering and sweep, `copyScenario` child lists derived + tests | ✅ **LIVE v3.32.0.** GO at sign-off; shipped standalone as §15 required |
+| **P1** | The knob layer (module + stream knobs only), the two routes, the tornado page, two metrics | ✅ **LIVE v3.32.0** — §17. *Deferred at sign-off (§15), then built at owner instruction with all five cuts kept* |
+| **P2** | The trajectory behind a bar (`FCTrajectoryChart` in a modal) · knobs grouped by type | ✅ **LIVE v3.33.0** — §18; affordance fix v3.33.1 |
+| **P3** | Every change at once as a real build · what the ± lands on | ✅ **LIVE v3.34.0** — §19; picker-selection fix v3.34.1 |
+| **Not built** | The `forecast_stream_changes` (`Spread %`) list knobs (§4.1) · the assumption-list and binary knobs cut from P1 (§15 cuts 1 and 4) · §15 cut 5's default knob set, so the picker opens empty · §6 layer 3 (§15 cut 3) | open |
+
+*⚠️ This table said "prod pending" and "DEFERRED" for three releases after those phases shipped —
+the class [documentation-standard](../documentation-standard.md) exists to prevent, and the reason
+a phases table is worth keeping in exactly one place.*
 
 ## 13. Open
 
@@ -522,6 +528,22 @@ scenario and regenerate; ten minutes, and it tests this CR's premise as well as 
 question. If it settles SRQ, P1's motivation shrinks to the general class; if it surfaces *"what else
 is unset the way that growth rate was"*, P1 is validated on evidence rather than on argument. And
 (b) **CR083 P1, or its explicit closure.** Revisit in weeks, not quarters.
+
+> ### ⚠️ Both unblocking conditions are spent — recorded, not deleted (2026-08-23)
+>
+> P1, P2 and P3 were all built **at owner instruction, over this defer**, with the five scope cuts
+> kept. The **SRQ financing experiment was then DECLINED by the owner (2026-08-23)** as not needed.
+>
+> That is a reasonable close rather than a loose end: the experiment was a precondition for
+> deciding **whether to build P1**, and that decision was taken and executed. What it would have
+> tested — whether a tornado answers the SRQ question — is moot for a page that now exists and is
+> in use. The finding it was meant to protect against still stands on its own: SRQ is a
+> **breakeven** question and a tornado cannot answer one, which is why solve-for stays in §11.
+>
+> Kept here because a precondition that simply disappears reads as an oversight to the next reader.
+> `House Morgage` is still `setup_status='exclude'` in all five scenarios carrying a fully specified
+> **500,000 @ 6.0% to 2048**, so the experiment remains one field flip plus a regenerate if it is
+> ever wanted.
 
 ### The five cuts, ADOPTED — they bind the P1 build and override the body where they differ
 
