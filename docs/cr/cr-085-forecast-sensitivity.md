@@ -456,10 +456,12 @@ a phases table is worth keeping in exactly one place.*
 
 ## 13. Open
 
-1. ~~**§6 layer 3**~~ — **CLOSED by cutting it** (§15 cut 3). The owner's original decision was
-   "abort unless the zero-point matches a fresh build of the source"; layers 1 and 2 deliver the
-   protection and the divergence signal for free, so the toggle is not built. **This overrides an
-   owner decision and should be confirmed rather than assumed.**
+1. ~~**§6 layer 3**~~ — **CLOSED. The cut is CONFIRMED by the owner, 2026-08-23.** The original
+   decision was "abort unless the zero-point matches a fresh build of the source"; §15 cut 3 dropped
+   it on the grounds that layers 1 and 2 already deliver the protection and the divergence signal.
+   Asked directly, the owner confirmed the cut rather than reinstating it — **layer 2 SHOWS the
+   divergence, and the drift a hard abort would fire on is routine** (a saved forecast being out of
+   date is normal), so it would refuse runs that are fine. This no longer overrides anything.
 2. **The regime-change threshold** (§5.4). A number picked without evidence will cry wolf on every
    knob or never fire. Proposal: derive it from the first real run rather than guessing now.
 3. **Whether ±1pp inflation and ±10% spend are comparable enough to share one sort.** They are not,

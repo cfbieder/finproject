@@ -8,7 +8,7 @@
 > CR index and roadmap already own, and it is where stale facts collect. Each cut has come from
 > MOVING something that changes on a different clock, never from deleting what is true.
 
-**Last updated:** 2026-08-22 · **Live version:** **v3.35.0** (see `VERSION` / git tags) — CR085 COMPLETE (tornado + trajectory, migration 073); CR083's Latest Estimate (072); CR082 and CR084 complete
+**Last updated:** 2026-08-23 · **Live version:** **v3.36.0** (see `VERSION` / git tags) — CR085 COMPLETE (tornado + trajectory + multi-band + owner-typed bands, migration 073); CR083's Latest Estimate (072); CR082 and CR084 complete
 
 ## Current phase
 **The model, since [CR069](../cr/cr-069-forecast-streams.md):** a module is *identity + optional
@@ -27,20 +27,20 @@ ranks on the final year and cannot say *when* the damage lands. It also closed t
 predate it: a scratch scenario was visible in all seven pickers, and `copyScenario` still had two
 hand-kept child column lists (the class that once made a copy read ~890K better than its original).
 
-⚠️ **Building it produced FOUR defects of one shape, and they are the durable lesson** — a knob that
-writes, builds and moves nothing, drawing a zero-length bar that reads *"this assumption does not
-matter"* in a chart whose entire claim is that the bars are ranked. An `exclude`d module · a
-valuation-gated field (**109 of 300 knobs**) · a negative-width bar label · and the CR's own §4
-filing `growth_rate` as a rate when the engine reads it as a **multiplier of inflation**. Three were
-caught by reading the engine, one only by rendering the page and looking at it. **A fifth, in the
-UI, cost two rounds of "I do not see it":** P2's trajectory shipped behind an affordance too subtle
-to find, and then the *fix* sat committed-but-undeployed while the report of that was buried at the
-end of a long message. Present-but-invisible is the same failure wearing different clothes. **A
-sixth was visible in the shipped table** — a module tax rate ranking at $0 both ways on an
+⚠️ **Building it has produced TEN defects of ONE shape, and that is the durable lesson** — state
+that exists, renders, and produces no visible effect, so it reads as absent. In the engine it is a
+knob that writes, builds and **moves nothing**, drawing a zero-length bar that reads *"this
+assumption does not matter"* in a chart whose entire claim is that the bars are ranked: an
+`exclude`d module · valuation-gated fields (**109 of 300 knobs**) · `tax_rate_override` on an
 expense-only module, which [§18](../cr/cr-085-forecast-sensitivity.md) had explicitly argued was
-safe to leave ungated. **Every one of the six was found by a person looking at the output, never by
-a gate** — and a **seventh** was the picker being unable to say which knobs were selected, the
-first of them where what was invisible was the reader's own INPUT rather than the engine's output.
+safe to leave ungated · `growth_mult` on a **yield** stream, found by the owner's first click on
+dev. In the UI it is the same failure in different clothes: a negative-width bar label printing
+inside its own fill · P2's trajectory shipped behind an affordance too subtle to find, and its
+*fix* then left committed-but-undeployed · a picker that could not say **which** knobs were
+selected · and the custom-band marker whose dashes were painted the colour of the chip's own fill.
+⚠️ **Nine of the ten were found by a person looking at the output; ONE was caught by a gate** — and
+the owner found four of them personally. The unclosed half is that the whitelist has been checked
+against the engine one field at a time, as failures surface, and never swept.
 
 🔴 **[CR076](../cr/cr-076-forecast-model-review.md) — the five-reviewer model review; §8 COMPLETE
 across v3.20.0–v3.22.0.** It corrected **our own published figures** and moved numbers eight times.
@@ -63,7 +63,8 @@ rather than a belief (owner); only SRQ moved, **−1,392,889 → −476,930**, t
 **byte-identical** ([v3.26.1](project-roadmap.md)).
 
 ⚠️ **SRQ is still −476,930.** It is bought **entirely for cash** (`House Morgage` is `exclude`
-everywhere), earns **no rent** against 45,000/yr, and sells at 7%. **Financing is the untested lever.**
+everywhere), earns **no rent** against 45,000/yr, and sells at 7%. Financing is the untested lever,
+and testing it is **DECLINED** (owner, 2026-08-23) — not needed.
 
 ### The recurring failure
 **[failure-patterns.md](failure-patterns.md) is the canonical list** — seven shapes, each found
