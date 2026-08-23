@@ -570,10 +570,12 @@ async function listKnobs(scenarioName, client = db) {
   );
   const out = [];
 
-  const offer = (spec, row, moduleRow, target, current, streams = [], disposals = []) => {
+  const offer = (spec, row, moduleRow, target, current, streams = [], disposals = [], extra = {}) => {
     try {
       knobs._internals.assertApplicable(spec, row, moduleRow, {
-        streams, disposals, changeCount: row?.change_count,
+        streams, disposals,
+        changeCount: row?.change_count, levelRowCount: row?.level_row_count,
+        changeRows: extra.changeRows,
       });
     } catch {
       return;   // not offerable — the setter would refuse it, so the picker does not show it
@@ -604,7 +606,9 @@ async function listKnobs(scenarioName, client = db) {
     // read the column alone hid five working knobs.
     const { rows: streams } = await client.query(
       `SELECT st.*, l.name AS fc_line_name,
-              (SELECT count(*)::int FROM forecast_stream_changes c WHERE c.stream_id = st.id) AS change_count
+              (SELECT count(*)::int FROM forecast_stream_changes c WHERE c.stream_id = st.id) AS change_count,
+              (SELECT count(*)::int FROM forecast_stream_changes c
+                WHERE c.stream_id = st.id AND c.flag = 'Fixed $') AS level_row_count
          FROM forecast_streams st
          LEFT JOIN fc_lines l ON l.id = st.fc_line_id
         WHERE st.module_id = $1 ORDER BY st.direction, st.id`, [m.id]
@@ -637,6 +641,33 @@ async function listKnobs(scenarioName, client = db) {
         );
       }
     }
+    // CR085 §4.1's deferred item: the `forecast_stream_changes` SCHEDULES, moved as a whole list.
+    // One knob per (stream, flag) that actually has rows — a flag with none is not a knob, and
+    // offering it would be a bar for a schedule that does not exist.
+    for (const st of streams) {
+      const { rows: changes } = await client.query(
+        `SELECT * FROM forecast_stream_changes WHERE stream_id = $1 ORDER BY change_date, id`,
+        [st.id]
+      );
+      if (!changes.length) continue;
+      for (const [flag, spec] of Object.entries(knobs.CHANGE_FLAGS)) {
+        const rows = changes.filter((c) => c.flag === flag);
+        offer(
+          {
+            ...spec, entity: 'change', field: flag,
+            label: `${spec.label} · ${st.fc_line_name || st.direction}`,
+          },
+          st, m,
+          { module: m.name, direction: st.direction, fcLineId: st.fc_line_id, flag },
+          // A schedule has no single value, so the picker shows its SHAPE — and it uses the SAME
+          // helper the run's applied-value does, or the two would describe one schedule
+          // differently in two places on the same page.
+          rows.length ? knobs.describeSchedule(rows.map((r) => r.amount)) : null,
+          streams, disposals, { changeRows: rows }
+        );
+      }
+    }
+
     for (const d of disposals) {
       for (const [field, spec] of Object.entries(knobs.DISPOSAL_FIELDS)) {
         const date = d.disposal_date instanceof Date

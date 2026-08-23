@@ -225,18 +225,123 @@ describe("⚠️ growth_mult is only read on an `amount` stream", () => {
   // `One-Off Items` and `Retirement Home` all sit at 0 while moving the plan through theirs.
   // Gating on the column alone hid five WORKING knobs, which the sweep caught as its `ok` count
   // falling from 129 to 124.
-  it("refuses it when there is no amount AND no schedule of changes", () => {
+  it("refuses it when there is no amount AND no Fixed $ rows to seed a level", () => {
     expect(() => _internals.assertApplicable(
       spec("stream", "growth_mult"), { mode: "amount", direction: "expense", amount: 0 }, mod,
-      { changeCount: 0 }
-    )).toThrow(/no amount and no schedule/);
+      { changeCount: 0, levelRowCount: 0 }
+    )).toThrow(/level is 0 in every year/);
   });
 
-  it("⚠️ ALLOWS it at amount 0 when change rows supply the figures", () => {
+  it("⚠️ ALLOWS it at amount 0 when Fixed $ rows supply the level", () => {
     expect(() => _internals.assertApplicable(
       spec("stream", "growth_mult"), { mode: "amount", direction: "expense", amount: 0 }, mod,
-      { changeCount: 1 }
+      { changeCount: 1, levelRowCount: 1 }
     )).not.toThrow();
+  });
+
+  // ⚠️ AND "HAS CHANGE ROWS" IS NOT THE TEST EITHER — the second refinement the sweep forced.
+  //
+  // `pct` multiplies the LEVEL and nothing else: `level[i] = prev * (1 + pct[i]/100) + fixed[i]`,
+  // then `out[i] = level[i] + oneOff[i]`. A schedule of pure `One-Off $` rows never touches the
+  // level, so the stream emits real money while the multiplier is provably inert —
+  // `Car Purchase Chris` carries four one-offs and measured DEAD.
+  it("refuses it on a schedule of pure One-Off $ rows, which never touch the level", () => {
+    expect(() => _internals.assertApplicable(
+      spec("stream", "growth_mult"), { mode: "amount", direction: "expense", amount: 0 }, mod,
+      { changeCount: 4, levelRowCount: 0 }
+    )).toThrow(/level is 0 in every year/);
+  });
+
+  // Tax applies to the stream's OUTPUT, which one-offs are part of — a deliberately weaker test.
+  it("⚠️ but the TAX knob survives a pure One-Off $ schedule, because tax hits the output", () => {
+    expect(() => _internals.assertApplicable(
+      spec("stream", "tax_rate_override"), { mode: "amount", direction: "income", amount: 0 }, mod,
+      { changeCount: 4, levelRowCount: 0 }
+    )).not.toThrow();
+  });
+});
+
+describe("CR085 §4.1 — the forecast_stream_changes SCHEDULES, moved as a whole list", () => {
+  const { _internals, CHANGE_FLAGS } = require("../sensitivityKnobs");
+  const mod = { name: "m", has_valuation: true, setup_status: "include" };
+  const spec = (flag) => ({ ...CHANGE_FLAGS[flag], entity: "change", field: flag });
+
+  // Each flag is read by exactly ONE mode — `expandChanges` builds four series and
+  // `computeStreamSeries` spends `pct`/`fixed`/`oneOff` in the amount branch and `spread` in the
+  // yield branch. Decided up front this time, not discovered by a zero-length bar.
+  it("offers Spread % only on a yield stream", () => {
+    const rows = [{ amount: 1.25 }];
+    expect(() => _internals.assertApplicable(spec("Spread %"), { mode: "yield" }, mod, { changeRows: rows }))
+      .not.toThrow();
+    expect(() => _internals.assertApplicable(spec("Spread %"), { mode: "amount" }, mod, { changeRows: rows }))
+      .toThrow(/only read on a yield-mode stream/);
+  });
+
+  it("offers the three amount-mode flags only on an amount stream", () => {
+    for (const flag of ["Percent %", "Fixed $", "One-Off $"]) {
+      const rows = [{ amount: 100 }];
+      expect(() => _internals.assertApplicable(spec(flag), { mode: "amount" }, mod, { changeRows: rows }))
+        .not.toThrow();
+      expect(() => _internals.assertApplicable(spec(flag), { mode: "yield" }, mod, { changeRows: rows }))
+        .toThrow(/only read on an amount-mode stream/);
+    }
+  });
+
+  it("refuses a flag the stream carries no rows for — that is not a knob", () => {
+    expect(() => _internals.assertApplicable(spec("Fixed $"), { mode: "amount" }, mod, { changeRows: [] }))
+      .toThrow(/no "Fixed \$" rows/);
+  });
+
+  it("refuses a level schedule that is all zeros", () => {
+    expect(() => _internals.assertApplicable(
+      spec("Fixed $"), { mode: "amount" }, mod, { changeRows: [{ amount: 0 }, { amount: "0.00" }] }
+    )).toThrow(/nothing to move/);
+  });
+
+  // ⚠️ The excluded-module guard applies to EVERY entity. The change branch is written as a SKIP
+  // of the column-oriented guards rather than an early return, because returning is the precise
+  // mistake this file already records: the first version of that guard tested
+  // `spec.entity === 'module'` and let both child entities through.
+  it("⚠️ still refuses a schedule under an EXCLUDED module", () => {
+    expect(() => _internals.assertApplicable(
+      spec("Fixed $"), { mode: "amount" }, { ...mod, setup_status: "exclude" },
+      { changeRows: [{ amount: 100 }] }
+    )).toThrow(/excluded from this scenario/);
+  });
+
+  // ⚠️ A seven-row schedule first rendered as `-3.0000, -3.0000, -2.0000, …` — truncated
+  // mid-number by the column, and unreadable well before that. One row keeps its bare value so the
+  // per-kind formatting still applies (a `Spread %` of 1.25 reads "1.25%" and lands "at 2.25%").
+  it("describes a schedule in one cell, first to last", () => {
+    const { describeSchedule } = require("../sensitivityKnobs");
+    expect(describeSchedule([1.25])).toBe("1.25");
+    expect(describeSchedule([-3, -3, -2, -2, -5, -5, -5])).toBe("-3 to -5 (7 rows)");
+    // First-to-last, NOT min-to-max: the rows are ordered by date, so what the owner wants is
+    // where the schedule starts and where it ends.
+    expect(describeSchedule([1, 9, 2])).toBe("1 to 2 (3 rows)");
+    expect(describeSchedule([])).toBeNull();
+    // Float noise from `base * (1 + band/100)` must not reach the cell.
+    expect(describeSchedule([0.1 + 0.2, 5])).toBe("0.3 to 5 (2 rows)");
+  });
+
+  it("a rate flag moves in points and a level flag scales", () => {
+    expect(CHANGE_FLAGS["Spread %"].kind).toBe("rate");
+    expect(CHANGE_FLAGS["Percent %"].kind).toBe("rate");
+    expect(CHANGE_FLAGS["Fixed $"].kind).toBe("level");
+    expect(CHANGE_FLAGS["One-Off $"].kind).toBe("level");
+  });
+});
+
+describe("⚠️ a knob id must distinguish two streams on one module", () => {
+  const { knobId } = require("../sensitivityKnobs");
+  // The partial unique indexes on forecast_streams key on (direction, fc_line_id), not on
+  // direction alone — so two income streams are legal, and two knobs sharing an id would have the
+  // run's points overwrite each other. No live module does it today, which is the kind of luck
+  // this CR has stopped relying on.
+  it("keys on the FC line as well as the direction", () => {
+    const a = { entity: "stream", field: "amount", target: { module: "m", direction: "income", fcLineId: 1 } };
+    const b = { entity: "stream", field: "amount", target: { module: "m", direction: "income", fcLineId: 2 } };
+    expect(knobId(a)).not.toBe(knobId(b));
   });
 });
 

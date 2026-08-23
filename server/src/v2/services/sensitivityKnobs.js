@@ -123,14 +123,21 @@ const STREAM_FIELDS = Object.freeze({
   // value at all, and scaling or taxing it is arithmetic on nothing.
   growth_mult: {
     kind: KIND.MULTIPLIER, label: 'Growth (× inflation)', nullIs: 1, modes: ['amount'],
-    requiresNonZeroAmount: true,
+    // ⚠️ `pct` multiplies the LEVEL and nothing else: `level[i] = prev * (1 + pct[i]/100) +
+    // fixed[i]`, then `out[i] = level[i] + oneOff[i]`. A stream with no base amount and only
+    // `One-Off $` rows therefore has a level of 0 for every year and a multiplier that scales it
+    // is provably inert — `Car Purchase Chris` carries four one-offs and measured DEAD in the
+    // sweep. `Fixed $` rows DO seed the level, which is why `Social Security`, `One-Off Items`
+    // and `Retirement Home` all move at an amount of 0.
+    requiresLevel: true,
   },
   tax_rate_override: {
     kind: KIND.RATE, label: 'Tax rate (income)', nullIsScenarioRate: true,
     directions: ['income'],   // CHECK fc_stream_tax_is_income_only
-    // Only meaningful on an `amount`-mode stream: a yield or pct_of_value stream carries amount 0
-    // BY CONSTRUCTION and earns real income anyway, so the check is keyed on the mode.
-    requiresNonZeroAmount: true,
+    // Tax applies to the stream's OUTPUT, which includes one-offs — a weaker test than
+    // `growth_mult`'s, and deliberately so. Only meaningful on an `amount`-mode stream: a yield or
+    // pct_of_value stream carries amount 0 BY CONSTRUCTION and earns real income anyway.
+    requiresOutput: true,
   },
   start_date: { kind: KIND.TIMING, label: 'Starts', refuseWhenNull: true },
   end_date: { kind: KIND.TIMING, label: 'Ends', refuseWhenNull: true },
@@ -156,10 +163,47 @@ const DISPOSAL_FIELDS = Object.freeze({
   },
 });
 
+/**
+ * CR085 §4.1's deferred item, built in the sweep pass — the `forecast_stream_changes` SCHEDULES.
+ *
+ * These are the only knobs that are not a column: a stream carries N dated rows of one flag, and
+ * the knob moves the WHOLE LIST together. One row at a time would be a knob per year, which is a
+ * different question (*when* does this change?) drawn in a chart that ranks *how much*.
+ *
+ * ⚠️ EACH FLAG IS READ BY EXACTLY ONE MODE, and the pairing is decided here rather than discovered
+ * later — this CR has paid four times for a knob offered on a branch that never reads it.
+ * `expandChanges` (fcbuilder-stream.js:67-116) builds four series and `computeStreamSeries` spends
+ * them in two places:
+ *
+ *   `Percent %` → `pct`     → `level[i] = prev * (1 + pct[i]/100) + fixed[i]`  — AMOUNT mode only
+ *   `Fixed $`   → `fixed`   → same line, additive and permanent via the recursion — AMOUNT only
+ *   `One-Off $` → `oneOff`  → `out[i] = level[i] + oneOff[i]`, one year only — AMOUNT only
+ *   `Spread %`  → `spread`  → `eff = inflation + spread[i]`                    — YIELD mode only
+ *
+ * The flag column's own CHECK carries exactly these four values, so the catalogue is closed by the
+ * schema as well as by this object.
+ */
+const CHANGE_FLAGS = Object.freeze({
+  'Spread %': {
+    kind: KIND.RATE, label: 'Spread %', modes: ['yield'],
+  },
+  'Percent %': {
+    kind: KIND.RATE, label: 'Percent %', modes: ['amount'],
+  },
+  'Fixed $': {
+    kind: KIND.LEVEL, label: 'Fixed $', modes: ['amount'],
+  },
+  'One-Off $': {
+    kind: KIND.LEVEL, label: 'One-Off $', modes: ['amount'],
+  },
+});
+
 const ENTITIES = Object.freeze({
   module: { table: 'forecast_modules', fields: MODULE_FIELDS },
   stream: { table: 'forecast_streams', fields: STREAM_FIELDS },
   disposal: { table: 'forecast_module_disposals', fields: DISPOSAL_FIELDS },
+  // The field IS the flag, and the column written is always `amount`.
+  change: { table: 'forecast_stream_changes', fields: CHANGE_FLAGS, list: true },
 });
 
 /** `derived`-mode streams are computed from another figure: perturbing one no-ops or double-counts. */
@@ -175,8 +219,16 @@ function specFor(entity, field) {
   return { ...spec, entity, field, table: ent.table };
 }
 
-const knobId = (k) => [k.entity, k.target.module, k.target.direction ?? k.target.date ?? '', k.field]
-  .map((p) => String(p ?? '')).join('::');
+// ⚠️ The FC line id is part of the key. A module may carry two streams of one direction — the
+// partial unique indexes on `forecast_streams` key on `(direction, fc_line_id)`, not on direction
+// alone — and two knobs sharing an id would have the run's points overwrite each other. No live
+// module on `2026 Base` does it today, which is exactly the kind of luck this CR stops relying on.
+const knobId = (k) => [
+  k.entity, k.target.module,
+  k.target.direction ?? k.target.date ?? '',
+  k.target.fcLineId ?? '',
+  k.field,
+].map((p) => String(p ?? '')).join('::');
 
 // ---------------------------------------------------------------------------
 // Resolution — BY NAME on the scratch, never by id
@@ -222,6 +274,29 @@ async function resolveTarget(client, scenarioId, entity, target) {
       );
     }
     return { row: r.rows[0], moduleRow };
+  }
+
+  if (entity === 'change') {
+    const st = await client.query(
+      `SELECT * FROM forecast_streams
+        WHERE module_id = $1 AND direction = $2
+          AND fc_line_id IS NOT DISTINCT FROM $3`,
+      [moduleRow.id, target.direction, target.fcLineId ?? null]
+    );
+    if (st.rows.length !== 1) {
+      throw new KnobError(
+        `Cannot place a knob on the ${target.direction} stream of "${target.module}": ` +
+        `${st.rows.length} streams match.`
+      );
+    }
+    // ⚠️ ORDERED, and by `id` after the date — the restore replays captured values POSITIONALLY,
+    // so two rows sharing a date must come back in the same order they went out.
+    const rows = await client.query(
+      `SELECT * FROM forecast_stream_changes
+        WHERE stream_id = $1 AND flag = $2 ORDER BY change_date, id`,
+      [st.rows[0].id, target.flag]
+    );
+    return { row: st.rows[0], moduleRow, changeRows: rows.rows };
   }
 
   // disposal — forecast_module_disposals has NO unique constraint and exact duplicate rows are
@@ -331,7 +406,15 @@ function perturb(spec, current, band, side, { scenarioRate = 0 } = {}) {
  */
 async function applyKnob(client, scenarioId, knob, side, { scenarioRate = 0 } = {}) {
   const spec = specFor(knob.entity, knob.field);
-  const { row, moduleRow } = await resolveTarget(client, scenarioId, knob.entity, knob.target);
+  const { row, moduleRow, changeRows } = await resolveTarget(
+    client, scenarioId, knob.entity, knob.target
+  );
+  if (spec.entity === 'change') {
+    assertApplicable(spec, row, moduleRow, { changeRows });
+    const band = knob[side === 'low' ? 'lowBand' : 'highBand'] ?? knob.band
+      ?? DEFAULT_BAND[spec.kind];
+    return applyChangeList(client, spec, changeRows, band, side);
+  }
   // Only the specs that need it pay for the extra reads, and the SETTER uses the same predicate
   // the picker does — two implementations of "may this knob move?" would drift into offering one
   // the run then refuses, or hiding one that works.
@@ -370,6 +453,62 @@ async function applyKnob(client, scenarioId, knob, side, { scenarioRate = 0 } = 
   };
 }
 
+/**
+ * Move a whole schedule at once, and put every row back from a CAPTURED value.
+ *
+ * ⚠️ The restore is the same discipline as the single-row path and for the same reason: computing
+ * an inverse (`value / factor`, `value - band`) reintroduces float drift on every point, and a
+ * restore that lands a cent away leaves the NEXT knob measuring itself plus a residue. Fifteen
+ * wrong bars and no exception. `inputFingerprint` re-checks the whole surface after each one.
+ */
+async function applyChangeList(client, spec, changeRows, band, side) {
+  const sign = side === 'low' ? -1 : 1;
+  const before = changeRows.map((r) => r.amount);
+
+  const next = changeRows.map((r) => {
+    const base = num(r.amount) ?? 0;
+    // A rate moves in points; a level scales — and a NEGATIVE `Fixed $` step scales to a bigger
+    // step down, which is the same statement about the same assumption.
+    return spec.kind === KIND.RATE ? base + sign * band : base * (1 + (sign * band) / 100);
+  });
+
+  for (const [i, r] of changeRows.entries()) {
+    await client.query('UPDATE forecast_stream_changes SET amount = $1 WHERE id = $2', [next[i], r.id]);
+  }
+
+  const restore = async () => {
+    for (const [i, r] of changeRows.entries()) {
+      await client.query('UPDATE forecast_stream_changes SET amount = $1 WHERE id = $2', [before[i], r.id]);
+    }
+  };
+
+  return {
+    restore,
+    value: describeSchedule(next),
+    before: describeSchedule(before),
+    valueUsd: null, beforeUsd: null,
+  };
+}
+
+/**
+ * A schedule, in one cell.
+ *
+ * ⚠️ The first version returned the raw list, and a seven-row schedule rendered as
+ * `-3.0000, -3.0000, -2.0000, …` — truncated mid-number by the column, and unreadable before that.
+ * A single row keeps its bare value so the existing per-kind formatting still applies to it (a
+ * `Spread %` of 1.25 reads "1.25%" and lands "at 2.25%", which is exactly right).
+ *
+ * First-to-last rather than min-to-max: these rows are ordered by date, so the pair the owner
+ * wants is where the schedule STARTS and where it ENDS, not its extremes.
+ */
+function describeSchedule(values) {
+  const nums = values.map((v) => Number(v));
+  if (!nums.length) return null;
+  if (nums.length === 1) return String(nums[0]);
+  const trim = (n) => String(Number(n.toFixed(4)));
+  return `${trim(nums[0])} to ${trim(nums[nums.length - 1])} (${nums.length} rows)`;
+}
+
 /** Every column name here is a key of the closed catalogue above, never caller input. */
 async function writeRow(client, spec, id, cols, vals) {
   for (const c of cols) {
@@ -383,12 +522,17 @@ async function writeRow(client, spec, id, cols, vals) {
 
 async function applicabilityContext(client, spec, moduleRow, row) {
   const out = {};
-  // A stream's own change rows — the figures that make an `amount` of 0 productive anyway.
-  if (spec.requiresNonZeroAmount && row?.id) {
+  // A stream's own change rows — the figures that make an `amount` of 0 productive anyway. Counted
+  // twice over, because "is there a level to compound?" and "does this stream emit anything?" are
+  // different questions with different answers on a pure `One-Off $` schedule.
+  if ((spec.requiresLevel || spec.requiresOutput) && row?.id) {
     const { rows } = await client.query(
-      'SELECT count(*)::int AS n FROM forecast_stream_changes WHERE stream_id = $1', [row.id]
+      `SELECT count(*)::int AS n,
+              count(*) FILTER (WHERE flag = 'Fixed $')::int AS level_rows
+         FROM forecast_stream_changes WHERE stream_id = $1`, [row.id]
     );
     out.changeCount = rows[0]?.n ?? 0;
+    out.levelRowCount = rows[0]?.level_rows ?? 0;
   }
   if (!(spec.requiresTaxable || spec.requiresSalePath) || !moduleRow) return out;
   const [streams, disposals] = await Promise.all([
@@ -421,14 +565,56 @@ function assertApplicable(spec, row, moduleRow, context = {}) {
     if (spec.directions && !spec.directions.includes(row.direction)) {
       throw new KnobError(`"${spec.label}" applies only to ${spec.directions.join('/')} streams.`);
     }
-    if (spec.requiresNonZeroAmount && row.mode === 'amount'
-        && !Number(row.amount) && !Number(context.changeCount)) {
+    if (row.mode === 'amount' && !Number(row.amount)) {
+      // Two different questions, so two different tests. `requiresLevel` asks whether there is a
+      // COMPOUNDING level for a rate to act on; `requiresOutput` asks whether the stream emits
+      // anything at all. A schedule of pure one-offs answers yes to the second and no to the first.
+      if (spec.requiresLevel && !Number(context.levelRowCount)) {
+        throw new KnobError(
+          `This stream has no amount and no "Fixed $" rows, so its level is 0 in every year and ` +
+          `"${spec.label}" — which multiplies that level — moves nothing. Sensitise the ` +
+          `"One-Off $" schedule instead.`
+        );
+      }
+      if (spec.requiresOutput && !Number(context.changeCount)) {
+        throw new KnobError(
+          `This stream has no amount and no schedule of changes, so there is no figure for ` +
+          `"${spec.label}" to apply to — the knob writes, builds and moves nothing.`
+        );
+      }
+    }
+  }
+  // ⚠️ A CHANGE KNOB IS GATED ON THE STREAM'S MODE, decided from the engine up front rather than
+  // discovered by a zero-length bar. `row` here is the STREAM, not a change row.
+  if (spec.entity === 'change') {
+    if (spec.modes && !spec.modes.includes(row.mode)) {
+      const modes = spec.modes.join('/');
       throw new KnobError(
-        `This stream has no amount and no schedule of changes, so there is no figure for ` +
-        `"${spec.label}" to scale — the knob writes, builds and moves nothing.`
+        `"${spec.label}" rows are only read on ${/^[aeiou]/.test(modes) ? 'an' : 'a'} ${modes}-mode ` +
+        `stream; this one is ${row.mode}-mode, so the schedule is never consulted.`
+      );
+    }
+    const rows = context.changeRows || [];
+    if (!rows.length) {
+      throw new KnobError(`This stream carries no "${spec.label}" rows, so there is no schedule to move.`);
+    }
+    if (spec.kind === KIND.LEVEL && !rows.some((r) => Number(r.amount))) {
+      throw new KnobError(
+        `Every "${spec.label}" row here is 0, so a ±% move of the schedule is still 0 — the bar ` +
+        `would read as "this does not matter" when the truth is "there is nothing to move".`
       );
     }
   }
+
+  // ⚠️ EVERYTHING FROM HERE TO THE EXCLUDED CHECK IS COLUMN-ORIENTED and must not run for a change
+  // knob, whose `row` is the STREAM and whose `field` is a FLAG — `row['Fixed $']` is undefined,
+  // which the LEVEL guard would read as 0 and refuse every schedule in the plan.
+  //
+  // Written as a skip rather than an early `return`, because the excluded-module guard at the end
+  // applies to EVERY entity. Returning here is the precise mistake this file already records: the
+  // first version of that guard tested `spec.entity === 'module'` and let both child entities
+  // through, so a knob under a module that is not in the plan drew a confident zero.
+  if (spec.entity !== 'change') {
   if (spec.refuseWhenNull && row[spec.field] == null) {
     throw new KnobError(`"${spec.label}" is not set on this row, so there is nothing to shift.`);
   }
@@ -508,6 +694,7 @@ function assertApplicable(spec, row, moduleRow, context = {}) {
       );
     }
   }
+  }   // end of the column-oriented guards
 
   // ⚠️ THE EXCLUDED-MODULE GUARD APPLIES TO EVERY ENTITY, NOT JUST TO MODULE FIELDS.
   //
@@ -539,7 +726,11 @@ function assertApplicable(spec, row, moduleRow, context = {}) {
  * `PLN Credit Cards` at −24,542.66).
  */
 function knobGroup(spec, row, moduleRow, streams = []) {
-  if (spec.entity === 'stream') return row.direction === 'income' ? 'income' : 'expense';
+  // A change knob's `row` is its STREAM, so it groups exactly as a stream knob does — a schedule
+  // of expense steps belongs beside the expense it steps.
+  if (spec.entity === 'stream' || spec.entity === 'change') {
+    return row.direction === 'income' ? 'income' : 'expense';
+  }
 
   const isDebt = moduleRow.loan_principal != null
     || Number(moduleRow.market_value) < 0
@@ -573,9 +764,11 @@ module.exports = {
   ENTITIES,
   MODULE_FIELDS,
   STREAM_FIELDS,
+  CHANGE_FLAGS,
   DISPOSAL_FIELDS,
   specFor,
   knobId,
+  describeSchedule,
   resolveTarget,
   applyKnob,
   // exposed for unit tests

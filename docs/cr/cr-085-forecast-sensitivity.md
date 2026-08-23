@@ -1219,3 +1219,80 @@ node Scripts/sweep-sensitivity-knobs.js "2026 Base"
 A DEAD result is a **candidate, not a verdict** — it says the field is inert *on this scenario*.
 Confirm each against the engine, and gate on the engine's precondition, never on "it was zero that
 time".
+
+---
+
+## 23. The `forecast_stream_changes` schedules — §4.1's deferred item, built (2026-08-23)
+
+The last thing §4.1 deferred to P2 and P2 never built. These are the only knobs that are **not a
+column**: a stream carries N dated rows of one flag, and the knob moves the **whole list** together.
+One row at a time would be a knob per year — a different question (*when* does this change?) drawn
+in a chart that ranks *how much*.
+
+### The flag/mode matrix, decided from the engine BEFORE writing the picker
+
+`expandChanges` (fcbuilder-stream.js:67-116) builds four series and `computeStreamSeries` spends
+them in exactly two branches. This CR has paid four times for a knob offered on a branch that never
+reads it, so this table was read out of the engine first rather than discovered by a zero bar:
+
+| flag | series | consumed by | mode | kind |
+|---|---|---|---|---|
+| `Percent %` | `pct` | `level[i] = prev × (1 + pct[i]/100) + fixed[i]` | **amount** | rate (±pp) |
+| `Fixed $` | `fixed` | same line — additive, permanent through the recursion | **amount** | level (±%) |
+| `One-Off $` | `oneOff` | `out[i] = level[i] + oneOff[i]`, that year only | **amount** | level (±%) |
+| `Spread %` | `spread` | `eff = inflation + spread[i]` | **yield** | rate (±pp) |
+
+The `flag` column's own CHECK carries exactly these four values, so the catalogue is closed by the
+schema as well as by the code. **All 14 knobs it adds measured `ok` in the sweep on the first run.**
+
+### ⚠️ The most load-bearing assumption in the plan was unreachable
+
+`Fidelity Fixed Income · Spread % · Interest Income` at **±1pp** moves the plan **−$1.5M / +$1.6M**.
+
+That is the stream the owner clicked FIRST on dev, where `growth_mult` came back *"moved the plan by
+nothing measurable"* (§21's eighth dead knob). The knob that was offered there did nothing; the knob
+that mattered did not exist. Both halves of that are now closed.
+
+### What the list knob had to get right
+
+- **The restore replays CAPTURED values, positionally** — never `value / factor`. Same discipline as
+  the single-row path and the same reason: an inverse reintroduces float drift on every point, and a
+  restore landing a cent away leaves the next knob measuring itself plus a residue. Rows are read
+  `ORDER BY change_date, id` so two rows sharing a date come back in the order they went out.
+- **A negative `Fixed $` step scales to a bigger step down.** −30,000 at +10% is −33,000, which is
+  the same statement about the same assumption.
+- ⚠️ **The change branch is written as a SKIP of the column-oriented guards, not an early
+  `return`.** Returning is the precise mistake this file already records — the first version of the
+  excluded-module guard tested `spec.entity === 'module'` and let both child entities through. A
+  test asserts a schedule under an excluded module is still refused.
+- ⚠️ **A seven-row schedule first rendered as `-3.0000, -3.0000, -2.0000, …`**, truncated mid-number
+  by the results column. `describeSchedule` gives one cell — `-3 to -5 (7 rows)` — **first-to-last,
+  not min-to-max**, because the rows are ordered by date and what the owner wants is where the
+  schedule starts and where it ends. The picker and the applied-value display share the helper, or
+  the same schedule would be described two ways on one page.
+
+### Two fixes that fell out
+
+- **`knobId` now keys on the FC line as well as the direction.** The partial unique indexes on
+  `forecast_streams` key on `(direction, fc_line_id)`, so two income streams on one module are
+  legal, and two knobs sharing an id would have the run's points overwrite each other. No live
+  module does it today — the kind of luck this CR has stopped relying on.
+- **`growth_mult`'s gate refined a second time, and the sweep forced both refinements.** §22 changed
+  it from *"amount is 0"* to *"no amount and no change rows"*. That was still wrong: `pct`
+  multiplies the **level** and nothing else, so a schedule of pure `One-Off $` rows leaves the level
+  at 0 in every year while the stream emits real money. `Car Purchase Chris` carries four one-offs
+  and measured DEAD. The test is now *no amount and no `Fixed $` rows* — while
+  `tax_rate_override` keeps the **weaker** test, because tax hits the output and one-offs are part
+  of it. **That closes one of §22's nine dynamic dead knobs statically.**
+
+### Where the catalogue stands
+
+| | after §22 | now |
+|---|---|---|
+| knobs offered | 141 | **154** |
+| moved the plan | 129 | **143** |
+| moved nothing | 9 | **8** |
+| could not be applied | 0 | **0** |
+
+Verified by re-sweep, comparing on `(entity, module, field)`: **nothing that worked was lost**, and
+the fourteen new knobs are all live.
