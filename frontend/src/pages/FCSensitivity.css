@@ -176,10 +176,14 @@
   gap: 0.5rem;
   padding: 0.15rem 0 0.15rem 0.8rem;
   font-size: 0.8rem;
+  /* ⚠️ Three chips fitted beside the label; a fourth broke "Market value" across two lines, so
+     adding a band silently damaged the row that named it. The band group drops to its own line
+     instead of squeezing the only text that says which knob this is. */
+  flex-wrap: wrap;
 }
 
 .fc-sensitivity .fc-sens-knob label {
-  flex: 1;
+  flex: 1 1 14rem;
   flex-direction: row;
   align-items: center;
   gap: 0.4rem;
@@ -188,6 +192,8 @@
 }
 
 .fc-sensitivity .fc-sens-knob-label { flex: 1; }
+/* On its own wrapped line the group would sit under the checkbox; line it up with the label. */
+.fc-sensitivity .fc-sens-knob .fc-sens-band { margin-left: auto; }
 
 .fc-sensitivity .fc-sens-knob em {
   color: var(--ink-tertiary);
@@ -533,12 +539,15 @@
 }
 
 /* Several bands per knob: the point of a second band is that if ±50% does not move the plan five
-   times what ±10% does, the response is not linear. Presets, not a free number, because the
-   comparison only means something when the bands are the same across knobs. */
+   times what ±10% does, the response is not linear.
+   The three presets are a starting point, not the question — `+` types any band, and the ranking
+   already handles unequal probing by ranking on the SMALLEST band each knob carries. */
 .fc-sensitivity .fc-sens-band {
   display: inline-flex;
   gap: 0.15rem;
   flex: none;
+  flex-wrap: wrap;
+  align-items: center;
 }
 
 .fc-sensitivity .fc-sens-band button {
@@ -556,6 +565,72 @@
   background: var(--primary-strong);
   border-color: var(--primary-strong);
   color: var(--on-accent);
+  font-weight: 600;
+}
+
+/* ⚠️ A TYPED BAND AND AN OFFERED ONE ARE NOT THE SAME OBJECT, and only one of them vanishes when
+   it is unticked. Drawn identically, "±35%" reads as something the page has always offered, and
+   its disappearance reads as a bug. The dashed edge is the whole of that distinction — it is NOT
+   carrying selected-state, which is still the fill. */
+.fc-sensitivity .fc-sens-band button.is-custom {
+  border-style: dashed;
+}
+
+/* ⚠️ AND ON A SELECTED CHIP THE DASHES WERE INVISIBLE, because `.is-active` paints the border the
+   same colour as the fill — so the marker existed, rendered, and told nobody anything. A typed
+   band is ALWAYS selected the moment it is added, which is the only state it was ever seen in. */
+.fc-sensitivity .fc-sens-band button.is-custom.is-active {
+  border-color: var(--on-accent);
+}
+
+.fc-sensitivity .fc-sens-band-open {
+  font-weight: 700;
+  line-height: 1;
+  padding: 0.1rem 0.4rem;
+}
+
+.fc-sensitivity .fc-sens-band-draft {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.2rem;
+  font-size: 0.68rem;
+  color: var(--ink-tertiary);
+}
+
+/* Recessed for the same reason the run-panel band input is: an elevated field on an elevated
+   panel, with `--border` at 1.06:1 in dark, is a floating number that does not look editable. */
+.fc-sensitivity .fc-sens-band-draft input {
+  width: 3.6rem;
+  background: var(--bg);
+  color: var(--ink);
+  border: 1px solid var(--border-strong);
+  border-radius: 5px;
+  padding: 0.1rem 0.3rem;
+  font-size: 0.68rem;
+  font-variant-numeric: tabular-nums;
+}
+
+.fc-sensitivity .fc-sens-band-draft input[aria-invalid="true"] {
+  border-color: var(--danger);
+}
+
+.fc-sensitivity .fc-sens-band-error {
+  flex-basis: 100%;
+  color: var(--danger);
+  font-size: 0.68rem;
+}
+
+/* What the composition costs, in the server's own unit — see the ⚠️ on the markup. */
+.fc-sensitivity .fc-sens-cost {
+  margin: 0;
+  align-self: center;
+  color: var(--ink-tertiary);
+  font-size: 0.78rem;
+  font-variant-numeric: tabular-nums;
+}
+
+.fc-sensitivity .fc-sens-cost.is-over {
+  color: var(--danger);
   font-weight: 600;
 }
 

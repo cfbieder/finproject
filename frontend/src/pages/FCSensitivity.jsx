@@ -18,7 +18,9 @@ import { useBalanceSheetAccounts } from "../features/Forecast/hooks/useBalanceSh
 import { scenarioOptions } from "../features/Forecast/utils/scenarioOptions.js";
 import { aggregateBalanceReport } from "../features/Forecast/utils/fcBalanceAggregate.js";
 import {
-  METRICS, bandLabel, combinationsFor, interactionSummary, rankKnobs, storedDrift,
+  BAND_PRESETS, MAX_BUILDS, METRICS, bandChoices, bandLabel, bandMismatch, bandUnit, bandUnitLong,
+  buildSeconds,
+  combinationsFor, interactionSummary, plannedBuilds, rankKnobs, storedDrift, validateBand,
 } from "../features/Forecast/utils/fcSensitivityUtils.js";
 import Rest from "../js/rest.js";
 import "./PageLayout.css";
@@ -41,24 +43,6 @@ const GROUP_ORDER = [
  * ("Market value3918992.00") and a 15-digit numeric is not a thing anyone reads — the point of
  * showing it is "is this the field I mean", which wants a shape, not every cent.
  */
-/**
- * The bands a kind is usually asked at. Several may be picked at once: the whole point of a second
- * band is that if ±50% does not move the plan five times what ±10% does, the response is NOT
- * linear — and that is invisible at a single band.
- */
-const BAND_PRESETS = {
-  rate: [0.5, 1, 2],
-  level: [10, 20, 50],
-  multiplier: [0.25, 0.5, 1],
-  timing: [1, 2, 5],
-};
-
-/** The unit a band is expressed in, for the input's accessible name. */
-function bandUnit(kind) {
-  return { rate: "percentage points", level: "percent", multiplier: "multiples", timing: "years" }[kind]
-    || "units";
-}
-
 function formatCurrent(k) {
   if (k.current == null) return "—";
   if (k.kind === "timing") return String(k.current).slice(0, 10);
@@ -87,6 +71,11 @@ export default function FCSensitivity() {
   const [ranSignature, setRanSignature] = useState(null);
   const [query, setQuery] = useState("");
   const [composing, setComposing] = useState(false);
+  /**
+   * Which knob's band input is open, what is in it, and what was wrong with it — one at a time, so
+   * there is only ever one place to look for the error. `{ id, text, error }`, or null for closed.
+   */
+  const [bandDraft, setBandDraft] = useState(null);
 
   const { start, state, result, error, startCombined, combined, combinedState } =
     useSensitivityRun();
@@ -179,6 +168,10 @@ export default function FCSensitivity() {
    */
   const toggleBand = (k, band) => {
     const id = keyOf(k);
+    const chosen = selected.find((p) => keyOf(p) === id);
+    const have = chosen ? (chosen.bands || [chosen.band]) : [];
+    // Ticking a band costs two more real builds, exactly like typing one.
+    if (!have.includes(band) && plannedBuilds(selected) + 2 > MAX_BUILDS) return;
     setSelected((prev) => prev.map((p) => {
       if (keyOf(p) !== id) return p;
       const have = p.bands || [p.band];
@@ -186,6 +179,35 @@ export default function FCSensitivity() {
       const bands = (next.length ? next : [band]).sort((a, b) => a - b);
       return { ...p, bands, band: bands[0] };
     }));
+  };
+
+  /**
+   * A band the owner typed rather than one of the three on offer.
+   *
+   * ⚠️ THE PRESETS ARE A UI CONVENIENCE AND NEVER WERE A CONTRACT. The server's `bandsOf` takes any
+   * finite band > 0 and the route validates none of them, so a typed band needs no API change —
+   * only the three guards the fixed chips were incidentally providing (`validateBand`) and the
+   * build cap, which a fourth band is the first thing in this page's history able to reach.
+   *
+   * Returns the message to show, or null when it went in.
+   */
+  const addBand = (k, raw) => {
+    const check = validateBand(k.kind, raw);
+    if (check.error) return check.error;
+    const id = keyOf(k);
+    const chosen = selected.find((p) => keyOf(p) === id);
+    const have = chosen ? (chosen.bands || [chosen.band]) : [];
+    if (have.includes(check.value)) return null;          // already ticked — nothing to add or say
+    const after = plannedBuilds(selected) + 2;
+    if (after > MAX_BUILDS) {
+      return `That would be ${after} builds against a cap of ${MAX_BUILDS}. Drop a band or a knob.`;
+    }
+    setSelected((prev) => prev.map((p) => {
+      if (keyOf(p) !== id) return p;
+      const bands = [...(p.bands || [p.band]), check.value].sort((a, b) => a - b);
+      return { ...p, bands, band: bands[0] };
+    }));
+    return null;
   };
 
   /**
@@ -284,7 +306,17 @@ export default function FCSensitivity() {
    */
   const mode = composing || !result || wrongScenario ? "compose" : "read";
 
-  const canRun = scenario && selected.length > 0 && state.status !== "running";
+  /**
+   * ⚠️ A SELECTION RESTORED FROM localStorage HAS NOT BEEN THROUGH THE GUARDS. `addBand` and
+   * `toggleBand` refuse to cross the cap, but a selection saved by an earlier build of this page —
+   * or by a future one with a different cap — arrives already over it, and the only signal would be
+   * a 409 after the run was fired.
+   */
+  const builds = plannedBuilds(selected);
+  const bandCount = selected.reduce((n, k) => n + (k.bands || [k.band]).length, 0);
+  const overBuildCap = builds > MAX_BUILDS;
+  const mismatched = bandMismatch(selected);
+  const canRun = scenario && selected.length > 0 && !overBuildCap && state.status !== "running";
 
   return (
     <div className="page-container fc-sensitivity">
@@ -337,6 +369,19 @@ export default function FCSensitivity() {
             ? `Building ${state.done}/${state.total}…`
             : `Run ${selected.length} knob${selected.length === 1 ? "" : "s"}`}
         </button>
+
+        {/* ⚠️ The cost of a run was invisible because it could not vary much: three fixed chips
+            capped the page at 49 builds against a cap of 50. A typed band makes the ceiling
+            reachable, and a refusal that arrives as a 409 after the composing is finished is the
+            wrong moment to learn the run is too big. */}
+        {selected.length > 0 && (
+          <p className={`fc-sens-cost${overBuildCap ? " is-over" : ""}`} aria-live="polite">
+            {bandCount} band{bandCount === 1 ? "" : "s"} · {builds} builds
+            {overBuildCap
+              ? ` — over the cap of ${MAX_BUILDS}. Drop a band or a knob.`
+              : ` ≈ ${buildSeconds(builds)}s`}
+          </p>
+        )}
       </section>
 
       {scenariosLoading && <p className="fc-sens-note">Loading scenarios…</p>}
@@ -345,6 +390,20 @@ export default function FCSensitivity() {
       {state.status === "running" && (
         <p className="fc-sens-note" role="status">
           Building {state.done}/{state.total} — each one is a real forecast build.
+        </p>
+      )}
+      {/* Not an error and not a refusal — the run is valid, the READING of it is the thing at
+          risk. See the ⚠️ on `bandMismatch`. */}
+      {mode === "compose" && mismatched.length > 0 && (
+        <p className="fc-sens-note" role="status">
+          {mismatched.map((m) => (
+            <span key={m.kind}>
+              Knobs of the same kind are probed at{" "}
+              {m.bands.map((b) => bandLabel({ kind: m.kind, band: b })).join(" and ")}.{" "}
+            </span>
+          ))}
+          Bars are ranked on the smallest band each knob carries, so those are not ranked like for
+          like — each bar still prints its own band.
         </p>
       )}
       {catalogueError && <p className="fc-sens-error" role="alert">{catalogueError}</p>}
@@ -474,21 +533,78 @@ export default function FCSensitivity() {
                     </label>
                     {chosen && (
                       <span className="fc-sens-band" role="group"
-                        aria-label={`Bands for ${module} ${k.label}, in ${bandUnit(k.kind)}`}>
-                        {(BAND_PRESETS[k.kind] || [chosen.band]).map((b) => {
+                        aria-label={`Bands for ${module} ${k.label}, in ${bandUnitLong(k.kind)}`}>
+                        {bandChoices(k.kind, chosen.bands || [chosen.band]).map((b) => {
                           const on = (chosen.bands || [chosen.band]).includes(b);
+                          // A typed band looks different from an offered one, or the three chips
+                          // that came with the page and the one you asked for read as the same
+                          // kind of thing — and only one of them disappears when you untick it.
+                          const custom = !(BAND_PRESETS[k.kind] || []).includes(b);
                           return (
                             <button
                               key={b}
                               type="button"
                               aria-pressed={on}
-                              className={on ? "is-active" : ""}
+                              className={`${on ? "is-active" : ""}${custom ? " is-custom" : ""}`}
+                              title={custom ? "Yours — untick to remove it" : undefined}
+                              // The dashed edge is a sighted-only signal, and the asymmetry it
+                              // marks is real: unticking a typed band REMOVES it, unticking a
+                              // preset leaves the chip in place.
+                              aria-label={custom
+                                ? `${bandLabel({ kind: k.kind, band: b })} — your own band`
+                                : undefined}
                               onClick={() => toggleBand(k, b)}
                             >
                               {bandLabel({ kind: k.kind, band: b })}
                             </button>
                           );
                         })}
+                        {bandDraft?.id === id ? (
+                          <span className="fc-sens-band-draft">
+                            <input
+                              type="number"
+                              autoFocus
+                              min="0"
+                              step={k.kind === "timing" ? 1 : "any"}
+                              value={bandDraft.text}
+                              aria-label={`Custom band for ${module} ${k.label}, in ${bandUnitLong(k.kind)}`}
+                              aria-invalid={Boolean(bandDraft.error)}
+                              onChange={(e) => setBandDraft({ id, text: e.target.value, error: null })}
+                              onKeyDown={(e) => {
+                                if (e.key === "Escape") setBandDraft(null);
+                                if (e.key !== "Enter") return;
+                                e.preventDefault();
+                                const err = addBand(k, bandDraft.text);
+                                setBandDraft(err ? { ...bandDraft, error: err } : null);
+                              }}
+                            />
+                            <span aria-hidden="true">{bandUnit(k.kind)}</span>
+                            <button
+                              type="button"
+                              onClick={() => {
+                                const err = addBand(k, bandDraft.text);
+                                setBandDraft(err ? { ...bandDraft, error: err } : null);
+                              }}
+                            >
+                              Add
+                            </button>
+                            <button type="button" aria-label="Cancel" onClick={() => setBandDraft(null)}>
+                              ×
+                            </button>
+                          </span>
+                        ) : (
+                          <button
+                            type="button"
+                            className="fc-sens-band-open"
+                            aria-label={`Add your own band to ${module} ${k.label}`}
+                            onClick={() => setBandDraft({ id, text: "", error: null })}
+                          >
+                            +
+                          </button>
+                        )}
+                        {bandDraft?.id === id && bandDraft.error && (
+                          <span className="fc-sens-band-error" role="alert">{bandDraft.error}</span>
+                        )}
                       </span>
                     )}
                   </div>

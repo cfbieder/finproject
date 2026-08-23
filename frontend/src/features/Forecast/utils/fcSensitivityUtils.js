@@ -504,3 +504,116 @@ export function combinedTrajectory(combinedResult, shared, metricKey, colors) {
     }),
   };
 }
+
+// ---------------------------------------------------------------------------
+// Custom bands — the presets are a starting point, not the question
+// ---------------------------------------------------------------------------
+
+/**
+ * The bands offered per kind before the owner types one. These are a UI convenience ONLY: the
+ * server's `bandsOf` accepts any finite band > 0 and the route validates none of them, so nothing
+ * downstream is keyed to these nine numbers.
+ */
+export const BAND_PRESETS = Object.freeze({
+  rate: [0.5, 1, 2],
+  level: [10, 20, 50],
+  multiplier: [0.25, 0.5, 1],
+  timing: [1, 2, 5],
+});
+
+/** The unit a band is expressed in — for the input's accessible name and its suffix. */
+export function bandUnit(kind) {
+  return { rate: "pp", level: "%", multiplier: "×", timing: "y" }[kind] || "";
+}
+
+export function bandUnitLong(kind) {
+  return { rate: "percentage points", level: "percent", multiplier: "multiples", timing: "years" }[kind]
+    || "units";
+}
+
+/**
+ * The chips to draw for a knob: the presets, plus whatever the owner typed, in order.
+ *
+ * A custom band lives only in the selection — untick it and the chip is gone next render, which is
+ * the whole of its lifecycle. There is nothing to "manage" and nothing to clean up.
+ */
+export function bandChoices(kind, bands = []) {
+  const set = new Set([...(BAND_PRESETS[kind] || []), ...bands.filter((b) => Number.isFinite(b) && b > 0)]);
+  return [...set].sort((a, b) => a - b);
+}
+
+/**
+ * ⚠️ THE PRESETS WERE ALSO HIDING THREE WAYS TO ASK FOR NONSENSE.
+ *
+ * `perturb` applies a LEVEL band as `base × (1 + sign × band / 100)` with no clamp, so ±100%
+ * makes the low side exactly 0 and ±150% makes an asset NEGATIVE — and the engine builds it
+ * without complaint. A TIMING band goes to `shiftYears(current, sign × band)`, where a fraction is
+ * not a thing. And a band of 0 or below is two builds of the unchanged scenario drawn as a bar.
+ *
+ * A rate driven negative is NOT refused: a −2% return is a real scenario, and the applied-value
+ * row already prints what the ± lands on, so it is visible rather than hidden.
+ */
+export function validateBand(kind, raw) {
+  // ⚠️ `Number("")` is 0, not NaN — an empty box would otherwise be told "must be above zero",
+  // which is an answer to a question nobody asked.
+  const text = String(raw ?? "").trim();
+  const v = text === "" ? NaN : Number(text);
+  if (!Number.isFinite(v)) return { error: "Needs a number." };
+  if (v <= 0) return { error: "Must be above zero — a ±0 band builds the same plan twice." };
+  if (kind === "timing" && !Number.isInteger(v)) return { error: "Whole years only." };
+  if (kind === "level" && v >= 100) {
+    return { error: "±100% or more zeroes the value — the low side would be 0 or negative." };
+  }
+  if (kind === "rate" && v > 100) return { error: "Over 100 percentage points is not a nudge." };
+  // ⚠️ A MULTIPLIER band is ABSOLUTE (`base + sign × band`), so ±150× on a growth of 0.8 is
+  // −149.2× inflation: not a pessimistic scenario, a different model. Note this does NOT refuse a
+  // negative multiplier as such — the ±1× PRESET already takes a 0.8 growth to −0.2×, and a stream
+  // shrinking at a fraction of inflation is a real thing to ask about.
+  if (kind === "multiplier" && v > 10) return { error: "Over 10× is a different model, not a band." };
+  // Float noise off a typed "0.1" would otherwise make 0.30000000000000004 its own chip.
+  return { value: Math.round(v * 1e4) / 1e4 };
+}
+
+/**
+ * What a selection costs, in the server's own unit.
+ *
+ * ⚠️ THIS ONLY BECOMES NECESSARY WHEN BANDS ARE EDITABLE. With three fixed chips the ceiling was
+ * 8 knobs × 3 bands + 1 anchor = 49 builds against a cap of 50, so the UI could not reach it. A
+ * fourth band on any one knob can — and the refusal is a 409 raised after the whole composition is
+ * done, which is the wrong moment to learn the run is too big.
+ */
+export const MAX_BUILDS = 50;
+
+export function plannedBuilds(selected = []) {
+  return selected.reduce((n, k) => n + (k.bands || [k.band]).filter(Boolean).length * 2, 1);
+}
+
+/** ~0.5s a build, the same figure the server's refusal message quotes. */
+export function buildSeconds(builds) {
+  return Math.round(builds * 0.5);
+}
+
+/**
+ * ⚠️ THE RANKING USES THE SMALLEST BAND EACH KNOB CARRIES, so two knobs of the SAME kind probed at
+ * different smallest bands are not ranked like for like — one bar is a ±10% question and the other
+ * a ±35% one, side by side, sorted against each other.
+ *
+ * This was always possible (untick ±10% on one knob and it ranks at ±20%), but three fixed chips
+ * made it a deliberate act. A typed band makes it the default outcome of answering a question about
+ * one module, so it has to be said out loud rather than left in the chart's footnote.
+ *
+ * Kinds are NOT compared against each other: a rate's percentage points and a level's percent are
+ * different units, and every bar prints its own band.
+ */
+export function bandMismatch(selected = []) {
+  const byKind = new Map();
+  for (const k of selected) {
+    const smallest = Math.min(...(k.bands || [k.band]).filter((b) => Number.isFinite(b)));
+    if (!Number.isFinite(smallest)) continue;
+    if (!byKind.has(k.kind)) byKind.set(k.kind, new Set());
+    byKind.get(k.kind).add(smallest);
+  }
+  return [...byKind.entries()]
+    .filter(([, set]) => set.size > 1)
+    .map(([kind, set]) => ({ kind, bands: [...set].sort((a, b) => a - b) }));
+}

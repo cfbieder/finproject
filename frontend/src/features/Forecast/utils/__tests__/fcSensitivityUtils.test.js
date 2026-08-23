@@ -5,8 +5,9 @@
  */
 import { describe, expect, it } from "vitest";
 import {
-  adverseSideFor, bandLabel, combinationsFor, formatKnobValue, interactionSummary,
-  isRegimeChange, knobTrajectory, rankKnobs, REGIME_CHANGE_RATIO,
+  adverseSideFor, bandChoices, bandLabel, bandMismatch, buildSeconds, combinationsFor,
+  formatKnobValue, interactionSummary, isRegimeChange, knobTrajectory, MAX_BUILDS, plannedBuilds,
+  rankKnobs, REGIME_CHANGE_RATIO, validateBand,
 } from "../fcSensitivityUtils.js";
 import { vi } from "vitest";
 
@@ -263,5 +264,79 @@ describe("formatKnobValue — the band alone is unreadable", () => {
 
   it("is a dash, not a zero, when there is no value", () => {
     expect(formatKnobValue("level", null)).toBe("—");
+  });
+});
+
+describe("custom bands — what the three fixed chips were hiding", () => {
+  it("refuses a level band of 100% or more, because the low side is 0 or negative", () => {
+    // `perturb` is `base × (1 + sign × band / 100)` with NO clamp, and the engine builds a
+    // negative asset without complaining. The presets never let anyone ask for it.
+    expect(validateBand("level", 100).error).toMatch(/zeroes the value/);
+    expect(validateBand("level", 150).error).toBeTruthy();
+    expect(validateBand("level", 99.9)).toEqual({ value: 99.9 });
+  });
+
+  it("refuses a fractional timing band — shiftYears has no meaning for half a year", () => {
+    expect(validateBand("timing", 1.5).error).toMatch(/Whole years/);
+    expect(validateBand("timing", 7)).toEqual({ value: 7 });
+  });
+
+  it("refuses zero and negatives — a ±0 band is two builds of the same plan", () => {
+    expect(validateBand("level", 0).error).toBeTruthy();
+    expect(validateBand("rate", -1).error).toBeTruthy();
+    expect(validateBand("level", "").error).toMatch(/number/);
+    expect(validateBand("level", "abc").error).toMatch(/number/);
+  });
+
+  it("does NOT refuse a rate that goes negative — a −2% return is a real scenario", () => {
+    expect(validateBand("rate", 5)).toEqual({ value: 5 });
+  });
+
+  it("caps a multiplier band, which is absolute and runs off the end of the model", () => {
+    // A live browser run typed 150 into a growth multiplier of 0.8× and got −149.2× inflation
+    // back with nothing raised anywhere.
+    expect(validateBand("multiplier", 150).error).toMatch(/different model/);
+    // But the ±1× PRESET already takes 0.8 to −0.2×, so a negative multiplier is not the line.
+    expect(validateBand("multiplier", 1)).toEqual({ value: 1 });
+    expect(validateBand("multiplier", 10)).toEqual({ value: 10 });
+  });
+
+  it("rounds typed input, so 0.1 + 0.2 arithmetic never becomes its own chip", () => {
+    expect(validateBand("multiplier", "0.30000000000000004")).toEqual({ value: 0.3 });
+  });
+
+  it("offers the presets plus whatever was typed, sorted and deduped", () => {
+    expect(bandChoices("level", [20, 35])).toEqual([10, 20, 35, 50]);
+    expect(bandChoices("level", [])).toEqual([10, 20, 50]);
+    expect(bandChoices("nonsense", [4])).toEqual([4]);
+  });
+
+  it("counts builds the way the server does — two per band, plus one anchor", () => {
+    expect(plannedBuilds([])).toBe(1);
+    expect(plannedBuilds([{ bands: [10, 20, 50] }, { bands: [1] }])).toBe(9);
+    // The old ceiling: 8 knobs × 3 bands sat at 49 against a cap of 50, so the UI could not
+    // reach it. A fourth band on any one knob is the first thing that can.
+    const eightByThree = Array.from({ length: 8 }, () => ({ bands: [1, 2, 3] }));
+    expect(plannedBuilds(eightByThree)).toBe(49);
+    expect(plannedBuilds(eightByThree)).toBeLessThanOrEqual(MAX_BUILDS);
+    eightByThree[0].bands = [1, 2, 3, 4];
+    expect(plannedBuilds(eightByThree)).toBeGreaterThan(MAX_BUILDS);
+    expect(buildSeconds(49)).toBe(25);
+  });
+
+  it("flags knobs of one kind probed at different smallest bands", () => {
+    // The ranking sorts on the smallest band each knob carries, so these two bars answer
+    // different questions while sitting in one sorted list.
+    const out = bandMismatch([
+      { kind: "level", bands: [10, 20] },
+      { kind: "level", bands: [35] },
+      { kind: "rate", bands: [1] },
+    ]);
+    expect(out).toEqual([{ kind: "level", bands: [10, 35] }]);
+  });
+
+  it("does not flag different kinds against each other — pp and % are different units", () => {
+    expect(bandMismatch([{ kind: "level", bands: [10] }, { kind: "rate", bands: [1] }])).toEqual([]);
+    expect(bandMismatch([{ kind: "level", bands: [10] }, { kind: "level", band: 10 }])).toEqual([]);
   });
 });

@@ -1040,3 +1040,87 @@ And one ambiguity that fell out of investigating it: **eight modules offered two
 do entirely different things (one grows the asset's value, the other grows a stream). Streams are
 now named by the FC line they post to: `Growth (× inflation) · UB Income`. Zero duplicate
 module+label pairs remain. Same fix, and same reason, as the disposal dates.
+
+---
+
+## 21. Bands the owner types (2026-08-23)
+
+> *"here we only allow for 3 prefixed values as variants, what about making the options editable by
+> the user?"*
+
+**The presets never were a contract.** `bandsOf` (`forecastSensitivity.js:66`) accepts any finite
+band `> 0`, dedupes and sorts, and the route validates none of them. So `BAND_PRESETS` was a UI
+convenience I invented, and a typed band needs **no API change, no migration, no server change at
+all**. This is entirely `frontend/`.
+
+Decision: **per-knob**, not editable global defaults. The question that prompts a custom band is
+local — *what does ±35% do to UB Income* — and a global preset edit is the wrong shape for it.
+
+### What the three fixed chips were incidentally providing
+
+Removing them removes three guards nobody wrote down, so `validateBand` writes them down:
+
+| Kind | Refused | Why |
+|---|---|---|
+| `level` | `≥ 100` | `perturb` is `base × (1 + sign × band/100)` with **no clamp** — ±100% makes the low side exactly 0, ±150% makes an asset **negative**, and the engine builds it without complaint. |
+| `timing` | non-integer | goes to `shiftYears(current, sign × band)`; half a year is not a thing there. |
+| `multiplier` | `> 10` | a multiplier band is **absolute** (`base + sign × band`), so ±150× on a growth of 0.8 is −149.2× inflation. Found by typing it into a live browser and getting it back with nothing raised anywhere. |
+| `rate` | `> 100` | over 100 percentage points is not a nudge. |
+| all | `≤ 0`, non-numeric | a ±0 band is two builds of the same plan drawn as a bar. |
+
+⚠️ **A rate driven negative is NOT refused** — a −2% return is a real scenario, the applied-value
+row already prints what the ± lands on, and refusing it would be refusing the question. Likewise a
+negative *multiplier*: the **±1× preset already** takes a 0.8 growth to −0.2×, so that line was
+crossed long before anyone typed anything.
+
+⚠️ `Number("")` is `0`, not `NaN`. An empty box was told *"must be above zero"* — an answer to a
+question nobody asked. Caught by a test, fixed in the validator.
+
+### The build cap became reachable, so it became visible
+
+Three fixed chips capped the page at **8 knobs × 3 bands + 1 anchor = 49 builds against a cap of
+50** — the UI could not reach it. A fourth band on any one knob can. A `SensitivityError` arriving
+as a 409 *after* the composition is finished is the wrong moment to learn the run is too big, so:
+
+- `plannedBuilds(selected)` renders beside the Run button as `N bands · B builds ≈ Ts`, in the
+  server's own units and its own ~0.5s-a-build figure;
+- `addBand` and `toggleBand` both refuse to cross the cap rather than letting the server do it;
+- ⚠️ **and `canRun` checks it too** — the two guards only cover input, and a selection restored from
+  `localStorage` (written by an earlier build of this page, or a later one with a different cap)
+  arrives already over the cap having been through neither.
+
+### ⚠️ The ranking assumption a free band makes easy to break
+
+Bars are **ranked on the smallest band each knob carries**, so two knobs of the same kind probed at
+different smallest bands are sorted against each other while answering different questions. This was
+always possible — untick ±10% and a knob ranks at ±20% — but three chips made it a deliberate act,
+whereas a typed band makes it the *default outcome* of asking about one module. `bandMismatch`
+detects it and the page says so, in compose mode, before the run. Kinds are **not** compared against
+each other: a rate's percentage points and a level's percent are different units, and every bar
+prints its own band.
+
+### Two more instances of this CR's defining defect, both in the marker
+
+A typed chip and an offered chip are not the same object — **only one of them disappears when you
+untick it** — so the difference has to be visible or the disappearance reads as a bug.
+
+1. A dashed border marks a custom chip. ⚠️ **On a selected chip the dashes were invisible**, because
+   `.is-active` paints the border the same colour as the fill — and a typed band is *always*
+   selected the moment it is added, so that was the only state it was ever seen in. Verified in a
+   4× browser screenshot in **both** themes, not by reading the CSS. Fixed with `--on-accent`.
+2. The dashed edge is sighted-only, so custom chips carry an `aria-label` naming them as such.
+
+### And a layout regression the fourth chip caused
+
+Three chips fitted beside the knob's label; a fourth broke **"Market value" across two lines** — so
+adding a band silently damaged the row that says which knob it belongs to. The band group now wraps
+to its own line instead of squeezing the only text that identifies the knob.
+
+### Verification
+
+`validateBand`, `bandChoices`, `plannedBuilds`, `buildSeconds` and `bandMismatch` are pure and live
+in `fcSensitivityUtils.js` with **11 new cases** (563 frontend tests, up from 553). Driven in a real
+browser on dev: chip added and marked custom, `150` refused with the level message, an empty box
+refused with the number message, the cost meter tracking, the mismatch note firing on two level
+knobs at ±35% and ±10%, and the whole thing surviving a reload via the existing localStorage
+selection. Zero console errors. Both themes screenshotted.
