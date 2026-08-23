@@ -69,10 +69,10 @@ surfaces they are actually used on.
 | `--primary-hover` | `#5A7D5A` | `sidebar__label` (28 routes) | 4.65 | 4.53 | 4.41 | **4.00** |
 | `--muted` | `#6C7782` | body/secondary text | 4.57 | **4.45** | **4.33** | **3.93** |
 
-⚠️ **C3 — the money path does not read `--success`.** [index.css:73-74](frontend/src/index.css#L73-L74)
+⚠️ **C3 — the money path does not read `--success`.** [index.css:73-74](../../frontend/src/index.css#L73-L74)
 declares `--growth-positive: #1A9E74` and `--growth-negative: #C0504D` as **separate declarations** from
 `--success` (`:37`) and `--danger` (`:49`), and
-[LEGrid.css:197-198](frontend/src/features/BudgetLE/LEGrid.css#L197-L198) reads the `--growth-*` pair.
+[LEGrid.css:197-198](../../frontend/src/features/BudgetLE/LEGrid.css#L197-L198) reads the `--growth-*` pair.
 **Repointing `--success` alone would have left every money figure in the app unchanged.**
 
 ⚠️ **C2 — `--growth-negative` was missed entirely, and §9 told you to globalise it.** It is every
@@ -142,16 +142,16 @@ passes and one came from a completed CR.
 
 1. **"Dark mode is broadly broken."** It is not. **32 of 37 routes render zero light-surface leaks.**
    The dark defects are three classes, not a sprawl — and the largest is **three CSS declarations**
-   ([FCModulesTable.css:257](frontend/src/features/Forecast/FCModulesTable.css#L257),
-   [PageLayout.css:1105](frontend/src/pages/PageLayout.css#L1105) and
-   [:2614](frontend/src/pages/PageLayout.css#L2614)), all the same value
+   ([FCModulesTable.css:257](../../frontend/src/features/Forecast/FCModulesTable.css#L257),
+   [PageLayout.css:1105](../../frontend/src/pages/PageLayout.css#L1105) and
+   [:2614](../../frontend/src/pages/PageLayout.css#L2614)), all the same value
    `rgba(248, 250, 254, 0.35)`.
 2. **"698 colour-bearing rgba literals."** That was one reviewer's filtered count, quoted onward as
    if comparable. Measured consistently it is **877, and it was 877 eight days earlier too** — the
    metric has never moved. A number is not a baseline until the command that produced it is recorded.
 3. **"Five money tables lack tabular figures."** At render time, **two** tables miss it, both with
    1–2 money cells. `.balance-report-table__value` covers the rest.
-   [PageLayout.css:4234](frontend/src/pages/PageLayout.css#L4234)'s dead
+   [PageLayout.css:4234](../../frontend/src/pages/PageLayout.css#L4234)'s dead
    `tabular-nums: tabular-nums;` is real — ⚠️ **and costs more than the draft said (§12 C11):** it sits on
    **`.data-table__number`**, the `<DataTable>` primitive's numeric cell, so every table migrated in
    Phase 3's "wave 2" inherits a numeric column with no tabular figures. One-word fix:
@@ -173,10 +173,10 @@ Every one still open at HEAD, checked by grep and by probe, not assumed:
 
 | Defect | Evidence | Measured |
 |---|---|---|
-| `ConfirmModal` is 100% naked hex | [ConfirmModal.css](frontend/src/components/ConfirmModal/ConfirmModal.css) — 17 literals, `#2563eb` ×2 | In dark: a **`rgb(255,255,255)` card on a `rgb(19,21,23)` page = 18.30:1**, with a blue primary button that exists nowhere else in Fin **as a button colour** (4 sites total; 2 are URL-encoded in data-URI SVGs, invisible to `check-inline-hex.sh`) |
-| `<Modal>` scrim is a light-ink hardcode | [Modal.css:18](frontend/src/components/Modal/Modal.css#L18) `rgba(45, 52, 54, 0.18)` | Composites to `rgb(24,27,29)` over the dark page — **1.06:1 separation. Invisible**, on all **20** consumers |
+| `ConfirmModal` is 100% naked hex | [ConfirmModal.css](../../frontend/src/components/ConfirmModal/ConfirmModal.css) — 17 literals, `#2563eb` ×2 | In dark: a **`rgb(255,255,255)` card on a `rgb(19,21,23)` page = 18.30:1**, with a blue primary button that exists nowhere else in Fin **as a button colour** (4 sites total; 2 are URL-encoded in data-URI SVGs, invisible to `check-inline-hex.sh`) |
+| `<Modal>` scrim is a light-ink hardcode | [Modal.css:18](../../frontend/src/components/Modal/Modal.css#L18) `rgba(45, 52, 54, 0.18)` | Composites to `rgb(24,27,29)` over the dark page — **1.06:1 separation. Invisible**, on all **20** consumers |
 | `ConfirmModal` z-index | `1000` vs `<Modal>` card `10401` | ⚠️ **Worse than 'behind' (§12 C9):** `frontend/e2e/nested-modal.spec.js` records that an open Radix layer sets `pointer-events: none` on `<body>`, so this non-portalled overlay is **dead to clicks and absent from the a11y tree** |
-| `ConfirmModal` has no Esc, no focus trap | [ConfirmModal.jsx:11-46](frontend/src/components/ConfirmModal/ConfirmModal.jsx#L11-L46) — bare `role="dialog"` | It gates **promote / calibrate / delete** |
+| `ConfirmModal` has no Esc, no focus trap | [ConfirmModal.jsx:11-46](../../frontend/src/components/ConfirmModal/ConfirmModal.jsx#L11-L46) — bare `role="dialog"` | It gates **promote / calibrate / delete** |
 | Horizontal overflow | `/quicken-import` | **27px, both themes**, visibly clipping the sidebar |
 | No `<h1>` | 10 pages incl. `fc-review`, `fc-compare`, `fc-modules`, `quicken-import` | Breadcrumb is the only page identity |
 
@@ -191,8 +191,8 @@ one*: `/forecast-sensitivity` renders a large sentence-case `<h1>`; `/budget-le`
 UPPERCASE green `report-toolbar-header__title`. Two pages, same fortnight, same convention-less path.
 
 The clearest single instance is still inside one report: `/balances` renders 1.625rem ink left-aligned
-([BalanceV2.jsx:211](frontend/src/pages/BalanceV2.jsx#L211)), then 1.35rem UPPERCASE green
-([BalanceSheetPeriods.jsx:201](frontend/src/pages/BalanceSheetPeriods.jsx#L201)), then **no `<h1>` at
+([BalanceV2.jsx:211](../../frontend/src/pages/BalanceV2.jsx#L211)), then 1.35rem UPPERCASE green
+([BalanceSheetPeriods.jsx:201](../../frontend/src/pages/BalanceSheetPeriods.jsx#L201)), then **no `<h1>` at
 all** on the chart tab — switching tabs inside one report changes the header's size, colour, case and
 alignment, then makes it vanish.
 
@@ -269,7 +269,7 @@ only *removes* rows from `.modal-adoption-baseline.txt`, which `comm -13` permit
    plus 27 elsewhere.
 3. **`ConfirmModal` → Radix `<Modal>`** + tokens + `.btn`. Removes 17 hex, the rogue blue, the
    z-index inversion and the missing Esc/focus-trap on the destructive gate. Delete
-   [QuickenImport.jsx:917](frontend/src/pages/QuickenImport.jsx#L917)'s **second component also named
+   [QuickenImport.jsx:917](../../frontend/src/pages/QuickenImport.jsx#L917)'s **second component also named
    `ConfirmModal`**.
 4. **The `<Modal>` scrim** — one line, fixes the backdrop for all **20** consumers.
 5. **`<h1>` on the 10 pages missing one**; a `404` route (`App.jsx` has no `<Route path="*">`, so an
@@ -371,12 +371,12 @@ half does not."* This is the display half's gate.
 
 | Surface | File | Why |
 |---|---|---|
-| Page CSS | [BudgetWorksheetV2.css](frontend/src/pages/BudgetWorksheetV2.css) | 671 lines, 106 `var(--)`, **0 rgba, 0 hex** |
-| **New-page CSS** | [FCSensitivity.css](frontend/src/pages/FCSensitivity.css) | 671 lines, 111 `var(--)`, 0 rgba, 0 hex — the colour convention held under 2,161 new lines |
-| Dense table | [TransactionExplorer.css](frontend/src/pages/TransactionExplorer.css) | 143 `var(--)`, 1 rgba, correct sticky header + right-aligned `tabular-nums` |
-| Tab shell | [ReportTabs](frontend/src/components/ReportTabs/) | fully tokened, `aria-current="page"`, deep-linkable, unknown-slug canonicalisation |
-| Chart theming | [chartTheme.jsx](frontend/src/utils/chartTheme.jsx) | resolves tokens once per theme and hands Recharts concrete hex — the only correct way to colour an SVG here |
-| Diverging pair | [FCCompare.css:5-13](frontend/src/pages/FCCompare.css#L5-L13) | the only file defining a custom colour pair **with a `[data-theme="dark"]` twin**. Lift to `index.css` as `--diverging-pos/-neg` |
+| Page CSS | [BudgetWorksheetV2.css](../../frontend/src/pages/BudgetWorksheetV2.css) | 671 lines, 106 `var(--)`, **0 rgba, 0 hex** |
+| **New-page CSS** | [FCSensitivity.css](../../frontend/src/pages/FCSensitivity.css) | 671 lines, 111 `var(--)`, 0 rgba, 0 hex — the colour convention held under 2,161 new lines |
+| Dense table | [TransactionExplorer.css](../../frontend/src/pages/TransactionExplorer.css) | 143 `var(--)`, 1 rgba, correct sticky header + right-aligned `tabular-nums` |
+| Tab shell | [ReportTabs](../../frontend/src/components/ReportTabs/) | fully tokened, `aria-current="page"`, deep-linkable, unknown-slug canonicalisation |
+| Chart theming | [chartTheme.jsx](../../frontend/src/utils/chartTheme.jsx) | resolves tokens once per theme and hands Recharts concrete hex — the only correct way to colour an SVG here |
+| Diverging pair | [FCCompare.css:5-13](../../frontend/src/pages/FCCompare.css#L5-L13) | the only file defining a custom colour pair **with a `[data-theme="dark"]` twin**. Lift to `index.css` as `--diverging-pos/-neg` |
 | **Page design** | `/forecast-sensitivity` | real `<h1>`, an explanatory subtitle, and a **cost preview before you commit** (*"5 bands · 11 builds ≈ 6s"*) |
 | **Provenance** | `/budget-le`'s `BASIS` column | `Mixed` / `Budget` / `Typed` / `—` per row — the actuals-side answer to [CR087](cr-087-money-legibility.md) §5 |
 
@@ -402,7 +402,7 @@ half does not."* This is the display half's gate.
 ## 11. What has already been fixed, and by whom
 
 **The focus ring — closed by [CR085](cr-085-forecast-sensitivity.md) Tier 2, v3.36.0.**
-[index.css:375-405](frontend/src/index.css#L375-L405) now sets an opaque
+[index.css:375-405](../../frontend/src/index.css#L375-L405) now sets an opaque
 `2px solid var(--primary-strong)` on `button`, `a`, `[role="button"]`, `summary` and the three input
 types. Its comment records the same measurement this review took independently — *"a 15%/25%-alpha
 green that composites to **1.18:1** on white and **1.65:1** on the dark surface"* — and its reasoning

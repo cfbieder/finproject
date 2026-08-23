@@ -29,7 +29,7 @@ that field carried nearly a million dollars.
 
 ### `forecastScratch.js` — the throwaway copy, extracted
 
-Lifted out of [CR053](cr-053-forecast-auto-adjust.md)'s auto-adjust, where the lifecycle was inline
+Lifted out of [CR053](cr-053-forecast-auto-adjust-spend-to-fund.md)'s auto-adjust, where the lifecycle was inline
 inside the bisection solver and every helper around it was bisection-specific. `withScratchScenario`
 is now shared, and carries CR053's three non-obvious rules verbatim because each is load-bearing:
 a scratch must be **STANDALONE** (the 039 trigger rejects a variant-of-variant, and

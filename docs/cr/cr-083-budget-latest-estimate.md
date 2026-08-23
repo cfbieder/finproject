@@ -4,7 +4,7 @@ Roadmap anchor: [project-roadmap.md#cr083](../current/project-roadmap.md#cr083).
 no flags, no tenant context, nothing under `server/src/v2/db/`.
 **Depends on:** [CR075](cr-075-base-year-is-the-budget.md) (the forecast base year reads
 `budget_entries`; this CR's §8 is entirely about not disturbing that) ·
-[CR042](cr-042-report-consolidation.md) (the ≤8 nav rule — **not** `ReportTabs`; §11.1 cut the tab strip) ·
+[CR042](cr-042-ui-look-and-feel.md) (the ≤8 nav rule — **not** `ReportTabs`; §11.1 cut the tab strip) ·
 [CR054](cr-054-cash-flow-by-account.md) (the "state the currency where the number is read" rule).
 **Relates to but does not overlap:** [CR064 §3](cr-064-forecast-annual-close-and-assumptions.md)
 (the *forecast* annual close — a different artefact in a different table).

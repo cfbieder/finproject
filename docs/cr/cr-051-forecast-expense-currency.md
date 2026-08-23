@@ -34,11 +34,11 @@ for **modules** today:
 
 - **The column exists.** `forecast_income_expense.currency CHAR(3) DEFAULT 'USD'`
   (migration 001) — every line already carries a currency; it has only ever been left at USD.
-- **The engine already converts, per year.** [`fcbuilder-incexp.js:89-104`](../../server/src/services/forecast/fcbuilder-incexp.js#L89-L104)
+- **The engine already converts, per year.** `fcbuilder-incexp.js:89-104` *(deleted by CR069 P2, v3.14.0)*
   reads the line's currency, maps `PLN → "FX - PLN"` / `EUR → "FX - EUR"` assumption columns,
   and builds a per-year FX array; it inflates the amount **in native currency**
-  ([`:139-153`](../../server/src/services/forecast/fcbuilder-incexp.js#L139-L153)) and only
-  then divides by that year's FX ([`:170`](../../server/src/services/forecast/fcbuilder-incexp.js#L170)).
+  (`:139-153`) and only
+  then divides by that year's FX (`:170`).
 - **The loader already reads it.** [`index.js:188`](../../server/src/services/forecast/index.js#L188)
   — `item.Currency = (item.currency || 'USD').trim();`.
 - **Modules already ship the UI.** `FCModulesEdit.jsx` has a currency picker; the **Expenses
@@ -89,7 +89,7 @@ Two consequences worth stating, because the `base_value_usd`-rot family bit CR05
 
 1. **Currency selector** — ✅ `FCExpModal.jsx` gains a USD/EUR/PLN `<select>`, **expense-only**
    (finding F5: incexp income is taxed at the flat `scenario.TaxRate`
-   [`fcbuilder-incexp.js`](../../server/src/services/forecast/fcbuilder-incexp.js) and ignores
+   `fcbuilder-incexp.js` *(deleted by CR069 P2, v3.14.0)* and ignores
    CR047's `income_tax_rate_override`, so "foreign income already taxed abroad" is inexpressible
    here — the picker is hidden for Income, and switching a line's Type away from Expense resets it
    to USD). Also **disabled while Matched** (matched lines are USD-anchored to actuals — §7).
@@ -112,7 +112,7 @@ Two consequences worth stating, because the `base_value_usd`-rot family bit CR05
    `incexpValues[i] / fxrates[i]` → **`Infinity`** on a 0, and a genuinely-absent `FX - <ccy>` column
    left the rate at **1.0** (silent ~4× overstatement). Fix: for a non-USD line, throw a clear error
    if the `FX - <ccy>` column is absent, or if any in-period rate is non-finite/≤ 0
-   ([`fcbuilder-incexp.js`](../../server/src/services/forecast/fcbuilder-incexp.js)). Scoped to the
+   (`fcbuilder-incexp.js` *(deleted by CR069 P2, v3.14.0)*). Scoped to the
    incexp builder (the newly-armed path); the module builder's pre-existing `|| 1` mask is left as-is
    (out of scope, and changing it risks existing non-USD *module* forecasts).
 6. **Tests** — ✅ **13 new** (backend 394 → **407**; frontend 195; e2e 6 → **7**):

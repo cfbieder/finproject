@@ -86,7 +86,7 @@ converted at `FX_c[i]` — exactly what §3 chose.
 **The question the factor hides: what does it multiply?** The line's yearly USD value is not one
 thing. The builder folds a **Fixed-$ change** into the compounding base
 (`baseValues[i] = baseValues[i-1]·(1+p) + changeD[i]`) and adds a **One-Off-$ change** on top
-([`fcbuilder-incexp.js:139-153`](../../server/src/services/forecast/fcbuilder-incexp.js#L139-L153)).
+(`fcbuilder-incexp.js:139-153` *(deleted by CR069 P2, v3.14.0)*).
 Those are **discrete USD amounts** — "a $10k medical bill in 2030." Multiplying the *whole*
 trajectory by `factor[i]` re-denominates 20% of that $10k to PLN, which is wrong.
 
@@ -148,7 +148,7 @@ place and silently violated in the four others (`refreshModulesFromActuals`,
 1. **Split the trajectory** into `organic[]` (exposable) and `usdAdjust[]` (always USD), per §4 —
    the substantive change, because today they are fused in one `incexpValues[]`.
 2. **Load an FX series per exposure currency.** Today the builder loads one series for
-   `module.Currency` ([`:96-119`](../../server/src/services/forecast/fcbuilder-incexp.js#L96-L119)).
+   `module.Currency` (`:96-119`).
    A CR052 line has `currency = USD` (guard skipped) but exposures in PLN/EUR — so the builder must
    load `FX - PLN` / `FX - EUR` for **each exposure currency** and run the **CR051 F1 guard on each**
    (missing column or 0/non-finite rate ⇒ throw). Without this, a 20%-PLN line on a scenario with no
@@ -197,7 +197,7 @@ pins + reverts, sync prunes a no-op) must each gain an exposure case.
 
 **Tax:** exposures are Expense-only (§3), and expenses carry no tax in the engine
 (`if (incexpValues[i] > 0)` gates tax to income —
-[`:156-161`](../../server/src/services/forecast/fcbuilder-incexp.js#L156-L161)), so the factor never
+`:156-161`), so the factor never
 interacts with a tax base. This is *why* the feature is Expense-scoped: an income line would need a
 defined tax base for the factored value, which is out of scope.
 

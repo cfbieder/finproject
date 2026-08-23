@@ -29,7 +29,7 @@ extension point is one the code has already named and deliberately declined.
 |---|---|---|
 | typed action + apply | `aiReview.applyAction` | works; allowlist is `growth_rate`, `tax_rate_override` (valuation modules only), `cash_sweep_low/high`. Refuses `update_incexp` outright — a retired table |
 | **stream edits** | same function | **already named "P3 scope"** and refused on purpose: *"needs the stream shape and a variant-safe write; refusing is the honest interim"* |
-| scratch-scenario rebuild | [CR053](cr-053-forecast-auto-adjust.md) `forecastAutoAdjust` | deep-copies to a **standalone** scratch (a variant scratch is impossible — the 039 trigger rejects variant-of-variant, and `generateForecast` force-syncs a variant at Step 0, clobbering any direct write), runs real engine builds, reads the engine's own persisted entries **never the client warnings util**, persists via a CR050 override, verifies with a rebuild |
+| scratch-scenario rebuild | [CR053](cr-053-forecast-auto-adjust-spend-to-fund.md) `forecastAutoAdjust` | deep-copies to a **standalone** scratch (a variant scratch is impossible — the 039 trigger rejects variant-of-variant, and `generateForecast` force-syncs a variant at Step 0, clobbering any direct write), runs real engine builds, reads the engine's own persisted entries **never the client warnings util**, persists via a CR050 override, verifies with a rebuild |
 | gateway + chat + storage | `aiReview.js` (contract v1), `fc_ai_reviews`, `audit_log` | live |
 | a legible delta | [CR079](cr-079-real-terms-view.md) | Compare in today's money — what makes a 2052 edit readable |
 

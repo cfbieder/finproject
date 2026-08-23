@@ -60,7 +60,7 @@ grows from a base-year amount":
 
 | implementation | growth control | change schedule | window | per-stream tax | entry label |
 |---|---|---|---|---|---|
-| Expenditure item ([fcbuilder-incexp.js](../../server/src/services/forecast/fcbuilder-incexp.js)) | `growth_rate` × inflation | **Percent % / Fixed $ / One-Off $** (115 rows live) | none | none | account/FC-line name |
+| Expenditure item (fcbuilder-incexp.js *(deleted by CR069 P2, v3.14.0)*) | `growth_rate` × inflation | **Percent % / Fixed $ / One-Off $** (115 rows live) | none | none | account/FC-line name |
 | Module income (fcbuilder-module.js:485-519) | `income_growth_rate` × inflation (CR064 P6) | steps ≡ Fixed $ only | CR046 | CR047 two-rate chain | module name |
 | Module expense (fcbuilder-module.js:346-425) | inflation **flat — no multiplier** | none | CR046 | none | module name |
 

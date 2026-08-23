@@ -30,9 +30,9 @@ opening it is that failure with extra steps.
 
 ## 2. The book is 47% foreign and no actuals report says so
 
-**Verified:** [reports.js:188-202](server/src/services/reports.js#L188-L202) returns
+**Verified:** [reports.js:188-202](../../server/src/services/reports.js#L188-L202) returns
 `{ name, totalUSD, currency, total }` on every balance-sheet leaf — native currency **and** native
-amount. [BalanceReport.jsx:125](frontend/src/features/Balances/BalanceReport.jsx#L125) renders
+amount. [BalanceReport.jsx:125](../../frontend/src/features/Balances/BalanceReport.jsx#L125) renders
 `formatCurrency(account.totalUSD)` and nothing else.
 
 Active balance-sheet accounts: **PLN 22 · EUR 13 · GBP 2 · USD 42.** A PLN mortgage of 1,650,000
@@ -92,10 +92,10 @@ KPI tiles (`PLN TOTAL` · `USD TOTAL` · `EUR TOTAL`) and an explicit `CCY` colu
 
 | Fact | Evidence |
 |---|---|
-| The dry-run **already returns everything a preview needs** | [reconcileToFeed.js:585-586](server/src/v2/services/reconcileToFeed.js#L585-L586) — `{ feed_date, feed_balance, expected, sum_tx, old_opening, new_opening, applied }` |
-| The write is gated on it | [:589](server/src/v2/services/reconcileToFeed.js#L589) `if (!dryRun) { … }` |
-| **The UI never calls it** | [BalanceReconciliation.jsx:201-202](frontend/src/components/BalanceReconciliation/BalanceReconciliation.jsx#L201-L202) — `dryRun: false` in **both** branches |
-| The confirm shows no numbers | [:184](frontend/src/components/BalanceReconciliation/BalanceReconciliation.jsx#L184) — *"re-anchor opening_balance for «name» to the bank's reported balance"*. The `old → new` figures appear at [:219](frontend/src/components/BalanceReconciliation/BalanceReconciliation.jsx#L219) — **in the toast, after the write** |
+| The dry-run **already returns everything a preview needs** | [reconcileToFeed.js:585-586](../../server/src/v2/services/reconcileToFeed.js#L585-L586) — `{ feed_date, feed_balance, expected, sum_tx, old_opening, new_opening, applied }` |
+| The write is gated on it | [:589](../../server/src/v2/services/reconcileToFeed.js#L589) `if (!dryRun) { … }` |
+| **The UI never calls it** | [BalanceReconciliation.jsx:201-202](../../frontend/src/components/BalanceReconciliation/BalanceReconciliation.jsx#L201-L202) — `dryRun: false` in **both** branches |
+| The confirm shows no numbers | [:184](../../frontend/src/components/BalanceReconciliation/BalanceReconciliation.jsx#L184) — *"re-anchor opening_balance for «name» to the bank's reported balance"*. The `old → new` figures appear at [:219](../../frontend/src/components/BalanceReconciliation/BalanceReconciliation.jsx#L219) — **in the toast, after the write** |
 | No audit row is written | the only `audit_log` writer in `server/src` is `v2/services/aiReview.js` |
 
 `calibrate()` rewrites `opening_balance`, which shifts **every historical date by one constant**. The
@@ -120,7 +120,7 @@ without it.
 corrected one.**
 
 **C3 — `dryRun: true` is NOT side-effect free, so "no new server work" was wrong.**
-[bankFeed.js:319-322](server/src/v2/routes/bankFeed.js#L319-L322) runs `syncUpstream()` **and**
+[bankFeed.js:319-322](../../server/src/v2/routes/bankFeed.js#L319-L322) runs `syncUpstream()` **and**
 `ingestBalances()` on *every* call to that endpoint, **before `dryRun` is ever consulted** — and
 `ingestBalances` upserts rows into `bankfeed_balances`. So a preview click hits the bank-feed
 microservice and writes to fin's DB. Worse, the *apply* click re-syncs, so **the `new_opening` actually
@@ -130,10 +130,10 @@ is worse than no preview.
 
 **C4 — `opening_balance` has three live app writers, not one**, so auditing `calibrate()` alone does
 not deliver the guarantee [CR082](cr-082-tax-section-fbar-114.md) depends on:
-[reconcileToFeed.js:600](server/src/v2/services/reconcileToFeed.js#L600) (the one named),
-[reconcileManual.js:317](server/src/v2/services/reconcileManual.js#L317) (the **manual** calibrate on
+[reconcileToFeed.js:600](../../server/src/v2/services/reconcileToFeed.js#L600) (the one named),
+[reconcileManual.js:317](../../server/src/v2/services/reconcileManual.js#L317) (the **manual** calibrate on
 `/manual-calibration` — identical defect), and
-[reconcileManual.js:291](server/src/v2/services/reconcileManual.js#L291) — `SET opening_balance = 0`,
+[reconcileManual.js:291](../../server/src/v2/services/reconcileManual.js#L291) — `SET opening_balance = 0`,
 a one-click unaudited destructive write that the draft never mentioned. Five more live in
 `server/src/v2/scripts/`, and `repositories/accounts.js:360` whitelists `opening_balance` for the
 generic COA update.
@@ -165,7 +165,7 @@ date, description, amount **and currency** before deleting.
 ## 4. Three columns that can be read wrong
 
 **4a. The Ledger's `Balance` has two meanings under one header.**
-[Ledger.jsx:538-548](frontend/src/pages/Ledger.jsx#L538-L548) carries its own warning verbatim —
+[Ledger.jsx:538-548](../../frontend/src/pages/Ledger.jsx#L538-L548) carries its own warning verbatim —
 *"otherwise fall back to a client-side cumulative sum seeded at 0 (a «running total of the displayed
 rows», not the true account balance)"* — and both render under the same `<th>Balance</th>` with
 identical styling. An account with a $500,000 opening balance, filtered to one month, shows a closing
@@ -175,14 +175,14 @@ pinned `Balance brought forward` first row so `opening + Σ shown = closing` is 
 the one check a ledger exists to support.
 
 **4b. Variance sign is decided by a substring match on an owner-editable name.**
-[BudgetRealization.jsx:243-266](frontend/src/pages/BudgetRealization.jsx#L243-L266):
+[BudgetRealization.jsx:243-266](../../frontend/src/pages/BudgetRealization.jsx#L243-L266):
 
 ```js
 const topLevel = path[0];
 return typeof topLevel === "string" && topLevel.toLowerCase().includes("expense");
 ```
 
-Used at [:354](frontend/src/pages/BudgetRealization.jsx#L354) to choose between
+Used at [:354](../../frontend/src/pages/BudgetRealization.jsx#L354) to choose between
 `actual − budget` and `budget − actual` — **opposite signs in the same column.** `COAManagement`
 permits renaming any account. Rename `Expenses` → `Spending` and every variance under it flips sign,
 silently, with no error and no visual change. Any root that is neither word already gets the inverted
@@ -206,19 +206,19 @@ unconditional `actual − budget` (`BudgetVariances.jsx:224`, `BudgetRealization
 `mobile/pages/MobileBudgetRealization.jsx:147`).
 
 ⚠️ **It is two files, not one.** The identical substring rule is duplicated at
-[excelExporter.js:167-171](frontend/src/utils/excelExporter.js#L167-L171) — fix the page alone and the
+[excelExporter.js:167-171](../../frontend/src/utils/excelExporter.js#L167-L171) — fix the page alone and the
 screen and the exported workbook disagree.
 
 Label the column `Variance (fav/(unfav))` so the convention is stated where the number is read — noting
 that the label is truthful **only because amounts are signed**.
 
 **4c. A failed actuals fetch renders a page of 100%-favourable variances.**
-[BudgetVariances.jsx:148-151](frontend/src/pages/BudgetVariances.jsx#L148-L151) catches the actuals
-failure and sets `null`; [:210](frontend/src/pages/BudgetVariances.jsx#L210) short-circuits only if
-**both** sides are null; [:223](frontend/src/pages/BudgetVariances.jsx#L223) then coalesces the
+[BudgetVariances.jsx:148-151](../../frontend/src/pages/BudgetVariances.jsx#L148-L151) catches the actuals
+failure and sets `null`; [:210](../../frontend/src/pages/BudgetVariances.jsx#L210) short-circuits only if
+**both** sides are null; [:223](../../frontend/src/pages/BudgetVariances.jsx#L223) then coalesces the
 missing actual with `?? 0`. Budget loads, actuals fail ⇒ every category reads `actual $0.00`,
 `variance = full budget, favourable`, **no error banner.** ⚠️ **The mirror defect is unnamed in the draft (pass 1, §9 C2):**
-[:222](frontend/src/pages/BudgetVariances.jsx#L222) is `leafBudgetTotals?.get(name) ?? 0` — actuals
+[:222](../../frontend/src/pages/BudgetVariances.jsx#L222) is `leafBudgetTotals?.get(name) ?? 0` — actuals
 load, budgets fail ⇒ every row reads budget $0 with the full actual as variance.
 
 **Change:** a banner on either failure, and `variance = "—"` whenever an operand is missing. A variance
@@ -333,7 +333,7 @@ column when the period includes today. It removes the single most common misread
   interesting case, reads as missing data. Pick one: **null → `—`, zero → `0`.**
 - **Two of three forecast surfaces never state their currency.** `FCReview.jsx` and `FCCompare.jsx`
   contain **no `USD` string at all**. ⚠️ **Corrected in pass 1 (§9 C6):** an earlier draft said the same
-  of `FCEquity`, which is false — [FCEquity.jsx:105](frontend/src/pages/FCEquity.jsx#L105) renders a
+  of `FCEquity`, which is false — [FCEquity.jsx:105](../../frontend/src/pages/FCEquity.jsx#L105) renders a
   visible *"… USD."* in its subtitle, and it is the surface to copy. Given that
   migration 064 and rule R11 exist *because* a £10,000 module was posting $10,000, the unstated
   convention is the assumption that produced the defect. One chip in the header.

@@ -52,7 +52,7 @@ Everything else in the codebase already reads both spellings:
 | reader | expression |
 |---|---|
 | engine | `entry.Rates.PLN ?? entry.Rates.USDPLN ?? 0` — [fcbuilder-setup.js:89-90](../../server/src/services/forecast/fcbuilder-setup.js) |
-| expenses UI | `Number(rates.PLN ?? rates.USDPLN)` — [FCExpSetup.jsx:122](../../frontend/src/pages/FCExpSetup.jsx) |
+| expenses UI | `Number(rates.PLN ?? rates.USDPLN)` — FCExpSetup.jsx:122 |
 | **module editor** | `row.Rates.USDPLN` only — **the one place that doesn't** |
 
 ### 1.1 Why it is not cosmetic
