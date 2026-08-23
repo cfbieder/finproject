@@ -593,8 +593,14 @@ async function listKnobs(scenarioName, client = db) {
   for (const m of mods) {
     // Loaded FIRST: a flow module has no valuation to classify by, so its group comes from the
     // direction of its own streams.
+    // The FC line's name rides along: a module's own `growth_rate` and a stream's `growth_mult`
+    // both render as "Growth (× inflation)", so eight modules offered two identical rows for two
+    // completely different things — one grows the asset's value, the other grows a stream.
     const { rows: streams } = await client.query(
-      'SELECT * FROM forecast_streams WHERE module_id = $1 ORDER BY direction, id', [m.id]
+      `SELECT st.*, l.name AS fc_line_name
+         FROM forecast_streams st
+         LEFT JOIN fc_lines l ON l.id = st.fc_line_id
+        WHERE st.module_id = $1 ORDER BY st.direction, st.id`, [m.id]
     );
     // Loaded before the module-level offers: a module's tax rate is only live if there is
     // something to tax — an income stream, or a disposal to realise a gain on.
@@ -609,7 +615,16 @@ async function listKnobs(scenarioName, client = db) {
     for (const st of streams) {
       for (const [field, spec] of Object.entries(knobs.STREAM_FIELDS)) {
         offer(
-          { ...spec, entity: 'stream', field }, st, m,
+          {
+            ...spec,
+            entity: 'stream',
+            field,
+            // Named by the line it posts to, falling back to its direction. Same reason the
+            // disposal knobs carry their date: picking the wrong one of two identical rows is
+            // invisible until the bar is wrong.
+            label: `${spec.label} · ${st.fc_line_name || st.direction}`,
+          },
+          st, m,
           { module: m.name, direction: st.direction, fcLineId: st.fc_line_id }, st[field],
           streams, disposals
         );

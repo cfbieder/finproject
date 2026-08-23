@@ -1014,3 +1014,29 @@ shape and the numbers are where a reader checks it.
 asked for bands, would have rendered an empty chart. The shape now falls back to its own plotted
 value, with a test for it. That is this CR's defining failure wearing yet another hat, caught by an
 existing test rather than in production.
+
+### ⚠️ The EIGHTH zero-impact knob, found by the owner on the first dev run
+
+The first thing the owner did on dev was tick `Fidelity Fixed Income · Growth (× inflation)`, run
+it, and get a near-empty page: *"I do not see any output?"*
+
+The run was correct — the knob genuinely moved nothing, and the Tier-0 fix routed it to **Not
+ranked**. But the reason it moved nothing is the same defect again: **`growth_mult` is only read on
+an `amount` stream.** It feeds exactly one expression, `pct[i] = inflationSeries[idx] * mult`
+(fcbuilder-stream.js:69-80); the `yield` branch computes `eff = inflation + spread` and never
+touches `pct`, and `pct_of_value` derives from the market value instead. `Fidelity Fixed Income` is
+a yield stream, so the knob wrote, built, and did nothing. Now gated on the mode that reads it —
+**179 knobs → 175.**
+
+Two display faults the same screenshot exposed:
+
+- **"Not ranked" printed the raw column name** — `Fidelity Fixed Income · growth_mult` — which is
+  neither what the picker offered nor what the owner ticked. It uses the label now.
+- **Every knob unrankable is not the same as no result.** The page showed a heading, one grey line,
+  and 700px of nothing after an eight-second wait. It now says what happened and what to do.
+
+And one ambiguity that fell out of investigating it: **eight modules offered two identical
+`Growth (× inflation)` rows** — the module's own `growth_rate` and a stream's `growth_mult`, which
+do entirely different things (one grows the asset's value, the other grows a stream). Streams are
+now named by the FC line they post to: `Growth (× inflation) · UB Income`. Zero duplicate
+module+label pairs remain. Same fix, and same reason, as the disposal dates.

@@ -95,7 +95,16 @@ const STREAM_FIELDS = Object.freeze({
     // misreading the ambiguity guard exists to prevent. The whitelist is keyed on (field, mode).
     modes: ['amount'],
   },
-  growth_mult: { kind: KIND.MULTIPLIER, label: 'Growth (× inflation)', nullIs: 1 },
+  // ⚠️ ONLY THE `amount` BRANCH READS THIS — the eighth knob found that could not move anything.
+  // `growth_mult` feeds exactly one thing: `pct[i] = inflationSeries[idx] * mult`
+  // (fcbuilder-stream.js:69-80). The `yield` branch computes `eff = inflation + spread` and never
+  // touches `pct`; `pct_of_value` derives from the market value and never touches it either. So on
+  // a yield or pct_of_value stream this knob writes, builds, and moves NOTHING —
+  // `Fidelity Fixed Income · Growth (× inflation)` came back "moved the plan by nothing
+  // measurable" on a real run, which is how it was found.
+  growth_mult: {
+    kind: KIND.MULTIPLIER, label: 'Growth (× inflation)', nullIs: 1, modes: ['amount'],
+  },
   tax_rate_override: {
     kind: KIND.RATE, label: 'Tax rate (income)', nullIsScenarioRate: true,
     directions: ['income'],   // CHECK fc_stream_tax_is_income_only

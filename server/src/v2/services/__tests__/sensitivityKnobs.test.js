@@ -192,6 +192,33 @@ describe("⚠️ knobs the ENGINE would never read are refused, not offered", ()
   });
 });
 
+describe("⚠️ growth_mult is only read on an `amount` stream", () => {
+  const { _internals } = require("../sensitivityKnobs");
+  const mod = { name: "Fidelity Fixed Income", has_valuation: true, setup_status: "complete" };
+
+  it("refuses it on a yield stream — the eighth knob that could not move anything", () => {
+    // `growth_mult` feeds exactly one thing: pct[i] = inflationSeries[idx] * mult
+    // (fcbuilder-stream.js:69-80). The `yield` branch computes eff = inflation + spread and never
+    // reads `pct`. Found on a real run: "Fidelity Fixed Income · Growth (× inflation)" came back
+    // "moved the plan by nothing measurable".
+    expect(() => _internals.assertApplicable(
+      spec("stream", "growth_mult"), { mode: "yield", direction: "income" }, mod
+    )).toThrow(/0 by construction|guaranteed no-op/);
+  });
+
+  it("refuses it on pct_of_value, which derives from the market value instead", () => {
+    expect(() => _internals.assertApplicable(
+      spec("stream", "growth_mult"), { mode: "pct_of_value", direction: "expense" }, mod
+    )).toThrow(/0 by construction|guaranteed no-op/);
+  });
+
+  it("allows it on an amount stream, which is the branch that reads it", () => {
+    expect(() => _internals.assertApplicable(
+      spec("stream", "growth_mult"), { mode: "amount", direction: "expense" }, mod
+    )).not.toThrow();
+  });
+});
+
 describe("knobGroup classifies from the ENGINE, never from module_type", () => {
   const { knobGroup } = require("../sensitivityKnobs");
   const mod = (over) => ({

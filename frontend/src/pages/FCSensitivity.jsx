@@ -540,6 +540,20 @@ export default function FCSensitivity() {
             </p>
           )}
 
+          {/* ⚠️ EVERY knob unrankable is not the same as "no result". The page showed a heading,
+              one grey line, and 700px of nothing — after an eight-second wait. Say what happened
+              and what to do about it. */}
+          {ranked && ranked.rows.length === 0 && ranked.incomparable.length > 0
+            && state.status !== "running" && (
+            <p className="fc-sens-stale">
+              Nothing to rank: {ranked.incomparable.length === 1 ? "that knob" : "none of those knobs"}
+              {" "}moved the plan. The run was real — the engine simply does not read
+              {" "}{ranked.incomparable.length === 1 ? "that field" : "those fields"} on the
+              {" "}{ranked.incomparable.length === 1 ? "module" : "modules"} you picked. Pick a
+              different assumption and run again.
+            </p>
+          )}
+
           {ranked?.rows?.length > 0 && (
             <FCTornadoChart
               rows={ranked.rows}
@@ -573,7 +587,11 @@ export default function FCSensitivity() {
               <h3>Not ranked</h3>
               <ul>
                 {ranked.incomparable.map((x) => (
-                  <li key={x.knob.knobId}>{x.knob.module} · {x.knob.field} — {x.reason}</li>
+                  <li key={x.knob.knobId}>
+                    {/* The LABEL, not the column name: "growth_mult" is not what the picker
+                        offered and not what the owner ticked. */}
+                    {x.knob.module} · {x.knob.label ?? x.knob.field} — {x.reason}
+                  </li>
                 ))}
               </ul>
             </div>
