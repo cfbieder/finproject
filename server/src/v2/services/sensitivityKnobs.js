@@ -61,9 +61,18 @@ const MODULE_FIELDS = Object.freeze({
     kind: KIND.LEVEL, label: 'Market value', usdTwin: 'market_value_usd', nullIs: 0,
     requiresValuation: true,
   },
+  // ⚠️ THE COST BASIS IS READ FOR EXACTLY ONE THING: the capital GAIN when the module is sold.
+  // Nothing else in the engine consumes it — the sweep proved it by measurement, diffing which
+  // rows move: lowering `Fidelity Fixed Income`'s basis changed 217 rows, ALL of them downstream
+  // of `Taxes`. A module that is never sold never realises a gain, so its basis is inert.
+  //
+  // There are exactly two ways to be sold: an explicit disposal, or the CASH SWEEP draining you
+  // (`cash_sweep_priority IS NOT NULL OR cash_sweep_target`, index.js:488-494 — Fidelity is the
+  // sweep primary, which is why it moves while `Misc Investments`, `OCME` and `USD Credit Cards`
+  // do not).
   base_value: {
     kind: KIND.LEVEL, label: 'Cost basis', usdTwin: 'base_value_usd', nullIs: 0,
-    requiresValuation: true,
+    requiresValuation: true, requiresSalePath: true,
   },
   // The three loan fields are read only when the module actually carries a loan.
   loan_principal: { kind: KIND.LEVEL, label: 'Loan principal', nullIs: 0, requiresLoan: true },
@@ -102,12 +111,26 @@ const STREAM_FIELDS = Object.freeze({
   // a yield or pct_of_value stream this knob writes, builds, and moves NOTHING —
   // `Fidelity Fixed Income · Growth (× inflation)` came back "moved the plan by nothing
   // measurable" on a real run, which is how it was found.
+  // ⚠️ AND BOTH OF THESE SCALE THE AMOUNT — but "amount = 0" IS NOT THE TEST, and the first
+  // version of this gate got it wrong in the direction that hides working knobs.
+  //
+  // `forecast_stream_changes` rows supply per-year figures for a stream whose `amount` column is
+  // 0: `Social Security`, `One-Off Items` and `Retirement Home` all sit at 0 and all move the plan
+  // through their change rows. Gating on the column alone hid FIVE live knobs, and the sweep
+  // caught it by measuring — the `ok` count fell from 129 to 124 and the diff named them.
+  //
+  // A stream is inert only with NO base amount AND NO change rows: then there is no source of
+  // value at all, and scaling or taxing it is arithmetic on nothing.
   growth_mult: {
     kind: KIND.MULTIPLIER, label: 'Growth (× inflation)', nullIs: 1, modes: ['amount'],
+    requiresNonZeroAmount: true,
   },
   tax_rate_override: {
     kind: KIND.RATE, label: 'Tax rate (income)', nullIsScenarioRate: true,
     directions: ['income'],   // CHECK fc_stream_tax_is_income_only
+    // Only meaningful on an `amount`-mode stream: a yield or pct_of_value stream carries amount 0
+    // BY CONSTRUCTION and earns real income anyway, so the check is keyed on the mode.
+    requiresNonZeroAmount: true,
   },
   start_date: { kind: KIND.TIMING, label: 'Starts', refuseWhenNull: true },
   end_date: { kind: KIND.TIMING, label: 'Ends', refuseWhenNull: true },
@@ -120,6 +143,13 @@ const DISPOSAL_FIELDS = Object.freeze({
     kind: KIND.RATE, label: 'Selling cost', nullIs: 0, requiresValuation: true,
     // CR078: NULL means "no selling cost modelled" and 0 means "considered, and free". They are
     // different statements, so a restore must put NULL back as NULL.
+    //
+    // ⚠️ AND IT HAS A SCHEMA FLOOR: `CHECK (disposal_cost_pct >= 0 AND < 100)`. Eleven of the
+    // twenty disposals on `2026 Base` carry NULL, which this spec reads as 0 — so the LOW side of
+    // any band lands below zero and Postgres rejects it. That is worse than a dead bar: it is a
+    // LANDMINE. `feasibilityPass` runs before any build and throws, so ticking one of those eleven
+    // refused the WHOLE run with a raw constraint name for a message.
+    min: 0,
   },
   disposal_date: {
     kind: KIND.TIMING, label: 'Disposal date', refuseWhenNull: true, requiresValuation: true,
@@ -253,7 +283,16 @@ function perturb(spec, current, band, side, { scenarioRate = 0 } = {}) {
   }
 
   if (spec.kind === KIND.RATE || spec.kind === KIND.MULTIPLIER) {
-    return { value: base + sign * band };            // absolute: pp for a rate, ×  for a multiplier
+    const value = base + sign * band;
+    // The picker refuses a field already AT its floor; this catches a band wide enough to cross
+    // one that is not — ±5pp on a 4% selling cost — with a sentence rather than a constraint name.
+    if (spec.min != null && value < spec.min) {
+      throw new KnobError(
+        `±${band} on "${spec.label}" takes it to ${value}, below the ${spec.min} the schema ` +
+        `allows. Use a band under ${base - spec.min}.`
+      );
+    }
+    return { value };                                // absolute: pp for a rate, ×  for a multiplier
   }
 
   // LEVEL — relative, and it must move BOTH currency columns by the SAME factor.
@@ -296,7 +335,7 @@ async function applyKnob(client, scenarioId, knob, side, { scenarioRate = 0 } = 
   // Only the specs that need it pay for the extra reads, and the SETTER uses the same predicate
   // the picker does — two implementations of "may this knob move?" would drift into offering one
   // the run then refuses, or hiding one that works.
-  assertApplicable(spec, row, moduleRow, await applicabilityContext(client, spec, moduleRow));
+  assertApplicable(spec, row, moduleRow, await applicabilityContext(client, spec, moduleRow, row));
 
   const band = knob[side === 'low' ? 'lowBand' : 'highBand'] ?? knob.band ?? DEFAULT_BAND[spec.kind];
   const before = row[knob.field];
@@ -342,13 +381,27 @@ async function writeRow(client, spec, id, cols, vals) {
   await client.query(`UPDATE ${spec.table} SET ${sets} WHERE id = $1`, [id, ...vals]);
 }
 
-async function applicabilityContext(client, spec, moduleRow) {
-  if (!spec.requiresTaxable || !moduleRow) return {};
+async function applicabilityContext(client, spec, moduleRow, row) {
+  const out = {};
+  // A stream's own change rows — the figures that make an `amount` of 0 productive anyway.
+  if (spec.requiresNonZeroAmount && row?.id) {
+    const { rows } = await client.query(
+      'SELECT count(*)::int AS n FROM forecast_stream_changes WHERE stream_id = $1', [row.id]
+    );
+    out.changeCount = rows[0]?.n ?? 0;
+  }
+  if (!(spec.requiresTaxable || spec.requiresSalePath) || !moduleRow) return out;
   const [streams, disposals] = await Promise.all([
-    client.query('SELECT direction FROM forecast_streams WHERE module_id = $1', [moduleRow.id]),
+    // `mode`, `amount` and a change count as well as `direction`: an income stream earning nothing
+    // is not income to tax, and "earning nothing" is not the same as "amount is 0".
+    client.query(
+      `SELECT st.direction, st.mode, st.amount,
+              (SELECT count(*)::int FROM forecast_stream_changes c WHERE c.stream_id = st.id) AS change_count
+         FROM forecast_streams st WHERE st.module_id = $1`, [moduleRow.id]
+    ),
     client.query('SELECT id FROM forecast_module_disposals WHERE module_id = $1', [moduleRow.id]),
   ]);
-  return { streams: streams.rows, disposals: disposals.rows };
+  return { ...out, streams: streams.rows, disposals: disposals.rows };
 }
 
 function assertApplicable(spec, row, moduleRow, context = {}) {
@@ -368,6 +421,13 @@ function assertApplicable(spec, row, moduleRow, context = {}) {
     if (spec.directions && !spec.directions.includes(row.direction)) {
       throw new KnobError(`"${spec.label}" applies only to ${spec.directions.join('/')} streams.`);
     }
+    if (spec.requiresNonZeroAmount && row.mode === 'amount'
+        && !Number(row.amount) && !Number(context.changeCount)) {
+      throw new KnobError(
+        `This stream has no amount and no schedule of changes, so there is no figure for ` +
+        `"${spec.label}" to scale — the knob writes, builds and moves nothing.`
+      );
+    }
   }
   if (spec.refuseWhenNull && row[spec.field] == null) {
     throw new KnobError(`"${spec.label}" is not set on this row, so there is nothing to shift.`);
@@ -381,12 +441,65 @@ function assertApplicable(spec, row, moduleRow, context = {}) {
     );
   }
 
+  // ⚠️ A LEVEL KNOB ON A ZERO IS A NO-OP, AND IT USED TO BE DISCOVERED TOO LATE.
+  //
+  // `perturb` has always refused this — `base × (1 ± band/100)` is 0 whatever the band — but it
+  // refuses at APPLY time, and `feasibilityPass` applies every knob before the first build and
+  // aborts the ENTIRE run on the first failure. So one of these among eight ticked knobs threw
+  // away the other seven. The sweep found EIGHTEEN of them live on `2026 Base`, most being
+  // disposals whose amount of 0 is the "Full disposal" sentinel — a real disposal that simply has
+  // no magnitude to scale.
+  //
+  // Same statement, one stage earlier: the picker never offers it, so it can never poison a run.
+  if (spec.kind === KIND.LEVEL) {
+    const current = row[spec.field] == null ? (spec.nullIs ?? 0) : Number(row[spec.field]);
+    if (!current) {
+      throw new KnobError(
+        `"${spec.label}" is ${row[spec.field] == null ? 'not set' : '0'} here, so a ±% move of it ` +
+        `is still 0 — the bar would read as "this does not matter" when the truth is "there is ` +
+        `nothing to move".`
+      );
+    }
+  }
+
+  // ⚠️ A FLOOR THE OWNER CANNOT SEE, ENFORCED BY THE DATABASE. Refused here rather than at build
+  // time, because `feasibilityPass` fails the ENTIRE run — every other knob included — and does it
+  // with a constraint name for a message.
+  if (spec.min != null) {
+    const current = row[spec.field] == null ? (spec.nullIs ?? 0) : Number(row[spec.field]);
+    if (!(current > spec.min)) {
+      throw new KnobError(
+        `"${spec.label}" is ${row[spec.field] == null ? 'not set' : String(current)} here and ` +
+        `cannot go below ${spec.min}, so there is no down side to measure. Set a value on this ` +
+        `row first — a band around a figure pinned at its floor is a one-sided question, and ` +
+        `every bar on this page is two-sided.`
+      );
+    }
+  }
+
   if (spec.requiresLoan && moduleRow && moduleRow.loan_principal == null) {
     throw new KnobError(`"${moduleRow.name}" carries no loan, so "${spec.label}" is never read.`);
   }
 
+  if (spec.requiresSalePath && moduleRow) {
+    const sweepable = moduleRow.cash_sweep_priority != null || moduleRow.cash_sweep_target === true;
+    if (!sweepable && !(context.disposals || []).length) {
+      throw new KnobError(
+        `"${moduleRow.name}" is never sold in this plan — no disposal, and it is not a cash-sweep ` +
+        `module — so no gain is ever realised against its cost basis and "${spec.label}" would ` +
+        `move nothing.`
+      );
+    }
+  }
+
   if (spec.requiresTaxable && moduleRow) {
-    const hasIncome = (context.streams || []).some((st) => st.direction === 'income');
+    // ⚠️ An income stream that earns NOTHING is not income to tax. An `amount`-mode stream sitting
+    // at 0 passed this check while producing no taxable figure at all — `Misc Investments` carried
+    // one, so its module tax rate was offered and measured $0 both ways.
+    const hasIncome = (context.streams || []).some(
+      (st) => st.direction === 'income'
+        && (st.mode !== 'amount' || Number(st.amount) || Number(st.change_count))
+    );
     const hasGains = Boolean(moduleRow.has_valuation) && (context.disposals || []).length > 0;
     if (!hasIncome && !hasGains) {
       throw new KnobError(

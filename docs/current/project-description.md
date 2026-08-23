@@ -105,6 +105,10 @@ psproject/                          # ~/Programs/fin symlinks here
 ├── Scripts/                        # dev-start, deploy-to-production, sync-db-prod-to-dev,
 │                                   # fbar-package (accountant CSV from the live report),
 │                                   # fbar-worksheet, seed-fbar-designations,
+│                                   # sweep-sensitivity-knobs (CR085 §22 — applies every
+│                                   #   sensitivity knob and MEASURES whether it moves the
+│                                   #   plan; a dead knob is a bar that reads "this does
+│                                   #   not matter" when the engine never reads the field),
 │                                   #  bump-version, rebuild-frontend, backup-to-remote, v4-up, …
 ├── .github/workflows/ci.yml        # CI: backend tests (fresh DB) + frontend build + e2e + secret scan
 ├── docker-compose.yml              # Production (project name: psproject)

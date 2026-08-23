@@ -1129,3 +1129,93 @@ browser on dev: chip added and marked custom, `150` refused with the level messa
 refused with the number message, the cost meter tracking, the mismatch note firing on two level
 knobs at ±35% and ±10%, and the whole thing surviving a reload via the existing localStorage
 selection. Zero console errors. Both themes screenshotted.
+
+---
+
+## 22. The sweep — the gate that never existed (2026-08-23)
+
+Ten defects of one shape reached this page, and **nine were found by a person looking at the
+output**. The catalogue had been checked against the engine *one field at a time, as failures
+surfaced*, and never in one pass. This is that pass.
+
+**It does not reason about the engine — it measures it.** `Scripts/sweep-sensitivity-knobs.js`
+applies every knob the picker offers, down and up, against a throwaway copy, rebuilds for real, and
+hashes the generated entries. Both sides identical to the untouched build ⇒ the knob moved
+**nothing**. 175 knobs, 351 builds, about four minutes.
+
+### What one run found
+
+| | before | after |
+|---|---|---|
+| knobs offered | 175 | **141** |
+| moved nothing either side | 15 | **9** |
+| **refused before building — killed the whole run** | **28** | **0** |
+| moved the plan | 129 | **129** — every one kept |
+
+⚠️ **The 28 refusals were worse than the dead bars, and nobody had noticed them.** A knob that
+cannot be *applied* throws inside `feasibilityPass`, which runs before the first build and aborts
+the **entire run** — so one bad knob among eight threw away the other seven, and did it with
+`violates check constraint "fc_disposal_cost_pct_range"` for a message. Two causes:
+
+- **11 × `disposal_cost_pct` on its schema floor.** `CHECK (>= 0 AND < 100)`, and eleven of the
+  twenty disposals on `2026 Base` carry **NULL**, which the spec reads as 0 — so the low side of any
+  band is negative. Now refused in the picker (`min: 0`), plus a readable refusal in `perturb` for a
+  band wide enough to cross a floor the value itself clears (±5pp on a 4% cost).
+- **18 × a `level` knob on a zero.** `perturb` always refused these — `base × (1 ± band/100)` is 0
+  whatever the band — but it refused at *apply* time. Same statement, one stage earlier. Most are
+  disposals whose amount of 0 is the **"Full disposal" sentinel**: a real disposal with no magnitude
+  to scale.
+
+### Three dead knobs closed by reading the engine, once the sweep pointed at them
+
+- **`base_value` is read for exactly one thing — the capital gain when the module is sold.**
+  Measured by diffing which rows move: lowering `Fidelity Fixed Income`'s basis changed **217 rows,
+  every one downstream of `Taxes`**. There are two ways to be sold — an explicit disposal, or the
+  **cash sweep** draining you — and Fidelity is the sweep *primary*, which is why it moves while
+  `Misc Investments`, `OCME` and `USD Credit Cards` do not. Now `requiresSalePath`.
+- **An income stream that earns nothing is not income to tax.** `requiresTaxable` counted any
+  `direction = 'income'` stream, so `Misc Investments`' idle one kept its module tax rate on offer.
+
+### ⚠️ And the sweep caught MY fix being wrong, which is the point of it
+
+The first version of the stream gate read *"`amount` is 0 ⇒ `growth_mult` and `tax_rate_override`
+are inert"*. That is false: **`forecast_stream_changes` rows supply per-year figures for a stream
+whose `amount` column is 0** — `Social Security`, `One-Off Items` and `Retirement Home` all sit at 0
+and all move the plan through theirs. The gate hid **five working knobs**, and the sweep said so:
+the `ok` count fell from 129 to 124 and the diff named them. The rule is now *no amount **and** no
+change rows*, and **the re-sweep confirms all 129 originally-working knobs are still offered.**
+
+That check — *did I hide anything that worked?* — is the half a precondition list can never do for
+itself, and it is why this is a script rather than a one-off audit.
+
+### The 9 that remain dead are DYNAMIC, and are deliberately not gated
+
+They depend on scenario data, not on schema or engine shape, so a static predicate would be a guess:
+
+- `SP - Panorama Mar 4` / `SP - Sea Senses` streams — the module is **disposed on 2026-07-01**, the
+  first day of the period, so its streams never run.
+- `Tax` streams — ⚠️ **the module produces no `forecast_entries` at all** despite carrying a 55,103
+  expense stream. That is a finding about the *plan*, not the page, and belongs on the roadmap.
+- `Tax Liabilities · Tax rate (gains)` — market value equals cost basis, so the gain is exactly 0
+  and no rate changes it.
+- `US - Nokomis · Cost basis` — the module carries `tax_rate_override = 0`, so no gain is ever taxed.
+- `Car Purchase Chris · Growth (× inflation)` — its four change rows are absolute amounts, which the
+  multiplier does not scale.
+
+**The three one-sided knobs are correct, not defects:** `base_value` moves only DOWN on
+`Fidelity Fixed Income` because a higher basis makes the sale a **loss**, and the model gives no
+loss relief. ⚠️ The sweep reported all three backwards at first — the ternary picked the side that
+did *not* move — which is worth recording as its own small lesson: a diagnostic that names the wrong
+half is worse than none.
+
+### Standing use
+
+Run it after any change to `sensitivityKnobs.js`, to `fcbuilder-*.js`, or to a scenario's shape:
+
+```
+node Scripts/sweep-sensitivity-knobs.js "2026 Base"
+```
+
+A DEAD result is a **candidate, not a verdict** — it says the field is inert *on this scenario*.
+Confirm each against the engine, and gate on the engine's precondition, never on "it was zero that
+time".

@@ -214,7 +214,100 @@ describe("⚠️ growth_mult is only read on an `amount` stream", () => {
 
   it("allows it on an amount stream, which is the branch that reads it", () => {
     expect(() => _internals.assertApplicable(
-      spec("stream", "growth_mult"), { mode: "amount", direction: "expense" }, mod
+      spec("stream", "growth_mult"), { mode: "amount", direction: "expense", amount: 100 }, mod
+    )).not.toThrow();
+  });
+
+  // ⚠️ THE CR085 SWEEP FOUND THIS ONE BY MEASURING, AND THEN FOUND THE FIRST FIX WRONG.
+  //
+  // A stream with no amount has nothing for a multiplier to scale — but `amount = 0` alone is NOT
+  // that condition: `forecast_stream_changes` rows supply per-year figures, and `Social Security`,
+  // `One-Off Items` and `Retirement Home` all sit at 0 while moving the plan through theirs.
+  // Gating on the column alone hid five WORKING knobs, which the sweep caught as its `ok` count
+  // falling from 129 to 124.
+  it("refuses it when there is no amount AND no schedule of changes", () => {
+    expect(() => _internals.assertApplicable(
+      spec("stream", "growth_mult"), { mode: "amount", direction: "expense", amount: 0 }, mod,
+      { changeCount: 0 }
+    )).toThrow(/no amount and no schedule/);
+  });
+
+  it("⚠️ ALLOWS it at amount 0 when change rows supply the figures", () => {
+    expect(() => _internals.assertApplicable(
+      spec("stream", "growth_mult"), { mode: "amount", direction: "expense", amount: 0 }, mod,
+      { changeCount: 1 }
+    )).not.toThrow();
+  });
+});
+
+describe("⚠️ knobs that could not be APPLIED used to kill the whole run", () => {
+  const { _internals } = require("../sensitivityKnobs");
+  const mod = { name: "m", has_valuation: true, setup_status: "include" };
+  const spec = (over) => ({
+    entity: "disposal", field: "disposal_cost_pct", kind: "rate", label: "Selling cost",
+    nullIs: 0, min: 0, ...over,
+  });
+
+  // `feasibilityPass` applies every knob before the FIRST build and aborts the entire run on the
+  // first failure, so one un-appliable knob among eight threw away the other seven — and did it
+  // with a Postgres constraint name for a message. Eleven of the twenty disposals on `2026 Base`
+  // carry a NULL selling cost, which this spec reads as 0, so the low side of any band is negative
+  // and `CHECK (disposal_cost_pct >= 0 AND < 100)` rejects it.
+  it("refuses a rate already sitting on its schema floor", () => {
+    expect(() => _internals.assertApplicable(spec(), { disposal_cost_pct: null }, mod))
+      .toThrow(/no down side to measure/);
+    expect(() => _internals.assertApplicable(spec(), { disposal_cost_pct: 0 }, mod))
+      .toThrow(/no down side to measure/);
+  });
+
+  it("allows one that has room beneath it", () => {
+    expect(() => _internals.assertApplicable(spec(), { disposal_cost_pct: 6 }, mod)).not.toThrow();
+  });
+
+  it("catches a BAND wide enough to cross a floor that the value itself clears", () => {
+    // ±5pp on a 4% selling cost — legal to offer, illegal to apply, and it used to surface as
+    // `violates check constraint "fc_disposal_cost_pct_range"`.
+    expect(() => _internals.perturb(spec(), 4, 5, "low"))
+      .toThrow(/below the 0 the schema allows/);
+    expect(_internals.perturb(spec(), 4, 1, "low")).toEqual({ value: 3 });
+  });
+
+  // The same shape one field over: `perturb` has always refused a LEVEL knob on a zero, but it
+  // refused at APPLY time. The sweep found EIGHTEEN of them live, mostly disposals whose amount of
+  // 0 is the "Full disposal" sentinel — a real disposal with no magnitude to scale.
+  it("refuses a level knob on a zero in the PICKER, not on build 1 of 17", () => {
+    const lvl = { entity: "disposal", field: "amount", kind: "level", label: "Disposal amount", nullIs: 0 };
+    expect(() => _internals.assertApplicable(lvl, { amount: 0 }, mod)).toThrow(/nothing to move/);
+    expect(() => _internals.assertApplicable(lvl, { amount: null }, mod)).toThrow(/nothing to move/);
+    expect(() => _internals.assertApplicable(lvl, { amount: 250 }, mod)).not.toThrow();
+  });
+});
+
+describe("⚠️ the cost basis is read for exactly one thing — the gain on a sale", () => {
+  const { _internals } = require("../sensitivityKnobs");
+  const spec = { entity: "module", field: "base_value", kind: "level", label: "Cost basis",
+    nullIs: 0, requiresValuation: true, requiresSalePath: true };
+  const mod = (over) => ({ name: "m", has_valuation: true, setup_status: "include", ...over });
+
+  // Measured, not reasoned: lowering `Fidelity Fixed Income`'s basis changed 217 rows and every
+  // one of them was downstream of `Taxes`. Fidelity is the cash-sweep PRIMARY, which is why it
+  // moves while `Misc Investments`, `OCME` and `USD Credit Cards` — never sold — do not.
+  it("refuses it on a module that is never sold", () => {
+    expect(() => _internals.assertApplicable(spec, { base_value: 100 }, mod(), { disposals: [] }))
+      .toThrow(/never sold in this plan/);
+  });
+
+  it("allows it when a disposal realises the gain", () => {
+    expect(() => _internals.assertApplicable(spec, { base_value: 100 }, mod(), { disposals: [{ id: 1 }] }))
+      .not.toThrow();
+  });
+
+  it("allows it when the CASH SWEEP can drain the module, with no disposal at all", () => {
+    expect(() => _internals.assertApplicable(
+      spec, { base_value: 100 }, mod({ cash_sweep_priority: 1 }), { disposals: [] }
+    )).not.toThrow();
+    expect(() => _internals.assertApplicable(
+      spec, { base_value: 100 }, mod({ cash_sweep_target: true }), { disposals: [] }
     )).not.toThrow();
   });
 });

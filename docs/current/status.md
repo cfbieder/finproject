@@ -39,8 +39,14 @@ inside its own fill · P2's trajectory shipped behind an affordance too subtle t
 *fix* then left committed-but-undeployed · a picker that could not say **which** knobs were
 selected · and the custom-band marker whose dashes were painted the colour of the chip's own fill.
 ⚠️ **Nine of the ten were found by a person looking at the output; ONE was caught by a gate** — and
-the owner found four of them personally. The unclosed half is that the whitelist has been checked
-against the engine one field at a time, as failures surface, and never swept.
+the owner found four of them personally. **That half is now closed:
+`Scripts/sweep-sensitivity-knobs.js` applies every knob the picker offers, rebuilds for real and
+hashes the entries, so a knob that moves nothing is measured rather than reasoned about.** Its first
+run took the catalogue 175 → 141, cut dead knobs 15 → 9, and found something worse that nobody had
+noticed: **28 knobs could not be APPLIED, and one of those among eight ticked knobs aborted the
+whole run** with a Postgres constraint name for a message. That is now 0. It also caught one of its
+own fixes hiding **five working knobs**, which is the check a precondition list cannot do for
+itself.
 
 🔴 **[CR076](../cr/cr-076-forecast-model-review.md) — the five-reviewer model review; §8 COMPLETE
 across v3.20.0–v3.22.0.** It corrected **our own published figures** and moved numbers eight times.

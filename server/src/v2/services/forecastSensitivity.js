@@ -572,7 +572,9 @@ async function listKnobs(scenarioName, client = db) {
 
   const offer = (spec, row, moduleRow, target, current, streams = [], disposals = []) => {
     try {
-      knobs._internals.assertApplicable(spec, row, moduleRow, { streams, disposals });
+      knobs._internals.assertApplicable(spec, row, moduleRow, {
+        streams, disposals, changeCount: row?.change_count,
+      });
     } catch {
       return;   // not offerable — the setter would refuse it, so the picker does not show it
     }
@@ -596,8 +598,13 @@ async function listKnobs(scenarioName, client = db) {
     // The FC line's name rides along: a module's own `growth_rate` and a stream's `growth_mult`
     // both render as "Growth (× inflation)", so eight modules offered two identical rows for two
     // completely different things — one grows the asset's value, the other grows a stream.
+    // ⚠️ `change_count` rides along because an `amount` of 0 does NOT mean the stream is idle:
+    // `forecast_stream_changes` rows supply per-year figures, and `Social Security`, `One-Off
+    // Items` and `Retirement Home` all sit at 0 while moving the plan through theirs. A gate that
+    // read the column alone hid five working knobs.
     const { rows: streams } = await client.query(
-      `SELECT st.*, l.name AS fc_line_name
+      `SELECT st.*, l.name AS fc_line_name,
+              (SELECT count(*)::int FROM forecast_stream_changes c WHERE c.stream_id = st.id) AS change_count
          FROM forecast_streams st
          LEFT JOIN fc_lines l ON l.id = st.fc_line_id
         WHERE st.module_id = $1 ORDER BY st.direction, st.id`, [m.id]

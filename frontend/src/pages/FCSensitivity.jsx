@@ -224,7 +224,7 @@ export default function FCSensitivity() {
    *
    * The catalogue is `group → module → field`, so the only way in is "which module holds this?".
    * But the natural questions are field-shaped — *are all my growth-vs-inflation assumptions
-   * load-bearing?* — and there are ~10 field labels across 179 knobs with no way to ask about one
+   * load-bearing?* — and there are ~10 field labels across the catalogue with no way to ask about one
    * without opening thirty modules. A page whose whole claim is that it finds the assumption you
    * did not know was load-bearing should not require you to know where it lives.
    */
@@ -297,7 +297,7 @@ export default function FCSensitivity() {
    * ⚠️ THE PAGE HAS TWO MODES AND USED TO RENDER BOTH AT HALF WIDTH.
    *
    * *Compose* — which assumptions? — wants width: four type groups side by side and a search box
-   * over 179 knobs. *Read* — what did they do? — wants width for a seven-column table and a
+   * over the whole catalogue. *Read* — what did they do? — wants width for a seven-column table and a
    * 1200px trajectory. A permanent 300px column served neither, and before the first run roughly
    * three quarters of the page was empty.
    *
@@ -440,7 +440,7 @@ export default function FCSensitivity() {
             <input
               type="search"
               value={query}
-              placeholder="Search 179 assumptions…"
+              placeholder={`Search ${catalogue.length} assumptions…`}
               onChange={(e) => setQuery(e.target.value)}
             />
           </label>
