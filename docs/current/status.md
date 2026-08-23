@@ -8,7 +8,7 @@
 > CR index and roadmap already own, and it is where stale facts collect. Each cut has come from
 > MOVING something that changes on a different clock, never from deleting what is true.
 
-**Last updated:** 2026-08-22 · **Live version:** **v3.34.1** (see `VERSION` / git tags) — CR085 COMPLETE (tornado + trajectory, migration 073); CR083's Latest Estimate (072); CR082 and CR084 complete
+**Last updated:** 2026-08-22 · **Live version:** **v3.35.0** (see `VERSION` / git tags) — CR085 COMPLETE (tornado + trajectory, migration 073); CR083's Latest Estimate (072); CR082 and CR084 complete
 
 ## Current phase
 **The model, since [CR069](../cr/cr-069-forecast-streams.md):** a module is *identity + optional
@@ -121,6 +121,15 @@ the dev-first migration rule, and the fact that **an engine change moves nothing
 scenarios are REGENERATED**. It changes far less often than this file does.
 
 ## Next
+- **[CR085](../cr/cr-085-forecast-sensitivity.md) Tier 2 — accessibility, and most of it is NOT this
+  page:** there is **no visible focus ring anywhere in Fin** (`--shadow-focus` composites to
+  **1.18:1** light / 1.65:1 dark), which is ~15 minutes and the widest-reach fix on the list. Then
+  the band input invisible in dark, `aria-pressed` on the toggles, and three light-mode contrast
+  failures ([§20](../cr/cr-085-forecast-sensitivity.md)).
+- **[CR085](../cr/cr-085-forecast-sensitivity.md) Tier 3 — the page renders *compose* and *read*
+  simultaneously at half width each.** Compose wants a search over 179 knobs; read wants the full
+  width. **Do the multi-band nested bars in the same pass** (their server half is built) rather than
+  drawing a chart into a layout about to move.
 - **[CR085](../cr/cr-085-forecast-sensitivity.md) leftovers** — P0–P3 are all **live**; what is
   still unbuilt is the `Spread %` (`forecast_stream_changes`) knobs, the assumption-list and binary
   knobs cut at sign-off, and §15 cut 5's default knob set, so the picker opens **empty**. The SRQ
