@@ -128,6 +128,27 @@ scenarios are REGENERATED**. It changes far less often than this file does.
   sweep · the `forecast_stream_changes` schedules · the starting set. **The one thing still worth
   doing is not scope: nothing checks that a CHART draws everything it was handed** — every
   display-side instance of this CR's defect class was found by the owner, not by a gate.
+- 🔵 **[CR086](../cr/cr-086-ui-visual-system.md) + [CR087](../cr/cr-087-money-legibility.md) — a
+  whole-app UI review, designed 2026-08-23, nothing built.** CR086 answers the line above: its §8
+  commits `Scripts/check-ui-render.sh`, **the display-half gate** — headless Chromium over all 37
+  routes in both themes, asserting no light surface in dark, real computed contrast, no horizontal
+  overflow, one `<h1>` per route. That live pass **falsified four claims of the static passes that
+  preceded it** (dark mode is *not* broadly broken — 32/37 routes are clean; "698 rgba" was a
+  filtered count, it is **877 and has never moved**), which is the same lesson as CR085's: a grep
+  reasons about the output, a render measures it. **The finding that matters:** over v3.28.3 →
+  v3.37.1 the frontend added **+2,161 CSS lines with zero new `rgba()` and zero new hex** — the
+  colour guard held perfectly — **and 93 new `font-size` declarations at zero token adoption**,
+  because nothing measures that scale. **Six token values are 92% of every contrast failure**, and
+  **45% of those are the two money colours** — the app's contrast problem *is* a money-legibility
+  problem. Mostly fixable by repointing onto `--primary-strong` / `--danger-strong`, both of which
+  already exist. ⚠️ **Pass 1 returned REVISE on both CRs** and falsified 12 + 10 claims, including a
+  **sampling bug in the audit rig itself** (it truncated to 25 rows/route while reporting true totals);
+  corrections recorded in [CR086 §12](../cr/cr-086-ui-visual-system.md) and
+  [CR087 §9](../cr/cr-087-money-legibility.md), not patched over.
+  **CR087 is the carve-out and holds the P0:** `calibrate()` rewrites `opening_balance` across every
+  historical date with **no preview and no audit row**, and the dry-run that would fix it already
+  exists and is never called — the mechanism behind
+  [CR080](../cr/cr-080-feed-accrual-reconcile-mode.md)'s fabricated −32.56 loss.
 - ~~Advisories~~ · ~~Real terms on Compare~~ **BOTH DONE** — all 15 advisories walked, **every one
   already deliberate, no model change** ([CR076 §13](../cr/cr-076-forecast-model-review.md)); two
   rules firing on streams **not in the plan** guarded, 17 → 15

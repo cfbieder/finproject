@@ -10,6 +10,50 @@ Living plan for the Fin project — open Change Requests, known issues, ongoing 
 
 ### 1.1 Open / In-Progress
 
+<a id="cr086"></a>
+- **CR086 — The visual system: four token values, three primitives, and a renderer that runs. 🔵 OPEN — designed 2026-08-23, nothing built.** ([CR086](../cr/cr-086-ui-visual-system.md))
+  Built on a **live headless-Chromium pass over all 37 nav-visible routes in both themes**, which
+  falsified four claims of the two static review passes that preceded it — all recorded in
+  [§4](../cr/cr-086-ui-visual-system.md) rather than dropped. **Dark mode is NOT broadly broken**
+  (32 of 37 routes render zero light-surface leaks; the largest dark defect is **three CSS
+  declarations** of one value painting 324 washed cells on `/forecast-compare`), the quoted
+  "698 rgba literals" was a filtered count (**877 then and 877 now — the metric has never moved**),
+  "five money tables lack tabular figures" is two, and `frontend/dark-audit.mjs` **does not exist**.
+  ⚠️ **The argument is one table:** over v3.28.3 → v3.37.1 the frontend grew **+2,161 CSS lines** and
+  added **zero** new `rgba()` and **zero** new hex — while adding **93 `font-size` declarations at
+  zero token adoption**, so type-scale adoption *fell* to **1.23%** (13 of 1,059). Colour held because
+  `check-inline-hex.sh` ratchets it; type did not because nothing measures it, and
+  `check-dead-tokens.sh` structurally cannot see it. **Six token values are 92% of every contrast failure — 45% of them the two money colours**
+  — `--muted-light` **2.27:1**, `--primary` **3.68:1**, `--success` **3.39:1** on every positive money
+  figure, `--muted` 4.45 on cream — and the fix needs almost no invention because
+  **`--primary-strong: #537453` already exists** from [CR085](../cr/cr-085-forecast-sensitivity.md)'s
+  focus-ring fix (**the one P1 of this review already closed**, v3.36.0). ⚠️ **`--success` is still
+  spreading:** `/budget-le` shipped `+$52,802.82` at **3.22:1** on 2026-08-18, eight days after the
+  defect was measured. [§8](../cr/cr-086-ui-visual-system.md) commits the rig as
+  `Scripts/check-ui-render.sh` — the display-half gate CR085 said was missing after finding
+  **eleven defects of one shape, ten found by a person rather than a gate**.
+
+<a id="cr087"></a>
+- **CR087 — Money legibility: the currency, the column, and the write with no record. 🔵 OPEN — designed 2026-08-23, nothing built.** ([CR087](../cr/cr-087-money-legibility.md))
+  Carved out of CR086 deliberately — that one is how the app *looks*, this is whether a figure can be
+  **read wrong**, and they must not share a priority queue. ⚠️ **Every claim was re-opened and
+  verified by hand at HEAD before being written down**, because a restatement asserted as the engine's
+  behaviour is this project's most-repeated failure. **The server already computes what makes a figure
+  checkable and the UI drops it before the screen.** The book is **47% foreign** and no actuals report
+  names a currency (`reports.js:188-202` sends `currency` + native `total`; `BalanceReport.jsx:125`
+  renders `totalUSD` alone) — and on `/balance-calibration` the currency is **smuggled into the account
+  name** while the queue sorts by `Math.abs(drift)` **across currencies**. **P0 is
+  [§3](../cr/cr-087-money-legibility.md): `calibrate()` rewrites `opening_balance` — one constant
+  across every historical date — with no preview and no audit row, and the dry-run that would fix it
+  already exists and is never called** (`reconcileToFeed.js:585-586` returns `old_opening`/`new_opening`/
+  `sum_tx`; `BalanceReconciliation.jsx:201-202` sends `dryRun: false` in **both** branches; the figures
+  reach the owner at `:219` — **in the toast, after the write**). This is the mechanism behind
+  [CR080](../cr/cr-080-feed-accrual-reconcile-mode.md)'s fabricated −32.56 loss and the reason
+  [CR082](../cr/cr-082-tax-section-fbar-114.md) had to design freeze-on-file around it. Plus three
+  columns that can be read wrong — including **variance sign chosen by
+  `path[0].toLowerCase().includes("expense")`**, so renaming `Expenses` in COA Management flips every
+  variance silently.
+
 <a id="cr085"></a>
 - **CR085 — Forecast sensitivity: which assumption is load-bearing. ✅ P0 + P1 + P2 + P3 BUILT (migration 073); P0/P1 live on prod since v3.32.0, P2 v3.33.0, P3 v3.34.0, the UI review + multi-band v3.35.0, Tier 2/3 + owner-typed bands v3.36.0.** ✅ **The whitelist sweep is BUILT** — `Scripts/sweep-sensitivity-knobs.js` measures every knob instead of reasoning about it ([§22](../cr/cr-085-forecast-sensitivity.md)); first run: 175 → 141 knobs, dead 15 → 9, **run-killers 28 → 0**. ✅ **And §4.1's deferred `forecast_stream_changes` schedules are BUILT** ([§23](../cr/cr-085-forecast-sensitivity.md)) — 14 whole-list knobs, all live, including the one that turned out to be **among the largest levers in the plan**: `Fidelity Fixed Income · Spread %` moves it **−$1.5M / +$1.6M at ±1pp**, on the very stream where the owner's first dev click found a dead knob. Catalogue **154**, 143 live, 8 dead, 0 un-appliable. ✅ **And §15 cut 5's starting set is BUILT** ([§24](../cr/cr-085-forecast-sensitivity.md)) — the picker opens on the five biggest numbers in the plan, captioned as a fact about the balance sheet and **not** a ranking. ⚠️ **The first cold run proved the caption honest:** `Living Expenses · Amount` at **$127,372** ranks FIRST at **−$1.1M**, above `United Beverages · Market value` at **$4,175,595** (−$677.0K) — the smallest number in the set is the biggest lever, a 33× size gap inverted. **CR085 now has no unbuilt scope.**
   A **tornado** over module, stream and scenario-assumption knobs — every point a real
@@ -937,6 +981,8 @@ Release-level history; detail in the linked CR file or [§7 Migration History](#
 
 Small fixes, refactors, and one-off cleanups that don't warrant their own CR file. New work that grows beyond a line item gets promoted to a CR.
 
+- [ ] **`pages/FXOptions.jsx` is dead code with a live CSS namespace** (found 2026-08-23 by both reviewers of [CR086](../cr/cr-086-ui-visual-system.md), independently). No route, no importer — yet `pages/FCSettings.jsx:5` imports `FXOptions.css` and `:41-43` renders `fx-options-header__title` on a page titled "FC Settings", so the namespace lies about what it styles. Delete the page, rename the CSS. Explicitly parked here rather than in CR086 because it is a deletion, not a design.
+- [ ] ⚠️ **A silent 1:1 FX fallback on the actuals side** (found 2026-08-23, [CR087 §8](../cr/cr-087-money-legibility.md)). `server/src/services/reports.js:155-161` returns `{ currency, rate: 1 }` on a rate-lookup failure, so a 1,650,000 PLN balance would post to net worth as **$1,650,000**. It rarely fires — `exchange_rates` holds 6,755 daily EUR/GBP/PLN rows back to 1999-12-30 — but it fires exactly **when a new currency is added, which is when nobody is watching**. The forecast engine was already fixed to **throw** on a currency it cannot convert (migration 064, [status.md](status.md)); this is the same defect on the actuals side, and the same class as the silent money defaults `.claude/rules/data-import.md` forbids on ingestion. Related, same file: the actuals rate is selected by **nearest date** (`ORDER BY ABS(rate_date - $2)`), which can pick a rate dated *after* the as-of.
 - [ ] **Two forecast outputs the engine already computes and never shows — DRAFT THE CR AFTER [CR085](../cr/cr-085-forecast-sensitivity.md) IS IMPLEMENTED** (owner, 2026-08-19). From an owner-requested review of Boldin / Odyssey Money / Monarch; the full mapping of what CR085 already covers is [CR085 §16](../cr/cr-085-forecast-sensitivity.md). **(1) Lifetime tax per scenario** — `2026 Base` carries **183 `Taxes` rows summing −$4,120,870** nominal and no surface totals them, while Boldin's whole moat is lifetime tax as a comparable scenario metric. A `/forecast-compare` row, nominal **and** in today's money, **per scenario** (a cross-scenario total is meaningless): SQL sum + UI row, no schema, no engine. **(2) Concentration / liquidity on the Equity report** — the biggest risk in this plan is the one none of the three products would detect: **United Beverages is $4,175,595 = 33%** of a **$12,587,446** sheet, realised in a single `Full` disposal on 2036-07-01, while the assets the cash sweep can actually sell are **$2.61M = 21%**. `equity.js` already computes value − secured debt per asset per year; add two derived columns plus a `>25% in one module` rule in `fcWarnings.js` — as a **warning, not a chart**, since that panel is where the owner already looks. **Deliberately not folded into CR085:** they share none of its machinery, and its P1 is deferred on delivery cost rather than design ([§15](../cr/cr-085-forecast-sensitivity.md)), so adding scope would make the unblock harder and need a third review pass.
 - [ ] **Formatting fixes from the same review — a patch, not a CR** (2026-08-19). Four, all cross-page UI with no forecast content. **(a) The percentage is missing from every delta chip** — `NetWorthHero.jsx:52-60`, `KpiCards.jsx:96-118` and `MobileHome.jsx:66-69` show the absolute only, so a $32K move reads the same against $748K as against $80K. ⚠️ **Render the % only when the base is non-zero and same-signed** — a percentage of a net-cash-flow base that crosses zero is the misread class [CR076](../cr/cr-076-forecast-model-review.md) exists to remove. **(b) No Δ column on the multi-period balance sheet** — `BalanceReport.jsx:127-137` renders three period columns with no difference, so ~200 rows are subtracted by eye inside the weekly reconcile loop; label the header with which two dates it spans. **(c) `AttentionStrip` is absent from the mobile shell** (only `Home.jsx` mounts it) — "what needs you" is the whole point of a check-in while away; its CSS is 100% tokens so it drops in dark-safe, but `/manual-calibration` is **not** in `MOBILE_REDIRECTS` and that pill would land in the desktop shell. **(d) Two negative-money conventions on one screen** — the Home hero renders `-$1,234` while the KPI cards below render `($1.2K)`; use the `formatOverviewKpi` already exported from `useOverview.js`. Plus: stop compacting the **variance** in `KpiCard` (on FCReview/FCCompare the change value *is* the number being judged, and `$1.2M` hides ±$50K). **Considered, not scheduled:** a four-tile `income · spending · net · savings rate` strip under the cash-flow chart (Monarch's one genuinely copyable report convention), a **% of total** column (buys the Sankey's information at ~1/50th the cost — pick the denominator and label the header with it), row sparklines in Balance Trends (`row.values[]` is already in hand), and extracting a `SegmentedControl` primitive to replace **five** hand-rolled ones. **Rejected:** the Sankey (unreadable at a ~117-category COA, needs a nav home, reopens CR042's ≤8-item IA), minus-sign negatives, and card grids replacing dense tables — Fin's accounting parentheses, `tabular-nums` mono alignment, per-column currency codes and mixed-currency warning are **ahead of all three products** and should not change.
 - [ ] **Four naked hex colours freeze the light palette in dark mode** (found 2026-08-19). `features/Budgets/BudgetRealizationContent.jsx:101,115,129,146` pass `chartColor="#5B8C5B"` / `"#C0504D"` / `"#567856"` / `"#8b5cf6"` into `KpiCard`'s mini-chart — `#8b5cf6` is not in the token set at all. Fix via `useChartTheme()` / `--chart-*`; counted by `check-inline-hex.sh` (161 baselined), so fixing them **shrinks** the baseline, which is the intended direction. Related, lower: `BalanceReport.jsx:73`'s inline `rgba(87, 188, 103, 1)` is dead today only because `BalanceReport.css:71,78` `!important` outranks it.
