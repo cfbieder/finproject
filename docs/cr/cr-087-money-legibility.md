@@ -87,6 +87,13 @@ KPI tiles (`PLN TOTAL` · `USD TOTAL` · `EUR TOTAL`) and an explicit `CCY` colu
 `calibrate()` rewrites `opening_balance`, which shifts **every historical date by one constant**. The
 owner confirms it blind and learns the numbers afterwards.
 
+**Measured on prod 2026-08-23 — this is routine, not rare.** `account_source_mappings` where
+`source='bank-feed'`: **calibrate 24 · mtm 5 · accrue 2**, of which **4 calibrate rows are `ignored`
+with a NULL `account_id`** (unmapped feeds, e.g. the Pekao/OCME connection — see
+[CR060](cr-060-feed-connection-health.md)). So the live figure is **20 calibrate accounts, re-anchored
+monthly by runbook step 5** — and **10 of the 20 are non-USD (PLN 7 · EUR 3), exactly half**, worked
+from a queue that shows no currency and sorts by raw `|drift|` across currencies (§2).
+
 ⚠️ **This is not hypothetical — it is the mechanism behind a real incident.**
 [CR080](cr-080-feed-accrual-reconcile-mode.md) records months of owner calibrations dragging history,
 with migration 065 misreading the residue as a fabricated **−32.56 unrealized loss** before migration

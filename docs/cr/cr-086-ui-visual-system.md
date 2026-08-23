@@ -1,4 +1,4 @@
-# CR086 — The visual system: four token values, three primitives, and a renderer that runs
+# CR086 — The visual system: six token values, three primitives, and a renderer that runs
 
 **Status:** **OPEN** — designed, nothing built.
 **Track:** v3 · **no schema change, no migration.**
@@ -95,8 +95,16 @@ app-wide:
 
 ⚠️ **The margins on `--primary-subtle` (the sidebar tint) are thin — 4.53 and 4.58.** Validate the
 repoint **per surface**, not on white, or the sweep will pass its own guard and still fail on the
-sidebar. And `--growth-*` are aliased by `--chart-*`, which `chartTheme.jsx` resolves into Recharts
-`fill`/`stroke`: **repointing them changes series colours, and no chart assertion exists.**
+sidebar.
+
+⚠️ **Correction, §12 C13 — the charts are NOT at risk, and the draft said they were.** Pass 1 stated
+`--growth-*` are "aliased by `--chart-*`", and this CR repeated it; pass 2 then made decoupling a
+blocker. **Verified false:** every `--chart-*` in `index.css:76-82` is an independent **literal hex** —
+none uses `var()` — so `chartTheme.jsx` resolves them regardless of what `--growth-*` becomes. **The
+money-colour repoint is provably text-only.** What *is* true is quieter: `--chart-rose` and
+`--growth-negative` / `--danger` hold the **same value independently** (`#C0504D`), so after the repoint
+they diverge — charts keep `#C0504D`, text moves to `#A43F3C`. That is defensible (a chart mark is a
+graphical object at 3:1, not text at 4.5:1) but it should be a **stated decision**, not a surprise.
 
 **Reach — re-derived from uncapped data (§12 C1).** Across 37 routes there are **2,364** light-mode
 contrast failures and only **12 distinct failing colours**. Six tokens are **92.3%** of them:
@@ -232,8 +240,8 @@ only *removes* rows from `.modal-adoption-baseline.txt`, which `comm -13` permit
 
 1. **The token repoints** (§3). ⚠️ **Not "one file, five values"** — the real set is `--primary`,
    `--primary-hover`, `--success`, `--growth-positive`, `--growth-negative`, `--danger`, `--muted`,
-   `--muted-light`, **plus their dark twins and the `--chart-*` aliases**. Verify per-surface and in
-   both themes with the §8 rig, and eyeball the charts.
+   `--muted-light`, **plus their dark twins**. ⚠️ **Not the `--chart-*` tokens** — they are independent
+   literals and do not move (§12 C13). Verify per-surface, not on white, and in both themes.
 2. **The three `rgba(248,250,254,.35)` rules** (§4.1). Fixes 324 washed cells on `fc-compare` dark
    plus 27 elsewhere.
 3. **`ConfirmModal` → Radix `<Modal>`** + tokens + `.btn`. Removes 17 hex, the rogue blue, the

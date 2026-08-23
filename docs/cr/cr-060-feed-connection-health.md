@@ -21,6 +21,31 @@ Two incidents inside two months, neither of which the Google-Sheet path could ex
 
 PSD2 consents expire roughly every 90 days, so this is a recurring event, not an accident.
 
+### ⚠️ Both incidents are STALE, and the first was never a fin problem (measured 2026-08-23)
+
+Found while sequencing [CR086](cr-086-ui-visual-system.md)/[CR087](cr-087-money-legibility.md), when a
+PM sign-off used "Pekao unhealthy for a month" to rank this CR ahead of both. **The owner corrected the
+premise and the data agrees.**
+
+- **Bank Pekao is OCME's bank, and fin deliberately ignores it.** Its single upstream feed account is
+  `OC MEDYCYNY ESTETYCZNEJ (PLN) (8781)` — i.e. **OCME**, which [status.md](../current/status.md)
+  records as *a deliberate write-off at −30*. Fin's mapping row (`account_source_mappings` id 440,
+  `source='bank-feed'`) carries **`account_id = NULL` and `ignored = true`**. There is **no account
+  matching `%pekao%` in fin at all**, and `OCME Sp. z o.o.` (id 45) reaches fin via **`pocketsmith`**,
+  not the feed. **No fin figure has ever depended on that connection.**
+- **Every connection carrying feed accounts is `active` and was synced 2026-08-23** — Pekao included,
+  Capital One included, and **Revolut is back to 3 accounts**. All three motivating observations are
+  now historical.
+
+**The design rationale survives; the urgency does not.** "Nothing in the stack could say so" is still
+true and is still the reason to build this. But this CR must not be ranked on a live outage.
+
+**⚠️ And it changes the design.** This CR never mentions `ignored` or unmapped feeds anywhere. As
+scoped, the health surface would alert on **every** upstream connection — so it would report OCME's
+bank at fin forever, for a feed switched off on purpose. **Alerts must scope to feed accounts that are
+mapped (`account_id IS NOT NULL`) and not `ignored`.** Today that is **27 of 31** bank-feed mappings;
+the other **4 are ignored** and must stay silent.
+
 ## Scope (read-only)
 
 - bank-feed: fold `healthy`, `needs_reconnect`, `status_text` and `sync_status` from `GET /connections`
@@ -35,7 +60,7 @@ Minting reconnect links (`POST /connections/{id}/link`), forcing an upstream syn
 anything else needing a **write-scope token**. Those are a separate decision — see CR059 §10 on why a
 write-capable credential in an unattended service is not free.
 
-## Built 2026-07-29 (bank-feed `cc6a9bb`, not yet deployed)
+## Built 2026-07-29 (bank-feed `cc6a9bb`) — **DEPLOYED, live since 2026-08-10** (see §Still to do)
 
 `src/services/upstreamHealth.js` + an additive `upstream` block on
 `/v1/health/feeds`, rendered on bank-feed's own `/admin/routing` page. 18 new tests, 164 green,
