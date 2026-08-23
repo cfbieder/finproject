@@ -11,7 +11,7 @@ Living plan for the Fin project — open Change Requests, known issues, ongoing 
 ### 1.1 Open / In-Progress
 
 <a id="cr086"></a>
-- **CR086 — The visual system: six token values, three primitives, and a renderer that runs. 🔵 OPEN — designed 2026-08-23, nothing built.** ([CR086](../cr/cr-086-ui-visual-system.md))
+- **CR086 — The visual system: six token values, three primitives, and a renderer that runs. 🔄 IN-PROGRESS — §3's money-colour repoint SHIPPED v3.37.2 (2026-08-23); the rest designed, not built.** ⚠️ **§3's money-colour repoint SHIPPED v3.37.2 (2026-08-23):** six token values, **light only**, taking light-mode contrast failures **2,364 → 1,227 (−48%)** with the two money colours and `--success-strong` now failing **zero** times and **dark byte-identical**; the delta ties to prediction within **one** element. Two traps a naive repoint would have hit, both found by deriving the ramp: `--success-strong` was **already failing** and would have ended up **lighter than its own base**, and `--danger-strong` was **already** the target value, so the two `--danger → --danger-strong` gradients would have rendered **flat**.  ([CR086](../cr/cr-086-ui-visual-system.md))
   Built on a **live headless-Chromium pass over all 37 nav-visible routes in both themes**, which
   falsified four claims of the two static review passes that preceded it — all recorded in
   [§4](../cr/cr-086-ui-visual-system.md) rather than dropped. **Dark mode is NOT broadly broken**

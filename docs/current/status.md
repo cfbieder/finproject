@@ -128,7 +128,9 @@ scenarios are REGENERATED**. It changes far less often than this file does.
   sweep · the `forecast_stream_changes` schedules · the starting set. **The one thing still worth
   doing is not scope: nothing checks that a CHART draws everything it was handed** — every
   display-side instance of this CR's defect class was found by the owner, not by a gate.
-- 🔵 **[CR086](../cr/cr-086-ui-visual-system.md) + [CR087](../cr/cr-087-money-legibility.md) — a
+- 🔄 **[CR086](../cr/cr-086-ui-visual-system.md) §3 SHIPPED v3.37.2 (2026-08-23) — light contrast
+  failures 2,364 → 1,227 (−48%), dark byte-identical, delta ties to prediction within one element.
+  [CR087](../cr/cr-087-money-legibility.md) unbuilt. Both from a
   whole-app UI review, designed 2026-08-23, nothing built.** CR086 answers the line above: its §8
   commits `Scripts/check-ui-render.sh`, **the display-half gate** — headless Chromium over all 37
   routes in both themes, asserting no light surface in dark, real computed contrast, no horizontal

@@ -1,6 +1,6 @@
 # CR086 — The visual system: six token values, three primitives, and a renderer that runs
 
-**Status:** **OPEN** — designed, nothing built.
+**Status:** **IN-PROGRESS** — §3's money-colour repoint **SHIPPED v3.37.2 (2026-08-23)**; the rest is designed, not built.
 **Track:** v3 · **no schema change, no migration.**
 **Depends on:** [CR085](cr-085-forecast-sensitivity.md) (added `--primary-strong`) · [CR042](cr-042-ui-look-and-feel.md) (tokens/primitives) · [CR026](cr-026-ui-revamp.md) §14 (the gate it recommended and never shipped).
 **Roadmap anchor:** [project-roadmap.md#cr086](../current/project-roadmap.md)
@@ -238,7 +238,21 @@ only *removes* rows from `.modal-adoption-baseline.txt`, which `comm -13` permit
 
 **Phase 1 — the cheap half. Every item here is S, and together they cover all 37 routes.**
 
-1. **The token repoints** (§3). ⚠️ **Not "one file, five values"** — the real set is `--primary`,
+1. ~~**The token repoints** (§3)~~ ✅ **SHIPPED v3.37.2, 2026-08-23 — the money half.** Measured on the
+   rebuilt bundle over the same 37 routes: **light-mode contrast failures 2,364 → 1,227, −1,137 (−48%)**,
+   with the two money colours and `--success-strong` now failing **zero** times and **dark byte-identical**
+   (146 failures / 352 leaks, unchanged, as intended — it never needed the change). The delta ties to the
+   prediction within **one** element (1,136 predicted / 1,137 actual). Six values moved, light only:
+   `--success` `#1A9E74`→`#0F7A57` · `--success-strong` `#14805E`→`#0B6247` · `--danger` `#C0504D`→`#A43F3C`
+   · `--danger-strong` `#A43F3C`→`#8A342F` · `--growth-positive`/`--growth-negative` to match.
+   ⚠️ **Two traps a naive repoint would have hit, both found by deriving the ramp rather than darkening the
+   two obvious tokens:** `--success-strong` was **already failing** (4.22, 80 elements on
+   `.home-kpi__value--positive`) and would have ended up **lighter than its own base**; and `--danger-strong`
+   was **already** `#A43F3C`, so pointing `--danger` at it would have collapsed the pair and rendered the two
+   `linear-gradient(--danger → --danger-strong)` fills **flat** — the same defect as the Home hero's
+   `--primary → --accent` "gradient" between two identical values. Gates: 4 design guards, eslint clean,
+   **566 frontend tests**. Remaining Phase 1.1 work is the `--primary` / `--primary-hover` / `--muted` /
+   `--muted-light` half. ⚠️ **Not "one file, five values"** — the real set is `--primary`,
    `--primary-hover`, `--success`, `--growth-positive`, `--growth-negative`, `--danger`, `--muted`,
    `--muted-light`, **plus their dark twins**. ⚠️ **Not the `--chart-*` tokens** — they are independent
    literals and do not move (§12 C13). Verify per-surface, not on white, and in both themes.
@@ -395,3 +409,12 @@ consumers · `<PageHeader>` divergence · 13 `formatCurrency*` / 41 `Intl.Number
 **Still open for pass 2:** C5/C6 make §8 a phased gate (3 assertions now, contrast later) — confirm that
 is acceptable, or defer §8 entirely; and C7 means Phase 0's baselines must be re-measured with recorded
 commands **before** any guard is committed.
+
+
+---
+
+## 13. Shipped
+
+| When | What | Measured result |
+|---|---|---|
+| **v3.37.2 · 2026-08-23** | §3's **money-colour repoint** — six token values, light mode only (Phase 1.1, first half) | Light contrast failures **2,364 → 1,227 (−48%)**; `#1A9E74`, `#C0504D` and `#14805E` each **649 / 407 / 80 → 0**; the four new values fail **0** times anywhere; **dark byte-identical**. `fc-review` alone went **594 → 95**. Verified by re-running the §8 rig against the rebuilt bundle on the same data. |
