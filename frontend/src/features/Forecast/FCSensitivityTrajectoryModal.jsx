@@ -23,12 +23,43 @@ import { tornadoColors } from "./utils/fcSeriesPalette.js";
 import useTheme from "../../hooks/useTheme.js";
 import { formatKpiValue } from "../../components/KpiCards.jsx";
 
+/**
+ * Every band this knob was actually probed at, smallest first.
+ *
+ * ⚠️ The lead used to read "Moved ±0.25×" for a knob probed at ±0.25× AND ±0.5× AND ±1× — it
+ * printed the RANKING band, which is the smallest by construction, and so understated the chart
+ * beneath it by a factor of four while sounding precise.
+ */
+function bandsOfRow(result, row) {
+  return [...new Set(
+    (result?.points || []).filter((p) => p.knobId === row?.knobId).map((p) => p.band)
+  )].filter((b) => Number.isFinite(b)).sort((a, b) => a - b);
+}
+
 export default function FCSensitivityTrajectoryModal({
   open, onClose, result, row, shared, combined, combinedState, interaction, metric: rankMetric,
 }) {
   const { theme } = useTheme();
   const [metric, setMetric] = useState(TRAJECTORY_METRICS[0].key);
-  const [mode, setMode] = useState("absolute");
+  /**
+   * ⚠️ THE DEFAULT DEPENDS ON HOW MANY LINES THERE ARE, and absolute is the wrong one past two.
+   *
+   * P2 chose absolute as the default at the owner's request, when this chart carried THREE lines.
+   * A knob at three bands carries SEVEN, and in the absolute view a ±0.25× growth moving ~180K
+   * against a $12M plan draws all seven inside one stroke width — the reader sees a single thick
+   * line and learns nothing, which is the same *present-but-invisible* failure this CR has paid
+   * for five times over.
+   *
+   * Subtracting the base is what makes the fan legible, so a multi-band knob opens on it. A
+   * single-band knob still opens on absolute exactly as before, and the toggle is right there
+   * either way — this changes which view answers the question first, not which views exist.
+   */
+  const bandCount = new Set(
+    (result?.points || []).filter((p) => p.knobId === row?.knobId).map((p) => p.band)
+  ).size;
+  const [modeOverride, setModeOverride] = useState(null);
+  const mode = modeOverride ?? (bandCount > 1 ? "delta" : "absolute");
+  const setMode = setModeOverride;
 
   // `base` comes from the tornado palette, where it is a NEUTRAL and carries a dash. It used to
   // borrow the categorical slot 0 — which is blue, and so is the favourable pole, so the reference
@@ -56,7 +87,7 @@ export default function FCSensitivityTrajectoryModal({
           <p className="fc-sens-trajectory-lead">
             {isCombined
               ? "The plan built once with every one of these moved at the same time — against the plan as it stands."
-              : `Moved ${bandLabel(row?.knob || {})} against the plan as it stands. The bar is only the final year; this is the path it takes to get there.`}
+              : `Moved ${bandsOfRow(result, row).map((b) => bandLabel({ kind: row?.knob?.kind, band: b })).join(" · ") || bandLabel(row?.knob || {})} against the plan as it stands. The bar is only the final year; this is the path it takes to get there.`}
           </p>
           {!isCombined && (
           <div className="fc-sens-trajectory-mode" role="group" aria-label="View">

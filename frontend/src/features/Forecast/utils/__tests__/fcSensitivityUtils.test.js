@@ -6,7 +6,8 @@
 import { describe, expect, it } from "vitest";
 import {
   adverseSideFor, bandChoices, bandLabel, bandMismatch, buildSeconds, combinationsFor,
-  formatKnobValue, interactionSummary, isRegimeChange, knobTrajectory, MAX_BUILDS, plannedBuilds,
+  formatKnobValue, interactionSummary, isRegimeChange, knobTrajectory, MAX_BUILDS, METRICS,
+  plannedBuilds,
   rankKnobs, REGIME_CHANGE_RATIO, validateBand,
 } from "../fcSensitivityUtils.js";
 import { vi } from "vitest";
@@ -142,6 +143,61 @@ describe("knobTrajectory", () => {
       run("k", "high", [[2027, 105], [2028, 120], [2029, 140]]),
     ],
   };
+
+  /**
+   * ⚠️ SIX RUNS BUILT, TWO PLOTTED — the CR's defining defect in its last hiding place.
+   *
+   * `knobTrajectory` used to `.find(x => x.knobId === knobId && x.side === side)`, which takes the
+   * FIRST match regardless of band. A knob probed at ±0.25× AND ±0.5× AND ±1× had all six runs
+   * built, charged for, listed in the per-band table and drawn as nested rectangles in the bar —
+   * and then the trajectory silently drew ONE pair, labelled "down"/"up", with nothing on the page
+   * saying which pair.
+   */
+  it("⚠️ plots every band, not the first one it finds", () => {
+    const multi = {
+      anchor: result.anchor,
+      points: [
+        { ...run("k", "low", [[2027, 90]]), band: 0.5 },
+        { ...run("k", "high", [[2027, 105]]), band: 0.5 },
+        { ...run("k", "low", [[2027, 70]]), band: 1 },
+        { ...run("k", "high", [[2027, 130]]), band: 1 },
+      ],
+    };
+    const row = { knob: { kind: "multiplier" } };
+    const { series } = knobTrajectory(multi, "k", {}, "netAssets", COLORS, "absolute", row, METRICS[0]);
+    expect(series.map((s) => s.name)).toEqual([
+      "base", "down ±0.5×", "up ±0.5×", "down ±1×", "up ±1×",
+    ]);
+    // Each line carries ITS OWN band's numbers — the bug was every band resolving to one point.
+    expect(series.find((s) => s.name === "down ±1×").values[0]).toBe(70);
+    expect(series.find((s) => s.name === "down ±0.5×").values[0]).toBe(90);
+  });
+
+  it("tells the bands apart by weight and opacity, never by a new hue", () => {
+    // §4.2 spends hue on which way the METRIC moved. Six hues would be a rainbow and would
+    // collide with the one thing colour already means on this page.
+    const multi = {
+      anchor: result.anchor,
+      points: [
+        { ...run("k", "low", [[2027, 90]]), band: 0.5 },
+        { ...run("k", "high", [[2027, 105]]), band: 0.5 },
+        { ...run("k", "low", [[2027, 70]]), band: 1 },
+        { ...run("k", "high", [[2027, 130]]), band: 1 },
+      ],
+    };
+    const row = { knob: { kind: "multiplier" } };
+    const { series } = knobTrajectory(multi, "k", {}, "netAssets", COLORS, "absolute", row, METRICS[0]);
+    const downs = series.filter((s) => s.name.startsWith("down"));
+    expect(new Set(downs.map((s) => s.color)).size).toBe(1);          // one hue per side
+    expect(downs[0].opacity).toBeGreaterThan(downs[1].opacity);        // smallest band most solid
+    expect(downs[0].strokeWidth).toBeGreaterThan(downs[1].strokeWidth);
+  });
+
+  it("a single-band knob keeps the bare down/up it always had", () => {
+    // The common case must not churn: no band suffix when there is only one band.
+    const { series } = knobTrajectory(result, "k", {}, "netAssets", COLORS);
+    expect(series.map((s) => s.name)).toEqual(["base", "down", "up"]);
+  });
 
   it("returns base, down and up in the absolute view", () => {
     const { years, series } = knobTrajectory(result, "k", {}, "netAssets", COLORS);

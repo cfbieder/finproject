@@ -1363,3 +1363,53 @@ get in by SIZE, same few-pixel bar, admitted through the other door. Caught by i
 only shrink, and v3.34.1's picker fix records the same reasoning.
 
 **Eleven builds, about six seconds.** With this, CR085 has no unbuilt scope left.
+
+---
+
+## 25. Six runs built, two plotted (2026-08-23)
+
+> *"I do not follow how I see each of the three variants on the graph +/-.25 +/-.5 and +/-1, I
+> should see base plus 6 lines on the graph no?"* — and, on the tornado, *"same here, how can I see
+> effect of each of the 3"*
+
+Yes. **This CR's defining defect, in its last hiding place.**
+
+A knob probed at ±0.25× **and** ±0.5× **and** ±1× had **all six runs built**, charged against the
+build cap, listed in the per-band table and drawn as nested rectangles. Then:
+
+- **`knobTrajectory` did `.find(x => x.knobId === knobId && x.side === side)`** — the FIRST match,
+  regardless of band. It plotted **one pair**, labelled them "down"/"up", and nothing on the page
+  said which pair. Six measurements taken, two shown.
+- ⚠️ **And the tornado's tooltip reported a WRONG NUMBER.** `lowOuter`/`highOuter` are the *widest*
+  band's figures while `payload.band` is the *smallest* — the two differ by construction — so
+  hovering that bar said **"$6.0M (±0.25× up)"** when $6.0M is the **±1×** result. The one place
+  the nested shades could be decoded was decoding them wrongly, by a factor of four.
+- **The modal's lead said "Moved ±0.25×"** for the same reason: it printed the ranking band, which
+  is the smallest by construction.
+
+### Fixed
+
+**The trajectory plots one line per band per side** — base + 6 for a three-band knob, which is
+exactly CR067's seven-series cap. Bands are told apart by **weight and opacity, never a new hue**:
+§4.2 spends hue on which way the *metric* moved, six hues would be a rainbow, and this mirrors the
+nested bars, where the smallest band is the most solid and wider ones recede. A single-band knob
+keeps the bare "down"/"up" it always had — the common case must not churn.
+
+**The tooltip lists every band with its own pair of figures**, which is also the only key the chart
+offers to what the shades mean.
+
+### ⚠️ And the default view had to change, because absolute cannot show six lines
+
+P2 chose **absolute** as the default at the owner's request — when this chart carried **three**
+lines. At seven, a ±0.25× growth moving ~180K against a $12M plan draws every line inside one
+stroke width: the reader sees a single thick line and learns nothing. Verified by screenshot before
+changing anything, then again after.
+
+**A multi-band knob now opens on *Difference from base***, where the six lines fan out cleanly and
+the 2036 kink — the cash sweep responding — is legible. A single-band knob still opens on absolute
+exactly as before, and the toggle is present either way. **This changes which view answers the
+question first, not which views exist**, and it is a deliberate narrowing of an owner decision made
+for a chart that no longer exists.
+
+Three tests pin it: every band plotted with **its own** numbers, one hue per side with opacity and
+weight carrying the band, and the single-band case unchanged.

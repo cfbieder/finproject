@@ -117,6 +117,11 @@ export default function FCTrajectoryChart({
               // Multi-Compare render byte-identically. A dashed line is how a REFERENCE is told
               // from a measurement without spending a categorical hue on it.
               strokeDasharray={s.dash}
+              // CR085 — optional like `dash`, undefined for every existing caller. With one line
+              // per BAND per side the trajectory carries six measurements in two hues, and weight
+              // plus opacity is what separates them without spending a categorical hue on band
+              // size (§4.2 spends hue on which way the METRIC moved).
+              strokeOpacity={s.opacity}
               dot={false}
               activeDot={{ r: 4 }}
               // A year a scenario does not cover stays a GAP. CR040's zero-coalescing lives

@@ -658,3 +658,14 @@
   font-size: 0.72rem;
   line-height: 1.45;
 }
+
+/* The tornado tooltip is the only key the chart offers to what the nested shades mean, so it
+   lists every band with its own pair of figures rather than one value and one band label. */
+.fc-tornado-tip p { margin: 0; }
+.fc-tornado-tip-head { font-weight: 600; color: var(--ink); }
+.fc-tornado-tip-metric { color: var(--ink-tertiary); font-size: 0.72rem; margin-bottom: 0.3rem !important; }
+.fc-tornado-tip table { border-collapse: collapse; font-variant-numeric: tabular-nums; }
+.fc-tornado-tip th,
+.fc-tornado-tip td { padding: 0.05rem 0.4rem 0.05rem 0; text-align: right; font-weight: 400; }
+.fc-tornado-tip th { text-align: left; color: var(--ink-tertiary); }
+.fc-tornado-tip-foot { margin-top: 0.3rem !important; color: var(--ink-tertiary); font-size: 0.68rem; }

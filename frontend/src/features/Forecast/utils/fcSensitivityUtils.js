@@ -258,24 +258,49 @@ export function storedDrift(result, shared) {
 export function knobTrajectory(result, knobId, shared, metricKey, colors, mode = "absolute", row = null, metric = null) {
   if (!result) return { years: [], series: [] };
 
+  /**
+   * ⚠️ EVERY BAND, NOT JUST ONE OF THEM.
+   *
+   * This used to `.find(x => x.knobId === knobId && x.side === side)`, which takes the FIRST match
+   * regardless of band — so a knob probed at ±0.25× AND ±0.5× AND ±1× had all six runs built,
+   * charged for, listed in the per-band table and drawn as nested rectangles in the bar, and then
+   * the trajectory silently plotted **one pair** and labelled them "down"/"up". Six measurements
+   * taken, two shown, and nothing on the page said which two.
+   *
+   * That is this CR's defining defect in its last hiding place: present, paid for, and invisible.
+   */
+  const points = (result.points || []).filter((x) => x.knobId === knobId);
+  const bands = [...new Set(points.map((p) => p.band).filter((b) => Number.isFinite(b)))]
+    .sort((a, b) => a - b);
+  const plotted = bands.length ? bands : [null];
+
+  // ⚠️ COLOUR FOLLOWS THE METRIC, NEVER THE SIDE — the same rule §4.2 sets for the bars. This used
+  // to be `side === "low" ? adverse : favourable`, so the tornado and this chart used OPPOSITE
+  // rules: `Car Expenses · Amount` down is +$256.5K and draws BLUE in the bar (cutting an expense
+  // helps) and RED here, one click apart. On the shortfall metric every knob inverted.
+  const adverseSide = row && metric ? adverseSideFor(row, metric) : "low";
+
   const runs = [
     { key: "base", label: "base", entries: result.anchor?.entries, width: 2, color: colors.base, dash: BASE_DASH },
-    ...["low", "high"].map((side) => {
-      const p = (result.points || []).find((x) => x.knobId === knobId && x.side === side);
-      // ⚠️ COLOUR FOLLOWS THE METRIC, NEVER THE SIDE — the same rule §4.2 sets for the bars.
-      // This used to be `side === "low" ? adverse : favourable`, so the tornado and this chart
-      // used OPPOSITE rules: `Car Expenses · Amount` down is +$256.5K and draws BLUE in the bar
-      // (cutting an expense helps) and RED here, one click apart. On the shortfall metric, where
-      // down is the good direction, every knob inverted.
-      const adverseSide = row && metric ? adverseSideFor(row, metric) : "low";
+    ...plotted.flatMap((band, bi) => ["low", "high"].map((side) => {
+      const p = points.find((x) => x.side === side && (band == null || x.band === band));
+      const dir = side === "low" ? "down" : "up";
       return {
-        key: side,
-        label: side === "low" ? "down" : "up",
+        key: `${side}:${band ?? ""}`,
+        // A single band keeps the bare "down"/"up" it always had — the common case must not churn.
+        label: plotted.length > 1
+          ? `${dir} ${bandLabel({ kind: row?.knob?.kind, band })}`
+          : dir,
         entries: p?.entries,
-        width: 1.75,
+        // Same hue per side, told apart by weight — the SAME encoding the nested bars use, where
+        // the smallest band is the most solid and the wider ones recede. Two hues plus opacity is
+        // six distinguishable lines; six hues would be a rainbow, and §4.2 spends hue on the
+        // metric's direction, not on band size.
+        width: plotted.length > 1 ? 1.4 + (0.6 * (plotted.length - bi)) / plotted.length : 1.75,
+        opacity: plotted.length > 1 ? 1 - (0.5 * bi) / plotted.length : undefined,
         color: side === adverseSide ? colors.adverse : colors.favourable,
       };
-    }),
+    })),
   ].filter((r) => Array.isArray(r.entries) && r.entries.length);
 
   const matrices = runs.map((r) => ({ ...r, matrix: matrixFor(r.entries, shared) }))
@@ -305,7 +330,11 @@ export function knobTrajectory(result, knobId, shared, metricKey, colors, mode =
       name: r.label,
       color: r.color,
       dash: r.dash,
-      strokeWidth: asDelta ? 2 : r.width,
+      // ⚠️ The delta view flattened every band to one width, which unpicked exactly the encoding
+      // that tells six lines apart. Weight and opacity carry the BAND in both views; only the
+      // scale of the y-axis differs between them.
+      strokeWidth: r.width,
+      opacity: r.opacity,
       // Interior gaps stay gaps: a year the engine wrote no rows for is a break in the line,
       // not a collapse to zero.
       values: years.map((y) => {

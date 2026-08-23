@@ -211,14 +211,47 @@ export default function FCTornadoChart({ rows, metric, anchor, onSelect, onCombi
           />
           {/* The neutral midpoint a diverging scale needs — a gray, never a third hue. */}
           <ReferenceLine x={0} stroke={colors.axis} strokeWidth={1.5} />
+          {/* ⚠️ THE TOOLTIP PAIRED THE OUTER VALUE WITH THE RANKING BAND'S LABEL.
+              `lowOuter`/`highOuter` are the WIDEST band's figures while `payload.band` is the
+              SMALLEST — the two deliberately differ (§the row construction above) — so hovering a
+              three-band bar reported "$6.0M (±0.25× up)" when $6.0M is the **±1×** result. A
+              number attached to the wrong band is worse than no tooltip: it is the one place the
+              nested rectangles could be decoded, and it was decoding them wrongly.
+
+              It now lists EVERY band with its own figure, which is also the only key the chart
+              offers to what the nested shades mean. */}
           <Tooltip
             contentStyle={tooltipStyle}
             cursor={{ fill: chrome.grid, fillOpacity: 0.35 }}
-            formatter={(value, name, item) => [
-              `${formatKpiValue(value)}  (${item?.payload?.band ?? ""} ${name})`,
-              metric?.label ?? "",
-            ]}
-            labelFormatter={(l) => l}
+            content={({ active, payload, label }) => {
+              const d = payload?.[0]?.payload;
+              if (!active || !d) return null;
+              const bands = d.bands?.length
+                ? d.bands
+                : [{ band: d.rankBand, low: d.low, high: d.high }];
+              return (
+                <div style={tooltipStyle} className="fc-tornado-tip">
+                  <p className="fc-tornado-tip-head">{label}</p>
+                  <p className="fc-tornado-tip-metric">{metric?.label ?? ""}</p>
+                  <table>
+                    <tbody>
+                      {bands.map((bnd) => (
+                        <tr key={bnd.band}>
+                          <th scope="row">{bandLabel({ kind: d.kind, band: bnd.band })}</th>
+                          <td>{formatKpiValue(bnd.low)}</td>
+                          <td>{formatKpiValue(bnd.high)}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                  {bands.length > 1 && (
+                    <p className="fc-tornado-tip-foot">
+                      down · up, per band — the SPACING is the finding
+                    </p>
+                  )}
+                </div>
+              );
+            }}
           />
           {/* 2px surface gap between the two bars of a row — `barGap` in surface, not a stroke. */}
           <Bar

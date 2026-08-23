@@ -8,7 +8,7 @@
 > CR index and roadmap already own, and it is where stale facts collect. Each cut has come from
 > MOVING something that changes on a different clock, never from deleting what is true.
 
-**Last updated:** 2026-08-23 · **Live version:** **v3.37.0** (see `VERSION` / git tags) — **CR085 COMPLETE with NO unbuilt scope** (tornado + trajectory + multi-band + owner-typed bands + the knob sweep + stream schedules + a starting set, migration 073); CR083's Latest Estimate (072); CR082 and CR084 complete
+**Last updated:** 2026-08-23 · **Live version:** **v3.37.1** (see `VERSION` / git tags) — **CR085 COMPLETE with NO unbuilt scope** (tornado + trajectory + multi-band + owner-typed bands + the knob sweep + stream schedules + a starting set, migration 073); CR083's Latest Estimate (072); CR082 and CR084 complete
 
 ## Current phase
 **The model, since [CR069](../cr/cr-069-forecast-streams.md):** a module is *identity + optional
@@ -56,6 +56,14 @@ the picker on the five biggest numbers in the plan, captioned as a fact about th
 **not** a ranking — which the first cold run immediately vindicated: `Living Expenses · Amount` at
 **$127,372** ranks FIRST at **−$1.1M**, above `United Beverages · Market value` at **$4,175,595**.
 **Size and sensitivity are different things, and a 33× size gap inverted says so.**
+
+⚠️ **An ELEVENTH instance surfaced within the hour, and it was the same defect one level down.** A
+knob probed at three bands had **all six runs built**, charged for, tabulated and drawn as nested
+rectangles — and the trajectory plotted **two of them**, while the tornado's tooltip paired the
+*widest* band's figure with the *smallest* band's label (**"$6.0M (±0.25×)"** for a ±1× result).
+Fixed in v3.37.1: one line per band per side, told apart by weight and opacity rather than a new
+hue, and a tooltip that lists every band with its own numbers. **The owner has now found five of
+the eleven.**
 
 🔴 **[CR076](../cr/cr-076-forecast-model-review.md) — the five-reviewer model review; §8 COMPLETE
 across v3.20.0–v3.22.0.** It corrected **our own published figures** and moved numbers eight times.
