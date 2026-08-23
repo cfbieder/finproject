@@ -17,7 +17,7 @@
  */
 import PropTypes from "prop-types";
 import {
-  Bar, BarChart, Cell, LabelList, ReferenceLine, ResponsiveContainer,
+  Bar, BarChart, LabelList, ReferenceLine, ResponsiveContainer,
   Tooltip, XAxis, YAxis,
 } from "recharts";
 import useTheme from "../../hooks/useTheme.js";
@@ -26,6 +26,65 @@ import { bandLabel, knobValuePair } from "./utils/fcSensitivityUtils.js";
 import { formatKpiValue } from "../../components/KpiCards.jsx";
 
 const ROW_HEIGHT = 46;
+
+/**
+ * ⚠️ NESTED BARS — one row per knob, one rectangle per band, all anchored at zero.
+ *
+ * A knob may be probed at ±10% AND ±20% AND ±50%. Drawing those as three rows would triple the
+ * chart and let one knob dominate the sort; drawing only the widest would hide the shape of the
+ * response. Nested rectangles show both at once, and the SPACING between them is the finding: if
+ * ±50% is not five times ±10%, the plan does not respond linearly and something (usually the cash
+ * sweep) has kicked in.
+ *
+ * recharts gives the shape one value's geometry, so the inner bands are scaled off it against the
+ * same x-scale — `width_b = width * |value_b| / |value_outer|` — anchored at the zero end, which
+ * is the right edge for a bar drawn left of the axis and the left edge for one drawn right.
+ */
+function NestedBar(props) {
+  const { x, y, width, height, value, payload, side, colorFor } = props;
+  if (!Number.isFinite(value) || value === 0) return null;
+  // ⚠️ Falls back to the single plotted value. A row without band detail — an older result, or a
+  // caller that never asked for bands — must still draw ITS bar; returning nothing here would
+  // render an empty chart, which is this CR's defining failure wearing yet another hat.
+  const detail = (payload?.bands || []).filter((bnd) => Number.isFinite(bnd[side]));
+  const bands = detail.length ? detail : [{ band: null, [side]: value }];
+  const outer = Math.abs(value) || 1;
+  const negative = value < 0;
+  const left = Math.min(x, x + width);
+  const right = Math.max(x, x + width);
+  const anchorX = negative ? right : left;
+
+  // Widest first, so the smaller bands paint on top of it.
+  const ordered = [...bands].sort((a, bnd) => Math.abs(bnd[side]) - Math.abs(a[side]));
+  return (
+    <g>
+      {ordered.map((bnd, i) => {
+        const w = (Math.abs(bnd[side]) / outer) * Math.abs(width);
+        const h = Math.max(height - i * 4, 4);          // each inner band a little thinner
+        return (
+          <rect
+            key={bnd.band}
+            x={negative ? anchorX - w : anchorX}
+            y={y + (height - h) / 2}
+            width={Math.max(w, 1)}
+            height={h}
+            rx={2}
+            fill={colorFor(bnd[side])}
+            // The nest reads as depth rather than as separate series: same hue, the outer bands
+            // lighter so the ranking band stays the most solid mark in the row.
+            fillOpacity={0.35 + (0.65 * (i + 1)) / ordered.length}
+          />
+        );
+      })}
+    </g>
+  );
+}
+
+NestedBar.propTypes = {
+  x: PropTypes.number, y: PropTypes.number, width: PropTypes.number, height: PropTypes.number,
+  value: PropTypes.number, payload: PropTypes.object, side: PropTypes.string,
+  colorFor: PropTypes.func,
+};
 
 /**
  * The value at the OUTER end of each bar, so magnitude is readable without hovering.
@@ -86,12 +145,19 @@ export default function FCTornadoChart({ rows, metric, anchor, onSelect, onCombi
     now: knobValuePair(r.knob.kind, r.knob.currency, r.knob.currentValue, r.knob.currentValueUsd),
     lowAt: knobValuePair(r.knob.kind, r.knob.currency, r.lowValue, r.lowValueUsd),
     highAt: knobValuePair(r.knob.kind, r.knob.currency, r.highValue, r.highValueUsd),
+    rankBand: r.rankBand,
+    bands: r.bands || [],
+    // ⚠️ The BAR's value is the OUTERMOST band, so the plotted geometry spans the widest measured
+    // move; the inner bands are drawn inside it, scaled off the same x-scale. Ranking still runs
+    // on `low`/`high` (the ranking band) — the sort and the drawing deliberately differ.
+    lowOuter: (r.bands || []).reduce((m, x) => (Math.abs(x.low) > Math.abs(m) ? x.low : m), r.low),
+    highOuter: (r.bands || []).reduce((m, x) => (Math.abs(x.high) > Math.abs(m) ? x.high : m), r.high),
   }));
 
   // A symmetric domain, so a bar's LENGTH is comparable left to right. An auto domain would make
   // a one-sided knob look balanced.
   const extent = Math.max(
-    ...data.flatMap((d) => [Math.abs(d.low), Math.abs(d.high)]),
+    ...data.flatMap((d) => [Math.abs(d.lowOuter), Math.abs(d.highOuter)]),
     1
   );
 
@@ -156,36 +222,32 @@ export default function FCTornadoChart({ rows, metric, anchor, onSelect, onCombi
           />
           {/* 2px surface gap between the two bars of a row — `barGap` in surface, not a stroke. */}
           <Bar
-            dataKey="low"
-            barSize={13}
+            dataKey="lowOuter"
+            barSize={15}
             radius={[4, 4, 4, 4]}
             isAnimationActive={false}
+            shape={(props) => <NestedBar {...props} side="low" colorFor={colorFor} />}
             // ⚠️ recharts passes the datum FIRST and the index SECOND. Reading `d.index` gave
             // `undefined` → `rows[-1]` → `undefined`, so every bar click was a no-op while
             // `cursor: pointer` promised otherwise. Verified dead in a browser before this fix.
             onClick={(_d, i) => onSelect?.(rows[i])}
             cursor={onSelect ? "pointer" : undefined}
           >
-            {data.map((d) => (
-              <Cell key={`low-${d.label}`} fill={colorFor(d.low)} />
-            ))}
-            <LabelList dataKey="low" content={(p) => <OuterLabel {...p} ink={chrome.ink} />} />
+            <LabelList dataKey="lowOuter" content={(p) => <OuterLabel {...p} ink={chrome.ink} />} />
           </Bar>
           <Bar
-            dataKey="high"
-            barSize={13}
+            dataKey="highOuter"
+            barSize={15}
             radius={[4, 4, 4, 4]}
             isAnimationActive={false}
+            shape={(props) => <NestedBar {...props} side="high" colorFor={colorFor} />}
             // ⚠️ recharts passes the datum FIRST and the index SECOND. Reading `d.index` gave
             // `undefined` → `rows[-1]` → `undefined`, so every bar click was a no-op while
             // `cursor: pointer` promised otherwise. Verified dead in a browser before this fix.
             onClick={(_d, i) => onSelect?.(rows[i])}
             cursor={onSelect ? "pointer" : undefined}
           >
-            {data.map((d) => (
-              <Cell key={`high-${d.label}`} fill={colorFor(d.high)} />
-            ))}
-            <LabelList dataKey="high" content={(p) => <OuterLabel {...p} ink={chrome.ink} />} />
+            <LabelList dataKey="highOuter" content={(p) => <OuterLabel {...p} ink={chrome.ink} />} />
           </Bar>
         </BarChart>
       </ResponsiveContainer>
@@ -198,6 +260,8 @@ export default function FCTornadoChart({ rows, metric, anchor, onSelect, onCombi
         <caption>
           Each knob moved on its own, everything else held still. The ± is the move that produced
           the bar — so a longer bar is not automatically a bigger risk.
+          {" "}Ranked on the smallest band each knob carries, so a knob probed harder does not
+          outrank one probed gently.
           {onSelect && " Open a row to see the path, not just where it ends."}
         </caption>
         <thead>
@@ -212,7 +276,7 @@ export default function FCTornadoChart({ rows, metric, anchor, onSelect, onCombi
           </tr>
         </thead>
         <tbody>
-          {data.map((d, i) => (
+          {data.flatMap((d, i) => [
             <tr key={d.label}>
               <th scope="row">
                 {/* The row, not only the bar, opens the trajectory: a 13px bar is a poor hit
@@ -268,7 +332,7 @@ export default function FCTornadoChart({ rows, metric, anchor, onSelect, onCombi
                   graph" — the chart was there, one click away, and invisible as a feature. An
                   affordance nobody finds is the same as one that was never built. */}
               {onSelect && (
-                <td className="fc-tornado-path-cell">
+                <td className="fc-tornado-path-cell" rowSpan={d.bands.length > 1 ? 2 : 1}>
                   <button
                     type="button"
                     className="fc-tornado-path"
@@ -278,8 +342,36 @@ export default function FCTornadoChart({ rows, metric, anchor, onSelect, onCombi
                   </button>
                 </td>
               )}
-            </tr>
-          ))}
+            </tr>,
+            /* ⚠️ THE BANDS ARE THE POINT, SO THEY HAVE TO BE READABLE AS NUMBERS.
+               The nested rectangles show the SHAPE of the response; this row is where you check
+               it. If ±50% is not five times ±10%, the plan does not respond linearly — and that
+               is the finding, not a rounding artefact. */
+            d.bands.length > 1 && (
+              <tr key={`${d.label}-bands`} className="fc-tornado-bandrow">
+                <th scope="row">
+                  <span className="sr-only">{d.label} — </span>each band
+                </th>
+                <td />
+                <td>
+                  {d.bands.map((bnd) => (
+                    <span key={bnd.band}>{bandLabel({ kind: d.kind, band: bnd.band })}</span>
+                  ))}
+                </td>
+                <td>
+                  {d.bands.map((bnd) => (
+                    <span key={bnd.band}>{formatKpiValue(bnd.low)}</span>
+                  ))}
+                </td>
+                <td>
+                  {d.bands.map((bnd) => (
+                    <span key={bnd.band}>{formatKpiValue(bnd.high)}</span>
+                  ))}
+                </td>
+                <td />
+              </tr>
+            ),
+          ])}
         </tbody>
       </table>
 

@@ -93,32 +93,64 @@ export function rankKnobs(result, metricKey, shared) {
     ? Number(result.anchor?.shortfall ?? 0)
     : netAssetsAtEnd(result.anchor?.entries, shared);
 
+  // Points are keyed by (knob, BAND, side) — a knob may carry several bands.
   const byKnob = new Map();
   const applied = new Map();
   for (const p of result.points || []) {
-    if (!byKnob.has(p.knobId)) byKnob.set(p.knobId, {});
-    byKnob.get(p.knobId)[p.side] = metricValue(p, metricKey, shared);
+    const band = p.band ?? "_";
+    if (!byKnob.has(p.knobId)) byKnob.set(p.knobId, new Map());
+    const bands = byKnob.get(p.knobId);
+    if (!bands.has(band)) bands.set(band, {});
+    bands.get(band)[p.side] = metricValue(p, metricKey, shared);
+
     // What the knob was actually moved TO on this side, and from — carried through so the table
     // can print "±0.25× · at 0.55" instead of a band nobody can resolve.
-    if (!applied.has(p.knobId)) applied.set(p.knobId, {});
-    applied.get(p.knobId)[p.side] = p.appliedValue;
-    applied.get(p.knobId)[`${p.side}Usd`] = p.appliedValueUsd;
-    applied.get(p.knobId).before = p.beforeValue;
-    applied.get(p.knobId).beforeUsd = p.beforeValueUsd;
+    if (!applied.has(p.knobId)) applied.set(p.knobId, new Map());
+    const av = applied.get(p.knobId);
+    if (!av.has(band)) av.set(band, {});
+    av.get(band)[p.side] = p.appliedValue;
+    av.get(band)[`${p.side}Usd`] = p.appliedValueUsd;
+    av.set("before", p.beforeValue);
+    av.set("beforeUsd", p.beforeValueUsd);
   }
 
   const rows = [];
   const incomparable = [];
   for (const knob of result.knobs || []) {
-    const sides = byKnob.get(knob.knobId) || {};
-    const lo = sides.low;
-    const hi = sides.high;
-    if (anchor == null || lo == null || hi == null) {
+    const bandMap = byKnob.get(knob.knobId) || new Map();
+    const av = applied.get(knob.knobId) || new Map();
+
+    /**
+     * ⚠️ THE RANKING BAND IS ONE BAND, NAMED.
+     *
+     * If one knob is probed at ±50% and another only at ±10%, sorting by largest impact makes the
+     * first look more important purely because it was pushed harder. That is the "±1pp vs ±10%"
+     * comparability problem amplified, so the sort runs on the SMALLEST band every knob has —
+     * the most conservative common footing — and the others are drawn as context.
+     */
+    const measured = [...bandMap.entries()]
+      .filter(([, v]) => v.low != null && v.high != null)
+      .map(([band, v]) => ({
+        band: band === "_" ? (knob.band ?? null) : Number(band),
+        low: v.low - anchor,
+        high: v.high - anchor,
+        lowValue: av.get(band)?.low,
+        highValue: av.get(band)?.high,
+        lowValueUsd: av.get(band)?.lowUsd ?? null,
+        highValueUsd: av.get(band)?.highUsd ?? null,
+      }))
+      .sort((a, b) => (a.band ?? 0) - (b.band ?? 0));
+
+    if (anchor == null || measured.length === 0) {
       // Surfaced, never dropped. A knob missing from a ranking reads as a knob that does not
       // matter, which is the one thing this chart must not say by omission.
       incomparable.push({ knob, reason: "a point could not be measured" });
       continue;
     }
+
+    const rank = measured[0];
+    const lo = rank.low + anchor;
+    const hi = rank.high + anchor;
     const dLow = lo - anchor;
     const dHigh = hi - anchor;
     const span = Math.max(Math.abs(dLow), Math.abs(dHigh));
@@ -132,20 +164,23 @@ export function rankKnobs(result, metricKey, shared) {
       continue;
     }
 
-    const vals = applied.get(knob.knobId) || {};
     rows.push({
       knobId: knob.knobId,
       knob: {
         ...knob,
-        currentValue: vals.before ?? knob.currentValue,
-        currentValueUsd: vals.beforeUsd ?? null,
+        currentValue: av.get("before") ?? knob.currentValue,
+        currentValueUsd: av.get("beforeUsd") ?? null,
       },
+      // The ranking band's numbers stay on the row, so every existing reader is unchanged.
       low: dLow,
       high: dHigh,
-      lowValue: vals.low,
-      highValue: vals.high,
-      lowValueUsd: vals.lowUsd ?? null,
-      highValueUsd: vals.highUsd ?? null,
+      lowValue: rank.lowValue,
+      highValue: rank.highValue,
+      lowValueUsd: rank.lowValueUsd,
+      highValueUsd: rank.highValueUsd,
+      rankBand: rank.band,
+      /** Every band measured, smallest first — what the nested bars draw. */
+      bands: measured,
       span,
       regimeChange: isRegimeChange(dLow, dHigh),
     });

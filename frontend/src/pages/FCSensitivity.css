@@ -64,15 +64,89 @@
 
 .fc-sensitivity .fc-sens-run:disabled { opacity: 0.5; cursor: default; }
 
+/*
+ * ⚠️ TWO MODES, NOT TWO COLUMNS.
+ *
+ * The page renders *compose* (which assumptions?) or *read* (what did they do?) — never both at
+ * half width. Composing gets the full width for four type groups side by side plus a search over
+ * 179 knobs; reading gets it for a seven-column table and a wide trajectory. The old permanent
+ * 300px column served neither, and before the first run about three quarters of the page was
+ * blank.
+ */
 .fc-sensitivity .fc-sens-body {
   display: grid;
-  grid-template-columns: minmax(260px, 320px) 1fr;
   gap: var(--space-4);
   align-items: start;
 }
 
-@media (max-width: 900px) {
-  .fc-sensitivity .fc-sens-body { grid-template-columns: 1fr; }
+.fc-sensitivity .fc-sens-body--compose { grid-template-columns: 1fr; }
+.fc-sensitivity .fc-sens-body--read { grid-template-columns: 1fr; }
+
+/* Composing: the four groups as columns, no inner scrollbox. */
+.fc-sensitivity .fc-sens-body--compose .fc-sens-picker {
+  max-height: none;
+  overflow: visible;
+}
+
+/* ⚠️ GRID, NOT MULTI-COLUMN. `columns: 4` balances by equalising column HEIGHT, and a group with
+   fifteen modules cannot be split (`break-inside: avoid`), so a 1552px container packed all four
+   groups into two columns and left half the page empty — the exact problem this layout exists to
+   solve. A grid track per group places them side by side regardless of height. */
+.fc-sensitivity .fc-sens-body--compose .fc-sens-groups {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+  gap: var(--space-4);
+  align-items: start;
+}
+
+/* The composition, collapsed to one strip while reading. */
+.fc-sensitivity .fc-sens-strip {
+  display: flex;
+  align-items: baseline;
+  gap: 0.75rem;
+  flex-wrap: wrap;
+  margin-bottom: var(--space-3);
+  padding-bottom: var(--space-3);
+  border-bottom: 1px solid var(--border);
+}
+
+.fc-sensitivity .fc-sens-change {
+  background: none;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 0.3rem 0.7rem;
+  font-size: 0.8rem;
+  color: var(--accent-strong);
+  cursor: pointer;
+  flex: none;
+}
+
+.fc-sensitivity .fc-sens-change:hover { border-color: var(--accent); background: var(--accent-subtle); }
+
+.fc-sensitivity .fc-sens-strip-list {
+  list-style: none;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.2rem 1rem;
+  margin: 0;
+  padding: 0;
+  font-size: 0.8rem;
+  color: var(--ink-tertiary);
+}
+
+.fc-sensitivity .fc-sens-strip-list li { white-space: nowrap; }
+.fc-sensitivity .fc-sens-strip-list span { font-variant-numeric: tabular-nums; }
+
+.fc-sensitivity .fc-sens-search { display: block; margin-bottom: 0.6rem; }
+
+.fc-sensitivity .fc-sens-search input {
+  width: 100%;
+  background: var(--bg);
+  color: var(--ink);
+  border: 1px solid var(--border-strong);
+  border-radius: 6px;
+  padding: 0.4rem 0.6rem;
+  font-size: 0.85rem;
 }
 
 .fc-sensitivity .fc-sens-picker {
@@ -456,4 +530,47 @@
   padding: 0.5rem 0.75rem;
   font-size: 0.85rem;
   color: var(--ink);
+}
+
+/* Several bands per knob: the point of a second band is that if ±50% does not move the plan five
+   times what ±10% does, the response is not linear. Presets, not a free number, because the
+   comparison only means something when the bands are the same across knobs. */
+.fc-sensitivity .fc-sens-band {
+  display: inline-flex;
+  gap: 0.15rem;
+  flex: none;
+}
+
+.fc-sensitivity .fc-sens-band button {
+  background: var(--bg);
+  border: 1px solid var(--border-strong);
+  border-radius: 5px;
+  padding: 0.1rem 0.35rem;
+  font-size: 0.68rem;
+  color: var(--ink-tertiary);
+  cursor: pointer;
+  font-variant-numeric: tabular-nums;
+}
+
+.fc-sensitivity .fc-sens-band button.is-active {
+  background: var(--primary-strong);
+  border-color: var(--primary-strong);
+  color: var(--on-accent);
+  font-weight: 600;
+}
+
+/* The per-band detail row: the nested rectangles show the SHAPE, these are the numbers you check
+   it against. Stacked so each band lines up under the ranking band's own figure. */
+.fc-tornado-bandrow th,
+.fc-tornado-bandrow td {
+  border-bottom: 1px solid var(--border);
+  padding-top: 0;
+  color: var(--ink-tertiary);
+  font-size: 0.72rem;
+}
+
+.fc-tornado-bandrow span {
+  display: block;
+  line-height: 1.5;
+  font-variant-numeric: tabular-nums;
 }

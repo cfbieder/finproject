@@ -972,3 +972,45 @@ nested-bar chart is deliberately held until Tier 3 settles the layout.
   offer one.
 - **The feasibility refusal renders as written** (`white-space: pre-line`) instead of collapsing its
   bulleted list into one run-on sentence.
+
+### Tier 3 — two modes, a search, and the nested bands (2026-08-23)
+
+**The page had two modes and rendered both at half width, permanently.** *Compose* — which
+assumptions? — wants width: four type groups side by side and a search over 179 knobs. *Read* —
+what did they do? — wants it for a seven-column table and a wide trajectory. A fixed 300px column
+served neither, and before the first run roughly three quarters of the page was blank.
+
+Now derived, not stored: `composing || !result || wrongScenario`. Composing gives the picker the
+**full width** (1552px measured, against 320px) with the whole catalogue on one screen; running
+collapses the composition to a one-line strip and hands the results the same full width. **Change
+assumptions** goes back.
+
+⚠️ **CSS multi-column was the wrong primitive and the browser said so.** `columns: 4` balances by
+equalising column *height*, and a group of fifteen modules cannot be split (`break-inside: avoid`),
+so a 1552px container packed all four groups into two columns and left half the page empty — the
+exact problem the layout exists to solve. A grid track per group places them side by side whatever
+their heights. Caught by rendering it, not by reading it.
+
+**Search over the catalogue.** The tree has one axis — `group → module → field` — and the natural
+questions are field-shaped (*are all my growth-vs-inflation assumptions load-bearing?*). A page
+whose claim is that it finds the assumption you did not know was load-bearing should not require
+you to know which module holds it. Typing `growth` narrows 179 knobs to 42.
+
+**Multi-band knobs, as nested bars.** A knob carries a set of bands chosen from presets per kind
+(level ±10/20/50%, rate ±0.5/1/2pp, multiplier ±0.25/0.5/1×, timing ±1/2/5y) — presets rather than
+a free number, because comparing bands across knobs only means anything when they are the same.
+
+⚠️ **The ranking runs on ONE named band — the smallest each knob carries** — because a knob probed
+at ±50% would otherwise outrank one probed at ±10% purely for having been pushed harder. That is
+§4's "±1pp vs ±10%" comparability problem amplified, and the caption says which band the sort used.
+
+The bars are a **custom shape**: one rectangle per band, all anchored at zero, inner bands scaled
+off the outer one against the same x-scale and drawn progressively more solid. **The spacing between
+them is the finding** — if ±50% is not five times ±10%, the plan does not respond linearly. A
+per-band row under each knob carries the same numbers as text, because the rectangles show the
+shape and the numbers are where a reader checks it.
+
+⚠️ **A row with no band detail used to draw NOTHING** — an older result, or any caller that never
+asked for bands, would have rendered an empty chart. The shape now falls back to its own plotted
+value, with a test for it. That is this CR's defining failure wearing yet another hat, caught by an
+existing test rather than in production.

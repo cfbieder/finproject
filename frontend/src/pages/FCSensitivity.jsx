@@ -41,6 +41,18 @@ const GROUP_ORDER = [
  * ("Market value3918992.00") and a 15-digit numeric is not a thing anyone reads — the point of
  * showing it is "is this the field I mean", which wants a shape, not every cent.
  */
+/**
+ * The bands a kind is usually asked at. Several may be picked at once: the whole point of a second
+ * band is that if ±50% does not move the plan five times what ±10% does, the response is NOT
+ * linear — and that is invisible at a single band.
+ */
+const BAND_PRESETS = {
+  rate: [0.5, 1, 2],
+  level: [10, 20, 50],
+  multiplier: [0.25, 0.5, 1],
+  timing: [1, 2, 5],
+};
+
 /** The unit a band is expressed in, for the input's accessible name. */
 function bandUnit(kind) {
   return { rate: "percentage points", level: "percent", multiplier: "multiples", timing: "years" }[kind]
@@ -73,6 +85,8 @@ export default function FCSensitivity() {
   const [metricKey, setMetricKey] = useState(METRICS[0].key);
   const [openRow, setOpenRow] = useState(null);
   const [ranSignature, setRanSignature] = useState(null);
+  const [query, setQuery] = useState("");
+  const [composing, setComposing] = useState(false);
 
   const { start, state, result, error, startCombined, combined, combinedState } =
     useSensitivityRun();
@@ -155,13 +169,23 @@ export default function FCSensitivity() {
       const hit = prev.find((p) => keyOf(p) === id);
       if (hit) return prev.filter((p) => keyOf(p) !== id);
       if (prev.length >= MAX_KNOBS) return prev;
-      return [...prev, { ...k }];
+      return [...prev, { ...k, bands: [k.band] }];
     });
   };
 
-  const setBand = (k, band) => {
+  /**
+   * Toggle one band on a knob. At least one always survives — a knob with no band is a knob that
+   * would run zero builds and draw nothing.
+   */
+  const toggleBand = (k, band) => {
     const id = keyOf(k);
-    setSelected((prev) => prev.map((p) => (keyOf(p) === id ? { ...p, band: Number(band) } : p)));
+    setSelected((prev) => prev.map((p) => {
+      if (keyOf(p) !== id) return p;
+      const have = p.bands || [p.band];
+      const next = have.includes(band) ? have.filter((x) => x !== band) : [...have, band];
+      const bands = (next.length ? next : [band]).sort((a, b) => a - b);
+      return { ...p, bands, band: bands[0] };
+    }));
   };
 
   /**
@@ -173,9 +197,26 @@ export default function FCSensitivity() {
    * prod carries both `Asset` and `Business` — and CR070 records the same rule for module
    * capabilities, for the same reason.
    */
+  /**
+   * ⚠️ THE TREE HAS ONE AXIS AND THE QUESTION HAS TWO.
+   *
+   * The catalogue is `group → module → field`, so the only way in is "which module holds this?".
+   * But the natural questions are field-shaped — *are all my growth-vs-inflation assumptions
+   * load-bearing?* — and there are ~10 field labels across 179 knobs with no way to ask about one
+   * without opening thirty modules. A page whose whole claim is that it finds the assumption you
+   * did not know was load-bearing should not require you to know where it lives.
+   */
+  const visible = useMemo(() => {
+    const q = query.trim().toLowerCase();
+    if (!q) return catalogue;
+    return catalogue.filter(
+      (k) => `${k.module} ${k.label}`.toLowerCase().includes(q)
+    );
+  }, [catalogue, query]);
+
   const grouped = useMemo(() => {
     const byGroup = new Map(GROUP_ORDER.map((g) => [g.key, new Map()]));
-    for (const k of catalogue) {
+    for (const k of visible) {
       const g = byGroup.get(k.group) || byGroup.get("other");
       if (!g) continue;
       if (!g.has(k.module)) g.set(k.module, []);
@@ -184,7 +225,7 @@ export default function FCSensitivity() {
     return GROUP_ORDER
       .map((g) => ({ ...g, modules: [...(byGroup.get(g.key) || new Map()).entries()] }))
       .filter((g) => g.modules.length > 0);
-  }, [catalogue]);
+  }, [visible]);
 
   /**
    * ⚠️ A RESULT BELONGS TO THE RUN THAT PRODUCED IT.
@@ -205,7 +246,7 @@ export default function FCSensitivity() {
    * substring is the kind of comparison that works until a module is renamed.
    */
   const currentSignature = selected
-    .map((k) => `${keyOf(k)}@${k.band}`)
+    .map((k) => `${keyOf(k)}@${(k.bands || [k.band]).join(",")}`)
     .sort()
     .join(";");
   const staleSelection = Boolean(result) && !wrongScenario
@@ -229,6 +270,19 @@ export default function FCSensitivity() {
       : null),
     [ranked, combined, shared]
   );
+
+  /**
+   * ⚠️ THE PAGE HAS TWO MODES AND USED TO RENDER BOTH AT HALF WIDTH.
+   *
+   * *Compose* — which assumptions? — wants width: four type groups side by side and a search box
+   * over 179 knobs. *Read* — what did they do? — wants width for a seven-column table and a
+   * 1200px trajectory. A permanent 300px column served neither, and before the first run roughly
+   * three quarters of the page was empty.
+   *
+   * Derived, not stored: composing while a result exists is an explicit choice, and the absence of
+   * a result is composing by definition.
+   */
+  const mode = composing || !result || wrongScenario ? "compose" : "read";
 
   const canRun = scenario && selected.length > 0 && state.status !== "running";
 
@@ -275,6 +329,7 @@ export default function FCSensitivity() {
           disabled={!canRun}
           onClick={() => {
             setRanSignature(currentSignature);
+            setComposing(false);
             start(scenario, selected);
           }}
         >
@@ -295,11 +350,41 @@ export default function FCSensitivity() {
       {catalogueError && <p className="fc-sens-error" role="alert">{catalogueError}</p>}
       {error && <p className="fc-sens-error" role="alert">{error}</p>}
 
-      <div className="fc-sens-body">
+      {/* READ MODE — the composition collapses to one strip so the results get the full width. */}
+      {mode === "read" && (
+        <div className="fc-sens-strip">
+          <button type="button" className="fc-sens-change" onClick={() => setComposing(true)}>
+            Change assumptions ({selected.length})
+          </button>
+          <ul className="fc-sens-strip-list">
+            {selected.map((k) => (
+              <li key={keyOf(k)}>
+                {k.module} · {k.label}{" "}
+                <span>
+                  {(k.bands || [k.band]).map((b) => bandLabel({ kind: k.kind, band: b })).join(" · ")}
+                </span>
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
+
+      <div className={`fc-sens-body fc-sens-body--${mode}`}>
+        {mode === "compose" && (
         <aside className="fc-sens-picker">
           <h2>
             Knobs <span>{selected.length}/{MAX_KNOBS}</span>
           </h2>
+
+          <label className="fc-sens-search">
+            <span className="sr-only">Search assumptions</span>
+            <input
+              type="search"
+              value={query}
+              placeholder="Search 179 assumptions…"
+              onChange={(e) => setQuery(e.target.value)}
+            />
+          </label>
 
           {/* ⚠️ WHAT IS SELECTED HAS TO BE VISIBLE WITHOUT HUNTING FOR IT.
               The picker is a long scrolled list of collapsed groups, and a selection three modules
@@ -318,7 +403,9 @@ export default function FCSensitivity() {
                 {selected.map((k) => (
                   <li key={keyOf(k)}>
                     <span className="fc-sens-chip-name">{k.module} · {k.label}</span>
-                    <span className="fc-sens-chip-band">{bandLabel(k)}</span>
+                    <span className="fc-sens-chip-band">
+                      {(k.bands || [k.band]).map((b) => bandLabel({ kind: k.kind, band: b })).join(" · ")}
+                    </span>
                     <button
                       type="button"
                       className="fc-sens-chip-drop"
@@ -340,6 +427,7 @@ export default function FCSensitivity() {
               as you don&apos;t edit the scenario in between, the bars are comparable.
             </p>
           )}
+          <div className="fc-sens-groups">
           {grouped.map((group) => (
             <details key={group.key} className="fc-sens-group" open>
               <summary>
@@ -385,16 +473,22 @@ export default function FCSensitivity() {
                       <em>{formatCurrent(k)}</em>
                     </label>
                     {chosen && (
-                      <span className="fc-sens-band">
-                        <input
-                          type="number"
-                          step="0.05"
-                          min="0.01"
-                          value={chosen.band}
-                          onChange={(e) => setBand(k, e.target.value)}
-                          aria-label={`Band for ${module} ${k.label}, in ${bandUnit(k.kind)}`}
-                        />
-                        {bandLabel({ ...chosen, band: chosen.band })}
+                      <span className="fc-sens-band" role="group"
+                        aria-label={`Bands for ${module} ${k.label}, in ${bandUnit(k.kind)}`}>
+                        {(BAND_PRESETS[k.kind] || [chosen.band]).map((b) => {
+                          const on = (chosen.bands || [chosen.band]).includes(b);
+                          return (
+                            <button
+                              key={b}
+                              type="button"
+                              aria-pressed={on}
+                              className={on ? "is-active" : ""}
+                              onClick={() => toggleBand(k, b)}
+                            >
+                              {bandLabel({ kind: k.kind, band: b })}
+                            </button>
+                          );
+                        })}
                       </span>
                     )}
                   </div>
@@ -405,7 +499,14 @@ export default function FCSensitivity() {
               })}
             </details>
           ))}
+
+          </div>
+
+          {grouped.length === 0 && (
+            <p className="fc-sens-note">Nothing matches “{query}”.</p>
+          )}
         </aside>
+        )}
 
         <main className="fc-sens-result">
           {wrongScenario && state.status !== "running" && (

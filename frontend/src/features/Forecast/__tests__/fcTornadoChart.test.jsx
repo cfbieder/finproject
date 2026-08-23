@@ -39,8 +39,10 @@ const rows = [{ knobId: "k1", knob: knob(), low: -120000, high: 90000, span: 120
 const HIGHER = { key: "netAssets", label: "Net assets at the final year", better: "higher" };
 const LOWER = { key: "shortfall", label: "Total unfunded shortfall", better: "lower" };
 
+// The bars are drawn by a custom shape (nested rectangles, one per band), so they are plain
+// <rect> nodes inside the bar group rather than recharts' own `.recharts-rectangle`.
 const fills = () =>
-  [...document.querySelectorAll(".recharts-rectangle")].map((n) => n.getAttribute("fill"));
+  [...document.querySelectorAll(".recharts-bar rect")].map((n) => n.getAttribute("fill"));
 
 afterEach(cleanup);
 
@@ -140,5 +142,43 @@ describe("⚠️ the trajectory has to be FINDABLE", () => {
     setTheme("light");
     render(<FCTornadoChart rows={rows} metric={HIGHER} anchor={0} />);
     expect(screen.queryByRole("button", { name: /see the path/i })).toBeNull();
+  });
+});
+
+
+describe("nested bands", () => {
+  const multi = [{
+    knobId: "k1",
+    knob: knob(),
+    low: -120000, high: 90000, span: 120000, regimeChange: false,
+    rankBand: 0.25,
+    bands: [
+      { band: 0.25, low: -120000, high: 90000 },
+      { band: 0.5, low: -260000, high: 175000 },
+    ],
+  }];
+
+  it("draws one rectangle per band per side", () => {
+    setTheme("light");
+    render(<FCTornadoChart rows={multi} metric={HIGHER} anchor={0} />);
+    // 2 bands × 2 sides
+    expect(document.querySelectorAll(".recharts-bar rect").length).toBe(4);
+  });
+
+  it("⚠️ still draws a bar when a row carries NO band detail", () => {
+    // An older result, or a caller that never asked for bands. Returning nothing would render an
+    // empty chart — this CR's defining failure wearing another hat.
+    setTheme("light");
+    render(<FCTornadoChart rows={rows} metric={HIGHER} anchor={0} />);
+    expect(document.querySelectorAll(".recharts-bar rect").length).toBe(2);
+  });
+
+  it("lists every band as numbers, because the SHAPE is the finding", () => {
+    // If ±0.5× is not twice ±0.25×, the plan does not respond linearly. The rectangles show that;
+    // this row is where a reader checks it.
+    setTheme("light");
+    render(<FCTornadoChart rows={multi} metric={HIGHER} anchor={0} />);
+    expect(screen.getByText("±0.5×")).toBeTruthy();
+    expect(screen.getByText("each band")).toBeTruthy();
   });
 });
