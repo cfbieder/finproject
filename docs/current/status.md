@@ -8,7 +8,7 @@
 > CR index and roadmap already own, and it is where stale facts collect. Each cut has come from
 > MOVING something that changes on a different clock, never from deleting what is true.
 
-**Last updated:** 2026-08-23 · **Live version:** **v3.36.0** (see `VERSION` / git tags) — CR085 COMPLETE (tornado + trajectory + multi-band + owner-typed bands, migration 073); CR083's Latest Estimate (072); CR082 and CR084 complete
+**Last updated:** 2026-08-23 · **Live version:** **v3.37.0** (see `VERSION` / git tags) — **CR085 COMPLETE with NO unbuilt scope** (tornado + trajectory + multi-band + owner-typed bands + the knob sweep + stream schedules + a starting set, migration 073); CR083's Latest Estimate (072); CR082 and CR084 complete
 
 ## Current phase
 **The model, since [CR069](../cr/cr-069-forecast-streams.md):** a module is *identity + optional
@@ -45,8 +45,17 @@ hashes the entries, so a knob that moves nothing is measured rather than reasone
 run took the catalogue 175 → 141, cut dead knobs 15 → 9, and found something worse that nobody had
 noticed: **28 knobs could not be APPLIED, and one of those among eight ticked knobs aborted the
 whole run** with a Postgres constraint name for a message. That is now 0. It also caught one of its
-own fixes hiding **five working knobs**, which is the check a precondition list cannot do for
-itself.
+own fixes hiding **five working knobs**, and then caught the SECOND version of the same fix too —
+which is the check a precondition list cannot do for itself, and the reason it is a script.
+
+⚠️ **And the last two things CR085 deferred both turned out to matter more than the CR thought.**
+The `forecast_stream_changes` **schedules** (§4.1, deferred through P2 and never built) include
+`Fidelity Fixed Income · Spread %`, which moves the plan **−$1.5M / +$1.6M at ±1pp** — on the very
+stream where the owner's first dev click found a dead knob. And §15 cut 5's **starting set** opens
+the picker on the five biggest numbers in the plan, captioned as a fact about the balance sheet and
+**not** a ranking — which the first cold run immediately vindicated: `Living Expenses · Amount` at
+**$127,372** ranks FIRST at **−$1.1M**, above `United Beverages · Market value` at **$4,175,595**.
+**Size and sensitivity are different things, and a 33× size gap inverted says so.**
 
 🔴 **[CR076](../cr/cr-076-forecast-model-review.md) — the five-reviewer model review; §8 COMPLETE
 across v3.20.0–v3.22.0.** It corrected **our own published figures** and moved numbers eight times.
